@@ -18,18 +18,48 @@
 
 ## 시스템 구조 (Sense · Interpret · Act)
 
-```
-[사용자] → [Flutter 앱] ─BLE/Wi-Fi→ [ESP32 브릿지] ─UART→ [Arduino Uno GRBL] → [TB6600 ×3] → [NEMA17 XYZ 갠트리]
-                                          │                                                          │
-                                          │                                              (버튼 물리 누름)
-                                          ▼                                                          ▼
-                                  ┌─────────────────────────────────────────────────────────────────┐
-                                  │  라즈베리파이 (SimpleLay 신규 레이어)                              │
-                                  │   • verifier : 전류·음향 센서로 "진짜 눌렸나" 검증                 │
-                                  │   • controller: 폐루프 — 명령 → 검증 → 실패 시 재시도             │
-                                  │   • intent   : 사용 패턴 학습 + 의도 해석 (공감지능)              │
-                                  │   • api      : 앱/로그 연동                                        │
-                                  └─────────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    user(["사용자"])
+
+    subgraph reused["Touch Bridge 재사용 영역"]
+        app["Flutter 앱"]
+        esp32["ESP32 브릿지"]
+        grbl["Arduino Uno<br/>GRBL"]
+        driver["TB6600 ×3"]
+        gantry["NEMA17<br/>XYZ 갠트리"]
+    end
+
+    subgraph brain["라즈베리파이 · SimpleLay 신규 Brain 레이어"]
+        direction TB
+        api["api<br/>앱·로그 연동"]
+        intent["intent<br/>목적 해석·패턴 학습"]
+        controller["controller<br/>폐루프 제어·재시도"]
+        verifier["verifier<br/>실행 결과 검증"]
+
+        api --> intent --> controller
+        verifier -->|"눌림 판정·신뢰도"| controller
+        controller -->|"실행 상태"| api
+    end
+
+    sensors["전류·음향·접점 센서"]
+    appliance["기존 가전 버튼"]
+
+    user -->|"음성·터치"| app
+    app -->|"BLE / Wi-Fi"| esp32
+    esp32 -->|"UART"| grbl
+    grbl --> driver --> gantry
+    gantry -->|"물리 누름"| appliance
+
+    app <-->|"요청·상태"| api
+    controller -->|"버튼 누름 명령"| esp32
+    appliance -.->|"반응"| sensors
+    sensors -->|"원신호"| verifier
+
+    classDef newLayer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20;
+    classDef reusedLayer fill:#e3f2fd,stroke:#1565c0,stroke-width:1.5px,color:#0d47a1;
+    class api,intent,controller,verifier newLayer;
+    class app,esp32,grbl,driver,gantry reusedLayer;
 ```
 
 | 계층 | 역할 | 하드웨어 | 출처 |
