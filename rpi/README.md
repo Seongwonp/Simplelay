@@ -26,7 +26,10 @@ python -m pytest
   구동하지 않는다. M2에서 연결 방식을 확정한 뒤 `GrblClient` 구현을 추가한다.
 - `MockAlertSink`, `MockSafetyController`: 호출을 기록할 뿐 앱 알림이나 E-STOP을 작동하지 않는다.
   M5와 하드웨어 안전 설계에 맞춘 각 인터페이스 구현이 필요하다.
-- `LlmIntentResolver`: M4용 인터페이스 자리만 있으며 현재는 규칙 기반 변환만 동작한다.
+- `LlmIntentResolver`: 향후 모델 출력 검증과 fallback 설계 후 연결할 인터페이스 자리이며,
+  현재 목적 해석은 규칙 기반으로만 동작한다.
+- `intent.InMemoryUsageLog`, `FixedClock`, `MockPurposeExecutor`: M4를 하드웨어·DB·앱 없이
+  검증하기 위한 구현이다. 운영 DB는 `UsageLog`, 앱 승인 전달은 제안 API 경계 뒤에 연결한다.
 
 보정 명령은 "XY 조정 필요"와 "Z 깊이 증가 필요"만 표현한다. 실제 거리·깊이·대기 시간은
 하드웨어 실측 및 Z 소프트 상한을 정한 뒤 GRBL 어댑터/기기 프로필에서 안전하게 결정해야 한다.
