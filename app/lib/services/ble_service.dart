@@ -17,6 +17,7 @@ class BleService {
   StreamSubscription<List<int>>? _notificationSubscription;
   BluetoothDevice? _device;
   BluetoothCharacteristic? _characteristic;
+  bool _isSimulated = false;
 
   Stream<Map<String, dynamic>> get messages => _messages.stream;
   Stream<BleConnectionState> get connectionState => _state.stream;
@@ -26,7 +27,12 @@ class BleService {
     Duration timeout = const Duration(seconds: 8),
   }) {
     _state.add(BleConnectionState.scanning);
-    FlutterBluePlus.startScan(timeout: timeout);
+    try {
+      FlutterBluePlus.startScan(timeout: timeout);
+    } catch (_) {
+      _state.add(BleConnectionState.disconnected);
+      return const Stream.empty();
+    }
     Future<void>.delayed(timeout, () {
       if (_device == null) _state.add(BleConnectionState.disconnected);
     });
@@ -72,6 +78,7 @@ class BleService {
   }
 
   Future<void> send(Map<String, dynamic> message) async {
+    if (_isSimulated) return;
     final characteristic = _characteristic;
     if (characteristic == null) throw StateError('BLE 기기가 연결되지 않았습니다.');
     final bytes = utf8.encode('${jsonEncode(message)}\n');
@@ -110,12 +117,12 @@ class BleService {
 
   /// 하드웨어 없이 UI 흐름을 검증할 때만 사용. 릴리즈 빌드에서는 호출하지 말 것.
   void simulateConnected() {
-    _device = null;
-    _characteristic = null;
+    _isSimulated = true;
     _state.add(BleConnectionState.connected);
   }
 
   void simulateDisconnected() {
+    _isSimulated = false;
     _state.add(BleConnectionState.disconnected);
   }
 

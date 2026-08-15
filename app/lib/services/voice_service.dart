@@ -20,7 +20,7 @@ class VoiceService {
       _silenceTimer?.cancel();
       _silenceTimer = Timer(const Duration(seconds: 5), () async {
         await stop();
-        if (latestText.trim().isNotEmpty) onSilence(latestText.trim());
+        onSilence(latestText.trim()); // 텍스트 없어도 항상 호출해 listening 상태 해제
       });
     }
 
