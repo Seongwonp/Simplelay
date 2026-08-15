@@ -285,12 +285,16 @@ loop() Serial.readStringUntil('\n')
 ## 7. platformio.ini
 
 ```ini
-[env:esp32dev]
+[env:firebeetle32]
 platform = espressif32
-board = esp32dev
+board = dfrobot_firebeetle2_esp32s3   ; FireBeetle Board-ESP32 V3.0 (DFRobot ESP WROOM-32)
 framework = arduino
 monitor_speed = 115200
 lib_deps =
     bblanchon/ArduinoJson@^7.0.0
     h2zero/NimBLE-Arduino@^1.4.0
 ```
+
+> **보드:** DFRobot FireBeetle Board-ESP32 V3.0 (ESP WROOM-32 모듈).  
+> 카메라 모듈이 있을 경우 `board = dfrobot_firebeetle2_esp32s3` 에서 카메라 핀 매핑 추가 필요.  
+> 향후 카메라 기반 버튼 위치 시각 확인(CV 판정)에 활용 가능.
