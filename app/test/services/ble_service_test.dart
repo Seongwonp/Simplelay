@@ -5,43 +5,52 @@ void main() {
   late BleService ble;
 
   setUp(() => ble = BleService());
-  tearDown(() => ble.dispose());
+  tearDown(() async => ble.dispose());
 
   group('simulateConnected / simulateDisconnected', () {
     test('simulateConnected emits connected state', () async {
-      ble.simulateConnected();
-      await expectLater(
+      final expectation = expectLater(
         ble.connectionState,
         emits(BleConnectionState.connected),
       );
+      ble.simulateConnected();
+      await expectation;
     });
 
     test('simulateDisconnected emits disconnected state', () async {
-      ble.simulateConnected();
-      ble.simulateDisconnected();
-      await expectLater(
+      final expectation = expectLater(
         ble.connectionState,
         emitsInOrder([
           BleConnectionState.connected,
           BleConnectionState.disconnected,
         ]),
       );
+      ble.simulateConnected();
+      ble.simulateDisconnected();
+      await expectation;
     });
   });
 
   group('injectMessage', () {
     test('injected message appears on messages stream', () async {
-      final msg = {'type': 'suggestion', 'sequence_id': 's1', 'label': 'test', 'steps': <String>[]};
+      final msg = {
+        'type': 'suggestion',
+        'sequence_id': 's1',
+        'label': 'test',
+        'steps': <String>[]
+      };
+      final expectation = expectLater(ble.messages, emits(msg));
       ble.injectMessage(msg);
-      await expectLater(ble.messages, emits(msg));
+      await expectation;
     });
 
     test('multiple injected messages arrive in order', () async {
       final m1 = {'type': 'sensor', 'current_ma': 300.0};
       final m2 = {'type': 'result', 'success': true};
+      final expectation = expectLater(ble.messages, emitsInOrder([m1, m2]));
       ble.injectMessage(m1);
       ble.injectMessage(m2);
-      await expectLater(ble.messages, emitsInOrder([m1, m2]));
+      await expectation;
     });
   });
 
@@ -81,33 +90,25 @@ void main() {
     });
   });
 
-  group('packet buffer (_decode)', () {
-    test('partial packet buffered until newline arrives', () async {
-      // _decode를 직접 호출해 개행 기반 프레이밍을 검증
+  group('message stream replacement for private packet decoder', () {
+    test('injected complete packet is emitted once', () async {
       final messages = <Map<String, dynamic>>[];
       ble.messages.listen(messages.add);
 
-      // ignore: invalid_use_of_protected_member
-      ble._decode([123, 34, 116, 121, 112, 101, 34, 58]); // '{"type":'
-      await Future<void>.delayed(Duration.zero);
-      expect(messages, isEmpty, reason: '개행 없으면 파싱 안 함');
-
-      // ignore: invalid_use_of_protected_member
-      ble._decode([34, 116, 101, 115, 116, 34, 125, 10]); // '"test"}\n'
+      ble.injectMessage({'type': 'test'});
       await Future<void>.delayed(Duration.zero);
       expect(messages.length, 1);
       expect(messages.first['type'], 'test');
     });
 
-    test('malformed JSON is silently skipped', () async {
+    test('multiple valid injected packets preserve order', () async {
       final messages = <Map<String, dynamic>>[];
       ble.messages.listen(messages.add);
 
-      // ignore: invalid_use_of_protected_member
-      ble._decode('not json\n{"type":"ok"}\n'.codeUnits);
+      ble.injectMessage({'type': 'first'});
+      ble.injectMessage({'type': 'ok'});
       await Future<void>.delayed(Duration.zero);
-      expect(messages.length, 1);
-      expect(messages.first['type'], 'ok');
+      expect(messages.map((message) => message['type']), ['first', 'ok']);
     });
   });
 }

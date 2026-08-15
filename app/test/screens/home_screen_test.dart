@@ -15,11 +15,12 @@ Widget _buildHome({
   // disconnected + suggestions은 두 override를 개별로 합산
   final overrides = [
     ...(connected ? connectedOverrides() : disconnectedOverrides()),
-    suggestionProvider.overrideWith(
-      (_) => FakeSuggestionNotifier(suggestions),
-    ),
   ];
-  return buildScreen(const HomeScreen(), overrides: overrides);
+  return buildScreen(
+    const HomeScreen(),
+    overrides: overrides,
+    suggestions: suggestions,
+  );
 }
 
 void main() {
@@ -131,7 +132,8 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScopeWrapper(
-          overrides: withSuggestions(const [suggestion]),
+          overrides: connectedOverrides(),
+          suggestions: const [suggestion],
           child: MaterialApp.router(
             theme: ThemeData.dark(),
             routerConfig: router,
@@ -152,13 +154,18 @@ void main() {
 class ProviderScopeWrapper extends StatelessWidget {
   const ProviderScopeWrapper({
     required this.overrides,
+    required this.suggestions,
     required this.child,
     super.key,
   });
   final List<Override> overrides;
+  final List<Suggestion> suggestions;
   final Widget child;
 
   @override
-  Widget build(BuildContext context) =>
-      ProviderScope(overrides: overrides, child: child);
+  Widget build(BuildContext context) => buildWithProviderState(
+        overrides: overrides,
+        suggestions: suggestions,
+        child: child,
+      );
 }
