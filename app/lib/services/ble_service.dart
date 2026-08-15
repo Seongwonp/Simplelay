@@ -27,12 +27,9 @@ class BleService {
     Duration timeout = const Duration(seconds: 8),
   }) {
     _state.add(BleConnectionState.scanning);
-    try {
-      FlutterBluePlus.startScan(timeout: timeout);
-    } catch (_) {
+    FlutterBluePlus.startScan(timeout: timeout).catchError((_) {
       _state.add(BleConnectionState.disconnected);
-      return const Stream.empty();
-    }
+    });
     Future<void>.delayed(timeout, () {
       if (_device == null) _state.add(BleConnectionState.disconnected);
     });
