@@ -108,6 +108,21 @@ class BleService {
     _buffer.write(buffered);
   }
 
+  /// 하드웨어 없이 UI 흐름을 검증할 때만 사용. 릴리즈 빌드에서는 호출하지 말 것.
+  void simulateConnected() {
+    _device = null;
+    _characteristic = null;
+    _state.add(BleConnectionState.connected);
+  }
+
+  void simulateDisconnected() {
+    _state.add(BleConnectionState.disconnected);
+  }
+
+  void injectMessage(Map<String, dynamic> message) {
+    _messages.add(message);
+  }
+
   Future<void> dispose() async {
     await _notificationSubscription?.cancel();
     await _messages.close();

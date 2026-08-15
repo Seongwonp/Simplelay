@@ -1,10 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/suggestion.dart';
+import '../providers/ble_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/suggestion_provider.dart';
+import '../services/demo_service.dart';
 
 class SuggestionScreen extends ConsumerWidget {
   const SuggestionScreen({required this.sequenceId, super.key});
@@ -92,6 +95,11 @@ class SuggestionScreen extends ConsumerWidget {
                     ref
                         .read(executionStatusProvider.notifier)
                         .begin(suggestion);
+                    if (kDebugMode) {
+                      DemoService(
+                        ref.read(bleServiceProvider),
+                      ).runExecutionFlow();
+                    }
                     if (context.mounted) context.go('/status');
                   },
                   icon: const Icon(Icons.check),

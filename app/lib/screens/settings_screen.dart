@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/ble_provider.dart';
+import '../services/demo_service.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -76,6 +78,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
+          if (kDebugMode) ...[
+            const Divider(height: 36),
+            Text('데모 (하드웨어 없이 테스트)', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () {
+                DemoService(ref.read(bleServiceProvider)).injectSuggestion();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('데모 제안을 주입했습니다. 홈 화면을 확인하세요.')),
+                );
+              },
+              icon: const Icon(Icons.science_outlined),
+              label: const Text('제안 시뮬레이션'),
+            ),
+            const SizedBox(height: 8),
+            OutlinedButton.icon(
+              onPressed: () {
+                ref.read(bleServiceProvider).simulateDisconnected();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('연결 해제 시뮬레이션')),
+                );
+              },
+              icon: const Icon(Icons.bluetooth_disabled),
+              label: const Text('연결 해제'),
+            ),
+            const Divider(height: 36),
+          ],
           results.when(
             loading: () => const Padding(
               padding: EdgeInsets.all(32),
