@@ -1,124 +1,333 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/execution_status.dart';
 import '../models/suggestion.dart';
 import '../providers/execution_status_provider.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_text.dart';
 
-class StatusScreen extends ConsumerWidget {
+class StatusScreen extends ConsumerStatefulWidget {
   const StatusScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<StatusScreen> createState() => _StatusScreenState();
+}
+
+class _StatusScreenState extends ConsumerState<StatusScreen> {
+  // 슬라이딩 윈도우 20샘플 — 새 값이 들어올 때마다 맨 앞을 제거하고 추가
+  final List<double> _maHistory  = List.filled(20, 0.0);
+  final List<double> _dbHistory  = List.filled(20, 0.0);
+
+  @override
+  Widget build(BuildContext context) {
+    // ref.listen은 build 안에서만 호출 가능 (Riverpod 규칙)
+    ref.listen(executionStatusProvider, (_, next) {
+      setState(() {
+        if (next.currentMa != null) {
+          _maHistory.removeAt(0);
+          _maHistory.add(next.currentMa!);
+        }
+        if (next.soundDb != null) {
+          _dbHistory.removeAt(0);
+          _dbHistory.add(next.soundDb!);
+        }
+      });
+    });
+
     final status = ref.watch(executionStatusProvider);
     final active = status.phase == ExecutionPhase.running ||
         status.phase == ExecutionPhase.retrying ||
         status.phase == ExecutionPhase.waiting;
+
     return Scaffold(
       appBar: AppBar(title: const Text('실행 상태')),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
+      body: Column(
         children: [
-          Text(
-            status.label ?? '실행 중인 작업 없음',
-            style: Theme.of(context).textTheme.headlineSmall,
+          // ── 진행 바 (실행 중일 때만) ────────────────────────────────────
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            height: active ? 6 : 0,
+            child: active
+                ? LinearProgressIndicator(
+                    borderRadius: BorderRadius.zero,
+                    backgroundColor: Colors.white12,
+                    color: status.phase == ExecutionPhase.retrying
+                        ? AppColors.warning
+                        : AppColors.primary,
+                  )
+                : null,
           ),
-          const SizedBox(height: 8),
-          Text(
-            status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
-            style: const TextStyle(color: Colors.white70),
-          ),
-          const SizedBox(height: 24),
-          if (status.phase == ExecutionPhase.retrying)
-            const Card(
-              color: Color(0xFF5A4214),
-              child: ListTile(
-                leading: Icon(Icons.refresh),
-                title: Text('버튼 동작 재시도 중'),
-              ),
-            ),
-          ...List.generate(status.steps.length, (index) {
-            final done = index < status.completedSteps;
-            final current = index == status.completedSteps && active;
-            return ListTile(
-              leading: Icon(
-                done
-                    ? Icons.check_circle
-                    : current
-                        ? Icons.pending
-                        : Icons.radio_button_unchecked,
-                color: done || current
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.white38,
-              ),
-              title: Text(readableStep(status.steps[index])),
-              subtitle: Text(status.steps[index]),
-            );
-          }),
-          const SizedBox(height: 20),
-          Row(
-            children: [
-              Expanded(
-                child: _SensorCard(
-                  icon: Icons.electric_bolt,
-                  label: '전류',
-                  value: status.currentMa == null
-                      ? '--'
-                      : '${status.currentMa!.toStringAsFixed(0)} mA',
+
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(20),
+              children: [
+                // ── 제목·상태 ──────────────────────────────────────────────
+                Text(
+                  status.label ?? '실행 중인 작업 없음',
+                  style: AppText.heading,
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: _SensorCard(
-                  icon: Icons.graphic_eq,
-                  label: '음향',
-                  value: status.soundDb == null
-                      ? '--'
-                      : '${status.soundDb!.toStringAsFixed(0)} dB',
+                const SizedBox(height: 6),
+                Text(
+                  status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
+                  style: const TextStyle(color: AppColors.onSurfaceMuted),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 28),
-          if (active)
-            FilledButton.icon(
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.redAccent,
-                foregroundColor: Colors.white,
-              ),
-              onPressed: () =>
-                  ref.read(executionStatusProvider.notifier).emergencyStop(),
-              icon: const Icon(Icons.stop_circle_outlined),
-              label: const Text('긴급 정지'),
+
+                // ── 재시도 배너 ────────────────────────────────────────────
+                if (status.phase == ExecutionPhase.retrying) ...[
+                  const SizedBox(height: 16),
+                  _RetryBanner(),
+                ],
+
+                // ── 단계 목록 ─────────────────────────────────────────────
+                if (status.steps.isNotEmpty) ...[
+                  const SizedBox(height: 24),
+                  Text('실행 단계', style: AppText.title),
+                  const SizedBox(height: 12),
+                  ...List.generate(status.steps.length, (i) {
+                    final done    = i < status.completedSteps;
+                    final current = i == status.completedSteps && active;
+                    return _StepTile(
+                      index: i,
+                      code: status.steps[i],
+                      done: done,
+                      current: current,
+                    );
+                  }),
+                ],
+
+                // ── 센서 바차트 ────────────────────────────────────────────
+                const SizedBox(height: 28),
+                Text('센서 모니터', style: AppText.title),
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _SensorChart(
+                        label: '전류 (mA)',
+                        icon: Icons.electric_bolt,
+                        history: _maHistory,
+                        maxY: 2000,
+                        warningThreshold: 1500,
+                        current: status.currentMa,
+                        unit: 'mA',
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _SensorChart(
+                        label: '음향 (dB)',
+                        icon: Icons.graphic_eq,
+                        history: _dbHistory,
+                        maxY: 100,
+                        warningThreshold: 80,
+                        current: status.soundDb,
+                        unit: 'dB',
+                      ),
+                    ),
+                  ],
+                ),
+
+                // ── 긴급 정지 ─────────────────────────────────────────────
+                if (active) ...[
+                  const SizedBox(height: 32),
+                  FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: Colors.white,
+                    ),
+                    onPressed: () => ref
+                        .read(executionStatusProvider.notifier)
+                        .emergencyStop(),
+                    icon: const Icon(Icons.stop_circle_outlined),
+                    label: const Text('긴급 정지'),
+                  ),
+                ],
+              ],
             ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _SensorCard extends StatelessWidget {
-  const _SensorCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-  final IconData icon;
-  final String label;
-  final String value;
+// ── 재시도 배너 ───────────────────────────────────────────────────────────
 
+class _RetryBanner extends StatelessWidget {
   @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(18),
-          child: Column(
-            children: [
-              Icon(icon, color: Theme.of(context).colorScheme.primary),
-              const SizedBox(height: 8),
-              Text(label, style: const TextStyle(color: Colors.white60)),
-              Text(value, style: Theme.of(context).textTheme.titleLarge),
-            ],
-          ),
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppColors.warning.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.refresh, color: AppColors.warning, size: 20),
+            const SizedBox(width: 10),
+            const Text('버튼 동작 재시도 중…',
+                style: TextStyle(color: AppColors.warning)),
+          ],
         ),
       );
+}
+
+// ── 실행 단계 타일 ────────────────────────────────────────────────────────
+
+class _StepTile extends StatelessWidget {
+  const _StepTile({
+    required this.index,
+    required this.code,
+    required this.done,
+    required this.current,
+  });
+  final int index;
+  final String code;
+  final bool done;
+  final bool current;
+
+  @override
+  Widget build(BuildContext context) {
+    final Color iconColor;
+    final IconData iconData;
+    if (done) {
+      iconColor = AppColors.success;
+      iconData  = Icons.check_circle;
+    } else if (current) {
+      iconColor = AppColors.primary;
+      iconData  = Icons.pending;
+    } else {
+      iconColor = Colors.white24;
+      iconData  = Icons.radio_button_unchecked;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Column(
+            children: [
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: Icon(iconData,
+                    key: ValueKey(iconData), color: iconColor, size: 22),
+              ),
+              if (index < 99) // 항상 연결선 자리 확보
+                Container(
+                  width: 2,
+                  height: 24,
+                  color: done ? AppColors.success.withValues(alpha: 0.4) : Colors.white12,
+                ),
+            ],
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(readableStep(code), style: AppText.body),
+                    Text(code, style: AppText.caption),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── 센서 바차트 카드 ──────────────────────────────────────────────────────
+
+class _SensorChart extends StatelessWidget {
+  const _SensorChart({
+    required this.label,
+    required this.icon,
+    required this.history,
+    required this.maxY,
+    required this.warningThreshold,
+    required this.current,
+    required this.unit,
+  });
+
+  final String label;
+  final IconData icon;
+  final List<double> history;
+  final double maxY;
+  final double warningThreshold;
+  final double? current;
+  final String unit;
+
+  Color _barColor(double v) =>
+      v >= warningThreshold ? AppColors.warning : AppColors.primary;
+
+  @override
+  Widget build(BuildContext context) {
+    final displayValue = current == null
+        ? '--'
+        : '${current!.toStringAsFixed(0)} $unit';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: AppColors.primary, size: 18),
+                const SizedBox(width: 6),
+                Text(label, style: AppText.caption),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(displayValue, style: AppText.sensor),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 64,
+              child: BarChart(
+                BarChartData(
+                  maxY: maxY,
+                  minY: 0,
+                  barGroups: history
+                      .asMap()
+                      .entries
+                      .map(
+                        (e) => BarChartGroupData(
+                          x: e.key,
+                          barRods: [
+                            BarChartRodData(
+                              toY: e.value.clamp(0, maxY),
+                              color: _barColor(e.value),
+                              width: 7,
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ],
+                        ),
+                      )
+                      .toList(),
+                  titlesData: const FlTitlesData(show: false),
+                  gridData: const FlGridData(show: false),
+                  borderData: FlBorderData(show: false),
+                  barTouchData: BarTouchData(enabled: false),
+                ),
+                swapAnimationDuration: const Duration(milliseconds: 150),
+                swapAnimationCurve: Curves.easeOut,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

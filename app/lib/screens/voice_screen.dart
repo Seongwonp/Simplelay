@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/ble_provider.dart';
 import '../providers/voice_provider.dart';
+import '../theme/app_colors.dart';
+import '../theme/app_text.dart';
 
 class VoiceScreen extends ConsumerStatefulWidget {
   const VoiceScreen({super.key});
@@ -47,9 +49,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
     }
   }
 
-  void _notice(String message) => ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(message)));
+  void _notice(String message) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(message)));
 
   @override
   void dispose() {
@@ -59,60 +60,72 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final text = ref.watch(voiceTextProvider);
+    final text      = ref.watch(voiceTextProvider);
     final listening = ref.watch(voiceListeningProvider);
+
     return Scaffold(
       appBar: AppBar(title: const Text('음성 명령')),
       body: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           children: [
             const Spacer(),
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 250),
-              width: listening ? 160 : 130,
-              height: listening ? 160 : 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: listening
-                    ? Theme.of(context).colorScheme.primary
-                    : Colors.white12,
-                boxShadow: listening
-                    ? [
-                        BoxShadow(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: .3),
-                          blurRadius: 35,
-                        ),
-                      ]
-                    : null,
-              ),
-              child: IconButton(
-                onPressed: _toggle,
-                icon: Icon(
-                  listening ? Icons.stop_rounded : Icons.mic_rounded,
-                  size: 56,
-                ),
-              ),
-            ),
+
+            // ── 웨이브 비주얼라이저 ────────────────────────────────────────
+            _WaveVisualizer(active: listening),
+            const SizedBox(height: 32),
+
+            // ── 마이크 버튼 ────────────────────────────────────────────────
+            _MicButton(listening: listening, onTap: _toggle),
             const SizedBox(height: 28),
+
+            // ── 상태 텍스트 ────────────────────────────────────────────────
             Text(
               listening ? '듣고 있어요…' : '마이크를 눌러 말해보세요',
-              style: Theme.of(context).textTheme.titleLarge,
+              style: AppText.title,
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 12),
-            Text(
-              text.isEmpty ? '예: 우유 데워줘' : text,
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.headlineSmall,
+
+            // ── 인식된 텍스트 라이브 표시 ──────────────────────────────────
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: text.isEmpty
+                  ? Text(
+                      '예: 우유 데워줘',
+                      key: const ValueKey('hint'),
+                      style: const TextStyle(color: AppColors.onSurfaceMuted),
+                      textAlign: TextAlign.center,
+                    )
+                  : Container(
+                      key: const ValueKey('live'),
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 12),
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: AppColors.primary.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Text(
+                        text,
+                        style: AppText.title.copyWith(color: AppColors.primary),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
             ),
             const SizedBox(height: 8),
             const Text(
               '5초 동안 말이 없으면 자동으로 전송됩니다.',
-              style: TextStyle(color: Colors.white54),
+              style: TextStyle(color: AppColors.onSurfaceMuted, fontSize: 12),
+              textAlign: TextAlign.center,
             ),
+
             const Spacer(),
+
+            // ── 지금 전송 버튼 ─────────────────────────────────────────────
             SizedBox(
               width: double.infinity,
               child: FilledButton(
@@ -120,9 +133,149 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
                 child: const Text('지금 전송'),
               ),
             ),
+            const SizedBox(height: 32),
           ],
         ),
       ),
     );
   }
+}
+
+// ── 마이크 버튼 ───────────────────────────────────────────────────────────
+
+class _MicButton extends StatelessWidget {
+  const _MicButton({required this.listening, required this.onTap});
+  final bool listening;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOutCubic,
+          width: listening ? 100 : 84,
+          height: listening ? 100 : 84,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: listening
+                ? AppColors.primary
+                : AppColors.primary.withValues(alpha: 0.15),
+            boxShadow: listening
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.35),
+                      blurRadius: 32,
+                      spreadRadius: 4,
+                    ),
+                  ]
+                : null,
+          ),
+          child: Icon(
+            listening ? Icons.stop_rounded : Icons.mic_rounded,
+            size: listening ? 44 : 38,
+            color: listening ? Colors.black : AppColors.primary,
+          ),
+        ),
+      );
+}
+
+// ── 웨이브 비주얼라이저 (5개 바) ─────────────────────────────────────────
+
+class _WaveVisualizer extends StatelessWidget {
+  const _WaveVisualizer({required this.active});
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: 56,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: List.generate(5, (i) => _WaveBar(
+            index: i,
+            active: active,
+          )),
+        ),
+      );
+}
+
+class _WaveBar extends StatefulWidget {
+  const _WaveBar({required this.index, required this.active});
+  final int index;
+  final bool active;
+
+  @override
+  State<_WaveBar> createState() => _WaveBarState();
+}
+
+class _WaveBarState extends State<_WaveBar> with SingleTickerProviderStateMixin {
+  // 바마다 높이 범위가 달라야 자연스러운 파형처럼 보임
+  static const _minHeights = [10.0, 18.0, 28.0, 18.0, 10.0];
+  static const _maxHeights = [24.0, 38.0, 56.0, 38.0, 24.0];
+  static const _delays = [0, 100, 50, 150, 80];
+
+  late final AnimationController _ctrl;
+  late final Animation<double> _height;
+  bool _started = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = AnimationController(
+      vsync: this,
+      duration: Duration(milliseconds: 400 + widget.index * 60),
+    );
+    _height = Tween(
+      begin: _minHeights[widget.index],
+      end: _maxHeights[widget.index],
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
+
+    if (widget.active) _start();
+  }
+
+  @override
+  void didUpdateWidget(_WaveBar old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !_started) {
+      _start();
+    } else if (!widget.active && _started) {
+      _stop();
+    }
+  }
+
+  Future<void> _start() async {
+    _started = true;
+    await Future.delayed(Duration(milliseconds: _delays[widget.index]));
+    if (mounted) _ctrl.repeat(reverse: true);
+  }
+
+  void _stop() {
+    _started = false;
+    _ctrl.animateTo(0, duration: const Duration(milliseconds: 200));
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(
+        animation: _ctrl,
+        builder: (_, __) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 3),
+          child: Container(
+            width: 7,
+            height: _height.value,
+            decoration: BoxDecoration(
+              color: widget.active
+                  ? AppColors.primary
+                  : AppColors.primary.withValues(alpha: 0.25),
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+      );
 }

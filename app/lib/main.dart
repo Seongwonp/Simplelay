@@ -8,6 +8,7 @@ import 'screens/settings_screen.dart';
 import 'screens/status_screen.dart';
 import 'screens/suggestion_screen.dart';
 import 'screens/voice_screen.dart';
+import 'theme/app_theme.dart';
 
 void main() => runApp(const ProviderScope(child: SimpleLayApp()));
 
@@ -58,28 +59,6 @@ class SimpleLayApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         routerConfig: _router,
         themeMode: ThemeMode.dark,
-        darkTheme: ThemeData(
-          brightness: Brightness.dark,
-          colorScheme: ColorScheme.fromSeed(
-            seedColor: const Color(0xFF4FC3F7),
-            brightness: Brightness.dark,
-            primary: const Color(0xFF4FC3F7),
-          ),
-          scaffoldBackgroundColor: const Color(0xFF0D1117),
-          cardTheme:
-              const CardThemeData(color: Color(0xFF171D25), elevation: 0),
-          navigationBarTheme: const NavigationBarThemeData(
-            backgroundColor: Color(0xFF171D25),
-          ),
-          filledButtonTheme: FilledButtonThemeData(
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-          ),
-          useMaterial3: true,
-        ),
+        darkTheme: AppTheme.dark,
       );
 }
