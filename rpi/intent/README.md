@@ -7,8 +7,19 @@
 `RuleBasedIntentResolver`는 `우유 데워줘`를 `해동 → 시간 90초 → 시작`으로 변환한다. 좌표와
 G-code는 알지 못한다. 이 명시적 명령 경로는 M4 제안 경로와 독립적으로 그대로 동작한다.
 
-`LlmIntentResolver`는 모델 출력 검증과 규칙 기반 fallback을 설계한 뒤 구현할 인터페이스
-자리이며, 지금은 외부 LLM을 호출하지 않는다.
+`LlmIntentResolver`는 모델을 신뢰하지 않는 입력으로 다룬다. 응답은 반드시
+`{"sequence": [...]}` 형태의 JSON이어야 하고, `known_buttons`를 넘기면 그 안에 없는 버튼
+이름이 하나라도 섞이면 거부한다. JSON 파싱 실패·빈 시퀀스·미등록 버튼·클라이언트 호출
+자체의 예외까지 모두 같은 경로로 처리되어, 주어진 `fallback`(보통 `RuleBasedIntentResolver`)
+으로 즉시 넘어간다. fallback도 실패하면 호출자는 `UnknownIntentError` 하나만 처리하면 된다.
+
+모델 호출은 `LlmClient` 포트(`ports.py`) 뒤에 있다. `HttpLlmClient`는 OpenAI 호환
+chat-completions 엔드포인트를 표준 라이브러리(`urllib`)만으로 호출하는 실제 구현이고,
+테스트에서는 `mock.py`의 `MockLlmClient`로 정해진 응답·예외를 주입한다.
+
+버튼 이름 검증에 쓰는 어휘는 `appliance.py`의 `load_button_map()`으로
+`docs/button-maps/<appliance>.json`을 읽어 만든다(`ApplianceManifest.labels`). 이 파일은
+원래 앱의 좌표 매핑용으로만 쓰였는데, 이제 의도 해석 계층의 검증 사전으로도 재사용한다.
 
 ## M4 공감지능
 
@@ -29,4 +40,7 @@ G-code는 알지 못한다. 이 명시적 명령 경로는 M4 제안 경로와 �
 - `FixedClock`은 테스트가 지정한 시각만 반환하는 mock이다. 운영에서는 `SystemClock`을 사용한다.
 - `MockPurposeExecutor`는 승인 호출을 기록할 뿐 폐루프를 실행하지 않는다. 통합 경로에서는
   실제 `SimpleLayService`를 주입한다.
+- `MockLlmClient`는 목적 문자열에 대해 미리 정해 둔 원문 응답(또는 예외)을 돌려주는 결정론적
+  더블이다. 실제 배선에서는 `HttpLlmClient`를 주입하고, API 키·엔드포인트·모델명은
+  `HttpLlmClientConfig`로 외부에서 주입한다(TODO: 배선은 M5 API 계층에서).
 - 제안 표시, 사용자 승인 UI와 승인 요청 인증은 앱/API 연동 범위이므로 M5에서 구현한다.

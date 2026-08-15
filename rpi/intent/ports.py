@@ -1,4 +1,4 @@
-"""Dependency-injection ports for M4 pattern learning."""
+"""Dependency-injection ports for pattern learning and intent resolution."""
 
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -26,3 +26,9 @@ class PurposeExecutor(ABC):
     @abstractmethod
     def execute_purpose(self, purpose: str) -> object:
         """Execute an approved purpose through the normal intent path."""
+
+
+class LlmClient(ABC):
+    @abstractmethod
+    def complete(self, purpose: str, known_buttons: tuple[str, ...]) -> str:
+        """Return raw model output (expected to be JSON) for the given purpose."""
