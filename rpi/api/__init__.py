@@ -1,5 +1,5 @@
 """Application-facing SimpleLay service entry point."""
 
-from .service import SimpleLayService, StatusSnapshot
+from .service import ServiceNotReadyError, SimpleLayService, StatusSnapshot
 
-__all__ = ["SimpleLayService", "StatusSnapshot"]
+__all__ = ["ServiceNotReadyError", "SimpleLayService", "StatusSnapshot"]
