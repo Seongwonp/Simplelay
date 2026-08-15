@@ -20,9 +20,15 @@ class Suggestion {
 }
 
 const buttonLabels = <String, String>{
-  'BT-08': '우유 버튼',
-  'BT-03': '1분',
+  'BT-01': '10초 추가',
+  'BT-02': '30초 추가',
+  'BT-03': '1분 추가',
+  'BT-04': '5분 추가',
   'BT-05': '시작',
+  'BT-06': '취소/정지',
+  'BT-07': '해동',
+  'BT-08': '우유',
+  'BT-09': '자동조리',
 };
 
 String readableStep(String code) => buttonLabels[code] ?? code;

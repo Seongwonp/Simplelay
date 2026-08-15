@@ -30,7 +30,7 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 
 ```json
 { "type": "suggestion", "sequence_id": "seq_001", "label": "우유 데우기", "steps": ["BT-08", "BT-03", "BT-05"] }
-{ "type": "sensor", "current_ma": 320, "sound_db": 45, "status": "running" }
+{ "type": "sensor", "current_ma": 320, "sound_db": 45, "status": "running", "completed_steps": 1 }
 { "type": "result", "sequence_id": "seq_001", "success": true }
 ```
 
