@@ -90,14 +90,20 @@ flowchart LR
 
 ```
 simplelay/
-├── docs/                   # 설계 · 재사용 경계 · 폐루프 설계 문서
+├── docs/                   # 설계 · 통신 프로토콜 · 버튼맵 · 폐루프 설계 문서
+│   └── button-maps/        #   가전별 버튼 그리드 JSON (전자레인지 등)
 ├── rpi/                    # ★ 라즈베리파이 모듈 (SimpleLay 신규 핵심)
 │   ├── verifier/           #   전류·음향 센서 기반 실행 검증
 │   ├── controller/         #   폐루프 제어 (명령 → 검증 → 재시도)
 │   ├── intent/             #   패턴 학습 + 의도 해석 (공감지능)
 │   └── api/                #   앱/로그 연동 API
-├── firmware/               # ESP32 브릿지 · GRBL 설정 (Touch Bridge 재사용/참조)
-└── app/                    # Flutter 앱 (Touch Bridge 확장)
+├── firmware/               # ESP32 펌웨어 (BLE 브릿지 · 센서 · LED UI)
+└── app/                    # ★ Flutter 앱 (Sense 레이어)
+    └── lib/
+        ├── services/       #   BLE 서비스, 음성 STT
+        ├── providers/      #   Riverpod 상태 관리
+        ├── screens/        #   Home · Voice · Suggestion · Status · Settings
+        └── models/         #   Suggestion, ExecutionStatus
 ```
 
 ---
@@ -108,11 +114,13 @@ simplelay/
 
 | 마일스톤 | 내용 | 상태 |
 | --- | --- | --- |
-| M1 | 전류·음향 센서 읽기 (버튼 눌림 신호 감지) | 예정 |
-| M2 | RPi ↔ ESP32/GRBL 통신 (명령 전송 + 결과 수신) | 예정 |
-| M3 | **폐루프** — 명령 → 검증 → 실패 시 재시도 | 예정 |
-| M4 | 공감지능 — 사용 패턴 학습 후 선제 제안 | 예정 |
-| M5 | 앱 연동 + 로그 | 예정 |
+| M0 | Flutter 앱 MVP (BLE · STT · 제안 확인 · 실행 상태) | ✅ 완료 |
+| M0 | RPi 패턴 학습 · 선제 제안 · 폐루프 제어 모듈 | ✅ 완료 |
+| M1 | 전류·음향 센서 읽기 (버튼 눌림 신호 감지) | 🔧 진행 중 |
+| M2 | RPi ↔ ESP32 BLE 통신 실기기 연결 | 예정 |
+| M3 | **폐루프 E2E** — 앱 → BLE → RPi → 액추에이터 → 센서 검증 | 예정 |
+| M4 | 공감지능 — 사용 이력 기반 선제 제안 앱 표시 | 예정 |
+| M5 | 인덕션 이식 + 입력 정확도 ≥ 95% | 예정 |
 
 ---
 
@@ -120,9 +128,8 @@ simplelay/
 
 | 이름 | 역할 |
 | --- | --- |
-| 차아미 | 팀장 · SW 총괄 / AI 의도 해석 / Flutter 앱 |
-| 서예솔 | ESP32 통신 · UI 노드 · 앱-하드웨어 연동 |
-| 박성원 | HW 총괄 · 라즈베리파이 검증/폐루프 · 구동부 · 하우징 |
+| 박성원 | Flutter 앱 · 라즈베리파이 연동 · 구동부 |
+| 서예솔 | HW 총괄 · ESP32 · 솔레노이드 · 센서 · 하우징 |
 
 ---
 
