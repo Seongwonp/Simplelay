@@ -66,7 +66,7 @@ flowchart LR
 | --- | --- | --- | --- |
 | **Act** | 버튼 물리 누름 (XYZ 좌표 이동) | NEMA17 ×3 + TB6600 ×3 + Arduino Uno GRBL | Touch Bridge 플랫폼 공유 |
 | **Bridge** | 앱 명령 수신 → GRBL G-code 전달 | ESP32 | Touch Bridge 플랫폼 공유 |
-| **Brain** | **검증 · 폐루프 · 패턴 학습** | **라즈베리파이 (신규)** | **SimpleLay 신규** |
+| **Brain** | **검증 · 폐루프 · 패턴 학습** | **라즈베리파이 5(의도 해석) + 4(폐루프 실행) — 신규** | **SimpleLay 신규** |
 | **App** | 음성/원격 입력, 상태 확인 | Flutter | Touch Bridge 확장 |
 
 > **핵심:** XY 갠트리(Act·Bridge)는 Touch Bridge 하드웨어 플랫폼을 공유하지만,

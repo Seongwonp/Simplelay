@@ -5,9 +5,9 @@
 | 디바이스 | 역할 | 통신 |
 |----------|------|------|
 | Flutter App | Sense — 음성/터치 명령 수집, 루틴 확인 UI | BLE (← ESP32) |
-| ESP32 | UI·Sensor 노드 — BLE 브릿지, LED UI, 센서 중계 | BLE ↔ App, UART → RPi4 |
-| Raspberry Pi 4 | Interpret — LLM 의도 해석, 시퀀스 생성, 패턴 DB | UART ← ESP32, HTTP/D-Bus |
-| Raspberry Pi Zero | Act — 액추에이터 제어, 폐루프 검증 | UART ← RPi4, GPIO |
+| ESP32 | UI·Sensor 노드 — BLE 브릿지, LED UI, 센서 중계 | BLE ↔ App, UART → RPi5 |
+| Raspberry Pi 5 | Interpret — LLM 의도 해석, 시퀀스 생성, 패턴 DB | UART ← ESP32, RPi4와는 별도 IPC(미정) |
+| Raspberry Pi 4 | Act — 액추에이터 제어, 폐루프 검증 | UART ← RPi5, GPIO |
 
 ---
 
@@ -36,19 +36,19 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 
 ---
 
-## UART 프로토콜 (ESP32 ↔ RPi4)
+## UART 프로토콜 (ESP32 ↔ RPi5)
 
 - 보드레이트: 115200
 - 포맷: JSON newline-delimited (`\n` 구분)
 
-### ESP32 → RPi4
+### ESP32 → RPi5
 
 ```json
 { "type": "intent", "text": "우유 데우기", "timestamp": 1723700000 }
 { "type": "sensor_log", "current_ma": 320, "sound_db": 45 }
 ```
 
-### RPi4 → ESP32
+### RPi5 → ESP32
 
 ```json
 { "type": "sequence", "id": "seq_001", "label": "우유 데우기", "buttons": ["BT-08", "BT-03", "BT-05"] }
@@ -57,14 +57,16 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 
 ---
 
-## UART 프로토콜 (RPi4 ↔ RPi Zero)
+## UART 프로토콜 (RPi5 ↔ RPi4)
+
+### RPi5 → RPi4
 
 ```json
 { "type": "execute", "sequence_id": "seq_001", "buttons": ["BT-08", "BT-03", "BT-05"] }
 { "type": "abort" }
 ```
 
-### RPi Zero → RPi4
+### RPi4 → RPi5
 
 ```json
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }
