@@ -17,41 +17,6 @@ const kTestSuggestion = Suggestion(
   steps: ['BT-08', 'BT-03', 'BT-05'],
 );
 
-// ── 가짜 Notifier ────────────────────────────────────────────────────────────
-
-// _onMessage는 private이므로 override 불가 — 대신 StateNotifier<T>를 직접 서브클래싱해
-// BLE 구독 없이 초기 상태만 갖는 단순 fake를 제공한다.
-
-class FakeSuggestionNotifier extends StateNotifier<List<Suggestion>> {
-  FakeSuggestionNotifier(List<Suggestion> initial) : super(initial);
-
-  Future<void> respond(Suggestion suggestion, bool approved) async {
-    state = state
-        .where((item) => item.sequenceId != suggestion.sequenceId)
-        .toList();
-  }
-}
-
-class FakeExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
-  FakeExecutionStatusNotifier(ExecutionStatus initial) : super(initial);
-
-  void begin(Suggestion suggestion) {
-    state = ExecutionStatus(
-      sequenceId: suggestion.sequenceId,
-      label: suggestion.label,
-      steps: suggestion.steps,
-      phase: ExecutionPhase.waiting,
-    );
-  }
-
-  Future<void> emergencyStop() async {
-    state = state.copyWith(
-      phase: ExecutionPhase.failed,
-      message: '긴급 정지를 전송했습니다.',
-    );
-  }
-}
-
 // ── Provider overrides ───────────────────────────────────────────────────────
 
 List<Override> connectedOverrides() => [
@@ -66,33 +31,96 @@ List<Override> disconnectedOverrides() => [
       ),
     ];
 
-List<Override> withSuggestions(List<Suggestion> suggestions) => [
-      ...connectedOverrides(),
-      suggestionProvider.overrideWith(
-        (_) => FakeSuggestionNotifier(suggestions),
-      ),
-    ];
-
-List<Override> withExecutionStatus(ExecutionStatus status) => [
-      executionStatusProvider.overrideWith(
-        (_) => FakeExecutionStatusNotifier(status),
-      ),
-    ];
-
 // ── Widget 빌더 ──────────────────────────────────────────────────────────────
 
 /// 라우팅이 필요 없는 단순 화면 테스트용.
 Widget buildScreen(
   Widget screen, {
   List<Override> overrides = const [],
+  List<Suggestion>? suggestions,
+  ExecutionStatus? executionStatus,
 }) {
-  return ProviderScope(
+  return buildWithProviderState(
+    suggestions: suggestions,
+    executionStatus: executionStatus,
     overrides: overrides,
     child: MaterialApp(
       theme: ThemeData.dark(),
       home: screen,
     ),
   );
+}
+
+Widget buildWithProviderState({
+  required Widget child,
+  List<Override> overrides = const [],
+  List<Suggestion>? suggestions,
+  ExecutionStatus? executionStatus,
+}) =>
+    _SeededProviderScope(
+      overrides: overrides,
+      suggestions: suggestions,
+      executionStatus: executionStatus,
+      child: child,
+    );
+
+class _SeededProviderScope extends StatefulWidget {
+  const _SeededProviderScope({
+    required this.child,
+    required this.overrides,
+    this.suggestions,
+    this.executionStatus,
+  });
+
+  final Widget child;
+  final List<Override> overrides;
+  final List<Suggestion>? suggestions;
+  final ExecutionStatus? executionStatus;
+
+  @override
+  State<_SeededProviderScope> createState() => _SeededProviderScopeState();
+}
+
+class _SeededProviderScopeState extends State<_SeededProviderScope> {
+  late final BleService _ble;
+  late final ProviderContainer _container;
+
+  @override
+  void initState() {
+    super.initState();
+    _ble = BleService()..simulateConnected();
+    _container = ProviderContainer(
+      overrides: [
+        bleServiceProvider.overrideWithValue(_ble),
+        ...widget.overrides,
+      ],
+    );
+    if (widget.suggestions case final suggestions?) {
+      final notifier = _container.read(suggestionProvider.notifier);
+      // Test-only seed of the real notifier; avoids overriding its concrete type.
+      // ignore: invalid_use_of_protected_member
+      notifier.state = suggestions;
+    }
+    if (widget.executionStatus case final status?) {
+      final notifier = _container.read(executionStatusProvider.notifier);
+      // Test-only seed of the real notifier; avoids overriding its concrete type.
+      // ignore: invalid_use_of_protected_member
+      notifier.state = status;
+    }
+  }
+
+  @override
+  void dispose() {
+    _container.dispose();
+    _ble.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => UncontrolledProviderScope(
+        container: _container,
+        child: widget.child,
+      );
 }
 
 /// GoRouter 내비게이션이 필요한 화면 테스트용.

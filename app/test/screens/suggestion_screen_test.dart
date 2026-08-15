@@ -11,8 +11,9 @@ Widget _buildSuggestion(
   String sequenceId, {
   List<Suggestion> suggestions = const [],
 }) {
-  return ProviderScope(
-    overrides: withSuggestions(suggestions),
+  return buildWithProviderState(
+    suggestions: suggestions,
+    overrides: connectedOverrides(),
     child: MaterialApp(
       theme: ThemeData.dark(),
       home: SuggestionScreen(sequenceId: sequenceId),
@@ -73,9 +74,8 @@ void main() {
     });
 
     testWidgets('거부 버튼 탭 시 화면 pop', (tester) async {
-      String? currentRoute;
       final router = GoRouter(
-        initialLocation: '/suggestion/test-001',
+        initialLocation: '/',
         routes: [
           GoRoute(
             path: '/',
@@ -88,14 +88,12 @@ void main() {
             ),
           ),
         ],
-        observers: [
-          _RouteObserver((route) => currentRoute = route),
-        ],
       );
 
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: withSuggestions(const [_sug]),
+        buildWithProviderState(
+          suggestions: const [_sug],
+          overrides: connectedOverrides(),
           child: MaterialApp.router(
             theme: ThemeData.dark(),
             routerConfig: router,
@@ -103,6 +101,9 @@ void main() {
         ),
       );
       await tester.pump();
+
+      router.push('/suggestion/test-001');
+      await tester.pumpAndSettle();
 
       await tester.tap(find.text('거부'));
       await tester.pumpAndSettle();
@@ -133,8 +134,9 @@ void main() {
       );
 
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: withSuggestions(const [_sug]),
+        buildWithProviderState(
+          suggestions: const [_sug],
+          overrides: connectedOverrides(),
           child: MaterialApp.router(
             theme: ThemeData.dark(),
             routerConfig: router,
@@ -152,14 +154,4 @@ void main() {
       await tester.pump(const Duration(seconds: 5));
     });
   });
-}
-
-class _RouteObserver extends NavigatorObserver {
-  _RouteObserver(this.onRoute);
-  final void Function(String?) onRoute;
-
-  @override
-  void didPush(Route<dynamic> route, Route<dynamic>? previousRoute) {
-    onRoute(route.settings.name);
-  }
 }

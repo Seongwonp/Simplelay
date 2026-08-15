@@ -7,7 +7,7 @@ import '../helpers/test_helpers.dart';
 
 Widget _buildStatus(ExecutionStatus status) => buildScreen(
       const StatusScreen(),
-      overrides: withExecutionStatus(status),
+      executionStatus: status,
     );
 
 void main() {
