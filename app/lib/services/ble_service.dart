@@ -25,7 +25,8 @@ class BleService {
 
   Stream<List<ScanResult>> scan({
     Duration timeout = const Duration(seconds: 8),
-  }) {
+  }) async* {
+    yield const []; // 즉시 빈 목록 emit → 로딩 스피너 방지
     _state.add(BleConnectionState.scanning);
     FlutterBluePlus.startScan(timeout: timeout).catchError((_) {
       _state.add(BleConnectionState.disconnected);
@@ -33,7 +34,7 @@ class BleService {
     Future<void>.delayed(timeout, () {
       if (_device == null) _state.add(BleConnectionState.disconnected);
     });
-    return FlutterBluePlus.scanResults;
+    yield* FlutterBluePlus.scanResults;
   }
 
   Future<void> stopScan() => FlutterBluePlus.stopScan();
