@@ -1,0 +1,13 @@
+{
+  "id": "com.simplelay.app",
+  "type": "flutter",
+  "name": "SimpleLay",
+  "description": "부착형 AI 레이어 — 음성 명령으로 가전을 자동 조작",
+  "version": "0.1.0",
+  "entry": "lib/main.dart",
+  "requiredPermission": [
+    "user%bluetooth",
+    "user%microphone",
+    "user%notification"
+  ]
+}
