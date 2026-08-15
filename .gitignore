@@ -26,3 +26,8 @@ dist/
 # 로그 / 데이터
 *.log
 data/
+
+# (로컬 전용, 절대 커밋·푸시 금지)
+AI-Native-OS-Samples/
+atlas_docker_env/
+dev-docs/
