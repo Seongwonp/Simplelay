@@ -96,7 +96,13 @@ simplelay/
 │   ├── verifier/           #   전류·음향 센서 기반 실행 검증
 │   ├── controller/         #   폐루프 제어 (명령 → 검증 → 재시도)
 │   ├── intent/             #   패턴 학습 + 의도 해석 (공감지능)
-│   └── api/                #   앱/로그 연동 API
+│   ├── api/                #   FastAPI HTTP 레이어
+│   │   ├── router.py       #     엔드포인트 (execute · status · stop · suggestions)
+│   │   ├── deps.py         #     의존성 주입 (mock/실기기 전환 지점)
+│   │   ├── schemas.py      #     Pydantic 요청·응답 모델
+│   │   └── service.py      #     프레임워크 중립 서비스
+│   ├── tests/              #   단위·통합 테스트 21개
+│   └── main.py             #   uvicorn 진입점 (python -m rpi.main)
 ├── firmware/               # ESP32 펌웨어 (BLE 브릿지 · 센서 · LED UI)
 └── app/                    # ★ Flutter 앱 (Sense 레이어)
     └── lib/
@@ -114,8 +120,9 @@ simplelay/
 
 | 마일스톤 | 내용 | 상태 |
 | --- | --- | --- |
-| M0 | Flutter 앱 MVP (BLE · STT · 제안 확인 · 실행 상태) | ✅ 완료 |
+| M0 | Flutter 앱 MVP (BLE · STT · 제안 확인 · 실행 상태, 데모 모드) | ✅ 완료 |
 | M0 | RPi 패턴 학습 · 선제 제안 · 폐루프 제어 모듈 | ✅ 완료 |
+| M0 | FastAPI HTTP 레이어 — execute / status / stop / suggestions (테스트 21개) | ✅ 완료 |
 | M1 | 전류·음향 센서 읽기 (버튼 눌림 신호 감지) | 🔧 진행 중 |
 | M2 | RPi ↔ ESP32 BLE 통신 실기기 연결 | 예정 |
 | M3 | **폐루프 E2E** — 앱 → BLE → RPi → 액추에이터 → 센서 검증 | 예정 |
