@@ -2,7 +2,7 @@
 from datetime import time
 from functools import lru_cache
 
-from rpi.controller import ClosedLoopController
+from rpi.controller import ClosedLoopController, ExecutionProgressTracker
 from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
 from rpi.intent import RuleBasedIntentResolver
 from rpi.intent.clock import SystemClock
@@ -32,18 +32,26 @@ _PATTERN_CONFIG = PatternConfig(
 def get_service() -> SimpleLayService:
     grbl = MockGrblClient()
     verifier = MockVerifier(outcomes=[True] * 100)
+    progress_tracker = ExecutionProgressTracker()
     controller = ClosedLoopController(
-        grbl, verifier, MockAlertSink(), MockSafetyController()
+        grbl,
+        verifier,
+        MockAlertSink(),
+        MockSafetyController(),
+        on_progress=progress_tracker.update,
     )
     return SimpleLayService(
         intent=RuleBasedIntentResolver(),
         controller=controller,
         usage_log=_usage_log,
         clock=_clock,
+        progress_tracker=progress_tracker,
     )
 
 
 @lru_cache(maxsize=1)
 def get_suggestion_service() -> ProactiveSuggestionService:
     detector = PatternDetector(_usage_log, _clock, _PATTERN_CONFIG)
-    return ProactiveSuggestionService(detector, _clock, get_service())
+    return ProactiveSuggestionService(
+        detector, _clock, get_service(), intent_resolver=RuleBasedIntentResolver()
+    )

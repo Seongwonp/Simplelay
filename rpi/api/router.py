@@ -47,10 +47,17 @@ async def status(
     service: SimpleLayService = Depends(get_service),
 ) -> StatusResponse:
     snapshot = service.status()
+    progress = snapshot.progress
+    verification = progress.verification if progress else None
     return StatusResponse(
         running=snapshot.running,
         last_status=snapshot.last_result.status.value if snapshot.last_result else None,
         last_buttons=_to_steps(snapshot.last_result) if snapshot.last_result else None,
+        current_button=progress.button if progress else None,
+        current_attempt=progress.attempt if progress else None,
+        completed_steps=progress.completed_steps if progress else None,
+        verification_confidence=verification.confidence if verification else None,
+        verification_detail=verification.detail if verification else None,
     )
 
 
@@ -72,6 +79,7 @@ async def list_suggestions(
             purpose=s.purpose,
             time_band=s.time_band,
             occurrences=s.occurrences,
+            steps=list(s.steps),
         )
         for s in svc.pending()
     ]

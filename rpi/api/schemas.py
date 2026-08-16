@@ -32,6 +32,14 @@ class StatusResponse(BaseModel):
     running: bool
     last_status: str | None
     last_buttons: list[ButtonStep] | None
+    # 실행 중 실시간 진행 상황 (running=True일 때만 값이 있음). 원시 센서값(mA/dB)이
+    # 아니라 검증기가 이미 계산한 신뢰도·상세 설명을 노출한다 — verifier가 그 이상의
+    # 원시값을 구조화된 필드로 내보내지 않기 때문에, 없는 값을 지어내지 않는다.
+    current_button: str | None = None
+    current_attempt: int | None = None
+    completed_steps: int | None = None
+    verification_confidence: float | None = None
+    verification_detail: str | None = None
 
 
 class SuggestionResponse(BaseModel):
@@ -39,6 +47,9 @@ class SuggestionResponse(BaseModel):
     purpose: str
     time_band: str
     occurrences: int
+    # 미리보기. 서버가 승인 전에 계산은 해 보지만, 실제 실행 시퀀스는 승인 시점에
+    # 다시 해석되므로 이 값과 달라질 수 있다(예: 규칙이 그 사이 바뀐 경우).
+    steps: list[str] = []
 
 
 class ApproveResponse(BaseModel):

@@ -81,3 +81,6 @@ class ProactiveSuggestion:
     occurrences: int
     created_at: datetime
     status: SuggestionStatus = SuggestionStatus.PENDING
+    # 미리보기용. 승인 전 의도 해석이 실패했거나 리졸버가 주입되지 않았으면 빈 튜플 —
+    # 실제 실행 시퀀스는 approve() 시점에 다시 해석되며 이 값과 다를 수 있다.
+    steps: tuple[str, ...] = ()
