@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'screens/appliance_editor_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/home_screen.dart';
+import 'screens/manual_control_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/status_screen.dart';
 import 'screens/suggestion_screen.dart';
@@ -51,6 +52,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/appliance/new',
       builder: (_, __) => const ApplianceEditorScreen(),
+    ),
+    GoRoute(
+      path: '/manual-control',
+      builder: (_, __) => const ManualControlScreen(),
     ),
   ],
 );
