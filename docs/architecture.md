@@ -43,9 +43,13 @@
 
 - [ ] RPi ↔ ESP32/Uno 연결 방식: UART 직결 vs Wi-Fi(HTTP/WS) vs BLE — M2에서 확정
 - [ ] 센서 → RPi 입력: GPIO(디지털) vs ADC(아날로그, MCP3008 등) — 센서 종류에 따라
-- [ ] RPi5(intent/api) ↔ RPi4(controller/verifier) 간 IPC 방식 확정 필요(UART 직결/HTTP 등 후보
-      검토). 확정 전까지 `rpi/api/service.py`는 두 보드가 한 프로세스 안에 있다고 가정한
-      배선(직접 객체 주입)으로 남아 있다.
+- [x] RPi5(intent/api) ↔ RPi4(controller/verifier) 간 IPC: protocol.md에 명시된 UART
+      프로토콜(`execute`/`abort` → `result`/`error`) 기준으로 RPi4 쪽 실행기(`rpi4/act_executor.py`)
+      구현 완료. 다만 이 UART 방식이 최종 확정인지는 예솔님 확인 필요 — HTTP로 바뀌더라도
+      `ActExecutor`가 reader/writer를 duck-typing으로 받기 때문에 전송 계층 교체 비용은 작다.
+      확정 전까지 `rpi/api/service.py`는 여전히 두 보드가 한 프로세스 안에 있다고 가정한
+      배선(직접 객체 주입)으로 남아 있다 — RPi5 프로세스가 `ActExecutor`를 실제로 호출하도록
+      연결하는 배선은 아직 남은 작업.
 
 ## 관련 문서
 
