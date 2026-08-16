@@ -94,39 +94,45 @@ class _KpiCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w700,
-                  color: color,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  height: 1.1,
-                ),
-              ),
-              if (suffix != null) ...[
-                const SizedBox(width: 5),
+          // 값이 길어지면(예: "3 / 3 단계") 카드 폭을 넘어설 수 있어서, 잘리는
+          // 대신 통째로 줄여서 한 줄에 들어가게 한다.
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.baseline,
+              textBaseline: TextBaseline.alphabetic,
+              children: [
                 Text(
-                  suffix!,
+                  value,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                    height: 1.1,
+                  ),
+                ),
+                if (suffix != null) ...[
+                  const SizedBox(width: 5),
+                  Text(
+                    suffix!,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: AppColors.onSurfaceMuted,
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 4),
+                Text(
+                  unit,
                   style: const TextStyle(
-                    fontSize: 14,
+                    fontSize: 12,
                     color: AppColors.onSurfaceMuted,
                   ),
                 ),
               ],
-              const SizedBox(width: 4),
-              Text(
-                unit,
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: AppColors.onSurfaceMuted,
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
