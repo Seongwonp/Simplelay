@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/suggestion.dart';
@@ -27,9 +26,20 @@ const _sug = Suggestion(
   steps: ['BT-08', 'BT-03', 'BT-05'],
 );
 
+// 이 화면도 ListView라, 버튼맵 그리드까지 합치면 기본 테스트 뷰포트(800x600)보다
+// 콘텐츠가 길어져서 하단의 승인/거부 버튼이 스크롤 밑에 있는 채로 Element 자체가
+// 안 만들어진다 — status_screen_test.dart와 동일한 문제, 동일한 해결책.
+void _useTallViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(400, 3000);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 void main() {
   group('SuggestionScreen — 제안 없음', () {
     testWidgets('알 수 없는 sequenceId 시 오류 메시지', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildSuggestion('nonexistent', suggestions: []));
       await tester.pump();
       expect(find.text('제안을 찾을 수 없습니다.'), findsOneWidget);
@@ -38,6 +48,7 @@ void main() {
 
   group('SuggestionScreen — 제안 있음', () {
     testWidgets('제안 라벨 표시', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
@@ -46,26 +57,37 @@ void main() {
     });
 
     testWidgets('단계별 한국어 라벨 표시', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
-      expect(find.text('우유'), findsOneWidget);
-      expect(find.text('1분 추가'), findsOneWidget);
-      expect(find.text('시작'), findsOneWidget);
+      // 버튼맵 그리드와 단계 타임라인 둘 다 같은 라벨을 보여주므로(그리드 하이라이트
+      // + 타임라인), 정확히 1개가 아니라 "적어도 하나는 보인다"만 확인한다.
+      expect(find.text('우유'), findsAtLeastNWidgets(1));
+      expect(find.text('1분 추가'), findsAtLeastNWidgets(1));
+      expect(find.text('시작'), findsAtLeastNWidgets(1));
     });
 
     testWidgets('단계 번호 CircleAvatar 표시', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
-      expect(find.text('1'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-      expect(find.text('3'), findsOneWidget);
+      // 버튼맵 그리드도 순서 뱃지를 보여주지만 CircleAvatar가 아니라 Container라서,
+      // CircleAvatar 안쪽으로 범위를 좁혀야 타임라인의 단계 번호만 정확히 잡힌다.
+      Finder inCircleAvatar(String text) => find.descendant(
+            of: find.byType(CircleAvatar),
+            matching: find.text(text),
+          );
+      expect(inCircleAvatar('1'), findsOneWidget);
+      expect(inCircleAvatar('2'), findsOneWidget);
+      expect(inCircleAvatar('3'), findsOneWidget);
     });
 
     testWidgets('승인하고 실행 버튼 표시', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
@@ -74,6 +96,7 @@ void main() {
     });
 
     testWidgets('거부 버튼 탭 시 화면 pop', (tester) async {
+      _useTallViewport(tester);
       final router = GoRouter(
         initialLocation: '/',
         routes: [
@@ -113,6 +136,7 @@ void main() {
     });
 
     testWidgets('승인 버튼 탭 시 /status 로 이동', (tester) async {
+      _useTallViewport(tester);
       final router = GoRouter(
         initialLocation: '/suggestion/test-001',
         routes: [

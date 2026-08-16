@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/suggestion.dart';
-import 'package:simplelay/providers/suggestion_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 
 import '../helpers/test_helpers.dart';
