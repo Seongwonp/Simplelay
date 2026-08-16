@@ -131,67 +131,105 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          Text('가전 이름', style: AppText.title),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _nameController,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText: '예: 식기세척기',
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text('버튼 배치', style: AppText.title),
-          const SizedBox(height: 4),
-          const Text(
-            '행/열 크기를 정하고, 빈 칸을 탭해서 버튼을 추가하세요. 실제 가전의 버튼\n'
-            '배치와 비슷하게 놓으면 나중에 화면에서 알아보기 쉽습니다.',
-            style: AppText.caption,
-          ),
-          const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(
-                child: _StepperField(
-                  label: '행',
-                  value: _rows,
-                  min: _minGridSize,
-                  max: _maxGridSize,
-                  onChanged: (v) => _resize(rows: v),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
+                child: const Icon(Icons.widgets_outlined, color: AppColors.primary),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _StepperField(
-                  label: '열',
-                  value: _cols,
-                  min: _minGridSize,
-                  max: _maxGridSize,
-                  onChanged: (v) => _resize(cols: v),
+                child: Text(
+                  '우리 집 가전의 버튼 배치를 그대로 등록하면\n어떤 가전이든 앱에서 바로 조작할 수 있어요.',
+                  style: AppText.caption,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          AspectRatio(
-            aspectRatio: _cols / _rows,
-            child: _EditableGrid(grid: _grid, onTapCell: _editCell),
-          ),
-          const SizedBox(height: 28),
-          Text(
-            '음성 명령은 아직 지원되지 않아요 — 저장하면 화면에서 버튼을 직접 눌러 실행할\n'
-            '수 있습니다.',
-            style: AppText.caption,
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 52,
-            child: FilledButton.icon(
-              onPressed: _save,
-              icon: const Icon(Icons.check),
-              label: const Text('저장'),
+          const SizedBox(height: 20),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('가전 이름', style: AppText.title),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: '예: 식기세척기',
+                    ),
+                  ),
+                ],
+              ),
             ),
+          ),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('버튼 배치', style: AppText.title),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '행/열 크기를 정하고, 빈 칸을 탭해서 버튼을 추가하세요.',
+                    style: AppText.caption,
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _StepperField(
+                          label: '행',
+                          value: _rows,
+                          min: _minGridSize,
+                          max: _maxGridSize,
+                          onChanged: (v) => _resize(rows: v),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _StepperField(
+                          label: '열',
+                          value: _cols,
+                          min: _minGridSize,
+                          max: _maxGridSize,
+                          onChanged: (v) => _resize(cols: v),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  AspectRatio(
+                    aspectRatio: _cols / _rows,
+                    child: _EditableGrid(grid: _grid, onTapCell: _editCell),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: Text(
+              '음성 명령은 아직 지원되지 않아요 — 저장하면 화면에서 버튼을 직접\n눌러 실행할 수 있습니다.',
+              textAlign: TextAlign.center,
+              style: AppText.caption,
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _save,
+            icon: const Icon(Icons.check),
+            label: const Text('저장'),
           ),
         ],
       ),

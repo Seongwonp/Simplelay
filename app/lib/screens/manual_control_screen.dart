@@ -77,18 +77,31 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '버튼을 탭하면 실제 가전 버튼이 눌립니다.',
-                    style: AppText.caption,
+                  Row(
+                    children: [
+                      const Icon(Icons.touch_app, color: AppColors.primary, size: 18),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          '버튼을 탭하면 실제 가전 버튼이 눌립니다.',
+                          style: AppText.caption,
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 16),
                   Expanded(
-                    child: _ButtonGrid(
-                      appliance: appliance,
-                      pendingButtonId: _pendingButtonId,
-                      resultButtonId: _resultButtonId,
-                      resultSuccess: _resultSuccess,
-                      onTap: (button) => _press(api, button),
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: _ButtonGrid(
+                          appliance: appliance,
+                          pendingButtonId: _pendingButtonId,
+                          resultButtonId: _resultButtonId,
+                          resultSuccess: _resultSuccess,
+                          onTap: (button) => _press(api, button),
+                        ),
+                      ),
                     ),
                   ),
                 ],
