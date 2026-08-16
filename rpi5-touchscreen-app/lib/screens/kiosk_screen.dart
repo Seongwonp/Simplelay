@@ -39,8 +39,11 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _execFillTimer;
   List<KioskButtonResult>? _lastButtons;
 
-  double? _currentMa;
-  double? _soundDb;
+  String? _currentButton;
+  int? _currentAttempt;
+  int? _completedSteps;
+  double? _verificationConfidence;
+  String? _verificationDetail;
 
   bool _doneSuccess = true;
   String _doneLabel = '';
@@ -91,8 +94,12 @@ class _KioskScreenState extends State<KioskScreen> {
         final st = await _api.status();
         if (mounted) {
           setState(() {
-            _currentMa = st.currentMa ?? _currentMa;
-            _soundDb = st.soundDb ?? _soundDb;
+            _currentButton = st.currentButton ?? _currentButton;
+            _currentAttempt = st.currentAttempt ?? _currentAttempt;
+            _completedSteps = st.completedSteps ?? _completedSteps;
+            _verificationConfidence =
+                st.verificationConfidence ?? _verificationConfidence;
+            _verificationDetail = st.verificationDetail ?? _verificationDetail;
           });
         }
         if (!st.running && st.lastButtons != null) {
@@ -139,6 +146,11 @@ class _KioskScreenState extends State<KioskScreen> {
       _execTitle = title;
       _lastButtons = null;
       _execBarValue = 0;
+      _currentButton = null;
+      _currentAttempt = null;
+      _completedSteps = null;
+      _verificationConfidence = null;
+      _verificationDetail = null;
     });
     _startExecFakeFill();
   }
@@ -275,8 +287,11 @@ class _KioskScreenState extends State<KioskScreen> {
           key: const ValueKey('executing'),
           title: _execTitle,
           lastButtons: _lastButtons,
-          currentMa: _currentMa,
-          soundDb: _soundDb,
+          currentButton: _currentButton,
+          currentAttempt: _currentAttempt,
+          completedSteps: _completedSteps,
+          verificationConfidence: _verificationConfidence,
+          verificationDetail: _verificationDetail,
           onStop: _onStop,
         );
       case _Phase.done:
@@ -679,15 +694,21 @@ class _ExecutingView extends StatelessWidget {
     super.key,
     required this.title,
     required this.lastButtons,
-    required this.currentMa,
-    required this.soundDb,
+    required this.currentButton,
+    required this.currentAttempt,
+    required this.completedSteps,
+    required this.verificationConfidence,
+    required this.verificationDetail,
     required this.onStop,
   });
 
   final String title;
   final List<KioskButtonResult>? lastButtons;
-  final double? currentMa;
-  final double? soundDb;
+  final String? currentButton;
+  final int? currentAttempt;
+  final int? completedSteps;
+  final double? verificationConfidence;
+  final String? verificationDetail;
   final VoidCallback onStop;
 
   @override
@@ -726,7 +747,11 @@ class _ExecutingView extends StatelessWidget {
                         ),
                         const SizedBox(height: 3),
                         Text(
-                          lastButtons == null ? '실행 중…' : '완료',
+                          lastButtons != null
+                              ? '완료'
+                              : completedSteps != null
+                                  ? '$completedSteps단계 완료 · 실행 중…'
+                                  : '실행 중…',
                           style: const TextStyle(fontSize: 13, color: KioskColors.primary),
                         ),
                       ],
@@ -736,7 +761,14 @@ class _ExecutingView extends StatelessWidget {
                 const SizedBox(height: 22),
                 Expanded(
                   child: lastButtons == null
-                      ? const _StepRow(label: '버튼 시퀀스 실행 중…', state: _StepState.current)
+                      ? _StepRow(
+                          label: currentButton == null
+                              ? '버튼 시퀀스 실행 중…'
+                              : currentAttempt != null && currentAttempt! > 1
+                                  ? '$currentButton 버튼 · $currentAttempt번째 시도'
+                                  : '$currentButton 버튼 누르는 중',
+                          state: _StepState.current,
+                        )
                       : ListView(
                           children: lastButtons!
                               .map(
@@ -758,9 +790,12 @@ class _ExecutingView extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(8, 24, 28, 24),
             child: Column(
               children: [
-                _SensorCard(label: '전류', icon: Icons.bolt, value: currentMa, unit: 'mA', maxValue: 2000),
+                _ConfidenceCard(
+                  confidence: verificationConfidence,
+                  detail: verificationDetail,
+                ),
                 const SizedBox(height: 12),
-                _SensorCard(label: '음향', icon: Icons.volume_up, value: soundDb, unit: 'dB', maxValue: 100),
+                _AttemptCard(attempt: currentAttempt),
                 const Spacer(),
                 SizedBox(
                   width: double.infinity,
@@ -837,25 +872,18 @@ class _StepRow extends StatelessWidget {
   }
 }
 
-class _SensorCard extends StatelessWidget {
-  const _SensorCard({
-    required this.label,
-    required this.icon,
-    required this.value,
-    required this.unit,
-    required this.maxValue,
-  });
+// 센서 퓨전 검증 신뢰도 — verifier가 판정한 confidence(0.0~1.0)를 그대로 표시.
+// 원신호(mA/dB)는 rpi/verifier가 구조화 필드로 노출하지 않으므로 사용하지 않는다.
+class _ConfidenceCard extends StatelessWidget {
+  const _ConfidenceCard({required this.confidence, required this.detail});
 
-  final String label;
-  final IconData icon;
-  final double? value;
-  final String unit;
-  final double maxValue;
+  final double? confidence;
+  final String? detail;
 
   @override
   Widget build(BuildContext context) {
-    final pct = value == null ? 0.0 : (value! / maxValue).clamp(0.0, 1.0);
-    final warn = value != null && (value! / maxValue) > 0.75;
+    final pct = (confidence ?? 0.0).clamp(0.0, 1.0);
+    final low = confidence != null && confidence! < 0.7;
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
@@ -869,15 +897,11 @@ class _SensorCard extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                label,
-                style: const TextStyle(
-                  fontSize: 10,
-                  letterSpacing: 0.07,
-                  color: KioskColors.muted,
-                ),
+              const Text(
+                '검증 신뢰도',
+                style: TextStyle(fontSize: 10, letterSpacing: 0.07, color: KioskColors.muted),
               ),
-              Icon(icon, size: 14, color: KioskColors.muted),
+              const Icon(Icons.verified_outlined, size: 14, color: KioskColors.muted),
             ],
           ),
           Row(
@@ -885,10 +909,11 @@ class _SensorCard extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                value == null ? '–' : value!.toStringAsFixed(0),
+                confidence == null ? '–' : (pct * 100).toStringAsFixed(0),
                 style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w300, color: Colors.white),
               ),
-              Text(' $unit', style: const TextStyle(fontSize: 14, color: KioskColors.muted)),
+              if (confidence != null)
+                const Text(' %', style: TextStyle(fontSize: 14, color: KioskColors.muted)),
             ],
           ),
           const SizedBox(height: 8),
@@ -899,9 +924,65 @@ class _SensorCard extends StatelessWidget {
               minHeight: 4,
               backgroundColor: KioskColors.border,
               valueColor: AlwaysStoppedAnimation(
-                warn ? KioskColors.warning : KioskColors.primary,
+                low ? KioskColors.warning : KioskColors.primary,
               ),
             ),
+          ),
+          if (detail != null && detail!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              detail!,
+              style: const TextStyle(fontSize: 10, color: KioskColors.muted),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// 현재 버튼의 재시도 횟수 — 폐루프 컨트롤러가 좌표 보정 후 재시도할 때마다 올라간다.
+class _AttemptCard extends StatelessWidget {
+  const _AttemptCard({required this.attempt});
+
+  final int? attempt;
+
+  @override
+  Widget build(BuildContext context) {
+    final warn = attempt != null && attempt! > 1;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
+      decoration: BoxDecoration(
+        color: KioskColors.surface,
+        border: Border.all(color: KioskColors.border),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                '시도 횟수',
+                style: TextStyle(fontSize: 10, letterSpacing: 0.07, color: KioskColors.muted),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                attempt == null ? '–' : '$attempt회',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: warn ? KioskColors.warning : Colors.white,
+                ),
+              ),
+            ],
+          ),
+          Icon(
+            Icons.replay_circle_filled_outlined,
+            size: 22,
+            color: warn ? KioskColors.warning : KioskColors.muted,
           ),
         ],
       ),
