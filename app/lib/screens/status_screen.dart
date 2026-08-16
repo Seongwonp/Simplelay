@@ -7,6 +7,7 @@ import '../models/suggestion.dart';
 import '../providers/execution_status_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/status_kpi_strip.dart';
 
 class StatusScreen extends ConsumerStatefulWidget {
   const StatusScreen({super.key});
@@ -75,6 +76,12 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
                   style: const TextStyle(color: AppColors.onSurfaceMuted),
                 ),
+
+                // ── KPI 헤더 (실행 중 / 완료 / 실패) ─────────────────────
+                if (status.phase != ExecutionPhase.idle) ...[
+                  const SizedBox(height: 20),
+                  StatusKpiStrip(status: status),
+                ],
 
                 // ── 재시도 배너 ────────────────────────────────────────────
                 if (status.phase == ExecutionPhase.retrying) ...[
