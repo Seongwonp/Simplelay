@@ -251,11 +251,13 @@ class _KioskScreenState extends State<KioskScreen> {
             height: 3,
             child: _TopProgressBar(phase: _phase, execBarValue: _execBarValue),
           ),
-          Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: _buildScreen(),
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                child: _buildScreen(),
+              ),
             ),
           ),
         ],
