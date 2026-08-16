@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'screens/appliance_editor_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
@@ -46,6 +47,10 @@ final _router = GoRouter(
       path: '/suggestion/:id',
       builder: (_, state) =>
           SuggestionScreen(sequenceId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/appliance/new',
+      builder: (_, __) => const ApplianceEditorScreen(),
     ),
   ],
 );

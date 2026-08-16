@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
@@ -341,11 +342,41 @@ class _ApplianceSection extends ConsumerWidget {
                       const Icon(Icons.check_circle,
                           color: AppColors.primary, size: 16),
                     ],
+                    if (appliance.isCustom) ...[
+                      const SizedBox(width: 6),
+                      GestureDetector(
+                        onTap: () => ref
+                            .read(customAppliancesProvider.notifier)
+                            .remove(appliance.id),
+                        child: const Icon(Icons.close, color: Colors.white38, size: 16),
+                      ),
+                    ],
                   ],
                 ),
               ),
             );
-          }).toList(),
+          }).toList()
+            ..add(
+              GestureDetector(
+                onTap: () => context.push('/appliance/new'),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white24, width: 0.5),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.add, color: Colors.white70, size: 20),
+                      SizedBox(width: 8),
+                      Text('새 가전 추가', style: TextStyle(color: Colors.white70)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ),
       ],
     );
