@@ -217,7 +217,7 @@ class _RpiUrlSection extends ConsumerWidget {
     final connState = ref.watch(rpiConnectionProvider);
 
     final (Color stateColor, String stateLabel) = switch (connState) {
-      RpiConnectionState.unconfigured => (Colors.white38, 'URL 미설정'),
+      RpiConnectionState.unconfigured => (context.appMuted, 'URL 미설정'),
       RpiConnectionState.checking     => (Colors.orange, '확인 중…'),
       RpiConnectionState.connected    => (AppColors.success, '연결됨'),
       RpiConnectionState.unreachable  => (AppColors.danger, '연결 안 됨'),
@@ -243,9 +243,9 @@ class _RpiUrlSection extends ConsumerWidget {
           ],
         ),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'RPi5 FastAPI 서버 주소 (같은 Wi-Fi 필요)',
-          style: TextStyle(color: Colors.white54, fontSize: 13),
+          style: TextStyle(color: context.appMuted, fontSize: 13),
         ),
         const SizedBox(height: 10),
         Row(
@@ -312,9 +312,9 @@ class _ApplianceSection extends ConsumerWidget {
       children: [
         Text('가전 종류', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           '제어할 가전을 선택하면 버튼 맵이 연결됩니다.',
-          style: TextStyle(color: Colors.white54, fontSize: 13),
+          style: TextStyle(color: context.appMuted, fontSize: 13),
         ),
         const SizedBox(height: 12),
         Wrap(
@@ -331,10 +331,10 @@ class _ApplianceSection extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: isSelected
                       ? AppColors.primary.withValues(alpha: 0.15)
-                      : Colors.white.withValues(alpha: 0.05),
+                      : Theme.of(context).colorScheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(
-                    color: isSelected ? AppColors.primary : Colors.white24,
+                    color: isSelected ? AppColors.primary : context.appBorderSubtle,
                     width: isSelected ? 1.5 : 0.5,
                   ),
                 ),
@@ -343,14 +343,14 @@ class _ApplianceSection extends ConsumerWidget {
                   children: [
                     Icon(
                       appliance.icon,
-                      color: isSelected ? AppColors.primary : Colors.white54,
+                      color: isSelected ? AppColors.primary : context.appMuted,
                       size: 20,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       appliance.name,
                       style: TextStyle(
-                        color: isSelected ? AppColors.primary : Colors.white70,
+                        color: isSelected ? AppColors.primary : context.appMuted,
                         fontWeight: isSelected
                             ? FontWeight.w600
                             : FontWeight.normal,
@@ -367,7 +367,7 @@ class _ApplianceSection extends ConsumerWidget {
                         onTap: () => ref
                             .read(customAppliancesProvider.notifier)
                             .remove(appliance.id),
-                        child: const Icon(Icons.close, color: Colors.white38, size: 16),
+                        child: Icon(Icons.close, color: context.appMuted, size: 16),
                       ),
                     ],
                   ],
@@ -381,16 +381,16 @@ class _ApplianceSection extends ConsumerWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.05),
+                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white24, width: 0.5),
+                    border: Border.all(color: context.appBorderSubtle, width: 0.5),
                   ),
-                  child: const Row(
+                  child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.add, color: Colors.white70, size: 20),
-                      SizedBox(width: 8),
-                      Text('새 가전 추가', style: TextStyle(color: Colors.white70)),
+                      Icon(Icons.add, color: context.appMuted, size: 20),
+                      const SizedBox(width: 8),
+                      Text('새 가전 추가', style: TextStyle(color: context.appMuted)),
                     ],
                   ),
                 ),
@@ -416,25 +416,25 @@ class _SavedDeviceSection extends ConsumerWidget {
         Text('저장된 기기', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
         if (saved == null)
-          const Text('저장된 기기가 없습니다. 아래에서 기기를 연결하면 자동으로 저장됩니다.',
-              style: TextStyle(color: Colors.white54))
+          Text('저장된 기기가 없습니다. 아래에서 기기를 연결하면 자동으로 저장됩니다.',
+              style: TextStyle(color: context.appMuted))
         else
           Card(
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
               side: BorderSide(
-                color: isConnected ? AppColors.primary : Colors.white24,
+                color: isConnected ? AppColors.primary : context.appBorderSubtle,
                 width: isConnected ? 1.5 : 0.5,
               ),
             ),
             child: ListTile(
               leading: Icon(
                 Icons.bluetooth,
-                color: isConnected ? AppColors.primary : Colors.white54,
+                color: isConnected ? AppColors.primary : context.appMuted,
               ),
               title: Text(saved.name),
               subtitle: Text(saved.id,
-                  style: const TextStyle(fontSize: 11, color: Colors.white38)),
+                  style: TextStyle(fontSize: 11, color: context.appMuted)),
               trailing: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
