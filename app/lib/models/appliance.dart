@@ -123,4 +123,22 @@ const kAppliances = <ApplianceMap>[
       ApplianceButton(id: 'IN-10', label: '취소',  x: 3, y: 2),
     ],
   ),
+  ApplianceMap(
+    id: 'aircon',
+    name: '에어컨',
+    icon: Icons.ac_unit,
+    rows: 3,
+    cols: 3,
+    buttons: [
+      ApplianceButton(id: 'AC-01', label: '전원',    x: 0, y: 0),
+      ApplianceButton(id: 'AC-02', label: '온도-',   x: 1, y: 0),
+      ApplianceButton(id: 'AC-03', label: '온도+',   x: 2, y: 0),
+      ApplianceButton(id: 'AC-04', label: '냉방',    x: 0, y: 1),
+      ApplianceButton(id: 'AC-05', label: '제습',    x: 1, y: 1),
+      ApplianceButton(id: 'AC-06', label: '송풍',    x: 2, y: 1),
+      ApplianceButton(id: 'AC-07', label: '바람세기', x: 0, y: 2),
+      ApplianceButton(id: 'AC-08', label: '예약',    x: 1, y: 2),
+      ApplianceButton(id: 'AC-09', label: '취소',    x: 2, y: 2),
+    ],
+  ),
 ];

@@ -36,6 +36,15 @@ const buttonLabels = <String, String>{
   'BT-07': '해동',
   'BT-08': '우유',
   'BT-09': '자동조리',
+  'AC-01': '전원',
+  'AC-02': '온도 낮추기',
+  'AC-03': '온도 올리기',
+  'AC-04': '냉방',
+  'AC-05': '제습',
+  'AC-06': '송풍',
+  'AC-07': '바람세기',
+  'AC-08': '예약',
+  'AC-09': '취소',
 };
 
 String readableStep(String code) => buttonLabels[code] ?? code;

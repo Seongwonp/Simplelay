@@ -12,8 +12,8 @@ class DemoService {
   static const _suggestion = {
     'type': 'suggestion',
     'sequence_id': 'demo-001',
-    'label': '우유 데우기',
-    'steps': ['BT-08', 'BT-03', 'BT-05'],
+    'label': '무더위 감지 — 냉방 시작',
+    'steps': ['AC-01', 'AC-02', 'AC-04'],
   };
 
   void injectSuggestion() {
