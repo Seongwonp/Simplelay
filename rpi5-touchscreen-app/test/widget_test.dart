@@ -8,6 +8,6 @@ void main() {
     await tester.pump();
 
     expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('AI가 패턴을 학습하고 자동으로 제안합니다'), findsOneWidget);
+    expect(find.text('AI 모니터링 중'), findsOneWidget);
   });
 }
