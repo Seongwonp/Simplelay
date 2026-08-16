@@ -1,12 +1,16 @@
 """Typed representations of every UART message exchanged with ESP32.
 
-Inbound (ESP32 → RPi4):
+This is UartBridge's message set — the ESP32 <-> RPi5(Interpret) leg, despite
+living in the rpi4/ package (see services/bridge.py's module docstring).
+
+Inbound (ESP32 → RPi5):
   intent     — voice text from app; trigger intent resolution
   confirm    — user approved or rejected the suggested sequence
   abort      — hardware E-STOP or app emergency_stop
-  sensor_log — raw ADC/mic readings (Phase C: routed to verifier)
+  sensor_log — raw ADC/mic readings (not forwarded from here; see
+               services/bridge.py's _on_sensor_log)
 
-Outbound (RPi4 → ESP32): plain dicts serialised by UartBridge._send().
+Outbound (RPi5 → ESP32): plain dicts serialised by UartBridge._send().
 """
 
 from __future__ import annotations

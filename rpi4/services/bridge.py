@@ -1,15 +1,19 @@
 """UartBridge — asyncio message router between ESP32 UART and the rpi/ brain.
 
-Message routing table (protocol.md):
+Runs on RPi5 (Interpret) despite the rpi4/ package name — see main.py's
+module docstring for why. Implements docs/protocol.md's
+"UART 프로토콜 (ESP32 <-> RPi5)" section:
 
-  INBOUND (ESP32 → RPi4)          OUTBOUND (RPi4 → ESP32)
+  INBOUND (ESP32 → RPi5)          OUTBOUND (RPi5 → ESP32)
   ──────────────────────────────────────────────────────────
   intent {text}          →  sequence {id, label, buttons}
                          |  result   {success:F, reason:'unknown_intent'}  (on error)
   confirm {id, True}     →  result   {id, success}
   confirm {id, False}    →  abort
   abort                  →  abort
-  sensor_log {ma, db}    →  (no response; Phase C: route to verifier)
+  sensor_log {ma, db}    →  (no response — raw sensor data belongs to RPi4's
+                              verifier, reached over the separate RPi5<->RPi4
+                              link; see act_executor.py, not this bridge)
 
 The class accepts duck-typed writer/reader objects so it is fully testable
 without a real serial port:
@@ -186,8 +190,11 @@ class UartBridge:
         log.warning("abort received from ESP32 — all pending sequences cleared")
 
     def _on_sensor_log(self, msg: SensorLogMsg) -> None:
-        # Phase C TODO: forward to SensorVerifier running on RPi4.
-        log.debug("sensor_log: %d mA, %d dB", msg.current_ma, msg.sound_db)
+        # Raw sensor readings are consumed by rpi/verifier, which lives on the
+        # actual RPi4 (Act) board — not reachable from here. If ESP32 keeps
+        # sending sensor_log to this bridge, either relay it over the RPi5<->
+        # RPi4 link once that's built, or have ESP32 send it straight to RPi4.
+        log.debug("sensor_log: %d mA, %d dB (not forwarded)", msg.current_ma, msg.sound_db)
 
     # ── IO helper ────────────────────────────────────────────────────────────
 

@@ -1,4 +1,14 @@
-"""RPi4 entry point — opens a UART serial connection and runs UartBridge.
+"""ESP32 <-> Interpret UART bridge — despite this module's package name, it
+implements the RPi5 side of docs/protocol.md ("UART 프로토콜 (ESP32 <-> RPi5)"):
+it receives voice/text intent from ESP32, resolves it, and runs the closed
+loop directly. It must run on RPi5, not RPi4.
+
+The actual RPi4 ("Act") entry point is act_main.py — it receives an
+already-resolved button sequence from RPi5 over a separate UART link and
+just executes it, with no intent resolution of its own.
+
+(This module predates the RPi4/RPi5 board-role split and hasn't been moved
+out of the rpi4/ package yet; see docs/architecture.md for the board split.)
 
 Environment variables:
   SIMPLELAY_UART_PORT   serial device path  (default: /dev/ttyAMA0)
@@ -42,7 +52,7 @@ def _build_bridge(
 ) -> UartBridge:
     """Wire up the bridge with current adapters.
 
-    GrblClient and Verifier are mocks until real RPi Zero hardware is connected.
+    GrblClient and Verifier are mocks until real hardware is connected.
     Swap them out here once M2/M3 hardware adapters are implemented.
     """
     controller = ClosedLoopController(
