@@ -578,12 +578,12 @@ class _SuggestionView extends StatelessWidget {
                   style: const TextStyle(fontSize: 12, color: KioskColors.muted),
                 ),
                 const SizedBox(height: 10),
-                // 승인 전에는 어떤 시퀀스가 실행될지 서버가 아직 확정하지 않으므로
-                // 하이라이트 없이 배치만 보여준다(승인 후 실행 화면에서 실제 순서가 나온다).
+                // /suggestions가 주는 steps는 미리보기 — 실제 실행은 승인 시점에
+                // 다시 해석되므로 최종 순서와 다를 수 있다(드물게).
                 Expanded(
                   child: _ButtonGrid(
                     appliance: appliance,
-                    highlightIds: const [],
+                    highlightLabels: suggestion.steps,
                   ),
                 ),
               ],
@@ -596,16 +596,18 @@ class _SuggestionView extends StatelessWidget {
 }
 
 class _ButtonGrid extends StatelessWidget {
-  const _ButtonGrid({required this.appliance, required this.highlightIds});
+  const _ButtonGrid({required this.appliance, required this.highlightLabels});
 
   final ApplianceMap appliance;
-  final List<String> highlightIds;
+  final List<String> highlightLabels;
 
   @override
   Widget build(BuildContext context) {
+    // 백엔드(rpi/intent)는 버튼을 코드(BT-xx)가 아니라 라벨 문자열("해동" 등)로
+    // 돌려주므로 버튼맵의 id가 아닌 label로 매칭한다.
     final orderMap = <String, int>{};
-    for (var i = 0; i < highlightIds.length; i++) {
-      orderMap.putIfAbsent(highlightIds[i], () => i + 1);
+    for (var i = 0; i < highlightLabels.length; i++) {
+      orderMap.putIfAbsent(highlightLabels[i], () => i + 1);
     }
 
     return Column(
@@ -616,7 +618,7 @@ class _ButtonGrid extends StatelessWidget {
             child: Row(
               children: List.generate(appliance.cols, (col) {
                 final btn = appliance.buttonAt(col, row);
-                final order = btn != null ? orderMap[btn.id] : null;
+                final order = btn != null ? orderMap[btn.label] : null;
                 final isHighlighted = order != null;
                 return Expanded(
                   child: Padding(
