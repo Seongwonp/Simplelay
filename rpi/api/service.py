@@ -76,16 +76,7 @@ class SimpleLayService(PurposeExecutor):
         self._shutting_down = True
 
     def execute_purpose(self, purpose: str) -> ExecutionResult:
-        if not self._ready:
-            raise ServiceNotReadyError(
-                "service has not completed startup (call mark_ready() first)"
-            )
-        if self._shutting_down:
-            raise ServiceNotReadyError(
-                "service is shutting down and no longer accepts new purposes"
-            )
-        if self._running:
-            raise RuntimeError("an execution is already in progress")
+        self._guard_can_execute()
         self._running = True
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
@@ -106,6 +97,41 @@ class SimpleLayService(PurposeExecutor):
             self._running = False
             if self._progress_tracker is not None:
                 self._progress_tracker.clear()
+
+    def execute_buttons(self, buttons: tuple[str, ...]) -> ExecutionResult:
+        """Run an already-known button sequence directly, skipping intent
+        resolution entirely.
+
+        For appliances with no intent rules (e.g. user-defined custom button
+        maps) there is no purpose string to resolve or log -- the same
+        closed-loop guarantees (retry, verification) still apply, but this
+        run is intentionally NOT added to the pattern-learning usage log,
+        since that log's suggestion logic assumes a repeatable purpose
+        string, not raw button presses.
+        """
+        self._guard_can_execute()
+        self._running = True
+        if self._progress_tracker is not None:
+            self._progress_tracker.clear()
+        try:
+            self._last_result = self._controller.execute(buttons)
+            return self._last_result
+        finally:
+            self._running = False
+            if self._progress_tracker is not None:
+                self._progress_tracker.clear()
+
+    def _guard_can_execute(self) -> None:
+        if not self._ready:
+            raise ServiceNotReadyError(
+                "service has not completed startup (call mark_ready() first)"
+            )
+        if self._shutting_down:
+            raise ServiceNotReadyError(
+                "service is shutting down and no longer accepts new purposes"
+            )
+        if self._running:
+            raise RuntimeError("an execution is already in progress")
 
     def status(self) -> StatusSnapshot:
         ready = self._ready and not self._shutting_down

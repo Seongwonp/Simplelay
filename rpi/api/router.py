@@ -10,6 +10,7 @@ from .deps import get_service, get_suggestion_service
 from .schemas import (
     ApproveResponse,
     ButtonStep,
+    ExecuteButtonsRequest,
     ExecuteRequest,
     ExecuteResponse,
     OkResponse,
@@ -37,6 +38,19 @@ async def execute(
         result = await asyncio.to_thread(service.execute_purpose, body.text)
     except UnknownIntentError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ExecuteResponse(status=result.status.value, buttons=_to_steps(result))
+
+
+@router.post("/execute-buttons", response_model=ExecuteResponse)
+async def execute_buttons(
+    body: ExecuteButtonsRequest,
+    service: SimpleLayService = Depends(get_service),
+) -> ExecuteResponse:
+    # 의도 해석 규칙이 없는 사용자 정의 가전용 — 목적 문자열 없이 버튼을 직접 실행.
+    try:
+        result = await asyncio.to_thread(service.execute_buttons, tuple(body.buttons))
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ExecuteResponse(status=result.status.value, buttons=_to_steps(result))

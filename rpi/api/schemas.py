@@ -18,6 +18,22 @@ class ExecuteRequest(BaseModel):
         return v.strip()
 
 
+class ExecuteButtonsRequest(BaseModel):
+    """직접 버튼 시퀀스 실행 — 의도 해석 규칙이 없는 사용자 정의 가전용.
+    (규칙 기반 의도 해석기를 우회하므로, 알려진 목적 문자열 없이 버튼 라벨을
+    그대로 넘긴다.)"""
+
+    buttons: list[str]
+
+    @field_validator("buttons")
+    @classmethod
+    def buttons_not_empty(cls, v: list[str]) -> list[str]:
+        cleaned = [b.strip() for b in v if b.strip()]
+        if not cleaned:
+            raise ValueError("buttons must not be empty")
+        return cleaned
+
+
 class ButtonStep(BaseModel):
     button: str
     success: bool

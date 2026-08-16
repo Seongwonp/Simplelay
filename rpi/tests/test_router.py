@@ -54,6 +54,37 @@ def test_execute_concurrent_returns_409(client):
         svc._running = False
 
 
+# ── /execute-buttons (의도 해석 우회, 사용자 정의 가전용) ──────────────────────
+
+def test_execute_buttons_succeeds(client):
+    response = client.post("/execute-buttons", json={"buttons": ["커스텀A", "커스텀B"]})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "succeeded"
+    assert [step["button"] for step in body["buttons"]] == ["커스텀A", "커스텀B"]
+
+
+def test_execute_buttons_empty_list_returns_422(client):
+    response = client.post("/execute-buttons", json={"buttons": []})
+    assert response.status_code == 422
+
+
+def test_execute_buttons_blank_only_returns_422(client):
+    response = client.post("/execute-buttons", json={"buttons": ["   "]})
+    assert response.status_code == 422
+
+
+def test_execute_buttons_concurrent_returns_409(client):
+    from rpi.api.deps import get_service
+    svc = get_service()
+    svc._running = True
+    try:
+        response = client.post("/execute-buttons", json={"buttons": ["버튼"]})
+        assert response.status_code == 409
+    finally:
+        svc._running = False
+
+
 # ── /status ───────────────────────────────────────────────────────────────────
 
 def test_status_initially_idle(client):
