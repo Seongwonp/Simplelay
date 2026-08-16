@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
+import '../providers/theme_provider.dart';
 import '../services/ble_service.dart';
 import '../services/demo_service.dart';
 import '../theme/app_colors.dart';
@@ -48,6 +49,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          _ThemeToggleTile(),
+          const Divider(height: 36),
           Text('기기 이름', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 10),
           TextField(
@@ -185,6 +188,22 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _ThemeToggleTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isLight = ref.watch(themeModeProvider) == ThemeMode.light;
+    return SwitchListTile(
+      contentPadding: EdgeInsets.zero,
+      secondary: Icon(isLight ? Icons.light_mode : Icons.dark_mode),
+      title: Text(isLight ? '라이트 모드' : '다크 모드',
+          style: Theme.of(context).textTheme.titleMedium),
+      subtitle: Text(isLight ? '밝은 화면으로 사용 중' : '어두운 화면으로 사용 중'),
+      value: isLight,
+      onChanged: (_) => ref.read(themeModeProvider.notifier).toggle(),
     );
   }
 }
