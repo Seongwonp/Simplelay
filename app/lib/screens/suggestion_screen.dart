@@ -95,9 +95,12 @@ class SuggestionScreen extends ConsumerWidget {
                 child: OutlinedButton(
                   onPressed: () async {
                     final rpiApi = ref.read(rpiApiServiceProvider);
-                    if (rpiApi != null) {
+                    if (suggestion.source == SuggestionSource.http && rpiApi != null) {
+                      // HTTP: RPi에 직접 거부 전송
                       await rpiApi.rejectSuggestion(suggestion.sequenceId);
                     }
+                    // BLE 출처일 때만 respond()가 실제로 BLE 응답을 보낸다
+                    // (HTTP 출처는 로컬 목록에서 제거만 함 — 위에서 이미 서버에 전달했으므로).
                     await ref
                         .read(suggestionProvider.notifier)
                         .respond(suggestion, false);
@@ -112,15 +115,15 @@ class SuggestionScreen extends ConsumerWidget {
                 child: FilledButton.icon(
                   onPressed: () async {
                     final rpiApi = ref.read(rpiApiServiceProvider);
-                    if (rpiApi != null) {
+                    if (suggestion.source == SuggestionSource.http && rpiApi != null) {
                       // HTTP: RPi에 직접 승인 전송
                       await rpiApi.approveSuggestion(suggestion.sequenceId);
-                    } else {
-                      // BLE 폴백
-                      await ref
-                          .read(suggestionProvider.notifier)
-                          .respond(suggestion, true);
                     }
+                    // BLE 출처일 때만 respond()가 실제로 BLE 응답을 보낸다
+                    // (HTTP 출처는 로컬 목록에서 제거만 함 — 위에서 이미 서버에 전달했으므로).
+                    await ref
+                        .read(suggestionProvider.notifier)
+                        .respond(suggestion, true);
                     ref
                         .read(executionStatusProvider.notifier)
                         .begin(suggestion);

@@ -45,26 +45,32 @@ class RpiSuggestion {
     required this.purpose,
     required this.timeBand,
     required this.occurrences,
+    this.steps = const [],
   });
   final String id;
   final String purpose;
   final String timeBand;
   final int occurrences;
 
+  // 승인 시 실행될 버튼 시퀀스 미리보기(라벨 문자열). 해석 실패 시 서버가 빈 리스트를 준다.
+  final List<String> steps;
+
   factory RpiSuggestion.fromJson(Map<String, dynamic> json) => RpiSuggestion(
         id: json['id'] as String,
         purpose: json['purpose'] as String,
         timeBand: json['time_band'] as String,
         occurrences: json['occurrences'] as int,
+        steps: (json['steps'] as List<dynamic>?)?.cast<String>() ?? const [],
       );
 }
 
 class RpiApiService {
-  RpiApiService(String baseUrl)
-      : _base = Uri.parse(baseUrl.replaceAll(RegExp(r'/$'), ''));
+  RpiApiService(String baseUrl, {http.Client? client})
+      : _base = Uri.parse(baseUrl.replaceAll(RegExp(r'/$'), '')),
+        _client = client ?? http.Client();
 
   final Uri _base;
-  final _client = http.Client();
+  final http.Client _client;
 
   static const _timeout = Duration(seconds: 8);
 
