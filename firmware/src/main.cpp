@@ -20,8 +20,8 @@ static void sendRpi(JsonDocument& doc)   { rpiUart.send(doc); }
 // ─── BLE message handler (App → ESP32) ──────────────────────────────────────
 //
 // Implements:
-//   command       → forward to RPi4 as `intent`
-//   confirm       → forward to RPi4 as `confirm`
+//   command       → forward to RPi5 as `intent`
+//   confirm       → forward to RPi5 as `confirm`
 //   emergency_stop→ set estopTriggered (handled in loop)
 //
 static void onBleMessage(const JsonDocument& doc) {
@@ -48,12 +48,12 @@ static void onBleMessage(const JsonDocument& doc) {
     }
 }
 
-// ─── RPi4 UART message handler (RPi4 → ESP32) ───────────────────────────────
+// ─── RPi5 UART message handler (RPi5 → ESP32) ───────────────────────────────
 //
 // Implements:
 //   sequence → forward to App as `suggestion`
 //   result   → forward to App as `result`
-//   sensor   → forward to App as `sensor` (RPi4 aggregated sensor data)
+//   sensor   → forward to App as `sensor` (RPi5 aggregated sensor data)
 //   abort    → cancel active sequence, notify App
 //
 static void onRpiMessage(const JsonDocument& doc) {
@@ -82,7 +82,7 @@ static void onRpiMessage(const JsonDocument& doc) {
         activeSeqId[0] = '\0';
 
     } else if (strcmp(type, "sensor") == 0) {
-        // RPi4 can push aggregated sensor data for the App to display.
+        // RPi5 can push aggregated sensor data for the App to display.
         JsonDocument out;
         out["type"] = "sensor";
         out["current_ma"] = doc["current_ma"] | 0;
@@ -107,7 +107,7 @@ static void handleEstop() {
     estopTriggered = false;
     log_e("E-STOP triggered");
 
-    // 1. Notify RPi4 to abort execution.
+    // 1. Notify RPi5 to abort execution.
     JsonDocument rpiMsg;
     rpiMsg["type"] = "abort";
     sendRpi(rpiMsg);
@@ -131,7 +131,7 @@ static void handleEstop() {
     }
 }
 
-// ─── Periodic sensor log (ESP32 ADC → RPi4 + App) ───────────────────────────
+// ─── Periodic sensor log (ESP32 ADC → RPi5 + App) ───────────────────────────
 
 static void maybeSendSensorLog() {
     uint32_t now = millis();
