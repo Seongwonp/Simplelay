@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -286,6 +285,7 @@ class _ApplianceSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedApplianceProvider);
+    final appliances = ref.watch(allAppliancesProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -300,7 +300,7 @@ class _ApplianceSection extends ConsumerWidget {
         Wrap(
           spacing: 10,
           runSpacing: 10,
-          children: kAppliances.map((appliance) {
+          children: appliances.map((appliance) {
             final isSelected = appliance.id == selected.id;
             return GestureDetector(
               onTap: () =>
