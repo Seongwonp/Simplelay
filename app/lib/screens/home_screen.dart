@@ -8,6 +8,7 @@ import '../providers/suggestion_provider.dart';
 import '../services/ble_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/learning_stats_card.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -69,7 +70,9 @@ class HomeScreen extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         children: [
           _BleStatusCard(connected: connected),
-          const SizedBox(height: 32),
+          const SizedBox(height: 16),
+          LearningStatsCard(suggestions: suggestions),
+          const SizedBox(height: 28),
           Text('대기 중인 제안', style: AppText.title),
           const SizedBox(height: 12),
           if (suggestions.isEmpty)
