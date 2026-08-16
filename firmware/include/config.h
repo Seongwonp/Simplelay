@@ -6,7 +6,7 @@
 #define BLE_CHAR_UUID     "0000FFE1-0000-1000-8000-00805F9B34FB"
 #define BLE_MTU           512
 
-// ─── UART (Serial2) → RPi4 ────────────────────────────────────────────────
+// ─── UART (Serial2) → RPi5 ────────────────────────────────────────────────
 // Serial2 default pins on FireBeetle WROOM-32
 #define RPI_UART_BAUD    115200
 #define RPI_UART_RX_PIN   16
@@ -21,7 +21,7 @@
 #define SENSOR_ADC_PIN    36
 
 // ─── Timing ────────────────────────────────────────────────────────────────
-// Sensor sample interval sent to RPi4 (ms)
+// Sensor sample interval sent to RPi5 (ms)
 #define SENSOR_INTERVAL_MS  500
 // JSON line buffer for UART and BLE
 #define JSON_BUF_SIZE       512
