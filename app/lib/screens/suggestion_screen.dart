@@ -322,13 +322,7 @@ class _StepRow extends StatelessWidget {
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(readableStep(code), style: AppText.body),
-                            Text(code, style: AppText.caption),
-                          ],
-                        ),
+                        child: Text(readableStep(code), style: AppText.body),
                       ),
                     ],
                   ),
