@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/ble_service.dart';
@@ -17,8 +16,8 @@ class HomeScreen extends ConsumerWidget {
     final connection = ref.watch(bleConnectionProvider).valueOrNull ??
         BleConnectionState.disconnected;
     final suggestions = ref.watch(suggestionProvider);
-    final appliance   = ref.watch(selectedApplianceProvider);
     final connected = connection == BleConnectionState.connected;
+    final statusColor = connected ? AppColors.success : AppColors.primary;
 
     return Scaffold(
       appBar: AppBar(
@@ -26,13 +25,23 @@ class HomeScreen extends ConsumerWidget {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
-            child: Chip(
-              avatar: Icon(appliance.icon, size: 16, color: AppColors.primary),
-              label: Text(appliance.name,
-                  style: const TextStyle(fontSize: 12, color: AppColors.primary)),
-              backgroundColor: AppColors.primary.withValues(alpha: 0.12),
-              side: const BorderSide(color: AppColors.primary, width: 0.5),
-              padding: EdgeInsets.zero,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 120),
+              child: Chip(
+                avatar: Icon(
+                  connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
+                  size: 16,
+                  color: statusColor,
+                ),
+                label: Text(
+                  connected ? '연결됨' : '미연결',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: statusColor),
+                ),
+                backgroundColor: statusColor.withValues(alpha: 0.12),
+                side: BorderSide(color: statusColor, width: 0.5),
+                padding: EdgeInsets.zero,
+              ),
             ),
           ),
         ],

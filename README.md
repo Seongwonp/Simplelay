@@ -21,57 +21,64 @@
 ```mermaid
 flowchart LR
     user(["사용자"])
+    app["Flutter 앱<br/>(폰)"]
+    esp32["ESP32<br/>BLE↔Wi-Fi 브릿지"]
 
-    subgraph reused["Touch Bridge 재사용 영역"]
-        app["Flutter 앱"]
-        esp32["ESP32 브릿지"]
-        grbl["Arduino Uno<br/>GRBL"]
-        driver["TB6600 ×3"]
-        gantry["NEMA17<br/>XYZ 갠트리"]
-    end
-
-    subgraph brain["라즈베리파이 · SimpleLay 신규 Brain 레이어"]
+    subgraph rpi5["RPi 5 · Interpret (+ 터치스크린 UI)"]
         direction TB
-        api["api<br/>앱·로그 연동"]
-        intent["intent<br/>목적 해석·패턴 학습"]
-        controller["controller<br/>폐루프 제어·재시도"]
-        verifier["verifier<br/>실행 결과 검증"]
-
-        api --> intent --> controller
-        verifier -->|"눌림 판정·신뢰도"| controller
-        controller -->|"실행 상태"| api
+        api["api"]
+        intent["intent<br/>의도 해석·패턴 학습"]
+        api --> intent
     end
 
-    sensors["전류·음향·접점 센서"]
+    subgraph rpi4["RPi 4 · Act"]
+        direction TB
+        controller["controller<br/>폐루프 제어·재시도"]
+        verifier["verifier<br/>전류·음향 퓨전 검증"]
+        verifier -->|"눌림 판정·신뢰도"| controller
+    end
+
+    hw["CoreXY 구동부<br/>(Arduino 모터 PID + SwitchBot Z축)"]
+    sensors["전류·음향 센서"]
     appliance["기존 가전 버튼"]
 
     user -->|"음성·터치"| app
-    app -->|"BLE / Wi-Fi"| esp32
-    esp32 -->|"UART"| grbl
-    grbl --> driver --> gantry
-    gantry -->|"물리 누름"| appliance
+    app -->|"HTTP (Wi-Fi 직통, 우선)"| api
+    app -->|"BLE (폴백)"| esp32
+    esp32 -->|"Wi-Fi"| api
 
-    app <-->|"요청·상태"| api
-    controller -->|"버튼 누름 명령"| esp32
+    intent -->|"버튼 시퀀스"| controller
+    controller -->|"실행 상태"| intent
+    controller -->|"UART / GPIO"| hw
+    hw -->|"물리 누름"| appliance
     appliance -.->|"반응"| sensors
     sensors -->|"원신호"| verifier
 
-    classDef newLayer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20;
-    classDef reusedLayer fill:#e3f2fd,stroke:#1565c0,stroke-width:1.5px,color:#0d47a1;
-    class api,intent,controller,verifier newLayer;
-    class app,esp32,grbl,driver,gantry reusedLayer;
+    classDef rpi5Layer fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20;
+    classDef rpi4Layer fill:#fff3e0,stroke:#ef6c00,stroke-width:2px,color:#e65100;
+    classDef bridgeLayer fill:#e3f2fd,stroke:#1565c0,stroke-width:1.5px,color:#0d47a1;
+    class api,intent rpi5Layer;
+    class controller,verifier rpi4Layer;
+    class app,esp32,hw bridgeLayer;
 ```
 
-| 계층 | 역할 | 하드웨어 | 출처 |
-| --- | --- | --- | --- |
-| **Act** | 버튼 물리 누름 (XYZ 좌표 이동) | NEMA17 ×3 + TB6600 ×3 + Arduino Uno GRBL | Touch Bridge 플랫폼 공유 |
-| **Bridge** | 앱 명령 수신 → GRBL G-code 전달 | ESP32 | Touch Bridge 플랫폼 공유 |
-| **Brain** | **검증 · 폐루프 · 패턴 학습** | **라즈베리파이 5(의도 해석) + 4(폐루프 실행) — 신규** | **SimpleLay 신규** |
-| **App** | 음성/원격 입력, 상태 확인 | Flutter | Touch Bridge 확장 |
+> **앱은 ESP32로 직접 가지 않는다.** ESP32는 폰이 Wi-Fi에 못 붙었을 때만 쓰는 BLE→Wi-Fi
+> 브릿지이며, 그 경우에도 결국 RPi 5의 FastAPI로 전달된다. 즉 **모든 명령은 RPi 5(Interpret)를
+> 반드시 거친다.** RPi 5는 의도를 버튼 시퀀스로 해석한 뒤 RPi 4(Act)에 실행을 위임하고,
+> RPi 4가 실제 폐루프 제어(누름 → 센서 검증 → 재시도)를 맡는다. RPi5 ↔ RPi4 간 통신 방식
+> (HTTP vs UART)은 아직 미확정 — 자세한 내용은 [docs/architecture.md](docs/architecture.md) 참고.
 
-> **핵심:** XY 갠트리(Act·Bridge)는 Touch Bridge 하드웨어 플랫폼을 공유하지만,
-> **라즈베리파이가 얹는 "자가 검증 + 선제 제어" 레이어가 SimpleLay만의 신규 구현**이다.
-> 재사용과 신규의 경계는 [docs/reuse-boundary.md](docs/reuse-boundary.md)에 명확히 구분해 둔다.
+| 계층 | 보드 | 역할 |
+| --- | --- | --- |
+| **Interpret** | RPi 5 (8GB) | 의도 해석(LLM/규칙 기반) · 선제 제안 · 앱/터치스크린 API |
+| **Act** | RPi 4 (4GB) | 폐루프 제어(누름·재시도) · 전류/음향 센서 퓨전 검증 · 긴급 정지 |
+| **Bridge** | ESP32 | BLE ↔ Wi-Fi 브릿지 (앱의 Wi-Fi 직통 실패 시 폴백 경로) |
+| **Act 하드웨어** | Arduino + SwitchBot | CoreXY 모터 PID 제어(X/Y) + Z축 버튼 누름 |
+| **App** | Flutter (폰 + RPi5 터치스크린) | 음성/터치 입력, 상태 확인 |
+
+> **핵심:** 각 계층의 "자가 검증 + 선제 제어" 지능 레이어(intent/controller/verifier)가
+> SimpleLay만의 신규 구현이다. 재사용과 신규의 경계는
+> [docs/reuse-boundary.md](docs/reuse-boundary.md)에 명확히 구분해 둔다.
 
 ---
 
@@ -124,8 +131,8 @@ simplelay/
 | M0 | RPi 패턴 학습 · 선제 제안 · 폐루프 제어 모듈 | ✅ 완료 |
 | M0 | FastAPI HTTP 레이어 — execute / status / stop / suggestions (테스트 21개) | ✅ 완료 |
 | M1 | 전류·음향 센서 읽기 (버튼 눌림 신호 감지) | 🔧 진행 중 |
-| M2 | RPi ↔ ESP32 BLE 통신 실기기 연결 | 예정 |
-| M3 | **폐루프 E2E** — 앱 → BLE → RPi → 액추에이터 → 센서 검증 | 예정 |
+| M2 | RPi5 ↔ RPi4 IPC 확정 + ESP32 BLE↔Wi-Fi 브릿지 실기기 연결 | 예정 |
+| M3 | **폐루프 E2E** — 앱 → RPi5 → RPi4 → 액추에이터 → 센서 검증 | 예정 |
 | M4 | 공감지능 — 사용 이력 기반 선제 제안 앱 표시 | 예정 |
 | M5 | 인덕션 이식 + 입력 정확도 ≥ 95% | 예정 |
 
