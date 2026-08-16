@@ -54,15 +54,19 @@ class HomeScreen extends ConsumerWidget {
       floatingActionButton: isCustomAppliance
           ? FloatingActionButton.extended(
               onPressed: () => context.push('/manual-control'),
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.black,
+              backgroundColor: context.appPrimary,
+              foregroundColor: Theme.of(context).colorScheme.onPrimary,
               icon: const Icon(Icons.touch_app),
               label: const Text('버튼으로 조작'),
             )
           : FloatingActionButton.extended(
               onPressed: connected ? () => context.go('/voice') : null,
-              backgroundColor: connected ? AppColors.primary : Colors.white12,
-              foregroundColor: connected ? Colors.black : AppColors.onSurfaceMuted,
+              backgroundColor: connected
+                  ? context.appPrimary
+                  : Theme.of(context).colorScheme.surfaceContainerHigh,
+              foregroundColor: connected
+                  ? Theme.of(context).colorScheme.onPrimary
+                  : context.appMuted,
               icon: const Icon(Icons.mic_rounded),
               label: const Text('말하기'),
             ),
@@ -108,11 +112,13 @@ class _BleStatusCard extends StatelessWidget {
       curve: Curves.easeOutCubic,
       decoration: BoxDecoration(
         color: connected
-            ? AppColors.primary.withValues(alpha: 0.10)
-            : AppColors.surfaceLow,
+            ? context.appPrimary.withValues(alpha: 0.10)
+            : context.appSurfaceLow,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: connected ? AppColors.primary.withValues(alpha: 0.4) : AppColors.borderSubtle,
+          color: connected
+              ? context.appPrimary.withValues(alpha: 0.4)
+              : context.appBorderSubtle,
           width: 1,
         ),
       ),
@@ -127,12 +133,12 @@ class _BleStatusCard extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: connected
-                    ? AppColors.primary.withValues(alpha: 0.18)
-                    : Colors.white12,
+                    ? context.appPrimary.withValues(alpha: 0.18)
+                    : Theme.of(context).colorScheme.surfaceContainerHigh,
               ),
               child: Icon(
                 connected ? Icons.bluetooth_connected : Icons.bluetooth_disabled,
-                color: connected ? AppColors.primary : AppColors.onSurfaceMuted,
+                color: connected ? context.appPrimary : context.appMuted,
                 size: 24,
               ),
             ),
@@ -189,12 +195,12 @@ class _SuggestionTile extends StatelessWidget {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: AppColors.primary.withValues(alpha: 0.12),
+                    color: context.appPrimary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
+                  child: Icon(
                     Icons.auto_awesome,
-                    color: AppColors.primary,
+                    color: context.appPrimary,
                     size: 20,
                   ),
                 ),
@@ -212,7 +218,7 @@ class _SuggestionTile extends StatelessWidget {
                     ],
                   ),
                 ),
-                const Icon(Icons.chevron_right, color: AppColors.onSurfaceMuted),
+                Icon(Icons.chevron_right, color: context.appMuted),
               ],
             ),
           ),

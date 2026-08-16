@@ -54,10 +54,11 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
             child: active
                 ? LinearProgressIndicator(
                     borderRadius: BorderRadius.zero,
-                    backgroundColor: Colors.white12,
+                    backgroundColor:
+                        Theme.of(context).colorScheme.surfaceContainerHigh,
                     color: status.phase == ExecutionPhase.retrying
                         ? AppColors.warning
-                        : AppColors.primary,
+                        : Theme.of(context).colorScheme.primary,
                   )
                 : null,
           ),
@@ -207,10 +208,10 @@ class _StepTile extends StatelessWidget {
       iconColor = AppColors.success;
       iconData  = Icons.check_circle;
     } else if (current) {
-      iconColor = AppColors.primary;
+      iconColor = Theme.of(context).colorScheme.primary;
       iconData  = Icons.pending;
     } else {
-      iconColor = Colors.white24;
+      iconColor = context.appBorderSubtle;
       iconData  = Icons.radio_button_unchecked;
     }
 
@@ -230,7 +231,9 @@ class _StepTile extends StatelessWidget {
                 Container(
                   width: 2,
                   height: 24,
-                  color: done ? AppColors.success.withValues(alpha: 0.4) : Colors.white12,
+                  color: done
+                      ? AppColors.success.withValues(alpha: 0.4)
+                      : context.appBorderSubtle,
                 ),
             ],
           ),
