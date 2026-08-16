@@ -106,6 +106,26 @@ class RpiApiService {
     );
   }
 
+  // POST /execute-buttons — 의도 해석 우회, 사용자 정의 가전의 수동 버튼 실행용
+  Future<RpiExecuteResult> executeButtons(List<String> buttons) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/execute-buttons'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'buttons': buttons}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return RpiExecuteResult(
+      status: body['status'] as String,
+      buttons: (body['buttons'] as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(RpiButtonStep.fromJson)
+          .toList(),
+    );
+  }
+
   // GET /status
   Future<RpiStatusResult> status() async {
     final res =

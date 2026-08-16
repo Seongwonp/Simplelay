@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/ble_service.dart';
@@ -18,6 +19,9 @@ class HomeScreen extends ConsumerWidget {
     final suggestions = ref.watch(suggestionProvider);
     final connected = connection == BleConnectionState.connected;
     final statusColor = connected ? AppColors.success : AppColors.primary;
+    // 사용자 정의 가전은 의도 해석 규칙이 없어서 음성 명령 대신 버튼을 직접
+    // 탭해서 실행하는 화면으로 보낸다 (manual_control_screen.dart).
+    final isCustomAppliance = ref.watch(selectedApplianceProvider).isCustom;
 
     return Scaffold(
       appBar: AppBar(
@@ -46,13 +50,21 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: connected ? () => context.go('/voice') : null,
-        backgroundColor: connected ? AppColors.primary : Colors.white12,
-        foregroundColor: connected ? Colors.black : AppColors.onSurfaceMuted,
-        icon: const Icon(Icons.mic_rounded),
-        label: const Text('말하기'),
-      ),
+      floatingActionButton: isCustomAppliance
+          ? FloatingActionButton.extended(
+              onPressed: () => context.push('/manual-control'),
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.black,
+              icon: const Icon(Icons.touch_app),
+              label: const Text('버튼으로 조작'),
+            )
+          : FloatingActionButton.extended(
+              onPressed: connected ? () => context.go('/voice') : null,
+              backgroundColor: connected ? AppColors.primary : Colors.white12,
+              foregroundColor: connected ? Colors.black : AppColors.onSurfaceMuted,
+              icon: const Icon(Icons.mic_rounded),
+              label: const Text('말하기'),
+            ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 100),
         children: [
