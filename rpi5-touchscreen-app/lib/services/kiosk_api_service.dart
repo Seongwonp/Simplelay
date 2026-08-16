@@ -39,15 +39,23 @@ class KioskStatus {
     required this.running,
     this.lastStatus,
     this.lastButtons,
-    this.currentMa,
-    this.soundDb,
+    this.currentButton,
+    this.currentAttempt,
+    this.completedSteps,
+    this.verificationConfidence,
+    this.verificationDetail,
   });
 
   final bool running;
   final String? lastStatus;
   final List<KioskButtonResult>? lastButtons;
-  final double? currentMa;
-  final double? soundDb;
+
+  // 실행 중 진행 상황 — /status가 폴링될 때만 채워지고, 완료되면 서버가 비운다.
+  final String? currentButton;
+  final int? currentAttempt;
+  final int? completedSteps;
+  final double? verificationConfidence;
+  final String? verificationDetail;
 
   factory KioskStatus.fromJson(Map<String, dynamic> json) => KioskStatus(
         running: json['running'] as bool? ?? false,
@@ -56,8 +64,12 @@ class KioskStatus {
             ?.cast<Map<String, dynamic>>()
             .map(KioskButtonResult.fromJson)
             .toList(),
-        currentMa: (json['current_ma'] as num?)?.toDouble(),
-        soundDb: (json['sound_db'] as num?)?.toDouble(),
+        currentButton: json['current_button'] as String?,
+        currentAttempt: (json['current_attempt'] as num?)?.toInt(),
+        completedSteps: (json['completed_steps'] as num?)?.toInt(),
+        verificationConfidence:
+            (json['verification_confidence'] as num?)?.toDouble(),
+        verificationDetail: json['verification_detail'] as String?,
       );
 }
 
