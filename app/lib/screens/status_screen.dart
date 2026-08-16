@@ -17,8 +17,9 @@ class StatusScreen extends ConsumerStatefulWidget {
 
 class _StatusScreenState extends ConsumerState<StatusScreen> {
   // 슬라이딩 윈도우 20샘플 — 새 값이 들어올 때마다 맨 앞을 제거하고 추가
-  final List<double> _maHistory  = List.filled(20, 0.0);
-  final List<double> _dbHistory  = List.filled(20, 0.0);
+  // growable: true 필수 — List.filled 기본값(growable: false)은 removeAt에서 예외를 던진다.
+  final List<double> _maHistory = List.filled(20, 0.0, growable: true);
+  final List<double> _dbHistory = List.filled(20, 0.0, growable: true);
 
   @override
   Widget build(BuildContext context) {

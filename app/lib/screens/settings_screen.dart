@@ -7,6 +7,7 @@ import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
+import '../services/ble_service.dart';
 import '../services/demo_service.dart';
 import '../theme/app_colors.dart';
 
@@ -245,9 +246,12 @@ class _RpiUrlSection extends ConsumerWidget {
               ),
             ),
             const SizedBox(width: 8),
-            FilledButton(
-              onPressed: () => _save(ref),
-              child: const Text('저장'),
+            SizedBox(
+              width: 84,
+              child: FilledButton(
+                onPressed: () => _save(ref),
+                child: const Text('저장'),
+              ),
             ),
           ],
         ),
