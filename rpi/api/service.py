@@ -1,6 +1,12 @@
 from dataclasses import dataclass
 
-from rpi.controller import ClosedLoopController, ExecutionResult, ExecutionStatus
+from rpi.controller import (
+    ClosedLoopController,
+    ExecutionProgress,
+    ExecutionProgressTracker,
+    ExecutionResult,
+    ExecutionStatus,
+)
 from rpi.intent import (
     Clock,
     IntentResolver,
@@ -21,6 +27,7 @@ class StatusSnapshot:
     running: bool
     ready: bool
     last_result: ExecutionResult | None
+    progress: ExecutionProgress | None = None
 
 
 class SimpleLayService(PurposeExecutor):
@@ -33,6 +40,12 @@ class SimpleLayService(PurposeExecutor):
     purposes from being accepted while leaving an already-running execution
     (tracked by ``_running``) to finish normally rather than being torn down
     mid-retry.
+
+    ``progress_tracker``, when given, must be the same
+    ``ExecutionProgressTracker`` instance the caller wired into the
+    ``ClosedLoopController`` passed as ``controller`` (via its
+    ``on_progress`` callback) -- that's how ``status()`` can report live
+    progress while ``execute_purpose`` is still running on another thread.
     """
 
     def __init__(
@@ -42,6 +55,7 @@ class SimpleLayService(PurposeExecutor):
         usage_log: UsageLog | None = None,
         clock: Clock | None = None,
         start_ready: bool = True,
+        progress_tracker: ExecutionProgressTracker | None = None,
     ) -> None:
         self._intent = intent
         self._controller = controller
@@ -51,6 +65,7 @@ class SimpleLayService(PurposeExecutor):
         self._ready = start_ready
         self._shutting_down = False
         self._last_result: ExecutionResult | None = None
+        self._progress_tracker = progress_tracker
 
     def mark_ready(self) -> None:
         """Declare that hardware dependencies finished initializing."""
@@ -72,6 +87,8 @@ class SimpleLayService(PurposeExecutor):
         if self._running:
             raise RuntimeError("an execution is already in progress")
         self._running = True
+        if self._progress_tracker is not None:
+            self._progress_tracker.clear()
         try:
             buttons = self._intent.resolve(purpose)
             self._last_result = self._controller.execute(buttons)
@@ -87,7 +104,10 @@ class SimpleLayService(PurposeExecutor):
             return self._last_result
         finally:
             self._running = False
+            if self._progress_tracker is not None:
+                self._progress_tracker.clear()
 
     def status(self) -> StatusSnapshot:
         ready = self._ready and not self._shutting_down
-        return StatusSnapshot(self._running, ready, self._last_result)
+        progress = self._progress_tracker.current() if self._progress_tracker else None
+        return StatusSnapshot(self._running, ready, self._last_result, progress)

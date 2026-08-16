@@ -139,3 +139,89 @@ def test_failed_usage_is_logged_but_not_counted_as_learned_success():
     )
     detector = PatternDetector(usage_log, clock, PatternConfig(1, (MORNING,)))
     assert detector.candidates() == ()
+
+
+# ── 제안 미리보기 (steps) ────────────────────────────────────────────────
+
+
+def test_suggestion_has_no_step_preview_without_a_resolver():
+    records = tuple(
+        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        for day in (20, 21, 22)
+    )
+    detector, clock, _ = build_detector(records)
+
+    suggestion = ProactiveSuggestionService(
+        detector, clock, MockPurposeExecutor()
+    ).create_suggestions()[0]
+
+    assert suggestion.steps == ()
+
+
+def test_suggestion_previews_steps_when_resolver_is_injected():
+    records = tuple(
+        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        for day in (20, 21, 22)
+    )
+    detector, clock, _ = build_detector(records)
+
+    suggestion = ProactiveSuggestionService(
+        detector,
+        clock,
+        MockPurposeExecutor(),
+        intent_resolver=RuleBasedIntentResolver(),
+    ).create_suggestions()[0]
+
+    assert suggestion.steps == ("해동", "시간 90초", "시작")
+
+
+def test_suggestion_preview_failure_does_not_block_suggestion_creation():
+    records = tuple(
+        UsageRecord(at_morning(day), "규칙에 없는 목적", UsageOutcome.SUCCEEDED)
+        for day in (20, 21, 22)
+    )
+    detector, clock, _ = build_detector(records)
+
+    suggestions = ProactiveSuggestionService(
+        detector,
+        clock,
+        MockPurposeExecutor(),
+        intent_resolver=RuleBasedIntentResolver(),
+    ).create_suggestions()
+
+    assert len(suggestions) == 1
+    assert suggestions[0].purpose == "규칙에 없는 목적"
+    assert suggestions[0].steps == ()  # 미리보기만 실패, 제안 자체는 그대로 생성됨
+
+
+def test_approve_still_reresolves_independently_of_the_preview():
+    # 승인 시점의 실제 실행은 항상 SimpleLayService의 RuleBasedIntentResolver로
+    # 다시 해석된다 — 미리보기에 쓴 리졸버가 승인 실행 결과를 대신하지 않는다.
+    records = tuple(
+        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        for day in (20, 21, 22)
+    )
+    detector, clock, usage_log = build_detector(records)
+    grbl = MockGrblClient()
+    normal_service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        ClosedLoopController(
+            grbl,
+            MockVerifier([True, True, True]),
+            MockAlertSink(),
+            MockSafetyController(),
+        ),
+        usage_log=usage_log,
+        clock=clock,
+    )
+    suggestions = ProactiveSuggestionService(
+        detector, clock, normal_service, intent_resolver=RuleBasedIntentResolver()
+    )
+
+    suggestion = suggestions.create_suggestions()[0]
+    assert suggestion.steps == ("해동", "시간 90초", "시작")  # 미리보기
+
+    result = suggestions.approve(suggestion.suggestion_id)
+
+    assert result.status is ExecutionStatus.SUCCEEDED
+    assert [command.button for command in grbl.commands] == ["해동", "시간 90초", "시작"]

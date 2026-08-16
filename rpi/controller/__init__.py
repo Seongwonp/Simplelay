@@ -6,11 +6,13 @@ from .models import (
     ButtonResult,
     ButtonStatus,
     Correction,
+    ExecutionProgress,
     ExecutionResult,
     ExecutionStatus,
     PressCommand,
 )
 from .ports import AlertSink, GrblClient, NoOpRetryWaiter, RetryWaiter, SafetyController
+from .progress import ExecutionProgressTracker, ProgressCallback
 from .retry import DocumentedRetryPolicy, RetryPolicy
 
 __all__ = [
@@ -22,11 +24,14 @@ __all__ = [
     "ClosedLoopController",
     "Correction",
     "DocumentedRetryPolicy",
+    "ExecutionProgress",
+    "ExecutionProgressTracker",
     "ExecutionResult",
     "ExecutionStatus",
     "GrblClient",
     "NoOpRetryWaiter",
     "PressCommand",
+    "ProgressCallback",
     "RetryPolicy",
     "RetryWaiter",
     "SafetyController",

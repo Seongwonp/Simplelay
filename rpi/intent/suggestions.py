@@ -2,9 +2,11 @@
 
 from dataclasses import replace
 
+from .base import IntentResolver
 from .models import ProactiveSuggestion, SuggestionStatus
 from .patterns import PatternDetector
 from .ports import Clock, PurposeExecutor
+from .rules import UnknownIntentError
 
 
 class UnknownSuggestionError(KeyError):
@@ -21,10 +23,12 @@ class ProactiveSuggestionService:
         detector: PatternDetector,
         clock: Clock,
         executor: PurposeExecutor,
+        intent_resolver: IntentResolver | None = None,
     ) -> None:
         self._detector = detector
         self._clock = clock
         self._executor = executor
+        self._intent_resolver = intent_resolver
         self._suggestions: dict[str, ProactiveSuggestion] = {}
         self._next_id = 1
 
@@ -41,11 +45,26 @@ class ProactiveSuggestionService:
                 time_band=candidate.time_band,
                 occurrences=candidate.occurrences,
                 created_at=self._clock.now(),
+                steps=self._preview_steps(candidate.purpose),
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion
             created.append(suggestion)
         return tuple(created)
+
+    def _preview_steps(self, purpose: str) -> tuple[str, ...]:
+        """Best-effort preview only -- approve() re-resolves for real execution.
+
+        A blank result here (no resolver injected, or resolution fails) just
+        means the caller shows no highlight; it never blocks suggestion
+        creation, since the occurrence count is still meaningful on its own.
+        """
+        if self._intent_resolver is None:
+            return ()
+        try:
+            return self._intent_resolver.resolve(purpose)
+        except UnknownIntentError:
+            return ()
 
     def pending(self) -> tuple[ProactiveSuggestion, ...]:
         return tuple(

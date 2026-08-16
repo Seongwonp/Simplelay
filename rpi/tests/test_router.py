@@ -73,6 +73,29 @@ def test_status_after_execute_shows_last_result(client):
     assert body["last_buttons"] is not None
 
 
+def test_status_initially_has_no_live_progress_fields(client):
+    response = client.get("/status")
+    body = response.json()
+    assert body["current_button"] is None
+    assert body["current_attempt"] is None
+    assert body["completed_steps"] is None
+    assert body["verification_confidence"] is None
+    assert body["verification_detail"] is None
+
+
+def test_status_after_execute_completes_clears_live_progress_fields(client):
+    # 실행이 끝나면 진행 상황 트래커가 초기화되므로, 완료 후 조회한 /status에는
+    # 마지막 결과(last_*)만 남고 실행 중이던 진행 정보(current_*)는 사라져야 한다.
+    client.post("/execute", json={"text": "우유 데워줘"})
+    response = client.get("/status")
+    body = response.json()
+    assert body["current_button"] is None
+    assert body["current_attempt"] is None
+    assert body["completed_steps"] is None
+    assert body["verification_confidence"] is None
+    assert body["verification_detail"] is None
+
+
 # ── /stop ─────────────────────────────────────────────────────────────────────
 
 def test_emergency_stop_returns_ok(client):

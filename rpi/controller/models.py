@@ -44,3 +44,17 @@ class ExecutionStatus(str, Enum):
 class ExecutionResult:
     status: ExecutionStatus
     buttons: tuple[ButtonResult, ...]
+
+
+@dataclass(frozen=True)
+class ExecutionProgress:
+    """Live snapshot reported mid-execution, before the final ExecutionResult exists.
+
+    ``verification`` is ``None`` when this snapshot was reported right after a
+    failed press attempt (GRBL raised) rather than after a verification check.
+    """
+
+    button: str
+    attempt: int
+    completed_steps: int
+    verification: VerificationResult | None
