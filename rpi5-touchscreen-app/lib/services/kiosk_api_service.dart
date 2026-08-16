@@ -8,17 +8,23 @@ class KioskSuggestion {
     required this.id,
     required this.purpose,
     required this.occurrences,
+    this.steps = const [],
   });
 
   final String id;
   final String purpose;
   final int occurrences;
 
+  // 승인 시 실행될 버튼 시퀀스 미리보기 — 실제 버튼 라벨 문자열(예: "해동")로 온다.
+  // 미리보기 해석이 실패하면 서버가 빈 리스트를 준다.
+  final List<String> steps;
+
   factory KioskSuggestion.fromJson(Map<String, dynamic> json) =>
       KioskSuggestion(
         id: json['id'] as String,
         purpose: json['purpose'] as String,
         occurrences: (json['occurrences'] as num?)?.toInt() ?? 1,
+        steps: (json['steps'] as List<dynamic>?)?.cast<String>() ?? const [],
       );
 }
 
