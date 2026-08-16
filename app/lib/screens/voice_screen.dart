@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/ble_provider.dart';
+import '../providers/rpi_api_provider.dart';
 import '../providers/voice_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -39,11 +40,19 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
 
   Future<void> _send(String text) async {
     if (text.trim().isEmpty) return;
+    final rpiApi = ref.read(rpiApiServiceProvider);
     try {
-      await ref
-          .read(bleServiceProvider)
-          .sendCommand(text.trim(), source: 'voice');
-      if (mounted) _notice('명령을 전송했습니다.');
+      if (rpiApi != null) {
+        // RPi HTTP 직통
+        await rpiApi.execute(text.trim(), source: 'voice');
+        if (mounted) _notice('RPi에 명령을 전송했습니다.');
+      } else {
+        // BLE 폴백
+        await ref
+            .read(bleServiceProvider)
+            .sendCommand(text.trim(), source: 'voice');
+        if (mounted) _notice('명령을 전송했습니다.');
+      }
     } catch (error) {
       if (mounted) _notice(error.toString());
     }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/ble_service.dart';
@@ -16,10 +17,26 @@ class HomeScreen extends ConsumerWidget {
     final connection = ref.watch(bleConnectionProvider).valueOrNull ??
         BleConnectionState.disconnected;
     final suggestions = ref.watch(suggestionProvider);
+    final appliance   = ref.watch(selectedApplianceProvider);
     final connected = connection == BleConnectionState.connected;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('SimpleLay')),
+      appBar: AppBar(
+        title: const Text('SimpleLay'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Chip(
+              avatar: Icon(appliance.icon, size: 16, color: AppColors.primary),
+              label: Text(appliance.name,
+                  style: const TextStyle(fontSize: 12, color: AppColors.primary)),
+              backgroundColor: AppColors.primary.withValues(alpha: 0.12),
+              side: const BorderSide(color: AppColors.primary, width: 0.5),
+              padding: EdgeInsets.zero,
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: connected ? () => context.go('/voice') : null,
         backgroundColor: connected ? AppColors.primary : Colors.white12,

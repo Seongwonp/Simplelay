@@ -1,0 +1,906 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=800, initial-scale=1.0, user-scalable=no">
+  <title>SimpleLay</title>
+  <style>
+    :root {
+      --primary:  #4FC3F7;
+      --success:  #22C55E;
+      --danger:   #EF4444;
+      --warning:  #F59E0B;
+      --bg:       #0D1117;
+      --surface:  #171D25;
+      --surface2: #1E2733;
+      --muted:    #B0BEC5;
+      --border:   rgba(255,255,255,0.10);
+    }
+
+    *, *::before, *::after {
+      margin: 0; padding: 0; box-sizing: border-box;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 800px; height: 480px;
+      overflow: hidden;
+      background: var(--bg);
+      color: #fff;
+      font-family: -apple-system, 'Apple SD Gothic Neo', 'Noto Sans KR', sans-serif;
+    }
+
+    /* ── 화면 전환 ─────────────────────────────────────────────────── */
+    .screen {
+      position: absolute; inset: 0;
+      display: flex;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .screen.active { opacity: 1; pointer-events: all; }
+
+    /* ── 상단 진행 바 ──────────────────────────────────────────────── */
+    #topBar {
+      position: fixed; top: 0; left: 0; right: 0; height: 3px; z-index: 99;
+    }
+    #topBarFill {
+      height: 100%; background: var(--primary);
+      width: 0%; transition: width 0.5s ease;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       1. 대기 화면
+    ════════════════════════════════════════════════════════════════ */
+    #idle {
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+    }
+
+    .idle-icon {
+      width: 108px; height: 108px; border-radius: 50%;
+      background: rgba(79,195,247,0.08);
+      border: 1.5px solid rgba(79,195,247,0.2);
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 20px;
+    }
+    .idle-icon svg { width: 52px; height: 52px; }
+
+    .idle-name {
+      font-size: 26px; font-weight: 700; color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .idle-hint {
+      font-size: 14px; color: var(--muted);
+      margin-bottom: 36px;
+    }
+
+    .idle-pill {
+      display: flex; align-items: center; gap: 16px;
+      padding: 10px 22px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 100px;
+    }
+    .idle-pill-item {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 13px; color: var(--muted);
+    }
+    .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .dot-on  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .dot-off { background: #444; }
+    .pill-sep { width: 1px; height: 14px; background: var(--border); }
+
+    /* 대형 시계 — 우측 배경 */
+    .idle-clock-bg {
+      position: absolute; right: 28px; top: 50%;
+      transform: translateY(-50%);
+      font-size: 96px; font-weight: 200; letter-spacing: -2px;
+      color: rgba(255,255,255,0.05);
+      font-variant-numeric: tabular-nums;
+      pointer-events: none;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       2. 제안 화면
+    ════════════════════════════════════════════════════════════════ */
+    #suggestion { flex-direction: row; }
+
+    /* 좌측 — 텍스트 + 버튼 */
+    .sug-left {
+      width: 400px;
+      display: flex; flex-direction: column;
+      padding: 28px 20px 24px 32px;
+    }
+
+    .sug-tag {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 11px;
+      background: rgba(79,195,247,0.1);
+      border: 1px solid rgba(79,195,247,0.28);
+      border-radius: 100px;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+      color: var(--primary);
+      width: fit-content;
+      margin-bottom: 14px;
+    }
+
+    .sug-purpose {
+      font-size: 28px; font-weight: 800; line-height: 1.2;
+      color: #fff;
+      margin-bottom: 10px;
+    }
+
+    .sug-meta {
+      font-size: 13px; color: var(--muted);
+      margin-bottom: auto;
+    }
+    .sug-meta b { color: var(--primary); font-weight: 600; }
+
+    .sug-actions { display: flex; flex-direction: column; gap: 10px; }
+
+    .btn-approve {
+      height: 68px; border-radius: 14px;
+      background: var(--success);
+      border: none; cursor: pointer;
+      color: #fff; font-size: 18px; font-weight: 700; font-family: inherit;
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      transition: opacity 0.15s, transform 0.1s;
+    }
+    .btn-approve:active { opacity: 0.82; transform: scale(0.99); }
+
+    .btn-reject {
+      height: 46px; border-radius: 12px;
+      background: transparent; border: 1px solid var(--border);
+      color: var(--muted); font-size: 14px; font-family: inherit;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      transition: border-color 0.15s;
+    }
+    .btn-reject:active { border-color: rgba(255,255,255,0.35); }
+
+    .countdown-row {
+      display: flex; align-items: center; gap: 8px;
+      font-size: 12px; color: var(--muted);
+    }
+    .cd-track {
+      flex: 1; height: 3px; border-radius: 2px;
+      background: var(--border); overflow: hidden;
+    }
+    .cd-fill {
+      height: 100%; background: var(--warning);
+      border-radius: 2px; transition: width 0.95s linear;
+    }
+
+    /* 우측 — 버튼 맵 */
+    .sug-right {
+      flex: 1;
+      display: flex; flex-direction: column;
+      padding: 24px 28px 24px 16px;
+      gap: 10px;
+    }
+
+    .map-header {
+      font-size: 12px; color: var(--muted); letter-spacing: 0.03em;
+    }
+
+    .btn-grid {
+      flex: 1;
+      display: grid;
+      gap: 7px;
+    }
+
+    .g-cell {
+      border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; position: relative;
+      font-family: inherit;
+    }
+    .g-cell.occupied {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: rgba(255,255,255,0.45);
+    }
+    .g-cell.highlighted {
+      background: rgba(79,195,247,0.14);
+      border: 1.5px solid var(--primary);
+      color: var(--primary); font-weight: 700;
+    }
+    .g-cell.empty { background: transparent; }
+
+    .step-badge {
+      position: absolute; top: 4px; right: 5px;
+      width: 16px; height: 16px; border-radius: 50%;
+      background: var(--primary);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 9px; font-weight: 800; color: #000;
+    }
+
+    /* ════════════════════════════════════════════════════════════════
+       3. 실행 중 화면
+    ════════════════════════════════════════════════════════════════ */
+    #executing { flex-direction: row; }
+
+    /* 좌측 — 진행 */
+    .exec-left {
+      flex: 1;
+      display: flex; flex-direction: column;
+      padding: 26px 16px 24px 32px;
+    }
+
+    .exec-header {
+      display: flex; align-items: flex-start; gap: 14px;
+      margin-bottom: 22px;
+    }
+
+    .spinner {
+      width: 26px; height: 26px; flex-shrink: 0; margin-top: 3px;
+      border: 2.5px solid rgba(79,195,247,0.18);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .exec-title-wrap { display: flex; flex-direction: column; gap: 3px; }
+    .exec-title { font-size: 22px; font-weight: 800; }
+    .exec-sub   { font-size: 13px; color: var(--primary); }
+
+    /* 진행 바 (승인 후 실행 중 — CSS 애니메이션) */
+    .exec-bar-wrap {
+      height: 5px; border-radius: 3px;
+      background: var(--border); overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .exec-bar-fill {
+      height: 100%; border-radius: 3px;
+      background: var(--primary);
+      width: 0%;
+      transition: width 0.6s ease;
+    }
+    .exec-bar-fill.animating {
+      transition: width 8s cubic-bezier(0.25,0,0.5,1);
+    }
+
+    /* 단계 목록 */
+    .steps-list {
+      flex: 1; display: flex; flex-direction: column;
+      gap: 8px; overflow: hidden;
+    }
+
+    .step-row {
+      display: flex; align-items: center; gap: 12px;
+      padding: 11px 14px;
+      border-radius: 10px;
+      background: var(--surface); border: 1px solid var(--border);
+      transition: background 0.3s, border-color 0.3s;
+    }
+    .step-row.done    { background: rgba(34,197,94,0.07);  border-color: rgba(34,197,94,0.35); }
+    .step-row.current { background: rgba(79,195,247,0.08); border-color: rgba(79,195,247,0.4); }
+    .step-row.failed  { background: rgba(239,68,68,0.07);  border-color: rgba(239,68,68,0.35); }
+
+    .step-circle {
+      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; font-size: 13px;
+    }
+    .step-circle.done    { background: rgba(34,197,94,0.18);  color: var(--success); }
+    .step-circle.current { background: rgba(79,195,247,0.18); color: var(--primary); }
+    .step-circle.failed  { background: rgba(239,68,68,0.18);  color: var(--danger); }
+    .step-circle.pending { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.3); }
+
+    .step-label { font-size: 14px; flex: 1; }
+    .step-label.done    { color: rgba(255,255,255,0.7); }
+    .step-label.current { color: #fff; font-weight: 600; }
+    .step-label.failed  { color: var(--danger); }
+    .step-label.pending { color: rgba(255,255,255,0.3); }
+
+    /* 우측 — 센서 + 정지 */
+    .exec-right {
+      width: 236px;
+      display: flex; flex-direction: column;
+      padding: 24px 28px 24px 8px;
+      gap: 12px;
+    }
+
+    .sensor-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; padding: 14px 16px;
+    }
+    .sensor-top {
+      display: flex; align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+    .sensor-name {
+      font-size: 10px; text-transform: uppercase;
+      letter-spacing: 0.07em; color: var(--muted);
+    }
+    .sensor-icon { font-size: 14px; }
+    .sensor-val {
+      font-size: 30px; font-weight: 300;
+      font-variant-numeric: tabular-nums;
+    }
+    .sensor-unit { font-size: 14px; color: var(--muted); }
+    .sensor-bar-track {
+      height: 4px; border-radius: 2px; background: var(--border);
+      overflow: hidden; margin-top: 8px;
+    }
+    .sensor-bar-fill {
+      height: 100%; border-radius: 2px; background: var(--primary);
+      transition: width 0.4s ease;
+    }
+    .sensor-bar-fill.warn { background: var(--warning); }
+
+    .btn-stop {
+      margin-top: auto;
+      height: 76px; border-radius: 14px;
+      background: rgba(239,68,68,0.10);
+      border: 1.5px solid var(--danger);
+      color: var(--danger); font-size: 15px; font-weight: 700; font-family: inherit;
+      cursor: pointer;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      transition: background 0.15s;
+    }
+    .btn-stop:active { background: rgba(239,68,68,0.24); }
+
+    /* ════════════════════════════════════════════════════════════════
+       4. 완료 화면
+    ════════════════════════════════════════════════════════════════ */
+    #done {
+      flex-direction: column;
+      align-items: center; justify-content: center; gap: 10px;
+    }
+
+    .done-ring {
+      width: 104px; height: 104px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 48px;
+      margin-bottom: 6px;
+    }
+    .done-ring.ok  { background: rgba(34,197,94,0.12); border: 2px solid rgba(34,197,94,0.4); }
+    .done-ring.err { background: rgba(239,68,68,0.12); border: 2px solid rgba(239,68,68,0.4); }
+
+    .done-title { font-size: 28px; font-weight: 800; }
+    .done-title.ok  { color: var(--success); }
+    .done-title.err { color: var(--danger); }
+
+    .done-sub { font-size: 15px; color: var(--muted); }
+
+    .return-track {
+      width: 180px; height: 3px; border-radius: 2px;
+      background: var(--border); overflow: hidden;
+      margin-top: 24px;
+    }
+    #returnFill {
+      height: 100%; background: rgba(255,255,255,0.3);
+      border-radius: 2px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- 상단 진행 바 -->
+<div id="topBar"><div id="topBarFill"></div></div>
+
+<!-- ── 1. 대기 ───────────────────────────────────────────────────── -->
+<div class="screen active" id="idle">
+  <div class="idle-clock-bg" id="idleClock">00:00</div>
+
+  <!-- 가전 아이콘 (microwave SVG) -->
+  <div class="idle-icon">
+    <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect x="4" y="12" width="44" height="28" rx="4" stroke="#4FC3F7" stroke-width="2"/>
+      <rect x="8" y="16" width="26" height="20" rx="2" stroke="#4FC3F7" stroke-width="1.5"/>
+      <circle cx="40" cy="22" r="2.5" fill="#4FC3F7" opacity="0.6"/>
+      <circle cx="40" cy="30" r="2.5" fill="#4FC3F7" opacity="0.6"/>
+      <line x1="8" y1="36" x2="34" y2="36" stroke="#4FC3F7" stroke-width="1" opacity="0.3"/>
+    </svg>
+  </div>
+
+  <div class="idle-name" id="idleName">전자레인지</div>
+  <div class="idle-hint">AI가 패턴을 학습하고 자동으로 제안합니다</div>
+
+  <div class="idle-pill">
+    <div class="idle-pill-item">
+      <div class="dot dot-off" id="connDot"></div>
+      <span id="connLabel">서버 확인 중…</span>
+    </div>
+    <div class="pill-sep"></div>
+    <div class="idle-pill-item">
+      <span id="pillClock">00:00</span>
+    </div>
+  </div>
+</div>
+
+<!-- ── 2. 제안 ───────────────────────────────────────────────────── -->
+<div class="screen" id="suggestion">
+  <div class="sug-left">
+    <div class="sug-tag">✦&nbsp;AI 제안</div>
+    <div class="sug-purpose" id="sugPurpose">우유 데우기</div>
+    <div class="sug-meta">
+      최근 <b id="sugOccurrences">3</b>회 같은 시간대에 반복 감지
+    </div>
+
+    <div style="flex:1; min-height:16px"></div>
+
+    <div class="sug-actions">
+      <button class="btn-approve" id="btnApprove">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M5 13l4 4L19 7" stroke="#fff" stroke-width="2.5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        승인하고 실행
+      </button>
+      <button class="btn-reject" id="btnReject">거부</button>
+      <div class="countdown-row">
+        <span id="cdSec">10</span>초 후 자동 닫힘
+        <div class="cd-track"><div class="cd-fill" id="cdFill" style="width:100%"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sug-right">
+    <div class="map-header" id="mapHeader">버튼 배치</div>
+    <div class="btn-grid" id="btnGrid"></div>
+  </div>
+</div>
+
+<!-- ── 3. 실행 중 ─────────────────────────────────────────────────── -->
+<div class="screen" id="executing">
+  <div class="exec-left">
+    <div class="exec-header">
+      <div class="spinner"></div>
+      <div class="exec-title-wrap">
+        <div class="exec-title" id="execTitle">우유 데우기</div>
+        <div class="exec-sub" id="execSub">실행 중…</div>
+      </div>
+    </div>
+    <div class="exec-bar-wrap">
+      <div class="exec-bar-fill" id="execBarFill"></div>
+    </div>
+    <div class="steps-list" id="stepsList">
+      <!-- 단계 행은 JS로 생성 -->
+    </div>
+  </div>
+
+  <div class="exec-right">
+    <div class="sensor-card">
+      <div class="sensor-top">
+        <span class="sensor-name">전류</span>
+        <span class="sensor-icon">⚡</span>
+      </div>
+      <div>
+        <span class="sensor-val" id="sensorMa">–</span>
+        <span class="sensor-unit"> mA</span>
+      </div>
+      <div class="sensor-bar-track">
+        <div class="sensor-bar-fill" id="maBar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <div class="sensor-card">
+      <div class="sensor-top">
+        <span class="sensor-name">음향</span>
+        <span class="sensor-icon">🔊</span>
+      </div>
+      <div>
+        <span class="sensor-val" id="sensorDb">–</span>
+        <span class="sensor-unit"> dB</span>
+      </div>
+      <div class="sensor-bar-track">
+        <div class="sensor-bar-fill" id="dbBar" style="width:0%"></div>
+      </div>
+    </div>
+
+    <button class="btn-stop" id="btnStop">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+        <rect x="5" y="5" width="14" height="14" rx="2"/>
+      </svg>
+      긴급 정지
+    </button>
+  </div>
+</div>
+
+<!-- ── 4. 완료 ───────────────────────────────────────────────────── -->
+<div class="screen" id="done">
+  <div class="done-ring ok" id="doneRing">✓</div>
+  <div class="done-title ok" id="doneTitle">완료</div>
+  <div class="done-sub" id="doneSub">모든 버튼 동작 확인됨</div>
+  <div class="return-track">
+    <div id="returnFill" style="width:100%"></div>
+  </div>
+</div>
+
+<script>
+// ── 설정 ──────────────────────────────────────────────────────────────────
+const POLL_MS          = 2000;
+const COUNTDOWN_SEC    = 10;
+const DONE_RETURN_MS   = 3000;
+const EXEC_BAR_FILL_SEC = 9;   // 승인 후 가짜 진행 바 채우는 초
+
+// ── 가전 데이터 (Flutter 앱과 동기화) ────────────────────────────────────
+const APPLIANCES = {
+  microwave: {
+    name: '전자레인지', rows: 4, cols: 3,
+    buttons: [
+      {id:'BT-01',label:'10초', x:0,y:0},
+      {id:'BT-02',label:'30초', x:1,y:0},
+      {id:'BT-03',label:'1분',  x:2,y:0},
+      {id:'BT-04',label:'5분',  x:0,y:1},
+      {id:'BT-07',label:'해동', x:0,y:2},
+      {id:'BT-08',label:'우유', x:1,y:2},
+      {id:'BT-09',label:'자동조리',x:2,y:2},
+      {id:'BT-06',label:'취소', x:1,y:3},
+      {id:'BT-05',label:'시작', x:2,y:3},
+    ],
+  },
+  induction: {
+    name: '인덕션', rows: 3, cols: 4,
+    buttons: [
+      {id:'IN-01',label:'전원', x:0,y:0},
+      {id:'IN-02',label:'화력+',x:1,y:0},
+      {id:'IN-03',label:'화력-',x:2,y:0},
+      {id:'IN-04',label:'타이머',x:3,y:0},
+      {id:'IN-05',label:'1단',  x:0,y:1},
+      {id:'IN-06',label:'3단',  x:1,y:1},
+      {id:'IN-07',label:'5단',  x:2,y:1},
+      {id:'IN-08',label:'보온', x:3,y:1},
+      {id:'IN-09',label:'시작', x:2,y:2},
+      {id:'IN-10',label:'취소', x:3,y:2},
+    ],
+  },
+};
+
+// ── 상태 ──────────────────────────────────────────────────────────────────
+let state              = 'idle';      // idle | suggestion | executing | done
+let currentSuggestion  = null;
+let currentAppliance   = APPLIANCES.microwave;
+let execTitle          = '';
+let countdownTimer     = null;
+let cdRemaining        = COUNTDOWN_SEC;
+let pollTimer          = null;
+
+// ── 유틸 ──────────────────────────────────────────────────────────────────
+async function apiFetch(path, opts = {}) {
+  const ctrl = new AbortController();
+  const tid = setTimeout(() => ctrl.abort(), 4000);
+  try {
+    const r = await fetch(path, { ...opts, signal: ctrl.signal });
+    clearTimeout(tid);
+    return r;
+  } catch (e) {
+    clearTimeout(tid);
+    throw e;
+  }
+}
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function setTopBar(pct) {
+  document.getElementById('topBarFill').style.width = `${pct}%`;
+}
+
+// ── 시계 ──────────────────────────────────────────────────────────────────
+function tick() {
+  const d = new Date();
+  const t = `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+  document.getElementById('idleClock').textContent  = t;
+  document.getElementById('pillClock').textContent  = t;
+}
+tick();
+setInterval(tick, 1000);
+
+// ── 헬스 체크 ─────────────────────────────────────────────────────────────
+async function checkHealth() {
+  try {
+    const r = await apiFetch('/health');
+    const ok = r.ok;
+    document.getElementById('connDot').className   = `dot ${ok ? 'dot-on' : 'dot-off'}`;
+    document.getElementById('connLabel').textContent = ok ? 'RPi 연결됨' : '연결 안 됨';
+  } catch (_) {
+    document.getElementById('connDot').className   = 'dot dot-off';
+    document.getElementById('connLabel').textContent = '연결 안 됨';
+  }
+}
+
+// ── 버튼 맵 그리드 렌더링 ─────────────────────────────────────────────────
+function renderGrid(appliance, highlightIds = []) {
+  const grid = document.getElementById('btnGrid');
+  grid.style.gridTemplateColumns = `repeat(${appliance.cols}, 1fr)`;
+  grid.style.gridTemplateRows    = `repeat(${appliance.rows}, 1fr)`;
+
+  // 좌표 → 버튼
+  const coordMap = {};
+  appliance.buttons.forEach(b => { coordMap[`${b.x},${b.y}`] = b; });
+
+  // 순서 맵 (첫 등장 기준)
+  const orderMap = {};
+  highlightIds.forEach((id, i) => { if (orderMap[id] == null) orderMap[id] = i + 1; });
+
+  grid.innerHTML = '';
+  for (let row = 0; row < appliance.rows; row++) {
+    for (let col = 0; col < appliance.cols; col++) {
+      const btn  = coordMap[`${col},${row}`];
+      const cell = document.createElement('div');
+
+      if (!btn) {
+        cell.className = 'g-cell empty';
+      } else {
+        const hi = orderMap[btn.id] != null;
+        cell.className = `g-cell occupied${hi ? ' highlighted' : ''}`;
+        if (hi) {
+          const badge = document.createElement('div');
+          badge.className = 'step-badge';
+          badge.textContent = orderMap[btn.id];
+          cell.appendChild(badge);
+        }
+        const lbl = document.createElement('span');
+        lbl.textContent = btn.label;
+        cell.appendChild(lbl);
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  document.getElementById('mapHeader').textContent =
+    `${appliance.name} 버튼 배치`;
+}
+
+// ── 단계 목록 렌더링 ──────────────────────────────────────────────────────
+function renderSteps(buttons, running) {
+  // buttons: [{button, success}] or [] while pending
+  const list = document.getElementById('stepsList');
+  list.innerHTML = '';
+
+  if (!buttons || buttons.length === 0) {
+    // 실행 중 — 플레이스홀더
+    const ph = document.createElement('div');
+    ph.className = 'step-row current';
+    ph.innerHTML = `
+      <div class="step-circle current">▶</div>
+      <span class="step-label current">버튼 시퀀스 실행 중…</span>`;
+    list.appendChild(ph);
+    return;
+  }
+
+  const completedCount = running
+    ? buttons.filter(b => b.success).length
+    : buttons.length;
+
+  buttons.forEach((b, i) => {
+    const done    = !running || i < completedCount;
+    const current = running && i === completedCount;
+    const failed  = !running && !b.success;
+
+    const state2 = failed ? 'failed' : done ? 'done' : current ? 'current' : 'pending';
+
+    const row = document.createElement('div');
+    row.className = `step-row ${state2}`;
+
+    const icon = { done: '✓', current: '▶', failed: '✗', pending: String(i+1) }[state2];
+    row.innerHTML = `
+      <div class="step-circle ${state2}">${icon}</div>
+      <span class="step-label ${state2}">${b.button}</span>`;
+    list.appendChild(row);
+  });
+
+  const pct = completedCount / buttons.length * 100;
+  setTopBar(running ? pct * 0.8 : 100);
+}
+
+// ── 카운트다운 ────────────────────────────────────────────────────────────
+function startCountdown() {
+  cdRemaining = COUNTDOWN_SEC;
+  document.getElementById('cdSec').textContent  = cdRemaining;
+  document.getElementById('cdFill').style.width = '100%';
+
+  clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    cdRemaining--;
+    document.getElementById('cdSec').textContent = cdRemaining;
+    // width를 requestAnimationFrame 다음 프레임에 적용해야 transition이 동작
+    requestAnimationFrame(() => {
+      document.getElementById('cdFill').style.width =
+        `${(cdRemaining / COUNTDOWN_SEC) * 100}%`;
+    });
+    if (cdRemaining <= 0) {
+      clearInterval(countdownTimer);
+      toIdle();
+    }
+  }, 1000);
+}
+
+// ── 화면 전환 함수 ────────────────────────────────────────────────────────
+function toIdle() {
+  clearInterval(countdownTimer);
+  state = 'idle';
+  setTopBar(0);
+  showScreen('idle');
+  checkHealth();
+}
+
+function toSuggestion(sugg) {
+  currentSuggestion = sugg;
+  state = 'suggestion';
+
+  document.getElementById('sugPurpose').textContent    = sugg.purpose;
+  document.getElementById('sugOccurrences').textContent = sugg.occurrences ?? 1;
+
+  renderGrid(currentAppliance);   // 하이라이트 없이 (단계는 승인 후 확정)
+  showScreen('suggestion');
+  startCountdown();
+}
+
+function toExecuting(title) {
+  execTitle = title;
+  state = 'executing';
+
+  document.getElementById('execTitle').textContent = title;
+  document.getElementById('execSub').textContent   = '실행 중…';
+  renderSteps([], true);   // 플레이스홀더
+
+  // 가짜 진행 바: 8초에 걸쳐 85% 채우기
+  const fill = document.getElementById('execBarFill');
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  requestAnimationFrame(() => {
+    fill.style.transition = `width ${EXEC_BAR_FILL_SEC}s cubic-bezier(0.25,0,0.5,1)`;
+    fill.style.width = '85%';
+  });
+
+  setTopBar(0);
+  showScreen('executing');
+}
+
+function toDone(success, label, buttons = []) {
+  state = 'done';
+
+  const ring  = document.getElementById('doneRing');
+  const title = document.getElementById('doneTitle');
+  const sub   = document.getElementById('doneSub');
+
+  ring.textContent  = success ? '✓' : '✗';
+  ring.className    = `done-ring ${success ? 'ok' : 'err'}`;
+  title.textContent = success ? '완료' : '실패';
+  title.className   = `done-title ${success ? 'ok' : 'err'}`;
+  sub.textContent   = success
+    ? `${label} — 모든 버튼 동작 확인됨`
+    : `${label} — 실행 중 문제가 발생했습니다`;
+
+  setTopBar(success ? 100 : 0);
+
+  // 복귀 바 애니메이션
+  const fill = document.getElementById('returnFill');
+  fill.style.transition = 'none';
+  fill.style.width = '100%';
+  requestAnimationFrame(() => {
+    fill.style.transition = `width ${DONE_RETURN_MS / 1000}s linear`;
+    fill.style.width = '0%';
+  });
+
+  showScreen('done');
+  setTimeout(toIdle, DONE_RETURN_MS);
+}
+
+// ── 센서 업데이트 ─────────────────────────────────────────────────────────
+function updateSensor(type, value) {
+  if (value == null) return;
+  if (type === 'ma') {
+    document.getElementById('sensorMa').textContent = Math.round(value);
+    const pct = Math.min(100, (value / 2000) * 100);
+    const bar = document.getElementById('maBar');
+    bar.style.width     = `${pct}%`;
+    bar.className       = `sensor-bar-fill${pct > 75 ? ' warn' : ''}`;
+  } else {
+    document.getElementById('sensorDb').textContent = Math.round(value);
+    const pct = Math.min(100, (value / 100) * 100);
+    const bar = document.getElementById('dbBar');
+    bar.style.width     = `${pct}%`;
+    bar.className       = `sensor-bar-fill${pct > 80 ? ' warn' : ''}`;
+  }
+}
+
+// ── 폴링 ──────────────────────────────────────────────────────────────────
+async function poll() {
+  if (state === 'idle') {
+    try {
+      const r = await apiFetch('/suggestions');
+      if (r.ok) {
+        const list = await r.json();
+        if (list.length > 0) toSuggestion(list[0]);
+      }
+    } catch (_) {}
+
+  } else if (state === 'executing') {
+    try {
+      const r = await apiFetch('/status');
+      if (r.ok) {
+        const st = await r.json();
+
+        // 센서 (서버가 지원하는 경우)
+        updateSensor('ma', st.current_ma);
+        updateSensor('db', st.sound_db);
+
+        if (st.last_buttons && !st.running) {
+          // 실행 완료 — 단계 결과 표시 후 done으로
+          renderSteps(st.last_buttons, false);
+          document.getElementById('execBarFill').style.transition = 'width 0.4s ease';
+          document.getElementById('execBarFill').style.width = '100%';
+          document.getElementById('execSub').textContent =
+            st.last_status === 'succeeded' ? '완료' : '오류 발생';
+
+          setTimeout(() => toDone(
+            st.last_status === 'succeeded',
+            execTitle,
+            st.last_buttons,
+          ), 1200);
+        }
+      }
+    } catch (_) {}
+  }
+}
+
+// ── 버튼 이벤트 ───────────────────────────────────────────────────────────
+document.getElementById('btnApprove').addEventListener('click', async () => {
+  if (!currentSuggestion) return;
+  clearInterval(countdownTimer);
+
+  const title = currentSuggestion.purpose;
+  const id    = currentSuggestion.id;
+  currentSuggestion = null;
+
+  toExecuting(title);
+
+  try {
+    const r = await apiFetch(`/suggestions/${id}/approve`, { method: 'POST' });
+    if (r.ok) {
+      const data = await r.json();
+      const buttons = data.buttons || [];
+      const success = data.status === 'succeeded';
+
+      // 실행 결과 반영
+      renderSteps(buttons, false);
+      document.getElementById('execBarFill').style.transition = 'width 0.4s ease';
+      document.getElementById('execBarFill').style.width = '100%';
+      document.getElementById('execSub').textContent = success ? '완료' : '오류 발생';
+
+      setTimeout(() => toDone(success, title, buttons), 1000);
+    } else {
+      toDone(false, title);
+    }
+  } catch (_) {
+    // 폴링이 완료를 감지할 때까지 실행 화면 유지
+  }
+});
+
+document.getElementById('btnReject').addEventListener('click', async () => {
+  if (!currentSuggestion && state !== 'suggestion') return;
+  clearInterval(countdownTimer);
+  const id = currentSuggestion?.id;
+  currentSuggestion = null;
+  toIdle();
+  if (id) {
+    try { await apiFetch(`/suggestions/${id}/reject`, { method: 'POST' }); } catch (_) {}
+  }
+});
+
+document.getElementById('btnStop').addEventListener('click', async () => {
+  try { await apiFetch('/stop', { method: 'POST' }); } catch (_) {}
+  toDone(false, execTitle || '실행');
+});
+
+// ── 초기화 ────────────────────────────────────────────────────────────────
+checkHealth();
+poll();
+setInterval(poll, POLL_MS);
+setInterval(checkHealth, 10000);
+</script>
+</body>
+</html>

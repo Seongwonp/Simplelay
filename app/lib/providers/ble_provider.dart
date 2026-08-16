@@ -48,3 +48,35 @@ final savedDeviceNameProvider =
     StateNotifierProvider<SavedDeviceNameNotifier, String>(
   (ref) => SavedDeviceNameNotifier(),
 );
+
+class SavedDeviceNotifier extends StateNotifier<({String id, String name})?> {
+  SavedDeviceNotifier() : super(null) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final id = prefs.getString('saved_device_id');
+    final name = prefs.getString('saved_device_display_name');
+    if (id != null && name != null) state = (id: id, name: name);
+  }
+
+  Future<void> save(String id, String name) async {
+    state = (id: id, name: name);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('saved_device_id', id);
+    await prefs.setString('saved_device_display_name', name);
+  }
+
+  Future<void> clear() async {
+    state = null;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('saved_device_id');
+    await prefs.remove('saved_device_display_name');
+  }
+}
+
+final savedDeviceProvider =
+    StateNotifierProvider<SavedDeviceNotifier, ({String id, String name})?>(
+  (ref) => SavedDeviceNotifier(),
+);

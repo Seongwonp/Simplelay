@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=SimpleLay Kiosk
+Exec=/home/pi/SimpleLay/rpi/touchscreen/kiosk.sh
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
