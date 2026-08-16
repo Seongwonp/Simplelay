@@ -10,6 +10,7 @@ import 'screens/settings_screen.dart';
 import 'screens/status_screen.dart';
 import 'screens/suggestion_screen.dart';
 import 'screens/voice_screen.dart';
+import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
 
 void main() => runApp(const ProviderScope(child: SimpleLayApp()));
@@ -60,15 +61,19 @@ final _router = GoRouter(
   ],
 );
 
-class SimpleLayApp extends StatelessWidget {
+class SimpleLayApp extends ConsumerWidget {
   const SimpleLayApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
-        title: 'SimpleLay',
-        debugShowCheckedModeBanner: false,
-        routerConfig: _router,
-        themeMode: ThemeMode.dark,
-        darkTheme: AppTheme.dark,
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeMode = ref.watch(themeModeProvider);
+    return MaterialApp.router(
+      title: 'SimpleLay',
+      debugShowCheckedModeBanner: false,
+      routerConfig: _router,
+      themeMode: themeMode,
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+    );
+  }
 }
