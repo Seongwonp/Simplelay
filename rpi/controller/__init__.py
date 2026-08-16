@@ -1,5 +1,6 @@
 """Closed-loop button sequence controller."""
 
+from .internal_gpio_gpio import internal_gpioError, internal_gpioGpioClient, UnknownButtonError
 from .closed_loop import ClosedLoopController
 from .models import (
     ButtonResult,
@@ -13,6 +14,8 @@ from .ports import AlertSink, GrblClient, NoOpRetryWaiter, RetryWaiter, SafetyCo
 from .retry import DocumentedRetryPolicy, RetryPolicy
 
 __all__ = [
+    "internal_gpioError",
+    "internal_gpioGpioClient",
     "AlertSink",
     "ButtonResult",
     "ButtonStatus",
@@ -27,4 +30,5 @@ __all__ = [
     "RetryPolicy",
     "RetryWaiter",
     "SafetyController",
+    "UnknownButtonError",
 ]
