@@ -33,6 +33,7 @@ from .suggestions import (
     SuggestionAlreadyApprovedError,
     UnknownSuggestionError,
 )
+from .tiered import TieredIntentResolver
 
 __all__ = [
     "ApplianceManifest",
@@ -57,6 +58,7 @@ __all__ = [
     "SuggestionAlreadyApprovedError",
     "SuggestionStatus",
     "SystemClock",
+    "TieredIntentResolver",
     "TimeBand",
     "UnknownIntentError",
     "UnknownSuggestionError",

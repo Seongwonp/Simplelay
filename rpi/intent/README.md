@@ -21,6 +21,25 @@ chat-completions 엔드포인트를 표준 라이브러리(`urllib`)만으로 �
 `docs/button-maps/<appliance>.json`을 읽어 만든다(`ApplianceManifest.labels`). 이 파일은
 원래 앱의 좌표 매핑용으로만 쓰였는데, 이제 의도 해석 계층의 검증 사전으로도 재사용한다.
 
+## 우선순위 조립 — `TieredIntentResolver`
+
+`LlmIntentResolver` 하나만 놓고 보면 "모델을 먼저 부르고 실패하면 규칙으로 폴백"하는
+순서다. 하지만 [docs/inference-boundary.md](../../docs/inference-boundary.md)의 결론은
+반대다 — 지연시간·신뢰성·개인정보가 정확도보다 우선이라, **온디바이스(규칙)를 먼저 시도하고
+외부 호출이 필요한 경로는 그 뒤에만** 와야 한다. `TieredIntentResolver(resolvers)`가 이 순서를
+조립하는 도구다. 넘긴 순서대로 시도하고, 각 리졸버가 `UnknownIntentError`를 던질 때만 다음
+리졸버로 넘어간다(그 외 예외는 진짜 버그이므로 그대로 전파된다).
+
+```python
+resolver = TieredIntentResolver((
+    RuleBasedIntentResolver(),              # 1. 온디바이스, 결정론적, 인터넷 불필요
+    LlmIntentResolver(client, known_buttons=labels),  # 2. 온디바이스/외부 모델, 마지막 수단
+))
+```
+
+`rpi/api/deps.py`는 아직 `RuleBasedIntentResolver()` 단독으로만 배선돼 있다(LLM 리졸버가
+실제 서비스에 연결된 적이 없음). 나중에 연결할 때는 위 조립 순서를 그대로 따른다.
+
 ## M4 공감지능
 
 1. `SimpleLayService`가 완료된 명시적 실행의 시간·목적·성공/실패를 `UsageLog`에 기록한다.

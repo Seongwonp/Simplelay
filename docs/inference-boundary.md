@@ -77,7 +77,10 @@ SimpleLay의 핵심 차별점인 "자가 검증 + 선제 제어"(문서 없이�
 
 ## 남은 작업
 
-- [ ] `LlmIntentResolver`의 우선순위를 "온디바이스 우선, 외부는 최후 수단"으로 재구성
-      (지금 구조는 반대 순서로 짜여 있음 — 아직 실제 배선 전이라 코드 파손 위험 없이 고칠 수 있음)
+- [x] 우선순위를 "온디바이스 우선, 외부는 최후 수단"으로 조립할 수 있는 도구 추가 —
+      `TieredIntentResolver`(`rpi/intent/tiered.py`). `LlmIntentResolver` 자체는 안 건드리고,
+      여러 리졸버를 순서대로 시도하는 조합기를 새로 만들어 해결했다. 사용법은
+      [rpi/intent/README.md](../rpi/intent/README.md) 참고
 - [ ] 2단계(온디바이스 추론) 구현 — 모델 선정은 별도 결정 필요
-- [ ] `rpi/api/deps.py`에 실제로 이 3단계 리졸버를 배선
+- [ ] `rpi/api/deps.py`에 실제로 이 조립된 리졸버를 배선 (지금은 `RuleBasedIntentResolver()`
+      단독)
