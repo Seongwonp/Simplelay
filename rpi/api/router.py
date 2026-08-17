@@ -6,8 +6,11 @@ from rpi.controller import ExecutionResult
 from rpi.intent.rules import UnknownIntentError
 from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestionError
 
-from .deps import get_service, get_suggestion_service
+from rpi.services import DangerAlertStore
+
+from .deps import get_alert_store, get_service, get_suggestion_service
 from .schemas import (
+    AlertResponse,
     ApproveResponse,
     ButtonStep,
     DndRequest,
@@ -172,3 +175,19 @@ async def clear_dnd(
 async def sensors() -> SensorResponse:
     # DHT22 실기기 연결 시 교체
     return SensorResponse(temperature=26.5, humidity=58.0)
+
+
+@router.get("/alerts", response_model=AlertResponse)
+async def alerts(
+    store: DangerAlertStore = Depends(get_alert_store),
+) -> AlertResponse:
+    # SIMPLELAY_ACT_MODE=uart일 때만 실제로 갱신됨 -- 기본(로컬 mock) 모드에선
+    # RPi4가 없으니 항상 active=False.
+    state = store.current()
+    return AlertResponse(
+        active=state.active,
+        kind=state.kind,
+        band_energy_ratio=state.band_energy_ratio,
+        mean_period_seconds=state.mean_period_seconds,
+        updated_at=state.updated_at,
+    )

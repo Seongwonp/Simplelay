@@ -123,3 +123,15 @@ class DndRequest(BaseModel):
 class SensorResponse(BaseModel):
     temperature: float | None = None
     humidity: float | None = None
+
+
+class AlertResponse(BaseModel):
+    """RPi4가 자체발신하는 alert/alert_cleared 상태의 최신 스냅샷(이력 아님) --
+    docs/protocol.md 참고. active=False면 kind 이하는 마지막으로 있었던 알림의
+    잔여값일 수 있으니 무시해야 한다(한 번도 안 울렸으면 전부 None)."""
+
+    active: bool
+    kind: str | None = None
+    band_energy_ratio: float | None = None
+    mean_period_seconds: float | None = None
+    updated_at: datetime | None = None

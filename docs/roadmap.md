@@ -33,9 +33,19 @@
       오프라인 우선 원칙 유지). **의도적으로 집계 결과(success/retry)만
       받음** — 버튼별 실시간 진행상황(`/status`의 current_button 등)은 이
       모드에서 계속 비어 있음(사용자 확인 후 결정한 범위)
-      - `UartBridge`(ESP32 경로, `rpi4/services/bridge.py`)는 아직 이 배선을
-        안 씀 — `rpi4/main.py`가 컨트롤러를 인라인으로 만들어서, `_build_controller`
-        재사용하려면 공유 팩토리 위치를 먼저 정해야 함. 값싼 후속 작업으로 남김.
+- [x] alert 표면화 — `GET /alerts` 엔드포인트(`DangerAlertStore`, `rpi/services/
+      alert_store.py`)가 RPi4의 자체발신 alert/alert_cleared 최신 상태를 노출.
+      env var 선택 로직은 `_build_controller`를 `rpi/services/controller_factory.py`
+      의 공유 `build_controller()`로 옮겨서 정리(중복 제거)
+      - `UartBridge`(ESP32 경로, `rpi4/services/bridge.py`)는 **의도적으로 아직
+        이 배선을 안 씀** — 조사해보니 "값싼 후속 작업"이 아니었음: `rpi4/main.py`
+        (ESP32 브릿지)와 `rpi/main.py`(FastAPI 앱)는 RPi5에서 각각 별도 프로세스로
+        떠서, 둘 다 `SIMPLELAY_ACT_MODE=uart`를 켜면 같은 RPi5→RPi4 물리 UART
+        포트를 서로 다른 프로세스가 동시에 열려고 시도하게 됨(포트 하나를 두
+        프로세스가 나눠 쓸 방법이 지금 없음). 두 경로를 정말 동시에 UART로
+        RPi4에 연결하려면 (a) 두 프로세스를 하나로 합치거나 (b) RPi4 포트를
+        중개하는 공유 프로세스를 새로 만들어야 함 — 결정 필요, 사용자와 상의 후
+        진행
 - [ ] RPi4 ↔ Arduino(X/Y)·BLE 버튼 장치(Z) 연결 방식 확정 및 응답 파싱
 
 ### M3 — 폐루프 ★ (결선 데모 핵심)

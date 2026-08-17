@@ -2,7 +2,7 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from rpi.api.deps import get_service, get_suggestion_service
+from rpi.api.deps import get_alert_store, get_service, get_suggestion_service
 from rpi.main import app
 
 
@@ -11,9 +11,11 @@ def reset_singletons():
     """각 테스트마다 서비스 싱글톤을 초기화해 상태 오염 방지."""
     get_service.cache_clear()
     get_suggestion_service.cache_clear()
+    get_alert_store.cache_clear()
     yield
     get_service.cache_clear()
     get_suggestion_service.cache_clear()
+    get_alert_store.cache_clear()
 
 
 @pytest.fixture()
@@ -218,3 +220,40 @@ def test_approve_nonexistent_suggestion_returns_404(client):
 def test_reject_nonexistent_suggestion_returns_404(client):
     response = client.post("/suggestions/no-such-id/reject")
     assert response.status_code == 404
+
+
+# ── /alerts ───────────────────────────────────────────────────────────────────
+
+def test_alerts_inactive_before_anything_ever_fires(client):
+    response = client.get("/alerts")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["active"] is False
+    assert body["kind"] is None
+    assert body["updated_at"] is None
+
+
+def test_alerts_reflects_a_recorded_danger_sound_event(client):
+    from rpi.services import AlertEvent
+
+    store = get_alert_store()
+    store.record(AlertEvent(kind="danger_sound", raised=True, band_energy_ratio=0.8, mean_period_seconds=0.4))
+
+    response = client.get("/alerts")
+    body = response.json()
+    assert body["active"] is True
+    assert body["kind"] == "danger_sound"
+    assert body["band_energy_ratio"] == pytest.approx(0.8)
+    assert body["mean_period_seconds"] == pytest.approx(0.4)
+    assert body["updated_at"] is not None
+
+
+def test_alerts_reflects_clearing_after_raising(client):
+    from rpi.services import AlertEvent
+
+    store = get_alert_store()
+    store.record(AlertEvent(kind="danger_sound", raised=True))
+    store.record(AlertEvent(kind="danger_sound", raised=False))
+
+    response = client.get("/alerts")
+    assert response.json()["active"] is False
