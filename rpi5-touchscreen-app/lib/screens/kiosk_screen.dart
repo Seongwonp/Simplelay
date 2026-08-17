@@ -8,12 +8,14 @@ import '../theme/kiosk_colors.dart';
 import '../widgets/kiosk/done_view.dart';
 import '../widgets/kiosk/executing_view.dart';
 import '../widgets/kiosk/idle_view.dart';
+import '../widgets/kiosk/manual_view.dart';
 import '../widgets/kiosk/suggestion_view.dart';
 
-enum _Phase { idle, suggestion, executing, done }
+enum _Phase { idle, suggestion, executing, done, manual }
 
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
+const _sensorInterval = Duration(seconds: 60);
 const _countdownSeconds = 10;
 const _doneReturnDuration = Duration(seconds: 3);
 const _execBarFillDuration = Duration(seconds: 9);
@@ -31,8 +33,10 @@ class _KioskScreenState extends State<KioskScreen> {
   final _api = KioskApiService();
 
   _Phase _phase = _Phase.idle;
-  bool _connected = false;
+  HealthStatus _health = HealthStatus.disconnected;
+  SensorData? _sensorData;
   DateTime _now = DateTime.now();
+  bool _showDnd = false;
 
   KioskSuggestion? _currentSuggestion;
   int _cdRemaining = _countdownSeconds;
@@ -55,14 +59,17 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _pollTimer;
   Timer? _healthTimer;
   Timer? _clockTimer;
+  Timer? _sensorTimer;
 
   @override
   void initState() {
     super.initState();
     _checkHealth();
+    _fetchSensors();
     _poll();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
     _healthTimer = Timer.periodic(_healthInterval, (_) => _checkHealth());
+    _sensorTimer = Timer.periodic(_sensorInterval, (_) => _fetchSensors());
     _clockTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => setState(() => _now = DateTime.now()),
@@ -76,13 +83,19 @@ class _KioskScreenState extends State<KioskScreen> {
     _pollTimer?.cancel();
     _healthTimer?.cancel();
     _clockTimer?.cancel();
+    _sensorTimer?.cancel();
     _api.dispose();
     super.dispose();
   }
 
   Future<void> _checkHealth() async {
-    final ok = await _api.checkHealth();
-    if (mounted) setState(() => _connected = ok);
+    final health = await _api.checkHealth();
+    if (mounted) setState(() => _health = health);
+  }
+
+  Future<void> _fetchSensors() async {
+    final data = await _api.sensors();
+    if (mounted) setState(() => _sensorData = data);
   }
 
   Future<void> _poll() async {
@@ -120,9 +133,17 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() {
       _phase = _Phase.idle;
       _currentSuggestion = null;
+      _showDnd = false;
     });
     _checkHealth();
   }
+
+  void _toManual() {
+    if (_phase != _Phase.idle) return;
+    setState(() => _phase = _Phase.manual);
+  }
+
+  void _fromManual() => setState(() => _phase = _Phase.idle);
 
   void _toSuggestion(KioskSuggestion suggestion) {
     setState(() {
@@ -228,11 +249,40 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
+  Future<void> _onManualExecute(ApplianceButton button) async {
+    _toExecuting(button.label);
+    try {
+      final result = await _api.executeButtons([button.label]);
+      _finishExecuting(
+        success: result.status == 'succeeded',
+        buttons: result.buttons,
+      );
+    } catch (_) {
+      // 폴링이 완료를 감지할 때까지 실행 화면을 유지한다.
+    }
+  }
+
   Future<void> _onStop() async {
     try {
       await _api.stop();
     } catch (_) {}
     _toDone(false, _execTitle.isEmpty ? '실행' : _execTitle);
+  }
+
+  Future<void> _onSetDnd(int minutes) async {
+    try {
+      await _api.setDnd(minutes);
+    } catch (_) {}
+    await _checkHealth();
+    if (mounted) setState(() => _showDnd = false);
+  }
+
+  Future<void> _onClearDnd() async {
+    try {
+      await _api.clearDnd();
+    } catch (_) {}
+    await _checkHealth();
+    if (mounted) setState(() => _showDnd = false);
   }
 
   @override
@@ -257,6 +307,15 @@ class _KioskScreenState extends State<KioskScreen> {
               ),
             ),
           ),
+          if (_showDnd)
+            Positioned.fill(
+              child: _DndOverlay(
+                dndUntil: _health.dndUntil,
+                onSet: _onSetDnd,
+                onClear: _onClearDnd,
+                onDismiss: () => setState(() => _showDnd = false),
+              ),
+            ),
         ],
       ),
     );
@@ -267,9 +326,21 @@ class _KioskScreenState extends State<KioskScreen> {
       case _Phase.idle:
         return KioskIdleView(
           key: const ValueKey('idle'),
-          appliance: widget.appliance,
-          connected: _connected,
           now: _now,
+          connected: _health.ok,
+          actuatorReady: _health.actuatorReady,
+          dndUntil: _health.dndUntil,
+          temperature: _sensorData?.temperature,
+          humidity: _sensorData?.humidity,
+          onTap: _toManual,
+          onLongPress: () => setState(() => _showDnd = true),
+        );
+      case _Phase.manual:
+        return KioskManualView(
+          key: const ValueKey('manual'),
+          appliance: widget.appliance,
+          onExecute: _onManualExecute,
+          onCancel: _fromManual,
         );
       case _Phase.suggestion:
         final suggestion = _currentSuggestion!;
@@ -302,6 +373,140 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 }
+
+// ── DND 오버레이 ────────────────────────────────────────────────────────────
+
+class _DndOverlay extends StatelessWidget {
+  const _DndOverlay({
+    required this.dndUntil,
+    required this.onSet,
+    required this.onClear,
+    required this.onDismiss,
+  });
+
+  final DateTime? dndUntil;
+  final void Function(int minutes) onSet;
+  final VoidCallback onClear;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onDismiss,
+      child: ColoredBox(
+        color: const Color(0xCC0C0E12),
+        child: Center(
+          child: GestureDetector(
+            onTap: () {}, // 카드 탭이 배경으로 전파되지 않게 흡수
+            child: Container(
+              width: 300,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
+              decoration: BoxDecoration(
+                color: KioskColors.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: KioskColors.border),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    '방해 금지',
+                    style: TextStyle(
+                      fontSize: 17,
+                      color: Color(0xFFFAF7F2),
+                      fontWeight: FontWeight.w300,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    dndUntil != null
+                        ? 'AI 제안이 일시 중단됨'
+                        : 'AI 제안을 잠시 멈춥니다',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: KioskColors.muted,
+                      fontWeight: FontWeight.w300,
+                    ),
+                  ),
+                  const SizedBox(height: 28),
+                  if (dndUntil == null) ...[
+                    _DndOption(label: '30분', onTap: () => onSet(30)),
+                    const SizedBox(height: 8),
+                    _DndOption(label: '1시간', onTap: () => onSet(60)),
+                    const SizedBox(height: 8),
+                    _DndOption(label: '2시간', onTap: () => onSet(120)),
+                  ] else ...[
+                    _DndOption(
+                      label: '방해 금지 해제',
+                      accent: true,
+                      onTap: onClear,
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  GestureDetector(
+                    onTap: onDismiss,
+                    child: const Text(
+                      '취소',
+                      style: TextStyle(fontSize: 13, color: KioskColors.muted),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DndOption extends StatelessWidget {
+  const _DndOption({
+    required this.label,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  final String label;
+  final VoidCallback? onTap;
+  final bool accent;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        height: 46,
+        decoration: BoxDecoration(
+          color: accent
+              ? KioskColors.warning.withValues(alpha: 0.12)
+              : KioskColors.surface2,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: accent
+                ? KioskColors.warning.withValues(alpha: 0.35)
+                : KioskColors.border,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              color: accent ? KioskColors.warning : const Color(0xFFFAF7F2),
+              fontWeight: FontWeight.w400,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ── 상단 프로그레스 바 ─────────────────────────────────────────────────────
 
 class _TopProgressBar extends StatelessWidget {
   const _TopProgressBar({required this.phase, required this.execBarValue});

@@ -1,6 +1,7 @@
 """Proactive suggestion lifecycle with a mandatory one-time approval gate."""
 
 from dataclasses import replace
+from datetime import datetime, timedelta
 
 from .base import IntentResolver
 from .models import ProactiveSuggestion, SuggestionStatus
@@ -31,8 +32,27 @@ class ProactiveSuggestionService:
         self._intent_resolver = intent_resolver
         self._suggestions: dict[str, ProactiveSuggestion] = {}
         self._next_id = 1
+        self._dnd_until: datetime | None = None
+
+    def set_dnd_for(self, minutes: int) -> datetime:
+        until = self._clock.now() + timedelta(minutes=minutes)
+        self._dnd_until = until
+        return until
+
+    def clear_dnd(self) -> None:
+        self._dnd_until = None
+
+    def is_dnd(self) -> bool:
+        if self._dnd_until is None:
+            return False
+        return self._clock.now() < self._dnd_until
+
+    def dnd_until(self) -> datetime | None:
+        return self._dnd_until if self.is_dnd() else None
 
     def create_suggestions(self) -> tuple[ProactiveSuggestion, ...]:
+        if self.is_dnd():
+            return ()
         created: list[ProactiveSuggestion] = []
         for candidate in self._detector.candidates():
             existing = self._pending_for(candidate.purpose, candidate.time_band)
@@ -67,6 +87,8 @@ class ProactiveSuggestionService:
             return ()
 
     def pending(self) -> tuple[ProactiveSuggestion, ...]:
+        if self.is_dnd():
+            return ()
         return tuple(
             suggestion
             for suggestion in self._suggestions.values()

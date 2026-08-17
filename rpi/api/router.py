@@ -10,11 +10,13 @@ from .deps import get_service, get_suggestion_service
 from .schemas import (
     ApproveResponse,
     ButtonStep,
+    DndRequest,
     ExecuteButtonsRequest,
     ExecuteForApplianceRequest,
     ExecuteRequest,
     ExecuteResponse,
     OkResponse,
+    SensorResponse,
     StatusResponse,
     SuggestionResponse,
 )
@@ -147,3 +149,26 @@ async def reject_suggestion(
     # pending 목록에서 제거 — approve와 달리 실행 없이 dismiss
     svc._suggestions.pop(suggestion_id, None)
     return OkResponse()
+
+
+@router.post("/dnd", response_model=OkResponse)
+async def set_dnd(
+    body: DndRequest,
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> OkResponse:
+    svc.set_dnd_for(body.duration_minutes)
+    return OkResponse()
+
+
+@router.delete("/dnd", response_model=OkResponse)
+async def clear_dnd(
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> OkResponse:
+    svc.clear_dnd()
+    return OkResponse()
+
+
+@router.get("/sensors", response_model=SensorResponse)
+async def sensors() -> SensorResponse:
+    # DHT22 실기기 연결 시 교체
+    return SensorResponse(temperature=26.5, humidity=58.0)

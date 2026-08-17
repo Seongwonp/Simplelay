@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 
 from pydantic import BaseModel, field_validator
@@ -99,3 +100,26 @@ class ApproveResponse(BaseModel):
 
 class OkResponse(BaseModel):
     ok: bool = True
+
+
+class HealthResponse(BaseModel):
+    ok: bool
+    # coreXY 홈 위치 확인 + SwitchBot 연결 상태 통합 — 실기기 연결 후 교체
+    actuator_ready: bool = True
+    dnd_until: datetime | None = None
+
+
+class DndRequest(BaseModel):
+    duration_minutes: int
+
+    @field_validator("duration_minutes")
+    @classmethod
+    def positive(cls, v: int) -> int:
+        if v <= 0:
+            raise ValueError("duration_minutes must be positive")
+        return v
+
+
+class SensorResponse(BaseModel):
+    temperature: float | None = None
+    humidity: float | None = None

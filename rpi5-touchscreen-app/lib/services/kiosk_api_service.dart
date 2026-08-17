@@ -3,6 +3,40 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+class HealthStatus {
+  const HealthStatus({
+    required this.ok,
+    this.actuatorReady = true,
+    this.dndUntil,
+  });
+
+  final bool ok;
+  final bool actuatorReady;
+  final DateTime? dndUntil;
+
+  static const disconnected = HealthStatus(ok: false, actuatorReady: false);
+
+  factory HealthStatus.fromJson(Map<String, dynamic> json) => HealthStatus(
+        ok: json['ok'] as bool? ?? false,
+        actuatorReady: json['actuator_ready'] as bool? ?? true,
+        dndUntil: json['dnd_until'] == null
+            ? null
+            : DateTime.parse(json['dnd_until'] as String),
+      );
+}
+
+class SensorData {
+  const SensorData({this.temperature, this.humidity});
+
+  final double? temperature;
+  final double? humidity;
+
+  factory SensorData.fromJson(Map<String, dynamic> json) => SensorData(
+        temperature: (json['temperature'] as num?)?.toDouble(),
+        humidity: (json['humidity'] as num?)?.toDouble(),
+      );
+}
+
 class KioskSuggestion {
   const KioskSuggestion({
     required this.id,
@@ -95,7 +129,6 @@ class KioskExecuteResult {
 }
 
 // RPi5에서 로컬로 도는 rpi/api FastAPI 서버(localhost:8000)를 호출한다.
-// 원래 rpi/touchscreen/index.html의 raw fetch() 호출과 동일한 엔드포인트를 쓴다.
 class KioskApiService {
   KioskApiService({String baseUrl = 'http://localhost:8000'})
       : _base = Uri.parse(baseUrl.replaceAll(RegExp(r'/$'), ''));
@@ -104,14 +137,43 @@ class KioskApiService {
   final _client = http.Client();
   static const _timeout = Duration(seconds: 4);
 
-  Future<bool> checkHealth() async {
+  static const _jsonHeaders = {'Content-Type': 'application/json'};
+
+  Future<HealthStatus> checkHealth() async {
     try {
       final res =
           await _client.get(_base.replace(path: '/health')).timeout(_timeout);
-      return res.statusCode == 200;
+      if (res.statusCode != 200) return HealthStatus.disconnected;
+      return HealthStatus.fromJson(
+          jsonDecode(res.body) as Map<String, dynamic>);
     } catch (_) {
-      return false;
+      return HealthStatus.disconnected;
     }
+  }
+
+  Future<SensorData?> sensors() async {
+    try {
+      final res =
+          await _client.get(_base.replace(path: '/sensors')).timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return SensorData.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> setDnd(int minutes) async {
+    await _client
+        .post(
+          _base.replace(path: '/dnd'),
+          body: jsonEncode({'duration_minutes': minutes}),
+          headers: _jsonHeaders,
+        )
+        .timeout(_timeout);
+  }
+
+  Future<void> clearDnd() async {
+    await _client.delete(_base.replace(path: '/dnd')).timeout(_timeout);
   }
 
   Future<List<KioskSuggestion>> suggestions() async {
@@ -129,6 +191,18 @@ class KioskApiService {
     final res =
         await _client.get(_base.replace(path: '/status')).timeout(_timeout);
     return KioskStatus.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
+  Future<KioskExecuteResult> executeButtons(List<String> buttons) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/execute-buttons'),
+          body: jsonEncode({'buttons': buttons}),
+          headers: _jsonHeaders,
+        )
+        .timeout(_timeout);
+    return KioskExecuteResult.fromJson(
+        jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   Future<KioskExecuteResult> approveSuggestion(String id) async {
