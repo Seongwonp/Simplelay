@@ -1,4 +1,5 @@
 """싱글톤 서비스 의존성 — 하드웨어 없이도 동작하는 mock 구현으로 초기화."""
+import logging
 import os
 from datetime import time
 from functools import lru_cache
@@ -17,9 +18,12 @@ from rpi.intent.log import InMemoryUsageLog
 from rpi.intent.models import PatternConfig, TimeBand
 from rpi.intent.patterns import PatternDetector
 from rpi.intent.suggestions import ProactiveSuggestionService
+from rpi.services.act_client_controller import ActClientController, open_uart_act_controller
 from rpi.verifier import MockVerifier
 
 from .service import SimpleLayService
+
+log = logging.getLogger(__name__)
 
 _usage_log = InMemoryUsageLog()
 _clock = SystemClock()
@@ -62,18 +66,45 @@ def _build_llm_client() -> LlmClient | None:
     )
 
 
-@lru_cache(maxsize=1)
-def get_service() -> SimpleLayService:
+def _build_controller(
+    progress_tracker: ExecutionProgressTracker,
+) -> ClosedLoopController | ActClientController:
+    """폐루프 실행기를 환경변수로 고른다 — 기본은 이 프로세스 안에서 mock
+    하드웨어로 직접 도는 로컬 ClosedLoopController(오프라인 우선 원칙).
+
+    ``SIMPLELAY_ACT_MODE=uart``: 진짜 RPi4 보드에 UART로 시퀀스를 통째로
+    보내고 결과만 기다리는 ActClientController. 단, RPi4는 지금 집계 결과
+    (success/retry)만 보내므로 버튼별 실시간 진행상황은 안 옴 — 실행 중엔
+    /status의 current_button 등이 계속 비어 있는다(docs/roadmap.md M2 참고).
+    """
+    mode = os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower()
+    if mode == "uart":
+        port = os.environ.get("SIMPLELAY_UART_PORT", "/dev/ttyAMA0")
+        baud = int(os.environ.get("SIMPLELAY_UART_BAUD", "115200"))
+
+        def _log_alert(event):
+            log.warning(
+                "RPi4 alert: kind=%s raised=%s band_energy_ratio=%s mean_period_seconds=%s",
+                event.kind, event.raised, event.band_energy_ratio, event.mean_period_seconds,
+            )
+
+        return open_uart_act_controller(port, baud, on_alert=_log_alert)
+
     grbl = MockGrblClient()
     verifier = MockVerifier(outcomes=[True] * 100)
-    progress_tracker = ExecutionProgressTracker()
-    controller = ClosedLoopController(
+    return ClosedLoopController(
         grbl,
         verifier,
         MockAlertSink(),
         MockSafetyController(),
         on_progress=progress_tracker.update,
     )
+
+
+@lru_cache(maxsize=1)
+def get_service() -> SimpleLayService:
+    progress_tracker = ExecutionProgressTracker()
+    controller = _build_controller(progress_tracker)
     return SimpleLayService(
         intent=RuleBasedIntentResolver(),
         controller=controller,

@@ -1,0 +1,332 @@
+"""ActClient tests — no real serial port required.
+
+Mirrors rpi4/tests/test_act_executor.py's FakeWriter/feed pattern, since
+ActClient is the RPi5-side counterpart of that module's ActExecutor.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+
+import pytest
+
+from rpi.services.act_client import (
+    ActClient,
+    ActClientConfig,
+    ActLinkBusyError,
+    ActLinkError,
+    ActLinkTimeoutError,
+    AlertEvent,
+)
+
+
+class FakeWriter:
+    """Captures bytes written by ActClient without a real transport."""
+
+    def __init__(self) -> None:
+        self._buf = b""
+
+    def write(self, data: bytes) -> None:
+        self._buf += data
+
+    async def drain(self) -> None:
+        pass
+
+    def messages(self) -> list[dict]:
+        return [json.loads(line) for line in self._buf.split(b"\n") if line.strip()]
+
+
+def feed(reader: asyncio.StreamReader, doc: dict) -> None:
+    reader.feed_data((json.dumps(doc, ensure_ascii=False) + "\n").encode())
+
+
+def run(coro):
+    return asyncio.run(coro)
+
+
+def _make_client(reader, writer, **kwargs) -> ActClient:
+    return ActClient(reader=reader, writer=writer, **kwargs)
+
+
+# ── execute() happy path ─────────────────────────────────────────────────────
+
+def test_execute_sends_execute_message_with_given_sequence_id():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        task = asyncio.create_task(client.execute(["시작", "정지"], sequence_id="seq-1"))
+        await asyncio.sleep(0)  # let execute() write before we inspect
+        assert writer.messages() == [
+            {"type": "execute", "sequence_id": "seq-1", "buttons": ["시작", "정지"]}
+        ]
+
+        feed(reader, {"type": "result", "sequence_id": "seq-1", "success": True, "retry": 0})
+        result = await task
+        assert result.sequence_id == "seq-1"
+        assert result.success is True
+        assert result.retry == 0
+
+        await client.stop()
+    run(_t())
+
+
+def test_execute_without_sequence_id_generates_one():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        task = asyncio.create_task(client.execute(["시작"]))
+        await asyncio.sleep(0)
+        sent = writer.messages()[0]
+        assert sent["type"] == "execute"
+        assert isinstance(sent["sequence_id"], str) and sent["sequence_id"]
+
+        feed(reader, {"type": "result", "sequence_id": sent["sequence_id"], "success": True, "retry": 0})
+        result = await task
+        assert result.sequence_id == sent["sequence_id"]
+
+        await client.stop()
+    run(_t())
+
+
+def test_execute_reports_retry_count():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-2"))
+        await asyncio.sleep(0)
+        feed(reader, {"type": "result", "sequence_id": "seq-2", "success": True, "retry": 3})
+        result = await task
+        assert result.retry == 3
+
+        await client.stop()
+    run(_t())
+
+
+# ── execute() error paths ────────────────────────────────────────────────────
+
+def test_execute_raises_on_error_response():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-3"))
+        await asyncio.sleep(0)
+        feed(reader, {"type": "error", "sequence_id": "seq-3", "reason": "actuator_fail"})
+
+        with pytest.raises(ActLinkError, match="actuator_fail"):
+            await task
+
+        await client.stop()
+    run(_t())
+
+
+def test_execute_raises_timeout_when_rpi4_never_responds():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(
+            reader, writer, config=ActClientConfig(response_timeout_seconds=0.05)
+        )
+        await client.start()
+
+        with pytest.raises(ActLinkTimeoutError):
+            await client.execute(["시작"], sequence_id="seq-4")
+
+        await client.stop()
+    run(_t())
+
+
+def test_second_execute_while_first_pending_raises_busy():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        first = asyncio.create_task(client.execute(["시작"], sequence_id="first"))
+        await asyncio.sleep(0)  # let the first execute() claim self._pending
+
+        with pytest.raises(ActLinkBusyError):
+            await client.execute(["정지"], sequence_id="second")
+
+        feed(reader, {"type": "result", "sequence_id": "first", "success": True, "retry": 0})
+        await first
+        await client.stop()
+    run(_t())
+
+
+def test_execute_can_be_called_again_after_previous_call_resolved():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        first = asyncio.create_task(client.execute(["시작"], sequence_id="first"))
+        await asyncio.sleep(0)
+        feed(reader, {"type": "result", "sequence_id": "first", "success": True, "retry": 0})
+        await first
+
+        second = asyncio.create_task(client.execute(["정지"], sequence_id="second"))
+        await asyncio.sleep(0)
+        feed(reader, {"type": "result", "sequence_id": "second", "success": False, "retry": 5})
+        result = await second
+        assert result.sequence_id == "second"
+        assert result.success is False
+
+        await client.stop()
+    run(_t())
+
+
+# ── abort() ───────────────────────────────────────────────────────────────────
+
+def test_abort_sends_abort_message_without_waiting_for_a_reply():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        await client.abort()
+
+        assert writer.messages() == [{"type": "abort"}]
+        await client.stop()
+    run(_t())
+
+
+# ── alert / alert_cleared ────────────────────────────────────────────────────
+
+def test_alert_while_idle_is_forwarded_to_on_alert():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        received: list[AlertEvent] = []
+        client = _make_client(reader, writer, on_alert=received.append)
+        await client.start()
+
+        feed(reader, {
+            "type": "alert", "kind": "danger_sound",
+            "band_energy_ratio": 0.77, "mean_period_seconds": 0.42,
+        })
+        await asyncio.sleep(0.02)  # let the read loop process the line
+
+        assert len(received) == 1
+        assert received[0] == AlertEvent(
+            kind="danger_sound", raised=True,
+            band_energy_ratio=0.77, mean_period_seconds=0.42,
+        )
+        await client.stop()
+    run(_t())
+
+
+def test_alert_cleared_is_forwarded_with_raised_false():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        received: list[AlertEvent] = []
+        client = _make_client(reader, writer, on_alert=received.append)
+        await client.start()
+
+        feed(reader, {"type": "alert_cleared", "kind": "danger_sound"})
+        await asyncio.sleep(0.02)
+
+        assert received == [AlertEvent(kind="danger_sound", raised=False)]
+        await client.stop()
+    run(_t())
+
+
+def test_alert_mid_execute_does_not_resolve_the_pending_execute():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        received: list[AlertEvent] = []
+        client = _make_client(reader, writer, on_alert=received.append)
+        await client.start()
+
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-5"))
+        await asyncio.sleep(0)
+
+        feed(reader, {"type": "alert", "kind": "danger_sound"})
+        await asyncio.sleep(0.02)
+        assert len(received) == 1
+        assert not task.done()  # alert must not resolve the execute() future
+
+        feed(reader, {"type": "result", "sequence_id": "seq-5", "success": True, "retry": 0})
+        result = await task
+        assert result.success is True
+
+        await client.stop()
+    run(_t())
+
+
+def test_no_on_alert_callback_configured_does_not_crash():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)  # on_alert omitted
+        await client.start()
+
+        feed(reader, {"type": "alert", "kind": "danger_sound"})
+        await asyncio.sleep(0.02)  # would raise inside the read loop if broken
+
+        await client.stop()
+    run(_t())
+
+
+# ── robustness ────────────────────────────────────────────────────────────────
+
+def test_unsolicited_result_with_no_pending_execute_is_ignored():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        feed(reader, {"type": "result", "sequence_id": "orphan", "success": True, "retry": 0})
+        await asyncio.sleep(0.02)  # would raise if the read loop crashed
+
+        await client.stop()
+    run(_t())
+
+
+def test_malformed_json_line_does_not_crash_the_read_loop():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        reader.feed_data(b"this is not json\n")
+        await asyncio.sleep(0.02)
+
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-6"))
+        await asyncio.sleep(0)
+        feed(reader, {"type": "result", "sequence_id": "seq-6", "success": True, "retry": 0})
+        result = await task
+        assert result.success is True
+
+        await client.stop()
+    run(_t())
+
+
+def test_stop_can_be_called_twice_without_error():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+        await client.stop()
+        await client.stop()
+    run(_t())

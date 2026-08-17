@@ -11,7 +11,14 @@ from .models import (
     ExecutionStatus,
     PressCommand,
 )
-from .ports import AlertSink, GrblClient, NoOpRetryWaiter, RetryWaiter, SafetyController
+from .ports import (
+    AlertSink,
+    ButtonSequenceController,
+    GrblClient,
+    NoOpRetryWaiter,
+    RetryWaiter,
+    SafetyController,
+)
 from .progress import ExecutionProgressTracker, ProgressCallback
 from .retry import DocumentedRetryPolicy, RetryPolicy
 
@@ -20,6 +27,7 @@ __all__ = [
     "internal_gpioGpioClient",
     "AlertSink",
     "ButtonResult",
+    "ButtonSequenceController",
     "ButtonStatus",
     "ClosedLoopController",
     "Correction",

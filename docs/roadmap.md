@@ -19,8 +19,23 @@
 - [x] RPi5 ↔ ESP32 UART 확정 및 구현 (`rpi/services/bridge.py`)
 - [x] RPi5 ↔ RPi4 UART 방향 확정, RPi4 쪽 실행기 구현 (`rpi4/act_executor.py`)
 - [x] RPi4 → RPi5 자체발신 알림 채널 추가 (`alert`/`alert_cleared`) — 위험소리
-      감지 결과를 RPi5가 요청하지 않아도 즉시 푸시. RPi5 쪽 수신은 아직 없음
-      (RPi5→RPi4 UART 클라이언트 자체가 아직 미구현 — 별도 선행 작업 필요)
+      감지 결과를 RPi5가 요청하지 않아도 즉시 푸시
+- [x] RPi5 → RPi4 UART 클라이언트 구현 (`rpi/services/act_client.py`) —
+      `execute`/`abort` 송신, `result`/`error`/`alert`/`alert_cleared` 수신까지
+      프로토콜 레벨로 완결(ActExecutor의 정확한 미러). `rpi4/tests/
+      test_act_link_integration.py`에서 진짜 `ActClient`↔`ActExecutor`를
+      메모리 파이프로 직접 연결해 상호운용까지 검증함(양쪽 다 fixture가 아닌
+      서로에게 실제로 응답)
+- [x] `SimpleLayService`가 실제로 RPi4에 연결되도록 배선 — `ActClientController`
+      (`rpi/services/act_client_controller.py`)가 동기↔비동기 다리 역할:
+      전용 이벤트루프 스레드를 띄우고 `run_coroutine_threadsafe`로 `ActClient`를
+      부름. `SIMPLELAY_ACT_MODE=uart` 환경변수로 켬(기본은 여전히 로컬 mock,
+      오프라인 우선 원칙 유지). **의도적으로 집계 결과(success/retry)만
+      받음** — 버튼별 실시간 진행상황(`/status`의 current_button 등)은 이
+      모드에서 계속 비어 있음(사용자 확인 후 결정한 범위)
+      - `UartBridge`(ESP32 경로, `rpi4/services/bridge.py`)는 아직 이 배선을
+        안 씀 — `rpi4/main.py`가 컨트롤러를 인라인으로 만들어서, `_build_controller`
+        재사용하려면 공유 팩토리 위치를 먼저 정해야 함. 값싼 후속 작업으로 남김.
 - [ ] RPi4 ↔ Arduino(X/Y)·BLE 버튼 장치(Z) 연결 방식 확정 및 응답 파싱
 
 ### M3 — 폐루프 ★ (결선 데모 핵심)

@@ -1,0 +1,217 @@
+"""RPi5 side of the RPi5 <-> RPi4 UART protocol (docs/protocol.md) — the
+mirror image of rpi4/services/act_executor.py's ActExecutor, which is the
+RPi4 side of this same link.
+
+  OUTBOUND (RPi5 -> RPi4)          INBOUND (RPi4 -> RPi5)
+  ──────────────────────────────────────────────────────────
+  execute {sequence_id, buttons} ←  result {sequence_id, success, retry}
+                                   ←  error  {sequence_id, reason}
+  abort                           ←  (no reply expected)
+  (nothing — self-initiated)      ←  alert {kind, band_energy_ratio,
+                                       mean_period_seconds} / alert_cleared
+
+`execute()` sends one sequence and awaits its matching result/error — RPi4
+only ever runs one sequence at a time, so only one execute() may be
+in-flight per ActClient. `alert`/`alert_cleared` are unsolicited pushes
+that can arrive at any time (even mid-execute) and are forwarded to
+`on_alert` immediately rather than resolving the pending execute().
+
+Duck-typed reader/writer, matching ActExecutor's and UartBridge's pattern:
+  - real hardware: asyncio.StreamReader / asyncio.StreamWriter (serial_asyncio)
+  - tests:         asyncio.StreamReader.feed_data() / a fake writer
+"""
+
+from __future__ import annotations
+
+import asyncio
+import json
+import logging
+import uuid
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Protocol
+
+log = logging.getLogger(__name__)
+
+
+class ActLinkError(RuntimeError):
+    """Base class for RPi5-side failures talking to the RPi4 board."""
+
+
+class ActLinkBusyError(ActLinkError):
+    """Raised when execute() is called while a previous call is still in flight."""
+
+
+class ActLinkTimeoutError(ActLinkError):
+    """Raised when RPi4 doesn't respond within the configured timeout."""
+
+
+@dataclass(frozen=True)
+class ActClientConfig:
+    response_timeout_seconds: float = 30.0
+
+
+@dataclass(frozen=True)
+class ActResult:
+    sequence_id: str
+    success: bool
+    retry: int
+
+
+@dataclass(frozen=True)
+class AlertEvent:
+    """Parsed form of RPi4's self-initiated alert/alert_cleared messages."""
+
+    kind: str
+    raised: bool  # True = "alert" (just started), False = "alert_cleared"
+    band_energy_ratio: float | None = None
+    mean_period_seconds: float | None = None
+
+
+def _parse_alert(doc: dict) -> AlertEvent | None:
+    msg_type = doc.get("type")
+    if msg_type not in ("alert", "alert_cleared"):
+        return None
+    kind = doc.get("kind")
+    if not isinstance(kind, str) or not kind:
+        return None
+    return AlertEvent(
+        kind=kind,
+        raised=msg_type == "alert",
+        band_energy_ratio=doc.get("band_energy_ratio"),
+        mean_period_seconds=doc.get("mean_period_seconds"),
+    )
+
+
+class _WriterLike(Protocol):
+    def write(self, data: bytes) -> None: ...
+    async def drain(self) -> None: ...
+
+
+class ActClient:
+    """Sends resolved button sequences to the RPi4 board and awaits results.
+
+    Args:
+        reader:    asyncio.StreamReader (serial or test-injected)
+        writer:    asyncio.StreamWriter-compatible (serial or fake)
+        config:    Response timeout, etc.
+        on_alert:  Called from the background read loop whenever RPi4 pushes
+                   an alert/alert_cleared — fire-and-forget, not awaited.
+    """
+
+    def __init__(
+        self,
+        reader: asyncio.StreamReader,
+        writer: _WriterLike,
+        config: ActClientConfig | None = None,
+        on_alert: Callable[[AlertEvent], None] | None = None,
+    ) -> None:
+        self._reader = reader
+        self._writer = writer
+        self._cfg = config or ActClientConfig()
+        self._on_alert = on_alert
+        self._pending: asyncio.Future[dict] | None = None
+        self._read_task: asyncio.Task[None] | None = None
+
+    # ── Public API ───────────────────────────────────────────────────────────
+
+    async def start(self) -> None:
+        """Start the background read loop. Call once before execute()/abort()."""
+        self._read_task = asyncio.create_task(self._read_loop())
+
+    async def stop(self) -> None:
+        """Cancel the background read loop. Safe to call more than once."""
+        if self._read_task is None:
+            return
+        self._read_task.cancel()
+        try:
+            await self._read_task
+        except asyncio.CancelledError:
+            pass
+        self._read_task = None
+
+    async def execute(
+        self, buttons: Sequence[str], sequence_id: str | None = None
+    ) -> ActResult:
+        """Send one button sequence and await RPi4's result.
+
+        Raises ActLinkBusyError if a previous execute() hasn't resolved yet,
+        ActLinkTimeoutError if RPi4 never responds, ActLinkError if RPi4
+        reports an ``error`` message for this sequence.
+        """
+        if self._pending is not None and not self._pending.done():
+            raise ActLinkBusyError("an execute() call is already awaiting a response")
+
+        seq_id = sequence_id or str(uuid.uuid4())
+        loop = asyncio.get_running_loop()
+        self._pending = loop.create_future()
+        await self._send({"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)})
+
+        try:
+            doc = await asyncio.wait_for(self._pending, self._cfg.response_timeout_seconds)
+        except asyncio.TimeoutError as exc:
+            raise ActLinkTimeoutError(
+                f"no response for sequence_id={seq_id!r} within "
+                f"{self._cfg.response_timeout_seconds}s"
+            ) from exc
+        finally:
+            self._pending = None
+
+        if doc.get("type") == "error":
+            raise ActLinkError(
+                f"RPi4 reported error for sequence_id={seq_id!r}: {doc.get('reason', 'unknown')}"
+            )
+        return ActResult(
+            sequence_id=doc.get("sequence_id", seq_id),
+            success=bool(doc.get("success", False)),
+            retry=int(doc.get("retry", 0)),
+        )
+
+    async def abort(self) -> None:
+        """Request RPi4 abort — best-effort, no reply is awaited (see protocol.md)."""
+        await self._send({"type": "abort"})
+
+    # ── Background read loop ────────────────────────────────────────────────
+
+    async def _read_loop(self) -> None:
+        try:
+            while True:
+                raw_bytes = await self._reader.readuntil(b"\n")
+                raw = raw_bytes.decode("utf-8", errors="replace").strip()
+                if raw:
+                    self._handle_line(raw)
+        except asyncio.IncompleteReadError:
+            log.info("ActClient: serial stream closed (EOF)")
+        except asyncio.CancelledError:
+            raise
+
+    def _handle_line(self, raw: str) -> None:
+        log.debug("RX <- %s", raw)
+        try:
+            doc = json.loads(raw)
+        except json.JSONDecodeError:
+            log.warning("ActClient: ignored unparseable line: %.120s", raw)
+            return
+        if not isinstance(doc, dict):
+            return
+
+        msg_type = doc.get("type")
+        if msg_type in ("result", "error"):
+            if self._pending is not None and not self._pending.done():
+                self._pending.set_result(doc)
+            else:
+                log.warning("ActClient: unsolicited %s ignored: %.120s", msg_type, raw)
+            return
+
+        event = _parse_alert(doc)
+        if event is not None and self._on_alert is not None:
+            self._on_alert(event)
+        # "ack" (per-step progress) and unknown types: not yet consumed.
+
+    # ── IO helper ────────────────────────────────────────────────────────────
+
+    async def _send(self, doc: dict) -> None:
+        payload = (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
+        log.debug("TX -> %s", payload.rstrip().decode())
+        self._writer.write(payload)
+        await self._writer.drain()

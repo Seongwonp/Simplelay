@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
 from rpi.controller import (
-    ClosedLoopController,
+    ButtonSequenceController,
     ExecutionProgress,
     ExecutionProgressTracker,
     ExecutionResult,
@@ -59,7 +59,7 @@ class SimpleLayService(PurposeExecutor):
     def __init__(
         self,
         intent: IntentResolver,
-        controller: ClosedLoopController,
+        controller: ButtonSequenceController,
         usage_log: UsageLog | None = None,
         clock: Clock | None = None,
         start_ready: bool = True,
