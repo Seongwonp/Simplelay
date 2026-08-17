@@ -83,18 +83,28 @@ class KioskIdleView extends StatelessWidget {
                       letterSpacing: 1.0,
                     ),
                   ),
-                  if (_sensorStr != null) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      _sensorStr!,
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF6B7280),
-                        fontWeight: FontWeight.w300,
-                        letterSpacing: 0.5,
+                  // 센서 유무와 무관하게 항상 같은 공간을 차지해야 값이 늦게
+                  // 들어와도(DHT22 폴링 지연 등) 시계 위치가 들썩이지 않는다.
+                  // 텍스트 실제 라인 높이는 fontSize보다 크므로(폰트 메트릭
+                  // ascent+descent) 여유를 넉넉히 둔다 — 안 그러면 아래가 살짝 잘림.
+                  SizedBox(
+                    height: 28,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Opacity(
+                        opacity: _sensorStr != null ? 1.0 : 0.0,
+                        child: Text(
+                          _sensorStr ?? '',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: Color(0xFF8B93A0),
+                            fontWeight: FontWeight.w400,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                       ),
                     ),
-                  ],
+                  ),
                   const SizedBox(height: 22),
                   Row(
                     mainAxisSize: MainAxisSize.min,

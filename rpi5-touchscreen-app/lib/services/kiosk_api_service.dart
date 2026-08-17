@@ -37,6 +37,26 @@ class SensorData {
       );
 }
 
+class AlertState {
+  const AlertState({
+    required this.active,
+    this.kind,
+    this.meanPeriodSeconds,
+  });
+
+  final bool active;
+  final String? kind;
+  final double? meanPeriodSeconds;
+
+  static const inactive = AlertState(active: false);
+
+  factory AlertState.fromJson(Map<String, dynamic> json) => AlertState(
+        active: json['active'] as bool? ?? false,
+        kind: json['kind'] as String?,
+        meanPeriodSeconds: (json['mean_period_seconds'] as num?)?.toDouble(),
+      );
+}
+
 class KioskSuggestion {
   const KioskSuggestion({
     required this.id,
@@ -159,6 +179,17 @@ class KioskApiService {
       return SensorData.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<AlertState> alerts() async {
+    try {
+      final res =
+          await _client.get(_base.replace(path: '/alerts')).timeout(_timeout);
+      if (res.statusCode != 200) return AlertState.inactive;
+      return AlertState.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+    } catch (_) {
+      return AlertState.inactive;
     }
   }
 

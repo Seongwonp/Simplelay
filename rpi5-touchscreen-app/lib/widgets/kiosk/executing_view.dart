@@ -34,46 +34,49 @@ class KioskExecutingView extends StatelessWidget {
         // ── 왼쪽: 메인 콘텐츠 ──────────────────────────────────────
         Expanded(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(32, 22, 12, 22),
+            padding: const EdgeInsets.fromLTRB(32, 28, 20, 28),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 제목 행 + 단계 배지
+                // 제목 행 + 단계 표시
                 Row(
                   children: [
                     SizedBox(
-                      width: 28,
-                      height: 28,
+                      width: 22,
+                      height: 22,
                       child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
+                        strokeWidth: 2,
                         color: isDone ? KioskColors.success : KioskColors.primary,
-                        backgroundColor: isDone
-                            ? KioskColors.success.withValues(alpha: 0.18)
-                            : KioskColors.primary.withValues(alpha: 0.18),
+                        backgroundColor: KioskColors.border,
                         value: isDone ? 1.0 : null,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w800,
+                          fontSize: 24,
+                          fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    _StepBadge(
-                      completedSteps:
-                          isDone ? lastButtons!.length : completedSteps,
-                      isDone: isDone,
-                    ),
+                    if (completedSteps != null || isDone) ...[
+                      const SizedBox(width: 12),
+                      Text(
+                        '${isDone ? lastButtons!.length : completedSteps}단계 완료',
+                        style: TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: isDone ? KioskColors.success : KioskColors.muted,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 32),
 
                 // 실행 중: 현재 버튼 hero / 완료: 결과 목록
                 if (!isDone) ...[
@@ -104,35 +107,41 @@ class KioskExecutingView extends StatelessWidget {
 
         // ── 오른쪽: 지표 + 긴급 정지 ─────────────────────────────
         Container(
-          width: 220,
-          padding: const EdgeInsets.fromLTRB(4, 22, 24, 22),
+          width: 210,
+          padding: const EdgeInsets.fromLTRB(4, 28, 24, 28),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _BigConfidenceCard(
-                confidence: verificationConfidence,
+              _MetricBlock(
+                label: '검증 신뢰도',
+                value: verificationConfidence == null
+                    ? '–'
+                    : '${(verificationConfidence! * 100).toStringAsFixed(0)}%',
+                warn: verificationConfidence != null && verificationConfidence! < 0.7,
                 detail: verificationDetail,
               ),
-              const SizedBox(height: 10),
-              _AttemptCard(attempt: currentAttempt),
+              const SizedBox(height: 24),
+              _MetricBlock(
+                label: '시도 횟수',
+                value: currentAttempt == null ? '–' : '$currentAttempt회',
+                warn: currentAttempt != null && currentAttempt! > 1,
+              ),
               const Spacer(),
               SizedBox(
                 width: double.infinity,
-                height: 72,
-                child: ElevatedButton.icon(
+                height: 56,
+                child: OutlinedButton(
                   onPressed: onStop,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: KioskColors.danger.withValues(alpha: 0.10),
+                  style: OutlinedButton.styleFrom(
                     foregroundColor: KioskColors.danger,
-                    elevation: 0,
-                    side: const BorderSide(color: KioskColors.danger, width: 1.5),
+                    side: const BorderSide(color: KioskColors.danger, width: 1),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  icon: const Icon(Icons.stop_circle_outlined, size: 22),
-                  label: const Text(
+                  child: const Text(
                     '긴급 정지',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -140,37 +149,6 @@ class KioskExecutingView extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-// ── 단계 배지 ────────────────────────────────────────────────────────────
-
-class _StepBadge extends StatelessWidget {
-  const _StepBadge({required this.completedSteps, required this.isDone});
-
-  final int? completedSteps;
-  final bool isDone;
-
-  @override
-  Widget build(BuildContext context) {
-    if (completedSteps == null && !isDone) return const SizedBox.shrink();
-    final color = isDone ? KioskColors.success : KioskColors.primary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        border: Border.all(color: color.withValues(alpha: 0.40)),
-        borderRadius: BorderRadius.circular(100),
-      ),
-      child: Text(
-        '${completedSteps}단계 완료',
-        style: TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w700,
-          color: color,
-        ),
-      ),
     );
   }
 }
@@ -186,44 +164,33 @@ class _CurrentActionHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isRetrying = attempt != null && attempt! > 1;
-    final color = isRetrying ? KioskColors.warning : KioskColors.primary;
+    final color = isRetrying ? KioskColors.warning : Colors.white;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.06),
-        border: Border.all(color: color.withValues(alpha: 0.28), width: 1.5),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            button ?? '준비 중…',
-            style: TextStyle(
-              fontSize: 44,
-              fontWeight: FontWeight.w800,
-              color: color,
-              height: 1.05,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          button ?? '준비 중…',
+          style: TextStyle(
+            fontSize: 48,
+            fontWeight: FontWeight.w700,
+            color: color,
+            height: 1.05,
           ),
-          const SizedBox(height: 8),
-          Text(
-            isRetrying
-                ? '$attempt번째 재시도 — 폐루프 좌표 재보정 중'
-                : button != null
-                    ? '버튼 누르는 중 · 센서 검증 대기'
-                    : '버튼 시퀀스 초기화 중…',
-            style: TextStyle(
-              fontSize: 13,
-              color: isRetrying
-                  ? KioskColors.warning.withValues(alpha: 0.75)
-                  : KioskColors.muted,
-            ),
+        ),
+        const SizedBox(height: 10),
+        Text(
+          isRetrying
+              ? '$attempt번째 재시도 — 좌표 재보정 중'
+              : button != null
+                  ? '버튼 누르는 중 · 센서 검증 대기'
+                  : '버튼 시퀀스 초기화 중…',
+          style: TextStyle(
+            fontSize: 14,
+            color: isRetrying ? KioskColors.warning : KioskColors.muted,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -246,32 +213,17 @@ class _StepRow extends StatelessWidget {
       _StepState.failed => (KioskColors.danger, Icons.close),
       _StepState.pending => (Colors.white24, Icons.circle_outlined),
     };
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        border: Border.all(color: color.withValues(alpha: 0.35)),
-        borderRadius: BorderRadius.circular(10),
-      ),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
       child: Row(
         children: [
-          Container(
-            width: 30,
-            height: 30,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.18),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 16, color: color),
-          ),
-          const SizedBox(width: 12),
+          Icon(icon, size: 18, color: color),
+          const SizedBox(width: 14),
           Expanded(
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 15,
                 color:
                     state == _StepState.pending ? Colors.white30 : Colors.white,
                 fontWeight: state == _StepState.current
@@ -286,157 +238,50 @@ class _StepRow extends StatelessWidget {
   }
 }
 
-// ── 검증 신뢰도 카드 (52px 숫자) ─────────────────────────────────────────
+// ── 우측 지표 (테두리 없는 라벨+숫자) ──────────────────────────────────────
 
-class _BigConfidenceCard extends StatelessWidget {
-  const _BigConfidenceCard({required this.confidence, required this.detail});
+class _MetricBlock extends StatelessWidget {
+  const _MetricBlock({
+    required this.label,
+    required this.value,
+    required this.warn,
+    this.detail,
+  });
 
-  final double? confidence;
+  final String label;
+  final String value;
+  final bool warn;
   final String? detail;
 
   @override
   Widget build(BuildContext context) {
-    final pct = (confidence ?? 0.0).clamp(0.0, 1.0);
-    final low = confidence != null && confidence! < 0.7;
-    final barColor = low ? KioskColors.warning : KioskColors.primary;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
-      decoration: BoxDecoration(
-        color: KioskColors.surface,
-        border: Border.all(
-          color: confidence == null
-              ? KioskColors.border
-              : barColor.withValues(alpha: 0.40),
+    final color = warn ? KioskColors.warning : Colors.white;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: KioskColors.muted),
         ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '검증 신뢰도',
-                style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 0.06,
-                  color: KioskColors.muted,
-                ),
-              ),
-              Icon(
-                Icons.verified_outlined,
-                size: 15,
-                color: confidence == null ? KioskColors.muted : barColor,
-              ),
-            ],
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 34,
+            fontWeight: FontWeight.w600,
+            color: color,
+            height: 1.0,
           ),
+        ),
+        if (detail != null && detail!.isNotEmpty) ...[
           const SizedBox(height: 4),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
-            children: [
-              Text(
-                confidence == null ? '–' : (pct * 100).toStringAsFixed(0),
-                style: TextStyle(
-                  fontSize: 52,
-                  fontWeight: FontWeight.w300,
-                  color: confidence == null ? Colors.white38 : Colors.white,
-                  height: 1.0,
-                ),
-              ),
-              if (confidence != null) ...[
-                const SizedBox(width: 3),
-                Text(
-                  '%',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w300,
-                    color: barColor.withValues(alpha: 0.80),
-                  ),
-                ),
-              ],
-            ],
+          Text(
+            detail!,
+            style: const TextStyle(fontSize: 11, color: KioskColors.muted),
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(3),
-            child: LinearProgressIndicator(
-              value: pct,
-              minHeight: 5,
-              backgroundColor: KioskColors.border,
-              valueColor: AlwaysStoppedAnimation(barColor),
-            ),
-          ),
-          if (detail != null && detail!.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              detail!,
-              style: const TextStyle(fontSize: 10, color: KioskColors.muted),
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
         ],
-      ),
-    );
-  }
-}
-
-// ── 재시도 횟수 카드 ─────────────────────────────────────────────────────
-
-class _AttemptCard extends StatelessWidget {
-  const _AttemptCard({required this.attempt});
-
-  final int? attempt;
-
-  @override
-  Widget build(BuildContext context) {
-    final warn = attempt != null && attempt! > 1;
-    final color = warn ? KioskColors.warning : KioskColors.muted;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: BoxDecoration(
-        color: KioskColors.surface,
-        border: Border.all(
-          color: warn
-              ? KioskColors.warning.withValues(alpha: 0.40)
-              : KioskColors.border,
-        ),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                '시도 횟수',
-                style: TextStyle(
-                  fontSize: 11,
-                  letterSpacing: 0.06,
-                  color: KioskColors.muted,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                attempt == null ? '–' : '$attempt회',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.w600,
-                  color: warn ? KioskColors.warning : Colors.white,
-                  height: 1.0,
-                ),
-              ),
-            ],
-          ),
-          Icon(Icons.replay_circle_filled_outlined, size: 26, color: color),
-        ],
-      ),
+      ],
     );
   }
 }

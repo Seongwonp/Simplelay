@@ -5,17 +5,20 @@ import 'package:flutter/material.dart';
 import '../models/appliance.dart';
 import '../services/kiosk_api_service.dart';
 import '../theme/kiosk_colors.dart';
+import '../widgets/kiosk/danger_alert_overlay.dart';
+import '../widgets/kiosk/dnd_overlay.dart';
 import '../widgets/kiosk/done_view.dart';
 import '../widgets/kiosk/executing_view.dart';
 import '../widgets/kiosk/idle_view.dart';
+import '../widgets/kiosk/kiosk_phase.dart';
 import '../widgets/kiosk/manual_view.dart';
 import '../widgets/kiosk/suggestion_view.dart';
-
-enum _Phase { idle, suggestion, executing, done, manual }
+import '../widgets/kiosk/top_progress_bar.dart';
 
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
 const _sensorInterval = Duration(seconds: 60);
+const _alertInterval = Duration(seconds: 3);
 const _countdownSeconds = 10;
 const _doneReturnDuration = Duration(seconds: 3);
 const _execBarFillDuration = Duration(seconds: 9);
@@ -32,11 +35,13 @@ class KioskScreen extends StatefulWidget {
 class _KioskScreenState extends State<KioskScreen> {
   final _api = KioskApiService();
 
-  _Phase _phase = _Phase.idle;
+  KioskPhase _phase = KioskPhase.idle;
   HealthStatus _health = HealthStatus.disconnected;
   SensorData? _sensorData;
   DateTime _now = DateTime.now();
   bool _showDnd = false;
+  AlertState _alert = AlertState.inactive;
+  bool _alertAcknowledged = false;
 
   KioskSuggestion? _currentSuggestion;
   int _cdRemaining = _countdownSeconds;
@@ -60,16 +65,19 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _healthTimer;
   Timer? _clockTimer;
   Timer? _sensorTimer;
+  Timer? _alertTimer;
 
   @override
   void initState() {
     super.initState();
     _checkHealth();
     _fetchSensors();
+    _fetchAlert();
     _poll();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
     _healthTimer = Timer.periodic(_healthInterval, (_) => _checkHealth());
     _sensorTimer = Timer.periodic(_sensorInterval, (_) => _fetchSensors());
+    _alertTimer = Timer.periodic(_alertInterval, (_) => _fetchAlert());
     _clockTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => setState(() => _now = DateTime.now()),
@@ -84,6 +92,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _healthTimer?.cancel();
     _clockTimer?.cancel();
     _sensorTimer?.cancel();
+    _alertTimer?.cancel();
     _api.dispose();
     super.dispose();
   }
@@ -98,13 +107,24 @@ class _KioskScreenState extends State<KioskScreen> {
     if (mounted) setState(() => _sensorData = data);
   }
 
+  Future<void> _fetchAlert() async {
+    final alert = await _api.alerts();
+    if (!mounted) return;
+    setState(() {
+      // 새로 켜지는 순간(엣지)엔 "확인" 눌렀던 기록을 리셋 — 계속 같은
+      // 경보가 이어지는 중엔 확인 상태 유지, 한 번 꺼졌다 다시 울리면 재알림.
+      if (alert.active && !_alert.active) _alertAcknowledged = false;
+      _alert = alert;
+    });
+  }
+
   Future<void> _poll() async {
-    if (_phase == _Phase.idle) {
+    if (_phase == KioskPhase.idle) {
       try {
         final list = await _api.suggestions();
         if (list.isNotEmpty) _toSuggestion(list.first);
       } catch (_) {}
-    } else if (_phase == _Phase.executing) {
+    } else if (_phase == KioskPhase.executing) {
       try {
         final st = await _api.status();
         if (mounted) {
@@ -131,7 +151,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _countdownTimer?.cancel();
     _execFillTimer?.cancel();
     setState(() {
-      _phase = _Phase.idle;
+      _phase = KioskPhase.idle;
       _currentSuggestion = null;
       _showDnd = false;
     });
@@ -139,15 +159,15 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   void _toManual() {
-    if (_phase != _Phase.idle) return;
-    setState(() => _phase = _Phase.manual);
+    if (_phase != KioskPhase.idle) return;
+    setState(() => _phase = KioskPhase.manual);
   }
 
-  void _fromManual() => setState(() => _phase = _Phase.idle);
+  void _fromManual() => setState(() => _phase = KioskPhase.idle);
 
   void _toSuggestion(KioskSuggestion suggestion) {
     setState(() {
-      _phase = _Phase.suggestion;
+      _phase = KioskPhase.suggestion;
       _currentSuggestion = suggestion;
       _cdRemaining = _countdownSeconds;
     });
@@ -164,7 +184,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   void _toExecuting(String title) {
     setState(() {
-      _phase = _Phase.executing;
+      _phase = KioskPhase.executing;
       _execTitle = title;
       _lastButtons = null;
       _execBarValue = 0;
@@ -211,12 +231,12 @@ class _KioskScreenState extends State<KioskScreen> {
 
   void _toDone(bool success, String label) {
     setState(() {
-      _phase = _Phase.done;
+      _phase = KioskPhase.done;
       _doneSuccess = success;
       _doneLabel = label;
     });
     Future.delayed(_doneReturnDuration, () {
-      if (mounted && _phase == _Phase.done) _toIdle();
+      if (mounted && _phase == KioskPhase.done) _toIdle();
     });
   }
 
@@ -296,7 +316,7 @@ class _KioskScreenState extends State<KioskScreen> {
             left: 0,
             right: 0,
             height: 4,
-            child: _TopProgressBar(phase: _phase, execBarValue: _execBarValue),
+            child: TopProgressBar(phase: _phase, execBarValue: _execBarValue),
           ),
           Positioned.fill(
             child: Padding(
@@ -309,11 +329,17 @@ class _KioskScreenState extends State<KioskScreen> {
           ),
           if (_showDnd)
             Positioned.fill(
-              child: _DndOverlay(
+              child: DndOverlay(
                 dndUntil: _health.dndUntil,
                 onSet: _onSetDnd,
                 onClear: _onClearDnd,
                 onDismiss: () => setState(() => _showDnd = false),
+              ),
+            ),
+          if (_alert.active && !_alertAcknowledged)
+            Positioned.fill(
+              child: DangerAlertOverlay(
+                onAcknowledge: () => setState(() => _alertAcknowledged = true),
               ),
             ),
         ],
@@ -323,7 +349,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Widget _buildScreen() {
     switch (_phase) {
-      case _Phase.idle:
+      case KioskPhase.idle:
         return KioskIdleView(
           key: const ValueKey('idle'),
           now: _now,
@@ -335,24 +361,23 @@ class _KioskScreenState extends State<KioskScreen> {
           onTap: _toManual,
           onLongPress: () => setState(() => _showDnd = true),
         );
-      case _Phase.manual:
+      case KioskPhase.manual:
         return KioskManualView(
           key: const ValueKey('manual'),
           appliance: widget.appliance,
           onExecute: _onManualExecute,
           onCancel: _fromManual,
         );
-      case _Phase.suggestion:
+      case KioskPhase.suggestion:
         final suggestion = _currentSuggestion!;
         return KioskSuggestionView(
           key: const ValueKey('suggestion'),
-          appliance: widget.appliance,
           suggestion: suggestion,
           cdRemaining: _cdRemaining,
           onApprove: _onApprove,
           onReject: _onReject,
         );
-      case _Phase.executing:
+      case KioskPhase.executing:
         return KioskExecutingView(
           key: const ValueKey('executing'),
           title: _execTitle,
@@ -364,182 +389,12 @@ class _KioskScreenState extends State<KioskScreen> {
           verificationDetail: _verificationDetail,
           onStop: _onStop,
         );
-      case _Phase.done:
+      case KioskPhase.done:
         return KioskDoneView(
           key: const ValueKey('done'),
           success: _doneSuccess,
           label: _doneLabel,
         );
     }
-  }
-}
-
-// ── DND 오버레이 ────────────────────────────────────────────────────────────
-
-class _DndOverlay extends StatelessWidget {
-  const _DndOverlay({
-    required this.dndUntil,
-    required this.onSet,
-    required this.onClear,
-    required this.onDismiss,
-  });
-
-  final DateTime? dndUntil;
-  final void Function(int minutes) onSet;
-  final VoidCallback onClear;
-  final VoidCallback onDismiss;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onDismiss,
-      child: ColoredBox(
-        color: const Color(0xCC0C0E12),
-        child: Center(
-          child: GestureDetector(
-            onTap: () {}, // 카드 탭이 배경으로 전파되지 않게 흡수
-            child: Container(
-              width: 300,
-              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 32),
-              decoration: BoxDecoration(
-                color: KioskColors.surface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: KioskColors.border),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    '방해 금지',
-                    style: TextStyle(
-                      fontSize: 17,
-                      color: Color(0xFFFAF7F2),
-                      fontWeight: FontWeight.w300,
-                      letterSpacing: 0.5,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    dndUntil != null
-                        ? 'AI 제안이 일시 중단됨'
-                        : 'AI 제안을 잠시 멈춥니다',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: KioskColors.muted,
-                      fontWeight: FontWeight.w300,
-                    ),
-                  ),
-                  const SizedBox(height: 28),
-                  if (dndUntil == null) ...[
-                    _DndOption(label: '30분', onTap: () => onSet(30)),
-                    const SizedBox(height: 8),
-                    _DndOption(label: '1시간', onTap: () => onSet(60)),
-                    const SizedBox(height: 8),
-                    _DndOption(label: '2시간', onTap: () => onSet(120)),
-                  ] else ...[
-                    _DndOption(
-                      label: '방해 금지 해제',
-                      accent: true,
-                      onTap: onClear,
-                    ),
-                  ],
-                  const SizedBox(height: 18),
-                  GestureDetector(
-                    onTap: onDismiss,
-                    child: const Text(
-                      '취소',
-                      style: TextStyle(fontSize: 13, color: KioskColors.muted),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DndOption extends StatelessWidget {
-  const _DndOption({
-    required this.label,
-    required this.onTap,
-    this.accent = false,
-  });
-
-  final String label;
-  final VoidCallback? onTap;
-  final bool accent;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: double.infinity,
-        height: 46,
-        decoration: BoxDecoration(
-          color: accent
-              ? KioskColors.warning.withValues(alpha: 0.12)
-              : KioskColors.surface2,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: accent
-                ? KioskColors.warning.withValues(alpha: 0.35)
-                : KioskColors.border,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              color: accent ? KioskColors.warning : const Color(0xFFFAF7F2),
-              fontWeight: FontWeight.w400,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ── 상단 프로그레스 바 ─────────────────────────────────────────────────────
-
-class _TopProgressBar extends StatelessWidget {
-  const _TopProgressBar({required this.phase, required this.execBarValue});
-
-  final _Phase phase;
-  final double execBarValue;
-
-  @override
-  Widget build(BuildContext context) {
-    final value = switch (phase) {
-      _Phase.executing => execBarValue * 0.8,
-      _Phase.done => 1.0,
-      _ => 0.0,
-    };
-    return LayoutBuilder(
-      builder: (context, constraints) => Stack(
-        children: [
-          Container(color: KioskColors.surface),
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            width: constraints.maxWidth * value.clamp(0.0, 1.0),
-            decoration: BoxDecoration(
-              color: KioskColors.primary,
-              boxShadow: [
-                BoxShadow(
-                  color: KioskColors.primary.withValues(alpha: 0.6),
-                  blurRadius: 6,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

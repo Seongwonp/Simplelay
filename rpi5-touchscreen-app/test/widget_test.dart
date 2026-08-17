@@ -7,7 +7,7 @@ void main() {
     await tester.pumpWidget(const SimpleLayKioskApp());
     await tester.pump();
 
-    expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('AI 모니터링 중'), findsOneWidget);
+    // 탁상시계 스타일 대기화면(idle_view.dart) — 날짜는 항상 "...요일"로 끝난다.
+    expect(find.textContaining('요일'), findsOneWidget);
   });
 }

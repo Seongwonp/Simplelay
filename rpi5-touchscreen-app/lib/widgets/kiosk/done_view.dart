@@ -17,14 +17,8 @@ class KioskDoneView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = success ? KioskColors.success : KioskColors.danger;
-    return Container(
-      decoration: BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment.center,
-          radius: 0.65,
-          colors: [color.withValues(alpha: 0.08), KioskColors.bg],
-        ),
-      ),
+    return ColoredBox(
+      color: KioskColors.bg,
       child: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
