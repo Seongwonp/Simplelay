@@ -71,6 +71,15 @@
 - [x] 사진 기반 버튼 위치 등록 — 컴퓨터비전 없이 순수 기하학으로: 가전 사진을
       찍으면 기존 수동 그리드 에디터를 그 위에 반투명으로 겹쳐서, 실제 버튼
       위치를 보며 이름을 붙일 수 있음. 새 하드웨어·백엔드 연동 불필요(100% 앱)
+- [x] 온디바이스 벡터DB 유사도 매칭 — `VectordbIntentResolver`
+      (`rpi/intent/dbus_vectordb.py`, `com.platform.internal_aiVectordb1`). 규칙기반
+      (정확일치) → 벡터DB(빠른 유사도 매칭) → LLM(유연한 대화형 해석, 가장 느림)
+      순으로 `TieredIntentResolver`에 계층화하는 용도 — Dbusinternal_aiLlmClient와
+      역할 분담. **CAUTION: AddText/SearchText의 정확한 internal_gpio 출력 포맷은
+      아직 실기기 미검증**(RPi5 오프라인 상태에서 작업) — 파싱 로직은
+      `rpi/intent/dbus_vectordb.py` 모듈 docstring에 명시된 대로 최선의 추정이며
+      독립적으로 교체 가능하게 분리해둠. 리졸버 자체 로직(임계값 판정, 메타데이터
+      파싱, 티어 조합)은 fake client로 완전히 검증됨(테스트 26개)
 
 ---
 

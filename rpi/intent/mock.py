@@ -1,8 +1,9 @@
 """Deterministic test doubles for intent resolution and M4 pattern learning."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 
+from .dbus_vectordb import SearchResult
 from .ports import Clock, LlmClient, PurposeExecutor
 
 
@@ -53,3 +54,16 @@ class MockLlmClient(LlmClient):
             return self._responses[purpose]
         except KeyError as exc:
             raise LookupError(f"no mock LLM response configured for {purpose!r}") from exc
+
+
+class FakeVectordbClient:
+    """Deterministic VectordbSearcher double: canned search results keyed
+    by purpose text -- no subprocess/D-Bus involved."""
+
+    def __init__(self, results: Mapping[str, Sequence[SearchResult]] | None = None) -> None:
+        self._results = dict(results or {})
+        self.calls: list[tuple[str, int]] = []
+
+    def search_text(self, input_text: str, top_k: int = 1) -> list[SearchResult]:
+        self.calls.append((input_text, top_k))
+        return list(self._results.get(input_text, []))

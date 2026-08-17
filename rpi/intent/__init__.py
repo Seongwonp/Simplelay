@@ -13,6 +13,17 @@ from .dbus_internal_ai import (
     Dbusinternal_aiClientError,
     Dbusinternal_aiLlmClient,
 )
+from .dbus_vectordb import (
+    SearchResult,
+    VectordbClient,
+    VectordbClientConfig,
+    VectordbClientError,
+    VectordbIntentResolver,
+    VectordbResolverConfig,
+    VectordbSearcher,
+    parse_search_text_output,
+    seed_examples,
+)
 from .llm import (
     HttpLlmClient,
     HttpLlmClientConfig,
@@ -63,6 +74,7 @@ __all__ = [
     "ProactiveSuggestionService",
     "PurposeExecutor",
     "RuleBasedIntentResolver",
+    "SearchResult",
     "SuggestionAlreadyApprovedError",
     "SuggestionStatus",
     "SystemClock",
@@ -73,5 +85,13 @@ __all__ = [
     "UsageLog",
     "UsageOutcome",
     "UsageRecord",
+    "VectordbClient",
+    "VectordbClientConfig",
+    "VectordbClientError",
+    "VectordbIntentResolver",
+    "VectordbResolverConfig",
+    "VectordbSearcher",
     "load_button_map",
+    "parse_search_text_output",
+    "seed_examples",
 ]
