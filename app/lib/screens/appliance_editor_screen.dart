@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/photo_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
@@ -23,6 +26,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   int _rows = 3;
   int _cols = 3;
   late List<List<String?>> _grid = _emptyGrid(_rows, _cols);
+  File? _photo;
 
   @override
   void dispose() {
@@ -48,6 +52,14 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
       _grid = next;
     });
   }
+
+  Future<void> _takePhoto() async {
+    final photo = await ref.read(photoServiceProvider).takePhoto();
+    if (photo == null || !mounted) return;
+    setState(() => _photo = photo);
+  }
+
+  void _removePhoto() => setState(() => _photo = null);
 
   Future<void> _editCell(int x, int y) async {
     final existing = _grid[y][x];
@@ -181,7 +193,37 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                   Text('버튼 배치', style: AppText.title),
                   const SizedBox(height: 4),
                   const Text(
-                    '행/열 크기를 정하고, 빈 칸을 탭해서 버튼을 추가하세요.',
+                    '가전 사진을 찍으면 그 위에 격자를 겹쳐서 실제 버튼 위치를 보며 배치할 수 있어요.'
+                    ' 사진 없이도 그대로 진행 가능해요.',
+                    style: AppText.caption,
+                  ),
+                  const SizedBox(height: 10),
+                  _photo == null
+                      ? OutlinedButton.icon(
+                          onPressed: _takePhoto,
+                          icon: const Icon(Icons.camera_alt_outlined),
+                          label: const Text('버튼 패널 사진 찍기'),
+                        )
+                      : Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _takePhoto,
+                                icon: const Icon(Icons.camera_alt_outlined),
+                                label: const Text('다시 찍기'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              onPressed: _removePhoto,
+                              icon: const Icon(Icons.close),
+                              tooltip: '사진 제거',
+                            ),
+                          ],
+                        ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    '버튼 패널이 화면에 꽉 차게 찍어주세요 — 격자가 사진 전체에 균등하게 겹쳐져요.',
                     style: AppText.caption,
                   ),
                   const SizedBox(height: 14),
@@ -211,7 +253,21 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                   const SizedBox(height: 16),
                   AspectRatio(
                     aspectRatio: _cols / _rows,
-                    child: _EditableGrid(grid: _grid, onTapCell: _editCell),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          if (_photo != null)
+                            Image.file(_photo!, fit: BoxFit.cover),
+                          _EditableGrid(
+                            grid: _grid,
+                            onTapCell: _editCell,
+                            translucent: _photo != null,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -286,10 +342,17 @@ class _StepperField extends StatelessWidget {
 }
 
 class _EditableGrid extends StatelessWidget {
-  const _EditableGrid({required this.grid, required this.onTapCell});
+  const _EditableGrid({
+    required this.grid,
+    required this.onTapCell,
+    this.translucent = false,
+  });
 
   final List<List<String?>> grid;
   final void Function(int x, int y) onTapCell;
+  // 뒤에 사진이 깔려 있을 때 — 빈 칸은 사진이 그대로 비치게, 채워진 칸은
+  // 라벨이 사진 위에서도 읽히게 배경을 좀 더 진하게 준다.
+  final bool translucent;
 
   @override
   Widget build(BuildContext context) {
@@ -308,14 +371,22 @@ class _EditableGrid extends StatelessWidget {
                   child: Padding(
                     padding: EdgeInsets.only(right: x < cols - 1 ? 7 : 0),
                     child: GestureDetector(
+                      key: ValueKey('grid_cell_${x}_$y'),
                       onTap: () => onTapCell(x, y),
                       child: Container(
                         decoration: BoxDecoration(
                           color: filled
-                              ? AppColors.primary.withValues(alpha: 0.14)
-                              : Colors.white.withValues(alpha: 0.04),
+                              ? AppColors.primary.withValues(
+                                  alpha: translucent ? 0.28 : 0.14)
+                              : (translucent
+                                  ? Colors.transparent
+                                  : Colors.white.withValues(alpha: 0.04)),
                           border: Border.all(
-                            color: filled ? AppColors.primary : AppColors.borderSubtle,
+                            color: filled
+                                ? AppColors.primary
+                                : (translucent
+                                    ? Colors.white.withValues(alpha: 0.6)
+                                    : AppColors.borderSubtle),
                             width: filled ? 1.5 : 1,
                           ),
                           borderRadius: BorderRadius.circular(9),
@@ -325,13 +396,18 @@ class _EditableGrid extends StatelessWidget {
                             ? Text(
                                 label,
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: AppColors.primary,
+                                  color: translucent ? Colors.white : AppColors.primary,
+                                  shadows: translucent
+                                      ? const [Shadow(blurRadius: 4, color: Colors.black)]
+                                      : null,
                                 ),
                               )
-                            : const Icon(Icons.add, size: 16, color: Colors.white24),
+                            : (translucent
+                                ? null
+                                : const Icon(Icons.add, size: 16, color: Colors.white24)),
                       ),
                     ),
                   ),
