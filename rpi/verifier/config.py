@@ -79,3 +79,42 @@ class SensorConfig:
     current: CurrentSensorConfig = field(default_factory=CurrentSensorConfig)
     audio: AudioSensorConfig = field(default_factory=AudioSensorConfig)
     fusion: FusionConfig = field(default_factory=FusionConfig)
+
+
+@dataclass(frozen=True)
+class DangerSoundConfig:
+    """마이크로 화재/가스 경보음 같은 위험 신호음을 상시 감지하기 위한 설정.
+
+    AudioSensorConfig(버튼음, 단발 프레임 판정)와는 목적이 다르다 — 이건
+    여러 프레임에 걸친 "주기적으로 반복되는 소리"를 찾는다. 주파수 대역은
+    실측 전 추정값(일반적인 피에조 경보기 대역) — docs/sensor-spec.md가
+    버튼음에 요구했던 것과 동일한 실측 절차가 결선 전 필요.
+    """
+
+    sample_rate: int = 16_000
+    chunk_size: int = 512
+
+    # 경보음 피에조 부저 대역 추정치 (Hz) — 실측 필요
+    freq_low_hz: int = 2_800
+    freq_high_hz: int = 4_200
+
+    # 대역 에너지 비율 임계값 (0.0–1.0)
+    band_energy_threshold: float = 0.35
+
+    # 경보로 판정하기 위한 최소 반복 주기(온셋 간 간격, 초) 범위 —
+    # 이 범위 밖 간격은 경보 후보에서 제외
+    min_period_seconds: float = 0.3
+    max_period_seconds: float = 2.5
+
+    # 오탐(전자레인지 완료음 등 유한 반복) 방지 — 이 횟수 이상 연속으로
+    # 일정한 주기를 유지해야 위험으로 판정. 완료음은 보통 3~5회 후 멈춘다.
+    min_cycles: int = 6
+
+    # 온셋 기록을 보관하는 분석 윈도우 길이(초) — 이보다 오래된 온셋은 버림
+    window_seconds: float = 30.0
+
+    def __post_init__(self) -> None:
+        if self.min_period_seconds <= 0 or self.max_period_seconds <= self.min_period_seconds:
+            raise ValueError("min_period_seconds must be positive and less than max_period_seconds")
+        if self.min_cycles < 2:
+            raise ValueError("min_cycles must be at least 2 to establish a period")

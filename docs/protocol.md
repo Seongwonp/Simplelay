@@ -74,6 +74,17 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 { "type": "error", "sequence_id": "seq_001", "reason": "actuator_fail" }
 ```
 
+`result`/`error`/`ack`는 모두 RPi5가 보낸 `execute`에 대한 응답이다. 아래 두 개는
+유일하게 RPi5가 요청하지 않아도 RPi4가 스스로 보내는 메시지 — 마이크가 물려 있는
+RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(승인 절차 없음, 기존
+"제안"과는 다른 클래스). `DangerSoundMonitor` → `ActExecutor.report_danger_sound()`가
+엣지 트리거로 보낸다 — 같은 상태가 계속되는 동안은 재전송하지 않는다.
+
+```json
+{ "type": "alert", "kind": "danger_sound", "band_energy_ratio": 0.77, "mean_period_seconds": 0.42 }
+{ "type": "alert_cleared", "kind": "danger_sound" }
+```
+
 ---
 
 ## 버튼 맵 JSON 포맷

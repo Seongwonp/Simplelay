@@ -17,7 +17,7 @@ import time
 
 from rpi.controller import ClosedLoopController
 from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
-from rpi.verifier import MockVerifier
+from rpi.verifier import DangerSoundResult, MockVerifier
 
 from rpi4.models.act_messages import parse_act_message
 from rpi4.services.act_executor import ActExecutor
@@ -262,4 +262,123 @@ def test_malformed_json_produces_no_response_and_no_crash():
         reader.feed_data(b"this is not json\n")
         await executor.run_once()
         assert writer.messages() == []
+    run(_t())
+
+
+# ── report_danger_sound (self-initiated alert) ──────────────────────────────
+
+def _not_detected(ratio: float = 0.1) -> DangerSoundResult:
+    return DangerSoundResult(detected=False, band_energy_ratio=ratio, cycle_count=1)
+
+
+def _detected(ratio: float = 0.8, period: float = 0.4, cycles: int = 6) -> DangerSoundResult:
+    return DangerSoundResult(
+        detected=True, band_energy_ratio=ratio, cycle_count=cycles, mean_period_seconds=period
+    )
+
+
+def test_danger_sound_alert_raised_on_detection_edge():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)
+
+        await executor.report_danger_sound(_detected(ratio=0.77, period=0.42))
+
+        msgs = writer.messages()
+        assert msgs == [{
+            "type": "alert",
+            "kind": "danger_sound",
+            "band_energy_ratio": 0.77,
+            "mean_period_seconds": 0.42,
+        }]
+    run(_t())
+
+
+def test_danger_sound_not_detected_produces_no_message():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)
+
+        await executor.report_danger_sound(_not_detected())
+
+        assert writer.messages() == []
+    run(_t())
+
+
+def test_danger_sound_alert_not_resent_while_still_detected():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)
+
+        await executor.report_danger_sound(_detected())
+        await executor.report_danger_sound(_detected())
+        await executor.report_danger_sound(_detected())
+
+        msgs = writer.messages()
+        assert len(msgs) == 1  # only the first transition sends anything
+    run(_t())
+
+
+def test_danger_sound_alert_cleared_when_detection_stops():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)
+
+        await executor.report_danger_sound(_detected())
+        await executor.report_danger_sound(_not_detected())
+
+        msgs = writer.messages()
+        assert msgs[-1] == {"type": "alert_cleared", "kind": "danger_sound"}
+        assert len(msgs) == 2
+    run(_t())
+
+
+def test_danger_sound_clear_not_resent_while_still_not_detected():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)
+
+        await executor.report_danger_sound(_not_detected())
+        await executor.report_danger_sound(_not_detected())
+
+        assert writer.messages() == []  # never alerted, so nothing to clear either
+    run(_t())
+
+
+def test_danger_sound_alert_can_raise_again_after_clearing():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)
+
+        await executor.report_danger_sound(_detected())
+        await executor.report_danger_sound(_not_detected())
+        await executor.report_danger_sound(_detected())
+
+        msgs = writer.messages()
+        assert [m["type"] for m in msgs] == ["alert", "alert_cleared", "alert"]
+    run(_t())
+
+
+def test_danger_sound_alert_interleaves_safely_with_execute_result():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)
+
+        feed(reader, {"type": "execute", "sequence_id": "seq-danger", "buttons": ["시작"]})
+        exec_task = asyncio.create_task(executor.run_once())
+        alert_task = asyncio.create_task(executor.report_danger_sound(_detected()))
+        await asyncio.gather(exec_task, alert_task)
+
+        msgs = writer.messages()
+        assert {"type": "alert", "kind": "danger_sound", "band_energy_ratio": 0.8,
+                "mean_period_seconds": 0.4} in msgs
+        assert {"type": "result", "sequence_id": "seq-danger", "success": True, "retry": 0} in msgs
+        assert len(msgs) == 2  # both lines arrived intact, no interleaved/corrupted JSON
     run(_t())

@@ -10,6 +10,9 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   ──────────────────────────────────────────────────────────
   execute {sequence_id, buttons} →  result {sequence_id, success, retry}
   abort                          →  (logged only; see _on_abort)
+  (none — self-initiated)        →  alert {kind, band_energy_ratio,
+                                       mean_period_seconds} / alert_cleared
+                                    (see report_danger_sound)
 
 Duck-typed reader/writer so this is fully testable without a real serial
 port, matching services/bridge.py's pattern:
@@ -25,6 +28,7 @@ import logging
 from typing import Protocol
 
 from rpi.controller import ClosedLoopController, ExecutionStatus
+from rpi.verifier import DangerSoundResult
 
 from ..models.act_messages import AbortMsg, ExecuteMsg, InboundActMsg, parse_act_message
 
@@ -56,6 +60,7 @@ class ActExecutor:
         self._writer = writer
         self._controller = controller
         self._busy = False
+        self._danger_alert_active = False
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -89,6 +94,36 @@ class ActExecutor:
             return
 
         await self._dispatch(msg)
+
+    async def report_danger_sound(self, result: DangerSoundResult) -> None:
+        """Forward a DangerSoundDetector reading — called every frame by a
+        DangerSoundMonitor task running alongside run(). Edge-triggered: only
+        sends on the transition into/out of a detected alarm, so most calls
+        (steady detected or steady not-detected) are no-ops.
+
+        This is the one outbound message ActExecutor sends without RPi5
+        having asked for it — everything else is a reply to `execute`/`abort`.
+        Safe to call concurrently with the read/dispatch loop: `_send()`
+        always writes one complete line in a single synchronous `.write()`
+        before its only await point, so two in-flight `_send()` calls can
+        interleave at `drain()` without corrupting either line.
+        """
+        if result.detected and not self._danger_alert_active:
+            self._danger_alert_active = True
+            await self._send({
+                "type": "alert",
+                "kind": "danger_sound",
+                "band_energy_ratio": result.band_energy_ratio,
+                "mean_period_seconds": result.mean_period_seconds,
+            })
+            log.warning(
+                "danger sound alert raised (band_energy_ratio=%.2f, period=%s)",
+                result.band_energy_ratio, result.mean_period_seconds,
+            )
+        elif not result.detected and self._danger_alert_active:
+            self._danger_alert_active = False
+            await self._send({"type": "alert_cleared", "kind": "danger_sound"})
+            log.info("danger sound alert cleared")
 
     # ── Dispatch ─────────────────────────────────────────────────────────────
 
