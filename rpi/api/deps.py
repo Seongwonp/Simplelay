@@ -5,7 +5,13 @@ from functools import lru_cache
 
 from rpi.controller import ClosedLoopController, ExecutionProgressTracker
 from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
-from rpi.intent import HttpLlmClient, HttpLlmClientConfig, LlmClient, RuleBasedIntentResolver
+from rpi.intent import (
+    Dbusinternal_aiLlmClient,
+    HttpLlmClient,
+    HttpLlmClientConfig,
+    LlmClient,
+    RuleBasedIntentResolver,
+)
 from rpi.intent.clock import SystemClock
 from rpi.intent.log import InMemoryUsageLog
 from rpi.intent.models import PatternConfig, TimeBand
@@ -33,9 +39,17 @@ def _build_llm_client() -> LlmClient | None:
     """LLM 클라이언트를 환경변수로만 구성한다 — 기본값 없이, 명시적으로 설정
     안 하면 None(오프라인 우선 원칙: 안 켜면 해당 기능이 그냥 꺼져 있다).
 
-    base_url만 바꾸면 온디바이스 로컬 OpenAI 호환 엔드포인트든 데모용 클라우드
-    API든 동일한 HttpLlmClient로 그대로 쓸 수 있다 — 코드 분기 없음.
+    두 경로가 있고 운영자가 명시적으로 골라야 한다(자동 폴백 없음):
+    - ``SIMPLELAY_LLM_MODE=dbus``: 온디바이스 internal_ai 에이전트(D-Bus, internal_gpio+
+      busctl monitor 기반) — 새 하드웨어·네트워크 불필요, 기본으로 밀고 싶은
+      경로지만 실기기 안정성이 아직 데모 전 검증 필요.
+    - ``SIMPLELAY_LLM_BASE_URL`` (그 외): OpenAI 호환 HTTP 엔드포인트 — 데모
+      때 온디바이스가 불안정하면 이 값만 클라우드 API로 바꿔서 즉시 대체 가능.
     """
+    mode = os.environ.get("SIMPLELAY_LLM_MODE", "").strip().lower()
+    if mode == "dbus":
+        return Dbusinternal_aiLlmClient()
+
     base_url = os.environ.get("SIMPLELAY_LLM_BASE_URL")
     if not base_url:
         return None

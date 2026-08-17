@@ -8,6 +8,11 @@ from .appliance import (
 )
 from .base import IntentResolver
 from .clock import SystemClock
+from .dbus_internal_ai import (
+    Dbusinternal_aiClientConfig,
+    Dbusinternal_aiClientError,
+    Dbusinternal_aiLlmClient,
+)
 from .llm import (
     HttpLlmClient,
     HttpLlmClientConfig,
@@ -40,6 +45,9 @@ __all__ = [
     "ApplianceManifestError",
     "ButtonSpec",
     "Clock",
+    "Dbusinternal_aiClientConfig",
+    "Dbusinternal_aiClientError",
+    "Dbusinternal_aiLlmClient",
     "HttpLlmClient",
     "HttpLlmClientConfig",
     "InMemoryUsageLog",
