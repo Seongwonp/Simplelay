@@ -126,6 +126,31 @@ class RpiApiService {
     );
   }
 
+  // POST /execute-for-appliance — 사용자 정의 가전용 음성 명령. 서버 고정 규칙이
+  // 아니라 이 가전의 실제 버튼 라벨 어휘를 넘겨서 LLM이 그 안에서만 해석하게 한다.
+  // LLM이 서버에 설정 안 돼 있으면 503(RpiApiException)으로 실패한다.
+  Future<RpiExecuteResult> executeForAppliance(
+    String text,
+    List<String> knownButtons,
+  ) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/execute-for-appliance'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'text': text, 'known_buttons': knownButtons}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    return RpiExecuteResult(
+      status: body['status'] as String,
+      buttons: (body['buttons'] as List<dynamic>)
+          .cast<Map<String, dynamic>>()
+          .map(RpiButtonStep.fromJson)
+          .toList(),
+    );
+  }
+
   // GET /status
   Future<RpiStatusResult> status() async {
     final res =

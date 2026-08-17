@@ -10,6 +10,8 @@ from rpi.controller import (
 from rpi.intent import (
     Clock,
     IntentResolver,
+    LlmClient,
+    LlmIntentResolver,
     PurposeExecutor,
     SystemClock,
     UsageLog,
@@ -20,6 +22,12 @@ from rpi.intent import (
 
 class ServiceNotReadyError(RuntimeError):
     """Raised when execute_purpose is called before startup completes or after shutdown."""
+
+
+class LlmNotConfiguredError(RuntimeError):
+    """Raised when execute_purpose_for_appliance is called without an LLM
+    client configured on this service instance (see the ``llm_client``
+    constructor parameter and rpi/api/deps.py)."""
 
 
 @dataclass(frozen=True)
@@ -56,6 +64,7 @@ class SimpleLayService(PurposeExecutor):
         clock: Clock | None = None,
         start_ready: bool = True,
         progress_tracker: ExecutionProgressTracker | None = None,
+        llm_client: LlmClient | None = None,
     ) -> None:
         self._intent = intent
         self._controller = controller
@@ -66,6 +75,10 @@ class SimpleLayService(PurposeExecutor):
         self._shutting_down = False
         self._last_result: ExecutionResult | None = None
         self._progress_tracker = progress_tracker
+        # 사용자 정의 가전의 버튼 어휘로 즉석에서 LlmIntentResolver를 만들 때 씀
+        # (execute_purpose_for_appliance). None이면 그 경로는 막힌다 -- 서버가
+        # 기본으로 오프라인 동작하도록, LLM 연동은 항상 명시적으로 켜야 한다.
+        self._llm_client = llm_client
 
     def mark_ready(self) -> None:
         """Declare that hardware dependencies finished initializing."""
@@ -76,12 +89,37 @@ class SimpleLayService(PurposeExecutor):
         self._shutting_down = True
 
     def execute_purpose(self, purpose: str) -> ExecutionResult:
+        return self._execute_via_resolver(purpose, self._intent)
+
+    def execute_purpose_for_appliance(
+        self, purpose: str, known_buttons: frozenset[str]
+    ) -> ExecutionResult:
+        """Like execute_purpose, but resolves against a caller-supplied button
+        vocabulary instead of the server's fixed intent resolver.
+
+        For user-registered custom appliances: they have no entry in the
+        server's rule-based resolver, so a purpose is resolved fresh through
+        an LLM constrained to exactly this appliance's button labels. Logs to
+        the usage log like execute_purpose does -- unlike execute_buttons,
+        this has a real repeatable purpose string worth learning from.
+        """
+        if self._llm_client is None:
+            raise LlmNotConfiguredError(
+                "no LLM client configured -- appliance-aware voice commands "
+                "need one (see the llm_client param / rpi/api/deps.py)"
+            )
+        resolver = LlmIntentResolver(self._llm_client, known_buttons=known_buttons)
+        return self._execute_via_resolver(purpose, resolver)
+
+    def _execute_via_resolver(
+        self, purpose: str, resolver: IntentResolver
+    ) -> ExecutionResult:
         self._guard_can_execute()
         self._running = True
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
         try:
-            buttons = self._intent.resolve(purpose)
+            buttons = resolver.resolve(purpose)
             self._last_result = self._controller.execute(buttons)
             if self._usage_log is not None:
                 outcome = (

@@ -11,13 +11,14 @@ from .schemas import (
     ApproveResponse,
     ButtonStep,
     ExecuteButtonsRequest,
+    ExecuteForApplianceRequest,
     ExecuteRequest,
     ExecuteResponse,
     OkResponse,
     StatusResponse,
     SuggestionResponse,
 )
-from .service import SimpleLayService
+from .service import LlmNotConfiguredError, SimpleLayService
 
 router = APIRouter()
 
@@ -51,6 +52,28 @@ async def execute_buttons(
     # 의도 해석 규칙이 없는 사용자 정의 가전용 — 목적 문자열 없이 버튼을 직접 실행.
     try:
         result = await asyncio.to_thread(service.execute_buttons, tuple(body.buttons))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return ExecuteResponse(status=result.status.value, buttons=_to_steps(result))
+
+
+@router.post("/execute-for-appliance", response_model=ExecuteResponse)
+async def execute_for_appliance(
+    body: ExecuteForApplianceRequest,
+    service: SimpleLayService = Depends(get_service),
+) -> ExecuteResponse:
+    # 사용자 정의 가전용 음성 명령 — 요청에 실린 버튼 어휘를 기준으로 LLM이
+    # 자유발화를 해석한다. LLM이 서버에 설정 안 돼 있으면 503.
+    try:
+        result = await asyncio.to_thread(
+            service.execute_purpose_for_appliance,
+            body.text,
+            frozenset(body.known_buttons),
+        )
+    except LlmNotConfiguredError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except UnknownIntentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ExecuteResponse(status=result.status.value, buttons=_to_steps(result))

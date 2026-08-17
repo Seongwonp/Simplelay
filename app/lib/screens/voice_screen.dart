@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/voice_provider.dart';
+import '../services/voice_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
@@ -15,8 +17,20 @@ class VoiceScreen extends ConsumerStatefulWidget {
 }
 
 class _VoiceScreenState extends ConsumerState<VoiceScreen> {
+  // dispose()는 위젯이 이미 unmount되는 중이라 그 시점의 ref.read()는
+  // "Cannot use ref after the widget was disposed"로 죽는다 — initState에서
+  // (ref가 아직 유효할 때) 미리 읽어 필드에 캐시해두고 dispose에서는 이
+  // 필드만 쓴다.
+  late final VoiceService _voiceService;
+
+  @override
+  void initState() {
+    super.initState();
+    _voiceService = ref.read(voiceServiceProvider);
+  }
+
   Future<void> _toggle() async {
-    final voice = ref.read(voiceServiceProvider);
+    final voice = _voiceService;
     if (voice.isListening) {
       await voice.stop();
       ref.read(voiceListeningProvider.notifier).state = false;
@@ -39,18 +53,32 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
   }
 
   Future<void> _send(String text) async {
-    if (text.trim().isEmpty) return;
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
     final rpiApi = ref.read(rpiApiServiceProvider);
+    final appliance = ref.read(selectedApplianceProvider);
+
     try {
-      if (rpiApi != null) {
+      if (appliance.isCustom) {
+        // 사용자 정의 가전은 서버 고정 규칙이 없어서 LLM으로 해석해야 하고,
+        // BLE 릴레이(ESP32)는 의도 해석을 못 하므로 RPi5 HTTP 직통만 지원한다
+        // (버튼 직접 실행 — manual_control_screen과 같은 제약).
+        if (rpiApi == null) {
+          _notice('사용자 정의 가전의 음성 명령은 RPi5 서버 연결이 필요해요. 설정에서 URL을 확인하세요.');
+          return;
+        }
+        await rpiApi.executeForAppliance(
+          trimmed,
+          appliance.buttons.map((b) => b.label).toList(),
+        );
+        if (mounted) _notice('RPi에 명령을 전송했습니다.');
+      } else if (rpiApi != null) {
         // RPi HTTP 직통
-        await rpiApi.execute(text.trim(), source: 'voice');
+        await rpiApi.execute(trimmed, source: 'voice');
         if (mounted) _notice('RPi에 명령을 전송했습니다.');
       } else {
         // BLE 폴백
-        await ref
-            .read(bleServiceProvider)
-            .sendCommand(text.trim(), source: 'voice');
+        await ref.read(bleServiceProvider).sendCommand(trimmed, source: 'voice');
         if (mounted) _notice('명령을 전송했습니다.');
       }
     } catch (error) {
@@ -63,7 +91,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
 
   @override
   void dispose() {
-    ref.read(voiceServiceProvider).cancel();
+    _voiceService.cancel();
     super.dispose();
   }
 
@@ -71,6 +99,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
   Widget build(BuildContext context) {
     final text      = ref.watch(voiceTextProvider);
     final listening = ref.watch(voiceListeningProvider);
+    final appliance = ref.watch(selectedApplianceProvider);
+    // 내장 가전(전자레인지)만 실제로 매칭되는 규칙이 있어서 그 예시를 쓰고,
+    // 사용자 정의 가전은 등록된 실제 버튼 라벨로 예시를 만든다 — 안 그러면
+    // "우유 데워줘" 힌트가 우유 버튼도 없는 가전에서도 그대로 보이게 된다.
+    final hintExample = appliance.isCustom && appliance.buttons.isNotEmpty
+        ? '예: ${appliance.buttons.first.label} 해줘'
+        : '예: 우유 데워줘';
 
     return Scaffold(
       appBar: AppBar(title: const Text('음성 명령')),
@@ -101,7 +136,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
               duration: const Duration(milliseconds: 200),
               child: text.isEmpty
                   ? Text(
-                      '예: 우유 데워줘',
+                      hintExample,
                       key: const ValueKey('hint'),
                       style: const TextStyle(color: AppColors.onSurfaceMuted),
                       textAlign: TextAlign.center,

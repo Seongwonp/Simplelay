@@ -34,6 +34,30 @@ class ExecuteButtonsRequest(BaseModel):
         return cleaned
 
 
+class ExecuteForApplianceRequest(BaseModel):
+    """자유발화 → 버튼 시퀀스 해석, 단 서버의 고정 규칙이 아니라 이 요청에 실려온
+    버튼 라벨 어휘(사용자 정의 가전의 실제 버튼 배치)를 기준으로 LLM이 해석한다.
+    LLM 클라이언트가 서버에 설정돼 있지 않으면 503으로 거부된다."""
+
+    text: str
+    known_buttons: list[str]
+
+    @field_validator("text")
+    @classmethod
+    def text_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("text must not be blank")
+        return v.strip()
+
+    @field_validator("known_buttons")
+    @classmethod
+    def known_buttons_not_empty(cls, v: list[str]) -> list[str]:
+        cleaned = [b.strip() for b in v if b.strip()]
+        if not cleaned:
+            raise ValueError("known_buttons must not be empty")
+        return cleaned
+
+
 class ButtonStep(BaseModel):
     button: str
     success: bool

@@ -85,6 +85,73 @@ def test_execute_buttons_concurrent_returns_409(client):
         svc._running = False
 
 
+# ── /execute-for-appliance (커스텀 가전 음성 명령, LLM 기반) ────────────────────
+
+def test_execute_for_appliance_without_llm_configured_returns_503(client):
+    response = client.post(
+        "/execute-for-appliance",
+        json={"text": "해동해줘", "known_buttons": ["해동", "시작"]},
+    )
+    assert response.status_code == 503
+
+
+def test_execute_for_appliance_succeeds_with_configured_llm(client):
+    from rpi.intent.mock import MockLlmClient
+
+    svc = get_service()
+    svc._llm_client = MockLlmClient({"해동해줘": '{"sequence": ["해동", "시작"]}'})
+    response = client.post(
+        "/execute-for-appliance",
+        json={"text": "해동해줘", "known_buttons": ["해동", "시작", "취소"]},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "succeeded"
+    assert [step["button"] for step in body["buttons"]] == ["해동", "시작"]
+
+
+def test_execute_for_appliance_empty_known_buttons_returns_422(client):
+    response = client.post(
+        "/execute-for-appliance", json={"text": "해동해줘", "known_buttons": []}
+    )
+    assert response.status_code == 422
+
+
+def test_execute_for_appliance_blank_text_returns_422(client):
+    response = client.post(
+        "/execute-for-appliance", json={"text": "   ", "known_buttons": ["해동"]}
+    )
+    assert response.status_code == 422
+
+
+def test_execute_for_appliance_unmatched_purpose_returns_422(client):
+    from rpi.intent.mock import MockLlmClient
+
+    svc = get_service()
+    svc._llm_client = MockLlmClient({"이상한말": '{"sequence": []}'})
+    response = client.post(
+        "/execute-for-appliance",
+        json={"text": "이상한말", "known_buttons": ["해동"]},
+    )
+    assert response.status_code == 422
+
+
+def test_execute_for_appliance_concurrent_returns_409(client):
+    from rpi.intent.mock import MockLlmClient
+
+    svc = get_service()
+    svc._llm_client = MockLlmClient({"해동해줘": '{"sequence": ["해동"]}'})
+    svc._running = True
+    try:
+        response = client.post(
+            "/execute-for-appliance",
+            json={"text": "해동해줘", "known_buttons": ["해동"]},
+        )
+        assert response.status_code == 409
+    finally:
+        svc._running = False
+
+
 # ── /status ───────────────────────────────────────────────────────────────────
 
 def test_status_initially_idle(client):
