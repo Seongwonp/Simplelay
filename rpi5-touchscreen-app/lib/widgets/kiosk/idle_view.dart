@@ -1,8 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../theme/kiosk_colors.dart';
 
-class KioskIdleView extends StatelessWidget {
+class KioskIdleView extends StatefulWidget {
   const KioskIdleView({
     super.key,
     required this.now,
@@ -13,6 +15,7 @@ class KioskIdleView extends StatelessWidget {
     this.humidity,
     required this.onTap,
     required this.onLongPress,
+    this.onSettingsGesture,
   });
 
   final DateTime now;
@@ -23,7 +26,14 @@ class KioskIdleView extends StatelessWidget {
   final double? humidity;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
+  // 우하단 상태 dot을 3번 연속 탭하면 설정 오버레이를 연다 (관리자 제스처).
+  final VoidCallback? onSettingsGesture;
 
+  @override
+  State<KioskIdleView> createState() => _KioskIdleViewState();
+}
+
+class _KioskIdleViewState extends State<KioskIdleView> {
   static const _timeStyle = TextStyle(
     fontSize: 108,
     fontWeight: FontWeight.w300,
@@ -32,23 +42,50 @@ class KioskIdleView extends StatelessWidget {
     letterSpacing: -3,
   );
 
-  String get _hour   => now.hour.toString().padLeft(2, '0');
-  String get _minute => now.minute.toString().padLeft(2, '0');
+  int _dotTapCount = 0;
+  Timer? _dotTapResetTimer;
+
+  @override
+  void dispose() {
+    _dotTapResetTimer?.cancel();
+    super.dispose();
+  }
+
+  void _handleDotTap() {
+    _dotTapResetTimer?.cancel();
+    _dotTapCount++;
+    if (_dotTapCount >= 3) {
+      _dotTapCount = 0;
+      widget.onSettingsGesture?.call();
+    } else {
+      _dotTapResetTimer = Timer(
+        const Duration(seconds: 2),
+        () => _dotTapCount = 0,
+      );
+    }
+  }
+
+  String get _hour => widget.now.hour.toString().padLeft(2, '0');
+  String get _minute => widget.now.minute.toString().padLeft(2, '0');
 
   String get _dateStr {
     const wd = ['월', '화', '수', '목', '금', '토', '일'];
-    return '${now.month}월 ${now.day}일 ${wd[now.weekday - 1]}요일';
+    final n = widget.now;
+    return '${n.month}월 ${n.day}일 ${wd[n.weekday - 1]}요일';
   }
 
   String? get _sensorStr {
-    if (temperature == null) return null;
-    final temp = '${temperature!.toStringAsFixed(1)}°C';
-    final hum = humidity != null ? ' · ${humidity!.toStringAsFixed(0)}%' : '';
+    final t = widget.temperature;
+    if (t == null) return null;
+    final temp = '${t.toStringAsFixed(1)}°C';
+    final hum = widget.humidity != null
+        ? ' · ${widget.humidity!.toStringAsFixed(0)}%'
+        : '';
     return '$temp$hum';
   }
 
   String _dndRemaining(DateTime until) {
-    final diff = until.difference(now);
+    final diff = until.difference(widget.now);
     if (diff.isNegative) return '';
     if (diff.inMinutes >= 60) {
       final h = diff.inHours;
@@ -62,13 +99,13 @@ class KioskIdleView extends StatelessWidget {
   Widget build(BuildContext context) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      onLongPress: onLongPress,
+      onTap: widget.onTap,
+      onLongPress: widget.onLongPress,
       child: ColoredBox(
         color: KioskColors.bg,
         child: Stack(
           children: [
-            // ── 날짜 + 온습도 + 시계 ──────────────────────────────────────────
+            // ── 날짜 + 온습도 + 시계 ────────────────────────────────────────
             Align(
               alignment: const Alignment(0, -0.08),
               child: Column(
@@ -83,10 +120,6 @@ class KioskIdleView extends StatelessWidget {
                       letterSpacing: 1.0,
                     ),
                   ),
-                  // 센서 유무와 무관하게 항상 같은 공간을 차지해야 값이 늦게
-                  // 들어와도(DHT22 폴링 지연 등) 시계 위치가 들썩이지 않는다.
-                  // 텍스트 실제 라인 높이는 fontSize보다 크므로(폰트 메트릭
-                  // ascent+descent) 여유를 넉넉히 둔다 — 안 그러면 아래가 살짝 잘림.
                   SizedBox(
                     height: 28,
                     child: Padding(
@@ -112,7 +145,7 @@ class KioskIdleView extends StatelessWidget {
                     children: [
                       Text(_hour, style: _timeStyle),
                       AnimatedOpacity(
-                        opacity: now.second.isEven ? 0.9 : 0.35,
+                        opacity: widget.now.second.isEven ? 0.9 : 0.35,
                         duration: const Duration(milliseconds: 400),
                         child: const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 10),
@@ -134,13 +167,13 @@ class KioskIdleView extends StatelessWidget {
               ),
             ),
 
-            // ── DND 활성 표시 (좌하단) ────────────────────────────────────────
-            if (dndUntil != null)
+            // ── DND 활성 표시 (좌하단) ────────────────────────────────────
+            if (widget.dndUntil != null)
               Positioned(
                 left: 18,
                 bottom: 18,
                 child: Text(
-                  '방해 금지 · ${_dndRemaining(dndUntil!)}',
+                  '방해 금지 · ${_dndRemaining(widget.dndUntil!)}',
                   style: const TextStyle(
                     fontSize: 11,
                     color: KioskColors.warning,
@@ -150,17 +183,24 @@ class KioskIdleView extends StatelessWidget {
                 ),
               ),
 
-            // ── 우하단 상태 dot 2개 (actuator · backend) ─────────────────────
+            // ── 우하단 상태 dot — 3번 탭하면 설정 진입 ──────────────────
             Positioned(
               right: 18,
               bottom: 18,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _StatusDot(active: actuatorReady),
-                  const SizedBox(width: 5),
-                  _StatusDot(active: connected),
-                ],
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: _handleDotTap,
+                child: Padding(
+                  padding: const EdgeInsets.all(10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _StatusDot(active: widget.actuatorReady),
+                      const SizedBox(width: 5),
+                      _StatusDot(active: widget.connected),
+                    ],
+                  ),
+                ),
               ),
             ),
           ],

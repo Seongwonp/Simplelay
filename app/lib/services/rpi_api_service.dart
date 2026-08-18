@@ -64,6 +64,47 @@ class RpiSuggestion {
       );
 }
 
+class SensorReading {
+  const SensorReading({this.temperature, this.humidity});
+  final double? temperature;
+  final double? humidity;
+
+  factory SensorReading.fromJson(Map<String, dynamic> json) => SensorReading(
+        temperature: (json['temperature'] as num?)?.toDouble(),
+        humidity: (json['humidity'] as num?)?.toDouble(),
+      );
+}
+
+class RpiHealthData {
+  const RpiHealthData({
+    required this.ok,
+    required this.actuatorReady,
+    this.dndUntil,
+  });
+  final bool ok;
+  final bool actuatorReady;
+  final DateTime? dndUntil;
+
+  factory RpiHealthData.fromJson(Map<String, dynamic> json) => RpiHealthData(
+        ok: json['ok'] as bool? ?? false,
+        actuatorReady: json['actuator_ready'] as bool? ?? false,
+        dndUntil: json['dnd_until'] == null
+            ? null
+            : DateTime.tryParse(json['dnd_until'] as String),
+      );
+}
+
+class RpiNodeInfo {
+  const RpiNodeInfo({required this.applianceId, required this.baseUrl});
+  final String applianceId;
+  final String baseUrl;
+
+  factory RpiNodeInfo.fromJson(Map<String, dynamic> json) => RpiNodeInfo(
+        applianceId: json['appliance_id'] as String,
+        baseUrl: json['base_url'] as String,
+      );
+}
+
 class RpiApiService {
   RpiApiService(String baseUrl, {http.Client? client})
       : _base = Uri.parse(baseUrl.replaceAll(RegExp(r'/$'), '')),
@@ -74,7 +115,7 @@ class RpiApiService {
 
   static const _timeout = Duration(seconds: 8);
 
-  // GET /health — 연결 확인용
+  // GET /health — 연결 확인 + DND 상태 + actuator 상태
   Future<bool> ping() async {
     try {
       final res = await _client
@@ -84,6 +125,53 @@ class RpiApiService {
     } catch (_) {
       return false;
     }
+  }
+
+  Future<RpiHealthData?> health() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/health'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return RpiHealthData.fromJson(
+          jsonDecode(res.body) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // GET /sensors — DHT22 온습도
+  Future<SensorReading?> sensors() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/sensors'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return SensorReading.fromJson(
+          jsonDecode(res.body) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // POST /dnd — DND 설정 (minutes: 30, 60, 120)
+  Future<void> setDnd(int minutes) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/dnd'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'duration_minutes': minutes}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+  }
+
+  // DELETE /dnd — DND 해제
+  Future<void> clearDnd() async {
+    final res = await _client
+        .delete(_base.replace(path: '/dnd'))
+        .timeout(_timeout);
+    _checkStatus(res);
   }
 
   // POST /execute
@@ -211,6 +299,51 @@ class RpiApiService {
         .post(_base.replace(path: '/suggestions/$id/reject'))
         .timeout(_timeout);
     _checkStatus(res);
+  }
+
+  // GET /nodes — 등록된 ESP32 노드 목록
+  Future<List<RpiNodeInfo>> listNodes() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/nodes'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return const [];
+      final body = jsonDecode(res.body) as List<dynamic>;
+      return body
+          .cast<Map<String, dynamic>>()
+          .map(RpiNodeInfo.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  // POST /nodes/{id} — ESP32 노드 등록 (이미 있으면 덮어씀)
+  Future<bool> registerNode(String applianceId, String baseUrl) async {
+    try {
+      final res = await _client
+          .post(
+            _base.replace(path: '/nodes/$applianceId'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'base_url': baseUrl}),
+          )
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // DELETE /nodes/{id} — 노드 등록 해제
+  Future<bool> unregisterNode(String applianceId) async {
+    try {
+      final res = await _client
+          .delete(_base.replace(path: '/nodes/$applianceId'))
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   void _checkStatus(http.Response res) {

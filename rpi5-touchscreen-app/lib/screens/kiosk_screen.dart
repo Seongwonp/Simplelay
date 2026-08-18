@@ -13,6 +13,7 @@ import '../widgets/kiosk/idle_view.dart';
 import '../widgets/kiosk/kiosk_phase.dart';
 import '../widgets/kiosk/manual_view.dart';
 import '../widgets/kiosk/suggestion_view.dart';
+import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
 
 const _pollInterval = Duration(milliseconds: 2000);
@@ -34,6 +35,9 @@ class KioskScreen extends StatefulWidget {
 
 class _KioskScreenState extends State<KioskScreen> {
   final _api = KioskApiService();
+
+  late ApplianceMap _currentAppliance;
+  bool _showSettings = false;
 
   KioskPhase _phase = KioskPhase.idle;
   HealthStatus _health = HealthStatus.disconnected;
@@ -70,6 +74,7 @@ class _KioskScreenState extends State<KioskScreen> {
   @override
   void initState() {
     super.initState();
+    _currentAppliance = widget.appliance;
     _checkHealth();
     _fetchSensors();
     _fetchAlert();
@@ -272,7 +277,10 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _onManualExecute(ApplianceButton button) async {
     _toExecuting(button.label);
     try {
-      final result = await _api.executeButtons([button.label]);
+      final result = await _api.executeButtons(
+        [button.label],
+        applianceId: _currentAppliance.id,
+      );
       _finishExecuting(
         success: result.status == 'succeeded',
         buttons: result.buttons,
@@ -342,6 +350,16 @@ class _KioskScreenState extends State<KioskScreen> {
                 onAcknowledge: () => setState(() => _alertAcknowledged = true),
               ),
             ),
+          if (_showSettings)
+            Positioned.fill(
+              child: KioskSettingsOverlay(
+                currentAppliance: _currentAppliance,
+                api: _api,
+                onApplianceChanged: (a) =>
+                    setState(() => _currentAppliance = a),
+                onDismiss: () => setState(() => _showSettings = false),
+              ),
+            ),
         ],
       ),
     );
@@ -360,11 +378,12 @@ class _KioskScreenState extends State<KioskScreen> {
           humidity: _sensorData?.humidity,
           onTap: _toManual,
           onLongPress: () => setState(() => _showDnd = true),
+          onSettingsGesture: () => setState(() => _showSettings = true),
         );
       case KioskPhase.manual:
         return KioskManualView(
           key: const ValueKey('manual'),
-          appliance: widget.appliance,
+          appliance: _currentAppliance,
           onExecute: _onManualExecute,
           onCancel: _fromManual,
         );

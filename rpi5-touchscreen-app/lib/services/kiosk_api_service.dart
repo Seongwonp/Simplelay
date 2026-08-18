@@ -148,6 +148,18 @@ class KioskExecuteResult {
       );
 }
 
+class NodeInfo {
+  const NodeInfo({required this.applianceId, required this.baseUrl});
+
+  final String applianceId;
+  final String baseUrl;
+
+  factory NodeInfo.fromJson(Map<String, dynamic> json) => NodeInfo(
+        applianceId: json['appliance_id'] as String,
+        baseUrl: json['base_url'] as String,
+      );
+}
+
 // RPi5에서 로컬로 도는 rpi/api FastAPI 서버(localhost:8000)를 호출한다.
 class KioskApiService {
   KioskApiService({String baseUrl = 'http://localhost:8000'})
@@ -224,11 +236,17 @@ class KioskApiService {
     return KioskStatus.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
-  Future<KioskExecuteResult> executeButtons(List<String> buttons) async {
+  Future<KioskExecuteResult> executeButtons(
+    List<String> buttons, {
+    String? applianceId,
+  }) async {
     final res = await _client
         .post(
           _base.replace(path: '/execute-buttons'),
-          body: jsonEncode({'buttons': buttons}),
+          body: jsonEncode({
+            'buttons': buttons,
+            if (applianceId != null) 'appliance_id': applianceId,
+          }),
           headers: _jsonHeaders,
         )
         .timeout(_timeout);
@@ -253,6 +271,44 @@ class KioskApiService {
 
   Future<void> stop() async {
     await _client.post(_base.replace(path: '/stop')).timeout(_timeout);
+  }
+
+  Future<List<NodeInfo>> listNodes() async {
+    try {
+      final res =
+          await _client.get(_base.replace(path: '/nodes')).timeout(_timeout);
+      if (res.statusCode != 200) return const [];
+      final body = jsonDecode(res.body) as List<dynamic>;
+      return body.cast<Map<String, dynamic>>().map(NodeInfo.fromJson).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<bool> registerNode(String applianceId, String baseUrl) async {
+    try {
+      final res = await _client
+          .post(
+            _base.replace(path: '/nodes/$applianceId'),
+            body: jsonEncode({'base_url': baseUrl}),
+            headers: _jsonHeaders,
+          )
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> unregisterNode(String applianceId) async {
+    try {
+      final res = await _client
+          .delete(_base.replace(path: '/nodes/$applianceId'))
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
   }
 
   void dispose() => _client.close();
