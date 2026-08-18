@@ -101,6 +101,7 @@ void main() {
 
     expect(jsonDecode(captured!.body), {
       'buttons': ['켜기'],
+      'appliance_id': 'custom_test',
     });
     expect(find.byIcon(Icons.check), findsOneWidget);
 

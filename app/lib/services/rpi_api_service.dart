@@ -175,12 +175,20 @@ class RpiApiService {
   }
 
   // POST /execute
-  Future<RpiExecuteResult> execute(String text, {String source = 'voice'}) async {
+  Future<RpiExecuteResult> execute(
+    String text, {
+    String source = 'voice',
+    String? applianceId,
+  }) async {
     final res = await _client
         .post(
           _base.replace(path: '/execute'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'text': text, 'source': source}),
+          body: jsonEncode({
+            'text': text,
+            'source': source,
+            if (applianceId != null) 'appliance_id': applianceId,
+          }),
         )
         .timeout(_timeout);
     _checkStatus(res);
@@ -195,12 +203,18 @@ class RpiApiService {
   }
 
   // POST /execute-buttons — 의도 해석 우회, 사용자 정의 가전의 수동 버튼 실행용
-  Future<RpiExecuteResult> executeButtons(List<String> buttons) async {
+  Future<RpiExecuteResult> executeButtons(
+    List<String> buttons, {
+    String? applianceId,
+  }) async {
     final res = await _client
         .post(
           _base.replace(path: '/execute-buttons'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'buttons': buttons}),
+          body: jsonEncode({
+            'buttons': buttons,
+            if (applianceId != null) 'appliance_id': applianceId,
+          }),
         )
         .timeout(_timeout);
     _checkStatus(res);
@@ -219,13 +233,18 @@ class RpiApiService {
   // LLM이 서버에 설정 안 돼 있으면 503(RpiApiException)으로 실패한다.
   Future<RpiExecuteResult> executeForAppliance(
     String text,
-    List<String> knownButtons,
-  ) async {
+    List<String> knownButtons, {
+    String? applianceId,
+  }) async {
     final res = await _client
         .post(
           _base.replace(path: '/execute-for-appliance'),
           headers: {'Content-Type': 'application/json'},
-          body: jsonEncode({'text': text, 'known_buttons': knownButtons}),
+          body: jsonEncode({
+            'text': text,
+            'known_buttons': knownButtons,
+            if (applianceId != null) 'appliance_id': applianceId,
+          }),
         )
         .timeout(_timeout);
     _checkStatus(res);

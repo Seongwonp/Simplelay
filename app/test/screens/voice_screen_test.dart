@@ -76,7 +76,11 @@ void main() {
       await tester.pump();
 
       expect(captured!.url.path, '/execute');
-      expect(jsonDecode(captured!.body), {'text': '우유 데워줘', 'source': 'voice'});
+      expect(jsonDecode(captured!.body), {
+        'text': '우유 데워줘',
+        'source': 'voice',
+        'appliance_id': 'microwave',
+      });
     });
   });
 
@@ -147,6 +151,7 @@ void main() {
       expect(jsonDecode(captured!.body), {
         'text': '켜줘',
         'known_buttons': ['켜기', '끄기'],
+        'appliance_id': 'custom_test',
       });
     });
 

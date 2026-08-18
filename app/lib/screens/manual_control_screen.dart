@@ -35,7 +35,11 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     super.dispose();
   }
 
-  Future<void> _press(RpiApiService api, ApplianceButton button) async {
+  Future<void> _press(
+    RpiApiService api,
+    ApplianceButton button,
+    String applianceId,
+  ) async {
     if (_pendingButtonId != null) return; // 이미 실행 중 — 무시
     _resultClearTimer?.cancel();
     setState(() {
@@ -46,7 +50,10 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
 
     bool success;
     try {
-      final result = await api.executeButtons([button.label]);
+      final result = await api.executeButtons(
+        [button.label],
+        applianceId: applianceId,
+      );
       success = result.buttons.every((b) => b.success);
     } catch (_) {
       success = false;
@@ -99,7 +106,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                           pendingButtonId: _pendingButtonId,
                           resultButtonId: _resultButtonId,
                           resultSuccess: _resultSuccess,
-                          onTap: (button) => _press(api, button),
+                          onTap: (button) => _press(api, button, appliance.id),
                         ),
                       ),
                     ),

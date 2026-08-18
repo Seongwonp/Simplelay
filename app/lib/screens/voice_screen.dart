@@ -70,11 +70,12 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
         await rpiApi.executeForAppliance(
           trimmed,
           appliance.buttons.map((b) => b.label).toList(),
+          applianceId: appliance.id,
         );
         if (mounted) _notice('RPi에 명령을 전송했습니다.');
       } else if (rpiApi != null) {
         // RPi HTTP 직통
-        await rpiApi.execute(trimmed, source: 'voice');
+        await rpiApi.execute(trimmed, source: 'voice', applianceId: appliance.id);
         if (mounted) _notice('RPi에 명령을 전송했습니다.');
       } else {
         // BLE 폴백
