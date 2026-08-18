@@ -16,6 +16,8 @@ from .act_client_controller import (
 )
 from .alert_store import DangerAlertState, DangerAlertStore
 from .controller_factory import build_controller
+from .esp_node_controller import EspNodeController, EspNodeError
+from .node_registry import NodeRegistry
 
 __all__ = [
     "ActClient",
@@ -28,6 +30,9 @@ __all__ = [
     "AlertEvent",
     "DangerAlertState",
     "DangerAlertStore",
+    "EspNodeController",
+    "EspNodeError",
+    "NodeRegistry",
     "build_controller",
     "open_uart_act_controller",
     "start_background_loop",

@@ -7,9 +7,21 @@ from enum import Enum
 from pydantic import BaseModel, field_validator
 
 
+def _normalize_appliance_id(v: str | None) -> str | None:
+    """빈 문자열/공백은 '지정 안 함'과 같은 의미로 취급 — None으로 정규화."""
+    if v is None:
+        return None
+    stripped = v.strip()
+    return stripped or None
+
+
 class ExecuteRequest(BaseModel):
     text: str
     source: str = "voice"
+    # 지정하면 NodeRegistry에 등록된 해당 가전 노드로 라우팅, 없으면(또는
+    # 등록 안 돼있으면) 로컬 기본 컨트롤러로 실행된다 — rpi/api/service.py의
+    # SimpleLayService._controller_for() 참고.
+    appliance_id: str | None = None
 
     @field_validator("text")
     @classmethod
@@ -18,6 +30,11 @@ class ExecuteRequest(BaseModel):
             raise ValueError("text must not be blank")
         return v.strip()
 
+    @field_validator("appliance_id")
+    @classmethod
+    def normalize_appliance_id(cls, v: str | None) -> str | None:
+        return _normalize_appliance_id(v)
+
 
 class ExecuteButtonsRequest(BaseModel):
     """직접 버튼 시퀀스 실행 — 의도 해석 규칙이 없는 사용자 정의 가전용.
@@ -25,6 +42,7 @@ class ExecuteButtonsRequest(BaseModel):
     그대로 넘긴다.)"""
 
     buttons: list[str]
+    appliance_id: str | None = None
 
     @field_validator("buttons")
     @classmethod
@@ -34,6 +52,11 @@ class ExecuteButtonsRequest(BaseModel):
             raise ValueError("buttons must not be empty")
         return cleaned
 
+    @field_validator("appliance_id")
+    @classmethod
+    def normalize_appliance_id(cls, v: str | None) -> str | None:
+        return _normalize_appliance_id(v)
+
 
 class ExecuteForApplianceRequest(BaseModel):
     """자유발화 → 버튼 시퀀스 해석, 단 서버의 고정 규칙이 아니라 이 요청에 실려온
@@ -42,6 +65,7 @@ class ExecuteForApplianceRequest(BaseModel):
 
     text: str
     known_buttons: list[str]
+    appliance_id: str | None = None
 
     @field_validator("text")
     @classmethod
@@ -57,6 +81,30 @@ class ExecuteForApplianceRequest(BaseModel):
         if not cleaned:
             raise ValueError("known_buttons must not be empty")
         return cleaned
+
+    @field_validator("appliance_id")
+    @classmethod
+    def normalize_appliance_id(cls, v: str | None) -> str | None:
+        return _normalize_appliance_id(v)
+
+
+class NodeRegisterRequest(BaseModel):
+    """가전 하나를 담당하는 원격 노드(현재: ESP32 dev-mode HTTP 서버)의 주소를
+    등록한다. 같은 appliance_id로 다시 등록하면 주소가 교체된다."""
+
+    base_url: str
+
+    @field_validator("base_url")
+    @classmethod
+    def base_url_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("base_url must not be blank")
+        return v.strip()
+
+
+class NodeResponse(BaseModel):
+    appliance_id: str
+    base_url: str
 
 
 class ButtonStep(BaseModel):

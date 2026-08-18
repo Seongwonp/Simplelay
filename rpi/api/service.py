@@ -18,6 +18,7 @@ from rpi.intent import (
     UsageOutcome,
     UsageRecord,
 )
+from rpi.services import NodeRegistry
 
 
 class ServiceNotReadyError(RuntimeError):
@@ -65,6 +66,7 @@ class SimpleLayService(PurposeExecutor):
         start_ready: bool = True,
         progress_tracker: ExecutionProgressTracker | None = None,
         llm_client: LlmClient | None = None,
+        node_registry: NodeRegistry | None = None,
     ) -> None:
         self._intent = intent
         self._controller = controller
@@ -79,6 +81,10 @@ class SimpleLayService(PurposeExecutor):
         # (execute_purpose_for_appliance). None이면 그 경로는 막힌다 -- 서버가
         # 기본으로 오프라인 동작하도록, LLM 연동은 항상 명시적으로 켜야 한다.
         self._llm_client = llm_client
+        # 가전별로 등록된 원격 노드(Act) — appliance_id가 여기 없으면 로컬
+        # self._controller(기본 내장 가전)로 그대로 간다. 다중 노드 아키텍처
+        # 전환 전까지는 None으로 둬도 기존 동작과 완전히 동일하다.
+        self._node_registry = node_registry
 
     def mark_ready(self) -> None:
         """Declare that hardware dependencies finished initializing."""
@@ -88,11 +94,16 @@ class SimpleLayService(PurposeExecutor):
         """Stop accepting new purposes; a running execution still completes."""
         self._shutting_down = True
 
-    def execute_purpose(self, purpose: str) -> ExecutionResult:
-        return self._execute_via_resolver(purpose, self._intent)
+    def execute_purpose(
+        self, purpose: str, appliance_id: str | None = None
+    ) -> ExecutionResult:
+        return self._execute_via_resolver(purpose, self._intent, appliance_id)
 
     def execute_purpose_for_appliance(
-        self, purpose: str, known_buttons: frozenset[str]
+        self,
+        purpose: str,
+        known_buttons: frozenset[str],
+        appliance_id: str | None = None,
     ) -> ExecutionResult:
         """Like execute_purpose, but resolves against a caller-supplied button
         vocabulary instead of the server's fixed intent resolver.
@@ -109,10 +120,10 @@ class SimpleLayService(PurposeExecutor):
                 "need one (see the llm_client param / rpi/api/deps.py)"
             )
         resolver = LlmIntentResolver(self._llm_client, known_buttons=known_buttons)
-        return self._execute_via_resolver(purpose, resolver)
+        return self._execute_via_resolver(purpose, resolver, appliance_id)
 
     def _execute_via_resolver(
-        self, purpose: str, resolver: IntentResolver
+        self, purpose: str, resolver: IntentResolver, appliance_id: str | None = None
     ) -> ExecutionResult:
         self._guard_can_execute()
         self._running = True
@@ -120,7 +131,8 @@ class SimpleLayService(PurposeExecutor):
             self._progress_tracker.clear()
         try:
             buttons = resolver.resolve(purpose)
-            self._last_result = self._controller.execute(buttons)
+            controller = self._controller_for(appliance_id)
+            self._last_result = controller.execute(buttons)
             if self._usage_log is not None:
                 outcome = (
                     UsageOutcome.SUCCEEDED
@@ -136,7 +148,9 @@ class SimpleLayService(PurposeExecutor):
             if self._progress_tracker is not None:
                 self._progress_tracker.clear()
 
-    def execute_buttons(self, buttons: tuple[str, ...]) -> ExecutionResult:
+    def execute_buttons(
+        self, buttons: tuple[str, ...], appliance_id: str | None = None
+    ) -> ExecutionResult:
         """Run an already-known button sequence directly, skipping intent
         resolution entirely.
 
@@ -152,12 +166,23 @@ class SimpleLayService(PurposeExecutor):
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
         try:
-            self._last_result = self._controller.execute(buttons)
+            controller = self._controller_for(appliance_id)
+            self._last_result = controller.execute(buttons)
             return self._last_result
         finally:
             self._running = False
             if self._progress_tracker is not None:
                 self._progress_tracker.clear()
+
+    def _controller_for(self, appliance_id: str | None) -> ButtonSequenceController:
+        """Routes to the appliance's registered node if there is one,
+        otherwise falls back to the local default controller (today's only
+        behavior, and still the answer for the built-in appliance)."""
+        if appliance_id is not None and self._node_registry is not None:
+            node_controller = self._node_registry.get(appliance_id)
+            if node_controller is not None:
+                return node_controller
+        return self._controller
 
     def _guard_can_execute(self) -> None:
         if not self._ready:

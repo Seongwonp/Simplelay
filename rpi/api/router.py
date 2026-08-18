@@ -6,9 +6,9 @@ from rpi.controller import ExecutionResult
 from rpi.intent.rules import UnknownIntentError
 from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestionError
 
-from rpi.services import DangerAlertStore
+from rpi.services import DangerAlertStore, NodeRegistry
 
-from .deps import get_alert_store, get_service, get_suggestion_service
+from .deps import get_alert_store, get_node_registry, get_service, get_suggestion_service
 from .schemas import (
     AlertResponse,
     ApproveResponse,
@@ -18,6 +18,8 @@ from .schemas import (
     ExecuteForApplianceRequest,
     ExecuteRequest,
     ExecuteResponse,
+    NodeRegisterRequest,
+    NodeResponse,
     OkResponse,
     SensorResponse,
     StatusResponse,
@@ -41,7 +43,9 @@ async def execute(
     service: SimpleLayService = Depends(get_service),
 ) -> ExecuteResponse:
     try:
-        result = await asyncio.to_thread(service.execute_purpose, body.text)
+        result = await asyncio.to_thread(
+            service.execute_purpose, body.text, body.appliance_id
+        )
     except UnknownIntentError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
@@ -56,7 +60,9 @@ async def execute_buttons(
 ) -> ExecuteResponse:
     # 의도 해석 규칙이 없는 사용자 정의 가전용 — 목적 문자열 없이 버튼을 직접 실행.
     try:
-        result = await asyncio.to_thread(service.execute_buttons, tuple(body.buttons))
+        result = await asyncio.to_thread(
+            service.execute_buttons, tuple(body.buttons), body.appliance_id
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return ExecuteResponse(status=result.status.value, buttons=_to_steps(result))
@@ -74,6 +80,7 @@ async def execute_for_appliance(
             service.execute_purpose_for_appliance,
             body.text,
             frozenset(body.known_buttons),
+            body.appliance_id,
         )
     except LlmNotConfiguredError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
@@ -175,6 +182,37 @@ async def clear_dnd(
 async def sensors() -> SensorResponse:
     # DHT22 실기기 연결 시 교체
     return SensorResponse(temperature=26.5, humidity=58.0)
+
+
+@router.get("/nodes", response_model=list[NodeResponse])
+async def list_nodes(
+    registry: NodeRegistry = Depends(get_node_registry),
+) -> list[NodeResponse]:
+    return [
+        NodeResponse(appliance_id=appliance_id, base_url=registry.base_url(appliance_id))
+        for appliance_id in registry.list_appliance_ids()
+    ]
+
+
+@router.post("/nodes/{appliance_id}", response_model=NodeResponse)
+async def register_node(
+    appliance_id: str,
+    body: NodeRegisterRequest,
+    registry: NodeRegistry = Depends(get_node_registry),
+) -> NodeResponse:
+    # 같은 appliance_id로 다시 부르면 주소가 교체된다(재등록) — 노드가 재부팅돼서
+    # DHCP로 IP가 바뀐 경우 등을 위해 의도적으로 덮어쓰기 허용.
+    registry.register(appliance_id, body.base_url)
+    return NodeResponse(appliance_id=appliance_id, base_url=body.base_url)
+
+
+@router.delete("/nodes/{appliance_id}", response_model=OkResponse)
+async def unregister_node(
+    appliance_id: str,
+    registry: NodeRegistry = Depends(get_node_registry),
+) -> OkResponse:
+    registry.unregister(appliance_id)
+    return OkResponse()
 
 
 @router.get("/alerts", response_model=AlertResponse)

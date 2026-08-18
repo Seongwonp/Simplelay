@@ -16,7 +16,7 @@ from rpi.intent.log import InMemoryUsageLog
 from rpi.intent.models import PatternConfig, TimeBand
 from rpi.intent.patterns import PatternDetector
 from rpi.intent.suggestions import ProactiveSuggestionService
-from rpi.services import DangerAlertStore, build_controller
+from rpi.services import DangerAlertStore, NodeRegistry, build_controller
 
 from .service import SimpleLayService
 
@@ -67,6 +67,14 @@ def get_alert_store() -> DangerAlertStore:
 
 
 @lru_cache(maxsize=1)
+def get_node_registry() -> NodeRegistry:
+    """가전별 원격 노드(다중 노드 아키텍처) 등록부 — 처음엔 비어있고,
+    ``POST /nodes/{appliance_id}``로 채워진다. 여기 없는 appliance_id는
+    (또는 아예 안 실린 요청은) 그냥 로컬 기본 컨트롤러로 실행된다."""
+    return NodeRegistry()
+
+
+@lru_cache(maxsize=1)
 def get_service() -> SimpleLayService:
     progress_tracker = ExecutionProgressTracker()
     store = get_alert_store()
@@ -78,6 +86,7 @@ def get_service() -> SimpleLayService:
         clock=_clock,
         progress_tracker=progress_tracker,
         llm_client=_build_llm_client(),
+        node_registry=get_node_registry(),
     )
 
 

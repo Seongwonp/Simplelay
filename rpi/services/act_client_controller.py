@@ -22,9 +22,10 @@ import logging
 import threading
 from collections.abc import Callable
 
-from rpi.controller import ButtonResult, ButtonStatus, ExecutionResult, ExecutionStatus
+from rpi.controller import ExecutionResult
 
 from .act_client import ActClient, ActLinkTimeoutError, AlertEvent
+from .aggregate_result import synthesize_execution_result
 
 log = logging.getLogger(__name__)
 
@@ -34,14 +35,9 @@ class ActClientController:
     instead of running a local closed loop.
 
     Precision note (docs/roadmap.md M2): RPi4 only reports an aggregate
-    {success, retry} for the sequence, not a per-button breakdown. The
-    synthesized ExecutionResult approximates: on success, every requested
-    button is marked SUCCEEDED (accurate -- RPi4 only reports success when
-    every button in the sequence actually succeeded). On failure, every
-    button before the last is marked SUCCEEDED and the last is marked
-    FAILED with attempts = retry + 1 -- a best-effort guess, since RPi4's
-    own closed loop stops at the true failing button but that button's
-    identity doesn't cross the wire today.
+    {success, retry} for the sequence, not a per-button breakdown -- see
+    aggregate_result.synthesize_execution_result() for how that gets
+    approximated into a full ExecutionResult.
     """
 
     def __init__(
@@ -65,23 +61,7 @@ class ActClientController:
                 f"ActClientController.execute() timed out after {self._call_timeout}s"
             ) from exc
 
-        return self._to_execution_result(buttons, result.success, result.retry)
-
-    @staticmethod
-    def _to_execution_result(
-        buttons: list[str], success: bool, retry: int
-    ) -> ExecutionResult:
-        if success:
-            button_results = tuple(
-                ButtonResult(b, ButtonStatus.SUCCEEDED, 1, None) for b in buttons
-            )
-            return ExecutionResult(ExecutionStatus.SUCCEEDED, button_results)
-
-        *done, failed = buttons
-        button_results = tuple(
-            ButtonResult(b, ButtonStatus.SUCCEEDED, 1, None) for b in done
-        ) + (ButtonResult(failed, ButtonStatus.FAILED, retry + 1, None),)
-        return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, button_results)
+        return synthesize_execution_result(buttons, result.success, result.retry)
 
     def close(self) -> None:
         asyncio.run_coroutine_threadsafe(self._client.stop(), self._loop).result(timeout=5.0)

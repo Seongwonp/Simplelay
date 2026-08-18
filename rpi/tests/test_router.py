@@ -2,7 +2,12 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from rpi.api.deps import get_alert_store, get_service, get_suggestion_service
+from rpi.api.deps import (
+    get_alert_store,
+    get_node_registry,
+    get_service,
+    get_suggestion_service,
+)
 from rpi.main import app
 
 
@@ -12,10 +17,12 @@ def reset_singletons():
     get_service.cache_clear()
     get_suggestion_service.cache_clear()
     get_alert_store.cache_clear()
+    get_node_registry.cache_clear()
     yield
     get_service.cache_clear()
     get_suggestion_service.cache_clear()
     get_alert_store.cache_clear()
+    get_node_registry.cache_clear()
 
 
 @pytest.fixture()
@@ -257,3 +264,73 @@ def test_alerts_reflects_clearing_after_raising(client):
 
     response = client.get("/alerts")
     assert response.json()["active"] is False
+
+
+# ── /nodes (다중 노드 등록부) ────────────────────────────────────────────────
+
+def test_nodes_empty_initially(client):
+    response = client.get("/nodes")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_register_node_returns_it_and_lists_it(client):
+    response = client.post("/nodes/microwave", json={"base_url": "http://192.168.1.10:8080"})
+    assert response.status_code == 200
+    assert response.json() == {"appliance_id": "microwave", "base_url": "http://192.168.1.10:8080"}
+
+    listed = client.get("/nodes").json()
+    assert listed == [{"appliance_id": "microwave", "base_url": "http://192.168.1.10:8080"}]
+
+
+def test_register_node_blank_base_url_returns_422(client):
+    response = client.post("/nodes/microwave", json={"base_url": "   "})
+    assert response.status_code == 422
+
+
+def test_reregistering_replaces_the_address(client):
+    client.post("/nodes/microwave", json={"base_url": "http://old-node"})
+    client.post("/nodes/microwave", json={"base_url": "http://new-node"})
+
+    listed = client.get("/nodes").json()
+    assert listed == [{"appliance_id": "microwave", "base_url": "http://new-node"}]
+
+
+def test_unregister_node_removes_it(client):
+    client.post("/nodes/microwave", json={"base_url": "http://node"})
+
+    response = client.delete("/nodes/microwave")
+
+    assert response.status_code == 200
+    assert client.get("/nodes").json() == []
+
+
+def test_unregister_unknown_node_still_returns_ok(client):
+    response = client.delete("/nodes/no-such-appliance")
+    assert response.status_code == 200
+
+
+def test_multiple_nodes_can_be_registered_independently(client):
+    client.post("/nodes/microwave", json={"base_url": "http://node-a"})
+    client.post("/nodes/aircon", json={"base_url": "http://node-b"})
+
+    listed = {n["appliance_id"]: n["base_url"] for n in client.get("/nodes").json()}
+    assert listed == {"microwave": "http://node-a", "aircon": "http://node-b"}
+
+
+# ── execute 계열 appliance_id 전달 확인 ──────────────────────────────────────
+# (실제 노드 라우팅 자체는 test_service_node_routing.py가 커버 — 여기선 요청
+# 스키마가 라우터를 통해 서비스까지 문제없이 전달되는지만 확인)
+
+def test_execute_buttons_accepts_optional_appliance_id(client):
+    response = client.post(
+        "/execute-buttons", json={"buttons": ["커스텀A"], "appliance_id": "microwave"}
+    )
+    assert response.status_code == 200
+
+
+def test_execute_buttons_blank_appliance_id_is_treated_as_unset(client):
+    response = client.post(
+        "/execute-buttons", json={"buttons": ["커스텀A"], "appliance_id": "   "}
+    )
+    assert response.status_code == 200

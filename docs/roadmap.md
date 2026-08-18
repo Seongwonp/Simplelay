@@ -16,6 +16,14 @@
       결선은 위 항목들과 함께 아직 남음 — 알고리즘·UART 알림 경로만 선행 완료
 
 ### M2 — RPi ↔ 액추에이터 통신
+
+> **확정 아키텍처(8/17)**: RPi5는 중앙 허브 하나, RPi4(+ESP32)는 가전마다 여러 대가
+> 각자 다른 위치에 붙는다 — RPi5↔RPi4가 같은 하우징에 유선 직결된다는 초기 가정은
+> 폐기됨. 아래 UART 항목들은 그 가정 하에 만든 첫 구현이라 메시지 설계·검증 로직은
+> 계속 재사용하되, 실제 전송은 가전 옆 ESP32를 거친 무선(개발 중 HTTP, 본선 데모
+> ESP-NOW)으로 이어간다 — 지금 만든 `NodeRegistry`/`EspNodeController`가 그 전환의
+> 첫 단계.
+
 - [x] RPi5 ↔ ESP32 UART 확정 및 구현 (`rpi/services/bridge.py`)
 - [x] RPi5 ↔ RPi4 UART 방향 확정, RPi4 쪽 실행기 구현 (`rpi4/act_executor.py`)
 - [x] RPi4 → RPi5 자체발신 알림 채널 추가 (`alert`/`alert_cleared`) — 위험소리
@@ -47,6 +55,18 @@
         중개하는 공유 프로세스를 새로 만들어야 함 — 결정 필요, 사용자와 상의 후
         진행
 - [ ] RPi4 ↔ Arduino(X/Y)·BLE 버튼 장치(Z) 연결 방식 확정 및 응답 파싱
+- [x] 다중 노드 라우팅 계층 — `NodeRegistry`(`rpi/services/node_registry.py`)가
+      appliance_id → 노드 컨트롤러를 관리, `SimpleLayService`가 요청에 실린
+      appliance_id로 로컬 기본 컨트롤러 대신 등록된 노드로 라우팅
+      (`/execute`, `/execute-buttons`, `/execute-for-appliance` 전부 지원,
+      appliance_id 없거나 미등록이면 기존처럼 로컬 실행 — 완전히 하위호환).
+      노드 등록·조회·해제용 `POST/GET/DELETE /nodes` 엔드포인트 추가.
+      개발용 전송 구현체로 `EspNodeController`(HTTP, RPi5가 클라이언트) 완성 —
+      ESP-NOW 구현체는 아직(별도 하드웨어·펌웨어 작업 필요, 인터페이스만 맞으면
+      `NodeRegistry`의 `controller_factory`만 바꿔서 교체 가능하게 설계함)
+- [ ] ESP-NOW 전송 구현체 (본선 데모용, Wi-Fi 혼잡 무관) — ESP32 펌웨어 작업 필요
+- [ ] 앱의 가전 등록 흐름에 "이 가전을 담당하는 노드 주소" 입력/자동 검색 추가
+- [ ] `docs/architecture.md`의 "확정된 아키텍처" 절 정정 (아직 이전 가정 반영 중)
 
 ### M3 — 폐루프 ★ (결선 데모 핵심)
 - [ ] 명령 → 센서 검증 → 실패 시 좌표 보정 후 재시도 (1회)
