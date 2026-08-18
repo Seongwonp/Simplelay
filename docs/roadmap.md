@@ -64,9 +64,19 @@
       개발용 전송 구현체로 `EspNodeController`(HTTP, RPi5가 클라이언트) 완성 —
       ESP-NOW 구현체는 아직(별도 하드웨어·펌웨어 작업 필요, 인터페이스만 맞으면
       `NodeRegistry`의 `controller_factory`만 바꿔서 교체 가능하게 설계함)
-- [ ] ESP-NOW 전송 구현체 (본선 데모용, Wi-Fi 혼잡 무관) — ESP32 펌웨어 작업 필요
+- [x] ESP32 노드 펌웨어 스캐폴딩 — `firmware-node/`(신규 PlatformIO 프로젝트,
+      `firmware/`의 폰 폴백 브릿지와는 별개). WiFi + HTTP 서버로 `POST /execute`
+      받아서 UART로 RPi4에 `execute` 전달, `result`/`error` 기다렸다가 집계
+      결과(success/retry)로 HTTP 응답 — `EspNodeController`가 기대하는 그
+      모양 그대로. RPi4가 자체발신하는 alert/alert_cleared도 상시 흡수해서
+      `GET /alerts`로 노출(Python 쪽 `EspNodeController`는 아직 이 엔드포인트를
+      안 씀 — 후속 작업). **미검증**: 이 환경에 PlatformIO 툴체인이 없어서
+      실제 컴파일/빌드/플래시 확인을 못 함 — 다음에 실기기로 확인 필요
+- [ ] ESP-NOW 전송 구현체 (본선 데모용, Wi-Fi 혼잡 무관) — `firmware-node/`에
+      HTTP 서버 옆에 추가할 예정, 인터페이스(ExecuteHandler/AlertsHandler)는
+      이미 전송 방식과 무관하게 고정해둠
 - [ ] 앱의 가전 등록 흐름에 "이 가전을 담당하는 노드 주소" 입력/자동 검색 추가
-- [ ] `docs/architecture.md`의 "확정된 아키텍처" 절 정정 (아직 이전 가정 반영 중)
+- [x] `docs/architecture.md`의 "확정된 아키텍처" 절 정정 완료
 
 ### M3 — 폐루프 ★ (결선 데모 핵심)
 - [ ] 명령 → 센서 검증 → 실패 시 좌표 보정 후 재시도 (1회)
