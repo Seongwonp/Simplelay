@@ -1,0 +1,50 @@
+[Unit]
+Description=SimpleLay RPi5 FastAPI Backend
+After=network-online.target avahi-daemon.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/SimpleLay
+
+# ── 환경 변수 ──────────────────────────────────────────────────────────────
+# GPIO 실사용 (DHT22 + 홈 스위치)
+Environment=SIMPLELAY_GPIO_ENABLED=true
+
+# DHT22 데이터 핀 BCM 번호 (기본: 4)
+Environment=SIMPLELAY_DHT22_GPIO=4
+
+# CoreXY 홈 스위치 핀 (배선 확정 후 수정)
+Environment=SIMPLELAY_HOME_X_GPIO=17
+Environment=SIMPLELAY_HOME_Y_GPIO=27
+# Environment=SIMPLELAY_HOME_Z_GPIO=22  # Z축 확정 후 주석 해제
+
+# RPi5 GPIO 백엔드 — lgpio 필수
+Environment=GPIOZERO_PIN_FACTORY=lgpio
+
+# adafruit-circuitpython 라이브러리 백엔드 — RPi5는 lgpio
+Environment=BLINKA_LGPIO=1
+
+# LLM 설정 (필요 시 주석 해제)
+# Environment=SIMPLELAY_LLM_MODE=dbus
+# Environment=SIMPLELAY_LLM_BASE_URL=https://api.openai.com/v1
+# Environment=SIMPLELAY_LLM_API_KEY=sk-...
+# Environment=SIMPLELAY_LLM_MODEL=gpt-4o-mini
+
+# ── 실행 ───────────────────────────────────────────────────────────────────
+ExecStart=/home/pi/SimpleLay/.venv/bin/python -m uvicorn rpi.main:app \
+    --host 0.0.0.0 \
+    --port 8000 \
+    --no-access-log
+
+# 비정상 종료 시 5초 후 재시작
+Restart=on-failure
+RestartSec=5
+
+# 표준 출력/에러를 syslog + /var/log/simplelay.log 로 동시 기록
+StandardOutput=append:/var/log/simplelay.log
+StandardError=append:/var/log/simplelay.log
+
+[Install]
+WantedBy=multi-user.target

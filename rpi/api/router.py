@@ -8,7 +8,7 @@ from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestion
 
 from rpi.services import DangerAlertStore, NodeRegistry
 
-from .deps import get_alert_store, get_node_registry, get_service, get_suggestion_service
+from .deps import get_alert_store, get_actuator_status, get_dht22, get_node_registry, get_service, get_suggestion_service
 from .schemas import (
     AlertResponse,
     ApproveResponse,
@@ -178,10 +178,26 @@ async def clear_dnd(
     return OkResponse()
 
 
+_MOCK_TEMP = 26.5
+_MOCK_HUM = 58.0
+
+
 @router.get("/sensors", response_model=SensorResponse)
-async def sensors() -> SensorResponse:
-    # DHT22 실기기 연결 시 교체
-    return SensorResponse(temperature=26.5, humidity=58.0)
+async def sensors(
+    dht22=Depends(get_dht22),
+) -> SensorResponse:
+    temp, hum = await _read_dht22(dht22)
+    return SensorResponse(temperature=temp, humidity=hum)
+
+
+async def _read_dht22(dht22) -> tuple[float, float]:
+    import asyncio  # noqa: PLC0415
+
+    temp, hum = await asyncio.to_thread(dht22.read)
+    return (
+        temp if temp is not None else _MOCK_TEMP,
+        hum if hum is not None else _MOCK_HUM,
+    )
 
 
 @router.get("/nodes", response_model=list[NodeResponse])

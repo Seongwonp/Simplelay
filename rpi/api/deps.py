@@ -3,6 +3,8 @@ import os
 from datetime import time
 from functools import lru_cache
 
+from .config import hardware_config
+
 from rpi.controller import ExecutionProgressTracker
 from rpi.intent import (
     Dbusinternal_aiLlmClient,
@@ -87,6 +89,28 @@ def get_service() -> SimpleLayService:
         progress_tracker=progress_tracker,
         llm_client=_build_llm_client(),
         node_registry=get_node_registry(),
+    )
+
+
+@lru_cache(maxsize=1)
+def get_dht22() -> "Dht22Sensor":
+    from rpi.services.dht22 import Dht22Sensor  # noqa: PLC0415
+
+    return Dht22Sensor(
+        gpio_bcm=hardware_config.dht22_gpio,
+        enabled=hardware_config.gpio_enabled,
+    )
+
+
+@lru_cache(maxsize=1)
+def get_actuator_status() -> "ActuatorStatus":
+    from rpi.services.actuator import ActuatorStatus  # noqa: PLC0415
+
+    return ActuatorStatus(
+        home_x_pin=hardware_config.home_switch_x_gpio,
+        home_y_pin=hardware_config.home_switch_y_gpio,
+        home_z_pin=hardware_config.home_switch_z_gpio,
+        enabled=hardware_config.gpio_enabled,
     )
 
 
