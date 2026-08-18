@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/ble_provider.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 
 import '../helpers/test_helpers.dart';
@@ -21,6 +22,7 @@ List<Override> _scanOverrides({
 Widget _buildSettings({
   AsyncValue<List<ScanResult>>? scanValue,
   List<Override> extra = const [],
+  void Function(ProviderContainer)? onContainerReady,
 }) {
   return buildScreen(
     const SettingsScreen(),
@@ -28,6 +30,7 @@ Widget _buildSettings({
       ..._scanOverrides(value: scanValue),
       ...extra,
     ],
+    onContainerReady: onContainerReady,
   );
 }
 
@@ -39,6 +42,12 @@ void _useTallViewport(WidgetTester tester) {
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
+}
+
+// RPi URL 수동 입력·BLE 스캔 섹션은 "고급 설정" 토글 뒤에 숨어있다 — 열어야 보인다.
+Future<void> _expandAdvanced(WidgetTester tester) async {
+  await tester.tap(find.text('고급 설정'));
+  await tester.pump();
 }
 
 void main() {
@@ -54,37 +63,42 @@ void main() {
       expect(find.text('설정'), findsOneWidget);
     });
 
-    testWidgets('기기 이름 입력 필드 표시', (tester) async {
+    testWidgets('고급 설정을 열면 RPi 서버 URL 입력 필드가 보인다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
-      // RPi 서버 URL 섹션에도 TextField가 있어서(둘 다 표시됨) hintText로 특정한다.
+      await _expandAdvanced(tester);
       expect(
         find.byWidgetPredicate(
-          (w) => w is TextField && w.decoration?.hintText == 'SimpleLay',
+          (w) => w is TextField && w.decoration?.hintText == 'http://simplelay.local:8000',
         ),
         findsOneWidget,
       );
     });
 
-    testWidgets('저장 버튼 표시', (tester) async {
+    testWidgets('고급 설정을 열면 저장 버튼이 보인다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
-      // RPi URL 섹션의 저장 버튼은 FilledButton이라 TextButton으로 좁히면 구분된다.
-      expect(find.widgetWithText(TextButton, '저장'), findsOneWidget);
+      await _expandAdvanced(tester);
+      expect(find.widgetWithText(FilledButton, '저장'), findsOneWidget);
     });
 
-    testWidgets('주변 BLE 기기 섹션 타이틀 표시', (tester) async {
+    testWidgets('고급 설정을 열면 주변 BLE 기기 섹션 타이틀이 보인다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
+      await _expandAdvanced(tester);
       expect(find.text('주변 BLE 기기'), findsOneWidget);
     });
 
-    testWidgets('검색된 기기 없음 문구 (빈 목록)', (tester) async {
+    testWidgets('고급 설정을 열면 검색된 기기 없음 문구가 보인다 (빈 목록)', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
+      await tester.pump();
+      await _expandAdvanced(tester);
+      // _BleSection이 확장 시점에 처음 mount되면서 scanResultsProvider를 그제서야
+      // watch하기 시작 — 스트림의 첫 데이터 이벤트가 반영되려면 pump 한 번 더 필요.
       await tester.pump();
       expect(find.text('검색된 기기가 없습니다.'), findsOneWidget);
     });
@@ -126,10 +140,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.text('제안 시뮬레이션'));
       await tester.pump();
-      expect(
-        find.text('데모 제안을 주입했습니다. 홈 화면을 확인하세요.'),
-        findsOneWidget,
-      );
+      expect(find.text('데모 제안 주입 완료'), findsOneWidget);
     });
 
     testWidgets('연결 해제 탭 시 SnackBar 표시', (tester) async {
@@ -144,26 +155,35 @@ void main() {
   });
 
   group('SettingsScreen — 저장 기능', () {
-    testWidgets('저장 버튼 탭 시 SnackBar 표시', (tester) async {
+    testWidgets('저장 버튼 탭 시 rpiUrlProvider가 기본값으로 반영된다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      late ProviderContainer container;
+      await tester.pumpWidget(_buildSettings(
+        onContainerReady: (c) => container = c,
+      ));
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, '저장'));
+      await _expandAdvanced(tester);
+      await tester.tap(find.widgetWithText(FilledButton, '저장'));
       await tester.pump();
-      expect(find.text('기기 이름을 저장했습니다.'), findsOneWidget);
+      expect(container.read(rpiUrlProvider), 'http://simplelay.local:8000');
     });
 
-    testWidgets('TextField에 값 입력 후 저장 탭 시 SnackBar 표시', (tester) async {
+    testWidgets('TextField에 값 입력 후 저장 탭 시 그 값이 rpiUrlProvider에 반영된다',
+        (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      late ProviderContainer container;
+      await tester.pumpWidget(_buildSettings(
+        onContainerReady: (c) => container = c,
+      ));
       await tester.pump();
-      final nameField = find.byWidgetPredicate(
-        (w) => w is TextField && w.decoration?.hintText == 'SimpleLay',
+      await _expandAdvanced(tester);
+      final urlField = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.hintText == 'http://simplelay.local:8000',
       );
-      await tester.enterText(nameField, 'MyDevice');
-      await tester.tap(find.widgetWithText(TextButton, '저장'));
+      await tester.enterText(urlField, 'http://192.168.0.42:8000');
+      await tester.tap(find.widgetWithText(FilledButton, '저장'));
       await tester.pump();
-      expect(find.text('기기 이름을 저장했습니다.'), findsOneWidget);
+      expect(container.read(rpiUrlProvider), 'http://192.168.0.42:8000');
     });
   });
 }

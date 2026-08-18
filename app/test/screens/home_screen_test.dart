@@ -27,8 +27,8 @@ void main() {
     testWidgets('연결 필요 안내 텍스트 표시', (tester) async {
       await tester.pumpWidget(_buildHome());
       await tester.pump();
-      expect(find.text('기기 연결 필요'), findsOneWidget);
-      expect(find.text('설정에서 SimpleLay 기기를 연결하세요.'), findsOneWidget);
+      expect(find.text('BLE 기기 미연결'), findsOneWidget);
+      expect(find.text('설정에서 SimpleLay 기기를 연결하세요'), findsOneWidget);
     });
 
     testWidgets('"연결" TextButton 표시', (tester) async {
@@ -55,11 +55,10 @@ void main() {
   });
 
   group('HomeScreen — 연결 완료 상태', () {
-    testWidgets('기기 연결됨 텍스트 표시', (tester) async {
+    testWidgets('BLE 기기 미연결 카드가 사라짐', (tester) async {
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.text('기기 연결됨'), findsOneWidget);
-      expect(find.text('명령을 보낼 준비가 되었습니다.'), findsOneWidget);
+      expect(find.text('BLE 기기 미연결'), findsNothing);
     });
 
     testWidgets('"연결" 버튼 사라짐', (tester) async {

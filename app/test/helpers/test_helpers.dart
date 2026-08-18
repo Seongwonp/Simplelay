@@ -39,11 +39,13 @@ Widget buildScreen(
   List<Override> overrides = const [],
   List<Suggestion>? suggestions,
   ExecutionStatus? executionStatus,
+  void Function(ProviderContainer)? onContainerReady,
 }) {
   return buildWithProviderState(
     suggestions: suggestions,
     executionStatus: executionStatus,
     overrides: overrides,
+    onContainerReady: onContainerReady,
     child: MaterialApp(
       theme: ThemeData.dark(),
       home: screen,
@@ -56,11 +58,13 @@ Widget buildWithProviderState({
   List<Override> overrides = const [],
   List<Suggestion>? suggestions,
   ExecutionStatus? executionStatus,
+  void Function(ProviderContainer)? onContainerReady,
 }) =>
     _SeededProviderScope(
       overrides: overrides,
       suggestions: suggestions,
       executionStatus: executionStatus,
+      onContainerReady: onContainerReady,
       child: child,
     );
 
@@ -70,12 +74,14 @@ class _SeededProviderScope extends StatefulWidget {
     required this.overrides,
     this.suggestions,
     this.executionStatus,
+    this.onContainerReady,
   });
 
   final Widget child;
   final List<Override> overrides;
   final List<Suggestion>? suggestions;
   final ExecutionStatus? executionStatus;
+  final void Function(ProviderContainer)? onContainerReady;
 
   @override
   State<_SeededProviderScope> createState() => _SeededProviderScopeState();
@@ -107,6 +113,7 @@ class _SeededProviderScopeState extends State<_SeededProviderScope> {
       // ignore: invalid_use_of_protected_member
       notifier.state = status;
     }
+    widget.onContainerReady?.call(_container);
   }
 
   @override

@@ -47,8 +47,11 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('RPi URL이 없으면 설정 안내 화면을 보여준다', (tester) async {
-    final container = await _makeContainerWithAppliance(tester);
+  testWidgets('RPi 서버가 연결 안 되어 있으면 설정 안내 화면을 보여준다', (tester) async {
+    final container = await _makeContainerWithAppliance(
+      tester,
+      extra: [rpiApiServiceProvider.overrideWithValue(null)],
+    );
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
 

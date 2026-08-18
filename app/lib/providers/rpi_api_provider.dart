@@ -17,10 +17,12 @@ class RpiUrlNotifier extends StateNotifier<String?> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final saved = prefs.getString('rpi_base_url');
     if (saved == null) {
       // 처음 실행: simplelay.local을 기본값으로 저장
       await prefs.setString('rpi_base_url', _kDefaultUrl);
+      if (!mounted) return;
       state = _kDefaultUrl;
     } else {
       state = saved;
