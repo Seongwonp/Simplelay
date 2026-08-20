@@ -11,6 +11,7 @@ import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/demo_service.dart';
+import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
@@ -18,6 +19,12 @@ class SuggestionScreen extends ConsumerWidget {
   const SuggestionScreen({required this.sequenceId, super.key});
 
   final String sequenceId;
+
+  static void _notifyError(BuildContext context, String message) {
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -96,8 +103,20 @@ class SuggestionScreen extends ConsumerWidget {
                   onPressed: () async {
                     final rpiApi = ref.read(rpiApiServiceProvider);
                     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
-                      // HTTP: RPi에 직접 거부 전송
-                      await rpiApi.rejectSuggestion(suggestion.sequenceId);
+                      try {
+                        // HTTP: RPi에 직접 거부 전송
+                        await rpiApi.rejectSuggestion(suggestion.sequenceId);
+                      } on RpiApiException catch (error) {
+                        // 서버에 이미 없는 제안(404)이면 로컬 제거만 하면 되므로
+                        // 계속 진행 — 그 외 에러는 사용자에게 알리고 중단.
+                        if (error.statusCode != 404) {
+                          _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+                          return;
+                        }
+                      } catch (_) {
+                        _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+                        return;
+                      }
                     }
                     // BLE 출처일 때만 respond()가 실제로 BLE 응답을 보낸다
                     // (HTTP 출처는 로컬 목록에서 제거만 함 — 위에서 이미 서버에 전달했으므로).
@@ -116,8 +135,21 @@ class SuggestionScreen extends ConsumerWidget {
                   onPressed: () async {
                     final rpiApi = ref.read(rpiApiServiceProvider);
                     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
-                      // HTTP: RPi에 직접 승인 전송
-                      await rpiApi.approveSuggestion(suggestion.sequenceId);
+                      try {
+                        // HTTP: RPi에 직접 승인 전송
+                        await rpiApi.approveSuggestion(suggestion.sequenceId);
+                      } on RpiApiException catch (error) {
+                        _notifyError(
+                          context,
+                          error.statusCode == 409
+                              ? '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.'
+                              : '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
+                        );
+                        return;
+                      } catch (_) {
+                        _notifyError(context, '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.');
+                        return;
+                      }
                     }
                     // BLE 출처일 때만 respond()가 실제로 BLE 응답을 보낸다
                     // (HTTP 출처는 로컬 목록에서 제거만 함 — 위에서 이미 서버에 전달했으므로).

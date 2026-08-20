@@ -224,6 +224,10 @@ class _KioskScreenState extends State<KioskScreen> {
     required bool success,
     required List<KioskButtonResult> buttons,
   }) {
+    // 지연 도착한 approve/execute 응답이 이미 끝난(정지·완료된) 실행을
+    // 되살려 idle 화면을 완료 화면으로 점프시키는 것을 막는다 —
+    // _toDone과 동일한 phase 가드.
+    if (_phase != KioskPhase.executing) return;
     _execFillTimer?.cancel();
     setState(() {
       _lastButtons = buttons;
