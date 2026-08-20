@@ -72,6 +72,43 @@ class ProactiveSuggestionService:
             created.append(suggestion)
         return tuple(created)
 
+    def create_demo_suggestion(
+        self, purpose: str, occurrences: int = 3
+    ) -> ProactiveSuggestion | None:
+        """시연용 — 패턴 감지(사용 이력 3회 이상 + 시간대 일치)를 거치지 않고
+        제안을 즉시 만든다. 시간대 설정에 구멍이 있는 시각(예: 오후 3시)에도
+        데모가 항상 성립하게 하는 것이 목적. DND 중에는 실사용과 동일하게
+        만들지 않고 None을 반환한다(호출자가 409 등으로 구분해 알림).
+
+        같은 purpose의 pending 제안이 이미 있으면 그것을 그대로 돌려준다 —
+        데모 트리거를 연타해도 중복 카드가 쌓이지 않는다.
+        """
+        if self.is_dnd():
+            return None
+        existing = self._pending_for(purpose, "데모")
+        if existing is not None:
+            return existing
+        suggestion = ProactiveSuggestion(
+            suggestion_id=f"suggestion-{self._next_id}",
+            purpose=purpose,
+            time_band="데모",
+            occurrences=occurrences,
+            created_at=self._clock.now(),
+            steps=self._preview_steps(purpose),
+        )
+        self._next_id += 1
+        self._suggestions[suggestion.suggestion_id] = suggestion
+        return suggestion
+
+    def reject(self, suggestion_id: str) -> None:
+        """실행 없이 pending에서 제거(dismiss). 없는 id이거나 이미 승인된
+        제안이면 UnknownSuggestionError — 기존 라우터의 pending 전용
+        404 의미를 그대로 보존한다."""
+        suggestion = self._suggestions.get(suggestion_id)
+        if suggestion is None or suggestion.status is not SuggestionStatus.PENDING:
+            raise UnknownSuggestionError(suggestion_id)
+        self._suggestions.pop(suggestion_id)
+
     def _preview_steps(self, purpose: str) -> tuple[str, ...]:
         """Best-effort preview only -- approve() re-resolves for real execution.
 

@@ -348,3 +348,47 @@ def test_execute_buttons_blank_appliance_id_is_treated_as_unset(client):
         "/execute-buttons", json={"buttons": ["커스텀A"], "appliance_id": "   "}
     )
     assert response.status_code == 200
+
+
+# ── /demo/suggest (시연용 제안 강제 생성) ─────────────────────────────────────
+
+def test_demo_suggest_creates_pending_suggestion(client):
+    response = client.post("/demo/suggest", json={})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["purpose"] == "우유 데워줘"
+    assert body["time_band"] == "데모"
+    assert body["steps"] == ["해동", "시간 90초", "시작"]
+
+    listed = client.get("/suggestions").json()
+    assert [s["id"] for s in listed] == [body["id"]]
+
+
+def test_demo_suggest_is_idempotent_for_same_purpose(client):
+    first = client.post("/demo/suggest", json={}).json()
+    second = client.post("/demo/suggest", json={}).json()
+    # 트리거를 연타해도 같은 pending 제안을 돌려준다 — 중복 카드 없음
+    assert first["id"] == second["id"]
+    assert len(client.get("/suggestions").json()) == 1
+
+
+def test_demo_suggest_respects_dnd(client):
+    client.post("/dnd", json={"duration_minutes": 10})
+    response = client.post("/demo/suggest", json={})
+    assert response.status_code == 409
+
+
+def test_demo_suggestion_approve_executes(client):
+    created = client.post("/demo/suggest", json={}).json()
+    approved = client.post(f"/suggestions/{created['id']}/approve")
+    assert approved.status_code == 200
+    assert approved.json()["status"] == "succeeded"
+
+
+def test_demo_suggestion_reject_dismisses(client):
+    created = client.post("/demo/suggest", json={}).json()
+    rejected = client.post(f"/suggestions/{created['id']}/reject")
+    assert rejected.status_code == 200
+    assert client.get("/suggestions").json() == []
+    # 같은 id 재거부는 404 — pending 전용 계약 유지
+    assert client.post(f"/suggestions/{created['id']}/reject").status_code == 404

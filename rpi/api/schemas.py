@@ -166,6 +166,21 @@ class HealthResponse(BaseModel):
     dnd_until: datetime | None = None
 
 
+class DemoSuggestRequest(BaseModel):
+    """POST /demo/suggest — 시연용 제안 강제 생성. 패턴 감지(이력 3회 +
+    시간대 일치)를 우회해 지금 즉시 제안 카드를 띄운다. 결선 데모에서
+    '선제 제안 → 승인 → 실행' 장면을 원하는 시점에 연출하기 위한 것."""
+
+    purpose: str = "우유 데워줘"
+
+    @field_validator("purpose")
+    @classmethod
+    def purpose_not_blank(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("purpose must not be blank")
+        return v.strip()
+
+
 class DndRequest(BaseModel):
     duration_minutes: int
 

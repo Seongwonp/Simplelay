@@ -13,6 +13,7 @@ from .schemas import (
     AlertResponse,
     ApproveResponse,
     ButtonStep,
+    DemoSuggestRequest,
     DndRequest,
     ExecuteButtonsRequest,
     ExecuteForApplianceRequest,
@@ -154,12 +155,30 @@ async def reject_suggestion(
     suggestion_id: str,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> OkResponse:
-    pending = {s.suggestion_id for s in svc.pending()}
-    if suggestion_id not in pending:
+    try:
+        svc.reject(suggestion_id)
+    except UnknownSuggestionError:
         raise HTTPException(status_code=404, detail="suggestion not found")
-    # pending 목록에서 제거 — approve와 달리 실행 없이 dismiss
-    svc._suggestions.pop(suggestion_id, None)
     return OkResponse()
+
+
+@router.post("/demo/suggest", response_model=SuggestionResponse)
+async def demo_suggest(
+    body: DemoSuggestRequest,
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> SuggestionResponse:
+    # 시연용 수동 트리거 — 패턴 감지를 우회해 제안을 즉시 만든다.
+    # DND 중에는 실사용과 동일하게 거부(409)해서 데모 중 혼선을 막는다.
+    suggestion = svc.create_demo_suggestion(body.purpose)
+    if suggestion is None:
+        raise HTTPException(status_code=409, detail="DND is active")
+    return SuggestionResponse(
+        id=suggestion.suggestion_id,
+        purpose=suggestion.purpose,
+        time_band=suggestion.time_band,
+        occurrences=suggestion.occurrences,
+        steps=list(suggestion.steps),
+    )
 
 
 @router.post("/dnd", response_model=OkResponse)
