@@ -15,6 +15,7 @@ class BleService {
   final _state = StreamController<BleConnectionState>.broadcast();
   final _buffer = StringBuffer();
   StreamSubscription<List<int>>? _notificationSubscription;
+  StreamSubscription<BluetoothConnectionState>? _connectionSubscription;
   BluetoothDevice? _device;
   BluetoothCharacteristic? _characteristic;
   bool _isSimulated = false;
@@ -32,7 +33,11 @@ class BleService {
       _state.add(BleConnectionState.disconnected);
     });
     Future<void>.delayed(timeout, () {
-      if (_device == null) _state.add(BleConnectionState.disconnected);
+      // 서비스 dispose 후에도 이 지연 콜백은 살아있을 수 있다 — 닫힌
+      // 컨트롤러에 add하면 StateError가 나므로 반드시 확인.
+      if (_device == null && !_state.isClosed) {
+        _state.add(BleConnectionState.disconnected);
+      }
     });
     yield* FlutterBluePlus.scanResults;
   }
@@ -40,6 +45,9 @@ class BleService {
   Future<void> stopScan() => FlutterBluePlus.stopScan();
 
   Future<void> connect(BluetoothDevice device) async {
+    // 시뮬레이션(데모) 상태에서 실기기로 넘어올 때 반드시 해제 — 안 하면
+    // send()가 예외 없이 조용히 no-op이 되어 실제 전송이 전부 사라진다.
+    _isSimulated = false;
     _state.add(BleConnectionState.connecting);
     await FlutterBluePlus.stopScan();
     try {
@@ -57,11 +65,13 @@ class BleService {
     await characteristic.setNotifyValue(true);
     await _notificationSubscription?.cancel();
     _notificationSubscription = characteristic.onValueReceived.listen(_decode);
-    device.connectionState.listen((state) {
+    // 재연결 때마다 리스너가 누적되지 않도록 이전 구독을 먼저 정리한다.
+    await _connectionSubscription?.cancel();
+    _connectionSubscription = device.connectionState.listen((state) {
       if (state == BluetoothConnectionState.disconnected) {
         _device = null;
         _characteristic = null;
-        _state.add(BleConnectionState.disconnected);
+        if (!_state.isClosed) _state.add(BleConnectionState.disconnected);
       }
     });
     _state.add(BleConnectionState.connected);
@@ -69,6 +79,8 @@ class BleService {
 
   Future<void> disconnect() async {
     await _notificationSubscription?.cancel();
+    await _connectionSubscription?.cancel();
+    _connectionSubscription = null;
     await _device?.disconnect();
     _device = null;
     _characteristic = null;
@@ -130,6 +142,7 @@ class BleService {
 
   Future<void> dispose() async {
     await _notificationSubscription?.cancel();
+    await _connectionSubscription?.cancel();
     await _messages.close();
     await _state.close();
   }
