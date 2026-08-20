@@ -142,3 +142,71 @@ def test_on_progress_defaults_to_none_and_does_not_break_execution():
     result = controller.execute(["시작"])
 
     assert result.status is ExecutionStatus.SUCCEEDED
+
+
+# ── 긴급 정지 (request_stop) ──────────────────────────────────────────────────
+
+
+def test_emergency_stop_between_buttons():
+    verifier = MockVerifier([True, True])
+    alerts = MockAlertSink()
+    safety = MockSafetyController()
+    controller = None
+
+    class StoppingGrbl(MockGrblClient):
+        def press(self, command):
+            super().press(command)
+            controller.request_stop()  # 첫 누름 도중 정지 버튼이 눌린 상황
+
+    grbl = StoppingGrbl()
+    controller = ClosedLoopController(
+        grbl, verifier, alerts, safety, retry_waiter=MockRetryWaiter()
+    )
+
+    result = controller.execute(["시작", "취소"])
+
+    assert result.status is ExecutionStatus.SAFETY_STOPPED
+    # 첫 버튼은 완료로 기록되고, 두 번째 버튼은 아예 시작되지 않는다
+    assert [b.button for b in result.buttons] == ["시작"]
+    assert result.buttons[0].status is ButtonStatus.SUCCEEDED
+    assert len(grbl.commands) == 1
+    assert safety.reasons == ["emergency stop requested"]
+    # 검증 실패가 아니므로 폐루프 실패 알림은 발생하지 않는다
+    assert alerts.failures == []
+
+
+def test_emergency_stop_between_retries():
+    alerts = MockAlertSink()
+    safety = MockSafetyController()
+    controller = None
+
+    class StopOnFirstFail(MockVerifier):
+        def verify(self, button):
+            result = super().verify(button)
+            if not result.pressed:
+                controller.request_stop()  # 1차 검증 실패 직후 정지 요청
+            return result
+
+    verifier = StopOnFirstFail([False, True])
+    grbl = MockGrblClient()
+    controller = ClosedLoopController(
+        grbl, verifier, alerts, safety, retry_waiter=MockRetryWaiter()
+    )
+
+    result = controller.execute(["시작"])
+
+    assert result.status is ExecutionStatus.SAFETY_STOPPED
+    # 재시도 누름은 발생하지 않았다 — 정지는 재시도 경계에서 반영된다
+    assert len(grbl.commands) == 1
+    assert result.buttons == ()
+    assert safety.reasons == ["emergency stop requested"]
+
+
+def test_stale_stop_request_does_not_block_next_run():
+    controller, grbl, _, _, safety, _ = build_controller([True])
+
+    controller.request_stop()  # 유휴 상태에서 온 정지 요청은
+    result = controller.execute(["시작"])  # 다음 실행을 잡아먹지 않는다
+
+    assert result.status is ExecutionStatus.SUCCEEDED
+    assert safety.reasons == []

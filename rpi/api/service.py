@@ -184,6 +184,32 @@ class SimpleLayService(PurposeExecutor):
                 return node_controller
         return self._controller
 
+    def emergency_stop(self) -> bool:
+        """긴급 정지 — 로컬 기본 컨트롤러와 등록된 모든 노드 컨트롤러 중
+        ``request_stop()``을 지원하는 대상 전부에 정지를 요청한다.
+
+        어느 컨트롤러가 실행 중인지 추적하지 않고 전부에 요청하는 이유:
+        정지 경로에서는 "덜 멈추는 것"이 "더 멈추는 것"보다 훨씬 위험하고,
+        유휴 컨트롤러에 대한 요청은 다음 execute() 시작 시 무해하게 버려진다
+        (ClosedLoopController.execute()의 clear() 참고).
+
+        반환값은 요청 시점에 실행이 진행 중이었는지 — 클라이언트가
+        "정지됨"과 "실행 중인 작업 없음"을 구분해 표시할 수 있게 한다.
+        """
+        was_running = self._running
+        for controller in self._stoppable_controllers():
+            controller.request_stop()
+        return was_running
+
+    def _stoppable_controllers(self) -> list[ButtonSequenceController]:
+        controllers: list[ButtonSequenceController] = [self._controller]
+        if self._node_registry is not None:
+            for appliance_id in self._node_registry.list_appliance_ids():
+                node = self._node_registry.get(appliance_id)
+                if node is not None:
+                    controllers.append(node)
+        return [c for c in controllers if hasattr(c, "request_stop")]
+
     def _guard_can_execute(self) -> None:
         if not self._ready:
             raise ServiceNotReadyError(

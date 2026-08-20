@@ -23,6 +23,7 @@ from .schemas import (
     OkResponse,
     SensorResponse,
     StatusResponse,
+    StopResponse,
     SuggestionResponse,
 )
 from .service import LlmNotConfiguredError, SimpleLayService
@@ -110,12 +111,12 @@ async def status(
     )
 
 
-@router.post("/stop", response_model=OkResponse)
+@router.post("/stop", response_model=StopResponse)
 async def emergency_stop(
     service: SimpleLayService = Depends(get_service),
-) -> OkResponse:
-    # 실기기 연결 후 controller.emergency_stop() 호출로 교체
-    return OkResponse()
+) -> StopResponse:
+    was_running = service.emergency_stop()
+    return StopResponse(was_running=was_running)
 
 
 @router.get("/suggestions", response_model=list[SuggestionResponse])

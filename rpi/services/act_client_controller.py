@@ -63,6 +63,20 @@ class ActClientController:
 
         return synthesize_execution_result(buttons, result.success, result.retry)
 
+    def request_stop(self) -> None:
+        """긴급 정지 — RPi4에 abort를 보낸다. fire-and-forget(프로토콜상 abort는
+        응답이 없음): 진행 중이던 execute()는 RPi4 쪽 중단 결과(error/result)로
+        스스로 마무리된다. 전송 실패는 로그만 남긴다 — 정지 경로에서 예외로
+        호출자를 죽이는 것보다 물리 E-STOP이 최종 권한이라는 설계를 따른다."""
+
+        def _log_send_failure(future: "asyncio.Future[None]") -> None:
+            exc = future.exception()
+            if exc is not None:
+                log.error("emergency abort send failed: %s", exc)
+
+        future = asyncio.run_coroutine_threadsafe(self._client.abort(), self._loop)
+        future.add_done_callback(_log_send_failure)
+
     def close(self) -> None:
         asyncio.run_coroutine_threadsafe(self._client.stop(), self._loop).result(timeout=5.0)
 

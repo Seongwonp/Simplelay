@@ -1,5 +1,7 @@
 """Closed-loop orchestration with bounded recovery and fail-safe behavior."""
 
+import threading
+
 from rpi.verifier import VerificationResult, Verifier
 
 from .models import (
@@ -13,6 +15,10 @@ from .models import (
 from .ports import AlertSink, GrblClient, NoOpRetryWaiter, RetryWaiter, SafetyController
 from .progress import ProgressCallback
 from .retry import DocumentedRetryPolicy, RetryPolicy
+
+
+class _EmergencyStopRequested(Exception):
+    """Internal control-flow signal: a stop was requested mid-execution."""
 
 
 class ClosedLoopController:
@@ -33,12 +39,27 @@ class ClosedLoopController:
         self._retry_policy = retry_policy or DocumentedRetryPolicy()
         self._retry_waiter = retry_waiter or NoOpRetryWaiter()
         self._on_progress = on_progress
+        # /stop(긴급 정지)용. 실행은 별도 스레드(asyncio.to_thread)에서 돌고
+        # 정지 요청은 FastAPI 요청 스레드에서 오므로 threading.Event를 쓴다.
+        self._stop_requested = threading.Event()
+
+    def request_stop(self) -> None:
+        """Ask a running execute() to safety-stop at the next button/attempt
+        boundary. Idle-time requests are discarded by execute()'s clear() --
+        a stale stop must never eat the *next* run."""
+        self._stop_requested.set()
 
     def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult:
+        self._stop_requested.clear()
         results: list[ButtonResult] = []
         completed_steps = 0
         for button in buttons:
-            result = self._execute_button(button, completed_steps)
+            try:
+                self._check_stop()
+                result = self._execute_button(button, completed_steps)
+            except _EmergencyStopRequested:
+                self._safety.stop("emergency stop requested")
+                return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, tuple(results))
             results.append(result)
             if result.status is ButtonStatus.SUCCEEDED:
                 completed_steps += 1
@@ -54,6 +75,7 @@ class ClosedLoopController:
         last_verification = None
         for attempt in range(1, self._retry_policy.max_attempts + 1):
             if attempt > 1:
+                self._check_stop()  # 재시도 경계에서도 정지 요청 반영
                 self._retry_waiter.wait(button, attempt - 1)
             correction = (
                 None if attempt == 1 else self._retry_policy.correction_for(attempt - 1)
@@ -83,6 +105,10 @@ class ClosedLoopController:
             last_verification,
             tuple(errors),
         )
+
+    def _check_stop(self) -> None:
+        if self._stop_requested.is_set():
+            raise _EmergencyStopRequested()
 
     def _report_progress(
         self,

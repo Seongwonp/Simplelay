@@ -150,6 +150,15 @@ class OkResponse(BaseModel):
     ok: bool = True
 
 
+class StopResponse(BaseModel):
+    """POST /stop 응답. was_running으로 클라이언트가 "정지됨"과
+    "실행 중인 작업 없음"을 구분해 표시할 수 있다. (기존 OkResponse와
+    필드 호환 — ok만 보던 클라이언트는 그대로 동작한다.)"""
+
+    ok: bool = True
+    was_running: bool = False
+
+
 class HealthResponse(BaseModel):
     ok: bool
     # coreXY 홈 위치 확인 + SwitchBot 연결 상태 통합 — 실기기 연결 후 교체

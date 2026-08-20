@@ -162,3 +162,47 @@ def test_execute_purpose_for_appliance_logs_usage():
 
     assert len(usage_log.records()) == 1
     assert usage_log.records()[0].purpose == "불 꺼줘"
+
+
+# ── emergency_stop (POST /stop 배선) ─────────────────────────────────────────
+
+
+def test_emergency_stop_requests_stop_on_local_controller():
+    controller = ClosedLoopController(
+        MockGrblClient(), MockVerifier([]), MockAlertSink(), MockSafetyController()
+    )
+    service = SimpleLayService(RuleBasedIntentResolver(), controller)
+
+    was_running = service.emergency_stop()
+
+    assert was_running is False  # 유휴 상태 — 실행 중이던 작업 없음
+    assert controller._stop_requested.is_set()  # 정지 요청은 컨트롤러까지 전달됐다
+
+
+def test_emergency_stop_reaches_registered_node_controllers():
+    class RecordingStoppable:
+        def __init__(self):
+            self.stopped = False
+
+        def execute(self, buttons):
+            raise AssertionError("not used in this test")
+
+        def request_stop(self):
+            self.stopped = True
+
+    from rpi.services import NodeRegistry
+
+    node = RecordingStoppable()
+    registry = NodeRegistry(controller_factory=lambda base_url: node)
+    registry.register("에어컨", "http://192.168.0.50:8080")
+    local = ClosedLoopController(
+        MockGrblClient(), MockVerifier([]), MockAlertSink(), MockSafetyController()
+    )
+    service = SimpleLayService(
+        RuleBasedIntentResolver(), local, node_registry=registry
+    )
+
+    service.emergency_stop()
+
+    assert node.stopped  # 등록된 노드 컨트롤러에도 정지가 전파된다
+    assert local._stop_requested.is_set()

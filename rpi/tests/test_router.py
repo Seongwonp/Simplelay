@@ -208,7 +208,21 @@ def test_status_after_execute_completes_clears_live_progress_fields(client):
 def test_emergency_stop_returns_ok(client):
     response = client.post("/stop")
     assert response.status_code == 200
-    assert response.json() == {"ok": True}
+    # 유휴 상태의 정지 요청 — 성공하되 was_running=False로 구분된다
+    assert response.json() == {"ok": True, "was_running": False}
+
+
+def test_emergency_stop_reports_was_running(client):
+    from rpi.api.deps import get_service
+
+    svc = get_service()
+    svc._running = True
+    try:
+        response = client.post("/stop")
+    finally:
+        svc._running = False
+    assert response.status_code == 200
+    assert response.json() == {"ok": True, "was_running": True}
 
 
 # ── /suggestions ──────────────────────────────────────────────────────────────
