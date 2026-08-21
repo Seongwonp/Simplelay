@@ -230,9 +230,9 @@ class _ButtonMapGrid extends StatelessWidget {
         const SizedBox(height: 10),
         Container(
           decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.04),
+            color: context.appOverlayFaint,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white12),
+            border: Border.all(color: context.appBorderFaint),
           ),
           padding: const EdgeInsets.all(12),
           child: Column(
@@ -258,12 +258,12 @@ class _ButtonMapGrid extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: isInSequence
                                       ? AppColors.primary.withValues(alpha: 0.2)
-                                      : Colors.white.withValues(alpha: 0.06),
+                                      : context.appOverlayFaint,
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color: isInSequence
                                         ? AppColors.primary
-                                        : Colors.white12,
+                                        : context.appBorderFaint,
                                     width: isInSequence ? 1.5 : 0.5,
                                   ),
                                 ),
@@ -280,7 +280,7 @@ class _ButtonMapGrid extends StatelessWidget {
                                             : FontWeight.normal,
                                         color: isInSequence
                                             ? AppColors.primary
-                                            : Colors.white54,
+                                            : context.appOnSurfaceFaint,
                                       ),
                                     ),
                                     if (isInSequence)

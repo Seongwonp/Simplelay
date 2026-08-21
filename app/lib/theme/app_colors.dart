@@ -38,4 +38,15 @@ extension AppColorsX on BuildContext {
   Color get appSurfaceLow    => _isDark ? AppColors.surfaceLow   : AppColors.surfaceLowLight;
   Color get appBorderSubtle  => _isDark ? AppColors.borderSubtle : AppColors.borderSubtleLight;
   Color get appMuted         => _isDark ? AppColors.onSurfaceMuted : AppColors.onSurfaceMutedLight;
+
+  // 표면 위에 살짝 얹는 채움·테두리·보조 텍스트 — 다크는 흰색 기반, 라이트는
+  // 검정 기반. Colors.white* 하드코딩은 크림색 라이트 배경에서 안 보이므로
+  // 반드시 이 토큰을 쓴다 (수동 조작 그리드·제안 버튼맵이 깨졌던 원인).
+  Color get appOverlayFaint   => _isDark
+      ? Colors.white.withValues(alpha: 0.05)
+      : Colors.black.withValues(alpha: 0.04);
+  Color get appBorderFaint    => _isDark ? Colors.white12 : Colors.black12;
+  Color get appOutline        => _isDark ? Colors.white24 : Colors.black26;
+  Color get appOnSurfaceSoft  => _isDark ? Colors.white70 : Colors.black87;
+  Color get appOnSurfaceFaint => _isDark ? Colors.white54 : Colors.black54;
 }

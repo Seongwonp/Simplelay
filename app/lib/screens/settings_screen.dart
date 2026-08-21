@@ -800,7 +800,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                 width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: Colors.white24,
+                  color: context.appOutline,
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),

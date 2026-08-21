@@ -378,15 +378,17 @@ class _EditableGrid extends StatelessWidget {
                           color: filled
                               ? AppColors.primary.withValues(
                                   alpha: translucent ? 0.28 : 0.14)
+                              // translucent(사진 위 오버레이)는 사진 대비를 위해
+                              // 흰색 유지가 의도 — 일반 모드만 테마 토큰 사용
                               : (translucent
                                   ? Colors.transparent
-                                  : Colors.white.withValues(alpha: 0.04)),
+                                  : context.appOverlayFaint),
                           border: Border.all(
                             color: filled
                                 ? AppColors.primary
                                 : (translucent
                                     ? Colors.white.withValues(alpha: 0.6)
-                                    : AppColors.borderSubtle),
+                                    : context.appBorderSubtle),
                             width: filled ? 1.5 : 1,
                           ),
                           borderRadius: BorderRadius.circular(9),
@@ -407,7 +409,7 @@ class _EditableGrid extends StatelessWidget {
                               )
                             : (translucent
                                 ? null
-                                : const Icon(Icons.add, size: 16, color: Colors.white24)),
+                                : Icon(Icons.add, size: 16, color: context.appOutline)),
                       ),
                     ),
                   ),

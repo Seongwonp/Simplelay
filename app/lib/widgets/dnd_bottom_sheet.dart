@@ -39,7 +39,7 @@ class _DndSheet extends ConsumerWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white24,
+                color: context.appOutline,
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -172,7 +172,7 @@ class _OptionTile extends StatelessWidget {
         ),
         trailing: Icon(
           Icons.chevron_right,
-          color: enabled ? iconColor ?? AppColors.onSurfaceMuted : Colors.white12,
+          color: enabled ? iconColor ?? AppColors.onSurfaceMuted : context.appBorderFaint,
           size: 20,
         ),
         enabled: enabled,

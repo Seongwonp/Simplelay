@@ -237,7 +237,7 @@ class _ButtonCell extends StatelessWidget {
         ),
       _CellState.success => (AppColors.success, const Icon(Icons.check, size: 18)),
       _CellState.failure => (AppColors.danger, const Icon(Icons.close, size: 18)),
-      _CellState.idle => (Colors.white24, null),
+      _CellState.idle => (context.appOutline, null),
     };
 
     return GestureDetector(
@@ -246,7 +246,7 @@ class _ButtonCell extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
           color: state == _CellState.idle
-              ? Colors.white.withValues(alpha: 0.05)
+              ? context.appOverlayFaint
               : color.withValues(alpha: 0.16),
           border: Border.all(color: color, width: state == _CellState.idle ? 1 : 1.5),
           borderRadius: BorderRadius.circular(10),
@@ -259,7 +259,7 @@ class _ButtonCell extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: state == _CellState.idle ? Colors.white70 : color,
+                color: state == _CellState.idle ? context.appOnSurfaceSoft : color,
               ),
             ),
       ),
