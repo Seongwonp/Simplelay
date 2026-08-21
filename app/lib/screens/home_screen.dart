@@ -238,6 +238,43 @@ class _RpiStatusCard extends ConsumerWidget {
   const _RpiStatusCard({required this.state});
   final RpiConnectionState state;
 
+  // simplelay.local(mDNS)이 안 풀리는 Android 폰을 위한 최후 동선 —
+  // IP만 쳐도 normalizeRpiUrl이 http://·:8000을 채워서 저장한다.
+  Future<void> _promptForAddress(BuildContext context, WidgetRef ref) async {
+    final controller =
+        TextEditingController(text: ref.read(rpiUrlProvider) ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('RPi 서버 주소'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.url,
+          decoration: const InputDecoration(
+            hintText: '예: 192.168.0.10',
+            helperText: 'RPi5 화면이나 공유기 관리 페이지에서 IP를 확인할 수 있어요.',
+            helperMaxLines: 2,
+          ),
+          onSubmitted: (v) => Navigator.pop(dialogContext, v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, controller.text),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (result == null || result.trim().isEmpty) return;
+    // save가 정규화 + 저장하고, rpiUrlProvider listen이 연결 확인을 트리거한다
+    await ref.read(rpiUrlProvider.notifier).save(result);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final (Color color, IconData icon, String title, String subtitle) =
@@ -258,7 +295,7 @@ class _RpiStatusCard extends ConsumerWidget {
           AppColors.danger,
           Icons.wifi_off,
           'RPi 서버에 연결할 수 없음',
-          '같은 Wi-Fi에 연결되어 있는지 확인하세요',
+          '같은 Wi-Fi인지 확인하거나 주소를 직접 입력하세요',
         ),
       RpiConnectionState.unconfigured => (
           context.appMuted,
@@ -304,7 +341,17 @@ class _RpiStatusCard extends ConsumerWidget {
               ),
             ),
             if (state == RpiConnectionState.unreachable ||
-                state == RpiConnectionState.unconfigured)
+                state == RpiConnectionState.unconfigured) ...[
+              TextButton(
+                onPressed: () => _promptForAddress(context, ref),
+                style: TextButton.styleFrom(
+                  foregroundColor: color,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('주소 입력', style: TextStyle(fontSize: 13)),
+              ),
               TextButton(
                 onPressed: () =>
                     ref.read(rpiConnectionProvider.notifier).check(),
@@ -316,6 +363,7 @@ class _RpiStatusCard extends ConsumerWidget {
                 ),
                 child: const Text('재시도', style: TextStyle(fontSize: 13)),
               ),
+            ],
           ],
         ),
       ),

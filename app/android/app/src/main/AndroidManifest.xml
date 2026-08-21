@@ -1,6 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- 릴리즈 빌드 필수: 디버그 빌드는 Flutter 툴이 자동 주입하지만 릴리즈에는 없음 -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- 앱 내 mDNS(simplelay.local) 조회용 — 일부 기기는 멀티캐스트 수신에 필요 -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />

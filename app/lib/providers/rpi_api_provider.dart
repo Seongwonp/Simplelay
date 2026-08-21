@@ -1,12 +1,31 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../services/mdns_resolver.dart';
 import '../services/rpi_api_service.dart';
 
 // ── 기본 URL (mDNS — 라우터 없이도 simplelay.local로 자동 연결) ─────────────
 const _kDefaultUrl = 'http://simplelay.local:8000';
+
+/// 사용자가 입력한 서버 주소를 완전한 URL로 정규화한다.
+/// "192.168.0.5"처럼 스킴·포트 없이 입력해도 조용히 unreachable이 되지 않게
+/// http:// 와 기본 포트 8000을 채워준다. 빈 입력은 그대로 돌려준다(호출자 판단).
+String normalizeRpiUrl(String input) {
+  var v = input.trim();
+  if (v.isEmpty) return v;
+  if (!v.startsWith('http://') && !v.startsWith('https://')) {
+    v = 'http://$v';
+  }
+  final uri = Uri.tryParse(v);
+  if (uri == null) return v;
+  if (!uri.hasPort) {
+    v = '${uri.scheme}://${uri.host}:8000${uri.path}';
+  }
+  return v.replaceAll(RegExp(r'/+$'), '');
+}
 
 // ── RPi 서버 URL 저장 ─────────────────────────────────────────────────────
 
@@ -30,7 +49,8 @@ class RpiUrlNotifier extends StateNotifier<String?> {
   }
 
   Future<void> save(String url) async {
-    final trimmed = url.trim().isEmpty ? _kDefaultUrl : url.trim();
+    final trimmed =
+        url.trim().isEmpty ? _kDefaultUrl : normalizeRpiUrl(url);
     state = trimmed;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('rpi_base_url', trimmed);
@@ -46,6 +66,9 @@ class RpiUrlNotifier extends StateNotifier<String?> {
 final rpiUrlProvider = StateNotifierProvider<RpiUrlNotifier, String?>(
   (ref) => RpiUrlNotifier(),
 );
+
+// 테스트에서 fake로 교체할 수 있게 provider로 노출
+final mdnsResolverProvider = Provider<MdnsResolver>((_) => MdnsResolver());
 
 // ── RpiApiService 인스턴스 ────────────────────────────────────────────────
 
@@ -79,7 +102,30 @@ class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
     }
     state = RpiConnectionState.checking;
     final ok = await service.ping();
-    state = ok ? RpiConnectionState.connected : RpiConnectionState.unreachable;
+    if (!mounted) return; // dispose 후 state 대입 방지
+    if (ok) {
+      state = RpiConnectionState.connected;
+      return;
+    }
+    // Android는 .local(mDNS) 호스트명을 시스템 DNS로 해석 못 한다 — 앱이
+    // 직접 mDNS 질의를 보내 IP를 알아내고 URL을 교체한다. 교체 저장이
+    // rpiUrlProvider listen을 통해 재확인을 자동으로 트리거한다.
+    final resolved = await _tryResolveMdns();
+    if (!mounted) return;
+    if (!resolved) state = RpiConnectionState.unreachable;
+  }
+
+  Future<bool> _tryResolveMdns() async {
+    // flutter test 환경에서는 실제 멀티캐스트 소켓/타이머를 만들지 않는다
+    if (Platform.environment.containsKey('FLUTTER_TEST')) return false;
+    final url = _ref.read(rpiUrlProvider);
+    if (url == null) return false;
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.host.endsWith('.local')) return false;
+    final ip = await _ref.read(mdnsResolverProvider).resolveIPv4(uri.host);
+    if (ip == null || !mounted) return false;
+    await _ref.read(rpiUrlProvider.notifier).save(uri.replace(host: ip).toString());
+    return true;
   }
 }
 
