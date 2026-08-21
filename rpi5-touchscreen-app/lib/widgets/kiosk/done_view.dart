@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/kiosk_colors.dart';
-
-const Duration _kDoneReturnDuration = Duration(seconds: 3);
+import 'kiosk_timings.dart';
 
 class KioskDoneView extends StatelessWidget {
   const KioskDoneView({
@@ -76,7 +75,7 @@ class KioskDoneView extends StatelessWidget {
               height: 4,
               child: TweenAnimationBuilder<double>(
                 tween: Tween(begin: 1.0, end: 0.0),
-                duration: _kDoneReturnDuration,
+                duration: KioskTimings.doneReturn,
                 builder: (context, value, _) => ClipRRect(
                   borderRadius: BorderRadius.circular(2),
                   child: LinearProgressIndicator(

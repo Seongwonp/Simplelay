@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
-
-const int _kCountdownSeconds = 10;
+import 'kiosk_timings.dart';
 
 class KioskSuggestionView extends StatelessWidget {
   const KioskSuggestionView({
@@ -120,7 +119,7 @@ class KioskSuggestionView extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(2),
               child: LinearProgressIndicator(
-                value: cdRemaining / _kCountdownSeconds,
+                value: cdRemaining / KioskTimings.countdownSeconds,
                 minHeight: 2,
                 backgroundColor: KioskColors.border,
                 valueColor: AlwaysStoppedAnimation(

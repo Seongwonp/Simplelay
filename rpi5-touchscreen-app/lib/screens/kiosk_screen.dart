@@ -11,6 +11,7 @@ import '../widgets/kiosk/done_view.dart';
 import '../widgets/kiosk/executing_view.dart';
 import '../widgets/kiosk/idle_view.dart';
 import '../widgets/kiosk/kiosk_phase.dart';
+import '../widgets/kiosk/kiosk_timings.dart';
 import '../widgets/kiosk/manual_view.dart';
 import '../widgets/kiosk/suggestion_view.dart';
 import '../widgets/kiosk/settings_overlay.dart';
@@ -20,24 +21,30 @@ const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
 const _sensorInterval = Duration(seconds: 60);
 const _alertInterval = Duration(seconds: 3);
-const _countdownSeconds = 10;
-const _doneReturnDuration = Duration(seconds: 3);
-const _execBarFillDuration = Duration(seconds: 9);
+// 타이밍 상수는 KioskTimings(위젯과 공유) 참조 — 여기 별도 정의 금지
+const _countdownSeconds = KioskTimings.countdownSeconds;
+const _doneReturnDuration = KioskTimings.doneReturn;
+const _execBarFillDuration = KioskTimings.execBarFill;
 // 실행 중 /status가 이 시간 동안 한 번도 응답하지 않으면 서버 유실로 판정 —
 // "실행 중" 화면에 영원히 갇히는 대신 실패 화면으로 탈출한다.
 const _statusLostTimeout = Duration(seconds: 30);
 
 class KioskScreen extends StatefulWidget {
-  const KioskScreen({super.key, this.appliance = kMicrowaveAppliance});
+  const KioskScreen({super.key, this.appliance = kMicrowaveAppliance, this.api});
 
   final ApplianceMap appliance;
+
+  /// 테스트에서 fake를 주입하기 위한 지점 — 미지정 시 localhost 기본 서비스.
+  final KioskApiService? api;
 
   @override
   State<KioskScreen> createState() => _KioskScreenState();
 }
 
 class _KioskScreenState extends State<KioskScreen> {
-  final _api = KioskApiService();
+  late final KioskApiService _api = widget.api ?? KioskApiService();
+  // 주입받은 서비스는 호출자 소유 — 내부 생성분만 dispose한다
+  late final bool _ownsApi = widget.api == null;
 
   late ApplianceMap _currentAppliance;
   bool _showSettings = false;
@@ -108,7 +115,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _clockTimer?.cancel();
     _sensorTimer?.cancel();
     _alertTimer?.cancel();
-    _api.dispose();
+    if (_ownsApi) _api.dispose();
     super.dispose();
   }
 
