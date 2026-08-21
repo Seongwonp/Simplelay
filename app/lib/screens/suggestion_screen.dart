@@ -110,11 +110,15 @@ class SuggestionScreen extends ConsumerWidget {
                         // 서버에 이미 없는 제안(404)이면 로컬 제거만 하면 되므로
                         // 계속 진행 — 그 외 에러는 사용자에게 알리고 중단.
                         if (error.statusCode != 404) {
-                          _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+                          if (context.mounted) {
+                            _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+                          }
                           return;
                         }
                       } catch (_) {
-                        _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+                        if (context.mounted) {
+                          _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+                        }
                         return;
                       }
                     }
@@ -149,15 +153,19 @@ class SuggestionScreen extends ConsumerWidget {
                               steps: suggestion.steps,
                             );
                       } on RpiApiException catch (error) {
-                        _notifyError(
-                          context,
-                          error.statusCode == 409
-                              ? '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.'
-                              : '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
-                        );
+                        if (context.mounted) {
+                          _notifyError(
+                            context,
+                            error.statusCode == 409
+                                ? '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.'
+                                : '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
+                          );
+                        }
                         return;
                       } catch (_) {
-                        _notifyError(context, '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.');
+                        if (context.mounted) {
+                          _notifyError(context, '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.');
+                        }
                         return;
                       }
                     }

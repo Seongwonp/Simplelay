@@ -110,6 +110,12 @@ void main() {
       // 접수 후 상태 화면으로 이동한다
       await tester.pumpAndSettle();
       expect(find.text('status-screen-stub'), findsOneWidget);
+
+      // beginHttpJob의 1초 폴링이 완료 응답을 받고 타이머를 정리할 시간을 준다
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
     });
   });
 
@@ -191,6 +197,12 @@ void main() {
       });
       await tester.pumpAndSettle();
       expect(find.text('status-screen-stub'), findsOneWidget);
+
+      // beginHttpJob의 1초 폴링이 완료 응답을 받고 타이머를 정리할 시간을 준다
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
     });
 
     testWidgets('LLM 미설정 등으로 503이 오면 오류 메시지를 보여준다', (tester) async {

@@ -946,13 +946,19 @@ class _SettingCard extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surfaceContainerLow,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.appBorderSubtle, width: 0.5),
+  // 배경색은 Material에 둔다 — ListTile은 잉크·배경을 가장 가까운 Material에
+  // 그리는데, 색 있는 DecoratedBox가 그 사이에 끼면 Flutter 3.4x부터
+  // assertion으로 막힌다. 테두리만 안쪽 (색 없는) 데코레이션으로 유지.
+  Widget build(BuildContext context) => Material(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: context.appBorderSubtle, width: 0.5),
+          ),
+          child: child,
         ),
-        child: child,
       );
 }
