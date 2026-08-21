@@ -24,9 +24,9 @@ err()  { echo -e "${RED}[✗]${NC} $*"; exit 1; }
 [[ $EUID -ne 0 ]] && err "sudo로 실행해야 합니다: sudo ./setup_rpi.sh"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. hostname + avahi-daemon (simplelay.local mDNS)
+# 1. hostname
 # ─────────────────────────────────────────────────────────────────────────────
-info "1/6  hostname + avahi-daemon 설정"
+info "1/8  hostname 설정"
 
 if [[ "$(hostname)" != "$HOSTNAME_TARGET" ]]; then
     hostnamectl set-hostname "$HOSTNAME_TARGET"
@@ -37,29 +37,29 @@ else
     ok "hostname 이미 $HOSTNAME_TARGET"
 fi
 
-apt-get install -y --no-install-recommends avahi-daemon libnss-mdns >/dev/null 2>&1
-systemctl enable --now avahi-daemon >/dev/null 2>&1
-ok "avahi-daemon 활성화"
-
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. 시스템 의존성
+# 2. 시스템 의존성 (avahi 포함 — update가 반드시 install보다 먼저)
+#    출력을 /dev/null로 버리지 않는다: 신선한 이미지에서 조용히 죽으면
+#    어느 단계에서 죽었는지조차 알 수 없었다.
 # ─────────────────────────────────────────────────────────────────────────────
-info "2/6  시스템 패키지 설치"
+info "2/8  시스템 패키지 설치"
 
 apt-get update -qq
-apt-get install -y --no-install-recommends \
+apt-get install -y --no-install-recommends -qq \
     git \
     python3 python3-pip python3-venv \
     python3-gpiozero \
     libgpiod2 \
-    >/dev/null 2>&1
+    avahi-daemon libnss-mdns \
+    logrotate
 
-ok "시스템 패키지 설치 완료"
+systemctl enable --now avahi-daemon
+ok "시스템 패키지 설치 완료 (avahi-daemon 활성화 포함)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 3. 레포 clone / pull
 # ─────────────────────────────────────────────────────────────────────────────
-info "3/6  레포 준비 ($REPO_DIR)"
+info "3/8  레포 준비 ($REPO_DIR)"
 
 if [[ -d "$REPO_DIR/.git" ]]; then
     sudo -u pi git -C "$REPO_DIR" pull --ff-only
@@ -72,7 +72,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 # 4. Python 가상환경 + 의존성 설치
 # ─────────────────────────────────────────────────────────────────────────────
-info "4/6  Python 가상환경 + 의존성"
+info "4/8  Python 가상환경 + 의존성"
 
 VENV="$REPO_DIR/.venv"
 
@@ -100,7 +100,7 @@ ok "GPIO 패키지 설치 (adafruit-dht, lgpio)"
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. 로그 파일 + systemd 서비스
 # ─────────────────────────────────────────────────────────────────────────────
-info "5/6  systemd 서비스 설치"
+info "5/8  systemd 서비스 설치"
 
 touch "$LOG_FILE"
 chown pi:pi "$LOG_FILE"
@@ -110,12 +110,48 @@ cp "$REPO_DIR/scripts/simplelay.service" /etc/systemd/system/simplelay.service
 systemctl daemon-reload
 systemctl enable simplelay
 systemctl restart simplelay
-ok "simplelay.service 활성화 + 시작"
+ok "simplelay.service 활성화 + 시작 (Restart=always)"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. 동작 확인
+# 6. 로그 로테이션 (24/7 운영 — 로그 무한 증식 방지)
 # ─────────────────────────────────────────────────────────────────────────────
-info "6/6  동작 확인 (10초 대기)"
+info "6/8  logrotate 설정"
+
+cp "$REPO_DIR/scripts/simplelay.logrotate" /etc/logrotate.d/simplelay
+ok "logrotate 설정 완료 (일 단위, 7개 보관, 압축)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. 터치스크린 키오스크 자동 실행 (건너뛰려면: SIMPLELAY_KIOSK=0 sudo ...)
+#    cage(Wayland 키오스크 컴포지터)가 tty1에서 Chromium 전체화면을 띄운다.
+#    Bookworm 기본 이미지 기준 — X11/데스크톱 불필요, 화면 절전 없음.
+#    Flutter(elinux) 키오스크로 전환 시 유닛의 ExecStart만 교체하면 된다.
+# ─────────────────────────────────────────────────────────────────────────────
+if [[ "${SIMPLELAY_KIOSK:-1}" == "1" ]]; then
+    info "7/8  키오스크 자동 실행 설치"
+
+    if apt-get install -y --no-install-recommends -qq cage chromium; then
+        cp "$REPO_DIR/scripts/simplelay-kiosk.service" \
+            /etc/systemd/system/simplelay-kiosk.service
+        systemctl daemon-reload
+        # getty가 tty1을 잡고 있으면 cage가 세션을 못 연다
+        systemctl disable getty@tty1.service || true
+        systemctl enable simplelay-kiosk
+        systemctl restart simplelay-kiosk || true
+        # 부팅 기본 타깃이 graphical이어야 WantedBy=graphical.target이 발동
+        systemctl set-default graphical.target >/dev/null || true
+        ok "simplelay-kiosk.service 활성화 (재부팅 후에도 자동 실행)"
+    else
+        echo -e "${YELLOW}[!]${NC} cage/chromium 설치 실패 — 키오스크 자동 실행은 건너뜀"
+        echo    "    수동 확인: apt-get install cage chromium 후 재실행"
+    fi
+else
+    info "7/8  키오스크 설치 건너뜀 (SIMPLELAY_KIOSK=0)"
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. 동작 확인
+# ─────────────────────────────────────────────────────────────────────────────
+info "8/8  동작 확인 (10초 대기)"
 sleep 10
 
 echo ""

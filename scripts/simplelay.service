@@ -38,8 +38,9 @@ ExecStart=/home/pi/SimpleLay/.venv/bin/python -m uvicorn rpi.main:app \
     --port 8000 \
     --no-access-log
 
-# 비정상 종료 시 5초 후 재시작
-Restart=on-failure
+# 키오스크가 상시 의존하는 백엔드라 정상 종료여도 무조건 되살린다
+# (on-failure는 exit 0 종료를 방치 — 24/7 운영 기기에는 always가 맞다)
+Restart=always
 RestartSec=5
 
 # 표준 출력/에러를 syslog + /var/log/simplelay.log 로 동시 기록

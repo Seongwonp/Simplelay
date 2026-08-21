@@ -1,0 +1,11 @@
+# /etc/logrotate.d/simplelay — /var/log/simplelay.log 무한 증식 방지
+# (systemd append: 기록이라 서비스 재시작 없이 copytruncate로 자른다)
+/var/log/simplelay.log {
+    daily
+    rotate 7
+    compress
+    delaycompress
+    missingok
+    notifempty
+    copytruncate
+}

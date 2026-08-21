@@ -1,0 +1,37 @@
+[Unit]
+Description=SimpleLay Kiosk (cage + Chromium fullscreen)
+# 백엔드가 떠 있어야 화면에 내용이 있다. getty가 tty1을 잡고 있으면 cage가
+# 세션을 못 여니 명시적으로 밀어낸다.
+After=simplelay.service systemd-user-sessions.service getty@tty1.service
+Wants=simplelay.service
+Conflicts=getty@tty1.service
+
+[Service]
+Type=simple
+User=pi
+# cage(Wayland 키오스크 컴포지터)가 tty1에서 직접 세션을 연다 — X11/데스크톱
+# 환경 불필요, 화면 절전 없음(cage 기본), 크래시 시 systemd가 되살린다.
+PAMName=login
+TTYPath=/dev/tty1
+StandardInput=tty
+StandardOutput=journal
+StandardError=journal
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+
+# 현재: 구형 HTML 키오스크(백엔드 /ui)를 Chromium 전체화면으로.
+# Flutter(elinux) 키오스크로 전환하는 날: 아래 ExecStart 한 줄만
+#   /usr/bin/cage -d -- <flutter-elinux 실행 커맨드>
+# 로 교체하면 된다 (systemd drop-in: systemctl edit simplelay-kiosk).
+ExecStart=/usr/bin/cage -d -- /usr/bin/chromium \
+    --kiosk \
+    --noerrdialogs \
+    --disable-infobars \
+    --incognito \
+    --check-for-update-interval=31536000 \
+    http://localhost:8000/ui
+
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=graphical.target
