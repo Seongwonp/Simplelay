@@ -74,20 +74,28 @@ void main() {
     expect(find.text('끄기'), findsOneWidget);
   });
 
-  testWidgets('버튼을 탭하면 /execute-buttons를 호출하고 성공 표시 후 원상복구된다', (tester) async {
-    http.Request? captured;
-    final client = MockClient((request) async {
-      captured = request;
-      return http.Response.bytes(
-        utf8.encode(jsonEncode({
-          'status': 'succeeded',
-          'buttons': [
-            {'button': '켜기', 'success': true},
-          ],
-        })),
+  http.Response jsonRes(Object body) => http.Response.bytes(
+        utf8.encode(jsonEncode(body)),
         200,
         headers: {'content-type': 'application/json; charset=utf-8'},
       );
+
+  testWidgets('버튼을 탭하면 /execute-buttons 접수 후 /status 완료로 성공 표시된다', (tester) async {
+    http.Request? captured;
+    final client = MockClient((request) async {
+      if (request.url.path == '/execute-buttons') {
+        captured = request;
+        return jsonRes({'job_id': 'job-m1', 'status': 'accepted'});
+      }
+      // job 완료 상태 — _waitJobDone이 last_job_id 대조로 성공 판정
+      return jsonRes({
+        'running': false,
+        'last_status': 'succeeded',
+        'last_buttons': [
+          {'button': '켜기', 'success': true},
+        ],
+        'last_job_id': 'job-m1',
+      });
     });
     final api = RpiApiService('http://rpi5.local:8000', client: client);
     final container = await _makeContainerWithAppliance(
@@ -99,7 +107,8 @@ void main() {
     await tester.pump();
 
     await tester.tap(find.text('켜기'));
-    await tester.pump(); // 요청 발송 + 응답 처리
+    await tester.pump(); // 접수 요청 발송
+    await tester.pump(const Duration(milliseconds: 600)); // 첫 상태 폴링
     await tester.pump();
 
     expect(jsonDecode(captured!.body), {
@@ -114,20 +123,21 @@ void main() {
   });
 
   testWidgets('실행 중에는 다른 버튼 탭이 무시된다', (tester) async {
-    var callCount = 0;
+    var executeCallCount = 0;
     final client = MockClient((request) async {
-      callCount++;
-      await Future<void>.delayed(const Duration(milliseconds: 100));
-      return http.Response.bytes(
-        utf8.encode(jsonEncode({
-          'status': 'succeeded',
-          'buttons': [
-            {'button': '켜기', 'success': true},
-          ],
-        })),
-        200,
-        headers: {'content-type': 'application/json; charset=utf-8'},
-      );
+      if (request.url.path == '/execute-buttons') {
+        executeCallCount++;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+        return jsonRes({'job_id': 'job-m2', 'status': 'accepted'});
+      }
+      return jsonRes({
+        'running': false,
+        'last_status': 'succeeded',
+        'last_buttons': [
+          {'button': '켜기', 'success': true},
+        ],
+        'last_job_id': 'job-m2',
+      });
     });
     final api = RpiApiService('http://rpi5.local:8000', client: client);
     final container = await _makeContainerWithAppliance(
@@ -140,10 +150,12 @@ void main() {
 
     await tester.tap(find.text('켜기'));
     await tester.pump(const Duration(milliseconds: 10));
-    // 첫 요청이 아직 진행 중일 때 다른 버튼을 탭 — 무시되어야 함.
+    // 첫 실행이 아직 진행 중일 때 다른 버튼을 탭 — 무시되어야 함.
     await tester.tap(find.text('끄기'));
-    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pump(const Duration(milliseconds: 200)); // 접수 응답 도착
+    await tester.pump(const Duration(milliseconds: 600)); // 완료 폴링
+    await tester.pump(const Duration(seconds: 3)); // 결과 표시 타이머 정리
 
-    expect(callCount, 1);
+    expect(executeCallCount, 1);
   });
 }

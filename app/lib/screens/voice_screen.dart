@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
+import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/voice_provider.dart';
+import '../services/rpi_api_service.dart';
 import '../services/voice_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -67,24 +70,49 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
           _notice('사용자 정의 가전의 음성 명령은 RPi5 서버 연결이 필요해요. 설정에서 URL을 확인하세요.');
           return;
         }
-        await rpiApi.executeForAppliance(
+        final accepted = await rpiApi.executeForAppliance(
           trimmed,
           appliance.buttons.map((b) => b.label).toList(),
           applianceId: appliance.id,
         );
-        if (mounted) _notice('RPi에 명령을 전송했습니다.');
+        _trackJob(rpiApi, accepted.jobId, trimmed);
       } else if (rpiApi != null) {
-        // RPi HTTP 직통
-        await rpiApi.execute(trimmed, source: 'voice', applianceId: appliance.id);
-        if (mounted) _notice('RPi에 명령을 전송했습니다.');
+        // RPi HTTP 직통 — 즉시 접수(job_id) 후 상태 화면에서 진행 확인
+        final accepted = await rpiApi.execute(
+          trimmed,
+          source: 'voice',
+          applianceId: appliance.id,
+        );
+        _trackJob(rpiApi, accepted.jobId, trimmed);
       } else {
         // BLE 폴백
         await ref.read(bleServiceProvider).sendCommand(trimmed, source: 'voice');
         if (mounted) _notice('명령을 전송했습니다.');
       }
-    } catch (error) {
-      if (mounted) _notice(error.toString());
+    } on RpiApiException catch (error) {
+      if (mounted) {
+        _notice(switch (error.statusCode) {
+          422 => '이해하지 못한 명령이에요. 다시 말해주세요.',
+          409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.',
+          503 => '음성 해석 기능이 서버에 설정되어 있지 않아요.',
+          _ => '명령을 전달하지 못했어요. 연결을 확인해주세요.',
+        });
+      }
+    } catch (_) {
+      if (mounted) _notice('명령을 전달하지 못했어요. 연결을 확인해주세요.');
     }
+  }
+
+  // 접수된 job을 상태 화면에서 실시간으로 따라가게 하고 그 화면으로 이동한다.
+  // 음성 경로는 서버가 해석한 버튼 시퀀스를 미리 모르므로 steps 없이 시작 —
+  // 진행률·완료 판정은 /status 폴링이 채운다.
+  void _trackJob(RpiApiService api, String jobId, String label) {
+    ref.read(executionStatusProvider.notifier).beginHttpJob(
+          api: api,
+          jobId: jobId,
+          label: label,
+        );
+    if (mounted) context.go('/status');
   }
 
   void _notice(String message) => ScaffoldMessenger.of(context)

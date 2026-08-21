@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -26,9 +27,21 @@ const _testAppliance = ApplianceMap(
   ],
 );
 
+// 전송 성공 시 화면이 context.go('/status')로 이동하므로 GoRouter가 필요하다.
 Widget _buildScreen(ProviderContainer container) => UncontrolledProviderScope(
       container: container,
-      child: const MaterialApp(home: VoiceScreen()),
+      child: MaterialApp.router(
+        routerConfig: GoRouter(
+          routes: [
+            GoRoute(path: '/', builder: (_, __) => const VoiceScreen()),
+            GoRoute(
+              path: '/status',
+              builder: (_, __) =>
+                  const Scaffold(body: Text('status-screen-stub')),
+            ),
+          ],
+        ),
+      ),
     );
 
 Future<ProviderContainer> _makeContainer({
@@ -54,12 +67,25 @@ void main() {
       expect(find.text('예: 우유 데워줘'), findsOneWidget);
     });
 
-    testWidgets('전송 시 /execute를 호출한다', (tester) async {
+    testWidgets('전송 시 /execute를 호출하고 상태 화면으로 이동한다', (tester) async {
       http.Request? captured;
       final client = MockClient((request) async {
-        captured = request;
+        if (request.url.path == '/execute') captured = request;
+        if (request.url.path == '/status') {
+          // beginHttpJob의 폴링 — 즉시 완료로 응답해 타이머를 정리시킨다
+          return http.Response.bytes(
+            utf8.encode(jsonEncode({
+              'running': false,
+              'last_status': 'succeeded',
+              'last_buttons': [],
+              'last_job_id': 'job-1',
+            })),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
         return http.Response.bytes(
-          utf8.encode(jsonEncode({'status': 'succeeded', 'buttons': []})),
+          utf8.encode(jsonEncode({'job_id': 'job-1', 'status': 'accepted'})),
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
@@ -81,6 +107,9 @@ void main() {
         'source': 'voice',
         'appliance_id': 'microwave',
       });
+      // 접수 후 상태 화면으로 이동한다
+      await tester.pumpAndSettle();
+      expect(find.text('status-screen-stub'), findsOneWidget);
     });
   });
 
@@ -124,14 +153,21 @@ void main() {
         (tester) async {
       http.Request? captured;
       final client = MockClient((request) async {
-        captured = request;
+        if (request.url.path == '/execute-for-appliance') captured = request;
+        if (request.url.path == '/status') {
+          return http.Response.bytes(
+            utf8.encode(jsonEncode({
+              'running': false,
+              'last_status': 'succeeded',
+              'last_buttons': [],
+              'last_job_id': 'job-2',
+            })),
+            200,
+            headers: {'content-type': 'application/json; charset=utf-8'},
+          );
+        }
         return http.Response.bytes(
-          utf8.encode(jsonEncode({
-            'status': 'succeeded',
-            'buttons': [
-              {'button': '켜기', 'success': true},
-            ],
-          })),
+          utf8.encode(jsonEncode({'job_id': 'job-2', 'status': 'accepted'})),
           200,
           headers: {'content-type': 'application/json; charset=utf-8'},
         );
@@ -153,6 +189,8 @@ void main() {
         'known_buttons': ['켜기', '끄기'],
         'appliance_id': 'custom_test',
       });
+      await tester.pumpAndSettle();
+      expect(find.text('status-screen-stub'), findsOneWidget);
     });
 
     testWidgets('LLM 미설정 등으로 503이 오면 오류 메시지를 보여준다', (tester) async {
@@ -173,7 +211,11 @@ void main() {
       await tester.tap(find.text('지금 전송'));
       await tester.pump();
 
-      expect(find.textContaining('no LLM client configured'), findsOneWidget);
+      // raw 예외 문자열 대신 사용자 언어로 안내한다
+      expect(
+        find.text('음성 해석 기능이 서버에 설정되어 있지 않아요.'),
+        findsOneWidget,
+      );
     });
   });
 }

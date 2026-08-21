@@ -104,6 +104,9 @@ class KioskStatus {
     this.completedSteps,
     this.verificationConfidence,
     this.verificationDetail,
+    this.totalSteps,
+    this.jobId,
+    this.lastJobId,
   });
 
   final bool running;
@@ -116,6 +119,11 @@ class KioskStatus {
   final int? completedSteps;
   final double? verificationConfidence;
   final String? verificationDetail;
+
+  // job 모델: 실행 중이면 jobId, 끝나면 lastJobId. totalSteps는 진행바용.
+  final int? totalSteps;
+  final String? jobId;
+  final String? lastJobId;
 
   factory KioskStatus.fromJson(Map<String, dynamic> json) => KioskStatus(
         running: json['running'] as bool? ?? false,
@@ -130,22 +138,20 @@ class KioskStatus {
         verificationConfidence:
             (json['verification_confidence'] as num?)?.toDouble(),
         verificationDetail: json['verification_detail'] as String?,
+        totalSteps: (json['total_steps'] as num?)?.toInt(),
+        jobId: json['job_id'] as String?,
+        lastJobId: json['last_job_id'] as String?,
       );
 }
 
-class KioskExecuteResult {
-  const KioskExecuteResult({required this.status, required this.buttons});
-  final String status;
-  final List<KioskButtonResult> buttons;
+// 실행 접수 응답(비동기 job 모델). 서버는 물리 실행을 기다리지 않고 즉시
+// job_id를 돌려주며, 완료는 status() 폴링에서 lastJobId와 대조해 판정한다.
+class KioskJobAccepted {
+  const KioskJobAccepted({required this.jobId});
+  final String jobId;
 
-  factory KioskExecuteResult.fromJson(Map<String, dynamic> json) =>
-      KioskExecuteResult(
-        status: json['status'] as String,
-        buttons: (json['buttons'] as List<dynamic>? ?? const [])
-            .cast<Map<String, dynamic>>()
-            .map(KioskButtonResult.fromJson)
-            .toList(),
-      );
+  factory KioskJobAccepted.fromJson(Map<String, dynamic> json) =>
+      KioskJobAccepted(jobId: json['job_id'] as String);
 }
 
 class NodeInfo {
@@ -236,7 +242,7 @@ class KioskApiService {
     return KioskStatus.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
-  Future<KioskExecuteResult> executeButtons(
+  Future<KioskJobAccepted> executeButtons(
     List<String> buttons, {
     String? applianceId,
   }) async {
@@ -250,17 +256,27 @@ class KioskApiService {
           headers: _jsonHeaders,
         )
         .timeout(_timeout);
-    return KioskExecuteResult.fromJson(
+    _ensureOk(res);
+    return KioskJobAccepted.fromJson(
         jsonDecode(res.body) as Map<String, dynamic>);
   }
 
-  Future<KioskExecuteResult> approveSuggestion(String id) async {
+  Future<KioskJobAccepted> approveSuggestion(String id) async {
     final res = await _client
         .post(_base.replace(path: '/suggestions/$id/approve'))
         .timeout(_timeout);
-    return KioskExecuteResult.fromJson(
+    _ensureOk(res);
+    return KioskJobAccepted.fromJson(
       jsonDecode(res.body) as Map<String, dynamic>,
     );
+  }
+
+  // 에러 응답({"detail": ...})을 접수 성공으로 오파싱하지 않도록 명시 확인 —
+  // 409(이미 실행 중) 등이 조용히 삼켜져 실행 화면에 고착되는 것을 막는다.
+  static void _ensureOk(http.Response res) {
+    if (res.statusCode >= 400) {
+      throw Exception('kiosk api ${res.statusCode}: ${res.body}');
+    }
   }
 
   Future<void> rejectSuggestion(String id) async {

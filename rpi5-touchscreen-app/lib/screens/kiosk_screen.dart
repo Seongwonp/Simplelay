@@ -23,6 +23,9 @@ const _alertInterval = Duration(seconds: 3);
 const _countdownSeconds = 10;
 const _doneReturnDuration = Duration(seconds: 3);
 const _execBarFillDuration = Duration(seconds: 9);
+// 실행 중 /status가 이 시간 동안 한 번도 응답하지 않으면 서버 유실로 판정 —
+// "실행 중" 화면에 영원히 갇히는 대신 실패 화면으로 탈출한다.
+const _statusLostTimeout = Duration(seconds: 30);
 
 class KioskScreen extends StatefulWidget {
   const KioskScreen({super.key, this.appliance = kMicrowaveAppliance});
@@ -55,6 +58,13 @@ class _KioskScreenState extends State<KioskScreen> {
   double _execBarValue = 0;
   Timer? _execFillTimer;
   List<KioskButtonResult>? _lastButtons;
+
+  // job 모델: 이 화면이 따라가는 실행의 job_id. 내가 시작한 실행은 접수 응답에서,
+  // 폰 앱이 시작한 실행은 idle 폴링의 /status.job_id에서 얻는다. 완료 판정은
+  // last_job_id 대조 — 이전 실행 결과를 내 것으로 오인하는 레이스가 없다.
+  String? _activeJobId;
+  DateTime? _lastStatusOk;
+  bool _pollInFlight = false;
 
   String? _currentButton;
   int? _currentAttempt;
@@ -124,31 +134,73 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   Future<void> _poll() async {
-    if (_phase == KioskPhase.idle) {
-      try {
-        final list = await _api.suggestions();
-        if (list.isNotEmpty) _toSuggestion(list.first);
-      } catch (_) {}
-    } else if (_phase == KioskPhase.executing) {
-      try {
-        final st = await _api.status();
-        if (mounted) {
-          setState(() {
-            _currentButton = st.currentButton ?? _currentButton;
-            _currentAttempt = st.currentAttempt ?? _currentAttempt;
-            _completedSteps = st.completedSteps ?? _completedSteps;
-            _verificationConfidence =
-                st.verificationConfidence ?? _verificationConfidence;
-            _verificationDetail = st.verificationDetail ?? _verificationDetail;
-          });
-        }
-        if (!st.running && st.lastButtons != null) {
-          _finishExecuting(
-            success: st.lastStatus == 'succeeded',
-            buttons: st.lastButtons!,
-          );
-        }
-      } catch (_) {}
+    if (_pollInFlight) return; // 폴링 오버랩 가드 (2초 주기 vs 4초 타임아웃)
+    _pollInFlight = true;
+    try {
+      if (_phase == KioskPhase.idle) {
+        await _pollIdle();
+      } else if (_phase == KioskPhase.executing) {
+        await _pollExecuting();
+      }
+    } finally {
+      _pollInFlight = false;
+    }
+  }
+
+  Future<void> _pollIdle() async {
+    // 폰 앱이 시작한 실행도 키오스크가 같이 보여준다 — /status에서 진행 중인
+    // job을 발견하면 그 job_id를 이어받아 실행 화면으로 전환.
+    try {
+      final st = await _api.status();
+      if (st.running && st.jobId != null) {
+        _activeJobId = st.jobId;
+        _toExecuting(st.currentButton ?? '실행');
+        return;
+      }
+    } catch (_) {}
+    try {
+      final list = await _api.suggestions();
+      if (list.isNotEmpty && _phase == KioskPhase.idle) {
+        _toSuggestion(list.first);
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _pollExecuting() async {
+    try {
+      final st = await _api.status();
+      _lastStatusOk = DateTime.now();
+      if (mounted && st.running) {
+        setState(() {
+          _currentButton = st.currentButton ?? _currentButton;
+          _currentAttempt = st.currentAttempt ?? _currentAttempt;
+          _completedSteps = st.completedSteps ?? _completedSteps;
+          _verificationConfidence =
+              st.verificationConfidence ?? _verificationConfidence;
+          _verificationDetail = st.verificationDetail ?? _verificationDetail;
+          // 실제 진행 데이터가 있으면 9초짜리 가짜 채움 대신 진짜 진행률로
+          final total = st.totalSteps;
+          if (total != null && total > 0) {
+            _execFillTimer?.cancel();
+            _execBarValue =
+                ((st.completedSteps ?? 0) / total).clamp(0.0, 0.95);
+          }
+        });
+      }
+      if (!st.running && st.lastJobId != null && st.lastJobId == _activeJobId) {
+        _finishExecuting(
+          success: st.lastStatus == 'succeeded',
+          buttons: st.lastButtons ?? const [],
+        );
+      }
+    } catch (_) {
+      // 연속 실패가 길어지면 서버 유실로 판정하고 실행 화면에서 탈출
+      final since = _lastStatusOk;
+      if (since != null &&
+          DateTime.now().difference(since) > _statusLostTimeout) {
+        _execFillTimer?.cancel();
+        _toDone(false, '서버 응답 없음');
+      }
     }
   }
 
@@ -188,6 +240,7 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   void _toExecuting(String title) {
+    _lastStatusOk = DateTime.now();
     setState(() {
       _phase = KioskPhase.executing;
       _execTitle = title;
@@ -257,13 +310,16 @@ class _KioskScreenState extends State<KioskScreen> {
     _toExecuting(suggestion.purpose);
 
     try {
-      final result = await _api.approveSuggestion(suggestion.id);
-      _finishExecuting(
-        success: result.status == 'succeeded',
-        buttons: result.buttons,
-      );
+      // job 모델: 즉시 접수 — 진행·완료는 _pollExecuting이 job_id 대조로 따라간다
+      final accepted = await _api.approveSuggestion(suggestion.id);
+      _activeJobId = accepted.jobId;
     } catch (_) {
-      // 폴링이 완료를 감지할 때까지 실행 화면을 유지한다.
+      // 접수 자체가 실패(서버 다운·409 등) — 올 수 없는 완료를 기다리는 대신
+      // 즉시 실패 화면으로 탈출한다.
+      _execFillTimer?.cancel();
+      if (mounted && _phase == KioskPhase.executing) {
+        _toDone(false, suggestion.purpose);
+      }
     }
   }
 
@@ -281,24 +337,29 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _onManualExecute(ApplianceButton button) async {
     _toExecuting(button.label);
     try {
-      final result = await _api.executeButtons(
+      final accepted = await _api.executeButtons(
         [button.label],
         applianceId: _currentAppliance.id,
       );
-      _finishExecuting(
-        success: result.status == 'succeeded',
-        buttons: result.buttons,
-      );
+      _activeJobId = accepted.jobId;
     } catch (_) {
-      // 폴링이 완료를 감지할 때까지 실행 화면을 유지한다.
+      // 접수 실패 — 즉시 실패 화면으로 탈출 (고착 방지)
+      _execFillTimer?.cancel();
+      if (mounted && _phase == KioskPhase.executing) {
+        _toDone(false, button.label);
+      }
     }
   }
 
   Future<void> _onStop() async {
+    // 정지 "요청"만 보낸다 — 화면 전환은 폴링이 safety_stopped 완료를 받은 뒤.
+    // 하드웨어가 멈추기 전에 '정지됨' 화면부터 띄우면 실제 상태와 어긋난다.
     try {
       await _api.stop();
-    } catch (_) {}
-    _toDone(false, _execTitle.isEmpty ? '실행' : _execTitle);
+    } catch (_) {
+      // 정지 요청조차 실패 = 통신 문제 — 실행 화면 유지, 30초 탈출 타이머가
+      // (_pollExecuting의 _statusLostTimeout) 결국 실패 화면으로 빼낸다.
+    }
   }
 
   Future<void> _onSetDnd(int minutes) async {

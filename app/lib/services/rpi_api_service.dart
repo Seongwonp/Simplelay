@@ -28,15 +28,39 @@ class RpiExecuteResult {
   final List<RpiButtonStep> buttons;
 }
 
+// 실행 접수 응답(비동기 job 모델). 서버는 물리 실행을 기다리지 않고 즉시
+// job_id를 돌려주며, 진행·완료는 status() 폴링에서 lastJobId와 대조해 판정한다.
+class RpiJobAccepted {
+  const RpiJobAccepted({required this.jobId});
+  final String jobId;
+
+  factory RpiJobAccepted.fromJson(Map<String, dynamic> json) =>
+      RpiJobAccepted(jobId: json['job_id'] as String);
+}
+
 class RpiStatusResult {
   const RpiStatusResult({
     required this.running,
     this.lastStatus,
     this.lastButtons,
+    this.currentButton,
+    this.currentAttempt,
+    this.completedSteps,
+    this.totalSteps,
+    this.jobId,
+    this.lastJobId,
   });
   final bool running;
   final String? lastStatus;
   final List<RpiButtonStep>? lastButtons;
+  // 실행 중 실시간 진행 (running=true일 때만 값이 있을 수 있음)
+  final String? currentButton;
+  final int? currentAttempt;
+  final int? completedSteps;
+  final int? totalSteps;
+  // job 모델: 실행 중이면 jobId, 끝나면 lastJobId에 값이 있다
+  final String? jobId;
+  final String? lastJobId;
 }
 
 class RpiSuggestion {
@@ -174,8 +198,8 @@ class RpiApiService {
     _checkStatus(res);
   }
 
-  // POST /execute
-  Future<RpiExecuteResult> execute(
+  // POST /execute — 즉시 job_id 접수 응답(비동기 job 모델)
+  Future<RpiJobAccepted> execute(
     String text, {
     String source = 'voice',
     String? applianceId,
@@ -192,18 +216,11 @@ class RpiApiService {
         )
         .timeout(_timeout);
     _checkStatus(res);
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    return RpiExecuteResult(
-      status: body['status'] as String,
-      buttons: (body['buttons'] as List<dynamic>)
-          .cast<Map<String, dynamic>>()
-          .map(RpiButtonStep.fromJson)
-          .toList(),
-    );
+    return RpiJobAccepted.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   // POST /execute-buttons — 의도 해석 우회, 사용자 정의 가전의 수동 버튼 실행용
-  Future<RpiExecuteResult> executeButtons(
+  Future<RpiJobAccepted> executeButtons(
     List<String> buttons, {
     String? applianceId,
   }) async {
@@ -218,20 +235,13 @@ class RpiApiService {
         )
         .timeout(_timeout);
     _checkStatus(res);
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    return RpiExecuteResult(
-      status: body['status'] as String,
-      buttons: (body['buttons'] as List<dynamic>)
-          .cast<Map<String, dynamic>>()
-          .map(RpiButtonStep.fromJson)
-          .toList(),
-    );
+    return RpiJobAccepted.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   // POST /execute-for-appliance — 사용자 정의 가전용 음성 명령. 서버 고정 규칙이
   // 아니라 이 가전의 실제 버튼 라벨 어휘를 넘겨서 LLM이 그 안에서만 해석하게 한다.
   // LLM이 서버에 설정 안 돼 있으면 503(RpiApiException)으로 실패한다.
-  Future<RpiExecuteResult> executeForAppliance(
+  Future<RpiJobAccepted> executeForAppliance(
     String text,
     List<String> knownButtons, {
     String? applianceId,
@@ -248,14 +258,7 @@ class RpiApiService {
         )
         .timeout(_timeout);
     _checkStatus(res);
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    return RpiExecuteResult(
-      status: body['status'] as String,
-      buttons: (body['buttons'] as List<dynamic>)
-          .cast<Map<String, dynamic>>()
-          .map(RpiButtonStep.fromJson)
-          .toList(),
-    );
+    return RpiJobAccepted.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   // GET /status
@@ -272,6 +275,12 @@ class RpiApiService {
           ?.cast<Map<String, dynamic>>()
           .map(RpiButtonStep.fromJson)
           .toList(),
+      currentButton: body['current_button'] as String?,
+      currentAttempt: (body['current_attempt'] as num?)?.toInt(),
+      completedSteps: (body['completed_steps'] as num?)?.toInt(),
+      totalSteps: (body['total_steps'] as num?)?.toInt(),
+      jobId: body['job_id'] as String?,
+      lastJobId: body['last_job_id'] as String?,
     );
   }
 
@@ -296,20 +305,13 @@ class RpiApiService {
         .toList();
   }
 
-  // POST /suggestions/{id}/approve
-  Future<RpiExecuteResult> approveSuggestion(String id) async {
+  // POST /suggestions/{id}/approve — 즉시 job_id 접수 응답(비동기 job 모델)
+  Future<RpiJobAccepted> approveSuggestion(String id) async {
     final res = await _client
         .post(_base.replace(path: '/suggestions/$id/approve'))
         .timeout(_timeout);
     _checkStatus(res);
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
-    return RpiExecuteResult(
-      status: body['status'] as String,
-      buttons: (body['buttons'] as List<dynamic>)
-          .cast<Map<String, dynamic>>()
-          .map(RpiButtonStep.fromJson)
-          .toList(),
-    );
+    return RpiJobAccepted.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
   // POST /suggestions/{id}/reject

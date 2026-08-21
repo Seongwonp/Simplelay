@@ -136,8 +136,18 @@ class SuggestionScreen extends ConsumerWidget {
                     final rpiApi = ref.read(rpiApiServiceProvider);
                     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
                       try {
-                        // HTTP: RPi에 직접 승인 전송
-                        await rpiApi.approveSuggestion(suggestion.sequenceId);
+                        // HTTP: RPi에 승인 전송 — 즉시 job_id 접수, 이후 상태
+                        // 화면이 /status 폴링으로 이 job의 진행·완료를 따라간다
+                        final accepted =
+                            await rpiApi.approveSuggestion(suggestion.sequenceId);
+                        ref
+                            .read(executionStatusProvider.notifier)
+                            .beginHttpJob(
+                              api: rpiApi,
+                              jobId: accepted.jobId,
+                              label: suggestion.label,
+                              steps: suggestion.steps,
+                            );
                       } on RpiApiException catch (error) {
                         _notifyError(
                           context,
@@ -156,12 +166,18 @@ class SuggestionScreen extends ConsumerWidget {
                     await ref
                         .read(suggestionProvider.notifier)
                         .respond(suggestion, true);
-                    ref
-                        .read(executionStatusProvider.notifier)
-                        .begin(suggestion);
-                    if (kDebugMode) {
-                      DemoService(ref.read(bleServiceProvider))
-                          .runExecutionFlow();
+                    if (suggestion.source != SuggestionSource.http) {
+                      // BLE 경로만 메시지 스트림 기반 추적 + 디버그 데모 주입.
+                      // HTTP 경로는 위에서 beginHttpJob으로 실제 /status 폴링을
+                      // 이미 시작했으므로 가짜 센서 주입이 끼면 안 된다(실패를
+                      // 성공처럼 보이게 만들 수 있음).
+                      ref
+                          .read(executionStatusProvider.notifier)
+                          .begin(suggestion);
+                      if (kDebugMode) {
+                        DemoService(ref.read(bleServiceProvider))
+                            .runExecutionFlow();
+                      }
                     }
                     if (context.mounted) context.go('/status');
                   },

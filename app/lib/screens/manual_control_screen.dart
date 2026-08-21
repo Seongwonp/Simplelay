@@ -50,11 +50,12 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
 
     bool success;
     try {
-      final result = await api.executeButtons(
+      // job 모델: 접수 즉시 job_id가 오고, 완료는 /status 폴링으로 판정한다.
+      final accepted = await api.executeButtons(
         [button.label],
         applianceId: applianceId,
       );
-      success = result.buttons.every((b) => b.success);
+      success = await _waitJobDone(api, accepted.jobId);
     } catch (_) {
       success = false;
     }
@@ -68,6 +69,25 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     _resultClearTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _resultButtonId = null);
     });
+  }
+
+  // 내 job이 끝날 때까지 /status를 폴링한다. 버튼 1개 실행은 재시도를
+  // 포함해도 수십 초 안에 끝나므로 45초를 상한으로 두고, 그 안에 판정이
+  // 안 나면(서버 유실 등) 실패로 처리해 pending 잠금에서 탈출한다.
+  Future<bool> _waitJobDone(RpiApiService api, String jobId) async {
+    final deadline = DateTime.now().add(const Duration(seconds: 45));
+    while (mounted && DateTime.now().isBefore(deadline)) {
+      try {
+        final status = await api.status();
+        if (!status.running && status.lastJobId == jobId) {
+          return status.lastStatus == 'succeeded';
+        }
+      } catch (_) {
+        // 일시적 통신 오류는 다음 폴링에서 재시도
+      }
+      await Future.delayed(const Duration(milliseconds: 500));
+    }
+    return false;
   }
 
   @override
