@@ -38,6 +38,9 @@ class ButtonResult:
 class ExecutionStatus(str, Enum):
     SUCCEEDED = "succeeded"
     SAFETY_STOPPED = "safety_stopped"
+    # 컨트롤러가 결과를 만들지 못하고 예외로 죽은 경우(UART 타임아웃 등) —
+    # 비동기 job 모델에서 예외를 삼키지 않고 /status로 실패를 노출하기 위한 값
+    FAILED = "failed"
 
 
 @dataclass(frozen=True)

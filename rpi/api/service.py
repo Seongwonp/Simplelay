@@ -1,3 +1,6 @@
+import logging
+import threading
+import uuid
 from dataclasses import dataclass
 
 from rpi.controller import (
@@ -20,6 +23,8 @@ from rpi.intent import (
 )
 from rpi.services import NodeRegistry
 
+log = logging.getLogger(__name__)
+
 
 class ServiceNotReadyError(RuntimeError):
     """Raised when execute_purpose is called before startup completes or after shutdown."""
@@ -37,6 +42,12 @@ class StatusSnapshot:
     ready: bool
     last_result: ExecutionResult | None
     progress: ExecutionProgress | None = None
+    # 비동기 job 모델: 실행 중이면 job_id, 끝나면 last_job_id로 옮겨간다.
+    # 클라이언트는 자기가 제출한 job_id와 대조해 "내 실행"의 완료만 집는다
+    # (이전 실행의 last_result를 내 결과로 오인하는 stale-result 레이스 방지).
+    job_id: str | None = None
+    last_job_id: str | None = None
+    total_steps: int | None = None
 
 
 class SimpleLayService(PurposeExecutor):
@@ -76,6 +87,13 @@ class SimpleLayService(PurposeExecutor):
         self._ready = start_ready
         self._shutting_down = False
         self._last_result: ExecutionResult | None = None
+        # job 모델 상태. _lock이 _guard_can_execute() 확인과 _running 설정을
+        # 원자화한다 — 이전에는 check와 set이 분리되어 동시 요청 2개가 둘 다
+        # 가드를 통과해 물리 실행이 이중으로 돌 수 있었다(TOCTOU).
+        self._lock = threading.Lock()
+        self._current_job_id: str | None = None
+        self._last_job_id: str | None = None
+        self._current_total_steps: int | None = None
         self._progress_tracker = progress_tracker
         # 사용자 정의 가전의 버튼 어휘로 즉석에서 LlmIntentResolver를 만들 때 씀
         # (execute_purpose_for_appliance). None이면 그 경로는 막힌다 -- 서버가
@@ -125,28 +143,12 @@ class SimpleLayService(PurposeExecutor):
     def _execute_via_resolver(
         self, purpose: str, resolver: IntentResolver, appliance_id: str | None = None
     ) -> ExecutionResult:
-        self._guard_can_execute()
-        self._running = True
-        if self._progress_tracker is not None:
-            self._progress_tracker.clear()
+        buttons = resolver.resolve(purpose)
+        self._begin_run(len(buttons))
         try:
-            buttons = resolver.resolve(purpose)
-            controller = self._controller_for(appliance_id)
-            self._last_result = controller.execute(buttons)
-            if self._usage_log is not None:
-                outcome = (
-                    UsageOutcome.SUCCEEDED
-                    if self._last_result.status is ExecutionStatus.SUCCEEDED
-                    else UsageOutcome.FAILED
-                )
-                self._usage_log.append(
-                    UsageRecord(self._clock.now(), purpose.strip(), outcome)
-                )
-            return self._last_result
+            return self._run_buttons(tuple(buttons), appliance_id, purpose)
         finally:
-            self._running = False
-            if self._progress_tracker is not None:
-                self._progress_tracker.clear()
+            self._end_run()
 
     def execute_buttons(
         self, buttons: tuple[str, ...], appliance_id: str | None = None
@@ -161,18 +163,106 @@ class SimpleLayService(PurposeExecutor):
         since that log's suggestion logic assumes a repeatable purpose
         string, not raw button presses.
         """
-        self._guard_can_execute()
-        self._running = True
+        buttons = tuple(buttons)
+        self._begin_run(len(buttons))
+        try:
+            return self._run_buttons(buttons, appliance_id, purpose=None)
+        finally:
+            self._end_run()
+
+    # ── 비동기 job 모델 ──────────────────────────────────────────────────────
+    # HTTP 엔드포인트용. 실기기에서 버튼 시퀀스는 수 초~수십 초 걸리는데
+    # 클라이언트(폰 8초·키오스크 4초) 타임아웃 안에 동기 응답이 불가능하므로,
+    # 의도 해석(즉시 실패 가능한 부분)만 동기로 끝내고 물리 실행은 백그라운드
+    # 스레드로 넘긴 뒤 job_id를 즉시 돌려준다. 진행·완료는 /status 폴링으로.
+
+    def submit_purpose(self, purpose: str, appliance_id: str | None = None) -> str:
+        buttons = self._intent.resolve(purpose)
+        return self._submit(tuple(buttons), appliance_id, purpose)
+
+    def submit_purpose_for_appliance(
+        self,
+        purpose: str,
+        known_buttons: frozenset[str],
+        appliance_id: str | None = None,
+    ) -> str:
+        if self._llm_client is None:
+            raise LlmNotConfiguredError(
+                "no LLM client configured -- appliance-aware voice commands "
+                "need one (see the llm_client param / rpi/api/deps.py)"
+            )
+        resolver = LlmIntentResolver(self._llm_client, known_buttons=known_buttons)
+        buttons = resolver.resolve(purpose)
+        return self._submit(tuple(buttons), appliance_id, purpose)
+
+    def submit_buttons(
+        self, buttons: tuple[str, ...], appliance_id: str | None = None
+    ) -> str:
+        return self._submit(tuple(buttons), appliance_id, purpose=None)
+
+    def _submit(
+        self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
+    ) -> str:
+        job_id = self._begin_run(len(buttons))
+        thread = threading.Thread(
+            target=self._run_job,
+            args=(buttons, appliance_id, purpose),
+            daemon=True,
+            name=f"simplelay-exec-{job_id}",
+        )
+        thread.start()
+        return job_id
+
+    def _run_job(
+        self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
+    ) -> None:
+        try:
+            self._run_buttons(buttons, appliance_id, purpose)
+        except Exception:
+            # 백그라운드 스레드라 HTTP 500으로 표면화할 곳이 없다 — 로그를
+            # 남기고 /status의 last_status="failed"로 실패를 노출한다.
+            log.exception("background job execution failed")
+            self._last_result = ExecutionResult(ExecutionStatus.FAILED, ())
+        finally:
+            self._end_run()
+
+    def _begin_run(self, total_steps: int | None) -> str:
+        """check-and-set을 락으로 원자화한 실행 시작 게이트."""
+        with self._lock:
+            self._guard_can_execute()
+            self._running = True
+            job_id = uuid.uuid4().hex[:12]
+            self._current_job_id = job_id
+            self._current_total_steps = total_steps
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
-        try:
-            controller = self._controller_for(appliance_id)
-            self._last_result = controller.execute(buttons)
-            return self._last_result
-        finally:
+        return job_id
+
+    def _end_run(self) -> None:
+        with self._lock:
             self._running = False
-            if self._progress_tracker is not None:
-                self._progress_tracker.clear()
+            self._last_job_id = self._current_job_id
+            self._current_job_id = None
+            self._current_total_steps = None
+        if self._progress_tracker is not None:
+            self._progress_tracker.clear()
+
+    def _run_buttons(
+        self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
+    ) -> ExecutionResult:
+        controller = self._controller_for(appliance_id)
+        self._last_result = controller.execute(buttons)
+        # purpose가 없는 실행(직접 버튼 시퀀스)은 의도적으로 학습 로그에서 제외
+        if purpose is not None and self._usage_log is not None:
+            outcome = (
+                UsageOutcome.SUCCEEDED
+                if self._last_result.status is ExecutionStatus.SUCCEEDED
+                else UsageOutcome.FAILED
+            )
+            self._usage_log.append(
+                UsageRecord(self._clock.now(), purpose.strip(), outcome)
+            )
+        return self._last_result
 
     def _controller_for(self, appliance_id: str | None) -> ButtonSequenceController:
         """Routes to the appliance's registered node if there is one,
@@ -225,4 +315,13 @@ class SimpleLayService(PurposeExecutor):
     def status(self) -> StatusSnapshot:
         ready = self._ready and not self._shutting_down
         progress = self._progress_tracker.current() if self._progress_tracker else None
-        return StatusSnapshot(self._running, ready, self._last_result, progress)
+        with self._lock:
+            return StatusSnapshot(
+                self._running,
+                ready,
+                self._last_result,
+                progress,
+                job_id=self._current_job_id,
+                last_job_id=self._last_job_id,
+                total_steps=self._current_total_steps,
+            )

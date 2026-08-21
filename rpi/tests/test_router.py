@@ -30,15 +30,34 @@ def client():
     return TestClient(app)
 
 
+def _wait_job_done(client, job_id, timeout=2.0):
+    """job 모델: 백그라운드 실행이 끝나 last_job_id가 내 job_id가 될 때까지
+    /status를 폴링한다 — 실제 클라이언트(폰·키오스크)와 같은 계약."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        body = client.get("/status").json()
+        if not body["running"] and body["last_job_id"] == job_id:
+            return body
+        time.sleep(0.01)
+    raise AssertionError(f"job {job_id} did not finish within {timeout}s")
+
+
 # ── /execute ──────────────────────────────────────────────────────────────────
 
 def test_execute_known_purpose_succeeds(client):
     response = client.post("/execute", json={"text": "우유 데워줘"})
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "succeeded"
-    assert len(body["buttons"]) == 3
-    assert all(step["success"] for step in body["buttons"])
+    # job 모델: 즉시 접수 응답, 결과는 /status 폴링 + job_id 대조로
+    assert body["status"] == "accepted"
+    assert body["job_id"]
+
+    status = _wait_job_done(client, body["job_id"])
+    assert status["last_status"] == "succeeded"
+    assert len(status["last_buttons"]) == 3
+    assert all(step["success"] for step in status["last_buttons"])
 
 
 def test_execute_unknown_purpose_returns_422(client):
@@ -69,8 +88,11 @@ def test_execute_buttons_succeeds(client):
     response = client.post("/execute-buttons", json={"buttons": ["커스텀A", "커스텀B"]})
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "succeeded"
-    assert [step["button"] for step in body["buttons"]] == ["커스텀A", "커스텀B"]
+    assert body["status"] == "accepted"
+
+    status = _wait_job_done(client, body["job_id"])
+    assert status["last_status"] == "succeeded"
+    assert [step["button"] for step in status["last_buttons"]] == ["커스텀A", "커스텀B"]
 
 
 def test_execute_buttons_empty_list_returns_422(client):
@@ -115,8 +137,11 @@ def test_execute_for_appliance_succeeds_with_configured_llm(client):
     )
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "succeeded"
-    assert [step["button"] for step in body["buttons"]] == ["해동", "시작"]
+    assert body["status"] == "accepted"
+
+    status = _wait_job_done(client, body["job_id"])
+    assert status["last_status"] == "succeeded"
+    assert [step["button"] for step in status["last_buttons"]] == ["해동", "시작"]
 
 
 def test_execute_for_appliance_empty_known_buttons_returns_422(client):
@@ -173,9 +198,8 @@ def test_status_initially_idle(client):
 
 
 def test_status_after_execute_shows_last_result(client):
-    client.post("/execute", json={"text": "우유 데워줘"})
-    response = client.get("/status")
-    body = response.json()
+    accepted = client.post("/execute", json={"text": "우유 데워줘"}).json()
+    body = _wait_job_done(client, accepted["job_id"])
     assert body["last_status"] == "succeeded"
     assert body["last_buttons"] is not None
 
@@ -193,7 +217,8 @@ def test_status_initially_has_no_live_progress_fields(client):
 def test_status_after_execute_completes_clears_live_progress_fields(client):
     # 실행이 끝나면 진행 상황 트래커가 초기화되므로, 완료 후 조회한 /status에는
     # 마지막 결과(last_*)만 남고 실행 중이던 진행 정보(current_*)는 사라져야 한다.
-    client.post("/execute", json={"text": "우유 데워줘"})
+    accepted = client.post("/execute", json={"text": "우유 데워줘"}).json()
+    _wait_job_done(client, accepted["job_id"])
     response = client.get("/status")
     body = response.json()
     assert body["current_button"] is None
@@ -382,7 +407,11 @@ def test_demo_suggestion_approve_executes(client):
     created = client.post("/demo/suggest", json={}).json()
     approved = client.post(f"/suggestions/{created['id']}/approve")
     assert approved.status_code == 200
-    assert approved.json()["status"] == "succeeded"
+    body = approved.json()
+    assert body["status"] == "accepted"
+
+    status = _wait_job_done(client, body["job_id"])
+    assert status["last_status"] == "succeeded"
 
 
 def test_demo_suggestion_reject_dismisses(client):
@@ -392,3 +421,22 @@ def test_demo_suggestion_reject_dismisses(client):
     assert client.get("/suggestions").json() == []
     # 같은 id 재거부는 404 — pending 전용 계약 유지
     assert client.post(f"/suggestions/{created['id']}/reject").status_code == 404
+
+
+# ── job 모델 계약 ─────────────────────────────────────────────────────────────
+
+def test_job_ids_are_unique_per_execution(client):
+    first = client.post("/execute-buttons", json={"buttons": ["버튼1"]}).json()
+    _wait_job_done(client, first["job_id"])
+    second = client.post("/execute-buttons", json={"buttons": ["버튼2"]}).json()
+    done = _wait_job_done(client, second["job_id"])
+    # 이전 실행의 결과를 내 것으로 오인할 수 없다 — job_id가 실행마다 다르다
+    assert first["job_id"] != second["job_id"]
+    assert done["last_job_id"] == second["job_id"]
+
+
+def test_status_idle_has_no_job_fields(client):
+    body = client.get("/status").json()
+    assert body["job_id"] is None
+    assert body["last_job_id"] is None
+    assert body["total_steps"] is None

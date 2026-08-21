@@ -147,6 +147,23 @@ class ProactiveSuggestionService:
         )
         return self._executor.execute_purpose(suggestion.purpose)
 
+    def approve_submit(self, suggestion_id: str) -> str:
+        """approve의 비동기(job 모델) 버전 — 실행을 백그라운드로 제출하고
+        job_id를 반환한다. 게이트 규칙은 approve와 동일: 실행 제출 전에
+        1회용 승인 게이트를 닫는다. executor가 submit_purpose를 지원해야
+        한다(SimpleLayService가 지원; 없으면 AttributeError로 즉시 드러남)."""
+        try:
+            suggestion = self._suggestions[suggestion_id]
+        except KeyError as exc:
+            raise UnknownSuggestionError(suggestion_id) from exc
+        if suggestion.status is not SuggestionStatus.PENDING:
+            raise SuggestionAlreadyApprovedError(suggestion_id)
+
+        self._suggestions[suggestion_id] = replace(
+            suggestion, status=SuggestionStatus.APPROVED
+        )
+        return self._executor.submit_purpose(suggestion.purpose)
+
     def _pending_for(
         self, purpose: str, time_band: str
     ) -> ProactiveSuggestion | None:

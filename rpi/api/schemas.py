@@ -117,6 +117,16 @@ class ExecuteResponse(BaseModel):
     buttons: list[ButtonStep]
 
 
+class JobAcceptedResponse(BaseModel):
+    """실행 접수 응답(비동기 job 모델). 실기기에서 버튼 시퀀스는 수 초~수십 초
+    걸리므로 실행 완료를 기다리지 않고 즉시 job_id를 돌려준다. 클라이언트는
+    GET /status를 폴링하다가 running=false && last_job_id == 이 job_id가 되면
+    last_status/last_buttons를 자기 실행의 결과로 읽는다."""
+
+    job_id: str
+    status: str = "accepted"
+
+
 class StatusResponse(BaseModel):
     running: bool
     last_status: str | None
@@ -129,6 +139,13 @@ class StatusResponse(BaseModel):
     completed_steps: int | None = None
     verification_confidence: float | None = None
     verification_detail: str | None = None
+    # 비동기 job 모델: 실행 중이면 job_id에, 끝나면 last_job_id에 값이 있다.
+    # 클라이언트는 자기가 제출한 job_id와 대조해 완료를 판정한다.
+    job_id: str | None = None
+    last_job_id: str | None = None
+    # 진행바용 전체 단계 수 (실행 중일 때만). completed_steps와 조합해
+    # 가짜 애니메이션 대신 실제 진행률을 그릴 수 있다.
+    total_steps: int | None = None
 
 
 class SuggestionResponse(BaseModel):

@@ -11,7 +11,6 @@ from rpi.services import DangerAlertStore, NodeRegistry
 from .deps import get_alert_store, get_actuator_status, get_dht22, get_node_registry, get_service, get_suggestion_service
 from .schemas import (
     AlertResponse,
-    ApproveResponse,
     ButtonStep,
     DemoSuggestRequest,
     DndRequest,
@@ -19,6 +18,7 @@ from .schemas import (
     ExecuteForApplianceRequest,
     ExecuteRequest,
     ExecuteResponse,
+    JobAcceptedResponse,
     NodeRegisterRequest,
     NodeResponse,
     OkResponse,
@@ -39,47 +39,54 @@ def _to_steps(result: ExecutionResult) -> list[ButtonStep]:
     ]
 
 
-@router.post("/execute", response_model=ExecuteResponse)
+# 실행 엔드포인트 3종은 모두 비동기 job 모델: 의도 해석(즉시 실패 가능)만
+# 요청 안에서 끝내고, 물리 실행은 백그라운드로 넘긴 뒤 job_id를 즉시 반환한다.
+# 진행·완료는 GET /status 폴링 + job_id 대조로 확인한다. (동기 실행은
+# 실기기의 수 초~수십 초 시퀀스가 클라이언트 타임아웃(폰 8초·키오스크 4초)을
+# 항상 초과하는 구조적 문제가 있었다.)
+
+
+@router.post("/execute", response_model=JobAcceptedResponse)
 async def execute(
     body: ExecuteRequest,
     service: SimpleLayService = Depends(get_service),
-) -> ExecuteResponse:
+) -> JobAcceptedResponse:
     try:
-        result = await asyncio.to_thread(
-            service.execute_purpose, body.text, body.appliance_id
+        job_id = await asyncio.to_thread(
+            service.submit_purpose, body.text, body.appliance_id
         )
     except UnknownIntentError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return ExecuteResponse(status=result.status.value, buttons=_to_steps(result))
+    return JobAcceptedResponse(job_id=job_id)
 
 
-@router.post("/execute-buttons", response_model=ExecuteResponse)
+@router.post("/execute-buttons", response_model=JobAcceptedResponse)
 async def execute_buttons(
     body: ExecuteButtonsRequest,
     service: SimpleLayService = Depends(get_service),
-) -> ExecuteResponse:
+) -> JobAcceptedResponse:
     # 의도 해석 규칙이 없는 사용자 정의 가전용 — 목적 문자열 없이 버튼을 직접 실행.
     try:
-        result = await asyncio.to_thread(
-            service.execute_buttons, tuple(body.buttons), body.appliance_id
+        job_id = await asyncio.to_thread(
+            service.submit_buttons, tuple(body.buttons), body.appliance_id
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return ExecuteResponse(status=result.status.value, buttons=_to_steps(result))
+    return JobAcceptedResponse(job_id=job_id)
 
 
-@router.post("/execute-for-appliance", response_model=ExecuteResponse)
+@router.post("/execute-for-appliance", response_model=JobAcceptedResponse)
 async def execute_for_appliance(
     body: ExecuteForApplianceRequest,
     service: SimpleLayService = Depends(get_service),
-) -> ExecuteResponse:
+) -> JobAcceptedResponse:
     # 사용자 정의 가전용 음성 명령 — 요청에 실린 버튼 어휘를 기준으로 LLM이
     # 자유발화를 해석한다. LLM이 서버에 설정 안 돼 있으면 503.
     try:
-        result = await asyncio.to_thread(
-            service.execute_purpose_for_appliance,
+        job_id = await asyncio.to_thread(
+            service.submit_purpose_for_appliance,
             body.text,
             frozenset(body.known_buttons),
             body.appliance_id,
@@ -90,7 +97,7 @@ async def execute_for_appliance(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return ExecuteResponse(status=result.status.value, buttons=_to_steps(result))
+    return JobAcceptedResponse(job_id=job_id)
 
 
 @router.get("/status", response_model=StatusResponse)
@@ -109,6 +116,9 @@ async def status(
         completed_steps=progress.completed_steps if progress else None,
         verification_confidence=verification.confidence if verification else None,
         verification_detail=verification.detail if verification else None,
+        job_id=snapshot.job_id,
+        last_job_id=snapshot.last_job_id,
+        total_steps=snapshot.total_steps,
     )
 
 
@@ -136,18 +146,19 @@ async def list_suggestions(
     ]
 
 
-@router.post("/suggestions/{suggestion_id}/approve", response_model=ApproveResponse)
+@router.post("/suggestions/{suggestion_id}/approve", response_model=JobAcceptedResponse)
 async def approve_suggestion(
     suggestion_id: str,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
-) -> ApproveResponse:
+) -> JobAcceptedResponse:
+    # 승인도 job 모델 — 게이트를 닫고 실행을 제출한 뒤 즉시 job_id 반환.
     try:
-        result = await asyncio.to_thread(svc.approve, suggestion_id)
+        job_id = await asyncio.to_thread(svc.approve_submit, suggestion_id)
     except UnknownSuggestionError:
         raise HTTPException(status_code=404, detail="suggestion not found")
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return ApproveResponse(status=result.status.value, buttons=_to_steps(result))
+    return JobAcceptedResponse(job_id=job_id)
 
 
 @router.post("/suggestions/{suggestion_id}/reject", response_model=OkResponse)
