@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
@@ -121,14 +122,33 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
       return;
     }
 
+    final id = 'custom_${DateTime.now().millisecondsSinceEpoch}';
+
+    // 사진은 image_picker의 임시 캐시에 있어서 OS가 언제든 지울 수 있다 —
+    // 문서 폴더로 복사한 영구 경로를 저장한다. 복사 실패는 등록을 막지 않는다.
+    String? photoPath;
+    final photo = _photo;
+    if (photo != null) {
+      try {
+        final docs = await getApplicationDocumentsDirectory();
+        final dir = Directory('${docs.path}/appliance_photos');
+        await dir.create(recursive: true);
+        final saved = await photo.copy('${dir.path}/$id.jpg');
+        photoPath = saved.path;
+      } catch (_) {
+        photoPath = null;
+      }
+    }
+
     final appliance = ApplianceMap(
-      id: 'custom_${DateTime.now().millisecondsSinceEpoch}',
+      id: id,
       name: name,
       icon: Icons.widgets_outlined,
       rows: _rows,
       cols: _cols,
       buttons: buttons,
       isCustom: true,
+      photoPath: photoPath,
     );
 
     await ref.read(customAppliancesProvider.notifier).add(appliance);

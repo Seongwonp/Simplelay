@@ -35,6 +35,7 @@ class ApplianceMap {
     required this.cols,
     required this.buttons,
     this.isCustom = false,
+    this.photoPath,
   });
 
   final String id;
@@ -44,6 +45,11 @@ class ApplianceMap {
   final int cols;
   final List<ApplianceButton> buttons;
   final bool isCustom;
+
+  /// 등록 시 찍은 버튼 패널 사진의 영구 경로 (앱 문서 폴더 아래).
+  /// image_picker의 임시 캐시 파일을 그대로 저장하면 OS가 지워버리므로,
+  /// 저장 시점에 문서 폴더로 복사한 경로만 여기 들어온다. 내장 가전은 null.
+  final String? photoPath;
 
   ApplianceButton? buttonAt(int x, int y) {
     try {
@@ -74,6 +80,7 @@ class ApplianceMap {
             .map(ApplianceButton.fromJson)
             .toList(),
         isCustom: true,
+        photoPath: json['photo_path'] as String?,
       );
 
   Map<String, dynamic> toJson() => {
@@ -82,6 +89,7 @@ class ApplianceMap {
         'rows': rows,
         'cols': cols,
         'buttons': buttons.map((b) => b.toJson()).toList(),
+        if (photoPath != null) 'photo_path': photoPath,
       };
 }
 

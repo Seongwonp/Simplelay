@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -94,6 +95,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   Widget build(BuildContext context) {
     final appliance = ref.watch(selectedApplianceProvider);
     final api = ref.watch(rpiApiServiceProvider);
+    final photoPath = appliance.photoPath;
+    final hasPhoto = photoPath != null && File(photoPath).existsSync();
 
     return Scaffold(
       appBar: AppBar(title: Text('${appliance.name} 버튼 조작')),
@@ -119,14 +122,19 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                   const SizedBox(height: 16),
                   Expanded(
                     child: Card(
-                      child: Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: _ButtonGrid(
-                          appliance: appliance,
-                          pendingButtonId: _pendingButtonId,
-                          resultButtonId: _resultButtonId,
-                          resultSuccess: _resultSuccess,
-                          onTap: (button) => _press(api, button, appliance.id),
+                      clipBehavior: Clip.antiAlias,
+                      child: _PhotoBackedGrid(
+                        appliance: appliance,
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: _ButtonGrid(
+                            appliance: appliance,
+                            pendingButtonId: _pendingButtonId,
+                            resultButtonId: _resultButtonId,
+                            resultSuccess: _resultSuccess,
+                            onPhoto: hasPhoto,
+                            onTap: (button) => _press(api, button, appliance.id),
+                          ),
                         ),
                       ),
                     ),
@@ -164,6 +172,31 @@ class _NoServerConfigured extends StatelessWidget {
       );
 }
 
+// 등록 때 찍어둔 버튼 패널 사진이 있으면 그리드 뒤에 깔아준다 — 사용자가
+// 실제 가전 버튼 배치를 눈으로 확인하며 누를 수 있다. 사진 파일이 지워졌으면
+// 조용히 사진 없는 그리드로 폴백.
+class _PhotoBackedGrid extends StatelessWidget {
+  const _PhotoBackedGrid({required this.appliance, required this.child});
+
+  final ApplianceMap appliance;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = appliance.photoPath;
+    if (path == null || !File(path).existsSync()) return child;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        Image.file(File(path), fit: BoxFit.cover),
+        // 사진 위 가독성용 어두운 스크림 — 셀은 onPhoto 팔레트(흰색 계열)를 쓴다
+        ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
+        child,
+      ],
+    );
+  }
+}
+
 class _ButtonGrid extends StatelessWidget {
   const _ButtonGrid({
     required this.appliance,
@@ -171,6 +204,7 @@ class _ButtonGrid extends StatelessWidget {
     required this.resultButtonId,
     required this.resultSuccess,
     required this.onTap,
+    this.onPhoto = false,
   });
 
   final ApplianceMap appliance;
@@ -178,6 +212,9 @@ class _ButtonGrid extends StatelessWidget {
   final String? resultButtonId;
   final bool? resultSuccess;
   final void Function(ApplianceButton) onTap;
+
+  /// 사진 배경(어두운 스크림) 위에 그려지는 중 — 테마와 무관하게 흰색 계열 사용
+  final bool onPhoto;
 
   @override
   Widget build(BuildContext context) {
@@ -204,6 +241,7 @@ class _ButtonGrid extends StatelessWidget {
                                         ? _CellState.success
                                         : _CellState.failure)
                                     : _CellState.idle,
+                            onPhoto: onPhoto,
                             onTap: busy ? null : () => onTap(btn),
                           ),
                   ),
@@ -218,14 +256,28 @@ class _ButtonGrid extends StatelessWidget {
 }
 
 class _ButtonCell extends StatelessWidget {
-  const _ButtonCell({required this.button, required this.state, required this.onTap});
+  const _ButtonCell({
+    required this.button,
+    required this.state,
+    required this.onTap,
+    this.onPhoto = false,
+  });
 
   final ApplianceButton button;
   final _CellState state;
   final VoidCallback? onTap;
+  final bool onPhoto;
 
   @override
   Widget build(BuildContext context) {
+    // 사진 스크림(어두움) 위에서는 테마와 무관하게 흰색 계열이 맞다 —
+    // 라이트 테마 토큰(검정 계열)을 쓰면 사진 위에서 안 보인다.
+    final idleOutline = onPhoto ? Colors.white38 : context.appOutline;
+    final idleFill = onPhoto
+        ? Colors.white.withValues(alpha: 0.10)
+        : context.appOverlayFaint;
+    final idleText = onPhoto ? Colors.white : context.appOnSurfaceSoft;
+
     final (Color color, Widget? overlay) = switch (state) {
       _CellState.pending => (
           AppColors.primary,
@@ -237,7 +289,7 @@ class _ButtonCell extends StatelessWidget {
         ),
       _CellState.success => (AppColors.success, const Icon(Icons.check, size: 18)),
       _CellState.failure => (AppColors.danger, const Icon(Icons.close, size: 18)),
-      _CellState.idle => (context.appOutline, null),
+      _CellState.idle => (idleOutline, null),
     };
 
     return GestureDetector(
@@ -246,7 +298,7 @@ class _ButtonCell extends StatelessWidget {
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
           color: state == _CellState.idle
-              ? context.appOverlayFaint
+              ? idleFill
               : color.withValues(alpha: 0.16),
           border: Border.all(color: color, width: state == _CellState.idle ? 1 : 1.5),
           borderRadius: BorderRadius.circular(10),
@@ -259,7 +311,7 @@ class _ButtonCell extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: state == _CellState.idle ? context.appOnSurfaceSoft : color,
+                color: state == _CellState.idle ? idleText : color,
               ),
             ),
       ),

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,8 +34,16 @@ class CustomAppliancesNotifier extends StateNotifier<List<ApplianceMap>> {
   }
 
   Future<void> remove(String id) async {
+    final removed = state.where((a) => a.id == id).firstOrNull;
     state = state.where((a) => a.id != id).toList();
     await _save();
+    // 등록 사진 파일도 함께 정리 — 실패해도 목록 삭제는 이미 끝났으므로 무시
+    final photoPath = removed?.photoPath;
+    if (photoPath != null) {
+      try {
+        await File(photoPath).delete();
+      } catch (_) {}
+    }
   }
 
   Future<void> _save() async {
