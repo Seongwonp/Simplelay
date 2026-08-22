@@ -22,6 +22,7 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _urlController;
+  late final TextEditingController _apiKeyController;
   bool _showAdvanced = false;
 
   @override
@@ -30,11 +31,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _urlController = TextEditingController(
       text: ref.read(rpiUrlProvider) ?? '',
     );
+    _apiKeyController = TextEditingController(
+      text: ref.read(rpiApiKeyProvider) ?? '',
+    );
   }
 
   @override
   void dispose() {
     _urlController.dispose();
+    _apiKeyController.dispose();
     super.dispose();
   }
 
@@ -95,7 +100,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           if (_showAdvanced) ...[
             const SizedBox(height: 8),
-            _AdvancedSection(controller: _urlController),
+            _AdvancedSection(
+              controller: _urlController,
+              apiKeyController: _apiKeyController,
+            ),
           ],
 
           // ── BLE 스캔 (고급에 포함) ────────────────────────────────────────
@@ -404,8 +412,12 @@ class _SavedDeviceSection extends ConsumerWidget {
 // ── 고급 설정 (URL 오버라이드) ────────────────────────────────────────────
 
 class _AdvancedSection extends ConsumerWidget {
-  const _AdvancedSection({required this.controller});
+  const _AdvancedSection({
+    required this.controller,
+    required this.apiKeyController,
+  });
   final TextEditingController controller;
+  final TextEditingController apiKeyController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => Column(
@@ -452,6 +464,32 @@ class _AdvancedSection extends ConsumerWidget {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+          Text(
+            'API 키 (선택)',
+            style: TextStyle(color: context.appMuted, fontSize: 13),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '서버에 SIMPLELAY_API_KEY가 설정된 경우에만 입력하세요.\n'
+            '시연장 등 공유 Wi-Fi에서 외부 접근을 막는 용도입니다.',
+            style: TextStyle(color: context.appMuted, fontSize: 11),
+          ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: apiKeyController,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: '미설정 시 비워두세요',
+              contentPadding:
+                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              isDense: true,
+            ),
+            style: const TextStyle(fontSize: 13),
+            autocorrect: false,
+            obscureText: true,
+            onSubmitted: (_) => _save(ref),
+          ),
           const SizedBox(height: 6),
           TextButton(
             onPressed: () async {
@@ -472,6 +510,7 @@ class _AdvancedSection extends ConsumerWidget {
       );
 
   Future<void> _save(WidgetRef ref) async {
+    await ref.read(rpiApiKeyProvider.notifier).save(apiKeyController.text);
     await ref.read(rpiUrlProvider.notifier).save(controller.text);
     await ref.read(rpiConnectionProvider.notifier).check();
   }

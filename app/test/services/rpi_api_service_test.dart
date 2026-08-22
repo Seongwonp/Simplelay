@@ -94,4 +94,37 @@ void main() {
       expect(status.lastButtons!.single.button, '전원');
     });
   });
+
+  // ── API 키 헤더 ─────────────────────────────────────────────────────────
+  group('RpiApiService API 키', () {
+    test('apiKey가 설정되면 모든 요청에 X-API-Key 헤더가 실린다', () async {
+      http.Request? captured;
+      final client = MockClient((request) async {
+        captured = request;
+        return _jsonResponse({'running': false}, 200);
+      });
+      final api = RpiApiService(
+        'http://rpi5.local:8000',
+        client: client,
+        apiKey: 'secret-123',
+      );
+
+      await api.status();
+
+      expect(captured!.headers['X-API-Key'], 'secret-123');
+    });
+
+    test('apiKey가 없으면 헤더를 싣지 않는다', () async {
+      http.Request? captured;
+      final client = MockClient((request) async {
+        captured = request;
+        return _jsonResponse({'running': false}, 200);
+      });
+      final api = RpiApiService('http://rpi5.local:8000', client: client);
+
+      await api.status();
+
+      expect(captured!.headers.containsKey('X-API-Key'), isFalse);
+    });
+  });
 }

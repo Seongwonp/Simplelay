@@ -70,12 +70,41 @@ final rpiUrlProvider = StateNotifierProvider<RpiUrlNotifier, String?>(
 // 테스트에서 fake로 교체할 수 있게 provider로 노출
 final mdnsResolverProvider = Provider<MdnsResolver>((_) => MdnsResolver());
 
+// ── API 키 (서버 SIMPLELAY_API_KEY와 짝 — 시연장 공유 Wi-Fi 방어) ──────────
+
+class RpiApiKeyNotifier extends StateNotifier<String?> {
+  RpiApiKeyNotifier() : super(null) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    state = prefs.getString('rpi_api_key');
+  }
+
+  Future<void> save(String key) async {
+    final trimmed = key.trim();
+    state = trimmed.isEmpty ? null : trimmed;
+    final prefs = await SharedPreferences.getInstance();
+    if (trimmed.isEmpty) {
+      await prefs.remove('rpi_api_key');
+    } else {
+      await prefs.setString('rpi_api_key', trimmed);
+    }
+  }
+}
+
+final rpiApiKeyProvider = StateNotifierProvider<RpiApiKeyNotifier, String?>(
+  (ref) => RpiApiKeyNotifier(),
+);
+
 // ── RpiApiService 인스턴스 ────────────────────────────────────────────────
 
 final rpiApiServiceProvider = Provider<RpiApiService?>((ref) {
   final url = ref.watch(rpiUrlProvider);
   if (url == null || url.isEmpty) return null;
-  final service = RpiApiService(url);
+  final service = RpiApiService(url, apiKey: ref.watch(rpiApiKeyProvider));
   ref.onDispose(service.dispose);
   return service;
 });

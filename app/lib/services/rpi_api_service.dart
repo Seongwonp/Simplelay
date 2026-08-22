@@ -130,12 +130,27 @@ class RpiNodeInfo {
 }
 
 class RpiApiService {
-  RpiApiService(String baseUrl, {http.Client? client})
+  RpiApiService(String baseUrl, {http.Client? client, String? apiKey})
       : _base = Uri.parse(baseUrl.replaceAll(RegExp(r'/$'), '')),
-        _client = client ?? http.Client();
+        _client = client ?? http.Client(),
+        _apiKey = (apiKey == null || apiKey.trim().isEmpty)
+            ? null
+            : apiKey.trim();
 
   final Uri _base;
   final http.Client _client;
+
+  // 서버 SIMPLELAY_API_KEY와 짝 — 설정돼 있으면 모든 요청에 X-API-Key 헤더
+  final String? _apiKey;
+
+  Map<String, String> get _headers => {
+        if (_apiKey != null) 'X-API-Key': _apiKey,
+      };
+
+  Map<String, String> get _jsonHeaders => {
+        'Content-Type': 'application/json',
+        ..._headers,
+      };
 
   static const _timeout = Duration(seconds: 8);
 
@@ -143,7 +158,7 @@ class RpiApiService {
   Future<bool> ping() async {
     try {
       final res = await _client
-          .get(_base.replace(path: '/health'))
+          .get(_base.replace(path: '/health'), headers: _headers)
           .timeout(_timeout);
       return res.statusCode == 200;
     } catch (_) {
@@ -154,7 +169,7 @@ class RpiApiService {
   Future<RpiHealthData?> health() async {
     try {
       final res = await _client
-          .get(_base.replace(path: '/health'))
+          .get(_base.replace(path: '/health'), headers: _headers)
           .timeout(_timeout);
       if (res.statusCode != 200) return null;
       return RpiHealthData.fromJson(
@@ -168,7 +183,7 @@ class RpiApiService {
   Future<SensorReading?> sensors() async {
     try {
       final res = await _client
-          .get(_base.replace(path: '/sensors'))
+          .get(_base.replace(path: '/sensors'), headers: _headers)
           .timeout(_timeout);
       if (res.statusCode != 200) return null;
       return SensorReading.fromJson(
@@ -183,7 +198,7 @@ class RpiApiService {
     final res = await _client
         .post(
           _base.replace(path: '/dnd'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _jsonHeaders,
           body: jsonEncode({'duration_minutes': minutes}),
         )
         .timeout(_timeout);
@@ -193,7 +208,7 @@ class RpiApiService {
   // DELETE /dnd — DND 해제
   Future<void> clearDnd() async {
     final res = await _client
-        .delete(_base.replace(path: '/dnd'))
+        .delete(_base.replace(path: '/dnd'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
   }
@@ -207,7 +222,7 @@ class RpiApiService {
     final res = await _client
         .post(
           _base.replace(path: '/execute'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _jsonHeaders,
           body: jsonEncode({
             'text': text,
             'source': source,
@@ -227,7 +242,7 @@ class RpiApiService {
     final res = await _client
         .post(
           _base.replace(path: '/execute-buttons'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _jsonHeaders,
           body: jsonEncode({
             'buttons': buttons,
             if (applianceId != null) 'appliance_id': applianceId,
@@ -249,7 +264,7 @@ class RpiApiService {
     final res = await _client
         .post(
           _base.replace(path: '/execute-for-appliance'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _jsonHeaders,
           body: jsonEncode({
             'text': text,
             'known_buttons': knownButtons,
@@ -264,7 +279,7 @@ class RpiApiService {
   // GET /status
   Future<RpiStatusResult> status() async {
     final res =
-        await _client.get(_base.replace(path: '/status')).timeout(_timeout);
+        await _client.get(_base.replace(path: '/status'), headers: _headers).timeout(_timeout);
     _checkStatus(res);
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     final rawButtons = body['last_buttons'] as List<dynamic>?;
@@ -287,7 +302,7 @@ class RpiApiService {
   // POST /stop
   Future<void> stop() async {
     final res = await _client
-        .post(_base.replace(path: '/stop'))
+        .post(_base.replace(path: '/stop'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
   }
@@ -295,7 +310,7 @@ class RpiApiService {
   // GET /suggestions
   Future<List<RpiSuggestion>> suggestions() async {
     final res = await _client
-        .get(_base.replace(path: '/suggestions'))
+        .get(_base.replace(path: '/suggestions'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
     final body = jsonDecode(res.body) as List<dynamic>;
@@ -308,7 +323,7 @@ class RpiApiService {
   // POST /suggestions/{id}/approve — 즉시 job_id 접수 응답(비동기 job 모델)
   Future<RpiJobAccepted> approveSuggestion(String id) async {
     final res = await _client
-        .post(_base.replace(path: '/suggestions/$id/approve'))
+        .post(_base.replace(path: '/suggestions/$id/approve'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
     return RpiJobAccepted.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
@@ -317,7 +332,7 @@ class RpiApiService {
   // POST /suggestions/{id}/reject
   Future<void> rejectSuggestion(String id) async {
     final res = await _client
-        .post(_base.replace(path: '/suggestions/$id/reject'))
+        .post(_base.replace(path: '/suggestions/$id/reject'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
   }
@@ -326,7 +341,7 @@ class RpiApiService {
   Future<List<RpiNodeInfo>> listNodes() async {
     try {
       final res = await _client
-          .get(_base.replace(path: '/nodes'))
+          .get(_base.replace(path: '/nodes'), headers: _headers)
           .timeout(_timeout);
       if (res.statusCode != 200) return const [];
       final body = jsonDecode(res.body) as List<dynamic>;
@@ -345,7 +360,7 @@ class RpiApiService {
       final res = await _client
           .post(
             _base.replace(path: '/nodes/$applianceId'),
-            headers: {'Content-Type': 'application/json'},
+            headers: _jsonHeaders,
             body: jsonEncode({'base_url': baseUrl}),
           )
           .timeout(_timeout);
@@ -359,7 +374,7 @@ class RpiApiService {
   Future<bool> unregisterNode(String applianceId) async {
     try {
       final res = await _client
-          .delete(_base.replace(path: '/nodes/$applianceId'))
+          .delete(_base.replace(path: '/nodes/$applianceId'), headers: _headers)
           .timeout(_timeout);
       return res.statusCode == 200;
     } catch (_) {

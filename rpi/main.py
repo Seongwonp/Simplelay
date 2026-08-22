@@ -7,6 +7,7 @@ import uvicorn
 from fastapi import Depends, FastAPI
 from fastapi.responses import HTMLResponse
 
+from rpi.api.auth import require_api_key
 from rpi.api.deps import get_actuator_status, get_suggestion_service
 from rpi.api.router import router
 from rpi.api.schemas import HealthResponse
@@ -43,7 +44,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SimpleLay RPi API", version="0.1.0", lifespan=lifespan)
-app.include_router(router)
+# SIMPLELAY_API_KEY 설정 시 라우터 전체에 X-API-Key 요구 (auth.py 참고).
+# /health(아래)와 /ui는 의도적으로 키 없이 개방.
+app.include_router(router, dependencies=[Depends(require_api_key)])
 
 _UI_HTML = (pathlib.Path(__file__).parent / "touchscreen" / "index.html").read_text(
     encoding="utf-8"
