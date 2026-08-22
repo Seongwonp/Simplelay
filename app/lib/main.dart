@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/appliance_editor_screen.dart';
 import 'screens/app_shell.dart';
+import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/manual_control_screen.dart';
 import 'screens/onboarding_screen.dart';
@@ -70,6 +71,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/manual-control',
       builder: (_, __) => const ManualControlScreen(),
+    ),
+    GoRoute(
+      path: '/history',
+      builder: (_, __) => const HistoryScreen(),
     ),
   ],
 );

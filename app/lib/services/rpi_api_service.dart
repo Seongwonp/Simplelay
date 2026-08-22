@@ -88,6 +88,60 @@ class RpiSuggestion {
       );
 }
 
+class RpiHistoryButton {
+  const RpiHistoryButton({
+    required this.button,
+    required this.success,
+    required this.attempts,
+  });
+  final String button;
+  final bool success;
+  final int attempts;
+
+  factory RpiHistoryButton.fromJson(Map<String, dynamic> json) =>
+      RpiHistoryButton(
+        button: json['button'] as String,
+        success: json['success'] as bool,
+        attempts: (json['attempts'] as num).toInt(),
+      );
+}
+
+// 실행 이력 1건 — retryCount > 0이면 폐루프가 실제로 재시도로 회복했다는
+// 기록(타임라인에서 배지로 강조하는 핵심 데이터).
+class RpiHistoryEntry {
+  const RpiHistoryEntry({
+    required this.jobId,
+    required this.finishedAt,
+    required this.status,
+    required this.retryCount,
+    required this.buttons,
+    this.purpose,
+  });
+  final String jobId;
+  final DateTime finishedAt;
+  final String? purpose; // 버튼 직접 실행(수동 조작)은 null
+  final String status; // succeeded | safety_stopped | failed
+  final int retryCount;
+  final List<RpiHistoryButton> buttons;
+
+  /// 목록 표시용 제목 — 목적이 없으면 누른 버튼 라벨을 나열
+  String get displayTitle =>
+      purpose ?? buttons.map((b) => b.button).join(' · ');
+
+  factory RpiHistoryEntry.fromJson(Map<String, dynamic> json) =>
+      RpiHistoryEntry(
+        jobId: json['job_id'] as String,
+        finishedAt: DateTime.parse(json['finished_at'] as String).toLocal(),
+        purpose: json['purpose'] as String?,
+        status: json['status'] as String,
+        retryCount: (json['retry_count'] as num).toInt(),
+        buttons: (json['buttons'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map(RpiHistoryButton.fromJson)
+            .toList(),
+      );
+}
+
 class SensorReading {
   const SensorReading({this.temperature, this.humidity});
   final double? temperature;
@@ -335,6 +389,25 @@ class RpiApiService {
         .post(_base.replace(path: '/suggestions/$id/reject'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
+  }
+
+  // GET /history — 실행 이력(최신순)
+  Future<List<RpiHistoryEntry>> history({int limit = 50}) async {
+    final res = await _client
+        .get(
+          _base.replace(
+            path: '/history',
+            queryParameters: {'limit': '$limit'},
+          ),
+          headers: _headers,
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    final body = jsonDecode(res.body) as List<dynamic>;
+    return body
+        .cast<Map<String, dynamic>>()
+        .map(RpiHistoryEntry.fromJson)
+        .toList();
   }
 
   // GET /nodes — 등록된 ESP32 노드 목록

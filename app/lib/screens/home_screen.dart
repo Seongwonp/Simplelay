@@ -36,6 +36,12 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('SimpleLay'),
         actions: [
+          // 실행 기록 (공감지능 근거 + 폐루프 재시도 기록)
+          IconButton(
+            onPressed: () => context.push('/history'),
+            icon: const Icon(Icons.history),
+            tooltip: '실행 기록',
+          ),
           // DND 토글 버튼
           IconButton(
             onPressed: () => showDndSheet(context),
