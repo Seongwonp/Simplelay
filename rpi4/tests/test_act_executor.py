@@ -382,3 +382,39 @@ def test_danger_sound_alert_interleaves_safely_with_execute_result():
         assert {"type": "result", "sequence_id": "seq-danger", "success": True, "retry": 0} in msgs
         assert len(msgs) == 2  # both lines arrived intact, no interleaved/corrupted JSON
     run(_t())
+
+
+def test_abort_while_busy_requests_cooperative_stop():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        from rpi.controller import ButtonResult, ButtonStatus, ExecutionResult, ExecutionStatus
+
+        slow_result = ExecutionResult(
+            status=ExecutionStatus.SUCCEEDED,
+            buttons=(ButtonResult("시작", ButtonStatus.SUCCEEDED, 1, None),),
+        )
+
+        class StoppableSlowController(SlowController):
+            def __init__(self, delay, result):
+                super().__init__(delay, result)
+                self.stop_requested = False
+
+            def request_stop(self):
+                self.stop_requested = True
+
+        controller = StoppableSlowController(0.2, slow_result)
+        executor = ActExecutor(reader=reader, writer=writer, controller=controller)
+
+        feed(reader, {"type": "execute", "sequence_id": "seq-9", "buttons": ["시작"]})
+        first = asyncio.create_task(executor.run_once())
+        await asyncio.sleep(0.05)
+
+        feed(reader, {"type": "abort"})
+        await executor.run_once()
+
+        # 실행 도중 abort → 컨트롤러에 협조적 정지가 전달된다
+        assert controller.stop_requested is True
+
+        await first
+    run(_t())

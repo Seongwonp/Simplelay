@@ -9,7 +9,7 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   INBOUND (RPi5 -> RPi4)          OUTBOUND (RPi4 -> RPi5)
   ──────────────────────────────────────────────────────────
   execute {sequence_id, buttons} →  result {sequence_id, success, retry}
-  abort                          →  (logged only; see _on_abort)
+  abort                          →  (cooperative stop; see _on_abort)
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
                                     (see report_danger_sound)
@@ -180,11 +180,19 @@ class ActExecutor:
     def _on_abort(self) -> None:
         # A physical E-STOP is authoritative and out of band from this UART
         # link (see rpi/controller/ports.py SafetyController docstring).
-        # ClosedLoopController.execute() has no cooperative-cancellation hook,
-        # so an abort that arrives mid-execute cannot interrupt the running
-        # thread — it is only actionable while idle.
+        # ClosedLoopController.request_stop()이 협조적 취소를 지원한다:
+        # 실행 스레드가 버튼 사이/재시도 경계에서 플래그를 확인하고
+        # SAFETY_STOPPED로 종료하면, 그 result가 RPi5에 정상 회신된다 —
+        # 폰/키오스크의 긴급 정지가 UART 모드에서도 끝단까지 완결되는 지점.
         if self._busy:
-            log.warning("abort received mid-execution — cannot interrupt in-flight sequence")
+            request_stop = getattr(self._controller, "request_stop", None)
+            if request_stop is not None:
+                log.warning("abort received mid-execution — requesting cooperative stop")
+                request_stop()
+            else:
+                log.warning(
+                    "abort received mid-execution — controller has no request_stop hook"
+                )
         else:
             log.info("abort received while idle — nothing to cancel")
 
