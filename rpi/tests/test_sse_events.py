@@ -1,0 +1,100 @@
+"""SSE 이벤트 스트림(sse_event_lines) — 초기 스냅샷·변화 푸시·keepalive 계약.
+
+무한 HTTP 스트림은 TestClient가 종료 처리에서 hang하므로, 제너레이터를
+콜러블 주입으로 직접 구동해 검증한다 (엔드포인트는 얇은 껍데기).
+"""
+
+import asyncio
+import json
+
+from rpi.api.router import sse_event_lines
+
+
+def _collect(alert_seq, status_seq, max_ticks, keepalive_every=1000):
+    """max_ticks번 순회 후 연결 종료를 시뮬레이션하며 SSE 라인을 수집한다.
+
+    is_disconnected가 루프 선두에서 한 번씩 불리는 것을 이용해 순회 횟수를
+    센다 — n번째 순회는 alert_seq/status_seq의 [n-1] 값을 읽는다(부족하면
+    마지막 값 유지).
+    """
+    ticks = 0
+
+    async def counting_disconnected():
+        nonlocal ticks
+        ticks += 1
+        return ticks > max_ticks
+
+    def at(seq):
+        return seq[min(ticks - 1, len(seq) - 1)]
+
+    async def run():
+        lines = []
+        gen = sse_event_lines(
+            counting_disconnected,
+            lambda: at(alert_seq),
+            lambda: at(status_seq),
+            check_interval=0.0,
+            keepalive_every=keepalive_every,
+        )
+        async for line in gen:
+            lines.append(line)
+        return lines
+
+    return asyncio.run(run())
+
+
+def _parse(lines):
+    events = []
+    for chunk in lines:
+        if chunk.startswith(": "):
+            events.append(("keepalive", None))
+            continue
+        name = chunk.split("\n")[0][len("event: "):]
+        data = json.loads(chunk.split("\n")[1][len("data: "):])
+        events.append((name, data))
+    return events
+
+
+_ALERT_OFF = {"active": False, "kind": None}
+_ALERT_ON = {"active": True, "kind": "fire_alarm"}
+_IDLE = {"running": False, "job_id": None}
+_RUNNING = {"running": True, "job_id": "job-1"}
+
+
+def test_initial_snapshot_is_sent_once():
+    events = _parse(_collect([_ALERT_OFF], [_IDLE], max_ticks=3))
+
+    # 첫 tick에 alert+status 스냅샷, 이후 변화 없으면 침묵
+    assert events == [("alert", _ALERT_OFF), ("status", _IDLE)]
+
+
+def test_changes_are_pushed_once_per_change():
+    events = _parse(
+        _collect(
+            [_ALERT_OFF, _ALERT_OFF, _ALERT_ON, _ALERT_ON],
+            [_IDLE, _RUNNING, _RUNNING, _RUNNING],
+            max_ticks=5,
+        )
+    )
+
+    assert events == [
+        ("alert", _ALERT_OFF),
+        ("status", _IDLE),
+        ("status", _RUNNING),  # tick2에서 상태 변화
+        ("alert", _ALERT_ON),  # tick3에서 경보 발생 — 지연 없이 즉시 푸시
+    ]
+
+
+def test_keepalive_emitted_periodically():
+    events = _parse(
+        _collect([_ALERT_OFF], [_IDLE], max_ticks=5, keepalive_every=2)
+    )
+
+    assert ("keepalive", None) in events
+    # 변화가 없어도 keepalive는 주기마다 나온다
+    assert events.count(("keepalive", None)) == 2
+
+
+def test_disconnect_terminates_stream():
+    # max_ticks=0 → 첫 확인에서 종료, 아무것도 보내지 않는다
+    assert _collect([_ALERT_OFF], [_IDLE], max_ticks=0) == []

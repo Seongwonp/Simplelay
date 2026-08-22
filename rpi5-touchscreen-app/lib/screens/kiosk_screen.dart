@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/appliance.dart';
 import '../services/kiosk_api_service.dart';
+import '../services/kiosk_event_stream.dart';
 import '../services/kiosk_tts_service.dart';
 import '../theme/kiosk_colors.dart';
 import '../widgets/kiosk/danger_alert_overlay.dart';
@@ -36,6 +37,7 @@ class KioskScreen extends StatefulWidget {
     this.appliance = kMicrowaveAppliance,
     this.api,
     this.tts,
+    this.events,
   });
 
   final ApplianceMap appliance;
@@ -46,6 +48,10 @@ class KioskScreen extends StatefulWidget {
   /// 음성 안내(espeak-ng) — 테스트에서 발화 내용 검증용 주입 지점.
   final KioskTtsService? tts;
 
+  /// SSE 이벤트 스트림 — 테스트에서 실제 네트워크 연결·재접속 타이머를
+  /// 만들지 않도록 fake를 주입하는 지점.
+  final KioskEventStream? events;
+
   @override
   State<KioskScreen> createState() => _KioskScreenState();
 }
@@ -55,6 +61,8 @@ class _KioskScreenState extends State<KioskScreen> {
   // 주입받은 서비스는 호출자 소유 — 내부 생성분만 dispose한다
   late final bool _ownsApi = widget.api == null;
   late final KioskTtsService _tts = widget.tts ?? KioskTtsService();
+  late final KioskEventStream _events =
+      widget.events ?? KioskEventStream();
   // 큰 글씨 모드 — 세션 한정(음성 안내 토글과 동일한 이유), 기본 꺼짐
   bool _largeText = false;
 
@@ -116,6 +124,16 @@ class _KioskScreenState extends State<KioskScreen> {
       const Duration(seconds: 1),
       (_) => setState(() => _now = DateTime.now()),
     );
+    // SSE — 위험 경보는 즉시, 상태 변화는 즉시 폴링 트리거로.
+    // 스트림이 끊겨도 위의 폴링 타이머들이 그대로 커버한다.
+    _events.start(
+      onAlert: (alert) {
+        if (mounted) _applyAlert(alert);
+      },
+      onStatusChanged: () {
+        if (mounted) _poll();
+      },
+    );
   }
 
   @override
@@ -127,6 +145,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _clockTimer?.cancel();
     _sensorTimer?.cancel();
     _alertTimer?.cancel();
+    _events.stop();
     if (_ownsApi) _api.dispose();
     super.dispose();
   }
@@ -144,7 +163,13 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _fetchAlert() async {
     final alert = await _api.alerts();
     if (!mounted) return;
-    // 새로 켜지는 엣지에서만 음성 경보 — 폴링마다 반복 발화하지 않는다.
+    _applyAlert(alert);
+  }
+
+  // 폴링(3초)과 SSE(즉시)가 같은 경보 상태를 공급한다 — 엣지 판정이
+  // 여기 한 곳이라 두 채널이 겹쳐도 발화·재알림은 1회만 된다.
+  void _applyAlert(AlertState alert) {
+    // 새로 켜지는 엣지에서만 음성 경보 — 반복 발화하지 않는다.
     // DND 중에도 발화한다: 안전 경보는 방해 금지보다 우선한다.
     if (alert.active && !_alert.active) {
       _tts.speak('위험 신호음이 감지되었습니다. 주변을 확인해 주세요.');

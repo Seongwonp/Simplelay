@@ -1,6 +1,8 @@
 import asyncio
+import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import StreamingResponse
 
 from rpi.controller import ExecutionResult
 from rpi.intent.rules import UnknownIntentError
@@ -319,6 +321,86 @@ async def unregister_node(
 ) -> OkResponse:
     registry.unregister(appliance_id)
     return OkResponse()
+
+
+# SSE 이벤트 변화 감지 주기(서버 내부) — 클라이언트 체감은 "즉시".
+# 기존 3초 폴링 대비 위험 경보 지연을 사실상 0으로 줄인다.
+_SSE_CHECK_INTERVAL = 0.3
+_SSE_KEEPALIVE_EVERY = 50  # 0.3s * 50 = 15초마다 keepalive 주석
+
+
+async def sse_event_lines(
+    is_disconnected,
+    alert_payload,
+    status_payload,
+    check_interval: float = _SSE_CHECK_INTERVAL,
+    keepalive_every: int = _SSE_KEEPALIVE_EVERY,
+):
+    """SSE 라인 제너레이터 — 위험 경보(alert)와 실행 상태(status)의 '변화'만
+    푸시한다. 콜러블 주입 구조라 무한 스트림을 실제 HTTP 없이 단위
+    테스트할 수 있다(TestClient는 무한 스트림 종료에서 hang하는 제약).
+
+    - 연결 직후 현재 alert/status를 1회 보낸다(초기 스냅샷)
+    - 이후에는 값이 바뀔 때만 이벤트를 보낸다
+    - keepalive 주석을 주기적으로 흘려 프록시·클라이언트 유휴 타임아웃 방지
+    """
+    last_alert: dict | None = None
+    last_status: dict | None = None
+    ticks = 0
+    while not await is_disconnected():
+        alert = alert_payload()
+        if alert != last_alert:
+            last_alert = alert
+            yield f"event: alert\ndata: {json.dumps(alert, ensure_ascii=False)}\n\n"
+        status_now = status_payload()
+        if status_now != last_status:
+            last_status = status_now
+            yield (
+                "event: status\n"
+                f"data: {json.dumps(status_now, ensure_ascii=False)}\n\n"
+            )
+        ticks += 1
+        if ticks % keepalive_every == 0:
+            yield ": keepalive\n\n"
+        await asyncio.sleep(check_interval)
+
+
+@router.get("/events")
+async def events(
+    request: Request,
+    store: DangerAlertStore = Depends(get_alert_store),
+    service: SimpleLayService = Depends(get_service),
+) -> StreamingResponse:
+    """SSE 스트림 — 폴링을 대체하는 게 아니라 지연을 없애는 상위 채널:
+    클라이언트(키오스크)는 이 스트림을 우선 사용하고, 끊기면 기존 폴링으로
+    계속 동작한다. 추가 의존성 없이 내부 300ms 변화 감지 루프로 구현 —
+    인메모리 읽기라 비용이 무시할 수준이다."""
+
+    def _alert_payload() -> dict:
+        s = store.current()
+        return {
+            "active": s.active,
+            "kind": s.kind,
+            "band_energy_ratio": s.band_energy_ratio,
+            "mean_period_seconds": s.mean_period_seconds,
+        }
+
+    def _status_payload() -> dict:
+        snap = service.status()
+        return {
+            "running": snap.running,
+            "job_id": snap.job_id,
+            "last_job_id": snap.last_job_id,
+            "last_status": snap.last_result.status.value
+            if snap.last_result
+            else None,
+        }
+
+    return StreamingResponse(
+        sse_event_lines(request.is_disconnected, _alert_payload, _status_payload),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/alerts", response_model=AlertResponse)

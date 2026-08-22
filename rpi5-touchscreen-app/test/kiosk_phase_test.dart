@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/services/kiosk_event_stream.dart';
 import 'package:simplelay_touchscreen/services/kiosk_tts_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
@@ -78,6 +79,24 @@ class FakeKioskApi implements KioskApiService {
   void dispose() {}
 }
 
+// SSE 스트림 — 실제 네트워크·재접속 타이머 없이 콜백만 노출
+class FakeEventStream extends KioskEventStream {
+  void Function(AlertState alert)? alertCallback;
+  void Function()? statusCallback;
+
+  @override
+  void start({
+    required void Function(AlertState alert) onAlert,
+    void Function()? onStatusChanged,
+  }) {
+    alertCallback = onAlert;
+    statusCallback = onStatusChanged;
+  }
+
+  @override
+  void stop() {}
+}
+
 // 음성 안내 — 실제 espeak 프로세스 대신 발화 내용만 기록
 class FakeTts extends KioskTtsService {
   final utterances = <String>[];
@@ -94,12 +113,18 @@ Future<void> _pumpKiosk(
   WidgetTester tester,
   FakeKioskApi api, {
   FakeTts? tts,
+  FakeEventStream? events,
 }) async {
-  // tts 미지정 테스트에서도 기본 KioskTtsService가 실제 espeak 프로세스를
-  // 띄우지 않도록 항상 fake를 주입한다 (fake async 존에서 Process.run은
-  // pending timer로 남아 테스트를 깨뜨린다).
+  // tts/events 미지정 테스트에서도 실제 espeak 프로세스·SSE 네트워크
+  // 연결(재접속 타이머)을 만들지 않도록 항상 fake를 주입한다.
   await tester.pumpWidget(
-    MaterialApp(home: KioskScreen(api: api, tts: tts ?? FakeTts())),
+    MaterialApp(
+      home: KioskScreen(
+        api: api,
+        tts: tts ?? FakeTts(),
+        events: events ?? FakeEventStream(),
+      ),
+    ),
   );
   await tester.pump(); // initState 첫 폴링
   await tester.pump(); // async 응답 반영
@@ -288,5 +313,48 @@ void main() {
     await _pumpKiosk(tester, api, tts: tts);
 
     expect(tts.utterances, isEmpty);
+  });
+
+  // ── SSE 이벤트 스트림 ────────────────────────────────────────────────────
+
+  testWidgets('SSE 경보는 폴링 주기를 기다리지 않고 즉시 반영·발화된다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi();
+    final tts = FakeTts();
+    final events = FakeEventStream();
+    await _pumpKiosk(tester, api, tts: tts, events: events);
+    expect(tts.utterances, isEmpty);
+
+    // 3초 폴링을 기다리지 않고 SSE 콜백으로 바로 도착
+    events.alertCallback!(
+      const AlertState(active: true, kind: 'fire_alarm'),
+    );
+    await tester.pump();
+
+    expect(tts.utterances.single, contains('위험'));
+
+    // 이어서 폴링이 같은 경보를 또 가져와도(중복 공급) 재발화하지 않는다
+    api.alertState = const AlertState(active: true, kind: 'fire_alarm');
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+    expect(tts.utterances.length, 1);
+  });
+
+  test('SseLineParser는 event/data 라인 쌍을 이벤트로 조립한다', () {
+    final parser = SseLineParser();
+
+    expect(parser.feed('event: alert'), isNull);
+    final event = parser.feed('data: {"active": true, "kind": "fire_alarm"}');
+    expect(event!.name, 'alert');
+    expect(event.data['active'], true);
+
+    // 빈 줄(이벤트 경계)·keepalive 주석·data 없는 라인은 무시
+    expect(parser.feed(''), isNull);
+    expect(parser.feed(': keepalive'), isNull);
+    // event 없이 온 data는 버린다
+    expect(parser.feed('data: {"orphan": 1}'), isNull);
+    // 손상된 JSON은 조용히 버린다
+    parser.feed('event: alert');
+    expect(parser.feed('data: {broken'), isNull);
   });
 }
