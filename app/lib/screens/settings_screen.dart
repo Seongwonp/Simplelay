@@ -9,6 +9,7 @@ import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/theme_provider.dart';
+import '../providers/tts_provider.dart';
 import '../services/ble_service.dart';
 import '../services/demo_service.dart';
 import '../theme/app_colors.dart';
@@ -54,6 +55,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SectionHeader(title: '일반'),
           const SizedBox(height: 12),
           _ThemeToggleTile(),
+          const SizedBox(height: 8),
+          _VoiceGuideTile(),
           const SizedBox(height: 16),
           _ApplianceSection(),
 
@@ -143,6 +146,26 @@ class _SectionHeader extends StatelessWidget {
           letterSpacing: 1.2,
         ),
       );
+}
+
+// ── 음성 안내 토글 ─────────────────────────────────────────────────────────
+
+class _VoiceGuideTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final enabled = ref.watch(voiceGuideProvider);
+    return _SettingCard(
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        secondary: const Icon(Icons.record_voice_over),
+        title: const Text('음성 안내'),
+        subtitle: Text('실행 결과를 소리로 읽어줍니다',
+            style: TextStyle(color: context.appMuted, fontSize: 12)),
+        value: enabled,
+        onChanged: (v) => ref.read(voiceGuideProvider.notifier).set(v),
+      ),
+    );
+  }
 }
 
 // ── 테마 토글 ─────────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ import '../models/execution_status.dart';
 import '../models/suggestion.dart';
 import '../services/rpi_api_service.dart';
 import 'ble_provider.dart';
+import 'tts_provider.dart';
 
 class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   ExecutionStatusNotifier(this.ref) : super(const ExecutionStatus()) {
@@ -84,15 +85,17 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         // 내 job의 완료 — job_id 대조로 이전 실행 결과를 오인하지 않는다
         final success = status.lastStatus == 'succeeded';
         final stopped = status.lastStatus == 'safety_stopped';
+        final message = success
+            ? '실행이 완료되었습니다.'
+            : stopped
+                ? '실행이 중단되었습니다.'
+                : '실행에 실패했습니다.';
         state = state.copyWith(
           phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
           completedSteps: success ? state.steps.length : state.completedSteps,
-          message: success
-              ? '실행이 완료되었습니다.'
-              : stopped
-                  ? '실행이 중단되었습니다.'
-                  : '실행에 실패했습니다.',
+          message: message,
         );
+        _announce(message);
         _stopHttpTracking();
       }
       // running=false인데 lastJobId != jobId → 백그라운드 스레드 시작 전의
@@ -106,6 +109,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
             phase: ExecutionPhase.failed,
             message: '서버 응답이 없습니다. 연결을 확인해주세요.',
           );
+          _announce('서버 응답이 없습니다. 연결을 확인해주세요.');
         }
         _stopHttpTracking();
       }
@@ -119,6 +123,17 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _pollTimer = null;
     _httpApi = null;
     _httpJobId = null;
+  }
+
+  /// 실행 결과 음성 안내 — 화면을 보지 않아도 결과를 알 수 있게.
+  /// 설정(음성 안내)이 꺼져 있으면 침묵. 실패해도 상태 표시는 그대로 간다.
+  void _announce(String message) {
+    try {
+      if (!ref.read(voiceGuideProvider)) return;
+      ref.read(ttsServiceProvider).speak(message);
+    } catch (_) {
+      // provider dispose 직후 등 — 안내는 보조 채널, 조용히 무시
+    }
   }
 
   void _onMessage(Map<String, dynamic> message) {
@@ -142,11 +157,14 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         if (state.sequenceId == null ||
             message['sequence_id'] == state.sequenceId) {
           final success = message['success'] == true;
+          final resultMessage =
+              success ? '실행이 완료되었습니다.' : '실행에 실패했습니다.';
           state = state.copyWith(
             phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
             completedSteps: success ? state.steps.length : state.completedSteps,
-            message: success ? '실행이 완료되었습니다.' : '실행에 실패했습니다.',
+            message: resultMessage,
           );
+          _announce(resultMessage);
         }
         return;
       default:
