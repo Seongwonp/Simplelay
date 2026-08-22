@@ -20,6 +20,9 @@ Environment=SIMPLELAY_HOME_X_GPIO=17
 Environment=SIMPLELAY_HOME_Y_GPIO=27
 # Environment=SIMPLELAY_HOME_Z_GPIO=22  # Z축 확정 후 주석 해제
 
+# SQLite 영속화 — 사용 이력(패턴 학습)·노드 등록이 재시작에도 유지된다
+Environment=SIMPLELAY_DB_PATH=/home/pi/SimpleLay/data/simplelay.db
+
 # RPi5 GPIO 백엔드 — lgpio 필수
 Environment=GPIOZERO_PIN_FACTORY=lgpio
 

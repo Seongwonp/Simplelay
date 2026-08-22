@@ -1,0 +1,116 @@
+"""SQLite 영속화 — 사용 이력(패턴 학습)과 노드 등록을 서버 재시작에도 유지.
+
+그동안 전부 인메모리라 systemd 재시작 한 번이면 패턴 학습 데모와 키오스크에서
+등록한 ESP32 IP가 전부 증발했다. ``SIMPLELAY_DB_PATH`` 환경변수로 켠다
+(scripts/simplelay.service 참고). 미설정이면 기존처럼 인메모리로 동작한다 —
+개발 PC·테스트에서 상태가 파일로 새어 테스트끼리 오염되는 것을 막기 위한
+기존 관례(SIMPLELAY_GPIO_ENABLED 등 env 게이트)와 같은 방식이다.
+
+FastAPI는 요청을 스레드풀에서 처리하고 실행 job도 별도 스레드라, 커넥션은
+``check_same_thread=False`` + 자체 락으로 직렬화한다(트래픽 규모상 충분).
+
+의도적으로 저장하지 않는 것: pending 제안(주기 스케줄러가 이력에서 재생성),
+last_result(재시작 후의 '이전 실행 결과'는 클라이언트에 오히려 혼란).
+"""
+
+from __future__ import annotations
+
+import sqlite3
+import threading
+from datetime import datetime
+from pathlib import Path
+
+from rpi.intent.models import UsageOutcome, UsageRecord
+from rpi.intent.ports import UsageLog
+
+
+class SimpleLayDb:
+    def __init__(self, path: str) -> None:
+        Path(path).expanduser().parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(path, check_same_thread=False)
+        self._lock = threading.Lock()
+        with self._lock:
+            self._conn.executescript(
+                """
+                CREATE TABLE IF NOT EXISTS usage_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    occurred_at TEXT NOT NULL,  -- ISO-8601, timezone 포함
+                    purpose TEXT NOT NULL,
+                    outcome TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS nodes (
+                    appliance_id TEXT PRIMARY KEY,
+                    base_url TEXT NOT NULL
+                );
+                """
+            )
+            self._conn.commit()
+
+    # ── 사용 이력 (패턴 학습) ────────────────────────────────────────────────
+
+    def append_usage(self, record: UsageRecord) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO usage_log (occurred_at, purpose, outcome)"
+                " VALUES (?, ?, ?)",
+                (
+                    record.occurred_at.isoformat(),
+                    record.purpose,
+                    record.outcome.value,
+                ),
+            )
+            self._conn.commit()
+
+    def usage_records(self) -> tuple[UsageRecord, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT occurred_at, purpose, outcome FROM usage_log ORDER BY id"
+            ).fetchall()
+        return tuple(
+            UsageRecord(
+                datetime.fromisoformat(occurred_at), purpose, UsageOutcome(outcome)
+            )
+            for occurred_at, purpose, outcome in rows
+        )
+
+    # ── 노드 등록 (appliance_id → ESP32 base_url) ───────────────────────────
+
+    def save_node(self, appliance_id: str, base_url: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO nodes (appliance_id, base_url) VALUES (?, ?)"
+                " ON CONFLICT(appliance_id) DO UPDATE SET base_url = excluded.base_url",
+                (appliance_id, base_url),
+            )
+            self._conn.commit()
+
+    def delete_node(self, appliance_id: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM nodes WHERE appliance_id = ?", (appliance_id,)
+            )
+            self._conn.commit()
+
+    def nodes(self) -> dict[str, str]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT appliance_id, base_url FROM nodes"
+            ).fetchall()
+        return dict(rows)
+
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
+
+class SqliteUsageLog(UsageLog):
+    """UsageLog 포트의 SQLite 구현 — InMemoryUsageLog와 같은 계약."""
+
+    def __init__(self, db: SimpleLayDb) -> None:
+        self._db = db
+
+    def append(self, record: UsageRecord) -> None:
+        self._db.append_usage(record)
+
+    def records(self) -> tuple[UsageRecord, ...]:
+        return self._db.usage_records()

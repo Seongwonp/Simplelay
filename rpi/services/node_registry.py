@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import threading
 from collections.abc import Callable
+from typing import Protocol
 
 from rpi.controller import ButtonSequenceController
 
@@ -23,11 +24,30 @@ from .esp_node_controller import EspNodeController
 ControllerFactory = Callable[[str], ButtonSequenceController]
 
 
+class NodeStore(Protocol):
+    """등록된 노드 주소의 영속 저장소 — SimpleLayDb(persistence.py)가 구현."""
+
+    def save_node(self, appliance_id: str, base_url: str) -> None: ...
+
+    def delete_node(self, appliance_id: str) -> None: ...
+
+    def nodes(self) -> dict[str, str]: ...
+
+
 class NodeRegistry:
-    def __init__(self, controller_factory: ControllerFactory = EspNodeController) -> None:
+    def __init__(
+        self,
+        controller_factory: ControllerFactory = EspNodeController,
+        store: NodeStore | None = None,
+    ) -> None:
         self._controller_factory = controller_factory
         self._lock = threading.Lock()
-        self._base_urls: dict[str, str] = {}
+        self._store = store
+        # store가 있으면 서버 재시작 시 이전 등록을 복원한다 — 키오스크에서
+        # 등록한 ESP32 IP가 재시작마다 증발하던 문제의 수리 지점.
+        self._base_urls: dict[str, str] = (
+            dict(store.nodes()) if store is not None else {}
+        )
         self._controllers: dict[str, ButtonSequenceController] = {}
 
     def register(self, appliance_id: str, base_url: str) -> None:
@@ -37,11 +57,15 @@ class NodeRegistry:
         with self._lock:
             self._base_urls[appliance_id] = base_url
             self._controllers.pop(appliance_id, None)
+            if self._store is not None:
+                self._store.save_node(appliance_id, base_url)
 
     def unregister(self, appliance_id: str) -> None:
         with self._lock:
             self._base_urls.pop(appliance_id, None)
             controller = self._controllers.pop(appliance_id, None)
+            if self._store is not None:
+                self._store.delete_node(appliance_id)
         if controller is not None:
             close = getattr(controller, "close", None)
             if close is not None:
