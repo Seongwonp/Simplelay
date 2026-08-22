@@ -1,3 +1,4 @@
+import re
 from collections.abc import Mapping, Sequence
 
 from .base import IntentResolver
@@ -7,16 +8,69 @@ class UnknownIntentError(ValueError):
     pass
 
 
+def _normalize(text: str) -> str:
+    """STT 출력 편차(공백·문장부호)를 매칭 키에서 제거한다.
+
+    "우유 데워 줘", "우유데워줘!", "우유 데워줘."가 전부 같은 키가 되어,
+    규칙이 문자열 하나의 정확 일치에 걸려 있던 취약함을 없앤다.
+    """
+    return re.sub(r"[\s.,!?~·]+", "", text.strip())
+
+
 class RuleBasedIntentResolver(IntentResolver):
-    DEFAULT_RULES = {"우유 데워줘": ("해동", "시간 90초", "시작")}
+    # 대표 발화 → 버튼 시퀀스 (전자레인지 데모 기준).
+    # 자유발화 전체를 여기서 감당하려는 게 아니다 — 시연·일상 핵심 명령의
+    # 결정론적 1차 계층이고, 매칭 실패는 TieredIntentResolver가 벡터DB/LLM
+    # 계층으로 넘긴다 (docs/inference-boundary.md).
+    DEFAULT_RULES = {
+        "우유 데워줘": ("해동", "시간 90초", "시작"),
+        "해동해줘": ("해동", "시작"),
+        "30초 돌려줘": ("30초", "시작"),
+        "1분 돌려줘": ("1분", "시작"),
+        "5분 돌려줘": ("5분", "시작"),
+        "자동조리 해줘": ("자동조리", "시작"),
+        "취소해줘": ("취소",),
+    }
+
+    # 같은 뜻의 다른 발화 → 대표 발화. 기본 규칙을 쓸 때만 적용된다
+    # (규칙을 직접 주입하는 호출자는 자기 어휘를 완전히 통제한다).
+    DEFAULT_ALIASES = {
+        "우유 좀 데워줘": "우유 데워줘",
+        "우유를 데워줘": "우유 데워줘",
+        "우유 데워": "우유 데워줘",
+        "우유 좀 따뜻하게 해줘": "우유 데워줘",
+        "해동 좀 해줘": "해동해줘",
+        "해동 부탁해": "해동해줘",
+        "삼십초 돌려줘": "30초 돌려줘",
+        "삼십 초 돌려줘": "30초 돌려줘",
+        "일분 돌려줘": "1분 돌려줘",
+        "일 분 돌려줘": "1분 돌려줘",
+        "1분만 돌려줘": "1분 돌려줘",
+        "오분 돌려줘": "5분 돌려줘",
+        "오 분 돌려줘": "5분 돌려줘",
+        "자동조리 돌려줘": "자동조리 해줘",
+        "알아서 조리해줘": "자동조리 해줘",
+        "멈춰줘": "취소해줘",
+        "멈춰": "취소해줘",
+        "그만해줘": "취소해줘",
+        "그만": "취소해줘",
+        "정지해줘": "취소해줘",
+        "취소": "취소해줘",
+    }
 
     def __init__(self, rules: Mapping[str, Sequence[str]] | None = None) -> None:
         selected = rules if rules is not None else self.DEFAULT_RULES
-        self._rules = {key.strip(): tuple(value) for key, value in selected.items()}
+        self._rules = {
+            _normalize(key): tuple(value) for key, value in selected.items()
+        }
+        if rules is None:
+            for alias, canonical in self.DEFAULT_ALIASES.items():
+                self._rules[_normalize(alias)] = self._rules[_normalize(canonical)]
 
     def resolve(self, purpose: str) -> tuple[str, ...]:
-        normalized = purpose.strip()
         try:
-            return self._rules[normalized]
+            return self._rules[_normalize(purpose)]
         except KeyError as exc:
-            raise UnknownIntentError(f"unsupported purpose: {normalized}") from exc
+            raise UnknownIntentError(
+                f"unsupported purpose: {purpose.strip()}"
+            ) from exc
