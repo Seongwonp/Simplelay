@@ -7,6 +7,7 @@ import '../providers/ble_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/voice_provider.dart';
+import '../services/ble_service.dart';
 import '../services/rpi_api_service.dart';
 import '../services/voice_service.dart';
 import '../theme/app_colors.dart';
@@ -99,6 +100,22 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
         });
       }
     } catch (_) {
+      // RpiApiException이 아닌 실패 = 서버 무응답(네트워크). 서버가 살아서
+      // 거절한 게 아니므로, BLE(ESP32 릴레이)가 연결돼 있으면 폴백 전송한다 —
+      // "Wi-Fi가 끊겨도 동작"이 실제로 성립하는 지점. 사용자 정의 가전은
+      // LLM 해석이 필요해 BLE 릴레이로는 처리 불가라 제외.
+      final bleState = ref.read(bleConnectionProvider).valueOrNull;
+      if (!appliance.isCustom && bleState == BleConnectionState.connected) {
+        try {
+          await ref
+              .read(bleServiceProvider)
+              .sendCommand(trimmed, source: 'voice');
+          if (mounted) _notice('서버 응답이 없어 BLE로 전송했어요.');
+          return;
+        } catch (_) {
+          // BLE마저 실패 — 아래 공통 안내로
+        }
+      }
       if (mounted) _notice('명령을 전달하지 못했어요. 연결을 확인해주세요.');
     }
   }

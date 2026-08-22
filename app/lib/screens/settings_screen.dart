@@ -370,19 +370,38 @@ class _SavedDeviceSection extends ConsumerWidget {
             if (!isConnected)
               OutlinedButton(
                 onPressed: () async {
-                  final results = await FlutterBluePlus.scanResults.first;
-                  final match = results
-                      .where((r) =>
-                          r.device.remoteId.toString() == saved.id)
-                      .firstOrNull;
-                  if (match != null && context.mounted) {
-                    try {
-                      await ref
-                          .read(bleServiceProvider)
-                          .connect(match.device);
-                    } catch (_) {}
-                  } else {
-                    ref.invalidate(scanResultsProvider);
+                  // 저장된 기기를 실제로 스캔해서 찾는다 — 이전 구현은 스캔을
+                  // 시작하지도 않고 결과 스트림의 첫 이벤트를 기다려서, 다른
+                  // 스캔이 돌고 있지 않으면 영원히 완료되지 않았다.
+                  final ble = ref.read(bleServiceProvider);
+                  final messenger = ScaffoldMessenger.of(context);
+                  ScanResult? match;
+                  try {
+                    await for (final results in ble
+                        .scan(timeout: const Duration(seconds: 8))
+                        .timeout(const Duration(seconds: 9))) {
+                      match = results
+                          .where((r) =>
+                              r.device.remoteId.toString() == saved.id)
+                          .firstOrNull;
+                      if (match != null) break;
+                    }
+                  } catch (_) {
+                    // 타임아웃 포함 — match == null로 아래에서 안내
+                  }
+                  await ble.stopScan();
+                  if (match == null) {
+                    messenger.showSnackBar(const SnackBar(
+                      content: Text('저장된 기기를 찾지 못했어요. 기기 전원을 확인해주세요.'),
+                    ));
+                    return;
+                  }
+                  try {
+                    await ble.connect(match.device);
+                  } catch (_) {
+                    messenger.showSnackBar(const SnackBar(
+                      content: Text('연결에 실패했어요. 다시 시도해주세요.'),
+                    ));
                   }
                 },
                 style: OutlinedButton.styleFrom(
