@@ -4,25 +4,30 @@ from fastapi.testclient import TestClient
 
 from rpi.api.deps import (
     get_alert_store,
+    get_demo_failure_state,
     get_node_registry,
     get_service,
     get_suggestion_service,
 )
 from rpi.main import app
 
+_SINGLETONS = (
+    get_service,
+    get_suggestion_service,
+    get_alert_store,
+    get_node_registry,
+    get_demo_failure_state,
+)
+
 
 @pytest.fixture(autouse=True)
 def reset_singletons():
     """각 테스트마다 서비스 싱글톤을 초기화해 상태 오염 방지."""
-    get_service.cache_clear()
-    get_suggestion_service.cache_clear()
-    get_alert_store.cache_clear()
-    get_node_registry.cache_clear()
+    for dep in _SINGLETONS:
+        dep.cache_clear()
     yield
-    get_service.cache_clear()
-    get_suggestion_service.cache_clear()
-    get_alert_store.cache_clear()
-    get_node_registry.cache_clear()
+    for dep in _SINGLETONS:
+        dep.cache_clear()
 
 
 @pytest.fixture()
@@ -440,3 +445,55 @@ def test_status_idle_has_no_job_fields(client):
     assert body["job_id"] is None
     assert body["last_job_id"] is None
     assert body["total_steps"] is None
+
+
+# ── /demo/inject-failure (리허설 실패 주입) ───────────────────────────────────
+
+def test_inject_failure_forces_retry_on_next_execution(client):
+    armed = client.post("/demo/inject-failure", json={"button_index": 0, "attempts": 1})
+    assert armed.status_code == 200
+
+    accepted = client.post("/execute-buttons", json={"buttons": ["해동", "시작"]}).json()
+    status = _wait_job_done(client, accepted["job_id"])
+
+    # 최종 결과는 성공(재시도로 회복) — 내부 결과로 재시도가 실제 있었는지 확인
+    assert status["last_status"] == "succeeded"
+    svc = get_service()
+    assert svc._last_result.buttons[0].attempts == 2
+    assert svc._last_result.buttons[1].attempts == 1
+
+
+def test_inject_failure_with_high_attempts_causes_safety_stop(client):
+    client.post("/demo/inject-failure", json={"attempts": 3})
+
+    accepted = client.post("/execute-buttons", json={"buttons": ["해동", "시작"]}).json()
+    status = _wait_job_done(client, accepted["job_id"])
+
+    assert status["last_status"] == "safety_stopped"
+
+
+def test_inject_failure_is_one_shot_across_executions(client):
+    client.post("/demo/inject-failure", json={"attempts": 1})
+
+    first = client.post("/execute-buttons", json={"buttons": ["해동"]}).json()
+    _wait_job_done(client, first["job_id"])
+    second = client.post("/execute-buttons", json={"buttons": ["해동"]}).json()
+    status = _wait_job_done(client, second["job_id"])
+
+    assert status["last_status"] == "succeeded"
+    assert get_service()._last_result.buttons[0].attempts == 1
+
+
+def test_inject_failure_can_be_cleared(client):
+    client.post("/demo/inject-failure", json={"attempts": 2})
+    cleared = client.delete("/demo/inject-failure")
+    assert cleared.status_code == 200
+
+    accepted = client.post("/execute-buttons", json={"buttons": ["해동"]}).json()
+    _wait_job_done(client, accepted["job_id"])
+    assert get_service()._last_result.buttons[0].attempts == 1
+
+
+def test_inject_failure_validates_input(client):
+    assert client.post("/demo/inject-failure", json={"attempts": 0}).status_code == 422
+    assert client.post("/demo/inject-failure", json={"button_index": -1}).status_code == 422

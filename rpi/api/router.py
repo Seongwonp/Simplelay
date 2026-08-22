@@ -8,10 +8,19 @@ from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestion
 
 from rpi.services import DangerAlertStore, NodeRegistry
 
-from .deps import get_alert_store, get_actuator_status, get_dht22, get_node_registry, get_service, get_suggestion_service
+from .deps import (
+    get_alert_store,
+    get_actuator_status,
+    get_demo_failure_state,
+    get_dht22,
+    get_node_registry,
+    get_service,
+    get_suggestion_service,
+)
 from .schemas import (
     AlertResponse,
     ButtonStep,
+    DemoInjectFailureRequest,
     DemoSuggestRequest,
     DndRequest,
     ExecuteButtonsRequest,
@@ -190,6 +199,25 @@ async def demo_suggest(
         occurrences=suggestion.occurrences,
         steps=list(suggestion.steps),
     )
+
+
+@router.post("/demo/inject-failure", response_model=OkResponse)
+async def demo_inject_failure(
+    body: DemoInjectFailureRequest,
+    state=Depends(get_demo_failure_state),
+) -> OkResponse:
+    # 리허설 장치 — 다음 실행의 지정 버튼 검증을 강제 실패시켜 재시도/
+    # 안전 정지 장면을 원할 때 연출한다. 무장은 실행 직전에 할 것(1회용).
+    state.arm(body.button_index, body.attempts)
+    return OkResponse()
+
+
+@router.delete("/demo/inject-failure", response_model=OkResponse)
+async def demo_clear_failure(
+    state=Depends(get_demo_failure_state),
+) -> OkResponse:
+    state.disarm()
+    return OkResponse()
 
 
 @router.post("/dnd", response_model=OkResponse)

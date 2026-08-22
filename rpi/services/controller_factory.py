@@ -22,11 +22,13 @@ from rpi.verifier import MockVerifier
 
 from .act_client import AlertEvent
 from .act_client_controller import open_uart_act_controller
+from .demo_failure import DemoFailureState, FailureInjectionVerifier
 
 
 def build_controller(
     progress_tracker: ExecutionProgressTracker | None = None,
     on_alert: Callable[[AlertEvent], None] | None = None,
+    failure_state: DemoFailureState | None = None,
 ) -> ButtonSequenceController:
     """``SIMPLELAY_ACT_MODE=uart``: dispatch to a real RPi4 board over UART
     (ActClientController) -- aggregate result only, no live per-button
@@ -34,6 +36,10 @@ def build_controller(
     this mode. Otherwise (default, offline-first): a local
     ClosedLoopController against mock hardware, with ``progress_tracker``
     wired in via its on_progress callback if given.
+
+    ``failure_state``: 데모 실패 주입(POST /demo/inject-failure) 상태 —
+    로컬 모드에서만 verifier에 래핑된다. UART 모드는 검증이 RPi4에서
+    일어나므로 여기서는 배선 불가(demo_failure.py 모듈 docstring 참고).
     """
     mode = os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower()
     if mode == "uart":
@@ -42,7 +48,9 @@ def build_controller(
         return open_uart_act_controller(port, baud, on_alert=on_alert)
 
     grbl = MockGrblClient()
-    verifier = MockVerifier(outcomes=[True] * 100)
+    verifier: object = MockVerifier(outcomes=[True] * 100)
+    if failure_state is not None:
+        verifier = FailureInjectionVerifier(verifier, failure_state)
     return ClosedLoopController(
         grbl,
         verifier,

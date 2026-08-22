@@ -24,6 +24,7 @@ from rpi.intent.ports import UsageLog
 from rpi.intent.suggestions import ProactiveSuggestionService
 from rpi.intent.tiered import TieredIntentResolver
 from rpi.services import DangerAlertStore, NodeRegistry, build_controller
+from rpi.services.demo_failure import DemoFailureState
 from rpi.services.persistence import SimpleLayDb, SqliteUsageLog
 
 from .service import SimpleLayService
@@ -126,10 +127,21 @@ def get_node_registry() -> NodeRegistry:
 
 
 @lru_cache(maxsize=1)
+def get_demo_failure_state() -> DemoFailureState:
+    """데모 실패 주입 상태 — POST /demo/inject-failure가 무장하고,
+    로컬 컨트롤러의 verifier 래퍼가 소비한다."""
+    return DemoFailureState()
+
+
+@lru_cache(maxsize=1)
 def get_service() -> SimpleLayService:
     progress_tracker = ExecutionProgressTracker()
     store = get_alert_store()
-    controller = build_controller(progress_tracker, on_alert=store.record)
+    controller = build_controller(
+        progress_tracker,
+        on_alert=store.record,
+        failure_state=get_demo_failure_state(),
+    )
     return SimpleLayService(
         intent=_build_intent_resolver(),
         controller=controller,

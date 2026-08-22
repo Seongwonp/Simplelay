@@ -198,6 +198,32 @@ class DemoSuggestRequest(BaseModel):
         return v.strip()
 
 
+class DemoInjectFailureRequest(BaseModel):
+    """POST /demo/inject-failure — 다음 실행의 지정 버튼 검증을 강제 실패.
+
+    결선 핵심 장면("일부러 실패시켜도 스스로 재시도")을 원할 때 연출하기
+    위한 리허설 장치. attempts 1~2면 재시도 후 성공, 3 이상이면 재시도
+    소진 → 안전 정지. 1회용(다음 실행에서 소진되면 자동 해제).
+    """
+
+    button_index: int = 0
+    attempts: int = 1
+
+    @field_validator("button_index")
+    @classmethod
+    def index_non_negative(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("button_index must be >= 0")
+        return v
+
+    @field_validator("attempts")
+    @classmethod
+    def attempts_in_range(cls, v: int) -> int:
+        if not 1 <= v <= 10:
+            raise ValueError("attempts must be between 1 and 10")
+        return v
+
+
 class DndRequest(BaseModel):
     duration_minutes: int
 
