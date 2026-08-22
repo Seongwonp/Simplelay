@@ -212,6 +212,9 @@ class DndRequest(BaseModel):
 class SensorResponse(BaseModel):
     temperature: float | None = None
     humidity: float | None = None
+    # True면 실측이 아니라 mock 폴백값 — 이전엔 DHT22 실패 시 26.5°C를
+    # 실측인 척 반환해 클라이언트가 구분할 수 없었다.
+    mocked: bool = False
 
 
 class AlertResponse(BaseModel):

@@ -217,17 +217,19 @@ _MOCK_HUM = 58.0
 async def sensors(
     dht22=Depends(get_dht22),
 ) -> SensorResponse:
-    temp, hum = await _read_dht22(dht22)
-    return SensorResponse(temperature=temp, humidity=hum)
+    temp, hum, mocked = await _read_dht22(dht22)
+    return SensorResponse(temperature=temp, humidity=hum, mocked=mocked)
 
 
-async def _read_dht22(dht22) -> tuple[float, float]:
+async def _read_dht22(dht22) -> tuple[float, float, bool]:
     import asyncio  # noqa: PLC0415
 
     temp, hum = await asyncio.to_thread(dht22.read)
+    mocked = temp is None or hum is None
     return (
         temp if temp is not None else _MOCK_TEMP,
         hum if hum is not None else _MOCK_HUM,
+        mocked,
     )
 
 
