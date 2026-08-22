@@ -62,17 +62,22 @@ class HomeScreen extends ConsumerWidget {
               icon: const Icon(Icons.touch_app),
               label: const Text('버튼으로 조작'),
             )
-          : FloatingActionButton.extended(
-              onPressed: connected ? () => context.go('/voice') : null,
-              backgroundColor: connected
-                  ? context.appPrimary
-                  : Theme.of(context).colorScheme.surfaceContainerHigh,
-              foregroundColor: connected
-                  ? Theme.of(context).colorScheme.onPrimary
-                  : context.appMuted,
-              icon: const Icon(Icons.mic_rounded),
-              label: const Text('말하기'),
-            ),
+          : Builder(builder: (context) {
+              // 음성 명령은 RPi HTTP 직통으로도 가능하다 — BLE에만 묶어두면
+              // "RPi 연결됨" 카드 옆에서 FAB만 죽어 있는 모순이 생긴다.
+              final canSpeak = connected || rpiOnline;
+              return FloatingActionButton.extended(
+                onPressed: canSpeak ? () => context.go('/voice') : null,
+                backgroundColor: canSpeak
+                    ? context.appPrimary
+                    : Theme.of(context).colorScheme.surfaceContainerHigh,
+                foregroundColor: canSpeak
+                    ? Theme.of(context).colorScheme.onPrimary
+                    : context.appMuted,
+                icon: const Icon(Icons.mic_rounded),
+                label: const Text('말하기'),
+              );
+            }),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
         children: [
@@ -87,7 +92,7 @@ class HomeScreen extends ConsumerWidget {
           if (dndActive) ...[
             const SizedBox(height: 12),
             _DndBanner(
-              until: dndUntil!,
+              until: dndUntil,
               onClear: () => ref.read(dndProvider.notifier).clear(),
             ),
           ],

@@ -41,7 +41,21 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
     _publish();
   }
 
+  bool _pollInFlight = false;
+
   Future<void> _pollHttp() async {
+    // 재진입 가드 — 5초 주기 폴링 vs 8초 타임아웃이라 서버가 느리면
+    // 요청이 겹겹이 쌓일 수 있다.
+    if (_pollInFlight) return;
+    _pollInFlight = true;
+    try {
+      await _pollHttpOnce();
+    } finally {
+      _pollInFlight = false;
+    }
+  }
+
+  Future<void> _pollHttpOnce() async {
     final api = ref.read(rpiApiServiceProvider);
     if (api == null) {
       if (_httpSuggestions.isNotEmpty) {

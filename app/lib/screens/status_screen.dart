@@ -103,6 +103,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       code: status.steps[i],
                       done: done,
                       current: current,
+                      isLast: i == status.steps.length - 1,
                     );
                   }),
                 ],
@@ -194,11 +195,13 @@ class _StepTile extends StatelessWidget {
     required this.code,
     required this.done,
     required this.current,
+    required this.isLast,
   });
   final int index;
   final String code;
   final bool done;
   final bool current;
+  final bool isLast;
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +230,7 @@ class _StepTile extends StatelessWidget {
                 child: Icon(iconData,
                     key: ValueKey(iconData), color: iconColor, size: 22),
               ),
-              if (index < 99) // 항상 연결선 자리 확보
+              if (!isLast) // 마지막 단계 뒤에는 연결선을 그리지 않는다
                 Container(
                   width: 2,
                   height: 24,

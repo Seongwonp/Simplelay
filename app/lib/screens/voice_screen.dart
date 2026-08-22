@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -239,8 +240,16 @@ class _MicButton extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-        onTap: onTap,
+  // Semantics: 스크린리더 사용자에게 상태까지 포함해 버튼으로 읽힌다.
+  // 햅틱: 듣기 시작/정지 전환을 손끝으로도 확인 (시각 비의존 채널).
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: listening ? '음성 인식 정지' : '음성 명령 시작',
+        child: GestureDetector(
+        onTap: () {
+          HapticFeedback.mediumImpact();
+          onTap();
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOutCubic,
@@ -266,6 +275,7 @@ class _MicButton extends StatelessWidget {
             size: listening ? 44 : 38,
             color: listening ? Colors.black : AppColors.primary,
           ),
+        ),
         ),
       );
 }

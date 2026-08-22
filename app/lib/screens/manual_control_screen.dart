@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -292,8 +293,11 @@ class _ButtonCell extends StatelessWidget {
       _CellState.idle => (idleOutline, null),
     };
 
-    return GestureDetector(
-      onTap: onTap,
+    // Material+InkWell: 탭 시 잉크 피드백(눌렸는지 눈으로 확인 가능) +
+    // 스크린리더에 버튼으로 인식. 물리 버튼을 누르는 앱 특성상 탭 순간
+    // 햅틱도 함께 준다 — 시각에 의존하지 않는 확인 채널.
+    return Material(
+      type: MaterialType.transparency,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         decoration: BoxDecoration(
@@ -303,17 +307,27 @@ class _ButtonCell extends StatelessWidget {
           border: Border.all(color: color, width: state == _CellState.idle ? 1 : 1.5),
           borderRadius: BorderRadius.circular(10),
         ),
-        alignment: Alignment.center,
-        child: overlay ??
-            Text(
-              button.label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: state == _CellState.idle ? idleText : color,
-              ),
-            ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap == null
+              ? null
+              : () {
+                  HapticFeedback.mediumImpact();
+                  onTap!();
+                },
+          child: Center(
+            child: overlay ??
+                Text(
+                  button.label,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: state == _CellState.idle ? idleText : color,
+                  ),
+                ),
+          ),
+        ),
       ),
     );
   }

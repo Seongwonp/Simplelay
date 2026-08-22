@@ -303,13 +303,19 @@ class _ApplianceSection extends ConsumerWidget {
                             color: AppColors.primary, size: 14),
                       ],
                       if (appliance.isCustom) ...[
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 2),
+                        // 등록 데이터(버튼맵·사진)가 즉시 유실되는 파괴적
+                        // 동작 — 반드시 확인을 거친다. 히트박스도 14px
+                        // 아이콘 단독이 아니라 패딩 포함으로 확대.
                         GestureDetector(
-                          onTap: () => ref
-                              .read(customAppliancesProvider.notifier)
-                              .remove(appliance.id),
-                          child: Icon(Icons.close,
-                              color: context.appMuted, size: 14),
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => _confirmRemoveAppliance(
+                              context, ref, appliance),
+                          child: Padding(
+                            padding: const EdgeInsets.all(6),
+                            child: Icon(Icons.close,
+                                color: context.appMuted, size: 14),
+                          ),
                         ),
                       ],
                     ],
@@ -345,6 +351,34 @@ class _ApplianceSection extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _confirmRemoveAppliance(
+    BuildContext context,
+    WidgetRef ref,
+    ApplianceMap appliance,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text('\'${appliance.name}\' 삭제'),
+        content: const Text('등록한 버튼 배치와 사진이 함께 삭제됩니다. 삭제할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true) {
+      await ref.read(customAppliancesProvider.notifier).remove(appliance.id);
+    }
   }
 }
 
