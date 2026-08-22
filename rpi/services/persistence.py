@@ -20,8 +20,12 @@ import threading
 from datetime import datetime
 from pathlib import Path
 
+import json
+
 from rpi.intent.models import UsageOutcome, UsageRecord
 from rpi.intent.ports import UsageLog
+
+from .history import ButtonAttempt, JobHistoryEntry
 
 
 class SimpleLayDb:
@@ -41,6 +45,14 @@ class SimpleLayDb:
                 CREATE TABLE IF NOT EXISTS nodes (
                     appliance_id TEXT PRIMARY KEY,
                     base_url TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS job_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    job_id TEXT NOT NULL,
+                    finished_at TEXT NOT NULL,  -- ISO-8601, timezone 포함
+                    purpose TEXT,               -- 버튼 직접 실행은 NULL
+                    status TEXT NOT NULL,
+                    buttons_json TEXT NOT NULL  -- [{button, success, attempts}]
                 );
                 """
             )
@@ -98,9 +110,71 @@ class SimpleLayDb:
             ).fetchall()
         return dict(rows)
 
+    # ── 실행(job) 이력 ──────────────────────────────────────────────────────
+
+    def append_job_history(self, entry: JobHistoryEntry) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO job_history"
+                " (job_id, finished_at, purpose, status, buttons_json)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (
+                    entry.job_id,
+                    entry.finished_at.isoformat(),
+                    entry.purpose,
+                    entry.status,
+                    json.dumps(
+                        [
+                            {
+                                "button": b.button,
+                                "success": b.success,
+                                "attempts": b.attempts,
+                            }
+                            for b in entry.buttons
+                        ],
+                        ensure_ascii=False,
+                    ),
+                ),
+            )
+            self._conn.commit()
+
+    def recent_job_history(self, limit: int = 50) -> tuple[JobHistoryEntry, ...]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT job_id, finished_at, purpose, status, buttons_json"
+                " FROM job_history ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return tuple(
+            JobHistoryEntry(
+                job_id=job_id,
+                finished_at=datetime.fromisoformat(finished_at),
+                purpose=purpose,
+                status=status,
+                buttons=tuple(
+                    ButtonAttempt(b["button"], b["success"], b["attempts"])
+                    for b in json.loads(buttons_json)
+                ),
+            )
+            for job_id, finished_at, purpose, status, buttons_json in rows
+        )
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()
+
+
+class SqliteJobHistory:
+    """JobHistoryStore 포트의 SQLite 구현 — 재시작에도 이력 유지."""
+
+    def __init__(self, db: SimpleLayDb) -> None:
+        self._db = db
+
+    def append(self, entry: JobHistoryEntry) -> None:
+        self._db.append_job_history(entry)
+
+    def recent(self, limit: int = 50) -> tuple[JobHistoryEntry, ...]:
+        return self._db.recent_job_history(limit)
 
 
 class SqliteUsageLog(UsageLog):

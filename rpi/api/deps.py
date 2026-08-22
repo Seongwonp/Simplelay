@@ -25,7 +25,8 @@ from rpi.intent.suggestions import ProactiveSuggestionService
 from rpi.intent.tiered import TieredIntentResolver
 from rpi.services import DangerAlertStore, NodeRegistry, build_controller
 from rpi.services.demo_failure import DemoFailureState
-from rpi.services.persistence import SimpleLayDb, SqliteUsageLog
+from rpi.services.history import InMemoryJobHistory, JobHistoryStore
+from rpi.services.persistence import SimpleLayDb, SqliteJobHistory, SqliteUsageLog
 
 from .service import SimpleLayService
 
@@ -89,6 +90,12 @@ def get_usage_log() -> UsageLog:
     return SqliteUsageLog(db) if db is not None else InMemoryUsageLog()
 
 
+@lru_cache(maxsize=1)
+def get_job_history() -> JobHistoryStore:
+    db = get_db()
+    return SqliteJobHistory(db) if db is not None else InMemoryJobHistory()
+
+
 def _build_intent_resolver() -> IntentResolver:
     """docs/inference-boundary.md의 온디바이스 우선 3계층 조립.
 
@@ -150,6 +157,7 @@ def get_service() -> SimpleLayService:
         progress_tracker=progress_tracker,
         llm_client=_build_llm_client(),
         node_registry=get_node_registry(),
+        history_store=get_job_history(),
     )
 
 

@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from rpi.api.deps import (
     get_alert_store,
     get_demo_failure_state,
+    get_job_history,
     get_node_registry,
     get_service,
     get_suggestion_service,
@@ -17,6 +18,7 @@ _SINGLETONS = (
     get_alert_store,
     get_node_registry,
     get_demo_failure_state,
+    get_job_history,
 )
 
 
@@ -497,3 +499,53 @@ def test_inject_failure_can_be_cleared(client):
 def test_inject_failure_validates_input(client):
     assert client.post("/demo/inject-failure", json={"attempts": 0}).status_code == 422
     assert client.post("/demo/inject-failure", json={"button_index": -1}).status_code == 422
+
+
+# ── /history (실행 이력) ──────────────────────────────────────────────────────
+
+def test_history_empty_initially(client):
+    assert client.get("/history").json() == []
+
+
+def test_history_records_executions_newest_first(client):
+    first = client.post("/execute", json={"text": "우유 데워줘"}).json()
+    _wait_job_done(client, first["job_id"])
+    second = client.post("/execute-buttons", json={"buttons": ["전원"]}).json()
+    _wait_job_done(client, second["job_id"])
+
+    entries = client.get("/history").json()
+
+    assert len(entries) == 2
+    # 최신순 — 버튼 직접 실행이 먼저
+    assert entries[0]["job_id"] == second["job_id"]
+    assert entries[0]["purpose"] is None
+    assert entries[0]["buttons"] == [
+        {"button": "전원", "success": True, "attempts": 1}
+    ]
+    assert entries[1]["purpose"] == "우유 데워줘"
+    assert entries[1]["status"] == "succeeded"
+    assert entries[1]["finished_at"]  # ISO 타임스탬프 존재
+
+
+def test_history_captures_injected_retry(client):
+    # 실패 주입 → 폐루프 재시도 회복이 이력의 retry_count로 남는다
+    client.post("/demo/inject-failure", json={"button_index": 0, "attempts": 1})
+    accepted = client.post("/execute-buttons", json={"buttons": ["전원", "시작"]}).json()
+    _wait_job_done(client, accepted["job_id"])
+
+    (entry,) = client.get("/history").json()
+
+    assert entry["status"] == "succeeded"
+    assert entry["retry_count"] == 1
+    assert entry["buttons"][0]["attempts"] == 2
+
+
+def test_history_limit_clamped(client):
+    for i in range(3):
+        accepted = client.post(
+            "/execute-buttons", json={"buttons": [f"버튼{i}"]}
+        ).json()
+        _wait_job_done(client, accepted["job_id"])
+
+    assert len(client.get("/history?limit=2").json()) == 2
+    assert len(client.get("/history?limit=0").json()) == 1  # 1로 클램프

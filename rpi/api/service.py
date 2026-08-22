@@ -22,6 +22,7 @@ from rpi.intent import (
     UsageRecord,
 )
 from rpi.services import NodeRegistry
+from rpi.services.history import ButtonAttempt, JobHistoryEntry, JobHistoryStore
 
 log = logging.getLogger(__name__)
 
@@ -78,6 +79,7 @@ class SimpleLayService(PurposeExecutor):
         progress_tracker: ExecutionProgressTracker | None = None,
         llm_client: LlmClient | None = None,
         node_registry: NodeRegistry | None = None,
+        history_store: JobHistoryStore | None = None,
     ) -> None:
         self._intent = intent
         self._controller = controller
@@ -103,6 +105,8 @@ class SimpleLayService(PurposeExecutor):
         # self._controller(기본 내장 가전)로 그대로 간다. 다중 노드 아키텍처
         # 전환 전까지는 None으로 둬도 기존 동작과 완전히 동일하다.
         self._node_registry = node_registry
+        # 실행 이력(무엇을·언제·재시도·결과) — None이면 기록하지 않는다
+        self._history_store = history_store
 
     def mark_ready(self) -> None:
         """Declare that hardware dependencies finished initializing."""
@@ -223,6 +227,7 @@ class SimpleLayService(PurposeExecutor):
             # 남기고 /status의 last_status="failed"로 실패를 노출한다.
             log.exception("background job execution failed")
             self._last_result = ExecutionResult(ExecutionStatus.FAILED, ())
+            self._record_history(self._last_result, purpose)
         finally:
             self._end_run()
 
@@ -247,11 +252,34 @@ class SimpleLayService(PurposeExecutor):
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
 
+    def _record_history(self, result: ExecutionResult, purpose: str | None) -> None:
+        """실행 이력 기록 — 실패해도 실행 자체를 절대 막지 않는다."""
+        if self._history_store is None:
+            return
+        try:
+            self._history_store.append(
+                JobHistoryEntry(
+                    job_id=self._current_job_id or "",
+                    finished_at=self._clock.now(),
+                    purpose=purpose,
+                    status=result.status.value,
+                    buttons=tuple(
+                        ButtonAttempt(
+                            b.button, b.status.value == "succeeded", b.attempts
+                        )
+                        for b in result.buttons
+                    ),
+                )
+            )
+        except Exception:
+            log.exception("job history record failed")
+
     def _run_buttons(
         self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
     ) -> ExecutionResult:
         controller = self._controller_for(appliance_id)
         self._last_result = controller.execute(buttons)
+        self._record_history(self._last_result, purpose)
         # purpose가 없는 실행(직접 버튼 시퀀스)은 의도적으로 학습 로그에서 제외
         if purpose is not None and self._usage_log is not None:
             outcome = (

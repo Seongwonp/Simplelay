@@ -163,6 +163,24 @@ class ApproveResponse(BaseModel):
     buttons: list[ButtonStep]
 
 
+class HistoryButton(BaseModel):
+    button: str
+    success: bool
+    attempts: int
+
+
+class HistoryEntryResponse(BaseModel):
+    """GET /history — 실행 1건의 이력. retry_count > 0이면 폐루프가 실제로
+    회복 재시도를 했다는 뜻(앱 타임라인에서 배지로 강조)."""
+
+    job_id: str
+    finished_at: datetime
+    purpose: str | None = None  # 버튼 직접 실행(수동 조작)은 없다
+    status: str
+    retry_count: int
+    buttons: list[HistoryButton]
+
+
 class OkResponse(BaseModel):
     ok: bool = True
 

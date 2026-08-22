@@ -13,6 +13,7 @@ from .deps import (
     get_actuator_status,
     get_demo_failure_state,
     get_dht22,
+    get_job_history,
     get_node_registry,
     get_service,
     get_suggestion_service,
@@ -27,6 +28,8 @@ from .schemas import (
     ExecuteForApplianceRequest,
     ExecuteRequest,
     ExecuteResponse,
+    HistoryButton,
+    HistoryEntryResponse,
     JobAcceptedResponse,
     NodeRegisterRequest,
     NodeResponse,
@@ -199,6 +202,32 @@ async def demo_suggest(
         occurrences=suggestion.occurrences,
         steps=list(suggestion.steps),
     )
+
+
+@router.get("/history", response_model=list[HistoryEntryResponse])
+async def history(
+    limit: int = 50,
+    store=Depends(get_job_history),
+) -> list[HistoryEntryResponse]:
+    # 실행 이력(최신순) — 공감지능의 근거 데이터와 폐루프 재시도 기록을
+    # 사용자에게 그대로 보여준다. limit은 1~200으로 클램프.
+    limit = max(1, min(limit, 200))
+    return [
+        HistoryEntryResponse(
+            job_id=e.job_id,
+            finished_at=e.finished_at,
+            purpose=e.purpose,
+            status=e.status,
+            retry_count=e.retry_count,
+            buttons=[
+                HistoryButton(
+                    button=b.button, success=b.success, attempts=b.attempts
+                )
+                for b in e.buttons
+            ],
+        )
+        for e in store.recent(limit)
+    ]
 
 
 @router.post("/demo/inject-failure", response_model=OkResponse)
