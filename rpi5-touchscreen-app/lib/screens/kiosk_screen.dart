@@ -55,6 +55,8 @@ class _KioskScreenState extends State<KioskScreen> {
   // 주입받은 서비스는 호출자 소유 — 내부 생성분만 dispose한다
   late final bool _ownsApi = widget.api == null;
   late final KioskTtsService _tts = widget.tts ?? KioskTtsService();
+  // 큰 글씨 모드 — 세션 한정(음성 안내 토글과 동일한 이유), 기본 꺼짐
+  bool _largeText = false;
 
   late ApplianceMap _currentAppliance;
   bool _showSettings = false;
@@ -413,6 +415,18 @@ class _KioskScreenState extends State<KioskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // 큰 글씨 모드 — 설정 오버레이 토글. 800x480 고정 해상도라 1.22배가
+    // 레이아웃 오버플로 없이 전 화면(시계·제안·실행·수동)에 안전한 상한.
+    final media = MediaQuery.of(context);
+    return MediaQuery(
+      data: media.copyWith(
+        textScaler: TextScaler.linear(_largeText ? 1.22 : 1.0),
+      ),
+      child: _buildScaffold(),
+    );
+  }
+
+  Widget _buildScaffold() {
     return Scaffold(
       backgroundColor: KioskColors.bg,
       body: Stack(
@@ -456,6 +470,9 @@ class _KioskScreenState extends State<KioskScreen> {
                 ttsEnabled: _tts.enabled,
                 onTtsChanged: (enabled) =>
                     setState(() => _tts.enabled = enabled),
+                largeTextEnabled: _largeText,
+                onLargeTextChanged: (enabled) =>
+                    setState(() => _largeText = enabled),
                 onApplianceChanged: (a) =>
                     setState(() => _currentAppliance = a),
                 onDismiss: () => setState(() => _showSettings = false),
