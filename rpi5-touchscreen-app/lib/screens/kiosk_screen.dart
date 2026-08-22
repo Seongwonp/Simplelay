@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/appliance.dart';
 import '../services/kiosk_api_service.dart';
+import '../services/kiosk_tts_service.dart';
 import '../theme/kiosk_colors.dart';
 import '../widgets/kiosk/danger_alert_overlay.dart';
 import '../widgets/kiosk/dnd_overlay.dart';
@@ -30,12 +31,20 @@ const _execBarFillDuration = KioskTimings.execBarFill;
 const _statusLostTimeout = Duration(seconds: 30);
 
 class KioskScreen extends StatefulWidget {
-  const KioskScreen({super.key, this.appliance = kMicrowaveAppliance, this.api});
+  const KioskScreen({
+    super.key,
+    this.appliance = kMicrowaveAppliance,
+    this.api,
+    this.tts,
+  });
 
   final ApplianceMap appliance;
 
   /// 테스트에서 fake를 주입하기 위한 지점 — 미지정 시 localhost 기본 서비스.
   final KioskApiService? api;
+
+  /// 음성 안내(espeak-ng) — 테스트에서 발화 내용 검증용 주입 지점.
+  final KioskTtsService? tts;
 
   @override
   State<KioskScreen> createState() => _KioskScreenState();
@@ -45,6 +54,7 @@ class _KioskScreenState extends State<KioskScreen> {
   late final KioskApiService _api = widget.api ?? KioskApiService();
   // 주입받은 서비스는 호출자 소유 — 내부 생성분만 dispose한다
   late final bool _ownsApi = widget.api == null;
+  late final KioskTtsService _tts = widget.tts ?? KioskTtsService();
 
   late ApplianceMap _currentAppliance;
   bool _showSettings = false;
@@ -132,6 +142,11 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _fetchAlert() async {
     final alert = await _api.alerts();
     if (!mounted) return;
+    // 새로 켜지는 엣지에서만 음성 경보 — 폴링마다 반복 발화하지 않는다.
+    // DND 중에도 발화한다: 안전 경보는 방해 금지보다 우선한다.
+    if (alert.active && !_alert.active) {
+      _tts.speak('위험 신호음이 감지되었습니다. 주변을 확인해 주세요.');
+    }
     setState(() {
       // 새로 켜지는 순간(엣지)엔 "확인" 눌렀던 기록을 리셋 — 계속 같은
       // 경보가 이어지는 중엔 확인 상태 유지, 한 번 꺼졌다 다시 울리면 재알림.
@@ -230,6 +245,8 @@ class _KioskScreenState extends State<KioskScreen> {
   void _fromManual() => setState(() => _phase = KioskPhase.idle);
 
   void _toSuggestion(KioskSuggestion suggestion) {
+    // 제안 도착을 소리로도 알린다 — 사용자가 화면 근처에 없어도 알 수 있게.
+    _tts.speak('${suggestion.purpose}, 지금 실행할까요? 화면에서 승인해 주세요.');
     setState(() {
       _phase = KioskPhase.suggestion;
       _currentSuggestion = suggestion;
@@ -299,6 +316,15 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   void _toDone(bool success, String label) {
+    // 실행 결과 음성 안내. '서버 응답 없음'은 라벨이 아니라 오류 상황이라
+    // 문장을 따로 쓴다 ("서버 응답 없음 실패했습니다"는 어색).
+    _tts.speak(
+      success
+          ? '$label 완료되었습니다.'
+          : label == '서버 응답 없음'
+              ? '서버 응답이 없습니다. 연결을 확인해 주세요.'
+              : '$label 실패했습니다. 화면을 확인해 주세요.',
+    );
     setState(() {
       _phase = KioskPhase.done;
       _doneSuccess = success;
@@ -427,6 +453,9 @@ class _KioskScreenState extends State<KioskScreen> {
               child: KioskSettingsOverlay(
                 currentAppliance: _currentAppliance,
                 api: _api,
+                ttsEnabled: _tts.enabled,
+                onTtsChanged: (enabled) =>
+                    setState(() => _tts.enabled = enabled),
                 onApplianceChanged: (a) =>
                     setState(() => _currentAppliance = a),
                 onDismiss: () => setState(() => _showSettings = false),

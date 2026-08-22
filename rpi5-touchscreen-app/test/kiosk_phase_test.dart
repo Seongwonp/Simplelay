@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/services/kiosk_tts_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
@@ -13,6 +14,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 class FakeKioskApi implements KioskApiService {
   List<KioskSuggestion> suggestionList = [];
   KioskStatus statusResult = const KioskStatus(running: false);
+  AlertState alertState = AlertState.inactive;
   Object? executeError;
   String nextJobId = 'job-1';
   final approvedIds = <String>[];
@@ -25,7 +27,7 @@ class FakeKioskApi implements KioskApiService {
   Future<SensorData?> sensors() async => null;
 
   @override
-  Future<AlertState> alerts() async => AlertState.inactive;
+  Future<AlertState> alerts() async => alertState;
 
   @override
   Future<List<KioskSuggestion>> suggestions() async => suggestionList;
@@ -76,10 +78,29 @@ class FakeKioskApi implements KioskApiService {
   void dispose() {}
 }
 
+// 음성 안내 — 실제 espeak 프로세스 대신 발화 내용만 기록
+class FakeTts extends KioskTtsService {
+  final utterances = <String>[];
+
+  @override
+  Future<void> speak(String text) async {
+    if (enabled) utterances.add(text);
+  }
+}
+
 const _sug = KioskSuggestion(id: 's1', purpose: '우유 데워줘', occurrences: 3);
 
-Future<void> _pumpKiosk(WidgetTester tester, FakeKioskApi api) async {
-  await tester.pumpWidget(MaterialApp(home: KioskScreen(api: api)));
+Future<void> _pumpKiosk(
+  WidgetTester tester,
+  FakeKioskApi api, {
+  FakeTts? tts,
+}) async {
+  // tts 미지정 테스트에서도 기본 KioskTtsService가 실제 espeak 프로세스를
+  // 띄우지 않도록 항상 fake를 주입한다 (fake async 존에서 Process.run은
+  // pending timer로 남아 테스트를 깨뜨린다).
+  await tester.pumpWidget(
+    MaterialApp(home: KioskScreen(api: api, tts: tts ?? FakeTts())),
+  );
   await tester.pump(); // initState 첫 폴링
   await tester.pump(); // async 응답 반영
 }
@@ -210,5 +231,62 @@ void main() {
 
     expect(find.byType(KioskDoneView), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn); // 복귀 타이머 소진
+  });
+
+  // ── 음성 안내 (TTS) ──────────────────────────────────────────────────────
+
+  testWidgets('제안 도착·실행 완료를 음성으로 안내한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+
+    // 제안 도착 발화 — 목적이 포함된 문장
+    expect(tts.utterances.single, contains('우유 데워줘'));
+    expect(tts.utterances.single, contains('승인'));
+
+    api.suggestionList = [];
+    await tester.tap(find.text('승인'));
+    await tester.pump();
+    api.statusResult = const KioskStatus(
+      running: false,
+      lastStatus: 'succeeded',
+      lastButtons: [],
+      lastJobId: 'job-1',
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+
+    // 완료 발화
+    expect(tts.utterances.last, contains('완료되었습니다'));
+    await tester.pump(KioskTimings.doneReturn);
+  });
+
+  testWidgets('위험 경보는 새로 켜지는 엣지에서 1회만 발화한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi();
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    expect(tts.utterances, isEmpty);
+
+    api.alertState = const AlertState(active: true, kind: 'fire_alarm');
+    await tester.pump(const Duration(seconds: 3)); // alert 폴링 주기
+    await tester.pump();
+    expect(tts.utterances.where((u) => u.contains('위험')).length, 1);
+
+    // 경보가 이어지는 동안 반복 발화하지 않는다
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+    expect(tts.utterances.where((u) => u.contains('위험')).length, 1);
+  });
+
+  testWidgets('음성 안내를 끄면 발화하지 않는다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    final tts = FakeTts()..enabled = false;
+    await _pumpKiosk(tester, api, tts: tts);
+
+    expect(tts.utterances, isEmpty);
   });
 }

@@ -51,7 +51,8 @@ apt-get install -y --no-install-recommends -qq \
     python3-gpiozero \
     libgpiod2 \
     avahi-daemon libnss-mdns \
-    logrotate
+    logrotate \
+    espeak-ng
 
 systemctl enable --now avahi-daemon
 ok "시스템 패키지 설치 완료 (avahi-daemon 활성화 포함)"

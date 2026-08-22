@@ -12,12 +12,18 @@ class KioskSettingsOverlay extends StatefulWidget {
     required this.api,
     required this.onApplianceChanged,
     required this.onDismiss,
+    this.ttsEnabled = true,
+    this.onTtsChanged,
   });
 
   final ApplianceMap currentAppliance;
   final KioskApiService api;
   final ValueChanged<ApplianceMap> onApplianceChanged;
   final VoidCallback onDismiss;
+
+  /// 음성 안내(espeak-ng) 켜짐 여부 + 토글 콜백
+  final bool ttsEnabled;
+  final ValueChanged<bool>? onTtsChanged;
 
   @override
   State<KioskSettingsOverlay> createState() => _KioskSettingsOverlayState();
@@ -116,7 +122,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             onTap: () {},
             child: Container(
               width: 480,
-              constraints: const BoxConstraints(maxHeight: 360),
+              constraints: const BoxConstraints(maxHeight: 440),
               padding: const EdgeInsets.all(28),
               decoration: BoxDecoration(
                 color: KioskColors.surface,
@@ -128,7 +134,11 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _buildHeader(),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 20),
+                  _buildTtsSection(),
+                  const SizedBox(height: 16),
+                  const Divider(color: KioskColors.border, height: 1),
+                  const SizedBox(height: 16),
                   _buildApplianceSection(),
                   const SizedBox(height: 20),
                   const Divider(color: KioskColors.border, height: 1),
@@ -158,6 +168,35 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           GestureDetector(
             onTap: widget.onDismiss,
             child: const Icon(Icons.close, color: KioskColors.muted, size: 20),
+          ),
+        ],
+      );
+
+  Widget _buildTtsSection() => Row(
+        children: [
+          const Icon(Icons.record_voice_over,
+              color: KioskColors.muted, size: 18),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '음성 안내',
+                  style: TextStyle(fontSize: 14, color: Color(0xFFFAF7F2)),
+                ),
+                Text(
+                  '제안·실행 결과·위험 경보를 소리로 읽어줍니다',
+                  style: TextStyle(fontSize: 11, color: KioskColors.muted),
+                ),
+              ],
+            ),
+          ),
+          Switch(
+            value: widget.ttsEnabled,
+            activeTrackColor: KioskColors.primary.withValues(alpha: 0.5),
+            activeThumbColor: KioskColors.primary,
+            onChanged: widget.onTtsChanged,
           ),
         ],
       );
