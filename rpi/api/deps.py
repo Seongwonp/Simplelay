@@ -27,6 +27,7 @@ from rpi.services import DangerAlertStore, NodeRegistry, build_controller
 from rpi.services.demo_failure import DemoFailureState
 from rpi.services.history import InMemoryJobHistory, JobHistoryStore
 from rpi.services.persistence import SimpleLayDb, SqliteJobHistory, SqliteUsageLog
+from rpi.services.presence import PresenceStore
 
 from .service import SimpleLayService
 
@@ -184,10 +185,33 @@ def get_actuator_status() -> "ActuatorStatus":
 
 
 @lru_cache(maxsize=1)
+def get_presence_store() -> PresenceStore:
+    """공간 존재 상태 — RPi4 카메라 감지기가 POST /presence로 갱신한다.
+    TTL(60초)이 지나면 unknown으로 복귀(죽은 감지기의 영구 차단 방지)."""
+    return PresenceStore(_clock)
+
+
+def _build_presence_gate():
+    """SIMPLELAY_PRESENCE_GATING=true일 때만 부재 중 자동 제안 보류를
+    배선한다 — 기본은 None(기존 동작 불변, 감지기 없는 구성 안전)."""
+    enabled = (
+        os.environ.get("SIMPLELAY_PRESENCE_GATING", "false").strip().lower()
+        == "true"
+    )
+    if not enabled:
+        return None
+    return get_presence_store().allows_suggestions
+
+
+@lru_cache(maxsize=1)
 def get_suggestion_service() -> ProactiveSuggestionService:
     detector = PatternDetector(get_usage_log(), _clock, _PATTERN_CONFIG)
     # 미리보기 해석은 빠르고 오프라인이어야 하므로 규칙 계층만 쓴다 —
     # 실제 실행 시퀀스는 approve 시점에 서비스의 전체 리졸버로 다시 해석된다.
     return ProactiveSuggestionService(
-        detector, _clock, get_service(), intent_resolver=RuleBasedIntentResolver()
+        detector,
+        _clock,
+        get_service(),
+        intent_resolver=RuleBasedIntentResolver(),
+        presence_gate=_build_presence_gate(),
     )

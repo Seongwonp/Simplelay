@@ -25,6 +25,7 @@ class ProactiveSuggestionService:
         clock: Clock,
         executor: PurposeExecutor,
         intent_resolver: IntentResolver | None = None,
+        presence_gate=None,
     ) -> None:
         self._detector = detector
         self._clock = clock
@@ -33,6 +34,11 @@ class ProactiveSuggestionService:
         self._suggestions: dict[str, ProactiveSuggestion] = {}
         self._next_id = 1
         self._dnd_until: datetime | None = None
+        # 공간 맥락 게이트(선택) — False를 돌려주는 동안 자동 제안 생성을
+        # 보류한다(부재 중인 공간에 제안을 띄우지 않기). None이면 무시.
+        # 수동 트리거(create_demo_suggestion)와 이미 만들어진 pending 노출은
+        # 게이트 대상이 아니다 — 데모·기존 제안 흐름을 건드리지 않는다.
+        self._presence_gate = presence_gate
 
     def set_dnd_for(self, minutes: int) -> datetime:
         until = self._clock.now() + timedelta(minutes=minutes)
@@ -52,6 +58,8 @@ class ProactiveSuggestionService:
 
     def create_suggestions(self) -> tuple[ProactiveSuggestion, ...]:
         if self.is_dnd():
+            return ()
+        if self._presence_gate is not None and not self._presence_gate():
             return ()
         created: list[ProactiveSuggestion] = []
         for candidate in self._detector.candidates():

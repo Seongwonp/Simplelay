@@ -242,6 +242,20 @@ class DemoInjectFailureRequest(BaseModel):
         return v
 
 
+class PresenceRequest(BaseModel):
+    """POST /presence — 공간 존재 감지기(RPi4 카메라 등)가 판정을 보고한다."""
+
+    present: bool
+    source: str = "camera"
+
+
+class PresenceResponse(BaseModel):
+    # present=None: 감지기 없음 또는 정보 만료(TTL) — '알 수 없음'
+    present: bool | None = None
+    source: str | None = None
+    updated_at: datetime | None = None
+
+
 class DndRequest(BaseModel):
     duration_minutes: int
 

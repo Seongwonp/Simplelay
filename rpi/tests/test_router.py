@@ -7,6 +7,7 @@ from rpi.api.deps import (
     get_demo_failure_state,
     get_job_history,
     get_node_registry,
+    get_presence_store,
     get_service,
     get_suggestion_service,
 )
@@ -19,6 +20,7 @@ _SINGLETONS = (
     get_node_registry,
     get_demo_failure_state,
     get_job_history,
+    get_presence_store,
 )
 
 
@@ -549,3 +551,23 @@ def test_history_limit_clamped(client):
 
     assert len(client.get("/history?limit=2").json()) == 2
     assert len(client.get("/history?limit=0").json()) == 1  # 1로 클램프
+
+
+# ── /presence (공간 존재 보고·조회) ───────────────────────────────────────────
+
+def test_presence_unknown_initially(client):
+    body = client.get("/presence").json()
+    assert body["present"] is None
+
+
+def test_presence_report_and_read(client):
+    posted = client.post(
+        "/presence", json={"present": True, "source": "camera"}
+    )
+    assert posted.status_code == 200
+    assert posted.json()["present"] is True
+
+    body = client.get("/presence").json()
+    assert body["present"] is True
+    assert body["source"] == "camera"
+    assert body["updated_at"]

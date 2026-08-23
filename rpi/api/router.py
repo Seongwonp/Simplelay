@@ -17,6 +17,7 @@ from .deps import (
     get_dht22,
     get_job_history,
     get_node_registry,
+    get_presence_store,
     get_service,
     get_suggestion_service,
 )
@@ -36,6 +37,8 @@ from .schemas import (
     NodeRegisterRequest,
     NodeResponse,
     OkResponse,
+    PresenceRequest,
+    PresenceResponse,
     SensorResponse,
     StatusResponse,
     StopResponse,
@@ -203,6 +206,30 @@ async def demo_suggest(
         time_band=suggestion.time_band,
         occurrences=suggestion.occurrences,
         steps=list(suggestion.steps),
+    )
+
+
+@router.post("/presence", response_model=PresenceResponse)
+async def report_presence(
+    body: PresenceRequest,
+    store=Depends(get_presence_store),
+) -> PresenceResponse:
+    # 공간 존재 감지기(RPi4 카메라)가 판정을 보고하는 지점 — 실기기 날에는
+    # 감지기 프로세스가 이 엔드포인트만 호출하면 공간 맥락 배선이 완성된다.
+    store.set_present(body.present, body.source)
+    state = store.current()
+    return PresenceResponse(
+        present=state.present, source=state.source, updated_at=state.updated_at
+    )
+
+
+@router.get("/presence", response_model=PresenceResponse)
+async def presence(
+    store=Depends(get_presence_store),
+) -> PresenceResponse:
+    state = store.current()
+    return PresenceResponse(
+        present=state.present, source=state.source, updated_at=state.updated_at
     )
 
 
