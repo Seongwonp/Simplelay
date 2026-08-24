@@ -10,6 +10,12 @@
 // rpi/services/esp_node_controller.py의 EspNodeController가 이 포트로 붙는다.
 #define HTTP_PORT       8080
 
+// 긴급 정지 전용 리스너 — 반드시 HTTP_PORT + 1 (EspNodeController가 base_url
+// 포트 + 1로 계산해 붙는다). 별도 포트인 이유: WebServer는 단일 스레드라
+// /execute 처리(waitForActReply 블로킹) 중에는 같은 포트의 새 연결을 받지
+// 못한다 — 정지가 가장 필요한 순간에 정지 요청이 대기열에서 썩는 구조였다.
+#define STOP_PORT       (HTTP_PORT + 1)
+
 // ─── UART (Serial2) → RPi4 (이 노드가 담당하는 가전의 Act 보드) ────────────────
 // Serial2 default pins on FireBeetle WROOM-32 — firmware/(폰 폴백 브릿지)와
 // 같은 핀 배치, 다른 물리 보드라 충돌 없음.

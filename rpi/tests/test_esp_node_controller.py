@@ -88,6 +88,44 @@ def test_network_error_raises_esp_node_error():
         controller.execute(["시작"])
 
 
+def test_request_stop_posts_to_stop_port():
+    # 펌웨어의 정지 리스너는 HTTP 포트 + 1 (config.h STOP_PORT) — /execute가
+    # 블로킹 중이어도 받는 별도 포트다
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"ok": True})
+
+    controller = EspNodeController("http://192.168.1.42:8080", client=_client(handler))
+    controller.request_stop()
+
+    assert seen["url"] == "http://192.168.1.42:8081/stop"
+
+
+def test_request_stop_defaults_to_port_80_plus_one():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        return httpx.Response(200, json={"ok": True})
+
+    controller = EspNodeController("http://node", client=_client(handler))
+    controller.request_stop()
+
+    assert seen["url"] == "http://node:81/stop"
+
+
+def test_request_stop_swallows_network_errors():
+    # 정지 브로드캐스트 중 죽은 노드 하나가 예외로 다른 노드의 정지를
+    # 막으면 안 된다
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("connection refused", request=request)
+
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+    controller.request_stop()  # 예외가 새어 나오면 여기서 실패
+
+
 def test_close_closes_an_owned_client():
     controller = EspNodeController("http://node")  # no injected client -> owns one
     controller.close()

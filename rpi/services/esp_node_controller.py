@@ -18,11 +18,22 @@ one-shot, so this controller needs no background thread at all.
 
 from __future__ import annotations
 
+import logging
+from urllib.parse import urlparse, urlunparse
+
 import httpx
 
 from rpi.controller import ExecutionResult
 
 from .aggregate_result import synthesize_execution_result
+
+log = logging.getLogger(__name__)
+
+# 노드 펌웨어의 긴급 정지 리스너는 항상 HTTP 포트 + 1 (firmware-node
+# include/config.h의 STOP_PORT). 같은 포트를 못 쓰는 이유는 그쪽 주석 참고
+# (단일 스레드 WebServer가 실행 블로킹 중 새 연결을 못 받음).
+STOP_PORT_OFFSET = 1
+STOP_REQUEST_TIMEOUT_SECONDS = 2.0
 
 
 class EspNodeError(RuntimeError):
@@ -68,6 +79,26 @@ class EspNodeController:
         success = bool(body.get("success", False))
         retry = int(body.get("retry", 0))
         return synthesize_execution_result(buttons, success, retry)
+
+    def request_stop(self) -> None:
+        """긴급 정지 — 노드의 STOP_PORT(HTTP 포트 + 1)에 정지를 요청한다.
+
+        best-effort: 정지 경로에서 예외로 호출자(emergency_stop의 전체 노드
+        브로드캐스트)를 죽이면 다른 노드의 정지까지 막는다 — 실패는 로그만.
+        타임아웃도 짧게 잡는다: 죽은 노드 하나가 정지 경로를 오래 붙잡으면
+        안 된다."""
+        try:
+            self._client.post(
+                self._stop_url(), timeout=STOP_REQUEST_TIMEOUT_SECONDS
+            )
+        except httpx.HTTPError as exc:
+            log.error("stop request to node %s failed: %s", self._base_url, exc)
+
+    def _stop_url(self) -> str:
+        parsed = urlparse(self._base_url)
+        port = parsed.port if parsed.port is not None else 80
+        netloc = f"{parsed.hostname}:{port + STOP_PORT_OFFSET}"
+        return urlunparse(parsed._replace(netloc=netloc, path="/stop"))
 
     def close(self) -> None:
         if self._owns_client:

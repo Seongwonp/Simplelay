@@ -1,9 +1,36 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <WiFi.h>
 
 #include "config.h"
 #include "act_uart.h"
 #include "http_server.h"
+
+// ─── Emergency stop listener (STOP_PORT) ─────────────────────────────────────
+// 어떤 HTTP 요청이든 이 포트로 오면 = 정지 요청. 본문 해석 없이 즉시 RPi4로
+// abort를 보낸다. waitForActReply의 대기 루프에서도 폴링되므로 실행 중에도
+// 정지가 통한다 — RPi4가 중단 후 pending sequence의 error/result를 보내면
+// 블로킹 중이던 /execute 핸들러가 그 결과로 정상 마무리된다.
+static WiFiServer stopServer(STOP_PORT);
+
+static void pollStopServer() {
+    WiFiClient client = stopServer.accept();
+    if (!client) return;
+
+    JsonDocument abortMsg;
+    abortMsg["type"] = "abort";
+    actUart.send(abortMsg);
+    log_w("stop requested via :%d — abort sent to RPi4", STOP_PORT);
+
+    // 요청 라인은 읽어서 버리고 최소 응답만 — 정지 경로에 파싱 실패란 없다
+    uint32_t start = millis();
+    while (client.connected() && client.available() && millis() - start < 200) {
+        client.read();
+    }
+    client.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                 "Connection: close\r\nContent-Length: 11\r\n\r\n{\"ok\":true}");
+    client.stop();
+}
 
 // ─── Pending execute() state ─────────────────────────────────────────────────
 // waitForActReply()가 채우고 비운다 -- HTTP 핸들러 하나가 끝날 때까지 RPi4는
@@ -70,6 +97,7 @@ static bool waitForActReply(const char* seqId, bool& outSuccess, int& outRetry) 
     uint32_t start = millis();
     while (millis() - start < ACT_RESPONSE_TIMEOUT_MS) {
         actUart.poll();
+        pollStopServer();  // 실행 중에도 긴급 정지를 받는다 (STOP_PORT)
         if (pendingHasReply) {
             outSuccess = pendingSuccess;
             outRetry = pendingRetry;
@@ -128,6 +156,8 @@ void setup() {
     httpServer.onExecute(onExecute);
     httpServer.onAlerts(onAlerts);
     httpServer.begin();
+    stopServer.begin();
+    log_i("stop listener on port %d", STOP_PORT);
 
     digitalWrite(LED_PIN, LOW);  // init 완료
     log_i("Boot OK — HTTP serving, Act UART listening");
@@ -136,5 +166,6 @@ void setup() {
 void loop() {
     httpServer.handleClient();
     actUart.poll();  // pending 응답을 안 기다리는 동안에도 alert는 계속 흡수
+    pollStopServer();  // 유휴 중의 정지 요청도 응답해 준다 (RPi4가 무시하면 무해)
     delay(2);
 }
