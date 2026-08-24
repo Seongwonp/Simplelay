@@ -43,6 +43,10 @@ from ..models.act_messages import (
 
 log = logging.getLogger(__name__)
 
+# 종료 시 협조적 정지가 실제로 반영되기를 기다리는 시간. 폐루프의 정지 확인
+# 지점은 버튼 사이·재시도 경계라, 한 번의 누름+검증이 끝날 만큼은 줘야 한다.
+SHUTDOWN_STOP_GRACE_SECONDS = 5.0
+
 
 class _WriterLike(Protocol):
     def write(self, data: bytes) -> None: ...
@@ -92,19 +96,53 @@ class ActExecutor:
             log.info("ActExecutor: serial stream closed (EOF)")
         except asyncio.CancelledError:
             log.info("ActExecutor: cancelled")
-            self._cancel_running_execution()
+            await self.shutdown()
             raise
 
-    def _cancel_running_execution(self) -> None:
+    async def shutdown(
+        self, grace_seconds: float = SHUTDOWN_STOP_GRACE_SECONDS
+    ) -> bool:
+        """진행 중인 실행을 협조적으로 멈추고, 실제로 멈출 때까지 기다린다.
+
+        ``task.cancel()``만으로는 부족하다: 실행 본체는 ``asyncio.to_thread``
+        안의 동기 코드라 강제 취소가 불가능하다. 취소는 코루틴만 끝내고
+        (그 finally가 _busy·_execute_task를 정리해 ``wait_idle()``까지 "끝남"
+        으로 보이게 한다) 정작 스레드는 계속 버튼을 누른다. 그래서 정지를
+        요청한 뒤 스레드가 실제로 반환할 때까지 기다린다.
+
+        반환값은 유예 시간 안에 실제로 멈췄는지 — False면 소프트웨어가 더 할
+        수 있는 일이 없다는 뜻이고, 최종 권한은 물리 E-STOP과 모터 드라이버
+        enable 차단이다(rpi/controller/ports.py의 SafetyController 참고).
+        """
         task = self._execute_task
-        if task is None:
-            return
-        # to_thread 안의 동기 실행은 강제 취소가 불가능하다 — 협조적 정지를
-        # 요청해 폐루프가 다음 경계에서 스스로 멈추게 한다.
+        if task is None or task.done():
+            return True
+
         request_stop = getattr(self._controller, "request_stop", None)
         if request_stop is not None:
             request_stop()
-        task.cancel()
+        else:
+            log.warning("shutdown: controller has no request_stop hook")
+
+        try:
+            # shield: 종료 중 우리가 또 취소돼도 실행 task 자체는 살려두고
+            # 협조적 정지가 자기 경계까지 진행하게 둔다.
+            await asyncio.wait_for(asyncio.shield(task), timeout=grace_seconds)
+            return True
+        except asyncio.TimeoutError:
+            log.error(
+                "execution did not stop within %.1fs — physical E-STOP is the "
+                "final authority", grace_seconds,
+            )
+            task.cancel()
+            return False
+        except asyncio.CancelledError:
+            # 종료 중 두 번째 취소(Ctrl+C 연타 등) — 더 기다리지 않는다
+            task.cancel()
+            raise
+        except Exception:
+            log.exception("execution task raised during shutdown")
+            return True
 
     async def wait_idle(self) -> None:
         """진행 중인 실행 task가 있으면 끝날 때까지 대기 — 테스트·종료 절차용."""

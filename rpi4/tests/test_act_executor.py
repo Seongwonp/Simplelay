@@ -472,6 +472,90 @@ def test_abort_while_busy_requests_cooperative_stop():
     run(_t())
 
 
+# ── 종료 시 실제 정지 대기 (최종 교차 리뷰 중요) ─────────────────────────────
+
+def test_shutdown_waits_for_the_execution_thread_to_actually_stop():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        from rpi.controller import ButtonResult, ButtonStatus, ExecutionResult, ExecutionStatus
+
+        finished = []
+
+        class CooperativeController:
+            """request_stop 후 잠시 뒤에야 반환하는 동기 컨트롤러 —
+            to_thread 안의 실행이 강제 취소되지 않는 실제 상황."""
+
+            def __init__(self) -> None:
+                self.stop_requested = False
+
+            def request_stop(self):
+                self.stop_requested = True
+
+            def execute(self, buttons):
+                for _ in range(50):  # 협조적 정지 경계를 흉내
+                    if self.stop_requested:
+                        break
+                    time.sleep(0.005)
+                finished.append(True)
+                return ExecutionResult(
+                    status=ExecutionStatus.SAFETY_STOPPED,
+                    buttons=(ButtonResult("시작", ButtonStatus.FAILED, 1, None),),
+                )
+
+        controller = CooperativeController()
+        executor = ActExecutor(reader=reader, writer=writer, controller=controller)
+
+        feed(reader, {"type": "execute", "sequence_id": "seq-s1", "buttons": ["시작"]})
+        await executor.run_once()
+        await asyncio.sleep(0.02)  # 실행 스레드 진입
+
+        stopped_cleanly = await executor.shutdown(grace_seconds=2.0)
+
+        assert controller.stop_requested is True
+        assert stopped_cleanly is True
+        # 핵심: 종료가 반환되기 전에 실행 스레드가 실제로 끝나 있어야 한다
+        assert finished == [True]
+    run(_t())
+
+
+def test_shutdown_reports_false_when_execution_ignores_the_stop():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+
+        class StubbornController:
+            """정지를 무시하는 컨트롤러 — 소프트웨어가 더 할 게 없는 경우."""
+
+            def request_stop(self):
+                pass
+
+            def execute(self, buttons):
+                time.sleep(0.5)
+                raise AssertionError("should not be awaited by the test")
+
+        executor = ActExecutor(
+            reader=reader, writer=writer, controller=StubbornController()
+        )
+        feed(reader, {"type": "execute", "sequence_id": "seq-s2", "buttons": ["시작"]})
+        await executor.run_once()
+        await asyncio.sleep(0.02)
+
+        # 유예 시간을 넘기면 False — 물리 E-STOP이 최종 권한임을 알린다
+        assert await executor.shutdown(grace_seconds=0.05) is False
+    run(_t())
+
+
+def test_shutdown_is_a_noop_when_idle():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)
+
+        assert await executor.shutdown(grace_seconds=0.01) is True
+    run(_t())
+
+
 # ── inject_failure (리허설 실패 주입 — UART 경유, 교차 리뷰 #13) ──────────────
 
 def test_parse_inject_failure():

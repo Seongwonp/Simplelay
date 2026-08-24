@@ -141,6 +141,10 @@ async def _run() -> None:
     try:
         await executor.run()
     finally:
+        # run()이 취소가 아닌 이유(EOF 등)로 빠져나왔을 때도 진행 중이던
+        # 물리 실행을 방치하지 않는다 — 이미 멈췄으면 즉시 반환한다.
+        with contextlib.suppress(asyncio.CancelledError):
+            await executor.shutdown()
         if monitor_task is not None:
             monitor_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
