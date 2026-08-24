@@ -42,19 +42,38 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
       return;
     }
     final available = await voice.initialize();
-    if (!available || !mounted) {
+    if (!mounted) return;
+    if (!available) {
       _notice('음성 인식을 사용할 수 없습니다. 권한을 확인하세요.');
       return;
     }
     ref.read(voiceTextProvider.notifier).state = '';
     ref.read(voiceListeningProvider.notifier).state = true;
-    await voice.listen(
-      onText: (text) => ref.read(voiceTextProvider.notifier).state = text,
-      onSilence: (text) async {
-        ref.read(voiceListeningProvider.notifier).state = false;
-        await _send(text);
-      },
-    );
+    try {
+      await voice.listen(
+        onText: (text) {
+          if (!mounted) return;
+          ref.read(voiceTextProvider.notifier).state = text;
+        },
+        onSilence: (text) async {
+          if (!mounted) return;
+          ref.read(voiceListeningProvider.notifier).state = false;
+          await _send(text);
+        },
+        onError: (errorId) {
+          if (!mounted) return;
+          // cancelOnError가 엔진 세션을 종료하므로 UI도 즉시 idle로 맞춘다.
+          // 부분 인식 문자열은 재전송 오해를 막기 위해 비운다.
+          ref.read(voiceListeningProvider.notifier).state = false;
+          ref.read(voiceTextProvider.notifier).state = '';
+          _notice(voiceErrorGuide(errorId));
+        },
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ref.read(voiceListeningProvider.notifier).state = false;
+      _notice('음성 인식을 시작하지 못했어요. 다시 시도해주세요.');
+    }
   }
 
   Future<void> _send(String text) async {
@@ -88,7 +107,9 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
         _trackJob(rpiApi, accepted.jobId, trimmed);
       } else {
         // BLE 폴백
-        await ref.read(bleServiceProvider).sendCommand(trimmed, source: 'voice');
+        await ref
+            .read(bleServiceProvider)
+            .sendCommand(trimmed, source: 'voice');
         if (mounted) _notice('명령을 전송했습니다.');
       }
     } on RpiApiException catch (error) {
@@ -144,7 +165,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final text      = ref.watch(voiceTextProvider);
+    final text = ref.watch(voiceTextProvider);
     final listening = ref.watch(voiceListeningProvider);
     final appliance = ref.watch(selectedApplianceProvider);
     // 내장 가전(전자레인지)만 실제로 매칭되는 규칙이 있어서 그 예시를 쓰고,
@@ -246,36 +267,36 @@ class _MicButton extends StatelessWidget {
         button: true,
         label: listening ? '음성 인식 정지' : '음성 명령 시작',
         child: GestureDetector(
-        onTap: () {
-          HapticFeedback.mediumImpact();
-          onTap();
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 250),
-          curve: Curves.easeOutCubic,
-          width: listening ? 100 : 84,
-          height: listening ? 100 : 84,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: listening
-                ? AppColors.primary
-                : AppColors.primary.withValues(alpha: 0.15),
-            boxShadow: listening
-                ? [
-                    BoxShadow(
-                      color: AppColors.primary.withValues(alpha: 0.35),
-                      blurRadius: 32,
-                      spreadRadius: 4,
-                    ),
-                  ]
-                : null,
+          onTap: () {
+            HapticFeedback.mediumImpact();
+            onTap();
+          },
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            width: listening ? 100 : 84,
+            height: listening ? 100 : 84,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: listening
+                  ? AppColors.primary
+                  : AppColors.primary.withValues(alpha: 0.15),
+              boxShadow: listening
+                  ? [
+                      BoxShadow(
+                        color: AppColors.primary.withValues(alpha: 0.35),
+                        blurRadius: 32,
+                        spreadRadius: 4,
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Icon(
+              listening ? Icons.stop_rounded : Icons.mic_rounded,
+              size: listening ? 44 : 38,
+              color: listening ? Colors.black : AppColors.primary,
+            ),
           ),
-          child: Icon(
-            listening ? Icons.stop_rounded : Icons.mic_rounded,
-            size: listening ? 44 : 38,
-            color: listening ? Colors.black : AppColors.primary,
-          ),
-        ),
         ),
       );
 }
@@ -292,10 +313,12 @@ class _WaveVisualizer extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           crossAxisAlignment: CrossAxisAlignment.center,
-          children: List.generate(5, (i) => _WaveBar(
-            index: i,
-            active: active,
-          )),
+          children: List.generate(
+              5,
+              (i) => _WaveBar(
+                    index: i,
+                    active: active,
+                  )),
         ),
       );
 }
@@ -309,7 +332,8 @@ class _WaveBar extends StatefulWidget {
   State<_WaveBar> createState() => _WaveBarState();
 }
 
-class _WaveBarState extends State<_WaveBar> with SingleTickerProviderStateMixin {
+class _WaveBarState extends State<_WaveBar>
+    with SingleTickerProviderStateMixin {
   // 바마다 높이 범위가 달라야 자연스러운 파형처럼 보임
   static const _minHeights = [10.0, 18.0, 28.0, 18.0, 10.0];
   static const _maxHeights = [24.0, 38.0, 56.0, 38.0, 24.0];
@@ -347,7 +371,9 @@ class _WaveBarState extends State<_WaveBar> with SingleTickerProviderStateMixin 
   Future<void> _start() async {
     _started = true;
     await Future.delayed(Duration(milliseconds: _delays[widget.index]));
-    if (mounted) _ctrl.repeat(reverse: true);
+    // 대기 중 음성 오류/수동 정지로 active가 false가 될 수 있다. 예약된
+    // 지연 콜백이 그 뒤 애니메이션을 되살리지 않도록 최신 상태를 재확인한다.
+    if (mounted && _started && widget.active) _ctrl.repeat(reverse: true);
   }
 
   void _stop() {

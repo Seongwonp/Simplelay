@@ -13,6 +13,7 @@ import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/providers/voice_provider.dart';
 import 'package:simplelay/screens/voice_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+import 'package:simplelay/services/voice_service.dart';
 
 const _testAppliance = ApplianceMap(
   id: 'custom_test',
@@ -26,6 +27,43 @@ const _testAppliance = ApplianceMap(
     ApplianceButton(id: 'b2', label: '끄기', x: 1, y: 0),
   ],
 );
+
+class _FakeVoiceService extends VoiceService {
+  void Function(String errorId)? _errorCallback;
+  bool _listening = false;
+
+  @override
+  bool get isListening => _listening;
+
+  @override
+  Future<bool> initialize() async => true;
+
+  @override
+  Future<void> listen({
+    required void Function(String text) onText,
+    required void Function(String finalText) onSilence,
+    void Function(String errorId)? onError,
+  }) async {
+    _listening = true;
+    _errorCallback = onError;
+    onText('부분 인식 문장');
+  }
+
+  void emitError(String errorId) {
+    _listening = false;
+    _errorCallback?.call(errorId);
+  }
+
+  @override
+  Future<void> stop() async {
+    _listening = false;
+  }
+
+  @override
+  Future<void> cancel() async {
+    _listening = false;
+  }
+}
 
 // 전송 성공 시 화면이 context.go('/status')로 이동하므로 GoRouter가 필요하다.
 Widget _buildScreen(ProviderContainer container) => UncontrolledProviderScope(
@@ -56,6 +94,34 @@ Future<ProviderContainer> _makeContainer({
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  testWidgets('음성 엔진 오류 시 즉시 듣기 상태를 해제하고 사용자 안내를 표시한다', (tester) async {
+    final voice = _FakeVoiceService();
+    final container = await _makeContainer(
+      extra: [voiceServiceProvider.overrideWithValue(voice)],
+    );
+
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.pump();
+
+    expect(container.read(voiceListeningProvider), true);
+    expect(container.read(voiceTextProvider), '부분 인식 문장');
+
+    voice.emitError('error_audio_error');
+    await tester.pump();
+    // 파형 막대별 시작 지연(최대 150ms)이 오류 이후 애니메이션을 되살리지
+    // 않는지까지 검증하고 예약 타이머를 소진한다.
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(container.read(voiceListeningProvider), false);
+    expect(container.read(voiceTextProvider), isEmpty);
+    expect(
+      find.text('마이크를 사용할 수 없어요. 다른 앱이 사용 중인지 확인해주세요.'),
+      findsOneWidget,
+    );
   });
 
   group('내장 가전 선택 시 (기존 동작 유지)', () {
@@ -124,7 +190,9 @@ void main() {
       List<Override> extra = const [],
     }) async {
       final container = await _makeContainer(extra: extra);
-      await container.read(customAppliancesProvider.notifier).add(_testAppliance);
+      await container
+          .read(customAppliancesProvider.notifier)
+          .add(_testAppliance);
       await container
           .read(selectedApplianceProvider.notifier)
           .select(_testAppliance);
