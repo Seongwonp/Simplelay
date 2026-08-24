@@ -1,6 +1,7 @@
 import logging
 import threading
 import uuid
+from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 
 from rpi.controller import (
@@ -25,6 +26,10 @@ from rpi.services import NodeRegistry
 from rpi.services.history import ButtonAttempt, JobHistoryEntry, JobHistoryStore
 
 log = logging.getLogger(__name__)
+
+# 노드 정지 브로드캐스트 전체 상한 — 개별 요청 타임아웃(2초)보다 살짝 길게
+# 잡아, 살아 있는 노드는 확인하고 죽은 노드 하나가 호출자를 붙잡지는 않게.
+EMERGENCY_STOP_BROADCAST_SECONDS = 2.5
 
 
 class ServiceNotReadyError(RuntimeError):
@@ -331,15 +336,62 @@ class SimpleLayService(PurposeExecutor):
         유휴 컨트롤러에 대한 요청은 다음 execute() 시작 시 무해하게 버려진다
         (ClosedLoopController.execute()의 clear() 참고).
 
+        락 범위: 로컬 컨트롤러의 정지만 락 안에서 부른다. 이 호출은 플래그
+        설정(ClosedLoopController) 또는 코루틴 예약(ActClientController)이라
+        블로킹이 없고, ``_begin_run``의 ``reset_stop()``과 직렬화돼야
+        "접수 직후 정지"가 리셋에 덮이지 않는다. 반면 원격 노드 정지는 HTTP
+        요청이라 락 안에서 순차 실행하면 죽은 노드 하나당 최대 2초씩 정지가
+        지연되고 그동안 /status·신규 실행 판정까지 막힌다 — 락을 놓고 병렬로
+        보낸다(노드에는 reset_stop 개념이 없어 순서 보장이 불필요하다).
+
         반환값은 요청 시점에 실행이 진행 중이었는지 — 클라이언트가
         "정지됨"과 "실행 중인 작업 없음"을 구분해 표시할 수 있게 한다.
         """
-        # _begin_run과 같은 락 — "접수 직후 정지" 순서 보장(위 docstring 참고)
         with self._lock:
             was_running = self._running
-            for controller in self._stoppable_controllers():
-                controller.request_stop()
+            nodes = self._stoppable_nodes()
+            local = self._controller
+            if hasattr(local, "request_stop"):
+                local.request_stop()
+
+        self._broadcast_stop_to_nodes(nodes)
         return was_running
+
+    def _broadcast_stop_to_nodes(
+        self, nodes: list[ButtonSequenceController]
+    ) -> None:
+        """등록된 노드 전부에 병렬로 정지를 보낸다(전체 상한 있음).
+
+        죽은 노드가 섞여 있어도 살아 있는 노드의 정지가 그 뒤에서 기다리지
+        않게 한다. 상한을 넘긴 전송은 백그라운드에 두고 반환한다 — 정지
+        요청을 더 보내는 것보다 호출자(폰의 긴급 정지 버튼)를 빨리 놓아주는
+        편이 낫고, 각 요청 자체에도 개별 타임아웃이 있다.
+        """
+        if not nodes:
+            return
+        executor = ThreadPoolExecutor(
+            max_workers=min(len(nodes), 8), thread_name_prefix="estop"
+        )
+        try:
+            futures = [executor.submit(node.request_stop) for node in nodes]
+            _, pending = wait(futures, timeout=EMERGENCY_STOP_BROADCAST_SECONDS)
+            if pending:
+                log.error(
+                    "emergency stop: %d/%d node(s) did not confirm within %.1fs",
+                    len(pending), len(nodes), EMERGENCY_STOP_BROADCAST_SECONDS,
+                )
+        finally:
+            executor.shutdown(wait=False)
+
+    def _stoppable_nodes(self) -> list[ButtonSequenceController]:
+        if self._node_registry is None:
+            return []
+        nodes: list[ButtonSequenceController] = []
+        for appliance_id in self._node_registry.list_appliance_ids():
+            node = self._node_registry.get(appliance_id)
+            if node is not None and hasattr(node, "request_stop"):
+                nodes.append(node)
+        return nodes
 
     def forward_demo_failure(self, button_index: int, attempts: int) -> None:
         """데모 실패 주입을 기본 컨트롤러에 전달 (지원 시 — UART 모드의
@@ -353,15 +405,6 @@ class SimpleLayService(PurposeExecutor):
         clear = getattr(self._controller, "clear_failure", None)
         if clear is not None:
             clear()
-
-    def _stoppable_controllers(self) -> list[ButtonSequenceController]:
-        controllers: list[ButtonSequenceController] = [self._controller]
-        if self._node_registry is not None:
-            for appliance_id in self._node_registry.list_appliance_ids():
-                node = self._node_registry.get(appliance_id)
-                if node is not None:
-                    controllers.append(node)
-        return [c for c in controllers if hasattr(c, "request_stop")]
 
     def _guard_can_execute(self) -> None:
         if not self._ready:
