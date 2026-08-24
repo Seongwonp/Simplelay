@@ -26,6 +26,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import uuid
 from collections import deque
 from collections.abc import Callable, Sequence
@@ -54,11 +55,42 @@ class ActClientConfig:
     # 버튼 1개당 추가 여유 — 실기기에서 버튼 하나는 이동+누름+검증+재시도
     # (최대 3회)로 수 초가 걸린다. 고정 30s는 6버튼 이상 시퀀스가 정상
     # 진행 중인데도 timeout으로 오판되는 원인이었다(교차 리뷰 #6).
+    #
+    # 기본 6초는 실측이 아닌 설계 추정치다. 실기기에서 (이동 최악값 + 누름 +
+    # 센서 판정 창 + 재시도 3회)의 p95를 재서 SIMPLELAY_UART_PER_BUTTON_TIMEOUT
+    # 으로 조정한다 — 코드 수정 없이 현장에서 맞출 수 있어야 한다.
     per_button_timeout_seconds: float = 6.0
 
     def timeout_for(self, button_count: int) -> float:
         return self.response_timeout_seconds + (
             self.per_button_timeout_seconds * max(0, button_count)
+        )
+
+    @classmethod
+    def from_env(cls) -> "ActClientConfig":
+        """실기기 캘리브레이션용 env 오버라이드. 잘못된 값은 무시하고 기본값."""
+
+        def _positive(name: str, fallback: float) -> float:
+            raw = os.environ.get(name, "").strip()
+            if not raw:
+                return fallback
+            try:
+                value = float(raw)
+            except ValueError:
+                log.warning("%s=%r is not a number — using %s", name, raw, fallback)
+                return fallback
+            if value < 0:
+                log.warning("%s=%r is negative — using %s", name, raw, fallback)
+                return fallback
+            return value
+
+        return cls(
+            response_timeout_seconds=_positive(
+                "SIMPLELAY_UART_BASE_TIMEOUT", cls.response_timeout_seconds
+            ),
+            per_button_timeout_seconds=_positive(
+                "SIMPLELAY_UART_PER_BUTTON_TIMEOUT", cls.per_button_timeout_seconds
+            ),
         )
 
 

@@ -24,7 +24,7 @@ from collections.abc import Callable
 
 from rpi.controller import ExecutionResult
 
-from .act_client import ActClient, ActLinkTimeoutError, AlertEvent
+from .act_client import ActClient, ActClientConfig, ActLinkTimeoutError, AlertEvent
 from .aggregate_result import synthesize_execution_result
 
 log = logging.getLogger(__name__)
@@ -129,9 +129,11 @@ def open_uart_act_controller(
 
     loop, _thread = start_background_loop()
 
+    config = ActClientConfig.from_env()  # 실기기 타이밍 캘리브레이션 반영
+
     async def _open() -> ActClient:
         reader, writer = await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
-        client = ActClient(reader, writer, on_alert=on_alert)
+        client = ActClient(reader, writer, config=config, on_alert=on_alert)
         await client.start()
         return client
 

@@ -213,6 +213,24 @@ def test_inject_failure_sends_arm_message():
     run(_t())
 
 
+def test_timeout_config_can_be_calibrated_from_env(monkeypatch):
+    # 실기기에서 측정한 값을 코드 수정 없이 반영할 수 있어야 한다
+    monkeypatch.setenv("SIMPLELAY_UART_BASE_TIMEOUT", "45")
+    monkeypatch.setenv("SIMPLELAY_UART_PER_BUTTON_TIMEOUT", "9.5")
+
+    cfg = ActClientConfig.from_env()
+
+    assert cfg.timeout_for(2) == 45 + 19.0
+
+
+@pytest.mark.parametrize("bad", ["", "abc", "-3"])
+def test_invalid_timeout_env_falls_back_to_defaults(monkeypatch, bad):
+    # 오타 하나로 타임아웃이 0이 되면 정상 실행이 전부 실패한다
+    monkeypatch.setenv("SIMPLELAY_UART_PER_BUTTON_TIMEOUT", bad)
+
+    assert ActClientConfig.from_env().per_button_timeout_seconds == 6.0
+
+
 def test_response_timeout_scales_with_button_count():
     cfg = ActClientConfig(response_timeout_seconds=30.0, per_button_timeout_seconds=6.0)
     assert cfg.timeout_for(0) == 30.0
