@@ -3,8 +3,18 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
+from urllib.parse import urlparse
 
 from pydantic import BaseModel, field_validator
+
+# ── 물리 실행 입력의 제품 계약(상한) ─────────────────────────────────────────
+# 무한 입력은 장시간 물리 실행·거대 LLM 프롬프트·로그/DB 팽창으로 이어진다.
+# 실사용 최대치의 몇 배 여유를 두고 명시적으로 자른다.
+MAX_PURPOSE_LEN = 200        # 음성 발화 한 문장
+MAX_BUTTONS_PER_RUN = 20     # 실사용 시퀀스는 2~5개
+MAX_BUTTON_LABEL_LEN = 40
+MAX_KNOWN_BUTTONS = 50       # 가전 버튼맵 상한(6x6 그리드 여유)
+MAX_DND_MINUTES = 24 * 60
 
 
 def _normalize_appliance_id(v: str | None) -> str | None:
@@ -13,6 +23,29 @@ def _normalize_appliance_id(v: str | None) -> str | None:
         return None
     stripped = v.strip()
     return stripped or None
+
+
+def _validate_purpose_text(v: str) -> str:
+    stripped = v.strip()
+    if not stripped:
+        raise ValueError("text must not be blank")
+    if len(stripped) > MAX_PURPOSE_LEN:
+        raise ValueError(f"text must be at most {MAX_PURPOSE_LEN} characters")
+    return stripped
+
+
+def _validate_button_list(v: list[str], max_items: int, name: str) -> list[str]:
+    cleaned = [b.strip() for b in v if b.strip()]
+    if not cleaned:
+        raise ValueError(f"{name} must not be empty")
+    if len(cleaned) > max_items:
+        raise ValueError(f"{name} must have at most {max_items} items")
+    for label in cleaned:
+        if len(label) > MAX_BUTTON_LABEL_LEN:
+            raise ValueError(
+                f"button label must be at most {MAX_BUTTON_LABEL_LEN} characters"
+            )
+    return cleaned
 
 
 class ExecuteRequest(BaseModel):
@@ -26,9 +59,7 @@ class ExecuteRequest(BaseModel):
     @field_validator("text")
     @classmethod
     def text_not_blank(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("text must not be blank")
-        return v.strip()
+        return _validate_purpose_text(v)
 
     @field_validator("appliance_id")
     @classmethod
@@ -47,10 +78,7 @@ class ExecuteButtonsRequest(BaseModel):
     @field_validator("buttons")
     @classmethod
     def buttons_not_empty(cls, v: list[str]) -> list[str]:
-        cleaned = [b.strip() for b in v if b.strip()]
-        if not cleaned:
-            raise ValueError("buttons must not be empty")
-        return cleaned
+        return _validate_button_list(v, MAX_BUTTONS_PER_RUN, "buttons")
 
     @field_validator("appliance_id")
     @classmethod
@@ -70,17 +98,12 @@ class ExecuteForApplianceRequest(BaseModel):
     @field_validator("text")
     @classmethod
     def text_not_blank(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("text must not be blank")
-        return v.strip()
+        return _validate_purpose_text(v)
 
     @field_validator("known_buttons")
     @classmethod
     def known_buttons_not_empty(cls, v: list[str]) -> list[str]:
-        cleaned = [b.strip() for b in v if b.strip()]
-        if not cleaned:
-            raise ValueError("known_buttons must not be empty")
-        return cleaned
+        return _validate_button_list(v, MAX_KNOWN_BUTTONS, "known_buttons")
 
     @field_validator("appliance_id")
     @classmethod
@@ -96,10 +119,26 @@ class NodeRegisterRequest(BaseModel):
 
     @field_validator("base_url")
     @classmethod
-    def base_url_not_blank(cls, v: str) -> str:
-        if not v.strip():
+    def base_url_valid(cls, v: str) -> str:
+        """실행 트래픽이 전달될 주소 — file:// 등 이상 스킴, userinfo 포함
+        URL, 호스트 없는 값이 등록되면 물리 실행 요청이 엉뚱한 곳으로 간다."""
+        stripped = v.strip()
+        if not stripped:
             raise ValueError("base_url must not be blank")
-        return v.strip()
+        parsed = urlparse(stripped)
+        if parsed.scheme not in ("http", "https"):
+            raise ValueError("base_url must use http or https")
+        if not parsed.hostname:
+            raise ValueError("base_url must include a host")
+        if parsed.username or parsed.password:
+            raise ValueError("base_url must not contain credentials")
+        try:
+            port = parsed.port  # 잘못된 포트는 여기서 ValueError
+        except ValueError as exc:
+            raise ValueError("base_url has an invalid port") from exc
+        if port is not None and not 1 <= port <= 65535:
+            raise ValueError("base_url has an invalid port")
+        return stripped
 
 
 class NodeResponse(BaseModel):
@@ -211,9 +250,7 @@ class DemoSuggestRequest(BaseModel):
     @field_validator("purpose")
     @classmethod
     def purpose_not_blank(cls, v: str) -> str:
-        if not v.strip():
-            raise ValueError("purpose must not be blank")
-        return v.strip()
+        return _validate_purpose_text(v)
 
 
 class DemoInjectFailureRequest(BaseModel):
@@ -264,6 +301,10 @@ class DndRequest(BaseModel):
     def positive(cls, v: int) -> int:
         if v <= 0:
             raise ValueError("duration_minutes must be positive")
+        if v > MAX_DND_MINUTES:
+            raise ValueError(
+                f"duration_minutes must be at most {MAX_DND_MINUTES} (24h)"
+            )
         return v
 
 
