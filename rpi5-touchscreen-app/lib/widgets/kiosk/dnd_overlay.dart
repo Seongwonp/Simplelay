@@ -52,7 +52,7 @@ class DndOverlay extends StatelessWidget {
                         ? 'AI 제안이 일시 중단됨'
                         : 'AI 제안을 잠시 멈춥니다',
                     style: const TextStyle(
-                      fontSize: 12,
+                      fontSize: 14,
                       color: KioskColors.muted,
                       fontWeight: FontWeight.w300,
                     ),

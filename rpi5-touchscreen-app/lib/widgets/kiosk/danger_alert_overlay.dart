@@ -45,7 +45,9 @@ class DangerAlertOverlay extends StatelessWidget {
             const SizedBox(height: 4),
             const Text(
               '오탐일 수도 있습니다 — 실제 상황인지 직접 확인해주세요',
-              style: TextStyle(fontSize: 12, color: KioskColors.muted),
+              // 고령 사용자가 반드시 읽어야 하는 안전 안내 — 12는 너무 작다
+              // (교차 리뷰 #16, 접근성 체크리스트의 소형 폰트 항목)
+              style: TextStyle(fontSize: 14, color: KioskColors.muted),
             ),
             const SizedBox(height: 32),
             SizedBox(

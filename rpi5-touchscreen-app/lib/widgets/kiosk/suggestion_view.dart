@@ -30,7 +30,7 @@ class KioskSuggestionView extends StatelessWidget {
             const Text(
               'AI 제안',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 2.0,
                 color: KioskColors.primary,
@@ -113,7 +113,8 @@ class KioskSuggestionView extends StatelessWidget {
             const SizedBox(height: 16),
             Text(
               '$cdRemaining초 후 자동 닫힘',
-              style: const TextStyle(fontSize: 12, color: KioskColors.muted),
+              // 자동으로 사라진다는 사실은 고령 사용자가 놓치면 안 되는 정보
+              style: const TextStyle(fontSize: 14, color: KioskColors.muted),
             ),
             const SizedBox(height: 8),
             ClipRRect(

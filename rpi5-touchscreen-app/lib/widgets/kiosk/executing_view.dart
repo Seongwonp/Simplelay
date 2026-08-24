@@ -261,7 +261,7 @@ class _MetricBlock extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(fontSize: 12, color: KioskColors.muted),
+          style: const TextStyle(fontSize: 13, color: KioskColors.muted),
         ),
         const SizedBox(height: 4),
         Text(
@@ -277,7 +277,7 @@ class _MetricBlock extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             detail!,
-            style: const TextStyle(fontSize: 11, color: KioskColors.muted),
+            style: const TextStyle(fontSize: 13, color: KioskColors.muted),
             overflow: TextOverflow.ellipsis,
           ),
         ],

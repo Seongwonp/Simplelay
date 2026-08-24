@@ -175,7 +175,7 @@ class _KioskIdleViewState extends State<KioskIdleView> {
                 child: Text(
                   '방해 금지 · ${_dndRemaining(widget.dndUntil!)}',
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: 13,
                     color: KioskColors.warning,
                     fontWeight: FontWeight.w300,
                     letterSpacing: 0.3,

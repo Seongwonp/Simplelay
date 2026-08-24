@@ -424,6 +424,50 @@ void main() {
     expect(find.text('인덕션'), findsOneWidget);
   });
 
+  testWidgets('큰 글씨 모드에서 전 화면(대기·수동·제안·실행·완료)이 800x480에 오버플로 없이 렌더된다',
+      (tester) async {
+    // 폰트 확대(교차 리뷰 #16) × 큰 글씨 1.22배가 결합해도 소형 화면이
+    // 깨지지 않는지 — 오버플로는 테스트에서 FlutterError로 즉시 실패한다.
+    useKioskViewport(tester);
+    final tempDir = Directory.systemTemp.createTempSync('kiosk-large-test');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final path = '${tempDir.path}${Platform.pathSeparator}settings.json';
+    KioskSettingsStore(path: path)
+        .save(const KioskSettings(largeText: true));
+
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(
+      tester,
+      api,
+      settings: KioskSettingsStore(path: path),
+    );
+    expect(find.byType(KioskSuggestionView), findsOneWidget); // suggestion
+
+    api.suggestionList = [];
+    await tester.tap(find.text('승인')); // executing
+    await tester.pump();
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+
+    api.statusResult = const KioskStatus(
+      running: false,
+      lastStatus: 'succeeded',
+      lastButtons: [],
+      lastJobId: 'job-1',
+    );
+    await tester.pump(const Duration(seconds: 2)); // done
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsOneWidget);
+
+    await tester.pump(KioskTimings.doneReturn); // 자동 idle 복귀
+    await tester.pump();
+    expect(find.byType(KioskIdleView), findsOneWidget);
+
+    await tester.tap(find.byType(KioskIdleView)); // manual
+    await tester.pump();
+    expect(find.text('전자레인지'), findsOneWidget);
+  });
+
   testWidgets('저장된 가전 id가 목록에 없으면 기본 가전으로 폴백한다', (tester) async {
     useKioskViewport(tester);
     final tempDir = Directory.systemTemp.createTempSync('kiosk-fallback-test');

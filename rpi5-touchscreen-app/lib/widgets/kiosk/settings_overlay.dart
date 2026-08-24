@@ -233,7 +233,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                 Text(
                   subtitle,
                   style:
-                      const TextStyle(fontSize: 11, color: KioskColors.muted),
+                      const TextStyle(fontSize: 13, color: KioskColors.muted),
                 ),
               ],
             ),
@@ -372,7 +372,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                 ),
                 child: const Text(
                   '등록됨',
-                  style: TextStyle(fontSize: 11, color: KioskColors.success),
+                  style: TextStyle(fontSize: 12, color: KioskColors.success),
                 ),
               ),
           ],
@@ -400,7 +400,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                     decoration: InputDecoration(
                       hintText: '192.168.x.x  또는  http://...:8080',
                       hintStyle: const TextStyle(
-                          fontSize: 12, color: KioskColors.muted),
+                          fontSize: 13, color: KioskColors.muted),
                       filled: true,
                       fillColor: KioskColors.surface2,
                       border: OutlineInputBorder(
@@ -471,7 +471,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           const SizedBox(height: 8),
           Text(
             _saveError!,
-            style: const TextStyle(fontSize: 11, color: KioskColors.danger),
+            style: const TextStyle(fontSize: 13, color: KioskColors.danger),
           ),
         ],
       ],
@@ -487,7 +487,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) => Text(
         text,
         style: const TextStyle(
-          fontSize: 11,
+          fontSize: 12,
           color: KioskColors.muted,
           letterSpacing: 0.8,
           fontWeight: FontWeight.w400,
