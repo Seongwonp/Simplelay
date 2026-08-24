@@ -24,6 +24,10 @@ class VoiceService {
   Timer? _silenceTimer;
   bool _initialized = false;
   void Function(String errorId)? _onError;
+  // 세션 세대 — listen()마다 증가한다. 오류로 끝난 세션의 늦은 콜백이
+  // 다음(또는 이미 끝난) 세션의 타이머를 되살리지 못하게 하는 열쇠.
+  int _session = 0;
+  bool _sessionFailed = false;
 
   bool get isListening => _speech.isListening;
 
@@ -39,6 +43,7 @@ class VoiceService {
         // 인식 텍스트를 "정상 발화"로 전송해 버린다(교차 리뷰 #17) —
         // 타이머를 끊고 호출자에게 에러로 알린다.
         _silenceTimer?.cancel();
+        _sessionFailed = true;
         _onError?.call(error.errorMsg);
       },
       onStatus: (status) {
@@ -56,9 +61,17 @@ class VoiceService {
   }) async {
     var latestText = '';
     _onError = onError;
+    _sessionFailed = false;
+    final session = ++_session;
+
+    // 이 세션이 아직 유효할 때만 타이머를 건다. 엔진이 listen()의 Future가
+    // 반환되기 전에 동기적으로 오류를 던지면, 오류 콜백이 취소한 타이머를
+    // 아래 마지막 resetTimer()가 되살려 5초 뒤 빈 발화를 전송하게 된다.
     void resetTimer() {
+      if (session != _session || _sessionFailed) return;
       _silenceTimer?.cancel();
       _silenceTimer = Timer(const Duration(seconds: 5), () async {
+        if (session != _session || _sessionFailed) return;
         await stop();
         onSilence(latestText.trim()); // 텍스트 없어도 항상 호출해 listening 상태 해제
       });
@@ -71,6 +84,7 @@ class VoiceService {
         localeId: 'ko_KR',
       ),
       onResult: (SpeechRecognitionResult result) {
+        if (session != _session || _sessionFailed) return;
         latestText = result.recognizedWords;
         onText(latestText);
         resetTimer();
@@ -81,12 +95,14 @@ class VoiceService {
 
   Future<void> stop() async {
     _silenceTimer?.cancel();
+    _session++; // 이후 도착하는 콜백은 전부 무효
     _onError = null; // 세션 종료 — 늦게 도착한 엔진 에러를 다음 세션에 흘리지 않기
     await _speech.stop();
   }
 
   Future<void> cancel() async {
     _silenceTimer?.cancel();
+    _session++;
     _onError = null;
     await _speech.cancel();
   }
