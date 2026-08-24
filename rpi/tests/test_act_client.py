@@ -157,6 +157,44 @@ def test_execute_raises_timeout_when_rpi4_never_responds():
     run(_t())
 
 
+# ── 송신 실패 정리 (최종 교차 리뷰 중요) ────────────────────────────────────
+
+class BrokenWriter(FakeWriter):
+    """drain()에서 실패하는 writer — UART 단선/RPi4 재부팅 상황."""
+
+    def __init__(self, fail: bool = True) -> None:
+        super().__init__()
+        self.fail = fail
+
+    async def drain(self) -> None:
+        if self.fail:
+            raise ConnectionResetError("serial link down")
+
+
+def test_send_failure_does_not_leave_the_client_permanently_busy():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = BrokenWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        # 첫 실행: 송신 자체가 실패한다
+        with pytest.raises(ConnectionResetError):
+            await client.execute(["시작"], sequence_id="J1")
+
+        # 케이블이 복구되면 다음 실행은 정상 동작해야 한다 — 이전에는
+        # _pending이 남아 ActLinkBusyError로 영구히 막혔다
+        writer.fail = False
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="J2"))
+        await asyncio.sleep(0.01)
+        feed(reader, {"type": "result", "sequence_id": "J2", "success": True, "retry": 0})
+        result = await task
+        assert result.sequence_id == "J2"
+
+        await client.stop()
+    run(_t())
+
+
 def test_inject_failure_sends_arm_message():
     async def _t():
         reader = asyncio.StreamReader()

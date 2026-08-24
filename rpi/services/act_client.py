@@ -164,9 +164,15 @@ class ActClient:
         loop = asyncio.get_running_loop()
         future: asyncio.Future[dict] = loop.create_future()
         self._pending = (seq_id, future)
-        await self._send({"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)})
 
+        # _send()도 반드시 이 try 안에 있어야 한다. 밖에 두면 UART 단선으로
+        # drain()이 실패했을 때 _pending이 영원히 남아(future는 끝내 완료되지
+        # 않음) 이후 모든 실행이 ActLinkBusyError로 거부됐다 — 케이블 접촉
+        # 불량 한 번이 재부팅 전까지 실행 경로를 통째로 막는 구조였다.
         try:
+            await self._send(
+                {"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)}
+            )
             doc = await asyncio.wait_for(future, timeout)
         except asyncio.TimeoutError as exc:
             # 이 sequence의 응답이 늦게라도 오면 폐기 대상으로 기록
@@ -182,7 +188,10 @@ class ActClient:
                 f"no response for sequence_id={seq_id!r} within {timeout}s"
             ) from exc
         finally:
-            self._pending = None
+            # 내 요청일 때만 비운다 — 이 execute()가 늦게 정리되는 사이
+            # 다음 요청이 _pending을 차지했다면 그것을 지워선 안 된다.
+            if self._pending is not None and self._pending[0] == seq_id:
+                self._pending = None
 
         if doc.get("type") == "error":
             raise ActLinkError(
