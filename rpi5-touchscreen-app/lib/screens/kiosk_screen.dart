@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../models/appliance.dart';
 import '../services/kiosk_api_service.dart';
 import '../services/kiosk_event_stream.dart';
+import '../services/kiosk_settings_store.dart';
 import '../services/kiosk_tts_service.dart';
 import '../theme/kiosk_colors.dart';
 import '../widgets/kiosk/danger_alert_overlay.dart';
@@ -38,6 +39,7 @@ class KioskScreen extends StatefulWidget {
     this.api,
     this.tts,
     this.events,
+    this.settings,
   });
 
   final ApplianceMap appliance;
@@ -52,6 +54,11 @@ class KioskScreen extends StatefulWidget {
   /// 만들지 않도록 fake를 주입하는 지점.
   final KioskEventStream? events;
 
+  /// 설정 영속화(파일). null이면 세션 한정으로만 동작 — 테스트가 실제
+  /// 홈 디렉터리 파일을 건드리지 않게 하는 기본값이고, 프로덕션은
+  /// main.dart가 명시적으로 주입한다.
+  final KioskSettingsStore? settings;
+
   @override
   State<KioskScreen> createState() => _KioskScreenState();
 }
@@ -63,7 +70,7 @@ class _KioskScreenState extends State<KioskScreen> {
   late final KioskTtsService _tts = widget.tts ?? KioskTtsService();
   late final KioskEventStream _events =
       widget.events ?? KioskEventStream();
-  // 큰 글씨 모드 — 세션 한정(음성 안내 토글과 동일한 이유), 기본 꺼짐
+  // 큰 글씨 모드 — settings 주입 시 파일에 영속화, 아니면 세션 한정
   bool _largeText = false;
 
   late ApplianceMap _currentAppliance;
@@ -111,10 +118,32 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _sensorTimer;
   Timer? _alertTimer;
 
+  // 토글·가전 변경 시 현재 상태를 파일로 저장 (settings 미주입이면 no-op)
+  void _persistSettings() {
+    widget.settings?.save(KioskSettings(
+      ttsEnabled: _tts.enabled,
+      largeText: _largeText,
+      applianceId: _currentAppliance.id,
+    ));
+  }
+
   @override
   void initState() {
     super.initState();
     _currentAppliance = widget.appliance;
+    // 저장된 설정 복원 — 재부팅 후에도 음성 안내·큰 글씨·가전 선택 유지.
+    // 저장된 가전 id가 현재 빌드의 가전 목록에 없으면(맵 개편 등) 기본값.
+    final saved = widget.settings?.load();
+    if (saved != null) {
+      _tts.enabled = saved.ttsEnabled;
+      _largeText = saved.largeText;
+      for (final a in kAppliances) {
+        if (a.id == saved.applianceId) {
+          _currentAppliance = a;
+          break;
+        }
+      }
+    }
     _checkHealth();
     _fetchSensors();
     _fetchAlert();
@@ -520,13 +549,19 @@ class _KioskScreenState extends State<KioskScreen> {
                 currentAppliance: _currentAppliance,
                 api: _api,
                 ttsEnabled: _tts.enabled,
-                onTtsChanged: (enabled) =>
-                    setState(() => _tts.enabled = enabled),
+                onTtsChanged: (enabled) {
+                  setState(() => _tts.enabled = enabled);
+                  _persistSettings();
+                },
                 largeTextEnabled: _largeText,
-                onLargeTextChanged: (enabled) =>
-                    setState(() => _largeText = enabled),
-                onApplianceChanged: (a) =>
-                    setState(() => _currentAppliance = a),
+                onLargeTextChanged: (enabled) {
+                  setState(() => _largeText = enabled);
+                  _persistSettings();
+                },
+                onApplianceChanged: (a) {
+                  setState(() => _currentAppliance = a);
+                  _persistSettings();
+                },
                 onDismiss: () => setState(() => _showSettings = false),
               ),
             ),

@@ -1,10 +1,13 @@
 // 키오스크 phase 머신 테스트 — KioskScreen(api:)로 fake 서비스를 주입해
 // idle→suggestion→executing→done 전이와 job_id 대조 규칙을 검증한다.
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/services/kiosk_event_stream.dart';
+import 'package:simplelay_touchscreen/services/kiosk_settings_store.dart';
 import 'package:simplelay_touchscreen/services/kiosk_tts_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
@@ -114,15 +117,18 @@ Future<void> _pumpKiosk(
   FakeKioskApi api, {
   FakeTts? tts,
   FakeEventStream? events,
+  KioskSettingsStore? settings,
 }) async {
   // tts/events 미지정 테스트에서도 실제 espeak 프로세스·SSE 네트워크
   // 연결(재접속 타이머)을 만들지 않도록 항상 fake를 주입한다.
+  // settings는 기본 미주입 — 실제 홈 디렉터리 파일을 건드리지 않는다.
   await tester.pumpWidget(
     MaterialApp(
       home: KioskScreen(
         api: api,
         tts: tts ?? FakeTts(),
         events: events ?? FakeEventStream(),
+        settings: settings,
       ),
     ),
   );
@@ -382,5 +388,58 @@ void main() {
     // 손상된 JSON은 조용히 버린다
     parser.feed('event: alert');
     expect(parser.feed('data: {broken'), isNull);
+  });
+
+  // ── 설정 영속화 (재부팅 복원) ────────────────────────────────────────────
+
+  testWidgets('저장된 설정(음성 꺼짐·큰 글씨·가전)이 시작 시 복원된다', (tester) async {
+    useKioskViewport(tester);
+    final tempDir = Directory.systemTemp.createTempSync('kiosk-restore-test');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final path = '${tempDir.path}${Platform.pathSeparator}settings.json';
+    KioskSettingsStore(path: path).save(const KioskSettings(
+      ttsEnabled: false,
+      largeText: true,
+      applianceId: 'induction',
+    ));
+
+    final tts = FakeTts();
+    await _pumpKiosk(
+      tester,
+      FakeKioskApi(),
+      tts: tts,
+      settings: KioskSettingsStore(path: path),
+    );
+
+    // 음성 안내 꺼짐 복원
+    expect(tts.enabled, false);
+    // 큰 글씨(1.22배) 복원 — 화면을 감싸는 MediaQuery에 반영된다
+    final scalers = tester
+        .widgetList<MediaQuery>(find.byType(MediaQuery))
+        .map((m) => m.data.textScaler);
+    expect(scalers, contains(const TextScaler.linear(1.22)));
+    // 가전 선택 복원 — 대기 화면 탭으로 수동 조작에 들어가면 인덕션 맵
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+    expect(find.text('인덕션'), findsOneWidget);
+  });
+
+  testWidgets('저장된 가전 id가 목록에 없으면 기본 가전으로 폴백한다', (tester) async {
+    useKioskViewport(tester);
+    final tempDir = Directory.systemTemp.createTempSync('kiosk-fallback-test');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final path = '${tempDir.path}${Platform.pathSeparator}settings.json';
+    KioskSettingsStore(path: path)
+        .save(const KioskSettings(applianceId: 'no-such-appliance'));
+
+    await _pumpKiosk(
+      tester,
+      FakeKioskApi(),
+      settings: KioskSettingsStore(path: path),
+    );
+
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+    expect(find.text('전자레인지'), findsOneWidget);
   });
 }
