@@ -7,28 +7,47 @@
 #include "http_server.h"
 
 // ─── Emergency stop listener (STOP_PORT) ─────────────────────────────────────
-// 어떤 HTTP 요청이든 이 포트로 오면 = 정지 요청. 본문 해석 없이 즉시 RPi4로
-// abort를 보낸다. waitForActReply의 대기 루프에서도 폴링되므로 실행 중에도
-// 정지가 통한다 — RPi4가 중단 후 pending sequence의 error/result를 보내면
-// 블로킹 중이던 /execute 핸들러가 그 결과로 정상 마무리된다.
+// 이 포트로 들어온 "/stop" 요청 = 정지 요청. waitForActReply의 대기 루프에서도
+// 폴링되므로 실행 중에도 정지가 통한다 — RPi4가 중단 후 pending sequence의
+// error/result를 보내면 블로킹 중이던 /execute 핸들러가 그 결과로 마무리된다.
+//
+// 경로를 확인하는 이유: 이전에는 TCP 연결만으로 즉시 정지했는데, 시연장
+// 공유 네트워크의 포트 스캔이나 오접속 한 번이 실행을 끊을 수 있었다.
+// 다만 여전히 "덜 멈추는 것"이 더 위험하므로 인증까지 요구하지는 않는다 —
+// 요청 라인을 못 읽었을 때는 안전하게 정지 쪽으로 판단한다.
 static WiFiServer stopServer(STOP_PORT);
 
 static void pollStopServer() {
     WiFiClient client = stopServer.accept();
     if (!client) return;
 
-    JsonDocument abortMsg;
-    abortMsg["type"] = "abort";
-    actUart.send(abortMsg);
-    log_w("stop requested via :%d — abort sent to RPi4", STOP_PORT);
-
-    // 요청 라인은 읽어서 버리고 최소 응답만 — 정지 경로에 파싱 실패란 없다
+    // 요청 라인만 짧게 읽는다 (정지 경로를 오래 붙잡지 않기)
+    char line[96] = "";
+    size_t len = 0;
     uint32_t start = millis();
-    while (client.connected() && client.available() && millis() - start < 200) {
-        client.read();
+    while (client.connected() && millis() - start < 150 && len < sizeof(line) - 1) {
+        if (!client.available()) continue;
+        char c = static_cast<char>(client.read());
+        if (c == '\r' || c == '\n') break;
+        line[len++] = c;
     }
-    client.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
-                 "Connection: close\r\nContent-Length: 11\r\n\r\n{\"ok\":true}");
+    line[len] = '\0';
+
+    // 아무것도 못 읽었으면(len == 0) 판단 근거가 없다 → 안전하게 정지
+    const bool isStop = (len == 0) || (strstr(line, "/stop") != nullptr);
+
+    if (isStop) {
+        JsonDocument abortMsg;
+        abortMsg["type"] = "abort";
+        actUart.send(abortMsg);
+        log_w("stop requested via :%d — abort sent to RPi4", STOP_PORT);
+        client.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
+                     "Connection: close\r\nContent-Length: 11\r\n\r\n{\"ok\":true}");
+    } else {
+        log_i("ignored non-stop request on :%d (%s)", STOP_PORT, line);
+        client.print("HTTP/1.1 404 Not Found\r\nConnection: close\r\n"
+                     "Content-Length: 0\r\n\r\n");
+    }
     client.stop();
 }
 
