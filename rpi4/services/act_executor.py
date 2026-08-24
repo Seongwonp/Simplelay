@@ -23,6 +23,7 @@ port, matching services/bridge.py's pattern:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 from typing import Protocol
@@ -61,6 +62,9 @@ class ActExecutor:
         self._controller = controller
         self._busy = False
         self._danger_alert_active = False
+        # 실행은 별도 task — 읽기 루프가 실행 중에도 abort를 수신할 수 있어야
+        # 긴급 정지가 성립한다 (여기서 await하면 루프가 통째로 멈춘다)
+        self._execute_task: asyncio.Task[None] | None = None
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -74,7 +78,26 @@ class ActExecutor:
             log.info("ActExecutor: serial stream closed (EOF)")
         except asyncio.CancelledError:
             log.info("ActExecutor: cancelled")
+            self._cancel_running_execution()
             raise
+
+    def _cancel_running_execution(self) -> None:
+        task = self._execute_task
+        if task is None:
+            return
+        # to_thread 안의 동기 실행은 강제 취소가 불가능하다 — 협조적 정지를
+        # 요청해 폐루프가 다음 경계에서 스스로 멈추게 한다.
+        request_stop = getattr(self._controller, "request_stop", None)
+        if request_stop is not None:
+            request_stop()
+        task.cancel()
+
+    async def wait_idle(self) -> None:
+        """진행 중인 실행 task가 있으면 끝날 때까지 대기 — 테스트·종료 절차용."""
+        task = self._execute_task
+        if task is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
 
     async def run_once(self) -> None:
         """Read exactly one newline-terminated line and dispatch it.
@@ -148,10 +171,22 @@ class ActExecutor:
             return
 
         self._busy = True
+        # 이전 run의 stale stop 제거 — 토큰 리셋 책임은 실행을 시작시키는 쪽
+        reset_stop = getattr(self._controller, "reset_stop", None)
+        if reset_stop is not None:
+            reset_stop()
+        # 실행을 별도 task로 띄우고 즉시 반환한다. 여기서 await하면 읽기
+        # 루프가 실행 완료까지 멈춰서, 실행 중 도착한 abort(긴급 정지)를
+        # 읽을 수 없었다 — "실행 중 정지 불가"였던 진짜 원인.
+        self._execute_task = asyncio.create_task(self._execute_and_report(msg))
+
+    async def _execute_and_report(self, msg: ExecuteMsg) -> None:
         try:
             # Run the synchronous controller in a thread so the event loop
             # stays responsive to incoming UART data during execution.
-            result = await asyncio.to_thread(self._controller.execute, list(msg.buttons))
+            result = await asyncio.to_thread(
+                self._controller.execute, list(msg.buttons)
+            )
         except Exception:
             log.exception("controller.execute raised for sequence %r", msg.sequence_id)
             await self._send({
@@ -162,6 +197,7 @@ class ActExecutor:
             return
         finally:
             self._busy = False
+            self._execute_task = None
 
         success = result.status is ExecutionStatus.SUCCEEDED
         retry = max((b.attempts - 1 for b in result.buttons), default=0)

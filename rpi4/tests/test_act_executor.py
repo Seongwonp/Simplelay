@@ -127,6 +127,7 @@ def test_execute_succeeds_on_first_attempt_reports_success_with_no_retry():
 
         feed(reader, {"type": "execute", "sequence_id": "seq-1", "buttons": ["시작"]})
         await executor.run_once()
+        await executor.wait_idle()
 
         msgs = writer.messages()
         assert len(msgs) == 1
@@ -143,6 +144,7 @@ def test_execute_with_retries_reports_success_with_retry_count():
 
         feed(reader, {"type": "execute", "sequence_id": "seq-2", "buttons": ["시작"]})
         await executor.run_once()
+        await executor.wait_idle()
 
         msgs = writer.messages()
         assert msgs[0]["success"] is True
@@ -158,6 +160,7 @@ def test_execute_exhausting_retries_reports_failure():
 
         feed(reader, {"type": "execute", "sequence_id": "seq-3", "buttons": ["시작"]})
         await executor.run_once()
+        await executor.wait_idle()
 
         msgs = writer.messages()
         assert msgs[0]["type"] == "result"
@@ -178,6 +181,7 @@ def test_controller_exception_reports_error_actuator_fail():
 
         feed(reader, {"type": "execute", "sequence_id": "seq-4", "buttons": ["시작"]})
         await executor.run_once()
+        await executor.wait_idle()
 
         msgs = writer.messages()
         assert msgs == [{"type": "error", "sequence_id": "seq-4", "reason": "actuator_fail"}]
@@ -206,6 +210,7 @@ def test_second_execute_while_busy_is_rejected():
         await executor.run_once()  # the second call — should see busy=True
 
         await first
+        await executor.wait_idle()  # 첫 실행 task 완료 대기
 
         msgs = writer.messages()
         assert {"type": "error", "sequence_id": "second", "reason": "busy"} in msgs
@@ -248,9 +253,55 @@ def test_abort_while_busy_does_not_interrupt_execution():
         await executor.run_once()  # abort — should just log, no message
 
         await first
+        await executor.wait_idle()
 
         msgs = writer.messages()
         assert msgs == [{"type": "result", "sequence_id": "seq-5", "success": True, "retry": 0}]
+    run(_t())
+
+
+def test_abort_mid_execution_stops_closed_loop_and_reports_safety_stopped():
+    """리뷰 지적 #1 회귀 테스트 — 실행이 별도 task로 분리되어, 읽기 루프가
+    실행 도중 도착한 abort를 즉시 읽고 폐루프를 실제로 멈춰야 한다."""
+    async def _t():
+        import time as _time
+
+        from rpi.controller import ClosedLoopController
+        from rpi.controller.mock import MockAlertSink, MockSafetyController
+        from rpi.verifier import MockVerifier
+
+        class SlowGrbl:
+            def __init__(self):
+                self.pressed = []
+
+            def press(self, command):
+                _time.sleep(0.05)  # 버튼 하나당 50ms — abort가 낄 시간
+                self.pressed.append(command.button)
+
+        grbl = SlowGrbl()
+        controller = ClosedLoopController(
+            grbl, MockVerifier([True] * 10), MockAlertSink(), MockSafetyController()
+        )
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = ActExecutor(reader=reader, writer=writer, controller=controller)
+
+        feed(reader, {
+            "type": "execute", "sequence_id": "seq-stop",
+            "buttons": ["b1", "b2", "b3", "b4", "b5"],
+        })
+        await executor.run_once()          # 실행 task 생성 후 즉시 반환
+        await asyncio.sleep(0.08)          # 1~2번째 버튼 진행 중
+
+        feed(reader, {"type": "abort"})
+        await executor.run_once()          # ← 실행 '도중'에 abort가 읽힌다
+        await executor.wait_idle()
+
+        (msg,) = writer.messages()
+        assert msg["type"] == "result"
+        assert msg["sequence_id"] == "seq-stop"
+        assert msg["success"] is False     # SAFETY_STOPPED → 실패로 보고
+        assert len(grbl.pressed) < 5       # 나머지 버튼은 눌리지 않았다
     run(_t())
 
 
@@ -375,6 +426,7 @@ def test_danger_sound_alert_interleaves_safely_with_execute_result():
         exec_task = asyncio.create_task(executor.run_once())
         alert_task = asyncio.create_task(executor.report_danger_sound(_detected()))
         await asyncio.gather(exec_task, alert_task)
+        await executor.wait_idle()  # 실행 task의 result 전송까지 대기
 
         msgs = writer.messages()
         assert {"type": "alert", "kind": "danger_sound", "band_energy_ratio": 0.8,

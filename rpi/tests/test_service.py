@@ -206,3 +206,54 @@ def test_emergency_stop_reaches_registered_node_controllers():
 
     assert node.stopped  # 등록된 노드 컨트롤러에도 정지가 전파된다
     assert local._stop_requested.is_set()
+
+
+def test_stop_immediately_after_submit_is_not_lost():
+    """리뷰 지적 #5 회귀 — job 접수 직후(실행 스레드가 다 돌기 전)에 온
+    /stop이 execute() 시작 시점 clear로 유실되지 않아야 한다."""
+    import time
+
+    class SlowGrbl:
+        def press(self, command):
+            time.sleep(0.05)
+
+    controller = ClosedLoopController(
+        SlowGrbl(), MockVerifier([True] * 10), MockAlertSink(), MockSafetyController()
+    )
+    service = SimpleLayService(
+        RuleBasedIntentResolver({"테스트": ("b1", "b2", "b3", "b4", "b5")}),
+        controller,
+    )
+
+    service.submit_purpose("테스트")
+    service.emergency_stop()  # 접수 직후 정지
+
+    deadline = time.monotonic() + 3
+    while service.status().running and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    result = service.status().last_result
+    assert result is not None
+    assert result.status.value == "safety_stopped"
+
+
+def test_idle_stop_does_not_poison_next_job():
+    """유휴 상태에서 온 정지는 다음 job에 영향을 주지 않는다 —
+    _begin_run이 락 안에서 stop 토큰을 리셋한다."""
+    import time
+
+    controller = ClosedLoopController(
+        MockGrblClient(), MockVerifier([True] * 5), MockAlertSink(), MockSafetyController()
+    )
+    service = SimpleLayService(
+        RuleBasedIntentResolver({"테스트": ("b1", "b2")}), controller
+    )
+
+    service.emergency_stop()  # 실행 중인 작업 없음
+    service.submit_purpose("테스트")
+
+    deadline = time.monotonic() + 3
+    while service.status().running and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    assert service.status().last_result.status.value == "succeeded"

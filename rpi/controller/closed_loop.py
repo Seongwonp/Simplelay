@@ -45,12 +45,17 @@ class ClosedLoopController:
 
     def request_stop(self) -> None:
         """Ask a running execute() to safety-stop at the next button/attempt
-        boundary. Idle-time requests are discarded by execute()'s clear() --
-        a stale stop must never eat the *next* run."""
+        boundary."""
         self._stop_requested.set()
 
-    def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult:
+    def reset_stop(self) -> None:
+        """Discard any stale stop request. 호출 책임은 '실행을 시작시키는 쪽'
+        (SimpleLayService._begin_run, ActExecutor)에 있다 — execute()가
+        스스로 clear하면, job 접수 직후 스레드가 뜨기 전에 들어온 정지
+        요청이 시작 시점에 지워져 유실된다(리뷰 지적 #5)."""
         self._stop_requested.clear()
+
+    def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult:
         results: list[ButtonResult] = []
         completed_steps = 0
         for button in buttons:

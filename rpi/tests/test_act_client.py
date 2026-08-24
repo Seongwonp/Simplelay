@@ -330,3 +330,60 @@ def test_stop_can_be_called_twice_without_error():
         await client.stop()
         await client.stop()
     run(_t())
+
+
+# ── sequence_id 상관관계 (리뷰 지적 #3 회귀) ─────────────────────────────────
+
+def test_result_with_wrong_sequence_id_does_not_complete_pending():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(
+            reader, writer, config=ActClientConfig(response_timeout_seconds=0.2)
+        )
+        await client.start()
+
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="J2"))
+        await asyncio.sleep(0.02)
+        # 다른(이전) 시퀀스의 결과가 도착 — J2의 결과로 오인하면 안 된다
+        feed(reader, {"type": "result", "sequence_id": "J1", "success": True, "retry": 0})
+        await asyncio.sleep(0.02)
+        assert not task.done()  # 무시되어 계속 대기
+
+        # 올바른 결과가 오면 그때 완료
+        feed(reader, {"type": "result", "sequence_id": "J2", "success": True, "retry": 1})
+        result = await task
+        assert result.sequence_id == "J2"
+        assert result.retry == 1
+
+        await client.stop()
+    run(_t())
+
+
+def test_late_result_after_timeout_is_discarded_not_matched_to_next_job():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(
+            reader, writer, config=ActClientConfig(response_timeout_seconds=0.05)
+        )
+        await client.start()
+
+        # J1: 응답이 없어 timeout으로 실패 처리
+        with pytest.raises(ActLinkTimeoutError):
+            await client.execute(["시작"], sequence_id="J1")
+
+        # J2 시작 — 그 직후 J1의 '늦은' 결과가 도착한다
+        task = asyncio.create_task(client.execute(["취소"], sequence_id="J2"))
+        await asyncio.sleep(0.01)
+        feed(reader, {"type": "result", "sequence_id": "J1", "success": True, "retry": 0})
+        await asyncio.sleep(0.01)
+        assert not task.done()  # J1의 결과는 폐기 — J2는 계속 자기 응답을 기다린다
+
+        feed(reader, {"type": "result", "sequence_id": "J2", "success": False, "retry": 2})
+        result = await task
+        assert result.sequence_id == "J2"
+        assert result.success is False
+
+        await client.stop()
+    run(_t())

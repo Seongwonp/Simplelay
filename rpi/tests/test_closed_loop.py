@@ -202,11 +202,27 @@ def test_emergency_stop_between_retries():
     assert safety.reasons == ["emergency stop requested"]
 
 
-def test_stale_stop_request_does_not_block_next_run():
+def test_reset_stop_discards_stale_request():
+    # 토큰 리셋 책임은 '실행을 시작시키는 쪽'에 있다(SimpleLayService._begin_run,
+    # ActExecutor). execute()가 스스로 clear하지 않는 이유: job 접수 직후,
+    # 실행 스레드가 뜨기 전에 들어온 정지 요청이 시작 시점 clear로 유실된다.
     controller, grbl, _, _, safety, _ = build_controller([True])
 
-    controller.request_stop()  # 유휴 상태에서 온 정지 요청은
-    result = controller.execute(["시작"])  # 다음 실행을 잡아먹지 않는다
+    controller.request_stop()  # 이전 세션의 stale 요청
+    controller.reset_stop()    # 시작 주체가 명시적으로 리셋
+    result = controller.execute(["시작"])
 
     assert result.status is ExecutionStatus.SUCCEEDED
     assert safety.reasons == []
+
+
+def test_stop_request_before_execute_without_reset_is_honored():
+    # 리셋 없이 남아 있는 정지 요청은 실행을 즉시 안전 정지시킨다 —
+    # "접수 직후 정지"가 유실되지 않는 방향으로 기본값이 기울어 있다.
+    controller, grbl, _, _, safety, _ = build_controller([True])
+
+    controller.request_stop()
+    result = controller.execute(["시작"])
+
+    assert result.status is ExecutionStatus.SAFETY_STOPPED
+    assert grbl.commands == []

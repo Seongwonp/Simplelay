@@ -148,9 +148,10 @@ class SimpleLayService(PurposeExecutor):
         self, purpose: str, resolver: IntentResolver, appliance_id: str | None = None
     ) -> ExecutionResult:
         buttons = resolver.resolve(purpose)
-        self._begin_run(len(buttons))
+        controller = self._controller_for(appliance_id)
+        self._begin_run(len(buttons), controller)
         try:
-            return self._run_buttons(tuple(buttons), appliance_id, purpose)
+            return self._run_buttons(tuple(buttons), controller, purpose)
         finally:
             self._end_run()
 
@@ -168,9 +169,10 @@ class SimpleLayService(PurposeExecutor):
         string, not raw button presses.
         """
         buttons = tuple(buttons)
-        self._begin_run(len(buttons))
+        controller = self._controller_for(appliance_id)
+        self._begin_run(len(buttons), controller)
         try:
-            return self._run_buttons(buttons, appliance_id, purpose=None)
+            return self._run_buttons(buttons, controller, purpose=None)
         finally:
             self._end_run()
 
@@ -207,10 +209,11 @@ class SimpleLayService(PurposeExecutor):
     def _submit(
         self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
     ) -> str:
-        job_id = self._begin_run(len(buttons))
+        controller = self._controller_for(appliance_id)
+        job_id = self._begin_run(len(buttons), controller)
         thread = threading.Thread(
             target=self._run_job,
-            args=(buttons, appliance_id, purpose),
+            args=(buttons, controller, purpose),
             daemon=True,
             name=f"simplelay-exec-{job_id}",
         )
@@ -218,10 +221,10 @@ class SimpleLayService(PurposeExecutor):
         return job_id
 
     def _run_job(
-        self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
+        self, buttons: tuple[str, ...], controller: ButtonSequenceController, purpose: str | None
     ) -> None:
         try:
-            self._run_buttons(buttons, appliance_id, purpose)
+            self._run_buttons(buttons, controller, purpose)
         except Exception:
             # 백그라운드 스레드라 HTTP 500으로 표면화할 곳이 없다 — 로그를
             # 남기고 /status의 last_status="failed"로 실패를 노출한다.
@@ -231,14 +234,29 @@ class SimpleLayService(PurposeExecutor):
         finally:
             self._end_run()
 
-    def _begin_run(self, total_steps: int | None) -> str:
-        """check-and-set을 락으로 원자화한 실행 시작 게이트."""
+    def _begin_run(
+        self,
+        total_steps: int | None,
+        controller: ButtonSequenceController | None = None,
+    ) -> str:
+        """check-and-set을 락으로 원자화한 실행 시작 게이트.
+
+        stop 토큰 리셋도 이 락 안에서 한다 — emergency_stop()이 같은 락을
+        잡으므로 "접수 직후 정지"가 실행 스레드 시작 전에 와도 유실되지
+        않는다: begin이 먼저면 stop이 뒤에 set되어 실행이 경계에서 멈추고,
+        stop이 먼저면 begin이 리셋하지만 그 stop은 was_running=False로
+        '실행 중 작업 없음'을 정확히 보고받는다.
+        """
         with self._lock:
             self._guard_can_execute()
             self._running = True
             job_id = uuid.uuid4().hex[:12]
             self._current_job_id = job_id
             self._current_total_steps = total_steps
+            if controller is not None:
+                reset_stop = getattr(controller, "reset_stop", None)
+                if reset_stop is not None:
+                    reset_stop()
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
         return job_id
@@ -275,9 +293,11 @@ class SimpleLayService(PurposeExecutor):
             log.exception("job history record failed")
 
     def _run_buttons(
-        self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
+        self,
+        buttons: tuple[str, ...],
+        controller: ButtonSequenceController,
+        purpose: str | None,
     ) -> ExecutionResult:
-        controller = self._controller_for(appliance_id)
         self._last_result = controller.execute(buttons)
         self._record_history(self._last_result, purpose)
         # purpose가 없는 실행(직접 버튼 시퀀스)은 의도적으로 학습 로그에서 제외
@@ -314,9 +334,11 @@ class SimpleLayService(PurposeExecutor):
         반환값은 요청 시점에 실행이 진행 중이었는지 — 클라이언트가
         "정지됨"과 "실행 중인 작업 없음"을 구분해 표시할 수 있게 한다.
         """
-        was_running = self._running
-        for controller in self._stoppable_controllers():
-            controller.request_stop()
+        # _begin_run과 같은 락 — "접수 직후 정지" 순서 보장(위 docstring 참고)
+        with self._lock:
+            was_running = self._running
+            for controller in self._stoppable_controllers():
+                controller.request_stop()
         return was_running
 
     def _stoppable_controllers(self) -> list[ButtonSequenceController]:

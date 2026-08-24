@@ -27,6 +27,7 @@ import asyncio
 import json
 import logging
 import uuid
+from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Protocol
@@ -110,7 +111,13 @@ class ActClient:
         self._writer = writer
         self._cfg = config or ActClientConfig()
         self._on_alert = on_alert
-        self._pending: asyncio.Future[dict] | None = None
+        # (sequence_id, future) — 수신한 result/error를 반드시 현재 요청의
+        # sequence_id와 대조해서 완료시킨다. 대조 없이 완료시키면, timeout으로
+        # 버려진 이전 요청의 늦은 응답이 다음 요청의 결과로 오인된다.
+        self._pending: tuple[str, asyncio.Future[dict]] | None = None
+        # timeout으로 포기한 sequence_id의 무덤 — 늦게 도착한 응답을
+        # '알 수 없는 메시지'가 아니라 '지연 도착'으로 명시적으로 폐기한다.
+        self._stale_sequence_ids: deque[str] = deque(maxlen=8)
         self._read_task: asyncio.Task[None] | None = None
 
     # ── Public API ───────────────────────────────────────────────────────────
@@ -139,17 +146,20 @@ class ActClient:
         ActLinkTimeoutError if RPi4 never responds, ActLinkError if RPi4
         reports an ``error`` message for this sequence.
         """
-        if self._pending is not None and not self._pending.done():
+        if self._pending is not None and not self._pending[1].done():
             raise ActLinkBusyError("an execute() call is already awaiting a response")
 
         seq_id = sequence_id or str(uuid.uuid4())
         loop = asyncio.get_running_loop()
-        self._pending = loop.create_future()
+        future: asyncio.Future[dict] = loop.create_future()
+        self._pending = (seq_id, future)
         await self._send({"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)})
 
         try:
-            doc = await asyncio.wait_for(self._pending, self._cfg.response_timeout_seconds)
+            doc = await asyncio.wait_for(future, self._cfg.response_timeout_seconds)
         except asyncio.TimeoutError as exc:
+            # 이 sequence의 응답이 늦게라도 오면 폐기 대상으로 기록
+            self._stale_sequence_ids.append(seq_id)
             raise ActLinkTimeoutError(
                 f"no response for sequence_id={seq_id!r} within "
                 f"{self._cfg.response_timeout_seconds}s"
@@ -197,8 +207,21 @@ class ActClient:
 
         msg_type = doc.get("type")
         if msg_type in ("result", "error"):
-            if self._pending is not None and not self._pending.done():
-                self._pending.set_result(doc)
+            received_id = doc.get("sequence_id")
+            pending = self._pending
+            if (
+                pending is not None
+                and not pending[1].done()
+                and received_id == pending[0]
+            ):
+                pending[1].set_result(doc)
+            elif received_id in self._stale_sequence_ids:
+                # timeout으로 이미 실패 처리한 요청의 지연 응답 — 조용히 폐기.
+                # 대조 없이 완료시키면 다음 job의 결과로 오인된다.
+                log.warning(
+                    "ActClient: late %s for timed-out sequence %r discarded",
+                    msg_type, received_id,
+                )
             else:
                 log.warning("ActClient: unsolicited %s ignored: %.120s", msg_type, raw)
             return
