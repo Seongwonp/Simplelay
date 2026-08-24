@@ -137,15 +137,32 @@ def test_execute_raises_timeout_when_rpi4_never_responds():
         reader = asyncio.StreamReader()
         writer = FakeWriter()
         client = _make_client(
-            reader, writer, config=ActClientConfig(response_timeout_seconds=0.05)
+            reader,
+            writer,
+            config=ActClientConfig(
+                response_timeout_seconds=0.05, per_button_timeout_seconds=0.0
+            ),
         )
         await client.start()
 
         with pytest.raises(ActLinkTimeoutError):
             await client.execute(["시작"], sequence_id="seq-4")
 
+        # RPi5가 실패로 보고하는 순간 RPi4도 멈춰야 한다 — timeout 직후
+        # abort가 전송됐는지 확인 (화면은 실패인데 실물은 계속 누르는
+        # 불일치 방지)
+        assert writer.messages()[-1] == {"type": "abort"}
+
         await client.stop()
     run(_t())
+
+
+def test_response_timeout_scales_with_button_count():
+    cfg = ActClientConfig(response_timeout_seconds=30.0, per_button_timeout_seconds=6.0)
+    assert cfg.timeout_for(0) == 30.0
+    assert cfg.timeout_for(1) == 36.0
+    assert cfg.timeout_for(10) == 90.0  # 고정 30s였다면 여기서 오판 timeout
+    assert cfg.timeout_for(-1) == 30.0  # 방어적 하한
 
 
 def test_second_execute_while_first_pending_raises_busy():
@@ -339,7 +356,11 @@ def test_result_with_wrong_sequence_id_does_not_complete_pending():
         reader = asyncio.StreamReader()
         writer = FakeWriter()
         client = _make_client(
-            reader, writer, config=ActClientConfig(response_timeout_seconds=0.2)
+            reader,
+            writer,
+            config=ActClientConfig(
+                response_timeout_seconds=0.2, per_button_timeout_seconds=0.0
+            ),
         )
         await client.start()
 
@@ -365,7 +386,11 @@ def test_late_result_after_timeout_is_discarded_not_matched_to_next_job():
         reader = asyncio.StreamReader()
         writer = FakeWriter()
         client = _make_client(
-            reader, writer, config=ActClientConfig(response_timeout_seconds=0.05)
+            reader,
+            writer,
+            config=ActClientConfig(
+                response_timeout_seconds=0.05, per_button_timeout_seconds=0.0
+            ),
         )
         await client.start()
 

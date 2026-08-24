@@ -40,25 +40,39 @@ class ActClientController:
     approximated into a full ExecutionResult.
     """
 
+    # ActClient의 응답 대기보다 항상 이만큼 더 기다린다 — ActClient가 먼저
+    # 깨어나 abort 전송·stale 기록까지 마친 뒤 예외가 이 스레드로 전파되게.
+    CALL_MARGIN_SECONDS = 5.0
+
     def __init__(
         self,
         loop: asyncio.AbstractEventLoop,
         client: ActClient,
-        call_timeout_seconds: float = 35.0,
+        call_timeout_seconds: float | None = None,
     ) -> None:
+        """call_timeout_seconds=None(기본)이면 시퀀스 길이에 맞춰 동적으로
+        기다린다(client.response_timeout_for + 여유). 고정값은 테스트처럼
+        브리지 자체의 timeout 동작을 검증할 때만 쓴다 — 고정 35s는 긴
+        시퀀스에서 ActClient보다 먼저 포기해 결과를 유실시켰다(교차 리뷰 #6)."""
         self._loop = loop
         self._client = client
         self._call_timeout = call_timeout_seconds
 
+    def _timeout_for(self, button_count: int) -> float:
+        if self._call_timeout is not None:
+            return self._call_timeout
+        return self._client.response_timeout_for(button_count) + self.CALL_MARGIN_SECONDS
+
     def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult:
         buttons = list(buttons)
+        call_timeout = self._timeout_for(len(buttons))
         future = asyncio.run_coroutine_threadsafe(self._client.execute(buttons), self._loop)
         try:
-            result = future.result(timeout=self._call_timeout)
+            result = future.result(timeout=call_timeout)
         except TimeoutError as exc:
             future.cancel()
             raise ActLinkTimeoutError(
-                f"ActClientController.execute() timed out after {self._call_timeout}s"
+                f"ActClientController.execute() timed out after {call_timeout}s"
             ) from exc
 
         return synthesize_execution_result(buttons, result.success, result.retry)

@@ -55,7 +55,8 @@ def _await_last_message(writer: FakeWriter, timeout: float = 2.0) -> dict:
 
 
 def _make_controller(
-    config: ActClientConfig | None = None, call_timeout_seconds: float = 2.0
+    config: ActClientConfig | None = None,
+    call_timeout_seconds: float | None = 2.0,
 ):
     # StreamReader() must be constructed on a thread with a running loop
     # (it looks one up at __init__ time) -- so build it inside _setup(),
@@ -156,11 +157,31 @@ def test_execute_propagates_actuator_error_as_runtime_error():
 
 def test_execute_times_out_when_rpi4_never_responds():
     controller, loop, thread, reader, writer = _make_controller(
-        config=ActClientConfig(response_timeout_seconds=0.05), call_timeout_seconds=1.0
+        config=ActClientConfig(
+            response_timeout_seconds=0.05, per_button_timeout_seconds=0.0
+        ),
+        call_timeout_seconds=1.0,
     )
     try:
         with pytest.raises(RuntimeError, match="no response"):
             controller.execute(["시작"])
+    finally:
+        _teardown(controller, loop, thread)
+
+
+def test_default_call_timeout_scales_with_sequence_length():
+    # 고정 35s 브리지 timeout은 긴 시퀀스에서 ActClient(동적)보다 먼저
+    # 포기해 결과를 유실시켰다 — 기본값(None)은 클라이언트 대기 + 여유여야 한다.
+    controller, loop, thread, reader, writer = _make_controller(
+        config=ActClientConfig(
+            response_timeout_seconds=30.0, per_button_timeout_seconds=6.0
+        ),
+        call_timeout_seconds=None,
+    )
+    try:
+        margin = ActClientController.CALL_MARGIN_SECONDS
+        assert controller._timeout_for(1) == 36.0 + margin
+        assert controller._timeout_for(10) == 90.0 + margin
     finally:
         _teardown(controller, loop, thread)
 

@@ -49,7 +49,17 @@ class ActLinkTimeoutError(ActLinkError):
 
 @dataclass(frozen=True)
 class ActClientConfig:
+    # 시퀀스 길이와 무관한 기본 여유(연결·해석·홈 복귀 등)
     response_timeout_seconds: float = 30.0
+    # 버튼 1개당 추가 여유 — 실기기에서 버튼 하나는 이동+누름+검증+재시도
+    # (최대 3회)로 수 초가 걸린다. 고정 30s는 6버튼 이상 시퀀스가 정상
+    # 진행 중인데도 timeout으로 오판되는 원인이었다(교차 리뷰 #6).
+    per_button_timeout_seconds: float = 6.0
+
+    def timeout_for(self, button_count: int) -> float:
+        return self.response_timeout_seconds + (
+            self.per_button_timeout_seconds * max(0, button_count)
+        )
 
 
 @dataclass(frozen=True)
@@ -150,19 +160,26 @@ class ActClient:
             raise ActLinkBusyError("an execute() call is already awaiting a response")
 
         seq_id = sequence_id or str(uuid.uuid4())
+        timeout = self._cfg.timeout_for(len(buttons))
         loop = asyncio.get_running_loop()
         future: asyncio.Future[dict] = loop.create_future()
         self._pending = (seq_id, future)
         await self._send({"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)})
 
         try:
-            doc = await asyncio.wait_for(future, self._cfg.response_timeout_seconds)
+            doc = await asyncio.wait_for(future, timeout)
         except asyncio.TimeoutError as exc:
             # 이 sequence의 응답이 늦게라도 오면 폐기 대상으로 기록
             self._stale_sequence_ids.append(seq_id)
+            # RPi5는 지금부터 이 실행을 실패로 보고한다 — RPi4가 아직 버튼을
+            # 누르고 있을 수 있으므로 중단도 함께 요청한다(불일치 방지).
+            # 전송 실패는 로그만: timeout 예외 경로를 덮어쓰면 안 된다.
+            try:
+                await self._send({"type": "abort"})
+            except Exception:
+                log.exception("abort send after timeout failed")
             raise ActLinkTimeoutError(
-                f"no response for sequence_id={seq_id!r} within "
-                f"{self._cfg.response_timeout_seconds}s"
+                f"no response for sequence_id={seq_id!r} within {timeout}s"
             ) from exc
         finally:
             self._pending = None
@@ -180,6 +197,11 @@ class ActClient:
     async def abort(self) -> None:
         """Request RPi4 abort — best-effort, no reply is awaited (see protocol.md)."""
         await self._send({"type": "abort"})
+
+    def response_timeout_for(self, button_count: int) -> float:
+        """이 클라이언트가 해당 길이의 시퀀스에 허용할 응답 대기 시간.
+        동기 브리지(ActClientController)가 자기 대기 시간을 여기에 맞춘다."""
+        return self._cfg.timeout_for(button_count)
 
     # ── Background read loop ────────────────────────────────────────────────
 
