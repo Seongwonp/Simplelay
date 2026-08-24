@@ -7,7 +7,9 @@
 import asyncio
 import json
 
-from rpi.api.router import sse_event_lines
+from rpi.api.router import sse_event_lines, status_event_payload
+from rpi.api.service import StatusSnapshot
+from rpi.controller.models import ExecutionProgress
 
 
 def _collect(alert_seq, status_seq, max_ticks, keepalive_every=1000):
@@ -98,3 +100,62 @@ def test_keepalive_emitted_periodically():
 def test_disconnect_terminates_stream():
     # max_ticks=0 → 첫 확인에서 종료, 아무것도 보내지 않는다
     assert _collect([_ALERT_OFF], [_IDLE], max_ticks=0) == []
+
+
+# ── status payload의 진행 필드 (교차 리뷰 #13) ───────────────────────────────
+
+
+class _FakeService:
+    def __init__(self, snapshot: StatusSnapshot) -> None:
+        self._snapshot = snapshot
+
+    def status(self) -> StatusSnapshot:
+        return self._snapshot
+
+
+def test_status_payload_carries_progress_fields_while_running():
+    snapshot = StatusSnapshot(
+        running=True,
+        ready=True,
+        last_result=None,
+        progress=ExecutionProgress(
+            button="해동", attempt=2, completed_steps=1, verification=None
+        ),
+        job_id="job-9",
+        total_steps=3,
+    )
+
+    payload = status_event_payload(_FakeService(snapshot))
+
+    assert payload["running"] is True
+    assert payload["current_button"] == "해동"
+    assert payload["current_attempt"] == 2
+    assert payload["completed_steps"] == 1
+    assert payload["total_steps"] == 3
+
+
+def test_status_payload_progress_fields_are_none_when_idle():
+    payload = status_event_payload(
+        _FakeService(StatusSnapshot(running=False, ready=True, last_result=None))
+    )
+
+    assert payload["current_button"] is None
+    assert payload["current_attempt"] is None
+    assert payload["completed_steps"] is None
+    assert payload["total_steps"] is None
+
+
+def test_progress_change_produces_a_status_push():
+    # 같은 job이라도 버튼 진행/재시도로 payload가 달라지면 status 이벤트가
+    # 다시 나간다 — 키오스크의 "이벤트 → 즉시 폴링" 진행바가 성립하는 근거
+    step1 = {"running": True, "job_id": "j", "completed_steps": 0}
+    step2 = {"running": True, "job_id": "j", "completed_steps": 1}
+    events = _parse(
+        _collect([_ALERT_OFF], [step1, step1, step2], max_ticks=4)
+    )
+
+    assert events == [
+        ("alert", _ALERT_OFF),
+        ("status", step1),
+        ("status", step2),  # 진행 변화만으로도 푸시
+    ]

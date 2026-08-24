@@ -398,6 +398,36 @@ async def sse_event_lines(
         await asyncio.sleep(check_interval)
 
 
+def alert_event_payload(store: DangerAlertStore) -> dict:
+    s = store.current()
+    return {
+        "active": s.active,
+        "kind": s.kind,
+        "band_energy_ratio": s.band_energy_ratio,
+        "mean_period_seconds": s.mean_period_seconds,
+    }
+
+
+def status_event_payload(service: SimpleLayService) -> dict:
+    snap = service.status()
+    progress = snap.progress
+    return {
+        "running": snap.running,
+        "job_id": snap.job_id,
+        "last_job_id": snap.last_job_id,
+        "last_status": snap.last_result.status.value if snap.last_result else None,
+        # 진행 필드 — GET /status와 같은 의미(실행 중일 때만 값). 이게 없으면
+        # SSE만 보는 클라이언트는 "몇 번째 버튼을 재시도 중인지"를 위해 결국
+        # 폴링을 병행해야 했다(교차 리뷰 #13). 버튼 진행·재시도 시마다
+        # payload가 달라지므로 변화 푸시로 즉시 흘러간다 — 키오스크의
+        # "status 이벤트 → 즉시 /status 폴링" 패턴이 진행바에도 적용된다.
+        "current_button": progress.button if progress else None,
+        "current_attempt": progress.attempt if progress else None,
+        "completed_steps": progress.completed_steps if progress else None,
+        "total_steps": snap.total_steps,
+    }
+
+
 @router.get("/events")
 async def events(
     request: Request,
@@ -408,29 +438,12 @@ async def events(
     클라이언트(키오스크)는 이 스트림을 우선 사용하고, 끊기면 기존 폴링으로
     계속 동작한다. 추가 의존성 없이 내부 300ms 변화 감지 루프로 구현 —
     인메모리 읽기라 비용이 무시할 수준이다."""
-
-    def _alert_payload() -> dict:
-        s = store.current()
-        return {
-            "active": s.active,
-            "kind": s.kind,
-            "band_energy_ratio": s.band_energy_ratio,
-            "mean_period_seconds": s.mean_period_seconds,
-        }
-
-    def _status_payload() -> dict:
-        snap = service.status()
-        return {
-            "running": snap.running,
-            "job_id": snap.job_id,
-            "last_job_id": snap.last_job_id,
-            "last_status": snap.last_result.status.value
-            if snap.last_result
-            else None,
-        }
-
     return StreamingResponse(
-        sse_event_lines(request.is_disconnected, _alert_payload, _status_payload),
+        sse_event_lines(
+            request.is_disconnected,
+            lambda: alert_event_payload(store),
+            lambda: status_event_payload(service),
+        ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
