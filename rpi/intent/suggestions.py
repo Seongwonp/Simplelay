@@ -1,5 +1,6 @@
 """Proactive suggestion lifecycle with a mandatory one-time approval gate."""
 
+import threading
 from dataclasses import replace
 from datetime import datetime, timedelta
 
@@ -34,6 +35,10 @@ class ProactiveSuggestionService:
         self._suggestions: dict[str, ProactiveSuggestion] = {}
         self._next_id = 1
         self._dnd_until: datetime | None = None
+        # 승인은 워커 스레드(asyncio.to_thread), 거부·생성은 이벤트 루프
+        # 스레드에서 온다 — 상태 확인+전이를 원자화하지 않으면 "폰에서
+        # 거부했는데 키오스크 승인이 되살려 실행"되는 레이스가 가능하다.
+        self._state_lock = threading.Lock()
         # 공간 맥락 게이트(선택) — False를 돌려주는 동안 자동 제안 생성을
         # 보류한다(부재 중인 공간에 제안을 띄우지 않기). None이면 무시.
         # 수동 트리거(create_demo_suggestion)와 이미 만들어진 pending 노출은
@@ -63,22 +68,41 @@ class ProactiveSuggestionService:
             return ()
         created: list[ProactiveSuggestion] = []
         for candidate in self._detector.candidates():
-            existing = self._pending_for(candidate.purpose, candidate.time_band)
-            if existing is not None:
-                created.append(existing)
-                continue
-            suggestion = ProactiveSuggestion(
-                suggestion_id=f"suggestion-{self._next_id}",
-                purpose=candidate.purpose,
-                time_band=candidate.time_band,
-                occurrences=candidate.occurrences,
-                created_at=self._clock.now(),
-                steps=self._preview_steps(candidate.purpose),
-            )
-            self._next_id += 1
-            self._suggestions[suggestion.suggestion_id] = suggestion
+            # 미리보기 해석(느릴 수 있음)은 락 밖에서
+            steps = self._preview_steps(candidate.purpose)
+            with self._state_lock:
+                existing = self._pending_for(candidate.purpose, candidate.time_band)
+                if existing is not None:
+                    created.append(existing)
+                    continue
+                suggestion = ProactiveSuggestion(
+                    suggestion_id=f"suggestion-{self._next_id}",
+                    purpose=candidate.purpose,
+                    time_band=candidate.time_band,
+                    occurrences=candidate.occurrences,
+                    created_at=self._clock.now(),
+                    steps=steps,
+                )
+                self._next_id += 1
+                self._suggestions[suggestion.suggestion_id] = suggestion
             created.append(suggestion)
         return tuple(created)
+
+    def _claim_for_approval(self, suggestion_id: str) -> ProactiveSuggestion:
+        """승인권을 원자적으로 획득 — 상태 확인과 APPROVED 전이를 한 임계구역
+        에서 수행한다. 거부가 먼저 pop했으면 KeyError → 404, 이미 승인됐으면
+        AlreadyApproved → 409. '거부됐는데 승인 스레드가 되살리는' 레이스 차단."""
+        with self._state_lock:
+            try:
+                suggestion = self._suggestions[suggestion_id]
+            except KeyError as exc:
+                raise UnknownSuggestionError(suggestion_id) from exc
+            if suggestion.status is not SuggestionStatus.PENDING:
+                raise SuggestionAlreadyApprovedError(suggestion_id)
+            self._suggestions[suggestion_id] = replace(
+                suggestion, status=SuggestionStatus.APPROVED
+            )
+            return suggestion
 
     def create_demo_suggestion(
         self, purpose: str, occurrences: int = 3
@@ -93,29 +117,35 @@ class ProactiveSuggestionService:
         """
         if self.is_dnd():
             return None
-        existing = self._pending_for(purpose, "데모")
-        if existing is not None:
-            return existing
-        suggestion = ProactiveSuggestion(
-            suggestion_id=f"suggestion-{self._next_id}",
-            purpose=purpose,
-            time_band="데모",
-            occurrences=occurrences,
-            created_at=self._clock.now(),
-            steps=self._preview_steps(purpose),
-        )
-        self._next_id += 1
-        self._suggestions[suggestion.suggestion_id] = suggestion
-        return suggestion
+        steps = self._preview_steps(purpose)
+        with self._state_lock:
+            existing = self._pending_for(purpose, "데모")
+            if existing is not None:
+                return existing
+            suggestion = ProactiveSuggestion(
+                suggestion_id=f"suggestion-{self._next_id}",
+                purpose=purpose,
+                time_band="데모",
+                occurrences=occurrences,
+                created_at=self._clock.now(),
+                steps=steps,
+            )
+            self._next_id += 1
+            self._suggestions[suggestion.suggestion_id] = suggestion
+            return suggestion
 
     def reject(self, suggestion_id: str) -> None:
         """실행 없이 pending에서 제거(dismiss). 없는 id이거나 이미 승인된
         제안이면 UnknownSuggestionError — 기존 라우터의 pending 전용
-        404 의미를 그대로 보존한다."""
-        suggestion = self._suggestions.get(suggestion_id)
-        if suggestion is None or suggestion.status is not SuggestionStatus.PENDING:
-            raise UnknownSuggestionError(suggestion_id)
-        self._suggestions.pop(suggestion_id)
+        404 의미를 그대로 보존한다. 확인+제거가 락 안이라 승인과 원자적."""
+        with self._state_lock:
+            suggestion = self._suggestions.get(suggestion_id)
+            if (
+                suggestion is None
+                or suggestion.status is not SuggestionStatus.PENDING
+            ):
+                raise UnknownSuggestionError(suggestion_id)
+            self._suggestions.pop(suggestion_id)
 
     def _preview_steps(self, purpose: str) -> tuple[str, ...]:
         """Best-effort preview only -- approve() re-resolves for real execution.
@@ -134,25 +164,17 @@ class ProactiveSuggestionService:
     def pending(self) -> tuple[ProactiveSuggestion, ...]:
         if self.is_dnd():
             return ()
-        return tuple(
-            suggestion
-            for suggestion in self._suggestions.values()
-            if suggestion.status is SuggestionStatus.PENDING
-        )
+        with self._state_lock:
+            return tuple(
+                suggestion
+                for suggestion in self._suggestions.values()
+                if suggestion.status is SuggestionStatus.PENDING
+            )
 
     def approve(self, suggestion_id: str) -> object:
-        try:
-            suggestion = self._suggestions[suggestion_id]
-        except KeyError as exc:
-            raise UnknownSuggestionError(suggestion_id) from exc
-        if suggestion.status is not SuggestionStatus.PENDING:
-            raise SuggestionAlreadyApprovedError(suggestion_id)
-
-        # Close the one-time gate before execution so repeated approval cannot
-        # trigger the physical path even if execution raises an exception.
-        self._suggestions[suggestion_id] = replace(
-            suggestion, status=SuggestionStatus.APPROVED
-        )
+        # 승인권 획득(원자적) 후 실행은 락 밖에서 — 물리 실행을 락 안에서
+        # 돌리면 그동안 모든 제안 조작이 멈춘다.
+        suggestion = self._claim_for_approval(suggestion_id)
         return self._executor.execute_purpose(suggestion.purpose)
 
     def approve_submit(self, suggestion_id: str) -> str:
@@ -160,16 +182,7 @@ class ProactiveSuggestionService:
         job_id를 반환한다. 게이트 규칙은 approve와 동일: 실행 제출 전에
         1회용 승인 게이트를 닫는다. executor가 submit_purpose를 지원해야
         한다(SimpleLayService가 지원; 없으면 AttributeError로 즉시 드러남)."""
-        try:
-            suggestion = self._suggestions[suggestion_id]
-        except KeyError as exc:
-            raise UnknownSuggestionError(suggestion_id) from exc
-        if suggestion.status is not SuggestionStatus.PENDING:
-            raise SuggestionAlreadyApprovedError(suggestion_id)
-
-        self._suggestions[suggestion_id] = replace(
-            suggestion, status=SuggestionStatus.APPROVED
-        )
+        suggestion = self._claim_for_approval(suggestion_id)
         return self._executor.submit_purpose(suggestion.purpose)
 
     def _pending_for(
