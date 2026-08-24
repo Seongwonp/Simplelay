@@ -91,6 +91,19 @@ class ActClientController:
         future = asyncio.run_coroutine_threadsafe(self._client.abort(), self._loop)
         future.add_done_callback(_log_send_failure)
 
+    def inject_failure(self, button_index: int, attempts: int) -> None:
+        """리허설 실패 주입을 RPi4로 전달 — 단방향(응답 없음). 전송 완료는
+        기다린다: 리허설 절차가 '무장 → 즉시 실행'이라 실행보다 먼저
+        도착해야 의미가 있다."""
+        asyncio.run_coroutine_threadsafe(
+            self._client.inject_failure(button_index, attempts), self._loop
+        ).result(timeout=5.0)
+
+    def clear_failure(self) -> None:
+        asyncio.run_coroutine_threadsafe(
+            self._client.clear_failure(), self._loop
+        ).result(timeout=5.0)
+
     def close(self) -> None:
         asyncio.run_coroutine_threadsafe(self._client.stop(), self._loop).result(timeout=5.0)
 

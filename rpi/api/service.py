@@ -341,6 +341,19 @@ class SimpleLayService(PurposeExecutor):
                 controller.request_stop()
         return was_running
 
+    def forward_demo_failure(self, button_index: int, attempts: int) -> None:
+        """데모 실패 주입을 기본 컨트롤러에 전달 (지원 시 — UART 모드의
+        ActClientController). 로컬 모드에서는 검증이 이 프로세스 안에서
+        일어나 deps의 DemoFailureState가 직접 발동하므로 여기선 no-op."""
+        inject = getattr(self._controller, "inject_failure", None)
+        if inject is not None:
+            inject(button_index, attempts)
+
+    def clear_forwarded_demo_failure(self) -> None:
+        clear = getattr(self._controller, "clear_failure", None)
+        if clear is not None:
+            clear()
+
     def _stoppable_controllers(self) -> list[ButtonSequenceController]:
         controllers: list[ButtonSequenceController] = [self._controller]
         if self._node_registry is not None:

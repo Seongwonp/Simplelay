@@ -64,7 +64,13 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 ```json
 { "type": "execute", "sequence_id": "seq_001", "buttons": ["BT-08", "BT-03", "BT-05"] }
 { "type": "abort" }
+{ "type": "inject_failure", "button_index": 0, "attempts": 1 }
+{ "type": "clear_failure" }
 ```
+
+`inject_failure`/`clear_failure`는 리허설 장치(POST/DELETE /demo/inject-failure)의
+UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "일부러 실패시켜도
+스스로 재시도" 장면을 같은 API로 연출한다. abort처럼 응답 없는 단방향.
 
 ### RPi4 → RPi5
 

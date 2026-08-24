@@ -1,5 +1,6 @@
 """데모 실패 주입 — 재시도 장면·안전 정지 장면·1회용 계약 검증."""
 
+from rpi.api import SimpleLayService
 from rpi.controller import ButtonStatus, ClosedLoopController, ExecutionStatus
 from rpi.controller.mock import (
     MockAlertSink,
@@ -78,3 +79,43 @@ def test_disarm_cancels_pending_injection():
     result = _controller(state).execute(["해동"])
 
     assert result.buttons[0].attempts == 1
+
+
+# ── UART 모드 전달 (교차 리뷰 #13) ───────────────────────────────────────────
+
+
+class _RecordingUartController:
+    """inject_failure/clear_failure를 지원하는 컨트롤러 대역
+    (ActClientController와 같은 duck-type)."""
+
+    def __init__(self) -> None:
+        self.calls: list[tuple] = []
+
+    def execute(self, buttons):
+        raise AssertionError("not used in this test")
+
+    def inject_failure(self, button_index: int, attempts: int) -> None:
+        self.calls.append(("inject", button_index, attempts))
+
+    def clear_failure(self) -> None:
+        self.calls.append(("clear",))
+
+
+def test_service_forwards_demo_failure_to_uart_controller():
+    controller = _RecordingUartController()
+    service = SimpleLayService(intent=None, controller=controller)
+
+    service.forward_demo_failure(1, 2)
+    service.clear_forwarded_demo_failure()
+
+    assert controller.calls == [("inject", 1, 2), ("clear",)]
+
+
+def test_service_forwarding_is_noop_for_local_controller():
+    # 로컬(ClosedLoop) 컨트롤러는 inject_failure가 없다 — 예외 없이 무시
+    service = SimpleLayService(
+        intent=None, controller=_controller(DemoFailureState())
+    )
+
+    service.forward_demo_failure(0, 1)
+    service.clear_forwarded_demo_failure()

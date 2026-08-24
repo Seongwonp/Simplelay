@@ -30,6 +30,7 @@ import sys
 
 from rpi.controller import ClosedLoopController
 from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
+from rpi.services.demo_failure import DemoFailureState, FailureInjectionVerifier
 from rpi.verifier import MockVerifier, Verifier
 
 from .services.act_executor import ActExecutor
@@ -75,13 +76,22 @@ def _build_executor(
     GrblClient는 아직 mock — 실물 모션 어댑터(Arduino PID 시리얼)는 W5
     HW 통합에서 이 자리에 꽂는다. Verifier는 env로 실물 전환 가능.
     """
+    # 데모 실패 주입(POST /demo/inject-failure → UART inject_failure)이 UART
+    # 모드에서도 통하도록, RPi5와 동일하게 verifier를 래핑하고 같은 상태를
+    # ActExecutor에 넘긴다 — 결선 리허설 장면이 실기기 구성에서도 성립한다.
+    failure_state = DemoFailureState()
     controller = ClosedLoopController(
         grbl=MockGrblClient(),
-        verifier=_build_verifier(),
+        verifier=FailureInjectionVerifier(_build_verifier(), failure_state),
         alerts=MockAlertSink(),
         safety=MockSafetyController(),
     )
-    return ActExecutor(reader=reader, writer=writer, controller=controller)
+    return ActExecutor(
+        reader=reader,
+        writer=writer,
+        controller=controller,
+        failure_state=failure_state,
+    )
 
 
 def _maybe_start_danger_monitor(executor: ActExecutor) -> "asyncio.Task[None] | None":

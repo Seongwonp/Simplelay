@@ -157,6 +157,24 @@ def test_execute_raises_timeout_when_rpi4_never_responds():
     run(_t())
 
 
+def test_inject_failure_sends_arm_message():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        client = _make_client(reader, writer)
+        await client.start()
+
+        await client.inject_failure(button_index=1, attempts=2)
+        await client.clear_failure()
+
+        assert writer.messages() == [
+            {"type": "inject_failure", "button_index": 1, "attempts": 2},
+            {"type": "clear_failure"},
+        ]
+        await client.stop()
+    run(_t())
+
+
 def test_response_timeout_scales_with_button_count():
     cfg = ActClientConfig(response_timeout_seconds=30.0, per_button_timeout_seconds=6.0)
     assert cfg.timeout_for(0) == 30.0

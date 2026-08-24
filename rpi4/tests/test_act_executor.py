@@ -470,3 +470,128 @@ def test_abort_while_busy_requests_cooperative_stop():
 
         await first
     run(_t())
+
+
+# ── inject_failure (리허설 실패 주입 — UART 경유, 교차 리뷰 #13) ──────────────
+
+def test_parse_inject_failure():
+    msg = parse_act_message(
+        json.dumps({"type": "inject_failure", "button_index": 1, "attempts": 2})
+    )
+    assert msg is not None
+    assert msg.button_index == 1
+    assert msg.attempts == 2
+
+
+def test_parse_inject_failure_rejects_out_of_range():
+    for doc in (
+        {"type": "inject_failure", "button_index": -1, "attempts": 1},
+        {"type": "inject_failure", "button_index": 0, "attempts": 0},
+        {"type": "inject_failure", "button_index": 0, "attempts": 11},
+        {"type": "inject_failure", "button_index": "0", "attempts": 1},
+        {"type": "inject_failure"},
+    ):
+        assert parse_act_message(json.dumps(doc)) is None, doc
+
+
+def test_parse_clear_failure():
+    from rpi4.models.act_messages import ClearFailureMsg
+
+    assert parse_act_message(json.dumps({"type": "clear_failure"})) == ClearFailureMsg()
+
+
+def _make_injectable_executor(reader, writer) -> ActExecutor:
+    # act_main._build_executor()와 동일한 배선 — verifier 래핑과 executor가
+    # 같은 DemoFailureState를 공유해야 무장이 실제 검증 실패로 이어진다
+    from rpi.services.demo_failure import DemoFailureState, FailureInjectionVerifier
+
+    state = DemoFailureState()
+    controller = ClosedLoopController(
+        grbl=MockGrblClient(),
+        verifier=FailureInjectionVerifier(MockVerifier(outcomes=[True] * 50), state),
+        alerts=MockAlertSink(),
+        safety=MockSafetyController(),
+    )
+    return ActExecutor(
+        reader=reader, writer=writer, controller=controller, failure_state=state
+    )
+
+
+def test_inject_failure_forces_retry_on_next_uart_execution():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_injectable_executor(reader, writer)
+
+        # POST /demo/inject-failure → UART inject_failure → 다음 실행에서 발동
+        feed(reader, {"type": "inject_failure", "button_index": 0, "attempts": 1})
+        await executor.run_once()
+
+        feed(reader, {"type": "execute", "sequence_id": "seq-f1", "buttons": ["시작"]})
+        await executor.run_once()
+        await executor.wait_idle()
+
+        msgs = writer.messages()
+        assert msgs[0]["success"] is True
+        assert msgs[0]["retry"] == 1  # 주입 실패 1회 → 폐루프 재시도 → 성공
+
+        # 1회용 — 다음 실행은 정상
+        writer.clear()
+        feed(reader, {"type": "execute", "sequence_id": "seq-f2", "buttons": ["시작"]})
+        await executor.run_once()
+        await executor.wait_idle()
+        assert writer.messages()[0]["retry"] == 0
+    run(_t())
+
+
+def test_inject_failure_with_exhausting_attempts_reports_failure():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_injectable_executor(reader, writer)
+
+        feed(reader, {"type": "inject_failure", "button_index": 0, "attempts": 3})
+        await executor.run_once()
+        feed(reader, {"type": "execute", "sequence_id": "seq-f3", "buttons": ["시작"]})
+        await executor.run_once()
+        await executor.wait_idle()
+
+        assert writer.messages()[0]["success"] is False  # 재시도 소진 → 안전 정지
+    run(_t())
+
+
+def test_clear_failure_disarms_before_execution():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_injectable_executor(reader, writer)
+
+        feed(reader, {"type": "inject_failure", "button_index": 0, "attempts": 3})
+        await executor.run_once()
+        feed(reader, {"type": "clear_failure"})
+        await executor.run_once()
+
+        feed(reader, {"type": "execute", "sequence_id": "seq-f4", "buttons": ["시작"]})
+        await executor.run_once()
+        await executor.wait_idle()
+
+        msgs = writer.messages()
+        assert msgs[0]["success"] is True
+        assert msgs[0]["retry"] == 0
+    run(_t())
+
+
+def test_inject_failure_without_wired_state_is_ignored():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FakeWriter()
+        executor = _make_executor(reader, writer)  # failure_state 없음
+
+        feed(reader, {"type": "inject_failure", "button_index": 0, "attempts": 3})
+        await executor.run_once()
+        feed(reader, {"type": "execute", "sequence_id": "seq-f5", "buttons": ["시작"]})
+        await executor.run_once()
+        await executor.wait_idle()
+
+        assert writer.messages()[0]["success"] is True  # 무시 — 정상 실행
+    run(_t())

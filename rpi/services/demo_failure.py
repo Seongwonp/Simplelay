@@ -8,9 +8,10 @@
 - attempts 3 이상: 재시도 소진 → 안전 정지 장면
 
 verifier 래퍼라 mock/실센서 어느 쪽 위에도 끼울 수 있다. 1회용 — 소진되면
-자동 해제되어 다음 실행은 정상 동작한다. 현재는 로컬(ClosedLoop) 경로에만
-배선되어 있다: UART 모드는 검증이 RPi4에서 일어나므로 실기기 데모에서
-쓰려면 rpi4/act_main.py에도 같은 래퍼 + 무장 채널(UART 메시지)이 필요하다.
+자동 해제되어 다음 실행은 정상 동작한다. UART 모드(검증이 RPi4에서 일어남)
+에서는 라우터가 SimpleLayService.forward_demo_failure()를 통해 같은 무장을
+UART inject_failure 메시지로 RPi4에 전달한다 — rpi4/act_main.py가 이 래퍼를
+동일하게 배선한다(docs/protocol.md).
 """
 
 from __future__ import annotations

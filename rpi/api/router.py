@@ -263,18 +263,24 @@ async def history(
 async def demo_inject_failure(
     body: DemoInjectFailureRequest,
     state=Depends(get_demo_failure_state),
+    service: SimpleLayService = Depends(get_service),
 ) -> OkResponse:
     # 리허설 장치 — 다음 실행의 지정 버튼 검증을 강제 실패시켜 재시도/
     # 안전 정지 장면을 원할 때 연출한다. 무장은 실행 직전에 할 것(1회용).
+    # 로컬 상태 무장 + (UART 모드면) RPi4로도 전달 — 검증이 어느 쪽에서
+    # 일어나든 같은 API 한 번으로 리허설이 성립한다.
     state.arm(body.button_index, body.attempts)
+    service.forward_demo_failure(body.button_index, body.attempts)
     return OkResponse()
 
 
 @router.delete("/demo/inject-failure", response_model=OkResponse)
 async def demo_clear_failure(
     state=Depends(get_demo_failure_state),
+    service: SimpleLayService = Depends(get_service),
 ) -> OkResponse:
     state.disarm()
+    service.clear_forwarded_demo_failure()
     return OkResponse()
 
 

@@ -198,6 +198,20 @@ class ActClient:
         """Request RPi4 abort — best-effort, no reply is awaited (see protocol.md)."""
         await self._send({"type": "abort"})
 
+    async def inject_failure(self, button_index: int, attempts: int) -> None:
+        """리허설 실패 주입 무장을 RPi4로 전달 — abort처럼 응답 없는 단방향
+        (protocol.md). 검증이 RPi4에서 일어나는 UART 모드에서 POST
+        /demo/inject-failure가 실제로 발동하게 하는 다리다."""
+        await self._send({
+            "type": "inject_failure",
+            "button_index": button_index,
+            "attempts": attempts,
+        })
+
+    async def clear_failure(self) -> None:
+        """무장 해제(DELETE /demo/inject-failure의 UART 전달판)."""
+        await self._send({"type": "clear_failure"})
+
     def response_timeout_for(self, button_count: int) -> float:
         """이 클라이언트가 해당 길이의 시퀀스에 허용할 응답 대기 시간.
         동기 브리지(ActClientController)가 자기 대기 시간을 여기에 맞춘다."""

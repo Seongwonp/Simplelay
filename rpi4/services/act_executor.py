@@ -29,9 +29,17 @@ import logging
 from typing import Protocol
 
 from rpi.controller import ClosedLoopController, ExecutionStatus
+from rpi.services.demo_failure import DemoFailureState
 from rpi.verifier import DangerSoundResult
 
-from ..models.act_messages import AbortMsg, ExecuteMsg, InboundActMsg, parse_act_message
+from ..models.act_messages import (
+    AbortMsg,
+    ClearFailureMsg,
+    ExecuteMsg,
+    InboundActMsg,
+    InjectFailureMsg,
+    parse_act_message,
+)
 
 log = logging.getLogger(__name__)
 
@@ -56,10 +64,16 @@ class ActExecutor:
         reader: asyncio.StreamReader,
         writer: _WriterLike,
         controller: ClosedLoopController,
+        failure_state: DemoFailureState | None = None,
     ) -> None:
+        """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
+        FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
+        발동한다 — act_main._build_executor()가 그 배선을 담당한다.
+        None이면 inject_failure/clear_failure 메시지는 로그만 남기고 무시."""
         self._reader = reader
         self._writer = writer
         self._controller = controller
+        self._failure_state = failure_state
         self._busy = False
         self._danger_alert_active = False
         # 실행은 별도 task — 읽기 루프가 실행 중에도 abort를 수신할 수 있어야
@@ -155,6 +169,10 @@ class ActExecutor:
             await self._on_execute(msg)
         elif isinstance(msg, AbortMsg):
             self._on_abort()
+        elif isinstance(msg, InjectFailureMsg):
+            self._on_inject_failure(msg)
+        elif isinstance(msg, ClearFailureMsg):
+            self._on_clear_failure()
 
     # ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -212,6 +230,22 @@ class ActExecutor:
             "sequence %r finished — %s (retry=%d)",
             msg.sequence_id, "ok" if success else "FAILED", retry,
         )
+
+    def _on_inject_failure(self, msg: InjectFailureMsg) -> None:
+        if self._failure_state is None:
+            log.warning("inject_failure ignored — no failure_state wired")
+            return
+        self._failure_state.arm(msg.button_index, msg.attempts)
+        log.info(
+            "demo failure armed — button_index=%d attempts=%d",
+            msg.button_index, msg.attempts,
+        )
+
+    def _on_clear_failure(self) -> None:
+        if self._failure_state is None:
+            return
+        self._failure_state.disarm()
+        log.info("demo failure disarmed")
 
     def _on_abort(self) -> None:
         # A physical E-STOP is authoritative and out of band from this UART
