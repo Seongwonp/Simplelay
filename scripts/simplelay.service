@@ -23,6 +23,11 @@ Environment=SIMPLELAY_HOME_Y_GPIO=27
 # SQLite 영속화 — 사용 이력(패턴 학습)·노드 등록이 재시작에도 유지된다
 Environment=SIMPLELAY_DB_PATH=/home/pi/SimpleLay/data/simplelay.db
 
+# 기기별 확정 설정(Act 모드·API 키 등)은 이 파일에서 읽는다 — 유닛 파일을
+# 고치지 않고 /etc/simplelay/environment만 수정 후 restart하면 된다.
+# (setup_rpi.sh가 주석 템플릿을 만들어 둠. '-' 접두사: 없어도 기동)
+EnvironmentFile=-/etc/simplelay/environment
+
 # RPi5 GPIO 백엔드 — lgpio 필수
 Environment=GPIOZERO_PIN_FACTORY=lgpio
 

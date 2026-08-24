@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import logging
+import os
 import pathlib
 
 import uvicorn
@@ -32,6 +33,38 @@ async def _suggestion_refresh_loop() -> None:
         await asyncio.sleep(SUGGESTION_REFRESH_SECONDS)
 
 
+async def _shutdown_cleanup() -> None:
+    """종료 절차: 신규 job 차단 → 협조 정지 → 잠시 대기 → 자원 정리.
+
+    이전에는 제안 task만 취소해서, systemd 재시작 시 백그라운드 실행
+    스레드(daemon)가 물리 컨트롤러에 아무 정지 명령 없이 증발했다.
+    """
+    from rpi.api.deps import get_db, get_service  # noqa: PLC0415
+
+    try:
+        service = get_service()
+        service.request_shutdown()  # 신규 job 거부
+        if service.emergency_stop():  # 실행 중이면 협조 정지 요청
+            deadline = asyncio.get_running_loop().time() + 5.0
+            while (
+                service.status().running
+                and asyncio.get_running_loop().time() < deadline
+            ):
+                await asyncio.sleep(0.1)
+        # UART 컨트롤러 등 정리 (있을 때만)
+        close = getattr(service._controller, "close", None)
+        if close is not None:
+            close()
+    except Exception:
+        log.exception("shutdown cleanup failed")
+    try:
+        db = get_db()
+        if db is not None:
+            db.close()
+    except Exception:
+        log.exception("db close failed")
+
+
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
     refresh_task = asyncio.create_task(_suggestion_refresh_loop())
@@ -41,6 +74,7 @@ async def lifespan(app: FastAPI):
         refresh_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await refresh_task
+        await _shutdown_cleanup()
 
 
 app = FastAPI(title="SimpleLay RPi API", version="0.1.0", lifespan=lifespan)
@@ -58,10 +92,12 @@ async def health(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
     actuator=Depends(get_actuator_status),
 ) -> HealthResponse:
+    act_mode = os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower() or "local"
     return HealthResponse(
         ok=True,
         actuator_ready=actuator.is_ready(),
         dnd_until=svc.dnd_until(),
+        act_mode=act_mode,
     )
 
 

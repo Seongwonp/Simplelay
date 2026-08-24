@@ -107,11 +107,30 @@ touch "$LOG_FILE"
 chown pi:pi "$LOG_FILE"
 ok "로그 파일 생성 ($LOG_FILE)"
 
+# 기기별 확정 설정 파일 — 최초 1회 주석 템플릿 생성(기존 파일은 보존)
+if [[ ! -f /etc/simplelay/environment ]]; then
+    mkdir -p /etc/simplelay
+    cat > /etc/simplelay/environment <<'ENVEOF'
+# SimpleLay 기기별 설정 — 수정 후: sudo systemctl restart simplelay
+# RPi4 실연결 시 반드시 주석 해제 (기본 local = mock 폐루프, 실물 안 움직임!)
+#SIMPLELAY_ACT_MODE=uart
+#SIMPLELAY_UART_PORT=/dev/ttyAMA0
+# 시연장 공유 Wi-Fi 방어 — 설정 시 폰 앱 설정에도 같은 키 입력
+#SIMPLELAY_API_KEY=change-me
+# 부재 중 자동 제안 보류 (RPi4 카메라 감지기 연결 후)
+#SIMPLELAY_PRESENCE_GATING=true
+ENVEOF
+    ok "/etc/simplelay/environment 템플릿 생성 (ACT 모드·API 키는 여기서 확정)"
+else
+    ok "/etc/simplelay/environment 기존 파일 유지"
+fi
+
 cp "$REPO_DIR/scripts/simplelay.service" /etc/systemd/system/simplelay.service
 systemctl daemon-reload
 systemctl enable simplelay
 systemctl restart simplelay
 ok "simplelay.service 활성화 + 시작 (Restart=always)"
+ok "현재 Act 모드 확인: curl localhost:8000/health → act_mode"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. 로그 로테이션 (24/7 운영 — 로그 무한 증식 방지)
