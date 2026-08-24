@@ -92,6 +92,9 @@ class _KioskScreenState extends State<KioskScreen> {
   String? _activeJobId;
   DateTime? _lastStatusOk;
   bool _pollInFlight = false;
+  // 내 job의 흔적이 안 보인 연속 폴링 수 — 시작 직후 창은 정상, 계속되면
+  // (서버 재시작·추월 유실) 실행 화면 고착 대신 실패로 탈출한다.
+  int _foreignPolls = 0;
 
   String? _currentButton;
   int? _currentAttempt;
@@ -219,28 +222,51 @@ class _KioskScreenState extends State<KioskScreen> {
     try {
       final st = await _api.status();
       _lastStatusOk = DateTime.now();
-      if (mounted && st.running) {
-        setState(() {
-          _currentButton = st.currentButton ?? _currentButton;
-          _currentAttempt = st.currentAttempt ?? _currentAttempt;
-          _completedSteps = st.completedSteps ?? _completedSteps;
-          _verificationConfidence =
-              st.verificationConfidence ?? _verificationConfidence;
-          _verificationDetail = st.verificationDetail ?? _verificationDetail;
-          // 실제 진행 데이터가 있으면 9초짜리 가짜 채움 대신 진짜 진행률로
-          final total = st.totalSteps;
-          if (total != null && total > 0) {
-            _execFillTimer?.cancel();
-            _execBarValue =
-                ((st.completedSteps ?? 0) / total).clamp(0.0, 0.95);
-          }
-        });
-      }
-      if (!st.running && st.lastJobId != null && st.lastJobId == _activeJobId) {
+      if (!mounted) return;
+
+      // ① 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
+      // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
+      // 처리하면 그 완료를 영영 놓친다(추월 레이스).
+      if (st.lastJobId != null && st.lastJobId == _activeJobId) {
         _finishExecuting(
           success: st.lastStatus == 'succeeded',
           buttons: st.lastButtons ?? const [],
         );
+        return;
+      }
+
+      if (st.running) {
+        final mine = _activeJobId == null || st.jobId == _activeJobId;
+        if (mine) {
+          _foreignPolls = 0;
+          setState(() {
+            _currentButton = st.currentButton ?? _currentButton;
+            _currentAttempt = st.currentAttempt ?? _currentAttempt;
+            _completedSteps = st.completedSteps ?? _completedSteps;
+            _verificationConfidence =
+                st.verificationConfidence ?? _verificationConfidence;
+            _verificationDetail =
+                st.verificationDetail ?? _verificationDetail;
+            // 실제 진행 데이터가 있으면 9초짜리 가짜 채움 대신 진짜 진행률로
+            final total = st.totalSteps;
+            if (total != null && total > 0) {
+              _execFillTimer?.cancel();
+              _execBarValue =
+                  ((st.completedSteps ?? 0) / total).clamp(0.0, 0.95);
+            }
+          });
+          return;
+        }
+      }
+
+      // ② 내 job의 흔적 없음 — 접수 응답 대기 창(_activeJobId null 포함)은
+      // 정상이므로 몇 번은 기다리고, 계속되면 고착 대신 탈출.
+      if (_activeJobId != null) {
+        _foreignPolls++;
+        if (_foreignPolls >= 5) {
+          _execFillTimer?.cancel();
+          _toDone(false, '실행 확인 불가');
+        }
       }
     } catch (_) {
       // 연속 실패가 길어지면 서버 유실로 판정하고 실행 화면에서 탈출
@@ -292,6 +318,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   void _toExecuting(String title) {
     _lastStatusOk = DateTime.now();
+    _foreignPolls = 0;
     setState(() {
       _phase = KioskPhase.executing;
       _execTitle = title;

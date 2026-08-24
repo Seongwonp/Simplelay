@@ -24,6 +24,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   String? _httpJobId;
   DateTime? _lastPollSuccess;
   bool _pollInFlight = false;
+  // 내 job의 흔적(job_id 또는 last_job_id 일치)이 안 보인 연속 폴링 수 —
+  // 시작 직후 짧은 창은 정상이지만, 계속되면(서버 재시작·결과 슬롯 추월
+  // 유실) 화면 고착 대신 실패로 탈출한다.
+  int _missingPolls = 0;
 
   static const _pollInterval = Duration(seconds: 1);
   // 이 시간 동안 /status가 한 번도 응답하지 않으면 서버 유실로 판정하고
@@ -51,6 +55,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _httpApi = api;
     _httpJobId = jobId;
     _lastPollSuccess = DateTime.now();
+    _missingPolls = 0;
     state = ExecutionStatus(
       sequenceId: jobId,
       label: label,
@@ -72,17 +77,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       _lastPollSuccess = DateTime.now();
       if (!mounted || _httpJobId != jobId) return;
 
-      if (status.running) {
-        final retrying = (status.currentAttempt ?? 1) > 1;
-        state = state.copyWith(
-          completedSteps: status.completedSteps ?? state.completedSteps,
-          phase: retrying ? ExecutionPhase.retrying : ExecutionPhase.running,
-          message: retrying ? '응답이 없어 다시 시도 중입니다.' : '실행 중',
-        );
-        return;
-      }
+      // ① 완료 판정을 최우선 — 내 job(J1) 완료 직후 다른 클라이언트의
+      // J2가 시작되면 running=true여도 last_job_id는 여전히 J1이다.
+      // running을 먼저 보고 return하면 그 완료를 영영 놓친다(추월 레이스).
       if (status.lastJobId == jobId) {
-        // 내 job의 완료 — job_id 대조로 이전 실행 결과를 오인하지 않는다
         final success = status.lastStatus == 'succeeded';
         final stopped = status.lastStatus == 'safety_stopped';
         final message = success
@@ -97,9 +95,32 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         );
         _announce(message);
         _stopHttpTracking();
+        return;
       }
-      // running=false인데 lastJobId != jobId → 백그라운드 스레드 시작 전의
-      // 짧은 창 — 다음 폴링에서 판정한다.
+
+      // ② 내 job이 실행 중 — 진행 갱신
+      if (status.running && status.jobId == jobId) {
+        _missingPolls = 0;
+        final retrying = (status.currentAttempt ?? 1) > 1;
+        state = state.copyWith(
+          completedSteps: status.completedSteps ?? state.completedSteps,
+          phase: retrying ? ExecutionPhase.retrying : ExecutionPhase.running,
+          message: retrying ? '응답이 없어 다시 시도 중입니다.' : '실행 중',
+        );
+        return;
+      }
+
+      // ③ 내 job의 흔적이 없다 — 시작 전 창(정상, 짧음)이거나 서버
+      // 재시작·결과 슬롯 추월 유실. 몇 번은 기다리고, 계속되면 탈출.
+      _missingPolls++;
+      if (_missingPolls >= 10) {
+        state = state.copyWith(
+          phase: ExecutionPhase.failed,
+          message: '실행 상태를 확인할 수 없습니다. 가전을 직접 확인해주세요.',
+        );
+        _announce('실행 상태를 확인할 수 없습니다. 가전을 직접 확인해주세요.');
+        _stopHttpTracking();
+      }
     } catch (_) {
       final since = _lastPollSuccess;
       if (since != null &&

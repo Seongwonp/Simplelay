@@ -340,6 +340,32 @@ void main() {
     expect(tts.utterances.length, 1);
   });
 
+  testWidgets('다른 job이 이어서 실행 중이어도 내 job의 완료를 놓치지 않는다 (추월 레이스)',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+
+    api.suggestionList = [];
+    await tester.tap(find.text('승인'));
+    await tester.pump(); // job-1 접수
+
+    // 내 job-1은 완료됐지만, 폰이 시작한 job-2가 이미 실행 중인 상태
+    api.statusResult = const KioskStatus(
+      running: true,
+      jobId: 'job-2',
+      lastJobId: 'job-1',
+      lastStatus: 'succeeded',
+      lastButtons: [],
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+
+    expect(find.byType(KioskDoneView), findsOneWidget);
+    await tester.pump(KioskTimings.doneReturn);
+  });
+
   test('SseLineParser는 event/data 라인 쌍을 이벤트로 조립한다', () {
     final parser = SseLineParser();
 
