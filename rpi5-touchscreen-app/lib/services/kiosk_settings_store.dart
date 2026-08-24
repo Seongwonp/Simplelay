@@ -58,32 +58,72 @@ class KioskSettingsStore {
 
   final File _file;
 
+  /// 마지막 save()가 실패했는지 — 호출자가 "저장하지 못했습니다"를 보여줄 수
+  /// 있게 남긴다. 예외를 삼키기만 하면 사용자는 저장된 줄 안다.
+  bool get lastSaveFailed => _lastSaveFailed;
+  bool _lastSaveFailed = false;
+
+  /// 쓰기 가능 경로 우선순위:
+  ///   1. SIMPLELAY_KIOSK_SETTINGS — 배포에서 명시 지정(systemd Environment)
+  ///   2. $HOME
+  ///   3. 현재 디렉터리 — 최후 폴백. 앱 샌드박스나 읽기 전용 루트에서는
+  ///      실패할 수 있으므로 실기기에서는 1번을 쓰는 것이 맞다.
   static String _defaultPath() {
+    final explicit = Platform.environment['SIMPLELAY_KIOSK_SETTINGS'];
+    if (explicit != null && explicit.isNotEmpty) return explicit;
     final home = Platform.environment['HOME'];
     final base = (home == null || home.isEmpty) ? '.' : home;
     return '$base/.simplelay-kiosk.json';
   }
 
   /// 읽기 실패(파일 없음·손상 JSON·권한)는 전부 기본값 — 설정 파일 때문에
-  /// 키오스크가 못 뜨는 일은 없어야 한다.
+  /// 키오스크가 못 뜨는 일은 없어야 한다. 본 파일이 손상됐으면 직전 저장분
+  /// (.bak)으로 한 번 더 시도한다.
   KioskSettings load() {
-    try {
-      final decoded = jsonDecode(_file.readAsStringSync());
-      if (decoded is Map<String, dynamic>) {
-        return KioskSettings.fromJson(decoded);
-      }
-    } catch (_) {
-      // 기본값으로 폴백
-    }
+    final fromMain = _tryLoad(_file);
+    if (fromMain != null) return fromMain;
+    final fromBackup = _tryLoad(File('${_file.path}.bak'));
+    if (fromBackup != null) return fromBackup;
     return const KioskSettings();
   }
 
-  /// 쓰기 실패도 조용히 무시 — 영속화는 편의지 동작 요건이 아니다.
-  void save(KioskSettings settings) {
+  KioskSettings? _tryLoad(File file) {
     try {
-      _file.writeAsStringSync(jsonEncode(settings.toJson()));
+      final decoded = jsonDecode(file.readAsStringSync());
+      if (decoded is Map<String, dynamic>) return KioskSettings.fromJson(decoded);
     } catch (_) {
-      // 읽기 전용 파일시스템 등 — 세션 내 동작은 그대로 유지된다
+      // 없거나 손상 — 호출자가 다음 후보로 넘어간다
+    }
+    return null;
+  }
+
+  /// 원자적 저장: 임시 파일에 다 쓴 뒤 교체한다.
+  ///
+  /// 그냥 덮어쓰면 기록 도중 정전 시 본 파일이 잘린 JSON이 되고, 다음 부팅에
+  /// 모든 설정이 기본값으로 돌아간다 — 키오스크는 벽 전원으로 상시 동작하는
+  /// 기기라 쓰기 중 정전이 현실적인 시나리오다.
+  ///
+  /// 반환값은 저장 성공 여부. 실패해도 세션 내 동작은 그대로 유지된다.
+  bool save(KioskSettings settings) {
+    final tmp = File('${_file.path}.tmp');
+    try {
+      tmp.writeAsStringSync(jsonEncode(settings.toJson()), flush: true);
+      // 직전 성공본을 백업으로 남긴 뒤 교체 — rename은 같은 파일시스템에서
+      // 원자적이라 "둘 중 하나는 온전한 파일"이 항상 보장된다.
+      if (_file.existsSync()) {
+        _file.copySync('${_file.path}.bak');
+      }
+      tmp.renameSync(_file.path);
+      _lastSaveFailed = false;
+      return true;
+    } catch (_) {
+      try {
+        if (tmp.existsSync()) tmp.deleteSync();
+      } catch (_) {
+        // 임시 파일 정리 실패는 무시
+      }
+      _lastSaveFailed = true;
+      return false;
     }
   }
 }

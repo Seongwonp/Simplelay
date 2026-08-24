@@ -18,6 +18,11 @@ StandardOutput=journal
 StandardError=journal
 Environment=XDG_RUNTIME_DIR=/run/user/1000
 
+# Flutter 키오스크의 로컬 설정(음성 안내·큰 글씨·선택 가전) 저장 경로.
+# 명시하지 않으면 $HOME → 현재 디렉터리 순으로 떨어지는데, 현재 디렉터리가
+# 읽기 전용이면 저장이 조용히 실패한다 — 배포에서는 항상 명시한다.
+Environment=SIMPLELAY_KIOSK_SETTINGS=/home/pi/SimpleLay/data/kiosk-settings.json
+
 # 현재: 구형 HTML 키오스크(백엔드 /ui)를 Chromium 전체화면으로.
 # Flutter(elinux) 키오스크로 전환하는 날: 아래 ExecStart 한 줄만
 #   /usr/bin/cage -d -- <flutter-elinux 실행 커맨드>

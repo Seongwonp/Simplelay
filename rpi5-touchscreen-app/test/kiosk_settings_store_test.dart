@@ -63,12 +63,53 @@ void main() {
     expect(settings.applianceId, isNull); // 숫자 → 기본값
   });
 
-  test('쓰기 실패는 조용히 무시된다 (읽기 전용 파일시스템)', () {
+  test('쓰기 실패는 예외 없이 false를 반환한다 (읽기 전용 파일시스템)', () {
     final store = KioskSettingsStore(
       path: '${tempDir.path}${Platform.pathSeparator}no-such-dir'
           '${Platform.pathSeparator}settings.json',
     );
 
-    store.save(const KioskSettings()); // 예외가 새어 나오면 여기서 실패
+    expect(store.save(const KioskSettings()), false);
+    // 조용히 삼키지 않고 실패 사실을 남긴다 — 사용자에게 알릴 수 있어야 한다
+    expect(store.lastSaveFailed, true);
+  });
+
+  test('저장 성공 시 lastSaveFailed는 false로 회복된다', () {
+    final store = KioskSettingsStore(path: path('ok.json'));
+
+    expect(store.save(const KioskSettings(largeText: true)), true);
+    expect(store.lastSaveFailed, false);
+  });
+
+  test('저장은 원자적이다 — 임시 파일을 남기지 않고 교체한다', () {
+    final store = KioskSettingsStore(path: path('atomic.json'));
+
+    store.save(const KioskSettings(largeText: true));
+
+    expect(File(path('atomic.json')).existsSync(), true);
+    expect(File('${path('atomic.json')}.tmp').existsSync(), false);
+  });
+
+  test('본 파일이 손상돼도 직전 저장분(.bak)으로 복구한다', () {
+    // 쓰기 도중 정전 시나리오: .bak은 온전하고 본 파일만 잘린 상태
+    final store = KioskSettingsStore(path: path('recover.json'));
+    store.save(const KioskSettings(largeText: true, applianceId: 'induction'));
+    store.save(const KioskSettings(largeText: true, applianceId: 'induction'));
+    File(path('recover.json')).writeAsStringSync('{"large_text": tr');
+
+    final recovered = KioskSettingsStore(path: path('recover.json')).load();
+
+    expect(recovered.largeText, true);
+    expect(recovered.applianceId, 'induction');
+  });
+
+  test('본 파일과 백업이 모두 손상되면 기본값으로 떨어진다', () {
+    File(path('both.json')).writeAsStringSync('{broken');
+    File('${path('both.json')}.bak').writeAsStringSync('also broken');
+
+    final settings = KioskSettingsStore(path: path('both.json')).load();
+
+    expect(settings.ttsEnabled, true);
+    expect(settings.largeText, false);
   });
 }

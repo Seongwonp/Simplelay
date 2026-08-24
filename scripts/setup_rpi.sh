@@ -107,6 +107,11 @@ touch "$LOG_FILE"
 chown pi:pi "$LOG_FILE"
 ok "로그 파일 생성 ($LOG_FILE)"
 
+# SQLite와 키오스크 설정이 함께 쓰는 데이터 디렉터리 (둘 다 pi가 써야 한다)
+mkdir -p "$REPO_DIR/data"
+chown pi:pi "$REPO_DIR/data"
+ok "데이터 디렉터리 준비 ($REPO_DIR/data)"
+
 # 기기별 확정 설정 파일 — 최초 1회 주석 템플릿 생성(기존 파일은 보존)
 if [[ ! -f /etc/simplelay/environment ]]; then
     mkdir -p /etc/simplelay
@@ -117,6 +122,10 @@ if [[ ! -f /etc/simplelay/environment ]]; then
 #SIMPLELAY_UART_PORT=/dev/ttyAMA0
 # 시연장 공유 Wi-Fi 방어 — 설정 시 폰 앱 설정에도 같은 키 입력
 #SIMPLELAY_API_KEY=change-me
+# 실행 응답 대기 = 기저 + 버튼당(초). 실기기에서 버튼 1개 소요 시간(이동+
+# 누름+검증+재시도)의 p95를 측정해 조정한다. 기본 30 / 6.
+#SIMPLELAY_UART_BASE_TIMEOUT=30
+#SIMPLELAY_UART_PER_BUTTON_TIMEOUT=6
 # 부재 중 자동 제안 보류 (RPi4 카메라 감지기 연결 후)
 #SIMPLELAY_PRESENCE_GATING=true
 ENVEOF
