@@ -24,9 +24,15 @@
 #define ACT_UART_TX_PIN      17
 
 // ─── Timing ────────────────────────────────────────────────────────────────
-// RPi4가 execute에 응답(폐루프 재시도 포함)할 때까지 기다리는 최대 시간(ms) —
-// rpi/services/act_client.py의 기본 응답 타임아웃(30s)과 맞춤.
-#define ACT_RESPONSE_TIMEOUT_MS   30000
+// RPi4가 execute에 응답(폐루프 재시도 포함)할 때까지 기다리는 최대 시간 —
+// 버튼 수에 비례(rpi/services/esp_node_controller.py의 timeout_for와 같은
+// 산정식). 단, RPi5보다 항상 먼저 포기해야 한다: 그래야 RPi5가 조용히
+// 타임아웃되는 대신 504를 받아 정지까지 보낼 수 있다. 그래서 기저값을
+// RPi5(30s)보다 10초 짧게 잡는다.
+#define ACT_BASE_TIMEOUT_MS       20000
+#define ACT_PER_BUTTON_TIMEOUT_MS  6000
+// 고정값 시절의 상한 — 방어적 절대 상한으로만 남긴다
+#define ACT_MAX_TIMEOUT_MS       180000
 #define JSON_BUF_SIZE              512
 #define HTTP_BODY_MAX_BYTES       1024
 

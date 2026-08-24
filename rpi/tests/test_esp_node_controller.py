@@ -88,6 +88,101 @@ def test_network_error_raises_esp_node_error():
         controller.execute(["시작"])
 
 
+# ── 실행 타임아웃과 정지 일치 (최종 교차 리뷰 치명) ─────────────────────────
+
+
+def test_execute_timeout_scales_with_button_count():
+    controller = EspNodeController("http://node:8080")
+    addfinalizer = controller.close
+    try:
+        assert controller.timeout_for(0) == 30.0
+        assert controller.timeout_for(1) == 36.0
+        assert controller.timeout_for(5) == 60.0  # 고정 10초였다면 오판 실패
+    finally:
+        addfinalizer()
+
+
+def test_execute_passes_dynamic_timeout_to_the_request():
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["timeout"] = request.extensions.get("timeout")
+        return httpx.Response(200, json={"success": True, "retry": 0})
+
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+    controller.execute(["해동", "시간 90초", "시작"])
+
+    # httpx는 timeout을 extensions로 전달한다 — 30 + 6*3 = 48초
+    assert seen["timeout"]["read"] == 48.0
+
+
+def test_execute_timeout_requests_stop_before_raising():
+    # 화면은 실패인데 실물은 계속 누르는 불일치를 막는 지점 —
+    # 포기하는 순간 정지 포트로 abort가 나가야 한다
+    stop_calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/stop":
+            stop_calls.append(str(request.url))
+            return httpx.Response(200, json={"ok": True})
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+
+    with pytest.raises(EspNodeError, match="stop requested"):
+        controller.execute(["시작"])
+
+    assert stop_calls == ["http://node:8081/stop"]
+
+
+def test_node_504_also_requests_stop():
+    # 504 = 노드가 RPi4 응답을 못 받고 포기 — RPi4는 아직 실행 중일 수 있다
+    stop_calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/stop":
+            stop_calls.append(str(request.url))
+            return httpx.Response(200, json={"ok": True})
+        return httpx.Response(504, text='{"error":"no response from RPi4"}')
+
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+
+    with pytest.raises(EspNodeError, match="504"):
+        controller.execute(["시작"])
+
+    assert len(stop_calls) == 1
+
+
+@pytest.mark.parametrize("status", [400, 500])
+def test_client_and_handler_errors_do_not_request_stop(status):
+    # 400/500은 실행이 시작되지 않은 경우 — 불필요한 정지를 보내지 않는다
+    stop_calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/stop":
+            stop_calls.append(1)
+            return httpx.Response(200, json={"ok": True})
+        return httpx.Response(status, text="error")
+
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+
+    with pytest.raises(EspNodeError):
+        controller.execute(["시작"])
+
+    assert stop_calls == []
+
+
+def test_stop_failure_during_timeout_does_not_mask_the_timeout_error():
+    # 정지 전송까지 실패해도 호출자는 원래의 타임아웃 실패를 봐야 한다
+    def handler(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("node down", request=request)
+
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+
+    with pytest.raises(EspNodeError, match="could not reach"):
+        controller.execute(["시작"])
+
+
 def test_request_stop_posts_to_stop_port():
     # 펌웨어의 정지 리스너는 HTTP 포트 + 1 (config.h STOP_PORT) — /execute가
     # 블로킹 중이어도 받는 별도 포트다

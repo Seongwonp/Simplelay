@@ -89,13 +89,14 @@ static void onActMessage(const JsonDocument& doc) {
 // 하나를 이 시간만큼 블로킹하는 게 맞나 싶을 수 있는데, act_client.py의
 // ActClientController도 동기 호출부를 똑같이 블로킹시키는 구조라 대칭이다 --
 // 폐루프 재시도가 실제로 그만큼 걸릴 수 있다는 걸 그대로 반영한 것.
-static bool waitForActReply(const char* seqId, bool& outSuccess, int& outRetry) {
+static bool waitForActReply(const char* seqId, bool& outSuccess, int& outRetry,
+                            uint32_t timeoutMs) {
     strlcpy(pendingSeqId, seqId, sizeof(pendingSeqId));
     pendingActive = true;
     pendingHasReply = false;
 
     uint32_t start = millis();
-    while (millis() - start < ACT_RESPONSE_TIMEOUT_MS) {
+    while (millis() - start < timeoutMs) {
         actUart.poll();
         pollStopServer();  // 실행 중에도 긴급 정지를 받는다 (STOP_PORT)
         if (pendingHasReply) {
@@ -126,7 +127,23 @@ static bool onExecute(const JsonArray& buttons, bool& outSuccess, int& outRetry)
     }
     actUart.send(out);
 
-    return waitForActReply(seqId, outSuccess, outRetry);
+    // 버튼 수에 비례한 대기 — RPi5보다 먼저 포기해야 RPi5가 504를 받아
+    // 정지까지 보낼 수 있다(고정 30s 시절엔 RPi5가 먼저 조용히 포기했다).
+    uint32_t timeoutMs =
+        ACT_BASE_TIMEOUT_MS + ACT_PER_BUTTON_TIMEOUT_MS * buttons.size();
+    if (timeoutMs > ACT_MAX_TIMEOUT_MS) timeoutMs = ACT_MAX_TIMEOUT_MS;
+
+    bool gotReply = waitForActReply(seqId, outSuccess, outRetry, timeoutMs);
+    if (!gotReply) {
+        // 우리가 포기해도 RPi4는 계속 누르고 있을 수 있다 — 504를 돌려주기
+        // 전에 중단부터 시킨다(RPi5의 정지 요청을 기다리지 않는다).
+        JsonDocument abortMsg;
+        abortMsg["type"] = "abort";
+        actUart.send(abortMsg);
+        log_w("no RPi4 reply within %lums — abort sent",
+              static_cast<unsigned long>(timeoutMs));
+    }
+    return gotReply;
 }
 
 static void onAlerts(JsonDocument& out) {
