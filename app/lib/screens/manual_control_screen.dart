@@ -112,7 +112,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                 children: [
                   Row(
                     children: [
-                      const Icon(Icons.touch_app, color: AppColors.primary, size: 18),
+                      Icon(Icons.touch_app, color: context.appPrimary, size: 18),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
@@ -283,7 +283,7 @@ class _ButtonCell extends StatelessWidget {
 
     final (Color color, Widget? overlay) = switch (state) {
       _CellState.pending => (
-          AppColors.primary,
+          context.appPrimary,
           const SizedBox(
             width: 16,
             height: 16,

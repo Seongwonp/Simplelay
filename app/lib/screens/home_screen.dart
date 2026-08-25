@@ -233,8 +233,7 @@ class _DndBanner extends StatelessWidget {
               style: TextButton.styleFrom(
                 foregroundColor: AppColors.warning,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: Size.zero,
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: const Size(48, 48),
               ),
               child: const Text('해제', style: TextStyle(fontSize: 13)),
             ),
@@ -358,8 +357,7 @@ class _RpiStatusCard extends ConsumerWidget {
                 style: TextButton.styleFrom(
                   foregroundColor: color,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(48, 48),
                 ),
                 child: const Text('주소 입력', style: TextStyle(fontSize: 13)),
               ),
@@ -369,8 +367,7 @@ class _RpiStatusCard extends ConsumerWidget {
                 style: TextButton.styleFrom(
                   foregroundColor: color,
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(48, 48),
                 ),
                 child: const Text('재시도', style: TextStyle(fontSize: 13)),
               ),
@@ -428,8 +425,7 @@ class _BleStatusCard extends StatelessWidget {
                   onPressed: () => GoRouter.of(ref.context).go('/settings'),
                   style: TextButton.styleFrom(
                     padding: const EdgeInsets.symmetric(horizontal: 8),
-                    minimumSize: Size.zero,
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    minimumSize: const Size(48, 48),
                   ),
                   child: const Text('연결', style: TextStyle(fontSize: 13)),
                 ),

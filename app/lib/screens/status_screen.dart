@@ -282,8 +282,10 @@ class _SensorChart extends StatelessWidget {
   final double? current;
   final String unit;
 
-  Color _barColor(double v) =>
-      v >= warningThreshold ? AppColors.warning : AppColors.primary;
+  // context를 인자로 받는다 — 라이트/다크에 따라 강조색이 달라지므로
+  // 테마 없이 색을 결정할 수 없다.
+  Color _barColor(BuildContext context, double v) =>
+      v >= warningThreshold ? AppColors.warning : context.appPrimary;
 
   @override
   Widget build(BuildContext context) {
@@ -299,7 +301,7 @@ class _SensorChart extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, color: AppColors.primary, size: 18),
+                Icon(icon, color: context.appPrimary, size: 18),
                 const SizedBox(width: 6),
                 Text(label, style: AppText.caption),
               ],
@@ -322,7 +324,7 @@ class _SensorChart extends StatelessWidget {
                           barRods: [
                             BarChartRodData(
                               toY: e.value.clamp(0, maxY),
-                              color: _barColor(e.value),
+                              color: _barColor(context, e.value),
                               width: 7,
                               borderRadius: BorderRadius.circular(3),
                             ),

@@ -219,8 +219,7 @@ class _RpiConnectionTile extends ConsumerWidget {
               : () => ref.read(rpiConnectionProvider.notifier).check(),
           style: OutlinedButton.styleFrom(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            minimumSize: const Size(48, 48),
           ),
           child: connState == RpiConnectionState.checking
               ? const SizedBox(
@@ -264,12 +263,12 @@ class _ApplianceSection extends ConsumerWidget {
                       horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? AppColors.primary.withValues(alpha: 0.14)
+                        ? context.appPrimary.withValues(alpha: 0.14)
                         : Theme.of(context).colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
                       color: isSelected
-                          ? AppColors.primary
+                          ? context.appPrimary
                           : context.appBorderSubtle,
                       width: isSelected ? 1.5 : 0.5,
                     ),
@@ -280,7 +279,7 @@ class _ApplianceSection extends ConsumerWidget {
                       Icon(
                         appliance.icon,
                         color: isSelected
-                            ? AppColors.primary
+                            ? context.appPrimary
                             : context.appMuted,
                         size: 18,
                       ),
@@ -290,7 +289,7 @@ class _ApplianceSection extends ConsumerWidget {
                         style: TextStyle(
                           fontSize: 13,
                           color: isSelected
-                              ? AppColors.primary
+                              ? context.appPrimary
                               : context.appMuted,
                           fontWeight: isSelected
                               ? FontWeight.w600
@@ -299,8 +298,8 @@ class _ApplianceSection extends ConsumerWidget {
                       ),
                       if (isSelected) ...[
                         const SizedBox(width: 4),
-                        const Icon(Icons.check_circle,
-                            color: AppColors.primary, size: 14),
+                        Icon(Icons.check_circle,
+                            color: context.appPrimary, size: 14),
                       ],
                       if (appliance.isCustom) ...[
                         const SizedBox(width: 2),
@@ -410,7 +409,7 @@ class _SavedDeviceSection extends ConsumerWidget {
         contentPadding: EdgeInsets.zero,
         leading: Icon(
           isConnected ? Icons.bluetooth_connected : Icons.bluetooth,
-          color: isConnected ? AppColors.primary : context.appMuted,
+          color: isConnected ? context.appPrimary : context.appMuted,
           size: 22,
         ),
         title: Text(saved.name),
@@ -464,8 +463,7 @@ class _SavedDeviceSection extends ConsumerWidget {
                 style: OutlinedButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 12, vertical: 6),
-                  minimumSize: Size.zero,
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  minimumSize: const Size(48, 48),
                 ),
                 child:
                     const Text('재연결', style: TextStyle(fontSize: 12)),
@@ -534,7 +532,7 @@ class _AdvancedSection extends ConsumerWidget {
                 style: FilledButton.styleFrom(
                   padding: const EdgeInsets.symmetric(
                       horizontal: 14, vertical: 12),
-                  minimumSize: Size.zero,
+                  minimumSize: const Size(48, 48),
                 ),
                 child: const Text('저장', style: TextStyle(fontSize: 13)),
               ),
@@ -575,8 +573,7 @@ class _AdvancedSection extends ConsumerWidget {
             },
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
-              minimumSize: Size.zero,
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              minimumSize: const Size(48, 48),
             ),
             child: Text('기본값으로 초기화',
                 style:
@@ -611,7 +608,8 @@ class _BleSection extends ConsumerWidget {
               icon: Icon(Icons.refresh, color: context.appMuted, size: 18),
               tooltip: '다시 스캔',
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
+              constraints: const BoxConstraints(
+                minWidth: 48, minHeight: 48),
             ),
           ],
         ),
@@ -673,7 +671,7 @@ class _BleSection extends ConsumerWidget {
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 14, vertical: 8),
-                        minimumSize: Size.zero,
+                        minimumSize: const Size(48, 48),
                       ),
                       child: const Text('연결',
                           style: TextStyle(fontSize: 12)),

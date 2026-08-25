@@ -50,12 +50,12 @@ class SuggestionScreen extends ConsumerWidget {
               width: 72,
               height: 72,
               decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.12),
+                color: context.appPrimary.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.auto_awesome,
-                color: AppColors.primary,
+                color: context.appPrimary,
                 size: 36,
               ),
             ),
@@ -222,7 +222,7 @@ class _ButtonMapGrid extends StatelessWidget {
       children: [
         Row(
           children: [
-            Icon(appliance.icon, color: AppColors.primary, size: 16),
+            Icon(appliance.icon, color: context.appPrimary, size: 16),
             const SizedBox(width: 6),
             Text(appliance.name, style: AppText.caption),
           ],
@@ -257,12 +257,12 @@ class _ButtonMapGrid extends StatelessWidget {
                                 height: 52,
                                 decoration: BoxDecoration(
                                   color: isInSequence
-                                      ? AppColors.primary.withValues(alpha: 0.2)
+                                      ? context.appPrimary.withValues(alpha: 0.2)
                                       : context.appOverlayFaint,
                                   borderRadius: BorderRadius.circular(8),
                                   border: Border.all(
                                     color: isInSequence
-                                        ? AppColors.primary
+                                        ? context.appPrimary
                                         : context.appBorderFaint,
                                     width: isInSequence ? 1.5 : 0.5,
                                   ),
@@ -279,7 +279,7 @@ class _ButtonMapGrid extends StatelessWidget {
                                             ? FontWeight.w600
                                             : FontWeight.normal,
                                         color: isInSequence
-                                            ? AppColors.primary
+                                            ? context.appPrimary
                                             : context.appOnSurfaceFaint,
                                       ),
                                     ),
@@ -288,17 +288,19 @@ class _ButtonMapGrid extends StatelessWidget {
                                         top: 4,
                                         right: 4,
                                         child: Container(
-                                          width: 16,
-                                          height: 16,
-                                          decoration: const BoxDecoration(
-                                            color: AppColors.primary,
+                                          width: 20,
+                                          height: 20,
+                                          decoration: BoxDecoration(
+                                            color: context.appPrimary,
                                             shape: BoxShape.circle,
                                           ),
                                           child: Center(
                                             child: Text(
                                               '$order',
                                               style: const TextStyle(
-                                                fontSize: 9,
+                                                // 9px는 고령 사용자에게 사실상
+                                                // 안 보인다 — 배지째 키웠다
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w700,
                                                 color: Colors.black,
                                               ),
@@ -343,11 +345,11 @@ class _StepRow extends StatelessWidget {
             children: [
               CircleAvatar(
                 radius: 16,
-                backgroundColor: AppColors.primary.withValues(alpha: 0.18),
+                backgroundColor: context.appPrimary.withValues(alpha: 0.18),
                 child: Text(
                   '${index + 1}',
-                  style: const TextStyle(
-                    color: AppColors.primary,
+                  style: TextStyle(
+                    color: context.appPrimary,
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
@@ -376,7 +378,7 @@ class _StepRow extends StatelessWidget {
                     children: [
                       Icon(
                         _stepIcon(code),
-                        color: AppColors.primary,
+                        color: context.appPrimary,
                         size: 20,
                       ),
                       const SizedBox(width: 12),

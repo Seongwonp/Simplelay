@@ -215,15 +215,15 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 16, vertical: 12),
                       decoration: BoxDecoration(
-                        color: AppColors.primary.withValues(alpha: 0.08),
+                        color: context.appPrimary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
-                          color: AppColors.primary.withValues(alpha: 0.3),
+                          color: context.appPrimary.withValues(alpha: 0.3),
                         ),
                       ),
                       child: Text(
                         text,
-                        style: AppText.title.copyWith(color: AppColors.primary),
+                        style: AppText.title.copyWith(color: context.appPrimary),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -279,12 +279,12 @@ class _MicButton extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: listening
-                  ? AppColors.primary
-                  : AppColors.primary.withValues(alpha: 0.15),
+                  ? context.appPrimary
+                  : context.appPrimary.withValues(alpha: 0.15),
               boxShadow: listening
                   ? [
                       BoxShadow(
-                        color: AppColors.primary.withValues(alpha: 0.35),
+                        color: context.appPrimary.withValues(alpha: 0.35),
                         blurRadius: 32,
                         spreadRadius: 4,
                       ),
@@ -294,7 +294,7 @@ class _MicButton extends StatelessWidget {
             child: Icon(
               listening ? Icons.stop_rounded : Icons.mic_rounded,
               size: listening ? 44 : 38,
-              color: listening ? Colors.black : AppColors.primary,
+              color: listening ? Colors.black : context.appPrimary,
             ),
           ),
         ),
@@ -397,8 +397,8 @@ class _WaveBarState extends State<_WaveBar>
             height: _height.value,
             decoration: BoxDecoration(
               color: widget.active
-                  ? AppColors.primary
-                  : AppColors.primary.withValues(alpha: 0.25),
+                  ? context.appPrimary
+                  : context.appPrimary.withValues(alpha: 0.25),
               borderRadius: BorderRadius.circular(4),
             ),
           ),

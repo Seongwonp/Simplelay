@@ -169,10 +169,10 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                 width: 44,
                 height: 44,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withValues(alpha: 0.12),
+                  color: context.appPrimary.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.widgets_outlined, color: AppColors.primary),
+                child: Icon(Icons.widgets_outlined, color: context.appPrimary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -396,7 +396,7 @@ class _EditableGrid extends StatelessWidget {
                       child: Container(
                         decoration: BoxDecoration(
                           color: filled
-                              ? AppColors.primary.withValues(
+                              ? context.appPrimary.withValues(
                                   alpha: translucent ? 0.28 : 0.14)
                               // translucent(사진 위 오버레이)는 사진 대비를 위해
                               // 흰색 유지가 의도 — 일반 모드만 테마 토큰 사용
@@ -405,7 +405,7 @@ class _EditableGrid extends StatelessWidget {
                                   : context.appOverlayFaint),
                           border: Border.all(
                             color: filled
-                                ? AppColors.primary
+                                ? context.appPrimary
                                 : (translucent
                                     ? Colors.white.withValues(alpha: 0.6)
                                     : context.appBorderSubtle),
@@ -421,7 +421,7 @@ class _EditableGrid extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: translucent ? Colors.white : AppColors.primary,
+                                  color: translucent ? Colors.white : context.appPrimary,
                                   shadows: translucent
                                       ? const [Shadow(blurRadius: 4, color: Colors.black)]
                                       : null,

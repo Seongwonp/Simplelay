@@ -119,15 +119,20 @@ class _HistoryTile extends StatelessWidget {
                     // 폐루프의 핵심 증거 — 실패를 스스로 재시도로 회복했다
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 3),
+                          horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
                         color: AppColors.success.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                          color: AppColors.success.withValues(alpha: 0.35),
+                        ),
                       ),
+                      // 폐루프가 실제로 회복했다는 유일한 기록 증거 —
+                      // 11px는 화면 미러링 시 심사석에서 읽히지 않았다
                       child: Text(
                         '재시도 ${entry.retryCount}회 후 성공',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: AppColors.success,
                         ),

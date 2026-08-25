@@ -108,7 +108,7 @@ class _StatPill extends StatelessWidget {
             Text(
               label,
               style: const TextStyle(
-                fontSize: 10,
+                fontSize: 12,
                 letterSpacing: 0.06,
                 color: AppColors.onSurfaceMuted,
               ),
