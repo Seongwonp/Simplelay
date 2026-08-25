@@ -24,8 +24,8 @@
 - 백엔드: 리포 루트 `.venv` (fastapi·uvicorn·pydantic·numpy·pytest·httpx)
 - 테스트 (PowerShell 5.1은 `&&` 불가, `;` 사용):
   - `.\.venv\Scripts\python.exe -m pytest` (백엔드 464개)
-  - `cd C:\dev-simplelay\app; flutter analyze; flutter test` (폰 123개)
-  - `cd C:\dev-simplelay\rpi5-touchscreen-app; flutter test` (키오스크 24개)
+  - `cd C:\dev-simplelay\app; flutter analyze; flutter test` (폰 125개)
+  - `cd C:\dev-simplelay\rpi5-touchscreen-app; flutter test` (키오스크 33개)
 - 릴리즈 APK: `flutter build apk --release` (JDK17 + Android SDK 필요)
 
 ## 아키텍처 요점 (자세히는 docs/개발현황.md)
