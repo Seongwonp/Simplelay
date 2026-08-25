@@ -68,14 +68,35 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
               padding: const EdgeInsets.all(20),
               children: [
                 // ── 제목·상태 ──────────────────────────────────────────────
-                Text(
-                  status.label ?? '실행 중인 작업 없음',
-                  style: AppText.heading,
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
-                  style: const TextStyle(color: AppColors.onSurfaceMuted),
+                // liveRegion: 실행 상태는 사용자가 화면을 다시 훑지 않아도
+                // 스크린리더가 바뀔 때마다 읽어줘야 하는 정보다. 눈으로
+                // 진행바를 볼 수 없는 사용자에게는 이것이 유일한 진행 채널.
+                Semantics(
+                  liveRegion: true,
+                  label: [
+                    status.label ?? '실행 중인 작업 없음',
+                    status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
+                    if (status.phase == ExecutionPhase.retrying) '자동 보정 중입니다',
+                    if (status.steps.isNotEmpty && active)
+                      '${status.steps.length}단계 중 ${status.completedSteps}단계 완료',
+                  ].join('. '),
+                  child: ExcludeSemantics(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          status.label ?? '실행 중인 작업 없음',
+                          style: AppText.heading,
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
+                          style:
+                              const TextStyle(color: AppColors.onSurfaceMuted),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
 
                 // ── KPI 헤더 (실행 중 / 완료 / 실패) ─────────────────────
@@ -96,7 +117,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   Text('실행 단계', style: AppText.title),
                   const SizedBox(height: 12),
                   ...List.generate(status.steps.length, (i) {
-                    final done    = i < status.completedSteps;
+                    final done = i < status.completedSteps;
                     final current = i == status.completedSteps && active;
                     return _StepTile(
                       index: i,
@@ -209,13 +230,13 @@ class _StepTile extends StatelessWidget {
     final IconData iconData;
     if (done) {
       iconColor = AppColors.success;
-      iconData  = Icons.check_circle;
+      iconData = Icons.check_circle;
     } else if (current) {
       iconColor = Theme.of(context).colorScheme.primary;
-      iconData  = Icons.pending;
+      iconData = Icons.pending;
     } else {
       iconColor = context.appBorderSubtle;
-      iconData  = Icons.radio_button_unchecked;
+      iconData = Icons.radio_button_unchecked;
     }
 
     return Padding(
@@ -244,7 +265,8 @@ class _StepTile extends StatelessWidget {
           Expanded(
             child: Card(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -289,9 +311,8 @@ class _SensorChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayValue = current == null
-        ? '--'
-        : '${current!.toStringAsFixed(0)} $unit';
+    final displayValue =
+        current == null ? '--' : '${current!.toStringAsFixed(0)} $unit';
 
     return Card(
       child: Padding(

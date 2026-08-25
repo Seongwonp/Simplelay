@@ -22,7 +22,8 @@ class ManualControlScreen extends ConsumerStatefulWidget {
   const ManualControlScreen({super.key});
 
   @override
-  ConsumerState<ManualControlScreen> createState() => _ManualControlScreenState();
+  ConsumerState<ManualControlScreen> createState() =>
+      _ManualControlScreenState();
 }
 
 class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
@@ -112,7 +113,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.touch_app, color: context.appPrimary, size: 18),
+                      Icon(Icons.touch_app,
+                          color: context.appPrimary, size: 18),
                       const SizedBox(width: 8),
                       const Expanded(
                         child: Text(
@@ -136,7 +138,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                             resultButtonId: _resultButtonId,
                             resultSuccess: _resultSuccess,
                             onPhoto: hasPhoto,
-                            onTap: (button) => _press(api, button, appliance.id),
+                            onTap: (button) =>
+                                _press(api, button, appliance.id),
                           ),
                         ),
                       ),
@@ -160,7 +163,8 @@ class _NoServerConfigured extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.wifi_off, color: AppColors.onSurfaceMuted, size: 40),
+              const Icon(Icons.wifi_off,
+                  color: AppColors.onSurfaceMuted, size: 40),
               const SizedBox(height: 12),
               const Text(
                 'RPi 서버 URL을 먼저 설정해야 버튼을 직접 실행할 수 있어요.',
@@ -168,7 +172,8 @@ class _NoServerConfigured extends StatelessWidget {
                 style: TextStyle(color: AppColors.onSurfaceMuted),
               ),
               const SizedBox(height: 16),
-              FilledButton(onPressed: onGoToSettings, child: const Text('설정으로 이동')),
+              FilledButton(
+                  onPressed: onGoToSettings, child: const Text('설정으로 이동')),
             ],
           ),
         ),
@@ -232,7 +237,8 @@ class _ButtonGrid extends StatelessWidget {
                 final btn = appliance.buttonAt(x, y);
                 return Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(right: x < appliance.cols - 1 ? 8 : 0),
+                    padding:
+                        EdgeInsets.only(right: x < appliance.cols - 1 ? 8 : 0),
                     child: btn == null
                         ? const SizedBox.shrink()
                         : _ButtonCell(
@@ -290,44 +296,63 @@ class _ButtonCell extends StatelessWidget {
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
-      _CellState.success => (AppColors.success, const Icon(Icons.check, size: 18)),
-      _CellState.failure => (AppColors.danger, const Icon(Icons.close, size: 18)),
+      _CellState.success => (
+          AppColors.success,
+          const Icon(Icons.check, size: 18)
+        ),
+      _CellState.failure => (
+          AppColors.danger,
+          const Icon(Icons.close, size: 18)
+        ),
       _CellState.idle => (idleOutline, null),
     };
 
     // Material+InkWell: 탭 시 잉크 피드백(눌렸는지 눈으로 확인 가능) +
     // 스크린리더에 버튼으로 인식. 물리 버튼을 누르는 앱 특성상 탭 순간
     // 햅틱도 함께 준다 — 시각에 의존하지 않는 확인 채널.
-    return Material(
-      type: MaterialType.transparency,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        decoration: BoxDecoration(
-          color: state == _CellState.idle
-              ? idleFill
-              : color.withValues(alpha: 0.16),
-          border: Border.all(color: color, width: state == _CellState.idle ? 1 : 1.5),
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: onTap == null
-              ? null
-              : () {
-                  HapticFeedback.mediumImpact();
-                  onTap!();
-                },
-          child: Center(
-            child: overlay ??
-                Text(
-                  button.label,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: state == _CellState.idle ? idleText : color,
+    return Semantics(
+      button: true,
+      enabled: onTap != null,
+      // 셀 상태(대기·실행 중·성공·실패)가 색으로만 구분돼 스크린리더에는
+      // 라벨만 전달됐다 — 무엇이 눌리는 중인지 알 수 없었다.
+      label: switch (state) {
+        _CellState.idle => '${button.label} 버튼 누르기',
+        _CellState.pending => '${button.label} 누르는 중',
+        _CellState.success => '${button.label} 눌림 확인됨',
+        _CellState.failure => '${button.label} 실패',
+      },
+      child: Material(
+        type: MaterialType.transparency,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          decoration: BoxDecoration(
+            color: state == _CellState.idle
+                ? idleFill
+                : color.withValues(alpha: 0.16),
+            border: Border.all(
+                color: color, width: state == _CellState.idle ? 1 : 1.5),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(10),
+            onTap: onTap == null
+                ? null
+                : () {
+                    HapticFeedback.mediumImpact();
+                    onTap!();
+                  },
+            child: Center(
+              child: overlay ??
+                  Text(
+                    button.label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: state == _CellState.idle ? idleText : color,
+                    ),
                   ),
-                ),
+            ),
           ),
         ),
       ),
