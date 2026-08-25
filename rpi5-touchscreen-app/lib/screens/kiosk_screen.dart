@@ -211,7 +211,7 @@ class _KioskScreenState extends State<KioskScreen> {
     // 새로 켜지는 엣지에서만 음성 경보 — 반복 발화하지 않는다.
     // DND 중에도 발화한다: 안전 경보는 방해 금지보다 우선한다.
     if (alert.active && !_alert.active) {
-      _tts.speak('위험 신호음이 감지되었습니다. 주변을 확인해 주세요.');
+      _tts.speak('위험 신호음이 감지되었습니다. 안전한 곳으로 이동한 뒤 주변에 도움을 요청해 주세요.');
     }
     setState(() {
       // 새로 켜지는 순간(엣지)엔 "확인" 눌렀던 기록을 리셋 — 계속 같은

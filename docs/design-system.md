@@ -6,60 +6,68 @@
 
 ## 1. 색상 시스템
 
+> **이 문서는 구현을 따라간다.** source of truth는 `app/lib/theme/app_colors.dart`와
+> `rpi5-touchscreen-app/lib/theme/kiosk_colors.dart`이며, 색을 바꿀 때는 코드를
+> 먼저 고치고 이 표를 맞춘다. (2026-08-25 갱신 — 초기 시안 팔레트에서 골드로
+> 전환된 뒤에도 이 문서가 한동안 구버전으로 남아 있었다.)
+
 ### 기본 방향
-`ColorScheme.fromSeed` (현재 `main.dart` 방식 유지) + `copyWith`로 카드 계층만 오버라이드.  
-수동 `ColorScheme(...)` 지정은 디자인팀 hex 팔레트 확정 시에만 사용.
+따뜻한 골드 + 세이지 그린. 생활가전 옆에 놓이는 기기라 개발자용 대시보드처럼
+채도 높은 시안·네온을 쓰지 않는다. 폰과 키오스크가 **같은 팔레트**를 공유해
+"휴대 화면과 공간 화면" 관계로 읽히게 한다.
 
-```dart
-// lib/theme/app_theme.dart
-colorScheme: ColorScheme.fromSeed(
-  seedColor: const Color(0xFF4FC3F7),   // 시안 — 유지
-  brightness: Brightness.dark,
-).copyWith(
-  surface: const Color(0xFF0D1117),              // Scaffold 배경
-  surfaceContainerLow: const Color(0xFF171D25),  // Card 배경
-  surfaceContainerHigh: const Color(0xFF1E2733), // BottomSheet 배경
-  error: const Color(0xFFEF4444),                // 비상 정지
-),
-```
-
-### AppColors 상수 (ColorScheme 외부)
-
-```dart
-// lib/theme/app_colors.dart
-class AppColors {
-  // 배경 계층
-  static const background        = Color(0xFF0D1117);
-  static const surfaceLow        = Color(0xFF171D25);
-  static const surfaceHigh       = Color(0xFF1E2733);
-
-  // 주요 강조
-  static const primary           = Color(0xFF4FC3F7);  // 시안
-
-  // 상태 신호등 3색
-  static const success           = Color(0xFF22C55E);  // 실행 완료
-  static const warning           = Color(0xFFF59E0B);  // 센서 과부하 경고
-  static const danger            = Color(0xFFEF4444);  // 비상 정지
-
-  // 보조
-  static const borderSubtle      = Color(0x40FFFFFF);  // 카드 테두리 25%
-  static const onSurfaceMuted    = Color(0xFFB0BEC5);  // 보조 텍스트
-}
-```
-
-### 색상 역할 표
+### 다크 팔레트 (기본)
 
 | 역할 | 색상 | 용도 |
 |------|------|------|
-| 배경 | `#0D1117` | Scaffold 전체 |
-| 카드 | `#171D25` | Card, ListTile |
-| BottomSheet | `#1E2733` | 모달 시트 |
-| 주요 강조 | `#4FC3F7` | 버튼, 아이콘, 진행바 |
-| 성공/완료 | `#22C55E` | 실행 완료 피드백 |
-| 경고 | `#F59E0B` | 센서 임계값 초과 |
-| 위험/정지 | `#EF4444` | 비상 정지, 에러 |
+| 배경 | `#0C0E12` | Scaffold 전체 / 키오스크 bg |
+| 카드 | `#15181D` | Card, ListTile / 키오스크 surface |
+| 상위 표면 | `#1D2126` | BottomSheet, 오버레이 / surface2 |
+| 주요 강조 | `#D9A356` | 버튼, 아이콘, 진행바 (따뜻한 골드) |
+| 성공/완료 | `#5FBF8F` | 실행 완료 (세이지 그린) |
+| 경고 | `#F0B429` | 재시도·센서 임계 (앰버 — 골드와 색조 구분) |
+| 위험/정지 | `#D9605C` | 긴급 정지, 실패 (브릭 레드) |
+| 보조 텍스트 | `#9CA3AA` | 설명·라벨 |
+| 테두리 | `#33FFFFFF` | 카드 경계 (흰색 20%) |
 
----
+### 라이트 팔레트 (폰 전용 — 키오스크는 다크 고정)
+
+| 역할 | 색상 | 비고 |
+|------|------|------|
+| 배경 | `#F4F1EB` | 따뜻한 크림 |
+| 카드 | `#FDFCF8` | 거의 흰색 |
+| 상위 표면 | `#ECEAE3` | 약간 어두운 크림 |
+| 주요 강조 | `#8B6010` | **다크의 골드를 그대로 쓰면 대비 약 2:1** — 명도를 낮춰 4.9:1 확보 |
+| 보조 텍스트 | `#6B7175` | 크림 배경에서 약 4.4:1 |
+| 테두리 | `#1A000000` | 검정 10% |
+
+### 필수 규칙 — 색은 반드시 토큰으로
+
+`AppColors.primary`(다크 전용 골드)를 화면에서 직접 쓰면 라이트 모드에서
+크림 배경 위 골드가 되어 본문 대비를 크게 밑돈다. **항상 `context.appPrimary`**
+같은 테마 인식 확장을 쓴다.
+
+```dart
+// lib/theme/app_colors.dart
+extension AppColorsX on BuildContext {
+  Color get appPrimary      => _isDark ? AppColors.primary : AppColors.primaryLight;
+  Color get appBackground   => ...;
+  Color get appSurfaceLow   => ...;
+  Color get appMuted        => ...;
+  Color get appBorderSubtle => ...;
+}
+```
+
+```dart
+// 나쁜 예 — 라이트 모드에서 대비 미달
+Icon(Icons.check, color: AppColors.primary)
+
+// 좋은 예
+Icon(Icons.check, color: context.appPrimary)
+```
+
+`Colors.white24` 같은 하드코딩도 크림 배경에서 사라지므로 `appOverlayFaint`
+계열 토큰을 쓴다(수동 조작 그리드·제안 버튼맵이 깨졌던 원인).
 
 ## 2. 타이포그래피
 
@@ -90,7 +98,7 @@ Card(
   elevation: 0,
   color: AppColors.surfaceLow,
   shape: RoundedRectangleBorder(
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(20),  // 실제 app_theme.dart 값
     side: BorderSide(color: AppColors.borderSubtle, width: 1),
   ),
 )
@@ -160,7 +168,7 @@ AnimatedContainer(
     color: connected
         ? AppColors.primary.withValues(alpha: 0.12)
         : Colors.white12,
-    borderRadius: BorderRadius.circular(16),
+    borderRadius: BorderRadius.circular(20),  // 실제 app_theme.dart 값
   ),
 )
 ```

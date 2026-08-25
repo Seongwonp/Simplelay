@@ -44,15 +44,21 @@ class DangerAlertOverlay extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             const Text(
-              '오탐일 수도 있습니다 — 실제 상황인지 직접 확인해주세요',
-              // 고령 사용자가 반드시 읽어야 하는 안전 안내 — 12는 너무 작다
-              // (교차 리뷰 #16, 접근성 체크리스트의 소형 폰트 항목)
+              '안전한 곳으로 이동한 뒤 주변에 도움을 요청하세요',
+              // 안전이 먼저다 — 이전 문구("실제 상황인지 직접 확인해주세요")는
+              // 화재·가스 상황에서 고령 사용자를 위험 쪽으로 보낼 수 있었다.
+              style: TextStyle(fontSize: 16, color: Color(0xFFE8B4B1)),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              '오탐일 수도 있습니다. 안전이 확보된 뒤에 확인해주세요',
               style: TextStyle(fontSize: 14, color: KioskColors.muted),
             ),
             const SizedBox(height: 32),
             SizedBox(
-              width: 200,
-              height: 52,
+              // 큰 글씨 모드(1.22배)에서도 문구가 잘리지 않는 폭
+              width: 260,
+              height: 56,
               child: OutlinedButton(
                 onPressed: onAcknowledge,
                 style: OutlinedButton.styleFrom(
@@ -63,7 +69,7 @@ class DangerAlertOverlay extends StatelessWidget {
                   ),
                 ),
                 child: const Text(
-                  '확인',
+                  '안내를 확인했습니다',
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
               ),

@@ -22,7 +22,8 @@ class KioskTtsService {
   final TtsProcessRunner _runner;
 
   /// 설정 오버레이의 "음성 안내" 토글과 연결. 키오스크는 로컬 저장소가
-  /// 없어(elinux에서 shared_preferences 미검증) 세션 한정 — 재부팅 시 기본
+  /// 없어(elinux에서 shared_preferences 미검증) 이 필드 자체는 메모리지만,
+  /// KioskScreen이 KioskSettingsStore로 파일에 영속화한다 — 재부팅 시 기본
   /// 켜짐으로 복귀한다. 접근성 기기 특성상 기본 켜짐이 맞는 방향.
   bool enabled = true;
 
