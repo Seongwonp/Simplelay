@@ -390,6 +390,129 @@ void main() {
     expect(parser.feed('data: {broken'), isNull);
   });
 
+  // ── 실패 화면 복구 동선 (디자인 리뷰) ────────────────────────────────────
+
+  testWidgets('실패 화면은 자동으로 사라지지 않고 다음 행동을 제시한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+
+    api.suggestionList = [];
+    await tester.tap(find.text('승인'));
+    await tester.pump();
+    api.statusResult = const KioskStatus(
+      running: false,
+      lastStatus: 'failed',
+      lastButtons: [],
+      lastJobId: 'job-1',
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+
+    expect(find.byType(KioskDoneView), findsOneWidget);
+    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.text('버튼으로 조작'), findsOneWidget);
+
+    // 성공과 달리 자동 복귀 타이머가 없다 — 사용자가 고를 때까지 남는다
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pump(KioskTimings.doneReturn);
+    expect(find.byType(KioskDoneView), findsOneWidget);
+    expect(find.byType(KioskIdleView), findsNothing);
+  });
+
+  testWidgets('실패 화면의 다시 시도가 같은 제안을 재실행한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+
+    api.suggestionList = [];
+    await tester.tap(find.text('승인'));
+    await tester.pump();
+    api.statusResult = const KioskStatus(
+      running: false,
+      lastStatus: 'failed',
+      lastButtons: [],
+      lastJobId: 'job-1',
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(api.approvedIds, ['s1']);
+
+    api.nextJobId = 'job-2';
+    api.statusResult = const KioskStatus(running: false);
+    await tester.tap(find.text('다시 시도'));
+    await tester.pump();
+
+    expect(api.approvedIds, ['s1', 's1']); // 같은 제안을 한 번 더
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+  });
+
+  testWidgets('실패 화면의 버튼으로 조작이 수동 화면으로 보낸다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [_sug]
+      ..executeError = Exception('server down');
+    await _pumpKiosk(tester, api);
+
+    api.suggestionList = [];
+    await tester.tap(find.text('승인'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(KioskDoneView), findsOneWidget);
+
+    // 서버 연결 실패는 '다시 시도'가 또 실패할 가능성이 높아 숨긴다
+    expect(find.text('다시 시도'), findsNothing);
+
+    await tester.tap(find.text('버튼으로 조작'));
+    await tester.pump();
+    expect(find.text('전자레인지'), findsOneWidget);
+  });
+
+  // ── 폐루프 재시도 연출 (디자인 리뷰) ─────────────────────────────────────
+
+  testWidgets('재시도 중에는 자동 보정 중이 크게 표시된다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..statusResult = const KioskStatus(
+        running: true,
+        currentButton: '해동',
+        currentAttempt: 2,
+        jobId: 'job-r',
+      );
+
+    await _pumpKiosk(tester, api);
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+    // idle→executing 인계 시점엔 진행 데이터가 비어 있다 — 폴링 한 번 더
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+
+    // 심사석에서 읽히는 크기로 승격됐는지 — 14px 보조문구가 아니라 38px hero
+    final banner = tester.widget<Text>(find.text('자동 보정 중'));
+    expect(banner.style!.fontSize, 38);
+    expect(find.textContaining('2번째 시도'), findsWidgets);
+  });
+
+  testWidgets('첫 시도에는 자동 보정 배너가 없다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..statusResult = const KioskStatus(
+        running: true,
+        currentButton: '해동',
+        currentAttempt: 1,
+        jobId: 'job-n',
+      );
+
+    await _pumpKiosk(tester, api);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+
+    expect(find.text('자동 보정 중'), findsNothing);
+    // 제목과 hero가 같은 라벨을 쓰므로 hero 쪽 부제로 확인한다
+    expect(find.text('버튼 누르는 중 · 센서로 눌림 확인'), findsOneWidget);
+  });
+
   // ── 설정 영속화 (재부팅 복원) ────────────────────────────────────────────
 
   testWidgets('저장된 설정(음성 꺼짐·큰 글씨·가전)이 시작 시 복원된다', (tester) async {

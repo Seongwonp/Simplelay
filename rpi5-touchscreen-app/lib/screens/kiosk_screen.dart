@@ -111,6 +111,9 @@ class _KioskScreenState extends State<KioskScreen> {
 
   bool _doneSuccess = true;
   String _doneLabel = '';
+  KioskFailureReason? _doneReason;
+  // 실패 화면의 '다시 시도'가 무엇을 다시 할지 — 실행을 시작한 쪽이 심는다.
+  Future<void> Function()? _retryAction;
 
   Timer? _pollTimer;
   Timer? _healthTimer;
@@ -294,7 +297,8 @@ class _KioskScreenState extends State<KioskScreen> {
         _foreignPolls++;
         if (_foreignPolls >= 5) {
           _execFillTimer?.cancel();
-          _toDone(false, '실행 확인 불가');
+          _toDone(false, '실행 확인 불가',
+              reason: KioskFailureReason.serverLost);
         }
       }
     } catch (_) {
@@ -303,7 +307,8 @@ class _KioskScreenState extends State<KioskScreen> {
       if (since != null &&
           DateTime.now().difference(since) > _statusLostTimeout) {
         _execFillTimer?.cancel();
-        _toDone(false, '서버 응답 없음');
+        _toDone(false, '서버 응답 없음',
+            reason: KioskFailureReason.serverLost);
       }
     }
   }
@@ -325,6 +330,28 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   void _fromManual() => setState(() => _phase = KioskPhase.idle);
+
+  /// 실패 화면의 '다시 시도' — 직전 실행을 그대로 한 번 더 시도한다.
+  void _onRetryFailed() {
+    final retry = _retryAction;
+    if (retry == null) {
+      _toIdle();
+      return;
+    }
+    retry();
+  }
+
+  /// 실패 화면의 '버튼으로 조작' — 자동 실행을 포기하고 사람이 직접 누르는
+  /// 화면으로 보낸다. _toManual은 idle에서만 동작하므로 phase를 먼저 되돌린다.
+  void _onManualFromFailure() {
+    _countdownTimer?.cancel();
+    _execFillTimer?.cancel();
+    setState(() {
+      _phase = KioskPhase.manual;
+      _currentSuggestion = null;
+      _showDnd = false;
+    });
+  }
 
   void _toSuggestion(KioskSuggestion suggestion) {
     // 제안 도착을 소리로도 알린다 — 사용자가 화면 근처에 없어도 알 수 있게.
@@ -398,7 +425,11 @@ class _KioskScreenState extends State<KioskScreen> {
     });
   }
 
-  void _toDone(bool success, String label) {
+  void _toDone(
+    bool success,
+    String label, {
+    KioskFailureReason reason = KioskFailureReason.execution,
+  }) {
     // 실행 결과 음성 안내. '서버 응답 없음'은 라벨이 아니라 오류 상황이라
     // 문장을 따로 쓴다 ("서버 응답 없음 실패했습니다"는 어색).
     _tts.speak(
@@ -412,18 +443,23 @@ class _KioskScreenState extends State<KioskScreen> {
       _phase = KioskPhase.done;
       _doneSuccess = success;
       _doneLabel = label;
+      _doneReason = success ? null : reason;
     });
+    // 실패는 자동으로 사라지지 않는다 — 사용자가 다음 행동을 고를 때까지
+    // 화면에 남아야 한다(고령 사용자가 이유도 모른 채 놓치는 것을 막는다).
+    if (!success) return;
     Future.delayed(_doneReturnDuration, () {
       if (mounted && _phase == KioskPhase.done) _toIdle();
     });
   }
 
-  Future<void> _onApprove() async {
-    final suggestion = _currentSuggestion;
+  Future<void> _onApprove({KioskSuggestion? suggestion}) async {
+    suggestion ??= _currentSuggestion;
     if (suggestion == null) return;
     _countdownTimer?.cancel();
     setState(() => _currentSuggestion = null);
     _toExecuting(suggestion.purpose);
+    _retryAction = () => _onApprove(suggestion: suggestion);
 
     try {
       // job 모델: 즉시 접수 — 진행·완료는 _pollExecuting이 job_id 대조로 따라간다
@@ -434,7 +470,8 @@ class _KioskScreenState extends State<KioskScreen> {
       // 즉시 실패 화면으로 탈출한다.
       _execFillTimer?.cancel();
       if (mounted && _phase == KioskPhase.executing) {
-        _toDone(false, suggestion.purpose);
+        _toDone(false, suggestion.purpose,
+            reason: KioskFailureReason.serverLost);
       }
     }
   }
@@ -452,6 +489,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _onManualExecute(ApplianceButton button) async {
     _toExecuting(button.label);
+    _retryAction = () => _onManualExecute(button);
     try {
       final accepted = await _api.executeButtons(
         [button.label],
@@ -462,7 +500,8 @@ class _KioskScreenState extends State<KioskScreen> {
       // 접수 실패 — 즉시 실패 화면으로 탈출 (고착 방지)
       _execFillTimer?.cancel();
       if (mounted && _phase == KioskPhase.executing) {
-        _toDone(false, button.label);
+        _toDone(false, button.label,
+            reason: KioskFailureReason.serverLost);
       }
     }
   }
@@ -618,6 +657,14 @@ class _KioskScreenState extends State<KioskScreen> {
           key: const ValueKey('done'),
           success: _doneSuccess,
           label: _doneLabel,
+          reason: _doneReason,
+          // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
+          // 그때는 수동 조작(사람이 직접 누르기)을 앞세운다.
+          onRetry: _doneReason == KioskFailureReason.serverLost
+              ? null
+              : _onRetryFailed,
+          onManual: _onManualFromFailure,
+          onDismiss: _toIdle,
         );
     }
   }

@@ -164,33 +164,92 @@ class _CurrentActionHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isRetrying = attempt != null && attempt! > 1;
-    final color = isRetrying ? KioskColors.warning : Colors.white;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          button ?? '준비 중…',
-          style: TextStyle(
-            fontSize: 48,
-            fontWeight: FontWeight.w700,
-            color: color,
-            height: 1.05,
+    // 재시도 중에는 "무엇을 누르는가"보다 "스스로 보정하고 있다"가 주인공이다.
+    // 폐루프 복구는 이 제품의 핵심 기술인데, 이전에는 14px 보조문구 한 줄이라
+    // 몇 걸음만 떨어지면(심사석 포함) 우측 '시도 횟수' 숫자가 1에서 2로 바뀌는
+    // 것으로만 보였다 — 설명 없이는 무슨 일이 일어났는지 알 수 없었다.
+    if (isRetrying) {
+      return Semantics(
+        liveRegion: true,
+        label: '$attempt번째 시도. 눌림이 확인되지 않아 좌표를 다시 맞추는 중입니다.',
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
+          decoration: BoxDecoration(
+            color: KioskColors.warning.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: KioskColors.warning.withValues(alpha: 0.45),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    Icons.autorenew,
+                    size: 34,
+                    color: KioskColors.warning,
+                  ),
+                  const SizedBox(width: 12),
+                  const Text(
+                    '자동 보정 중',
+                    style: TextStyle(
+                      fontSize: 38,
+                      fontWeight: FontWeight.w700,
+                      color: KioskColors.warning,
+                      height: 1.05,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                '${button ?? '버튼'} · $attempt번째 시도',
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '눌림이 확인되지 않아 좌표를 다시 맞추는 중',
+                style: TextStyle(fontSize: 16, color: KioskColors.muted),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 10),
-        Text(
-          isRetrying
-              ? '$attempt번째 재시도 — 좌표 재보정 중'
-              : button != null
-                  ? '버튼 누르는 중 · 센서 검증 대기'
-                  : '버튼 시퀀스 초기화 중…',
-          style: TextStyle(
-            fontSize: 14,
-            color: isRetrying ? KioskColors.warning : KioskColors.muted,
+      );
+    }
+
+    return Semantics(
+      liveRegion: true,
+      label: button != null ? '$button 버튼 누르는 중' : '버튼 시퀀스 준비 중',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            button ?? '준비 중…',
+            style: const TextStyle(
+              fontSize: 48,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+              height: 1.05,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 10),
+          Text(
+            button != null
+                ? '버튼 누르는 중 · 센서로 눌림 확인'
+                : '버튼 시퀀스 초기화 중…',
+            style: const TextStyle(fontSize: 17, color: KioskColors.muted),
+          ),
+        ],
+      ),
     );
   }
 }
