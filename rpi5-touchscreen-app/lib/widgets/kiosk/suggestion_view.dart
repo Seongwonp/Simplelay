@@ -2,19 +2,23 @@ import 'package:flutter/material.dart';
 
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
-import 'kiosk_timings.dart';
 
 class KioskSuggestionView extends StatelessWidget {
   const KioskSuggestionView({
     super.key,
     required this.suggestion,
     required this.cdRemaining,
+    required this.cdTotal,
     required this.onApprove,
     required this.onReject,
   });
 
   final KioskSuggestion suggestion;
   final int cdRemaining;
+
+  /// 카운트다운 전체 길이(초) — 설정에서 바뀌므로 진행바가 이 값을 봐야
+  /// 남은 시간과 바가 어긋나지 않는다.
+  final int cdTotal;
   final VoidCallback onApprove;
   final VoidCallback onReject;
 
@@ -120,7 +124,7 @@ class KioskSuggestionView extends StatelessWidget {
             ClipRRect(
               borderRadius: BorderRadius.circular(2),
               child: LinearProgressIndicator(
-                value: cdRemaining / KioskTimings.countdownSeconds,
+                value: cdTotal > 0 ? cdRemaining / cdTotal : 0,
                 minHeight: 2,
                 backgroundColor: KioskColors.border,
                 valueColor: AlwaysStoppedAnimation(

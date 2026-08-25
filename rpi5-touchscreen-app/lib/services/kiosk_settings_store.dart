@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import '../widgets/kiosk/kiosk_timings.dart';
+
 /// 키오스크 로컬 설정 스냅샷 — 음성 안내·큰 글씨·마지막 선택 가전.
 ///
 /// 그동안 세션 한정(메모리)이라 정전·재부팅·앱 재시작마다 고령 사용자가
@@ -11,10 +13,14 @@ class KioskSettings {
     this.ttsEnabled = true,
     this.largeText = false,
     this.applianceId,
+    this.countdownSeconds = KioskTimings.countdownSeconds,
   });
 
   final bool ttsEnabled;
   final bool largeText;
+
+  /// 제안 카드가 자동으로 닫히기까지의 시간(초).
+  final int countdownSeconds;
 
   /// 마지막으로 적용한 가전 id (kAppliances의 id). null = 기본 가전.
   final String? applianceId;
@@ -23,11 +29,13 @@ class KioskSettings {
     bool? ttsEnabled,
     bool? largeText,
     String? applianceId,
+    int? countdownSeconds,
   }) =>
       KioskSettings(
         ttsEnabled: ttsEnabled ?? this.ttsEnabled,
         largeText: largeText ?? this.largeText,
         applianceId: applianceId ?? this.applianceId,
+        countdownSeconds: countdownSeconds ?? this.countdownSeconds,
       );
 
   factory KioskSettings.fromJson(Map<String, dynamic> json) => KioskSettings(
@@ -39,12 +47,19 @@ class KioskSettings {
         applianceId: json['appliance_id'] is String
             ? json['appliance_id'] as String
             : null,
+        // 목록에 없는 값(수기 편집·구버전)은 기본값으로 — 0이나 음수가
+        // 들어오면 제안이 뜨자마자 사라진다
+        countdownSeconds:
+            KioskTimings.countdownChoices.contains(json['countdown_seconds'])
+                ? json['countdown_seconds'] as int
+                : KioskTimings.countdownSeconds,
       );
 
   Map<String, dynamic> toJson() => {
         'tts_enabled': ttsEnabled,
         'large_text': largeText,
         'appliance_id': applianceId,
+        'countdown_seconds': countdownSeconds,
       };
 }
 

@@ -26,7 +26,8 @@ class KioskIdleView extends StatefulWidget {
   final double? humidity;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
-  // 우하단 상태 dot을 3번 연속 탭하면 설정 오버레이를 연다 (관리자 제스처).
+
+  /// 우하단 설정 버튼을 2초간 길게 누르면 설정 오버레이를 연다.
   final VoidCallback? onSettingsGesture;
 
   @override
@@ -41,29 +42,6 @@ class _KioskIdleViewState extends State<KioskIdleView> {
     height: 1.0,
     letterSpacing: -3,
   );
-
-  int _dotTapCount = 0;
-  Timer? _dotTapResetTimer;
-
-  @override
-  void dispose() {
-    _dotTapResetTimer?.cancel();
-    super.dispose();
-  }
-
-  void _handleDotTap() {
-    _dotTapResetTimer?.cancel();
-    _dotTapCount++;
-    if (_dotTapCount >= 3) {
-      _dotTapCount = 0;
-      widget.onSettingsGesture?.call();
-    } else {
-      _dotTapResetTimer = Timer(
-        const Duration(seconds: 2),
-        () => _dotTapCount = 0,
-      );
-    }
-  }
 
   String get _hour => widget.now.hour.toString().padLeft(2, '0');
   String get _minute => widget.now.minute.toString().padLeft(2, '0');
@@ -183,27 +161,131 @@ class _KioskIdleViewState extends State<KioskIdleView> {
                 ),
               ),
 
-            // ── 우하단 상태 dot — 3번 탭하면 설정 진입 ──────────────────
+            // ── 우하단: 상태 dot + 설정 버튼 ─────────────────────────────
+            // 설정이 5px 점 3연타로만 열리던 시절엔 사실상 기능 은폐였다 —
+            // 고령 사용자는 설정이 있다는 사실조차 알 수 없었다. 이제 존재는
+            // 드러내되(48px 톱니바퀴, 낮은 대비), 여는 데는 2초 길게 누르기를
+            // 요구해 지나가다 잘못 눌리는 것은 막는다.
             Positioned(
-              right: 18,
-              bottom: 18,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: _handleDotTap,
-                child: Padding(
-                  padding: const EdgeInsets.all(10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _StatusDot(active: widget.actuatorReady),
-                      const SizedBox(width: 5),
-                      _StatusDot(active: widget.connected),
-                    ],
+              right: 12,
+              bottom: 12,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Semantics(
+                    label: widget.actuatorReady && widget.connected
+                        ? '기기와 서버 모두 정상'
+                        : widget.connected
+                            ? '서버 정상, 기기 준비 중'
+                            : '서버 연결 끊김',
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          _StatusDot(active: widget.actuatorReady),
+                          const SizedBox(width: 5),
+                          _StatusDot(active: widget.connected),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
+                  _SettingsButton(onOpen: widget.onSettingsGesture),
+                ],
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// 설정 진입 — 존재는 보이되 2초 길게 눌러야 열린다.
+class _SettingsButton extends StatefulWidget {
+  const _SettingsButton({required this.onOpen});
+  final VoidCallback? onOpen;
+
+  @override
+  State<_SettingsButton> createState() => _SettingsButtonState();
+}
+
+class _SettingsButtonState extends State<_SettingsButton> {
+  static const _holdDuration = Duration(seconds: 2);
+  Timer? _holdTimer;
+  bool _holding = false;
+
+  @override
+  void dispose() {
+    _holdTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startHold() {
+    setState(() => _holding = true);
+    _holdTimer?.cancel();
+    _holdTimer = Timer(_holdDuration, () {
+      if (!mounted) return;
+      setState(() => _holding = false);
+      widget.onOpen?.call();
+    });
+  }
+
+  void _cancelHold() {
+    _holdTimer?.cancel();
+    if (mounted && _holding) setState(() => _holding = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '설정 열기. 2초간 길게 누르세요.',
+      // 타이밍은 Listener(원시 포인터)로 잡는다 — GestureDetector의 탭으로
+      // 하면 대기 화면 전체의 길게 누르기(방해 금지)가 0.5초에 제스처 경합에서
+      // 이겨 버려 onTapCancel이 날아오고, 설정은 영영 열리지 않는다.
+      // 안쪽 GestureDetector의 빈 onTap/onLongPress는 그 바깥 제스처가
+      // 대신 발동하는 것을 막는 역할만 한다.
+      child: Listener(
+        onPointerDown: (_) => _startHold(),
+        onPointerUp: (_) => _cancelHold(),
+        onPointerCancel: (_) => _cancelHold(),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {},
+          onLongPress: () {},
+          child: SizedBox(
+            // 접근성 최소 타깃 — 눌러야 할 대상이 보이는 아이콘보다 커야 한다
+            width: 48,
+            height: 48,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                if (_holding)
+                  SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.0, end: 1.0),
+                      duration: _holdDuration,
+                      builder: (context, value, _) => CircularProgressIndicator(
+                        value: value,
+                        strokeWidth: 2,
+                        color: KioskColors.primary,
+                        backgroundColor: KioskColors.border,
+                      ),
+                    ),
+                  ),
+                Icon(
+                  Icons.settings_outlined,
+                  size: 20,
+                  color: _holding
+                      ? KioskColors.primary
+                      : KioskColors.muted.withValues(alpha: 0.55),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

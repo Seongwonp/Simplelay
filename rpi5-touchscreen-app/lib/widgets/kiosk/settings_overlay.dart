@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/appliance.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
+import 'kiosk_timings.dart';
 
 // 설정 진입: 대기 화면 우하단 상태 dot 3번 연속 탭
 class KioskSettingsOverlay extends StatefulWidget {
@@ -16,6 +17,8 @@ class KioskSettingsOverlay extends StatefulWidget {
     this.onTtsChanged,
     this.largeTextEnabled = false,
     this.onLargeTextChanged,
+    this.countdownSeconds = KioskTimings.countdownSeconds,
+    this.onCountdownChanged,
   });
 
   final ApplianceMap currentAppliance;
@@ -30,6 +33,10 @@ class KioskSettingsOverlay extends StatefulWidget {
   /// 큰 글씨 모드 켜짐 여부 + 토글 콜백
   final bool largeTextEnabled;
   final ValueChanged<bool>? onLargeTextChanged;
+
+  /// 제안 카드 자동 닫힘 시간(초) + 변경 콜백
+  final int countdownSeconds;
+  final ValueChanged<int>? onCountdownChanged;
 
   @override
   State<KioskSettingsOverlay> createState() => _KioskSettingsOverlayState();
@@ -207,6 +214,70 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             value: widget.largeTextEnabled,
             onChanged: widget.onLargeTextChanged,
           ),
+          const SizedBox(height: 10),
+          _buildCountdownRow(),
+        ],
+      );
+
+  /// 제안 카드가 얼마나 오래 떠 있을지 — 걸어와서 읽고 판단할 시간이
+  /// 사람마다 다르므로 고를 수 있어야 한다.
+  Widget _buildCountdownRow() => Row(
+        children: [
+          const Icon(Icons.timer_outlined, color: KioskColors.muted, size: 18),
+          const SizedBox(width: 10),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '제안 표시 시간',
+                  style: TextStyle(fontSize: 14, color: Color(0xFFFAF7F2)),
+                ),
+                Text(
+                  '제안 카드가 자동으로 닫히기까지의 시간입니다',
+                  style: TextStyle(fontSize: 13, color: KioskColors.muted),
+                ),
+              ],
+            ),
+          ),
+          ...KioskTimings.countdownChoices.map((seconds) {
+            final selected = seconds == widget.countdownSeconds;
+            return Padding(
+              padding: const EdgeInsets.only(left: 6),
+              child: SizedBox(
+                height: 44,
+                child: OutlinedButton(
+                  onPressed: widget.onCountdownChanged == null
+                      ? null
+                      : () => widget.onCountdownChanged!(seconds),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor:
+                        selected ? KioskColors.primary : KioskColors.muted,
+                    backgroundColor: selected
+                        ? KioskColors.primary.withValues(alpha: 0.14)
+                        : null,
+                    side: BorderSide(
+                      color: selected
+                          ? KioskColors.primary.withValues(alpha: 0.6)
+                          : KioskColors.border,
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    '$seconds초',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight:
+                          selected ? FontWeight.w600 : FontWeight.w400,
+                    ),
+                  ),
+                ),
+              ),
+            );
+          }),
         ],
       );
 

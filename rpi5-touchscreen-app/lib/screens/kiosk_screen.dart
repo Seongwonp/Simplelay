@@ -25,7 +25,8 @@ const _healthInterval = Duration(seconds: 10);
 const _sensorInterval = Duration(seconds: 60);
 const _alertInterval = Duration(seconds: 3);
 // 타이밍 상수는 KioskTimings(위젯과 공유) 참조 — 여기 별도 정의 금지
-const _countdownSeconds = KioskTimings.countdownSeconds;
+// 카운트다운 길이는 설정(KioskSettings.countdownSeconds)에서 온다 —
+// 여기 상수는 설정이 없을 때의 기본값 경로로만 쓰인다.
 const _doneReturnDuration = KioskTimings.doneReturn;
 const _execBarFillDuration = KioskTimings.execBarFill;
 // 실행 중 /status가 이 시간 동안 한 번도 응답하지 않으면 서버 유실로 판정 —
@@ -85,7 +86,8 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _alertAcknowledged = false;
 
   KioskSuggestion? _currentSuggestion;
-  int _cdRemaining = _countdownSeconds;
+  int _cdRemaining = KioskTimings.countdownSeconds;
+  int _countdownSeconds = KioskTimings.countdownSeconds;
   Timer? _countdownTimer;
 
   String _execTitle = '';
@@ -127,6 +129,7 @@ class _KioskScreenState extends State<KioskScreen> {
       ttsEnabled: _tts.enabled,
       largeText: _largeText,
       applianceId: _currentAppliance.id,
+      countdownSeconds: _countdownSeconds,
     ));
   }
 
@@ -140,6 +143,7 @@ class _KioskScreenState extends State<KioskScreen> {
     if (saved != null) {
       _tts.enabled = saved.ttsEnabled;
       _largeText = saved.largeText;
+      _countdownSeconds = saved.countdownSeconds;
       for (final a in kAppliances) {
         if (a.id == saved.applianceId) {
           _currentAppliance = a;
@@ -597,6 +601,11 @@ class _KioskScreenState extends State<KioskScreen> {
                   setState(() => _largeText = enabled);
                   _persistSettings();
                 },
+                countdownSeconds: _countdownSeconds,
+                onCountdownChanged: (seconds) {
+                  setState(() => _countdownSeconds = seconds);
+                  _persistSettings();
+                },
                 onApplianceChanged: (a) {
                   setState(() => _currentAppliance = a);
                   _persistSettings();
@@ -637,6 +646,7 @@ class _KioskScreenState extends State<KioskScreen> {
           key: const ValueKey('suggestion'),
           suggestion: suggestion,
           cdRemaining: _cdRemaining,
+          cdTotal: _countdownSeconds,
           onApprove: _onApprove,
           onReject: _onReject,
         );

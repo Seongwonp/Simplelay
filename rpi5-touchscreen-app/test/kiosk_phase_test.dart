@@ -513,6 +513,59 @@ void main() {
     expect(find.text('버튼 누르는 중 · 센서로 눌림 확인'), findsOneWidget);
   });
 
+  // ── 카운트다운·설정 진입 (디자인 리뷰) ──────────────────────────────────
+
+  testWidgets('제안 카운트다운 기본값은 20초다', (tester) async {
+    // 10초는 음성 안내를 듣고 걸어와서 읽고 판단하기에 짧았다
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+
+    await _pumpKiosk(tester, api);
+
+    expect(KioskTimings.countdownSeconds, 20);
+    expect(find.text('20초 후 자동 닫힘'), findsOneWidget);
+  });
+
+  testWidgets('저장된 카운트다운 설정이 복원되어 적용된다', (tester) async {
+    useKioskViewport(tester);
+    final tempDir = Directory.systemTemp.createTempSync('kiosk-cd-test');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final path = '${tempDir.path}${Platform.pathSeparator}settings.json';
+    KioskSettingsStore(path: path).save(const KioskSettings(countdownSeconds: 30));
+
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api, settings: KioskSettingsStore(path: path));
+
+    expect(find.text('30초 후 자동 닫힘'), findsOneWidget);
+  });
+
+  test('목록에 없는 카운트다운 값은 기본값으로 폴백한다', () {
+    // 0이 들어오면 제안이 뜨자마자 사라진다
+    final parsed = KioskSettings.fromJson({'countdown_seconds': 0});
+    expect(parsed.countdownSeconds, KioskTimings.countdownSeconds);
+  });
+
+  testWidgets('설정 버튼은 보이지만 2초 길게 눌러야 열린다', (tester) async {
+    useKioskViewport(tester);
+    await _pumpKiosk(tester, FakeKioskApi());
+
+    // 존재가 드러나야 한다 — 5px 점 3연타는 발견 불가능했다
+    final gear = find.byIcon(Icons.settings_outlined);
+    expect(gear, findsOneWidget);
+
+    // 짧게 누르면 열리지 않는다 (지나가다 스치는 오조작 방지)
+    await tester.tap(gear);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('키오스크 설정'), findsNothing);
+
+    // 2초 유지하면 열린다
+    final gesture = await tester.startGesture(tester.getCenter(gear));
+    await tester.pump(const Duration(milliseconds: 2100));
+    await gesture.up();
+    await tester.pump();
+    expect(find.text('키오스크 설정'), findsOneWidget);
+  });
+
   // ── 설정 영속화 (재부팅 복원) ────────────────────────────────────────────
 
   testWidgets('저장된 설정(음성 꺼짐·큰 글씨·가전)이 시작 시 복원된다', (tester) async {
