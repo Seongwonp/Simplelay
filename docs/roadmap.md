@@ -124,14 +124,18 @@
       찍으면 기존 수동 그리드 에디터를 그 위에 반투명으로 겹쳐서, 실제 버튼
       위치를 보며 이름을 붙일 수 있음. 새 하드웨어·백엔드 연동 불필요(100% 앱)
 - [x] 온디바이스 벡터DB 유사도 매칭 — `VectordbIntentResolver`
-      (`rpi/intent/dbus_vectordb.py`, `com.platform.internal_aiVectordb1`). 규칙기반
+      (`rpi/intent/dbus_vectordb.py`). 규칙기반
       (정확일치) → 벡터DB(빠른 유사도 매칭) → LLM(유연한 대화형 해석, 가장 느림)
-      순으로 `TieredIntentResolver`에 계층화하는 용도 — Dbusinternal_aiLlmClient와
-      역할 분담. **CAUTION: AddText/SearchText의 정확한 internal_gpio 출력 포맷은
-      아직 실기기 미검증**(RPi5 오프라인 상태에서 작업) — 파싱 로직은
+      순으로 `TieredIntentResolver`에 계층화하는 용도 — 온디바이스 LLM 클라이언트와
+      역할 분담. **CAUTION: 검색·등록 호출의 정확한 출력 텍스트 포맷은
+      아직 실기기 미검증** — 파싱 로직은
       `rpi/intent/dbus_vectordb.py` 모듈 docstring에 명시된 대로 최선의 추정이며
       독립적으로 교체 가능하게 분리해둠. 리졸버 자체 로직(임계값 판정, 메타데이터
-      파싱, 티어 조합)은 fake client로 완전히 검증됨(테스트 26개)
+      파싱, 티어 조합)은 fake client로 완전히 검증됨
+- [x] 위 두 계층의 응답 처리 결함 수리(8/26) — 인터페이스 대조로 확인. 검색 결과에서
+      metadata를 버려 유사도 계층이 항상 폴스루하던 문제, 필드 순서 오독, 도구 호출
+      진행 알림이 답변에 섞이던 문제, 대기 포기 시 상대에게 중단을 안 알리던 문제.
+      파서→리졸버 이음매 테스트 추가 (백엔드 464 → 475)
 
 ---
 
