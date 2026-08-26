@@ -21,12 +21,16 @@ import pytest
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# 조각 조립 -- 이 소스에 금지어가 통째로 등장하지 않게 한다
+# 조각 조립 -- 이 소스에 금지어가 통째로 등장하지 않게 한다.
+# 벤더 네임스페이스는 점 형태(버스 이름)와 슬래시 형태(오브젝트 경로) 둘 다 쓰인다.
+# 점 형태만 검사하면 오브젝트 경로가 그대로 빠져나간다 -- 실제로 그렇게 놓친 적이 있다.
 _FORBIDDEN_TERMS = (
     "eco" + "ai",
     "abus" + "ctl",
     "com." + "platform",
+    "com/" + "platform",
     "com." + "lg",
+    "com/" + "lg",
     "scar" + "thgap",
     "exa" + "one",
     "thin" + "q",
@@ -42,6 +46,10 @@ _ALLOWED_ALWAYS = (
 
 # 아직 정리되지 않은 파일 -- 정리하면서 이 목록에서 지운다.
 # 목록이 줄어드는 것이 곧 진행 상황이다. 새 파일이 여기 없이 금지어를 담으면 실패한다.
+#
+# 파일명에 금지어가 든 것들은 여기서도 조각으로 적는다. 안 그러면 이 목록 때문에
+# 가드 파일 자신이 위반이 되고, 그렇다고 자기 자신을 검사에서 빼면 정작 여기에 들어온
+# 유출은 못 잡는다. 파일 이름을 바꾸는 단계가 끝나면 이 조각들도 함께 사라진다.
 _MIGRATION_DEBT = {
     "CLAUDE.md",
     "docs/devlog_2026-08-26.md",
@@ -51,14 +59,13 @@ _MIGRATION_DEBT = {
     "rpi/api/deps.py",
     "rpi/controller/README.md",
     "rpi/controller/__init__.py",
-    "rpi/controller/internal_gpio_gpio.py",
+    "rpi/controller/" + "abus" + "ctl_gpio.py",
     "rpi/intent/__init__.py",
-    "rpi/intent/dbus_internal_ai.py",
+    "rpi/intent/dbus_" + "eco" + "ai.py",
     "rpi/intent/dbus_vectordb.py",
-    "rpi/tests/test_internal_gpio_gpio.py",
-    "rpi/tests/test_dbus_internal_ai.py",
+    "rpi/tests/test_" + "abus" + "ctl_gpio.py",
+    "rpi/tests/test_dbus_" + "eco" + "ai.py",
     "rpi/tests/test_deps.py",
-    "rpi/tests/test_vectordb_intent.py",
 }
 
 

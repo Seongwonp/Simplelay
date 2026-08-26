@@ -1,7 +1,7 @@
 """VectordbClient + VectordbIntentResolver tests — no real D-Bus/hardware.
 
 VectordbClient tests inject a fake subprocess runner (same pattern as
-test_internal_gpio_gpio.py). VectordbIntentResolver tests use FakeVectordbClient
+the GPIO adapter's tests). VectordbIntentResolver tests use FakeVectordbClient
 (rpi/intent/mock.py) so resolver logic is verified independently of the
 CLI-parsing layer, which is explicitly flagged unverified against real
 hardware (see rpi/intent/dbus_vectordb.py's module docstring).
@@ -25,11 +25,19 @@ from rpi.intent import (
     parse_search_text_output,
     seed_examples,
 )
+from rpi.intent.dbus_vectordb import VectordbClientConfig
 from rpi.intent.mock import FakeVectordbClient
+
+# 서비스 주소는 환경에서 오지만, 테스트는 가짜 주소를 명시적으로 준다
+_TEST_CONFIG = VectordbClientConfig(
+    service="com.example.TestVectordb1",
+    object_path="/com/example/TestVectordb1",
+    cli_path="fake-dbus-cli",
+)
 
 
 class FakeRunner:
-    """Records internal_gpio invocations and returns scripted results."""
+    """Records CLI invocations and returns scripted results."""
 
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
@@ -46,7 +54,7 @@ class FakeRunner:
 
     def __call__(self, argv: list[str]) -> subprocess.CompletedProcess:
         self.calls.append(argv)
-        method = argv[3]  # [internal_gpio, call, <service>, <method>, ...]
+        method = argv[3]  # [cli, call, <service>, <method>, ...]
         if method in self._raise:
             raise self._raise[method]
         if method in self._scripted:
@@ -55,7 +63,7 @@ class FakeRunner:
 
 
 def _make_client(runner: FakeRunner) -> VectordbClient:
-    return VectordbClient(runner=runner)
+    return VectordbClient(config=_TEST_CONFIG, runner=runner)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -148,9 +156,9 @@ class TestVectordbClientAddText:
         client.add_text("우유 데워줘", {"buttons": "해동,시작"})
 
         argv = runner.calls[0]
-        assert argv[:4] == ["internal_gpio", "call", "com.platform.internal_aiVectordb1", "AddText"]
+        assert argv[:4] == ["fake-dbus-cli", "call", "com.example.TestVectordb1", "AddText"]
         assert "우유 데워줘" in argv
-        assert "-o" in argv and "/com/platform/internal_aiVectordb1" in argv
+        assert "-o" in argv and "/com/example/TestVectordb1" in argv
 
     def test_unparseable_output_raises(self):
         runner = FakeRunner()
@@ -168,7 +176,7 @@ class TestVectordbClientAddText:
         with pytest.raises(VectordbClientError, match="EmbeddingFailed"):
             client.add_text("우유 데워줘", {"buttons": "해동"})
 
-    def test_internal_gpio_not_found_raises(self):
+    def test_missing_cli_binary_raises(self):
         runner = FakeRunner()
         runner.script_raise("AddText", FileNotFoundError())
         client = _make_client(runner)
@@ -178,7 +186,7 @@ class TestVectordbClientAddText:
 
     def test_timeout_raises(self):
         runner = FakeRunner()
-        runner.script_raise("AddText", subprocess.TimeoutExpired(cmd="internal_gpio", timeout=5.0))
+        runner.script_raise("AddText", subprocess.TimeoutExpired(cmd="fake-dbus-cli", timeout=5.0))
         client = _make_client(runner)
 
         with pytest.raises(VectordbClientError, match="timed out"):
@@ -221,7 +229,7 @@ class TestVectordbClientCreateDb:
         client.create_db("simplelay")
 
         argv = runner.calls[0]
-        assert argv[:4] == ["internal_gpio", "call", "com.platform.internal_aiVectordb1", "CreateDB"]
+        assert argv[:4] == ["fake-dbus-cli", "call", "com.example.TestVectordb1", "CreateDB"]
         assert "simplelay" in argv
 
 
@@ -331,7 +339,7 @@ class TestSeedExamples:
                 args=argv, returncode=0, stdout=f'Response: "{next(ids_by_call)}"\n', stderr=""
             )
 
-        client = VectordbClient(runner=_script)
+        client = VectordbClient(config=_TEST_CONFIG, runner=_script)
         examples = {"우유 데워줘": ("해동", "시작"), "에어컨 켜줘": ("AC-01",)}
 
         result = seed_examples(client, examples)
@@ -346,7 +354,7 @@ class TestSeedExamples:
             captured["argv"] = argv
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout='Response: "id-1"\n', stderr="")
 
-        client = VectordbClient(runner=_script)
+        client = VectordbClient(config=_TEST_CONFIG, runner=_script)
         seed_examples(client, {"우유 데워줘": ("해동", "시간 90초", "시작")})
 
         assert any("해동,시간 90초,시작" in arg for arg in captured["argv"])
@@ -368,7 +376,9 @@ class TestParserResolverSeam:
     def _resolver_reading(raw: str) -> VectordbIntentResolver:
         runner = FakeRunner()
         runner.script("SearchText", stdout=raw)
-        return VectordbIntentResolver(VectordbClient(runner=runner))
+        return VectordbIntentResolver(
+            VectordbClient(config=_TEST_CONFIG, runner=runner)
+        )
 
     def test_search_output_resolves_to_button_sequence(self):
         raw = (

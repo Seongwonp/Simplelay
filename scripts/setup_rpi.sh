@@ -128,6 +128,17 @@ if [[ ! -f /etc/simplelay/environment ]]; then
 #SIMPLELAY_UART_PER_BUTTON_TIMEOUT=6
 # 부재 중 자동 제안 보류 (RPi4 카메라 감지기 연결 후)
 #SIMPLELAY_PRESENCE_GATING=true
+#
+# ── 온디바이스 D-Bus 서비스 주소 ─────────────────────────────────────────
+# 기기마다/빌드마다 다르므로 저장소에 담지 않는다. 기기에서 확인해 채울 것:
+#   busctl list          <- 떠 있는 서비스 이름 확인
+#   command -v <CLI이름> <- 호출용 CLI 실행 파일 확인
+# SIMPLELAY_LLM_MODE=dbus 를 켜면서 아래를 비워두면 기동 시 어떤 값이 없는지
+# 짚으며 실패한다(조용히 꺼진 채 도는 것보다 낫다).
+#SIMPLELAY_DBUS_CLI=
+#SIMPLELAY_DBUS_AGENT_SERVICE=
+#SIMPLELAY_DBUS_VECTORDB_SERVICE=
+#SIMPLELAY_DBUS_PERIPHERAL_SERVICE=
 ENVEOF
     ok "/etc/simplelay/environment 템플릿 생성 (ACT 모드·API 키는 여기서 확정)"
 else

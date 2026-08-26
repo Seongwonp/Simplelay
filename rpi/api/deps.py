@@ -49,9 +49,10 @@ def _build_llm_client() -> LlmClient | None:
     안 하면 None(오프라인 우선 원칙: 안 켜면 해당 기능이 그냥 꺼져 있다).
 
     두 경로가 있고 운영자가 명시적으로 골라야 한다(자동 폴백 없음):
-    - ``SIMPLELAY_LLM_MODE=dbus``: 온디바이스 internal_ai 에이전트(D-Bus, internal_gpio+
-      busctl monitor 기반) — 새 하드웨어·네트워크 불필요, 기본으로 밀고 싶은
-      경로지만 실기기 안정성이 아직 데모 전 검증 필요.
+    - ``SIMPLELAY_LLM_MODE=dbus``: 기기 내장 대화형 에이전트(D-Bus 경유) — 새
+      하드웨어·네트워크 불필요, 기본으로 밀고 싶은 경로지만 실기기 안정성이 아직
+      데모 전 검증 필요. 서비스 주소는 환경에서 읽으므로(rpi/dbus_env.py) 이 모드를
+      켜고 주소를 안 주면 기동 시 어떤 변수가 비었는지 짚으며 실패한다.
     - ``SIMPLELAY_LLM_BASE_URL`` (그 외): OpenAI 호환 HTTP 엔드포인트 — 데모
       때 온디바이스가 불안정하면 이 값만 클라우드 API로 바꿔서 즉시 대체 가능.
     """

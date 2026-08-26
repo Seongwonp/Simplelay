@@ -1,16 +1,18 @@
-"""On-device similarity search for intent resolution, via the platform's
-internal_ai vector-DB D-Bus service. Meant to sit between RuleBasedIntentResolver
+"""On-device similarity search for intent resolution, via the device's
+vector-DB D-Bus service. Meant to sit between RuleBasedIntentResolver
 (exact match, zero risk) and an LLM-based resolver (flexible, slower) in a
 TieredIntentResolver chain -- fast, offline "fuzzy" matching against a small
 set of known purpose -> button-sequence examples, without a full
 conversational round trip.
 
-Uses the same subprocess `internal_gpio call` pattern as internal_gpio_gpio.py /
-dbus_internal_ai.py -- no Python D-Bus binding available on this platform yet.
+Calls go through the device's D-Bus CLI as a subprocess, the same pattern the
+other on-device adapters use -- no Python D-Bus binding is available there yet.
+Which CLI and which service to talk to are read from the environment
+(rpi/dbus_env.py), not baked in.
 
 CAUTION -- the exact text the CLI prints for AddText's metadata argument and
 for SearchText's return value has still not been captured from a live device,
-unlike dbus_internal_ai.py's ``Response: "..."`` pattern, which WAS confirmed there.
+unlike the agent client's ``Response: "..."`` pattern, which WAS confirmed there.
 ``_format_metadata_arg`` and ``parse_search_text_output`` are written against
 the interface's documented shape and are kept as small, independently
 swappable pure functions so they're a quick fix once real output is captured.
@@ -29,6 +31,8 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
+from rpi import dbus_env
+
 from .base import IntentResolver
 from .rules import UnknownIntentError
 
@@ -44,10 +48,23 @@ class VectordbClientError(RuntimeError):
 
 @dataclass(frozen=True)
 class VectordbClientConfig:
-    service: str = "com.platform.internal_aiVectordb1"
-    object_path: str = "/com/platform/internal_aiVectordb1"
-    internal_gpio_path: str = "internal_gpio"
+    """서비스 주소는 기기의 성질이라 환경에서 받는다 -- rpi/dbus_env.py 참고."""
+
+    service: str
+    object_path: str
+    cli_path: str
     call_timeout_seconds: float = 5.0
+
+    @classmethod
+    def from_env(cls) -> "VectordbClientConfig":
+        service = dbus_env.required(
+            dbus_env.ENV_VECTORDB_SERVICE, "온디바이스 유사도 검색 서비스"
+        )
+        return cls(
+            service=service,
+            object_path=dbus_env.object_path_for(service),
+            cli_path=dbus_env.required(dbus_env.ENV_DBUS_CLI, "D-Bus 호출 CLI"),
+        )
 
 
 @dataclass(frozen=True)
@@ -73,13 +90,13 @@ _SCORE_TOKEN_RE = re.compile(r"DOUBLE\s+(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)")
 
 
 def _format_metadata_arg(metadata: Mapping[str, str]) -> str:
-    """CLI arg for AddText's ``metadata (a{sv})`` -- PDF example shows a
-    JSON-ish list containing one dict, e.g. ``[{"stringSample": "..."}]``."""
+    """CLI arg for AddText's ``metadata`` map -- the documented example form is
+    a JSON-ish list holding a single dict, e.g. ``[{"someKey": "someValue"}]``."""
     return json.dumps([dict(metadata)], ensure_ascii=False)
 
 
 def parse_search_text_output(raw: str) -> list[SearchResult]:
-    """Best-effort parse of SearchText's internal_gpio output -- see module
+    """Best-effort parse of SearchText's CLI output -- see module
     docstring's CAUTION. Returns [] for no matches (empty DB or no hits),
     never raises for a well-formed-but-empty response.
 
@@ -111,16 +128,16 @@ def parse_search_text_output(raw: str) -> list[SearchResult]:
 
 
 class VectordbClient:
-    """Talks to com.platform.internal_aiVectordb1 via subprocess (internal_gpio call),
-    same spirit as internal_gpioGpioClient/Dbusinternal_aiLlmClient. ``runner`` is
-    injectable for testing."""
+    """Talks to the vector-DB service by shelling out to the device's D-Bus
+    CLI, same spirit as the other on-device adapters. ``runner`` is injectable
+    for testing; ``config`` defaults to reading the environment."""
 
     def __init__(
         self,
         config: VectordbClientConfig | None = None,
         runner: Runner | None = None,
     ) -> None:
-        self._cfg = config or VectordbClientConfig()
+        self._cfg = config or VectordbClientConfig.from_env()
         self._run = runner or self._default_runner
 
     def create_db(
@@ -154,7 +171,7 @@ class VectordbClient:
 
     def _call(self, method: str, *args: str) -> str:
         argv = [
-            self._cfg.internal_gpio_path,
+            self._cfg.cli_path,
             "call",
             self._cfg.service,
             method,
@@ -167,7 +184,7 @@ class VectordbClient:
         try:
             result = self._run(argv)
         except FileNotFoundError as exc:
-            raise VectordbClientError(f"{self._cfg.internal_gpio_path!r} not found") from exc
+            raise VectordbClientError(f"{self._cfg.cli_path!r} not found") from exc
         except subprocess.TimeoutExpired as exc:
             raise VectordbClientError(f"{method} timed out") from exc
 

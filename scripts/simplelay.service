@@ -39,6 +39,10 @@ Environment=BLINKA_LGPIO=1
 # Environment=SIMPLELAY_LLM_BASE_URL=https://api.openai.com/v1
 # Environment=SIMPLELAY_LLM_API_KEY=sk-...
 # Environment=SIMPLELAY_LLM_MODEL=gpt-4o-mini
+#
+# 온디바이스 D-Bus 서비스 주소는 기기마다 달라서 여기 적지 않는다 —
+# 위 EnvironmentFile(/etc/simplelay/environment)에서 넣을 것.
+# (SIMPLELAY_DBUS_CLI / _AGENT_SERVICE / _VECTORDB_SERVICE / _PERIPHERAL_SERVICE)
 
 # ── 실행 ───────────────────────────────────────────────────────────────────
 ExecStart=/home/pi/SimpleLay/.venv/bin/python -m uvicorn rpi.main:app \
