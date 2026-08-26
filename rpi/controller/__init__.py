@@ -1,6 +1,6 @@
 """Closed-loop button sequence controller."""
 
-from .internal_gpio_gpio import internal_gpioError, internal_gpioGpioClient, UnknownButtonError
+from .dbus_gpio import DbusCallError, DbusGpioClient, UnknownButtonError
 from .closed_loop import ClosedLoopController
 from .models import (
     ButtonResult,
@@ -23,8 +23,8 @@ from .progress import ExecutionProgressTracker, ProgressCallback
 from .retry import DocumentedRetryPolicy, RetryPolicy
 
 __all__ = [
-    "internal_gpioError",
-    "internal_gpioGpioClient",
+    "DbusCallError",
+    "DbusGpioClient",
     "AlertSink",
     "ButtonResult",
     "ButtonSequenceController",

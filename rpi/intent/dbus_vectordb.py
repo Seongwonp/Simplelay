@@ -75,7 +75,7 @@ class SearchResult:
     score: float
 
 
-# 실기기에서 StartRequest 출력으로 확인된 패턴(dbus_internal_ai.py 참고) — AddText도
+# 실기기에서 StartRequest 출력으로 확인된 패턴(dbus_agent.py 참고) — AddText도
 # 단일 문자열(return_id)을 돌려주므로 같은 포맷일 것으로 추정.
 _SIMPLE_RESPONSE_RE = re.compile(r'Response:\s*"([^"]*)"')
 

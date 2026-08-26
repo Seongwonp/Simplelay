@@ -115,7 +115,7 @@
 - [x] 등록한 가전도 음성 명령으로 조작 가능하게 확장 — `/execute-for-appliance`,
       요청에 실린 버튼 라벨 어휘로 LLM이 그 자리에서 해석 (서버 고정 규칙 없이도 동작).
       LLM 미설정 시 503으로 명확히 거부 — 서버는 기본적으로 오프라인 동작
-- [x] 위 기능의 온디바이스 LLM 백엔드 구현 — `Dbusinternal_aiLlmClient`
+- [x] 위 기능의 온디바이스 LLM 백엔드 구현 — `DbusAgentLlmClient`
       (`SIMPLELAY_LLM_MODE=dbus`). 실기기 검증까지 완료: 온보드 에이전트
       서비스에 요청을 보내고 비동기 응답 스트림을 받아 조립하는 전체 경로가
       실제로 동작함을 확인. 클라우드 API 경로(`SIMPLELAY_LLM_BASE_URL`)는

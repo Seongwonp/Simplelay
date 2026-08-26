@@ -10,7 +10,7 @@ import pytest
 
 from rpi import dbus_env
 from rpi.api.deps import _build_llm_client
-from rpi.intent import Dbusinternal_aiLlmClient, HttpLlmClient
+from rpi.intent import DbusAgentLlmClient, HttpLlmClient
 
 # 온디바이스 경로는 서비스 주소를 환경에서 읽는다 -- 테스트는 가짜 주소를 준다
 _FAKE_SERVICE = "com.example.TestAgent1"
@@ -40,14 +40,14 @@ def test_dbus_mode_returns_dbus_client(monkeypatch: pytest.MonkeyPatch):
 
     client = _build_llm_client()
 
-    assert isinstance(client, Dbusinternal_aiLlmClient)
+    assert isinstance(client, DbusAgentLlmClient)
 
 
 def test_dbus_mode_is_case_insensitive(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("SIMPLELAY_LLM_MODE", "DBUS")
     _configure_dbus(monkeypatch)
 
-    assert isinstance(_build_llm_client(), Dbusinternal_aiLlmClient)
+    assert isinstance(_build_llm_client(), DbusAgentLlmClient)
 
 
 def test_base_url_without_mode_returns_http_client(monkeypatch: pytest.MonkeyPatch):
@@ -65,7 +65,7 @@ def test_dbus_mode_takes_priority_over_base_url(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setenv("SIMPLELAY_LLM_BASE_URL", "https://example.invalid/v1")
     _configure_dbus(monkeypatch)
 
-    assert isinstance(_build_llm_client(), Dbusinternal_aiLlmClient)
+    assert isinstance(_build_llm_client(), DbusAgentLlmClient)
 
 
 def test_dbus_mode_without_service_address_fails_loudly(

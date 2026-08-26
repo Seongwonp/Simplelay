@@ -7,7 +7,7 @@ from .config import hardware_config
 
 from rpi.controller import ExecutionProgressTracker
 from rpi.intent import (
-    Dbusinternal_aiLlmClient,
+    DbusAgentLlmClient,
     HttpLlmClient,
     HttpLlmClientConfig,
     LlmClient,
@@ -58,7 +58,7 @@ def _build_llm_client() -> LlmClient | None:
     """
     mode = os.environ.get("SIMPLELAY_LLM_MODE", "").strip().lower()
     if mode == "dbus":
-        return Dbusinternal_aiLlmClient()
+        return DbusAgentLlmClient()
 
     base_url = os.environ.get("SIMPLELAY_LLM_BASE_URL")
     if not base_url:

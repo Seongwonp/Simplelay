@@ -100,7 +100,7 @@ SimpleLay의 핵심 차별점인 "자가 검증 + 선제 제어"(문서 없이�
       `TieredIntentResolver`(`rpi/intent/tiered.py`). `LlmIntentResolver` 자체는 안 건드리고,
       여러 리졸버를 순서대로 시도하는 조합기를 새로 만들어 해결했다. 사용법은
       [rpi/intent/README.md](../rpi/intent/README.md) 참고
-- [x] 온디바이스 계층 구현 — 유사도 매칭(`dbus_vectordb.py`)·대화형(`dbus_internal_ai.py`).
+- [x] 온디바이스 계층 구현 — 유사도 매칭(`dbus_vectordb.py`)·대화형(`dbus_agent.py`).
       자체 모델을 얹지 않고 기기가 제공하는 기능에 배선했다
 - [x] `rpi/api/deps.py`에 3계층 조립 배선 (`_build_intent_resolver()`)
 - [ ] **유사도 계층의 예시 시드** — 지금은 조회 쪽만 배선돼 있고 예시를 채워 넣는 호출부가

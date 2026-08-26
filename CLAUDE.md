@@ -9,7 +9,7 @@
 - 분석·작업은 반드시 `.gitignore`에 등록된 로컬 전용 경로에서만:
   `dev-docs/`, `AI-Native-OS-Samples/`, `platform_docker_env/` (이 폴더들은 기기 간 git으로 이동하지 않음 — 필요 시 수동 복사)
 - 커밋 전 `git status`로 기밀 파일 미포함 확인. 커밋 메시지·코드 주석에도 플랫폼 내부 세부(NDA)를 쓰지 않는다.
-- 코드상 플랫폼 연동 지점: `rpi/intent/dbus_internal_ai.py`, `rpi/intent/dbus_vectordb.py` (출력 파싱은 실기기 검증 대기)
+- 코드상 플랫폼 연동 지점: `rpi/intent/dbus_agent.py`, `rpi/intent/dbus_vectordb.py` (출력 파싱은 실기기 검증 대기)
 
 ## 커밋 규칙
 
