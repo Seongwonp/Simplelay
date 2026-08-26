@@ -32,3 +32,9 @@ AI-Native-OS-Samples/
 atlas_docker_env/
 dev-docs/
 스마트 가전_기술교육.pdf
+
+# 발표자료·문서 바이너리 (로컬 전용)
+# 이 리포에는 커밋해야 할 pptx/pdf가 없다. 반대로 기밀 자료가 이 형식으로 들어오므로
+# 통째로 막는 쪽이 안전하다 — 예외가 필요하면 그때 `!경로`로 열 것.
+*.pptx
+*.pdf
