@@ -83,6 +83,48 @@ class TestParseSearchTextOutput:
     def test_garbage_output_returns_empty_list(self):
         assert parse_search_text_output("not a valid response at all") == []
 
+    def test_metadata_is_preserved(self):
+        # 결과 한 건은 id, metadata, originalData, score 순. metadata를 버리면
+        # 리졸버가 버튼 시퀀스를 못 읽어 벡터DB 계층 전체가 무력화된다.
+        raw = (
+            'STRING "id-1";\n'
+            'STRING "buttons";\n'
+            'STRING "해동,시작";\n'
+            'STRING "우유 데워줘";\n'
+            "DOUBLE 0.92;\n"
+        )
+        assert parse_search_text_output(raw) == [
+            SearchResult(
+                id="id-1",
+                metadata={"buttons": "해동,시작"},
+                original_data="우유 데워줘",
+                score=0.92,
+            )
+        ]
+
+    def test_metadata_is_not_mistaken_for_original_data(self):
+        # metadata가 id와 originalData 사이에 있어서, "id 다음 첫 문자열"을
+        # originalData로 잡으면 metadata 조각이 들어온다.
+        raw = (
+            'STRING "id-1";\nSTRING "buttons";\nSTRING "해동";\n'
+            'STRING "진짜 원본";\nDOUBLE 0.9;\n'
+        )
+        assert parse_search_text_output(raw)[0].original_data == "진짜 원본"
+
+    def test_multiple_results_with_metadata_do_not_bleed(self):
+        raw = (
+            'STRING "id-1";\nSTRING "buttons";\nSTRING "해동";\n'
+            'STRING "첫번째";\nDOUBLE 0.9;\n'
+            'STRING "id-2";\nSTRING "buttons";\nSTRING "시작";\n'
+            'STRING "두번째";\nDOUBLE 0.5;\n'
+        )
+        results = parse_search_text_output(raw)
+        assert [r.metadata for r in results] == [
+            {"buttons": "해동"},
+            {"buttons": "시작"},
+        ]
+        assert [r.original_data for r in results] == ["첫번째", "두번째"]
+
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # VectordbClient
@@ -308,3 +350,56 @@ class TestSeedExamples:
         seed_examples(client, {"우유 데워줘": ("해동", "시간 90초", "시작")})
 
         assert any("해동,시간 90초,시작" in arg for arg in captured["argv"])
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 파서 ↔ 리졸버 이음매
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestParserResolverSeam:
+    """CLI 출력 → 파서 → 리졸버를 한 번에 통과시킨다.
+
+    파서는 가짜 원문으로, 리졸버는 손으로 만든 SearchResult로 따로만 검증하면
+    "파서가 버리는 필드를 리졸버가 요구한다"는 어긋남을 어느 쪽 테스트도 잡지
+    못한다. 실제로 그 구멍으로 벡터DB 계층이 항상 폴스루하고 있었다.
+    """
+
+    @staticmethod
+    def _resolver_reading(raw: str) -> VectordbIntentResolver:
+        runner = FakeRunner()
+        runner.script("SearchText", stdout=raw)
+        return VectordbIntentResolver(VectordbClient(runner=runner))
+
+    def test_search_output_resolves_to_button_sequence(self):
+        raw = (
+            'STRING "id-1";\n'
+            'STRING "buttons";\n'
+            'STRING "해동,시작";\n'
+            'STRING "우유 데워줘";\n'
+            "DOUBLE 0.92;\n"
+        )
+        assert self._resolver_reading(raw).resolve("우유 좀 데워줄래") == ("해동", "시작")
+
+    def test_low_score_output_falls_through(self):
+        raw = (
+            'STRING "id-1";\nSTRING "buttons";\nSTRING "해동";\n'
+            'STRING "우유 데워줘";\nDOUBLE 0.10;\n'
+        )
+        with pytest.raises(UnknownIntentError, match="below threshold"):
+            self._resolver_reading(raw).resolve("전혀 다른 명령")
+
+    def test_output_without_metadata_falls_through(self):
+        raw = 'STRING "id-1";\nSTRING "우유 데워줘";\nDOUBLE 0.92;\n'
+        with pytest.raises(UnknownIntentError, match="no usable"):
+            self._resolver_reading(raw).resolve("우유 좀 데워줄래")
+
+    def test_empty_output_falls_through(self):
+        with pytest.raises(UnknownIntentError):
+            self._resolver_reading("").resolve("아무 명령")
+
+    def test_tier_chain_falls_back_to_rules_when_vectordb_misses(self):
+        # 벡터DB가 못 잡아도 규칙 계층이 받아야 한다 -- 계층 구성의 핵심 계약
+        vectordb = self._resolver_reading("")
+        tiered = TieredIntentResolver([vectordb, RuleBasedIntentResolver()])
+
+        assert tiered.resolve("우유 데워줘")

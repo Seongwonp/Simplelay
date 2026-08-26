@@ -8,14 +8,16 @@ conversational round trip.
 Uses the same subprocess `internal_gpio call` pattern as internal_gpio_gpio.py /
 dbus_internal_ai.py -- no Python D-Bus binding available on this platform yet.
 
-CAUTION -- unverified against real hardware this pass (RPi5 was offline):
-the exact text `internal_gpio call` prints for AddText's a{sv} metadata argument
-and SearchText's aa{sv} return value has not been captured from a live
-device, unlike dbus_internal_ai.py's ``Response: "..."`` pattern, which WAS
-confirmed there. ``_format_metadata_arg`` and ``parse_search_text_output``
-follow the D-Bus API PDF's own example invocations as closely as possible
-and are isolated as small, independently swappable pure functions
-specifically so they're a quick fix once real output is captured.
+CAUTION -- the exact text the CLI prints for AddText's metadata argument and
+for SearchText's return value has still not been captured from a live device,
+unlike dbus_internal_ai.py's ``Response: "..."`` pattern, which WAS confirmed there.
+``_format_metadata_arg`` and ``parse_search_text_output`` are written against
+the interface's documented shape and are kept as small, independently
+swappable pure functions so they're a quick fix once real output is captured.
+
+What IS pinned down: a search result carries (id, metadata, originalData,
+score) in that order, and the button sequence lives in metadata -- so the
+parser must preserve metadata for VectordbIntentResolver to work at all.
 """
 
 from __future__ import annotations
@@ -60,14 +62,14 @@ class SearchResult:
 # 단일 문자열(return_id)을 돌려주므로 같은 포맷일 것으로 추정.
 _SIMPLE_RESPONSE_RE = re.compile(r'Response:\s*"([^"]*)"')
 
-# 실기기 미검증(모듈 docstring의 CAUTION 참고) -- aa{sv} 배열을 busctl류
-# 텍스트 포맷으로 가정하고 짠 최선의 추정 정규식.
-_SEARCH_RESULT_BLOCK_RE = re.compile(
-    r'STRING\s+"(?P<id>[^"]*)".*?'
-    r'STRING\s+"(?P<original>[^"]*)".*?'
-    r"DOUBLE\s+(?P<score>-?\d+(?:\.\d+)?)",
-    re.DOTALL,
-)
+# 검색 결과 한 건의 필드 순서: id, metadata, originalData, score.
+# metadata가 id와 originalData 사이에 오기 때문에, "id 다음의 첫 문자열이
+# originalData"라고 보면 metadata 조각을 originalData로 잘못 집는다. 점수(실수)가
+# 항상 결과 한 건의 마지막이라는 점을 이용해 블록으로 자른 뒤,
+# 첫 문자열=id / 마지막 문자열=originalData / 그 사이=metadata 키·값 쌍으로 나눈다.
+# metadata가 비어 있어도(문자열 2개) 같은 규칙이 그대로 성립한다.
+_STRING_TOKEN_RE = re.compile(r'STRING\s+"((?:[^"\\]|\\.)*)"')
+_SCORE_TOKEN_RE = re.compile(r"DOUBLE\s+(-?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?)")
 
 
 def _format_metadata_arg(metadata: Mapping[str, str]) -> str:
@@ -79,11 +81,33 @@ def _format_metadata_arg(metadata: Mapping[str, str]) -> str:
 def parse_search_text_output(raw: str) -> list[SearchResult]:
     """Best-effort parse of SearchText's internal_gpio output -- see module
     docstring's CAUTION. Returns [] for no matches (empty DB or no hits),
-    never raises for a well-formed-but-empty response."""
-    return [
-        SearchResult(id=m.group("id"), metadata={}, original_data=m.group("original"), score=float(m.group("score")))
-        for m in _SEARCH_RESULT_BLOCK_RE.finditer(raw)
-    ]
+    never raises for a well-formed-but-empty response.
+
+    metadata must survive this parse: VectordbIntentResolver reads the button
+    sequence out of it, so dropping it here silently disables the whole
+    vector-db tier (every lookup falls through to the next resolver).
+    """
+    results: list[SearchResult] = []
+    cursor = 0
+    for score_match in _SCORE_TOKEN_RE.finditer(raw):
+        strings = _STRING_TOKEN_RE.findall(raw[cursor : score_match.start()])
+        cursor = score_match.end()
+        if not strings:
+            continue
+        # 홀수 개가 남으면(문자열이 아닌 값이 섞인 경우 등) 짝이 맞는 데까지만 취한다
+        between = strings[1:-1]
+        metadata = {
+            between[i]: between[i + 1] for i in range(0, len(between) - 1, 2)
+        }
+        results.append(
+            SearchResult(
+                id=strings[0],
+                metadata=metadata,
+                original_data=strings[-1] if len(strings) > 1 else "",
+                score=float(score_match.group(1)),
+            )
+        )
+    return results
 
 
 class VectordbClient:
