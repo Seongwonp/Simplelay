@@ -25,7 +25,8 @@ from rpi.api.schemas import (
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
-# 봉투(type/sequence_id/mac 등)가 페이로드 위에 얹히는 최대 크기. 넉넉히 잡는다.
+# 봉투(type/sequence_id/mac, ESP-NOW 구간의 rid 등)가 페이로드 위에 얹히는
+# 최대 크기. 넉넉히 잡는다.
 _ENVELOPE_MARGIN_BYTES = 128
 
 

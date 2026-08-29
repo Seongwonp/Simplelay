@@ -143,6 +143,13 @@ void EspNowTransport::_dispatchReady() {
     _messageReady = false;
     _bufferLen = 0;
 
+    // 요청 식별자를 먼저 챙긴다 -- 오류 응답에도 실어야 게이트웨이가 상관지을 수 있다.
+    // 파싱 자체가 실패하면 알 방법이 없으므로 비워 둔다(게이트웨이가 그 경우를 따로 본다).
+    _currentRid[0] = '\0';
+    if (err == DeserializationError::Ok) {
+        strlcpy(_currentRid, in["rid"] | "", sizeof(_currentRid));
+    }
+
     if (err != DeserializationError::Ok) {
         log_w("could not parse message: %s", err.c_str());
         JsonDocument out;
@@ -187,7 +194,9 @@ void EspNowTransport::_dispatchReady() {
     _sendJson(out);
 }
 
-void EspNowTransport::_sendJson(const JsonDocument& doc) {
+void EspNowTransport::_sendJson(JsonDocument& doc) {
+    // 어느 요청에 대한 답인지 항상 밝힌다
+    doc["rid"] = _currentRid;
     uint8_t body[ESPNOW_MAX_MESSAGE_BYTES];
     const size_t len = serializeJson(doc, body, sizeof(body));
     if (len == 0) {

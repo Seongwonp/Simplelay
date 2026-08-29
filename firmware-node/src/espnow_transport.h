@@ -81,11 +81,15 @@ private:
 
     volatile bool _stopRequested = false;
 
+    // 요청에 실려 온 식별자. 응답에 그대로 되돌려 게이트웨이가 "이 답이 어느 요청의
+    // 것인지" 확인할 수 있게 한다. 없으면 지연 응답이 다음 요청 결과로 잘못 쓰인다.
+    char _currentRid[48] = "";
+
     void _handleFrame(const uint8_t* data, int len);
     void _dispatchReady();
     void _resetAssembly();
     bool _sendMessage(EspNowFrameKind kind, const uint8_t* payload, size_t len);
-    void _sendJson(const JsonDocument& doc);
+    void _sendJson(JsonDocument& doc);  // rid를 찍어 보내므로 const 아님
 
     // 수신 콜백에서 인스턴스로 들어오는 통로 (ESP-NOW 콜백은 자유 함수여야 함)
     friend void espnowRecvBridge(const uint8_t* data, int len);

@@ -124,6 +124,10 @@ bool EspNowGateway::sendExecute(const char* macText, const JsonArray& buttons,
     if (!_ensurePeer(mac)) return false;
 
     JsonDocument out;
+    // 요청 식별자를 함께 보낸다. 노드가 응답에 그대로 돌려주면 "이 답이 지금 기다리는
+    // 요청의 것인지"를 확인할 수 있다 -- 없으면 포기한 요청의 지연 응답이 바로 다음
+    // 요청의 결과로 둔갑한다(재시도가 섞이면 실패를 성공으로 보고할 수 있다).
+    out["rid"] = sequenceId;
     JsonArray arr = out["buttons"].to<JsonArray>();
     size_t buttonCount = 0;
     for (JsonVariant v : buttons) {
@@ -225,6 +229,10 @@ void EspNowGateway::poll() {
     if (_assembling && (millis() - _firstFragMs) > ESPNOW_REASSEMBLY_TIMEOUT_MS) {
         log_w("gateway reassembly timed out -- discarded");
         _resetAssembly();
+        // 노드는 이미 답을 보냈고 조각이 유실된 것이다. 노드는 재전송하지 않으므로
+        // 남은 마감까지 기다려봐야 얻을 게 없다 -- 바로 위로 올려서 RPi5가 그만큼
+        // 빨리 정지를 보내게 한다(무엇이 잘못됐는지도 타임아웃보다 구체적이다).
+        _failPending("node response incomplete");
     }
 
     if (_messageReady) {
@@ -250,6 +258,18 @@ void EspNowGateway::_dispatchReady() {
         _failPending("unparseable node response");
         return;
     }
+
+    // 어느 요청의 답인지 확인한다. 다르면 버리되 대기는 유지한다 -- 진짜 답이
+    // 아직 올 수 있고, 안 오면 마감이 알아서 실패로 끝낸다.
+    // rid가 빈 응답은 노드가 요청 JSON 자체를 못 읽은 경우뿐이다(그때는 되돌릴
+    // 식별자가 없다). 발신 MAC은 이미 _handleFrame에서 걸렀으므로 받아들인다.
+    const char* rid = in["rid"] | "";
+    const bool unidentified = rid[0] == 0 && in["error"].is<const char*>();
+    if (!unidentified && strcmp(rid, _pendingSeqId) != 0) {
+        log_w("dropping node response for %s while waiting on %s", rid, _pendingSeqId);
+        return;
+    }
+
     if (in["error"].is<const char*>()) {
         _pending = false;
         if (_onError) _onError(_pendingSeqId, in["error"].as<const char*>());
