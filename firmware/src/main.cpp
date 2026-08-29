@@ -88,7 +88,8 @@ static void onRpiMessage(const JsonDocument& doc) {
         }
         const char* seqId = doc["sequence_id"] | "";
         if (!espNowGateway.sendExecute(doc["mac"] | "",
-                                       doc["buttons"].as<JsonArray>(), seqId)) {
+                                       doc["buttons"].as<JsonArrayConst>(),
+                                       seqId)) {
             // 보내지도 못한 경우 RPi5가 타임아웃까지 기다리게 두지 않는다
             sendNodeError(seqId, "could not send to node");
         }
@@ -111,7 +112,7 @@ static void onRpiMessage(const JsonDocument& doc) {
         out["sequence_id"] = id;
         out["label"] = doc["label"] | "";
         JsonArray stepsOut = out["steps"].to<JsonArray>();
-        for (JsonVariant v : doc["buttons"].as<JsonArray>()) {
+        for (JsonVariantConst v : doc["buttons"].as<JsonArrayConst>()) {
             stepsOut.add(v.as<const char*>());
         }
         notifyApp(out);

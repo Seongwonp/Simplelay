@@ -128,7 +128,12 @@ bool EspNowGateway::_sendFramed(const uint8_t* mac, uint8_t kind,
     uint8_t frame[ESPNOW_MAX_FRAME_BYTES];
     for (size_t i = 0; i < fragCount; ++i) {
         const size_t offset = i * ESPNOW_MAX_PAYLOAD_BYTES;
-        const size_t chunk = (len == 0) ? 0 : min(ESPNOW_MAX_PAYLOAD_BYTES, len - offset);
+        // min의 두 인자 타입을 맞춘다. ESPNOW_MAX_PAYLOAD_BYTES는 int 상수식이고
+        // len - offset은 size_t라, ESP32 코어 3.x가 쓰는 std::min은 템플릿 인자를
+        // 추론하지 못한다(Arduino의 min 매크로가 살아있던 시절엔 그냥 넘어갔다).
+        const size_t chunk =
+            (len == 0) ? 0
+                       : min(static_cast<size_t>(ESPNOW_MAX_PAYLOAD_BYTES), len - offset);
 
         frame[0] = outMsgId;
         frame[1] = static_cast<uint8_t>(i);
@@ -154,7 +159,7 @@ bool EspNowGateway::_sendFramed(const uint8_t* mac, uint8_t kind,
     return true;
 }
 
-bool EspNowGateway::sendExecute(const char* macText, const JsonArray& buttons,
+bool EspNowGateway::sendExecute(const char* macText, const JsonArrayConst& buttons,
                                 const char* sequenceId) {
     uint8_t mac[6];
     if (!parseMacText(macText, mac)) {
@@ -170,7 +175,7 @@ bool EspNowGateway::sendExecute(const char* macText, const JsonArray& buttons,
     out["rid"] = sequenceId;
     JsonArray arr = out["buttons"].to<JsonArray>();
     size_t buttonCount = 0;
-    for (JsonVariant v : buttons) {
+    for (JsonVariantConst v : buttons) {
         arr.add(v.as<const char*>());
         ++buttonCount;
     }

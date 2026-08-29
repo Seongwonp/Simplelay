@@ -388,7 +388,11 @@ bool EspNowTransport::_sendMessage(EspNowFrameKind kind, const uint8_t* payload,
     uint8_t frame[ESPNOW_MAX_FRAME_BYTES];
     for (size_t i = 0; i < fragCount; ++i) {
         const size_t offset = i * ESPNOW_MAX_PAYLOAD_BYTES;
-        const size_t chunk = min(ESPNOW_MAX_PAYLOAD_BYTES, len - offset);
+        // min의 두 인자 타입을 맞춘다. ESPNOW_MAX_PAYLOAD_BYTES는 int 상수식이고
+        // len - offset은 size_t라, ESP32 코어 3.x가 쓰는 std::min은 템플릿 인자를
+        // 추론하지 못한다(Arduino의 min 매크로가 살아있던 시절엔 그냥 넘어갔다).
+        const size_t chunk =
+            min(static_cast<size_t>(ESPNOW_MAX_PAYLOAD_BYTES), len - offset);
 
         frame[0] = outMsgId;
         frame[1] = static_cast<uint8_t>(i);

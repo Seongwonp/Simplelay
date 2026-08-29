@@ -64,7 +64,9 @@ public:
 
     // RPi5의 node_execute 처리. 전송까지만 하고 결과는 콜백으로 돌아온다.
     // 반환 false = 보내지도 못함(주소 오류·피어 등록 실패 등).
-    bool sendExecute(const char* macText, const JsonArray& buttons,
+    // JsonArrayConst인 이유: 호출부(onRpiMessage)가 받는 문서가 const라 거기서
+    // 가변 JsonArray를 꺼낼 수 없다. 어차피 읽기만 한다.
+    bool sendExecute(const char* macText, const JsonArrayConst& buttons,
                      const char* sequenceId);
 
     // RPi5의 node_stop 처리. 응답을 기다리지 않는다(정지는 best-effort).
