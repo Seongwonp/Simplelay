@@ -17,6 +17,11 @@ from .act_client_controller import (
 from .alert_store import DangerAlertState, DangerAlertStore
 from .controller_factory import build_controller
 from .esp_node_controller import EspNodeController, EspNodeError
+from .espnow_node_controller import (
+    EspNowGatewayError,
+    EspNowGatewayLink,
+    EspNowNodeController,
+)
 from .node_registry import NodeRegistry
 
 __all__ = [
@@ -32,6 +37,9 @@ __all__ = [
     "DangerAlertStore",
     "EspNodeController",
     "EspNodeError",
+    "EspNowGatewayError",
+    "EspNowGatewayLink",
+    "EspNowNodeController",
     "NodeRegistry",
     "build_controller",
     "open_uart_act_controller",
