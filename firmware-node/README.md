@@ -56,19 +56,37 @@ pio device monitor      # 시리얼 로그 (WiFi 연결 상태, execute 처리 �
 
 `config.h`의 `WIFI_SSID`/`WIFI_PASSWORD`를 실제 값으로 바꾼 뒤 빌드할 것.
 
+## 빌드
+
+PlatformIO Core로 컴파일한다. 보드가 없어도 `run`은 컴파일만 하므로 검증에 쓸 수 있다.
+
+```powershell
+# 설치 (한 번만). install.platformio.org는 DNS 레코드가 없어져 쓸 수 없다 -- PyPI로 받는다.
+# PlatformIO Core는 Python 3.14를 아직 지원하지 않으므로 3.11로 전용 venv를 만든다.
+py -3.11 -m venv "$env:USERPROFILE\.pio-venv"
+& "$env:USERPROFILE\.pio-venv\Scripts\pip.exe" install platformio
+
+# 빌드
+& "$env:USERPROFILE\.pio-venv\Scripts\pio.exe" run -d <이 디렉터리>
+```
+
 ## 검증 상태
 
-이 펌웨어는 아직 **실기기로 빌드/플래시/검증되지 않았음** — Arduino/ESP32 API
-지식을 바탕으로 작성했지만, PlatformIO 툴체인이 이 개발 환경에 없어서 컴파일
-자체를 확인 못 했다. 실제 ESP32 + RPi4를 붙여서 `pio run -t upload` 후
+**컴파일 검증됨** (2026-08-29, espressif32@7.0.1 = Arduino-ESP32 코어 3.x, 경고 0건).
+`ESPNOW_ENABLED`가 0이어도 런타임 분기라 `espnow_transport.cpp`는 함께 컴파일된다.
+
+**실기기 동작은 여전히 미검증.** 실제 ESP32 + RPi4를 붙여서 `pio run -t upload` 후
 `curl -X POST http://<노드IP>:8080/execute -d '{"buttons":["시작"]}'`로
 end-to-end 확인 필요.
 
+> 첫 컴파일에서 오류 2종이 나왔다(`min(int, size_t)` 타입 불일치, const 문서에서
+> 가변 `JsonArray` 추출). **둘 다 오늘 고친 부분이 아니라 원래 있던 것**이다 --
+> 정적 검사로는 안 잡히는 종류라, 컴파일 없이 리뷰만 반복한 대가였다.
+
 ESP-NOW 경로는 그 위에 확인할 것이 더 있다:
 
-- 수신 콜백 시그니처가 Arduino-ESP32 코어 3.x에서 바뀌었다(`mac` → `recv_info`).
-  양쪽 다 컴파일되게 `ESP_ARDUINO_VERSION_MAJOR`로 갈라뒀지만 **실제로 어느 코어로
-  빌드되는지 확인 필요** (`platformio.ini`가 플랫폼 버전을 고정하지 않았다)
+- 수신 콜백 시그니처는 코어 3.x의 `recv_info` 분기를 탄다(빌드로 확인). 2.x 분기는
+  `platformio.ini`가 플랫폼 버전을 고정하지 않아 남겨둔 보험이다
 - `ESPNOW_GATEWAY_MAC`을 실제 게이트웨이 MAC으로 채워야 한다(현재 전부 0). 게이트웨이
   부팅 로그의 `WiFi.macAddress()`로 확인
 - 양쪽 `ESPNOW_CHANNEL`이 같아야 한다 — 다르면 조용히 아무것도 안 온다
