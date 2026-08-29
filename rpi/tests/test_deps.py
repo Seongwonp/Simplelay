@@ -121,3 +121,82 @@ def test_rule_tier_alone_when_nothing_else_configured():
     from rpi.intent import RuleBasedIntentResolver
 
     assert isinstance(_build_intent_resolver(), RuleBasedIntentResolver)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 노드 전송 선택 — _node_controller_factory()
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class TestNodeTransportSelection:
+    """등록된 노드 주소를 어느 전송으로 부를지 고르는 부분.
+
+    이 배선이 없던 동안에는 펌웨어에서 ESP-NOW를 켜고 MAC을 등록해도 RPi5가 그
+    MAC을 HTTP base_url로 취급했다 — 신규 전송이 테스트에만 존재하고 프로덕션
+    요청은 지나가지 않는 상태였다(교차 리뷰 치명 지적).
+    """
+
+    def test_defaults_to_http(self, monkeypatch: pytest.MonkeyPatch):
+        from rpi.api.deps import NODE_TRANSPORT_ENV, _node_controller_factory
+        from rpi.services import EspNodeController
+
+        monkeypatch.delenv(NODE_TRANSPORT_ENV, raising=False)
+
+        assert _node_controller_factory() is EspNodeController
+
+    def test_espnow_mode_uses_gateway_link(self, monkeypatch: pytest.MonkeyPatch):
+        import rpi.api.deps as deps
+        from rpi.services.espnow_node_controller import (
+            EspNowGatewayLink,
+            EspNowNodeController,
+        )
+
+        class _FakePort:
+            def write(self, data: bytes) -> int:
+                return len(data)
+
+            def readline(self) -> bytes:
+                return b""
+
+        monkeypatch.setenv(deps.NODE_TRANSPORT_ENV, "espnow")
+        # 실제 시리얼 포트를 열지 않도록 링크만 갈아끼운다
+        monkeypatch.setattr(
+            deps, "_get_gateway_link", lambda: EspNowGatewayLink(_FakePort())
+        )
+
+        factory = deps._node_controller_factory()
+        controller = factory("AA:BB:CC:DD:EE:FF")
+
+        assert isinstance(controller, EspNowNodeController)
+
+    def test_unknown_transport_fails_loudly(self, monkeypatch: pytest.MonkeyPatch):
+        # 오타가 조용히 기본값으로 떨어지면 어느 전송으로 도는지 알 수 없다
+        from rpi.api.deps import NODE_TRANSPORT_ENV, _node_controller_factory
+
+        monkeypatch.setenv(NODE_TRANSPORT_ENV, "esp-now")  # 흔한 오타
+
+        with pytest.raises(RuntimeError, match="http 또는 espnow"):
+            _node_controller_factory()
+
+    def test_espnow_without_port_names_the_missing_variable(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        import rpi.api.deps as deps
+
+        monkeypatch.setenv(deps.NODE_TRANSPORT_ENV, "espnow")
+        monkeypatch.delenv(deps.GATEWAY_PORT_ENV, raising=False)
+        deps._get_gateway_link.cache_clear()
+
+        with pytest.raises(RuntimeError, match=deps.GATEWAY_PORT_ENV):
+            deps._node_controller_factory()
+
+    def test_registry_uses_the_selected_factory(self, monkeypatch: pytest.MonkeyPatch):
+        import rpi.api.deps as deps
+        from rpi.services import EspNodeController
+
+        monkeypatch.delenv(deps.NODE_TRANSPORT_ENV, raising=False)
+        deps.get_node_registry.cache_clear()
+
+        registry = deps.get_node_registry()
+
+        assert registry._controller_factory is EspNodeController
+        deps.get_node_registry.cache_clear()

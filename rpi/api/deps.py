@@ -23,7 +23,12 @@ from rpi.intent.patterns import PatternDetector
 from rpi.intent.ports import UsageLog
 from rpi.intent.suggestions import ProactiveSuggestionService
 from rpi.intent.tiered import TieredIntentResolver
-from rpi.services import DangerAlertStore, NodeRegistry, build_controller
+from rpi.services import (
+    DangerAlertStore,
+    EspNodeController,
+    NodeRegistry,
+    build_controller,
+)
 from rpi.services.demo_failure import DemoFailureState
 from rpi.services.history import InMemoryJobHistory, JobHistoryStore
 from rpi.services.persistence import SimpleLayDb, SqliteJobHistory, SqliteUsageLog
@@ -134,13 +139,81 @@ def get_alert_store() -> DangerAlertStore:
     return DangerAlertStore(_clock)
 
 
+NODE_TRANSPORT_ENV = "SIMPLELAY_NODE_TRANSPORT"
+GATEWAY_PORT_ENV = "SIMPLELAY_GATEWAY_PORT"
+GATEWAY_BAUD_ENV = "SIMPLELAY_GATEWAY_BAUD"
+DEFAULT_GATEWAY_BAUD = 115200
+
+# 게이트웨이 UART 읽기 타임아웃. **유한해야 한다** -- 무한 블로킹이면 응답이 끊긴
+# 순간 실행 대기 루프가 마감 시각을 확인하지 못해 영원히 붙잡힌다.
+GATEWAY_READ_TIMEOUT_SECONDS = 0.2
+
+
+@lru_cache(maxsize=1)
+def _get_gateway_link():
+    """ESP-NOW 게이트웨이(UART로 붙은 ESP32)와의 링크. 모든 노드가 하나를 공유한다.
+
+    pyserial은 기기에서만 필요하므로 여기서 늦게 import한다 -- 개발 PC에 없어도
+    HTTP 모드는 그대로 돌아야 한다.
+    """
+    from rpi.services.espnow_node_controller import EspNowGatewayLink
+
+    # 설정 누락을 라이브러리 부재보다 **먼저** 알린다 -- 둘 다 없을 때
+    # ModuleNotFoundError가 뜨면 정작 고쳐야 할 것이 가려진다.
+    port_path = os.environ.get(GATEWAY_PORT_ENV, "").strip()
+    if not port_path:
+        raise RuntimeError(
+            f"{NODE_TRANSPORT_ENV}=espnow 인데 {GATEWAY_PORT_ENV}가 없습니다 "
+            f"(예: /dev/ttyAMA0). 기기의 /etc/simplelay/environment에 추가하세요."
+        )
+
+    try:
+        import serial  # noqa: PLC0415 -- 기기 전용 의존성
+    except ModuleNotFoundError as exc:  # pragma: no cover - 기기에서만 발생
+        raise RuntimeError(
+            "ESP-NOW 전송에는 pyserial이 필요합니다: "
+            'pip install -e ".[gpio]" (기기에서만 설치)'
+        ) from exc
+
+    baud = int(os.environ.get(GATEWAY_BAUD_ENV, DEFAULT_GATEWAY_BAUD))
+    return EspNowGatewayLink(
+        serial.Serial(port_path, baud, timeout=GATEWAY_READ_TIMEOUT_SECONDS)
+    )
+
+
+def _node_controller_factory():
+    """등록된 노드 주소로 컨트롤러를 만드는 함수를 고른다.
+
+    전송을 **명시적으로** 고른다(자동 감지 없음). 주소 모양(URL이냐 MAC이냐)으로
+    추측하면 오타 하나가 조용히 다른 전송을 타게 되고, 시연장에서 "왜 안 되는지"를
+    좁힐 수 없다 -- SIMPLELAY_ACT_MODE·SIMPLELAY_LLM_MODE와 같은 원칙.
+
+    기본은 http. 이 배선이 없던 동안에는 펌웨어에서 ESP-NOW를 켜고 MAC을 등록해도
+    RPi5가 그 MAC을 HTTP 주소로 취급했다(교차 리뷰 치명 지적) -- 신규 경로가
+    프로덕션에는 존재하지 않는 상태였다.
+    """
+    mode = os.environ.get(NODE_TRANSPORT_ENV, "http").strip().lower()
+    if mode in {"", "http"}:
+        return EspNodeController
+    if mode == "espnow":
+        from rpi.services.espnow_node_controller import controller_factory
+
+        return controller_factory(_get_gateway_link())
+    raise RuntimeError(
+        f"{NODE_TRANSPORT_ENV}는 http 또는 espnow여야 합니다 (받은 값: {mode!r})"
+    )
+
+
 @lru_cache(maxsize=1)
 def get_node_registry() -> NodeRegistry:
     """가전별 원격 노드(다중 노드 아키텍처) 등록부 — 처음엔 비어있고,
     ``POST /nodes/{appliance_id}``로 채워진다. 여기 없는 appliance_id는
     (또는 아예 안 실린 요청은) 그냥 로컬 기본 컨트롤러로 실행된다.
-    SIMPLELAY_DB_PATH가 있으면 등록이 SQLite에 저장돼 재시작에도 유지된다."""
-    return NodeRegistry(store=get_db())
+    SIMPLELAY_DB_PATH가 있으면 등록이 SQLite에 저장돼 재시작에도 유지된다.
+
+    전송(HTTP/ESP-NOW)은 ``SIMPLELAY_NODE_TRANSPORT``로 고른다 —
+    등록되는 주소의 의미가 달라진다(HTTP는 URL, ESP-NOW는 MAC)."""
+    return NodeRegistry(store=get_db(), controller_factory=_node_controller_factory())
 
 
 @lru_cache(maxsize=1)

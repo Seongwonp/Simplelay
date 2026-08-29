@@ -126,9 +126,9 @@ static bool waitForActReply(const char* seqId, bool& outSuccess, int& outRetry,
     while (millis() - start < timeoutMs) {
         actUart.poll();
         pollStopServer();  // 실행 중에도 긴급 정지를 받는다 (STOP_PORT)
-        if (ESPNOW_ENABLED && espNowTransport.stopRequested()) {
-            // 수신 콜백이 세운 플래그 -- 폴링을 기다리지 않아 HTTP 경로보다 빠르다
-            espNowTransport.clearStopRequest();
+        if (ESPNOW_ENABLED && espNowTransport.takeStopRequest()) {
+            // 수신 콜백이 세운 플래그 -- 폴링을 기다리지 않아 HTTP 경로보다 빠르다.
+            // 가져가면서 지우므로 같은 요청으로 abort가 반복 발사되지 않는다.
             sendAbortToAct("ESP-NOW stop frame");
         }
         if (pendingHasReply) {

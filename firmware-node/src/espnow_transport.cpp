@@ -126,10 +126,10 @@ void EspNowTransport::poll() {
         _resetAssembly();
     }
 
-    if (_stopRequested && _onStop) {
+    // 가져가면서 지운다 -- 유휴 상태에서 정지 프레임 하나가 abort를 무한 반복시키던
+    // 문제(교차 리뷰 지적). 실행 대기 루프도 같은 함수를 쓰므로 소비는 항상 한 번이다.
+    if (takeStopRequest() && _onStop) {
         _onStop();
-        // 플래그는 실행 대기 루프도 보므로 여기서 지우지 않는다.
-        // 소비한 쪽이 clearStopRequest()를 부른다.
     }
 
     if (_messageReady) _dispatchReady();

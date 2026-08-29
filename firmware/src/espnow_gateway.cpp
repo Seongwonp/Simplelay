@@ -137,13 +137,28 @@ bool EspNowGateway::sendExecute(const char* macText, const JsonArray& buttons,
         log_e("execute payload did not fit");
         return false;
     }
-    if (!_sendFramed(mac, kKindExecute, body, len)) return false;
+    // 앞 실행이 아직 안 끝났으면 새로 받지 않는다. 받아버리면 앞 요청의 결과가
+    // 뒤 요청의 것으로 잘못 보고된다(RPi5는 한 번에 하나만 보내지만, 재시도나
+    // 지연 응답이 겹칠 수 있다).
+    if (_pending) {
+        log_w("execute rejected -- previous request %s still pending", _pendingSeqId);
+        return false;
+    }
 
+    // **전송보다 먼저** pending을 세운다. 반대 순서였을 때는, 노드가 아주 빨리
+    // (빈 버튼·잘못된 JSON 등으로 즉시) 응답하면 마지막 조각을 보내는 사이에
+    // 응답이 도착하고, 수신 콜백이 `_pending == false`를 보고 그것을 버렸다.
+    // 그러면 게이트웨이는 이미 온 답을 두고 타임아웃까지 기다렸다.
     _pending = true;
     strlcpy(_pendingSeqId, sequenceId, sizeof(_pendingSeqId));
     memcpy(_pendingMac, mac, 6);
     _pendingDeadlineMs = millis() + ESPNOW_GW_BASE_TIMEOUT_MS +
                          ESPNOW_GW_PER_BUTTON_TIMEOUT_MS * buttonCount;
+
+    if (!_sendFramed(mac, kKindExecute, body, len)) {
+        _pending = false;  // 보내지 못했으면 되돌린다
+        return false;
+    }
     return true;
 }
 

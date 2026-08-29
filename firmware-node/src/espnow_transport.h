@@ -45,10 +45,17 @@ public:
     void onAlerts(AlertsHandler cb) { _onAlerts = cb; }
     void onStop(StopHandler cb) { _onStop = cb; }
 
-    // 실행 대기 루프가 이걸 확인해 중간에 빠져나온다. 정지 프레임은 수신 콜백에서
-    // 곧바로 플래그를 세우므로, 실행이 진행 중이어도 즉시 반영된다.
-    bool stopRequested() const { return _stopRequested; }
-    void clearStopRequest() { _stopRequested = false; }
+    // 정지 요청을 **한 번만** 꺼내 간다(가져가면서 지운다).
+    //
+    // 이전에는 확인과 소거가 나뉘어 있었고 poll()이 소거하지 않아서, 실행 중이
+    // 아닐 때 정지 프레임이 한 번 오면 매 loop마다 abort를 계속 내보냈다 --
+    // UART를 포화시키고 다음 실행을 반복 중단시킬 수 있었다. 소비 지점이
+    // 둘(대기 루프·poll)이므로 "확인하면서 지우는" 하나의 연산으로 합친다.
+    bool takeStopRequest() {
+        const bool requested = _stopRequested;
+        _stopRequested = false;
+        return requested;
+    }
 
 private:
     ExecuteHandler _onExecute;

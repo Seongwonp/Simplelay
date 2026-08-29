@@ -25,6 +25,8 @@ gpio = [
     "adafruit-circuitpython-dht>=3.7",
     "gpiozero>=2",
     "lgpio>=0.2",
+    # ESP-NOW 게이트웨이(UART로 붙은 ESP32)와 통신 — SIMPLELAY_NODE_TRANSPORT=espnow
+    "pyserial>=3.5",
 ]
 
 [tool.poetry]

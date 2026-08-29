@@ -142,6 +142,15 @@ if [[ ! -f /etc/simplelay/environment ]]; then
 # 기동 시 유사도 계층에 규칙 예시(별칭 포함)를 넣는다. 저장소가 재부팅 후에도
 # 유지되는지 확인 전이라 기본 꺼짐 — 유지된다면 매번 켜면 중복이 쌓인다.
 #SIMPLELAY_VECTORDB_SEED=1
+#
+# ── 가전 노드 전송 (HTTP / ESP-NOW) ──────────────────────────────────────
+# 등록되는 노드 주소의 의미가 달라진다: http = URL, espnow = MAC.
+# 자동 감지는 하지 않는다 — 주소 모양으로 추측하면 오타 하나가 조용히 다른
+# 전송을 타서 시연장에서 원인을 못 좁힌다.
+# espnow로 켤 때는 게이트웨이 ESP32가 붙은 시리얼 포트도 함께 지정할 것.
+#SIMPLELAY_NODE_TRANSPORT=espnow
+#SIMPLELAY_GATEWAY_PORT=/dev/ttyAMA0
+#SIMPLELAY_GATEWAY_BAUD=115200
 ENVEOF
     ok "/etc/simplelay/environment 템플릿 생성 (ACT 모드·API 키는 여기서 확정)"
 else
