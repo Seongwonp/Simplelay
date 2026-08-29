@@ -36,3 +36,28 @@
 // ESP32 ADC full-scale (12-bit, 3.3 V reference)
 #define ADC_VREF            3.3f
 #define ADC_MAX_RAW        4095
+
+// ─── ESP-NOW 게이트웨이 (본선 데모 전송) ────────────────────────────────────
+// 이 보드는 폰 BLE 폴백 브릿지이면서 동시에 ESP-NOW 게이트웨이 역할을 겸한다.
+// RPi5는 ESP-NOW 라디오가 없어서 직접 쏠 수 없기 때문:
+//     RPi5 --UART--> (이 보드) --ESP-NOW--> 노드 ESP32 --UART--> RPi4
+// 겸용이라 BLE와 Wi-Fi 라디오를 함께 쓴다(ESP32 coexistence). 전용 보드로
+// 분리하려면 이 값만 0으로 두고 새 보드에서 1로 켜면 된다.
+#define ESPNOW_GATEWAY_ENABLED    0
+
+// 노드와 반드시 같아야 하는 값들 (firmware-node/include/config.h와 짝)
+#define ESPNOW_CHANNEL            1
+#define ESPNOW_FRAME_HEADER_BYTES 4
+#define ESPNOW_MAX_FRAME_BYTES    250
+#define ESPNOW_MAX_PAYLOAD_BYTES  (ESPNOW_MAX_FRAME_BYTES - ESPNOW_FRAME_HEADER_BYTES)
+#define ESPNOW_MAX_MESSAGE_BYTES  1280
+#define ESPNOW_REASSEMBLY_TIMEOUT_MS 3000
+
+// 동시에 등록해 둘 수 있는 노드 수 (가전 수)
+#define ESPNOW_MAX_PEERS          8
+
+// 응답 대기 상한. **계층마다 달라야 한다** — 아래쪽이 먼저 포기해야 위쪽이
+// 추측 대신 실제 오류를 받는다:
+//     노드(20s + 6s/버튼) < 게이트웨이(25s + 6s/버튼) < RPi5(30s + 6s/버튼)
+#define ESPNOW_GW_BASE_TIMEOUT_MS      25000
+#define ESPNOW_GW_PER_BUTTON_TIMEOUT_MS 6000
