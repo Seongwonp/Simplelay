@@ -38,8 +38,8 @@
 //
 // 수신 콜백은 **Wi-Fi 태스크**, poll()/_dispatchReady()는 **Arduino loop 태스크**에서
 // 돈다. ESP32는 듀얼코어라 둘이 다른 코어에서 동시에 실행될 수 있고, volatile 하나로는
-// 원자성도 메모리 순서도 얻지 못한다. 처리가 끝나야 Idle로 돌아가고 그 전까지 수신부는
-// 새 프레임을 버린다 -- ArduinoJson이 이 버퍼를 zero-copy로 참조하기 때문이다.
+// 원자성도 메모리 순서도 얻지 못한다. (버퍼 수명 때문은 아니다 -- ArduinoJson 7은
+// v6의 zero-copy를 없애고 문자열을 문서로 복사한다. 잘못 적었던 근거를 교정했다.)
 enum class RxState : uint8_t {
     Idle,
     Assembling,
@@ -101,7 +101,12 @@ private:
 
     // 방금 처리를 끝낸 메시지 -- 뒤늦은 조각이 새 재조립을 시작해 진짜 새 메시지를
     // 밀어내지 않게 한다(노드 쪽과 같은 규칙).
+    //
+    // **MAC까지 함께 기억해야 한다.** 노드마다 자기 송신 카운터를 1부터 시작하므로,
+    // msgId만 보면 노드 A의 첫 응답을 처리한 직후 노드 B의 첫 응답(역시 msgId=1)이
+    // "이미 처리한 것"으로 버려진다. 여러 노드를 쓰는 구성에서 바로 터진다.
     uint8_t _lastDoneMsgId = 0;
+    uint8_t _lastDoneMac[6] = {0};
     uint32_t _lastDoneMs = 0;
     bool _hasLastDone = false;
 

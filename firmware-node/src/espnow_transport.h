@@ -35,14 +35,14 @@
 // 실행될 수 있다. 예전에는 `volatile bool _messageReady` 하나로 이 경계를 표현했는데,
 // volatile은 원자성도 메모리 순서도 보장하지 않는다.
 //
-// 더 큰 문제는 소유 구간이었다. _dispatchReady()가 맨 앞에서 버퍼를 "비었다"고
-// 표시한 뒤 실행 핸들러를 부르는데, 그 핸들러는 RPi4 응답을 최대 수십 초 기다린다.
-// 그동안 수신부는 자유롭게 _buffer를 덮어썼고, ArduinoJson은 이 버퍼를 **zero-copy로
-// 참조**하므로(비-const 버퍼를 넘기면 문자열이 버퍼를 직접 가리킨다) 지금 누르고 있는
-// 버튼 라벨이 실행 도중에 바뀔 수 있었다.
+// 처리가 끝날 때까지 상태를 붙잡는 이유는 **버퍼 수명이 아니다**. ArduinoJson 7은
+// v6의 zero-copy를 없애고 문자열을 문서 안으로 복사하므로, 파싱만 끝나면 버퍼는
+// 자유롭다(v6 기준으로 잘못 적었던 근거를 교차 리뷰에서 지적받아 고쳤다).
 //
-// 그래서 "비었다/찼다"가 아니라 소유자를 상태로 명시한다. 처리가 끝나야 Idle로
-// 돌아가고, 그 전까지 수신부는 새 프레임을 버린다(어차피 한 번에 한 요청만 다룬다).
+// 진짜 이유는 **이미 늦은 요청을 실행하지 않기 위해서**다. 실행 핸들러는 RPi4 응답을
+// 최대 수십 초 기다리고, 그동안 새 요청을 받아 두면 위층이 이미 포기한 뒤에 그 요청이
+// 실행된다 -- 아무도 기다리지 않는 시점에 물리 버튼이 눌리는 것이 가장 나쁘다.
+// 그래서 처리 중에는 새 프레임을 버린다. 정지 프레임만 예외로 언제나 통과시킨다.
 enum class RxState : uint8_t {
     Idle,         // 수신부가 새 메시지를 시작할 수 있다
     Assembling,   // 수신부가 조각을 채우는 중
@@ -121,8 +121,10 @@ private:
     char _currentRid[48] = "";
 
     void _handleFrame(const uint8_t* data, int len);
-    void _dispatchReady();   // _dispatchMessage 후 버퍼를 수신부에 돌려준다
-    void _dispatchMessage();
+    // cancelled = 실행을 시작하기 전에 정지가 이미 도착했다. 실행하지 않고
+    // 취소로 답한다 -- 시작해버리면 그 정지는 영영 사라진다.
+    void _dispatchReady(bool cancelled);  // 처리 후 버퍼를 수신부에 돌려준다
+    void _dispatchMessage(bool cancelled);
     void _resetAssemblyLocked();  // 반드시 _mux를 쥔 채로 부를 것
     bool _sendMessage(EspNowFrameKind kind, const uint8_t* payload, size_t len);
     void _sendJson(JsonDocument& doc);  // rid를 찍어 보내므로 const 아님

@@ -241,6 +241,7 @@ void EspNowGateway::_handleFrame(const uint8_t* mac, const uint8_t* data, int le
         // 같은 msgId인데 조각 수가 다르다 = msgId 카운터가 한 바퀴 돈 옛 프레임
         drop = FrameDrop::Shape;
     } else if (_rxState == RxState::Idle && _hasLastDone && msgId == _lastDoneMsgId &&
+               memcmp(mac, _lastDoneMac, 6) == 0 &&
                (now - _lastDoneMs) < ESPNOW_REASSEMBLY_TIMEOUT_MS) {
         // 방금 끝낸 메시지의 뒤늦은 조각. 이걸로 새 재조립을 시작하면 진짜 새
         // 메시지가 "다른 msgId"로 밀려 버려진다 -- 위 규칙의 뒷면이다.
@@ -337,11 +338,12 @@ void EspNowGateway::poll() {
 void EspNowGateway::_dispatchReady() {
     _dispatchMessage();
 
-    // 처리가 끝난 뒤에야 버퍼를 수신부에 돌려준다 -- _dispatchMessage가 콜백에
-    // 넘기는 문자열(error 메시지 등)은 _buffer를 zero-copy로 가리킨다.
+    // 처리가 끝난 뒤에야 버퍼를 수신부에 돌려준다. 버퍼 수명 때문이 아니라
+    // (ArduinoJson 7은 문자열을 문서로 복사한다) 같은 요청을 한 번만 처리하기 위해서다.
     const uint32_t doneMs = millis();
     portENTER_CRITICAL(&_mux);
     _lastDoneMsgId = _msgId;
+    memcpy(_lastDoneMac, _pendingMac, 6);
     _lastDoneMs = doneMs;
     _hasLastDone = true;
     _resetAssemblyLocked();
@@ -365,8 +367,6 @@ void EspNowGateway::_failPending(const char* reason) {
 
 void EspNowGateway::_dispatchMessage() {
     JsonDocument in;
-    // zero-copy 파싱이다 -- in의 문자열은 _buffer를 그대로 가리킨다. 아래 콜백에
-    // 넘기는 error 문자열이 유효하려면 그때까지 버퍼가 살아 있어야 한다.
     const DeserializationError err = deserializeJson(in, _buffer, _readyLen);
 
     char seqId[sizeof(_pendingSeqId)];
@@ -383,12 +383,16 @@ void EspNowGateway::_dispatchMessage() {
 
     // 어느 요청의 답인지 확인한다. 다르면 버리되 대기는 유지한다 -- 진짜 답이
     // 아직 올 수 있고, 안 오면 마감이 알아서 실패로 끝낸다.
-    // rid가 빈 응답은 노드가 요청 JSON 자체를 못 읽은 경우뿐이다(그때는 되돌릴
-    // 식별자가 없다). 발신 MAC은 이미 _handleFrame에서 걸렀으므로 받아들인다.
+    //
+    // rid가 빈 응답(노드가 요청 JSON을 못 읽은 경우)도 **받지 않는다.** 한때는
+    // "되돌릴 식별자가 없으니 현재 요청의 것으로 보자"고 예외를 뒀는데, 그러면 포기한
+    // 요청 A의 늦은 파싱 오류가 지금 대기 중인 B의 실패로 둔갑하고 B의 진짜 응답은
+    // 그 뒤 NotPending으로 버려진다. 애초에 요청 JSON은 이 게이트웨이가 직접 만들어
+    // 보낸 것이라 정상 운용에서 파싱 실패가 나올 이유가 없다 -- 예외의 값어치보다
+    // 오귀속의 대가가 크다. 로그만 남기고 현재 요청의 마감을 기다린다.
     const char* rid = in["rid"] | "";
-    const bool unidentified = rid[0] == 0 && in["error"].is<const char*>();
-    if (!unidentified && strcmp(rid, seqId) != 0) {
-        log_w("dropping node response for %s while waiting on %s", rid, seqId);
+    if (strcmp(rid, seqId) != 0) {
+        log_w("dropping node response for '%s' while waiting on %s", rid, seqId);
         return;
     }
 

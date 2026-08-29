@@ -200,19 +200,26 @@ void EspNowTransport::poll() {
 
     // 가져가면서 지운다 -- 유휴 상태에서 정지 프레임 하나가 abort를 무한 반복시키던
     // 문제(교차 리뷰 지적). 실행 대기 루프도 같은 함수를 쓰므로 소비는 항상 한 번이다.
-    if (takeStopRequest() && _onStop) {
+    const bool stopped = takeStopRequest();
+    if (stopped && _onStop) {
         _onStop();
     }
 
-    if (ready) _dispatchReady();
+    // **정지를 소비했는데 곧바로 실행을 시작하면 그 정지는 사라진다.**
+    // 순서: 마지막 조각 도착으로 Ready -> 그 직후 정지 프레임 도착 -> 이 poll()이
+    // 정지를 꺼내 abort를 보냄 -> 그런데 RPi4는 아직 유휴라 abort를 무시 -> 이어서
+    // 실행이 시작됨. 화면은 정지인데 실물이 그때부터 눌리기 시작한다.
+    // 실행 도중에 오는 정지는 waitForActReply의 대기 루프가 잡으므로, 남은 구멍은
+    // 정확히 "승인 후 시작 전" 이 구간뿐이었다.
+    if (ready) _dispatchReady(stopped);
 }
 
-void EspNowTransport::_dispatchReady() {
-    _dispatchMessage();
+void EspNowTransport::_dispatchReady(bool cancelled) {
+    _dispatchMessage(cancelled);
 
-    // 처리가 **완전히 끝난 뒤에야** 버퍼를 수신부에 돌려준다. 실행 핸들러는 RPi4
-    // 응답을 최대 수십 초 기다리고, 그 사이 _buffer가 덮이면 ArduinoJson이 zero-copy로
-    // 참조하던 버튼 라벨이 실행 도중에 바뀐다.
+    // 처리가 **완전히 끝난 뒤에야** 버퍼를 수신부에 돌려준다. 버퍼 수명 때문이
+    // 아니라(ArduinoJson 7은 문자열을 문서로 복사한다), 실행 중에 들어온 요청을
+    // 나중에 꺼내 실행하지 않기 위해서다 -- 그때는 위층이 이미 포기한 뒤다.
     const uint32_t doneMs = millis();
     portENTER_CRITICAL(&_mux);
     _lastDoneMsgId = _msgId;
@@ -223,10 +230,8 @@ void EspNowTransport::_dispatchReady() {
     portEXIT_CRITICAL(&_mux);
 }
 
-void EspNowTransport::_dispatchMessage() {
+void EspNowTransport::_dispatchMessage(bool cancelled) {
     JsonDocument in;
-    // zero-copy 파싱이다 -- in의 문자열들은 _buffer를 그대로 가리킨다. 이 함수가
-    // 끝날 때까지 수신부가 _buffer를 못 건드리는 이유(_dispatchReady 주석 참고).
     const DeserializationError err = deserializeJson(in, _buffer, _readyLen);
 
     // 요청 식별자를 먼저 챙긴다 -- 오류 응답에도 실어야 게이트웨이가 상관지을 수 있다.
@@ -253,6 +258,16 @@ void EspNowTransport::_dispatchMessage() {
     }
 
     if (_readyKind != EspNowFrameKind::ExecuteRequest) return;
+
+    if (cancelled) {
+        // 승인과 시작 사이에 정지가 들어왔다. 시작하지 않고 확실한 답을 돌려준다 --
+        // 조용히 버리면 게이트웨이가 마감까지 기다리고 RPi5는 이유를 모른다.
+        JsonDocument stoppedOut;
+        stoppedOut["error"] = "stopped before execution";
+        _sendJson(stoppedOut);
+        log_w("execute cancelled -- stop arrived before the sequence started");
+        return;
+    }
 
     JsonArray buttons = in["buttons"].as<JsonArray>();
     JsonDocument out;
