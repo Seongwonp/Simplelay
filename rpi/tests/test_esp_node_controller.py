@@ -153,34 +153,135 @@ def test_node_504_also_requests_stop():
     assert len(stop_calls) == 1
 
 
-@pytest.mark.parametrize("status", [400, 500])
-def test_client_and_handler_errors_do_not_request_stop(status):
-    # 400/500은 실행이 시작되지 않은 경우 — 불필요한 정지를 보내지 않는다
-    stop_calls = []
+# ── 포기할 땐 정지 (교차 리뷰 #9) ───────────────────────────────────────────
+#
+# 규칙: **정지를 생략하는 경우는 "정지가 닿을 수 없는 경우" 하나뿐이다.**
+# 예전에는 400/500을 "실행이 시작되지 않았다"고 단정해 생략했는데, 그건 노드 펌웨어의
+# 현재 구현에 기댄 추론이었다. 아래 테스트들이 그 뒤집힌 규칙을 고정한다.
+
+
+def _stop_counting_handler(respond):
+    """/stop 호출을 세면서 나머지 요청은 respond(request)에 맡긴다."""
+    stop_calls: list[str] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/stop":
-            stop_calls.append(1)
+            stop_calls.append(str(request.url))
             return httpx.Response(200, json={"ok": True})
-        return httpx.Response(status, text="error")
+        return respond(request)
 
+    return handler, stop_calls
+
+
+@pytest.mark.parametrize("status", [400, 404, 500, 502, 504])
+def test_every_non_200_response_requests_stop(status):
+    # 어떤 상태 코드가 "실행 전에 거절됐다"는 뜻인지는 노드 펌웨어의 사정이다.
+    # 프록시나 그 주소의 다른 기기가 답했을 수도 있으므로 단정하지 않는다 —
+    # 불필요한 정지는 유휴 RPi4가 무시하지만, 빠뜨린 정지는 실물이 계속 눌린다.
+    handler, stop_calls = _stop_counting_handler(
+        lambda r: httpx.Response(status, text="error")
+    )
     controller = EspNodeController("http://node:8080", client=_client(handler))
 
-    with pytest.raises(EspNodeError):
+    with pytest.raises(EspNodeError, match=str(status)):
+        controller.execute(["시작"])
+
+    assert stop_calls == ["http://node:8081/stop"]
+
+
+@pytest.mark.parametrize(
+    "exc_factory",
+    [
+        lambda r: httpx.ConnectError("connection refused", request=r),
+        lambda r: httpx.ConnectTimeout("connect timed out", request=r),
+        lambda r: httpx.PoolTimeout("pool exhausted", request=r),
+    ],
+    ids=["connect-error", "connect-timeout", "pool-timeout"],
+)
+def test_connection_failures_skip_the_stop(exc_factory):
+    """연결이 성립하지 않았다면 정지도 닿지 못한다 — 보내봐야 시간만 버린다.
+
+    죽은 노드 하나가 실패마다 정지 타임아웃(2초)을 추가로 붙잡으면, 노드를 모두
+    도는 경로에서 그 지연이 곱해진다.
+    """
+    def respond(request):
+        raise exc_factory(request)
+
+    handler, stop_calls = _stop_counting_handler(respond)
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+
+    with pytest.raises(EspNodeError, match="could not reach"):
         controller.execute(["시작"])
 
     assert stop_calls == []
 
 
-def test_stop_failure_during_timeout_does_not_mask_the_timeout_error():
-    # 정지 전송까지 실패해도 호출자는 원래의 타임아웃 실패를 봐야 한다
+@pytest.mark.parametrize(
+    "exc_factory",
+    [
+        lambda r: httpx.ReadError("connection reset", request=r),
+        lambda r: httpx.WriteError("broken pipe", request=r),
+        lambda r: httpx.RemoteProtocolError("server disconnected", request=r),
+    ],
+    ids=["read-error", "write-error", "remote-protocol-error"],
+)
+def test_connection_lost_after_sending_requests_stop(exc_factory):
+    """요청을 보낸 뒤 끊긴 것은 타임아웃과 같은 상황이다 — 노드는 계속 누른다.
+
+    이 갈래가 예전에는 정지를 보내지 않았다. 시연장 Wi-Fi가 한 번 끊기기만 해도
+    "화면은 실패, 실물은 동작 중"이 그대로 재현된다.
+    """
+    def respond(request):
+        raise exc_factory(request)
+
+    handler, stop_calls = _stop_counting_handler(respond)
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+
+    with pytest.raises(EspNodeError, match="lost contact"):
+        controller.execute(["시작"])
+
+    assert stop_calls == ["http://node:8081/stop"]
+
+
+def test_stop_failure_does_not_mask_the_original_error():
+    # 정지 전송까지 실패해도 호출자는 원래의 실패(타임아웃)를 봐야 한다.
+    # 정지 경로가 예외를 던지면 그것이 원인을 덮어써서 진단이 어려워진다.
     def handler(request: httpx.Request) -> httpx.Response:
-        raise httpx.ConnectError("node down", request=request)
+        if request.url.path == "/stop":
+            raise httpx.ConnectError("stop port unreachable", request=request)
+        raise httpx.ReadTimeout("timed out", request=request)
 
     controller = EspNodeController("http://node:8080", client=_client(handler))
 
-    with pytest.raises(EspNodeError, match="could not reach"):
+    with pytest.raises(EspNodeError, match="did not respond within"):
         controller.execute(["시작"])
+
+
+def test_200_with_a_non_json_body_raises_without_requesting_stop():
+    # 펌웨어는 실행 핸들러가 반환한 뒤에만 200을 보낸다 → 이미 끝난 실행이다.
+    # 본문이 깨졌다고 정지를 보낼 이유가 없다(멀쩡한 다음 실행을 건드릴 뿐).
+    handler, stop_calls = _stop_counting_handler(
+        lambda r: httpx.Response(200, text="<html>captive portal</html>")
+    )
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+
+    with pytest.raises(EspNodeError, match="not JSON"):
+        controller.execute(["시작"])
+
+    assert stop_calls == []
+
+
+def test_200_with_a_non_object_body_raises_clearly():
+    # body.get(...)이 AttributeError로 터지면 원인이 전송 문제로 보인다
+    handler, stop_calls = _stop_counting_handler(
+        lambda r: httpx.Response(200, json=[1, 2, 3])
+    )
+    controller = EspNodeController("http://node:8080", client=_client(handler))
+
+    with pytest.raises(EspNodeError, match="non-object body"):
+        controller.execute(["시작"])
+
+    assert stop_calls == []
 
 
 def test_request_stop_posts_to_stop_port():

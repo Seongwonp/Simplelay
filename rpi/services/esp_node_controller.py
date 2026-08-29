@@ -41,6 +41,26 @@ STOP_REQUEST_TIMEOUT_SECONDS = 2.0
 EXECUTE_BASE_TIMEOUT_SECONDS = 30.0
 EXECUTE_PER_BUTTON_SECONDS = 6.0
 
+# 정지를 **생략해도 되는 유일한 경우**: 연결 자체가 성립하지 않은 예외들.
+#
+# 규칙을 이렇게 뒤집은 이유. 예전에는 "400/500은 실행이 시작되지 않았으니 정지가
+# 불필요하다"고 판단했는데, 그건 노드 펌웨어가 지금 그렇게 짜여 있다는 것에 기댄
+# 추론이다. 중간에 낀 프록시나 그 주소의 다른 기기가 답했다면, 혹은 펌웨어가 나중에
+# 바뀌면 성립하지 않는다. 반면 연결이 못 이뤄졌다는 것은 우리 쪽에서 관측한 사실이고,
+# 여기엔 자기충족적인 근거가 있다 -- **요청이 닿지 못했다면 정지도 닿지 못한다.**
+# 죽은 노드에 정지를 쏘느라 실패마다 몇 초를 더 붙잡을 이유도 없다.
+#
+# 나머지는 전부 정지를 보낸다. 틀렸을 때의 대가가 비대칭이기 때문이다: 불필요한
+# 정지는 유휴 RPi4가 무시하고 끝나지만(act_executor "abort received while idle"),
+# 빠뜨린 정지는 화면이 실패라고 말하는 동안 실물이 계속 눌리는 상태로 남는다.
+_UNDELIVERABLE = (
+    httpx.ConnectError,      # TCP 연결 실패
+    httpx.ConnectTimeout,    # 연결 수립 중 시간 초과
+    httpx.PoolTimeout,       # 커넥션 풀에서 나가지도 못함
+    httpx.UnsupportedProtocol,
+    httpx.InvalidURL,        # HTTPError가 아니라 별도 계층이다
+)
+
 
 class EspNodeError(RuntimeError):
     """Raised when a node is unreachable or reports a non-2xx response."""
@@ -75,41 +95,68 @@ class EspNodeController:
     def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult:
         """버튼 시퀀스를 노드에 넘기고 완료를 기다린다.
 
-        포기할 때는 반드시 정지도 요청한다. 고정 10초 타임아웃이던 시절에는
-        RPi5가 실패로 보고한 뒤에도 노드와 RPi4가 최대 30초 동안 계속 버튼을
-        눌렀다 — 화면은 '실패'인데 실물은 동작 중인 상태(교차 리뷰 치명).
+        **포기할 때는 정지도 요청한다.** 고정 10초 타임아웃이던 시절에는 RPi5가
+        실패로 보고한 뒤에도 노드와 RPi4가 최대 30초 동안 계속 버튼을 눌렀다 —
+        화면은 '실패'인데 실물은 동작 중인 상태(교차 리뷰 치명).
+
+        정지를 생략하는 경우는 ``_UNDELIVERABLE`` 하나뿐이다(그쪽 주석 참고).
         """
         buttons = list(buttons)
+        timeout = self.timeout_for(len(buttons))
         try:
             response = self._client.post(
                 f"{self._base_url}/execute",
                 json={"buttons": buttons},
-                timeout=self.timeout_for(len(buttons)),
+                timeout=timeout,
             )
-        except httpx.TimeoutException as exc:
-            # 응답만 못 받았을 뿐, 노드는 아직 실행 중일 수 있다 → 정지 요청
-            self.request_stop()
-            raise EspNodeError(
-                f"node at {self._base_url} did not respond within "
-                f"{self.timeout_for(len(buttons))}s (stop requested): {exc}"
-            ) from exc
-        except httpx.HTTPError as exc:
+        except _UNDELIVERABLE as exc:
+            # 연결이 성립하지 않았다 → 실행이 시작됐을 리 없고, 시작됐더라도 같은
+            # 이유로 정지 역시 닿지 못한다. 정지를 생략하는 유일한 갈래.
             raise EspNodeError(
                 f"could not reach node at {self._base_url}: {exc}"
             ) from exc
+        except httpx.TimeoutException as exc:
+            # 요청은 나갔고 응답만 못 받았다 — 노드는 아직 실행 중일 수 있다
+            self.request_stop()
+            raise EspNodeError(
+                f"node at {self._base_url} did not respond within "
+                f"{timeout}s (stop requested): {exc}"
+            ) from exc
+        except httpx.HTTPError as exc:
+            # 요청을 보낸 뒤 연결이 끊겼다(ReadError·RemoteProtocolError 등).
+            # 예전에는 이 갈래가 정지를 보내지 않아, 시연장 Wi-Fi가 한 번 끊기면
+            # 타임아웃과 **똑같은 상황인데도** 실물만 계속 눌리고 있었다.
+            self.request_stop()
+            raise EspNodeError(
+                f"lost contact with node at {self._base_url} after the request "
+                f"was sent (stop requested): {exc}"
+            ) from exc
 
         if response.status_code != 200:
-            # 504 = 노드가 RPi4 응답을 못 받고 포기한 것 — RPi4는 여전히
-            # 누르고 있을 수 있다. 400/500(요청·핸들러 오류)은 실행 자체가
-            # 시작되지 않았으므로 정지가 불필요하다.
-            if response.status_code == 504:
-                self.request_stop()
+            # 200이 아닌 모든 응답에 정지를 보낸다 -- 어떤 상태 코드가 "실행 전에
+            # 거절됐다"는 뜻인지는 노드 펌웨어의 사정이고, 그 가정이 틀렸을 때
+            # 치르는 대가가 한쪽으로 크게 기울어 있다(_UNDELIVERABLE 주석 참고).
+            self.request_stop()
             raise EspNodeError(
-                f"node at {self._base_url} returned {response.status_code}: "
-                f"{response.text}"
+                f"node at {self._base_url} returned {response.status_code} "
+                f"(stop requested): {response.text}"
             )
 
-        body = response.json()
+        # 200을 받았다면 노드는 실행을 끝내고 답한 것이다(펌웨어는 핸들러가 반환한
+        # 뒤에만 200을 보낸다) → 본문이 이상해도 정지는 필요 없다.
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise EspNodeError(
+                f"node at {self._base_url} returned 200 with a body that is not "
+                f"JSON: {response.text!r}"
+            ) from exc
+        if not isinstance(body, dict):
+            raise EspNodeError(
+                f"node at {self._base_url} returned 200 with a non-object body: "
+                f"{body!r}"
+            )
+
         success = bool(body.get("success", False))
         retry = int(body.get("retry", 0))
         return synthesize_execution_result(buttons, success, retry)
