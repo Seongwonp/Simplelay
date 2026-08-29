@@ -3,8 +3,7 @@
 왜 게이트웨이가 끼는가: ESP-NOW는 ESP32 라디오끼리만 통한다. RPi5에는 그 라디오가
 없으므로 UART로 붙은 ESP32가 대신 쏴준다. 게이트웨이 역할은 기존 폰 BLE 폴백
 브릿지 ESP32가 겸한다(팀 결정) -- 전용 보드를 추가하지 않는 대신, **같은 UART에
-BLE 브릿지 트래픽이 함께 흐른다**. 그래서 이 링크는 자기 것이 아닌 줄을 조용히
-건너뛴다.
+BLE 브릿지 트래픽이 함께 흐른다**.
 
     RPi5 --UART--> 게이트웨이 ESP32 --ESP-NOW--> 노드 ESP32 --UART--> RPi4
 
@@ -15,6 +14,12 @@ HTTP 경로(esp_node_controller.py)와 같은 ButtonSequenceController 계약을
 
 연결은 pyserial에 묶지 않고 덕타이핑으로 주입받는다(act_client.py와 같은 방식) --
 테스트에서 가짜 포트를 넣을 수 있고, 프로덕션에서는 serial.Serial을 그대로 넘긴다.
+
+**포트는 리더 스레드 하나가 소유한다.** 처음에는 실행 대기 루프가 포트를 직접 읽고
+자기 것이 아닌 줄을 건너뛰었는데, 그건 "무시"가 아니라 **소비하고 버리는** 것이었다.
+같은 UART에 흐르는 BLE 브릿지 트래픽(제안·결과·센서)이 실행 대기 중에 도착하면 그대로
+사라졌다. 지금은 리더가 모든 줄을 읽어 종류에 따라 나눠 주고, 임자 없는 줄은 버리는
+대신 콜백으로 넘긴다.
 """
 
 from __future__ import annotations
@@ -23,7 +28,7 @@ import json
 import logging
 import re
 import threading
-import time
+from collections.abc import Callable
 from typing import Protocol
 
 from rpi.controller import ExecutionResult
@@ -38,7 +43,14 @@ log = logging.getLogger(__name__)
 
 STOP_REQUEST_TIMEOUT_SECONDS = 2.0
 
+# 포트가 즉시 b""를 돌려주는 구현(테스트용 가짜 등)에서 리더가 CPU를 태우지 않게 하는
+# 최소 간격. 실제 pyserial은 자체 read timeout으로 알아서 쉬므로 영향이 없다.
+_IDLE_SLEEP_SECONDS = 0.002
+
 _MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+
+# 이 링크가 처리하는 줄 종류. 나머지는 전부 임자 없는 줄로 넘긴다.
+_RESULT_TYPES = frozenset({"node_result", "node_error"})
 
 
 class EspNowGatewayError(RuntimeError):
@@ -64,29 +76,107 @@ class SerialLike(Protocol):
     def readline(self) -> bytes: ...
 
 
+def _parse_line(raw: bytes) -> dict | None:
+    try:
+        doc = json.loads(raw.decode("utf-8").strip())
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return None  # 깨진 줄이거나 JSON이 아닌 트래픽
+    return doc if isinstance(doc, dict) else None
+
+
+class _Waiter:
+    """실행 한 건이 응답을 기다리는 자리. 리더 스레드가 채우고 실행 스레드가 읽는다."""
+
+    __slots__ = ("done", "success", "retry", "error")
+
+    def __init__(self) -> None:
+        self.done = threading.Event()
+        self.success = False
+        self.retry = 0
+        self.error: str | None = None
+
+
 class EspNowGatewayLink:
     """게이트웨이 UART 하나를 여러 노드 컨트롤러가 공유한다.
 
-    **락을 두 개로 나눈다.** 처음엔 하나로 묶었는데, 그러면 `execute()`가 응답을
-    기다리는 내내 락을 쥐고 있어서 `request_stop()`이 그 뒤에 줄을 선다 --
-    즉 **실행 중에는 정지가 나가지 않고**, 실행이 끝나거나 타임아웃된 뒤에야
-    전송된다. 화면은 정지됐다고 돌아오는데 실물은 계속 누르는 상태로, 이
-    프로젝트에서 가장 위험한 실패 모드다(교차 리뷰 치명 지적).
+    **리더 스레드가 포트를 단독으로 읽는다.** 읽은 줄은 sequence_id로 대기 중인
+    실행에게 전달하고, 임자가 없으면 ``on_unclaimed_line``으로 넘긴다(기본은 디버그
+    로그). 실행 대기 루프가 포트를 직접 읽던 이전 구조는 남의 줄을 소비해 없애버렸다.
 
-    - ``_write_lock``: 한 줄을 쓰는 동안만 잡는다. 아주 짧고, 실행·정지가 공유한다.
-    - ``_exec_lock``: 실행 한 건의 송신~응답 대기를 직렬화한다(포트 읽기 소유권).
-      정지는 **이 락을 건드리지 않는다.**
+    쓰기는 ``_write_lock``으로 직렬화한다. **실행 대기는 락을 잡지 않는다** --
+    한때 실행이 응답 대기 내내 락을 쥐고 있어서 정지가 그 뒤에 줄을 섰고, 실행 중에는
+    정지가 아예 나가지 않았다(화면은 정지, 실물은 계속 동작). 지금은 대기가
+    ``threading.Event``라 어떤 락도 붙잡지 않는다.
     """
 
-    def __init__(self, port: SerialLike) -> None:
+    def __init__(
+        self,
+        port: SerialLike,
+        on_unclaimed_line: Callable[[dict], None] | None = None,
+    ) -> None:
         self._port = port
+        self._on_unclaimed = on_unclaimed_line
         self._write_lock = threading.Lock()
-        self._exec_lock = threading.Lock()
+        self._waiters_lock = threading.Lock()
+        self._waiters: dict[str, _Waiter] = {}
         self._seq = 0
+        self._closed = threading.Event()
+        self._reader = threading.Thread(
+            target=self._read_loop, name="espnow-gateway-reader", daemon=True
+        )
+        self._reader.start()
+
+    # ── 수신 ──────────────────────────────────────────────────────────────
+
+    def _read_loop(self) -> None:
+        while not self._closed.is_set():
+            try:
+                raw = self._port.readline()
+            except Exception:  # noqa: BLE001 -- 포트가 끊겨도 스레드는 조용히 끝난다
+                log.exception("게이트웨이 포트 읽기 실패 — 리더 종료")
+                return
+            if not raw:
+                # 포트 자체 read 타임아웃. 종료 신호를 확인할 겸 잠깐 쉰다.
+                self._closed.wait(_IDLE_SLEEP_SECONDS)
+                continue
+            doc = _parse_line(raw)
+            if doc is None:
+                continue
+            self._route(doc)
+
+    def _route(self, doc: dict) -> None:
+        kind = doc.get("type")
+        sequence_id = doc.get("sequence_id")
+        if kind in _RESULT_TYPES and isinstance(sequence_id, str):
+            with self._waiters_lock:
+                waiter = self._waiters.get(sequence_id)
+            if waiter is not None:
+                if kind == "node_error":
+                    waiter.error = str(doc.get("error", "unknown"))
+                else:
+                    waiter.success = bool(doc.get("success", False))
+                    waiter.retry = int(doc.get("retry", 0))
+                waiter.done.set()
+                return
+            # 이미 포기한 실행의 늦은 응답 — 버리되 조용히는 아니다
+            log.info("임자 없는 노드 응답(늦은 도착?): %s", sequence_id)
+            return
+
+        # BLE 브릿지 트래픽 등 우리 것이 아닌 줄. 이전에는 여기서 사라졌다.
+        if self._on_unclaimed is not None:
+            try:
+                self._on_unclaimed(doc)
+            except Exception:  # noqa: BLE001 -- 남의 줄 처리가 전송을 죽이면 안 된다
+                log.exception("임자 없는 줄 처리 중 오류")
+        else:
+            log.debug("게이트웨이 UART의 다른 트래픽: %s", kind)
+
+    # ── 송신 ──────────────────────────────────────────────────────────────
 
     def _next_sequence_id(self) -> str:
-        self._seq += 1
-        return f"gw-{self._seq}"
+        with self._waiters_lock:
+            self._seq += 1
+            return f"gw-{self._seq}"
 
     def _send(self, message: dict) -> None:
         """한 줄을 원자적으로 쓴다 -- 실행 대기 중 정지가 끼어들어도 줄이 섞이지 않는다."""
@@ -98,8 +188,11 @@ class EspNowGatewayLink:
         self, mac: str, buttons: list[str], timeout: float
     ) -> tuple[bool, int]:
         """노드에 버튼 시퀀스를 보내고 결과를 기다린다. (success, retry) 반환."""
-        with self._exec_lock:
-            sequence_id = self._next_sequence_id()
+        sequence_id = self._next_sequence_id()
+        waiter = _Waiter()
+        with self._waiters_lock:
+            self._waiters[sequence_id] = waiter
+        try:
             self._send(
                 {
                     "type": "node_execute",
@@ -108,39 +201,23 @@ class EspNowGatewayLink:
                     "buttons": list(buttons),
                 }
             )
-            return self._await_result(sequence_id, mac, timeout)
-
-    def _await_result(
-        self, sequence_id: str, mac: str, timeout: float
-    ) -> tuple[bool, int]:
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            raw = self._port.readline()
-            if not raw:
-                continue  # 포트 자체 read 타임아웃 -- 마감까지는 계속 기다린다
-            doc = _parse_line(raw)
-            if doc is None:
-                continue
-            # 이 UART에는 BLE 브릿지 트래픽도 흐른다. 우리 것이 아니면 넘긴다.
-            if doc.get("sequence_id") != sequence_id:
-                continue
-
-            kind = doc.get("type")
-            if kind == "node_result":
-                return bool(doc.get("success", False)), int(doc.get("retry", 0))
-            if kind == "node_error":
+            if not waiter.done.wait(timeout):
                 raise EspNowGatewayError(
-                    f"게이트웨이가 노드 {mac} 오류를 보고: {doc.get('error')}"
+                    f"노드 {mac}가 {timeout:.0f}초 안에 응답하지 않았습니다"
                 )
-
-        raise EspNowGatewayError(
-            f"노드 {mac}가 {timeout:.0f}초 안에 응답하지 않았습니다"
-        )
+            if waiter.error is not None:
+                raise EspNowGatewayError(
+                    f"게이트웨이가 노드 {mac} 오류를 보고: {waiter.error}"
+                )
+            return waiter.success, waiter.retry
+        finally:
+            with self._waiters_lock:
+                self._waiters.pop(sequence_id, None)
 
     def request_stop(self, mac: str) -> None:
         """정지 요청.
 
-        **실행 락을 거치지 않는다** -- 정지가 가장 필요한 순간이 바로 실행 중이기
+        **어떤 대기도 거치지 않는다** -- 정지가 가장 필요한 순간이 바로 실행 중이기
         때문이다. 쓰기 락만 잠깐 잡으므로 실행이 응답을 기다리는 중에도 즉시 나간다.
 
         예외는 삼킨다: 정지 경로에서 던지면 여러 노드 브로드캐스트가 첫 실패에서
@@ -151,13 +228,10 @@ class EspNowGatewayLink:
         except Exception as exc:  # noqa: BLE001 -- 정지는 best-effort
             log.error("노드 %s 정지 요청 실패: %s", mac, exc)
 
-
-def _parse_line(raw: bytes) -> dict | None:
-    try:
-        doc = json.loads(raw.decode("utf-8").strip())
-    except (UnicodeDecodeError, json.JSONDecodeError):
-        return None  # 브릿지의 다른 트래픽이거나 깨진 줄
-    return doc if isinstance(doc, dict) else None
+    def close(self) -> None:
+        """리더 스레드를 멈춘다. 포트 자체는 만든 쪽이 닫는다."""
+        self._closed.set()
+        self._reader.join(timeout=2.0)
 
 
 class EspNowNodeController:

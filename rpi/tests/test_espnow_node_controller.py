@@ -1,7 +1,11 @@
 """ESP-NOW 노드 컨트롤러 -- 게이트웨이 UART를 가짜 포트로 대신해 검증한다.
 
-실기기 없이 확인할 수 있는 것: 프로토콜 모양, 시퀀스 대조, BLE 브릿지 트래픽
-무시, 타임아웃 시 정지 전송, 실패 결과 합성.
+실기기 없이 확인할 수 있는 것: 프로토콜 모양, 시퀀스 대조, 공유 UART의 다른 트래픽
+처리, 실행 중 정지, 타임아웃 시 정지 전송, 실패 결과 합성.
+
+가짜 포트는 **요청을 받고 나서** 응답을 내놓는다. 링크가 리더 스레드로 포트를 읽기
+때문에 응답을 미리 넣어두면 실행이 대기자를 등록하기도 전에 읽혀 버린다 -- 실제
+게이트웨이도 요청을 받아야 답하므로 이쪽이 실제 동작에 더 가깝다.
 """
 
 from __future__ import annotations
@@ -24,41 +28,89 @@ from rpi.services.espnow_node_controller import (
 
 _MAC = "AA:BB:CC:DD:EE:FF"
 
+# 타임아웃을 실제로 기다려야 하는 테스트용 짧은 값 (기본값은 30초 + 6초/버튼)
+_FAST = {"base_timeout_seconds": 0.4, "per_button_timeout_seconds": 0.0}
+
 
 class FakePort:
-    """게이트웨이 UART 대역. 보낸 줄을 기록하고 미리 넣어둔 줄을 돌려준다."""
+    """게이트웨이 UART 대역.
 
-    def __init__(self, replies: list[str] | None = None) -> None:
+    보낸 줄을 기록하고, ``reply_to_execute``가 설정돼 있으면 node_execute를 받는
+    즉시 그 응답을 큐에 넣는다(요청의 sequence_id를 자동으로 채워서).
+    """
+
+    def __init__(self) -> None:
         self.written: list[dict] = []
-        self._replies = list(replies or [])
+        self.reply_to_execute: dict | None = None
+        self.extra_traffic: list[dict | str] = []  # 응답 앞에 섞어 보낼 남의 줄
+        self._replies: list[bytes] = []
+        self._lock = threading.Lock()
 
+    # ── 링크가 쓰는 쪽 ──
     def write(self, data: bytes) -> int:
         for line in data.decode("utf-8").splitlines():
-            if line.strip():
-                self.written.append(json.loads(line))
+            if not line.strip():
+                continue
+            doc = json.loads(line)
+            self.written.append(doc)
+            if doc.get("type") == "node_execute" and self.reply_to_execute is not None:
+                self.queue_response_for(doc["sequence_id"])
         return len(data)
 
     def readline(self) -> bytes:
-        if not self._replies:
-            return b""  # 포트 read 타임아웃과 같은 상태
-        return (self._replies.pop(0) + "\n").encode("utf-8")
+        with self._lock:
+            if self._replies:
+                return self._replies.pop(0)
+        time.sleep(0.001)  # 실제 포트의 read 타임아웃 대역
+        return b""
 
-    def queue(self, doc: dict) -> None:
-        self._replies.append(json.dumps(doc, ensure_ascii=False))
+    # ── 테스트가 쓰는 쪽 ──
+    def queue_response_for(self, sequence_id: str) -> None:
+        lines: list[bytes] = []
+        for item in self.extra_traffic:
+            raw = item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)
+            lines.append((raw + "\n").encode("utf-8"))
+        reply = dict(self.reply_to_execute or {})
+        reply.setdefault("sequence_id", sequence_id)
+        lines.append((json.dumps(reply, ensure_ascii=False) + "\n").encode("utf-8"))
+        with self._lock:
+            self._replies.extend(lines)
 
-    def queue_raw(self, line: str) -> None:
-        self._replies.append(line)
+    def queue_raw(self, doc: dict) -> None:
+        with self._lock:
+            self._replies.append(
+                (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
+            )
 
     def sent_types(self) -> list[str]:
         return [m.get("type") for m in self.written]
 
+    def wait_for_sent(self, kind: str, timeout: float = 1.0) -> None:
+        deadline = time.monotonic() + timeout
+        while kind not in self.sent_types():
+            assert time.monotonic() < deadline, f"{kind}가 전송되지 않았다"
+            time.sleep(0.005)
 
-def _link_and_port(*, auto_reply: bool = True) -> tuple[EspNowGatewayLink, FakePort]:
-    port = FakePort()
-    link = EspNowGatewayLink(port)
-    if auto_reply:
-        port.queue({"type": "node_result", "sequence_id": "gw-1", "success": True, "retry": 0})
-    return link, port
+
+@pytest.fixture
+def port() -> FakePort:
+    return FakePort()
+
+
+@pytest.fixture
+def link(port: FakePort):
+    made = EspNowGatewayLink(port)
+    yield made
+    made.close()
+
+
+@pytest.fixture
+def ok_link(port: FakePort):
+    """성공 응답을 돌려주는 링크."""
+    port.reply_to_execute = {"type": "node_result", "success": True, "retry": 0}
+    made = EspNowGatewayLink(port)
+    yield made
+    made.close()
 
 
 class TestNormalizeMac:
@@ -73,26 +125,22 @@ class TestNormalizeMac:
     )
     def test_rejects_bad_format(self, bad: str):
         # HTTP 모드의 base_url 자리를 그대로 쓰므로 형식 검증이 없으면
-        # 실행 트래픽이 조용히 사라진다
+        # 실행 트래픽이 엉뚱한 곳으로 가거나 조용히 사라진다
         with pytest.raises(ValueError):
             normalize_mac(bad)
 
 
 class TestExecute:
-    def test_sends_execute_with_mac_and_buttons(self):
-        link, port = _link_and_port()
-
-        EspNowNodeController(_MAC, link).execute(["해동", "시작"])
+    def test_sends_execute_with_mac_and_buttons(self, port: FakePort, ok_link):
+        EspNowNodeController(_MAC, ok_link, **_FAST).execute(["해동", "시작"])
 
         sent = port.written[0]
         assert sent["type"] == "node_execute"
         assert sent["mac"] == _MAC
         assert sent["buttons"] == ["해동", "시작"]
 
-    def test_success_result_marks_every_button_succeeded(self):
-        link, _ = _link_and_port()
-
-        result = EspNowNodeController(_MAC, link).execute(["해동", "시작"])
+    def test_success_result_marks_every_button_succeeded(self, ok_link):
+        result = EspNowNodeController(_MAC, ok_link, **_FAST).execute(["해동", "시작"])
 
         assert result.status is ExecutionStatus.SUCCEEDED
         assert [b.status for b in result.buttons] == [
@@ -100,65 +148,111 @@ class TestExecute:
             ButtonStatus.SUCCEEDED,
         ]
 
-    def test_failure_result_marks_last_button_failed_with_attempts(self):
-        port = FakePort()
-        port.queue({"type": "node_result", "sequence_id": "gw-1", "success": False, "retry": 2})
-
-        result = EspNowNodeController(_MAC, EspNowGatewayLink(port)).execute(["해동", "시작"])
+    def test_failure_result_marks_last_button_failed_with_attempts(
+        self, port: FakePort
+    ):
+        port.reply_to_execute = {"type": "node_result", "success": False, "retry": 2}
+        made = EspNowGatewayLink(port)
+        try:
+            result = EspNowNodeController(_MAC, made, **_FAST).execute(["해동", "시작"])
+        finally:
+            made.close()
 
         assert result.status is ExecutionStatus.SAFETY_STOPPED
         assert result.buttons[-1].status is ButtonStatus.FAILED
         assert result.buttons[-1].attempts == 3
 
-    def test_ignores_ble_bridge_traffic_on_the_shared_uart(self):
+    def test_other_traffic_on_the_shared_uart_does_not_break_the_result(
+        self, port: FakePort
+    ):
         # 게이트웨이는 BLE 브릿지 역할을 겸하므로 같은 UART에 남의 줄이 섞인다
-        port = FakePort()
-        port.queue({"type": "suggestion", "label": "우유 데우기"})
-        port.queue_raw("not json at all")
-        port.queue({"type": "node_result", "sequence_id": "gw-99", "success": False, "retry": 9})
-        port.queue({"type": "node_result", "sequence_id": "gw-1", "success": True, "retry": 0})
-
-        result = EspNowNodeController(_MAC, EspNowGatewayLink(port)).execute(["시작"])
+        port.extra_traffic = [
+            {"type": "suggestion", "label": "우유 데우기"},
+            "not json at all",
+            {"type": "node_result", "sequence_id": "gw-999", "success": False, "retry": 9},
+        ]
+        port.reply_to_execute = {"type": "node_result", "success": True, "retry": 0}
+        made = EspNowGatewayLink(port)
+        try:
+            result = EspNowNodeController(_MAC, made, **_FAST).execute(["시작"])
+        finally:
+            made.close()
 
         assert result.status is ExecutionStatus.SUCCEEDED
 
-    def test_gateway_error_raises(self):
-        port = FakePort()
-        port.queue({"type": "node_error", "sequence_id": "gw-1", "error": "peer unreachable"})
+    def test_unclaimed_lines_are_handed_over_not_swallowed(self, port: FakePort):
+        """남의 줄은 **버리는 게 아니라** 넘겨준다.
 
-        with pytest.raises(EspNowGatewayError, match="peer unreachable"):
-            EspNowNodeController(_MAC, EspNowGatewayLink(port)).execute(["시작"])
+        이전 구조는 실행 대기 루프가 포트를 직접 읽으며 자기 것이 아닌 줄을 소비하고
+        버렸다 -- BLE 브릿지의 제안·센서 줄이 실행 중에 도착하면 그대로 사라졌다.
+        """
+        seen: list[dict] = []
+        port.extra_traffic = [{"type": "suggestion", "label": "우유 데우기"}]
+        port.reply_to_execute = {"type": "node_result", "success": True, "retry": 0}
+        made = EspNowGatewayLink(port, on_unclaimed_line=seen.append)
+        try:
+            EspNowNodeController(_MAC, made, **_FAST).execute(["시작"])
+        finally:
+            made.close()
 
-    def test_timeout_raises_and_requests_stop(self):
+        assert [d["type"] for d in seen] == ["suggestion"]
+
+    def test_gateway_error_raises(self, port: FakePort):
+        port.reply_to_execute = {"type": "node_error", "error": "peer unreachable"}
+        made = EspNowGatewayLink(port)
+        try:
+            with pytest.raises(EspNowGatewayError, match="peer unreachable"):
+                EspNowNodeController(_MAC, made, **_FAST).execute(["시작"])
+        finally:
+            made.close()
+
+    def test_timeout_raises_and_requests_stop(self, port: FakePort, link):
         # 응답만 못 받았을 뿐 노드는 계속 누르고 있을 수 있다 -- HTTP 경로와 같은 원칙
-        port = FakePort()  # 아무 응답도 없음
-        controller = EspNowNodeController(
-            _MAC, EspNowGatewayLink(port), base_timeout_seconds=0.05,
-            per_button_timeout_seconds=0.0,
+        controller = EspNowNodeController(_MAC, link, **_FAST)
+
+        with pytest.raises(EspNowGatewayError):
+            controller.execute(["시작"])
+
+        assert "node_stop" in port.sent_types()
+
+    def test_gateway_error_also_requests_stop(self, port: FakePort):
+        port.reply_to_execute = {"type": "node_error", "error": "boom"}
+        made = EspNowGatewayLink(port)
+        try:
+            with pytest.raises(EspNowGatewayError):
+                EspNowNodeController(_MAC, made, **_FAST).execute(["시작"])
+        finally:
+            made.close()
+
+        assert "node_stop" in port.sent_types()
+
+    def test_late_response_for_an_abandoned_request_is_ignored(
+        self, port: FakePort, link
+    ):
+        """포기한 실행의 늦은 응답이 다음 실행 결과로 쓰이면 안 된다."""
+        controller = EspNowNodeController(_MAC, link, **_FAST)
+        with pytest.raises(EspNowGatewayError):
+            controller.execute(["시작"])  # 타임아웃으로 포기
+
+        # 첫 요청의 응답이 이제야 도착한다
+        first_seq = port.written[0]["sequence_id"]
+        port.queue_raw(
+            {"type": "node_result", "sequence_id": first_seq, "success": True, "retry": 0}
         )
+        time.sleep(0.05)
 
-        with pytest.raises(EspNowGatewayError):
-            controller.execute(["시작"])
+        # 두 번째 실행은 자기 응답만 받아야 한다
+        port.reply_to_execute = {"type": "node_result", "success": False, "retry": 1}
+        result = controller.execute(["시작"])
 
-        assert "node_stop" in port.sent_types()
-
-    def test_gateway_error_also_requests_stop(self):
-        port = FakePort()
-        port.queue({"type": "node_error", "sequence_id": "gw-1", "error": "boom"})
-        controller = EspNowNodeController(_MAC, EspNowGatewayLink(port))
-
-        with pytest.raises(EspNowGatewayError):
-            controller.execute(["시작"])
-
-        assert "node_stop" in port.sent_types()
+        assert result.status is ExecutionStatus.SAFETY_STOPPED
 
 
 class TestTimeoutFormula:
-    def test_matches_http_path_formula(self):
+    def test_matches_http_path_formula(self, link):
         # 두 경로가 다른 시각에 포기하면 한쪽은 실패 보고, 다른 쪽은 계속 실행이 된다
         from rpi.services.esp_node_controller import EspNodeController
 
-        link, _ = _link_and_port()
         espnow = EspNowNodeController(_MAC, link)
         http = EspNodeController("http://192.0.2.1:8080")
 
@@ -168,9 +262,7 @@ class TestTimeoutFormula:
 
 
 class TestStop:
-    def test_request_stop_sends_mac(self):
-        link, port = _link_and_port(auto_reply=False)
-
+    def test_request_stop_sends_mac(self, port: FakePort, link):
         EspNowNodeController(_MAC, link).request_stop()
 
         assert port.written[-1] == {"type": "node_stop", "mac": _MAC}
@@ -181,12 +273,13 @@ class TestStop:
             def write(self, data: bytes) -> int:
                 raise OSError("port gone")
 
-        link = EspNowGatewayLink(BrokenPort())
+        made = EspNowGatewayLink(BrokenPort())
+        try:
+            EspNowNodeController(_MAC, made).request_stop()  # 예외가 새면 실패
+        finally:
+            made.close()
 
-        EspNowNodeController(_MAC, link).request_stop()  # 예외가 새어나오면 실패
-
-    def test_close_does_not_close_shared_link(self):
-        link, port = _link_and_port(auto_reply=False)
+    def test_close_does_not_close_shared_link(self, port: FakePort, link):
         controller = EspNowNodeController(_MAC, link)
 
         controller.close()
@@ -197,19 +290,16 @@ class TestStop:
 
 
 class TestControllerFactory:
-    def test_binds_shared_link_and_matches_registry_signature(self):
-        link, port = _link_and_port(auto_reply=False)
-
-        make = controller_factory(link)
-        controller = make(_MAC)
+    def test_binds_shared_link_and_matches_registry_signature(
+        self, port: FakePort, link
+    ):
+        controller = controller_factory(link)(_MAC)
 
         assert isinstance(controller, EspNowNodeController)
         controller.request_stop()
         assert port.written[-1]["mac"] == _MAC
 
-    def test_rejects_non_mac_address(self):
-        link, _ = _link_and_port(auto_reply=False)
-
+    def test_rejects_non_mac_address(self, link):
         with pytest.raises(ValueError):
             controller_factory(link)("http://192.168.0.5:8080")
 
@@ -218,40 +308,20 @@ class TestControllerFactory:
 # 실행 중 긴급 정지 (동시성)
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class _BlockingPort(FakePort):
-    """execute를 응답 없이 붙잡아 두는 포트. 정지가 그 사이 나가는지 보기 위한 것."""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.execute_sent = threading.Event()
-
-    def write(self, data: bytes) -> int:
-        n = super().write(data)
-        if self.written and self.written[-1].get("type") == "node_execute":
-            self.execute_sent.set()
-        return n
-
-    def readline(self) -> bytes:
-        time.sleep(0.005)  # 응답이 오지 않는 상태를 흉내낸다(바쁜 대기 방지)
-        return b""
-
-
 class TestStopDuringExecution:
     """실행이 응답을 기다리는 **도중에** 정지가 실제로 전선에 나가야 한다.
 
     한동안 execute()가 응답 대기 내내 락을 쥐고 있고 request_stop()이 같은 락을
     요구해서, 정지가 실행이 끝난 뒤에야 전송됐다. 화면은 정지됐다는데 실물은 계속
-    누르는 상태 — 기존 테스트는 execute가 타임아웃으로 락을 놓은 뒤를 확인해서
-    이 실패를 잡지 못했다.
+    누르는 상태 — 기존 테스트는 execute가 락을 놓은 뒤를 확인해서 이를 못 잡았다.
     """
 
-    def test_stop_is_written_while_execute_is_still_waiting(self):
-        port = _BlockingPort()
+    def test_stop_is_written_while_execute_is_still_waiting(
+        self, port: FakePort, link
+    ):
+        # 응답을 주지 않아 실행이 계속 대기한다
         controller = EspNowNodeController(
-            _MAC,
-            EspNowGatewayLink(port),
-            base_timeout_seconds=3.0,      # 정지 확인 여유보다 훨씬 길게
-            per_button_timeout_seconds=0.0,
+            _MAC, link, base_timeout_seconds=3.0, per_button_timeout_seconds=0.0
         )
 
         def run_execute() -> None:
@@ -260,9 +330,8 @@ class TestStopDuringExecution:
 
         worker = threading.Thread(target=run_execute, daemon=True)
         worker.start()
-        assert port.execute_sent.wait(1.0), "execute가 전송되지 않았다"
+        port.wait_for_sent("node_execute")
 
-        # 실행이 아직 대기 중인 시점에 정지를 건다
         stopped = threading.Event()
 
         def run_stop() -> None:
@@ -272,19 +341,19 @@ class TestStopDuringExecution:
         threading.Thread(target=run_stop, daemon=True).start()
 
         # 실행 타임아웃(3초)보다 훨씬 짧은 시간 안에 끝나야 한다.
-        # 락에 막히면 여기서 실패한다.
-        assert stopped.wait(1.0), "정지가 실행 락에 막혔다"
+        # 대기가 락을 잡고 있으면 여기서 실패한다.
+        assert stopped.wait(1.0), "정지가 실행 대기에 막혔다"
         assert "node_stop" in port.sent_types(), "정지가 전선에 나가지 않았다"
 
         worker.join(timeout=6.0)
         assert not worker.is_alive()
 
-    def test_stop_does_not_corrupt_the_in_flight_execute_line(self):
+    def test_stop_does_not_corrupt_the_in_flight_execute_line(
+        self, port: FakePort, link
+    ):
         # 정지가 실행 대기 중에 끼어들어도 각 줄은 온전해야 한다
-        port = _BlockingPort()
-        link = EspNowGatewayLink(port)
         controller = EspNowNodeController(
-            _MAC, link, base_timeout_seconds=1.0, per_button_timeout_seconds=0.0
+            _MAC, link, base_timeout_seconds=0.6, per_button_timeout_seconds=0.0
         )
 
         def run_execute() -> None:
@@ -293,7 +362,7 @@ class TestStopDuringExecution:
 
         worker = threading.Thread(target=run_execute, daemon=True)
         worker.start()
-        assert port.execute_sent.wait(1.0)
+        port.wait_for_sent("node_execute")
         for _ in range(5):
             controller.request_stop()
         worker.join(timeout=6.0)
