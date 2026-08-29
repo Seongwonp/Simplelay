@@ -6,7 +6,10 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
+import threading
+import time
 
 import pytest
 
@@ -209,3 +212,96 @@ class TestControllerFactory:
 
         with pytest.raises(ValueError):
             controller_factory(link)("http://192.168.0.5:8080")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 실행 중 긴급 정지 (동시성)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class _BlockingPort(FakePort):
+    """execute를 응답 없이 붙잡아 두는 포트. 정지가 그 사이 나가는지 보기 위한 것."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.execute_sent = threading.Event()
+
+    def write(self, data: bytes) -> int:
+        n = super().write(data)
+        if self.written and self.written[-1].get("type") == "node_execute":
+            self.execute_sent.set()
+        return n
+
+    def readline(self) -> bytes:
+        time.sleep(0.005)  # 응답이 오지 않는 상태를 흉내낸다(바쁜 대기 방지)
+        return b""
+
+
+class TestStopDuringExecution:
+    """실행이 응답을 기다리는 **도중에** 정지가 실제로 전선에 나가야 한다.
+
+    한동안 execute()가 응답 대기 내내 락을 쥐고 있고 request_stop()이 같은 락을
+    요구해서, 정지가 실행이 끝난 뒤에야 전송됐다. 화면은 정지됐다는데 실물은 계속
+    누르는 상태 — 기존 테스트는 execute가 타임아웃으로 락을 놓은 뒤를 확인해서
+    이 실패를 잡지 못했다.
+    """
+
+    def test_stop_is_written_while_execute_is_still_waiting(self):
+        port = _BlockingPort()
+        controller = EspNowNodeController(
+            _MAC,
+            EspNowGatewayLink(port),
+            base_timeout_seconds=3.0,      # 정지 확인 여유보다 훨씬 길게
+            per_button_timeout_seconds=0.0,
+        )
+
+        def run_execute() -> None:
+            with contextlib.suppress(EspNowGatewayError):
+                controller.execute(["시작"])
+
+        worker = threading.Thread(target=run_execute, daemon=True)
+        worker.start()
+        assert port.execute_sent.wait(1.0), "execute가 전송되지 않았다"
+
+        # 실행이 아직 대기 중인 시점에 정지를 건다
+        stopped = threading.Event()
+
+        def run_stop() -> None:
+            controller.request_stop()
+            stopped.set()
+
+        threading.Thread(target=run_stop, daemon=True).start()
+
+        # 실행 타임아웃(3초)보다 훨씬 짧은 시간 안에 끝나야 한다.
+        # 락에 막히면 여기서 실패한다.
+        assert stopped.wait(1.0), "정지가 실행 락에 막혔다"
+        assert "node_stop" in port.sent_types(), "정지가 전선에 나가지 않았다"
+
+        worker.join(timeout=6.0)
+        assert not worker.is_alive()
+
+    def test_stop_does_not_corrupt_the_in_flight_execute_line(self):
+        # 정지가 실행 대기 중에 끼어들어도 각 줄은 온전해야 한다
+        port = _BlockingPort()
+        link = EspNowGatewayLink(port)
+        controller = EspNowNodeController(
+            _MAC, link, base_timeout_seconds=1.0, per_button_timeout_seconds=0.0
+        )
+
+        def run_execute() -> None:
+            with contextlib.suppress(EspNowGatewayError):
+                controller.execute(["해동", "시작"])
+
+        worker = threading.Thread(target=run_execute, daemon=True)
+        worker.start()
+        assert port.execute_sent.wait(1.0)
+        for _ in range(5):
+            controller.request_stop()
+        worker.join(timeout=6.0)
+
+        # FakePort.write가 줄마다 json.loads를 하므로, 깨진 줄이 있었다면
+        # 여기 도달하기 전에 예외가 났을 것이다.
+        assert port.written[0]["type"] == "node_execute"
+        assert port.written[0]["buttons"] == ["해동", "시작"]
+        # 직접 보낸 5회 + 타임아웃이 스스로 보내는 1회
+        assert port.sent_types().count("node_stop") >= 5
+        assert all(m["mac"] == _MAC for m in port.written if m["type"] == "node_stop")

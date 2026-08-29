@@ -67,13 +67,21 @@ class SerialLike(Protocol):
 class EspNowGatewayLink:
     """게이트웨이 UART 하나를 여러 노드 컨트롤러가 공유한다.
 
-    실행은 시스템 전체에서 한 번에 하나만 돌지만(SimpleLayService의 실행 락),
-    정지 브로드캐스트는 여러 노드에 동시에 나갈 수 있어 락으로 직렬화한다.
+    **락을 두 개로 나눈다.** 처음엔 하나로 묶었는데, 그러면 `execute()`가 응답을
+    기다리는 내내 락을 쥐고 있어서 `request_stop()`이 그 뒤에 줄을 선다 --
+    즉 **실행 중에는 정지가 나가지 않고**, 실행이 끝나거나 타임아웃된 뒤에야
+    전송된다. 화면은 정지됐다고 돌아오는데 실물은 계속 누르는 상태로, 이
+    프로젝트에서 가장 위험한 실패 모드다(교차 리뷰 치명 지적).
+
+    - ``_write_lock``: 한 줄을 쓰는 동안만 잡는다. 아주 짧고, 실행·정지가 공유한다.
+    - ``_exec_lock``: 실행 한 건의 송신~응답 대기를 직렬화한다(포트 읽기 소유권).
+      정지는 **이 락을 건드리지 않는다.**
     """
 
     def __init__(self, port: SerialLike) -> None:
         self._port = port
-        self._lock = threading.Lock()
+        self._write_lock = threading.Lock()
+        self._exec_lock = threading.Lock()
         self._seq = 0
 
     def _next_sequence_id(self) -> str:
@@ -81,14 +89,16 @@ class EspNowGatewayLink:
         return f"gw-{self._seq}"
 
     def _send(self, message: dict) -> None:
+        """한 줄을 원자적으로 쓴다 -- 실행 대기 중 정지가 끼어들어도 줄이 섞이지 않는다."""
         line = json.dumps(message, ensure_ascii=False) + "\n"
-        self._port.write(line.encode("utf-8"))
+        with self._write_lock:
+            self._port.write(line.encode("utf-8"))
 
     def execute(
         self, mac: str, buttons: list[str], timeout: float
     ) -> tuple[bool, int]:
         """노드에 버튼 시퀀스를 보내고 결과를 기다린다. (success, retry) 반환."""
-        with self._lock:
+        with self._exec_lock:
             sequence_id = self._next_sequence_id()
             self._send(
                 {
@@ -128,10 +138,16 @@ class EspNowGatewayLink:
         )
 
     def request_stop(self, mac: str) -> None:
-        """정지 요청. 정지 경로에서 예외를 던지면 다른 노드의 정지까지 막는다."""
+        """정지 요청.
+
+        **실행 락을 거치지 않는다** -- 정지가 가장 필요한 순간이 바로 실행 중이기
+        때문이다. 쓰기 락만 잠깐 잡으므로 실행이 응답을 기다리는 중에도 즉시 나간다.
+
+        예외는 삼킨다: 정지 경로에서 던지면 여러 노드 브로드캐스트가 첫 실패에서
+        멈춰 나머지 노드가 계속 동작한다.
+        """
         try:
-            with self._lock:
-                self._send({"type": "node_stop", "mac": mac})
+            self._send({"type": "node_stop", "mac": mac})
         except Exception as exc:  # noqa: BLE001 -- 정지는 best-effort
             log.error("노드 %s 정지 요청 실패: %s", mac, exc)
 
