@@ -18,7 +18,13 @@ _FAKE_CLI = "fake-dbus-cli"
 
 
 def _configure_dbus(monkeypatch: pytest.MonkeyPatch) -> None:
+    """dbus 모드가 요구하는 주소를 전부 준다.
+
+    온디바이스 계층이 둘(대화형 에이전트·유사도 검색)이라 주소도 둘이다. 하나만
+    주고 켜면 기동 시 실패하는데, 그게 의도된 동작이라 별도 테스트로 잡아둔다.
+    """
     monkeypatch.setenv(dbus_env.ENV_AGENT_SERVICE, _FAKE_SERVICE)
+    monkeypatch.setenv(dbus_env.ENV_VECTORDB_SERVICE, "com.example.TestVectordb1")
     monkeypatch.setenv(dbus_env.ENV_DBUS_CLI, _FAKE_CLI)
 
 
@@ -26,7 +32,8 @@ def _configure_dbus(monkeypatch: pytest.MonkeyPatch) -> None:
 def clean_llm_env(monkeypatch: pytest.MonkeyPatch) -> None:
     for key in ("SIMPLELAY_LLM_MODE", "SIMPLELAY_LLM_BASE_URL",
                 "SIMPLELAY_LLM_API_KEY", "SIMPLELAY_LLM_MODEL",
-                dbus_env.ENV_AGENT_SERVICE, dbus_env.ENV_DBUS_CLI):
+                dbus_env.ENV_AGENT_SERVICE, dbus_env.ENV_VECTORDB_SERVICE,
+                dbus_env.ENV_DBUS_CLI):
         monkeypatch.delenv(key, raising=False)
 
 
@@ -79,3 +86,38 @@ def test_dbus_mode_without_service_address_fails_loudly(
         dbus_env.MissingPlatformConfigError, match=dbus_env.ENV_AGENT_SERVICE
     ):
         _build_llm_client()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# 계층 순서 — _build_intent_resolver()
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def test_rule_tier_comes_before_similarity_tier(monkeypatch: pytest.MonkeyPatch):
+    """규칙이 유사도보다 먼저여야 한다.
+
+    먼저 성공한 계층이 이기므로(tiered.py), 유사도가 앞에 있으면 임계값만 넘기면
+    **정확한 규칙을 덮어쓴다**. 서브프로세스 왕복 비용도 규칙으로 끝날 문장까지
+    물게 된다. 한때 실제로 순서가 반대였고, 유사도 계층이 항상 미스라 드러나지
+    않았을 뿐이다 — 시드를 채우는 순간 활성화될 버그였다.
+    """
+    from rpi.api.deps import _build_intent_resolver
+    from rpi.intent import RuleBasedIntentResolver, TieredIntentResolver
+    from rpi.intent.dbus_vectordb import VectordbIntentResolver
+
+    monkeypatch.setenv("SIMPLELAY_LLM_MODE", "dbus")
+    _configure_dbus(monkeypatch)
+
+    resolver = _build_intent_resolver()
+
+    assert isinstance(resolver, TieredIntentResolver)
+    tiers = resolver._resolvers
+    assert isinstance(tiers[0], RuleBasedIntentResolver)
+    assert isinstance(tiers[1], VectordbIntentResolver)
+
+
+def test_rule_tier_alone_when_nothing_else_configured():
+    """아무 설정이 없으면 규칙 단독 — 오프라인 완결이라는 기본 성질."""
+    from rpi.api.deps import _build_intent_resolver
+    from rpi.intent import RuleBasedIntentResolver
+
+    assert isinstance(_build_intent_resolver(), RuleBasedIntentResolver)

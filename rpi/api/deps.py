@@ -101,18 +101,26 @@ def get_job_history() -> JobHistoryStore:
 def _build_intent_resolver() -> IntentResolver:
     """docs/inference-boundary.md의 온디바이스 우선 3계층 조립.
 
-    1) 벡터DB 유사도 — 온디바이스, ``SIMPLELAY_LLM_MODE=dbus``일 때만
+    1) 규칙 기반 — 항상. 정확·결정론적 매칭 + 별칭. 인메모리 조회라 지연이
+       사실상 0이고 결과가 항상 같다.
+    2) 벡터DB 유사도 — 온디바이스, ``SIMPLELAY_LLM_MODE=dbus``일 때만
        (개발 PC에는 D-Bus 서비스가 없다). DB가 비어 있으면 항상 미스라
-       무해하게 다음 계층으로 넘어간다 — 예시 시딩은 실기기 작업.
-    2) 규칙 기반 — 항상. 정확·결정론적 1차 매칭 + 별칭.
+       무해하게 다음 계층으로 넘어간다.
     3) LLM — 설정된 경우에만 최후 수단. 어휘 제약 없이 호출되므로
        (서버는 내장 가전 버튼맵을 모른다) 모델 출력 검증은 라벨 존재
        확인 없이 JSON 형태 검증만 적용된다는 한계를 감수한다.
+
+    규칙이 벡터DB보다 **먼저**여야 하는 이유(이전에는 반대였다):
+    - 벡터DB 조회는 CLI 서브프로세스 왕복이다. 규칙으로 끝날 문장까지 그 비용을
+      물 이유가 없다.
+    - 더 중요한 건 정확성이다. 먼저 성공한 계층이 이기므로(tiered.py), 벡터DB가
+      앞에 있으면 **유사도 매칭이 정확한 규칙을 덮어쓸 수 있다** — 임계값을
+      넘기만 하면 엉뚱한 시퀀스가 이긴다. 규칙이 앞이면 정확 매칭이 항상 우선하고,
+      벡터DB는 규칙이 놓친 표현만 받는다(원래 의도한 역할).
     """
-    tiers: list[IntentResolver] = []
+    tiers: list[IntentResolver] = [RuleBasedIntentResolver()]
     if os.environ.get("SIMPLELAY_LLM_MODE", "").strip().lower() == "dbus":
         tiers.append(VectordbIntentResolver(VectordbClient()))
-    tiers.append(RuleBasedIntentResolver())
     llm = _build_llm_client()
     if llm is not None:
         tiers.append(LlmIntentResolver(llm))

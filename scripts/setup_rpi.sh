@@ -139,6 +139,9 @@ if [[ ! -f /etc/simplelay/environment ]]; then
 #SIMPLELAY_DBUS_AGENT_SERVICE=
 #SIMPLELAY_DBUS_VECTORDB_SERVICE=
 #SIMPLELAY_DBUS_PERIPHERAL_SERVICE=
+# 기동 시 유사도 계층에 규칙 예시(별칭 포함)를 넣는다. 저장소가 재부팅 후에도
+# 유지되는지 확인 전이라 기본 꺼짐 — 유지된다면 매번 켜면 중복이 쌓인다.
+#SIMPLELAY_VECTORDB_SEED=1
 ENVEOF
     ok "/etc/simplelay/environment 템플릿 생성 (ACT 모드·API 키는 여기서 확정)"
 else

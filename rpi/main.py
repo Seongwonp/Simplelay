@@ -33,6 +33,27 @@ async def _suggestion_refresh_loop() -> None:
         await asyncio.sleep(SUGGESTION_REFRESH_SECONDS)
 
 
+def _seed_vectordb_if_enabled() -> None:
+    """유사도 계층에 예시를 채운다 -- ``SIMPLELAY_VECTORDB_SEED=1`` 일 때만.
+
+    자동으로 켜지 않는 이유: 진짜 D-Bus 호출이라 서비스가 없는 곳에서 돌면 무의미하고,
+    저장소가 재부팅 후에도 유지되는지 아직 확인이 안 돼서 매 기동 시드가 중복을 쌓을지
+    모른다. 실기기에서 확인한 뒤 기본값을 정한다.
+
+    실패해도 서버는 계속 뜬다 -- 시드가 안 되면 유사도 계층이 계속 미스라 규칙·LLM이
+    받아주고, 그건 시드 이전과 똑같은 상태다. 시드 실패로 서버가 못 뜨는 쪽이 더 나쁘다.
+    """
+    if os.environ.get("SIMPLELAY_VECTORDB_SEED", "").strip().lower() not in {"1", "true"}:
+        return
+    try:
+        from rpi.intent.dbus_vectordb import VectordbClient
+        from rpi.intent.vectordb_seed import seed_vectordb
+
+        seed_vectordb(VectordbClient())
+    except Exception:
+        log.exception("벡터DB 시드 실패 — 유사도 계층 없이 계속 진행한다")
+
+
 async def _shutdown_cleanup() -> None:
     """종료 절차: 신규 job 차단 → 협조 정지 → 잠시 대기 → 자원 정리.
 
@@ -67,6 +88,8 @@ async def _shutdown_cleanup() -> None:
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 블로킹 서브프로세스 호출이라 이벤트 루프를 막지 않게 스레드로 넘긴다
+    await asyncio.to_thread(_seed_vectordb_if_enabled)
     refresh_task = asyncio.create_task(_suggestion_refresh_loop())
     try:
         yield
