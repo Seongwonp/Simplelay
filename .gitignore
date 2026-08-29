@@ -22,6 +22,10 @@ dist/
 *.hex
 *.o
 *.elf
+# PlatformIO 빌드 캐시 — 툴체인·프레임워크 사본이라 수백 MB다
+.pio/
+firmware/.pio/
+firmware-node/.pio/
 
 # 로그 / 데이터
 *.log
