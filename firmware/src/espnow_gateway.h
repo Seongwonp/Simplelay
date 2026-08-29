@@ -68,7 +68,11 @@ public:
                      const char* sequenceId);
 
     // RPi5의 node_stop 처리. 응답을 기다리지 않는다(정지는 best-effort).
-    void sendStop(const char* macText);
+    //
+    // rid = 취소 대상. 비어 있으면 "무조건 정지"(물리 E-STOP, 앱 긴급 정지)이고,
+    // 차 있으면 그 실행만 정지시킨다. 대상을 안 실으면, 앞 실행에서 늦게 도착한
+    // 정지가 그 사이 시작된 다음 실행을 끊을 수 있다(교차 리뷰 지적).
+    void sendStop(const char* macText, const char* rid);
 
     void onResult(NodeResultHandler cb) { _onResult = cb; }
     void onError(NodeErrorHandler cb) { _onError = cb; }

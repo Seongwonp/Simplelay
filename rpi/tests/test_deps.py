@@ -200,3 +200,102 @@ class TestNodeTransportSelection:
 
         assert registry._controller_factory is EspNodeController
         deps.get_node_registry.cache_clear()
+
+
+class TestGatewayLineHandling:
+    """게이트웨이 UART의 **노드 응답이 아닌 줄**을 프로덕션이 실제로 받는지.
+
+    이 보드는 폰 BLE 폴백 브릿지를 겸하고, 그 트래픽 중 ``abort``는 보드의 물리
+    E-STOP 버튼이다(firmware/src/main.cpp의 handleEstop). 소비자를 붙이기 전까지
+    RPi5에는 그 줄을 읽는 코드가 **아예 없었다** — 하드웨어 비상정지가 소프트웨어
+    긴급 정지에 연결되지 않은 상태였다.
+
+    링크 단위 테스트는 콜백을 직접 주입해서 검증하므로, 프로덕션이 콜백을 붙였는지는
+    지나가지 않는다. 그 이음매를 여기서 잡는다(교차 리뷰 치명 지적).
+    """
+
+    def test_abort_line_triggers_the_emergency_stop(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        import rpi.api.deps as deps
+
+        calls = []
+
+        class _FakeService:
+            def emergency_stop(self) -> bool:
+                calls.append(1)
+                return True
+
+        monkeypatch.setattr(deps, "get_service", lambda: _FakeService())
+
+        deps.handle_gateway_line({"type": "abort"})
+
+        assert calls == [1], "물리 E-STOP이 긴급 정지로 이어지지 않았다"
+
+    def test_other_lines_do_not_trigger_a_stop(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        import rpi.api.deps as deps
+
+        calls = []
+
+        class _FakeService:
+            def emergency_stop(self) -> bool:
+                calls.append(1)
+                return True
+
+        monkeypatch.setattr(deps, "get_service", lambda: _FakeService())
+
+        for kind in ("sensor_log", "intent", "confirm", "connected"):
+            deps.handle_gateway_line({"type": kind})
+
+        assert calls == []
+
+    def test_production_link_is_built_with_the_handler_attached(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """`_get_gateway_link()`가 콜백을 붙여 링크를 만드는지.
+
+        콜백이 None이면 임자 없는 줄은 debug 로그로 끝난다 — 리더가 이미 소비했으므로
+        다른 누구도 받을 수 없다. 즉 "무시"가 아니라 폐기다.
+        """
+        import sys
+        import types
+
+        import rpi.api.deps as deps
+
+        captured = {}
+
+        class _FakeSerial:
+            def __init__(self, *args, **kwargs):
+                pass
+
+            def write(self, data: bytes) -> int:
+                return len(data)
+
+            def readline(self) -> bytes:
+                return b""
+
+        fake_module = types.ModuleType("serial")
+        fake_module.Serial = _FakeSerial
+        monkeypatch.setitem(sys.modules, "serial", fake_module)
+        monkeypatch.setenv(deps.GATEWAY_PORT_ENV, "/dev/fake-tty")
+
+        real_link_cls = None
+        import rpi.services.espnow_node_controller as espnow
+
+        real_link_cls = espnow.EspNowGatewayLink
+
+        class _SpyLink(real_link_cls):
+            def __init__(self, port, on_unclaimed_line=None):
+                captured["handler"] = on_unclaimed_line
+                super().__init__(port, on_unclaimed_line=on_unclaimed_line)
+
+        monkeypatch.setattr(espnow, "EspNowGatewayLink", _SpyLink)
+        deps._get_gateway_link.cache_clear()
+        link = deps._get_gateway_link()
+        try:
+            assert captured["handler"] is deps.handle_gateway_line
+        finally:
+            link.close()
+            deps._get_gateway_link.cache_clear()

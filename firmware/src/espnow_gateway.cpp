@@ -28,6 +28,35 @@ bool parseMacText(const char* text, uint8_t out[6]) {
     return true;
 }
 
+// ─── 송신 완료 대기 ─────────────────────────────────────────────────────────
+// esp_now_send()의 성공은 "큐에 넣었다"이지 "상대가 받았다"가 아니다. 조각을
+// 연달아 밀어 넣으면 큐가 넘쳐 중간 조각이 조용히 사라지고, 그 결과는 요청이면
+// 실행 미시작 후 긴 타임아웃, 응답이면 물리 실행은 성공했는데 화면만 실패다.
+// 그래서 조각마다 콜백을 기다린다. 응용 계층 재전송은 여전히 하지 않는다 --
+// 같은 버튼을 두 번 누르는 위험 때문(espnow_gateway.h 주석 참고). 다만 "무엇이
+// 안 나갔는지"는 알아야 위층에 제때 오류를 올릴 수 있다.
+static volatile bool s_sendDone = true;
+static volatile bool s_sendOk = false;
+
+static void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
+    (void)mac;
+    s_sendOk = (status == ESP_NOW_SEND_SUCCESS);
+    s_sendDone = true;
+}
+
+// true = 전달 확인. false = 상대가 ACK하지 않았거나 콜백 자체가 안 왔다.
+static bool waitForSendResult() {
+    const uint32_t deadline = millis() + ESPNOW_SEND_ACK_TIMEOUT_MS;
+    while (!s_sendDone && static_cast<int32_t>(millis() - deadline) < 0) {
+        delay(1);  // 스핀 대신 양보 -- Wi-Fi 태스크가 콜백을 돌려야 한다
+    }
+    if (!s_sendDone) {
+        log_e("send callback did not arrive within %dms", ESPNOW_SEND_ACK_TIMEOUT_MS);
+        return false;
+    }
+    return s_sendOk;
+}
+
 void espnowGatewayRecvBridge(const uint8_t* mac, const uint8_t* data, int len) {
     espNowGateway._handleFrame(mac, data, len);
 }
@@ -55,6 +84,7 @@ bool EspNowGateway::begin() {
         return false;
     }
     esp_now_register_recv_cb(onDataRecv);
+    esp_now_register_send_cb(onDataSent);
     log_i("ESP-NOW gateway ready on channel %d, own MAC %s",
           ESPNOW_CHANNEL, WiFi.macAddress().c_str());
     return true;
@@ -86,9 +116,11 @@ bool EspNowGateway::_sendFramed(const uint8_t* mac, uint8_t kind,
     static uint8_t outMsgId = 0;
     ++outMsgId;
 
+    // len == 0은 본문 없는 정지 프레임("무조건 정지")이다 -- 조각 1개로 보낸다
     const size_t fragCount =
-        (len + ESPNOW_MAX_PAYLOAD_BYTES - 1) / ESPNOW_MAX_PAYLOAD_BYTES;
-    if (fragCount == 0 || fragCount > 32) {
+        (len == 0) ? 1
+                   : (len + ESPNOW_MAX_PAYLOAD_BYTES - 1) / ESPNOW_MAX_PAYLOAD_BYTES;
+    if (fragCount > 32) {
         log_e("payload too large to fragment (%u bytes)", (unsigned)len);
         return false;
     }
@@ -96,20 +128,28 @@ bool EspNowGateway::_sendFramed(const uint8_t* mac, uint8_t kind,
     uint8_t frame[ESPNOW_MAX_FRAME_BYTES];
     for (size_t i = 0; i < fragCount; ++i) {
         const size_t offset = i * ESPNOW_MAX_PAYLOAD_BYTES;
-        const size_t chunk = min(ESPNOW_MAX_PAYLOAD_BYTES, len - offset);
+        const size_t chunk = (len == 0) ? 0 : min(ESPNOW_MAX_PAYLOAD_BYTES, len - offset);
 
         frame[0] = outMsgId;
         frame[1] = static_cast<uint8_t>(i);
         frame[2] = static_cast<uint8_t>(fragCount);
         frame[3] = kind;
-        memcpy(frame + kHdr, payload + offset, chunk);
+        if (chunk > 0) memcpy(frame + kHdr, payload + offset, chunk);
 
+        s_sendDone = false;
         if (esp_now_send(mac, frame, kHdr + chunk) != ESP_OK) {
+            s_sendDone = true;
             log_e("esp_now_send failed on fragment %u/%u", (unsigned)(i + 1),
                   (unsigned)fragCount);
             return false;
         }
-        if (fragCount > 1) delay(2);  // 노드 수신 큐가 넘치지 않게
+        // 다음 조각을 보내기 전에 이 조각의 전달 결과를 확인한다(공식 권장).
+        // 고정 지연으로 띄우던 이전 방식은 전달 완료와 아무 상관이 없었다.
+        if (!waitForSendResult()) {
+            log_e("fragment %u/%u was not acked by the peer", (unsigned)(i + 1),
+                  (unsigned)fragCount);
+            return false;
+        }
     }
     return true;
 }
@@ -182,11 +222,13 @@ bool EspNowGateway::sendExecute(const char* macText, const JsonArray& buttons,
     return true;
 }
 
-void EspNowGateway::sendStop(const char* macText) {
+void EspNowGateway::sendStop(const char* macText, const char* rid) {
     uint8_t mac[6];
     if (!parseMacText(macText, mac) || !_ensurePeer(mac)) return;
-    const uint8_t empty[] = "{}";
-    _sendFramed(mac, kKindStop, empty, sizeof(empty) - 1);
+    // 본문 = 대상 rid 문자열 그대로. 노드가 수신 콜백에서 파싱 없이 읽을 수 있게
+    // JSON을 쓰지 않는다. 비어 있으면 "무조건 정지".
+    const size_t len = (rid != nullptr) ? strlen(rid) : 0;
+    _sendFramed(mac, kKindStop, reinterpret_cast<const uint8_t*>(rid), len);
 }
 
 void EspNowGateway::_resetAssemblyLocked() {

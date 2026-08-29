@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import logging
+import queue
 import re
 import threading
 from collections.abc import Callable
@@ -53,8 +54,23 @@ _MAC_RE = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _RESULT_TYPES = frozenset({"node_result", "node_error"})
 
 
+# 임자 없는 줄을 담아 두는 큐의 상한. 넘치면 버린다 -- 소비자가 느리다고 리더
+# 스레드를 막으면 실행 응답까지 함께 멈춘다.
+_UNCLAIMED_QUEUE_MAX = 256
+
+_SHUTDOWN = object()
+
+
 class EspNowGatewayError(RuntimeError):
-    """게이트웨이가 응답하지 않거나 오류를 보고했을 때."""
+    """게이트웨이가 응답하지 않거나 오류를 보고했을 때.
+
+    ``sequence_id``는 실패한 실행의 식별자다. 포기한 실행에 정지를 보낼 때 "어느
+    실행을 취소하는지" 함께 보내야, 그 정지가 늦게 도착해 다음 실행을 끊지 않는다.
+    """
+
+    def __init__(self, message: str, sequence_id: str | None = None) -> None:
+        super().__init__(message)
+        self.sequence_id = sequence_id
 
 
 def normalize_mac(value: str) -> str:
@@ -120,11 +136,20 @@ class EspNowGatewayLink:
         self._waiters_lock = threading.Lock()
         self._waiters: dict[str, _Waiter] = {}
         self._seq = 0
+        self._failure: str | None = None
         self._closed = threading.Event()
+        # 임자 없는 줄은 큐를 거쳐 별도 스레드에서 처리한다. 리더가 직접 콜백을
+        # 부르면, 그 콜백이 조금이라도 오래 걸리는 순간(긴급 정지 브로드캐스트 등)
+        # 그동안 도착하는 실행 응답이 읽히지 않는다.
+        self._unclaimed: queue.Queue = queue.Queue(maxsize=_UNCLAIMED_QUEUE_MAX)
         self._reader = threading.Thread(
             target=self._read_loop, name="espnow-gateway-reader", daemon=True
         )
+        self._dispatcher = threading.Thread(
+            target=self._dispatch_loop, name="espnow-gateway-dispatch", daemon=True
+        )
         self._reader.start()
+        self._dispatcher.start()
 
     # ── 수신 ──────────────────────────────────────────────────────────────
 
@@ -132,8 +157,11 @@ class EspNowGatewayLink:
         while not self._closed.is_set():
             try:
                 raw = self._port.readline()
-            except Exception:  # noqa: BLE001 -- 포트가 끊겨도 스레드는 조용히 끝난다
-                log.exception("게이트웨이 포트 읽기 실패 — 리더 종료")
+            except Exception as exc:  # noqa: BLE001
+                # 포트가 끊겼다. **조용히 끝내면 안 된다** -- 예전에는 로그만 남기고
+                # 스레드가 사라져서, 대기 중인 실행은 마감(30초+)까지 매달리고 이후
+                # 모든 실행이 응답을 읽을 사람 없이 같은 타임아웃을 반복했다.
+                self._fail_link(f"게이트웨이 포트 읽기 실패: {exc}")
                 return
             if not raw:
                 # 포트 자체 read 타임아웃. 종료 신호를 확인할 겸 잠깐 쉰다.
@@ -142,7 +170,36 @@ class EspNowGatewayLink:
             doc = _parse_line(raw)
             if doc is None:
                 continue
-            self._route(doc)
+            try:
+                self._route(doc)
+            except Exception:  # noqa: BLE001
+                # 이상한 줄 하나가 리더를 죽이면 위와 같은 상태가 된다. 링크는
+                # 살아 있으므로 그 줄만 버린다.
+                log.exception("게이트웨이 줄 처리 실패 — 해당 줄만 버립니다: %r", doc)
+
+    def _fail_link(self, reason: str) -> None:
+        """링크를 끝난 것으로 표시하고 대기 중인 실행 전부에 즉시 실패를 알린다."""
+        log.error("게이트웨이 링크 중단: %s", reason)
+        with self._waiters_lock:
+            self._failure = reason
+            waiters = list(self._waiters.values())
+            self._waiters.clear()
+        for waiter in waiters:
+            waiter.error = reason
+            waiter.done.set()
+
+    def _dispatch_loop(self) -> None:
+        while True:
+            doc = self._unclaimed.get()
+            if doc is _SHUTDOWN:
+                return
+            if self._on_unclaimed is None:
+                log.debug("게이트웨이 UART의 다른 트래픽: %s", doc.get("type"))
+                continue
+            try:
+                self._on_unclaimed(doc)
+            except Exception:  # noqa: BLE001 -- 남의 줄 처리가 전송을 죽이면 안 된다
+                log.exception("임자 없는 줄 처리 중 오류")
 
     def _route(self, doc: dict) -> None:
         kind = doc.get("type")
@@ -155,7 +212,14 @@ class EspNowGatewayLink:
                     waiter.error = str(doc.get("error", "unknown"))
                 else:
                     waiter.success = bool(doc.get("success", False))
-                    waiter.retry = int(doc.get("retry", 0))
+                    # 값이 깨져 있어도 실행 결과 자체는 유효하다. 여기서 던지면
+                    # 대기자가 영영 안 깨어나고 마감까지 매달린다.
+                    try:
+                        waiter.retry = int(doc.get("retry", 0))
+                    except (TypeError, ValueError):
+                        log.warning("노드 응답의 retry 값이 이상합니다: %r",
+                                    doc.get("retry"))
+                        waiter.retry = 0
                 waiter.done.set()
                 return
             # 이미 포기한 실행의 늦은 응답 — 버리되 조용히는 아니다
@@ -163,13 +227,11 @@ class EspNowGatewayLink:
             return
 
         # BLE 브릿지 트래픽 등 우리 것이 아닌 줄. 이전에는 여기서 사라졌다.
-        if self._on_unclaimed is not None:
-            try:
-                self._on_unclaimed(doc)
-            except Exception:  # noqa: BLE001 -- 남의 줄 처리가 전송을 죽이면 안 된다
-                log.exception("임자 없는 줄 처리 중 오류")
-        else:
-            log.debug("게이트웨이 UART의 다른 트래픽: %s", kind)
+        try:
+            self._unclaimed.put_nowait(doc)
+        except queue.Full:
+            # 소비자가 밀렸다. 리더를 막느니 버린다 -- 막으면 실행 응답까지 멈춘다.
+            log.warning("임자 없는 줄 큐가 가득 참 — %s 한 줄을 버립니다", kind)
 
     # ── 송신 ──────────────────────────────────────────────────────────────
 
@@ -191,6 +253,11 @@ class EspNowGatewayLink:
         sequence_id = self._next_sequence_id()
         waiter = _Waiter()
         with self._waiters_lock:
+            if self._failure is not None:
+                # 죽은 링크에 보내고 마감까지 기다릴 이유가 없다
+                raise EspNowGatewayError(
+                    f"게이트웨이 링크가 끊겼습니다: {self._failure}"
+                )
             self._waiters[sequence_id] = waiter
         try:
             self._send(
@@ -203,35 +270,49 @@ class EspNowGatewayLink:
             )
             if not waiter.done.wait(timeout):
                 raise EspNowGatewayError(
-                    f"노드 {mac}가 {timeout:.0f}초 안에 응답하지 않았습니다"
+                    f"노드 {mac}가 {timeout:.0f}초 안에 응답하지 않았습니다",
+                    sequence_id=sequence_id,
                 )
             if waiter.error is not None:
                 raise EspNowGatewayError(
-                    f"게이트웨이가 노드 {mac} 오류를 보고: {waiter.error}"
+                    f"게이트웨이가 노드 {mac} 오류를 보고: {waiter.error}",
+                    sequence_id=sequence_id,
                 )
             return waiter.success, waiter.retry
         finally:
             with self._waiters_lock:
                 self._waiters.pop(sequence_id, None)
 
-    def request_stop(self, mac: str) -> None:
+    def request_stop(self, mac: str, rid: str | None = None) -> None:
         """정지 요청.
 
         **어떤 대기도 거치지 않는다** -- 정지가 가장 필요한 순간이 바로 실행 중이기
         때문이다. 쓰기 락만 잠깐 잡으므로 실행이 응답을 기다리는 중에도 즉시 나간다.
 
+        ``rid``는 취소 대상이다. 지정하면 노드가 그 실행일 때만 멈춘다 -- 지정하지
+        않으면 앞 실행에서 늦게 도착한 정지가 그 사이 시작된 다음 실행을 끊을 수
+        있다(교차 리뷰 지적). 사용자 긴급 정지는 대상을 비워 무조건 멈춘다.
+
         예외는 삼킨다: 정지 경로에서 던지면 여러 노드 브로드캐스트가 첫 실패에서
         멈춰 나머지 노드가 계속 동작한다.
         """
+        message: dict = {"type": "node_stop", "mac": mac}
+        if rid:
+            message["rid"] = rid
         try:
-            self._send({"type": "node_stop", "mac": mac})
+            self._send(message)
         except Exception as exc:  # noqa: BLE001 -- 정지는 best-effort
             log.error("노드 %s 정지 요청 실패: %s", mac, exc)
 
     def close(self) -> None:
-        """리더 스레드를 멈춘다. 포트 자체는 만든 쪽이 닫는다."""
+        """리더·디스패처 스레드를 멈춘다. 포트 자체는 만든 쪽이 닫는다."""
         self._closed.set()
         self._reader.join(timeout=2.0)
+        try:
+            self._unclaimed.put_nowait(_SHUTDOWN)
+        except queue.Full:  # pragma: no cover - 큐가 가득 차도 데몬이라 끝난다
+            pass
+        self._dispatcher.join(timeout=2.0)
 
 
 class EspNowNodeController:
@@ -257,15 +338,21 @@ class EspNowNodeController:
         timeout = self.timeout_for(len(buttons))
         try:
             success, retry = self._link.execute(self._mac, buttons, timeout)
-        except EspNowGatewayError:
+        except EspNowGatewayError as exc:
             # 응답만 못 받았을 뿐 노드는 아직 누르고 있을 수 있다 -- HTTP 경로와
-            # 같은 원칙으로 반드시 정지를 보낸다.
-            self.request_stop()
+            # 같은 원칙으로 반드시 정지를 보낸다. **어느 실행을 취소하는지 함께
+            # 보낸다** -- 이 정지가 늦게 도착하면 그 사이 시작된 다음 실행을 끊는다.
+            self.request_stop(rid=exc.sequence_id)
             raise
         return synthesize_execution_result(buttons, success, retry)
 
-    def request_stop(self) -> None:
-        self._link.request_stop(self._mac)
+    def request_stop(self, rid: str | None = None) -> None:
+        """정지 요청. rid를 비우면 무조건 정지(사용자 긴급 정지)다.
+
+        인자 없이 호출되는 형태를 유지해야 한다 -- SimpleLayService의 긴급 정지
+        브로드캐스트가 ``request_stop()``으로 부른다.
+        """
+        self._link.request_stop(self._mac, rid=rid)
 
     def close(self) -> None:
         """링크는 여러 노드가 공유하므로 여기서 닫지 않는다."""

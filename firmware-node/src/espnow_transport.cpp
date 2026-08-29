@@ -13,6 +13,35 @@ static const uint8_t kGatewayMac[6] = ESPNOW_GATEWAY_MAC;
 // 나머지가 조각 본문. 길이는 수신 콜백이 알려주므로 따로 싣지 않는다.
 static constexpr size_t kHdr = ESPNOW_FRAME_HEADER_BYTES;
 
+// ─── 송신 완료 대기 ─────────────────────────────────────────────────────────
+// esp_now_send()의 성공은 "큐에 넣었다"이지 "상대가 받았다"가 아니다. 조각을
+// 연달아 밀어 넣으면 큐가 넘쳐 중간 조각이 조용히 사라지고, 그 결과는 요청이면
+// 실행 미시작 후 긴 타임아웃, 응답이면 물리 실행은 성공했는데 화면만 실패다.
+// 그래서 조각마다 콜백을 기다린다. 응용 계층 재전송은 여전히 하지 않는다 --
+// 같은 버튼을 두 번 누르는 위험 때문(espnow_gateway.h 주석 참고). 다만 "무엇이
+// 안 나갔는지"는 알아야 위층에 제때 오류를 올릴 수 있다.
+static volatile bool s_sendDone = true;
+static volatile bool s_sendOk = false;
+
+static void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
+    (void)mac;
+    s_sendOk = (status == ESP_NOW_SEND_SUCCESS);
+    s_sendDone = true;
+}
+
+// true = 전달 확인. false = 상대가 ACK하지 않았거나 콜백 자체가 안 왔다.
+static bool waitForSendResult() {
+    const uint32_t deadline = millis() + ESPNOW_SEND_ACK_TIMEOUT_MS;
+    while (!s_sendDone && static_cast<int32_t>(millis() - deadline) < 0) {
+        delay(1);  // 스핀 대신 양보 -- Wi-Fi 태스크가 콜백을 돌려야 한다
+    }
+    if (!s_sendDone) {
+        log_e("send callback did not arrive within %dms", ESPNOW_SEND_ACK_TIMEOUT_MS);
+        return false;
+    }
+    return s_sendOk;
+}
+
 // ESP-NOW 수신 콜백은 자유 함수여야 해서 전역 인스턴스로 넘긴다.
 void espnowRecvBridge(const uint8_t* data, int len) {
     espNowTransport._handleFrame(data, len);
@@ -44,6 +73,7 @@ bool EspNowTransport::begin() {
         return false;
     }
     esp_now_register_recv_cb(onDataRecv);
+    esp_now_register_send_cb(onDataSent);
 
     esp_now_peer_info_t peer = {};
     memcpy(peer.peer_addr, kGatewayMac, 6);
@@ -87,7 +117,7 @@ void EspNowTransport::_handleFrame(const uint8_t* data, int len) {
     // 정지는 재조립을 기다리지 않고 즉시 반영한다 -- 실행 대기 중에 도착하는 것이
     // 정상이고, 그때 늦으면 정지의 의미가 없다. 버퍼 소유 상태와 무관하게 통과시킨다.
     if (kind == EspNowFrameKind::StopRequest) {
-        _stopRequested.store(true);
+        _handleStopFrame(data, len);
         return;
     }
 
@@ -172,6 +202,37 @@ void EspNowTransport::_handleFrame(const uint8_t* data, int len) {
     }
 }
 
+// 정지 프레임 본문 = 대상 rid 문자열 그대로(JSON 아님). 비어 있으면 무조건 정지.
+// 수신 콜백에서 도는 구간이라 파싱도 할당도 하지 않는다.
+void EspNowTransport::_handleStopFrame(const uint8_t* data, int len) {
+    size_t ridLen = (len > static_cast<int>(kHdr)) ? static_cast<size_t>(len) - kHdr : 0;
+    if (ridLen > sizeof(_stopRid) - 1) ridLen = sizeof(_stopRid) - 1;
+
+    portENTER_CRITICAL(&_mux);
+    _stopPending = true;
+    if (ridLen > 0) memcpy(_stopRid, data + kHdr, ridLen);
+    _stopRid[ridLen] = '\0';
+    portEXIT_CRITICAL(&_mux);
+}
+
+bool EspNowTransport::takeStopRequest() {
+    char rid[sizeof(_stopRid)];
+    portENTER_CRITICAL(&_mux);
+    const bool had = _stopPending;
+    _stopPending = false;
+    memcpy(rid, _stopRid, sizeof(rid));
+    portEXIT_CRITICAL(&_mux);
+
+    if (!had) return false;
+    if (rid[0] == '\0') return true;  // 무조건 정지
+
+    // 지정 정지: 지금 다루는 요청의 것일 때만 통한다. _currentRid는 loop 태스크만
+    // 만지므로(여기도 loop) 락이 필요 없다.
+    if (strcmp(rid, _currentRid) == 0) return true;
+    log_i("stop for rid %s ignored -- current request is %s", rid, _currentRid);
+    return false;
+}
+
 void EspNowTransport::poll() {
     const uint32_t now = millis();
     bool timedOut = false;
@@ -198,24 +259,25 @@ void EspNowTransport::poll() {
         log_w("reassembly timed out (msg %u) -- discarded", staleMsgId);
     }
 
-    // 가져가면서 지운다 -- 유휴 상태에서 정지 프레임 하나가 abort를 무한 반복시키던
-    // 문제(교차 리뷰 지적). 실행 대기 루프도 같은 함수를 쓰므로 소비는 항상 한 번이다.
-    const bool stopped = takeStopRequest();
-    if (stopped && _onStop) {
-        _onStop();
+    // 처리할 메시지가 있으면 정지 판정을 dispatch 안으로 미룬다. **여기서는 이 요청이
+    // 어느 rid인지 아직 모르기 때문**이다 -- 앞 실행에서 늦게 온 정지를 지금 꺼내
+    // 소비해버리면, 그 정지가 엉뚱하게 이번 실행을 끊거나(대상 확인 없이) 반대로
+    // 사라진다(소비만 하고 실행은 시작).
+    if (ready) {
+        _dispatchReady();
+        return;
     }
 
-    // **정지를 소비했는데 곧바로 실행을 시작하면 그 정지는 사라진다.**
-    // 순서: 마지막 조각 도착으로 Ready -> 그 직후 정지 프레임 도착 -> 이 poll()이
-    // 정지를 꺼내 abort를 보냄 -> 그런데 RPi4는 아직 유휴라 abort를 무시 -> 이어서
-    // 실행이 시작됨. 화면은 정지인데 실물이 그때부터 눌리기 시작한다.
-    // 실행 도중에 오는 정지는 waitForActReply의 대기 루프가 잡으므로, 남은 구멍은
-    // 정확히 "승인 후 시작 전" 이 구간뿐이었다.
-    if (ready) _dispatchReady(stopped);
+    // 유휴 상태의 정지. 가져가면서 지운다 -- 정지 프레임 하나가 매 loop마다 abort를
+    // 내보내던 문제(교차 리뷰 지적). 대상이 지정된 정지가 지금 것과 안 맞으면
+    // takeStopRequest가 조용히 버린다.
+    if (takeStopRequest() && _onStop) {
+        _onStop();
+    }
 }
 
-void EspNowTransport::_dispatchReady(bool cancelled) {
-    _dispatchMessage(cancelled);
+void EspNowTransport::_dispatchReady() {
+    _dispatchMessage();
 
     // 처리가 **완전히 끝난 뒤에야** 버퍼를 수신부에 돌려준다. 버퍼 수명 때문이
     // 아니라(ArduinoJson 7은 문자열을 문서로 복사한다), 실행 중에 들어온 요청을
@@ -230,7 +292,7 @@ void EspNowTransport::_dispatchReady(bool cancelled) {
     portEXIT_CRITICAL(&_mux);
 }
 
-void EspNowTransport::_dispatchMessage(bool cancelled) {
+void EspNowTransport::_dispatchMessage() {
     JsonDocument in;
     const DeserializationError err = deserializeJson(in, _buffer, _readyLen);
 
@@ -259,9 +321,13 @@ void EspNowTransport::_dispatchMessage(bool cancelled) {
 
     if (_readyKind != EspNowFrameKind::ExecuteRequest) return;
 
-    if (cancelled) {
-        // 승인과 시작 사이에 정지가 들어왔다. 시작하지 않고 확실한 답을 돌려준다 --
-        // 조용히 버리면 게이트웨이가 마감까지 기다리고 RPi5는 이유를 모른다.
+    // **승인과 시작 사이에 온 정지.** _currentRid가 방금 채워졌으므로 이제야
+    // "이 요청을 겨냥한 정지인가"를 판정할 수 있다. 여기서 걸러내지 않으면, 정지를
+    // 소비해 abort를 보내놓고(유휴 RPi4는 무시) 곧바로 실행을 시작하게 된다 --
+    // 화면은 정지인데 실물이 그때부터 눌린다. 실행 도중의 정지는 waitForActReply가
+    // 잡으므로 남은 구멍이 정확히 이 구간이었다.
+    if (takeStopRequest()) {
+        if (_onStop) _onStop();
         JsonDocument stoppedOut;
         stoppedOut["error"] = "stopped before execution";
         _sendJson(stoppedOut);
@@ -330,14 +396,21 @@ bool EspNowTransport::_sendMessage(EspNowFrameKind kind, const uint8_t* payload,
         frame[3] = static_cast<uint8_t>(kind);
         memcpy(frame + kHdr, payload + offset, chunk);
 
+        s_sendDone = false;
         const esp_err_t rc = esp_now_send(kGatewayMac, frame, kHdr + chunk);
         if (rc != ESP_OK) {
+            s_sendDone = true;
             log_e("esp_now_send failed on fragment %u/%u", (unsigned)(i + 1),
                   (unsigned)fragCount);
             return false;
         }
-        // 연속 전송 시 게이트웨이 쪽 수신 큐가 넘치지 않게 아주 짧게 띄운다
-        if (fragCount > 1) delay(2);
+        // 다음 조각을 보내기 전에 이 조각의 전달 결과를 확인한다(공식 권장).
+        // 고정 지연으로 띄우던 이전 방식은 전달 완료와 아무 상관이 없었다.
+        if (!waitForSendResult()) {
+            log_e("fragment %u/%u was not acked by the gateway", (unsigned)(i + 1),
+                  (unsigned)fragCount);
+            return false;
+        }
     }
     return true;
 }

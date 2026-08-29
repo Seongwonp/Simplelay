@@ -308,6 +308,128 @@ class TestControllerFactory:
 # 실행 중 긴급 정지 (동시성)
 # ═══════════════════════════════════════════════════════════════════════════════
 
+class TestStopTargeting:
+    """정지는 **어느 실행을 취소하는지** 밝혀야 한다.
+
+    앞 실행을 포기하며 보낸 정지가 늦게 도착하면, 그 사이 시작된 다음 실행이
+    끊긴다. 사용자 긴급 정지만 대상을 비워 무조건 멈춘다.
+    """
+
+    def test_timeout_stop_names_the_abandoned_run(self, port: FakePort, link):
+        controller = EspNowNodeController(_MAC, link, **_FAST)
+
+        with pytest.raises(EspNowGatewayError):
+            controller.execute(["시작"])
+
+        executed = next(m for m in port.written if m["type"] == "node_execute")
+        stop = next(m for m in port.written if m["type"] == "node_stop")
+        assert stop["rid"] == executed["sequence_id"]
+
+    def test_gateway_error_stop_names_the_failed_run(self, port: FakePort):
+        port.reply_to_execute = {"type": "node_error", "error": "boom"}
+        made = EspNowGatewayLink(port)
+        try:
+            with pytest.raises(EspNowGatewayError):
+                EspNowNodeController(_MAC, made, **_FAST).execute(["시작"])
+        finally:
+            made.close()
+
+        executed = next(m for m in port.written if m["type"] == "node_execute")
+        stop = next(m for m in port.written if m["type"] == "node_stop")
+        assert stop["rid"] == executed["sequence_id"]
+
+    def test_user_emergency_stop_has_no_target(self, port: FakePort, link):
+        # SimpleLayService의 긴급 정지 브로드캐스트는 인자 없이 부른다 -- 그때는
+        # 무엇이 돌든 멈춰야 하므로 대상을 비운다
+        EspNowNodeController(_MAC, link).request_stop()
+
+        assert port.written[-1] == {"type": "node_stop", "mac": _MAC}
+
+
+class TestLinkFailure:
+    """리더 스레드가 죽으면 **즉시** 알려야 한다.
+
+    예전에는 로그만 남기고 조용히 사라져서, 대기 중인 실행은 마감(30초+)까지
+    매달리고 이후 모든 실행이 응답을 읽을 사람 없이 같은 타임아웃을 반복했다.
+    """
+
+    def test_port_failure_fails_the_waiting_execute_immediately(self):
+        class DiesAfterWritePort(FakePort):
+            _dying = False
+
+            def write(self, data: bytes) -> int:
+                n = super().write(data)
+                self._dying = True
+                return n
+
+            def readline(self) -> bytes:
+                if self._dying:
+                    raise OSError("port gone")
+                time.sleep(0.001)
+                return b""
+
+        port = DiesAfterWritePort()
+        made = EspNowGatewayLink(port)
+        try:
+            controller = EspNowNodeController(
+                _MAC, made, base_timeout_seconds=5.0, per_button_timeout_seconds=0.0
+            )
+            started = time.monotonic()
+            with pytest.raises(EspNowGatewayError, match="포트 읽기 실패"):
+                controller.execute(["시작"])
+            # 5초 마감까지 기다리지 않는다
+            assert time.monotonic() - started < 2.0
+
+            # 죽은 링크에 다시 보내고 또 기다릴 이유가 없다
+            with pytest.raises(EspNowGatewayError, match="끊겼습니다"):
+                controller.execute(["시작"])
+        finally:
+            made.close()
+
+    def test_a_malformed_line_does_not_kill_the_reader(self, port: FakePort):
+        # retry가 깨져 있어도 실행 결과 자체는 유효하다. 여기서 예외가 나면
+        # 리더가 죽어 이후 모든 실행이 마감까지 매달렸다.
+        port.reply_to_execute = {"type": "node_result", "success": True, "retry": "bad"}
+        made = EspNowGatewayLink(port)
+        try:
+            controller = EspNowNodeController(_MAC, made, **_FAST)
+            first = controller.execute(["시작"])
+            second = controller.execute(["시작"])
+        finally:
+            made.close()
+
+        assert first.status is ExecutionStatus.SUCCEEDED
+        assert second.status is ExecutionStatus.SUCCEEDED
+
+
+class TestUnclaimedDispatch:
+    def test_a_slow_handler_does_not_block_result_routing(self, port: FakePort):
+        """임자 없는 줄 처리는 리더 스레드를 막으면 안 된다.
+
+        여기 붙는 처리기 중 하나가 물리 E-STOP -> 전체 노드 긴급 정지다. 리더에서
+        직접 부르면 그 브로드캐스트가 도는 동안 실행 응답이 읽히지 않는다.
+        """
+        seen = threading.Event()
+
+        def slow(doc: dict) -> None:
+            seen.set()
+            time.sleep(0.4)
+
+        port.extra_traffic = [{"type": "abort"}]
+        port.reply_to_execute = {"type": "node_result", "success": True, "retry": 0}
+        made = EspNowGatewayLink(port, on_unclaimed_line=slow)
+        try:
+            started = time.monotonic()
+            result = EspNowNodeController(_MAC, made, **_FAST).execute(["시작"])
+            elapsed = time.monotonic() - started
+        finally:
+            made.close()
+
+        assert result.status is ExecutionStatus.SUCCEEDED
+        assert seen.is_set()
+        assert elapsed < 0.3, "느린 처리기가 결과 라우팅을 붙잡았다"
+
+
 class TestStopDuringExecution:
     """실행이 응답을 기다리는 **도중에** 정지가 실제로 전선에 나가야 한다.
 

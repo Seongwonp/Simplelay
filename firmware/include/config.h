@@ -58,6 +58,12 @@
 #define ESPNOW_MAX_MESSAGE_BYTES  3072
 #define ESPNOW_REASSEMBLY_TIMEOUT_MS 3000
 
+// 조각 하나를 보낸 뒤 MAC 계층 전달 결과(송신 콜백)를 기다리는 상한.
+// esp_now_send()는 **큐에 넣기만** 하고 즉시 성공을 반환한다 -- 전달 완료가 아니다.
+// 공식 권장대로 이전 조각의 콜백을 받고 다음 조각을 보낸다. 안 그러면 큰 메시지의
+// 조각이 몰려 큐를 넘기고, 무엇이 실제로 나갔는지도 알 수 없다.
+#define ESPNOW_SEND_ACK_TIMEOUT_MS 50
+
 // 동시에 등록해 둘 수 있는 노드 수 (가전 수)
 #define ESPNOW_MAX_PEERS          8
 

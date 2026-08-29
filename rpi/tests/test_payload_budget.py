@@ -91,7 +91,8 @@ class TestFragmentationCoversBudget:
     def test_both_sides_agree_on_frame_geometry(self):
         # 머리 크기나 프레임 크기가 한쪽만 바뀌면 재조립이 어긋난다
         for name in ("ESPNOW_MAX_FRAME_BYTES", "ESPNOW_FRAME_HEADER_BYTES",
-                     "ESPNOW_MAX_MESSAGE_BYTES", "ESPNOW_CHANNEL"):
+                     "ESPNOW_MAX_MESSAGE_BYTES", "ESPNOW_CHANNEL",
+                     "ESPNOW_REASSEMBLY_TIMEOUT_MS", "ESPNOW_SEND_ACK_TIMEOUT_MS"):
             assert _define("firmware/include/config.h", name) == _define(
                 "firmware-node/include/config.h", name
             ), f"{name}가 게이트웨이와 노드에서 다르다"

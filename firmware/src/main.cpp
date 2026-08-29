@@ -95,7 +95,10 @@ static void onRpiMessage(const JsonDocument& doc) {
         return;
     }
     if (strcmp(type, "node_stop") == 0) {
-        if (ESPNOW_GATEWAY_ENABLED) espNowGateway.sendStop(doc["mac"] | "");
+        // rid가 없으면 "무조건 정지"(앱 긴급 정지·물리 E-STOP 경유)
+        if (ESPNOW_GATEWAY_ENABLED) {
+            espNowGateway.sendStop(doc["mac"] | "", doc["rid"] | "");
+        }
         return;
     }
 

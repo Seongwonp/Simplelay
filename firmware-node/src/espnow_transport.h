@@ -5,8 +5,6 @@
 #include <esp_now.h>
 #include <freertos/FreeRTOS.h>
 
-#include <atomic>
-
 #include "config.h"
 #include "transport.h"
 
@@ -80,8 +78,15 @@ public:
     //
     // 그 "하나의 연산"이 실제로 원자적이어야 한다. 읽고-쓰는 사이에 수신 콜백이
     // 새 정지를 세우면 그 정지가 지워져 사라진다 -- **놓친 긴급 정지**이므로 이
-    // 프로젝트에서 가장 비싼 종류의 경쟁이다. exchange로 한 번에 처리한다.
-    bool takeStopRequest() { return _stopRequested.exchange(false); }
+    // 프로젝트에서 가장 비싼 종류의 경쟁이다. 플래그와 대상 rid를 한 임계구역에서
+    // 함께 꺼낸다.
+    //
+    // 정지 프레임은 **대상 rid를 본문에 그대로 싣는다**(JSON이 아니다 -- 수신
+    // 콜백에서 파싱하지 않으려고). 본문이 비어 있으면 "무조건 정지"(물리 E-STOP,
+    // 앱 긴급 정지)이고, 차 있으면 그 rid의 실행만 정지시킨다. 지금 실행과 무관한
+    // 정지는 소비하고 버린다 -- 앞 실행에서 늦게 도착한 정지가 다음 실행을 끊는
+    // 것을 막기 위해서다(교차 리뷰 지적).
+    bool takeStopRequest();
 
 private:
     ExecuteHandler _onExecute;
@@ -114,17 +119,18 @@ private:
     EspNowFrameKind _readyKind = EspNowFrameKind::ExecuteRequest;
     size_t _readyLen = 0;
 
-    std::atomic<bool> _stopRequested{false};
+    // _mux가 지킨다(수신 콜백이 쓰고 loop가 꺼내 간다)
+    bool _stopPending = false;
+    char _stopRid[48] = "";
 
     // 요청에 실려 온 식별자. 응답에 그대로 되돌려 게이트웨이가 "이 답이 어느 요청의
     // 것인지" 확인할 수 있게 한다. 없으면 지연 응답이 다음 요청 결과로 잘못 쓰인다.
     char _currentRid[48] = "";
 
+    void _handleStopFrame(const uint8_t* data, int len);
     void _handleFrame(const uint8_t* data, int len);
-    // cancelled = 실행을 시작하기 전에 정지가 이미 도착했다. 실행하지 않고
-    // 취소로 답한다 -- 시작해버리면 그 정지는 영영 사라진다.
-    void _dispatchReady(bool cancelled);  // 처리 후 버퍼를 수신부에 돌려준다
-    void _dispatchMessage(bool cancelled);
+    void _dispatchReady();   // _dispatchMessage 후 버퍼를 수신부에 돌려준다
+    void _dispatchMessage();
     void _resetAssemblyLocked();  // 반드시 _mux를 쥔 채로 부를 것
     bool _sendMessage(EspNowFrameKind kind, const uint8_t* payload, size_t len);
     void _sendJson(JsonDocument& doc);  // rid를 찍어 보내므로 const 아님

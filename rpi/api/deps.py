@@ -1,4 +1,5 @@
 """싱글톤 서비스 의존성 — 하드웨어 없이도 동작하는 mock 구현으로 초기화."""
+import logging
 import os
 from datetime import time
 from functools import lru_cache
@@ -139,6 +140,8 @@ def get_alert_store() -> DangerAlertStore:
     return DangerAlertStore(_clock)
 
 
+log = logging.getLogger(__name__)
+
 NODE_TRANSPORT_ENV = "SIMPLELAY_NODE_TRANSPORT"
 GATEWAY_PORT_ENV = "SIMPLELAY_GATEWAY_PORT"
 GATEWAY_BAUD_ENV = "SIMPLELAY_GATEWAY_BAUD"
@@ -177,8 +180,30 @@ def _get_gateway_link():
 
     baud = int(os.environ.get(GATEWAY_BAUD_ENV, DEFAULT_GATEWAY_BAUD))
     return EspNowGatewayLink(
-        serial.Serial(port_path, baud, timeout=GATEWAY_READ_TIMEOUT_SECONDS)
+        serial.Serial(port_path, baud, timeout=GATEWAY_READ_TIMEOUT_SECONDS),
+        on_unclaimed_line=handle_gateway_line,
     )
+
+
+def handle_gateway_line(doc: dict) -> None:
+    """게이트웨이 UART에서 온, 노드 실행 응답이 아닌 줄.
+
+    이 보드는 폰 BLE 폴백 브릿지를 겸하므로 같은 UART에 브릿지 트래픽이 함께 흐른다.
+    그중 **``abort``는 보드의 물리 E-STOP 버튼**이다(firmware/src/main.cpp의
+    handleEstop). 여기 소비자를 붙이기 전까지 그 줄은 아무도 읽지 않았다 --
+    하드웨어 비상정지가 소프트웨어 긴급 정지에 연결돼 있지 않은 상태였다.
+
+    링크의 디스패처 스레드에서 불린다(리더 스레드가 아니다). 그래도 오래 붙잡지는
+    말 것 -- 뒤에 다른 줄이 밀린다.
+    """
+    kind = doc.get("type")
+    if kind == "abort":
+        log.warning("게이트웨이 물리 E-STOP 수신 — 긴급 정지를 실행합니다")
+        get_service().emergency_stop()
+        return
+    # 나머지(intent·confirm·sensor_log 등)는 아직 RPi5 쪽 소비자가 없다.
+    # 조용히 버리지 않고 남긴다 -- 없어진 줄을 나중에 추적할 수 있어야 한다.
+    log.info("게이트웨이 UART에 아직 처리기가 없는 메시지: %s", kind)
 
 
 def _node_controller_factory():
