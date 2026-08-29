@@ -5,6 +5,7 @@
 #include "config.h"
 #include "act_uart.h"
 #include "http_server.h"
+#include "espnow_transport.h"
 
 // ─── Emergency stop listener (STOP_PORT) ─────────────────────────────────────
 // 이 포트로 들어온 "/stop" 요청 = 정지 요청. waitForActReply의 대기 루프에서도
@@ -17,7 +18,17 @@
 // 요청 라인을 못 읽었을 때는 안전하게 정지 쪽으로 판단한다.
 static WiFiServer stopServer(STOP_PORT);
 
+// 정지 요청 처리의 알맹이 — HTTP(STOP_PORT)와 ESP-NOW(정지 프레임)가 같이 쓴다.
+static void sendAbortToAct(const char* via) {
+    JsonDocument abortMsg;
+    abortMsg["type"] = "abort";
+    actUart.send(abortMsg);
+    log_w("stop requested via %s - abort sent to RPi4", via);
+}
+
 static void pollStopServer() {
+    if (ESPNOW_ENABLED) return;  // ESP-NOW 모드에서는 정지가 프레임으로 온다
+
     WiFiClient client = stopServer.accept();
     if (!client) return;
 
@@ -37,10 +48,7 @@ static void pollStopServer() {
     const bool isStop = (len == 0) || (strstr(line, "/stop") != nullptr);
 
     if (isStop) {
-        JsonDocument abortMsg;
-        abortMsg["type"] = "abort";
-        actUart.send(abortMsg);
-        log_w("stop requested via :%d — abort sent to RPi4", STOP_PORT);
+        sendAbortToAct("HTTP stop port");
         client.print("HTTP/1.1 200 OK\r\nContent-Type: application/json\r\n"
                      "Connection: close\r\nContent-Length: 11\r\n\r\n{\"ok\":true}");
     } else {
@@ -118,6 +126,11 @@ static bool waitForActReply(const char* seqId, bool& outSuccess, int& outRetry,
     while (millis() - start < timeoutMs) {
         actUart.poll();
         pollStopServer();  // 실행 중에도 긴급 정지를 받는다 (STOP_PORT)
+        if (ESPNOW_ENABLED && espNowTransport.stopRequested()) {
+            // 수신 콜백이 세운 플래그 -- 폴링을 기다리지 않아 HTTP 경로보다 빠르다
+            espNowTransport.clearStopRequest();
+            sendAbortToAct("ESP-NOW stop frame");
+        }
         if (pendingHasReply) {
             outSuccess = pendingSuccess;
             outRetry = pendingRetry;
@@ -189,19 +202,36 @@ void setup() {
     actUart.onMessage(onActMessage);
     actUart.begin();
 
-    httpServer.onExecute(onExecute);
-    httpServer.onAlerts(onAlerts);
-    httpServer.begin();
-    stopServer.begin();
-    log_i("stop listener on port %d", STOP_PORT);
+    // 전송 계층 선택 -- 실행 로직(onExecute/onAlerts)은 양쪽에 그대로 넘어간다.
+    // 자동 폴백을 두지 않는 것은 의도다: 어느 전송으로 도는지 모호하면 시연장에서
+    // "왜 안 되는지"를 못 좁힌다(SIMPLELAY_ACT_MODE와 같은 원칙).
+    if (ESPNOW_ENABLED) {
+        espNowTransport.onExecute(onExecute);
+        espNowTransport.onAlerts(onAlerts);
+        espNowTransport.onStop([]() { sendAbortToAct("ESP-NOW stop frame"); });
+        if (!espNowTransport.begin()) {
+            log_e("ESP-NOW init failed - node is unreachable until fixed");
+        }
+    } else {
+        httpServer.onExecute(onExecute);
+        httpServer.onAlerts(onAlerts);
+        httpServer.begin();
+        stopServer.begin();
+        log_i("stop listener on port %d", STOP_PORT);
+    }
 
     digitalWrite(LED_PIN, LOW);  // init 완료
-    log_i("Boot OK — HTTP serving, Act UART listening");
+    log_i("Boot OK - transport=%s, Act UART listening",
+          ESPNOW_ENABLED ? "ESP-NOW" : "HTTP");
 }
 
 void loop() {
-    httpServer.handleClient();
+    if (ESPNOW_ENABLED) {
+        espNowTransport.poll();
+    } else {
+        httpServer.handleClient();
+        pollStopServer();  // 유휴 중의 정지 요청도 응답해 준다 (RPi4가 무시하면 무해)
+    }
     actUart.poll();  // pending 응답을 안 기다리는 동안에도 alert는 계속 흡수
-    pollStopServer();  // 유휴 중의 정지 요청도 응답해 준다 (RPi4가 무시하면 무해)
     delay(2);
 }

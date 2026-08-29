@@ -36,5 +36,28 @@
 #define JSON_BUF_SIZE              512
 #define HTTP_BODY_MAX_BYTES       1024
 
+// ─── ESP-NOW (본선 데모 전송) ───────────────────────────────────────────────
+// 시연장 공유 Wi-Fi 혼잡과 무관하게 통신하려는 것이 목적 — 공유기를 아예 거치지
+// 않는다. 다만 ESP-NOW는 ESP32 라디오끼리만 통하므로, RPi5 쪽에도 게이트웨이
+// ESP32가 UART로 붙어 있어야 한다:
+//     RPi5 --UART--> ESP32 게이트웨이 --ESP-NOW--> 이 노드 --UART--> RPi4
+#define ESPNOW_ENABLED            0   // 1로 바꾸면 HTTP 대신 ESP-NOW로 동작
+
+// 게이트웨이 ESP32의 MAC. 실기기에서 게이트웨이의 WiFi.macAddress()로 확인해 채운다.
+#define ESPNOW_GATEWAY_MAC        {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+
+// 양쪽이 같은 채널이어야 통신된다. AP에 붙지 않으므로 명시적으로 고정한다.
+#define ESPNOW_CHANNEL            1
+
+// 한 프레임은 250바이트가 상한이라(ESP-NOW 규격) 큰 메시지는 쪼개 보낸다.
+// 버튼 20개 × 라벨 40자면 800자가 넘어 한 프레임에 안 들어간다.
+#define ESPNOW_FRAME_HEADER_BYTES 4
+#define ESPNOW_MAX_FRAME_BYTES    250
+#define ESPNOW_MAX_PAYLOAD_BYTES  (ESPNOW_MAX_FRAME_BYTES - ESPNOW_FRAME_HEADER_BYTES)
+// 재조립 버퍼 상한 — 스키마 상한(발화 200자·버튼 20개×40자)에 여유를 둔 값
+#define ESPNOW_MAX_MESSAGE_BYTES  1280
+// 조각이 다 오지 않은 채 이 시간이 지나면 버린다(유실된 조각으로 버퍼가 막히지 않게)
+#define ESPNOW_REASSEMBLY_TIMEOUT_MS 3000
+
 // ─── Pins ──────────────────────────────────────────────────────────────────
 #define LED_PIN            2
