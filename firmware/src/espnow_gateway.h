@@ -1,6 +1,9 @@
 #pragma once
 
+#include <Arduino.h>
 #include <ArduinoJson.h>
+#include <freertos/FreeRTOS.h>
+
 #include <functional>
 
 #include "config.h"
@@ -30,6 +33,19 @@
 // 시스템에서 중복 실행은 유실보다 나쁘다 -- 유실은 위층 타임아웃이 오류로 알려주고
 // 정지까지 보내지만, 중복은 아무도 모른다. 실기기에서 유실률이 문제가 되면
 // 멱등성 키(rid 기반 중복 무시)를 노드에 먼저 넣고 나서 재전송을 검토한다.
+
+// 재조립 버퍼를 지금 누가 만질 차례인가 -- 노드 쪽(EspNowTransport)과 같은 규약이다.
+//
+// 수신 콜백은 **Wi-Fi 태스크**, poll()/_dispatchReady()는 **Arduino loop 태스크**에서
+// 돈다. ESP32는 듀얼코어라 둘이 다른 코어에서 동시에 실행될 수 있고, volatile 하나로는
+// 원자성도 메모리 순서도 얻지 못한다. 처리가 끝나야 Idle로 돌아가고 그 전까지 수신부는
+// 새 프레임을 버린다 -- ArduinoJson이 이 버퍼를 zero-copy로 참조하기 때문이다.
+enum class RxState : uint8_t {
+    Idle,
+    Assembling,
+    Ready,
+    Dispatching,
+};
 
 // 노드 응답이 도착했을 때. success/retry는 응답이 정상일 때만 의미가 있다.
 using NodeResultHandler =
@@ -61,6 +77,11 @@ private:
     NodeResultHandler _onResult;
     NodeErrorHandler _onError;
 
+    // 아래 상태는 전부 _mux가 지킨다(대기 중인 실행 + 재조립). 수신 콜백이 _pending과
+    // _pendingMac을 읽고 loop가 그것을 쓰므로 재조립과 같은 경계에 있다.
+    // 임계구역 안에서는 로그·핸들러·delay를 절대 부르지 않는다 -- 스핀락이다.
+    portMUX_TYPE _mux = portMUX_INITIALIZER_UNLOCKED;
+
     // ── 대기 중인 실행 ──
     // 시스템 전체가 한 번에 하나만 실행하므로(RPi5의 실행 락) 하나만 추적한다.
     bool _pending = false;
@@ -69,15 +90,20 @@ private:
     uint32_t _pendingDeadlineMs = 0;
 
     // ── 수신 재조립 ──
+    RxState _rxState = RxState::Idle;
     uint8_t _buffer[ESPNOW_MAX_MESSAGE_BYTES];
     size_t _bufferLen = 0;
     uint8_t _msgId = 0;
     uint8_t _fragCount = 0;
     uint32_t _fragsSeenMask = 0;
     uint32_t _firstFragMs = 0;
-    bool _assembling = false;
-    volatile bool _messageReady = false;
     size_t _readyLen = 0;
+
+    // 방금 처리를 끝낸 메시지 -- 뒤늦은 조각이 새 재조립을 시작해 진짜 새 메시지를
+    // 밀어내지 않게 한다(노드 쪽과 같은 규칙).
+    uint8_t _lastDoneMsgId = 0;
+    uint32_t _lastDoneMs = 0;
+    bool _hasLastDone = false;
 
     // ── 피어 관리 ──
     uint8_t _peers[ESPNOW_MAX_PEERS][6] = {};
@@ -87,8 +113,9 @@ private:
     bool _sendFramed(const uint8_t* mac, uint8_t kind, const uint8_t* payload,
                      size_t len);
     void _handleFrame(const uint8_t* mac, const uint8_t* data, int len);
-    void _dispatchReady();
-    void _resetAssembly();
+    void _dispatchReady();   // _dispatchMessage 후 버퍼를 수신부에 돌려준다
+    void _dispatchMessage();
+    void _resetAssemblyLocked();  // 반드시 _mux를 쥔 채로 부를 것
     void _failPending(const char* reason);
 
     friend void espnowGatewayRecvBridge(const uint8_t* mac, const uint8_t* data,

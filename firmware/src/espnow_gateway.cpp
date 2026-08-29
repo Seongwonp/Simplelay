@@ -144,23 +144,39 @@ bool EspNowGateway::sendExecute(const char* macText, const JsonArray& buttons,
     // 앞 실행이 아직 안 끝났으면 새로 받지 않는다. 받아버리면 앞 요청의 결과가
     // 뒤 요청의 것으로 잘못 보고된다(RPi5는 한 번에 하나만 보내지만, 재시도나
     // 지연 응답이 겹칠 수 있다).
-    if (_pending) {
-        log_w("execute rejected -- previous request %s still pending", _pendingSeqId);
-        return false;
-    }
-
+    //
     // **전송보다 먼저** pending을 세운다. 반대 순서였을 때는, 노드가 아주 빨리
     // (빈 버튼·잘못된 JSON 등으로 즉시) 응답하면 마지막 조각을 보내는 사이에
     // 응답이 도착하고, 수신 콜백이 `_pending == false`를 보고 그것을 버렸다.
     // 그러면 게이트웨이는 이미 온 답을 두고 타임아웃까지 기다렸다.
-    _pending = true;
-    strlcpy(_pendingSeqId, sequenceId, sizeof(_pendingSeqId));
-    memcpy(_pendingMac, mac, 6);
-    _pendingDeadlineMs = millis() + ESPNOW_GW_BASE_TIMEOUT_MS +
-                         ESPNOW_GW_PER_BUTTON_TIMEOUT_MS * buttonCount;
+    //
+    // 검사와 설정은 한 임계구역에서 끝낸다. 실제 전송(_sendFramed)은 조각 사이에
+    // delay()가 있어 스핀락 안에서 하면 안 되므로 그 밖에서 한다.
+    const uint32_t deadline = millis() + ESPNOW_GW_BASE_TIMEOUT_MS +
+                              ESPNOW_GW_PER_BUTTON_TIMEOUT_MS * buttonCount;
+    bool rejected = false;
+    portENTER_CRITICAL(&_mux);
+    if (_pending) {
+        rejected = true;
+    } else {
+        _pending = true;
+        strlcpy(_pendingSeqId, sequenceId, sizeof(_pendingSeqId));
+        memcpy(_pendingMac, mac, 6);
+        _pendingDeadlineMs = deadline;
+        _rxState = RxState::Idle;  // 앞 요청의 재조립 찌꺼기를 끌고 가지 않는다
+        _resetAssemblyLocked();
+    }
+    portEXIT_CRITICAL(&_mux);
+
+    if (rejected) {
+        log_w("execute rejected -- a previous request is still pending");
+        return false;
+    }
 
     if (!_sendFramed(mac, kKindExecute, body, len)) {
+        portENTER_CRITICAL(&_mux);
         _pending = false;  // 보내지 못했으면 되돌린다
+        portEXIT_CRITICAL(&_mux);
         return false;
     }
     return true;
@@ -173,86 +189,192 @@ void EspNowGateway::sendStop(const char* macText) {
     _sendFramed(mac, kKindStop, empty, sizeof(empty) - 1);
 }
 
-void EspNowGateway::_resetAssembly() {
-    _assembling = false;
+void EspNowGateway::_resetAssemblyLocked() {
     _bufferLen = 0;
     _fragCount = 0;
     _fragsSeenMask = 0;
 }
 
+// 프레임 하나를 왜 버렸는지. 로그는 임계구역 밖에서 찍어야 해서 이유만 들고 나온다.
+enum class FrameDrop : uint8_t {
+    None = 0,
+    NotPending,    // 지금 기다리는 노드의 응답이 아니다 (흔하다 -- 조용히 버린다)
+    Busy,          // 앞 메시지를 아직 처리 중
+    OtherMessage,  // 다른 msgId -- 진행 중인 재조립을 뒤엎지 않는다
+    Shape,         // 같은 msgId인데 조각 수가 다르다 = 옛 프레임
+    AlreadyDone,   // 방금 끝낸 메시지의 뒤늦은 조각
+    OutOfRange,    // 버퍼 밖으로 나가는 조각
+};
+
 void EspNowGateway::_handleFrame(const uint8_t* mac, const uint8_t* data, int len) {
     if (len < static_cast<int>(kHdr)) return;
-    // 대기 중인 노드가 아닌 곳에서 온 프레임은 무시한다
-    if (!_pending || memcmp(mac, _pendingMac, 6) != 0) return;
     if (data[3] != kKindResponse) return;
 
     const uint8_t msgId = data[0];
     const uint8_t fragIndex = data[1];
     const uint8_t fragCount = data[2];
     if (fragCount == 0 || fragIndex >= fragCount || fragCount > 32) return;
-    if (_messageReady) return;
-
-    if (!_assembling || msgId != _msgId) {
-        _resetAssembly();
-        _assembling = true;
-        _msgId = msgId;
-        _fragCount = fragCount;
-        _firstFragMs = millis();
-    }
 
     const size_t payloadLen = static_cast<size_t>(len) - kHdr;
     const size_t offset = static_cast<size_t>(fragIndex) * ESPNOW_MAX_PAYLOAD_BYTES;
-    if (offset + payloadLen > ESPNOW_MAX_MESSAGE_BYTES) {
-        _resetAssembly();
-        return;
-    }
-    memcpy(_buffer + offset, data + kHdr, payloadLen);
-    _fragsSeenMask |= (1UL << fragIndex);
-    if (offset + payloadLen > _bufferLen) _bufferLen = offset + payloadLen;
+    const uint32_t now = millis();
 
-    const uint32_t complete = (fragCount >= 32) ? 0xFFFFFFFFUL
-                                                : ((1UL << fragCount) - 1UL);
-    if (_fragsSeenMask == complete) {
-        _readyLen = _bufferLen;
-        _messageReady = true;
-        _assembling = false;
-    }
-}
+    FrameDrop drop = FrameDrop::None;
+    uint8_t currentMsgId = 0;
 
-void EspNowGateway::_failPending(const char* reason) {
-    if (!_pending) return;
-    _pending = false;
-    if (_onError) _onError(_pendingSeqId, reason);
+    portENTER_CRITICAL(&_mux);
+    currentMsgId = _msgId;
+    if (!_pending || memcmp(mac, _pendingMac, 6) != 0) {
+        // 대기 중인 노드가 아닌 곳에서 온 프레임
+        drop = FrameDrop::NotPending;
+    } else if (_rxState == RxState::Ready || _rxState == RxState::Dispatching) {
+        // loop가 버퍼를 쓰는 중이다. 지금 덮으면 처리 중인 JSON이 발밑에서 바뀐다.
+        drop = FrameDrop::Busy;
+    } else if (offset + payloadLen > ESPNOW_MAX_MESSAGE_BYTES) {
+        // 이 조각만 버린다 -- 엉뚱한 프레임 하나가 진행 중인 재조립을 없애지 않게
+        drop = FrameDrop::OutOfRange;
+    } else if (_rxState == RxState::Assembling && msgId != _msgId) {
+        // 진행 중인 재조립을 다른 메시지가 뺏지 못하게 한다. 예전에는 서로 계속
+        // 밀어내서 둘 다 완성되지 못하고 타임아웃까지 갔다(교차 리뷰 #10).
+        drop = FrameDrop::OtherMessage;
+    } else if (_rxState == RxState::Assembling && fragCount != _fragCount) {
+        // 같은 msgId인데 조각 수가 다르다 = msgId 카운터가 한 바퀴 돈 옛 프레임
+        drop = FrameDrop::Shape;
+    } else if (_rxState == RxState::Idle && _hasLastDone && msgId == _lastDoneMsgId &&
+               (now - _lastDoneMs) < ESPNOW_REASSEMBLY_TIMEOUT_MS) {
+        // 방금 끝낸 메시지의 뒤늦은 조각. 이걸로 새 재조립을 시작하면 진짜 새
+        // 메시지가 "다른 msgId"로 밀려 버려진다 -- 위 규칙의 뒷면이다.
+        drop = FrameDrop::AlreadyDone;
+    } else {
+        if (_rxState == RxState::Idle) {
+            _resetAssemblyLocked();
+            _rxState = RxState::Assembling;
+            _msgId = msgId;
+            _fragCount = fragCount;
+            _firstFragMs = now;
+        }
+        memcpy(_buffer + offset, data + kHdr, payloadLen);
+        _fragsSeenMask |= (1UL << fragIndex);
+        if (offset + payloadLen > _bufferLen) _bufferLen = offset + payloadLen;
+
+        // 완성 판정은 **저장된** _fragCount로 한다. 이 프레임이 들고 온 값을 쓰면,
+        // fragCount=1이라고 주장하는 옛 프레임 하나가 여러 조각짜리 메시지를
+        // "다 왔다"고 만들어 잘린 JSON을 처리하게 만든다.
+        const uint32_t complete = (_fragCount >= 32) ? 0xFFFFFFFFUL
+                                                     : ((1UL << _fragCount) - 1UL);
+        if (_fragsSeenMask == complete) {
+            _readyLen = _bufferLen;
+            _rxState = RxState::Ready;
+        }
+    }
+    portEXIT_CRITICAL(&_mux);
+
+    switch (drop) {
+        case FrameDrop::Busy:
+            log_w("frame dropped -- still handling the previous response");
+            break;
+        case FrameDrop::OutOfRange:
+            log_w("fragment %u lands outside the reassembly buffer -- dropped",
+                  fragIndex);
+            break;
+        case FrameDrop::OtherMessage:
+            log_w("fragment of msg %u dropped -- assembling msg %u", msgId,
+                  currentMsgId);
+            break;
+        case FrameDrop::Shape:
+            log_w("fragment for msg %u has a different shape -- stale, dropped", msgId);
+            break;
+        case FrameDrop::AlreadyDone:
+            log_i("late fragment of msg %u dropped -- already handled", msgId);
+            break;
+        case FrameDrop::NotPending:  // 남의 트래픽이 흔하다 -- 조용히 버린다
+        case FrameDrop::None:
+            break;
+    }
 }
 
 void EspNowGateway::poll() {
-    if (_assembling && (millis() - _firstFragMs) > ESPNOW_REASSEMBLY_TIMEOUT_MS) {
+    const uint32_t now = millis();
+    bool timedOut = false;
+    bool ready = false;
+    bool deadlinePassed = false;
+
+    portENTER_CRITICAL(&_mux);
+    if (_rxState == RxState::Assembling &&
+        (now - _firstFragMs) > ESPNOW_REASSEMBLY_TIMEOUT_MS) {
+        _resetAssemblyLocked();
+        _rxState = RxState::Idle;
+        timedOut = true;
+    }
+    if (_rxState == RxState::Ready) {
+        _rxState = RxState::Dispatching;  // 처리가 끝날 때까지 수신부를 막는다
+        ready = true;
+    } else if (_pending && static_cast<int32_t>(now - _pendingDeadlineMs) >= 0) {
+        deadlinePassed = true;
+    }
+    portEXIT_CRITICAL(&_mux);
+
+    if (timedOut) {
         log_w("gateway reassembly timed out -- discarded");
-        _resetAssembly();
         // 노드는 이미 답을 보냈고 조각이 유실된 것이다. 노드는 재전송하지 않으므로
         // 남은 마감까지 기다려봐야 얻을 게 없다 -- 바로 위로 올려서 RPi5가 그만큼
         // 빨리 정지를 보내게 한다(무엇이 잘못됐는지도 타임아웃보다 구체적이다).
         _failPending("node response incomplete");
+        return;
     }
 
-    if (_messageReady) {
+    if (ready) {
         _dispatchReady();
         return;
     }
 
     // 노드가 아예 응답하지 않는 경우. RPi5보다 먼저 포기해서 추측 대신 오류를 준다.
-    if (_pending && static_cast<int32_t>(millis() - _pendingDeadlineMs) >= 0) {
+    if (deadlinePassed) {
         _failPending("node did not respond");
     }
 }
 
 void EspNowGateway::_dispatchReady() {
-    JsonDocument in;
-    const DeserializationError err = deserializeJson(in, _buffer, _readyLen);
-    _messageReady = false;
-    _bufferLen = 0;
+    _dispatchMessage();
 
-    if (!_pending) return;
+    // 처리가 끝난 뒤에야 버퍼를 수신부에 돌려준다 -- _dispatchMessage가 콜백에
+    // 넘기는 문자열(error 메시지 등)은 _buffer를 zero-copy로 가리킨다.
+    const uint32_t doneMs = millis();
+    portENTER_CRITICAL(&_mux);
+    _lastDoneMsgId = _msgId;
+    _lastDoneMs = doneMs;
+    _hasLastDone = true;
+    _resetAssemblyLocked();
+    _rxState = RxState::Idle;
+    portEXIT_CRITICAL(&_mux);
+}
+
+void EspNowGateway::_failPending(const char* reason) {
+    // 대기를 닫는 것과 콜백을 부르는 것을 분리한다. 콜백은 UART로 한 줄을 쓰므로
+    // 스핀락 안에서 부르면 그동안 다른 코어가 멈춰 선다.
+    char seqId[sizeof(_pendingSeqId)];
+    portENTER_CRITICAL(&_mux);
+    const bool wasPending = _pending;
+    _pending = false;
+    memcpy(seqId, _pendingSeqId, sizeof(seqId));
+    portEXIT_CRITICAL(&_mux);
+
+    if (!wasPending) return;
+    if (_onError) _onError(seqId, reason);
+}
+
+void EspNowGateway::_dispatchMessage() {
+    JsonDocument in;
+    // zero-copy 파싱이다 -- in의 문자열은 _buffer를 그대로 가리킨다. 아래 콜백에
+    // 넘기는 error 문자열이 유효하려면 그때까지 버퍼가 살아 있어야 한다.
+    const DeserializationError err = deserializeJson(in, _buffer, _readyLen);
+
+    char seqId[sizeof(_pendingSeqId)];
+    portENTER_CRITICAL(&_mux);
+    const bool pending = _pending;
+    memcpy(seqId, _pendingSeqId, sizeof(seqId));
+    portEXIT_CRITICAL(&_mux);
+    if (!pending) return;
 
     if (err != DeserializationError::Ok) {
         _failPending("unparseable node response");
@@ -265,19 +387,21 @@ void EspNowGateway::_dispatchReady() {
     // 식별자가 없다). 발신 MAC은 이미 _handleFrame에서 걸렀으므로 받아들인다.
     const char* rid = in["rid"] | "";
     const bool unidentified = rid[0] == 0 && in["error"].is<const char*>();
-    if (!unidentified && strcmp(rid, _pendingSeqId) != 0) {
-        log_w("dropping node response for %s while waiting on %s", rid, _pendingSeqId);
+    if (!unidentified && strcmp(rid, seqId) != 0) {
+        log_w("dropping node response for %s while waiting on %s", rid, seqId);
         return;
     }
+
+    // 여기부터는 이 응답이 대기 중인 요청의 것이다 -- 대기를 먼저 닫고 콜백을 부른다
+    portENTER_CRITICAL(&_mux);
+    _pending = false;
+    portEXIT_CRITICAL(&_mux);
 
     if (in["error"].is<const char*>()) {
-        _pending = false;
-        if (_onError) _onError(_pendingSeqId, in["error"].as<const char*>());
+        if (_onError) _onError(seqId, in["error"].as<const char*>());
         return;
     }
-
-    _pending = false;
     if (_onResult) {
-        _onResult(_pendingSeqId, in["success"] | false, in["retry"] | 0);
+        _onResult(seqId, in["success"] | false, in["retry"] | 0);
     }
 }
