@@ -157,7 +157,12 @@ static bool onExecute(const JsonArray& buttons, bool& outSuccess, int& outRetry)
     for (JsonVariant v : buttons) {
         buttonsOut.add(v.as<const char*>());
     }
-    actUart.send(out);
+    if (!actUart.send(out)) {
+        // 보내지도 못했으면 기다릴 이유가 없다 -- 상위가 즉시 오류를 내려
+        // RPi5가 타임아웃까지 붙잡히지 않게 한다.
+        log_e("execute not sent (too large for UART buffer)");
+        return false;
+    }
 
     // 버튼 수에 비례한 대기 — RPi5보다 먼저 포기해야 RPi5가 504를 받아
     // 정지까지 보낼 수 있다(고정 30s 시절엔 RPi5가 먼저 조용히 포기했다).

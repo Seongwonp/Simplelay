@@ -33,7 +33,11 @@
 #define ACT_PER_BUTTON_TIMEOUT_MS  6000
 // 고정값 시절의 상한 — 방어적 절대 상한으로만 남긴다
 #define ACT_MAX_TIMEOUT_MS       180000
-#define JSON_BUF_SIZE              512
+// JSON 라인 버퍼 — **전송 경로 바이트 예산과 짝**이다(rpi/api/schemas.py의
+// MAX_EXECUTE_PAYLOAD_BYTES = 2560). 한글 라벨은 UTF-8 3바이트라 상한
+// "20개 × 40자"의 최악 줄이 약 2.6KB다. 512로는 조용히 잘렸다(교차 리뷰 지적).
+// 예산 + 봉투(type/sequence_id/mac) 여유를 덮는 값으로 잡는다.
+#define JSON_BUF_SIZE              3072
 #define HTTP_BODY_MAX_BYTES       1024
 
 // ─── ESP-NOW (본선 데모 전송) ───────────────────────────────────────────────
@@ -50,12 +54,13 @@
 #define ESPNOW_CHANNEL            1
 
 // 한 프레임은 250바이트가 상한이라(ESP-NOW 규격) 큰 메시지는 쪼개 보낸다.
-// 버튼 20개 × 라벨 40자면 800자가 넘어 한 프레임에 안 들어간다.
+// 상한(버튼 20개 × 라벨 40자)의 최악 본문은 약 2.5KB다 — 한글이 UTF-8 3바이트라
+// 글자 수로 세면 3배 과소평가한다.
 #define ESPNOW_FRAME_HEADER_BYTES 4
 #define ESPNOW_MAX_FRAME_BYTES    250
 #define ESPNOW_MAX_PAYLOAD_BYTES  (ESPNOW_MAX_FRAME_BYTES - ESPNOW_FRAME_HEADER_BYTES)
-// 재조립 버퍼 상한 — 스키마 상한(발화 200자·버튼 20개×40자)에 여유를 둔 값
-#define ESPNOW_MAX_MESSAGE_BYTES  1280
+// 재조립 버퍼 — ESP-NOW 본문도 같은 바이트 예산을 따른다(위 JSON_BUF_SIZE 주석 참고)
+#define ESPNOW_MAX_MESSAGE_BYTES  3072
 // 조각이 다 오지 않은 채 이 시간이 지나면 버린다(유실된 조각으로 버퍼가 막히지 않게)
 #define ESPNOW_REASSEMBLY_TIMEOUT_MS 3000
 

@@ -12,7 +12,8 @@ public:
     void begin();
 
     // Serialise doc as a single JSON line (\n terminated) and write to Serial2.
-    void send(const JsonDocument& doc);
+    // 버퍼를 넘으면 보내지 않고 false — 잘린 JSON을 흘리지 않는다
+    bool send(const JsonDocument& doc);
 
     // Drain Serial2 receive buffer; fires onMessage for each complete line.
     // Must be called from loop().
@@ -23,6 +24,7 @@ public:
 private:
     char _buf[JSON_BUF_SIZE];
     size_t _pos = 0;
+    bool _overflow = false;  // 현재 줄이 버퍼를 넘겨 버리는 중
     RpiMessageCallback _cb;
 
     void _dispatch(const char* line);

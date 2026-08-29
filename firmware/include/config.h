@@ -24,7 +24,11 @@
 // Sensor sample interval sent to RPi5 (ms)
 #define SENSOR_INTERVAL_MS  500
 // JSON line buffer for UART and BLE
-#define JSON_BUF_SIZE       512
+// JSON 라인 버퍼 — **전송 경로 바이트 예산과 짝**이다(rpi/api/schemas.py의
+// MAX_EXECUTE_PAYLOAD_BYTES = 2560). 한글 라벨은 UTF-8 3바이트라 상한
+// "20개 × 40자"의 최악 줄이 약 2.6KB다. 512로는 조용히 잘렸다(교차 리뷰 지적).
+// 예산 + 봉투(type/sequence_id/mac) 여유를 덮는 값으로 잡는다.
+#define JSON_BUF_SIZE       3072
 // Max BLE notify payload (JSON serialised, must be <= negotiated MTU - 3)
 #define NOTIFY_BUF_SIZE     509
 
@@ -50,7 +54,8 @@
 #define ESPNOW_FRAME_HEADER_BYTES 4
 #define ESPNOW_MAX_FRAME_BYTES    250
 #define ESPNOW_MAX_PAYLOAD_BYTES  (ESPNOW_MAX_FRAME_BYTES - ESPNOW_FRAME_HEADER_BYTES)
-#define ESPNOW_MAX_MESSAGE_BYTES  1280
+// ESP-NOW 본문도 같은 예산을 따른다 (최악 약 2.5KB — 위 JSON_BUF_SIZE 주석 참고)
+#define ESPNOW_MAX_MESSAGE_BYTES  3072
 #define ESPNOW_REASSEMBLY_TIMEOUT_MS 3000
 
 // 동시에 등록해 둘 수 있는 노드 수 (가전 수)

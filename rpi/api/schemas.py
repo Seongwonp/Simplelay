@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
@@ -15,6 +16,22 @@ MAX_BUTTONS_PER_RUN = 20     # 실사용 시퀀스는 2~5개
 MAX_BUTTON_LABEL_LEN = 40
 MAX_KNOWN_BUTTONS = 50       # 가전 버튼맵 상한(6x6 그리드 여유)
 MAX_DND_MINUTES = 24 * 60
+
+# ── 전송 경로 바이트 예산 (단일 기준값) ──────────────────────────────────────
+# 개수·글자수 상한만으로는 전송 버퍼를 정할 수 없다. **한글은 UTF-8에서 3바이트**라
+# "20개 × 40자"는 800바이트가 아니라 약 2.5KB다. 이 착각으로 버퍼를 800 기준으로
+# 잡았다가, 큰 요청이 UART에서 조용히 잘리는 상태였다(교차 리뷰 지적).
+#
+# 그래서 글자 수가 아니라 **직렬화 바이트 수**를 여기서 한 번 정하고, 아래 경로가
+# 전부 이 값에 맞춘다. 어느 한 곳이라도 이보다 작으면 그 지점에서 잘린다:
+#   RPi5 --UART--> 게이트웨이 --ESP-NOW--> 노드 --UART--> RPi4
+#   (firmware/include/config.h · firmware-node/include/config.h 의 JSON_BUF_SIZE와
+#    ESPNOW_MAX_MESSAGE_BYTES가 봉투 여유를 더해 이 값보다 크게 잡혀 있어야 한다.
+#    test_payload_budget.py가 그 관계를 고정한다.)
+#
+# 현재 상한(20개 × 40자, 전부 한글)의 최악값이 약 2,493바이트라 그것을 덮는 값으로
+# 잡았다 — 지금 통과하던 요청이 새로 거절되지 않게 하는 것이 우선이다.
+MAX_EXECUTE_PAYLOAD_BYTES = 2560
 
 
 def _normalize_appliance_id(v: str | None) -> str | None:
@@ -34,7 +51,17 @@ def _validate_purpose_text(v: str) -> str:
     return stripped
 
 
-def _validate_button_list(v: list[str], max_items: int, name: str) -> list[str]:
+def execute_payload_bytes(labels: list[str]) -> int:
+    """이 버튼 목록이 전송 경로에서 차지할 직렬화 바이트 수.
+
+    글자 수가 아니라 바이트로 재는 이유는 MAX_EXECUTE_PAYLOAD_BYTES 주석 참고.
+    """
+    return len(json.dumps(labels, ensure_ascii=False).encode("utf-8"))
+
+
+def _validate_button_list(
+    v: list[str], max_items: int, name: str, *, byte_budget: int | None = None
+) -> list[str]:
     cleaned = [b.strip() for b in v if b.strip()]
     if not cleaned:
         raise ValueError(f"{name} must not be empty")
@@ -44,6 +71,15 @@ def _validate_button_list(v: list[str], max_items: int, name: str) -> list[str]:
         if len(label) > MAX_BUTTON_LABEL_LEN:
             raise ValueError(
                 f"button label must be at most {MAX_BUTTON_LABEL_LEN} characters"
+            )
+    # 실제로 전송되는 목록만 바이트 예산을 적용한다. known_buttons는 LLM 프롬프트로만
+    # 쓰이고 노드로 나가지 않으므로 이 예산의 대상이 아니다.
+    if byte_budget is not None:
+        size = execute_payload_bytes(cleaned)
+        if size > byte_budget:
+            raise ValueError(
+                f"{name} is {size} bytes, over the {byte_budget}-byte transport "
+                f"budget (labels are UTF-8; Korean characters are 3 bytes each)"
             )
     return cleaned
 
@@ -78,7 +114,10 @@ class ExecuteButtonsRequest(BaseModel):
     @field_validator("buttons")
     @classmethod
     def buttons_not_empty(cls, v: list[str]) -> list[str]:
-        return _validate_button_list(v, MAX_BUTTONS_PER_RUN, "buttons")
+        return _validate_button_list(
+            v, MAX_BUTTONS_PER_RUN, "buttons",
+            byte_budget=MAX_EXECUTE_PAYLOAD_BYTES,
+        )
 
     @field_validator("appliance_id")
     @classmethod
