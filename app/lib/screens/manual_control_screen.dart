@@ -116,10 +116,10 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                       Icon(Icons.touch_app,
                           color: context.appPrimary, size: 18),
                       const SizedBox(width: 8),
-                      const Expanded(
+                      Expanded(
                         child: Text(
                           '버튼을 탭하면 실제 가전 버튼이 눌립니다.',
-                          style: AppText.caption,
+                          style: context.appCaption,
                         ),
                       ),
                     ],
@@ -163,13 +163,13 @@ class _NoServerConfigured extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.wifi_off,
-                  color: AppColors.onSurfaceMuted, size: 40),
+              Icon(Icons.wifi_off,
+                  color: context.appMuted, size: 40),
               const SizedBox(height: 12),
-              const Text(
+              Text(
                 'RPi 서버 URL을 먼저 설정해야 버튼을 직접 실행할 수 있어요.',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.onSurfaceMuted),
+                style: TextStyle(color: context.appMuted),
               ),
               const SizedBox(height: 16),
               FilledButton(
@@ -301,7 +301,7 @@ class _ButtonCell extends StatelessWidget {
           const Icon(Icons.check, size: 18)
         ),
       _CellState.failure => (
-          AppColors.danger,
+          context.appDanger,
           const Icon(Icons.close, size: 18)
         ),
       _CellState.idle => (idleOutline, null),

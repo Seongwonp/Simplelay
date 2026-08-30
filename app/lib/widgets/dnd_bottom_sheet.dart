@@ -112,7 +112,7 @@ class _DndSheet extends ConsumerWidget {
             _OptionTile(
               label: '방해 금지 해제',
               subtitle: isActive ? 'AI 제안을 다시 받습니다' : '현재 비활성 상태',
-              iconColor: isActive ? AppColors.danger : AppColors.onSurfaceMuted,
+              iconColor: isActive ? context.appDanger : context.appMuted,
               enabled: isActive,
               onTap: isActive
                   ? () async {
@@ -162,17 +162,17 @@ class _OptionTile extends StatelessWidget {
           label,
           style: TextStyle(
             fontWeight: FontWeight.w500,
-            color: enabled ? null : AppColors.onSurfaceMuted,
+            color: enabled ? null : context.appMuted,
           ),
         ),
         subtitle: Text(
           subtitle,
-          style: const TextStyle(
-              color: AppColors.onSurfaceMuted, fontSize: 12),
+          style: TextStyle(
+              color: context.appMuted, fontSize: 12),
         ),
         trailing: Icon(
           Icons.chevron_right,
-          color: enabled ? iconColor ?? AppColors.onSurfaceMuted : context.appBorderFaint,
+          color: enabled ? iconColor ?? context.appMuted : context.appBorderFaint,
           size: 20,
         ),
         enabled: enabled,

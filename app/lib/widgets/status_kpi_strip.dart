@@ -87,10 +87,10 @@ class _KpiCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 11,
               letterSpacing: 0.06,
-              color: AppColors.onSurfaceMuted,
+              color: context.appMuted,
             ),
           ),
           const SizedBox(height: 4),
@@ -117,18 +117,18 @@ class _KpiCard extends StatelessWidget {
                   const SizedBox(width: 5),
                   Text(
                     suffix!,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 14,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.appMuted,
                     ),
                   ),
                 ],
                 const SizedBox(width: 4),
                 Text(
                   unit,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 12,
-                    color: AppColors.onSurfaceMuted,
+                    color: context.appMuted,
                   ),
                 ),
               ],

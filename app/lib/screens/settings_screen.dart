@@ -199,7 +199,7 @@ class _RpiConnectionTile extends ConsumerWidget {
       RpiConnectionState.unconfigured => (context.appMuted, '미설정', Icons.wifi_off),
       RpiConnectionState.checking     => (AppColors.warning, '확인 중…', Icons.sync),
       RpiConnectionState.connected    => (AppColors.success, '연결됨', Icons.wifi),
-      RpiConnectionState.unreachable  => (AppColors.danger, '연결 안 됨', Icons.wifi_off),
+      RpiConnectionState.unreachable  => (context.appDanger, '연결 안 됨', Icons.wifi_off),
     };
 
     return _SettingCard(
@@ -368,7 +368,11 @@ class _ApplianceSection extends ConsumerWidget {
             child: const Text('취소'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            // 전경색을 명시하지 않으면 라이트 모드에서 흰 글자(3.63:1)가 된다
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: AppColors.onAccent,
+            ),
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('삭제'),
           ),
@@ -997,8 +1001,8 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
                     _error!,
-                    style: const TextStyle(
-                        fontSize: 12, color: AppColors.danger),
+                    style: TextStyle(
+                        fontSize: 12, color: context.appDanger),
                   ),
                 ),
               ],
@@ -1015,9 +1019,9 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                         child: OutlinedButton(
                           onPressed: _saving ? null : _unregister,
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.danger,
+                            foregroundColor: context.appDanger,
                             side: BorderSide(
-                                color: AppColors.danger.withValues(alpha: 0.5)),
+                                color: context.appDanger.withValues(alpha: 0.5)),
                           ),
                           child: const Text('해제'),
                         ),

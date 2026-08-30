@@ -69,7 +69,7 @@ class LearningStatsCard extends StatelessWidget {
                 label: '총 동작',
                 value: '$totalSteps',
                 unit: '회',
-                color: count > 0 ? primary : AppColors.onSurfaceMuted,
+                color: count > 0 ? primary : context.appMuted,
               ),
             ],
           ),
@@ -107,10 +107,10 @@ class _StatPill extends StatelessWidget {
           children: [
             Text(
               label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 letterSpacing: 0.06,
-                color: AppColors.onSurfaceMuted,
+                color: context.appMuted,
               ),
             ),
             const SizedBox(height: 3),
@@ -135,9 +135,9 @@ class _StatPill extends StatelessWidget {
                   const SizedBox(width: 3),
                   Text(
                     unit,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: AppColors.onSurfaceMuted,
+                      color: context.appMuted,
                     ),
                   ),
                 ],

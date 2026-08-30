@@ -69,10 +69,10 @@ class SuggestionScreen extends ConsumerWidget {
             style: AppText.heading,
           ),
           const SizedBox(height: 6),
-          const Text(
+          Text(
             '아래 순서대로 버튼을 누를까요?',
             textAlign: TextAlign.center,
-            style: TextStyle(color: AppColors.onSurfaceMuted),
+            style: TextStyle(color: context.appMuted),
           ),
 
           const SizedBox(height: 24),
@@ -224,7 +224,7 @@ class _ButtonMapGrid extends StatelessWidget {
           children: [
             Icon(appliance.icon, color: context.appPrimary, size: 16),
             const SizedBox(width: 6),
-            Text(appliance.name, style: AppText.caption),
+            Text(appliance.name, style: context.appCaption),
           ],
         ),
         const SizedBox(height: 10),

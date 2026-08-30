@@ -79,7 +79,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           if (existing != null)
             TextButton(
               onPressed: () => Navigator.pop(dialogContext, ''),
-              child: const Text('삭제', style: TextStyle(color: AppColors.danger)),
+              child: Text('삭제', style: TextStyle(color: context.appDanger)),
             ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext),
@@ -178,7 +178,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
               Expanded(
                 child: Text(
                   '우리 집 가전의 버튼 배치를 그대로 등록하면\n어떤 가전이든 앱에서 바로 조작할 수 있어요.',
-                  style: AppText.caption,
+                  style: context.appCaption,
                 ),
               ),
             ],
@@ -212,10 +212,10 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                 children: [
                   Text('버튼 배치', style: AppText.title),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     '가전 사진을 찍으면 그 위에 격자를 겹쳐서 실제 버튼 위치를 보며 배치할 수 있어요.'
                     ' 사진 없이도 그대로 진행 가능해요.',
-                    style: AppText.caption,
+                    style: context.appCaption,
                   ),
                   const SizedBox(height: 10),
                   _photo == null
@@ -242,9 +242,9 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                           ],
                         ),
                   const SizedBox(height: 4),
-                  const Text(
+                  Text(
                     '버튼 패널이 화면에 꽉 차게 찍어주세요 — 격자가 사진 전체에 균등하게 겹쳐져요.',
-                    style: AppText.caption,
+                    style: context.appCaption,
                   ),
                   const SizedBox(height: 14),
                   Row(
@@ -298,7 +298,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             child: Text(
               '음성 명령은 아직 지원되지 않아요 — 저장하면 화면에서 버튼을 직접\n눌러 실행할 수 있습니다.',
               textAlign: TextAlign.center,
-              style: AppText.caption,
+              style: context.appCaption,
             ),
           ),
           const SizedBox(height: 16),

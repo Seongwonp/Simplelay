@@ -206,7 +206,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
                   ? Text(
                       hintExample,
                       key: const ValueKey('hint'),
-                      style: const TextStyle(color: AppColors.onSurfaceMuted),
+                      style: TextStyle(color: context.appMuted),
                       textAlign: TextAlign.center,
                     )
                   : Container(
@@ -229,9 +229,9 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
                     ),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               '5초 동안 말이 없으면 자동으로 전송됩니다.',
-              style: TextStyle(color: AppColors.onSurfaceMuted, fontSize: 12),
+              style: TextStyle(color: context.appMuted, fontSize: 12),
               textAlign: TextAlign.center,
             ),
 

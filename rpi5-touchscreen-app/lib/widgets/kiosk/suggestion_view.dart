@@ -78,7 +78,7 @@ class KioskSuggestionView extends StatelessWidget {
                       onPressed: onApprove,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: KioskColors.success,
-                        foregroundColor: Colors.white,
+                        foregroundColor: KioskColors.onAccent,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(10),

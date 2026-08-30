@@ -157,29 +157,29 @@ class _SensorStrip extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (temp != null) ...[
-            const Icon(Icons.thermostat_outlined,
-                size: 14, color: AppColors.onSurfaceMuted),
+            Icon(Icons.thermostat_outlined,
+                size: 14, color: context.appMuted),
             const SizedBox(width: 4),
             Text(
               '${temp.toStringAsFixed(1)}°C',
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.onSurfaceMuted),
+              style: TextStyle(
+                  fontSize: 13, color: context.appMuted),
             ),
           ],
           if (temp != null && hum != null)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(horizontal: 8),
               child: Text('·',
-                  style: TextStyle(color: AppColors.onSurfaceMuted)),
+                  style: TextStyle(color: context.appMuted)),
             ),
           if (hum != null) ...[
-            const Icon(Icons.water_drop_outlined,
-                size: 14, color: AppColors.onSurfaceMuted),
+            Icon(Icons.water_drop_outlined,
+                size: 14, color: context.appMuted),
             const SizedBox(width: 4),
             Text(
               '${hum.toStringAsFixed(0)}%',
-              style: const TextStyle(
-                  fontSize: 13, color: AppColors.onSurfaceMuted),
+              style: TextStyle(
+                  fontSize: 13, color: context.appMuted),
             ),
           ],
         ],
@@ -302,7 +302,7 @@ class _RpiStatusCard extends ConsumerWidget {
           'simplelay.local 에 접속 중입니다',
         ),
       RpiConnectionState.unreachable => (
-          AppColors.danger,
+          context.appDanger,
           Icons.wifi_off,
           'RPi 서버에 연결할 수 없음',
           '같은 Wi-Fi인지 확인하거나 주소를 직접 입력하세요',
@@ -346,7 +346,7 @@ class _RpiStatusCard extends ConsumerWidget {
                           .copyWith(fontWeight: FontWeight.w600)),
                   const SizedBox(height: 2),
                   Text(subtitle,
-                      style: AppText.caption),
+                      style: context.appCaption),
                 ],
               ),
             ),
@@ -416,7 +416,7 @@ class _BleStatusCard extends StatelessWidget {
                     Text('BLE 기기 미연결', style: AppText.body),
                     const SizedBox(height: 2),
                     Text('설정에서 SimpleLay 기기를 연결하세요',
-                        style: AppText.caption),
+                        style: context.appCaption),
                   ],
                 ),
               ),
@@ -502,7 +502,7 @@ class _SuggestionTile extends StatelessWidget {
                       Text(suggestion.label, style: AppText.body),
                       const SizedBox(height: 2),
                       Text('${suggestion.steps.length}단계 동작',
-                          style: AppText.caption),
+                          style: context.appCaption),
                     ],
                   ),
                 ),
@@ -530,20 +530,20 @@ class _EmptySuggestions extends StatelessWidget {
                 dndActive
                     ? Icons.do_not_disturb_on_outlined
                     : Icons.lightbulb_outline,
-                color: dndActive ? AppColors.warning : AppColors.onSurfaceMuted,
+                color: dndActive ? AppColors.warning : context.appMuted,
                 size: 36,
               ),
               const SizedBox(height: 12),
               Text(
                 dndActive ? '방해 금지 모드 중' : '새로운 제안이 없습니다.',
-                style: const TextStyle(color: AppColors.onSurfaceMuted),
+                style: TextStyle(color: context.appMuted),
               ),
               if (dndActive) ...[
                 const SizedBox(height: 4),
-                const Text(
+                Text(
                   'AI 제안이 일시적으로 꺼져 있습니다.',
                   style: TextStyle(
-                      color: AppColors.onSurfaceMuted, fontSize: 12),
+                      color: context.appMuted, fontSize: 12),
                 ),
               ],
             ],

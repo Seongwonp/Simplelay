@@ -92,7 +92,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                         Text(
                           status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
                           style:
-                              const TextStyle(color: AppColors.onSurfaceMuted),
+                              TextStyle(color: context.appMuted),
                         ),
                       ],
                     ),
@@ -168,7 +168,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   FilledButton.icon(
                     style: FilledButton.styleFrom(
                       backgroundColor: AppColors.danger,
-                      foregroundColor: Colors.white,
+                      foregroundColor: AppColors.onAccent,
                     ),
                     onPressed: () => ref
                         .read(executionStatusProvider.notifier)
@@ -271,7 +271,7 @@ class _StepTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(readableStep(code), style: AppText.body),
-                    Text(code, style: AppText.caption),
+                    Text(code, style: context.appCaption),
                   ],
                 ),
               ),
@@ -324,7 +324,7 @@ class _SensorChart extends StatelessWidget {
               children: [
                 Icon(icon, color: context.appPrimary, size: 18),
                 const SizedBox(width: 6),
-                Text(label, style: AppText.caption),
+                Text(label, style: context.appCaption),
               ],
             ),
             const SizedBox(height: 6),

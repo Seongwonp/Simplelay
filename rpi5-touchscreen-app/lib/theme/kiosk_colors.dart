@@ -14,4 +14,8 @@ class KioskColors {
   static const surface2 = Color(0xFF1D2126); // 앱 surfaceHigh와 동일
   static const muted   = Color(0xFF9CA3AA); // 앱 onSurfaceMuted와 동일
   static const border  = Color(0x33FFFFFF); // 앱 borderSubtle와 동일
+
+  // 채도 있는 색을 **면으로** 쓸 때 얹는 글자색 (앱 AppColors.onAccent와 동일).
+  // 초록 위 흰 글자는 2.25:1로 큰 글씨여도 미달이었다 — 검정이면 9.34:1이다.
+  static const onAccent = Color(0xFF000000);
 }
