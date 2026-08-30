@@ -359,7 +359,9 @@ class _KioskScreenState extends State<KioskScreen> {
 
   void _toSuggestion(KioskSuggestion suggestion) {
     // 제안 도착을 소리로도 알린다 — 사용자가 화면 근처에 없어도 알 수 있게.
-    _tts.speak('${suggestion.purpose}, 지금 실행할까요? 화면에서 승인해 주세요.');
+    // 화면의 제목·버튼과 **같은 말**을 쓴다 -- 음성을 듣고 화면을 보는 사용자가
+    // '승인'을 찾다가 '지금 실행'을 못 알아보면 그 순간 막힌다.
+    _tts.speak('${suggestion.purpose}, 지금 할까요? 화면에서 지금 실행을 눌러 주세요.');
     setState(() {
       _phase = KioskPhase.suggestion;
       _currentSuggestion = suggestion;

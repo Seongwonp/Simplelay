@@ -44,33 +44,20 @@ class SuggestionScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
         children: [
-          // ── 헤더 아이콘 ─────────────────────────────────────────────────
-          Center(
-            child: Container(
-              width: 72,
-              height: 72,
-              decoration: BoxDecoration(
-                color: context.appPrimary.withValues(alpha: 0.12),
-                shape: BoxShape.circle,
-              ),
-              child: Icon(
-                Icons.auto_awesome,
-                color: context.appPrimary,
-                size: 36,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
+          // 큰 스파클 원을 없앴다. "AI 기능"이라는 표시일 뿐 무엇에 대한 제안인지는
+          // 알려주지 않았고, 화면에서 가장 큰 자리를 장식이 차지하고 있었다.
+          // 어느 가전인지는 아래 버튼맵의 가전 칩이 이미 말해준다.
 
           // ── 제목 ────────────────────────────────────────────────────────
+          // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
           Text(
-            suggestion.label,
+            '${suggestion.label}, 지금 할까요?',
             textAlign: TextAlign.center,
             style: AppText.heading,
           ),
           const SizedBox(height: 6),
           Text(
-            '아래 순서대로 버튼을 누를까요?',
+            '이 순서로 버튼을 눌러요.',
             textAlign: TextAlign.center,
             style: TextStyle(color: context.appMuted),
           ),
@@ -129,7 +116,7 @@ class SuggestionScreen extends ConsumerWidget {
                         .respond(suggestion, false);
                     if (context.mounted) context.pop();
                   },
-                  child: const Text('거부'),
+                  child: const Text('지금은 안 함'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -189,8 +176,10 @@ class SuggestionScreen extends ConsumerWidget {
                     }
                     if (context.mounted) context.go('/status');
                   },
-                  icon: const Icon(Icons.check_rounded),
-                  label: const Text('승인하고 실행'),
+                  icon: const Icon(Icons.play_arrow_rounded),
+                  // '승인'은 결재 용어다. 사용자가 하는 일은 결재가 아니라
+                  // "지금 시킬지" 정하는 것 -- 키오스크와 같은 문구를 쓴다.
+                  label: const Text('지금 실행'),
                 ),
               ),
             ],

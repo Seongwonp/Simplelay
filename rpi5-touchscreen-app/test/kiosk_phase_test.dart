@@ -152,7 +152,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     expect(find.byType(KioskSuggestionView), findsOneWidget);
-    expect(find.text('승인'), findsOneWidget);
+    expect(find.text('지금 실행'), findsOneWidget);
   });
 
   testWidgets('승인 → executing → job 완료 시 done → 자동 idle 복귀', (tester) async {
@@ -162,7 +162,7 @@ void main() {
 
     // 승인하면 즉시 실행 화면으로 가고, 접수된 job_id를 추적한다
     api.suggestionList = [];
-    await tester.tap(find.text('승인'));
+    await tester.tap(find.text('지금 실행'));
     await tester.pump();
     expect(find.byType(KioskExecutingView), findsOneWidget);
     expect(api.approvedIds, ['s1']);
@@ -191,7 +191,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('승인'));
+    await tester.tap(find.text('지금 실행'));
     await tester.pump();
 
     // 서버에 남아 있던 "이전" 실행의 결과 — 내 job-1이 아니므로 무시해야 한다
@@ -256,7 +256,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('승인'));
+    await tester.tap(find.text('지금 실행'));
     await tester.pump(); // 접수 실패
     await tester.pump();
 
@@ -274,10 +274,10 @@ void main() {
 
     // 제안 도착 발화 — 목적이 포함된 문장
     expect(tts.utterances.single, contains('우유 데워줘'));
-    expect(tts.utterances.single, contains('승인'));
+    expect(tts.utterances.single, contains('지금 실행'));
 
     api.suggestionList = [];
-    await tester.tap(find.text('승인'));
+    await tester.tap(find.text('지금 실행'));
     await tester.pump();
     api.statusResult = const KioskStatus(
       running: false,
@@ -353,7 +353,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('승인'));
+    await tester.tap(find.text('지금 실행'));
     await tester.pump(); // job-1 접수
 
     // 내 job-1은 완료됐지만, 폰이 시작한 job-2가 이미 실행 중인 상태
@@ -398,7 +398,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('승인'));
+    await tester.tap(find.text('지금 실행'));
     await tester.pump();
     api.statusResult = const KioskStatus(
       running: false,
@@ -427,7 +427,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('승인'));
+    await tester.tap(find.text('지금 실행'));
     await tester.pump();
     api.statusResult = const KioskStatus(
       running: false,
@@ -457,7 +457,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('승인'));
+    await tester.tap(find.text('지금 실행'));
     await tester.pump();
     await tester.pump();
     expect(find.byType(KioskDoneView), findsOneWidget);
@@ -523,7 +523,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     expect(KioskTimings.countdownSeconds, 20);
-    expect(find.text('20초 후 자동 닫힘'), findsOneWidget);
+    expect(find.text('누르지 않으면 실행하지 않아요 · 20초'), findsOneWidget);
   });
 
   testWidgets('저장된 카운트다운 설정이 복원되어 적용된다', (tester) async {
@@ -536,7 +536,7 @@ void main() {
     final api = FakeKioskApi()..suggestionList = [_sug];
     await _pumpKiosk(tester, api, settings: KioskSettingsStore(path: path));
 
-    expect(find.text('30초 후 자동 닫힘'), findsOneWidget);
+    expect(find.text('누르지 않으면 실행하지 않아요 · 30초'), findsOneWidget);
   });
 
   test('목록에 없는 카운트다운 값은 기본값으로 폴백한다', () {
@@ -620,7 +620,7 @@ void main() {
     expect(find.byType(KioskSuggestionView), findsOneWidget); // suggestion
 
     api.suggestionList = [];
-    await tester.tap(find.text('승인')); // executing
+    await tester.tap(find.text('지금 실행')); // executing
     await tester.pump();
     expect(find.byType(KioskExecutingView), findsOneWidget);
 

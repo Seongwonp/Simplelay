@@ -3,6 +3,15 @@ import 'package:flutter/material.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 
+/// 제안 확인 화면.
+///
+/// 여기서 사용자가 판단해야 하는 것은 "AI가 뭘 제안했나"가 아니라 **"내 가전의 어떤
+/// 버튼을 대신 눌러줄 것인가, 그걸 맡길 것인가"**다. 그래서 화면 순서를
+/// 무엇을 → 어떤 순서로 → 할까 말까 로 맞춘다.
+///
+/// 예전에는 'AI 제안' 라벨과 '승인/거부'라는 결재 용어가 먼저 읽혔고, 정작 눌릴
+/// 버튼 순서는 화면에 없었다. 제품의 차별점이 가장 잘 드러나는 화면인데 그게 빠져
+/// 있었다.
 class KioskSuggestionView extends StatelessWidget {
   const KioskSuggestionView({
     super.key,
@@ -26,99 +35,99 @@ class KioskSuggestionView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: SizedBox(
-        width: 440,
+        width: 460,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'AI 제안',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                letterSpacing: 2.0,
-                color: KioskColors.primary,
-              ),
-            ),
-            const SizedBox(height: 16),
+            // 사용자가 예전에 했던 말 그대로가 purpose다 — 제품이 지어낸 문구가
+            // 아니라 본인의 표현이라 그대로 되물어보는 편이 알아듣기 쉽다.
             Text(
-              suggestion.purpose,
+              '${suggestion.purpose}, 지금 할까요?',
               style: const TextStyle(
                 fontSize: 34,
                 fontWeight: FontWeight.w700,
-                height: 1.2,
+                height: 1.25,
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 12),
-            RichText(
-              text: TextSpan(
-                style: const TextStyle(fontSize: 14, color: KioskColors.muted),
-                children: [
-                  const TextSpan(text: '최근 '),
-                  TextSpan(
-                    text: '${suggestion.occurrences}회',
-                    style: const TextStyle(
-                      color: KioskColors.primary,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const TextSpan(text: ' 같은 시간대에 반복 감지'),
-                ],
+
+            // 근거는 실제로 셀 수 있을 때만 말한다
+            if (suggestion.occurrences > 0) ...[
+              const SizedBox(height: 10),
+              Text(
+                '이 시간대에 ${suggestion.occurrences}번 하셨어요.',
+                style: const TextStyle(fontSize: 17, color: KioskColors.muted),
               ),
-            ),
-            const SizedBox(height: 40),
+            ],
+
+            if (suggestion.steps.isNotEmpty) ...[
+              const SizedBox(height: 22),
+              const Text(
+                '이 순서로 버튼을 눌러요',
+                style: TextStyle(fontSize: 17, color: KioskColors.muted),
+              ),
+              const SizedBox(height: 10),
+              _StepSequence(steps: suggestion.steps),
+            ],
+
+            const SizedBox(height: 28),
             Row(
               children: [
+                // 보조 동작이 왼쪽, 주요 실행이 오른쪽 — 폰 앱과 같은 규칙.
+                // 예전에는 키오스크만 실행이 왼쪽이라 두 화면의 손버릇이 달랐다.
                 Expanded(
-                  flex: 2,
                   child: SizedBox(
-                    height: 60,
-                    child: ElevatedButton(
-                      onPressed: onApprove,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: KioskColors.success,
-                        foregroundColor: KioskColors.onAccent,
-                        elevation: 0,
+                    height: 64,
+                    child: OutlinedButton(
+                      onPressed: onReject,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: KioskColors.border),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        '승인',
-                        style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+                        '지금은 안 함',
+                        style:
+                            TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  flex: 1,
+                  flex: 2,
                   child: SizedBox(
-                    height: 60,
-                    child: OutlinedButton(
-                      onPressed: onReject,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: KioskColors.muted,
-                        side: const BorderSide(color: KioskColors.border),
+                    height: 64,
+                    child: ElevatedButton(
+                      onPressed: onApprove,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: KioskColors.primary,
+                        foregroundColor: KioskColors.onAccent,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(10),
+                          borderRadius: BorderRadius.circular(12),
                         ),
                       ),
                       child: const Text(
-                        '거부',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500),
+                        '지금 실행',
+                        style:
+                            TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+
+            const SizedBox(height: 14),
+            // 카운트다운에서 정작 중요한 정보는 남은 초가 아니라 "가만히 두면
+            // 아무 일도 없다"는 사실이다 — 자동으로 실행될까 봐 서두르지 않도록.
             Text(
-              '$cdRemaining초 후 자동 닫힘',
-              // 자동으로 사라진다는 사실은 고령 사용자가 놓치면 안 되는 정보
-              style: const TextStyle(fontSize: 14, color: KioskColors.muted),
+              '누르지 않으면 실행하지 않아요 · $cdRemaining초',
+              style: const TextStyle(fontSize: 15, color: KioskColors.muted),
             ),
             const SizedBox(height: 8),
             ClipRRect(
@@ -135,6 +144,46 @@ class KioskSuggestionView extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// 눌릴 버튼을 순서대로. 세로 목록이 읽기는 쉽지만 800x480에 큰 글씨까지 겹치면
+/// 넘치므로, 순서가 드러나는 가로 배치로 접는다.
+class _StepSequence extends StatelessWidget {
+  const _StepSequence({required this.steps});
+
+  final List<String> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        for (var i = 0; i < steps.length; i++) ...[
+          if (i > 0)
+            const Icon(Icons.arrow_forward_rounded,
+                size: 18, color: KioskColors.muted),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            decoration: BoxDecoration(
+              color: KioskColors.surface2,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: KioskColors.border),
+            ),
+            child: Text(
+              steps[i],
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ],
+      ],
     );
   }
 }

@@ -27,8 +27,8 @@ void main() {
     testWidgets('연결 필요 안내 텍스트 표시', (tester) async {
       await tester.pumpWidget(_buildHome());
       await tester.pump();
-      expect(find.text('BLE 기기 미연결'), findsOneWidget);
-      expect(find.text('설정에서 SimpleLay 기기를 연결하세요'), findsOneWidget);
+      expect(find.text('예비 연결이 꺼져 있어요'), findsOneWidget);
+      expect(find.text('연결해 두면 서버가 안 될 때도 조작할 수 있어요.'), findsOneWidget);
     });
 
     testWidgets('"연결" TextButton 표시', (tester) async {
@@ -50,15 +50,15 @@ void main() {
     testWidgets('제안 없음 메시지 표시', (tester) async {
       await tester.pumpWidget(_buildHome());
       await tester.pump();
-      expect(find.text('새로운 제안이 없습니다.'), findsOneWidget);
+      expect(find.text('지금 확인할 제안이 없어요.'), findsOneWidget);
     });
   });
 
   group('HomeScreen — 연결 완료 상태', () {
-    testWidgets('BLE 기기 미연결 카드가 사라짐', (tester) async {
+    testWidgets('예비 연결 안내 카드가 사라짐', (tester) async {
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.text('BLE 기기 미연결'), findsNothing);
+      expect(find.text('예비 연결이 꺼져 있어요'), findsNothing);
     });
 
     testWidgets('"연결" 버튼 사라짐', (tester) async {
@@ -90,9 +90,11 @@ void main() {
         _buildHome(connected: true, suggestions: const [suggestion]),
       );
       await tester.pump();
-      expect(find.text('우유 데우기'), findsOneWidget);
-      expect(find.text('3단계 동작'), findsOneWidget);
-      expect(find.text('새로운 제안이 없습니다.'), findsNothing);
+      expect(find.text('우유 데우기, 지금 할까요?'), findsOneWidget);
+      // "3단계 동작"은 몇 번 움직이는지만 알려줬다 -- 맡길지 판단하려면
+      // 무엇을 누르는지가 필요하다
+      expect(find.text('우유 → 1분 추가 → 시작'), findsOneWidget);
+      expect(find.text('지금 확인할 제안이 없어요.'), findsNothing);
     });
 
     testWidgets('여러 제안 카드 모두 표시', (tester) async {
@@ -104,8 +106,8 @@ void main() {
         _buildHome(connected: true, suggestions: suggestions),
       );
       await tester.pump();
-      expect(find.text('30초 가열'), findsOneWidget);
-      expect(find.text('해동'), findsOneWidget);
+      expect(find.text('30초 가열, 지금 할까요?'), findsOneWidget);
+      expect(find.text('해동, 지금 할까요?'), findsOneWidget);
     });
 
     testWidgets('제안 탭 시 /suggestion/:id 로 이동', (tester) async {
@@ -140,7 +142,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('우유 데우기'));
+      await tester.tap(find.text('우유 데우기, 지금 할까요?'));
       await tester.pumpAndSettle();
 
       expect(pushedRoute, 's1');

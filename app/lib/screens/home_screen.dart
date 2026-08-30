@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/appliance.dart';
+import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -11,7 +13,6 @@ import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../widgets/dnd_bottom_sheet.dart';
-import '../widgets/learning_stats_card.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -113,8 +114,10 @@ class HomeScreen extends ConsumerWidget {
             _BleStatusCard(connected: connected),
           ],
 
-          const SizedBox(height: 16),
-          LearningStatsCard(suggestions: suggestions),
+          // 학습 통계 카드(AI가 N개 패턴을 발견했습니다 + KPI 3칸)는 없앴다.
+          // 제품이 자기가 똑똑하다고 광고하는 자리였고, 사용자가 그걸로 할 수 있는
+          // 판단이 없었다. 게다가 '총 동작 N회'로 표시하던 값은 실제로는 대기 중인
+          // 제안들의 단계 수 합계라, 라벨과 뜻이 아예 달랐다.
           const SizedBox(height: 28),
           Text('대기 중인 제안', style: AppText.title),
           const SizedBox(height: 12),
@@ -413,9 +416,9 @@ class _BleStatusCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('BLE 기기 미연결', style: AppText.body),
+                    Text('예비 연결이 꺼져 있어요', style: AppText.body),
                     const SizedBox(height: 2),
-                    Text('설정에서 SimpleLay 기기를 연결하세요',
+                    Text('연결해 두면 서버가 안 될 때도 조작할 수 있어요.',
                         style: context.appCaption),
                   ],
                 ),
@@ -491,7 +494,10 @@ class _SuggestionTile extends StatelessWidget {
                     color: context.appPrimary.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: Icon(Icons.auto_awesome,
+                  // 스파클(Icons.auto_awesome)은 "AI 기능"이라는 표시일 뿐
+                  // 무엇에 대한 제안인지는 알려주지 않았다. 어느 가전인지가
+                  // 사용자에게 훨씬 쓸모 있는 정보다.
+                  child: Icon(_applianceIconFor(suggestion),
                       color: context.appPrimary, size: 20),
                 ),
                 const SizedBox(width: 14),
@@ -499,10 +505,12 @@ class _SuggestionTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(suggestion.label, style: AppText.body),
+                      // label은 사용자가 예전에 했던 말 그대로다 -- 제품이
+                      // 지어낸 문구가 아니라 본인 표현이라 그대로 되물어본다.
+                      Text('${suggestion.label}, 지금 할까요?',
+                          style: AppText.body),
                       const SizedBox(height: 2),
-                      Text('${suggestion.steps.length}단계 동작',
-                          style: context.appCaption),
+                      Text(_stepPreview(suggestion), style: context.appCaption),
                     ],
                   ),
                 ),
@@ -512,6 +520,27 @@ class _SuggestionTile extends StatelessWidget {
           ),
         ),
       );
+}
+
+// 제안이 어느 가전의 것인지는 버튼 코드 앞자리로 알 수 있다(AC-01, BT-05...).
+// 등록된 가전 목록에서 그 코드를 가진 가전을 찾아 아이콘을 쓴다 -- 못 찾으면
+// 일반 가전 아이콘으로 떨어진다(추측해서 틀린 아이콘을 보여주지 않는다).
+IconData _applianceIconFor(Suggestion suggestion) {
+  if (suggestion.steps.isEmpty) return Icons.devices_other_rounded;
+  final first = suggestion.steps.first;
+  for (final appliance in kAppliances) {
+    if (appliance.buttons.any((b) => b.id == first || b.label == first)) {
+      return appliance.icon;
+    }
+  }
+  return Icons.devices_other_rounded;
+}
+
+/// 눌릴 버튼을 그대로 보여준다. "3단계 동작"은 몇 번 움직이는지만 알려줄 뿐,
+/// **무엇을 누르는지**는 알려주지 않았다 -- 맡길지 판단하려면 그쪽이 필요하다.
+String _stepPreview(Suggestion suggestion) {
+  if (suggestion.steps.isEmpty) return '누를 버튼을 확인하려면 눌러 보세요';
+  return suggestion.steps.map(readableStep).join(' → ');
 }
 
 // ── 빈 제안 상태 ──────────────────────────────────────────────────────────
@@ -535,13 +564,13 @@ class _EmptySuggestions extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                dndActive ? '방해 금지 모드 중' : '새로운 제안이 없습니다.',
+                dndActive ? '방해 금지 모드 중' : '지금 확인할 제안이 없어요.',
                 style: TextStyle(color: context.appMuted),
               ),
               if (dndActive) ...[
                 const SizedBox(height: 4),
                 Text(
-                  'AI 제안이 일시적으로 꺼져 있습니다.',
+                  '제안을 잠시 보내지 않아요.',
                   style: TextStyle(
                       color: context.appMuted, fontSize: 12),
                 ),

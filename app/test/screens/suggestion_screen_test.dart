@@ -53,7 +53,7 @@ void main() {
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
-      expect(find.text('우유 데우기'), findsOneWidget);
+      expect(find.text('우유 데우기, 지금 할까요?'), findsOneWidget);
     });
 
     testWidgets('단계별 한국어 라벨 표시', (tester) async {
@@ -86,13 +86,13 @@ void main() {
       expect(inCircleAvatar('3'), findsOneWidget);
     });
 
-    testWidgets('승인하고 실행 버튼 표시', (tester) async {
+    testWidgets('지금 실행 버튼 표시', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
-      expect(find.text('승인하고 실행'), findsOneWidget);
+      expect(find.text('지금 실행'), findsOneWidget);
     });
 
     testWidgets('거부 버튼 탭 시 화면 pop', (tester) async {
@@ -128,7 +128,7 @@ void main() {
       router.push('/suggestion/test-001');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('거부'));
+      await tester.tap(find.text('지금은 안 함'));
       await tester.pumpAndSettle();
 
       // pop 후 홈으로 돌아감
@@ -169,7 +169,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('승인하고 실행'));
+      await tester.tap(find.text('지금 실행'));
       await tester.pumpAndSettle();
 
       expect(find.text('상태 화면'), findsOneWidget);
