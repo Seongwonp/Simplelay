@@ -26,6 +26,12 @@ class AppColors {
   // 바꾸면 다크 배경 위 글자 대비가 5.31 → 3.9로 같이 깨진다.
   static const dangerLight = Color(0xFFB93A34); // 크림 표면 5.5:1 / 배경 5.0:1
 
+  // 같은 이유로 앰버·그린도 라이트 전용 변형이 필요하다. 크림 위에서 원본은
+  // 앰버 1.82:1, 그린 2.19:1로 사실상 보이지 않는다 -- 상태를 색으로 알리는
+  // 자리(연결됨·방해 금지·안전 정지)가 전부 여기에 걸린다.
+  static const warningLight = Color(0xFF8A5A00); // 표면 5.77:1 / 배경 5.26:1
+  static const successLight = Color(0xFF27694C); // 표면 6.37:1 / 배경 5.80:1
+
   // 채도 있는 색을 **면으로** 쓸 때 얹는 글자색.
   //
   // 흰 글자는 골드 위 1.9:1, 초록 위 2.25:1, 빨강 위 3.63:1로 전부 무너진다.
@@ -59,6 +65,8 @@ extension AppColorsX on BuildContext {
   /// 경고·삭제·정지를 **글자나 아이콘으로** 표시할 때. 면으로 쓸 때는 이게 아니라
   /// `AppColors.danger` 배경 + `AppColors.onAccent` 글자다.
   Color get appDanger        => _isDark ? AppColors.danger : AppColors.dangerLight;
+  Color get appWarning       => _isDark ? AppColors.warning : AppColors.warningLight;
+  Color get appSuccess       => _isDark ? AppColors.success : AppColors.successLight;
 
   // 표면 위에 살짝 얹는 채움·테두리·보조 텍스트 — 다크는 흰색 기반, 라이트는
   // 검정 기반. Colors.white* 하드코딩은 크림색 라이트 배경에서 안 보이므로

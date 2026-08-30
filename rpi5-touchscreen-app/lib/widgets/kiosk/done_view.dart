@@ -119,9 +119,10 @@ class _ResultRing extends StatelessWidget {
   final Color color;
 
   @override
+  // 뜻을 전하는 것은 아이콘이 아니라 글자다 -- 원은 결과 색을 알리는 정도로만 둔다
   Widget build(BuildContext context) => Container(
-        width: 144,
-        height: 144,
+        width: 104,
+        height: 104,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           color: color.withValues(alpha: 0.05),
@@ -129,8 +130,8 @@ class _ResultRing extends StatelessWidget {
         ),
         child: Center(
           child: Container(
-            width: 88,
-            height: 88,
+            width: 68,
+            height: 68,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -142,7 +143,7 @@ class _ResultRing extends StatelessWidget {
             ),
             child: Icon(
               success ? Icons.check : Icons.close,
-              size: 40,
+              size: 34,
               color: color,
             ),
           ),

@@ -50,8 +50,8 @@ class _DndSheet extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
-                  const Icon(Icons.do_not_disturb_on_outlined,
-                      color: AppColors.warning, size: 22),
+                  Icon(Icons.do_not_disturb_on_outlined,
+                      color: context.appWarning, size: 22),
                   const SizedBox(width: 10),
                   Text('방해 금지 모드', style: AppText.title),
                   const Spacer(),
@@ -60,15 +60,15 @@ class _DndSheet extends ConsumerWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: AppColors.warning.withValues(alpha: 0.15),
+                        color: context.appWarning.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
                         border: Border.all(
-                            color: AppColors.warning.withValues(alpha: 0.4)),
+                            color: context.appWarning.withValues(alpha: 0.4)),
                       ),
                       child: Text(
                         '활성',
                         style: TextStyle(
-                            color: AppColors.warning,
+                            color: context.appWarning,
                             fontSize: 12,
                             fontWeight: FontWeight.w600),
                       ),
@@ -84,8 +84,8 @@ class _DndSheet extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
                   _remaining(dndUntil),
-                  style: const TextStyle(
-                      color: AppColors.warning, fontSize: 13),
+                  style: TextStyle(
+                      color: context.appWarning, fontSize: 13),
                 ),
               ),
             ],

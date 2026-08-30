@@ -50,7 +50,7 @@ class HomeScreen extends ConsumerWidget {
               dndActive
                   ? Icons.do_not_disturb_on
                   : Icons.do_not_disturb_on_outlined,
-              color: dndActive ? AppColors.warning : null,
+              color: dndActive ? context.appWarning : null,
             ),
             tooltip: dndActive ? '방해 금지 활성' : '방해 금지',
           ),
@@ -214,27 +214,27 @@ class _DndBanner extends StatelessWidget {
         padding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.10),
+          color: context.appWarning.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(12),
           border:
-              Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
+              Border.all(color: context.appWarning.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.do_not_disturb_on,
-                color: AppColors.warning, size: 18),
+            Icon(Icons.do_not_disturb_on,
+                color: context.appWarning, size: 18),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 '방해 금지 중 · $_remaining',
-                style: const TextStyle(
-                    color: AppColors.warning, fontSize: 13),
+                style: TextStyle(
+                    color: context.appWarning, fontSize: 13),
               ),
             ),
             TextButton(
               onPressed: onClear,
               style: TextButton.styleFrom(
-                foregroundColor: AppColors.warning,
+                foregroundColor: context.appWarning,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: const Size(48, 48),
               ),
@@ -293,13 +293,13 @@ class _RpiStatusCard extends ConsumerWidget {
     final (Color color, IconData icon, String title, String subtitle) =
         switch (state) {
       RpiConnectionState.connected => (
-          AppColors.success,
+          context.appSuccess,
           Icons.wifi,
           'RPi 서버 연결됨',
           'AI 추론 · 제안 · 실행 준비 완료',
         ),
       RpiConnectionState.checking => (
-          AppColors.warning,
+          context.appWarning,
           Icons.sync,
           '연결 확인 중…',
           'simplelay.local 에 접속 중입니다',
@@ -328,31 +328,12 @@ class _RpiStatusCard extends ConsumerWidget {
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: color.withValues(alpha: 0.15),
-              ),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(title,
-                      style: AppText.body
-                          .copyWith(fontWeight: FontWeight.w600)),
-                  const SizedBox(height: 2),
-                  Text(subtitle,
-                      style: context.appCaption),
-                ],
-              ),
-            ),
+        child: _StatusCardBody(
+          icon: icon,
+          color: color,
+          title: title,
+          subtitle: subtitle,
+          actions: [
             if (state == RpiConnectionState.unreachable ||
                 state == RpiConnectionState.unconfigured) ...[
               TextButton(
@@ -399,30 +380,13 @@ class _BleStatusCard extends StatelessWidget {
         ),
         child: Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                ),
-                child: Icon(Icons.bluetooth_disabled,
-                    color: context.appMuted, size: 20),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('예비 연결이 꺼져 있어요', style: AppText.body),
-                    const SizedBox(height: 2),
-                    Text('연결해 두면 서버가 안 될 때도 조작할 수 있어요.',
-                        style: context.appCaption),
-                  ],
-                ),
-              ),
+          child: _StatusCardBody(
+            icon: Icons.bluetooth_disabled,
+            color: context.appMuted,
+            iconBackground: Theme.of(context).colorScheme.surfaceContainerHigh,
+            title: '예비 연결이 꺼져 있어요',
+            subtitle: '연결해 두면 서버가 안 될 때도 조작할 수 있어요.',
+            actions: [
               Consumer(
                 builder: (_, ref, __) => TextButton(
                   onPressed: () => GoRouter.of(ref.context).go('/settings'),
@@ -439,6 +403,78 @@ class _BleStatusCard extends StatelessWidget {
       );
 }
 
+/// 상태 카드의 공통 본문 — 아이콘 · 제목/설명 · 동작 버튼.
+///
+/// **큰 글씨에서 가로 배치가 무너진다.** 아이콘·텍스트·버튼을 한 줄에 두면 200%
+/// 확대에서 버튼들이 폭을 다 가져가고 Expanded 텍스트가 한 글자씩 세로로 쪼개졌다
+/// ("RPi 서버 미설정"이 여섯 줄이 됐다). 오버플로가 아니라 **압축**이라 레이아웃
+/// 테스트가 잡지 못했고, 실제 렌더 이미지를 보고서야 드러났다.
+///
+/// 그래서 확대 배율이 커지면 버튼을 아래로 내린다. 보통 크기에서는 지금처럼 한 줄로
+/// 둔다 -- 늘 세로로 쌓으면 평소 화면이 불필요하게 길어진다.
+class _StatusCardBody extends StatelessWidget {
+  const _StatusCardBody({
+    required this.icon,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.actions,
+    this.iconBackground,
+  });
+
+  final IconData icon;
+  final Color color;
+  final Color? iconBackground;
+  final String title;
+  final String subtitle;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    // 1.0을 넣으면 유효 배율이 그대로 나온다. 1.3을 넘으면 버튼 두 개가 들어갈
+    // 가로 여유가 없다고 보고 접는다.
+    final stacked = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+
+    final head = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: iconBackground ?? color.withValues(alpha: 0.15),
+          ),
+          child: Icon(icon, color: color, size: 20),
+        ),
+        const SizedBox(width: 14),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(subtitle, style: context.appCaption),
+            ],
+          ),
+        ),
+        if (!stacked) ...actions,
+      ],
+    );
+
+    if (!stacked || actions.isEmpty) return head;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        head,
+        const SizedBox(height: 4),
+        Wrap(spacing: 4, runSpacing: 4, children: actions),
+      ],
+    );
+  }
+}
+
 // ── 연결 상태 chip (AppBar) ───────────────────────────────────────────────
 
 class _ConnectionChip extends StatelessWidget {
@@ -449,9 +485,9 @@ class _ConnectionChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (Color color, String label) = rpiOnline
-        ? (AppColors.success, '연결됨')
+        ? (context.appSuccess, '연결됨')
         : connected
-            ? (AppColors.warning, 'BLE만')
+            ? (context.appWarning, 'BLE만')
             : (context.appMuted, '미연결');
 
     return Chip(
@@ -559,7 +595,7 @@ class _EmptySuggestions extends StatelessWidget {
                 dndActive
                     ? Icons.do_not_disturb_on_outlined
                     : Icons.lightbulb_outline,
-                color: dndActive ? AppColors.warning : context.appMuted,
+                color: dndActive ? context.appWarning : context.appMuted,
                 size: 36,
               ),
               const SizedBox(height: 12),

@@ -116,7 +116,7 @@ class SuggestionScreen extends ConsumerWidget {
                         .respond(suggestion, false);
                     if (context.mounted) context.pop();
                   },
-                  child: const Text('지금은 안 함'),
+                  child: const Text('나중에'),
                 ),
               ),
               const SizedBox(width: 12),

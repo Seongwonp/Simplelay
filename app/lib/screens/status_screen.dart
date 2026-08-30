@@ -56,7 +56,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     backgroundColor:
                         Theme.of(context).colorScheme.surfaceContainerHigh,
                     color: status.phase == ExecutionPhase.retrying
-                        ? AppColors.warning
+                        ? context.appWarning
                         : Theme.of(context).colorScheme.primary,
                   )
                 : null,
@@ -199,16 +199,16 @@ class _RetryBanner extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: AppColors.warning.withValues(alpha: 0.12),
+          color: context.appWarning.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppColors.warning.withValues(alpha: 0.4)),
+          border: Border.all(color: context.appWarning.withValues(alpha: 0.4)),
         ),
         child: Row(
           children: [
-            const Icon(Icons.refresh, color: AppColors.warning, size: 20),
+            Icon(Icons.refresh, color: context.appWarning, size: 20),
             const SizedBox(width: 10),
-            const Text('버튼 동작 재시도 중…',
-                style: TextStyle(color: AppColors.warning)),
+            Text('버튼 동작 재시도 중…',
+                style: TextStyle(color: context.appWarning)),
           ],
         ),
       );
@@ -235,7 +235,7 @@ class _StepTile extends StatelessWidget {
     final Color iconColor;
     final IconData iconData;
     if (done) {
-      iconColor = AppColors.success;
+      iconColor = context.appSuccess;
       iconData = Icons.check_circle;
     } else if (current) {
       iconColor = Theme.of(context).colorScheme.primary;
@@ -262,7 +262,7 @@ class _StepTile extends StatelessWidget {
                   width: 2,
                   height: 24,
                   color: done
-                      ? AppColors.success.withValues(alpha: 0.4)
+                      ? context.appSuccess.withValues(alpha: 0.4)
                       : context.appBorderSubtle,
                 ),
             ],
@@ -312,7 +312,7 @@ class _SensorChart extends StatelessWidget {
   // context를 인자로 받는다 — 라이트/다크에 따라 강조색이 달라지므로
   // 테마 없이 색을 결정할 수 없다.
   Color _barColor(BuildContext context, double v) =>
-      v >= warningThreshold ? AppColors.warning : context.appPrimary;
+      v >= warningThreshold ? context.appWarning : context.appPrimary;
 
   @override
   Widget build(BuildContext context) {

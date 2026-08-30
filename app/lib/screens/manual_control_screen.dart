@@ -297,7 +297,7 @@ class _ButtonCell extends StatelessWidget {
           ),
         ),
       _CellState.success => (
-          AppColors.success,
+          context.appSuccess,
           const Icon(Icons.check, size: 18)
         ),
       _CellState.failure => (

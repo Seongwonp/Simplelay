@@ -83,6 +83,31 @@ void main() {
     });
   });
 
+  group('라이트 모드 상태색 — 글자·아이콘으로 쓸 때', () {
+    // 상태를 색으로 알리는 자리(연결됨·방해 금지·안전 정지)가 전부 여기 걸린다.
+    // 크림 위에서 원본 앰버는 1.82:1, 그린은 2.19:1로 사실상 보이지 않았다.
+    test('warningLight는 크림 표면·배경 모두 통과', () {
+      expect(contrast(AppColors.surfaceLowLight, AppColors.warningLight),
+          greaterThanOrEqualTo(_aa));
+      expect(contrast(AppColors.backgroundLight, AppColors.warningLight),
+          greaterThanOrEqualTo(_aa));
+    });
+
+    test('successLight는 크림 표면·배경 모두 통과', () {
+      expect(contrast(AppColors.surfaceLowLight, AppColors.successLight),
+          greaterThanOrEqualTo(_aa));
+      expect(contrast(AppColors.backgroundLight, AppColors.successLight),
+          greaterThanOrEqualTo(_aa));
+    });
+
+    test('다크용 앰버·그린을 라이트에 그대로 쓰면 미달이다', () {
+      expect(contrast(AppColors.backgroundLight, AppColors.warning),
+          lessThan(_aa));
+      expect(contrast(AppColors.backgroundLight, AppColors.success),
+          lessThan(_aa));
+    });
+  });
+
   group('라이트 모드에서 danger를 글자로 쓸 때', () {
     test('dangerLight는 크림 표면·배경 모두 통과', () {
       expect(contrast(AppColors.surfaceLowLight, AppColors.dangerLight),

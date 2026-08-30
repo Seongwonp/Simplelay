@@ -76,46 +76,47 @@ class KioskSuggestionView extends StatelessWidget {
               children: [
                 // 보조 동작이 왼쪽, 주요 실행이 오른쪽 — 폰 앱과 같은 규칙.
                 // 예전에는 키오스크만 실행이 왼쪽이라 두 화면의 손버릇이 달랐다.
+                // 높이를 고정하지 않고 **최소 높이**로 준다. 고정하면 큰 글씨
+                // 모드에서 글자가 버튼 안에서 잘린다 -- 그건 RenderFlex 오버플로가
+                // 아니라서 레이아웃 테스트가 잡지 못했고, 실제 렌더 이미지를 보고서야
+                // 드러났다.
                 Expanded(
-                  child: SizedBox(
-                    height: 64,
-                    child: OutlinedButton(
-                      onPressed: onReject,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        side: const BorderSide(color: KioskColors.border),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                  flex: 3,
+                  child: OutlinedButton(
+                    onPressed: onReject,
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size(0, 64),
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(color: KioskColors.border),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
-                        '지금은 안 함',
-                        style:
-                            TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
-                      ),
+                    ),
+                    child: const Text(
+                      '나중에',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
                     ),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
-                  flex: 2,
-                  child: SizedBox(
-                    height: 64,
-                    child: ElevatedButton(
-                      onPressed: onApprove,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: KioskColors.primary,
-                        foregroundColor: KioskColors.onAccent,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+                  flex: 4,
+                  child: ElevatedButton(
+                    onPressed: onApprove,
+                    style: ElevatedButton.styleFrom(
+                      minimumSize: const Size(0, 64),
+                      backgroundColor: KioskColors.primary,
+                      foregroundColor: KioskColors.onAccent,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Text(
-                        '지금 실행',
-                        style:
-                            TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-                      ),
+                    ),
+                    child: const Text(
+                      '지금 실행',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),

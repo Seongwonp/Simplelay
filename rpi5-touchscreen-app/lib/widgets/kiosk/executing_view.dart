@@ -349,9 +349,12 @@ class _MetricBlock extends StatelessWidget {
         ),
         if (detail != null && detail!.isNotEmpty) ...[
           const SizedBox(height: 4),
+          // 한 줄로 자르면 뒤쪽 근거가 통째로 사라진다 -- 210px 칸에 센서 두 종과
+          // 신뢰도가 함께 들어가야 하므로 두 줄까지 허용한다.
           Text(
             detail!,
             style: const TextStyle(fontSize: 13, color: KioskColors.muted),
+            maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),
         ],

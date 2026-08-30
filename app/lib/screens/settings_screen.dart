@@ -197,8 +197,8 @@ class _RpiConnectionTile extends ConsumerWidget {
 
     final (Color color, String label, IconData icon) = switch (connState) {
       RpiConnectionState.unconfigured => (context.appMuted, '미설정', Icons.wifi_off),
-      RpiConnectionState.checking     => (AppColors.warning, '확인 중…', Icons.sync),
-      RpiConnectionState.connected    => (AppColors.success, '연결됨', Icons.wifi),
+      RpiConnectionState.checking     => (context.appWarning, '확인 중…', Icons.sync),
+      RpiConnectionState.connected    => (context.appSuccess, '연결됨', Icons.wifi),
       RpiConnectionState.unreachable  => (context.appDanger, '연결 안 됨', Icons.wifi_off),
     };
 
@@ -420,7 +420,7 @@ class _SavedDeviceSection extends ConsumerWidget {
         subtitle: Text(
           isConnected ? '연결됨' : '연결 안 됨',
           style: TextStyle(
-            color: isConnected ? AppColors.success : context.appMuted,
+            color: isConnected ? context.appSuccess : context.appMuted,
             fontSize: 12,
           ),
         ),
@@ -764,7 +764,7 @@ class _NodeSection extends ConsumerWidget {
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(appliance.icon,
                     color: url != null
-                        ? AppColors.success
+                        ? context.appSuccess
                         : context.appMuted,
                     size: 20),
                 title: Text(appliance.name),
@@ -772,7 +772,7 @@ class _NodeSection extends ConsumerWidget {
                   url ?? '미등록',
                   style: TextStyle(
                     color: url != null
-                        ? AppColors.success
+                        ? context.appSuccess
                         : context.appMuted,
                     fontSize: 12,
                   ),
@@ -944,15 +944,15 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                         padding: const EdgeInsets.symmetric(
                             horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: AppColors.success.withValues(alpha: 0.12),
+                          color: context.appSuccess.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
-                              color: AppColors.success.withValues(alpha: 0.4)),
+                              color: context.appSuccess.withValues(alpha: 0.4)),
                         ),
-                        child: const Text(
+                        child: Text(
                           '등록됨',
                           style: TextStyle(
-                              fontSize: 11, color: AppColors.success),
+                              fontSize: 11, color: context.appSuccess),
                         ),
                       ),
                     ],

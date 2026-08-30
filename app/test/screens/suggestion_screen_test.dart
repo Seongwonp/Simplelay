@@ -128,7 +128,7 @@ void main() {
       router.push('/suggestion/test-001');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('지금은 안 함'));
+      await tester.tap(find.text('나중에'));
       await tester.pumpAndSettle();
 
       // pop 후 홈으로 돌아감

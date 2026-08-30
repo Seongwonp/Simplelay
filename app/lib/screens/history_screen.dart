@@ -90,9 +90,9 @@ class _HistoryTile extends StatelessWidget {
     final succeeded = entry.status == 'succeeded';
     final stopped = entry.status == 'safety_stopped';
     final (color, icon, statusLabel) = succeeded
-        ? (AppColors.success, Icons.check_circle, '완료')
+        ? (context.appSuccess, Icons.check_circle, '완료')
         : stopped
-            ? (AppColors.warning, Icons.front_hand, '안전 정지')
+            ? (context.appWarning, Icons.front_hand, '안전 정지')
             : (AppColors.danger, Icons.error, '실패');
 
     return Card(
@@ -121,20 +121,20 @@ class _HistoryTile extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 10, vertical: 5),
                       decoration: BoxDecoration(
-                        color: AppColors.success.withValues(alpha: 0.12),
+                        color: context.appSuccess.withValues(alpha: 0.12),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                          color: AppColors.success.withValues(alpha: 0.35),
+                          color: context.appSuccess.withValues(alpha: 0.35),
                         ),
                       ),
                       // 폐루프가 실제로 회복했다는 유일한 기록 증거 —
                       // 11px는 화면 미러링 시 심사석에서 읽히지 않았다
                       child: Text(
                         '재시도 ${entry.retryCount}회 후 성공',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: AppColors.success,
+                          color: context.appSuccess,
                         ),
                       ),
                     ),
