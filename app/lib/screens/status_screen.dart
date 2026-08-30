@@ -74,7 +74,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   liveRegion: true,
                   label: [
                     status.label ?? '실행 중인 작업 없음',
-                    status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
+                    status.message ?? '실행을 시작하면 진행 상황이 여기에 표시돼요.',
                     if (status.phase == ExecutionPhase.retrying) '자동 보정 중입니다',
                     if (status.steps.isNotEmpty && active)
                       '${status.steps.length}단계 중 ${status.completedSteps}단계 완료',
@@ -89,7 +89,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          status.message ?? '승인한 동작의 진행 상황이 여기에 표시됩니다.',
+                          status.message ?? '실행을 시작하면 진행 상황이 여기에 표시돼요.',
                           style:
                               TextStyle(color: context.appMuted),
                         ),

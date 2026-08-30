@@ -41,7 +41,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       label: suggestion.label,
       steps: suggestion.steps,
       phase: ExecutionPhase.waiting,
-      message: '승인 전송 완료',
+      message: '실행 요청을 보냈어요',
     );
   }
 

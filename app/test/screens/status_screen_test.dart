@@ -27,7 +27,7 @@ void main() {
     testWidgets('기본 안내 텍스트 표시', (tester) async {
       await _pumpStatus(tester, const ExecutionStatus());
       expect(find.text('실행 중인 작업 없음'), findsOneWidget);
-      expect(find.text('승인한 동작의 진행 상황이 여기에 표시됩니다.'), findsOneWidget);
+      expect(find.text('실행을 시작하면 진행 상황이 여기에 표시돼요.'), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 없음 (idle)', (tester) async {

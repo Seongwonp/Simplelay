@@ -23,7 +23,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/suggestion.dart';
+import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/screens/home_screen.dart';
+import 'package:simplelay/screens/status_screen.dart';
+import 'package:simplelay/screens/suggestion_screen.dart';
 import 'package:simplelay/theme/app_theme.dart';
 
 import 'helpers/test_helpers.dart';
@@ -35,9 +38,13 @@ Future<void> _shoot(
   String name,
   Widget screen, {
   List<Suggestion> suggestions = const [],
+  ExecutionStatus? executionStatus,
   bool connected = true,
   bool light = false,
   double textScale = 1.0,
+  // 실행 화면처럼 계속 도는 애니메이션(진행 표시·차트)이 있으면 pumpAndSettle이
+  // 영영 안 끝난다. 그런 화면은 정해진 시간만 돌리고 찍는다.
+  bool settle = true,
 }) async {
   tester.view.physicalSize = _phoneSize;
   tester.view.devicePixelRatio = 1.0;
@@ -46,6 +53,7 @@ Future<void> _shoot(
   await tester.pumpWidget(
     buildWithProviderState(
       suggestions: suggestions,
+      executionStatus: executionStatus,
       overrides: connected ? connectedOverrides() : disconnectedOverrides(),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -67,7 +75,12 @@ Future<void> _shoot(
   );
   // 제안 카드는 등장 애니메이션(_SlidingCard)을 거치므로 정착까지 기다린다.
   // pump 한 번으로는 화면에 아직 안 그려져 있어 빈 화면을 찍게 된다.
-  await tester.pumpAndSettle(const Duration(milliseconds: 50));
+  if (settle) {
+    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+  } else {
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+  }
   await expectLater(
     find.byType(MaterialApp),
     matchesGoldenFile('goldens/$name.png'),
@@ -108,5 +121,37 @@ void main() {
   testWidgets('홈 — 큰 글씨 (200%)', (t) async {
     await _shoot(t, 'home_large', const HomeScreen(),
         suggestions: suggestions, textScale: 2.0);
+  });
+
+  // 홈에서 200% 확대가 무너졌던 원인(Row에 버튼이 끼어 텍스트가 압축되는 구조)이
+  // 다른 화면에도 있는지 본다 -- 한 곳만 고치고 넘어가면 같은 결함이 남는다.
+  testWidgets('제안 확인', (t) async {
+    await _shoot(t, 'suggestion', const SuggestionScreen(sequenceId: 'a'),
+        suggestions: suggestions);
+  });
+
+  testWidgets('제안 확인 — 큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'suggestion_large', const SuggestionScreen(sequenceId: 'a'),
+        suggestions: suggestions, textScale: 2.0);
+  });
+
+  const running = ExecutionStatus(
+    phase: ExecutionPhase.running,
+    label: '우유 데워줘',
+    sequenceId: 's1',
+    steps: ['BT-08', 'BT-03', 'BT-05'],
+    completedSteps: 1,
+    currentMa: 320,
+    soundDb: 42,
+  );
+
+  testWidgets('실행 상태', (t) async {
+    await _shoot(t, 'status', const StatusScreen(),
+        executionStatus: running, settle: false);
+  });
+
+  testWidgets('실행 상태 — 큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'status_large', const StatusScreen(),
+        executionStatus: running, textScale: 2.0, settle: false);
   });
 }
