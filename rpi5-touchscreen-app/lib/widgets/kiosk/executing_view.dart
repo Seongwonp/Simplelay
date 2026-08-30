@@ -25,6 +25,19 @@ class KioskExecutingView extends StatelessWidget {
   final String? verificationDetail;
   final VoidCallback onStop;
 
+
+  /// 눌림을 무엇으로 확인했는지. 수치를 지우지 않고 **근거로 내려둔다** --
+  /// 심사 시연에서 값어치가 있는 것은 '93%'라는 숫자 자체가 아니라 그 근거다.
+  String? _verificationEvidence() {
+    final parts = <String>[
+      if (verificationDetail != null && verificationDetail!.isNotEmpty)
+        verificationDetail!,
+      if (verificationConfidence != null)
+        '센서 ${(verificationConfidence! * 100).toStringAsFixed(0)}%',
+    ];
+    return parts.isEmpty ? null : parts.join(' · ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDone = lastButtons != null;
@@ -113,12 +126,12 @@ class KioskExecutingView extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _MetricBlock(
-                label: '검증 신뢰도',
+                label: '버튼 눌림',
                 value: verificationConfidence == null
-                    ? '–'
-                    : '${(verificationConfidence! * 100).toStringAsFixed(0)}%',
+                    ? '확인 중'
+                    : (verificationConfidence! >= 0.7 ? '확인됨' : '확인 중'),
                 warn: verificationConfidence != null && verificationConfidence! < 0.7,
-                detail: verificationDetail,
+                detail: _verificationEvidence(),
               ),
               const SizedBox(height: 24),
               _MetricBlock(
@@ -129,19 +142,21 @@ class KioskExecutingView extends StatelessWidget {
               const Spacer(),
               SizedBox(
                 width: double.infinity,
-                height: 56,
-                child: OutlinedButton(
+                height: 64,
+                child: ElevatedButton.icon(
                   onPressed: onStop,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: KioskColors.danger,
-                    side: const BorderSide(color: KioskColors.danger, width: 1),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: KioskColors.danger,
+                    foregroundColor: KioskColors.onAccent,
+                    elevation: 0,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: const Text(
+                  icon: const Icon(Icons.stop_circle_outlined, size: 24),
+                  label: const Text(
                     '긴급 정지',
-                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),

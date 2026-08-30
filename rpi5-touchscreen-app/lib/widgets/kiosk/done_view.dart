@@ -34,7 +34,7 @@ class KioskDoneView extends StatelessWidget {
   Widget build(BuildContext context) {
     final color = success ? KioskColors.success : KioskColors.danger;
     final detail = success
-        ? '$label — 모든 버튼 동작 확인됨'
+        ? '$label — 버튼 눌림을 모두 확인했어요'
         : (reason ?? KioskFailureReason.execution).detail(label);
 
     return ColoredBox(
@@ -42,18 +42,26 @@ class KioskDoneView extends StatelessWidget {
       child: Center(
         child: Semantics(
           liveRegion: true,
-          label: success ? '$label 완료되었습니다' : detail,
+          label: success ? '$label — 버튼 조작을 마쳤어요' : detail,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               _ResultRing(success: success, color: color),
               const SizedBox(height: 20),
-              Text(
-                success ? '완료' : '멈췄어요',
-                style: TextStyle(
-                  fontSize: 38,
-                  fontWeight: FontWeight.w800,
-                  color: color,
+              // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가 끝났다고
+              // 읽는다. 이 시스템이 끝낸 것은 **버튼 조작**이다 -- 가전이 무엇을
+              // 하고 있는지는 여전히 가전의 몫이라 그 구분이 중요하다.
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 40),
+                child: Text(
+                  success ? '버튼 조작을 마쳤어요' : '멈췄어요',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                    color: color,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -121,8 +129,8 @@ class _ResultRing extends StatelessWidget {
         ),
         child: Center(
           child: Container(
-            width: 116,
-            height: 116,
+            width: 88,
+            height: 88,
             alignment: Alignment.center,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -134,7 +142,7 @@ class _ResultRing extends StatelessWidget {
             ),
             child: Icon(
               success ? Icons.check : Icons.close,
-              size: 54,
+              size: 40,
               color: color,
             ),
           ),

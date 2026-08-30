@@ -7,7 +7,6 @@ import '../models/suggestion.dart';
 import '../providers/execution_status_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
-import '../widgets/status_kpi_strip.dart';
 
 class StatusScreen extends ConsumerStatefulWidget {
   const StatusScreen({super.key});
@@ -99,10 +98,17 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   ),
                 ),
 
-                // ── KPI 헤더 (실행 중 / 완료 / 실패) ─────────────────────
-                if (status.phase != ExecutionPhase.idle) ...[
-                  const SizedBox(height: 20),
-                  StatusKpiStrip(status: status),
+                // ── 진행도 ───────────────────────────────────────────────
+                // 예전에는 여기 KPI 3칸(진행·전류·음향)이 있었는데, 전류·음향은
+                // 아래 '센서 모니터'와 같은 값을 두 번 보여주는 것이었다.
+                // 센서는 한 곳에만 두고, 위에는 "지금 몇 단계인지"만 남긴다.
+                if (status.phase != ExecutionPhase.idle &&
+                    status.steps.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Text(
+                    '${status.steps.length}단계 중 ${status.completedSteps}단계',
+                    style: AppText.title,
+                  ),
                 ],
 
                 // ── 재시도 배너 ────────────────────────────────────────────
@@ -271,7 +277,6 @@ class _StepTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(readableStep(code), style: AppText.body),
-                    Text(code, style: context.appCaption),
                   ],
                 ),
               ),

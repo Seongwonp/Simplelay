@@ -141,6 +141,46 @@ class _KioskIdleViewState extends State<KioskIdleView> {
                       Text(_minute, style: _timeStyle),
                     ],
                   ),
+
+                  // 화면 전체가 눌리면 수동 조작으로 들어가는데, 시계만 보여서는
+                  // 그걸 알 방법이 없었다 -- 여백이 문제가 아니라 **발견 가능성**이
+                  // 문제였다. 통계로 화면을 채우는 대신 한 줄만 둔다.
+                  const SizedBox(height: 26),
+                  if (widget.connected)
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.touch_app_outlined,
+                            size: 20, color: KioskColors.muted),
+                        SizedBox(width: 8),
+                        Text(
+                          '화면을 눌러 가전 조작',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: KioskColors.muted,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    // 점 두 개로만 알리던 상태 -- 눈으로는 무슨 뜻인지 알 수 없었다
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.cloud_off_rounded,
+                            size: 20, color: KioskColors.warning),
+                        SizedBox(width: 8),
+                        Text(
+                          '기기 연결이 필요해요',
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: KioskColors.warning,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
