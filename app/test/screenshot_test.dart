@@ -25,6 +25,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/screens/home_screen.dart';
+import 'package:simplelay/screens/manual_control_screen.dart';
+import 'package:simplelay/screens/settings_screen.dart';
 import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
 import 'package:simplelay/theme/app_theme.dart';
@@ -153,5 +155,20 @@ void main() {
   testWidgets('실행 상태 — 큰 글씨 (200%)', (t) async {
     await _shoot(t, 'status_large', const StatusScreen(),
         executionStatus: running, textScale: 2.0, settle: false);
+  });
+
+  // 설정·수동 조작도 행 끝에 컨트롤이 붙는 구조라 홈과 같은 압축이 일어날 수 있다
+  testWidgets('설정', (t) async {
+    await _shoot(t, 'settings', const SettingsScreen(), settle: false);
+  });
+
+  testWidgets('설정 — 큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'settings_large', const SettingsScreen(),
+        textScale: 2.0, settle: false);
+  });
+
+  testWidgets('수동 조작 — 큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'manual_large', const ManualControlScreen(),
+        textScale: 2.0, settle: false);
   });
 }
