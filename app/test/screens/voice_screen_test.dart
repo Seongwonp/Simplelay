@@ -125,12 +125,12 @@ void main() {
   });
 
   group('내장 가전 선택 시 (기존 동작 유지)', () {
-    testWidgets('힌트는 "우유 데워줘" 예시를 보여준다', (tester) async {
+    testWidgets('힌트는 "즉석밥 데워줘" 예시를 보여준다', (tester) async {
       final container = await _makeContainer();
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
 
-      expect(find.text('예: 우유 데워줘'), findsOneWidget);
+      expect(find.text('예: 즉석밥 데워줘'), findsOneWidget);
     });
 
     testWidgets('전송 시 /execute를 호출하고 상태 화면으로 이동한다', (tester) async {
@@ -205,7 +205,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('예: 켜기 해줘'), findsOneWidget);
-      expect(find.text('예: 우유 데워줘'), findsNothing);
+      expect(find.text('예: 즉석밥 데워줘'), findsNothing);
     });
 
     testWidgets('RPi 연결이 없으면 안내만 뜨고 전송하지 않는다', (tester) async {

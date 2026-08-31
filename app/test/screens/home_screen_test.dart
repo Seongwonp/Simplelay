@@ -83,7 +83,7 @@ void main() {
   group('HomeScreen — 제안 목록', () {
     const suggestion = Suggestion(
       sequenceId: 's1',
-      label: '우유 데우기',
+      label: '즉석밥 데우기',
       steps: ['BT-08', 'BT-03', 'BT-05'],
     );
 
@@ -92,10 +92,10 @@ void main() {
         _buildHome(connected: true, suggestions: const [suggestion]),
       );
       await tester.pump();
-      expect(find.text('우유 데우기, 지금 할까요?'), findsOneWidget);
+      expect(find.text('즉석밥 데우기, 지금 할까요?'), findsOneWidget);
       // "3단계 동작"은 몇 번 움직이는지만 알려줬다 -- 맡길지 판단하려면
       // 무엇을 누르는지가 필요하다
-      expect(find.text('우유 → 1분 추가 → 시작'), findsOneWidget);
+      expect(find.text('즉석밥 → 1분 추가 → 시작'), findsOneWidget);
       expect(find.text('지금 확인할 제안이 없어요.'), findsNothing);
     });
 
@@ -144,7 +144,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('우유 데우기, 지금 할까요?'));
+      await tester.tap(find.text('즉석밥 데우기, 지금 할까요?'));
       await tester.pumpAndSettle();
 
       expect(pushedRoute, 's1');

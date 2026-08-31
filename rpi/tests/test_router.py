@@ -390,9 +390,9 @@ def test_demo_suggest_creates_pending_suggestion(client):
     response = client.post("/demo/suggest", json={})
     assert response.status_code == 200
     body = response.json()
-    assert body["purpose"] == "우유 데워줘"
+    assert body["purpose"] == "즉석밥 데워줘"
     assert body["time_band"] == "데모"
-    assert body["steps"] == ["해동", "시간 90초", "시작"]
+    assert body["steps"] == ["즉석밥", "시작"]
 
     listed = client.get("/suggestions").json()
     assert [s["id"] for s in listed] == [body["id"]]

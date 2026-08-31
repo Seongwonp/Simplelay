@@ -173,7 +173,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
     // "우유 데워줘" 힌트가 우유 버튼도 없는 가전에서도 그대로 보이게 된다.
     final hintExample = appliance.isCustom && appliance.buttons.isNotEmpty
         ? '예: ${appliance.buttons.first.label} 해줘'
-        : '예: 우유 데워줘';
+        : '예: 즉석밥 데워줘';
 
     return Scaffold(
       appBar: AppBar(title: const Text('음성 명령')),

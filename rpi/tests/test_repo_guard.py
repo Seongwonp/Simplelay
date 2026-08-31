@@ -54,6 +54,8 @@ _ALLOWED_ALWAYS = (
     "rpi5-touchscreen-app/README.md",
     # 무시할 로컬 전용 폴더의 이름을 적어야 하는 파일 -- 이름을 빼면 무시가 안 된다
     ".gitignore",
+    # .gitignore와 같은 이유 -- 도커 빌드 컨텍스트에서 뺄 로컬 전용 폴더 이름을 적는다
+    ".dockerignore",
     # 같은 로컬 전용 폴더와 빌드 구조를 가리키는 작업 규칙 문서
     "CLAUDE.md",
 )

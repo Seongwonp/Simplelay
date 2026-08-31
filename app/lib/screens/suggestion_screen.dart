@@ -393,6 +393,9 @@ class _StepRow extends StatelessWidget {
     if (code.contains('해동'))  return Icons.ac_unit;
     if (code.contains('시간'))  return Icons.timer_outlined;
     if (code.contains('우유'))  return Icons.local_drink_outlined;
+    if (code.contains('즉석밥')) return Icons.rice_bowl;
+    if (code.contains('냉동'))  return Icons.kitchen;
+    if (code.contains('라면'))  return Icons.ramen_dining;
     return Icons.touch_app;
   }
 }

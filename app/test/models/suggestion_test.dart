@@ -27,7 +27,7 @@ void main() {
   });
 
   group('readableStep', () {
-    test('returns Korean label for all BT-01 ~ BT-09', () {
+    test('returns Korean label for all BT-01 ~ BT-10', () {
       expect(readableStep('BT-01'), '10초 추가');
       expect(readableStep('BT-02'), '30초 추가');
       expect(readableStep('BT-03'), '1분 추가');
@@ -35,8 +35,9 @@ void main() {
       expect(readableStep('BT-05'), '시작');
       expect(readableStep('BT-06'), '취소/정지');
       expect(readableStep('BT-07'), '해동');
-      expect(readableStep('BT-08'), '우유');
-      expect(readableStep('BT-09'), '자동조리');
+      expect(readableStep('BT-08'), '즉석밥');
+      expect(readableStep('BT-09'), '냉동식품');
+      expect(readableStep('BT-10'), '라면');
     });
 
     test('returns code itself for unknown button', () {

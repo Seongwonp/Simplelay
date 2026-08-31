@@ -22,7 +22,7 @@ Widget _buildSuggestion(
 
 const _sug = Suggestion(
   sequenceId: 'test-001',
-  label: '우유 데우기',
+  label: '즉석밥 데우기',
   steps: ['BT-08', 'BT-03', 'BT-05'],
 );
 
@@ -53,7 +53,7 @@ void main() {
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
-      expect(find.text('우유 데우기, 지금 할까요?'), findsOneWidget);
+      expect(find.text('즉석밥 데우기, 지금 할까요?'), findsOneWidget);
     });
 
     testWidgets('단계별 한국어 라벨 표시', (tester) async {
@@ -64,7 +64,7 @@ void main() {
       await tester.pump();
       // 버튼맵 그리드와 단계 타임라인 둘 다 같은 라벨을 보여주므로(그리드 하이라이트
       // + 타임라인), 정확히 1개가 아니라 "적어도 하나는 보인다"만 확인한다.
-      expect(find.text('우유'), findsAtLeastNWidgets(1));
+      expect(find.text('즉석밥'), findsAtLeastNWidgets(1));
       expect(find.text('1분 추가'), findsAtLeastNWidgets(1));
       expect(find.text('시작'), findsAtLeastNWidgets(1));
     });

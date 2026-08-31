@@ -287,7 +287,7 @@ class DemoSuggestRequest(BaseModel):
     시간대 일치)를 우회해 지금 즉시 제안 카드를 띄운다. 결선 데모에서
     '선제 제안 → 승인 → 실행' 장면을 원하는 시점에 연출하기 위한 것."""
 
-    purpose: str = "우유 데워줘"
+    purpose: str = "즉석밥 데워줘"
 
     @field_validator("purpose")
     @classmethod

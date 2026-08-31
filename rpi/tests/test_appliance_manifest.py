@@ -13,10 +13,12 @@ def test_loads_real_microwave_button_map():
 
     assert manifest.appliance == "microwave"
     assert manifest.model == "generic"
-    assert len(manifest.buttons) == 9
+    assert len(manifest.buttons) == 10
     assert "해동" in manifest.labels
     assert "시작" in manifest.labels
     assert manifest.label_for("BT-07") == "해동"
+    assert manifest.label_for("BT-10") == "라면"
+    assert "즉석밥" in manifest.labels
 
 
 def test_label_for_unknown_id_raises_key_error():
