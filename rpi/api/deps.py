@@ -32,7 +32,14 @@ from rpi.services import (
 )
 from rpi.services.demo_failure import DemoFailureState
 from rpi.services.history import InMemoryJobHistory, JobHistoryStore
-from rpi.services.persistence import SimpleLayDb, SqliteJobHistory, SqliteUsageLog
+from rpi.services.persistence import (
+    SimpleLayDb,
+    SqliteJobHistory,
+    SqliteSuppressionStore,
+    SqliteUsageLog,
+)
+from rpi.intent.suppression import InMemorySuppressionStore
+from rpi.intent.ports import SuppressionStore
 from rpi.services.presence import PresenceStore
 
 from .service import SimpleLayService
@@ -343,6 +350,16 @@ def _build_presence_gate():
 
 
 @lru_cache(maxsize=1)
+def get_suppression_store() -> SuppressionStore:
+    db = get_db()
+    return (
+        SqliteSuppressionStore(db)
+        if db is not None
+        else InMemorySuppressionStore()
+    )
+
+
+@lru_cache(maxsize=1)
 def get_suggestion_service() -> ProactiveSuggestionService:
     detector = PatternDetector(get_usage_log(), _clock, _PATTERN_CONFIG)
     # 미리보기 해석은 빠르고 오프라인이어야 하므로 규칙 계층만 쓴다 —
@@ -353,4 +370,5 @@ def get_suggestion_service() -> ProactiveSuggestionService:
         get_service(),
         intent_resolver=RuleBasedIntentResolver(),
         presence_gate=_build_presence_gate(),
+        suppression_store=get_suppression_store(),
     )

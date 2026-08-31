@@ -23,6 +23,8 @@ class FakeKioskApi implements KioskApiService {
   Object? executeError;
   String nextJobId = 'job-1';
   final approvedIds = <String>[];
+  final rejectedIds = <String>[];
+  final mutedIds = <String>[];
   int stopCalls = 0;
 
   @override
@@ -57,7 +59,10 @@ class FakeKioskApi implements KioskApiService {
   }
 
   @override
-  Future<void> rejectSuggestion(String id) async {}
+  Future<void> rejectSuggestion(String id, {bool mute = false}) async {
+    rejectedIds.add(id);
+    if (mute) mutedIds.add(id);
+  }
 
   @override
   Future<void> stop() async {
@@ -188,6 +193,34 @@ void main() {
 
     expect(find.byType(KioskSuggestionView), findsOneWidget);
     expect(find.text('지금 실행'), findsOneWidget);
+  });
+
+  testWidgets('"이 제안 다시 받지 않기"를 누르면 mute=true로 거절하고 대기로 돌아간다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+
+    api.suggestionList = [];
+    await tester.tap(find.text('이 제안 다시 받지 않기'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(api.mutedIds, ['s1']);
+    expect(find.byType(KioskSuggestionView), findsNothing);
+  });
+
+  testWidgets('"이번만 넘기기"는 mute 없이 거절한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+
+    api.suggestionList = [];
+    await tester.tap(find.text('이번만 넘기기'));
+    await tester.pump();
+
+    expect(api.rejectedIds, ['s1']);
+    expect(api.mutedIds, isEmpty);
   });
 
   testWidgets('승인 → executing → job 완료 시 done → 자동 idle 복귀', (tester) async {

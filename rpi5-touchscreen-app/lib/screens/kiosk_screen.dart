@@ -487,13 +487,19 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
-  Future<void> _onReject() async {
+  Future<void> _onReject() => _dismissSuggestion(mute: false);
+
+  // "다시 추천 안 함" -- 이 루틴을 서버 억제 목록에 넣어 패턴이 다시
+  // 띄우지 않게 한다(단순 dismiss와 다름).
+  Future<void> _onRejectMute() => _dismissSuggestion(mute: true);
+
+  Future<void> _dismissSuggestion({required bool mute}) async {
     final suggestion = _currentSuggestion;
     _countdownTimer?.cancel();
     _toIdle();
     if (suggestion != null) {
       try {
-        await _api.rejectSuggestion(suggestion.id);
+        await _api.rejectSuggestion(suggestion.id, mute: mute);
       } catch (_) {}
     }
   }
@@ -656,6 +662,7 @@ class _KioskScreenState extends State<KioskScreen> {
           cdTotal: _countdownSeconds,
           onApprove: _onApprove,
           onReject: _onReject,
+          onRejectMute: _onRejectMute,
         );
       case KioskPhase.executing:
         return KioskExecutingView(

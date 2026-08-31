@@ -384,9 +384,35 @@ class RpiApiService {
   }
 
   // POST /suggestions/{id}/reject
-  Future<void> rejectSuggestion(String id) async {
+  Future<void> rejectSuggestion(String id, {bool mute = false}) async {
     final res = await _client
-        .post(_base.replace(path: '/suggestions/$id/reject'), headers: _headers)
+        .post(
+          _base.replace(path: '/suggestions/$id/reject'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'mute': mute}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+  }
+
+  // GET /suppressions -- 다시 추천 안 하는 루틴 목록
+  Future<List<String>> suppressions() async {
+    final res = await _client
+        .get(_base.replace(path: '/suppressions'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    final data = jsonDecode(res.body) as Map<String, dynamic>;
+    return (data['purposes'] as List).cast<String>();
+  }
+
+  // POST /suppressions/unmute -- 억제 해제
+  Future<void> unmuteSuppression(String purpose) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/suppressions/unmute'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'purpose': purpose}),
+        )
         .timeout(_timeout);
     _checkStatus(res);
   }

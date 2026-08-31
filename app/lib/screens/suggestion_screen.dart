@@ -26,6 +26,37 @@ class SuggestionScreen extends ConsumerWidget {
         .showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// 거절 공통 -- "이번만 넘기기"(mute=false)와 "다시 추천 안 함"
+  /// (mute=true)가 같은 경로를 쓰되 mute만 다르다. mute=true면 서버가
+  /// 그 루틴을 억제 목록에 넣어 패턴이 다시 띄우지 않는다.
+  static Future<void> _dismissSuggestion(
+    BuildContext context,
+    WidgetRef ref,
+    Suggestion suggestion, {
+    required bool mute,
+  }) async {
+    final rpiApi = ref.read(rpiApiServiceProvider);
+    if (suggestion.source == SuggestionSource.http && rpiApi != null) {
+      try {
+        await rpiApi.rejectSuggestion(suggestion.sequenceId, mute: mute);
+      } on RpiApiException catch (error) {
+        if (error.statusCode != 404) {
+          if (context.mounted) {
+            _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+          }
+          return;
+        }
+      } catch (_) {
+        if (context.mounted) {
+          _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+        }
+        return;
+      }
+    }
+    await ref.read(suggestionProvider.notifier).respond(suggestion, false);
+    if (context.mounted) context.pop();
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items      = ref.watch(suggestionProvider);
@@ -87,36 +118,9 @@ class SuggestionScreen extends ConsumerWidget {
             children: [
               Expanded(
                 child: OutlinedButton(
-                  onPressed: () async {
-                    final rpiApi = ref.read(rpiApiServiceProvider);
-                    if (suggestion.source == SuggestionSource.http && rpiApi != null) {
-                      try {
-                        // HTTP: RPi에 직접 거부 전송
-                        await rpiApi.rejectSuggestion(suggestion.sequenceId);
-                      } on RpiApiException catch (error) {
-                        // 서버에 이미 없는 제안(404)이면 로컬 제거만 하면 되므로
-                        // 계속 진행 — 그 외 에러는 사용자에게 알리고 중단.
-                        if (error.statusCode != 404) {
-                          if (context.mounted) {
-                            _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
-                          }
-                          return;
-                        }
-                      } catch (_) {
-                        if (context.mounted) {
-                          _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
-                        }
-                        return;
-                      }
-                    }
-                    // BLE 출처일 때만 respond()가 실제로 BLE 응답을 보낸다
-                    // (HTTP 출처는 로컬 목록에서 제거만 함 — 위에서 이미 서버에 전달했으므로).
-                    await ref
-                        .read(suggestionProvider.notifier)
-                        .respond(suggestion, false);
-                    if (context.mounted) context.pop();
-                  },
-                  child: const Text('나중에'),
+                  onPressed: () =>
+                      _dismissSuggestion(context, ref, suggestion, mute: false),
+                  child: const Text('이번만 넘기기'),
                 ),
               ),
               const SizedBox(width: 12),
@@ -183,6 +187,15 @@ class SuggestionScreen extends ConsumerWidget {
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 4),
+          Center(
+            child: TextButton.icon(
+              onPressed: () =>
+                  _dismissSuggestion(context, ref, suggestion, mute: true),
+              icon: const Icon(Icons.notifications_off_outlined, size: 18),
+              label: const Text('이 제안 다시 받지 않기'),
+            ),
           ),
         ],
       ),

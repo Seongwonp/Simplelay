@@ -22,6 +22,22 @@ class UsageLog(ABC):
         """Return usage records available to the pattern detector."""
 
 
+class SuppressionStore(ABC):
+    """사용자가 "다시 추천 안 함"한 루틴을 담는 억제 목록."""
+
+    @abstractmethod
+    def mute(self, purpose: str) -> None:
+        """이 루틴을 다시 제안하지 않도록 억제한다."""
+
+    @abstractmethod
+    def unmute(self, purpose: str) -> None:
+        """억제 해제 -- 다시 제안 대상이 된다."""
+
+    @abstractmethod
+    def muted(self) -> frozenset[str]:
+        """현재 억제된 purpose 집합."""
+
+
 class PurposeExecutor(ABC):
     @abstractmethod
     def execute_purpose(self, purpose: str) -> object:

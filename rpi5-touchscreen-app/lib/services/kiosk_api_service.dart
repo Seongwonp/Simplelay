@@ -279,9 +279,13 @@ class KioskApiService {
     }
   }
 
-  Future<void> rejectSuggestion(String id) async {
+  Future<void> rejectSuggestion(String id, {bool mute = false}) async {
     await _client
-        .post(_base.replace(path: '/suggestions/$id/reject'))
+        .post(
+          _base.replace(path: '/suggestions/$id/reject'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'mute': mute}),
+        )
         .timeout(_timeout);
   }
 

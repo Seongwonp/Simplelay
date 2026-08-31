@@ -20,6 +20,7 @@ class KioskSuggestionView extends StatelessWidget {
     required this.cdTotal,
     required this.onApprove,
     required this.onReject,
+    required this.onRejectMute,
   });
 
   final KioskSuggestion suggestion;
@@ -30,6 +31,10 @@ class KioskSuggestionView extends StatelessWidget {
   final int cdTotal;
   final VoidCallback onApprove;
   final VoidCallback onReject;
+
+  /// "다시 추천 안 함" -- 이번만 넘기기(onReject)와 달리 그 루틴을
+  /// 아예 억제한다.
+  final VoidCallback onRejectMute;
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +76,7 @@ class KioskSuggestionView extends StatelessWidget {
               _StepSequence(steps: suggestion.steps),
             ],
 
-            const SizedBox(height: 28),
+            const SizedBox(height: 16),
             Row(
               children: [
                 // 보조 동작이 왼쪽, 주요 실행이 오른쪽 — 폰 앱과 같은 규칙.
@@ -93,7 +98,7 @@ class KioskSuggestionView extends StatelessWidget {
                       ),
                     ),
                     child: const Text(
-                      '나중에',
+                      '이번만 넘기기',
                       textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
                     ),
@@ -123,6 +128,24 @@ class KioskSuggestionView extends StatelessWidget {
               ],
             ),
 
+            const SizedBox(height: 4),
+            Center(
+              child: TextButton.icon(
+                onPressed: onRejectMute,
+                style: TextButton.styleFrom(
+                  foregroundColor: KioskColors.muted,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  minimumSize: Size.zero,
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                icon: const Icon(Icons.notifications_off_outlined, size: 16),
+                label: const Text(
+                  '이 제안 다시 받지 않기',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ),
             const SizedBox(height: 14),
             // 카운트다운에서 정작 중요한 정보는 남은 초가 아니라 "가만히 두면
             // 아무 일도 없다"는 사실이다 — 자동으로 실행될까 봐 서두르지 않도록.

@@ -62,6 +62,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const SizedBox(height: 24),
 
+          // ── 제안 ──────────────────────────────────────────
+          _SectionHeader(title: '제안'),
+          const SizedBox(height: 12),
+          _SuppressionSection(),
+
+          const SizedBox(height: 24),
+
           // ── 연결 ─────────────────────────────────────────────────────────
           _SectionHeader(title: '연결'),
           const SizedBox(height: 12),
@@ -1079,3 +1086,74 @@ class _SettingCard extends StatelessWidget {
         ),
       );
 }
+
+
+/// 다시 추천 안 하는 루틴 목록 -- 개별 해제(다시 받기) 가능.
+class _SuppressionSection extends ConsumerStatefulWidget {
+  const _SuppressionSection();
+
+  @override
+  ConsumerState<_SuppressionSection> createState() =>
+      _SuppressionSectionState();
+}
+
+class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
+  Future<List<String>>? _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _reload();
+  }
+
+  void _reload() {
+    final api = ref.read(rpiApiServiceProvider);
+    setState(() {
+      _future = api?.suppressions() ?? Future<List<String>>.value(const []);
+    });
+  }
+
+  Future<void> _unmute(String purpose) async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api != null) {
+      try {
+        await api.unmuteSuppression(purpose);
+      } catch (_) {}
+    }
+    _reload();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<String>>(
+      future: _future,
+      builder: (context, snapshot) {
+        final items = snapshot.data ?? const <String>[];
+        if (items.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+            child: Text(
+              '다시 추천 안 하는 항목이 없어요.',
+              style: TextStyle(color: Colors.grey),
+            ),
+          );
+        }
+        return Column(
+          children: [
+            for (final purpose in items)
+              ListTile(
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                leading: const Icon(Icons.notifications_off_outlined),
+                title: Text(purpose),
+                trailing: TextButton(
+                  onPressed: () => _unmute(purpose),
+                  child: const Text('다시 받기'),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+

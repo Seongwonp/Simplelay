@@ -115,6 +115,7 @@ void main() {
         cdTotal: 20,
         onApprove: () {},
         onReject: () {},
+        onRejectMute: () {},
       ),
     );
   });
@@ -129,6 +130,7 @@ void main() {
         cdTotal: 20,
         onApprove: () {},
         onReject: () {},
+        onRejectMute: () {},
       ),
       textScale: 1.22,
     );

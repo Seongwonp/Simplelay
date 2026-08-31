@@ -37,12 +37,15 @@ from .schemas import (
     NodeRegisterRequest,
     NodeResponse,
     OkResponse,
+    RejectSuggestionRequest,
     PresenceRequest,
     PresenceResponse,
     SensorResponse,
     StatusResponse,
     StopResponse,
     SuggestionResponse,
+    SuppressionListResponse,
+    UnmuteRequest,
 )
 from .service import LlmNotConfiguredError, SimpleLayService
 
@@ -181,12 +184,29 @@ async def approve_suggestion(
 @router.post("/suggestions/{suggestion_id}/reject", response_model=OkResponse)
 async def reject_suggestion(
     suggestion_id: str,
+    body: RejectSuggestionRequest | None = None,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> OkResponse:
     try:
-        svc.reject(suggestion_id)
+        svc.reject(suggestion_id, mute=body.mute if body is not None else False)
     except UnknownSuggestionError:
         raise HTTPException(status_code=404, detail="suggestion not found")
+    return OkResponse()
+
+
+@router.get("/suppressions", response_model=SuppressionListResponse)
+async def list_suppressions(
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> SuppressionListResponse:
+    return SuppressionListResponse(purposes=list(svc.muted_purposes()))
+
+
+@router.post("/suppressions/unmute", response_model=OkResponse)
+async def unmute_suppression(
+    body: UnmuteRequest,
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> OkResponse:
+    svc.unmute(body.purpose)
     return OkResponse()
 
 

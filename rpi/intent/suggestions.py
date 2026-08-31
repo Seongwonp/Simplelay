@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 from .base import IntentResolver
 from .models import ProactiveSuggestion, SuggestionStatus
 from .patterns import PatternDetector
-from .ports import Clock, PurposeExecutor
+from .ports import Clock, PurposeExecutor, SuppressionStore
 from .rules import UnknownIntentError
 
 
@@ -27,6 +27,7 @@ class ProactiveSuggestionService:
         executor: PurposeExecutor,
         intent_resolver: IntentResolver | None = None,
         presence_gate=None,
+        suppression_store: SuppressionStore | None = None,
     ) -> None:
         self._detector = detector
         self._clock = clock
@@ -44,6 +45,8 @@ class ProactiveSuggestionService:
         # 수동 트리거(create_demo_suggestion)와 이미 만들어진 pending 노출은
         # 게이트 대상이 아니다 — 데모·기존 제안 흐름을 건드리지 않는다.
         self._presence_gate = presence_gate
+        # "다시 추천 안 함"으로 내린 루틴 억제 목록. None이면 억제 없음.
+        self._suppression_store = suppression_store
 
     def set_dnd_for(self, minutes: int) -> datetime:
         until = self._clock.now() + timedelta(minutes=minutes)
@@ -67,7 +70,14 @@ class ProactiveSuggestionService:
         if self._presence_gate is not None and not self._presence_gate():
             return ()
         created: list[ProactiveSuggestion] = []
+        muted = (
+            self._suppression_store.muted()
+            if self._suppression_store is not None
+            else frozenset()
+        )
         for candidate in self._detector.candidates():
+            if candidate.purpose in muted:
+                continue  # 사용자가 이 루틴을 "다시 추천 안 함"으로 내렸다
             # 미리보기 해석(느릴 수 있음)은 락 밖에서
             steps = self._preview_steps(candidate.purpose)
             with self._state_lock:
@@ -134,10 +144,14 @@ class ProactiveSuggestionService:
             self._suggestions[suggestion.suggestion_id] = suggestion
             return suggestion
 
-    def reject(self, suggestion_id: str) -> None:
+    def reject(self, suggestion_id: str, mute: bool = False) -> None:
         """실행 없이 pending에서 제거(dismiss). 없는 id이거나 이미 승인된
         제안이면 UnknownSuggestionError — 기존 라우터의 pending 전용
-        404 의미를 그대로 보존한다. 확인+제거가 락 안이라 승인과 원자적."""
+        404 의미를 그대로 보존한다. 확인+제거가 락 안이라 승인과 원자적.
+
+        mute=True면 "다시 추천 안 함" — 그 purpose를 억제 목록에 넣어 패턴이
+        다시 만들지 않게 하고, 같은 루틴의 다른 pending 카드도 함께 내린다
+        (한쪽에서 "그만"을 눌렀는데 다른 밴드 카드가 남아 있으면 모순)."""
         with self._state_lock:
             suggestion = self._suggestions.get(suggestion_id)
             if (
@@ -145,7 +159,29 @@ class ProactiveSuggestionService:
                 or suggestion.status is not SuggestionStatus.PENDING
             ):
                 raise UnknownSuggestionError(suggestion_id)
+            purpose = suggestion.purpose
             self._suggestions.pop(suggestion_id)
+            if mute:
+                for sid in [
+                    s.suggestion_id
+                    for s in self._suggestions.values()
+                    if s.purpose == purpose
+                    and s.status is SuggestionStatus.PENDING
+                ]:
+                    self._suggestions.pop(sid, None)
+        if mute and self._suppression_store is not None:
+            self._suppression_store.mute(purpose)
+
+    def muted_purposes(self) -> tuple[str, ...]:
+        """다시 추천 안 하는 루틴 목록(설정 화면용)."""
+        if self._suppression_store is None:
+            return ()
+        return tuple(sorted(self._suppression_store.muted()))
+
+    def unmute(self, purpose: str) -> None:
+        """억제 해제 -- 다시 제안 대상이 된다."""
+        if self._suppression_store is not None:
+            self._suppression_store.unmute(purpose)
 
     def _preview_steps(self, purpose: str) -> tuple[str, ...]:
         """Best-effort preview only -- approve() re-resolves for real execution.

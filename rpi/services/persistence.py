@@ -23,7 +23,7 @@ from pathlib import Path
 import json
 
 from rpi.intent.models import UsageOutcome, UsageRecord
-from rpi.intent.ports import UsageLog
+from rpi.intent.ports import SuppressionStore, UsageLog
 
 from .history import ButtonAttempt, JobHistoryEntry
 
@@ -45,6 +45,9 @@ class SimpleLayDb:
                 CREATE TABLE IF NOT EXISTS nodes (
                     appliance_id TEXT PRIMARY KEY,
                     base_url TEXT NOT NULL
+                );
+                CREATE TABLE IF NOT EXISTS suppressions (
+                    purpose TEXT PRIMARY KEY  -- '다시 추천 안 함'한 루틴
                 );
                 CREATE TABLE IF NOT EXISTS job_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,6 +162,30 @@ class SimpleLayDb:
             for job_id, finished_at, purpose, status, buttons_json in rows
         )
 
+    # ── 제안 억제(다시 추천 안 함) ───────────────────────────────
+
+    def add_suppression(self, purpose: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT OR IGNORE INTO suppressions (purpose) VALUES (?)",
+                (purpose.strip(),),
+            )
+            self._conn.commit()
+
+    def remove_suppression(self, purpose: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM suppressions WHERE purpose = ?", (purpose.strip(),)
+            )
+            self._conn.commit()
+
+    def suppressions(self) -> frozenset[str]:
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT purpose FROM suppressions"
+            ).fetchall()
+        return frozenset(row[0] for row in rows)
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()
@@ -175,6 +202,22 @@ class SqliteJobHistory:
 
     def recent(self, limit: int = 50) -> tuple[JobHistoryEntry, ...]:
         return self._db.recent_job_history(limit)
+
+
+class SqliteSuppressionStore(SuppressionStore):
+    """SuppressionStore 포트의 SQLite 구현 -- 인메모리와 같은 계약."""
+
+    def __init__(self, db: SimpleLayDb) -> None:
+        self._db = db
+
+    def mute(self, purpose: str) -> None:
+        self._db.add_suppression(purpose)
+
+    def unmute(self, purpose: str) -> None:
+        self._db.remove_suppression(purpose)
+
+    def muted(self) -> frozenset[str]:
+        return self._db.suppressions()
 
 
 class SqliteUsageLog(UsageLog):

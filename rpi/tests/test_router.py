@@ -10,12 +10,14 @@ from rpi.api.deps import (
     get_presence_store,
     get_service,
     get_suggestion_service,
+    get_suppression_store,
 )
 from rpi.main import app
 
 _SINGLETONS = (
     get_service,
     get_suggestion_service,
+    get_suppression_store,
     get_alert_store,
     get_node_registry,
     get_demo_failure_state,
@@ -571,3 +573,29 @@ def test_presence_report_and_read(client):
     assert body["present"] is True
     assert body["source"] == "camera"
     assert body["updated_at"]
+
+
+# ── /suggestions reject(mute) · /suppressions ─────────────────────────────
+
+
+def test_reject_with_mute_lists_and_unmute(client):
+    created = client.post("/demo/suggest", json={"purpose": "라면 끓여줘"}).json()
+    # "다시 추천 안 함"
+    rejected = client.post(
+        f"/suggestions/{created['id']}/reject", json={"mute": True}
+    )
+    assert rejected.status_code == 200
+    listed = client.get("/suppressions").json()
+    assert "라면 끓여줘" in listed["purposes"]
+    # 해제하면 목록에서 빠진다
+    assert (
+        client.post("/suppressions/unmute", json={"purpose": "라면 끓여줘"}).status_code
+        == 200
+    )
+    assert client.get("/suppressions").json()["purposes"] == []
+
+
+def test_reject_without_mute_does_not_suppress(client):
+    created = client.post("/demo/suggest", json={"purpose": "해동해줘"}).json()
+    assert client.post(f"/suggestions/{created['id']}/reject").status_code == 200
+    assert client.get("/suppressions").json()["purposes"] == []

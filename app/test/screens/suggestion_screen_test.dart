@@ -128,10 +128,49 @@ void main() {
       router.push('/suggestion/test-001');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('나중에'));
+      await tester.tap(find.text('이번만 넘기기'));
       await tester.pumpAndSettle();
 
       // pop 후 홈으로 돌아감
+      expect(find.text('홈'), findsOneWidget);
+    });
+
+    testWidgets('"이 제안 다시 받지 않기" 탭 시 화면 pop', (tester) async {
+      _useTallViewport(tester);
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (_, __) => const Scaffold(body: Text('홈')),
+          ),
+          GoRoute(
+            path: '/suggestion/:id',
+            builder: (context, state) => SuggestionScreen(
+              sequenceId: state.pathParameters['id']!,
+            ),
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        buildWithProviderState(
+          suggestions: const [_sug],
+          overrides: connectedOverrides(),
+          child: MaterialApp.router(
+            theme: ThemeData.dark(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      router.push('/suggestion/test-001');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('이 제안 다시 받지 않기'));
+      await tester.pumpAndSettle();
+
       expect(find.text('홈'), findsOneWidget);
     });
 

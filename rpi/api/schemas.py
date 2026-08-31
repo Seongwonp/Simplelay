@@ -368,3 +368,22 @@ class AlertResponse(BaseModel):
     band_energy_ratio: float | None = None
     mean_period_seconds: float | None = None
     updated_at: datetime | None = None
+
+
+class RejectSuggestionRequest(BaseModel):
+    """POST /suggestions/{id}/reject 본문(선택). mute=True면 "다시 추천 안 함"."""
+
+    mute: bool = False
+
+
+class SuppressionListResponse(BaseModel):
+    """다시 추천 안 하는 루틴 목록(설정 화면용)."""
+
+    purposes: list[str]
+
+
+class UnmuteRequest(BaseModel):
+    """POST /suppressions/unmute 본문 -- 억제 해제할 루틴."""
+
+    purpose: str
+
