@@ -28,6 +28,12 @@ gpio = [
     # ESP-NOW 게이트웨이(UART로 붙은 ESP32)와 통신 — SIMPLELAY_NODE_TRANSPORT=espnow
     "pyserial>=3.5",
 ]
+# 온디바이스 D-Bus를 파이썬에서 직접 호출 — SIMPLELAY_LLM_MODE=dbus + SIMPLELAY_DBUS_TRANSPORT=native.
+# 플랫폼 컨테이너에는 D-Bus CLI가 없어 이 경로로 시스템 버스에 직접 붙는다.
+# Windows dev에서도 import·로직 검증은 되지만 실제 연결은 리눅스 시스템 버스에서만.
+dbus = [
+    "dbus-fast>=2,<3",
+]
 
 [tool.poetry]
 packages = [{include = "rpi"}, {include = "rpi4"}]

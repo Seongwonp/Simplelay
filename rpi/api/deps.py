@@ -50,6 +50,38 @@ _PATTERN_CONFIG = PatternConfig(
 )
 
 
+DBUS_TRANSPORT_ENV = "SIMPLELAY_DBUS_TRANSPORT"
+
+
+def _build_vectordb_client():
+    """유사도 계층이 쓸 vectordb 클라이언트를 전송 방식대로 고른다.
+
+    - ``native`` (기본): dbus-fast로 시스템 버스에 직접 붙는다. 우리 백엔드가 도는
+      플랫폼 컨테이너에는 D-Bus CLI가 없으므로 이쪽이 프로덕션 경로다. 반환값이
+      타입으로 와서 CLI 텍스트 파싱의 불확실성이 없다.
+    - ``cli``: 플랫폼 D-Bus CLI 서브프로세스. CLI가 있는 환경(호스트 직접 실행 등)용.
+
+    ``native``인데 dbus-fast가 없으면(설치 안 됨) 무엇을 깔아야 하는지 짚으며 실패한다
+    -- SIMPLELAY_LLM_MODE=dbus를 켠 사람은 전송도 함께 준비했어야 맞다.
+    """
+    transport = os.environ.get(DBUS_TRANSPORT_ENV, "native").strip().lower()
+    if transport == "cli":
+        return VectordbClient()
+    if transport in {"", "native"}:
+        try:
+            from rpi.intent.dbus_native import DbusFastVectordbClient
+        except ImportError as exc:  # pragma: no cover - 기기에서만
+            raise RuntimeError(
+                f"{DBUS_TRANSPORT_ENV}=native 인데 dbus-fast가 없습니다: "
+                'pip install -e ".[dbus]" (플랫폼 컨테이너에서 설치). '
+                f"CLI를 쓰려면 {DBUS_TRANSPORT_ENV}=cli."
+            ) from exc
+        return DbusFastVectordbClient()
+    raise RuntimeError(
+        f"알 수 없는 {DBUS_TRANSPORT_ENV}={transport!r} (native | cli)"
+    )
+
+
 def _build_llm_client() -> LlmClient | None:
     """LLM 클라이언트를 환경변수로만 구성한다 — 기본값 없이, 명시적으로 설정
     안 하면 None(오프라인 우선 원칙: 안 켜면 해당 기능이 그냥 꺼져 있다).
@@ -126,7 +158,7 @@ def _build_intent_resolver() -> IntentResolver:
     """
     tiers: list[IntentResolver] = [RuleBasedIntentResolver()]
     if os.environ.get("SIMPLELAY_LLM_MODE", "").strip().lower() == "dbus":
-        tiers.append(VectordbIntentResolver(VectordbClient()))
+        tiers.append(VectordbIntentResolver(_build_vectordb_client()))
     llm = _build_llm_client()
     if llm is not None:
         tiers.append(LlmIntentResolver(llm))
