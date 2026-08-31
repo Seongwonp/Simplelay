@@ -234,6 +234,7 @@ class SuggestionResponse(BaseModel):
     # 미리보기. 서버가 승인 전에 계산은 해 보지만, 실제 실행 시퀀스는 승인 시점에
     # 다시 해석되므로 이 값과 달라질 수 있다(예: 규칙이 그 사이 바뀐 경우).
     steps: list[str] = []
+    reason: str = ""
 
 
 class ApproveResponse(BaseModel):
@@ -386,4 +387,11 @@ class UnmuteRequest(BaseModel):
     """POST /suppressions/unmute 본문 -- 억제 해제할 루틴."""
 
     purpose: str
+
+
+class DemoEnvironmentRequest(BaseModel):
+    """POST /demo/environment -- 시연용 온습도 강제값(센서 미연결 대비)."""
+
+    temperature: float
+    humidity: float
 

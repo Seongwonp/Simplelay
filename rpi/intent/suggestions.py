@@ -28,6 +28,7 @@ class ProactiveSuggestionService:
         intent_resolver: IntentResolver | None = None,
         presence_gate=None,
         suppression_store: SuppressionStore | None = None,
+        environmental=None,
     ) -> None:
         self._detector = detector
         self._clock = clock
@@ -47,6 +48,8 @@ class ProactiveSuggestionService:
         self._presence_gate = presence_gate
         # "다시 추천 안 함"으로 내린 루틴 억제 목록. None이면 억제 없음.
         self._suppression_store = suppression_store
+        # 온습도 기반 제안기(선택). None이면 환경 제안 없음.
+        self._environmental = environmental
 
     def set_dnd_for(self, minutes: int) -> datetime:
         until = self._clock.now() + timedelta(minutes=minutes)
@@ -96,6 +99,29 @@ class ProactiveSuggestionService:
                 self._next_id += 1
                 self._suggestions[suggestion.suggestion_id] = suggestion
             created.append(suggestion)
+        # 온습도 기반 제안 -- 지금 공간이 더우면 냉방을 선제 제안한다.
+        env = self._environmental.candidate() if self._environmental else None
+        if env is not None and env.purpose not in muted:
+            steps = self._preview_steps(env.purpose)
+            with self._state_lock:
+                existing = self._pending_for(env.purpose, "환경")
+                if existing is not None:
+                    created.append(existing)
+                else:
+                    env_suggestion = ProactiveSuggestion(
+                        suggestion_id=f"suggestion-{self._next_id}",
+                        purpose=env.purpose,
+                        time_band="환경",
+                        occurrences=0,
+                        created_at=self._clock.now(),
+                        steps=steps,
+                        reason=env.reason,
+                    )
+                    self._next_id += 1
+                    self._suggestions[env_suggestion.suggestion_id] = (
+                        env_suggestion
+                    )
+                    created.append(env_suggestion)
         return tuple(created)
 
     def _claim_for_approval(self, suggestion_id: str) -> ProactiveSuggestion:

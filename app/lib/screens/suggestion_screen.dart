@@ -86,6 +86,14 @@ class SuggestionScreen extends ConsumerWidget {
             textAlign: TextAlign.center,
             style: AppText.heading,
           ),
+          if (suggestion.reason.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              suggestion.reason,
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.appMuted),
+            ),
+          ],
           const SizedBox(height: 6),
           Text(
             '이 순서로 버튼을 눌러요.',

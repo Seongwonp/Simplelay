@@ -11,6 +11,8 @@ from rpi.api.deps import (
     get_service,
     get_suggestion_service,
     get_suppression_store,
+    get_environment_override,
+    get_environment_override,
 )
 from rpi.main import app
 
@@ -599,3 +601,23 @@ def test_reject_without_mute_does_not_suppress(client):
     created = client.post("/demo/suggest", json={"purpose": "해동해줘"}).json()
     assert client.post(f"/suggestions/{created['id']}/reject").status_code == 200
     assert client.get("/suppressions").json()["purposes"] == []
+
+
+# ── /demo/environment (온습도 기반 제안) ──────────────────────────────────
+
+
+def test_demo_environment_creates_aircon_suggestion(client):
+    created = client.post(
+        "/demo/environment", json={"temperature": 30.0, "humidity": 72.0}
+    ).json()
+    ac = [s for s in created if s["purpose"] == "에어컨 켜줘"]
+    assert len(ac) == 1
+    assert ac[0]["steps"] == ["전원", "냉방"]
+    assert "더워요" in ac[0]["reason"]
+
+
+def test_demo_environment_reflects_in_sensors(client):
+    client.post("/demo/environment", json={"temperature": 31.0, "humidity": 68.0})
+    sensors = client.get("/sensors").json()
+    assert sensors["temperature"] == 31.0
+    assert sensors["humidity"] == 68.0

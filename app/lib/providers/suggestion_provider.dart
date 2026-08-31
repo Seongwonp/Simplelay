@@ -95,6 +95,7 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
       steps: steps,
       receivedAt: receivedAt ?? DateTime.now(),
       source: SuggestionSource.http,
+      reason: r.reason,
     );
   }
 

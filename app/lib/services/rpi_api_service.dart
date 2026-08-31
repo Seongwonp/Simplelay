@@ -70,11 +70,15 @@ class RpiSuggestion {
     required this.timeBand,
     required this.occurrences,
     this.steps = const [],
+    this.reason = '',
   });
   final String id;
   final String purpose;
   final String timeBand;
   final int occurrences;
+
+  // 환경 기반 제안 등의 "왜 지금" 근거(예: "지금 30°C · 습도 72% — 더워요").
+  final String reason;
 
   // 승인 시 실행될 버튼 시퀀스 미리보기(라벨 문자열). 해석 실패 시 서버가 빈 리스트를 준다.
   final List<String> steps;
@@ -85,6 +89,7 @@ class RpiSuggestion {
         timeBand: json['time_band'] as String,
         occurrences: json['occurrences'] as int,
         steps: (json['steps'] as List<dynamic>?)?.cast<String>() ?? const [],
+        reason: json['reason'] as String? ?? '',
       );
 }
 

@@ -58,7 +58,13 @@ class KioskSuggestionView extends StatelessWidget {
             ),
 
             // 근거는 실제로 셀 수 있을 때만 말한다
-            if (suggestion.occurrences > 0) ...[
+            if (suggestion.reason.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                suggestion.reason,
+                style: const TextStyle(fontSize: 22, color: KioskColors.muted),
+              ),
+            ] else if (suggestion.occurrences > 0) ...[
               const SizedBox(height: 10),
               Text(
                 '이 시간대에 ${suggestion.occurrences}번 하셨어요.',

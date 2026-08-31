@@ -1,6 +1,7 @@
 """싱글톤 서비스 의존성 — 하드웨어 없이도 동작하는 mock 구현으로 초기화."""
 import logging
 import os
+import threading
 from datetime import time
 from functools import lru_cache
 
@@ -359,6 +360,45 @@ def get_suppression_store() -> SuppressionStore:
     )
 
 
+class EnvironmentOverride:
+    """데모용 온습도 강제값. 설정되면 /sensors와 환경 제안이 이 값을 본다.
+    센서 미연결(현장) 대비 데모에서 "더운 상황"을 연출할 때 쓴다."""
+
+    def __init__(self) -> None:
+        self._value: tuple[float, float] | None = None
+        self._lock = threading.Lock()
+
+    def set(self, temperature: float, humidity: float) -> None:
+        with self._lock:
+            self._value = (temperature, humidity)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._value = None
+
+    def current(self) -> tuple[float, float] | None:
+        with self._lock:
+            return self._value
+
+
+@lru_cache(maxsize=1)
+def get_environment_override() -> EnvironmentOverride:
+    return EnvironmentOverride()
+
+
+def _read_environment() -> tuple[float | None, float | None]:
+    forced = get_environment_override().current()
+    if forced is not None:
+        return forced
+    return get_dht22().read()
+
+
+def _build_environmental_suggester():
+    from rpi.intent.environment import EnvironmentalSuggester  # noqa: PLC0415
+
+    return EnvironmentalSuggester(_read_environment)
+
+
 @lru_cache(maxsize=1)
 def get_suggestion_service() -> ProactiveSuggestionService:
     detector = PatternDetector(get_usage_log(), _clock, _PATTERN_CONFIG)
@@ -371,4 +411,5 @@ def get_suggestion_service() -> ProactiveSuggestionService:
         intent_resolver=RuleBasedIntentResolver(),
         presence_gate=_build_presence_gate(),
         suppression_store=get_suppression_store(),
+        environmental=_build_environmental_suggester(),
     )

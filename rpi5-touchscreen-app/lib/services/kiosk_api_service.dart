@@ -63,11 +63,15 @@ class KioskSuggestion {
     required this.purpose,
     required this.occurrences,
     this.steps = const [],
+    this.reason = '',
   });
 
   final String id;
   final String purpose;
   final int occurrences;
+
+  // 환경 기반 제안 등의 "왜 지금" 근거(예: "지금 30°C · 습도 72% — 더워요").
+  final String reason;
 
   // 승인 시 실행될 버튼 시퀀스 미리보기 — 실제 버튼 라벨 문자열(예: "해동")로 온다.
   // 미리보기 해석이 실패하면 서버가 빈 리스트를 준다.
@@ -79,6 +83,7 @@ class KioskSuggestion {
         purpose: json['purpose'] as String,
         occurrences: (json['occurrences'] as num?)?.toInt() ?? 1,
         steps: (json['steps'] as List<dynamic>?)?.cast<String>() ?? const [],
+        reason: json['reason'] as String? ?? '',
       );
 }
 

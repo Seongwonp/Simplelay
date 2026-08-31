@@ -9,6 +9,7 @@ class Suggestion {
     required this.steps,
     this.receivedAt,
     this.source = SuggestionSource.ble,
+    this.reason = '',
   });
 
   final String sequenceId;
@@ -16,6 +17,9 @@ class Suggestion {
   final List<String> steps;
   final DateTime? receivedAt;
   final SuggestionSource source;
+
+  // 환경 기반 제안 등의 "왜 지금" 근거. 없으면 빈 문자열.
+  final String reason;
 
   factory Suggestion.fromJson(Map<String, dynamic> json) => Suggestion(
         sequenceId: json['sequence_id'] as String,

@@ -11,10 +11,12 @@ from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestion
 from rpi.services import DangerAlertStore, NodeRegistry
 
 from .deps import (
+    EnvironmentOverride,
     get_alert_store,
     get_actuator_status,
     get_demo_failure_state,
     get_dht22,
+    get_environment_override,
     get_job_history,
     get_node_registry,
     get_presence_store,
@@ -24,6 +26,7 @@ from .deps import (
 from .schemas import (
     AlertResponse,
     ButtonStep,
+    DemoEnvironmentRequest,
     DemoInjectFailureRequest,
     DemoSuggestRequest,
     DndRequest,
@@ -161,6 +164,7 @@ async def list_suggestions(
             time_band=s.time_band,
             occurrences=s.occurrences,
             steps=list(s.steps),
+            reason=s.reason,
         )
         for s in svc.pending()
     ]
@@ -226,7 +230,29 @@ async def demo_suggest(
         time_band=suggestion.time_band,
         occurrences=suggestion.occurrences,
         steps=list(suggestion.steps),
+        reason=suggestion.reason,
     )
+
+
+@router.post("/demo/environment", response_model=list[SuggestionResponse])
+async def demo_environment(
+    body: DemoEnvironmentRequest,
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+    override: EnvironmentOverride = Depends(get_environment_override),
+) -> list[SuggestionResponse]:
+    override.set(body.temperature, body.humidity)
+    created = await asyncio.to_thread(svc.create_suggestions)
+    return [
+        SuggestionResponse(
+            id=s.suggestion_id,
+            purpose=s.purpose,
+            time_band=s.time_band,
+            occurrences=s.occurrences,
+            steps=list(s.steps),
+            reason=s.reason,
+        )
+        for s in created
+    ]
 
 
 @router.post("/presence", response_model=PresenceResponse)
@@ -328,7 +354,13 @@ _MOCK_HUM = 58.0
 @router.get("/sensors", response_model=SensorResponse)
 async def sensors(
     dht22=Depends(get_dht22),
+    override: EnvironmentOverride = Depends(get_environment_override),
 ) -> SensorResponse:
+    forced = override.current()
+    if forced is not None:
+        return SensorResponse(
+            temperature=forced[0], humidity=forced[1], mocked=True
+        )
     temp, hum, mocked = await _read_dht22(dht22)
     return SensorResponse(temperature=temp, humidity=hum, mocked=mocked)
 
