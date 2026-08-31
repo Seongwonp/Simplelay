@@ -213,7 +213,10 @@ class _ButtonMapGrid extends StatelessWidget {
           children: [
             Icon(appliance.icon, color: context.appPrimary, size: 16),
             const SizedBox(width: 6),
-            Text(appliance.name, style: context.appCaption),
+            Expanded(
+              child: Text('${appliance.name}의 실제 버튼 배치',
+                  style: context.appCaption),
+            ),
           ],
         ),
         const SizedBox(height: 10),
@@ -249,12 +252,13 @@ class _ButtonMapGrid extends StatelessWidget {
                                       ? context.appPrimary.withValues(alpha: 0.2)
                                       : context.appOverlayFaint,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(
-                                    color: isInSequence
-                                        ? context.appPrimary
-                                        : context.appBorderFaint,
-                                    width: isInSequence ? 1.5 : 0.5,
-                                  ),
+                                  // 순서에 든 버튼만 테두리를 준다. 나머지까지
+                                  // 두르면 전부 눌러도 되는 버튼처럼 보이는데,
+                                  // 이 지도는 읽는 그림이지 조작판이 아니다.
+                                  border: isInSequence
+                                      ? Border.all(
+                                          color: context.appPrimary, width: 1.5)
+                                      : null,
                                 ),
                                 child: Stack(
                                   alignment: Alignment.center,
@@ -263,7 +267,7 @@ class _ButtonMapGrid extends StatelessWidget {
                                       btn.label,
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
-                                        fontSize: 12,
+                                        fontSize: 14,
                                         fontWeight: isInSequence
                                             ? FontWeight.w600
                                             : FontWeight.normal,
