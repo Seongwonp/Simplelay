@@ -37,6 +37,11 @@ double contrast(Color a, Color b) {
 /// WCAG AA — 일반 텍스트
 const _aa = 4.5;
 
+/// 이 제품의 목표. 고령 사용자가 주 사용자라 AA로는 부족하다고 보고 AAA(7:1)를
+/// **본문·보조 텍스트에** 적용한다. 상태를 알리는 채도색까지 7:1로 끌어올리면
+/// 색이 전부 탁해져서, 그쪽은 AA를 유지하고 색 외의 단서(아이콘·문구)를 함께 둔다.
+const _aaa = 7.0;
+
 void main() {
   group('채도 있는 색을 면으로 쓸 때는 onAccent 글자', () {
     // 흰 글자로 되돌리면 전부 실패한다 — 그게 이 테스트의 목적이다
@@ -58,20 +63,28 @@ void main() {
     });
   });
 
-  group('라이트 모드 보조 텍스트', () {
-    // 캡션은 카드 표면뿐 아니라 스캐폴드 배경에도 얹힌다 — 둘 다 통과해야 한다
+  group('보조 텍스트는 AAA(7:1)까지', () {
+    // 캡션은 카드 표면뿐 아니라 스캐폴드 배경에도 얹힌다 — 둘 다 통과해야 한다.
+    // 그리고 이 앱의 캡션은 장식이 아니라 버튼 순서·상태 설명을 담는다.
     test('크림 표면 위', () {
       expect(
         contrast(AppColors.surfaceLowLight, AppColors.onSurfaceMutedLight),
-        greaterThanOrEqualTo(_aa),
+        greaterThanOrEqualTo(_aaa),
       );
     });
 
     test('크림 배경 위', () {
       expect(
         contrast(AppColors.backgroundLight, AppColors.onSurfaceMutedLight),
-        greaterThanOrEqualTo(_aa),
+        greaterThanOrEqualTo(_aaa),
       );
+    });
+
+    test('다크 표면·배경 위', () {
+      expect(contrast(AppColors.surfaceLow, AppColors.onSurfaceMuted),
+          greaterThanOrEqualTo(_aaa));
+      expect(contrast(AppColors.background, AppColors.onSurfaceMuted),
+          greaterThanOrEqualTo(_aaa));
     });
 
     test('다크용 회색을 라이트에 그대로 쓰면 미달이다', () {

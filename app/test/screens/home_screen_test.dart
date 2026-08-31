@@ -37,9 +37,10 @@ void main() {
       expect(find.text('연결'), findsOneWidget);
     });
 
-    testWidgets('말하기 FAB 비활성화', (tester) async {
+    testWidgets('주 행동 버튼 비활성화', (tester) async {
       await tester.pumpWidget(_buildHome());
       await tester.pump();
+      expect(find.text('말로 조작하기'), findsOneWidget);
       final fab = tester.widget<FloatingActionButton>(
         find.byType(FloatingActionButton),
       );
@@ -68,9 +69,10 @@ void main() {
       expect(find.text('연결'), findsNothing);
     });
 
-    testWidgets('말하기 FAB 활성화', (tester) async {
+    testWidgets('주 행동 버튼 활성화', (tester) async {
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
+      expect(find.text('말로 조작하기'), findsOneWidget);
       final fab = tester.widget<FloatingActionButton>(
         find.byType(FloatingActionButton),
       );

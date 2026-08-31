@@ -61,28 +61,27 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
+      // 주 행동을 **가운데 아래**에 크게 둔다. 오른쪽 구석의 작은 FAB은 이 앱의
+      // 주 사용자(고령자)에게 손이 잘 안 닿고, 화면에서 가장 하고 싶은 일이
+      // 가장 작게 보였다. 본문에 큰 버튼을 넣는 대신 떠 있게 두는 이유는,
+      // 제안이 늘어나도 스크롤 밖으로 밀리지 않아야 하기 때문이다.
+      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
       floatingActionButton: isCustomAppliance
-          ? FloatingActionButton.extended(
+          ? _PrimaryAction(
               onPressed: () => context.push('/manual-control'),
-              backgroundColor: context.appPrimary,
-              foregroundColor: Theme.of(context).colorScheme.onPrimary,
-              icon: const Icon(Icons.touch_app),
-              label: const Text('버튼으로 조작'),
+              icon: Icons.touch_app,
+              label: '버튼으로 조작',
+              enabled: true,
             )
           : Builder(builder: (context) {
               // 음성 명령은 RPi HTTP 직통으로도 가능하다 — BLE에만 묶어두면
               // "RPi 연결됨" 카드 옆에서 FAB만 죽어 있는 모순이 생긴다.
               final canSpeak = connected || rpiOnline;
-              return FloatingActionButton.extended(
+              return _PrimaryAction(
                 onPressed: canSpeak ? () => context.go('/voice') : null,
-                backgroundColor: canSpeak
-                    ? context.appPrimary
-                    : Theme.of(context).colorScheme.surfaceContainerHigh,
-                foregroundColor: canSpeak
-                    ? Theme.of(context).colorScheme.onPrimary
-                    : context.appMuted,
-                icon: const Icon(Icons.mic_rounded),
-                label: const Text('말하기'),
+                icon: Icons.mic_rounded,
+                label: '말로 조작하기',
+                enabled: canSpeak,
               );
             }),
       body: ListView(
@@ -473,6 +472,39 @@ class _StatusCardBody extends StatelessWidget {
         const SizedBox(height: 4),
         Wrap(spacing: 4, runSpacing: 4, children: actions),
       ],
+    );
+  }
+}
+
+/// 홈의 주 행동 버튼. 떠 있되 구석의 작은 알약이 아니라 화면 폭을 넉넉히 쓴다.
+class _PrimaryAction extends StatelessWidget {
+  const _PrimaryAction({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+    required this.enabled,
+  });
+
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String label;
+  final bool enabled;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return FloatingActionButton.extended(
+      onPressed: onPressed,
+      // 확대해도 글자가 잘리지 않게 최소 높이만 준다(고정 높이는 잘린다)
+      extendedPadding: const EdgeInsets.symmetric(horizontal: 32),
+      backgroundColor:
+          enabled ? context.appPrimary : scheme.surfaceContainerHigh,
+      foregroundColor: enabled ? AppColors.onAccent : context.appMuted,
+      icon: Icon(icon, size: 26),
+      label: Text(
+        label,
+        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+      ),
     );
   }
 }

@@ -42,14 +42,17 @@ class AppColors {
 
   // ── 보조 (다크) ──────────────────────────────────────────────────────────
   static const borderSubtle      = Color(0x33FFFFFF);
-  static const onSurfaceMuted    = Color(0xFF9CA3AA);
+  // 고령 사용자 기준으로 **AAA(7:1)**를 제품 목표로 잡는다. 본문은 테마가 이미
+  // 14~17:1이라 넉넉한데 보조 텍스트만 7 언저리에서 걸쳤다 -- 캡션이 실제로는
+  // "부차적"이 아니라 버튼 순서·상태 설명을 담고 있어서 여기서 아끼면 안 된다.
+  static const onSurfaceMuted    = Color(0xFFA3AAB1); // 표면 7.58:1 / 배경 8.22:1
 
   // ── 보조 (라이트) ─────────────────────────────────────────────────────────
   static const borderSubtleLight   = Color(0x1A000000);
   // 크림 **배경**(#F4F1EB) 위 대비까지 확보한 값. 이전 #6B7175는 표면 위 4.82:1로
   // 아슬아슬하게 통과했지만 배경 위에서는 4.39:1로 미달이었다 — 캡션은 카드 밖
   // 배경에도 얹힌다.
-  static const onSurfaceMutedLight = Color(0xFF54585C); // 표면 6.99:1 / 배경 6.36:1
+  static const onSurfaceMutedLight = Color(0xFF4A4E52); // 표면 8.17:1 / 배경 7.44:1
 }
 
 // BuildContext 확장 — 현재 밝기에 따라 올바른 색상을 반환
