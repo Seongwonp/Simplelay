@@ -312,7 +312,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           Switch(
             value: value,
             activeTrackColor: KioskColors.primary.withValues(alpha: 0.5),
-            activeThumbColor: KioskColors.primary,
+            activeColor: KioskColors.primary,
             onChanged: onChanged,
           ),
         ],
