@@ -19,13 +19,14 @@ class FakeKioskApi implements KioskApiService {
   List<KioskSuggestion> suggestionList = [];
   KioskStatus statusResult = const KioskStatus(running: false);
   AlertState alertState = AlertState.inactive;
+  HealthStatus healthResult = const HealthStatus(ok: true);
   Object? executeError;
   String nextJobId = 'job-1';
   final approvedIds = <String>[];
   int stopCalls = 0;
 
   @override
-  Future<HealthStatus> checkHealth() async => const HealthStatus(ok: true);
+  Future<HealthStatus> checkHealth() async => healthResult;
 
   @override
   Future<SensorData?> sensors() async => null;
@@ -144,6 +145,40 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
   }
+
+  testWidgets('연결 안 되어 있으면 대기 화면을 눌러도 조작 화면으로 가지 않는다', (tester) async {
+    // 사용자 혼란 방지: "기기 연결 안 됐는데 왜 전자레인지 조작판이 뜨지?"
+    // 대기 화면이 이미 "기기 연결이 필요해요"라고 말하는데, 눌렀더니 조작판이
+    // 뜨면 모순이다. 연결 없이는 실제로 버튼도 못 누른다.
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..healthResult = const HealthStatus(ok: false);
+    await _pumpKiosk(tester, api);
+
+    // 대기 화면: 연결 안 됐다는 안내가 있다
+    expect(find.text('기기 연결이 필요해요'), findsOneWidget);
+
+    // 화면을 눌러도
+    await tester.tap(find.text('기기 연결이 필요해요'));
+    await tester.pump();
+
+    // 여전히 대기 화면(안내 그대로). 조작판으로 넘어가지 않았다.
+    expect(find.text('기기 연결이 필요해요'), findsOneWidget);
+  });
+
+  testWidgets('연결돼 있으면 대기 화면을 눌러 조작 화면으로 간다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..healthResult = const HealthStatus(ok: true, actuatorReady: true);
+    await _pumpKiosk(tester, api);
+
+    expect(find.text('화면을 눌러 가전 조작'), findsOneWidget);
+    await tester.tap(find.text('화면을 눌러 가전 조작'));
+    await tester.pump(); // 탭 반영
+    await tester.pump(const Duration(milliseconds: 500)); // AnimatedSwitcher 전환
+
+    // 조작 화면으로 넘어감 -- 대기 안내가 사라졌다
+    expect(find.text('화면을 눌러 가전 조작'), findsNothing);
+  });
 
   testWidgets('서버 제안이 도착하면 idle → suggestion으로 전환된다', (tester) async {
     useKioskViewport(tester);

@@ -330,6 +330,11 @@ class _KioskScreenState extends State<KioskScreen> {
 
   void _toManual() {
     if (_phase != KioskPhase.idle) return;
+    // 서버에 연결돼 있지 않으면 조작 화면으로 보내지 않는다. 대기 화면이 이미
+    // "기기 연결이 필요해요"라고 말하는데, 눌렀더니 전자레인지 버튼판이 뜨면
+    // "연결도 안 됐는데 왜 조작이 되지?"라는 모순이 된다 -- 실제로 연결 없이는
+    // 버튼도 못 누른다. 대기 화면의 안내가 그대로 이유가 된다.
+    if (!_health.ok) return;
     setState(() => _phase = KioskPhase.manual);
   }
 
