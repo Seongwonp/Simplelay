@@ -226,3 +226,30 @@ def test_stop_request_before_execute_without_reset_is_honored():
 
     assert result.status is ExecutionStatus.SAFETY_STOPPED
     assert grbl.commands == []
+
+
+# ── step_pacer (데모 페이싱) ────────────────────────────────────────────────
+
+
+def test_step_pacer_called_once_per_successful_button():
+    grbl = MockGrblClient()
+    verifier = MockVerifier([True, True])
+    paced: list = []
+    controller = ClosedLoopController(
+        grbl,
+        verifier,
+        MockAlertSink(),
+        MockSafetyController(),
+        step_pacer=lambda button, completed: paced.append((button, completed)),
+    )
+
+    controller.execute(["즉석밥", "시작"])
+
+    # 성공한 버튼마다 정확히 한 번, 그 시점의 completed_steps와 함께 불린다.
+    assert paced == [("즉석밥", 0), ("시작", 1)]
+
+
+def test_step_pacer_default_none_does_not_break_execution():
+    controller, *_ = build_controller([True])
+    # step_pacer 미지정 -- 지연 없이 정상 완료(기존 동작 불변)
+    assert controller.execute(["시작"]).status is ExecutionStatus.SUCCEEDED

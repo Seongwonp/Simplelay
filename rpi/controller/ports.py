@@ -1,6 +1,8 @@
 """Ports implemented later by real GRBL, alert, and safety adapters."""
 
+import time
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Protocol
 
 from .models import ExecutionResult, PressCommand
@@ -46,3 +48,17 @@ class NoOpRetryWaiter(RetryWaiter):
 
     def wait(self, button: str, retry_number: int) -> None:
         return None
+
+
+class SleepingRetryWaiter(RetryWaiter):
+    """데모/실기 응답창 흉내 -- 재시도 사이에 실제로 잠깐 쉬어 "재시도 중"을
+    화면에 보이게 한다. 기본 경로는 여전히 NoOpRetryWaiter(지연 0)."""
+
+    def __init__(
+        self, seconds: float, sleep: Callable[[float], None] | None = None
+    ) -> None:
+        self._seconds = seconds
+        self._sleep = sleep or time.sleep
+
+    def wait(self, button: str, retry_number: int) -> None:
+        self._sleep(self._seconds)

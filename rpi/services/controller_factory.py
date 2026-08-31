@@ -10,6 +10,7 @@ sync/async bridge with no policy knowledge of mocks or env vars.
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Callable
 
 from rpi.controller import (
@@ -18,6 +19,7 @@ from rpi.controller import (
     ExecutionProgressTracker,
 )
 from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
+from rpi.controller.ports import SleepingRetryWaiter
 from rpi.verifier import MockVerifier
 
 from .act_client import AlertEvent
@@ -51,10 +53,27 @@ def build_controller(
     verifier: object = MockVerifier(outcomes=[True] * 100)
     if failure_state is not None:
         verifier = FailureInjectionVerifier(verifier, failure_state)
+    # 데모 페이싱: mock은 즉시 끝나 폐루프가 화면에 안 보인다. 이 플래그가
+    # 켜지면 단계마다 잠깐 멈춰(그리고 재시도도 쉬어) 시연에서 진행이 보인다.
+    # 기본은 꺼짐 -- 평소/테스트 동작은 그대로 지연 0. HW 붙으면 이건 끄고
+    # 실제 모터 시간으로 대체한다.
+    step_pacer = None
+    retry_waiter = None
+    if os.environ.get("SIMPLELAY_DEMO_PACING", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    ):
+        seconds = float(os.environ.get("SIMPLELAY_DEMO_PACING_SECONDS", "1.2"))
+
+        def step_pacer(button: str, completed_steps: int) -> None:
+            time.sleep(seconds)
+
+        retry_waiter = SleepingRetryWaiter(seconds)
     return ClosedLoopController(
         grbl,
         verifier,
         MockAlertSink(),
         MockSafetyController(),
+        retry_waiter=retry_waiter,
         on_progress=progress_tracker.update if progress_tracker else None,
+        step_pacer=step_pacer,
     )

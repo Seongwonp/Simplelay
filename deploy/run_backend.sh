@@ -21,6 +21,7 @@ docker run -d --name simplelay-backend \
   -v "$DATA_DIR":/data \
   -p 8000:8000 \
   -e SIMPLELAY_DB_PATH=/data/simplelay.db \
+  -e SIMPLELAY_DEMO_PACING=1 \
   simplelay-backend
 
 echo "== 컨테이너 기동 =="

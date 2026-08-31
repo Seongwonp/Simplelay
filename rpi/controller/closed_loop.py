@@ -1,6 +1,7 @@
 """Closed-loop orchestration with bounded recovery and fail-safe behavior."""
 
 import threading
+from collections.abc import Callable
 
 from rpi.verifier import VerificationResult, Verifier
 
@@ -31,6 +32,7 @@ class ClosedLoopController:
         retry_policy: RetryPolicy | None = None,
         retry_waiter: RetryWaiter | None = None,
         on_progress: ProgressCallback | None = None,
+        step_pacer: Callable[[str, int], None] | None = None,
     ) -> None:
         self._grbl = grbl
         self._verifier = verifier
@@ -39,6 +41,7 @@ class ClosedLoopController:
         self._retry_policy = retry_policy or DocumentedRetryPolicy()
         self._retry_waiter = retry_waiter or NoOpRetryWaiter()
         self._on_progress = on_progress
+        self._step_pacer = step_pacer
         # /stop(긴급 정지)용. 실행은 별도 스레드(asyncio.to_thread)에서 돌고
         # 정지 요청은 FastAPI 요청 스레드에서 오므로 threading.Event를 쓴다.
         self._stop_requested = threading.Event()
@@ -95,6 +98,7 @@ class ClosedLoopController:
             last_verification = self._verifier.verify(button)
             self._report_progress(button, attempt, completed_steps, last_verification)
             if last_verification.pressed:
+                self._pace(button, completed_steps)
                 return ButtonResult(
                     button,
                     ButtonStatus.SUCCEEDED,
@@ -127,3 +131,11 @@ class ClosedLoopController:
         self._on_progress(
             ExecutionProgress(button, attempt, completed_steps, verification)
         )
+
+    def _pace(self, button: str, completed_steps: int) -> None:
+        """데모 페이싱 훅 -- 기본 None이면 지연 0(실동작·테스트 불변).
+        SIMPLELAY_DEMO_PACING이 켜지면 컨트롤러 팩토리가 sleep을 주입한다.
+        진행 이벤트는 그대로 두고(on_progress 시퀀스 불변) 방금 보고한
+        상태를 잠깐 유지시켜, 폐루프(누름->검증->다음)가 화면에 보이게 한다."""
+        if self._step_pacer is not None:
+            self._step_pacer(button, completed_steps)
