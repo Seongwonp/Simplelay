@@ -139,8 +139,10 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 const SizedBox(height: 28),
                 Text('센서 모니터', style: AppText.title),
                 const SizedBox(height: 12),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                // 확대 배율이 커지면 두 카드를 위아래로 놓는다 -- 나란히 두면
+                // 각자 화면 절반밖에 못 써서 라벨과 수치가 함께 눌린다.
+                _sensorPair(
+                  stacked: MediaQuery.textScalerOf(context).scale(1) > 1.3,
                   children: [
                     Expanded(
                       child: _SensorChart(
@@ -288,6 +290,27 @@ class _StepTile extends StatelessWidget {
   }
 }
 
+/// 센서 카드 두 장을 가로로 두거나(보통) 위아래로 쌓는다(확대).
+///
+/// 가로일 때는 Expanded가 필요하고 세로일 때는 오히려 방해가 되므로, 세로로 쌓을
+/// 때는 Expanded 껍데기를 벗겨서 넣는다.
+Widget _sensorPair({required bool stacked, required List<Widget> children}) {
+  if (!stacked) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: children,
+    );
+  }
+  final unwrapped = <Widget>[];
+  for (final child in children) {
+    if (child is Expanded) {
+      if (unwrapped.isNotEmpty) unwrapped.add(const SizedBox(height: 12));
+      unwrapped.add(child.child);
+    }
+  }
+  return Column(crossAxisAlignment: CrossAxisAlignment.start, children: unwrapped);
+}
+
 // ── 센서 바차트 카드 ──────────────────────────────────────────────────────
 
 class _SensorChart extends StatelessWidget {
@@ -329,7 +352,8 @@ class _SensorChart extends StatelessWidget {
               children: [
                 Icon(icon, color: context.appPrimary, size: 18),
                 const SizedBox(width: 6),
-                Text(label, style: context.appCaption),
+                // 확대하면 '전류 (mA)'가 반쪽 카드 폭을 넘는다 -- 줄바꿈할 자리를 준다
+                Expanded(child: Text(label, style: context.appCaption)),
               ],
             ),
             const SizedBox(height: 6),

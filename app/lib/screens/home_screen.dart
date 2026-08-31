@@ -431,9 +431,11 @@ class _StatusCardBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1.0을 넣으면 유효 배율이 그대로 나온다. 1.3을 넘으면 버튼 두 개가 들어갈
-    // 가로 여유가 없다고 보고 접는다.
-    final stacked = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    // 1.0을 넣으면 유효 배율이 그대로 나온다. 배율이 커지면 접는다.
+    // 버튼이 둘이면 보통 크기에서도 접는다 -- 나란히 두면 설명이 어중간하게
+    // 접혀서("서버 주 / 소를 입력하세요") 읽는 리듬이 끊긴다.
+    final stacked =
+        MediaQuery.textScalerOf(context).scale(1) > 1.3 || actions.length > 1;
 
     final head = Row(
       crossAxisAlignment: CrossAxisAlignment.start,

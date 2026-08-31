@@ -49,7 +49,7 @@ class KioskManualView extends StatelessWidget {
                 Text(
                   appliance.name,
                   style: const TextStyle(
-                    fontSize: 15,
+                    fontSize: 20,
                     color: KioskColors.muted,
                     fontWeight: FontWeight.w400,
                     letterSpacing: 0.5,

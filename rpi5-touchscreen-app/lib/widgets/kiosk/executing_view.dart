@@ -261,7 +261,7 @@ class _CurrentActionHero extends StatelessWidget {
             button != null
                 ? '버튼 누르는 중 · 센서로 눌림 확인'
                 : '버튼 시퀀스 초기화 중…',
-            style: const TextStyle(fontSize: 17, color: KioskColors.muted),
+            style: const TextStyle(fontSize: 22, color: KioskColors.muted),
           ),
         ],
       ),

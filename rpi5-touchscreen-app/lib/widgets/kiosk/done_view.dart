@@ -70,7 +70,7 @@ class KioskDoneView extends StatelessWidget {
                 child: Text(
                   detail,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 17, color: KioskColors.muted),
+                  style: const TextStyle(fontSize: 22, color: KioskColors.muted),
                 ),
               ),
               const SizedBox(height: 24),

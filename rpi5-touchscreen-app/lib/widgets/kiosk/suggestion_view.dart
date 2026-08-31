@@ -57,7 +57,7 @@ class KioskSuggestionView extends StatelessWidget {
               const SizedBox(height: 10),
               Text(
                 '이 시간대에 ${suggestion.occurrences}번 하셨어요.',
-                style: const TextStyle(fontSize: 17, color: KioskColors.muted),
+                style: const TextStyle(fontSize: 22, color: KioskColors.muted),
               ),
             ],
 
@@ -65,7 +65,7 @@ class KioskSuggestionView extends StatelessWidget {
               const SizedBox(height: 22),
               const Text(
                 '이 순서로 버튼을 눌러요',
-                style: TextStyle(fontSize: 17, color: KioskColors.muted),
+                style: TextStyle(fontSize: 22, color: KioskColors.muted),
               ),
               const SizedBox(height: 10),
               _StepSequence(steps: suggestion.steps),
@@ -128,7 +128,7 @@ class KioskSuggestionView extends StatelessWidget {
             // 아무 일도 없다"는 사실이다 — 자동으로 실행될까 봐 서두르지 않도록.
             Text(
               '누르지 않으면 실행하지 않아요 · $cdRemaining초',
-              style: const TextStyle(fontSize: 15, color: KioskColors.muted),
+              style: const TextStyle(fontSize: 18, color: KioskColors.muted),
             ),
             const SizedBox(height: 8),
             ClipRRect(
