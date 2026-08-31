@@ -1,0 +1,25 @@
+# 백엔드 이미지엔 rpi/ rpi4/ 만 필요. 나머지 전부 제외.
+# 특히 NDA 자료(dev-docs, atlas_docker_env, AI-Native-OS-Samples)는 절대 이미지에 넣지 않는다.
+dev-docs/
+atlas_docker_env/
+AI-Native-OS-Samples/
+*.pdf
+*.pptx
+
+# 대용량·불필요
+app/
+rpi5-touchscreen-app/
+firmware/
+firmware-node/
+kiosk-web/
+.git/
+.venv/
+**/.pio/
+**/build/
+**/__pycache__/
+**/*.pyc
+**/test/
+**/tests/
+docs/
+scripts/
+.claude/
