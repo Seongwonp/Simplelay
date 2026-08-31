@@ -7,6 +7,7 @@ import pathlib
 import uvicorn
 from fastapi import Depends, FastAPI
 from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 
 from rpi.api.auth import require_api_key
 from rpi.api.deps import get_actuator_status, get_suggestion_service
@@ -109,6 +110,64 @@ _UI_HTML = (pathlib.Path(__file__).parent / "touchscreen" / "index.html").read_t
     encoding="utf-8"
 )
 
+# ── 키오스크 화면 두 벌 ──────────────────────────────────────────────────────
+#
+# /ui    — 구형 HTML 키오스크(rpi/touchscreen/index.html). 백엔드에 딸려 있어
+#          항상 뜬다. 기능은 제안·상태·정지뿐이고 접근성 개편도 반영돼 있지 않다.
+# /kiosk — Flutter 키오스크(rpi5-touchscreen-app)를 웹으로 빌드한 것.
+#          SSE·센서·큰 글씨·음성 안내가 다 들어 있는 실제 화면이다.
+#
+# Flutter 쪽은 라즈베리파이에서 빌드할 수 없어(툴체인이 없다) PC에서 만들어
+# 복사해 넣는다. 그래서 **없을 수도 있다** -- 없으면 조용히 404를 내는 대신
+# 무엇을 해야 하는지 알려주고, cage+Chromium은 /ui로 돌리면 그대로 돈다.
+KIOSK_WEB_DIR_ENV = "SIMPLELAY_KIOSK_WEB_DIR"
+
+_KIOSK_MISSING_HTML = """<!doctype html><meta charset="utf-8">
+<title>SimpleLay 키오스크</title>
+<style>
+ body{margin:0;height:100vh;display:flex;align-items:center;justify-content:center;
+      background:#0C0E12;color:#FAF7F2;font-family:system-ui,sans-serif;text-align:center}
+ p{color:#A3AAB1;font-size:20px;line-height:1.6}
+ code{color:#D9A356}
+</style>
+<div>
+  <h1 style="font-size:34px">키오스크 화면이 아직 없어요</h1>
+  <p>PC에서 빌드해 이 기기로 복사해야 합니다.<br>
+     <code>scripts/deploy_kiosk.ps1</code><br><br>
+     그때까지는 <code>/ui</code>로 구형 화면을 쓸 수 있어요.</p>
+</div>"""
+
+
+def kiosk_web_dir() -> pathlib.Path:
+    """Flutter 키오스크 웹 빌드가 놓이는 자리.
+
+    기본값은 리포 옆 ``kiosk-web/`` -- 빌드 산출물이라 git에 넣지 않는다(36MB가
+    빌드할 때마다 쌓인다). 기기에서 경로를 바꾸고 싶으면 환경변수로 준다.
+    """
+    configured = os.environ.get(KIOSK_WEB_DIR_ENV, "").strip()
+    if configured:
+        return pathlib.Path(configured)
+    return pathlib.Path(__file__).resolve().parents[1] / "kiosk-web"
+
+
+def mount_kiosk(target: FastAPI, directory: pathlib.Path | None = None) -> bool:
+    """``/kiosk``를 붙인다. 빌드가 있으면 정적 서빙, 없으면 안내 페이지.
+
+    반환값은 "실제 빌드를 붙였는가" -- 기동 로그에서 어느 쪽인지 보이게 한다.
+    같은 오리진에서 서빙하는 것이 중요하다: 키오스크가 /status·/events를 부르는데
+    다른 포트면 CORS에 막힌다(백엔드에 CORS 미들웨어가 없다).
+    """
+    root = directory if directory is not None else kiosk_web_dir()
+    if (root / "index.html").is_file():
+        target.mount("/kiosk", StaticFiles(directory=root, html=True), name="kiosk")
+        return True
+
+    @target.get("/kiosk", response_class=HTMLResponse)
+    async def kiosk_not_built() -> HTMLResponse:  # pragma: no cover - 분기만 검증
+        return HTMLResponse(content=_KIOSK_MISSING_HTML)
+
+    return False
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health(
@@ -127,6 +186,14 @@ async def health(
 @app.get("/ui", response_class=HTMLResponse)
 async def touchscreen_ui() -> HTMLResponse:
     return HTMLResponse(content=_UI_HTML)
+
+
+# 라우트 등록이 끝난 뒤에 붙인다 -- mount는 경로 앞쪽을 가로채므로 순서가 중요하다.
+_KIOSK_BUILT = mount_kiosk(app)
+log.info(
+    "kiosk UI: %s",
+    "Flutter 웹 빌드 (/kiosk)" if _KIOSK_BUILT else "빌드 없음 — /ui 사용",
+)
 
 
 if __name__ == "__main__":

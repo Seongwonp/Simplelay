@@ -25,6 +25,9 @@ dist/
 # 골든 비교 실패 시 생기는 진단 이미지 (재생성 가능)
 **/test/failures/
 
+# 키오스크 웹 빌드 산출물 (36MB, PC에서 만들어 기기로 복사 — deploy_kiosk.ps1)
+kiosk-web/
+
 # PlatformIO 빌드 캐시 — 툴체인·프레임워크 사본이라 수백 MB다
 .pio/
 firmware/.pio/

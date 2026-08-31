@@ -151,6 +151,11 @@ if [[ ! -f /etc/simplelay/environment ]]; then
 #SIMPLELAY_NODE_TRANSPORT=espnow
 #SIMPLELAY_GATEWAY_PORT=/dev/ttyAMA0
 #SIMPLELAY_GATEWAY_BAUD=115200
+#
+# ── 키오스크 화면 ────────────────────────────────────────────────────────
+# Flutter 키오스크 웹 빌드가 놓인 자리. 기본값은 리포 옆 kiosk-web/ 이라
+# 보통은 건드릴 일이 없다(PC에서 scripts/deploy_kiosk.ps1로 복사한다).
+#SIMPLELAY_KIOSK_WEB_DIR=/home/pi/SimpleLay/kiosk-web
 ENVEOF
     ok "/etc/simplelay/environment 템플릿 생성 (ACT 모드·API 키는 여기서 확정)"
 else
@@ -192,6 +197,13 @@ if [[ "${SIMPLELAY_KIOSK:-1}" == "1" ]]; then
         # 부팅 기본 타깃이 graphical이어야 WantedBy=graphical.target이 발동
         systemctl set-default graphical.target >/dev/null || true
         ok "simplelay-kiosk.service 활성화 (재부팅 후에도 자동 실행)"
+        # Flutter 키오스크 빌드는 PC에서 복사해 넣는다 — 아직 없으면 /kiosk가
+        # 안내 화면을 띄우므로, 여기서 그 사실을 먼저 알려준다.
+        if [[ ! -f "$REPO_DIR/kiosk-web/index.html" ]]; then
+            echo -e "${YELLOW}[!]${NC} Flutter 키오스크 빌드가 아직 없습니다"
+            echo    "    PC에서: scripts/deploy_kiosk.ps1 -PiHost $HOSTNAME_TARGET.local"
+            echo    "    그때까지는 http://localhost:8000/ui 로 구형 화면 사용 가능"
+        fi
     else
         echo -e "${YELLOW}[!]${NC} cage/chromium 설치 실패 — 키오스크 자동 실행은 건너뜀"
         echo    "    수동 확인: apt-get install cage chromium 후 재실행"

@@ -23,17 +23,24 @@ Environment=XDG_RUNTIME_DIR=/run/user/1000
 # 읽기 전용이면 저장이 조용히 실패한다 — 배포에서는 항상 명시한다.
 Environment=SIMPLELAY_KIOSK_SETTINGS=/home/pi/SimpleLay/data/kiosk-settings.json
 
-# 현재: 구형 HTML 키오스크(백엔드 /ui)를 Chromium 전체화면으로.
-# Flutter(elinux) 키오스크로 전환하는 날: 아래 ExecStart 한 줄만
-#   /usr/bin/cage -d -- <flutter-elinux 실행 커맨드>
-# 로 교체하면 된다 (systemd drop-in: systemctl edit simplelay-kiosk).
+# Flutter 키오스크를 웹으로 빌드해 백엔드가 /kiosk에서 서빙한다(rpi/main.py의
+# mount_kiosk). elinux(ipk) 대신 웹을 쓰는 이유: cage+Chromium 인프라가 이미 돌고
+# 있어서 주소 한 줄만 바꾸면 되고, 같은 오리진이라 CORS 문제도 없다(백엔드에 CORS
+# 미들웨어가 없어서 다른 포트로 띄우면 /status·/events가 전부 막힌다).
+#
+# 빌드는 PC에서 만들어 복사한다 — scripts/deploy_kiosk.ps1.
+# 아직 복사 전이면 /kiosk가 "무엇을 해야 하는지" 안내 화면을 띄운다(404 아님).
+#
+# **되돌리기**: 실기기에서 너무 느리면 아래 /kiosk/ 를 /ui 로 바꾸면 구형 HTML
+# 키오스크로 즉시 후퇴한다. 그쪽은 백엔드에 딸려 있어 항상 뜬다.
+#   sudo systemctl edit simplelay-kiosk
 ExecStart=/usr/bin/cage -d -- /usr/bin/chromium \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \
     --incognito \
     --check-for-update-interval=31536000 \
-    http://localhost:8000/ui
+    http://localhost:8000/kiosk/
 
 Restart=always
 RestartSec=3
