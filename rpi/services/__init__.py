@@ -22,6 +22,7 @@ from .espnow_node_controller import (
     EspNowGatewayLink,
     EspNowNodeController,
 )
+from .care_events import CareEvent, CareEventStore, RoutineQuietChecker
 from .appliance_registry import (
     ApplianceButtonDef,
     ApplianceDef,
@@ -46,6 +47,9 @@ __all__ = [
     "EspNowGatewayError",
     "EspNowGatewayLink",
     "EspNowNodeController",
+    "CareEvent",
+    "CareEventStore",
+    "RoutineQuietChecker",
     "ApplianceButtonDef",
     "ApplianceDef",
     "ApplianceRegistry",

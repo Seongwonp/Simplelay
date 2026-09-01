@@ -177,7 +177,8 @@ def _build_intent_resolver() -> IntentResolver:
 
 @lru_cache(maxsize=1)
 def get_alert_store() -> DangerAlertStore:
-    return DangerAlertStore(_clock)
+    # care_events: 위험소리 rising edge가 보호자 알림으로도 남는다
+    return DangerAlertStore(_clock, care_events=get_care_events())
 
 
 log = logging.getLogger(__name__)
@@ -270,6 +271,26 @@ def _node_controller_factory():
 
 
 @lru_cache(maxsize=1)
+def get_care_events():
+    """보호자 알림 저장소 — 실패·위험소리·긴급정지·안부 신호가 모인다.
+    SIMPLELAY_DB_PATH가 있으면 재시작에도 알림 이력이 유지된다."""
+    from rpi.services import CareEventStore  # noqa: PLC0415
+
+    return CareEventStore(_clock, db=get_db())
+
+
+@lru_cache(maxsize=1)
+def get_wellness_checker():
+    """안부 신호 감지기 — 패턴 제안과 같은 usage_log·시간대 설정을 공유한다.
+    main.py의 주기 루프가 60초마다 check()를 부른다."""
+    from rpi.services import RoutineQuietChecker  # noqa: PLC0415
+
+    return RoutineQuietChecker(
+        get_usage_log(), _clock, _PATTERN_CONFIG, get_care_events()
+    )
+
+
+@lru_cache(maxsize=1)
 def get_appliance_registry():
     """가전 정의의 단일 진실원천 — 내장 + 폰에서 등록한 커스텀.
     SIMPLELAY_DB_PATH가 있으면 커스텀 등록이 재시작에도 유지된다."""
@@ -315,6 +336,7 @@ def get_service() -> SimpleLayService:
         llm_client=_build_llm_client(),
         node_registry=get_node_registry(),
         history_store=get_job_history(),
+        care_events=get_care_events(),
     )
 
 

@@ -35,13 +35,25 @@ class DangerAlertStore:
     loop's thread (see ActClientController), current() from FastAPI request
     handlers on a different thread."""
 
-    def __init__(self, clock: Clock) -> None:
+    def __init__(self, clock: Clock, care_events=None) -> None:
         self._clock = clock
+        self._care_events = care_events
         self._lock = threading.Lock()
         self._state = DangerAlertState(active=False)
 
     def record(self, event: AlertEvent) -> None:
         with self._lock:
+            # rising edge에서만 보호자 알림 — 경보 지속 중 반복 기록 방지.
+            # 락 안이지만 append는 인메모리/SQLite 삽입이라 블로킹이 없다.
+            rising = event.raised and not self._state.active
+            if rising and self._care_events is not None:
+                try:
+                    self._care_events.append(
+                        "danger_sound",
+                        "위험할 수 있는 신호음이 감지되었어요. 안부를 확인해 주세요.",
+                    )
+                except Exception:  # 알림 실패가 경보 기록을 막으면 안 된다
+                    pass
             self._state = DangerAlertState(
                 active=event.raised,
                 kind=event.kind,

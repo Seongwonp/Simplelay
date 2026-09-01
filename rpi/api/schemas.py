@@ -360,6 +360,18 @@ class StopResponse(BaseModel):
     was_running: bool = False
 
 
+class CareEventResponse(BaseModel):
+    """GET /care-events 한 항목 — 보호자 폰의 알림함이 이걸 그대로 그린다.
+    message는 서버가 이미 사용자 언어로 만들어 보낸다(클라이언트마다 문구가
+    갈라지지 않게)."""
+
+    id: int
+    kind: str  # execution_failed | emergency_stop | danger_sound | quiet_routine
+    message: str
+    purpose: str | None = None
+    occurred_at: datetime
+
+
 class HealthResponse(BaseModel):
     ok: bool
     # coreXY 홈 위치 확인 + SwitchBot 연결 상태 통합 — 실기기 연결 후 교체

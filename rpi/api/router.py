@@ -16,6 +16,7 @@ from .deps import (
     EnvironmentOverride,
     get_alert_store,
     get_appliance_registry,
+    get_care_events,
     get_actuator_status,
     get_demo_failure_state,
     get_dht22,
@@ -31,6 +32,7 @@ from .schemas import (
     ApplianceButtonModel,
     ApplianceRegisterRequest,
     ApplianceResponse,
+    CareEventResponse,
     ButtonStep,
     DemoEnvironmentRequest,
     DemoInjectFailureRequest,
@@ -145,6 +147,25 @@ def _to_appliance_response(a) -> ApplianceResponse:
             for b in a.buttons
         ],
     )
+
+
+@router.get("/care-events", response_model=list[CareEventResponse])
+async def list_care_events(
+    limit: int = 50,
+    store=Depends(get_care_events),
+) -> list[CareEventResponse]:
+    """보호자 알림 — 실패·위험소리·긴급정지·안부 신호를 최신순으로.
+    폰 앱의 알림함이 주기 폴링으로 읽는다."""
+    return [
+        CareEventResponse(
+            id=e.event_id,
+            kind=e.kind,
+            message=e.message,
+            purpose=e.purpose,
+            occurred_at=e.occurred_at,
+        )
+        for e in store.recent(limit=max(1, min(limit, 200)))
+    ]
 
 
 @router.get("/appliances", response_model=list[ApplianceResponse])

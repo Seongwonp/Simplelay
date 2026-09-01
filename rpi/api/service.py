@@ -85,6 +85,7 @@ class SimpleLayService(PurposeExecutor):
         llm_client: LlmClient | None = None,
         node_registry: NodeRegistry | None = None,
         history_store: JobHistoryStore | None = None,
+        care_events=None,
     ) -> None:
         self._intent = intent
         self._controller = controller
@@ -112,6 +113,12 @@ class SimpleLayService(PurposeExecutor):
         self._node_registry = node_registry
         # 실행 이력(무엇을·언제·재시도·결과) — None이면 기록하지 않는다
         self._history_store = history_store
+        # 보호자 알림(실패·긴급정지) — None이면 기록하지 않는다
+        self._care_events = care_events
+        # 이번 실행 중 긴급 정지가 요청됐나 — 실행 종료 시 실패 이벤트의
+        # 종류를 가른다(사용자가 멈춘 것 vs 스스로 실패한 것은 보호자에게
+        # 전혀 다른 소식이다). _lock으로 보호.
+        self._stop_requested_this_run = False
 
     def mark_ready(self) -> None:
         """Declare that hardware dependencies finished initializing."""
@@ -255,6 +262,7 @@ class SimpleLayService(PurposeExecutor):
         with self._lock:
             self._guard_can_execute()
             self._running = True
+            self._stop_requested_this_run = False
             job_id = uuid.uuid4().hex[:12]
             self._current_job_id = job_id
             self._current_total_steps = total_steps
@@ -297,6 +305,42 @@ class SimpleLayService(PurposeExecutor):
         except Exception:
             log.exception("job history record failed")
 
+    def _record_care_outcome(
+        self,
+        result: ExecutionResult,
+        purpose: str | None,
+        buttons: tuple[str, ...],
+    ) -> None:
+        """보호자 알림 기록 — 실패해도 실행 자체를 절대 막지 않는다.
+
+        긴급 정지로 끝난 실행(SAFETY_STOPPED)은 사용자가 의도한 중단이므로
+        '실패'가 아니라 '멈춤'으로 알린다 — 같은 상태값이라도 보호자에게는
+        전혀 다른 소식이다. 재시도 소진으로 스스로 멈춘 경우가 실패다."""
+        if self._care_events is None:
+            return
+        if result.status is ExecutionStatus.SUCCEEDED:
+            return
+        label = purpose or ", ".join(buttons[:2]) + (
+            f" 외 {len(buttons) - 2}개" if len(buttons) > 2 else ""
+        )
+        with self._lock:
+            stopped_by_user = self._stop_requested_this_run
+        try:
+            if stopped_by_user:
+                self._care_events.append(
+                    "emergency_stop",
+                    f"'{label}' 실행을 긴급 정지로 멈췄어요.",
+                    purpose=purpose,
+                )
+            else:
+                self._care_events.append(
+                    "execution_failed",
+                    f"'{label}' 실행이 완료되지 못했어요. 가전을 확인해 주세요.",
+                    purpose=purpose,
+                )
+        except Exception:
+            log.exception("care event record failed")
+
     def _run_buttons(
         self,
         buttons: tuple[str, ...],
@@ -305,6 +349,7 @@ class SimpleLayService(PurposeExecutor):
     ) -> ExecutionResult:
         self._last_result = controller.execute(buttons)
         self._record_history(self._last_result, purpose)
+        self._record_care_outcome(self._last_result, purpose, buttons)
         # purpose가 없는 실행(직접 버튼 시퀀스)은 의도적으로 학습 로그에서 제외
         if purpose is not None and self._usage_log is not None:
             outcome = (
@@ -349,6 +394,8 @@ class SimpleLayService(PurposeExecutor):
         """
         with self._lock:
             was_running = self._running
+            if was_running:
+                self._stop_requested_this_run = True
             nodes = self._stoppable_nodes()
             local = self._controller
             if hasattr(local, "request_stop"):

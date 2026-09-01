@@ -10,7 +10,11 @@ from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
 from rpi.api.auth import require_api_key
-from rpi.api.deps import get_actuator_status, get_suggestion_service
+from rpi.api.deps import (
+    get_actuator_status,
+    get_suggestion_service,
+    get_wellness_checker,
+)
 from rpi.api.router import router
 from rpi.api.schemas import HealthResponse
 from rpi.intent.suggestions import ProactiveSuggestionService
@@ -31,6 +35,12 @@ async def _suggestion_refresh_loop() -> None:
             get_suggestion_service().create_suggestions()
         except Exception:  # 제안 생성 실패가 서버를 죽여선 안 된다
             log.exception("suggestion refresh failed")
+        try:
+            # 안부 신호 — 같은 주기로 "평소 시간대의 사용이 오늘 없었나" 확인.
+            # 인메모리 집계라 비용은 제안 생성과 같은 수준이다.
+            get_wellness_checker().check()
+        except Exception:
+            log.exception("wellness check failed")
         await asyncio.sleep(SUGGESTION_REFRESH_SECONDS)
 
 

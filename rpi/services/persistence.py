@@ -49,6 +49,13 @@ class SimpleLayDb:
                 CREATE TABLE IF NOT EXISTS suppressions (
                     purpose TEXT PRIMARY KEY  -- '다시 추천 안 함'한 루틴
                 );
+                CREATE TABLE IF NOT EXISTS care_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    kind TEXT NOT NULL,         -- 보호자 알림 종류
+                    message TEXT NOT NULL,
+                    purpose TEXT,               -- 관련 루틴 (없을 수 있음)
+                    occurred_at TEXT NOT NULL   -- ISO-8601, timezone 포함
+                );
                 CREATE TABLE IF NOT EXISTS appliances (
                     appliance_id TEXT PRIMARY KEY,  -- 폰에서 등록한 커스텀 가전
                     payload_json TEXT NOT NULL      -- {name, icon, rows, cols, buttons}
@@ -116,6 +123,41 @@ class SimpleLayDb:
                 "SELECT appliance_id, base_url FROM nodes"
             ).fetchall()
         return dict(rows)
+
+    # ── 보호자 알림 이력 ─────────────────────────────────────────────────────
+
+    def append_care_event(
+        self, kind: str, message: str, purpose, occurred_at
+    ) -> int:
+        with self._lock:
+            cursor = self._conn.execute(
+                "INSERT INTO care_events (kind, message, purpose, occurred_at)"
+                " VALUES (?, ?, ?, ?)",
+                (kind, message, purpose, occurred_at.isoformat()),
+            )
+            self._conn.commit()
+            return int(cursor.lastrowid)
+
+    def care_events(self, limit: int = 200) -> tuple:
+        from .care_events import CareEvent  # noqa: PLC0415 — 순환 회피
+
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT id, kind, message, purpose, occurred_at FROM care_events"
+                " ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        # 오래된 것 → 최신 순으로 돌려준다 (store의 링 버퍼가 append 순서를 가정)
+        return tuple(
+            CareEvent(
+                event_id=row[0],
+                kind=row[1],
+                message=row[2],
+                purpose=row[3],
+                occurred_at=datetime.fromisoformat(row[4]),
+            )
+            for row in reversed(rows)
+        )
 
     # ── 커스텀 가전 (appliance_id → 정의 JSON) ──────────────────────────────
 
