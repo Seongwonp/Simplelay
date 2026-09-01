@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/appliance.dart';
+
 class RpiApiException implements Exception {
   RpiApiException(this.statusCode, this.message);
   final int statusCode;
@@ -455,6 +457,48 @@ class RpiApiService {
           .toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  // PUT /appliances/{id} — 커스텀 가전을 서버에 등록 (키오스크가 같은
+  // 목록을 받아 폰에서 추가한 가전이 키오스크에도 뜬다). 서버가 죽어 있어도
+  // 폰 로컬 저장은 이미 끝난 뒤라, 실패는 false만 돌려주고 막지 않는다.
+  Future<bool> registerAppliance(ApplianceMap appliance) async {
+    try {
+      final res = await _client
+          .put(
+            _base.replace(path: '/appliances/${appliance.id}'),
+            headers: _jsonHeaders,
+            body: jsonEncode({
+              'name': appliance.name,
+              'icon': appliance.isCustom ? 'custom' : appliance.id,
+              'rows': appliance.rows,
+              'cols': appliance.cols,
+              'buttons': [
+                for (final b in appliance.buttons)
+                  {'id': b.id, 'label': b.label, 'x': b.x, 'y': b.y},
+              ],
+            }),
+          )
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // DELETE /appliances/{id} — 서버 목록에서도 제거
+  Future<bool> deleteAppliance(String applianceId) async {
+    try {
+      final res = await _client
+          .delete(
+            _base.replace(path: '/appliances/$applianceId'),
+            headers: _headers,
+          )
+          .timeout(_timeout);
+      return res.statusCode == 200 || res.statusCode == 404;
+    } catch (_) {
+      return false;
     }
   }
 

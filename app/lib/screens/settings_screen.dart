@@ -388,6 +388,8 @@ class _ApplianceSection extends ConsumerWidget {
     );
     if (confirmed == true) {
       await ref.read(customAppliancesProvider.notifier).remove(appliance.id);
+      // 서버(키오스크 목록)에서도 제거 — 실패해도 폰 삭제는 유지(best-effort)
+      await ref.read(rpiApiServiceProvider)?.deleteAppliance(appliance.id);
     }
   }
 }

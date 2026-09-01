@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/appliance.dart';
+import '../providers/rpi_api_provider.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/photo_provider.dart';
 import '../theme/app_colors.dart';
@@ -153,7 +154,24 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
 
     await ref.read(customAppliancesProvider.notifier).add(appliance);
     await ref.read(selectedApplianceProvider.notifier).select(appliance);
-    if (mounted) context.pop();
+
+    // 서버에도 등록 — 키오스크가 이 가전을 받아 조작판에 띄운다.
+    // 실패해도 폰에서는 이미 쓸 수 있으므로 막지 않고 알림만 남긴다.
+    final rpiApi = ref.read(rpiApiServiceProvider);
+    var synced = false;
+    if (rpiApi != null) {
+      synced = await rpiApi.registerAppliance(appliance);
+    }
+    if (mounted) {
+      if (!synced) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('가전을 저장했어요. 키오스크 연동은 서버 연결 후 다시 저장하면 돼요.'),
+          ),
+        );
+      }
+      context.pop();
+    }
   }
 
   @override
