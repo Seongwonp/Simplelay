@@ -22,7 +22,7 @@ from __future__ import annotations
 import threading
 from collections import deque
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 from rpi.intent.models import PatternConfig, UsageOutcome
 from rpi.intent.ports import Clock, UsageLog
@@ -33,6 +33,11 @@ KIND_DANGER_SOUND = "danger_sound"
 KIND_QUIET_ROUTINE = "quiet_routine"
 
 
+# "평소"의 기준 창 — 이 기간 안에서 3일 이상 쓴 것만 루틴이다. 창이 없으면
+# 겨울에 사흘 쓴 가습기가 여름에도 매일 안부 신호를 만든다(교차 리뷰 #12).
+ROUTINE_WINDOW_DAYS = 14
+
+
 @dataclass(frozen=True)
 class CareEvent:
     event_id: int
@@ -40,6 +45,9 @@ class CareEvent:
     message: str
     occurred_at: datetime
     purpose: str | None = None
+    # 안부 신호의 시간대 등 — 같은 purpose가 아침·저녁 두 루틴일 때 각각
+    # 알리기 위한 dedupe 구성요소 (교차 리뷰 #9). API 응답에는 안 실린다.
+    time_band: str | None = None
 
 
 class CareEventStore:
@@ -63,13 +71,17 @@ class CareEventStore:
                 self._next_id = max(self._next_id, event.event_id + 1)
 
     def append(
-        self, kind: str, message: str, purpose: str | None = None
+        self,
+        kind: str,
+        message: str,
+        purpose: str | None = None,
+        time_band: str | None = None,
     ) -> CareEvent:
         with self._lock:
             occurred_at = self._clock.now()
             if self._db is not None:
                 event_id = self._db.append_care_event(
-                    kind, message, purpose, occurred_at
+                    kind, message, purpose, occurred_at, time_band
                 )
             else:
                 event_id = self._next_id
@@ -80,6 +92,7 @@ class CareEventStore:
                 message=message,
                 occurred_at=occurred_at,
                 purpose=purpose,
+                time_band=time_band,
             )
             self._memory.append(event)
             return event
@@ -90,13 +103,28 @@ class CareEventStore:
         with self._lock:
             return tuple(reversed(list(self._memory)))[:limit]
 
-    def has_on_date(self, kind: str, purpose: str | None, day: date) -> bool:
-        """같은 날 같은 (kind, purpose) 이벤트가 이미 있나 — 안부 신호가
-        60초 주기 체크마다 반복 발생하는 것을 막는 dedupe 열쇠."""
+    def has_on_date(
+        self,
+        kind: str,
+        purpose: str | None,
+        day: date,
+        time_band: str | None = None,
+    ) -> bool:
+        """같은 날 같은 (kind, purpose, time_band) 이벤트가 이미 있나 —
+        안부 신호가 60초 주기 체크마다 반복 발생하는 것을 막는 dedupe 열쇠.
+
+        DB가 있으면 DB에서 묻는다 (교차 리뷰 #10): 메모리 링(200건)만 보면
+        하루에 이벤트가 많이 쌓인 날 오전 신호가 링에서 밀려나 같은 신호가
+        또 만들어지고, 재시작 직후에도 같은 구멍이 생긴다."""
         with self._lock:
+            if self._db is not None:
+                return self._db.care_event_exists_on(
+                    kind, purpose, day, time_band
+                )
             return any(
                 e.kind == kind
                 and e.purpose == purpose
+                and e.time_band == time_band
                 and e.occurred_at.date() == day
                 for e in self._memory
             )
@@ -112,7 +140,10 @@ class RoutineQuietChecker:
       purpose 사용 기록(성공·실패 불문 — 시도 자체가 활동 신호)이 없음.
     - 자정을 넘는 시간대(야간 등)는 제외한다: "어제 밤 루틴이 조용했다"는
       알림이 새벽에 도착하는 것은 안부 확인이 아니라 불안 유발이다.
-    - 하루에 (purpose, 시간대)당 1회만 발생 (store.has_on_date로 dedupe).
+    - 루틴은 최근 ROUTINE_WINDOW_DAYS(14일) 안의 사용만 인정 — 계절 지난
+      루틴이 평생 알림을 만드는 것을 막는다 (교차 리뷰 #12).
+    - 하루에 (purpose, 시간대)당 1회만 발생. 시간대가 dedupe 열쇠에
+      포함되므로 아침·저녁 두 루틴은 각각 알린다 (교차 리뷰 #9).
     """
 
     def __init__(
@@ -130,7 +161,15 @@ class RoutineQuietChecker:
     def check(self) -> tuple[CareEvent, ...]:
         now = self._clock.now()
         today = now.date()
+        window_start = today - timedelta(days=ROUTINE_WINDOW_DAYS)
         created: list[CareEvent] = []
+
+        # 이력은 한 번만 읽고 현지화도 한 번만 — 시간대마다 전체 records()를
+        # 다시 돌면 이력이 쌓일수록 60초 주기 루프가 무거워진다(교차 리뷰 #11).
+        localized = [
+            (record, record.occurred_at.astimezone(now.tzinfo))
+            for record in self._usage_log.records()
+        ]
 
         for band in self._config.time_bands:
             if band.start >= band.end:
@@ -140,14 +179,16 @@ class RoutineQuietChecker:
 
             routine_days: dict[str, set[date]] = {}
             used_today: set[str] = set()
-            for record in self._usage_log.records():
-                local = record.occurred_at.astimezone(now.tzinfo)
+            for record, local in localized:
                 if not band.contains(local.timetz()):
                     continue
                 purpose = record.purpose.strip()
                 if local.date() == today:
                     used_today.add(purpose)
-                elif record.outcome is UsageOutcome.SUCCEEDED:
+                elif (
+                    record.outcome is UsageOutcome.SUCCEEDED
+                    and local.date() >= window_start  # 최근 창 안의 루틴만
+                ):
                     routine_days.setdefault(purpose, set()).add(local.date())
 
             for purpose, days in sorted(routine_days.items()):
@@ -156,15 +197,17 @@ class RoutineQuietChecker:
                 if purpose in used_today:
                     continue
                 if self._care_events.has_on_date(
-                    KIND_QUIET_ROUTINE, purpose, today
+                    KIND_QUIET_ROUTINE, purpose, today, time_band=band.name
                 ):
                     continue
                 created.append(
                     self._care_events.append(
                         KIND_QUIET_ROUTINE,
                         f"평소 {band.name} 시간대의 '{purpose}' 사용이 오늘은 "
-                        "없었어요. 안부 전화 한번 어떨까요?",
+                        "없었어요. 안부 전화 한번 어떨까요? "
+                        "외출·여행 중이시라면 무시하셔도 돼요.",
                         purpose=purpose,
+                        time_band=band.name,
                     )
                 )
         return tuple(created)

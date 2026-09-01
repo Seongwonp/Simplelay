@@ -32,13 +32,14 @@ async def _suggestion_refresh_loop() -> None:
     코드였던 원인) — 이 루프가 주기적으로 패턴을 감지해 제안을 만든다."""
     while True:
         try:
-            get_suggestion_service().create_suggestions()
+            # 동기 집계(SQLite 포함 가능)를 이벤트 루프에서 떼어낸다 —
+            # 이력이 쌓이면 이 검사 동안 API·SSE 응답이 늦어진다(교차 리뷰 #11)
+            await asyncio.to_thread(get_suggestion_service().create_suggestions)
         except Exception:  # 제안 생성 실패가 서버를 죽여선 안 된다
             log.exception("suggestion refresh failed")
         try:
-            # 안부 신호 — 같은 주기로 "평소 시간대의 사용이 오늘 없었나" 확인.
-            # 인메모리 집계라 비용은 제안 생성과 같은 수준이다.
-            get_wellness_checker().check()
+            # 안부 신호 — 같은 주기로 "평소 시간대의 사용이 오늘 없었나" 확인
+            await asyncio.to_thread(get_wellness_checker().check)
         except Exception:
             log.exception("wellness check failed")
         await asyncio.sleep(SUGGESTION_REFRESH_SECONDS)

@@ -214,3 +214,129 @@ def test_delete_flow(client):
     assert client.delete("/appliances/custom_fan").status_code == 200
     assert client.delete("/appliances/custom_fan").status_code == 404
     assert client.delete("/appliances/microwave").status_code == 409
+
+
+# ── 2차 리뷰 회귀 (실행 게이트·원자성·검증·격리) ─────────────────────────────
+
+
+def test_execute_rejects_unknown_appliance_id(client):
+    # 삭제된/미등록 가전의 실행이 로컬 기본 컨트롤러로 폴백하면 물리
+    # 오라우팅이다 (교차 리뷰 치명 #1) — 게이트에서 404로 거부
+    res = client.post(
+        "/execute-buttons",
+        json={"buttons": ["전원"], "appliance_id": "no_such_appliance"},
+    )
+    assert res.status_code == 404
+    assert "삭제되었거나" in res.json()["detail"]
+
+
+def test_execute_still_allows_registered_custom_without_node(client):
+    # 레지스트리에 있는 커스텀은 노드 미등록이어도 로컬 폴백 허용 —
+    # 8/31 에어컨 데모가 이 경로다 (실물 2번째 노드는 rpi4 합류 때)
+    client.put(
+        "/appliances/custom_fan",
+        json={
+            "name": "선풍기",
+            "rows": 1,
+            "cols": 1,
+            "buttons": [{"id": "F", "label": "전원", "x": 0, "y": 0}],
+        },
+    )
+    res = client.post(
+        "/execute-buttons",
+        json={"buttons": ["전원"], "appliance_id": "custom_fan"},
+    )
+    assert res.status_code == 200
+
+
+def test_delete_appliance_also_unregisters_node(client):
+    # 유령 노드가 남으면 긴급 정지가 계속 가고 재등록 시 옛 주소가
+    # 재사용된다 (교차 리뷰 #4)
+    client.put(
+        "/appliances/custom_fan",
+        json={
+            "name": "선풍기",
+            "rows": 1,
+            "cols": 1,
+            "buttons": [{"id": "F", "label": "전원", "x": 0, "y": 0}],
+        },
+    )
+    assert (
+        client.post(
+            "/nodes/custom_fan", json={"base_url": "http://node:8080"}
+        ).status_code
+        == 200
+    )
+    assert client.delete("/appliances/custom_fan").status_code == 200
+    node_ids = [n["appliance_id"] for n in client.get("/nodes").json()]
+    assert "custom_fan" not in node_ids
+
+
+def test_put_rejects_duplicate_button_label(client):
+    # 실행은 라벨로 전송된다 — 같은 라벨 두 개는 어느 좌표인지 구분 불가
+    res = client.put(
+        "/appliances/custom_bad",
+        json={
+            "name": "이상한 가전",
+            "rows": 1,
+            "cols": 2,
+            "buttons": [
+                {"id": "A", "label": "전원", "x": 0, "y": 0},
+                {"id": "B", "label": "전원", "x": 1, "y": 0},
+            ],
+        },
+    )
+    assert res.status_code == 422
+
+
+def test_put_rejects_duplicate_button_id(client):
+    res = client.put(
+        "/appliances/custom_bad",
+        json={
+            "name": "이상한 가전",
+            "rows": 1,
+            "cols": 2,
+            "buttons": [
+                {"id": "A", "label": "전원", "x": 0, "y": 0},
+                {"id": "A", "label": "정지", "x": 1, "y": 0},
+            ],
+        },
+    )
+    assert res.status_code == 422
+
+
+def test_db_failure_keeps_memory_and_disk_consistent(tmp_path):
+    # DB 쓰기 실패 시 메모리만 앞서가면 "지금은 보이는데 재시작하면
+    # 사라지는" 가전이 생긴다 (교차 리뷰 #2)
+    class FailingDb:
+        def appliances(self):
+            return ()
+
+        def save_appliance(self, appliance):
+            raise RuntimeError("disk full")
+
+        def delete_appliance(self, appliance_id):
+            raise RuntimeError("disk full")
+
+    registry = ApplianceRegistry(store=FailingDb())
+    with pytest.raises(RuntimeError):
+        registry.register(CUSTOM)
+    assert registry.get("custom_aircon") is None  # 메모리도 안 바뀜
+
+
+def test_corrupt_db_row_does_not_block_other_appliances(tmp_path):
+    # 한 행 손상이 레지스트리 전체 로딩을 막으면 안 된다 (교차 리뷰 #16)
+    db_path = str(tmp_path / "test.db")
+    db = SimpleLayDb(db_path)
+    ApplianceRegistry(store=db).register(CUSTOM)
+    # 손상 행 주입
+    with db._lock:
+        db._conn.execute(
+            "INSERT INTO appliances (appliance_id, payload_json)"
+            " VALUES ('broken', '{not json')"
+        )
+        db._conn.commit()
+
+    reloaded = ApplianceRegistry(store=SimpleLayDb(db_path))
+    assert reloaded.get("custom_aircon") == CUSTOM  # 정상 행은 산다
+    assert reloaded.get("broken") is None

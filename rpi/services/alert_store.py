@@ -43,17 +43,10 @@ class DangerAlertStore:
 
     def record(self, event: AlertEvent) -> None:
         with self._lock:
-            # rising edge에서만 보호자 알림 — 경보 지속 중 반복 기록 방지.
-            # 락 안이지만 append는 인메모리/SQLite 삽입이라 블로킹이 없다.
+            # rising edge 판정과 상태 갱신만 락 안에서 — care append는
+            # SQLite commit(블로킹 I/O)이라 락 안에서 하면 current()와
+            # 경보 SSE 반영이 디스크 쓰기를 기다린다 (교차 리뷰 #15).
             rising = event.raised and not self._state.active
-            if rising and self._care_events is not None:
-                try:
-                    self._care_events.append(
-                        "danger_sound",
-                        "위험할 수 있는 신호음이 감지되었어요. 안부를 확인해 주세요.",
-                    )
-                except Exception:  # 알림 실패가 경보 기록을 막으면 안 된다
-                    pass
             self._state = DangerAlertState(
                 active=event.raised,
                 kind=event.kind,
@@ -61,6 +54,14 @@ class DangerAlertStore:
                 mean_period_seconds=event.mean_period_seconds,
                 updated_at=self._clock.now(),
             )
+        if rising and self._care_events is not None:
+            try:
+                self._care_events.append(
+                    "danger_sound",
+                    "위험할 수 있는 신호음이 감지되었어요. 안부를 확인해 주세요.",
+                )
+            except Exception:  # 알림 실패가 경보 기록을 막으면 안 된다
+                pass
 
     def current(self) -> DangerAlertState:
         with self._lock:

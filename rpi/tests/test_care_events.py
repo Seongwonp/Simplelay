@@ -305,3 +305,111 @@ def test_demo_care_event_trigger(monkeypatch):
         app.dependency_overrides.pop(deps.get_care_events, None)
 
     assert store.recent()[0].kind == "quiet_routine"
+
+
+# ── 2차 리뷰 회귀 (dedupe 시간대·rolling window·DB dedupe·예외 알림) ────────
+
+
+def test_morning_and_evening_routines_alert_separately():
+    # 같은 purpose가 아침·저녁 두 루틴이면 각각 알린다 (교차 리뷰 #9)
+    from rpi.intent import PatternConfig as PC
+
+    morning = TimeBand("아침", time(6, 0), time(10, 0))
+    config = PC(minimum_occurrences=3, time_bands=(morning, EVENING))
+    records = tuple(
+        UsageRecord(at(day, hour), "물 끓이기", UsageOutcome.SUCCEEDED)
+        for day in (25, 26, 27)
+        for hour in (8, 18)
+    )
+    clock = FixedClock(at(31, 21, 30))  # 아침·저녁 모두 종료된 시각
+    care = CareEventStore(clock)
+    checker = RoutineQuietChecker(InMemoryUsageLog(records), clock, config, care)
+
+    created = checker.check()
+
+    bands = sorted(e.time_band for e in created)
+    assert bands == ["아침", "저녁"]
+    # 반복 체크에도 각각 1회씩만
+    checker.check()
+    assert len(care.recent()) == 2
+
+
+def test_months_old_usage_is_not_a_routine():
+    # 계절 지난 루틴이 평생 알림을 만들면 안 된다 (교차 리뷰 #12)
+    old = tuple(
+        UsageRecord(
+            datetime(2026, 5, day, 18, tzinfo=KST), "가습기 켜줘",
+            UsageOutcome.SUCCEEDED,
+        )
+        for day in (10, 11, 12)
+    )
+    checker, _ = _checker(old, now=at(31, 21, 30))
+
+    assert checker.check() == ()
+
+
+def test_dedupe_survives_ring_overflow_and_restart(tmp_path):
+    # 메모리 링(200건)이 밀려나거나 재시작해도 같은 날 중복 생성 금지
+    # (교차 리뷰 #10) — dedupe는 DB에서 답해야 한다
+    db_path = str(tmp_path / "care.db")
+    clock = FixedClock(at(31, 21, 30))
+    care = CareEventStore(clock, db=SimpleLayDb(db_path))
+    log = InMemoryUsageLog(_routine_records())
+    checker = RoutineQuietChecker(log, clock, CONFIG, care)
+
+    assert len(checker.check()) == 1
+    # 같은 날 이벤트 300건이 쌓여 quiet 이벤트가 링에서 밀려난다
+    for i in range(300):
+        care.append("danger_sound", f"noise {i}")
+    assert checker.check() == ()  # 링에 없어도 DB가 기억한다
+
+    # 서버 재시작(스토어 재생성) 후에도 같은 날은 다시 만들지 않는다
+    care2 = CareEventStore(clock, db=SimpleLayDb(db_path))
+    checker2 = RoutineQuietChecker(log, clock, CONFIG, care2)
+    assert checker2.check() == ()
+
+
+def test_controller_exception_records_care_event():
+    # 진짜 하드웨어 장애(UART 단절 등)일수록 예외로 끝난다 — 그게 알림함에서
+    # 빠지면 안 된다 (교차 리뷰 #7). 내부 예외 문구는 노출하지 않는다.
+    care = make_store()
+
+    class ExplodingController:
+        def execute(self, buttons):
+            raise RuntimeError("uart disconnected: /dev/ttyAMA0")
+
+    service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        ExplodingController(),
+        clock=FixedClock(at(31, 19)),
+        care_events=care,
+    )
+    job = service.submit_purpose("우유 데워줘")
+    assert job
+    # 백그라운드 스레드 완료 대기
+    import time as _time
+
+    for _ in range(100):
+        if care.recent():
+            break
+        _time.sleep(0.01)
+
+    events = care.recent()
+    assert len(events) == 1
+    assert events[0].kind == "execution_failed"
+    assert "연결이 끊겨" in events[0].message
+    assert "ttyAMA0" not in events[0].message  # 내부 문구 비노출
+
+
+def test_llm_resolved_sequence_over_limit_is_rejected():
+    # LLM 출력도 실행 상한을 다시 적용한다 (교차 리뷰 #5 보강)
+    from rpi.intent.rules import UnknownIntentError
+
+    class RunawayResolver:
+        def resolve(self, purpose):
+            return tuple(f"버튼{i}" for i in range(50))  # 상한 20 초과
+
+    care = make_store()
+    service = _service([True] * 100, care)
+    with pytest.raises(UnknownIntentError):
+        service._execute_via_resolver("아무거나", RunawayResolver())

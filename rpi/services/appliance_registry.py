@@ -130,9 +130,12 @@ class ApplianceRegistry:
                 f"'{appliance.appliance_id}' is a built-in appliance"
             )
         with self._lock:
-            self._custom[appliance.appliance_id] = appliance
+            # DB를 먼저 커밋한다 — 메모리를 먼저 바꾸면 DB 실패(500) 시
+            # "지금은 조회되는데 재시작하면 사라지는" 가전이 생긴다
+            # (교차 리뷰 #2). DB가 던지면 메모리는 그대로라 상태가 일치한다.
             if self._store is not None:
                 self._store.save_appliance(appliance)
+            self._custom[appliance.appliance_id] = appliance
 
     def delete(self, appliance_id: str) -> bool:
         """커스텀 가전 삭제. 내장이면 거부, 없으면 False."""
@@ -141,7 +144,8 @@ class ApplianceRegistry:
                 f"'{appliance_id}' is a built-in appliance"
             )
         with self._lock:
-            existed = self._custom.pop(appliance_id, None) is not None
+            existed = appliance_id in self._custom
             if existed and self._store is not None:
-                self._store.delete_appliance(appliance_id)
+                self._store.delete_appliance(appliance_id)  # DB 먼저 — #2와 동일
+            self._custom.pop(appliance_id, None)
             return existed

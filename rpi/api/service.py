@@ -22,6 +22,7 @@ from rpi.intent import (
     UsageOutcome,
     UsageRecord,
 )
+from rpi.intent.rules import UnknownIntentError
 from rpi.services import NodeRegistry
 from rpi.services.history import ButtonAttempt, JobHistoryEntry, JobHistoryStore
 
@@ -156,10 +157,36 @@ class SimpleLayService(PurposeExecutor):
         resolver = LlmIntentResolver(self._llm_client, known_buttons=known_buttons)
         return self._execute_via_resolver(purpose, resolver, appliance_id)
 
+    @staticmethod
+    def _validate_resolved_sequence(buttons: tuple[str, ...]) -> tuple[str, ...]:
+        """resolver(특히 LLM) 출력의 실행 상한 재검증 (교차 리뷰 #5).
+
+        요청 본문은 스키마가 거르지만 LLM이 만들어낸 시퀀스는 그 검증을
+        거치지 않고 실행으로 들어갔다 — 모델이 폭주하면 상한 없는 물리
+        실행이 된다. 여기서 개수·바이트 예산을 같은 기준으로 다시 적용한다."""
+        from rpi.api.schemas import (  # noqa: PLC0415 — 순환 회피
+            MAX_BUTTONS_PER_RUN,
+            MAX_EXECUTE_PAYLOAD_BYTES,
+            execute_payload_bytes,
+        )
+
+        if len(buttons) > MAX_BUTTONS_PER_RUN:
+            raise UnknownIntentError(
+                f"resolved sequence has {len(buttons)} buttons "
+                f"(limit {MAX_BUTTONS_PER_RUN})"
+            )
+        size = execute_payload_bytes(list(buttons))
+        if size > MAX_EXECUTE_PAYLOAD_BYTES:
+            raise UnknownIntentError(
+                f"resolved sequence is {size} bytes "
+                f"(limit {MAX_EXECUTE_PAYLOAD_BYTES})"
+            )
+        return buttons
+
     def _execute_via_resolver(
         self, purpose: str, resolver: IntentResolver, appliance_id: str | None = None
     ) -> ExecutionResult:
-        buttons = resolver.resolve(purpose)
+        buttons = self._validate_resolved_sequence(tuple(resolver.resolve(purpose)))
         controller = self._controller_for(appliance_id)
         self._begin_run(len(buttons), controller)
         try:
@@ -210,8 +237,8 @@ class SimpleLayService(PurposeExecutor):
                 "need one (see the llm_client param / rpi/api/deps.py)"
             )
         resolver = LlmIntentResolver(self._llm_client, known_buttons=known_buttons)
-        buttons = resolver.resolve(purpose)
-        return self._submit(tuple(buttons), appliance_id, purpose)
+        buttons = self._validate_resolved_sequence(tuple(resolver.resolve(purpose)))
+        return self._submit(buttons, appliance_id, purpose)
 
     def submit_buttons(
         self, buttons: tuple[str, ...], appliance_id: str | None = None
@@ -243,6 +270,20 @@ class SimpleLayService(PurposeExecutor):
             log.exception("background job execution failed")
             self._last_result = ExecutionResult(ExecutionStatus.FAILED, ())
             self._record_history(self._last_result, purpose)
+            # 보호자 알림도 남긴다 — 오히려 진짜 하드웨어 장애(UART 단절 등)
+            # 일수록 예외로 끝나는데, 그게 알림함에서 빠지면 안 된다
+            # (교차 리뷰 #7). 내부 예외 문구는 노출하지 않는다.
+            if self._care_events is not None:
+                label = purpose or ", ".join(buttons[:2])
+                try:
+                    self._care_events.append(
+                        "execution_failed",
+                        f"'{label}' 실행 중 가전과 연결이 끊겨 완료하지 "
+                        "못했어요. 가전을 확인해 주세요.",
+                        purpose=purpose,
+                    )
+                except Exception:
+                    log.exception("care event record failed")
         finally:
             self._end_run()
 
@@ -310,6 +351,7 @@ class SimpleLayService(PurposeExecutor):
         result: ExecutionResult,
         purpose: str | None,
         buttons: tuple[str, ...],
+        stopped_by_user: bool,
     ) -> None:
         """보호자 알림 기록 — 실패해도 실행 자체를 절대 막지 않는다.
 
@@ -323,8 +365,6 @@ class SimpleLayService(PurposeExecutor):
         label = purpose or ", ".join(buttons[:2]) + (
             f" 외 {len(buttons) - 2}개" if len(buttons) > 2 else ""
         )
-        with self._lock:
-            stopped_by_user = self._stop_requested_this_run
         try:
             if stopped_by_user:
                 self._care_events.append(
@@ -348,8 +388,17 @@ class SimpleLayService(PurposeExecutor):
         purpose: str | None,
     ) -> ExecutionResult:
         self._last_result = controller.execute(buttons)
+        # stop 여부는 실행이 반환된 '직후' 스냅샷+소진한다 (교차 리뷰 #8) —
+        # 이후에 도착한 stop이 자연 실패(재시도 소진)를 '긴급 정지로 멈춤'
+        # 으로 오분류하는 창을 최소화한다. (완전 제거는 컨트롤러가 종료
+        # 사유를 반환해야 가능 — 실기기 통합 때 termination_reason 검토)
+        with self._lock:
+            stopped_by_user = self._stop_requested_this_run
+            self._stop_requested_this_run = False
         self._record_history(self._last_result, purpose)
-        self._record_care_outcome(self._last_result, purpose, buttons)
+        self._record_care_outcome(
+            self._last_result, purpose, buttons, stopped_by_user
+        )
         # purpose가 없는 실행(직접 버튼 시퀀스)은 의도적으로 학습 로그에서 제외
         if purpose is not None and self._usage_log is not None:
             outcome = (

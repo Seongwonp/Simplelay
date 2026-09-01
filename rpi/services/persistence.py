@@ -25,7 +25,11 @@ import json
 from rpi.intent.models import UsageOutcome, UsageRecord
 from rpi.intent.ports import SuppressionStore, UsageLog
 
+import logging
+
 from .history import ButtonAttempt, JobHistoryEntry
+
+_log = logging.getLogger(__name__)
 
 
 class SimpleLayDb:
@@ -54,6 +58,7 @@ class SimpleLayDb:
                     kind TEXT NOT NULL,         -- 보호자 알림 종류
                     message TEXT NOT NULL,
                     purpose TEXT,               -- 관련 루틴 (없을 수 있음)
+                    time_band TEXT,             -- 안부 신호 시간대 (dedupe 열쇠)
                     occurred_at TEXT NOT NULL   -- ISO-8601, timezone 포함
                 );
                 CREATE TABLE IF NOT EXISTS appliances (
@@ -127,24 +132,40 @@ class SimpleLayDb:
     # ── 보호자 알림 이력 ─────────────────────────────────────────────────────
 
     def append_care_event(
-        self, kind: str, message: str, purpose, occurred_at
+        self, kind: str, message: str, purpose, occurred_at, time_band=None
     ) -> int:
         with self._lock:
             cursor = self._conn.execute(
-                "INSERT INTO care_events (kind, message, purpose, occurred_at)"
-                " VALUES (?, ?, ?, ?)",
-                (kind, message, purpose, occurred_at.isoformat()),
+                "INSERT INTO care_events"
+                " (kind, message, purpose, time_band, occurred_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (kind, message, purpose, time_band, occurred_at.isoformat()),
             )
             self._conn.commit()
             return int(cursor.lastrowid)
+
+    def care_event_exists_on(self, kind, purpose, day, time_band=None) -> bool:
+        # 같은 (kind, purpose, time_band, 현지 날짜) 이벤트 존재 여부 —
+        # 메모리 링(200건)이 밀려나거나 재시작해도 dedupe가 유지되도록 DB에
+        # 직접 묻는다 (교차 리뷰 #10). occurred_at은 서버 현지 tz의 ISO라
+        # 날짜 prefix 비교가 곧 현지 날짜 비교다. NULL 비교는 IS로.
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT 1 FROM care_events"
+                " WHERE kind = ? AND occurred_at LIKE ?"
+                "   AND purpose IS ? AND time_band IS ?"
+                " LIMIT 1",
+                (kind, day.isoformat() + "%", purpose, time_band),
+            ).fetchone()
+            return row is not None
 
     def care_events(self, limit: int = 200) -> tuple:
         from .care_events import CareEvent  # noqa: PLC0415 — 순환 회피
 
         with self._lock:
             rows = self._conn.execute(
-                "SELECT id, kind, message, purpose, occurred_at FROM care_events"
-                " ORDER BY id DESC LIMIT ?",
+                "SELECT id, kind, message, purpose, time_band, occurred_at"
+                " FROM care_events ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         # 오래된 것 → 최신 순으로 돌려준다 (store의 링 버퍼가 append 순서를 가정)
@@ -154,7 +175,8 @@ class SimpleLayDb:
                 kind=row[1],
                 message=row[2],
                 purpose=row[3],
-                occurred_at=datetime.fromisoformat(row[4]),
+                time_band=row[4],
+                occurred_at=datetime.fromisoformat(row[5]),
             )
             for row in reversed(rows)
         )
@@ -203,23 +225,30 @@ class SimpleLayDb:
             ).fetchall()
         result = []
         for appliance_id, payload_json in rows:
-            data = json.loads(payload_json)
-            result.append(
-                ApplianceDef(
-                    appliance_id=appliance_id,
-                    name=data["name"],
-                    icon=data.get("icon", "custom"),
-                    rows=int(data["rows"]),
-                    cols=int(data["cols"]),
-                    buttons=tuple(
-                        ApplianceButtonDef(
-                            id=b["id"], label=b["label"], x=int(b["x"]), y=int(b["y"])
-                        )
-                        for b in data["buttons"]
-                    ),
-                    is_custom=True,
+            try:
+                data = json.loads(payload_json)
+                result.append(
+                    ApplianceDef(
+                        appliance_id=appliance_id,
+                        name=data["name"],
+                        icon=data.get("icon", "custom"),
+                        rows=int(data["rows"]),
+                        cols=int(data["cols"]),
+                        buttons=tuple(
+                            ApplianceButtonDef(
+                                id=b["id"],
+                                label=b["label"],
+                                x=int(b["x"]),
+                                y=int(b["y"]),
+                            )
+                            for b in data["buttons"]
+                        ),
+                        is_custom=True,
+                    )
                 )
-            )
+            except Exception:
+                # 한 행이 손상돼도 나머지 가전은 살아야 한다 (교차 리뷰 #16)
+                _log.exception("skipping corrupt appliance row %r", appliance_id)
         return tuple(result)
 
     # ── 실행(job) 이력 ──────────────────────────────────────────────────────

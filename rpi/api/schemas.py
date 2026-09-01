@@ -211,6 +211,16 @@ class ApplianceRegisterRequest(BaseModel):
             raise ValueError("grid must be between 1x1 and 8x8")
         return v
 
+    @field_validator("icon")
+    @classmethod
+    def icon_short(cls, v: str) -> str:
+        # 클라이언트용 힌트 문자열일 뿐 — 긴 값이 DB·키오스크 응답에
+        # 실릴 이유가 없다
+        stripped = v.strip() or "custom"
+        if len(stripped) > 32:
+            raise ValueError("icon hint must be at most 32 characters")
+        return stripped
+
     @field_validator("buttons")
     @classmethod
     def buttons_valid(
@@ -220,6 +230,16 @@ class ApplianceRegisterRequest(BaseModel):
             raise ValueError("buttons must not be empty")
         if len(v) > MAX_KNOWN_BUTTONS:
             raise ValueError(f"at most {MAX_KNOWN_BUTTONS} buttons")
+        # id·라벨 중복 금지 — 실행은 라벨로 전송되므로 같은 라벨의 물리
+        # 버튼 두 개는 어느 좌표를 누를지 구분할 수 없다 (교차 리뷰 #5)
+        ids = [b.id for b in v]
+        if len(set(ids)) != len(ids):
+            raise ValueError("duplicate button id")
+        labels = [b.label for b in v]
+        if len(set(labels)) != len(labels):
+            raise ValueError(
+                "duplicate button label — 실행이 라벨 기준이라 구분 불가"
+            )
         return v
 
     def validate_layout(self) -> None:
