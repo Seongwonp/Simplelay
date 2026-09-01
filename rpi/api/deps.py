@@ -270,6 +270,15 @@ def _node_controller_factory():
 
 
 @lru_cache(maxsize=1)
+def get_appliance_registry():
+    """가전 정의의 단일 진실원천 — 내장 + 폰에서 등록한 커스텀.
+    SIMPLELAY_DB_PATH가 있으면 커스텀 등록이 재시작에도 유지된다."""
+    from rpi.services import ApplianceRegistry  # noqa: PLC0415
+
+    return ApplianceRegistry(store=get_db())
+
+
+@lru_cache(maxsize=1)
 def get_node_registry() -> NodeRegistry:
     """가전별 원격 노드(다중 노드 아키텍처) 등록부 — 처음엔 비어있고,
     ``POST /nodes/{appliance_id}``로 채워진다. 여기 없는 appliance_id는

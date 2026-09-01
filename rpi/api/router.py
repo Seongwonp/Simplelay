@@ -10,9 +10,12 @@ from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestion
 
 from rpi.services import DangerAlertStore, NodeRegistry
 
+from rpi.services import ApplianceButtonDef, ApplianceDef, BuiltinApplianceError
+
 from .deps import (
     EnvironmentOverride,
     get_alert_store,
+    get_appliance_registry,
     get_actuator_status,
     get_demo_failure_state,
     get_dht22,
@@ -25,6 +28,9 @@ from .deps import (
 )
 from .schemas import (
     AlertResponse,
+    ApplianceButtonModel,
+    ApplianceRegisterRequest,
+    ApplianceResponse,
     ButtonStep,
     DemoEnvironmentRequest,
     DemoInjectFailureRequest,
@@ -121,6 +127,79 @@ async def execute_for_appliance(
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return JobAcceptedResponse(job_id=job_id)
+
+
+# ── 가전 레지스트리 — 폰·키오스크가 공유하는 가전 정의 ──────────────────────
+
+
+def _to_appliance_response(a) -> ApplianceResponse:
+    return ApplianceResponse(
+        id=a.appliance_id,
+        name=a.name,
+        icon=a.icon,
+        rows=a.rows,
+        cols=a.cols,
+        is_custom=a.is_custom,
+        buttons=[
+            ApplianceButtonModel(id=b.id, label=b.label, x=b.x, y=b.y)
+            for b in a.buttons
+        ],
+    )
+
+
+@router.get("/appliances", response_model=list[ApplianceResponse])
+async def list_appliances(
+    registry=Depends(get_appliance_registry),
+) -> list[ApplianceResponse]:
+    """내장 + 커스텀 가전 전체. 폰에서 등록한 가전이 키오스크에 뜨는 경로."""
+    return [_to_appliance_response(a) for a in registry.list()]
+
+
+@router.put("/appliances/{appliance_id}", response_model=ApplianceResponse)
+async def register_appliance(
+    appliance_id: str,
+    body: ApplianceRegisterRequest,
+    registry=Depends(get_appliance_registry),
+) -> ApplianceResponse:
+    # 같은 id로 다시 부르면 교체(폰 편집기의 저장 버튼과 1:1) — 노드 등록과
+    # 같은 upsert 관례.
+    try:
+        body.validate_layout()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    appliance = ApplianceDef(
+        appliance_id=appliance_id.strip(),
+        name=body.name,
+        icon=body.icon,
+        rows=body.rows,
+        cols=body.cols,
+        buttons=tuple(
+            ApplianceButtonDef(id=b.id, label=b.label, x=b.x, y=b.y)
+            for b in body.buttons
+        ),
+        is_custom=True,
+    )
+    if not appliance.appliance_id:
+        raise HTTPException(status_code=422, detail="appliance id must not be blank")
+    try:
+        registry.register(appliance)
+    except BuiltinApplianceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return _to_appliance_response(appliance)
+
+
+@router.delete("/appliances/{appliance_id}", response_model=OkResponse)
+async def delete_appliance(
+    appliance_id: str,
+    registry=Depends(get_appliance_registry),
+) -> OkResponse:
+    try:
+        found = registry.delete(appliance_id)
+    except BuiltinApplianceError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if not found:
+        raise HTTPException(status_code=404, detail="appliance not found")
+    return OkResponse()
 
 
 @router.get("/status", response_model=StatusResponse)

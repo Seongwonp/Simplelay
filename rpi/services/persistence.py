@@ -49,6 +49,10 @@ class SimpleLayDb:
                 CREATE TABLE IF NOT EXISTS suppressions (
                     purpose TEXT PRIMARY KEY  -- '다시 추천 안 함'한 루틴
                 );
+                CREATE TABLE IF NOT EXISTS appliances (
+                    appliance_id TEXT PRIMARY KEY,  -- 폰에서 등록한 커스텀 가전
+                    payload_json TEXT NOT NULL      -- {name, icon, rows, cols, buttons}
+                );
                 CREATE TABLE IF NOT EXISTS job_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     job_id TEXT NOT NULL,
@@ -112,6 +116,69 @@ class SimpleLayDb:
                 "SELECT appliance_id, base_url FROM nodes"
             ).fetchall()
         return dict(rows)
+
+    # ── 커스텀 가전 (appliance_id → 정의 JSON) ──────────────────────────────
+
+    def save_appliance(self, appliance) -> None:
+        from .appliance_registry import ApplianceDef  # noqa: PLC0415 — 순환 회피
+
+        assert isinstance(appliance, ApplianceDef)
+        payload = json.dumps(
+            {
+                "name": appliance.name,
+                "icon": appliance.icon,
+                "rows": appliance.rows,
+                "cols": appliance.cols,
+                "buttons": [
+                    {"id": b.id, "label": b.label, "x": b.x, "y": b.y}
+                    for b in appliance.buttons
+                ],
+            },
+            ensure_ascii=False,
+        )
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO appliances (appliance_id, payload_json) VALUES (?, ?)"
+                " ON CONFLICT(appliance_id) DO UPDATE"
+                " SET payload_json = excluded.payload_json",
+                (appliance.appliance_id, payload),
+            )
+            self._conn.commit()
+
+    def delete_appliance(self, appliance_id: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "DELETE FROM appliances WHERE appliance_id = ?", (appliance_id,)
+            )
+            self._conn.commit()
+
+    def appliances(self) -> tuple:
+        from .appliance_registry import ApplianceButtonDef, ApplianceDef  # noqa: PLC0415
+
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT appliance_id, payload_json FROM appliances"
+            ).fetchall()
+        result = []
+        for appliance_id, payload_json in rows:
+            data = json.loads(payload_json)
+            result.append(
+                ApplianceDef(
+                    appliance_id=appliance_id,
+                    name=data["name"],
+                    icon=data.get("icon", "custom"),
+                    rows=int(data["rows"]),
+                    cols=int(data["cols"]),
+                    buttons=tuple(
+                        ApplianceButtonDef(
+                            id=b["id"], label=b["label"], x=int(b["x"]), y=int(b["y"])
+                        )
+                        for b in data["buttons"]
+                    ),
+                    is_custom=True,
+                )
+            )
+        return tuple(result)
 
     # ── 실행(job) 이력 ──────────────────────────────────────────────────────
 

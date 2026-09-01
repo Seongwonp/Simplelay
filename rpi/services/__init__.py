@@ -22,6 +22,12 @@ from .espnow_node_controller import (
     EspNowGatewayLink,
     EspNowNodeController,
 )
+from .appliance_registry import (
+    ApplianceButtonDef,
+    ApplianceDef,
+    ApplianceRegistry,
+    BuiltinApplianceError,
+)
 from .node_registry import NodeRegistry
 
 __all__ = [
@@ -40,6 +46,10 @@ __all__ = [
     "EspNowGatewayError",
     "EspNowGatewayLink",
     "EspNowNodeController",
+    "ApplianceButtonDef",
+    "ApplianceDef",
+    "ApplianceRegistry",
+    "BuiltinApplianceError",
     "NodeRegistry",
     "build_controller",
     "open_uart_act_controller",

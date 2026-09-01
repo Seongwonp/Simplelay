@@ -150,6 +150,93 @@ class ExecuteForApplianceRequest(BaseModel):
         return _normalize_appliance_id(v)
 
 
+class ApplianceButtonModel(BaseModel):
+    id: str
+    label: str
+    x: int
+    y: int
+
+    @field_validator("id", "label")
+    @classmethod
+    def not_blank(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("must not be blank")
+        if len(stripped) > MAX_BUTTON_LABEL_LEN:
+            raise ValueError(f"must be at most {MAX_BUTTON_LABEL_LEN} characters")
+        return stripped
+
+
+class ApplianceResponse(BaseModel):
+    """GET /appliances 한 항목 — 폰·키오스크가 같은 정의를 받는 지점.
+    icon은 클라이언트용 힌트 문자열(모르면 기본 아이콘을 쓴다)."""
+
+    id: str
+    name: str
+    icon: str
+    rows: int
+    cols: int
+    is_custom: bool
+    buttons: list[ApplianceButtonModel]
+
+
+class ApplianceRegisterRequest(BaseModel):
+    """PUT /appliances/{id} — 폰 가전 편집기가 저장할 때 서버에도 등록한다.
+    이 정의는 그대로 키오스크 조작판이 되고 액추에이터가 누를 물리 버튼의
+    거울이므로, 그리드 밖 좌표·중복 위치처럼 물리적으로 성립 안 하는 값은
+    등록 시점에 거른다."""
+
+    name: str
+    icon: str = "custom"
+    rows: int
+    cols: int
+    buttons: list[ApplianceButtonModel]
+
+    @field_validator("name")
+    @classmethod
+    def name_not_blank(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("name must not be blank")
+        if len(stripped) > MAX_BUTTON_LABEL_LEN:
+            raise ValueError(
+                f"name must be at most {MAX_BUTTON_LABEL_LEN} characters"
+            )
+        return stripped
+
+    @field_validator("rows", "cols")
+    @classmethod
+    def grid_in_range(cls, v: int) -> int:
+        if not 1 <= v <= 8:
+            raise ValueError("grid must be between 1x1 and 8x8")
+        return v
+
+    @field_validator("buttons")
+    @classmethod
+    def buttons_valid(
+        cls, v: list[ApplianceButtonModel]
+    ) -> list[ApplianceButtonModel]:
+        if not v:
+            raise ValueError("buttons must not be empty")
+        if len(v) > MAX_KNOWN_BUTTONS:
+            raise ValueError(f"at most {MAX_KNOWN_BUTTONS} buttons")
+        return v
+
+    def validate_layout(self) -> None:
+        """그리드 좌표 검증 — rows/cols가 파싱된 뒤에만 가능해서 별도 메서드
+        (라우터가 호출한다)."""
+        seen: set[tuple[int, int]] = set()
+        for b in self.buttons:
+            if not (0 <= b.x < self.cols and 0 <= b.y < self.rows):
+                raise ValueError(
+                    f"button '{b.label}' at ({b.x},{b.y}) is outside the "
+                    f"{self.rows}x{self.cols} grid"
+                )
+            if (b.x, b.y) in seen:
+                raise ValueError(f"duplicate button position ({b.x},{b.y})")
+            seen.add((b.x, b.y))
+
+
 class NodeRegisterRequest(BaseModel):
     """가전 하나를 담당하는 원격 노드(현재: ESP32 dev-mode HTTP 서버)의 주소를
     등록한다. 같은 appliance_id로 다시 등록하면 주소가 교체된다."""
