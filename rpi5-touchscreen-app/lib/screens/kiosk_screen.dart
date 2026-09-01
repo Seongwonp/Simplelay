@@ -81,6 +81,10 @@ class _KioskScreenState extends State<KioskScreen> {
   List<ApplianceMap> _appliances = kAppliances;
   // 수동 조작에서 지금 다루는 가전. null이면 선택 화면을 보여준다.
   ApplianceMap? _manualAppliance;
+  // 저장된 가전 id가 내장 목록에 없으면(커스텀) 서버 목록 도착까지 보류 —
+  // 재부팅 직후 kAppliances에서만 찾으면 커스텀 선택이 기본값으로
+  // 되돌아갔다 (교차 리뷰 #6).
+  String? _pendingRestoreApplianceId;
   bool _showSettings = false;
 
   KioskPhase _phase = KioskPhase.idle;
@@ -150,11 +154,17 @@ class _KioskScreenState extends State<KioskScreen> {
       _tts.enabled = saved.ttsEnabled;
       _largeText = saved.largeText;
       _countdownSeconds = saved.countdownSeconds;
+      var restored = false;
       for (final a in kAppliances) {
         if (a.id == saved.applianceId) {
           _currentAppliance = a;
+          restored = true;
           break;
         }
+      }
+      if (!restored && saved.applianceId != null) {
+        // 커스텀 가전 — 서버 목록이 오면 _fetchAppliances가 마저 복원한다
+        _pendingRestoreApplianceId = saved.applianceId;
       }
     }
     _checkHealth();
@@ -338,16 +348,38 @@ class _KioskScreenState extends State<KioskScreen> {
     _checkHealth();
   }
 
+  ApplianceMap? _findIn(List<ApplianceMap> list, String id) {
+    for (final a in list) {
+      if (a.id == id) return a;
+    }
+    return null;
+  }
+
   Future<void> _fetchAppliances() async {
     final list = await _api.listAppliances();
     if (!mounted || list.isEmpty) return;
     setState(() {
       _appliances = list;
+      // 재부팅 복원 보류분(커스텀 가전) — 서버 목록이 왔으니 마저 복원
+      final pendingId = _pendingRestoreApplianceId;
+      if (pendingId != null) {
+        _pendingRestoreApplianceId = null;
+        final pending = _findIn(list, pendingId);
+        if (pending != null) _currentAppliance = pending;
+      }
       // 정의가 갱신됐으면(버튼 교체 등) 현재 가전도 새 정의로 바꿔 끼운다
-      for (final a in list) {
-        if (a.id == _currentAppliance.id) {
-          _currentAppliance = a;
-          break;
+      final updated = _findIn(list, _currentAppliance.id);
+      if (updated != null) _currentAppliance = updated;
+      // 조작 중인 가전도 최신 정의로. 폰에서 삭제됐다면 조작판을 닫는다 —
+      // 삭제된 가전의 버튼을 계속 누르게 두면 서버 게이트(404)에 걸리기
+      // 전까지 화면과 실물이 어긋난다 (교차 리뷰 치명 #1).
+      final manual = _manualAppliance;
+      if (manual != null) {
+        final refreshed = _findIn(list, manual.id);
+        if (refreshed != null) {
+          _manualAppliance = refreshed;
+        } else if (_phase == KioskPhase.manual) {
+          _manualAppliance = null; // 선택 화면으로 — 삭제 안내는 목록 부재로 자명
         }
       }
     });

@@ -702,6 +702,62 @@ void main() {
     expect(find.text('즉석밥'), findsOneWidget); // 전자레인지 조작판
   });
 
+  testWidgets('조작 중 가전이 폰에서 삭제되면 선택 화면으로 돌아간다', (tester) async {
+    // 삭제된 가전의 버튼판을 계속 두면 서버 게이트(404)에 걸리기 전까지
+    // 화면과 실물이 어긋난다 (교차 리뷰 치명 #1 클라이언트측)
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..applianceList = [kMicrowaveAppliance, kInductionAppliance, customAppliance];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+    await tester.tap(find.text('거실 선풍기'));
+    await tester.pump();
+    expect(find.text('약풍'), findsOneWidget); // 조작판 진입
+
+    // 폰에서 삭제됨 — 다음 목록 폴링(60초)에 반영
+    api.applianceList = [kMicrowaveAppliance, kInductionAppliance];
+    await tester.pump(const Duration(seconds: 61)); // 목록 폴링 타이머 발화
+    await tester.pump(); // listAppliances future 완료
+    await tester.pump(const Duration(milliseconds: 300)); // AnimatedSwitcher 소진
+
+    expect(find.text('약풍'), findsNothing);
+    expect(find.text('어느 가전을 조작할까요?'), findsOneWidget);
+    expect(find.text('거실 선풍기'), findsNothing);
+  });
+
+  testWidgets('재부팅 후 저장된 커스텀 가전 선택이 서버 목록 도착 시 복원된다', (tester) async {
+    // kAppliances에서만 찾으면 커스텀 선택이 기본값으로 되돌아갔다 (교차 리뷰 #6)
+    useKioskViewport(tester);
+    final tempDir = Directory.systemTemp.createTempSync('kiosk-custom-restore');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final path = '${tempDir.path}${Platform.pathSeparator}settings.json';
+    KioskSettingsStore(path: path)
+        .save(const KioskSettings(applianceId: 'custom_fan'));
+
+    final api = FakeKioskApi()
+      ..applianceList = [kMicrowaveAppliance, kInductionAppliance, customAppliance];
+    await _pumpKiosk(
+      tester,
+      api,
+      settings: KioskSettingsStore(path: path),
+    );
+    await tester.pump(); // 서버 목록 반영
+
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+
+    // '지난번' 배지가 저장된 커스텀 가전에 붙는다
+    final badge = find.text('지난번');
+    expect(badge, findsOneWidget);
+    final badgeY = tester.getCenter(badge);
+    final fanY = tester.getCenter(find.text('거실 선풍기'));
+    expect((badgeY.dx - fanY.dx).abs() < 120, isTrue,
+        reason: '배지가 거실 선풍기 카드에 있어야 한다');
+  });
+
   // ── 설정 영속화 (재부팅 복원) ────────────────────────────────────────────
 
   testWidgets('저장된 설정(음성 꺼짐·큰 글씨·가전)이 시작 시 복원된다', (tester) async {
