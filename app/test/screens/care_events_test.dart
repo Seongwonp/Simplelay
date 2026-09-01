@@ -135,14 +135,56 @@ void main() {
     );
   });
 
-  test('careEvents API가 목록을 파싱한다 (실패 시 빈 목록)', () async {
+  test('careEvents API가 목록을 파싱한다 (실패는 null — 0건과 구분)', () async {
     final events = await _apiWith(_sampleEvents).careEvents();
-    expect(events.length, 3);
+    expect(events, isNotNull);
+    expect(events!.length, 3);
     expect(events.first.kind, 'quiet_routine');
     expect(events.first.purpose, '우유 데워줘');
 
+    // 실패를 빈 목록으로 표현하면 일시적 통신 실패가 "알림이 다 사라짐"
+    // 으로 보인다 (교차 리뷰 #13)
     final broken = RpiApiService('http://rpi5.local:8000',
         client: MockClient((_) async => http.Response('down', 500)));
-    expect(await broken.careEvents(), isEmpty);
+    expect(await broken.careEvents(), isNull);
+  });
+
+  testWidgets('통신 실패 폴링은 보고 있던 알림을 지우지 않는다', (tester) async {
+    // 목록 3건을 보여준 뒤 서버가 죽는다 — 다음 새로고침이 실패해도
+    // 알림과 배지는 유지되어야 한다 (교차 리뷰 #13)
+    var failNow = false;
+    final api = RpiApiService('http://rpi5.local:8000',
+        client: MockClient((request) async {
+      if (failNow) return http.Response('down', 500);
+      if (request.url.path == '/care-events') return _json(_sampleEvents);
+      return _json([]);
+    }));
+    final container = ProviderContainer(overrides: [
+      rpiApiServiceProvider.overrideWithValue(api),
+    ]);
+    var disposed = false;
+    void disposeOnce() {
+      if (disposed) return;
+      disposed = true;
+      container.dispose();
+    }
+
+    addTearDown(disposeOnce);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: CareEventsScreen()),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(container.read(careEventsProvider).events.length, 3);
+
+    failNow = true;
+    await container.read(careEventsProvider.notifier).refresh();
+    await tester.pump();
+
+    expect(container.read(careEventsProvider).events.length, 3); // 유지
+    disposeOnce();
   });
 }

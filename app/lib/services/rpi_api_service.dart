@@ -469,8 +469,12 @@ class RpiApiService {
   }
 
   // GET /nodes — 등록된 ESP32 노드 목록
-  /// GET /care-events — 보호자 알림함(최신순). 실패는 빈 목록.
-  Future<List<RpiCareEvent>> careEvents({int limit = 50}) async {
+  /// GET /care-events — 보호자 알림함(최신순).
+  ///
+  /// 실패는 null — 빈 목록과 구분해야 한다: 일시적 통신 실패를 "알림 0건"
+  /// 으로 표현하면 보고 있던 알림이 사라지고 배지도 꺼져, 보호자가
+  /// "해결됐나 보다"라고 오해한다 (교차 리뷰 #13).
+  Future<List<RpiCareEvent>?> careEvents({int limit = 50}) async {
     try {
       final res = await _client
           .get(
@@ -481,7 +485,7 @@ class RpiApiService {
             headers: _headers,
           )
           .timeout(_timeout);
-      if (res.statusCode != 200) return const [];
+      if (res.statusCode != 200) return null;
       final body =
           jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
       return body
@@ -489,7 +493,7 @@ class RpiApiService {
           .map(RpiCareEvent.fromJson)
           .toList();
     } catch (_) {
-      return const [];
+      return null;
     }
   }
 
@@ -506,6 +510,24 @@ class RpiApiService {
           .toList();
     } catch (_) {
       return const [];
+    }
+  }
+
+  /// GET /appliances에서 커스텀 가전 id만 — 재동기화가 "폰에 없는 서버
+  /// 가전(유령)"을 지울 때 쓴다. 실패는 null(목록 없음과 구분).
+  Future<List<String>?> customApplianceIdsOnServer() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/appliances'), headers: _headers)
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+      return [
+        for (final item in body.cast<Map<String, dynamic>>())
+          if (item['is_custom'] == true) item['id'] as String,
+      ];
+    } catch (_) {
+      return null;
     }
   }
 

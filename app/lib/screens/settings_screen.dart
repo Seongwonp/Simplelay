@@ -355,7 +355,69 @@ class _ApplianceSection extends ConsumerWidget {
             ),
           ],
         ),
+        // 서버 동기화가 best-effort라 "폰에는 있는데 키오스크에는 없는"
+        // 가전이 생길 수 있다(저장 시 서버가 꺼져 있던 경우). 그때의 복구
+        // 수단 — 로컬 커스텀 가전 전부를 서버에 다시 등록한다 (교차 리뷰 #3).
+        if (appliances.any((a) => a.isCustom)) ...[
+          const SizedBox(height: 10),
+          TextButton.icon(
+            onPressed: () => _resyncCustomAppliances(context, ref),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+            ),
+            icon: Icon(Icons.sync, size: 18, color: context.appMuted),
+            label: Text(
+              '키오스크와 다시 동기화',
+              style: TextStyle(fontSize: 13, color: context.appMuted),
+            ),
+          ),
+        ],
       ],
+    );
+  }
+
+  Future<void> _resyncCustomAppliances(
+    BuildContext context,
+    WidgetRef ref,
+  ) async {
+    final api = ref.read(rpiApiServiceProvider);
+    final customs = ref
+        .read(allAppliancesProvider)
+        .where((a) => a.isCustom)
+        .toList(growable: false);
+    final messenger = ScaffoldMessenger.of(context);
+    if (api == null) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('서버 주소를 먼저 설정해 주세요.')),
+      );
+      return;
+    }
+    // 폰이 원본이다: 서버의 커스텀 목록을 폰과 일치시킨다 — 업서트만 하면
+    // 삭제 실패로 남은 유령 가전은 영영 못 지운다.
+    var ok = 0;
+    for (final appliance in customs) {
+      if (await api.registerAppliance(appliance)) ok++;
+    }
+    var ghosts = 0;
+    final serverIds = await api.customApplianceIdsOnServer();
+    if (serverIds != null) {
+      final localIds = customs.map((a) => a.id).toSet();
+      for (final id in serverIds) {
+        if (!localIds.contains(id) && await api.deleteAppliance(id)) {
+          ghosts++;
+        }
+      }
+    }
+    messenger.showSnackBar(
+      SnackBar(
+        content: Text(
+          ok == customs.length
+              ? '가전 ${customs.length}개를 키오스크와 동기화했어요.'
+                  '${ghosts > 0 ? ' (삭제 반영 $ghosts개)' : ''}'
+              : '$ok/${customs.length}개 동기화 — 서버 연결을 확인해 주세요.',
+        ),
+      ),
     );
   }
 
@@ -364,6 +426,8 @@ class _ApplianceSection extends ConsumerWidget {
     WidgetRef ref,
     ApplianceMap appliance,
   ) async {
+    // async gap 전에 캡처 — 다이얼로그가 닫힌 뒤의 context 사용을 피한다
+    final messenger = ScaffoldMessenger.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -388,8 +452,21 @@ class _ApplianceSection extends ConsumerWidget {
     );
     if (confirmed == true) {
       await ref.read(customAppliancesProvider.notifier).remove(appliance.id);
-      // 서버(키오스크 목록)에서도 제거 — 실패해도 폰 삭제는 유지(best-effort)
-      await ref.read(rpiApiServiceProvider)?.deleteAppliance(appliance.id);
+      // 서버(키오스크 목록)에서도 제거 — 실패해도 폰 삭제는 유지하되,
+      // 키오스크에 유령 가전이 남는다는 사실은 알려준다 (교차 리뷰 #3)
+      final api = ref.read(rpiApiServiceProvider);
+      final removed = api == null
+          ? false
+          : await api.deleteAppliance(appliance.id);
+      if (!removed) {
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+                '폰에서는 삭제했지만 키오스크 반영에 실패했어요. 서버 연결 후 '
+                '"키오스크와 다시 동기화"를 눌러 주세요.'),
+          ),
+        );
+      }
     }
   }
 }

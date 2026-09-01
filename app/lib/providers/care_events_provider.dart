@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -31,7 +32,8 @@ class CareEventsState {
       );
 }
 
-class CareEventsNotifier extends StateNotifier<CareEventsState> {
+class CareEventsNotifier extends StateNotifier<CareEventsState>
+    with WidgetsBindingObserver {
   CareEventsNotifier(this._ref) : super(const CareEventsState()) {
     _init();
   }
@@ -41,20 +43,51 @@ class CareEventsNotifier extends StateNotifier<CareEventsState> {
 
   final Ref _ref;
   Timer? _timer;
+  bool _refreshing = false;
 
   Future<void> _init() async {
+    // 백그라운드에서는 폴링을 멈춘다 — OS가 어차피 타이머를 지연시키고,
+    // 불필요한 network wake-up만 만든다. 복귀 시 즉시 새로고침 (교차 리뷰
+    // #14). 이 폴링은 "앱을 열면 확인"하는 알림함이지 실시간 푸시가
+    // 아니다 — 원격 실시간 알림은 FCM 등 별도 인프라가 필요해 범위 밖.
+    WidgetsBinding.instance.addObserver(this);
     final prefs = await SharedPreferences.getInstance();
     state = state.copyWith(lastSeenId: prefs.getInt(_prefsKey) ?? 0);
     await refresh();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _timer?.cancel();
     _timer = Timer.periodic(_pollInterval, (_) => refresh());
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      refresh();
+      _startPolling();
+    } else if (state == AppLifecycleState.paused) {
+      _timer?.cancel();
+      _timer = null;
+    }
+  }
+
   Future<void> refresh() async {
+    if (_refreshing) return; // 화면 진입 refresh와 타이머 refresh의 역전 방지
     final api = _ref.read(rpiApiServiceProvider);
     if (api == null) return; // 서버 미설정 — 알림함은 비어 있는 채로
-    final events = await api.careEvents();
-    if (!mounted) return;
-    state = state.copyWith(events: events);
+    _refreshing = true;
+    try {
+      final events = await api.careEvents();
+      if (!mounted) return;
+      // null = 통신 실패 — 보고 있던 알림·배지를 지우지 않는다 (교차 리뷰 #13)
+      if (events != null) {
+        state = state.copyWith(events: events);
+      }
+    } finally {
+      _refreshing = false;
+    }
   }
 
   /// 알림함 화면을 연 순간 호출 — 지금 보이는 것까지를 읽음 처리.
@@ -73,6 +106,7 @@ class CareEventsNotifier extends StateNotifier<CareEventsState> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     super.dispose();
   }
