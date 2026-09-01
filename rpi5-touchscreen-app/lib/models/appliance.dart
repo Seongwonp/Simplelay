@@ -84,3 +84,31 @@ const kInductionAppliance = ApplianceMap(
 );
 
 const kAppliances = <ApplianceMap>[kMicrowaveAppliance, kInductionAppliance];
+
+/// 서버의 icon 힌트 문자열 → 아이콘. 모르는 값(커스텀 등)은 기본 아이콘 —
+/// 서버는 그림을 모르고 힌트만 준다.
+IconData applianceIconFor(String hint) => switch (hint) {
+      'microwave' => Icons.microwave,
+      'induction' => Icons.soup_kitchen,
+      _ => Icons.widgets_outlined,
+    };
+
+/// GET /appliances 한 항목 → ApplianceMap. 폰에서 등록한 커스텀 가전이
+/// 키오스크 조작판이 되는 지점이라, 필드가 이상하면 그 항목만 버린다
+/// (호출부에서 try/catch).
+ApplianceMap applianceFromServerJson(Map<String, dynamic> json) => ApplianceMap(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      icon: applianceIconFor(json['icon'] as String? ?? ''),
+      rows: json['rows'] as int,
+      cols: json['cols'] as int,
+      buttons: [
+        for (final b in json['buttons'] as List<dynamic>)
+          ApplianceButton(
+            id: (b as Map<String, dynamic>)['id'] as String,
+            label: b['label'] as String,
+            x: b['x'] as int,
+            y: b['y'] as int,
+          ),
+      ],
+    );

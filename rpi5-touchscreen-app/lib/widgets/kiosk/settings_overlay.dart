@@ -10,8 +10,8 @@ class KioskSettingsOverlay extends StatefulWidget {
   const KioskSettingsOverlay({
     super.key,
     required this.currentAppliance,
+    this.appliances = kAppliances,
     required this.api,
-    required this.onApplianceChanged,
     required this.onDismiss,
     this.ttsEnabled = true,
     this.onTtsChanged,
@@ -22,8 +22,11 @@ class KioskSettingsOverlay extends StatefulWidget {
   });
 
   final ApplianceMap currentAppliance;
+
+  /// 서버 가전 목록(내장+커스텀) — 노드 등록 대상 선택에 쓴다.
+  /// "어느 가전을 조작할까"는 이제 설정이 아니라 수동 조작 진입 화면의 몫이다.
+  final List<ApplianceMap> appliances;
   final KioskApiService api;
-  final ValueChanged<ApplianceMap> onApplianceChanged;
   final VoidCallback onDismiss;
 
   /// 음성 안내(espeak-ng) 켜짐 여부 + 토글 콜백
@@ -318,106 +321,67 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
         ],
       );
 
+  /// 노드(ESP32 연결 장치)를 등록할 가전 고르기 — 조작할 가전을 바꾸는
+  /// 자리가 아니다. 그 역할은 수동 조작 진입 화면으로 옮겼다: 설정 속 칩은
+  /// "왜 여기 전자레인지가 떠 있지?"라는 맥락 없는 UI였고, 고령 사용자가
+  /// 가전을 바꾸려면 숨은 설정(점 3연타 시절)을 찾아야 했다.
   Widget _buildApplianceSection() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionLabel('제어 가전'),
+          const _SectionLabel('노드를 등록할 가전'),
           const SizedBox(height: 10),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              ...kAppliances.map((a) {
-                final isActive = a.id == widget.currentAppliance.id;
-                final isSelected = a.id == _selected.id;
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: GestureDetector(
-                    onTap: () => _selectAppliance(a),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? KioskColors.primary.withValues(alpha: 0.15)
-                            : KioskColors.surface2,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isSelected
-                              ? KioskColors.primary.withValues(alpha: 0.6)
-                              : KioskColors.border,
-                          width: isSelected ? 1.5 : 1,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            a.icon,
-                            size: 15,
-                            color: isSelected
-                                ? KioskColors.primary
-                                : KioskColors.muted,
-                          ),
-                          const SizedBox(width: 7),
-                          Text(
-                            a.name,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isSelected
-                                  ? KioskColors.primary
-                                  : const Color(0xFFFAF7F2),
-                              fontWeight: isSelected
-                                  ? FontWeight.w500
-                                  : FontWeight.w400,
-                            ),
-                          ),
-                          if (isActive) ...[
-                            const SizedBox(width: 7),
-                            Container(
-                              width: 5,
-                              height: 5,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: KioskColors.success,
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-              const Spacer(),
-              if (_selected.id != widget.currentAppliance.id)
-                GestureDetector(
-                  onTap: () {
-                    widget.onApplianceChanged(_selected);
-                    widget.onDismiss();
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 18, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: KioskColors.primary.withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: KioskColors.primary.withValues(alpha: 0.5),
-                      ),
-                    ),
-                    child: const Text(
-                      '적용',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: KioskColors.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
+              for (final a in widget.appliances)
+                _applianceChip(a, isSelected: a.id == _selected.id),
             ],
           ),
         ],
+      );
+
+  Widget _applianceChip(ApplianceMap a, {required bool isSelected}) =>
+      GestureDetector(
+        onTap: () => _selectAppliance(a),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? KioskColors.primary.withValues(alpha: 0.15)
+                : KioskColors.surface2,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected
+                  ? KioskColors.primary.withValues(alpha: 0.6)
+                  : KioskColors.border,
+              width: isSelected ? 1.5 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                a.icon,
+                size: 15,
+                color: isSelected ? KioskColors.primary : KioskColors.muted,
+              ),
+              const SizedBox(width: 7),
+              Text(
+                a.name,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: isSelected
+                      ? KioskColors.primary
+                      : const Color(0xFFFAF7F2),
+                  fontWeight:
+                      isSelected ? FontWeight.w500 : FontWeight.w400,
+                ),
+              ),
+            ],
+          ),
+        ),
       );
 
   Widget _buildNodeSection() {

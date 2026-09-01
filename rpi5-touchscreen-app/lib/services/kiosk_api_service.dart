@@ -3,6 +3,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../models/appliance.dart';
+
 class HealthStatus {
   const HealthStatus({
     required this.ok,
@@ -296,6 +298,29 @@ class KioskApiService {
 
   Future<void> stop() async {
     await _client.post(_base.replace(path: '/stop')).timeout(_timeout);
+  }
+
+  /// GET /appliances — 서버가 가진 가전 목록(내장 + 폰에서 등록한 커스텀).
+  /// 실패하면 빈 목록 — 호출부가 하드코딩 내장 가전으로 폴백한다(오프라인 우선).
+  Future<List<ApplianceMap>> listAppliances() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/appliances'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return const [];
+      final body = jsonDecode(res.body) as List<dynamic>;
+      final result = <ApplianceMap>[];
+      for (final item in body) {
+        try {
+          result.add(applianceFromServerJson(item as Map<String, dynamic>));
+        } catch (_) {
+          // 항목 하나가 이상해도 나머지 가전은 계속 쓸 수 있어야 한다
+        }
+      }
+      return result;
+    } catch (_) {
+      return const [];
+    }
   }
 
   Future<List<NodeInfo>> listNodes() async {

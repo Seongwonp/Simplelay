@@ -22,6 +22,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
+import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
@@ -101,6 +103,34 @@ void main() {
         actuatorReady: false,
         onTap: () {},
         onLongPress: () {},
+      ),
+    );
+  });
+
+  testWidgets('가전 선택', (t) async {
+    // 수동 조작 진입 첫 화면 — 폰에서 등록한 커스텀 가전까지 카드로 나온다
+    await _shoot(
+      t,
+      'appliance_select',
+      KioskApplianceSelectView(
+        appliances: const [
+          kMicrowaveAppliance,
+          kInductionAppliance,
+          ApplianceMap(
+            id: 'custom_fan',
+            name: '거실 선풍기',
+            icon: Icons.widgets_outlined,
+            rows: 1,
+            cols: 2,
+            buttons: [
+              ApplianceButton(id: 'F-01', label: '전원', x: 0, y: 0),
+              ApplianceButton(id: 'F-02', label: '약풍', x: 1, y: 0),
+            ],
+          ),
+        ],
+        lastUsedId: 'microwave',
+        onSelect: (_) {},
+        onCancel: () {},
       ),
     );
   });

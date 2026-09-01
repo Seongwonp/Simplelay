@@ -8,6 +8,7 @@ import '../services/kiosk_event_stream.dart';
 import '../services/kiosk_settings_store.dart';
 import '../services/kiosk_tts_service.dart';
 import '../theme/kiosk_colors.dart';
+import '../widgets/kiosk/appliance_select_view.dart';
 import '../widgets/kiosk/danger_alert_overlay.dart';
 import '../widgets/kiosk/dnd_overlay.dart';
 import '../widgets/kiosk/done_view.dart';
@@ -75,6 +76,11 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _largeText = false;
 
   late ApplianceMap _currentAppliance;
+  // 서버 가전 목록 — 폰에서 등록한 커스텀 가전이 여기로 들어온다.
+  // 서버가 죽어 있으면 하드코딩 내장 목록으로 폴백(오프라인 우선).
+  List<ApplianceMap> _appliances = kAppliances;
+  // 수동 조작에서 지금 다루는 가전. null이면 선택 화면을 보여준다.
+  ApplianceMap? _manualAppliance;
   bool _showSettings = false;
 
   KioskPhase _phase = KioskPhase.idle;
@@ -153,11 +159,15 @@ class _KioskScreenState extends State<KioskScreen> {
     }
     _checkHealth();
     _fetchSensors();
+    _fetchAppliances();
     _fetchAlert();
     _poll();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
     _healthTimer = Timer.periodic(_healthInterval, (_) => _checkHealth());
-    _sensorTimer = Timer.periodic(_sensorInterval, (_) => _fetchSensors());
+    _sensorTimer = Timer.periodic(_sensorInterval, (_) {
+      _fetchSensors();
+      _fetchAppliances(); // 가전 목록도 같은 주기로 — 폰 등록이 1분 안에 반영
+    });
     _alertTimer = Timer.periodic(_alertInterval, (_) => _fetchAlert());
     _clockTimer = Timer.periodic(
       const Duration(seconds: 1),
@@ -328,6 +338,21 @@ class _KioskScreenState extends State<KioskScreen> {
     _checkHealth();
   }
 
+  Future<void> _fetchAppliances() async {
+    final list = await _api.listAppliances();
+    if (!mounted || list.isEmpty) return;
+    setState(() {
+      _appliances = list;
+      // 정의가 갱신됐으면(버튼 교체 등) 현재 가전도 새 정의로 바꿔 끼운다
+      for (final a in list) {
+        if (a.id == _currentAppliance.id) {
+          _currentAppliance = a;
+          break;
+        }
+      }
+    });
+  }
+
   void _toManual() {
     if (_phase != KioskPhase.idle) return;
     // 서버에 연결돼 있지 않으면 조작 화면으로 보내지 않는다. 대기 화면이 이미
@@ -335,10 +360,29 @@ class _KioskScreenState extends State<KioskScreen> {
     // "연결도 안 됐는데 왜 조작이 되지?"라는 모순이 된다 -- 실제로 연결 없이는
     // 버튼도 못 누른다. 대기 화면의 안내가 그대로 이유가 된다.
     if (!_health.ok) return;
-    setState(() => _phase = KioskPhase.manual);
+    setState(() {
+      _phase = KioskPhase.manual;
+      // 가전이 하나뿐이면 물을 것 없이 바로 조작판. 여럿이면 선택부터 —
+      // 키오스크는 공간의 가전들을 다루는 허브라 "어느 가전인지"는
+      // 조작하려는 순간에 묻는 것이 자연스럽다(설정 속 칩이던 시절엔
+      // 고령 사용자가 가전을 바꿀 방법을 사실상 찾을 수 없었다).
+      _manualAppliance =
+          _appliances.length == 1 ? _appliances.single : null;
+    });
   }
 
-  void _fromManual() => setState(() => _phase = KioskPhase.idle);
+  void _onManualApplianceSelected(ApplianceMap appliance) {
+    setState(() {
+      _manualAppliance = appliance;
+      _currentAppliance = appliance; // 실행 라우팅·"지난번" 배지의 기준
+    });
+    _persistSettings();
+  }
+
+  void _fromManual() => setState(() {
+        _phase = KioskPhase.idle;
+        _manualAppliance = null; // 다음 진입 때 다시 선택(공간 허브 의미)
+      });
 
   /// 실패 화면의 '다시 시도' — 직전 실행을 그대로 한 번 더 시도한다.
   void _onRetryFailed() {
@@ -357,6 +401,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _execFillTimer?.cancel();
     setState(() {
       _phase = KioskPhase.manual;
+      _manualAppliance =
+          _appliances.length == 1 ? _appliances.single : null;
       _currentSuggestion = null;
       _showDnd = false;
     });
@@ -603,6 +649,7 @@ class _KioskScreenState extends State<KioskScreen> {
             Positioned.fill(
               child: KioskSettingsOverlay(
                 currentAppliance: _currentAppliance,
+                appliances: _appliances,
                 api: _api,
                 ttsEnabled: _tts.enabled,
                 onTtsChanged: (enabled) {
@@ -617,10 +664,6 @@ class _KioskScreenState extends State<KioskScreen> {
                 countdownSeconds: _countdownSeconds,
                 onCountdownChanged: (seconds) {
                   setState(() => _countdownSeconds = seconds);
-                  _persistSettings();
-                },
-                onApplianceChanged: (a) {
-                  setState(() => _currentAppliance = a);
                   _persistSettings();
                 },
                 onDismiss: () => setState(() => _showSettings = false),
@@ -647,9 +690,19 @@ class _KioskScreenState extends State<KioskScreen> {
           onSettingsGesture: () => setState(() => _showSettings = true),
         );
       case KioskPhase.manual:
+        final manualAppliance = _manualAppliance;
+        if (manualAppliance == null) {
+          return KioskApplianceSelectView(
+            key: const ValueKey('appliance-select'),
+            appliances: _appliances,
+            lastUsedId: _currentAppliance.id,
+            onSelect: _onManualApplianceSelected,
+            onCancel: _fromManual,
+          );
+        }
         return KioskManualView(
           key: const ValueKey('manual'),
-          appliance: _currentAppliance,
+          appliance: manualAppliance,
           onExecute: _onManualExecute,
           onCancel: _fromManual,
         );

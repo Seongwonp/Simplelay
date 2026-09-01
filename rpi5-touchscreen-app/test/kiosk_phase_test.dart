@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/services/kiosk_event_stream.dart';
@@ -17,6 +18,8 @@ import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 class FakeKioskApi implements KioskApiService {
   List<KioskSuggestion> suggestionList = [];
+  // 서버 가전 목록 — 비어 있으면 화면이 내장 목록으로 폴백한다
+  List<ApplianceMap> applianceList = const [];
   KioskStatus statusResult = const KioskStatus(running: false);
   AlertState alertState = AlertState.inactive;
   HealthStatus healthResult = const HealthStatus(ok: true);
@@ -74,6 +77,9 @@ class FakeKioskApi implements KioskApiService {
 
   @override
   Future<void> clearDnd() async {}
+
+  @override
+  Future<List<ApplianceMap>> listAppliances() async => applianceList;
 
   @override
   Future<List<NodeInfo>> listNodes() async => const [];
@@ -632,6 +638,68 @@ void main() {
     await gesture.up();
     await tester.pump();
     expect(find.text('키오스크 설정'), findsOneWidget);
+  });
+
+  // ── 가전 선택 화면 (서버 목록 연동 — 디자인 리뷰 후속) ────────────────────
+
+  const customAppliance = ApplianceMap(
+    id: 'custom_fan',
+    name: '거실 선풍기',
+    icon: Icons.widgets_outlined,
+    rows: 1,
+    cols: 2,
+    buttons: [
+      ApplianceButton(id: 'F-01', label: '전원', x: 0, y: 0),
+      ApplianceButton(id: 'F-02', label: '약풍', x: 1, y: 0),
+    ],
+  );
+
+  testWidgets('수동 조작 진입 시 가전이 여럿이면 선택 화면부터 보여준다', (tester) async {
+    useKioskViewport(tester);
+    await _pumpKiosk(tester, FakeKioskApi()); // 서버 실패 → 내장 2종 폴백
+
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+
+    expect(find.text('어느 가전을 조작할까요?'), findsOneWidget);
+    expect(find.text('전자레인지'), findsOneWidget);
+    expect(find.text('인덕션'), findsOneWidget);
+
+    // 카드를 고르면 그 가전의 조작판으로
+    await tester.tap(find.text('인덕션'));
+    await tester.pump();
+    expect(find.text('어느 가전을 조작할까요?'), findsNothing);
+    expect(find.text('화력+'), findsOneWidget); // 인덕션 버튼
+  });
+
+  testWidgets('폰에서 등록한 커스텀 가전이 서버 목록으로 키오스크에 뜬다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..applianceList = [kMicrowaveAppliance, kInductionAppliance, customAppliance];
+    await _pumpKiosk(tester, api);
+    await tester.pump(); // listAppliances 반영
+
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+
+    expect(find.text('거실 선풍기'), findsOneWidget);
+
+    await tester.tap(find.text('거실 선풍기'));
+    await tester.pump();
+    expect(find.text('약풍'), findsOneWidget); // 커스텀 버튼판이 그대로 조작판
+  });
+
+  testWidgets('가전이 하나뿐이면 선택 화면 없이 바로 조작판으로 간다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..applianceList = [kMicrowaveAppliance];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+
+    expect(find.text('어느 가전을 조작할까요?'), findsNothing);
+    expect(find.text('즉석밥'), findsOneWidget); // 전자레인지 조작판
   });
 
   // ── 설정 영속화 (재부팅 복원) ────────────────────────────────────────────
