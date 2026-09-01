@@ -372,6 +372,31 @@ class CareEventResponse(BaseModel):
     occurred_at: datetime
 
 
+class DemoCareEventRequest(BaseModel):
+    """POST /demo/care-event — 보호자 알림을 강제 생성(리허설).
+
+    안부 신호는 '시간대 종료 + 3일 루틴 + 오늘 미사용'이 조건이라 시연장에서
+    자연 발생시키기 어렵다 — 다른 /demo/*와 같은 연출 장치. message를 비우면
+    kind별 기본 문구를 서버가 채운다(클라이언트와 문구 일치 보장)."""
+
+    kind: str = "quiet_routine"
+    message: str = ""
+    purpose: str | None = None
+
+    @field_validator("kind")
+    @classmethod
+    def known_kind(cls, v: str) -> str:
+        allowed = {
+            "execution_failed",
+            "emergency_stop",
+            "danger_sound",
+            "quiet_routine",
+        }
+        if v not in allowed:
+            raise ValueError(f"kind must be one of {sorted(allowed)}")
+        return v
+
+
 class HealthResponse(BaseModel):
     ok: bool
     # coreXY 홈 위치 확인 + SwitchBot 연결 상태 통합 — 실기기 연결 후 교체

@@ -285,3 +285,23 @@ def test_get_care_events_endpoint(monkeypatch):
     assert [e["kind"] for e in body] == ["quiet_routine", "danger_sound"]
     assert body[0]["purpose"] == "우유 데워줘"
     assert {"id", "kind", "message", "occurred_at"} <= set(body[0].keys())
+
+
+def test_demo_care_event_trigger(monkeypatch):
+    # 리허설 장치 — 시연장에서 안부 신호 장면을 원하는 시점에 연출
+    monkeypatch.delenv("SIMPLELAY_API_KEY", raising=False)
+    store = make_store()
+    app.dependency_overrides[deps.get_care_events] = lambda: store
+    try:
+        client = TestClient(app)
+        res = client.post("/demo/care-event", json={"kind": "quiet_routine"})
+        assert res.status_code == 200
+        assert "안부 전화" in res.json()["message"]  # 기본 문구 채움
+
+        assert client.post(
+            "/demo/care-event", json={"kind": "no_such_kind"}
+        ).status_code == 422
+    finally:
+        app.dependency_overrides.pop(deps.get_care_events, None)
+
+    assert store.recent()[0].kind == "quiet_routine"
