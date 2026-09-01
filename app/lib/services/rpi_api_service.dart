@@ -115,6 +115,31 @@ class RpiHistoryButton {
 
 // 실행 이력 1건 — retryCount > 0이면 폐루프가 실제로 재시도로 회복했다는
 // 기록(타임라인에서 배지로 강조하는 핵심 데이터).
+/// 보호자 알림 한 건 — 실패·위험소리·긴급정지·안부 신호.
+/// message는 서버가 사용자 언어로 완성해 보낸다.
+class RpiCareEvent {
+  const RpiCareEvent({
+    required this.id,
+    required this.kind,
+    required this.message,
+    required this.occurredAt,
+    this.purpose,
+  });
+  final int id;
+  final String kind; // execution_failed | emergency_stop | danger_sound | quiet_routine
+  final String message;
+  final String? purpose;
+  final DateTime occurredAt;
+
+  factory RpiCareEvent.fromJson(Map<String, dynamic> json) => RpiCareEvent(
+        id: json['id'] as int,
+        kind: json['kind'] as String,
+        message: json['message'] as String,
+        purpose: json['purpose'] as String?,
+        occurredAt: DateTime.parse(json['occurred_at'] as String).toLocal(),
+      );
+}
+
 class RpiHistoryEntry {
   const RpiHistoryEntry({
     required this.jobId,
@@ -444,6 +469,30 @@ class RpiApiService {
   }
 
   // GET /nodes — 등록된 ESP32 노드 목록
+  /// GET /care-events — 보호자 알림함(최신순). 실패는 빈 목록.
+  Future<List<RpiCareEvent>> careEvents({int limit = 50}) async {
+    try {
+      final res = await _client
+          .get(
+            _base.replace(
+              path: '/care-events',
+              queryParameters: {'limit': '$limit'},
+            ),
+            headers: _headers,
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return const [];
+      final body =
+          jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+      return body
+          .cast<Map<String, dynamic>>()
+          .map(RpiCareEvent.fromJson)
+          .toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
   Future<List<RpiNodeInfo>> listNodes() async {
     try {
       final res = await _client

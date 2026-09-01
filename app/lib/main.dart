@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'screens/appliance_editor_screen.dart';
 import 'screens/app_shell.dart';
+import 'screens/care_events_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/manual_control_screen.dart';
@@ -75,6 +76,10 @@ final _router = GoRouter(
     GoRoute(
       path: '/history',
       builder: (_, __) => const HistoryScreen(),
+    ),
+    GoRoute(
+      path: '/care',
+      builder: (_, __) => const CareEventsScreen(),
     ),
   ],
 );

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/care_events_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/suggestion_provider.dart';
@@ -37,6 +38,8 @@ class HomeScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('SimpleLay'),
         actions: [
+          // 보호자 알림함 — 실패·위험소리·안부 신호. 안 읽은 게 있으면 배지.
+          _CareBell(),
           // 실행 기록 (공감지능 근거 + 폐루프 재시도 기록)
           IconButton(
             onPressed: () => context.push('/history'),
@@ -691,4 +694,51 @@ class _SlidingCardState extends State<_SlidingCard>
         opacity: _fade,
         child: SlideTransition(position: _offset, child: widget.child),
       );
+}
+
+// ── 보호자 알림 종 (안 읽은 개수 배지) ─────────────────────────────────────
+
+class _CareBell extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(careEventsProvider).unreadCount;
+    return Semantics(
+      button: true,
+      label: unread > 0 ? '알림 $unread개 안 읽음' : '알림함',
+      child: IconButton(
+        onPressed: () => context.push('/care'),
+        tooltip: '알림',
+        icon: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            const Icon(Icons.notifications_outlined),
+            if (unread > 0)
+              Positioned(
+                right: -5,
+                top: -5,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: context.appDanger,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  constraints:
+                      const BoxConstraints(minWidth: 17, minHeight: 15),
+                  child: Text(
+                    unread > 9 ? '9+' : '$unread',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
 }
