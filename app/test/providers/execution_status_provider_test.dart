@@ -87,7 +87,7 @@ void main() {
       final status = c.read(executionStatusProvider);
       expect(status.phase, ExecutionPhase.completed);
       expect(status.completedSteps, 3);
-      expect(status.message, '실행이 완료되었습니다.');
+      expect(status.message, '버튼 조작을 마쳤어요.');
     });
 
     test('result failure sets failed phase', () async {

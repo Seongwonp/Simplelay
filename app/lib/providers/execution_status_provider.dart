@@ -83,14 +83,18 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (status.lastJobId == jobId) {
         final success = status.lastStatus == 'succeeded';
         final stopped = status.lastStatus == 'safety_stopped';
+        // "실행 완료"는 조리가 끝난 뜻으로 읽힐 수 있다.
+        // 우리가 보장하는 것은 버튼 조작까지다.
         final message = success
-            ? '실행이 완료되었습니다.'
+            ? '버튼 조작을 마쳤어요.'
             : stopped
                 ? '실행이 중단되었습니다.'
                 : '실행에 실패했습니다.';
         state = state.copyWith(
           phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
-          completedSteps: success ? state.steps.length : state.completedSteps,
+          completedSteps: success
+              ? (state.totalSteps ?? state.steps.length)
+              : state.completedSteps,
           message: message,
         );
         _announce(message);
@@ -104,6 +108,13 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         final retrying = (status.currentAttempt ?? 1) > 1;
         state = state.copyWith(
           completedSteps: status.completedSteps ?? state.completedSteps,
+          // 폐루프 증거를 그대로 흘려보낸다 -- 여기서 버리면 화면은
+          // "빙글빙글 돌다 완료되는 앱"이 된다(차별점이 안 보임).
+          currentButton: status.currentButton,
+          totalSteps: status.totalSteps,
+          currentAttempt: status.currentAttempt,
+          verificationConfidence: status.verificationConfidence,
+          verificationDetail: status.verificationDetail,
           phase: retrying ? ExecutionPhase.retrying : ExecutionPhase.running,
           message: retrying ? '응답이 없어 다시 시도 중입니다.' : '실행 중',
         );
@@ -179,7 +190,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
             message['sequence_id'] == state.sequenceId) {
           final success = message['success'] == true;
           final resultMessage =
-              success ? '실행이 완료되었습니다.' : '실행에 실패했습니다.';
+              success ? '버튼 조작을 마쳤어요.' : '실행에 실패했습니다.';
           state = state.copyWith(
             phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
             completedSteps: success ? state.steps.length : state.completedSteps,

@@ -35,9 +35,12 @@ void main() {
       expect(find.text('긴급 정지'), findsNothing);
     });
 
-    testWidgets('센서값 -- 표시', (tester) async {
+    testWidgets('원시 센서값이 없으면 센서 카드를 숨긴다', (tester) async {
+      // HTTP 경로엔 mA/dB가 없다. 빈 차트에 '--'만 남기면 개발 도구처럼
+      // 보이고, 정작 중요한 '눌림을 확인했는가'가 묻힌다.
       await _pumpStatus(tester, const ExecutionStatus());
-      expect(find.text('--'), findsNWidgets(2));
+      expect(find.text('센서 모니터'), findsNothing);
+      expect(find.text('--'), findsNothing);
     });
   });
 
@@ -55,6 +58,42 @@ void main() {
     testWidgets('라벨 표시', (tester) async {
       await _pumpStatus(tester, runningStatus);
       expect(find.text('우유 데우기'), findsOneWidget);
+    });
+
+    // 폐루프 증거 -- 서버가 주는 현재 버튼·검증 근거가 화면에 도착해야 한다.
+    // 없으면 사용자에겐 "빙글빙글 돌다 완료되는 앱"이고, 제품의 차별점이
+    // 가장 중요한 경로에서 보이지 않는다.
+    testWidgets('현재 누르는 버튼과 검증 근거를 보여준다', (tester) async {
+      await _pumpStatus(
+        tester,
+        const ExecutionStatus(
+          phase: ExecutionPhase.running,
+          label: '즉석밥 데워줘',
+          currentButton: '1분 추가',
+          totalSteps: 3,
+          completedSteps: 1,
+          verificationConfidence: 0.93,
+          verificationDetail: '센서로 눌림 확인',
+        ),
+      );
+
+      expect(find.text("'1분 추가' 버튼을 누르고 있어요."), findsOneWidget);
+      expect(find.textContaining('센서로 눌림 확인'), findsOneWidget);
+      expect(find.textContaining('센서 93%'), findsOneWidget);
+      // steps 미리보기가 없어도 total_steps로 진행이 보인다(음성 실행 경로)
+      expect(find.text('3단계 중 1단계'), findsOneWidget);
+    });
+
+    testWidgets('검증 결과가 아직 없으면 확인 중임을 알린다', (tester) async {
+      await _pumpStatus(
+        tester,
+        const ExecutionStatus(
+          phase: ExecutionPhase.running,
+          currentButton: '시작',
+          totalSteps: 2,
+        ),
+      );
+      expect(find.text('버튼 눌림을 확인하고 있어요.'), findsOneWidget);
     });
 
     testWidgets('센서 mA / dB 값 표시', (tester) async {

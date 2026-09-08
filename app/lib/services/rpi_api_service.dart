@@ -49,6 +49,8 @@ class RpiStatusResult {
     this.currentAttempt,
     this.completedSteps,
     this.totalSteps,
+    this.verificationConfidence,
+    this.verificationDetail,
     this.jobId,
     this.lastJobId,
   });
@@ -60,6 +62,10 @@ class RpiStatusResult {
   final int? currentAttempt;
   final int? completedSteps;
   final int? totalSteps;
+  // 폐루프 검증 근거 -- 버튼이 눌렸는지 센서로 확인한 결과.
+  // 이 제품의 차별점이라 화면까지 도달해야 한다.
+  final double? verificationConfidence;
+  final String? verificationDetail;
   // job 모델: 실행 중이면 jobId, 끝나면 lastJobId에 값이 있다
   final String? jobId;
   final String? lastJobId;
@@ -380,6 +386,9 @@ class RpiApiService {
       currentAttempt: (body['current_attempt'] as num?)?.toInt(),
       completedSteps: (body['completed_steps'] as num?)?.toInt(),
       totalSteps: (body['total_steps'] as num?)?.toInt(),
+      verificationConfidence:
+          (body['verification_confidence'] as num?)?.toDouble(),
+      verificationDetail: body['verification_detail'] as String?,
       jobId: body['job_id'] as String?,
       lastJobId: body['last_job_id'] as String?,
     );
