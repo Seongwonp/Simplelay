@@ -7,8 +7,9 @@ name = "simplelay-rpi"
 version = "0.1.0"
 description = "Hardware-independent SimpleLay Raspberry Pi closed-loop layer"
 requires-python = ">=3.11"
-
-[project.dependencies]
+# 주의: 이 배열은 [project] 안에 있어야 한다. [project.dependencies] 테이블로
+# 감싸면 setuptools가 "must be array"로 거절해 pip install -e . 자체가 실패한다
+# (scripts/setup_rpi.sh가 그 명령으로 기기를 세팅한다).
 dependencies = [
     "fastapi>=0.111,<1",
     "uvicorn[standard]>=0.29,<1",
@@ -19,7 +20,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8,<10"]
+# dbus-fast는 실기기 전용(dbus extra)이지만 테스트에도 넣는다: 온디바이스
+# D-Bus 인코딩 테스트가 실제 Variant 타입으로 검증하기 때문이다. 빼면
+# 개발 PC의 깨끗한 venv에서 그 테스트만 조용히 실패한다.
+test = ["pytest>=8,<10", "dbus-fast>=2,<3"]
 # RPi5 실기기 전용 — 개발 PC에서는 설치 불필요
 # setup_rpi.sh에서 pip install -e ".[gpio]" 로 설치
 gpio = [
@@ -37,8 +41,10 @@ dbus = [
     "dbus-fast>=2,<3",
 ]
 
-[tool.poetry]
-packages = [{include = "rpi"}, {include = "rpi4"}]
+# 빌드 백엔드는 setuptools다(위 [build-system]). 리포 루트에 app/·docs/ 등
+# 파이썬이 아닌 최상위 디렉터리가 많아 자동 탐색이 실패하므로 범위를 못 박는다.
+[tool.setuptools.packages.find]
+include = ["rpi*", "rpi4*"]
 
 [tool.pytest.ini_options]
 testpaths = ["rpi/tests", "rpi4/tests"]
