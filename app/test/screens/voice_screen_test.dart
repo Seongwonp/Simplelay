@@ -127,10 +127,43 @@ void main() {
 
     expect(container.read(voiceListeningProvider), false);
     expect(container.read(voiceTextProvider), isEmpty);
+    // 스낵바와 화면에 남는 실패 안내 두 곳에 같은 문장이 뜬다 -- 스낵바는
+    // 사라지지만 화면 쪽은 다음 시도까지 남는다.
     expect(
       find.text('마이크를 사용할 수 없어요. 다른 앱이 사용 중인지 확인해주세요.'),
-      findsOneWidget,
+      findsNWidgets(2),
     );
+  });
+
+  testWidgets('인식이 실패하면 다시 말하기·버튼으로 조작 두 경로를 남긴다',
+      (tester) async {
+    // 실패를 스낵바로만 알리면 몇 초 뒤 사라지고, 화면에는 "마이크를 눌러
+    // 말해보세요"만 남는다 -- 사용자가 할 수 있는 일이 같은 시도의 반복뿐이다.
+    final voice = _FakeVoiceService();
+    final container = await _makeContainer(
+      extra: [voiceServiceProvider.overrideWithValue(voice)],
+    );
+
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.pump();
+
+    voice.emitError('error_audio_error');
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // 스낵바가 사라져도 화면에 이유가 남는다
+    expect(find.byType(SnackBar), findsOneWidget);
+    expect(find.text('다시 말하기'), findsOneWidget);
+    expect(find.text('버튼으로 조작'), findsOneWidget);
+
+    // 다시 말하기를 누르면 실패 안내가 걷히고 듣기가 다시 시작된다
+    await tester.tap(find.text('다시 말하기'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 200));
+    expect(container.read(voiceListeningProvider), true);
+    expect(find.text('버튼으로 조작'), findsNothing);
   });
 
   testWidgets('침묵으로 듣기가 끝나도 자동 전송하지 않고 확인을 묻는다', (tester) async {

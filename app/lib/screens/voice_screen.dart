@@ -52,6 +52,20 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
 
   /// 음성 세션을 끝내고 확인 대기 문장도 비운다.
   /// 화면을 떠났다가 돌아와 예전 문장을 실행하는 혼선을 막는다.
+  /// 인식이 실패한 이유. 스낵바는 몇 초 뒤 사라지므로, 화면에도 남겨
+  /// **다음에 무엇을 할 수 있는지**를 같이 보여준다. 안내가 사라지고 나면
+  /// 사용자는 같은 시도를 반복하는 것 말고 할 게 없다.
+  String? _recognitionError;
+
+  void _fail(String message) {
+    _notice(message);
+    if (mounted) setState(() => _recognitionError = message);
+  }
+
+  void _clearFailure() {
+    if (_recognitionError != null) setState(() => _recognitionError = null);
+  }
+
   Future<void> _cancelSession() async {
     if (_voiceService.isListening) await _voiceService.stop();
     if (!mounted) return;
@@ -64,10 +78,15 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     await _voiceService.stop();
     if (!mounted) return;
     ref.read(voiceListeningProvider.notifier).state = false;
+    // 듣기는 끝났는데 남은 말이 없다 -- 실패와 다를 바 없는 상태다.
+    if (ref.read(voiceTextProvider).trim().isEmpty) {
+      setState(() => _recognitionError = '말을 알아듣지 못했어요.');
+    }
   }
 
   Future<void> _restartListening() async {
     ref.read(voiceTextProvider.notifier).state = '';
+    _clearFailure();
     await _toggle();
   }
 
@@ -83,9 +102,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     final available = await voice.initialize();
     if (!mounted) return;
     if (!available) {
-      _notice('음성 인식을 사용할 수 없습니다. 권한을 확인하세요.');
+      _fail('음성 인식을 사용할 수 없습니다. 권한을 확인하세요.');
       return;
     }
+    _clearFailure();
     ref.read(voiceTextProvider.notifier).state = '';
     ref.read(voiceListeningProvider.notifier).state = true;
     try {
@@ -109,13 +129,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           // 부분 인식 문자열은 재전송 오해를 막기 위해 비운다.
           ref.read(voiceListeningProvider.notifier).state = false;
           ref.read(voiceTextProvider.notifier).state = '';
-          _notice(voiceErrorGuide(errorId));
+          _fail(voiceErrorGuide(errorId));
         },
       );
     } catch (_) {
       if (!mounted) return;
       ref.read(voiceListeningProvider.notifier).state = false;
-      _notice('음성 인식을 시작하지 못했어요. 다시 시도해주세요.');
+      _fail('음성 인식을 시작하지 못했어요. 다시 시도해주세요.');
     }
   }
 
@@ -277,12 +297,17 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                     AnimatedSwitcher(
                       duration: const Duration(milliseconds: 200),
                       child: text.isEmpty
-                          ? Text(
-                              hintExample,
-                              key: const ValueKey('hint'),
-                              style: TextStyle(color: context.appMuted),
-                              textAlign: TextAlign.center,
-                            )
+                          ? (_recognitionError == null
+                              ? Text(
+                                  hintExample,
+                                  key: const ValueKey('hint'),
+                                  style: TextStyle(color: context.appMuted),
+                                  textAlign: TextAlign.center,
+                                )
+                              : _FailureNote(
+                                  key: const ValueKey('failure'),
+                                  message: _recognitionError!,
+                                ))
                           : Container(
                               key: const ValueKey('live'),
                               width: double.infinity,
@@ -329,7 +354,31 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                   child: const Text('말 끝났어요'),
                 ),
               )
-            else if (text.trim().isNotEmpty) ...[
+            else if (text.trim().isEmpty && _recognitionError != null) ...[
+              // 실패한 자리에 두 경로를 함께 둔다. 안내만 남기면 사용자는
+              // 같은 시도를 되풀이하게 된다 -- 홈에서 이미 같은 규칙을 쓴다.
+              Row(
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: OutlinedButton.icon(
+                      onPressed: _sending ? null : () => context.go('/manual-control'),
+                      icon: const Icon(Icons.grid_view_rounded, size: 20),
+                      label: const Text('버튼으로 조작'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 4,
+                    child: FilledButton.icon(
+                      onPressed: _sending ? null : _restartListening,
+                      icon: const Icon(Icons.mic, size: 20),
+                      label: const Text('다시 말하기'),
+                    ),
+                  ),
+                ],
+              ),
+            ] else if (text.trim().isNotEmpty) ...[
               Row(
                 children: [
                   Expanded(
@@ -359,6 +408,36 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       ),
     );
   }
+}
+
+// ── 인식 실패 안내 ────────────────────────────────────────────────────────
+
+/// 스낵바가 사라진 뒤에도 "무슨 일이 있었는지"가 화면에 남게 한다.
+class _FailureNote extends StatelessWidget {
+  const _FailureNote({required this.message, super.key});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: context.appWarning.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: context.appWarning.withValues(alpha: 0.4)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(Icons.info_outline, color: context.appWarning, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(message, textAlign: TextAlign.start),
+            ),
+          ],
+        ),
+      );
 }
 
 // ── 마이크 버튼 ───────────────────────────────────────────────────────────
