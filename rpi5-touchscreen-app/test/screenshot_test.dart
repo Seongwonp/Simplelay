@@ -27,6 +27,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 const _kioskSize = Size(800, 480);
@@ -51,6 +52,29 @@ Future<void> _shoot(
       // 물려받는다. 없으면 fontFamily를 명시하지 않은 Text가 전부 네모로 나온다.
       home: MediaQuery(
         data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+        child: Scaffold(backgroundColor: KioskColors.bg, body: child),
+      ),
+    ),
+  );
+  await tester.pump(const Duration(milliseconds: 300));
+  await expectLater(
+    find.byType(MaterialApp),
+    matchesGoldenFile('goldens/$name.png'),
+  );
+}
+
+/// 새로 지급받은 15인치 패널(1920x1080) 미리보기. KioskCanvas가 800x480 설계
+/// 캔버스를 2.25배로 확대해 채운 모습 -- 글씨·버튼·터치타깃이 함께 커진다.
+Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
+  tester.view.physicalSize = const Size(1920, 1080);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
+  await tester.pumpWidget(
+    MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(fontFamily: 'Malgun', brightness: Brightness.dark),
+      home: KioskCanvas(
         child: Scaffold(backgroundColor: KioskColors.bg, body: child),
       ),
     ),
@@ -179,6 +203,37 @@ void main() {
         verificationConfidence: 0.93,
         verificationDetail: '전류 +14mA · 소리 +9dB',
         onStop: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 대기', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_idle',
+      KioskIdleView(
+        now: DateTime(2026, 9, 10, 18, 56),
+        connected: true,
+        actuatorReady: true,
+        temperature: 26.5,
+        humidity: 58,
+        onTap: () {},
+        onLongPress: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 제안', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_suggestion',
+      KioskSuggestionView(
+        suggestion: suggestion,
+        cdRemaining: 20,
+        cdTotal: 20,
+        onApprove: () {},
+        onReject: () {},
+        onRejectMute: () {},
       ),
     );
   });

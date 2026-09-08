@@ -13,6 +13,8 @@ import 'package:simplelay_touchscreen/services/kiosk_tts_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
@@ -157,6 +159,15 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
+  // 새로 지급받은 15인치 패널. 설계 캔버스(800x480)보다 크므로 KioskCanvas가
+  // 통째로 확대해 채운다.
+  void useFifteenInchViewport(WidgetTester tester) {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+  }
+
   testWidgets('연결 안 되어 있으면 대기 화면을 눌러도 조작 화면으로 가지 않는다', (tester) async {
     // 사용자 혼란 방지: "기기 연결 안 됐는데 왜 전자레인지 조작판이 뜨지?"
     // 대기 화면이 이미 "기기 연결이 필요해요"라고 말하는데, 눌렀더니 조작판이
@@ -189,6 +200,33 @@ void main() {
 
     // 조작 화면으로 넘어감 -- 대기 안내가 사라졌다
     expect(find.text('화면을 눌러 가전 조작'), findsNothing);
+  });
+
+  testWidgets('15인치(1920x1080)에서 화면을 채우고, 확대된 좌표에서도 조작이 된다',
+      (tester) async {
+    useFifteenInchViewport(tester);
+    final api = FakeKioskApi()
+      ..healthResult = const HealthStatus(ok: true, actuatorReady: true);
+    await _pumpKiosk(tester, api);
+
+    // 캔버스가 화면 전체를 차지한다(여백은 배경색으로 채워짐)
+    expect(tester.getSize(find.byType(KioskCanvas)), const Size(1920, 1080));
+
+    // 내부는 여전히 800x480 설계 세계 -- 레이아웃/오버플로 보장이 그대로다.
+    final idleSize = tester.getSize(find.byType(KioskIdleView));
+    expect(idleSize.width, KioskCanvas.design.width); // 논리 폭은 1920이 아니라 800
+
+    // 그리고 실제로 **확대돼 그려진다**. 논리 크기로는 안 잡히므로 변환이
+    // 반영된 전역 rect로 본다 (1080/480 = 2.25배 -> 800*2.25 = 1800).
+    final painted = tester.getRect(find.byType(KioskIdleView));
+    expect(painted.width, greaterThan(KioskCanvas.design.width));
+    expect(painted.width, closeTo(1800, 1));
+
+    // 확대 변환을 통과해도 히트테스트가 어긋나지 않는다(실제 터치 시연의 핵심)
+    await tester.tap(find.text('화면을 눌러 가전 조작'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(KioskManualView), findsOneWidget);
   });
 
   testWidgets('서버 제안이 도착하면 idle → suggestion으로 전환된다', (tester) async {

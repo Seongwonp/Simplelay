@@ -14,6 +14,7 @@ import '../widgets/kiosk/dnd_overlay.dart';
 import '../widgets/kiosk/done_view.dart';
 import '../widgets/kiosk/executing_view.dart';
 import '../widgets/kiosk/idle_view.dart';
+import '../widgets/kiosk/kiosk_canvas.dart';
 import '../widgets/kiosk/kiosk_phase.dart';
 import '../widgets/kiosk/kiosk_timings.dart';
 import '../widgets/kiosk/manual_view.dart';
@@ -630,14 +631,18 @@ class _KioskScreenState extends State<KioskScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 큰 글씨 모드 — 설정 오버레이 토글. 800x480 고정 해상도라 1.22배가
+    // 큰 글씨 모드 — 설정 오버레이 토글. 800x480 설계 캔버스 기준이라 1.22배가
     // 레이아웃 오버플로 없이 전 화면(시계·제안·실행·수동)에 안전한 상한.
+    //
+    // 배율 MediaQuery가 KioskCanvas **바깥**에 있어야 한다 — 캔버스가 이걸
+    // 물려받아 크기만 덮어쓰기 때문. 순서를 뒤집으면 캔버스의 크기 지정이
+    // 실제 화면 크기로 되돌아간다.
     final media = MediaQuery.of(context);
     return MediaQuery(
       data: media.copyWith(
         textScaler: TextScaler.linear(_largeText ? 1.22 : 1.0),
       ),
-      child: _buildScaffold(),
+      child: KioskCanvas(child: _buildScaffold()),
     );
   }
 
