@@ -86,3 +86,7 @@ class ProactiveSuggestion:
     steps: tuple[str, ...] = ()
     # 환경 기반(온습도) 제안 등에서 "왜 지금" 근거. 패턴 제안은 빈 문자열.
     reason: str = ""
+    # 이 제안이 조작할 가전. 화면이 그리는 버튼 지도와 실제 실행 대상이
+    # 어긋나지 않게 하는 계약이다. 알 수 없으면(사용 이력엔 가전이 기록되지
+    # 않는다) None -- 그때는 클라이언트가 현재 선택 가전으로 폴백한다.
+    appliance_id: str | None = None

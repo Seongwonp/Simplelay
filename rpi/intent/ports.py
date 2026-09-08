@@ -40,7 +40,9 @@ class SuppressionStore(ABC):
 
 class PurposeExecutor(ABC):
     @abstractmethod
-    def execute_purpose(self, purpose: str) -> object:
+    def execute_purpose(
+        self, purpose: str, appliance_id: str | None = None
+    ) -> object:
         """Execute an approved purpose through the normal intent path."""
 
 

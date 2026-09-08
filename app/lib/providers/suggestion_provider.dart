@@ -13,7 +13,8 @@ const _httpPollInterval = Duration(seconds: 5);
 
 class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
   SuggestionNotifier(this.ref) : super(const []) {
-    _bleSubscription = ref.read(bleServiceProvider).messages.listen(_onBleMessage);
+    _bleSubscription =
+        ref.read(bleServiceProvider).messages.listen(_onBleMessage);
     _pollHttp();
     _httpPollTimer = Timer.periodic(_httpPollInterval, (_) => _pollHttp());
   }
@@ -35,7 +36,8 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
     if (message['type'] != 'suggestion') return;
     final suggestion = Suggestion.fromJson(message);
     _bleSuggestions = [
-      ..._bleSuggestions.where((item) => item.sequenceId != suggestion.sequenceId),
+      ..._bleSuggestions
+          .where((item) => item.sequenceId != suggestion.sequenceId),
       suggestion,
     ];
     _publish();
@@ -66,15 +68,35 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
     }
     try {
       final remote = await api.suggestions();
-      final appliance = ref.read(selectedApplianceProvider);
+      final selected = ref.read(selectedApplianceProvider);
+      final all = ref.read(allAppliancesProvider);
       final previous = {for (final s in _httpSuggestions) s.sequenceId: s};
       _httpSuggestions = remote
-          .map((r) => _toSuggestion(r, appliance, previous[r.id]?.receivedAt))
+          .map((r) => _toSuggestion(
+                r,
+                _applianceFor(r, all, selected),
+                previous[r.id]?.receivedAt,
+              ))
           .toList();
       _publish();
     } catch (_) {
       // 네트워크 오류 시 이전 목록 유지 — 다음 폴링에서 재시도.
     }
+  }
+
+  /// 제안이 대상 가전을 알려주면 **그 가전의** 버튼맵을 쓴다.
+  ///
+  /// 전역 선택값으로 그리면, 전자레인지를 고른 상태에서 냉방 제안이
+  /// 전자레인지 지도를 달고 나온다 -- 화면과 실제 실행 대상이 어긋난다.
+  /// 서버가 대상을 모르면(사용 이력엔 가전이 기록되지 않는다) 선택 가전으로 폴백.
+  ApplianceMap _applianceFor(
+    RpiSuggestion r,
+    List<ApplianceMap> all,
+    ApplianceMap fallback,
+  ) {
+    final id = r.applianceId;
+    if (id == null) return fallback;
+    return all.where((a) => a.id == id).firstOrNull ?? fallback;
   }
 
   // RPi 백엔드는 버튼을 라벨 문자열("해동")로 돌려주지만, 이 화면 트리는
@@ -86,7 +108,8 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
     DateTime? receivedAt,
   ) {
     final steps = r.steps.map((label) {
-      final match = appliance.buttons.where((btn) => btn.label == label).firstOrNull;
+      final match =
+          appliance.buttons.where((btn) => btn.label == label).firstOrNull;
       return match?.id ?? label;
     }).toList();
     return Suggestion(
@@ -96,12 +119,14 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
       receivedAt: receivedAt ?? DateTime.now(),
       source: SuggestionSource.http,
       reason: r.reason,
+      applianceId: r.applianceId,
     );
   }
 
   void add(Suggestion suggestion) {
     _bleSuggestions = [
-      ..._bleSuggestions.where((item) => item.sequenceId != suggestion.sequenceId),
+      ..._bleSuggestions
+          .where((item) => item.sequenceId != suggestion.sequenceId),
       suggestion,
     ];
     _publish();
@@ -111,14 +136,18 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
     if (suggestion.source == SuggestionSource.http) {
       // HTTP 승인/거부 호출은 화면(suggestion_screen.dart)에서 이미 끝냈다 —
       // 여기서는 다음 폴링을 기다리지 않고 로컬 목록에서 즉시 제거만 한다.
-      _httpSuggestions =
-          _httpSuggestions.where((item) => item.sequenceId != suggestion.sequenceId).toList();
+      _httpSuggestions = _httpSuggestions
+          .where((item) => item.sequenceId != suggestion.sequenceId)
+          .toList();
       _publish();
       return;
     }
-    await ref.read(bleServiceProvider).sendConfirmation(suggestion.sequenceId, approved);
-    _bleSuggestions =
-        _bleSuggestions.where((item) => item.sequenceId != suggestion.sequenceId).toList();
+    await ref
+        .read(bleServiceProvider)
+        .sendConfirmation(suggestion.sequenceId, approved);
+    _bleSuggestions = _bleSuggestions
+        .where((item) => item.sequenceId != suggestion.sequenceId)
+        .toList();
     _publish();
   }
 

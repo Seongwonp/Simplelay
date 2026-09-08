@@ -116,6 +116,7 @@ class ProactiveSuggestionService:
                         created_at=self._clock.now(),
                         steps=steps,
                         reason=env.reason,
+                        appliance_id=env.appliance_id,
                     )
                     self._next_id += 1
                     self._suggestions[env_suggestion.suggestion_id] = (
@@ -237,15 +238,21 @@ class ProactiveSuggestionService:
         # 승인권 획득(원자적) 후 실행은 락 밖에서 — 물리 실행을 락 안에서
         # 돌리면 그동안 모든 제안 조작이 멈춘다.
         suggestion = self._claim_for_approval(suggestion_id)
-        return self._executor.execute_purpose(suggestion.purpose)
+        return self._executor.execute_purpose(
+            suggestion.purpose, suggestion.appliance_id
+        )
 
     def approve_submit(self, suggestion_id: str) -> str:
         """approve의 비동기(job 모델) 버전 — 실행을 백그라운드로 제출하고
         job_id를 반환한다. 게이트 규칙은 approve와 동일: 실행 제출 전에
         1회용 승인 게이트를 닫는다. executor가 submit_purpose를 지원해야
         한다(SimpleLayService가 지원; 없으면 AttributeError로 즉시 드러남)."""
+        # 화면이 보여준 대상 가전으로 실행한다 -- 전역 선택값이 그 사이
+        # 바뀌어도 승인한 제안의 대상은 달라지지 않아야 한다.
         suggestion = self._claim_for_approval(suggestion_id)
-        return self._executor.submit_purpose(suggestion.purpose)
+        return self._executor.submit_purpose(
+            suggestion.purpose, suggestion.appliance_id
+        )
 
     def _pending_for(
         self, purpose: str, time_band: str

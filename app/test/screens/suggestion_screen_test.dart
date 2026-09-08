@@ -26,6 +26,15 @@ const _sug = Suggestion(
   steps: ['BT-08', 'BT-03', 'BT-05'],
 );
 
+/// 대상 가전이 전역 선택(기본: 전자레인지)과 다른 제안.
+const _airconSug = Suggestion(
+  sequenceId: 'test-002',
+  label: '에어컨 켜줘',
+  steps: ['전원', '냉방'],
+  applianceId: 'aircon',
+  reason: '지금 31°C · 습도 72% — 더워요',
+);
+
 // 이 화면도 ListView라, 버튼맵 그리드까지 합치면 기본 테스트 뷰포트(800x600)보다
 // 콘텐츠가 길어져서 하단의 승인/거부 버튼이 스크롤 밑에 있는 채로 Element 자체가
 // 안 만들어진다 — status_screen_test.dart와 동일한 문제, 동일한 해결책.
@@ -133,6 +142,30 @@ void main() {
 
       // pop 후 홈으로 돌아감
       expect(find.text('홈'), findsOneWidget);
+    });
+
+    testWidgets('제안은 전역 선택이 아니라 자기 대상 가전으로 그린다', (tester) async {
+      // 전자레인지를 고른 상태에서 냉방 제안을 받으면, 예전에는 전자레인지
+      // 버튼 지도가 붙었다 -- 화면과 실제 실행 대상이 어긋나는 계약 공백.
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        buildWithProviderState(
+          suggestions: const [_airconSug],
+          overrides: connectedOverrides(),
+          child: const MaterialApp(
+            home: SuggestionScreen(sequenceId: 'test-002'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 대상 가전을 먼저 알려준다
+      expect(find.text('에어컨'), findsOneWidget);
+      expect(find.text('에어컨의 실제 버튼 배치'), findsOneWidget);
+      // 기본 선택(전자레인지)의 지도가 아니어야 한다
+      expect(find.text('전자레인지의 실제 버튼 배치'), findsNothing);
+      // 환경 근거도 함께 보인다
+      expect(find.text('지금 31°C · 습도 72% — 더워요'), findsOneWidget);
     });
 
     testWidgets('"이 제안 다시 받지 않기" 탭 시 화면 pop', (tester) async {

@@ -28,9 +28,13 @@ class MockPurposeExecutor(PurposeExecutor):
     def __init__(self, result: object = None) -> None:
         self.result = result
         self.purposes: list[str] = []
+        self.appliance_ids: list[str | None] = []
 
-    def execute_purpose(self, purpose: str) -> object:
+    def execute_purpose(
+        self, purpose: str, appliance_id: str | None = None
+    ) -> object:
         self.purposes.append(purpose)
+        self.appliance_ids.append(appliance_id)
         return self.result
 
 

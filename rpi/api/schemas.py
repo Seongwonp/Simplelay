@@ -342,6 +342,8 @@ class SuggestionResponse(BaseModel):
     # 다시 해석되므로 이 값과 달라질 수 있다(예: 규칙이 그 사이 바뀐 경우).
     steps: list[str] = []
     reason: str = ""
+    # 이 제안이 조작할 가전. 없으면 클라이언트가 현재 선택 가전을 쓴다.
+    appliance_id: str | None = None
 
 
 class ApproveResponse(BaseModel):

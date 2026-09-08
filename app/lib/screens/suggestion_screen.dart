@@ -59,9 +59,9 @@ class SuggestionScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final items      = ref.watch(suggestionProvider);
-    final appliance  = ref.watch(selectedApplianceProvider);
-    final suggestion = items.where((s) => s.sequenceId == sequenceId).firstOrNull;
+    final items = ref.watch(suggestionProvider);
+    final suggestion =
+        items.where((s) => s.sequenceId == sequenceId).firstOrNull;
 
     if (suggestion == null) {
       return Scaffold(
@@ -69,6 +69,15 @@ class SuggestionScreen extends ConsumerWidget {
         body: const Center(child: Text('제안을 찾을 수 없습니다.')),
       );
     }
+
+    // 제안이 대상을 알려주면 그 가전으로 그린다 -- 전역 선택값을 쓰면
+    // 화면이 보여주는 버튼과 실제 눌릴 버튼이 어긋날 수 있다.
+    final selected = ref.watch(selectedApplianceProvider);
+    final all = ref.watch(allAppliancesProvider);
+    final appliance = suggestion.applianceId == null
+        ? selected
+        : all.where((a) => a.id == suggestion.applianceId).firstOrNull ??
+            selected;
 
     return Scaffold(
       appBar: AppBar(title: const Text('제안 확인')),
@@ -81,6 +90,23 @@ class SuggestionScreen extends ConsumerWidget {
 
           // ── 제목 ────────────────────────────────────────────────────────
           // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
+          // 무엇을 조작할지부터 말한다 -- 여러 가전을 다루므로 대상이
+          // 먼저 보여야 사용자가 맡길지 판단할 수 있다.
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(appliance.icon, size: 18, color: context.appMuted),
+              const SizedBox(width: 6),
+              Flexible(
+                child: Text(
+                  appliance.name,
+                  style: TextStyle(color: context.appMuted),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
           Text(
             '${suggestion.label}, 지금 할까요?',
             textAlign: TextAlign.center,
@@ -110,7 +136,7 @@ class SuggestionScreen extends ConsumerWidget {
 
           // ── 단계 타임라인 ────────────────────────────────────────────────
           ...List.generate(suggestion.steps.length, (i) {
-            final code   = suggestion.steps[i];
+            final code = suggestion.steps[i];
             final isLast = i == suggestion.steps.length - 1;
             return _StepRow(
               index: i,
@@ -137,15 +163,14 @@ class SuggestionScreen extends ConsumerWidget {
                 child: FilledButton.icon(
                   onPressed: () async {
                     final rpiApi = ref.read(rpiApiServiceProvider);
-                    if (suggestion.source == SuggestionSource.http && rpiApi != null) {
+                    if (suggestion.source == SuggestionSource.http &&
+                        rpiApi != null) {
                       try {
                         // HTTP: RPi에 승인 전송 — 즉시 job_id 접수, 이후 상태
                         // 화면이 /status 폴링으로 이 job의 진행·완료를 따라간다
-                        final accepted =
-                            await rpiApi.approveSuggestion(suggestion.sequenceId);
-                        ref
-                            .read(executionStatusProvider.notifier)
-                            .beginHttpJob(
+                        final accepted = await rpiApi
+                            .approveSuggestion(suggestion.sequenceId);
+                        ref.read(executionStatusProvider.notifier).beginHttpJob(
                               api: rpiApi,
                               jobId: accepted.jobId,
                               label: suggestion.label,
@@ -163,7 +188,8 @@ class SuggestionScreen extends ConsumerWidget {
                         return;
                       } catch (_) {
                         if (context.mounted) {
-                          _notifyError(context, '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.');
+                          _notifyError(
+                              context, '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.');
                         }
                         return;
                       }
@@ -251,8 +277,8 @@ class _ButtonMapGrid extends StatelessWidget {
           child: Column(
             children: List.generate(appliance.rows, (row) {
               return Padding(
-                padding: EdgeInsets.only(
-                    bottom: row < appliance.rows - 1 ? 8 : 0),
+                padding:
+                    EdgeInsets.only(bottom: row < appliance.rows - 1 ? 8 : 0),
                 child: Row(
                   children: List.generate(appliance.cols, (col) {
                     final btn = appliance.buttonAt(col, row);
@@ -270,7 +296,8 @@ class _ButtonMapGrid extends StatelessWidget {
                                 height: 52,
                                 decoration: BoxDecoration(
                                   color: isInSequence
-                                      ? context.appPrimary.withValues(alpha: 0.2)
+                                      ? context.appPrimary
+                                          .withValues(alpha: 0.2)
                                       : context.appOverlayFaint,
                                   borderRadius: BorderRadius.circular(8),
                                   // 순서에 든 버튼만 테두리를 준다. 나머지까지
@@ -386,8 +413,8 @@ class _StepRow extends StatelessWidget {
               padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
               child: Card(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
                     children: [
                       Icon(
@@ -409,14 +436,15 @@ class _StepRow extends StatelessWidget {
       );
 
   IconData _stepIcon(String code) {
-    if (code.contains('시작'))  return Icons.play_circle_outline;
-    if (code.contains('취소') || code.contains('정지')) return Icons.cancel_outlined;
-    if (code.contains('해동'))  return Icons.ac_unit;
-    if (code.contains('시간'))  return Icons.timer_outlined;
-    if (code.contains('우유'))  return Icons.local_drink_outlined;
+    if (code.contains('시작')) return Icons.play_circle_outline;
+    if (code.contains('취소') || code.contains('정지'))
+      return Icons.cancel_outlined;
+    if (code.contains('해동')) return Icons.ac_unit;
+    if (code.contains('시간')) return Icons.timer_outlined;
+    if (code.contains('우유')) return Icons.local_drink_outlined;
     if (code.contains('즉석밥')) return Icons.rice_bowl;
-    if (code.contains('냉동'))  return Icons.kitchen;
-    if (code.contains('라면'))  return Icons.ramen_dining;
+    if (code.contains('냉동')) return Icons.kitchen;
+    if (code.contains('라면')) return Icons.ramen_dining;
     return Icons.touch_app;
   }
 }

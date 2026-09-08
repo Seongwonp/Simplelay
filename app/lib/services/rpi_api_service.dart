@@ -79,6 +79,7 @@ class RpiSuggestion {
     required this.occurrences,
     this.steps = const [],
     this.reason = '',
+    this.applianceId,
   });
   final String id;
   final String purpose;
@@ -87,6 +88,9 @@ class RpiSuggestion {
 
   // 환경 기반 제안 등의 "왜 지금" 근거(예: "지금 30°C · 습도 72% — 더워요").
   final String reason;
+
+  /// 이 제안이 조작할 가전. 서버가 모르면 null -- 그때만 현재 선택 가전을 쓴다.
+  final String? applianceId;
 
   // 승인 시 실행될 버튼 시퀀스 미리보기(라벨 문자열). 해석 실패 시 서버가 빈 리스트를 준다.
   final List<String> steps;
@@ -98,6 +102,7 @@ class RpiSuggestion {
         occurrences: json['occurrences'] as int,
         steps: (json['steps'] as List<dynamic>?)?.cast<String>() ?? const [],
         reason: json['reason'] as String? ?? '',
+        applianceId: json['appliance_id'] as String?,
       );
 }
 

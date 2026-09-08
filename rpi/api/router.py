@@ -321,6 +321,7 @@ async def list_suggestions(
             occurrences=s.occurrences,
             steps=list(s.steps),
             reason=s.reason,
+            appliance_id=s.appliance_id,
         )
         for s in svc.pending()
     ]
@@ -387,6 +388,7 @@ async def demo_suggest(
         occurrences=suggestion.occurrences,
         steps=list(suggestion.steps),
         reason=suggestion.reason,
+        appliance_id=suggestion.appliance_id,
     )
 
 
@@ -406,6 +408,7 @@ async def demo_environment(
             occurrences=s.occurrences,
             steps=list(s.steps),
             reason=s.reason,
+            appliance_id=s.appliance_id,
         )
         for s in created
     ]

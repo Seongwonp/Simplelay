@@ -10,6 +10,7 @@ class Suggestion {
     this.receivedAt,
     this.source = SuggestionSource.ble,
     this.reason = '',
+    this.applianceId,
   });
 
   final String sequenceId;
@@ -20,6 +21,10 @@ class Suggestion {
 
   // 환경 기반 제안 등의 "왜 지금" 근거. 없으면 빈 문자열.
   final String reason;
+
+  /// 이 제안이 조작할 가전. 화면이 그리는 버튼 지도와 실제 실행 대상을
+  /// 묶는 값이다. 서버가 모르면 null(현재 선택 가전으로 폴백).
+  final String? applianceId;
 
   factory Suggestion.fromJson(Map<String, dynamic> json) => Suggestion(
         sequenceId: json['sequence_id'] as String,

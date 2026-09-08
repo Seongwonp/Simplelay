@@ -17,7 +17,7 @@ from rpi.intent.suppression import InMemorySuppressionStore
 KST = timezone(timedelta(hours=9))
 
 
-def _svc(reading, store=None):
+def _svc(reading, store=None, executor=None):
     # 오후 3시 — 아침 밴드 밖이라 패턴 후보는 없고, 환경 제안만 검증된다.
     clock = FixedClock(datetime(2026, 7, 23, 15, 0, tzinfo=KST))
     detector = PatternDetector(
@@ -31,7 +31,7 @@ def _svc(reading, store=None):
     return ProactiveSuggestionService(
         detector,
         clock,
-        MockPurposeExecutor(),
+        executor or MockPurposeExecutor(),
         intent_resolver=RuleBasedIntentResolver(),
         suppression_store=store,
         environmental=EnvironmentalSuggester(lambda: reading),
@@ -97,3 +97,27 @@ def test_env_suggestion_respects_mute():
     store = InMemorySuppressionStore()
     store.mute("에어컨 켜줘")
     assert _svc((30.0, 55.0), store).create_suggestions() == ()
+
+
+# ── 대상 가전 결합 ────────────────────────────────────────────────────────
+
+
+def test_env_suggestion_carries_target_appliance():
+    (suggestion,) = _svc((30.0, 55.0)).create_suggestions()
+    assert suggestion.appliance_id == "aircon"
+
+
+def test_approve_executes_on_the_suggested_appliance():
+    """화면이 보여준 대상과 실제 실행 대상이 같아야 한다.
+
+    예전에는 승인이 purpose만 넘겨서, 전자레인지를 고른 상태로 냉방 제안을
+    승인하면 화면과 실행 대상이 어긋날 수 있었다.
+    """
+    executor = MockPurposeExecutor()
+    svc = _svc((30.0, 55.0), executor=executor)
+    (suggestion,) = svc.create_suggestions()
+
+    svc.approve(suggestion.suggestion_id)
+
+    assert executor.purposes == ["에어컨 켜줘"]
+    assert executor.appliance_ids == ["aircon"]

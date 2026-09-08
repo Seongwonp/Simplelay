@@ -31,12 +31,16 @@ class CountingSubmitExecutor:
         self.submitted: list[str] = []
         self._lock = threading.Lock()
 
-    def execute_purpose(self, purpose: str) -> object:
+    def execute_purpose(
+        self, purpose: str, appliance_id: str | None = None
+    ) -> object:
         with self._lock:
             self.submitted.append(purpose)
         return "executed"
 
-    def submit_purpose(self, purpose: str) -> str:
+    def submit_purpose(
+        self, purpose: str, appliance_id: str | None = None
+    ) -> str:
         with self._lock:
             self.submitted.append(purpose)
             return f"job-{len(self.submitted)}"

@@ -29,6 +29,8 @@ class ComfortThresholds:
 class EnvironmentalCandidate:
     purpose: str
     reason: str  # 사용자에게 보일 근거 -- "지금 30°C · 습도 75% — 더워요"
+    # 이 제안이 조작할 가전. 제안과 실행 대상이 어긋나지 않게 끝까지 들고 간다.
+    appliance_id: str | None = None
 
 
 class EnvironmentalSuggester:
@@ -37,10 +39,12 @@ class EnvironmentalSuggester:
         sensor_read: SensorRead,
         thresholds: ComfortThresholds | None = None,
         purpose: str = "에어컨 켜줘",
+        appliance_id: str = "aircon",
     ) -> None:
         self._read = sensor_read
         self._th = thresholds or ComfortThresholds()
         self._purpose = purpose
+        self._appliance_id = appliance_id
 
     def candidate(self) -> EnvironmentalCandidate | None:
         temp, hum = self._read()
@@ -54,5 +58,7 @@ class EnvironmentalSuggester:
         if humid:
             bits.append(f"습도 {hum:.0f}%")
         return EnvironmentalCandidate(
-            self._purpose, "지금 " + " · ".join(bits) + " — 더워요"
+            self._purpose,
+            "지금 " + " · ".join(bits) + " — 더워요",
+            appliance_id=self._appliance_id,
         )
