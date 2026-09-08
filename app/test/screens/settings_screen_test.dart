@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
@@ -7,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/providers/demo_provider.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 
 import '../helpers/test_helpers.dart';
@@ -148,31 +148,71 @@ void main() {
   });
 
   group('SettingsScreen — 데모 섹션', () {
-    testWidgets('debug 빌드에서 제안 시뮬레이션 버튼 표시', (tester) async {
+    // 데모는 디버그 빌드가 아니라 '고급'에 있다. 결선 리허설은 릴리즈 APK로
+    // 하는데 디버그에만 있으면 정작 필요한 곳에서 못 켠다.
+    testWidgets('평소에는 데모가 보이지 않는다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
-      if (kDebugMode) {
-        expect(find.text('제안 시뮬레이션'), findsOneWidget);
-        expect(find.text('연결 해제'), findsOneWidget);
-      }
+      expect(find.text('데모 모드'), findsNothing);
+      expect(find.text('제안 시뮬레이션'), findsNothing);
+    });
+
+    testWidgets('고급 설정을 펴면 데모 모드 토글과 시뮬레이션이 보인다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSettings());
+      await tester.pump();
+      await _expandAdvanced(tester);
+      expect(find.text('데모 모드'), findsOneWidget);
+      expect(find.text('제안 시뮬레이션'), findsOneWidget);
+      expect(find.text('연결 해제'), findsOneWidget);
+    });
+
+    testWidgets('데모 모드는 기본이 꺼짐이다', (tester) async {
+      // 디버그 빌드라는 이유만으로 켜지면 안 된다 -- 실기기에 물린 디버그
+      // 빌드에서 가짜 센서가 섞이면 안 눌린 실행이 성공으로 보인다.
+      _useTallViewport(tester);
+      late ProviderContainer container;
+      await tester.pumpWidget(
+        _buildSettings(onContainerReady: (c) => container = c),
+      );
+      await tester.pump();
+      expect(container.read(demoModeProvider), isFalse);
+    });
+
+    testWidgets('토글을 켜면 데모 모드가 켜진다', (tester) async {
+      _useTallViewport(tester);
+      late ProviderContainer container;
+      await tester.pumpWidget(
+        _buildSettings(onContainerReady: (c) => container = c),
+      );
+      await tester.pump();
+      await _expandAdvanced(tester);
+      await tester.tap(
+        find.descendant(
+          of: find.widgetWithText(SwitchListTile, '데모 모드'),
+          matching: find.byType(Switch),
+        ),
+      );
+      await tester.pump();
+      expect(container.read(demoModeProvider), isTrue);
     });
 
     testWidgets('제안 시뮬레이션 탭 시 SnackBar 표시', (tester) async {
-      if (!kDebugMode) return;
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
+      await _expandAdvanced(tester);
       await tester.tap(find.text('제안 시뮬레이션'));
       await tester.pump();
       expect(find.text('데모 제안 주입 완료'), findsOneWidget);
     });
 
     testWidgets('연결 해제 탭 시 SnackBar 표시', (tester) async {
-      if (!kDebugMode) return;
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
+      await _expandAdvanced(tester);
       await tester.tap(find.text('연결 해제'));
       await tester.pump();
       expect(find.text('연결 해제 시뮬레이션'), findsOneWidget);

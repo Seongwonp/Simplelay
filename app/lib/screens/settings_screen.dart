@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/demo_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/theme_provider.dart';
@@ -120,11 +120,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _BleSection(),
           ],
 
-          // ── 데모 (디버그 빌드만) ──────────────────────────────────────────
-          if (kDebugMode) ...[
+          // ── 데모 ──────────────────────────────────────────────────────────
+          // 디버그 빌드가 아니라 '고급'에 둔다. 결선 리허설은 릴리즈 APK로
+          // 하는데, 디버그에만 있으면 정작 필요한 곳에서 못 켠다. 대신
+          // 켜져 있는 동안에는 실행 화면이 그 사실을 계속 표시한다.
+          if (_showAdvanced) ...[
             const SizedBox(height: 24),
-            _SectionHeader(title: '데모 (Debug)'),
+            _SectionHeader(title: '데모'),
             const SizedBox(height: 12),
+            _DemoModeTile(),
+            const SizedBox(height: 8),
             _DemoSection(),
           ],
 
@@ -781,6 +786,34 @@ class _BleSection extends ConsumerWidget {
           },
         ),
       ],
+    );
+  }
+}
+
+// ── 데모 모드 토글 ─────────────────────────────────────────────────────────
+
+/// 가짜 센서·가짜 결과를 화면에 주입해도 되는 상태를 켜고 끈다.
+///
+/// 예전에는 `kDebugMode`가 이 역할을 했는데, 그러면 실기기에 물린 디버그
+/// 빌드에서도 가짜 센서가 섞여 **안 눌린 실행이 성공으로 끝난다.**
+class _DemoModeTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(demoModeProvider);
+    return _SettingCard(
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        secondary: const Icon(Icons.science_outlined),
+        title: const Text('데모 모드'),
+        subtitle: Text(
+          on
+              ? '실행 화면에 가짜 센서 값이 섞입니다 — 실제 조작이 아닙니다'
+              : '리허설용. 켜면 실행이 실제와 다르게 보입니다',
+          style: TextStyle(color: context.appMuted, fontSize: 12),
+        ),
+        value: on,
+        onChanged: (v) => ref.read(demoModeProvider.notifier).set(v),
+      ),
     );
   }
 }

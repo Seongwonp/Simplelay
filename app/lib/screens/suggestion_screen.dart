@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/demo_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -247,14 +247,17 @@ class SuggestionScreen extends ConsumerWidget {
                         .read(suggestionProvider.notifier)
                         .respond(suggestion, true);
                     if (suggestion.source != SuggestionSource.http) {
-                      // BLE 경로만 메시지 스트림 기반 추적 + 디버그 데모 주입.
-                      // HTTP 경로는 위에서 beginHttpJob으로 실제 /status 폴링을
-                      // 이미 시작했으므로 가짜 센서 주입이 끼면 안 된다(실패를
-                      // 성공처럼 보이게 만들 수 있음).
+                      // BLE 경로만 메시지 스트림 기반으로 추적한다. HTTP 경로는
+                      // 위에서 beginHttpJob으로 실제 /status 폴링을 이미
+                      // 시작했으므로 가짜 센서 주입이 끼면 안 된다.
                       ref
                           .read(executionStatusProvider.notifier)
                           .begin(suggestion);
-                      if (kDebugMode) {
+                      // 가짜 센서·가짜 성공은 **명시적으로 켠 데모 세션**
+                      // 에서만. kDebugMode에 걸어두면 실기기에 물린 디버그
+                      // 빌드에서도 섞여, 실제로는 안 눌린 실행이 화면에서
+                      // 성공으로 끝난다.
+                      if (ref.read(demoModeProvider)) {
                         DemoService(ref.read(bleServiceProvider))
                             .runExecutionFlow();
                       }

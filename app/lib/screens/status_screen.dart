@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/execution_status.dart';
 import '../models/suggestion.dart';
+import '../providers/demo_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -94,6 +95,39 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   )
                 : null,
           ),
+
+          // 데모 모드가 켜져 있으면 계속 말한다. 이 화면의 값이 실제
+          // 측정인지 주입된 값인지는 화면만 봐서는 구분할 수 없고, 폐루프의
+          // 존재 이유가 "눌림을 확인했는가"라 그 구분이 흐려지면 안 된다.
+          if (ref.watch(demoModeProvider))
+            Semantics(
+              liveRegion: true,
+              label: '데모 모드입니다. 실제 조작이 아닙니다.',
+              child: ExcludeSemantics(
+                child: Container(
+                  width: double.infinity,
+                  color: context.appWarning.withValues(alpha: 0.16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.science_outlined,
+                          size: 18, color: context.appWarning),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '데모 모드 — 실제 조작이 아닙니다',
+                          style: TextStyle(
+                            color: context.appWarning,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
 
           Expanded(
             child: ListView(
