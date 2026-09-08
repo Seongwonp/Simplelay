@@ -88,7 +88,7 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
   ///
   /// 전역 선택값으로 그리면, 전자레인지를 고른 상태에서 냉방 제안이
   /// 전자레인지 지도를 달고 나온다 -- 화면과 실제 실행 대상이 어긋난다.
-  /// 서버가 대상을 모르면(사용 이력엔 가전이 기록되지 않는다) 선택 가전으로 폴백.
+  /// 서버가 대상을 모르면(가전 없이 쌓인 옛 이력) 선택 가전으로 폴백.
   ApplianceMap _applianceFor(
     RpiSuggestion r,
     List<ApplianceMap> all,
@@ -120,6 +120,8 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
       source: SuggestionSource.http,
       reason: r.reason,
       applianceId: r.applianceId,
+      timeBand: r.timeBand,
+      occurrences: r.occurrences,
     );
   }
 

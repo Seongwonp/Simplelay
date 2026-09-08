@@ -38,6 +38,10 @@ class AppColors {
   // 검정은 각각 9.32 / 9.34 / 5.78:1. 골드 버튼은 이미 이 규칙을 쓰고 있었고
   // 나머지 색만 안 따르고 있었다 — 그래서 가장 중요한 버튼(승인·긴급 정지)이
   // 가장 안 보였다.
+  //
+  // 주의: 이 상수는 **팔레트가 밝은 색일 때**만 맞다. 라이트 모드 전용
+  // 변형(primaryLight·dangerLight)은 반대로 어두우므로 검정을 얹으면
+  // 3.78:1 / 3.72:1로 도로 무너진다 -- 그쪽은 appOnAccent를 쓴다.
   static const onAccent = Color(0xFF000000);
 
   // ── 보조 (다크) ──────────────────────────────────────────────────────────
@@ -81,4 +85,13 @@ extension AppColorsX on BuildContext {
   Color get appOutline        => _isDark ? Colors.white24 : Colors.black26;
   Color get appOnSurfaceSoft  => _isDark ? Colors.white70 : Colors.black87;
   Color get appOnSurfaceFaint => _isDark ? Colors.white54 : Colors.black54;
+
+  /// 강조색을 **면으로** 쓸 때 그 위에 얹는 글자·숫자색.
+  ///
+  /// 다크 모드의 강조색(골드 #D9A356, 브릭 레드 #D9605C)은 밝아서 검정이
+  /// 맞지만, 라이트 모드 전용 변형(#8B6010, #B93A34)은 어두워서 흰색이
+  /// 맞다. `AppColors.onAccent`(검정)를 두 모드에 그대로 쓰면 라이트에서
+  /// 3.7:1대로 떨어진다 -- 제안 순서 배지·알림 개수 배지·주요 실행 버튼이
+  /// 실제로 그렇게 걸려 있었다. 테마의 onPrimary와 같은 규칙이다.
+  Color get appOnAccent => _isDark ? Colors.black : Colors.white;
 }

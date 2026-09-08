@@ -54,7 +54,48 @@ class SuggestionScreen extends ConsumerWidget {
       }
     }
     await ref.read(suggestionProvider.notifier).respond(suggestion, false);
-    if (context.mounted) context.pop();
+    if (!context.mounted) return;
+    if (mute) {
+      // 무엇이 바뀌었는지 말하고 물릴 길을 같이 준다 -- 설정 화면까지
+      // 찾아 들어가야 되돌릴 수 있으면 되돌릴 수 있는 게 아니다.
+      _notifyMuted(context, rpiApi, suggestion.label);
+    }
+    context.pop();
+  }
+
+  /// 억제 직후 안내 + 되돌리기. 되돌리기가 실패하면 조용히 넘어가지 않고
+  /// 다시 알린다 -- 억제는 남았는데 풀렸다고 믿으면 더 나쁘다.
+  static void _notifyMuted(
+    BuildContext context,
+    RpiApiService? api,
+    String purpose,
+  ) {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('이 제안은 앞으로 표시하지 않아요.'),
+        duration: const Duration(seconds: 6),
+        action: api == null
+            ? null
+            : SnackBarAction(
+                label: '되돌리기',
+                onPressed: () async {
+                  try {
+                    await api.unmuteSuppression(purpose);
+                    messenger.showSnackBar(
+                      const SnackBar(content: Text('다시 표시할게요.')),
+                    );
+                  } catch (_) {
+                    messenger.showSnackBar(
+                      const SnackBar(
+                        content: Text('되돌리지 못했어요. 설정에서 해제할 수 있어요.'),
+                      ),
+                    );
+                  }
+                },
+              ),
+      ),
+    );
   }
 
   @override
@@ -112,10 +153,12 @@ class SuggestionScreen extends ConsumerWidget {
             textAlign: TextAlign.center,
             style: AppText.heading,
           ),
-          if (suggestion.reason.isNotEmpty) ...[
+          // 왜 지금 이게 떴는지. 환경 제안은 서버가 준 근거, 패턴 제안은
+          // 시간대·횟수로 만든 한 문장이다(데모는 비어 있다).
+          if (suggestion.whyNow.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
-              suggestion.reason,
+              suggestion.whyNow,
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appMuted),
             ),
@@ -226,15 +269,19 @@ class SuggestionScreen extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Center(
-            child: TextButton.icon(
-              onPressed: () =>
-                  _dismissSuggestion(context, ref, suggestion, mute: true),
-              icon: const Icon(Icons.notifications_off_outlined, size: 18),
-              label: const Text('이 제안 다시 받지 않기'),
+          // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE 경로는
+          // '이번만 넘기기'와 같은 거절 메시지라 약속을 지킬 수 없다.
+          if (suggestion.canMute) ...[
+            const SizedBox(height: 4),
+            Center(
+              child: TextButton.icon(
+                onPressed: () =>
+                    _dismissSuggestion(context, ref, suggestion, mute: true),
+                icon: const Icon(Icons.notifications_off_outlined, size: 18),
+                label: const Text('이 제안 다시 받지 않기'),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
@@ -342,12 +389,14 @@ class _ButtonMapGrid extends StatelessWidget {
                                           child: Center(
                                             child: Text(
                                               '$order',
-                                              style: const TextStyle(
+                                              style: TextStyle(
                                                 // 9px는 고령 사용자에게 사실상
                                                 // 안 보인다 — 배지째 키웠다
                                                 fontSize: 12,
                                                 fontWeight: FontWeight.w700,
-                                                color: Colors.black,
+                                                // 검정 고정이면 라이트 모드
+                                                // (어두운 골드 위)에서 3.78:1
+                                                color: context.appOnAccent,
                                               ),
                                             ),
                                           ),
@@ -388,13 +437,17 @@ class _StepRow extends StatelessWidget {
           // ── 인덱스 + 연결선 ──────────────────────────────────────────────
           Column(
             children: [
+              // 18% 틴트 위에 같은 강조색 숫자를 얹으면 라이트 모드에서
+              // 4.23:1이다 -- 틴트를 옅게 해도 강조색 자신이 상한이라
+              // 4.5를 못 넘는다. 순서 숫자는 이 화면에서 읽어야 하는
+              // 정보이므로 면을 채우고 대비되는 글자를 얹는다(5.56:1).
               CircleAvatar(
                 radius: 16,
-                backgroundColor: context.appPrimary.withValues(alpha: 0.18),
+                backgroundColor: context.appPrimary,
                 child: Text(
                   '${index + 1}',
                   style: TextStyle(
-                    color: context.appPrimary,
+                    color: context.appOnAccent,
                     fontWeight: FontWeight.w700,
                     fontSize: 13,
                   ),
@@ -441,8 +494,9 @@ class _StepRow extends StatelessWidget {
 
   IconData _stepIcon(String code) {
     if (code.contains('시작')) return Icons.play_circle_outline;
-    if (code.contains('취소') || code.contains('정지'))
+    if (code.contains('취소') || code.contains('정지')) {
       return Icons.cancel_outlined;
+    }
     if (code.contains('해동')) return Icons.ac_unit;
     if (code.contains('시간')) return Icons.timer_outlined;
     if (code.contains('우유')) return Icons.local_drink_outlined;

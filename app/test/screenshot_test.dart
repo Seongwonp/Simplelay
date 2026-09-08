@@ -99,11 +99,17 @@ void main() {
     await loader.load();
   });
 
+  // 서버에서 온 패턴 제안 — 실기기에서 실제로 오는 모양이다. 근거 문장과
+  // '다시 받지 않기'가 이 경로에서만 나오므로, 골든도 이 경로를 찍어야
+  // 화면 검토에 쓸모가 있다.
   const suggestions = [
     Suggestion(
       sequenceId: 'a',
       label: '우유 데워줘',
       steps: ['BT-08', 'BT-03', 'BT-05'],
+      source: SuggestionSource.http,
+      timeBand: '아침',
+      occurrences: 4,
     ),
   ];
 

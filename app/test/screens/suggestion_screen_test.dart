@@ -26,6 +26,17 @@ const _sug = Suggestion(
   steps: ['BT-08', 'BT-03', 'BT-05'],
 );
 
+/// 서버(HTTP)에서 온 패턴 제안. 영구 억제를 실제로 지킬 수 있는 경로이고,
+/// 시간대·횟수가 있어 '왜 지금'을 문장으로 만들 수 있다.
+const _httpSug = Suggestion(
+  sequenceId: 'test-003',
+  label: '즉석밥 데우기',
+  steps: ['BT-08', 'BT-03', 'BT-05'],
+  source: SuggestionSource.http,
+  timeBand: '저녁',
+  occurrences: 4,
+);
+
 /// 대상 가전이 전역 선택(기본: 전자레인지)과 다른 제안.
 const _airconSug = Suggestion(
   sequenceId: 'test-002',
@@ -188,7 +199,7 @@ void main() {
 
       await tester.pumpWidget(
         buildWithProviderState(
-          suggestions: const [_sug],
+          suggestions: const [_httpSug],
           overrides: connectedOverrides(),
           child: MaterialApp.router(
             theme: ThemeData.dark(),
@@ -198,13 +209,63 @@ void main() {
       );
       await tester.pump();
 
-      router.push('/suggestion/test-001');
+      router.push('/suggestion/test-003');
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('이 제안 다시 받지 않기'));
       await tester.pumpAndSettle();
 
       expect(find.text('홈'), findsOneWidget);
+    });
+
+    testWidgets('BLE 제안에는 "다시 받지 않기"를 내걸지 않는다', (tester) async {
+      // 영구 억제는 서버의 억제 목록에만 남는다. BLE 경로에서는 '이번만
+      // 넘기기'와 똑같은 거절 메시지가 되므로, 버튼이 있으면 지키지 못할
+      // 약속이 된다 -- 두 버튼이 같은 일을 하면서 다른 말을 하게 된다.
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        _buildSuggestion('test-001', suggestions: const [_sug]),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('이번만 넘기기'), findsOneWidget);
+      expect(find.text('이 제안 다시 받지 않기'), findsNothing);
+    });
+
+    testWidgets('패턴 제안은 시간대·횟수로 왜 지금인지 말한다', (tester) async {
+      // 서버는 time_band·occurrences를 주는데 앱이 옮기며 버렸다 -- 사용자는
+      // 왜 이 카드가 떴는지 알 수 없었다.
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        _buildSuggestion('test-003', suggestions: const [_httpSug]),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('최근 저녁 시간에 4번 하셨어요.'), findsOneWidget);
+    });
+
+    testWidgets('데모 제안은 지어낸 횟수를 근거처럼 말하지 않는다', (tester) async {
+      // 데모 트리거는 패턴 감지를 우회하려고 횟수를 지어낸다. 그걸 '이만큼
+      // 하셨어요'로 보여주면 화면이 사실이 아닌 말을 하게 된다.
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        _buildSuggestion(
+          'test-004',
+          suggestions: const [
+            Suggestion(
+              sequenceId: 'test-004',
+              label: '즉석밥 데우기',
+              steps: ['BT-08'],
+              source: SuggestionSource.http,
+              timeBand: '데모',
+              occurrences: 3,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('하셨어요'), findsNothing);
     });
 
     testWidgets('승인 버튼 탭 시 /status 로 이동', (tester) async {

@@ -25,7 +25,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: context.appBackground,
@@ -112,20 +111,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   style: FilledButton.styleFrom(
                     minimumSize: const Size(0, 52),
                     backgroundColor: context.appPrimary,
-                    foregroundColor: isDark
-                        ? AppColors.background
-                        : AppColors.backgroundLight,
+                    foregroundColor: context.appOnAccent,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
                   child: _loading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            color: AppColors.background,
+                            // 버튼 면 위에 도는 표시 -- 글자와 같은 색이어야
+                            // 한다. 다크 배경색 고정이면 라이트 모드의
+                            // 어두운 골드 버튼 위에서 사라진다.
+                            color: context.appOnAccent,
                           ),
                         )
                       : const Text(

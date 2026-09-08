@@ -1200,9 +1200,14 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
     _reload();
   }
 
+  /// 서버가 없으면 '조회 실패'가 아니라 '해당 없음'이다 -- 억제 목록은
+  /// 서버가 들고 있으므로, 연결이 없을 때는 물어볼 곳 자체가 없다.
+  bool _noServer = false;
+
   void _reload() {
     final api = ref.read(rpiApiServiceProvider);
     setState(() {
+      _noServer = api == null;
       _future = api?.suppressions() ?? Future<List<String>>.value(const []);
     });
   }
@@ -1222,14 +1227,32 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
     return FutureBuilder<List<String>>(
       future: _future,
       builder: (context, snapshot) {
+        // '아직 못 불러왔다'와 '못 불러왔다'와 '없다'는 서로 다른 상태다.
+        // 셋을 빈 목록 하나로 뭉개면, 조회가 실패한 화면이 "억제한 게 없다"고
+        // 단언한다 -- 사용자가 방금 내린 제안이 사라진 것처럼 보인다.
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return _SuppressionNote(
+            text: '불러오는 중이에요.',
+            leading: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+        if (snapshot.hasError && !_noServer) {
+          return _SuppressionNote(
+            text: '목록을 불러오지 못했어요.',
+            leading: Icon(Icons.error_outline, size: 18),
+            onRetry: _reload,
+          );
+        }
         final items = snapshot.data ?? const <String>[];
         if (items.isEmpty) {
-          return const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-            child: Text(
-              '다시 추천 안 하는 항목이 없어요.',
-              style: TextStyle(color: Colors.grey),
-            ),
+          return _SuppressionNote(
+            text: _noServer
+                ? '기기와 연결되면 여기에 표시돼요.'
+                : '다시 추천 안 하는 항목이 없어요.',
           );
         }
         return Column(
@@ -1247,6 +1270,39 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
           ],
         );
       },
+    );
+  }
+}
+
+/// 억제 목록의 '목록 아닌 상태'(불러오는 중·실패·없음)를 같은 모양으로 그린다.
+/// Colors.grey는 크림 배경 위 2.38:1이라 보조 텍스트 토큰을 쓴다(7.4:1 이상).
+class _SuppressionNote extends StatelessWidget {
+  const _SuppressionNote({required this.text, this.leading, this.onRetry});
+
+  final String text;
+  final Widget? leading;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      child: Row(
+        children: [
+          if (leading != null) ...[
+            IconTheme.merge(
+              data: IconThemeData(color: context.appMuted),
+              child: leading!,
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Text(text, style: TextStyle(color: context.appMuted)),
+          ),
+          if (onRetry != null)
+            TextButton(onPressed: onRetry, child: const Text('다시 불러오기')),
+        ],
+      ),
     );
   }
 }

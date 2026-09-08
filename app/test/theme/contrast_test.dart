@@ -134,6 +134,105 @@ void main() {
     });
   });
 
+  // ── 실제 위젯 조합 ──────────────────────────────────────────────────────
+  //
+  // 위 그룹들은 **토큰 쌍**을 검사한다. 그런데 실제 미달은 화면에서 토큰을
+  // 조합하는 자리에서 났다 -- 팔레트는 통과하는데 위젯은 떨어지는 것이다.
+  // 여기서는 화면이 쓰는 조합 그대로를 숫자로 박는다.
+
+  /// 알파 합성 -- CircleAvatar 같은 '틴트 배경'을 실제 보이는 색으로 만든다.
+  Color over(Color fg, Color bg, double alpha) => Color.fromARGB(
+        255,
+        (fg.r * 255 * alpha + bg.r * 255 * (1 - alpha)).round(),
+        (fg.g * 255 * alpha + bg.g * 255 * (1 - alpha)).round(),
+        (fg.b * 255 * alpha + bg.b * 255 * (1 - alpha)).round(),
+      );
+
+  group('강조색을 면으로 쓰는 자리 (appOnAccent)', () {
+    // 다크의 강조색은 밝고 라이트 전용 변형은 어둡다 -- 한쪽에 맞춘 글자색을
+    // 두 모드에 그대로 쓰면 반대쪽이 무너진다. 실제로 그랬던 자리들이다.
+    const darkOnAccent = Colors.black;
+    const lightOnAccent = Colors.white;
+
+    test('제안 순서 배지 — 두 모드 모두 통과', () {
+      expect(contrast(AppColors.primary, darkOnAccent),
+          greaterThanOrEqualTo(_aa));
+      expect(contrast(AppColors.primaryLight, lightOnAccent),
+          greaterThanOrEqualTo(_aa));
+    });
+
+    test('알림 개수 배지 — 두 모드 모두 통과', () {
+      expect(contrast(AppColors.danger, darkOnAccent),
+          greaterThanOrEqualTo(_aa));
+      expect(contrast(AppColors.dangerLight, lightOnAccent),
+          greaterThanOrEqualTo(_aa));
+    });
+
+    test('검정 고정이면 라이트에서 미달이다 (회귀 방지의 근거)', () {
+      // 이 두 값이 리뷰가 잡은 3.78:1 / 3.72:1이다.
+      expect(contrast(AppColors.primaryLight, darkOnAccent), lessThan(_aa));
+      expect(contrast(AppColors.dangerLight, darkOnAccent), lessThan(_aa));
+    });
+
+    test('흰색 고정이면 다크에서 미달이다', () {
+      expect(contrast(AppColors.primary, lightOnAccent), lessThan(_aa));
+      expect(contrast(AppColors.danger, lightOnAccent), lessThan(_aa));
+    });
+  });
+
+  group('강조색 틴트 위에 같은 강조색 글자', () {
+    // 제안 화면 단계 타임라인의 순서 원이 이 모양이었다(18% 틴트 + 강조색 숫자).
+    test('디자인이 쓰던 18% 틴트는 라이트 모드에서 미달이다', () {
+      // 4.23:1. 틴트를 짙게 할수록 나빠진다 -- 배경이 글자색 쪽으로 다가가므로.
+      for (final alpha in [0.18, 0.30]) {
+        expect(
+          contrast(
+            over(AppColors.primaryLight, AppColors.surfaceLowLight, alpha),
+            AppColors.primaryLight,
+          ),
+          lessThan(_aa),
+          reason: '알파 $alpha',
+        );
+      }
+    });
+
+    test('틴트를 걷어내도 상한이 5.41:1이라 여유가 없다', () {
+      // 알파 0(틴트 없음)이 이 조합의 상한이다. 10%면 4.73:1로 AA는 겨우
+      // 넘지만, 이 앱은 보조 텍스트에 AAA를 목표로 두는 화면이라 '겨우 넘는'
+      // 값을 순서 숫자에 두지 않는다 -- 면을 채우는 쪽을 택했다.
+      expect(contrast(AppColors.surfaceLowLight, AppColors.primaryLight),
+          greaterThanOrEqualTo(_aa));
+      expect(
+        contrast(
+          over(AppColors.primaryLight, AppColors.surfaceLowLight, 0.10),
+          AppColors.primaryLight,
+        ),
+        lessThan(5.0),
+      );
+    });
+
+    test('면을 채우고 appOnAccent를 얹으면 통과한다', () {
+      expect(contrast(AppColors.primaryLight, Colors.white),
+          greaterThanOrEqualTo(_aa));
+      expect(contrast(AppColors.primary, Colors.black),
+          greaterThanOrEqualTo(_aa));
+    });
+  });
+
+  group('빈 상태 안내문', () {
+    // 설정의 '다시 추천 안 하는 항목이 없어요.'가 Colors.grey였다.
+    test('Colors.grey는 크림 배경에서 미달이다', () {
+      expect(contrast(AppColors.backgroundLight, Colors.grey), lessThan(_aa));
+    });
+
+    test('보조 텍스트 토큰이면 두 모드 모두 AAA', () {
+      expect(contrast(AppColors.backgroundLight, AppColors.onSurfaceMutedLight),
+          greaterThanOrEqualTo(_aaa));
+      expect(contrast(AppColors.background, AppColors.onSurfaceMuted),
+          greaterThanOrEqualTo(_aaa));
+    });
+  });
+
   group('다크 모드', () {
     test('골드는 다크 배경 위 글자로도 통과', () {
       expect(contrast(AppColors.background, AppColors.primary),

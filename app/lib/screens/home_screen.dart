@@ -546,7 +546,7 @@ class _PrimaryAction extends StatelessWidget {
       extendedPadding: const EdgeInsets.symmetric(horizontal: 32),
       backgroundColor:
           enabled ? context.appPrimary : scheme.surfaceContainerHigh,
-      foregroundColor: enabled ? AppColors.onAccent : context.appMuted,
+      foregroundColor: enabled ? context.appOnAccent : context.appMuted,
       icon: Icon(icon, size: 26),
       label: Text(
         label,
@@ -769,10 +769,12 @@ class _CareBell extends ConsumerWidget {
                   child: Text(
                     unread > 9 ? '9+' : '$unread',
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
-                      color: Colors.white,
+                      // 빨강 위 흰 글자는 3.63:1 -- 안 읽은 개수는
+                      // 읽히라고 있는 숫자다
+                      color: context.appOnAccent,
                     ),
                   ),
                 ),
