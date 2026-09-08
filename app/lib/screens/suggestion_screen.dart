@@ -150,7 +150,11 @@ class SuggestionScreen extends ConsumerWidget {
           // ── 거부 / 승인 버튼 ─────────────────────────────────────────────
           Row(
             children: [
+              // 폭 비율은 키오스크와 같게(3:4) -- 1:2로 두면 '이번만 넘기기'가
+              // 기본 글씨에서도 단어 중간에서 줄바꿈된다. 문구는 두 화면이
+              // 같아야 손버릇이 생기므로 폭을 넓히는 쪽으로 맞춘다.
               Expanded(
+                flex: 3,
                 child: OutlinedButton(
                   onPressed: () =>
                       _dismissSuggestion(context, ref, suggestion, mute: false),
@@ -159,7 +163,7 @@ class SuggestionScreen extends ConsumerWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                flex: 2,
+                flex: 4,
                 child: FilledButton.icon(
                   onPressed: () async {
                     final rpiApi = ref.read(rpiApiServiceProvider);
