@@ -1,20 +1,28 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/execution_status.dart';
 import '../models/suggestion.dart';
 import '../services/rpi_api_service.dart';
 import 'ble_provider.dart';
+import 'rpi_api_provider.dart';
 import 'tts_provider.dart';
+
+// 진행 중이던 job을 기기에 남겨 앱 재시작 후에도 이어서 확인한다.
+const _kPendingJobKey = 'pending_job_id';
+const _kPendingLabelKey = 'pending_job_label';
 
 class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   ExecutionStatusNotifier(this.ref) : super(const ExecutionStatus()) {
     _subscription = ref.read(bleServiceProvider).messages.listen(_onMessage);
+    _restorePendingJob();
   }
 
   final Ref ref;
   StreamSubscription<Map<String, dynamic>>? _subscription;
+  ProviderSubscription<RpiApiService?>? _apiWait;
 
   // ── HTTP job 추적 (비동기 job 모델) ──────────────────────────────────────
   // 서버는 실행 접수 시 즉시 job_id를 돌려주고, 진행·완료는 /status 폴링으로
@@ -63,6 +71,77 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       phase: ExecutionPhase.running,
       message: '실행 중',
     );
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
+    _rememberPendingJob(jobId, label);
+  }
+
+  // ── 진행 중 job 보존 ────────────────────────────────────────────────────
+  //
+  // 실행은 수 초~수십 초 걸리고, 그 사이 앱이 내려갈 수 있다(사용자가 홈으로
+  // 나가거나 OS가 정리). 그때 job_id를 잃으면 물리 조작은 계속되는데 화면은
+  // "실행한 적 없음"으로 돌아온다 -- 가전 앞에 있는 사람에게 가장 나쁜 상태다.
+
+  Future<void> _rememberPendingJob(String jobId, String label) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_kPendingJobKey, jobId);
+      await prefs.setString(_kPendingLabelKey, label);
+    } catch (_) {
+      // 보존은 보조 장치 -- 실패해도 이번 실행 추적은 그대로 간다.
+    }
+  }
+
+  Future<void> _forgetPendingJob() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_kPendingJobKey);
+      await prefs.remove(_kPendingLabelKey);
+    } catch (_) {}
+  }
+
+  Future<void> _restorePendingJob() async {
+    String? jobId;
+    String label = '';
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      jobId = prefs.getString(_kPendingJobKey);
+      label = prefs.getString(_kPendingLabelKey) ?? '';
+    } catch (_) {
+      return;
+    }
+    if (jobId == null || !mounted) return;
+    // 이미 새 실행이 시작됐으면 옛 job으로 덮지 않는다.
+    if (_httpJobId != null) return;
+
+    final api = ref.read(rpiApiServiceProvider);
+    if (api != null) {
+      _resumeJob(api, jobId, label);
+      return;
+    }
+    // 서버 주소는 기기에서 비동기로 읽힌다 -- 준비되면 그때 이어붙인다.
+    final pendingId = jobId;
+    _apiWait = ref.listen<RpiApiService?>(rpiApiServiceProvider, (_, next) {
+      if (next == null || !mounted || _httpJobId != null) return;
+      _apiWait?.close();
+      _apiWait = null;
+      _resumeJob(next, pendingId, label);
+    });
+  }
+
+  /// 재시작 후 이어붙이기. 이미 끝난 job이면 첫 폴링이 완료/실패로 정리하고,
+  /// 서버가 응답하지 않으면 기존 규칙대로 '확인 불가'로 빠진다.
+  void _resumeJob(RpiApiService api, String jobId, String label) {
+    _httpApi = api;
+    _httpJobId = jobId;
+    _lastPollSuccess = DateTime.now();
+    _missingPolls = 0;
+    state = ExecutionStatus(
+      sequenceId: jobId,
+      label: label.isEmpty ? null : label,
+      phase: ExecutionPhase.running,
+      message: '아까 맡긴 작업을 다시 확인하고 있어요…',
+    );
+    _pollTimer?.cancel();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
   }
 
@@ -165,6 +244,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     if (keepTarget) return;
     _httpApi = null;
     _httpJobId = null;
+    // 결말이 난 job은 더 이상 이어붙일 것이 없다. '확인 불가'(keepTarget)는
+    // 아직 결말이 아니므로 남겨둔다 -- 앱을 다시 열면 또 확인해야 한다.
+    _forgetPendingJob();
   }
 
   /// '확인 불가'에서 사용자가 직접 다시 확인한다.
@@ -263,6 +345,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   void dispose() {
     _subscription?.cancel();
     _pollTimer?.cancel();
+    _apiWait?.close();
     super.dispose();
   }
 }

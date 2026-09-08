@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'providers/execution_status_provider.dart';
 import 'screens/appliance_editor_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/care_events_screen.dart';
@@ -90,6 +91,10 @@ class SimpleLayApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeMode = ref.watch(themeModeProvider);
+    // 실행 추적기를 시작부터 살려둔다. 진행 중이던 job을 기기에서 되읽어
+    // 이어붙이는 일이 이 안에서 벌어지는데, 상태 화면을 열어야만 만들어지면
+    // 앱을 다시 연 사용자는 홈에서 아무 흔적도 못 본다.
+    ref.watch(executionStatusProvider);
     return MaterialApp.router(
       title: 'SimpleLay',
       debugShowCheckedModeBanner: false,
