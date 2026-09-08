@@ -14,6 +14,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
@@ -226,7 +227,9 @@ void main() {
     await tester.tap(find.text('화면을 눌러 가전 조작'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.byType(KioskManualView), findsOneWidget);
+    // 수동 조작 진입 첫 화면(가전 선택)으로 넘어간다 -- 확대 변환을 통과한
+    // 탭이 제대로 히트테스트됐다는 뜻.
+    expect(find.byType(KioskApplianceSelectView), findsOneWidget);
   });
 
   testWidgets('서버 제안이 도착하면 idle → suggestion으로 전환된다', (tester) async {
