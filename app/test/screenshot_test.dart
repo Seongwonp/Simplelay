@@ -157,6 +157,25 @@ void main() {
         executionStatus: running, textScale: 2.0, settle: false);
   });
 
+  // 폐루프 증거가 표시되는 실행 화면 -- HTTP 경로(원시 mA/dB 없음)라
+  // 센서 차트 대신 "무슨 버튼을 누르고 어떻게 확인했는지"가 자리를 차지한다.
+  const runningWithEvidence = ExecutionStatus(
+    phase: ExecutionPhase.running,
+    label: '즉석밥 데워줘',
+    sequenceId: 's2',
+    message: '실행 중',
+    currentButton: '1분 추가',
+    totalSteps: 3,
+    completedSteps: 1,
+    verificationConfidence: 0.93,
+    verificationDetail: '센서로 눌림 확인',
+  );
+
+  testWidgets('실행 상태 — 폐루프 증거', (t) async {
+    await _shoot(t, 'status_closed_loop', const StatusScreen(),
+        executionStatus: runningWithEvidence, settle: false);
+  });
+
   // 설정·수동 조작도 행 끝에 컨트롤이 붙는 구조라 홈과 같은 압축이 일어날 수 있다
   testWidgets('설정', (t) async {
     await _shoot(t, 'settings', const SettingsScreen(), settle: false);
