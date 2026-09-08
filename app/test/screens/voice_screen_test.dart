@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
+import 'package:simplelay/providers/navigation_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/providers/voice_provider.dart';
 import 'package:simplelay/screens/voice_screen.dart';
@@ -30,6 +31,7 @@ const _testAppliance = ApplianceMap(
 
 class _FakeVoiceService extends VoiceService {
   void Function(String errorId)? _errorCallback;
+  void Function(String finalText)? _silenceCallback;
   bool _listening = false;
 
   @override
@@ -46,7 +48,14 @@ class _FakeVoiceService extends VoiceService {
   }) async {
     _listening = true;
     _errorCallback = onError;
+    _silenceCallback = onSilence;
     onText('부분 인식 문장');
+  }
+
+  /// 5초 침묵으로 엔진이 듣기를 끝낸 상황.
+  void emitSilence(String finalText) {
+    _listening = false;
+    _silenceCallback?.call(finalText);
   }
 
   void emitError(String errorId) {
@@ -124,6 +133,132 @@ void main() {
     );
   });
 
+  testWidgets('침묵으로 듣기가 끝나도 자동 전송하지 않고 확인을 묻는다', (tester) async {
+    final voice = _FakeVoiceService();
+    var executeCalls = 0;
+    final api = RpiApiService(
+      'http://rpi5.local:8000',
+      client: MockClient((_) async {
+        executeCalls++;
+        return http.Response.bytes(
+          utf8.encode(jsonEncode({'job_id': 'job-1'})),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final container = await _makeContainer(extra: [
+      voiceServiceProvider.overrideWithValue(voice),
+      rpiApiServiceProvider.overrideWithValue(api),
+    ]);
+
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.pump();
+
+    voice.emitSilence('즉석밥 데워줘');
+    await tester.pump();
+    // 파형 막대의 예약 타이머(최대 150ms)를 소진시킨다.
+    await tester.pump(const Duration(milliseconds: 200));
+
+    // 말하다 잠깐 멈춘 것이 곧바로 물리 조작이 되면 안 된다.
+    expect(executeCalls, 0);
+    expect(container.read(voiceListeningProvider), false);
+    expect(find.text('이대로 실행할까요?'), findsOneWidget);
+    expect(find.text('이대로 실행'), findsOneWidget);
+    expect(find.text('다시 말하기'), findsOneWidget);
+  });
+
+  testWidgets('다른 탭으로 이동하면 음성 세션과 확인 대기가 정리된다', (tester) async {
+    final voice = _FakeVoiceService();
+    final container = await _makeContainer(
+      extra: [voiceServiceProvider.overrideWithValue(voice)],
+    );
+
+    // 음성 탭에 있는 상태에서 시작한다(AppShell이 하는 일).
+    container.read(currentTabIndexProvider.notifier).state = voiceTabIndex;
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.pump();
+    expect(container.read(voiceListeningProvider), true);
+
+    // 탭 브랜치는 화면을 떠나도 살아 있다 -- 숨겨진 화면이 계속 듣거나
+    // 나중에 옛 문장을 실행하면 안 된다.
+    container.read(currentTabIndexProvider.notifier).state = 0;
+    await tester.pump();
+    await tester.pump();
+    // 파형 막대의 예약 타이머(최대 150ms)를 소진시킨다.
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(voice.isListening, false);
+    expect(container.read(voiceListeningProvider), false);
+    expect(container.read(voiceTextProvider), isEmpty);
+  });
+
+  testWidgets('앱이 뒤로 가면 마이크를 놓는다', (tester) async {
+    final voice = _FakeVoiceService();
+    final container = await _makeContainer(
+      extra: [voiceServiceProvider.overrideWithValue(voice)],
+    );
+
+    await tester.pumpWidget(_buildScreen(container));
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+    await tester.pump();
+    expect(container.read(voiceListeningProvider), true);
+
+    // 화면이 꺼지거나 다른 앱으로 전환됐는데 계속 듣고 있으면 안 된다.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump();
+    await tester.pump();
+    // 파형 막대의 예약 타이머(최대 150ms)를 소진시킨다.
+    await tester.pump(const Duration(milliseconds: 200));
+
+    expect(voice.isListening, false);
+    expect(container.read(voiceListeningProvider), false);
+  });
+
+  testWidgets('전송이 시작되면 실행 버튼이 잠긴다', (tester) async {
+    final voice = _FakeVoiceService();
+    var executeCalls = 0;
+    final api = RpiApiService(
+      'http://rpi5.local:8000',
+      client: MockClient((_) async {
+        executeCalls++;
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        // 409로 끝내 job 추적(주기 폴링)이 시작되지 않게 한다 -- 이
+        // 테스트의 관심사는 전송 잠금이지 실행 추적이 아니다.
+        return http.Response.bytes(
+          utf8.encode(jsonEncode({'detail': 'busy'})),
+          409,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+      }),
+    );
+    final container = await _makeContainer(extra: [
+      voiceServiceProvider.overrideWithValue(voice),
+      rpiApiServiceProvider.overrideWithValue(api),
+    ]);
+
+    await tester.pumpWidget(_buildScreen(container));
+    container.read(voiceTextProvider.notifier).state = '즉석밥 데워줘';
+    await tester.pump();
+
+    await tester.tap(find.text('이대로 실행'));
+    await tester.pump();
+
+    // 연타·중복 경로가 같은 명령을 두 번 실행하지 못하게 잠근다.
+    expect(find.text('보내는 중…'), findsOneWidget);
+    expect(find.text('이대로 실행'), findsNothing);
+
+    await tester.pump(const Duration(milliseconds: 100)); // 응답 도착
+    expect(executeCalls, 1);
+    // 안내 스낵바·파형 타이머를 소진시킨다.
+    await tester.pump(const Duration(seconds: 5));
+  });
+
   group('내장 가전 선택 시 (기존 동작 유지)', () {
     testWidgets('힌트는 "즉석밥 데워줘" 예시를 보여준다', (tester) async {
       final container = await _makeContainer();
@@ -164,7 +299,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('지금 전송'));
+      await tester.tap(find.text('이대로 실행'));
       await tester.pump();
 
       expect(captured!.url.path, '/execute');
@@ -214,7 +349,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('지금 전송'));
+      await tester.tap(find.text('이대로 실행'));
       await tester.pump();
 
       expect(
@@ -254,7 +389,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('지금 전송'));
+      await tester.tap(find.text('이대로 실행'));
       await tester.pump();
 
       expect(captured!.url.path, '/execute-for-appliance');
@@ -288,7 +423,7 @@ void main() {
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
-      await tester.tap(find.text('지금 전송'));
+      await tester.tap(find.text('이대로 실행'));
       await tester.pump();
 
       // raw 예외 문자열 대신 사용자 언어로 안내한다

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/execution_status_provider.dart';
+import '../providers/navigation_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/voice_provider.dart';
 import '../services/ble_service.dart';
@@ -21,7 +24,12 @@ class VoiceScreen extends ConsumerStatefulWidget {
   ConsumerState<VoiceScreen> createState() => _VoiceScreenState();
 }
 
-class _VoiceScreenState extends ConsumerState<VoiceScreen> {
+class _VoiceScreenState extends ConsumerState<VoiceScreen>
+    with WidgetsBindingObserver {
+  /// 전송 중 재진입 잠금. 연타하거나 자동/수동 경로가 겹치면 같은 명령이
+  /// 두 번 실행된다 -- 물리 버튼을 누르는 기기에서는 되돌릴 수 없다.
+  bool _sending = false;
+
   // dispose()는 위젯이 이미 unmount되는 중이라 그 시점의 ref.read()는
   // "Cannot use ref after the widget was disposed"로 죽는다 — initState에서
   // (ref가 아직 유효할 때) 미리 읽어 필드에 캐시해두고 dispose에서는 이
@@ -32,7 +40,38 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
   void initState() {
     super.initState();
     _voiceService = ref.read(voiceServiceProvider);
+    WidgetsBinding.instance.addObserver(this);
   }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // 앱이 뒤로 가거나 화면이 꺼지면 마이크를 놓는다. 보이지 않는 화면이
+    // 계속 듣고 있으면 안 된다.
+    if (state != AppLifecycleState.resumed) _cancelSession();
+  }
+
+  /// 음성 세션을 끝내고 확인 대기 문장도 비운다.
+  /// 화면을 떠났다가 돌아와 예전 문장을 실행하는 혼선을 막는다.
+  Future<void> _cancelSession() async {
+    if (_voiceService.isListening) await _voiceService.stop();
+    if (!mounted) return;
+    ref.read(voiceListeningProvider.notifier).state = false;
+    ref.read(voiceTextProvider.notifier).state = '';
+  }
+
+  /// 듣기만 끝낸다 -- 실행은 사용자가 인식 문장을 보고 고른다.
+  Future<void> _finishListening() async {
+    await _voiceService.stop();
+    if (!mounted) return;
+    ref.read(voiceListeningProvider.notifier).state = false;
+  }
+
+  Future<void> _restartListening() async {
+    ref.read(voiceTextProvider.notifier).state = '';
+    await _toggle();
+  }
+
+  void _cancelPending() => ref.read(voiceTextProvider.notifier).state = '';
 
   Future<void> _toggle() async {
     final voice = _voiceService;
@@ -55,10 +94,14 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
           if (!mounted) return;
           ref.read(voiceTextProvider.notifier).state = text;
         },
-        onSilence: (text) async {
+        onSilence: (text) {
           if (!mounted) return;
+          // 5초 침묵은 "듣기 종료"일 뿐 "실행 동의"가 아니다. 생각하다
+          // 잠깐 멈춘 것이 실행으로 해석되면, 물리 버튼을 대신 누르는
+          // 기기에서는 되돌릴 수 없는 동작이 된다. 여기서는 멈추기만 하고
+          // 실행 여부는 사용자가 인식 문장을 확인하고 고른다.
           ref.read(voiceListeningProvider.notifier).state = false;
-          await _send(text);
+          ref.read(voiceTextProvider.notifier).state = text;
         },
         onError: (errorId) {
           if (!mounted) return;
@@ -78,7 +121,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
 
   Future<void> _send(String text) async {
     final trimmed = text.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty || _sending) return;
+    setState(() => _sending = true);
     final rpiApi = ref.read(rpiApiServiceProvider);
     final appliance = ref.read(selectedApplianceProvider);
 
@@ -121,8 +165,15 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
           _ => '명령을 전달하지 못했어요. 연결을 확인해주세요.',
         });
       }
+    } on TimeoutException {
+      // 응답이 유실됐을 뿐 서버는 이미 접수했을 수 있다. 이걸 '미접수'로
+      // 단정하고 BLE로 다시 보내면 같은 명령이 두 번 실행된다 -- 채널 간
+      // 중복을 걸러낼 요청 ID가 아직 없으므로 자동 재전송하지 않는다.
+      if (mounted) {
+        _notice('요청이 접수됐는지 확인 중이에요. 실행 상태를 확인해주세요.');
+      }
     } catch (_) {
-      // RpiApiException이 아닌 실패 = 서버 무응답(네트워크). 서버가 살아서
+      // 연결 자체가 성립하지 않은 실패(서버에 닿지도 못함). 서버가 살아서
       // 거절한 게 아니므로, BLE(ESP32 릴레이)가 연결돼 있으면 폴백 전송한다 —
       // "Wi-Fi가 끊겨도 동작"이 실제로 성립하는 지점. 사용자 정의 가전은
       // LLM 해석이 필요해 BLE 릴레이로는 처리 불가라 제외.
@@ -139,6 +190,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
         }
       }
       if (mounted) _notice('명령을 전달하지 못했어요. 연결을 확인해주세요.');
+    } finally {
+      if (mounted) setState(() => _sending = false);
     }
   }
 
@@ -159,6 +212,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _voiceService.cancel();
     super.dispose();
   }
@@ -168,6 +222,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
     final text = ref.watch(voiceTextProvider);
     final listening = ref.watch(voiceListeningProvider);
     final appliance = ref.watch(selectedApplianceProvider);
+
+    // 탭을 떠나면 마이크를 놓는다. 탭 브랜치는 화면을 떠나도 위젯이 살아
+    // 있어서(상태 보존), 여기서 정리하지 않으면 숨겨진 화면이 계속 듣는다.
+    ref.listen<int>(currentTabIndexProvider, (_, next) {
+      if (next != voiceTabIndex) _cancelSession();
+    });
+
     // 내장 가전(전자레인지)만 실제로 매칭되는 규칙이 있어서 그 예시를 쓰고,
     // 사용자 정의 가전은 등록된 실제 버튼 라벨로 예시를 만든다 — 안 그러면
     // "우유 데워줘" 힌트가 우유 버튼도 없는 가전에서도 그대로 보이게 된다.
@@ -188,12 +249,19 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
             const SizedBox(height: 32),
 
             // ── 마이크 버튼 ────────────────────────────────────────────────
-            _MicButton(listening: listening, onTap: _toggle),
+            _MicButton(
+              listening: listening,
+              onTap: _sending ? null : _toggle,
+            ),
             const SizedBox(height: 28),
 
             // ── 상태 텍스트 ────────────────────────────────────────────────
             Text(
-              listening ? '듣고 있어요…' : '마이크를 눌러 말해보세요',
+              listening
+                  ? '듣고 있어요…'
+                  : text.trim().isEmpty
+                      ? '마이크를 눌러 말해보세요'
+                      : '이대로 실행할까요?',
               style: AppText.title,
               textAlign: TextAlign.center,
             ),
@@ -223,28 +291,56 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
                       ),
                       child: Text(
                         text,
-                        style: AppText.title.copyWith(color: context.appPrimary),
+                        style:
+                            AppText.title.copyWith(color: context.appPrimary),
                         textAlign: TextAlign.center,
                       ),
                     ),
             ),
             const SizedBox(height: 8),
             Text(
-              '5초 동안 말이 없으면 자동으로 전송됩니다.',
+              '말이 끝나면 내용을 확인한 뒤 실행해요.',
               style: TextStyle(color: context.appMuted, fontSize: 12),
               textAlign: TextAlign.center,
             ),
 
             const Spacer(),
 
-            // ── 지금 전송 버튼 ─────────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton(
-                onPressed: text.trim().isEmpty ? null : () => _send(text),
-                child: const Text('지금 전송'),
+            // ── 확인 후 실행 ───────────────────────────────────────────────
+            // 듣기 종료와 실행 동의를 분리한다. 인식이 틀렸을 때 고치거나
+            // 그만둘 자리가 없으면, 잘못 알아들은 문장이 그대로 물리 조작이 된다.
+            if (listening)
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _sending ? null : _finishListening,
+                  child: const Text('말 끝났어요'),
+                ),
+              )
+            else if (text.trim().isNotEmpty) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: _sending ? null : _restartListening,
+                      child: const Text('다시 말하기'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton(
+                      onPressed: _sending ? null : () => _send(text),
+                      child: Text(_sending ? '보내는 중…' : '이대로 실행'),
+                    ),
+                  ),
+                ],
               ),
-            ),
+              TextButton(
+                onPressed: _sending ? null : _cancelPending,
+                child: const Text('취소'),
+              ),
+            ],
             const SizedBox(height: 32),
           ],
         ),
@@ -258,7 +354,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
 class _MicButton extends StatelessWidget {
   const _MicButton({required this.listening, required this.onTap});
   final bool listening;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   // Semantics: 스크린리더 사용자에게 상태까지 포함해 버튼으로 읽힌다.
@@ -269,7 +365,7 @@ class _MicButton extends StatelessWidget {
         child: GestureDetector(
           onTap: () {
             HapticFeedback.mediumImpact();
-            onTap();
+            onTap?.call();
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
