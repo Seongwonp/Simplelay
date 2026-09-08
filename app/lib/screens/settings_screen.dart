@@ -93,9 +93,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               child: Row(
                 children: [
                   Icon(
-                    _showAdvanced
-                        ? Icons.expand_less
-                        : Icons.expand_more,
+                    _showAdvanced ? Icons.expand_less : Icons.expand_more,
                     color: context.appMuted,
                     size: 18,
                   ),
@@ -200,13 +198,21 @@ class _RpiConnectionTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final connState = ref.watch(rpiConnectionProvider);
-    final url       = ref.watch(rpiUrlProvider);
+    final url = ref.watch(rpiUrlProvider);
 
     final (Color color, String label, IconData icon) = switch (connState) {
-      RpiConnectionState.unconfigured => (context.appMuted, '미설정', Icons.wifi_off),
-      RpiConnectionState.checking     => (context.appWarning, '확인 중…', Icons.sync),
-      RpiConnectionState.connected    => (context.appSuccess, '연결됨', Icons.wifi),
-      RpiConnectionState.unreachable  => (context.appDanger, '연결 안 됨', Icons.wifi_off),
+      RpiConnectionState.unconfigured => (
+          context.appMuted,
+          '미설정',
+          Icons.wifi_off
+        ),
+      RpiConnectionState.checking => (context.appWarning, '확인 중…', Icons.sync),
+      RpiConnectionState.connected => (context.appSuccess, '연결됨', Icons.wifi),
+      RpiConnectionState.unreachable => (
+          context.appDanger,
+          '연결 안 됨',
+          Icons.wifi_off
+        ),
     };
 
     return _SettingCard(
@@ -246,7 +252,7 @@ class _RpiConnectionTile extends ConsumerWidget {
 class _ApplianceSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selected   = ref.watch(selectedApplianceProvider);
+    final selected = ref.watch(selectedApplianceProvider);
     final appliances = ref.watch(allAppliancesProvider);
 
     return Column(
@@ -260,71 +266,82 @@ class _ApplianceSection extends ConsumerWidget {
           children: [
             ...appliances.map((appliance) {
               final isSelected = appliance.id == selected.id;
-              return GestureDetector(
-                onTap: () => ref
-                    .read(selectedApplianceProvider.notifier)
-                    .select(appliance),
-                child: AnimatedContainer(
-                  duration: const Duration(milliseconds: 180),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: isSelected
-                        ? context.appPrimary.withValues(alpha: 0.14)
-                        : Theme.of(context).colorScheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(
+              // 선택 상태를 시맨틱으로 노출한다 -- 체크 아이콘은 눈으로만
+              // 보이는 신호라, 스크린리더 사용자는 가전 이름은 읽어도
+              // 무엇이 선택됐는지 알 수 없었다.
+              return Semantics(
+                button: true,
+                selected: isSelected,
+                child: GestureDetector(
+                  onTap: () => ref
+                      .read(selectedApplianceProvider.notifier)
+                      .select(appliance),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    // 터치 목표 하한. 고령 사용자 대상이라 WCAG 2.2 AA의
+                    // 최소치(24)보다 높은 48을 제품 기준으로 잡는다.
+                    constraints: const BoxConstraints(minHeight: 48),
+                    alignment: Alignment.center,
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
                       color: isSelected
-                          ? context.appPrimary
-                          : context.appBorderSubtle,
-                      width: isSelected ? 1.5 : 0.5,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        appliance.icon,
+                          ? context.appPrimary.withValues(alpha: 0.14)
+                          : Theme.of(context).colorScheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
                         color: isSelected
                             ? context.appPrimary
-                            : context.appMuted,
-                        size: 18,
+                            : context.appBorderSubtle,
+                        width: isSelected ? 1.5 : 0.5,
                       ),
-                      const SizedBox(width: 6),
-                      Text(
-                        appliance.name,
-                        style: TextStyle(
-                          fontSize: 13,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          appliance.icon,
                           color: isSelected
                               ? context.appPrimary
                               : context.appMuted,
-                          fontWeight: isSelected
-                              ? FontWeight.w600
-                              : FontWeight.normal,
+                          size: 18,
                         ),
-                      ),
-                      if (isSelected) ...[
-                        const SizedBox(width: 4),
-                        Icon(Icons.check_circle,
-                            color: context.appPrimary, size: 14),
-                      ],
-                      if (appliance.isCustom) ...[
-                        const SizedBox(width: 2),
-                        // 등록 데이터(버튼맵·사진)가 즉시 유실되는 파괴적
-                        // 동작 — 반드시 확인을 거친다. 히트박스도 14px
-                        // 아이콘 단독이 아니라 패딩 포함으로 확대.
-                        GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => _confirmRemoveAppliance(
-                              context, ref, appliance),
-                          child: Padding(
-                            padding: const EdgeInsets.all(6),
-                            child: Icon(Icons.close,
-                                color: context.appMuted, size: 14),
+                        const SizedBox(width: 6),
+                        Text(
+                          appliance.name,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: isSelected
+                                ? context.appPrimary
+                                : context.appMuted,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
                           ),
                         ),
+                        if (isSelected) ...[
+                          const SizedBox(width: 4),
+                          Icon(Icons.check_circle,
+                              color: context.appPrimary, size: 14),
+                        ],
+                        if (appliance.isCustom) ...[
+                          const SizedBox(width: 2),
+                          // 등록 데이터(버튼맵·사진)가 즉시 유실되는 파괴적
+                          // 동작 — 반드시 확인을 거친다. 히트박스도 14px
+                          // 아이콘 단독이 아니라 패딩 포함으로 확대.
+                          GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => _confirmRemoveAppliance(
+                                context, ref, appliance),
+                            child: Padding(
+                              padding: const EdgeInsets.all(6),
+                              child: Icon(Icons.close,
+                                  color: context.appMuted, size: 14),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               );
@@ -333,13 +350,13 @@ class _ApplianceSection extends ConsumerWidget {
             GestureDetector(
               onTap: () => context.push('/appliance/new'),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.surfaceContainerHigh,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                      color: context.appBorderSubtle, width: 0.5),
+                  border:
+                      Border.all(color: context.appBorderSubtle, width: 0.5),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
@@ -347,8 +364,8 @@ class _ApplianceSection extends ConsumerWidget {
                     Icon(Icons.add, color: context.appMuted, size: 18),
                     const SizedBox(width: 6),
                     Text('새 가전',
-                        style: TextStyle(
-                            fontSize: 13, color: context.appMuted)),
+                        style:
+                            TextStyle(fontSize: 13, color: context.appMuted)),
                   ],
                 ),
               ),
@@ -455,14 +472,12 @@ class _ApplianceSection extends ConsumerWidget {
       // 서버(키오스크 목록)에서도 제거 — 실패해도 폰 삭제는 유지하되,
       // 키오스크에 유령 가전이 남는다는 사실은 알려준다 (교차 리뷰 #3)
       final api = ref.read(rpiApiServiceProvider);
-      final removed = api == null
-          ? false
-          : await api.deleteAppliance(appliance.id);
+      final removed =
+          api == null ? false : await api.deleteAppliance(appliance.id);
       if (!removed) {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text(
-                '폰에서는 삭제했지만 키오스크 반영에 실패했어요. 서버 연결 후 '
+            content: Text('폰에서는 삭제했지만 키오스크 반영에 실패했어요. 서버 연결 후 '
                 '"키오스크와 다시 동기화"를 눌러 주세요.'),
           ),
         );
@@ -476,7 +491,7 @@ class _ApplianceSection extends ConsumerWidget {
 class _SavedDeviceSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final saved      = ref.watch(savedDeviceProvider);
+    final saved = ref.watch(savedDeviceProvider);
     final connection = ref.watch(bleConnectionProvider).valueOrNull ??
         BleConnectionState.disconnected;
     final isConnected = connection == BleConnectionState.connected;
@@ -485,8 +500,8 @@ class _SavedDeviceSection extends ConsumerWidget {
       return _SettingCard(
         child: ListTile(
           contentPadding: EdgeInsets.zero,
-          leading: Icon(Icons.bluetooth_disabled,
-              color: context.appMuted, size: 22),
+          leading:
+              Icon(Icons.bluetooth_disabled, color: context.appMuted, size: 22),
           title: const Text('BLE 기기'),
           subtitle: Text('저장된 기기 없음 — 고급 설정에서 스캔',
               style: TextStyle(color: context.appMuted, fontSize: 12)),
@@ -527,8 +542,8 @@ class _SavedDeviceSection extends ConsumerWidget {
                         .scan(timeout: const Duration(seconds: 8))
                         .timeout(const Duration(seconds: 9))) {
                       match = results
-                          .where((r) =>
-                              r.device.remoteId.toString() == saved.id)
+                          .where(
+                              (r) => r.device.remoteId.toString() == saved.id)
                           .firstOrNull;
                       if (match != null) break;
                     }
@@ -551,16 +566,14 @@ class _SavedDeviceSection extends ConsumerWidget {
                   }
                 },
                 style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 12, vertical: 6),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: const Size(48, 48),
                 ),
-                child:
-                    const Text('재연결', style: TextStyle(fontSize: 12)),
+                child: const Text('재연결', style: TextStyle(fontSize: 12)),
               ),
             IconButton(
-              onPressed: () =>
-                  ref.read(savedDeviceProvider.notifier).clear(),
+              onPressed: () => ref.read(savedDeviceProvider.notifier).clear(),
               icon: const Icon(Icons.delete_outline, size: 16),
               color: context.appMuted,
               tooltip: '삭제',
@@ -620,8 +633,8 @@ class _AdvancedSection extends ConsumerWidget {
               FilledButton(
                 onPressed: () => _save(ref),
                 style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 12),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   minimumSize: const Size(48, 48),
                 ),
                 child: const Text('저장', style: TextStyle(fontSize: 13)),
@@ -666,8 +679,7 @@ class _AdvancedSection extends ConsumerWidget {
               minimumSize: const Size(48, 48),
             ),
             child: Text('기본값으로 초기화',
-                style:
-                    TextStyle(color: context.appMuted, fontSize: 12)),
+                style: TextStyle(color: context.appMuted, fontSize: 12)),
           ),
         ],
       );
@@ -698,8 +710,7 @@ class _BleSection extends ConsumerWidget {
               icon: Icon(Icons.refresh, color: context.appMuted, size: 18),
               tooltip: '다시 스캔',
               padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(
-                minWidth: 48, minHeight: 48),
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             ),
           ],
         ),
@@ -717,8 +728,7 @@ class _BleSection extends ConsumerWidget {
             }.values;
             if (unique.isEmpty) {
               return Text('검색된 기기가 없습니다.',
-                  style:
-                      TextStyle(color: context.appMuted, fontSize: 12));
+                  style: TextStyle(color: context.appMuted, fontSize: 12));
             }
             return Column(
               children: unique.map((result) {
@@ -732,8 +742,7 @@ class _BleSection extends ConsumerWidget {
                     title: Text(name, style: const TextStyle(fontSize: 14)),
                     subtitle: Text(
                       '${result.rssi} dBm',
-                      style: TextStyle(
-                          color: context.appMuted, fontSize: 11),
+                      style: TextStyle(color: context.appMuted, fontSize: 11),
                     ),
                     trailing: FilledButton(
                       onPressed: () async {
@@ -763,8 +772,7 @@ class _BleSection extends ConsumerWidget {
                             horizontal: 14, vertical: 8),
                         minimumSize: const Size(48, 48),
                       ),
-                      child: const Text('연결',
-                          style: TextStyle(fontSize: 12)),
+                      child: const Text('연결', style: TextStyle(fontSize: 12)),
                     ),
                   ),
                 );
@@ -849,17 +857,13 @@ class _NodeSection extends ConsumerWidget {
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(appliance.icon,
-                    color: url != null
-                        ? context.appSuccess
-                        : context.appMuted,
+                    color: url != null ? context.appSuccess : context.appMuted,
                     size: 20),
                 title: Text(appliance.name),
                 subtitle: Text(
                   url ?? '미등록',
                   style: TextStyle(
-                    color: url != null
-                        ? context.appSuccess
-                        : context.appMuted,
+                    color: url != null ? context.appSuccess : context.appMuted,
                     fontSize: 12,
                   ),
                   maxLines: 1,
@@ -867,7 +871,9 @@ class _NodeSection extends ConsumerWidget {
                 ),
                 trailing: IconButton(
                   icon: Icon(
-                    url != null ? Icons.edit_outlined : Icons.add_circle_outline,
+                    url != null
+                        ? Icons.edit_outlined
+                        : Icons.add_circle_outline,
                     color: context.appMuted,
                     size: 18,
                   ),
@@ -958,24 +964,36 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
   Future<void> _save() async {
     final url = _normalize(_ctrl.text);
     if (url.isEmpty) return;
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     final ok = await widget.onSave(url);
     if (!mounted) return;
     if (ok) {
       Navigator.of(context).pop();
     } else {
-      setState(() { _saving = false; _error = '저장 실패 — RPi 서버에 연결되어 있는지 확인하세요'; });
+      setState(() {
+        _saving = false;
+        _error = '저장 실패 — RPi 서버에 연결되어 있는지 확인하세요';
+      });
     }
   }
 
   Future<void> _unregister() async {
-    setState(() { _saving = true; _error = null; });
+    setState(() {
+      _saving = true;
+      _error = null;
+    });
     final ok = await widget.onUnregister();
     if (!mounted) return;
     if (ok) {
       Navigator.of(context).pop();
     } else {
-      setState(() { _saving = false; _error = '해제 실패'; });
+      setState(() {
+        _saving = false;
+        _error = '해제 실패';
+      });
     }
   }
 
@@ -1050,8 +1068,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
                   'ESP32 IP 입력 — 포트는 자동으로 :8080이 붙습니다',
-                  style: TextStyle(
-                      fontSize: 12, color: context.appMuted),
+                  style: TextStyle(fontSize: 12, color: context.appMuted),
                 ),
               ),
 
@@ -1070,8 +1087,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                   decoration: InputDecoration(
                     border: const OutlineInputBorder(),
                     hintText: '192.168.x.x  또는  http://...:8080',
-                    hintStyle: TextStyle(
-                        fontSize: 13, color: context.appMuted),
+                    hintStyle: TextStyle(fontSize: 13, color: context.appMuted),
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 14, vertical: 12),
                     isDense: true,
@@ -1087,8 +1103,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
                     _error!,
-                    style: TextStyle(
-                        fontSize: 12, color: context.appDanger),
+                    style: TextStyle(fontSize: 12, color: context.appDanger),
                   ),
                 ),
               ],
@@ -1107,7 +1122,8 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                           style: OutlinedButton.styleFrom(
                             foregroundColor: context.appDanger,
                             side: BorderSide(
-                                color: context.appDanger.withValues(alpha: 0.5)),
+                                color:
+                                    context.appDanger.withValues(alpha: 0.5)),
                           ),
                           child: const Text('해제'),
                         ),
@@ -1165,7 +1181,6 @@ class _SettingCard extends StatelessWidget {
         ),
       );
 }
-
 
 /// 다시 추천 안 하는 루틴 목록 -- 개별 해제(다시 받기) 가능.
 class _SuppressionSection extends ConsumerStatefulWidget {
@@ -1235,4 +1250,3 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
     );
   }
 }
-

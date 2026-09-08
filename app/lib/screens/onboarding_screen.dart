@@ -34,73 +34,83 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 32),
           child: Column(
             children: [
-              const Spacer(flex: 2),
+              // 본문은 스크롤 -- 글씨를 키우면 안내가 화면 밖으로 넘쳐,
+              // 정작 글씨가 필요한 사용자가 내용을 잃는다.
+              Expanded(
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 32),
 
-              // ── 아이콘 ─────────────────────────────────────────────────
-              Container(
-                width: 72,
-                height: 72,
-                decoration: BoxDecoration(
-                  color: context.appPrimary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                    color: context.appPrimary.withValues(alpha: 0.35),
+                      // ── 아이콘 ─────────────────────────────────────────────────
+                      Container(
+                        width: 72,
+                        height: 72,
+                        decoration: BoxDecoration(
+                          color: context.appPrimary.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: context.appPrimary.withValues(alpha: 0.35),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.home_max_outlined,
+                          size: 36,
+                          color: context.appPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      // ── 타이틀 ─────────────────────────────────────────────────
+                      Text(
+                        'SimpleLay에 오신 것을\n환영합니다',
+                        textAlign: TextAlign.center,
+                        style: AppText.heading.copyWith(
+                          color: cs.onSurface,
+                          height: 1.25,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'AI가 상황을 인식하고 가전을 대신 조작합니다',
+                        textAlign: TextAlign.center,
+                        style: AppText.body.copyWith(color: context.appMuted),
+                      ),
+
+                      const SizedBox(height: 32),
+
+                      // ── 특징 3가지 ──────────────────────────────────────────────
+                      _FeatureRow(
+                        icon: Icons.wifi_rounded,
+                        title: '자동 연결',
+                        body: 'RPi5와 같은 WiFi에 연결하면\nsimplelay.local로 자동 접속됩니다',
+                      ),
+                      const SizedBox(height: 20),
+                      _FeatureRow(
+                        icon: Icons.lightbulb_outline_rounded,
+                        title: 'AI 제안',
+                        body: '상황을 감지하면 가전 조작 제안이\n화면에 나타납니다',
+                      ),
+                      const SizedBox(height: 20),
+                      _FeatureRow(
+                        icon: Icons.do_not_disturb_on_outlined,
+                        title: '방해 금지',
+                        body: '홈 화면 우측 상단 버튼으로\n제안을 잠시 멈출 수 있습니다',
+                      ),
+
+                      const SizedBox(height: 32),
+                    ],
                   ),
                 ),
-                child: Icon(
-                  Icons.home_max_outlined,
-                  size: 36,
-                  color: context.appPrimary,
-                ),
-              ),
-              const SizedBox(height: 28),
-
-              // ── 타이틀 ─────────────────────────────────────────────────
-              Text(
-                'SimpleLay에 오신 것을\n환영합니다',
-                textAlign: TextAlign.center,
-                style: AppText.heading.copyWith(
-                  color: cs.onSurface,
-                  height: 1.25,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'AI가 상황을 인식하고 가전을 대신 조작합니다',
-                textAlign: TextAlign.center,
-                style: AppText.body.copyWith(color: context.appMuted),
               ),
 
-              const Spacer(flex: 2),
-
-              // ── 특징 3가지 ──────────────────────────────────────────────
-              _FeatureRow(
-                icon: Icons.wifi_rounded,
-                title: '자동 연결',
-                body: 'RPi5와 같은 WiFi에 연결하면\nsimplelay.local로 자동 접속됩니다',
-              ),
-              const SizedBox(height: 20),
-              _FeatureRow(
-                icon: Icons.lightbulb_outline_rounded,
-                title: 'AI 제안',
-                body: '상황을 감지하면 가전 조작 제안이\n화면에 나타납니다',
-              ),
-              const SizedBox(height: 20),
-              _FeatureRow(
-                icon: Icons.do_not_disturb_on_outlined,
-                title: '방해 금지',
-                body: '홈 화면 우측 상단 버튼으로\n제안을 잠시 멈출 수 있습니다',
-              ),
-
-              const Spacer(flex: 3),
-
-              // ── 시작 버튼 ───────────────────────────────────────────────
+              // ── 시작 버튼 ── 스크롤 밖에 고정해 항상 닿게 ──────────────
               SizedBox(
                 width: double.infinity,
-                height: 52,
                 child: FilledButton(
                   onPressed: _loading ? null : _start,
                   style: FilledButton.styleFrom(
+                    minimumSize: const Size(0, 52),
                     backgroundColor: context.appPrimary,
                     foregroundColor: isDark
                         ? AppColors.background

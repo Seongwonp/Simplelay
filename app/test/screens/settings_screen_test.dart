@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,6 +62,30 @@ void main() {
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
       expect(find.text('설정'), findsOneWidget);
+    });
+
+    testWidgets('가전 선택 칩이 선택 상태와 터치 목표를 만족한다', (tester) async {
+      // 체크 아이콘은 눈으로만 보이는 신호다 -- 스크린리더 사용자도 무엇이
+      // 선택됐는지 알아야 하고, 칩 자체가 누르기 충분해야 한다.
+      final handle = tester.ensureSemantics();
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSettings());
+      await tester.pump();
+
+      final chip = find
+          .ancestor(
+            of: find.text('전자레인지'),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first;
+
+      // 제품 터치 목표 48 (WCAG 2.2 AA 최소치 24보다 높게 잡은 값)
+      expect(tester.getSize(chip).height, greaterThanOrEqualTo(48.0));
+      expect(
+        tester.getSemantics(chip).hasFlag(SemanticsFlag.isSelected),
+        isTrue,
+      );
+      handle.dispose();
     });
 
     testWidgets('고급 설정을 열면 RPi 서버 URL 입력 필드가 보인다', (tester) async {

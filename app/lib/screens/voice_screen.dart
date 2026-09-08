@@ -242,69 +242,81 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         padding: const EdgeInsets.symmetric(horizontal: 32),
         child: Column(
           children: [
-            const Spacer(),
+            // 인식 문장이 길거나 글씨를 키우면 내용이 화면을 넘긴다.
+            // 본문은 스크롤하고, 실행/취소는 아래에 고정해 항상 닿게 한다.
+            Expanded(
+              child: SingleChildScrollView(
+                child: Column(
+                  children: [
+                    const SizedBox(height: 24),
 
-            // ── 웨이브 비주얼라이저 ────────────────────────────────────────
-            _WaveVisualizer(active: listening),
-            const SizedBox(height: 32),
+                    // ── 웨이브 비주얼라이저 ────────────────────────────────────────
+                    _WaveVisualizer(active: listening),
+                    const SizedBox(height: 32),
 
-            // ── 마이크 버튼 ────────────────────────────────────────────────
-            _MicButton(
-              listening: listening,
-              onTap: _sending ? null : _toggle,
-            ),
-            const SizedBox(height: 28),
-
-            // ── 상태 텍스트 ────────────────────────────────────────────────
-            Text(
-              listening
-                  ? '듣고 있어요…'
-                  : text.trim().isEmpty
-                      ? '마이크를 눌러 말해보세요'
-                      : '이대로 실행할까요?',
-              style: AppText.title,
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-
-            // ── 인식된 텍스트 라이브 표시 ──────────────────────────────────
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: text.isEmpty
-                  ? Text(
-                      hintExample,
-                      key: const ValueKey('hint'),
-                      style: TextStyle(color: context.appMuted),
-                      textAlign: TextAlign.center,
-                    )
-                  : Container(
-                      key: const ValueKey('live'),
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 12),
-                      decoration: BoxDecoration(
-                        color: context.appPrimary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: context.appPrimary.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Text(
-                        text,
-                        style:
-                            AppText.title.copyWith(color: context.appPrimary),
-                        textAlign: TextAlign.center,
-                      ),
+                    // ── 마이크 버튼 ────────────────────────────────────────────────
+                    _MicButton(
+                      listening: listening,
+                      onTap: _sending ? null : _toggle,
                     ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              '말이 끝나면 내용을 확인한 뒤 실행해요.',
-              style: TextStyle(color: context.appMuted, fontSize: 12),
-              textAlign: TextAlign.center,
-            ),
+                    const SizedBox(height: 28),
 
-            const Spacer(),
+                    // ── 상태 텍스트 ────────────────────────────────────────────────
+                    Text(
+                      listening
+                          ? '듣고 있어요…'
+                          : text.trim().isEmpty
+                              ? '마이크를 눌러 말해보세요'
+                              : '이대로 실행할까요?',
+                      style: AppText.title,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 12),
+
+                    // ── 인식된 텍스트 라이브 표시 ──────────────────────────────────
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: text.isEmpty
+                          ? Text(
+                              hintExample,
+                              key: const ValueKey('hint'),
+                              style: TextStyle(color: context.appMuted),
+                              textAlign: TextAlign.center,
+                            )
+                          : Container(
+                              key: const ValueKey('live'),
+                              width: double.infinity,
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                              decoration: BoxDecoration(
+                                color:
+                                    context.appPrimary.withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color:
+                                      context.appPrimary.withValues(alpha: 0.3),
+                                ),
+                              ),
+                              child: Text(
+                                text,
+                                style: AppText.title
+                                    .copyWith(color: context.appPrimary),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '말이 끝나면 내용을 확인한 뒤 실행해요.',
+                      style: TextStyle(color: context.appMuted, fontSize: 12),
+                      textAlign: TextAlign.center,
+                    ),
+
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ),
 
             // ── 확인 후 실행 ───────────────────────────────────────────────
             // 듣기 종료와 실행 동의를 분리한다. 인식이 틀렸을 때 고치거나

@@ -289,7 +289,11 @@ class _RetryBanner extends StatelessWidget {
           children: [
             Icon(Icons.refresh, color: context.appWarning, size: 20),
             const SizedBox(width: 10),
-            Text('버튼 동작 재시도 중…', style: TextStyle(color: context.appWarning)),
+            // 글씨를 키우면 한 줄에 안 들어간다 -- 줄바꿈할 공간을 준다.
+            Expanded(
+              child: Text('버튼 동작 재시도 중…',
+                  style: TextStyle(color: context.appWarning)),
+            ),
           ],
         ),
       );

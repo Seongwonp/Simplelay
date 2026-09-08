@@ -8,8 +8,11 @@ import 'package:simplelay/models/appliance.dart';
 
 void main() {
   testWidgets('터치 타깃 최소 크기 규약이 유지된다', (tester) async {
-    // 48dp는 KS X 3253·WCAG 2.2가 요구하는 최소 타깃. 이전에는
-    // minimumSize: Size.zero로 이 원칙을 의도적으로 우회한 버튼이 10곳 있었다.
+    // 48은 **우리 제품의 터치 목표**다(고령 사용자 대상이라 더 높게 잡는다).
+    // 표준의 최소치와 혼동하지 말 것: WCAG 2.2 AA(2.5.8 Target Size
+    // Minimum)의 하한은 예외를 포함해 24 CSS px이고, 44는 AAA(2.5.5)다.
+    // 이전에는 minimumSize: Size.zero로 이 원칙을 의도적으로 우회한
+    // 버튼이 10곳 있었다.
     const minTarget = 48.0;
     await tester.pumpWidget(
       MaterialApp(
