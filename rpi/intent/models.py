@@ -15,6 +15,10 @@ class UsageRecord:
     occurred_at: datetime
     purpose: str
     outcome: UsageOutcome
+    # 어떤 가전에서 한 일인지. 같은 말도 가전이 다르면 다른 루틴이므로,
+    # 패턴 제안이 대상을 들고 다니려면 여기서부터 남아야 한다.
+    # 옛 이력이나 가전 개념이 없는 경로(rpi4 브리지)는 None.
+    appliance_id: str | None = None
 
     def __post_init__(self) -> None:
         if not self.purpose.strip():
@@ -66,6 +70,9 @@ class PatternCandidate:
     purpose: str
     time_band: str
     occurrences: int
+    # 이 루틴을 마지막으로 실행한 가전. 가전이 없던 시절의 기록만
+    # 있으면 None이고, 그때는 클라이언트가 현재 선택 가전으로 폴백한다.
+    appliance_id: str | None = None
 
 
 class SuggestionStatus(str, Enum):
@@ -87,6 +94,7 @@ class ProactiveSuggestion:
     # 환경 기반(온습도) 제안 등에서 "왜 지금" 근거. 패턴 제안은 빈 문자열.
     reason: str = ""
     # 이 제안이 조작할 가전. 화면이 그리는 버튼 지도와 실제 실행 대상이
-    # 어긋나지 않게 하는 계약이다. 알 수 없으면(사용 이력엔 가전이 기록되지
-    # 않는다) None -- 그때는 클라이언트가 현재 선택 가전으로 폴백한다.
+    # 어긋나지 않게 하는 계약이다. 환경 제안은 제안기가, 패턴 제안은
+    # 사용 이력이 알려준다. 둘 다 모르면(가전 없이 쌓인 옛 이력) None --
+    # 그때만 클라이언트가 현재 선택 가전으로 폴백한다.
     appliance_id: str | None = None

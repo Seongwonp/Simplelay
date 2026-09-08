@@ -378,7 +378,9 @@ async def demo_suggest(
 ) -> SuggestionResponse:
     # 시연용 수동 트리거 — 패턴 감지를 우회해 제안을 즉시 만든다.
     # DND 중에는 실사용과 동일하게 거부(409)해서 데모 중 혼선을 막는다.
-    suggestion = svc.create_demo_suggestion(body.purpose)
+    suggestion = svc.create_demo_suggestion(
+        body.purpose, appliance_id=body.appliance_id
+    )
     if suggestion is None:
         raise HTTPException(status_code=409, detail="DND is active")
     return SuggestionResponse(

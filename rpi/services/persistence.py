@@ -44,7 +44,8 @@ class SimpleLayDb:
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     occurred_at TEXT NOT NULL,  -- ISO-8601, timezone 포함
                     purpose TEXT NOT NULL,
-                    outcome TEXT NOT NULL
+                    outcome TEXT NOT NULL,
+                    appliance_id TEXT           -- 대상 가전 (옛 기록은 NULL)
                 );
                 CREATE TABLE IF NOT EXISTS nodes (
                     appliance_id TEXT PRIMARY KEY,
@@ -76,18 +77,40 @@ class SimpleLayDb:
                 """
             )
             self._conn.commit()
+        self._migrate()
+
+    def _migrate(self) -> None:
+        """이미 만들어진 DB에 나중에 생긴 열을 채워 넣는다.
+
+        CREATE TABLE IF NOT EXISTS는 기존 테이블을 손대지 않으므로, 실기기에
+        이미 깔린 DB는 새 열 없이 남는다. 파일을 지우게 하면 그동안 쌓인
+        패턴 학습 이력이 날아가므로 ALTER로 더한다(추가 열은 NULL 허용).
+        """
+        with self._lock:
+            columns = {
+                row[1]
+                for row in self._conn.execute("PRAGMA table_info(usage_log)")
+            }
+            if "appliance_id" not in columns:
+                self._conn.execute(
+                    "ALTER TABLE usage_log ADD COLUMN appliance_id TEXT"
+                )
+                self._conn.commit()
+                _log.info("usage_log migrated: appliance_id column added")
 
     # ── 사용 이력 (패턴 학습) ────────────────────────────────────────────────
 
     def append_usage(self, record: UsageRecord) -> None:
         with self._lock:
             self._conn.execute(
-                "INSERT INTO usage_log (occurred_at, purpose, outcome)"
-                " VALUES (?, ?, ?)",
+                "INSERT INTO usage_log"
+                " (occurred_at, purpose, outcome, appliance_id)"
+                " VALUES (?, ?, ?, ?)",
                 (
                     record.occurred_at.isoformat(),
                     record.purpose,
                     record.outcome.value,
+                    record.appliance_id,
                 ),
             )
             self._conn.commit()
@@ -95,13 +118,17 @@ class SimpleLayDb:
     def usage_records(self) -> tuple[UsageRecord, ...]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT occurred_at, purpose, outcome FROM usage_log ORDER BY id"
+                "SELECT occurred_at, purpose, outcome, appliance_id"
+                " FROM usage_log ORDER BY id"
             ).fetchall()
         return tuple(
             UsageRecord(
-                datetime.fromisoformat(occurred_at), purpose, UsageOutcome(outcome)
+                datetime.fromisoformat(occurred_at),
+                purpose,
+                UsageOutcome(outcome),
+                appliance_id=appliance_id,
             )
-            for occurred_at, purpose, outcome in rows
+            for occurred_at, purpose, outcome, appliance_id in rows
         )
 
     # ── 노드 등록 (appliance_id → ESP32 base_url) ───────────────────────────

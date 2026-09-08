@@ -95,6 +95,7 @@ class ProactiveSuggestionService:
                     occurrences=candidate.occurrences,
                     created_at=self._clock.now(),
                     steps=steps,
+                    appliance_id=candidate.appliance_id,
                 )
                 self._next_id += 1
                 self._suggestions[suggestion.suggestion_id] = suggestion
@@ -142,7 +143,10 @@ class ProactiveSuggestionService:
             return suggestion
 
     def create_demo_suggestion(
-        self, purpose: str, occurrences: int = 3
+        self,
+        purpose: str,
+        occurrences: int = 3,
+        appliance_id: str | None = None,
     ) -> ProactiveSuggestion | None:
         """시연용 — 패턴 감지(사용 이력 3회 이상 + 시간대 일치)를 거치지 않고
         제안을 즉시 만든다. 시간대 설정에 구멍이 있는 시각(예: 오후 3시)에도
@@ -166,6 +170,7 @@ class ProactiveSuggestionService:
                 occurrences=occurrences,
                 created_at=self._clock.now(),
                 steps=steps,
+                appliance_id=appliance_id,
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion

@@ -435,6 +435,9 @@ class DemoSuggestRequest(BaseModel):
     '선제 제안 → 승인 → 실행' 장면을 원하는 시점에 연출하기 위한 것."""
 
     purpose: str = "즉석밥 데워줘"
+    # 어느 가전으로 연출할지. 생략하면 클라이언트가 현재 선택 가전을 쓴다 --
+    # 가전 여러 대를 번갈아 보여주는 데모에서 대상을 못 박기 위한 값이다.
+    appliance_id: str | None = None
 
     @field_validator("purpose")
     @classmethod

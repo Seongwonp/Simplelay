@@ -190,7 +190,9 @@ class SimpleLayService(PurposeExecutor):
         controller = self._controller_for(appliance_id)
         self._begin_run(len(buttons), controller)
         try:
-            return self._run_buttons(tuple(buttons), controller, purpose)
+            return self._run_buttons(
+                tuple(buttons), controller, purpose, appliance_id
+            )
         finally:
             self._end_run()
 
@@ -252,7 +254,7 @@ class SimpleLayService(PurposeExecutor):
         job_id = self._begin_run(len(buttons), controller)
         thread = threading.Thread(
             target=self._run_job,
-            args=(buttons, controller, purpose),
+            args=(buttons, controller, purpose, appliance_id),
             daemon=True,
             name=f"simplelay-exec-{job_id}",
         )
@@ -260,10 +262,14 @@ class SimpleLayService(PurposeExecutor):
         return job_id
 
     def _run_job(
-        self, buttons: tuple[str, ...], controller: ButtonSequenceController, purpose: str | None
+        self,
+        buttons: tuple[str, ...],
+        controller: ButtonSequenceController,
+        purpose: str | None,
+        appliance_id: str | None = None,
     ) -> None:
         try:
-            self._run_buttons(buttons, controller, purpose)
+            self._run_buttons(buttons, controller, purpose, appliance_id)
         except Exception:
             # 백그라운드 스레드라 HTTP 500으로 표면화할 곳이 없다 — 로그를
             # 남기고 /status의 last_status="failed"로 실패를 노출한다.
@@ -386,6 +392,7 @@ class SimpleLayService(PurposeExecutor):
         buttons: tuple[str, ...],
         controller: ButtonSequenceController,
         purpose: str | None,
+        appliance_id: str | None = None,
     ) -> ExecutionResult:
         self._last_result = controller.execute(buttons)
         # stop 여부는 실행이 반환된 '직후' 스냅샷+소진한다 (교차 리뷰 #8) —
@@ -407,7 +414,12 @@ class SimpleLayService(PurposeExecutor):
                 else UsageOutcome.FAILED
             )
             self._usage_log.append(
-                UsageRecord(self._clock.now(), purpose.strip(), outcome)
+                UsageRecord(
+                    self._clock.now(),
+                    purpose.strip(),
+                    outcome,
+                    appliance_id=appliance_id,
+                )
             )
         return self._last_result
 
