@@ -22,14 +22,14 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final connection = ref.watch(bleConnectionProvider).valueOrNull ??
         BleConnectionState.disconnected;
-    final rpiState   = ref.watch(rpiConnectionProvider);
+    final rpiState = ref.watch(rpiConnectionProvider);
     final suggestions = ref.watch(suggestionProvider);
-    final dndUntil   = ref.watch(dndProvider);
+    final dndUntil = ref.watch(dndProvider);
     final sensorAsync = ref.watch(sensorProvider);
 
-    final connected   = connection == BleConnectionState.connected;
-    final rpiOnline   = rpiState == RpiConnectionState.connected;
-    final dndActive   = dndUntil != null && dndUntil.isAfter(DateTime.now());
+    final connected = connection == BleConnectionState.connected;
+    final rpiOnline = rpiState == RpiConnectionState.connected;
+    final dndActive = dndUntil != null && dndUntil.isAfter(DateTime.now());
 
     // 사용자 정의 가전은 의도 해석 규칙이 없어서 수동 버튼 화면으로 이동
     final isCustomAppliance = ref.watch(selectedApplianceProvider).isCustom;
@@ -69,24 +69,47 @@ class HomeScreen extends ConsumerWidget {
       // 가장 작게 보였다. 본문에 큰 버튼을 넣는 대신 떠 있게 두는 이유는,
       // 제안이 늘어나도 스크롤 밖으로 밀리지 않아야 하기 때문이다.
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: isCustomAppliance
-          ? _PrimaryAction(
-              onPressed: () => context.push('/manual-control'),
-              icon: Icons.touch_app,
-              label: '버튼으로 조작',
-              enabled: true,
-            )
-          : Builder(builder: (context) {
-              // 음성 명령은 RPi HTTP 직통으로도 가능하다 — BLE에만 묶어두면
-              // "RPi 연결됨" 카드 옆에서 FAB만 죽어 있는 모순이 생긴다.
-              final canSpeak = connected || rpiOnline;
-              return _PrimaryAction(
+      floatingActionButton: Builder(builder: (context) {
+        // 음성 명령은 RPi HTTP 직통으로도 가능하다 — BLE에만 묶어두면
+        // "RPi 연결됨" 카드 옆에서 버튼만 죽어 있는 모순이 생긴다.
+        final canSpeak = connected || rpiOnline;
+        // 주 경로는 가전 성격에 맞추되, **다른 경로도 항상 보이게** 둔다.
+        // 말이 잘 안 되거나 인식이 안 되는 사용자가 같은 시도를 반복하지
+        // 않으려면, 다른 길이 화면에 있어야 한다. 쓸 수 없는 경로에는
+        // 이유를 붙인다.
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isCustomAppliance)
+              _SecondaryAction(
+                onPressed: canSpeak ? () => context.go('/voice') : null,
+                icon: Icons.mic_none,
+                label: canSpeak ? '말로 조작' : '말로 조작 (연결 필요)',
+              )
+            else
+              _SecondaryAction(
+                onPressed: () => context.push('/manual-control'),
+                icon: Icons.touch_app,
+                label: '버튼으로 조작',
+              ),
+            const SizedBox(height: 8),
+            if (isCustomAppliance)
+              _PrimaryAction(
+                onPressed: () => context.push('/manual-control'),
+                icon: Icons.touch_app,
+                label: '버튼으로 조작',
+                enabled: true,
+              )
+            else
+              _PrimaryAction(
                 onPressed: canSpeak ? () => context.go('/voice') : null,
                 icon: Icons.mic_rounded,
                 label: '말로 조작하기',
                 enabled: canSpeak,
-              );
-            }),
+              ),
+          ],
+        );
+      }),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
         children: [
@@ -152,7 +175,7 @@ class _SensorStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final temp = reading?.temperature;
-    final hum  = reading?.humidity;
+    final hum = reading?.humidity;
     if (temp == null && hum == null) return const SizedBox.shrink();
 
     return AnimatedOpacity(
@@ -162,29 +185,24 @@ class _SensorStrip extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           if (temp != null) ...[
-            Icon(Icons.thermostat_outlined,
-                size: 14, color: context.appMuted),
+            Icon(Icons.thermostat_outlined, size: 14, color: context.appMuted),
             const SizedBox(width: 4),
             Text(
               '${temp.toStringAsFixed(1)}°C',
-              style: TextStyle(
-                  fontSize: 13, color: context.appMuted),
+              style: TextStyle(fontSize: 13, color: context.appMuted),
             ),
           ],
           if (temp != null && hum != null)
             Padding(
               padding: EdgeInsets.symmetric(horizontal: 8),
-              child: Text('·',
-                  style: TextStyle(color: context.appMuted)),
+              child: Text('·', style: TextStyle(color: context.appMuted)),
             ),
           if (hum != null) ...[
-            Icon(Icons.water_drop_outlined,
-                size: 14, color: context.appMuted),
+            Icon(Icons.water_drop_outlined, size: 14, color: context.appMuted),
             const SizedBox(width: 4),
             Text(
               '${hum.toStringAsFixed(0)}%',
-              style: TextStyle(
-                  fontSize: 13, color: context.appMuted),
+              style: TextStyle(fontSize: 13, color: context.appMuted),
             ),
           ],
         ],
@@ -213,24 +231,20 @@ class _DndBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: context.appWarning.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(12),
-          border:
-              Border.all(color: context.appWarning.withValues(alpha: 0.35)),
+          border: Border.all(color: context.appWarning.withValues(alpha: 0.35)),
         ),
         child: Row(
           children: [
-            Icon(Icons.do_not_disturb_on,
-                color: context.appWarning, size: 18),
+            Icon(Icons.do_not_disturb_on, color: context.appWarning, size: 18),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 '방해 금지 중 · $_remaining',
-                style: TextStyle(
-                    color: context.appWarning, fontSize: 13),
+                style: TextStyle(color: context.appWarning, fontSize: 13),
               ),
             ),
             TextButton(
@@ -480,6 +494,36 @@ class _StatusCardBody extends StatelessWidget {
 }
 
 /// 홈의 주 행동 버튼. 떠 있되 구석의 작은 알약이 아니라 화면 폭을 넉넉히 쓴다.
+/// 주 경로가 막혔을 때 갈 수 있는 다른 길. 주 행동보다 조용하되
+/// 발견은 되어야 하므로 같은 자리(하단 중앙)에 함께 둔다.
+class _SecondaryAction extends StatelessWidget {
+  const _SecondaryAction({
+    required this.onPressed,
+    required this.icon,
+    required this.label,
+  });
+
+  final VoidCallback? onPressed;
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          minimumSize: const Size(0, 48),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+          foregroundColor: context.appMuted,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+        ),
+        icon: Icon(icon, size: 20),
+        label: Text(label, style: const TextStyle(fontSize: 15)),
+      );
+}
+
 class _PrimaryAction extends StatelessWidget {
   const _PrimaryAction({
     required this.onPressed,
@@ -533,8 +577,7 @@ class _ConnectionChip extends StatelessWidget {
         size: 14,
         color: color,
       ),
-      label: Text(label,
-          style: TextStyle(fontSize: 11, color: color)),
+      label: Text(label, style: TextStyle(fontSize: 11, color: color)),
       backgroundColor: color.withValues(alpha: 0.10),
       side: BorderSide(color: color.withValues(alpha: 0.35)),
       padding: EdgeInsets.zero,
@@ -580,8 +623,7 @@ class _SuggestionTile extends StatelessWidget {
                     children: [
                       // label은 사용자가 예전에 했던 말 그대로다 -- 제품이
                       // 지어낸 문구가 아니라 본인 표현이라 그대로 되물어본다.
-                      Text('${suggestion.label}, 지금 할까요?',
-                          style: AppText.body),
+                      Text('${suggestion.label}, 지금 할까요?', style: AppText.body),
                       const SizedBox(height: 2),
                       Text(_stepPreview(suggestion), style: context.appCaption),
                     ],
@@ -644,8 +686,7 @@ class _EmptySuggestions extends StatelessWidget {
                 const SizedBox(height: 4),
                 Text(
                   '제안을 잠시 보내지 않아요.',
-                  style: TextStyle(
-                      color: context.appMuted, fontSize: 12),
+                  style: TextStyle(color: context.appMuted, fontSize: 12),
                 ),
               ],
             ],
@@ -717,8 +758,8 @@ class _CareBell extends ConsumerWidget {
                 right: -5,
                 top: -5,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 5, vertical: 1),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   decoration: BoxDecoration(
                     color: context.appDanger,
                     borderRadius: BorderRadius.circular(9),

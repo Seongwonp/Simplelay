@@ -69,6 +69,15 @@ void main() {
       expect(find.text('연결'), findsNothing);
     });
 
+    testWidgets('내장 가전이어도 버튼 조작 경로가 항상 보인다', (tester) async {
+      // 말이 잘 안 되거나 인식이 안 되는 사용자가 같은 시도를 반복하지
+      // 않으려면, 다른 길이 화면에 함께 있어야 한다.
+      await tester.pumpWidget(_buildHome(connected: true));
+      await tester.pump();
+      expect(find.text('말로 조작하기'), findsOneWidget);
+      expect(find.text('버튼으로 조작'), findsOneWidget);
+    });
+
     testWidgets('주 행동 버튼 활성화', (tester) async {
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
