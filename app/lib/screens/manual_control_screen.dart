@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
@@ -58,6 +59,16 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
         [button.label],
         applianceId: applianceId,
       );
+      // 공용 실행 상태에 등록한다. 이 화면을 떠나도 상태 탭이 진행을
+      // 이어서 보여주고, 무엇보다 **정지 수단이 유지된다** -- 예전에는
+      // 여기서만 추적해서, 뒤로 나가면 실제 작업은 도는데 상태 탭은
+      // 대기로 보이고 멈출 방법이 없었다.
+      ref.read(executionStatusProvider.notifier).beginHttpJob(
+            api: api,
+            jobId: accepted.jobId,
+            label: button.label,
+            steps: [button.label],
+          );
       success = await _waitJobDone(api, accepted.jobId);
     } catch (_) {
       success = false;

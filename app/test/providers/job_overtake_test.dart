@@ -19,6 +19,27 @@ class FakeAppTts extends AppTtsService {
   Future<void> speak(String text) async {}
 }
 
+/// /stop 호출 횟수를 세는 mock -- '확인 불가'에서도 정지가 실제로 서버로
+/// 나가는지 확인하기 위해.
+RpiApiService _apiCountingStops(
+  Map<String, dynamic> statusBody,
+  void Function() onStop,
+) {
+  final client = MockClient((request) async {
+    if (request.url.path == '/stop') {
+      onStop();
+      return http.Response('{}', 200,
+          headers: {'content-type': 'application/json; charset=utf-8'});
+    }
+    return http.Response.bytes(
+      utf8.encode(jsonEncode(statusBody)),
+      200,
+      headers: {'content-type': 'application/json; charset=utf-8'},
+    );
+  });
+  return RpiApiService('http://rpi5.local:8000', client: client);
+}
+
 RpiApiService _apiReturning(Map<String, dynamic> statusBody) {
   final client = MockClient((request) async => http.Response.bytes(
         utf8.encode(jsonEncode(statusBody)),
@@ -56,28 +77,36 @@ void main() {
     expect(state.phase, ExecutionPhase.completed);
   });
 
-  test('내 job의 흔적이 계속 없으면 고착 대신 실패로 탈출한다', () async {
+  test('내 job의 흔적이 계속 없으면 고착 대신 확인 불가로 탈출한다', () async {
+    var stopCalls = 0;
     final container = ProviderContainer(
       overrides: [ttsServiceProvider.overrideWithValue(FakeAppTts())],
     );
     addTearDown(container.dispose);
 
     container.read(executionStatusProvider.notifier).beginHttpJob(
-          api: _apiReturning({
+          api: _apiCountingStops({
             // 서버 재시작 등 — 내 J1의 흔적이 어디에도 없다
             'running': false,
             'job_id': null,
             'last_job_id': null,
             'last_status': null,
-          }),
+          }, () => stopCalls++),
           jobId: 'J1',
           label: '우유 데워줘',
         );
     // 폴링 1초 × 10회 임계 초과까지 대기
     await Future<void>.delayed(const Duration(milliseconds: 11500));
 
+    // 실패가 아니라 '모름'이다 -- 통신이 끊긴 것이지 가전이 멈춘 게 아니라,
+    // 정지·재확인 수단을 남긴 채 사용자에게 직접 확인을 청해야 한다.
     final state = container.read(executionStatusProvider);
-    expect(state.phase, ExecutionPhase.failed);
-    expect(state.message, contains('확인할 수 없습니다'));
+    expect(state.phase, ExecutionPhase.unknown);
+    expect(state.message, contains('확인할 수 없어요'));
+
+    // 그리고 정지 수단이 남아 있어야 한다. 추적 대상을 지워버리면
+    // emergencyStop이 HTTP 경로를 잃고 BLE로 빠져 실제로 멈추지 못한다.
+    await container.read(executionStatusProvider.notifier).emergencyStop();
+    expect(stopCalls, 1);
   }, timeout: const Timeout(Duration(seconds: 30)));
 }

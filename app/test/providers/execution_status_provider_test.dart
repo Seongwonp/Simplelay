@@ -90,6 +90,30 @@ void main() {
       expect(status.message, '버튼 조작을 마쳤어요.');
     });
 
+    test('종료된 실행은 늦게 온 센서 메시지로 되살아나지 않는다', () async {
+      final c = makeContainer();
+      c.read(executionStatusProvider.notifier).begin(_suggestion);
+
+      c.read(bleServiceProvider).injectMessage({
+        'type': 'result',
+        'sequence_id': 'exec-001',
+        'success': false,
+      });
+      await Future<void>.delayed(Duration.zero);
+      expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
+
+      // 정지·완료 뒤 다른 작업의 센서 메시지가 늦게 도착하는 상황.
+      // 이걸로 '실행 중'이 되살아나면 사용자는 끝난 일을 진행 중으로 본다.
+      c.read(bleServiceProvider).injectMessage({
+        'type': 'sensor',
+        'status': 'running',
+        'current_ma': 300,
+      });
+      await Future<void>.delayed(Duration.zero);
+
+      expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
+    });
+
     test('result failure sets failed phase', () async {
       final c = makeContainer();
       c.read(executionStatusProvider.notifier).begin(_suggestion);

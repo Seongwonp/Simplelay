@@ -125,36 +125,56 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       // 재시작·결과 슬롯 추월 유실. 몇 번은 기다리고, 계속되면 탈출.
       _missingPolls++;
       if (_missingPolls >= 10) {
+        // 실패가 아니라 '모름'이다. 가전은 계속 움직이고 있을 수 있으므로
+        // 정지·재확인 수단을 남긴 채 사용자에게 직접 확인을 청한다.
+        const notice = '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해주세요.';
         state = state.copyWith(
-          phase: ExecutionPhase.failed,
-          message: '실행 상태를 확인할 수 없습니다. 가전을 직접 확인해주세요.',
+          phase: ExecutionPhase.unknown,
+          message: notice,
         );
-        _announce('실행 상태를 확인할 수 없습니다. 가전을 직접 확인해주세요.');
-        _stopHttpTracking();
+        _announce(notice);
+        _stopHttpTracking(keepTarget: true);
       }
     } catch (_) {
       final since = _lastPollSuccess;
       if (since != null &&
           DateTime.now().difference(since) > _unreachableAfter) {
         if (mounted) {
+          const notice = '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해주세요.';
           state = state.copyWith(
-            phase: ExecutionPhase.failed,
-            message: '서버 응답이 없습니다. 연결을 확인해주세요.',
+            phase: ExecutionPhase.unknown,
+            message: notice,
           );
-          _announce('서버 응답이 없습니다. 연결을 확인해주세요.');
+          _announce(notice);
         }
-        _stopHttpTracking();
+        _stopHttpTracking(keepTarget: true);
       }
     } finally {
       _pollInFlight = false;
     }
   }
 
-  void _stopHttpTracking() {
+  /// 폴링을 멈춘다.
+  ///
+  /// [keepTarget]이면 대상(api·job_id)은 남긴다 -- '확인 불가' 상태에서
+  /// 정지 요청과 재확인이 계속 가능해야 하기 때문. 여기서 대상을 지우면
+  /// emergencyStop이 HTTP 경로를 잃고 BLE로 빠져 실제로 멈추지 못한다.
+  void _stopHttpTracking({bool keepTarget = false}) {
     _pollTimer?.cancel();
     _pollTimer = null;
+    if (keepTarget) return;
     _httpApi = null;
     _httpJobId = null;
+  }
+
+  /// '확인 불가'에서 사용자가 직접 다시 확인한다.
+  void recheck() {
+    if (_httpApi == null || _httpJobId == null) return;
+    _missingPolls = 0;
+    _lastPollSuccess = DateTime.now();
+    state = state.copyWith(message: '상태를 다시 확인하고 있어요…');
+    _pollTimer?.cancel();
+    _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
   }
 
   /// 실행 결과 음성 안내 — 화면을 보지 않아도 결과를 알 수 있게.
@@ -171,6 +191,21 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   void _onMessage(Map<String, dynamic> message) {
     switch (message['type']) {
       case 'sensor':
+        // 이미 끝난(또는 확인 불가로 넘어간) 실행을 늦게 도착한 센서
+        // 메시지가 '실행 중'으로 되살리면 안 된다 -- 정지 직후 다른
+        // 작업의 메시지가 섞이는 경우가 실제로 있다.
+        if (state.phase == ExecutionPhase.completed ||
+            state.phase == ExecutionPhase.failed ||
+            state.phase == ExecutionPhase.unknown) {
+          return;
+        }
+        // 실행을 식별할 수 있으면 내 것인지도 확인한다.
+        final sensorSeq = message['sequence_id'];
+        if (sensorSeq != null &&
+            state.sequenceId != null &&
+            sensorSeq != state.sequenceId) {
+          return;
+        }
         final rawStatus = message['status'] as String?;
         final nextPhase = switch (rawStatus) {
           'retrying' => ExecutionPhase.retrying,

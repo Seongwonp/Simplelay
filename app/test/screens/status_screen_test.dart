@@ -84,6 +84,23 @@ void main() {
       expect(find.text('3단계 중 1단계'), findsOneWidget);
     });
 
+    testWidgets('확인 불가에서는 정지와 다시 확인을 함께 제공한다', (tester) async {
+      // 통신이 끊긴 것이지 가전이 멈춘 게 아니다 -- 가장 불안한 순간에
+      // 조작 수단이 사라지면 안 된다.
+      await _pumpStatus(
+        tester,
+        const ExecutionStatus(
+          phase: ExecutionPhase.unknown,
+          label: '즉석밥 데워줘',
+          message: '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해주세요.',
+        ),
+      );
+
+      expect(find.text('긴급 정지'), findsOneWidget);
+      expect(find.text('다시 확인'), findsOneWidget);
+      expect(find.textContaining('가전을 직접 확인'), findsOneWidget);
+    });
+
     testWidgets('검증 결과가 아직 없으면 확인 중임을 알린다', (tester) async {
       await _pumpStatus(
         tester,

@@ -1,4 +1,15 @@
-enum ExecutionPhase { idle, waiting, running, retrying, completed, failed }
+/// unknown: 통신이 끊겨 **동작 여부를 알 수 없는** 상태.
+/// 실패와 구분해야 한다 -- 통신 실패는 물리 동작의 종료를 뜻하지 않는다.
+/// 가전이 계속 움직이고 있을 수 있으므로 정지 수단을 남겨야 하는 단계.
+enum ExecutionPhase {
+  idle,
+  waiting,
+  running,
+  retrying,
+  completed,
+  failed,
+  unknown,
+}
 
 class ExecutionStatus {
   const ExecutionStatus({

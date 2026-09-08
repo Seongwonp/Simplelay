@@ -42,6 +42,11 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
         status.phase == ExecutionPhase.retrying ||
         status.phase == ExecutionPhase.waiting;
 
+    // '확인 불가'에서도 정지·재확인을 남긴다. 통신이 끊긴 것이지 가전이
+    // 멈춘 게 아니다 -- 가장 불안한 순간에 조작 수단이 사라지면 안 된다.
+    final unknown = status.phase == ExecutionPhase.unknown;
+    final canStop = active || unknown;
+
     // 음성 실행은 steps 미리보기가 비어 있다. 그래도 서버가 total_steps를
     // 주므로 진행을 보여줄 수 있다 -- steps.length에만 기대면 화면이 빈다.
     final totalSteps = status.totalSteps ?? status.steps.length;
@@ -216,25 +221,53 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     ],
                   ),
                 ],
-
-                // ── 긴급 정지 ─────────────────────────────────────────────
-                if (active) ...[
-                  const SizedBox(height: 32),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.danger,
-                      foregroundColor: AppColors.onAccent,
-                    ),
-                    onPressed: () => ref
-                        .read(executionStatusProvider.notifier)
-                        .emergencyStop(),
-                    icon: const Icon(Icons.stop_circle_outlined),
-                    label: const Text('긴급 정지'),
-                  ),
-                ],
               ],
             ),
           ),
+
+          // ── 하단 고정 조작 영역 ──────────────────────────────────────
+          // 정지는 스크롤 안에 두면 안 된다. 큰 글씨에서는 화면 밖으로
+          // 밀리고, 정작 급한 순간(동작을 확인할 수 없을 때)에 손이 닿지
+          // 않는다. 센서 카드 아래가 아니라 항상 같은 자리에 둔다.
+          if (canStop)
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (unknown) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => ref
+                              .read(executionStatusProvider.notifier)
+                              .recheck(),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('다시 확인'),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AppColors.danger,
+                          foregroundColor: AppColors.onAccent,
+                        ),
+                        onPressed: () => ref
+                            .read(executionStatusProvider.notifier)
+                            .emergencyStop(),
+                        icon: const Icon(Icons.stop_circle_outlined),
+                        label: const Text('긴급 정지'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );
