@@ -66,11 +66,16 @@ class KioskSuggestion {
     required this.occurrences,
     this.steps = const [],
     this.reason = '',
+    this.timeBand = '',
   });
 
   final String id;
   final String purpose;
   final int occurrences;
+
+  // 이 루틴을 되풀이하던 시간대('아침'·'저녁'). 환경 제안은 '환경',
+  // 시연용 강제 생성은 '데모'로 온다.
+  final String timeBand;
 
   // 환경 기반 제안 등의 "왜 지금" 근거(예: "지금 30°C · 습도 72% — 더워요").
   final String reason;
@@ -79,13 +84,27 @@ class KioskSuggestion {
   // 미리보기 해석이 실패하면 서버가 빈 리스트를 준다.
   final List<String> steps;
 
+  /// "왜 지금 이걸 제안하는가"를 한 문장으로. 폰과 같은 규칙이다.
+  ///
+  /// 데모 제안은 패턴 감지를 우회하려고 횟수를 지어내므로 비운다 --
+  /// 그 숫자를 '이만큼 하셨어요'로 보여주면 화면이 사실이 아닌 말을 한다.
+  String get whyNow {
+    if (reason.isNotEmpty) return reason;
+    if (occurrences <= 0 || timeBand.isEmpty) return '';
+    if (timeBand == '데모' || timeBand == '환경') return '';
+    return '최근 $timeBand 시간에 $occurrences번 하셨어요.';
+  }
+
   factory KioskSuggestion.fromJson(Map<String, dynamic> json) =>
       KioskSuggestion(
         id: json['id'] as String,
         purpose: json['purpose'] as String,
-        occurrences: (json['occurrences'] as num?)?.toInt() ?? 1,
+        // 기본값을 1로 두면 횟수를 모르는 제안이 '1번 하셨어요'라고
+        // 말하게 된다 -- 모르면 0으로 두고 근거를 만들지 않는다.
+        occurrences: (json['occurrences'] as num?)?.toInt() ?? 0,
         steps: (json['steps'] as List<dynamic>?)?.cast<String>() ?? const [],
         reason: json['reason'] as String? ?? '',
+        timeBand: json['time_band'] as String? ?? '',
       );
 }
 

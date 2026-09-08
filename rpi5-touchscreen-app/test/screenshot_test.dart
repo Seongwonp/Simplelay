@@ -94,10 +94,12 @@ void main() {
     await loader.load();
   });
 
+  // 서버가 실제로 주는 모양 -- 시간대가 있어야 '왜 지금'을 문장으로 만든다.
   const suggestion = KioskSuggestion(
     id: 'suggestion-1',
     purpose: '우유 데워줘',
     occurrences: 3,
+    timeBand: '아침',
     steps: ['해동', '시간 90초', '시작'],
   );
 
