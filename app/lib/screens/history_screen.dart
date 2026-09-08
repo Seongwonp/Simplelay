@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
@@ -81,6 +82,57 @@ class _Message extends StatelessWidget {
       );
 }
 
+/// 어느 단계까지 갔는지 — 성공 / 확인하지 못함 / 시도 횟수.
+///
+/// 폐루프는 버튼마다 눌림을 확인하고 필요하면 다시 누른다. 실패했을 때
+/// **어디서** 멈췄는지는 그 기록에 이미 들어 있는데 화면이 버리고 있었다.
+/// 가전 앞에서 무엇을 이어서 해야 하는지가 여기서 갈린다.
+class _StepBreakdown extends StatelessWidget {
+  const _StepBreakdown({required this.buttons});
+
+  final List<RpiHistoryButton> buttons;
+
+  @override
+  Widget build(BuildContext context) {
+    if (buttons.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final b in buttons)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                Icon(
+                  b.success ? Icons.check_circle_outline : Icons.help_outline,
+                  size: 18,
+                  color: b.success ? context.appSuccess : context.appWarning,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    b.button,
+                    style: TextStyle(
+                      color: b.success ? null : context.appMuted,
+                    ),
+                  ),
+                ),
+                Text(
+                  // '눌렀지만 확인 못 함'과 '아예 못 누름'을 화면이
+                  // 구분할 재료는 없다 -- 확인 여부까지만 말한다.
+                  b.success
+                      ? (b.attempts > 1 ? '${b.attempts}번 만에 확인' : '확인됨')
+                      : '확인 못 함',
+                  style: TextStyle(fontSize: 13, color: context.appMuted),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _HistoryTile extends StatelessWidget {
   const _HistoryTile({required this.entry});
   final RpiHistoryEntry entry;
@@ -136,6 +188,24 @@ class _HistoryTile extends StatelessWidget {
                           fontWeight: FontWeight.w600,
                           color: context.appSuccess,
                         ),
+                      ),
+                    ),
+                  ],
+
+                  // 끝이 안 좋았던 실행만 안을 펼친다. 성공한 이력까지
+                  // 단계를 늘어놓으면 목록이 다시 개발 도구처럼 보인다.
+                  if (!succeeded) ...[
+                    const SizedBox(height: 10),
+                    _StepBreakdown(buttons: entry.buttons),
+                    const SizedBox(height: 8),
+                    // 읽고 나서 할 수 있는 일을 남긴다. 무엇이 안 됐는지만
+                    // 알려주고 끝내면 사용자는 앱을 닫는 것 말고 할 게 없다.
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => context.go('/manual-control'),
+                        icon: const Icon(Icons.grid_view_rounded, size: 18),
+                        label: const Text('버튼으로 직접 조작'),
                       ),
                     ),
                   ],
