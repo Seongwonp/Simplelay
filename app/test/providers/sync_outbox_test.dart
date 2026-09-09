@@ -22,7 +22,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -138,7 +138,7 @@ http.Response _json(Object body) => http.Response.bytes(
 ApplianceMap _local(String id) => ApplianceMap(
       id: id,
       name: id,
-      icon: Icons.widgets_outlined,
+      category: ApplianceCategory.other,
       rows: 1,
       cols: 1,
       isCustom: true,

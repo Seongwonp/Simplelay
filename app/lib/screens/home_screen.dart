@@ -40,7 +40,9 @@ class HomeScreen extends ConsumerWidget {
     final dndActive = dndUntil != null && dndUntil.isAfter(DateTime.now());
 
     final appliance = ref.watch(selectedApplianceProvider);
-    final appliances = ref.watch(allAppliancesProvider);
+    // 홈은 **이 폰에 설치된 가전**만 센다. 예시 템플릿을 섞어 세면 아직
+    // 아무것도 등록하지 않은 사람의 홈에 남의 가전이 놓인다.
+    final appliances = ref.watch(installedAppliancesProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -81,17 +83,23 @@ class HomeScreen extends ConsumerWidget {
           ],
 
           // ── 지금 조작할 가전 ─────────────────────────────────────────────
-          _ApplianceStage(
-            appliance: appliance,
-            reachable: connected || rpiOnline,
-            imageOverride: applianceImageOverride,
-            onManual: () => context.push('/manual-control'),
-            // 편집기는 아직 '새 가전 만들기'만 받는다. 기존 가전에 사진을
-            // 붙이는 경로가 생기기 전까지는 가전 관리가 있는 설정으로 보낸다 --
-            // 없는 화면으로 보내거나, 새 가전을 만들게 하지 않는다.
-            onAddPhoto: () =>
-                ref.read(currentTabIndexProvider.notifier).state = 3,
-          ),
+          // 설치한 가전이 0대인 홈은 **고장이 아니라 시작점**이다. 경고색도
+          // 오류 문구도 쓰지 않고, 다음에 할 일 하나만 놓는다. 아래의 제안·
+          // 센서·연결 구획은 그대로 둔다 -- 가전이 없어도 홈은 홈이다.
+          if (appliance == null)
+            _NoApplianceStage(onAdd: () => context.push('/appliance/new'))
+          else
+            _ApplianceStage(
+              appliance: appliance,
+              reachable: connected || rpiOnline,
+              imageOverride: applianceImageOverride,
+              onManual: () => context.push('/manual-control'),
+              // 편집기는 아직 '새 가전 만들기'만 받는다. 기존 가전에 사진을
+              // 붙이는 경로가 생기기 전까지는 가전 관리가 있는 설정으로
+              // 보낸다 -- 없는 화면으로 보내거나, 새 가전을 만들게 하지 않는다.
+              onAddPhoto: () =>
+                  ref.read(currentTabIndexProvider.notifier).state = 3,
+            ),
 
           // ── DND 배너 ─────────────────────────────────────────────────────
           if (dndActive) ...[
@@ -160,7 +168,10 @@ class _ApplianceRow extends ConsumerWidget {
   const _ApplianceRow({required this.appliances, required this.selected});
 
   final List<ApplianceMap> appliances;
-  final ApplianceMap selected;
+
+  /// 아직 아무것도 고르지 않았으면 null. 이 줄은 2대 이상일 때만 나오지만,
+  /// 복원 중인 한 프레임 동안 null일 수 있다.
+  final ApplianceMap? selected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -173,7 +184,7 @@ class _ApplianceRow extends ConsumerWidget {
       children: [
         for (final a in appliances)
           Builder(builder: (context) {
-            final on = a.id == selected.id;
+            final on = a.id == selected?.id;
             return Semantics(
             button: true,
             selected: on,
@@ -229,6 +240,41 @@ class _ApplianceRow extends ConsumerWidget {
 /// 상태지 사용자가 바로 손댈 수 있는 것이 아니라서, 막대 넷으로 보여주면
 /// 기술 대시보드가 된다. 여기서는 가장 중요한 사유 하나만 말하고 상세로
 /// 넘긴다.
+/// 설치한 가전이 0대인 홈의 첫 구획.
+///
+/// 빈 자리를 남기거나 예시 가전을 세워 두지 않는다. 예시를 세우면 사용자는
+/// 자기가 등록하지도 않은 전자레인지가 어디서 왔는지 묻게 되고, 그 순간
+/// 앱이 말하는 다른 상태도 못 믿게 된다.
+class _NoApplianceStage extends StatelessWidget {
+  const _NoApplianceStage({required this.onAdd});
+
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Icon(Icons.add_home_outlined,
+                size: 72, color: context.appMuted),
+          ),
+          const SizedBox(height: 16),
+          Text('아직 등록한 가전이 없어요', style: AppText.heading),
+          const SizedBox(height: 6),
+          Text(
+            '조작하고 싶은 가전을 추가하면\n여기서 상태를 보고 바로 조작할 수 있어요.',
+            style: TextStyle(fontSize: 16, color: context.appMuted),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add, size: 20),
+            label: const Text('가전 추가'),
+          ),
+        ],
+      );
+}
+
 class _ApplianceStage extends StatelessWidget {
   const _ApplianceStage({
     required this.appliance,

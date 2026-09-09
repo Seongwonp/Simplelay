@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/clock_provider.dart';
@@ -18,7 +20,37 @@ const kTestSuggestion = Suggestion(
   steps: ['BT-08', 'BT-03', 'BT-05'],
 );
 
+/// 테스트가 쓰는 '설치된 가전 한 대'.
+///
+/// 예전에는 선택 가전이 항상 전자레인지로 채워져서, 아무 테스트나 그냥
+/// 화면을 띄우면 가전이 있는 것처럼 굴었다. 이제 가전을 가진 상태는
+/// **테스트가 직접 만들어야 한다** -- 제품에서도 그게 사용자가 한 일이다.
+final kTestAppliance = kApplianceTemplates.first;
+
+/// 대상이 다른 제안을 다루는 테스트용 두 번째 가전.
+final kTestAircon =
+    kApplianceTemplates.firstWhere((a) => a.id == 'aircon');
+
 // ── Provider overrides ───────────────────────────────────────────────────────
+
+/// 이 폰에 가전이 설치돼 있는 상태.
+///
+/// 비우면(기본값) 아직 아무것도 추가하지 않은 사용자다 -- 그것도 정상 상태고,
+/// 화면은 크래시하지 않고 '가전 추가'로 안내해야 한다.
+List<Override> installedOverrides(
+  List<ApplianceMap> appliances, {
+  ApplianceMap? selected,
+}) =>
+    [
+      customAppliancesProvider
+          .overrideWith((ref) => CustomAppliancesNotifier.seeded(appliances)),
+      selectedApplianceProvider.overrideWith(
+        (ref) => SelectedApplianceNotifier.seeded(
+          ref,
+          selected ?? appliances.firstOrNull,
+        ),
+      ),
+    ];
 
 List<Override> connectedOverrides() => [
       bleConnectionProvider.overrideWith(

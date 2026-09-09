@@ -11,6 +11,8 @@ import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/providers/suggestion_provider.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
 
+import '../helpers/test_helpers.dart';
+
 ProviderContainer makeContainer({List<Override> overrides = const []}) {
   final c = ProviderContainer(overrides: overrides);
   addTearDown(c.dispose);
@@ -136,10 +138,12 @@ void main() {
           'time_band': '아침',
           'occurrences': 3,
           'steps': ['해동', '시작'], // 백엔드는 라벨 문자열로 준다
+          'appliance_id': 'microwave',
         },
       ]);
       final c = makeContainer(overrides: [
         rpiApiServiceProvider.overrideWithValue(fake.service),
+        ...installedOverrides([kTestAppliance]),
       ]);
 
       c.read(suggestionProvider);
@@ -150,7 +154,7 @@ void main() {
       expect(suggestions.first.sequenceId, 'http-001');
       expect(suggestions.first.label, '우유 데워줘');
       expect(suggestions.first.source, SuggestionSource.http);
-      // 기본 선택 가전(전자레인지)의 버튼맵으로 라벨→코드 역매핑됨: "해동"→BT-07, "시작"→BT-05
+      // **대상 가전**의 버튼맵으로 라벨→코드 역매핑됨: "해동"→BT-07, "시작"→BT-05
       expect(suggestions.first.steps, ['BT-07', 'BT-05']);
     });
 

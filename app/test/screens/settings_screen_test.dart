@@ -32,6 +32,8 @@ Widget _buildSettings({
     const SettingsScreen(),
     overrides: [
       ..._scanOverrides(value: scanValue),
+      // 가전 선택 칩을 보려면 고를 가전이 있어야 한다.
+      ...installedOverrides([kTestAppliance]),
       ...extra,
     ],
     executionStatus: executionStatus,
@@ -143,6 +145,7 @@ void main() {
           scanResultsProvider.overrideWith(
             (ref) => Stream<List<ScanResult>>.empty(),
           ),
+          ...installedOverrides([kTestAppliance]),
         ],
       );
       await tester.pumpWidget(w);

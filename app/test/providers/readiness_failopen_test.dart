@@ -109,9 +109,9 @@ void main() {
     });
   });
 
-  test('코드에 적힌 내장 가전은 준비 상태를 모른다', () {
-    // 하드코딩 폴백에는 서버 정보가 없다 — 그래도 조작은 가능해야 한다.
-    final microwave = kAppliances.first;
+  test('코드에 적힌 예시 템플릿은 준비 상태를 모른다', () {
+    // 템플릿에는 서버 정보가 없다 — 그래도 조작은 가능해야 한다.
+    final microwave = kApplianceTemplates.first;
 
     expect(microwave.readinessKnown, isFalse);
     expect(microwave.canExecute, isTrue);

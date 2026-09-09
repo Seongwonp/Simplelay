@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/screens/home_screen.dart';
 
@@ -20,10 +21,14 @@ void _useTallViewport(WidgetTester tester) {
 Widget _buildHome({
   List<Suggestion> suggestions = const [],
   bool connected = false,
+  List<ApplianceMap>? installed,
 }) {
   // disconnected + suggestions은 두 override를 개별로 합산
   final overrides = [
     ...(connected ? connectedOverrides() : disconnectedOverrides()),
+    // 이 파일의 기본 상황은 '가전 한 대를 등록한 사용자'다. 0대인 홈은
+    // 아래 별도 group에서 확인한다 -- 그쪽도 정상 상태다.
+    ...installedOverrides(installed ?? [kTestAppliance]),
   ];
   return buildScreen(
     const HomeScreen(),

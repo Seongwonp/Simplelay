@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../helpers/test_helpers.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/navigation_provider.dart';
@@ -19,7 +20,7 @@ import 'package:simplelay/services/voice_service.dart';
 const _testAppliance = ApplianceMap(
   id: 'custom_test',
   name: '테스트가전',
-  icon: Icons.widgets_outlined,
+  category: ApplianceCategory.other,
   rows: 1,
   cols: 2,
   isCustom: true,
@@ -100,7 +101,11 @@ Widget _buildScreen(ProviderContainer container) => UncontrolledProviderScope(
 Future<ProviderContainer> _makeContainer({
   List<Override> extra = const [],
 }) async {
-  final container = ProviderContainer(overrides: extra);
+  // 이 파일의 테스트는 '조작할 가전이 있는 사용자'를 다룬다. 가전이 없는
+  // 사용자는 마이크 자체가 안 나오므로 별도 테스트에서 확인한다.
+  final container = ProviderContainer(
+    overrides: [...installedOverrides([kTestAppliance]), ...extra],
+  );
   addTearDown(container.dispose);
   await container.read(customAppliancesProvider.notifier).ensureLoaded();
   return container;

@@ -1,125 +1,181 @@
-// 가전 **템플릿**과 **실제 설치된 가전**이 섞여 있는 문제를 고정한다.
+// 가전 **템플릿**과 **실제 설치된 가전**의 계약.
 //
-// 지금 코드는 `kAppliances`(전자레인지·인덕션·에어컨)를 사용자가 소유한
-// 가전처럼 목록에 넣고, 선택값이 없으면 전자레인지로 되돌린다. 그래서
-// 백엔드가 다중 가전을 지원해도 사용자에게는 **전자레인지 데모 앱**으로
-// 보인다.
+// 앞 커밋(`ea92f02`)에서 나는 지금의 잘못된 동작을 그대로 expect 해두었다.
+// "재현 테스트"라고 이름 붙였지만, 남겨두면 결함을 명세로 못 박는 회귀
+// 검사가 된다 -- 이 저장소에서 이미 두 번 겪은 형태다. 여기서는 **목표
+// 계약**을 적는다. 구현 전에는 빨갛고, 구현 후에 초록이 된다.
 //
-// 아래는 그 동작을 **재현**해서 못 박는 테스트다. 계약을 바꾸면 여기가
-// 먼저 깨지고, 무엇이 달라졌는지 이름으로 읽힌다.
+// 계약:
+// - `kApplianceTemplates`는 **고를 수 있는 종류**지 소유한 가전이 아니다.
+// - 설치 가전이 0대면 목록은 비고, 선택은 없음(null)이다.
+// - 지운 가전을 고르고 있었다면 **알리지 않고 다른 것으로 바꾸지 않는다.**
+// - `category`는 종류를 나타내는 안정적인 값이고 저장·복원·동기화된다.
+// - 종류를 모르면 오류가 아니라 `other`와 일반 아이콘이다.
+// - 같은 종류를 여러 대 등록할 수 있다(거실/안방 에어컨).
 
-import 'package:flutter/material.dart';
+import 'dart:convert';
+
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
 
-/// 선택 provider의 비동기 로드가 끝난 뒤의 값. 그냥 읽으면 로드 전
-/// 초기값을 보게 되고, 기다리지 않으면 컨테이너가 먼저 정리돼 버린다.
-Future<String> _settledSelection(ProviderContainer c) async {
-  c.read(selectedApplianceProvider);
-  await Future<void>.delayed(const Duration(milliseconds: 20));
-  return c.read(selectedApplianceProvider).id;
-}
-
-Future<ProviderContainer> _container() async {
+/// 초기화가 **실제로 끝난** 컨테이너.
+///
+/// 임의의 `Future.delayed`로 맞추지 않는다 -- 느린 기기에서 흔들리고,
+/// 시작 화면도 같은 신호를 기다려야 하므로 명시적인 완료 Future가 있어야
+/// 한다.
+Future<ProviderContainer> _ready() async {
   final c = ProviderContainer();
   addTearDown(c.dispose);
-  await c.read(customAppliancesProvider.notifier).ensureLoaded();
+  await c.read(applianceStartupProvider.future);
   return c;
 }
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('감사 — 템플릿이 설치 목록 행세를 한다', () {
-    test('아무것도 등록하지 않아도 가전 세 대가 있는 것처럼 보인다', () async {
-      final c = await _container();
+  group('설치 목록은 사용자가 등록한 것만 담는다', () {
+    test('0대면 목록이 비어 있다', () async {
+      final c = await _ready();
 
-      final all = c.read(allAppliancesProvider);
-
-      // 사용자는 한 대도 등록하지 않았다.
-      expect(c.read(customAppliancesProvider), isEmpty);
-      // 그런데 목록에는 세 대가 있다.
-      expect(all.map((a) => a.id),
-          containsAll(<String>['microwave', 'induction', 'aircon']));
+      expect(c.read(installedAppliancesProvider), isEmpty);
     });
 
-    test('선택값이 없으면 전자레인지가 자동으로 선택된다', () async {
-      final c = await _container();
-      // 저장값 읽기가 끝나야 최종 선택이 정해진다.
-      final id = await _settledSelection(c);
+    test('0대면 선택된 가전이 없다 — 전자레인지로 채우지 않는다', () async {
+      final c = await _ready();
 
-      // 저장된 선택값이 없는데도 전자레인지가 골라져 있다.
-      expect(id, 'microwave');
+      expect(c.read(selectedApplianceProvider), isNull);
     });
 
-    test('없는 가전을 선택값으로 두면 조용히 전자레인지로 바뀐다', () async {
-      SharedPreferences.setMockInitialValues(
-        {'selected_appliance': '지워진_가전'},
+    test('템플릿은 고를 수 있는 종류지 소유한 가전이 아니다', () {
+      // 종류 목록에는 전자레인지가 있지만,
+      expect(
+        kApplianceTemplates.map((t) => t.category),
+        contains(ApplianceCategory.microwave),
       );
-      final c = await _container();
-      final id = await _settledSelection(c);
-
-      // 지운 가전을 고르고 있었다는 사실을 알리지 않고 대체한다.
-      expect(id, 'microwave');
+      // 그것이 곧 "이 사용자가 전자레인지를 가지고 있다"는 뜻은 아니다.
+      // 설치 목록은 위 테스트대로 비어 있다.
+      expect(kApplianceTemplates.length, greaterThan(1));
     });
   });
 
-  group('감사 — 종류(category)가 없다', () {
-    test('커스텀 가전은 저장·복원에서 아이콘이 하나로 뭉개진다', () {
-      final saved = ApplianceMap(
-        id: 'custom_1',
-        name: '거실 에어컨',
-        icon: Icons.ac_unit, // 사용자가 에어컨으로 등록했다고 치자
-        rows: 2,
-        cols: 2,
-        buttons: const [],
-        isCustom: true,
-      );
+  group('선택값 복원', () {
+    test('저장된 선택이 설치 목록에 있을 때만 복원한다', () async {
+      final aircon = _installed(id: 'a1', category: ApplianceCategory.airConditioner);
+      SharedPreferences.setMockInitialValues({
+        'custom_appliances': [aircon.toJsonString()],
+        'selected_appliance': 'a1',
+      });
+      final c = await _ready();
+
+      expect(c.read(selectedApplianceProvider)?.id, 'a1');
+    });
+
+    test('지운 가전을 고르고 있었으면 조용히 다른 것으로 바꾸지 않는다', () async {
+      SharedPreferences.setMockInitialValues({
+        'custom_appliances': <String>[],
+        'selected_appliance': '지워진_가전',
+      });
+      final c = await _ready();
+
+      // 전자레인지로 슬쩍 대체하지 않는다. 고를 것이 없으면 없는 것이다.
+      expect(c.read(selectedApplianceProvider), isNull);
+    });
+  });
+
+  group('종류(category)', () {
+    test('저장하고 복원해도 종류가 살아남는다', () {
+      final saved = _installed(id: 'a1', category: ApplianceCategory.airConditioner);
 
       final restored = ApplianceMap.fromJson(saved.toJson());
 
-      // 이름은 살아남지만 **무슨 종류인지는 사라진다**.
-      expect(restored.name, '거실 에어컨');
-      expect(restored.icon, Icons.widgets_outlined);
-      // 직렬화 자체에 종류를 담을 자리가 없다.
-      expect(saved.toJson().containsKey('category'), isFalse);
+      expect(restored.category, ApplianceCategory.airConditioner);
+      expect(saved.toJson()['category'], 'air_conditioner');
     });
 
-    test('같은 종류 두 대는 id로는 공존하지만 서로 구분할 근거가 없다', () {
-      final living = ApplianceMap.fromJson({
+    test('종류가 없는 예전 데이터는 other로 살아남는다', () {
+      // 앞 버전이 저장한 모양 -- category 자리가 아예 없다.
+      final old = {
         'id': 'custom_1',
-        'name': '거실 에어컨',
+        'name': '우리집 에어컨',
         'rows': 2,
         'cols': 2,
-        'buttons': <Map<String, dynamic>>[],
-      });
-      final bed = ApplianceMap.fromJson({
-        'id': 'custom_2',
-        'name': '안방 에어컨',
-        'rows': 2,
-        'cols': 2,
+        'buttons': [
+          {'id': 'b1', 'label': '전원', 'x': 0, 'y': 0},
+        ],
+      };
+
+      final migrated = ApplianceMap.fromJson(old);
+
+      // 데이터는 하나도 잃지 않는다.
+      expect(migrated.name, '우리집 에어컨');
+      expect(migrated.buttons.single.label, '전원');
+      // 종류만 모르는 것으로 채운다.
+      expect(migrated.category, ApplianceCategory.other);
+    });
+
+    test('모르는 종류는 오류가 아니라 other로 떨어진다', () {
+      final future = ApplianceMap.fromJson({
+        'id': 'x',
+        'name': '미래의 가전',
+        'category': '아직_없는_종류',
+        'rows': 1,
+        'cols': 1,
         'buttons': <Map<String, dynamic>>[],
       });
 
-      // id는 다르다 -- 여기까지는 맞다.
-      expect(living.id, isNot(bed.id));
-      // 그런데 둘 다 같은 일반 아이콘이라, 화면에서 종류를 알 수 없다.
-      expect(living.icon, bed.icon);
-      expect(living.icon, Icons.widgets_outlined);
+      expect(future.category, ApplianceCategory.other);
+      expect(future.icon, ApplianceCategory.other.icon);
     });
-  });
 
-  group('감사 — 폰과 백엔드의 내장 목록이 다르다', () {
-    test('폰에는 에어컨이 있는데 백엔드·키오스크에는 없다', () {
-      // 백엔드 내장은 microwave·induction 둘뿐이다
-      // (rpi/services/appliance_registry.py). 키오스크도 같다.
-      // 폰만 셋을 들고 있어서, 사용자가 고른 에어컨은 서버가 모른다.
-      expect(kAppliances.map((a) => a.id),
-          containsAll(<String>['microwave', 'induction', 'aircon']));
-      expect(kAppliances.length, 3);
+    test('같은 종류를 여러 대 등록할 수 있다', () async {
+      final living = _installed(
+          id: 'a1', name: '거실 에어컨', category: ApplianceCategory.airConditioner);
+      final bed = _installed(
+          id: 'a2', name: '안방 에어컨', category: ApplianceCategory.airConditioner);
+      SharedPreferences.setMockInitialValues({
+        'custom_appliances': [living.toJsonString(), bed.toJsonString()],
+      });
+      final c = await _ready();
+
+      final installed = c.read(installedAppliancesProvider);
+      expect(installed.map((a) => a.id), ['a1', 'a2']);
+      // 종류는 같고 식별자만 다르다 -- 그게 정상이다.
+      expect(installed.map((a) => a.category),
+          everyElement(ApplianceCategory.airConditioner));
+      expect(installed.map((a) => a.name), ['거실 에어컨', '안방 에어컨']);
+    });
+
+    test('아이콘은 종류에서 나온다 — 저장하지 않는다', () {
+      // 아이콘 코드포인트를 저장하면 릴리즈 빌드의 아이콘 트리셰이킹이
+      // 깨진다. 종류만 저장하고 그림은 거기서 고른다.
+      final a = _installed(id: 'a1', category: ApplianceCategory.washingMachine);
+
+      expect(a.icon, ApplianceCategory.washingMachine.icon);
+      expect(a.toJson().containsKey('icon'), isFalse);
     });
   });
+}
+
+ApplianceMap _installed({
+  required String id,
+  required ApplianceCategory category,
+  String name = '테스트 가전',
+}) =>
+    ApplianceMap(
+      id: id,
+      name: name,
+      category: category,
+      rows: 2,
+      cols: 2,
+      buttons: const [],
+      isCustom: true,
+    );
+
+extension on ApplianceMap {
+  /// prefs에 넣을 때 쓰는 문자열. 테스트 가독성용.
+  String toJsonString() => jsonEncode(toJson());
 }

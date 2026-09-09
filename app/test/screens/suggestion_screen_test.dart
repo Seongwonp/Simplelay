@@ -12,7 +12,12 @@ Widget _buildSuggestion(
 }) {
   return buildWithProviderState(
     suggestions: suggestions,
-    overrides: connectedOverrides(),
+    overrides: [
+      ...connectedOverrides(),
+      // 제안은 자기 대상을 **설치 목록**에서 찾는다. 대상을 가진 사용자를
+      // 만들지 않으면, 이 파일의 테스트는 전부 '대상 없음' 화면을 본다.
+      ...installedOverrides([kTestAppliance, kTestAircon]),
+    ],
     child: MaterialApp(
       theme: ThemeData.dark(),
       home: SuggestionScreen(sequenceId: sequenceId),
@@ -24,6 +29,7 @@ const _sug = Suggestion(
   sequenceId: 'test-001',
   label: '즉석밥 데우기',
   steps: ['BT-08', 'BT-03', 'BT-05'],
+  applianceId: 'microwave',
 );
 
 /// 서버(HTTP)에서 온 패턴 제안. 영구 억제를 실제로 지킬 수 있는 경로이고,
@@ -32,12 +38,13 @@ const _httpSug = Suggestion(
   sequenceId: 'test-003',
   label: '즉석밥 데우기',
   steps: ['BT-08', 'BT-03', 'BT-05'],
+  applianceId: 'microwave',
   source: SuggestionSource.http,
   timeBand: '저녁',
   occurrences: 4,
 );
 
-/// 대상 가전이 전역 선택(기본: 전자레인지)과 다른 제안.
+/// 대상 가전이 지금 고른 가전과 다른 제안.
 const _airconSug = Suggestion(
   sequenceId: 'test-002',
   label: '에어컨 켜줘',
@@ -136,7 +143,10 @@ void main() {
       await tester.pumpWidget(
         buildWithProviderState(
           suggestions: const [_sug],
-          overrides: connectedOverrides(),
+          overrides: [
+            ...connectedOverrides(),
+            ...installedOverrides([kTestAppliance, kTestAircon]),
+          ],
           child: MaterialApp.router(
             theme: ThemeData.dark(),
             routerConfig: router,
@@ -162,7 +172,10 @@ void main() {
       await tester.pumpWidget(
         buildWithProviderState(
           suggestions: const [_airconSug],
-          overrides: connectedOverrides(),
+          overrides: [
+            ...connectedOverrides(),
+            ...installedOverrides([kTestAppliance, kTestAircon]),
+          ],
           child: const MaterialApp(
             home: SuggestionScreen(sequenceId: 'test-002'),
           ),
@@ -200,7 +213,10 @@ void main() {
       await tester.pumpWidget(
         buildWithProviderState(
           suggestions: const [_httpSug],
-          overrides: connectedOverrides(),
+          overrides: [
+            ...connectedOverrides(),
+            ...installedOverrides([kTestAppliance, kTestAircon]),
+          ],
           child: MaterialApp.router(
             theme: ThemeData.dark(),
             routerConfig: router,
@@ -324,7 +340,10 @@ void main() {
       await tester.pumpWidget(
         buildWithProviderState(
           suggestions: const [_sug],
-          overrides: connectedOverrides(),
+          overrides: [
+            ...connectedOverrides(),
+            ...installedOverrides([kTestAppliance, kTestAircon]),
+          ],
           child: MaterialApp.router(
             theme: ThemeData.dark(),
             routerConfig: router,

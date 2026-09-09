@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -14,7 +14,7 @@ ProviderContainer makeContainer() {
 const _customGrill = ApplianceMap(
   id: 'custom_grill_001',
   name: '그릴',
-  icon: Icons.widgets_outlined,
+  category: ApplianceCategory.other,
   rows: 2,
   cols: 2,
   isCustom: true,
@@ -70,14 +70,19 @@ void main() {
     });
   });
 
-  group('allAppliancesProvider', () {
-    test('내장 가전 + 커스텀 가전을 합쳐서 보여준다', () async {
+  group('installedAppliancesProvider', () {
+    test('사용자가 추가한 것만 설치 목록이다 — 예시 템플릿은 섞지 않는다', () async {
+      // 템플릿을 섞어 세면, 아직 아무것도 등록하지 않은 사람의 홈에 남의
+      // 전자레인지가 놓인다. 그 순간 앱이 말하는 다른 상태도 못 믿게 된다.
       final c = makeContainer();
       await c.read(customAppliancesProvider.notifier).ensureLoaded();
+
+      expect(c.read(installedAppliancesProvider), isEmpty);
+
       await c.read(customAppliancesProvider.notifier).add(_customGrill);
 
-      final all = c.read(allAppliancesProvider);
-      expect(all.map((a) => a.id), [...kAppliances.map((a) => a.id), 'custom_grill_001']);
+      expect(c.read(installedAppliancesProvider).map((a) => a.id),
+          ['custom_grill_001']);
     });
   });
 
@@ -89,16 +94,13 @@ void main() {
       await c1.read(customAppliancesProvider.notifier).add(_customGrill);
       await c1.read(selectedApplianceProvider.notifier).select(_customGrill);
 
-      // 2번째 컨테이너: 앱 재시작 시뮬레이션 — SelectedApplianceNotifier의 _load()가
-      // CustomAppliancesNotifier의 로딩을 기다리지 않으면 kAppliances.first로
-      // 잘못 되돌아갈 수 있다(레이스 컨디션 회귀 테스트).
+      // 2번째 컨테이너: 앱 재시작 시뮬레이션 — 선택 복원이 커스텀 목록
+      // 로딩을 기다리지 않으면 저장한 가전을 못 찾고 null로 남는다.
       final c2 = makeContainer();
-      // selectedApplianceProvider 생성 즉시 읽되, 비동기 _load()가 끝날 때까지 기다린다.
-      c2.read(selectedApplianceProvider);
-      await c2.read(customAppliancesProvider.notifier).ensureLoaded();
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      // 임의 지연으로 맞추지 않는다. 초기화 완료 신호를 그대로 기다린다.
+      await c2.read(applianceStartupProvider.future);
 
-      expect(c2.read(selectedApplianceProvider).id, 'custom_grill_001');
+      expect(c2.read(selectedApplianceProvider)?.id, 'custom_grill_001');
     });
   });
 }

@@ -43,6 +43,9 @@ const _bleSuggestion = Suggestion(
   sequenceId: 'demo-gate',
   label: '우유 데워줘',
   steps: ['BT-08', 'BT-05'],
+  // 제안은 자기 대상 가전을 설치 목록에서 찾는다. 대상을 못 찾으면 실행
+  // 버튼 자체가 안 나오므로, 여기서는 대상을 가진 사용자를 만든다.
+  applianceId: 'microwave',
 );
 
 Future<_CountingBle> _approve(WidgetTester tester, {required bool demo}) async {
@@ -71,6 +74,7 @@ Future<_CountingBle> _approve(WidgetTester tester, {required bool demo}) async {
       suggestions: const [_bleSuggestion],
       overrides: [
         ...connectedOverrides(),
+        ...installedOverrides([kTestAppliance]),
         bleServiceProvider.overrideWithValue(ble),
       ],
       onContainerReady: (c) => container = c,

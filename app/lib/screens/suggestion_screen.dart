@@ -111,20 +111,21 @@ class SuggestionScreen extends ConsumerWidget {
       );
     }
 
-    // 제안이 대상을 알려주면 그 가전으로 그린다 -- 전역 선택값을 쓰면
-    // 화면이 보여주는 버튼과 실제 눌릴 버튼이 어긋날 수 있다.
-    final selected = ref.watch(selectedApplianceProvider);
-    final all = ref.watch(allAppliancesProvider);
+    // 제안이 조작할 **그 가전**으로 그린다. 전역 선택값을 쓰면 화면이
+    // 보여주는 버튼과 실제 눌릴 버튼이 어긋난다.
+    final installed = ref.watch(installedAppliancesProvider);
     final target = suggestion.applianceId == null
         ? null
-        : all.where((a) => a.id == suggestion.applianceId).firstOrNull;
+        : installed.where((a) => a.id == suggestion.applianceId).firstOrNull;
 
-    // 대상을 명시했는데 그 가전을 모르겠다면, 현재 선택 가전으로 **바꿔
-    // 그리지 않는다.** 예전에는 조용히 폴백해서, 지운 선풍기의 제안이
-    // 전자레인지 지도를 달고 나오고 승인까지 눌리게 했다. 서버도 이제
-    // 그 실행을 404로 거절하므로(R1), 화면이 승인 버튼을 내걸면 누를 수
-    // 있는데 안 되는 버튼이 된다.
-    if (suggestion.applianceId != null && target == null) {
+    // 대상을 알 수 없으면 **현재 선택 가전으로 바꿔 그리지 않는다.**
+    // 예전에는 조용히 폴백해서, 지운 선풍기의 제안이 전자레인지 지도를
+    // 달고 나오고 승인까지 눌리게 했다. 서버도 그 실행을 404로 거절하므로
+    // (R1), 화면이 승인 버튼을 내걸면 누를 수 있는데 안 되는 버튼이 된다.
+    //
+    // 대상을 아예 안 밝힌 제안(가전 없이 쌓인 옛 이력)도 같다 -- 무엇이
+    // 눌릴지 그릴 수 없으면 그리지 않는다.
+    if (target == null) {
       return _UnknownTargetScreen(
         suggestion: suggestion,
         onDismiss: () => _dismissSuggestion(
@@ -135,7 +136,7 @@ class SuggestionScreen extends ConsumerWidget {
         ),
       );
     }
-    final appliance = target ?? selected;
+    final appliance = target;
 
     return Scaffold(
       appBar: AppBar(title: const Text('제안 확인')),

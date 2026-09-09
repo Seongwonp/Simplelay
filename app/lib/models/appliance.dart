@@ -23,6 +23,60 @@ class ApplianceButton {
   Map<String, dynamic> toJson() => {'id': id, 'label': label, 'x': x, 'y': y};
 }
 
+/// 가전의 **종류**. 개별 기기의 식별자(`id`)와 다른 개념이다.
+///
+/// 같은 종류를 여러 대 등록할 수 있다 -- 거실 에어컨과 안방 에어컨은
+/// `category`가 같고 `id`가 다르다.
+///
+/// 값은 **안정적인 문자열**이고 서버·키오스크와 같은 것을 쓴다. 아이콘은
+/// 여기서 파생될 뿐, 반대로 아이콘에서 종류를 정하지 않는다.
+///
+/// 이름으로 종류를 추측하지도 않는다 -- "에어컨 옆 선풍기" 같은 이름이
+/// 틀리게 되고, 한 번 틀리면 사용자가 고칠 방법이 없다.
+enum ApplianceCategory {
+  microwave('microwave', '전자레인지', Icons.microwave),
+  airConditioner('air_conditioner', '에어컨', Icons.ac_unit),
+  washingMachine('washing_machine', '세탁기', Icons.local_laundry_service),
+  induction('induction', '인덕션', Icons.soup_kitchen),
+  riceCooker('rice_cooker', '밥솥', Icons.rice_bowl),
+  other('other', '기타', Icons.widgets_outlined);
+
+  const ApplianceCategory(this.value, this.label, this.icon);
+
+  /// 저장·전송에 쓰는 안정적인 값.
+  final String value;
+
+  /// 화면에 보일 종류 이름.
+  final String label;
+
+  /// 이 종류의 그림. **저장하지 않는다** -- 아이콘 코드포인트를 직렬화하면
+  /// 릴리즈 빌드의 아이콘 트리셰이킹이 깨진다.
+  final IconData icon;
+
+  /// 모르는 값은 **거절하지 않는다.**
+  ///
+  /// 서버가 새 종류를 알고 있을 수 있고, 거절하거나 던지면 목록 전체를
+  /// 읽지 못하게 된다. 모르면 `other`로 받고 이름·버튼은 그대로 살린다.
+  static ApplianceCategory parse(String? raw) {
+    if (raw == null || raw.isEmpty) return ApplianceCategory.other;
+    for (final c in ApplianceCategory.values) {
+      if (c.value == raw) return c;
+    }
+    return ApplianceCategory.other;
+  }
+
+  /// 예전 `icon` 힌트에서 종류를 되살리는 **명시적** 표.
+  ///
+  /// 알려진 값만 옮긴다. 커스텀 가전이 보내던 `"custom"`이 여기 없는 것도
+  /// 의도한 것이다 -- 그 값은 종류를 담은 적이 없다.
+  static ApplianceCategory fromLegacyIcon(String? icon) => switch (icon) {
+        'microwave' => ApplianceCategory.microwave,
+        'induction' => ApplianceCategory.induction,
+        'aircon' || 'air_conditioner' => ApplianceCategory.airConditioner,
+        _ => ApplianceCategory.other,
+      };
+}
+
 // 내장 가전(전자레인지/인덕션)은 백엔드 규칙 기반 의도 해석기에 목적→버튼 매핑이
 // 있어서 음성 명령이 되지만, 사용자가 새로 등록한 가전(isCustom)은 그 매핑이
 // 없으므로 버튼을 직접 탭해서 실행하는 수동 모드로만 동작한다.
@@ -30,7 +84,7 @@ class ApplianceMap {
   const ApplianceMap({
     required this.id,
     required this.name,
-    required this.icon,
+    required this.category,
     required this.rows,
     required this.cols,
     required this.buttons,
@@ -45,7 +99,13 @@ class ApplianceMap {
 
   final String id;
   final String name;
-  final IconData icon;
+
+  /// 이 기기의 **종류**. 도메인의 단일 진실원천이다.
+  final ApplianceCategory category;
+
+  /// 그림은 종류에서 나온다 -- 따로 들고 있지 않는다.
+  IconData get icon => category.icon;
+
   final int rows;
   final int cols;
   final List<ApplianceButton> buttons;
@@ -117,7 +177,11 @@ class ApplianceMap {
   factory ApplianceMap.fromJson(Map<String, dynamic> json) => ApplianceMap(
         id: json['id'] as String,
         name: json['name'] as String,
-        icon: Icons.widgets_outlined,
+        // 종류가 진실원천이다. 없으면(예전 저장분) icon 힌트에서 **명시적인
+        // 표로만** 되살리고, 그래도 모르면 other -- 이름으로 추측하지 않는다.
+        category: json.containsKey('category')
+            ? ApplianceCategory.parse(json['category'] as String?)
+            : ApplianceCategory.fromLegacyIcon(json['icon'] as String?),
         rows: json['rows'] as int,
         cols: json['cols'] as int,
         buttons: (json['buttons'] as List<dynamic>)
@@ -147,7 +211,7 @@ class ApplianceMap {
   ApplianceMap withPhotoFrom(ApplianceMap other) => ApplianceMap(
         id: id,
         name: name,
-        icon: icon,
+        category: category,
         rows: rows,
         cols: cols,
         buttons: buttons,
@@ -163,6 +227,9 @@ class ApplianceMap {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
+        // 종류만 저장한다. 아이콘 코드포인트를 직렬화하면 릴리즈 빌드의
+        // 아이콘 트리셰이킹이 깨진다.
+        'category': category.value,
         'rows': rows,
         'cols': cols,
         'buttons': buttons.map((b) => b.toJson()).toList(),
@@ -173,11 +240,16 @@ class ApplianceMap {
       };
 }
 
-const kAppliances = <ApplianceMap>[
+/// **고를 수 있는 종류의 예시**지 사용자가 소유한 가전이 아니다.
+///
+/// 이 목록이 곧 설치 목록 행세를 하던 것이 "전자레인지 데모 앱"으로
+/// 보이던 원인이었다. 설치된 가전은 `installedAppliancesProvider`가
+/// 들고 있고, 여기 있는 것은 기본 버튼 배치를 제공하는 본보기다.
+const kApplianceTemplates = <ApplianceMap>[
   ApplianceMap(
     id: 'microwave',
     name: '전자레인지',
-    icon: Icons.microwave,
+    category: ApplianceCategory.microwave,
     rows: 4,
     cols: 3,
     buttons: [
@@ -196,7 +268,7 @@ const kAppliances = <ApplianceMap>[
   ApplianceMap(
     id: 'induction',
     name: '인덕션',
-    icon: Icons.soup_kitchen,
+    category: ApplianceCategory.induction,
     rows: 3,
     cols: 4,
     buttons: [
@@ -215,7 +287,7 @@ const kAppliances = <ApplianceMap>[
   ApplianceMap(
     id: 'aircon',
     name: '에어컨',
-    icon: Icons.ac_unit,
+    category: ApplianceCategory.airConditioner,
     rows: 3,
     cols: 3,
     buttons: [

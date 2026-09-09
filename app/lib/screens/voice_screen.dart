@@ -18,6 +18,7 @@ import '../services/rpi_api_service.dart';
 import '../services/voice_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/no_appliance_notice.dart';
 
 class VoiceScreen extends ConsumerStatefulWidget {
   const VoiceScreen({super.key});
@@ -161,6 +162,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     setState(() => _sending = true);
     final rpiApi = ref.read(rpiApiServiceProvider);
     final appliance = ref.read(selectedApplianceProvider);
+    if (appliance == null) {
+      // 여기까지 오면 안 되지만(마이크가 막혀 있다), 상태가 그 사이 바뀔
+      // 수 있다. 조작할 대상 없이 전송하지 않는다.
+      setState(() => _sending = false);
+      _notice('사용할 가전을 먼저 추가해 주세요.');
+      return;
+    }
 
     try {
       if (appliance.isCustom) {
@@ -286,6 +294,23 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     ref.listen<int>(currentTabIndexProvider, (_, next) {
       if (next != voiceTabIndex) _cancelSession();
     });
+
+    // 조작할 가전이 없으면 **마이크를 내주지 않는다.**
+    //
+    // 말하게 두고 전송 단계에서 실패시키면, 사용자는 자기 발음이 문제라고
+    // 생각하게 된다. 무엇이 없는지와 어디로 가면 되는지를 먼저 말한다.
+    // "가전 없음"은 예외가 아니라 정상 제품 상태다 -- 처음 설치한 사람은
+    // 반드시 여기를 지난다.
+    if (appliance == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('음성 명령')),
+        body: NoApplianceNotice(
+          title: '사용할 가전을 먼저 추가해 주세요',
+          body: '조작할 가전이 있어야 말로 시킬 수 있어요.\n가전을 추가하면 바로 여기서 쓸 수 있습니다.',
+          onAdd: () => context.push('/appliance/new'),
+        ),
+      );
+    }
 
     // 내장 가전(전자레인지)만 실제로 매칭되는 규칙이 있어서 그 예시를 쓰고,
     // 사용자 정의 가전은 등록된 실제 버튼 라벨로 예시를 만든다 — 안 그러면

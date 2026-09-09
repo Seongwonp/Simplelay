@@ -18,7 +18,7 @@ import 'package:simplelay/widgets/appliance_portrait.dart';
 ApplianceMap _appliance({String? photoPath}) => ApplianceMap(
       id: 'microwave',
       name: '전자레인지',
-      icon: Icons.microwave,
+      category: ApplianceCategory.microwave,
       rows: 2,
       cols: 2,
       buttons: const [],

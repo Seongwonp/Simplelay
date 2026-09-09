@@ -69,13 +69,13 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
     }
     try {
       final remote = await api.suggestions();
-      final selected = ref.read(selectedApplianceProvider);
-      final all = ref.read(allAppliancesProvider);
+      // **설치된 가전**에서만 찾는다. 현재 선택 가전으로 메우지 않는다.
+      final installed = ref.read(installedAppliancesProvider);
       final previous = {for (final s in _httpSuggestions) s.sequenceId: s};
       _httpSuggestions = remote
           .map((r) => _toSuggestion(
                 r,
-                _applianceFor(r, all, selected),
+                _applianceFor(r, installed),
                 previous[r.id]?.receivedAt,
               ))
           .toList();
@@ -85,32 +85,35 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
     }
   }
 
-  /// 제안이 대상 가전을 알려주면 **그 가전의** 버튼맵을 쓴다.
+  /// 제안이 조작할 **그 가전**. 못 찾으면 null이다.
   ///
-  /// 전역 선택값으로 그리면, 전자레인지를 고른 상태에서 냉방 제안이
-  /// 전자레인지 지도를 달고 나온다 -- 화면과 실제 실행 대상이 어긋난다.
-  /// 서버가 대상을 모르면(가전 없이 쌓인 옛 이력) 선택 가전으로 폴백.
-  ApplianceMap _applianceFor(
-    RpiSuggestion r,
-    List<ApplianceMap> all,
-    ApplianceMap fallback,
-  ) {
+  /// 현재 선택 가전으로 메우지 않는다. 전자레인지를 고른 상태에서 냉방
+  /// 제안이 전자레인지 지도를 달고 나오면, 화면과 실제 실행 대상이
+  /// 어긋난다 -- 그건 조용한 거짓말이다.
+  ///
+  /// null이 되는 경우는 둘이다.
+  /// - 서버가 대상을 모른다(가전 없이 쌓인 옛 이력)
+  /// - 그 가전이 이 폰에서 지워졌다
+  ///
+  /// 어느 쪽이든 **실행을 막아야 하는 상태**고, 화면이 그 사실을 말한다.
+  ApplianceMap? _applianceFor(RpiSuggestion r, List<ApplianceMap> installed) {
     final id = r.applianceId;
-    if (id == null) return fallback;
-    return all.where((a) => a.id == id).firstOrNull ?? fallback;
+    if (id == null) return null;
+    return installed.where((a) => a.id == id).firstOrNull;
   }
 
   // RPi 백엔드는 버튼을 라벨 문자열("해동")로 돌려주지만, 이 화면 트리는
   // BLE 관례대로 버튼 코드("BT-08")를 기준으로 매칭·표시한다.
-  // 현재 선택된 가전의 버튼맵으로 라벨→코드 역매핑한다(못 찾으면 라벨 그대로 둠).
+  // 대상 가전의 버튼맵으로 라벨→코드 역매핑한다. 대상을 모르면 라벨을
+  // 그대로 둔다 -- 다른 가전의 코드를 붙이면 화면이 틀린 버튼을 가리킨다.
   Suggestion _toSuggestion(
     RpiSuggestion r,
-    ApplianceMap appliance,
+    ApplianceMap? appliance,
     DateTime? receivedAt,
   ) {
     final steps = r.steps.map((label) {
       final match =
-          appliance.buttons.where((btn) => btn.label == label).firstOrNull;
+          appliance?.buttons.where((btn) => btn.label == label).firstOrNull;
       return match?.id ?? label;
     }).toList();
     return Suggestion(

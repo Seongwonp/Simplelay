@@ -13,6 +13,7 @@ import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/no_appliance_notice.dart';
 
 enum _CellState { idle, pending, success, failure }
 
@@ -109,6 +110,22 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   @override
   Widget build(BuildContext context) {
     final appliance = ref.watch(selectedApplianceProvider);
+
+    // 조작할 가전이 없으면 **빈 조작판을 그리지 않는다.**
+    //
+    // 버튼 0개짜리 격자는 "고장 났다"로 읽힌다. 격자가 비어 있는 이유가
+    // 가전이 없어서라는 사실과, 그걸 어디서 해결하는지를 대신 말한다.
+    if (appliance == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('버튼 조작')),
+        body: NoApplianceNotice(
+          title: '조작할 가전이 아직 없어요',
+          body: '가전을 추가하면 버튼 배치를 그대로 눌러 볼 수 있습니다.',
+          onAdd: () => context.push('/appliance/new'),
+        ),
+      );
+    }
+
     final api = ref.watch(rpiApiServiceProvider);
     final photoPath = appliance.photoPath;
     final hasPhoto = photoPath != null && File(photoPath).existsSync();

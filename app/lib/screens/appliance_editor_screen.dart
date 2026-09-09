@@ -25,6 +25,10 @@ class ApplianceEditorScreen extends ConsumerStatefulWidget {
 
 class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   final _nameController = TextEditingController();
+
+  /// 어떤 종류의 가전인가. 이름으로 추측하지 않고 사용자가 고른다 --
+  /// "에어컨 옆 선풍기" 같은 이름을 잘못 읽으면 고칠 방법이 없다.
+  ApplianceCategory _category = ApplianceCategory.other;
   int _rows = 3;
   int _cols = 3;
   late List<List<String?>> _grid = _emptyGrid(_rows, _cols);
@@ -144,7 +148,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     final appliance = ApplianceMap(
       id: id,
       name: name,
-      icon: Icons.widgets_outlined,
+      category: _category,
       rows: _rows,
       cols: _cols,
       buttons: buttons,
@@ -206,6 +210,68 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Text('어떤 가전인가요?', style: AppText.title),
+                  const SizedBox(height: 4),
+                  Text(
+                    '고른 종류에 맞는 그림으로 보여드려요.',
+                    style: TextStyle(fontSize: 14, color: context.appMuted),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final c in ApplianceCategory.values)
+                        Semantics(
+                          button: true,
+                          selected: c == _category,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(12),
+                            onTap: () => setState(() => _category = c),
+                            child: Container(
+                              // 고령 사용자 기준 최소 터치 대상.
+                              constraints:
+                                  const BoxConstraints(minHeight: 48),
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 12),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: c == _category
+                                      ? context.appPrimary
+                                      : context.appBorderSubtle,
+                                  width: c == _category ? 2 : 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(c.icon,
+                                      size: 18,
+                                      color: c == _category
+                                          ? context.appPrimary
+                                          : context.appMuted),
+                                  const SizedBox(width: 7),
+                                  Text(
+                                    c.label,
+                                    style: TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: c == _category
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: c == _category
+                                          ? context.appPrimary
+                                          : context.appOnSurfaceSoft,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 22),
                   Text('가전 이름', style: AppText.title),
                   const SizedBox(height: 10),
                   TextField(

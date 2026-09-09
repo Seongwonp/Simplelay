@@ -630,7 +630,10 @@ class RpiApiService {
               if (appliance.revision > 0)
                 'expected_revision': appliance.revision,
               'name': appliance.name,
-              'icon': appliance.isCustom ? 'custom' : appliance.id,
+              // 종류가 진실원천이다. 예전에는 이 자리에 내장 가전의
+              // id나 'custom'을 넣어서, 식별자와 종류가 뭉개지고
+              // 커스텀 가전의 종류는 아예 사라졌다.
+              'category': appliance.category.value,
               'rows': appliance.rows,
               'cols': appliance.cols,
               'buttons': [

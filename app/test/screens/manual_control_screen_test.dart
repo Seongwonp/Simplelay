@@ -15,7 +15,7 @@ import 'package:simplelay/services/rpi_api_service.dart';
 const _testAppliance = ApplianceMap(
   id: 'custom_test',
   name: '테스트가전',
-  icon: Icons.widgets_outlined,
+  category: ApplianceCategory.other,
   rows: 1,
   cols: 2,
   isCustom: true,
@@ -46,7 +46,7 @@ Future<ProviderContainer> _makeContainerWithAppliance(
 const _notReady = ApplianceMap(
   id: 'custom_test',
   name: '테스트가전',
-  icon: Icons.widgets_outlined,
+  category: ApplianceCategory.other,
   rows: 1,
   cols: 2,
   isCustom: true,

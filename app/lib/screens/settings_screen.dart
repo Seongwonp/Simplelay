@@ -274,19 +274,26 @@ class _ApplianceSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final selected = ref.watch(selectedApplianceProvider);
-    final appliances = ref.watch(allAppliancesProvider);
+    // 여기는 **이 폰에 설치된 가전**만 고른다. 예시 템플릿을 섞으면 아직
+    // 아무것도 등록하지 않은 사람에게 전자레인지가 이미 있는 것처럼 보인다.
+    final appliances = ref.watch(installedAppliancesProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text('제어 가전'),
         const SizedBox(height: 10),
+        // 0대는 오류가 아니다. 고를 것이 없다는 사실과 어디서 만드는지만
+        // 말하고, 선택 칩 자리를 비워 두지 않는다.
+        if (appliances.isEmpty)
+          _EmptyApplianceRow(onAdd: () => context.push('/appliance/new'))
+        else
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             ...appliances.map((appliance) {
-              final isSelected = appliance.id == selected.id;
+              final isSelected = appliance.id == selected?.id;
               // 선택 상태를 시맨틱으로 노출한다 -- 체크 아이콘은 눈으로만
               // 보이는 신호라, 스크린리더 사용자는 가전 이름은 읽어도
               // 무엇이 선택됐는지 알 수 없었다.
@@ -991,13 +998,51 @@ class _DemoSection extends ConsumerWidget {
       );
 }
 
+/// 설치한 가전이 0대일 때 '제어 가전' 자리에 놓는 줄.
+class _EmptyApplianceRow extends StatelessWidget {
+  const _EmptyApplianceRow({required this.onAdd});
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Expanded(
+            child: Text(
+              '아직 추가한 가전이 없어요.',
+              style: TextStyle(color: context.appMuted, fontSize: 13),
+            ),
+          ),
+          TextButton.icon(
+            onPressed: onAdd,
+            icon: const Icon(Icons.add, size: 18),
+            label: const Text('가전 추가'),
+          ),
+        ],
+      );
+}
+
 // ── ESP32 노드 등록 ───────────────────────────────────────────────────────
 
 class _NodeSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final appliances = ref.watch(allAppliancesProvider);
+    final appliances = ref.watch(installedAppliancesProvider);
     final nodesAsync = ref.watch(nodeRegistryProvider);
+    // 등록할 가전이 없으면 노드 목록을 부를 이유도 없다.
+    if (appliances.isEmpty) {
+      return _SettingCard(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading:
+              Icon(Icons.add_home_outlined, color: context.appMuted, size: 20),
+          title: const Text('등록할 가전이 아직 없어요'),
+          subtitle: Text(
+            '가전을 추가하면 여기서 노드를 연결합니다.',
+            style: TextStyle(color: context.appMuted, fontSize: 12),
+          ),
+        ),
+      );
+    }
 
     return nodesAsync.when(
       loading: () => const Padding(
