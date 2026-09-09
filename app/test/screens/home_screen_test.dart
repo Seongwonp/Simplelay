@@ -34,17 +34,28 @@ Widget _buildHome({
 
 void main() {
   group('HomeScreen — 연결 해제 상태', () {
-    testWidgets('연결 필요 안내 텍스트 표시', (tester) async {
+    testWidgets('연결 문제는 한 줄로 알리고 눌러야 상세가 나온다', (tester) async {
+      // 기술 정보(RPi 서버·주소 입력·재시도)가 홈 아래를 차지하고 있었다.
+      // 기본은 무엇이 필요한지 한 줄이고, 자세한 것은 눌렀을 때만 나온다.
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome());
       await tester.pump();
+
+      expect(find.text('연결 설정이 필요해요'), findsOneWidget);
+      expect(find.text('예비 연결이 꺼져 있어요'), findsNothing);
+
+      await tester.tap(find.text('확인하기'));
+      await tester.pump();
+
       expect(find.text('예비 연결이 꺼져 있어요'), findsOneWidget);
       expect(find.text('연결해 두면 서버가 안 될 때도 조작할 수 있어요.'), findsOneWidget);
     });
 
-    testWidgets('"연결" TextButton 표시', (tester) async {
+    testWidgets('상세를 펼치면 복구 동선이 나온다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome());
+      await tester.pump();
+      await tester.tap(find.text('확인하기'));
       await tester.pump();
       expect(find.text('연결'), findsOneWidget);
     });
@@ -114,7 +125,8 @@ void main() {
         _buildHome(connected: true, suggestions: const [suggestion]),
       );
       await tester.pump();
-      expect(find.text('즉석밥 데우기, 지금 할까요?'), findsOneWidget);
+      // 홈의 행은 질문이 아니다 -- 무엇을 하는 것인지만 쓴다.
+      expect(find.text('즉석밥 데우기'), findsOneWidget);
       // "3단계 동작"은 몇 번 움직이는지만 알려줬다 -- 맡길지 판단하려면
       // 무엇을 누르는지가 필요하다
       expect(find.text('즉석밥 → 1분 추가 → 시작'), findsOneWidget);
@@ -131,8 +143,8 @@ void main() {
         _buildHome(connected: true, suggestions: suggestions),
       );
       await tester.pump();
-      expect(find.text('30초 가열, 지금 할까요?'), findsOneWidget);
-      expect(find.text('해동, 지금 할까요?'), findsOneWidget);
+      expect(find.text('30초 가열'), findsOneWidget);
+      expect(find.text('해동'), findsOneWidget);
     });
 
     testWidgets('제안 탭 시 /suggestion/:id 로 이동', (tester) async {
@@ -168,7 +180,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('즉석밥 데우기, 지금 할까요?'));
+      await tester.tap(find.text('즉석밥 데우기'));
       await tester.pumpAndSettle();
 
       expect(pushedRoute, 's1');

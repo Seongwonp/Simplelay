@@ -56,26 +56,28 @@ class AppTheme {
         ),
       ),
 
-      // 주요 행동은 알약 모양. 큰 글씨(200%)에서 버튼이 세로로 커져도
-      // 모서리 비율이 무너지지 않는다 -- 고정 반경은 그때 각져 보인다.
+      // 알약 모양을 쓰지 않는다. 칩·배지도 알약이라 화면에 같은 형태가
+      // 반복되면 무엇이 주 행동인지 형태로 구분되지 않고, 그 반복 자체가
+      // 생성형 시안처럼 보이게 한다. 주 행동만 각진 큰 면으로 둔다.
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           foregroundColor: onPrimary,
           backgroundColor: primary,
-          minimumSize: const Size.fromHeight(54),
-          elevation: isDark ? 0 : 2,
-          shadowColor: primary.withValues(alpha: 0.25),
-          shape: const StadiumBorder(),
+          minimumSize: const Size.fromHeight(56),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
         ),
       ),
 
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
-          minimumSize: const Size.fromHeight(54),
-          shape: const StadiumBorder(),
-          side: BorderSide(
-            color: isDark ? border : primary.withValues(alpha: 0.35),
+          minimumSize: const Size.fromHeight(56),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
           ),
+          side: BorderSide(color: isDark ? border : primary),
         ),
       ),
 

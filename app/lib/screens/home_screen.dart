@@ -14,7 +14,14 @@ import '../services/ble_service.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
-import '../widgets/dnd_bottom_sheet.dart';
+
+/// 골든 테스트가 실제 사진 렌더를 확인하기 위해 끼우는 이미지.
+///
+/// 파일 이미지는 위젯 테스트에서 디코딩되지 않아, 이 구멍이 없으면 사진
+/// 화면의 크롭·BoxFit·모서리가 아무 데서도 검증되지 않는다. 앱 실행 중에는
+/// 항상 null이다.
+@visibleForTesting
+ImageProvider? applianceImageOverride;
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -38,31 +45,22 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('SimpleLay'),
+        // 앱바에 아이콘을 몰아두지 않는다. 뜻을 추측해야 하는 그림이 셋씩
+        // 붙어 있으면, 디지털에 익숙하지 않은 사용자에게는 그 줄 전체가
+        // 읽을 수 없는 영역이 된다.
+        //
+        // 알림함은 탭바로, 방해 금지는 설정으로 옮겼다. 연결 상태 칩은
+        // 아래 가전 상태 문장이 같은 말을 하므로 없앴다 -- 같은 사실을
+        // 두 군데서 다르게 말하면 어느 쪽을 믿을지 알 수 없다.
         actions: [
-          // 알림함은 탭바로 옮겼다 -- 앱바 구석의 작은 종은 보호자가 가장
-          // 봐야 할 것을 가장 안 보이는 자리에 두고 있었다.
-          // 실행 기록 (공감지능 근거 + 폐루프 재시도 기록)
+          // 실행 기록 (공감지능 근거 + 폐루프 재시도 기록). 하단 탭에 자리가
+          // 없어 여기 남긴다 -- 이제 혼자라 붐비지 않는다.
           IconButton(
             onPressed: () => context.push('/history'),
             icon: const Icon(Icons.history),
             tooltip: '실행 기록',
           ),
-          // DND 토글 버튼
-          IconButton(
-            onPressed: () => showDndSheet(context),
-            icon: Icon(
-              dndActive
-                  ? Icons.do_not_disturb_on
-                  : Icons.do_not_disturb_on_outlined,
-              color: dndActive ? context.appWarning : null,
-            ),
-            tooltip: dndActive ? '방해 금지 활성' : '방해 금지',
-          ),
-          // 연결 상태 chip
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: _ConnectionChip(connected: connected, rpiOnline: rpiOnline),
-          ),
+          const SizedBox(width: 4),
         ],
       ),
       // 순서가 곧 이 화면의 주장이다: **무엇을 조작하는가 → 지금 되는가 →
@@ -86,6 +84,7 @@ class HomeScreen extends ConsumerWidget {
           _ApplianceStage(
             appliance: appliance,
             reachable: connected || rpiOnline,
+            imageOverride: applianceImageOverride,
             onManual: () => context.push('/manual-control'),
             // 편집기는 아직 '새 가전 만들기'만 받는다. 기존 가전에 사진을
             // 붙이는 경로가 생기기 전까지는 가전 관리가 있는 설정으로 보낸다 --
@@ -165,29 +164,31 @@ class _ApplianceRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
-    return SizedBox(
-      height: 48 + (scale - 1) * 30,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.zero,
-        itemCount: appliances.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (_, i) {
-          final a = appliances[i];
-          final on = a.id == selected.id;
-          return Semantics(
+    // 가로 스크롤을 쓰지 않는다. 마지막 칩이 화면 끝에서 잘려 고장난
+    // 것처럼 보이고, 가로로 밀어야 한다는 것 자체가 잘 발견되지 않는다.
+    // 줄바꿈하면 200%로 키워도 전부 보인다.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final a in appliances)
+          Builder(builder: (context) {
+            final on = a.id == selected.id;
+            return Semantics(
             button: true,
             selected: on,
             child: InkWell(
-              borderRadius: BorderRadius.circular(999),
+              borderRadius: BorderRadius.circular(12),
               onTap: () =>
                   ref.read(selectedApplianceProvider.notifier).select(a),
               child: Container(
-                alignment: Alignment.center,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                // alignment를 주면 느슨한 제약에서 가용 폭을 다 차지해
+                // 칩이 화면 폭만큼 늘어난다. 폭은 Row(min)가 정한다.
+                // 세로 여백으로 최소 터치 대상(48)을 맞춘다.
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 14, vertical: 13),
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(999),
+                  borderRadius: BorderRadius.circular(12),
                   border: Border.all(
                     color: on ? context.appPrimary : context.appBorderSubtle,
                     width: on ? 2 : 1,
@@ -214,8 +215,8 @@ class _ApplianceRow extends ConsumerWidget {
               ),
             ),
           );
-        },
-      ),
+        }),
+      ],
     );
   }
 }
@@ -234,7 +235,11 @@ class _ApplianceStage extends StatelessWidget {
     required this.reachable,
     required this.onManual,
     required this.onAddPhoto,
+    this.imageOverride,
   });
+
+  /// 골든이 실제 사진 렌더를 확인하기 위한 구멍. 앱 실행에는 항상 null이다.
+  final ImageProvider? imageOverride;
 
   final ApplianceMap appliance;
 
@@ -246,14 +251,15 @@ class _ApplianceStage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (line, warn) = _status();
-    final hasPhoto =
-        appliance.photoPath != null && appliance.photoPath!.isNotEmpty;
+    final hasPhoto = imageOverride != null ||
+        (appliance.photoPath != null && appliance.photoPath!.isNotEmpty);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Center(
           child: AppliancePortrait(
             appliance: appliance,
+            imageOverride: imageOverride,
             // 화면 폭에 맞추되 지나치게 커지지 않게 둔다.
             size: (MediaQuery.sizeOf(context).width * 0.52).clamp(150.0, 220.0),
           ),
@@ -338,8 +344,12 @@ class _SuggestionRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    // 홈의 행은 질문이 아니다. 목록에서 물어보고 상세에서
+                    // 또 물으면 두 번 묻는 꼴이고, 사용자가 부른 말을 어색한
+                    // 물음으로 고쳐 쓰면(`우유 데워줘, 지금 할까요?`) 오히려
+                    // 자기가 한 말처럼 안 들린다. 무엇을 하는 것인지만 쓴다.
                     Text(
-                      '${suggestion.label}, 지금 할까요?',
+                      suggestion.label,
                       style: const TextStyle(
                           fontSize: 17, fontWeight: FontWeight.w600),
                     ),
@@ -404,71 +414,65 @@ class _ConnectionDetails extends StatefulWidget {
 }
 
 class _ConnectionDetailsState extends State<_ConnectionDetails> {
-  bool? _open;
+  bool _open = false;
 
   bool get _hasProblem =>
       widget.rpiState != RpiConnectionState.connected || !widget.bleConnected;
 
-  /// 사용자가 직접 접거나 편 적이 있으면 그 선택을 따르고, 아니면 문제
-  /// 여부로 정한다.
-  bool get _expanded => _open ?? _hasProblem;
-
   @override
   Widget build(BuildContext context) {
-    final summary = switch (widget.rpiState) {
-      RpiConnectionState.connected =>
-        widget.bleConnected ? '모두 연결됨' : '블루투스만 꺼짐',
-      RpiConnectionState.checking => '확인 중',
-      RpiConnectionState.unconfigured => '서버 주소 없음',
-      RpiConnectionState.unreachable => '연결 안 됨',
-    };
+    // 문제가 없으면 이 줄 자체를 두지 않는다. 잘 되고 있는 것을 알리는
+    // 줄은 화면을 관리 도구로 되돌릴 뿐, 사용자가 그걸로 할 판단이 없다.
+    if (!_hasProblem) return const SizedBox.shrink();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Semantics(
           button: true,
-          expanded: _expanded,
+          expanded: _open,
           child: InkWell(
-            onTap: () => setState(() => _open = !_expanded),
+            onTap: () => setState(() => _open = !_open),
             borderRadius: BorderRadius.circular(12),
             child: Padding(
-              // 고령 사용자 기준 최소 터치 대상을 헤더 전체로 준다.
+              // 고령 사용자 기준 최소 터치 대상을 줄 전체로 준다.
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
               child: Row(
                 children: [
-                  Icon(
-                    _hasProblem
-                        ? Icons.wifi_tethering_error
-                        : Icons.wifi_tethering,
-                    size: 20,
-                    color: _hasProblem ? context.appDanger : context.appMuted,
-                  ),
+                  Icon(Icons.wifi_tethering_error,
+                      size: 20, color: context.appDanger),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '연결 상세 · $summary',
+                      // 기술 용어를 여기 쓰지 않는다. `RPi 서버`·주소 입력·
+                      // 재시도는 눌렀을 때만 나온다.
+                      '연결 설정이 필요해요',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color:
-                            _hasProblem ? context.appDanger : context.appMuted,
+                        color: context.appDanger,
                       ),
                     ),
                   ),
-                  Icon(
-                    _expanded ? Icons.expand_less : Icons.expand_more,
-                    color: context.appMuted,
+                  Text(
+                    _open ? '접기' : '확인하기',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: context.appDanger,
+                    ),
                   ),
+                  Icon(_open ? Icons.expand_less : Icons.expand_more,
+                      color: context.appDanger),
                 ],
               ),
             ),
           ),
         ),
-        if (_expanded) ...[
+        if (_open) ...[
           const SizedBox(height: 4),
           _RpiStatusCard(state: widget.rpiState),
-          // 예비 연결은 **꺼져 있을 때만** 말한다. 잘 되고 있는 것을
-          // 카드로 알리면 화면이 관리 도구로 돌아간다.
+          // 예비 연결은 **꺼져 있을 때만** 말한다.
           if (!widget.bleConnected) ...[
             const SizedBox(height: 12),
             _BleStatusCard(connected: widget.bleConnected),
@@ -812,37 +816,6 @@ class _StatusCardBody extends StatelessWidget {
 /// 홈의 주 행동 버튼. 떠 있되 구석의 작은 알약이 아니라 화면 폭을 넉넉히 쓴다.
 /// 주 경로가 막혔을 때 갈 수 있는 다른 길. 주 행동보다 조용하되
 /// 발견은 되어야 하므로 같은 자리(하단 중앙)에 함께 둔다.
-// ── 연결 상태 chip (AppBar) ───────────────────────────────────────────────
-
-class _ConnectionChip extends StatelessWidget {
-  const _ConnectionChip({required this.connected, required this.rpiOnline});
-  final bool connected;
-  final bool rpiOnline;
-
-  @override
-  Widget build(BuildContext context) {
-    final (Color color, String label) = rpiOnline
-        ? (context.appSuccess, '연결됨')
-        : connected
-            ? (context.appWarning, 'BLE만')
-            : (context.appMuted, '미연결');
-
-    return Chip(
-      avatar: Icon(
-        rpiOnline ? Icons.wifi : Icons.wifi_off,
-        size: 14,
-        color: color,
-      ),
-      label: Text(label, style: TextStyle(fontSize: 11, color: color)),
-      backgroundColor: color.withValues(alpha: 0.10),
-      side: BorderSide(color: color.withValues(alpha: 0.35)),
-      padding: EdgeInsets.zero,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      visualDensity: VisualDensity.compact,
-    );
-  }
-}
-
 // ── 슬라이딩 카드 애니메이션 ───────────────────────────────────────────────
 
 class _SlidingCard extends StatefulWidget {

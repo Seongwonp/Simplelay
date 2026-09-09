@@ -17,6 +17,8 @@ import '../providers/tts_provider.dart';
 import '../services/ble_service.dart';
 import '../services/demo_service.dart';
 import '../theme/app_colors.dart';
+
+import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/sync_status_line.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -69,6 +71,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           // ── 알림 ──────────────────────────────────────────
           _SectionHeader(title: '알림'),
+          const SizedBox(height: 12),
+          _DndTile(),
           const SizedBox(height: 12),
           _WellnessPauseTile(),
 
@@ -808,6 +812,40 @@ class _BleSection extends ConsumerWidget {
 ///
 /// 방해 금지(제안 쪽)와 다른 자리에 둔 이유: 하나로 묶으면 방해 금지 30분이
 /// 안부 확인까지 꺼버리거나, 여행 일주일이 제안까지 막는다.
+/// 방해 금지 — 제안을 잠시 쉰다.
+///
+/// 홈 앱바의 아이콘에서 옮겨 왔다. 뜻을 추측해야 하는 그림이 여럿 붙어
+/// 있으면 디지털에 익숙하지 않은 사용자에게는 그 줄 전체가 읽을 수 없는
+/// 영역이 된다. 자주 쓰는 조작이 아니므로 설정이 맞는 자리다.
+///
+/// **안부 확인 쉬기와 다른 것이다** -- 아래 타일의 설명을 참고.
+class _DndTile extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final until = ref.watch(dndProvider);
+    final active = until != null && until.isAfter(DateTime.now());
+    return _SettingCard(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(active
+            ? Icons.do_not_disturb_on
+            : Icons.do_not_disturb_on_outlined),
+        title: const Text('제안 잠시 쉬기'),
+        subtitle: Text(
+          active ? '지금은 제안을 보내지 않아요' : '몇 시간 동안 제안을 멈춰요',
+          style: TextStyle(color: context.appMuted, fontSize: 12),
+        ),
+        trailing: TextButton(
+          // 고령 사용자 기준 최소 터치 대상.
+          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+          onPressed: () => showDndSheet(context),
+          child: Text(active ? '지금 받기' : '시간 고르기'),
+        ),
+      ),
+    );
+  }
+}
+
 class _WellnessPauseTile extends ConsumerStatefulWidget {
   @override
   ConsumerState<_WellnessPauseTile> createState() => _WellnessPauseTileState();

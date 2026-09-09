@@ -17,6 +17,7 @@
 library;
 
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,6 +48,7 @@ Future<void> _shoot(
   bool connected = true,
   bool light = false,
   double textScale = 1.0,
+  ImageProvider? precache,
   // 실행 화면처럼 계속 도는 애니메이션(진행 표시·차트)이 있으면 pumpAndSettle이
   // 영영 안 끝난다. 그런 화면은 정해진 시간만 돌리고 찍는다.
   bool settle = true,
@@ -85,6 +87,15 @@ Future<void> _shoot(
   } else {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
+  }
+  if (precache != null) {
+    // 이미지는 **실제 디코딩**이 끝나야 그려진다. 가짜 시계 위에서는 그
+    // 작업이 진행되지 않아, 미리 올려두지 않으면 사진 화면이 빈 프레임으로
+    // 찍힌다 -- 사진을 덮는 척하면서 아무것도 검증하지 않는 골든이 된다.
+    await tester.runAsync(() async {
+      await precacheImage(precache, tester.element(find.byType(MaterialApp)));
+    });
+    await tester.pump();
   }
   await expectLater(
     find.byType(MaterialApp),
@@ -237,6 +248,25 @@ void main() {
         connected: false, light: true);
   });
 
+  // ── 사진이 있는 홈 ───────────────────────────────────────────────────────
+  //
+  // 사진은 이 디자인의 핵심이라 크롭·BoxFit·모서리가 골든에 남아야 한다.
+  // 파일 이미지는 위젯 테스트에서 디코딩되지 않으므로 화면이 열어둔
+  // `applianceImageOverride`에 **공개 가능한 테스트 이미지**를 끼운다.
+  // 사용자 사진은 저장소·테스트·로그 어디에도 넣지 않는다.
+  for (final (name, light) in [
+    ('lt_home_photo', true),
+    ('home_photo_dark', false),
+  ]) {
+    testWidgets('홈 — 가전 사진 있음 ($name)', (t) async {
+      final image = await t.runAsync(_fixtureImage);
+      applianceImageOverride = image;
+      addTearDown(() => applianceImageOverride = null);
+      await _shoot(t, name, const HomeScreen(),
+          suggestions: suggestions, light: light, precache: image);
+    });
+  }
+
   // ── 하단 탭바 ────────────────────────────────────────────────────────────
   //
   // 다른 골든은 화면을 AppShell 없이 그린다. 탭바는 주 행동(말로 조작)을
@@ -303,4 +333,35 @@ Future<void> _shootShell(
     find.byType(MaterialApp),
     matchesGoldenFile('goldens/$name.png'),
   );
+}
+
+/// 공개 가능한 테스트 이미지. 사용자 사진을 저장소·테스트에 들이지 않기 위한
+/// 장치다(사진은 그 폰의 로컬 데이터로만 둔다).
+///
+/// 정사각이 아닌 **가로로 긴** 이미지를 쓴다 -- 정사각 프레임의 크롭이
+/// 제대로 도는지 골든에 남기려면 비율이 달라야 한다.
+Future<MemoryImage> _fixtureImage() async {
+  const w = 320;
+  const h = 200;
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.drawRect(
+    Rect.fromLTWH(0, 0, w.toDouble(), h.toDouble()),
+    Paint()..color = const Color(0xFF6F6A63),
+  );
+  // 가장자리 띠 — 크롭이 어디를 잘랐는지 골든에서 보이게 한다.
+  canvas.drawRect(
+    Rect.fromLTWH(0, 0, w.toDouble(), 16),
+    Paint()..color = const Color(0xFFD9D2C7),
+  );
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(
+      const Rect.fromLTWH(60, 50, 200, 110),
+      const Radius.circular(12),
+    ),
+    Paint()..color = const Color(0xFF2E2A26),
+  );
+  final image = await recorder.endRecording().toImage(w, h);
+  final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
+  return MemoryImage(bytes!.buffer.asUint8List());
 }

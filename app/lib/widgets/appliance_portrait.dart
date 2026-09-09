@@ -23,7 +23,8 @@ class AppliancePortrait extends StatelessWidget {
   const AppliancePortrait({
     required this.appliance,
     required this.size,
-    this.borderRadius = 20,
+    this.borderRadius = 16,
+    this.imageOverride,
     super.key,
   });
 
@@ -32,6 +33,11 @@ class AppliancePortrait extends StatelessWidget {
   /// 한 변의 길이. 정사각으로 그린다.
   final double size;
   final double borderRadius;
+
+  /// 파일 대신 쓸 이미지. **골든 테스트가 실제 렌더를 확인하기 위한 자리**다
+  /// -- 위젯 테스트는 파일 이미지를 디코딩하지 못해서, 이 구멍이 없으면
+  /// 크롭·BoxFit·모서리 처리가 아무 데서도 검증되지 않는다.
+  final ImageProvider? imageOverride;
 
   /// 사진이 실제로 열리는가. 경로만 있고 파일이 지워진 경우가 있어서
   /// (다른 폰에서 등록한 가전을 내려받으면 경로만 따라온다) 존재를 확인한다.
@@ -44,24 +50,34 @@ class AppliancePortrait extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final radius = BorderRadius.circular(borderRadius);
     final photo = _photo;
-    return ClipRRect(
-      borderRadius: radius,
-      child: Container(
+    final provider = imageOverride ?? (photo == null ? null : FileImage(photo));
+
+    // 사진이 없을 때는 **배경판을 두지 않는다.** 큰 둥근 회색 사각형 안에
+    // 그림 하나를 넣으면 그게 곧 "자리만 차지하는 플레이스홀더 카드"라,
+    // 걷어내려던 시안 문법이 화면에서 가장 큰 요소로 돌아온다. 실루엣은
+    // 화면 바탕에 그대로 앉힌다.
+    if (provider == null) {
+      return SizedBox(
         width: size,
         height: size,
-        color: Theme.of(context).colorScheme.surfaceContainerHigh,
-        child: photo == null
-            ? _Silhouette(size: size, color: context.appMuted)
-            : Image.file(
-                photo,
-                fit: BoxFit.cover,
-                // 파일이 중간에 사라지거나 깨진 이미지일 수 있다. 그때
-                // 회색 네모가 남는 것보다 실루엣이 낫다.
-                errorBuilder: (context, _, __) =>
-                    _Silhouette(size: size, color: context.appMuted),
-              ),
+        child: _Silhouette(size: size, color: context.appMuted),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(borderRadius),
+      child: Image(
+        image: provider,
+        width: size,
+        height: size,
+        // 사진 비율이 제각각이라 채우고 잘라낸다 -- 여백을 남기면 정사각
+        // 프레임 안에 사진이 떠 있는 모양이 된다.
+        fit: BoxFit.cover,
+        // 파일이 중간에 사라지거나 깨진 이미지일 수 있다. 그때 회색 네모가
+        // 남는 것보다 실루엣이 낫다.
+        errorBuilder: (context, _, __) =>
+            _Silhouette(size: size, color: context.appMuted),
       ),
     );
   }
