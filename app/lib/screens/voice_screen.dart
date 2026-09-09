@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,7 +62,11 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 엔진이 알려준 **실제** 입력 음량. null이면 아직 한 번도 받지
   /// 못했다 -- 음량을 주지 않는 플랫폼도 있다. 그때는 파형을 흔들지
   /// 않는다(모르는 것을 그럴듯하게 그리지 않는다).
-  double? _soundLevel;
+  ///
+  /// setState가 아니라 ValueNotifier인 이유: 음량은 말하는 내내 초당
+  /// 십수 번 온다. 그때마다 화면 전체를 다시 그리면 **정작 말하고 있는
+  /// 순간에** 화면이 버벅인다. 다시 그릴 것은 막대 다섯 개뿐이다.
+  final ValueNotifier<double?> _soundLevel = ValueNotifier(null);
 
   void _fail(String message) {
     _notice(message);
@@ -112,7 +117,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       return;
     }
     _clearFailure();
-    _soundLevel = null; // 지난 세션의 음량이 새 세션 파형에 남지 않게
+    _soundLevel.value = null; // 지난 세션의 음량이 새 세션에 남지 않게
     ref.read(voiceTextProvider.notifier).state = '';
     ref.read(voiceListeningProvider.notifier).state = true;
     try {
@@ -132,7 +137,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         },
         onSoundLevel: (level) {
           if (!mounted) return;
-          setState(() => _soundLevel = level);
+          _soundLevel.value = level;
         },
         onError: (errorId) {
           if (!mounted) return;
@@ -266,6 +271,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _voiceService.cancel();
+    _soundLevel.dispose();
     super.dispose();
   }
 
@@ -529,12 +535,12 @@ class _MicButton extends StatelessWidget {
 /// 죽었는지"를 판단할 근거를 화면이 지워버렸다. 잘 듣고 있다는 인상만
 /// 남기고 사실은 아무것도 알려주지 않는 표시였다.
 class _WaveVisualizer extends StatelessWidget {
-  const _WaveVisualizer({required this.active, this.level});
+  const _WaveVisualizer({required this.active, required this.level});
 
   final bool active;
 
-  /// 엔진이 준 음량. null이면 아직(또는 영영) 값이 없다는 뜻이다.
-  final double? level;
+  /// 엔진이 준 음량. 값이 null이면 아직(또는 영영) 값이 없다는 뜻이다.
+  final ValueListenable<double?> level;
 
   // 바마다 높이 범위가 달라야 자연스러운 파형처럼 보임
   static const _minHeights = [10.0, 18.0, 28.0, 18.0, 10.0];
@@ -544,15 +550,18 @@ class _WaveVisualizer extends StatelessWidget {
   /// dB) **상대적인 크기**로만 쓴다 -- 정확한 수치인 척하지 않는다.
   /// 값이 없으면 0: 바가 최소 높이로 가만히 있어 "듣는 중이지만 아무 소리도
   /// 안 들어온다"를 그대로 보여준다.
-  double get _scale {
-    final value = level;
+  double _scale(double? value) {
     if (!active || value == null) return 0;
     return (value / 10).clamp(0.0, 1.0);
   }
 
   @override
-  Widget build(BuildContext context) {
-    final scale = _scale;
+  Widget build(BuildContext context) => ValueListenableBuilder<double?>(
+        valueListenable: level,
+        builder: (context, value, __) => _bars(context, _scale(value)),
+      );
+
+  Widget _bars(BuildContext context, double scale) {
     return SizedBox(
       height: 56,
       child: Row(
