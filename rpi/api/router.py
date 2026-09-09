@@ -2,13 +2,14 @@ import asyncio
 import json
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from rpi.controller import ExecutionResult
 from rpi.intent.rules import UnknownIntentError
 from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestionError
 
 from rpi.services import DangerAlertStore, NodeRegistry
+from rpi.services.history import history_csv
 
 from rpi.services import ApplianceButtonDef, ApplianceDef, BuiltinApplianceError
 
@@ -441,6 +442,12 @@ async def history(
             purpose=e.purpose,
             status=e.status,
             retry_count=e.retry_count,
+            appliance_id=e.appliance_id,
+            execution_mode=e.execution_mode.value,
+            termination=e.termination.value,
+            duration_seconds=(
+                e.duration.total_seconds() if e.duration else None
+            ),
             buttons=[
                 HistoryButton(
                     button=b.button, success=b.success, attempts=b.attempts
@@ -450,6 +457,30 @@ async def history(
         )
         for e in store.recent(limit)
     ]
+
+
+@router.get("/history.csv")
+async def history_export(
+    limit: int = 500,
+    store=Depends(get_job_history),
+) -> PlainTextResponse:
+    """실험 기록 내보내기 (F4) — 실기기 검증 기간의 근거 데이터.
+
+    여기서 뽑는 것: 첫 시도 성공률, 재시도 후 최종 성공률, 실행 시간,
+    정지 지연, 실제/모의 구분. 마지막 것이 없으면 mock 실행이 실제
+    성공률에 섞여 들어간다.
+
+    나가는 열은 history.py의 **허용 목록**이다 -- 주소·API 키·가정
+    식별정보·원문 음성은 목록에 없으므로 새 필드가 늘어도 새지 않는다.
+    """
+    limit = max(1, min(limit, 5000))
+    return PlainTextResponse(
+        history_csv(store.recent(limit)),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": 'attachment; filename="simplelay-history.csv"'
+        },
+    )
 
 
 @router.post("/demo/inject-failure", response_model=OkResponse)

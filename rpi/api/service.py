@@ -24,7 +24,13 @@ from rpi.intent import (
 )
 from rpi.intent.rules import UnknownIntentError
 from rpi.services import NodeRegistry
-from rpi.services.history import ButtonAttempt, JobHistoryEntry, JobHistoryStore
+from rpi.services.history import (
+    ButtonAttempt,
+    ExecutionMode,
+    JobHistoryEntry,
+    JobHistoryStore,
+    Termination,
+)
 
 log = logging.getLogger(__name__)
 
@@ -96,6 +102,7 @@ class SimpleLayService(PurposeExecutor):
         appliance_registry=None,
         history_store: JobHistoryStore | None = None,
         care_events=None,
+        execution_mode: ExecutionMode = ExecutionMode.UNKNOWN,
     ) -> None:
         self._intent = intent
         self._controller = controller
@@ -132,6 +139,11 @@ class SimpleLayService(PurposeExecutor):
         # 종류를 가른다(사용자가 멈춘 것 vs 스스로 실패한 것은 보호자에게
         # 전혀 다른 소식이다). _lock으로 보호.
         self._stop_requested_this_run = False
+        # 이 실행이 실제 하드웨어를 움직였는지. 실기기 실험(F4)에서
+        # mock 실행이 성공률 통계에 섞이지 않게 기록 단계에서 가른다.
+        self._execution_mode = execution_mode
+        # 지금 실행의 시작 시각 — 소요시간을 재려면 필요하다. _lock으로 보호.
+        self._current_started_at = None
 
     def mark_ready(self) -> None:
         """Declare that hardware dependencies finished initializing."""
@@ -287,7 +299,7 @@ class SimpleLayService(PurposeExecutor):
             # 남기고 /status의 last_status="failed"로 실패를 노출한다.
             log.exception("background job execution failed")
             self._last_result = ExecutionResult(ExecutionStatus.FAILED, ())
-            self._record_history(self._last_result, purpose)
+            self._record_history(self._last_result, purpose, appliance_id)
             # 보호자 알림도 남긴다 — 오히려 진짜 하드웨어 장애(UART 단절 등)
             # 일수록 예외로 끝나는데, 그게 알림함에서 빠지면 안 된다
             # (교차 리뷰 #7). 내부 예외 문구는 노출하지 않는다.
@@ -325,6 +337,7 @@ class SimpleLayService(PurposeExecutor):
             job_id = uuid.uuid4().hex[:12]
             self._current_job_id = job_id
             self._current_total_steps = total_steps
+            self._current_started_at = self._clock.now()
             if controller is not None:
                 reset_stop = getattr(controller, "reset_stop", None)
                 if reset_stop is not None:
@@ -342,8 +355,19 @@ class SimpleLayService(PurposeExecutor):
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
 
-    def _record_history(self, result: ExecutionResult, purpose: str | None) -> None:
-        """실행 이력 기록 — 실패해도 실행 자체를 절대 막지 않는다."""
+    def _record_history(
+        self,
+        result: ExecutionResult,
+        purpose: str | None,
+        appliance_id: str | None = None,
+        stopped_by_user: bool = False,
+    ) -> None:
+        """실행 이력 기록 — 실패해도 실행 자체를 절대 막지 않는다.
+
+        실기기 실험의 근거가 여기서 나온다(F4). 그래서 가전·실제/모의·
+        시작 시각·종료 사유까지 함께 남긴다: 없으면 성공률의 분모를 가를 수
+        없고, 정지 지연을 잴 수 없고, mock 실행이 실제 통계에 섞인다.
+        """
         if self._history_store is None:
             return
         try:
@@ -359,10 +383,31 @@ class SimpleLayService(PurposeExecutor):
                         )
                         for b in result.buttons
                     ),
+                    appliance_id=appliance_id,
+                    execution_mode=self._execution_mode,
+                    started_at=self._current_started_at,
+                    termination=self._termination_of(result, stopped_by_user),
                 )
             )
         except Exception:
             log.exception("job history record failed")
+
+    @staticmethod
+    def _termination_of(
+        result: ExecutionResult, stopped_by_user: bool
+    ) -> Termination:
+        """사용자가 멈춘 것과 스스로 포기한 것은 다른 사건이다.
+
+        status 하나로 뭉개면 실험에서 정지 지연(사용자 정지)과 실패율(재시도
+        소진)이 같은 표본에 섞인다.
+        """
+        if result.status is ExecutionStatus.SUCCEEDED:
+            return Termination.COMPLETED
+        return (
+            Termination.STOPPED_BY_USER
+            if stopped_by_user
+            else Termination.RETRIES_EXHAUSTED
+        )
 
     def _record_care_outcome(
         self,
@@ -414,7 +459,9 @@ class SimpleLayService(PurposeExecutor):
         with self._lock:
             stopped_by_user = self._stop_requested_this_run
             self._stop_requested_this_run = False
-        self._record_history(self._last_result, purpose)
+        self._record_history(
+            self._last_result, purpose, appliance_id, stopped_by_user
+        )
         self._record_care_outcome(
             self._last_result, purpose, buttons, stopped_by_user
         )

@@ -27,7 +27,12 @@ from rpi.intent.ports import SuppressionStore, UsageLog
 
 import logging
 
-from .history import ButtonAttempt, JobHistoryEntry
+from .history import (
+    ButtonAttempt,
+    ExecutionMode,
+    JobHistoryEntry,
+    Termination,
+)
 
 _log = logging.getLogger(__name__)
 
@@ -72,7 +77,12 @@ class SimpleLayDb:
                     finished_at TEXT NOT NULL,  -- ISO-8601, timezone 포함
                     purpose TEXT,               -- 버튼 직접 실행은 NULL
                     status TEXT NOT NULL,
-                    buttons_json TEXT NOT NULL  -- [{button, success, attempts}]
+                    buttons_json TEXT NOT NULL, -- [{button, success, attempts}]
+                    -- 실험 계측 (F4). 옛 기록은 NULL — 모드를 지어내지 않는다.
+                    appliance_id TEXT,
+                    execution_mode TEXT,
+                    started_at TEXT,            -- ISO-8601, timezone 포함
+                    termination TEXT
                 );
                 """
             )
@@ -97,6 +107,23 @@ class SimpleLayDb:
                 )
                 self._conn.commit()
                 _log.info("usage_log migrated: appliance_id column added")
+
+            job_columns = {
+                row[1]
+                for row in self._conn.execute("PRAGMA table_info(job_history)")
+            }
+            for column in (
+                "appliance_id",
+                "execution_mode",
+                "started_at",
+                "termination",
+            ):
+                if column not in job_columns:
+                    self._conn.execute(
+                        f"ALTER TABLE job_history ADD COLUMN {column} TEXT"
+                    )
+                    self._conn.commit()
+                    _log.info("job_history migrated: %s column added", column)
 
     # ── 사용 이력 (패턴 학습) ────────────────────────────────────────────────
 
@@ -284,8 +311,9 @@ class SimpleLayDb:
         with self._lock:
             self._conn.execute(
                 "INSERT INTO job_history"
-                " (job_id, finished_at, purpose, status, buttons_json)"
-                " VALUES (?, ?, ?, ?, ?)",
+                " (job_id, finished_at, purpose, status, buttons_json,"
+                "  appliance_id, execution_mode, started_at, termination)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry.job_id,
                     entry.finished_at.isoformat(),
@@ -302,6 +330,10 @@ class SimpleLayDb:
                         ],
                         ensure_ascii=False,
                     ),
+                    entry.appliance_id,
+                    entry.execution_mode.value,
+                    entry.started_at.isoformat() if entry.started_at else None,
+                    entry.termination.value,
                 ),
             )
             self._conn.commit()
@@ -309,22 +341,28 @@ class SimpleLayDb:
     def recent_job_history(self, limit: int = 50) -> tuple[JobHistoryEntry, ...]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT job_id, finished_at, purpose, status, buttons_json"
+                "SELECT job_id, finished_at, purpose, status, buttons_json,"
+                " appliance_id, execution_mode, started_at, termination"
                 " FROM job_history ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
         return tuple(
             JobHistoryEntry(
-                job_id=job_id,
-                finished_at=datetime.fromisoformat(finished_at),
-                purpose=purpose,
-                status=status,
+                job_id=row[0],
+                finished_at=datetime.fromisoformat(row[1]),
+                purpose=row[2],
+                status=row[3],
                 buttons=tuple(
                     ButtonAttempt(b["button"], b["success"], b["attempts"])
-                    for b in json.loads(buttons_json)
+                    for b in json.loads(row[4])
                 ),
+                appliance_id=row[5],
+                # 열이 생기기 전 기록은 NULL — 모드·종료 사유를 지어내지 않는다.
+                execution_mode=ExecutionMode(row[6] or ExecutionMode.UNKNOWN.value),
+                started_at=datetime.fromisoformat(row[7]) if row[7] else None,
+                termination=Termination(row[8] or Termination.UNKNOWN.value),
             )
-            for job_id, finished_at, purpose, status, buttons_json in rows
+            for row in rows
         )
 
     # ── 제안 억제(다시 추천 안 함) ───────────────────────────────
