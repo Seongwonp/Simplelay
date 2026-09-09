@@ -62,6 +62,18 @@ class _SteppingClock:
         return value
 
 
+def _wait_until(predicate, timeout: float = 2.0) -> None:
+    """백그라운드 job은 다른 스레드에서 끝난다."""
+    import time
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return
+        time.sleep(0.01)
+    raise AssertionError("시간 안에 조건이 성립하지 않았다")
+
+
 class _RealGrbl(MockGrblClient):
     """실기기 클라이언트 흉내 — 자기가 실제로 누른다고 말한다.
 
@@ -301,6 +313,35 @@ def test_stop_pressed_twice_keeps_the_first_moment():
     service.execute_purpose("우유 데워줘")
 
     (entry,) = history.recent()
+    assert entry.stop_requested_at is not None
+
+
+def test_a_stopped_run_that_then_crashed_is_still_a_user_stop():
+    """사용자가 멈춘 뒤 컨트롤러가 예외로 끝나는 경우가 있다(UART 단절 등).
+    그걸 '재시도 소진'으로 기록하면 실패율 분모에 사용자 정지가 섞인다."""
+    history = InMemoryJobHistory()
+    holder: list[SimpleLayService] = []
+
+    class _StopsThenCrashes:
+        execution_mode = ExecutionMode.MOCK
+
+        def execute(self, buttons):
+            holder[0].emergency_stop()
+            raise RuntimeError("가전과 연결이 끊겼다")
+
+    service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        _StopsThenCrashes(),
+        clock=_SteppingClock(_NOW),
+        history_store=history,
+    )
+    holder.append(service)
+
+    service.submit_purpose("우유 데워줘")
+    _wait_until(lambda: len(history.recent()) == 1)
+
+    (entry,) = history.recent()
+    assert entry.termination is Termination.STOPPED_BY_USER
     assert entry.stop_requested_at is not None
 
 

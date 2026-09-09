@@ -370,12 +370,23 @@ class SimpleLayService(PurposeExecutor):
             self._last_result = ExecutionResult(ExecutionStatus.FAILED, ())
             # 컨트롤러는 알고 있으므로 모드도 함께 남긴다 — 예외로 끝난
             # 실행이야말로 실기기 실험에서 놓치면 안 되는 표본이다.
+            #
+            # 정지 여부도 정상 경로와 똑같이 소진해 넘긴다. 안 그러면
+            # 사용자가 멈춘 뒤 컨트롤러가 예외로 끝난 실행이 '재시도 소진'
+            # 으로 기록돼, 실험에서 실패율 분모에 섞인다.
+            with self._lock:
+                stopped_by_user = self._stop_requested_this_run
+                stop_requested_at = self._stop_requested_at
+                self._stop_requested_this_run = False
+                self._stop_requested_at = None
             self._record_history(
                 self._last_result,
                 purpose,
                 appliance_id,
+                stopped_by_user,
                 controller=controller,
                 calibration_version=calibration_version,
+                stop_requested_at=stop_requested_at,
             )
             # 보호자 알림도 남긴다 — 오히려 진짜 하드웨어 장애(UART 단절 등)
             # 일수록 예외로 끝나는데, 그게 알림함에서 빠지면 안 된다
