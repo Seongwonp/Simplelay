@@ -7,6 +7,16 @@ import 'package:simplelay/screens/home_screen.dart';
 
 import '../helpers/test_helpers.dart';
 
+/// 홈은 가전 그림·제안·연결 상세까지 세로로 길다. 기본 테스트 뷰포트
+/// (800x600)로는 아래쪽 위젯의 Element가 만들어지지 않아 find가 "없음"으로
+/// 잘못 판정한다 -- status/settings 테스트와 같은 문제다.
+void _useTallViewport(WidgetTester tester) {
+  tester.view.physicalSize = const Size(400, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+}
+
 Widget _buildHome({
   List<Suggestion> suggestions = const [],
   bool connected = false,
@@ -25,6 +35,7 @@ Widget _buildHome({
 void main() {
   group('HomeScreen — 연결 해제 상태', () {
     testWidgets('연결 필요 안내 텍스트 표시', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildHome());
       await tester.pump();
       expect(find.text('예비 연결이 꺼져 있어요'), findsOneWidget);
@@ -32,6 +43,7 @@ void main() {
     });
 
     testWidgets('"연결" TextButton 표시', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildHome());
       await tester.pump();
       expect(find.text('연결'), findsOneWidget);
@@ -41,12 +53,14 @@ void main() {
       // 주 행동(말로 조작)은 탭바 가운데로 옮겼다. 예전에는 홈의 버튼을
       // 비활성화해서 알렸는데, 이제는 **가전 상태 한 줄**이 그 일을
       // 한다 -- 눌러 본 뒤에 알게 하지 않는 것이 요점이었고 그건 그대로다.
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildHome());
       await tester.pump();
       expect(find.text('기기와 연결되면 조작할 수 있어요'), findsOneWidget);
     });
 
     testWidgets('제안 없음 메시지 표시', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildHome());
       await tester.pump();
       expect(find.text('지금 확인할 제안이 없어요.'), findsOneWidget);
@@ -55,12 +69,14 @@ void main() {
 
   group('HomeScreen — 연결 완료 상태', () {
     testWidgets('예비 연결 안내 카드가 사라짐', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
       expect(find.text('예비 연결이 꺼져 있어요'), findsNothing);
     });
 
     testWidgets('"연결" 버튼 사라짐', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
       // 연결됨 상태에서는 trailing TextButton 없음
@@ -71,15 +87,17 @@ void main() {
       // 말이 잘 안 되거나 인식이 안 되는 사용자가 같은 시도를 반복하지
       // 않으려면, 다른 길이 화면에 함께 있어야 한다. 말하는 경로는
       // 탭바 가운데에 있고(app_shell_test), 버튼 경로는 여기 있다.
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
       expect(find.text('버튼으로 조작'), findsOneWidget);
     });
 
     testWidgets('연결되면 조작할 수 있다고 말한다', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.text('말이나 버튼으로 조작할 수 있어요'), findsOneWidget);
+      expect(find.text('조작 가능'), findsOneWidget);
     });
   });
 
@@ -91,6 +109,7 @@ void main() {
     );
 
     testWidgets('제안 카드 1개 표시', (tester) async {
+      _useTallViewport(tester);
       await tester.pumpWidget(
         _buildHome(connected: true, suggestions: const [suggestion]),
       );
@@ -107,6 +126,7 @@ void main() {
         Suggestion(sequenceId: 'a', label: '30초 가열', steps: ['BT-02', 'BT-05']),
         Suggestion(sequenceId: 'b', label: '해동', steps: ['BT-07', 'BT-05']),
       ];
+      _useTallViewport(tester);
       await tester.pumpWidget(
         _buildHome(connected: true, suggestions: suggestions),
       );
@@ -135,6 +155,7 @@ void main() {
         ],
       );
 
+      _useTallViewport(tester);
       await tester.pumpWidget(
         ProviderScopeWrapper(
           overrides: connectedOverrides(),

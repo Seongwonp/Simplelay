@@ -100,7 +100,7 @@ class _BottomBar extends ConsumerWidget {
                 badge: unread,
                 // 알림함은 탭이 아니라 위에 얹는 화면이다 -- 돌아오면 원래
                 // 보던 탭 그대로다.
-                onTap: () => context.push('/care-events'),
+                onTap: () => context.push('/care'),
               ),
               _Tab(
                 icon: Icons.settings_outlined,

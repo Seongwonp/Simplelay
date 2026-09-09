@@ -6,7 +6,8 @@ import '../models/appliance.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
-import '../providers/clock_provider.dart';
+import '../providers/navigation_provider.dart';
+import '../widgets/appliance_portrait.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/ble_service.dart';
@@ -68,34 +69,34 @@ class HomeScreen extends ConsumerWidget {
       // 확인할 것 → (필요할 때만) 연결 사정.** 예전에는 연결 카드 두 장이
       // 위를 차지해서, 실제로 조작할 수 있는 상태에서도 "뭔가 더 연결해야
       // 하는 앱"으로 보였고 대상 가전은 설정에 들어가야 알 수 있었다.
+      // 구획을 카드로 나누지 않는다. 제목과 여백으로 나눈다 -- 모든 것을
+      // 둥근 카드에 넣으면 정보의 깊이가 전부 같아 보이고, 화면에 편집
+      // 방향이 사라진다.
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
         children: [
-          // ── 인사 ─────────────────────────────────────────────────────────
-          const _Greeting(),
-          const SizedBox(height: 18),
-
           // ── 가전 고르기 ──────────────────────────────────────────────────
-          _ApplianceStrip(appliances: appliances, selected: appliance),
-          const SizedBox(height: 16),
+          // 등록된 가전이 하나뿐이면 고를 것이 없다. 줄을 통째로 뺀다.
+          if (appliances.length > 1) ...[
+            _ApplianceRow(appliances: appliances, selected: appliance),
+            const SizedBox(height: 20),
+          ],
 
-          // ── 지금 이 가전으로 할 수 있는 것 ───────────────────────────────
-          _ApplianceStatusCard(
+          // ── 지금 조작할 가전 ─────────────────────────────────────────────
+          _ApplianceStage(
             appliance: appliance,
             reachable: connected || rpiOnline,
             onManual: () => context.push('/manual-control'),
-          ),
-
-          // ── 온습도 스트립 ────────────────────────────────────────────────
-          sensorAsync.when(
-            data: (reading) => _SensorStrip(reading: reading),
-            loading: () => const _SensorStrip(reading: null),
-            error: (_, __) => const SizedBox.shrink(),
+            // 편집기는 아직 '새 가전 만들기'만 받는다. 기존 가전에 사진을
+            // 붙이는 경로가 생기기 전까지는 가전 관리가 있는 설정으로 보낸다 --
+            // 없는 화면으로 보내거나, 새 가전을 만들게 하지 않는다.
+            onAddPhoto: () =>
+                ref.read(currentTabIndexProvider.notifier).state = 3,
           ),
 
           // ── DND 배너 ─────────────────────────────────────────────────────
           if (dndActive) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
             _DndBanner(
               until: dndUntil,
               onClear: () => ref.read(dndProvider.notifier).clear(),
@@ -106,26 +107,32 @@ class HomeScreen extends ConsumerWidget {
           // 제품이 자기가 똑똑하다고 광고하는 자리였고, 사용자가 그걸로 할 수 있는
           // 판단이 없었다. 게다가 '총 동작 N회'로 표시하던 값은 실제로는 대기 중인
           // 제안들의 단계 수 합계라, 라벨과 뜻이 아예 달랐다.
-          const SizedBox(height: 26),
-          Text('대기 중인 제안', style: AppText.title),
-          const SizedBox(height: 12),
+          //
+          // 제안이 없을 때 큰 빈 카드를 두지 않는다. 한 줄이면 충분하다.
+          const SizedBox(height: 28),
+          _SectionTitle('제안'),
+          const SizedBox(height: 4),
           if (suggestions.isEmpty)
-            _EmptySuggestions(dndActive: dndActive)
+            _EmptyLine(dndActive: dndActive)
           else
             ...suggestions.map(
-              (s) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _SlidingCard(
-                  child: _SuggestionTile(
-                    suggestion: s,
-                    onTap: () => context.push('/suggestion/${s.sequenceId}'),
-                  ),
+              (s) => _SlidingCard(
+                child: _SuggestionRow(
+                  suggestion: s,
+                  onTap: () => context.push('/suggestion/${s.sequenceId}'),
                 ),
               ),
             ),
 
+          // ── 온습도 ───────────────────────────────────────────────────────
+          sensorAsync.when(
+            data: (reading) => _SensorStrip(reading: reading),
+            loading: () => const _SensorStrip(reading: null),
+            error: (_, __) => const SizedBox.shrink(),
+          ),
+
           // ── 연결 상세 ────────────────────────────────────────────────────
-          const SizedBox(height: 22),
+          const SizedBox(height: 16),
           _ConnectionDetails(rpiState: rpiState, bleConnected: connected),
         ],
       ),
@@ -133,67 +140,39 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-// ── 인사 ──────────────────────────────────────────────────────────────────
+// ── 구획 ──────────────────────────────────────────────────────────────────
 
-/// 시간대에 맞춘 인사 한 줄.
-///
-/// 이름을 부르지 않는 이유: 이 앱은 사용자 이름을 받지 않는다. 없는 것을
-/// 아는 척하는 대신 시간대만 쓴다 -- 제안이 시간대 패턴으로 만들어지므로
-/// 이 인사와 아래 제안의 근거 문장("아침 시간에 3번")이 같은 말을 한다.
-class _Greeting extends ConsumerWidget {
-  const _Greeting();
+/// 섹션 제목. 카드로 감싸지 않고 제목과 여백으로 구획을 만든다.
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // DateTime.now()를 직접 부르지 않는 이유는 clock_provider.dart에 있다 --
-    // 시간에 따라 문구가 바뀌므로 골든이 실행 시각을 타게 된다.
-    final h = ref.watch(nowProvider)().hour;
-    final hello = h < 5
-        ? '늦은 시간이에요'
-        : h < 11
-            ? '좋은 아침이에요'
-            : h < 17
-                ? '안녕하세요'
-                : h < 22
-                    ? '좋은 저녁이에요'
-                    : '늦은 시간이에요';
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(hello, style: AppText.title),
-        const SizedBox(height: 2),
-        Text(
-          '어떤 가전을 도와드릴까요?',
-          style: TextStyle(fontSize: 15, color: context.appMuted),
-        ),
-      ],
-    );
-  }
+  Widget build(BuildContext context) => Text(text, style: AppText.title);
 }
 
-// ── 가전 고르기 (가로 스트립) ──────────────────────────────────────────────
+// ── 가전 고르기 (한 줄) ────────────────────────────────────────────────────
 
-/// 등록된 가전을 가로로 늘어놓고 지금 대상을 강조한다.
-///
-/// 예전에는 대상 가전을 **설정에 들어가야** 알 수 있었다. 이 앱이 하는 일이
-/// "이 가전의 버튼을 대신 누르는 것"인데, 정작 어느 가전인지가 홈에 없었다.
-class _ApplianceStrip extends ConsumerWidget {
-  const _ApplianceStrip({required this.appliances, required this.selected});
+/// 등록된 가전을 가로 한 줄로. 선택은 **넓은 색면이 아니라** 테두리와
+/// 글자 굵기로 나타낸다 -- 색면으로 칠하면 화면에서 가장 강한 요소가
+/// "고르는 줄"이 되어 정작 주인공인 가전을 이긴다.
+class _ApplianceRow extends ConsumerWidget {
+  const _ApplianceRow({required this.appliances, required this.selected});
 
   final List<ApplianceMap> appliances;
   final ApplianceMap selected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // 글씨를 키우면 칩도 커진다. 높이를 같이 늘려 라벨이 잘리지 않게 한다.
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
     return SizedBox(
-      height: 84 + (scale - 1) * 46,
+      height: 48 + (scale - 1) * 30,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: EdgeInsets.zero,
         itemCount: appliances.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
           final a = appliances[i];
           final on = a.id == selected.id;
@@ -201,47 +180,33 @@ class _ApplianceStrip extends ConsumerWidget {
             button: true,
             selected: on,
             child: InkWell(
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(999),
               onTap: () =>
                   ref.read(selectedApplianceProvider.notifier).select(a),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 160),
-                width: 88,
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+              child: Container(
+                alignment: Alignment.center,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 decoration: BoxDecoration(
-                  color: on
-                      ? context.appPrimary
-                      : Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(18),
-                  border: on
-                      ? null
-                      : Border.all(color: context.appBorderSubtle),
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(
+                    color: on ? context.appPrimary : context.appBorderSubtle,
+                    width: on ? 2 : 1,
+                  ),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      a.icon,
-                      size: 26,
-                      // 채워진 칩 위에서는 반대색으로. 강조색 위 글자색을
-                      // 한쪽으로 고정하면 반대 모드에서 무너진다.
-                      color: on ? context.appOnAccent : context.appPrimary,
-                    ),
-                    const SizedBox(height: 6),
-                    Flexible(
-                      child: FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          a.name,
-                          maxLines: 1,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: on ? FontWeight.w700 : FontWeight.w500,
-                            color: on
-                                ? context.appOnAccent
-                                : context.appOnSurfaceSoft,
-                          ),
-                        ),
+                    Icon(a.icon,
+                        size: 18,
+                        color: on ? context.appPrimary : context.appMuted),
+                    const SizedBox(width: 7),
+                    Text(
+                      a.name,
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+                        color:
+                            on ? context.appPrimary : context.appOnSurfaceSoft,
                       ),
                     ),
                   ],
@@ -255,13 +220,20 @@ class _ApplianceStrip extends ConsumerWidget {
   }
 }
 
-// ── 지금 이 가전으로 할 수 있는 것 ────────────────────────────────────────
+// ── 지금 조작할 가전 ──────────────────────────────────────────────────────
 
-class _ApplianceStatusCard extends StatelessWidget {
-  const _ApplianceStatusCard({
+/// 화면의 주인공. 실제 가전 사진(없으면 실루엣) + 이름 + 지금 되는지 한 줄.
+///
+/// **내부 축(전송·모션·센서·보정)을 여기에 늘어놓지 않는다.** 그건 장치
+/// 상태지 사용자가 바로 손댈 수 있는 것이 아니라서, 막대 넷으로 보여주면
+/// 기술 대시보드가 된다. 여기서는 가장 중요한 사유 하나만 말하고 상세로
+/// 넘긴다.
+class _ApplianceStage extends StatelessWidget {
+  const _ApplianceStage({
     required this.appliance,
     required this.reachable,
     required this.onManual,
+    required this.onAddPhoto,
   });
 
   final ApplianceMap appliance;
@@ -269,47 +241,61 @@ class _ApplianceStatusCard extends StatelessWidget {
   /// BLE나 서버 중 하나로라도 닿는가.
   final bool reachable;
   final VoidCallback onManual;
+  final VoidCallback onAddPhoto;
 
   @override
   Widget build(BuildContext context) {
     final (line, warn) = _status();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+    final hasPhoto =
+        appliance.photoPath != null && appliance.photoPath!.isNotEmpty;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(
+          child: AppliancePortrait(
+            appliance: appliance,
+            // 화면 폭에 맞추되 지나치게 커지지 않게 둔다.
+            size: (MediaQuery.sizeOf(context).width * 0.52).clamp(150.0, 220.0),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(appliance.name, style: AppText.heading),
+        const SizedBox(height: 6),
+        Row(
           children: [
-            Row(
-              children: [
-                Icon(
-                  warn ? Icons.error_outline : Icons.check_circle_outline,
-                  size: 20,
+            Icon(
+              warn ? Icons.error_outline : Icons.check_circle_outline,
+              size: 18,
+              color: warn ? context.appDanger : context.appMuted,
+            ),
+            const SizedBox(width: 6),
+            // 사유가 길어지면 줄바꿈한다 -- 자르면 복구 방법이 사라진다.
+            Expanded(
+              child: Text(
+                line,
+                style: TextStyle(
+                  fontSize: 16,
                   color: warn ? context.appDanger : context.appMuted,
                 ),
-                const SizedBox(width: 8),
-                // 이유가 길어지면 줄바꿈한다 -- 자르면 복구 방법이 사라진다.
-                Expanded(
-                  child: Text(
-                    line,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: warn ? context.appDanger : context.appMuted,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            // 말로 하는 경로는 탭바 가운데에 있다. 여기에는 **다른 경로**를
-            // 둔다 -- 말이 잘 안 되는 사용자에게 길이 하나뿐이면 안 된다.
-            OutlinedButton.icon(
-              onPressed: onManual,
-              icon: const Icon(Icons.touch_app, size: 20),
-              label: const Text('버튼으로 조작'),
+              ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 16),
+        // 말로 하는 경로는 탭바 가운데에 있다. 여기에는 **다른 경로**를 둔다 --
+        // 말이 잘 안 되는 사용자에게 길이 하나뿐이면 안 된다.
+        FilledButton.icon(
+          onPressed: onManual,
+          icon: const Icon(Icons.touch_app, size: 20),
+          label: const Text('버튼으로 조작'),
+        ),
+        if (!hasPhoto)
+          // 주 행동과 경쟁하지 않게 아래에 작게. 거절해도 그대로 쓸 수 있다.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: AddPhotoHint(onTap: onAddPhoto),
+          ),
+      ],
     );
   }
 
@@ -317,15 +303,84 @@ class _ApplianceStatusCard extends StatelessWidget {
   /// 서버가 준비 상태를 알려준 경우에만 못 쓴다고 단정한다.
   (String, bool) _status() {
     if (appliance.readinessKnown && !appliance.canExecute) {
-      final base = appliance.readiness == 'disconnected'
-          ? '아직 연결되지 않았어요'
-          : '아직 준비가 끝나지 않았어요';
       final why = appliance.readinessReasons;
-      return (why.isEmpty ? base : '$base · ${why.first}', true);
+      if (why.isNotEmpty) return (why.first, true);
+      return (
+        appliance.readiness == 'disconnected'
+            ? '아직 연결되지 않았어요'
+            : '아직 준비가 끝나지 않았어요',
+        true
+      );
     }
     if (!reachable) return ('기기와 연결되면 조작할 수 있어요', false);
-    return ('말이나 버튼으로 조작할 수 있어요', false);
+    return ('조작 가능', false);
   }
+}
+
+// ── 제안 (카드가 아니라 행) ────────────────────────────────────────────────
+
+/// 제안 하나를 **행**으로 둔다. 카드로 감싸면 화면의 다른 카드들과 깊이가
+/// 같아져서, 지금 확인해야 할 것이 눈에 띄지 않는다.
+class _SuggestionRow extends StatelessWidget {
+  const _SuggestionRow({required this.suggestion, required this.onTap});
+
+  final Suggestion suggestion;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${suggestion.label}, 지금 할까요?',
+                      style: const TextStyle(
+                          fontSize: 17, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      _stepPreview(suggestion),
+                      style: TextStyle(fontSize: 14, color: context.appMuted),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(Icons.chevron_right, color: context.appMuted),
+            ],
+          ),
+        ),
+      );
+}
+
+/// 눌릴 버튼을 **사용자 언어로** 보여준다. `BT-08`은 아무 뜻이 없고,
+/// "3단계 동작"은 몇 번 움직이는지만 알려줄 뿐 무엇을 누르는지는 알려주지
+/// 않는다 -- 맡길지 판단하려면 그쪽이 필요하다.
+String _stepPreview(Suggestion suggestion) {
+  if (suggestion.steps.isEmpty) return '누를 버튼을 확인하려면 눌러 보세요';
+  return suggestion.steps.map(readableStep).join(' → ');
+}
+
+/// 제안이 없을 때. 큰 빈 카드를 두지 않는다 -- 한 줄이면 충분하다.
+class _EmptyLine extends StatelessWidget {
+  const _EmptyLine({required this.dndActive});
+
+  final bool dndActive;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        child: Text(
+          dndActive ? '방해 금지 중이라 제안을 쉬고 있어요.' : '지금 확인할 제안이 없어요.',
+          style: TextStyle(fontSize: 15, color: context.appMuted),
+        ),
+      );
 }
 
 // ── 연결 상세 (접힘) ──────────────────────────────────────────────────────
@@ -786,114 +841,6 @@ class _ConnectionChip extends StatelessWidget {
       visualDensity: VisualDensity.compact,
     );
   }
-}
-
-// ── 제안 카드 타일 ────────────────────────────────────────────────────────
-
-class _SuggestionTile extends StatelessWidget {
-  const _SuggestionTile({required this.suggestion, required this.onTap});
-  final dynamic suggestion;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => Card(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: context.appPrimary.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  // 스파클(Icons.auto_awesome)은 "AI 기능"이라는 표시일 뿐
-                  // 무엇에 대한 제안인지는 알려주지 않았다. 어느 가전인지가
-                  // 사용자에게 훨씬 쓸모 있는 정보다.
-                  child: Icon(_applianceIconFor(suggestion),
-                      color: context.appPrimary, size: 20),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // label은 사용자가 예전에 했던 말 그대로다 -- 제품이
-                      // 지어낸 문구가 아니라 본인 표현이라 그대로 되물어본다.
-                      Text('${suggestion.label}, 지금 할까요?', style: AppText.body),
-                      const SizedBox(height: 2),
-                      Text(_stepPreview(suggestion), style: context.appCaption),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: context.appMuted),
-              ],
-            ),
-          ),
-        ),
-      );
-}
-
-// 제안이 어느 가전의 것인지는 버튼 코드 앞자리로 알 수 있다(AC-01, BT-05...).
-// 등록된 가전 목록에서 그 코드를 가진 가전을 찾아 아이콘을 쓴다 -- 못 찾으면
-// 일반 가전 아이콘으로 떨어진다(추측해서 틀린 아이콘을 보여주지 않는다).
-IconData _applianceIconFor(Suggestion suggestion) {
-  if (suggestion.steps.isEmpty) return Icons.devices_other_rounded;
-  final first = suggestion.steps.first;
-  for (final appliance in kAppliances) {
-    if (appliance.buttons.any((b) => b.id == first || b.label == first)) {
-      return appliance.icon;
-    }
-  }
-  return Icons.devices_other_rounded;
-}
-
-/// 눌릴 버튼을 그대로 보여준다. "3단계 동작"은 몇 번 움직이는지만 알려줄 뿐,
-/// **무엇을 누르는지**는 알려주지 않았다 -- 맡길지 판단하려면 그쪽이 필요하다.
-String _stepPreview(Suggestion suggestion) {
-  if (suggestion.steps.isEmpty) return '누를 버튼을 확인하려면 눌러 보세요';
-  return suggestion.steps.map(readableStep).join(' → ');
-}
-
-// ── 빈 제안 상태 ──────────────────────────────────────────────────────────
-
-class _EmptySuggestions extends StatelessWidget {
-  const _EmptySuggestions({required this.dndActive});
-  final bool dndActive;
-
-  @override
-  Widget build(BuildContext context) => Card(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 20),
-          child: Column(
-            children: [
-              Icon(
-                dndActive
-                    ? Icons.do_not_disturb_on_outlined
-                    : Icons.lightbulb_outline,
-                color: dndActive ? context.appWarning : context.appMuted,
-                size: 36,
-              ),
-              const SizedBox(height: 12),
-              Text(
-                dndActive ? '방해 금지 모드 중' : '지금 확인할 제안이 없어요.',
-                style: TextStyle(color: context.appMuted),
-              ),
-              if (dndActive) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '제안을 잠시 보내지 않아요.',
-                  style: TextStyle(color: context.appMuted, fontSize: 12),
-                ),
-              ],
-            ],
-          ),
-        ),
-      );
 }
 
 // ── 슬라이딩 카드 애니메이션 ───────────────────────────────────────────────
