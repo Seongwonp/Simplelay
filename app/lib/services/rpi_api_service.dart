@@ -527,9 +527,16 @@ class RpiApiService {
     }
   }
 
-  /// GET /appliances에서 커스텀 가전 id만 — 재동기화가 "폰에 없는 서버
-  /// 가전(유령)"을 지울 때 쓴다. 실패는 null(목록 없음과 구분).
-  Future<List<String>?> customApplianceIdsOnServer() async {
+  /// GET /appliances의 커스텀 가전 **정의 전체**.
+  ///
+  /// 동기화가 서버에만 있는 가전을 **내려받아 병합**하는 데 쓴다. 예전에는
+  /// id만 받아서 "이 폰에 없으면 유령"으로 보고 지웠는데, 폰이 둘이면 그건
+  /// 다른 폰의 등록이었다 -- 서버에만 있다는 것은 "지워도 된다"가 아니라
+  /// "이 폰이 아직 못 받았다"는 뜻이다.
+  ///
+  /// 조회 실패는 **null**이다. 빈 목록으로 뭉개면 "서버에 아무것도 없다"로
+  /// 읽혀 병합·삭제 판단이 통째로 뒤집힌다.
+  Future<List<ApplianceMap>?> customAppliances() async {
     try {
       final res = await _client
           .get(_base.replace(path: '/appliances'), headers: _headers)
@@ -538,7 +545,7 @@ class RpiApiService {
       final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
       return [
         for (final item in body.cast<Map<String, dynamic>>())
-          if (item['is_custom'] == true) item['id'] as String,
+          if (item['is_custom'] == true) ApplianceMap.fromJson(item),
       ];
     } catch (_) {
       return null;

@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
 import '../models/execution_status.dart';
+import '../providers/appliance_sync_provider.dart';
 import '../providers/demo_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/ble_provider.dart';
@@ -381,8 +382,9 @@ class _ApplianceSection extends ConsumerWidget {
         ),
         // 서버 동기화가 best-effort라 "폰에는 있는데 키오스크에는 없는"
         // 가전이 생길 수 있다(저장 시 서버가 꺼져 있던 경우). 그때의 복구
-        // 수단 — 로컬 커스텀 가전 전부를 서버에 다시 등록한다 (교차 리뷰 #3).
-        if (appliances.any((a) => a.isCustom)) ...[
+        // 수단 (교차 리뷰 #3). 밀린 삭제가 있어도 보여야 한다 -- 마지막
+        // 가전을 지우다 실패하면 버튼까지 사라져 복구할 길이 없었다 (R3).
+        if (ref.watch(hasPendingSyncProvider)) ...[
           const SizedBox(height: 10),
           TextButton.icon(
             onPressed: () => _resyncCustomAppliances(context, ref),
@@ -401,48 +403,43 @@ class _ApplianceSection extends ConsumerWidget {
     );
   }
 
+  /// 양방향 동기화. **다른 폰이 등록한 가전을 지우지 않는다** — 서버에만
+  /// 있다는 것은 "지워도 된다"가 아니라 "이 폰이 아직 못 받았다"는 뜻이다.
   Future<void> _resyncCustomAppliances(
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final api = ref.read(rpiApiServiceProvider);
-    final customs = ref
-        .read(allAppliancesProvider)
-        .where((a) => a.isCustom)
-        .toList(growable: false);
     final messenger = ScaffoldMessenger.of(context);
-    if (api == null) {
+    if (ref.read(rpiApiServiceProvider) == null) {
       messenger.showSnackBar(
         const SnackBar(content: Text('서버 주소를 먼저 설정해 주세요.')),
       );
       return;
     }
-    // 폰이 원본이다: 서버의 커스텀 목록을 폰과 일치시킨다 — 업서트만 하면
-    // 삭제 실패로 남은 유령 가전은 영영 못 지운다.
-    var ok = 0;
-    for (final appliance in customs) {
-      if (await api.registerAppliance(appliance)) ok++;
+    final result = await ref.read(applianceSyncProvider.notifier).sync();
+    messenger.showSnackBar(SnackBar(content: Text(_syncMessage(result))));
+  }
+
+  static String _syncMessage(ApplianceSyncResult r) {
+    if (r.allDone) {
+      final parts = [
+        if (r.uploaded > 0) '올림 ${r.uploaded}개',
+        if (r.adopted > 0) '새로 받음 ${r.adopted}개',
+        if (r.deleted > 0) '삭제 반영 ${r.deleted}개',
+      ];
+      return parts.isEmpty
+          ? '이미 키오스크와 같은 상태예요.'
+          : '동기화했어요 — ${parts.join(' · ')}.';
     }
-    var ghosts = 0;
-    final serverIds = await api.customApplianceIdsOnServer();
-    if (serverIds != null) {
-      final localIds = customs.map((a) => a.id).toSet();
-      for (final id in serverIds) {
-        if (!localIds.contains(id) && await api.deleteAppliance(id)) {
-          ghosts++;
-        }
-      }
-    }
-    messenger.showSnackBar(
-      SnackBar(
-        content: Text(
-          ok == customs.length
-              ? '가전 ${customs.length}개를 키오스크와 동기화했어요.'
-                  '${ghosts > 0 ? ' (삭제 반영 $ghosts개)' : ''}'
-              : '$ok/${customs.length}개 동기화 — 서버 연결을 확인해 주세요.',
-        ),
-      ),
-    );
+    // 무엇이 남았는지 말한다. "실패"만 알리면 사용자가 무엇을 다시
+    // 해야 하는지 알 수 없다.
+    final left = [
+      if (r.uploadFailed > 0) '못 올린 가전 ${r.uploadFailed}개',
+      if (r.stillPendingDeletes > 0) '못 지운 가전 ${r.stillPendingDeletes}개',
+    ];
+    return left.isEmpty
+        ? '키오스크 목록을 불러오지 못했어요. 연결을 확인한 뒤 다시 눌러 주세요.'
+        : '${left.join(' · ')}가 남았어요. 연결을 확인한 뒤 다시 눌러 주세요.';
   }
 
   Future<void> _confirmRemoveAppliance(
@@ -475,17 +472,18 @@ class _ApplianceSection extends ConsumerWidget {
       ),
     );
     if (confirmed == true) {
-      await ref.read(customAppliancesProvider.notifier).remove(appliance.id);
-      // 서버(키오스크 목록)에서도 제거 — 실패해도 폰 삭제는 유지하되,
-      // 키오스크에 유령 가전이 남는다는 사실은 알려준다 (교차 리뷰 #3)
-      final api = ref.read(rpiApiServiceProvider);
-      final removed =
-          api == null ? false : await api.deleteAppliance(appliance.id);
+      // 폰 삭제는 무조건 성립하고(사용자가 지시한 일이다), 서버 전송이
+      // 실패하면 그 사실이 삭제 대기열에 남아 다음 동기화가 다시 보낸다.
+      // 예전에는 실패를 스낵바로만 알리고 잊어서, 복구가 "서버에만 있는
+      // 건 다 지운다"는 위험한 방식에 얹혀 있었다 (R3).
+      final removed = await ref
+          .read(applianceSyncProvider.notifier)
+          .deleteAppliance(appliance.id);
       if (!removed) {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('폰에서는 삭제했지만 키오스크 반영에 실패했어요. 서버 연결 후 '
-                '"키오스크와 다시 동기화"를 눌러 주세요.'),
+            content: Text('폰에서는 삭제했어요. 키오스크 반영은 다음 동기화 때 '
+                '다시 시도할게요.'),
           ),
         );
       }
