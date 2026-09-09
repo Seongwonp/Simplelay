@@ -54,10 +54,16 @@ class VoiceService {
     return _initialized;
   }
 
+  /// [onSoundLevel]은 엔진이 알려주는 **실제** 입력 음량이다. 듣는 중
+  /// 표시를 여기에 걸어야 화면이 마이크와 같은 것을 말한다 -- 정해진
+  /// 애니메이션은 아무것도 안 들려도 똑같이 움직여서 "잘 듣고 있다"는
+  /// 인상을 과장한다. 플랫폼이 음량을 안 주면 콜백이 한 번도 오지
+  /// 않는다(그 경우의 표시는 호출자가 정한다).
   Future<void> listen({
     required void Function(String text) onText,
     required void Function(String finalText) onSilence,
     void Function(String errorId)? onError,
+    void Function(double level)? onSoundLevel,
   }) async {
     var latestText = '';
     _onError = onError;
@@ -78,6 +84,14 @@ class VoiceService {
     }
 
     await _speech.listen(
+      // 세션 세대 검사는 onResult와 같은 이유다 -- 끝난 세션의 늦은
+      // 음량 콜백이 다음 화면의 파형을 흔들지 않게 한다.
+      onSoundLevelChange: onSoundLevel == null
+          ? null
+          : (level) {
+              if (session != _session || _sessionFailed) return;
+              onSoundLevel(level);
+            },
       listenOptions: SpeechListenOptions(
         partialResults: true,
         cancelOnError: true,

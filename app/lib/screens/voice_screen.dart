@@ -58,6 +58,11 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 사용자는 같은 시도를 반복하는 것 말고 할 게 없다.
   String? _recognitionError;
 
+  /// 엔진이 알려준 **실제** 입력 음량. null이면 아직 한 번도 받지
+  /// 못했다 -- 음량을 주지 않는 플랫폼도 있다. 그때는 파형을 흔들지
+  /// 않는다(모르는 것을 그럴듯하게 그리지 않는다).
+  double? _soundLevel;
+
   void _fail(String message) {
     _notice(message);
     if (mounted) setState(() => _recognitionError = message);
@@ -107,6 +112,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       return;
     }
     _clearFailure();
+    _soundLevel = null; // 지난 세션의 음량이 새 세션 파형에 남지 않게
     ref.read(voiceTextProvider.notifier).state = '';
     ref.read(voiceListeningProvider.notifier).state = true;
     try {
@@ -123,6 +129,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           // 실행 여부는 사용자가 인식 문장을 확인하고 고른다.
           ref.read(voiceListeningProvider.notifier).state = false;
           ref.read(voiceTextProvider.notifier).state = text;
+        },
+        onSoundLevel: (level) {
+          if (!mounted) return;
+          setState(() => _soundLevel = level);
         },
         onError: (errorId) {
           if (!mounted) return;
@@ -293,7 +303,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                     const SizedBox(height: 24),
 
                     // ── 웨이브 비주얼라이저 ────────────────────────────────────────
-                    _WaveVisualizer(active: listening),
+                    _WaveVisualizer(active: listening, level: _soundLevel),
                     const SizedBox(height: 32),
 
                     // ── 마이크 버튼 ────────────────────────────────────────────────
@@ -510,107 +520,67 @@ class _MicButton extends StatelessWidget {
       );
 }
 
-// ── 웨이브 비주얼라이저 (5개 바) ─────────────────────────────────────────
+// ── 듣는 중 표시 (5개 바) ────────────────────────────────────────────────
 
+/// 마이크가 **실제로 듣고 있는 크기**를 보여준다.
+///
+/// 예전에는 정해진 반복 애니메이션이었다. 마이크가 아무것도 못 듣고 있어도
+/// 똑같이 춤을 춰서, 인식이 안 될 때 사용자가 "더 크게 말할지 / 마이크가
+/// 죽었는지"를 판단할 근거를 화면이 지워버렸다. 잘 듣고 있다는 인상만
+/// 남기고 사실은 아무것도 알려주지 않는 표시였다.
 class _WaveVisualizer extends StatelessWidget {
-  const _WaveVisualizer({required this.active});
+  const _WaveVisualizer({required this.active, this.level});
+
   final bool active;
 
-  @override
-  Widget build(BuildContext context) => SizedBox(
-        height: 56,
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: List.generate(
-              5,
-              (i) => _WaveBar(
-                    index: i,
-                    active: active,
-                  )),
-        ),
-      );
-}
+  /// 엔진이 준 음량. null이면 아직(또는 영영) 값이 없다는 뜻이다.
+  final double? level;
 
-class _WaveBar extends StatefulWidget {
-  const _WaveBar({required this.index, required this.active});
-  final int index;
-  final bool active;
-
-  @override
-  State<_WaveBar> createState() => _WaveBarState();
-}
-
-class _WaveBarState extends State<_WaveBar>
-    with SingleTickerProviderStateMixin {
   // 바마다 높이 범위가 달라야 자연스러운 파형처럼 보임
   static const _minHeights = [10.0, 18.0, 28.0, 18.0, 10.0];
   static const _maxHeights = [24.0, 38.0, 56.0, 38.0, 24.0];
-  static const _delays = [0, 100, 50, 150, 80];
 
-  late final AnimationController _ctrl;
-  late final Animation<double> _height;
-  bool _started = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 400 + widget.index * 60),
-    );
-    _height = Tween(
-      begin: _minHeights[widget.index],
-      end: _maxHeights[widget.index],
-    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
-
-    if (widget.active) _start();
+  /// 0~1로 정규화. 음량 단위는 플랫폼마다 달라서(안드로이드는 RMS, iOS는
+  /// dB) **상대적인 크기**로만 쓴다 -- 정확한 수치인 척하지 않는다.
+  /// 값이 없으면 0: 바가 최소 높이로 가만히 있어 "듣는 중이지만 아무 소리도
+  /// 안 들어온다"를 그대로 보여준다.
+  double get _scale {
+    final value = level;
+    if (!active || value == null) return 0;
+    return (value / 10).clamp(0.0, 1.0);
   }
 
   @override
-  void didUpdateWidget(_WaveBar old) {
-    super.didUpdateWidget(old);
-    if (widget.active && !_started) {
-      _start();
-    } else if (!widget.active && _started) {
-      _stop();
-    }
-  }
-
-  Future<void> _start() async {
-    _started = true;
-    await Future.delayed(Duration(milliseconds: _delays[widget.index]));
-    // 대기 중 음성 오류/수동 정지로 active가 false가 될 수 있다. 예약된
-    // 지연 콜백이 그 뒤 애니메이션을 되살리지 않도록 최신 상태를 재확인한다.
-    if (mounted && _started && widget.active) _ctrl.repeat(reverse: true);
-  }
-
-  void _stop() {
-    _started = false;
-    _ctrl.animateTo(0, duration: const Duration(milliseconds: 200));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AnimatedBuilder(
-        animation: _ctrl,
-        builder: (_, __) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 3),
-          child: Container(
-            width: 7,
-            height: _height.value,
-            decoration: BoxDecoration(
-              color: widget.active
-                  ? context.appPrimary
-                  : context.appPrimary.withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(4),
+  Widget build(BuildContext context) {
+    final scale = _scale;
+    return SizedBox(
+      height: 56,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: List.generate(5, (i) {
+          return Padding(
+            // 테스트가 막대 하나를 집어 높이를 재기 위한 열쇠.
+            key: ValueKey('wave-bar-$i'),
+            padding: const EdgeInsets.symmetric(horizontal: 3),
+            child: AnimatedContainer(
+              // 음량은 띄엄띄엄 오므로 사이를 짧게 이어 붙인다. 없는 움직임을
+              // 만들지는 않는다 -- 값이 안 오면 높이가 그대로 머문다.
+              duration: const Duration(milliseconds: 120),
+              curve: Curves.easeOut,
+              width: 7,
+              height:
+                  _minHeights[i] + (_maxHeights[i] - _minHeights[i]) * scale,
+              decoration: BoxDecoration(
+                color: active
+                    ? context.appPrimary
+                    : context.appPrimary.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(4),
+              ),
             ),
-          ),
-        ),
-      );
+          );
+        }),
+      ),
+    );
+  }
 }

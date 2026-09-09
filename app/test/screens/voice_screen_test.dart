@@ -32,6 +32,7 @@ const _testAppliance = ApplianceMap(
 class _FakeVoiceService extends VoiceService {
   void Function(String errorId)? _errorCallback;
   void Function(String finalText)? _silenceCallback;
+  void Function(double level)? _soundLevelCallback;
   bool _listening = false;
 
   @override
@@ -45,10 +46,12 @@ class _FakeVoiceService extends VoiceService {
     required void Function(String text) onText,
     required void Function(String finalText) onSilence,
     void Function(String errorId)? onError,
+    void Function(double level)? onSoundLevel,
   }) async {
     _listening = true;
     _errorCallback = onError;
     _silenceCallback = onSilence;
+    _soundLevelCallback = onSoundLevel;
     onText('부분 인식 문장');
   }
 
@@ -57,6 +60,9 @@ class _FakeVoiceService extends VoiceService {
     _listening = false;
     _silenceCallback?.call(finalText);
   }
+
+  /// 마이크로 실제 소리가 들어온 상황.
+  void emitSoundLevel(double level) => _soundLevelCallback?.call(level);
 
   void emitError(String errorId) {
     _listening = false;
@@ -121,8 +127,7 @@ void main() {
 
     voice.emitError('error_audio_error');
     await tester.pump();
-    // 파형 막대별 시작 지연(최대 150ms)이 오류 이후 애니메이션을 되살리지
-    // 않는지까지 검증하고 예약 타이머를 소진한다.
+    // 파형 전환 애니메이션(120ms)까지 소진한다.
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(container.read(voiceListeningProvider), false);
@@ -464,6 +469,79 @@ void main() {
         find.text('음성 해석 기능이 서버에 설정되어 있지 않아요.'),
         findsOneWidget,
       );
+    });
+  });
+
+  group('듣는 중 표시', () {
+    // 가운데 막대의 높이 범위. _WaveVisualizer와 같은 값이어야 한다.
+    const minHeight = 28.0;
+    const maxHeight = 56.0;
+
+    Future<double> centerBarHeight(WidgetTester tester) async {
+      final bar = find.descendant(
+        of: find.byKey(const ValueKey('wave-bar-2')),
+        matching: find.byType(AnimatedContainer),
+      );
+      return tester.getSize(bar).height;
+    }
+
+    Future<_FakeVoiceService> startListening(WidgetTester tester) async {
+      final voice = _FakeVoiceService();
+      final container = await _makeContainer(
+        extra: [voiceServiceProvider.overrideWithValue(voice)],
+      );
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+      await tester.tap(find.bySemanticsLabel('음성 명령 시작'));
+      await tester.pump();
+      return voice;
+    }
+
+    testWidgets('음량이 오기 전에는 흔들리지 않는다', (tester) async {
+      // 예전 파형은 마이크가 아무것도 못 듣고 있어도 정해진 애니메이션으로
+      // 춤을 췄다. 그것이 "잘 듣고 있다"는 인상을 만들어, 인식이 안 될 때
+      // 사용자가 더 크게 말할지 마이크를 의심할지 판단할 근거를 지웠다.
+      await startListening(tester);
+
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(await centerBarHeight(tester), minHeight);
+    });
+
+    testWidgets('실제 음량이 크면 막대가 커진다', (tester) async {
+      final voice = await startListening(tester);
+
+      voice.emitSoundLevel(10);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(await centerBarHeight(tester), maxHeight);
+    });
+
+    testWidgets('소리가 잦아들면 막대도 같이 내려간다', (tester) async {
+      final voice = await startListening(tester);
+      voice.emitSoundLevel(10);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      voice.emitSoundLevel(0);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(await centerBarHeight(tester), minHeight);
+    });
+
+    testWidgets('듣기를 마치면 지난 음량이 남지 않는다', (tester) async {
+      final voice = await startListening(tester);
+      voice.emitSoundLevel(10);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      voice.emitSilence('우유 데워줘');
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(await centerBarHeight(tester), minHeight);
     });
   });
 }
