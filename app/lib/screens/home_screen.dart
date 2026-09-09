@@ -8,6 +8,7 @@ import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../widgets/appliance_portrait.dart';
+import '../widgets/demo_badge.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/ble_service.dart';
@@ -311,7 +312,15 @@ class _ApplianceStage extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Text(appliance.name, style: AppText.heading),
+        Row(
+          children: [
+            Flexible(child: Text(appliance.name, style: AppText.heading)),
+            if (appliance.isDemo) ...[
+              const SizedBox(width: 8),
+              const DemoBadge(),
+            ],
+          ],
+        ),
         const SizedBox(height: 6),
         Row(
           children: [

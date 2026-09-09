@@ -89,6 +89,7 @@ class ApplianceMap {
     required this.cols,
     required this.buttons,
     this.isCustom = false,
+    this.isDemo = false,
     this.photoPath,
     this.canExecute = true,
     this.readiness = 'unknown',
@@ -110,6 +111,13 @@ class ApplianceMap {
   final int cols;
   final List<ApplianceButton> buttons;
   final bool isCustom;
+
+  /// 데모 세션이 세운 **표본**인가.
+  ///
+  /// 저장하지 않는다 -- 표본은 기기에 남지 않는다. 화면은 이 값을 보고
+  /// '데모'라고 적어야 한다. 표본을 진짜 등록된 가전처럼 보여주면, 심사
+  /// 자리에서 우리가 무엇을 실제로 만들었는지 아무도 구분할 수 없다.
+  final bool isDemo;
 
   /// 이 가전을 지금 맡길 수 있나 (서버 F1 판정).
   ///
@@ -216,6 +224,7 @@ class ApplianceMap {
         cols: cols,
         buttons: buttons,
         isCustom: isCustom,
+        isDemo: isDemo,
         photoPath: other.photoPath,
         canExecute: canExecute,
         readiness: readiness,
@@ -239,6 +248,25 @@ class ApplianceMap {
         if (photoPath != null) 'photo_path': photoPath,
       };
 }
+
+/// 데모 세션에서만 세우는 **표본 가전**.
+///
+/// 이름에 '데모'가 들어 있고 `isDemo`도 참이다. 둘 중 하나만으로는
+/// 부족하다 -- 이름만 보고 지나칠 수도, 뱃지를 못 그리는 자리도 있다.
+final kDemoAppliances = <ApplianceMap>[
+  _demo(kApplianceTemplates.first),
+  _demo(kApplianceTemplates.firstWhere((t) => t.id == 'aircon')),
+];
+
+ApplianceMap _demo(ApplianceMap template) => ApplianceMap(
+      id: 'demo_${template.id}',
+      name: '데모 ${template.name}',
+      category: template.category,
+      rows: template.rows,
+      cols: template.cols,
+      buttons: template.buttons,
+      isDemo: true,
+    );
 
 /// **고를 수 있는 종류의 예시**지 사용자가 소유한 가전이 아니다.
 ///

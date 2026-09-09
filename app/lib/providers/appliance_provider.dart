@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/appliance.dart';
+import 'demo_provider.dart';
 
 // ── 사용자 정의 가전 (기기 추가) ────────────────────────────────────────────
 
@@ -85,8 +86,15 @@ final customAppliancesProvider =
 /// 템플릿을 여기 섞지 않는다. 한 대도 등록하지 않았으면 비어 있고, 화면은
 /// 그 사실을 그대로 보여줘야 한다 -- 있지도 않은 전자레인지를 가진 것처럼
 /// 말하지 않는다.
+///
+/// 예외는 **명시적으로 켠 데모 세션**뿐이다(`kDebugMode`가 아니라 설정에서
+/// 켠 값). 리허설에서 빈 화면만 보이면 보여줄 것이 없고, 그렇다고 표본을
+/// 항상 세우면 실제 사용자의 첫 화면을 아무도 못 본다. 표본은 `isDemo`로
+/// 표시되고 기기에 저장되지 않는다.
 final installedAppliancesProvider = Provider<List<ApplianceMap>>((ref) {
-  return ref.watch(customAppliancesProvider);
+  final own = ref.watch(customAppliancesProvider);
+  if (own.isNotEmpty) return own;
+  return ref.watch(demoModeProvider) ? kDemoAppliances : const [];
 });
 
 /// 시작에 필요한 것이 **다 올라왔는가**.

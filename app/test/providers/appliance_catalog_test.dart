@@ -8,7 +8,8 @@
 // 계약:
 // - `kApplianceTemplates`는 **고를 수 있는 종류**지 소유한 가전이 아니다.
 // - 설치 가전이 0대면 목록은 비고, 선택은 없음(null)이다.
-// - 지운 가전을 고르고 있었다면 **알리지 않고 다른 것으로 바꾸지 않는다.**
+// - 지운 가전을 고르고 있었다면 **내가 가진 것 안에서만** 다시 고른다.
+//   남은 것이 없으면 없음(null)이지, 템플릿을 세우는 것이 아니다.
 // - `category`는 종류를 나타내는 안정적인 값이고 저장·복원·동기화된다.
 // - 종류를 모르면 오류가 아니라 `other`와 일반 아이콘이다.
 // - 같은 종류를 여러 대 등록할 수 있다(거실/안방 에어컨).
@@ -21,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
+import 'package:simplelay/providers/demo_provider.dart';
 
 /// 초기화가 **실제로 끝난** 컨테이너.
 ///
@@ -74,7 +76,7 @@ void main() {
       expect(c.read(selectedApplianceProvider)?.id, 'a1');
     });
 
-    test('지운 가전을 고르고 있었으면 조용히 다른 것으로 바꾸지 않는다', () async {
+    test('지운 가전 하나뿐이었으면 선택은 없음이 된다', () async {
       SharedPreferences.setMockInitialValues({
         'custom_appliances': <String>[],
         'selected_appliance': '지워진_가전',
@@ -83,6 +85,89 @@ void main() {
 
       // 전자레인지로 슬쩍 대체하지 않는다. 고를 것이 없으면 없는 것이다.
       expect(c.read(selectedApplianceProvider), isNull);
+    });
+
+    test('다른 가전이 남아 있으면 남은 것 중에서 고른다', () async {
+      // 세 대 중 한 대를 지웠는데 홈이 '등록한 가전이 없어요'라고 말하면
+      // 그것도 거짓말이다. 대체는 하되 **내가 실제로 가진 것** 안에서만
+      // 한다 -- 가진 적 없는 템플릿을 세우는 것과는 다른 얘기다.
+      final other = _installed(id: 'a2', category: ApplianceCategory.induction);
+      SharedPreferences.setMockInitialValues({
+        'custom_appliances': [other.toJsonString()],
+        'selected_appliance': '지워진_가전',
+      });
+      final c = await _ready();
+
+      expect(c.read(selectedApplianceProvider)?.id, 'a2');
+    });
+
+    test('쓰는 중에 지우면 선택도 같이 옮겨간다', () async {
+      final a1 = _installed(id: 'a1', category: ApplianceCategory.microwave);
+      final a2 = _installed(id: 'a2', category: ApplianceCategory.induction);
+      SharedPreferences.setMockInitialValues({
+        'custom_appliances': [a1.toJsonString(), a2.toJsonString()],
+        'selected_appliance': 'a1',
+      });
+      final c = await _ready();
+      expect(c.read(selectedApplianceProvider)?.id, 'a1');
+
+      await c.read(customAppliancesProvider.notifier).remove('a1');
+
+      // 이미 사라진 가전을 계속 가리키고 있으면, 조작은 매번 실패하는데
+      // 화면은 멀쩡해 보인다.
+      expect(c.read(selectedApplianceProvider)?.id, 'a2');
+    });
+
+    test('첫 가전을 추가하면 그것이 선택된다', () async {
+      final c = await _ready();
+      expect(c.read(selectedApplianceProvider), isNull);
+
+      final first = _installed(id: 'a1', category: ApplianceCategory.riceCooker);
+      await c.read(customAppliancesProvider.notifier).add(first);
+
+      expect(c.read(selectedApplianceProvider)?.id, 'a1');
+    });
+  });
+
+  group('데모 표본과 프로덕션 빈 상태', () {
+    test('데모를 켜지 않으면 표본을 세우지 않는다', () async {
+      // 표본을 항상 세우면 실제 사용자가 겪는 첫 화면을 아무도 못 본다.
+      final c = await _ready();
+
+      expect(c.read(demoModeProvider), isFalse);
+      expect(c.read(installedAppliancesProvider), isEmpty);
+    });
+
+    test('데모를 켜면 표본이 서고, 표본은 데모라고 적혀 있다', () async {
+      final c = await _ready();
+
+      c.read(demoModeProvider.notifier).state = true;
+
+      final installed = c.read(installedAppliancesProvider);
+      expect(installed, isNotEmpty);
+      expect(installed.map((a) => a.isDemo), everyElement(isTrue));
+      // 뱃지를 못 그리는 자리도 있으므로 이름에도 적는다.
+      expect(installed.map((a) => a.name), everyElement(startsWith('데모')));
+    });
+
+    test('내가 등록한 가전이 있으면 데모라도 표본을 섞지 않는다', () async {
+      final mine = _installed(id: 'a1', category: ApplianceCategory.riceCooker);
+      SharedPreferences.setMockInitialValues({
+        'custom_appliances': [mine.toJsonString()],
+      });
+      final c = await _ready();
+
+      c.read(demoModeProvider.notifier).state = true;
+
+      expect(c.read(installedAppliancesProvider).map((a) => a.id), ['a1']);
+    });
+
+    test('표본은 기기에 저장되지 않는다', () {
+      // 데모를 껐다 켜는 것으로 진짜 등록 목록이 늘어나면 안 된다.
+      for (final demo in kDemoAppliances) {
+        expect(demo.toJson().containsKey('is_demo'), isFalse);
+        expect(ApplianceMap.fromJson(demo.toJson()).isDemo, isFalse);
+      }
     });
   });
 
