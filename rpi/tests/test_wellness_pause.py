@@ -234,6 +234,58 @@ def test_sqlite_forgets_a_cleared_pause(tmp_path):
     assert SimpleLayDb(path).load_wellness_pause() is None
 
 
+def test_existing_db_without_the_settings_table_keeps_its_history(tmp_path):
+    """실기기에는 이미 이력이 쌓인 DB가 깔려 있다. settings는 나중에 생긴
+    테이블이라, 그 DB를 열 때 만들어지되 **기존 데이터를 건드리면 안 된다.**"""
+    import sqlite3
+
+    path = str(tmp_path / "old.db")
+    old_db = sqlite3.connect(path)
+    old_db.executescript(
+        """
+        CREATE TABLE usage_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            occurred_at TEXT NOT NULL,
+            purpose TEXT NOT NULL,
+            outcome TEXT NOT NULL
+        );
+        """
+    )
+    old_db.execute(
+        "INSERT INTO usage_log (occurred_at, purpose, outcome) VALUES (?, ?, ?)",
+        (_at(20).isoformat(), "우유 데워줘", "succeeded"),
+    )
+    old_db.commit()
+    old_db.close()
+
+    from rpi.services.persistence import SimpleLayDb
+
+    db = SimpleLayDb(path)
+
+    # 옛 이력은 그대로 남고,
+    assert db.load_wellness_pause() is None
+    (row,) = db._conn.execute("SELECT purpose FROM usage_log").fetchall()
+    assert row[0] == "우유 데워줘"
+    # 새 설정은 저장된다.
+    db.save_wellness_pause(date(2026, 7, 30))
+    assert SimpleLayDb(path).load_wellness_pause() == date(2026, 7, 30)
+
+
+def test_unreadable_stored_value_does_not_keep_wellness_off(tmp_path):
+    """손상된 값 때문에 안부 확인이 영영 꺼져 있는 것보다, 못 읽으면 쉬지
+    않는 쪽이 안전하다."""
+    from rpi.services.persistence import SimpleLayDb
+
+    path = str(tmp_path / "simplelay.db")
+    db = SimpleLayDb(path)
+    db._conn.execute(
+        "INSERT INTO settings (key, value) VALUES ('wellness_pause_until', 'ㅁㄴㅇㄹ')"
+    )
+    db._conn.commit()
+
+    assert db.load_wellness_pause() is None
+
+
 # ── HTTP 계약 ─────────────────────────────────────────────────────────────
 
 
