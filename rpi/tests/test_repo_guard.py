@@ -1,7 +1,15 @@
-"""공개 리포에 플랫폼 벤더 고유 명칭이 새로 들어오는 것을 막는 가드.
+"""공개 리포에 들어오면 안 되는 것을 막는 가드.
+
+두 가지를 본다:
+
+1. **플랫폼 벤더 고유 명칭** -- 파일 내용과 **파일 이름** 둘 다.
+2. **문서·비밀 파일이 새로 추적되는 것** -- 내용 검사가 닿지 않는 종류다.
 
 한 번 청소하고 끝내면 시간이 지나며 다시 스며든다. 이 테스트는 추적 중인(=공개되는)
 파일만 훑어서 금지어가 허용되지 않은 위치에 나타나면 실패한다.
+
+`.gitignore`는 **이미 추적되는 파일을 보호하지 않는다.** 그래서 무시 목록이 아니라
+`git ls-files`(실제로 공개되는 것)를 기준으로 본다.
 
 금지어를 이 파일에 그대로 적으면 이 파일 자체가 유출이 되므로 조각으로 조립한다.
 
@@ -66,6 +74,24 @@ _ALLOWED_ALWAYS = (
 _MIGRATION_DEBT: set[str] = set()
 
 
+# 내용 검사가 닿지 않는 종류 -- 발표 자료·제공 문서·키 파일. 이런 것은 대개
+# 통째로 비공개이거나 안에 무엇이 들었는지 diff로 확인할 수 없다.
+# `.gitignore`는 이미 추적 중인 파일을 지켜주지 않으므로 여기서 따로 잡는다.
+_FORBIDDEN_SUFFIXES = (
+    ".pptx", ".ppt", ".pdf", ".docx", ".doc", ".xlsx", ".xls",
+    ".hwp", ".hwpx", ".zip", ".7z", ".rar",
+    ".pem", ".p12", ".pfx", ".key", ".keystore", ".jks", ".env",
+)
+
+# 규칙이 생기기 **전부터** 추적되던 파일. 새로 늘어나는 것만 막는 것이 이
+# 목록의 목적이다.
+#
+# 여기 적혀 있다고 안전해진 것이 아니다 -- 이미 커밋 이력에 들어가 있고,
+# `.gitignore`로도 되돌릴 수 없다. **이 파일을 다시 stage 하거나 갱신하지
+# 않는다.** 이력에서 지우는 것은 되돌릴 수 없는 작업이라 사용자가 결정한다.
+_PRE_EXISTING_DOCUMENTS = frozenset({"0818_임베디드.pptx"})
+
+
 def _tracked_files() -> list[str]:
     """git이 추적하는 파일 = 공개되는 파일. -z로 받아야 한글 경로가 이스케이프되지 않는다."""
     result = subprocess.run(
@@ -125,5 +151,50 @@ def test_migration_debt_list_has_no_stale_entries():
     stale = sorted(_MIGRATION_DEBT - offending_paths)
     assert not stale, (
         "아래 파일은 이제 깨끗하다. _MIGRATION_DEBT에서 지울 것:\n"
+        + "\n".join(f"  {p}" for p in stale)
+    )
+
+
+def test_no_vendor_terms_in_tracked_file_names():
+    """파일 **이름**도 공개된다. 내용만 보면 이름으로 새는 것을 못 잡는다."""
+    offenders = {
+        path: terms
+        for path in _tracked_files()
+        if not _is_allowed_always(path)
+        and (terms := sorted(t for t in _FORBIDDEN_TERMS if t in path.lower()))
+    }
+    assert not offenders, (
+        "추적되는 파일 이름에 플랫폼 벤더 고유 명칭이 들어갔다. 파일을 옮기거나, "
+        "옮길 수 없는 이유가 있으면 _ALLOWED_ALWAYS에 근거와 함께 추가할 것:\n"
+        + "\n".join(f"  {p}: {t}" for p, t in sorted(offenders.items()))
+    )
+
+
+def test_no_new_document_or_secret_files_are_tracked():
+    """발표 자료·제공 문서·키 파일이 새로 추적되면 실패.
+
+    내용 검사(_terms_in)는 바이너리를 읽지 못하고 조용히 건너뛴다. 그래서
+    금지어 가드만으로는 PPTX·PDF 한 장이 통째로 공개되는 것을 못 막는다.
+    """
+    tracked = {
+        path
+        for path in _tracked_files()
+        if path.lower().endswith(_FORBIDDEN_SUFFIXES)
+    }
+    unexpected = sorted(tracked - _PRE_EXISTING_DOCUMENTS)
+    assert not unexpected, (
+        "문서·비밀 파일이 공개 저장소에 추적되고 있다. `git rm --cached <파일>`로 "
+        "추적을 풀고 .gitignore에 넣을 것. 이미 커밋했다면 이력에도 남아 있으므로 "
+        "그 처리는 따로 판단할 것:\n" + "\n".join(f"  {p}" for p in unexpected)
+    )
+
+
+def test_pre_existing_document_list_has_no_stale_entries():
+    """정리가 끝난 파일이 목록에 남아 있으면 실패 -- _MIGRATION_DEBT와 같은 이유다.
+    목록이 부풀어 오른 채 굳으면 나중에 들어온 진짜 유출을 덮어버린다."""
+    tracked = set(_tracked_files())
+    stale = sorted(_PRE_EXISTING_DOCUMENTS - tracked)
+    assert not stale, (
+        "아래 파일은 이제 추적되지 않는다. _PRE_EXISTING_DOCUMENTS에서 지울 것:\n"
         + "\n".join(f"  {p}" for p in stale)
     )
