@@ -145,7 +145,7 @@ class _HistoryTile extends StatelessWidget {
         ? (context.appSuccess, Icons.check_circle, '완료')
         : stopped
             ? (context.appWarning, Icons.front_hand, '안전 정지')
-            : (AppColors.danger, Icons.error, '실패');
+            : (context.appDanger, Icons.error, '실패');
 
     return Card(
       child: Padding(

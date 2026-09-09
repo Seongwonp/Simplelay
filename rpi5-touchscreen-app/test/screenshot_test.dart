@@ -88,6 +88,10 @@ Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
 
 void main() {
   setUpAll(() async {
+    final iconBytes = File(r'C:\flutter\flutter\bin\cache\artifacts\material_fonts\materialicons-regular.otf').readAsBytesSync();
+    await (FontLoader('MaterialIcons')
+          ..addFont(Future.value(ByteData.view(iconBytes.buffer))))
+        .load();
     final bytes = File(r'C:\Windows\Fonts\malgun.ttf').readAsBytesSync();
     final loader = FontLoader('Malgun')
       ..addFont(Future.value(ByteData.view(bytes.buffer)));

@@ -6,8 +6,12 @@
 /// 9.34:1, 5.78:1이다.
 ///
 /// 캡션 쪽은 더 얄궂었다. AppText.caption이 **다크용 회색을 상수로** 물고 있어서
-/// 라이트 모드의 크림 배경 위에서 2.48:1이었다. app_colors.dart에 "하드코딩하면
-/// 크림 배경에서 안 보인다"는 주석이 이미 있었는데 타이포 토큰 자신이 그걸 어겼다.
+/// 라이트 모드 바탕 위에서 2.48:1이었다. app_colors.dart에 "하드코딩하면
+/// 밝은 바탕에서 안 보인다"는 주석이 이미 있었는데 타이포 토큰 자신이 그걸 어겼다.
+///
+/// 2026-09-09에 팔레트를 크림+골드에서 흰 계열 바탕+인디고로 바꿨다. 아래
+/// 단정은 전부 **토큰**을 참조하므로 값이 바뀌어도 그대로 유효하다 -- 그게
+/// 색을 상수로 흩뿌리지 않고 토큰에 모아둔 이유다.
 ///
 /// 주 사용자가 고령자라 접근성은 요구사항이지 장식이 아니다. 기준은 WCAG AA
 /// 일반 텍스트 4.5:1.
@@ -46,7 +50,7 @@ void main() {
   group('채도 있는 색을 면으로 쓸 때는 onAccent 글자', () {
     // 흰 글자로 되돌리면 전부 실패한다 — 그게 이 테스트의 목적이다
     for (final entry in <String, Color>{
-      '골드(주요 실행)': AppColors.primary,
+      '강조색(주요 실행)': AppColors.primary,
       '세이지 그린(성공·승인)': AppColors.success,
       '브릭 레드(정지·삭제)': AppColors.danger,
       '앰버(경고)': AppColors.warning,
@@ -66,14 +70,14 @@ void main() {
   group('보조 텍스트는 AAA(7:1)까지', () {
     // 캡션은 카드 표면뿐 아니라 스캐폴드 배경에도 얹힌다 — 둘 다 통과해야 한다.
     // 그리고 이 앱의 캡션은 장식이 아니라 버튼 순서·상태 설명을 담는다.
-    test('크림 표면 위', () {
+    test('흰 카드 위', () {
       expect(
         contrast(AppColors.surfaceLowLight, AppColors.onSurfaceMutedLight),
         greaterThanOrEqualTo(_aaa),
       );
     });
 
-    test('크림 배경 위', () {
+    test('밝은 바탕 위', () {
       expect(
         contrast(AppColors.backgroundLight, AppColors.onSurfaceMutedLight),
         greaterThanOrEqualTo(_aaa),
@@ -99,14 +103,14 @@ void main() {
   group('라이트 모드 상태색 — 글자·아이콘으로 쓸 때', () {
     // 상태를 색으로 알리는 자리(연결됨·방해 금지·안전 정지)가 전부 여기 걸린다.
     // 크림 위에서 원본 앰버는 1.82:1, 그린은 2.19:1로 사실상 보이지 않았다.
-    test('warningLight는 크림 표면·배경 모두 통과', () {
+    test('warningLight는 카드·바탕 모두 통과', () {
       expect(contrast(AppColors.surfaceLowLight, AppColors.warningLight),
           greaterThanOrEqualTo(_aa));
       expect(contrast(AppColors.backgroundLight, AppColors.warningLight),
           greaterThanOrEqualTo(_aa));
     });
 
-    test('successLight는 크림 표면·배경 모두 통과', () {
+    test('successLight는 카드·바탕 모두 통과', () {
       expect(contrast(AppColors.surfaceLowLight, AppColors.successLight),
           greaterThanOrEqualTo(_aa));
       expect(contrast(AppColors.backgroundLight, AppColors.successLight),
@@ -122,7 +126,7 @@ void main() {
   });
 
   group('라이트 모드에서 danger를 글자로 쓸 때', () {
-    test('dangerLight는 크림 표면·배경 모두 통과', () {
+    test('dangerLight는 카드·바탕 모두 통과', () {
       expect(contrast(AppColors.surfaceLowLight, AppColors.dangerLight),
           greaterThanOrEqualTo(_aa));
       expect(contrast(AppColors.backgroundLight, AppColors.dangerLight),
@@ -182,33 +186,48 @@ void main() {
 
   group('강조색 틴트 위에 같은 강조색 글자', () {
     // 제안 화면 단계 타임라인의 순서 원이 이 모양이었다(18% 틴트 + 강조색 숫자).
-    test('디자인이 쓰던 18% 틴트는 라이트 모드에서 미달이다', () {
-      // 4.23:1. 틴트를 짙게 할수록 나빠진다 -- 배경이 글자색 쪽으로 다가가므로.
-      for (final alpha in [0.18, 0.30]) {
+    //
+    // **골드 시절에는 이 조합이 아예 불가능했다**: 틴트 10/18/30%가 각각
+    // 4.85 / 4.32 / 3.61:1이었고 틴트를 걷어낸 상한도 5.56:1이라, 어느
+    // 알파를 골라도 '겨우 넘거나 미달'이었다. 그래서 면을 채우고 반대색을
+    // 얹는 쪽(appOnAccent)을 택했다.
+    //
+    // 인디고로 바꾸면서 그 제약이 사라졌다. 아래는 **지금 값의 여유**를
+    // 기록해 두는 것이고, 화면이 쓰는 방식(면을 채운다)은 그대로다 --
+    // 여유가 생겼다고 더 약한 쪽으로 되돌릴 이유는 없다.
+    test('틴트 위 강조색 글자도 이제는 AA를 넘는다', () {
+      for (final alpha in [0.10, 0.18, 0.30]) {
         expect(
           contrast(
             over(AppColors.primaryLight, AppColors.surfaceLowLight, alpha),
             AppColors.primaryLight,
           ),
-          lessThan(_aa),
+          greaterThanOrEqualTo(_aa),
           reason: '알파 $alpha',
         );
       }
     });
 
-    test('틴트를 걷어내도 상한이 5.41:1이라 여유가 없다', () {
-      // 알파 0(틴트 없음)이 이 조합의 상한이다. 10%면 4.73:1로 AA는 겨우
-      // 넘지만, 이 앱은 보조 텍스트에 AAA를 목표로 두는 화면이라 '겨우 넘는'
-      // 값을 순서 숫자에 두지 않는다 -- 면을 채우는 쪽을 택했다.
-      expect(contrast(AppColors.surfaceLowLight, AppColors.primaryLight),
-          greaterThanOrEqualTo(_aa));
-      expect(
-        contrast(
-          over(AppColors.primaryLight, AppColors.surfaceLowLight, 0.10),
-          AppColors.primaryLight,
-        ),
-        lessThan(5.0),
+    test('틴트가 짙어질수록 나빠지는 방향은 그대로다', () {
+      // 배경이 글자색 쪽으로 다가가므로 알파가 커지면 대비는 단조 감소한다.
+      // 이 성질이 깨지면 over() 계산이 잘못된 것이다.
+      final light = contrast(
+        over(AppColors.primaryLight, AppColors.surfaceLowLight, 0.10),
+        AppColors.primaryLight,
       );
+      final heavy = contrast(
+        over(AppColors.primaryLight, AppColors.surfaceLowLight, 0.30),
+        AppColors.primaryLight,
+      );
+      expect(heavy, lessThan(light));
+      // 30%까지 짙게 해도 AA는 지킨다 -- 골드는 여기서 3.61:1이었다.
+      expect(heavy, greaterThanOrEqualTo(_aa));
+    });
+
+    test('강조색 자체는 흰 면 위에서 AAA를 넘는다', () {
+      // 고령 사용자 기준 7:1을 넘는 가장 선명한 인디고로 고른 값이다.
+      expect(contrast(AppColors.surfaceLowLight, AppColors.primaryLight),
+          greaterThanOrEqualTo(_aaa));
     });
 
     test('면을 채우고 appOnAccent를 얹으면 통과한다', () {
@@ -221,7 +240,7 @@ void main() {
 
   group('빈 상태 안내문', () {
     // 설정의 '다시 추천 안 하는 항목이 없어요.'가 Colors.grey였다.
-    test('Colors.grey는 크림 배경에서 미달이다', () {
+    test('Colors.grey는 밝은 바탕에서 미달이다', () {
       expect(contrast(AppColors.backgroundLight, Colors.grey), lessThan(_aa));
     });
 
@@ -234,7 +253,7 @@ void main() {
   });
 
   group('다크 모드', () {
-    test('골드는 다크 배경 위 글자로도 통과', () {
+    test('강조색은 다크 배경 위 글자로도 통과', () {
       expect(contrast(AppColors.background, AppColors.primary),
           greaterThanOrEqualTo(_aa));
     });

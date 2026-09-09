@@ -97,6 +97,12 @@ void main() {
     final loader = FontLoader('Malgun')
       ..addFont(Future.value(ByteData.view(bytes.buffer)));
     await loader.load();
+    final iconBytes = File(
+      r'C:\flutter\flutter\bin\cache\artifacts\material_fonts\materialicons-regular.otf',
+    ).readAsBytesSync();
+    final iconLoader = FontLoader('MaterialIcons')
+      ..addFont(Future.value(ByteData.view(iconBytes.buffer)));
+    await iconLoader.load();
   });
 
   // 서버에서 온 패턴 제안 — 실기기에서 실제로 오는 모양이다. 근거 문장과
@@ -195,5 +201,36 @@ void main() {
   testWidgets('수동 조작 — 큰 글씨 (200%)', (t) async {
     await _shoot(t, 'manual_large', const ManualControlScreen(),
         textScale: 2.0, settle: false);
+  });
+
+  // ── 팔레트 시안용 라이트 모드 ──────────────────────────────────────────
+  testWidgets('시안 — 제안 확인 (라이트)', (t) async {
+    await _shoot(t, 'lt_suggestion', const SuggestionScreen(sequenceId: 'a'),
+        suggestions: suggestions, light: true);
+  });
+
+  testWidgets('시안 — 실행 상태 (라이트)', (t) async {
+    await _shoot(t, 'lt_status', const StatusScreen(),
+        executionStatus: running, light: true, settle: false);
+  });
+
+  testWidgets('시안 — 실행 상태·폐루프 증거 (라이트)', (t) async {
+    await _shoot(t, 'lt_status_closed_loop', const StatusScreen(),
+        executionStatus: runningWithEvidence, light: true, settle: false);
+  });
+
+  testWidgets('시안 — 설정 (라이트)', (t) async {
+    await _shoot(t, 'lt_settings', const SettingsScreen(),
+        light: true, settle: false);
+  });
+
+  testWidgets('시안 — 수동 조작 (라이트)', (t) async {
+    await _shoot(t, 'lt_manual', const ManualControlScreen(),
+        light: true, settle: false);
+  });
+
+  testWidgets('시안 — 홈·미연결 (라이트)', (t) async {
+    await _shoot(t, 'lt_home_empty', const HomeScreen(),
+        connected: false, light: true);
   });
 }
