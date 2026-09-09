@@ -27,6 +27,7 @@ class ExecutionStatus {
     this.phase = ExecutionPhase.idle,
     this.message,
     this.isDemo = false,
+    this.applianceId,
   });
 
   final String? sequenceId;
@@ -45,6 +46,12 @@ class ExecutionStatus {
   final double? soundDb;
   final ExecutionPhase phase;
   final String? message;
+
+  /// 이 실행이 **대상으로 삼은** 가전. 서버가 말해준 값이다.
+  ///
+  /// 화면은 이걸로 버튼 이름을 읽는다. 지금 고른 가전으로 읽으면, 실행
+  /// 중에 다른 가전을 고른 순간 화면이 틀린 버튼 이름을 말한다.
+  final String? applianceId;
 
   /// 이 실행이 **모의**였는가. 실행을 시작한 순간에 확정한다.
   ///
@@ -67,6 +74,7 @@ class ExecutionStatus {
     double? soundDb,
     ExecutionPhase? phase,
     String? message,
+    String? applianceId,
   }) =>
       ExecutionStatus(
         sequenceId: sequenceId ?? this.sequenceId,
@@ -81,6 +89,7 @@ class ExecutionStatus {
         verificationDetail: verificationDetail ?? this.verificationDetail,
         currentMa: currentMa ?? this.currentMa,
         soundDb: soundDb ?? this.soundDb,
+        applianceId: applianceId ?? this.applianceId,
         phase: phase ?? this.phase,
         message: message ?? this.message,
         // 실행 모드는 시작할 때 정해지고 그 job이 끝날 때까지 바뀌지

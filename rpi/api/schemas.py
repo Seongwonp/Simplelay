@@ -391,6 +391,14 @@ class StatusResponse(BaseModel):
     # 진행바용 전체 단계 수 (실행 중일 때만). completed_steps와 조합해
     # 가짜 애니메이션 대신 실제 진행률을 그릴 수 있다.
     total_steps: int | None = None
+    # 이 실행이 **대상으로 삼은** 가전. 실행 중이면 appliance_id, 끝나면
+    # last_appliance_id에 값이 있다(job_id와 같은 규칙).
+    #
+    # 화면이 이 값을 안 받으면 버튼 이름을 "지금 고른 가전"의 버튼맵으로
+    # 읽게 되는데, 실행 중에 다른 가전을 고르면 그 순간 화면이 틀린 버튼
+    # 이름을 말한다. 대상은 실행이 정하지, 화면이 정하지 않는다.
+    appliance_id: str | None = None
+    last_appliance_id: str | None = None
 
 
 class SuggestionResponse(BaseModel):
@@ -402,7 +410,9 @@ class SuggestionResponse(BaseModel):
     # 다시 해석되므로 이 값과 달라질 수 있다(예: 규칙이 그 사이 바뀐 경우).
     steps: list[str] = []
     reason: str = ""
-    # 이 제안이 조작할 가전. 없으면 클라이언트가 현재 선택 가전을 쓴다.
+    # 이 제안이 조작할 가전. **없으면 클라이언트는 대상을 모르는 것으로
+    # 취급하고 실행을 막는다** -- 지금 고른 가전으로 메우면 화면과 실제
+    # 실행 대상이 어긋난다.
     appliance_id: str | None = None
 
 
@@ -504,8 +514,8 @@ class DemoSuggestRequest(BaseModel):
     '선제 제안 → 승인 → 실행' 장면을 원하는 시점에 연출하기 위한 것."""
 
     purpose: str = "즉석밥 데워줘"
-    # 어느 가전으로 연출할지. 생략하면 클라이언트가 현재 선택 가전을 쓴다 --
-    # 가전 여러 대를 번갈아 보여주는 데모에서 대상을 못 박기 위한 값이다.
+    # 어느 가전으로 연출할지. 생략하면 제안이 대상 없이 만들어지고, 앱은
+    # 그것을 '대상 모름'으로 취급해 실행을 막는다 -- 데모에서는 채워야 한다.
     appliance_id: str | None = None
 
     @field_validator("purpose")

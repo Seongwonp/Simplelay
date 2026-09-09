@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/execution_status.dart';
 import '../models/suggestion.dart';
+import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -38,6 +39,16 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
     });
 
     final status = ref.watch(executionStatusProvider);
+    // 이 실행이 대상으로 삼은 가전. 서버가 말해준 id로 설치 목록에서 찾는다 --
+    // 지금 고른 가전이 아니다. 못 찾으면(지웠거나 구버전 서버) null이고,
+    // 단계 이름은 전역 표로 떨어진다.
+    final targetId = status.applianceId;
+    final target = targetId == null
+        ? null
+        : ref
+            .watch(installedAppliancesProvider)
+            .where((a) => a.id == targetId)
+            .firstOrNull;
     final active = status.phase == ExecutionPhase.running ||
         status.phase == ExecutionPhase.retrying ||
         status.phase == ExecutionPhase.waiting;
@@ -212,6 +223,10 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     return _StepTile(
                       index: i,
                       code: status.steps[i],
+                      // **이 실행이 대상으로 삼은 가전**의 버튼 이름. 지금
+                      // 고른 가전으로 읽으면 실행 중에 가전을 바꾼 순간
+                      // 화면이 틀린 버튼 이름을 말한다.
+                      label: target?.labelFor(status.steps[i]),
                       done: done,
                       current: current,
                       isLast: i == status.steps.length - 1,
@@ -340,12 +355,18 @@ class _StepTile extends StatelessWidget {
   const _StepTile({
     required this.index,
     required this.code,
+    this.label,
     required this.done,
     required this.current,
     required this.isLast,
   });
   final int index;
   final String code;
+
+  /// 대상 가전이 알려준 이름. 대상을 모르면 null이고, 그때만 전역 표로
+  /// 떨어진다 -- 그 표는 내장 가전 코드만 알고 있어서, 커스텀 가전의
+  /// 버튼은 코드 그대로 나온다.
+  final String? label;
   final bool done;
   final bool current;
   final bool isLast;
@@ -396,7 +417,7 @@ class _StepTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(readableStep(code), style: AppText.body),
+                    Text(label ?? readableStep(code), style: AppText.body),
                   ],
                 ),
               ),

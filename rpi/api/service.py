@@ -113,6 +113,11 @@ class StatusSnapshot:
     job_id: str | None = None
     last_job_id: str | None = None
     total_steps: int | None = None
+    # 이 실행이 대상으로 삼은 가전. 화면이 "지금 고른 가전"으로 메우지
+    # 않으려면 서버가 말해줘야 한다 -- 실행 중에 다른 가전을 골라도
+    # 진행 중인 작업의 대상은 바뀌지 않는다.
+    appliance_id: str | None = None
+    last_appliance_id: str | None = None
 
 
 class SimpleLayService(PurposeExecutor):
@@ -163,6 +168,8 @@ class SimpleLayService(PurposeExecutor):
         self._lock = threading.Lock()
         self._current_job_id: str | None = None
         self._last_job_id: str | None = None
+        self._current_appliance_id: str | None = None
+        self._last_appliance_id: str | None = None
         self._current_total_steps: int | None = None
         self._progress_tracker = progress_tracker
         # 사용자 정의 가전의 버튼 어휘로 즉석에서 LlmIntentResolver를 만들 때 씀
@@ -269,7 +276,7 @@ class SimpleLayService(PurposeExecutor):
         buttons = self._validate_resolved_sequence(tuple(resolver.resolve(purpose)))
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
-        self._begin_run(len(buttons), controller)
+        self._begin_run(len(buttons), controller, appliance_id)
         try:
             return self._run_buttons(
                 tuple(buttons), controller, purpose, appliance_id, calibration
@@ -293,7 +300,7 @@ class SimpleLayService(PurposeExecutor):
         buttons = tuple(buttons)
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
-        self._begin_run(len(buttons), controller)
+        self._begin_run(len(buttons), controller, appliance_id)
         try:
             # 목적은 없지만 대상 가전은 있다. 넘기지 않으면 수동 버튼
             # 실행의 이력이 '어느 가전에서'를 잃는다 — 커스텀 가전은
@@ -341,7 +348,7 @@ class SimpleLayService(PurposeExecutor):
         # 보정 버전은 **대상을 확정하는 지금** 캡처해 실행 스레드로 넘긴다.
         # 스레드 안에서 다시 읽으면 실행 중에 갱신된 값을 찍는다.
         calibration = self._calibration_snapshot(appliance_id)
-        job_id = self._begin_run(len(buttons), controller)
+        job_id = self._begin_run(len(buttons), controller, appliance_id)
         thread = threading.Thread(
             target=self._run_job,
             args=(buttons, controller, purpose, appliance_id, calibration),
@@ -409,6 +416,7 @@ class SimpleLayService(PurposeExecutor):
         self,
         total_steps: int | None,
         controller: ButtonSequenceController | None = None,
+        appliance_id: str | None = None,
     ) -> str:
         """check-and-set을 락으로 원자화한 실행 시작 게이트.
 
@@ -425,6 +433,7 @@ class SimpleLayService(PurposeExecutor):
             self._stop_requested_at = None
             job_id = uuid.uuid4().hex[:12]
             self._current_job_id = job_id
+            self._current_appliance_id = appliance_id
             self._current_total_steps = total_steps
             self._current_started_at = self._clock.now()
             if controller is not None:
@@ -439,7 +448,9 @@ class SimpleLayService(PurposeExecutor):
         with self._lock:
             self._running = False
             self._last_job_id = self._current_job_id
+            self._last_appliance_id = self._current_appliance_id
             self._current_job_id = None
+            self._current_appliance_id = None
             self._current_total_steps = None
         if self._progress_tracker is not None:
             self._progress_tracker.clear()
@@ -812,4 +823,6 @@ class SimpleLayService(PurposeExecutor):
                 job_id=self._current_job_id,
                 last_job_id=self._last_job_id,
                 total_steps=self._current_total_steps,
+                appliance_id=self._current_appliance_id,
+                last_appliance_id=self._last_appliance_id,
             )

@@ -53,6 +53,8 @@ class RpiStatusResult {
     this.verificationDetail,
     this.jobId,
     this.lastJobId,
+    this.applianceId,
+    this.lastApplianceId,
   });
   final bool running;
   final String? lastStatus;
@@ -69,6 +71,13 @@ class RpiStatusResult {
   // job 모델: 실행 중이면 jobId, 끝나면 lastJobId에 값이 있다
   final String? jobId;
   final String? lastJobId;
+
+  /// 이 실행이 **대상으로 삼은** 가전. jobId와 같은 규칙으로 옮겨간다.
+  ///
+  /// 화면이 지금 고른 가전으로 메우지 않게 하려고 서버가 말해준다 --
+  /// 실행 중에 다른 가전을 골라도 진행 중인 작업의 대상은 바뀌지 않는다.
+  final String? applianceId;
+  final String? lastApplianceId;
 }
 
 class RpiSuggestion {
@@ -396,6 +405,8 @@ class RpiApiService {
       verificationDetail: body['verification_detail'] as String?,
       jobId: body['job_id'] as String?,
       lastJobId: body['last_job_id'] as String?,
+      applianceId: body['appliance_id'] as String?,
+      lastApplianceId: body['last_appliance_id'] as String?,
     );
   }
 

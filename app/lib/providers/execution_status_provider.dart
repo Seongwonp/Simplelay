@@ -207,6 +207,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           // "빙글빙글 돌다 완료되는 앱"이 된다(차별점이 안 보임).
           currentButton: status.currentButton,
           totalSteps: status.totalSteps,
+          applianceId: status.applianceId,
           currentAttempt: status.currentAttempt,
           verificationConfidence: status.verificationConfidence,
           verificationDetail: status.verificationDetail,

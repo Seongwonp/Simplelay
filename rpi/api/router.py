@@ -494,6 +494,8 @@ async def status(
         job_id=snapshot.job_id,
         last_job_id=snapshot.last_job_id,
         total_steps=snapshot.total_steps,
+        appliance_id=snapshot.appliance_id,
+        last_appliance_id=snapshot.last_appliance_id,
     )
 
 
@@ -887,6 +889,8 @@ def status_event_payload(service: SimpleLayService) -> dict:
         "current_attempt": progress.attempt if progress else None,
         "completed_steps": progress.completed_steps if progress else None,
         "total_steps": snap.total_steps,
+        "appliance_id": snap.appliance_id,
+        "last_appliance_id": snap.last_appliance_id,
     }
 
 
