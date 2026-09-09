@@ -113,8 +113,18 @@ void main() {
       expect(find.text('버튼 눌림을 확인하고 있어요.'), findsOneWidget);
     });
 
-    testWidgets('센서 mA / dB 값 표시', (tester) async {
+    testWidgets('센서 수치는 펼쳐야 보인다', (tester) async {
+      // 실행 중에 판단해야 하는 것은 mA·dB 값이 아니라 **눌림을 확인했는가**다.
+      // 수치를 위에 크게 두면 화면이 기술 데모 대시보드가 되고, 이 제품의
+      // 논지가 숫자 뒤로 밀린다. 근거가 필요한 사람은 펼쳐서 본다.
       await _pumpStatus(tester, runningStatus);
+      expect(find.text('320 mA'), findsNothing);
+      expect(find.text('센서 기록 보기'), findsOneWidget);
+
+      await tester.tap(find.text('센서 기록 보기'));
+      // 실행 화면은 진행 표시가 계속 돌아서 pumpAndSettle이 끝나지 않는다.
+      await tester.pump();
+
       expect(find.text('320 mA'), findsOneWidget);
       expect(find.text('42 dB'), findsOneWidget);
     });

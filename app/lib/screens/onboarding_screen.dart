@@ -71,7 +71,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        'AI가 상황을 인식하고 가전을 대신 조작합니다',
+                        '복잡한 가전 버튼을 더 쉽게 조작하세요.\n말하거나 화면에서 고르면 대신 눌러드려요.',
                         textAlign: TextAlign.center,
                         style: AppText.body.copyWith(color: context.appMuted),
                       ),
@@ -87,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       const SizedBox(height: 20),
                       _FeatureRow(
                         icon: Icons.lightbulb_outline_rounded,
-                        title: 'AI 제안',
+                        title: '사용 습관 제안',
                         body: '상황을 감지하면 가전 조작 제안이\n화면에 나타납니다',
                       ),
                       const SizedBox(height: 20),

@@ -219,14 +219,15 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   }),
                 ],
 
-                // ── 센서 바차트 ────────────────────────────────────────────
+                // ── 센서 기록 (접힘) ───────────────────────────────────────
+                //
+                // 실행 중에 사용자가 판단해야 하는 것은 mA·dB 값이 아니라
+                // **눌림을 확인했는가**다. 차트를 위에 크게 두면 화면이 기술
+                // 데모 대시보드가 되고, 이 제품의 논지(실제로 누르고 센서로
+                // 확인한다)가 숫자 뒤로 밀린다. 근거가 필요한 사람은 펼친다.
                 if (hasRawSensor) ...[
-                  const SizedBox(height: 28),
-                  Text('센서 모니터', style: AppText.title),
-                  const SizedBox(height: 12),
-                  // 확대 배율이 커지면 두 카드를 위아래로 놓는다 -- 나란히 두면
-                  // 각자 화면 절반밖에 못 써서 라벨과 수치가 함께 눌린다.
-                  _sensorPair(
+                  const SizedBox(height: 20),
+                  _SensorRecord(
                     stacked: MediaQuery.textScalerOf(context).scale(1) > 1.3,
                     children: [
                       Expanded(
@@ -430,6 +431,68 @@ Widget _sensorPair({required bool stacked, required List<Widget> children}) {
 }
 
 // ── 센서 바차트 카드 ──────────────────────────────────────────────────────
+
+/// 센서 기록 — 평상시 접혀 있고, 근거가 필요할 때만 편다.
+class _SensorRecord extends StatefulWidget {
+  const _SensorRecord({required this.stacked, required this.children});
+
+  /// 확대 배율이 크면 두 카드를 위아래로 놓는다 -- 나란히 두면 각자 화면
+  /// 절반밖에 못 써서 라벨과 수치가 함께 눌린다.
+  final bool stacked;
+  final List<Widget> children;
+
+  @override
+  State<_SensorRecord> createState() => _SensorRecordState();
+}
+
+class _SensorRecordState extends State<_SensorRecord> {
+  bool _open = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          button: true,
+          expanded: _open,
+          child: InkWell(
+            onTap: () => setState(() => _open = !_open),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              // 고령 사용자 기준 최소 터치 대상.
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(Icons.show_chart, size: 20, color: context.appMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '센서 기록 보기',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: context.appMuted,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _open ? Icons.expand_less : Icons.expand_more,
+                    color: context.appMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_open) ...[
+          const SizedBox(height: 4),
+          _sensorPair(stacked: widget.stacked, children: widget.children),
+        ],
+      ],
+    );
+  }
+}
 
 class _SensorChart extends StatelessWidget {
   const _SensorChart({

@@ -49,8 +49,8 @@ class DndOverlay extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     dndUntil != null
-                        ? 'AI 제안이 일시 중단됨'
-                        : 'AI 제안을 잠시 멈춥니다',
+                        ? '사용 습관 제안이 일시 중단됨'
+                        : '사용 습관 제안을 잠시 멈춥니다',
                     style: const TextStyle(
                       fontSize: 14,
                       color: KioskColors.muted,

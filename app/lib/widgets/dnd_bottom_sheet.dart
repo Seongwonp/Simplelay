@@ -111,7 +111,7 @@ class _DndSheet extends ConsumerWidget {
             // 해제
             _OptionTile(
               label: '방해 금지 해제',
-              subtitle: isActive ? 'AI 제안을 다시 받습니다' : '현재 비활성 상태',
+              subtitle: isActive ? '사용 습관 제안을 다시 받습니다' : '현재 비활성 상태',
               iconColor: isActive ? context.appDanger : context.appMuted,
               enabled: isActive,
               onTap: isActive
@@ -188,7 +188,7 @@ class _DndOption {
 }
 
 const _kOptions = [
-  _DndOption('30분', 'AI 제안을 30분간 숨깁니다', 30),
-  _DndOption('1시간', 'AI 제안을 1시간 동안 숨깁니다', 60),
-  _DndOption('2시간', 'AI 제안을 2시간 동안 숨깁니다', 120),
+  _DndOption('30분', '사용 습관 제안을 30분간 숨깁니다', 30),
+  _DndOption('1시간', '사용 습관 제안을 1시간 동안 숨깁니다', 60),
+  _DndOption('2시간', '사용 습관 제안을 2시간 동안 숨깁니다', 120),
 ];
