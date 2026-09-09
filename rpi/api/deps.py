@@ -335,6 +335,7 @@ def get_service() -> SimpleLayService:
         progress_tracker=progress_tracker,
         llm_client=_build_llm_client(),
         node_registry=get_node_registry(),
+        appliance_registry=get_appliance_registry(),
         history_store=get_job_history(),
         care_events=get_care_events(),
     )

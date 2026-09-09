@@ -218,6 +218,34 @@ void main() {
       expect(find.text('홈'), findsOneWidget);
     });
 
+    testWidgets('대상 가전을 모르면 실행 버튼을 내걸지 않는다', (tester) async {
+      // 예전에는 알 수 없는 id를 현재 선택 가전으로 조용히 바꿔 그렸다.
+      // 그러면 지운 선풍기의 제안이 전자레인지 지도를 달고 나오고, 승인까지
+      // 눌린다. 서버도 그 실행을 404로 거절하므로(R1) 누를 수 있는데 안 되는
+      // 버튼이 된다 -- 무엇이 눌릴지 말할 수 없으면 실행을 권하지 않는다.
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        _buildSuggestion(
+          'test-ghost',
+          suggestions: const [
+            Suggestion(
+              sequenceId: 'test-ghost',
+              label: '선풍기 켜줘',
+              steps: ['F-01'],
+              source: SuggestionSource.http,
+              applianceId: 'deleted_fan',
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('대상 가전 정보를 확인해 주세요.'), findsOneWidget);
+      expect(find.text('지금 실행'), findsNothing);
+      // 기본 선택 가전으로 바꿔 그리지 않는다
+      expect(find.text('전자레인지의 실제 버튼 배치'), findsNothing);
+    });
+
     testWidgets('BLE 제안에는 "다시 받지 않기"를 내걸지 않는다', (tester) async {
       // 영구 억제는 서버의 억제 목록에만 남는다. BLE 경로에서는 '이번만
       // 넘기기'와 똑같은 거절 메시지가 되므로, 버튼이 있으면 지키지 못할

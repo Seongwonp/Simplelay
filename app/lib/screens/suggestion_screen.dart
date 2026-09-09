@@ -115,10 +115,27 @@ class SuggestionScreen extends ConsumerWidget {
     // 화면이 보여주는 버튼과 실제 눌릴 버튼이 어긋날 수 있다.
     final selected = ref.watch(selectedApplianceProvider);
     final all = ref.watch(allAppliancesProvider);
-    final appliance = suggestion.applianceId == null
-        ? selected
-        : all.where((a) => a.id == suggestion.applianceId).firstOrNull ??
-            selected;
+    final target = suggestion.applianceId == null
+        ? null
+        : all.where((a) => a.id == suggestion.applianceId).firstOrNull;
+
+    // 대상을 명시했는데 그 가전을 모르겠다면, 현재 선택 가전으로 **바꿔
+    // 그리지 않는다.** 예전에는 조용히 폴백해서, 지운 선풍기의 제안이
+    // 전자레인지 지도를 달고 나오고 승인까지 눌리게 했다. 서버도 이제
+    // 그 실행을 404로 거절하므로(R1), 화면이 승인 버튼을 내걸면 누를 수
+    // 있는데 안 되는 버튼이 된다.
+    if (suggestion.applianceId != null && target == null) {
+      return _UnknownTargetScreen(
+        suggestion: suggestion,
+        onDismiss: () => _dismissSuggestion(
+          context,
+          ref,
+          suggestion,
+          mute: false,
+        ),
+      );
+    }
+    final appliance = target ?? selected;
 
     return Scaffold(
       appBar: AppBar(title: const Text('제안 확인')),
@@ -286,6 +303,63 @@ class SuggestionScreen extends ConsumerWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+// ── 대상 가전을 모를 때 ───────────────────────────────────────────────────
+
+/// 제안이 가리키는 가전을 목록에서 찾지 못했을 때.
+///
+/// 대개 다른 기기에서 그 가전을 지웠거나, 아직 가전 목록을 받지 못한
+/// 상태다. 어느 쪽이든 **무엇이 눌릴지 화면이 말할 수 없으므로** 실행
+/// 버튼을 내걸지 않는다.
+class _UnknownTargetScreen extends StatelessWidget {
+  const _UnknownTargetScreen({
+    required this.suggestion,
+    required this.onDismiss,
+  });
+
+  final Suggestion suggestion;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('제안 확인')),
+      body: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Icon(Icons.help_outline, size: 40, color: context.appWarning),
+            const SizedBox(height: 12),
+            Text(
+              '대상 가전 정보를 확인해 주세요.',
+              textAlign: TextAlign.center,
+              style: AppText.heading,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              "'${suggestion.label}' 제안이 가리키는 가전을 찾지 못했어요. "
+              '다른 기기에서 지웠거나 아직 목록을 받지 못했을 수 있어요.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: context.appMuted),
+            ),
+            const Spacer(),
+            OutlinedButton(
+              onPressed: onDismiss,
+              child: const Text('이 제안 지우기'),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () => context.go('/settings'),
+              icon: const Icon(Icons.settings),
+              label: const Text('가전 목록 확인'),
+            ),
+          ],
+        ),
       ),
     );
   }

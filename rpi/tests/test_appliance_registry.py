@@ -122,10 +122,16 @@ def test_custom_appliances_survive_restart(tmp_path):
 @pytest.fixture()
 def client(monkeypatch):
     monkeypatch.delenv("SIMPLELAY_API_KEY", raising=False)
-    registry = ApplianceRegistry()
-    app.dependency_overrides[deps.get_appliance_registry] = lambda: registry
+    # 실행 대상 게이트가 서비스 안으로 들어오면서(R1) **라우터와 서비스가
+    # 같은 레지스트리를 봐야** 한다. dependency_overrides는 라우터 쪽 간선만
+    # 바꾸고 get_service()는 여전히 진짜 싱글턴을 잡으므로, 방금 등록한
+    # 가전이 실행 시점에는 '없는 가전'이 된다. 캐시를 비워 둘이 같은 새
+    # 인스턴스를 잡게 한다(앞뒤로 비워 테스트 격리도 유지).
+    for dep in (deps.get_appliance_registry, deps.get_service):
+        dep.cache_clear()
     yield TestClient(app)
-    app.dependency_overrides.pop(deps.get_appliance_registry, None)
+    for dep in (deps.get_appliance_registry, deps.get_service):
+        dep.cache_clear()
 
 
 def test_get_appliances_returns_builtins(client):

@@ -37,6 +37,14 @@ class ServiceNotReadyError(RuntimeError):
     """Raised when execute_purpose is called before startup completes or after shutdown."""
 
 
+class UnknownApplianceError(LookupError):
+    """실행 대상 가전을 레지스트리에서 찾을 수 없다.
+
+    **RuntimeError를 상속하지 않는다.** 그쪽은 라우터가 409('다른 작업이
+    실행 중')로 옮기는 자리라, 여기에 섞이면 "잠시 후 다시 시도하세요"로
+    안내된다 -- 기다려도 영원히 안 되는 상황에 대고 하는 말이다."""
+
+
 class LlmNotConfiguredError(RuntimeError):
     """Raised when execute_purpose_for_appliance is called without an LLM
     client configured on this service instance (see the ``llm_client``
@@ -85,6 +93,7 @@ class SimpleLayService(PurposeExecutor):
         progress_tracker: ExecutionProgressTracker | None = None,
         llm_client: LlmClient | None = None,
         node_registry: NodeRegistry | None = None,
+        appliance_registry=None,
         history_store: JobHistoryStore | None = None,
         care_events=None,
     ) -> None:
@@ -112,6 +121,9 @@ class SimpleLayService(PurposeExecutor):
         # self._controller(기본 내장 가전)로 그대로 간다. 다중 노드 아키텍처
         # 전환 전까지는 None으로 둬도 기존 동작과 완전히 동일하다.
         self._node_registry = node_registry
+        # 실행 대상 가전의 존재 검증(R1). None이면 검증하지 않는다 --
+        # 가전 개념이 없는 구성(rpi4 브리지·단위 테스트)의 기존 동작 유지.
+        self._appliance_registry = appliance_registry
         # 실행 이력(무엇을·언제·재시도·결과) — None이면 기록하지 않는다
         self._history_store = history_store
         # 보호자 알림(실패·긴급정지) — None이면 기록하지 않는다
@@ -424,14 +436,33 @@ class SimpleLayService(PurposeExecutor):
         return self._last_result
 
     def _controller_for(self, appliance_id: str | None) -> ButtonSequenceController:
-        """Routes to the appliance's registered node if there is one,
-        otherwise falls back to the local default controller (today's only
-        behavior, and still the answer for the built-in appliance)."""
+        """실행 대상 컨트롤러를 고른다 -- **모든 진입점의 합류점**이다.
+
+        등록된 노드가 있으면 그쪽으로, 없으면 로컬 기본 컨트롤러로 간다.
+        그 폴백은 **레지스트리에 존재하는 가전**에 한해서만 안전하다
+        (내장 가전과, 실물 노드가 아직 없는 커스텀 가전). 존재하지 않는
+        id까지 폴백하면 삭제된 선풍기의 버튼 시퀀스가 전자레인지
+        갠트리에서 실행된다 -- 물리 오라우팅이다.
+
+        검증이 여기 있는 이유: 예전에는 라우터의 직접 실행 3개 경로에만
+        있어서 제안 승인이 그대로 통과했다. 진입점이 늘 때마다 같은
+        구멍이 생기므로, 대상을 고르는 이 한 곳에서 거절한다.
+        """
+        self._require_known_appliance(appliance_id)
         if appliance_id is not None and self._node_registry is not None:
             node_controller = self._node_registry.get(appliance_id)
             if node_controller is not None:
                 return node_controller
         return self._controller
+
+    def _require_known_appliance(self, appliance_id: str | None) -> None:
+        if appliance_id is None or self._appliance_registry is None:
+            return
+        if self._appliance_registry.get(appliance_id) is None:
+            raise UnknownApplianceError(
+                f"appliance '{appliance_id}' not found -- 삭제되었거나 "
+                "등록되지 않은 가전입니다"
+            )
 
     def emergency_stop(self) -> bool:
         """긴급 정지 — 로컬 기본 컨트롤러와 등록된 모든 노드 컨트롤러 중

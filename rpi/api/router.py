@@ -78,31 +78,17 @@ def _to_steps(result: ExecutionResult) -> list[ButtonStep]:
 # 항상 초과하는 구조적 문제가 있었다.)
 
 
-def _require_known_appliance(appliance_id: str | None, registry) -> None:
-    """실행 요청의 가전 게이트 (교차 리뷰 치명 #1).
-
-    _controller_for()는 노드 미등록 가전을 로컬 기본 컨트롤러로 폴백하는데,
-    이는 **레지스트리에 존재하는 가전**에 한해서만 안전하다(내장 가전과,
-    실물 노드가 아직 없는 데모용 커스텀 가전 — 8/31 에어컨). 존재하지 않는
-    id(폰에서 삭제됐거나 임의 값)까지 폴백하면 삭제된 선풍기의 버튼
-    시퀀스가 전자레인지 갠트리에서 실행될 수 있다 — 물리 오라우팅."""
-    if appliance_id is None:
-        return
-    if registry.get(appliance_id) is None:
-        raise HTTPException(
-            status_code=404,
-            detail=f"appliance '{appliance_id}' not found — 삭제되었거나 "
-            "등록되지 않은 가전입니다",
-        )
+# 실행 대상 가전 게이트는 SimpleLayService._controller_for로 옮겼다 (R1).
+# 라우터마다 검사를 붙이면 진입점이 늘 때마다 같은 구멍이 다시 생긴다 --
+# 실제로 제안 승인 경로가 그렇게 빠져 있었다. 여기서는 서비스가 던진
+# UnknownApplianceError를 HTTP 404로 옮기기만 한다.
 
 
 @router.post("/execute", response_model=JobAcceptedResponse)
 async def execute(
     body: ExecuteRequest,
     service: SimpleLayService = Depends(get_service),
-    registry=Depends(get_appliance_registry),
 ) -> JobAcceptedResponse:
-    _require_known_appliance(body.appliance_id, registry)
     try:
         job_id = await asyncio.to_thread(
             service.submit_purpose, body.text, body.appliance_id
@@ -118,10 +104,8 @@ async def execute(
 async def execute_buttons(
     body: ExecuteButtonsRequest,
     service: SimpleLayService = Depends(get_service),
-    registry=Depends(get_appliance_registry),
 ) -> JobAcceptedResponse:
     # 의도 해석 규칙이 없는 사용자 정의 가전용 — 목적 문자열 없이 버튼을 직접 실행.
-    _require_known_appliance(body.appliance_id, registry)
     try:
         job_id = await asyncio.to_thread(
             service.submit_buttons, tuple(body.buttons), body.appliance_id
@@ -135,11 +119,9 @@ async def execute_buttons(
 async def execute_for_appliance(
     body: ExecuteForApplianceRequest,
     service: SimpleLayService = Depends(get_service),
-    registry=Depends(get_appliance_registry),
 ) -> JobAcceptedResponse:
     # 사용자 정의 가전용 음성 명령 — 요청에 실린 버튼 어휘를 기준으로 LLM이
     # 자유발화를 해석한다. LLM이 서버에 설정 안 돼 있으면 503.
-    _require_known_appliance(body.appliance_id, registry)
     try:
         job_id = await asyncio.to_thread(
             service.submit_purpose_for_appliance,
@@ -266,6 +248,7 @@ async def delete_appliance(
     appliance_id: str,
     registry=Depends(get_appliance_registry),
     nodes: NodeRegistry = Depends(get_node_registry),
+    suggestions: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> OkResponse:
     try:
         found = registry.delete(appliance_id)
@@ -276,6 +259,9 @@ async def delete_appliance(
     # 연결 노드도 함께 정리 — 남겨두면 유령 노드에 긴급 정지가 계속 가고,
     # 같은 id 재등록 시 예전 주소가 조용히 재사용된다 (교차 리뷰 #4)
     nodes.unregister(appliance_id)
+    # 그 가전을 대상으로 하던 제안 카드도 내린다 (R1) — 남겨두면 실행할
+    # 수 없는 것을 계속 권유하고, 승인하면 404로 거절된다.
+    suggestions.drop_for_appliance(appliance_id)
     return OkResponse()
 
 

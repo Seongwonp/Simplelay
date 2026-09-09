@@ -5,8 +5,8 @@ import os
 import pathlib
 
 import uvicorn
-from fastapi import Depends, FastAPI
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, Request
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from rpi.api.auth import require_api_key
@@ -16,6 +16,7 @@ from rpi.api.deps import (
     get_wellness_checker,
 )
 from rpi.api.router import router
+from rpi.api.service import UnknownApplianceError
 from rpi.api.schemas import HealthResponse
 from rpi.intent.suggestions import ProactiveSuggestionService
 
@@ -113,6 +114,18 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SimpleLay RPi API", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(UnknownApplianceError)
+async def _unknown_appliance(_request: Request, exc: UnknownApplianceError):
+    """실행 대상 가전이 없을 때의 응답을 한 곳에서 정한다 (R1).
+
+    라우터마다 검사를 붙이면 진입점이 늘 때마다 구멍이 생기므로, 검증은
+    서비스(_controller_for)에 두고 매핑만 여기서 한다. 404여야 하는
+    이유: 409('다른 작업 실행 중')로 뭉뚱그리면 클라이언트가 '잠시 후
+    다시 시도하세요'로 안내하는데, 기다려도 영원히 안 되는 상황이다.
+    """
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
 # SIMPLELAY_API_KEY 설정 시 라우터 전체에 X-API-Key 요구 (auth.py 참고).
 # /health(아래)와 /ui는 의도적으로 키 없이 개방.
 app.include_router(router, dependencies=[Depends(require_api_key)])

@@ -204,6 +204,28 @@ class ProactiveSuggestionService:
         if mute and self._suppression_store is not None:
             self._suppression_store.mute(purpose)
 
+    def drop_for_appliance(self, appliance_id: str) -> int:
+        """그 가전을 대상으로 하던 pending 제안을 내린다.
+
+        가전을 지웠는데 그 가전의 제안 카드가 화면에 남아 있으면,
+        사용자는 실행할 수 없는 것을 계속 권유받는다. 승인해도 이제는
+        404로 거절되므로(R1) 카드 자체를 남길 이유가 없다.
+
+        억제 목록에는 넣지 않는다 -- 사용자가 '그만 추천해'라고 한 게
+        아니라 대상이 사라진 것이므로, 같은 가전을 다시 등록하면 제안도
+        다시 나와야 한다.
+        """
+        with self._state_lock:
+            doomed = [
+                s.suggestion_id
+                for s in self._suggestions.values()
+                if s.appliance_id == appliance_id
+                and s.status is SuggestionStatus.PENDING
+            ]
+            for sid in doomed:
+                self._suggestions.pop(sid, None)
+        return len(doomed)
+
     def muted_purposes(self) -> tuple[str, ...]:
         """다시 추천 안 하는 루틴 목록(설정 화면용)."""
         if self._suppression_store is None:
@@ -243,9 +265,13 @@ class ProactiveSuggestionService:
         # 승인권 획득(원자적) 후 실행은 락 밖에서 — 물리 실행을 락 안에서
         # 돌리면 그동안 모든 제안 조작이 멈춘다.
         suggestion = self._claim_for_approval(suggestion_id)
-        return self._executor.execute_purpose(
-            suggestion.purpose, suggestion.appliance_id
-        )
+        try:
+            return self._executor.execute_purpose(
+                suggestion.purpose, suggestion.appliance_id
+            )
+        except Exception:
+            self._release_claim(suggestion_id)
+            raise
 
     def approve_submit(self, suggestion_id: str) -> str:
         """approve의 비동기(job 모델) 버전 — 실행을 백그라운드로 제출하고
@@ -255,9 +281,32 @@ class ProactiveSuggestionService:
         # 화면이 보여준 대상 가전으로 실행한다 -- 전역 선택값이 그 사이
         # 바뀌어도 승인한 제안의 대상은 달라지지 않아야 한다.
         suggestion = self._claim_for_approval(suggestion_id)
-        return self._executor.submit_purpose(
-            suggestion.purpose, suggestion.appliance_id
-        )
+        try:
+            return self._executor.submit_purpose(
+                suggestion.purpose, suggestion.appliance_id
+            )
+        except Exception:
+            self._release_claim(suggestion_id)
+            raise
+
+    def _release_claim(self, suggestion_id: str) -> None:
+        """실행에 실패한 승인의 게이트를 되돌린다.
+
+        게이트의 뜻은 '실행을 제출했다'이다. 대상 가전이 사라졌거나(404)
+        서버가 다른 작업 중이라(409) **제출 자체가 안 됐으면** 소비되면
+        안 된다 -- 카드만 사라지고 아무 일도 일어나지 않는다. 사용자는
+        "끝난 뒤 다시 시도하세요"라는 안내를 받는데 정작 다시 시도할
+        카드가 없어진다.
+
+        되돌려도 이중 실행이 되지 않는 근거: 실행 제출은 executor 호출의
+        마지막 단계이고, 여기 오는 예외는 모두 그 전에 난 것이다.
+        """
+        with self._state_lock:
+            suggestion = self._suggestions.get(suggestion_id)
+            if suggestion is not None:
+                self._suggestions[suggestion_id] = replace(
+                    suggestion, status=SuggestionStatus.PENDING
+                )
 
     def _pending_for(
         self, purpose: str, time_band: str
