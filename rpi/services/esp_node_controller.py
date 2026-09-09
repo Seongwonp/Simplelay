@@ -23,7 +23,7 @@ from urllib.parse import urlparse, urlunparse
 
 import httpx
 
-from rpi.controller import ExecutionResult
+from rpi.controller import ExecutionMode, ExecutionResult
 
 from .aggregate_result import synthesize_execution_result
 
@@ -67,6 +67,12 @@ class EspNodeError(RuntimeError):
 
 
 class EspNodeController:
+    #: 전송이 원격이라는 사실은 **물리적으로 눌렸는지에 대해 아무것도**
+    #: 말해주지 않는다 -- 저쪽 노드가 자기 안에서 mock을 돌리고 있을 수
+    #: 있다. 노드가 자기 모드를 보고하게 되면(F1 readiness) 그 값으로
+    #: 채운다. 그전까지는 모른다고 기록한다.
+    execution_mode = ExecutionMode.UNKNOWN
+
     """Args:
     base_url: e.g. "http://192.168.1.42:8080" -- this node's address.
     client:   Injectable httpx.Client for testing (see httpx.MockTransport);

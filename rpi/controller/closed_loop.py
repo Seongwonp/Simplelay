@@ -8,6 +8,7 @@ from rpi.verifier import VerificationResult, Verifier
 from .models import (
     ButtonResult,
     ButtonStatus,
+    ExecutionMode,
     ExecutionProgress,
     ExecutionResult,
     ExecutionStatus,
@@ -45,6 +46,18 @@ class ClosedLoopController:
         # /stop(긴급 정지)용. 실행은 별도 스레드(asyncio.to_thread)에서 돌고
         # 정지 요청은 FastAPI 요청 스레드에서 오므로 threading.Event를 쓴다.
         self._stop_requested = threading.Event()
+
+    @property
+    def execution_mode(self) -> ExecutionMode:
+        """이 컨트롤러가 실제 액추에이터를 움직였는가.
+
+        판단은 **자기가 쥔 클라이언트**에게 묻는다. 서버 전역 설정으로
+        정하면, 같은 서버가 로컬 mock과 원격 실기기를 함께 쓰는 통합
+        기간에 이력이 둘을 섞어버린다.
+        """
+        return getattr(
+            self._grbl, "execution_mode", ExecutionMode.UNKNOWN
+        )
 
     def request_stop(self) -> None:
         """Ask a running execute() to safety-stop at the next button/attempt

@@ -290,18 +290,6 @@ def get_wellness_checker():
     )
 
 
-def _execution_mode():
-    """이 서버가 실제 하드웨어를 움직이는가 (F4 실험 기록용).
-
-    판단 근거는 컨트롤러를 고르는 근거와 같아야 한다 -- 별도 플래그를
-    두면 둘이 어긋나서 mock 실행이 'real'로 기록될 수 있다.
-    """
-    from rpi.services.history import ExecutionMode  # noqa: PLC0415
-
-    mode = os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower()
-    return ExecutionMode.REAL if mode == "uart" else ExecutionMode.MOCK
-
-
 @lru_cache(maxsize=1)
 def get_appliance_registry():
     """가전 정의의 단일 진실원천 — 내장 + 폰에서 등록한 커스텀.
@@ -348,7 +336,6 @@ def get_service() -> SimpleLayService:
         llm_client=_build_llm_client(),
         node_registry=get_node_registry(),
         appliance_registry=get_appliance_registry(),
-        execution_mode=_execution_mode(),
         history_store=get_job_history(),
         care_events=get_care_events(),
     )

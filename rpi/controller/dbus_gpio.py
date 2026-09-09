@@ -21,7 +21,7 @@ from collections.abc import Callable, Mapping
 
 from rpi import dbus_env
 
-from .models import PressCommand
+from .models import ExecutionMode, PressCommand
 from .ports import GrblClient
 
 CompletedProcess = subprocess.CompletedProcess[str]
@@ -37,6 +37,9 @@ class UnknownButtonError(KeyError):
 
 
 class DbusGpioClient(GrblClient):
+    #: 이 구현은 실제 액추에이터를 움직인다.
+    execution_mode = ExecutionMode.REAL
+
     _DIRECTION_OUT = "1"
 
     def __init__(

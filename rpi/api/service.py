@@ -43,6 +43,16 @@ class ServiceNotReadyError(RuntimeError):
     """Raised when execute_purpose is called before startup completes or after shutdown."""
 
 
+def _mode_of(controller: object | None) -> ExecutionMode:
+    """실행 대상이 스스로 밝힌 실제/모의 모드.
+
+    밝히지 않으면 UNKNOWN이다. 라우팅 결과(원격이냐 로컬이냐)로
+    추측하지 않는다 -- 전송이 원격이라는 사실은 저쪽이 실제로 눌렀는지에
+    대해 아무것도 말해주지 않는다.
+    """
+    return getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
+
+
 class UnknownApplianceError(LookupError):
     """실행 대상 가전을 레지스트리에서 찾을 수 없다.
 
@@ -102,7 +112,6 @@ class SimpleLayService(PurposeExecutor):
         appliance_registry=None,
         history_store: JobHistoryStore | None = None,
         care_events=None,
-        execution_mode: ExecutionMode = ExecutionMode.UNKNOWN,
     ) -> None:
         self._intent = intent
         self._controller = controller
@@ -139,9 +148,6 @@ class SimpleLayService(PurposeExecutor):
         # 종류를 가른다(사용자가 멈춘 것 vs 스스로 실패한 것은 보호자에게
         # 전혀 다른 소식이다). _lock으로 보호.
         self._stop_requested_this_run = False
-        # 이 실행이 실제 하드웨어를 움직였는지. 실기기 실험(F4)에서
-        # mock 실행이 성공률 통계에 섞이지 않게 기록 단계에서 가른다.
-        self._execution_mode = execution_mode
         # 지금 실행의 시작 시각 — 소요시간을 재려면 필요하다. _lock으로 보호.
         self._current_started_at = None
 
@@ -237,7 +243,12 @@ class SimpleLayService(PurposeExecutor):
         controller = self._controller_for(appliance_id)
         self._begin_run(len(buttons), controller)
         try:
-            return self._run_buttons(buttons, controller, purpose=None)
+            # 목적은 없지만 대상 가전은 있다. 넘기지 않으면 수동 버튼
+            # 실행의 이력이 '어느 가전에서'를 잃는다 — 커스텀 가전은
+            # 대부분 이 경로로 조작되므로 실험 표본이 통째로 빈다.
+            return self._run_buttons(
+                buttons, controller, None, appliance_id
+            )
         finally:
             self._end_run()
 
@@ -299,7 +310,11 @@ class SimpleLayService(PurposeExecutor):
             # 남기고 /status의 last_status="failed"로 실패를 노출한다.
             log.exception("background job execution failed")
             self._last_result = ExecutionResult(ExecutionStatus.FAILED, ())
-            self._record_history(self._last_result, purpose, appliance_id)
+            # 컨트롤러는 알고 있으므로 모드도 함께 남긴다 — 예외로 끝난
+            # 실행이야말로 실기기 실험에서 놓치면 안 되는 표본이다.
+            self._record_history(
+                self._last_result, purpose, appliance_id, controller=controller
+            )
             # 보호자 알림도 남긴다 — 오히려 진짜 하드웨어 장애(UART 단절 등)
             # 일수록 예외로 끝나는데, 그게 알림함에서 빠지면 안 된다
             # (교차 리뷰 #7). 내부 예외 문구는 노출하지 않는다.
@@ -361,6 +376,7 @@ class SimpleLayService(PurposeExecutor):
         purpose: str | None,
         appliance_id: str | None = None,
         stopped_by_user: bool = False,
+        controller: ButtonSequenceController | None = None,
     ) -> None:
         """실행 이력 기록 — 실패해도 실행 자체를 절대 막지 않는다.
 
@@ -384,7 +400,7 @@ class SimpleLayService(PurposeExecutor):
                         for b in result.buttons
                     ),
                     appliance_id=appliance_id,
-                    execution_mode=self._execution_mode,
+                    execution_mode=_mode_of(controller),
                     started_at=self._current_started_at,
                     termination=self._termination_of(result, stopped_by_user),
                 )
@@ -460,7 +476,14 @@ class SimpleLayService(PurposeExecutor):
             stopped_by_user = self._stop_requested_this_run
             self._stop_requested_this_run = False
         self._record_history(
-            self._last_result, purpose, appliance_id, stopped_by_user
+            self._last_result,
+            purpose,
+            appliance_id,
+            stopped_by_user,
+            # 실제로 실행한 대상이 자기 모드를 말한다 -- 서버 전역 설정을
+            # 쓰면 가전별 원격 노드로 라우팅된 실행이 로컬 설정값으로
+            # 기록된다(실제 실행이 mock 통계에 섞인다).
+            controller,
         )
         self._record_care_outcome(
             self._last_result, purpose, buttons, stopped_by_user

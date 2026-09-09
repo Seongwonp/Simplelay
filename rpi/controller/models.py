@@ -35,6 +35,24 @@ class ButtonResult:
     errors: tuple[str, ...] = ()
 
 
+class ExecutionMode(str, Enum):
+    """이 실행이 실제 하드웨어를 움직였나.
+
+    **실행 대상 자신이 말한다.** 서버 전역 플래그로 정하면, 가전별
+    원격 노드로 라우팅된 실행이 로컬 설정값으로 기록된다 — 실제로
+    누른 실행이 mock 통계에 섞이는 것이다.
+
+    전송이 원격이라는 사실은 물리적으로 눌렸는지에 대해 아무것도
+    말해주지 않는다(저쪽 보드가 mock을 돌리고 있을 수 있다). 그래서
+    모르면 UNKNOWN이다 — 기본값을 REAL이나 MOCK으로 두는 순간
+    통계가 조용히 한쪽으로 기운다.
+    """
+
+    REAL = "real"
+    MOCK = "mock"
+    UNKNOWN = "unknown"
+
+
 class ExecutionStatus(str, Enum):
     SUCCEEDED = "succeeded"
     SAFETY_STOPPED = "safety_stopped"

@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable
 from typing import Protocol
 
-from .models import ExecutionResult, PressCommand
+from .models import ExecutionMode, ExecutionResult, PressCommand
 
 
 class ButtonSequenceController(Protocol):
@@ -18,8 +18,19 @@ class ButtonSequenceController(Protocol):
 
     def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult: ...
 
+    #: 선택 속성. 이 대상이 실제 액추에이터를 움직였는지 -- 실행 이력이
+    #: 실제/모의를 가르는 근거다(F4). 이 속성이 없는 구현은 UNKNOWN으로
+    #: 취급한다: 라우팅 결과를 보고 추측하지 않는다.
+    #:
+    #: execution_mode: ExecutionMode
+
 
 class GrblClient(ABC):
+    #: 이 클라이언트가 실제 액추에이터를 움직이는가. 구현이 스스로
+    #: 밝힌다 -- 실행 이력이 실제/모의를 가르는 근거가 된다(F4).
+    #: 밝히지 않으면 UNKNOWN으로 남는다: 지어내지 않는다.
+    execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
+
     @abstractmethod
     def press(self, command: PressCommand) -> None:
         """Move and press, or raise an exception for error/alarm responses."""

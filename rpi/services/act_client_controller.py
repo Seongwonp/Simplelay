@@ -22,7 +22,7 @@ import logging
 import threading
 from collections.abc import Callable
 
-from rpi.controller import ExecutionResult
+from rpi.controller import ExecutionMode, ExecutionResult
 
 from .act_client import ActClient, ActClientConfig, ActLinkTimeoutError, AlertEvent
 from .aggregate_result import synthesize_execution_result
@@ -31,6 +31,11 @@ log = logging.getLogger(__name__)
 
 
 class ActClientController:
+    #: UART 너머 RPi4가 실제 모터를 돌리는지, 자기 안에서 mock을 돌리는지
+    #: 이쪽에서는 알 수 없다. 'UART니까 real'은 추측이다 -- 실기기 통합
+    #: 초기에는 실제로 저쪽이 mock인 기간이 있다.
+    execution_mode = ExecutionMode.UNKNOWN
+
     """Dispatches whole button sequences to the real RPi4 board over UART
     instead of running a local closed loop.
 

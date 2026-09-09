@@ -62,11 +62,23 @@ class _SteppingClock:
         return value
 
 
+class _RealGrbl(MockGrblClient):
+    """실기기 클라이언트 흉내 — 자기가 실제로 누른다고 말한다.
+
+    모드는 **실행 대상이** 말한다(서비스에 주입하는 전역 플래그가 아니다).
+    가전별 원격 노드로 라우팅되면 서비스 설정과 실제 실행 대상이 달라지기
+    때문이다 — test_execution_mode_routing.py가 그 이음매를 고정한다.
+    """
+
+    execution_mode = ExecutionMode.REAL
+
+
 def _service(history, *, clock=None, outcomes=None, mode=ExecutionMode.MOCK):
+    grbl = _RealGrbl() if mode is ExecutionMode.REAL else MockGrblClient()
     return SimpleLayService(
         RuleBasedIntentResolver(),
         ClosedLoopController(
-            MockGrblClient(),
+            grbl,
             MockVerifier(outcomes=outcomes or [True] * 20),
             MockAlertSink(),
             MockSafetyController(),
@@ -74,7 +86,6 @@ def _service(history, *, clock=None, outcomes=None, mode=ExecutionMode.MOCK):
         ),
         clock=clock or FixedClock(_NOW),
         history_store=history,
-        execution_mode=mode,
     )
 
 
@@ -137,6 +148,8 @@ def test_user_stop_is_recorded_as_user_stop():
     holder: list[SimpleLayService] = []
 
     class _StopsItself:
+        execution_mode = ExecutionMode.MOCK
+
         def execute(self, buttons):
             holder[0].emergency_stop()
             return ExecutionResult(
@@ -152,7 +165,6 @@ def test_user_stop_is_recorded_as_user_stop():
         _StopsItself(),
         clock=FixedClock(_NOW),
         history_store=history,
-        execution_mode=ExecutionMode.MOCK,
     )
     holder.append(service)
 

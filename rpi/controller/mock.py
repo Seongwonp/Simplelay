@@ -3,11 +3,13 @@
 from collections import deque
 from collections.abc import Iterable
 
-from .models import PressCommand
+from .models import ExecutionMode, PressCommand
 from .ports import AlertSink, GrblClient, RetryWaiter, SafetyController
 
 
 class MockGrblClient(GrblClient):
+    execution_mode = ExecutionMode.MOCK
+
     """Fake GRBL client where ``None`` means ok and an exception means error."""
 
     def __init__(self, responses: Iterable[Exception | None] = ()) -> None:

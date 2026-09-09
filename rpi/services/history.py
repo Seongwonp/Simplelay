@@ -21,18 +21,9 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Protocol
 
-
-class ExecutionMode(str, Enum):
-    """이 실행이 실제 하드웨어를 움직였나.
-
-    mock 실행이 성공률 통계에 섞이면 숫자가 사실이 아니게 된다. 부풀리려
-    한 게 아니어도 결과는 같으므로, 기록 단계에서부터 가른다.
-    """
-
-    REAL = "real"
-    MOCK = "mock"
-    #: 이 열이 생기기 전에 쌓인 기록 -- 모드를 지어내지 않는다.
-    UNKNOWN = "unknown"
+# 실행 모드는 **실행 경로의 성질**이라 컨트롤러 계층에 산다. 여기서
+# 다시 정의하면 같은 이름의 enum이 둘이 되어 `is` 비교가 조용히 어긋난다.
+from rpi.controller import ExecutionMode
 
 
 class Termination(str, Enum):

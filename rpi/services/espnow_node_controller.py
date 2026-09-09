@@ -32,7 +32,7 @@ import threading
 from collections.abc import Callable
 from typing import Protocol
 
-from rpi.controller import ExecutionResult
+from rpi.controller import ExecutionMode, ExecutionResult
 
 from .aggregate_result import synthesize_execution_result
 from .esp_node_controller import (
@@ -316,6 +316,10 @@ class EspNowGatewayLink:
 
 
 class EspNowNodeController:
+    #: EspNodeController와 같은 이유로 UNKNOWN — 게이트웨이 너머의
+    #: 노드가 실제로 눌렀는지는 여기서 알 수 없다.
+    execution_mode = ExecutionMode.UNKNOWN
+
     """한 가전 노드를 담당하는 컨트롤러. 주소가 URL이 아니라 MAC이다."""
 
     def __init__(
