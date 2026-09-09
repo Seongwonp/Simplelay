@@ -10,7 +10,11 @@ from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestion
 
 from rpi.services import DangerAlertStore, NodeRegistry
 from rpi.services.history import history_csv
-from rpi.services.readiness import ApplianceReadiness, ReadinessCheck
+from rpi.services.readiness import (
+    ApplianceReadiness,
+    ReadinessCheck,
+    ReadinessRegistry,
+)
 
 from rpi.services import ApplianceButtonDef, ApplianceDef, BuiltinApplianceError
 from rpi.services.appliance_registry import RevisionConflictError
@@ -393,6 +397,7 @@ async def delete_appliance(
     registry=Depends(get_appliance_registry),
     nodes: NodeRegistry = Depends(get_node_registry),
     suggestions: ProactiveSuggestionService = Depends(get_suggestion_service),
+    readiness: ReadinessRegistry = Depends(get_readiness_registry),
 ) -> OkResponse:
     try:
         found = registry.delete(
@@ -409,12 +414,25 @@ async def delete_appliance(
         ) from exc
     if not found:
         raise HTTPException(status_code=404, detail="appliance not found")
-    # 연결 노드도 함께 정리 — 남겨두면 유령 노드에 긴급 정지가 계속 가고,
-    # 같은 id 재등록 시 예전 주소가 조용히 재사용된다 (교차 리뷰 #4)
-    nodes.unregister(appliance_id)
-    # 그 가전을 대상으로 하던 제안 카드도 내린다 (R1) — 남겨두면 실행할
-    # 수 없는 것을 계속 권유하고, 승인하면 404로 거절된다.
-    suggestions.drop_for_appliance(appliance_id)
+
+    # 여기서부터는 **삭제가 확정된 뒤의 뒷정리**다.
+    #
+    # 준비 판정 제거를 finally에 두는 이유: 아래 부가 정리(노드 해제·제안
+    # 내리기)가 예외를 던지면 그 뒤가 실행되지 않는데, 판정이 남으면 같은
+    # id로 다시 등록했을 때 **확인한 적 없는 '조작 가능'을 물려받는다.**
+    # 부가 작업 하나의 실패가 위험 상태를 남기게 두지 않는다.
+    #
+    # 예외를 삼키지는 않는다 -- 호출자는 뒷정리가 덜 끝났다는 것을 알아야
+    # 한다. 다만 그 사이에도 판정만은 반드시 버린다.
+    try:
+        # 연결 노드도 함께 정리 — 남겨두면 유령 노드에 긴급 정지가 계속 가고,
+        # 같은 id 재등록 시 예전 주소가 조용히 재사용된다 (교차 리뷰 #4)
+        nodes.unregister(appliance_id)
+        # 그 가전을 대상으로 하던 제안 카드도 내린다 (R1) — 남겨두면 실행할
+        # 수 없는 것을 계속 권유하고, 승인하면 404로 거절된다.
+        suggestions.drop_for_appliance(appliance_id)
+    finally:
+        readiness.forget(appliance_id)
     return OkResponse()
 
 
@@ -722,10 +740,16 @@ async def register_node(
     appliance_id: str,
     body: NodeRegisterRequest,
     registry: NodeRegistry = Depends(get_node_registry),
+    readiness: ReadinessRegistry = Depends(get_readiness_registry),
 ) -> NodeResponse:
     # 같은 appliance_id로 다시 부르면 주소가 교체된다(재등록) — 노드가 재부팅돼서
     # DHCP로 IP가 바뀐 경우 등을 위해 의도적으로 덮어쓰기 허용.
     registry.register(appliance_id, body.base_url)
+    # 주소가 바뀌었다면 **다른 기기로 갈아 끼운 것일 수 있다.** 앞 기기에서
+    # 맞춘 버튼 좌표가 새 기기에도 맞다고 볼 근거는 없으므로 판정을 버린다.
+    # 최초 등록도 마찬가지다 -- "등록됐다"는 "맡겨도 된다"가 아니다(F1).
+    # 새 보고가 올 때까지 이 가전은 다시 '준비 필요'다.
+    readiness.forget(appliance_id)
     return NodeResponse(appliance_id=appliance_id, base_url=body.base_url)
 
 
@@ -733,8 +757,15 @@ async def register_node(
 async def unregister_node(
     appliance_id: str,
     registry: NodeRegistry = Depends(get_node_registry),
+    readiness: ReadinessRegistry = Depends(get_readiness_registry),
 ) -> OkResponse:
-    registry.unregister(appliance_id)
+    # 노드 해제가 실패하더라도 판정은 버린다 -- 누를 장치가 없는데 조작
+    # 가능이 남아 있는 것이 더 위험하다.
+    try:
+        registry.unregister(appliance_id)
+    finally:
+        # 가전 정의는 남아도, 누를 장치가 없으면 조작 가능일 수 없다.
+        readiness.forget(appliance_id)
     return OkResponse()
 
 
