@@ -174,6 +174,136 @@ def test_user_stop_is_recorded_as_user_stop():
     assert entry.termination is Termination.STOPPED_BY_USER
 
 
+def test_user_stop_records_when_the_stop_was_accepted():
+    """정지 지연은 **접수 시각과 종료 시각의 차이**다. 시작·종료 시각만으로는
+    "전체 얼마나 걸렸나"까지가 한계라, 그 열이 없으면 CSV에서 정지 지연을
+    아예 뺄 수 없다 — H1이 요구하는 다섯 지표 중 하나가 통째로 빠진다."""
+    history = InMemoryJobHistory()
+    holder: list[SimpleLayService] = []
+
+    class _StopsItself:
+        execution_mode = ExecutionMode.MOCK
+
+        def execute(self, buttons):
+            holder[0].emergency_stop()
+            return ExecutionResult(
+                ExecutionStatus.SAFETY_STOPPED,
+                tuple(
+                    ButtonResult(b, ButtonStatus.FAILED, 1, None)
+                    for b in buttons
+                ),
+            )
+
+    service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        _StopsItself(),
+        clock=_SteppingClock(_NOW),
+        history_store=history,
+    )
+    holder.append(service)
+
+    service.execute_purpose("우유 데워줘")
+
+    (entry,) = history.recent()
+    assert entry.stop_requested_at is not None
+    assert entry.stop_latency is not None
+    assert entry.stop_latency >= timedelta(0)
+    # 접수는 시작 뒤, 종료 앞이다.
+    assert entry.started_at <= entry.stop_requested_at <= entry.finished_at
+
+
+def test_a_run_that_finished_on_its_own_has_no_stop_time():
+    """정지하지 않은 실행에 접수 시각이 남으면 지연 통계의 분모가 오염된다."""
+    history = InMemoryJobHistory()
+    _service(history).execute_purpose("우유 데워줘")
+
+    (entry,) = history.recent()
+    assert entry.stop_requested_at is None
+    assert entry.stop_latency is None
+
+
+def test_stop_time_does_not_leak_into_the_next_run():
+    """정지로 끝난 실행 다음에 정상 실행이 오면, 앞 실행의 접수 시각이
+    따라붙어선 안 된다."""
+    history = InMemoryJobHistory()
+    holder: list[SimpleLayService] = []
+    stop_once = [True]
+
+    class _StopsOnce:
+        execution_mode = ExecutionMode.MOCK
+
+        def execute(self, buttons):
+            if stop_once[0]:
+                stop_once[0] = False
+                holder[0].emergency_stop()
+                return ExecutionResult(
+                    ExecutionStatus.SAFETY_STOPPED,
+                    tuple(
+                        ButtonResult(b, ButtonStatus.FAILED, 1, None)
+                        for b in buttons
+                    ),
+                )
+            return ExecutionResult(
+                ExecutionStatus.SUCCEEDED,
+                tuple(
+                    ButtonResult(b, ButtonStatus.SUCCEEDED, 1, None)
+                    for b in buttons
+                ),
+            )
+
+    service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        _StopsOnce(),
+        clock=_SteppingClock(_NOW),
+        history_store=history,
+    )
+    holder.append(service)
+
+    service.execute_purpose("우유 데워줘")
+    service.execute_purpose("우유 데워줘")
+
+    # recent()는 최신순이다.
+    latest, first = history.recent()
+    assert first.stop_requested_at is not None
+    assert latest.stop_requested_at is None
+
+
+def test_stop_pressed_twice_keeps_the_first_moment():
+    """연타로 기준점이 뒤로 밀리면 지연이 실제보다 짧게 기록된다 --
+    사용자가 멈추라고 한 순간은 첫 번째다."""
+    history = InMemoryJobHistory()
+    holder: list[SimpleLayService] = []
+
+    class _StopsTwice:
+        execution_mode = ExecutionMode.MOCK
+
+        def execute(self, buttons):
+            holder[0].emergency_stop()
+            first = holder[0]._stop_requested_at
+            holder[0].emergency_stop()
+            assert holder[0]._stop_requested_at == first
+            return ExecutionResult(
+                ExecutionStatus.SAFETY_STOPPED,
+                tuple(
+                    ButtonResult(b, ButtonStatus.FAILED, 1, None)
+                    for b in buttons
+                ),
+            )
+
+    service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        _StopsTwice(),
+        clock=_SteppingClock(_NOW),
+        history_store=history,
+    )
+    holder.append(service)
+
+    service.execute_purpose("우유 데워줘")
+
+    (entry,) = history.recent()
+    assert entry.stop_requested_at is not None
+
+
 # ── 영속화 ────────────────────────────────────────────────────────────────
 
 
@@ -206,6 +336,26 @@ def test_sqlite_round_trips_the_new_fields(tmp_path):
         assert entry.started_at == _NOW - timedelta(seconds=7)
         assert entry.termination is Termination.COMPLETED
         assert entry.duration == timedelta(seconds=7)
+        assert entry.stop_requested_at is None
+    finally:
+        reopened.close()
+
+
+def test_sqlite_round_trips_the_stop_time(tmp_path):
+    stopped = _entry(
+        termination=Termination.STOPPED_BY_USER,
+        status="safety_stopped",
+        stop_requested_at=_NOW - timedelta(seconds=2),
+    )
+    db = SimpleLayDb(str(tmp_path / "stop.db"))
+    SqliteJobHistory(db).append(stopped)
+    db.close()
+
+    reopened = SimpleLayDb(str(tmp_path / "stop.db"))
+    try:
+        (entry,) = SqliteJobHistory(reopened).recent()
+        assert entry.stop_requested_at == _NOW - timedelta(seconds=2)
+        assert entry.stop_latency == timedelta(seconds=2)
     finally:
         reopened.close()
 
@@ -279,6 +429,30 @@ def test_csv_carries_the_fields_experiments_need():
         "7.0",  # 소요시간(초)
     ]:
         assert expected in line, expected
+
+
+def test_csv_carries_the_stop_latency():
+    """정지 지연은 CSV가 답해야 하는 다섯 지표 중 하나다."""
+    line = history_csv(
+        (
+            _entry(
+                termination=Termination.STOPPED_BY_USER,
+                status="safety_stopped",
+                stop_requested_at=_NOW - timedelta(milliseconds=350),
+            ),
+        )
+    ).splitlines()[1]
+
+    assert "0.35" in line
+
+
+def test_csv_leaves_the_stop_columns_empty_when_nothing_was_stopped():
+    """빈 칸과 0초는 다른 뜻이다 -- 0.00을 채우면 "즉시 멈췄다"가 된다."""
+    header, row = history_csv((_entry(),)).splitlines()
+
+    columns = dict(zip(header.split(","), row.split(",")))
+    assert columns["stop_requested_at"] == ""
+    assert columns["stop_latency_seconds"] == ""
 
 
 def test_csv_records_per_button_attempts_and_verification():

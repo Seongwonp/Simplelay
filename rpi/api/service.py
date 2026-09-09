@@ -3,6 +3,7 @@ import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
+from datetime import datetime
 
 from rpi.controller import (
     ButtonSequenceController,
@@ -193,6 +194,10 @@ class SimpleLayService(PurposeExecutor):
         # 종류를 가른다(사용자가 멈춘 것 vs 스스로 실패한 것은 보호자에게
         # 전혀 다른 소식이다). _lock으로 보호.
         self._stop_requested_this_run = False
+        # 그 정지를 **접수한** 시각 — 정지 지연의 기준점이다. 실행 종료
+        # 시각만으로는 "멈추라고 한 뒤 얼마나 걸렸나"를 뺄 수 없다.
+        # _lock으로 보호.
+        self._stop_requested_at = None
         # 지금 실행의 시작 시각 — 소요시간을 재려면 필요하다. _lock으로 보호.
         self._current_started_at = None
 
@@ -406,6 +411,7 @@ class SimpleLayService(PurposeExecutor):
             self._guard_can_execute()
             self._running = True
             self._stop_requested_this_run = False
+            self._stop_requested_at = None
             job_id = uuid.uuid4().hex[:12]
             self._current_job_id = job_id
             self._current_total_steps = total_steps
@@ -435,6 +441,7 @@ class SimpleLayService(PurposeExecutor):
         stopped_by_user: bool = False,
         controller: ButtonSequenceController | None = None,
         calibration_version: str | None = None,
+        stop_requested_at: datetime | None = None,
     ) -> None:
         """실행 이력 기록 — 실패해도 실행 자체를 절대 막지 않는다.
 
@@ -464,6 +471,12 @@ class SimpleLayService(PurposeExecutor):
                     # 실행 중에 갱신된 값을 찍게 된다.
                     calibration_profile_version=calibration_version,
                     termination=self._termination_of(result, stopped_by_user),
+                    # 정지로 끝난 실행에만 남긴다. 정지를 요청했지만
+                    # 실행이 이미 성공으로 끝났다면 지연을 잰 것이
+                    # 아니므로 비운다.
+                    stop_requested_at=(
+                        stop_requested_at if stopped_by_user else None
+                    ),
                 )
             )
         except Exception:
@@ -536,7 +549,9 @@ class SimpleLayService(PurposeExecutor):
         # 사유를 반환해야 가능 — 실기기 통합 때 termination_reason 검토)
         with self._lock:
             stopped_by_user = self._stop_requested_this_run
+            stop_requested_at = self._stop_requested_at
             self._stop_requested_this_run = False
+            self._stop_requested_at = None
         self._record_history(
             self._last_result,
             purpose,
@@ -547,6 +562,7 @@ class SimpleLayService(PurposeExecutor):
             # 기록된다(실제 실행이 mock 통계에 섞인다).
             controller,
             calibration_version,
+            stop_requested_at,
         )
         self._record_care_outcome(
             self._last_result, purpose, buttons, stopped_by_user
@@ -700,6 +716,10 @@ class SimpleLayService(PurposeExecutor):
             was_running = self._running
             if was_running:
                 self._stop_requested_this_run = True
+                # 지연의 기준점. 연타하면 **첫** 요청을 남긴다 --
+                # 사용자가 멈추라고 한 순간은 그때다.
+                if self._stop_requested_at is None:
+                    self._stop_requested_at = self._clock.now()
             nodes = self._stoppable_nodes()
             local = self._controller
             if hasattr(local, "request_stop"):

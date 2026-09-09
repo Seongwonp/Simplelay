@@ -89,7 +89,8 @@ class SimpleLayDb:
                     execution_mode TEXT,
                     started_at TEXT,            -- ISO-8601, timezone 포함
                     termination TEXT,
-                    calibration_profile_version TEXT
+                    calibration_profile_version TEXT,
+                    stop_requested_at TEXT       -- ISO-8601, 정지된 실행만
                 );
                 """
             )
@@ -125,6 +126,7 @@ class SimpleLayDb:
                 "started_at",
                 "termination",
                 "calibration_profile_version",
+                "stop_requested_at",
             ):
                 if column not in job_columns:
                     self._conn.execute(
@@ -360,8 +362,8 @@ class SimpleLayDb:
                 "INSERT INTO job_history"
                 " (job_id, finished_at, purpose, status, buttons_json,"
                 "  appliance_id, execution_mode, started_at, termination,"
-                "  calibration_profile_version)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "  calibration_profile_version, stop_requested_at)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry.job_id,
                     entry.finished_at.isoformat(),
@@ -383,6 +385,11 @@ class SimpleLayDb:
                     entry.started_at.isoformat() if entry.started_at else None,
                     entry.termination.value,
                     entry.calibration_profile_version,
+                    (
+                        entry.stop_requested_at.isoformat()
+                        if entry.stop_requested_at
+                        else None
+                    ),
                 ),
             )
             self._conn.commit()
@@ -392,7 +399,7 @@ class SimpleLayDb:
             rows = self._conn.execute(
                 "SELECT job_id, finished_at, purpose, status, buttons_json,"
                 " appliance_id, execution_mode, started_at, termination,"
-                " calibration_profile_version"
+                " calibration_profile_version, stop_requested_at"
                 " FROM job_history ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -412,6 +419,9 @@ class SimpleLayDb:
                 started_at=datetime.fromisoformat(row[7]) if row[7] else None,
                 termination=Termination(row[8] or Termination.UNKNOWN.value),
                 calibration_profile_version=row[9],
+                stop_requested_at=(
+                    datetime.fromisoformat(row[10]) if row[10] else None
+                ),
             )
             for row in rows
         )

@@ -65,6 +65,24 @@ class JobHistoryEntry:
     #: 성공률이 통째로 달라지므로, 버전을 함께 남기지 않으면 나중에
     #: 그 숫자가 어느 조건의 것이었는지 해석할 수 없다.
     calibration_profile_version: str | None = None
+    #: 긴급 정지를 **접수한** 시각. 정지로 끝난 실행에만 있다.
+    #:
+    #: 이게 없으면 CSV에서 정지 지연을 아예 뺄 수 없다 -- 시작·종료
+    #: 시각만으로는 "전체 얼마나 걸렸나"까지가 한계다. H1은 소프트웨어
+    #: 정지 접수와 물리 동작 중단을 **구분해** 재라고 요구하는데, 그
+    #: 첫 시각이 여기다.
+    #:
+    #: 여기서 나오는 것은 **서버가 접수한 뒤 실행 루프가 멈추기까지**다.
+    #: 갠트리가 실제로 정지한 시각이 아니다 -- 그건 장치가 스스로
+    #: 보고해야 알 수 있고, 하드웨어 통합 때 따로 잰다.
+    stop_requested_at: datetime | None = None
+
+    @property
+    def stop_latency(self) -> timedelta | None:
+        """정지 접수 → 실행 루프 종료. 정지로 끝나지 않았으면 None."""
+        if self.stop_requested_at is None:
+            return None
+        return self.finished_at - self.stop_requested_at
 
     @property
     def retry_count(self) -> int:
@@ -115,6 +133,8 @@ _CSV_COLUMNS = (
     "started_at",
     "finished_at",
     "duration_seconds",
+    "stop_requested_at",
+    "stop_latency_seconds",
     "calibration_profile_version",
     "retry_count",
     "buttons",
@@ -127,6 +147,11 @@ def history_csv(entries: tuple[JobHistoryEntry, ...]) -> str:
     실기기 실험(H1)의 근거 데이터가 여기서 나온다. 뽑을 수 있어야 하는 것:
     첫 시도 성공률, 재시도 후 최종 성공률, 실행 시간, 정지 지연, 실제/모의
     구분. 그래서 버튼별 시도 수까지 한 열에 싣는다(``해동:ok:2``).
+
+    ``stop_latency_seconds``는 **서버가 정지를 접수한 뒤 실행 루프가
+    멈추기까지**다. 갠트리가 실제로 멈춘 시각이 아니다 -- 장치가 스스로
+    보고해야 알 수 있는 값이라, 이 열 하나를 "물리 정지 지연"으로 읽으면
+    안 된다.
 
     분모를 섞지 않도록 ``execution_mode``를 항상 함께 낸다 -- 이 열이 없으면
     mock 실행이 실제 성공률에 섞여 들어간다.
@@ -148,6 +173,16 @@ def history_csv(entries: tuple[JobHistoryEntry, ...]) -> str:
                 entry.started_at.isoformat() if entry.started_at else "",
                 entry.finished_at.isoformat(),
                 f"{duration.total_seconds():.1f}" if duration else "",
+                (
+                    entry.stop_requested_at.isoformat()
+                    if entry.stop_requested_at
+                    else ""
+                ),
+                (
+                    f"{latency.total_seconds():.2f}"
+                    if (latency := entry.stop_latency) is not None
+                    else ""
+                ),
                 entry.calibration_profile_version or "",
                 entry.retry_count,
                 " ".join(
