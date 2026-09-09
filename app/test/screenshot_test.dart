@@ -20,13 +20,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
 import 'package:simplelay/screens/settings_screen.dart';
+import 'package:simplelay/screens/app_shell.dart';
 import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
 import 'package:simplelay/theme/app_theme.dart';
@@ -233,4 +236,71 @@ void main() {
     await _shoot(t, 'lt_home_empty', const HomeScreen(),
         connected: false, light: true);
   });
+
+  // ── 하단 탭바 ────────────────────────────────────────────────────────────
+  //
+  // 다른 골든은 화면을 AppShell 없이 그린다. 탭바는 주 행동(말로 조작)을
+  // 품고 있는데 어느 골든에도 안 잡히면, 여기가 무너져도 아무도 모른다.
+  for (final (name, light) in [('shell_dark', false), ('shell_light', true)]) {
+    testWidgets('하단 탭바 ($name)', (t) async {
+      await _shootShell(t, name, light: light);
+    });
+  }
+}
+
+/// 탭바를 포함한 shell 전체를 찍는다.
+Future<void> _shootShell(
+  WidgetTester tester,
+  String name, {
+  required bool light,
+}) async {
+  tester.view.physicalSize = _phoneSize;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+
+  final router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      StatefulShellRoute.indexedStack(
+        builder: (_, __, shell) => AppShell(navigationShell: shell),
+        branches: [
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/', builder: (_, __) => const SizedBox.shrink()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/voice', builder: (_, __) => const SizedBox.shrink()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/status', builder: (_, __) => const SizedBox.shrink()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+                path: '/settings', builder: (_, __) => const SizedBox.shrink()),
+          ]),
+        ],
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+
+  await tester.pumpWidget(
+    ProviderScope(
+      child: MaterialApp.router(
+        debugShowCheckedModeBanner: false,
+        theme: light
+            ? AppTheme.light.copyWith(
+                textTheme: AppTheme.light.textTheme.apply(fontFamily: 'Malgun'))
+            : AppTheme.dark.copyWith(
+                textTheme: AppTheme.dark.textTheme.apply(fontFamily: 'Malgun')),
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle();
+  await expectLater(
+    find.byType(MaterialApp),
+    matchesGoldenFile('goldens/$name.png'),
+  );
 }

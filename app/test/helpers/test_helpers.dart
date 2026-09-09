@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/ble_provider.dart';
+import 'package:simplelay/providers/clock_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/suggestion_provider.dart';
 import 'package:simplelay/services/ble_service.dart';
@@ -98,6 +99,10 @@ class _SeededProviderScopeState extends State<_SeededProviderScope> {
     _container = ProviderContainer(
       overrides: [
         bleServiceProvider.overrideWithValue(_ble),
+        // 시각을 고정한다. 인사 문구가 시간대로 갈리므로 고정하지 않으면
+        // 골든이 실행 시각을 타서, 진짜 회귀와 시간 차이를 구분할 수 없다.
+        // 09시는 예시 제안의 '아침' 시간대와 같은 이야기를 하게 맞춘 값이다.
+        nowProvider.overrideWithValue(() => DateTime(2026, 9, 9, 9)),
         ...widget.overrides,
       ],
     );

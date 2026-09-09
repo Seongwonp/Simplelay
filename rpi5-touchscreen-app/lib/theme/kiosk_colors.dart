@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 class KioskColors {
   const KioskColors._();
 
-  static const primary = Color(0xFF96A2F5); // 앱 primary와 동일
+  static const primary = Color(0xFFB9A6FF); // 앱 primary와 동일 (검정 글자 9.96:1)
   static const success = Color(0xFFF2F3F7); // 성공은 색을 쓰지 않는다
   static const danger  = Color(0xFFEF6E64); // 레드 — 면 위 검정 7.08:1
   static const warning = Color(0xFFE8B339); // 앰버

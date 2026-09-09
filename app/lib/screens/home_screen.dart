@@ -5,8 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
-import '../providers/care_events_provider.dart';
 import '../providers/ble_provider.dart';
+import '../providers/clock_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/ble_service.dart';
@@ -31,15 +31,15 @@ class HomeScreen extends ConsumerWidget {
     final rpiOnline = rpiState == RpiConnectionState.connected;
     final dndActive = dndUntil != null && dndUntil.isAfter(DateTime.now());
 
-    // 사용자 정의 가전은 의도 해석 규칙이 없어서 수동 버튼 화면으로 이동
-    final isCustomAppliance = ref.watch(selectedApplianceProvider).isCustom;
+    final appliance = ref.watch(selectedApplianceProvider);
+    final appliances = ref.watch(allAppliancesProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('SimpleLay'),
         actions: [
-          // 보호자 알림함 — 실패·위험소리·안부 신호. 안 읽은 게 있으면 배지.
-          _CareBell(),
+          // 알림함은 탭바로 옮겼다 -- 앱바 구석의 작은 종은 보호자가 가장
+          // 봐야 할 것을 가장 안 보이는 자리에 두고 있었다.
           // 실행 기록 (공감지능 근거 + 폐루프 재시도 기록)
           IconButton(
             onPressed: () => context.push('/history'),
@@ -64,55 +64,28 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
-      // 주 행동을 **가운데 아래**에 크게 둔다. 오른쪽 구석의 작은 FAB은 이 앱의
-      // 주 사용자(고령자)에게 손이 잘 안 닿고, 화면에서 가장 하고 싶은 일이
-      // 가장 작게 보였다. 본문에 큰 버튼을 넣는 대신 떠 있게 두는 이유는,
-      // 제안이 늘어나도 스크롤 밖으로 밀리지 않아야 하기 때문이다.
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      floatingActionButton: Builder(builder: (context) {
-        // 음성 명령은 RPi HTTP 직통으로도 가능하다 — BLE에만 묶어두면
-        // "RPi 연결됨" 카드 옆에서 버튼만 죽어 있는 모순이 생긴다.
-        final canSpeak = connected || rpiOnline;
-        // 주 경로는 가전 성격에 맞추되, **다른 경로도 항상 보이게** 둔다.
-        // 말이 잘 안 되거나 인식이 안 되는 사용자가 같은 시도를 반복하지
-        // 않으려면, 다른 길이 화면에 있어야 한다. 쓸 수 없는 경로에는
-        // 이유를 붙인다.
-        return Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isCustomAppliance)
-              _SecondaryAction(
-                onPressed: canSpeak ? () => context.go('/voice') : null,
-                icon: Icons.mic_none,
-                label: canSpeak ? '말로 조작' : '말로 조작 (연결 필요)',
-              )
-            else
-              _SecondaryAction(
-                onPressed: () => context.push('/manual-control'),
-                icon: Icons.touch_app,
-                label: '버튼으로 조작',
-              ),
-            const SizedBox(height: 8),
-            if (isCustomAppliance)
-              _PrimaryAction(
-                onPressed: () => context.push('/manual-control'),
-                icon: Icons.touch_app,
-                label: '버튼으로 조작',
-                enabled: true,
-              )
-            else
-              _PrimaryAction(
-                onPressed: canSpeak ? () => context.go('/voice') : null,
-                icon: Icons.mic_rounded,
-                label: '말로 조작하기',
-                enabled: canSpeak,
-              ),
-          ],
-        );
-      }),
+      // 순서가 곧 이 화면의 주장이다: **무엇을 조작하는가 → 지금 되는가 →
+      // 확인할 것 → (필요할 때만) 연결 사정.** 예전에는 연결 카드 두 장이
+      // 위를 차지해서, 실제로 조작할 수 있는 상태에서도 "뭔가 더 연결해야
+      // 하는 앱"으로 보였고 대상 가전은 설정에 들어가야 알 수 있었다.
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
         children: [
+          // ── 인사 ─────────────────────────────────────────────────────────
+          const _Greeting(),
+          const SizedBox(height: 18),
+
+          // ── 가전 고르기 ──────────────────────────────────────────────────
+          _ApplianceStrip(appliances: appliances, selected: appliance),
+          const SizedBox(height: 16),
+
+          // ── 지금 이 가전으로 할 수 있는 것 ───────────────────────────────
+          _ApplianceStatusCard(
+            appliance: appliance,
+            reachable: connected || rpiOnline,
+            onManual: () => context.push('/manual-control'),
+          ),
+
           // ── 온습도 스트립 ────────────────────────────────────────────────
           sensorAsync.when(
             data: (reading) => _SensorStrip(reading: reading),
@@ -129,21 +102,11 @@ class HomeScreen extends ConsumerWidget {
             ),
           ],
 
-          // ── RPi 연결 상태 카드 ────────────────────────────────────────────
-          const SizedBox(height: 12),
-          _RpiStatusCard(state: rpiState),
-
-          // ── BLE 연결 상태 카드 (미연결 시만) ─────────────────────────────
-          if (!connected) ...[
-            const SizedBox(height: 12),
-            _BleStatusCard(connected: connected),
-          ],
-
           // 학습 통계 카드(AI가 N개 패턴을 발견했습니다 + KPI 3칸)는 없앴다.
           // 제품이 자기가 똑똑하다고 광고하는 자리였고, 사용자가 그걸로 할 수 있는
           // 판단이 없었다. 게다가 '총 동작 N회'로 표시하던 값은 실제로는 대기 중인
           // 제안들의 단계 수 합계라, 라벨과 뜻이 아예 달랐다.
-          const SizedBox(height: 28),
+          const SizedBox(height: 26),
           Text('대기 중인 제안', style: AppText.title),
           const SizedBox(height: 12),
           if (suggestions.isEmpty)
@@ -160,8 +123,303 @@ class HomeScreen extends ConsumerWidget {
                 ),
               ),
             ),
+
+          // ── 연결 상세 ────────────────────────────────────────────────────
+          const SizedBox(height: 22),
+          _ConnectionDetails(rpiState: rpiState, bleConnected: connected),
         ],
       ),
+    );
+  }
+}
+
+// ── 인사 ──────────────────────────────────────────────────────────────────
+
+/// 시간대에 맞춘 인사 한 줄.
+///
+/// 이름을 부르지 않는 이유: 이 앱은 사용자 이름을 받지 않는다. 없는 것을
+/// 아는 척하는 대신 시간대만 쓴다 -- 제안이 시간대 패턴으로 만들어지므로
+/// 이 인사와 아래 제안의 근거 문장("아침 시간에 3번")이 같은 말을 한다.
+class _Greeting extends ConsumerWidget {
+  const _Greeting();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // DateTime.now()를 직접 부르지 않는 이유는 clock_provider.dart에 있다 --
+    // 시간에 따라 문구가 바뀌므로 골든이 실행 시각을 타게 된다.
+    final h = ref.watch(nowProvider)().hour;
+    final hello = h < 5
+        ? '늦은 시간이에요'
+        : h < 11
+            ? '좋은 아침이에요'
+            : h < 17
+                ? '안녕하세요'
+                : h < 22
+                    ? '좋은 저녁이에요'
+                    : '늦은 시간이에요';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(hello, style: AppText.title),
+        const SizedBox(height: 2),
+        Text(
+          '어떤 가전을 도와드릴까요?',
+          style: TextStyle(fontSize: 15, color: context.appMuted),
+        ),
+      ],
+    );
+  }
+}
+
+// ── 가전 고르기 (가로 스트립) ──────────────────────────────────────────────
+
+/// 등록된 가전을 가로로 늘어놓고 지금 대상을 강조한다.
+///
+/// 예전에는 대상 가전을 **설정에 들어가야** 알 수 있었다. 이 앱이 하는 일이
+/// "이 가전의 버튼을 대신 누르는 것"인데, 정작 어느 가전인지가 홈에 없었다.
+class _ApplianceStrip extends ConsumerWidget {
+  const _ApplianceStrip({required this.appliances, required this.selected});
+
+  final List<ApplianceMap> appliances;
+  final ApplianceMap selected;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 글씨를 키우면 칩도 커진다. 높이를 같이 늘려 라벨이 잘리지 않게 한다.
+    final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
+    return SizedBox(
+      height: 84 + (scale - 1) * 46,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        padding: EdgeInsets.zero,
+        itemCount: appliances.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 10),
+        itemBuilder: (_, i) {
+          final a = appliances[i];
+          final on = a.id == selected.id;
+          return Semantics(
+            button: true,
+            selected: on,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(18),
+              onTap: () =>
+                  ref.read(selectedApplianceProvider.notifier).select(a),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 160),
+                width: 88,
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 10),
+                decoration: BoxDecoration(
+                  color: on
+                      ? context.appPrimary
+                      : Theme.of(context).colorScheme.surfaceContainerLow,
+                  borderRadius: BorderRadius.circular(18),
+                  border: on
+                      ? null
+                      : Border.all(color: context.appBorderSubtle),
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      a.icon,
+                      size: 26,
+                      // 채워진 칩 위에서는 반대색으로. 강조색 위 글자색을
+                      // 한쪽으로 고정하면 반대 모드에서 무너진다.
+                      color: on ? context.appOnAccent : context.appPrimary,
+                    ),
+                    const SizedBox(height: 6),
+                    Flexible(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(
+                          a.name,
+                          maxLines: 1,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: on ? FontWeight.w700 : FontWeight.w500,
+                            color: on
+                                ? context.appOnAccent
+                                : context.appOnSurfaceSoft,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// ── 지금 이 가전으로 할 수 있는 것 ────────────────────────────────────────
+
+class _ApplianceStatusCard extends StatelessWidget {
+  const _ApplianceStatusCard({
+    required this.appliance,
+    required this.reachable,
+    required this.onManual,
+  });
+
+  final ApplianceMap appliance;
+
+  /// BLE나 서버 중 하나로라도 닿는가.
+  final bool reachable;
+  final VoidCallback onManual;
+
+  @override
+  Widget build(BuildContext context) {
+    final (line, warn) = _status();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 16, 18, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  warn ? Icons.error_outline : Icons.check_circle_outline,
+                  size: 20,
+                  color: warn ? context.appDanger : context.appMuted,
+                ),
+                const SizedBox(width: 8),
+                // 이유가 길어지면 줄바꿈한다 -- 자르면 복구 방법이 사라진다.
+                Expanded(
+                  child: Text(
+                    line,
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: warn ? context.appDanger : context.appMuted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            // 말로 하는 경로는 탭바 가운데에 있다. 여기에는 **다른 경로**를
+            // 둔다 -- 말이 잘 안 되는 사용자에게 길이 하나뿐이면 안 된다.
+            OutlinedButton.icon(
+              onPressed: onManual,
+              icon: const Icon(Icons.touch_app, size: 20),
+              label: const Text('버튼으로 조작'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// (문구, 경고인가). **모르는 것을 준비됐다고 말하지 않는다** --
+  /// 서버가 준비 상태를 알려준 경우에만 못 쓴다고 단정한다.
+  (String, bool) _status() {
+    if (appliance.readinessKnown && !appliance.canExecute) {
+      final base = appliance.readiness == 'disconnected'
+          ? '아직 연결되지 않았어요'
+          : '아직 준비가 끝나지 않았어요';
+      final why = appliance.readinessReasons;
+      return (why.isEmpty ? base : '$base · ${why.first}', true);
+    }
+    if (!reachable) return ('기기와 연결되면 조작할 수 있어요', false);
+    return ('말이나 버튼으로 조작할 수 있어요', false);
+  }
+}
+
+// ── 연결 상세 (접힘) ──────────────────────────────────────────────────────
+
+/// 서버·BLE 사정을 한 줄로 접어 둔다.
+///
+/// **문제가 있으면 펼친 채로 연다.** 접어두는 것은 "지금은 신경 쓰지 않아도
+/// 된다"는 뜻인데, 연결이 끊긴 상태에서 그러면 복구 동선이 화면에서
+/// 사라진다 -- 가장 도움이 필요한 순간에.
+class _ConnectionDetails extends StatefulWidget {
+  const _ConnectionDetails({
+    required this.rpiState,
+    required this.bleConnected,
+  });
+
+  final RpiConnectionState rpiState;
+  final bool bleConnected;
+
+  @override
+  State<_ConnectionDetails> createState() => _ConnectionDetailsState();
+}
+
+class _ConnectionDetailsState extends State<_ConnectionDetails> {
+  bool? _open;
+
+  bool get _hasProblem =>
+      widget.rpiState != RpiConnectionState.connected || !widget.bleConnected;
+
+  /// 사용자가 직접 접거나 편 적이 있으면 그 선택을 따르고, 아니면 문제
+  /// 여부로 정한다.
+  bool get _expanded => _open ?? _hasProblem;
+
+  @override
+  Widget build(BuildContext context) {
+    final summary = switch (widget.rpiState) {
+      RpiConnectionState.connected =>
+        widget.bleConnected ? '모두 연결됨' : '블루투스만 꺼짐',
+      RpiConnectionState.checking => '확인 중',
+      RpiConnectionState.unconfigured => '서버 주소 없음',
+      RpiConnectionState.unreachable => '연결 안 됨',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          button: true,
+          expanded: _expanded,
+          child: InkWell(
+            onTap: () => setState(() => _open = !_expanded),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              // 고령 사용자 기준 최소 터치 대상을 헤더 전체로 준다.
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+              child: Row(
+                children: [
+                  Icon(
+                    _hasProblem
+                        ? Icons.wifi_tethering_error
+                        : Icons.wifi_tethering,
+                    size: 20,
+                    color: _hasProblem ? context.appDanger : context.appMuted,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '연결 상세 · $summary',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color:
+                            _hasProblem ? context.appDanger : context.appMuted,
+                      ),
+                    ),
+                  ),
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    color: context.appMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_expanded) ...[
+          const SizedBox(height: 4),
+          _RpiStatusCard(state: widget.rpiState),
+          // 예비 연결은 **꺼져 있을 때만** 말한다. 잘 되고 있는 것을
+          // 카드로 알리면 화면이 관리 도구로 돌아간다.
+          if (!widget.bleConnected) ...[
+            const SizedBox(height: 12),
+            _BleStatusCard(connected: widget.bleConnected),
+          ],
+        ],
+      ],
     );
   }
 }
@@ -499,66 +757,6 @@ class _StatusCardBody extends StatelessWidget {
 /// 홈의 주 행동 버튼. 떠 있되 구석의 작은 알약이 아니라 화면 폭을 넉넉히 쓴다.
 /// 주 경로가 막혔을 때 갈 수 있는 다른 길. 주 행동보다 조용하되
 /// 발견은 되어야 하므로 같은 자리(하단 중앙)에 함께 둔다.
-class _SecondaryAction extends StatelessWidget {
-  const _SecondaryAction({
-    required this.onPressed,
-    required this.icon,
-    required this.label,
-  });
-
-  final VoidCallback? onPressed;
-  final IconData icon;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => TextButton.icon(
-        onPressed: onPressed,
-        style: TextButton.styleFrom(
-          minimumSize: const Size(0, 48),
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          backgroundColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-          foregroundColor: context.appMuted,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(24),
-          ),
-        ),
-        icon: Icon(icon, size: 20),
-        label: Text(label, style: const TextStyle(fontSize: 15)),
-      );
-}
-
-class _PrimaryAction extends StatelessWidget {
-  const _PrimaryAction({
-    required this.onPressed,
-    required this.icon,
-    required this.label,
-    required this.enabled,
-  });
-
-  final VoidCallback? onPressed;
-  final IconData icon;
-  final String label;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return FloatingActionButton.extended(
-      onPressed: onPressed,
-      // 확대해도 글자가 잘리지 않게 최소 높이만 준다(고정 높이는 잘린다)
-      extendedPadding: const EdgeInsets.symmetric(horizontal: 32),
-      backgroundColor:
-          enabled ? context.appPrimary : scheme.surfaceContainerHigh,
-      foregroundColor: enabled ? context.appOnAccent : context.appMuted,
-      icon: Icon(icon, size: 26),
-      label: Text(
-        label,
-        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-      ),
-    );
-  }
-}
-
 // ── 연결 상태 chip (AppBar) ───────────────────────────────────────────────
 
 class _ConnectionChip extends StatelessWidget {
@@ -738,53 +936,4 @@ class _SlidingCardState extends State<_SlidingCard>
         opacity: _fade,
         child: SlideTransition(position: _offset, child: widget.child),
       );
-}
-
-// ── 보호자 알림 종 (안 읽은 개수 배지) ─────────────────────────────────────
-
-class _CareBell extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(careEventsProvider).unreadCount;
-    return Semantics(
-      button: true,
-      label: unread > 0 ? '알림 $unread개 안 읽음' : '알림함',
-      child: IconButton(
-        onPressed: () => context.push('/care'),
-        tooltip: '알림',
-        icon: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            const Icon(Icons.notifications_outlined),
-            if (unread > 0)
-              Positioned(
-                right: -5,
-                top: -5,
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: context.appDanger,
-                    borderRadius: BorderRadius.circular(9),
-                  ),
-                  constraints:
-                      const BoxConstraints(minWidth: 17, minHeight: 15),
-                  child: Text(
-                    unread > 9 ? '9+' : '$unread',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      // 빨강 위 흰 글자는 3.63:1 -- 안 읽은 개수는
-                      // 읽히라고 있는 숫자다
-                      color: context.appOnAccent,
-                    ),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
 }

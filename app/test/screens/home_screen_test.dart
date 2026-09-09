@@ -37,15 +37,13 @@ void main() {
       expect(find.text('연결'), findsOneWidget);
     });
 
-    testWidgets('주 행동 버튼 비활성화', (tester) async {
+    testWidgets('연결이 없으면 홈이 그 사실을 먼저 말한다', (tester) async {
+      // 주 행동(말로 조작)은 탭바 가운데로 옮겼다. 예전에는 홈의 버튼을
+      // 비활성화해서 알렸는데, 이제는 **가전 상태 한 줄**이 그 일을
+      // 한다 -- 눌러 본 뒤에 알게 하지 않는 것이 요점이었고 그건 그대로다.
       await tester.pumpWidget(_buildHome());
       await tester.pump();
-      expect(find.text('말로 조작하기'), findsOneWidget);
-      final fab = tester.widget<FloatingActionButton>(
-        find.byType(FloatingActionButton),
-      );
-      // onPressed가 null이면 disabled
-      expect(fab.onPressed, isNull);
+      expect(find.text('기기와 연결되면 조작할 수 있어요'), findsOneWidget);
     });
 
     testWidgets('제안 없음 메시지 표시', (tester) async {
@@ -69,23 +67,19 @@ void main() {
       expect(find.text('연결'), findsNothing);
     });
 
-    testWidgets('내장 가전이어도 버튼 조작 경로가 항상 보인다', (tester) async {
+    testWidgets('버튼 조작 경로가 홈에 항상 보인다', (tester) async {
       // 말이 잘 안 되거나 인식이 안 되는 사용자가 같은 시도를 반복하지
-      // 않으려면, 다른 길이 화면에 함께 있어야 한다.
+      // 않으려면, 다른 길이 화면에 함께 있어야 한다. 말하는 경로는
+      // 탭바 가운데에 있고(app_shell_test), 버튼 경로는 여기 있다.
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.text('말로 조작하기'), findsOneWidget);
       expect(find.text('버튼으로 조작'), findsOneWidget);
     });
 
-    testWidgets('주 행동 버튼 활성화', (tester) async {
+    testWidgets('연결되면 조작할 수 있다고 말한다', (tester) async {
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.text('말로 조작하기'), findsOneWidget);
-      final fab = tester.widget<FloatingActionButton>(
-        find.byType(FloatingActionButton),
-      );
-      expect(fab.onPressed, isNotNull);
+      expect(find.text('말이나 버튼으로 조작할 수 있어요'), findsOneWidget);
     });
   });
 

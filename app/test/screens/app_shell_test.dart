@@ -50,7 +50,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(container.read(currentTabIndexProvider), 0);
 
-    await tester.tap(find.text('음성'));
+    // 음성은 라벨이 붙은 탭이 아니라 **가운데 떠 있는 주 행동**이다.
+    await tester.tap(find.bySemanticsLabel('말로 조작하기'));
     await tester.pumpAndSettle();
     expect(container.read(currentTabIndexProvider), voiceTabIndex);
 
