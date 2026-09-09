@@ -98,14 +98,18 @@ def _setup(node=None, readiness=None, clock=None):
     node = node or _CountingNode()
     nodes = NodeRegistry(controller_factory=lambda _url: node)
     nodes.register("fan", "http://node.local")
+    fixed = clock or FixedClock(_NOW)
     service = SimpleLayService(
         RuleBasedIntentResolver(),
         _local_mock(),
-        clock=clock or FixedClock(_NOW),
+        clock=fixed,
         history_store=InMemoryJobHistory(),
         appliance_registry=appliances,
         node_registry=nodes,
-        readiness_registry=readiness or ReadinessRegistry(),
+        # **판정 저장소에도 같은 시계를 준다.** 실제 시계를 쓰면 이 파일의
+        # 판정(checked_at = _NOW 고정)이 TTL 10분을 넘겨 만료되고, 테스트가
+        # **실행 날짜를 타게 된다** -- 어제는 통과하고 오늘 깨진다.
+        readiness_registry=readiness or ReadinessRegistry(clock=fixed),
     )
     return service, node, appliances
 
@@ -148,7 +152,7 @@ def test_registered_without_readiness_shows_as_disconnected():
 @pytest.mark.parametrize("missing", [ReadinessCheck.MOTION, ReadinessCheck.SENSOR])
 def test_transport_alone_is_not_operable(missing):
     """heartbeat가 온다는 것은 전송이 살아 있다는 뜻일 뿐이다."""
-    readiness = ReadinessRegistry()
+    readiness = ReadinessRegistry(clock=FixedClock(_NOW))
     readiness.report(_all_ready(checks={missing: False}))
     service, node, _ = _setup(readiness=readiness)
 
@@ -162,7 +166,7 @@ def test_transport_alone_is_not_operable(missing):
 
 def test_refusal_carries_the_reason():
     """왜 안 되는지 말하지 않으면 사용자가 할 수 있는 일이 없다."""
-    readiness = ReadinessRegistry()
+    readiness = ReadinessRegistry(clock=FixedClock(_NOW))
     readiness.report(
         _all_ready(
             checks={ReadinessCheck.CALIBRATION: False},
@@ -181,7 +185,7 @@ def test_refusal_carries_the_reason():
 
 
 def test_fully_ready_runs_on_that_node_only():
-    readiness = ReadinessRegistry()
+    readiness = ReadinessRegistry(clock=FixedClock(_NOW))
     readiness.report(_all_ready())
     service, node, _ = _setup(readiness=readiness)
 
@@ -213,11 +217,11 @@ def test_readiness_does_not_survive_restart():
     """주소와 보정 프로파일은 남기지만 **살아 있는 준비 상태는 남기지
     않는다.** 재시작 후에도 '조작 가능'이면, 그 사이 선이 빠졌는지 아무도
     확인하지 않은 채로 물리 조작을 받는다."""
-    first = ReadinessRegistry()
+    first = ReadinessRegistry(clock=FixedClock(_NOW))
     first.report(_all_ready())
     assert first.get("fan").can_execute
 
-    restarted = ReadinessRegistry()  # 새 프로세스
+    restarted = ReadinessRegistry(clock=FixedClock(_NOW))  # 새 프로세스
     service, node, _ = _setup(readiness=restarted)
 
     with pytest.raises(ApplianceNotReadyError):
@@ -229,7 +233,7 @@ def test_readiness_does_not_survive_restart():
 
 
 def test_ready_remote_execution_records_its_own_mode():
-    readiness = ReadinessRegistry()
+    readiness = ReadinessRegistry(clock=FixedClock(_NOW))
     readiness.report(_all_ready(calibration_profile_version="fan-cal-3"))
     service, _, _ = _setup(readiness=readiness)
 
@@ -248,7 +252,7 @@ def test_ready_remote_execution_records_its_own_mode():
 def test_deleted_appliance_is_refused_not_routed_to_local():
     """readiness가 붙어도 R1의 계약은 그대로다 — 삭제된 가전이 로컬
     컨트롤러로 흘러 전자레인지 갠트리를 움직이면 안 된다."""
-    readiness = ReadinessRegistry()
+    readiness = ReadinessRegistry(clock=FixedClock(_NOW))
     readiness.report(_all_ready())
     service, node, appliances = _setup(readiness=readiness)
 
@@ -266,7 +270,7 @@ def test_builtin_without_a_node_still_runs_on_the_local_controller():
     """readiness 게이트는 **노드로 라우팅되는 가전**의 계약이다. 노드가
     없는 내장 가전은 예전처럼 로컬 컨트롤러로 간다 — 여기까지 막으면
     하드웨어 없이 도는 개발·데모 경로가 통째로 죽는다."""
-    readiness = ReadinessRegistry()
+    readiness = ReadinessRegistry(clock=FixedClock(_NOW))
     service, _, _ = _setup(readiness=readiness)
 
     result = service.execute_purpose("우유 데워줘", appliance_id="microwave")
@@ -424,7 +428,7 @@ def _setup_nodeless_custom(local_ids=frozenset()):
         history_store=InMemoryJobHistory(),
         appliance_registry=appliances,
         node_registry=NodeRegistry(controller_factory=lambda _u: _CountingNode()),
-        readiness_registry=ReadinessRegistry(),
+        readiness_registry=ReadinessRegistry(clock=FixedClock(_NOW)),
         local_appliance_ids=local_ids,
     )
     return service, local
@@ -495,7 +499,7 @@ def test_calibration_version_is_captured_at_start_not_at_finish():
     쓴 좌표가 아니다. 그 숫자로 성공률을 해석하면 v1의 결과가 v2의 성적표에
     들어간다 -- 실험 데이터가 조용히 오염된다.
     """
-    readiness = ReadinessRegistry()
+    readiness = ReadinessRegistry(clock=FixedClock(_NOW))
     readiness.report(_all_ready(calibration_profile_version="cal-v1"))
 
     holder = {}
