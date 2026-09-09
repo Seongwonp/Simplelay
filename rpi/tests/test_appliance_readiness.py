@@ -402,3 +402,135 @@ def test_http_builtin_without_a_node_stays_executable(client):
 def test_http_readiness_report_rejects_unknown_appliance(client):
     res = client.post("/readiness/ghost", json={"transport": True})
     assert res.status_code == 404
+
+
+# ── F1 마감 감사 ───────────────────────────────────────────────────────────
+#
+# 게이트를 "노드로 라우팅되는 가전"으로만 걸어 두니, **노드가 없는 커스텀
+# 가전**이 그 사이로 빠져나갔다. 그건 로컬 폴백으로 가는데, 로컬 컨트롤러는
+# 내장 가전(전자레인지) 위에 얹힌 갠트리다 -- R1이 막았던 물리 오라우팅이
+# 다른 문으로 되돌아온 것이다.
+
+
+def _setup_nodeless_custom(local_ids=frozenset()):
+    """선풍기가 등록만 돼 있고 노드는 없는 서버."""
+    appliances = ApplianceRegistry()
+    appliances.register(_fan())
+    local = _local_mock()
+    service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        local,
+        clock=FixedClock(_NOW),
+        history_store=InMemoryJobHistory(),
+        appliance_registry=appliances,
+        node_registry=NodeRegistry(controller_factory=lambda _u: _CountingNode()),
+        readiness_registry=ReadinessRegistry(),
+        local_appliance_ids=local_ids,
+    )
+    return service, local
+
+
+def test_custom_appliance_without_a_node_is_refused_not_run_locally():
+    """액추에이터가 없는 가전은 실행할 수 없다.
+
+    로컬 폴백은 '아무 가전이나 여기서 눌러도 된다'는 뜻이 아니다 -- 로컬
+    컨트롤러는 전자레인지 위의 갠트리다. 선풍기 시퀀스를 거기서 돌리면
+    전자레인지의 엉뚱한 버튼이 눌린다.
+    """
+    service, local = _setup_nodeless_custom()
+
+    with pytest.raises(ApplianceNotReadyError):
+        service.execute_buttons(("전원",), appliance_id="fan")
+
+    assert local._grbl.commands == [], "컨트롤러를 한 번도 부르지 않는다"
+
+
+def test_builtin_without_a_node_is_still_allowed():
+    """내장 가전은 로컬 컨트롤러가 **자기 액추에이터**다."""
+    service, local = _setup_nodeless_custom()
+
+    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+
+    assert local._grbl.commands != []
+
+
+def test_explicit_local_mapping_allows_a_custom_appliance():
+    """데모용으로 로컬 갠트리에 물린 커스텀 가전은 **명시적으로** 밝힌다.
+    암묵적 폴백과 달리 '이건 의도한 배선'이라고 적어야 통과한다."""
+    service, local = _setup_nodeless_custom(local_ids={"fan"})
+
+    service.execute_buttons(("전원",), appliance_id="fan")
+
+    assert local._grbl.commands != []
+
+
+def test_http_can_execute_uses_the_same_rule(client):
+    """화면이 보는 값과 서버가 실제로 거절하는 기준이 어긋나면, 누를 수
+    있는데 안 되는 버튼이 생긴다."""
+    client.put(
+        "/appliances/fan",
+        json={
+            "name": "선풍기",
+            "rows": 1,
+            "cols": 1,
+            "buttons": [{"id": "F-01", "label": "전원", "x": 0, "y": 0}],
+        },
+    )
+    # 노드 등록 없음
+
+    row = next(a for a in client.get("/appliances").json() if a["id"] == "fan")
+    assert row["can_execute"] is False
+
+    res = client.post(
+        "/execute-buttons", json={"buttons": ["전원"], "appliance_id": "fan"}
+    )
+    assert res.status_code == 412
+
+
+# ── 보정 버전은 '실행 시작' 시점의 값이어야 한다 ─────────────────────────
+
+
+def test_calibration_version_is_captured_at_start_not_at_finish():
+    """20초짜리 실행 도중 보정 보고가 갱신되면, 끝나고 읽은 값은 그 실행이
+    쓴 좌표가 아니다. 그 숫자로 성공률을 해석하면 v1의 결과가 v2의 성적표에
+    들어간다 -- 실험 데이터가 조용히 오염된다.
+    """
+    readiness = ReadinessRegistry()
+    readiness.report(_all_ready(calibration_profile_version="cal-v1"))
+
+    holder = {}
+
+    class _RebumpsMidRun:
+        execution_mode = ExecutionMode.REAL
+
+        def execute(self, buttons):
+            # 실행 중에 노드가 새 보정을 보고한다
+            readiness.report(_all_ready(calibration_profile_version="cal-v2"))
+            return ExecutionResult(
+                ExecutionStatus.SUCCEEDED,
+                tuple(
+                    ButtonResult(b, ButtonStatus.SUCCEEDED, 1, None)
+                    for b in buttons
+                ),
+            )
+
+    appliances = ApplianceRegistry()
+    appliances.register(_fan())
+    nodes = NodeRegistry(controller_factory=lambda _u: _RebumpsMidRun())
+    nodes.register("fan", "http://node.local")
+    history = InMemoryJobHistory()
+    service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        _local_mock(),
+        clock=FixedClock(_NOW),
+        history_store=history,
+        appliance_registry=appliances,
+        node_registry=nodes,
+        readiness_registry=readiness,
+    )
+    holder["service"] = service
+
+    service.execute_buttons(("전원",), appliance_id="fan")
+
+    (entry,) = history.recent()
+    assert entry.calibration_profile_version == "cal-v1"

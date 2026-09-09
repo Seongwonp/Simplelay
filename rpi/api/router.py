@@ -153,7 +153,12 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
     readiness = (
         service.readiness_of(a.appliance_id) if service is not None else None
     )
+    # 화면이 보는 값과 서버가 실제로 거절하는 기준은 **같은 규칙**이어야
+    # 한다. 어긋나면 누를 수 있는데 안 되는 버튼(또는 그 반대)이 생긴다.
     has_node = nodes is not None and nodes.get(a.appliance_id) is not None
+    runs_locally = (
+        service.runs_locally(a.appliance_id) if service is not None else True
+    )
     return ApplianceResponse(
         id=a.appliance_id,
         name=a.name,
@@ -166,15 +171,25 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
             for b in a.buttons
         ],
         readiness=(
-            readiness.state.value if readiness is not None else "disconnected"
+            "operable"
+            if (not has_node and runs_locally)
+            else readiness.state.value
+            if readiness is not None
+            else "disconnected"
         ),
         readiness_reasons=(
-            list(readiness.blocking_reasons) if readiness is not None else []
+            []
+            if (not has_node and runs_locally)
+            else list(readiness.blocking_reasons)
+            if readiness is not None
+            else []
         ),
         can_execute=(
             (readiness.can_execute if readiness is not None else False)
             if has_node
-            else True
+            # 노드가 없으면 정당한 로컬 대상일 때만 실행할 수 있다.
+            # 노드도 없고 로컬 대상도 아니면 누를 액추에이터가 없다.
+            else runs_locally
         ),
     )
 

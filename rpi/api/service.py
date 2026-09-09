@@ -144,6 +144,7 @@ class SimpleLayService(PurposeExecutor):
         node_registry: NodeRegistry | None = None,
         appliance_registry=None,
         readiness_registry=None,
+        local_appliance_ids: frozenset[str] | None = None,
         history_store: JobHistoryStore | None = None,
         care_events=None,
     ) -> None:
@@ -176,6 +177,14 @@ class SimpleLayService(PurposeExecutor):
         self._appliance_registry = appliance_registry
         # 가전별 준비 상태(F1). None이면 검사하지 않는다.
         self._readiness_registry = readiness_registry
+        # 로컬 갠트리에 **의도적으로** 물린 커스텀 가전 id.
+        #
+        # 로컬 컨트롤러는 내장 가전(전자레인지) 위에 얹힌 갠트리다.
+        # 노드 없는 커스텀 가전을 암묵적으로 여기로 흘리면, 선풍기
+        # 시퀀스가 전자레인지의 엉뚱한 버튼을 누른다 -- R1이 막았던
+        # 물리 오라우팅이 다른 문으로 되돌아오는 것이다. 데모용 배선은
+        # 여기 적어 '의도한 것'임을 밝힌다.
+        self._local_appliance_ids = frozenset(local_appliance_ids or ())
         # 실행 이력(무엇을·언제·재시도·결과) — None이면 기록하지 않는다
         self._history_store = history_store
         # 보호자 알림(실패·긴급정지) — None이면 기록하지 않는다
@@ -254,10 +263,11 @@ class SimpleLayService(PurposeExecutor):
     ) -> ExecutionResult:
         buttons = self._validate_resolved_sequence(tuple(resolver.resolve(purpose)))
         controller = self._controller_for(appliance_id)
+        calibration = self._calibration_snapshot(appliance_id)
         self._begin_run(len(buttons), controller)
         try:
             return self._run_buttons(
-                tuple(buttons), controller, purpose, appliance_id
+                tuple(buttons), controller, purpose, appliance_id, calibration
             )
         finally:
             self._end_run()
@@ -277,13 +287,14 @@ class SimpleLayService(PurposeExecutor):
         """
         buttons = tuple(buttons)
         controller = self._controller_for(appliance_id)
+        calibration = self._calibration_snapshot(appliance_id)
         self._begin_run(len(buttons), controller)
         try:
             # 목적은 없지만 대상 가전은 있다. 넘기지 않으면 수동 버튼
             # 실행의 이력이 '어느 가전에서'를 잃는다 — 커스텀 가전은
             # 대부분 이 경로로 조작되므로 실험 표본이 통째로 빈다.
             return self._run_buttons(
-                buttons, controller, None, appliance_id
+                buttons, controller, None, appliance_id, calibration
             )
         finally:
             self._end_run()
@@ -322,10 +333,13 @@ class SimpleLayService(PurposeExecutor):
         self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
     ) -> str:
         controller = self._controller_for(appliance_id)
+        # 보정 버전은 **대상을 확정하는 지금** 캡처해 실행 스레드로 넘긴다.
+        # 스레드 안에서 다시 읽으면 실행 중에 갱신된 값을 찍는다.
+        calibration = self._calibration_snapshot(appliance_id)
         job_id = self._begin_run(len(buttons), controller)
         thread = threading.Thread(
             target=self._run_job,
-            args=(buttons, controller, purpose, appliance_id),
+            args=(buttons, controller, purpose, appliance_id, calibration),
             daemon=True,
             name=f"simplelay-exec-{job_id}",
         )
@@ -338,9 +352,12 @@ class SimpleLayService(PurposeExecutor):
         controller: ButtonSequenceController,
         purpose: str | None,
         appliance_id: str | None = None,
+        calibration_version: str | None = None,
     ) -> None:
         try:
-            self._run_buttons(buttons, controller, purpose, appliance_id)
+            self._run_buttons(
+                buttons, controller, purpose, appliance_id, calibration_version
+            )
         except Exception:
             # 백그라운드 스레드라 HTTP 500으로 표면화할 곳이 없다 — 로그를
             # 남기고 /status의 last_status="failed"로 실패를 노출한다.
@@ -349,7 +366,11 @@ class SimpleLayService(PurposeExecutor):
             # 컨트롤러는 알고 있으므로 모드도 함께 남긴다 — 예외로 끝난
             # 실행이야말로 실기기 실험에서 놓치면 안 되는 표본이다.
             self._record_history(
-                self._last_result, purpose, appliance_id, controller=controller
+                self._last_result,
+                purpose,
+                appliance_id,
+                controller=controller,
+                calibration_version=calibration_version,
             )
             # 보호자 알림도 남긴다 — 오히려 진짜 하드웨어 장애(UART 단절 등)
             # 일수록 예외로 끝나는데, 그게 알림함에서 빠지면 안 된다
@@ -413,6 +434,7 @@ class SimpleLayService(PurposeExecutor):
         appliance_id: str | None = None,
         stopped_by_user: bool = False,
         controller: ButtonSequenceController | None = None,
+        calibration_version: str | None = None,
     ) -> None:
         """실행 이력 기록 — 실패해도 실행 자체를 절대 막지 않는다.
 
@@ -438,26 +460,14 @@ class SimpleLayService(PurposeExecutor):
                     appliance_id=appliance_id,
                     execution_mode=_mode_of(controller),
                     started_at=self._current_started_at,
-                    calibration_profile_version=(
-                        self._calibration_version(appliance_id)
-                    ),
+                    # 실행 시작 시점의 스냅샷 -- 여기서 다시 조회하면
+                    # 실행 중에 갱신된 값을 찍게 된다.
+                    calibration_profile_version=calibration_version,
                     termination=self._termination_of(result, stopped_by_user),
                 )
             )
         except Exception:
             log.exception("job history record failed")
-
-    def _calibration_version(self, appliance_id: str | None) -> str | None:
-        """실행 시점의 보정 프로파일 버전 스냅샷.
-
-        좌표를 다시 맞추면 성공률이 통째로 달라진다. 어느 보정에서 나온
-        숫자인지 함께 남기지 않으면 나중에 그 결과를 해석할 수 없다.
-        """
-        if appliance_id is None or self._readiness_registry is None:
-            return None
-        return self._readiness_registry.get(
-            appliance_id
-        ).calibration_profile_version
 
     @staticmethod
     def _termination_of(
@@ -517,6 +527,7 @@ class SimpleLayService(PurposeExecutor):
         controller: ButtonSequenceController,
         purpose: str | None,
         appliance_id: str | None = None,
+        calibration_version: str | None = None,
     ) -> ExecutionResult:
         self._last_result = controller.execute(buttons)
         # stop 여부는 실행이 반환된 '직후' 스냅샷+소진한다 (교차 리뷰 #8) —
@@ -535,6 +546,7 @@ class SimpleLayService(PurposeExecutor):
             # 쓰면 가전별 원격 노드로 라우팅된 실행이 로컬 설정값으로
             # 기록된다(실제 실행이 mock 통계에 섞인다).
             controller,
+            calibration_version,
         )
         self._record_care_outcome(
             self._last_result, purpose, buttons, stopped_by_user
@@ -574,6 +586,20 @@ class SimpleLayService(PurposeExecutor):
         self._require_ready(appliance_id, controller)
         return controller
 
+    def _calibration_snapshot(self, appliance_id: str | None) -> str | None:
+        """**대상을 확정하는 순간의** 보정 프로파일 버전.
+
+        실행이 끝난 뒤에 다시 읽으면 안 된다. 20초짜리 실행 도중 노드가
+        새 보정을 보고하면, 끝나고 읽은 값은 그 실행이 실제로 쓴 좌표가
+        아니다 -- v1로 돌린 결과가 v2의 성적표에 들어간다. 실험 데이터가
+        조용히 오염되는 자리다.
+        """
+        if appliance_id is None or self._readiness_registry is None:
+            return None
+        return self._readiness_registry.get(
+            appliance_id
+        ).calibration_profile_version
+
     def _route_to(self, appliance_id: str | None) -> ButtonSequenceController:
         if appliance_id is not None and self._node_registry is not None:
             node_controller = self._node_registry.get(appliance_id)
@@ -593,22 +619,47 @@ class SimpleLayService(PurposeExecutor):
             return ApplianceReadiness.unknown(appliance_id)
         return self._readiness_registry.get(appliance_id)
 
+    def runs_locally(self, appliance_id: str | None) -> bool:
+        """이 가전을 로컬 갠트리로 실행해도 되는가.
+
+        로컬 컨트롤러는 **내장 가전 위에 얹힌 갠트리**다. 그러니 로컬 실행이
+        정당한 경우는 둘뿐이다:
+
+        1. 내장 가전 -- 그 갠트리가 곧 이 가전의 액추에이터다.
+        2. 명시적으로 로컬에 물렸다고 밝힌 커스텀 가전(데모 배선).
+
+        노드 없는 커스텀 가전을 암묵적으로 여기로 흘리면, 선풍기 시퀀스가
+        전자레인지의 엉뚱한 버튼을 누른다.
+        """
+        if appliance_id is None:
+            return True  # 대상을 안 밝힌 실행 -- 기본 컨트롤러가 곧 대상이다
+        if appliance_id in self._local_appliance_ids:
+            return True
+        if self._appliance_registry is None:
+            return True  # 가전 개념이 없는 구성 -- 종전 동작 유지
+        appliance = self._appliance_registry.get(appliance_id)
+        return appliance is not None and not appliance.is_custom
+
     def _require_ready(
         self, appliance_id: str | None, controller: ButtonSequenceController
     ) -> None:
-        """노드로 나가는 실행은 그 노드가 **준비됐다고 확인된** 뒤에만.
+        """실행 대상이 **준비됐다고 확인된** 뒤에만 컨트롤러로 보낸다.
 
-        게이트는 **노드로 라우팅되는 가전**의 계약이다. 노드가 없는 가전은
-        로컬 컨트롤러로 가고 종전대로 실행된다 -- 여기까지 막으면 하드웨어
-        없이 도는 개발·데모 경로가 통째로 죽고, 그러면 이 게이트를 끄고
-        쓰게 되어 아무것도 지키지 못한다.
+        로컬 컨트롤러로 가는 실행도 그냥 통과시키지 않는다. 노드가 없다는
+        것은 '검사 대상이 아니다'가 아니라 대개 **액추에이터가 없다**는
+        뜻이기 때문이다 -- runs_locally()가 정당한 로컬 대상만 가른다.
 
         heartbeat만으로 통과시키지 않는다: transport는 네 축 중 하나일 뿐이다.
         """
         if self._readiness_registry is None:
             return
-        if appliance_id is None or controller is self._controller:
-            return  # 로컬 경로 -- 노드 계약의 대상이 아니다
+        if controller is self._controller:
+            if self.runs_locally(appliance_id):
+                return
+            # 노드도 없고 로컬 대상도 아니다 = 누를 액추에이터가 없다.
+            raise ApplianceNotReadyError(
+                appliance_id or "", ("아직 기기와 연결되지 않았어요",)
+            )
         readiness = self._readiness_registry.get(appliance_id)
         if readiness.can_execute:
             return

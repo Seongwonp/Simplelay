@@ -260,14 +260,17 @@ def test_http_execute_rejects_unknown_appliance_with_404(client):
     assert "삭제되었거나" in res.json()["detail"]
 
 
-def test_http_registered_custom_without_node_still_runs(client):
-    """게이트가 정상 경로를 막으면 안 된다 — 실물 노드가 아직 없는 커스텀
-    가전(에어컨 데모)이 이 경로다."""
+def test_http_registered_custom_without_node_is_refused(client):
+    """노드가 없는 커스텀 가전은 누를 액추에이터가 없다 (F1 마감 감사).
+
+    R1은 '없는 가전'을 막았고, 여기서는 '있지만 액추에이터가 없는 가전'을
+    막는다. 로컬 폴백으로 흘리면 전자레인지 갠트리가 움직인다.
+    """
     _register_fan(client)
     res = client.post(
         "/execute-buttons", json={"buttons": ["전원"], "appliance_id": "fan"}
     )
-    assert res.status_code == 200
+    assert res.status_code == 412
 
 
 def test_http_deleting_an_appliance_takes_its_suggestion_down(client):

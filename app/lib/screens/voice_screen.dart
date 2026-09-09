@@ -205,8 +205,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       final bleState = ref.read(bleConnectionProvider).valueOrNull;
       // 모의 실행 중에는 BLE 폴백도 막는다 -- 여기로 새면 "실제 조작이
       // 아닙니다" 화면 아래에서 실기기가 진짜로 움직인다.
+      //
+      // 서버가 "준비 안 됐다"고 말한 가전도 막는다. BLE는 ESP32로 바로
+      // 나가 **서버 게이트를 거치지 않으므로**, 여기서 안 막으면 준비
+      // 안 된 기기가 실제로 움직인다(F1 마감 감사).
       if (!appliance.isCustom &&
           bleState == BleConnectionState.connected &&
+          appliance.mayDispatchWithoutServer &&
           !ref.read(demoModeProvider)) {
         try {
           await ref

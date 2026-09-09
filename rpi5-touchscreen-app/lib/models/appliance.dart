@@ -23,7 +23,7 @@ class ApplianceMap {
     required this.cols,
     required this.buttons,
     this.canExecute = true,
-    this.readiness = 'operable',
+    this.readiness = 'unknown',
     this.readinessReasons = const [],
   });
 
@@ -42,7 +42,10 @@ class ApplianceMap {
   /// 서버가 412로 거절한다(이중 방어).
   final bool canExecute;
 
-  /// disconnected | needs_setup | operable
+  /// disconnected | needs_setup | operable | unknown
+  ///
+  /// `unknown`은 **서버에게 물어본 적이 없다**는 뜻이다(하드코딩 폴백).
+  /// 'operable'과 구분한다 -- 확인된 것과 그냥 모르는 것은 다르다.
   final String readiness;
 
   /// 맡길 수 없는 이유. '안 됩니다'만 말하면 할 수 있는 일이 없다.
@@ -121,7 +124,7 @@ ApplianceMap applianceFromServerJson(Map<String, dynamic> json) => ApplianceMap(
       cols: json['cols'] as int,
       // 준비 상태는 폰과 **같은 값**을 본다 — 한 서버에서 나온다.
       canExecute: json['can_execute'] as bool? ?? true,
-      readiness: json['readiness'] as String? ?? 'operable',
+      readiness: json['readiness'] as String? ?? 'unknown',
       readinessReasons:
           (json['readiness_reasons'] as List<dynamic>?)?.cast<String>() ??
               const [],

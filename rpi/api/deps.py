@@ -299,6 +299,18 @@ def get_appliance_registry():
     return ApplianceRegistry(store=get_db())
 
 
+def _local_appliance_ids() -> frozenset[str]:
+    """로컬 갠트리에 **의도적으로** 물린 커스텀 가전 id (쉼표 구분).
+
+    로컬 컨트롤러는 내장 가전 위에 얹힌 갠트리다. 노드 없는 커스텀
+    가전을 암묵적으로 여기로 흘리면 선풍기 시퀀스가 전자레인지의
+    엉뚱한 버튼을 누른다. 데모용으로 그렇게 배선했다면 여기 적어
+    '의도한 것'임을 밝힌다. 기본은 비어 있다.
+    """
+    raw = os.environ.get("SIMPLELAY_LOCAL_APPLIANCES", "")
+    return frozenset(part.strip() for part in raw.split(",") if part.strip())
+
+
 def get_clock():
     """서버 시계 — 준비 상태 보고에 확인 시각을 찍을 때 쓴다."""
     return _clock
@@ -354,6 +366,7 @@ def get_service() -> SimpleLayService:
         node_registry=get_node_registry(),
         appliance_registry=get_appliance_registry(),
         readiness_registry=get_readiness_registry(),
+        local_appliance_ids=_local_appliance_ids(),
         history_store=get_job_history(),
         care_events=get_care_events(),
     )

@@ -236,9 +236,11 @@ def test_execute_rejects_unknown_appliance_id(client):
     assert "삭제되었거나" in res.json()["detail"]
 
 
-def test_execute_still_allows_registered_custom_without_node(client):
-    # 레지스트리에 있는 커스텀은 노드 미등록이어도 로컬 폴백 허용 —
-    # 8/31 에어컨 데모가 이 경로다 (실물 2번째 노드는 rpi4 합류 때)
+def test_execute_refuses_registered_custom_without_node(client):
+    # F1 마감 감사: 노드 없는 커스텀 가전을 로컬 폴백으로 흘리면
+    # 선풍기 시퀀스가 **전자레인지 갠트리**에서 실행된다. 로컬 컨트롤러는
+    # 내장 가전 위에 얹힌 갠트리이지 '아무 가전이나 되는 실행기'가 아니다.
+    # 데모용 로컬 배선은 SIMPLELAY_LOCAL_APPLIANCES로 명시해야 통과한다.
     client.put(
         "/appliances/custom_fan",
         json={
@@ -252,7 +254,8 @@ def test_execute_still_allows_registered_custom_without_node(client):
         "/execute-buttons",
         json={"buttons": ["전원"], "appliance_id": "custom_fan"},
     )
-    assert res.status_code == 200
+    assert res.status_code == 412
+    assert "연결" in res.json()["detail"]
 
 
 def test_delete_appliance_also_unregisters_node(client):

@@ -97,7 +97,24 @@ void main() {
   testWidgets('서버 정보가 없으면 막지 않는다 — 오프라인 폴백', (tester) async {
     // 하드코딩 내장 가전에는 준비 상태가 없다. 모르는 것을 '안 됨'으로
     // 단정하면 서버가 죽었을 때 조작 수단이 통째로 사라진다.
-    expect(await _pressed(tester, _fan()), ['전원']);
+    expect(await _pressed(tester, _fan(readiness: 'unknown')), ['전원']);
     expect(find.text('아직 연결되지 않았어요'), findsNothing);
+  });
+
+  test('서버 응답에 준비 상태가 없으면 operable이 아니라 unknown이다', () {
+    // '확인된 조작 가능'과 '그냥 모름'을 같은 값으로 보면, 서버를 거치지
+    // 않는 경로에서 둘을 구분할 수 없다.
+    final parsed = applianceFromServerJson({
+      'id': 'fan',
+      'name': '선풍기',
+      'rows': 1,
+      'cols': 1,
+      'buttons': [
+        {'id': 'F-01', 'label': '전원', 'x': 0, 'y': 0},
+      ],
+    });
+
+    expect(parsed.readiness, 'unknown');
+    expect(parsed.canExecute, isTrue, reason: '막지는 않는다');
   });
 }

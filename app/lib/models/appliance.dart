@@ -37,8 +37,9 @@ class ApplianceMap {
     this.isCustom = false,
     this.photoPath,
     this.canExecute = true,
-    this.readiness = 'operable',
+    this.readiness = 'unknown',
     this.readinessReasons = const [],
+    this.readinessKnown = false,
   });
 
   final String id;
@@ -60,8 +61,25 @@ class ApplianceMap {
   /// 서버는 준비 안 된 실행을 어차피 412로 거절한다(이중 방어).
   final bool canExecute;
 
-  /// disconnected | needs_setup | operable
+  /// disconnected | needs_setup | operable | unknown
+  ///
+  /// `unknown`은 **서버에게 물어본 적이 없다**는 뜻이다. 'operable'과
+  /// 구분해야 한다 -- 서버를 거치지 않는 경로(BLE)에서 "확인된 조작 가능"과
+  /// "그냥 모름"을 같은 값으로 보면 안 된다.
   final String readiness;
+
+  /// 서버가 이 가전의 준비 상태를 실제로 말해줬는가.
+  /// 기기 저장분·하드코딩 폴백·구버전 서버 응답에서는 false다.
+  final bool readinessKnown;
+
+  /// **서버를 거치지 않는 경로**(BLE 릴레이)로 내보내도 되는가.
+  ///
+  /// HTTP 실행은 서버가 412로 막아 주지만 BLE는 ESP32로 바로 나간다 --
+  /// 게이트가 아예 없다. 그래서 여기서는 fail-open을 좁힌다: 서버가 한 번
+  /// "안 된다"고 말한 가전은 BLE로도 내보내지 않는다. 서버 얘기를 들은
+  /// 적이 없으면(하드코딩 폴백) 막지 않는다 -- 막으면 서버가 죽었을 때
+  /// 조작 수단이 통째로 사라진다.
+  bool get mayDispatchWithoutServer => !readinessKnown || canExecute;
 
   /// 맡길 수 없는 이유. '안 됩니다'만 말하면 할 수 있는 일이 없다.
   final List<String> readinessReasons;
@@ -104,11 +122,15 @@ class ApplianceMap {
         photoPath: json['photo_path'] as String?,
         // 서버 응답에만 있는 값 — 기기에 저장된 정의에는 없다(저장하지
         // 않는다: 살아 있는 준비 상태는 재확인 전까지 사실이 아니다).
+        // 서버 응답에만 있는 값 — 기기 저장분에는 없다. 없으면 막지
+        // 않지만(모르는 것을 '안 됨'으로 단정하면 서버가 죽었을 때 조작
+        // 수단이 사라진다) '확인됨'이라고 말하지도 않는다.
         canExecute: json['can_execute'] as bool? ?? true,
-        readiness: json['readiness'] as String? ?? 'operable',
+        readiness: json['readiness'] as String? ?? 'unknown',
         readinessReasons:
             (json['readiness_reasons'] as List<dynamic>?)?.cast<String>() ??
                 const [],
+        readinessKnown: json.containsKey('can_execute'),
       );
 
   Map<String, dynamic> toJson() => {
