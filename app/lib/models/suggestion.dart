@@ -48,7 +48,12 @@ class Suggestion {
     if (reason.isNotEmpty) return reason;
     if (occurrences <= 0 || timeBand.isEmpty) return '';
     if (timeBand == '데모' || timeBand == '환경') return '';
-    return '최근 $timeBand 시간에 $occurrences번 하셨어요.';
+    // '최근'이라고 하지 않는다. 서버의 패턴 감지에는 기간 창이 없고
+    // 그 시간대의 **전체 이력**을 센다 -- "최근 4번"이라고 말하면
+    // 화면이 집계 범위를 실제보다 좁게 말하는 것이 된다.
+    // 기간 창이 제품 규칙으로 필요해지면 서버 집계에 넣고 응답에
+    // 기간을 실어 보낸 뒤 문구를 되살린다.
+    return '$timeBand 시간에 $occurrences번 하셨어요.';
   }
 
   /// '다시 받지 않기'를 약속할 수 있는 제안인지.

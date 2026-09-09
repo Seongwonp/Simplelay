@@ -269,7 +269,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('최근 저녁 시간에 4번 하셨어요.'), findsOneWidget);
+      // '최근'을 붙이지 않는다 -- 서버 집계에 기간 창이 없어서, 화면이
+      // 범위를 실제보다 좁게 말하는 것이 된다.
+      expect(find.text('저녁 시간에 4번 하셨어요.'), findsOneWidget);
+      expect(find.textContaining('최근'), findsNothing);
     });
 
     testWidgets('데모 제안은 지어낸 횟수를 근거처럼 말하지 않는다', (tester) async {
