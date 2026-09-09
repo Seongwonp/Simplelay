@@ -276,24 +276,51 @@ def test_first_cleanup_error_is_the_one_raised(client, monkeypatch):
 # ── 노드 등록이 도중에 실패하면 ───────────────────────────────────────────
 
 
-def test_partial_node_registration_still_invalidates_readiness(
-    client, monkeypatch
-):
-    """`NodeRegistry.register()`는 메모리 주소를 먼저 바꾸고 store에 저장한다.
-    저장이 실패하면 **주소는 이미 바뀐 채로** 예외가 나간다 -- 그때 앞
-    기기의 `operable`이 남아 있으면, 확인한 적 없는 새 주소로 맡겨도 된다고
-    말하게 된다. 등록 성공이 불확실한 순간에는 판정을 버리는 쪽이 안전하다."""
+class _FailingStore:
+    """주소는 받아 두고 저장에서 실패하는 store.
+
+    `NodeRegistry.register()`는 메모리 주소를 먼저 바꾸고 **그다음** store에
+    저장한다. 이 store를 끼우면 실제 코드가 그 순서를 그대로 지나가므로,
+    "상태는 이미 바뀌었는데 예외가 나간" 상황을 흉내가 아니라 실제로
+    만든다.
+    """
+
+    def __init__(self) -> None:
+        self.attempted: list[tuple[str, str]] = []
+
+    def save_node(self, appliance_id: str, base_url: str) -> None:
+        self.attempted.append((appliance_id, base_url))
+        raise RuntimeError("주소 저장 실패")
+
+    def delete_node(self, appliance_id: str) -> None:  # pragma: no cover
+        raise AssertionError("이 테스트에서는 부르지 않는다")
+
+    def nodes(self) -> dict[str, str]:  # pragma: no cover
+        return {}
+
+
+def test_partial_node_registration_still_invalidates_readiness(client):
+    """주소는 이미 바뀌었는데 저장이 실패한 순간.
+
+    그때 앞 기기의 `operable`이 남아 있으면, **확인한 적 없는 새 주소로**
+    맡겨도 된다고 말하게 된다. 등록 성공이 불확실한 순간에는 판정을 버리는
+    쪽(fail-closed)이 안전하다."""
     _register_custom(client, "c1")
     client.post("/nodes/c1", json={"base_url": "http://node-a:8080"})
     _make_operable("c1")
 
-    monkeypatch.setattr(
-        deps.get_node_registry(), "register", _boom("주소 저장 실패")
-    )
+    nodes = deps.get_node_registry()
+    store = _FailingStore()
+    nodes._store = store  # 저장 단계만 실패시킨다
 
     with pytest.raises(RuntimeError, match="주소 저장 실패"):
         client.post("/nodes/c1", json={"base_url": "http://node-b:8080"})
 
+    # 저장까지 실제로 갔다 -- 즉 그 앞의 메모리 변경은 이미 일어났다.
+    assert store.attempted == [("c1", "http://node-b:8080")]
+    # 그리고 주소는 정말 바뀌어 있다(부분 실패).
+    assert nodes.base_url("c1") == "http://node-b:8080"
+    # 그러므로 앞 기기의 판정을 물려받으면 안 된다.
     assert _state("c1") is not ReadinessState.OPERABLE
 
 
