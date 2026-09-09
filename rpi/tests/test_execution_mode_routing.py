@@ -167,7 +167,6 @@ def test_two_appliances_two_modes_in_one_server():
         ApplianceDef(
             appliance_id="aircon",
             name="에어컨",
-            icon="custom",
             rows=1,
             cols=1,
             buttons=(ApplianceButtonDef("AC-01", "전원", 0, 0),),

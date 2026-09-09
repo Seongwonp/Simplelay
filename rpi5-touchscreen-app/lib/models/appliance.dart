@@ -18,7 +18,7 @@ class ApplianceMap {
   const ApplianceMap({
     required this.id,
     required this.name,
-    required this.icon,
+    required this.category,
     required this.rows,
     required this.cols,
     required this.buttons,
@@ -29,7 +29,16 @@ class ApplianceMap {
 
   final String id;
   final String name;
-  final IconData icon;
+
+  /// 이 기기의 **종류**. 서버가 준 값을 그대로 보관한다.
+  ///
+  /// 아이콘만 뽑고 버리면 파서 밖에서 종류를 다시 볼 수 없어서, 폰에서
+  /// 등록한 종류가 키오스크까지 이어졌는지 확인할 방법이 사라진다.
+  final String category;
+
+  /// 그림은 종류에서 나온다 -- 따로 들고 있지 않는다.
+  IconData get icon => applianceIconFor(category);
+
   final int rows;
   final int cols;
   final List<ApplianceButton> buttons;
@@ -66,7 +75,7 @@ class ApplianceMap {
 const kMicrowaveAppliance = ApplianceMap(
   id: 'microwave',
   name: '전자레인지',
-  icon: Icons.microwave,
+  category: 'microwave',
   rows: 4,
   cols: 3,
   buttons: [
@@ -86,7 +95,7 @@ const kMicrowaveAppliance = ApplianceMap(
 const kInductionAppliance = ApplianceMap(
   id: 'induction',
   name: '인덕션',
-  icon: Icons.soup_kitchen,
+  category: 'induction',
   rows: 3,
   cols: 4,
   buttons: [
@@ -105,11 +114,50 @@ const kInductionAppliance = ApplianceMap(
 
 const kAppliances = <ApplianceMap>[kMicrowaveAppliance, kInductionAppliance];
 
-/// 서버의 icon 힌트 문자열 → 아이콘. 모르는 값(커스텀 등)은 기본 아이콘 —
-/// 서버는 그림을 모르고 힌트만 준다.
-IconData applianceIconFor(String hint) => switch (hint) {
+/// 서버가 준 **종류(category)** → 아이콘.
+///
+/// 종류가 진실원천이고 그림은 여기서 파생한다. 서버는 그림을 모른다.
+/// 모르는 종류는 거절하지 않고 일반 아이콘으로 떨어진다 -- 앞선 버전의
+/// 폰이 새 종류를 등록했을 수 있고, 그때 목록 전체를 못 읽으면 안 된다.
+///
+/// 폰(`app/lib/models/appliance.dart`)과 **같은 표**를 쓴다. 두 화면이 같은
+/// 가전을 다른 그림으로 그리면 같은 제품으로 보이지 않는다.
+/// 서버 응답에서 종류를 정한다.
+///
+/// `category`가 있으면 그것이 진실원천이다. 없으면(구버전 서버) 예전
+/// `icon` 힌트에서 **명시적인 표로만** 되살린다 -- 이름이나 다른 값으로
+/// 추측하지 않는다. `custom`이 표에 없는 것도 의도한 것이다: 그 값은
+/// 종류를 담은 적이 없다.
+///
+/// 모르는 값은 거절하지 않고 `other`. 앞선 버전의 서버가 새 종류를 알고
+/// 있을 수 있고, 그때 목록 전체를 못 읽으면 안 된다.
+String categoryFromServer(String? category, String? legacyIcon) {
+  if (category != null && category.isNotEmpty) {
+    return _known.contains(category) ? category : 'other';
+  }
+  return switch (legacyIcon) {
+    'microwave' => 'microwave',
+    'induction' => 'induction',
+    'aircon' || 'air_conditioner' => 'air_conditioner',
+    _ => 'other',
+  };
+}
+
+const _known = {
+  'microwave',
+  'air_conditioner',
+  'washing_machine',
+  'induction',
+  'rice_cooker',
+  'other',
+};
+
+IconData applianceIconFor(String category) => switch (category) {
       'microwave' => Icons.microwave,
       'induction' => Icons.soup_kitchen,
+      'air_conditioner' => Icons.ac_unit,
+      'washing_machine' => Icons.local_laundry_service,
+      'rice_cooker' => Icons.rice_bowl,
       _ => Icons.widgets_outlined,
     };
 
@@ -119,7 +167,12 @@ IconData applianceIconFor(String hint) => switch (hint) {
 ApplianceMap applianceFromServerJson(Map<String, dynamic> json) => ApplianceMap(
       id: json['id'] as String,
       name: json['name'] as String,
-      icon: applianceIconFor(json['icon'] as String? ?? ''),
+      // 종류를 **보관**한다. 없으면(구버전 서버) icon 힌트에서 명시적인
+      // 표로만 되살리고, 그래도 모르면 other다.
+      category: categoryFromServer(
+        json['category'] as String?,
+        json['icon'] as String?,
+      ),
       rows: json['rows'] as int,
       cols: json['cols'] as int,
       // 준비 상태는 폰과 **같은 값**을 본다 — 한 서버에서 나온다.

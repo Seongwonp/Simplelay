@@ -55,7 +55,6 @@ def _fan(**over) -> ApplianceDef:
     base = dict(
         appliance_id="fan",
         name="선풍기",
-        icon="custom",
         rows=1,
         cols=1,
         buttons=(ApplianceButtonDef("F-01", "전원", 0, 0),),

@@ -149,7 +149,7 @@ void main() {
           ApplianceMap(
             id: 'custom_fan',
             name: '거실 선풍기',
-            icon: Icons.widgets_outlined,
+            category: 'other',
             rows: 1,
             cols: 2,
             buttons: [

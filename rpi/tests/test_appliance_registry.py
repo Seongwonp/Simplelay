@@ -32,7 +32,6 @@ def same_definition(stored, expected) -> bool:
 CUSTOM = ApplianceDef(
     appliance_id="custom_aircon",
     name="거실 에어컨",
-    icon="custom",
     rows=2,
     cols=2,
     buttons=(
@@ -81,7 +80,6 @@ def test_register_same_id_replaces():
     updated = ApplianceDef(
         appliance_id="custom_aircon",
         name="안방 에어컨",
-        icon="custom",
         rows=1,
         cols=1,
         buttons=(ApplianceButtonDef("AC-01", "전원", 0, 0),),
@@ -99,7 +97,6 @@ def test_builtin_ids_cannot_be_overwritten_or_deleted():
     fake = ApplianceDef(
         appliance_id="microwave",
         name="가짜",
-        icon="custom",
         rows=1,
         cols=1,
         buttons=(ApplianceButtonDef("X", "전원", 0, 0),),

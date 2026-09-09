@@ -203,7 +203,6 @@ def _fan():
     return ApplianceDef(
         appliance_id="fan",
         name="선풍기",
-        icon="custom",
         rows=1,
         cols=2,
         buttons=(

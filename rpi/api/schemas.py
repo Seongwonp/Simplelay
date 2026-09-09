@@ -173,6 +173,9 @@ class ApplianceResponse(BaseModel):
 
     id: str
     name: str
+    #: 이 기기의 **종류**. 아이콘·이름은 여기서 파생한다.
+    category: str
+    #: 구버전 클라이언트 호환 — category에서 파생한 값이다.
     icon: str
     rows: int
     cols: int
@@ -239,7 +242,12 @@ class ApplianceRegisterRequest(BaseModel):
     expected_revision: int | None = None
 
     name: str
-    icon: str = "custom"
+    #: 이 기기의 **종류**. 모르는 값이면 거절하지 않고 other로 받는다 --
+    #: 앞선 버전의 폰이 새 종류를 보낼 수 있고, 거절하면 그 기기는
+    #: 가전을 등록할 수 없게 된다.
+    category: str | None = None
+    #: 구버전 클라이언트 호환. category가 없을 때만 여기서 되살린다.
+    icon: str | None = None
     rows: int
     cols: int
     buttons: list[ApplianceButtonModel]

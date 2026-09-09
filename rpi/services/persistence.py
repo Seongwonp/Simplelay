@@ -289,7 +289,7 @@ class SimpleLayDb:
         payload = json.dumps(
             {
                 "name": appliance.name,
-                "icon": appliance.icon,
+                "category": appliance.category.value,
                 "rows": appliance.rows,
                 "cols": appliance.cols,
                 # 판 번호도 함께 남긴다 — 재시작마다 1로 돌아가면
@@ -319,7 +319,12 @@ class SimpleLayDb:
             self._conn.commit()
 
     def appliances(self) -> tuple:
-        from .appliance_registry import ApplianceButtonDef, ApplianceDef  # noqa: PLC0415
+        from .appliance_registry import (  # noqa: PLC0415 — 순환 회피
+            ApplianceButtonDef,
+            ApplianceCategory,
+            ApplianceDef,
+            category_from_legacy_icon,
+        )  # noqa: PLC0415
 
         with self._lock:
             rows = self._conn.execute(
@@ -333,7 +338,16 @@ class SimpleLayDb:
                     ApplianceDef(
                         appliance_id=appliance_id,
                         name=data["name"],
-                        icon=data.get("icon", "custom"),
+                        # 예전 행에는 category가 없다. icon에서
+                        # 명시적인 표로만 되살리고, 모르면 other다 --
+                        # 데이터는 하나도 잃지 않는다.
+                        category=(
+                            ApplianceCategory.parse(data["category"])
+                            if "category" in data
+                            else category_from_legacy_icon(
+                                data.get("icon")
+                            )
+                        ),
                         rows=int(data["rows"]),
                         cols=int(data["cols"]),
                         buttons=tuple(

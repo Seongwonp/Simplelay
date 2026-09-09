@@ -19,7 +19,7 @@ ApplianceMap _fan({
     ApplianceMap(
       id: 'fan',
       name: '선풍기',
-      icon: Icons.air,
+      category: 'other',
       rows: 1,
       cols: 2,
       buttons: const [

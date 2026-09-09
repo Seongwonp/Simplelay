@@ -19,7 +19,8 @@ SharedPreferences 커스텀, 키오스크 하드코딩, 자연어 규칙)에 흩
 from __future__ import annotations
 
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from enum import Enum
 
 
 class BuiltinApplianceError(ValueError):
@@ -43,6 +44,60 @@ class RevisionConflictError(ValueError):
         )
 
 
+class ApplianceCategory(str, Enum):
+    """가전의 **종류**. 개별 기기의 식별자(appliance_id)와 다른 개념이다.
+
+    같은 종류를 여러 대 등록할 수 있다 -- 거실 에어컨과 안방 에어컨은
+    `category`가 같고 `appliance_id`가 다르다.
+
+    값은 **안정적인 문자열**이다. 화면에 보일 이름이나 아이콘은 여기서
+    파생될 뿐, 반대 방향으로 추측하지 않는다(이름에 "에어컨"이 들어갔다고
+    종류를 정하지 않는다 -- "에어컨 옆 선풍기" 같은 이름이 틀리게 된다).
+    """
+
+    MICROWAVE = "microwave"
+    AIR_CONDITIONER = "air_conditioner"
+    WASHING_MACHINE = "washing_machine"
+    INDUCTION = "induction"
+    RICE_COOKER = "rice_cooker"
+    OTHER = "other"
+
+    @classmethod
+    def parse(cls, raw: str | None) -> "ApplianceCategory":
+        """모르는 값은 **거절하지 않는다.**
+
+        앞선 버전의 폰이 새 종류를 보낼 수 있다. 거절하면 그 기기는 가전을
+        등록할 수 없게 되고, 크래시하면 목록 전체를 못 읽는다. 모르면
+        `other`로 받아 두고 이름·버튼은 그대로 살린다.
+        """
+        if not raw:
+            return cls.OTHER
+        try:
+            return cls(raw)
+        except ValueError:
+            return cls.OTHER
+
+
+#: 예전 `icon` 값에서 종류를 되살리는 **명시적** 표.
+#:
+#: 이름으로 추측하지 않는 것과 같은 이유로, 알려진 값만 옮긴다. 목록에
+#: 없으면 `other`다 -- 커스텀 가전이 보내던 "custom"이 여기 없는 것도
+#: 의도한 것이다(그 값은 종류를 담은 적이 없다).
+_LEGACY_ICON_TO_CATEGORY = {
+    "microwave": ApplianceCategory.MICROWAVE,
+    "induction": ApplianceCategory.INDUCTION,
+    "aircon": ApplianceCategory.AIR_CONDITIONER,
+    "air_conditioner": ApplianceCategory.AIR_CONDITIONER,
+}
+
+
+def category_from_legacy_icon(icon: str | None) -> ApplianceCategory:
+    """구버전 클라이언트가 보낸 `icon`에서 종류를 되살린다."""
+    if not icon:
+        return ApplianceCategory.OTHER
+    return _LEGACY_ICON_TO_CATEGORY.get(icon, ApplianceCategory.OTHER)
+
+
 @dataclass(frozen=True)
 class ApplianceButtonDef:
     id: str
@@ -55,24 +110,34 @@ class ApplianceButtonDef:
 class ApplianceDef:
     appliance_id: str
     name: str
-    # 클라이언트가 아이콘을 고르는 힌트 문자열("microwave"/"induction"/…).
-    # 모르는 값이면 클라이언트가 기본 아이콘을 쓴다 — 서버는 그림을 모른다.
-    icon: str
     rows: int
     cols: int
     buttons: tuple[ApplianceButtonDef, ...]
+    #: 이 기기의 **종류**. 도메인의 단일 진실원천이다.
+    #: 없던 시절의 정의는 `other`로 살아남는다 -- 이름·버튼은 그대로 둔다.
+    category: ApplianceCategory = ApplianceCategory.OTHER
     is_custom: bool = False
     #: 저장할 때마다 오르는 판 번호. 다른 기기가 먼저 바꿨는지 가리는
     #: 유일한 근거다 -- 시각으로 비교하면 기기 시계가 어긋날 때 조용히
     #: 틀린다. 내장 가전은 바뀌지 않으므로 0으로 둔다.
     revision: int = 0
 
+    @property
+    def icon(self) -> str:
+        """구버전 클라이언트를 위한 **파생 출력**.
+
+        따로 저장하지 않는다 -- 두 필드를 각각 고칠 수 있게 두면 곧
+        어긋나고, 어느 쪽이 진짜인지 알 수 없게 된다. 종류가 진실원천이고
+        이건 거기서 나온 그림 힌트다.
+        """
+        return self.category.value
+
 
 # ── 내장 가전 — docs/button-maps/*.json과의 일치를 테스트가 고정한다 ─────────
 BUILTIN_MICROWAVE = ApplianceDef(
     appliance_id="microwave",
     name="전자레인지",
-    icon="microwave",
+    category=ApplianceCategory.MICROWAVE,
     rows=4,
     cols=3,
     buttons=(
@@ -92,7 +157,7 @@ BUILTIN_MICROWAVE = ApplianceDef(
 BUILTIN_INDUCTION = ApplianceDef(
     appliance_id="induction",
     name="인덕션",
-    icon="induction",
+    category=ApplianceCategory.INDUCTION,
     rows=3,
     cols=4,
     buttons=(

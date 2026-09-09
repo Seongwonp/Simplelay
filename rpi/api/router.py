@@ -18,7 +18,11 @@ from rpi.services.readiness import (
 )
 
 from rpi.services import ApplianceButtonDef, ApplianceDef, BuiltinApplianceError
-from rpi.services.appliance_registry import RevisionConflictError
+from rpi.services.appliance_registry import (
+    ApplianceCategory,
+    RevisionConflictError,
+    category_from_legacy_icon,
+)
 
 from .deps import (
     get_clock,
@@ -173,6 +177,8 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
     return ApplianceResponse(
         id=a.appliance_id,
         name=a.name,
+        # 종류가 진실원천이고, icon은 거기서 파생한 호환 출력이다.
+        category=a.category.value,
         icon=a.icon,
         rows=a.rows,
         cols=a.cols,
@@ -365,7 +371,13 @@ async def register_appliance(
     appliance = ApplianceDef(
         appliance_id=appliance_id.strip(),
         name=body.name,
-        icon=body.icon,
+        # category가 오면 그걸 쓰고, 없으면 구버전이 보낸 icon에서
+        # **명시적인 표로만** 되살린다. 이름으로 추측하지 않는다.
+        category=(
+            ApplianceCategory.parse(body.category)
+            if body.category is not None
+            else category_from_legacy_icon(body.icon)
+        ),
         rows=body.rows,
         cols=body.cols,
         buttons=tuple(
