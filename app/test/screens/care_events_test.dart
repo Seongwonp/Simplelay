@@ -21,10 +21,16 @@ http.Response _json(Object body) => http.Response.bytes(
       headers: {'content-type': 'application/json; charset=utf-8'},
     );
 
-RpiApiService _apiWith(List<Map<String, dynamic>> events) =>
+RpiApiService _apiWith(
+  List<Map<String, dynamic>> events, {
+  Map<String, dynamic>? wellnessPause,
+}) =>
     RpiApiService('http://rpi5.local:8000',
         client: MockClient((request) async {
       if (request.url.path == '/care-events') return _json(events);
+      if (request.url.path == '/wellness-pause') {
+        return _json(wellnessPause ?? {'paused': false, 'until': null});
+      }
       return _json([]);
     }));
 
@@ -208,5 +214,54 @@ void main() {
 
     expect(container.read(careEventsProvider).events.length, 3); // 유지
     disposeOnce();
+  });
+
+  testWidgets('안부 확인을 쉬는 중이면 알림함이 그 사실을 말한다', (tester) async {
+    // 말하지 않으면 조용한 알림함이 "정말 아무 일 없었다"로 읽히는데,
+    // 사실은 보호자가 직접 꺼둔 것이다 -- 통신이 끊겼을 때와 같은 오해이고,
+    // 이 알림함이 없애려던 바로 그 오해다.
+    final (_, dispose) = await _pump(
+      tester,
+      const [],
+      api: _apiWith(
+        const [],
+        wellnessPause: {'paused': true, 'until': '2026-07-30'},
+      ),
+    );
+    await tester.pump(); // postFrame의 일시 중지 조회 반영
+
+    expect(
+      find.textContaining('7월 30일까지 안부 확인을 쉬고 있어요'),
+      findsOneWidget,
+    );
+    // 쉬어도 꺼지지 않는 것을 같이 말한다.
+    expect(find.textContaining('실행 실패·위험 신호음은 그대로'), findsOneWidget);
+    dispose();
+  });
+
+  testWidgets('쉬지 않을 때는 알림함에 그 배너가 없다', (tester) async {
+    final (_, dispose) = await _pump(tester, const []);
+    await tester.pump();
+
+    expect(find.textContaining('안부 확인을 쉬고 있어요'), findsNothing);
+    dispose();
+  });
+
+  testWidgets('이미 끝난 일시 중지를 "쉬는 중"으로 표시하지 않는다', (tester) async {
+    // 서버가 paused=false로 답했는데 날짜만 보고 판단하면, 화면은
+    // "7월 23일까지 쉬어요"라고 말하는데 서버는 이미 안부 신호를 다시
+    // 보내고 있는 상태가 된다.
+    final (_, dispose) = await _pump(
+      tester,
+      const [],
+      api: _apiWith(
+        const [],
+        wellnessPause: {'paused': false, 'until': '2026-07-23'},
+      ),
+    );
+    await tester.pump();
+
+    expect(find.textContaining('안부 확인을 쉬고 있어요'), findsNothing);
+    dispose();
   });
 }

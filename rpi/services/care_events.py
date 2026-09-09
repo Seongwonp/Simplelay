@@ -24,6 +24,8 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
+from typing import Protocol
+
 from rpi.intent.models import PatternConfig, UsageOutcome
 from rpi.intent.ports import Clock, UsageLog
 
@@ -130,6 +132,14 @@ class CareEventStore:
             )
 
 
+class WellnessPauseStore(Protocol):
+    """일시 중지를 재시작 뒤에도 기억하는 곳 (실기기는 SQLite)."""
+
+    def load_wellness_pause(self) -> date | None: ...
+
+    def save_wellness_pause(self, until: date | None) -> None: ...
+
+
 class WellnessPause:
     """안부 확인을 며칠 쉰다 — 집을 비운 것을 **아는** 날들.
 
@@ -143,13 +153,29 @@ class WellnessPause:
 
     무기한은 두지 않는다. 꺼둔 것을 잊으면 안부 기능이 **있는 채로 없는 것과
     같아진다** -- 종료 날짜를 반드시 받고, 그날이 지나면 스스로 풀린다.
+    상한도 여기에서 건다: 화면의 날짜 선택기만 막으면 그 규칙은 **화면에만**
+    있는 것이라, 키오스크나 직접 호출은 10년짜리 일시 중지를 만들 수 있다.
 
     쉬는 것은 안부 신호뿐이다. 실행 실패·위험소리·긴급정지는 그대로 간다:
     사람이 집을 비웠다는 것은 조용한 것이 정상이라는 뜻이지, 가전이 고장 나도
     된다는 뜻이 아니다.
     """
 
-    def __init__(self, until: date | None = None) -> None:
+    #: 한 번에 쉴 수 있는 최대 일수. "무기한은 두지 않는다"를 계약으로
+    #: 만드는 값이다 -- 상한이 없으면 2099년까지 쉬는 것이 곧 무기한이다.
+    MAX_DAYS = 90
+
+    def __init__(
+        self,
+        until: date | None = None,
+        store: "WellnessPauseStore | None" = None,
+    ) -> None:
+        self._store = store
+        # 재시작해도 쉬는 상태가 남아야 한다. 메모리에만 두면 여행
+        # 이틀째 기기가 재부팅되는 것만으로 남은 닷새 동안 알림이
+        # 다시 오고, 그게 바로 이 기능이 없애려던 상황이다.
+        if until is None and store is not None:
+            until = store.load_wellness_pause()
         self._until = until
 
     @property
@@ -165,10 +191,20 @@ class WellnessPause:
             # 이미 지난 날짜로 쉬게 하면 아무 일도 안 일어나는데 화면은
             # "쉬는 중"이라고 말하게 된다.
             raise ValueError("until must not be in the past")
+        if until > today + timedelta(days=self.MAX_DAYS):
+            raise ValueError(
+                f"until must be within {self.MAX_DAYS} days"
+            )
         self._until = until
+        self._persist()
 
     def clear(self) -> None:
         self._until = None
+        self._persist()
+
+    def _persist(self) -> None:
+        if self._store is not None:
+            self._store.save_wellness_pause(self._until)
 
 
 class RoutineQuietChecker:

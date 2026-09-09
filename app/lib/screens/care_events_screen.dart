@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/care_events_provider.dart';
+import '../providers/wellness_pause_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -30,6 +31,8 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
       final notifier = ref.read(careEventsProvider.notifier);
       await notifier.refresh();
       await notifier.markAllSeen();
+      // 쉬는 중인지도 같이 확인한다 -- 아래 배너의 근거다.
+      await ref.read(wellnessPauseProvider.notifier).refresh();
     });
   }
 
@@ -43,6 +46,7 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(careEventsProvider);
     final events = state.events;
+    final pausedUntil = ref.watch(wellnessPauseProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('알림')),
@@ -66,6 +70,16 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
                 icon: Icons.wifi_off,
                 text: '기기와 연결되면 여기에 표시돼요.',
               ),
+            // 안부 확인을 쉬는 중이면 그 사실을 말한다. 말하지 않으면
+            // 조용한 알림함이 "정말 아무 일 없었다"로 읽히는데, 사실은
+            // 보호자가 직접 꺼둔 것이다 -- 통신이 끊겼을 때와 같은
+            // 오해이고, 이 알림함이 없애려던 오해다.
+            if (pausedUntil != null)
+              _InboxNotice(
+                icon: Icons.notifications_paused,
+                text: '${_ymd(pausedUntil)}까지 안부 확인을 쉬고 있어요.'
+                    ' 실행 실패·위험 신호음은 그대로 알려드려요.',
+              ),
             Expanded(
               child: events.isEmpty
                   ? _EmptyBody(state: state)
@@ -85,6 +99,8 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
     );
   }
 }
+
+String _ymd(DateTime t) => '${t.month}월 ${t.day}일';
 
 /// **받아왔는데** 0건일 때만 쓴다. 못 받은 경우는 위 배너가 말한다 —
 /// 통신이 끊겨 못 본 것을 "아무 일 없다"로 읽으면 이 알림함의 이유가

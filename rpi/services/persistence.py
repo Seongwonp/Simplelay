@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 
 import json
@@ -35,6 +35,8 @@ from .history import (
 )
 
 _log = logging.getLogger(__name__)
+
+_WELLNESS_PAUSE_KEY = "wellness_pause_until"
 
 
 class SimpleLayDb:
@@ -70,6 +72,10 @@ class SimpleLayDb:
                 CREATE TABLE IF NOT EXISTS appliances (
                     appliance_id TEXT PRIMARY KEY,  -- 폰에서 등록한 커스텀 가전
                     payload_json TEXT NOT NULL      -- {name, icon, rows, cols, buttons}
+                );
+                CREATE TABLE IF NOT EXISTS settings (
+                    key TEXT PRIMARY KEY,       -- 기기 하나짜리 설정
+                    value TEXT                  -- NULL이면 해제된 상태
                 );
                 CREATE TABLE IF NOT EXISTS job_history (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -126,6 +132,41 @@ class SimpleLayDb:
                     )
                     self._conn.commit()
                     _log.info("job_history migrated: %s column added", column)
+
+    # ── 기기 설정 ───────────────────────────────────────────────────────────
+
+    def load_wellness_pause(self) -> date | None:
+        """안부 확인 일시 중지의 종료 날짜 (F5).
+
+        메모리에만 두면 여행 이틀째의 재부팅 한 번으로 남은 닷새 동안
+        알림이 다시 온다 -- 이 기능이 없애려던 바로 그 상황이다.
+        """
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                (_WELLNESS_PAUSE_KEY,),
+            ).fetchone()
+        if row is None or row[0] is None:
+            return None
+        try:
+            return date.fromisoformat(row[0])
+        except ValueError:
+            # 손상된 값으로 안부 확인이 영영 꺼져 있는 것보다, 못 읽으면
+            # 쉬지 않는 쪽이 안전하다.
+            _log.warning("wellness pause value unreadable: %r", row[0])
+            return None
+
+    def save_wellness_pause(self, until: date | None) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (
+                    _WELLNESS_PAUSE_KEY,
+                    None if until is None else until.isoformat(),
+                ),
+            )
+            self._conn.commit()
 
     # ── 사용 이력 (패턴 학습) ────────────────────────────────────────────────
 

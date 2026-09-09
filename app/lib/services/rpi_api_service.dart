@@ -470,6 +470,12 @@ class RpiApiService {
 
   /// 쉬고 있으면 종료 날짜, 아니면 null. 조회 실패도 null이다 — 호출부가
   /// 그 구분을 필요로 하지 않는다(화면은 서버가 답할 때만 상태를 바꾼다).
+  /// 쉬는 중이면 종료 날짜, 아니면 null.
+  ///
+  /// **쉬는 중인지는 서버의 `paused`로 판단한다.** 날짜만 보고
+  /// 추측하면 이미 끝난 일시 중지의 지난 날짜를 받았을 때 화면이
+  /// "7월 23일까지 쉬어요"라고 말하는데 서버는 이미 안부 신호를 다시
+  /// 보내고 있는 상태가 된다.
   Future<DateTime?> wellnessPause() async {
     try {
       final res = await _client
@@ -477,6 +483,7 @@ class RpiApiService {
           .timeout(_timeout);
       if (res.statusCode != 200) return null;
       final body = jsonDecode(res.body) as Map<String, dynamic>;
+      if (body['paused'] != true) return null;
       final until = body['until'] as String?;
       return until == null ? null : DateTime.tryParse(until);
     } catch (_) {
@@ -485,6 +492,9 @@ class RpiApiService {
   }
 
   /// 성공하면 서버가 확정한 종료 날짜, 실패하면 null.
+  ///
+  /// 서버가 상한(90일)과 지난 날짜를 거절한다 -- 날짜 선택기의 제한은
+  /// 편의일 뿐, 규칙 자체는 서버에 있다.
   Future<DateTime?> setWellnessPause(DateTime until) async {
     try {
       final res = await _client

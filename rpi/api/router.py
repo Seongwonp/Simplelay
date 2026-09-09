@@ -266,10 +266,16 @@ async def wellness_pause_state(
     pause=Depends(get_wellness_pause),
     clock=Depends(get_clock),
 ) -> WellnessPauseResponse:
-    """안부 확인을 쉬고 있는가 (F5)."""
+    """안부 확인을 쉬고 있는가 (F5).
+
+    끝난 일시 중지의 날짜는 내보내지 않는다. 지난 날짜를 그대로 주면
+    화면이 "7월 23일까지 쉬어요"라고 말하는데 서버는 이미 안부 신호를
+    다시 보내고 있는 상태가 된다.
+    """
     today = clock.now().date()
+    active = pause.is_active(today)
     return WellnessPauseResponse(
-        paused=pause.is_active(today), until=pause.until
+        paused=active, until=pause.until if active else None
     )
 
 

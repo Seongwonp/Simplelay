@@ -146,6 +146,94 @@ def test_pause_rejects_a_past_date():
         pause.set_until(date(2026, 7, 22), today=date(2026, 7, 23))
 
 
+# ── 상한 (마감 감사 ①) ────────────────────────────────────────────────────
+
+
+def test_pause_rejects_a_date_beyond_the_cap():
+    """상한을 화면의 날짜 선택기에만 두면 그 규칙은 **화면에만** 있는 것이다.
+    키오스크나 직접 호출은 2099년까지 쉬게 만들 수 있고, 그건 곧 무기한이다."""
+    pause = WellnessPause()
+    today = date(2026, 7, 23)
+
+    with pytest.raises(ValueError):
+        pause.set_until(today + timedelta(days=WellnessPause.MAX_DAYS + 1), today)
+
+    assert pause.until is None
+
+
+def test_pause_accepts_the_cap_itself():
+    pause = WellnessPause()
+    today = date(2026, 7, 23)
+    until = today + timedelta(days=WellnessPause.MAX_DAYS)
+
+    pause.set_until(until, today)
+
+    assert pause.until == until
+
+
+# ── 재시작 (마감 감사 ②) ──────────────────────────────────────────────────
+
+
+class _RecordingStore:
+    def __init__(self, until: date | None = None) -> None:
+        self.until = until
+
+    def load_wellness_pause(self) -> date | None:
+        return self.until
+
+    def save_wellness_pause(self, until: date | None) -> None:
+        self.until = until
+
+
+def test_pause_is_written_through_to_the_store():
+    store = _RecordingStore()
+    pause = WellnessPause(store=store)
+
+    pause.set_until(date(2026, 7, 30), today=date(2026, 7, 23))
+
+    assert store.until == date(2026, 7, 30)
+
+
+def test_clearing_is_written_through_too():
+    store = _RecordingStore(date(2026, 7, 30))
+    pause = WellnessPause(store=store)
+
+    pause.clear()
+
+    assert store.until is None
+
+
+def test_pause_survives_a_restart():
+    """여행 이틀째의 재부팅 한 번으로 남은 닷새 동안 알림이 다시 오면,
+    이 기능이 없애려던 바로 그 상황이 된다."""
+    store = _RecordingStore()
+    WellnessPause(store=store).set_until(date(2026, 7, 30), date(2026, 7, 23))
+
+    restarted = WellnessPause(store=store)  # 프로세스가 새로 떴다
+
+    assert restarted.is_active(date(2026, 7, 25)) is True
+
+
+def test_sqlite_round_trips_the_pause(tmp_path):
+    from rpi.services.persistence import SimpleLayDb
+
+    path = str(tmp_path / "simplelay.db")
+    SimpleLayDb(path).save_wellness_pause(date(2026, 7, 30))
+
+    assert SimpleLayDb(path).load_wellness_pause() == date(2026, 7, 30)
+
+
+def test_sqlite_forgets_a_cleared_pause(tmp_path):
+    from rpi.services.persistence import SimpleLayDb
+
+    path = str(tmp_path / "simplelay.db")
+    db = SimpleLayDb(path)
+    db.save_wellness_pause(date(2026, 7, 30))
+    db.save_wellness_pause(None)
+
+    assert SimpleLayDb(path).load_wellness_pause() is None
+
+
 # ── HTTP 계약 ─────────────────────────────────────────────────────────────
 
 
@@ -189,3 +277,35 @@ def test_http_rejects_a_past_date(client):
     res = client.post("/wellness-pause", json={"until": past})
 
     assert res.status_code == 422
+
+
+def test_http_rejects_a_date_beyond_the_cap(client):
+    far = (datetime.now(KST).date() + timedelta(days=400)).isoformat()
+
+    res = client.post("/wellness-pause", json={"until": far})
+
+    assert res.status_code == 422
+
+
+def test_http_does_not_report_an_expired_pause_as_a_date(client):
+    """지난 날짜를 그대로 내보내면 화면은 "7월 23일까지 쉬어요"라고 말하는데
+    서버는 이미 안부 신호를 다시 보내고 있는 상태가 된다."""
+    import rpi.api.deps as deps
+    from rpi.intent.mock import FixedClock
+    from rpi.main import app
+
+    today = datetime.now(KST)
+    until = (today.date() + timedelta(days=3)).isoformat()
+    assert client.post("/wellness-pause", json={"until": until}).status_code == 200
+
+    # 열흘 뒤 -- 일시 중지는 이미 스스로 풀렸다.
+    app.dependency_overrides[deps.get_clock] = lambda: FixedClock(
+        today + timedelta(days=10)
+    )
+    try:
+        body = client.get("/wellness-pause").json()
+    finally:
+        app.dependency_overrides.pop(deps.get_clock, None)
+
+    assert body["paused"] is False
+    assert body["until"] is None

@@ -27,6 +27,7 @@ from .care_events import (
     CareEventStore,
     RoutineQuietChecker,
     WellnessPause,
+    WellnessPauseStore,
 )
 from .appliance_registry import (
     ApplianceButtonDef,

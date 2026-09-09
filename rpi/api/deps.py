@@ -288,7 +288,9 @@ def get_wellness_pause():
     """
     from rpi.services import WellnessPause  # noqa: PLC0415
 
-    return WellnessPause()
+    # DB가 없으면(개발 PC·테스트) 메모리에만 남는다. 실기기는
+    # SIMPLELAY_DB_PATH가 있어 재시작해도 쉬는 상태를 기억한다.
+    return WellnessPause(store=get_db())
 
 
 @lru_cache(maxsize=1)
