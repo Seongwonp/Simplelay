@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/execution_status.dart';
 import '../models/suggestion.dart';
-import '../providers/demo_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -96,10 +95,11 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 : null,
           ),
 
-          // 데모 모드가 켜져 있으면 계속 말한다. 이 화면의 값이 실제
-          // 측정인지 주입된 값인지는 화면만 봐서는 구분할 수 없고, 폐루프의
-          // 존재 이유가 "눌림을 확인했는가"라 그 구분이 흐려지면 안 된다.
-          if (ref.watch(demoModeProvider))
+          // **지금 보고 있는 실행이** 모의일 때만 말한다. 전역 토글을
+          // 보면 진짜로 움직이고 있는 작업 위에도 이 배너가 떠서, 화면이
+          // 정반대의 말을 하게 된다 -- 폐루프의 존재 이유가 "눌림을
+          // 확인했는가"인데 그 확인을 화면이 뒤집는 셈이다.
+          if (status.isDemo)
             Semantics(
               liveRegion: true,
               label: '데모 모드입니다. 실제 조작이 아닙니다.',

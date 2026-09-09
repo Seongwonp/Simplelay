@@ -18,6 +18,9 @@ const _suggestion = Suggestion(
 );
 
 void main() {
+  // 실행 시작이 설정(데모 모드)을 읽게 되면서 플랫폼 채널을 탄다.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('ExecutionStatusNotifier', () {
     test('initially idle with no data', () {
       final c = makeContainer();

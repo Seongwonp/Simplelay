@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../providers/appliance_provider.dart';
+import '../providers/demo_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/navigation_provider.dart';
@@ -198,7 +199,11 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       // "Wi-Fi가 끊겨도 동작"이 실제로 성립하는 지점. 사용자 정의 가전은
       // LLM 해석이 필요해 BLE 릴레이로는 처리 불가라 제외.
       final bleState = ref.read(bleConnectionProvider).valueOrNull;
-      if (!appliance.isCustom && bleState == BleConnectionState.connected) {
+      // 모의 실행 중에는 BLE 폴백도 막는다 -- 여기로 새면 "실제 조작이
+      // 아닙니다" 화면 아래에서 실기기가 진짜로 움직인다.
+      if (!appliance.isCustom &&
+          bleState == BleConnectionState.connected &&
+          !ref.read(demoModeProvider)) {
         try {
           await ref
               .read(bleServiceProvider)

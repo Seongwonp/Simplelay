@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/demo_provider.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 
@@ -24,6 +25,7 @@ Widget _buildSettings({
   AsyncValue<List<ScanResult>>? scanValue,
   List<Override> extra = const [],
   void Function(ProviderContainer)? onContainerReady,
+  ExecutionStatus? executionStatus,
 }) {
   return buildScreen(
     const SettingsScreen(),
@@ -31,6 +33,7 @@ Widget _buildSettings({
       ..._scanOverrides(value: scanValue),
       ...extra,
     ],
+    executionStatus: executionStatus,
     onContainerReady: onContainerReady,
   );
 }
@@ -196,6 +199,28 @@ void main() {
       );
       await tester.pump();
       expect(container.read(demoModeProvider), isTrue);
+    });
+
+    testWidgets('실행 중에는 데모 토글이 잠긴다', (tester) async {
+      // 모드를 갈아타면 실행 경로(실제 서버 / 모의)가 통째로 바뀌는데,
+      // 그 순간 진행 중이던 작업은 추적을 잃는다.
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        _buildSettings(
+          executionStatus: const ExecutionStatus(
+            phase: ExecutionPhase.running,
+            label: '우유 데워줘',
+          ),
+        ),
+      );
+      await tester.pump();
+      await _expandAdvanced(tester);
+
+      final toggle = tester.widget<SwitchListTile>(
+        find.widgetWithText(SwitchListTile, '데모 모드'),
+      );
+      expect(toggle.onChanged, isNull);
+      expect(find.text('실행이 끝난 뒤에 바꿀 수 있어요'), findsOneWidget);
     });
 
     testWidgets('제안 시뮬레이션 탭 시 SnackBar 표시', (tester) async {

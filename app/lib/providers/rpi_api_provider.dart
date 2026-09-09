@@ -2,10 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../services/mdns_resolver.dart';
 import '../services/rpi_api_service.dart';
+import '../services/simulated_execution_service.dart';
+import 'demo_provider.dart';
 
 // ── 기본 URL (mDNS — 라우터 없이도 simplelay.local로 자동 연결) ─────────────
 const _kDefaultUrl = 'http://simplelay.local:8000';
@@ -101,10 +104,22 @@ final rpiApiKeyProvider = StateNotifierProvider<RpiApiKeyNotifier, String?>(
 
 // ── RpiApiService 인스턴스 ────────────────────────────────────────────────
 
+/// HTTP 클라이언트 주입점 — 테스트에서 이 provider를 갈아끼워 **실제
+/// 전송이 있었는지**를 센다. 서비스 자체를 통째로 교체해버리면 데모
+/// 분기(아래)를 건너뛰어 정작 검증하려던 것을 못 본다.
+final rpiHttpClientProvider = Provider<http.Client?>((_) => null);
+
 final rpiApiServiceProvider = Provider<RpiApiService?>((ref) {
   final url = ref.watch(rpiUrlProvider);
   if (url == null || url.isEmpty) return null;
-  final service = RpiApiService(url, apiKey: ref.watch(rpiApiKeyProvider));
+  final apiKey = ref.watch(rpiApiKeyProvider);
+  final client = ref.watch(rpiHttpClientProvider);
+  // 데모(모의) 실행은 **전송 경로에서** 갈라진다. 화면 배너만 바꾸면
+  // "실제 조작이 아닙니다"라고 말하면서 실제로 갠트리를 움직인다.
+  final demo = ref.watch(demoModeProvider);
+  final service = demo
+      ? SimulatedExecutionService(url, client: client, apiKey: apiKey)
+      : RpiApiService(url, client: client, apiKey: apiKey);
   ref.onDispose(service.dispose);
   return service;
 });

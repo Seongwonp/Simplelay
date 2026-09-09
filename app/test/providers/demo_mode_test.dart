@@ -24,11 +24,18 @@ import '../helpers/test_helpers.dart';
 /// 주입 여부만 보면 되므로, 들어온 메시지를 세는 것으로 충분하다.
 class _CountingBle extends BleService {
   int injected = 0;
+  final List<bool> confirmations = [];
 
   @override
   void injectMessage(Map<String, dynamic> message) {
     injected++;
     super.injectMessage(message);
+  }
+
+  @override
+  Future<void> sendConfirmation(String sequenceId, bool approved) async {
+    confirmations.add(approved);
+    return super.sendConfirmation(sequenceId, approved);
   }
 }
 
@@ -94,6 +101,20 @@ void main() {
   testWidgets('데모 모드를 켜면 가짜 센서가 들어온다', (tester) async {
     final ble = await _approve(tester, demo: true);
     expect(ble.injected, greaterThan(0));
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('데모 모드에서는 BLE 승인 응답도 나가지 않는다', (tester) async {
+    // HTTP만 막으면 BLE로 붙은 실기기가 실제로 움직이는데 화면은
+    // "실제 조작이 아닙니다"라고 한다 -- 전송 경로 전부에서 갈라야 한다.
+    final ble = await _approve(tester, demo: true);
+    expect(ble.confirmations, isEmpty);
+    await tester.pump(const Duration(seconds: 5));
+  });
+
+  testWidgets('데모가 꺼져 있으면 BLE 승인 응답이 나간다', (tester) async {
+    final ble = await _approve(tester, demo: false);
+    expect(ble.confirmations, [true]);
     await tester.pump(const Duration(seconds: 5));
   });
 

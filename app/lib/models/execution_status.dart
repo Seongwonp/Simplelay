@@ -26,6 +26,7 @@ class ExecutionStatus {
     this.soundDb,
     this.phase = ExecutionPhase.idle,
     this.message,
+    this.isDemo = false,
   });
 
   final String? sequenceId;
@@ -44,6 +45,13 @@ class ExecutionStatus {
   final double? soundDb;
   final ExecutionPhase phase;
   final String? message;
+
+  /// 이 실행이 **모의**였는가. 실행을 시작한 순간에 확정한다.
+  ///
+  /// 전역 데모 토글을 그때그때 읽으면, 진행 중에 토글을 건드린 것만으로
+  /// 이미 시작한 작업의 표시가 뒤집힌다 -- 실제로 움직이고 있는 작업이
+  /// "실제 조작이 아닙니다"가 되거나 그 반대가 된다.
+  final bool isDemo;
 
   ExecutionStatus copyWith({
     String? sequenceId,
@@ -75,5 +83,8 @@ class ExecutionStatus {
         soundDb: soundDb ?? this.soundDb,
         phase: phase ?? this.phase,
         message: message ?? this.message,
+        // 실행 모드는 시작할 때 정해지고 그 job이 끝날 때까지 바뀌지
+        // 않는다 -- copyWith로 뒤집을 수 있으면 새길 이유가 없다.
+        isDemo: isDemo,
       );
 }

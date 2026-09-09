@@ -7,6 +7,7 @@ import '../models/execution_status.dart';
 import '../models/suggestion.dart';
 import '../services/rpi_api_service.dart';
 import 'ble_provider.dart';
+import 'demo_provider.dart';
 import 'rpi_api_provider.dart';
 import 'tts_provider.dart';
 
@@ -50,7 +51,19 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       steps: suggestion.steps,
       phase: ExecutionPhase.waiting,
       message: '실행 요청을 보냈어요',
+      isDemo: _demoNow(),
     );
+  }
+
+  /// 실행 모드를 **시작하는 순간에** 읽는다. 화면이 매번 전역 토글을
+  /// 보면, 진행 중에 토글을 건드린 것만으로 이미 시작한 작업의 표시가
+  /// 뒤집힌다 -- 실제로 움직이는 작업이 "실제 조작이 아닙니다"가 된다.
+  bool _demoNow() {
+    try {
+      return ref.read(demoModeProvider);
+    } catch (_) {
+      return false; // provider 정리 직후 등 — 실제로 취급하는 쪽이 안전하다
+    }
   }
 
   void beginHttpJob({
@@ -70,6 +83,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       steps: steps,
       phase: ExecutionPhase.running,
       message: '실행 중',
+      isDemo: _demoNow(),
     );
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
     _rememberPendingJob(jobId, label);
@@ -140,6 +154,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       label: label.isEmpty ? null : label,
       phase: ExecutionPhase.running,
       message: '아까 맡긴 작업을 다시 확인하고 있어요…',
+      // 재시작 복원은 실제 서버의 job만 대상으로 한다 -- 모의 실행은
+      // 앱 안에서만 살아 있어 남길 것도 이어붙일 것도 없다.
     );
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());

@@ -7,6 +7,7 @@ import '../models/suggestion.dart';
 import '../services/rpi_api_service.dart';
 import 'appliance_provider.dart';
 import 'ble_provider.dart';
+import 'demo_provider.dart';
 import 'rpi_api_provider.dart';
 
 const _httpPollInterval = Duration(seconds: 5);
@@ -144,9 +145,14 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
       _publish();
       return;
     }
-    await ref
-        .read(bleServiceProvider)
-        .sendConfirmation(suggestion.sequenceId, approved);
+    // 모의 실행에서는 BLE로도 나가지 않는다. HTTP만 막으면 BLE로 붙은
+    // 실기기가 실제로 움직이는데 화면은 "실제 조작이 아닙니다"라고 한다.
+    // 거절(approved=false)은 물리 동작이 아니므로 그대로 보낸다.
+    if (!(approved && ref.read(demoModeProvider))) {
+      await ref
+          .read(bleServiceProvider)
+          .sendConfirmation(suggestion.sequenceId, approved);
+    }
     _bleSuggestions = _bleSuggestions
         .where((item) => item.sequenceId != suggestion.sequenceId)
         .toList();

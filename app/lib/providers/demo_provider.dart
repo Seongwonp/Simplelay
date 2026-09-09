@@ -22,14 +22,24 @@ class DemoModeNotifier extends StateNotifier<bool> {
   }
 
   Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    state = prefs.getBool(_kDemoKey) ?? kDemoBuildDefault;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      state = prefs.getBool(_kDemoKey) ?? kDemoBuildDefault;
+    } catch (_) {
+      // 저장소를 못 읽어도 기본값(꺼짐)으로 계속 간다. 실행 경로가
+      // 이 값을 보게 된 뒤로는(R2) 여기서 던지면 실행 시작 자체가
+      // 깨진다 -- 설정 하나 못 읽은 것이 조작을 막으면 안 된다.
+    }
   }
 
   Future<void> set(bool value) async {
     state = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_kDemoKey, value);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_kDemoKey, value);
+    } catch (_) {
+      // 이번 세션에는 적용되고 다음 실행에 안 남을 뿐이다.
+    }
   }
 }
 

@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
+import '../models/execution_status.dart';
 import '../providers/demo_provider.dart';
+import '../providers/execution_status_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/theme_provider.dart';
@@ -800,19 +802,29 @@ class _DemoModeTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final on = ref.watch(demoModeProvider);
+    // 실행 중에는 잠근다. 모드를 갈아타면 실행 경로(실제 서버 / 모의)가
+    // 통째로 바뀌는데, 그 순간 진행 중이던 작업은 추적을 잃는다.
+    final phase = ref.watch(executionStatusProvider).phase;
+    final busy = phase == ExecutionPhase.running ||
+        phase == ExecutionPhase.retrying ||
+        phase == ExecutionPhase.waiting;
     return _SettingCard(
       child: SwitchListTile(
         contentPadding: EdgeInsets.zero,
         secondary: const Icon(Icons.science_outlined),
         title: const Text('데모 모드'),
         subtitle: Text(
-          on
-              ? '실행 화면에 가짜 센서 값이 섞입니다 — 실제 조작이 아닙니다'
-              : '리허설용. 켜면 실행이 실제와 다르게 보입니다',
+          busy
+              ? '실행이 끝난 뒤에 바꿀 수 있어요'
+              : on
+                  ? '실행이 서버로 나가지 않습니다 — 실제 조작이 아닙니다'
+                  : '리허설용. 켜면 실행이 서버로 나가지 않습니다',
           style: TextStyle(color: context.appMuted, fontSize: 12),
         ),
         value: on,
-        onChanged: (v) => ref.read(demoModeProvider.notifier).set(v),
+        onChanged: busy
+            ? null
+            : (v) => ref.read(demoModeProvider.notifier).set(v),
       ),
     );
   }
