@@ -61,7 +61,11 @@ class AppliancePortrait extends StatelessWidget {
       return SizedBox(
         width: size,
         height: size,
-        child: _Silhouette(size: size, color: context.appMuted),
+        child: _Silhouette(
+          size: size,
+          color: context.appMuted,
+          category: appliance.category,
+        ),
       );
     }
 
@@ -76,8 +80,11 @@ class AppliancePortrait extends StatelessWidget {
         fit: BoxFit.cover,
         // 파일이 중간에 사라지거나 깨진 이미지일 수 있다. 그때 회색 네모가
         // 남는 것보다 실루엣이 낫다.
-        errorBuilder: (context, _, __) =>
-            _Silhouette(size: size, color: context.appMuted),
+        errorBuilder: (context, _, __) => _Silhouette(
+          size: size,
+          color: context.appMuted,
+          category: appliance.category,
+        ),
       ),
     );
   }
@@ -89,63 +96,152 @@ class AppliancePortrait extends StatelessWidget {
 /// 오해하게 되고, 사진을 등록할 이유도 사라진다. 선으로만 그린 형태는
 /// "여기 사진이 들어갈 자리"라고 스스로 말한다.
 class _Silhouette extends StatelessWidget {
-  const _Silhouette({required this.size, required this.color});
+  const _Silhouette({
+    required this.size,
+    required this.color,
+    required this.category,
+  });
 
   final double size;
   final Color color;
+  final ApplianceCategory category;
 
   @override
   Widget build(BuildContext context) => CustomPaint(
         size: Size.square(size),
-        painter: _SilhouettePainter(color),
+        painter: _SilhouettePainter(color, category),
       );
 }
 
 class _SilhouettePainter extends CustomPainter {
-  const _SilhouettePainter(this.color);
+  const _SilhouettePainter(this.color, this.category);
 
   final Color color;
+  final ApplianceCategory category;
 
   @override
   void paint(Canvas canvas, Size size) {
     final s = size.shortestSide;
-    final stroke = (s * 0.018).clamp(1.2, 3.0);
-    final paint = Paint()
+    final line = Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = stroke
+      ..strokeWidth = (s * 0.018).clamp(1.2, 3.0)
       ..strokeCap = StrokeCap.round
       ..color = color.withValues(alpha: 0.55);
-
-    // 본체 — 가로로 조금 넓은 상자.
-    final body = Rect.fromLTWH(s * 0.16, s * 0.26, s * 0.68, s * 0.48);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(body, Radius.circular(s * 0.05)),
-      paint,
-    );
-
-    // 문 — 왼쪽 2/3.
-    final door = Rect.fromLTWH(s * 0.21, s * 0.32, s * 0.40, s * 0.36);
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(door, Radius.circular(s * 0.03)),
-      paint..color = color.withValues(alpha: 0.35),
-    );
-
-    // 조작부 — 오른쪽 세로 띠에 버튼 세 개. 이 제품이 "누르는" 기계라는
-    // 것을 실루엣만으로도 말한다.
+    final faint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (s * 0.018).clamp(1.2, 3.0)
+      ..strokeCap = StrokeCap.round
+      ..color = color.withValues(alpha: 0.35);
     final dot = Paint()
       ..style = PaintingStyle.fill
       ..color = color.withValues(alpha: 0.45);
+
+    switch (category) {
+      case ApplianceCategory.microwave:
+        _microwave(canvas, s, line, faint, dot);
+      case ApplianceCategory.airConditioner:
+        _airConditioner(canvas, s, line, faint, dot);
+      case ApplianceCategory.washingMachine:
+        _washingMachine(canvas, s, line, faint, dot);
+      case ApplianceCategory.induction:
+        _induction(canvas, s, line, faint, dot);
+      case ApplianceCategory.riceCooker:
+        _riceCooker(canvas, s, line, faint, dot);
+      case ApplianceCategory.other:
+        _generic(canvas, s, line, dot);
+    }
+  }
+
+  void _box(Canvas c, Rect r, double radius, Paint p) =>
+      c.drawRRect(RRect.fromRectAndRadius(r, Radius.circular(radius)), p);
+
+  /// 세로로 늘어선 버튼 몇 개. "누르는 기계"라는 것을 실루엣만으로 말한다.
+  void _buttonColumn(Canvas c, double s, double x, double top, Paint dot) {
     for (var i = 0; i < 3; i++) {
-      canvas.drawCircle(
-        Offset(s * 0.72, s * 0.38 + i * s * 0.11),
-        s * 0.025,
-        dot,
-      );
+      c.drawCircle(Offset(x, top + i * s * 0.11), s * 0.025, dot);
+    }
+  }
+
+  void _microwave(Canvas c, double s, Paint line, Paint faint, Paint dot) {
+    _box(c, Rect.fromLTWH(s * 0.16, s * 0.26, s * 0.68, s * 0.48), s * 0.05,
+        line);
+    // 문 -- 왼쪽 2/3.
+    _box(c, Rect.fromLTWH(s * 0.21, s * 0.32, s * 0.40, s * 0.36), s * 0.03,
+        faint);
+    _buttonColumn(c, s, s * 0.72, s * 0.38, dot);
+  }
+
+  void _airConditioner(Canvas c, double s, Paint line, Paint faint, Paint dot) {
+    // 벽걸이형 -- 가로로 넓고 납작하다. 전자레인지와 한눈에 달라야 한다.
+    _box(c, Rect.fromLTWH(s * 0.10, s * 0.34, s * 0.80, s * 0.28), s * 0.07,
+        line);
+    // 아래쪽 바람 날개.
+    for (var i = 0; i < 2; i++) {
+      final y = s * 0.52 + i * s * 0.05;
+      c.drawLine(Offset(s * 0.16, y), Offset(s * 0.72, y), faint);
+    }
+    // 표시등.
+    c.drawCircle(Offset(s * 0.80, s * 0.55), s * 0.022, dot);
+  }
+
+  void _washingMachine(Canvas c, double s, Paint line, Paint faint, Paint dot) {
+    _box(c, Rect.fromLTWH(s * 0.22, s * 0.18, s * 0.56, s * 0.64), s * 0.06,
+        line);
+    // 조작부는 위, 문은 원형.
+    c.drawLine(Offset(s * 0.22, s * 0.34), Offset(s * 0.78, s * 0.34), faint);
+    c.drawCircle(Offset(s * 0.50, s * 0.58), s * 0.16, faint);
+    for (var i = 0; i < 3; i++) {
+      c.drawCircle(Offset(s * 0.32 + i * s * 0.09, s * 0.26), s * 0.022, dot);
+    }
+  }
+
+  void _induction(Canvas c, double s, Paint line, Paint faint, Paint dot) {
+    // 위에서 본 상판 -- 화구 두 개와 아래쪽 조작 띠.
+    _box(c, Rect.fromLTWH(s * 0.14, s * 0.28, s * 0.72, s * 0.44), s * 0.05,
+        line);
+    c.drawCircle(Offset(s * 0.36, s * 0.44), s * 0.11, faint);
+    c.drawCircle(Offset(s * 0.64, s * 0.44), s * 0.08, faint);
+    for (var i = 0; i < 4; i++) {
+      c.drawCircle(Offset(s * 0.30 + i * s * 0.13, s * 0.64), s * 0.022, dot);
+    }
+  }
+
+  void _riceCooker(Canvas c, double s, Paint line, Paint faint, Paint dot) {
+    // 둥근 몸통 + 뚜껑 선 + 손잡이.
+    _box(c, Rect.fromLTWH(s * 0.20, s * 0.32, s * 0.60, s * 0.42), s * 0.14,
+        line);
+    c.drawLine(Offset(s * 0.22, s * 0.46), Offset(s * 0.78, s * 0.46), faint);
+    c.drawArc(
+      Rect.fromLTWH(s * 0.34, s * 0.16, s * 0.32, s * 0.28),
+      3.14159,
+      3.14159,
+      false,
+      faint,
+    );
+    for (var i = 0; i < 3; i++) {
+      c.drawCircle(Offset(s * 0.38 + i * s * 0.12, s * 0.60), s * 0.022, dot);
+    }
+  }
+
+  void _generic(Canvas c, double s, Paint line, Paint dot) {
+    // 종류를 모른다. 특정 제품을 흉내내지 않고, 버튼판만 남긴다 --
+    // 이 앱이 다루는 공통점은 "누를 버튼이 있다"는 것뿐이다.
+    _box(c, Rect.fromLTWH(s * 0.20, s * 0.24, s * 0.60, s * 0.52), s * 0.06,
+        line);
+    for (var y = 0; y < 3; y++) {
+      for (var x = 0; x < 3; x++) {
+        c.drawCircle(
+          Offset(s * 0.33 + x * s * 0.17, s * 0.36 + y * s * 0.14),
+          s * 0.026,
+          dot,
+        );
+      }
     }
   }
 
   @override
-  bool shouldRepaint(_SilhouettePainter old) => old.color != color;
+  bool shouldRepaint(_SilhouettePainter old) =>
+      old.color != color || old.category != category;
 }
 
 /// 사진이 없을 때 한 번만 권하는 작은 행동.

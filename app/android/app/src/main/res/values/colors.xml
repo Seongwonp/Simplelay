@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 시작 화면 바탕. Flutter 쪽 팔레트(app_colors.dart)와 같은 값이어야
+     네이티브 스플래시에서 앱 첫 화면으로 넘어갈 때 바탕색이 한 번 튀지
+     않는다 -- 그 순간이 앱을 두 번 켠 것처럼 보인다. -->
+<resources>
+    <color name="launch_background">#FFF4F6FA</color>
+</resources>

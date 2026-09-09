@@ -25,11 +25,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
 import 'package:simplelay/screens/settings_screen.dart';
+import 'package:simplelay/screens/splash_screen.dart';
 import 'package:simplelay/screens/app_shell.dart';
 import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
@@ -52,6 +54,10 @@ Future<void> _shoot(
   // 실행 화면처럼 계속 도는 애니메이션(진행 표시·차트)이 있으면 pumpAndSettle이
   // 영영 안 끝난다. 그런 화면은 정해진 시간만 돌리고 찍는다.
   bool settle = true,
+  // 이 골든이 가정하는 **설치된 가전**. 비우면 아직 아무것도 등록하지 않은
+  // 사용자다 -- 그것도 찍어야 하는 정상 상태다.
+  List<ApplianceMap>? installed,
+  List<Override> extraOverrides = const [],
 }) async {
   tester.view.physicalSize = _phoneSize;
   tester.view.devicePixelRatio = 1.0;
@@ -61,7 +67,11 @@ Future<void> _shoot(
     buildWithProviderState(
       suggestions: suggestions,
       executionStatus: executionStatus,
-      overrides: connected ? connectedOverrides() : disconnectedOverrides(),
+      overrides: [
+        ...connected ? connectedOverrides() : disconnectedOverrides(),
+        ...installedOverrides(installed ?? [kTestAppliance]),
+        ...extraOverrides,
+      ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
         // 실제 테마를 쓴다 -- 기존 테스트 헬퍼는 ThemeData.dark()를 쓰고 있어서
@@ -127,6 +137,7 @@ void main() {
       sequenceId: 'a',
       label: '우유 데워줘',
       steps: ['BT-08', 'BT-03', 'BT-05'],
+      applianceId: 'microwave',
       source: SuggestionSource.http,
       timeBand: '아침',
       occurrences: 4,
@@ -267,6 +278,63 @@ void main() {
     });
   }
 
+  // ── 시작 화면 ────────────────────────────────────────────────────────────
+  //
+  // 안드로이드 네이티브 스플래시(흰 배경 하나)와 이어져 보여야 한다. 여기서
+  // 갑자기 카드나 그라데이션이 나오면 앱을 두 번 켠 것처럼 보인다.
+  testWidgets('시작 화면 (다크)', (t) async {
+    await _shoot(t, 'splash_dark', const Scaffold(body: Center(child: SplashWordmark())));
+  });
+
+  testWidgets('시작 화면 (라이트)', (t) async {
+    await _shoot(t, 'splash_light',
+        const Scaffold(body: Center(child: SplashWordmark())),
+        light: true);
+  });
+
+  testWidgets('시작 화면 — 큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'splash_large',
+        const Scaffold(body: Center(child: SplashWordmark())),
+        light: true, textScale: 2.0);
+  });
+
+  // ── 설치 가전 0대 / 여러 대 / 데모 ───────────────────────────────────────
+  //
+  // 이 세 가지가 이번 작업의 핵심이다. 예전에는 세 경우가 화면에서 전부
+  // 같아 보였다 -- 아무것도 등록하지 않은 사람에게도 전자레인지가 서 있었다.
+  testWidgets('홈 — 설치 가전 0대', (t) async {
+    await _shoot(t, 'home_no_appliance', const HomeScreen(), installed: const []);
+  });
+
+  testWidgets('시안 — 설치 가전 0대 (라이트)', (t) async {
+    await _shoot(t, 'lt_home_no_appliance', const HomeScreen(),
+        installed: const [], light: true);
+  });
+
+  testWidgets('홈 — 설치 가전 0대·큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'home_no_appliance_large', const HomeScreen(),
+        installed: const [], textScale: 2.0);
+  });
+
+  testWidgets('홈 — 내 가전 두 대', (t) async {
+    await _shoot(t, 'home_two_appliances', const HomeScreen(),
+        installed: _twoOfMine, light: true);
+  });
+
+  testWidgets('홈 — 데모 표본', (t) async {
+    // 표본에는 '데모'라고 적혀 있어야 한다. 심사 자리에서 우리가 실제로
+    // 만든 것과 보여주기 위해 세운 것이 구분되지 않으면 안 된다.
+    await _shoot(t, 'home_demo', const HomeScreen(),
+        installed: kDemoAppliances, light: true);
+  });
+
+  testWidgets('홈 — 모르는 종류', (t) async {
+    // 앞선 버전의 서버가 새 종류를 알고 있을 수 있다. 거절하지 않고
+    // 일반 아이콘으로 떨어지는 것이 화면에서 어떻게 보이는지 남긴다.
+    await _shoot(t, 'home_unknown_category', const HomeScreen(),
+        installed: [_unknownKind], light: true);
+  });
+
   // ── 하단 탭바 ────────────────────────────────────────────────────────────
   //
   // 다른 골든은 화면을 AppShell 없이 그린다. 탭바는 주 행동(말로 조작)을
@@ -277,6 +345,47 @@ void main() {
     });
   }
 }
+
+/// 같은 종류를 여러 대 등록한 사람. 위치가 이름 앞에 붙는다.
+final _twoOfMine = <ApplianceMap>[
+  ApplianceMap(
+    id: 'mine_living',
+    name: '에어컨',
+    location: '거실',
+    category: ApplianceCategory.airConditioner,
+    rows: 3,
+    cols: 3,
+    buttons: kApplianceTemplates.firstWhere((t) => t.id == 'aircon').buttons,
+    isCustom: true,
+  ),
+  ApplianceMap(
+    id: 'mine_bed',
+    name: '에어컨',
+    location: '안방',
+    category: ApplianceCategory.airConditioner,
+    rows: 3,
+    cols: 3,
+    buttons: kApplianceTemplates.firstWhere((t) => t.id == 'aircon').buttons,
+    isCustom: true,
+  ),
+];
+
+/// 종류를 모르는 가전. 서버가 새 값을 보냈거나, 사용자가 '기타'를 골랐다.
+final _unknownKind = ApplianceMap(
+  id: 'mine_unknown',
+  name: '안마의자',
+  location: '거실',
+  category: ApplianceCategory.other,
+  rows: 2,
+  cols: 2,
+  buttons: const [
+    ApplianceButton(id: 'u1', label: '전원', x: 0, y: 0),
+    ApplianceButton(id: 'u2', label: '세기', x: 1, y: 0),
+    ApplianceButton(id: 'u3', label: '전신', x: 0, y: 1),
+    ApplianceButton(id: 'u4', label: '정지', x: 1, y: 1),
+  ],
+  isCustom: true,
+);
 
 /// 탭바를 포함한 shell 전체를 찍는다.
 Future<void> _shootShell(
