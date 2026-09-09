@@ -33,34 +33,66 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
     });
   }
 
+  Future<void> _reload() async {
+    final notifier = ref.read(careEventsProvider.notifier);
+    await notifier.refresh();
+    await notifier.markAllSeen();
+  }
+
   @override
   Widget build(BuildContext context) {
-    final events = ref.watch(careEventsProvider).events;
+    final state = ref.watch(careEventsProvider);
+    final events = state.events;
 
     return Scaffold(
       appBar: AppBar(title: const Text('알림')),
-      body: events.isEmpty
-          ? const _EmptyState()
-          : RefreshIndicator(
-              onRefresh: () async {
-                final notifier = ref.read(careEventsProvider.notifier);
-                await notifier.refresh();
-                await notifier.markAllSeen();
-              },
-              child: ListView.separated(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: const EdgeInsets.all(20),
-                itemCount: events.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (_, i) => _CareEventCard(event: events[i]),
+      body: RefreshIndicator(
+        onRefresh: _reload,
+        child: Column(
+          children: [
+            // 지금 보고 있는 것이 최신인지부터 말한다. 이 알림함이 다루는
+            // 것은 실행 실패·위험 신호음·안부 신호라, "못 받았다"를 "아무
+            // 일 없다"로 읽게 두면 기능의 이유가 무너진다.
+            if (state.status == CareInboxStatus.failed)
+              _InboxNotice(
+                icon: Icons.cloud_off,
+                text: events.isEmpty
+                    ? '알림을 불러오지 못했어요.'
+                    : '새 알림을 확인하지 못했어요.',
+                onRetry: _reload,
               ),
+            if (state.status == CareInboxStatus.unconfigured)
+              const _InboxNotice(
+                icon: Icons.wifi_off,
+                text: '기기와 연결되면 여기에 표시돼요.',
+              ),
+            Expanded(
+              child: events.isEmpty
+                  ? _EmptyBody(state: state)
+                  : ListView.separated(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: const EdgeInsets.all(20),
+                      itemCount: events.length + 1,
+                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      itemBuilder: (_, i) => i == events.length
+                          ? _LastCheckedAt(at: state.lastLoadedAt)
+                          : _CareEventCard(event: events[i]),
+                    ),
             ),
+          ],
+        ),
+      ),
     );
   }
 }
 
+/// **받아왔는데** 0건일 때만 쓴다. 못 받은 경우는 위 배너가 말한다 —
+/// 통신이 끊겨 못 본 것을 "아무 일 없다"로 읽으면 이 알림함의 이유가
+/// 그대로 무너진다.
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  const _EmptyState({this.at});
+
+  final DateTime? at;
 
   @override
   Widget build(BuildContext context) => Center(
@@ -77,9 +109,94 @@ class _EmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appMuted, fontSize: 14),
             ),
+            const SizedBox(height: 10),
+            _LastCheckedAt(at: at),
           ],
         ),
       );
+}
+
+/// 목록 위에 얹는 한 줄 — 실패·미설정처럼 "목록 자체의 상태"를 말한다.
+class _InboxNotice extends StatelessWidget {
+  const _InboxNotice({required this.icon, required this.text, this.onRetry});
+
+  final IconData icon;
+  final String text;
+  final Future<void> Function()? onRetry;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: double.infinity,
+        color: context.appWarning.withValues(alpha: 0.14),
+        padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: context.appWarning),
+            const SizedBox(width: 10),
+            Expanded(child: Text(text)),
+            if (onRetry != null)
+              TextButton(
+                onPressed: () => onRetry!(),
+                child: const Text('다시 불러오기'),
+              ),
+          ],
+        ),
+      );
+}
+
+/// 목록이 비었을 때. **왜 비었는지**에 따라 다른 말을 한다.
+class _EmptyBody extends StatelessWidget {
+  const _EmptyBody({required this.state});
+
+  final CareEventsState state;
+
+  @override
+  Widget build(BuildContext context) {
+    // 스크롤 가능해야 당겨서 새로고침이 된다 — 비어 있을 때야말로 다시
+    // 시도할 방법이 필요하다.
+    return ListView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      children: [
+        SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.55,
+          child: switch (state.status) {
+            CareInboxStatus.loading =>
+              const Center(child: CircularProgressIndicator()),
+            // 실패·미설정은 위 배너가 이미 말했다. 여기서 "알림이 없어요"를
+            // 반복하면 못 받은 것을 없는 것으로 단언하게 된다.
+            CareInboxStatus.failed ||
+            CareInboxStatus.unconfigured =>
+              const SizedBox.shrink(),
+            CareInboxStatus.ready => _EmptyState(at: state.lastLoadedAt),
+          },
+        ),
+      ],
+    );
+  }
+}
+
+/// 언제까지의 정보인지. 실패한 뒤에도 남는다 — "언제 확인한 것인지"가
+/// 곧 이 화면을 얼마나 믿어도 되는지다.
+class _LastCheckedAt extends StatelessWidget {
+  const _LastCheckedAt({required this.at});
+
+  final DateTime? at;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = at;
+    if (t == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Text(
+        '${_two(t.hour)}:${_two(t.minute)} 기준',
+        textAlign: TextAlign.center,
+        style: TextStyle(color: context.appMuted, fontSize: 13),
+      ),
+    );
+  }
+
+  static String _two(int v) => v.toString().padLeft(2, '0');
 }
 
 class _CareEventCard extends StatelessWidget {

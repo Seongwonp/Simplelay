@@ -28,6 +28,16 @@ RpiApiService _apiWith(List<Map<String, dynamic>> events) =>
       return _json([]);
     }));
 
+/// 알림 조회가 실패하는 서버.
+RpiApiService _apiDown() =>
+    RpiApiService('http://rpi5.local:8000',
+        client: MockClient((request) async {
+      if (request.url.path == '/care-events') {
+        return http.Response('{"detail":"boom"}', 500);
+      }
+      return _json([]);
+    }));
+
 const _sampleEvents = [
   {
     'id': 3,
@@ -59,10 +69,11 @@ typedef _Harness = (ProviderContainer, void Function());
 
 Future<_Harness> _pump(
   WidgetTester tester,
-  List<Map<String, dynamic>> events,
-) async {
+  List<Map<String, dynamic>> events, {
+  RpiApiService? api,
+}) async {
   final container = ProviderContainer(overrides: [
-    rpiApiServiceProvider.overrideWithValue(_apiWith(events)),
+    rpiApiServiceProvider.overrideWithValue(api ?? _apiWith(events)),
   ]);
   var disposed = false;
   void disposeOnce() {
@@ -105,6 +116,17 @@ void main() {
     final (_, dispose) = await _pump(tester, const []);
 
     expect(find.text('아직 알림이 없어요'), findsOneWidget);
+    dispose();
+  });
+
+  testWidgets('조회에 실패하면 "알림이 없다"고 하지 않는다', (tester) async {
+    // 이 알림함이 다루는 것은 실행 실패·위험 신호음·안부 신호다. 통신이
+    // 끊겨 못 본 것을 "아무 일 없다"로 읽게 두면 기능의 이유가 무너진다.
+    final (_, dispose) = await _pump(tester, const [], api: _apiDown());
+
+    expect(find.text('알림을 불러오지 못했어요.'), findsOneWidget);
+    expect(find.text('다시 불러오기'), findsOneWidget);
+    expect(find.text('아직 알림이 없어요'), findsNothing);
     dispose();
   });
 

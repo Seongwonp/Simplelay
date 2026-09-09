@@ -13,22 +13,55 @@ import 'rpi_api_provider.dart';
 /// 걱정하는 보호자는 모른다. 폰이 이 목록을 주기적으로 당겨와(45초)
 /// 홈의 종 아이콘에 안 읽은 개수를 표시한다. "읽음"의 기준은 알림함
 /// 화면을 연 시점의 최신 이벤트 id — 기기 로컬에 저장해 재시작에도 유지.
+/// 알림함을 **한 번이라도 확인했는지**를 구분한다.
+///
+/// 예전에는 목록 하나뿐이라, 통신이 끊겨 못 받은 화면이 "아직 알림이
+/// 없어요"라고 단언했다. 이 알림함이 다루는 것은 실행 실패·위험 신호음·
+/// 안부 신호다 — 못 본 것을 "아무 일 없다"로 읽으면 기능의 이유가 무너진다.
+enum CareInboxStatus {
+  /// 아직 첫 조회가 끝나지 않았다.
+  loading,
+
+  /// 최소 한 번 받아왔다. events가 비어 있으면 **정말로 0건**이다.
+  ready,
+
+  /// 마지막 시도가 실패했다. events는 직전에 받아둔 것일 수 있다.
+  failed,
+
+  /// 서버 주소가 없다 — 실패가 아니라 물어볼 곳이 없는 것이다.
+  unconfigured,
+}
+
 class CareEventsState {
   const CareEventsState({
     this.events = const [],
     this.lastSeenId = 0,
+    this.status = CareInboxStatus.loading,
+    this.lastLoadedAt,
   });
 
   final List<RpiCareEvent> events;
   final int lastSeenId;
+  final CareInboxStatus status;
+
+  /// 마지막으로 **성공한** 조회 시각. 실패해도 그대로 둔다 — 화면이
+  /// "언제까지의 정보인지"를 말할 수 있어야 한다.
+  final DateTime? lastLoadedAt;
 
   int get unreadCount =>
       events.where((e) => e.id > lastSeenId).length;
 
-  CareEventsState copyWith({List<RpiCareEvent>? events, int? lastSeenId}) =>
+  CareEventsState copyWith({
+    List<RpiCareEvent>? events,
+    int? lastSeenId,
+    CareInboxStatus? status,
+    DateTime? lastLoadedAt,
+  }) =>
       CareEventsState(
         events: events ?? this.events,
         lastSeenId: lastSeenId ?? this.lastSeenId,
+        status: status ?? this.status,
+        lastLoadedAt: lastLoadedAt ?? this.lastLoadedAt,
       );
 }
 
@@ -43,7 +76,11 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
 
   final Ref _ref;
   Timer? _timer;
-  bool _refreshing = false;
+
+  /// 진행 중인 조회. 겹쳐 부른 쪽은 **이것을 기다린다** — 그냥 반환하면
+  /// 화면 진입 시 읽음 처리가 아직 비어 있는 목록 위에서 돌아 아무것도
+  /// 읽음이 안 된다.
+  Future<void>? _inFlight;
 
   Future<void> _init() async {
     // 백그라운드에서는 폴링을 멈춘다 — OS가 어차피 타이머를 지연시키고,
@@ -73,21 +110,52 @@ class CareEventsNotifier extends StateNotifier<CareEventsState>
     }
   }
 
-  Future<void> refresh() async {
-    if (_refreshing) return; // 화면 진입 refresh와 타이머 refresh의 역전 방지
+  Future<void> refresh() {
+    // 화면 진입 refresh와 45초 타이머 refresh가 겹칠 수 있다. 요청은 한 번만
+    // 내되, 늦게 부른 쪽도 **완료를 기다리게** 한다.
+    final running = _inFlight;
+    if (running != null) return running;
+    final started = _refresh();
+    _inFlight = started;
+    return started.whenComplete(() {
+      if (identical(_inFlight, started)) _inFlight = null;
+    });
+  }
+
+  Future<void> _refresh() async {
     final api = _ref.read(rpiApiServiceProvider);
-    if (api == null) return; // 서버 미설정 — 알림함은 비어 있는 채로
-    _refreshing = true;
-    try {
-      final events = await api.careEvents();
-      if (!mounted) return;
-      // null = 통신 실패 — 보고 있던 알림·배지를 지우지 않는다 (교차 리뷰 #13)
-      if (events != null) {
-        state = state.copyWith(events: events);
-      }
-    } finally {
-      _refreshing = false;
+    if (api == null) {
+      // 실패가 아니다 — 물어볼 곳이 없는 것이다. 화면이 "불러오지 못했어요"
+      // 대신 "기기와 연결되면 여기에 표시돼요"라고 말할 수 있어야 한다.
+      if (mounted) state = state.copyWith(status: CareInboxStatus.unconfigured);
+      return;
     }
+    final events = await api.careEvents();
+    if (!mounted) return;
+    if (events == null) {
+      // 통신 실패 — 보고 있던 알림·배지를 지우지 않는다 (교차 리뷰 #13).
+      // 다만 "지금 보고 있는 것이 최신이 아니다"는 사실은 알린다.
+      state = state.copyWith(status: CareInboxStatus.failed);
+      return;
+    }
+    state = state.copyWith(
+      events: events,
+      status: CareInboxStatus.ready,
+      lastLoadedAt: DateTime.now(),
+      lastSeenId: _rewoundSeenId(events),
+    );
+  }
+
+  /// 서버 DB가 새로 만들어지면 이벤트 id가 1부터 다시 시작한다. 예전
+  /// lastSeenId(예: 50)를 그대로 두면 **새 알림 전부가 영구히 '읽음'** 이
+  /// 된다 — 배지가 영영 안 뜨는 알림함이 되는 것이다.
+  ///
+  /// 가장 큰 id가 기준보다 작아지면 id 공간이 갈린 것으로 보고 되감는다.
+  int _rewoundSeenId(List<RpiCareEvent> events) {
+    if (events.isEmpty || state.lastSeenId == 0) return state.lastSeenId;
+    final newest =
+        events.map((e) => e.id).reduce((a, b) => a > b ? a : b);
+    return newest < state.lastSeenId ? 0 : state.lastSeenId;
   }
 
   /// 알림함 화면을 연 순간 호출 — 지금 보이는 것까지를 읽음 처리.
