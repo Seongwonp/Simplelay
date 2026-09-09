@@ -26,6 +26,23 @@ class BuiltinApplianceError(ValueError):
     """내장 가전을 덮어쓰거나 지우려 할 때."""
 
 
+class RevisionConflictError(ValueError):
+    """내가 본 판 이후에 다른 기기가 먼저 바꿔 놓았다.
+
+    자동으로 병합하지도, 자동으로 덮어쓰지도 않는다 -- 무엇을 살릴지는
+    사람이 정할 일이다. 서버 내용을 유지한 채 거절하고, 클라이언트가
+    "다른 기기에서 변경되어 서버 내용을 가져왔어요"라고 알린다.
+    """
+
+    def __init__(self, appliance_id: str, current_revision: int) -> None:
+        self.appliance_id = appliance_id
+        self.current_revision = current_revision
+        super().__init__(
+            f"appliance '{appliance_id}' changed elsewhere "
+            f"(now revision {current_revision})"
+        )
+
+
 @dataclass(frozen=True)
 class ApplianceButtonDef:
     id: str
@@ -45,6 +62,10 @@ class ApplianceDef:
     cols: int
     buttons: tuple[ApplianceButtonDef, ...]
     is_custom: bool = False
+    #: 저장할 때마다 오르는 판 번호. 다른 기기가 먼저 바꿨는지 가리는
+    #: 유일한 근거다 -- 시각으로 비교하면 기기 시계가 어긋날 때 조용히
+    #: 틀린다. 내장 가전은 바뀌지 않으므로 0으로 둔다.
+    revision: int = 0
 
 
 # ── 내장 가전 — docs/button-maps/*.json과의 일치를 테스트가 고정한다 ─────────
@@ -120,9 +141,17 @@ class ApplianceRegistry:
                     return builtin
             return self._custom.get(appliance_id)
 
-    def register(self, appliance: ApplianceDef) -> None:
+    def register(
+        self, appliance: ApplianceDef, expected_revision: int | None = None
+    ) -> ApplianceDef:
         """커스텀 가전 등록/교체. 내장 가전 id를 덮으려 하면 거부 —
-        키오스크·의도 규칙이 내장 정의를 전제하므로 조용히 바뀌면 안 된다."""
+        키오스크·의도 규칙이 내장 정의를 전제하므로 조용히 바뀌면 안 된다.
+
+        ``expected_revision``: "내가 본 판은 이거였다". 그 사이 다른
+        기기가 먼저 바꿨으면 RevisionConflictError로 거절하고 **서버
+        내용을 유지한다.** 밝히지 않으면(None) 종전대로 통과시킨다 --
+        최초 등록과 구버전 클라이언트의 경로다.
+        """
         if any(
             b.appliance_id == appliance.appliance_id for b in BUILTIN_APPLIANCES
         ):
@@ -130,12 +159,22 @@ class ApplianceRegistry:
                 f"'{appliance.appliance_id}' is a built-in appliance"
             )
         with self._lock:
+            existing = self._custom.get(appliance.appliance_id)
+            current = existing.revision if existing is not None else 0
+            if expected_revision is not None and expected_revision != current:
+                raise RevisionConflictError(
+                    appliance.appliance_id, current
+                )
+            from dataclasses import replace  # noqa: PLC0415
+
+            stamped = replace(appliance, revision=current + 1)
             # DB를 먼저 커밋한다 — 메모리를 먼저 바꾸면 DB 실패(500) 시
             # "지금은 조회되는데 재시작하면 사라지는" 가전이 생긴다
             # (교차 리뷰 #2). DB가 던지면 메모리는 그대로라 상태가 일치한다.
             if self._store is not None:
-                self._store.save_appliance(appliance)
-            self._custom[appliance.appliance_id] = appliance
+                self._store.save_appliance(stamped)
+            self._custom[appliance.appliance_id] = stamped
+            return stamped
 
     def delete(self, appliance_id: str) -> bool:
         """커스텀 가전 삭제. 내장이면 거부, 없으면 False."""

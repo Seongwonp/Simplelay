@@ -562,6 +562,10 @@ class RpiApiService {
             _base.replace(path: '/appliances/${appliance.id}'),
             headers: _jsonHeaders,
             body: jsonEncode({
+              // "내가 본 판은 이거였다". 모르면(0) 밝히지 않는다 --
+              // 최초 등록과 기기 저장분의 경로다.
+              if (appliance.revision > 0)
+                'expected_revision': appliance.revision,
               'name': appliance.name,
               'icon': appliance.isCustom ? 'custom' : appliance.id,
               'rows': appliance.rows,
@@ -573,9 +577,26 @@ class RpiApiService {
             }),
           )
           .timeout(_timeout);
+      if (res.statusCode == 409) {
+        // 다른 기기가 먼저 바꿨다. false로 뭉개면 호출부가 통신 실패로
+        // 보고 계속 재시도한다 -- 같은 충돌이 영원히 반복된다.
+        throw RpiApiException(409, _detailOf(res));
+      }
       return res.statusCode == 200;
+    } on RpiApiException {
+      rethrow;
     } catch (_) {
       return false;
+    }
+  }
+
+  String _detailOf(http.Response res) {
+    try {
+      return (jsonDecode(res.body) as Map<String, dynamic>)['detail']
+              as String? ??
+          res.body;
+    } catch (_) {
+      return res.body;
     }
   }
 

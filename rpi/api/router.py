@@ -13,6 +13,7 @@ from rpi.services.history import history_csv
 from rpi.services.readiness import ApplianceReadiness, ReadinessCheck
 
 from rpi.services import ApplianceButtonDef, ApplianceDef, BuiltinApplianceError
+from rpi.services.appliance_registry import RevisionConflictError
 
 from .deps import (
     get_clock,
@@ -170,6 +171,7 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
             ApplianceButtonModel(id=b.id, label=b.label, x=b.x, y=b.y)
             for b in a.buttons
         ],
+        revision=a.revision,
         readiness=(
             "operable"
             if (not has_node and runs_locally)
@@ -320,10 +322,20 @@ async def register_appliance(
     if not appliance.appliance_id:
         raise HTTPException(status_code=422, detail="appliance id must not be blank")
     try:
-        registry.register(appliance)
+        saved = registry.register(
+            appliance, expected_revision=body.expected_revision
+        )
     except BuiltinApplianceError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    return _to_appliance_response(appliance)
+    except RevisionConflictError as exc:
+        # 자동 병합도, 자동 덮어쓰기도 하지 않는다 -- 서버 내용을 유지한 채
+        # 거절하고, 무엇을 살릴지는 사용자가 정하게 한다.
+        raise HTTPException(
+            status_code=409,
+            detail="다른 기기에서 먼저 변경되었어요",
+            headers={"X-Current-Revision": str(exc.current_revision)},
+        ) from exc
+    return _to_appliance_response(saved)
 
 
 @router.delete("/appliances/{appliance_id}", response_model=OkResponse)

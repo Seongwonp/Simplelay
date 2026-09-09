@@ -33,6 +33,14 @@ class CustomAppliancesNotifier extends StateNotifier<List<ApplianceMap>> {
     await _save();
   }
 
+  /// 같은 id의 정의를 갈아 끼운다(목록 순서 유지).
+  Future<void> replace(ApplianceMap appliance) async {
+    state = [
+      for (final a in state) if (a.id == appliance.id) appliance else a,
+    ];
+    await _save();
+  }
+
   Future<void> remove(String id) async {
     final removed = state.where((a) => a.id == id).firstOrNull;
     state = state.where((a) => a.id != id).toList();

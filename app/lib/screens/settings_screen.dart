@@ -16,6 +16,7 @@ import '../providers/tts_provider.dart';
 import '../services/ble_service.dart';
 import '../services/demo_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/sync_status_line.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -380,10 +381,10 @@ class _ApplianceSection extends ConsumerWidget {
             ),
           ],
         ),
-        // 서버 동기화가 best-effort라 "폰에는 있는데 키오스크에는 없는"
-        // 가전이 생길 수 있다(저장 시 서버가 꺼져 있던 경우). 그때의 복구
-        // 수단 (교차 리뷰 #3). 밀린 삭제가 있어도 보여야 한다 -- 마지막
-        // 가전을 지우다 실패하면 버튼까지 사라져 복구할 길이 없었다 (R3).
+        // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
+        // 평상시에는 아무것도 띄우지 않는다 -- 늘 떠 있는 상태 표시는
+        // 읽히지 않고, 정작 문제가 생겼을 때도 눈에 안 들어온다.
+        SyncStatusLine(onRetry: () => _resyncCustomAppliances(context, ref)),
         if (ref.watch(hasPendingSyncProvider)) ...[
           const SizedBox(height: 10),
           TextButton.icon(
@@ -416,30 +417,31 @@ class _ApplianceSection extends ConsumerWidget {
       );
       return;
     }
-    final result = await ref.read(applianceSyncProvider.notifier).sync();
+    // 이 버튼은 복구 수단이다 — 대기열에 없던 가전(서버가 꺼져 있던 시절에
+    // 등록한 것)까지 다시 올린다.
+    final result = await ref.read(applianceSyncProvider.notifier).resendAll();
     messenger.showSnackBar(SnackBar(content: Text(_syncMessage(result))));
   }
 
+  /// 사용자 문구에는 내부 용어(upsert·tombstone·revision·409)를 쓰지 않는다.
   static String _syncMessage(ApplianceSyncResult r) {
+    if (r.conflicts > 0) {
+      // 자동으로 덮어쓰지 않았다는 것을 분명히 말한다.
+      return '다른 기기에서 변경되어 서버 내용을 가져왔어요.';
+    }
     if (r.allDone) {
       final parts = [
-        if (r.uploaded > 0) '올림 ${r.uploaded}개',
+        if (r.sent > 0) '보냄 ${r.sent}건',
         if (r.adopted > 0) '새로 받음 ${r.adopted}개',
-        if (r.deleted > 0) '삭제 반영 ${r.deleted}개',
       ];
       return parts.isEmpty
           ? '이미 키오스크와 같은 상태예요.'
           : '동기화했어요 — ${parts.join(' · ')}.';
     }
-    // 무엇이 남았는지 말한다. "실패"만 알리면 사용자가 무엇을 다시
-    // 해야 하는지 알 수 없다.
-    final left = [
-      if (r.uploadFailed > 0) '못 올린 가전 ${r.uploadFailed}개',
-      if (r.stillPendingDeletes > 0) '못 지운 가전 ${r.stillPendingDeletes}개',
-    ];
-    return left.isEmpty
-        ? '키오스크 목록을 불러오지 못했어요. 연결을 확인한 뒤 다시 눌러 주세요.'
-        : '${left.join(' · ')}가 남았어요. 연결을 확인한 뒤 다시 눌러 주세요.';
+    if (r.failed > 0) {
+      return '변경 ${r.failed}건을 보내지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
+    }
+    return '키오스크 목록을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
   }
 
   Future<void> _confirmRemoveAppliance(
@@ -476,10 +478,10 @@ class _ApplianceSection extends ConsumerWidget {
       // 실패하면 그 사실이 삭제 대기열에 남아 다음 동기화가 다시 보낸다.
       // 예전에는 실패를 스낵바로만 알리고 잊어서, 복구가 "서버에만 있는
       // 건 다 지운다"는 위험한 방식에 얹혀 있었다 (R3).
-      final removed = await ref
+      final result = await ref
           .read(applianceSyncProvider.notifier)
           .deleteAppliance(appliance.id);
-      if (!removed) {
+      if (result.failed > 0) {
         messenger.showSnackBar(
           const SnackBar(
             content: Text('폰에서는 삭제했어요. 키오스크 반영은 다음 동기화 때 '

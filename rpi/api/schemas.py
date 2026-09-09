@@ -178,6 +178,9 @@ class ApplianceResponse(BaseModel):
     cols: int
     is_custom: bool
     buttons: list[ApplianceButtonModel]
+    # 저장할 때마다 오르는 판 번호. 클라이언트가 "내가 본 판"을 밝히고
+    # 저장하면 그 사이 다른 기기가 먼저 바꿨는지 서버가 가려준다.
+    revision: int = 0
     # ── 준비 상태 (F1) ──────────────────────────────────────────────
     # disconnected | needs_setup | operable. **등록됐다는 것과 조작할 수
     # 있다는 것은 다르다** -- heartbeat만으로 operable을 선언하지 않는다.
@@ -214,6 +217,11 @@ class ApplianceRegisterRequest(BaseModel):
     이 정의는 그대로 키오스크 조작판이 되고 액추에이터가 누를 물리 버튼의
     거울이므로, 그리드 밖 좌표·중복 위치처럼 물리적으로 성립 안 하는 값은
     등록 시점에 거른다."""
+
+    #: "내가 본 판은 이거였다". 그 사이 다른 기기가 먼저 바꿨으면 409로
+    #: 거절하고 서버 내용을 유지한다. 밝히지 않으면(None) 종전대로 저장 --
+    #: 최초 등록과 구버전 클라이언트의 경로다.
+    expected_revision: int | None = None
 
     name: str
     icon: str = "custom"

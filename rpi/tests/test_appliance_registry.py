@@ -18,6 +18,17 @@ from rpi.services.appliance_registry import (
 )
 from rpi.services.persistence import SimpleLayDb
 
+
+def same_definition(stored, expected) -> bool:
+    """판 번호(revision)를 빼고 정의가 같은지.
+
+    저장할 때마다 판이 오르므로(F2 충돌 검사) 통째 비교는 더 이상
+    성립하지 않는다. 여기서 보려는 것은 '정의가 그대로 왔는가'다.
+    """
+    from dataclasses import replace  # noqa: PLC0415
+
+    return replace(stored, revision=0) == expected
+
 CUSTOM = ApplianceDef(
     appliance_id="custom_aircon",
     name="거실 에어컨",
@@ -58,8 +69,10 @@ def test_register_and_get_custom():
     registry = ApplianceRegistry()
     registry.register(CUSTOM)
 
-    assert registry.get("custom_aircon") == CUSTOM
-    assert CUSTOM in registry.list()
+    assert same_definition(registry.get("custom_aircon"), CUSTOM)
+    assert any(
+        same_definition(a, CUSTOM) for a in registry.list() if a.is_custom
+    )
 
 
 def test_register_same_id_replaces():
@@ -113,7 +126,7 @@ def test_custom_appliances_survive_restart(tmp_path):
     ApplianceRegistry(store=SimpleLayDb(db_path)).register(CUSTOM)
 
     reloaded = ApplianceRegistry(store=SimpleLayDb(db_path))
-    assert reloaded.get("custom_aircon") == CUSTOM
+    assert same_definition(reloaded.get("custom_aircon"), CUSTOM)
 
 
 # ── API ──────────────────────────────────────────────────────────────────
@@ -347,5 +360,5 @@ def test_corrupt_db_row_does_not_block_other_appliances(tmp_path):
         db._conn.commit()
 
     reloaded = ApplianceRegistry(store=SimpleLayDb(db_path))
-    assert reloaded.get("custom_aircon") == CUSTOM  # 정상 행은 산다
+    assert same_definition(reloaded.get("custom_aircon"), CUSTOM)  # 정상 행은 산다
     assert reloaded.get("broken") is None

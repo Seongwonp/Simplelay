@@ -40,6 +40,7 @@ class ApplianceMap {
     this.readiness = 'unknown',
     this.readinessReasons = const [],
     this.readinessKnown = false,
+    this.revision = 0,
   });
 
   final String id;
@@ -71,6 +72,11 @@ class ApplianceMap {
   /// 서버가 이 가전의 준비 상태를 실제로 말해줬는가.
   /// 기기 저장분·하드코딩 폴백·구버전 서버 응답에서는 false다.
   final bool readinessKnown;
+
+  /// 마지막으로 본 서버 판 번호. 저장할 때 "내가 본 판은 이거였다"고
+  /// 함께 보내면, 그 사이 다른 기기가 먼저 바꿨는지 서버가 가려준다.
+  /// 0이면 모른다(최초 등록·기기 저장분) -- 그때는 밝히지 않고 보낸다.
+  final int revision;
 
   /// **서버를 거치지 않는 경로**(BLE 릴레이)로 내보내도 되는가.
   ///
@@ -131,6 +137,27 @@ class ApplianceMap {
             (json['readiness_reasons'] as List<dynamic>?)?.cast<String>() ??
                 const [],
         readinessKnown: json.containsKey('can_execute'),
+        revision: (json['revision'] as num?)?.toInt() ?? 0,
+      );
+
+  /// 서버에서 받은 정의에 **이 폰의 사진 경로**를 얹는다.
+  ///
+  /// 사진은 기기 로컬 파일이라 서버가 모른다. 서버 내용으로 통째로 갈아
+  /// 끼우면 등록할 때 찍어둔 버튼 패널 사진이 조용히 사라진다.
+  ApplianceMap withPhotoFrom(ApplianceMap other) => ApplianceMap(
+        id: id,
+        name: name,
+        icon: icon,
+        rows: rows,
+        cols: cols,
+        buttons: buttons,
+        isCustom: isCustom,
+        photoPath: other.photoPath,
+        canExecute: canExecute,
+        readiness: readiness,
+        readinessReasons: readinessReasons,
+        readinessKnown: readinessKnown,
+        revision: revision,
       );
 
   Map<String, dynamic> toJson() => {
@@ -139,6 +166,9 @@ class ApplianceMap {
         'rows': rows,
         'cols': cols,
         'buttons': buttons.map((b) => b.toJson()).toList(),
+        // 판 번호는 기기에도 남긴다 — 오프라인에서 편집한 뒤 다시
+        // 연결됐을 때 "내가 본 판"을 말할 수 있어야 한다.
+        if (revision > 0) 'revision': revision,
         if (photoPath != null) 'photo_path': photoPath,
       };
 }

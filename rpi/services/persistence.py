@@ -249,6 +249,9 @@ class SimpleLayDb:
                 "icon": appliance.icon,
                 "rows": appliance.rows,
                 "cols": appliance.cols,
+                # 판 번호도 함께 남긴다 — 재시작마다 1로 돌아가면
+                # 충돌 검사가 의미를 잃는다.
+                "revision": appliance.revision,
                 "buttons": [
                     {"id": b.id, "label": b.label, "x": b.x, "y": b.y}
                     for b in appliance.buttons
@@ -300,6 +303,7 @@ class SimpleLayDb:
                             for b in data["buttons"]
                         ),
                         is_custom=True,
+                        revision=int(data.get("revision", 0)),
                     )
                 )
             except Exception:

@@ -34,8 +34,16 @@ String normalizeRpiUrl(String input) {
 
 class RpiUrlNotifier extends StateNotifier<String?> {
   RpiUrlNotifier() : super(null) {
-    _load();
+    _loaded = _load();
   }
+
+  late final Future<void> _loaded;
+
+  /// 주소가 기기에서 올라올 때까지 기다린다.
+  ///
+  /// 앱을 열자마자 동기화를 누르면 아직 null이라 "서버 주소를 먼저
+  /// 설정해 주세요"가 뜬다 — 설정은 이미 돼 있는데도 그렇다.
+  Future<void> ensureLoaded() => _loaded;
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();

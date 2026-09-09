@@ -6,8 +6,8 @@ import 'package:go_router/go_router.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/appliance.dart';
-import '../providers/rpi_api_provider.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/appliance_sync_provider.dart';
 import '../providers/photo_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -152,21 +152,19 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
       photoPath: photoPath,
     );
 
-    await ref.read(customAppliancesProvider.notifier).add(appliance);
+    // 로컬 저장 + 서버 전달을 **대기열을 통해** 한다. 예전에는 여기서
+    // 바로 registerAppliance를 부르고 실패하면 스낵바로 끝냈다 — 서버가
+    // 꺼져 있을 때 등록한 가전은 사용자가 '다시 동기화'를 기억해서 눌러
+    // 줘야만 올라갔고, 기억 못 하면 키오스크가 영영 몰랐다.
+    final result =
+        await ref.read(applianceSyncProvider.notifier).saveAppliance(appliance);
     await ref.read(selectedApplianceProvider.notifier).select(appliance);
 
-    // 서버에도 등록 — 키오스크가 이 가전을 받아 조작판에 띄운다.
-    // 실패해도 폰에서는 이미 쓸 수 있으므로 막지 않고 알림만 남긴다.
-    final rpiApi = ref.read(rpiApiServiceProvider);
-    var synced = false;
-    if (rpiApi != null) {
-      synced = await rpiApi.registerAppliance(appliance);
-    }
     if (mounted) {
-      if (!synced) {
+      if (result.failed > 0) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('가전을 저장했어요. 키오스크 연동은 서버 연결 후 다시 저장하면 돼요.'),
+            content: Text('가전을 저장했어요. 키오스크 반영은 연결되면 자동으로 다시 시도할게요.'),
           ),
         );
       }
