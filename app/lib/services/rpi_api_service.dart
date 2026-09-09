@@ -601,15 +601,32 @@ class RpiApiService {
   }
 
   // DELETE /appliances/{id} — 서버 목록에서도 제거
-  Future<bool> deleteAppliance(String applianceId) async {
+  Future<bool> deleteAppliance(
+    String applianceId, {
+    int? expectedRevision,
+  }) async {
     try {
       final res = await _client
           .delete(
-            _base.replace(path: '/appliances/$applianceId'),
+            _base.replace(
+              path: '/appliances/$applianceId',
+              queryParameters: expectedRevision == null
+                  ? null
+                  : {'expected_revision': '$expectedRevision'},
+            ),
             headers: _headers,
           )
           .timeout(_timeout);
+      if (res.statusCode == 409) {
+        // 내가 본 판 이후에 다른 기기가 바꿨다. false로 뭉개면 호출부가
+        // 통신 실패로 보고 계속 재시도한다 -- 같은 충돌이 영원히 반복된다.
+        throw RpiApiException(409, _detailOf(res));
+      }
+      // 404는 성공으로 본다 -- 되돌려 놓으려던 상태(그 가전이 없음)가 이미
+      // 성립했다. 실패로 치면 대기열에서 영영 안 빠진다.
       return res.statusCode == 200 || res.statusCode == 404;
+    } on RpiApiException {
+      rethrow;
     } catch (_) {
       return false;
     }

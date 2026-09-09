@@ -182,3 +182,51 @@ def test_http_deleting_a_missing_appliance_is_idempotent(client):
 
     assert again.status_code == 404  # 서버는 사실대로 말하고
     # 클라이언트가 이걸 성공으로 취급하는 계약은 폰 쪽 테스트가 고정한다
+
+
+# ── 삭제도 같은 규칙을 받는다 (F2 마감 감사) ──────────────────────────────
+
+
+def test_delete_against_a_stale_revision_is_refused():
+    """"충돌은 서버 내용 유지"가 수정에만 걸려 있으면 반쪽이다 -- 폰 A의
+    오래된 삭제가 폰 B의 방금 수정을 무조건 지운다."""
+    registry = ApplianceRegistry()
+    registry.register(_fan())
+    registry.register(_fan(name="B가 바꾼 이름"), expected_revision=1)
+
+    with pytest.raises(RevisionConflictError):
+        registry.delete("fan", expected_revision=1)
+
+    assert registry.get("fan") is not None
+
+
+def test_delete_against_the_current_revision_succeeds():
+    registry = ApplianceRegistry()
+    registry.register(_fan())
+
+    assert registry.delete("fan", expected_revision=1) is True
+    assert registry.get("fan") is None
+
+
+def test_deleting_a_missing_appliance_is_not_a_conflict():
+    """되돌려 놓으려던 상태가 이미 성립했다 -- 재전송이 멱등해야 한다."""
+    registry = ApplianceRegistry()
+
+    assert registry.delete("ghost", expected_revision=7) is False
+
+
+def test_http_stale_delete_returns_409_and_keeps_the_appliance(client):
+    client.put("/appliances/fan", json=_body())
+    client.put("/appliances/fan", json=_body("B가 바꾼 이름", expected_revision=1))
+
+    res = client.delete("/appliances/fan?expected_revision=1")
+
+    assert res.status_code == 409
+    assert any(a["id"] == "fan" for a in client.get("/appliances").json())
+
+
+def test_http_delete_with_the_current_revision_succeeds(client):
+    client.put("/appliances/fan", json=_body())
+
+    assert client.delete("/appliances/fan?expected_revision=1").status_code == 200
+    assert not any(a["id"] == "fan" for a in client.get("/appliances").json())

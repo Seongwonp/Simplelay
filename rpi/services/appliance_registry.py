@@ -176,14 +176,34 @@ class ApplianceRegistry:
             self._custom[appliance.appliance_id] = stamped
             return stamped
 
-    def delete(self, appliance_id: str) -> bool:
-        """커스텀 가전 삭제. 내장이면 거부, 없으면 False."""
+    def delete(
+        self, appliance_id: str, expected_revision: int | None = None
+    ) -> bool:
+        """커스텀 가전 삭제. 내장이면 거부, 없으면 False.
+
+        ``expected_revision``: "내가 본 판은 이거였다". 삭제도 수정과
+        같은 검사를 받는다 -- 안 그러면 폰 A의 **오래된 삭제**가 폰 B의
+        방금 수정을 무조건 지운다. "충돌은 서버 내용 유지"가 수정에만
+        걸려 있으면 그 계약은 반쪽이다.
+
+        없는 가전(False)은 충돌로 보지 않는다 -- 되돌려 놓으려던 상태가
+        이미 성립했으므로 재전송이 멱등해야 한다.
+        """
         if any(b.appliance_id == appliance_id for b in BUILTIN_APPLIANCES):
             raise BuiltinApplianceError(
                 f"'{appliance_id}' is a built-in appliance"
             )
         with self._lock:
-            existed = appliance_id in self._custom
+            existing = self._custom.get(appliance_id)
+            existed = existing is not None
+            if (
+                existed
+                and expected_revision is not None
+                and expected_revision != existing.revision
+            ):
+                raise RevisionConflictError(
+                    appliance_id, existing.revision
+                )
             if existed and self._store is not None:
                 self._store.delete_appliance(appliance_id)  # DB 먼저 — #2와 동일
             self._custom.pop(appliance_id, None)

@@ -53,6 +53,9 @@ class _FakeServer {
   Set<String> refusePut = {};
   Set<String> refuseDelete = {};
 
+  /// 이 id의 PUT은 409(다른 기기가 먼저 바꿈)로 거절한다.
+  Set<String> refusePutWith409 = {};
+
   /// 응답을 붙잡아 둔다 — single-flight 검증용.
   Completer<void>? gate;
 
@@ -84,6 +87,13 @@ class _FakeServer {
             calls.add('PUT $id');
             putBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
             if (gate != null) await gate!.future;
+            if (refusePutWith409.contains(id)) {
+              return http.Response.bytes(
+                utf8.encode('{"detail":"다른 기기에서 먼저 변경되었어요"}'),
+                409,
+                headers: {'content-type': 'application/json; charset=utf-8'},
+              );
+            }
             if (refusePut.contains(id)) {
               return http.Response('{"detail":"boom"}', 500);
             }
@@ -99,6 +109,17 @@ class _FakeServer {
             if (!customs.containsKey(id)) {
               // 이미 없다 — 서버는 사실대로 404를 돌려준다.
               return http.Response('{"detail":"not found"}', 404);
+            }
+            // 판이 어긋나면 지우지 않는다 — 오래된 삭제가 남의 수정을
+            // 덮어쓰는 것을 막는 자리다.
+            final expected = request.url.queryParameters['expected_revision'];
+            if (expected != null &&
+                int.tryParse(expected) != customs[id]!['revision']) {
+              return http.Response.bytes(
+                utf8.encode('{"detail":"다른 기기에서 먼저 변경되었어요"}'),
+                409,
+                headers: {'content-type': 'application/json; charset=utf-8'},
+              );
             }
             customs.remove(id);
             return _json({'ok': true});
@@ -162,6 +183,7 @@ Future<List<String>> _storedOps() async {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  _auditTests();
 
   group('1. 로딩 전에 눌러도 잃지 않는다', () {
     test('outbox를 읽기 전에 동기화해도 저장된 작업이 나간다', () async {
@@ -493,8 +515,190 @@ void main() {
       expect(fan.name, '다른 폰이 바꾼 이름');
       // 그리고 그 작업은 대기열에 계속 남아 재시도되지 않는다 — 다시 보내면
       // 같은 충돌이 반복된다.
-      // 대기열에서는 빠진다 — 다시 보내도 같은 충돌이 반복될 뿐이다.
+      // 대기 상태로 남는다 — 조용히 버리면 사용자는 자기 변경이 사라진
+      // 것도 모른다. 화면이 "보내지 못했어요"로 알린다.
+      expect(container.read(applianceSyncProvider).pendingCount, 1);
+    });
+  });
+}
+
+// ── F2 마감 감사 ───────────────────────────────────────────────────────────
+
+void _auditTests() {
+  group('감사 1. 구버전 대기열 이어받기', () {
+    test('업데이트해도 미전송 삭제가 사라지지 않는다', () async {
+      // 예전 버전은 삭제 대기를 pending_appliance_deletes(id 집합)에 남겼다.
+      // 새 대기열만 읽으면, 업데이트하는 순간 아직 못 보낸 삭제가 조용히
+      // 사라진다 — 서버에는 유령 가전이 남고 아무도 모른다.
+      final server = _FakeServer(['fan']);
+      final container = await _phone(
+        server,
+        prefs: {
+          'pending_appliance_deletes': ['fan'],
+        },
+      );
+
+      expect(container.read(applianceSyncProvider).pendingCount, 1);
+      await container.read(applianceSyncProvider.notifier).sync();
+      expect(server.calls, contains('DELETE fan'));
+    });
+
+    test('새 대기열에 저장된 뒤에만 옛 키를 지운다', () async {
+      final server = _FakeServer(['fan']);
+      final container = await _phone(
+        server,
+        prefs: {
+          'pending_appliance_deletes': ['fan'],
+        },
+      );
+      await container.read(applianceSyncProvider.notifier).sync();
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getStringList('pending_appliance_deletes'), isNull);
+    });
+
+    test('새 대기열이 이미 있으면 옛 키를 덧붙이지 않는다', () async {
+      // 이미 옮겨온 뒤라면 같은 삭제가 두 번 들어가면 안 된다.
+      final server = _FakeServer(['fan']);
+      final container = await _phone(
+        server,
+        prefs: {
+          'pending_appliance_deletes': ['fan'],
+          'appliance_sync_outbox': [
+            jsonEncode({
+              'op_id': 'op-1',
+              'appliance_id': 'fan',
+              'kind': 'delete',
+              'created_at': '2026-09-09T19:00:00+09:00',
+            }),
+          ],
+        },
+      );
+
+      expect(container.read(applianceSyncProvider).pendingCount, 1);
+    });
+  });
+
+  group('감사 2. 오래된 삭제가 남의 수정을 지우지 않는다', () {
+    test('내가 본 판 이후에 바뀌었으면 삭제도 거절된다', () async {
+      // "충돌은 서버 내용 유지"가 upsert에만 걸려 있으면, 폰 A의 오래된
+      // 삭제가 폰 B의 방금 수정을 무조건 지운다.
+      final server = _FakeServer(['fan']);
+      server.customs['fan']!['revision'] = 2; // B가 먼저 고쳤다
+      final container = await _phone(server, localCustoms: ['fan']);
+
+      // A는 판 1을 보고 지운다
+      await container
+          .read(applianceSyncProvider.notifier)
+          .deleteAppliance('fan', expectedRevision: 1);
+
+      expect(server.customs.containsKey('fan'), isTrue, reason: '지워지면 안 된다');
+      expect(container.read(applianceSyncProvider).pendingCount, 1);
+    });
+
+    test('판이 맞으면 그대로 지운다', () async {
+      final server = _FakeServer(['fan']);
+      final container = await _phone(server, localCustoms: ['fan']);
+
+      await container
+          .read(applianceSyncProvider.notifier)
+          .deleteAppliance('fan', expectedRevision: 1);
+
+      expect(server.customs.containsKey('fan'), isFalse);
       expect(container.read(applianceSyncProvider).pendingCount, 0);
+    });
+
+    test('이미 지워진 가전의 삭제는 여전히 멱등 성공이다', () async {
+      final server = _FakeServer();
+      final container = await _phone(server);
+
+      await container
+          .read(applianceSyncProvider.notifier)
+          .deleteAppliance('ghost', expectedRevision: 3);
+
+      expect(container.read(applianceSyncProvider).pendingCount, 0);
+    });
+  });
+
+  group('감사 3. 충돌 뒤 작업을 같은 패스에서 보내지 않는다', () {
+    /// 오프라인에서 upsert → delete가 쌓인 상태.
+    Future<ProviderContainer> queuedUpsertThenDelete(_FakeServer server) =>
+        _phone(
+          server,
+          prefs: {
+            'appliance_sync_outbox': [
+              jsonEncode({
+                'op_id': 'op-1',
+                'appliance_id': 'fan',
+                'kind': 'upsert',
+                'created_at': '2026-09-09T19:00:00+09:00',
+                'payload': _local('fan').toJson(),
+              }),
+              jsonEncode({
+                'op_id': 'op-2',
+                'appliance_id': 'fan',
+                'kind': 'delete',
+                'created_at': '2026-09-09T19:01:00+09:00',
+              }),
+            ],
+          },
+        );
+
+    test('upsert가 409면 이어지는 delete가 서버 가전을 지우지 않는다', () async {
+      // 이게 가장 나쁜 조합이다. 내 수정은 거절됐는데(= 서버에 내가 못 본
+      // 내용이 있다) 그 뒤의 삭제가 그걸 그대로 지워버린다.
+      final server = _FakeServer(['fan'])..refusePutWith409 = {'fan'};
+      final container = await queuedUpsertThenDelete(server);
+
+      await container.read(applianceSyncProvider.notifier).sync();
+
+      expect(server.customs.containsKey('fan'), isTrue,
+          reason: '충돌 뒤 작업이 서버 내용을 지우면 안 된다');
+      expect(server.calls, isNot(contains('DELETE fan')));
+    });
+
+    test('충돌 뒤 작업은 대기 상태로 남는다 — 조용히 버리지 않는다', () async {
+      final server = _FakeServer(['fan'])..refusePutWith409 = {'fan'};
+      final container = await queuedUpsertThenDelete(server);
+
+      final result =
+          await container.read(applianceSyncProvider.notifier).sync();
+
+      // 충돌한 작업도, 그 뒤의 작업도 남는다. 자동 재기준화·삭제는 하지
+      // 않는다 — 사용자가 모르는 사이에 의도가 바뀌면 안 된다.
+      expect(result.conflicts, 1);
+      expect(container.read(applianceSyncProvider).pendingCount, 2);
+    });
+
+    test('다른 가전은 충돌에 막히지 않는다', () async {
+      // 한 가전의 충돌이 대기열 전체를 세우면 안 된다.
+      final server = _FakeServer(['fan'])..refusePutWith409 = {'fan'};
+      final container = await _phone(
+        server,
+        prefs: {
+          'appliance_sync_outbox': [
+            jsonEncode({
+              'op_id': 'op-1',
+              'appliance_id': 'fan',
+              'kind': 'upsert',
+              'created_at': '2026-09-09T19:00:00+09:00',
+              'payload': _local('fan').toJson(),
+            }),
+            jsonEncode({
+              'op_id': 'op-2',
+              'appliance_id': 'humidifier',
+              'kind': 'upsert',
+              'created_at': '2026-09-09T19:01:00+09:00',
+              'payload': _local('humidifier').toJson(),
+            }),
+          ],
+        },
+      );
+
+      await container.read(applianceSyncProvider.notifier).sync();
+
+      expect(server.customs.keys, contains('humidifier'));
+      expect(container.read(applianceSyncProvider).pendingCount, 1);
     });
   });
 }

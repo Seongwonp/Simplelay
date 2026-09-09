@@ -341,14 +341,24 @@ async def register_appliance(
 @router.delete("/appliances/{appliance_id}", response_model=OkResponse)
 async def delete_appliance(
     appliance_id: str,
+    expected_revision: int | None = None,
     registry=Depends(get_appliance_registry),
     nodes: NodeRegistry = Depends(get_node_registry),
     suggestions: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> OkResponse:
     try:
-        found = registry.delete(appliance_id)
+        found = registry.delete(
+            appliance_id, expected_revision=expected_revision
+        )
     except BuiltinApplianceError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except RevisionConflictError as exc:
+        # 오래된 삭제가 남의 수정을 지우지 않게 한다. 수정과 같은 규칙이다.
+        raise HTTPException(
+            status_code=409,
+            detail="다른 기기에서 먼저 변경되었어요",
+            headers={"X-Current-Revision": str(exc.current_revision)},
+        ) from exc
     if not found:
         raise HTTPException(status_code=404, detail="appliance not found")
     # 연결 노드도 함께 정리 — 남겨두면 유령 노드에 긴급 정지가 계속 가고,

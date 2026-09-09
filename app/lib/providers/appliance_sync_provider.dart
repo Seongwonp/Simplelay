@@ -25,7 +25,8 @@ class SyncOperation {
     required this.kind,
     required this.createdAt,
     this.payload,
-  });
+    int revision = 0,
+  }) : _revision = revision;
 
   final String opId;
   final String applianceId;
@@ -34,6 +35,17 @@ class SyncOperation {
 
   /// upsert일 때 보낼 가전 정의 스냅샷. delete는 null.
   final Map<String, dynamic>? payload;
+
+  final int _revision;
+
+  /// 이 작업을 만들 때 **내가 보고 있던** 서버 판 번호.
+  ///
+  /// 삭제에도 있어야 한다. 없으면 폰 A의 오래된 삭제가 폰 B의 방금 수정을
+  /// 무조건 지운다 -- "충돌은 서버 내용 유지"가 수정에만 걸린 반쪽 계약이
+  /// 된다. 0이면 모른다(구버전 대기열에서 옮겨온 것) -- 그때는 밝히지 않고
+  /// 보내 종전 동작을 유지한다.
+  int get expectedRevision =>
+      (payload?['revision'] as num?)?.toInt() ?? _revision;
 
   ApplianceMap? get appliance =>
       payload == null ? null : ApplianceMap.fromJson(payload!);
@@ -44,6 +56,7 @@ class SyncOperation {
         'kind': kind.name,
         'created_at': createdAt.toIso8601String(),
         if (payload != null) 'payload': payload,
+        if (_revision > 0) 'revision': _revision,
       };
 
   static SyncOperation? fromJson(Map<String, dynamic> json) {
@@ -59,6 +72,7 @@ class SyncOperation {
           DateTime.tryParse(json['created_at'] as String? ?? '') ??
               DateTime.now(),
       payload: (json['payload'] as Map?)?.cast<String, dynamic>(),
+      revision: (json['revision'] as num?)?.toInt() ?? 0,
     );
   }
 }
@@ -131,6 +145,7 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
   Future<void> _load() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      await _migrateLegacyDeletes(prefs);
       final raw = prefs.getStringList(_kOutboxKey) ?? const [];
       final ops = [
         for (final line in raw)
@@ -145,6 +160,41 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     } catch (_) {
       // 대기열을 못 읽어도 새 변경은 받을 수 있어야 한다.
     }
+  }
+
+  /// 예전 버전은 삭제 대기를 **id 집합**으로만 남겼다
+  /// (`pending_appliance_deletes`).
+  ///
+  /// 새 대기열만 읽으면 업데이트하는 순간 아직 못 보낸 삭제가 조용히
+  /// 사라진다 -- 서버에는 유령 가전이 남고 아무도 모른다.
+  ///
+  /// 새 대기열에 **저장이 끝난 뒤에만** 옛 키를 지운다. 순서를 뒤집으면
+  /// 저장에 실패했을 때 양쪽 다 잃는다. 옮겨온 작업에는 판 번호가 없다 --
+  /// 그때는 밝히지 않고 보내 종전 동작을 유지한다.
+  Future<void> _migrateLegacyDeletes(SharedPreferences prefs) async {
+    const legacyKey = 'pending_appliance_deletes';
+    final legacy = prefs.getStringList(legacyKey);
+    if (legacy == null) return;
+    final existing = prefs.getStringList(_kOutboxKey) ?? const [];
+    final known = {
+      for (final line in existing)
+        (jsonDecode(line) as Map<String, dynamic>)['appliance_id'] as String?,
+    };
+    final migrated = [
+      for (final id in legacy)
+        if (!known.contains(id))
+          SyncOperation(
+            opId: 'legacy-$id',
+            applianceId: id,
+            kind: SyncOpKind.delete,
+            createdAt: DateTime.now(),
+          ),
+    ];
+    await prefs.setStringList(
+      _kOutboxKey,
+      [...existing, for (final op in migrated) jsonEncode(op.toJson())],
+    );
+    await prefs.remove(legacyKey);
   }
 
   Future<void> _persist(List<SyncOperation> ops) async {
@@ -192,7 +242,14 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
   ///
   /// 폰 삭제는 무조건 성립한다(사용자가 지시한 일이다). 서버 전달이
   /// 실패하면 대기열에 남아 다음 동기화가 다시 보낸다.
-  Future<ApplianceSyncResult> deleteAppliance(String applianceId) async {
+  Future<ApplianceSyncResult> deleteAppliance(
+    String applianceId, {
+    int? expectedRevision,
+  }) async {
+    final known = _ref
+        .read(customAppliancesProvider)
+        .where((a) => a.id == applianceId)
+        .firstOrNull;
     await _ref.read(customAppliancesProvider.notifier).remove(applianceId);
     await _enqueue(
       SyncOperation(
@@ -200,6 +257,9 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         applianceId: applianceId,
         kind: SyncOpKind.delete,
         createdAt: DateTime.now(),
+        // 삭제 직전에 본 판을 함께 싣는다 -- 없으면 오래된 삭제가 남의
+        // 수정을 무조건 지운다.
+        revision: expectedRevision ?? known?.revision ?? 0,
       ),
     );
     return sync();
@@ -265,10 +325,16 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     var sent = 0;
     var conflicts = 0;
     final remaining = <SyncOperation>[];
+    // 이번 패스에서 더 손대면 안 되는 가전. 충돌한 가전이 여기 들어간다 --
+    // 내 수정이 거절됐다는 것은 **서버에 내가 못 본 내용이 있다**는 뜻이고,
+    // 그 상태에서 뒤의 삭제를 보내면 그걸 그대로 지워버린다.
+    final blocked = <String>{};
     for (final op in state.pending) {
-      // 앞의 작업이 실패했으면 뒤의 것도 보내지 않는다 -- 보내면 같은
-      // 가전의 순서가 뒤집힌다(지운 가전이 되살아나는 자리).
-      if (remaining.any((r) => r.applianceId == op.applianceId)) {
+      // 앞의 작업이 실패했거나 충돌했으면 뒤의 것도 보내지 않는다 -- 보내면
+      // 같은 가전의 순서가 뒤집히거나(지운 가전이 되살아나는 자리) 못 본
+      // 내용을 지운다.
+      if (blocked.contains(op.applianceId) ||
+          remaining.any((r) => r.applianceId == op.applianceId)) {
         remaining.add(op);
         continue;
       }
@@ -277,9 +343,13 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         case _SendOutcome.ok:
           sent++;
         case _SendOutcome.conflict:
-          // 다른 기기가 먼저 바꿨다. 자동으로 덮어쓰지 않는다 -- 대기열에서
-          // 빼고, 아래 병합이 서버 내용을 가져온다.
+          // 다른 기기가 먼저 바꿨다. 자동으로 덮어쓰지도, 조용히 버리지도
+          // 않는다 -- 대기 상태로 남겨 사용자가 확인하게 한다. 밀린 작업을
+          // 자동으로 걷어내면(재기준화·삭제) 사용자가 모르는 사이에 의도가
+          // 바뀌고, 순서 보장도 함께 무너진다.
           conflicts++;
+          blocked.add(op.applianceId);
+          remaining.add(op);
         case _SendOutcome.failed:
           remaining.add(op);
       }
@@ -292,7 +362,7 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
       lastFailed: remaining.isNotEmpty,
     );
 
-    final merged = await _mergeFromServer(api, remaining);
+    final merged = await _mergeFromServer(api, remaining, blocked);
     return ApplianceSyncResult(
       sent: sent,
       failed: remaining.length,
@@ -306,9 +376,20 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     if (op.kind == SyncOpKind.delete) {
       // 이미 없으면 되돌려 놓으려던 상태가 이미 성립했다 -- 실패로 치면
       // 대기열에서 영영 안 빠진다. (api가 404를 성공으로 돌려준다.)
-      return await api.deleteAppliance(op.applianceId)
-          ? _SendOutcome.ok
-          : _SendOutcome.failed;
+      try {
+        final ok = await api.deleteAppliance(
+          op.applianceId,
+          expectedRevision:
+              op.expectedRevision > 0 ? op.expectedRevision : null,
+        );
+        return ok ? _SendOutcome.ok : _SendOutcome.failed;
+      } on RpiApiException catch (error) {
+        return error.statusCode == 409
+            ? _SendOutcome.conflict
+            : _SendOutcome.failed;
+      } catch (_) {
+        return _SendOutcome.failed;
+      }
     }
     final appliance = op.appliance;
     if (appliance == null) return _SendOutcome.ok; // 보낼 내용이 없다 -- 버린다
@@ -332,6 +413,7 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
   Future<int?> _mergeFromServer(
     RpiApiService api,
     List<SyncOperation> stillPending,
+    Set<String> conflicted,
   ) async {
     final remote = await api.customAppliances();
     if (remote == null) return null;
@@ -355,7 +437,15 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         continue;
       }
       // 아직 보내지 못한 내 변경이 있으면 서버 내용으로 덮지 않는다.
-      if (stillPending.any((op) => op.applianceId == incoming.id)) continue;
+      //
+      // **충돌한 가전은 예외다.** 내 수정이 거절됐다는 것은 서버에 내가 못
+      // 본 내용이 있다는 뜻이고, 그걸 보여주는 것이 "서버 내용을 가져왔어요"
+      // 의 실체다. 못 보낸 변경은 대기열에 그대로 남아 있고, 화면이 그
+      // 사실을 따로 알린다 — 둘 다 사실이므로 둘 다 보여준다.
+      if (!conflicted.contains(incoming.id) &&
+          stillPending.any((op) => op.applianceId == incoming.id)) {
+        continue;
+      }
       if (_sameDefinition(mine, incoming)) continue;
       // 사진은 이 폰에만 있는 데이터다 -- 서버는 모른다.
       await notifier.replace(incoming.withPhotoFrom(mine));
