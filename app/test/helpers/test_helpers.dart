@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -30,6 +32,9 @@ final kTestAppliance = kApplianceTemplates.first;
 /// 대상이 다른 제안을 다루는 테스트용 두 번째 가전.
 final kTestAircon =
     kApplianceTemplates.firstWhere((a) => a.id == 'aircon');
+
+/// prefs에 넣을 모양. 시작 경로 테스트가 저장된 가전을 흉내낼 때 쓴다.
+String applianceJsonString(ApplianceMap a) => jsonEncode(a.toJson());
 
 // ── Provider overrides ───────────────────────────────────────────────────────
 

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'providers/execution_status_provider.dart';
 import 'screens/appliance_editor_screen.dart';
@@ -12,24 +11,28 @@ import 'screens/home_screen.dart';
 import 'screens/manual_control_screen.dart';
 import 'screens/onboarding_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/status_screen.dart';
 import 'screens/suggestion_screen.dart';
 import 'screens/voice_screen.dart';
 import 'providers/theme_provider.dart';
 import 'theme/app_theme.dart';
 
-bool _needsOnboarding = false;
-
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  final prefs = await SharedPreferences.getInstance();
-  _needsOnboarding = !(prefs.getBool('onboarding_done') ?? false);
   runApp(const ProviderScope(child: SimpleLayApp()));
 }
 
 final _router = GoRouter(
-  initialLocation: _needsOnboarding ? '/onboarding' : '/',
+  // 온보딩 여부와 가전 목록을 **여기서 미리 읽지 않는다.** 결정은
+  // 시작 화면 하나가 내린다(`startupRouteProvider`) -- 두 군데서 정하면
+  // 홈이 먼저 그려졌다가 뒤늦게 바뀌는 깜빡임이 생긴다.
+  initialLocation: '/splash',
   routes: [
+    GoRoute(
+      path: '/splash',
+      builder: (_, __) => const SplashScreen(),
+    ),
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppShell(navigationShell: navigationShell),
