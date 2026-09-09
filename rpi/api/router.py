@@ -10,10 +10,13 @@ from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestion
 
 from rpi.services import DangerAlertStore, NodeRegistry
 from rpi.services.history import history_csv
+from rpi.services.readiness import ApplianceReadiness, ReadinessCheck
 
 from rpi.services import ApplianceButtonDef, ApplianceDef, BuiltinApplianceError
 
 from .deps import (
+    get_clock,
+    get_readiness_registry,
     EnvironmentOverride,
     get_alert_store,
     get_appliance_registry,
@@ -49,6 +52,7 @@ from .schemas import (
     JobAcceptedResponse,
     NodeRegisterRequest,
     NodeResponse,
+    ReadinessReportRequest,
     OkResponse,
     RejectSuggestionRequest,
     PresenceRequest,
@@ -142,7 +146,14 @@ async def execute_for_appliance(
 # ── 가전 레지스트리 — 폰·키오스크가 공유하는 가전 정의 ──────────────────────
 
 
-def _to_appliance_response(a) -> ApplianceResponse:
+def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
+    # 준비 상태는 **노드로 라우팅되는 가전**의 계약이다. 노드가 없는
+    # 내장 가전은 종전대로 로컬에서 실행되므로 can_execute는 True다 --
+    # 화면이 실행 버튼을 막을지 정할 때는 readiness가 아니라 이 값을 본다.
+    readiness = (
+        service.readiness_of(a.appliance_id) if service is not None else None
+    )
+    has_node = nodes is not None and nodes.get(a.appliance_id) is not None
     return ApplianceResponse(
         id=a.appliance_id,
         name=a.name,
@@ -154,6 +165,17 @@ def _to_appliance_response(a) -> ApplianceResponse:
             ApplianceButtonModel(id=b.id, label=b.label, x=b.x, y=b.y)
             for b in a.buttons
         ],
+        readiness=(
+            readiness.state.value if readiness is not None else "disconnected"
+        ),
+        readiness_reasons=(
+            list(readiness.blocking_reasons) if readiness is not None else []
+        ),
+        can_execute=(
+            (readiness.can_execute if readiness is not None else False)
+            if has_node
+            else True
+        ),
     )
 
 
@@ -206,9 +228,54 @@ async def list_care_events(
 @router.get("/appliances", response_model=list[ApplianceResponse])
 async def list_appliances(
     registry=Depends(get_appliance_registry),
+    service: SimpleLayService = Depends(get_service),
+    nodes: NodeRegistry = Depends(get_node_registry),
 ) -> list[ApplianceResponse]:
-    """내장 + 커스텀 가전 전체. 폰에서 등록한 가전이 키오스크에 뜨는 경로."""
-    return [_to_appliance_response(a) for a in registry.list()]
+    """내장 + 커스텀 가전 전체. 폰에서 등록한 가전이 키오스크에 뜨는 경로.
+
+    준비 상태(F1)도 여기 함께 실어 보낸다 -- 폰과 키오스크가 **같은**
+    상태와 같은 사유를 보게 하려면 한 곳에서 나와야 한다.
+    """
+    return [
+        _to_appliance_response(a, service, nodes) for a in registry.list()
+    ]
+
+
+@router.post("/readiness/{appliance_id}", response_model=OkResponse)
+async def report_readiness(
+    appliance_id: str,
+    body: ReadinessReportRequest,
+    registry=Depends(get_appliance_registry),
+    readiness=Depends(get_readiness_registry),
+    clock=Depends(get_clock),
+) -> OkResponse:
+    """노드(또는 설치 도구)가 자기 준비 상태를 보고한다 (F1).
+
+    서버가 스스로 판정하지 않는 이유: 전송이 살아 있다는 사실만으로는
+    모터가 홈을 잡았는지, 센서가 기준값을 잡았는지 알 수 없다. 그건
+    노드만 안다. 실제 판정 구현은 하드웨어가 붙은 뒤 노드 쪽에 붙는다.
+    """
+    if registry.get(appliance_id) is None:
+        raise HTTPException(status_code=404, detail="appliance not found")
+    readiness.report(
+        ApplianceReadiness.of(
+            appliance_id,
+            {
+                ReadinessCheck.TRANSPORT: body.transport,
+                ReadinessCheck.MOTION: body.motion,
+                ReadinessCheck.SENSOR: body.sensor,
+                ReadinessCheck.CALIBRATION: body.calibration,
+            },
+            reasons={
+                ReadinessCheck(k): v
+                for k, v in body.reasons.items()
+                if k in {c.value for c in ReadinessCheck}
+            },
+            checked_at=clock.now(),
+            calibration_profile_version=body.calibration_profile_version,
+        )
+    )
+    return OkResponse()
 
 
 @router.put("/appliances/{appliance_id}", response_model=ApplianceResponse)

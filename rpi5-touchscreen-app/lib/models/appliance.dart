@@ -22,6 +22,9 @@ class ApplianceMap {
     required this.rows,
     required this.cols,
     required this.buttons,
+    this.canExecute = true,
+    this.readiness = 'operable',
+    this.readinessReasons = const [],
   });
 
   final String id;
@@ -30,6 +33,20 @@ class ApplianceMap {
   final int rows;
   final int cols;
   final List<ApplianceButton> buttons;
+
+  /// 이 가전을 지금 맡길 수 있나 (서버 F1 판정).
+  ///
+  /// **등록됐다는 것과 조작할 수 있다는 것은 다르다.** 서버 정보가 없는
+  /// 하드코딩 폴백에서는 막지 않는다 — 모르는 것을 '안 됨'으로 단정하면
+  /// 서버가 죽었을 때 조작 수단이 통째로 사라진다. 준비 안 된 실행은
+  /// 서버가 412로 거절한다(이중 방어).
+  final bool canExecute;
+
+  /// disconnected | needs_setup | operable
+  final String readiness;
+
+  /// 맡길 수 없는 이유. '안 됩니다'만 말하면 할 수 있는 일이 없다.
+  final List<String> readinessReasons;
 
   ApplianceButton? buttonAt(int x, int y) {
     try {
@@ -102,6 +119,12 @@ ApplianceMap applianceFromServerJson(Map<String, dynamic> json) => ApplianceMap(
       icon: applianceIconFor(json['icon'] as String? ?? ''),
       rows: json['rows'] as int,
       cols: json['cols'] as int,
+      // 준비 상태는 폰과 **같은 값**을 본다 — 한 서버에서 나온다.
+      canExecute: json['can_execute'] as bool? ?? true,
+      readiness: json['readiness'] as String? ?? 'operable',
+      readinessReasons:
+          (json['readiness_reasons'] as List<dynamic>?)?.cast<String>() ??
+              const [],
       buttons: [
         for (final b in json['buttons'] as List<dynamic>)
           ApplianceButton(

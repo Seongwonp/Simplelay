@@ -58,12 +58,77 @@ class KioskManualView extends StatelessWidget {
               ],
             ),
           ),
+          // 아직 맡길 수 없는 가전이면 여기서 먼저 말한다. 눌러 보고
+          // 실패로 알게 되면, 서버가 막은 것을 가전 고장으로 오해한다.
+          if (!appliance.canExecute) _NotReadyNotice(appliance: appliance),
           Expanded(
             child: Center(
               child: _ButtonGrid(
                 appliance: appliance,
-                onExecute: onExecute,
+                // 준비 안 된 가전은 탭 자체를 막는다(서버도 412로 거절 —
+                // 이중 방어). 누를 수 있는데 안 되는 버튼은 두지 않는다.
+                onExecute: appliance.canExecute ? onExecute : null,
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 준비가 끝나지 않은 가전임을 큰 글씨로 알린다.
+///
+/// 상태 이름만 말하지 않고 **무엇이 남았는지**를 함께 낸다 — 폰과 같은
+/// 문장을 쓴다(한 서버에서 나온 값이다).
+class _NotReadyNotice extends StatelessWidget {
+  const _NotReadyNotice({required this.appliance});
+
+  final ApplianceMap appliance;
+
+  @override
+  Widget build(BuildContext context) {
+    final disconnected = appliance.readiness == 'disconnected';
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+      decoration: BoxDecoration(
+        color: KioskColors.warning.withValues(alpha: 0.16),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            disconnected ? Icons.link_off : Icons.build_outlined,
+            color: KioskColors.warning,
+            size: 26,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  disconnected ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요',
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                if (appliance.readinessReasons.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    appliance.readinessReasons.join(' · '),
+                    style: const TextStyle(
+                      fontSize: 18,
+                      color: KioskColors.muted,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],
@@ -76,7 +141,9 @@ class _ButtonGrid extends StatelessWidget {
   const _ButtonGrid({required this.appliance, required this.onExecute});
 
   final ApplianceMap appliance;
-  final void Function(ApplianceButton) onExecute;
+
+  /// null이면 이 가전은 아직 맡길 수 없다.
+  final void Function(ApplianceButton)? onExecute;
 
   @override
   Widget build(BuildContext context) {
@@ -93,7 +160,9 @@ class _ButtonGrid extends StatelessWidget {
                   ? const SizedBox(width: 88, height: 60)
                   : _ButtonCell(
                       button: btn,
-                      onTap: () => onExecute(btn),
+                      onTap: onExecute == null
+                          ? null
+                          : () => onExecute!(btn),
                     ),
             );
           }),
@@ -107,7 +176,7 @@ class _ButtonCell extends StatelessWidget {
   const _ButtonCell({required this.button, required this.onTap});
 
   final ApplianceButton button;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -131,9 +200,13 @@ class _ButtonCell extends StatelessWidget {
           child: Center(
             child: Text(
               button.label,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 14,
-                color: Color(0xFFFAF7F2),
+                // 못 누르는 버튼은 그렇게 보여야 한다 — 색만 같으면
+                // 눌리지 않는 이유를 가전 쪽에서 찾게 된다.
+                color: onTap == null
+                    ? const Color(0xFFFAF7F2).withValues(alpha: 0.35)
+                    : const Color(0xFFFAF7F2),
                 fontWeight: FontWeight.w400,
               ),
             ),

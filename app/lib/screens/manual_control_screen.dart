@@ -122,19 +122,25 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      Icon(Icons.touch_app,
-                          color: context.appPrimary, size: 18),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          '버튼을 탭하면 실제 가전 버튼이 눌립니다.',
-                          style: context.appCaption,
+                  // 이 가전이 아직 준비 안 됐으면 **여기서 먼저 말한다.**
+                  // 눌러 보고 나서 실패로 알게 되면, 실제로는 서버가
+                  // 막았는데 사용자는 가전이 고장 난 줄 안다.
+                  if (!appliance.canExecute)
+                    _NotReadyNotice(appliance: appliance)
+                  else
+                    Row(
+                      children: [
+                        Icon(Icons.touch_app,
+                            color: context.appPrimary, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '버튼을 탭하면 실제 가전 버튼이 눌립니다.',
+                            style: context.appCaption,
+                          ),
                         ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    ),
                   const SizedBox(height: 16),
                   Expanded(
                     child: Card(
@@ -149,8 +155,13 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
                             resultButtonId: _resultButtonId,
                             resultSuccess: _resultSuccess,
                             onPhoto: hasPhoto,
-                            onTap: (button) =>
-                                _press(api, button, appliance.id),
+                            // 준비 안 된 가전은 탭 자체를 막는다. 서버도
+                            // 412로 거절하지만(이중 방어), 누를 수 있는데
+                            // 안 되는 버튼을 두면 사용자가 원인을 가전
+                            // 쪽에서 찾게 된다.
+                            onTap: appliance.canExecute
+                                ? (button) => _press(api, button, appliance.id)
+                                : null,
                           ),
                         ),
                       ),
@@ -189,6 +200,59 @@ class _NoServerConfigured extends StatelessWidget {
           ),
         ),
       );
+}
+
+/// 아직 맡길 수 없는 가전임을 화면 위쪽에서 알린다.
+///
+/// 상태 이름만 말하지 않고 **무엇이 남았는지**를 함께 낸다 — '안 됩니다'만
+/// 알리면 사용자가 할 수 있는 일이 없다.
+class _NotReadyNotice extends StatelessWidget {
+  const _NotReadyNotice({required this.appliance});
+
+  final ApplianceMap appliance;
+
+  @override
+  Widget build(BuildContext context) {
+    final disconnected = appliance.readiness == 'disconnected';
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.appWarning.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.appWarning.withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            disconnected ? Icons.link_off : Icons.build_outlined,
+            color: context.appWarning,
+            size: 20,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  disconnected ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                if (appliance.readinessReasons.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    appliance.readinessReasons.join(' · '),
+                    style: TextStyle(color: context.appMuted, fontSize: 13),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // 등록 때 찍어둔 버튼 패널 사진이 있으면 그리드 뒤에 깔아준다 — 사용자가
@@ -230,7 +294,8 @@ class _ButtonGrid extends StatelessWidget {
   final String? pendingButtonId;
   final String? resultButtonId;
   final bool? resultSuccess;
-  final void Function(ApplianceButton) onTap;
+  /// null이면 이 가전은 아직 맡길 수 없다 (준비 미완).
+  final void Function(ApplianceButton)? onTap;
 
   /// 사진 배경(어두운 스크림) 위에 그려지는 중 — 테마와 무관하게 흰색 계열 사용
   final bool onPhoto;
@@ -262,7 +327,9 @@ class _ButtonGrid extends StatelessWidget {
                                         : _CellState.failure)
                                     : _CellState.idle,
                             onPhoto: onPhoto,
-                            onTap: busy ? null : () => onTap(btn),
+                            onTap: (busy || onTap == null)
+                                ? null
+                                : () => onTap!(btn),
                           ),
                   ),
                 );

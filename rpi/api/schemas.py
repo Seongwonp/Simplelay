@@ -178,6 +178,35 @@ class ApplianceResponse(BaseModel):
     cols: int
     is_custom: bool
     buttons: list[ApplianceButtonModel]
+    # ── 준비 상태 (F1) ──────────────────────────────────────────────
+    # disconnected | needs_setup | operable. **등록됐다는 것과 조작할 수
+    # 있다는 것은 다르다** -- heartbeat만으로 operable을 선언하지 않는다.
+    readiness: str = "disconnected"
+    # 맡길 수 없는 이유들. '안 됩니다'만 말하면 사용자가 할 수 있는
+    # 일이 없다.
+    readiness_reasons: list[str] = []
+    # 노드로 라우팅되지 않는 가전(내장)은 종전대로 로컬에서 실행된다.
+    # 그래서 readiness가 disconnected여도 실행은 가능하다 -- 화면이
+    # 버튼을 막을지 정할 때는 이 값을 본다.
+    can_execute: bool = True
+
+
+class ReadinessReportRequest(BaseModel):
+    """POST /readiness/{appliance_id} — 노드(또는 설치 도구)가 자기
+    준비 상태를 보고한다.
+
+    실제 판정은 하드웨어가 붙은 뒤 노드 쪽에서 한다. 서버는 그 보고를
+    받아 두고 유효기간이 지나면 '다시 확인해야 함'으로 되돌린다 --
+    한참 전에 한 번 확인했다는 것은 지금 조작해도 된다는 뜻이 아니다.
+    """
+
+    transport: bool = False
+    motion: bool = False
+    sensor: bool = False
+    calibration: bool = False
+    #: 축별 사유(선택). 키는 위 네 이름.
+    reasons: dict[str, str] = {}
+    calibration_profile_version: str | None = None
 
 
 class ApplianceRegisterRequest(BaseModel):

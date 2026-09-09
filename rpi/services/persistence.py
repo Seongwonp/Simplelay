@@ -82,7 +82,8 @@ class SimpleLayDb:
                     appliance_id TEXT,
                     execution_mode TEXT,
                     started_at TEXT,            -- ISO-8601, timezone 포함
-                    termination TEXT
+                    termination TEXT,
+                    calibration_profile_version TEXT
                 );
                 """
             )
@@ -117,6 +118,7 @@ class SimpleLayDb:
                 "execution_mode",
                 "started_at",
                 "termination",
+                "calibration_profile_version",
             ):
                 if column not in job_columns:
                     self._conn.execute(
@@ -312,8 +314,9 @@ class SimpleLayDb:
             self._conn.execute(
                 "INSERT INTO job_history"
                 " (job_id, finished_at, purpose, status, buttons_json,"
-                "  appliance_id, execution_mode, started_at, termination)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "  appliance_id, execution_mode, started_at, termination,"
+                "  calibration_profile_version)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry.job_id,
                     entry.finished_at.isoformat(),
@@ -334,6 +337,7 @@ class SimpleLayDb:
                     entry.execution_mode.value,
                     entry.started_at.isoformat() if entry.started_at else None,
                     entry.termination.value,
+                    entry.calibration_profile_version,
                 ),
             )
             self._conn.commit()
@@ -342,7 +346,8 @@ class SimpleLayDb:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT job_id, finished_at, purpose, status, buttons_json,"
-                " appliance_id, execution_mode, started_at, termination"
+                " appliance_id, execution_mode, started_at, termination,"
+                " calibration_profile_version"
                 " FROM job_history ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -361,6 +366,7 @@ class SimpleLayDb:
                 execution_mode=ExecutionMode(row[6] or ExecutionMode.UNKNOWN.value),
                 started_at=datetime.fromisoformat(row[7]) if row[7] else None,
                 termination=Termination(row[8] or Termination.UNKNOWN.value),
+                calibration_profile_version=row[9],
             )
             for row in rows
         )

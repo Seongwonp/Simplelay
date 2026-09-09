@@ -42,9 +42,61 @@ Future<ProviderContainer> _makeContainerWithAppliance(
   return container;
 }
 
+/// 서버가 "아직 맡길 수 없다"고 한 가전 (F1).
+const _notReady = ApplianceMap(
+  id: 'custom_test',
+  name: '테스트가전',
+  icon: Icons.widgets_outlined,
+  rows: 1,
+  cols: 2,
+  isCustom: true,
+  canExecute: false,
+  readiness: 'needs_setup',
+  readinessReasons: ['눌림을 확인할 센서가 아직 준비되지 않았어요'],
+  buttons: [
+    ApplianceButton(id: 'b1', label: '켜기', x: 0, y: 0),
+    ApplianceButton(id: 'b2', label: '끄기', x: 1, y: 0),
+  ],
+);
+
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  group('준비 안 된 가전 (F1)', () {
+    testWidgets('실행을 막고 무엇이 남았는지 말한다', (tester) async {
+      // 누를 수 있는데 안 되는 버튼을 두면, 서버가 막은 것을 사용자는
+      // 가전 고장으로 오해한다. 서버도 412로 거절한다(이중 방어).
+      var executed = 0;
+      final api = RpiApiService(
+        'http://rpi5.local:8000',
+        client: MockClient((request) async {
+          if (request.url.path == '/execute-buttons') executed++;
+          return http.Response('{"job_id":"J1"}', 200);
+        }),
+      );
+      final container = ProviderContainer(
+        overrides: [rpiApiServiceProvider.overrideWithValue(api)],
+      );
+      addTearDown(container.dispose);
+      await container.read(customAppliancesProvider.notifier).ensureLoaded();
+      await container.read(customAppliancesProvider.notifier).add(_notReady);
+      await container.read(selectedApplianceProvider.notifier).select(_notReady);
+
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+
+      expect(find.text('아직 준비가 끝나지 않았어요'), findsOneWidget);
+      expect(
+        find.text('눌림을 확인할 센서가 아직 준비되지 않았어요'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.text('켜기'));
+      await tester.pump();
+      expect(executed, 0);
+    });
   });
 
   testWidgets('RPi 서버가 연결 안 되어 있으면 설정 안내 화면을 보여준다', (tester) async {

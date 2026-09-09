@@ -53,6 +53,39 @@ def _mode_of(controller: object | None) -> ExecutionMode:
     return getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
 
 
+class ApplianceNotReadyError(LookupError):
+    """대상 가전이 아직 조작할 수 있는 상태가 아니다.
+
+    ``reasons``에 **사용자에게 그대로 보여줄 수 있는** 사유를 담는다.
+    화면이 기술 문구를 잘라 쓰게 하면 서버 문구가 바뀔 때마다 조용히
+    깨지고, 그러다 결국 "실행하지 못했어요" 같은 일반 문구로 덮인다 --
+    그러면 무엇이 남았는지가 사라진다.
+
+    등록됐다는 것과 조작할 수 있다는 것은 다르다 -- 주소는 맞는데 선이
+    안 꽂혀 있거나, 전송은 되는데 모터가 홈을 안 잡았거나, 좌표를 아직
+    안 맞춘 상태에서 실행을 받으면 갠트리가 엉뚱한 곳을 누른다.
+
+    UnknownApplianceError와 마찬가지로 RuntimeError가 아니다 -- 409('다른
+    작업이 실행 중')로 뭉뚱그리면 "잠시 후 다시"로 안내되는데, 여기서
+    필요한 것은 기다림이 아니라 **설치를 마치는 일**이다.
+    """
+
+    def __init__(
+        self, appliance_id: str, reasons: tuple[str, ...] = ()
+    ) -> None:
+        self.appliance_id = appliance_id
+        self.reasons = reasons
+        super().__init__(
+            f"appliance '{appliance_id}' is not ready -- "
+            + (" · ".join(reasons) or "reason unknown")
+        )
+
+    @property
+    def user_message(self) -> str:
+        """화면에 그대로 실을 수 있는 문장."""
+        return " · ".join(self.reasons) or "아직 조작할 준비가 되지 않았어요"
+
+
 class UnknownApplianceError(LookupError):
     """실행 대상 가전을 레지스트리에서 찾을 수 없다.
 
@@ -110,6 +143,7 @@ class SimpleLayService(PurposeExecutor):
         llm_client: LlmClient | None = None,
         node_registry: NodeRegistry | None = None,
         appliance_registry=None,
+        readiness_registry=None,
         history_store: JobHistoryStore | None = None,
         care_events=None,
     ) -> None:
@@ -140,6 +174,8 @@ class SimpleLayService(PurposeExecutor):
         # 실행 대상 가전의 존재 검증(R1). None이면 검증하지 않는다 --
         # 가전 개념이 없는 구성(rpi4 브리지·단위 테스트)의 기존 동작 유지.
         self._appliance_registry = appliance_registry
+        # 가전별 준비 상태(F1). None이면 검사하지 않는다.
+        self._readiness_registry = readiness_registry
         # 실행 이력(무엇을·언제·재시도·결과) — None이면 기록하지 않는다
         self._history_store = history_store
         # 보호자 알림(실패·긴급정지) — None이면 기록하지 않는다
@@ -402,11 +438,26 @@ class SimpleLayService(PurposeExecutor):
                     appliance_id=appliance_id,
                     execution_mode=_mode_of(controller),
                     started_at=self._current_started_at,
+                    calibration_profile_version=(
+                        self._calibration_version(appliance_id)
+                    ),
                     termination=self._termination_of(result, stopped_by_user),
                 )
             )
         except Exception:
             log.exception("job history record failed")
+
+    def _calibration_version(self, appliance_id: str | None) -> str | None:
+        """실행 시점의 보정 프로파일 버전 스냅샷.
+
+        좌표를 다시 맞추면 성공률이 통째로 달라진다. 어느 보정에서 나온
+        숫자인지 함께 남기지 않으면 나중에 그 결과를 해석할 수 없다.
+        """
+        if appliance_id is None or self._readiness_registry is None:
+            return None
+        return self._readiness_registry.get(
+            appliance_id
+        ).calibration_profile_version
 
     @staticmethod
     def _termination_of(
@@ -519,11 +570,51 @@ class SimpleLayService(PurposeExecutor):
         구멍이 생기므로, 대상을 고르는 이 한 곳에서 거절한다.
         """
         self._require_known_appliance(appliance_id)
+        controller = self._route_to(appliance_id)
+        self._require_ready(appliance_id, controller)
+        return controller
+
+    def _route_to(self, appliance_id: str | None) -> ButtonSequenceController:
         if appliance_id is not None and self._node_registry is not None:
             node_controller = self._node_registry.get(appliance_id)
             if node_controller is not None:
                 return node_controller
         return self._controller
+
+    def readiness_of(self, appliance_id: str):
+        """이 가전을 지금 맡길 수 있나 — 화면이 상태와 사유를 보여줄 때 쓴다.
+
+        노드가 없는 가전은 **조작 가능이라고 하지 않는다.** 로컬 폴백은
+        하드웨어 없이 개발·데모를 돌리기 위한 편의지 준비 완료 선언이 아니다.
+        """
+        from rpi.services.readiness import ApplianceReadiness  # noqa: PLC0415
+
+        if self._readiness_registry is None:
+            return ApplianceReadiness.unknown(appliance_id)
+        return self._readiness_registry.get(appliance_id)
+
+    def _require_ready(
+        self, appliance_id: str | None, controller: ButtonSequenceController
+    ) -> None:
+        """노드로 나가는 실행은 그 노드가 **준비됐다고 확인된** 뒤에만.
+
+        게이트는 **노드로 라우팅되는 가전**의 계약이다. 노드가 없는 가전은
+        로컬 컨트롤러로 가고 종전대로 실행된다 -- 여기까지 막으면 하드웨어
+        없이 도는 개발·데모 경로가 통째로 죽고, 그러면 이 게이트를 끄고
+        쓰게 되어 아무것도 지키지 못한다.
+
+        heartbeat만으로 통과시키지 않는다: transport는 네 축 중 하나일 뿐이다.
+        """
+        if self._readiness_registry is None:
+            return
+        if appliance_id is None or controller is self._controller:
+            return  # 로컬 경로 -- 노드 계약의 대상이 아니다
+        readiness = self._readiness_registry.get(appliance_id)
+        if readiness.can_execute:
+            return
+        raise ApplianceNotReadyError(
+            appliance_id, readiness.blocking_reasons
+        )
 
     def _require_known_appliance(self, appliance_id: str | None) -> None:
         if appliance_id is None or self._appliance_registry is None:

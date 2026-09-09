@@ -183,6 +183,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           422 => '이해하지 못한 명령이에요. 다시 말해주세요.',
           409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.',
           503 => '음성 해석 기능이 서버에 설정되어 있지 않아요.',
+          // 412: 가전이 아직 조작할 준비가 안 됐다. 서버가 무엇이
+          // 남았는지 말해주므로 일반 문구로 덮지 않는다 -- 덮으면
+          // 사용자가 원인을 가전 고장 쪽에서 찾게 된다.
+          412 => _readinessMessage(error),
           _ => '명령을 전달하지 못했어요. 연결을 확인해주세요.',
         });
       }
@@ -230,6 +234,14 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           label: label,
         );
     if (mounted) context.go('/status');
+  }
+
+  /// 412(준비 안 됨) 안내 — 서버가 준 사유를 그대로 싣는다.
+  static String _readinessMessage(RpiApiException error) {
+    final detail = error.message.trim();
+    return detail.isEmpty
+        ? '이 가전은 아직 조작할 준비가 되지 않았어요.'
+        : '아직 조작할 준비가 되지 않았어요 — $detail';
   }
 
   void _notice(String message) => ScaffoldMessenger.of(context)

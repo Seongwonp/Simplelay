@@ -36,6 +36,9 @@ class ApplianceMap {
     required this.buttons,
     this.isCustom = false,
     this.photoPath,
+    this.canExecute = true,
+    this.readiness = 'operable',
+    this.readinessReasons = const [],
   });
 
   final String id;
@@ -45,6 +48,24 @@ class ApplianceMap {
   final int cols;
   final List<ApplianceButton> buttons;
   final bool isCustom;
+
+  /// 이 가전을 지금 맡길 수 있나 (서버 F1 판정).
+  ///
+  /// **등록됐다는 것과 조작할 수 있다는 것은 다르다.** 주소는 맞는데
+  /// 선이 안 꽂혀 있거나, 전송은 되는데 모터가 홈을 안 잡았거나,
+  /// 좌표를 아직 안 맞춘 상태가 있다.
+  ///
+  /// 서버 정보가 없을 때(오프라인 폴백·기기 저장분)는 막지 않는다 --
+  /// 모르는 것을 '안 됨'으로 단정하면 하드웨어 없이 도는 경로가 죽는다.
+  /// 서버는 준비 안 된 실행을 어차피 412로 거절한다(이중 방어).
+  final bool canExecute;
+
+  /// disconnected | needs_setup | operable
+  final String readiness;
+
+  /// 맡길 수 없는 이유. '안 됩니다'만 말하면 할 수 있는 일이 없다.
+  final List<String> readinessReasons;
+
 
   /// 등록 시 찍은 버튼 패널 사진의 영구 경로 (앱 문서 폴더 아래).
   /// image_picker의 임시 캐시 파일을 그대로 저장하면 OS가 지워버리므로,
@@ -81,6 +102,13 @@ class ApplianceMap {
             .toList(),
         isCustom: true,
         photoPath: json['photo_path'] as String?,
+        // 서버 응답에만 있는 값 — 기기에 저장된 정의에는 없다(저장하지
+        // 않는다: 살아 있는 준비 상태는 재확인 전까지 사실이 아니다).
+        canExecute: json['can_execute'] as bool? ?? true,
+        readiness: json['readiness'] as String? ?? 'operable',
+        readinessReasons:
+            (json['readiness_reasons'] as List<dynamic>?)?.cast<String>() ??
+                const [],
       );
 
   Map<String, dynamic> toJson() => {

@@ -61,6 +61,10 @@ class JobHistoryEntry:
     #: 시작 시각. 없으면 소요시간을 뺄 수 없다(옛 기록은 None).
     started_at: datetime | None = None
     termination: Termination = Termination.UNKNOWN
+    #: 어떤 보정으로 맞춘 좌표에서 나온 결과인가. 좌표를 다시 맞추면
+    #: 성공률이 통째로 달라지므로, 버전을 함께 남기지 않으면 나중에
+    #: 그 숫자가 어느 조건의 것이었는지 해석할 수 없다.
+    calibration_profile_version: str | None = None
 
     @property
     def retry_count(self) -> int:
@@ -111,6 +115,7 @@ _CSV_COLUMNS = (
     "started_at",
     "finished_at",
     "duration_seconds",
+    "calibration_profile_version",
     "retry_count",
     "buttons",
 )
@@ -143,6 +148,7 @@ def history_csv(entries: tuple[JobHistoryEntry, ...]) -> str:
                 entry.started_at.isoformat() if entry.started_at else "",
                 entry.finished_at.isoformat(),
                 f"{duration.total_seconds():.1f}" if duration else "",
+                entry.calibration_profile_version or "",
                 entry.retry_count,
                 " ".join(
                     f"{b.button}:{'ok' if b.success else 'fail'}:{b.attempts}"

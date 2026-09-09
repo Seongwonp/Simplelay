@@ -244,9 +244,17 @@ class SuggestionScreen extends ConsumerWidget {
                         if (context.mounted) {
                           _notifyError(
                             context,
-                            error.statusCode == 409
-                                ? '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.'
-                                : '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
+                            switch (error.statusCode) {
+                              409 =>
+                                '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.',
+                              // 412: 준비 안 된 가전. 기다린다고 되는
+                              // 일이 아니므로 '잠시 후'라고 하지 않는다.
+                              412 =>
+                                '이 가전은 아직 조작할 준비가 되지 않았어요. '
+                                    '설정에서 연결 상태를 확인해주세요.',
+                              _ =>
+                                '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
+                            },
                           );
                         }
                         return;

@@ -16,7 +16,7 @@ from rpi.api.deps import (
     get_wellness_checker,
 )
 from rpi.api.router import router
-from rpi.api.service import UnknownApplianceError
+from rpi.api.service import ApplianceNotReadyError, UnknownApplianceError
 from rpi.api.schemas import HealthResponse
 from rpi.intent.suggestions import ProactiveSuggestionService
 
@@ -114,6 +114,23 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SimpleLay RPi API", version="0.1.0", lifespan=lifespan)
+
+
+@app.exception_handler(ApplianceNotReadyError)
+async def _appliance_not_ready(
+    _request: Request, exc: ApplianceNotReadyError
+):
+    """대상 가전이 아직 조작할 준비가 안 됐다 (F1).
+
+    412를 쓴다. 404는 '없는 가전'이고(이건 있다), 409는 이 API에서
+    '다른 작업이 실행 중'이라 클라이언트가 "잠시 후 다시"로 안내한다 --
+    여기서 필요한 것은 기다림이 아니라 **설치를 마치는 일**이다.
+    """
+    # detail은 **사용자에게 그대로 보일 수 있는 문장**이다. 화면이
+    # 기술 문구를 잘라 쓰게 하면 서버 문구가 바뀔 때마다 조용히 깨진다.
+    return JSONResponse(
+        status_code=412, content={"detail": exc.user_message}
+    )
 
 
 @app.exception_handler(UnknownApplianceError)

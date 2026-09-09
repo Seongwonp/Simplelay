@@ -299,6 +299,23 @@ def get_appliance_registry():
     return ApplianceRegistry(store=get_db())
 
 
+def get_clock():
+    """서버 시계 — 준비 상태 보고에 확인 시각을 찍을 때 쓴다."""
+    return _clock
+
+
+@lru_cache(maxsize=1)
+def get_readiness_registry():
+    """가전별 준비 상태 (F1) — **메모리에만** 산다.
+
+    영속화하지 않는 것이 설계다: 재시작 후에도 '조작 가능'이 남아 있으면
+    그 사이 선이 빠졌는지 아무도 확인하지 않은 채로 물리 조작을 받는다.
+    """
+    from rpi.services.readiness import ReadinessRegistry  # noqa: PLC0415
+
+    return ReadinessRegistry(clock=_clock)
+
+
 @lru_cache(maxsize=1)
 def get_node_registry() -> NodeRegistry:
     """가전별 원격 노드(다중 노드 아키텍처) 등록부 — 처음엔 비어있고,
@@ -336,6 +353,7 @@ def get_service() -> SimpleLayService:
         llm_client=_build_llm_client(),
         node_registry=get_node_registry(),
         appliance_registry=get_appliance_registry(),
+        readiness_registry=get_readiness_registry(),
         history_store=get_job_history(),
         care_events=get_care_events(),
     )
