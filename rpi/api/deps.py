@@ -280,13 +280,29 @@ def get_care_events():
 
 
 @lru_cache(maxsize=1)
+def get_wellness_pause():
+    """안부 확인 일시 중지 (F5).
+
+    제안 DND와 **다른 것**이라 따로 둔다: DND는 "지금 말 걸지 마",
+    이건 "며칠간 조용한 게 정상이다"이다.
+    """
+    from rpi.services import WellnessPause  # noqa: PLC0415
+
+    return WellnessPause()
+
+
+@lru_cache(maxsize=1)
 def get_wellness_checker():
     """안부 신호 감지기 — 패턴 제안과 같은 usage_log·시간대 설정을 공유한다.
     main.py의 주기 루프가 60초마다 check()를 부른다."""
     from rpi.services import RoutineQuietChecker  # noqa: PLC0415
 
     return RoutineQuietChecker(
-        get_usage_log(), _clock, _PATTERN_CONFIG, get_care_events()
+        get_usage_log(),
+        _clock,
+        _PATTERN_CONFIG,
+        get_care_events(),
+        pause=get_wellness_pause(),
     )
 
 

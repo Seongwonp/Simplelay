@@ -7,6 +7,7 @@ import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
 import '../models/execution_status.dart';
 import '../providers/appliance_sync_provider.dart';
+import '../providers/wellness_pause_provider.dart';
 import '../providers/demo_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/ble_provider.dart';
@@ -63,6 +64,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _VoiceGuideTile(),
           const SizedBox(height: 16),
           _ApplianceSection(),
+
+          const SizedBox(height: 24),
+
+          // ── 알림 ──────────────────────────────────────────
+          _SectionHeader(title: '알림'),
+          const SizedBox(height: 12),
+          _WellnessPauseTile(),
 
           const SizedBox(height: 24),
 
@@ -790,6 +798,89 @@ class _BleSection extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// 안부 확인을 며칠 쉰다 — 집을 비운 것을 **아는** 날들.
+///
+/// 여행·입원처럼 조용한 것이 정상인 날에도 안부 신호는 그대로 울린다.
+/// 보호자는 이미 알고 있는 일로 알림을 받고, 며칠 이어지면 정작 진짜 신호가
+/// 왔을 때 무시하게 된다 — 안부 기능이 스스로를 무디게 만든다.
+///
+/// 방해 금지(제안 쪽)와 다른 자리에 둔 이유: 하나로 묶으면 방해 금지 30분이
+/// 안부 확인까지 꺼버리거나, 여행 일주일이 제안까지 막는다.
+class _WellnessPauseTile extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_WellnessPauseTile> createState() => _WellnessPauseTileState();
+}
+
+class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(wellnessPauseProvider.notifier).refresh();
+    });
+  }
+
+  Future<void> _pick() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final today = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: today.add(const Duration(days: 3)),
+      firstDate: today,
+      // 무기한을 두지 않는 것과 같은 이유로 상한도 둔다 — 꺼둔 것을 잊으면
+      // 안부 기능이 있는 채로 없는 것과 같아진다.
+      lastDate: today.add(const Duration(days: 90)),
+      helpText: '언제까지 쉴까요?',
+    );
+    if (picked == null) return;
+    final ok =
+        await ref.read(wellnessPauseProvider.notifier).pauseUntil(picked);
+    if (!ok) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('설정을 전달하지 못했어요. 연결을 확인해 주세요.')),
+      );
+    }
+  }
+
+  Future<void> _clear() async {
+    final messenger = ScaffoldMessenger.of(context);
+    if (!await ref.read(wellnessPauseProvider.notifier).clear()) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('설정을 전달하지 못했어요. 연결을 확인해 주세요.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final until = ref.watch(wellnessPauseProvider);
+    final paused = until != null;
+    return _SettingCard(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(
+          paused ? Icons.notifications_paused : Icons.favorite_outline,
+        ),
+        title: const Text('안부 확인 쉬기'),
+        subtitle: Text(
+          paused
+              ? '${_ymd(until)}까지 쉬어요. 실행 실패·위험 신호음은 그대로 알려드려요.'
+              : '여행처럼 집을 비우는 날 켜세요. 조용한 게 정상인 날 알림이 오지 않아요.',
+          style: TextStyle(color: context.appMuted, fontSize: 12),
+        ),
+        trailing: TextButton(
+          // 고령 사용자 기준 최소 터치 대상.
+          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+          onPressed: paused ? _clear : _pick,
+          child: Text(paused ? '지금 켜기' : '쉬기'),
+        ),
+      ),
+    );
+  }
+
+  static String _ymd(DateTime t) => '${t.month}월 ${t.day}일';
 }
 
 // ── 데모 모드 토글 ─────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/demo_provider.dart';
+import 'package:simplelay/providers/wellness_pause_provider.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 
 import '../helpers/test_helpers.dart';
@@ -150,6 +151,47 @@ void main() {
     });
   });
 
+  group('안부 확인 쉬기 (F5)', () {
+    testWidgets('평소에는 쉬고 있지 않다고 말한다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSettings());
+      await tester.pump();
+
+      expect(find.text('안부 확인 쉬기'), findsOneWidget);
+      expect(find.text('쉬기'), findsOneWidget);
+      expect(find.textContaining('여행처럼 집을 비우는 날'), findsOneWidget);
+    });
+
+    testWidgets('쉬는 동안에도 실패·위험 알림은 간다고 말한다', (tester) async {
+      // 이 약속이 화면에 없으면, 안부를 쉬는 것이 알림을 전부 끄는 것으로
+      // 읽힌다 — 그러면 여행 갈 때 아무도 안 켠다.
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        _buildSettings(
+          extra: [
+            wellnessPauseProvider.overrideWith(
+              (ref) => _PausedNotifier(ref, DateTime(2026, 7, 30)),
+            ),
+          ],
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining('7월 30일까지 쉬어요'), findsOneWidget);
+      expect(find.textContaining('실행 실패·위험 신호음은 그대로'), findsOneWidget);
+      expect(find.text('지금 켜기'), findsOneWidget);
+    });
+
+    testWidgets('버튼이 48px 이상이다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSettings());
+      await tester.pump();
+
+      final size = tester.getSize(find.widgetWithText(TextButton, '쉬기'));
+      expect(size.height, greaterThanOrEqualTo(48));
+    });
+  });
+
   group('SettingsScreen — 데모 섹션', () {
     // 데모는 디버그 빌드가 아니라 '고급'에 있다. 결선 리허설은 릴리즈 APK로
     // 하는데 디버그에만 있으면 정작 필요한 곳에서 못 켠다.
@@ -276,4 +318,14 @@ void main() {
       expect(container.read(rpiUrlProvider), 'http://192.168.0.42:8000');
     });
   });
+}
+
+/// 이미 쉬는 중인 상태를 그대로 주입한다 — 서버 왕복 없이 화면만 본다.
+class _PausedNotifier extends WellnessPauseNotifier {
+  _PausedNotifier(super.ref, DateTime until) {
+    state = until;
+  }
+
+  @override
+  Future<void> refresh() async {}
 }

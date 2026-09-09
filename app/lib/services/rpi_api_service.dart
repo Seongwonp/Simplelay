@@ -463,6 +463,59 @@ class RpiApiService {
     _checkStatus(res);
   }
 
+  // ── 안부 확인 일시 중지 (F5) ────────────────────────────────────────
+  //
+  // 제안 DND(분 단위)와 다른 것이다. 이건 "며칠간 조용한 게 정상이다"이고,
+  // 쉬는 동안에도 실행 실패·위험소리 알림은 그대로 간다.
+
+  /// 쉬고 있으면 종료 날짜, 아니면 null. 조회 실패도 null이다 — 호출부가
+  /// 그 구분을 필요로 하지 않는다(화면은 서버가 답할 때만 상태를 바꾼다).
+  Future<DateTime?> wellnessPause() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/wellness-pause'), headers: _headers)
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final until = body['until'] as String?;
+      return until == null ? null : DateTime.tryParse(until);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 성공하면 서버가 확정한 종료 날짜, 실패하면 null.
+  Future<DateTime?> setWellnessPause(DateTime until) async {
+    try {
+      final res = await _client
+          .post(
+            _base.replace(path: '/wellness-pause'),
+            headers: _jsonHeaders,
+            body: jsonEncode({
+              'until': until.toIso8601String().split('T').first,
+            }),
+          )
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(res.body) as Map<String, dynamic>;
+      final saved = body['until'] as String?;
+      return saved == null ? null : DateTime.tryParse(saved);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<bool> clearWellnessPause() async {
+    try {
+      final res = await _client
+          .delete(_base.replace(path: '/wellness-pause'), headers: _headers)
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   // GET /history — 실행 이력(최신순)
   Future<List<RpiHistoryEntry>> history({int limit = 50}) async {
     final res = await _client

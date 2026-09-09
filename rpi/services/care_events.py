@@ -130,6 +130,47 @@ class CareEventStore:
             )
 
 
+class WellnessPause:
+    """안부 확인을 며칠 쉰다 — 집을 비운 것을 **아는** 날들.
+
+    여행·입원·자녀 집에 며칠. 그 사이에도 안부 신호는 그대로 울리고, 보호자는
+    이미 알고 있는 일로 알림을 받는다. 그런 알림이 며칠 이어지면 정작 진짜
+    신호가 왔을 때 무시하게 된다 -- 안부 기능이 스스로를 무디게 만든다.
+
+    **제안 DND와는 다른 것이다.** DND는 "지금 말 걸지 마"이고 이건 "며칠간
+    조용한 게 정상이다"이다. 하나로 묶으면 방해 금지 30분이 안부 확인까지
+    꺼버리거나, 여행 일주일이 제안까지 막는다.
+
+    무기한은 두지 않는다. 꺼둔 것을 잊으면 안부 기능이 **있는 채로 없는 것과
+    같아진다** -- 종료 날짜를 반드시 받고, 그날이 지나면 스스로 풀린다.
+
+    쉬는 것은 안부 신호뿐이다. 실행 실패·위험소리·긴급정지는 그대로 간다:
+    사람이 집을 비웠다는 것은 조용한 것이 정상이라는 뜻이지, 가전이 고장 나도
+    된다는 뜻이 아니다.
+    """
+
+    def __init__(self, until: date | None = None) -> None:
+        self._until = until
+
+    @property
+    def until(self) -> date | None:
+        return self._until
+
+    def is_active(self, today: date) -> bool:
+        """종료 날짜 **당일도 포함**한다 -- "오늘까지 여행"이 자연스러운 말이다."""
+        return self._until is not None and today <= self._until
+
+    def set_until(self, until: date, today: date) -> None:
+        if until < today:
+            # 이미 지난 날짜로 쉬게 하면 아무 일도 안 일어나는데 화면은
+            # "쉬는 중"이라고 말하게 된다.
+            raise ValueError("until must not be in the past")
+        self._until = until
+
+    def clear(self) -> None:
+        self._until = None
+
+
 class RoutineQuietChecker:
     """안부 신호 — "평소 그 시간대에 쓰던 가전이 오늘 조용하다"의 감지.
 
@@ -152,15 +193,22 @@ class RoutineQuietChecker:
         clock: Clock,
         config: PatternConfig,
         care_events: CareEventStore,
+        pause: "WellnessPause | None" = None,
     ) -> None:
         self._usage_log = usage_log
         self._clock = clock
         self._config = config
         self._care_events = care_events
+        # 집을 비운 것을 아는 날에는 쉰다. None이면 항상 확인한다.
+        self._pause = pause
 
     def check(self) -> tuple[CareEvent, ...]:
         now = self._clock.now()
         today = now.date()
+        if self._pause is not None and self._pause.is_active(today):
+            # 조용한 것이 정상인 날이다. 실패·위험소리 알림은 이
+            # 게이트를 지나지 않으므로 그대로 간다.
+            return ()
         window_start = today - timedelta(days=ROUTINE_WINDOW_DAYS)
         created: list[CareEvent] = []
 

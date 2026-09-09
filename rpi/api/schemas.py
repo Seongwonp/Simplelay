@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from enum import Enum
 from urllib.parse import urlparse
 
@@ -192,6 +192,21 @@ class ApplianceResponse(BaseModel):
     # 그래서 readiness가 disconnected여도 실행은 가능하다 -- 화면이
     # 버튼을 막을지 정할 때는 이 값을 본다.
     can_execute: bool = True
+
+
+class WellnessPauseRequest(BaseModel):
+    """POST /wellness-pause — 안부 확인을 그 날짜까지 쉰다.
+
+    무기한은 받지 않는다. 꺼둔 것을 잊으면 안부 기능이 있는 채로 없는
+    것과 같아지므로, 종료 날짜를 반드시 받는다.
+    """
+
+    until: date
+
+
+class WellnessPauseResponse(BaseModel):
+    paused: bool
+    until: date | None = None
 
 
 class ReadinessReportRequest(BaseModel):

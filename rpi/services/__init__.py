@@ -22,7 +22,12 @@ from .espnow_node_controller import (
     EspNowGatewayLink,
     EspNowNodeController,
 )
-from .care_events import CareEvent, CareEventStore, RoutineQuietChecker
+from .care_events import (
+    CareEvent,
+    CareEventStore,
+    RoutineQuietChecker,
+    WellnessPause,
+)
 from .appliance_registry import (
     ApplianceButtonDef,
     ApplianceDef,

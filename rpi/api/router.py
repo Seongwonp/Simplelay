@@ -18,6 +18,7 @@ from rpi.services.appliance_registry import RevisionConflictError
 from .deps import (
     get_clock,
     get_readiness_registry,
+    get_wellness_pause,
     EnvironmentOverride,
     get_alert_store,
     get_appliance_registry,
@@ -54,6 +55,8 @@ from .schemas import (
     NodeRegisterRequest,
     NodeResponse,
     ReadinessReportRequest,
+    WellnessPauseRequest,
+    WellnessPauseResponse,
     OkResponse,
     RejectSuggestionRequest,
     PresenceRequest,
@@ -256,6 +259,45 @@ async def list_appliances(
     return [
         _to_appliance_response(a, service, nodes) for a in registry.list()
     ]
+
+
+@router.get("/wellness-pause", response_model=WellnessPauseResponse)
+async def wellness_pause_state(
+    pause=Depends(get_wellness_pause),
+    clock=Depends(get_clock),
+) -> WellnessPauseResponse:
+    """안부 확인을 쉬고 있는가 (F5)."""
+    today = clock.now().date()
+    return WellnessPauseResponse(
+        paused=pause.is_active(today), until=pause.until
+    )
+
+
+@router.post("/wellness-pause", response_model=WellnessPauseResponse)
+async def set_wellness_pause(
+    body: WellnessPauseRequest,
+    pause=Depends(get_wellness_pause),
+    clock=Depends(get_clock),
+) -> WellnessPauseResponse:
+    """집을 비운 것을 **아는** 날들 동안 안부 신호를 쉰다.
+
+    실행 실패·위험소리·긴급정지 알림은 그대로 간다 -- 사람이 집을 비웠다는
+    것은 조용한 것이 정상이라는 뜻이지, 가전이 고장 나도 된다는 뜻이 아니다.
+    """
+    today = clock.now().date()
+    try:
+        pause.set_until(body.until, today=today)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return WellnessPauseResponse(paused=True, until=pause.until)
+
+
+@router.delete("/wellness-pause", response_model=WellnessPauseResponse)
+async def clear_wellness_pause(
+    pause=Depends(get_wellness_pause),
+) -> WellnessPauseResponse:
+    pause.clear()
+    return WellnessPauseResponse(paused=False)
 
 
 @router.post("/readiness/{appliance_id}", response_model=OkResponse)
