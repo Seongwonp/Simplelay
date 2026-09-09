@@ -21,8 +21,7 @@ class CustomAppliancesNotifier extends StateNotifier<List<ApplianceMap>> {
   /// 화면 테스트가 기기 저장소를 기다리면 첫 프레임이 항상 '가전 없음'이라,
   /// 정작 확인하려던 화면을 못 본다.
   @visibleForTesting
-  CustomAppliancesNotifier.seeded(List<ApplianceMap> appliances)
-      : super(appliances) {
+  CustomAppliancesNotifier.seeded(super.state) {
     _loadFuture = Future<void>.value();
   }
 
@@ -42,12 +41,16 @@ class CustomAppliancesNotifier extends StateNotifier<List<ApplianceMap>> {
   }
 
   Future<void> add(ApplianceMap appliance) async {
+    // 읽기가 끝나기 전에 고치면, 뒤늦게 끝난 `_load()`가 이 변경을 덮어쓴다.
+    // 앱을 켜자마자 가전을 추가한 사람은 방금 등록한 것이 사라지는 걸 본다.
+    await _loadFuture;
     state = [...state, appliance];
     await _save();
   }
 
   /// 같은 id의 정의를 갈아 끼운다(목록 순서 유지).
   Future<void> replace(ApplianceMap appliance) async {
+    await _loadFuture;
     state = [
       for (final a in state) if (a.id == appliance.id) appliance else a,
     ];
@@ -55,6 +58,7 @@ class CustomAppliancesNotifier extends StateNotifier<List<ApplianceMap>> {
   }
 
   Future<void> remove(String id) async {
+    await _loadFuture;
     final removed = state.where((a) => a.id == id).firstOrNull;
     state = state.where((a) => a.id != id).toList();
     await _save();

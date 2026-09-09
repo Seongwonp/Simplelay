@@ -129,6 +129,26 @@ void main() {
     });
   });
 
+  group('저장소를 읽는 중에 고쳐도 잃지 않는다', () {
+    test('켜자마자 추가해도 뒤늦게 끝난 읽기가 덮어쓰지 않는다', () async {
+      final existing =
+          _installed(id: 'a1', category: ApplianceCategory.microwave);
+      SharedPreferences.setMockInitialValues({
+        'custom_appliances': [existing.toJsonString()],
+      });
+      // **초기화를 기다리지 않고** 바로 추가한다 -- 앱을 켜자마자 '가전
+      // 추가'로 들어가 저장하는 실제 경로다.
+      final c = ProviderContainer();
+      addTearDown(c.dispose);
+
+      final added = _installed(id: 'a2', category: ApplianceCategory.induction);
+      await c.read(customAppliancesProvider.notifier).add(added);
+
+      // 방금 등록한 것도, 원래 있던 것도 살아 있다.
+      expect(c.read(customAppliancesProvider).map((a) => a.id), ['a1', 'a2']);
+    });
+  });
+
   group('데모 표본과 프로덕션 빈 상태', () {
     test('데모를 켜지 않으면 표본을 세우지 않는다', () async {
       // 표본을 항상 세우면 실제 사용자가 겪는 첫 화면을 아무도 못 본다.

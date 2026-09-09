@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/photo_provider.dart';
 import 'package:simplelay/screens/appliance_editor_screen.dart';
 import 'package:simplelay/services/photo_service.dart';
@@ -48,9 +49,14 @@ GoRouter _buildRouter() => GoRouter(
       ],
     );
 
-Widget _buildEditor(GoRouter router, {List<Override> extraOverrides = const []}) {
+Widget _buildEditor(
+  GoRouter router, {
+  List<Override> extraOverrides = const [],
+  void Function(ProviderContainer)? onContainerReady,
+}) {
   return buildWithProviderState(
     overrides: [...connectedOverrides(), ...extraOverrides],
+    onContainerReady: onContainerReady,
     child: MaterialApp.router(theme: ThemeData.dark(), routerConfig: router),
   );
 }
@@ -61,8 +67,13 @@ Future<void> _pumpEditor(
   WidgetTester tester,
   GoRouter router, {
   List<Override> extraOverrides = const [],
+  void Function(ProviderContainer)? onContainerReady,
 }) async {
-  await tester.pumpWidget(_buildEditor(router, extraOverrides: extraOverrides));
+  await tester.pumpWidget(_buildEditor(
+    router,
+    extraOverrides: extraOverrides,
+    onContainerReady: onContainerReady,
+  ));
   await tester.pump();
   router.push('/appliance/new');
   await tester.pumpAndSettle();
@@ -87,7 +98,9 @@ void main() {
     await _pumpEditor(tester, _buildRouter());
 
     expect(find.text('새 가전 추가'), findsOneWidget);
-    expect(find.byType(TextField), findsOneWidget); // 이름 입력
+    // 이름과 위치 -- 같은 종류를 여러 대 등록할 수 있어서 위치를 묻는다.
+    expect(find.byType(TextField), findsNWidgets(2));
+    expect(find.text('어디에 있나요?'), findsOneWidget);
     expect(find.byIcon(Icons.add), findsNWidgets(9)); // 3x3 빈 칸
   });
 
@@ -153,8 +166,46 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '저장'));
     await tester.pumpAndSettle();
 
+    // 저장했다고 바로 닫지 않는다. 등록된 것과 조작할 수 있는 것은 다르고,
+    // 남은 일을 여기서 말하지 않으면 사용자는 홈에서 '아직 연결되지
+    // 않았어요'를 만나 원인을 자기 가전에서 찾는다.
+    expect(find.text("'식기세척기'을 등록했어요"), findsOneWidget);
+    expect(find.text('기기 연결'), findsOneWidget);
+    expect(find.text('버튼 위치 보정'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(TextButton, '나중에'));
+    await tester.pumpAndSettle();
+
     // pop 후 라우터의 '/' 화면으로 돌아감
     expect(find.text('설정 화면'), findsOneWidget);
+  });
+
+  testWidgets('위치를 적으면 목록에 위치까지 함께 남는다', (tester) async {
+    _useTallViewport(tester);
+    late ProviderContainer container;
+    await _pumpEditor(
+      tester,
+      _buildRouter(),
+      onContainerReady: (c) => container = c,
+    );
+
+    await tester.enterText(find.byType(TextField).first, '에어컨');
+    await tester.enterText(find.byType(TextField).at(1), '거실');
+    await tester.tap(find.byIcon(Icons.add).first);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextField).last, '전원');
+    await tester.tap(find.widgetWithText(FilledButton, '확인'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, '저장'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, '나중에'));
+    await tester.pumpAndSettle();
+
+    final saved = container.read(customAppliancesProvider).single;
+    expect(saved.location, '거실');
+    // '에어컨'이 두 대일 때 이름만으로는 어느 쪽인지 알 수 없다.
+    expect(saved.displayName, '거실 에어컨');
   });
 
   testWidgets('행/열 스테퍼로 그리드 크기를 바꿀 수 있다', (tester) async {

@@ -214,7 +214,7 @@ class _ApplianceRow extends ConsumerWidget {
                         color: on ? context.appPrimary : context.appMuted),
                     const SizedBox(width: 7),
                     Text(
-                      a.name,
+                      a.displayName,
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: on ? FontWeight.w700 : FontWeight.w500,
@@ -314,7 +314,7 @@ class _ApplianceStage extends StatelessWidget {
         const SizedBox(height: 16),
         Row(
           children: [
-            Flexible(child: Text(appliance.name, style: AppText.heading)),
+            Flexible(child: Text(appliance.displayName, style: AppText.heading)),
             if (appliance.isDemo) ...[
               const SizedBox(width: 8),
               const DemoBadge(),

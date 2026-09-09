@@ -131,7 +131,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     final hasPhoto = photoPath != null && File(photoPath).existsSync();
 
     return Scaffold(
-      appBar: AppBar(title: Text('${appliance.name} 버튼 조작')),
+      appBar: AppBar(title: Text('${appliance.displayName} 버튼 조작')),
       body: api == null
           ? _NoServerConfigured(onGoToSettings: () => context.push('/settings'))
           : Padding(

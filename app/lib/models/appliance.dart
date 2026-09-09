@@ -88,6 +88,7 @@ class ApplianceMap {
     required this.rows,
     required this.cols,
     required this.buttons,
+    this.location,
     this.isCustom = false,
     this.isDemo = false,
     this.photoPath,
@@ -100,6 +101,14 @@ class ApplianceMap {
 
   final String id;
   final String name;
+
+  /// 어디에 있는 가전인가(거실·안방...). 없을 수 있다.
+  ///
+  /// 같은 종류를 여러 대 등록할 수 있는 제품이라, 이름만으로는 '에어컨'과
+  /// '에어컨'을 구분할 수 없다. **이 폰에만 남는다** -- 서버 payload는
+  /// 따로 조립하고 이 값을 싣지 않는다. 집 안 어디에 뭐가 있는지는 굳이
+  /// 밖으로 내보낼 이유가 없다.
+  final String? location;
 
   /// 이 기기의 **종류**. 도메인의 단일 진실원천이다.
   final ApplianceCategory category;
@@ -164,6 +173,14 @@ class ApplianceMap {
   /// 저장 시점에 문서 폴더로 복사한 경로만 여기 들어온다. 내장 가전은 null.
   final String? photoPath;
 
+  /// 목록에서 이 가전을 가리키는 한 줄. 위치가 있으면 같이 적는다 --
+  /// '에어컨'이 두 대일 때 이름만으로는 어느 쪽인지 알 수 없다.
+  String get displayName {
+    final where = location;
+    if (where == null || where.isEmpty) return name;
+    return '$where $name';
+  }
+
   ApplianceButton? buttonAt(int x, int y) {
     try {
       return buttons.firstWhere((b) => b.x == x && b.y == y);
@@ -185,6 +202,7 @@ class ApplianceMap {
   factory ApplianceMap.fromJson(Map<String, dynamic> json) => ApplianceMap(
         id: json['id'] as String,
         name: json['name'] as String,
+        location: json['location'] as String?,
         // 종류가 진실원천이다. 없으면(예전 저장분) icon 힌트에서 **명시적인
         // 표로만** 되살리고, 그래도 모르면 other -- 이름으로 추측하지 않는다.
         category: json.containsKey('category')
@@ -219,6 +237,7 @@ class ApplianceMap {
   ApplianceMap withPhotoFrom(ApplianceMap other) => ApplianceMap(
         id: id,
         name: name,
+        location: location,
         category: category,
         rows: rows,
         cols: cols,
@@ -236,6 +255,7 @@ class ApplianceMap {
   Map<String, dynamic> toJson() => {
         'id': id,
         'name': name,
+        if (location != null && location!.isNotEmpty) 'location': location,
         // 종류만 저장한다. 아이콘 코드포인트를 직렬화하면 릴리즈 빌드의
         // 아이콘 트리셰이킹이 깨진다.
         'category': category.value,

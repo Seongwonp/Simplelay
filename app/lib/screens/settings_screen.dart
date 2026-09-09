@@ -336,7 +336,7 @@ class _ApplianceSection extends ConsumerWidget {
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          appliance.name,
+                          appliance.displayName,
                           style: TextStyle(
                             fontSize: 13,
                             color: isSelected
@@ -1078,7 +1078,7 @@ class _NodeSection extends ConsumerWidget {
                 leading: Icon(appliance.icon,
                     color: url != null ? context.appSuccess : context.appMuted,
                     size: 20),
-                title: Text(appliance.name),
+                title: Text(appliance.displayName),
                 subtitle: Text(
                   url ?? '미등록',
                   style: TextStyle(

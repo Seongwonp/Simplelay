@@ -158,7 +158,7 @@ class SuggestionScreen extends ConsumerWidget {
               const SizedBox(width: 6),
               Flexible(
                 child: Text(
-                  appliance.name,
+                  appliance.displayName,
                   style: TextStyle(color: context.appMuted),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -398,7 +398,7 @@ class _ButtonMapGrid extends StatelessWidget {
             Icon(appliance.icon, color: context.appPrimary, size: 16),
             const SizedBox(width: 6),
             Expanded(
-              child: Text('${appliance.name}의 실제 버튼 배치',
+              child: Text('${appliance.displayName}의 실제 버튼 배치',
                   style: context.appCaption),
             ),
           ],

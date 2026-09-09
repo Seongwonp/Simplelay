@@ -25,6 +25,7 @@ class ApplianceEditorScreen extends ConsumerStatefulWidget {
 
 class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   final _nameController = TextEditingController();
+  final _locationController = TextEditingController();
 
   /// 어떤 종류의 가전인가. 이름으로 추측하지 않고 사용자가 고른다 --
   /// "에어컨 옆 선풍기" 같은 이름을 잘못 읽으면 고칠 방법이 없다.
@@ -37,6 +38,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   @override
   void dispose() {
     _nameController.dispose();
+    _locationController.dispose();
     super.dispose();
   }
 
@@ -145,9 +147,14 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
       }
     }
 
+    // 빈 칸은 빈 문자열이 아니라 '없음'이다 -- 빈 문자열을 들고 다니면
+    // 화면마다 isEmpty 검사를 다시 해야 한다.
+    final location = _locationController.text.trim();
+
     final appliance = ApplianceMap(
       id: id,
       name: name,
+      location: location.isEmpty ? null : location,
       category: _category,
       rows: _rows,
       cols: _cols,
@@ -164,16 +171,26 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
         await ref.read(applianceSyncProvider.notifier).saveAppliance(appliance);
     await ref.read(selectedApplianceProvider.notifier).select(appliance);
 
-    if (mounted) {
-      if (result.failed > 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('가전을 저장했어요. 키오스크 반영은 연결되면 자동으로 다시 시도할게요.'),
-          ),
-        );
-      }
-      context.pop();
-    }
+    if (!mounted) return;
+    // 등록됐다는 것과 조작할 수 있다는 것은 다르다. 여기서 바로 사라지면,
+    // 사용자는 다 끝난 줄 알고 홈으로 가서 '아직 연결되지 않았어요'를
+    // 만나고, 자기가 뭘 잘못했는지 되짚게 된다. 남은 일을 지금 말한다.
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => _SavedNextStepsDialog(
+        name: name,
+        syncPending: result.failed > 0,
+        onGoToSettings: () {
+          Navigator.of(dialogContext).pop();
+          context.pop();
+          context.push('/settings');
+        },
+        onLater: () {
+          Navigator.of(dialogContext).pop();
+          context.pop();
+        },
+      ),
+    );
   }
 
   @override
@@ -279,6 +296,22 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),
                       hintText: '예: 식기세척기',
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text('어디에 있나요?', style: AppText.title),
+                  const SizedBox(height: 4),
+                  Text(
+                    '같은 종류를 여러 대 등록할 수 있어요. 위치를 적어두면 목록에서'
+                    ' 헷갈리지 않아요. 비워둬도 됩니다.',
+                    style: context.appCaption,
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: _locationController,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      hintText: '예: 거실',
                     ),
                   ),
                 ],
@@ -393,6 +426,92 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
       ),
     );
   }
+}
+
+/// 저장 직후 **남은 일**을 말한다.
+///
+/// "저장했어요"만 하고 닫으면, 사용자는 다 끝난 줄 알고 홈에서 조작을
+/// 시도하다가 '아직 연결되지 않았어요'를 만난다. 그때는 원인을 자기
+/// 가전에서 찾게 된다 -- 실제로는 아직 아무것도 잘못되지 않았는데도.
+class _SavedNextStepsDialog extends StatelessWidget {
+  const _SavedNextStepsDialog({
+    required this.name,
+    required this.syncPending,
+    required this.onGoToSettings,
+    required this.onLater,
+  });
+
+  final String name;
+
+  /// 키오스크/서버 반영이 아직 안 됐는가. 대기열이 알아서 다시 시도한다.
+  final bool syncPending;
+
+  final VoidCallback onGoToSettings;
+  final VoidCallback onLater;
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+        title: Text("'$name'을 등록했어요"),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('아직 조작할 수는 없어요. 두 가지가 남았습니다.',
+                style: TextStyle(color: context.appMuted)),
+            const SizedBox(height: 14),
+            const _NextStep(
+              icon: Icons.link,
+              title: '기기 연결',
+              body: '이 가전을 누를 장치를 설정에서 연결해 주세요.',
+            ),
+            const SizedBox(height: 10),
+            const _NextStep(
+              icon: Icons.center_focus_strong_outlined,
+              title: '버튼 위치 보정',
+              body: '연결한 뒤 실제 버튼 위치를 한 번 맞춰야 정확히 눌러요.',
+            ),
+            if (syncPending) ...[
+              const SizedBox(height: 14),
+              Text(
+                '지금은 서버에 닿지 않아서, 연결되면 자동으로 다시 보낼게요.',
+                style: context.appCaption,
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: onLater, child: const Text('나중에')),
+          FilledButton(onPressed: onGoToSettings, child: const Text('연결하러 가기')),
+        ],
+      );
+}
+
+class _NextStep extends StatelessWidget {
+  const _NextStep({required this.icon, required this.title, required this.body});
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: context.appPrimary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 2),
+                Text(body, style: context.appCaption),
+              ],
+            ),
+          ),
+        ],
+      );
 }
 
 class _StepperField extends StatelessWidget {
