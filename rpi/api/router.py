@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
@@ -73,6 +74,8 @@ from .schemas import (
     UnmuteRequest,
 )
 from .service import LlmNotConfiguredError, SimpleLayService
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -415,25 +418,49 @@ async def delete_appliance(
     if not found:
         raise HTTPException(status_code=404, detail="appliance not found")
 
-    # 여기서부터는 **삭제가 확정된 뒤의 뒷정리**다.
-    #
-    # 준비 판정 제거를 finally에 두는 이유: 아래 부가 정리(노드 해제·제안
-    # 내리기)가 예외를 던지면 그 뒤가 실행되지 않는데, 판정이 남으면 같은
-    # id로 다시 등록했을 때 **확인한 적 없는 '조작 가능'을 물려받는다.**
-    # 부가 작업 하나의 실패가 위험 상태를 남기게 두지 않는다.
-    #
-    # 예외를 삼키지는 않는다 -- 호출자는 뒷정리가 덜 끝났다는 것을 알아야
-    # 한다. 다만 그 사이에도 판정만은 반드시 버린다.
-    try:
-        # 연결 노드도 함께 정리 — 남겨두면 유령 노드에 긴급 정지가 계속 가고,
-        # 같은 id 재등록 시 예전 주소가 조용히 재사용된다 (교차 리뷰 #4)
-        nodes.unregister(appliance_id)
-        # 그 가전을 대상으로 하던 제안 카드도 내린다 (R1) — 남겨두면 실행할
-        # 수 없는 것을 계속 권유하고, 승인하면 404로 거절된다.
-        suggestions.drop_for_appliance(appliance_id)
-    finally:
-        readiness.forget(appliance_id)
+    _cleanup_after_delete(appliance_id, nodes, suggestions, readiness)
     return OkResponse()
+
+
+def _cleanup_after_delete(
+    appliance_id: str,
+    nodes: NodeRegistry,
+    suggestions: ProactiveSuggestionService,
+    readiness: ReadinessRegistry,
+) -> None:
+    """삭제가 확정된 뒤의 뒷정리.
+
+    **각 단계를 독립적으로 시도한다.** 한 단계가 던져도 나머지는 반드시
+    수행한다 -- 한 단계에 묶어두면 부가 작업 하나의 실패가 안전 정리까지
+    막고, 지운 가전의 '조작 가능'이 남아 같은 id 재등록 때 확인한 적 없는
+    판정을 물려받는다.
+
+    예외는 삼키지 않는다. 호출자는 뒷정리가 덜 끝났다는 것을 알아야 한다.
+    여럿이 실패하면 **첫 예외**를 전달하고 나머지는 로그로 남긴다 -- 마지막
+    것을 던지면 먼저 무너진 자리를 잃는다.
+    """
+    steps = (
+        # 연결 노드 — 남겨두면 유령 노드에 긴급 정지가 계속 가고, 같은 id
+        # 재등록 시 예전 주소가 조용히 재사용된다 (교차 리뷰 #4)
+        ("node", lambda: nodes.unregister(appliance_id)),
+        # 그 가전을 대상으로 하던 제안 카드 (R1) — 남겨두면 실행할 수 없는
+        # 것을 계속 권유하고, 승인하면 404로 거절된다.
+        ("suggestions", lambda: suggestions.drop_for_appliance(appliance_id)),
+        # 준비 판정 — 셋 중 **안전에 직접 걸린** 것이다.
+        ("readiness", lambda: readiness.forget(appliance_id)),
+    )
+    first: Exception | None = None
+    for name, step in steps:
+        try:
+            step()
+        except Exception as exc:  # noqa: BLE001 - 각 단계는 서로 독립이다
+            log.exception(
+                "cleanup step %r failed for appliance %r", name, appliance_id
+            )
+            if first is None:
+                first = exc
+    if first is not None:
+        raise first
 
 
 @router.get("/status", response_model=StatusResponse)
@@ -744,12 +771,22 @@ async def register_node(
 ) -> NodeResponse:
     # 같은 appliance_id로 다시 부르면 주소가 교체된다(재등록) — 노드가 재부팅돼서
     # DHCP로 IP가 바뀐 경우 등을 위해 의도적으로 덮어쓰기 허용.
-    registry.register(appliance_id, body.base_url)
-    # 주소가 바뀌었다면 **다른 기기로 갈아 끼운 것일 수 있다.** 앞 기기에서
-    # 맞춘 버튼 좌표가 새 기기에도 맞다고 볼 근거는 없으므로 판정을 버린다.
-    # 최초 등록도 마찬가지다 -- "등록됐다"는 "맡겨도 된다"가 아니다(F1).
-    # 새 보고가 올 때까지 이 가전은 다시 '준비 필요'다.
-    readiness.forget(appliance_id)
+    #
+    # 판정 무효화를 finally에 두는 이유: `register()`는 메모리 주소를 먼저
+    # 바꾸고 store에 저장한다. 저장이 실패하면 **주소는 이미 바뀐 채로**
+    # 예외가 나가는데, 그때 앞 기기의 '조작 가능'이 남아 있으면 확인한 적
+    # 없는 새 주소로 맡겨도 된다고 말하게 된다. 등록 성공이 불확실한
+    # 순간에는 판정을 버리는 쪽(fail-closed)이 안전하다.
+    #
+    # 입력 검증으로 여기 닿기도 전에 거절된 요청은 아무 상태도 바꾸지
+    # 않으므로 해당되지 않는다.
+    try:
+        registry.register(appliance_id, body.base_url)
+    finally:
+        # 주소가 바뀌었다면 **다른 기기로 갈아 끼운 것일 수 있다.** 앞
+        # 기기에서 맞춘 버튼 좌표가 새 기기에도 맞다고 볼 근거는 없다.
+        # 최초 등록도 마찬가지다 -- "등록됐다"는 "맡겨도 된다"가 아니다(F1).
+        readiness.forget(appliance_id)
     return NodeResponse(appliance_id=appliance_id, base_url=body.base_url)
 
 

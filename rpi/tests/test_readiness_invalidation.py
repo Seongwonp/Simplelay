@@ -186,23 +186,125 @@ def test_other_appliances_keep_their_readiness(client):
 # ── 부가 정리가 실패해도 안전 정리는 끝난다 ───────────────────────────────
 
 
+def _boom(message: str):
+    """부르면 던지는 가짜 정리 단계."""
+
+    def _raise(*_args, **_kwargs):
+        raise RuntimeError(message)
+
+    return _raise
+
+
+def _pending_ids(appliance_id: str) -> list[str]:
+    return [
+        s.suggestion_id
+        for s in deps.get_suggestion_service().pending()
+        if s.appliance_id == appliance_id
+    ]
+
+
+def _make_suggestion(client: TestClient, appliance_id: str) -> None:
+    res = client.post(
+        "/demo/suggest",
+        json={"purpose": f"{appliance_id} 시험", "appliance_id": appliance_id},
+    )
+    assert res.status_code == 200, res.text
+    assert _pending_ids(appliance_id)
+
+
 def test_readiness_is_dropped_even_if_node_cleanup_raises(client, monkeypatch):
-    """가전 삭제는 `registry.delete → nodes.unregister → suggestions.drop`
-    순서다. 가운데가 던지면 뒤가 실행되지 않는다 -- 그런데 뒤에 있는 것이
-    **안전 정리**면, 부가 작업 하나의 실패가 위험 상태를 남기게 된다."""
+    """가전 삭제 뒤의 정리는 **각각 독립적으로** 시도한다.
+
+    예전에는 `nodes.unregister → suggestions.drop` 이 한 try 안에 있어서,
+    앞이 던지면 뒤가 통째로 생략됐다. 부가 작업 하나의 실패가 다른 정리를
+    막으면 안 된다."""
     _register_custom(client, "c1")
     _make_operable("c1")
+    _make_suggestion(client, "c1")
 
-    nodes = deps.get_node_registry()
     monkeypatch.setattr(
-        nodes,
-        "unregister",
-        lambda _id: (_ for _ in ()).throw(RuntimeError("노드 정리 실패")),
+        deps.get_node_registry(), "unregister", _boom("노드 정리 실패")
     )
 
-    # 응답은 실패로 나가더라도(삼키지 않는다),
+    # 예외는 숨기지 않는다 -- 호출자는 뒷정리가 덜 끝났다는 것을 알아야 한다.
+    with pytest.raises(RuntimeError, match="노드 정리 실패"):
+        client.delete("/appliances/c1")
+
+    # 그래도 나머지 정리는 전부 수행된다.
+    assert _state("c1") is not ReadinessState.OPERABLE
+    assert _pending_ids("c1") == []
+
+
+def test_cleanup_failure_does_not_touch_other_appliances(client, monkeypatch):
+    _register_custom(client, "c1")
+    _register_custom(client, "c2")
+    _make_operable("c1")
+    _make_operable("c2")
+    _make_suggestion(client, "c1")
+    _make_suggestion(client, "c2")
+
+    monkeypatch.setattr(
+        deps.get_node_registry(), "unregister", _boom("노드 정리 실패")
+    )
     with pytest.raises(RuntimeError):
         client.delete("/appliances/c1")
 
-    # 판정은 남아 있으면 안 된다.
+    # 남의 가전은 그대로다.
+    assert _state("c2") is ReadinessState.OPERABLE
+    assert _pending_ids("c2") != []
+
+
+def test_first_cleanup_error_is_the_one_raised(client, monkeypatch):
+    """정리 단계가 여럿 실패하면 **첫 예외**를 호출자에게 전달한다.
+    나머지는 로그로 남긴다 -- 하나로 뭉뚱그리면 원인 추적이 어려워지고,
+    마지막 것을 던지면 먼저 무너진 곳을 잃는다."""
+    _register_custom(client, "c1")
+    _make_operable("c1")
+
+    monkeypatch.setattr(deps.get_node_registry(), "unregister", _boom("먼저"))
+    monkeypatch.setattr(
+        deps.get_suggestion_service(), "drop_for_appliance", _boom("나중")
+    )
+
+    with pytest.raises(RuntimeError, match="먼저"):
+        client.delete("/appliances/c1")
+
+    # 그 와중에도 안전 정리는 끝난다.
     assert _state("c1") is not ReadinessState.OPERABLE
+
+
+# ── 노드 등록이 도중에 실패하면 ───────────────────────────────────────────
+
+
+def test_partial_node_registration_still_invalidates_readiness(
+    client, monkeypatch
+):
+    """`NodeRegistry.register()`는 메모리 주소를 먼저 바꾸고 store에 저장한다.
+    저장이 실패하면 **주소는 이미 바뀐 채로** 예외가 나간다 -- 그때 앞
+    기기의 `operable`이 남아 있으면, 확인한 적 없는 새 주소로 맡겨도 된다고
+    말하게 된다. 등록 성공이 불확실한 순간에는 판정을 버리는 쪽이 안전하다."""
+    _register_custom(client, "c1")
+    client.post("/nodes/c1", json={"base_url": "http://node-a:8080"})
+    _make_operable("c1")
+
+    monkeypatch.setattr(
+        deps.get_node_registry(), "register", _boom("주소 저장 실패")
+    )
+
+    with pytest.raises(RuntimeError, match="주소 저장 실패"):
+        client.post("/nodes/c1", json={"base_url": "http://node-b:8080"})
+
+    assert _state("c1") is not ReadinessState.OPERABLE
+
+
+def test_rejected_node_request_keeps_readiness(client):
+    """registry에 닿기도 전에 걸러진 요청(입력 검증)까지 판정을 버릴 이유는
+    없다. 아무 상태도 바뀌지 않았다."""
+    _register_custom(client, "c1")
+    client.post("/nodes/c1", json={"base_url": "http://node-a:8080"})
+    _make_operable("c1")
+
+    res = client.post("/nodes/c1", json={})
+
+    assert res.status_code == 422
+    assert _state("c1") is ReadinessState.OPERABLE
