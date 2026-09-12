@@ -14,7 +14,16 @@ import '../services/demo_service.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/appliance_portrait.dart';
+import '../widgets/demo_badge.dart';
 
+/// 제안 하나를 확인하고 맡길지 정하는 화면.
+///
+/// 읽는 순서가 곧 판단 순서다: **어느 가전을 → 무엇을 하려고 → 어떤 버튼을
+/// 어떤 순서로** 누르는지. 그다음에야 맡길지 정할 수 있다. 그래서 대상
+/// 가전이 질문보다 먼저 오고, 버튼 순서는 장식 없이 라벨과 번호만 남긴다.
+/// 주 행동은 스크롤과 무관하게 아래에 고정한다 -- 6단계짜리 제안에서 실행
+/// 버튼이 화면 밖으로 밀리면, 확인한 뒤 다시 찾아 내려가야 한다.
 class SuggestionScreen extends ConsumerWidget {
   const SuggestionScreen({required this.sequenceId, super.key});
 
@@ -98,6 +107,64 @@ class SuggestionScreen extends ConsumerWidget {
     );
   }
 
+  /// 맡긴다. HTTP 출처는 서버 승인 → job 추적, BLE 출처는 응답 전송.
+  static Future<void> _approve(
+    BuildContext context,
+    WidgetRef ref,
+    Suggestion suggestion,
+  ) async {
+    final rpiApi = ref.read(rpiApiServiceProvider);
+    if (suggestion.source == SuggestionSource.http && rpiApi != null) {
+      try {
+        // HTTP: RPi에 승인 전송 — 즉시 job_id 접수, 이후 상태 화면이
+        // /status 폴링으로 이 job의 진행·완료를 따라간다
+        final accepted = await rpiApi.approveSuggestion(suggestion.sequenceId);
+        ref.read(executionStatusProvider.notifier).beginHttpJob(
+              api: rpiApi,
+              jobId: accepted.jobId,
+              label: suggestion.label,
+              steps: suggestion.steps,
+            );
+      } on RpiApiException catch (error) {
+        if (context.mounted) {
+          _notifyError(
+            context,
+            switch (error.statusCode) {
+              409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.',
+              // 412: 준비 안 된 가전. 기다린다고 되는 일이 아니므로
+              // '잠시 후'라고 하지 않는다.
+              412 => '이 가전은 아직 조작할 준비가 되지 않았어요. '
+                  '설정에서 연결 상태를 확인해주세요.',
+              _ => '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
+            },
+          );
+        }
+        return;
+      } catch (_) {
+        if (context.mounted) {
+          _notifyError(context, '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.');
+        }
+        return;
+      }
+    }
+    // BLE 출처일 때만 respond()가 실제로 BLE 응답을 보낸다
+    // (HTTP 출처는 로컬 목록에서 제거만 함 — 위에서 이미 서버에 전달했으므로).
+    await ref.read(suggestionProvider.notifier).respond(suggestion, true);
+    if (suggestion.source != SuggestionSource.http) {
+      // BLE 경로만 메시지 스트림 기반으로 추적한다. HTTP 경로는 위에서
+      // beginHttpJob으로 실제 /status 폴링을 이미 시작했으므로 가짜 센서
+      // 주입이 끼면 안 된다.
+      ref.read(executionStatusProvider.notifier).begin(suggestion);
+      // 가짜 센서·가짜 성공은 **명시적으로 켠 데모 세션**에서만.
+      // kDebugMode에 걸어두면 실기기에 물린 디버그 빌드에서도 섞여,
+      // 실제로는 안 눌린 실행이 화면에서 성공으로 끝난다.
+      if (ref.read(demoModeProvider)) {
+        DemoService(ref.read(bleServiceProvider)).runExecutionFlow();
+      }
+    }
+    if (context.mounted) context.go('/status');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final items = ref.watch(suggestionProvider);
@@ -138,180 +205,287 @@ class SuggestionScreen extends ConsumerWidget {
     }
     final appliance = target;
 
+    // 준비 안 된 가전은 **여기서 먼저 막는다.** 서버도 412로 거절하지만,
+    // 누를 수 있는 버튼을 두고 눌러 봐야 안 된다고 하면 사용자는 원인을
+    // 가전 쪽에서 찾는다. 모르는 것(readinessKnown=false)은 막지 않는다 --
+    // 서버가 죽었을 때 조작 수단이 통째로 사라지면 안 된다.
+    final blocked = appliance.readinessKnown && !appliance.canExecute;
+    final blockedWhy = !blocked
+        ? null
+        : appliance.readinessReasons.firstOrNull ??
+            (appliance.readiness == 'disconnected'
+                ? '아직 연결되지 않았어요'
+                : '아직 준비가 끝나지 않았어요');
+
     return Scaffold(
       appBar: AppBar(title: const Text('제안 확인')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
-          // 큰 스파클 원을 없앴다. "AI 기능"이라는 표시일 뿐 무엇에 대한 제안인지는
-          // 알려주지 않았고, 화면에서 가장 큰 자리를 장식이 차지하고 있었다.
-          // 어느 가전인지는 아래 버튼맵의 가전 칩이 이미 말해준다.
+          // ── 어느 가전인가 ────────────────────────────────────────────────
+          // 여러 가전을 다루므로 대상이 질문보다 먼저 보여야 맡길지 판단할
+          // 수 있다. 사진이 있으면 사진, 없으면 종류별 실루엣.
+          _TargetHeader(appliance: appliance, stepCount: suggestion.steps.length),
 
-          // ── 제목 ────────────────────────────────────────────────────────
+          const SizedBox(height: 20),
+
+          // ── 무엇을 ──────────────────────────────────────────────────────
           // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
-          // 무엇을 조작할지부터 말한다 -- 여러 가전을 다루므로 대상이
-          // 먼저 보여야 사용자가 맡길지 판단할 수 있다.
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(appliance.icon, size: 18, color: context.appMuted),
-              const SizedBox(width: 6),
-              Flexible(
-                child: Text(
-                  appliance.displayName,
-                  style: TextStyle(color: context.appMuted),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '${suggestion.label}, 지금 할까요?',
-            textAlign: TextAlign.center,
-            style: AppText.heading,
-          ),
+          // 잘라내지 않는다. 긴 말은 줄바꿈해서 다 보여준다.
+          Text('${suggestion.label}, 지금 할까요?', style: AppText.heading),
           // 왜 지금 이게 떴는지. 환경 제안은 서버가 준 근거, 패턴 제안은
           // 시간대·횟수로 만든 한 문장이다(데모는 비어 있다).
           if (suggestion.whyNow.isNotEmpty) ...[
             const SizedBox(height: 6),
             Text(
               suggestion.whyNow,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: context.appMuted),
+              style: TextStyle(fontSize: 16, color: context.appMuted),
             ),
           ],
-          const SizedBox(height: 6),
-          Text(
-            '이 순서로 버튼을 눌러요.',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: context.appMuted),
-          ),
-
-          const SizedBox(height: 24),
-
-          // ── 버튼맵 그리드 ────────────────────────────────────────────────
-          _ButtonMapGrid(appliance: appliance, steps: suggestion.steps),
 
           const SizedBox(height: 28),
 
-          // ── 단계 타임라인 ────────────────────────────────────────────────
-          ...List.generate(suggestion.steps.length, (i) {
-            final code = suggestion.steps[i];
-            final isLast = i == suggestion.steps.length - 1;
-            return _StepRow(
-              index: i,
-              code: code,
-              isLast: isLast,
-            );
-          }),
+          // ── 어떤 버튼을, 어떤 순서로 ────────────────────────────────────
+          // 단계를 카드 하나하나로 감싸지 않는다. 라벨과 번호가 가장
+          // 선명해야 하는데, 카드 테두리·아이콘이 그보다 먼저 보였다.
+          Text('누를 순서', style: AppText.title),
+          const SizedBox(height: 6),
+          _StepList(appliance: appliance, steps: suggestion.steps),
 
-          const SizedBox(height: 32),
+          const SizedBox(height: 28),
 
-          // ── 거부 / 승인 버튼 ─────────────────────────────────────────────
-          Row(
-            children: [
-              // 폭 비율은 키오스크와 같게(3:4) -- 1:2로 두면 '이번만 넘기기'가
-              // 기본 글씨에서도 단어 중간에서 줄바꿈된다. 문구는 두 화면이
-              // 같아야 손버릇이 생기므로 폭을 넓히는 쪽으로 맞춘다.
-              Expanded(
-                flex: 3,
-                child: OutlinedButton(
-                  onPressed: () =>
-                      _dismissSuggestion(context, ref, suggestion, mute: false),
-                  child: const Text('이번만 넘기기'),
+          // ── 실제 배치에서 어디인가 ──────────────────────────────────────
+          // 순서 목록이 주 정보고, 지도는 그것을 실제 버튼판 위에서 다시
+          // 확인하는 보조다. 그래서 아래에 둔다.
+          Text('${appliance.displayName}의 실제 버튼 배치',
+              style: AppText.title),
+          const SizedBox(height: 10),
+          _ButtonMapGrid(appliance: appliance, steps: suggestion.steps),
+        ],
+      ),
+      // 주 행동은 스크롤과 무관하게 항상 손 닿는 자리에.
+      bottomNavigationBar: _ActionBar(
+        appliance: appliance,
+        stepCount: suggestion.steps.length,
+        blockedWhy: blockedWhy,
+        canMute: suggestion.canMute,
+        onSkip: () => _dismissSuggestion(context, ref, suggestion, mute: false),
+        onMute: () => _dismissSuggestion(context, ref, suggestion, mute: true),
+        onRun: blocked ? null : () => _approve(context, ref, suggestion),
+      ),
+    );
+  }
+}
+
+// ── 대상 가전 머리 ────────────────────────────────────────────────────────
+
+class _TargetHeader extends StatelessWidget {
+  const _TargetHeader({required this.appliance, required this.stepCount});
+
+  final ApplianceMap appliance;
+  final int stepCount;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          AppliancePortrait(appliance: appliance, size: 64, borderRadius: 12),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(appliance.displayName, style: AppText.title),
+                    ),
+                    if (appliance.isDemo) ...[
+                      const SizedBox(width: 8),
+                      const DemoBadge(),
+                    ],
+                  ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                flex: 4,
-                child: FilledButton.icon(
-                  onPressed: () async {
-                    final rpiApi = ref.read(rpiApiServiceProvider);
-                    if (suggestion.source == SuggestionSource.http &&
-                        rpiApi != null) {
-                      try {
-                        // HTTP: RPi에 승인 전송 — 즉시 job_id 접수, 이후 상태
-                        // 화면이 /status 폴링으로 이 job의 진행·완료를 따라간다
-                        final accepted = await rpiApi
-                            .approveSuggestion(suggestion.sequenceId);
-                        ref.read(executionStatusProvider.notifier).beginHttpJob(
-                              api: rpiApi,
-                              jobId: accepted.jobId,
-                              label: suggestion.label,
-                              steps: suggestion.steps,
-                            );
-                      } on RpiApiException catch (error) {
-                        if (context.mounted) {
-                          _notifyError(
-                            context,
-                            switch (error.statusCode) {
-                              409 =>
-                                '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.',
-                              // 412: 준비 안 된 가전. 기다린다고 되는
-                              // 일이 아니므로 '잠시 후'라고 하지 않는다.
-                              412 =>
-                                '이 가전은 아직 조작할 준비가 되지 않았어요. '
-                                    '설정에서 연결 상태를 확인해주세요.',
-                              _ =>
-                                '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
-                            },
-                          );
-                        }
-                        return;
-                      } catch (_) {
-                        if (context.mounted) {
-                          _notifyError(
-                              context, '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.');
-                        }
-                        return;
-                      }
-                    }
-                    // BLE 출처일 때만 respond()가 실제로 BLE 응답을 보낸다
-                    // (HTTP 출처는 로컬 목록에서 제거만 함 — 위에서 이미 서버에 전달했으므로).
-                    await ref
-                        .read(suggestionProvider.notifier)
-                        .respond(suggestion, true);
-                    if (suggestion.source != SuggestionSource.http) {
-                      // BLE 경로만 메시지 스트림 기반으로 추적한다. HTTP 경로는
-                      // 위에서 beginHttpJob으로 실제 /status 폴링을 이미
-                      // 시작했으므로 가짜 센서 주입이 끼면 안 된다.
-                      ref
-                          .read(executionStatusProvider.notifier)
-                          .begin(suggestion);
-                      // 가짜 센서·가짜 성공은 **명시적으로 켠 데모 세션**
-                      // 에서만. kDebugMode에 걸어두면 실기기에 물린 디버그
-                      // 빌드에서도 섞여, 실제로는 안 눌린 실행이 화면에서
-                      // 성공으로 끝난다.
-                      if (ref.read(demoModeProvider)) {
-                        DemoService(ref.read(bleServiceProvider))
-                            .runExecutionFlow();
-                      }
-                    }
-                    if (context.mounted) context.go('/status');
-                  },
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  // '승인'은 결재 용어다. 사용자가 하는 일은 결재가 아니라
-                  // "지금 시킬지" 정하는 것 -- 키오스크와 같은 문구를 쓴다.
-                  label: const Text('지금 실행'),
+                const SizedBox(height: 4),
+                Text(
+                  '이 가전의 버튼 $stepCount개를 순서대로 눌러요',
+                  style: TextStyle(fontSize: 15, color: context.appMuted),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE 경로는
-          // '이번만 넘기기'와 같은 거절 메시지라 약속을 지킬 수 없다.
-          if (suggestion.canMute) ...[
-            const SizedBox(height: 4),
-            Center(
-              child: TextButton.icon(
-                onPressed: () =>
-                    _dismissSuggestion(context, ref, suggestion, mute: true),
-                icon: const Icon(Icons.notifications_off_outlined, size: 18),
-                label: const Text('이 제안 다시 받지 않기'),
+        ],
+      );
+}
+
+// ── 누를 순서 ─────────────────────────────────────────────────────────────
+
+/// 번호와 라벨만. 아이콘을 문자열에서 추측해 붙이지 않는다 -- '시작'에
+/// 재생 아이콘을 붙이는 식은 맞을 때도 있지만 틀릴 때 아무도 모른다.
+class _StepList extends StatelessWidget {
+  const _StepList({required this.appliance, required this.steps});
+
+  final ApplianceMap appliance;
+  final List<String> steps;
+
+  /// **그 가전의** 버튼 라벨. 등록된 버튼이면 사용자가 붙인 이름 그대로,
+  /// 아니면(내장 가전 코드) 전역 표. 아래 지도와 같은 단어를 쓴다.
+  String _label(String code) => appliance.buttons.any((b) => b.id == code)
+      ? appliance.labelFor(code)
+      : readableStep(code);
+
+  @override
+  Widget build(BuildContext context) => Column(
+        children: [
+          for (var i = 0; i < steps.length; i++) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10),
+              child: Row(
+                children: [
+                  // 18% 틴트 위에 같은 강조색 숫자를 얹으면 라이트 모드에서
+                  // 4.23:1이다. 순서 숫자는 읽어야 하는 정보이므로 면을
+                  // 채우고 대비되는 글자를 얹는다(5.56:1).
+                  CircleAvatar(
+                    radius: 16,
+                    backgroundColor: context.appPrimary,
+                    child: Text(
+                      '${i + 1}',
+                      style: TextStyle(
+                        color: context.appOnAccent,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Text(
+                      _label(steps[i]),
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
+            if (i < steps.length - 1)
+              Divider(height: 1, color: context.appBorderFaint),
           ],
         ],
+      );
+}
+
+// ── 하단 고정 행동 ────────────────────────────────────────────────────────
+
+/// 실행 직전 **대상과 단계 수를 한 번 더** 말하고, 행동 셋의 위계를 나눈다:
+/// 지금 실행(채움) > 이번만 넘기기(외곽선) > 다시 받지 않기(글자).
+class _ActionBar extends StatelessWidget {
+  const _ActionBar({
+    required this.appliance,
+    required this.stepCount,
+    required this.blockedWhy,
+    required this.canMute,
+    required this.onSkip,
+    required this.onMute,
+    required this.onRun,
+  });
+
+  final ApplianceMap appliance;
+  final int stepCount;
+
+  /// 실행할 수 없는 이유. null이면 실행할 수 있다.
+  final String? blockedWhy;
+  final bool canMute;
+  final VoidCallback onSkip;
+  final VoidCallback onMute;
+  final VoidCallback? onRun;
+
+  @override
+  Widget build(BuildContext context) {
+    final skip = OutlinedButton(
+      onPressed: onSkip,
+      child: const Text('이번만 넘기기'),
+    );
+    final run = FilledButton.icon(
+      onPressed: onRun,
+      icon: const Icon(Icons.play_arrow_rounded),
+      // '승인'은 결재 용어다. 사용자가 하는 일은 결재가 아니라 "지금
+      // 시킬지" 정하는 것 -- 키오스크와 같은 문구를 쓴다.
+      label: const Text('지금 실행'),
+    );
+    // 큰 글씨에서는 두 버튼을 나란히 두면 '이번만 넘기기'가 단어 중간에서
+    // 줄바꿈된다. 세로로 쌓고 주 행동을 위에 둔다.
+    final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+
+    return Material(
+      color: context.appBackground,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: context.appBorderFaint)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (blockedWhy != null)
+                // 막힌 이유를 버튼 바로 위에서 말한다. 비활성 버튼만 두면
+                // 사용자는 왜 안 눌리는지 가전 쪽에서 찾는다.
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline,
+                          size: 18, color: context.appDanger),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          '$blockedWhy — 설정에서 연결을 확인해 주세요',
+                          style: TextStyle(
+                              fontSize: 15, color: context.appDanger),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Text(
+                    '${appliance.displayName} · 버튼 $stepCount개',
+                    style: TextStyle(fontSize: 14, color: context.appMuted),
+                  ),
+                ),
+              if (stacked) ...[
+                run,
+                const SizedBox(height: 8),
+                skip,
+              ] else
+                Row(
+                  children: [
+                    // 폭 비율은 키오스크와 같게(3:4) -- 1:2로 두면 '이번만
+                    // 넘기기'가 기본 글씨에서도 단어 중간에서 줄바꿈된다.
+                    Expanded(flex: 3, child: skip),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 4, child: run),
+                  ],
+                ),
+              // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE
+              // 경로는 '이번만 넘기기'와 같은 거절 메시지라 약속을 지킬 수
+              // 없다.
+              if (canMute)
+                TextButton.icon(
+                  onPressed: onMute,
+                  icon: const Icon(Icons.notifications_off_outlined, size: 18),
+                  label: const Text('이 제안 다시 받지 않기'),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -376,6 +550,7 @@ class _UnknownTargetScreen extends StatelessWidget {
 
 // ── 버튼맵 그리드 ─────────────────────────────────────────────────────────
 
+/// 실제 버튼판 위에 순서 번호를 얹은 **읽는 그림**. 조작판이 아니다.
 class _ButtonMapGrid extends StatelessWidget {
   const _ButtonMapGrid({required this.appliance, required this.steps});
 
@@ -390,205 +565,97 @@ class _ButtonMapGrid extends StatelessWidget {
       stepOrder.putIfAbsent(steps[i], () => i + 1);
     }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(appliance.icon, color: context.appPrimary, size: 16),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text('${appliance.displayName}의 실제 버튼 배치',
-                  style: context.appCaption),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        Container(
-          decoration: BoxDecoration(
-            color: context.appOverlayFaint,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: context.appBorderFaint),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            children: List.generate(appliance.rows, (row) {
-              return Padding(
-                padding:
-                    EdgeInsets.only(bottom: row < appliance.rows - 1 ? 8 : 0),
-                child: Row(
-                  children: List.generate(appliance.cols, (col) {
-                    final btn = appliance.buttonAt(col, row);
-                    final order = btn != null ? stepOrder[btn.id] : null;
-                    final isInSequence = order != null;
+    return Container(
+      decoration: BoxDecoration(
+        color: context.appOverlayFaint,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.appBorderFaint),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        children: List.generate(appliance.rows, (row) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: row < appliance.rows - 1 ? 8 : 0),
+            child: Row(
+              children: List.generate(appliance.cols, (col) {
+                final btn = appliance.buttonAt(col, row);
+                final order = btn != null ? stepOrder[btn.id] : null;
+                final isInSequence = order != null;
 
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(
-                            right: col < appliance.cols - 1 ? 8 : 0),
-                        child: btn == null
-                            ? const SizedBox(height: 52)
-                            : AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                height: 52,
-                                decoration: BoxDecoration(
-                                  color: isInSequence
-                                      ? context.appPrimary
-                                          .withValues(alpha: 0.2)
-                                      : context.appOverlayFaint,
-                                  borderRadius: BorderRadius.circular(8),
-                                  // 순서에 든 버튼만 테두리를 준다. 나머지까지
-                                  // 두르면 전부 눌러도 되는 버튼처럼 보이는데,
-                                  // 이 지도는 읽는 그림이지 조작판이 아니다.
-                                  border: isInSequence
-                                      ? Border.all(
-                                          color: context.appPrimary, width: 1.5)
-                                      : null,
+                return Expanded(
+                  child: Padding(
+                    padding:
+                        EdgeInsets.only(right: col < appliance.cols - 1 ? 8 : 0),
+                    child: btn == null
+                        ? const SizedBox(height: 52)
+                        : Container(
+                            height: 52,
+                            decoration: BoxDecoration(
+                              color: isInSequence
+                                  ? context.appPrimary.withValues(alpha: 0.2)
+                                  : context.appOverlayFaint,
+                              borderRadius: BorderRadius.circular(8),
+                              // 순서에 든 버튼만 테두리를 준다. 나머지까지
+                              // 두르면 전부 눌러도 되는 버튼처럼 보이는데,
+                              // 이 지도는 읽는 그림이지 조작판이 아니다.
+                              border: isInSequence
+                                  ? Border.all(
+                                      color: context.appPrimary, width: 1.5)
+                                  : null,
+                            ),
+                            child: Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Text(
+                                  btn.label,
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: isInSequence
+                                        ? FontWeight.w600
+                                        : FontWeight.normal,
+                                    color: isInSequence
+                                        ? context.appPrimary
+                                        : context.appOnSurfaceFaint,
+                                  ),
                                 ),
-                                child: Stack(
-                                  alignment: Alignment.center,
-                                  children: [
-                                    Text(
-                                      btn.label,
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        fontSize: 14,
-                                        fontWeight: isInSequence
-                                            ? FontWeight.w600
-                                            : FontWeight.normal,
-                                        color: isInSequence
-                                            ? context.appPrimary
-                                            : context.appOnSurfaceFaint,
+                                if (isInSequence)
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: context.appPrimary,
+                                        shape: BoxShape.circle,
                                       ),
-                                    ),
-                                    if (isInSequence)
-                                      Positioned(
-                                        top: 4,
-                                        right: 4,
-                                        child: Container(
-                                          width: 20,
-                                          height: 20,
-                                          decoration: BoxDecoration(
-                                            color: context.appPrimary,
-                                            shape: BoxShape.circle,
-                                          ),
-                                          child: Center(
-                                            child: Text(
-                                              '$order',
-                                              style: TextStyle(
-                                                // 9px는 고령 사용자에게 사실상
-                                                // 안 보인다 — 배지째 키웠다
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w700,
-                                                // 검정 고정이면 라이트 모드
-                                                // (어두운 골드 위)에서 3.78:1
-                                                color: context.appOnAccent,
-                                              ),
-                                            ),
+                                      child: Center(
+                                        child: Text(
+                                          '$order',
+                                          style: TextStyle(
+                                            // 9px는 고령 사용자에게 사실상
+                                            // 안 보인다 — 배지째 키웠다
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                            // 검정 고정이면 라이트 모드
+                                            // (어두운 강조색 위)에서 3.78:1
+                                            color: context.appOnAccent,
                                           ),
                                         ),
                                       ),
-                                  ],
-                                ),
-                              ),
-                      ),
-                    );
-                  }),
-                ),
-              );
-            }),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ── 단계 타임라인 행 ──────────────────────────────────────────────────────
-
-class _StepRow extends StatelessWidget {
-  const _StepRow({
-    required this.index,
-    required this.code,
-    required this.isLast,
-  });
-  final int index;
-  final String code;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── 인덱스 + 연결선 ──────────────────────────────────────────────
-          Column(
-            children: [
-              // 18% 틴트 위에 같은 강조색 숫자를 얹으면 라이트 모드에서
-              // 4.23:1이다 -- 틴트를 옅게 해도 강조색 자신이 상한이라
-              // 4.5를 못 넘는다. 순서 숫자는 이 화면에서 읽어야 하는
-              // 정보이므로 면을 채우고 대비되는 글자를 얹는다(5.56:1).
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: context.appPrimary,
-                child: Text(
-                  '${index + 1}',
-                  style: TextStyle(
-                    color: context.appOnAccent,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 13,
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
                   ),
-                ),
-              ),
-              if (!isLast)
-                Container(
-                  width: 2,
-                  height: 48,
-                  margin: const EdgeInsets.symmetric(vertical: 4),
-                  color: AppColors.borderSubtle,
-                ),
-            ],
-          ),
-          const SizedBox(width: 14),
-
-          // ── 단계 카드 ─────────────────────────────────────────────────────
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 8),
-              child: Card(
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    children: [
-                      Icon(
-                        _stepIcon(code),
-                        color: context.appPrimary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(readableStep(code), style: AppText.body),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+                );
+              }),
             ),
-          ),
-        ],
-      );
-
-  IconData _stepIcon(String code) {
-    if (code.contains('시작')) return Icons.play_circle_outline;
-    if (code.contains('취소') || code.contains('정지')) {
-      return Icons.cancel_outlined;
-    }
-    if (code.contains('해동')) return Icons.ac_unit;
-    if (code.contains('시간')) return Icons.timer_outlined;
-    if (code.contains('우유')) return Icons.local_drink_outlined;
-    if (code.contains('즉석밥')) return Icons.rice_bowl;
-    if (code.contains('냉동')) return Icons.kitchen;
-    if (code.contains('라면')) return Icons.ramen_dining;
-    return Icons.touch_app;
+          );
+        }),
+      ),
+    );
   }
 }

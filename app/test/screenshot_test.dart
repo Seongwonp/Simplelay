@@ -174,6 +174,31 @@ void main() {
         suggestions: suggestions, textScale: 2.0);
   });
 
+  // 6단계·긴 가전 이름·긴 말. 하단 고정 행동이 스크롤에 밀리지 않고,
+  // 이름과 말이 잘리지 않는지 본다.
+  const longSuggestion = [
+    Suggestion(
+      sequenceId: 'long',
+      label: '냉동 만두 데워서 라면이랑 같이 먹을 준비',
+      steps: ['AC-01', 'AC-04', 'AC-02', 'AC-02', 'AC-07', 'AC-08'],
+      applianceId: 'mine_living_long',
+      source: SuggestionSource.http,
+      timeBand: '저녁',
+      occurrences: 6,
+    ),
+  ];
+
+  testWidgets('제안 확인 — 6단계·긴 이름 (라이트)', (t) async {
+    await _shoot(t, 'suggestion_long', const SuggestionScreen(sequenceId: 'long'),
+        suggestions: longSuggestion, installed: [_longNamed], light: true);
+  });
+
+  testWidgets('제안 확인 — 6단계·긴 이름·큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'suggestion_long_large',
+        const SuggestionScreen(sequenceId: 'long'),
+        suggestions: longSuggestion, installed: [_longNamed], textScale: 2.0);
+  });
+
   const running = ExecutionStatus(
     phase: ExecutionPhase.running,
     label: '우유 데워줘',
@@ -369,6 +394,18 @@ final _twoOfMine = <ApplianceMap>[
     isCustom: true,
   ),
 ];
+
+/// 이름과 위치가 긴 가전. 제안 화면의 머리·확인 줄이 잘리지 않는지 본다.
+final _longNamed = ApplianceMap(
+  id: 'mine_living_long',
+  name: '창가 쪽 스탠드형 에어컨',
+  location: '거실',
+  category: ApplianceCategory.airConditioner,
+  rows: 3,
+  cols: 3,
+  buttons: kApplianceTemplates.firstWhere((t) => t.id == 'aircon').buttons,
+  isCustom: true,
+);
 
 /// 종류를 모르는 가전. 서버가 새 값을 보냈거나, 사용자가 '기타'를 골랐다.
 final _unknownKind = ApplianceMap(

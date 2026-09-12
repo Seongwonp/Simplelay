@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
 
@@ -89,10 +90,12 @@ void main() {
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
-      // 버튼맵 그리드와 단계 타임라인 둘 다 같은 라벨을 보여주므로(그리드 하이라이트
-      // + 타임라인), 정확히 1개가 아니라 "적어도 하나는 보인다"만 확인한다.
+      // 순서 목록과 버튼 지도가 **같은 단어**를 쓴다 -- 대상 가전에 등록된
+      // 라벨 그대로. 예전에는 목록이 전역 표('1분 추가')를, 지도가 가전
+      // 라벨('1분')을 써서 같은 버튼을 두 이름으로 불렀다.
       expect(find.text('즉석밥'), findsAtLeastNWidgets(1));
-      expect(find.text('1분 추가'), findsAtLeastNWidgets(1));
+      expect(find.text('1분'), findsNWidgets(2));
+      expect(find.text('1분 추가'), findsNothing);
       expect(find.text('시작'), findsAtLeastNWidgets(1));
     });
 
@@ -260,6 +263,59 @@ void main() {
       expect(find.text('지금 실행'), findsNothing);
       // 기본 선택 가전으로 바꿔 그리지 않는다
       expect(find.text('전자레인지의 실제 버튼 배치'), findsNothing);
+    });
+
+    testWidgets('준비 안 된 가전의 제안은 실행을 내걸지 않고 이유를 말한다',
+        (tester) async {
+      // 서버도 412로 거절하지만, 누를 수 있는 버튼을 두고 눌러 봐야 안 된다고
+      // 하면 사용자는 원인을 가전 쪽에서 찾는다.
+      _useTallViewport(tester);
+      final notReady = ApplianceMap(
+        id: 'microwave',
+        name: '전자레인지',
+        category: ApplianceCategory.microwave,
+        rows: kTestAppliance.rows,
+        cols: kTestAppliance.cols,
+        buttons: kTestAppliance.buttons,
+        canExecute: false,
+        readiness: 'disconnected',
+        readinessReasons: const ['노드가 응답하지 않아요'],
+        readinessKnown: true,
+      );
+      await tester.pumpWidget(
+        buildWithProviderState(
+          suggestions: const [_httpSug],
+          overrides: [
+            ...connectedOverrides(),
+            ...installedOverrides([notReady]),
+          ],
+          child: const MaterialApp(
+            home: SuggestionScreen(sequenceId: 'test-003'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final run = tester.widget<FilledButton>(
+        find.ancestor(
+          of: find.text('지금 실행'),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      expect(run.onPressed, isNull);
+      expect(find.textContaining('노드가 응답하지 않아요'), findsOneWidget);
+      // 넘기는 길은 그대로 열려 있다.
+      expect(find.text('이번만 넘기기'), findsOneWidget);
+    });
+
+    testWidgets('실행 직전에 대상과 단계 수를 한 번 더 말한다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        _buildSuggestion('test-001', suggestions: const [_sug]),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('전자레인지 · 버튼 3개'), findsOneWidget);
     });
 
     testWidgets('BLE 제안에는 "다시 받지 않기"를 내걸지 않는다', (tester) async {
