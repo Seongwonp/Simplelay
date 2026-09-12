@@ -22,6 +22,11 @@ import '../theme/app_text.dart';
 import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/sync_status_line.dart';
 
+// 구획별 파일. `part`라서 private 이름·import·provider 읽는 시점이 이 파일에
+// 있을 때와 완전히 같다 -- 동작을 바꾸지 않는 이동만 했다. 개발자 도구는
+// `settings/developer_section.dart`에 들어간다.
+part 'settings/settings_row.dart';
+
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
@@ -158,18 +163,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
   }
-}
-
-// ── 섹션 헤더 ─────────────────────────────────────────────────────────────
-
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-  final String title;
-
-  @override
-  // 11px 대문자 라벨은 개발자 도구의 문법이다. 홈·제안·실행 상태와 같은
-  // 구획 제목을 쓴다.
-  Widget build(BuildContext context) => Text(title, style: AppText.title);
 }
 
 // ── 음성 안내 토글 ─────────────────────────────────────────────────────────
@@ -1402,28 +1395,6 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
       ),
     );
   }
-}
-
-// ── 공통 카드 컨테이너 ────────────────────────────────────────────────────
-
-/// 설정 항목 한 줄. 이름은 예전 그대로지만 더는 카드가 아니다.
-///
-/// 항목마다 둥근 카드를 두면 모든 설정의 깊이가 같아 보이고, 화면이
-/// 카드 더미가 된다. 행과 구분선이면 충분하다.
-class _SettingCard extends StatelessWidget {
-  const _SettingCard({required this.child});
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) => Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: child,
-          ),
-          Divider(height: 1, color: context.appBorderFaint),
-        ],
-      );
 }
 
 /// 다시 추천 안 하는 루틴 목록 -- 개별 해제(다시 받기) 가능.
