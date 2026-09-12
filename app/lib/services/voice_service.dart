@@ -20,6 +20,10 @@ String voiceErrorGuide(String errorId) => switch (errorId) {
     };
 
 class VoiceService {
+  /// 이만큼 조용하면 듣기를 멈춘다. 화면이 이 숫자를 미리 말해준다 --
+  /// 사용자가 생각하다 멈춘 사이에 듣기가 끝나는 것을 예측할 수 있어야 한다.
+  static const silenceTimeout = Duration(seconds: 5);
+
   final SpeechToText _speech = SpeechToText();
   Timer? _silenceTimer;
   bool _initialized = false;
@@ -76,7 +80,7 @@ class VoiceService {
     void resetTimer() {
       if (session != _session || _sessionFailed) return;
       _silenceTimer?.cancel();
-      _silenceTimer = Timer(const Duration(seconds: 5), () async {
+      _silenceTimer = Timer(silenceTimeout, () async {
         if (session != _session || _sessionFailed) return;
         await stop();
         onSilence(latestText.trim()); // 텍스트 없어도 항상 호출해 listening 상태 해제

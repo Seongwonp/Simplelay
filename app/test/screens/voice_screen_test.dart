@@ -81,6 +81,17 @@ class _FakeVoiceService extends VoiceService {
   }
 }
 
+/// 권한이 거부됐거나 엔진이 없는 기기.
+class _UnavailableVoiceService extends _FakeVoiceService {
+  int initializeCalls = 0;
+
+  @override
+  Future<bool> initialize() async {
+    initializeCalls++;
+    return false;
+  }
+}
+
 // 전송 성공 시 화면이 context.go('/status')로 이동하므로 GoRouter가 필요하다.
 Widget _buildScreen(ProviderContainer container) => UncontrolledProviderScope(
       container: container,
@@ -92,6 +103,11 @@ Widget _buildScreen(ProviderContainer container) => UncontrolledProviderScope(
               path: '/status',
               builder: (_, __) =>
                   const Scaffold(body: Text('status-screen-stub')),
+            ),
+            GoRoute(
+              path: '/manual-control',
+              builder: (_, __) =>
+                  const Scaffold(body: Text('manual-screen-stub')),
             ),
           ],
         ),
@@ -300,6 +316,77 @@ void main() {
     expect(executeCalls, 1);
     // 안내 스낵바·파형 타이머를 소진시킨다.
     await tester.pump(const Duration(seconds: 5));
+  });
+
+  group('D3 — 음성 화면의 상태 구분', () {
+    testWidgets('어느 가전에게 말하는지 위에 보여준다', (tester) async {
+      // 여러 가전을 다루므로 말이 어디로 가는지 먼저 보여야 한다.
+      final container = await _makeContainer(
+        extra: [voiceServiceProvider.overrideWithValue(_FakeVoiceService())],
+      );
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+
+      expect(find.text('전자레인지에게'), findsOneWidget);
+    });
+
+    testWidgets('듣는 중에는 언제 멈추는지 미리 말한다', (tester) async {
+      // 생각하다 멈춘 사이에 조용히 끝나 버리면 마이크가 고장 났다고 여긴다.
+      final container = await _makeContainer(
+        extra: [voiceServiceProvider.overrideWithValue(_FakeVoiceService())],
+      );
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.mic_rounded));
+      await tester.pump();
+
+      expect(find.text('5초 동안 조용하면 듣기를 멈추고 확인을 물어요.'),
+          findsOneWidget);
+    });
+
+    testWidgets('음성 인식을 쓸 수 없으면 다시 말하기 대신 버튼 조작을 권한다',
+        (tester) async {
+      // 한 번 못 알아들은 것(다시 말하면 된다)과 아예 쓸 수 없는 것(아무리
+      // 말해도 소용없다)을 같은 안내로 뭉개지 않는다.
+      final voice = _UnavailableVoiceService();
+      final container = await _makeContainer(
+        extra: [voiceServiceProvider.overrideWithValue(voice)],
+      );
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.mic_rounded));
+      await tester.pumpAndSettle();
+
+      expect(find.text('이 기기에서 음성 인식을 쓸 수 없어요'), findsOneWidget);
+      expect(find.text('다시 말하기'), findsNothing);
+      // 마이크를 그려 두고 눌러도 안 되게 하지 않는다.
+      expect(find.byIcon(Icons.mic_rounded), findsNothing);
+
+      await tester.tap(find.text('버튼으로 조작'));
+      await tester.pumpAndSettle();
+      expect(find.text('manual-screen-stub'), findsOneWidget);
+    });
+
+    testWidgets('권한을 고친 뒤 다시 확인하면 마이크가 돌아온다', (tester) async {
+      final voice = _UnavailableVoiceService();
+      final container = await _makeContainer(
+        extra: [voiceServiceProvider.overrideWithValue(voice)],
+      );
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.mic_rounded));
+      await tester.pumpAndSettle();
+      expect(voice.initializeCalls, 1);
+
+      await tester.tap(find.text('권한을 고쳤어요 — 다시 확인'));
+      await tester.pumpAndSettle();
+
+      // 다시 초기화를 시도했고, 여전히 안 되면 같은 안내가 남는다.
+      expect(voice.initializeCalls, 2);
+      expect(find.text('이 기기에서 음성 인식을 쓸 수 없어요'), findsOneWidget);
+    });
   });
 
   group('내장 가전 선택 시 (기존 동작 유지)', () {

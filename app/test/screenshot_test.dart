@@ -35,6 +35,9 @@ import 'package:simplelay/screens/splash_screen.dart';
 import 'package:simplelay/screens/app_shell.dart';
 import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
+import 'package:simplelay/screens/voice_screen.dart';
+import 'package:simplelay/providers/voice_provider.dart';
+import 'package:simplelay/services/voice_service.dart';
 import 'package:simplelay/theme/app_theme.dart';
 
 import 'helpers/test_helpers.dart';
@@ -58,6 +61,8 @@ Future<void> _shoot(
   // 사용자다 -- 그것도 찍어야 하는 정상 상태다.
   List<ApplianceMap>? installed,
   List<Override> extraOverrides = const [],
+  // 찍기 전에 화면을 조작해야 하는 상태(예: 마이크를 눌러야 나오는 안내).
+  Future<void> Function(WidgetTester tester)? before,
 }) async {
   tester.view.physicalSize = _phoneSize;
   tester.view.devicePixelRatio = 1.0;
@@ -97,6 +102,10 @@ Future<void> _shoot(
   } else {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 600));
+  }
+  if (before != null) {
+    await before(tester);
+    await tester.pump();
   }
   if (precache != null) {
     // 이미지는 **실제 디코딩**이 끝나야 그려진다. 가짜 시계 위에서는 그
@@ -416,6 +425,62 @@ void main() {
         installed: [_unknownKind], light: true);
   });
 
+  // ── 음성 명령 ────────────────────────────────────────────────────────────
+  //
+  // 대기 → 듣는 중 → 확인 → 쓸 수 없음. 파형은 실제 음량이 없으면 최소
+  // 높이로 가만히 있는다(그럴듯하게 흔들지 않는다).
+  testWidgets('음성 — 대기 (다크)', (t) async {
+    await _shoot(t, 'voice_idle', const VoiceScreen(),
+        extraOverrides: [voiceServiceProvider.overrideWithValue(_GoldenVoice())]);
+  });
+
+  testWidgets('음성 — 대기 (라이트)', (t) async {
+    await _shoot(t, 'lt_voice_idle', const VoiceScreen(),
+        light: true,
+        extraOverrides: [voiceServiceProvider.overrideWithValue(_GoldenVoice())]);
+  });
+
+  testWidgets('음성 — 듣는 중 (라이트)', (t) async {
+    await _shoot(t, 'lt_voice_listening', const VoiceScreen(),
+        light: true,
+        extraOverrides: [
+          voiceServiceProvider.overrideWithValue(_GoldenVoice(listening: true)),
+          voiceListeningProvider.overrideWith((ref) => true),
+          voiceTextProvider.overrideWith((ref) => '즉석밥'),
+        ]);
+  });
+
+  testWidgets('음성 — 확인 (라이트)', (t) async {
+    await _shoot(t, 'lt_voice_confirm', const VoiceScreen(),
+        light: true,
+        extraOverrides: [
+          voiceServiceProvider.overrideWithValue(_GoldenVoice()),
+          voiceTextProvider.overrideWith((ref) => '즉석밥 데워줘'),
+        ]);
+  });
+
+  testWidgets('음성 — 확인·큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'voice_confirm_large', const VoiceScreen(),
+        textScale: 2.0,
+        extraOverrides: [
+          voiceServiceProvider.overrideWithValue(_GoldenVoice()),
+          voiceTextProvider.overrideWith((ref) => '즉석밥 데워줘'),
+        ]);
+  });
+
+  testWidgets('음성 — 쓸 수 없는 기기 (라이트)', (t) async {
+    await _shoot(t, 'lt_voice_unavailable', const VoiceScreen(),
+        light: true,
+        extraOverrides: [
+          voiceServiceProvider
+              .overrideWithValue(_GoldenVoice(available: false)),
+        ],
+        before: (tester) async {
+          await tester.tap(find.byIcon(Icons.mic_rounded));
+          await tester.pumpAndSettle();
+        });
+  });
+
   // ── 하단 탭바 ────────────────────────────────────────────────────────────
   //
   // 다른 골든은 화면을 AppShell 없이 그린다. 탭바는 주 행동(말로 조작)을
@@ -479,6 +544,34 @@ final _unknownKind = ApplianceMap(
   ],
   isCustom: true,
 );
+
+/// 플러그인 없이 화면만 찍기 위한 음성 서비스. 아무것도 듣지 않는다.
+class _GoldenVoice extends VoiceService {
+  _GoldenVoice({this.listening = false, this.available = true});
+
+  final bool listening;
+  final bool available;
+
+  @override
+  bool get isListening => listening;
+
+  @override
+  Future<bool> initialize() async => available;
+
+  @override
+  Future<void> listen({
+    required void Function(String text) onText,
+    required void Function(String finalText) onSilence,
+    void Function(String errorId)? onError,
+    void Function(double level)? onSoundLevel,
+  }) async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> cancel() async {}
+}
 
 /// 탭바를 포함한 shell 전체를 찍는다.
 Future<void> _shootShell(

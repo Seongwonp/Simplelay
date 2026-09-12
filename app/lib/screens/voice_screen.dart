@@ -18,6 +18,8 @@ import '../services/rpi_api_service.dart';
 import '../services/voice_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../models/appliance.dart';
+import '../widgets/demo_badge.dart';
 import '../widgets/no_appliance_notice.dart';
 
 class VoiceScreen extends ConsumerStatefulWidget {
@@ -69,6 +71,12 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   /// 순간에** 화면이 버벅인다. 다시 그릴 것은 막대 다섯 개뿐이다.
   final ValueNotifier<double?> _soundLevel = ValueNotifier(null);
 
+  /// 이 기기에서 음성 인식 자체를 쓸 수 없다(권한 거부·엔진 없음).
+  ///
+  /// 한 번 못 알아들은 것과 다르다. 그때는 '다시 말하기'가 답이지만,
+  /// 여기서는 아무리 다시 말해도 소용없다 -- 다른 길(버튼)을 먼저 내민다.
+  bool _voiceUnavailable = false;
+
   void _fail(String message) {
     _notice(message);
     if (mounted) setState(() => _recognitionError = message);
@@ -114,9 +122,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     final available = await voice.initialize();
     if (!mounted) return;
     if (!available) {
-      _fail('음성 인식을 사용할 수 없습니다. 권한을 확인하세요.');
+      setState(() => _voiceUnavailable = true);
       return;
     }
+    if (_voiceUnavailable) setState(() => _voiceUnavailable = false);
     _clearFailure();
     _soundLevel.value = null; // 지난 세션의 음량이 새 세션에 남지 않게
     ref.read(voiceTextProvider.notifier).state = '';
@@ -312,12 +321,29 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       );
     }
 
+    // 음성 인식을 쓸 수 없는 기기. 마이크를 그려 두고 눌러도 안 되게 하지
+    // 않는다 -- 무엇이 안 되는지와 대신 갈 길을 말한다.
+    if (_voiceUnavailable) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('음성 명령')),
+        body: _VoiceUnavailableNotice(
+          appliance: appliance,
+          onManual: () => context.go('/manual-control'),
+          onRetry: _toggle,
+        ),
+      );
+    }
+
     // 내장 가전(전자레인지)만 실제로 매칭되는 규칙이 있어서 그 예시를 쓰고,
     // 사용자 정의 가전은 등록된 실제 버튼 라벨로 예시를 만든다 — 안 그러면
     // "우유 데워줘" 힌트가 우유 버튼도 없는 가전에서도 그대로 보이게 된다.
     final hintExample = appliance.isCustom && appliance.buttons.isNotEmpty
         ? '예: ${appliance.buttons.first.label} 해줘'
         : '예: 즉석밥 데워줘';
+
+    // 큰 글씨에서는 두 버튼을 나란히 두면 '다시 말하기'가 단어 중간에서
+    // 꺾인다. 세로로 쌓고 주 행동을 위에 둔다(제안 화면과 같은 규칙).
+    final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
 
     return Scaffold(
       appBar: AppBar(title: const Text('음성 명령')),
@@ -331,7 +357,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
+
+                    // ── 어느 가전에게 말하는가 ─────────────────────────────
+                    // 여러 가전을 다루므로 말이 어디로 가는지 먼저 보여야
+                    // 한다. 엉뚱한 가전에 대고 말한 뒤에 알면 늦다.
+                    _TargetLine(appliance: appliance),
+                    const SizedBox(height: 20),
 
                     // ── 웨이브 비주얼라이저 ────────────────────────────────────────
                     _WaveVisualizer(active: listening, level: _soundLevel),
@@ -394,9 +426,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                             ),
                     ),
                     const SizedBox(height: 8),
+                    // 언제 듣기가 끝나는지 미리 말한다. 생각하다 멈춘 사이에
+                    // 조용히 끝나 버리면, 사용자는 마이크가 고장 났다고 여긴다.
                     Text(
-                      '말이 끝나면 내용을 확인한 뒤 실행해요.',
-                      style: TextStyle(color: context.appMuted, fontSize: 12),
+                      listening
+                          ? '${VoiceService.silenceTimeout.inSeconds}초 동안 조용하면 듣기를 멈추고 확인을 물어요.'
+                          : '말이 끝나면 내용을 확인한 뒤 실행해요.',
+                      style: TextStyle(color: context.appMuted, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
 
@@ -420,45 +456,31 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
             else if (text.trim().isEmpty && _recognitionError != null) ...[
               // 실패한 자리에 두 경로를 함께 둔다. 안내만 남기면 사용자는
               // 같은 시도를 되풀이하게 된다 -- 홈에서 이미 같은 규칙을 쓴다.
-              Row(
-                children: [
-                  Expanded(
-                    flex: 3,
-                    child: OutlinedButton.icon(
-                      onPressed: _sending ? null : () => context.go('/manual-control'),
-                      icon: const Icon(Icons.grid_view_rounded, size: 20),
-                      label: const Text('버튼으로 조작'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 4,
-                    child: FilledButton.icon(
-                      onPressed: _sending ? null : _restartListening,
-                      icon: const Icon(Icons.mic, size: 20),
-                      label: const Text('다시 말하기'),
-                    ),
-                  ),
-                ],
+              _ActionPair(
+                stacked: stacked,
+                primary: FilledButton.icon(
+                  onPressed: _sending ? null : _restartListening,
+                  icon: const Icon(Icons.mic, size: 20),
+                  label: const Text('다시 말하기'),
+                ),
+                secondary: OutlinedButton.icon(
+                  onPressed:
+                      _sending ? null : () => context.go('/manual-control'),
+                  icon: const Icon(Icons.grid_view_rounded, size: 20),
+                  label: const Text('버튼으로 조작'),
+                ),
               ),
             ] else if (text.trim().isNotEmpty) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: _sending ? null : _restartListening,
-                      child: const Text('다시 말하기'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: FilledButton(
-                      onPressed: _sending ? null : () => _send(text),
-                      child: Text(_sending ? '보내는 중…' : '이대로 실행'),
-                    ),
-                  ),
-                ],
+              _ActionPair(
+                stacked: stacked,
+                primary: FilledButton(
+                  onPressed: _sending ? null : () => _send(text),
+                  child: Text(_sending ? '보내는 중…' : '이대로 실행'),
+                ),
+                secondary: OutlinedButton(
+                  onPressed: _sending ? null : _restartListening,
+                  child: const Text('다시 말하기'),
+                ),
               ),
               TextButton(
                 onPressed: _sending ? null : _cancelPending,
@@ -471,6 +493,117 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       ),
     );
   }
+}
+
+// ── 주/부 행동 한 쌍 ──────────────────────────────────────────────────────
+
+/// 보통은 나란히(부 3 : 주 4), 큰 글씨에서는 주 행동을 위에 두고 세로로.
+class _ActionPair extends StatelessWidget {
+  const _ActionPair({
+    required this.stacked,
+    required this.primary,
+    required this.secondary,
+  });
+
+  final bool stacked;
+  final Widget primary;
+  final Widget secondary;
+
+  @override
+  Widget build(BuildContext context) => stacked
+      ? Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [primary, const SizedBox(height: 8), secondary],
+        )
+      : Row(
+          children: [
+            Expanded(flex: 3, child: secondary),
+            const SizedBox(width: 12),
+            Expanded(flex: 4, child: primary),
+          ],
+        );
+}
+
+// ── 어느 가전에게 ────────────────────────────────────────────────────────
+
+class _TargetLine extends StatelessWidget {
+  const _TargetLine({required this.appliance});
+
+  final ApplianceMap appliance;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(appliance.icon, size: 18, color: context.appMuted),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '${appliance.displayName}에게',
+              style: TextStyle(fontSize: 16, color: context.appMuted),
+            ),
+          ),
+          if (appliance.isDemo) ...[
+            const SizedBox(width: 8),
+            const DemoBadge(),
+          ],
+        ],
+      );
+}
+
+// ── 음성 인식을 쓸 수 없는 기기 ──────────────────────────────────────────
+
+/// 권한이 꺼져 있거나 엔진이 없다. '다시 말하기'는 답이 아니다 -- 버튼
+/// 조작이라는 다른 길을 먼저 내밀고, 권한을 고친 뒤 돌아올 길을 둔다.
+class _VoiceUnavailableNotice extends StatelessWidget {
+  const _VoiceUnavailableNotice({
+    required this.appliance,
+    required this.onManual,
+    required this.onRetry,
+  });
+
+  final ApplianceMap appliance;
+  final VoidCallback onManual;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Icon(Icons.mic_off_outlined, size: 52, color: context.appMuted),
+              const SizedBox(height: 18),
+              Text(
+                '이 기기에서 음성 인식을 쓸 수 없어요',
+                textAlign: TextAlign.center,
+                style: AppText.title,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '마이크 권한이 꺼져 있거나 음성 인식 기능이 없어요.\n'
+                '${appliance.displayName}은 버튼으로 그대로 조작할 수 있어요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, color: context.appMuted),
+              ),
+              const SizedBox(height: 22),
+              FilledButton.icon(
+                onPressed: onManual,
+                icon: const Icon(Icons.touch_app, size: 20),
+                label: const Text('버튼으로 조작'),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh, size: 20),
+                label: const Text('권한을 고쳤어요 — 다시 확인'),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
 // ── 인식 실패 안내 ────────────────────────────────────────────────────────
