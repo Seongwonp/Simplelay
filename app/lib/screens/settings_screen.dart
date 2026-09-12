@@ -26,6 +26,7 @@ import '../widgets/sync_status_line.dart';
 // 있을 때와 완전히 같다 -- 동작을 바꾸지 않는 이동만 했다. 개발자 도구는
 // `settings/developer_section.dart`에 들어간다.
 part 'settings/settings_row.dart';
+part 'settings/accessibility_section.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -160,45 +161,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           const SizedBox(height: 40),
         ],
-      ),
-    );
-  }
-}
-
-// ── 음성 안내 토글 ─────────────────────────────────────────────────────────
-
-class _VoiceGuideTile extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final enabled = ref.watch(voiceGuideProvider);
-    return _SettingCard(
-      child: SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        secondary: const Icon(Icons.record_voice_over),
-        title: const Text('음성 안내'),
-        subtitle: Text('실행 결과를 소리로 읽어줍니다',
-            style: TextStyle(color: context.appMuted, fontSize: 12)),
-        value: enabled,
-        onChanged: (v) => ref.read(voiceGuideProvider.notifier).set(v),
-      ),
-    );
-  }
-}
-
-// ── 테마 토글 ─────────────────────────────────────────────────────────────
-
-class _ThemeToggleTile extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final isLight = ref.watch(themeModeProvider) == ThemeMode.light;
-    return _SettingCard(
-      child: SwitchListTile(
-        contentPadding: EdgeInsets.zero,
-        secondary: Icon(isLight ? Icons.light_mode : Icons.dark_mode),
-        title: Text(isLight ? '라이트 모드' : '다크 모드'),
-        subtitle: Text(isLight ? '밝은 화면' : '어두운 화면'),
-        value: isLight,
-        onChanged: (_) => ref.read(themeModeProvider.notifier).toggle(),
       ),
     );
   }
