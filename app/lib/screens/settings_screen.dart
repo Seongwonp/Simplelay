@@ -268,7 +268,8 @@ class _RpiConnectionTile extends ConsumerWidget {
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: Icon(icon, color: color, size: 22),
-            title: const Text('버튼을 눌러 주는 기기'),
+            // 200%에서 폭에 들어가는 길이로. 무엇인지는 아래 문장이 말한다.
+            title: const Text('조작 기기'),
             subtitle: Text(
               label,
               style: TextStyle(color: color, fontSize: 14),

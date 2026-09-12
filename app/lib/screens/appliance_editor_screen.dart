@@ -36,6 +36,16 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   File? _photo;
 
   @override
+  void initState() {
+    super.initState();
+    // 아래 고정 줄이 지금까지 적은 것을 되풀이한다 -- 입력을 따라가야 한다.
+    _nameController.addListener(_refresh);
+    _locationController.addListener(_refresh);
+  }
+
+  void _refresh() => setState(() {});
+
+  @override
   void dispose() {
     _nameController.dispose();
     _locationController.dispose();
@@ -93,7 +103,8 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             child: const Text('취소'),
           ),
           FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, controller.text.trim()),
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
             child: const Text('확인'),
           ),
         ],
@@ -118,7 +129,8 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
         final label = _grid[y][x];
         if (label != null) {
           buttons.add(
-            ApplianceButton(id: 'custom_btn_${counter++}', label: label, x: x, y: y),
+            ApplianceButton(
+                id: 'custom_btn_${counter++}', label: label, x: x, y: y),
           );
         }
       }
@@ -193,239 +205,294 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     );
   }
 
+  int get _buttonCount =>
+      _grid.expand((row) => row).where((cell) => cell != null).length;
+
   @override
   Widget build(BuildContext context) {
+    // 등록은 진짜 순서다: 종류를 골라야 그림이 정해지고, 사진을 찍어야
+    // 격자를 그 위에 겹칠 수 있다. 그래서 번호를 붙인다 -- 장식이 아니다.
+    // 카드로 나누지 않는다. 제목·여백·구분선으로 단계를 만든다.
+    final divider = Divider(height: 40, color: context.appBorderFaint);
+    final name = _nameController.text.trim();
+    final location = _locationController.text.trim();
+
     return Scaffold(
       appBar: AppBar(title: const Text('새 가전 추가')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
-          Row(
+          Text(
+            '우리 집 가전의 버튼 배치를 그대로 등록하면 어떤 가전이든 앱에서 바로 조작할 수 있어요.',
+            style: TextStyle(fontSize: 15, color: context.appMuted),
+          ),
+          const SizedBox(height: 24),
+
+          // ── 1. 종류 ─────────────────────────────────────────────────────
+          const _StepTitle(number: 1, title: '어떤 가전인가요?'),
+          const SizedBox(height: 4),
+          Text(
+            '고른 종류에 맞는 그림으로 보여드려요.',
+            style: TextStyle(fontSize: 14, color: context.appMuted),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: context.appPrimary.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(Icons.widgets_outlined, color: context.appPrimary),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  '우리 집 가전의 버튼 배치를 그대로 등록하면\n어떤 가전이든 앱에서 바로 조작할 수 있어요.',
-                  style: context.appCaption,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('어떤 가전인가요?', style: AppText.title),
-                  const SizedBox(height: 4),
-                  Text(
-                    '고른 종류에 맞는 그림으로 보여드려요.',
-                    style: TextStyle(fontSize: 14, color: context.appMuted),
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      for (final c in ApplianceCategory.values)
-                        Semantics(
-                          button: true,
-                          selected: c == _category,
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(12),
-                            onTap: () => setState(() => _category = c),
-                            child: Container(
-                              // 고령 사용자 기준 최소 터치 대상.
-                              constraints:
-                                  const BoxConstraints(minHeight: 48),
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 14, vertical: 12),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: c == _category
-                                      ? context.appPrimary
-                                      : context.appBorderSubtle,
-                                  width: c == _category ? 2 : 1,
-                                ),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(c.icon,
-                                      size: 18,
-                                      color: c == _category
-                                          ? context.appPrimary
-                                          : context.appMuted),
-                                  const SizedBox(width: 7),
-                                  Text(
-                                    c.label,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: c == _category
-                                          ? FontWeight.w700
-                                          : FontWeight.w500,
-                                      color: c == _category
-                                          ? context.appPrimary
-                                          : context.appOnSurfaceSoft,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 22),
-                  Text('가전 이름', style: AppText.title),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _nameController,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: '예: 식기세척기',
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text('어디에 있나요?', style: AppText.title),
-                  const SizedBox(height: 4),
-                  Text(
-                    '같은 종류를 여러 대 등록할 수 있어요. 위치를 적어두면 목록에서'
-                    ' 헷갈리지 않아요. 비워둬도 됩니다.',
-                    style: context.appCaption,
-                  ),
-                  const SizedBox(height: 10),
-                  TextField(
-                    controller: _locationController,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      hintText: '예: 거실',
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('버튼 배치', style: AppText.title),
-                  const SizedBox(height: 4),
-                  Text(
-                    '가전 사진을 찍으면 그 위에 격자를 겹쳐서 실제 버튼 위치를 보며 배치할 수 있어요.'
-                    ' 사진 없이도 그대로 진행 가능해요.',
-                    style: context.appCaption,
-                  ),
-                  const SizedBox(height: 10),
-                  _photo == null
-                      ? OutlinedButton.icon(
-                          onPressed: _takePhoto,
-                          icon: const Icon(Icons.camera_alt_outlined),
-                          label: const Text('버튼 패널 사진 찍기'),
-                        )
-                      : Row(
-                          children: [
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: _takePhoto,
-                                icon: const Icon(Icons.camera_alt_outlined),
-                                label: const Text('다시 찍기'),
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            IconButton(
-                              onPressed: _removePhoto,
-                              icon: const Icon(Icons.close),
-                              tooltip: '사진 제거',
-                            ),
-                          ],
-                        ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '버튼 패널이 화면에 꽉 차게 찍어주세요 — 격자가 사진 전체에 균등하게 겹쳐져요.',
-                    style: context.appCaption,
-                  ),
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _StepperField(
-                          label: '행',
-                          value: _rows,
-                          min: _minGridSize,
-                          max: _maxGridSize,
-                          onChanged: (v) => _resize(rows: v),
+              for (final c in ApplianceCategory.values)
+                Semantics(
+                  button: true,
+                  selected: c == _category,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(12),
+                    onTap: () => setState(() => _category = c),
+                    child: Container(
+                      // 고령 사용자 기준 최소 터치 대상.
+                      constraints: const BoxConstraints(minHeight: 48),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 12),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: c == _category
+                              ? context.appPrimary
+                              : context.appBorderSubtle,
+                          width: c == _category ? 2 : 1,
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: _StepperField(
-                          label: '열',
-                          value: _cols,
-                          min: _minGridSize,
-                          max: _maxGridSize,
-                          onChanged: (v) => _resize(cols: v),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  AspectRatio(
-                    aspectRatio: _cols / _rows,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(10),
-                      child: Stack(
-                        fit: StackFit.expand,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (_photo != null)
-                            Image.file(_photo!, fit: BoxFit.cover),
-                          _EditableGrid(
-                            grid: _grid,
-                            onTapCell: _editCell,
-                            translucent: _photo != null,
+                          Icon(c.icon,
+                              size: 18,
+                              color: c == _category
+                                  ? context.appPrimary
+                                  : context.appMuted),
+                          const SizedBox(width: 7),
+                          Text(
+                            c.label,
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: c == _category
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              color: c == _category
+                                  ? context.appPrimary
+                                  : context.appOnSurfaceSoft,
+                            ),
                           ),
                         ],
                       ),
                     ),
                   ),
+                ),
+            ],
+          ),
+          divider,
+
+          // ── 2. 이름과 위치 ─────────────────────────────────────────────
+          const _StepTitle(number: 2, title: '이름과 위치'),
+          const SizedBox(height: 12),
+          Text('가전 이름',
+              style: TextStyle(fontSize: 15, color: context.appMuted)),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _nameController,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: '예: 식기세척기',
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text('어디에 있나요?',
+              style: TextStyle(fontSize: 15, color: context.appMuted)),
+          const SizedBox(height: 4),
+          Text(
+            '같은 종류를 여러 대 등록할 수 있어요. 위치를 적어두면 목록에서 헷갈리지 않아요. 비워둬도 됩니다.',
+            style: TextStyle(fontSize: 14, color: context.appMuted),
+          ),
+          const SizedBox(height: 6),
+          TextField(
+            controller: _locationController,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              hintText: '예: 거실',
+            ),
+          ),
+          divider,
+
+          // ── 3. 사진 (선택) ─────────────────────────────────────────────
+          // 사진은 필수가 아니다. 없어도 등록과 조작이 그대로 된다 -- 있으면
+          // 홈의 그림이 되고, 아래 격자를 그 위에 겹쳐 실제 위치를 보며
+          // 배치할 수 있다.
+          const _StepTitle(number: 3, title: '사진', optional: true),
+          const SizedBox(height: 4),
+          Text(
+            '버튼 패널이 화면에 꽉 차게 찍어주세요. 격자가 사진 전체에 균등하게 겹쳐져요. 사진 없이도 그대로 진행할 수 있어요.',
+            style: TextStyle(fontSize: 14, color: context.appMuted),
+          ),
+          const SizedBox(height: 12),
+          _photo == null
+              ? OutlinedButton.icon(
+                  onPressed: _takePhoto,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  label: const Text('버튼 패널 사진 찍기'),
+                )
+              : Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _takePhoto,
+                        icon: const Icon(Icons.camera_alt_outlined),
+                        label: const Text('다시 찍기'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: _removePhoto,
+                      icon: const Icon(Icons.close),
+                      tooltip: '사진 제거',
+                    ),
+                  ],
+                ),
+          divider,
+
+          // ── 4. 버튼 배치 ───────────────────────────────────────────────
+          const _StepTitle(number: 4, title: '버튼 배치'),
+          const SizedBox(height: 4),
+          Text(
+            '실제 버튼이 있는 자리를 눌러 이름을 적어요. 행과 열은 가전의 버튼판에 맞춰요.',
+            style: TextStyle(fontSize: 14, color: context.appMuted),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: _StepperField(
+                  label: '행',
+                  value: _rows,
+                  min: _minGridSize,
+                  max: _maxGridSize,
+                  onChanged: (v) => _resize(rows: v),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _StepperField(
+                  label: '열',
+                  value: _cols,
+                  min: _minGridSize,
+                  max: _maxGridSize,
+                  onChanged: (v) => _resize(cols: v),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          AspectRatio(
+            aspectRatio: _cols / _rows,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  if (_photo != null) Image.file(_photo!, fit: BoxFit.cover),
+                  _EditableGrid(
+                    grid: _grid,
+                    onTapCell: _editCell,
+                    translucent: _photo != null,
+                  ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 24),
-          Center(
-            child: Text(
-              '음성 명령은 아직 지원되지 않아요 — 저장하면 화면에서 버튼을 직접\n눌러 실행할 수 있습니다.',
-              textAlign: TextAlign.center,
-              style: context.appCaption,
-            ),
-          ),
           const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _save,
-            icon: const Icon(Icons.check),
-            label: const Text('저장'),
+          Text(
+            '음성 명령은 아직 지원되지 않아요. 저장하면 화면에서 버튼을 직접 눌러 실행할 수 있습니다.',
+            style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
         ],
       ),
+      // 저장은 스크롤과 무관하게 손 닿는 자리에. 무엇을 저장하는지와 그다음에
+      // 무엇이 남는지를 같이 말한다 -- 저장이 끝이라고 믿게 두지 않는다.
+      bottomNavigationBar: Material(
+        color: context.appBackground,
+        child: SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: context.appBorderFaint)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  [
+                    _category.label,
+                    if (location.isNotEmpty || name.isNotEmpty)
+                      [location, name].where((t) => t.isNotEmpty).join(' '),
+                    '버튼 $_buttonCount개',
+                  ].join(' · '),
+                  style: TextStyle(fontSize: 14, color: context.appMuted),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '저장한 뒤에 기기 연결과 버튼 위치 보정이 남아요.',
+                  style: TextStyle(fontSize: 13, color: context.appMuted),
+                ),
+                const SizedBox(height: 10),
+                FilledButton.icon(
+                  onPressed: _save,
+                  icon: const Icon(Icons.check),
+                  label: const Text('저장'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
+}
+
+/// 등록 단계의 제목. 번호는 장식이 아니라 실제 순서다.
+class _StepTitle extends StatelessWidget {
+  const _StepTitle({
+    required this.number,
+    required this.title,
+    this.optional = false,
+  });
+
+  final int number;
+  final String title;
+  final bool optional;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          CircleAvatar(
+            radius: 14,
+            backgroundColor: context.appPrimary,
+            child: Text(
+              '$number',
+              style: TextStyle(
+                color: context.appOnAccent,
+                fontWeight: FontWeight.w700,
+                fontSize: 13,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Flexible(child: Text(title, style: AppText.title)),
+          if (optional) ...[
+            const SizedBox(width: 8),
+            Text('선택', style: TextStyle(fontSize: 14, color: context.appMuted)),
+          ],
+        ],
+      );
 }
 
 /// 저장 직후 **남은 일**을 말한다.
@@ -487,7 +554,8 @@ class _SavedNextStepsDialog extends StatelessWidget {
 }
 
 class _NextStep extends StatelessWidget {
-  const _NextStep({required this.icon, required this.title, required this.body});
+  const _NextStep(
+      {required this.icon, required this.title, required this.body});
 
   final IconData icon;
   final String title;
@@ -597,8 +665,8 @@ class _EditableGrid extends StatelessWidget {
                       child: Container(
                         decoration: BoxDecoration(
                           color: filled
-                              ? context.appPrimary.withValues(
-                                  alpha: translucent ? 0.28 : 0.14)
+                              ? context.appPrimary
+                                  .withValues(alpha: translucent ? 0.28 : 0.14)
                               // translucent(사진 위 오버레이)는 사진 대비를 위해
                               // 흰색 유지가 의도 — 일반 모드만 테마 토큰 사용
                               : (translucent
@@ -622,15 +690,22 @@ class _EditableGrid extends StatelessWidget {
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w600,
-                                  color: translucent ? Colors.white : context.appPrimary,
+                                  color: translucent
+                                      ? Colors.white
+                                      : context.appPrimary,
                                   shadows: translucent
-                                      ? const [Shadow(blurRadius: 4, color: Colors.black)]
+                                      ? const [
+                                          Shadow(
+                                              blurRadius: 4,
+                                              color: Colors.black)
+                                        ]
                                       : null,
                                 ),
                               )
                             : (translucent
                                 ? null
-                                : Icon(Icons.add, size: 16, color: context.appOutline)),
+                                : Icon(Icons.add,
+                                    size: 16, color: context.appOutline)),
                       ),
                     ),
                   ),

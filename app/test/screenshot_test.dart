@@ -28,6 +28,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/screens/appliance_editor_screen.dart';
 import 'package:simplelay/screens/history_screen.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
@@ -431,6 +432,18 @@ void main() {
     // 일반 아이콘으로 떨어지는 것이 화면에서 어떻게 보이는지 남긴다.
     await _shoot(t, 'home_unknown_category', const HomeScreen(),
         installed: [_unknownKind], light: true);
+  });
+
+  // ── 가전 추가 ────────────────────────────────────────────────────────────
+  //
+  // 네 단계가 번호·제목·구분선으로 나뉘고, 저장이 아래 고정돼 있는지.
+  testWidgets('가전 추가 (라이트)', (t) async {
+    await _shoot(t, 'lt_editor', const ApplianceEditorScreen(), light: true);
+  });
+
+  testWidgets('가전 추가 — 큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'editor_large', const ApplianceEditorScreen(),
+        textScale: 2.0);
   });
 
   // ── 실행 기록 ────────────────────────────────────────────────────────────
