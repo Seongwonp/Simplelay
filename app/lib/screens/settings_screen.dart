@@ -17,6 +17,7 @@ import '../providers/tts_provider.dart';
 import '../services/ble_service.dart';
 import '../services/demo_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_text.dart';
 
 import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/sync_status_line.dart';
@@ -58,48 +59,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // ── 기본 설정 ────────────────────────────────────────────────────
-          _SectionHeader(title: '일반'),
-          const SizedBox(height: 12),
-          _ThemeToggleTile(),
+          // 순서가 곧 이 화면의 주장이다: **무엇을 조작하는가 → 그것이 이어져
+          // 있는가 → 언제 말을 걸지 → 화면·소리 → (접힌) 기술 상세.** 예전에는
+          // 다크 모드가 맨 위였고, 정작 가전과 연결은 아래로 밀려 있었다.
+          // 항목을 카드로 감싸지 않는다 -- 제목·행·구분선으로 구획한다.
+
+          // ── 가전 ─────────────────────────────────────────────────────────
+          _SectionHeader(title: '가전'),
           const SizedBox(height: 8),
-          _VoiceGuideTile(),
-          const SizedBox(height: 16),
           _ApplianceSection(),
+          const SizedBox(height: 16),
+          // 가전마다 버튼을 대신 눌러 줄 장치가 붙어 있는지.
+          _NodeSection(),
 
-          const SizedBox(height: 24),
-
-          // ── 알림 ──────────────────────────────────────────
-          _SectionHeader(title: '알림'),
-          const SizedBox(height: 12),
-          _DndTile(),
-          const SizedBox(height: 12),
-          _WellnessPauseTile(),
-
-          const SizedBox(height: 24),
-
-          // ── 제안 ──────────────────────────────────────────
-          _SectionHeader(title: '제안'),
-          const SizedBox(height: 12),
-          _SuppressionSection(),
-
-          const SizedBox(height: 24),
+          const SizedBox(height: 28),
 
           // ── 연결 ─────────────────────────────────────────────────────────
           _SectionHeader(title: '연결'),
-          const SizedBox(height: 12),
+          const SizedBox(height: 4),
           _RpiConnectionTile(),
-          const SizedBox(height: 20),
-
-          // ── ESP32 노드 ───────────────────────────────────────────────────
-          _SectionHeader(title: 'ESP32 노드'),
-          const SizedBox(height: 12),
-          _NodeSection(),
-
-          const SizedBox(height: 20),
           _SavedDeviceSection(),
 
+          const SizedBox(height: 28),
+
+          // ── 알림 ──────────────────────────────────────────
+          _SectionHeader(title: '알림'),
+          const SizedBox(height: 4),
+          _DndTile(),
+          _WellnessPauseTile(),
+
+          const SizedBox(height: 28),
+
+          // ── 제안 ──────────────────────────────────────────
+          _SectionHeader(title: '제안'),
           const SizedBox(height: 8),
+          _SuppressionSection(),
+
+          const SizedBox(height: 28),
+
+          // ── 화면·소리 ────────────────────────────────────────────────────
+          _SectionHeader(title: '화면·소리'),
+          const SizedBox(height: 4),
+          _ThemeToggleTile(),
+          _VoiceGuideTile(),
+
+          const SizedBox(height: 20),
           // 고급 설정 토글
           InkWell(
             onTap: () => setState(() => _showAdvanced = !_showAdvanced),
@@ -116,7 +120,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   const SizedBox(width: 6),
                   Text(
                     '고급 설정',
-                    style: TextStyle(color: context.appMuted, fontSize: 13),
+                    style: TextStyle(color: context.appMuted, fontSize: 15),
                   ),
                 ],
               ),
@@ -163,15 +167,9 @@ class _SectionHeader extends StatelessWidget {
   final String title;
 
   @override
-  Widget build(BuildContext context) => Text(
-        title,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: context.appMuted,
-          letterSpacing: 1.2,
-        ),
-      );
+  // 11px 대문자 라벨은 개발자 도구의 문법이다. 홈·제안·실행 상태와 같은
+  // 구획 제목을 쓴다.
+  Widget build(BuildContext context) => Text(title, style: AppText.title);
 }
 
 // ── 음성 안내 토글 ─────────────────────────────────────────────────────────
@@ -219,296 +217,72 @@ class _RpiConnectionTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final connState = ref.watch(rpiConnectionProvider);
-    final url = ref.watch(rpiUrlProvider);
-
+    // 사용자 문장이 먼저다. 주소·포트 같은 기술 상세는 고급 설정에서만
+    // 보인다 -- 여기서 url을 되풀이하지 않는다.
     final (Color color, String label, IconData icon) = switch (connState) {
       RpiConnectionState.unconfigured => (
           context.appMuted,
-          '미설정',
+          '아직 주소가 없어요 — 고급 설정에서 입력',
           Icons.wifi_off
         ),
-      RpiConnectionState.checking => (context.appWarning, '확인 중…', Icons.sync),
-      RpiConnectionState.connected => (context.appSuccess, '연결됨', Icons.wifi),
+      RpiConnectionState.checking => (
+          context.appWarning,
+          '확인하는 중이에요…',
+          Icons.sync
+        ),
+      RpiConnectionState.connected => (
+          context.appSuccess,
+          '연결됐어요 — 버튼을 대신 눌러 줄 수 있어요',
+          Icons.wifi
+        ),
       RpiConnectionState.unreachable => (
           context.appDanger,
-          '연결 안 됨',
+          '지금은 닿지 않아요',
           Icons.wifi_off
         ),
     };
 
+    final retry = OutlinedButton(
+      onPressed: connState == RpiConnectionState.checking
+          ? null
+          : () => ref.read(rpiConnectionProvider.notifier).check(),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        minimumSize: const Size(48, 48),
+      ),
+      child: connState == RpiConnectionState.checking
+          ? const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            )
+          : const Text('다시 확인', style: TextStyle(fontSize: 14)),
+    );
+    // 큰 글씨에서는 오른쪽 버튼이 제목을 세 줄로 꺾는다. 버튼을 아래로.
+    final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+
     return _SettingCard(
-      child: ListTile(
-        contentPadding: EdgeInsets.zero,
-        leading: Icon(icon, color: color, size: 22),
-        title: const Text('RPi 서버'),
-        subtitle: Text(
-          connState == RpiConnectionState.connected
-              ? (url ?? 'simplelay.local')
-              : label,
-          style: TextStyle(color: color, fontSize: 12),
-        ),
-        trailing: OutlinedButton(
-          onPressed: connState == RpiConnectionState.checking
-              ? null
-              : () => ref.read(rpiConnectionProvider.notifier).check(),
-          style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-            minimumSize: const Size(48, 48),
-          ),
-          child: connState == RpiConnectionState.checking
-              ? const SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Text('재시도', style: TextStyle(fontSize: 12)),
-        ),
-      ),
-    );
-  }
-}
-
-// ── 가전 선택 ─────────────────────────────────────────────────────────────
-
-class _ApplianceSection extends ConsumerWidget {
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(selectedApplianceProvider);
-    // 여기는 **이 폰에 설치된 가전**만 고른다. 예시 템플릿을 섞으면 아직
-    // 아무것도 등록하지 않은 사람에게 전자레인지가 이미 있는 것처럼 보인다.
-    final appliances = ref.watch(installedAppliancesProvider);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('제어 가전'),
-        const SizedBox(height: 10),
-        // 0대는 오류가 아니다. 고를 것이 없다는 사실과 어디서 만드는지만
-        // 말하고, 선택 칩 자리를 비워 두지 않는다.
-        if (appliances.isEmpty)
-          _EmptyApplianceRow(onAdd: () => context.push('/appliance/new'))
-        else
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            ...appliances.map((appliance) {
-              final isSelected = appliance.id == selected?.id;
-              // 선택 상태를 시맨틱으로 노출한다 -- 체크 아이콘은 눈으로만
-              // 보이는 신호라, 스크린리더 사용자는 가전 이름은 읽어도
-              // 무엇이 선택됐는지 알 수 없었다.
-              return Semantics(
-                button: true,
-                selected: isSelected,
-                child: GestureDetector(
-                  onTap: () => ref
-                      .read(selectedApplianceProvider.notifier)
-                      .select(appliance),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    // 터치 목표 하한. 고령 사용자 대상이라 WCAG 2.2 AA의
-                    // 최소치(24)보다 높은 48을 제품 기준으로 잡는다.
-                    constraints: const BoxConstraints(minHeight: 48),
-                    alignment: Alignment.center,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? context.appPrimary.withValues(alpha: 0.14)
-                          : Theme.of(context).colorScheme.surfaceContainerHigh,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: isSelected
-                            ? context.appPrimary
-                            : context.appBorderSubtle,
-                        width: isSelected ? 1.5 : 0.5,
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          appliance.icon,
-                          color: isSelected
-                              ? context.appPrimary
-                              : context.appMuted,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          appliance.displayName,
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: isSelected
-                                ? context.appPrimary
-                                : context.appMuted,
-                            fontWeight: isSelected
-                                ? FontWeight.w600
-                                : FontWeight.normal,
-                          ),
-                        ),
-                        if (isSelected) ...[
-                          const SizedBox(width: 4),
-                          Icon(Icons.check_circle,
-                              color: context.appPrimary, size: 14),
-                        ],
-                        if (appliance.isCustom) ...[
-                          const SizedBox(width: 2),
-                          // 등록 데이터(버튼맵·사진)가 즉시 유실되는 파괴적
-                          // 동작 — 반드시 확인을 거친다. 히트박스도 14px
-                          // 아이콘 단독이 아니라 패딩 포함으로 확대.
-                          GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: () => _confirmRemoveAppliance(
-                                context, ref, appliance),
-                            child: Padding(
-                              padding: const EdgeInsets.all(6),
-                              child: Icon(Icons.close,
-                                  color: context.appMuted, size: 14),
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            }),
-            // 새 가전 추가 버튼
-            GestureDetector(
-              onTap: () => context.push('/appliance/new'),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(10),
-                  border:
-                      Border.all(color: context.appBorderSubtle, width: 0.5),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.add, color: context.appMuted, size: 18),
-                    const SizedBox(width: 6),
-                    Text('새 가전',
-                        style:
-                            TextStyle(fontSize: 13, color: context.appMuted)),
-                  ],
-                ),
-              ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: Icon(icon, color: color, size: 22),
+            title: const Text('버튼을 눌러 주는 기기'),
+            subtitle: Text(
+              label,
+              style: TextStyle(color: color, fontSize: 14),
             ),
-          ],
-        ),
-        // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
-        // 평상시에는 아무것도 띄우지 않는다 -- 늘 떠 있는 상태 표시는
-        // 읽히지 않고, 정작 문제가 생겼을 때도 눈에 안 들어온다.
-        SyncStatusLine(onRetry: () => _resyncCustomAppliances(context, ref)),
-        if (ref.watch(hasPendingSyncProvider)) ...[
-          const SizedBox(height: 10),
-          TextButton.icon(
-            onPressed: () => _resyncCustomAppliances(context, ref),
-            style: TextButton.styleFrom(
-              minimumSize: const Size(48, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-            ),
-            icon: Icon(Icons.sync, size: 18, color: context.appMuted),
-            label: Text(
-              '키오스크와 다시 동기화',
-              style: TextStyle(fontSize: 13, color: context.appMuted),
-            ),
+            trailing: stacked ? null : retry,
           ),
-        ],
-      ],
-    );
-  }
-
-  /// 양방향 동기화. **다른 폰이 등록한 가전을 지우지 않는다** — 서버에만
-  /// 있다는 것은 "지워도 된다"가 아니라 "이 폰이 아직 못 받았다"는 뜻이다.
-  Future<void> _resyncCustomAppliances(
-    BuildContext context,
-    WidgetRef ref,
-  ) async {
-    final messenger = ScaffoldMessenger.of(context);
-    if (ref.read(rpiApiServiceProvider) == null) {
-      messenger.showSnackBar(
-        const SnackBar(content: Text('서버 주소를 먼저 설정해 주세요.')),
-      );
-      return;
-    }
-    // 이 버튼은 복구 수단이다 — 대기열에 없던 가전(서버가 꺼져 있던 시절에
-    // 등록한 것)까지 다시 올린다.
-    final result = await ref.read(applianceSyncProvider.notifier).resendAll();
-    messenger.showSnackBar(SnackBar(content: Text(_syncMessage(result))));
-  }
-
-  /// 사용자 문구에는 내부 용어(upsert·tombstone·revision·409)를 쓰지 않는다.
-  static String _syncMessage(ApplianceSyncResult r) {
-    if (r.conflicts > 0) {
-      // 자동으로 덮어쓰지 않았다는 것을 분명히 말한다.
-      return '다른 기기에서 변경되어 서버 내용을 가져왔어요.';
-    }
-    if (r.allDone) {
-      final parts = [
-        if (r.sent > 0) '보냄 ${r.sent}건',
-        if (r.adopted > 0) '새로 받음 ${r.adopted}개',
-      ];
-      return parts.isEmpty
-          ? '이미 키오스크와 같은 상태예요.'
-          : '동기화했어요 — ${parts.join(' · ')}.';
-    }
-    if (r.failed > 0) {
-      return '변경 ${r.failed}건을 보내지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
-    }
-    return '키오스크 목록을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
-  }
-
-  Future<void> _confirmRemoveAppliance(
-    BuildContext context,
-    WidgetRef ref,
-    ApplianceMap appliance,
-  ) async {
-    // async gap 전에 캡처 — 다이얼로그가 닫힌 뒤의 context 사용을 피한다
-    final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('\'${appliance.name}\' 삭제'),
-        content: const Text('등록한 버튼 배치와 사진이 함께 삭제됩니다. 삭제할까요?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            // 전경색을 명시하지 않으면 라이트 모드에서 흰 글자(3.63:1)가 된다
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: AppColors.onAccent,
+          if (stacked)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: retry,
             ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('삭제'),
-          ),
         ],
       ),
     );
-    if (confirmed == true) {
-      // 폰 삭제는 무조건 성립하고(사용자가 지시한 일이다), 서버 전송이
-      // 실패하면 그 사실이 삭제 대기열에 남아 다음 동기화가 다시 보낸다.
-      // 예전에는 실패를 스낵바로만 알리고 잊어서, 복구가 "서버에만 있는
-      // 건 다 지운다"는 위험한 방식에 얹혀 있었다 (R3).
-      final result = await ref
-          .read(applianceSyncProvider.notifier)
-          .deleteAppliance(appliance.id);
-      if (result.failed > 0) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('폰에서는 삭제했어요. 키오스크 반영은 다음 동기화 때 '
-                '다시 시도할게요.'),
-          ),
-        );
-      }
-    }
   }
 }
 
@@ -528,9 +302,10 @@ class _SavedDeviceSection extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
           leading:
               Icon(Icons.bluetooth_disabled, color: context.appMuted, size: 22),
-          title: const Text('BLE 기기'),
-          subtitle: Text('저장된 기기 없음 — 고급 설정에서 스캔',
-              style: TextStyle(color: context.appMuted, fontSize: 12)),
+          // 서버가 안 될 때 쓰는 두 번째 길. 이름부터 그렇게 부른다.
+          title: const Text('예비 연결 (블루투스)'),
+          subtitle: Text('저장된 기기가 없어요 — 고급 설정에서 찾기',
+              style: TextStyle(color: context.appMuted, fontSize: 14)),
         ),
       );
     }
@@ -543,12 +318,12 @@ class _SavedDeviceSection extends ConsumerWidget {
           color: isConnected ? context.appPrimary : context.appMuted,
           size: 22,
         ),
-        title: Text(saved.name),
+        title: Text('예비 연결 · ${saved.name}'),
         subtitle: Text(
-          isConnected ? '연결됨' : '연결 안 됨',
+          isConnected ? '연결됐어요' : '지금은 끊겨 있어요',
           style: TextStyle(
             color: isConnected ? context.appSuccess : context.appMuted,
-            fontSize: 12,
+            fontSize: 14,
           ),
         ),
         trailing: Row(
@@ -958,9 +733,8 @@ class _DemoModeTile extends ConsumerWidget {
           style: TextStyle(color: context.appMuted, fontSize: 12),
         ),
         value: on,
-        onChanged: busy
-            ? null
-            : (v) => ref.read(demoModeProvider.notifier).set(v),
+        onChanged:
+            busy ? null : (v) => ref.read(demoModeProvider.notifier).set(v),
       ),
     );
   }
@@ -1037,8 +811,8 @@ class _NodeSection extends ConsumerWidget {
               Icon(Icons.add_home_outlined, color: context.appMuted, size: 20),
           title: const Text('등록할 가전이 아직 없어요'),
           subtitle: Text(
-            '가전을 추가하면 여기서 노드를 연결합니다.',
-            style: TextStyle(color: context.appMuted, fontSize: 12),
+            '가전을 추가하면 여기서 버튼을 눌러 줄 장치를 잇습니다.',
+            style: TextStyle(color: context.appMuted, fontSize: 14),
           ),
         ),
       );
@@ -1059,8 +833,8 @@ class _NodeSection extends ConsumerWidget {
         child: ListTile(
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.error_outline, color: context.appMuted, size: 20),
-          title: Text('노드 목록 불러오기 실패',
-              style: TextStyle(color: context.appMuted, fontSize: 13)),
+          title: Text('가전 연결 상태를 불러오지 못했어요',
+              style: TextStyle(color: context.appMuted, fontSize: 14)),
           trailing: IconButton(
             icon: Icon(Icons.refresh, color: context.appMuted, size: 18),
             onPressed: () => ref.invalidate(nodeRegistryProvider),
@@ -1068,25 +842,31 @@ class _NodeSection extends ConsumerWidget {
         ),
       ),
       data: (nodes) => Column(
-        children: appliances.map((appliance) {
-          final url = nodes[appliance.id];
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _SettingCard(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              '가전마다 버튼을 눌러 줄 장치',
+              style: TextStyle(fontSize: 15, color: context.appMuted),
+            ),
+          ),
+          ...appliances.map((appliance) {
+            final url = nodes[appliance.id];
+            return _SettingCard(
               child: ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: Icon(appliance.icon,
                     color: url != null ? context.appSuccess : context.appMuted,
                     size: 20),
                 title: Text(appliance.displayName),
+                // 주소는 편집 시트에서만. 목록에서는 이어졌는지만 말한다.
                 subtitle: Text(
-                  url ?? '미등록',
+                  url != null ? '장치가 이어져 있어요' : '아직 장치가 없어요',
                   style: TextStyle(
                     color: url != null ? context.appSuccess : context.appMuted,
-                    fontSize: 12,
+                    fontSize: 14,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
                 ),
                 trailing: IconButton(
                   icon: Icon(
@@ -1099,9 +879,9 @@ class _NodeSection extends ConsumerWidget {
                   onPressed: () => _showNodeSheet(context, ref, appliance, url),
                 ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }),
+        ],
       ),
     );
   }
@@ -1379,25 +1159,23 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
 
 // ── 공통 카드 컨테이너 ────────────────────────────────────────────────────
 
+/// 설정 항목 한 줄. 이름은 예전 그대로지만 더는 카드가 아니다.
+///
+/// 항목마다 둥근 카드를 두면 모든 설정의 깊이가 같아 보이고, 화면이
+/// 카드 더미가 된다. 행과 구분선이면 충분하다.
 class _SettingCard extends StatelessWidget {
   const _SettingCard({required this.child});
   final Widget child;
 
   @override
-  // 배경색은 Material에 둔다 — ListTile은 잉크·배경을 가장 가까운 Material에
-  // 그리는데, 색 있는 DecoratedBox가 그 사이에 끼면 Flutter 3.4x부터
-  // assertion으로 막힌다. 테두리만 안쪽 (색 없는) 데코레이션으로 유지.
-  Widget build(BuildContext context) => Material(
-        color: Theme.of(context).colorScheme.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: context.appBorderSubtle, width: 0.5),
+  Widget build(BuildContext context) => Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: child,
           ),
-          child: child,
-        ),
+          Divider(height: 1, color: context.appBorderFaint),
+        ],
       );
 }
 
@@ -1469,9 +1247,7 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
         final items = snapshot.data ?? const <String>[];
         if (items.isEmpty) {
           return _SuppressionNote(
-            text: _noServer
-                ? '기기와 연결되면 여기에 표시돼요.'
-                : '다시 추천 안 하는 항목이 없어요.',
+            text: _noServer ? '기기와 연결되면 여기에 표시돼요.' : '다시 추천 안 하는 항목이 없어요.',
           );
         }
         return Column(
