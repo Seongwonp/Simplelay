@@ -344,6 +344,12 @@ void main() {
         light: true, settle: false);
   });
 
+  testWidgets('수동 조작 — 준비 안 된 가전 (라이트)', (t) async {
+    // 눌러 보고 나서 실패로 알게 하지 않는다 -- 위에서 먼저 말한다.
+    await _shoot(t, 'lt_manual_not_ready', const ManualControlScreen(),
+        light: true, settle: false, installed: [_notReadyMicrowave]);
+  });
+
   testWidgets('시안 — 홈·미연결 (라이트)', (t) async {
     await _shoot(t, 'lt_home_empty', const HomeScreen(),
         connected: false, light: true);
@@ -515,6 +521,20 @@ final _twoOfMine = <ApplianceMap>[
     isCustom: true,
   ),
 ];
+
+/// 서버가 "아직 맡길 수 없다"고 한 전자레인지.
+final _notReadyMicrowave = ApplianceMap(
+  id: 'microwave',
+  name: '전자레인지',
+  category: ApplianceCategory.microwave,
+  rows: kTestAppliance.rows,
+  cols: kTestAppliance.cols,
+  buttons: kTestAppliance.buttons,
+  canExecute: false,
+  readiness: 'needs_setup',
+  readinessReasons: const ['버튼 위치 보정이 아직 안 됐어요'],
+  readinessKnown: true,
+);
 
 /// 이름과 위치가 긴 가전. 제안 화면의 머리·확인 줄이 잘리지 않는지 본다.
 final _longNamed = ApplianceMap(

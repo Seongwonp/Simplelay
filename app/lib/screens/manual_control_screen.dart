@@ -13,13 +13,18 @@ import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/appliance_portrait.dart';
+import '../widgets/demo_badge.dart';
 import '../widgets/no_appliance_notice.dart';
 
 enum _CellState { idle, pending, success, failure }
 
-// 음성 명령이 없는 사용자 정의 가전용 — 버튼을 직접 탭해서 POST /execute-buttons로
-// 하나씩 실행한다. 백엔드가 동시 실행을 막기 때문에(409), 한 번에 버튼 하나만
-// 보내고 결과가 올 때까지 나머지 버튼도 비활성화한다.
+/// 버튼을 직접 눌러 하나씩 실행한다 -- 말로 시키기 어려운 사용자의 다른 길.
+///
+/// 읽는 순서: 어느 가전인가(사진/실루엣 + 이름) → 지금 눌러도 되는가 →
+/// 방금 누른 결과 → 버튼판. 결과는 셀 색만으로 말하지 않고 문장으로도
+/// 말한다. 백엔드가 동시 실행을 막기 때문에(409) 한 번에 하나만 보내고,
+/// 결과가 올 때까지 나머지 버튼도 잠근다.
 class ManualControlScreen extends ConsumerStatefulWidget {
   const ManualControlScreen({super.key});
 
@@ -30,7 +35,9 @@ class ManualControlScreen extends ConsumerStatefulWidget {
 
 class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   String? _pendingButtonId;
+  String? _pendingLabel;
   String? _resultButtonId;
+  String? _resultLabel;
   bool? _resultSuccess;
   Timer? _resultClearTimer;
 
@@ -49,7 +56,9 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     _resultClearTimer?.cancel();
     setState(() {
       _pendingButtonId = button.id;
+      _pendingLabel = button.label;
       _resultButtonId = null;
+      _resultLabel = null;
       _resultSuccess = null;
     });
 
@@ -65,11 +74,11 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       // 여기서만 추적해서, 뒤로 나가면 실제 작업은 도는데 상태 탭은
       // 대기로 보이고 멈출 방법이 없었다.
       ref.read(executionStatusProvider.notifier).beginHttpJob(
-            api: api,
-            jobId: accepted.jobId,
-            label: button.label,
-            steps: [button.label],
-          );
+        api: api,
+        jobId: accepted.jobId,
+        label: button.label,
+        steps: [button.label],
+      );
       success = await _waitJobDone(api, accepted.jobId);
     } catch (_) {
       success = false;
@@ -78,9 +87,13 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     if (!mounted) return;
     setState(() {
       _pendingButtonId = null;
+      _pendingLabel = null;
       _resultButtonId = button.id;
+      _resultLabel = button.label;
       _resultSuccess = success;
     });
+    // 셀의 색은 2초 뒤 거둔다. 문장은 다음 버튼을 누를 때까지 남긴다 --
+    // 실패를 2초 만에 지우면 한눈판 사람은 무슨 일이 있었는지 모른다.
     _resultClearTimer = Timer(const Duration(seconds: 2), () {
       if (mounted) setState(() => _resultButtonId = null);
     });
@@ -127,92 +140,227 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     }
 
     final api = ref.watch(rpiApiServiceProvider);
+    if (api == null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('버튼 조작')),
+        body: _NotConnected(onGoToSettings: () => context.push('/settings')),
+      );
+    }
+
     final photoPath = appliance.photoPath;
     final hasPhoto = photoPath != null && File(photoPath).existsSync();
+    final busy = _pendingButtonId != null;
 
     return Scaffold(
-      appBar: AppBar(title: Text('${appliance.displayName} 버튼 조작')),
-      body: api == null
-          ? _NoServerConfigured(onGoToSettings: () => context.push('/settings'))
-          : Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 이 가전이 아직 준비 안 됐으면 **여기서 먼저 말한다.**
-                  // 눌러 보고 나서 실패로 알게 되면, 실제로는 서버가
-                  // 막았는데 사용자는 가전이 고장 난 줄 안다.
-                  if (!appliance.canExecute)
-                    _NotReadyNotice(appliance: appliance)
-                  else
-                    Row(
-                      children: [
-                        Icon(Icons.touch_app,
-                            color: context.appPrimary, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '버튼을 탭하면 실제 가전 버튼이 눌립니다.',
-                            style: context.appCaption,
-                          ),
-                        ),
-                      ],
-                    ),
-                  const SizedBox(height: 16),
-                  Expanded(
-                    child: Card(
-                      clipBehavior: Clip.antiAlias,
-                      child: _PhotoBackedGrid(
-                        appliance: appliance,
-                        child: Padding(
-                          padding: const EdgeInsets.all(14),
-                          child: _ButtonGrid(
-                            appliance: appliance,
-                            pendingButtonId: _pendingButtonId,
-                            resultButtonId: _resultButtonId,
-                            resultSuccess: _resultSuccess,
-                            onPhoto: hasPhoto,
-                            // 준비 안 된 가전은 탭 자체를 막는다. 서버도
-                            // 412로 거절하지만(이중 방어), 누를 수 있는데
-                            // 안 되는 버튼을 두면 사용자가 원인을 가전
-                            // 쪽에서 찾게 된다.
-                            onTap: appliance.canExecute
-                                ? (button) => _press(api, button, appliance.id)
-                                : null,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+      appBar: AppBar(title: const Text('버튼 조작')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        children: [
+          // ── 어느 가전인가 ────────────────────────────────────────────────
+          _TargetHeader(appliance: appliance),
+
+          const SizedBox(height: 16),
+
+          // ── 지금 눌러도 되는가 ───────────────────────────────────────────
+          // 이 가전이 아직 준비 안 됐으면 **여기서 먼저 말한다.** 눌러 보고
+          // 나서 실패로 알게 되면, 실제로는 서버가 막았는데 사용자는 가전이
+          // 고장 난 줄 안다.
+          if (!appliance.canExecute)
+            _NotReadyNotice(appliance: appliance)
+          else
+            _FeedbackLine(
+              pendingLabel: _pendingLabel,
+              resultLabel: _resultLabel,
+              resultSuccess: _resultSuccess,
+              onSeeStatus: () => context.go('/status'),
+            ),
+
+          const SizedBox(height: 20),
+
+          // ── 버튼판 ──────────────────────────────────────────────────────
+          // 등록 때 찍은 사진이 있으면 그 위에 격자를 겹친다 -- 실제 배치를
+          // 눈으로 확인하며 누른다. 사진이 없으면 격자만, 카드 없이.
+          // 준비 안 된 가전의 버튼판은 흐리게 -- 위 안내와 같은 말을 모양으로도
+          // 한다. 눌리는 판과 똑같이 보이면 안내를 못 본 사람이 눌러 본다.
+          Opacity(
+            opacity: appliance.canExecute ? 1 : 0.45,
+            child: _PhotoBackedGrid(
+              appliance: appliance,
+              hasPhoto: hasPhoto,
+              child: _ButtonGrid(
+                appliance: appliance,
+                fill: hasPhoto,
+                pendingButtonId: _pendingButtonId,
+                resultButtonId: _resultButtonId,
+                resultSuccess: _resultSuccess,
+                onPhoto: hasPhoto,
+                // 준비 안 된 가전은 탭 자체를 막는다. 서버도 412로
+                // 거절하지만(이중 방어), 누를 수 있는데 안 되는 버튼을
+                // 두면 사용자가 원인을 가전 쪽에서 찾게 된다.
+                onTap: appliance.canExecute && !busy
+                    ? (button) => _press(api, button, appliance.id)
+                    : null,
               ),
             ),
+          ),
+        ],
+      ),
     );
   }
 }
 
-class _NoServerConfigured extends StatelessWidget {
-  const _NoServerConfigured({required this.onGoToSettings});
+// ── 어느 가전인가 ────────────────────────────────────────────────────────
+
+class _TargetHeader extends StatelessWidget {
+  const _TargetHeader({required this.appliance});
+
+  final ApplianceMap appliance;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          AppliancePortrait(appliance: appliance, size: 64, borderRadius: 12),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(appliance.displayName, style: AppText.title),
+                    ),
+                    if (appliance.isDemo) ...[
+                      const SizedBox(width: 8),
+                      const DemoBadge(),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '버튼 ${appliance.buttons.length}개 · 누르면 실제 가전 버튼이 눌려요',
+                  style: TextStyle(fontSize: 15, color: context.appMuted),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+}
+
+// ── 방금 누른 결과 ────────────────────────────────────────────────────────
+
+/// 셀 색만으로 말하지 않는다. 무엇을 눌렀고 어떻게 됐는지 문장으로 남기고,
+/// 실패했으면 실행 상태(정지·재확인이 있는 곳)로 가는 길을 둔다.
+class _FeedbackLine extends StatelessWidget {
+  const _FeedbackLine({
+    required this.pendingLabel,
+    required this.resultLabel,
+    required this.resultSuccess,
+    required this.onSeeStatus,
+  });
+
+  final String? pendingLabel;
+  final String? resultLabel;
+  final bool? resultSuccess;
+  final VoidCallback onSeeStatus;
+
+  @override
+  Widget build(BuildContext context) {
+    if (pendingLabel != null) {
+      return Row(
+        children: [
+          const SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text("'$pendingLabel' 누르는 중…",
+                style:
+                    const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      );
+    }
+    if (resultLabel != null && resultSuccess != null) {
+      final ok = resultSuccess!;
+      return Row(
+        children: [
+          Icon(
+            ok ? Icons.check_circle_outline : Icons.cancel_outlined,
+            size: 22,
+            color: ok ? context.appSuccess : context.appDanger,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              ok ? "'$resultLabel' 눌림을 확인했어요" : "'$resultLabel' 눌림을 확인하지 못했어요",
+              style: TextStyle(
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+                color: ok ? context.appSuccess : context.appDanger,
+              ),
+            ),
+          ),
+          if (!ok)
+            TextButton(
+              onPressed: onSeeStatus,
+              child: const Text('자세히'),
+            ),
+        ],
+      );
+    }
+    return Row(
+      children: [
+        Icon(Icons.touch_app, color: context.appPrimary, size: 18),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            '누를 버튼을 고르세요. 한 번에 하나씩 눌러요.',
+            style: TextStyle(fontSize: 15, color: context.appMuted),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ── 연결 안 됨 ───────────────────────────────────────────────────────────
+
+/// 버튼을 대신 눌러 줄 기기와 아직 이어지지 않았다. 내부 이름(RPi·URL)을
+/// 사용자에게 말하지 않는다 -- 무엇이 없고 어디서 하면 되는지만.
+class _NotConnected extends StatelessWidget {
+  const _NotConnected({required this.onGoToSettings});
   final VoidCallback onGoToSettings;
 
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
-          padding: const EdgeInsets.all(32),
+          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.wifi_off,
-                  color: context.appMuted, size: 40),
-              const SizedBox(height: 12),
+              Icon(Icons.link_off, color: context.appMuted, size: 52),
+              const SizedBox(height: 18),
               Text(
-                'RPi 서버 URL을 먼저 설정해야 버튼을 직접 실행할 수 있어요.',
+                '버튼을 대신 눌러 줄 기기와 아직 연결되지 않았어요',
                 textAlign: TextAlign.center,
-                style: TextStyle(color: context.appMuted),
+                style: AppText.title,
               ),
-              const SizedBox(height: 16),
-              FilledButton(
-                  onPressed: onGoToSettings, child: const Text('설정으로 이동')),
+              const SizedBox(height: 8),
+              Text(
+                '설정에서 연결 주소를 입력하면 여기서 바로 누를 수 있어요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, color: context.appMuted),
+              ),
+              const SizedBox(height: 22),
+              FilledButton.icon(
+                onPressed: onGoToSettings,
+                icon: const Icon(Icons.settings, size: 20),
+                label: const Text('설정으로 이동'),
+              ),
             ],
           ),
         ),
@@ -231,68 +379,77 @@ class _NotReadyNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final disconnected = appliance.readiness == 'disconnected';
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: context.appWarning.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: context.appWarning.withValues(alpha: 0.4)),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(
-            disconnected ? Icons.link_off : Icons.build_outlined,
-            color: context.appWarning,
-            size: 20,
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  disconnected ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요',
-                  style: const TextStyle(fontWeight: FontWeight.w600),
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(
+          disconnected ? Icons.link_off : Icons.build_outlined,
+          color: context.appWarning,
+          size: 22,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                disconnected ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w600,
+                  color: context.appWarning,
                 ),
-                if (appliance.readinessReasons.isNotEmpty) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    appliance.readinessReasons.join(' · '),
-                    style: TextStyle(color: context.appMuted, fontSize: 13),
-                  ),
-                ],
+              ),
+              if (appliance.readinessReasons.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  appliance.readinessReasons.join(' · '),
+                  style: TextStyle(color: context.appMuted, fontSize: 15),
+                ),
               ],
-            ),
+            ],
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
 
-// 등록 때 찍어둔 버튼 패널 사진이 있으면 그리드 뒤에 깔아준다 — 사용자가
-// 실제 가전 버튼 배치를 눈으로 확인하며 누를 수 있다. 사진 파일이 지워졌으면
-// 조용히 사진 없는 그리드로 폴백.
+// ── 버튼판 ───────────────────────────────────────────────────────────────
+
+/// 등록 때 찍어둔 버튼 패널 사진이 있으면 그리드 뒤에 깔아준다 — 사용자가
+/// 실제 가전 버튼 배치를 눈으로 확인하며 누를 수 있다. 사진 파일이
+/// 지워졌으면 사진 없는 그리드로 폴백.
 class _PhotoBackedGrid extends StatelessWidget {
-  const _PhotoBackedGrid({required this.appliance, required this.child});
+  const _PhotoBackedGrid({
+    required this.appliance,
+    required this.hasPhoto,
+    required this.child,
+  });
 
   final ApplianceMap appliance;
+  final bool hasPhoto;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
-    final path = appliance.photoPath;
-    if (path == null || !File(path).existsSync()) return child;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        Image.file(File(path), fit: BoxFit.cover),
-        // 사진 위 가독성용 어두운 스크림 — 셀은 onPhoto 팔레트(흰색 계열)를 쓴다
-        ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
-        child,
-      ],
+    if (!hasPhoto) return child;
+    // 사진 위에 겹치려면 격자에 크기를 줘야 한다. 세로 사진이 대부분이라
+    // 3:4로 잡고, 그 안을 격자가 채운다.
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: AspectRatio(
+        aspectRatio: 3 / 4,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.file(File(appliance.photoPath!), fit: BoxFit.cover),
+            // 사진 위 가독성용 어두운 스크림 — 셀은 onPhoto 팔레트(흰색 계열)
+            ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
+            Padding(padding: const EdgeInsets.all(12), child: child),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -300,6 +457,7 @@ class _PhotoBackedGrid extends StatelessWidget {
 class _ButtonGrid extends StatelessWidget {
   const _ButtonGrid({
     required this.appliance,
+    required this.fill,
     required this.pendingButtonId,
     required this.resultButtonId,
     required this.resultSuccess,
@@ -308,10 +466,14 @@ class _ButtonGrid extends StatelessWidget {
   });
 
   final ApplianceMap appliance;
+
+  /// 주어진 높이를 채운다(사진 위). 아니면 셀마다 고정 최소 높이.
+  final bool fill;
   final String? pendingButtonId;
   final String? resultButtonId;
   final bool? resultSuccess;
-  /// null이면 이 가전은 아직 맡길 수 없다 (준비 미완).
+
+  /// null이면 지금은 누를 수 없다(준비 미완·실행 중).
   final void Function(ApplianceButton)? onTap;
 
   /// 사진 배경(어두운 스크림) 위에 그려지는 중 — 테마와 무관하게 흰색 계열 사용
@@ -319,40 +481,46 @@ class _ButtonGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final busy = pendingButtonId != null;
+    Widget row(int y) => Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: List.generate(appliance.cols, (x) {
+            final btn = appliance.buttonAt(x, y);
+            return Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(right: x < appliance.cols - 1 ? 8 : 0),
+                child: btn == null
+                    ? const SizedBox.shrink()
+                    : _ButtonCell(
+                        button: btn,
+                        state: btn.id == pendingButtonId
+                            ? _CellState.pending
+                            : btn.id == resultButtonId
+                                ? (resultSuccess == true
+                                    ? _CellState.success
+                                    : _CellState.failure)
+                                : _CellState.idle,
+                        onPhoto: onPhoto,
+                        onTap: onTap == null ? null : () => onTap!(btn),
+                      ),
+              ),
+            );
+          }),
+        );
+
     return Column(
       children: List.generate(appliance.rows, (y) {
-        return Expanded(
-          child: Padding(
-            padding: EdgeInsets.only(bottom: y < appliance.rows - 1 ? 8 : 0),
-            child: Row(
-              children: List.generate(appliance.cols, (x) {
-                final btn = appliance.buttonAt(x, y);
-                return Expanded(
-                  child: Padding(
-                    padding:
-                        EdgeInsets.only(right: x < appliance.cols - 1 ? 8 : 0),
-                    child: btn == null
-                        ? const SizedBox.shrink()
-                        : _ButtonCell(
-                            button: btn,
-                            state: btn.id == pendingButtonId
-                                ? _CellState.pending
-                                : btn.id == resultButtonId
-                                    ? (resultSuccess == true
-                                        ? _CellState.success
-                                        : _CellState.failure)
-                                    : _CellState.idle,
-                            onPhoto: onPhoto,
-                            onTap: (busy || onTap == null)
-                                ? null
-                                : () => onTap!(btn),
-                          ),
-                  ),
-                );
-              }),
-            ),
-          ),
+        final gap = y < appliance.rows - 1 ? 8.0 : 0.0;
+        if (fill) {
+          return Expanded(
+            child:
+                Padding(padding: EdgeInsets.only(bottom: gap), child: row(y)),
+          );
+        }
+        // 한 줄의 높이는 그 줄에서 가장 긴 라벨이 정한다 -- 큰 글씨에서
+        // 라벨이 잘리지 않는다. 최소 높이는 셀이 정한다.
+        return Padding(
+          padding: EdgeInsets.only(bottom: gap),
+          child: IntrinsicHeight(child: row(y)),
         );
       }),
     );
@@ -386,18 +554,18 @@ class _ButtonCell extends StatelessWidget {
       _CellState.pending => (
           context.appPrimary,
           const SizedBox(
-            width: 16,
-            height: 16,
+            width: 18,
+            height: 18,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
         ),
       _CellState.success => (
           context.appSuccess,
-          const Icon(Icons.check, size: 18)
+          const Icon(Icons.check, size: 22)
         ),
       _CellState.failure => (
           context.appDanger,
-          const Icon(Icons.close, size: 18)
+          const Icon(Icons.close, size: 22)
         ),
       _CellState.idle => (idleOutline, null),
     };
@@ -420,16 +588,19 @@ class _ButtonCell extends StatelessWidget {
         type: MaterialType.transparency,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
+          // 고령 사용자 기준 터치 목표. 48이 하한이지만 실제 가전 버튼을
+          // 대신 누르는 자리라 더 넉넉히 잡는다.
+          constraints: const BoxConstraints(minHeight: 72),
           decoration: BoxDecoration(
             color: state == _CellState.idle
                 ? idleFill
                 : color.withValues(alpha: 0.16),
             border: Border.all(
-                color: color, width: state == _CellState.idle ? 1 : 1.5),
-            borderRadius: BorderRadius.circular(10),
+                color: color, width: state == _CellState.idle ? 1 : 2),
+            borderRadius: BorderRadius.circular(12),
           ),
           child: InkWell(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             onTap: onTap == null
                 ? null
                 : () {
@@ -438,13 +609,17 @@ class _ButtonCell extends StatelessWidget {
                   },
             child: Center(
               child: overlay ??
-                  Text(
-                    button.label,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: state == _CellState.idle ? idleText : color,
+                  Padding(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                    child: Text(
+                      button.label,
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w600,
+                        color: state == _CellState.idle ? idleText : color,
+                      ),
                     ),
                   ),
             ),

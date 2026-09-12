@@ -107,7 +107,11 @@ void main() {
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
 
-    expect(find.text('RPi 서버 URL을 먼저 설정해야 버튼을 직접 실행할 수 있어요.'), findsOneWidget);
+    // 내부 이름(RPi·URL)을 사용자에게 말하지 않는다.
+    expect(find.text('버튼을 대신 눌러 줄 기기와 아직 연결되지 않았어요'),
+        findsOneWidget);
+    expect(find.textContaining('RPi'), findsNothing);
+    expect(find.textContaining('URL'), findsNothing);
   });
 
   testWidgets('RPi URL이 있으면 선택된 가전의 버튼 그리드를 보여준다', (tester) async {
@@ -121,7 +125,9 @@ void main() {
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
 
-    expect(find.text('테스트가전 버튼 조작'), findsOneWidget);
+    // 어느 가전인지가 본문 머리에 온다(사진/실루엣 + 이름).
+    expect(find.text('테스트가전'), findsOneWidget);
+    expect(find.text('버튼 2개 · 누르면 실제 가전 버튼이 눌려요'), findsOneWidget);
     expect(find.text('켜기'), findsOneWidget);
     expect(find.text('끄기'), findsOneWidget);
   });
@@ -168,6 +174,8 @@ void main() {
       'appliance_id': 'custom_test',
     });
     expect(find.byIcon(Icons.check), findsOneWidget);
+    // 셀 색만이 아니라 문장으로도 말한다.
+    expect(find.text("'켜기' 눌림을 확인했어요"), findsOneWidget);
 
     // 2초 뒤 결과 표시가 사라진다.
     await tester.pump(const Duration(seconds: 3));
