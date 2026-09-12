@@ -77,11 +77,15 @@ void main() {
         ),
       );
 
-      expect(find.text("'1분 추가' 버튼을 누르고 있어요."), findsOneWidget);
+      // 버튼 이름이 가장 크고, 그 아래 지금 상태가 온다.
+      expect(find.text("'1분 추가'"), findsOneWidget);
+      expect(find.text('눌림 확인 중'), findsOneWidget);
       expect(find.textContaining('센서로 눌림 확인'), findsOneWidget);
       expect(find.textContaining('센서 93%'), findsOneWidget);
-      // steps 미리보기가 없어도 total_steps로 진행이 보인다(음성 실행 경로)
-      expect(find.text('3단계 중 1단계'), findsOneWidget);
+      // steps 미리보기가 없어도 total_steps로 진행이 보인다(음성 실행 경로).
+      // 퍼센트가 아니라 '총 N단계 중 K단계'다 -- 남은 시간을 아는 척하지 않는다.
+      expect(find.text('총 3단계 중 1단계'), findsOneWidget);
+      expect(find.textContaining('%'), findsOneWidget); // 센서 93%뿐
     });
 
     testWidgets('확인 불가에서는 정지와 다시 확인을 함께 제공한다', (tester) async {
@@ -110,7 +114,34 @@ void main() {
           totalSteps: 2,
         ),
       );
+      expect(find.text('누르는 중'), findsOneWidget);
       expect(find.text('버튼 눌림을 확인하고 있어요.'), findsOneWidget);
+    });
+
+    testWidgets('실행 중에는 idle 안내 문구를 쓰지 않는다', (tester) async {
+      // 골든에서 잡혔던 결함: BLE 경로는 message가 비어 있어서, 실행 중인데
+      // 부제가 '실행을 시작하면 진행 상황이 여기에 표시돼요.'였다.
+      await _pumpStatus(tester, runningStatus);
+      expect(find.text('실행을 시작하면 진행 상황이 여기에 표시돼요.'), findsNothing);
+    });
+
+    testWidgets('실행 대상 가전을 위에 말한다', (tester) async {
+      // 지금 고른 가전이 아니라 **이 실행의 대상**을 설치 목록에서 찾는다.
+      tester.view.physicalSize = const Size(400, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(buildScreen(
+        const StatusScreen(),
+        executionStatus: const ExecutionStatus(
+          phase: ExecutionPhase.running,
+          label: '즉석밥 데워줘',
+          applianceId: 'microwave',
+          totalSteps: 2,
+        ),
+        overrides: installedOverrides([kTestAppliance]),
+      ));
+      await tester.pump();
+      expect(find.text('전자레인지'), findsOneWidget);
     });
 
     testWidgets('센서 수치는 펼쳐야 보인다', (tester) async {
@@ -134,9 +165,12 @@ void main() {
       expect(find.byIcon(Icons.check_circle), findsOneWidget);
     });
 
-    testWidgets('현재 단계 pending 아이콘 표시', (tester) async {
+    testWidgets('현재 단계는 모양과 글자로 구분한다', (tester) async {
+      // 색을 빼도 지금 단계가 보여야 한다: 채운 원 + '지금'.
       await _pumpStatus(tester, runningStatus);
-      expect(find.byIcon(Icons.pending), findsOneWidget);
+      expect(find.byIcon(Icons.radio_button_checked), findsOneWidget);
+      expect(find.text('지금'), findsOneWidget);
+      expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 표시', (tester) async {
@@ -154,10 +188,12 @@ void main() {
       completedSteps: 0,
     );
 
-    testWidgets('버튼 동작 재시도 카드 표시', (tester) async {
+    testWidgets('재시도는 실패가 아니라 보정으로 말한다', (tester) async {
       await _pumpStatus(tester, retryingStatus);
-      // 실제 위젯 텍스트는 말줄임표(…)가 붙어 있음 — _RetryBanner 참고.
-      expect(find.text('버튼 동작 재시도 중…'), findsOneWidget);
+      expect(find.text('보정 후 다시 시도 중'), findsOneWidget);
+      expect(find.text('눌림이 확인되지 않아 자리를 맞추고 다시 눌러요.'),
+          findsOneWidget);
+      expect(find.textContaining('실패'), findsNothing);
     });
 
     testWidgets('긴급 정지 버튼 표시', (tester) async {
@@ -210,6 +246,35 @@ void main() {
     testWidgets('긴급 정지 버튼 없음 (실패)', (tester) async {
       await _pumpStatus(tester, failedStatus);
       expect(find.text('긴급 정지'), findsNothing);
+    });
+
+    testWidgets('실패는 모양으로도 구분한다', (tester) async {
+      await _pumpStatus(tester, failedStatus);
+      expect(find.byIcon(Icons.cancel_outlined), findsOneWidget);
+    });
+  });
+
+  group('StatusScreen — 긴급 정지의 모양', () {
+    testWidgets('정지 기호와 두꺼운 외곽선을 가진다 — 색만으로 구분하지 않는다',
+        (tester) async {
+      await _pumpStatus(
+        tester,
+        const ExecutionStatus(
+          phase: ExecutionPhase.unknown,
+          label: '즉석밥 데워줘',
+          message: '연결이 끊겨 동작을 확인할 수 없어요.',
+        ),
+      );
+      // 흑백에서 '다시 확인'과 같은 회색 막대 둘로 보이면 안 된다.
+      expect(find.byIcon(Icons.stop), findsOneWidget);
+      final button = tester.widget<FilledButton>(
+        find.ancestor(
+          of: find.text('긴급 정지'),
+          matching: find.byType(FilledButton),
+        ),
+      );
+      final shape = button.style!.shape!.resolve({}) as RoundedRectangleBorder;
+      expect(shape.side.width, greaterThanOrEqualTo(3));
     });
   });
 }

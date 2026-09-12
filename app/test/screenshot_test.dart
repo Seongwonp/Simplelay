@@ -238,6 +238,62 @@ void main() {
         executionStatus: runningWithEvidence, settle: false);
   });
 
+  // 재시도·완료·실패·확인 불가 -- 색을 빼도 넷이 구분돼야 한다(흑백 변환본).
+  const retrying = ExecutionStatus(
+    phase: ExecutionPhase.retrying,
+    label: '즉석밥 데워줘',
+    sequenceId: 's3',
+    steps: ['BT-08', 'BT-03', 'BT-05'],
+    completedSteps: 1,
+    currentButton: '1분',
+    currentAttempt: 2,
+    applianceId: 'microwave',
+    message: '응답이 없어 다시 시도 중입니다.',
+  );
+  const completed = ExecutionStatus(
+    phase: ExecutionPhase.completed,
+    label: '즉석밥 데워줘',
+    sequenceId: 's4',
+    steps: ['BT-08', 'BT-03', 'BT-05'],
+    completedSteps: 3,
+    applianceId: 'microwave',
+    message: '버튼 조작을 마쳤어요.',
+  );
+  const failed = ExecutionStatus(
+    phase: ExecutionPhase.failed,
+    label: '즉석밥 데워줘',
+    sequenceId: 's5',
+    steps: ['BT-08', 'BT-03', 'BT-05'],
+    completedSteps: 1,
+    applianceId: 'microwave',
+    message: '실행에 실패했습니다.',
+  );
+  const unknownState = ExecutionStatus(
+    phase: ExecutionPhase.unknown,
+    label: '즉석밥 데워줘',
+    sequenceId: 's6',
+    steps: ['BT-08', 'BT-03', 'BT-05'],
+    completedSteps: 1,
+    applianceId: 'microwave',
+    message: '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해주세요.',
+  );
+  for (final (name, st) in [
+    ('status_retrying', retrying),
+    ('status_completed', completed),
+    ('status_failed', failed),
+    ('status_unknown', unknownState),
+  ]) {
+    testWidgets('실행 상태 — $name (라이트)', (t) async {
+      await _shoot(t, 'lt_$name', const StatusScreen(),
+          executionStatus: st, light: true, settle: false);
+    });
+  }
+
+  testWidgets('실행 상태 — 확인 불가·큰 글씨 (200%)', (t) async {
+    await _shoot(t, 'status_unknown_large', const StatusScreen(),
+        executionStatus: unknownState, textScale: 2.0, settle: false);
+  });
+
   // 설정·수동 조작도 행 끝에 컨트롤이 붙는 구조라 홈과 같은 압축이 일어날 수 있다
   testWidgets('설정', (t) async {
     await _shoot(t, 'settings', const SettingsScreen(), settle: false);

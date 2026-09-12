@@ -2,6 +2,7 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/appliance.dart';
 import '../models/execution_status.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -9,6 +10,14 @@ import '../providers/execution_status_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
+/// 실행 상태 -- 센서 대시보드가 아니라 **물리 폐루프의 진행과 회복**을 보여준다.
+///
+/// 읽는 순서: 지금 무슨 버튼을 어떻게 하고 있는가(가장 크게) → 몇 단계 중
+/// 몇 번째인가(구간형) → 전체 순서 → (펼쳐야 보이는) 센서 기록. 정지는
+/// 스크롤 밖 고정 자리에, 색뿐 아니라 모양으로도 다른 버튼과 구분한다.
+///
+/// 화면은 조리·세탁이 끝났다고 말하지 않는다. 우리가 보장하는 것은
+/// **버튼 조작**까지다.
 class StatusScreen extends ConsumerStatefulWidget {
   const StatusScreen({super.key});
 
@@ -62,22 +71,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
     // 주므로 진행을 보여줄 수 있다 -- steps.length에만 기대면 화면이 빈다.
     final totalSteps = status.totalSteps ?? status.steps.length;
 
-    // 폐루프 검증 근거. 아직 결과가 없으면 '확인 중'임을 말해준다.
-    // 숫자 자체보다 '눌림을 확인하고 있다'는 사실이 사용자에게 중요하다.
-    final vDetail = status.verificationDetail;
-    final vConf = status.verificationConfidence;
-    final hasVerification =
-        vConf != null || (vDetail != null && vDetail.isNotEmpty);
-    final verification = !active
-        ? null
-        : !hasVerification
-            ? '버튼 눌림을 확인하고 있어요.'
-            : [
-                if (vDetail != null && vDetail.isNotEmpty) vDetail,
-                if (vConf != null) '센서 ${(vConf * 100).toStringAsFixed(0)}%',
-                if ((status.currentAttempt ?? 1) > 1)
-                  '${status.currentAttempt}번째 시도',
-              ].join(' · ');
+    final now = _NowState.of(status);
 
     // HTTP 경로엔 원시 mA/dB가 없다. 값이 없는데 차트를 띄우면 '--'만 남아
     // 개발 도구처럼 보인다 -- 실제 측정값이 있을 때만 센서 카드를 보여준다.
@@ -90,22 +84,6 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
       appBar: AppBar(title: const Text('실행 상태')),
       body: Column(
         children: [
-          // ── 진행 바 (실행 중일 때만) ────────────────────────────────────
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 300),
-            height: active ? 6 : 0,
-            child: active
-                ? LinearProgressIndicator(
-                    borderRadius: BorderRadius.zero,
-                    backgroundColor:
-                        Theme.of(context).colorScheme.surfaceContainerHigh,
-                    color: status.phase == ExecutionPhase.retrying
-                        ? context.appWarning
-                        : Theme.of(context).colorScheme.primary,
-                  )
-                : null,
-          ),
-
           // **지금 보고 있는 실행이** 모의일 때만 말한다. 전역 토글을
           // 보면 진짜로 움직이고 있는 작업 위에도 이 배너가 떠서, 화면이
           // 정반대의 말을 하게 된다 -- 폐루프의 존재 이유가 "눌림을
@@ -142,96 +120,85 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
 
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
               children: [
-                // ── 제목·상태 ──────────────────────────────────────────────
+                // ── 어느 가전, 무슨 일 ─────────────────────────────────────
                 // liveRegion: 실행 상태는 사용자가 화면을 다시 훑지 않아도
                 // 스크린리더가 바뀔 때마다 읽어줘야 하는 정보다. 눈으로
-                // 진행바를 볼 수 없는 사용자에게는 이것이 유일한 진행 채널.
+                // 진행 표시를 볼 수 없는 사용자에게는 이것이 유일한 채널.
                 Semantics(
                   liveRegion: true,
                   label: [
+                    if (target != null) target.displayName,
                     status.label ?? '실행 중인 작업 없음',
-                    status.message ?? '실행을 시작하면 진행 상황이 여기에 표시돼요.',
-                    if (status.phase == ExecutionPhase.retrying) '자동 보정 중입니다',
-                    if (active && status.currentButton != null)
-                      '${status.currentButton} 버튼을 누르고 있어요',
-                    if (active && verification != null) verification,
-                    if (totalSteps > 0 && active)
-                      '$totalSteps단계 중 ${status.completedSteps}단계 완료',
+                    if (now.button != null) "${now.button} 버튼",
+                    now.headline,
+                    if (now.detail != null) now.detail!,
+                    if (totalSteps > 0 && status.phase != ExecutionPhase.idle)
+                      '총 $totalSteps단계 중 ${status.completedSteps}단계 완료',
                   ].join('. '),
                   child: ExcludeSemantics(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        if (target != null) ...[
+                          _TargetLine(appliance: target),
+                          const SizedBox(height: 6),
+                        ],
                         Text(
                           status.label ?? '실행 중인 작업 없음',
-                          style: AppText.heading,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.w600,
+                            color: status.phase == ExecutionPhase.idle
+                                ? null
+                                : context.appMuted,
+                          ),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          status.message ?? '실행을 시작하면 진행 상황이 여기에 표시돼요.',
-                          style: TextStyle(color: context.appMuted),
-                        ),
+                        const SizedBox(height: 16),
+
+                        // ── 지금 무엇을 하고 있는가 — 가장 크게 ────────────
+                        // 이 제품의 차별점(실제 버튼을 누르고 센서로 확인)이
+                        // 화면에 도착하는 지점이다. 없으면 '빙글빙글 돌다
+                        // 완료되는 앱'이 된다.
+                        _NowBlock(now: now),
                       ],
                     ),
                   ),
                 ),
 
-                // ── 진행도 ───────────────────────────────────────────────
-                // 예전에는 여기 KPI 3칸(진행·전류·음향)이 있었는데, 전류·음향은
-                // 아래 '센서 모니터'와 같은 값을 두 번 보여주는 것이었다.
-                // 센서는 한 곳에만 두고, 위에는 "지금 몇 단계인지"만 남긴다.
-                // 지금 어떤 버튼을 누르고 있고, 눌림을 어떻게 확인하는지.
-                // 이 제품의 차별점(실제 버튼을 누르고 센서로 확인)이 화면에
-                // 도착하는 지점이다. 없으면 '빙글빙글 돌다 완료되는 앱'이 된다.
-                if (active && status.currentButton != null) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    "'${status.currentButton}' 버튼을 누르고 있어요.",
-                    style: AppText.title,
-                  ),
-                  if (verification != null) ...[
-                    const SizedBox(height: 4),
-                    Text(verification,
-                        style: TextStyle(color: context.appMuted)),
-                  ],
-                ],
-
+                // ── 진행 — 구간형 ─────────────────────────────────────────
+                // 연속 퍼센트가 아니다. 버튼 5개 중 2개를 눌렀다는 사실은
+                // 40%가 아니라 '5개 중 2개'다. 퍼센트는 마치 남은 시간을
+                // 아는 것처럼 보이게 하는데, 우리는 모른다.
                 if (status.phase != ExecutionPhase.idle && totalSteps > 0) ...[
-                  const SizedBox(height: 16),
-                  Text(
-                    '$totalSteps단계 중 ${status.completedSteps}단계',
-                    style: AppText.title,
+                  const SizedBox(height: 24),
+                  _SegmentedProgress(
+                    total: totalSteps,
+                    completed: status.completedSteps,
+                    phase: status.phase,
                   ),
-                ],
-
-                // ── 재시도 배너 ────────────────────────────────────────────
-                if (status.phase == ExecutionPhase.retrying) ...[
-                  const SizedBox(height: 16),
-                  _RetryBanner(),
                 ],
 
                 // ── 단계 목록 ─────────────────────────────────────────────
                 if (status.steps.isNotEmpty) ...[
-                  const SizedBox(height: 24),
-                  Text('실행 단계', style: AppText.title),
-                  const SizedBox(height: 12),
-                  ...List.generate(status.steps.length, (i) {
-                    final done = i < status.completedSteps;
-                    final current = i == status.completedSteps && active;
-                    return _StepTile(
+                  const SizedBox(height: 28),
+                  Text('누르는 순서', style: AppText.title),
+                  const SizedBox(height: 6),
+                  for (var i = 0; i < status.steps.length; i++)
+                    _StepRow(
                       index: i,
-                      code: status.steps[i],
                       // **이 실행이 대상으로 삼은 가전**의 버튼 이름. 지금
                       // 고른 가전으로 읽으면 실행 중에 가전을 바꾼 순간
                       // 화면이 틀린 버튼 이름을 말한다.
-                      label: target?.labelFor(status.steps[i]),
-                      done: done,
-                      current: current,
+                      label: _stepLabel(target, status.steps[i]),
+                      state: i < status.completedSteps
+                          ? _StepState.done
+                          : (i == status.completedSteps && active)
+                              ? _StepState.current
+                              : _StepState.pending,
                       isLast: i == status.steps.length - 1,
-                    );
-                  }),
+                    ),
                 ],
 
                 // ── 센서 기록 (접힘) ───────────────────────────────────────
@@ -280,153 +247,413 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           // 밀리고, 정작 급한 순간(동작을 확인할 수 없을 때)에 손이 닿지
           // 않는다. 센서 카드 아래가 아니라 항상 같은 자리에 둔다.
           if (canStop)
-            SafeArea(
-              top: false,
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 16),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (unknown) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () => ref
-                              .read(executionStatusProvider.notifier)
-                              .recheck(),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('다시 확인'),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        style: FilledButton.styleFrom(
-                          backgroundColor: AppColors.danger,
-                          foregroundColor: AppColors.onAccent,
-                        ),
-                        onPressed: () => ref
-                            .read(executionStatusProvider.notifier)
-                            .emergencyStop(),
-                        icon: const Icon(Icons.stop_circle_outlined),
-                        label: const Text('긴급 정지'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+            _StopArea(
+              showRecheck: unknown,
+              onRecheck: () =>
+                  ref.read(executionStatusProvider.notifier).recheck(),
+              onStop: () =>
+                  ref.read(executionStatusProvider.notifier).emergencyStop(),
             ),
         ],
       ),
     );
   }
+
+  /// 대상 가전에 등록된 이름 그대로. 대상을 모르면 전역 표(내장 코드만
+  /// 안다) -- 커스텀 가전의 버튼은 코드 그대로 나온다. 지어내지 않는다.
+  static String _stepLabel(ApplianceMap? target, String code) =>
+      target != null && target.buttons.any((b) => b.id == code)
+          ? target.labelFor(code)
+          : readableStep(code);
 }
 
-// ── 재시도 배너 ───────────────────────────────────────────────────────────
+// ── 지금 상태 ─────────────────────────────────────────────────────────────
 
-class _RetryBanner extends StatelessWidget {
+/// 화면이 가장 크게 말할 한 줄과 그 근거.
+///
+/// 서버가 구분해 주는 것만 말한다. 지금 서버는 '어느 버튼을 몇 번째로
+/// 시도 중이고 검증 결과가 있는가'를 주지, '이동 중'과 '누르는 중'을
+/// 나눠 주지 않는다. 그래서 그 둘을 화면이 나눠 말하지 않는다 -- 모르는
+/// 것을 아는 척하면 실제 축이 멈춰 있는데 '이동 중'이라고 쓰게 된다.
+class _NowState {
+  const _NowState({
+    required this.headline,
+    this.button,
+    this.detail,
+    this.tone = _Tone.neutral,
+    this.retryNote,
+    this.idle = false,
+  });
+
+  /// 아무것도 하고 있지 않다. 그때만 안내 문구를 작게 쓴다 -- 실행 중의
+  /// '실행 중'은 지금 상태이므로 다른 국면과 같은 크기로 말한다.
+  final bool idle;
+
+  /// 가장 큰 글자. 버튼이 있으면 그 아래 상태 구절이다.
+  final String headline;
+
+  /// 지금 다루는 버튼 이름. 있으면 headline보다 위에 더 크게 쓴다.
+  final String? button;
+
+  /// 근거 한 줄(검증 결과·시도 횟수).
+  final String? detail;
+  final _Tone tone;
+
+  /// 재시도 중일 때, 그것이 실패가 아니라 보정이라는 설명.
+  final String? retryNote;
+
+  static _NowState of(ExecutionStatus s) {
+    final vDetail = s.verificationDetail;
+    final vConf = s.verificationConfidence;
+    final hasVerification =
+        vConf != null || (vDetail != null && vDetail.isNotEmpty);
+    final attempt = s.currentAttempt ?? 1;
+    final evidence = [
+      if (vDetail != null && vDetail.isNotEmpty) vDetail,
+      if (vConf != null) '센서 ${(vConf * 100).toStringAsFixed(0)}%',
+      if (attempt > 1) '$attempt번째 시도',
+    ].join(' · ');
+
+    switch (s.phase) {
+      case ExecutionPhase.idle:
+        return const _NowState(
+          headline: '실행을 시작하면 진행 상황이 여기에 표시돼요.',
+          idle: true,
+        );
+      case ExecutionPhase.waiting:
+        return _NowState(headline: s.message ?? '실행 요청을 보냈어요');
+      case ExecutionPhase.running:
+        if (s.currentButton == null) {
+          return const _NowState(headline: '실행 중');
+        }
+        return _NowState(
+          button: s.currentButton,
+          headline: hasVerification ? '눌림 확인 중' : '누르는 중',
+          // 근거가 아직 없어도 확인하고 있다는 사실은 말한다 -- 숫자보다
+          // '눌림을 확인한다'는 것이 사용자에게 중요하다.
+          detail: hasVerification ? evidence : '버튼 눌림을 확인하고 있어요.',
+        );
+      case ExecutionPhase.retrying:
+        return _NowState(
+          button: s.currentButton,
+          headline: '보정 후 다시 시도 중',
+          detail: evidence.isEmpty ? null : evidence,
+          tone: _Tone.caution,
+          // '재시도'는 실패로 읽힌다. 눌림이 확인되지 않아 자리를 다시
+          // 맞추고 누르는 것은 이 제품이 하기로 한 일이다.
+          retryNote: '눌림이 확인되지 않아 자리를 맞추고 다시 눌러요.',
+        );
+      case ExecutionPhase.completed:
+        return _NowState(
+          headline: s.message ?? '버튼 조작을 마쳤어요.',
+          tone: _Tone.done,
+        );
+      case ExecutionPhase.failed:
+        return _NowState(
+          headline: s.message ?? '실행에 실패했습니다.',
+          tone: _Tone.failed,
+        );
+      case ExecutionPhase.unknown:
+        return _NowState(
+          headline: s.message ?? '동작을 확인할 수 없어요.',
+          tone: _Tone.caution,
+        );
+    }
+  }
+}
+
+enum _Tone { neutral, caution, done, failed }
+
+class _NowBlock extends StatelessWidget {
+  const _NowBlock({required this.now});
+
+  final _NowState now;
+
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: context.appWarning.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.appWarning.withValues(alpha: 0.4)),
-        ),
-        child: Row(
+  Widget build(BuildContext context) {
+    final (icon, color) = switch (now.tone) {
+      _Tone.neutral => (null, null),
+      _Tone.caution => (Icons.error_outline, context.appWarning),
+      _Tone.done => (Icons.check_circle_outline, context.appSuccess),
+      _Tone.failed => (Icons.cancel_outlined, context.appDanger),
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (now.button != null)
+          Text("'${now.button}'", style: AppText.heading),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.refresh, color: context.appWarning, size: 20),
-            const SizedBox(width: 10),
-            // 글씨를 키우면 한 줄에 안 들어간다 -- 줄바꿈할 공간을 준다.
+            // 상태를 색으로만 말하지 않는다 -- 모양이 같이 간다.
+            if (icon != null) ...[
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: Icon(icon, size: 24, color: color),
+              ),
+              const SizedBox(width: 8),
+            ],
             Expanded(
-              child: Text('버튼 동작 재시도 중…',
-                  style: TextStyle(color: context.appWarning)),
+              child: Text(
+                now.headline,
+                style: now.button != null
+                    ? TextStyle(
+                        fontSize: 22, fontWeight: FontWeight.w600, color: color)
+                    : TextStyle(
+                        fontSize: now.idle ? 16 : 22,
+                        fontWeight:
+                            now.idle ? FontWeight.w400 : FontWeight.w600,
+                        color: color ?? (now.idle ? context.appMuted : null),
+                      ),
+              ),
             ),
           ],
         ),
+        if (now.detail != null) ...[
+          const SizedBox(height: 4),
+          Text(now.detail!, style: TextStyle(color: context.appMuted)),
+        ],
+        if (now.retryNote != null) ...[
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.refresh, size: 18, color: context.appWarning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(now.retryNote!,
+                    style: TextStyle(fontSize: 15, color: context.appWarning)),
+              ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ── 대상 가전 한 줄 ───────────────────────────────────────────────────────
+
+class _TargetLine extends StatelessWidget {
+  const _TargetLine({required this.appliance});
+
+  final ApplianceMap appliance;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        children: [
+          Icon(appliance.icon, size: 18, color: context.appMuted),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              appliance.displayName,
+              style: TextStyle(fontSize: 15, color: context.appMuted),
+            ),
+          ),
+        ],
       );
 }
 
-// ── 실행 단계 타일 ────────────────────────────────────────────────────────
+// ── 구간형 진행 ───────────────────────────────────────────────────────────
 
-class _StepTile extends StatelessWidget {
-  const _StepTile({
+/// N칸 중 K칸. 채운 칸은 완료, 지금 칸은 테두리로 구분, 나머지는 비움.
+/// 색을 빼도 채움/테두리/비움 세 가지가 남는다.
+class _SegmentedProgress extends StatelessWidget {
+  const _SegmentedProgress({
+    required this.total,
+    required this.completed,
+    required this.phase,
+  });
+
+  final int total;
+  final int completed;
+  final ExecutionPhase phase;
+
+  @override
+  Widget build(BuildContext context) {
+    final active =
+        phase == ExecutionPhase.running || phase == ExecutionPhase.retrying;
+    final accent =
+        phase == ExecutionPhase.retrying ? context.appWarning : context.appPrimary;
+    // 단계가 많으면 칸이 너무 얇아진다 -- 12개까지만 칸으로 그리고, 그
+    // 이상은 글자가 대신 말한다.
+    final drawSegments = total <= 12;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('총 $total단계 중 $completed단계', style: AppText.title),
+        if (drawSegments) ...[
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              for (var i = 0; i < total; i++) ...[
+                Expanded(
+                  child: Container(
+                    height: 10,
+                    decoration: BoxDecoration(
+                      color: i < completed
+                          ? accent
+                          : Theme.of(context).colorScheme.surfaceContainerHigh,
+                      borderRadius: BorderRadius.circular(3),
+                      border: (i == completed && active)
+                          ? Border.all(color: accent, width: 2)
+                          : null,
+                    ),
+                  ),
+                ),
+                if (i < total - 1) const SizedBox(width: 4),
+              ],
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+// ── 단계 행 ───────────────────────────────────────────────────────────────
+
+enum _StepState { done, current, pending }
+
+/// 카드로 감싸지 않는다. 완료는 체크, 지금은 채운 원 + '지금' 글자, 나머지는
+/// 빈 원 -- 색을 빼도 셋이 구분된다.
+class _StepRow extends StatelessWidget {
+  const _StepRow({
     required this.index,
-    required this.code,
-    this.label,
-    required this.done,
-    required this.current,
+    required this.label,
+    required this.state,
     required this.isLast,
   });
-  final int index;
-  final String code;
 
-  /// 대상 가전이 알려준 이름. 대상을 모르면 null이고, 그때만 전역 표로
-  /// 떨어진다 -- 그 표는 내장 가전 코드만 알고 있어서, 커스텀 가전의
-  /// 버튼은 코드 그대로 나온다.
-  final String? label;
-  final bool done;
-  final bool current;
+  final int index;
+  final String label;
+  final _StepState state;
   final bool isLast;
 
   @override
   Widget build(BuildContext context) {
-    final Color iconColor;
-    final IconData iconData;
-    if (done) {
-      iconColor = context.appSuccess;
-      iconData = Icons.check_circle;
-    } else if (current) {
-      iconColor = Theme.of(context).colorScheme.primary;
-      iconData = Icons.pending;
-    } else {
-      iconColor = context.appBorderSubtle;
-      iconData = Icons.radio_button_unchecked;
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Column(
+    final (icon, color) = switch (state) {
+      _StepState.done => (Icons.check_circle, context.appSuccess),
+      _StepState.current => (Icons.radio_button_checked, context.appPrimary),
+      _StepState.pending => (Icons.radio_button_unchecked, context.appMuted),
+    };
+    final current = state == _StepState.current;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
             children: [
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                child: Icon(iconData,
-                    key: ValueKey(iconData), color: iconColor, size: 22),
+              Icon(icon, size: 24, color: color),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 20,
+                    fontWeight: current ? FontWeight.w700 : FontWeight.w500,
+                    color: state == _StepState.pending
+                        ? context.appOnSurfaceSoft
+                        : null,
+                  ),
+                ),
               ),
-              if (!isLast) // 마지막 단계 뒤에는 연결선을 그리지 않는다
+              if (current)
                 Container(
-                  width: 2,
-                  height: 24,
-                  color: done
-                      ? context.appSuccess.withValues(alpha: 0.4)
-                      : context.appBorderSubtle,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    border: Border.all(color: context.appPrimary, width: 1.5),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '지금',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: context.appPrimary,
+                    ),
+                  ),
                 ),
             ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Card(
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(label ?? readableStep(code), style: AppText.body),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
+        ),
+        if (!isLast) Divider(height: 1, color: context.appBorderFaint),
+      ],
     );
   }
+}
+
+// ── 정지 영역 ─────────────────────────────────────────────────────────────
+
+/// 긴급 정지는 색뿐 아니라 **정지 기호·두꺼운 외곽선·격리된 자리**로
+/// 구분한다. 흑백에서 '다시 확인'과 같은 회색 막대 둘로 보이면, 급한 순간에
+/// 어느 쪽인지 읽어야 한다.
+class _StopArea extends StatelessWidget {
+  const _StopArea({
+    required this.showRecheck,
+    required this.onRecheck,
+    required this.onStop,
+  });
+
+  final bool showRecheck;
+  final VoidCallback onRecheck;
+  final VoidCallback onStop;
+
+  @override
+  Widget build(BuildContext context) => Material(
+        color: context.appBackground,
+        child: SafeArea(
+          top: false,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: context.appBorderFaint)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (showRecheck) ...[
+                  SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: onRecheck,
+                      icon: const Icon(Icons.refresh),
+                      label: const Text('다시 확인'),
+                    ),
+                  ),
+                  // 정지와 재확인 사이를 띄운다 -- 붙여 두면 급할 때
+                  // 옆 것을 누른다.
+                  const SizedBox(height: 16),
+                ],
+                SizedBox(
+                  width: double.infinity,
+                  height: 64,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppColors.danger,
+                      foregroundColor: AppColors.onAccent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        side: BorderSide(
+                          color: Theme.of(context).colorScheme.onSurface,
+                          width: 3,
+                        ),
+                      ),
+                    ),
+                    onPressed: onStop,
+                    icon: const Icon(Icons.stop, size: 28),
+                    label: const Text(
+                      '긴급 정지',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 /// 센서 카드 두 장을 가로로 두거나(보통) 위아래로 쌓는다(확대).
