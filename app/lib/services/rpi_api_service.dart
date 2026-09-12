@@ -168,6 +168,8 @@ class RpiHistoryEntry {
     required this.retryCount,
     required this.buttons,
     this.purpose,
+    this.applianceId,
+    this.termination = 'unknown',
   });
   final String jobId;
   final DateTime finishedAt;
@@ -175,6 +177,13 @@ class RpiHistoryEntry {
   final String status; // succeeded | safety_stopped | failed
   final int retryCount;
   final List<RpiHistoryButton> buttons;
+
+  /// 어느 가전을 눌렀는가. 이 열이 생기기 전 기록은 null이다.
+  final String? applianceId;
+
+  /// completed | stopped_by_user | retries_exhausted | unknown.
+  /// status만으로는 '사용자가 멈춤'과 '재시도 소진'이 뭉개진다.
+  final String termination;
 
   /// 목록 표시용 제목 — 목적이 없으면 누른 버튼 라벨을 나열
   String get displayTitle =>
@@ -191,6 +200,8 @@ class RpiHistoryEntry {
             .cast<Map<String, dynamic>>()
             .map(RpiHistoryButton.fromJson)
             .toList(),
+        applianceId: json['appliance_id'] as String?,
+        termination: json['termination'] as String? ?? 'unknown',
       );
 }
 

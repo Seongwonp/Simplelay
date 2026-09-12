@@ -28,6 +28,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/screens/history_screen.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
 import 'package:simplelay/screens/settings_screen.dart';
@@ -37,6 +38,7 @@ import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
 import 'package:simplelay/screens/voice_screen.dart';
 import 'package:simplelay/providers/voice_provider.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
 import 'package:simplelay/services/voice_service.dart';
 import 'package:simplelay/theme/app_theme.dart';
 
@@ -429,6 +431,78 @@ void main() {
     // 일반 아이콘으로 떨어지는 것이 화면에서 어떻게 보이는지 남긴다.
     await _shoot(t, 'home_unknown_category', const HomeScreen(),
         installed: [_unknownKind], light: true);
+  });
+
+  // ── 실행 기록 ────────────────────────────────────────────────────────────
+  //
+  // 하루 안의 순서와 결과 네 가지(마침·재시도 후 마침·직접 멈춤·확인 못 함)가
+  // 색을 빼도 구분되는지 본다. 시각은 harness가 09:00으로 고정한다.
+  final history = [
+    RpiHistoryEntry(
+      jobId: 'h1',
+      finishedAt: DateTime(2026, 9, 9, 8, 40),
+      purpose: '즉석밥 데워줘',
+      status: 'succeeded',
+      retryCount: 0,
+      applianceId: 'microwave',
+      termination: 'completed',
+      buttons: const [RpiHistoryButton(button: '즉석밥', success: true, attempts: 1)],
+    ),
+    RpiHistoryEntry(
+      jobId: 'h2',
+      finishedAt: DateTime(2026, 9, 9, 7, 55),
+      purpose: '우유 데워줘',
+      status: 'succeeded',
+      retryCount: 2,
+      applianceId: 'microwave',
+      termination: 'completed',
+      buttons: const [RpiHistoryButton(button: '해동', success: true, attempts: 3)],
+    ),
+    RpiHistoryEntry(
+      jobId: 'h3',
+      finishedAt: DateTime(2026, 9, 8, 19, 20),
+      purpose: null,
+      status: 'safety_stopped',
+      retryCount: 0,
+      applianceId: 'microwave',
+      termination: 'stopped_by_user',
+      buttons: const [RpiHistoryButton(button: '냉동식품', success: false, attempts: 1)],
+    ),
+    RpiHistoryEntry(
+      jobId: 'h4',
+      finishedAt: DateTime(2026, 9, 6, 12, 5),
+      purpose: '라면 끓여줘',
+      status: 'failed',
+      retryCount: 3,
+      applianceId: 'microwave',
+      termination: 'retries_exhausted',
+      buttons: const [
+        RpiHistoryButton(button: '라면', success: true, attempts: 2),
+        RpiHistoryButton(button: '시작', success: false, attempts: 3),
+      ],
+    ),
+  ];
+  for (final (name, light, scale) in [
+    ('lt_history', true, 1.0),
+    ('history_dark', false, 1.0),
+    ('history_large', false, 2.0),
+  ]) {
+    testWidgets('실행 기록 ($name)', (t) async {
+      await _shoot(t, name, const HistoryScreen(),
+          light: light,
+          textScale: scale,
+          extraOverrides: [
+            historyProvider.overrideWith((ref) => Future.value(history)),
+          ]);
+    });
+  }
+
+  testWidgets('실행 기록 — 비어 있음 (라이트)', (t) async {
+    await _shoot(t, 'lt_history_empty', const HistoryScreen(),
+        light: true,
+        extraOverrides: [
+          historyProvider.overrideWith((ref) => Future.value(const [])),
+        ]);
   });
 
   // ── 음성 명령 ────────────────────────────────────────────────────────────
