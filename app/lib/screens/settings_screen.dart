@@ -164,6 +164,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _DemoSection(),
           ],
 
+          // ── 개발자 ────────────────────────────────────────────────────────
+          if (_showAdvanced) ...[
+            const SizedBox(height: 24),
+            _SectionHeader(title: '개발자'),
+            const SizedBox(height: 4),
+            _DeveloperToolsTile(),
+          ],
+
           const SizedBox(height: 40),
         ],
       ),

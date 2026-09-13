@@ -268,6 +268,18 @@ void main() {
       expect(find.text('실행이 끝난 뒤에 바꿀 수 있어요'), findsOneWidget);
     });
 
+    testWidgets('개발자 도구 진입은 고급 설정 안에만 있고 모의 제어라고 말한다',
+        (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSettings());
+      await tester.pump();
+      expect(find.text('개발자 도구'), findsNothing);
+
+      await _expandAdvanced(tester);
+      expect(find.text('개발자 도구'), findsOneWidget);
+      expect(find.textContaining('모의 제어 — 실제로 움직이지 않습니다'), findsOneWidget);
+    });
+
     testWidgets('제안 시뮬레이션 탭 시 SnackBar 표시', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());

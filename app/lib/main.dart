@@ -6,6 +6,7 @@ import 'providers/execution_status_provider.dart';
 import 'screens/appliance_editor_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/care_events_screen.dart';
+import 'screens/developer_console_screen.dart';
 import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/manual_control_screen.dart';
@@ -84,6 +85,12 @@ final _router = GoRouter(
     GoRoute(
       path: '/care',
       builder: (_, __) => const CareEventsScreen(),
+    ),
+    // 개발자 도구 — 설정 > 고급 설정에서만 들어온다. 서버에서 개발자 모드를
+    // 켜지 않았으면 화면이 그 사실을 말하고 아무것도 조작하지 못한다.
+    GoRoute(
+      path: '/developer',
+      builder: (_, __) => const DeveloperConsoleScreen(),
     ),
   ],
 );

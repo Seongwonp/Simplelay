@@ -1,8 +1,29 @@
 part of '../settings_screen.dart';
 
 // 고급 설정을 펼쳤을 때만 보이는 구획. 일반 사용자 설정과 섞지 않는다.
-// 앞으로 들어갈 개발자 도구(조이스틱·구조화 명령 콘솔·로그)는 이 파일에
-// 붙는다 -- 진입은 설정 화면의 '고급 설정' 아래 같은 자리다.
+// 개발자 도구(모의 제어 콘솔)의 진입도 여기다 -- 화면은
+// `developer_console_screen.dart`. 숨김은 접근 제한이 아니다: 서버가
+// 개발자 모드·개발자 토큰으로 따로 막는다.
+
+// ── 개발자 도구 진입 ──────────────────────────────────────────────────────
+
+class _DeveloperToolsTile extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => _SettingCard(
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          minVerticalPadding: 12,
+          leading: const Icon(Icons.build_outlined),
+          title: const Text('개발자 도구'),
+          subtitle: Text(
+            '모의 제어 — 실제로 움직이지 않습니다. 서버에서 개발자 모드를 켠 경우에만 동작해요',
+            style: TextStyle(color: context.appMuted, fontSize: 12),
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.push('/developer'),
+        ),
+      );
+}
 
 // ── 데모 모드 토글 ─────────────────────────────────────────────────────────
 
