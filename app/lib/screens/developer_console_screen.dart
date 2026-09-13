@@ -50,7 +50,11 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
   bool _busy = false;
   Timer? _heartbeat;
   bool _beatInFlight = false;
-  int _beatFailures = 0;
+  int _epoch = 0;
+  int _stateRead = 0;
+  bool _visible = true;
+  Timer? _settlePoll;
+  int _settleAttempts = 0;
   int _requestSeq = 0;
   List<DevLogLine> _log = const [];
 
@@ -59,6 +63,10 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
   @override
   void initState() {
     super.initState();
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _visible = lifecycle != AppLifecycleState.hidden &&
+        lifecycle != AppLifecycleState.paused &&
+        lifecycle != AppLifecycleState.detached;
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _refreshState());
   }
@@ -66,12 +74,12 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _heartbeat?.cancel();
     // 화면을 떠나면 세션을 끝낸다. 기다릴 수 없으니 보내기만 한다 --
     // 전달이 실패해도 서버는 heartbeat가 끊겨 스스로 멈춘다.
     final api = _api;
     final id = _sessionId;
     final secret = _secret;
+    _invalidate();
     if (api != null && id != null && secret != null) {
       unawaited(api.end(id, secret).then<void>((_) {}, onError: (_) {}));
     }
@@ -85,10 +93,15 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
       case AppLifecycleState.detached:
+        if (!_visible) break;
+        _visible = false;
         if (_hasSession) {
           _endSession(backgrounded: true);
+        } else {
+          _invalidate(); // 시작 응답을 기다리는 중에도 무효화한다.
         }
       case AppLifecycleState.resumed:
+        _visible = true;
         _refreshState();
       case AppLifecycleState.inactive:
         // 알림창을 내리는 정도로는 세션을 끊지 않는다. 진짜로 화면에서
@@ -99,6 +112,30 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
 
   // ── 동작 ───────────────────────────────────────────────────────────────
 
+  // 서버의 세션 ID와 별개인 UI 세대. 정지/이탈/연결 변경 뒤 도착한
+  // 성공·실패·finally 모두 현재 화면을 변경하지 못한다.
+  void _invalidate() {
+    _epoch++;
+    _stateRead++;
+    _heartbeat?.cancel();
+    _settlePoll?.cancel();
+    _settleAttempts = 0;
+    _beatInFlight = false;
+    _busy = false;
+    _sessionId = null;
+    _secret = null;
+    _sessionApplianceId = null;
+    _state = null;
+  }
+
+  bool _current(int epoch, DevApiService api) =>
+      mounted && epoch == _epoch && identical(api, _api);
+
+  void _retire(DevApiService api, String id, String secret) {
+    // 반드시 세션을 만든 서버로 보낸다. 전역 stop으로 새 세션을 건드리지 않는다.
+    unawaited(api.end(id, secret).then<void>((_) {}, onError: (_) {}));
+  }
+
   void _say(String message, {bool problem = false}) {
     if (!mounted) return;
     setState(() {
@@ -107,47 +144,96 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     });
   }
 
-  Future<void> _refreshState() async {
+  Future<void> _refreshState({bool settling = false}) async {
     final api = _api;
-    if (api == null) return;
+    if (!mounted || api == null || !_visible || _busy) return;
+    final epoch = _epoch;
+    final read = ++_stateRead;
     try {
       final state = await api.state();
-      if (!mounted) return;
+      if (!_current(epoch, api) || read != _stateRead) return;
       setState(() => _state = state);
+      if (state.phase == 'stopping') {
+        _say('정지 요청을 확인했어요. 남은 동작을 정리하고 있어요.');
+        _scheduleSettlePoll();
+      } else if (settling) {
+        _settlePoll?.cancel();
+        _say(
+            state.phase == 'idle'
+                ? '정지를 확인했어요'
+                : state.phase == 'fault'
+                    ? '정지를 확인하지 못해 새 조작을 막았어요. 다시 정지를 눌러 주세요.'
+                    : '서버 상태가 바뀌었어요. 현재 상태를 확인해 주세요.',
+            problem: state.phase != 'idle');
+      }
     } on DevApiException catch (e) {
+      if (!_current(epoch, api) || read != _stateRead) return;
+      setState(() => _state = null);
       _say(_describe(e), problem: true);
+      if (settling) _scheduleSettlePoll();
     }
+  }
+
+  void _scheduleSettlePoll() {
+    _settlePoll?.cancel();
+    if (!_visible) return;
+    if (_settleAttempts++ >= 20) {
+      _say('정리 완료를 아직 확인하지 못했어요. 상태 새로고침 또는 정지를 눌러 주세요.', problem: true);
+      return;
+    }
+    final epoch = _epoch;
+    _settlePoll = Timer(const Duration(milliseconds: 500), () {
+      if (mounted && epoch == _epoch && _visible) {
+        _refreshState(settling: true);
+      }
+    });
   }
 
   Future<void> _start() async {
     final api = _api;
     final target = _targetId;
-    if (api == null || target == null || _hasSession || _busy) return;
+    if (api == null || target == null || _hasSession || _busy || !_visible) {
+      return;
+    }
+    _invalidate();
+    final epoch = _epoch;
     setState(() => _busy = true);
     try {
       final started = await api.start(target, nodeId: _nodeId);
-      if (!mounted) return;
+      if (!_current(epoch, api) || !_visible) {
+        _retire(api, started.sessionId, started.sessionSecret);
+        return;
+      }
+      if (!started.state.mock ||
+          !started.state.heartbeatTtlS.isFinite ||
+          started.state.heartbeatTtlS <= 0 ||
+          started.state.phase != 'active' ||
+          started.state.session?.sessionId != started.sessionId) {
+        _retire(api, started.sessionId, started.sessionSecret);
+        setState(() => _state = started.state);
+        _say('세션 시작 상태를 확인하지 못했어요. 상태를 다시 확인해 주세요.', problem: true);
+        return;
+      }
       setState(() {
         _sessionId = started.sessionId;
         _secret = started.sessionSecret;
         _sessionApplianceId = target;
         _state = started.state;
-        _beatFailures = 0;
       });
       _startHeartbeat(started.state.heartbeatTtlS);
       _say('세션을 열었어요 — 모의 제어라 실제로 움직이지 않아요');
     } on DevApiException catch (e) {
+      if (!_current(epoch, api)) return;
       _say(_describe(e), problem: true);
-      unawaited(_refreshState());
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_current(epoch, api)) setState(() => _busy = false);
     }
   }
 
   void _startHeartbeat(double ttlS) {
     _heartbeat?.cancel();
-    // TTL의 1/3 주기 -- 한 번 늦어도 다음 것이 TTL 안에 닿는다.
-    final ms = (ttlS * 1000 / 3).round().clamp(300, 1000);
+    // 지연 시 유지 요청을 쌓지 않는다. 한 번의 확인 실패부터 조작을 닫고 종료한다.
+    final ms = (ttlS * 1000 / 3).round().clamp(1, 1000);
     _heartbeat = Timer.periodic(Duration(milliseconds: ms), (_) => _beat());
   }
 
@@ -155,39 +241,42 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     final api = _api;
     final id = _sessionId;
     final secret = _secret;
-    if (api == null || id == null || secret == null || _beatInFlight) return;
+    if (api == null ||
+        id == null ||
+        secret == null ||
+        _beatInFlight ||
+        !_visible) {
+      return;
+    }
+    final epoch = _epoch;
+    final read = _stateRead;
     _beatInFlight = true;
     try {
-      final state = await api.heartbeat(id, secret);
-      if (!mounted || _sessionId != id) return;
-      _beatFailures = 0;
-      setState(() => _state = state);
+      final state =
+          await api.heartbeat(id, secret, ttlS: _state?.heartbeatTtlS ?? 2);
+      if (!_current(epoch, api) || _sessionId != id) return;
+      if (state.phase != 'active' ||
+          !state.mock ||
+          state.session?.sessionId != id) {
+        unawaited(_endSession());
+        return;
+      }
+      if (!_busy && read == _stateRead) setState(() => _state = state);
     } on DevApiException catch (e) {
-      if (!mounted || _sessionId != id) return;
-      if (e.code == 'session_expired' || e.code == 'not_session_owner') {
-        _dropSession();
-        _say('세션이 끝났어요 — 서버가 연결이 끊긴 것으로 보고 멈췄습니다', problem: true);
+      if (!_current(epoch, api) || _sessionId != id) return;
+      if (e.code == 'session_expired') {
+        _invalidate();
+        _say('세션이 끝났어요 — 정지 상태를 다시 확인해 주세요', problem: true);
         unawaited(_refreshState());
         return;
       }
-      _beatFailures++;
-      if (_beatFailures >= 2) {
-        _say('서버 응답이 끊겼어요 — 곧 서버가 스스로 세션을 멈춥니다', problem: true);
-      }
+      // 실패 뒤에는 heartbeat를 재개하지 않는다. 서버 watchdog과 별개로
+      // 세션 종료도 시도하며, 응답이 없다는 이유로 정지를 확정하지 않는다.
+      unawaited(_endSession());
+      _say('연결 유지를 확인하지 못했어요 — 조작을 막고 세션을 끝내고 있어요', problem: true);
     } finally {
-      _beatInFlight = false;
+      if (_current(epoch, api)) _beatInFlight = false;
     }
-  }
-
-  void _dropSession() {
-    _heartbeat?.cancel();
-    _heartbeat = null;
-    if (!mounted) return;
-    setState(() {
-      _sessionId = null;
-      _secret = null;
-      _sessionApplianceId = null;
-    });
   }
 
   Future<void> _command(String text) async {
@@ -195,9 +284,15 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     final id = _sessionId;
     final secret = _secret;
     final appliance = _sessionApplianceId;
-    if (api == null || id == null || secret == null || appliance == null || _busy) {
+    if (api == null ||
+        id == null ||
+        secret == null ||
+        appliance == null ||
+        _busy) {
       return;
     }
+    final epoch = _epoch;
+    _stateRead++;
     setState(() => _busy = true);
     // 재전송이 두 번 실행되지 않게 요청마다 id를 붙인다(서버가 중복을 거절).
     final requestId =
@@ -210,7 +305,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         text: text,
         requestId: requestId,
       );
-      if (!mounted) return;
+      if (!_current(epoch, api) || _sessionId != id) return;
+      _stateRead++;
       setState(() => _state = result.state);
       final sensor = result.sensor;
       _say(
@@ -219,13 +315,18 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
             : '센서(모의): ${sensor.entries.map((e) => '${e.key} ${e.value.toStringAsFixed(1)}').join(' · ')}',
       );
     } on DevApiException catch (e) {
+      if (!_current(epoch, api) || _sessionId != id) return;
       if (e.code == 'session_expired') {
-        _dropSession();
+        _invalidate();
       }
       _say(_describe(e), problem: true);
+      setState(() {
+        _busy = false;
+        _state = null;
+      });
       unawaited(_refreshState());
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (_current(epoch, api)) setState(() => _busy = false);
     }
   }
 
@@ -233,26 +334,37 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
   Future<void> _stop() async {
     final api = _api;
     if (api == null) return;
+    _invalidate();
+    final epoch = _epoch;
+    setState(() => _busy = true);
     try {
       final result = await api.stop();
-      _dropSession(); // 서버가 세션을 닫았다
-      if (!mounted) return;
-      setState(() => _state = result.state);
-      if (result.confirmed) {
-        _say('정지를 확인했어요');
-      } else {
-        _say(
-          '정지를 확인하지 못했어요 — 기기가 잠겼습니다. 다시 정지를 눌러 확인해 주세요.',
-          problem: true,
-        );
-      }
+      if (!_current(epoch, api)) return;
+      _showStopResult(result);
     } on DevApiException catch (e) {
+      if (!_current(epoch, api)) return;
       _say(
         e.isNetwork
-            ? '정지 요청이 서버에 닿지 않았어요 — 정지되지 않았을 수 있습니다'
+            ? '정지 응답을 확인하지 못했어요 — 정지되지 않았을 수 있습니다. 다시 정지를 눌러 주세요.'
             : _describe(e),
         problem: true,
       );
+    } finally {
+      if (_current(epoch, api)) setState(() => _busy = false);
+    }
+  }
+
+  void _showStopResult(DevStopResult result, {bool backgrounded = false}) {
+    setState(() => _state = result.state);
+    if (result.state.phase == 'fault') {
+      _say('정지를 확인하지 못했어요 — 기기가 잠겼습니다. 다시 정지를 눌러 확인해 주세요.', problem: true);
+    } else if (result.state.phase == 'stopping') {
+      _say('정지 요청을 확인했어요. 남은 동작을 정리하고 있어요.');
+      _scheduleSettlePoll();
+    } else if (result.confirmed && result.state.phase == 'idle') {
+      _say(backgrounded ? '앱이 화면에서 사라져 세션을 끝냈어요' : '정지를 확인했어요');
+    } else {
+      _say('정지 완료를 확인하지 못했어요. 현재 상태를 확인하고 다시 정지를 눌러 주세요.', problem: true);
     }
   }
 
@@ -261,45 +373,42 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     final id = _sessionId;
     final secret = _secret;
     if (api == null || id == null || secret == null) return;
-    _dropSession();
+    _invalidate();
+    final epoch = _epoch;
+    setState(() => _busy = true);
     try {
       final result = await api.end(id, secret);
-      if (!mounted) return;
-      setState(() => _state = result.state);
-      if (result.confirmed) {
-        _say(backgrounded
-            ? '앱이 화면에서 사라져 세션을 끝냈어요'
-            : '세션을 끝내고 정지를 확인했어요');
-      } else {
-        _say(
-          '세션은 닫았지만 정지를 확인하지 못했어요 — 기기가 잠겼습니다. 정지를 눌러 확인해 주세요.',
-          problem: true,
-        );
-      }
+      if (!_current(epoch, api)) return;
+      _showStopResult(result, backgrounded: backgrounded);
     } on DevApiException catch (e) {
+      if (!_current(epoch, api)) return;
       _say(
         e.code == 'session_expired'
             ? '세션이 이미 끝나 있었어요'
-            : '세션 종료가 서버에 닿지 않았어요 — 서버가 곧 스스로 멈춥니다',
+            : '세션 종료 응답을 확인하지 못했어요 — 정지 상태를 다시 확인해 주세요.',
         problem: e.code != 'session_expired',
       );
+    } finally {
+      if (_current(epoch, api)) setState(() => _busy = false);
     }
   }
 
   Future<void> _loadLog() async {
     final api = _api;
     if (api == null) return;
+    final epoch = _epoch;
     try {
       final lines = await api.log();
-      if (!mounted) return;
+      if (!_current(epoch, api)) return;
       setState(() => _log = lines);
     } on DevApiException catch (e) {
+      if (!_current(epoch, api)) return;
       _say(_describe(e), problem: true);
     }
   }
 
   String _describe(DevApiException e) => switch (e.code) {
-        'network' => '서버에 닿지 않았어요',
+        'network' => '서버 응답을 확인하지 못했어요',
         'dev_mode_disabled' => '서버에서 개발자 모드가 꺼져 있어요',
         'dev_token_not_configured' => '서버에 개발자 토큰이 설정되지 않았어요',
         'dev_token_required' || 'dev_token_invalid' => '개발자 토큰이 맞지 않아요',
@@ -308,10 +417,15 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         'session_expired' => '세션이 끝났어요 — 새로 시작해 주세요',
         'not_session_owner' => '다른 기기가 연 세션이에요',
         'session_conflict' => '다른 기기가 이미 세션을 열어 두었어요',
+        'session_starting' => '다른 세션의 시작을 처리 중이에요 — 잠시 후 다시 시도해 주세요',
+        'request_capacity_reached' => '요청 기록 한도예요 — 세션을 끝내고 새로 시작해 주세요',
         'execution_busy' => '일반 실행이 진행 중이에요 — 끝난 뒤에 시작할 수 있어요',
-        'stopping' || 'stopped' || 'stop_race' =>
+        'stopping' ||
+        'stopped' ||
+        'stop_race' =>
           '정지를 정리하는 중이에요 — 잠시 후 다시 시도해 주세요',
-        'fault' || 'stop_unconfirmed' =>
+        'fault' ||
+        'stop_unconfirmed' =>
           '정지가 확인되지 않아 기기가 잠겨 있어요 — 정지를 눌러 확인해 주세요',
         'rate_limited' => '요청이 너무 잦아요 — 잠시 후 다시 시도해 주세요',
         'duplicate_request' => '같은 요청이 이미 처리됐어요',
@@ -325,20 +439,35 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
   @override
   Widget build(BuildContext context) {
     final api = ref.watch(devApiServiceProvider);
-    _api = api;
+    if (!identical(_api, api)) {
+      final oldApi = _api;
+      final oldId = _sessionId;
+      final oldSecret = _secret;
+      _invalidate();
+      if (oldApi != null && oldId != null && oldSecret != null) {
+        _retire(oldApi, oldId, oldSecret);
+      }
+      _api = api;
+      _message = null;
+      _log = const [];
+      WidgetsBinding.instance.addPostFrameCallback((_) => _refreshState());
+    }
     final installed = ref.watch(installedAppliancesProvider);
-    if (_targetId == null ||
-        !installed.any((a) => a.id == _targetId)) {
+    if (_targetId == null || !installed.any((a) => a.id == _targetId)) {
       _targetId = installed.isEmpty ? null : installed.first.id;
     }
     ApplianceMap? target;
     for (final a in installed) {
       if (a.id == (_sessionApplianceId ?? _targetId)) target = a;
     }
+    if (target == null || !target.buttons.any((b) => b.id == _pressButtonId)) {
+      _pressButtonId = null;
+    }
 
     final state = _state;
     final notMock = state != null && !state.mock;
     final canStart = api != null &&
+        _visible &&
         state != null &&
         !notMock &&
         !_hasSession &&
@@ -346,6 +475,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         target != null &&
         state.phase == 'idle';
     final canCommand = api != null &&
+        _visible &&
+        target != null &&
         !notMock &&
         _hasSession &&
         !_busy &&
@@ -373,6 +504,15 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
             )
           else ...[
             _PhaseLine(state: state),
+            TextButton(
+              onPressed: _busy
+                  ? null
+                  : () {
+                      _settleAttempts = 0;
+                      _refreshState(settling: _state?.phase == 'stopping');
+                    },
+              child: const Text('상태 새로고침'),
+            ),
             if (_message != null) ...[
               const SizedBox(height: 10),
               Text(
@@ -388,15 +528,17 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
             const SizedBox(height: 20),
             _Label('대상 가전'),
             if (installed.isEmpty)
-              Text('등록된 가전이 없어요',
-                  style: TextStyle(color: context.appMuted))
+              Text('등록된 가전이 없어요', style: TextStyle(color: context.appMuted))
             else
               DropdownButton<String>(
                 isExpanded: true,
-                value: _sessionApplianceId ?? _targetId,
+                value: installed
+                        .any((a) => a.id == (_sessionApplianceId ?? _targetId))
+                    ? (_sessionApplianceId ?? _targetId)
+                    : null,
                 // 세션이 열려 있는 동안에는 대상을 바꾸지 않는다 -- 서버도
                 // 매 명령마다 대상을 다시 확인한다.
-                onChanged: _hasSession
+                onChanged: _hasSession || _busy
                     ? null
                     : (id) => setState(() {
                           _targetId = id;
@@ -413,7 +555,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                 Expanded(
                   child: FilledButton(
                     onPressed: canStart ? _start : null,
-                    style: FilledButton.styleFrom(minimumSize: const Size(0, 52)),
+                    style:
+                        FilledButton.styleFrom(minimumSize: const Size(0, 52)),
                     child: const Text('세션 시작'),
                   ),
                 ),
@@ -421,7 +564,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _hasSession ? () => _endSession() : null,
-                    style: OutlinedButton.styleFrom(minimumSize: const Size(0, 52)),
+                    style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(0, 52)),
                     child: const Text('세션 끝내기'),
                   ),
                 ),
@@ -433,7 +577,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
               spacing: 8,
               runSpacing: 8,
               children: [
-                _CommandButton('상태', canCommand ? () => _command('status') : null),
+                _CommandButton(
+                    '상태', canCommand ? () => _command('status') : null),
                 _CommandButton('홈', canCommand ? () => _command('home') : null),
                 _CommandButton(
                     '센서 읽기', canCommand ? () => _command('sensor read') : null),
@@ -525,12 +670,12 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                 ),
             const SizedBox(height: 12),
             TextButton(
-              onPressed: _hasSession
+              onPressed: _hasSession || _busy
                   ? null
                   : () => ref.read(devTokenProvider.notifier).clear(),
               style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-              child: Text('개발자 토큰 지우기',
-                  style: TextStyle(color: context.appMuted)),
+              child:
+                  Text('개발자 토큰 지우기', style: TextStyle(color: context.appMuted)),
             ),
           ],
         ],
@@ -571,9 +716,7 @@ class _MockBanner extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    notMock
-                        ? '모의 제어 서버가 아니에요'
-                        : '모의 제어 — 실제로 움직이지 않음',
+                    notMock ? '모의 제어 서버가 아니에요' : '모의 제어 — 실제로 움직이지 않음',
                     style: const TextStyle(
                         fontSize: 17, fontWeight: FontWeight.w700),
                   ),
@@ -606,9 +749,17 @@ class _PhaseLine extends StatelessWidget {
       null => (Icons.help_outline, '상태 확인 전', null),
       'idle' => (Icons.radio_button_unchecked, '대기 — 세션 없음', null),
       'active' => (Icons.radio_button_checked, '세션 진행 중', null),
-      'stopping' => (Icons.hourglass_top, '정지 정리 중 — 새 조작 불가', context.appWarning),
+      'stopping' => (
+          Icons.hourglass_top,
+          '정지 정리 중 — 새 조작 불가',
+          context.appWarning
+        ),
       'fault' => (Icons.warning_amber, '정지 미확인 — 기기 잠김', context.appDanger),
-      'execution_busy' => (Icons.play_circle_outline, '일반 실행 중 — 개발자 조작 불가', context.appWarning),
+      'execution_busy' => (
+          Icons.play_circle_outline,
+          '일반 실행 중 — 개발자 조작 불가',
+          context.appWarning
+        ),
       final other => (Icons.help_outline, '알 수 없는 상태: $other', null),
     };
     return Semantics(
@@ -642,7 +793,8 @@ class _Label extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(bottom: 6),
-        child: Text(text, style: TextStyle(color: context.appMuted, fontSize: 13)),
+        child:
+            Text(text, style: TextStyle(color: context.appMuted, fontSize: 13)),
       );
 }
 

@@ -151,7 +151,8 @@ class DevApiService {
     String? apiKey,
   })  : _base = Uri.parse(baseUrl.replaceAll(RegExp(r'/$'), '')),
         _devToken = devToken,
-        _apiKey = (apiKey == null || apiKey.trim().isEmpty) ? null : apiKey.trim(),
+        _apiKey =
+            (apiKey == null || apiKey.trim().isEmpty) ? null : apiKey.trim(),
         _ownsClient = client == null,
         _client = client ?? http.Client();
 
@@ -161,8 +162,7 @@ class DevApiService {
   final bool _ownsClient;
   final http.Client _client;
 
-  // heartbeat TTL(기본 2초)보다 짧아야, 응답 없는 요청이 다음 heartbeat를
-  // 막고 있는 동안 서버가 먼저 세션을 끊는 일이 줄어든다.
+  // 일반 호출 기한. heartbeat는 별도로 TTL의 1/3 이내에 확인한다.
   static const _timeout = Duration(seconds: 5);
 
   void dispose() {
@@ -182,6 +182,7 @@ class DevApiService {
     Map<String, dynamic>? body,
     String? secret,
     Map<String, String>? query,
+    Duration? timeout,
   }) async {
     final uri = _base.replace(path: path, queryParameters: query);
     final http.Response res;
@@ -193,9 +194,9 @@ class DevApiService {
                   headers: _headers(secret: secret, json: body != null),
                   body: body == null ? null : jsonEncode(body),
                 ))
-          .timeout(_timeout);
+          .timeout(timeout ?? _timeout);
     } catch (_) {
-      throw DevApiException(0, 'network', '서버에 닿지 않았어요');
+      throw DevApiException(0, 'network', '서버 응답을 확인하지 못했어요');
     }
     final text = utf8.decode(res.bodyBytes);
     dynamic decoded;
@@ -220,10 +221,11 @@ class DevApiService {
     );
   }
 
-  Future<DevState> state() async =>
-      DevState.fromJson(await _send('GET', '/dev/state') as Map<String, dynamic>);
+  Future<DevState> state() async => DevState.fromJson(
+      await _send('GET', '/dev/state') as Map<String, dynamic>);
 
-  Future<DevSessionStart> start(String applianceId, {required String nodeId}) async {
+  Future<DevSessionStart> start(String applianceId,
+      {required String nodeId}) async {
     final json = await _send(
       'POST',
       '/dev/sessions',
@@ -236,10 +238,16 @@ class DevApiService {
     );
   }
 
-  Future<DevState> heartbeat(String sessionId, String secret) async =>
+  Future<DevState> heartbeat(String sessionId, String secret,
+          {double ttlS = 2}) async =>
       DevState.fromJson(
-        await _send('POST', '/dev/sessions/$sessionId/heartbeat', secret: secret)
-            as Map<String, dynamic>,
+        await _send('POST', '/dev/sessions/$sessionId/heartbeat',
+            secret: secret,
+            timeout: Duration(
+                microseconds:
+                    ((ttlS.isFinite && ttlS > 0 ? ttlS : 2) * 1000000 / 3)
+                        .round()
+                        .clamp(1, 1000000))) as Map<String, dynamic>,
       );
 
   Future<DevCommandResult> command(
@@ -269,13 +277,18 @@ class DevApiService {
   }
 
   Future<DevStopResult> end(String sessionId, String secret) async =>
-      _stopResult(await _send('POST', '/dev/sessions/$sessionId/end', secret: secret));
+      _stopResult(
+          await _send('POST', '/dev/sessions/$sessionId/end', secret: secret));
 
-  Future<DevStopResult> stop() async => _stopResult(await _send('POST', '/dev/stop'));
+  Future<DevStopResult> stop() async =>
+      _stopResult(await _send('POST', '/dev/stop'));
 
   Future<List<DevLogLine>> log({int limit = 20}) async {
-    final list = await _send('GET', '/dev/log', query: {'limit': '$limit'}) as List<dynamic>;
-    return [for (final e in list) DevLogLine.fromJson(e as Map<String, dynamic>)];
+    final list = await _send('GET', '/dev/log', query: {'limit': '$limit'})
+        as List<dynamic>;
+    return [
+      for (final e in list) DevLogLine.fromJson(e as Map<String, dynamic>)
+    ];
   }
 
   DevStopResult _stopResult(dynamic raw) {

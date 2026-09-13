@@ -4,9 +4,11 @@
 // 보낸다 · 화면을 떠나거나 앱이 숨겨지면 세션을 끝내고 heartbeat를 멈춘다 ·
 // 정지 미확인을 완료처럼 말하지 않는다 · 세션 만료를 알리고 명령을 잠근다 ·
 // 모의가 아닌 서버는 조작하지 않는다 · 토큰이 없으면 토큰 입력만 있다.
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -22,6 +24,11 @@ class _FakeDevServer {
   bool mock = true;
   bool stopConfirmed = true;
   bool expired = false;
+  String? stopPhase;
+  bool commandExpires = false;
+  String sessionId = 's1';
+  int sessionCount = 0;
+  final gates = <String, Completer<void>>{};
   final requests = <http.Request>[];
 
   Map<String, dynamic> _state(String phase, {bool session = false}) => {
@@ -30,7 +37,7 @@ class _FakeDevServer {
         'shutting_down': false,
         'session': session
             ? {
-                'session_id': 's1',
+                'session_id': sessionId,
                 'appliance_id': kTestAppliance.id,
                 'node_id': 'phone-console',
                 'started_at': '2026-09-24T10:00:00Z',
@@ -53,13 +60,22 @@ class _FakeDevServer {
 
   late final client = MockClient((request) async {
     requests.add(request);
-    switch (request.url.path) {
+    // Capture server result first, then delay only its delivery to the phone.
+    final response = _handle(request);
+    await gates[request.url.path]?.future;
+    return response;
+  });
+
+  http.Response _handle(http.Request request) {
+    switch (request.url.path
+        .replaceAll(RegExp(r'/sessions/s[0-9]+/'), '/sessions/s1/')) {
       case '/dev/state':
         return _json(_state(phase, session: phase == 'active'));
       case '/dev/sessions':
+        sessionId = 's${++sessionCount}';
         phase = 'active';
         return _json({
-          'session_id': 's1',
+          'session_id': sessionId,
           'session_secret': 'sec-123',
           'state': _state('active', session: true),
         }, 201);
@@ -72,6 +88,11 @@ class _FakeDevServer {
         }
         return _json(_state('active', session: true));
       case '/dev/sessions/s1/commands':
+        if (commandExpires) {
+          return _json({
+            'detail': {'code': 'session_expired', 'message': '끝남'}
+          }, 410);
+        }
         return _json({
           'accepted': true,
           'request_id': 'r',
@@ -81,9 +102,10 @@ class _FakeDevServer {
         });
       case '/dev/sessions/s1/end':
         phase = 'idle';
-        return _json({'confirmed': true, 'message': '', 'state': _state('idle')});
+        return _json(
+            {'confirmed': true, 'message': '', 'state': _state('idle')});
       case '/dev/stop':
-        phase = stopConfirmed ? 'idle' : 'fault';
+        phase = stopPhase ?? (stopConfirmed ? 'idle' : 'fault');
         return _json({
           'confirmed': stopConfirmed,
           'message': '',
@@ -95,7 +117,7 @@ class _FakeDevServer {
     return _json({
       'detail': {'code': 'not_found', 'message': '?'},
     }, 404);
-  });
+  }
 
   int count(String path) => requests.where((r) => r.url.path == path).length;
 }
@@ -145,6 +167,235 @@ Future<void> _close(WidgetTester tester) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('stopping 조회는 유한하며 수동 조회로 다시 확인할 수 있다', (tester) async {
+    final server = _FakeDevServer()..stopPhase = 'stopping';
+    await _open(tester, server);
+    await tester.tap(find.widgetWithText(FilledButton, '정지'));
+    await tester.pump();
+    await tester.pump();
+    for (var i = 0; i < 22; i++) {
+      await tester.pump(const Duration(milliseconds: 550));
+      await tester.pump();
+    }
+    expect(find.textContaining('정리 완료를 아직 확인하지 못했어요'), findsOneWidget);
+    final count = server.count('/dev/state');
+    await tester.pump(const Duration(seconds: 3));
+    expect(server.count('/dev/state'), count);
+    server.phase = 'idle';
+    await tester.tap(find.text('상태 새로고침'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('정지를 확인했어요'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('숨김은 정리 상태 조회를 중단하고 복귀 때만 다시 확인한다', (tester) async {
+    final server = _FakeDevServer()..stopPhase = 'stopping';
+    await _open(tester, server);
+    await tester.tap(find.widgetWithText(FilledButton, '정지'));
+    await tester.pump();
+    await tester.pump();
+    addTearDown(() => tester.binding
+        .handleAppLifecycleStateChanged(AppLifecycleState.resumed));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    await tester.pump();
+    final count = server.count('/dev/state');
+    await tester.pump(const Duration(seconds: 3));
+    expect(server.count('/dev/state'), count);
+    server.phase = 'idle';
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('대기 — 세션 없음'), findsOneWidget);
+    await _close(tester);
+  });
+
+  for (final pendingStart in [false, true]) {
+    testWidgets('서버 변경은 이전 서버의 세션만 종료한다 (시작 대기=$pendingStart)', (tester) async {
+      final oldServer = _FakeDevServer();
+      final newServer = _FakeDevServer();
+      final oldApi = DevApiService('http://old.test',
+          devToken: 'old', client: oldServer.client);
+      final newApi = DevApiService('http://new.test',
+          devToken: 'new', client: newServer.client);
+      final selected = StateProvider<DevApiService?>((ref) => oldApi);
+      _tallViewport(tester);
+      await tester
+          .pumpWidget(buildScreen(const DeveloperConsoleScreen(), overrides: [
+        ...installedOverrides([kTestAppliance]),
+        devApiServiceProvider.overrideWith((ref) => ref.watch(selected)),
+      ]));
+      await tester.pump();
+      await tester.pump();
+      final gate = pendingStart
+          ? (oldServer.gates['/dev/sessions'] = Completer<void>())
+          : null;
+      await _startSession(tester);
+      final container = ProviderScope.containerOf(
+          tester.element(find.byType(DeveloperConsoleScreen)));
+      container.read(selected.notifier).state = newApi;
+      await tester.pump();
+      await tester.pump();
+      gate?.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      expect(oldServer.count('/dev/sessions/s1/end'), 1);
+      expect(newServer.count('/dev/sessions/s1/end'), 0);
+      expect(oldServer.count('/dev/sessions/s1/heartbeat'), 0);
+      expect(newServer.count('/dev/sessions/s1/heartbeat'), 0);
+      expect(find.text('대기 — 세션 없음'), findsOneWidget);
+      await _close(tester);
+    });
+  }
+
+  for (final action in ['hidden', 'dispose', 'stop']) {
+    testWidgets('늦은 시작 응답은 $action 뒤 heartbeat를 되살리지 않는다', (tester) async {
+      final server = _FakeDevServer();
+      final gate = server.gates['/dev/sessions'] = Completer<void>();
+      await _open(tester, server);
+      await _startSession(tester);
+      expect(server.count('/dev/sessions'), 1);
+      if (action == 'hidden') {
+        addTearDown(() => tester.binding
+            .handleAppLifecycleStateChanged(AppLifecycleState.resumed));
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        await tester.pump();
+      } else if (action == 'dispose') {
+        await _close(tester);
+      } else {
+        await tester.tap(find.widgetWithText(FilledButton, '정지'));
+        await tester.pump();
+        await tester.pump();
+      }
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 3));
+      expect(server.count('/dev/sessions/s1/heartbeat'), 0);
+      expect(server.count('/dev/sessions/s1/end'), 1);
+      await _close(tester);
+    });
+  }
+
+  testWidgets('늦은 명령 성공은 새 정지 실패 안내를 덮지 않는다', (tester) async {
+    final server = _FakeDevServer()..stopConfirmed = false;
+    await _open(tester, server);
+    await _startSession(tester);
+    final gate = server.gates['/dev/sessions/s1/commands'] = Completer<void>();
+    await tester.tap(find.widgetWithText(OutlinedButton, '홈'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '정지'));
+    await tester.pump();
+    await tester.pump();
+    gate.complete();
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('정지 미확인 — 기기 잠김'), findsOneWidget);
+    expect(find.textContaining('정지를 확인하지 못했어요'), findsOneWidget);
+    expect(find.textContaining('모의 어댑터가 받았어요'), findsNothing);
+    await _close(tester);
+  });
+
+  testWidgets('옛 명령의 410은 새 세션을 폐기하지 않는다', (tester) async {
+    final server = _FakeDevServer()..commandExpires = true;
+    await _open(tester, server);
+    await _startSession(tester);
+    final gate = server.gates['/dev/sessions/s1/commands'] = Completer<void>();
+    await tester.tap(find.widgetWithText(OutlinedButton, '홈'));
+    await tester.pump();
+    await tester.tap(find.widgetWithText(FilledButton, '정지'));
+    await tester.pump();
+    await tester.pump();
+    await _startSession(tester);
+    gate.complete();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    expect(server.count('/dev/sessions/s2/heartbeat'), greaterThan(0));
+    expect(find.text('세션 진행 중'), findsOneWidget);
+    expect(find.textContaining('새로 시작해 주세요'), findsNothing);
+    await _close(tester);
+  });
+
+  for (final path in ['/dev/state', '/dev/sessions/s1/end']) {
+    testWidgets('늦은 $path 응답은 새 fault를 덮지 않는다', (tester) async {
+      final server = _FakeDevServer()..stopConfirmed = false;
+      await _open(tester, server);
+      await _startSession(tester);
+      final gate = server.gates[path] = Completer<void>();
+      await tester.tap(find.text(path == '/dev/state' ? '상태 새로고침' : '세션 끝내기'));
+      await tester.pump();
+      await tester.tap(find.widgetWithText(FilledButton, '정지'));
+      await tester.pump();
+      await tester.pump();
+      gate.complete();
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('정지 미확인 — 기기 잠김'), findsOneWidget);
+      expect(find.textContaining('정지를 확인하지 못했어요'), findsOneWidget);
+      await _close(tester);
+    });
+  }
+
+  for (final finalPhase in ['idle', 'fault']) {
+    testWidgets('stopping은 완료로 말하지 않고 $finalPhase 까지 조회한다', (tester) async {
+      final server = _FakeDevServer()..stopPhase = 'stopping';
+      await _open(tester, server);
+      await _startSession(tester);
+      await tester.tap(find.widgetWithText(FilledButton, '정지'));
+      await tester.pump();
+      await tester.pump();
+      expect(find.text('정지를 확인했어요'), findsNothing);
+      expect(find.textContaining('남은 동작을 정리'), findsOneWidget);
+      server.phase = finalPhase;
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+      expect(find.text(finalPhase == 'idle' ? '대기 — 세션 없음' : '정지 미확인 — 기기 잠김'),
+          findsOneWidget);
+      final count = server.count('/dev/state');
+      await tester.pump(const Duration(seconds: 2));
+      expect(server.count('/dev/state'), count);
+      await _close(tester);
+    });
+  }
+
+  testWidgets('유휴 정지 실패를 fault 잠금이라고 주장하지 않는다', (tester) async {
+    final server = _FakeDevServer()
+      ..stopConfirmed = false
+      ..stopPhase = 'idle';
+    await _open(tester, server);
+    await tester.tap(find.widgetWithText(FilledButton, '정지'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('정지 완료를 확인하지 못했어요'), findsOneWidget);
+    expect(find.textContaining('기기가 잠겼습니다'), findsNothing);
+    expect(find.text('정지를 확인했어요'), findsNothing);
+    await _close(tester);
+  });
+
+  testWidgets('느린 heartbeat는 TTL 전에 조작을 닫고 늦은 응답을 무시한다', (tester) async {
+    final server = _FakeDevServer();
+    await _open(tester, server);
+    await _startSession(tester);
+    final gate = server.gates['/dev/sessions/s1/heartbeat'] = Completer<void>();
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump(const Duration(milliseconds: 700));
+    await tester.pump();
+    expect(server.count('/dev/sessions/s1/end'), 1);
+    expect(
+        tester
+            .widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '홈'))
+            .onPressed,
+        isNull);
+    gate.complete();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 3));
+    expect(server.count('/dev/sessions/s1/heartbeat'), 1);
+    expect(find.text('세션 진행 중'), findsNothing);
+    await _close(tester);
+  });
 
   testWidgets('모의 제어 배너와 서버 상태를 보여준다', (tester) async {
     final server = _FakeDevServer();
@@ -223,8 +474,8 @@ void main() {
     expect(find.textContaining('정지를 확인하지 못했어요'), findsOneWidget);
     expect(find.text('정지를 확인했어요'), findsNothing);
     expect(find.text('정지 미확인 — 기기 잠김'), findsOneWidget);
-    final start = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, '세션 시작'));
+    final start =
+        tester.widget<FilledButton>(find.widgetWithText(FilledButton, '세션 시작'));
     expect(start.onPressed, isNull);
     await _close(tester);
   });
@@ -282,8 +533,8 @@ void main() {
     await _open(tester, server);
 
     expect(find.text('모의 제어 서버가 아니에요'), findsOneWidget);
-    final start = tester.widget<FilledButton>(
-        find.widgetWithText(FilledButton, '세션 시작'));
+    final start =
+        tester.widget<FilledButton>(find.widgetWithText(FilledButton, '세션 시작'));
     expect(start.onPressed, isNull);
     await _close(tester);
   });
