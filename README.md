@@ -11,8 +11,12 @@
 "자가 검증 + 선제 제어" 지능 레이어를 얹은 시스템이다.**
 
 사용자의 목적(예: "우유 데워줘")을 버튼 입력 시퀀스로 바꿔 물리적으로 누르고, 전류·음향
-센서로 **실제로 눌렸는지 검증**한 뒤 실패 시 재시도하는 폐루프 구조로 동작한다. 나아가 사용
-패턴을 학습해 다음 조작을 먼저 제안하는 것을 목표로 한다.
+센서로 **실제로 눌렸는지 검증**한 뒤 실패 시 재시도하는 폐루프 구조로 동작한다. 나아가 반복
+사용 이력(같은 시간대의 같은 조작)을 바탕으로 다음 조작을 먼저 제안한다.
+
+> **현재 상태:** 폰 앱·키오스크·백엔드·폐루프 제어 로직은 mock 모션 위에서 동작하고
+> 테스트로 고정돼 있다. **실제 모터 구동과 센서 누름 검증은 아직 실기기에서 증명되지
+> 않았다** — 하드웨어 도착 후 [하드웨어 연결 설계](docs/하드웨어-연결-설계.md)의 순서로 잰다.
 
 ---
 
@@ -38,7 +42,7 @@ flowchart LR
         verifier -->|"눌림 판정·신뢰도"| controller
     end
 
-    hw["CoreXY 구동부<br/>(Arduino 모터 PID + SwitchBot Z축)"]
+    hw["CoreXY 구동부<br/>(모터 제어 MCU + Z축 누름 장치 · 방식 결정 중)"]
     sensors["전류·음향 센서"]
     appliance["기존 가전 버튼"]
 
@@ -65,16 +69,19 @@ flowchart LR
 > **앱은 ESP32로 직접 가지 않는다.** ESP32는 폰이 Wi-Fi에 못 붙었을 때만 쓰는 BLE→Wi-Fi
 > 브릿지이며, 그 경우에도 결국 RPi 5의 FastAPI로 전달된다. 즉 **모든 명령은 RPi 5(Interpret)를
 > 반드시 거친다.** RPi 5는 의도를 버튼 시퀀스로 해석한 뒤 RPi 4(Act)에 실행을 위임하고,
-> RPi 4가 실제 폐루프 제어(누름 → 센서 검증 → 재시도)를 맡는다. RPi5 ↔ RPi4 간 통신 방식
-> (HTTP vs UART)은 아직 미확정 — 자세한 내용은 [docs/architecture.md](docs/architecture.md) 참고.
+> RPi 4가 실제 폐루프 제어(누름 → 센서 검증 → 재시도)를 맡는다. RPi5 → RPi4 실행은 UART
+> (`SIMPLELAY_ACT_MODE=uart`, [docs/protocol.md](docs/protocol.md))이고, 가전마다 둔 ESP32
+> 노드를 거치는 경로(HTTP·ESP-NOW)도 있다. 배선 기준 전체 그림은
+> [docs/개발현황.md](docs/개발현황.md) 참고.
 
 | 계층 | 보드 | 역할 |
 | --- | --- | --- |
 | **Interpret** | RPi 5 (8GB) | 의도 해석(LLM/규칙 기반) · 선제 제안 · 앱/터치스크린 API |
 | **Act** | RPi 4 (4GB) | 폐루프 제어(누름·재시도) · 전류/음향 센서 퓨전 검증 · 긴급 정지 |
-| **Bridge** | ESP32 | BLE ↔ Wi-Fi 브릿지 (앱의 Wi-Fi 직통 실패 시 폴백 경로) |
-| **Act 하드웨어** | Arduino + SwitchBot | CoreXY 모터 PID 제어(X/Y) + Z축 버튼 누름 |
-| **App** | Flutter (폰 + RPi5 터치스크린) | 음성/터치 입력, 상태 확인 |
+| **Bridge** | ESP32 | BLE ↔ Wi-Fi 브릿지 (앱의 Wi-Fi 직통 실패 시 폴백 경로) · 물리 비상정지 버튼 신호 |
+| **Node** | ESP32 (가전마다) | 실행 중계 — HTTP 또는 ESP-NOW (컴파일 검증, 실기기 대기) |
+| **Act 하드웨어** | 모터 제어 MCU + Z축 누름 장치 | CoreXY X/Y 이동 + Z축 누름. 제어 펌웨어·Z축 방식은 결정 필요, 코드는 mock |
+| **App** | Flutter 폰 앱 · Flutter 키오스크(RPi5) | 음성/터치 입력, 상태 확인. 키오스크는 RPi5+HDMI 구동 확인, 전용 7인치 터치 패널 미검증 |
 
 > **핵심:** 각 계층의 "자가 검증 + 선제 제어" 지능 레이어(intent/controller/verifier)가
 > SimpleLay만의 신규 구현이다. 재사용과 신규의 경계는
@@ -97,44 +104,40 @@ flowchart LR
 
 ```
 simplelay/
-├── docs/                   # 설계 · 통신 프로토콜 · 버튼맵 · 폐루프 설계 문서
-│   └── button-maps/        #   가전별 버튼 그리드 JSON (전자레인지 등)
-├── rpi/                    # ★ 라즈베리파이 모듈 (SimpleLay 신규 핵심)
-│   ├── verifier/           #   전류·음향 센서 기반 실행 검증
+├── docs/                   # 설계 · 통신 프로토콜 · 버튼맵 · 폐루프 설계 · devlog
+│   └── button-maps/        #   가전별 버튼 그리드 JSON (격자 칸 번호, mm 좌표 아님)
+├── rpi/                    # ★ RPi5 백엔드 (Interpret) + 공용 폐루프 모듈
+│   ├── api/                #   FastAPI HTTP 레이어 (router · deps · schemas · service)
+│   ├── intent/             #   의도 해석 · 반복 이력 기반 제안
 │   ├── controller/         #   폐루프 제어 (명령 → 검증 → 재시도)
-│   ├── intent/             #   패턴 학습 + 의도 해석 (공감지능)
-│   ├── api/                #   FastAPI HTTP 레이어
-│   │   ├── router.py       #     엔드포인트 (execute · status · stop · suggestions)
-│   │   ├── deps.py         #     의존성 주입 (mock/실기기 전환 지점)
-│   │   ├── schemas.py      #     Pydantic 요청·응답 모델
-│   │   └── service.py      #     프레임워크 중립 서비스
-│   ├── tests/              #   단위·통합 테스트 21개
+│   ├── verifier/           #   전류·음향 센서 판정
+│   ├── services/           #   가전·노드 레지스트리, UART·노드 클라이언트, 이력, 개발자 세션
+│   ├── bench/              #   원시 센서 기록기 (판정 없음, 하드웨어 수령 직후 측정용)
+│   ├── tests/              #   백엔드 테스트
 │   └── main.py             #   uvicorn 진입점 (python -m rpi.main)
-├── firmware/               # ESP32 펌웨어 (BLE 브릿지 · 센서 · LED UI)
-└── app/                    # ★ Flutter 앱 (Sense 레이어)
-    └── lib/
-        ├── services/       #   BLE 서비스, 음성 STT
-        ├── providers/      #   Riverpod 상태 관리
-        ├── screens/        #   Home · Voice · Suggestion · Status · Settings
-        └── models/         #   Suggestion, ExecutionStatus
+├── rpi4/                   # RPi4 Act 실행기 (UART 수신 → 폐루프 실행, 모션은 아직 mock)
+├── firmware/               # ESP32 브릿지 펌웨어 (BLE · UART · 비상정지 버튼 · ESP-NOW 게이트웨이)
+├── firmware-node/          # ESP32 가전 노드 펌웨어 (HTTP · ESP-NOW)
+├── app/                    # ★ Flutter 폰 앱 (음성 · 제안 · 상태 · 가전 등록 · 설정)
+├── rpi5-touchscreen-app/   # Flutter 키오스크 (RPi5, 800x480 기준)
+└── scripts/                # RPi 설치 · systemd 유닛 · 키오스크 배포
 ```
 
 ---
 
-## 개발 로드맵 (RPi 레이어 중심)
+## 진행 상황
 
-자세한 마일스톤은 [docs/roadmap.md](docs/roadmap.md) 참고.
+일정·완료 기준은 [docs/결선로드맵.md](docs/결선로드맵.md), 기능별 현황은
+[docs/개발현황.md](docs/개발현황.md)가 기준이다. 최신 테스트 수는 CLAUDE.md의
+"최신 검증 기록"에 실행 날짜와 함께 적는다(이 README에는 숫자를 두지 않는다).
 
-| 마일스톤 | 내용 | 상태 |
-| --- | --- | --- |
-| M0 | Flutter 앱 MVP (BLE · STT · 제안 확인 · 실행 상태, 데모 모드) | ✅ 완료 |
-| M0 | RPi 패턴 학습 · 선제 제안 · 폐루프 제어 모듈 | ✅ 완료 |
-| M0 | FastAPI HTTP 레이어 — execute / status / stop / suggestions (테스트 21개) | ✅ 완료 |
-| M1 | 전류·음향 센서 읽기 (버튼 눌림 신호 감지) | 🔧 진행 중 |
-| M2 | RPi5 ↔ RPi4 IPC 확정 + ESP32 BLE↔Wi-Fi 브릿지 실기기 연결 | 예정 |
-| M3 | **폐루프 E2E** — 앱 → RPi5 → RPi4 → 액추에이터 → 센서 검증 | 예정 |
-| M4 | 공감지능 — 사용 이력 기반 선제 제안 앱 표시 | 예정 |
-| M5 | 인덕션 이식 + 입력 정확도 ≥ 95% | 예정 |
+| 영역 | 상태 |
+| --- | --- |
+| 폰 앱 · 키오스크 · 백엔드 API · 제안 | ✅ mock 모션 위에서 동작, 테스트로 고정 |
+| RPi5 ↔ RPi4 UART 실행·정지 경로 | ✅ 코드·통합 테스트, 실기기 배선 대기 |
+| ESP32 노드 (HTTP · ESP-NOW) | ✅ 컴파일 검증, 실기기 대기 |
+| **실제 모터 구동 · 센서 누름 검증 · 물리 비상정지** | ⏳ 하드웨어 도착 후 H0~H1 ([설계](docs/하드웨어-연결-설계.md)) |
+| 두 번째 가전 | ⏳ 전자레인지 1대 실제 폐루프 성공 뒤 |
 
 ---
 
@@ -142,8 +145,8 @@ simplelay/
 
 | 이름 | 역할 |
 | --- | --- |
-| 박성원 | Flutter 앱 · 라즈베리파이 연동 · 구동부 |
-| 서예솔 | HW 총괄 · ESP32 · 솔레노이드 · 센서 · 하우징 |
+| 박성원 | SW 전반(앱 · 키오스크 · RPi) · 구동부 연동 |
+| 서예솔 | HW 총괄 · ESP32 · 센서 · 하우징 |
 
 ---
 
@@ -151,6 +154,9 @@ simplelay/
 
 | 문서 | 내용 |
 | --- | --- |
+| [docs/개발현황.md](docs/개발현황.md) | 실제 배선 기준 아키텍처 · 기능 현황 · 환경 변수 |
+| [docs/결선로드맵.md](docs/결선로드맵.md) | 결선까지 주차별 일정 · 완료 기준 |
+| [docs/하드웨어-연결-설계.md](docs/하드웨어-연결-설계.md) | 모션 어댑터 계약 · 센서 캡처 · 정지 명칭 · 수령 직후 검증 순서 |
 | [docs/reuse-boundary.md](docs/reuse-boundary.md) | Touch Bridge 재사용 vs SimpleLay 신규 구현 경계 (대회 정당성) |
 | [docs/architecture.md](docs/architecture.md) | 시스템 아키텍처 · 데이터 흐름 · 계층 계약 |
 | [docs/actuator-design.md](docs/actuator-design.md) | 구동부(CoreXY) 기구 설계 확정 사항 |
