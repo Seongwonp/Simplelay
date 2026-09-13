@@ -46,6 +46,10 @@ class KioskSuggestionView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final target = this.target;
+    // 대상을 모르는 제안은 실행을 내걸지 않는다(백로그 B10) — 서버도 대상
+    // 없는 승인을 거절하므로, 눌리는 버튼을 세워 두면 눌렀는데 아무 일도
+    // 안 일어나는 화면이 된다. 폰 제안 확인(D1)과 같은 규칙.
+    final canExecute = target != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(40, 24, 40, 14),
       child: Column(
@@ -151,11 +155,15 @@ class KioskSuggestionView extends StatelessWidget {
               Expanded(
                 flex: 4,
                 child: ElevatedButton(
-                  onPressed: onApprove,
+                  onPressed: canExecute ? onApprove : null,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, 64),
                     backgroundColor: KioskColors.primary,
                     foregroundColor: KioskColors.onAccent,
+                    // 비활성이어도 글자는 읽혀야 한다 — 왜 못 누르는지는
+                    // 아래 안내문이 말한다.
+                    disabledBackgroundColor: KioskColors.border,
+                    disabledForegroundColor: KioskColors.muted,
                     elevation: 0,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -177,7 +185,10 @@ class KioskSuggestionView extends StatelessWidget {
               // 아무 일도 없다"는 사실이다 — 자동으로 실행될까 봐 서두르지 않도록.
               Expanded(
                 child: Text(
-                  '누르지 않으면 실행하지 않아요 · $cdRemaining초',
+                  canExecute
+                      ? '누르지 않으면 실행하지 않아요 · $cdRemaining초'
+                      : '이 제안의 가전을 찾을 수 없어 실행할 수 없어요 · '
+                          '$cdRemaining초',
                   style:
                       const TextStyle(fontSize: 18, color: KioskColors.muted),
                 ),

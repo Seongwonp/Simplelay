@@ -362,7 +362,10 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _fetchAppliances() async {
     final list = await _api.listAppliances();
-    if (!mounted || list.isEmpty) return;
+    // null = 통신 실패 → 마지막으로 안 목록을 유지한다(오프라인 우선).
+    // 빈 목록은 **성공한 답**이다(마지막 가전 삭제, B11) — 이전처럼
+    // 실패와 함께 버리면 서버에 없는 가전의 조작판이 계속 남는다.
+    if (!mounted || list == null) return;
     setState(() {
       _appliances = list;
       _appliancesFromServer = true;
@@ -534,6 +537,11 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _onApprove({KioskSuggestion? suggestion}) async {
     suggestion ??= _currentSuggestion;
     if (suggestion == null) return;
+    // 대상을 모르는 제안은 실행하지 않는다(백로그 B10). 화면이 이미 실행
+    // 버튼을 잠갔지만, 재시도 콜백 등 다른 경로로 와도 같은 규칙이다 --
+    // 서버도 409로 거절하므로 실행 화면으로 넘어가 봐야 실패만 보여준다.
+    final targetId = suggestion.applianceId;
+    if (targetId == null || _findIn(_appliances, targetId) == null) return;
     _countdownTimer?.cancel();
     setState(() => _currentSuggestion = null);
     _toExecuting(suggestion.purpose, applianceId: suggestion.applianceId);

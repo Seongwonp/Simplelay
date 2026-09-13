@@ -21,7 +21,10 @@ import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 class FakeKioskApi implements KioskApiService {
   List<KioskSuggestion> suggestionList = [];
   // 서버 가전 목록 — 비어 있으면 화면이 내장 목록으로 폴백한다
-  List<ApplianceMap> applianceList = const [];
+  // null = 통신 실패(기본) — 이전의 "빈 목록 = 실패" 시절과 달리 이제 빈
+  // 목록은 성공한 답이므로, 목록을 안 정한 테스트는 실패를 흉내 내야
+  // 기존처럼 내장 폴백이 유지된다(B11).
+  List<ApplianceMap>? applianceList;
   KioskStatus statusResult = const KioskStatus(running: false);
   AlertState alertState = AlertState.inactive;
   HealthStatus healthResult = const HealthStatus(ok: true);
@@ -81,7 +84,7 @@ class FakeKioskApi implements KioskApiService {
   Future<void> clearDnd() async {}
 
   @override
-  Future<List<ApplianceMap>> listAppliances() async => applianceList;
+  Future<List<ApplianceMap>?> listAppliances() async => applianceList;
 
   @override
   Future<List<NodeInfo>> listNodes() async => const [];
@@ -124,7 +127,14 @@ class FakeTts extends KioskTtsService {
   }
 }
 
-const _sug = KioskSuggestion(id: 's1', purpose: '우유 데워줘', occurrences: 3);
+// 실행까지 가는 제안은 대상 가전이 있어야 한다(B10) — 대상 없는 제안은
+// 실행 버튼이 잠기므로, 승인 흐름 테스트의 표본에는 대상을 명시한다.
+const _sug = KioskSuggestion(
+  id: 's1',
+  purpose: '우유 데워줘',
+  occurrences: 3,
+  applianceId: 'microwave',
+);
 
 Future<void> _pumpKiosk(
   WidgetTester tester,
@@ -831,6 +841,47 @@ void main() {
     expect(find.text('거실 선풍기'), findsNothing);
   });
 
+  testWidgets('마지막 가전까지 삭제된 빈 목록도 성공한 답으로 반영된다', (tester) async {
+    // 빈 목록을 실패와 함께 버리면(B11) 서버에 없는 가전의 조작판이
+    // 계속 남는다 — 빈 목록은 "조작할 가전이 없다"는 사실이다.
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..applianceList = [customAppliance];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+    expect(find.text('약풍'), findsOneWidget); // 하나뿐이라 바로 조작판
+
+    api.applianceList = const []; // 폰에서 마지막 가전 삭제
+    await tester.pump(const Duration(seconds: 61));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('약풍'), findsNothing);
+    expect(find.text('아직 조작할 가전이 없어요'), findsOneWidget);
+  });
+
+  testWidgets('목록 조회 실패는 보고 있던 가전 목록을 지우지 않는다', (tester) async {
+    // 실패(null)와 빈 목록([])의 구분 — 일시적 통신 실패가 조작판을
+    // 무너뜨리면 안 된다(B11).
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..applianceList = [customAppliance];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    await tester.tap(find.byType(KioskIdleView));
+    await tester.pump();
+    expect(find.text('약풍'), findsOneWidget);
+
+    api.applianceList = null; // 서버에 못 닿음
+    await tester.pump(const Duration(seconds: 61));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('약풍'), findsOneWidget); // 유지
+  });
+
   testWidgets('재부팅 후 저장된 커스텀 가전 선택이 서버 목록 도착 시 복원된다', (tester) async {
     // kAppliances에서만 찾으면 커스텀 선택이 기본값으로 되돌아갔다 (교차 리뷰 #6)
     useKioskViewport(tester);
@@ -935,6 +986,9 @@ void main() {
     await tester.pump(KioskTimings.doneReturn); // 자동 idle 복귀
     await tester.pump();
     expect(find.byType(KioskIdleView), findsOneWidget);
+    // 완료 화면도 대상 줄('전자레인지')을 갖게 되어(B10 표본에 대상 명시),
+    // 전환이 소진되기 전에 다음 화면을 열면 두 화면의 같은 글자가 겹친다.
+    await tester.pump(const Duration(milliseconds: 300));
 
     await tester.tap(find.byType(KioskIdleView)); // manual
     await tester.pump();

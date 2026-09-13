@@ -69,20 +69,48 @@ class KioskApplianceSelectView extends StatelessWidget {
             ),
             const SizedBox(height: 20),
             Expanded(
-              child: GridView.count(
-                crossAxisCount: appliances.length <= 4 ? appliances.length : 4,
-                mainAxisSpacing: 14,
-                crossAxisSpacing: 14,
-                childAspectRatio: 1.1,
-                children: [
-                  for (final appliance in appliances)
-                    _ApplianceCard(
-                      appliance: appliance,
-                      isLastUsed: appliance.id == lastUsedId,
-                      onTap: () => onSelect(appliance),
+              // 0대는 정상 상태다(마지막 가전을 폰에서 삭제한 직후, B11) —
+              // GridView는 crossAxisCount 0으로 죽으므로 먼저 가른다.
+              child: appliances.isEmpty
+                  ? const Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.add_home_outlined,
+                              size: 44, color: KioskColors.muted),
+                          SizedBox(height: 14),
+                          Text(
+                            '아직 조작할 가전이 없어요',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.w600,
+                              color: Colors.white,
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            '휴대폰 앱에서 가전을 추가하면 여기에 나타나요',
+                            style: TextStyle(
+                                fontSize: 18, color: KioskColors.muted),
+                          ),
+                        ],
+                      ),
+                    )
+                  : GridView.count(
+                      crossAxisCount:
+                          appliances.length <= 4 ? appliances.length : 4,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: 1.1,
+                      children: [
+                        for (final appliance in appliances)
+                          _ApplianceCard(
+                            appliance: appliance,
+                            isLastUsed: appliance.id == lastUsedId,
+                            onTap: () => onSelect(appliance),
+                          ),
+                      ],
                     ),
-                ],
-              ),
             ),
           ],
         ),

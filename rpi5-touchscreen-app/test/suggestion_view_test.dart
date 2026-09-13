@@ -56,6 +56,39 @@ void main() {
     expect(find.text('지금 실행'), findsOneWidget);
   });
 
+  testWidgets('대상을 모르는 제안은 실행 버튼을 잠그고 이유를 말한다', (tester) async {
+    // 백로그 B10 — 서버도 대상 없는 승인을 409로 거절하므로, 눌리는
+    // 버튼을 세워 두면 "눌렀는데 아무 일도 없는" 화면이 된다.
+    await _pump(tester);
+
+    final button = tester.widget<ElevatedButton>(find.ancestor(
+      of: find.text('지금 실행'),
+      matching: find.byType(ElevatedButton),
+    ));
+    expect(button.onPressed, isNull);
+    expect(
+      find.textContaining('가전을 찾을 수 없어 실행할 수 없어요'),
+      findsOneWidget,
+    );
+    // 넘기기는 그대로 된다 — 카드에서 벗어날 길은 항상 있어야 한다.
+    final reject = tester.widget<OutlinedButton>(find.ancestor(
+      of: find.text('이번만 넘기기'),
+      matching: find.byType(OutlinedButton),
+    ));
+    expect(reject.onPressed, isNotNull);
+  });
+
+  testWidgets('대상이 있으면 실행 버튼이 살아 있다', (tester) async {
+    await _pump(tester, target: kMicrowaveAppliance);
+
+    final button = tester.widget<ElevatedButton>(find.ancestor(
+      of: find.text('지금 실행'),
+      matching: find.byType(ElevatedButton),
+    ));
+    expect(button.onPressed, isNotNull);
+    expect(find.textContaining('누르지 않으면 실행하지 않아요'), findsOneWidget);
+  });
+
   testWidgets('다시 받지 않기도 최소 터치 크기를 지킨다', (tester) async {
     await _pump(tester, target: kMicrowaveAppliance);
 

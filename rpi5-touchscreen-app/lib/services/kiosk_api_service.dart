@@ -337,13 +337,17 @@ class KioskApiService {
   }
 
   /// GET /appliances — 서버가 가진 가전 목록(내장 + 폰에서 등록한 커스텀).
-  /// 실패하면 빈 목록 — 호출부가 하드코딩 내장 가전으로 폴백한다(오프라인 우선).
-  Future<List<ApplianceMap>> listAppliances() async {
+  ///
+  /// **실패는 null, 성공한 빈 목록은 []** (백로그 B11). 실패를 빈 목록으로
+  /// 표현하면 "서버에 가전이 0대"와 "서버에 못 닿음"이 섞여서, 마지막
+  /// 가전을 삭제했는데도 키오스크에 이전 조작판이 남는다. null이면 호출부가
+  /// 기존 목록을 유지한다(오프라인 우선).
+  Future<List<ApplianceMap>?> listAppliances() async {
     try {
       final res = await _client
           .get(_base.replace(path: '/appliances'))
           .timeout(_timeout);
-      if (res.statusCode != 200) return const [];
+      if (res.statusCode != 200) return null;
       final body = jsonDecode(res.body) as List<dynamic>;
       final result = <ApplianceMap>[];
       for (final item in body) {
@@ -355,7 +359,7 @@ class KioskApiService {
       }
       return result;
     } catch (_) {
-      return const [];
+      return null;
     }
   }
 
