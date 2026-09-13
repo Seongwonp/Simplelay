@@ -975,6 +975,63 @@ def test_a_reserved_stop_blocks_release_before_it_is_even_sent() -> None:
     assert arbiter.fault_reason is None
 
 
+class _GatedReleaseArbiter(ControlArbiter):
+    """DEVELOPER 반환의 실행 지점을 게이트로 멈춘다 -- '판정은 끝났고
+    반환이 실행되는 중'인 순간을 결정적으로 연다(후속 리뷰 1.5).
+    arm_gate를 켠 다음 한 번만 걸린다."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.arm_gate = False
+        self.release_entered = threading.Event()
+        self.release_gate = threading.Event()
+
+    def release(self, holder: str) -> None:
+        if self.arm_gate and holder == ControlArbiter.DEVELOPER:
+            self.arm_gate = False
+            self.release_entered.set()
+            assert self.release_gate.wait(timeout=5)
+        super().release(holder)
+
+
+def test_release_decision_and_release_share_one_critical_section() -> None:
+    """반환 판정과 실제 반환이 같은 임계구역이다(후속 리뷰 1.5) -- 판정
+    직후·반환 실행 중에 들어온 새 긴급 정지는 그 반환이 끝날 때까지
+    예약조차 하지 못하고, 두 동작은 그 순서로 직렬화된다. (판정만 락
+    안에서 하고 반환을 락 밖에서 하던 이전 구조에서는 이 순간에 새
+    정지가 예약된 뒤 과거 판정대로 반환됐다.)"""
+    arbiter = _GatedReleaseArbiter()
+    adapter = MockMotionAdapter()
+    manager, _, _, _, _ = _manager(adapter=adapter, arbiter=arbiter)
+    session = manager.start("microwave", "node-1")
+
+    arbiter.arm_gate = True
+    ender = threading.Thread(target=manager.end, args=(session.session_id,))
+    ender.start()
+    assert arbiter.release_entered.wait(timeout=5)  # 판정 통과, 반환 실행 중
+
+    stop_done = threading.Event()
+
+    def late_stop() -> None:
+        manager.emergency_stop()
+        stop_done.set()
+
+    stopper = threading.Thread(target=late_stop)
+    stopper.start()
+    # 새 정지의 예약(세션 무효화와 같은 임계구역)은 같은 개발자 락을
+    # 기다린다 -- 반환 도중에 끼어들 수 없다.
+    assert stop_done.wait(timeout=0.3) is False
+    assert adapter.stops() == ["session_ended"]  # 새 정지는 아직 전송 전
+
+    arbiter.release_gate.set()
+    ender.join(timeout=5)
+    stopper.join(timeout=5)
+    assert stop_done.is_set()
+    # 반환 → 새 정지 순으로 직렬화됐다.
+    assert adapter.stops() == ["session_ended", "emergency_stop"]
+    arbiter.acquire(ControlArbiter.EXECUTION)
+
+
 def test_a_late_stop_confirmation_cannot_clear_a_newer_fault() -> None:
     """오래 걸린 정지의 성공 응답이, 그 정지가 시작된 **뒤에** 걸린 새
     fault를 해제하면 안 된다 -- fault 세대(fault_seq) 대조(후속 리뷰 1.3)."""

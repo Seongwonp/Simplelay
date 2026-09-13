@@ -703,18 +703,16 @@ class DeveloperSessionManager:
         미확인 → fault). 반납 여부는 언제나 _maybe_release_locked()가
         판정한다 -- 진행 중인 별도 정지가 있으면 그쪽 완료가 반납한다.
         """
-        release_now = False
         with self._lock:
             self._inflight = False
             if force_release:
                 self._release_owed = True
-            release_now = self._maybe_release_locked()
-        if release_now:
-            self._arbiter.release(ControlArbiter.DEVELOPER)
+            self._maybe_release_locked()
         return result
 
     def _maybe_release_locked(self) -> bool:
-        """제어권 반납의 **단일 판정점** (후속 리뷰 1.3). _lock 안 전용.
+        """제어권 반납의 **단일 판정점이자 실행점** (후속 리뷰 1.3·1.5).
+        _lock 안 전용.
 
         기준은 "누가 마지막으로 끝났는가"가 아니라 "필요한 안전 조건이
         모두 충족됐는가"다:
@@ -726,7 +724,12 @@ class DeveloperSessionManager:
         4. 빚이 생긴 뒤 정지가 확인됐는가 -- 아니면 fault가 신규 획득을
            차단하고 있는가
 
-        True를 돌려주면 호출자가 락 밖에서 release 한다.
+        판정·상태 갱신·중재자 반환을 **같은 임계구역에서 끝낸다**(1.5):
+        판정만 하고 락을 놓은 뒤 반환하면, 그 사이에 예약된 새 정지를
+        모른 채 과거 판정대로 반환한다 -- 판정 당시의 안전이 반환
+        시점까지 유지된다는 보장이 없다. 중재자 락은 콜백 없는
+        최내곽(leaf)이라 개발자 락 → 중재자 락 순서가 안전하다(start()의
+        acquire와 같은 순서). 반환했으면 True.
         """
         if not self._release_owed:
             return False
@@ -739,6 +742,7 @@ class DeveloperSessionManager:
             return False
         self._release_owed = False
         self._stop_confirmed_since_owed = False
+        self._arbiter.release(ControlArbiter.DEVELOPER)
         return True
 
     def _try_stop_confirm(
@@ -855,7 +859,6 @@ class DeveloperSessionManager:
         fault_reason_at_start, fault_seq_at_start = (
             self._arbiter.fault_snapshot()
         )
-        release_now = False
         try:
             self._adapter.stop(reason)
         except Exception:
@@ -869,9 +872,8 @@ class DeveloperSessionManager:
                     "stop_unconfirmed", request_id, reason, session=session,
                     appliance_id=session.appliance_id if session else None,
                 )
-                release_now = self._maybe_release_locked()
-            if release_now:
-                self._arbiter.release(ControlArbiter.DEVELOPER)
+                # 판정과 반환이 같은 임계구역이다(후속 리뷰 1.5).
+                self._maybe_release_locked()
             if raise_on_failure:
                 raise
             log.exception("developer stop unconfirmed (reason=%s)", reason)
@@ -895,9 +897,8 @@ class DeveloperSessionManager:
                     "stopped", request_id, reason, session=session,
                     appliance_id=session.appliance_id if session else None,
                 )
-                release_now = self._maybe_release_locked()
-            if release_now:
-                self._arbiter.release(ControlArbiter.DEVELOPER)
+                # 판정과 반환이 같은 임계구역이다(후속 리뷰 1.5).
+                self._maybe_release_locked()
             return True
 
     def _ensure_watchdog(self) -> None:
