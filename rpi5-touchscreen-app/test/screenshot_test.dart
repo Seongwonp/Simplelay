@@ -286,14 +286,55 @@ void main() {
       'executing',
       KioskExecutingView(
         title: '우유 데워줘',
+        target: kMicrowaveAppliance,
         lastButtons: null,
         currentButton: '시간 90초',
         currentAttempt: 1,
         completedSteps: 1,
+        totalSteps: 3,
         verificationConfidence: 0.93,
         verificationDetail: '전류 +14mA · 소리 +9dB',
         onStop: () {},
       ),
+    );
+  });
+
+  testWidgets('실행 — 보정 후 다시 시도', (t) async {
+    await _shoot(
+      t,
+      'executing_retry',
+      KioskExecutingView(
+        title: '우유 데워줘',
+        target: kMicrowaveAppliance,
+        lastButtons: null,
+        currentButton: '해동',
+        currentAttempt: 2,
+        completedSteps: 0,
+        totalSteps: 3,
+        verificationConfidence: null,
+        verificationDetail: null,
+        onStop: () {},
+      ),
+    );
+  });
+
+  testWidgets('실행 — 큰 글씨', (t) async {
+    await _shoot(
+      t,
+      'executing_large',
+      KioskExecutingView(
+        title: '냉동 만두 데워서 라면이랑 같이 먹을 준비',
+        target: kMicrowaveAppliance,
+        lastButtons: null,
+        currentButton: '냉동식품',
+        currentAttempt: 1,
+        completedSteps: 2,
+        totalSteps: 6,
+        verificationConfidence: 0.93,
+        verificationDetail: '전류 +14mA · 소리 +9dB',
+        onStop: () {},
+      ),
+      textScale: 1.22,
     );
   });
 

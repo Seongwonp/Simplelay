@@ -30,7 +30,6 @@ const _alertInterval = Duration(seconds: 3);
 // 카운트다운 길이는 설정(KioskSettings.countdownSeconds)에서 온다 —
 // 여기 상수는 설정이 없을 때의 기본값 경로로만 쓰인다.
 const _doneReturnDuration = KioskTimings.doneReturn;
-const _execBarFillDuration = KioskTimings.execBarFill;
 // 실행 중 /status가 이 시간 동안 한 번도 응답하지 않으면 서버 유실로 판정 —
 // "실행 중" 화면에 영원히 갇히는 대신 실패 화면으로 탈출한다.
 const _statusLostTimeout = Duration(seconds: 30);
@@ -105,8 +104,9 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _countdownTimer;
 
   String _execTitle = '';
+  // 위쪽 진행 막대. **서버가 준 단계 수로만** 채운다 -- 예전의 9초짜리 시간
+  // 채움은 남은 시간을 아는 척하는 가짜 진행이었다.
   double _execBarValue = 0;
-  Timer? _execFillTimer;
   List<KioskButtonResult>? _lastButtons;
 
   // job 모델: 이 화면이 따라가는 실행의 job_id. 내가 시작한 실행은 접수 응답에서,
@@ -124,6 +124,10 @@ class _KioskScreenState extends State<KioskScreen> {
   int? _completedSteps;
   double? _verificationConfidence;
   String? _verificationDetail;
+  int? _totalSteps;
+  // 이 실행이 대상으로 삼은 가전 -- 제안 승인은 제안의 대상, 수동은 조작판의
+  // 가전, 폰이 시작한 실행은 서버가 말해준 대상.
+  String? _execApplianceId;
 
   bool _doneSuccess = true;
   String _doneLabel = '';
@@ -202,7 +206,6 @@ class _KioskScreenState extends State<KioskScreen> {
   @override
   void dispose() {
     _countdownTimer?.cancel();
-    _execFillTimer?.cancel();
     _pollTimer?.cancel();
     _healthTimer?.cancel();
     _clockTimer?.cancel();
@@ -266,7 +269,7 @@ class _KioskScreenState extends State<KioskScreen> {
       final st = await _api.status();
       if (st.running && st.jobId != null) {
         _activeJobId = st.jobId;
-        _toExecuting(st.currentButton ?? '실행');
+        _toExecuting(st.currentButton ?? '실행', applianceId: st.applianceId);
         return;
       }
     } catch (_) {}
@@ -307,10 +310,11 @@ class _KioskScreenState extends State<KioskScreen> {
                 st.verificationConfidence ?? _verificationConfidence;
             _verificationDetail =
                 st.verificationDetail ?? _verificationDetail;
-            // 실제 진행 데이터가 있으면 9초짜리 가짜 채움 대신 진짜 진행률로
+            _execApplianceId = st.applianceId ?? _execApplianceId;
+            // 서버가 단계 수를 줄 때만 진행을 채운다
             final total = st.totalSteps;
             if (total != null && total > 0) {
-              _execFillTimer?.cancel();
+              _totalSteps = total;
               _execBarValue =
                   ((st.completedSteps ?? 0) / total).clamp(0.0, 0.95);
             }
@@ -324,7 +328,6 @@ class _KioskScreenState extends State<KioskScreen> {
       if (_activeJobId != null) {
         _foreignPolls++;
         if (_foreignPolls >= 5) {
-          _execFillTimer?.cancel();
           _toDone(false, '실행 확인 불가',
               reason: KioskFailureReason.serverLost);
         }
@@ -334,7 +337,6 @@ class _KioskScreenState extends State<KioskScreen> {
       final since = _lastStatusOk;
       if (since != null &&
           DateTime.now().difference(since) > _statusLostTimeout) {
-        _execFillTimer?.cancel();
         _toDone(false, '서버 응답 없음',
             reason: KioskFailureReason.serverLost);
       }
@@ -343,7 +345,6 @@ class _KioskScreenState extends State<KioskScreen> {
 
   void _toIdle() {
     _countdownTimer?.cancel();
-    _execFillTimer?.cancel();
     setState(() {
       _phase = KioskPhase.idle;
       _currentSuggestion = null;
@@ -435,7 +436,6 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 화면으로 보낸다. _toManual은 idle에서만 동작하므로 phase를 먼저 되돌린다.
   void _onManualFromFailure() {
     _countdownTimer?.cancel();
-    _execFillTimer?.cancel();
     setState(() {
       _phase = KioskPhase.manual;
       _manualAppliance =
@@ -466,38 +466,21 @@ class _KioskScreenState extends State<KioskScreen> {
     });
   }
 
-  void _toExecuting(String title) {
+  void _toExecuting(String title, {String? applianceId}) {
     _lastStatusOk = DateTime.now();
     _foreignPolls = 0;
     setState(() {
       _phase = KioskPhase.executing;
       _execTitle = title;
+      _execApplianceId = applianceId;
       _lastButtons = null;
       _execBarValue = 0;
+      _totalSteps = null;
       _currentButton = null;
       _currentAttempt = null;
       _completedSteps = null;
       _verificationConfidence = null;
       _verificationDetail = null;
-    });
-    _startExecFakeFill();
-  }
-
-  void _startExecFakeFill() {
-    const stepMs = 150;
-    var elapsedMs = 0;
-    _execFillTimer?.cancel();
-    _execFillTimer = Timer.periodic(const Duration(milliseconds: stepMs), (timer) {
-      elapsedMs += stepMs;
-      final frac =
-          (elapsedMs / _execBarFillDuration.inMilliseconds).clamp(0.0, 1.0) *
-          0.85;
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
-      setState(() => _execBarValue = frac);
-      if (elapsedMs >= _execBarFillDuration.inMilliseconds) timer.cancel();
     });
   }
 
@@ -509,7 +492,6 @@ class _KioskScreenState extends State<KioskScreen> {
     // 되살려 idle 화면을 완료 화면으로 점프시키는 것을 막는다 —
     // _toDone과 동일한 phase 가드.
     if (_phase != KioskPhase.executing) return;
-    _execFillTimer?.cancel();
     setState(() {
       _lastButtons = buttons;
       _execBarValue = 1.0;
@@ -552,7 +534,7 @@ class _KioskScreenState extends State<KioskScreen> {
     if (suggestion == null) return;
     _countdownTimer?.cancel();
     setState(() => _currentSuggestion = null);
-    _toExecuting(suggestion.purpose);
+    _toExecuting(suggestion.purpose, applianceId: suggestion.applianceId);
     _retryAction = () => _onApprove(suggestion: suggestion);
 
     try {
@@ -562,7 +544,6 @@ class _KioskScreenState extends State<KioskScreen> {
     } catch (_) {
       // 접수 자체가 실패(서버 다운·409 등) — 올 수 없는 완료를 기다리는 대신
       // 즉시 실패 화면으로 탈출한다.
-      _execFillTimer?.cancel();
       if (mounted && _phase == KioskPhase.executing) {
         _toDone(false, suggestion.purpose,
             reason: KioskFailureReason.serverLost);
@@ -588,7 +569,7 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   Future<void> _onManualExecute(ApplianceButton button) async {
-    _toExecuting(button.label);
+    _toExecuting(button.label, applianceId: _currentAppliance.id);
     _retryAction = () => _onManualExecute(button);
     try {
       final accepted = await _api.executeButtons(
@@ -598,7 +579,6 @@ class _KioskScreenState extends State<KioskScreen> {
       _activeJobId = accepted.jobId;
     } catch (_) {
       // 접수 실패 — 즉시 실패 화면으로 탈출 (고착 방지)
-      _execFillTimer?.cancel();
       if (mounted && _phase == KioskPhase.executing) {
         _toDone(false, button.label,
             reason: KioskFailureReason.serverLost);
@@ -770,10 +750,14 @@ class _KioskScreenState extends State<KioskScreen> {
         return KioskExecutingView(
           key: const ValueKey('executing'),
           title: _execTitle,
+          target: _execApplianceId == null
+              ? null
+              : _findIn(_appliances, _execApplianceId!),
           lastButtons: _lastButtons,
           currentButton: _currentButton,
           currentAttempt: _currentAttempt,
           completedSteps: _completedSteps,
+          totalSteps: _totalSteps,
           verificationConfidence: _verificationConfidence,
           verificationDetail: _verificationDetail,
           onStop: _onStop,

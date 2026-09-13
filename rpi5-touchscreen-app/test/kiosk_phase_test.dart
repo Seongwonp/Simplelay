@@ -614,7 +614,7 @@ void main() {
 
   // ── 폐루프 재시도 연출 (디자인 리뷰) ─────────────────────────────────────
 
-  testWidgets('재시도 중에는 자동 보정 중이 크게 표시된다', (tester) async {
+  testWidgets('재시도 중에는 보정 후 다시 시도 중이 크게 표시된다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()
       ..statusResult = const KioskStatus(
@@ -630,9 +630,13 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
 
-    // 심사석에서 읽히는 크기로 승격됐는지 — 14px 보조문구가 아니라 38px hero
-    final banner = tester.widget<Text>(find.text('자동 보정 중'));
-    expect(banner.style!.fontSize, 38);
+    // 심사석에서 읽히는 크기인지 — 보조문구가 아니라 상태 구절 자체가 크다.
+    // 폰 실행 화면과 같은 말을 쓴다('자동 보정 중' → '보정 후 다시 시도 중').
+    final banner = tester.widget<Text>(find.text('보정 후 다시 시도 중'));
+    expect(banner.style!.fontSize, greaterThanOrEqualTo(30));
+    expect(find.byIcon(Icons.autorenew), findsOneWidget);
+    // 재시도 중에도 긴급 정지는 그대로 있다.
+    expect(find.text('긴급 정지'), findsOneWidget);
     expect(find.textContaining('2번째 시도'), findsWidgets);
   });
 
@@ -650,9 +654,9 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
 
-    expect(find.text('자동 보정 중'), findsNothing);
-    // 제목과 hero가 같은 라벨을 쓰므로 hero 쪽 부제로 확인한다
-    expect(find.text('버튼 누르는 중 · 센서로 눌림 확인'), findsOneWidget);
+    expect(find.text('보정 후 다시 시도 중'), findsNothing);
+    // 제목과 hero가 같은 라벨을 쓰므로 hero 쪽 상태 구절로 확인한다
+    expect(find.text('누르는 중'), findsOneWidget);
   });
 
   // ── 카운트다운·설정 진입 (디자인 리뷰) ──────────────────────────────────

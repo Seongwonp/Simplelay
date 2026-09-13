@@ -141,6 +141,8 @@ class KioskStatus {
     this.totalSteps,
     this.jobId,
     this.lastJobId,
+    this.applianceId,
+    this.lastApplianceId,
   });
 
   final bool running;
@@ -159,6 +161,11 @@ class KioskStatus {
   final String? jobId;
   final String? lastJobId;
 
+  /// 이 실행이 **대상으로 삼은** 가전. jobId와 같은 규칙으로 옮겨간다.
+  /// 화면이 지금 고른 가전으로 메우지 않게 하려고 서버가 말해준다.
+  final String? applianceId;
+  final String? lastApplianceId;
+
   factory KioskStatus.fromJson(Map<String, dynamic> json) => KioskStatus(
         running: json['running'] as bool? ?? false,
         lastStatus: json['last_status'] as String?,
@@ -175,6 +182,8 @@ class KioskStatus {
         totalSteps: (json['total_steps'] as num?)?.toInt(),
         jobId: json['job_id'] as String?,
         lastJobId: json['last_job_id'] as String?,
+        applianceId: json['appliance_id'] as String?,
+        lastApplianceId: json['last_appliance_id'] as String?,
       );
 }
 
