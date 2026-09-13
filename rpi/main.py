@@ -235,9 +235,11 @@ async def health(
     actuator=Depends(get_actuator_status),
 ) -> HealthResponse:
     act_mode = os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower() or "local"
+    # 홈 스위치 판독은 기한까지 기다릴 수 있다 — 이벤트 루프 밖에서 읽는다
+    actuator_ready = await asyncio.to_thread(actuator.is_ready)
     return HealthResponse(
         ok=True,
-        actuator_ready=actuator.is_ready(),
+        actuator_ready=actuator_ready,
         dnd_until=svc.dnd_until(),
         act_mode=act_mode,
     )
