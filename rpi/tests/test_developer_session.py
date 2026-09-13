@@ -492,8 +492,9 @@ def test_idle_stop_failure_does_not_lock_the_machine() -> None:
 
 
 class _SlowPressAdapter(MockMotionAdapter):
-    """press가 release될 때까지 멈춰 있는 어댑터 -- 즉시 반환하는 mock으로는
-    '정지가 명령 처리를 기다리는' 결함이 드러나지 않는다(교차 리뷰 #2)."""
+    """press가 **전달 후 응답 대기** 중에 멈춰 있는 어댑터(기록이 먼저) --
+    즉시 반환하는 mock으로는 '정지가 명령 처리를 기다리는' 결함이 드러나지
+    않는다(교차 리뷰 #2). '전달 직전' 지연은 _GatedPressAdapter가 재현한다."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -504,6 +505,22 @@ class _SlowPressAdapter(MockMotionAdapter):
         super().press(button_id)
         self.entered.set()
         assert self.release.wait(timeout=5)
+
+
+class _GatedPressAdapter(MockMotionAdapter):
+    """press가 **전달 직전에** 멈춰 있는 어댑터(기록이 게이트 뒤) --
+    '정지가 먼저 기계에 닿고, 그 뒤에야 명령이 전달되는' 경합을 실제
+    호출 순서로 재현한다(후속 리뷰 1.1-#2의 fake 보강)."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.arrived = threading.Event()
+        self.gate = threading.Event()
+
+    def press(self, button_id: str) -> None:
+        self.arrived.set()
+        assert self.gate.wait(timeout=5)
+        super().press(button_id)
 
 
 def test_emergency_stop_does_not_wait_for_a_slow_command() -> None:
@@ -567,6 +584,122 @@ def test_command_that_raced_past_a_stop_is_stopped_again() -> None:
     assert result.accepted is False
     # 최종 상태는 '멈춤' -- 늦은 명령 뒤에 정지가 한 번 더 나갔다.
     assert adapter.stops()[-1] == "stop_after_late_command"
+
+
+def test_control_is_not_released_until_the_late_command_is_dead() -> None:
+    """정지 성공 ≠ 제어권 반납. 이전 명령이 어댑터 안에 살아 있는 동안은
+    stopping 상태로 남아 새 실행·새 세션이 거절되고, 그 명령의 무효화
+    (재정지 확인) 뒤에야 제어권이 나간다(후속 리뷰 1.1-#1)."""
+    adapter = _GatedPressAdapter()
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+
+    results: list = []
+    worker = threading.Thread(
+        target=lambda: results.append(
+            manager.submit(session.session_id, "microwave", "press BT-05")
+        )
+    )
+    worker.start()
+    assert adapter.arrived.wait(timeout=5)  # press가 전달 직전에 멈춰 있다
+
+    manager.emergency_stop()  # 즉시 반환 -- 명령을 기다리지 않는다
+    assert manager.session is None
+    assert adapter.stops() == ["emergency_stop"]  # 정지는 이미 기계에 닿았다
+
+    # stopping 상태 -- "마지막 호출이 stop"이지만 이전 press가 살아 있으므로
+    # 어느 쪽도 제어권을 얻지 못한다.
+    with pytest.raises(ControlConflictError):
+        arbiter.acquire(ControlArbiter.EXECUTION)
+    with pytest.raises(DevSessionConflict):
+        manager.start("microwave", "node-2")
+
+    adapter.gate.set()  # 이제야 press가 (정지 뒤에) 전달된다
+    worker.join(timeout=5)
+    [result] = results
+    assert result.accepted is False
+    # 어댑터 명령 흐름: stop → 늦은 press → 재정지. 마지막은 항상 stop이다.
+    assert [c[0] for c in adapter.calls] == ["stop", "press", "stop"]
+    assert adapter.stops() == ["emergency_stop", "stop_after_late_command"]
+    # 무효화가 확인된 뒤에야 제어권이 나간다.
+    arbiter.acquire(ControlArbiter.EXECUTION)
+
+
+def test_dispatch_exception_still_settles_with_a_stop() -> None:
+    """어댑터 예외로 끝난 명령은 전달 여부를 모른다 -- 정리(정지)를
+    건너뛰지 않는다(후속 리뷰 1.1-#2). 정지가 확인되면 세션은 유지된다."""
+
+    class _ExplodingPress(MockMotionAdapter):
+        def press(self, button_id: str) -> None:
+            super().press(button_id)
+            raise RuntimeError("uart timeout mid-flight")
+
+    adapter = _ExplodingPress()
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+
+    result = manager.submit(session.session_id, "microwave", "press BT-05")
+
+    assert result.accepted is False
+    assert "정지를 보냈습니다" in (result.reason or "")
+    assert adapter.stops() == ["command_error"]
+    # 정지가 확인됐으니 세션·제어권은 유지 -- 다시 시도할 수 있다.
+    assert manager.session is not None
+    assert arbiter.holder == ControlArbiter.DEVELOPER
+    assert manager.submit(session.session_id, "microwave", "home").accepted
+
+
+def test_dispatch_exception_with_unconfirmed_stop_locks_the_machine() -> None:
+    """명령도 예외, 정리 정지도 실패 -- 동작·정지 어느 쪽도 확인하지
+    못했으므로 세션 폐기 + 장치 잠금이다(후속 리뷰 1.1-#2)."""
+
+    class _DeadLink(MockMotionAdapter):
+        def press(self, button_id: str) -> None:
+            super().press(button_id)
+            raise RuntimeError("link down")
+
+        def stop(self, reason: str) -> None:
+            super().stop(reason)
+            raise RuntimeError("link down")
+
+    adapter = _DeadLink()
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+
+    result = manager.submit(session.session_id, "microwave", "press BT-05")
+
+    assert result.accepted is False
+    assert "잠갔" in (result.reason or "")
+    assert manager.session is None
+    assert (arbiter.fault_reason or "").startswith("stop_unconfirmed:")
+    with pytest.raises(ControlFaultedError):
+        arbiter.acquire(ControlArbiter.EXECUTION)
+
+
+def test_close_and_start_race_never_leaves_a_session() -> None:
+    """종료 표시와 세션 생성이 같은 락으로 직렬화된다(후속 리뷰 1.1-#3) --
+    어느 순서로 겹쳐도 종료된 매니저에 세션이 남지 않는다."""
+    for _ in range(50):
+        manager, _, _, _, arbiter = _manager()
+        barrier = threading.Barrier(2)
+
+        def opener(m=manager, b=barrier) -> None:
+            b.wait()
+            try:
+                m.start("microwave", "node-1")
+            except DevSessionConflict:
+                pass
+
+        def closer(m=manager, b=barrier) -> None:
+            b.wait()
+            m.close()
+
+        t1 = threading.Thread(target=opener)
+        t2 = threading.Thread(target=closer)
+        t1.start(); t2.start(); t1.join(); t2.join()
+
+        assert manager.session is None
+        assert arbiter.holder is None
 
 
 def test_heartbeat_expiry_is_not_blocked_by_a_slow_command() -> None:

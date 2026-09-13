@@ -18,9 +18,13 @@
   ``execution_busy()`` 콜백은 서로의 락을 반대 순서로 잡는 교착 구조라
   제거했다. 락 순서: 개발자 락 → 중재자 락(leaf). 서비스 쪽도 서비스 락 →
   중재자 락이라 역전이 없다.
-- **정지는 명령 처리를 기다리지 않는다.** 어댑터 호출은 상태 락 밖에서
-  하고, 정지는 epoch를 올린 뒤 어댑터에 바로 닿는다. 정지와 경합해 늦게
-  나간 명령은 epoch 불일치로 감지해 곧바로 다시 멈춘다.
+- **정지는 명령 처리를 기다리지 않지만, 제어권 반납은 기다린다.** 어댑터
+  호출은 상태 락 밖에서 하고, 정지는 epoch를 올린 뒤 어댑터에 바로 닿는다.
+  정지와 경합해 늦게 나간 명령은 epoch 불일치로 감지해 곧바로 다시 멈추고,
+  그 재정지가 확인될 때까지 제어권은 반납되지 않는다(stopping 상태) --
+  "마지막 호출이 stop이었다"가 아니라 "이전 명령이 다시 동작할 수 없는
+  상태"가 다음 제어권의 조건이다. 어댑터 예외로 끝난 명령도 같은 settle
+  경로를 지나 정지로 정리된다.
 - **정지 실패는 세션 폐기 ≠ 장치 사용 가능.** ``adapter.stop()``이 실패하면
   세션은 닫되 중재자에 fault(정지 미확인)를 걸어 새 실행·새 세션을 전부
   막는다. 복구는 명시적이다 — 이후 긴급 정지가 **실제로 확인되면** 푼다.
@@ -324,6 +328,15 @@ class DeveloperSessionManager:
         # 정지가 올라갈 때마다 1 증가 -- 락 밖에서 진행 중이던 명령이
         # "내가 검증받은 세대"와 대조해 정지 이후의 자신을 알아챈다.
         self._epoch = 0
+        # 어댑터 모션 호출이 진행 중인가. 정지는 이것을 기다리지 않지만,
+        # **제어권 반납은 기다린다**: 정지 성공만으로 반납하면, 아직 어댑터
+        # 안에 있는 이전 명령이 살아 있는 채로 일반 실행이 제어권을 얻는다
+        # (후속 리뷰 1.1-#1). _lock으로 보호.
+        self._inflight = False
+        # 정지가 세션을 닫았는데 명령이 진행 중이었다 -- 반납을 그 명령의
+        # 정리(settle)에게 위임했다는 표시. 그동안 중재자 holder는 DEVELOPER
+        # 로 남아 새 실행이 409를 받는다(stopping 상태). _lock으로 보호.
+        self._release_pending = False
         # heartbeat 만료 기준(단조 시계). datetime(expires_at)은 표시용이다.
         self._deadline: float | None = None
         self._log: deque[DevLogEntry] = deque(maxlen=self.LOG_LIMIT)
@@ -357,8 +370,6 @@ class DeveloperSessionManager:
     # ── 세션 수명 ──
 
     def start(self, appliance_id: str, node_id: str) -> DevSession:
-        if self._closed:
-            raise DevSessionConflict("서버가 종료 중이라 세션을 열 수 없습니다")
         # 대상 검증이 제일 먼저다 -- 없는 가전의 세션은 제어권을 잡기 전에
         # 거절해야 중재자에 점유 흔적조차 남지 않는다.
         if self._known_appliance is not None and not self._known_appliance(
@@ -369,6 +380,11 @@ class DeveloperSessionManager:
             )
         self.tick()  # 만료된 이전 세션이 있으면 정지·정리부터
         with self._lock:
+            # 종료 판정은 세션 생성과 **같은 락 안**이다 -- 락 밖에서 먼저
+            # 읽으면 close()가 그 직후 종료를 마쳐도 세션이 만들어져,
+            # 감시자 없는 세션이 종료된 서버에 남는다(후속 리뷰 1.1-#3).
+            if self._closed:
+                raise DevSessionConflict("서버가 종료 중이라 세션을 열 수 없습니다")
             if self._session is not None:
                 self._record("start_rejected", None, "다른 개발자 세션이 열려 있음",
                              appliance_id=appliance_id)
@@ -379,10 +395,17 @@ class DeveloperSessionManager:
             try:
                 self._arbiter.acquire(ControlArbiter.DEVELOPER)
             except ControlConflictError as exc:
-                self._record("start_rejected", None, "일반 실행이 진행 중",
+                # holder가 DEVELOPER인데 세션이 없다면 stopping 상태다 --
+                # 이전 세션의 진행 중 명령이 무효화 확인을 기다리고 있다.
+                busy = (
+                    "일반 실행이 진행 중"
+                    if exc.holder == ControlArbiter.EXECUTION
+                    else "이전 세션의 정지를 정리하는 중"
+                )
+                self._record("start_rejected", None, busy,
                              appliance_id=appliance_id)
                 raise DevSessionConflict(
-                    "일반 실행이 끝난 뒤에 시작할 수 있습니다"
+                    f"{busy}입니다 -- 잠시 후 다시 시도해 주세요"
                 ) from exc
             now = self._clock.now()
             session = DevSession(
@@ -424,22 +447,26 @@ class DeveloperSessionManager:
         """heartbeat가 끊긴 세션을 멈추고 닫는다. watchdog 스레드가 주기로
         부르고, 모든 진입점도 검증 전에 부른다(감시 주기 사이의 공백 방지)."""
         with self._lock:
-            session = self._session
-            if session is None or self._deadline is None:
+            if self._session is None or self._deadline is None:
                 return None
             if self._monotonic() < self._deadline:
                 return None
-            self._close_session_locked()
+            session, release_now = self._detach_session_locked()
         # 정지는 락 밖에서 -- 어댑터가 느려도 다른 정지·조회를 막지 않는다.
-        self._send_stop("heartbeat_timeout", session, raise_on_failure=False)
+        self._send_stop(
+            "heartbeat_timeout", session,
+            raise_on_failure=False, release=release_now,
+        )
         return "heartbeat_timeout"
 
     def end(self, session_id: str, reason: str = "session_ended") -> None:
         self.tick()
         with self._lock:
-            session = self._require_locked(session_id)
-            self._close_session_locked()
-        self._send_stop(reason, session, raise_on_failure=True)
+            self._require_locked(session_id)
+            session, release_now = self._detach_session_locked()
+        self._send_stop(
+            reason, session, raise_on_failure=True, release=release_now
+        )
 
     def emergency_stop(self, reason: str = "emergency_stop") -> None:
         """세션이 있든 없든, 명령이 무엇이었든 **먼저** 멈춘다.
@@ -447,28 +474,37 @@ class DeveloperSessionManager:
         정지가 실패하면 fault를 걸고 예외를 올린다. 정지가 성공하면 --
         그것이 곧 '기계가 멈췄다'는 확인이므로 -- 이전의 정지 미확인
         fault를 푼다. 이것이 fault의 명시적 복구 절차다.
+
+        어댑터 안에 진행 중인 명령이 있으면 정지는 **즉시** 나가되 제어권
+        반납은 그 명령의 정리로 미룬다(stopping 상태) -- 그동안 일반 실행은
+        여전히 거절된다.
         """
         with self._lock:
-            session = self._session
-            if session is not None:
-                self._close_session_locked()
-        self._send_stop(reason, session, raise_on_failure=True)
+            session, release_now = self._detach_session_locked()
+        self._send_stop(
+            reason, session, raise_on_failure=True, release=release_now
+        )
 
     def close(self) -> None:
         """서버 종료 정리 -- 감시 스레드를 멈추고, 열린 세션이 있으면
         정지를 보낸 뒤 닫는다. 이후 start()는 거절된다."""
-        self._closed = True
+        with self._lock:
+            # 종료 표시는 start()의 판정과 같은 락으로 직렬화한다
+            # (후속 리뷰 1.1-#3).
+            self._closed = True
         self._watch_stop.set()
         thread = self._watch_thread
         if thread is not None and thread.is_alive():
             thread.join(timeout=2.0)
         try:
             with self._lock:
-                session = self._session
-                if session is None:
+                if self._session is None:
                     return
-                self._close_session_locked()
-            self._send_stop("server_shutdown", session, raise_on_failure=False)
+                session, release_now = self._detach_session_locked()
+            self._send_stop(
+                "server_shutdown", session,
+                raise_on_failure=False, release=release_now,
+            )
         except Exception:  # 종료 절차는 서로를 막지 않는다
             log.exception("developer session shutdown stop failed")
 
@@ -485,12 +521,10 @@ class DeveloperSessionManager:
         # 정지는 세션 검증보다 앞선다 -- 멈추라는 말은 언제나 통한다.
         if isinstance(text, str) and text.strip().lower() == "stop":
             with self._lock:
-                session = self._session
-                if session is not None:
-                    self._close_session_locked()
+                session, release_now = self._detach_session_locked()
             ok = self._send_stop(
                 "user_stop", session, raise_on_failure=False,
-                request_id=request_id,
+                request_id=request_id, release=release_now,
             )
             if ok:
                 return DevResult(True, request_id, normalized="stop")
@@ -540,6 +574,9 @@ class DeveloperSessionManager:
 
         # 어댑터 호출은 상태 락 밖 -- 정지·heartbeat가 이 호출을 기다리지
         # 않는다. dispatch 락은 모션 호출끼리의 직렬화만 담당한다.
+        # 정상 반환이든 예외든 반드시 _settle_after_dispatch를 지난다 --
+        # 예외 경로가 정리(재정지·반납·잠금)를 건너뛰면 안 된다
+        # (후속 리뷰 1.1-#2).
         with self._dispatch_lock:
             with self._lock:
                 if self._epoch != epoch:
@@ -548,39 +585,147 @@ class DeveloperSessionManager:
                         "정지되어 명령을 보내지 않았습니다",
                         appliance_id,
                     )
-            sensor = self._dispatch(command)
+                self._inflight = True
+            try:
+                sensor = self._dispatch(command)
+            except Exception:
+                log.exception("developer command dispatch failed")
+                return self._settle_after_dispatch(
+                    request_id, appliance_id, epoch, command,
+                    sensor=None, dispatch_failed=True,
+                )
+            return self._settle_after_dispatch(
+                request_id, appliance_id, epoch, command,
+                sensor=sensor, dispatch_failed=False,
+            )
 
+    # ── 내부 ──
+
+    def _settle_after_dispatch(
+        self,
+        request_id: str,
+        appliance_id: str,
+        epoch: int,
+        command: DevCommand,
+        *,
+        sensor: dict[str, float] | None,
+        dispatch_failed: bool,
+    ) -> DevResult:
+        """모든 디스패치의 단일 종착점 -- 정상 반환·예외 공통.
+
+        여기서 정하는 것:
+        - epoch가 그대로고 예외도 없었으면 성공.
+        - 정지와 경합했으면(stale) 재정지로 최종 상태를 '멈춤'으로 만들고,
+          정지가 미뤄 둔 제어권 반납(_release_pending)을 **그 뒤에** 수행한다
+          -- 이전 명령이 다시 동작할 수 없음을 확인한 다음에만 다음
+          제어권이 나간다.
+        - 예외로 끝난 명령은 장치에 닿았는지 모른다 -- 확인 대신 정지로
+          정리하고, 그 정지도 확인 못 하면 세션 폐기 + fault.
+        """
         with self._lock:
+            self._inflight = False
             stale = self._epoch != epoch
-            if not stale:
+            release_deferred = stale and self._release_pending
+            if release_deferred:
+                self._release_pending = False
+            if not stale and not dispatch_failed:
                 self._record(
                     "command_accepted",
                     request_id,
                     command.normalized(),
                     appliance_id=appliance_id,
                 )
-        if stale:
-            # 명령이 정지와 경합해 정지 **뒤에** 어댑터에 닿았을 수 있다.
-            # 최종 상태를 '멈춤'으로 만든다 -- 어댑터의 명령 흐름에서 이
-            # stop이 그 명령보다 뒤이므로, 기계는 멈춘 채로 끝난다.
-            ok = self._send_stop(
-                "stop_after_late_command", None, raise_on_failure=False,
-                request_id=request_id,
-                # 늦은 명령이 어댑터에 닿았을 수 있다 -- 재정지가 실패하면
-                # 기계 상태를 모르는 것이므로 잠근다.
-                trip_on_failure=True,
+        if not stale and not dispatch_failed:
+            return DevResult(
+                True, request_id,
+                normalized=command.normalized(), sensor=sensor,
             )
+
+        if stale:
+            # 명령이 정지와 경합해 정지 **뒤에** 어댑터에 닿았을 수 있다
+            # (예외로 끝났어도 마찬가지 -- 전달 여부를 모른다). 어댑터의
+            # 명령 흐름에서 이 stop이 그 명령보다 뒤이므로, 기계는 멈춘
+            # 채로 끝난다. 재정지가 실패하면 기계 상태를 모르므로 잠근다.
+            ok = self._try_stop_confirm(
+                "stop_after_late_command", request_id, trip_on_failure=True
+            )
+            if release_deferred:
+                # 반납은 재정지 시도 **후** -- 성공이면 명령이 무효화됐고,
+                # 실패면 fault가 이미 모든 획득을 막는다.
+                self._arbiter.release(ControlArbiter.DEVELOPER)
             reason = (
                 "정지 요청과 겹쳐 명령을 취소하고 다시 멈췄습니다"
                 if ok
                 else "정지 요청과 겹쳤고 재정지도 확인하지 못했습니다 -- 기기를 잠갔습니다"
             )
             return DevResult(False, request_id, reason=reason)
+
+        # 예외로 끝났고 정지 경합은 없었다 -- 세션은 아직 열려 있다.
+        ok = self._try_stop_confirm(
+            "command_error", request_id, trip_on_failure=False
+        )
+        if ok:
+            # 정지가 확인됐으니 세션은 유지 -- 사용자가 다시 시도할 수 있다.
+            return DevResult(
+                False, request_id,
+                reason="명령 전달 중 오류가 나 안전을 위해 정지를 보냈습니다 "
+                "-- 다시 시도해 주세요",
+            )
+        # 명령 결과도, 정지도 확인하지 못했다 -- 세션 폐기 + 장치 잠금.
+        self._arbiter.trip_fault("stop_unconfirmed:command_error")
+        with self._lock:
+            session = self._session
+            if session is not None:
+                self._close_session_locked()
+        self._arbiter.release(ControlArbiter.DEVELOPER)
         return DevResult(
-            True, request_id, normalized=command.normalized(), sensor=sensor
+            False, request_id,
+            reason="명령 오류 후 정지도 확인하지 못했습니다 -- 기기를 잠갔습니다",
         )
 
-    # ── 내부 ──
+    def _try_stop_confirm(
+        self, reason: str, request_id: str | None, *, trip_on_failure: bool
+    ) -> bool:
+        """어댑터에 정지를 보내고 확인 여부만 돌려준다. 락 밖 전용.
+
+        _send_stop과 달리 세션·제어권을 건드리지 않는다 -- settle 경로가
+        반납 순서를 직접 통제해야 하기 때문이다.
+        """
+        try:
+            self._adapter.stop(reason)
+        except Exception:
+            if trip_on_failure:
+                self._arbiter.trip_fault(f"stop_unconfirmed:{reason}")
+            with self._lock:
+                self._record("stop_unconfirmed", request_id, reason)
+            log.exception("developer stop unconfirmed (reason=%s)", reason)
+            return False
+        if (self._arbiter.fault_reason or "").startswith("stop_unconfirmed:"):
+            self._arbiter.clear_fault()
+            with self._lock:
+                self._record(
+                    "fault_cleared", request_id, f"정지 확인됨({reason})"
+                )
+        with self._lock:
+            self._record("stopped", request_id, reason)
+        return True
+
+    def _detach_session_locked(self) -> tuple[DevSession | None, bool]:
+        """세션을 떼어내고, 제어권을 **지금** 반납해도 되는지 판정한다.
+
+        반환: (떼어낸 세션, 지금 반납 가능 여부). 어댑터 안에 진행 중인
+        명령이 있으면 반납을 그 명령의 settle에 위임한다(_release_pending)
+        -- 그동안 중재자는 DEVELOPER를 쥔 채라 새 실행이 거절된다.
+        _lock을 잡은 채로만 부른다.
+        """
+        session = self._session
+        if session is None:
+            return None, False
+        self._close_session_locked()
+        if self._inflight:
+            self._release_pending = True
+            return session, False
+        return session, True
 
     def _dispatch(self, command: DevCommand) -> dict[str, float] | None:
         match command.kind:
@@ -616,30 +761,28 @@ class DeveloperSessionManager:
         session: DevSession | None,
         *,
         raise_on_failure: bool,
+        release: bool,
         request_id: str | None = None,
-        trip_on_failure: bool | None = None,
     ) -> bool:
         """어댑터에 정지를 보내고 결과를 fault/복구로 옮긴다. 락 밖 전용.
 
         - 성공: '기계가 멈췄다'는 확인이므로 이전 fault(정지 미확인)를 푼다.
-        - 실패 + 기계가 움직였을 수 있음(세션이 있었거나 늦은 명령이 나감):
-          fault를 걸어 새 실행·새 세션을 막는다.
+        - 실패 + 세션이 있었음(기계가 움직였을 수 있음): fault를 걸어
+          새 실행·새 세션을 막는다.
         - 실패 + 움직이던 주체 없음: 잠그지 않고 실패만 기록한다(유휴
           상태의 어댑터 단절로 시스템 전체가 잠기면 안 된다).
 
-        제어권 반납은 정지 시도 **후**, 그리고 **이 호출이 세션을 닫았을
-        때만** 한다 -- 무조건 반납하면 그 사이 새로 열린 세션의 제어권을
-        벗겨내, 세션은 있는데 중재자는 비어 있는 상태(일반 실행과 동시
-        조작 가능)가 된다.
+        제어권 반납은 정지 시도 **후**, 그리고 호출자가 ``release=True``로
+        허락했을 때만 한다. _detach_session_locked()가 그 판정을 내린다 --
+        어댑터 안에 진행 중인 명령이 남아 있으면 정지 성공만으로는
+        반납하지 않는다(그 명령의 settle이 재정지를 확인한 뒤 반납한다,
+        후속 리뷰 1.1-#1). 무조건 반납하면 새로 열린 세션의 제어권을
+        벗겨내는 사고도 난다.
         """
-        should_trip = (
-            trip_on_failure if trip_on_failure is not None
-            else session is not None
-        )
         try:
             self._adapter.stop(reason)
         except Exception:
-            if should_trip:
+            if session is not None:
                 # 반납보다 fault가 먼저다 -- 둘 사이에 실행이 제어권을
                 # 얻는 창을 만들지 않는다.
                 self._arbiter.trip_fault(f"stop_unconfirmed:{reason}")
@@ -648,7 +791,7 @@ class DeveloperSessionManager:
                     "stop_unconfirmed", request_id, reason, session=session,
                     appliance_id=session.appliance_id if session else None,
                 )
-            if session is not None:
+            if release:
                 self._arbiter.release(ControlArbiter.DEVELOPER)
             if raise_on_failure:
                 raise
@@ -669,14 +812,16 @@ class DeveloperSessionManager:
                     "stopped", request_id, reason, session=session,
                     appliance_id=session.appliance_id if session else None,
                 )
-            if session is not None:
+            if release:
                 self._arbiter.release(ControlArbiter.DEVELOPER)
             return True
 
     def _ensure_watchdog(self) -> None:
-        if self._watchdog_interval_s is None or self._closed:
+        if self._watchdog_interval_s is None:
             return
         with self._lock:
+            if self._closed:
+                return
             if self._watch_thread is not None and self._watch_thread.is_alive():
                 return
             self._watch_thread = threading.Thread(
