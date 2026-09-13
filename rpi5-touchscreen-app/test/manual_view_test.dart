@@ -1,0 +1,89 @@
+// 수동 조작 — 어느 가전의 판인지가 먼저 읽히고, 버튼 글자는 멀리서도 보인다.
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
+
+Future<List<String>> _pump(
+  WidgetTester tester,
+  ApplianceMap appliance, {
+  double textScale = 1.0,
+}) async {
+  final pressed = <String>[];
+  tester.view.physicalSize = const Size(800, 480);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(MaterialApp(
+    home: MediaQuery(
+      data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
+      child: Scaffold(
+        body: KioskManualView(
+          appliance: appliance,
+          onExecute: (b) => pressed.add(b.label),
+          onCancel: () {},
+        ),
+      ),
+    ),
+  ));
+  return pressed;
+}
+
+void main() {
+  testWidgets('가전 이름이 크게, 버튼 라벨은 멀리서 읽히는 크기로', (tester) async {
+    await _pump(tester, kMicrowaveAppliance);
+
+    final name = tester.widget<Text>(find.text('전자레인지'));
+    expect(name.style!.fontSize, greaterThanOrEqualTo(28));
+    final label = tester.widget<Text>(find.text('즉석밥'));
+    expect(label.style!.fontSize, greaterThanOrEqualTo(20));
+    // 내부 버튼 id는 나오지 않는다.
+    expect(find.textContaining('BT-'), findsNothing);
+  });
+
+  testWidgets('버튼은 최소 터치 크기를 넘고, 누르면 그 버튼을 맡긴다', (tester) async {
+    final pressed = await _pump(tester, kMicrowaveAppliance);
+
+    final cell = find.ancestor(
+      of: find.text('시작'),
+      matching: find.byType(InkWell),
+    );
+    final size = tester.getSize(cell);
+    expect(size.height, greaterThanOrEqualTo(48));
+    expect(size.width, greaterThanOrEqualTo(48));
+
+    await tester.tap(find.text('시작'));
+    expect(pressed, ['시작']);
+  });
+
+  testWidgets('스크린리더에 버튼으로 읽힌다', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, kMicrowaveAppliance);
+
+    expect(find.bySemanticsLabel('시작 버튼 누르기'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('준비 안 된 가전은 이유를 말하고 눌러도 맡기지 않는다', (tester) async {
+    final pressed = await _pump(
+      tester,
+      const ApplianceMap(
+        id: 'microwave',
+        name: '전자레인지',
+        category: 'microwave',
+        rows: 4,
+        cols: 3,
+        buttons: [ApplianceButton(id: 'BT-05', label: '시작', x: 2, y: 3)],
+        canExecute: false,
+        readiness: 'needs_setup',
+        readinessReasons: ['버튼 위치 보정이 아직 안 됐어요'],
+      ),
+      textScale: 1.22,
+    );
+
+    expect(find.text('아직 준비가 끝나지 않았어요'), findsOneWidget);
+    expect(find.text('버튼 위치 보정이 아직 안 됐어요'), findsOneWidget);
+    await tester.tap(find.text('시작'), warnIfMissed: false);
+    expect(pressed, isEmpty);
+    expect(tester.takeException(), isNull);
+  });
+}

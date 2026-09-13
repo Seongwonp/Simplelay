@@ -28,6 +28,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 const _kioskSize = Size(800, 480);
@@ -335,6 +336,58 @@ void main() {
         onStop: () {},
       ),
       textScale: 1.22,
+    );
+  });
+
+  testWidgets('수동 조작', (t) async {
+    await _shoot(
+      t,
+      'manual',
+      KioskManualView(
+        appliance: kMicrowaveAppliance,
+        onExecute: (_) {},
+        onCancel: () {},
+      ),
+    );
+  });
+
+  testWidgets('수동 조작 — 큰 글씨·4열', (t) async {
+    await _shoot(
+      t,
+      'manual_large',
+      KioskManualView(
+        appliance: kInductionAppliance,
+        onExecute: (_) {},
+        onCancel: () {},
+      ),
+      textScale: 1.22,
+    );
+  });
+
+  testWidgets('수동 조작 — 준비 안 됨', (t) async {
+    await _shoot(
+      t,
+      'manual_not_ready',
+      KioskManualView(
+        appliance: const ApplianceMap(
+          id: 'microwave',
+          name: '전자레인지',
+          category: 'microwave',
+          rows: 4,
+          cols: 3,
+          buttons: [
+            ApplianceButton(id: 'BT-01', label: '10초', x: 0, y: 0),
+            ApplianceButton(id: 'BT-03', label: '1분', x: 2, y: 0),
+            ApplianceButton(id: 'BT-08', label: '즉석밥', x: 1, y: 2),
+            ApplianceButton(id: 'BT-05', label: '시작', x: 2, y: 3),
+          ],
+          canExecute: false,
+          readiness: 'needs_setup',
+          readinessReasons: ['버튼 위치 보정이 아직 안 됐어요'],
+        ),
+        onExecute: (_) {},
+        onCancel: () {},
+      ),
     );
   });
 
