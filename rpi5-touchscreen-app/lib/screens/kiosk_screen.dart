@@ -753,9 +753,13 @@ class _KioskScreenState extends State<KioskScreen> {
         );
       case KioskPhase.suggestion:
         final suggestion = _currentSuggestion!;
+        final targetId = suggestion.applianceId;
         return KioskSuggestionView(
           key: const ValueKey('suggestion'),
           suggestion: suggestion,
+          // 제안 **자신의** 대상. 지금 고른 가전(_currentAppliance)으로 메우면
+          // 화면과 실제로 눌릴 가전이 어긋난다.
+          target: targetId == null ? null : _findIn(_appliances, targetId),
           cdRemaining: _cdRemaining,
           cdTotal: _countdownSeconds,
           onApprove: _onApprove,

@@ -67,11 +67,16 @@ class KioskSuggestion {
     this.steps = const [],
     this.reason = '',
     this.timeBand = '',
+    this.applianceId,
   });
 
   final String id;
   final String purpose;
   final int occurrences;
+
+  /// 이 제안이 조작할 가전. 서버가 대상을 모르면(가전 없이 쌓인 옛 이력)
+  /// null이다 -- 그때 화면은 지금 고른 가전으로 대신 채우지 않는다.
+  final String? applianceId;
 
   // 이 루틴을 되풀이하던 시간대('아침'·'저녁'). 환경 제안은 '환경',
   // 시연용 강제 생성은 '데모'로 온다.
@@ -107,6 +112,7 @@ class KioskSuggestion {
         steps: (json['steps'] as List<dynamic>?)?.cast<String>() ?? const [],
         reason: json['reason'] as String? ?? '',
         timeBand: json['time_band'] as String? ?? '',
+        applianceId: json['appliance_id'] as String?,
       );
 }
 

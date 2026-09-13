@@ -668,6 +668,36 @@ void main() {
     expect(find.text('누르지 않으면 실행하지 않아요 · 20초'), findsOneWidget);
   });
 
+  testWidgets('제안 화면은 지금 고른 가전이 아니라 제안 자신의 대상을 말한다',
+      (tester) async {
+    useKioskViewport(tester);
+    const fan = ApplianceMap(
+      id: 'custom_fan',
+      name: '거실 선풍기',
+      category: 'other',
+      rows: 1,
+      cols: 1,
+      buttons: [ApplianceButton(id: 'F-01', label: '전원', x: 0, y: 0)],
+    );
+    final api = FakeKioskApi()
+      ..applianceList = const [kMicrowaveAppliance, fan]
+      ..suggestionList = const [
+        KioskSuggestion(
+          id: 's-fan',
+          purpose: '선풍기 켜줘',
+          occurrences: 0,
+          applianceId: 'custom_fan',
+        ),
+      ];
+
+    await _pumpKiosk(tester, api);
+
+    expect(find.byType(KioskSuggestionView), findsOneWidget);
+    expect(find.text('거실 선풍기'), findsOneWidget);
+    // 기본 선택(전자레인지)으로 메우지 않는다
+    expect(find.text('전자레인지'), findsNothing);
+  });
+
   testWidgets('저장된 카운트다운 설정이 복원되어 적용된다', (tester) async {
     useKioskViewport(tester);
     final tempDir = Directory.systemTemp.createTempSync('kiosk-cd-test');

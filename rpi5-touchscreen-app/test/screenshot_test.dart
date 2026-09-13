@@ -222,6 +222,7 @@ void main() {
       'suggestion',
       KioskSuggestionView(
         suggestion: suggestion,
+        target: kMicrowaveAppliance,
         cdRemaining: 20,
         cdTotal: 20,
         onApprove: () {},
@@ -237,6 +238,38 @@ void main() {
       'suggestion_large',
       KioskSuggestionView(
         suggestion: suggestion,
+        target: kMicrowaveAppliance,
+        cdRemaining: 20,
+        cdTotal: 20,
+        onApprove: () {},
+        onReject: () {},
+        onRejectMute: () {},
+      ),
+      textScale: 1.22,
+    );
+  });
+
+  testWidgets('제안 — 6단계·긴 이름·큰 글씨', (t) async {
+    // 순서 목록이 길고 이름이 길어도 행동 버튼이 밀려나지 않는지 본다.
+    await _shoot(
+      t,
+      'suggestion_long_large',
+      KioskSuggestionView(
+        suggestion: const KioskSuggestion(
+          id: 'long',
+          purpose: '냉동 만두 데워서 라면이랑 같이 먹을 준비',
+          occurrences: 6,
+          timeBand: '저녁',
+          steps: ['해동', '냉동식품', '1분', '1분', '30초', '시작'],
+        ),
+        target: const ApplianceMap(
+          id: 'custom_mw',
+          name: '주방 창가 쪽 큰 전자레인지',
+          category: 'microwave',
+          rows: 1,
+          cols: 1,
+          buttons: [],
+        ),
         cdRemaining: 20,
         cdTotal: 20,
         onApprove: () {},
@@ -287,6 +320,7 @@ void main() {
       'kiosk15_suggestion',
       KioskSuggestionView(
         suggestion: suggestion,
+        target: kMicrowaveAppliance,
         cdRemaining: 20,
         cdTotal: 20,
         onApprove: () {},
