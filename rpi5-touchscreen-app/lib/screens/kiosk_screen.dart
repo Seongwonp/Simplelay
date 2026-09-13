@@ -509,8 +509,10 @@ class _KioskScreenState extends State<KioskScreen> {
     // 실행 결과 음성 안내. '서버 응답 없음'은 라벨이 아니라 오류 상황이라
     // 문장을 따로 쓴다 ("서버 응답 없음 실패했습니다"는 어색).
     _tts.speak(
+      // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
+      // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
-          ? '$label 완료되었습니다.'
+          ? '$label, 버튼 조작을 마쳤어요.'
           : label == '서버 응답 없음'
               ? '서버 응답이 없습니다. 연결을 확인해 주세요.'
               : '$label 실패했습니다. 화면을 확인해 주세요.',
@@ -767,6 +769,9 @@ class _KioskScreenState extends State<KioskScreen> {
           key: const ValueKey('done'),
           success: _doneSuccess,
           label: _doneLabel,
+          target: _execApplianceId == null
+              ? null
+              : _findIn(_appliances, _execApplianceId!),
           reason: _doneReason,
           // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
           // 그때는 수동 조작(사람이 직접 누르기)을 앞세운다.

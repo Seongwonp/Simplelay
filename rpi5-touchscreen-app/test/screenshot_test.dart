@@ -375,7 +375,41 @@ void main() {
     await _shoot(
       t,
       'done',
-      const KioskDoneView(success: true, label: '우유 데워줘'),
+      KioskDoneView(
+        success: true,
+        label: '우유 데워줘',
+        target: kMicrowaveAppliance,
+        onDismiss: () {},
+      ),
+    );
+  });
+
+  testWidgets('완료 — 큰 글씨', (t) async {
+    await _shoot(
+      t,
+      'done_large',
+      KioskDoneView(
+        success: true,
+        label: '냉동 만두 데워서 라면이랑 같이 먹을 준비',
+        target: kMicrowaveAppliance,
+        onDismiss: () {},
+      ),
+      textScale: 1.22,
+    );
+  });
+
+  testWidgets('완료 — 확인 못 함', (t) async {
+    await _shoot(
+      t,
+      'done_failed',
+      KioskDoneView(
+        success: false,
+        label: '우유 데워줘',
+        target: kMicrowaveAppliance,
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
     );
   });
 }

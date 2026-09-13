@@ -432,7 +432,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
 
     // 완료 발화
-    expect(tts.utterances.last, contains('완료되었습니다'));
+    // 화면과 같은 말 -- '완료되었습니다'는 조리·세탁이 끝났다고 들린다.
+    expect(tts.utterances.last, contains('버튼 조작을 마쳤어요'));
     await tester.pump(KioskTimings.doneReturn);
   });
 
