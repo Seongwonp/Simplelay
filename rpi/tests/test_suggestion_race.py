@@ -61,7 +61,9 @@ def test_concurrent_approve_and_reject_exactly_one_wins():
     service = build_service(executor)
 
     for round_no in range(RACE_ROUNDS):
-        suggestion = service.create_demo_suggestion(f"우유 데워줘 {round_no}")
+        suggestion = service.create_demo_suggestion(
+            f"우유 데워줘 {round_no}", appliance_id="microwave"
+        )
         assert suggestion is not None
         barrier = threading.Barrier(2)
         outcomes: dict[str, bool] = {}
@@ -108,7 +110,9 @@ def test_concurrent_double_approve_executes_exactly_once():
     service = build_service(executor)
 
     for round_no in range(RACE_ROUNDS):
-        suggestion = service.create_demo_suggestion(f"저녁 준비 {round_no}")
+        suggestion = service.create_demo_suggestion(
+            f"저녁 준비 {round_no}", appliance_id="microwave"
+        )
         assert suggestion is not None
         barrier = threading.Barrier(2)
         successes: list[bool] = []

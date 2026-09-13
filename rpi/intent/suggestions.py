@@ -19,6 +19,22 @@ class SuggestionAlreadyApprovedError(RuntimeError):
     pass
 
 
+class SuggestionTargetUnknownError(RuntimeError):
+    """대상 가전이 없는 제안은 실행할 수 없다 (백로그 B10).
+
+    appliance_id가 없는 실행은 '기본 로컬 컨트롤러'로 흘러가는데, 다중
+    가전 이후 그 기본은 **우연히 전자레인지일 뿐**이다 -- 사용자가 화면에서
+    본 대상과 기계가 움직이는 대상이 다를 수 있는 구멍을 데모 편의라는
+    이유로 남기지 않는다. RuntimeError라 라우터에서 409가 된다.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "이 제안은 대상 가전을 알 수 없어 실행할 수 없습니다 -- "
+            "가전을 등록한 뒤 새 제안을 기다려 주세요"
+        )
+
+
 class ProactiveSuggestionService:
     def __init__(
         self,
@@ -137,6 +153,10 @@ class ProactiveSuggestionService:
                 raise UnknownSuggestionError(suggestion_id) from exc
             if suggestion.status is not SuggestionStatus.PENDING:
                 raise SuggestionAlreadyApprovedError(suggestion_id)
+            # 대상 없는 제안은 게이트를 소비하기 전에 거절한다(B10) --
+            # 카드는 pending으로 남아 화면이 이유를 보여줄 수 있다.
+            if suggestion.appliance_id is None:
+                raise SuggestionTargetUnknownError()
             self._suggestions[suggestion_id] = replace(
                 suggestion, status=SuggestionStatus.APPROVED
             )

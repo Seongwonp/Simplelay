@@ -436,6 +436,37 @@ def test_demo_suggestion_reject_dismisses(client):
     assert client.post(f"/suggestions/{created['id']}/reject").status_code == 404
 
 
+def test_demo_suggest_always_carries_a_target(client):
+    # 대상 없는 리허설 제안은 더 이상 만들 수 없다(B10) — body 없는 기본
+    # 호출도 내장 전자레인지를 대상으로 갖는다(리허설 흐름 유지).
+    body = client.post("/demo/suggest", json={}).json()
+    assert body["appliance_id"] == "microwave"
+
+
+def test_demo_suggest_rejects_unknown_appliance(client):
+    # 오타 난 대상으로 만들면 "승인해도 실행 안 되는 카드"가 남는다 —
+    # 실행과 같은 기준(레지스트리 존재)으로 생성 시점에 거절한다.
+    res = client.post(
+        "/demo/suggest", json={"appliance_id": "ghost_appliance"}
+    )
+    assert res.status_code == 404
+
+
+def test_targetless_suggestion_cannot_be_approved(client):
+    # 레거시 경로: appliance_id 없는 옛 사용 기록에서 온 제안은 여전히
+    # 생길 수 있다 — 승인은 409로 거절되고, 카드는 pending으로 남아
+    # 화면이 이유를 보여줄 수 있어야 한다(사라지면 안 된다).
+    svc = get_suggestion_service()
+    suggestion = svc.create_demo_suggestion("옛날 루틴")  # 서비스 계층 기본: 대상 없음
+
+    res = client.post(f"/suggestions/{suggestion.suggestion_id}/approve")
+
+    assert res.status_code == 409
+    assert "대상 가전" in res.json()["detail"]
+    listed = client.get("/suggestions").json()
+    assert any(s["id"] == suggestion.suggestion_id for s in listed)
+
+
 # ── job 모델 계약 ─────────────────────────────────────────────────────────────
 
 def test_job_ids_are_unique_per_execution(client):

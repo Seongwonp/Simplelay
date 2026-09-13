@@ -64,8 +64,13 @@ def test_one_off_usage_does_not_create_suggestion():
 
 
 def test_suggestion_never_executes_before_approval_and_approval_is_one_time():
+    # 실행까지 가는 제안은 대상 가전이 있어야 한다(B10) — 실사용 기록은
+    # 폰이 항상 appliance_id를 실어 보내므로 여기서도 명시한다.
     records = tuple(
-        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(
+            at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED,
+            appliance_id="microwave",
+        )
         for day in (20, 21, 22)
     )
     detector, clock, _ = build_detector(records)
@@ -86,7 +91,10 @@ def test_suggestion_never_executes_before_approval_and_approval_is_one_time():
 
 def test_approval_uses_existing_intent_and_closed_loop_controller():
     records = tuple(
-        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(
+            at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED,
+            appliance_id="microwave",
+        )
         for day in (20, 21, 22)
     )
     detector, clock, usage_log = build_detector(records)
@@ -112,7 +120,8 @@ def test_approval_uses_existing_intent_and_closed_loop_controller():
     assert result.status is ExecutionStatus.SUCCEEDED
     assert [command.button for command in grbl.commands] == ["해동", "시간 90초", "시작"]
     assert usage_log.records()[-1] == UsageRecord(
-        at_morning(23), "우유 데워줘", UsageOutcome.SUCCEEDED
+        at_morning(23), "우유 데워줘", UsageOutcome.SUCCEEDED,
+        appliance_id="microwave",
     )
 
 
@@ -198,7 +207,10 @@ def test_approve_still_reresolves_independently_of_the_preview():
     # 승인 시점의 실제 실행은 항상 SimpleLayService의 RuleBasedIntentResolver로
     # 다시 해석된다 — 미리보기에 쓴 리졸버가 승인 실행 결과를 대신하지 않는다.
     records = tuple(
-        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(
+            at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED,
+            appliance_id="microwave",
+        )
         for day in (20, 21, 22)
     )
     detector, clock, usage_log = build_detector(records)

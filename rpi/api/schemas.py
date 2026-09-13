@@ -514,9 +514,11 @@ class DemoSuggestRequest(BaseModel):
     '선제 제안 → 승인 → 실행' 장면을 원하는 시점에 연출하기 위한 것."""
 
     purpose: str = "즉석밥 데워줘"
-    # 어느 가전으로 연출할지. 생략하면 제안이 대상 없이 만들어지고, 앱은
-    # 그것을 '대상 모름'으로 취급해 실행을 막는다 -- 데모에서는 채워야 한다.
-    appliance_id: str | None = None
+    # 어느 가전으로 연출할지 -- **필수**다(B10). 대상 없는 제안은 승인이
+    # 거절되므로, 리허설에서 실행까지 이어지려면 대상을 명시해야 한다.
+    # 기본값이 내장 전자레인지인 이유: 기본 purpose(데우기)와 짝이 맞고,
+    # body 없는 리허설 호출(데모시나리오.md)이 그대로 동작해야 하기 때문.
+    appliance_id: str = "microwave"
 
     @field_validator("purpose")
     @classmethod

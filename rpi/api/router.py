@@ -77,7 +77,11 @@ from .schemas import (
     SuppressionListResponse,
     UnmuteRequest,
 )
-from .service import LlmNotConfiguredError, SimpleLayService
+from .service import (
+    LlmNotConfiguredError,
+    SimpleLayService,
+    UnknownApplianceError,
+)
 
 log = logging.getLogger(__name__)
 
@@ -579,9 +583,17 @@ async def unmute_suppression(
 async def demo_suggest(
     body: DemoSuggestRequest,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+    registry=Depends(get_appliance_registry),
 ) -> SuggestionResponse:
     # 시연용 수동 트리거 — 패턴 감지를 우회해 제안을 즉시 만든다.
     # DND 중에는 실사용과 동일하게 거부(409)해서 데모 중 혼선을 막는다.
+    # 대상 가전은 실제 실행과 같은 기준으로 검증한다(B10) — 오타 난 대상으로
+    # 만들면 "승인해도 실행 안 되는 카드"가 리허설 화면에 남는다.
+    if registry.get(body.appliance_id) is None:
+        raise UnknownApplianceError(
+            f"appliance '{body.appliance_id}' not found -- 삭제되었거나 "
+            "등록되지 않은 가전입니다"
+        )
     suggestion = svc.create_demo_suggestion(
         body.purpose, appliance_id=body.appliance_id
     )
