@@ -328,15 +328,24 @@ class DeveloperSessionManager:
         # 정지가 올라갈 때마다 1 증가 -- 락 밖에서 진행 중이던 명령이
         # "내가 검증받은 세대"와 대조해 정지 이후의 자신을 알아챈다.
         self._epoch = 0
-        # 어댑터 모션 호출이 진행 중인가. 정지는 이것을 기다리지 않지만,
-        # **제어권 반납은 기다린다**: 정지 성공만으로 반납하면, 아직 어댑터
-        # 안에 있는 이전 명령이 살아 있는 채로 일반 실행이 제어권을 얻는다
-        # (후속 리뷰 1.1-#1). _lock으로 보호.
+        # ── 제어권 반납 판정 상태 (전부 _lock 보호) ──
+        # 반납은 조건문을 여기저기 두지 않고 _maybe_release_locked() 한곳이
+        # 판정한다(후속 리뷰 1.3): "누가 마지막으로 끝났는가"가 아니라
+        # "필요한 안전 조건이 모두 충족됐는가"가 기준이다.
+        #
+        # 어댑터 모션 호출 + 그 명령의 안전 정리가 진행 중인가. 정지는
+        # 이것을 기다리지 않지만 반납은 기다린다(1.1-#1, 1.2).
         self._inflight = False
-        # 정지가 세션을 닫았는데 명령이 진행 중이었다 -- 반납을 그 명령의
-        # 정리(settle)에게 위임했다는 표시. 그동안 중재자 holder는 DEVELOPER
-        # 로 남아 새 실행이 409를 받는다(stopping 상태). _lock으로 보호.
-        self._release_pending = False
+        # 진행 중인 어댑터 stop 호출 개수. 정지가 "요청됨"과 "확인됨"은
+        # 다르다 -- 응답 대기 중인 정지가 있는 동안 반납하면, 그 정지가
+        # 늦게 실패했을 때 이미 새 실행이 돌고 있다(1.3).
+        self._stops_inflight = 0
+        # 세션이 닫혀 제어권을 돌려줘야 한다는 빚(owed). 반납 그 자체가
+        # 아니라 "조건이 갖춰지면 반납하라"는 표시다.
+        self._release_owed = False
+        # 빚이 생긴 뒤(세션 닫힘 이후) 정지가 한 번이라도 **확인**됐는가.
+        # 미확인 상태의 반납은 fault가 걸려 있을 때만 허용된다.
+        self._stop_confirmed_since_owed = False
         # heartbeat 만료 기준(단조 시계). datetime(expires_at)은 표시용이다.
         self._deadline: float | None = None
         self._log: deque[DevLogEntry] = deque(maxlen=self.LOG_LIMIT)
@@ -451,22 +460,17 @@ class DeveloperSessionManager:
                 return None
             if self._monotonic() < self._deadline:
                 return None
-            session, release_now = self._detach_session_locked()
+            session = self._detach_session_locked()
         # 정지는 락 밖에서 -- 어댑터가 느려도 다른 정지·조회를 막지 않는다.
-        self._send_stop(
-            "heartbeat_timeout", session,
-            raise_on_failure=False, release=release_now,
-        )
+        self._send_stop("heartbeat_timeout", session, raise_on_failure=False)
         return "heartbeat_timeout"
 
     def end(self, session_id: str, reason: str = "session_ended") -> None:
         self.tick()
         with self._lock:
             self._require_locked(session_id)
-            session, release_now = self._detach_session_locked()
-        self._send_stop(
-            reason, session, raise_on_failure=True, release=release_now
-        )
+            session = self._detach_session_locked()
+        self._send_stop(reason, session, raise_on_failure=True)
 
     def emergency_stop(self, reason: str = "emergency_stop") -> None:
         """세션이 있든 없든, 명령이 무엇이었든 **먼저** 멈춘다.
@@ -480,10 +484,8 @@ class DeveloperSessionManager:
         여전히 거절된다.
         """
         with self._lock:
-            session, release_now = self._detach_session_locked()
-        self._send_stop(
-            reason, session, raise_on_failure=True, release=release_now
-        )
+            session = self._detach_session_locked()
+        self._send_stop(reason, session, raise_on_failure=True)
 
     def close(self) -> None:
         """서버 종료 정리 -- 감시 스레드를 멈추고, 열린 세션이 있으면
@@ -500,11 +502,8 @@ class DeveloperSessionManager:
             with self._lock:
                 if self._session is None:
                     return
-                session, release_now = self._detach_session_locked()
-            self._send_stop(
-                "server_shutdown", session,
-                raise_on_failure=False, release=release_now,
-            )
+                session = self._detach_session_locked()
+            self._send_stop("server_shutdown", session, raise_on_failure=False)
         except Exception:  # 종료 절차는 서로를 막지 않는다
             log.exception("developer session shutdown stop failed")
 
@@ -521,10 +520,10 @@ class DeveloperSessionManager:
         # 정지는 세션 검증보다 앞선다 -- 멈추라는 말은 언제나 통한다.
         if isinstance(text, str) and text.strip().lower() == "stop":
             with self._lock:
-                session, release_now = self._detach_session_locked()
+                session = self._detach_session_locked()
             ok = self._send_stop(
                 "user_stop", session, raise_on_failure=False,
-                request_id=request_id, release=release_now,
+                request_id=request_id,
             )
             if ok:
                 return DevResult(True, request_id, normalized="stop")
@@ -615,10 +614,9 @@ class DeveloperSessionManager:
 
         여기서 정하는 것:
         - epoch가 그대로고 예외도 없었으면 성공.
-        - 정지와 경합했으면(stale) 재정지로 최종 상태를 '멈춤'으로 만들고,
-          정지가 미뤄 둔 제어권 반납(_release_pending)을 **그 뒤에** 수행한다
+        - 정지와 경합했으면(stale) 재정지로 최종 상태를 '멈춤'으로 만든다
           -- 이전 명령이 다시 동작할 수 없음을 확인한 다음에만 다음
-          제어권이 나간다.
+          제어권이 나간다(반납 자체는 _maybe_release_locked가 판정).
         - 예외로 끝난 명령은 장치에 닿았는지 모른다 -- 확인 대신 정지로
           정리하고, 그 정지도 확인 못 하면 세션 폐기 + fault.
         """
@@ -694,21 +692,49 @@ class DeveloperSessionManager:
     def _finish_settle(
         self, result: DevResult, *, force_release: bool = False
     ) -> DevResult:
-        """settle의 단일 출구 -- 여기서만 _inflight를 내리고 반납을 정한다.
+        """settle의 단일 출구 -- 여기서만 _inflight를 내린다.
 
-        반납 조건은 둘뿐이다: 정지가 반납을 이쪽에 위임했거나
-        (_release_pending -- 명령 또는 그 정리가 진행 중일 때 정지가 왔다),
-        이 settle이 자기 세션을 직접 닫았거나(force_release). 둘 다
-        아니면 세션이 아직 살아 있거나(반납할 일 없음) 다른 주체의
-        소유라 건드리지 않는다.
+        force_release는 settle이 자기 세션을 직접 닫은 경우다(정리 정지
+        미확인 → fault). 반납 여부는 언제나 _maybe_release_locked()가
+        판정한다 -- 진행 중인 별도 정지가 있으면 그쪽 완료가 반납한다.
         """
+        release_now = False
         with self._lock:
             self._inflight = False
-            release = self._release_pending or force_release
-            self._release_pending = False
-        if release:
+            if force_release:
+                self._release_owed = True
+            release_now = self._maybe_release_locked()
+        if release_now:
             self._arbiter.release(ControlArbiter.DEVELOPER)
         return result
+
+    def _maybe_release_locked(self) -> bool:
+        """제어권 반납의 **단일 판정점** (후속 리뷰 1.3). _lock 안 전용.
+
+        기준은 "누가 마지막으로 끝났는가"가 아니라 "필요한 안전 조건이
+        모두 충족됐는가"다:
+
+        1. 돌려줄 빚이 있는가(_release_owed -- 세션이 닫혔다)
+        2. 그 세대의 명령·안전 정리가 모두 끝났는가(_inflight)
+        3. 진행 중인 정지 요청이 없는가(_stops_inflight -- "요청됨"은
+           "확인됨"이 아니다)
+        4. 빚이 생긴 뒤 정지가 확인됐는가 -- 아니면 fault가 신규 획득을
+           차단하고 있는가
+
+        True를 돌려주면 호출자가 락 밖에서 release 한다.
+        """
+        if not self._release_owed:
+            return False
+        if self._inflight or self._stops_inflight > 0:
+            return False
+        if (
+            not self._stop_confirmed_since_owed
+            and self._arbiter.fault_reason is None
+        ):
+            return False
+        self._release_owed = False
+        self._stop_confirmed_since_owed = False
+        return True
 
     def _try_stop_confirm(
         self, reason: str, request_id: str | None, *, trip_on_failure: bool
@@ -720,9 +746,13 @@ class DeveloperSessionManager:
         정리의 성공이 풀어 버리면 안 된다(후속 리뷰 1.2). fault 해제는
         사용자의 긴급 정지가 확인되는 경로(_send_stop) 하나뿐이다.
         """
+        with self._lock:
+            self._stops_inflight += 1
         try:
             self._adapter.stop(reason)
         except Exception:
+            with self._lock:
+                self._stops_inflight -= 1
             if trip_on_failure:
                 self._arbiter.trip_fault(f"stop_unconfirmed:{reason}")
             with self._lock:
@@ -730,25 +760,25 @@ class DeveloperSessionManager:
             log.exception("developer stop unconfirmed (reason=%s)", reason)
             return False
         with self._lock:
+            self._stops_inflight -= 1
+            self._stop_confirmed_since_owed = True
             self._record("stopped", request_id, reason)
         return True
 
-    def _detach_session_locked(self) -> tuple[DevSession | None, bool]:
-        """세션을 떼어내고, 제어권을 **지금** 반납해도 되는지 판정한다.
+    def _detach_session_locked(self) -> DevSession | None:
+        """세션을 떼어내고 반납 빚을 기록한다. _lock 안 전용.
 
-        반환: (떼어낸 세션, 지금 반납 가능 여부). 어댑터 안에 진행 중인
-        명령이 있으면 반납을 그 명령의 settle에 위임한다(_release_pending)
-        -- 그동안 중재자는 DEVELOPER를 쥔 채라 새 실행이 거절된다.
-        _lock을 잡은 채로만 부른다.
+        반납 시점은 여기서 정하지 않는다 -- _send_stop·settle의 완료
+        지점들이 _maybe_release_locked()로 판정한다. 세션이 닫히는 순간
+        '정지 확인' 기록을 리셋한다: 이 빚에는 **이후의** 확인만 유효하다.
         """
         session = self._session
         if session is None:
-            return None, False
+            return None
         self._close_session_locked()
-        if self._inflight:
-            self._release_pending = True
-            return session, False
-        return session, True
+        self._release_owed = True
+        self._stop_confirmed_since_owed = False
+        return session
 
     def _dispatch(self, command: DevCommand) -> dict[str, float] | None:
         match command.kind:
@@ -784,45 +814,54 @@ class DeveloperSessionManager:
         session: DevSession | None,
         *,
         raise_on_failure: bool,
-        release: bool,
         request_id: str | None = None,
     ) -> bool:
-        """어댑터에 정지를 보내고 결과를 fault/복구로 옮긴다. 락 밖 전용.
+        """어댑터에 정지를 보내고 결과를 fault/복구/반납 판정으로 옮긴다.
+        락 밖 전용.
 
-        - 성공: '기계가 멈췄다'는 확인이므로 이전 fault(정지 미확인)를 푼다.
+        - 성공: '기계가 멈췄다'는 확인. 이전 fault(정지 미확인)를 풀되,
+          **이 정지가 시작된 뒤 새로 걸린 fault는 풀지 않는다**(fault_seq
+          대조, 후속 리뷰 1.3) -- 오래 걸린 정지의 성공 응답이 그 사이
+          사건을 덮으면 안 된다.
         - 실패 + 세션이 있었음(기계가 움직였을 수 있음): fault를 걸어
           새 실행·새 세션을 막는다.
         - 실패 + 움직이던 주체 없음: 잠그지 않고 실패만 기록한다(유휴
           상태의 어댑터 단절로 시스템 전체가 잠기면 안 된다).
 
-        제어권 반납은 정지 시도 **후**, 그리고 호출자가 ``release=True``로
-        허락했을 때만 한다. _detach_session_locked()가 그 판정을 내린다 --
-        어댑터 안에 진행 중인 명령이 남아 있으면 정지 성공만으로는
-        반납하지 않는다(그 명령의 settle이 재정지를 확인한 뒤 반납한다,
-        후속 리뷰 1.1-#1). 무조건 반납하면 새로 열린 세션의 제어권을
-        벗겨내는 사고도 난다.
+        제어권 반납은 여기서 직접 정하지 않는다 -- 이 정지의 완료를
+        _stops_inflight에 반영한 뒤 _maybe_release_locked()가 판정한다.
+        응답 대기 중인 정지가 남아 있는 동안은 누구도 반납하지 못한다.
         """
+        with self._lock:
+            self._stops_inflight += 1
+        fault_seq_at_start = self._arbiter.fault_seq
+        release_now = False
         try:
             self._adapter.stop(reason)
         except Exception:
             if session is not None:
-                # 반납보다 fault가 먼저다 -- 둘 사이에 실행이 제어권을
-                # 얻는 창을 만들지 않는다.
+                # 반납 판정보다 fault가 먼저다 -- 둘 사이에 실행이
+                # 제어권을 얻는 창을 만들지 않는다.
                 self._arbiter.trip_fault(f"stop_unconfirmed:{reason}")
             with self._lock:
+                self._stops_inflight -= 1
                 self._record(
                     "stop_unconfirmed", request_id, reason, session=session,
                     appliance_id=session.appliance_id if session else None,
                 )
-            if release:
+                release_now = self._maybe_release_locked()
+            if release_now:
                 self._arbiter.release(ControlArbiter.DEVELOPER)
             if raise_on_failure:
                 raise
             log.exception("developer stop unconfirmed (reason=%s)", reason)
             return False
         else:
-            if (self._arbiter.fault_reason or "").startswith(
-                "stop_unconfirmed:"
+            if (
+                (self._arbiter.fault_reason or "").startswith(
+                    "stop_unconfirmed:"
+                )
+                and self._arbiter.fault_seq == fault_seq_at_start
             ):
                 self._arbiter.clear_fault()
                 with self._lock:
@@ -831,11 +870,14 @@ class DeveloperSessionManager:
                         f"정지 확인됨({reason})", session=session,
                     )
             with self._lock:
+                self._stops_inflight -= 1
+                self._stop_confirmed_since_owed = True
                 self._record(
                     "stopped", request_id, reason, session=session,
                     appliance_id=session.appliance_id if session else None,
                 )
-            if release:
+                release_now = self._maybe_release_locked()
+            if release_now:
                 self._arbiter.release(ControlArbiter.DEVELOPER)
             return True
 

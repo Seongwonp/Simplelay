@@ -801,6 +801,149 @@ def test_stale_settle_success_does_not_clear_someone_elses_fault() -> None:
     assert arbiter.fault_reason == "stop_unconfirmed:elsewhere"
 
 
+class _GatedStopAdapter(MockMotionAdapter):
+    """**긴급 정지의 stop 호출**이 게이트에서 응답 대기 중인 상황을
+    재현한다(후속 리뷰 1.3). fail_once=True면 그 정지가 게이트 해제 후
+    실패로 끝난다(한 번만 -- 이후 복구 절차 검증용). 다른 이유의 stop은
+    즉시 통과한다."""
+
+    def __init__(self, *, fail_once: bool = False) -> None:
+        super().__init__()
+        self.fail_once = fail_once
+        self.stop_entered = threading.Event()
+        self.stop_gate = threading.Event()
+
+    def stop(self, reason: str) -> None:
+        if reason == "emergency_stop":
+            self.stop_entered.set()
+            assert self.stop_gate.wait(timeout=5)
+            super().stop(reason)
+            if self.fail_once:
+                self.fail_once = False
+                raise RuntimeError("link down")
+            return
+        super().stop(reason)
+
+
+def _gate_settle(manager):
+    """정상 완료 판정(stale 검사)과 _finish_settle 사이를 멈추는 테스트
+    이음새 -- 리뷰 1.3의 경합 창을 결정적으로 연다."""
+    entered = threading.Event()
+    gate = threading.Event()
+    original = manager._finish_settle
+
+    def gated(result, **kwargs):
+        entered.set()
+        assert gate.wait(timeout=5)
+        return original(result, **kwargs)
+
+    manager._finish_settle = gated
+    return entered, gate
+
+
+def test_normal_completion_does_not_release_while_a_stop_awaits_confirmation() -> None:
+    """정상 완료 직후 긴급 정지가 반납을 위임하고 어댑터에서 지연되는 창 --
+    위임(_release_owed)은 '반납 부탁'이지 '정지 확인'이 아니므로, settle은
+    그 정지가 확인되기 전에는 제어권을 내주지 않는다(후속 리뷰 1.3)."""
+    adapter = _GatedStopAdapter()
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+    settle_entered, settle_gate = _gate_settle(manager)
+
+    results: list = []
+    worker = threading.Thread(
+        target=lambda: results.append(
+            manager.submit(session.session_id, "microwave", "home")
+        )
+    )
+    worker.start()
+    assert settle_entered.wait(timeout=5)  # 정상 완료 판정 직후에서 정지
+
+    stopper = threading.Thread(target=manager.emergency_stop)
+    stopper.start()
+    assert adapter.stop_entered.wait(timeout=5)  # 긴급 정지가 응답 대기 중
+
+    settle_gate.set()  # 정상 완료 재개 -- 위임을 발견하지만
+    worker.join(timeout=5)
+    [result] = results
+    assert result.accepted is True  # 명령 자체는 정지 전에 끝났다
+
+    # 1.3 회귀 지점: 정지가 아직 확인되지 않았으므로 반납하지 않는다.
+    with pytest.raises(ControlConflictError):
+        arbiter.acquire(ControlArbiter.EXECUTION)
+
+    adapter.stop_gate.set()
+    stopper.join(timeout=5)
+    # 정지가 확인된 뒤에야 제어권이 나간다.
+    arbiter.acquire(ControlArbiter.EXECUTION)
+    assert arbiter.fault_reason is None
+
+
+def test_normal_completion_with_failing_late_stop_ends_locked() -> None:
+    """같은 창에서 지연된 긴급 정지가 **실패**로 끝나면 -- 새 실행이 이미
+    돌고 있는 게 아니라, 아무도 제어권을 얻지 못한 채 fault로 잠겨 있어야
+    한다(후속 리뷰 1.3)."""
+    adapter = _GatedStopAdapter(fail_once=True)
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+    settle_entered, settle_gate = _gate_settle(manager)
+
+    worker = threading.Thread(
+        target=manager.submit,
+        args=(session.session_id, "microwave", "home"),
+    )
+    worker.start()
+    assert settle_entered.wait(timeout=5)
+
+    stop_errors: list = []
+
+    def run_stop() -> None:
+        try:
+            manager.emergency_stop()
+        except RuntimeError as exc:
+            stop_errors.append(exc)
+
+    stopper = threading.Thread(target=run_stop)
+    stopper.start()
+    assert adapter.stop_entered.wait(timeout=5)
+
+    settle_gate.set()
+    worker.join(timeout=5)
+    with pytest.raises(ControlConflictError):
+        arbiter.acquire(ControlArbiter.EXECUTION)  # 확인 전 -- 여전히 보류
+
+    adapter.stop_gate.set()
+    stopper.join(timeout=5)
+    assert stop_errors  # 정지 실패는 호출자에게 그대로 올라갔다
+    assert (arbiter.fault_reason or "").startswith("stop_unconfirmed:")
+    with pytest.raises(ControlFaultedError):
+        arbiter.acquire(ControlArbiter.EXECUTION)
+
+    # 문서화된 복구: 긴급 정지가 실제로 확인되면 풀린다(fail_once 소진).
+    manager.emergency_stop()
+    assert arbiter.fault_reason is None
+    arbiter.acquire(ControlArbiter.EXECUTION)
+
+
+def test_a_late_stop_confirmation_cannot_clear_a_newer_fault() -> None:
+    """오래 걸린 정지의 성공 응답이, 그 정지가 시작된 **뒤에** 걸린 새
+    fault를 해제하면 안 된다 -- fault 세대(fault_seq) 대조(후속 리뷰 1.3)."""
+    adapter = _GatedStopAdapter()
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    arbiter.trip_fault("stop_unconfirmed:before")
+
+    stopper = threading.Thread(target=manager.emergency_stop)
+    stopper.start()
+    assert adapter.stop_entered.wait(timeout=5)  # 정지가 응답 대기 중
+
+    arbiter.trip_fault("stop_unconfirmed:newer")  # 그 사이의 새 사건
+
+    adapter.stop_gate.set()
+    stopper.join(timeout=5)
+
+    assert arbiter.fault_reason == "stop_unconfirmed:newer"
+
+
 def test_close_and_start_race_never_leaves_a_session() -> None:
     """종료 표시와 세션 생성이 같은 락으로 직렬화된다(후속 리뷰 1.1-#3) --
     어느 순서로 겹쳐도 종료된 매니저에 세션이 남지 않는다."""

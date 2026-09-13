@@ -65,6 +65,11 @@ class ControlArbiter:
         self._lock = threading.Lock()
         self._holder: str | None = None
         self._fault_reason: str | None = None
+        # fault 세대 번호 -- trip마다 증가. "내 정지가 시작된 뒤 새 fault가
+        # 걸렸는가"를 가리는 근거다: 오래 걸린 정지의 성공 응답이 그 사이
+        # 다른 주체가 건 **새** fault를 해제하면 안 된다(clear 호출자가
+        # 시작 시점의 seq와 대조한다).
+        self._fault_seq = 0
 
     # ── 획득/반납 ──
 
@@ -91,9 +96,11 @@ class ControlArbiter:
         """정지 미확인 잠금. 이후 acquire는 전부 ControlFaultedError."""
         with self._lock:
             self._fault_reason = reason
+            self._fault_seq += 1
 
     def clear_fault(self) -> None:
-        """정지가 실제로 확인된 쪽(성공한 stop)만 부른다."""
+        """정지가 실제로 확인된 쪽(성공한 stop)만 부른다. 그 정지가 시작된
+        뒤 새 fault가 걸리지 않았는지는 호출자가 fault_seq로 대조한다."""
         with self._lock:
             self._fault_reason = None
 
@@ -108,3 +115,8 @@ class ControlArbiter:
     def fault_reason(self) -> str | None:
         with self._lock:
             return self._fault_reason
+
+    @property
+    def fault_seq(self) -> int:
+        with self._lock:
+            return self._fault_seq
