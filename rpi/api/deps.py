@@ -241,6 +241,7 @@ def handle_gateway_line(doc: dict) -> None:
     if kind == "abort":
         log.warning("게이트웨이 물리 E-STOP 수신 — 긴급 정지를 실행합니다")
         get_service().emergency_stop()
+        stop_developer_session_if_any("emergency_stop")
         return
     # 나머지(intent·confirm·sensor_log 등)는 아직 RPi5 쪽 소비자가 없다.
     # 조용히 버리지 않고 남긴다 -- 없어진 줄을 나중에 추적할 수 있어야 한다.
@@ -358,6 +359,91 @@ def get_node_registry() -> NodeRegistry:
     return NodeRegistry(store=get_db(), controller_factory=_node_controller_factory())
 
 
+# ── 개발자 모드 (Phase 1: mock 전용, 기본 OFF) ──────────────────────────
+
+DEV_MODE_ENV = "SIMPLELAY_DEV_MODE"
+
+
+def developer_mode_enabled() -> bool:
+    """기본 OFF — 명시적으로 켜야만 개발자 세션 매니저가 만들어진다.
+    켜지 않은 서버에는 진입 자체가 없다(화면에서 숨기는 것과 다르다)."""
+    return os.environ.get(DEV_MODE_ENV, "").strip().lower() in {"1", "true"}
+
+
+@lru_cache(maxsize=1)
+def get_control_arbiter():
+    """기계 제어권 중재자 — 일반 실행과 개발자 세션의 원자적 상호 배제.
+
+    개발자 모드가 꺼져 있어도 항상 만든다: 실행기가 언제나 같은 경로로
+    제어권을 얻어야, 켜고 끄는 것이 실행 경로의 동작을 바꾸지 않는다.
+    """
+    from rpi.services.control_arbiter import ControlArbiter  # noqa: PLC0415
+
+    return ControlArbiter()
+
+
+@lru_cache(maxsize=1)
+def get_developer_session_manager():
+    """개발자 세션 매니저 — ``SIMPLELAY_DEV_MODE=1``일 때만, 어댑터는
+    **무조건 mock**이다(Phase 1). 실물 어댑터는 하드웨어 검증(H 주차) 후
+    별도 플래그로만 연다. 꺼져 있으면 None — 호출부는 None이면 아무것도
+    하지 않는다."""
+    if not developer_mode_enabled():
+        return None
+    from rpi.services.developer_session import (  # noqa: PLC0415
+        DeveloperSessionManager,
+        MockMotionAdapter,
+    )
+
+    registry = get_appliance_registry()
+    readiness = get_readiness_registry()
+
+    def known_appliance(appliance_id: str) -> bool:
+        return registry.get(appliance_id) is not None
+
+    def known_button(appliance_id: str, button_id: str) -> bool:
+        appliance = registry.get(appliance_id)
+        if appliance is None:
+            return False
+        return any(button.id == button_id for button in appliance.buttons)
+
+    def is_calibrated(appliance_id: str) -> bool:
+        # 보정 프로파일이 보고된 적 있는 가전만 press를 허용한다.
+        return (
+            readiness.get(appliance_id).calibration_profile_version
+            is not None
+        )
+
+    return DeveloperSessionManager(
+        adapter=MockMotionAdapter(),
+        clock=_clock,
+        arbiter=get_control_arbiter(),
+        is_calibrated=is_calibrated,
+        known_appliance=known_appliance,
+        known_button=known_button,
+        # 자체 감시 — heartbeat TTL(2초)보다 충분히 촘촘하게.
+        watchdog_interval_s=0.5,
+    )
+
+
+def stop_developer_session_if_any(reason: str) -> None:
+    """긴급 정지 경로 공용 — 개발자 세션이 열려 있으면 함께 멈춘다.
+
+    정지 실패는 매니저가 fault로 잠그고 기록하므로 여기서는 예외를
+    삼킨다: 긴급 정지 요청 자체(일반 실행 정지)가 개발자 쪽 어댑터
+    실패로 500이 되면 안 된다.
+    """
+    if not developer_mode_enabled():
+        return
+    manager = get_developer_session_manager()
+    if manager is None:
+        return
+    try:
+        manager.emergency_stop(reason)
+    except Exception:
+        log.exception("developer session emergency stop failed (fault engaged)")
+
+
 @lru_cache(maxsize=1)
 def get_demo_failure_state() -> DemoFailureState:
     """데모 실패 주입 상태 — POST /demo/inject-failure가 무장하고,
@@ -387,6 +473,7 @@ def get_service() -> SimpleLayService:
         local_appliance_ids=_local_appliance_ids(),
         history_store=get_job_history(),
         care_events=get_care_events(),
+        control_arbiter=get_control_arbiter(),
     )
 
 

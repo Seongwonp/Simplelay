@@ -73,7 +73,22 @@ async def _shutdown_cleanup() -> None:
     이전에는 제안 task만 취소해서, systemd 재시작 시 백그라운드 실행
     스레드(daemon)가 물리 컨트롤러에 아무 정지 명령 없이 증발했다.
     """
-    from rpi.api.deps import get_db, get_service  # noqa: PLC0415
+    from rpi.api.deps import (  # noqa: PLC0415
+        developer_mode_enabled,
+        get_db,
+        get_developer_session_manager,
+        get_service,
+    )
+
+    # 개발자 세션부터 정리한다 — 감시 스레드를 멈추고, 열린 세션이 있으면
+    # 정지를 보낸다. systemd 재시작 때 세션이 정지 없이 증발하면 안 된다.
+    try:
+        if developer_mode_enabled():
+            manager = get_developer_session_manager()
+            if manager is not None:
+                await asyncio.to_thread(manager.close)
+    except Exception:
+        log.exception("developer session cleanup failed")
 
     try:
         service = get_service()

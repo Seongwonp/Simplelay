@@ -504,6 +504,12 @@ async def emergency_stop(
     service: SimpleLayService = Depends(get_service),
 ) -> StopResponse:
     was_running = service.emergency_stop()
+    # 개발자 세션도 같은 버튼으로 멈춘다 — 긴급 정지는 "누가 제어 중인가"를
+    # 가리지 않는다. 모드가 꺼져 있으면 no-op이고, 개발자 쪽 정지 실패는
+    # fault로 잠근 뒤 삼킨다(일반 정지 응답을 막지 않는다).
+    from rpi.api.deps import stop_developer_session_if_any  # noqa: PLC0415
+
+    await asyncio.to_thread(stop_developer_session_if_any, "emergency_stop")
     return StopResponse(was_running=was_running)
 
 
