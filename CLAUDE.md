@@ -6,8 +6,9 @@
 F2([d](docs/devlog_2026-09-09d.md)) · F5·파형([e](docs/devlog_2026-09-09e.md)) ·
 다중 가전 계약·시작 화면([f](docs/devlog_2026-09-10f.md)) ·
 폰 화면 마감 D1~D3([g](docs/devlog_2026-09-12g.md)) ·
-D6 설정 화면 분할([h](docs/devlog_2026-09-13h.md))
-반영 완료. **다음: 로컬 계획 문서(`dev-docs/`, 비추적) 순서 — 키오스크 5상태(D4) → 개발자 모드 mock(진입: `app/lib/screens/settings/developer_section.dart`) → 접근성 마감(D5). H1은 하드웨어 대기.**
+D6 설정 화면 분할([h](docs/devlog_2026-09-13h.md)) ·
+D4 키오스크 5상태·D5 감사·개발자 모드 Phase 0([i](docs/devlog_2026-09-13i.md))
+반영 완료. **다음: 개발자 모드 Phase 1 — `rpi/services/developer_session.py`를 실행기 가드·긴급 정지 경로에 연결(mock 전용, env 게이트, 일반 사용자 비노출; 폰 진입 자리는 `app/lib/screens/settings/developer_section.dart`). 결정 대기: 백로그 B10·B11·B12. H1은 하드웨어 대기.**
 
 기존 일정: [결선로드맵](docs/결선로드맵.md) · 현황: [개발현황](docs/개발현황.md) · 화면별 상세: [앱 개선 백로그](docs/앱-개선-백로그.md) · 작업 기록: `docs/devlog_YYYY-MM-DD.md`
 
@@ -36,7 +37,8 @@ D6 설정 화면 분할([h](docs/devlog_2026-09-13h.md))
 
 ### 최신 검증 기록을 해석하는 법
 
-- **2026-09-13 세션 종료 시점에 이 기기에서 직접 확인(`301061c`):** 폰 **308**(골든 51장 별도, 갱신 없이 비교 통과·sha256 baseline 동일) 통과. 백엔드 **799** · 키오스크 **56**은 `df91ce7` 기준(이후 미변경). 폰 `flutter analyze` error·warning 0 — 기존 info가 있어 exit code는 1이 정상이다.
+- **2026-09-13 세션 종료 시점에 이 기기에서 직접 확인(`0f863e3`):** 백엔드 **847** · 키오스크 **86**(골든 20장 별도) · 폰 **308**(골든 51장 별도) 통과. 골든은 갱신 없이 비교해 통과. 폰·키오스크 `flutter analyze` error·warning 0 — 기존 info가 있어 exit code는 1이 정상이다.
+- **시계를 쥐지 않은 테스트는 날짜가 넘어가면 깨진다.** 판정 시각을 고정했다면 레지스트리·서비스의 시계도 고정한다(`bb713b3`에서 같은 결함을 두 번째로 고쳤다).
 - **커밋 게이트:** 셸 체인에서 `flutter analyze | tail -1`처럼 출력을 자르면 오류가 있어도 `&&`가 통과한다(실제로 `3f67318`이 빨간 채로 올라갔다). analyze 오류·경고 개수가 0이고 테스트 출력에 `All tests passed`가 있을 때만 커밋한다.
 - 테스트 개수를 적을 때는 **골든 포함 여부를 명시**한다.
 - 위젯 테스트에서 기기 저장소 같은 **진짜 비동기**를 그냥 await 하면 가짜 시계 위라 영원히 멈춘다 — `tester.runAsync`로 감싼다.
