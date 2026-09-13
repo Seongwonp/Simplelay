@@ -95,6 +95,27 @@ def test_fault_locks_out_both_sides_until_cleared() -> None:
     arbiter.acquire(ControlArbiter.EXECUTION)
 
 
+def test_clear_fault_if_matches_is_generation_scoped_and_atomic() -> None:
+    """비교와 해제가 같은 락 안이다(후속 리뷰 1.4-#1) -- 시작 시점 세대만
+    풀리고, 그 사이에 걸린 새 fault는 오래된 확인이 지우지 못한다."""
+    arbiter = ControlArbiter()
+    arbiter.trip_fault("stop_unconfirmed:first")
+    _, seq_first = arbiter.fault_snapshot()
+
+    # 비교 직후 새 fault가 들어온 상황 -- 세대가 다르면 해제되지 않는다.
+    arbiter.trip_fault("stop_unconfirmed:newer")
+    assert arbiter.clear_fault_if_matches(seq_first) is False
+    assert arbiter.fault_reason == "stop_unconfirmed:newer"
+
+    # 현재 세대로는 풀린다.
+    _, seq_newer = arbiter.fault_snapshot()
+    assert arbiter.clear_fault_if_matches(seq_newer) is True
+    assert arbiter.fault_reason is None
+
+    # fault가 없으면 어떤 세대로도 False다.
+    assert arbiter.clear_fault_if_matches(seq_newer) is False
+
+
 def test_conflict_error_names_the_current_holder() -> None:
     arbiter = ControlArbiter()
     arbiter.acquire(ControlArbiter.DEVELOPER)

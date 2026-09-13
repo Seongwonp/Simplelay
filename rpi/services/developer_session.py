@@ -461,6 +461,7 @@ class DeveloperSessionManager:
             if self._monotonic() < self._deadline:
                 return None
             session = self._detach_session_locked()
+            self._reserve_stop_locked()
         # 정지는 락 밖에서 -- 어댑터가 느려도 다른 정지·조회를 막지 않는다.
         self._send_stop("heartbeat_timeout", session, raise_on_failure=False)
         return "heartbeat_timeout"
@@ -470,6 +471,7 @@ class DeveloperSessionManager:
         with self._lock:
             self._require_locked(session_id)
             session = self._detach_session_locked()
+            self._reserve_stop_locked()
         self._send_stop(reason, session, raise_on_failure=True)
 
     def emergency_stop(self, reason: str = "emergency_stop") -> None:
@@ -485,6 +487,7 @@ class DeveloperSessionManager:
         """
         with self._lock:
             session = self._detach_session_locked()
+            self._reserve_stop_locked()  # 세션이 없어도 정지는 나간다
         self._send_stop(reason, session, raise_on_failure=True)
 
     def close(self) -> None:
@@ -503,6 +506,7 @@ class DeveloperSessionManager:
                 if self._session is None:
                     return
                 session = self._detach_session_locked()
+                self._reserve_stop_locked()
             self._send_stop("server_shutdown", session, raise_on_failure=False)
         except Exception:  # 종료 절차는 서로를 막지 않는다
             log.exception("developer session shutdown stop failed")
@@ -521,6 +525,7 @@ class DeveloperSessionManager:
         if isinstance(text, str) and text.strip().lower() == "stop":
             with self._lock:
                 session = self._detach_session_locked()
+                self._reserve_stop_locked()
             ok = self._send_stop(
                 "user_stop", session, raise_on_failure=False,
                 request_id=request_id,
@@ -765,6 +770,16 @@ class DeveloperSessionManager:
             self._record("stopped", request_id, reason)
         return True
 
+    def _reserve_stop_locked(self) -> None:
+        """전송 **예정**인 정지를 카운터에 미리 올린다. _lock 안 전용.
+
+        세션 무효화와 같은 임계구역에서 불러야 한다 -- 무효화와 예약이
+        떨어져 있으면 그 사이의 settle 완료가 "진행 중 정지 없음"으로
+        판정해 제어권을 내준다(후속 리뷰 1.4-#2). 실제 전송(_send_stop)이
+        완료 시점에 내린다.
+        """
+        self._stops_inflight += 1
+
     def _detach_session_locked(self) -> DevSession | None:
         """세션을 떼어내고 반납 빚을 기록한다. _lock 안 전용.
 
@@ -831,10 +846,15 @@ class DeveloperSessionManager:
         제어권 반납은 여기서 직접 정하지 않는다 -- 이 정지의 완료를
         _stops_inflight에 반영한 뒤 _maybe_release_locked()가 판정한다.
         응답 대기 중인 정지가 남아 있는 동안은 누구도 반납하지 못한다.
+
+        **호출 전에 _reserve_stop_locked()로 예약돼 있어야 한다** -- 세션
+        무효화와 같은 락 안에서. 등록을 여기서 하면 무효화와 등록 사이의
+        빈틈에 이전 명령의 settle이 "진행 중 정지 없음"으로 판정해 아직
+        전송도 안 된 정지를 모른 채 반납한다(후속 리뷰 1.4-#2).
         """
-        with self._lock:
-            self._stops_inflight += 1
-        fault_seq_at_start = self._arbiter.fault_seq
+        fault_reason_at_start, fault_seq_at_start = (
+            self._arbiter.fault_snapshot()
+        )
         release_now = False
         try:
             self._adapter.stop(reason)
@@ -857,13 +877,12 @@ class DeveloperSessionManager:
             log.exception("developer stop unconfirmed (reason=%s)", reason)
             return False
         else:
-            if (
-                (self._arbiter.fault_reason or "").startswith(
-                    "stop_unconfirmed:"
-                )
-                and self._arbiter.fault_seq == fault_seq_at_start
-            ):
-                self._arbiter.clear_fault()
+            # 시작 시점에 본 그 세대의 fault만 푼다 -- 비교와 해제는 중재자
+            # 안의 같은 락에서 원자적이다(후속 리뷰 1.4-#1). 정지 도중에
+            # 걸린 새 fault는 seq가 달라 지워지지 않는다.
+            if (fault_reason_at_start or "").startswith(
+                "stop_unconfirmed:"
+            ) and self._arbiter.clear_fault_if_matches(fault_seq_at_start):
                 with self._lock:
                     self._record(
                         "fault_cleared", request_id,

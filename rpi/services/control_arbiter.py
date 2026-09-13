@@ -99,10 +99,30 @@ class ControlArbiter:
             self._fault_seq += 1
 
     def clear_fault(self) -> None:
-        """정지가 실제로 확인된 쪽(성공한 stop)만 부른다. 그 정지가 시작된
-        뒤 새 fault가 걸리지 않았는지는 호출자가 fault_seq로 대조한다."""
+        """무조건 해제 -- 운영자 수동 개입·테스트 정리용. 정지 확인 경로는
+        비교와 해제가 원자적인 clear_fault_if_matches를 써야 한다."""
         with self._lock:
             self._fault_reason = None
+
+    def clear_fault_if_matches(self, expected_seq: int) -> bool:
+        """**같은 락 안에서** 세대를 대조하고 해제한다 (후속 리뷰 1.4-#1).
+
+        비교(fault_seq 읽기)와 해제(clear)를 따로 하면, 그 사이에 걸린 새
+        fault를 오래된 정지의 성공 응답이 지워 버릴 수 있다. 시작 시점에
+        fault_snapshot()으로 캡처한 seq를 넘기면, 정확히 그 세대의 fault만
+        지워진다. 해제했으면 True.
+        """
+        with self._lock:
+            if self._fault_reason is None or self._fault_seq != expected_seq:
+                return False
+            self._fault_reason = None
+            return True
+
+    def fault_snapshot(self) -> tuple[str | None, int]:
+        """(fault_reason, fault_seq)를 한 락에서 함께 읽는다 -- 따로 읽으면
+        둘이 서로 다른 세대를 가리킬 수 있다."""
+        with self._lock:
+            return self._fault_reason, self._fault_seq
 
     # ── 조회(표시용 — 판정에 쓰지 말 것: 판정은 acquire가 원자적으로 한다) ──
 

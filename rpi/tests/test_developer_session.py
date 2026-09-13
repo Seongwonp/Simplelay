@@ -925,6 +925,56 @@ def test_normal_completion_with_failing_late_stop_ends_locked() -> None:
     arbiter.acquire(ControlArbiter.EXECUTION)
 
 
+def test_a_reserved_stop_blocks_release_before_it_is_even_sent() -> None:
+    """세션 무효화와 정지 **예약**은 같은 락 안이다(후속 리뷰 1.4-#2).
+
+    세션을 닫은 직후, 실제 stop 전송 **전에** 멈춰 있는 동안 -- 이전
+    명령의 settle이 재정지 확인까지 끝내도, 판정점은 전송 예정인 정지를
+    이미 알고 있으므로 새 제어권을 내주지 않는다. (예약이 _send_stop
+    진입에서 이뤄지던 이전 구조에서는 이 창에서 반납됐다.)"""
+    adapter = _GatedPressAdapter()  # press 전달 직전 대기, stop은 즉시 성공
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+
+    # 이음새: detach(+예약) 직후 -- 실제 전송 전 -- 를 멈춘다.
+    send_entered = threading.Event()
+    send_gate = threading.Event()
+    original_send = manager._send_stop
+
+    def delayed_send(reason, sess, **kwargs):
+        if reason == "emergency_stop":
+            send_entered.set()
+            assert send_gate.wait(timeout=5)
+        return original_send(reason, sess, **kwargs)
+
+    manager._send_stop = delayed_send
+
+    worker = threading.Thread(
+        target=manager.submit,
+        args=(session.session_id, "microwave", "press BT-05"),
+    )
+    worker.start()
+    assert adapter.arrived.wait(timeout=5)
+
+    stopper = threading.Thread(target=manager.emergency_stop)
+    stopper.start()
+    assert send_entered.wait(timeout=5)  # 세션은 닫혔고, stop은 아직 전송 전
+    assert manager.session is None
+
+    adapter.gate.set()  # 이전 명령이 끝나고 settle이 재정지 확인까지 마친다
+    worker.join(timeout=5)
+    assert adapter.stops() == ["stop_after_late_command"]  # 재정지는 확인됨
+
+    # 그래도 전송 예정인 긴급 정지가 남아 있으므로 반납하지 않는다.
+    with pytest.raises(ControlConflictError):
+        arbiter.acquire(ControlArbiter.EXECUTION)
+
+    send_gate.set()
+    stopper.join(timeout=5)
+    arbiter.acquire(ControlArbiter.EXECUTION)  # 전송·확인 뒤에야
+    assert arbiter.fault_reason is None
+
+
 def test_a_late_stop_confirmation_cannot_clear_a_newer_fault() -> None:
     """오래 걸린 정지의 성공 응답이, 그 정지가 시작된 **뒤에** 걸린 새
     fault를 해제하면 안 된다 -- fault 세대(fault_seq) 대조(후속 리뷰 1.3)."""
