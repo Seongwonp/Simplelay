@@ -24,6 +24,7 @@ import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
@@ -388,6 +389,20 @@ void main() {
         onExecute: (_) {},
         onCancel: () {},
       ),
+    );
+  });
+
+  testWidgets('방해 금지 — 큰 글씨', (t) async {
+    await _shoot(
+      t,
+      'dnd_large',
+      DndOverlay(
+        dndUntil: null,
+        onSet: (_) {},
+        onClear: () {},
+        onDismiss: () {},
+      ),
+      textScale: 1.22,
     );
   });
 

@@ -17,64 +17,71 @@ class DangerAlertOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: const Color(0xFF200A09),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(
-              Icons.warning_rounded,
-              size: 88,
-              color: KioskColors.danger,
-            ),
-            const SizedBox(height: 24),
-            const Text(
-              '위험 신호음 감지',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w700,
-                color: Colors.white,
+    // 스크린리더가 떠오르는 즉시 읽게 한다. 눈으로 화면을 보지 않는 사용자에게
+    // 음성 경보(TTS)와 함께 이것이 유일한 알림 채널이다.
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: ColoredBox(
+        color: const Color(0xFF200A09),
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.warning_rounded,
+                size: 88,
+                color: KioskColors.danger,
               ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              '화재·가스 경보음으로 추정되는 소리가 감지되었습니다',
-              style: TextStyle(fontSize: 15, color: Color(0xFFE8B4B1)),
-            ),
-            const SizedBox(height: 4),
-            const Text(
-              '안전한 곳으로 이동한 뒤 주변에 도움을 요청하세요',
-              // 안전이 먼저다 — 이전 문구("실제 상황인지 직접 확인해주세요")는
-              // 화재·가스 상황에서 고령 사용자를 위험 쪽으로 보낼 수 있었다.
-              style: TextStyle(fontSize: 16, color: Color(0xFFE8B4B1)),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              '오탐일 수도 있습니다. 안전이 확보된 뒤에 확인해주세요',
-              style: TextStyle(fontSize: 14, color: KioskColors.muted),
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              // 큰 글씨 모드(1.22배)에서도 문구가 잘리지 않는 폭
-              width: 260,
-              height: 56,
-              child: OutlinedButton(
-                onPressed: onAcknowledge,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: Colors.white38),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+              const SizedBox(height: 24),
+              const Text(
+                '위험 신호음 감지',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 10),
+              const Text(
+                '화재·가스 경보음으로 추정되는 소리가 감지되었습니다',
+                style: TextStyle(fontSize: 15, color: Color(0xFFE8B4B1)),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                '안전한 곳으로 이동한 뒤 주변에 도움을 요청하세요',
+                // 안전이 먼저다 — 이전 문구("실제 상황인지 직접 확인해주세요")는
+                // 화재·가스 상황에서 고령 사용자를 위험 쪽으로 보낼 수 있었다.
+                style: TextStyle(fontSize: 16, color: Color(0xFFE8B4B1)),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                '오탐일 수도 있습니다. 안전이 확보된 뒤에 확인해주세요',
+                style: TextStyle(fontSize: 14, color: KioskColors.muted),
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                // 큰 글씨 모드(1.22배)에서도 문구가 잘리지 않는 폭
+                width: 260,
+                height: 56,
+                child: OutlinedButton(
+                  onPressed: onAcknowledge,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white38),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  child: const Text(
+                    '안내를 확인했습니다',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
-                child: const Text(
-                  '안내를 확인했습니다',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
