@@ -674,8 +674,11 @@ async def history(
             appliance_id=e.appliance_id,
             execution_mode=e.execution_mode.value,
             termination=e.termination.value,
+            # timedelta(0)은 falsy다 — mock 실행이 시계 한 틱 안에 끝나면
+            # 진짜 0.0초 기록이 '기록 없음'(None)으로 둔갑한다. None 비교로만
+            # 가른다(실측 표본에서 0초와 결측은 다른 데이터다).
             duration_seconds=(
-                e.duration.total_seconds() if e.duration else None
+                e.duration.total_seconds() if e.duration is not None else None
             ),
             buttons=[
                 HistoryButton(

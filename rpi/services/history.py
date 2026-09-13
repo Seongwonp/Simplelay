@@ -172,7 +172,9 @@ def history_csv(entries: tuple[JobHistoryEntry, ...]) -> str:
                 entry.termination.value,
                 entry.started_at.isoformat() if entry.started_at else "",
                 entry.finished_at.isoformat(),
-                f"{duration.total_seconds():.1f}" if duration else "",
+                # timedelta(0)은 falsy — 0.0초 실측이 결측("")으로 둔갑하지
+                # 않게 None 비교로만 가른다 (stop_latency와 같은 규칙).
+                f"{duration.total_seconds():.1f}" if duration is not None else "",
                 (
                     entry.stop_requested_at.isoformat()
                     if entry.stop_requested_at
