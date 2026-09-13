@@ -545,6 +545,9 @@ async def approve_suggestion(
         job_id = await asyncio.to_thread(svc.approve_submit, suggestion_id)
     except UnknownSuggestionError:
         raise HTTPException(status_code=404, detail="suggestion not found")
+    except UnknownIntentError as exc:
+        # 실행 상한 초과 등 해석 결과 거절 — ValueError 계열이라 잡지 않으면 500
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return JobAcceptedResponse(job_id=job_id)

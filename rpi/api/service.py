@@ -303,7 +303,7 @@ class SimpleLayService(PurposeExecutor):
         since that log's suggestion logic assumes a repeatable purpose
         string, not raw button presses.
         """
-        buttons = tuple(buttons)
+        buttons = self._validate_resolved_sequence(tuple(buttons))
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
         self._begin_run(len(buttons), controller, appliance_id)
@@ -339,8 +339,7 @@ class SimpleLayService(PurposeExecutor):
                 "need one (see the llm_client param / rpi/api/deps.py)"
             )
         resolver = LlmIntentResolver(self._llm_client, known_buttons=known_buttons)
-        buttons = self._validate_resolved_sequence(tuple(resolver.resolve(purpose)))
-        return self._submit(buttons, appliance_id, purpose)
+        return self._submit(tuple(resolver.resolve(purpose)), appliance_id, purpose)
 
     def submit_buttons(
         self, buttons: tuple[str, ...], appliance_id: str | None = None
@@ -350,6 +349,10 @@ class SimpleLayService(PurposeExecutor):
     def _submit(
         self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
     ) -> str:
+        # 모든 비동기 실행(/execute·/execute-buttons·/execute-for-appliance·
+        # 제안 승인)의 합류점. 상한을 진입점마다 두면 제안 승인처럼 빠지는
+        # 경로가 다시 생긴다 — 대상 확정·제어권 획득보다 먼저 거절한다.
+        buttons = self._validate_resolved_sequence(tuple(buttons))
         controller = self._controller_for(appliance_id)
         # 보정 버전은 **대상을 확정하는 지금** 캡처해 실행 스레드로 넘긴다.
         # 스레드 안에서 다시 읽으면 실행 중에 갱신된 값을 찍는다.
