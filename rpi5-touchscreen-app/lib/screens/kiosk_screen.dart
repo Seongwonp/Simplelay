@@ -80,6 +80,9 @@ class _KioskScreenState extends State<KioskScreen> {
   // 서버 가전 목록 — 폰에서 등록한 커스텀 가전이 여기로 들어온다.
   // 서버가 죽어 있으면 하드코딩 내장 목록으로 폴백(오프라인 우선).
   List<ApplianceMap> _appliances = kAppliances;
+  // 위 목록이 서버에서 온 것인가. 내장 폴백일 때는 대기 화면이 가전 이름을
+  // 말하지 않는다 -- 설치한 적 없는 전자레인지를 세우게 된다.
+  bool _appliancesFromServer = false;
   // 수동 조작에서 지금 다루는 가전. null이면 선택 화면을 보여준다.
   ApplianceMap? _manualAppliance;
   // 저장된 가전 id가 내장 목록에 없으면(커스텀) 서버 목록 도착까지 보류 —
@@ -361,6 +364,7 @@ class _KioskScreenState extends State<KioskScreen> {
     if (!mounted || list.isEmpty) return;
     setState(() {
       _appliances = list;
+      _appliancesFromServer = true;
       // 재부팅 복원 보류분(커스텀 가전) — 서버 목록이 왔으니 마저 복원
       final pendingId = _pendingRestoreApplianceId;
       if (pendingId != null) {
@@ -719,6 +723,10 @@ class _KioskScreenState extends State<KioskScreen> {
           now: _now,
           connected: _health.ok,
           actuatorReady: _health.actuatorReady,
+          // 서버 목록에서 확인된 가전일 때만 이름을 말한다.
+          appliance: _appliancesFromServer
+              ? _findIn(_appliances, _currentAppliance.id)
+              : null,
           dndUntil: _health.dndUntil,
           temperature: _sensorData?.temperature,
           humidity: _sensorData?.humidity,

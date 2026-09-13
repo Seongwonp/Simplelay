@@ -115,8 +115,59 @@ void main() {
         now: DateTime(2026, 8, 30, 18, 56),
         connected: true,
         actuatorReady: true,
+        appliance: kMicrowaveAppliance,
         temperature: 26.5,
         humidity: 58,
+        onTap: () {},
+        onLongPress: () {},
+      ),
+    );
+  });
+
+  testWidgets('대기 — 큰 글씨', (t) async {
+    await _shoot(
+      t,
+      'idle_large',
+      KioskIdleView(
+        now: DateTime(2026, 8, 30, 18, 56),
+        connected: true,
+        actuatorReady: true,
+        appliance: const ApplianceMap(
+          id: 'custom_ac',
+          name: '거실 창가 스탠드 에어컨',
+          category: 'air_conditioner',
+          rows: 1,
+          cols: 1,
+          buttons: [],
+        ),
+        temperature: 26.5,
+        humidity: 58,
+        onTap: () {},
+        onLongPress: () {},
+      ),
+      textScale: 1.22,
+    );
+  });
+
+  testWidgets('대기 — 준비 안 된 가전', (t) async {
+    await _shoot(
+      t,
+      'idle_not_ready',
+      KioskIdleView(
+        now: DateTime(2026, 8, 30, 18, 56),
+        connected: true,
+        actuatorReady: true,
+        appliance: const ApplianceMap(
+          id: 'microwave',
+          name: '전자레인지',
+          category: 'microwave',
+          rows: 1,
+          cols: 1,
+          buttons: [],
+          canExecute: false,
+          readiness: 'needs_setup',
+          readinessReasons: ['버튼 위치 보정이 아직 안 됐어요'],
+        ),
         onTap: () {},
         onLongPress: () {},
       ),
@@ -221,6 +272,7 @@ void main() {
         now: DateTime(2026, 9, 10, 18, 56),
         connected: true,
         actuatorReady: true,
+        appliance: kMicrowaveAppliance,
         temperature: 26.5,
         humidity: 58,
         onTap: () {},

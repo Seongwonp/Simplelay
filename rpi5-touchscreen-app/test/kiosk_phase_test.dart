@@ -193,13 +193,41 @@ void main() {
       ..healthResult = const HealthStatus(ok: true, actuatorReady: true);
     await _pumpKiosk(tester, api);
 
-    expect(find.text('화면을 눌러 가전 조작'), findsOneWidget);
-    await tester.tap(find.text('화면을 눌러 가전 조작'));
+    expect(find.text('화면을 눌러 시작하세요'), findsOneWidget);
+    await tester.tap(find.text('화면을 눌러 시작하세요'));
     await tester.pump(); // 탭 반영
     await tester.pump(const Duration(milliseconds: 500)); // AnimatedSwitcher 전환
 
     // 조작 화면으로 넘어감 -- 대기 안내가 사라졌다
-    expect(find.text('화면을 눌러 가전 조작'), findsNothing);
+    expect(find.text('화면을 눌러 시작하세요'), findsNothing);
+  });
+
+  testWidgets('대기 화면은 서버 목록에서 확인된 가전만 이름을 말한다', (tester) async {
+    // 서버를 못 봤을 때 내장 폴백의 전자레인지를 세우면, 설치한 적 없는
+    // 가전이 대기 화면의 주인공이 된다.
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..healthResult = const HealthStatus(ok: true, actuatorReady: true);
+    await _pumpKiosk(tester, api);
+
+    expect(find.byType(KioskIdleView), findsOneWidget);
+    expect(find.text('전자레인지'), findsNothing);
+
+    api.applianceList = const [
+      ApplianceMap(
+        id: 'microwave',
+        name: '전자레인지',
+        category: 'microwave',
+        rows: 1,
+        cols: 1,
+        buttons: [],
+      ),
+    ];
+    // 가전 목록은 센서와 같은 60초 주기로 다시 받는다.
+    await tester.pump(const Duration(seconds: 60));
+    await tester.pump();
+
+    expect(find.text('전자레인지'), findsOneWidget);
   });
 
   testWidgets('15인치(1920x1080)에서 화면을 채우고, 확대된 좌표에서도 조작이 된다',
@@ -223,7 +251,7 @@ void main() {
     expect(painted.width, closeTo(1800, 1));
 
     // 확대 변환을 통과해도 히트테스트가 어긋나지 않는다(실제 터치 시연의 핵심)
-    await tester.tap(find.text('화면을 눌러 가전 조작'));
+    await tester.tap(find.text('화면을 눌러 시작하세요'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     // 수동 조작 진입 첫 화면(가전 선택)으로 넘어간다 -- 확대 변환을 통과한
@@ -788,6 +816,8 @@ void main() {
 
     await tester.tap(find.byType(KioskIdleView));
     await tester.pump();
+    // 대기 화면도 이제 가전 이름을 말하므로, 전환이 끝난 뒤에 찾는다.
+    await tester.pump(const Duration(milliseconds: 500));
 
     // '지난번' 배지가 저장된 커스텀 가전에 붙는다
     final badge = find.text('지난번');

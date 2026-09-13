@@ -2,14 +2,22 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 
+/// 대기 화면 — 가전 옆에 놓인 **전용 리모컨**의 첫 모습.
+///
+/// 예전에는 108px 시계가 화면의 주인공이라 보기 좋았지만, 이 기계가 무엇을
+/// 하는지·지금 쓸 수 있는지는 말하지 않았다. 1.5~2m 떨어져서 읽혀야 하는 것은
+/// 시각이 아니라 **어느 가전을 · 지금 조작할 수 있는지 · 어떻게 시작하는지**다.
+/// 시각·날짜·온습도는 위쪽 보조 정보로 내린다.
 class KioskIdleView extends StatefulWidget {
   const KioskIdleView({
     super.key,
     required this.now,
     required this.connected,
     required this.actuatorReady,
+    this.appliance,
     this.dndUntil,
     this.temperature,
     this.humidity,
@@ -21,6 +29,10 @@ class KioskIdleView extends StatefulWidget {
   final DateTime now;
   final bool connected;
   final bool actuatorReady;
+
+  /// 지금 조작 대상인 가전. **서버 목록에서 확인된 가전만** 들어온다 --
+  /// 서버를 못 봤으면 null이고, 그때는 가전 이름을 지어내지 않는다.
+  final ApplianceMap? appliance;
   final DateTime? dndUntil;
   final double? temperature;
   final double? humidity;
@@ -35,14 +47,6 @@ class KioskIdleView extends StatefulWidget {
 }
 
 class _KioskIdleViewState extends State<KioskIdleView> {
-  static const _timeStyle = TextStyle(
-    fontSize: 108,
-    fontWeight: FontWeight.w300,
-    color: Color(0xFFFAF7F2),
-    height: 1.0,
-    letterSpacing: -3,
-  );
-
   String get _hour => widget.now.hour.toString().padLeft(2, '0');
   String get _minute => widget.now.minute.toString().padLeft(2, '0');
 
@@ -73,8 +77,35 @@ class _KioskIdleViewState extends State<KioskIdleView> {
     return '${diff.inMinutes + 1}분';
   }
 
+  /// 지금 조작할 수 있는지를 사람의 문장으로. 폰 홈과 같은 말을 쓴다.
+  ///
+  /// 모르는 것을 준비됐다고 말하지 않는다 -- 서버가 준비 상태를 알려준
+  /// 경우에만 못 쓴다고 단정하고, 모양(아이콘)이 색과 같이 간다.
+  (IconData, String, bool) _readiness() {
+    if (!widget.connected) {
+      return (Icons.cloud_off_rounded, '기기 연결이 필요해요', true);
+    }
+    final a = widget.appliance;
+    if (a != null && a.readiness != 'unknown' && !a.canExecute) {
+      if (a.readinessReasons.isNotEmpty) {
+        return (Icons.build_outlined, a.readinessReasons.first, true);
+      }
+      return a.readiness == 'disconnected'
+          ? (Icons.link_off, '아직 연결되지 않았어요', true)
+          : (Icons.build_outlined, '아직 준비가 끝나지 않았어요', true);
+    }
+    if (!widget.actuatorReady) {
+      return (Icons.hourglass_empty, '누르는 장치를 준비하고 있어요', false);
+    }
+    return (Icons.check_circle_outline, '조작 가능', false);
+  }
+
   @override
   Widget build(BuildContext context) {
+    final appliance = widget.appliance;
+    final (readyIcon, readyText, warn) = _readiness();
+    final readyColor = warn ? KioskColors.warning : Colors.white;
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: widget.onTap,
@@ -83,105 +114,109 @@ class _KioskIdleViewState extends State<KioskIdleView> {
         color: KioskColors.bg,
         child: Stack(
           children: [
-            // ── 날짜 + 온습도 + 시계 ────────────────────────────────────────
-            Align(
-              alignment: const Alignment(0, -0.08),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+            // ── 위: 보조 정보 (날짜·시각 / 온습도) ─────────────────────────
+            Positioned(
+              left: 32,
+              right: 32,
+              top: 24,
+              child: Row(
                 children: [
-                  Text(
-                    _dateStr,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w400,
-                      color: KioskColors.muted,
-                      letterSpacing: 1.0,
-                    ),
-                  ),
-                  SizedBox(
-                    height: 28,
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Opacity(
-                        opacity: _sensorStr != null ? 1.0 : 0.0,
-                        child: Text(
-                          _sensorStr ?? '',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: Color(0xFF8B93A0),
-                            fontWeight: FontWeight.w400,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
+                  Expanded(
+                    child: Text(
+                      '$_dateStr · $_hour:$_minute',
+                      style: const TextStyle(
+                        fontSize: 22,
+                        color: KioskColors.muted,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 22),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Text(_hour, style: _timeStyle),
-                      AnimatedOpacity(
-                        opacity: widget.now.second.isEven ? 0.9 : 0.35,
-                        duration: const Duration(milliseconds: 400),
-                        child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 10),
+                  if (_sensorStr != null)
+                    Text(
+                      _sensorStr!,
+                      style: const TextStyle(
+                        fontSize: 22,
+                        color: KioskColors.muted,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // ── 가운데: 어느 가전 · 지금 되는가 · 어떻게 시작 ──────────────
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(48, 72, 48, 76),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (appliance != null) ...[
+                      Row(
+                        children: [
+                          Icon(appliance.icon,
+                              size: 52, color: KioskColors.muted),
+                          const SizedBox(width: 18),
+                          Flexible(
+                            child: Text(
+                              appliance.name,
+                              style: const TextStyle(
+                                fontSize: 48,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                height: 1.15,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    // 점 두 개로만 알리던 상태 -- 눈으로는 무슨 뜻인지 알 수
+                    // 없었다. 모양과 문장으로 말한다.
+                    Row(
+                      children: [
+                        Icon(readyIcon, size: 30, color: readyColor),
+                        const SizedBox(width: 12),
+                        Flexible(
                           child: Text(
-                            ':',
+                            readyText,
                             style: TextStyle(
-                              fontSize: 88,
-                              fontWeight: FontWeight.w200,
-                              color: Color(0xFFFAF7F2),
-                              height: 1.0,
+                              fontSize: 28,
+                              fontWeight: FontWeight.w600,
+                              color: readyColor,
                             ),
                           ),
                         ),
-                      ),
-                      Text(_minute, style: _timeStyle),
-                    ],
-                  ),
-
-                  // 화면 전체가 눌리면 수동 조작으로 들어가는데, 시계만 보여서는
-                  // 그걸 알 방법이 없었다 -- 여백이 문제가 아니라 **발견 가능성**이
-                  // 문제였다. 통계로 화면을 채우는 대신 한 줄만 둔다.
-                  const SizedBox(height: 26),
-                  if (widget.connected)
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.touch_app_outlined,
-                            size: 20, color: KioskColors.muted),
-                        SizedBox(width: 8),
-                        Text(
-                          '화면을 눌러 가전 조작',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: KioskColors.muted,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    // 점 두 개로만 알리던 상태 -- 눈으로는 무슨 뜻인지 알 수 없었다
-                    const Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.cloud_off_rounded,
-                            size: 20, color: KioskColors.warning),
-                        SizedBox(width: 8),
-                        Text(
-                          '기기 연결이 필요해요',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: KioskColors.warning,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
                       ],
                     ),
-                ],
+                    // 화면 전체가 눌리면 조작으로 들어가는데, 그걸 알 방법이
+                    // 없었다 -- 여백이 아니라 **발견 가능성**이 문제였다.
+                    // 연결이 없으면 눌러도 들어가지 않으므로 권하지 않는다.
+                    if (widget.connected) ...[
+                      const SizedBox(height: 28),
+                      Semantics(
+                        button: true,
+                        onTap: widget.onTap,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.touch_app_outlined,
+                                size: 30, color: KioskColors.primary),
+                            SizedBox(width: 12),
+                            Flexible(
+                              child: Text(
+                                '화면을 눌러 시작하세요',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  color: KioskColors.primary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
 
@@ -193,9 +228,8 @@ class _KioskIdleViewState extends State<KioskIdleView> {
                 child: Text(
                   '방해 금지 · ${_dndRemaining(widget.dndUntil!)}',
                   style: const TextStyle(
-                    fontSize: 13,
+                    fontSize: 16,
                     color: KioskColors.warning,
-                    fontWeight: FontWeight.w300,
                     letterSpacing: 0.3,
                   ),
                 ),
