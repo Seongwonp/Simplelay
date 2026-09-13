@@ -10,7 +10,8 @@ D6 설정 화면 분할([h](docs/devlog_2026-09-13h.md)) ·
 D4 키오스크 5상태·D5 감사·개발자 모드 Phase 0([i](docs/devlog_2026-09-13i.md)) ·
 개발자 모드 Phase 1(ControlArbiter·정지 경로·env 게이트)+B10·B11([j](docs/devlog_2026-09-13j.md)) ·
 Phase 1.1 안전 경합 마감(stopping 상태·예외 settle·start/close 원자화)([k](docs/devlog_2026-09-13k.md)) ·
-Phase 1.2 settle×정지 경합(정리 완료까지 점유·세대 확인·fault 보존)([l](docs/devlog_2026-09-13l.md))
+Phase 1.2 settle×정지 경합(정리 완료까지 점유·세대 확인·fault 보존)([l](docs/devlog_2026-09-13l.md)) ·
+Phase 1.3 반납 판정 단일화(_maybe_release_locked 4조건·fault_seq 세대 제한)([m](docs/devlog_2026-09-13m.md))
 반영 완료. **다음: 개발자 모드 Phase 2 — API 경로 + 명시적 접근 제한(숨김이 아니라) + 폰 진입(`app/lib/screens/settings/developer_section.dart`). B12(키오스크 STT)는 보류 확정. 하드웨어가 오면 Phase 2보다 H0~H1이 먼저다.**
 
 기존 일정: [결선로드맵](docs/결선로드맵.md) · 현황: [개발현황](docs/개발현황.md) · 화면별 상세: [앱 개선 백로그](docs/앱-개선-백로그.md) · 작업 기록: `docs/devlog_YYYY-MM-DD.md`
@@ -40,7 +41,7 @@ Phase 1.2 settle×정지 경합(정리 완료까지 점유·세대 확인·fault
 
 ### 최신 검증 기록을 해석하는 법
 
-- **2026-09-13 Phase 1.2 세션 종료 시점에 노트북에서 직접 확인(`41d100a`):** 백엔드 **885** · 키오스크 **90**(골든 20장 별도 — Phase 1의 키오스크 변경은 골든 상태의 픽셀을 안 바꾸는 조건 분기라 갱신 없음) 통과. 폰은 이 세션에서 건드리지 않았다(직전 확인 **308**, 골든 51장 별도). 키오스크 `flutter analyze` error·warning 0 — 기존 info가 있어 exit code는 1이 정상이다.
+- **2026-09-13 Phase 1.3 세션 종료 시점에 노트북에서 직접 확인(`a076b25`):** 백엔드 **888** · 키오스크 **90**(골든 20장 별도 — Phase 1의 키오스크 변경은 골든 상태의 픽셀을 안 바꾸는 조건 분기라 갱신 없음) 통과. 폰은 이 세션에서 건드리지 않았다(직전 확인 **308**, 골든 51장 별도). 키오스크 `flutter analyze` error·warning 0 — 기존 info가 있어 exit code는 1이 정상이다.
 - **시계를 쥐지 않은 테스트는 날짜가 넘어가면 깨진다.** 판정 시각을 고정했다면 레지스트리·서비스의 시계도 고정한다(`bb713b3`에서 같은 결함을 두 번째로 고쳤다).
 - **커밋 게이트:** 셸 체인에서 `flutter analyze | tail -1`처럼 출력을 자르면 오류가 있어도 `&&`가 통과한다(실제로 `3f67318`이 빨간 채로 올라갔다). analyze 오류·경고 개수가 0이고 테스트 출력에 `All tests passed`가 있을 때만 커밋한다.
 - 테스트 개수를 적을 때는 **골든 포함 여부를 명시**한다.
