@@ -453,12 +453,20 @@ class OkResponse(BaseModel):
 
 
 class StopResponse(BaseModel):
-    """POST /stop 응답. was_running으로 클라이언트가 "정지됨"과
-    "실행 중인 작업 없음"을 구분해 표시할 수 있다. (기존 OkResponse와
-    필드 호환 — ok만 보던 클라이언트는 그대로 동작한다.)"""
+    """POST /stop 응답 — **정지 요청을 접수하고 전달한 결과**다.
+
+    어떤 필드도 모터가 물리적으로 멈췄다는 확인이 아니다. ok는 서버가 요청을
+    받았다는 뜻이고, was_running으로 클라이언트가 "정지 요청함"과 "실행 중인
+    작업 없음"을 구분한다. 노드 필드는 정지 요청이 **노드에 닿았는지**만
+    나눈다: 받았다고 응답한 노드(acknowledged)와, 실패·기한 내 무응답·수신
+    확인 수단이 없는 노드(unconfirmed). (기존 OkResponse와 필드 호환 — ok만
+    보던 클라이언트는 그대로 동작한다.)"""
 
     ok: bool = True
     was_running: bool = False
+    nodes_requested: int = 0
+    nodes_acknowledged: list[str] = []
+    nodes_unconfirmed: list[str] = []
 
 
 class CareEventResponse(BaseModel):

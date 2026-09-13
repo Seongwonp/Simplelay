@@ -507,14 +507,27 @@ async def status(
 async def emergency_stop(
     service: SimpleLayService = Depends(get_service),
 ) -> StopResponse:
-    was_running = service.emergency_stop()
+    # 노드 정지 브로드캐스트는 응답 없는 노드를 전체 상한까지 기다리는 동기
+    # 호출이다. 이벤트 루프에서 직접 부르면 그동안 /status·SSE·다른 API가
+    # 전부 멈춘다 — 스레드로 넘긴다.
+    #
     # 개발자 세션도 같은 버튼으로 멈춘다 — 긴급 정지는 "누가 제어 중인가"를
     # 가리지 않는다. 모드가 꺼져 있으면 no-op이고, 개발자 쪽 정지 실패는
-    # fault로 잠근 뒤 삼킨다(일반 정지 응답을 막지 않는다).
+    # fault로 잠근 뒤 삼킨다(일반 정지 응답을 막지 않는다). 노드 브로드캐스트를
+    # 기다렸다 보내지 않고 동시에 보낸다: 두 경로는 서로의 락을 잡지 않는다.
     from rpi.api.deps import stop_developer_session_if_any  # noqa: PLC0415
 
-    await asyncio.to_thread(stop_developer_session_if_any, "emergency_stop")
-    return StopResponse(was_running=was_running)
+    report, _ = await asyncio.gather(
+        asyncio.to_thread(service.emergency_stop_report),
+        asyncio.to_thread(stop_developer_session_if_any, "emergency_stop"),
+    )
+    return StopResponse(
+        was_running=report.was_running,
+        nodes_requested=len(report.nodes_acknowledged)
+        + len(report.nodes_unconfirmed),
+        nodes_acknowledged=list(report.nodes_acknowledged),
+        nodes_unconfirmed=list(report.nodes_unconfirmed),
+    )
 
 
 @router.get("/suggestions", response_model=list[SuggestionResponse])

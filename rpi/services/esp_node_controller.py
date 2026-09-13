@@ -167,19 +167,32 @@ class EspNodeController:
         retry = int(body.get("retry", 0))
         return synthesize_execution_result(buttons, success, retry)
 
-    def request_stop(self) -> None:
+    def request_stop(self) -> bool:
         """긴급 정지 — 노드의 STOP_PORT(HTTP 포트 + 1)에 정지를 요청한다.
 
         best-effort: 정지 경로에서 예외로 호출자(emergency_stop의 전체 노드
         브로드캐스트)를 죽이면 다른 노드의 정지까지 막는다 — 실패는 로그만.
         타임아웃도 짧게 잡는다: 죽은 노드 하나가 정지 경로를 오래 붙잡으면
-        안 된다."""
+        안 된다.
+
+        반환값 True는 **노드가 정지 요청을 받았다고 2xx로 응답했다**는 뜻이다.
+        모터가 실제로 멈췄다는 확인이 아니다. 전송 실패·오류 응답은 False라
+        호출자가 미확인 노드로 드러낼 수 있다."""
         try:
-            self._client.post(
+            response = self._client.post(
                 self._stop_url(), timeout=STOP_REQUEST_TIMEOUT_SECONDS
             )
         except httpx.HTTPError as exc:
             log.error("stop request to node %s failed: %s", self._base_url, exc)
+            return False
+        if not response.is_success:
+            log.error(
+                "stop request to node %s answered HTTP %s",
+                self._base_url,
+                response.status_code,
+            )
+            return False
+        return True
 
     def _stop_url(self) -> str:
         parsed = urlparse(self._base_url)

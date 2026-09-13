@@ -247,7 +247,13 @@ def test_emergency_stop_returns_ok(client):
     response = client.post("/stop")
     assert response.status_code == 200
     # 유휴 상태의 정지 요청 — 성공하되 was_running=False로 구분된다
-    assert response.json() == {"ok": True, "was_running": False}
+    assert response.json() == {
+        "ok": True,
+        "was_running": False,
+        "nodes_requested": 0,
+        "nodes_acknowledged": [],
+        "nodes_unconfirmed": [],
+    }
 
 
 def test_emergency_stop_reports_was_running(client):
@@ -260,7 +266,9 @@ def test_emergency_stop_reports_was_running(client):
     finally:
         svc._running = False
     assert response.status_code == 200
-    assert response.json() == {"ok": True, "was_running": True}
+    body = response.json()
+    assert body["ok"] is True
+    assert body["was_running"] is True
 
 
 # ── /suggestions ──────────────────────────────────────────────────────────────

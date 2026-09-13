@@ -319,7 +319,24 @@ def test_request_stop_swallows_network_errors():
         raise httpx.ConnectError("connection refused", request=request)
 
     controller = EspNodeController("http://node:8080", client=_client(handler))
-    controller.request_stop()  # 예외가 새어 나오면 여기서 실패
+    # 예외가 새어 나오면 여기서 실패. 삼키되 미확인으로는 드러낸다
+    assert controller.request_stop() is False
+
+
+def test_request_stop_reports_receipt_only_for_2xx():
+    # True는 '노드가 요청을 받았다'는 응답이지 물리 정지 확인이 아니다 —
+    # 오류 응답을 받았다고 세면 안 된다
+    ok = EspNodeController(
+        "http://node:8080",
+        client=_client(lambda r: httpx.Response(200, json={"ok": True})),
+    )
+    broken = EspNodeController(
+        "http://node:8080",
+        client=_client(lambda r: httpx.Response(500, json={"ok": False})),
+    )
+
+    assert ok.request_stop() is True
+    assert broken.request_stop() is False
 
 
 def test_close_closes_an_owned_client():

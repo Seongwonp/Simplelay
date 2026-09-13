@@ -40,6 +40,21 @@ log = logging.getLogger(__name__)
 EMERGENCY_STOP_BROADCAST_SECONDS = 2.5
 
 
+@dataclass(frozen=True)
+class EmergencyStopReport:
+    """긴급 정지 요청을 **접수하고 전달한 결과**. 물리 정지 확인이 아니다.
+
+    - ``was_running``: 요청 시점에 이 서버의 실행이 진행 중이었는지.
+    - ``nodes_acknowledged``: 정지 요청을 받았다고 응답한 노드(가전 ID).
+    - ``nodes_unconfirmed``: 전송 실패·오류 응답·기한 내 무응답, 또는 수신을
+      확인할 수단이 없는 노드. 요청은 이 노드들에도 나갔다.
+    """
+
+    was_running: bool
+    nodes_acknowledged: tuple[str, ...] = ()
+    nodes_unconfirmed: tuple[str, ...] = ()
+
+
 class ServiceNotReadyError(RuntimeError):
     """Raised when execute_purpose is called before startup completes or after shutdown."""
 
@@ -732,6 +747,10 @@ class SimpleLayService(PurposeExecutor):
             )
 
     def emergency_stop(self) -> bool:
+        """``emergency_stop_report``의 호환 형태 — 실행 중이었는지만 돌려준다."""
+        return self.emergency_stop_report().was_running
+
+    def emergency_stop_report(self) -> EmergencyStopReport:
         """긴급 정지 — 로컬 기본 컨트롤러와 등록된 모든 노드 컨트롤러 중
         ``request_stop()``을 지원하는 대상 전부에 정지를 요청한다.
 
@@ -764,26 +783,37 @@ class SimpleLayService(PurposeExecutor):
             if hasattr(local, "request_stop"):
                 local.request_stop()
 
-        self._broadcast_stop_to_nodes(nodes)
-        return was_running
+        acknowledged, unconfirmed = self._broadcast_stop_to_nodes(nodes)
+        return EmergencyStopReport(
+            was_running=was_running,
+            nodes_acknowledged=acknowledged,
+            nodes_unconfirmed=unconfirmed,
+        )
 
     def _broadcast_stop_to_nodes(
-        self, nodes: list[ButtonSequenceController]
-    ) -> None:
+        self, nodes: list[tuple[str, ButtonSequenceController]]
+    ) -> tuple[tuple[str, ...], tuple[str, ...]]:
         """등록된 노드 전부에 병렬로 정지를 보낸다(전체 상한 있음).
 
         죽은 노드가 섞여 있어도 살아 있는 노드의 정지가 그 뒤에서 기다리지
         않게 한다. 상한을 넘긴 전송은 백그라운드에 두고 반환한다 — 정지
         요청을 더 보내는 것보다 호출자(폰의 긴급 정지 버튼)를 빨리 놓아주는
         편이 낫고, 각 요청 자체에도 개별 타임아웃이 있다.
+
+        반환값은 (받았다고 응답한 노드, 미확인 노드)의 가전 ID다. ``request_stop``이
+        ``True``를 돌려준 노드만 받은 것으로 센다 — ``None``(수신 확인 수단 없음)·
+        ``False``·예외·기한 초과는 모두 미확인이다.
         """
         if not nodes:
-            return
+            return (), ()
         executor = ThreadPoolExecutor(
             max_workers=min(len(nodes), 8), thread_name_prefix="estop"
         )
         try:
-            futures = [executor.submit(node.request_stop) for node in nodes]
+            futures = {
+                executor.submit(node.request_stop): appliance_id
+                for appliance_id, node in nodes
+            }
             _, pending = wait(futures, timeout=EMERGENCY_STOP_BROADCAST_SECONDS)
             if pending:
                 log.error(
@@ -793,14 +823,28 @@ class SimpleLayService(PurposeExecutor):
         finally:
             executor.shutdown(wait=False)
 
-    def _stoppable_nodes(self) -> list[ButtonSequenceController]:
+        acknowledged: list[str] = []
+        unconfirmed: list[str] = []
+        for future, appliance_id in futures.items():
+            if future in pending:
+                unconfirmed.append(appliance_id)
+                continue
+            try:
+                received = future.result() is True
+            except Exception as exc:  # noqa: BLE001 -- 정지 결과 집계는 삼킨다
+                log.error("emergency stop to %s raised: %s", appliance_id, exc)
+                received = False
+            (acknowledged if received else unconfirmed).append(appliance_id)
+        return tuple(acknowledged), tuple(unconfirmed)
+
+    def _stoppable_nodes(self) -> list[tuple[str, ButtonSequenceController]]:
         if self._node_registry is None:
             return []
-        nodes: list[ButtonSequenceController] = []
+        nodes: list[tuple[str, ButtonSequenceController]] = []
         for appliance_id in self._node_registry.list_appliance_ids():
             node = self._node_registry.get(appliance_id)
             if node is not None and hasattr(node, "request_stop"):
-                nodes.append(node)
+                nodes.append((appliance_id, node))
         return nodes
 
     def forward_demo_failure(self, button_index: int, attempts: int) -> None:
