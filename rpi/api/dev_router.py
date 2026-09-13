@@ -33,7 +33,6 @@ import secrets
 import threading
 import time
 import uuid
-from collections import deque
 from collections.abc import Callable
 from datetime import datetime
 from functools import lru_cache
@@ -67,8 +66,8 @@ COMMAND_LIMIT_PER_S = 20
 HEARTBEAT_LIMIT_PER_S = 10
 START_LIMIT, START_WINDOW_S = 5, 10.0
 AUTH_FAILURE_LIMIT, AUTH_FAILURE_WINDOW_S = 10, 60.0
-# 세션별로 기억하는 최근 request_id 수 -- 재전송 이중 실행 방지용.
-RECENT_REQUEST_IDS = 64
+# 세션 수명 동안 기억한다. 상한에서는 거절하며 기존 ID를 버리지 않는다.
+MAX_SESSION_REQUEST_IDS = 4096
 
 
 def _error(status: int, code: str, message: str) -> HTTPException:
@@ -97,9 +96,11 @@ class DevApiState:
             AUTH_FAILURE_LIMIT, AUTH_FAILURE_WINDOW_S, monotonic=monotonic
         )
         self._lock = threading.Lock()
+        # 시작→소유권 게시만 직렬화한다. 정지 경로는 이 락을 잡지 않는다.
+        self.start_lock = threading.Lock()
         # 세션은 한 번에 하나라 슬롯도 하나다. (session_id, sha256(secret))
         self._owner: tuple[str, bytes] | None = None
-        self._request_ids: deque[str] = deque(maxlen=RECENT_REQUEST_IDS)
+        self._request_ids: set[str] = set()
 
     def bind(self, session_id: str) -> str:
         secret = secrets.token_urlsafe(24)
@@ -117,12 +118,16 @@ class DevApiState:
             owner[1], hashlib.sha256(secret.encode()).digest()
         )
 
-    def claim_request_id(self, request_id: str) -> bool:
+    def claim_request_id(self, session_id: str, request_id: str) -> bool:
         """처음 보는 request_id면 기록하고 True, 재전송이면 False."""
         with self._lock:
+            if self._owner is None or self._owner[0] != session_id:
+                raise _error(410, "session_expired", "세션이 끝났습니다")
             if request_id in self._request_ids:
                 return False
-            self._request_ids.append(request_id)
+            if len(self._request_ids) >= MAX_SESSION_REQUEST_IDS:
+                raise _error(429, "request_capacity_reached", "요청 기록 한도입니다 -- 세션을 끝내고 새로 시작해 주세요")
+            self._request_ids.add(request_id)
             return True
 
 
@@ -246,8 +251,9 @@ class DevCommandResponse(BaseModel):
 
 
 class DevStopResponse(BaseModel):
-    """confirmed=False를 성공처럼 보여주면 안 된다 -- 정지를 보냈지만
-    확인하지 못했다는 뜻이고, 그때 phase는 대개 fault다."""
+    """confirmed는 이번 stop 호출의 확인이다. 최종 정리는 state.phase로
+    구분한다: stopping이면 이전 명령 정리가 남았고 fault이면 사용 불가다.
+    confirmed=False만으로 fault를 추론하면 안 된다(유휴 정지 실패)."""
 
     confirmed: bool
     message: str
@@ -348,8 +354,20 @@ def dev_start_session(
 ) -> DevSessionStartResponse:
     if not _api_state().starts.allow("start"):
         raise _error(429, "rate_limited", "세션 시작이 너무 잦습니다 -- 잠시 후 다시 시도해 주세요")
+    api_state = _api_state()
+    if not api_state.start_lock.acquire(blocking=False):
+        raise _error(409, "session_starting", "다른 세션 시작을 처리 중입니다")
     try:
         session = manager.start(body.appliance_id, body.node_id)
+        secret = api_state.bind(session.session_id)
+        snap = manager.state()
+        if snap.session is None or snap.session.session_id != session.session_id:
+            raise _error(410, "session_expired", "시작 중 세션이 끝났습니다")
+        return DevSessionStartResponse(
+            session_id=session.session_id,
+            session_secret=secret,
+            state=_state_view(manager, snap),
+        )
     except DevTargetUnknownError as exc:
         raise _error(404, "unknown_appliance", str(exc)) from exc
     except ControlFaultedError as exc:
@@ -357,12 +375,8 @@ def dev_start_session(
     except DevSessionConflict as exc:
         status = 503 if exc.code == "shutting_down" else 409
         raise _error(status, exc.code, str(exc)) from exc
-    secret = _api_state().bind(session.session_id)
-    return DevSessionStartResponse(
-        session_id=session.session_id,
-        session_secret=secret,
-        state=_state_view(manager),
-    )
+    finally:
+        api_state.start_lock.release()
 
 
 @dev_router.post("/sessions/{session_id}/heartbeat", response_model=DevStateResponse)
@@ -396,7 +410,7 @@ def dev_command(
         state = _api_state()
         if not state.commands.allow(session_id):
             raise _error(429, "rate_limited", "명령이 너무 잦습니다")
-        if body.request_id is not None and not state.claim_request_id(body.request_id):
+        if not state.claim_request_id(session_id, request_id):
             raise _error(409, "duplicate_request", "이미 처리한 요청입니다(재전송은 다시 실행하지 않습니다)")
     result = manager.submit(session_id, body.appliance_id, body.text, request_id=request_id)
     if not result.accepted:

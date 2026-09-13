@@ -356,6 +356,73 @@ def test_a_resent_request_id_is_executed_only_once(rig) -> None:
     assert r.adapter.motion_calls() == [("press", "BT-01")]
 
 
+def test_request_ids_survive_more_than_64_commands(rig) -> None:
+    r = rig()
+    sid, secret = r.open_session()
+    for i in range(66):
+        r.clock.advance(0.1)
+        r.manager.heartbeat(sid)
+        assert r.command(sid, secret, "home", request_id=f"r{i}").status_code == 200
+    before = list(r.adapter.calls)
+    replay = r.command(sid, secret, "home", request_id="r0")
+    assert _code(replay) == "duplicate_request"
+    assert r.adapter.calls == before
+
+
+def test_request_capacity_fails_closed_but_stop_and_new_session_work(rig, monkeypatch) -> None:
+    monkeypatch.setattr(dev_router, "MAX_SESSION_REQUEST_IDS", 2)
+    r = rig()
+    sid, secret = r.open_session()
+    for rid in ("a", "b"):
+        assert r.command(sid, secret, "home", request_id=rid).status_code == 200
+    before = list(r.adapter.calls)
+    assert _code(r.command(sid, secret, "home", request_id="c")) == "request_capacity_reached"
+    assert _code(r.command(sid, secret, "home", request_id="a")) == "duplicate_request"
+    assert r.adapter.calls == before
+    assert r.command(sid, secret, "stop", request_id="c").status_code == 200
+    sid2, secret2 = r.open_session()
+    assert r.command(sid2, secret2, "home", request_id="a").status_code == 200
+    with pytest.raises(dev_router.HTTPException) as exc:
+        r.api_state.claim_request_id(sid, "stale")
+    assert exc.value.status_code == 410
+    assert _code(r.command(sid2, secret2, "home", request_id="a")) == "duplicate_request"
+
+
+def test_start_publication_is_serialized_without_blocking_stop(rig, monkeypatch) -> None:
+    r = rig()
+    arrived, resume = threading.Event(), threading.Event()
+    original = r.api_state.bind
+    results = []
+
+    def delayed_bind(sid):
+        arrived.set()
+        assert resume.wait(timeout=5)
+        return original(sid)
+
+    monkeypatch.setattr(r.api_state, "bind", delayed_bind)
+    worker = threading.Thread(target=lambda: results.append(r.start()))
+    worker.start()
+    try:
+        assert arrived.wait(timeout=5)
+        assert r.client.post("/dev/stop", headers=r.headers()).json()["confirmed"]
+        # B is rejected, not queued to start later behind the user's stop.
+        assert _code(r.start()) == "session_starting"
+    finally:
+        resume.set()
+        worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert _code(results[0]) == "session_expired"
+    sid, secret = r.open_session()
+    assert r.command(sid, secret, "home", request_id="b").status_code == 200
+
+
+def test_idle_stop_failure_does_not_claim_a_fault(rig) -> None:
+    r = rig(adapter=_BrokenStop())
+    response = r.client.post("/dev/stop", headers=r.headers()).json()
+    assert response["confirmed"] is False
+    assert response["state"]["phase"] == "idle"
+
+
 def test_command_rate_limit_caps_adapter_calls_but_never_blocks_stop(rig) -> None:
     r = rig()
     session_id, secret = r.open_session()
