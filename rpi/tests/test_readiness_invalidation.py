@@ -22,6 +22,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import rpi.api.deps as deps
+from rpi.intent.mock import FixedClock
 from rpi.main import app
 from rpi.services.readiness import (
     ApplianceReadiness,
@@ -44,6 +45,10 @@ _CACHED = (
 @pytest.fixture()
 def client(monkeypatch):
     monkeypatch.delenv("SIMPLELAY_API_KEY", raising=False)
+    # 판정 시각(_NOW)을 고정했으면 레지스트리의 시계도 고정해야 한다. 실제
+    # 시계를 쓰면 TTL(10분)이 실행 날짜를 타서, _NOW와 하루만 떨어져도 모든
+    # 판정이 만료된다 -- 2026-09-13에 이 파일 13개가 한꺼번에 깨졌다.
+    monkeypatch.setattr(deps, "_clock", FixedClock(_NOW))
     for dep in _CACHED:
         dep.cache_clear()
     yield TestClient(app)
