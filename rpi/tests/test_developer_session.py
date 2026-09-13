@@ -676,6 +676,131 @@ def test_dispatch_exception_with_unconfirmed_stop_locks_the_machine() -> None:
         arbiter.acquire(ControlArbiter.EXECUTION)
 
 
+class _BlockedRecoveryAdapter(MockMotionAdapter):
+    """press는 예외로 끝나고, 그 **복구 정지(command_error)** 가 게이트에서
+    멈춰 있는 어댑터 -- '명령은 끝났지만 안전 정리는 진행 중'인 창을
+    결정적으로 재현한다(후속 리뷰 1.2). recovery_fails로 그 정리의
+    성공/실패를 고른다. 다른 이유의 stop(긴급 정지 등)은 즉시 통과한다."""
+
+    def __init__(self, *, recovery_fails: bool) -> None:
+        super().__init__()
+        self.recovery_fails = recovery_fails
+        self.recovery_entered = threading.Event()
+        self.recovery_gate = threading.Event()
+
+    def press(self, button_id: str) -> None:
+        super().press(button_id)
+        raise RuntimeError("uart timeout mid-flight")
+
+    def stop(self, reason: str) -> None:
+        if reason == "command_error":
+            self.recovery_entered.set()
+            assert self.recovery_gate.wait(timeout=5)
+            super().stop(reason)
+            if self.recovery_fails:
+                raise RuntimeError("link down")
+            return
+        super().stop(reason)
+
+
+def test_control_is_held_while_the_recovery_stop_is_still_running() -> None:
+    """명령 완료 ≠ 안전 정리 완료. 복구 정지가 어댑터 안에 살아 있는 동안
+    별도 긴급 정지가 와도 제어권은 반납되지 않는다(후속 리뷰 1.2) --
+    이전에는 settle 초입의 _inflight=False 때문에 이 창에서 반납됐다."""
+    adapter = _BlockedRecoveryAdapter(recovery_fails=False)
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+
+    results: list = []
+    worker = threading.Thread(
+        target=lambda: results.append(
+            manager.submit(session.session_id, "microwave", "press BT-05")
+        )
+    )
+    worker.start()
+    assert adapter.recovery_entered.wait(timeout=5)  # 정리 정지가 진행 중
+
+    manager.emergency_stop()  # 즉시 반환 -- 정리를 기다리지 않는다
+    assert manager.session is None
+
+    # 정리가 끝나기 전에는 어느 쪽도 제어권을 얻지 못한다.
+    with pytest.raises(ControlConflictError):
+        arbiter.acquire(ControlArbiter.EXECUTION)
+    with pytest.raises(DevSessionConflict):
+        manager.start("microwave", "node-2")
+
+    adapter.recovery_gate.set()
+    worker.join(timeout=5)
+    [result] = results
+    assert result.accepted is False
+    # 정리 완료 뒤에야 제어권이 나가고, fault 없이 정상 재개된다.
+    assert arbiter.fault_reason is None
+    arbiter.acquire(ControlArbiter.EXECUTION)
+
+
+def test_stale_recovery_failure_does_not_kill_the_next_session() -> None:
+    """지연된 복구 정지가 **실패**해도, 그 사이 별도 정지가 이미 닫은
+    세션 세대를 넘어 현재 세션을 폐기하거나 제어권을 벗겨내지 않는다
+    (후속 리뷰 1.2 -- 세대(epoch) 확인 후에만 자기 세션을 닫는다)."""
+    adapter = _BlockedRecoveryAdapter(recovery_fails=True)
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+
+    results: list = []
+    worker = threading.Thread(
+        target=lambda: results.append(
+            manager.submit(session.session_id, "microwave", "press BT-05")
+        )
+    )
+    worker.start()
+    assert adapter.recovery_entered.wait(timeout=5)
+
+    manager.emergency_stop()  # 세션 A를 닫는다(epoch 증가)
+
+    adapter.recovery_gate.set()  # 이제 A의 복구 정지가 '실패'로 끝난다
+    worker.join(timeout=5)
+    [result] = results
+    assert result.accepted is False
+
+    # 정리 실패 = 기계 상태 불명 -- 잠그는 것이 맞다. 그러나 남의 세션을
+    # 닫는 일은 없다(이 시점에 세션이 없었고, 있었다면 그 소유였다).
+    assert (arbiter.fault_reason or "").startswith("stop_unconfirmed:")
+    assert manager.session is None
+    with pytest.raises(ControlFaultedError):
+        arbiter.acquire(ControlArbiter.EXECUTION)
+
+    # 문서화된 복구 절차: 긴급 정지가 실제로 확인되면 풀린다.
+    manager.emergency_stop()
+    assert arbiter.fault_reason is None
+    manager.start("microwave", "node-2")
+
+
+def test_stale_settle_success_does_not_clear_someone_elses_fault() -> None:
+    """오래된 정리의 성공(재정지 확인)이 그 사이 다른 주체가 건 fault를
+    해제하면 안 된다(후속 리뷰 1.2) -- fault 해제는 긴급 정지 확인
+    경로(_send_stop) 하나뿐이다."""
+    adapter = _GatedPressAdapter()
+    manager, _, _, _, arbiter = _manager(adapter=adapter)
+    session = manager.start("microwave", "node-1")
+
+    worker = threading.Thread(
+        target=manager.submit,
+        args=(session.session_id, "microwave", "press BT-05"),
+    )
+    worker.start()
+    assert adapter.arrived.wait(timeout=5)
+
+    manager.emergency_stop()
+    # 그 사이 다른 경로(예: 다른 장치의 정지 미확인)가 fault를 걸었다.
+    arbiter.trip_fault("stop_unconfirmed:elsewhere")
+
+    adapter.gate.set()  # 늦은 press → settle의 재정지는 '성공'한다
+    worker.join(timeout=5)
+
+    # 재정지가 성공해도 남의 fault는 그대로다.
+    assert arbiter.fault_reason == "stop_unconfirmed:elsewhere"
+
+
 def test_close_and_start_race_never_leaves_a_session() -> None:
     """종료 표시와 세션 생성이 같은 락으로 직렬화된다(후속 리뷰 1.1-#3) --
     어느 순서로 겹쳐도 종료된 매니저에 세션이 남지 않는다."""

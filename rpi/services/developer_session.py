@@ -622,12 +622,14 @@ class DeveloperSessionManager:
         - 예외로 끝난 명령은 장치에 닿았는지 모른다 -- 확인 대신 정지로
           정리하고, 그 정지도 확인 못 하면 세션 폐기 + fault.
         """
+        # **_inflight는 여기서 내리지 않는다.** "아직 끝나지 않은 작업"에는
+        # 명령 자체뿐 아니라 그 명령의 안전 정리(복구 정지)까지 포함된다
+        # (후속 리뷰 1.2). 정리가 진행 중일 때 들어온 별도 정지는 여전히
+        # _inflight=True를 보고 반납을 이쪽에 위임해야 한다 -- 안 그러면
+        # 정리 stop이 어댑터 안에 살아 있는 채로 제어권이 넘어간다.
+        # _inflight 해제와 위임 소비는 마지막의 _finish_settle이 한다.
         with self._lock:
-            self._inflight = False
             stale = self._epoch != epoch
-            release_deferred = stale and self._release_pending
-            if release_deferred:
-                self._release_pending = False
             if not stale and not dispatch_failed:
                 self._record(
                     "command_accepted",
@@ -636,9 +638,11 @@ class DeveloperSessionManager:
                     appliance_id=appliance_id,
                 )
         if not stale and not dispatch_failed:
-            return DevResult(
-                True, request_id,
-                normalized=command.normalized(), sensor=sensor,
+            return self._finish_settle(
+                DevResult(
+                    True, request_id,
+                    normalized=command.normalized(), sensor=sensor,
+                )
             )
 
         if stale:
@@ -649,47 +653,72 @@ class DeveloperSessionManager:
             ok = self._try_stop_confirm(
                 "stop_after_late_command", request_id, trip_on_failure=True
             )
-            if release_deferred:
-                # 반납은 재정지 시도 **후** -- 성공이면 명령이 무효화됐고,
-                # 실패면 fault가 이미 모든 획득을 막는다.
-                self._arbiter.release(ControlArbiter.DEVELOPER)
             reason = (
                 "정지 요청과 겹쳐 명령을 취소하고 다시 멈췄습니다"
                 if ok
                 else "정지 요청과 겹쳤고 재정지도 확인하지 못했습니다 -- 기기를 잠갔습니다"
             )
-            return DevResult(False, request_id, reason=reason)
+            return self._finish_settle(DevResult(False, request_id, reason=reason))
 
-        # 예외로 끝났고 정지 경합은 없었다 -- 세션은 아직 열려 있다.
+        # 예외로 끝났고 (판정 시점 기준) 정지 경합은 없었다.
         ok = self._try_stop_confirm(
             "command_error", request_id, trip_on_failure=False
         )
         if ok:
             # 정지가 확인됐으니 세션은 유지 -- 사용자가 다시 시도할 수 있다.
-            return DevResult(
-                False, request_id,
-                reason="명령 전달 중 오류가 나 안전을 위해 정지를 보냈습니다 "
-                "-- 다시 시도해 주세요",
+            return self._finish_settle(
+                DevResult(
+                    False, request_id,
+                    reason="명령 전달 중 오류가 나 안전을 위해 정지를 보냈습니다 "
+                    "-- 다시 시도해 주세요",
+                )
             )
-        # 명령 결과도, 정지도 확인하지 못했다 -- 세션 폐기 + 장치 잠금.
+        # 명령 결과도, 정지도 확인하지 못했다 -- 장치 잠금. 세션 폐기는
+        # **우리 세대일 때만**: 정리가 지연되는 동안 별도 정지가 이미 이
+        # 세션을 닫았다면(epoch 증가) 지금의 self._session은 우리 것이
+        # 아닐 수 있다 -- 남의 세션을 닫으면 안 된다(후속 리뷰 1.2).
         self._arbiter.trip_fault("stop_unconfirmed:command_error")
+        closed_by_us = False
         with self._lock:
-            session = self._session
-            if session is not None:
+            if self._epoch == epoch and self._session is not None:
                 self._close_session_locked()
-        self._arbiter.release(ControlArbiter.DEVELOPER)
-        return DevResult(
-            False, request_id,
-            reason="명령 오류 후 정지도 확인하지 못했습니다 -- 기기를 잠갔습니다",
+                closed_by_us = True
+        return self._finish_settle(
+            DevResult(
+                False, request_id,
+                reason="명령 오류 후 정지도 확인하지 못했습니다 -- 기기를 잠갔습니다",
+            ),
+            force_release=closed_by_us,
         )
+
+    def _finish_settle(
+        self, result: DevResult, *, force_release: bool = False
+    ) -> DevResult:
+        """settle의 단일 출구 -- 여기서만 _inflight를 내리고 반납을 정한다.
+
+        반납 조건은 둘뿐이다: 정지가 반납을 이쪽에 위임했거나
+        (_release_pending -- 명령 또는 그 정리가 진행 중일 때 정지가 왔다),
+        이 settle이 자기 세션을 직접 닫았거나(force_release). 둘 다
+        아니면 세션이 아직 살아 있거나(반납할 일 없음) 다른 주체의
+        소유라 건드리지 않는다.
+        """
+        with self._lock:
+            self._inflight = False
+            release = self._release_pending or force_release
+            self._release_pending = False
+        if release:
+            self._arbiter.release(ControlArbiter.DEVELOPER)
+        return result
 
     def _try_stop_confirm(
         self, reason: str, request_id: str | None, *, trip_on_failure: bool
     ) -> bool:
         """어댑터에 정지를 보내고 확인 여부만 돌려준다. 락 밖 전용.
 
-        _send_stop과 달리 세션·제어권을 건드리지 않는다 -- settle 경로가
-        반납 순서를 직접 통제해야 하기 때문이다.
+        _send_stop과 달리 세션·제어권을 건드리지 않고, **fault도 해제하지
+        않는다** -- 정리가 지연되는 사이에 다른 주체가 건 fault를 오래된
+        정리의 성공이 풀어 버리면 안 된다(후속 리뷰 1.2). fault 해제는
+        사용자의 긴급 정지가 확인되는 경로(_send_stop) 하나뿐이다.
         """
         try:
             self._adapter.stop(reason)
@@ -700,12 +729,6 @@ class DeveloperSessionManager:
                 self._record("stop_unconfirmed", request_id, reason)
             log.exception("developer stop unconfirmed (reason=%s)", reason)
             return False
-        if (self._arbiter.fault_reason or "").startswith("stop_unconfirmed:"):
-            self._arbiter.clear_fault()
-            with self._lock:
-                self._record(
-                    "fault_cleared", request_id, f"정지 확인됨({reason})"
-                )
         with self._lock:
             self._record("stopped", request_id, reason)
         return True
