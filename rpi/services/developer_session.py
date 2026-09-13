@@ -228,7 +228,16 @@ class MockMotionAdapter:
 
 
 class DevSessionConflict(RuntimeError):
-    """다른 세션이나 일반 실행이 이미 제어권을 갖고 있다."""
+    """다른 세션이나 일반 실행이 이미 제어권을 갖고 있다.
+
+    ``code``가 이유를 가른다 -- 같은 거절이라도 화면이 해야 할 말이 다르다:
+    ``session_conflict``(다른 개발자 세션) · ``execution_busy``(일반 실행 중) ·
+    ``stopping``(이전 세션의 정지 정리 중) · ``shutting_down``(서버 종료 중).
+    """
+
+    def __init__(self, message: str, code: str = "session_conflict") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class DevSessionExpired(RuntimeError):
@@ -267,6 +276,36 @@ class DevResult:
     normalized: str | None = None
     reason: str | None = None
     sensor: dict[str, float] | None = None
+    #: 거절 사유의 기계용 이름(accepted면 None). 사람용 문장(reason)을
+    #: 화면이 잘라 쓰게 하면 문구가 바뀔 때 조용히 깨진다.
+    #: invalid_command · session_expired · wrong_target · unknown_button ·
+    #: not_calibrated · stopped · stop_race · command_error · stop_unconfirmed
+    code: str | None = None
+
+
+# 화면·API가 보는 제어 국면. 판정에 쓰지 않는다 -- 제어권 판정은
+# ControlArbiter.acquire와 _maybe_release_locked가 원자적으로 한다.
+PHASE_IDLE = "idle"
+PHASE_ACTIVE = "active"
+PHASE_STOPPING = "stopping"
+PHASE_FAULT = "fault"
+PHASE_EXECUTION_BUSY = "execution_busy"
+
+
+@dataclass(frozen=True)
+class DevControlState:
+    """개발자 제어 상태 한 장(표시용 스냅샷).
+
+    국면 우선순위: fault > stopping > active > execution_busy > idle.
+    정지 미확인(fault)은 무엇보다 먼저 보여야 한다 -- 그 상태를 다른
+    국면으로 덮으면 사용자는 멈춘 줄 안다.
+    """
+
+    phase: str
+    session: DevSession | None
+    fault_reason: str | None
+    mock: bool
+    shutting_down: bool
 
 
 class _Clock(Protocol):
@@ -376,6 +415,46 @@ class DeveloperSessionManager:
         with self._lock:
             return list(self._log)
 
+    @property
+    def heartbeat_ttl_s(self) -> float:
+        return self._heartbeat_ttl.total_seconds()
+
+    @property
+    def is_mock(self) -> bool:
+        return bool(getattr(self._adapter, "is_mock", False))
+
+    def state(self) -> DevControlState:
+        """표시용 스냅샷. 만료된 세션이 있으면 먼저 정리해서, 이미 끊긴
+        세션을 '진행 중'으로 보여주지 않는다.
+
+        중재자 상태를 개발자 락 안에서 읽는다 -- 개발자 락 → 중재자 락은
+        이 모듈 전체의 락 순서와 같다.
+        """
+        self.tick()
+        with self._lock:
+            session = self._session
+            stopping = self._release_owed
+            shutting_down = self._closed
+            fault_reason, _ = self._arbiter.fault_snapshot()
+            holder = self._arbiter.holder
+        if fault_reason is not None:
+            phase = PHASE_FAULT
+        elif stopping:
+            phase = PHASE_STOPPING
+        elif session is not None:
+            phase = PHASE_ACTIVE
+        elif holder == ControlArbiter.EXECUTION:
+            phase = PHASE_EXECUTION_BUSY
+        else:
+            phase = PHASE_IDLE
+        return DevControlState(
+            phase=phase,
+            session=session,
+            fault_reason=fault_reason,
+            mock=self.is_mock,
+            shutting_down=shutting_down,
+        )
+
     # ── 세션 수명 ──
 
     def start(self, appliance_id: str, node_id: str) -> DevSession:
@@ -393,11 +472,17 @@ class DeveloperSessionManager:
             # 읽으면 close()가 그 직후 종료를 마쳐도 세션이 만들어져,
             # 감시자 없는 세션이 종료된 서버에 남는다(후속 리뷰 1.1-#3).
             if self._closed:
-                raise DevSessionConflict("서버가 종료 중이라 세션을 열 수 없습니다")
+                raise DevSessionConflict(
+                    "서버가 종료 중이라 세션을 열 수 없습니다",
+                    code="shutting_down",
+                )
             if self._session is not None:
                 self._record("start_rejected", None, "다른 개발자 세션이 열려 있음",
                              appliance_id=appliance_id)
-                raise DevSessionConflict("다른 개발자 세션이 이미 제어권을 갖고 있습니다")
+                raise DevSessionConflict(
+                    "다른 개발자 세션이 이미 제어권을 갖고 있습니다",
+                    code="session_conflict",
+                )
             # 확인과 점유가 중재자 안에서 원자적 -- 일반 실행과 경합해도
             # 둘 다 통과하는 창이 없다. ControlFaultedError는 그대로 올린다
             # (정지 미확인 상태에서는 세션도 열 수 없다).
@@ -406,15 +491,17 @@ class DeveloperSessionManager:
             except ControlConflictError as exc:
                 # holder가 DEVELOPER인데 세션이 없다면 stopping 상태다 --
                 # 이전 세션의 진행 중 명령이 무효화 확인을 기다리고 있다.
+                by_execution = exc.holder == ControlArbiter.EXECUTION
                 busy = (
                     "일반 실행이 진행 중"
-                    if exc.holder == ControlArbiter.EXECUTION
+                    if by_execution
                     else "이전 세션의 정지를 정리하는 중"
                 )
                 self._record("start_rejected", None, busy,
                              appliance_id=appliance_id)
                 raise DevSessionConflict(
-                    f"{busy}입니다 -- 잠시 후 다시 시도해 주세요"
+                    f"{busy}입니다 -- 잠시 후 다시 시도해 주세요",
+                    code="execution_busy" if by_execution else "stopping",
                 ) from exc
             now = self._clock.now()
             session = DevSession(
@@ -538,19 +625,23 @@ class DeveloperSessionManager:
                 normalized="stop",
                 reason="정지를 보냈지만 확인하지 못했어요 -- 기기를 잠갔습니다. "
                 "긴급 정지로 정지를 확인해 주세요.",
+                code="stop_unconfirmed",
             )
 
         try:
             command = parse_dev_command(text)
         except DevCommandRejected as exc:
-            return self._reject(request_id, str(exc), appliance_id)
+            return self._reject(
+                request_id, str(exc), appliance_id, code="invalid_command"
+            )
 
         self.tick()
         with self._lock:
             session = self._session
             if session is None or session.session_id != session_id:
                 return self._reject_locked(
-                    request_id, "열린 개발자 세션이 아닙니다", appliance_id
+                    request_id, "열린 개발자 세션이 아닙니다", appliance_id,
+                    code="session_expired",
                 )
             # 매 명령마다 대상을 다시 확인한다 -- 다른 가전을 움직이는 사고를 막는다.
             if session.appliance_id != appliance_id:
@@ -558,6 +649,7 @@ class DeveloperSessionManager:
                     request_id,
                     "세션의 대상 가전과 다릅니다",
                     appliance_id,
+                    code="wrong_target",
                 )
             if command.kind is DevCommandKind.PRESS:
                 if self._known_button is not None and not self._known_button(
@@ -567,12 +659,14 @@ class DeveloperSessionManager:
                         request_id,
                         f"이 가전에 등록되지 않은 버튼입니다: {command.button_id}",
                         appliance_id,
+                        code="unknown_button",
                     )
                 if not self._is_calibrated(appliance_id):
                     return self._reject_locked(
                         request_id,
                         "버튼 위치 보정이 끝나지 않은 가전은 누를 수 없습니다",
                         appliance_id,
+                        code="not_calibrated",
                     )
             epoch = self._epoch
 
@@ -588,6 +682,7 @@ class DeveloperSessionManager:
                         request_id,
                         "정지되어 명령을 보내지 않았습니다",
                         appliance_id,
+                        code="stopped",
                     )
                 self._inflight = True
             try:
@@ -661,7 +756,12 @@ class DeveloperSessionManager:
                 if ok
                 else "정지 요청과 겹쳤고 재정지도 확인하지 못했습니다 -- 기기를 잠갔습니다"
             )
-            return self._finish_settle(DevResult(False, request_id, reason=reason))
+            return self._finish_settle(
+                DevResult(
+                    False, request_id, reason=reason,
+                    code="stop_race" if ok else "stop_unconfirmed",
+                )
+            )
 
         # 예외로 끝났고 (판정 시점 기준) 정지 경합은 없었다.
         ok = self._try_stop_confirm(
@@ -674,6 +774,7 @@ class DeveloperSessionManager:
                     False, request_id,
                     reason="명령 전달 중 오류가 나 안전을 위해 정지를 보냈습니다 "
                     "-- 다시 시도해 주세요",
+                    code="command_error",
                 )
             )
         # 명령 결과도, 정지도 확인하지 못했다 -- 장치 잠금. 세션 폐기는
@@ -690,6 +791,7 @@ class DeveloperSessionManager:
             DevResult(
                 False, request_id,
                 reason="명령 오류 후 정지도 확인하지 못했습니다 -- 기기를 잠갔습니다",
+                code="stop_unconfirmed",
             ),
             force_release=closed_by_us,
         )
@@ -931,18 +1033,22 @@ class DeveloperSessionManager:
         return session
 
     def _reject(
-        self, request_id: str, reason: str, appliance_id: str | None
+        self, request_id: str, reason: str, appliance_id: str | None,
+        *, code: str,
     ) -> DevResult:
         with self._lock:
-            return self._reject_locked(request_id, reason, appliance_id)
+            return self._reject_locked(
+                request_id, reason, appliance_id, code=code
+            )
 
     def _reject_locked(
-        self, request_id: str, reason: str, appliance_id: str | None
+        self, request_id: str, reason: str, appliance_id: str | None,
+        *, code: str,
     ) -> DevResult:
         self._record(
             "command_rejected", request_id, reason, appliance_id=appliance_id
         )
-        return DevResult(False, request_id, reason=reason)
+        return DevResult(False, request_id, reason=reason, code=code)
 
     def _record(
         self,
