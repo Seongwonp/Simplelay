@@ -1,0 +1,110 @@
+"""기계 제어권 중재자 — 일반 실행과 개발자 세션이 같은 기계를 동시에
+움직이지 않게 하는 **단 하나의 원자적 획득점**.
+
+Phase 0의 계약은 "서로를 조회한다"였다: 개발자 세션은 자기 락 안에서
+``execution_busy()``를 부르고, 실행기는 자기 락 안에서 ``blocks_execution()``을
+부른다. 그대로 연결하면 두 락을 서로 반대 순서로 잡는 구조가 되어
+
+- 일반 실행: 서비스 락 확보 → 개발자 락 대기
+- 개발자 세션: 개발자 락 확보 → 서비스 락 대기
+
+의 교착이 가능하다(3차 후속 교차 리뷰 #1). 그래서 조회 대신 **획득**으로
+바꾼다: 제어권이 필요한 쪽이 여기서 acquire 하고, 확인과 점유가 중재자 락
+하나 안에서 원자적으로 일어난다.
+
+락 순서 규칙: **이 모듈의 락은 항상 최내곽(leaf)이다.** 서비스 락 안에서
+arbiter를 불러도 되고 개발자 세션 락 안에서 불러도 되지만, arbiter는
+어떤 콜백도 밖으로 부르지 않는다 — 그래서 역전이 생길 수 없다.
+
+fault: 정지를 보냈는데 확인하지 못했다면(어댑터 예외) 기계가 멈췄는지
+모른다. 그 상태에서 새 실행·새 세션을 받으면 "멈춘 줄 아는 기계"를
+움직이게 된다(교차 리뷰 #3). ``trip_fault()``가 걸리면 정지가 다시
+확인될 때까지(``clear_fault()``) 어느 쪽도 제어권을 얻지 못한다.
+"""
+
+from __future__ import annotations
+
+import threading
+
+
+class ControlConflictError(RuntimeError):
+    """다른 주체가 이미 기계 제어권을 갖고 있다. (HTTP 409로 매핑된다)"""
+
+    def __init__(self, holder: str) -> None:
+        self.holder = holder
+        message = (
+            "개발자 세션이 기기를 점유하고 있습니다 — 세션이 끝난 뒤에 실행할 수 있습니다"
+            if holder == ControlArbiter.DEVELOPER
+            else "일반 실행이 진행 중입니다 — 끝난 뒤에 시작할 수 있습니다"
+        )
+        super().__init__(message)
+
+
+class ControlFaultedError(RuntimeError):
+    """정지 미확인(fault) 상태 — 기계가 멈췄는지 확인될 때까지 아무도 못 움직인다."""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(
+            "기기 정지가 확인되지 않아 잠겨 있습니다 — 긴급 정지로 정지를 "
+            f"확인한 뒤 다시 시도해 주세요 (사유: {reason})"
+        )
+
+
+class ControlArbiter:
+    """제어권은 한 번에 한 주체(holder)만 갖는다.
+
+    holder는 문자열 상수 둘뿐이다 — 열거형까지 만들지 않는 이유는 이 값이
+    저장·전송되지 않고 이 프로세스의 두 호출부에서만 쓰이기 때문이다.
+    """
+
+    EXECUTION = "execution"
+    DEVELOPER = "developer"
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._holder: str | None = None
+        self._fault_reason: str | None = None
+
+    # ── 획득/반납 ──
+
+    def acquire(self, holder: str) -> None:
+        """확인과 점유를 한 임계구역에서. 실패는 예외로 — 반환값 확인을
+        빠뜨린 호출부가 조용히 통과하는 것보다 시끄럽게 죽는 쪽이 안전하다."""
+        with self._lock:
+            if self._fault_reason is not None:
+                raise ControlFaultedError(self._fault_reason)
+            if self._holder is not None:
+                raise ControlConflictError(self._holder)
+            self._holder = holder
+
+    def release(self, holder: str) -> None:
+        """자기가 가진 제어권만 반납한다. 안 가진 쪽의 release는 무해한
+        no-op — 정지 경로는 여러 갈래라 이중 반납이 자연스럽게 생긴다."""
+        with self._lock:
+            if self._holder == holder:
+                self._holder = None
+
+    # ── fault ──
+
+    def trip_fault(self, reason: str) -> None:
+        """정지 미확인 잠금. 이후 acquire는 전부 ControlFaultedError."""
+        with self._lock:
+            self._fault_reason = reason
+
+    def clear_fault(self) -> None:
+        """정지가 실제로 확인된 쪽(성공한 stop)만 부른다."""
+        with self._lock:
+            self._fault_reason = None
+
+    # ── 조회(표시용 — 판정에 쓰지 말 것: 판정은 acquire가 원자적으로 한다) ──
+
+    @property
+    def holder(self) -> str | None:
+        with self._lock:
+            return self._holder
+
+    @property
+    def fault_reason(self) -> str | None:
+        with self._lock:
+            return self._fault_reason

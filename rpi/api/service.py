@@ -153,6 +153,7 @@ class SimpleLayService(PurposeExecutor):
         local_appliance_ids: frozenset[str] | None = None,
         history_store: JobHistoryStore | None = None,
         care_events=None,
+        control_arbiter=None,
     ) -> None:
         self._intent = intent
         self._controller = controller
@@ -207,6 +208,11 @@ class SimpleLayService(PurposeExecutor):
         self._stop_requested_at = None
         # 지금 실행의 시작 시각 — 소요시간을 재려면 필요하다. _lock으로 보호.
         self._current_started_at = None
+        # 기계 제어권 중재자(ControlArbiter) — 개발자 세션과의 상호 배제.
+        # None이면 일반 실행만 존재하는 구성(기존 테스트·rpi4 브리지)이라
+        # 종전 동작 그대로다. 락 순서: 항상 self._lock 안에서 부른다 —
+        # 중재자 락은 최내곽(leaf)이라 역전이 없다(control_arbiter.py 참고).
+        self._control_arbiter = control_arbiter
 
     def mark_ready(self) -> None:
         """Declare that hardware dependencies finished initializing."""
@@ -428,6 +434,12 @@ class SimpleLayService(PurposeExecutor):
         """
         with self._lock:
             self._guard_can_execute()
+            # 개발자 세션과의 상호 배제 — 확인과 점유가 중재자 안에서
+            # 원자적이라, "확인은 통과했는데 그 사이 세션이 열리는" 창이
+            # 없다. 실패는 ControlConflictError/ControlFaultedError
+            # (RuntimeError)로 올라가 라우터에서 409가 된다.
+            if self._control_arbiter is not None:
+                self._control_arbiter.acquire(self._control_arbiter.EXECUTION)
             self._running = True
             self._stop_requested_this_run = False
             self._stop_requested_at = None
@@ -446,6 +458,8 @@ class SimpleLayService(PurposeExecutor):
 
     def _end_run(self) -> None:
         with self._lock:
+            if self._control_arbiter is not None:
+                self._control_arbiter.release(self._control_arbiter.EXECUTION)
             self._running = False
             self._last_job_id = self._current_job_id
             self._last_appliance_id = self._current_appliance_id
