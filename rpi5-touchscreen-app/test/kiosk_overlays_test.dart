@@ -1,6 +1,5 @@
 // D5 — 오버레이·보조 화면의 접근성 감사: 터치 크기, 스크린리더, 큰 글씨.
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
@@ -74,17 +73,14 @@ void main() {
       final handle = tester.ensureSemantics();
       await _pump(tester, DangerAlertOverlay(onAcknowledge: () {}));
 
-      final node = tester.getSemantics(find.text('위험 신호음 감지'));
-      SemanticsNode? cursor = node;
-      var live = false;
-      while (cursor != null) {
-        if (cursor.hasFlag(SemanticsFlag.isLiveRegion)) {
-          live = true;
-          break;
-        }
-        cursor = cursor.parent;
-      }
-      expect(live, isTrue);
+      // 경보 화면 전체를 감싸는 의미 노드가 liveRegion이어야 한다.
+      final region = tester.getSemantics(find
+          .descendant(
+            of: find.byType(DangerAlertOverlay),
+            matching: find.byType(ColoredBox),
+          )
+          .first);
+      expect(region, isSemantics(isLiveRegion: true));
       handle.dispose();
     });
 
