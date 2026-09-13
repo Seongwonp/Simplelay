@@ -13,8 +13,9 @@ Phase 1.1 안전 경합 마감(stopping 상태·예외 settle·start/close 원�
 Phase 1.2 settle×정지 경합(정리 완료까지 점유·세대 확인·fault 보존)([l](docs/devlog_2026-09-13l.md)) ·
 Phase 1.3 반납 판정 단일화(_maybe_release_locked 4조건·fault_seq 세대 제한)([m](docs/devlog_2026-09-13m.md)) ·
 Phase 1.4 판정 경계 원자화(clear_fault_if_matches·정지 예약)([n](docs/devlog_2026-09-13n.md)) ·
-Phase 1.5 반환의 원자화(판정·갱신·release 한 임계구역)([o](docs/devlog_2026-09-13o.md))
-반영 완료. **다음: 개발자 모드 Phase 2 — API 경로 + 명시적 접근 제한(숨김이 아니라) + 폰 진입(`app/lib/screens/settings/developer_section.dart`). B12(키오스크 STT)는 보류 확정. 하드웨어가 오면 Phase 2보다 H0~H1이 먼저다.**
+Phase 1.5 반환의 원자화(판정·갱신·release 한 임계구역)([o](docs/devlog_2026-09-13o.md)) ·
+Phase 2 개발자 API 계약·통합 테스트·최소 폰 화면(mock 전용)([p](docs/devlog_2026-09-13p.md))
+반영 완료. **다음: 하드웨어가 오면 H0~H1(실제 한 가전 폐루프)이 먼저다. 개발자 도구를 실물에 여는 일(`allow_real_adapter`)은 H3·H4 실측 뒤 교차 확인을 거쳐 별도 단계로. B12(키오스크 STT)는 보류 확정.**
 
 기존 일정: [결선로드맵](docs/결선로드맵.md) · 현황: [개발현황](docs/개발현황.md) · 화면별 상세: [앱 개선 백로그](docs/앱-개선-백로그.md) · 작업 기록: `docs/devlog_YYYY-MM-DD.md`
 
@@ -43,7 +44,7 @@ Phase 1.5 반환의 원자화(판정·갱신·release 한 임계구역)([o](docs
 
 ### 최신 검증 기록을 해석하는 법
 
-- **2026-09-13 Phase 1.5 세션 종료 시점에 노트북에서 직접 확인(`932e688`):** 백엔드 **891** · 키오스크 **90**(골든 20장 별도 — Phase 1의 키오스크 변경은 골든 상태의 픽셀을 안 바꾸는 조건 분기라 갱신 없음) 통과. 폰은 이 세션에서 건드리지 않았다(직전 확인 **308**, 골든 51장 별도). 키오스크 `flutter analyze` error·warning 0 — 기존 info가 있어 exit code는 1이 정상이다.
+- **2026-09-13 Phase 2 세션 종료 시점에 노트북에서 직접 확인(`0ecc36f`):** 백엔드 **912** · 폰 **325**(골든 51장 별도 — 이번에 재실행하지 않았다. 진입 타일이 고급 설정 안이라 골든 구획 밖) 통과. 폰 `flutter analyze` error·warning 0(info 5건 전부 기존 파일). 키오스크는 이 세션에서 건드리지 않았다(직전 확인 **90**, 골든 20장 별도). 키오스크 `flutter analyze` error·warning 0 — 기존 info가 있어 exit code는 1이 정상이다.
 - **시계를 쥐지 않은 테스트는 날짜가 넘어가면 깨진다.** 판정 시각을 고정했다면 레지스트리·서비스의 시계도 고정한다(`bb713b3`에서 같은 결함을 두 번째로 고쳤다).
 - **커밋 게이트:** 셸 체인에서 `flutter analyze | tail -1`처럼 출력을 자르면 오류가 있어도 `&&`가 통과한다(실제로 `3f67318`이 빨간 채로 올라갔다). analyze 오류·경고 개수가 0이고 테스트 출력에 `All tests passed`가 있을 때만 커밋한다.
 - 테스트 개수를 적을 때는 **골든 포함 여부를 명시**한다.
@@ -76,6 +77,7 @@ Phase 1.5 반환의 원자화(판정·갱신·release 한 임계구역)([o](docs
 - 오프라인 우선: 모든 실기기 의존은 env 게이트(`SIMPLELAY_*`), 기본은 mock — 개발 PC에서 전 기능 동작
 - 클라이언트: 폰(app/), 키오스크(rpi5-touchscreen-app/, flutter-platform 구조) — 서비스는 생성자 주입으로 테스트
 - 리허설 API: `POST /demo/suggest`(제안 강제 생성), `POST /demo/inject-failure`(검증 실패 주입)
+- 개발자 API(`/dev/*`): `SIMPLELAY_DEV_MODE` + `SIMPLELAY_DEV_TOKEN`(일반 API 키와 별개), **mock 전용**. 계약은 `rpi/api/dev_router.py` 머리말, 제어권 반환 규칙은 `rpi/services/developer_session.py`의 `_maybe_release_locked`가 유일한 반환 지점
 
 ## 방향 원칙
 
