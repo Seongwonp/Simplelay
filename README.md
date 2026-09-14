@@ -81,7 +81,7 @@ flowchart LR
 | **Bridge** | ESP32 | BLE ↔ Wi-Fi 브릿지 (앱의 Wi-Fi 직통 실패 시 폴백 경로) · 물리 비상정지 버튼 신호 |
 | **Node** | ESP32 (가전마다) | 실행 중계 — HTTP 또는 ESP-NOW (컴파일 검증, 실기기 대기) |
 | **Act 하드웨어** | 모터 제어 MCU + Z축 누름 장치 | CoreXY X/Y 이동 + Z축 누름. 제어 펌웨어·Z축 방식은 결정 필요, 코드는 mock |
-| **App** | Flutter 폰 앱 · Flutter 키오스크(RPi5) | 음성/터치 입력, 상태 확인. 키오스크는 RPi5+HDMI 구동 확인, 전용 7인치 터치 패널 미검증 |
+| **App** | Flutter 폰 앱 · Flutter 키오스크(RPi5) | 음성/터치 입력, 상태 확인. 키오스크는 RPi5+HDMI 구동 확인, 15인치 터치 패널 실기기 미검증 |
 
 > **핵심:** 각 계층의 "자가 검증 + 선제 제어" 지능 레이어(intent/controller/verifier)가
 > SimpleLay만의 신규 구현이다. 재사용과 신규의 경계는
@@ -119,7 +119,7 @@ simplelay/
 ├── firmware/               # ESP32 브릿지 펌웨어 (BLE · UART · 비상정지 버튼 · ESP-NOW 게이트웨이)
 ├── firmware-node/          # ESP32 가전 노드 펌웨어 (HTTP · ESP-NOW)
 ├── app/                    # ★ Flutter 폰 앱 (음성 · 제안 · 상태 · 가전 등록 · 설정)
-├── rpi5-touchscreen-app/   # Flutter 키오스크 (RPi5, 800x480 기준)
+├── rpi5-touchscreen-app/   # Flutter 키오스크 (RPi5, 800x480 설계 캔버스를 15인치 패널에 비율 확대)
 └── scripts/                # RPi 설치 · systemd 유닛 · 키오스크 배포
 ```
 

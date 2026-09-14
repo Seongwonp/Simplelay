@@ -1,6 +1,8 @@
 # rpi5-touchscreen-app
 
-RPi5(7인치 터치스크린)용 대기/제안/실행중/완료 UI. 기존 `rpi/touchscreen/index.html`(HTML/JS 프로토타입)을
+RPi5(15인치 터치 패널)용 대기/제안/실행중/완료 UI. 800x480 설계 캔버스를 화면 크기에 맞춰
+비율 확대한다(`lib/widgets/kiosk/kiosk_canvas.dart`). 15인치 테스트는 1920x1080을 가정하며,
+실제 패널 사양과 실기기 표시는 아직 확인 전이다(`docs/하드웨어-연결-설계.md` §0-1). 기존 `rpi/touchscreen/index.html`(HTML/JS 프로토타입)을
 Flutter Atlas 앱으로 포팅한 버전이다. UI 상태 전이·폴링 주기·API 엔드포인트는 원본과 동일하게 맞췄다.
 
 ## 로컬 서버 연동
