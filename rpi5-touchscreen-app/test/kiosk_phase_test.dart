@@ -169,8 +169,8 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  // 새로 지급받은 15인치 패널. 설계 캔버스(800x480)보다 크므로 KioskCanvas가
-  // 통째로 확대해 채운다.
+  // 15인치 패널 — 1920x1080 가정(실제 해상도 확인 필요, 하드웨어-연결-설계 §0-1).
+  // 설계 캔버스(800x480)보다 크므로 KioskCanvas가 통째로 확대해 채운다.
   void useFifteenInchViewport(WidgetTester tester) {
     tester.view.physicalSize = const Size(1920, 1080);
     tester.view.devicePixelRatio = 1.0;

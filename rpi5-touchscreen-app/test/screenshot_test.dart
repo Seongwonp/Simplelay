@@ -65,7 +65,8 @@ Future<void> _shoot(
   );
 }
 
-/// 새로 지급받은 15인치 패널(1920x1080) 미리보기. KioskCanvas가 800x480 설계
+/// 15인치 패널 미리보기 — 해상도는 1920x1080 **가정**(실제 사양 확인 필요,
+/// docs/하드웨어-연결-설계.md §0-1). KioskCanvas가 800x480 설계
 /// 캔버스를 2.25배로 확대해 채운 모습 -- 글씨·버튼·터치타깃이 함께 커진다.
 Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
   tester.view.physicalSize = const Size(1920, 1080);
