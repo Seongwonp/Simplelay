@@ -1,6 +1,6 @@
 // 키오스크 화면을 실제 이미지로 렌더한다 — 눈으로 확인하기 위한 도구다.
 //
-// 왜 필요한가: 이 앱은 라즈베리파이 7인치에서만 도는데 개발 PC에 웹 지원이 없다.
+// 왜 필요한가: 이 앱은 라즈베리파이 키오스크(15.8형 패널)에서만 도는데 개발 PC에 웹 지원이 없다.
 // 디자인을 바꿔놓고 "테스트가 통과하니 괜찮겠지"로 넘기면, 이 프로젝트에서 반복해서
 // 겪은 실패 모드("고쳤다"와 "실제로 그렇게 보인다"는 다르다)를 그대로 반복하게 된다.
 //
@@ -24,6 +24,7 @@ import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/danger_alert_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
@@ -65,8 +66,8 @@ Future<void> _shoot(
   );
 }
 
-/// 15인치 패널 미리보기 — 해상도는 1920x1080 **가정**(실제 사양 확인 필요,
-/// docs/하드웨어-연결-설계.md §0-1). KioskCanvas가 800x480 설계
+/// 15.8형 패널 미리보기 — 제품 사양표 해상도 1920x1080
+/// (docs/하드웨어-연결-설계.md §0-1). KioskCanvas가 800x480 설계
 /// 캔버스를 2.25배로 확대해 채운 모습 -- 글씨·버튼·터치타깃이 함께 커진다.
 Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
   tester.view.physicalSize = const Size(1920, 1080);
@@ -437,6 +438,85 @@ void main() {
         onReject: () {},
         onRejectMute: () {},
       ),
+    );
+  });
+
+  // 사양 해상도 확인(9/14) 뒤 넓힌 15인치 미리보기 — 나머지 상태와 오버레이.
+  testWidgets('15인치 미리보기 — 가전 선택', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_appliance_select',
+      KioskApplianceSelectView(
+        appliances: const [kMicrowaveAppliance, kInductionAppliance],
+        lastUsedId: 'microwave',
+        onSelect: (_) {},
+        onCancel: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 실행', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_executing',
+      KioskExecutingView(
+        title: '우유 데워줘',
+        target: kMicrowaveAppliance,
+        lastButtons: null,
+        currentButton: '시간 90초',
+        currentAttempt: 1,
+        completedSteps: 1,
+        totalSteps: 3,
+        verificationConfidence: 0.93,
+        verificationDetail: '전류 +14mA · 소리 +9dB',
+        onStop: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 완료', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_done',
+      KioskDoneView(
+        success: true,
+        label: '우유 데워줘',
+        target: kMicrowaveAppliance,
+        onDismiss: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 수동 조작', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_manual',
+      KioskManualView(
+        appliance: kMicrowaveAppliance,
+        onExecute: (_) {},
+        onCancel: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 방해 금지', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_dnd',
+      DndOverlay(
+        dndUntil: null,
+        onSet: (_) {},
+        onClear: () {},
+        onDismiss: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 위험 신호음 경보', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_danger',
+      DangerAlertOverlay(onAcknowledge: () {}),
     );
   });
 
