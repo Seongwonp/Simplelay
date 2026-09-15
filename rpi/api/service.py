@@ -291,10 +291,39 @@ class SimpleLayService(PurposeExecutor):
             )
         return buttons
 
+    def _function_sequence(
+        self, purpose: str, appliance_id: str | None
+    ) -> tuple[str, ...] | None:
+        """가전이 **스스로 정의한** 목적별 시퀀스가 있으면 그것을 쓴다.
+
+        규칙·모델 해석보다 먼저다 -- 등록한 사람이 이 조작부에 맞춰 적은
+        순서가 일반 규칙보다 정확하다. 없으면 None(종전 해석 경로).
+
+        다이얼 회전 단계가 있으면 실행하지 않는다. 실행기가 아직 회전을
+        모르므로, 앞 단계만 누르고 멈추면 반쯤 설정된 가전이 남는다.
+        """
+        if appliance_id is None or self._appliance_registry is None:
+            return None
+        appliance = self._appliance_registry.get(appliance_id)
+        if appliance is None:
+            return None  # 없는 가전은 뒤의 게이트가 404로 거절한다
+        steps = appliance.function_steps(purpose)
+        if steps is None:
+            return None
+        if any(step.turns is not None for step in steps):
+            raise UnknownIntentError(
+                f"'{purpose.strip()}'에는 다이얼 회전 단계가 있어 아직 실행할 수 "
+                "없습니다 — 다이얼 구동부 연동 후 지원됩니다"
+            )
+        return tuple(step.label for step in steps)
+
     def _execute_via_resolver(
         self, purpose: str, resolver: IntentResolver, appliance_id: str | None = None
     ) -> ExecutionResult:
-        buttons = self._validate_resolved_sequence(tuple(resolver.resolve(purpose)))
+        defined = self._function_sequence(purpose, appliance_id)
+        buttons = self._validate_resolved_sequence(
+            defined if defined is not None else tuple(resolver.resolve(purpose))
+        )
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
         self._begin_run(len(buttons), controller, appliance_id)
@@ -339,7 +368,8 @@ class SimpleLayService(PurposeExecutor):
     # 스레드로 넘긴 뒤 job_id를 즉시 돌려준다. 진행·완료는 /status 폴링으로.
 
     def submit_purpose(self, purpose: str, appliance_id: str | None = None) -> str:
-        buttons = self._intent.resolve(purpose)
+        defined = self._function_sequence(purpose, appliance_id)
+        buttons = defined if defined is not None else self._intent.resolve(purpose)
         return self._submit(tuple(buttons), appliance_id, purpose)
 
     def submit_purpose_for_appliance(
@@ -353,6 +383,9 @@ class SimpleLayService(PurposeExecutor):
                 "no LLM client configured -- appliance-aware voice commands "
                 "need one (see the llm_client param / rpi/api/deps.py)"
             )
+        defined = self._function_sequence(purpose, appliance_id)
+        if defined is not None:
+            return self._submit(defined, appliance_id, purpose)
         resolver = LlmIntentResolver(self._llm_client, known_buttons=known_buttons)
         return self._submit(tuple(resolver.resolve(purpose)), appliance_id, purpose)
 

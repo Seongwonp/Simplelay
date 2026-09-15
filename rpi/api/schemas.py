@@ -6,7 +6,9 @@ from datetime import date, datetime
 from enum import Enum
 from urllib.parse import urlparse
 
-from pydantic import BaseModel, field_validator
+import math
+
+from pydantic import BaseModel, field_validator, model_validator
 
 # ── 물리 실행 입력의 제품 계약(상한) ─────────────────────────────────────────
 # 무한 입력은 장시간 물리 실행·거대 LLM 프롬프트·로그/DB 팽창으로 이어진다.
@@ -155,6 +157,16 @@ class ApplianceButtonModel(BaseModel):
     label: str
     x: int
     y: int
+    # ── 버튼맵 확장 — 모두 선택. 구버전 폰·키오스크는 보내지도 읽지도 않는다 ──
+    #: button | dial. 모르는 값은 거절한다(누르기·돌리기는 다른 물리 동작).
+    kind: str = "button"
+    #: 다이얼 전용 딸깍 수.
+    detents: int | None = None
+    #: 누름 유지 시간(ms). 없으면 하드웨어 프로필 기본값.
+    press_ms: int | None = None
+    #: 갠트리 좌표(mm) — 캘리브레이션·수동 티칭이 채운다. 둘은 함께 온다.
+    x_mm: float | None = None
+    y_mm: float | None = None
 
     @field_validator("id", "label")
     @classmethod
@@ -165,6 +177,51 @@ class ApplianceButtonModel(BaseModel):
         if len(stripped) > MAX_BUTTON_LABEL_LEN:
             raise ValueError(f"must be at most {MAX_BUTTON_LABEL_LEN} characters")
         return stripped
+
+    @field_validator("kind")
+    @classmethod
+    def kind_known(cls, v: str) -> str:
+        from rpi.services.appliance_registry import ButtonKind  # noqa: PLC0415
+
+        return ButtonKind.parse(v).value
+
+    @field_validator("press_ms")
+    @classmethod
+    def press_ms_in_range(cls, v: int | None) -> int | None:
+        from rpi.services.appliance_registry import PRESS_MS_RANGE  # noqa: PLC0415
+
+        if v is not None and not PRESS_MS_RANGE[0] <= v <= PRESS_MS_RANGE[1]:
+            raise ValueError(
+                f"press_ms must be between {PRESS_MS_RANGE[0]} and {PRESS_MS_RANGE[1]}"
+            )
+        return v
+
+    @field_validator("x_mm", "y_mm")
+    @classmethod
+    def mm_in_frame(cls, v: float | None) -> float | None:
+        from rpi.services.appliance_registry import MM_RANGE  # noqa: PLC0415
+
+        if v is None:
+            return v
+        if not math.isfinite(v) or not MM_RANGE[0] <= v <= MM_RANGE[1]:
+            raise ValueError(f"mm coordinate must be within {MM_RANGE[0]}..{MM_RANGE[1]}")
+        return v
+
+    @model_validator(mode="after")
+    def kind_consistent(self) -> "ApplianceButtonModel":
+        from rpi.services.appliance_registry import DETENTS_RANGE  # noqa: PLC0415
+
+        if self.kind == "dial":
+            if self.detents is None or not DETENTS_RANGE[0] <= self.detents <= DETENTS_RANGE[1]:
+                raise ValueError(
+                    f"dial '{self.label}' needs detents between "
+                    f"{DETENTS_RANGE[0]} and {DETENTS_RANGE[1]}"
+                )
+        elif self.detents is not None:
+            raise ValueError(f"button '{self.label}' must not have detents")
+        if (self.x_mm is None) != (self.y_mm is None):
+            raise ValueError("x_mm and y_mm must be given together")
+        return self
 
 
 class ApplianceResponse(BaseModel):
@@ -195,6 +252,10 @@ class ApplianceResponse(BaseModel):
     # 그래서 readiness가 disconnected여도 실행은 가능하다 -- 화면이
     # 버튼을 막을지 정할 때는 이 값을 본다.
     can_execute: bool = True
+    # 목적 → 단계("라벨" 누름, "라벨:+N" 다이얼). 없으면 빈 사전.
+    functions: dict[str, list[str]] = {}
+    # 버튼 mm 좌표를 만든 보정 결과의 버전. 보정 전이거나 무효화되면 None.
+    calibration_version: str | None = None
 
 
 class WellnessPauseRequest(BaseModel):
@@ -251,6 +312,8 @@ class ApplianceRegisterRequest(BaseModel):
     rows: int
     cols: int
     buttons: list[ApplianceButtonModel]
+    #: 목적별 시퀀스(선택). 등록 시점에 이 조작부로 실행 가능한지 검증한다.
+    functions: dict[str, list[str]] | None = None
 
     @field_validator("name")
     @classmethod
@@ -315,6 +378,34 @@ class ApplianceRegisterRequest(BaseModel):
             if (b.x, b.y) in seen:
                 raise ValueError(f"duplicate button position ({b.x},{b.y})")
             seen.add((b.x, b.y))
+        if self.functions:
+            from rpi.services.appliance_registry import (  # noqa: PLC0415
+                validate_functions,
+            )
+
+            validate_functions(self.button_defs(), self.functions)
+
+    def button_defs(self) -> tuple:
+        """요청 버튼을 레지스트리 정의로 — 라우터와 검증이 같은 변환을 쓴다."""
+        from rpi.services.appliance_registry import (  # noqa: PLC0415
+            ApplianceButtonDef,
+            ButtonKind,
+        )
+
+        return tuple(
+            ApplianceButtonDef(
+                id=b.id,
+                label=b.label,
+                x=b.x,
+                y=b.y,
+                kind=ButtonKind.parse(b.kind),
+                detents=b.detents,
+                press_ms=b.press_ms,
+                x_mm=b.x_mm,
+                y_mm=b.y_mm,
+            )
+            for b in self.buttons
+        )
 
 
 class NodeRegisterRequest(BaseModel):

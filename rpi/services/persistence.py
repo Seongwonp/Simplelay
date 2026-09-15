@@ -286,22 +286,36 @@ class SimpleLayDb:
         from .appliance_registry import ApplianceDef  # noqa: PLC0415 — 순환 회피
 
         assert isinstance(appliance, ApplianceDef)
-        payload = json.dumps(
-            {
-                "name": appliance.name,
-                "category": appliance.category.value,
-                "rows": appliance.rows,
-                "cols": appliance.cols,
-                # 판 번호도 함께 남긴다 — 재시작마다 1로 돌아가면
-                # 충돌 검사가 의미를 잃는다.
-                "revision": appliance.revision,
-                "buttons": [
-                    {"id": b.id, "label": b.label, "x": b.x, "y": b.y}
-                    for b in appliance.buttons
-                ],
-            },
-            ensure_ascii=False,
-        )
+
+        def button_payload(b) -> dict:
+            # 확장 필드는 값이 있을 때만 싣는다 — 예전 행과 모양이 같게 남아
+            # 구버전 서버로 되돌려도 읽힌다.
+            data = {"id": b.id, "label": b.label, "x": b.x, "y": b.y}
+            if b.kind.value != "button":
+                data["kind"] = b.kind.value
+            for key in ("detents", "press_ms", "x_mm", "y_mm"):
+                value = getattr(b, key)
+                if value is not None:
+                    data[key] = value
+            return data
+
+        document = {
+            "name": appliance.name,
+            "category": appliance.category.value,
+            "rows": appliance.rows,
+            "cols": appliance.cols,
+            # 판 번호도 함께 남긴다 — 재시작마다 1로 돌아가면
+            # 충돌 검사가 의미를 잃는다.
+            "revision": appliance.revision,
+            "buttons": [button_payload(b) for b in appliance.buttons],
+        }
+        if appliance.functions:
+            document["functions"] = {
+                name: list(steps) for name, steps in appliance.functions
+            }
+        if appliance.calibration_version:
+            document["calibration_version"] = appliance.calibration_version
+        payload = json.dumps(document, ensure_ascii=False)
         with self._lock:
             self._conn.execute(
                 "INSERT INTO appliances (appliance_id, payload_json) VALUES (?, ?)"
@@ -323,8 +337,15 @@ class SimpleLayDb:
             ApplianceButtonDef,
             ApplianceCategory,
             ApplianceDef,
+            ButtonKind,
             category_from_legacy_icon,
         )  # noqa: PLC0415
+
+        def opt_int(value):
+            return None if value is None else int(value)
+
+        def opt_float(value):
+            return None if value is None else float(value)
 
         with self._lock:
             rows = self._conn.execute(
@@ -356,11 +377,23 @@ class SimpleLayDb:
                                 label=b["label"],
                                 x=int(b["x"]),
                                 y=int(b["y"]),
+                                # 확장 필드가 없는 예전 행은 기본값(누름 버튼,
+                                # 보정 전)으로 살아난다.
+                                kind=ButtonKind.parse(b.get("kind")),
+                                detents=opt_int(b.get("detents")),
+                                press_ms=opt_int(b.get("press_ms")),
+                                x_mm=opt_float(b.get("x_mm")),
+                                y_mm=opt_float(b.get("y_mm")),
                             )
                             for b in data["buttons"]
                         ),
                         is_custom=True,
                         revision=int(data.get("revision", 0)),
+                        functions=tuple(
+                            (str(name), tuple(str(s) for s in steps))
+                            for name, steps in (data.get("functions") or {}).items()
+                        ),
+                        calibration_version=data.get("calibration_version"),
                     )
                 )
             except Exception:

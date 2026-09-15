@@ -18,7 +18,9 @@ SharedPreferences 커스텀, 키오스크 하드코딩, 자연어 규칙)에 흩
 
 from __future__ import annotations
 
+import re
 import threading
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -98,12 +100,124 @@ def category_from_legacy_icon(icon: str | None) -> ApplianceCategory:
     return _LEGACY_ICON_TO_CATEGORY.get(icon, ApplianceCategory.OTHER)
 
 
+class ButtonKind(str, Enum):
+    """조작부 한 칸의 **구동 방식**. 누르는 것과 돌리는 것은 다른 엔드이펙터 동작이다."""
+
+    BUTTON = "button"
+    DIAL = "dial"
+
+    @classmethod
+    def parse(cls, raw: str | None) -> "ButtonKind":
+        """모르는 값은 **거절한다.** 종류(category)와 달리 여기서 추측하면
+        다이얼을 누르거나 버튼을 돌리는 물리 동작이 된다."""
+        if raw is None or not str(raw).strip():
+            return cls.BUTTON
+        value = str(raw).strip().lower()
+        for kind in cls:
+            if kind.value == value:
+                return kind
+        raise ValueError(f"unknown button kind '{raw}' (button|dial)")
+
+
+# ── 버튼맵 확장 필드의 물리 상한 — 설계 초기값, 하드웨어 실측 후 조정 ──────────
+#: 누름 유지 시간(ms). 짧으면 접점이 안 붙고, 길면 '길게 누르기' 기능이 된다.
+PRESS_MS_RANGE = (30, 3000)
+#: 갠트리 좌표(mm). 프레임 안쪽만 의미가 있다 -- 음수·무한대는 계산 오류다.
+MM_RANGE = (0.0, 600.0)
+#: 다이얼 한 바퀴(또는 조작 범위)의 딸깍 수.
+DETENTS_RANGE = (2, 60)
+#: 가전당 목적별 시퀀스 수.
+MAX_FUNCTIONS = 30
+#: 시퀀스 한 개의 단계 수. 실행 상한(schemas.MAX_BUTTONS_PER_RUN)과 같아야
+#: 한다 -- 등록은 되는데 실행에서 거절되는 기능이 생기지 않게(테스트가 고정).
+MAX_FUNCTION_STEPS = 20
+
+_DIAL_STEP = re.compile(r"^(?P<label>.+):(?P<turns>[+-]\d{1,2})$")
+
+
+@dataclass(frozen=True)
+class FunctionStep:
+    """목적별 시퀀스의 한 단계. ``turns``가 None이면 누름, ±N이면 다이얼 N 딸깍."""
+
+    label: str
+    turns: int | None = None
+
+
+def parse_function_step(raw: str) -> FunctionStep:
+    """``"시작"`` → 누름, ``"출력:+2"`` → 다이얼 2딸깍(부호 필수).
+
+    부호를 필수로 둔 이유: 라벨 자체에 숫자가 들어가는 버튼("1분")과
+    회전 단계를 문자열만으로 헷갈리지 않게 한다.
+    """
+    text = str(raw).strip()
+    match = _DIAL_STEP.match(text)
+    if match:
+        return FunctionStep(match.group("label").strip(), int(match.group("turns")))
+    return FunctionStep(text)
+
+
 @dataclass(frozen=True)
 class ApplianceButtonDef:
     id: str
     label: str
+    #: 편집기 격자 칸 번호(정수). 화면 배치용이며 물리 좌표가 아니다.
     x: int
     y: int
+    kind: ButtonKind = ButtonKind.BUTTON
+    #: 다이얼 전용 -- 딸깍 수. 누름 버튼에는 없다.
+    detents: int | None = None
+    #: 누름 유지 시간. None이면 하드웨어 프로필 기본값을 쓴다.
+    press_ms: int | None = None
+    #: 갠트리 좌표(mm). **자동 캘리브레이션 또는 수동 티칭으로만** 채운다 --
+    #: 격자 칸에서 계산하지 않는다(부착 위치마다 다르다).
+    x_mm: float | None = None
+    y_mm: float | None = None
+
+    @property
+    def calibrated(self) -> bool:
+        return self.x_mm is not None and self.y_mm is not None
+
+
+def validate_functions(
+    buttons: "Sequence[ApplianceButtonDef]",
+    functions: "Mapping[str, Sequence[str]]",
+) -> None:
+    """목적별 시퀀스가 **이 가전의 실제 조작부로 실행 가능한가**를 등록 시점에 거른다.
+
+    실행 시점에 알게 되면 이미 앞 단계를 누른 뒤다 -- 반쯤 설정된 가전이 남는다.
+    """
+    if len(functions) > MAX_FUNCTIONS:
+        raise ValueError(f"at most {MAX_FUNCTIONS} functions")
+    by_label = {b.label: b for b in buttons}
+    for purpose, steps in functions.items():
+        name = str(purpose).strip()
+        if not name:
+            raise ValueError("function name must not be blank")
+        if len(name) > 200:
+            raise ValueError("function name must be at most 200 characters")
+        if not steps:
+            raise ValueError(f"function '{name}' has no steps")
+        if len(steps) > MAX_FUNCTION_STEPS:
+            raise ValueError(
+                f"function '{name}' has {len(steps)} steps (limit {MAX_FUNCTION_STEPS})"
+            )
+        for raw in steps:
+            step = parse_function_step(raw)
+            button = by_label.get(step.label)
+            if button is None:
+                raise ValueError(f"function '{name}' refers to unknown button '{step.label}'")
+            if step.turns is None and button.kind is ButtonKind.DIAL:
+                raise ValueError(
+                    f"'{step.label}' is a dial — use a turn step like '{step.label}:+1'"
+                )
+            if step.turns is not None:
+                if button.kind is not ButtonKind.DIAL:
+                    raise ValueError(f"'{step.label}' is a button and cannot be turned")
+                if step.turns == 0 or abs(step.turns) > (button.detents or 0):
+                    raise ValueError(
+                        f"turn {step.turns:+d} for '{step.label}' is outside "
+                        f"±{button.detents} detents"
+                    )
 
 
 @dataclass(frozen=True)
@@ -121,6 +235,17 @@ class ApplianceDef:
     #: 유일한 근거다 -- 시각으로 비교하면 기기 시계가 어긋날 때 조용히
     #: 틀린다. 내장 가전은 바뀌지 않으므로 0으로 둔다.
     revision: int = 0
+    #: 목적 → 단계 목록(``validate_functions``로 검증된 것만). 순서를 보존한다.
+    functions: tuple[tuple[str, tuple[str, ...]], ...] = ()
+    #: 버튼 mm 좌표를 만든 보정 결과의 버전. 좌표가 무효화되면 None.
+    calibration_version: str | None = None
+
+    def function_steps(self, purpose: str) -> tuple[FunctionStep, ...] | None:
+        key = purpose.strip()
+        for name, steps in self.functions:
+            if name == key:
+                return tuple(parse_function_step(s) for s in steps)
+        return None
 
     @property
     def icon(self) -> str:
@@ -180,6 +305,42 @@ BUILTIN_APPLIANCES: tuple[ApplianceDef, ...] = (
 )
 
 
+def _carry_calibration(
+    existing: ApplianceDef | None, incoming: ApplianceDef
+) -> ApplianceDef:
+    """폰 편집기 저장이 **보정으로 얻은 mm 좌표를 지우지 않게** 한다.
+
+    폰은 mm 좌표를 모르고 격자만 보낸다. 그대로 덮으면 이름 하나 고칠 때마다
+    보정을 다시 해야 한다. 규칙:
+
+    - 같은 id가 **같은 격자 칸**에 남았으면 이전 mm 좌표를 이어받는다.
+    - 칸을 옮긴 버튼은 이어받지 않는다 -- 옛 좌표로 누르면 엉뚱한 곳이다.
+    - 요청이 mm 좌표를 직접 실었으면(수동 티칭) 그 값이 이긴다.
+    - 보정 버전은 옮겨진 버튼이 하나도 없을 때만 유지한다.
+    """
+    from dataclasses import replace  # noqa: PLC0415
+
+    if existing is None:
+        return incoming
+    previous = {b.id: b for b in existing.buttons}
+    buttons: list[ApplianceButtonDef] = []
+    carried = False
+    lost = False
+    for button in incoming.buttons:
+        prev = previous.get(button.id)
+        if not button.calibrated and prev is not None and prev.calibrated:
+            if (prev.x, prev.y) == (button.x, button.y):
+                button = replace(button, x_mm=prev.x_mm, y_mm=prev.y_mm)
+                carried = True
+            else:
+                lost = True
+        buttons.append(button)
+    version = incoming.calibration_version
+    if version is None and carried and not lost:
+        version = existing.calibration_version
+    return replace(incoming, buttons=tuple(buttons), calibration_version=version)
+
+
 class ApplianceRegistry:
     """내장 + 커스텀 가전 목록. store(SimpleLayDb)가 있으면 커스텀을 영속화.
 
@@ -232,7 +393,9 @@ class ApplianceRegistry:
                 )
             from dataclasses import replace  # noqa: PLC0415
 
-            stamped = replace(appliance, revision=current + 1)
+            stamped = replace(
+                _carry_calibration(existing, appliance), revision=current + 1
+            )
             # DB를 먼저 커밋한다 — 메모리를 먼저 바꾸면 DB 실패(500) 시
             # "지금은 조회되는데 재시작하면 사라지는" 가전이 생긴다
             # (교차 리뷰 #2). DB가 던지면 메모리는 그대로라 상태가 일치한다.

@@ -188,10 +188,22 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
         cols=a.cols,
         is_custom=a.is_custom,
         buttons=[
-            ApplianceButtonModel(id=b.id, label=b.label, x=b.x, y=b.y)
+            ApplianceButtonModel(
+                id=b.id,
+                label=b.label,
+                x=b.x,
+                y=b.y,
+                kind=b.kind.value,
+                detents=b.detents,
+                press_ms=b.press_ms,
+                x_mm=b.x_mm,
+                y_mm=b.y_mm,
+            )
             for b in a.buttons
         ],
         revision=a.revision,
+        functions={name: list(steps) for name, steps in a.functions},
+        calibration_version=a.calibration_version,
         readiness=(
             "operable"
             if (not has_node and runs_locally)
@@ -384,11 +396,12 @@ async def register_appliance(
         ),
         rows=body.rows,
         cols=body.cols,
-        buttons=tuple(
-            ApplianceButtonDef(id=b.id, label=b.label, x=b.x, y=b.y)
-            for b in body.buttons
-        ),
+        buttons=body.button_defs(),
         is_custom=True,
+        functions=tuple(
+            (name.strip(), tuple(steps))
+            for name, steps in (body.functions or {}).items()
+        ),
     )
     if not appliance.appliance_id:
         raise HTTPException(status_code=422, detail="appliance id must not be blank")
