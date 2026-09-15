@@ -158,6 +158,23 @@ class SimpleLayDb:
             _log.warning("wellness pause value unreadable: %r", row[0])
             return None
 
+    def load_setting(self, key: str) -> str | None:
+        """범용 설정 한 칸 — 값 해석은 호출자가 한다."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT value FROM settings WHERE key = ?", (key,)
+            ).fetchone()
+        return None if row is None else row[0]
+
+    def save_setting(self, key: str, value: str | None) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO settings (key, value) VALUES (?, ?)"
+                " ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                (key, value),
+            )
+            self._conn.commit()
+
     def save_wellness_pause(self, until: date | None) -> None:
         with self._lock:
             self._conn.execute(

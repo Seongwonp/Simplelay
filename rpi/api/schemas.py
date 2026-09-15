@@ -408,6 +408,92 @@ class ApplianceRegisterRequest(BaseModel):
         )
 
 
+class CalibrationPointModel(BaseModel):
+    #: 패널·이미지 좌표계의 기준점
+    source: tuple[float, float]
+    #: 같은 기준점의 갠트리 좌표(mm)
+    target: tuple[float, float]
+
+
+class ApplianceCalibrationRequest(BaseModel):
+    """PUT /appliances/{id}/calibration — 기준점으로 변환을 구해 버튼 mm를 확정한다.
+
+    ``button_centers``는 기준점과 **같은 좌표계**의 버튼 중심이다(촬영 이미지
+    또는 패널 도면). 촬영·검출은 이 요청을 만드는 쪽의 몫이다.
+    """
+
+    expected_revision: int | None = None
+    kind: str = "affine"
+    points: list[CalibrationPointModel]
+    button_centers: dict[str, tuple[float, float]]
+    max_rms_mm: float | None = None
+    max_point_error_mm: float | None = None
+
+    @field_validator("points")
+    @classmethod
+    def points_bounded(cls, v: list[CalibrationPointModel]) -> list[CalibrationPointModel]:
+        if not 3 <= len(v) <= 50:
+            raise ValueError("points must contain 3 to 50 reference points")
+        return v
+
+    @field_validator("button_centers")
+    @classmethod
+    def centers_bounded(cls, v: dict[str, tuple[float, float]]) -> dict[str, tuple[float, float]]:
+        if not 1 <= len(v) <= MAX_KNOWN_BUTTONS:
+            raise ValueError(f"button_centers must contain 1 to {MAX_KNOWN_BUTTONS} buttons")
+        return v
+
+
+class ApplianceCalibrationResponse(BaseModel):
+    appliance: ApplianceResponse
+    version: str
+    kind: str
+    point_count: int
+    redundant_points: int
+    rms_error_mm: float
+    max_error_mm: float
+    #: 이번 보정에 포함되지 않아 mm 좌표가 없는 버튼 — 누를 수 없다
+    unmapped_buttons: list[str]
+
+
+class PresenceDistanceRequest(BaseModel):
+    """POST /presence/distance — 거리 센서(레이더) 한 주기의 관측값.
+
+    ``distance_m``가 None이면 이번 주기에는 사람이 감지되지 않았다는 뜻이다.
+    """
+
+    distance_m: float | None = None
+
+    @field_validator("distance_m")
+    @classmethod
+    def distance_valid(cls, v: float | None) -> float | None:
+        if v is not None and (not math.isfinite(v) or v < 0):
+            raise ValueError("distance_m must be a non-negative finite number")
+        return v
+
+
+class PresenceTransitionModel(BaseModel):
+    at_s: float
+    previous: str
+    current: str
+    reason: str
+    actions: list[str]
+
+
+class PresenceStateResponse(BaseModel):
+    state: str
+    executing: bool
+    arrival_hint: bool
+    radar: bool
+    node_awake: bool
+    screen_on: bool
+    actuator_powered: bool
+    #: 설계 추정치(최소, 최대 W) — 실측 전
+    estimated_watts: list[float]
+    #: 이번 요청으로 일어난 전이
+    transitions: list[PresenceTransitionModel]
+
+
 class NodeRegisterRequest(BaseModel):
     """가전 하나를 담당하는 원격 노드(현재: ESP32 dev-mode HTTP 서버)의 주소를
     등록한다. 같은 appliance_id로 다시 등록하면 주소가 교체된다."""

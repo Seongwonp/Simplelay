@@ -305,6 +305,28 @@ BUILTIN_APPLIANCES: tuple[ApplianceDef, ...] = (
 )
 
 
+def _calibration_key(appliance_id: str) -> str:
+    return f"calibration:{appliance_id}"
+
+
+def _encode_overlay(version: str, mapped: Mapping[str, tuple[float, float]]) -> str:
+    import json  # noqa: PLC0415
+
+    return json.dumps(
+        {"version": version, "coords": {k: [x, y] for k, (x, y) in mapped.items()}},
+        ensure_ascii=False,
+    )
+
+
+def _decode_overlay(raw: str) -> tuple[str, dict[str, tuple[float, float]]]:
+    import json  # noqa: PLC0415
+
+    data = json.loads(raw)
+    return str(data["version"]), {
+        str(k): (float(v[0]), float(v[1])) for k, v in data["coords"].items()
+    }
+
+
 def _carry_calibration(
     existing: ApplianceDef | None, incoming: ApplianceDef
 ) -> ApplianceDef:
@@ -352,20 +374,104 @@ class ApplianceRegistry:
         self._store = store
         self._lock = threading.Lock()
         self._custom: dict[str, ApplianceDef] = {}
+        # 내장 가전의 보정 좌표. 내장 정의 자체는 바꾸지 않고(키오스크·규칙이
+        # 전제한다) 부착 위치마다 다른 mm 좌표만 덧씌운다.
+        self._builtin_calibration: dict[str, tuple[str, dict[str, tuple[float, float]]]] = {}
         if store is not None:
             for appliance in store.appliances():
                 self._custom[appliance.appliance_id] = appliance
+            loader = getattr(store, "load_setting", None)
+            for builtin in BUILTIN_APPLIANCES:
+                raw = loader(_calibration_key(builtin.appliance_id)) if loader else None
+                if raw:
+                    try:
+                        self._builtin_calibration[builtin.appliance_id] = _decode_overlay(raw)
+                    except Exception:  # 손상된 보정은 '보정 전'으로 — 틀린 좌표보다 낫다
+                        import logging  # noqa: PLC0415
+
+                        logging.getLogger(__name__).exception(
+                            "skipping corrupt calibration for %r", builtin.appliance_id
+                        )
 
     def list(self) -> tuple[ApplianceDef, ...]:
         with self._lock:
-            return BUILTIN_APPLIANCES + tuple(self._custom.values())
+            builtins = tuple(self._with_overlay(b) for b in BUILTIN_APPLIANCES)
+            return builtins + tuple(self._custom.values())
 
     def get(self, appliance_id: str) -> ApplianceDef | None:
         with self._lock:
             for builtin in BUILTIN_APPLIANCES:
                 if builtin.appliance_id == appliance_id:
-                    return builtin
+                    return self._with_overlay(builtin)
             return self._custom.get(appliance_id)
+
+    def apply_calibration(
+        self,
+        appliance_id: str,
+        *,
+        version: str,
+        coords: Mapping[str, tuple[float, float]],
+        expected_revision: int | None = None,
+    ) -> ApplianceDef:
+        """보정 결과(버튼 id → mm)를 **한 번에** 반영한다.
+
+        새 보정은 새 변환 행렬이다. 이번에 포함되지 않은 버튼의 옛 mm 좌표는
+        다른 행렬로 만든 값이라 섞으면 안 된다 -- 비운다.
+
+        호출자(라우터)가 버튼 id·프레임 범위를 검증한 뒤 부른다. 없는
+        가전이면 LookupError.
+        """
+        from dataclasses import replace  # noqa: PLC0415
+
+        mapped = {bid: (float(x), float(y)) for bid, (x, y) in coords.items()}
+        with self._lock:
+            builtin = next(
+                (b for b in BUILTIN_APPLIANCES if b.appliance_id == appliance_id), None
+            )
+            if builtin is not None:
+                if self._store is not None and hasattr(self._store, "save_setting"):
+                    self._store.save_setting(
+                        _calibration_key(appliance_id), _encode_overlay(version, mapped)
+                    )
+                self._builtin_calibration[appliance_id] = (version, mapped)
+                return self._with_overlay(builtin)
+
+            existing = self._custom.get(appliance_id)
+            if existing is None:
+                raise LookupError(appliance_id)
+            if expected_revision is not None and expected_revision != existing.revision:
+                raise RevisionConflictError(appliance_id, existing.revision)
+            updated = replace(
+                existing,
+                buttons=tuple(
+                    replace(b, x_mm=mapped[b.id][0], y_mm=mapped[b.id][1])
+                    if b.id in mapped
+                    else replace(b, x_mm=None, y_mm=None)
+                    for b in existing.buttons
+                ),
+                calibration_version=version,
+                revision=existing.revision + 1,
+            )
+            if self._store is not None:
+                self._store.save_appliance(updated)  # DB 먼저 — register와 같은 규칙
+            self._custom[appliance_id] = updated
+            return updated
+
+    def _with_overlay(self, builtin: ApplianceDef) -> ApplianceDef:
+        from dataclasses import replace  # noqa: PLC0415
+
+        overlay = self._builtin_calibration.get(builtin.appliance_id)
+        if overlay is None:
+            return builtin
+        version, mapped = overlay
+        return replace(
+            builtin,
+            buttons=tuple(
+                replace(b, x_mm=mapped[b.id][0], y_mm=mapped[b.id][1]) if b.id in mapped else b
+                for b in builtin.buttons
+            ),
+            calibration_version=version,
+        )
 
     def register(
         self, appliance: ApplianceDef, expected_revision: int | None = None

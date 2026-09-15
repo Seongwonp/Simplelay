@@ -310,6 +310,18 @@ def get_wellness_checker():
 
 
 @lru_cache(maxsize=1)
+def get_presence_state_machine():
+    """공간 인식·노드 전원 상태 머신 — 거리 센서(레이더) 관측을 받는다.
+
+    메모리에만 산다: 재시작 뒤 '가전 앞에 사람이 있다'를 기억하면 확인 없이
+    구동부 전원을 켜게 된다. 레이더 드라이버가 붙기 전에는 관측 API로만 움직인다.
+    """
+    from rpi.services.presence_state import PresenceStateMachine  # noqa: PLC0415
+
+    return PresenceStateMachine()
+
+
+@lru_cache(maxsize=1)
 def get_appliance_registry():
     """가전 정의의 단일 진실원천 — 내장 + 폰에서 등록한 커스텀.
     SIMPLELAY_DB_PATH가 있으면 커스텀 등록이 재시작에도 유지된다."""

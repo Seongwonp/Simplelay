@@ -25,6 +25,7 @@ from rpi.services.appliance_registry import (
 )
 
 from .deps import (
+    get_presence_state_machine,
     get_clock,
     get_readiness_registry,
     get_wellness_pause,
@@ -44,6 +45,11 @@ from .deps import (
 )
 from .schemas import (
     AlertResponse,
+    ApplianceCalibrationRequest,
+    ApplianceCalibrationResponse,
+    PresenceDistanceRequest,
+    PresenceStateResponse,
+    PresenceTransitionModel,
     ApplianceButtonModel,
     ApplianceRegisterRequest,
     ApplianceResponse,
@@ -422,6 +428,90 @@ async def register_appliance(
     return _to_appliance_response(saved)
 
 
+@router.put(
+    "/appliances/{appliance_id}/calibration",
+    response_model=ApplianceCalibrationResponse,
+)
+async def calibrate_appliance(
+    appliance_id: str,
+    body: ApplianceCalibrationRequest,
+    registry=Depends(get_appliance_registry),
+) -> ApplianceCalibrationResponse:
+    """기준점으로 변환 행렬을 구하고, 버튼 중심을 갠트리 mm로 바꿔 저장한다.
+
+    검증에 실패하면 **아무것도 저장하지 않는다** -- 틀린 좌표를 남기는 것보다
+    보정 전 상태가 안전하다. 거절 문장은 어느 기준점이 문제인지 밝힌다.
+    """
+    from rpi.calibration import (  # noqa: PLC0415
+        CalibrationRejected,
+        PointPair,
+        calibrate,
+        map_button_centers,
+    )
+    from rpi.services.appliance_registry import MM_RANGE  # noqa: PLC0415
+
+    appliance = registry.get(appliance_id)
+    if appliance is None:
+        raise HTTPException(status_code=404, detail="appliance not found")
+    known = {b.id for b in appliance.buttons}
+    unknown = sorted(set(body.button_centers) - known)
+    if unknown:
+        raise HTTPException(
+            status_code=422,
+            detail=f"이 가전에 없는 버튼입니다: {', '.join(unknown)}",
+        )
+    options = {}
+    if body.max_rms_mm is not None:
+        options["max_rms_mm"] = body.max_rms_mm
+    if body.max_point_error_mm is not None:
+        options["max_point_error_mm"] = body.max_point_error_mm
+    try:
+        result = calibrate(
+            [PointPair(p.source, p.target) for p in body.points],
+            kind=body.kind,
+            **options,
+        )
+        coords = map_button_centers(result, body.button_centers)
+    except CalibrationRejected as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    lo, hi = MM_RANGE
+    outside = sorted(
+        bid for bid, (x, y) in coords.items() if not (lo <= x <= hi and lo <= y <= hi)
+    )
+    if outside:
+        raise HTTPException(
+            status_code=422,
+            detail=f"변환된 좌표가 프레임({lo:g}~{hi:g}mm) 밖입니다: {', '.join(outside)}",
+        )
+    try:
+        saved = registry.apply_calibration(
+            appliance_id,
+            version=result.version,
+            coords=coords,
+            expected_revision=body.expected_revision,
+        )
+    except RevisionConflictError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail="다른 기기에서 먼저 변경되었어요",
+            headers={"X-Current-Revision": str(exc.current_revision)},
+        ) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="appliance not found") from exc
+    return ApplianceCalibrationResponse(
+        appliance=_to_appliance_response(saved),
+        version=result.version,
+        kind=result.transform.kind,
+        point_count=result.point_count,
+        redundant_points=result.redundant_points,
+        rms_error_mm=result.rms_error_mm,
+        max_error_mm=result.max_error_mm,
+        unmapped_buttons=[b.id for b in saved.buttons if not b.calibrated],
+    )
+
+
 @router.delete("/appliances/{appliance_id}", response_model=OkResponse)
 async def delete_appliance(
     appliance_id: str,
@@ -718,6 +808,57 @@ async def history(
         )
         for e in store.recent(limit)
     ]
+
+
+def _presence_state(machine, transitions) -> PresenceStateResponse:
+    profile = machine.profile
+    return PresenceStateResponse(
+        state=machine.state.value,
+        executing=machine.executing,
+        arrival_hint=machine.arrival_hint_active(),
+        radar=profile.radar,
+        node_awake=profile.node_awake,
+        screen_on=profile.screen_on,
+        actuator_powered=profile.actuator_powered,
+        estimated_watts=list(profile.estimated_watts),
+        transitions=[
+            PresenceTransitionModel(
+                at_s=tr.at_s,
+                previous=tr.previous.value,
+                current=tr.current.value,
+                reason=tr.reason,
+                actions=list(tr.actions),
+            )
+            for tr in transitions
+        ],
+    )
+
+
+@router.post("/presence/distance", response_model=PresenceStateResponse)
+async def presence_distance(
+    body: PresenceDistanceRequest,
+    machine=Depends(get_presence_state_machine),
+) -> PresenceStateResponse:
+    # 거리 센서 한 주기 관측. 동작 어휘(screen_on 등)는 돌려줄 뿐 여기서
+    # 실행하지 않는다 -- 화면·전원 제어는 받는 쪽(노드)의 몫이다.
+    return _presence_state(machine, machine.observe(body.distance_m))
+
+
+@router.post("/presence/arriving", response_model=PresenceStateResponse)
+async def presence_arriving(
+    machine=Depends(get_presence_state_machine),
+) -> PresenceStateResponse:
+    # S0 귀가 신호(폰 지오펜싱). 노드는 깨우지 않고 추천 후보만 미리 계산.
+    transition = machine.phone_arriving()
+    return _presence_state(machine, [transition] if transition else [])
+
+
+@router.get("/presence/state", response_model=PresenceStateResponse)
+async def presence_state(
+    machine=Depends(get_presence_state_machine),
+) -> PresenceStateResponse:
+    # 조회도 시간 경과(체류 승격·미감지 강등)를 반영한다.
+    return _presence_state(machine, machine.tick())
 
 
 @router.get("/history.csv")
