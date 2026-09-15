@@ -124,6 +124,9 @@ class HttpLlmClient(LlmClient):
             headers={
                 "Content-Type": "application/json",
                 "Authorization": f"Bearer {self._config.api_key}",
+                # 파이썬 기본 User-Agent(Python-urllib)는 일부 게이트웨이 앞단
+                # 방화벽이 봇으로 보고 403으로 막는다.
+                "User-Agent": "SimpleLay/0.1 (+intent)",
             },
         )
         try:

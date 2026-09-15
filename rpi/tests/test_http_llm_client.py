@@ -36,6 +36,26 @@ def test_complete_extracts_message_content(monkeypatch: pytest.MonkeyPatch):
     assert client.complete("우유 데워줘", ("해동", "시작")) == '{"sequence": ["해동"]}'
 
 
+def test_request_does_not_use_the_default_python_user_agent(
+    monkeypatch: pytest.MonkeyPatch,
+):
+    # 앞단 방화벽이 Python-urllib 기본 User-Agent를 403(error 1010)으로 막는
+    # 게이트웨이가 있다 -- 키가 맞아도 호출이 통째로 실패한다.
+    seen = {}
+
+    @contextmanager
+    def fake_urlopen(request, timeout):
+        seen["ua"] = request.get_header("User-agent")
+        yield FakeResponse({"choices": [{"message": {"content": '{"sequence": []}'}}]})
+
+    monkeypatch.setattr("rpi.intent.llm.urllib.request.urlopen", fake_urlopen)
+
+    HttpLlmClient(CONFIG).complete("우유 데워줘", ())
+
+    assert seen["ua"]
+    assert "python-urllib" not in seen["ua"].lower()
+
+
 def test_network_failure_becomes_llm_output_error(monkeypatch: pytest.MonkeyPatch):
     def raising_urlopen(request, timeout):
         raise OSError("connection refused")
