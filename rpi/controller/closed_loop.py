@@ -5,6 +5,11 @@ from collections.abc import Callable
 
 from rpi.verifier import VerificationResult, Verifier
 
+from .layered import (
+    DEFAULT_ACCEPTANCE_REINPUTS,
+    AcceptanceVerifier,
+    OperationVerifier,
+)
 from .models import (
     ButtonResult,
     ButtonStatus,
@@ -13,6 +18,7 @@ from .models import (
     ExecutionResult,
     ExecutionStatus,
     PressCommand,
+    VerificationLayer,
 )
 from .ports import AlertSink, GrblClient, NoOpRetryWaiter, RetryWaiter, SafetyController
 from .progress import ProgressCallback
@@ -34,7 +40,12 @@ class ClosedLoopController:
         retry_waiter: RetryWaiter | None = None,
         on_progress: ProgressCallback | None = None,
         step_pacer: Callable[[str, int], None] | None = None,
+        acceptance: AcceptanceVerifier | None = None,
+        operation: OperationVerifier | None = None,
+        acceptance_reinputs: int = DEFAULT_ACCEPTANCE_REINPUTS,
     ) -> None:
+        if acceptance_reinputs < 0:
+            raise ValueError("acceptance_reinputs must not be negative")
         self._grbl = grbl
         self._verifier = verifier
         self._alerts = alerts
@@ -43,6 +54,10 @@ class ClosedLoopController:
         self._retry_waiter = retry_waiter or NoOpRetryWaiter()
         self._on_progress = on_progress
         self._step_pacer = step_pacer
+        # L2·L3 검증기는 선택이다(layered.py). 없으면 L1만 쓰는 종전 동작.
+        self._acceptance = acceptance
+        self._operation = operation
+        self._acceptance_reinputs = acceptance_reinputs
         # /stop(긴급 정지)용. 실행은 별도 스레드(asyncio.to_thread)에서 돌고
         # 정지 요청은 FastAPI 요청 스레드에서 오므로 threading.Event를 쓴다.
         self._stop_requested = threading.Event()
@@ -85,48 +100,129 @@ class ClosedLoopController:
             if result.status is ButtonStatus.SUCCEEDED:
                 completed_steps += 1
             if result.status is ButtonStatus.FAILED:
-                reason = f"verification failed for {button} after {result.attempts} attempts"
+                if result.failed_layer is VerificationLayer.ACCEPTANCE:
+                    reason = (
+                        f"L2 appliance did not accept {button} after "
+                        f"{result.reinputs} re-input(s)"
+                    )
+                else:
+                    reason = f"verification failed for {button} after {result.attempts} attempts"
                 self._safety.stop(reason)
                 self._alerts.notify_failure(button, result.attempts)
-                return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, tuple(results))
-        return ExecutionResult(ExecutionStatus.SUCCEEDED, tuple(results))
+                return ExecutionResult(
+                    ExecutionStatus.SAFETY_STOPPED,
+                    tuple(results),
+                    failed_layer=result.failed_layer,
+                )
+        return self._verify_operation(tuple(buttons), tuple(results))
+
+    def _verify_operation(
+        self, buttons: tuple[str, ...], results: tuple[ButtonResult, ...]
+    ) -> ExecutionResult:
+        """L3 — 시퀀스를 다 넣은 뒤 한 번만 판정한다. 실패해도 다시 누르지 않는다."""
+        if self._operation is None:
+            return ExecutionResult(ExecutionStatus.SUCCEEDED, results)
+        try:
+            self._check_stop()
+        except _EmergencyStopRequested:
+            self._safety.stop("emergency stop requested")
+            return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, results)
+        outcome = self._operation.verify_operation(buttons)
+        if outcome.passed:
+            return ExecutionResult(
+                ExecutionStatus.SUCCEEDED, results, operation=outcome
+            )
+        self._safety.stop(f"L3 operation not confirmed: {outcome.detail}")
+        self._alerts.notify_operation_unconfirmed(outcome.detail)
+        return ExecutionResult(
+            ExecutionStatus.SAFETY_STOPPED,
+            results,
+            failed_layer=VerificationLayer.OPERATION,
+            operation=outcome,
+        )
 
     def _execute_button(self, button: str, completed_steps: int) -> ButtonResult:
+        """버튼 하나: L1(보정 재시도) → L2(불수용이면 같은 입력 재입력).
+
+        누름 횟수 상한은 ``max_attempts × (1 + acceptance_reinputs)``다 --
+        재입력 한 번은 L1 보정 루프를 한 번 더 도는 것이라, 재입력 중에
+        미끄러진 누름도 보정된다. L2 검증기가 없으면 상한은 종전대로
+        ``max_attempts``다.
+        """
         errors: list[str] = []
         last_verification = None
-        for attempt in range(1, self._retry_policy.max_attempts + 1):
-            if attempt > 1:
-                self._check_stop()  # 재시도 경계에서도 정지 요청 반영
-                self._retry_waiter.wait(button, attempt - 1)
-            correction = (
-                None if attempt == 1 else self._retry_policy.correction_for(attempt - 1)
-            )
-            try:
-                self._grbl.press(PressCommand(button, correction))
-            except Exception as exc:  # adapter errors are recoverable within the hard limit
-                errors.append(str(exc))
-                self._report_progress(button, attempt, completed_steps, None)
-                continue
+        presses = 0
+        reinputs = 0
+        while True:
+            pressed = False
+            for attempt in range(1, self._retry_policy.max_attempts + 1):
+                if presses > 0:
+                    self._check_stop()  # 재시도·재입력 경계에서도 정지 요청 반영
+                    self._retry_waiter.wait(button, presses)
+                correction = (
+                    None
+                    if attempt == 1
+                    else self._retry_policy.correction_for(attempt - 1)
+                )
+                presses += 1
+                try:
+                    self._grbl.press(PressCommand(button, correction))
+                except Exception as exc:  # adapter errors are recoverable within the hard limit
+                    errors.append(str(exc))
+                    self._report_progress(button, presses, completed_steps, None)
+                    continue
 
-            last_verification = self._verifier.verify(button)
-            self._report_progress(button, attempt, completed_steps, last_verification)
-            if last_verification.pressed:
+                last_verification = self._verifier.verify(button)
+                self._report_progress(button, presses, completed_steps, last_verification)
+                if last_verification.pressed:
+                    pressed = True
+                    break
+
+            if not pressed:
+                return ButtonResult(
+                    button,
+                    ButtonStatus.FAILED,
+                    presses,
+                    last_verification,
+                    tuple(errors),
+                    failed_layer=VerificationLayer.PRESS,
+                    reinputs=reinputs,
+                )
+
+            if self._acceptance is None:
                 self._pace(button, completed_steps)
                 return ButtonResult(
                     button,
                     ButtonStatus.SUCCEEDED,
-                    attempt,
+                    presses,
                     last_verification,
                     tuple(errors),
+                    reinputs=reinputs,
                 )
 
-        return ButtonResult(
-            button,
-            ButtonStatus.FAILED,
-            self._retry_policy.max_attempts,
-            last_verification,
-            tuple(errors),
-        )
+            accepted = self._acceptance.verify_acceptance(button)
+            if accepted.passed:
+                self._pace(button, completed_steps)
+                return ButtonResult(
+                    button,
+                    ButtonStatus.SUCCEEDED,
+                    presses,
+                    last_verification,
+                    tuple(errors),
+                    reinputs=reinputs,
+                )
+            errors.append(f"L2: {accepted.detail}" if accepted.detail else "L2: not accepted")
+            if reinputs >= self._acceptance_reinputs:
+                return ButtonResult(
+                    button,
+                    ButtonStatus.FAILED,
+                    presses,
+                    last_verification,
+                    tuple(errors),
+                    failed_layer=VerificationLayer.ACCEPTANCE,
+                    reinputs=reinputs,
+                )
+            reinputs += 1
 
     def _check_stop(self) -> None:
         if self._stop_requested.is_set():

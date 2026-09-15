@@ -41,6 +41,14 @@ class AlertSink(ABC):
     def notify_failure(self, button: str, attempts: int) -> None:
         """Notify the app/user that closed-loop recovery was exhausted."""
 
+    def notify_operation_unconfirmed(self, detail: str) -> None:
+        """L3 — 버튼은 다 들어갔는데 가전 동작이 확인되지 않았다.
+
+        기본 구현은 기존 실패 알림으로 보낸다. 알림 채널을 새로 만들지
+        않은 구현도 이 사건을 잃지 않게 하려는 것이다(누른 횟수는 0).
+        """
+        self.notify_failure(f"동작 확인: {detail}", 0)
+
 
 class SafetyController(ABC):
     @abstractmethod
