@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,10 +8,14 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/photo_provider.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/appliance_editor_screen.dart';
 import 'package:simplelay/services/photo_service.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
 
 import '../helpers/test_helpers.dart';
+
+const _fakePhotoBytes = [0x89, 0x50, 0x4E, 0x47];
 
 class _FakePhotoService extends PhotoService {
   _FakePhotoService(this._photo);
@@ -18,7 +23,49 @@ class _FakePhotoService extends PhotoService {
 
   @override
   Future<File?> takePhoto() async => _photo;
+
+  // 실제 파일 입출력은 위젯 테스트의 가짜 시계에서 끝나지 않는다.
+  @override
+  Future<Uint8List> readBytes(File file) async =>
+      Uint8List.fromList(_fakePhotoBytes);
 }
+
+/// 사진 인식만 가짜로 — 서버·인식 서비스·크레딧 없이 화면 흐름을 본다.
+class _FakeScanApi extends RpiApiService {
+  _FakeScanApi({this.draft, this.error}) : super('http://rpi5.local:8000');
+
+  final PanelScanDraft? draft;
+  final RpiApiException? error;
+  int calls = 0;
+  List<int>? sentBytes;
+
+  @override
+  Future<PanelScanDraft> scanPanel(List<int> imageBytes) async {
+    calls++;
+    sentBytes = imageBytes;
+    final failure = error;
+    if (failure != null) throw failure;
+    return draft!;
+  }
+}
+
+PanelScanDraft _scanDraft({int rows = 2, int cols = 3}) => PanelScanDraft(
+      rows: rows,
+      cols: cols,
+      buttons: const [
+        PanelScanButton(
+            id: 'B-01', label: '해동', x: 0, y: 0, kind: 'button', labelFromModel: true),
+        PanelScanButton(
+            id: 'B-02', label: '시간', x: 1, y: 0, kind: 'button', labelFromModel: true),
+        PanelScanButton(
+            id: 'B-03', label: '버튼 3', x: 2, y: 0, kind: 'button', labelFromModel: false),
+        PanelScanButton(
+            id: 'B-04', label: '출력', x: 0, y: 1, kind: 'dial', labelFromModel: true),
+        PanelScanButton(
+            id: 'B-05', label: '시작', x: 2, y: 1, kind: 'button', labelFromModel: true),
+      ],
+      dropped: const ["7번 항목: 알 수 없는 종류('lever')라 뺐어요"],
+    );
 
 // Image.file()이 실제 파일 바이트를 디코드하면서 프레임을 계속 다시 예약해
 // pumpAndSettle()이 끝나지 않는다 — 상태 반영만 확인하면 되므로 고정 횟수만
@@ -298,6 +345,129 @@ void main() {
 
       expect(find.text('버튼 패널 사진 찍기'), findsOneWidget);
       expect(find.byType(Image), findsNothing);
+    });
+  });
+
+  group('사진으로 버튼 채우기', () {
+    Future<void> pumpWithPhoto(WidgetTester tester, _FakeScanApi api) async {
+      _useTallViewport(tester);
+      await _pumpEditor(
+        tester,
+        _buildRouter(),
+        extraOverrides: [
+          photoServiceProvider
+              .overrideWithValue(_FakePhotoService(_fakePhotoFile())),
+          rpiApiServiceProvider.overrideWithValue(api),
+        ],
+      );
+      await tester.tap(find.text('버튼 패널 사진 찍기'));
+      await _pumpAFew(tester);
+    }
+
+    const scanButton = ValueKey('panel_scan_button');
+
+    testWidgets('사진을 찍기 전에는 채우기 버튼이 없고, 찍으면 전송 안내와 함께 나온다',
+        (tester) async {
+      _useTallViewport(tester);
+      await _pumpEditor(
+        tester,
+        _buildRouter(),
+        extraOverrides: [
+          photoServiceProvider
+              .overrideWithValue(_FakePhotoService(_fakePhotoFile())),
+          rpiApiServiceProvider.overrideWithValue(_FakeScanApi(draft: _scanDraft())),
+        ],
+      );
+      expect(find.byKey(scanButton), findsNothing);
+
+      await tester.tap(find.text('버튼 패널 사진 찍기'));
+      await _pumpAFew(tester);
+
+      expect(find.byKey(scanButton), findsOneWidget);
+      // 사진이 기기 밖으로 나가는 경로라 누르기 전에 알린다.
+      expect(find.textContaining('인식 서비스로 보내져요'), findsOneWidget);
+    });
+
+    testWidgets('초안으로 격자를 채우고, 다이얼·이름 못 읽은 버튼을 알린다', (tester) async {
+      final api = _FakeScanApi(draft: _scanDraft());
+      await pumpWithPhoto(tester, api);
+
+      await tester.tap(find.byKey(scanButton));
+      await _pumpAFew(tester);
+
+      expect(api.calls, 1);
+      expect(api.sentBytes, _fakePhotoBytes);
+      // 다이얼(출력)은 누르는 버튼으로 저장되면 안 되므로 넣지 않는다.
+      expect(find.text('버튼 4개를 채웠어요'), findsOneWidget);
+      expect(find.textContaining('버튼 3 — 칸을 눌러 이름을 고쳐 주세요'), findsOneWidget);
+      expect(find.textContaining('다이얼이라 넣지 않았어요'), findsOneWidget);
+      expect(find.textContaining('lever'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, '확인'));
+      await _pumpAFew(tester);
+
+      expect(find.text('해동'), findsOneWidget);
+      expect(find.text('시작'), findsOneWidget);
+      expect(find.text('출력'), findsNothing);
+      // 격자도 초안 크기(2행 3열)로 바뀐다.
+      expect(find.byKey(const ValueKey('grid_cell_2_1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('grid_cell_0_2')), findsNothing);
+    });
+
+    testWidgets('이미 적어 둔 버튼이 있으면 먼저 묻고, 취소하면 보내지도 바꾸지도 않는다',
+        (tester) async {
+      final api = _FakeScanApi(draft: _scanDraft());
+      await pumpWithPhoto(tester, api);
+
+      await tester.tap(find.byKey(const ValueKey('grid_cell_0_0')));
+      await _pumpAFew(tester);
+      await tester.enterText(find.byType(TextField).last, '전원');
+      await tester.tap(find.widgetWithText(FilledButton, '확인'));
+      await _pumpAFew(tester);
+
+      await tester.tap(find.byKey(scanButton));
+      await _pumpAFew(tester);
+      expect(find.text('지금 배치를 바꿀까요?'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, '취소'));
+      await _pumpAFew(tester);
+
+      expect(api.calls, 0);
+      expect(find.text('전원'), findsOneWidget);
+    });
+
+    testWidgets('서버가 거절하면 그 문장을 보여주고 격자는 그대로 둔다', (tester) async {
+      final api = _FakeScanApi(
+        error: RpiApiException(503, '사진 인식이 꺼져 있어요 — 서버에 인식 서비스 설정이 필요해요'),
+      );
+      await pumpWithPhoto(tester, api);
+
+      await tester.tap(find.byKey(scanButton));
+      await _pumpAFew(tester);
+
+      expect(find.text('사진으로 채우지 못했어요'), findsOneWidget);
+      expect(find.textContaining('꺼져 있어요'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, '확인'));
+      await _pumpAFew(tester);
+
+      expect(find.byKey(const ValueKey('grid_cell_2_2')), findsOneWidget); // 3x3 유지
+      // 실패 뒤에도 다시 시도할 수 있다.
+      final button = tester.widget<ButtonStyleButton>(find.byKey(scanButton));
+      expect(button.onPressed, isNotNull);
+    });
+
+    testWidgets('앱 격자(6x6)보다 큰 초안은 넣지 않고 직접 배치를 안내한다', (tester) async {
+      final api = _FakeScanApi(draft: _scanDraft(rows: 7, cols: 3));
+      await pumpWithPhoto(tester, api);
+
+      await tester.tap(find.byKey(scanButton));
+      await _pumpAFew(tester);
+
+      expect(find.textContaining('최대 6 × 6'), findsOneWidget);
+      await tester.tap(find.widgetWithText(FilledButton, '확인'));
+      await _pumpAFew(tester);
+      expect(find.byKey(const ValueKey('grid_cell_2_2')), findsOneWidget);
     });
   });
 }

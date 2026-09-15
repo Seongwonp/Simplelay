@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -243,6 +244,76 @@ class RpiNodeInfo {
   factory RpiNodeInfo.fromJson(Map<String, dynamic> json) => RpiNodeInfo(
         applianceId: json['appliance_id'] as String,
         baseUrl: json['base_url'] as String,
+      );
+}
+
+/// POST /panel-scan 초안의 버튼 하나.
+class PanelScanButton {
+  const PanelScanButton({
+    required this.id,
+    required this.label,
+    required this.x,
+    required this.y,
+    required this.kind,
+    required this.labelFromModel,
+  });
+
+  final String id;
+  final String label;
+
+  /// 편집기 격자 칸(열, 행).
+  final int x;
+  final int y;
+
+  /// button | dial
+  final String kind;
+
+  /// false면 인식이 이름을 읽지 못해 서버가 임시 이름을 붙였다.
+  final bool labelFromModel;
+
+  factory PanelScanButton.fromJson(Map<String, dynamic> json) =>
+      PanelScanButton(
+        id: json['id'] as String,
+        label: json['label'] as String,
+        x: (json['x'] as num).toInt(),
+        y: (json['y'] as num).toInt(),
+        kind: json['kind'] as String? ?? 'button',
+        labelFromModel: json['label_from_model'] as bool? ?? true,
+      );
+}
+
+/// 조작부 사진 인식 **초안**. 서버는 저장하지 않는다 — 사람이 고친 뒤 등록한다.
+class PanelScanDraft {
+  const PanelScanDraft({
+    required this.rows,
+    required this.cols,
+    required this.buttons,
+    this.dropped = const [],
+    this.notes = const [],
+    this.model = '',
+  });
+
+  final int rows;
+  final int cols;
+  final List<PanelScanButton> buttons;
+
+  /// 서버가 인식 결과에서 뺀 항목과 이유.
+  final List<String> dropped;
+  final List<String> notes;
+
+  /// 인식에 쓴 모델 id.
+  final String model;
+
+  factory PanelScanDraft.fromJson(Map<String, dynamic> json) => PanelScanDraft(
+        rows: (json['rows'] as num).toInt(),
+        cols: (json['cols'] as num).toInt(),
+        buttons: (json['buttons'] as List<dynamic>)
+            .cast<Map<String, dynamic>>()
+            .map(PanelScanButton.fromJson)
+            .toList(),
+        dropped: (json['dropped'] as List<dynamic>?)?.cast<String>() ?? const [],
+        notes: (json['notes'] as List<dynamic>?)?.cast<String>() ?? const [],
+        model: json['model'] as String? ?? '',
       );
 }
 
@@ -686,6 +757,64 @@ class RpiApiService {
     } catch (_) {
       return res.body;
     }
+  }
+
+  // 사진 인식은 서버가 외부 인식 서비스를 기다린다(서버 제한 60초) — 일반
+  // 요청 제한(8초)으로 끊으면 성공할 인식도 매번 실패로 보인다.
+  static const _panelScanTimeout = Duration(seconds: 75);
+
+  /// POST /panel-scan — 조작부 사진으로 버튼 배치 **초안**을 받는다.
+  ///
+  /// 서버는 초안을 저장하지 않는다. 실패는 화면에 그대로 보여줄 문장을 담은
+  /// [RpiApiException]으로 던진다 — 꺼져 있음(503)·크레딧 부족·사진 형식
+  /// 오류는 사용자가 할 일이 서로 달라서 '실패했어요' 하나로 뭉개지 않는다.
+  Future<PanelScanDraft> scanPanel(List<int> imageBytes) async {
+    final http.Response res;
+    try {
+      res = await _client
+          .post(
+            _base.replace(path: '/panel-scan'),
+            headers: _jsonHeaders,
+            body: jsonEncode({'image_base64': base64Encode(imageBytes)}),
+          )
+          .timeout(_panelScanTimeout);
+    } on TimeoutException {
+      throw RpiApiException(0, '사진을 읽는 데 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.');
+    } catch (_) {
+      throw RpiApiException(0, '서버에 연결하지 못했어요. 연결 상태를 확인해 주세요.');
+    }
+    if (res.statusCode == 404) {
+      throw RpiApiException(404, '서버가 사진 인식을 지원하지 않아요. 서버를 업데이트해 주세요.');
+    }
+    if (res.statusCode != 200) {
+      throw RpiApiException(res.statusCode, _panelScanDetail(res));
+    }
+    try {
+      return PanelScanDraft.fromJson(
+        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>,
+      );
+    } catch (_) {
+      throw RpiApiException(res.statusCode, '서버 응답을 읽을 수 없어요.');
+    }
+  }
+
+  /// 오류 문장. FastAPI는 charset 없이 JSON을 보내므로 바이트를 UTF-8로 직접
+  /// 푼다(res.body는 latin1로 풀어 한글이 깨진다). 검증 오류(422)는 목록으로 온다.
+  String _panelScanDetail(http.Response res) {
+    try {
+      final detail =
+          (jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>)['detail'];
+      if (detail is String && detail.isNotEmpty) return detail;
+      if (detail is List && detail.isNotEmpty) {
+        final msg = (detail.first as Map<String, dynamic>)['msg'] as String?;
+        if (msg != null && msg.isNotEmpty) {
+          return msg.replaceFirst(RegExp(r'^Value error,\s*'), '');
+        }
+      }
+    } catch (_) {
+      // 아래 기본 문장
+    }
+    return '사진 인식에 실패했어요 (HTTP ${res.statusCode}).';
   }
 
   // DELETE /appliances/{id} — 서버 목록에서도 제거

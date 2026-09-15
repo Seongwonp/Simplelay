@@ -9,6 +9,9 @@ import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
 import '../providers/photo_provider.dart';
+import '../providers/rpi_api_provider.dart';
+import '../services/panel_scan_fill.dart';
+import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
@@ -34,6 +37,10 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   int _cols = 3;
   late List<List<String?>> _grid = _emptyGrid(_rows, _cols);
   File? _photo;
+
+  /// 사진 인식 요청 중. 끝날 때까지 다시 찍기·제거·재요청을 막는다 --
+  /// 중간에 사진이 바뀌면 다른 사진의 결과가 격자에 들어간다.
+  bool _scanning = false;
 
   @override
   void initState() {
@@ -78,6 +85,117 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   }
 
   void _removePhoto() => setState(() => _photo = null);
+
+  /// 찍은 사진을 서버에 보내 버튼 배치 **초안**을 받아 격자를 채운다.
+  ///
+  /// 초안은 저장하지 않는다 -- 격자에 채울 뿐이고, 사람이 이름과 위치를
+  /// 확인한 뒤 평소처럼 저장한다.
+  Future<void> _fillFromPhoto() async {
+    final photo = _photo;
+    if (photo == null || _scanning) return;
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null) {
+      await _showScanProblem('서버 주소가 설정되지 않았어요. 설정에서 서버를 먼저 연결해 주세요.');
+      return;
+    }
+    if (_buttonCount > 0) {
+      final replace = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('지금 배치를 바꿀까요?'),
+          content: Text('적어 둔 버튼 $_buttonCount개가 사진 인식 결과로 바뀌어요.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('취소'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('바꾸기'),
+            ),
+          ],
+        ),
+      );
+      if (replace != true || !mounted) return;
+    }
+
+    setState(() => _scanning = true);
+    String? problem;
+    var details = const <String>[];
+    PanelScanFill? fill;
+    var dropped = const <String>[];
+    try {
+      final bytes = await ref.read(photoServiceProvider).readBytes(photo);
+      final draft = await api.scanPanel(bytes);
+      dropped = draft.dropped;
+      final result = fillFromPanelScan(draft, maxGrid: _maxGridSize);
+      if (result.filled == 0) {
+        problem = '사진에서 앱에 넣을 수 있는 버튼을 찾지 못했어요.';
+        details = [...result.skipped, ...draft.dropped];
+      } else {
+        fill = result;
+      }
+    } on PanelScanFillException catch (e) {
+      problem = e.message;
+    } on RpiApiException catch (e) {
+      problem = e.message;
+    } on FileSystemException {
+      problem = '사진 파일을 읽지 못했어요. 다시 찍어 주세요.';
+    } on Exception {
+      problem = '사진으로 채우지 못했어요. 잠시 후 다시 시도해 주세요.';
+    }
+    if (!mounted) return;
+
+    final applied = fill;
+    setState(() {
+      _scanning = false;
+      if (applied != null) {
+        _rows = applied.rows;
+        _cols = applied.cols;
+        _grid = applied.grid;
+      }
+    });
+    if (applied == null) {
+      await _showScanProblem(problem ?? '사진으로 채우지 못했어요.', details: details);
+      return;
+    }
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _ScanResultDialog(fill: applied, dropped: dropped),
+    );
+  }
+
+  Future<void> _showScanProblem(
+    String message, {
+    List<String> details = const [],
+  }) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('사진으로 채우지 못했어요'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(message),
+              for (final d in details.take(6)) ...[
+                const SizedBox(height: 6),
+                Text('· $d', style: dialogContext.appCaption),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _editCell(int x, int y) async {
     final existing = _grid[y][x];
@@ -343,19 +461,41 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: _takePhoto,
+                        onPressed: _scanning ? null : _takePhoto,
                         icon: const Icon(Icons.camera_alt_outlined),
                         label: const Text('다시 찍기'),
                       ),
                     ),
                     const SizedBox(width: 8),
                     IconButton(
-                      onPressed: _removePhoto,
+                      onPressed: _scanning ? null : _removePhoto,
                       icon: const Icon(Icons.close),
                       tooltip: '사진 제거',
                     ),
                   ],
                 ),
+          if (_photo != null) ...[
+            const SizedBox(height: 12),
+            // 사진 인식은 선택이다. 버튼판을 직접 적는 경로는 그대로 남는다.
+            FilledButton.tonalIcon(
+              key: const ValueKey('panel_scan_button'),
+              onPressed: _scanning ? null : _fillFromPhoto,
+              icon: _scanning
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.auto_awesome_outlined),
+              label: Text(_scanning ? '사진을 읽는 중… 최대 1분' : '사진으로 버튼 채우기'),
+            ),
+            const SizedBox(height: 6),
+            // 사진이 기기 밖으로 나가는 유일한 경로라, 누르기 전에 말한다.
+            Text(
+              '누르면 사진이 서버를 거쳐 인식 서비스로 보내져요. 결과는 초안이라 확인한 뒤 저장해요.',
+              style: TextStyle(fontSize: 13, color: context.appMuted),
+            ),
+          ],
           divider,
 
           // ── 4. 버튼 배치 ───────────────────────────────────────────────
@@ -454,6 +594,68 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 사진 인식으로 격자를 채운 뒤 **확인할 것**을 말한다.
+///
+/// 인식은 틀릴 수 있다. '채웠어요'만 말하고 닫으면 사용자는 결과를 믿고
+/// 그대로 저장한다 -- 이름을 못 읽은 버튼과 넣지 않은 조작을 여기서 짚는다.
+class _ScanResultDialog extends StatelessWidget {
+  const _ScanResultDialog({required this.fill, required this.dropped});
+
+  final PanelScanFill fill;
+
+  /// 서버가 인식 결과에서 뺀 항목.
+  final List<String> dropped;
+
+  @override
+  Widget build(BuildContext context) {
+    final left = [...fill.skipped, ...dropped];
+    return AlertDialog(
+      title: Text('버튼 ${fill.filled}개를 채웠어요'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '인식 결과는 초안이에요. 이름과 위치가 실제 버튼판과 같은지 확인한 뒤 저장해 주세요.',
+              style: TextStyle(color: context.appMuted),
+            ),
+            if (fill.unnamed.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Text('이름을 읽지 못한 버튼',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              Text(
+                '${fill.unnamed.join(', ')} — 칸을 눌러 이름을 고쳐 주세요.',
+                style: context.appCaption,
+              ),
+            ],
+            if (left.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              const Text('넣지 않은 것',
+                  style: TextStyle(fontWeight: FontWeight.w600)),
+              for (final item in left.take(6)) ...[
+                const SizedBox(height: 4),
+                Text('· $item', style: context.appCaption),
+              ],
+              if (left.length > 6) ...[
+                const SizedBox(height: 4),
+                Text('외 ${left.length - 6}개', style: context.appCaption),
+              ],
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        FilledButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('확인'),
+        ),
+      ],
     );
   }
 }
