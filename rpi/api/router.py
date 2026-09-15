@@ -25,6 +25,7 @@ from rpi.services.appliance_registry import (
 )
 
 from .deps import (
+    get_panel_scanner,
     get_presence_state_machine,
     get_clock,
     get_readiness_registry,
@@ -45,6 +46,10 @@ from .deps import (
 )
 from .schemas import (
     AlertResponse,
+    PanelScanButtonModel,
+    PanelScanCalibrationModel,
+    PanelScanRequest,
+    PanelScanResponse,
     ApplianceCalibrationRequest,
     ApplianceCalibrationResponse,
     PresenceDistanceRequest,
@@ -509,6 +514,120 @@ async def calibrate_appliance(
         rms_error_mm=result.rms_error_mm,
         max_error_mm=result.max_error_mm,
         unmapped_buttons=[b.id for b in saved.buttons if not b.calibrated],
+    )
+
+
+class _PanelScanGate:
+    """사진 인식은 한 번에 하나만 — 두 번 누르면 크레딧만 두 번 나간다."""
+
+    busy = False
+
+
+_panel_scan_gate = _PanelScanGate()
+
+
+@router.post("/panel-scan", response_model=PanelScanResponse)
+async def panel_scan(
+    body: PanelScanRequest,
+    scanner=Depends(get_panel_scanner),
+) -> PanelScanResponse:
+    """조작부 사진 → 버튼맵 **초안**. 저장하지 않는다 — 사람이 확인한 뒤 PUT /appliances/{id}.
+
+    설치 때 한 번 쓰는 선택 기능이라 설정이 없으면 503으로 꺼져 있음을 알린다.
+    인식 서비스 응답은 믿지 않는 입력으로 검증한다(rpi/vision/panel_scan.py).
+    사진은 저장하거나 로그에 남기지 않는다.
+    """
+    from rpi.calibration import CalibrationRejected, PointPair  # noqa: PLC0415
+    from rpi.services.appliance_registry import MM_RANGE  # noqa: PLC0415
+    from rpi.vision import (  # noqa: PLC0415
+        PanelScanError,
+        VisionUnavailable,
+        build_draft,
+        map_draft_to_mm,
+        parse_controls,
+    )
+
+    if scanner is None:
+        raise HTTPException(
+            status_code=503,
+            detail="사진 인식이 꺼져 있어요 — 서버에 인식 서비스 설정이 필요해요",
+        )
+    image, mime = body.image()
+    # 확인과 표시 사이에 await가 없어 이벤트 루프 안에서 원자적이다
+    if _panel_scan_gate.busy:
+        raise HTTPException(
+            status_code=409,
+            detail="이미 사진을 인식하는 중이에요 — 끝난 뒤 다시 시도해 주세요",
+        )
+    _panel_scan_gate.busy = True
+    try:
+        raw = await asyncio.to_thread(scanner.describe_panel, image, mime)
+    except VisionUnavailable as exc:
+        # 연결 불가·크레딧·한도는 '지금은 못 쓴다'(503), 인증·서비스 오류는 게이트웨이 문제(502)
+        status = 503 if exc.status in (None, 402, 429) else 502
+        raise HTTPException(status_code=status, detail=str(exc)) from exc
+    finally:
+        _panel_scan_gate.busy = False
+
+    try:
+        controls, dropped = parse_controls(raw)
+        draft = build_draft(controls, dropped)
+    except PanelScanError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    mapped: dict[str, tuple[float, float]] = {}
+    calibration = None
+    if body.reference_points:
+        try:
+            result, mapped = map_draft_to_mm(
+                draft,
+                [PointPair(p.source, p.target) for p in body.reference_points],
+                kind=body.kind,
+                mm_range=MM_RANGE,
+            )
+        except (CalibrationRejected, PanelScanError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        calibration = PanelScanCalibrationModel(
+            version=result.version,
+            kind=result.transform.kind,
+            point_count=result.point_count,
+            redundant_points=result.redundant_points,
+            rms_error_mm=result.rms_error_mm,
+            max_error_mm=result.max_error_mm,
+        )
+
+    notes = ["인식 결과는 초안이에요 — 이름과 위치를 확인한 뒤 저장해 주세요"]
+    unnamed = sum(1 for b in draft.buttons if not b.label_from_model)
+    if unnamed:
+        notes.append(f"이름을 읽지 못한 버튼 {unnamed}개에 임시 이름을 붙였어요")
+    dials = [b.label for b in draft.buttons if b.kind == "dial"]
+    if dials:
+        notes.append(f"다이얼({', '.join(dials)})은 딸깍 수를 입력해야 저장할 수 있어요")
+    if not mapped:
+        notes.append("누를 좌표(mm)는 아직 없어요 — 기준점 보정 뒤에 채워져요")
+
+    return PanelScanResponse(
+        rows=draft.rows,
+        cols=draft.cols,
+        buttons=[
+            PanelScanButtonModel(
+                id=b.id,
+                label=b.label,
+                x=b.x,
+                y=b.y,
+                kind=b.kind,
+                box=list(b.box),
+                center=list(b.center),
+                label_from_model=b.label_from_model,
+                x_mm=mapped[b.id][0] if b.id in mapped else None,
+                y_mm=mapped[b.id][1] if b.id in mapped else None,
+            )
+            for b in draft.buttons
+        ],
+        dropped=list(draft.dropped),
+        notes=notes,
+        model=scanner.model,
+        calibration=calibration,
     )
 
 

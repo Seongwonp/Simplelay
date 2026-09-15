@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -454,6 +455,107 @@ class ApplianceCalibrationResponse(BaseModel):
     max_error_mm: float
     #: 이번 보정에 포함되지 않아 mm 좌표가 없는 버튼 — 누를 수 없다
     unmapped_buttons: list[str]
+
+
+#: 조작부 사진 한 장 상한(디코딩 후). 휴대폰 사진을 줄여 보내면 1~2MB면 충분하다.
+PANEL_SCAN_MAX_IMAGE_BYTES = 8 * 1024 * 1024
+
+
+def _decode_panel_image(value: str) -> tuple[bytes, str]:
+    """base64(또는 data URI) → (바이트, 형식). 형식은 머리 바이트로만 정한다."""
+    import binascii  # noqa: PLC0415
+
+    from rpi.vision import sniff_image_mime  # noqa: PLC0415
+
+    text = value.strip()
+    if text.startswith("data:"):
+        _, _, text = text.partition(",")
+    text = "".join(text.split())
+    limit_mb = PANEL_SCAN_MAX_IMAGE_BYTES / (1024 * 1024)
+    if len(text) > (PANEL_SCAN_MAX_IMAGE_BYTES + 2) // 3 * 4:
+        raise ValueError(f"사진이 너무 커요 (최대 {limit_mb:g}MB)")
+    try:
+        data = base64.b64decode(text, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("사진 데이터가 올바른 base64가 아니에요") from exc
+    if not data:
+        raise ValueError("사진 데이터가 비어 있어요")
+    if len(data) > PANEL_SCAN_MAX_IMAGE_BYTES:
+        raise ValueError(f"사진이 너무 커요 (최대 {limit_mb:g}MB)")
+    mime = sniff_image_mime(data)
+    if mime is None:
+        raise ValueError("JPEG·PNG·WebP 사진만 받을 수 있어요")
+    return data, mime
+
+
+class PanelScanRequest(BaseModel):
+    """POST /panel-scan — 조작부 사진으로 버튼맵 **초안**을 만든다(저장하지 않음).
+
+    ``reference_points``를 주면 사진 좌표(0~1000 정규화)를 갠트리 mm로 옮겨
+    초안에 싣는다. 사진은 서버가 저장하거나 기록하지 않는다.
+    """
+
+    image_base64: str
+    kind: str = "affine"
+    #: source = 사진 좌표(0~1000), target = 같은 지점의 갠트리 mm
+    reference_points: list[CalibrationPointModel] | None = None
+
+    @field_validator("image_base64")
+    @classmethod
+    def image_valid(cls, v: str) -> str:
+        _decode_panel_image(v)
+        return v
+
+    @field_validator("reference_points")
+    @classmethod
+    def reference_points_bounded(
+        cls, v: list[CalibrationPointModel] | None
+    ) -> list[CalibrationPointModel] | None:
+        if v is not None and not 3 <= len(v) <= 50:
+            raise ValueError("reference_points must contain 3 to 50 points")
+        return v
+
+    def image(self) -> tuple[bytes, str]:
+        return _decode_panel_image(self.image_base64)
+
+
+class PanelScanButtonModel(BaseModel):
+    id: str
+    label: str
+    #: 편집기 격자 칸
+    x: int
+    y: int
+    kind: str
+    #: 사진 좌표(0~1000) [x_min, y_min, x_max, y_max]와 중심
+    box: list[float]
+    center: list[float]
+    #: False면 모델이 이름을 읽지 못해 임시 이름을 붙였다
+    label_from_model: bool
+    #: 기준점을 줬을 때만 채워진다
+    x_mm: float | None = None
+    y_mm: float | None = None
+
+
+class PanelScanCalibrationModel(BaseModel):
+    version: str
+    kind: str
+    point_count: int
+    redundant_points: int
+    rms_error_mm: float
+    max_error_mm: float
+
+
+class PanelScanResponse(BaseModel):
+    rows: int
+    cols: int
+    buttons: list[PanelScanButtonModel]
+    #: 인식 결과에서 뺀 항목과 이유
+    dropped: list[str]
+    #: 저장 전에 사람이 확인할 것
+    notes: list[str]
+    #: 인식에 쓴 모델 id(실험 기록용)
+    model: str
+    calibration: PanelScanCalibrationModel | None = None
 
 
 class PresenceDistanceRequest(BaseModel):

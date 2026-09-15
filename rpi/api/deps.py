@@ -322,6 +322,35 @@ def get_presence_state_machine():
 
 
 @lru_cache(maxsize=1)
+def get_panel_scanner():
+    """조작부 사진 인식 서비스 — 설치 때 한 번 쓰는 **선택** 기능.
+
+    ``SIMPLELAY_VISION_BASE_URL`` · ``_API_KEY`` · ``_MODEL``이 모두 있어야 켜진다.
+    하나라도 없으면 None(기본 꺼짐) — 실행 경로(목적 → 누름 → 판정)는 이 기능과
+    무관하게 오프라인으로 끝난다(docs/inference-boundary.md §4). 키는 서버 환경에만
+    두고 앱에는 넣지 않는다. 모델 이름은 코드에 박지 않고 운영자가 고른다.
+    """
+    base_url = os.environ.get("SIMPLELAY_VISION_BASE_URL", "").strip()
+    api_key = os.environ.get("SIMPLELAY_VISION_API_KEY", "").strip()
+    model = os.environ.get("SIMPLELAY_VISION_MODEL", "").strip()
+    if not (base_url and api_key and model):
+        return None
+    try:
+        timeout = float(os.environ.get("SIMPLELAY_VISION_TIMEOUT_SECONDS", "") or 60.0)
+    except ValueError:
+        timeout = 60.0
+    if not 0 < timeout <= 300:
+        timeout = 60.0
+    from rpi.vision import HttpVisionClient, HttpVisionClientConfig  # noqa: PLC0415
+
+    return HttpVisionClient(
+        HttpVisionClientConfig(
+            base_url=base_url, api_key=api_key, model=model, timeout_seconds=timeout
+        )
+    )
+
+
+@lru_cache(maxsize=1)
 def get_appliance_registry():
     """가전 정의의 단일 진실원천 — 내장 + 폰에서 등록한 커스텀.
     SIMPLELAY_DB_PATH가 있으면 커스텀 등록이 재시작에도 유지된다."""
