@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 
 Future<void> _pump(
@@ -85,6 +86,44 @@ void main() {
     final shape = button.style!.shape!.resolve({}) as RoundedRectangleBorder;
     expect(shape.side.width, greaterThanOrEqualTo(3));
     expect(tester.getSize(finder).height, greaterThanOrEqualTo(64));
+  });
+
+  testWidgets('긴급 정지는 짙은 빨강에 흰 글자다 — 연한 색은 비상으로 읽히지 않았다',
+      (tester) async {
+    await _pump(tester);
+    final button = tester.widget<ElevatedButton>(find.ancestor(
+      of: find.text('긴급 정지'),
+      matching: find.byType(ElevatedButton),
+    ));
+    expect(button.style!.backgroundColor!.resolve({}), KioskColors.stop);
+    expect(button.style!.foregroundColor!.resolve({}), Colors.white);
+  });
+
+  testWidgets('대상 가전의 버튼판에서 지금 누르는 버튼을 가리킨다', (tester) async {
+    await _pump(tester, total: 3, target: kMicrowaveAppliance);
+
+    expect(find.text('지금 누르는 버튼'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byKey(const ValueKey('panel-current')),
+        matching: find.text('해동'),
+      ),
+      findsOneWidget,
+    );
+    // 버튼판은 가전 버튼 전부를 자리대로 그린다.
+    expect(find.text('냉동식품'), findsOneWidget);
+    // 버튼판은 오른쪽, 지금 버튼 이름은 왼쪽.
+    expect(tester.getCenter(find.text('해동')).dx,
+        greaterThan(tester.getCenter(find.text("'해동'")).dx));
+  });
+
+  testWidgets('버튼판에서 자리를 찾을 수 없으면 그림을 지어내지 않는다', (tester) async {
+    // 서버가 준 이름이 대상 가전에 없다(다른 이름·옛 버튼맵).
+    await _pump(tester, button: '시간 90초', target: kMicrowaveAppliance);
+    expect(find.text('지금 누르는 버튼'), findsNothing);
+    // 대상 가전을 모를 때도.
+    await _pump(tester, button: '해동');
+    expect(find.text('지금 누르는 버튼'), findsNothing);
   });
 
   testWidgets('서버가 단계 수를 안 주면 진행을 지어내지 않는다', (tester) async {

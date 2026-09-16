@@ -9,6 +9,10 @@ class KioskColors {
   static const danger  = Color(0xFFEF6E64); // 레드 — 면 위 검정 7.08:1
   static const warning = Color(0xFFE8B339); // 앰버
 
+  // 긴급 정지 면. 연한 붉은색(danger)에 검정 글자는 대비는 넉넉했지만 비상
+  // 버튼으로 읽히지 않았다(9/16 화면 평가). 짙은 빨강에 흰 글자 7.3:1.
+  static const stop    = Color(0xFFA8201A);
+
   static const bg      = Color(0xFF0F1117); // 앱 background와 동일
   static const surface = Color(0xFF191C24); // 앱 surfaceLow와 동일
   static const surface2 = Color(0xFF232734); // 앱 surfaceHigh와 동일
