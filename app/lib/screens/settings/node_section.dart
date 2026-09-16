@@ -237,7 +237,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                 child: Row(
                   children: [
                     Icon(widget.appliance.icon,
-                        color: context.appPrimary, size: 20),
+                        color: context.appMuted, size: 20),
                     const SizedBox(width: 10),
                     Text(
                       '${widget.appliance.name} 노드 등록',

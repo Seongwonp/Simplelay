@@ -498,8 +498,12 @@ class _SegmentedProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     final active =
         phase == ExecutionPhase.running || phase == ExecutionPhase.retrying;
+    // 끝난 칸은 무채색으로 채우고, 지금 칸의 테두리만 강조한다 -- 보라는
+    // '지금'에만 쓴다. 재시도는 주의색.
     final accent =
         phase == ExecutionPhase.retrying ? context.appWarning : context.appPrimary;
+    final doneColor =
+        phase == ExecutionPhase.retrying ? context.appWarning : context.appInk;
     // 단계가 많으면 칸이 너무 얇아진다 -- 12개까지만 칸으로 그리고, 그
     // 이상은 글자가 대신 말한다.
     final drawSegments = total <= 12;
@@ -517,7 +521,7 @@ class _SegmentedProgress extends StatelessWidget {
                     height: 10,
                     decoration: BoxDecoration(
                       color: i < completed
-                          ? accent
+                          ? doneColor
                           : Theme.of(context).colorScheme.surfaceContainerHigh,
                       borderRadius: BorderRadius.circular(3),
                       border: (i == completed && active)
@@ -789,7 +793,7 @@ class _SensorChart extends StatelessWidget {
   // context를 인자로 받는다 — 라이트/다크에 따라 강조색이 달라지므로
   // 테마 없이 색을 결정할 수 없다.
   Color _barColor(BuildContext context, double v) =>
-      v >= warningThreshold ? context.appWarning : context.appPrimary;
+      v >= warningThreshold ? context.appWarning : context.appInk;
 
   @override
   Widget build(BuildContext context) {
@@ -804,7 +808,7 @@ class _SensorChart extends StatelessWidget {
           children: [
             Row(
               children: [
-                Icon(icon, color: context.appPrimary, size: 18),
+                Icon(icon, color: context.appMuted, size: 18),
                 const SizedBox(width: 6),
                 // 확대하면 '전류 (mA)'가 반쪽 카드 폭을 넘는다 -- 줄바꿈할 자리를 준다
                 Expanded(child: Text(label, style: context.appCaption)),

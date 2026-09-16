@@ -141,11 +141,12 @@ class _Cell extends StatelessWidget {
           context.appOnSurfaceFaint,
           FontWeight.normal,
         ),
+      // 순서에 든 버튼은 무채색 테두리와 굵은 글자로. 보라는 '지금'에만 쓴다.
       ButtonMapStepState.planned => (
-          context.appPrimary.withValues(alpha: 0.2),
-          Border.all(color: context.appPrimary, width: 1.5),
-          context.appPrimary,
-          FontWeight.w600,
+          context.appInk.withValues(alpha: 0.08),
+          Border.all(color: context.appInk, width: 1.5),
+          context.appInk,
+          FontWeight.w700,
         ),
       ButtonMapStepState.current => (
           accent,
@@ -161,8 +162,8 @@ class _Cell extends StatelessWidget {
         ),
       ButtonMapStepState.pending => (
           context.appOverlayFaint,
-          Border.all(color: context.appPrimary, width: 1),
-          context.appPrimary,
+          Border.all(color: context.appOutline, width: 1),
+          context.appInk,
           FontWeight.w600,
         ),
     };
@@ -222,7 +223,7 @@ class _Badge extends StatelessWidget {
       height: 20,
       padding: const EdgeInsets.symmetric(horizontal: 5),
       decoration: BoxDecoration(
-        color: current ? context.appOnAccent : context.appPrimary,
+        color: current ? context.appOnAccent : context.appInk,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Center(

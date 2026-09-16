@@ -105,7 +105,7 @@ class _SavedDeviceSection extends ConsumerWidget {
         contentPadding: EdgeInsets.zero,
         leading: Icon(
           isConnected ? Icons.bluetooth_connected : Icons.bluetooth,
-          color: isConnected ? context.appPrimary : context.appMuted,
+          color: isConnected ? context.appInk : context.appMuted,
           size: 22,
         ),
         title: Text('예비 연결 · ${saved.name}'),

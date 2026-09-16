@@ -314,7 +314,7 @@ class _FeedbackLine extends StatelessWidget {
     }
     return Row(
       children: [
-        Icon(Icons.touch_app, color: context.appPrimary, size: 18),
+        Icon(Icons.touch_app, color: context.appMuted, size: 18),
         const SizedBox(width: 8),
         Expanded(
           child: Text(

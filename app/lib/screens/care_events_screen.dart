@@ -240,7 +240,7 @@ class _CareEventCard extends StatelessWidget {
           ),
         'quiet_routine' => (
             Icons.favorite_outline,
-            context.appPrimary,
+            context.appInk,
             '안부 신호'
           ),
         _ => (Icons.info_outline, context.appMuted, '알림'),

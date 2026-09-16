@@ -409,18 +409,18 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 12),
                               decoration: BoxDecoration(
-                                color:
-                                    context.appPrimary.withValues(alpha: 0.08),
+                                color: Theme.of(context)
+                                    .colorScheme
+                                    .surfaceContainerHigh,
                                 borderRadius: BorderRadius.circular(12),
                                 border: Border.all(
-                                  color:
-                                      context.appPrimary.withValues(alpha: 0.3),
+                                  color: context.appOutline,
                                 ),
                               ),
                               child: Text(
                                 text,
                                 style: AppText.title
-                                    .copyWith(color: context.appPrimary),
+                                    .copyWith(color: context.appInk),
                                 textAlign: TextAlign.center,
                               ),
                             ),
@@ -741,7 +741,7 @@ class _WaveVisualizer extends StatelessWidget {
               decoration: BoxDecoration(
                 color: active
                     ? context.appPrimary
-                    : context.appPrimary.withValues(alpha: 0.25),
+                    : context.appMuted.withValues(alpha: 0.35),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),

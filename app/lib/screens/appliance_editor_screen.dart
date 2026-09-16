@@ -683,7 +683,7 @@ class _StepTitle extends StatelessWidget {
         children: [
           CircleAvatar(
             radius: 14,
-            backgroundColor: context.appPrimary,
+            backgroundColor: context.appInk,
             child: Text(
               '$number',
               style: TextStyle(
@@ -773,7 +773,7 @@ class _NextStep extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: context.appPrimary),
+          Icon(icon, size: 20, color: context.appMuted),
           const SizedBox(width: 10),
           Expanded(
             child: Column(

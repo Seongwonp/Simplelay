@@ -46,16 +46,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         width: 72,
                         height: 72,
                         decoration: BoxDecoration(
-                          color: context.appPrimary.withValues(alpha: 0.12),
+                          color: Theme.of(context)
+                              .colorScheme
+                              .surfaceContainerHigh,
                           borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: context.appPrimary.withValues(alpha: 0.35),
-                          ),
+                          border: Border.all(color: context.appBorderSubtle),
                         ),
                         child: Icon(
                           Icons.home_max_outlined,
                           size: 36,
-                          color: context.appPrimary,
+                          color: context.appInk,
                         ),
                       ),
                       const SizedBox(height: 28),
@@ -167,10 +167,10 @@ class _FeatureRow extends StatelessWidget {
           width: 40,
           height: 40,
           decoration: BoxDecoration(
-            color: context.appPrimary.withValues(alpha: 0.10),
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
             borderRadius: BorderRadius.circular(10),
           ),
-          child: Icon(icon, size: 20, color: context.appPrimary),
+          child: Icon(icon, size: 20, color: context.appInk),
         ),
         const SizedBox(width: 16),
         Expanded(

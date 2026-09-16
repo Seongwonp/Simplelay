@@ -348,7 +348,7 @@ class _StepList extends StatelessWidget {
                   // 채우고 대비되는 글자를 얹는다(5.56:1).
                   CircleAvatar(
                     radius: 16,
-                    backgroundColor: context.appPrimary,
+                    backgroundColor: context.appInk,
                     child: Text(
                       '${i + 1}',
                       style: TextStyle(

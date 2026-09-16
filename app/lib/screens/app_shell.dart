@@ -219,7 +219,8 @@ class _VoiceAction extends StatelessWidget {
               color: context.appPrimary,
               shape: const CircleBorder(),
               elevation: 4,
-              shadowColor: context.appPrimary.withValues(alpha: 0.45),
+              // 보라 번짐(글로우)은 쓰지 않는다 -- 떠 있다는 것만 그림자로.
+              shadowColor: Colors.black.withValues(alpha: 0.3),
               child: InkWell(
                 customBorder: const CircleBorder(),
                 onTap: onTap,

@@ -88,6 +88,14 @@ extension AppColorsX on BuildContext {
   Color get appWarning       => _isDark ? AppColors.warning : AppColors.warningLight;
   Color get appSuccess       => _isDark ? AppColors.success : AppColors.successLight;
 
+  /// 강조가 아닌 **정보**를 또렷하게 칠할 때 쓰는 무채색(본문 글자와 같은 계열).
+  ///
+  /// 보라는 주 행동·지금 진행 중·선택된 것에만 쓴다. 순서 번호·안내 아이콘·
+  /// 보조 버튼까지 보라로 칠하면 무엇을 눌러야 하는지 색으로 구분되지 않고,
+  /// 화면 전체가 기본 테마를 그대로 입힌 것처럼 보인다(9/16 화면 평가).
+  /// 이 색을 면으로 쓸 때 얹는 글자는 [appOnAccent]다.
+  Color get appInk           => _isDark ? AppColors.success : AppColors.successLight;
+
   // 표면 위에 살짝 얹는 채움·테두리·보조 텍스트 — 다크는 흰색 기반, 라이트는
   // 검정 기반. Colors.white* 하드코딩은 크림색 라이트 배경에서 안 보이므로
   // 반드시 이 토큰을 쓴다 (수동 조작 그리드·제안 버튼맵이 깨졌던 원인).
