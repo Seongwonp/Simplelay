@@ -309,22 +309,31 @@ def _calibration_key(appliance_id: str) -> str:
     return f"calibration:{appliance_id}"
 
 
-def _encode_overlay(version: str, mapped: Mapping[str, tuple[float, float]]) -> str:
+def _encode_overlay(
+    version: str, mapped: Mapping[str, tuple[float, float]], revision: int
+) -> str:
     import json  # noqa: PLC0415
 
     return json.dumps(
-        {"version": version, "coords": {k: [x, y] for k, (x, y) in mapped.items()}},
+        {
+            "version": version,
+            "coords": {k: [x, y] for k, (x, y) in mapped.items()},
+            "revision": revision,
+        },
         ensure_ascii=False,
     )
 
 
-def _decode_overlay(raw: str) -> tuple[str, dict[str, tuple[float, float]]]:
+def _decode_overlay(raw: str) -> tuple[str, dict[str, tuple[float, float]], int]:
+    """판 번호가 없는 옛 기록은 1판으로 읽는다 -- 보정이 한 번은 저장됐다는 뜻이다."""
     import json  # noqa: PLC0415
 
     data = json.loads(raw)
-    return str(data["version"]), {
-        str(k): (float(v[0]), float(v[1])) for k, v in data["coords"].items()
-    }
+    return (
+        str(data["version"]),
+        {str(k): (float(v[0]), float(v[1])) for k, v in data["coords"].items()},
+        int(data.get("revision", 1)),
+    )
 
 
 def _carry_calibration(
@@ -376,7 +385,11 @@ class ApplianceRegistry:
         self._custom: dict[str, ApplianceDef] = {}
         # 내장 가전의 보정 좌표. 내장 정의 자체는 바꾸지 않고(키오스크·규칙이
         # 전제한다) 부착 위치마다 다른 mm 좌표만 덧씌운다.
-        self._builtin_calibration: dict[str, tuple[str, dict[str, tuple[float, float]]]] = {}
+        # 내장 가전 보정: (보정 버전, 버튼 mm, 판 번호). 내장 정의 자체는 고정이라
+        # 판 번호는 보정 저장마다 오른다 -- 폰 두 대가 서로를 조용히 덮지 않게.
+        self._builtin_calibration: dict[
+            str, tuple[str, dict[str, tuple[float, float]], int]
+        ] = {}
         if store is not None:
             for appliance in store.appliances():
                 self._custom[appliance.appliance_id] = appliance
@@ -429,11 +442,16 @@ class ApplianceRegistry:
                 (b for b in BUILTIN_APPLIANCES if b.appliance_id == appliance_id), None
             )
             if builtin is not None:
+                current = self._builtin_revision(appliance_id)
+                if expected_revision is not None and expected_revision != current:
+                    raise RevisionConflictError(appliance_id, current)
+                revision = current + 1
                 if self._store is not None and hasattr(self._store, "save_setting"):
                     self._store.save_setting(
-                        _calibration_key(appliance_id), _encode_overlay(version, mapped)
+                        _calibration_key(appliance_id),
+                        _encode_overlay(version, mapped, revision),
                     )
-                self._builtin_calibration[appliance_id] = (version, mapped)
+                self._builtin_calibration[appliance_id] = (version, mapped, revision)
                 return self._with_overlay(builtin)
 
             existing = self._custom.get(appliance_id)
@@ -457,13 +475,17 @@ class ApplianceRegistry:
             self._custom[appliance_id] = updated
             return updated
 
+    def _builtin_revision(self, appliance_id: str) -> int:
+        overlay = self._builtin_calibration.get(appliance_id)
+        return overlay[2] if overlay is not None else 0
+
     def _with_overlay(self, builtin: ApplianceDef) -> ApplianceDef:
         from dataclasses import replace  # noqa: PLC0415
 
         overlay = self._builtin_calibration.get(builtin.appliance_id)
         if overlay is None:
             return builtin
-        version, mapped = overlay
+        version, mapped, revision = overlay
         return replace(
             builtin,
             buttons=tuple(
@@ -471,6 +493,7 @@ class ApplianceRegistry:
                 for b in builtin.buttons
             ),
             calibration_version=version,
+            revision=revision,
         )
 
     def register(

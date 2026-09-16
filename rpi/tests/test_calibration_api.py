@@ -208,3 +208,55 @@ def test_zero_error_limit_is_rejected_not_silently_defaulted(client) -> None:
 
     assert res.status_code == 422, res.text
     assert "0보다 큰" in res.json()["detail"]
+
+
+# ── 내장 가전 보정도 판 번호로 동시 수정을 막는다 ────────────────────────────
+
+
+def test_builtin_calibration_detects_stale_revision(client) -> None:
+    """폰 두 대가 같은 판을 보고 차례로 보정하면, 나중 것이 앞의 결과를 조용히 덮으면 안 된다."""
+    first = client.put(
+        "/appliances/microwave/calibration",
+        json={
+            "expected_revision": 0,
+            "points": GOOD_POINTS,
+            "button_centers": {"BT-05": [100, 200]},
+        },
+    )
+    assert first.status_code == 200, first.text
+    saved = first.json()["appliance"]
+    assert saved["revision"] == 1
+
+    second = client.put(
+        "/appliances/microwave/calibration",
+        json={
+            "expected_revision": 0,
+            "points": GOOD_POINTS,
+            "button_centers": {"BT-06": [40, 60]},
+        },
+    )
+
+    assert second.status_code == 409
+    assert second.headers["X-Current-Revision"] == "1"
+    listed = next(a for a in client.get("/appliances").json() if a["id"] == "microwave")
+    assert listed["calibration_version"] == first.json()["version"]
+    start = next(b for b in listed["buttons"] if b["id"] == "BT-05")
+    assert start["x_mm"] is not None
+
+
+def test_builtin_calibration_revision_survives_restart(tmp_path) -> None:
+    path = str(tmp_path / "cal.db")
+    ApplianceRegistry(store=SimpleLayDb(path)).apply_calibration(
+        "microwave", version="abcdef123456", coords={"BT-05": (60.0, 120.0)}, expected_revision=0
+    )
+
+    reloaded = ApplianceRegistry(store=SimpleLayDb(path))
+
+    assert reloaded.get("microwave").revision == 1
+    from rpi.services.appliance_registry import RevisionConflictError
+
+    with pytest.raises(RevisionConflictError):
+        reloaded.apply_calibration(
+            "microwave", version="fedcba654321", coords={"BT-06": (1.0, 2.0)}, expected_revision=0
+        )
+
