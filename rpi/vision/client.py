@@ -19,6 +19,10 @@ ALLOWED_IMAGE_MIME = ("image/jpeg", "image/png", "image/webp")
 
 USER_AGENT = "SimpleLay/0.1 (+panel-scan)"
 
+#: 응답 본문 상한(바이트). 버튼 목록 JSON은 수 KB면 충분하다. 게이트웨이가 폭주해
+#: 거대한 본문을 보내도 통째로 메모리에 올리지 않고, 상한을 넘으면 오류로 끝낸다.
+MAX_RESPONSE_BYTES = 1_000_000
+
 PANEL_PROMPT = (
     "This is a photo of a home appliance control panel. "
     "List every physical button and dial you can see. "
@@ -119,7 +123,12 @@ class HttpVisionClient:
         )
         try:
             with self._opener(request, timeout=self._config.timeout_seconds) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+                raw = response.read(MAX_RESPONSE_BYTES + 1)
+            if len(raw) > MAX_RESPONSE_BYTES:
+                raise VisionUnavailable(
+                    "인식 서비스 응답이 너무 커요 — 서비스 상태를 확인해 주세요", status=502
+                )
+            payload = json.loads(raw.decode("utf-8"))
         except urllib.error.HTTPError as exc:
             message = _STATUS_MESSAGES.get(exc.code)
             if message is None:

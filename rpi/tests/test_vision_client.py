@@ -125,3 +125,30 @@ def test_config_repr_hides_the_key() -> None:
 )
 def test_image_type_comes_from_magic_bytes(data, mime) -> None:
     assert sniff_image_mime(data) == mime
+
+
+def test_oversized_response_is_refused_without_reading_it_all() -> None:
+    """게이트웨이가 폭주해 거대한 본문을 보내도 메모리로 통째로 받지 않는다."""
+    import rpi.vision.client as client_module
+
+    limit = client_module.MAX_RESPONSE_BYTES
+    body = b"x" * (limit * 3)
+    reads: list[int] = []
+
+    class _Huge(_Response):
+        def read(self, size=-1):
+            reads.append(size)
+            return super().read(size)
+
+    def opener(request, timeout):
+        return _Huge(body)
+
+    client = HttpVisionClient(CONFIG, opener=opener)
+
+    with pytest.raises(VisionUnavailable, match="너무 커요") as info:
+        client.describe_panel(PNG, "image/png")
+
+    assert info.value.status == 502
+    # 상한을 조금 넘는 만큼만 읽는다
+    assert reads and all(0 < size <= limit + 1 for size in reads)
+
