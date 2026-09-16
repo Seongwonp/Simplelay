@@ -129,7 +129,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
-      expect(c.read(executionStatusProvider).message, '실행에 실패했습니다.');
+      expect(c.read(executionStatusProvider).message, '실행하지 못했어요.');
     });
 
     test('result for different sequenceId is ignored', () async {

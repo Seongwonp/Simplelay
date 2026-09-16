@@ -198,7 +198,7 @@ class _AdvancedSection extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             '기본값: http://simplelay.local:8000\n'
-            '같은 Wi-Fi에서 mDNS로 자동 연결됩니다.',
+            '같은 Wi-Fi에서 mDNS로 자동 연결돼요.',
             style: TextStyle(color: context.appMuted, fontSize: 11),
           ),
           const SizedBox(height: 10),
@@ -240,7 +240,7 @@ class _AdvancedSection extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             '서버에 SIMPLELAY_API_KEY가 설정된 경우에만 입력하세요.\n'
-            '시연장 등 공유 Wi-Fi에서 외부 접근을 막는 용도입니다.',
+            '시연장 같은 공유 Wi-Fi에서 외부 접근을 막을 때 써요.',
             style: TextStyle(color: context.appMuted, fontSize: 11),
           ),
           const SizedBox(height: 8),
@@ -318,7 +318,7 @@ class _BleSection extends ConsumerWidget {
               for (final item in items) item.device.remoteId: item,
             }.values;
             if (unique.isEmpty) {
-              return Text('검색된 기기가 없습니다.',
+              return Text('찾은 기기가 없어요.',
                   style: TextStyle(color: context.appMuted, fontSize: 12));
             }
             return Column(

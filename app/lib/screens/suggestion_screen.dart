@@ -174,7 +174,7 @@ class SuggestionScreen extends ConsumerWidget {
     if (suggestion == null) {
       return Scaffold(
         appBar: AppBar(title: const Text('제안 확인')),
-        body: const Center(child: Text('제안을 찾을 수 없습니다.')),
+        body: const Center(child: Text('제안을 찾을 수 없어요.')),
       );
     }
 

@@ -208,7 +208,7 @@ class _ApplianceSection extends ConsumerWidget {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text('\'${appliance.name}\' 삭제'),
-        content: const Text('등록한 버튼 배치와 사진이 함께 삭제됩니다. 삭제할까요?'),
+        content: const Text('등록한 버튼 배치와 사진이 함께 삭제돼요. 삭제할까요?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),

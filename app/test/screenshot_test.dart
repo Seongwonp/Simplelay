@@ -278,7 +278,7 @@ void main() {
     steps: ['BT-08', 'BT-03', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '실행에 실패했습니다.',
+    message: '실행하지 못했어요.',
   );
   const unknownState = ExecutionStatus(
     phase: ExecutionPhase.unknown,

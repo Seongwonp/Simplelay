@@ -183,8 +183,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         final message = success
             ? '버튼 조작을 마쳤어요.'
             : stopped
-                ? '실행이 중단되었습니다.'
-                : '실행에 실패했습니다.';
+                ? '실행을 멈췄어요.'
+                : '실행하지 못했어요.';
         state = state.copyWith(
           phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
           completedSteps: success
@@ -212,7 +212,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           verificationConfidence: status.verificationConfidence,
           verificationDetail: status.verificationDetail,
           phase: retrying ? ExecutionPhase.retrying : ExecutionPhase.running,
-          message: retrying ? '응답이 없어 다시 시도 중입니다.' : '실행 중',
+          message: retrying ? '응답이 없어 다시 시도하고 있어요.' : '실행 중',
         );
         return;
       }
@@ -316,7 +316,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           soundDb: (message['sound_db'] as num?)?.toDouble(),
           completedSteps: (message['completed_steps'] as num?)?.toInt(),
           phase: nextPhase,
-          message: rawStatus == 'retrying' ? '응답이 없어 다시 시도 중입니다.' : '실행 중',
+          message: rawStatus == 'retrying' ? '응답이 없어 다시 시도하고 있어요.' : '실행 중',
         );
         return;
       case 'result':
@@ -324,7 +324,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
             message['sequence_id'] == state.sequenceId) {
           final success = message['success'] == true;
           final resultMessage =
-              success ? '버튼 조작을 마쳤어요.' : '실행에 실패했습니다.';
+              success ? '버튼 조작을 마쳤어요.' : '실행하지 못했어요.';
           state = state.copyWith(
             phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
             completedSteps: success ? state.steps.length : state.completedSteps,
@@ -345,7 +345,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       // safety_stopped 결과를 받아서 처리한다(성급한 '정지됨' 표시 방지).
       try {
         await api.stop();
-        state = state.copyWith(message: '정지 요청을 보냈습니다.');
+        state = state.copyWith(message: '정지 요청을 보냈어요.');
       } catch (_) {
         state = state.copyWith(message: '정지 요청을 보내지 못했어요. 다시 시도해주세요.');
       }
@@ -354,7 +354,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     await ref.read(bleServiceProvider).emergencyStop();
     state = state.copyWith(
       phase: ExecutionPhase.failed,
-      message: '긴급 정지를 전송했습니다.',
+      message: '긴급 정지를 보냈어요.',
     );
   }
 

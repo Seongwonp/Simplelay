@@ -45,7 +45,7 @@ class HistoryScreen extends ConsumerWidget {
           data: (entries) => entries.isEmpty
               ? _Message(
                   icon: Icons.history,
-                  text: '아직 실행 기록이 없어요.\n가전을 조작하면 여기에 기록됩니다.',
+                  text: '아직 실행 기록이 없어요.\n가전을 조작하면 여기에 기록돼요.',
                 )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),

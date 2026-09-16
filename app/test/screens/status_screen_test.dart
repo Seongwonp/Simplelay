@@ -235,12 +235,12 @@ void main() {
       sequenceId: 's4',
       steps: ['BT-02', 'BT-05'],
       completedSteps: 0,
-      message: '실행에 실패했습니다.',
+      message: '실행하지 못했어요.',
     );
 
     testWidgets('실패 메시지 표시', (tester) async {
       await _pumpStatus(tester, failedStatus);
-      expect(find.text('실행에 실패했습니다.'), findsOneWidget);
+      expect(find.text('실행하지 못했어요.'), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 없음 (실패)', (tester) async {

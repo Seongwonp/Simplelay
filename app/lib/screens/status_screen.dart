@@ -91,7 +91,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           if (status.isDemo)
             Semantics(
               liveRegion: true,
-              label: '데모 모드입니다. 실제 조작이 아닙니다.',
+              label: '데모 모드예요. 실제로 조작하지 않아요.',
               child: ExcludeSemantics(
                 child: Container(
                   width: double.infinity,
@@ -350,7 +350,7 @@ class _NowState {
         );
       case ExecutionPhase.failed:
         return _NowState(
-          headline: s.message ?? '실행에 실패했습니다.',
+          headline: s.message ?? '실행하지 못했어요.',
           tone: _Tone.failed,
         );
       case ExecutionPhase.unknown:

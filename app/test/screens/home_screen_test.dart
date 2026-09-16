@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 
 import '../helpers/test_helpers.dart';
@@ -21,6 +22,7 @@ void _useTallViewport(WidgetTester tester) {
 Widget _buildHome({
   List<Suggestion> suggestions = const [],
   bool connected = false,
+  bool serverOnline = false,
   List<ApplianceMap>? installed,
 }) {
   // disconnected + suggestions은 두 override를 개별로 합산
@@ -29,6 +31,8 @@ Widget _buildHome({
     // 이 파일의 기본 상황은 '가전 한 대를 등록한 사용자'다. 0대인 홈은
     // 아래 별도 group에서 확인한다 -- 그쪽도 정상 상태다.
     ...installedOverrides(installed ?? [kTestAppliance]),
+    if (serverOnline)
+      rpiConnectionProvider.overrideWith((ref) => _OnlineRpi(ref)),
   ];
   return buildScreen(
     const HomeScreen(),
@@ -37,7 +41,68 @@ Widget _buildHome({
   );
 }
 
+/// 서버 확인이 끝나 연결된 상태로 시작하는 연결 상태.
+class _OnlineRpi extends RpiConnectionNotifier {
+  _OnlineRpi(super.ref) {
+    state = RpiConnectionState.connected;
+  }
+}
+
 void main() {
+  group('HomeScreen — 연결 문제의 정도와 자리', () {
+    testWidgets('예비 연결로만 닿으면 조작 가능과 연결 경고가 서로 어긋나지 않는다',
+        (tester) async {
+      // 예전에는 "조작 가능"과 "연결 설정이 필요해요"가 한 화면에 함께 떠서
+      // 어느 쪽을 믿을지 알 수 없었다.
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildHome(connected: true));
+      await tester.pump();
+
+      expect(find.text('예비 연결로 조작할 수 있어요'), findsOneWidget);
+      expect(find.text('조작할 수 있어요'), findsNothing);
+      expect(find.text('제안·기록이 멈췄어요'), findsOneWidget);
+      expect(find.text('연결 설정이 필요해요'), findsNothing);
+    });
+
+    testWidgets('기기에 닿지 않으면 연결 경고가 가전보다 먼저 나온다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildHome());
+      await tester.pump();
+
+      final warning = tester.getTopLeft(find.text('연결 설정이 필요해요')).dy;
+      final name = tester.getTopLeft(find.text(kTestAppliance.displayName)).dy;
+      expect(warning, lessThan(name));
+    });
+
+    testWidgets('예비 연결만 꺼지면 경고가 아니라 아래의 조용한 안내다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildHome(serverOnline: true));
+      await tester.pump();
+
+      expect(find.text('조작할 수 있어요'), findsOneWidget);
+      expect(find.text('연결 설정이 필요해요'), findsNothing);
+      expect(find.text('제안·기록이 멈췄어요'), findsNothing);
+      final notice = tester.getTopLeft(find.text('예비 연결 꺼짐')).dy;
+      final name = tester.getTopLeft(find.text(kTestAppliance.displayName)).dy;
+      expect(notice, greaterThan(name));
+
+      await tester.tap(find.text('확인하기'));
+      await tester.pump();
+      // 닿는 기기를 다시 "연결됐어요"로 말하지 않고, 꺼진 것만 보여 준다.
+      expect(find.text('예비 연결이 꺼져 있어요'), findsOneWidget);
+      expect(find.text('기기와 연결됐어요'), findsNothing);
+    });
+
+    testWidgets('서버와 예비 연결이 모두 되면 연결 줄 자체가 없다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildHome(connected: true, serverOnline: true));
+      await tester.pump();
+
+      expect(find.text('조작할 수 있어요'), findsOneWidget);
+      expect(find.text('확인하기'), findsNothing);
+    });
+  });
+
   group('HomeScreen — 연결 해제 상태', () {
     testWidgets('연결 문제는 한 줄로 알리고 눌러야 상세가 나온다', (tester) async {
       // 기술 정보(RPi 서버·주소 입력·재시도)가 홈 아래를 차지하고 있었다.
@@ -111,9 +176,9 @@ void main() {
 
     testWidgets('연결되면 조작할 수 있다고 말한다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildHome(connected: true));
+      await tester.pumpWidget(_buildHome(connected: true, serverOnline: true));
       await tester.pump();
-      expect(find.text('조작 가능'), findsOneWidget);
+      expect(find.text('조작할 수 있어요'), findsOneWidget);
     });
   });
 

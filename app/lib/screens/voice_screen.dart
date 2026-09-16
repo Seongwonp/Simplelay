@@ -207,7 +207,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         await ref
             .read(bleServiceProvider)
             .sendCommand(trimmed, source: 'voice');
-        if (mounted) _notice('명령을 전송했습니다.');
+        if (mounted) _notice('명령을 보냈어요.');
       }
     } on RpiApiException catch (error) {
       if (mounted) {
@@ -315,7 +315,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         appBar: AppBar(title: const Text('음성 명령')),
         body: NoApplianceNotice(
           title: '사용할 가전을 먼저 추가해 주세요',
-          body: '조작할 가전이 있어야 말로 시킬 수 있어요.\n가전을 추가하면 바로 여기서 쓸 수 있습니다.',
+          body: '조작할 가전이 있어야 말로 시킬 수 있어요.\n가전을 추가하면 바로 여기서 쓸 수 있어요.',
           onAdd: () => context.push('/appliance/new'),
         ),
       );

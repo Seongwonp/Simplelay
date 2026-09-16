@@ -131,7 +131,7 @@ void main() {
       // _BleSection이 확장 시점에 처음 mount되면서 scanResultsProvider를 그제서야
       // watch하기 시작 — 스트림의 첫 데이터 이벤트가 반영되려면 pump 한 번 더 필요.
       await tester.pump();
-      expect(find.text('검색된 기기가 없습니다.'), findsOneWidget);
+      expect(find.text('찾은 기기가 없어요.'), findsOneWidget);
     });
   });
 

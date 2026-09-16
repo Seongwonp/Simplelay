@@ -433,7 +433,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
               style: TextStyle(fontSize: 15, color: context.appMuted)),
           const SizedBox(height: 4),
           Text(
-            '같은 종류를 여러 대 등록할 수 있어요. 위치를 적어두면 목록에서 헷갈리지 않아요. 비워둬도 됩니다.',
+            '같은 종류를 여러 대 등록할 수 있어요. 위치를 적어두면 목록에서 헷갈리지 않아요. 비워 둬도 돼요.',
             style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
           const SizedBox(height: 6),
@@ -555,7 +555,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            '음성 명령은 아직 지원되지 않아요. 저장하면 화면에서 버튼을 직접 눌러 실행할 수 있습니다.',
+            '음성 명령은 아직 지원되지 않아요. 저장하면 화면에서 버튼을 직접 눌러 실행할 수 있어요.',
             style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
         ],
@@ -731,7 +731,7 @@ class _SavedNextStepsDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('아직 조작할 수는 없어요. 두 가지가 남았습니다.',
+            Text('아직 조작할 수는 없어요. 두 가지가 남았어요.',
                 style: TextStyle(color: context.appMuted)),
             const SizedBox(height: 14),
             const _NextStep(

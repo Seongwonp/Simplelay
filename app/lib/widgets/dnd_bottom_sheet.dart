@@ -111,7 +111,7 @@ class _DndSheet extends ConsumerWidget {
             // 해제
             _OptionTile(
               label: '방해 금지 해제',
-              subtitle: isActive ? '사용 습관 제안을 다시 받습니다' : '현재 비활성 상태',
+              subtitle: isActive ? '사용 습관 제안을 다시 받아요' : '현재 비활성 상태',
               iconColor: isActive ? context.appDanger : context.appMuted,
               enabled: isActive,
               onTap: isActive
@@ -131,7 +131,7 @@ class _DndSheet extends ConsumerWidget {
 
   String _remaining(DateTime until) {
     final diff = until.difference(DateTime.now());
-    if (diff.isNegative) return '곧 해제됩니다';
+    if (diff.isNegative) return '곧 해제돼요';
     if (diff.inMinutes >= 60) {
       final h = diff.inHours;
       final m = diff.inMinutes.remainder(60);

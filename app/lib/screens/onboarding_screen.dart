@@ -82,7 +82,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       _FeatureRow(
                         icon: Icons.wifi_rounded,
                         title: '자동 연결',
-                        body: 'RPi5와 같은 WiFi에 연결하면\nsimplelay.local로 자동 접속됩니다',
+                        body: 'RPi5와 같은 WiFi에 연결하면\nsimplelay.local로 자동 접속돼요',
                       ),
                       const SizedBox(height: 20),
                       _FeatureRow(
@@ -94,7 +94,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       _FeatureRow(
                         icon: Icons.do_not_disturb_on_outlined,
                         title: '방해 금지',
-                        body: '홈 화면 우측 상단 버튼으로\n제안을 잠시 멈출 수 있습니다',
+                        body: '홈 화면 우측 상단 버튼으로\n제안을 잠시 멈출 수 있어요',
                       ),
 
                       const SizedBox(height: 32),

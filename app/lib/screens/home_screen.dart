@@ -45,6 +45,15 @@ class HomeScreen extends ConsumerWidget {
     // 아무것도 등록하지 않은 사람의 홈에 남의 가전이 놓인다.
     final appliances = ref.watch(installedAppliancesProvider);
 
+    // 연결 문제는 **정도에 따라 자리가 다르다.** 기기(서버)에 닿지 않으면
+    // 제안·기록·실행 상태가 모두 멈추므로 맨 위에서 먼저 말한다. 예비
+    // 연결만 꺼진 것은 지금 조작에 지장이 없으니 아래에 조용히 둔다 --
+    // 예전에는 둘을 같은 빨간 줄로 맨 아래에 두어, 같은 화면에 "조작 가능"과
+    // "연결 설정이 필요해요"가 함께 떠서 어느 쪽을 믿을지 알 수 없었다.
+    final serverDown = !rpiOnline;
+    final connectionDetails =
+        _ConnectionDetails(rpiState: rpiState, bleConnected: connected);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('SimpleLay'),
@@ -76,6 +85,12 @@ class HomeScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
         children: [
+          // ── 연결 문제(기기에 닿지 않을 때만 맨 위) ──────────────────────
+          if (serverDown) ...[
+            connectionDetails,
+            const SizedBox(height: 12),
+          ],
+
           // ── 가전 고르기 ──────────────────────────────────────────────────
           // 등록된 가전이 하나뿐이면 고를 것이 없다. 줄을 통째로 뺀다.
           if (appliances.length > 1) ...[
@@ -93,6 +108,7 @@ class HomeScreen extends ConsumerWidget {
             _ApplianceStage(
               appliance: appliance,
               reachable: connected || rpiOnline,
+              backupOnly: connected && !rpiOnline,
               imageOverride: applianceImageOverride,
               onManual: () => context.push('/manual-control'),
               // 편집기는 아직 '새 가전 만들기'만 받는다. 기존 가전에 사진을
@@ -139,9 +155,11 @@ class HomeScreen extends ConsumerWidget {
             error: (_, __) => const SizedBox.shrink(),
           ),
 
-          // ── 연결 상세 ────────────────────────────────────────────────────
-          const SizedBox(height: 16),
-          _ConnectionDetails(rpiState: rpiState, bleConnected: connected),
+          // ── 예비 연결(기기에는 닿을 때만 아래) ──────────────────────────
+          if (!serverDown) ...[
+            const SizedBox(height: 16),
+            connectionDetails,
+          ],
         ],
       ),
     );
@@ -280,6 +298,7 @@ class _ApplianceStage extends StatelessWidget {
   const _ApplianceStage({
     required this.appliance,
     required this.reachable,
+    this.backupOnly = false,
     required this.onManual,
     required this.onAddPhoto,
     this.imageOverride,
@@ -292,6 +311,10 @@ class _ApplianceStage extends StatelessWidget {
 
   /// BLE나 서버 중 하나로라도 닿는가.
   final bool reachable;
+
+  /// 서버에는 닿지 않고 예비 연결(BLE)로만 닿는가. 조작은 되지만 제안·기록은
+  /// 오지 않으므로, "조작할 수 있어요"만 말하면 위의 연결 경고와 어긋난다.
+  final bool backupOnly;
   final VoidCallback onManual;
   final VoidCallback onAddPhoto;
 
@@ -374,7 +397,8 @@ class _ApplianceStage extends StatelessWidget {
       );
     }
     if (!reachable) return ('기기와 연결되면 조작할 수 있어요', false);
-    return ('조작 가능', false);
+    if (backupOnly) return ('예비 연결로 조작할 수 있어요', false);
+    return ('조작할 수 있어요', false);
   }
 }
 
@@ -471,14 +495,26 @@ class _ConnectionDetails extends StatefulWidget {
 class _ConnectionDetailsState extends State<_ConnectionDetails> {
   bool _open = false;
 
-  bool get _hasProblem =>
-      widget.rpiState != RpiConnectionState.connected || !widget.bleConnected;
+  bool get _serverDown => widget.rpiState != RpiConnectionState.connected;
+
+  bool get _hasProblem => _serverDown || !widget.bleConnected;
 
   @override
   Widget build(BuildContext context) {
     // 문제가 없으면 이 줄 자체를 두지 않는다. 잘 되고 있는 것을 알리는
     // 줄은 화면을 관리 도구로 되돌릴 뿐, 사용자가 그걸로 할 판단이 없다.
     if (!_hasProblem) return const SizedBox.shrink();
+
+    // 기기에 닿지 않으면 경고색, 예비 연결만 꺼졌으면 보조색. 둘 다 끊긴
+    // 것과 예비 연결로 버티는 것도 문장을 나눈다 -- 조작은 되는데 "연결
+    // 설정이 필요해요"라고만 하면 무엇이 안 되는지 알 수 없다.
+    final (String label, Color color, IconData icon) = !_serverDown
+        ? ('예비 연결 꺼짐', context.appMuted, Icons.bluetooth_disabled)
+        : widget.bleConnected
+            ? ('제안·기록이 멈췄어요', context.appWarning,
+                Icons.wifi_tethering_error)
+            : ('연결 설정이 필요해요', context.appDanger,
+                Icons.wifi_tethering_error);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -494,18 +530,17 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
               padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
               child: Row(
                 children: [
-                  Icon(Icons.wifi_tethering_error,
-                      size: 20, color: context.appDanger),
+                  Icon(icon, size: 20, color: color),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       // 기술 용어를 여기 쓰지 않는다. `RPi 서버`·주소 입력·
                       // 재시도는 눌렀을 때만 나온다.
-                      '연결 설정이 필요해요',
+                      label,
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
-                        color: context.appDanger,
+                        color: color,
                       ),
                     ),
                   ),
@@ -514,11 +549,11 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w600,
-                      color: context.appDanger,
+                      color: color,
                     ),
                   ),
                   Icon(_open ? Icons.expand_less : Icons.expand_more,
-                      color: context.appDanger),
+                      color: color),
                 ],
               ),
             ),
@@ -526,10 +561,11 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
         ),
         if (_open) ...[
           const SizedBox(height: 4),
-          _RpiStatusCard(state: widget.rpiState),
+          // 닿는 기기를 "연결됐어요" 카드로 다시 말하지 않는다.
+          if (_serverDown) _RpiStatusCard(state: widget.rpiState),
           // 예비 연결은 **꺼져 있을 때만** 말한다.
           if (!widget.bleConnected) ...[
-            const SizedBox(height: 12),
+            if (_serverDown) const SizedBox(height: 12),
             _BleStatusCard(connected: widget.bleConnected),
           ],
         ],
@@ -693,12 +729,12 @@ class _RpiStatusCard extends ConsumerWidget {
           context.appWarning,
           Icons.sync,
           '연결 확인 중…',
-          'simplelay.local 에 접속 중입니다',
+          'simplelay.local에 접속하고 있어요',
         ),
       RpiConnectionState.unreachable => (
           context.appDanger,
           Icons.wifi_off,
-          'RPi 서버에 연결할 수 없음',
+          'RPi 서버에 연결할 수 없어요',
           '같은 Wi-Fi인지 확인하거나 주소를 직접 입력하세요',
         ),
       RpiConnectionState.unconfigured => (

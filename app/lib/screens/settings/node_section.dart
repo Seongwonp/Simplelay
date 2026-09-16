@@ -16,7 +16,7 @@ class _NodeSection extends ConsumerWidget {
               Icon(Icons.add_home_outlined, color: context.appMuted, size: 20),
           title: const Text('등록할 가전이 아직 없어요'),
           subtitle: Text(
-            '가전을 추가하면 여기서 버튼을 눌러 줄 장치를 잇습니다.',
+            '가전을 추가하면 여기서 버튼을 눌러 줄 장치를 연결해요.',
             style: TextStyle(color: context.appMuted, fontSize: 14),
           ),
         ),
@@ -271,7 +271,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
-                  'ESP32 IP 입력 — 포트는 자동으로 :8080이 붙습니다',
+                  'ESP32 IP 입력 — 포트는 자동으로 :8080이 붙어요',
                   style: TextStyle(fontSize: 12, color: context.appMuted),
                 ),
               ),

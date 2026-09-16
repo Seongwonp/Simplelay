@@ -70,7 +70,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSuggestion('nonexistent', suggestions: []));
       await tester.pump();
-      expect(find.text('제안을 찾을 수 없습니다.'), findsOneWidget);
+      expect(find.text('제안을 찾을 수 없어요.'), findsOneWidget);
     });
   });
 

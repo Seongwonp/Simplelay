@@ -90,7 +90,7 @@ class BleService {
   Future<void> send(Map<String, dynamic> message) async {
     if (_isSimulated) return;
     final characteristic = _characteristic;
-    if (characteristic == null) throw StateError('BLE 기기가 연결되지 않았습니다.');
+    if (characteristic == null) throw StateError('BLE 기기가 연결되지 않았어요.');
     final bytes = utf8.encode('${jsonEncode(message)}\n');
     await characteristic.write(bytes, withoutResponse: false);
   }
