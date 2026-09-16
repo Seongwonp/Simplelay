@@ -135,7 +135,7 @@ class _ApplianceCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: '${appliance.name} 조작하기'
-          '${isLastUsed ? '. 지난번에 사용했습니다' : ''}',
+          '${isLastUsed ? '. 지난번에 썼어요' : ''}',
       child: Material(
         color: KioskColors.surface,
         borderRadius: BorderRadius.circular(16),

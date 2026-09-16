@@ -213,7 +213,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           _toggleRow(
             icon: Icons.text_increase,
             title: '큰 글씨',
-            subtitle: '화면의 글자를 22% 크게 표시합니다',
+            subtitle: '화면의 글자를 22% 크게 보여 줘요',
             value: widget.largeTextEnabled,
             onChanged: widget.onLargeTextChanged,
           ),
@@ -237,7 +237,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   style: TextStyle(fontSize: 14, color: Color(0xFFFAF7F2)),
                 ),
                 Text(
-                  '제안 카드가 자동으로 닫히기까지의 시간입니다',
+                  '제안 카드가 저절로 닫히기까지 걸리는 시간이에요',
                   style: TextStyle(fontSize: 13, color: KioskColors.muted),
                 ),
               ],

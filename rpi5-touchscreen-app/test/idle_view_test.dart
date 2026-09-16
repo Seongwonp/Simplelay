@@ -33,7 +33,7 @@ void main() {
     await _pump(tester, appliance: kMicrowaveAppliance);
 
     expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('조작 가능'), findsOneWidget);
+    expect(find.text('조작할 수 있어요'), findsOneWidget);
     expect(find.text('화면을 눌러 시작하세요'), findsOneWidget);
     // 시각은 날짜와 한 줄에 작게 -- 108px 시계가 아니다.
     final time = tester.widget<Text>(find.text('9월 13일 일요일 · 09:05'));
@@ -59,7 +59,7 @@ void main() {
     );
 
     expect(find.text('버튼 위치 보정이 아직 안 됐어요'), findsOneWidget);
-    expect(find.text('조작 가능'), findsNothing);
+    expect(find.text('조작할 수 있어요'), findsNothing);
     // 색만이 아니라 모양으로도 구분한다.
     expect(find.byIcon(Icons.build_outlined), findsOneWidget);
   });
@@ -79,7 +79,7 @@ void main() {
       ),
     );
 
-    expect(find.text('조작 가능'), findsOneWidget);
+    expect(find.text('조작할 수 있어요'), findsOneWidget);
   });
 
   testWidgets('연결이 없으면 시작을 권하지 않는다', (tester) async {

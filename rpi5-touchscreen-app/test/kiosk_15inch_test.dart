@@ -241,7 +241,7 @@ void main() {
         DangerAlertOverlay(onAcknowledge: () => acknowledged++),
       );
 
-      await _tapAt(tester, find.text('안내를 확인했습니다'));
+      await _tapAt(tester, find.text('안내를 확인했어요'));
 
       expect(acknowledged, 1);
     });

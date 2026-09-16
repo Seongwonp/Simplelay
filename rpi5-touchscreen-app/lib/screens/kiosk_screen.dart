@@ -238,7 +238,7 @@ class _KioskScreenState extends State<KioskScreen> {
     // 새로 켜지는 엣지에서만 음성 경보 — 반복 발화하지 않는다.
     // DND 중에도 발화한다: 안전 경보는 방해 금지보다 우선한다.
     if (alert.active && !_alert.active) {
-      _tts.speak('위험 신호음이 감지되었습니다. 안전한 곳으로 이동한 뒤 주변에 도움을 요청해 주세요.');
+      _tts.speak('위험 신호음을 감지했어요. 안전한 곳으로 이동한 뒤 주변에 도움을 요청해 주세요.');
     }
     setState(() {
       // 새로 켜지는 순간(엣지)엔 "확인" 눌렀던 기록을 리셋 — 계속 같은
@@ -510,15 +510,15 @@ class _KioskScreenState extends State<KioskScreen> {
     KioskFailureReason reason = KioskFailureReason.execution,
   }) {
     // 실행 결과 음성 안내. '서버 응답 없음'은 라벨이 아니라 오류 상황이라
-    // 문장을 따로 쓴다 ("서버 응답 없음 실패했습니다"는 어색).
+    // 문장을 따로 쓴다 ("서버 응답 없음, 실행하지 못했어요"는 어색).
     _tts.speak(
       // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
       // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
           ? '$label, 버튼 조작을 마쳤어요.'
           : label == '서버 응답 없음'
-              ? '서버 응답이 없습니다. 연결을 확인해 주세요.'
-              : '$label 실패했습니다. 화면을 확인해 주세요.',
+              ? '서버 응답이 없어요. 연결을 확인해 주세요.'
+              : '$label, 실행하지 못했어요. 화면을 확인해 주세요.',
     );
     setState(() {
       _phase = KioskPhase.done;

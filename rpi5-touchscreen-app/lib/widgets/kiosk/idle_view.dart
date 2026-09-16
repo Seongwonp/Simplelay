@@ -97,7 +97,7 @@ class _KioskIdleViewState extends State<KioskIdleView> {
     if (!widget.actuatorReady) {
       return (Icons.hourglass_empty, '누르는 장치를 준비하고 있어요', false);
     }
-    return (Icons.check_circle_outline, '조작 가능', false);
+    return (Icons.check_circle_outline, '조작할 수 있어요', false);
   }
 
   @override

@@ -44,7 +44,7 @@ class DangerAlertOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               const Text(
-                '화재·가스 경보음으로 추정되는 소리가 감지되었습니다',
+                '화재·가스 경보음으로 보이는 소리를 감지했어요',
                 style: TextStyle(fontSize: 15, color: Color(0xFFE8B4B1)),
               ),
               const SizedBox(height: 4),
@@ -56,7 +56,7 @@ class DangerAlertOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 6),
               const Text(
-                '오탐일 수도 있습니다. 안전이 확보된 뒤에 확인해주세요',
+                '잘못 감지했을 수도 있어요. 안전을 확보한 뒤에 확인해 주세요',
                 style: TextStyle(fontSize: 14, color: KioskColors.muted),
               ),
               const SizedBox(height: 32),
@@ -74,7 +74,7 @@ class DangerAlertOverlay extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    '안내를 확인했습니다',
+                    '안내를 확인했어요',
                     style:
                         TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                   ),
