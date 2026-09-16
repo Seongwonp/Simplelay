@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/screens/status_screen.dart';
+import 'package:simplelay/theme/app_colors.dart';
 import 'package:simplelay/widgets/button_map_grid.dart';
 
 import '../helpers/test_helpers.dart';
@@ -338,6 +339,9 @@ void main() {
       );
       final shape = button.style!.shape!.resolve({}) as RoundedRectangleBorder;
       expect(shape.side.width, greaterThanOrEqualTo(3));
+      // 키오스크와 같은 짙은 빨강에 흰 글자 -- 연한 색은 비상으로 읽히지 않았다.
+      expect(button.style!.backgroundColor!.resolve({}), AppColors.stop);
+      expect(button.style!.foregroundColor!.resolve({}), Colors.white);
     });
   });
 }

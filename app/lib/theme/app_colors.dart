@@ -32,6 +32,11 @@ class AppColors {
   static const warning = Color(0xFFE8B339); // 앰버
   static const danger  = Color(0xFFEF6E64); // 레드 — 면 위 검정 7.08:1
 
+  // 긴급 정지 면(키오스크 KioskColors.stop과 같은 값). 연한 레드에 검정 글자는
+  // 대비는 넉넉했지만 비상 버튼으로 읽히지 않았다(9/16 화면 평가). 흰 글자 7.3:1.
+  // 두 테마 모두 같은 면을 쓴다 -- 어느 모드에서든 같은 모양이어야 급할 때 찾는다.
+  static const stop    = Color(0xFFA8201A);
+
   // 라이트 모드에서 danger를 **글자·아이콘으로** 쓸 때. 크림 배경 위 #D9605C는
   // 3.2:1이라 읽히지 않는다 — primaryLight를 따로 둔 것과 같은 이유다.
   // 면으로 쓸 때는 danger 그대로에 onAccent 글자를 얹는다: danger 자체를 어둡게

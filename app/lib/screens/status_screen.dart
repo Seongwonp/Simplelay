@@ -660,8 +660,8 @@ class _StopArea extends StatelessWidget {
                   height: 64,
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(
-                      backgroundColor: AppColors.danger,
-                      foregroundColor: AppColors.onAccent,
+                      backgroundColor: AppColors.stop,
+                      foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                         side: BorderSide(
