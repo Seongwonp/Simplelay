@@ -147,7 +147,7 @@ class _ApplianceCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color: isLastUsed
-                    ? KioskColors.primary.withValues(alpha: 0.55)
+                    ? KioskColors.muted
                     : KioskColors.border,
                 width: isLastUsed ? 1.5 : 1,
               ),
@@ -155,7 +155,7 @@ class _ApplianceCard extends StatelessWidget {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(appliance.icon, size: 44, color: KioskColors.primary),
+                Icon(appliance.icon, size: 44, color: KioskColors.muted),
                 const SizedBox(height: 12),
                 Text(
                   appliance.name,
@@ -172,14 +172,14 @@ class _ApplianceCard extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                         horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
-                      color: KioskColors.primary.withValues(alpha: 0.14),
+                      color: KioskColors.surface2,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: const Text(
                       '지난번',
                       style: TextStyle(
                         fontSize: 13,
-                        color: KioskColors.primary,
+                        color: KioskColors.success,
                       ),
                     ),
                   ),

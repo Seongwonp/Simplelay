@@ -417,8 +417,9 @@ class _SegmentedProgress extends StatelessWidget {
                   child: Container(
                     height: 12,
                     decoration: BoxDecoration(
+                      // 끝난 칸은 무채색, 지금 칸의 테두리만 강조색.
                       color: i < completed
-                          ? KioskColors.primary
+                          ? KioskColors.success
                           : KioskColors.surface2,
                       borderRadius: BorderRadius.circular(3),
                       border: (i == completed && active)

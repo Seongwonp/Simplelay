@@ -38,7 +38,7 @@ void main() {
     await _pump(tester, target: kMicrowaveAppliance);
 
     expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('우유 데워줘, 지금 할까요?'), findsOneWidget);
+    expect(find.text('우유 데워줘,\n지금 할까요?'), findsOneWidget);
     expect(find.text('누를 순서'), findsOneWidget);
     for (final (i, label) in [(1, '해동'), (2, '시간 90초'), (3, '시작')]) {
       expect(find.text('$i'), findsOneWidget);

@@ -76,8 +76,10 @@ class KioskSuggestionView extends StatelessWidget {
                         // 사용자가 예전에 했던 말 그대로가 purpose다 — 제품이
                         // 지어낸 문구가 아니라 본인의 표현이라 그대로 되물어보는
                         // 편이 알아듣기 쉽다.
+                        // 질문은 따로 한 줄. 이어 쓰면 폭에 따라 '할까 / 요?'처럼
+                        // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다.
                         Text(
-                          '${suggestion.purpose}, 지금 할까요?',
+                          '${suggestion.purpose},\n지금 할까요?',
                           style: const TextStyle(
                             fontSize: 36,
                             fontWeight: FontWeight.w700,
@@ -237,8 +239,9 @@ class _StepList extends StatelessWidget {
         width: 32,
         height: 32,
         alignment: Alignment.center,
+        // 순서 번호는 정보다. 보라는 주 행동('지금 실행') 몫으로 남긴다.
         decoration: const BoxDecoration(
-          color: KioskColors.primary,
+          color: KioskColors.success,
           shape: BoxShape.circle,
         ),
         child: Text(
