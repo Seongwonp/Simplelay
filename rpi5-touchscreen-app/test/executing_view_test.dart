@@ -126,6 +126,19 @@ void main() {
     expect(find.text('지금 누르는 버튼'), findsNothing);
   });
 
+  testWidgets('재시도 중에는 진행 막대의 지금 칸도 주의색이다', (tester) async {
+    Color currentBorder() {
+      final box = tester.widget<Container>(
+          find.byKey(const ValueKey('segment-current')));
+      return ((box.decoration! as BoxDecoration).border! as Border).top.color;
+    }
+
+    await _pump(tester, attempt: 2, completed: 1, total: 3);
+    expect(currentBorder(), KioskColors.warning);
+    await _pump(tester, attempt: 1, completed: 1, total: 3);
+    expect(currentBorder(), KioskColors.primary);
+  });
+
   testWidgets('서버가 단계 수를 안 주면 진행을 지어내지 않는다', (tester) async {
     await _pump(tester, completed: 2);
 

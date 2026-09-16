@@ -55,6 +55,25 @@ void main() {
     expect(pressed, ['시작']);
   });
 
+  testWidgets('남는 자리만큼 판을 키운다 — 3열 판이 가운데 좁게만 차지 않는다',
+      (tester) async {
+    await _pump(tester, kMicrowaveAppliance);
+
+    final cell = tester.getSize(find.ancestor(
+      of: find.text('시작'),
+      matching: find.byType(InkWell),
+    ));
+    // 예전 고정 크기(124x66)보다 크고, 상한(200x96)을 넘지 않는다.
+    expect(cell.width, greaterThan(124));
+    expect(cell.height, greaterThan(66));
+    expect(cell.width, lessThanOrEqualTo(200));
+    expect(cell.height, lessThanOrEqualTo(96));
+    // 판이 화면 폭의 절반을 넘게 쓴다(예전 3열 판은 약 400/800).
+    final left = tester.getTopLeft(find.text('10초')).dx;
+    final right = tester.getTopRight(find.text('냉동식품')).dx;
+    expect(right - left, greaterThan(460));
+  });
+
   testWidgets('스크린리더에 버튼으로 읽힌다', (tester) async {
     final handle = tester.ensureSemantics();
     await _pump(tester, kMicrowaveAppliance);

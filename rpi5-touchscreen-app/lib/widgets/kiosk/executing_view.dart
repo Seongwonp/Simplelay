@@ -366,7 +366,12 @@ class _NowBlock extends StatelessWidget {
               ],
               const SizedBox(height: 18),
               if (total != null && total > 0)
-                _SegmentedProgress(total: total, completed: done, active: true)
+                _SegmentedProgress(
+                  total: total,
+                  completed: done,
+                  active: true,
+                  caution: view._retrying,
+                )
               else if (view.completedSteps != null)
                 Text(
                   '$done단계 완료',
@@ -387,11 +392,16 @@ class _SegmentedProgress extends StatelessWidget {
     required this.total,
     required this.completed,
     required this.active,
+    this.caution = false,
   });
 
   final int total;
   final int completed;
   final bool active;
+
+  /// 보정 후 다시 누르는 중. 지금 칸 테두리를 주의색으로 -- 위의 상태 구절·
+  /// 버튼판과 같은 색이어야 한다(폰 실행 화면과 같은 규칙).
+  final bool caution;
 
   @override
   Widget build(BuildContext context) {
@@ -415,6 +425,9 @@ class _SegmentedProgress extends StatelessWidget {
               for (var i = 0; i < total; i++) ...[
                 Expanded(
                   child: Container(
+                    key: i == completed && active
+                        ? const ValueKey('segment-current')
+                        : null,
                     height: 12,
                     decoration: BoxDecoration(
                       // 끝난 칸은 무채색, 지금 칸의 테두리만 강조색.
@@ -423,7 +436,12 @@ class _SegmentedProgress extends StatelessWidget {
                           : KioskColors.surface2,
                       borderRadius: BorderRadius.circular(3),
                       border: (i == completed && active)
-                          ? Border.all(color: KioskColors.primary, width: 2)
+                          ? Border.all(
+                              color: caution
+                                  ? KioskColors.warning
+                                  : KioskColors.primary,
+                              width: 2,
+                            )
                           : null,
                     ),
                   ),

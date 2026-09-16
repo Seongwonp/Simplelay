@@ -74,17 +74,25 @@ class KioskManualView extends StatelessWidget {
           // 실패로 알게 되면, 서버가 막은 것을 가전 고장으로 오해한다.
           if (!appliance.canExecute) _NotReadyNotice(appliance: appliance),
           Expanded(
-            // 큰 글씨·준비 안 됨 안내가 겹쳐도 판이 화면 밖으로 넘치지 않게.
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Center(
-                child: _ButtonGrid(
-                  appliance: appliance,
-                  // 준비 안 된 가전은 탭 자체를 막는다(서버도 412로 거절 —
-                  // 이중 방어). 누를 수 있는데 안 되는 버튼은 두지 않는다.
-                  onExecute: appliance.canExecute ? onExecute : null,
-                ),
-              ),
+            // 남는 자리만큼 칸을 키운다. 고정 크기일 때는 3열 판이 가운데 좁게만
+            // 차고 양옆이 비었다(9/16 화면 평가). 최소는 예전 크기라, 큰 글씨·
+            // 준비 안 됨 안내로 자리가 모자라면 예전처럼 스크롤된다.
+            child: LayoutBuilder(
+              builder: (context, box) {
+                final size = _cellSizeFor(appliance, box.biggest);
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Center(
+                    child: _ButtonGrid(
+                      appliance: appliance,
+                      cellSize: size,
+                      // 준비 안 된 가전은 탭 자체를 막는다(서버도 412로 거절 —
+                      // 이중 방어). 누를 수 있는데 안 되는 버튼은 두지 않는다.
+                      onExecute: appliance.canExecute ? onExecute : null,
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -153,10 +161,28 @@ class _NotReadyNotice extends StatelessWidget {
   }
 }
 
+/// 판이 차지할 수 있는 자리에서 칸 하나의 크기.
+///
+/// 아래로는 예전 고정 크기(멀리서 읽히는 하한), 위로는 상한을 둔다 -- 칸이
+/// 끝없이 커지면 한눈에 판 전체가 들어오지 않고 손을 크게 옮겨야 한다.
+Size _cellSizeFor(ApplianceMap appliance, Size area) {
+  const gap = _cellGap * 2;
+  final cols = appliance.cols < 1 ? 1 : appliance.cols;
+  final rows = appliance.rows < 1 ? 1 : appliance.rows;
+  final w = ((area.width - 48) / cols - gap).clamp(_cellWidth, _cellMaxWidth);
+  final h = ((area.height - 12) / rows - gap).clamp(_cellHeight, _cellMaxHeight);
+  return Size(w.toDouble(), h.toDouble());
+}
+
 class _ButtonGrid extends StatelessWidget {
-  const _ButtonGrid({required this.appliance, required this.onExecute});
+  const _ButtonGrid({
+    required this.appliance,
+    required this.cellSize,
+    required this.onExecute,
+  });
 
   final ApplianceMap appliance;
+  final Size cellSize;
 
   /// null이면 이 가전은 아직 맡길 수 없다.
   final void Function(ApplianceButton)? onExecute;
@@ -171,11 +197,12 @@ class _ButtonGrid extends StatelessWidget {
           children: List.generate(appliance.cols, (col) {
             final btn = appliance.buttonAt(col, row);
             return Padding(
-              padding: const EdgeInsets.all(5),
+              padding: const EdgeInsets.all(_cellGap),
               child: btn == null
-                  ? const SizedBox(width: _cellWidth, height: _cellHeight)
+                  ? SizedBox.fromSize(size: cellSize)
                   : _ButtonCell(
                       button: btn,
+                      size: cellSize,
                       onTap: onExecute == null
                           ? null
                           : () => onExecute!(btn),
@@ -188,14 +215,24 @@ class _ButtonGrid extends StatelessWidget {
   }
 }
 
-// 멀리서 읽히는 크기. 4열(인덕션)·4행(전자레인지)이 800x480에 들어가는 상한.
+// 멀리서 읽히는 하한. 4열(인덕션)·4행(전자레인지)이 800x480에 들어가는 크기였다.
 const double _cellWidth = 124;
 const double _cellHeight = 66;
 
+// 칸이 커질 수 있는 상한(설계 캔버스 기준).
+const double _cellMaxWidth = 200;
+const double _cellMaxHeight = 96;
+const double _cellGap = 5;
+
 class _ButtonCell extends StatelessWidget {
-  const _ButtonCell({required this.button, required this.onTap});
+  const _ButtonCell({
+    required this.button,
+    required this.size,
+    required this.onTap,
+  });
 
   final ApplianceButton button;
+  final Size size;
   final VoidCallback? onTap;
 
   @override
@@ -208,8 +245,8 @@ class _ButtonCell extends StatelessWidget {
       label: '${button.label} 버튼 누르기',
       excludeSemantics: true,
       child: Container(
-        width: _cellWidth,
-        height: _cellHeight,
+        width: size.width,
+        height: size.height,
         decoration: BoxDecoration(
           color: KioskColors.surface,
           borderRadius: BorderRadius.circular(10),
@@ -231,7 +268,8 @@ class _ButtonCell extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 20,
+                    // 칸이 넉넉해지면 글자도 함께 키운다.
+                    fontSize: size.height >= 80 ? 24 : 20,
                     height: 1.15,
                     // 못 누르는 버튼은 그렇게 보여야 한다 — 색만 같으면
                     // 눌리지 않는 이유를 가전 쪽에서 찾게 된다.
