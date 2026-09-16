@@ -72,6 +72,10 @@ class PowerOperationVerifier(OperationVerifier):
         for _ in range(self._max_polls):
             if last.t_s - first.t_s >= self._config.baseline_window_s:
                 break
+            # 기준선을 모으는 동안에도 정지 요청을 본다 -- 여기서 기다리면
+            # 아직 누르기 전인데도 정지 처리가 그만큼 늦어진다.
+            if self._stop_check is not None and self._stop_check():
+                break
             self._sleep(self._poll_interval_s)
             last = self._sensor.read()
             detector.feed(last)

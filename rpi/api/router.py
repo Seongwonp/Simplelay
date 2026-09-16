@@ -473,11 +473,18 @@ async def calibrate_appliance(
         DEFAULT_MAX_RMS_MM,
     )
 
+    # 0이나 음수는 기본값으로 갈아끼우지 않는다 -- 잘못된 값을 조용히 고치면
+    # 호출부는 자기가 보낸 기준으로 저장됐다고 믿는다. transform이 거절(422)한다.
     options = {
-        "max_rms_mm": min(body.max_rms_mm or DEFAULT_MAX_RMS_MM, DEFAULT_MAX_RMS_MM),
-        "max_point_error_mm": min(
-            body.max_point_error_mm or DEFAULT_MAX_POINT_ERROR_MM,
-            DEFAULT_MAX_POINT_ERROR_MM,
+        "max_rms_mm": (
+            min(body.max_rms_mm, DEFAULT_MAX_RMS_MM)
+            if body.max_rms_mm is not None
+            else DEFAULT_MAX_RMS_MM
+        ),
+        "max_point_error_mm": (
+            min(body.max_point_error_mm, DEFAULT_MAX_POINT_ERROR_MM)
+            if body.max_point_error_mm is not None
+            else DEFAULT_MAX_POINT_ERROR_MM
         ),
     }
     try:

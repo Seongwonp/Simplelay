@@ -164,3 +164,28 @@ def test_stop_request_during_l3_wait_is_observed() -> None:
     # 정지로 중단한 것이라 '동작 확인 실패' 알림은 울리지 않는다
     assert alerts.failures == []
     assert safety.reasons and "emergency stop" in safety.reasons[-1]
+
+
+def test_stop_request_during_baseline_collection_is_observed() -> None:
+    """기준선을 모으는 동안에도 정지를 본다 -- 아직 누르기 전인데 기다릴 이유가 없다."""
+    stopped = False
+
+    def _should_stop() -> bool:
+        return stopped
+
+    reads = 0
+
+    class _CountingSensor:
+        def read(self) -> PowerSample:
+            nonlocal reads
+            reads += 1
+            return PowerSample(reads * 0.1, 3.0)
+
+    verifier = PowerOperationVerifier(_CountingSensor(), sleep=_no_sleep)
+    verifier.set_stop_check(_should_stop)
+    stopped = True
+
+    verifier.begin_observation()
+
+    # 첫 샘플 하나만 읽고 빠져나온다(기준선 창을 다 기다리지 않는다)
+    assert reads == 1

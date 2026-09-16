@@ -193,3 +193,18 @@ def test_identical_targets_are_rejected_not_500(client) -> None:
     )
 
     assert res.status_code == 422, res.text
+
+
+def test_zero_error_limit_is_rejected_not_silently_defaulted(client) -> None:
+    """0을 보내면 기본값으로 갈아끼우지 않는다 -- 호출부가 자기 기준으로 저장됐다고 믿게 된다."""
+    res = client.put(
+        "/appliances/microwave/calibration",
+        json={
+            "points": GOOD_POINTS,
+            "button_centers": {"BT-05": [100, 200]},
+            "max_rms_mm": 0,
+        },
+    )
+
+    assert res.status_code == 422, res.text
+    assert "0보다 큰" in res.json()["detail"]
