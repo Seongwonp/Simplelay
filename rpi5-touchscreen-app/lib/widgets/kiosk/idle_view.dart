@@ -142,78 +142,67 @@ class _KioskIdleViewState extends State<KioskIdleView> {
               ),
             ),
 
-            // ── 가운데: 어느 가전 · 지금 되는가 · 어떻게 시작 ──────────────
+            // ── 가운데: 어느 가전 · 지금 되는가 | 어떻게 시작 ─────────────
+            // 예전에는 문장이 왼쪽에 몰리고 오른쪽 절반이 비어 있었다(9/16 화면
+            // 평가). 오른쪽에는 **눌러서 시작하는 자리**를 판으로 둔다 -- 화면
+            // 전체가 눌리지만, 어디를 누르라는 경계가 보이지 않았다.
             Positioned.fill(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(48, 72, 48, 76),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.fromLTRB(48, 72, 40, 76),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    if (appliance != null) ...[
-                      Row(
+                    Expanded(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(appliance.icon,
-                              size: 52, color: KioskColors.muted),
-                          const SizedBox(width: 18),
-                          Flexible(
-                            child: Text(
-                              appliance.name,
-                              style: const TextStyle(
-                                fontSize: 48,
-                                fontWeight: FontWeight.w700,
-                                color: Colors.white,
-                                height: 1.15,
-                              ),
+                          if (appliance != null) ...[
+                            Row(
+                              children: [
+                                Icon(appliance.icon,
+                                    size: 52, color: KioskColors.muted),
+                                const SizedBox(width: 18),
+                                Flexible(
+                                  child: Text(
+                                    appliance.name,
+                                    style: const TextStyle(
+                                      fontSize: 48,
+                                      fontWeight: FontWeight.w700,
+                                      color: Colors.white,
+                                      height: 1.15,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
+                            const SizedBox(height: 16),
+                          ],
+                          // 점 두 개로만 알리던 상태 -- 눈으로는 무슨 뜻인지 알 수
+                          // 없었다. 모양과 문장으로 말한다.
+                          Row(
+                            children: [
+                              Icon(readyIcon, size: 30, color: readyColor),
+                              const SizedBox(width: 12),
+                              Flexible(
+                                child: Text(
+                                  readyText,
+                                  style: TextStyle(
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w600,
+                                    color: readyColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
-                      const SizedBox(height: 16),
-                    ],
-                    // 점 두 개로만 알리던 상태 -- 눈으로는 무슨 뜻인지 알 수
-                    // 없었다. 모양과 문장으로 말한다.
-                    Row(
-                      children: [
-                        Icon(readyIcon, size: 30, color: readyColor),
-                        const SizedBox(width: 12),
-                        Flexible(
-                          child: Text(
-                            readyText,
-                            style: TextStyle(
-                              fontSize: 28,
-                              fontWeight: FontWeight.w600,
-                              color: readyColor,
-                            ),
-                          ),
-                        ),
-                      ],
                     ),
-                    // 화면 전체가 눌리면 조작으로 들어가는데, 그걸 알 방법이
-                    // 없었다 -- 여백이 아니라 **발견 가능성**이 문제였다.
                     // 연결이 없으면 눌러도 들어가지 않으므로 권하지 않는다.
                     if (widget.connected) ...[
-                      const SizedBox(height: 28),
-                      Semantics(
-                        button: true,
-                        onTap: widget.onTap,
-                        child: const Row(
-                          children: [
-                            Icon(Icons.touch_app_outlined,
-                                size: 30, color: KioskColors.primary),
-                            SizedBox(width: 12),
-                            Flexible(
-                              child: Text(
-                                '화면을 눌러 시작하세요',
-                                style: TextStyle(
-                                  fontSize: 28,
-                                  color: KioskColors.primary,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                      const SizedBox(width: 28),
+                      _StartPanel(onTap: widget.onTap),
                     ],
                   ],
                 ),
@@ -235,38 +224,18 @@ class _KioskIdleViewState extends State<KioskIdleView> {
                 ),
               ),
 
-            // ── 우하단: 상태 dot + 설정 버튼 ─────────────────────────────
+            // ── 우하단: 설정 버튼 ─────────────────────────────────────────
             // 설정이 5px 점 3연타로만 열리던 시절엔 사실상 기능 은폐였다 —
-            // 고령 사용자는 설정이 있다는 사실조차 알 수 없었다. 이제 존재는
-            // 드러내되(48px 톱니바퀴, 낮은 대비), 여는 데는 2초 길게 누르기를
-            // 요구해 지나가다 잘못 눌리는 것은 막는다.
+            // 고령 사용자는 설정이 있다는 사실조차 알 수 없었다. 존재와 여는
+            // 방법을 글자로 드러내되, 여는 데는 2초 길게 누르기를 요구해
+            // 지나가다 잘못 눌리는 것은 막는다.
+            //
+            // 옆에 있던 상태 점 두 개(5px)는 없앴다. 무슨 뜻인지 읽히지
+            // 않았고, 같은 사실은 가운데의 준비 상태 문장이 이미 말한다.
             Positioned(
               right: 12,
               bottom: 12,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Semantics(
-                    label: widget.actuatorReady && widget.connected
-                        ? '기기와 서버 모두 정상'
-                        : widget.connected
-                            ? '서버 정상, 기기 준비 중'
-                            : '서버 연결 끊김',
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          _StatusDot(active: widget.actuatorReady),
-                          const SizedBox(width: 5),
-                          _StatusDot(active: widget.connected),
-                        ],
-                      ),
-                    ),
-                  ),
-                  _SettingsButton(onOpen: widget.onSettingsGesture),
-                ],
-              ),
+              child: _SettingsButton(onOpen: widget.onSettingsGesture),
             ),
           ],
         ),
@@ -330,34 +299,54 @@ class _SettingsButtonState extends State<_SettingsButton> {
           onLongPress: () {},
           child: SizedBox(
             // 접근성 최소 타깃 — 눌러야 할 대상이 보이는 아이콘보다 커야 한다
-            width: 48,
             height: 48,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                if (_holding)
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   SizedBox(
                     width: 34,
                     height: 34,
-                    child: TweenAnimationBuilder<double>(
-                      tween: Tween(begin: 0.0, end: 1.0),
-                      duration: _holdDuration,
-                      builder: (context, value, _) => CircularProgressIndicator(
-                        value: value,
-                        strokeWidth: 2,
-                        color: KioskColors.primary,
-                        backgroundColor: KioskColors.border,
-                      ),
+                    child: Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        if (_holding)
+                          SizedBox.expand(
+                            child: TweenAnimationBuilder<double>(
+                              tween: Tween(begin: 0.0, end: 1.0),
+                              duration: _holdDuration,
+                              builder: (context, value, _) =>
+                                  CircularProgressIndicator(
+                                value: value,
+                                strokeWidth: 2,
+                                color: KioskColors.primary,
+                                backgroundColor: KioskColors.border,
+                              ),
+                            ),
+                          ),
+                        Icon(
+                          Icons.settings_outlined,
+                          size: 22,
+                          color: _holding
+                              ? KioskColors.primary
+                              : KioskColors.muted,
+                        ),
+                      ],
                     ),
                   ),
-                Icon(
-                  Icons.settings_outlined,
-                  size: 20,
-                  color: _holding
-                      ? KioskColors.primary
-                      : KioskColors.muted.withValues(alpha: 0.55),
-                ),
-              ],
+                  const SizedBox(width: 6),
+                  // 어떻게 여는지를 글자로 -- 짧게 눌러 보고 안 열리면
+                  // 고장으로 여긴다.
+                  Text(
+                    _holding ? '계속 누르고 있어요' : '설정 · 길게 누르기',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: _holding ? KioskColors.primary : KioskColors.muted,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -366,20 +355,49 @@ class _SettingsButtonState extends State<_SettingsButton> {
   }
 }
 
-class _StatusDot extends StatelessWidget {
-  const _StatusDot({required this.active});
-  final bool active;
+/// 대기 화면 오른쪽의 시작 판. 화면 전체가 눌리지만, **어디를 누르면 되는지**
+/// 경계가 보여야 한다. 판을 눌러도 화면을 눌러도 같은 일이 일어난다.
+class _StartPanel extends StatelessWidget {
+  const _StartPanel({required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 5,
-      height: 5,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: active
-            ? KioskColors.success.withValues(alpha: 0.65)
-            : const Color(0xFF2E3038),
+    return Semantics(
+      button: true,
+      label: '화면을 눌러 시작하세요',
+      onTap: onTap,
+      child: ExcludeSemantics(
+        child: Container(
+          width: 230,
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 28),
+          decoration: BoxDecoration(
+            color: KioskColors.surface,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: KioskColors.primary, width: 2),
+          ),
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.touch_app_outlined,
+                  size: 64, color: KioskColors.primary),
+              SizedBox(height: 14),
+              // 한글은 글자 단위로 줄이 바뀐다 -- 폭에 맡기면 '시 / 작하세요'로
+              // 끊긴다. 뜻의 경계에서 직접 나눈다.
+              Text(
+                '화면을 눌러\n시작하세요',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                  height: 1.25,
+                  color: KioskColors.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

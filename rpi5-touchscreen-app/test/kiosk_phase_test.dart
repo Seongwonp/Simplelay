@@ -203,13 +203,13 @@ void main() {
       ..healthResult = const HealthStatus(ok: true, actuatorReady: true);
     await _pumpKiosk(tester, api);
 
-    expect(find.text('화면을 눌러 시작하세요'), findsOneWidget);
-    await tester.tap(find.text('화면을 눌러 시작하세요'));
+    expect(find.text('화면을 눌러\n시작하세요'), findsOneWidget);
+    await tester.tap(find.text('화면을 눌러\n시작하세요'));
     await tester.pump(); // 탭 반영
     await tester.pump(const Duration(milliseconds: 500)); // AnimatedSwitcher 전환
 
     // 조작 화면으로 넘어감 -- 대기 안내가 사라졌다
-    expect(find.text('화면을 눌러 시작하세요'), findsNothing);
+    expect(find.text('화면을 눌러\n시작하세요'), findsNothing);
   });
 
   testWidgets('대기 화면은 서버 목록에서 확인된 가전만 이름을 말한다', (tester) async {
@@ -261,7 +261,7 @@ void main() {
     expect(painted.width, closeTo(1800, 1));
 
     // 확대 변환을 통과해도 히트테스트가 어긋나지 않는다(실제 터치 시연의 핵심)
-    await tester.tap(find.text('화면을 눌러 시작하세요'));
+    await tester.tap(find.text('화면을 눌러\n시작하세요'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     // 수동 조작 진입 첫 화면(가전 선택)으로 넘어간다 -- 확대 변환을 통과한
