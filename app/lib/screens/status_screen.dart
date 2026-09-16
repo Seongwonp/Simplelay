@@ -9,6 +9,7 @@ import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/button_map_grid.dart';
 
 /// 실행 상태 -- 센서 대시보드가 아니라 **물리 폐루프의 진행과 회복**을 보여준다.
 ///
@@ -177,6 +178,30 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     total: totalSteps,
                     completed: status.completedSteps,
                     phase: status.phase,
+                  ),
+                ],
+
+                // ── 실제 버튼판에서 지금 어디인가 ──────────────────────────
+                // 이 제품이 하는 일은 실제 버튼을 누르는 것이다. 이름 목록만
+                // 있으면 '앱이 돌다 끝나는 화면'과 구별되지 않는다 -- 가전의
+                // 버튼판 위에 지금 누르는 자리를 보여준다. 대상 가전을 모르면
+                // (지웠거나 구버전 서버) 배치를 지어내지 않고 목록만 둔다.
+                // 스크린리더에는 위의 실시간 안내와 아래 목록이 같은 말을
+                // 이미 하므로, 그림은 읽지 않는다.
+                if (target != null &&
+                    status.steps.isNotEmpty &&
+                    status.phase != ExecutionPhase.idle) ...[
+                  const SizedBox(height: 28),
+                  Text('${target.displayName} 버튼판', style: AppText.title),
+                  const SizedBox(height: 10),
+                  ExcludeSemantics(
+                    child: ButtonMapGrid(
+                      appliance: target,
+                      steps: status.steps,
+                      completed: status.completedSteps,
+                      active: active,
+                      caution: status.phase == ExecutionPhase.retrying,
+                    ),
                   ),
                 ],
 

@@ -260,7 +260,7 @@ void main() {
     currentButton: '1분',
     currentAttempt: 2,
     applianceId: 'microwave',
-    message: '응답이 없어 다시 시도 중입니다.',
+    message: '응답이 없어 다시 시도하고 있어요.',
   );
   const completed = ExecutionStatus(
     phase: ExecutionPhase.completed,

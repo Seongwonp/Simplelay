@@ -15,6 +15,7 @@ import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../widgets/appliance_portrait.dart';
+import '../widgets/button_map_grid.dart';
 import '../widgets/demo_badge.dart';
 
 /// 제안 하나를 확인하고 맡길지 정하는 화면.
@@ -260,7 +261,7 @@ class SuggestionScreen extends ConsumerWidget {
           Text('${appliance.displayName}의 실제 버튼 배치',
               style: AppText.title),
           const SizedBox(height: 10),
-          _ButtonMapGrid(appliance: appliance, steps: suggestion.steps),
+          ButtonMapGrid(appliance: appliance, steps: suggestion.steps),
         ],
       ),
       // 주 행동은 스크롤과 무관하게 항상 손 닿는 자리에.
@@ -543,118 +544,6 @@ class _UnknownTargetScreen extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ── 버튼맵 그리드 ─────────────────────────────────────────────────────────
-
-/// 실제 버튼판 위에 순서 번호를 얹은 **읽는 그림**. 조작판이 아니다.
-class _ButtonMapGrid extends StatelessWidget {
-  const _ButtonMapGrid({required this.appliance, required this.steps});
-
-  final ApplianceMap appliance;
-  final List<String> steps;
-
-  @override
-  Widget build(BuildContext context) {
-    // 시퀀스에서 각 버튼 ID가 몇 번째 순서인지 맵핑 (중복 시 첫 등장 순서)
-    final stepOrder = <String, int>{};
-    for (var i = 0; i < steps.length; i++) {
-      stepOrder.putIfAbsent(steps[i], () => i + 1);
-    }
-
-    return Container(
-      decoration: BoxDecoration(
-        color: context.appOverlayFaint,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.appBorderFaint),
-      ),
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        children: List.generate(appliance.rows, (row) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: row < appliance.rows - 1 ? 8 : 0),
-            child: Row(
-              children: List.generate(appliance.cols, (col) {
-                final btn = appliance.buttonAt(col, row);
-                final order = btn != null ? stepOrder[btn.id] : null;
-                final isInSequence = order != null;
-
-                return Expanded(
-                  child: Padding(
-                    padding:
-                        EdgeInsets.only(right: col < appliance.cols - 1 ? 8 : 0),
-                    child: btn == null
-                        ? const SizedBox(height: 52)
-                        : Container(
-                            height: 52,
-                            decoration: BoxDecoration(
-                              color: isInSequence
-                                  ? context.appPrimary.withValues(alpha: 0.2)
-                                  : context.appOverlayFaint,
-                              borderRadius: BorderRadius.circular(8),
-                              // 순서에 든 버튼만 테두리를 준다. 나머지까지
-                              // 두르면 전부 눌러도 되는 버튼처럼 보이는데,
-                              // 이 지도는 읽는 그림이지 조작판이 아니다.
-                              border: isInSequence
-                                  ? Border.all(
-                                      color: context.appPrimary, width: 1.5)
-                                  : null,
-                            ),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                Text(
-                                  btn.label,
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: isInSequence
-                                        ? FontWeight.w600
-                                        : FontWeight.normal,
-                                    color: isInSequence
-                                        ? context.appPrimary
-                                        : context.appOnSurfaceFaint,
-                                  ),
-                                ),
-                                if (isInSequence)
-                                  Positioned(
-                                    top: 4,
-                                    right: 4,
-                                    child: Container(
-                                      width: 20,
-                                      height: 20,
-                                      decoration: BoxDecoration(
-                                        color: context.appPrimary,
-                                        shape: BoxShape.circle,
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          '$order',
-                                          style: TextStyle(
-                                            // 9px는 고령 사용자에게 사실상
-                                            // 안 보인다 — 배지째 키웠다
-                                            fontSize: 12,
-                                            fontWeight: FontWeight.w700,
-                                            // 검정 고정이면 라이트 모드
-                                            // (어두운 강조색 위)에서 3.78:1
-                                            color: context.appOnAccent,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                  ),
-                );
-              }),
-            ),
-          );
-        }),
       ),
     );
   }

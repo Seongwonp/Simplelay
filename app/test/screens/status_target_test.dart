@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/screens/status_screen.dart';
+import 'package:simplelay/widgets/button_map_grid.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -40,6 +41,12 @@ void _tall(WidgetTester tester) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
+/// 버튼판 그림 안의 글자. 단계 목록과 그림에 같은 이름이 한 번씩 나온다.
+Finder _onMap(String text) => find.descendant(
+      of: find.byType(ButtonMapGrid),
+      matching: find.text(text),
+    );
+
 void main() {
   testWidgets('대상 가전의 버튼 이름으로 단계를 읽는다', (tester) async {
     _tall(tester);
@@ -50,8 +57,10 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('표준 세척'), findsOneWidget);
-    expect(find.text('헹굼'), findsOneWidget);
+    // 목록 한 번, 대상 가전의 버튼판 그림 한 번.
+    expect(find.text('표준 세척'), findsNWidgets(2));
+    expect(find.text('헹굼'), findsNWidgets(2));
+    expect(_onMap('표준 세척'), findsOneWidget);
     // 코드가 그대로 새어 나오지 않는다.
     expect(find.text('custom_btn_1'), findsNothing);
   });
@@ -70,7 +79,10 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text('표준 세척'), findsOneWidget);
+    expect(find.text('표준 세척'), findsNWidgets(2));
+    expect(_onMap('표준 세척'), findsOneWidget);
+    // 버튼판도 대상 가전의 것이다 -- 보고 있는 전자레인지 판을 그리지 않는다.
+    expect(find.text('즉석밥'), findsNothing);
   });
 
   testWidgets('대상을 모르면 지어내지 않는다 — 코드를 그대로 둔다', (tester) async {
@@ -86,5 +98,6 @@ void main() {
 
     expect(find.text('표준 세척'), findsNothing);
     expect(find.text('custom_btn_1'), findsOneWidget);
+    expect(find.byType(ButtonMapGrid), findsNothing);
   });
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/screens/status_screen.dart';
+import 'package:simplelay/widgets/button_map_grid.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -142,6 +143,68 @@ void main() {
       ));
       await tester.pump();
       expect(find.text('전자레인지'), findsOneWidget);
+    });
+
+    Future<void> pumpWithTarget(
+        WidgetTester tester, ExecutionStatus status) async {
+      tester.view.physicalSize = const Size(400, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(buildScreen(
+        const StatusScreen(),
+        executionStatus: status,
+        overrides: installedOverrides([kTestAppliance]),
+      ));
+      await tester.pump();
+    }
+
+    testWidgets('실제 버튼판 위에 끝난 버튼과 지금 누르는 버튼을 보여준다', (tester) async {
+      // 이름 목록만 있으면 '앱이 돌다 끝나는 화면'과 구별되지 않는다.
+      await pumpWithTarget(
+        tester,
+        const ExecutionStatus(
+          phase: ExecutionPhase.running,
+          label: '즉석밥 데워줘',
+          applianceId: 'microwave',
+          steps: ['BT-08', 'BT-03', 'BT-05'],
+          completedSteps: 1,
+        ),
+      );
+
+      expect(find.text('전자레인지 버튼판'), findsOneWidget);
+      final grid = tester.widget<ButtonMapGrid>(find.byType(ButtonMapGrid));
+      expect(grid.stateOf('BT-08'), ButtonMapStepState.done);
+      expect(grid.stateOf('BT-03'), ButtonMapStepState.current);
+      expect(grid.stateOf('BT-05'), ButtonMapStepState.pending);
+      // 끝난 버튼은 번호 대신 체크 -- 색을 빼도 구분된다.
+      expect(
+        find.descendant(
+          of: find.byType(ButtonMapGrid),
+          matching: find.byIcon(Icons.check_circle),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('대상 가전을 모르면 버튼 배치를 지어내지 않는다', (tester) async {
+      await _pumpStatus(tester, runningStatus);
+      expect(find.byType(ButtonMapGrid), findsNothing);
+      expect(find.text('누르는 순서'), findsOneWidget);
+    });
+
+    testWidgets('실패한 실행의 버튼판에는 지금 누르는 버튼이 없다', (tester) async {
+      await pumpWithTarget(
+        tester,
+        const ExecutionStatus(
+          phase: ExecutionPhase.failed,
+          label: '즉석밥 데워줘',
+          applianceId: 'microwave',
+          steps: ['BT-08', 'BT-03', 'BT-05'],
+          completedSteps: 1,
+        ),
+      );
+      final grid = tester.widget<ButtonMapGrid>(find.byType(ButtonMapGrid));
+      expect(grid.stateOf('BT-03'), ButtonMapStepState.pending);
     });
 
     testWidgets('센서 수치는 펼쳐야 보인다', (tester) async {
