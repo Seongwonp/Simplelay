@@ -139,3 +139,57 @@ def test_builtin_calibration_survives_restart(tmp_path) -> None:
     assert reloaded.calibration_version == "abcdef123456"
     start = next(b for b in reloaded.buttons if b.id == "BT-05")
     assert (start.x_mm, start.y_mm) == (60.0, 120.0)
+
+
+# ── 저장 게이트: 요청이 검증을 무르게 만들 수 없다 ──────────────────────────
+
+
+def test_request_cannot_loosen_error_limits(client) -> None:
+    """임계값을 크게 보내면 오차 검증이 사라진다 -- 서버 상한을 넘겨 받지 않는다.
+
+    네 번째 기준점만 크게 어긋난 입력이다. 기본 상한에서는 거절되고,
+    큰 임계값을 함께 보내도 결과가 같아야 한다.
+    """
+    bad = [_point(0, 0), _point(200, 0), _point(0, 300), {"source": [200, 300], "target": [400, 400]}]
+    body = {"points": bad, "button_centers": {"BT-05": [100, 200]}}
+
+    strict = client.put("/appliances/microwave/calibration", json=body)
+    loose = client.put(
+        "/appliances/microwave/calibration",
+        json={**body, "max_rms_mm": 1e9, "max_point_error_mm": 1e9},
+    )
+
+    assert strict.status_code == 422
+    assert loose.status_code == 422, loose.text
+    listed = next(a for a in client.get("/appliances").json() if a["id"] == "microwave")
+    assert listed["calibration_version"] is None
+    assert all(b["x_mm"] is None for b in listed["buttons"])
+
+
+def test_minimum_points_are_rejected_and_save_nothing(client) -> None:
+    """affine 3점은 잔차가 항상 0이라 검증이 되지 않는다."""
+    res = client.put(
+        "/appliances/microwave/calibration",
+        json={"points": GOOD_POINTS[:3], "button_centers": {"BT-05": [100, 200]}},
+    )
+
+    assert res.status_code == 422
+    assert "한 점 이상" in res.json()["detail"]
+    listed = next(a for a in client.get("/appliances").json() if a["id"] == "microwave")
+    assert listed["calibration_version"] is None
+
+
+def test_identical_targets_are_rejected_not_500(client) -> None:
+    same = [
+        {"source": [0, 0], "target": [10, 10]},
+        {"source": [200, 0], "target": [10, 10]},
+        {"source": [0, 300], "target": [10, 10]},
+        {"source": [200, 300], "target": [10, 10]},
+    ]
+
+    res = client.put(
+        "/appliances/microwave/calibration",
+        json={"points": same, "button_centers": {"BT-05": [100, 200]}, "kind": "homography"},
+    )
+
+    assert res.status_code == 422, res.text

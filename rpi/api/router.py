@@ -465,11 +465,21 @@ async def calibrate_appliance(
             status_code=422,
             detail=f"이 가전에 없는 버튼입니다: {', '.join(unknown)}",
         )
-    options = {}
-    if body.max_rms_mm is not None:
-        options["max_rms_mm"] = body.max_rms_mm
-    if body.max_point_error_mm is not None:
-        options["max_point_error_mm"] = body.max_point_error_mm
+    # 요청은 기준을 **더 엄격하게만** 할 수 있다. 상한을 올릴 수 있으면
+    # 큰 값을 보내는 것만으로 오차 검증이 사라져, 잘못 찍은 기준점으로 만든
+    # 좌표가 그대로 저장된다.
+    from rpi.calibration.transform import (  # noqa: PLC0415
+        DEFAULT_MAX_POINT_ERROR_MM,
+        DEFAULT_MAX_RMS_MM,
+    )
+
+    options = {
+        "max_rms_mm": min(body.max_rms_mm or DEFAULT_MAX_RMS_MM, DEFAULT_MAX_RMS_MM),
+        "max_point_error_mm": min(
+            body.max_point_error_mm or DEFAULT_MAX_POINT_ERROR_MM,
+            DEFAULT_MAX_POINT_ERROR_MM,
+        ),
+    }
     try:
         result = calibrate(
             [PointPair(p.source, p.target) for p in body.points],

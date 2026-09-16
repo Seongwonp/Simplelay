@@ -293,12 +293,18 @@ def calibrate(
     kind: str = "affine",
     max_rms_mm: float = DEFAULT_MAX_RMS_MM,
     max_point_error_mm: float = DEFAULT_MAX_POINT_ERROR_MM,
+    require_redundancy: bool = True,
 ) -> CalibrationResult:
     """맞추고, 검증하고, 통과했을 때만 결과를 돌려준다.
 
     한 점 잔차 상한을 RMS보다 먼저 본다 -- 한 점이 튀는 경우가 가장 흔한
     실패(오검출)이고, 그때 필요한 정보는 '몇 번 점을 다시 찍어라'이기 때문이다.
     RMS로 거절할 때도 가장 나쁜 점을 함께 알려준다.
+
+    ``require_redundancy``는 최소 개수만으로 맞춘 결과를 거절한다. 그때는 잔차가
+    항상 0이라 임계값을 통과해도 검증된 것이 아니다 -- 기준점 하나를 잘못 찍어도
+    그대로 저장된다. 변환 수식 자체를 시험하는 자리에서만 끄고, 저장 경로에서는
+    끄지 않는다.
     """
     if kind not in _KINDS:
         raise CalibrationRejected(
@@ -330,6 +336,13 @@ def calibrate(
             f"전체 오차(RMS) {rms:.2f} mm가 허용치 {max_rms_mm:.2f} mm를 넘습니다 "
             f"— 가장 나쁜 점은 기준점 #{worst} ({worst_error:.2f} mm)입니다",
             point_index=worst,
+        )
+
+    redundant = len(pairs) - _MIN_POINTS[kind]
+    if require_redundancy and redundant < 1:
+        raise CalibrationRejected(
+            f"기준점이 최소 개수({_MIN_POINTS[kind]}개)뿐이라 잔차가 항상 0입니다 -- "
+            "검증이 되려면 한 점 이상 더 찍어야 합니다"
         )
 
     return CalibrationResult(
@@ -445,7 +458,12 @@ def _normalizing_matrix(points: np.ndarray) -> np.ndarray:
     """Hartley 정규화: 중심을 원점으로, 원점까지 평균 거리를 √2로."""
     center = points.mean(axis=0)
     mean_distance = float(np.mean(np.linalg.norm(points - center, axis=1)))
-    # 중복·공선 검사를 통과한 뒤에만 부르므로 0일 수 없다.
+    # src는 중복·공선 검사를 통과했지만 target(갠트리 좌표)은 검사 대상이 아니라
+    # 전부 같은 점일 수 있다. 그대로 두면 0으로 나눠 500이 된다.
+    if not mean_distance > 0:
+        raise CalibrationRejected(
+            "좌표가 모두 같은 점입니다 -- 서로 다른 위치의 기준점이 필요합니다"
+        )
     scale = math.sqrt(2.0) / mean_distance
     return np.array(
         [

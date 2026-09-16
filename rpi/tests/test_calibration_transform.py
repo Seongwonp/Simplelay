@@ -97,14 +97,37 @@ def test_affine_recovers_known_rotation_scale_translation_exactly():
     assert result.max_error_mm <= 1e-9
 
 
-def test_affine_with_exactly_three_points_has_no_redundancy():
-    """최소 개수로 맞추면 잔차는 항상 0 — 검증력이 없다는 것을 결과가 드러낸다."""
-    sources = [(100.0, 100.0), (1100.0, 150.0), (500.0, 900.0)]
-    result = calibrate(_pairs(KNOWN_AFFINE, sources))
+def test_minimum_points_are_rejected_because_residuals_are_always_zero():
+    """최소 개수로 맞추면 잔차가 항상 0이라 임계값을 통과해도 검증이 아니다.
 
+    기준점 하나를 잘못 찍어도 그대로 저장되므로, 저장 경로에서는 거절한다.
+    변환 수식 자체를 시험할 때만 require_redundancy=False로 끈다.
+    """
+    sources = [(100.0, 100.0), (1100.0, 150.0), (500.0, 900.0)]
+
+    with pytest.raises(CalibrationRejected, match="한 점 이상"):
+        calibrate(_pairs(KNOWN_AFFINE, sources))
+
+    result = calibrate(_pairs(KNOWN_AFFINE, sources), require_redundancy=False)
     assert _max_abs_diff(result.transform, KNOWN_AFFINE) <= 1e-9
     assert result.redundant_points == 0
     assert calibrate(_pairs(KNOWN_AFFINE, _grid())).redundant_points == 12 - MIN_AFFINE_POINTS
+
+
+def test_homography_minimum_four_points_are_rejected():
+    sources = [(0.0, 0.0), (1200.0, 0.0), (1200.0, 900.0), (0.0, 900.0)]
+
+    with pytest.raises(CalibrationRejected, match="한 점 이상"):
+        calibrate(_pairs(KNOWN_HOMOGRAPHY, sources), kind="homography")
+
+
+def test_identical_gantry_targets_are_rejected_not_crashed():
+    """갠트리 좌표가 전부 같은 점이면 정규화에서 0으로 나눈다 -- 거절로 끝내야 한다."""
+    sources = [(0.0, 0.0), (1200.0, 0.0), (1200.0, 900.0), (0.0, 900.0), (600.0, 450.0)]
+    pairs = [PointPair(src, (10.0, 10.0)) for src in sources]
+
+    with pytest.raises(CalibrationRejected, match="같은 점"):
+        calibrate(pairs, kind="homography")
 
 
 def test_homography_recovers_known_perspective_transform():
