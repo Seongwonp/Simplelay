@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections import deque
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from .models import LayerOutcome, VerificationLayer
 
@@ -41,6 +41,21 @@ class OperationVerifier(ABC):
     @abstractmethod
     def verify_operation(self, buttons: tuple[str, ...]) -> LayerOutcome:
         """``layer``는 반드시 OPERATION이어야 한다."""
+
+    def begin_observation(self) -> None:
+        """컨트롤러가 **첫 누름 전에** 부른다 — 조작 전 상태를 잡는 자리.
+
+        전력처럼 '조작 전 대비 변화'로 판정하는 층은 누르기 전 샘플이 있어야
+        한다. 누른 뒤부터 보기 시작하면 이미 돌아가던 가전도, 곧바로 올라간
+        가전도 '기준선 없음'으로 읽힌다. 기준선이 필요 없는 구현은 그대로 둔다.
+        """
+
+    def set_stop_check(self, should_stop: Callable[[], bool]) -> None:
+        """판정 대기 중 긴급 정지를 관측할 수단을 컨트롤러가 건넨다.
+
+        L3는 수십 초를 기다릴 수 있어, 이 훅이 없으면 그동안 정지 요청이
+        반영되지 않는다. 쓰지 않는 구현은 그대로 둔다.
+        """
 
 
 def _outcome(item: LayerOutcome | bool, layer: VerificationLayer) -> LayerOutcome:

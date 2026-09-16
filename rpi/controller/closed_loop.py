@@ -61,6 +61,9 @@ class ClosedLoopController:
         # /stop(긴급 정지)용. 실행은 별도 스레드(asyncio.to_thread)에서 돌고
         # 정지 요청은 FastAPI 요청 스레드에서 오므로 threading.Event를 쓴다.
         self._stop_requested = threading.Event()
+        if operation is not None:
+            # L3가 판정을 기다리는 동안에도 정지 요청을 볼 수 있게 한다.
+            operation.set_stop_check(self._stop_requested.is_set)
 
     @property
     def execution_mode(self) -> ExecutionMode:
@@ -89,6 +92,9 @@ class ClosedLoopController:
     def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult:
         results: list[ButtonResult] = []
         completed_steps = 0
+        if self._operation is not None:
+            # 누르기 전 상태를 먼저 잡는다 — L3 기준선은 조작 이전 구간에서 온다.
+            self._operation.begin_observation()
         for button in buttons:
             try:
                 self._check_stop()
@@ -128,6 +134,10 @@ class ClosedLoopController:
             self._safety.stop("emergency stop requested")
             return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, results)
         outcome = self._operation.verify_operation(buttons)
+        if not outcome.passed and self._stop_requested.is_set():
+            # 정지 때문에 판정을 못 끝낸 것이라, 실패 알림을 울리지 않는다.
+            self._safety.stop("emergency stop requested")
+            return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, results)
         if outcome.passed:
             return ExecutionResult(
                 ExecutionStatus.SUCCEEDED, results, operation=outcome
