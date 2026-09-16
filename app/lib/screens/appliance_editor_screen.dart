@@ -98,26 +98,32 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
       await _showScanProblem('서버 주소가 설정되지 않았어요. 설정에서 서버를 먼저 연결해 주세요.');
       return;
     }
-    if (_buttonCount > 0) {
-      final replace = await showDialog<bool>(
-        context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('지금 배치를 바꿀까요?'),
-          content: Text('적어 둔 버튼 $_buttonCount개가 사진 인식 결과로 바뀌어요.'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('취소'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('바꾸기'),
-            ),
-          ],
+    // 사진은 기기 밖으로, 그것도 인터넷 너머로 나간다. 버튼을 하나도 적지
+    // 않은 새 가전에서도 한 번은 묻는다 -- 탭 한 번에 사진이 전송되면
+    // 사용자가 전송 사실을 모른 채 지나갈 수 있다.
+    final send = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('사진을 외부 인식 서비스로 보낼까요?'),
+        content: Text(
+          _buttonCount > 0
+              ? '사진이 서버를 거쳐 인터넷의 외부 인식 서비스로 전송돼요.\n'
+                  '적어 둔 버튼 $_buttonCount개가 인식 결과로 바뀌어요.'
+              : '사진이 서버를 거쳐 인터넷의 외부 인식 서비스로 전송돼요.',
         ),
-      );
-      if (replace != true || !mounted) return;
-    }
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('보내기'),
+          ),
+        ],
+      ),
+    );
+    if (send != true || !mounted) return;
 
     setState(() => _scanning = true);
     String? problem;
@@ -492,7 +498,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             const SizedBox(height: 6),
             // 사진이 기기 밖으로 나가는 유일한 경로라, 누르기 전에 말한다.
             Text(
-              '누르면 사진이 서버를 거쳐 인식 서비스로 보내져요. 결과는 초안이라 확인한 뒤 저장해요.',
+              '누르면 사진이 서버를 거쳐 인터넷의 외부 인식 서비스로 보내져요. 결과는 초안이라 확인한 뒤 저장해요.',
               style: TextStyle(fontSize: 13, color: context.appMuted),
             ),
           ],

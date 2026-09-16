@@ -366,6 +366,14 @@ void main() {
 
     const scanButton = ValueKey('panel_scan_button');
 
+    /// 사진 전송은 매번 동의를 받는다 — 확인까지 해야 요청이 나간다.
+    Future<void> sendPhoto(WidgetTester tester) async {
+      await tester.tap(find.byKey(scanButton));
+      await _pumpAFew(tester);
+      await tester.tap(find.widgetWithText(FilledButton, '보내기'));
+      await _pumpAFew(tester);
+    }
+
     testWidgets('사진을 찍기 전에는 채우기 버튼이 없고, 찍으면 전송 안내와 함께 나온다',
         (tester) async {
       _useTallViewport(tester);
@@ -392,8 +400,7 @@ void main() {
       final api = _FakeScanApi(draft: _scanDraft());
       await pumpWithPhoto(tester, api);
 
-      await tester.tap(find.byKey(scanButton));
-      await _pumpAFew(tester);
+      await sendPhoto(tester);
 
       expect(api.calls, 1);
       expect(api.sentBytes, _fakePhotoBytes);
@@ -414,7 +421,7 @@ void main() {
       expect(find.byKey(const ValueKey('grid_cell_0_2')), findsNothing);
     });
 
-    testWidgets('이미 적어 둔 버튼이 있으면 먼저 묻고, 취소하면 보내지도 바꾸지도 않는다',
+    testWidgets('적어 둔 버튼이 있으면 바뀐다는 것까지 알리고, 취소하면 보내지도 바꾸지도 않는다',
         (tester) async {
       final api = _FakeScanApi(draft: _scanDraft());
       await pumpWithPhoto(tester, api);
@@ -427,7 +434,9 @@ void main() {
 
       await tester.tap(find.byKey(scanButton));
       await _pumpAFew(tester);
-      expect(find.text('지금 배치를 바꿀까요?'), findsOneWidget);
+      expect(find.text('사진을 외부 인식 서비스로 보낼까요?'), findsOneWidget);
+      expect(find.textContaining('인터넷의 외부 인식 서비스로 전송'), findsOneWidget);
+      expect(find.textContaining('버튼 1개가 인식 결과로 바뀌어요'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(TextButton, '취소'));
       await _pumpAFew(tester);
@@ -442,8 +451,7 @@ void main() {
       );
       await pumpWithPhoto(tester, api);
 
-      await tester.tap(find.byKey(scanButton));
-      await _pumpAFew(tester);
+      await sendPhoto(tester);
 
       expect(find.text('사진으로 채우지 못했어요'), findsOneWidget);
       expect(find.textContaining('꺼져 있어요'), findsOneWidget);
@@ -457,12 +465,29 @@ void main() {
       expect(button.onPressed, isNotNull);
     });
 
-    testWidgets('앱 격자(6x6)보다 큰 초안은 넣지 않고 직접 배치를 안내한다', (tester) async {
-      final api = _FakeScanApi(draft: _scanDraft(rows: 7, cols: 3));
+    testWidgets('버튼이 하나도 없어도 전송 전에 묻고, 취소하면 보내지 않는다', (tester) async {
+      // 사진이 인터넷 밖으로 나가는 경로다. 새 가전이라 바뀔 배치가 없어도
+      // 전송 자체에 대한 동의는 받아야 한다.
+      final api = _FakeScanApi(draft: _scanDraft());
       await pumpWithPhoto(tester, api);
 
       await tester.tap(find.byKey(scanButton));
       await _pumpAFew(tester);
+
+      expect(find.text('사진을 외부 인식 서비스로 보낼까요?'), findsOneWidget);
+      expect(find.textContaining('인터넷의 외부 인식 서비스로 전송'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(TextButton, '취소'));
+      await _pumpAFew(tester);
+
+      expect(api.calls, 0);
+    });
+
+    testWidgets('앱 격자(6x6)보다 큰 초안은 넣지 않고 직접 배치를 안내한다', (tester) async {
+      final api = _FakeScanApi(draft: _scanDraft(rows: 7, cols: 3));
+      await pumpWithPhoto(tester, api);
+
+      await sendPhoto(tester);
 
       expect(find.textContaining('최대 6 × 6'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, '확인'));
