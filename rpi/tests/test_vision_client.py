@@ -152,3 +152,16 @@ def test_oversized_response_is_refused_without_reading_it_all() -> None:
     # 상한을 조금 넘는 만큼만 읽는다
     assert reads and all(0 < size <= limit + 1 for size in reads)
 
+
+def test_valid_response_delivered_in_small_pieces_is_read_whole() -> None:
+    """read(n)은 '최대 n바이트'다. 조금씩만 돌려주는 응답도 끝까지 읽어야 한다."""
+    body = json.dumps({"choices": [{"message": {"content": "조각 응답"}}]}).encode()
+
+    class _Trickle(_Response):
+        def read(self, size=-1):
+            return super().read(min(size, 7) if size and size > 0 else 7)
+
+    client = HttpVisionClient(CONFIG, opener=lambda request, timeout: _Trickle(body))
+
+    assert client.describe_panel(PNG, "image/png") == "조각 응답"
+

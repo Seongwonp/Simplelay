@@ -79,6 +79,24 @@ _STATUS_MESSAGES = {
 }
 
 
+def _read_capped(response, limit: int) -> bytes:
+    """본문을 끝까지 읽되, 누적이 ``limit``을 넘는 순간 멈춘다.
+
+    ``read(n)``은 '최대 n바이트'라 한 번에 다 온다는 보장이 없다(청크 전송·부분
+    읽기). 한 번만 읽으면 정상 크기 응답이 잘려 JSON 해석에 실패한다.
+    넘었는지 알 수 있게 상한보다 1바이트까지 더 읽는다.
+    """
+    chunks: list[bytes] = []
+    total = 0
+    while total <= limit:
+        chunk = response.read(min(65536, limit + 1 - total))
+        if not chunk:
+            break
+        chunks.append(chunk)
+        total += len(chunk)
+    return b"".join(chunks)
+
+
 class HttpVisionClient:
     def __init__(
         self,
@@ -123,7 +141,7 @@ class HttpVisionClient:
         )
         try:
             with self._opener(request, timeout=self._config.timeout_seconds) as response:
-                raw = response.read(MAX_RESPONSE_BYTES + 1)
+                raw = _read_capped(response, MAX_RESPONSE_BYTES)
             if len(raw) > MAX_RESPONSE_BYTES:
                 raise VisionUnavailable(
                     "인식 서비스 응답이 너무 커요 — 서비스 상태를 확인해 주세요", status=502
