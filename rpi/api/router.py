@@ -1,6 +1,9 @@
 import asyncio
 import json
 import logging
+import os
+import time
+from collections import deque
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
@@ -535,9 +538,45 @@ async def calibrate_appliance(
 
 
 class _PanelScanGate:
-    """사진 인식은 한 번에 하나만 — 두 번 누르면 크레딧만 두 번 나간다."""
+    """사진 인식은 한 번에 하나만, 그리고 한 시간에 정해진 횟수까지만.
 
-    busy = False
+    - 한 번에 하나: 두 번 누르면 크레딧만 두 번 나간다.
+    - 시간당 상한: API 키가 기본으로 꺼져 있어 같은 망의 누구든 반복 호출로
+      공유 크레딧을 소진시킬 수 있다. 인식 서비스로 **나간 요청**을 센다
+      (실패한 요청도 크레딧·한도를 쓸 수 있어서 함께 센다).
+
+    프로세스 안의 상태라 워커가 여럿이면 워커마다 따로 센다(서버는 단일 워커 전제).
+    """
+
+    WINDOW_SECONDS = 3600.0
+    DEFAULT_MAX_PER_HOUR = 20
+
+    def __init__(self, clock=time.monotonic) -> None:
+        self.busy = False
+        self.clock = clock
+        self._sent: deque[float] = deque()
+
+    def max_per_hour(self) -> int:
+        raw = os.environ.get("SIMPLELAY_VISION_MAX_PER_HOUR", "").strip()
+        try:
+            value = int(raw) if raw else self.DEFAULT_MAX_PER_HOUR
+        except ValueError:
+            return self.DEFAULT_MAX_PER_HOUR
+        return value if value >= 1 else self.DEFAULT_MAX_PER_HOUR
+
+    def reserve(self) -> bool:
+        """이번 요청을 한도 안에서 예약한다. 한도를 넘었으면 False."""
+        now = self.clock()
+        while self._sent and now - self._sent[0] >= self.WINDOW_SECONDS:
+            self._sent.popleft()
+        if len(self._sent) >= self.max_per_hour():
+            return False
+        self._sent.append(now)
+        return True
+
+    def reset(self) -> None:
+        self.busy = False
+        self._sent.clear()
 
 
 _panel_scan_gate = _PanelScanGate()
@@ -575,6 +614,14 @@ async def panel_scan(
         raise HTTPException(
             status_code=409,
             detail="이미 사진을 인식하는 중이에요 — 끝난 뒤 다시 시도해 주세요",
+        )
+    if not _panel_scan_gate.reserve():
+        raise HTTPException(
+            status_code=429,
+            detail=(
+                f"사진 인식은 한 시간에 {_panel_scan_gate.max_per_hour()}번까지예요"
+                " — 잠시 후 다시 시도해 주세요"
+            ),
         )
     _panel_scan_gate.busy = True
     try:

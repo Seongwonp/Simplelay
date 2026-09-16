@@ -53,6 +53,14 @@ class FakeScanner:
         return self.reply
 
 
+@pytest.fixture(autouse=True)
+def _fresh_gate():
+    """게이트는 모듈 전역이라 테스트끼리 시간당 한도를 나눠 쓰지 않게 비운다."""
+    router_module._panel_scan_gate.reset()
+    yield
+    router_module._panel_scan_gate.reset()
+
+
 @pytest.fixture()
 def serve(monkeypatch):
     monkeypatch.delenv("SIMPLELAY_API_KEY", raising=False)
@@ -190,6 +198,57 @@ def test_gate_is_released_after_a_failure(serve) -> None:
 
     scanner.error = None
     assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 200
+
+
+def test_hourly_cap_refuses_without_sending(serve, monkeypatch) -> None:
+    """같은 망의 누구든 반복 호출로 공유 크레딧을 소진시키지 못하게 한다."""
+    monkeypatch.setenv("SIMPLELAY_VISION_MAX_PER_HOUR", "2")
+    now = [1000.0]
+    monkeypatch.setattr(router_module._panel_scan_gate, "clock", lambda: now[0])
+    scanner = FakeScanner()
+    client = serve(scanner)
+
+    assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 200
+    assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 200
+    third = client.post("/panel-scan", json={"image_base64": PNG_B64})
+
+    assert third.status_code == 429
+    assert "2번까지" in third.json()["detail"]
+    assert len(scanner.calls) == 2
+
+
+def test_hourly_cap_window_slides(serve, monkeypatch) -> None:
+    monkeypatch.setenv("SIMPLELAY_VISION_MAX_PER_HOUR", "1")
+    now = [1000.0]
+    monkeypatch.setattr(router_module._panel_scan_gate, "clock", lambda: now[0])
+    scanner = FakeScanner()
+    client = serve(scanner)
+
+    assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 200
+    now[0] += 3599.0
+    assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 429
+    now[0] += 2.0  # 첫 요청이 한 시간 창 밖으로 나간다
+    assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 200
+    assert len(scanner.calls) == 2
+
+
+def test_failed_requests_count_toward_the_cap(serve, monkeypatch) -> None:
+    """실패한 요청도 크레딧·한도를 쓸 수 있다 -- 실패를 반복해 상한을 우회하지 못한다."""
+    monkeypatch.setenv("SIMPLELAY_VISION_MAX_PER_HOUR", "1")
+    monkeypatch.setattr(router_module._panel_scan_gate, "clock", lambda: 1000.0)
+    scanner = FakeScanner(error=VisionUnavailable("연결 실패"))
+    client = serve(scanner)
+
+    assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 503
+    scanner.error = None
+    assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 429
+
+
+@pytest.mark.parametrize("raw", ["", "abc", "0", "-5"])
+def test_invalid_cap_setting_falls_back_to_default(monkeypatch, raw) -> None:
+    monkeypatch.setenv("SIMPLELAY_VISION_MAX_PER_HOUR", raw)
+    gate = router_module._PanelScanGate()
+    assert gate.max_per_hour() == router_module._PanelScanGate.DEFAULT_MAX_PER_HOUR
 
 
 # ── 설정: 셋 다 있어야 켜진다 ────────────────────────────────────────────────
