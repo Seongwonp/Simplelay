@@ -50,7 +50,14 @@ class HomeScreen extends ConsumerWidget {
     // 연결만 꺼진 것은 지금 조작에 지장이 없으니 아래에 조용히 둔다 --
     // 예전에는 둘을 같은 빨간 줄로 맨 아래에 두어, 같은 화면에 "조작 가능"과
     // "연결 설정이 필요해요"가 함께 떠서 어느 쪽을 믿을지 알 수 없었다.
-    final serverDown = !rpiOnline;
+    //
+    // **확인 중은 끊김이 아니다.** 앱을 켜면 주소를 불러오고(unconfigured)
+    // 핑을 보내는(checking) 몇 초가 있는데, 그걸 끊김으로 보면 켤 때마다
+    // 빨간 경고가 맨 위에 잠깐 떴다(로그 ac #5). 닿지 않는다고 확인된
+    // 경우(unreachable)에만 경고한다.
+    final serverDown = rpiState == RpiConnectionState.unreachable;
+    final serverChecking = rpiState == RpiConnectionState.checking ||
+        rpiState == RpiConnectionState.unconfigured;
     final connectionDetails =
         _ConnectionDetails(rpiState: rpiState, bleConnected: connected);
 
@@ -109,6 +116,7 @@ class HomeScreen extends ConsumerWidget {
               appliance: appliance,
               reachable: connected || rpiOnline,
               backupOnly: connected && !rpiOnline,
+              checking: serverChecking,
               imageOverride: applianceImageOverride,
               onManual: () => context.push('/manual-control'),
               // 편집기는 아직 '새 가전 만들기'만 받는다. 기존 가전에 사진을
@@ -299,6 +307,7 @@ class _ApplianceStage extends StatelessWidget {
     required this.appliance,
     required this.reachable,
     this.backupOnly = false,
+    this.checking = false,
     required this.onManual,
     required this.onAddPhoto,
     this.imageOverride,
@@ -315,6 +324,9 @@ class _ApplianceStage extends StatelessWidget {
   /// 서버에는 닿지 않고 예비 연결(BLE)로만 닿는가. 조작은 되지만 제안·기록은
   /// 오지 않으므로, "조작할 수 있어요"만 말하면 위의 연결 경고와 어긋난다.
   final bool backupOnly;
+
+  /// 서버에 닿는지 아직 확인하는 중. 끊겼다고 말하지 않는다.
+  final bool checking;
   final VoidCallback onManual;
   final VoidCallback onAddPhoto;
 
@@ -396,7 +408,11 @@ class _ApplianceStage extends StatelessWidget {
         true
       );
     }
-    if (!reachable) return ('기기와 연결되면 조작할 수 있어요', false);
+    if (!reachable) {
+      return checking
+          ? ('연결을 확인하고 있어요', false)
+          : ('기기와 연결되면 조작할 수 있어요', false);
+    }
     if (backupOnly) return ('예비 연결로 조작할 수 있어요', false);
     return ('조작할 수 있어요', false);
   }
@@ -495,7 +511,8 @@ class _ConnectionDetails extends StatefulWidget {
 class _ConnectionDetailsState extends State<_ConnectionDetails> {
   bool _open = false;
 
-  bool get _serverDown => widget.rpiState != RpiConnectionState.connected;
+  /// 닿지 않는다고 **확인된** 경우만. 확인 중(checking·unconfigured)은 아니다.
+  bool get _serverDown => widget.rpiState == RpiConnectionState.unreachable;
 
   bool get _hasProblem => _serverDown || !widget.bleConnected;
 

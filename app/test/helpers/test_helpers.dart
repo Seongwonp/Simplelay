@@ -11,6 +11,7 @@ import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/clock_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/providers/suggestion_provider.dart';
 import 'package:simplelay/services/ble_service.dart';
 
@@ -56,6 +57,20 @@ List<Override> installedOverrides(
         ),
       ),
     ];
+
+/// 서버 연결 상태를 고정한다. 실제 알림자는 주소를 불러오면 스스로 확인을
+/// 시작해 상태를 바꾸므로, 확인 자체를 막는다.
+class FixedRpiConnection extends RpiConnectionNotifier {
+  FixedRpiConnection(super.ref, RpiConnectionState fixed) {
+    state = fixed;
+  }
+
+  @override
+  Future<void> check() async {}
+}
+
+Override rpiServerOverride(RpiConnectionState state) =>
+    rpiConnectionProvider.overrideWith((ref) => FixedRpiConnection(ref, state));
 
 List<Override> connectedOverrides() => [
       bleConnectionProvider.overrideWith(

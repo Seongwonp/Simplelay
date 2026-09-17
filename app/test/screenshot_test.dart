@@ -30,6 +30,7 @@ import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/screens/appliance_editor_screen.dart';
 import 'package:simplelay/screens/history_screen.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
 import 'package:simplelay/screens/settings_screen.dart';
@@ -78,6 +79,9 @@ Future<void> _shoot(
       overrides: [
         ...connected ? connectedOverrides() : disconnectedOverrides(),
         ...installedOverrides(installed ?? [kTestAppliance]),
+        // 홈 골든은 닿지 않는다고 확인된 서버를 찍는다. 확인 중(기본)은 경고가
+        // 없어 연결 경고 화면이 골든에서 사라진다.
+        if (screen is HomeScreen) rpiServerOverride(RpiConnectionState.unreachable),
         ...extraOverrides,
       ],
       child: MaterialApp(

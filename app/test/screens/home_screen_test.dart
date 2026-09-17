@@ -22,7 +22,8 @@ void _useTallViewport(WidgetTester tester) {
 Widget _buildHome({
   List<Suggestion> suggestions = const [],
   bool connected = false,
-  bool serverOnline = false,
+  // 기본은 **닿지 않는다고 확인된** 서버다. 확인 중은 아래 그룹이 따로 본다.
+  RpiConnectionState server = RpiConnectionState.unreachable,
   List<ApplianceMap>? installed,
 }) {
   // disconnected + suggestions은 두 override를 개별로 합산
@@ -31,21 +32,13 @@ Widget _buildHome({
     // 이 파일의 기본 상황은 '가전 한 대를 등록한 사용자'다. 0대인 홈은
     // 아래 별도 group에서 확인한다 -- 그쪽도 정상 상태다.
     ...installedOverrides(installed ?? [kTestAppliance]),
-    if (serverOnline)
-      rpiConnectionProvider.overrideWith((ref) => _OnlineRpi(ref)),
+    rpiServerOverride(server),
   ];
   return buildScreen(
     const HomeScreen(),
     overrides: overrides,
     suggestions: suggestions,
   );
-}
-
-/// 서버 확인이 끝나 연결된 상태로 시작하는 연결 상태.
-class _OnlineRpi extends RpiConnectionNotifier {
-  _OnlineRpi(super.ref) {
-    state = RpiConnectionState.connected;
-  }
 }
 
 void main() {
@@ -76,7 +69,7 @@ void main() {
 
     testWidgets('예비 연결만 꺼지면 경고가 아니라 아래의 조용한 안내다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildHome(serverOnline: true));
+      await tester.pumpWidget(_buildHome(server: RpiConnectionState.connected));
       await tester.pump();
 
       expect(find.text('조작할 수 있어요'), findsOneWidget);
@@ -95,11 +88,46 @@ void main() {
 
     testWidgets('서버와 예비 연결이 모두 되면 연결 줄 자체가 없다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildHome(connected: true, serverOnline: true));
+      await tester.pumpWidget(_buildHome(connected: true, server: RpiConnectionState.connected));
       await tester.pump();
 
       expect(find.text('조작할 수 있어요'), findsOneWidget);
       expect(find.text('확인하기'), findsNothing);
+    });
+  });
+
+  group('HomeScreen — 서버 확인 중은 끊김이 아니다', () {
+    for (final state in [
+      RpiConnectionState.checking,
+      RpiConnectionState.unconfigured, // 앱 시작 직후, 주소를 불러오기 전
+    ]) {
+      testWidgets('${state.name}: 맨 위 경고 없이 확인 중이라고만 말한다',
+          (tester) async {
+        // 켤 때마다 빨간 '연결 설정이 필요해요'가 맨 위에 잠깐 떴다.
+        _useTallViewport(tester);
+        await tester.pumpWidget(_buildHome(server: state));
+        await tester.pump();
+
+        expect(find.text('연결 설정이 필요해요'), findsNothing);
+        expect(find.text('제안·기록이 멈췄어요'), findsNothing);
+        expect(find.text('연결을 확인하고 있어요'), findsOneWidget);
+        expect(find.text('기기와 연결되면 조작할 수 있어요'), findsNothing);
+        // 예비 연결이 꺼진 것만 아래에 조용히 남는다.
+        final notice = tester.getTopLeft(find.text('예비 연결 꺼짐')).dy;
+        final name =
+            tester.getTopLeft(find.text(kTestAppliance.displayName)).dy;
+        expect(notice, greaterThan(name));
+      });
+    }
+
+    testWidgets('확인 중이어도 예비 연결로 닿으면 그렇게 말한다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+          _buildHome(connected: true, server: RpiConnectionState.checking));
+      await tester.pump();
+
+      expect(find.text('예비 연결로 조작할 수 있어요'), findsOneWidget);
+      expect(find.text('제안·기록이 멈췄어요'), findsNothing);
     });
   });
 
@@ -176,7 +204,7 @@ void main() {
 
     testWidgets('연결되면 조작할 수 있다고 말한다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildHome(connected: true, serverOnline: true));
+      await tester.pumpWidget(_buildHome(connected: true, server: RpiConnectionState.connected));
       await tester.pump();
       expect(find.text('조작할 수 있어요'), findsOneWidget);
     });
