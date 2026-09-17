@@ -106,7 +106,7 @@ def _service(history, *, clock=None, outcomes=None, mode=ExecutionMode.MOCK):
 
 def test_records_the_appliance_and_mode():
     history = InMemoryJobHistory()
-    _service(history).execute_purpose("우유 데워줘", appliance_id="microwave")
+    _service(history).execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     (entry,) = history.recent()
     assert entry.appliance_id == "microwave"
@@ -116,7 +116,7 @@ def test_records_the_appliance_and_mode():
 def test_real_mode_is_recorded_as_real():
     """mock 실행이 성공률 통계에 섞이면 숫자가 사실이 아니게 된다."""
     history = InMemoryJobHistory()
-    _service(history, mode=ExecutionMode.REAL).execute_purpose("우유 데워줘")
+    _service(history, mode=ExecutionMode.REAL).execute_purpose("즉석밥 데워줘")
 
     (entry,) = history.recent()
     assert entry.execution_mode is ExecutionMode.REAL
@@ -124,7 +124,7 @@ def test_real_mode_is_recorded_as_real():
 
 def test_records_duration():
     history = InMemoryJobHistory()
-    _service(history, clock=_SteppingClock(_NOW)).execute_purpose("우유 데워줘")
+    _service(history, clock=_SteppingClock(_NOW)).execute_purpose("즉석밥 데워줘")
 
     (entry,) = history.recent()
     assert entry.started_at is not None
@@ -135,7 +135,7 @@ def test_records_duration():
 
 def test_success_is_terminated_as_completed():
     history = InMemoryJobHistory()
-    _service(history).execute_purpose("우유 데워줘")
+    _service(history).execute_purpose("즉석밥 데워줘")
 
     (entry,) = history.recent()
     assert entry.termination is Termination.COMPLETED
@@ -147,7 +147,7 @@ def test_retry_exhaustion_and_user_stop_are_different_endings():
     history = InMemoryJobHistory()
     service = _service(history, outcomes=[False] * 30)
 
-    service.execute_purpose("우유 데워줘")
+    service.execute_purpose("즉석밥 데워줘")
 
     (entry,) = history.recent()
     assert entry.termination is Termination.RETRIES_EXHAUSTED
@@ -180,7 +180,7 @@ def test_user_stop_is_recorded_as_user_stop():
     )
     holder.append(service)
 
-    service.execute_purpose("우유 데워줘")
+    service.execute_purpose("즉석밥 데워줘")
 
     (entry,) = history.recent()
     assert entry.termination is Termination.STOPPED_BY_USER
@@ -214,7 +214,7 @@ def test_user_stop_records_when_the_stop_was_accepted():
     )
     holder.append(service)
 
-    service.execute_purpose("우유 데워줘")
+    service.execute_purpose("즉석밥 데워줘")
 
     (entry,) = history.recent()
     assert entry.stop_requested_at is not None
@@ -227,7 +227,7 @@ def test_user_stop_records_when_the_stop_was_accepted():
 def test_a_run_that_finished_on_its_own_has_no_stop_time():
     """정지하지 않은 실행에 접수 시각이 남으면 지연 통계의 분모가 오염된다."""
     history = InMemoryJobHistory()
-    _service(history).execute_purpose("우유 데워줘")
+    _service(history).execute_purpose("즉석밥 데워줘")
 
     (entry,) = history.recent()
     assert entry.stop_requested_at is None
@@ -271,8 +271,8 @@ def test_stop_time_does_not_leak_into_the_next_run():
     )
     holder.append(service)
 
-    service.execute_purpose("우유 데워줘")
-    service.execute_purpose("우유 데워줘")
+    service.execute_purpose("즉석밥 데워줘")
+    service.execute_purpose("즉석밥 데워줘")
 
     # recent()는 최신순이다.
     latest, first = history.recent()
@@ -310,7 +310,7 @@ def test_stop_pressed_twice_keeps_the_first_moment():
     )
     holder.append(service)
 
-    service.execute_purpose("우유 데워줘")
+    service.execute_purpose("즉석밥 데워줘")
 
     (entry,) = history.recent()
     assert entry.stop_requested_at is not None
@@ -337,7 +337,7 @@ def test_a_stopped_run_that_then_crashed_is_still_a_user_stop():
     )
     holder.append(service)
 
-    service.submit_purpose("우유 데워줘")
+    service.submit_purpose("즉석밥 데워줘")
     _wait_until(lambda: len(history.recent()) == 1)
 
     (entry,) = history.recent()
@@ -352,7 +352,7 @@ def _entry(**over) -> JobHistoryEntry:
     base = dict(
         job_id="job-1",
         finished_at=_NOW,
-        purpose="우유 데워줘",
+        purpose="즉석밥 데워줘",
         status="succeeded",
         buttons=(ButtonAttempt("해동", True, 2),),
         appliance_id="microwave",
@@ -423,7 +423,7 @@ def test_existing_db_without_the_columns_is_migrated(tmp_path):
     old.execute(
         "INSERT INTO job_history (job_id, finished_at, purpose, status,"
         " buttons_json) VALUES (?, ?, ?, ?, ?)",
-        ("old-1", _NOW.isoformat(), "우유 데워줘", "succeeded", "[]"),
+        ("old-1", _NOW.isoformat(), "즉석밥 데워줘", "succeeded", "[]"),
     )
     old.commit()
     old.close()
@@ -525,8 +525,8 @@ def test_csv_does_not_leak_connection_or_household_details(field):
 
 
 def test_csv_quotes_purposes_containing_commas():
-    text = history_csv((_entry(purpose='우유, 데워줘'),))
-    assert '"우유, 데워줘"' in text
+    text = history_csv((_entry(purpose='즉석밥, 데워줘'),))
+    assert '"즉석밥, 데워줘"' in text
 
 
 # ── HTTP 계약 ─────────────────────────────────────────────────────────────
@@ -548,7 +548,7 @@ def client(monkeypatch):
 
 
 def test_http_export_returns_csv(client):
-    client.post("/execute", json={"text": "우유 데워줘", "appliance_id": "microwave"})
+    client.post("/execute", json={"text": "즉석밥 데워줘", "appliance_id": "microwave"})
     # 비동기 job — 기록될 때까지 잠깐 기다린다
     import time
 
@@ -569,7 +569,7 @@ def test_http_export_returns_csv(client):
 def test_http_history_carries_the_execution_mode(client):
     """개발 PC 기본은 mock이다. 실기기 실험 결과와 섞이면 안 되므로
     응답에서부터 구분된다."""
-    client.post("/execute", json={"text": "우유 데워줘"})
+    client.post("/execute", json={"text": "즉석밥 데워줘"})
     import time
 
     body = []

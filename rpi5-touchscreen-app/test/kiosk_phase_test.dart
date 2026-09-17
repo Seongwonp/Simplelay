@@ -131,7 +131,7 @@ class FakeTts extends KioskTtsService {
 // 실행 버튼이 잠기므로, 승인 흐름 테스트의 표본에는 대상을 명시한다.
 const _sug = KioskSuggestion(
   id: 's1',
-  purpose: '우유 데워줘',
+  purpose: '즉석밥 데워줘',
   occurrences: 3,
   applianceId: 'microwave',
 );
@@ -425,7 +425,7 @@ void main() {
     await _pumpKiosk(tester, api, tts: tts);
 
     // 제안 도착 발화 — 목적이 포함된 문장
-    expect(tts.utterances.single, contains('우유 데워줘'));
+    expect(tts.utterances.single, contains('즉석밥 데워줘'));
     expect(tts.utterances.single, contains('지금 실행'));
 
     api.suggestionList = [];

@@ -63,7 +63,7 @@ def test_ttl_expiry_returns_unknown_and_allows_again():
     assert store.allows_suggestions() is True
 
 
-def _service(gate, candidates=(PatternCandidate("우유 데워줘", "저녁", 3),)):
+def _service(gate, candidates=(PatternCandidate("즉석밥 데워줘", "저녁", 3),)):
     return ProactiveSuggestionService(
         FakeDetector(candidates), FakeClock(), NoopExecutor(),
         presence_gate=gate,
@@ -83,6 +83,6 @@ def test_present_or_no_gate_creates_suggestions():
 def test_demo_trigger_bypasses_presence_gate():
     # 수동(데모) 트리거는 공간 게이트 대상이 아니다 — 시연 흐름 보장
     service = _service(gate=lambda: False)
-    suggestion = service.create_demo_suggestion("우유 데워줘")
+    suggestion = service.create_demo_suggestion("즉석밥 데워줘")
     assert suggestion is not None
     assert len(service.pending()) == 1

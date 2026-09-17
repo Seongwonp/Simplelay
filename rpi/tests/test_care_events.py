@@ -65,13 +65,13 @@ def test_append_and_recent_newest_first():
 def test_events_survive_restart(tmp_path):
     db_path = str(tmp_path / "care.db")
     store = make_store(db=SimpleLayDb(db_path))
-    store.append("quiet_routine", "안부", purpose="우유 데워줘")
+    store.append("quiet_routine", "안부", purpose="즉석밥 데워줘")
 
     reloaded = make_store(db=SimpleLayDb(db_path))
     events = reloaded.recent()
     assert len(events) == 1
     assert events[0].kind == "quiet_routine"
-    assert events[0].purpose == "우유 데워줘"
+    assert events[0].purpose == "즉석밥 데워줘"
     # 재시작 후 새 이벤트가 기존 id와 충돌하지 않는다
     new = reloaded.append("execution_failed", "이후")
     assert new.event_id > events[0].event_id
@@ -80,11 +80,11 @@ def test_events_survive_restart(tmp_path):
 def test_has_on_date_dedupe_key():
     clock = FixedClock(at(31, 22))
     store = make_store(clock)
-    store.append("quiet_routine", "안부", purpose="우유 데워줘")
+    store.append("quiet_routine", "안부", purpose="즉석밥 데워줘")
 
-    assert store.has_on_date("quiet_routine", "우유 데워줘", at(31, 22).date())
+    assert store.has_on_date("quiet_routine", "즉석밥 데워줘", at(31, 22).date())
     assert not store.has_on_date("quiet_routine", "다른 루틴", at(31, 22).date())
-    assert not store.has_on_date("quiet_routine", "우유 데워줘", at(30, 22).date())
+    assert not store.has_on_date("quiet_routine", "즉석밥 데워줘", at(30, 22).date())
 
 
 # ── 실행 실패·긴급정지 배선 ──────────────────────────────────────────────
@@ -109,17 +109,17 @@ def test_failed_execution_records_care_event():
     care = make_store()
     service = _service([False] * 20, care)
 
-    service.execute_purpose("우유 데워줘")
+    service.execute_purpose("즉석밥 데워줘")
 
     events = care.recent()
     assert len(events) == 1
     assert events[0].kind == "execution_failed"
-    assert "우유 데워줘" in events[0].message
+    assert "즉석밥 데워줘" in events[0].message
 
 
 def test_successful_execution_records_nothing():
     care = make_store()
-    _service([True] * 20, care).execute_purpose("우유 데워줘")
+    _service([True] * 20, care).execute_purpose("즉석밥 데워줘")
 
     assert care.recent() == ()
 
@@ -133,7 +133,7 @@ def test_emergency_stop_outcome_is_reported_as_stop_not_failure():
     service._begin_run(1, service._controller)
     service.emergency_stop()
     try:
-        service._run_buttons(("시작",), service._controller, "우유 데워줘")
+        service._run_buttons(("시작",), service._controller, "즉석밥 데워줘")
     finally:
         service._end_run()
 
@@ -172,7 +172,7 @@ def test_danger_sound_rising_edge_records_once():
 # ── 안부 신호 (quiet_routine) ────────────────────────────────────────────
 
 
-def _routine_records(purpose="우유 데워줘", days=(25, 26, 27)):
+def _routine_records(purpose="즉석밥 데워줘", days=(25, 26, 27)):
     return tuple(
         UsageRecord(at(day, 18), purpose, UsageOutcome.SUCCEEDED) for day in days
     )
@@ -195,14 +195,14 @@ def test_quiet_routine_fires_after_band_ends_without_usage_today():
     assert len(created) == 1
     event = created[0]
     assert event.kind == "quiet_routine"
-    assert event.purpose == "우유 데워줘"
-    assert "저녁" in event.message and "우유 데워줘" in event.message
+    assert event.purpose == "즉석밥 데워줘"
+    assert "저녁" in event.message and "즉석밥 데워줘" in event.message
     assert care.recent()[0] == event
 
 
 def test_no_signal_when_used_today():
     records = _routine_records() + (
-        UsageRecord(at(31, 18), "우유 데워줘", UsageOutcome.SUCCEEDED),
+        UsageRecord(at(31, 18), "즉석밥 데워줘", UsageOutcome.SUCCEEDED),
     )
     checker, _ = _checker(records, now=at(31, 21, 30))
 
@@ -213,7 +213,7 @@ def test_failed_attempt_today_still_counts_as_activity():
     # 시도 자체가 활동 신호 — 실패했어도 "조용함"은 아니다
     # (실패는 execution_failed 이벤트가 따로 알린다)
     records = _routine_records() + (
-        UsageRecord(at(31, 18), "우유 데워줘", UsageOutcome.FAILED),
+        UsageRecord(at(31, 18), "즉석밥 데워줘", UsageOutcome.FAILED),
     )
     checker, _ = _checker(records, now=at(31, 21, 30))
 
@@ -260,7 +260,7 @@ def test_overnight_band_is_excluded():
 def test_multiple_occurrences_same_day_count_as_one_routine_day():
     # 하루에 3번 쓴 것은 '3일 루틴'이 아니다 — 서로 다른 날짜 기준
     records = tuple(
-        UsageRecord(at(27, 17, 30 + i), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(at(27, 17, 30 + i), "즉석밥 데워줘", UsageOutcome.SUCCEEDED)
         for i in range(3)
     )
     checker, _ = _checker(records, now=at(31, 21, 30))
@@ -275,7 +275,7 @@ def test_get_care_events_endpoint(monkeypatch):
     monkeypatch.delenv("SIMPLELAY_API_KEY", raising=False)
     store = make_store()
     store.append("danger_sound", "위험 신호음", purpose=None)
-    store.append("quiet_routine", "안부", purpose="우유 데워줘")
+    store.append("quiet_routine", "안부", purpose="즉석밥 데워줘")
     app.dependency_overrides[deps.get_care_events] = lambda: store
     try:
         body = TestClient(app).get("/care-events").json()
@@ -283,7 +283,7 @@ def test_get_care_events_endpoint(monkeypatch):
         app.dependency_overrides.pop(deps.get_care_events, None)
 
     assert [e["kind"] for e in body] == ["quiet_routine", "danger_sound"]
-    assert body[0]["purpose"] == "우유 데워줘"
+    assert body[0]["purpose"] == "즉석밥 데워줘"
     assert {"id", "kind", "message", "occurred_at"} <= set(body[0].keys())
 
 
@@ -384,7 +384,7 @@ def test_controller_exception_records_care_event():
         clock=FixedClock(at(31, 19)),
         care_events=care,
     )
-    job = service.submit_purpose("우유 데워줘")
+    job = service.submit_purpose("즉석밥 데워줘")
     assert job
     # 백그라운드 스레드 완료 대기
     import time as _time

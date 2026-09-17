@@ -6,12 +6,12 @@ void main() {
     test('parses all required fields correctly', () {
       final json = {
         'sequence_id': 'seq-42',
-        'label': '우유 데우기',
+        'label': '즉석밥 데우기',
         'steps': ['BT-08', 'BT-03', 'BT-05'],
       };
       final s = Suggestion.fromJson(json);
       expect(s.sequenceId, 'seq-42');
-      expect(s.label, '우유 데우기');
+      expect(s.label, '즉석밥 데우기');
       expect(s.steps, ['BT-08', 'BT-03', 'BT-05']);
       expect(s.receivedAt, isNotNull);
     });

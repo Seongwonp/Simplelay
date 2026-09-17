@@ -72,7 +72,7 @@ def test_button_label_over_limit_rejected():
 def test_known_buttons_over_limit_rejected():
     with pytest.raises(ValidationError):
         ExecuteForApplianceRequest(
-            text="우유 데워줘",
+            text="즉석밥 데워줘",
             known_buttons=[f"버튼{i}" for i in range(MAX_KNOWN_BUTTONS + 1)],
         )
 

@@ -4,7 +4,7 @@
 
 ## 명시적 명령
 
-`RuleBasedIntentResolver`는 `우유 데워줘`를 `해동 → 시간 90초 → 시작`으로 변환한다. 좌표와
+`RuleBasedIntentResolver`는 `즉석밥 데워줘`를 `즉석밥 → 시작`으로 변환한다. 좌표와
 G-code는 알지 못한다. 이 명시적 명령 경로는 M4 제안 경로와 독립적으로 그대로 동작한다.
 
 `LlmIntentResolver`는 모델을 신뢰하지 않는 입력으로 다룬다. 응답은 반드시

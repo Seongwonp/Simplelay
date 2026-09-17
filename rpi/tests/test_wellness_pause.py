@@ -42,7 +42,7 @@ def _checker(now: datetime, pause: WellnessPause | None = None):
     """저녁 루틴이 3일 성립해 있고, 오늘은 그 시간대가 조용하다."""
     usage = InMemoryUsageLog(
         tuple(
-            UsageRecord(_at(d), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave")
+            UsageRecord(_at(d), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave")
             for d in (20, 21, 22)
         )
     )
@@ -112,7 +112,7 @@ def test_pause_does_not_touch_failure_or_danger_alerts():
     pause = WellnessPause(until=date(2026, 7, 30))
     _, store = _checker(_at(23, 22), pause)
 
-    store.append("execution_failed", "실행이 완료되지 못했어요", purpose="우유 데워줘")
+    store.append("execution_failed", "실행이 완료되지 못했어요", purpose="즉석밥 데워줘")
     store.append("danger_sound", "위험할 수 있는 신호음이 감지되었어요", purpose=None)
 
     # recent()는 최신순이다.
@@ -253,7 +253,7 @@ def test_existing_db_without_the_settings_table_keeps_its_history(tmp_path):
     )
     old_db.execute(
         "INSERT INTO usage_log (occurred_at, purpose, outcome) VALUES (?, ?, ?)",
-        (_at(20).isoformat(), "우유 데워줘", "succeeded"),
+        (_at(20).isoformat(), "즉석밥 데워줘", "succeeded"),
     )
     old_db.commit()
     old_db.close()
@@ -265,7 +265,7 @@ def test_existing_db_without_the_settings_table_keeps_its_history(tmp_path):
     # 옛 이력은 그대로 남고,
     assert db.load_wellness_pause() is None
     (row,) = db._conn.execute("SELECT purpose FROM usage_log").fetchall()
-    assert row[0] == "우유 데워줘"
+    assert row[0] == "즉석밥 데워줘"
     # 새 설정은 저장된다.
     db.save_wellness_pause(date(2026, 7, 30))
     assert SimpleLayDb(path).load_wellness_pause() == date(2026, 7, 30)

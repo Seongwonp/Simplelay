@@ -29,7 +29,7 @@ void main() {
       tester,
       KioskDoneView(
         success: true,
-        label: '우유 데워줘',
+        label: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
         onDismiss: () => dismissed++,
       ),
@@ -37,7 +37,7 @@ void main() {
 
     expect(find.text('버튼 조작을 마쳤어요'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('우유 데워줘'), findsOneWidget);
+    expect(find.text('즉석밥 데워줘'), findsOneWidget);
     expect(find.text('버튼 눌림을 모두 확인했어요'), findsOneWidget);
     expect(find.text('잠시 후 처음 화면으로 돌아가요'), findsOneWidget);
     // 가전이 조리·세탁을 끝냈다고 말하지 않는다.
@@ -52,7 +52,7 @@ void main() {
       tester,
       KioskDoneView(
         success: false,
-        label: '우유 데워줘',
+        label: '즉석밥 데워줘',
         onRetry: () {},
         onManual: () {},
         onDismiss: () {},

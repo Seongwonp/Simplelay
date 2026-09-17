@@ -76,7 +76,7 @@ void main() {
     test('sendCommand is no-op when simulated', () async {
       ble.simulateConnected();
       await expectLater(
-        ble.sendCommand('우유 데워줘', source: 'voice'),
+        ble.sendCommand('즉석밥 데워줘', source: 'voice'),
         completes,
       );
     });

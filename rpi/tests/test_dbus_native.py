@@ -67,11 +67,11 @@ class TestSnakeCase:
 class TestToResult:
     def test_maps_struct_fields_in_order(self):
         # (id, metadata, originalData, score)
-        item = ["id-1", {"buttons": "해동,시작"}, "우유 데우기", 0.92]
+        item = ["id-1", {"buttons": "해동,시작"}, "즉석밥 데우기", 0.92]
         result = _to_result(item)
         assert result.id == "id-1"
         assert result.metadata == {"buttons": "해동,시작"}
-        assert result.original_data == "우유 데우기"
+        assert result.original_data == "즉석밥 데우기"
         assert result.score == pytest.approx(0.92)
 
     def test_unwraps_variant_metadata_values(self):
@@ -93,15 +93,15 @@ class TestSearchText:
     def test_calls_search_text_with_top_k_and_maps_results(self):
         invoker = _RecordingInvoker(
             reply=[
-                ["id-1", {"buttons": "해동,시작"}, "우유 데우기", 0.9],
+                ["id-1", {"buttons": "해동,시작"}, "즉석밥 데우기", 0.9],
                 ["id-2", {"buttons": "시작"}, "시작만", 0.7],
             ]
         )
         client = DbusFastVectordbClient(config=_CFG, invoker=invoker)
 
-        results = client.search_text("우유 데워줘", top_k=2)
+        results = client.search_text("즉석밥 데워줘", top_k=2)
 
-        assert invoker.calls == [("SearchText", ("우유 데워줘", 2))]
+        assert invoker.calls == [("SearchText", ("즉석밥 데워줘", 2))]
         assert [r.id for r in results] == ["id-1", "id-2"]
         assert results[0].metadata["buttons"] == "해동,시작"
 
@@ -148,12 +148,12 @@ class TestAddText:
         invoker = _RecordingInvoker(reply="new-id-42")
         client = DbusFastVectordbClient(config=_CFG, invoker=invoker)
 
-        return_id = client.add_text("우유 데우기", {"buttons": "해동,시작"})
+        return_id = client.add_text("즉석밥 데우기", {"buttons": "해동,시작"})
 
         assert return_id == "new-id-42"
         method, args = invoker.calls[0]
         assert method == "AddText"
-        assert args[0] == "우유 데우기"
+        assert args[0] == "즉석밥 데우기"
         # metadata는 [{key: Variant('s', value)}] 형태 -- Variant는 지연 import라
         # 여기선 리스트에 dict 하나가 들었고 그 안에 buttons 키가 있는지만 본다
         encoded = args[1]
@@ -182,12 +182,12 @@ class TestResolverIntegration:
         from rpi.intent.dbus_vectordb import VectordbIntentResolver
 
         invoker = _RecordingInvoker(
-            reply=[["id-1", {"buttons": "해동,시작"}, "우유 데우기", 0.9]]
+            reply=[["id-1", {"buttons": "해동,시작"}, "즉석밥 데우기", 0.9]]
         )
         client = DbusFastVectordbClient(config=_CFG, invoker=invoker)
         resolver = VectordbIntentResolver(client)
 
-        assert resolver.resolve("우유 데워줘") == ("해동", "시작")
+        assert resolver.resolve("즉석밥 데워줘") == ("해동", "시작")
 
 
 class TestTransportSelection:

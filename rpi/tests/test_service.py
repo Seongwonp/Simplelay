@@ -14,10 +14,10 @@ def test_rule_based_intent_executes_full_sequence():
     )
     service = SimpleLayService(RuleBasedIntentResolver(), controller)
 
-    result = service.execute_purpose("우유 데워줘")
+    result = service.execute_purpose("즉석밥 데워줘")
 
     assert result.status is ExecutionStatus.SUCCEEDED
-    assert [command.button for command in grbl.commands] == ["해동", "시간 90초", "시작"]
+    assert [command.button for command in grbl.commands] == ["즉석밥", "시작"]
     assert service.status().last_result is result
     assert service.status().running is False
 

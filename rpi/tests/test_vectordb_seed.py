@@ -54,12 +54,12 @@ class TestExamplesFromRules:
         )
 
     def test_alias_inherits_canonical_button_sequence(self):
-        rules = {"우유 데워줘": ("해동", "시작")}
-        aliases = {"우유 좀 데워줘": "우유 데워줘"}
+        rules = {"즉석밥 데워줘": ("해동", "시작")}
+        aliases = {"즉석밥 좀 데워줘": "즉석밥 데워줘"}
 
         examples = examples_from_rules(rules, aliases)
 
-        assert examples["우유 좀 데워줘"] == ("해동", "시작")
+        assert examples["즉석밥 좀 데워줘"] == ("해동", "시작")
 
     def test_keeps_original_wording_not_normalized_keys(self):
         # 규칙은 공백을 지운 키로 매칭하지만, 임베딩은 사람이 쓰는 문장이어야 한다

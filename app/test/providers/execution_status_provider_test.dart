@@ -13,7 +13,7 @@ ProviderContainer makeContainer() {
 
 const _suggestion = Suggestion(
   sequenceId: 'exec-001',
-  label: '우유 데우기',
+  label: '즉석밥 데우기',
   steps: ['BT-08', 'BT-03', 'BT-05'],
 );
 
@@ -35,7 +35,7 @@ void main() {
       c.read(executionStatusProvider.notifier).begin(_suggestion);
       final status = c.read(executionStatusProvider);
       expect(status.phase, ExecutionPhase.waiting);
-      expect(status.label, '우유 데우기');
+      expect(status.label, '즉석밥 데우기');
       expect(status.steps, ['BT-08', 'BT-03', 'BT-05']);
       expect(status.sequenceId, 'exec-001');
     });

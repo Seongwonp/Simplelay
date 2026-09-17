@@ -37,7 +37,7 @@ def build_detector(records: tuple[UsageRecord, ...] = ()):
 
 def test_repeated_same_purpose_in_same_time_band_creates_suggestion():
     records = tuple(
-        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED)
         for day in (20, 21, 22)
     )
     detector, clock, _ = build_detector(records)
@@ -46,14 +46,14 @@ def test_repeated_same_purpose_in_same_time_band_creates_suggestion():
     ).create_suggestions()
 
     assert len(suggestions) == 1
-    assert suggestions[0].purpose == "우유 데워줘"
+    assert suggestions[0].purpose == "즉석밥 데워줘"
     assert suggestions[0].time_band == "아침"
     assert suggestions[0].occurrences == 3
 
 
 def test_one_off_usage_does_not_create_suggestion():
     detector, clock, _ = build_detector(
-        (UsageRecord(at_morning(22), "우유 데워줘", UsageOutcome.SUCCEEDED),)
+        (UsageRecord(at_morning(22), "즉석밥 데워줘", UsageOutcome.SUCCEEDED),)
     )
 
     suggestions = ProactiveSuggestionService(
@@ -68,7 +68,7 @@ def test_suggestion_never_executes_before_approval_and_approval_is_one_time():
     # 폰이 항상 appliance_id를 실어 보내므로 여기서도 명시한다.
     records = tuple(
         UsageRecord(
-            at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED,
+            at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,
             appliance_id="microwave",
         )
         for day in (20, 21, 22)
@@ -82,17 +82,17 @@ def test_suggestion_never_executes_before_approval_and_approval_is_one_time():
     assert executor.purposes == []
     assert service.pending() == (suggestion,)
     assert service.approve(suggestion.suggestion_id) == "executed"
-    assert executor.purposes == ["우유 데워줘"]
+    assert executor.purposes == ["즉석밥 데워줘"]
     assert service.pending() == ()
     with pytest.raises(SuggestionAlreadyApprovedError):
         service.approve(suggestion.suggestion_id)
-    assert executor.purposes == ["우유 데워줘"]
+    assert executor.purposes == ["즉석밥 데워줘"]
 
 
 def test_approval_uses_existing_intent_and_closed_loop_controller():
     records = tuple(
         UsageRecord(
-            at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED,
+            at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,
             appliance_id="microwave",
         )
         for day in (20, 21, 22)
@@ -118,9 +118,9 @@ def test_approval_uses_existing_intent_and_closed_loop_controller():
     result = suggestions.approve(suggestion.suggestion_id)
 
     assert result.status is ExecutionStatus.SUCCEEDED
-    assert [command.button for command in grbl.commands] == ["해동", "시간 90초", "시작"]
+    assert [command.button for command in grbl.commands] == ["즉석밥", "시작"]
     assert usage_log.records()[-1] == UsageRecord(
-        at_morning(23), "우유 데워줘", UsageOutcome.SUCCEEDED,
+        at_morning(23), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,
         appliance_id="microwave",
     )
 
@@ -140,11 +140,11 @@ def test_failed_usage_is_logged_but_not_counted_as_learned_success():
         clock=clock,
     )
 
-    result = service.execute_purpose("우유 데워줘")
+    result = service.execute_purpose("즉석밥 데워줘")
 
     assert result.status is ExecutionStatus.SAFETY_STOPPED
     assert usage_log.records() == (
-        UsageRecord(at_morning(23), "우유 데워줘", UsageOutcome.FAILED),
+        UsageRecord(at_morning(23), "즉석밥 데워줘", UsageOutcome.FAILED),
     )
     detector = PatternDetector(usage_log, clock, PatternConfig(1, (MORNING,)))
     assert detector.candidates() == ()
@@ -155,7 +155,7 @@ def test_failed_usage_is_logged_but_not_counted_as_learned_success():
 
 def test_suggestion_has_no_step_preview_without_a_resolver():
     records = tuple(
-        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED)
         for day in (20, 21, 22)
     )
     detector, clock, _ = build_detector(records)
@@ -169,7 +169,7 @@ def test_suggestion_has_no_step_preview_without_a_resolver():
 
 def test_suggestion_previews_steps_when_resolver_is_injected():
     records = tuple(
-        UsageRecord(at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED)
         for day in (20, 21, 22)
     )
     detector, clock, _ = build_detector(records)
@@ -181,7 +181,7 @@ def test_suggestion_previews_steps_when_resolver_is_injected():
         intent_resolver=RuleBasedIntentResolver(),
     ).create_suggestions()[0]
 
-    assert suggestion.steps == ("해동", "시간 90초", "시작")
+    assert suggestion.steps == ("즉석밥", "시작")
 
 
 def test_suggestion_preview_failure_does_not_block_suggestion_creation():
@@ -208,7 +208,7 @@ def test_approve_still_reresolves_independently_of_the_preview():
     # 다시 해석된다 — 미리보기에 쓴 리졸버가 승인 실행 결과를 대신하지 않는다.
     records = tuple(
         UsageRecord(
-            at_morning(day), "우유 데워줘", UsageOutcome.SUCCEEDED,
+            at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,
             appliance_id="microwave",
         )
         for day in (20, 21, 22)
@@ -231,9 +231,9 @@ def test_approve_still_reresolves_independently_of_the_preview():
     )
 
     suggestion = suggestions.create_suggestions()[0]
-    assert suggestion.steps == ("해동", "시간 90초", "시작")  # 미리보기
+    assert suggestion.steps == ("즉석밥", "시작")  # 미리보기
 
     result = suggestions.approve(suggestion.suggestion_id)
 
     assert result.status is ExecutionStatus.SUCCEEDED
-    assert [command.button for command in grbl.commands] == ["해동", "시간 90초", "시작"]
+    assert [command.button for command in grbl.commands] == ["즉석밥", "시작"]

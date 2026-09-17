@@ -69,7 +69,7 @@ void main() {
             'last_buttons': [],
           }),
           jobId: 'J1',
-          label: '우유 데워줘',
+          label: '즉석밥 데워줘',
         );
     await Future<void>.delayed(const Duration(milliseconds: 1500));
 
@@ -93,7 +93,7 @@ void main() {
             'last_status': null,
           }, () => stopCalls++),
           jobId: 'J1',
-          label: '우유 데워줘',
+          label: '즉석밥 데워줘',
         );
     // 폴링 1초 × 10회 임계 초과까지 대기
     await Future<void>.delayed(const Duration(milliseconds: 11500));

@@ -103,13 +103,13 @@ def test_intent_produces_sequence_with_correct_fields():
         reader = asyncio.StreamReader()
         writer = FakeWriter()
         bridge = _make_bridge(reader, writer)
-        feed(reader, {"type": "intent", "text": "우유 데워줘", "timestamp": 0})
+        feed(reader, {"type": "intent", "text": "즉석밥 데워줘", "timestamp": 0})
         await bridge.run_once()
         msgs = writer.messages()
         assert len(msgs) == 1
         m = msgs[0]
         assert m["type"] == "sequence"
-        assert m["label"] == "우유 데워줘"
+        assert m["label"] == "즉석밥 데워줘"
         assert isinstance(m["id"], str) and m["id"]
         assert isinstance(m["buttons"], list) and len(m["buttons"]) > 0
     run(_t())
@@ -140,7 +140,7 @@ def test_confirm_approved_with_successful_execution_returns_result_success():
 
         # Seed the store as if a prior intent had been processed.
         seq_id = "test-seq-001"
-        await store.put(seq_id, "우유 데워줘", ("해동", "시간 90초", "시작"))
+        await store.put(seq_id, "즉석밥 데워줘", ("즉석밥", "시작"))
 
         feed(reader, {"type": "confirm", "sequence_id": seq_id, "approved": True})
         await bridge.run_once()
@@ -163,7 +163,7 @@ def test_confirm_approved_with_failing_controller_returns_result_failure():
         bridge = _make_bridge(reader, writer, verifier_outcomes=[False] * 20, store=store)
 
         seq_id = "test-seq-002"
-        await store.put(seq_id, "우유 데워줘", ("해동",))
+        await store.put(seq_id, "즉석밥 데워줘", ("해동",))
 
         feed(reader, {"type": "confirm", "sequence_id": seq_id, "approved": True})
         await bridge.run_once()
@@ -183,7 +183,7 @@ def test_confirm_rejected_sends_abort_and_clears_pending():
         bridge = _make_bridge(reader, writer, store=store)
 
         seq_id = "test-seq-003"
-        await store.put(seq_id, "우유 데워줘", ("해동",))
+        await store.put(seq_id, "즉석밥 데워줘", ("해동",))
 
         feed(reader, {"type": "confirm", "sequence_id": seq_id, "approved": False})
         await bridge.run_once()
@@ -256,7 +256,7 @@ def test_intent_then_confirm_full_round_trip():
         bridge = _make_bridge(reader, writer, store=store)
 
         # Step 1 — intent arrives.
-        feed(reader, {"type": "intent", "text": "우유 데워줘", "timestamp": 0})
+        feed(reader, {"type": "intent", "text": "즉석밥 데워줘", "timestamp": 0})
         await bridge.run_once()
 
         seq_msgs = writer.messages()
@@ -302,13 +302,13 @@ def test_confirmed_execution_appends_to_usage_log():
         )
 
         seq_id = "log-test-001"
-        await store.put(seq_id, "우유 데워줘", ("해동",))
+        await store.put(seq_id, "즉석밥 데워줘", ("해동",))
         feed(reader, {"type": "confirm", "sequence_id": seq_id, "approved": True})
         await bridge.run_once()
 
         records = usage_log.records()
         assert len(records) == 1
-        assert records[0].purpose == "우유 데워줘"
+        assert records[0].purpose == "즉석밥 데워줘"
     run(_t())
 
 

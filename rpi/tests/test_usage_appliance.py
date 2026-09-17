@@ -73,7 +73,7 @@ def test_execute_records_the_appliance_it_ran_on():
     log = InMemoryUsageLog()
     svc = _service(log, FixedClock(_at(23)))
 
-    svc.execute_purpose("우유 데워줘", appliance_id="microwave")
+    svc.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     (record,) = log.records()
     assert record.appliance_id == "microwave"
@@ -85,7 +85,7 @@ def test_async_job_records_the_appliance():
     log = InMemoryUsageLog()
     svc = _service(log, FixedClock(_at(23)))
 
-    job_id = svc.submit_purpose("우유 데워줘", appliance_id="microwave")
+    job_id = svc.submit_purpose("즉석밥 데워줘", appliance_id="microwave")
     assert job_id
     for _ in range(200):
         if log.records():
@@ -112,7 +112,7 @@ def test_direct_button_run_still_stays_out_of_the_usage_log():
 
 def test_candidate_carries_the_appliance():
     candidates = _detector(
-        UsageRecord(_at(d), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave")
+        UsageRecord(_at(d), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave")
         for d in (20, 21, 22)
     ).candidates()
 
@@ -123,7 +123,7 @@ def test_candidate_without_appliance_history_stays_none():
     """가전이 기록되기 전에 쌓인 이력만 있으면 대상을 지어내지 않는다 —
     None이어야 클라이언트가 현재 선택 가전으로 폴백할 수 있다."""
     candidates = _detector(
-        UsageRecord(_at(d), "우유 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(_at(d), "즉석밥 데워줘", UsageOutcome.SUCCEEDED)
         for d in (20, 21, 22)
     ).candidates()
 
@@ -135,9 +135,9 @@ def test_candidate_prefers_the_most_recent_appliance():
     최신 쪽이다 — 옛 기록이 많다고 그쪽으로 끌려가면 안 된다."""
     candidates = _detector(
         [
-            UsageRecord(_at(20), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
-            UsageRecord(_at(21), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
-            UsageRecord(_at(22), "우유 데워줘", UsageOutcome.SUCCEEDED, "kettle"),
+            UsageRecord(_at(20), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
+            UsageRecord(_at(21), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
+            UsageRecord(_at(22), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "kettle"),
         ]
     ).candidates()
 
@@ -148,10 +148,10 @@ def test_candidate_ignores_appliance_of_failed_runs():
     """실패한 실행은 횟수에서도 빠지므로 대상 추정에도 쓰이면 안 된다."""
     candidates = _detector(
         [
-            UsageRecord(_at(20), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
-            UsageRecord(_at(21), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
-            UsageRecord(_at(22), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
-            UsageRecord(_at(23), "우유 데워줘", UsageOutcome.FAILED, "kettle"),
+            UsageRecord(_at(20), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
+            UsageRecord(_at(21), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
+            UsageRecord(_at(22), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave"),
+            UsageRecord(_at(23), "즉석밥 데워줘", UsageOutcome.FAILED, "kettle"),
         ]
     ).candidates()
 
@@ -162,7 +162,7 @@ def test_separate_appliances_keep_separate_targets():
     """가전 두 대를 함께 쓰는 상황 — B1이 실제로 열어주는 데모다."""
     candidates = _detector(
         [
-            UsageRecord(_at(d), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave")
+            UsageRecord(_at(d), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave")
             for d in (20, 21, 22)
         ]
         + [
@@ -172,7 +172,7 @@ def test_separate_appliances_keep_separate_targets():
     ).candidates()
 
     assert {c.purpose: c.appliance_id for c in candidates} == {
-        "우유 데워줘": "microwave",
+        "즉석밥 데워줘": "microwave",
         "에어컨 켜줘": "aircon",
     }
 
@@ -193,7 +193,7 @@ def test_pattern_suggestion_carries_and_executes_on_that_appliance():
     executor = MockPurposeExecutor()
     svc = _suggestion_service(
         [
-            UsageRecord(_at(d), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave")
+            UsageRecord(_at(d), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave")
             for d in (20, 21, 22)
         ],
         executor,
@@ -224,7 +224,7 @@ def test_sqlite_round_trips_the_appliance(tmp_path):
     log = SqliteUsageLog(db)
 
     log.append(
-        UsageRecord(_at(23), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave")
+        UsageRecord(_at(23), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave")
     )
     db.close()
 
@@ -256,7 +256,7 @@ def test_existing_db_without_the_column_is_migrated(tmp_path):
     )
     old.execute(
         "INSERT INTO usage_log (occurred_at, purpose, outcome) VALUES (?, ?, ?)",
-        (_at(20).isoformat(), "우유 데워줘", "succeeded"),
+        (_at(20).isoformat(), "즉석밥 데워줘", "succeeded"),
     )
     old.commit()
     old.close()
@@ -266,11 +266,11 @@ def test_existing_db_without_the_column_is_migrated(tmp_path):
         log = SqliteUsageLog(db)
         # 옛 행은 대상 없이 살아남고,
         (migrated,) = log.records()
-        assert migrated.purpose == "우유 데워줘"
+        assert migrated.purpose == "즉석밥 데워줘"
         assert migrated.appliance_id is None
         # 새 행부터 대상이 붙는다.
         log.append(
-            UsageRecord(_at(23), "우유 데워줘", UsageOutcome.SUCCEEDED, "microwave")
+            UsageRecord(_at(23), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, "microwave")
         )
         assert [r.appliance_id for r in log.records()] == [None, "microwave"]
     finally:

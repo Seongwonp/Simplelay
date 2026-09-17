@@ -53,7 +53,7 @@ void main() {
     container.read(executionStatusProvider.notifier).beginHttpJob(
           api: _apiCompletingJob('job-1'),
           jobId: 'job-1',
-          label: '우유 데워줘',
+          label: '즉석밥 데워줘',
         );
     // 1초 주기 폴링이 완료를 집을 때까지 실제 시간 대기
     await Future<void>.delayed(const Duration(milliseconds: 1500));
@@ -78,7 +78,7 @@ void main() {
     container.read(executionStatusProvider.notifier).beginHttpJob(
           api: _apiCompletingJob('job-2'),
           jobId: 'job-2',
-          label: '우유 데워줘',
+          label: '즉석밥 데워줘',
         );
     await Future<void>.delayed(const Duration(milliseconds: 1500));
 

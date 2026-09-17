@@ -110,10 +110,10 @@ def test_execute_passes_dynamic_timeout_to_the_request():
         return httpx.Response(200, json={"success": True, "retry": 0})
 
     controller = EspNodeController("http://node:8080", client=_client(handler))
-    controller.execute(["해동", "시간 90초", "시작"])
+    controller.execute(["즉석밥", "시작"])
 
-    # httpx는 timeout을 extensions로 전달한다 — 30 + 6*3 = 48초
-    assert seen["timeout"]["read"] == 48.0
+    # httpx는 timeout을 extensions로 전달한다 — 30 + 6*2 = 42초
+    assert seen["timeout"]["read"] == 42.0
 
 
 def test_execute_timeout_requests_stop_before_raising():

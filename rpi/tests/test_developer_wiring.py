@@ -55,7 +55,7 @@ def test_developer_mode_is_off_by_default(plain_client) -> None:
     assert deps.developer_mode_enabled() is False
     assert deps.get_developer_session_manager() is None
     # 꺼져 있어도 일반 실행은 그대로 동작한다(중재자는 항상 있다).
-    res = plain_client.post("/execute", json={"text": "우유 데워줘"})
+    res = plain_client.post("/execute", json={"text": "즉석밥 데워줘"})
     assert res.status_code == 200
 
 

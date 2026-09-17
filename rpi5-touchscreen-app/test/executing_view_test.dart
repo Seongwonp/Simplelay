@@ -26,7 +26,7 @@ Future<void> _pump(
       data: MediaQueryData(textScaler: TextScaler.linear(textScale)),
       child: Scaffold(
         body: KioskExecutingView(
-          title: '우유 데워줘',
+          title: '즉석밥 데워줘',
           target: target,
           lastButtons: null,
           currentButton: button,

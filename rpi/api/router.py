@@ -249,10 +249,10 @@ async def demo_care_event(
 ) -> CareEventResponse:
     # 리허설 장치 — 시연에서 보호자 알림함·배지 장면을 원하는 시점에 연출
     default_messages = {
-        "execution_failed": "'우유 데워줘' 실행이 완료되지 못했어요. 가전을 확인해 주세요.",
-        "emergency_stop": "'우유 데워줘' 실행을 긴급 정지로 멈췄어요.",
+        "execution_failed": "'즉석밥 데워줘' 실행이 완료되지 못했어요. 가전을 확인해 주세요.",
+        "emergency_stop": "'즉석밥 데워줘' 실행을 긴급 정지로 멈췄어요.",
         "danger_sound": "위험할 수 있는 신호음이 감지되었어요. 안부를 확인해 주세요.",
-        "quiet_routine": "평소 저녁 시간대의 '우유 데워줘' 사용이 오늘은 없었어요. "
+        "quiet_routine": "평소 저녁 시간대의 '즉석밥 데워줘' 사용이 오늘은 없었어요. "
         "안부 전화 한번 어떨까요?",
     }
     event = store.append(

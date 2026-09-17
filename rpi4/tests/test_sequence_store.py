@@ -13,7 +13,7 @@ def run(coro):
     return asyncio.run(coro)
 
 
-BUTTONS = ("해동", "시간 90초", "시작")
+BUTTONS = ("즉석밥", "시작")
 
 
 # ── tests ────────────────────────────────────────────────────────────────────
@@ -21,9 +21,9 @@ BUTTONS = ("해동", "시간 90초", "시작")
 def test_put_and_pop_returns_correct_sequence():
     async def _t():
         store = SequenceStore()
-        await store.put("seq-1", "우유 데워줘", BUTTONS)
+        await store.put("seq-1", "즉석밥 데워줘", BUTTONS)
         result = await store.pop("seq-1")
-        assert result == PendingSequence(label="우유 데워줘", buttons=BUTTONS)
+        assert result == PendingSequence(label="즉석밥 데워줘", buttons=BUTTONS)
     run(_t())
 
 

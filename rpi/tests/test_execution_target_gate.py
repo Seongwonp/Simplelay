@@ -54,7 +54,7 @@ def _service(appliance_registry=None, node_registry=None):
         clock=FixedClock(_NOW),
         appliance_registry=appliance_registry,
         node_registry=node_registry,
-        llm_client=MockLlmClient({"우유 데워줘": '{"sequence": ["시작"]}'}),
+        llm_client=MockLlmClient({"즉석밥 데워줘": '{"sequence": ["시작"]}'}),
     )
     return service, grbl
 
@@ -66,7 +66,7 @@ def _service(appliance_registry=None, node_registry=None):
     "call",
     [
         pytest.param(
-            lambda s: s.execute_purpose("우유 데워줘", appliance_id="ghost"),
+            lambda s: s.execute_purpose("즉석밥 데워줘", appliance_id="ghost"),
             id="execute_purpose",
         ),
         pytest.param(
@@ -75,12 +75,12 @@ def _service(appliance_registry=None, node_registry=None):
         ),
         pytest.param(
             lambda s: s.execute_purpose_for_appliance(
-                "우유 데워줘", frozenset({"시작"}), appliance_id="ghost"
+                "즉석밥 데워줘", frozenset({"시작"}), appliance_id="ghost"
             ),
             id="execute_purpose_for_appliance",
         ),
         pytest.param(
-            lambda s: s.submit_purpose("우유 데워줘", appliance_id="ghost"),
+            lambda s: s.submit_purpose("즉석밥 데워줘", appliance_id="ghost"),
             id="submit_purpose",
         ),
         pytest.param(
@@ -89,7 +89,7 @@ def _service(appliance_registry=None, node_registry=None):
         ),
         pytest.param(
             lambda s: s.submit_purpose_for_appliance(
-                "우유 데워줘", frozenset({"시작"}), appliance_id="ghost"
+                "즉석밥 데워줘", frozenset({"시작"}), appliance_id="ghost"
             ),
             id="submit_purpose_for_appliance",
         ),
@@ -109,7 +109,7 @@ def test_known_builtin_still_runs():
     """게이트가 정상 경로를 막으면 안 된다."""
     service, grbl = _service(ApplianceRegistry())
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     assert [c.button for c in grbl.commands] != []
 
@@ -118,7 +118,7 @@ def test_registry_absent_keeps_previous_behavior():
     """레지스트리를 주입하지 않은 구성(테스트·rpi4 브리지)은 종전대로 동작한다."""
     service, grbl = _service(appliance_registry=None)
 
-    service.execute_purpose("우유 데워줘", appliance_id="ghost")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="ghost")
 
     assert [c.button for c in grbl.commands] != []
 
@@ -140,7 +140,7 @@ def _suggestion_service(service, appliance_id="fan"):
         intent_resolver=RuleBasedIntentResolver(),
     )
     suggestion = svc.create_demo_suggestion(
-        "우유 데워줘", appliance_id=appliance_id
+        "즉석밥 데워줘", appliance_id=appliance_id
     )
     assert suggestion is not None
     return svc, suggestion
@@ -277,7 +277,7 @@ def test_http_deleting_an_appliance_takes_its_suggestion_down(client):
     것을 계속 권유하게 된다."""
     _register_fan(client)
     created = client.post(
-        "/demo/suggest", json={"purpose": "우유 데워줘", "appliance_id": "fan"}
+        "/demo/suggest", json={"purpose": "즉석밥 데워줘", "appliance_id": "fan"}
     )
     assert created.status_code == 200
     assert client.get("/suggestions").json() != []
@@ -302,7 +302,7 @@ def test_http_approving_a_suggestion_for_a_deleted_appliance_is_404(client):
     """
     _register_fan(client)
     suggestion_id = client.post(
-        "/demo/suggest", json={"purpose": "우유 데워줘", "appliance_id": "fan"}
+        "/demo/suggest", json={"purpose": "즉석밥 데워줘", "appliance_id": "fan"}
     ).json()["id"]
 
     client.delete("/appliances/fan")

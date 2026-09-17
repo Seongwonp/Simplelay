@@ -48,8 +48,8 @@ const _sampleEvents = [
   {
     'id': 3,
     'kind': 'quiet_routine',
-    'message': "평소 저녁 시간대의 '우유 데워줘' 사용이 오늘은 없었어요. 안부 전화 한번 어떨까요?",
-    'purpose': '우유 데워줘',
+    'message': "평소 저녁 시간대의 '즉석밥 데워줘' 사용이 오늘은 없었어요. 안부 전화 한번 어떨까요?",
+    'purpose': '즉석밥 데워줘',
     'occurred_at': '2026-09-01T21:05:00+09:00',
   },
   {
@@ -62,8 +62,8 @@ const _sampleEvents = [
   {
     'id': 1,
     'kind': 'execution_failed',
-    'message': "'우유 데워줘' 실행이 완료되지 못했어요. 가전을 확인해 주세요.",
-    'purpose': '우유 데워줘',
+    'message': "'즉석밥 데워줘' 실행이 완료되지 못했어요. 가전을 확인해 주세요.",
+    'purpose': '즉석밥 데워줘',
     'occurred_at': '2026-09-01T09:00:00+09:00',
   },
 ];
@@ -168,7 +168,7 @@ void main() {
     expect(events, isNotNull);
     expect(events!.length, 3);
     expect(events.first.kind, 'quiet_routine');
-    expect(events.first.purpose, '우유 데워줘');
+    expect(events.first.purpose, '즉석밥 데워줘');
 
     // 실패를 빈 목록으로 표현하면 일시적 통신 실패가 "알림이 다 사라짐"
     // 으로 보인다 (교차 리뷰 #13)

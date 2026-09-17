@@ -64,14 +64,14 @@ def _service(buttons: list[str]):
         ),
         clock=FixedClock(_NOW),
         llm_client=MockLlmClient(
-            {"우유 데워줘": '{"sequence": [' + llm_sequence + "]}"}
+            {"즉석밥 데워줘": '{"sequence": [' + llm_sequence + "]}"}
         ),
     )
     return service, grbl
 
 
 _ENTRY_POINTS = [
-    pytest.param(lambda s: s.submit_purpose("우유 데워줘"), id="submit_purpose"),
+    pytest.param(lambda s: s.submit_purpose("즉석밥 데워줘"), id="submit_purpose"),
     pytest.param(
         # 요청 스키마를 거치지 않는 호출자(내부 경로)도 같은 상한을 받는다
         lambda s: s.submit_buttons(tuple(s._intent.resolve("-"))),  # noqa: SLF001
@@ -79,7 +79,7 @@ _ENTRY_POINTS = [
     ),
     pytest.param(
         lambda s: s.submit_purpose_for_appliance(
-            "우유 데워줘", frozenset({"시작", _LONG_LABEL})
+            "즉석밥 데워줘", frozenset({"시작", _LONG_LABEL})
         ),
         id="submit_purpose_for_appliance",
     ),
@@ -107,7 +107,7 @@ def test_refusal_does_not_leak_control_to_the_next_run():
     service, grbl = _service(_TOO_MANY)
 
     with pytest.raises(UnknownIntentError):
-        service.submit_purpose("우유 데워줘")
+        service.submit_purpose("즉석밥 데워줘")
 
     service.execute_buttons(("시작",))
     assert [c.button for c in grbl.commands] == ["시작"]
@@ -139,7 +139,7 @@ def test_oversized_suggestion_approval_is_refused_and_stays_pending():
         intent_resolver=RuleBasedIntentResolver(),
     )
     # 대상 없는 제안은 B10 게이트가 먼저 막는다 — 상한 검사를 보려면 대상이 있어야 한다
-    suggestion = svc.create_demo_suggestion("우유 데워줘", appliance_id="microwave")
+    suggestion = svc.create_demo_suggestion("즉석밥 데워줘", appliance_id="microwave")
     assert suggestion is not None
 
     with pytest.raises(UnknownIntentError):

@@ -254,7 +254,7 @@ void main() {
         _buildSettings(
           executionStatus: const ExecutionStatus(
             phase: ExecutionPhase.running,
-            label: '우유 데워줘',
+            label: '즉석밥 데워줘',
           ),
         ),
       );

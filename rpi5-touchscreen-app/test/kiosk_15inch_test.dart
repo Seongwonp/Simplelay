@@ -85,13 +85,13 @@ Map<String, Widget Function()> _screens() => {
           ),
       '완료': () => KioskDoneView(
             success: true,
-            label: '우유 데워줘',
+            label: '즉석밥 데워줘',
             target: kMicrowaveAppliance,
             onDismiss: () {},
           ),
       '완료 — 확인 못 함': () => KioskDoneView(
             success: false,
-            label: '우유 데워줘',
+            label: '즉석밥 데워줘',
             target: kMicrowaveAppliance,
             onRetry: () {},
             onManual: () {},
@@ -136,10 +136,10 @@ void main() {
       await _pump15(
         tester,
         KioskExecutingView(
-          title: '우유 데워줘',
+          title: '즉석밥 데워줘',
           target: kMicrowaveAppliance,
           lastButtons: null,
-          currentButton: '시간 90초',
+          currentButton: '시작',
           currentAttempt: 1,
           completedSteps: 1,
           totalSteps: 3,
@@ -203,7 +203,7 @@ void main() {
         tester,
         KioskDoneView(
           success: true,
-          label: '우유 데워줘',
+          label: '즉석밥 데워줘',
           target: kMicrowaveAppliance,
           onDismiss: () => dismissed++,
         ),

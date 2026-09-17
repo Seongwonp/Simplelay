@@ -21,7 +21,7 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 ### 앱 → ESP32 명령
 
 ```json
-{ "type": "command", "text": "우유 데우기", "source": "voice" }
+{ "type": "command", "text": "즉석밥 데우기", "source": "voice" }
 { "type": "confirm", "sequence_id": "seq_001", "approved": true }
 { "type": "emergency_stop" }
 ```
@@ -29,7 +29,7 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 ### ESP32 → 앱 상태
 
 ```json
-{ "type": "suggestion", "sequence_id": "seq_001", "label": "우유 데우기", "steps": ["BT-08", "BT-03", "BT-05"] }
+{ "type": "suggestion", "sequence_id": "seq_001", "label": "즉석밥 데우기", "steps": ["BT-08", "BT-05"] }
 { "type": "sensor", "current_ma": 320, "sound_db": 45, "status": "running", "completed_steps": 1 }
 { "type": "result", "sequence_id": "seq_001", "success": true }
 ```
@@ -44,14 +44,14 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 ### ESP32 → RPi5
 
 ```json
-{ "type": "intent", "text": "우유 데우기", "timestamp": 1723700000 }
+{ "type": "intent", "text": "즉석밥 데우기", "timestamp": 1723700000 }
 { "type": "sensor_log", "current_ma": 320, "sound_db": 45 }
 ```
 
 ### RPi5 → ESP32
 
 ```json
-{ "type": "sequence", "id": "seq_001", "label": "우유 데우기", "buttons": ["BT-08", "BT-03", "BT-05"] }
+{ "type": "sequence", "id": "seq_001", "label": "즉석밥 데우기", "buttons": ["BT-08", "BT-05"] }
 { "type": "abort" }
 ```
 

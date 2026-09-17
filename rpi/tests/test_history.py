@@ -16,7 +16,7 @@ from rpi.services.persistence import SimpleLayDb, SqliteJobHistory
 from rpi.verifier import MockVerifier
 
 
-def _entry(job_id="job-1", purpose="우유 데워줘", attempts=(1, 2)):
+def _entry(job_id="job-1", purpose="즉석밥 데워줘", attempts=(1, 2)):
     return JobHistoryEntry(
         job_id=job_id,
         finished_at=datetime(2026, 8, 23, 19, 0, tzinfo=timezone.utc),
@@ -55,7 +55,7 @@ def test_sqlite_history_survives_reopen(tmp_path):
 
     assert len(recent) == 1
     entry = recent[0]
-    assert entry.purpose == "우유 데워줘"
+    assert entry.purpose == "즉석밥 데워줘"
     assert entry.status == "succeeded"
     assert entry.finished_at.tzinfo is not None
     assert [(b.button, b.success, b.attempts) for b in entry.buttons] == [

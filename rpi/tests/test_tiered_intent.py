@@ -30,8 +30,8 @@ def test_first_resolver_success_short_circuits_the_rest():
 
     resolver = TieredIntentResolver((first, second))
 
-    assert resolver.resolve("우유 데워줘") == ("해동", "시작")
-    assert first.calls == ["우유 데워줘"]
+    assert resolver.resolve("즉석밥 데워줘") == ("해동", "시작")
+    assert first.calls == ["즉석밥 데워줘"]
     assert second.calls == []  # 두 번째 티어는 아예 호출도 안 됨
 
 
@@ -41,9 +41,9 @@ def test_falls_through_to_second_tier_when_first_fails():
 
     resolver = TieredIntentResolver((first, second))
 
-    assert resolver.resolve("우유 데워줘") == ("해동", "시작")
-    assert first.calls == ["우유 데워줘"]
-    assert second.calls == ["우유 데워줘"]
+    assert resolver.resolve("즉석밥 데워줘") == ("해동", "시작")
+    assert first.calls == ["즉석밥 데워줘"]
+    assert second.calls == ["즉석밥 데워줘"]
 
 
 def test_all_tiers_failing_raises_unknown_intent_error():
@@ -57,7 +57,7 @@ def test_non_unknown_intent_errors_are_not_swallowed():
     resolver = TieredIntentResolver((_BrokenResolver(), _StubResolver(("시작",))))
 
     with pytest.raises(RuntimeError, match="sensor bus wedged"):
-        resolver.resolve("우유 데워줘")
+        resolver.resolve("즉석밥 데워줘")
 
 
 def test_empty_resolver_list_rejected_at_construction():
@@ -73,7 +73,7 @@ def test_rule_based_resolver_composes_as_the_first_tier():
 
     resolver = TieredIntentResolver((rules, second_tier))
 
-    assert resolver.resolve("우유 데워줘") == ("해동", "시간 90초", "시작")
+    assert resolver.resolve("즉석밥 데워줘") == ("즉석밥", "시작")
     assert second_tier.calls == []  # 규칙이 이미 처리해서 다음 티어까지 안 감
 
     assert resolver.resolve("규칙에 없는 명령") == ("이건 규칙에 없을 때만 나옴",)

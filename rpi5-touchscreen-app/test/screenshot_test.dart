@@ -105,10 +105,10 @@ void main() {
   // 서버가 실제로 주는 모양 -- 시간대가 있어야 '왜 지금'을 문장으로 만든다.
   const suggestion = KioskSuggestion(
     id: 'suggestion-1',
-    purpose: '우유 데워줘',
+    purpose: '즉석밥 데워줘',
     occurrences: 3,
     timeBand: '아침',
-    steps: ['해동', '시간 90초', '시작'],
+    steps: ['즉석밥', '시작'],
   );
 
   testWidgets('대기', (t) async {
@@ -289,13 +289,13 @@ void main() {
       t,
       'executing',
       KioskExecutingView(
-        title: '우유 데워줘',
+        title: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
         lastButtons: null,
-        currentButton: '1분',
+        currentButton: '시작',
         currentAttempt: 1,
         completedSteps: 1,
-        totalSteps: 3,
+        totalSteps: 2,
         verificationConfidence: 0.93,
         verificationDetail: '전류 +14mA · 소리 +9dB',
         onStop: () {},
@@ -308,13 +308,13 @@ void main() {
       t,
       'executing_retry',
       KioskExecutingView(
-        title: '우유 데워줘',
+        title: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
         lastButtons: null,
-        currentButton: '해동',
+        currentButton: '즉석밥',
         currentAttempt: 2,
         completedSteps: 0,
-        totalSteps: 3,
+        totalSteps: 2,
         verificationConfidence: null,
         verificationDetail: null,
         onStop: () {},
@@ -460,13 +460,13 @@ void main() {
       t,
       'kiosk15_executing',
       KioskExecutingView(
-        title: '우유 데워줘',
+        title: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
         lastButtons: null,
-        currentButton: '1분',
+        currentButton: '시작',
         currentAttempt: 1,
         completedSteps: 1,
-        totalSteps: 3,
+        totalSteps: 2,
         verificationConfidence: 0.93,
         verificationDetail: '전류 +14mA · 소리 +9dB',
         onStop: () {},
@@ -480,7 +480,7 @@ void main() {
       'kiosk15_done',
       KioskDoneView(
         success: true,
-        label: '우유 데워줘',
+        label: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
         onDismiss: () {},
       ),
@@ -526,7 +526,7 @@ void main() {
       'done',
       KioskDoneView(
         success: true,
-        label: '우유 데워줘',
+        label: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
         onDismiss: () {},
       ),
@@ -553,7 +553,7 @@ void main() {
       'done_failed',
       KioskDoneView(
         success: false,
-        label: '우유 데워줘',
+        label: '즉석밥 데워줘',
         target: kMicrowaveAppliance,
         onRetry: () {},
         onManual: () {},

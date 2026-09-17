@@ -49,7 +49,7 @@ void main() {
   group('StatusScreen — running 상태', () {
     const runningStatus = ExecutionStatus(
       phase: ExecutionPhase.running,
-      label: '우유 데우기',
+      label: '즉석밥 데우기',
       sequenceId: 's1',
       steps: ['BT-08', 'BT-03', 'BT-05'],
       completedSteps: 1,
@@ -59,7 +59,7 @@ void main() {
 
     testWidgets('라벨 표시', (tester) async {
       await _pumpStatus(tester, runningStatus);
-      expect(find.text('우유 데우기'), findsOneWidget);
+      expect(find.text('즉석밥 데우기'), findsOneWidget);
     });
 
     // 폐루프 증거 -- 서버가 주는 현재 버튼·검증 근거가 화면에 도착해야 한다.
@@ -269,7 +269,7 @@ void main() {
   group('StatusScreen — completed 상태', () {
     const completedStatus = ExecutionStatus(
       phase: ExecutionPhase.completed,
-      label: '우유 데우기',
+      label: '즉석밥 데우기',
       sequenceId: 's3',
       steps: ['BT-08', 'BT-03', 'BT-05'],
       completedSteps: 3,

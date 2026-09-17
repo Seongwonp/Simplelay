@@ -42,7 +42,7 @@ void main() {
       {
         'job_id': 'job-1',
         'finished_at': '2026-08-23T19:30:00+09:00',
-        'purpose': '우유 데워줘',
+        'purpose': '즉석밥 데워줘',
         'status': 'succeeded',
         'retry_count': 2,
         'buttons': [
@@ -66,7 +66,7 @@ void main() {
     await tester.pump();
 
     // 목적 있는 실행은 목적으로, 없는 실행은 버튼 라벨로 표시
-    expect(find.text('우유 데워줘'), findsOneWidget);
+    expect(find.text('즉석밥 데워줘'), findsOneWidget);
     // 끝이 안 좋았던 실행은 제목과 단계 목록 두 곳에 버튼이 나온다
     expect(find.text('전원'), findsNWidgets(2));
     // 폐루프 회복 배지 — 이 화면의 존재 이유
@@ -130,7 +130,7 @@ void main() {
       {
         'job_id': 'job-b',
         'finished_at': '2026-09-08T19:00:00+09:00',
-        'purpose': '우유 데워줘',
+        'purpose': '즉석밥 데워줘',
         'status': 'succeeded',
         'retry_count': 0,
         'buttons': [

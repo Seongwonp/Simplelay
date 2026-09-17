@@ -75,9 +75,9 @@ class TestParseSearchTextOutput:
         assert parse_search_text_output("") == []
 
     def test_single_result_parsed(self):
-        raw = 'STRING "id-1";\nSTRING "우유 데워줘";\nDOUBLE 0.92;\n'
+        raw = 'STRING "id-1";\nSTRING "즉석밥 데워줘";\nDOUBLE 0.92;\n'
         results = parse_search_text_output(raw)
-        assert results == [SearchResult(id="id-1", metadata={}, original_data="우유 데워줘", score=0.92)]
+        assert results == [SearchResult(id="id-1", metadata={}, original_data="즉석밥 데워줘", score=0.92)]
 
     def test_multiple_results_parsed_in_order(self):
         raw = (
@@ -98,14 +98,14 @@ class TestParseSearchTextOutput:
             'STRING "id-1";\n'
             'STRING "buttons";\n'
             'STRING "해동,시작";\n'
-            'STRING "우유 데워줘";\n'
+            'STRING "즉석밥 데워줘";\n'
             "DOUBLE 0.92;\n"
         )
         assert parse_search_text_output(raw) == [
             SearchResult(
                 id="id-1",
                 metadata={"buttons": "해동,시작"},
-                original_data="우유 데워줘",
+                original_data="즉석밥 데워줘",
                 score=0.92,
             )
         ]
@@ -144,7 +144,7 @@ class TestVectordbClientAddText:
         runner.script("AddText", stdout='Response: "id-42"\n')
         client = _make_client(runner)
 
-        result_id = client.add_text("우유 데워줘", {"buttons": "해동,시작"})
+        result_id = client.add_text("즉석밥 데워줘", {"buttons": "해동,시작"})
 
         assert result_id == "id-42"
 
@@ -153,11 +153,11 @@ class TestVectordbClientAddText:
         runner.script("AddText", stdout='Response: "id-1"\n')
         client = _make_client(runner)
 
-        client.add_text("우유 데워줘", {"buttons": "해동,시작"})
+        client.add_text("즉석밥 데워줘", {"buttons": "해동,시작"})
 
         argv = runner.calls[0]
         assert argv[:4] == ["fake-dbus-cli", "call", "com.example.TestVectordb1", "AddText"]
-        assert "우유 데워줘" in argv
+        assert "즉석밥 데워줘" in argv
         assert "-o" in argv and "/com/example/TestVectordb1" in argv
 
     def test_unparseable_output_raises(self):
@@ -166,7 +166,7 @@ class TestVectordbClientAddText:
         client = _make_client(runner)
 
         with pytest.raises(VectordbClientError, match="could not parse"):
-            client.add_text("우유 데워줘", {"buttons": "해동"})
+            client.add_text("즉석밥 데워줘", {"buttons": "해동"})
 
     def test_nonzero_returncode_raises(self):
         runner = FakeRunner()
@@ -174,7 +174,7 @@ class TestVectordbClientAddText:
         client = _make_client(runner)
 
         with pytest.raises(VectordbClientError, match="EmbeddingFailed"):
-            client.add_text("우유 데워줘", {"buttons": "해동"})
+            client.add_text("즉석밥 데워줘", {"buttons": "해동"})
 
     def test_missing_cli_binary_raises(self):
         runner = FakeRunner()
@@ -182,7 +182,7 @@ class TestVectordbClientAddText:
         client = _make_client(runner)
 
         with pytest.raises(VectordbClientError, match="not found"):
-            client.add_text("우유 데워줘", {"buttons": "해동"})
+            client.add_text("즉석밥 데워줘", {"buttons": "해동"})
 
     def test_timeout_raises(self):
         runner = FakeRunner()
@@ -190,16 +190,16 @@ class TestVectordbClientAddText:
         client = _make_client(runner)
 
         with pytest.raises(VectordbClientError, match="timed out"):
-            client.add_text("우유 데워줘", {"buttons": "해동"})
+            client.add_text("즉석밥 데워줘", {"buttons": "해동"})
 
 
 class TestVectordbClientSearchText:
     def test_parses_results(self):
         runner = FakeRunner()
-        runner.script("SearchText", stdout='STRING "id-1";\nSTRING "우유 데워줘";\nDOUBLE 0.91;\n')
+        runner.script("SearchText", stdout='STRING "id-1";\nSTRING "즉석밥 데워줘";\nDOUBLE 0.91;\n')
         client = _make_client(runner)
 
-        results = client.search_text("우유 좀 데워줄래", top_k=1)
+        results = client.search_text("즉석밥 좀 데워줄래", top_k=1)
 
         assert len(results) == 1
         assert results[0].id == "id-1"
@@ -218,7 +218,7 @@ class TestVectordbClientSearchText:
         client = _make_client(runner)
 
         with pytest.raises(VectordbClientError, match="DatabaseNotLoaded"):
-            client.search_text("우유 데워줘")
+            client.search_text("즉석밥 데워줘")
 
 
 class TestVectordbClientCreateDb:
@@ -244,10 +244,10 @@ def _result(id_: str, buttons: str | None, score: float) -> SearchResult:
 
 class TestVectordbIntentResolver:
     def test_good_match_returns_button_sequence(self):
-        client = FakeVectordbClient({"우유 좀 데워줄래": [_result("id-1", "해동,시작", 0.9)]})
+        client = FakeVectordbClient({"즉석밥 좀 데워줄래": [_result("id-1", "해동,시작", 0.9)]})
         resolver = VectordbIntentResolver(client)
 
-        assert resolver.resolve("우유 좀 데워줄래") == ("해동", "시작")
+        assert resolver.resolve("즉석밥 좀 데워줄래") == ("해동", "시작")
 
     def test_no_results_raises_unknown_intent(self):
         client = FakeVectordbClient({})
@@ -302,12 +302,12 @@ class TestVectordbIntentResolver:
             resolver.resolve("명령")
 
     def test_purpose_text_is_stripped_before_search(self):
-        client = FakeVectordbClient({"우유 데워줘": [_result("id-1", "해동", 0.9)]})
+        client = FakeVectordbClient({"즉석밥 데워줘": [_result("id-1", "해동", 0.9)]})
         resolver = VectordbIntentResolver(client)
 
-        resolver.resolve("  우유 데워줘  ")
+        resolver.resolve("  즉석밥 데워줘  ")
 
-        assert client.calls == [("우유 데워줘", 1)]
+        assert client.calls == [("즉석밥 데워줘", 1)]
 
     def test_composes_as_a_tier_after_rule_based_resolver(self):
         # docs/inference-boundary.md 형태: 규칙기반이 먼저, 안 걸리면 벡터DB로
@@ -317,7 +317,7 @@ class TestVectordbIntentResolver:
         resolver = TieredIntentResolver((rules, vectordb))
 
         # 규칙기반이 처리 -- 벡터DB는 호출도 안 됨
-        assert resolver.resolve("우유 데워줘") == ("해동", "시간 90초", "시작")
+        assert resolver.resolve("즉석밥 데워줘") == ("즉석밥", "시작")
         assert client.calls == []
 
         # 규칙에 없는 명령은 벡터DB로 넘어감
@@ -340,7 +340,7 @@ class TestSeedExamples:
             )
 
         client = VectordbClient(config=_TEST_CONFIG, runner=_script)
-        examples = {"우유 데워줘": ("해동", "시작"), "에어컨 켜줘": ("AC-01",)}
+        examples = {"즉석밥 데워줘": ("해동", "시작"), "에어컨 켜줘": ("AC-01",)}
 
         result = seed_examples(client, examples)
 
@@ -355,9 +355,9 @@ class TestSeedExamples:
             return subprocess.CompletedProcess(args=argv, returncode=0, stdout='Response: "id-1"\n', stderr="")
 
         client = VectordbClient(config=_TEST_CONFIG, runner=_script)
-        seed_examples(client, {"우유 데워줘": ("해동", "시간 90초", "시작")})
+        seed_examples(client, {"즉석밥 데워줘": ("즉석밥", "시작")})
 
-        assert any("해동,시간 90초,시작" in arg for arg in captured["argv"])
+        assert any("즉석밥,시작" in arg for arg in captured["argv"])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -385,23 +385,23 @@ class TestParserResolverSeam:
             'STRING "id-1";\n'
             'STRING "buttons";\n'
             'STRING "해동,시작";\n'
-            'STRING "우유 데워줘";\n'
+            'STRING "즉석밥 데워줘";\n'
             "DOUBLE 0.92;\n"
         )
-        assert self._resolver_reading(raw).resolve("우유 좀 데워줄래") == ("해동", "시작")
+        assert self._resolver_reading(raw).resolve("즉석밥 좀 데워줄래") == ("해동", "시작")
 
     def test_low_score_output_falls_through(self):
         raw = (
             'STRING "id-1";\nSTRING "buttons";\nSTRING "해동";\n'
-            'STRING "우유 데워줘";\nDOUBLE 0.10;\n'
+            'STRING "즉석밥 데워줘";\nDOUBLE 0.10;\n'
         )
         with pytest.raises(UnknownIntentError, match="below threshold"):
             self._resolver_reading(raw).resolve("전혀 다른 명령")
 
     def test_output_without_metadata_falls_through(self):
-        raw = 'STRING "id-1";\nSTRING "우유 데워줘";\nDOUBLE 0.92;\n'
+        raw = 'STRING "id-1";\nSTRING "즉석밥 데워줘";\nDOUBLE 0.92;\n'
         with pytest.raises(UnknownIntentError, match="no usable"):
-            self._resolver_reading(raw).resolve("우유 좀 데워줄래")
+            self._resolver_reading(raw).resolve("즉석밥 좀 데워줄래")
 
     def test_empty_output_falls_through(self):
         with pytest.raises(UnknownIntentError):
@@ -412,4 +412,4 @@ class TestParserResolverSeam:
         vectordb = self._resolver_reading("")
         tiered = TieredIntentResolver([vectordb, RuleBasedIntentResolver()])
 
-        assert tiered.resolve("우유 데워줘")
+        assert tiered.resolve("즉석밥 데워줘")

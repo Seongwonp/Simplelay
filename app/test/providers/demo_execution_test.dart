@@ -103,7 +103,7 @@ void main() {
       final container = await _container(log, demo: true);
       final api = container.read(rpiApiServiceProvider)!;
 
-      await api.execute('우유 데워줘');
+      await api.execute('즉석밥 데워줘');
       await api.executeButtons(['시작']);
       await api.executeForAppliance('켜줘', ['전원'], applianceId: 'fan');
 
@@ -115,7 +115,7 @@ void main() {
       final container = await _container(log, demo: false);
       final api = container.read(rpiApiServiceProvider)!;
 
-      await api.execute('우유 데워줘');
+      await api.execute('즉석밥 데워줘');
 
       expect(log.executes, ['/execute']);
     });
@@ -125,11 +125,11 @@ void main() {
       final container = await _container(log, demo: true);
       final api = container.read(rpiApiServiceProvider)!;
 
-      final accepted = await api.execute('우유 데워줘');
+      final accepted = await api.execute('즉석밥 데워줘');
       container.read(executionStatusProvider.notifier).beginHttpJob(
             api: api,
             jobId: accepted.jobId,
-            label: '우유 데워줘',
+            label: '즉석밥 데워줘',
             steps: const ['해동', '시작'],
           );
       await Future<void>.delayed(const Duration(milliseconds: 4000));
@@ -151,7 +151,7 @@ void main() {
       container.read(executionStatusProvider.notifier).beginHttpJob(
             api: api,
             jobId: 'demo-1',
-            label: '우유 데워줘',
+            label: '즉석밥 데워줘',
           );
 
       expect(container.read(executionStatusProvider).isDemo, isTrue);
@@ -166,7 +166,7 @@ void main() {
       container.read(executionStatusProvider.notifier).beginHttpJob(
             api: api,
             jobId: 'demo-1',
-            label: '우유 데워줘',
+            label: '즉석밥 데워줘',
           );
       container.read(demoModeProvider.notifier).state = false;
 
@@ -181,7 +181,7 @@ void main() {
       container.read(executionStatusProvider.notifier).beginHttpJob(
             api: api,
             jobId: 'REAL-1',
-            label: '우유 데워줘',
+            label: '즉석밥 데워줘',
           );
       container.read(demoModeProvider.notifier).state = true;
 

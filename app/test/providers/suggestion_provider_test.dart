@@ -62,7 +62,7 @@ void main() {
       c.read(bleServiceProvider).injectMessage({
         'type': 'suggestion',
         'sequence_id': 'test-001',
-        'label': '우유 데우기',
+        'label': '즉석밥 데우기',
         'steps': ['BT-08', 'BT-03', 'BT-05'],
       });
 
@@ -70,7 +70,7 @@ void main() {
       final suggestions = c.read(suggestionProvider);
       expect(suggestions.length, 1);
       expect(suggestions.first.sequenceId, 'test-001');
-      expect(suggestions.first.label, '우유 데우기');
+      expect(suggestions.first.label, '즉석밥 데우기');
     });
 
     test('replaces existing suggestion with same sequenceId', () async {
@@ -134,7 +134,7 @@ void main() {
       final fake = _FakeSuggestionsSetup([
         {
           'id': 'http-001',
-          'purpose': '우유 데워줘',
+          'purpose': '즉석밥 데워줘',
           'time_band': '아침',
           'occurrences': 3,
           'steps': ['해동', '시작'], // 백엔드는 라벨 문자열로 준다
@@ -152,7 +152,7 @@ void main() {
       final suggestions = c.read(suggestionProvider);
       expect(suggestions.length, 1);
       expect(suggestions.first.sequenceId, 'http-001');
-      expect(suggestions.first.label, '우유 데워줘');
+      expect(suggestions.first.label, '즉석밥 데워줘');
       expect(suggestions.first.source, SuggestionSource.http);
       // **대상 가전**의 버튼맵으로 라벨→코드 역매핑됨: "해동"→BT-07, "시작"→BT-05
       expect(suggestions.first.steps, ['BT-07', 'BT-05']);
@@ -162,7 +162,7 @@ void main() {
       final fake = _FakeSuggestionsSetup([
         {
           'id': 'http-002',
-          'purpose': '우유 데워줘',
+          'purpose': '즉석밥 데워줘',
           'time_band': '아침',
           'occurrences': 3,
           'steps': ['시간 90초'], // 실제 버튼맵엔 없는 라벨 — 데이터 불일치 케이스
@@ -182,7 +182,7 @@ void main() {
       final fake = _FakeSuggestionsSetup([
         {
           'id': 'http-003',
-          'purpose': '우유 데워줘',
+          'purpose': '즉석밥 데워줘',
           'time_band': '아침',
           'occurrences': 3,
           'steps': <String>[],
@@ -207,7 +207,7 @@ void main() {
       final fake = _FakeSuggestionsSetup([
         {
           'id': 'http-004',
-          'purpose': '우유 데워줘',
+          'purpose': '즉석밥 데워줘',
           'time_band': '아침',
           'occurrences': 3,
           'steps': <String>[],

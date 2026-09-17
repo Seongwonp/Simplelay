@@ -41,7 +41,7 @@ def _make_service(node_registry: NodeRegistry | None = None) -> tuple[SimpleLayS
         RuleBasedIntentResolver(),
         local_controller,
         node_registry=node_registry,
-        llm_client=MockLlmClient({"우유 데워줘": '{"sequence": ["시작"]}'}),
+        llm_client=MockLlmClient({"즉석밥 데워줘": '{"sequence": ["시작"]}'}),
     )
     return service, grbl
 
@@ -94,11 +94,11 @@ def test_execute_purpose_routes_to_node_when_registered():
     registry.register("microwave", "http://node")
     service, grbl = _make_service(registry)
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     assert grbl.commands == []
     node = registry.get("microwave")
-    assert node.calls == [["해동", "시간 90초", "시작"]]
+    assert node.calls == [["즉석밥", "시작"]]
 
 
 def test_execute_purpose_for_appliance_routes_to_node_when_registered():
@@ -107,7 +107,7 @@ def test_execute_purpose_for_appliance_routes_to_node_when_registered():
     service, grbl = _make_service(registry)
 
     service.execute_purpose_for_appliance(
-        "우유 데워줘", frozenset({"시작"}), appliance_id="aircon"
+        "즉석밥 데워줘", frozenset({"시작"}), appliance_id="aircon"
     )
 
     assert grbl.commands == []

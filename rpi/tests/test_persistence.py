@@ -7,7 +7,7 @@ from rpi.services.node_registry import NodeRegistry
 from rpi.services.persistence import SimpleLayDb, SqliteUsageLog
 
 
-def _record(purpose="우유 데워줘", outcome=UsageOutcome.SUCCEEDED):
+def _record(purpose="즉석밥 데워줘", outcome=UsageOutcome.SUCCEEDED):
     return UsageRecord(
         datetime(2026, 8, 21, 19, 30, tzinfo=timezone.utc), purpose, outcome
     )
@@ -25,7 +25,7 @@ def test_usage_log_survives_reopen(tmp_path):
     records = reopened.records()
 
     assert len(records) == 2
-    assert records[0].purpose == "우유 데워줘"
+    assert records[0].purpose == "즉석밥 데워줘"
     assert records[0].outcome is UsageOutcome.SUCCEEDED
     assert records[1].outcome is UsageOutcome.FAILED
     # timezone-aware가 보존돼야 패턴 감지의 시간대 판정이 안 깨진다

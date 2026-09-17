@@ -272,7 +272,7 @@ def test_builtin_without_a_node_still_runs_on_the_local_controller():
     readiness = ReadinessRegistry(clock=FixedClock(_NOW))
     service, _, _ = _setup(readiness=readiness)
 
-    result = service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    result = service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     assert result.status is ExecutionStatus.SUCCEEDED
 
@@ -398,7 +398,7 @@ def test_http_builtin_without_a_node_stays_executable(client):
     row = next(a for a in client.get("/appliances").json() if a["id"] == "microwave")
 
     assert row["can_execute"] is True
-    res = client.post("/execute", json={"text": "우유 데워줘", "appliance_id": "microwave"})
+    res = client.post("/execute", json={"text": "즉석밥 데워줘", "appliance_id": "microwave"})
     assert res.status_code == 200
 
 
@@ -452,7 +452,7 @@ def test_builtin_without_a_node_is_still_allowed():
     """내장 가전은 로컬 컨트롤러가 **자기 액추에이터**다."""
     service, local = _setup_nodeless_custom()
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     assert local._grbl.commands != []
 

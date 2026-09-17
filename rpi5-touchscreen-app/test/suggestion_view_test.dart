@@ -7,10 +7,10 @@ import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 const _sug = KioskSuggestion(
   id: 's1',
-  purpose: '우유 데워줘',
+  purpose: '즉석밥 데워줘',
   occurrences: 3,
   timeBand: '아침',
-  steps: ['해동', '시간 90초', '시작'],
+  steps: ['즉석밥', '시작'],
   applianceId: 'microwave',
 );
 
@@ -38,9 +38,9 @@ void main() {
     await _pump(tester, target: kMicrowaveAppliance);
 
     expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('우유 데워줘,\n지금 할까요?'), findsOneWidget);
+    expect(find.text('즉석밥 데워줘,\n지금 할까요?'), findsOneWidget);
     expect(find.text('누를 순서'), findsOneWidget);
-    for (final (i, label) in [(1, '해동'), (2, '시간 90초'), (3, '시작')]) {
+    for (final (i, label) in [(1, '즉석밥'), (2, '시작')]) {
       expect(find.text('$i'), findsOneWidget);
       expect(find.text(label), findsOneWidget);
     }
@@ -102,7 +102,7 @@ void main() {
   test('서버가 준 appliance_id를 받는다', () {
     final parsed = KioskSuggestion.fromJson({
       'id': 's1',
-      'purpose': '우유 데워줘',
+      'purpose': '즉석밥 데워줘',
       'appliance_id': 'custom_fan',
     });
     expect(parsed.applianceId, 'custom_fan');

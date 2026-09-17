@@ -179,7 +179,7 @@ def test_execution_is_refused_while_developer_holds_control() -> None:
     arbiter.acquire(ControlArbiter.DEVELOPER)
 
     with pytest.raises(ControlConflictError):
-        service.execute_purpose("우유 데워줘")
+        service.execute_purpose("즉석밥 데워줘")
     # 거절된 실행은 기계에 닿지 않는다.
     assert grbl.commands == []
 
@@ -190,17 +190,17 @@ def test_execution_is_refused_while_faulted() -> None:
     arbiter.trip_fault("stop_unconfirmed:emergency_stop")
 
     with pytest.raises(ControlFaultedError):
-        service.execute_purpose("우유 데워줘")
+        service.execute_purpose("즉석밥 데워줘")
 
 
 def test_execution_releases_control_on_success_and_failure() -> None:
     arbiter = ControlArbiter()
     service = _service(arbiter)
-    service.execute_purpose("우유 데워줘")
+    service.execute_purpose("즉석밥 데워줘")
     assert arbiter.holder is None
 
     failing = _service(arbiter, _controller([False] * 50)[0])
-    failing.execute_purpose("우유 데워줘")
+    failing.execute_purpose("즉석밥 데워줘")
     assert arbiter.holder is None
 
 
@@ -215,7 +215,7 @@ def test_execution_releases_control_when_the_controller_raises() -> None:
     )
 
     with pytest.raises(RuntimeError):
-        service.execute_purpose("우유 데워줘")
+        service.execute_purpose("즉석밥 데워줘")
     assert arbiter.holder is None
 
 
@@ -234,7 +234,7 @@ def test_developer_cannot_take_control_during_a_running_execution() -> None:
     service = SimpleLayService(
         RuleBasedIntentResolver(), _Blocking(), control_arbiter=arbiter
     )
-    service.submit_purpose("우유 데워줘")
+    service.submit_purpose("즉석밥 데워줘")
     assert started.wait(timeout=5)
 
     with pytest.raises(ControlConflictError):

@@ -54,20 +54,20 @@ void main() {
     container.read(executionStatusProvider.notifier).beginHttpJob(
           api: _apiReturning({'running': true, 'job_id': 'J9'}),
           jobId: 'J9',
-          label: '우유 데워줘',
+          label: '즉석밥 데워줘',
         );
     await Future<void>.delayed(const Duration(milliseconds: 50));
 
     final prefs = await SharedPreferences.getInstance();
     expect(prefs.getString('pending_job_id'), 'J9');
-    expect(prefs.getString('pending_job_label'), '우유 데워줘');
+    expect(prefs.getString('pending_job_label'), '즉석밥 데워줘');
   });
 
   test('재시작하면 남은 job을 이어서 확인하고, 이미 끝났으면 결과를 보여준다', () async {
     // 앞선 실행이 남긴 흔적만 있는 상태에서 앱이 새로 뜬다.
     SharedPreferences.setMockInitialValues({
       'pending_job_id': 'J1',
-      'pending_job_label': '우유 데워줘',
+      'pending_job_label': '즉석밥 데워줘',
     });
     final container = _container(_apiReturning({
       'running': false,
@@ -83,7 +83,7 @@ void main() {
 
     final state = container.read(executionStatusProvider);
     expect(state.phase, ExecutionPhase.completed);
-    expect(state.label, '우유 데워줘');
+    expect(state.label, '즉석밥 데워줘');
 
     // 결말이 난 job은 더 이상 이어붙일 것이 없다.
     final prefs = await SharedPreferences.getInstance();
@@ -93,7 +93,7 @@ void main() {
   test('남은 job이 아직 실행 중이면 실행 중 화면으로 이어붙인다', () async {
     SharedPreferences.setMockInitialValues({
       'pending_job_id': 'J1',
-      'pending_job_label': '우유 데워줘',
+      'pending_job_label': '즉석밥 데워줘',
     });
     final container = _container(_apiReturning({
       'running': true,

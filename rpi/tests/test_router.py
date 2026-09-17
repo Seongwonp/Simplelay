@@ -60,7 +60,7 @@ def _wait_job_done(client, job_id, timeout=2.0):
 # ── /execute ──────────────────────────────────────────────────────────────────
 
 def test_execute_known_purpose_succeeds(client):
-    response = client.post("/execute", json={"text": "우유 데워줘"})
+    response = client.post("/execute", json={"text": "즉석밥 데워줘"})
     assert response.status_code == 200
     body = response.json()
     # job 모델: 즉시 접수 응답, 결과는 /status 폴링 + job_id 대조로
@@ -69,7 +69,7 @@ def test_execute_known_purpose_succeeds(client):
 
     status = _wait_job_done(client, body["job_id"])
     assert status["last_status"] == "succeeded"
-    assert len(status["last_buttons"]) == 3
+    assert len(status["last_buttons"]) == 2
     assert all(step["success"] for step in status["last_buttons"])
 
 
@@ -89,7 +89,7 @@ def test_execute_concurrent_returns_409(client):
     svc = get_service()
     svc._running = True
     try:
-        response = client.post("/execute", json={"text": "우유 데워줘"})
+        response = client.post("/execute", json={"text": "즉석밥 데워줘"})
         assert response.status_code == 409
     finally:
         svc._running = False
@@ -211,7 +211,7 @@ def test_status_initially_idle(client):
 
 
 def test_status_after_execute_shows_last_result(client):
-    accepted = client.post("/execute", json={"text": "우유 데워줘"}).json()
+    accepted = client.post("/execute", json={"text": "즉석밥 데워줘"}).json()
     body = _wait_job_done(client, accepted["job_id"])
     assert body["last_status"] == "succeeded"
     assert body["last_buttons"] is not None
@@ -230,7 +230,7 @@ def test_status_initially_has_no_live_progress_fields(client):
 def test_status_after_execute_completes_clears_live_progress_fields(client):
     # 실행이 끝나면 진행 상황 트래커가 초기화되므로, 완료 후 조회한 /status에는
     # 마지막 결과(last_*)만 남고 실행 중이던 진행 정보(current_*)는 사라져야 한다.
-    accepted = client.post("/execute", json={"text": "우유 데워줘"}).json()
+    accepted = client.post("/execute", json={"text": "즉석밥 데워줘"}).json()
     _wait_job_done(client, accepted["job_id"])
     response = client.get("/status")
     body = response.json()
@@ -553,7 +553,7 @@ def test_history_empty_initially(client):
 
 
 def test_history_records_executions_newest_first(client):
-    first = client.post("/execute", json={"text": "우유 데워줘"}).json()
+    first = client.post("/execute", json={"text": "즉석밥 데워줘"}).json()
     _wait_job_done(client, first["job_id"])
     second = client.post("/execute-buttons", json={"buttons": ["전원"]}).json()
     _wait_job_done(client, second["job_id"])
@@ -567,7 +567,7 @@ def test_history_records_executions_newest_first(client):
     assert entries[0]["buttons"] == [
         {"button": "전원", "success": True, "attempts": 1}
     ]
-    assert entries[1]["purpose"] == "우유 데워줘"
+    assert entries[1]["purpose"] == "즉석밥 데워줘"
     assert entries[1]["status"] == "succeeded"
     assert entries[1]["finished_at"]  # ISO 타임스탬프 존재
 

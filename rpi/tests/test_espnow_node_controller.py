@@ -167,7 +167,7 @@ class TestExecute:
     ):
         # 게이트웨이는 BLE 브릿지 역할을 겸하므로 같은 UART에 남의 줄이 섞인다
         port.extra_traffic = [
-            {"type": "suggestion", "label": "우유 데우기"},
+            {"type": "suggestion", "label": "즉석밥 데우기"},
             "not json at all",
             {"type": "node_result", "sequence_id": "gw-999", "success": False, "retry": 9},
         ]
@@ -187,7 +187,7 @@ class TestExecute:
         버렸다 -- BLE 브릿지의 제안·센서 줄이 실행 중에 도착하면 그대로 사라졌다.
         """
         seen: list[dict] = []
-        port.extra_traffic = [{"type": "suggestion", "label": "우유 데우기"}]
+        port.extra_traffic = [{"type": "suggestion", "label": "즉석밥 데우기"}]
         port.reply_to_execute = {"type": "node_result", "success": True, "retry": 0}
         made = EspNowGatewayLink(port, on_unclaimed_line=seen.append)
         try:

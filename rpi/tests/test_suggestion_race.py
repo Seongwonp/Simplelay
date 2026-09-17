@@ -62,7 +62,7 @@ def test_concurrent_approve_and_reject_exactly_one_wins():
 
     for round_no in range(RACE_ROUNDS):
         suggestion = service.create_demo_suggestion(
-            f"우유 데워줘 {round_no}", appliance_id="microwave"
+            f"즉석밥 데워줘 {round_no}", appliance_id="microwave"
         )
         assert suggestion is not None
         barrier = threading.Barrier(2)
@@ -100,7 +100,7 @@ def test_concurrent_approve_and_reject_exactly_one_wins():
             f"rejected={outcomes['rejected']}"
         )
         # 거부가 이겼다면 이 라운드의 purpose는 제출 목록에 없어야 한다
-        purpose = f"우유 데워줘 {round_no}"
+        purpose = f"즉석밥 데워줘 {round_no}"
         count = executor.submitted.count(purpose)
         assert count == (1 if outcomes["approved"] else 0)
 

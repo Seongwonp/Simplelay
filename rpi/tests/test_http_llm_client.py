@@ -33,7 +33,7 @@ def test_complete_extracts_message_content(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr("rpi.intent.llm.urllib.request.urlopen", fake_urlopen)
 
     client = HttpLlmClient(CONFIG)
-    assert client.complete("우유 데워줘", ("해동", "시작")) == '{"sequence": ["해동"]}'
+    assert client.complete("즉석밥 데워줘", ("해동", "시작")) == '{"sequence": ["해동"]}'
 
 
 def test_request_does_not_use_the_default_python_user_agent(
@@ -50,7 +50,7 @@ def test_request_does_not_use_the_default_python_user_agent(
 
     monkeypatch.setattr("rpi.intent.llm.urllib.request.urlopen", fake_urlopen)
 
-    HttpLlmClient(CONFIG).complete("우유 데워줘", ())
+    HttpLlmClient(CONFIG).complete("즉석밥 데워줘", ())
 
     assert seen["ua"]
     assert "python-urllib" not in seen["ua"].lower()
@@ -64,7 +64,7 @@ def test_network_failure_becomes_llm_output_error(monkeypatch: pytest.MonkeyPatc
 
     client = HttpLlmClient(CONFIG)
     with pytest.raises(LlmOutputError):
-        client.complete("우유 데워줘", ())
+        client.complete("즉석밥 데워줘", ())
 
 
 def test_unexpected_response_shape_becomes_llm_output_error(
@@ -78,4 +78,4 @@ def test_unexpected_response_shape_becomes_llm_output_error(
 
     client = HttpLlmClient(CONFIG)
     with pytest.raises(LlmOutputError):
-        client.complete("우유 데워줘", ())
+        client.complete("즉석밥 데워줘", ())

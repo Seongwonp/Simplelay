@@ -18,7 +18,7 @@ import 'package:simplelay/services/ble_service.dart';
 
 const kTestSuggestion = Suggestion(
   sequenceId: 'test-001',
-  label: '우유 데우기',
+  label: '즉석밥 데우기',
   steps: ['BT-08', 'BT-03', 'BT-05'],
 );
 

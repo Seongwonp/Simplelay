@@ -110,7 +110,7 @@ def test_remote_node_execution_is_not_recorded_as_the_local_mode():
     node = _Node(ExecutionMode.REAL)
     service = _service(history, nodes=_registry_with("microwave", node))
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     assert node.calls, "원격 노드가 실제로 실행했다"
     (entry,) = history.recent()
@@ -124,7 +124,7 @@ def test_remote_node_running_mocks_is_recorded_as_mock():
     node = _Node(ExecutionMode.MOCK)
     service = _service(history, nodes=_registry_with("microwave", node))
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     (entry,) = history.recent()
     assert entry.execution_mode is ExecutionMode.MOCK
@@ -135,7 +135,7 @@ def test_local_mock_controller_says_mock_without_being_told():
     history = InMemoryJobHistory()
     service = _service(history)
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     (entry,) = history.recent()
     assert entry.execution_mode is ExecutionMode.MOCK
@@ -148,7 +148,7 @@ def test_controller_that_declares_nothing_is_unknown():
     node = _SilentNode()
     service = _service(history, nodes=_registry_with("microwave", node))
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     (entry,) = history.recent()
     assert entry.execution_mode is ExecutionMode.UNKNOWN
@@ -182,7 +182,7 @@ def test_two_appliances_two_modes_in_one_server():
         appliance_registry=appliances,
     )
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")  # 로컬 mock
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")  # 로컬 mock
     service.execute_buttons(("전원",), appliance_id="aircon")  # 원격 real
 
     modes = {
@@ -203,7 +203,7 @@ def test_async_job_path_records_the_target_mode_too():
     node = _Node(ExecutionMode.REAL)
     service = _service(history, nodes=_registry_with("microwave", node))
 
-    service.submit_purpose("우유 데워줘", appliance_id="microwave")
+    service.submit_purpose("즉석밥 데워줘", appliance_id="microwave")
     for _ in range(200):
         if history.recent():
             break
@@ -225,7 +225,7 @@ def test_csv_export_reflects_the_target_mode(tmp_path):
     node = _Node(ExecutionMode.REAL)
     service = _service(history, nodes=_registry_with("microwave", node))
 
-    service.execute_purpose("우유 데워줘", appliance_id="microwave")
+    service.execute_purpose("즉석밥 데워줘", appliance_id="microwave")
 
     line = history_csv(history.recent()).splitlines()[1]
     assert ",real," in line

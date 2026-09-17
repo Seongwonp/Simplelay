@@ -18,7 +18,7 @@ def test_default_construction_is_ready_immediately():
     service = build_service()
 
     assert service.status().ready is True
-    result = service.execute_purpose("우유 데워줘")
+    result = service.execute_purpose("즉석밥 데워줘")
     assert result is not None
 
 
@@ -27,7 +27,7 @@ def test_not_started_ready_rejects_execution():
 
     assert service.status().ready is False
     with pytest.raises(ServiceNotReadyError):
-        service.execute_purpose("우유 데워줘")
+        service.execute_purpose("즉석밥 데워줘")
 
 
 def test_mark_ready_allows_execution():
@@ -36,24 +36,24 @@ def test_mark_ready_allows_execution():
     service.mark_ready()
 
     assert service.status().ready is True
-    result = service.execute_purpose("우유 데워줘")
+    result = service.execute_purpose("즉석밥 데워줘")
     assert result is not None
 
 
 def test_request_shutdown_rejects_new_purposes():
     service = build_service()
-    service.execute_purpose("우유 데워줘")  # completes normally before shutdown
+    service.execute_purpose("즉석밥 데워줘")  # completes normally before shutdown
 
     service.request_shutdown()
 
     assert service.status().ready is False
     with pytest.raises(ServiceNotReadyError):
-        service.execute_purpose("우유 데워줘")
+        service.execute_purpose("즉석밥 데워줘")
 
 
 def test_shutdown_does_not_clear_the_last_completed_result():
     service = build_service()
-    result = service.execute_purpose("우유 데워줘")
+    result = service.execute_purpose("즉석밥 데워줘")
 
     service.request_shutdown()
 

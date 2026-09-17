@@ -425,7 +425,7 @@ void main() {
       final container = await _makeContainer(
         extra: [rpiApiServiceProvider.overrideWithValue(api)],
       );
-      container.read(voiceTextProvider.notifier).state = '우유 데워줘';
+      container.read(voiceTextProvider.notifier).state = '즉석밥 데워줘';
 
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
@@ -434,7 +434,7 @@ void main() {
 
       expect(captured!.url.path, '/execute');
       expect(jsonDecode(captured!.body), {
-        'text': '우유 데워줘',
+        'text': '즉석밥 데워줘',
         'source': 'voice',
         'appliance_id': 'microwave',
       });
@@ -629,7 +629,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 
-      voice.emitSilence('우유 데워줘');
+      voice.emitSilence('즉석밥 데워줘');
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 200));
 

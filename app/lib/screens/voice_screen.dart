@@ -336,7 +336,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
 
     // 내장 가전(전자레인지)만 실제로 매칭되는 규칙이 있어서 그 예시를 쓰고,
     // 사용자 정의 가전은 등록된 실제 버튼 라벨로 예시를 만든다 — 안 그러면
-    // "우유 데워줘" 힌트가 우유 버튼도 없는 가전에서도 그대로 보이게 된다.
+    // "즉석밥 데워줘" 힌트가 즉석밥 버튼도 없는 가전에서도 그대로 보이게 된다.
     final hintExample = appliance.isCustom && appliance.buttons.isNotEmpty
         ? '예: ${appliance.buttons.first.label} 해줘'
         : '예: 즉석밥 데워줘';
