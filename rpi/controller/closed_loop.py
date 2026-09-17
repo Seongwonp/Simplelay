@@ -7,6 +7,7 @@ from rpi.verifier import VerificationResult, Verifier
 
 from .layered import (
     DEFAULT_ACCEPTANCE_REINPUTS,
+    OPERATION_STOPPED_DETAIL,
     AcceptanceVerifier,
     OperationVerifier,
 )
@@ -27,6 +28,10 @@ from .retry import DocumentedRetryPolicy, RetryPolicy
 
 class _EmergencyStopRequested(Exception):
     """Internal control-flow signal: a stop was requested mid-execution."""
+
+
+class _OperationObservationFailed(Exception):
+    """L3 관측(전력 센서 읽기)이 실패했다 — 확인할 수 없으니 더 누르지 않는다."""
 
 
 class ClosedLoopController:
@@ -94,7 +99,11 @@ class ClosedLoopController:
         completed_steps = 0
         if self._operation is not None:
             # 누르기 전 상태를 먼저 잡는다 — L3 기준선은 조작 이전 구간에서 온다.
-            self._operation.begin_observation()
+            # 여기서 센서를 못 읽으면 동작을 확인할 방법이 없으니 누르지 않는다.
+            try:
+                self._operation.begin_observation()
+            except Exception as exc:  # noqa: BLE001 - 센서 고장은 종류와 무관하게 fail closed
+                return self._stop_for_unobservable_operation(exc, ())
         for button in buttons:
             try:
                 self._check_stop()
@@ -102,6 +111,10 @@ class ClosedLoopController:
             except _EmergencyStopRequested:
                 self._safety.stop("emergency stop requested")
                 return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, tuple(results))
+            except _OperationObservationFailed as exc:
+                return self._stop_for_unobservable_operation(
+                    exc.__cause__ or exc, tuple(results)
+                )
             results.append(result)
             if result.status is ButtonStatus.SUCCEEDED:
                 completed_steps += 1
@@ -133,9 +146,14 @@ class ClosedLoopController:
         except _EmergencyStopRequested:
             self._safety.stop("emergency stop requested")
             return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, results)
-        outcome = self._operation.verify_operation(buttons)
-        if not outcome.passed and self._stop_requested.is_set():
+        try:
+            outcome = self._operation.verify_operation(buttons)
+        except Exception as exc:  # noqa: BLE001 - 센서 고장은 종류와 무관하게 fail closed
+            return self._stop_for_unobservable_operation(exc, results)
+        if not outcome.passed and outcome.detail == OPERATION_STOPPED_DETAIL:
             # 정지 때문에 판정을 못 끝낸 것이라, 실패 알림을 울리지 않는다.
+            # 정지 요청 여부(플래그)로 가르지 않는다 -- 판정이 이미 실패로
+            # 끝난 뒤 들어온 정지가 '동작 확인 안 됨' 알림을 삼키게 된다.
             self._safety.stop("emergency stop requested")
             return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, results)
         if outcome.passed:
@@ -149,6 +167,18 @@ class ClosedLoopController:
             results,
             failed_layer=VerificationLayer.OPERATION,
             operation=outcome,
+        )
+
+    def _stop_for_unobservable_operation(
+        self, exc: BaseException, results: tuple[ButtonResult, ...]
+    ) -> ExecutionResult:
+        """L3를 확인할 수단(센서)이 없다 — 누른 것까지만 두고 멈춘 뒤 알린다."""
+        self._safety.stop(f"L3 power sensor unavailable: {exc}")
+        self._alerts.notify_operation_unconfirmed(f"전력 센서를 읽지 못함: {exc}")
+        return ExecutionResult(
+            ExecutionStatus.SAFETY_STOPPED,
+            results,
+            failed_layer=VerificationLayer.OPERATION,
         )
 
     def _execute_button(self, button: str, completed_steps: int) -> ButtonResult:
@@ -175,6 +205,12 @@ class ClosedLoopController:
                     else self._retry_policy.correction_for(attempt - 1)
                 )
                 presses += 1
+                if self._operation is not None:
+                    # 누르기 직전 시각을 L3에 알린다(판정 기준 시각·기준선 이어 붙이기).
+                    try:
+                        self._operation.note_press(button, presses)
+                    except Exception as exc:  # noqa: BLE001 - 센서 고장은 fail closed
+                        raise _OperationObservationFailed(str(exc)) from exc
                 try:
                     self._grbl.press(PressCommand(button, correction))
                 except Exception as exc:  # adapter errors are recoverable within the hard limit

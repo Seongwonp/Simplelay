@@ -297,8 +297,20 @@ class PowerSignatureDetector:
     # ------------------------------------------------------------------
 
     def _idle_baseline(self, now_s: float) -> float | None:
-        """now_s 직전 baseline_window_s 구간 대기 샘플의 중앙값. 샘플이 없으면 None."""
-        horizon = now_s - self._cfg.baseline_window_s - _EPS_S
+        """now_s 직전 baseline_window_s 구간 대기 샘플의 중앙값. 샘플이 없으면 None.
+
+        센서를 읽지 못한 공백(기구가 버튼으로 이동·누르는 동안) 뒤에는 이 창이
+        통째로 비어 기준선이 사라진다. 그때는 **마지막으로 읽은 대기 구간**을
+        기준선으로 쓴다 -- 공백 직후 첫 샘플부터 오른 전력도 상승으로 판정해야
+        하기 때문이다. 공백 뒤 대기 샘플이 들어오면 창은 다시 지금 기준으로 옮겨간다.
+        끊김 없이 읽는 동안에는 동작이 예전과 같다.
+        """
+        if not self._idle:
+            return None
+        window = self._cfg.baseline_window_s
+        gap = self._idle[-1].t_s < now_s - window - _EPS_S
+        anchor = self._idle[-1].t_s if gap else now_s
+        horizon = anchor - window - _EPS_S
         while self._idle and self._idle[0].t_s < horizon:
             self._idle.popleft()
         if not self._idle:
@@ -412,9 +424,18 @@ class PowerSignatureDetector:
         return self._verdict(confirmed=False, detail=detail, decided_at_s=None)
 
     def _baseline_before(self, since_s: float) -> float | None:
-        """since_s 직전 baseline_window_s 구간(수신 샘플 전체)의 중앙값. 샘플이 없으면 None."""
-        lo = since_s - self._cfg.baseline_window_s - _EPS_S
-        window = [s.watts for s in self._history if lo <= s.t_s < since_s - _EPS_S]
+        """since_s 직전 baseline_window_s 구간(수신 샘플 전체)의 중앙값. 샘플이 없으면 None.
+
+        그 구간에 샘플이 없으면(읽지 못한 공백) since_s 이전 마지막 샘플 기준으로
+        같은 폭의 구간을 쓴다 -- `_idle_baseline`과 같은 규칙.
+        """
+        window_s = self._cfg.baseline_window_s
+        before = [s for s in self._history if s.t_s < since_s - _EPS_S]
+        if not before:
+            return None
+        anchor = since_s if before[-1].t_s >= since_s - window_s - _EPS_S else before[-1].t_s
+        lo = anchor - window_s - _EPS_S
+        window = [s.watts for s in before if s.t_s >= lo]
         return float(statistics.median(window)) if window else None
 
     _UNSET = object()

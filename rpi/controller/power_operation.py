@@ -13,9 +13,14 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from rpi.verifier.power import PowerConfig, PowerSensor, PowerSignatureDetector
+from rpi.verifier.power import (
+    OperationPhase,
+    PowerConfig,
+    PowerSensor,
+    PowerSignatureDetector,
+)
 
-from .layered import OperationVerifier
+from .layered import OPERATION_STOPPED_DETAIL, OperationVerifier
 from .models import LayerOutcome, VerificationLayer
 
 _PENDING_DETAIL = "판정 대기"
@@ -48,7 +53,11 @@ class PowerOperationVerifier(OperationVerifier):
         # 누르기 전에 잡아 둔 기준선 관측(begin_observation). 없으면 조작
         # 이전 샘플이 하나도 없다는 뜻이라, 판정기가 '기준선 없음'이라고 말한다.
         self._detector: PowerSignatureDetector | None = None
+        # 판정 기준 시각. 누름을 알려 오면(note_press) 마지막 단계의 첫 누름
+        # 직전 시각, 아니면 기준선 관측이 끝난 시각(옛 배선).
         self._since_s: float | None = None
+        # 마지막 단계의 첫 누름 직전에 전력이 이미 올라가 있었나.
+        self._up_before_final_step = False
         self._stop_check: Callable[[], bool] | None = None
 
     def set_stop_check(self, should_stop: Callable[[], bool]) -> None:
@@ -81,23 +90,56 @@ class PowerOperationVerifier(OperationVerifier):
             detector.feed(last)
         self._detector = detector
         self._since_s = last.t_s
+        self._up_before_final_step = False
+
+    def note_press(self, button: str, press_number: int) -> None:
+        """누르기 직전 샘플을 하나 읽어 판정기에 이어 넣는다.
+
+        - 기준선: 기구가 이동·누르는 동안에는 샘플이 비는데, 누르기 직전 샘플이
+          있어야 그 직후 오른 전력을 '상승'으로 볼 수 있다.
+        - 기준 시각: 단계의 **첫** 누름에서만 옮긴다. 첫 누름이 실제로 들어가
+          전력이 오르는 중에 L1이 재시도해도, 그 상승은 이 단계의 결과다.
+        - 이미 동작 중: 단계의 첫 누름 직전인데 전력이 벌써 오르고 있으면, 뒤에
+          확인되는 동작은 이번 조작의 결과로 볼 수 없다. 단계가 바뀔 때마다 다시
+          판단하므로 결국 마지막 단계의 상태가 남는다.
+        """
+        detector = self._detector
+        if detector is None:
+            detector = PowerSignatureDetector(self._config)
+            self._detector = detector
+        sample = self._sensor.read()
+        detector.feed(sample)
+        if press_number == 1:
+            self._since_s = sample.t_s
+            self._up_before_final_step = detector.phase is not OperationPhase.IDLE
 
     def verify_operation(self, buttons: tuple[str, ...]) -> LayerOutcome:
         detector = self._detector
         since_s = self._since_s
-        if detector is None or since_s is None:
-            # begin_observation 없이 불린 경우(옛 배선·단독 호출). 조작 전
-            # 샘플이 없어 기준선을 만들 수 없다는 사실은 판정기가 사유로 말한다.
-            detector = PowerSignatureDetector(self._config)
-            first = self._sensor.read()
-            detector.feed(first)
-            since_s = first.t_s
         try:
+            if self._up_before_final_step:
+                return LayerOutcome(
+                    VerificationLayer.OPERATION,
+                    False,
+                    "마지막 단계를 누르기 전부터 전력이 이미 올라가 있어 "
+                    "이번 조작의 결과로 볼 수 없음",
+                )
+            # 주의: 컨트롤러 없이 단독으로 부르면(note_press 없음) 기준 시각은
+            # 관측이 끝난 시각이라, 그 뒤 누르는 데 걸린 시간이 제한시간에 들어간다.
+            # 실행 경로는 ClosedLoopController가 누를 때마다 note_press를 부른다.
+            if detector is None or since_s is None:
+                # begin_observation 없이 불린 경우(옛 배선·단독 호출). 조작 전
+                # 샘플이 없어 기준선을 만들 수 없다는 사실은 판정기가 사유로 말한다.
+                detector = PowerSignatureDetector(self._config)
+                first = self._sensor.read()
+                detector.feed(first)
+                since_s = first.t_s
             return self._poll_until_verdict(detector, since_s)
         finally:
             # 다음 실행이 지난 관측을 물려받지 않게 비운다.
             self._detector = None
             self._since_s = None
+            self._up_before_final_step = False
 
     def _poll_until_verdict(
         self, detector: PowerSignatureDetector, since_s: float
@@ -108,7 +150,7 @@ class PowerOperationVerifier(OperationVerifier):
                 return LayerOutcome(
                     VerificationLayer.OPERATION,
                     False,
-                    "정지 요청으로 동작 확인을 중단함",
+                    OPERATION_STOPPED_DETAIL,
                 )
             verdict = detector.verify_started(since_s=since_s)
             if verdict.confirmed or verdict.detail != _PENDING_DETAIL:

@@ -26,6 +26,11 @@ from .models import LayerOutcome, VerificationLayer
 #: 풀리고, 그 이상은 잠금·모드 문제라 누를수록 상태만 어긋난다.
 DEFAULT_ACCEPTANCE_REINPUTS = 1
 
+#: 정지 요청으로 L3 판정을 중단했을 때의 사유. 컨트롤러는 **이 사유일 때만**
+#: 정지로 보고 실패 알림을 생략한다 -- 판정이 이미 '확인 안 됨'으로 끝난 뒤
+#: 들어온 정지가 그 알림을 삼키지 않게.
+OPERATION_STOPPED_DETAIL = "정지 요청으로 동작 확인을 중단함"
+
 
 class AcceptanceVerifier(ABC):
     """L2 — 가전이 방금 입력을 받아들였나."""
@@ -55,6 +60,16 @@ class OperationVerifier(ABC):
 
         L3는 수십 초를 기다릴 수 있어, 이 훅이 없으면 그동안 정지 요청이
         반영되지 않는다. 쓰지 않는 구현은 그대로 둔다.
+        """
+
+    def note_press(self, button: str, press_number: int) -> None:
+        """컨트롤러가 **물리 누름 직전마다** 부른다.
+
+        ``press_number``는 이 단계(버튼 하나)에서 몇 번째 누름인지다(1부터,
+        L1 재시도·L2 재입력도 센다). 판정 기준 시각은 **마지막 단계의 첫 누름**
+        이어야 한다 -- 누르기 전에 잡은 시각을 쓰면 기구가 이동하고 누르는 데
+        걸린 시간이 제한시간을 먹는다. 쓰지 않는 구현은 그대로 둔다. 여기서
+        던진 예외는 컨트롤러가 누르지 않고 안전 정지로 처리한다.
         """
 
 

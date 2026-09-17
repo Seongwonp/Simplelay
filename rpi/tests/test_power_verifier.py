@@ -201,6 +201,34 @@ class TestRejectedStarts:
         assert "이미 동작 중" in v.detail
 
 
+class TestSamplingGap:
+    """센서를 읽지 못한 공백(예: 기구가 버튼으로 이동·누르는 동안) 뒤의 판정."""
+
+    def test_baseline_survives_a_gap_and_a_rise_right_after_it_is_detected(self):
+        # 대기 3 W를 2초 읽고 → 6초 공백 → 공백 직후 첫 샘플부터 1,200 W
+        idle = _flat([(2.0, 3.0)])
+        run = [PowerSample(t_s=8.0 + i / _HZ, watts=1200.0) for i in range(20)]
+        det = PowerSignatureDetector()
+        _feed_all(det, idle + run)
+
+        v = det.verify_started(since_s=7.9)
+        assert v.confirmed is True, v.detail
+        assert v.baseline_w == pytest.approx(3.0)
+
+    def test_idle_samples_after_the_gap_replace_the_old_baseline(self):
+        # 공백 뒤 대기 수준이 상승 문턱 아래로 조금 바뀌면(3 W → 100 W) 그 뒤로는
+        # 새 대기 수준이 기준선이다. 옛 기준선 3 W가 남아 있었다면 450 W는
+        # 상승(150배)이지만, 새 기준선 100 W 대비로는 4.5배라 상승이 아니다.
+        idle = _flat([(2.0, 3.0)])
+        new_idle = [PowerSample(t_s=8.0 + i / _HZ, watts=100.0) for i in range(30)]
+        run = [PowerSample(t_s=11.0 + i / _HZ, watts=450.0) for i in range(20)]
+        det = PowerSignatureDetector()
+
+        assert _feed_all(det, idle + new_idle + run) is OperationPhase.IDLE
+        v = det.verify_started(since_s=10.9)
+        assert v.confirmed is False
+
+
 class TestTimeout:
     def test_pending_before_timeout(self):
         det = PowerSignatureDetector()
