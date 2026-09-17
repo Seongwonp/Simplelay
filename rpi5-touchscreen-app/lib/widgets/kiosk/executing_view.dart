@@ -262,11 +262,13 @@ class _PanelMap extends StatelessWidget {
     final on = button.id == current.id;
     return DecoratedBox(
       key: on ? const ValueKey('panel-current') : null,
+      // 지금 칸만 면을 채운다. 나머지는 면 없이 옅은 윤곽만 -- 수동 조작 칸과
+      // 같은 면색·테두리면 누를 수 있는 버튼으로 보였다(로그 ac 리뷰 지적).
       decoration: BoxDecoration(
-        color: on ? accent : KioskColors.surface,
+        color: on ? accent : Colors.transparent,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: on ? Colors.white : KioskColors.border,
+          color: on ? Colors.white : Colors.white.withValues(alpha: 0.12),
           width: on ? 3 : 1,
         ),
       ),

@@ -126,6 +126,21 @@ void main() {
     expect(find.text('지금 누르는 버튼'), findsNothing);
   });
 
+  testWidgets('누를 수 없는 버튼판은 수동 조작 버튼처럼 칠하지 않는다', (tester) async {
+    // 수동 조작 칸과 같은 면색·테두리면 눌러도 되는 버튼으로 보인다.
+    await _pump(tester, total: 3, target: kMicrowaveAppliance);
+    final other = tester.widget<DecoratedBox>(find
+        .ancestor(of: find.text('10초'), matching: find.byType(DecoratedBox))
+        .first);
+    final box = other.decoration as BoxDecoration;
+    expect(box.color, Colors.transparent);
+    // 지금 누르는 칸만 면을 채운다.
+    final current = tester.widget<DecoratedBox>(
+        find.byKey(const ValueKey('panel-current')));
+    expect((current.decoration as BoxDecoration).color,
+        isNot(Colors.transparent));
+  });
+
   testWidgets('같은 이름의 버튼이 둘이면 어느 쪽인지 지어내지 않는다', (tester) async {
     // 서버는 버튼 이름만 준다. 이름이 두 번 나오면 틀린 자리를 가리킬 수 있다.
     const twin = ApplianceMap(
