@@ -542,8 +542,9 @@ class _PanelScanGate:
 
     - 한 번에 하나: 두 번 누르면 크레딧만 두 번 나간다.
     - 시간당 상한: API 키가 기본으로 꺼져 있어 같은 망의 누구든 반복 호출로
-      공유 크레딧을 소진시킬 수 있다. 인식 서비스로 **나간 요청**을 센다
-      (실패한 요청도 크레딧·한도를 쓸 수 있어서 함께 센다).
+      공유 크레딧을 소진시킬 수 있다. 인식 서비스로 **보내려 한 시도**를 센다 --
+      연결 실패·서비스 오류도 포함한다(실패를 반복해 상한을 우회하지 못하게).
+      상한 0은 '끔'이다.
 
     프로세스 안의 상태라 워커가 여럿이면 워커마다 따로 센다(서버는 단일 워커 전제).
     """
@@ -557,12 +558,16 @@ class _PanelScanGate:
         self._sent: deque[float] = deque()
 
     def max_per_hour(self) -> int:
+        """0이면 끔. 비었거나 음수·숫자가 아니면 기본값.
+
+        0을 기본값으로 바꾸면 끄려고 적은 설정이 오히려 시간당 20번을 연다.
+        """
         raw = os.environ.get("SIMPLELAY_VISION_MAX_PER_HOUR", "").strip()
         try:
             value = int(raw) if raw else self.DEFAULT_MAX_PER_HOUR
         except ValueError:
             return self.DEFAULT_MAX_PER_HOUR
-        return value if value >= 1 else self.DEFAULT_MAX_PER_HOUR
+        return value if value >= 0 else self.DEFAULT_MAX_PER_HOUR
 
     def reserve(self) -> bool:
         """이번 요청을 한도 안에서 예약한다. 한도를 넘었으면 False."""
@@ -610,6 +615,11 @@ async def panel_scan(
         )
     image, mime = body.image()
     # 확인과 표시 사이에 await가 없어 이벤트 루프 안에서 원자적이다
+    if _panel_scan_gate.max_per_hour() == 0:
+        raise HTTPException(
+            status_code=503,
+            detail="사진 인식이 설정으로 꺼져 있어요 — 서버의 호출 상한이 0이에요",
+        )
     if _panel_scan_gate.busy:
         raise HTTPException(
             status_code=409,

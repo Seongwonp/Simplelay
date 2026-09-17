@@ -244,7 +244,20 @@ def test_failed_requests_count_toward_the_cap(serve, monkeypatch) -> None:
     assert client.post("/panel-scan", json={"image_base64": PNG_B64}).status_code == 429
 
 
-@pytest.mark.parametrize("raw", ["", "abc", "0", "-5"])
+def test_cap_zero_turns_photo_recognition_off_without_sending(serve, monkeypatch) -> None:
+    """0은 '끔'이다. 기본값으로 바꿔 20번 보내면 끄려던 사람의 뜻과 정반대가 된다."""
+    monkeypatch.setenv("SIMPLELAY_VISION_MAX_PER_HOUR", "0")
+    scanner = FakeScanner()
+    client = serve(scanner)
+
+    response = client.post("/panel-scan", json={"image_base64": PNG_B64})
+
+    assert response.status_code == 503
+    assert "꺼져" in response.json()["detail"]
+    assert scanner.calls == []
+
+
+@pytest.mark.parametrize("raw", ["", "abc", "-5", "1.5"])
 def test_invalid_cap_setting_falls_back_to_default(monkeypatch, raw) -> None:
     monkeypatch.setenv("SIMPLELAY_VISION_MAX_PER_HOUR", raw)
     gate = router_module._PanelScanGate()
