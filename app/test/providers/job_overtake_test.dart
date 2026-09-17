@@ -77,6 +77,32 @@ void main() {
     expect(state.phase, ExecutionPhase.completed);
   });
 
+  test('긴급 정지로 끝난 실행은 장치가 멈췄다고 단정하지 않는다', () async {
+    // 서버가 확인한 것은 실행 루프 종료(safety_stopped)까지다. 모터가 물리적으로
+    // 멈췄는지는 아직 아무 센서도 확인하지 않는다.
+    final container = ProviderContainer(
+      overrides: [ttsServiceProvider.overrideWithValue(FakeAppTts())],
+    );
+    addTearDown(container.dispose);
+
+    container.read(executionStatusProvider.notifier).beginHttpJob(
+          api: _apiReturning({
+            'running': false,
+            'job_id': null,
+            'last_job_id': 'J1',
+            'last_status': 'safety_stopped',
+            'last_buttons': [],
+          }),
+          jobId: 'J1',
+          label: '즉석밥 데워줘',
+        );
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+
+    final message = container.read(executionStatusProvider).message ?? '';
+    expect(message, contains('실행을 멈췄어요'));
+    expect(message, contains('멈췄는지 확인'));
+  });
+
   test('내 job의 흔적이 계속 없으면 고착 대신 확인 불가로 탈출한다', () async {
     var stopCalls = 0;
     final container = ProviderContainer(

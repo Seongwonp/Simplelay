@@ -61,7 +61,9 @@ class KioskDoneView extends StatelessWidget {
                 // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
                 // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 조작**이다.
                 Text(
-                  success ? '버튼 조작을 마쳤어요' : '멈췄어요',
+                  // 실패·정지 모두 '실행'이 멈춘 것까지만 말한다 -- 모터가 물리적으로
+                  // 멈췄는지는 아직 아무것도 확인하지 않는다.
+                  success ? '버튼 조작을 마쳤어요' : '실행을 멈췄어요',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 36,
@@ -135,7 +137,7 @@ enum KioskFailureReason {
         KioskFailureReason.serverLost =>
           'SimpleLay 본체와 연결이 끊겼어요.\n가전 상태를 직접 확인해주세요.',
         KioskFailureReason.stopped =>
-          '$label — 안전하게 멈췄어요.\n필요하면 다시 시도할 수 있어요.',
+          '$label — 실행을 멈췄어요.\n장치가 완전히 멈췄는지 확인한 뒤 다시 시도해 주세요.',
       };
 }
 

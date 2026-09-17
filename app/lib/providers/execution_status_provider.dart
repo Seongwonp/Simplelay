@@ -183,7 +183,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         final message = success
             ? '버튼 조작을 마쳤어요.'
             : stopped
-                ? '실행을 멈췄어요.'
+                // 서버가 확인한 것은 실행 루프 종료까지다. 가전 쪽 장치가
+                // 멈췄는지는 사람이 본다(물리 정지 확인은 실측 대기).
+                ? '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.'
                 : '실행하지 못했어요.';
         state = state.copyWith(
           phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,

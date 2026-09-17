@@ -59,10 +59,29 @@ void main() {
       ),
     );
 
-    expect(find.text('멈췄어요'), findsOneWidget);
+    expect(find.text('실행을 멈췄어요'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
     expect(find.text('버튼으로 조작'), findsOneWidget);
     expect(find.text('잠시 후 처음 화면으로 돌아가요'), findsNothing);
+  });
+
+  testWidgets('긴급 정지 뒤에도 장치가 멈췄다고 단정하지 않는다', (tester) async {
+    // 서버가 확인하는 것은 실행 루프가 끝났다는 것까지다. 모터가 물리적으로
+    // 멈췄는지는 아직 아무 센서도 확인하지 않는다(정지 지연 ③은 실측 대기).
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: false,
+        label: '즉석밥 데워줘',
+        reason: KioskFailureReason.stopped,
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
+    );
+
+    expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
+    expect(find.textContaining('멈췄는지 확인'), findsOneWidget);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {
