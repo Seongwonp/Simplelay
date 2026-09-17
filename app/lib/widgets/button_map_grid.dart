@@ -218,16 +218,17 @@ class _Badge extends StatelessWidget {
     }
     // 지금 버튼은 면이 강조색이라, 배지를 반대로 칠해야 보인다.
     final current = state == ButtonMapStepState.current;
+    // 높이를 고정하지 않는다 -- 200% 글씨에서 숫자가 배지 밖으로 잘렸다.
     return Container(
-      constraints: const BoxConstraints(minWidth: 20),
-      height: 20,
-      padding: const EdgeInsets.symmetric(horizontal: 5),
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
+      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
       decoration: BoxDecoration(
         color: current ? context.appOnAccent : context.appInk,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Center(
         widthFactor: 1,
+        heightFactor: 1,
         child: Text(
           orders.join('·'),
           style: TextStyle(

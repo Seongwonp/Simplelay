@@ -104,5 +104,39 @@ void main() {
             reason: label);
       }
     });
+      testWidgets('큰 글씨(200%)에서 순서 배지 숫자가 잘리지 않는다', (tester) async {
+      // 배지 높이를 20으로 고정하면 두 배로 커진 숫자가 배지 밖으로 잘린다.
+      tester.view.physicalSize = const Size(390, 1600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            size: Size(390, 1600),
+            textScaler: TextScaler.linear(2.0),
+          ),
+          child: Scaffold(
+            body: Padding(
+              padding: const EdgeInsets.all(20),
+              child: ButtonMapGrid(
+                appliance: kTestAppliance,
+                steps: const ['BT-08', 'BT-03', 'BT-08'],
+              ),
+            ),
+          ),
+        ),
+      ));
+      expect(tester.takeException(), isNull);
+      for (final order in ['1·3', '2']) {
+        final paragraph =
+            tester.renderObject<RenderParagraph>(find.text(order));
+        expect(paragraph.textSize.height,
+            lessThanOrEqualTo(paragraph.size.height + 0.5),
+            reason: order);
+        expect(paragraph.textSize.width,
+            lessThanOrEqualTo(paragraph.size.width + 0.5),
+            reason: order);
+      }
+    });
   });
 }
