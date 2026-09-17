@@ -126,6 +126,24 @@ void main() {
     expect(find.text('지금 누르는 버튼'), findsNothing);
   });
 
+  testWidgets('같은 이름의 버튼이 둘이면 어느 쪽인지 지어내지 않는다', (tester) async {
+    // 서버는 버튼 이름만 준다. 이름이 두 번 나오면 틀린 자리를 가리킬 수 있다.
+    const twin = ApplianceMap(
+      id: 'twin',
+      name: '쌍둥이 버튼 가전',
+      category: 'other',
+      rows: 1,
+      cols: 2,
+      buttons: [
+        ApplianceButton(id: 'T-1', label: '시작', x: 0, y: 0),
+        ApplianceButton(id: 'T-2', label: '시작', x: 1, y: 0),
+      ],
+    );
+    await _pump(tester, button: '시작', target: twin);
+    expect(find.text('지금 누르는 버튼'), findsNothing);
+    expect(find.byKey(const ValueKey('panel-current')), findsNothing);
+  });
+
   testWidgets('재시도 중에는 진행 막대의 지금 칸도 주의색이다', (tester) async {
     Color currentBorder() {
       final box = tester.widget<Container>(
