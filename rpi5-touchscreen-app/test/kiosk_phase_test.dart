@@ -1,10 +1,12 @@
 // 키오스크 phase 머신 테스트 — KioskScreen(api:)로 fake 서비스를 주입해
 // idle→suggestion→executing→done 전이와 job_id 대조 규칙을 검증한다.
 import 'dart:io';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/models/learning_status.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/services/kiosk_event_stream.dart';
@@ -19,6 +21,9 @@ import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 class FakeKioskApi implements KioskApiService {
+  @override
+  Future<LearningStatus> learningStatus() async => throw StateError('offline');
+
   List<KioskSuggestion> suggestionList = [];
   // 서버 가전 목록 — 비어 있으면 화면이 내장 목록으로 폴백한다
   // null = 통신 실패(기본) — 이전의 "빈 목록 = 실패" 시절과 달리 이제 빈
@@ -29,7 +34,9 @@ class FakeKioskApi implements KioskApiService {
   AlertState alertState = AlertState.inactive;
   HealthStatus healthResult = const HealthStatus(ok: true);
   Object? executeError;
+  Object? rejectError;
   String nextJobId = 'job-1';
+  Completer<KioskJobAccepted>? approvalPending;
   final approvedIds = <String>[];
   final rejectedIds = <String>[];
   final mutedIds = <String>[];
@@ -63,11 +70,13 @@ class FakeKioskApi implements KioskApiService {
   Future<KioskJobAccepted> approveSuggestion(String id) async {
     if (executeError != null) throw executeError!;
     approvedIds.add(id);
+    if (approvalPending != null) return approvalPending!.future;
     return KioskJobAccepted(jobId: nextJobId);
   }
 
   @override
   Future<void> rejectSuggestion(String id, {bool mute = false}) async {
+    if (rejectError != null) throw rejectError!;
     rejectedIds.add(id);
     if (mute) mutedIds.add(id);
   }
@@ -161,6 +170,85 @@ Future<void> _pumpKiosk(
 }
 
 void main() {
+  testWidgets('환경 근거 갱신은 음성을 반복하거나 표시 시간을 늘리지 않는다', (tester) async {
+    final api = FakeKioskApi()..suggestionList = const [KioskSuggestion(
+      id: 'env1', purpose: '에어컨 켜줘', occurrences: 0, timeBand: '환경',
+      applianceId: 'aircon', reason: '지금 30°C — 더워요',
+    )];
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    final spoken = tts.utterances.length;
+    for (var i = 0; i < 15; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    api.suggestionList = const [KioskSuggestion(
+      id: 'env1', purpose: '에어컨 켜줘', occurrences: 0, timeBand: '환경',
+      applianceId: 'aircon', reason: '지금 31°C — 더워요',
+    )];
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(find.text('지금 31°C — 더워요'), findsOneWidget);
+    expect(tts.utterances.length, spoken);
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(find.byType(KioskSuggestionView), findsNothing);
+    expect(api.rejectedIds, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('무응답 제안은 같은 카드와 음성을 반복하지 않고 새 제안은 표시한다',
+      (tester) async {
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    for (var i = 0; i < 25; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(find.byType(KioskSuggestionView), findsNothing);
+    expect(tts.utterances.where((s) => s.contains('지금 할까요')), hasLength(1));
+    expect(api.rejectedIds, isEmpty); // 무응답을 싫다는 피드백으로 보내지 않음
+    api.suggestionList = const [KioskSuggestion(
+      id: 's2', purpose: '새 제안', occurrences: 3, applianceId: 'microwave',
+    )];
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(KioskSuggestionView), findsOneWidget);
+    expect(tts.utterances.where((s) => s.contains('지금 할까요')), hasLength(2));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('다른 단말 처리 또는 서버 만료로 사라진 제안은 화면에서도 내린다',
+      (tester) async {
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    expect(find.byType(KioskSuggestionView), findsOneWidget);
+    api.suggestionList = [];
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(KioskSuggestionView), findsNothing);
+    expect(api.approvedIds, isEmpty);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('넘김 전달 실패는 카드와 재시도 수단을 유지한다', (tester) async {
+    final api = FakeKioskApi()
+      ..suggestionList = [_sug]
+      ..rejectError = Exception('offline');
+    await _pumpKiosk(tester, api);
+    await tester.tap(find.text('이번만 넘기기'));
+    await tester.pump();
+    expect(find.byType(KioskSuggestionView), findsOneWidget);
+    expect(find.textContaining('넘기기를 전달하지 못했어요'), findsOneWidget);
+    api.rejectError = null;
+    await tester.tap(find.text('이번만 넘기기'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(api.rejectedIds, ['s1']);
+    expect(find.byType(KioskSuggestionView), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 800x480 실기기 해상도에 맞춰 오버플로 없는 레이아웃으로 테스트
   void useKioskViewport(WidgetTester tester) {
     tester.view.physicalSize = const Size(800, 480);
@@ -305,6 +393,69 @@ void main() {
 
     expect(api.rejectedIds, ['s1']);
     expect(api.mutedIds, isEmpty);
+  });
+
+  testWidgets('서버 재시작으로 작업이 사라지면 확인 불가, 복귀 후 진행 작업을 다시 추적한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    api.suggestionList = [];
+    await tester.tap(find.text('지금 실행'));
+    await tester.pump();
+    // 재시작한 서버는 과거 job을 기억하지 못한다.
+    for (var i = 0; i < 5; i++) {
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump();
+    }
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.text('실행 상태를 확인할 수 없어요'), findsOneWidget);
+    expect(find.text('실행을 멈췄어요'), findsNothing);
+    expect(find.text('다시 시도'), findsNothing);
+    expect(tts.utterances.last, contains('상태를 확인할 수 없어요'));
+    await tester.tap(find.text('닫기'));
+    await tester.pump();
+    api.statusResult = const KioskStatus(running: true,
+        jobId: 'phone-job', applianceId: 'microwave');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 500));
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+    expect(api.approvedIds, ['s1']); // 복구는 관찰만, 재전송하지 않는다.
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('두 번째 접수를 기다리는 동안 이전 완료를 재사용하지 않는다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    api.suggestionList = [];
+    await tester.tap(find.text('지금 실행'));
+    await tester.pump();
+    api.statusResult = const KioskStatus(running: false,
+        lastJobId: 'job-1', lastStatus: 'succeeded');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 900));
+    await tester.pump(KioskTimings.doneReturn);
+    api.suggestionList = [const KioskSuggestion(id: 's2', purpose: '다시 데워줘',
+        occurrences: 3, applianceId: 'microwave')];
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 500));
+    api.approvalPending = Completer<KioskJobAccepted>();
+    await tester.tap(find.text('지금 실행'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsNothing);
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+    api.approvalPending!.complete(const KioskJobAccepted(jobId: 'job-2'));
+    await tester.pump();
+    api.statusResult = const KioskStatus(running: false,
+        lastJobId: 'job-2', lastStatus: 'safety_stopped');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).reason,
+        KioskFailureReason.stopped);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 
   testWidgets('승인 → executing → job 완료 시 done → 자동 idle 복귀', (tester) async {

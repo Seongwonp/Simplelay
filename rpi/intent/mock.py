@@ -4,6 +4,7 @@ from collections.abc import Mapping, Sequence
 from datetime import datetime
 
 from .dbus_vectordb import SearchResult
+from .models import UsageSource
 from .ports import Clock, LlmClient, PurposeExecutor
 
 
@@ -31,8 +32,12 @@ class MockPurposeExecutor(PurposeExecutor):
         self.appliance_ids: list[str | None] = []
 
     def execute_purpose(
-        self, purpose: str, appliance_id: str | None = None
+        self, purpose: str, appliance_id: str | None = None,
+        *, usage_source: UsageSource = UsageSource.DIRECT,
+        approval_guard=None,
     ) -> object:
+        if approval_guard is not None:
+            approval_guard()
         self.purposes.append(purpose)
         self.appliance_ids.append(appliance_id)
         return self.result

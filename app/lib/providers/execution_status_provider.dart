@@ -169,8 +169,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _pollInFlight = true;
     try {
       final status = await api.status();
-      _lastPollSuccess = DateTime.now();
       if (!mounted || _httpJobId != jobId) return;
+      _lastPollSuccess = DateTime.now();
 
       // ① 완료 판정을 최우선 — 내 job(J1) 완료 직후 다른 클라이언트의
       // J2가 시작되면 running=true여도 last_job_id는 여전히 J1이다.
@@ -234,6 +234,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         _stopHttpTracking(keepTarget: true);
       }
     } catch (_) {
+      if (!mounted || _httpJobId != jobId) return;
       final since = _lastPollSuccess;
       if (since != null &&
           DateTime.now().difference(since) > _unreachableAfter) {

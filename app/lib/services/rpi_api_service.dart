@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/appliance.dart';
+import '../models/learning_status.dart';
 
 class RpiApiException implements Exception {
   RpiApiException(this.statusCode, this.message);
@@ -501,6 +502,14 @@ class RpiApiService {
   }
 
   // GET /suggestions
+  Future<LearningStatus> learningStatus() async {
+    final res = await _client
+        .get(_base.replace(path: '/learning'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return LearningStatus.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<List<RpiSuggestion>> suggestions() async {
     final res = await _client
         .get(_base.replace(path: '/suggestions'), headers: _headers)

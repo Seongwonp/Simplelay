@@ -99,6 +99,10 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _alertAcknowledged = false;
 
   KioskSuggestion? _currentSuggestion;
+  // 무응답은 거절로 보내지 않는다. 현재 서버 목록의 카드별 자동 노출만
+  // 한 번으로 제한한다. 재시작 고유 ID를 서버가 발급하므로 새 제안은 보인다.
+  final Set<String> _shownSuggestionIds = {};
+  bool _dismissingSuggestion = false;
   int _cdRemaining = KioskTimings.countdownSeconds;
   int _countdownSeconds = KioskTimings.countdownSeconds;
   Timer? _countdownTimer;
@@ -256,6 +260,8 @@ class _KioskScreenState extends State<KioskScreen> {
         await _pollIdle();
       } else if (_phase == KioskPhase.executing) {
         await _pollExecuting();
+      } else if (_phase == KioskPhase.suggestion) {
+        await _pollSuggestion();
       }
     } finally {
       _pollInFlight = false;
@@ -267,25 +273,58 @@ class _KioskScreenState extends State<KioskScreen> {
     // job을 발견하면 그 job_id를 이어받아 실행 화면으로 전환.
     try {
       final st = await _api.status();
+      if (!mounted || _phase != KioskPhase.idle) return;
       if (st.running && st.jobId != null) {
-        _activeJobId = st.jobId;
-        _toExecuting(st.currentButton ?? '실행', applianceId: st.applianceId);
+        _toExecuting(st.currentButton ?? '실행',
+            applianceId: st.applianceId, jobId: st.jobId);
         return;
       }
     } catch (_) {}
     try {
       final list = await _api.suggestions();
-      if (list.isNotEmpty && _phase == KioskPhase.idle) {
-        _toSuggestion(list.first);
+      if (!mounted || _phase != KioskPhase.idle) return;
+      final ids = list.map((s) => s.id).toSet();
+      _shownSuggestionIds.retainAll(ids);
+      final next = list.where((s) => !_shownSuggestionIds.contains(s.id)).firstOrNull;
+      if (next != null) {
+        _toSuggestion(next);
       }
     } catch (_) {}
   }
 
+  Future<void> _pollSuggestion() async {
+    final id = _currentSuggestion?.id;
+    try {
+      final list = await _api.suggestions();
+      if (!mounted ||
+          _phase != KioskPhase.suggestion ||
+          _currentSuggestion?.id != id ||
+          _dismissingSuggestion) {
+        return;
+      }
+      // 다른 단말에서 처리되었거나 만료된 제안의 실행 버튼을 내린다.
+      final updated = list.where((s) => s.id == id).firstOrNull;
+      if (updated == null) {
+        _toIdle();
+      } else if (updated.reason != _currentSuggestion?.reason) {
+        // Refresh evidence without restarting the countdown or speaking again.
+        setState(() => _currentSuggestion = updated);
+      }
+    } catch (_) {
+      // 통신 실패는 제안 만료라는 증거가 아니다. 승인은 서버가 재검사한다.
+    }
+  }
+
   Future<void> _pollExecuting() async {
+    final jobId = _activeJobId;
+    if (jobId == null) return; // 접수 응답 전에는 다른 작업 상태를 사용하지 않는다.
     try {
       final st = await _api.status();
+      if (!mounted || _phase != KioskPhase.executing ||
+          _activeJobId != jobId) {
+        return;
+      }
       _lastStatusOk = DateTime.now();
-      if (!mounted) return;
 
       // ① 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
@@ -294,6 +333,8 @@ class _KioskScreenState extends State<KioskScreen> {
         _finishExecuting(
           success: st.lastStatus == 'succeeded',
           buttons: st.lastButtons ?? const [],
+          reason: st.lastStatus == 'safety_stopped'
+              ? KioskFailureReason.stopped : KioskFailureReason.execution,
         );
         return;
       }
@@ -333,6 +374,10 @@ class _KioskScreenState extends State<KioskScreen> {
         }
       }
     } catch (_) {
+      if (!mounted || _phase != KioskPhase.executing ||
+          _activeJobId != jobId) {
+        return;
+      }
       // 연속 실패가 길어지면 서버 유실로 판정하고 실행 화면에서 탈출
       final since = _lastStatusOk;
       if (since != null &&
@@ -449,6 +494,7 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   void _toSuggestion(KioskSuggestion suggestion) {
+    _shownSuggestionIds.add(suggestion.id);
     // 제안 도착을 소리로도 알린다 — 사용자가 화면 근처에 없어도 알 수 있게.
     // 화면의 제목·버튼과 **같은 말**을 쓴다 -- 음성을 듣고 화면을 보는 사용자가
     // '승인'을 찾다가 '지금 실행'을 못 알아보면 그 순간 막힌다.
@@ -469,7 +515,9 @@ class _KioskScreenState extends State<KioskScreen> {
     });
   }
 
-  void _toExecuting(String title, {String? applianceId}) {
+  void _toExecuting(String title, {String? applianceId, String? jobId}) {
+    _activeJobId = jobId;
+    _retryAction = null;
     _lastStatusOk = DateTime.now();
     _foreignPolls = 0;
     setState(() {
@@ -490,17 +538,22 @@ class _KioskScreenState extends State<KioskScreen> {
   void _finishExecuting({
     required bool success,
     required List<KioskButtonResult> buttons,
+    KioskFailureReason reason = KioskFailureReason.execution,
   }) {
     // 지연 도착한 approve/execute 응답이 이미 끝난(정지·완료된) 실행을
-    // 되살려 idle 화면을 완료 화면으로 점프시키는 것을 막는다 —
-    // _toDone과 동일한 phase 가드.
+    // 되살려 idle 화면을 완료 화면으로 점프시키는 것을 막는다.
+    // 지연 콜백에서도 phase와 job ID를 다시 확인한다.
     if (_phase != KioskPhase.executing) return;
     setState(() {
       _lastButtons = buttons;
       _execBarValue = 1.0;
     });
+    final jobId = _activeJobId;
     Future.delayed(const Duration(milliseconds: 900), () {
-      if (mounted) _toDone(success, _execTitle);
+      if (mounted && _phase == KioskPhase.executing &&
+          _activeJobId == jobId) {
+        _toDone(success, _execTitle, reason: reason);
+      }
     });
   }
 
@@ -516,9 +569,11 @@ class _KioskScreenState extends State<KioskScreen> {
       // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
           ? '$label, 버튼 조작을 마쳤어요.'
-          : label == '서버 응답 없음'
-              ? '서버 응답이 없어요. 연결을 확인해 주세요.'
-              : '$label, 실행하지 못했어요. 화면을 확인해 주세요.',
+          : reason == KioskFailureReason.serverLost
+              ? '실행 상태를 확인할 수 없어요. 가전 상태를 직접 확인해 주세요.'
+              : reason == KioskFailureReason.stopped
+                  ? '실행을 멈췄어요. 장치가 완전히 멈췄는지 확인해 주세요.'
+                  : '$label, 실행하지 못했어요. 화면을 확인해 주세요.',
     );
     setState(() {
       _phase = KioskPhase.done;
@@ -535,6 +590,7 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   Future<void> _onApprove({KioskSuggestion? suggestion}) async {
+    if (_dismissingSuggestion) return;
     suggestion ??= _currentSuggestion;
     if (suggestion == null) return;
     // 대상을 모르는 제안은 실행하지 않는다(백로그 B10). 화면이 이미 실행
@@ -569,12 +625,24 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _dismissSuggestion({required bool mute}) async {
     final suggestion = _currentSuggestion;
+    if (suggestion == null || _dismissingSuggestion) return;
+    _dismissingSuggestion = true;
     _countdownTimer?.cancel();
-    _toIdle();
-    if (suggestion != null) {
-      try {
-        await _api.rejectSuggestion(suggestion.id, mute: mute);
-      } catch (_) {}
+    try {
+      await _api.rejectSuggestion(suggestion.id, mute: mute);
+      if (mounted && _phase == KioskPhase.suggestion &&
+          _currentSuggestion?.id == suggestion.id) {
+        _toIdle();
+      }
+    } catch (_) {
+      if (mounted && _phase == KioskPhase.suggestion &&
+          _currentSuggestion?.id == suggestion.id) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('넘기기를 전달하지 못했어요. 연결을 확인하고 다시 눌러주세요.'),
+        ));
+      }
+    } finally {
+      _dismissingSuggestion = false;
     }
   }
 

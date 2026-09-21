@@ -912,3 +912,44 @@ class DemoEnvironmentRequest(BaseModel):
     temperature: float
     humidity: float
 
+
+
+class LearningRoutineResponse(BaseModel):
+    purpose: str
+    appliance_id: str | None
+    time_band: str
+    occurrences: int
+    distinct_days: int
+    established: bool
+    muted: bool
+
+
+class LearningStatusResponse(BaseModel):
+    window_days: int
+    minimum_days: int
+    minimum_occurrences: int
+    paused: bool
+    routines: list[LearningRoutineResponse]
+
+
+class SuggestionEventResponse(BaseModel):
+    event_id: str
+    occurred_at: str
+    suggestion_id: str
+    origin: str
+    purpose: str
+    time_band: str
+    evidence: str
+    occurrences: int
+    appliance_id: str | None
+    action: str
+    reason: str
+    job_id: str | None
+    execution_status: str | None
+
+
+class SuggestionEventsResponse(BaseModel):
+    persistent: bool
+    persistence_ok: bool
+    capacity: int
+    events: list[SuggestionEventResponse]

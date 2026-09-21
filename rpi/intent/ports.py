@@ -3,7 +3,7 @@
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from .models import UsageRecord
+from .models import UsageRecord, UsageSource
 
 
 class Clock(ABC):
@@ -41,7 +41,9 @@ class SuppressionStore(ABC):
 class PurposeExecutor(ABC):
     @abstractmethod
     def execute_purpose(
-        self, purpose: str, appliance_id: str | None = None
+        self, purpose: str, appliance_id: str | None = None,
+        *, usage_source: UsageSource = UsageSource.DIRECT,
+        approval_guard=None,
     ) -> object:
         """Execute an approved purpose through the normal intent path."""
 

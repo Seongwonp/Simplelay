@@ -40,6 +40,7 @@ from .models import (
     TimeBand,
     UsageOutcome,
     UsageRecord,
+    UsageSource,
 )
 from .patterns import PatternDetector
 from .ports import Clock, LlmClient, PurposeExecutor, UsageLog
@@ -85,6 +86,7 @@ __all__ = [
     "UsageLog",
     "UsageOutcome",
     "UsageRecord",
+    "UsageSource",
     "VectordbClient",
     "VectordbClientConfig",
     "VectordbClientError",

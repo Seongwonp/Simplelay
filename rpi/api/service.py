@@ -23,6 +23,8 @@ from rpi.intent import (
     UsageOutcome,
     UsageRecord,
 )
+from rpi.intent.models import UsageSource
+from rpi.intent.completed_actions import CompletedActions
 from rpi.intent.rules import UnknownIntentError
 from rpi.services import NodeRegistry
 from rpi.services.history import (
@@ -169,7 +171,9 @@ class SimpleLayService(PurposeExecutor):
         history_store: JobHistoryStore | None = None,
         care_events=None,
         control_arbiter=None,
+        completed_actions: CompletedActions | None = None,
     ) -> None:
+        self.completed_actions = completed_actions or CompletedActions()
         self._intent = intent
         self._controller = controller
         self._usage_log = usage_log
@@ -238,9 +242,11 @@ class SimpleLayService(PurposeExecutor):
         self._shutting_down = True
 
     def execute_purpose(
-        self, purpose: str, appliance_id: str | None = None
+        self, purpose: str, appliance_id: str | None = None,
+        *, usage_source: UsageSource = UsageSource.DIRECT,
+        approval_guard=None,
     ) -> ExecutionResult:
-        return self._execute_via_resolver(purpose, self._intent, appliance_id)
+        return self._execute_via_resolver(purpose, self._intent, appliance_id, usage_source, approval_guard)
 
     def execute_purpose_for_appliance(
         self,
@@ -317,8 +323,24 @@ class SimpleLayService(PurposeExecutor):
             )
         return tuple(step.label for step in steps)
 
+    def _learning_purpose(self, purpose, buttons, resolver, appliance_id, defined):
+        if defined is not None:
+            return purpose.strip()
+        normalize = getattr(resolver, "learning_purpose", None)
+        if normalize is None:
+            return purpose.strip()
+        canonical = normalize(purpose, tuple(buttons))
+        if canonical != purpose.strip() and self._appliance_registry is not None:
+            appliance = self._appliance_registry.get(appliance_id)
+            # A custom function with the canonical name may mean something else.
+            if appliance is not None and appliance.function_steps(canonical) is not None:
+                return purpose.strip()
+        return canonical
+
     def _execute_via_resolver(
-        self, purpose: str, resolver: IntentResolver, appliance_id: str | None = None
+        self, purpose: str, resolver: IntentResolver, appliance_id: str | None = None,
+        usage_source: UsageSource = UsageSource.DIRECT,
+        approval_guard=None,
     ) -> ExecutionResult:
         defined = self._function_sequence(purpose, appliance_id)
         buttons = self._validate_resolved_sequence(
@@ -326,10 +348,11 @@ class SimpleLayService(PurposeExecutor):
         )
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
-        self._begin_run(len(buttons), controller, appliance_id)
+        self._begin_run(len(buttons), controller, appliance_id, approval_guard)
         try:
             return self._run_buttons(
-                tuple(buttons), controller, purpose, appliance_id, calibration
+                tuple(buttons), controller, purpose, appliance_id, calibration, usage_source,
+                self._learning_purpose(purpose, buttons, resolver, appliance_id, defined),
             )
         finally:
             self._end_run()
@@ -367,10 +390,17 @@ class SimpleLayService(PurposeExecutor):
     # 의도 해석(즉시 실패 가능한 부분)만 동기로 끝내고 물리 실행은 백그라운드
     # 스레드로 넘긴 뒤 job_id를 즉시 돌려준다. 진행·완료는 /status 폴링으로.
 
-    def submit_purpose(self, purpose: str, appliance_id: str | None = None) -> str:
+    def submit_purpose(
+        self, purpose: str, appliance_id: str | None = None,
+        *, usage_source: UsageSource = UsageSource.DIRECT,
+        approval_guard=None,
+    ) -> str:
         defined = self._function_sequence(purpose, appliance_id)
         buttons = defined if defined is not None else self._intent.resolve(purpose)
-        return self._submit(tuple(buttons), appliance_id, purpose)
+        return self._submit(
+            tuple(buttons), appliance_id, purpose, usage_source, approval_guard,
+            self._learning_purpose(purpose, buttons, self._intent, appliance_id, defined),
+        )
 
     def submit_purpose_for_appliance(
         self,
@@ -395,7 +425,10 @@ class SimpleLayService(PurposeExecutor):
         return self._submit(tuple(buttons), appliance_id, purpose=None)
 
     def _submit(
-        self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None
+        self, buttons: tuple[str, ...], appliance_id: str | None, purpose: str | None,
+        usage_source: UsageSource = UsageSource.DIRECT,
+        approval_guard=None,
+        learning_purpose: str | None = None,
     ) -> str:
         # 모든 비동기 실행(/execute·/execute-buttons·/execute-for-appliance·
         # 제안 승인)의 합류점. 상한을 진입점마다 두면 제안 승인처럼 빠지는
@@ -405,10 +438,10 @@ class SimpleLayService(PurposeExecutor):
         # 보정 버전은 **대상을 확정하는 지금** 캡처해 실행 스레드로 넘긴다.
         # 스레드 안에서 다시 읽으면 실행 중에 갱신된 값을 찍는다.
         calibration = self._calibration_snapshot(appliance_id)
-        job_id = self._begin_run(len(buttons), controller, appliance_id)
+        job_id = self._begin_run(len(buttons), controller, appliance_id, approval_guard)
         thread = threading.Thread(
             target=self._run_job,
-            args=(buttons, controller, purpose, appliance_id, calibration),
+            args=(buttons, controller, purpose, appliance_id, calibration, usage_source, learning_purpose),
             daemon=True,
             name=f"simplelay-exec-{job_id}",
         )
@@ -422,10 +455,12 @@ class SimpleLayService(PurposeExecutor):
         purpose: str | None,
         appliance_id: str | None = None,
         calibration_version: str | None = None,
+        usage_source: UsageSource = UsageSource.DIRECT,
+        learning_purpose: str | None = None,
     ) -> None:
         try:
             self._run_buttons(
-                buttons, controller, purpose, appliance_id, calibration_version
+                buttons, controller, purpose, appliance_id, calibration_version, usage_source, learning_purpose
             )
         except Exception:
             # 백그라운드 스레드라 HTTP 500으로 표면화할 곳이 없다 — 로그를
@@ -474,6 +509,7 @@ class SimpleLayService(PurposeExecutor):
         total_steps: int | None,
         controller: ButtonSequenceController | None = None,
         appliance_id: str | None = None,
+        approval_guard=None,
     ) -> str:
         """check-and-set을 락으로 원자화한 실행 시작 게이트.
 
@@ -485,6 +521,8 @@ class SimpleLayService(PurposeExecutor):
         """
         with self._lock:
             self._guard_can_execute()
+            if approval_guard is not None:
+                approval_guard()
             # 개발자 세션과의 상호 배제 — 확인과 점유가 중재자 안에서
             # 원자적이라, "확인은 통과했는데 그 사이 세션이 열리는" 창이
             # 없다. 실패는 ControlConflictError/ControlFaultedError
@@ -628,6 +666,8 @@ class SimpleLayService(PurposeExecutor):
         purpose: str | None,
         appliance_id: str | None = None,
         calibration_version: str | None = None,
+        usage_source: UsageSource = UsageSource.DIRECT,
+        learning_purpose: str | None = None,
     ) -> ExecutionResult:
         self._last_result = controller.execute(buttons)
         # stop 여부는 실행이 반환된 '직후' 스냅샷+소진한다 (교차 리뷰 #8) —
@@ -654,19 +694,34 @@ class SimpleLayService(PurposeExecutor):
         self._record_care_outcome(
             self._last_result, purpose, buttons, stopped_by_user
         )
+        if (not stopped_by_user
+                and self._last_result.status is ExecutionStatus.SUCCEEDED
+                and _mode_of(controller) is ExecutionMode.REAL
+                and usage_source is UsageSource.DIRECT):
+            try:
+                self.completed_actions.remember(
+                    appliance_id, learning_purpose or (purpose.strip() if purpose else None),
+                    buttons, self._clock.now(),
+                )
+            except Exception:
+                # Motion already succeeded. Keep the in-memory block and report
+                # persistence trouble without changing the physical outcome.
+                log.exception("completed action persistence failed")
         # purpose가 없는 실행(직접 버튼 시퀀스)은 의도적으로 학습 로그에서 제외
         if purpose is not None and self._usage_log is not None:
             outcome = (
                 UsageOutcome.SUCCEEDED
-                if self._last_result.status is ExecutionStatus.SUCCEEDED
+                if self._last_result.status is ExecutionStatus.SUCCEEDED and not stopped_by_user
                 else UsageOutcome.FAILED
             )
             self._usage_log.append(
                 UsageRecord(
                     self._clock.now(),
-                    purpose.strip(),
+                    learning_purpose or purpose.strip(),
                     outcome,
                     appliance_id=appliance_id,
+                    execution_mode=_mode_of(controller),
+                    source=usage_source,
                 )
             )
         return self._last_result

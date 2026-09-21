@@ -1,5 +1,7 @@
 from datetime import datetime, time, timedelta, timezone
 
+from rpi.intent.models import ExecutionMode, UsageSource
+
 import pytest
 
 from rpi.api import SimpleLayService
@@ -37,7 +39,7 @@ def build_detector(records: tuple[UsageRecord, ...] = ()):
 
 def test_repeated_same_purpose_in_same_time_band_creates_suggestion():
     records = tuple(
-        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT)
         for day in (20, 21, 22)
     )
     detector, clock, _ = build_detector(records)
@@ -53,7 +55,7 @@ def test_repeated_same_purpose_in_same_time_band_creates_suggestion():
 
 def test_one_off_usage_does_not_create_suggestion():
     detector, clock, _ = build_detector(
-        (UsageRecord(at_morning(22), "즉석밥 데워줘", UsageOutcome.SUCCEEDED),)
+        (UsageRecord(at_morning(22), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT),)
     )
 
     suggestions = ProactiveSuggestionService(
@@ -70,6 +72,7 @@ def test_suggestion_never_executes_before_approval_and_approval_is_one_time():
         UsageRecord(
             at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,
             appliance_id="microwave",
+            execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT,
         )
         for day in (20, 21, 22)
     )
@@ -94,6 +97,7 @@ def test_approval_uses_existing_intent_and_closed_loop_controller():
         UsageRecord(
             at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,
             appliance_id="microwave",
+            execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT,
         )
         for day in (20, 21, 22)
     )
@@ -122,6 +126,7 @@ def test_approval_uses_existing_intent_and_closed_loop_controller():
     assert usage_log.records()[-1] == UsageRecord(
         at_morning(23), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,
         appliance_id="microwave",
+        execution_mode=ExecutionMode.MOCK, source=UsageSource.SUGGESTION,
     )
 
 
@@ -144,7 +149,7 @@ def test_failed_usage_is_logged_but_not_counted_as_learned_success():
 
     assert result.status is ExecutionStatus.SAFETY_STOPPED
     assert usage_log.records() == (
-        UsageRecord(at_morning(23), "즉석밥 데워줘", UsageOutcome.FAILED),
+        UsageRecord(at_morning(23), "즉석밥 데워줘", UsageOutcome.FAILED, execution_mode=ExecutionMode.MOCK, source=UsageSource.DIRECT),
     )
     detector = PatternDetector(usage_log, clock, PatternConfig(1, (MORNING,)))
     assert detector.candidates() == ()
@@ -155,7 +160,7 @@ def test_failed_usage_is_logged_but_not_counted_as_learned_success():
 
 def test_suggestion_has_no_step_preview_without_a_resolver():
     records = tuple(
-        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT)
         for day in (20, 21, 22)
     )
     detector, clock, _ = build_detector(records)
@@ -169,7 +174,7 @@ def test_suggestion_has_no_step_preview_without_a_resolver():
 
 def test_suggestion_previews_steps_when_resolver_is_injected():
     records = tuple(
-        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED)
+        UsageRecord(at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED, execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT)
         for day in (20, 21, 22)
     )
     detector, clock, _ = build_detector(records)
@@ -186,7 +191,7 @@ def test_suggestion_previews_steps_when_resolver_is_injected():
 
 def test_suggestion_preview_failure_does_not_block_suggestion_creation():
     records = tuple(
-        UsageRecord(at_morning(day), "규칙에 없는 목적", UsageOutcome.SUCCEEDED)
+        UsageRecord(at_morning(day), "규칙에 없는 목적", UsageOutcome.SUCCEEDED, execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT)
         for day in (20, 21, 22)
     )
     detector, clock, _ = build_detector(records)
@@ -210,6 +215,7 @@ def test_approve_still_reresolves_independently_of_the_preview():
         UsageRecord(
             at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,
             appliance_id="microwave",
+            execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT,
         )
         for day in (20, 21, 22)
     )

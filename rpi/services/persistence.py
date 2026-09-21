@@ -22,7 +22,7 @@ from pathlib import Path
 
 import json
 
-from rpi.intent.models import UsageOutcome, UsageRecord
+from rpi.intent.models import UsageOutcome, UsageRecord, UsageSource
 from rpi.intent.ports import SuppressionStore, UsageLog
 
 import logging
@@ -53,6 +53,11 @@ class SimpleLayDb:
                     purpose TEXT NOT NULL,
                     outcome TEXT NOT NULL,
                     appliance_id TEXT           -- 대상 가전 (옛 기록은 NULL)
+                );
+                CREATE TABLE IF NOT EXISTS suggestion_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_id TEXT NOT NULL UNIQUE,
+                    payload_json TEXT NOT NULL
                 );
                 CREATE TABLE IF NOT EXISTS nodes (
                     appliance_id TEXT PRIMARY KEY,
@@ -115,6 +120,11 @@ class SimpleLayDb:
                 )
                 self._conn.commit()
                 _log.info("usage_log migrated: appliance_id column added")
+
+            for column in ("execution_mode", "source"):
+                if column not in columns:
+                    self._conn.execute(f"ALTER TABLE usage_log ADD COLUMN {column} TEXT")
+            self._conn.commit()
 
             job_columns = {
                 row[1]
@@ -189,17 +199,41 @@ class SimpleLayDb:
 
     # ── 사용 이력 (패턴 학습) ────────────────────────────────────────────────
 
+    def append_suggestion_event(self, event: dict) -> None:
+        from rpi.intent.feedback import EVENT_CAPACITY
+        with self._lock, self._conn:
+            self._conn.execute(
+                "INSERT INTO suggestion_events (event_id, payload_json) VALUES (?, ?)",
+                (event["event_id"], json.dumps(event, ensure_ascii=False)),
+            )
+            self._conn.execute(
+                "DELETE FROM suggestion_events WHERE id NOT IN "
+                "(SELECT id FROM suggestion_events ORDER BY id DESC LIMIT ?)",
+                (EVENT_CAPACITY,),
+            )
+
+    def suggestion_events(self) -> list[dict]:
+        from rpi.intent.feedback import EVENT_CAPACITY
+        with self._lock:
+            rows = self._conn.execute(
+                "SELECT payload_json FROM suggestion_events ORDER BY id DESC LIMIT ?",
+                (EVENT_CAPACITY,),
+            ).fetchall()
+        return [json.loads(row[0]) for row in reversed(rows)]
+
     def append_usage(self, record: UsageRecord) -> None:
         with self._lock:
             self._conn.execute(
                 "INSERT INTO usage_log"
-                " (occurred_at, purpose, outcome, appliance_id)"
-                " VALUES (?, ?, ?, ?)",
+                " (occurred_at, purpose, outcome, appliance_id, execution_mode, source)"
+                " VALUES (?, ?, ?, ?, ?, ?)",
                 (
                     record.occurred_at.isoformat(),
                     record.purpose,
                     record.outcome.value,
                     record.appliance_id,
+                    record.execution_mode.value,
+                    record.source.value,
                 ),
             )
             self._conn.commit()
@@ -207,7 +241,7 @@ class SimpleLayDb:
     def usage_records(self) -> tuple[UsageRecord, ...]:
         with self._lock:
             rows = self._conn.execute(
-                "SELECT occurred_at, purpose, outcome, appliance_id"
+                "SELECT occurred_at, purpose, outcome, appliance_id, execution_mode, source"
                 " FROM usage_log ORDER BY id"
             ).fetchall()
         return tuple(
@@ -216,8 +250,10 @@ class SimpleLayDb:
                 purpose,
                 UsageOutcome(outcome),
                 appliance_id=appliance_id,
+                execution_mode=ExecutionMode(execution_mode or "unknown"),
+                source=UsageSource(source or "unknown"),
             )
-            for occurred_at, purpose, outcome, appliance_id in rows
+            for occurred_at, purpose, outcome, appliance_id, execution_mode, source in rows
         )
 
     # ── 노드 등록 (appliance_id → ESP32 base_url) ───────────────────────────

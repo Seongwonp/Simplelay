@@ -2,6 +2,8 @@
 
 from datetime import datetime, time, timedelta, timezone
 
+from rpi.intent.models import ExecutionMode, UsageSource
+
 from rpi.intent import (
     InMemoryUsageLog,
     PatternConfig,
@@ -26,7 +28,7 @@ def _at_morning(day: int) -> datetime:
 
 def _three(purpose: str) -> tuple[UsageRecord, ...]:
     return tuple(
-        UsageRecord(_at_morning(d), purpose, UsageOutcome.SUCCEEDED)
+        UsageRecord(_at_morning(d), purpose, UsageOutcome.SUCCEEDED, execution_mode=ExecutionMode.REAL, source=UsageSource.DIRECT)
         for d in (20, 21, 22)
     )
 
@@ -82,13 +84,13 @@ def test_reject_with_mute_suppresses_future():
     assert svc.create_suggestions() == ()
 
 
-def test_reject_without_mute_can_resuggest():
+def test_reject_without_mute_waits_until_next_band():
     store = InMemorySuppressionStore()
     svc = _service(store, _three("즉석밥 데워줘"))
     (sug,) = svc.create_suggestions()
     svc.reject(sug.suggestion_id)  # 이번만 넘기기
     assert store.muted() == frozenset()
-    assert len(svc.create_suggestions()) == 1  # 억제 안 했으니 또 뜬다
+    assert svc.create_suggestions() == ()  # 영구 억제는 아니지만 같은 시간대에는 쉬기
 
 
 def test_muted_purposes_sorted_and_unmute():

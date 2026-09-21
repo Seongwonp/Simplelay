@@ -22,6 +22,16 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets('연결 유실은 정지나 실패 확정으로 표시하지 않는다', (tester) async {
+    await _pump(tester, const KioskDoneView(
+      success: false, label: '실행 확인 불가',
+      reason: KioskFailureReason.serverLost,
+    ));
+    expect(find.text('실행 상태를 확인할 수 없어요'), findsOneWidget);
+    expect(find.text('실행을 멈췄어요'), findsNothing);
+    expect(find.textContaining('직접 확인'), findsOneWidget);
+  });
+
   testWidgets('성공: 버튼 조작을 마쳤어요·대상·한 일·확인 방법·자동 복귀·처음으로',
       (tester) async {
     var dismissed = 0;
@@ -59,7 +69,7 @@ void main() {
       ),
     );
 
-    expect(find.text('실행을 멈췄어요'), findsOneWidget);
+    expect(find.text('버튼 조작을 확인하지 못했어요'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
     expect(find.text('버튼으로 조작'), findsOneWidget);
     expect(find.text('잠시 후 처음 화면으로 돌아가요'), findsNothing);

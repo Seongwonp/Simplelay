@@ -20,6 +20,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
 import '../widgets/dnd_bottom_sheet.dart';
+import '../widgets/learning_status_dialog.dart';
 import '../widgets/sync_status_line.dart';
 
 // 구획별 파일. `part`라서 private 이름·import·provider 읽는 시점이 이 파일에
@@ -104,6 +105,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           // ── 제안 ──────────────────────────────────────────
           _SectionHeader(title: '제안'),
           const SizedBox(height: 8),
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const Icon(Icons.history),
+            title: const Text('생활 습관 알아가기'),
+            subtitle: const Text('기억한 습관과 추천 근거 확인'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              final api = ref.read(rpiApiServiceProvider);
+              final appliances = ref.read(installedAppliancesProvider);
+              showDialog<void>(context: context, builder: (_) => LearningStatusDialog(
+                load: api?.learningStatus,
+                applianceNames: {for (final a in appliances) a.id: a.name},
+              ));
+            },
+          ),
           _SuppressionSection(),
 
           const SizedBox(height: 28),

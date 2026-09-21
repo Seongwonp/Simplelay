@@ -1,8 +1,8 @@
 """Configurable repeated-usage pattern detection."""
 
-from datetime import datetime
+from datetime import date, datetime, timedelta
 
-from .models import PatternCandidate, PatternConfig, UsageOutcome
+from .models import ExecutionMode, PatternCandidate, PatternConfig, UsageOutcome, UsageSource
 from .ports import Clock, UsageLog
 
 
@@ -11,6 +11,25 @@ class PatternDetector:
         self._usage_log = usage_log
         self._clock = clock
         self._config = config
+
+    def band_end(self, name: str, now: datetime) -> datetime | None:
+        """현재 시간대의 끝. 자정을 넘는 시간대와 24시간 시간대도 지원."""
+        band = next((b for b in self._config.time_bands if b.name == name), None)
+        if band is None or not band.contains(now.timetz()):
+            return None
+        end = datetime.combine(now.date(), band.end.replace(tzinfo=None), now.tzinfo)
+        if end <= now:
+            end += timedelta(days=1)
+        return end
+
+    def band_start(self, name: str, now: datetime) -> datetime | None:
+        band = next((b for b in self._config.time_bands if b.name == name), None)
+        if band is None or not band.contains(now.timetz()):
+            return None
+        start = datetime.combine(now.date(), band.start.replace(tzinfo=None), now.tzinfo)
+        if start > now:
+            start -= timedelta(days=1)
+        return start
 
     def candidates(self) -> tuple[PatternCandidate, ...]:
         now = self._clock.now()
@@ -22,36 +41,67 @@ class PatternDetector:
         if not matching_bands:
             return ()
 
-        active_band = matching_bands[0]
-        counts: dict[str, int] = {}
-        # 목적별 '가장 최근' 실행의 가전. 같은 루틴을 다른 가전으로 옮겨
-        # 쓰기 시작했다면 사용자가 뜻하는 대상은 최신 쪽이다. 최빈값이
-        # 아니라 최신을 쓰는 이유이며, 가전 없이 쌓인 옛 기록은 건너뛴다.
-        latest: dict[str, tuple[datetime, str]] = {}
+        return tuple(
+            c for c in self._evidence(now)
+            if c.time_band == matching_bands[0].name
+            and c.occurrences >= self._config.minimum_occurrences
+            and c.distinct_days >= self._config.minimum_days
+        )
+
+    def learning_status(self) -> dict:
+        return {
+            "window_days": self._config.window_days,
+            "minimum_days": self._config.minimum_days,
+            "minimum_occurrences": self._config.minimum_occurrences,
+            "routines": [
+                {
+                    "purpose": c.purpose,
+                    "appliance_id": c.appliance_id,
+                    "time_band": c.time_band,
+                    "occurrences": c.occurrences,
+                    "distinct_days": c.distinct_days,
+                    "established": (
+                        c.distinct_days >= self._config.minimum_days
+                        and c.occurrences >= self._config.minimum_occurrences
+                    ),
+                }
+                for c in self._evidence(self._clock.now())
+            ],
+        }
+
+    def _evidence(self, now: datetime) -> tuple[PatternCandidate, ...]:
+        counts: dict[tuple[str, str | None, str], int] = {}
+        days: dict[tuple[str, str | None, str], set[date]] = {}
+        cutoff = now - timedelta(days=self._config.window_days)
         for record in self._usage_log.records():
-            if record.outcome is not UsageOutcome.SUCCEEDED:
+            if (record.outcome is not UsageOutcome.SUCCEEDED
+                    or record.execution_mode is not ExecutionMode.REAL
+                    or record.source is not UsageSource.DIRECT):
+                continue
+            if not cutoff <= record.occurred_at <= now:
                 continue
             local_record = record.occurred_at.astimezone(now.tzinfo)
-            if active_band.contains(local_record.timetz()):
-                purpose = record.purpose.strip()
-                counts[purpose] = counts.get(purpose, 0) + 1
-                if record.appliance_id is not None:
-                    seen = latest.get(purpose)
-                    if seen is None or record.occurred_at >= seen[0]:
-                        latest[purpose] = (
-                            record.occurred_at,
-                            record.appliance_id,
-                        )
+            bands = [b for b in self._config.time_bands if b.contains(local_record.timetz())]
+            # Ambiguous historical time bands cannot establish a habit.
+            if len(bands) != 1:
+                continue
+            band = bands[0]
+            key = (record.purpose.strip(), record.appliance_id, band.name)
+            counts[key] = counts.get(key, 0) + 1
+            day = local_record.date()
+            start, end = band.start.replace(tzinfo=None), band.end.replace(tzinfo=None)
+            if start > end and local_record.time() < end:
+                day -= timedelta(days=1)
+            days.setdefault(key, set()).add(day)
 
         return tuple(
             PatternCandidate(
-                purpose,
-                active_band.name,
-                occurrences,
-                appliance_id=(
-                    latest[purpose][1] if purpose in latest else None
-                ),
+                purpose, band, occurrences,
+                appliance_id=appliance_id,
+                distinct_days=len(days[(purpose, appliance_id, band)]),
+                window_days=self._config.window_days,
             )
-            for purpose, occurrences in sorted(counts.items())
-            if occurrences >= self._config.minimum_occurrences
+            for (purpose, appliance_id, band), occurrences in sorted(
+                counts.items(), key=lambda item: (item[0][0], item[0][1] or "", item[0][2])
+            )
         )

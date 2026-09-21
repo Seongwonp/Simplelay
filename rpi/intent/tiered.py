@@ -18,7 +18,7 @@ being silently swallowed.
 from collections.abc import Sequence
 
 from .base import IntentResolver
-from .rules import UnknownIntentError
+from .rules import RuleBasedIntentResolver, UnknownIntentError
 
 
 class TieredIntentResolver(IntentResolver):
@@ -38,3 +38,11 @@ class TieredIntentResolver(IntentResolver):
         raise UnknownIntentError(
             f"unsupported purpose: {purpose.strip()}"
         ) from last_error
+
+    def learning_purpose(self, purpose: str, buttons: tuple[str, ...]) -> str:
+        # Only a deterministic first tier can certify the name without another
+        # LLM request or assumptions about which fallback produced the sequence.
+        first = self._resolvers[0]
+        if isinstance(first, RuleBasedIntentResolver):
+            return first.learning_purpose(purpose, buttons)
+        return purpose.strip()

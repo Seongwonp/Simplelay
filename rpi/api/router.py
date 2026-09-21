@@ -5,7 +5,7 @@ import os
 import time
 from collections import deque
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from rpi.controller import ExecutionResult
@@ -88,6 +88,8 @@ from .schemas import (
     StatusResponse,
     StopResponse,
     SuggestionResponse,
+    LearningStatusResponse,
+    SuggestionEventsResponse,
     SuppressionListResponse,
     UnmuteRequest,
 )
@@ -826,6 +828,21 @@ async def emergency_stop(
     )
 
 
+@router.get("/suggestions/events", response_model=SuggestionEventsResponse)
+async def suggestion_events(
+    limit: int = Query(100, ge=1, le=200),
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> dict:
+    return await asyncio.to_thread(svc.feedback_events, limit)
+
+
+@router.get("/learning", response_model=LearningStatusResponse)
+async def learning_status(
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> dict:
+    return await asyncio.to_thread(svc.learning_status)
+
+
 @router.get("/suggestions", response_model=list[SuggestionResponse])
 async def list_suggestions(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
@@ -840,7 +857,7 @@ async def list_suggestions(
             reason=s.reason,
             appliance_id=s.appliance_id,
         )
-        for s in svc.pending()
+        for s in await asyncio.to_thread(svc.pending)
     ]
 
 

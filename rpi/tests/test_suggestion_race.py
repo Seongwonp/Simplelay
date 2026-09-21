@@ -32,14 +32,14 @@ class CountingSubmitExecutor:
         self._lock = threading.Lock()
 
     def execute_purpose(
-        self, purpose: str, appliance_id: str | None = None
+        self, purpose: str, appliance_id: str | None = None, **kwargs
     ) -> object:
         with self._lock:
             self.submitted.append(purpose)
         return "executed"
 
     def submit_purpose(
-        self, purpose: str, appliance_id: str | None = None
+        self, purpose: str, appliance_id: str | None = None, **kwargs
     ) -> str:
         with self._lock:
             self.submitted.append(purpose)

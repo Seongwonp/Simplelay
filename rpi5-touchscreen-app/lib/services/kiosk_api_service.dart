@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/appliance.dart';
+import '../models/learning_status.dart';
 
 class HealthStatus {
   const HealthStatus({
@@ -268,6 +269,14 @@ class KioskApiService {
     await _client.delete(_base.replace(path: '/dnd')).timeout(_timeout);
   }
 
+  Future<LearningStatus> learningStatus() async {
+    final res =
+        await _client.get(_base.replace(path: '/learning')).timeout(_timeout);
+    _ensureOk(res);
+    return LearningStatus.fromJson(
+        jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<List<KioskSuggestion>> suggestions() async {
     final res = await _client
         .get(_base.replace(path: '/suggestions'))
@@ -323,13 +332,15 @@ class KioskApiService {
   }
 
   Future<void> rejectSuggestion(String id, {bool mute = false}) async {
-    await _client
+    final res = await _client
         .post(
           _base.replace(path: '/suggestions/$id/reject'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'mute': mute}),
         )
         .timeout(_timeout);
+    // 이미 만료/처리된 카드는 넘긴 것과 같다. 그 외 실패는 UI에 전달한다.
+    if (res.statusCode != 404) _ensureOk(res);
   }
 
   Future<void> stop() async {

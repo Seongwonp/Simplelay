@@ -4,6 +4,7 @@ import '../../models/appliance.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_timings.dart';
+import '../learning_status_dialog.dart';
 
 // 설정 진입: 대기 화면 우하단 상태 dot 3번 연속 탭
 class KioskSettingsOverlay extends StatefulWidget {
@@ -49,6 +50,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   late ApplianceMap _selected;
   Map<String, String> _nodes = {};
   bool _loading = true;
+  bool _showLearning = false;
   bool _saving = false;
   String? _saveError;
   late TextEditingController _urlCtrl;
@@ -57,8 +59,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   void initState() {
     super.initState();
     _selected = widget.currentAppliance;
-    _urlCtrl = TextEditingController()
-      ..addListener(() => setState(() {}));
+    _urlCtrl = TextEditingController()..addListener(() => setState(() {}));
     _fetchNodes();
   }
 
@@ -125,6 +126,17 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showLearning) {
+      // Keep the dialog inside KioskCanvas and the large-text MediaQuery.
+      return ColoredBox(
+        color: const Color(0xCC0C0E12),
+        child: LearningStatusDialog(
+          load: widget.api.learningStatus,
+          applianceNames: {for (final a in widget.appliances) a.id: a.name},
+          onClose: () => setState(() => _showLearning = false),
+        ),
+      );
+    }
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () {
@@ -159,6 +171,12 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          TextButton.icon(
+                            icon: const Icon(Icons.history),
+                            label: const Text('생활 습관 알아가기'),
+                            onPressed: () => setState(() => _showLearning = true),
+                          ),
+                          const SizedBox(height: 16),
                           _buildTtsSection(),
                           const SizedBox(height: 16),
                           const Divider(color: KioskColors.border, height: 1),
@@ -273,8 +291,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                     '$seconds초',
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
                 ),
@@ -375,8 +392,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   color: isSelected
                       ? KioskColors.primary
                       : const Color(0xFFFAF7F2),
-                  fontWeight:
-                      isSelected ? FontWeight.w500 : FontWeight.w400,
+                  fontWeight: isSelected ? FontWeight.w500 : FontWeight.w400,
                 ),
               ),
             ],
@@ -397,8 +413,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
             const Spacer(),
             if (registered != null)
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
                   color: KioskColors.success.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(4),
@@ -430,8 +445,8 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   height: 42,
                   child: TextField(
                     controller: _urlCtrl,
-                    style: const TextStyle(
-                        fontSize: 13, color: Color(0xFFFAF7F2)),
+                    style:
+                        const TextStyle(fontSize: 13, color: Color(0xFFFAF7F2)),
                     decoration: InputDecoration(
                       hintText: '192.168.x.x  또는  http://...:8080',
                       hintStyle: const TextStyle(
@@ -440,19 +455,16 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                       fillColor: KioskColors.surface2,
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide:
-                            const BorderSide(color: KioskColors.border),
+                        borderSide: const BorderSide(color: KioskColors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
-                        borderSide:
-                            const BorderSide(color: KioskColors.border),
+                        borderSide: const BorderSide(color: KioskColors.border),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(8),
                         borderSide: BorderSide(
-                            color:
-                                KioskColors.primary.withValues(alpha: 0.7)),
+                            color: KioskColors.primary.withValues(alpha: 0.7)),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
@@ -484,8 +496,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                             width: 14,
                             height: 14,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: KioskColors.muted),
+                                strokeWidth: 2, color: KioskColors.muted),
                           )
                         : Text(
                             textEmpty && registered != null ? '해제' : '저장',

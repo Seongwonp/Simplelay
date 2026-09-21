@@ -24,6 +24,9 @@ from rpi.intent.models import PatternConfig, TimeBand
 from rpi.intent.patterns import PatternDetector
 from rpi.intent.ports import UsageLog
 from rpi.intent.suggestions import ProactiveSuggestionService
+from rpi.intent.completed_actions import CompletedActions
+from rpi.intent.cooldowns import SuggestionCooldowns
+from rpi.intent.feedback import SuggestionFeedback
 from rpi.intent.tiered import TieredIntentResolver
 from rpi.services import (
     DangerAlertStore,
@@ -494,6 +497,7 @@ def get_demo_failure_state() -> DemoFailureState:
 
 @lru_cache(maxsize=1)
 def get_service() -> SimpleLayService:
+    db = get_db()
     progress_tracker = ExecutionProgressTracker()
     store = get_alert_store()
     controller = build_controller(
@@ -515,6 +519,10 @@ def get_service() -> SimpleLayService:
         history_store=get_job_history(),
         care_events=get_care_events(),
         control_arbiter=get_control_arbiter(),
+        completed_actions=CompletedActions(
+            load=(lambda: db.load_setting('completed_actions')) if db else None,
+            save=(lambda value: db.save_setting('completed_actions', value)) if db else None,
+        ),
     )
 
 
@@ -605,12 +613,19 @@ def _read_environment() -> tuple[float | None, float | None]:
 def _build_environmental_suggester():
     from rpi.intent.environment import EnvironmentalSuggester  # noqa: PLC0415
 
-    return EnvironmentalSuggester(_read_environment)
+    return EnvironmentalSuggester(
+        lambda: get_dht22().read(), demo_read=get_environment_override().current,
+    )
 
 
 @lru_cache(maxsize=1)
 def get_suggestion_service() -> ProactiveSuggestionService:
     detector = PatternDetector(get_usage_log(), _clock, _PATTERN_CONFIG)
+    db = get_db()
+    cooldowns = SuggestionCooldowns(
+        load=(lambda: db.load_setting('suggestion_cooldowns')) if db else None,
+        save=(lambda value: db.save_setting('suggestion_cooldowns', value)) if db else None,
+    )
     # 미리보기 해석은 빠르고 오프라인이어야 하므로 규칙 계층만 쓴다 —
     # 실제 실행 시퀀스는 approve 시점에 서비스의 전체 리졸버로 다시 해석된다.
     return ProactiveSuggestionService(
@@ -621,4 +636,10 @@ def get_suggestion_service() -> ProactiveSuggestionService:
         presence_gate=_build_presence_gate(),
         suppression_store=get_suppression_store(),
         environmental=_build_environmental_suggester(),
+        cooldowns=cooldowns,
+        completed_actions=get_service().completed_actions,
+        feedback=SuggestionFeedback(
+            load=db.suggestion_events if db else None,
+            save=db.append_suggestion_event if db else None,
+        ),
     )

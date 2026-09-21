@@ -20,6 +20,9 @@ class FakeClock:
 
 
 class FakeDetector:
+    def band_end(self, name, now):
+        return now + timedelta(hours=1)
+
     def __init__(self, candidates=()):
         self._candidates = tuple(candidates)
 

@@ -78,12 +78,14 @@ class RuleBasedIntentResolver(IntentResolver):
 
     def __init__(self, rules: Mapping[str, Sequence[str]] | None = None) -> None:
         selected = rules if rules is not None else self.DEFAULT_RULES
+        self._canonical = {_normalize(key): key.strip() for key in selected}
         self._rules = {
             _normalize(key): tuple(value) for key, value in selected.items()
         }
         if rules is None:
             for alias, canonical in self.DEFAULT_ALIASES.items():
                 self._rules[_normalize(alias)] = self._rules[_normalize(canonical)]
+                self._canonical[_normalize(alias)] = canonical
 
     def resolve(self, purpose: str) -> tuple[str, ...]:
         try:
@@ -92,3 +94,9 @@ class RuleBasedIntentResolver(IntentResolver):
             raise UnknownIntentError(
                 f"unsupported purpose: {purpose.strip()}"
             ) from exc
+
+    def learning_purpose(self, purpose: str, buttons: tuple[str, ...]) -> str:
+        key = _normalize(purpose)
+        if self._rules.get(key) == buttons:
+            return self._canonical[key]
+        return purpose.strip()
