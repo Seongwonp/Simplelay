@@ -43,7 +43,11 @@ class RpiJobAccepted {
 }
 
 class RpiStatusResult {
+  final String executionMode;
+  final String lastExecutionMode;
   const RpiStatusResult({
+    this.executionMode = 'unknown',
+    this.lastExecutionMode = 'unknown',
     required this.running,
     this.lastStatus,
     this.lastButtons,
@@ -84,6 +88,7 @@ class RpiStatusResult {
 
 class RpiSuggestion {
   const RpiSuggestion({
+    this.isDemo = false,
     required this.id,
     required this.purpose,
     required this.timeBand,
@@ -92,6 +97,7 @@ class RpiSuggestion {
     this.reason = '',
     this.applianceId,
   });
+  final bool isDemo;
   final String id;
   final String purpose;
   final String timeBand;
@@ -107,6 +113,7 @@ class RpiSuggestion {
   final List<String> steps;
 
   factory RpiSuggestion.fromJson(Map<String, dynamic> json) => RpiSuggestion(
+        isDemo: json['is_demo'] == true || json['time_band'] == '데모',
         id: json['id'] as String,
         purpose: json['purpose'] as String,
         timeBand: json['time_band'] as String,
@@ -163,7 +170,9 @@ class RpiCareEvent {
 }
 
 class RpiHistoryEntry {
+  final String executionMode;
   const RpiHistoryEntry({
+    this.executionMode = 'unknown',
     required this.jobId,
     required this.finishedAt,
     required this.status,
@@ -193,7 +202,7 @@ class RpiHistoryEntry {
 
   factory RpiHistoryEntry.fromJson(Map<String, dynamic> json) =>
       RpiHistoryEntry(
-        jobId: json['job_id'] as String,
+        executionMode: json['execution_mode'] as String? ?? 'unknown',        jobId: json['job_id'] as String,
         finishedAt: DateTime.parse(json['finished_at'] as String).toLocal(),
         purpose: json['purpose'] as String?,
         status: json['status'] as String,
@@ -208,11 +217,13 @@ class RpiHistoryEntry {
 }
 
 class SensorReading {
-  const SensorReading({this.temperature, this.humidity});
+  final bool mocked;
+  const SensorReading({this.temperature, this.humidity, this.mocked = true});
   final double? temperature;
   final double? humidity;
 
   factory SensorReading.fromJson(Map<String, dynamic> json) => SensorReading(
+        mocked: json['mocked'] != false,
         temperature: (json['temperature'] as num?)?.toDouble(),
         humidity: (json['humidity'] as num?)?.toDouble(),
       );
@@ -477,6 +488,8 @@ class RpiApiService {
     final body = jsonDecode(res.body) as Map<String, dynamic>;
     final rawButtons = body['last_buttons'] as List<dynamic>?;
     return RpiStatusResult(
+        executionMode: body['execution_mode'] as String? ?? 'unknown',
+        lastExecutionMode: body['last_execution_mode'] as String? ?? 'unknown',
       running: body['running'] as bool,
       lastStatus: body['last_status'] as String?,
       lastButtons: rawButtons

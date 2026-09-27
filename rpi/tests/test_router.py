@@ -660,3 +660,17 @@ def test_demo_environment_reflects_in_sensors(client):
     sensors = client.get("/sensors").json()
     assert sensors["temperature"] == 31.0
     assert sensors["humidity"] == 68.0
+
+
+def test_status_exposes_mode_of_completed_job(client):
+    accepted = client.post("/execute", json={"text": "즉석밥 데워줘"}).json()
+    status = _wait_job_done(client, accepted["job_id"])
+    assert status["last_execution_mode"] == "mock"
+    assert status["execution_mode"] == "unknown"
+
+
+def test_demo_suggestion_provenance_survives_list_response(client):
+    created = client.post("/demo/suggest", json={}).json()
+    assert created["is_demo"] is True
+    listed = client.get("/suggestions").json()
+    assert next(s for s in listed if s["id"] == created["id"])["is_demo"] is True

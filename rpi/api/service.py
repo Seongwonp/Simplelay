@@ -135,6 +135,8 @@ class StatusSnapshot:
     # 진행 중인 작업의 대상은 바뀌지 않는다.
     appliance_id: str | None = None
     last_appliance_id: str | None = None
+    execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
+    last_execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
 
 
 class SimpleLayService(PurposeExecutor):
@@ -190,6 +192,8 @@ class SimpleLayService(PurposeExecutor):
         self._last_job_id: str | None = None
         self._current_appliance_id: str | None = None
         self._last_appliance_id: str | None = None
+        self._execution_mode = ExecutionMode.UNKNOWN
+        self._last_execution_mode = ExecutionMode.UNKNOWN
         self._current_total_steps: int | None = None
         self._progress_tracker = progress_tracker
         # 사용자 정의 가전의 버튼 어휘로 즉석에서 LlmIntentResolver를 만들 때 씀
@@ -534,6 +538,7 @@ class SimpleLayService(PurposeExecutor):
             self._stop_requested_at = None
             job_id = uuid.uuid4().hex[:12]
             self._current_job_id = job_id
+            self._execution_mode = _mode_of(controller)
             self._current_appliance_id = appliance_id
             self._current_total_steps = total_steps
             self._current_started_at = self._clock.now()
@@ -551,6 +556,8 @@ class SimpleLayService(PurposeExecutor):
                 self._control_arbiter.release(self._control_arbiter.EXECUTION)
             self._running = False
             self._last_job_id = self._current_job_id
+            self._last_execution_mode = self._execution_mode
+            self._execution_mode = ExecutionMode.UNKNOWN
             self._last_appliance_id = self._current_appliance_id
             self._current_job_id = None
             self._current_appliance_id = None
@@ -974,4 +981,6 @@ class SimpleLayService(PurposeExecutor):
                 total_steps=self._current_total_steps,
                 appliance_id=self._current_appliance_id,
                 last_appliance_id=self._last_appliance_id,
+                execution_mode=self._execution_mode,
+                last_execution_mode=self._last_execution_mode,
             )

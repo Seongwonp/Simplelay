@@ -233,6 +233,7 @@ class SuggestionScreen extends ConsumerWidget {
           // ── 무엇을 ──────────────────────────────────────────────────────
           // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
           // 잘라내지 않는다. 긴 말은 줄바꿈해서 다 보여준다.
+          if (suggestion.isDemo) const Text('시연 데이터로 만든 제안', style: AppText.body),
           Text('${suggestion.label}, 지금 할까요?', style: AppText.heading),
           // 왜 지금 이게 떴는지. 환경 제안은 서버가 준 근거, 패턴 제안은
           // 시간대·횟수로 만든 한 문장이다(데모는 비어 있다).

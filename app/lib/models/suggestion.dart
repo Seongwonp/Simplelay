@@ -4,6 +4,7 @@ enum SuggestionSource { ble, http }
 
 class Suggestion {
   const Suggestion({
+    this.isDemo = false,
     required this.sequenceId,
     required this.label,
     required this.steps,
@@ -15,6 +16,7 @@ class Suggestion {
     this.occurrences = 0,
   });
 
+  final bool isDemo;
   final String sequenceId;
   final String label;
   final List<String> steps;

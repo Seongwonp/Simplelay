@@ -89,10 +89,10 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           // 보면 진짜로 움직이고 있는 작업 위에도 이 배너가 떠서, 화면이
           // 정반대의 말을 하게 된다 -- 폐루프의 존재 이유가 "눌림을
           // 확인했는가"인데 그 확인을 화면이 뒤집는 셈이다.
-          if (status.isDemo)
+          if (status.phase != ExecutionPhase.idle)
             Semantics(
               liveRegion: true,
-              label: '데모 모드예요. 실제로 조작하지 않아요.',
+              label: status.modeLabel,
               child: ExcludeSemantics(
                 child: Container(
                   width: double.infinity,
@@ -106,7 +106,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          '데모 모드 — 실제 조작이 아닙니다',
+                          status.modeLabel,
                           style: TextStyle(
                             color: context.appWarning,
                             fontWeight: FontWeight.w600,

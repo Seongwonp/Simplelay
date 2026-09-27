@@ -274,6 +274,8 @@ class _HistoryRow extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   [
+                    entry.executionMode == 'mock' ? '모의 실행'
+                        : entry.executionMode == 'real' ? '실기기 실행' : '실행 환경 미확인',
                     _hm(entry.finishedAt),
                     o.sentence,
                     if (applianceName != null) applianceName!,

@@ -44,6 +44,9 @@ def build_controller(
     일어나므로 여기서는 배선 불가(demo_failure.py 모듈 docstring 참고).
     """
     mode = os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower()
+    if mode == "simulator":
+        from .simulator_controller import SimulatorController
+        return SimulatorController(on_alert=on_alert)
     if mode == "uart":
         port = os.environ.get("SIMPLELAY_UART_PORT", "/dev/ttyAMA0")
         baud = int(os.environ.get("SIMPLELAY_UART_BAUD", "115200"))

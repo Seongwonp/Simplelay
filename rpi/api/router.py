@@ -798,6 +798,8 @@ async def status(
         total_steps=snapshot.total_steps,
         appliance_id=snapshot.appliance_id,
         last_appliance_id=snapshot.last_appliance_id,
+        execution_mode=snapshot.execution_mode.value,
+        last_execution_mode=snapshot.last_execution_mode.value,
     )
 
 
@@ -849,6 +851,7 @@ async def list_suggestions(
 ) -> list[SuggestionResponse]:
     return [
         SuggestionResponse(
+            is_demo=s.is_demo or s.time_band == "데모",
             id=s.suggestion_id,
             purpose=s.purpose,
             time_band=s.time_band,
@@ -929,6 +932,7 @@ async def demo_suggest(
     if suggestion is None:
         raise HTTPException(status_code=409, detail="DND is active")
     return SuggestionResponse(
+        is_demo=suggestion.is_demo or suggestion.time_band == "데모",
         id=suggestion.suggestion_id,
         purpose=suggestion.purpose,
         time_band=suggestion.time_band,
@@ -949,6 +953,7 @@ async def demo_environment(
     created = await asyncio.to_thread(svc.create_suggestions)
     return [
         SuggestionResponse(
+            is_demo=s.is_demo or s.time_band == "데모",
             id=s.suggestion_id,
             purpose=s.purpose,
             time_band=s.time_band,

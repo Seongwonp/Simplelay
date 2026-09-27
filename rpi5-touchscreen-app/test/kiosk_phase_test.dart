@@ -594,7 +594,7 @@ void main() {
 
     // 완료 발화
     // 화면과 같은 말 -- '완료되었습니다'는 조리·세탁이 끝났다고 들린다.
-    expect(tts.utterances.last, contains('버튼 조작을 마쳤어요'));
+    expect(tts.utterances.last, contains('실제 조작 여부는 확인하지 못했어요'));
     await tester.pump(KioskTimings.doneReturn);
   });
 

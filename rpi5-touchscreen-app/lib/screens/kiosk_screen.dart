@@ -93,6 +93,7 @@ class _KioskScreenState extends State<KioskScreen> {
   KioskPhase _phase = KioskPhase.idle;
   HealthStatus _health = HealthStatus.disconnected;
   SensorData? _sensorData;
+  String _executionMode = 'unknown';
   DateTime _now = DateTime.now();
   bool _showDnd = false;
   AlertState _alert = AlertState.inactive;
@@ -330,6 +331,7 @@ class _KioskScreenState extends State<KioskScreen> {
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
       // 처리하면 그 완료를 영영 놓친다(추월 레이스).
       if (st.lastJobId != null && st.lastJobId == _activeJobId) {
+        _executionMode = st.lastExecutionMode;
         _finishExecuting(
           success: st.lastStatus == 'succeeded',
           buttons: st.lastButtons ?? const [],
@@ -344,6 +346,7 @@ class _KioskScreenState extends State<KioskScreen> {
         if (mine) {
           _foreignPolls = 0;
           setState(() {
+            _executionMode = st.executionMode;
             _currentButton = st.currentButton ?? _currentButton;
             _currentAttempt = st.currentAttempt ?? _currentAttempt;
             _completedSteps = st.completedSteps ?? _completedSteps;
@@ -516,6 +519,7 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   void _toExecuting(String title, {String? applianceId, String? jobId}) {
+    _executionMode = 'unknown';
     _activeJobId = jobId;
     _retryAction = null;
     _lastStatusOk = DateTime.now();
@@ -568,7 +572,9 @@ class _KioskScreenState extends State<KioskScreen> {
       // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
       // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
-          ? '$label, 버튼 조작을 마쳤어요.'
+          ? (_executionMode == 'mock' ? '$label, 모의 버튼 조작을 마쳤어요. 실제 조작은 하지 않았어요.'
+              : _executionMode == 'real' ? '$label, 버튼 조작을 마쳤어요.'
+              : '$label, 실행기가 완료를 보고했어요. 실제 조작 여부는 확인하지 못했어요.')
           : reason == KioskFailureReason.serverLost
               ? '실행 상태를 확인할 수 없어요. 가전 상태를 직접 확인해 주세요.'
               : reason == KioskFailureReason.stopped
@@ -786,8 +792,8 @@ class _KioskScreenState extends State<KioskScreen> {
               ? _findIn(_appliances, _currentAppliance.id)
               : null,
           dndUntil: _health.dndUntil,
-          temperature: _sensorData?.temperature,
-          humidity: _sensorData?.humidity,
+          temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
+          humidity: _sensorData?.mocked == false ? _sensorData?.humidity : null,
           onTap: _toManual,
           onLongPress: () => setState(() => _showDnd = true),
           onSettingsGesture: () => setState(() => _showSettings = true),
@@ -826,6 +832,7 @@ class _KioskScreenState extends State<KioskScreen> {
         );
       case KioskPhase.executing:
         return KioskExecutingView(
+          executionMode: _executionMode,
           key: const ValueKey('executing'),
           title: _execTitle,
           target: _execApplianceId == null
@@ -842,6 +849,7 @@ class _KioskScreenState extends State<KioskScreen> {
         );
       case KioskPhase.done:
         return KioskDoneView(
+          executionMode: _executionMode,
           key: const ValueKey('done'),
           success: _doneSuccess,
           label: _doneLabel,

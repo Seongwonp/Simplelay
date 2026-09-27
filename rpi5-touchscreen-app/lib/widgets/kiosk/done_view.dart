@@ -15,6 +15,7 @@ import 'kiosk_timings.dart';
 /// 이 시스템이 끝낸 것은 **버튼 조작**이다. 조리·세탁이 끝났다고 말하지 않는다.
 class KioskDoneView extends StatelessWidget {
   const KioskDoneView({
+    this.executionMode = 'unknown',
     super.key,
     required this.success,
     required this.label,
@@ -24,6 +25,10 @@ class KioskDoneView extends StatelessWidget {
     this.onManual,
     this.onDismiss,
   });
+
+  final String executionMode;
+  String get modeLabel => executionMode == 'mock' ? '모의 실행 · 실제 조작 아님'
+      : executionMode == 'real' ? '실기기 실행' : '실행 환경 미확인';
 
   final bool success;
   final String label;
@@ -56,6 +61,7 @@ class KioskDoneView extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                Text(modeLabel, style: const TextStyle(fontSize: 18, color: KioskColors.warning)),
                 _ResultRing(success: success, color: color),
                 const SizedBox(height: 14),
                 // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
@@ -93,8 +99,9 @@ class KioskDoneView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 4),
-                  const Text(
-                    '버튼 눌림을 모두 확인했어요',
+                  Text(
+                    executionMode == 'mock' ? '모의 절차를 마쳤어요 · 실제 조작 아님'
+                        : '실행기가 버튼 조작 완료를 보고했어요',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 22, color: KioskColors.muted),
                   ),

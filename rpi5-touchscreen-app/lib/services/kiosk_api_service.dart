@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 
 import '../models/appliance.dart';
 import '../models/learning_status.dart';
@@ -29,12 +30,14 @@ class HealthStatus {
 }
 
 class SensorData {
-  const SensorData({this.temperature, this.humidity});
+  final bool mocked;
+  const SensorData({this.temperature, this.humidity, this.mocked = true});
 
   final double? temperature;
   final double? humidity;
 
   factory SensorData.fromJson(Map<String, dynamic> json) => SensorData(
+        mocked: json['mocked'] != false,
         temperature: (json['temperature'] as num?)?.toDouble(),
         humidity: (json['humidity'] as num?)?.toDouble(),
       );
@@ -62,6 +65,7 @@ class AlertState {
 
 class KioskSuggestion {
   const KioskSuggestion({
+    this.isDemo = false,
     required this.id,
     required this.purpose,
     required this.occurrences,
@@ -71,6 +75,7 @@ class KioskSuggestion {
     this.applianceId,
   });
 
+  final bool isDemo;
   final String id;
   final String purpose;
   final int occurrences;
@@ -105,6 +110,7 @@ class KioskSuggestion {
 
   factory KioskSuggestion.fromJson(Map<String, dynamic> json) =>
       KioskSuggestion(
+        isDemo: json['is_demo'] == true || json['time_band'] == '데모',
         id: json['id'] as String,
         purpose: json['purpose'] as String,
         // 기본값을 1로 두면 횟수를 모르는 제안이 '1번 하셨어요'라고
@@ -130,7 +136,11 @@ class KioskButtonResult {
 }
 
 class KioskStatus {
+  final String executionMode;
+  final String lastExecutionMode;
   const KioskStatus({
+    this.executionMode = 'unknown',
+    this.lastExecutionMode = 'unknown',
     required this.running,
     this.lastStatus,
     this.lastButtons,
@@ -168,6 +178,8 @@ class KioskStatus {
   final String? lastApplianceId;
 
   factory KioskStatus.fromJson(Map<String, dynamic> json) => KioskStatus(
+        executionMode: json['execution_mode'] as String? ?? 'unknown',
+        lastExecutionMode: json['last_execution_mode'] as String? ?? 'unknown',
         running: json['running'] as bool? ?? false,
         lastStatus: json['last_status'] as String?,
         lastButtons: (json['last_buttons'] as List<dynamic>?)
@@ -212,8 +224,10 @@ class NodeInfo {
 
 // RPi5에서 로컬로 도는 rpi/api FastAPI 서버(localhost:8000)를 호출한다.
 class KioskApiService {
-  KioskApiService({String baseUrl = 'http://localhost:8000'})
-      : _base = Uri.parse(baseUrl.replaceAll(RegExp(r'/$'), ''));
+  KioskApiService({String? baseUrl})
+      : _base = Uri.parse((baseUrl ??
+                (kIsWeb ? Uri.base.origin : 'http://localhost:8000'))
+            .replaceAll(RegExp(r'/$'), ''));
 
   final Uri _base;
   final _client = http.Client();

@@ -181,13 +181,17 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         // "실행 완료"는 조리가 끝난 뜻으로 읽힐 수 있다.
         // 우리가 보장하는 것은 버튼 조작까지다.
         final message = success
-            ? '버튼 조작을 마쳤어요.'
+            ? (status.lastExecutionMode == 'mock'
+                ? '모의 버튼 조작을 마쳤어요. 실제 조작은 하지 않았어요.'
+                : status.lastExecutionMode == 'real' ? '버튼 조작을 마쳤어요.'
+                : '실행기가 완료를 보고했어요. 실제 조작 여부는 확인하지 못했어요.')
             : stopped
                 // 서버가 확인한 것은 실행 루프 종료까지다. 가전 쪽 장치가
                 // 멈췄는지는 사람이 본다(물리 정지 확인은 실측 대기).
                 ? '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.'
                 : '실행하지 못했어요.';
         state = state.copyWith(
+          executionMode: status.lastExecutionMode,
           phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
           completedSteps: success
               ? (state.totalSteps ?? state.steps.length)
@@ -204,6 +208,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         _missingPolls = 0;
         final retrying = (status.currentAttempt ?? 1) > 1;
         state = state.copyWith(
+          executionMode: status.executionMode,
           completedSteps: status.completedSteps ?? state.completedSteps,
           // 폐루프 증거를 그대로 흘려보낸다 -- 여기서 버리면 화면은
           // "빙글빙글 돌다 완료되는 앱"이 된다(차별점이 안 보임).

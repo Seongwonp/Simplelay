@@ -13,6 +13,7 @@ enum ExecutionPhase {
 
 class ExecutionStatus {
   const ExecutionStatus({
+    this.executionMode = 'unknown',
     this.sequenceId,
     this.label,
     this.steps = const [],
@@ -59,8 +60,13 @@ class ExecutionStatus {
   /// 이미 시작한 작업의 표시가 뒤집힌다 -- 실제로 움직이고 있는 작업이
   /// "실제 조작이 아닙니다"가 되거나 그 반대가 된다.
   final bool isDemo;
+  final String executionMode;
+  String get modeLabel => isDemo || executionMode == 'mock'
+      ? '모의 실행 — 실제 조작이 아닙니다'
+      : executionMode == 'real' ? '실기기 실행' : '실행 환경 미확인';
 
   ExecutionStatus copyWith({
+    String? executionMode,
     String? sequenceId,
     String? label,
     List<String>? steps,
@@ -77,7 +83,7 @@ class ExecutionStatus {
     String? applianceId,
   }) =>
       ExecutionStatus(
-        sequenceId: sequenceId ?? this.sequenceId,
+        executionMode: executionMode ?? this.executionMode,        sequenceId: sequenceId ?? this.sequenceId,
         label: label ?? this.label,
         steps: steps ?? this.steps,
         completedSteps: completedSteps ?? this.completedSteps,

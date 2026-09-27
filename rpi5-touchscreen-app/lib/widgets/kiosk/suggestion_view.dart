@@ -79,7 +79,7 @@ class KioskSuggestionView extends StatelessWidget {
                         // 질문은 따로 한 줄. 이어 쓰면 폭에 따라 '할까 / 요?'처럼
                         // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다.
                         Text(
-                          '${suggestion.purpose},\n지금 할까요?',
+                          '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose},\n지금 할까요?',
                           style: const TextStyle(
                             fontSize: 36,
                             fontWeight: FontWeight.w700,

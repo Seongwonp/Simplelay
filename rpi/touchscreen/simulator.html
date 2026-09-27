@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SimpleLay · 통신 시뮬레이터</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101419;color:#f5f6f7}body{max-width:1100px;margin:auto;padding:28px}h1{font-size:30px;margin:14px 0}h2{font-size:20px}p{line-height:1.6;color:#c5ccd4}.badge{color:#f2ce74;font-weight:700}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}section{border:1px solid #414b58;border-radius:14px;padding:22px}button,select,input,a.action{font:inherit;padding:13px 17px;border-radius:8px;border:1px solid #667381;background:#25303c;color:inherit;min-height:48px}button{cursor:pointer;margin:4px}button:disabled{opacity:.45;cursor:wait}.primary{background:#235e58}.stop{background:#92322c}label{display:block;margin:12px 0}select{width:100%}a{color:#b6e7e0}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font-size:14px}#notice{min-height:3em}#status{font-size:24px;font-weight:700}.buttons{display:flex;flex-wrap:wrap}@media(max-width:760px){.grid{grid-template-columns:1fr}}details{margin:20px 0}
+</style>
+<body><div class="badge">모의 실행 전용 · 실제 모터와 센서를 사용하지 않습니다</div>
+<h1>SimpleLay 통신 리허설</h1><p><a href="/simulator/parking">정지 버튼·보관 위치 모의 동작 열기 ↗</a></p>
+<p>앱·키오스크와 같은 실행 API를 사용합니다. RPi5 요청 → 모의 통신 → RPi4 실행기 → 결과를 확인하세요.</p>
+<p><a href="/kiosk/" target="_blank" rel="noopener">기존 Flutter 키오스크 열기 ↗</a> · 폰 앱은 이 서버 주소로 연결하고 앱 자체 데모 모드는 꺼주세요.</p>
+<details><summary>서버 인증 설정</summary><label>API 키(설정된 서버에서만 필요) <input id="key" type="password" autocomplete="off"></label><button id="connect">다시 연결</button></details>
+<div class="grid"><section><h2>1. 가전과 실행 선택</h2><label>대상 가전<select id="appliance"></select></label><div id="buttons" class="buttons"></div>
+<p>아래 리허설은 전자레인지의 ‘즉석밥 → 시작’ 두 버튼을 입력합니다.</p><button class="primary" id="run">즉석밥 시퀀스 실행</button><button id="suggest">키오스크에 시연 제안 띄우기</button>
+<h2>2. 다음 실행의 검증 실패</h2><div class="buttons"><button data-fail="0">정상</button><button data-fail="2">2회 실패 후 재시도 성공</button><button data-fail="3">3회 실패·안전 중단</button></div><p id="armed">실패 주입 없음</p>
+<p>응답 유실·재연결, Z축 정지 위치 대기와 보관 이동은 이 패널의 현재 범위에 포함되지 않습니다.</p></section>
+<section><h2>3. 실행 관찰</h2><div id="status">연결 확인 중</div><p id="mode"></p><button class="stop" id="stop">실행 중단 요청</button><p>이 버튼은 모의 실행 루프에 중단을 요청합니다. 가전 정지 버튼 누르기·모터 전원 차단과는 다릅니다.</p><p id="notice" role="status" aria-live="polite"></p><h2>모의 실행기 내부</h2><pre id="local">—</pre><p>내부 관측은 허브가 받은 통신 결과와 별개입니다.</p></section></div>
+<details open><summary>통신 프레임 · 최근 80개</summary><pre id="frames">—</pre></details>
+<script>
+const $=id=>document.getElementById(id);let busy=false,pending=false,online=false,items=[],lastJob=null,stopPending=false,polling=false;
+async function api(path,method='GET',body){const h={'Content-Type':'application/json'};if($('key').value)h['X-API-Key']=$('key').value;const r=await fetch(path,{method,headers:h,body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(6000)});const d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:JSON.stringify(d.detail||d));return d}
+function notice(s){$('notice').textContent=s}function locks(){document.querySelectorAll('#buttons button,[data-fail],#run,#suggest,#appliance').forEach(b=>b.disabled=busy||pending||!online);$('stop').disabled=stopPending||!online}
+async function action(fn){if(pending)return;pending=true;locks();try{await fn()}catch(e){notice(e.message)}finally{pending=false;locks()}}
+async function execute(buttons){const d=await api('/execute-buttons','POST',{buttons,appliance_id:$('appliance').value});lastJob=d.job_id;notice('실행 요청 접수 · '+lastJob);await poll()}
+function renderButtons(){const a=items.find(a=>a.id===$('appliance').value);$('buttons').replaceChildren();for(const b of a?.buttons||[]){const el=document.createElement('button');el.textContent=b.label;el.onclick=()=>action(()=>execute([b.label]));$('buttons').append(el)}locks()}
+async function connect(){try{items=await api('/appliances');$('appliance').replaceChildren();for(const a of items.filter(a=>a.can_execute)){const o=document.createElement('option');o.value=a.id;o.textContent=a.name;$('appliance').append(o)}renderButtons();await poll()}catch(e){online=false;notice(e.message);locks()}}
+async function poll(){if(polling)return;polling=true;try{const [s,t]=await Promise.all([api('/status'),api('/simulator/state')]);online=true;busy=s.running;
+const shown=busy?'running':s.last_status;
+$('status').textContent=({running:'모의 버튼 입력 중',succeeded:'모의 실행기가 완료를 보고했어요',safety_stopped:'모의 실행기가 실패를 보고했어요',failed:'실행 결과를 확인하지 못했어요'})[shown]||'실행 대기';
+$('mode').textContent='실행 환경: '+(busy?s.execution_mode:s.last_execution_mode);
+$('local').textContent=JSON.stringify(t.act_local,null,2);$('frames').textContent=t.frames.map(f=>(f.direction==='hub_to_act'?'RPi5 → RPi4':'RPi4 → RPi5')+'  '+JSON.stringify(f.message)).join('\n');
+}catch(e){online=false;$('status').textContent='연결 또는 실행 상태 확인 불가';notice(e.message)}finally{polling=false;locks()}}
+$('connect').onclick=connect;$('appliance').onchange=renderButtons;
+$('run').onclick=()=>action(async()=>{if($('appliance').value!=='microwave')throw Error('전자레인지를 선택해 주세요.');await execute(['즉석밥','시작'])});
+$('suggest').onclick=()=>action(async()=>{if($('appliance').value!=='microwave')throw Error('전자레인지를 선택해 주세요.');await api('/demo/suggest','POST',{purpose:'즉석밥 데워줘',appliance_id:'microwave'});notice('시연 제안을 만들었어요. 키오스크에서 승인해 주세요.')});
+document.querySelectorAll('[data-fail]').forEach(b=>b.onclick=()=>action(async()=>{const n=Number(b.dataset.fail);await api('/demo/inject-failure',n?'POST':'DELETE',n?{button_index:0,attempts:n}:undefined);$('armed').textContent=n?'첫 버튼 검증 '+n+'회 실패 주입을 요청했어요':'실패 주입 해제';notice('다음 실행을 시작해 주세요.')}));
+$('stop').onclick=async()=>{stopPending=true;locks();notice('중단 요청 중…');try{await api('/stop','POST');notice('중단을 요청했어요. 결과를 확인 중입니다.')}catch(e){notice('중단 요청 전달을 확인하지 못했어요. '+e.message)}finally{stopPending=false;locks()}};
+connect();setInterval(()=>{if(!pending)poll()},700);
+</script></body></html>

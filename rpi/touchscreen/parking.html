@@ -1,0 +1,40 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SimpleLay · 정지와 보관 리허설</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#10141d;color:#edf1fa}body{max-width:1120px;margin:auto;padding:24px}h1{font-size:30px}h2{font-size:20px}p{line-height:1.6;color:#bdc9de}.badge{color:#85e2cd;font-weight:700}.grid{display:grid;grid-template-columns:1.15fr 1fr;gap:24px}section{background:#1b2332;border:1px solid #344159;border-radius:18px;padding:22px}button,input,select{font:inherit;border-radius:9px;border:1px solid #51617c;padding:12px;margin:5px;background:#263249;color:inherit}button{min-height:48px;cursor:pointer}button:disabled{opacity:.38;cursor:default}button:focus-visible,a:focus-visible{outline:3px solid #85e2cd}.primary{background:#195d54}.danger{background:#763144}input[type=number]{width:76px}a{color:#a9d8ff}svg{width:100%;background:#111925;border-radius:12px}#phase{font-size:25px;color:#fff}#notice{min-height:3em}pre{max-height:240px;overflow:auto;white-space:pre-wrap;font-size:13px}.controls{display:flex;flex-wrap:wrap}label{display:inline-block}dt{color:#abbad1}dd{margin:3px 0 15px;font-weight:600}@media(max-width:760px){.grid{grid-template-columns:1fr}body{padding:14px}}
+</style><body>
+<div class="badge">MOCK · 모터·센서 연결 없음</div><h1>정지 버튼 대기 → 종료 확인 → 보관</h1>
+<p>각 버튼은 가상 사건을 한 단계씩 주입합니다. 기존 실행 API·키오스크와 독립된 리허설이며, 실제 정지 성능을 증명하지 않습니다.</p>
+<p><a href="/simulator">← 통신 리허설</a> · 이 서버의 다른 브라우저와 같은 모의 상태를 공유합니다.</p>
+<details><summary>API 키 설정</summary><input id="key" type="password" aria-label="API 키" autocomplete="off"><button id="connect">다시 연결</button></details>
+<div class="grid"><section><h2>가상 패널 · 확인된 위치</h2>
+<svg viewBox="0 0 500 330" role="img" aria-labelledby="diagramTitle diagramDesc"><title id="diagramTitle">정지 버튼과 보관 위치</title><desc id="diagramDesc">0~1 좌표의 가상 패널입니다. 이동 응답 전에는 목표를 현재 위치로 표시하지 않습니다.</desc>
+<rect x="40" y="40" width="420" height="250" fill="#1c2c40" stroke="#657793"/><text x="45" y="25" fill="#bccbe2" font-size="14">상단 · y=0</text><text x="45" y="315" fill="#bccbe2" font-size="14">하단 · y=1</text>
+<g id="park"><rect x="-13" y="-9" width="26" height="18" fill="#72ddc4"/><text x="18" y="-12" text-anchor="end" fill="#72ddc4" font-size="14">보관</text></g>
+<g id="stopPoint"><circle r="13" fill="#e48e9d"/><text x="0" y="30" text-anchor="middle" fill="#ffc0cb" font-size="14">정지 버튼</text></g>
+<circle id="target" r="24" fill="none" stroke="#ffd785" stroke-width="2" stroke-dasharray="5 4"/>
+<circle id="head" r="20" fill="none" stroke="#fff" stroke-width="4"/>
+</svg><p>흰 원: 마지막 확인 위치 · 노란 점선: 이동 목표<br>이동 애니메이션은 사용하지 않습니다. 좌표는 mm·모터 스텝이 아닙니다.</p>
+<h2>별도 매핑</h2><label>정지 X<input id="sx" type="number" min="0" max="1" step=".05" value=".8"></label><label>정지 Y<input id="sy" type="number" min="0" max="1" step=".05" value=".7"></label><br>
+<label>보관 X<input id="px" type="number" min="0" max="1" step=".05" value=".5"></label><label>보관 가장자리<select id="edge"><option value="top">상단</option><option value="bottom">하단</option></select></label>
+<p>새 세션은 이전 모의 기록을 초기화합니다. 실제 고장 복구나 원점 복귀를 수행하지 않습니다.</p><button id="new">이 매핑으로 새 모의 세션</button>
+</section><section><h2>현재 상태</h2><p id="phase" role="status">연결 중</p><dl><dt>다음에 확인할 모의 동작</dt><dd id="pending">—</dd><dt>Z 복귀</dt><dd id="z">—</dd><dt>정지 버튼 누름 / 가전 종료</dt><dd id="evidence">—</dd></dl>
+<div class="controls"><button data-event="locate">초기 보관 위치·Z 확인 주입</button><button data-event="begin">버튼 시퀀스 시작</button><button data-event="sequence_finished">버튼 입력 완료 주입</button></div>
+<div class="controls"><button class="primary" data-event="ack">현재 동작 성공 응답 주입</button><button data-event="fail">현재 동작 실패 응답 주입</button></div>
+<div class="controls"><button class="primary" data-event="stop">가전 정지 요청</button><button data-event="ended">가전 종료 관측 주입</button></div>
+<div class="controls"><button class="danger" data-event="estop">구동부 비상정지 모의</button><button class="danger" data-event="link_lost">통신 유실 모의</button></div>
+<p>입력 도중 가전 정지 절차는 아직 미연결입니다. 누름 성공만으로 가전 종료를 확정하지 않습니다. 잠금 후에는 자동 이동하지 않습니다.</p><p id="notice" role="status" aria-live="polite"></p>
+</section></div><h2>모의 명령 기록 · 최근 80개</h2><pre id="log">—</pre>
+<script>
+const $=id=>document.getElementById(id);let state=null,busy=false,reading=false,online=false;
+const phases={unlocated:'초기 위치 확인 필요',parked:'보관 위치 · 수동 접근',button_sequence:'버튼 입력 중',awaiting_motion_ack:'동작 응답 대기',waiting_above_stop:'정지 버튼 위 대기 · 누르지 않음',awaiting_appliance_stop_confirmation:'누름 확인됨 · 가전 정지 확인 필요',locked_manual_recovery_required:'잠금 · 자동 이동 금지'};
+const kinds={retract:'Z 복귀',move:'XY 이동',press_stop:'정지 버튼 누름'};
+async function api(path,body){const headers={'Content-Type':'application/json'};if($('key').value)headers['X-API-Key']=$('key').value;const r=await fetch('/simulator/parking/'+path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(5000)});const d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'요청 형식 또는 좌표를 확인해 주세요.');return d}
+function enabled(e){if(!state)return false;const p=state.phase;return {locate:p==='unlocated',begin:p==='parked',sequence_finished:p==='button_sequence',ack:!!state.pending,fail:!!state.pending,stop:['waiting_above_stop','awaiting_motion_ack','awaiting_appliance_stop_confirmation'].includes(p)&&!state.operation_ended&&!state.stop_requested,ended:['waiting_above_stop','awaiting_appliance_stop_confirmation'].includes(p),estop:p!=='locked_manual_recovery_required',link_lost:p!=='locked_manual_recovery_required'}[e]}
+function locks(){document.querySelectorAll('[data-event]').forEach(b=>b.disabled=busy||reading||!online||!enabled(b.dataset.event));$('new').disabled=busy||reading||!online}
+function point(id,p){$(id).style.display=p?'':'none';if(p)$(id).setAttribute('transform',`translate(${40+p[0]*420},${40+p[1]*250})`)}
+function render(){const s=state;$('phase').textContent=phases[s.phase]||s.phase;$('pending').textContent=s.pending?`#${s.pending.id} ${kinds[s.pending.kind]}`:'없음';$('z').textContent=s.z_retracted?'복귀 확인됨 (모의)':'미확인 또는 누름 중';$('evidence').textContent=`${s.stop_press_confirmed?'누름 확인':'누름 미확인'} / ${s.operation_ended?'종료 확인':'종료 미확인'} (모의)`;point('park',s.mapping.park);point('stopPoint',s.mapping.stop);point('head',s.position);point('target',s.pending?.target);$('log').textContent=s.actions.map(a=>`#${a.id} ${kinds[a.kind]}${a.target?' → '+a.target.join(', '):''}`).join('\n')||'아직 명령이 없습니다.';locks()}
+async function poll(){if(reading||busy)return;reading=true;locks();try{state=await api('state');online=true;render()}catch(e){online=false;$('notice').textContent=e.message;locks()}finally{reading=false;locks()}}
+async function send(event){if(busy||reading||!state)return;busy=true;locks();const body={event,session:state.session,revision:state.revision};if(event==='ack'||event==='fail')body.action_id=state.pending?.id;if(event==='new'){for(const id of ['sx','sy','px']){if(!$(id).value.trim()||!$(id).checkValidity()){busy=false;locks();$('notice').textContent='좌표는 0~1 사이 숫자로 입력해 주세요.';return}}Object.assign(body,{stop_x:Number($('sx').value),stop_y:Number($('sy').value),park_x:Number($('px').value),edge:$('edge').value})}try{state=await api('event',body);online=true;render();$('notice').textContent='모의 사건을 반영했어요.'}catch(e){$('notice').textContent=e.message}finally{busy=false;locks();await poll()}}
+document.querySelectorAll('[data-event]').forEach(b=>b.onclick=()=>send(b.dataset.event));$('new').onclick=()=>send('new');$('connect').onclick=poll;locks();poll();setInterval(poll,1200);
+</script></body></html>

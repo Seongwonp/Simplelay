@@ -126,6 +126,7 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
       applianceId: r.applianceId,
       timeBand: r.timeBand,
       occurrences: r.occurrences,
+      isDemo: r.isDemo,
     );
   }
 

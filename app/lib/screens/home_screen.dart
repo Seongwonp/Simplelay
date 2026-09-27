@@ -622,6 +622,7 @@ class _SensorStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (reading?.mocked != false) return const SizedBox.shrink();
     final temp = reading?.temperature;
     final hum = reading?.humidity;
     if (temp == null && hum == null) return const SizedBox.shrink();

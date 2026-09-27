@@ -16,6 +16,7 @@ import 'kiosk_target_line.dart';
 /// 않는다 -- 축이 멈춰 있는데 '이동 중'이라고 쓰게 된다. 폰과 같은 규칙이다.
 class KioskExecutingView extends StatelessWidget {
   const KioskExecutingView({
+    this.executionMode = 'unknown',
     super.key,
     required this.title,
     this.target,
@@ -28,6 +29,10 @@ class KioskExecutingView extends StatelessWidget {
     required this.verificationDetail,
     required this.onStop,
   });
+
+  final String executionMode;
+  String get modeLabel => executionMode == 'mock' ? '모의 실행 · 실제 조작 아님'
+      : executionMode == 'real' ? '실기기 실행' : '실행 환경 미확인';
 
   final String title;
 
@@ -104,6 +109,7 @@ class KioskExecutingView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                Text(modeLabel, style: const TextStyle(fontSize: 18, color: KioskColors.warning)),
                 if (target != null) ...[
                   KioskTargetLine(appliance: target),
                   const SizedBox(height: 6),

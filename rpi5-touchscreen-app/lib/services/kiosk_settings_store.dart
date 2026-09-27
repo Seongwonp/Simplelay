@@ -1,5 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'browser_settings_stub.dart'
+    if (dart.library.html) 'browser_settings_web.dart' as browser;
 
 import '../widgets/kiosk/kiosk_timings.dart';
 
@@ -69,9 +72,10 @@ class KioskSettings {
 /// 플러그인 지원을 타지 않는 dart:io만 쓰고, SSH로 파일을 열어 바로 확인·
 /// 수정할 수 있어 현장 디버깅이 쉽다. 경로 주입으로 테스트는 temp 파일 사용.
 class KioskSettingsStore {
-  KioskSettingsStore({String? path}) : _file = File(path ?? _defaultPath());
+  KioskSettingsStore({String? path}) : _path = path;
 
-  final File _file;
+  final String? _path;
+  late final File _file = File(_path ?? _defaultPath());
 
   /// 마지막 save()가 실패했는지 — 호출자가 "저장하지 못했습니다"를 보여줄 수
   /// 있게 남긴다. 예외를 삼키기만 하면 사용자는 저장된 줄 안다.
@@ -95,6 +99,15 @@ class KioskSettingsStore {
   /// 키오스크가 못 뜨는 일은 없어야 한다. 본 파일이 손상됐으면 직전 저장분
   /// (.bak)으로 한 번 더 시도한다.
   KioskSettings load() {
+    if (kIsWeb) {
+      try {
+        final decoded = jsonDecode(browser.readSettings() ?? '{}');
+        if (decoded is Map<String, dynamic>) return KioskSettings.fromJson(decoded);
+      } catch (_) {
+        // Storage can be unavailable or contain an older/corrupt value.
+      }
+      return const KioskSettings();
+    }
     final fromMain = _tryLoad(_file);
     if (fromMain != null) return fromMain;
     final fromBackup = _tryLoad(File('${_file.path}.bak'));
@@ -120,6 +133,16 @@ class KioskSettingsStore {
   ///
   /// 반환값은 저장 성공 여부. 실패해도 세션 내 동작은 그대로 유지된다.
   bool save(KioskSettings settings) {
+    if (kIsWeb) {
+      try {
+        browser.writeSettings(jsonEncode(settings.toJson()));
+        _lastSaveFailed = false;
+        return true;
+      } catch (_) {
+        _lastSaveFailed = true;
+        return false;
+      }
+    }
     final tmp = File('${_file.path}.tmp');
     try {
       tmp.writeAsStringSync(jsonEncode(settings.toJson()), flush: true);

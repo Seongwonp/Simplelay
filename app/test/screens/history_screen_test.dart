@@ -164,7 +164,7 @@ void main() {
     expect(find.text('어제'), findsOneWidget);
     expect(find.text('9월 6일'), findsOneWidget);
     // 결과는 문장으로. 시각은 구획 안에서 시:분만.
-    expect(find.text('08:10 · 버튼 조작을 마쳤어요'), findsOneWidget);
+    expect(find.text('실행 환경 미확인 · 08:10 · 버튼 조작을 마쳤어요'), findsOneWidget);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
   });

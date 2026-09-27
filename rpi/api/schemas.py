@@ -678,9 +678,12 @@ class StatusResponse(BaseModel):
     # 이름을 말한다. 대상은 실행이 정하지, 화면이 정하지 않는다.
     appliance_id: str | None = None
     last_appliance_id: str | None = None
+    execution_mode: str = "unknown"
+    last_execution_mode: str = "unknown"
 
 
 class SuggestionResponse(BaseModel):
+    is_demo: bool = False
     id: str
     purpose: str
     time_band: str

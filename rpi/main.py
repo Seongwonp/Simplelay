@@ -162,6 +162,8 @@ async def _unknown_appliance(_request: Request, exc: UnknownApplianceError):
 # SIMPLELAY_API_KEY 설정 시 라우터 전체에 X-API-Key 요구 (auth.py 참고).
 # /health(아래)와 /ui는 의도적으로 키 없이 개방.
 app.include_router(router, dependencies=[Depends(require_api_key)])
+from rpi.api.simulator_router import router as simulator_router
+app.include_router(simulator_router, dependencies=[Depends(require_api_key)])
 # 개발자 API(/dev/*) — 일반 키 위에 **별도 개발자 토큰**을 더 요구한다.
 # 꺼져 있으면(기본) 전 경로 404. 계약은 dev_router.py 머리말.
 app.include_router(dev_router, dependencies=[Depends(require_api_key)])
