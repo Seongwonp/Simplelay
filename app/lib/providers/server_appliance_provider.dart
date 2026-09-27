@@ -108,12 +108,13 @@ class ServerApplianceNotifier extends StateNotifier<ServerApplianceCatalog> {
     // 재계산 도중(화면 빌드 중일 수 있다)에 오므로 상태 변경은 마이크로태스크로
     // 한 박자 미룬다.
     _ref.listen<Object?>(rpiApiServiceProvider, (_, __) => _refreshSoon());
-    // 처음 조회가 서버가 꺼진 사이에 실패했으면, 연결이 돌아왔을 때 다시
-    // 받아야 한다. 사용자가 설정에 들어가 주소를 다시 저장할 이유가 없다.
+    // 연결이 끊겼다 돌아오면 **성공했던 목록도** 다시 받는다. 끊긴 사이에
+    // 가전이 바뀌었거나 준비 상태(can_execute·readiness)가 달라졌을 수 있고,
+    // 그것을 옛 목록으로 계속 보여주면 안 되는 버튼을 누를 수 있게 둔다.
+    // 늦은 응답은 세대 번호로 계속 버린다.
     _ref.listen<RpiConnectionState>(rpiConnectionProvider, (prev, next) {
       if (next == RpiConnectionState.connected &&
-          prev != RpiConnectionState.connected &&
-          !state.isLoaded) {
+          prev != RpiConnectionState.connected) {
         _refreshSoon();
       }
     });

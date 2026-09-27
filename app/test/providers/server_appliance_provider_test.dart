@@ -372,6 +372,84 @@ void main() {
     });
   });
 
+  group('같은 서버 재조회', () {
+    test('조회 중에는 선택이 비지만, 응답이 오면 고른 가전으로 돌아간다', () async {
+      // 일시적 로딩을 '삭제'로 보고 저장된 선택을 지우면, 응답 뒤 첫 번째
+      // 가전으로 바뀐다 -- 사용자가 고른 두 번째 가전이 조용히 사라진다.
+      final hostA = Uri.parse(_serverA).host;
+      final servers = _FakeServers()
+        ..lists[hostA] = [_builtin('microwave'), _builtin('induction')];
+      final c = await _ready(servers);
+      final induction = c.read(installedAppliancesProvider).last;
+      await c.read(selectedApplianceProvider.notifier).select(induction);
+
+      final gate = Completer<void>();
+      servers.gates[hostA] = gate;
+      final refresh = c.read(serverApplianceCatalogProvider.notifier).refresh();
+      await Future<void>.delayed(Duration.zero);
+      expect(c.read(selectedApplianceProvider), isNull);
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('selected_appliance'), 'induction');
+
+      gate.complete();
+      await refresh;
+      expect(c.read(selectedApplianceProvider)?.id, 'induction');
+    });
+
+    test('조회 실패도 일시적이다 -- 다음 성공에서 고른 가전으로 돌아간다', () async {
+      final hostA = Uri.parse(_serverA).host;
+      final servers = _FakeServers()
+        ..lists[hostA] = [_builtin('microwave'), _builtin('induction')];
+      final c = await _ready(servers);
+      await c.read(selectedApplianceProvider.notifier)
+          .select(c.read(installedAppliancesProvider).last);
+
+      servers.statusCodes[hostA] = 500;
+      await c.read(serverApplianceCatalogProvider.notifier).refresh();
+      expect(c.read(serverApplianceCatalogProvider).isFailed, isTrue);
+      expect(c.read(selectedApplianceProvider), isNull);
+
+      servers.statusCodes.remove(hostA);
+      await c.read(serverApplianceCatalogProvider.notifier).refresh();
+      expect(c.read(selectedApplianceProvider)?.id, 'induction');
+    });
+
+    test('확정된 목록에 고른 가전이 없으면 선택을 잊는다', () async {
+      final hostA = Uri.parse(_serverA).host;
+      final servers = _FakeServers()
+        ..lists[hostA] = [_builtin('microwave'), _builtin('induction')];
+      final c = await _ready(servers);
+      await c.read(selectedApplianceProvider.notifier)
+          .select(c.read(installedAppliancesProvider).last);
+
+      servers.lists[hostA] = [_builtin('microwave')];
+      await c.read(serverApplianceCatalogProvider.notifier).refresh();
+
+      expect(c.read(selectedApplianceProvider)?.id, 'microwave');
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getString('selected_appliance'), isNull);
+    });
+
+    test('연결이 끊겼다 돌아오면 성공했던 목록도 다시 받아 준비 상태를 갱신한다', () async {
+      final hostA = Uri.parse(_serverA).host;
+      final servers = _FakeServers()..lists[hostA] = [_builtin('microwave')];
+      final c = await _ready(servers);
+      expect(c.read(installedAppliancesProvider).single.canExecute, isTrue);
+      final before = servers.gets;
+
+      servers.lists[hostA] = [_builtin('microwave', canExecute: false)];
+      c.read(rpiConnectionProvider.notifier).state = RpiConnectionState.unreachable;
+      c.read(rpiConnectionProvider.notifier).state = RpiConnectionState.connected;
+      await _settle(c);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(servers.gets, greaterThan(before));
+      expect(c.read(installedAppliancesProvider).single.canExecute, isFalse);
+      // 같은 가전을 계속 가리킨다.
+      expect(c.read(selectedApplianceProvider)?.id, 'microwave');
+    });
+  });
+
   group('빈 목록·조회 실패·데모를 가른다', () {
     test('빈 응답은 성공이고 목록은 정말 비어 있다', () async {
       final servers = _FakeServers()..lists[Uri.parse(_serverA).host] = [];

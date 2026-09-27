@@ -209,12 +209,19 @@ class SelectedApplianceNotifier extends StateNotifier<ApplianceMap?> {
       if (!_loaded) return;
       final current = state;
       final next = _pick(installed, current: current);
-      if (identical(next, current)) return;
-      state = next;
+      if (!identical(next, current)) state = next;
       // 자동으로 옮긴 선택은 저장하지 않는다. 저장된 값은 사용자가 고른
-      // 것이어야 서버가 돌아왔을 때 그리로 되돌아갈 수 있다. 선택할 것이
-      // 없어졌을 때만 지운다.
-      if (next == null && _preferredId != null) {
+      // 것이어야 목록이 돌아왔을 때 그리로 되돌아갈 수 있다.
+      //
+      // 고른 가전이 목록에 없다고 바로 잊지도 않는다. 서버 목록이 **조회
+      // 중**이거나 **조회에 실패**한 동안은 비어 있는 것이 일시적이다 -- 같은
+      // 서버를 다시 받으면 고른 가전이 돌아온다. 지우는 것은 서버 목록이
+      // **확정된**(loaded) 상태에서도 없을 때뿐이다: 삭제됐거나, 새 서버에
+      // 그 가전이 없거나, 정말 빈 목록이다.
+      final preferred = _preferredId;
+      if (preferred != null &&
+          _ref.read(serverApplianceCatalogProvider).isLoaded &&
+          !installed.any((a) => a.id == preferred)) {
         _preferredId = null;
         unawaited(_persist(null));
       }
