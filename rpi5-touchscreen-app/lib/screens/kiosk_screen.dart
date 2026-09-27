@@ -625,20 +625,59 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _onReject() => _dismissSuggestion(mute: false);
 
+  Future<void> _onRevise() async {
+    final old = _currentSuggestion;
+    if (old == null || _dismissingSuggestion) return;
+    _dismissingSuggestion = true;
+    try {
+      final options = await _api.revisionOptions(old.id);
+      if (!mounted || _phase != KioskPhase.suggestion || _currentSuggestion?.id != old.id) return;
+      if (options.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('바꿀 수 있는 등록 동작이 없어요.')));
+        return;
+      }
+      final purpose = await showDialog<String>(context: context, builder: (dialogContext) => SimpleDialog(
+        title: const Text('이번 동작 바꾸기 · 아직 실행하지 않아요'),
+        children: options.entries.map((e) => SimpleDialogOption(
+          onPressed: () => Navigator.pop(dialogContext, e.key),
+          child: Text('${e.key}\n${e.value.join(' → ')}'),
+        )).toList(),
+      ));
+      if (purpose == null || !mounted || _phase != KioskPhase.suggestion || _currentSuggestion?.id != old.id) return;
+      final revised = await _api.reviseSuggestion(old.id, purpose);
+      if (mounted && _phase == KioskPhase.suggestion && _currentSuggestion?.id == old.id) {
+        _toSuggestion(revised);
+      }
+    } catch (_) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('동작을 바꾸지 못했어요. 최신 제안을 확인해 주세요.')));
+    } finally {
+      _dismissingSuggestion = false;
+    }
+  }
+
   // "다시 추천 안 함" -- 이 루틴을 서버 억제 목록에 넣어 패턴이 다시
   // 띄우지 않게 한다(단순 dismiss와 다름).
   Future<void> _onRejectMute() => _dismissSuggestion(mute: true);
 
-  Future<void> _dismissSuggestion({required bool mute}) async {
+  Future<void> _dismissSuggestion({required bool mute, bool snooze = false}) async {
     final suggestion = _currentSuggestion;
     if (suggestion == null || _dismissingSuggestion) return;
     _dismissingSuggestion = true;
     _countdownTimer?.cancel();
     try {
-      await _api.rejectSuggestion(suggestion.id, mute: mute);
+      if (snooze) {
+        await _api.snoozeSuggestion(suggestion.id);
+      } else {
+        await _api.rejectSuggestion(suggestion.id, mute: mute);
+      }
       if (mounted && _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
         _toIdle();
+        if (snooze) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('30분간 이 제안을 쉬어요. 자동 실행하지 않아요.'),
+          ));
+        }
       }
     } catch (_) {
       if (mounted && _phase == KioskPhase.suggestion &&
@@ -829,6 +868,8 @@ class _KioskScreenState extends State<KioskScreen> {
           onApprove: _onApprove,
           onReject: _onReject,
           onRejectMute: _onRejectMute,
+          onSnooze: () => _dismissSuggestion(mute: false, snooze: true),
+          onRevise: _onRevise,
         );
       case KioskPhase.executing:
         return KioskExecutingView(

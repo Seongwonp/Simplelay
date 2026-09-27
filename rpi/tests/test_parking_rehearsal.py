@@ -76,3 +76,25 @@ def test_invalid_mapping_request_is_rejected_without_reset(client, extra):
     body = dict(session=old['session'], revision=old['revision'], event='new', **extra)
     assert client.post('/simulator/parking/event', json=body).status_code == 422
     assert client.get('/simulator/parking/state').json() == old
+
+
+def test_explicit_sequence_position_supplies_motion_origin(client):
+    event(client, 'locate')
+    event(client, 'begin')
+    state = event(client, 'sequence_finished', end_x=.3, end_y=.4)
+    assert state['position'] == [.3, .4]
+    state = event(client, 'ack')
+    assert state['position'] == [.3, .4]  # Target is not confirmation.
+    assert state['pending']['target'] == [.8, .7]
+    state = event(client, 'ack')
+    assert state['position'] == [.8, .7]
+    assert client.get('/simulator/parking-motion.js').status_code == 200
+
+
+def test_incomplete_sequence_position_does_not_advance(client):
+    event(client, 'locate')
+    old = event(client, 'begin')
+    body = dict(session=old['session'], revision=old['revision'],
+                event='sequence_finished', end_x=.3)
+    assert client.post('/simulator/parking/event', json=body).status_code == 422
+    assert client.get('/simulator/parking/state').json() == old

@@ -32,7 +32,7 @@ class ParkingRehearsal:
         with self._lock:
             return self._snapshot()
 
-    def event(self, session, revision, event, *, action_id=None, mapping=None):
+    def event(self, session, revision, event, *, action_id=None, mapping=None, sequence_position=None):
         with self._lock:
             if session != self._session or revision != self._revision:
                 raise StaleRehearsal('화면 상태가 변경됐어요. 새 상태를 확인하고 다시 선택해 주세요.')
@@ -47,7 +47,7 @@ class ParkingRehearsal:
             elif event == 'begin':
                 sim.begin()
             elif event == 'sequence_finished':
-                sim.sequence_finished()
+                sim.sequence_finished(sequence_position)
             elif event == 'stop':
                 sim.request_appliance_stop()
             elif event in ('ack', 'fail'):

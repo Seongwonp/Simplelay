@@ -82,6 +82,7 @@ from .schemas import (
     WellnessPauseResponse,
     OkResponse,
     RejectSuggestionRequest,
+    ReviseSuggestionRequest,
     PresenceRequest,
     PresenceResponse,
     SensorResponse,
@@ -893,6 +894,48 @@ async def reject_suggestion(
     except UnknownSuggestionError:
         raise HTTPException(status_code=404, detail="suggestion not found")
     return OkResponse()
+
+
+@router.post("/suggestions/{suggestion_id}/snooze", response_model=OkResponse)
+async def snooze_suggestion(
+    suggestion_id: str,
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> OkResponse:
+    try:
+        svc.snooze(suggestion_id)
+    except UnknownSuggestionError:
+        raise HTTPException(status_code=404, detail="suggestion not found")
+    return OkResponse()
+
+
+@router.get("/suggestions/{suggestion_id}/revision-options")
+async def suggestion_revision_options(
+    suggestion_id: str,
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> dict:
+    try:
+        return {"options": await asyncio.to_thread(svc.revision_options, suggestion_id)}
+    except UnknownSuggestionError:
+        raise HTTPException(status_code=404, detail="suggestion not found")
+
+
+@router.post("/suggestions/{suggestion_id}/revise", response_model=SuggestionResponse)
+async def revise_suggestion(
+    suggestion_id: str,
+    body: ReviseSuggestionRequest,
+    svc: ProactiveSuggestionService = Depends(get_suggestion_service),
+) -> SuggestionResponse:
+    try:
+        s = await asyncio.to_thread(svc.revise, suggestion_id, body.purpose)
+    except UnknownSuggestionError:
+        raise HTTPException(status_code=404, detail="suggestion not found")
+    except UnknownIntentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return SuggestionResponse(id=s.suggestion_id, purpose=s.purpose,
+                              time_band=s.time_band, occurrences=s.occurrences,
+                              steps=list(s.steps), reason=s.reason,
+                              appliance_id=s.appliance_id,
+                              is_demo=s.is_demo or s.time_band == '데모')
 
 
 @router.get("/suppressions", response_model=SuppressionListResponse)

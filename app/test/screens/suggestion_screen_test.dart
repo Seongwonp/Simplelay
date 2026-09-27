@@ -65,6 +65,16 @@ void _useTallViewport(WidgetTester tester) {
 }
 
 void main() {
+  testWidgets('pause is offered for server suggestions only', (tester) async {
+    _useTallViewport(tester);
+    await tester.pumpWidget(_buildSuggestion(_httpSug.sequenceId, suggestions: [_httpSug]));
+    await tester.pump();
+    expect(find.text('이 제안 30분 쉬기'), findsOneWidget);
+    await tester.pumpWidget(_buildSuggestion(_sug.sequenceId, suggestions: [_sug]));
+    await tester.pump();
+    expect(find.text('이 제안 30분 쉬기'), findsNothing);
+  });
+
   group('SuggestionScreen — 제안 없음', () {
     testWidgets('알 수 없는 sequenceId 시 오류 메시지', (tester) async {
       _useTallViewport(tester);

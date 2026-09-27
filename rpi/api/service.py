@@ -25,7 +25,7 @@ from rpi.intent import (
 )
 from rpi.intent.models import UsageSource
 from rpi.intent.completed_actions import CompletedActions
-from rpi.intent.rules import UnknownIntentError
+from rpi.intent.rules import UnknownIntentError, RuleBasedIntentResolver
 from rpi.services import NodeRegistry
 from rpi.services.history import (
     ButtonAttempt,
@@ -249,8 +249,9 @@ class SimpleLayService(PurposeExecutor):
         self, purpose: str, appliance_id: str | None = None,
         *, usage_source: UsageSource = UsageSource.DIRECT,
         approval_guard=None,
+        expected_buttons: tuple[str, ...] | None = None,
     ) -> ExecutionResult:
-        return self._execute_via_resolver(purpose, self._intent, appliance_id, usage_source, approval_guard)
+        return self._execute_via_resolver(purpose, self._intent, appliance_id, usage_source, approval_guard, expected_buttons)
 
     def execute_purpose_for_appliance(
         self,
@@ -345,11 +346,16 @@ class SimpleLayService(PurposeExecutor):
         self, purpose: str, resolver: IntentResolver, appliance_id: str | None = None,
         usage_source: UsageSource = UsageSource.DIRECT,
         approval_guard=None,
+        expected_buttons: tuple[str, ...] | None = None,
     ) -> ExecutionResult:
         defined = self._function_sequence(purpose, appliance_id)
         buttons = self._validate_resolved_sequence(
             defined if defined is not None else tuple(resolver.resolve(purpose))
         )
+        if expected_buttons is not None:
+            if (tuple(buttons) != expected_buttons
+                    or self.revision_options(appliance_id).get(purpose) != expected_buttons):
+                raise UnknownIntentError('reviewed action changed; review again')
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
         self._begin_run(len(buttons), controller, appliance_id, approval_guard)
@@ -398,13 +404,48 @@ class SimpleLayService(PurposeExecutor):
         self, purpose: str, appliance_id: str | None = None,
         *, usage_source: UsageSource = UsageSource.DIRECT,
         approval_guard=None,
+        expected_buttons: tuple[str, ...] | None = None,
     ) -> str:
         defined = self._function_sequence(purpose, appliance_id)
         buttons = defined if defined is not None else self._intent.resolve(purpose)
+        if expected_buttons is not None:
+            if (tuple(buttons) != expected_buttons
+                    or self.revision_options(appliance_id).get(purpose) != expected_buttons):
+                raise UnknownIntentError('reviewed action changed; review again')
         return self._submit(
             tuple(buttons), appliance_id, purpose, usage_source, approval_guard,
             self._learning_purpose(purpose, buttons, self._intent, appliance_id, defined),
         )
+
+    def revision_options(self, appliance_id: str | None) -> dict[str, tuple[str, ...]]:
+        """Only registered functions or built-in deterministic button sequences.
+
+        No LLM, no movement, and no guesses for custom appliances.
+        """
+        if self._appliance_registry is None or appliance_id is None:
+            return {}
+        appliance = self._appliance_registry.get(appliance_id)
+        if appliance is None:
+            return {}
+        labels = {b.label for b in appliance.buttons}
+        names = [name for name, _ in appliance.functions]
+        # Shared labels such as 'power' do not imply shared appliance semantics.
+        # The built-in rule table is defined for the microwave demo; other
+        # appliances must explicitly register their own functions.
+        if appliance_id == 'microwave' and not appliance.is_custom:
+            names.extend(RuleBasedIntentResolver.DEFAULT_RULES)
+        choices = {}
+        for name in names:
+            try:
+                defined = self._function_sequence(name, appliance_id)
+                steps = (defined if defined is not None
+                         else RuleBasedIntentResolver.DEFAULT_RULES.get(name, ()))
+                steps = self._validate_resolved_sequence(tuple(steps))
+                if steps and set(steps) <= labels:
+                    choices[name] = steps
+            except UnknownIntentError:
+                continue
+        return choices
 
     def submit_purpose_for_appliance(
         self,

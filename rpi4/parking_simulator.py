@@ -91,9 +91,12 @@ class ParkingSimulator:
         self.z_retracted = False
         self.phase = Phase.INPUT
 
-    def sequence_finished(self):
+    def sequence_finished(self, position: Point | None = None):
         if self.phase != Phase.INPUT:
             raise ValueError('no button sequence in progress')
+        if position is not None and not isinstance(position, Point):
+            raise ValueError('mock end position must be a Point')
+        self.position = position
         # Input completion does not mean the appliance operation has ended.
         self._retract('stop')
 

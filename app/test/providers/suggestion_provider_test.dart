@@ -50,6 +50,27 @@ void main() {
   });
 
   group('SuggestionNotifier', () {
+    test('revision stays HTTP and maps labels without sending approval', () async {
+      final c = makeContainer(overrides: [
+        rpiApiServiceProvider.overrideWithValue(null),
+        ...installedOverrides([kTestAppliance]),
+      ]);
+      final notifier = c.read(suggestionProvider.notifier);
+      notifier.replaceHttp('old', RpiSuggestion.fromJson({
+        'id': 'new', 'purpose': '30초 돌려줘', 'time_band': '아침',
+        'occurrences': 0, 'steps': ['30초', '시작'], 'appliance_id': 'microwave',
+      }));
+      final revised = c.read(suggestionProvider).single;
+      expect(revised.sequenceId, 'new');
+      expect(revised.source, SuggestionSource.http);
+      expect(revised.steps, ['BT-02', 'BT-05']);
+      notifier.replaceHttp('new', RpiSuggestion.fromJson({
+        'id': 'newer', 'purpose': '1분 돌려줘', 'time_band': '아침',
+        'occurrences': 0, 'steps': ['1분', '시작'], 'appliance_id': 'microwave',
+      }));
+      expect(c.read(suggestionProvider).single.sequenceId, 'newer');
+    });
+
     test('initially empty', () {
       final c = makeContainer();
       expect(c.read(suggestionProvider), isEmpty);

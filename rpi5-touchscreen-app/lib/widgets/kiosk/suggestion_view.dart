@@ -24,6 +24,8 @@ class KioskSuggestionView extends StatelessWidget {
     required this.onApprove,
     required this.onReject,
     required this.onRejectMute,
+    this.onSnooze,
+    this.onRevise,
   });
 
   final KioskSuggestion suggestion;
@@ -42,6 +44,8 @@ class KioskSuggestionView extends StatelessWidget {
   /// "다시 추천 안 함" -- 이번만 넘기기(onReject)와 달리 그 루틴을
   /// 아예 억제한다.
   final VoidCallback onRejectMute;
+  final VoidCallback? onSnooze;
+  final VoidCallback? onRevise;
 
   @override
   Widget build(BuildContext context) {
@@ -128,6 +132,23 @@ class KioskSuggestionView extends StatelessWidget {
             ),
           ),
 
+          if (onRevise != null && suggestion.timeBand != '환경')
+            Align(alignment: Alignment.centerLeft, child: TextButton.icon(
+              onPressed: onRevise,
+              icon: const Icon(Icons.edit_outlined),
+              label: const Text('이번 동작 바꾸기'),
+              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+            )),
+          if (onSnooze != null && !suggestion.isDemo && suggestion.timeBand != '데모')
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                onPressed: onSnooze,
+                icon: const Icon(Icons.snooze),
+                label: const Text('이 제안 30분 쉬기 · 이후 상황에 따라 다시 물어요'),
+                style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+              ),
+            ),
           const SizedBox(height: 12),
           Row(
             children: [

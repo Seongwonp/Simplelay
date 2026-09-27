@@ -131,10 +131,20 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
   }
 
   void add(Suggestion suggestion) {
+    // Legacy BLE insertion; HTTP revision responses use replaceHttp below.
     _bleSuggestions = [
       ..._bleSuggestions
           .where((item) => item.sequenceId != suggestion.sequenceId),
       suggestion,
+    ];
+    _publish();
+  }
+
+  void replaceHttp(String previousId, RpiSuggestion revised) {
+    final installed = ref.read(installedAppliancesProvider);
+    _httpSuggestions = [
+      ..._httpSuggestions.where((s) => s.sequenceId != previousId && s.sequenceId != revised.id),
+      _toSuggestion(revised, _applianceFor(revised, installed), null),
     ];
     _publish();
   }

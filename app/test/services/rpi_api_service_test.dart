@@ -12,6 +12,35 @@ http.Response _jsonResponse(Object body, int status) => http.Response.bytes(
     );
 
 void main() {
+  test('revision fetches choices then returns a new preview without approval', () async {
+    final paths = <String>[];
+    final api = RpiApiService('http://rpi5.local:8000', client: MockClient((request) async {
+      paths.add(request.url.path);
+      if (request.method == 'GET') {
+        return _jsonResponse({'options': {'30초 돌려줘': ['30초', '시작']}}, 200);
+      }
+      expect(jsonDecode(request.body), {'purpose': '30초 돌려줘'});
+      return _jsonResponse({'id': 'new', 'purpose': '30초 돌려줘', 'time_band': '아침',
+        'occurrences': 0, 'steps': ['30초', '시작'], 'appliance_id': 'microwave'}, 200);
+    }));
+    expect((await api.revisionOptions('old'))['30초 돌려줘'], ['30초', '시작']);
+    expect((await api.reviseSuggestion('old', '30초 돌려줘')).id, 'new');
+    expect(paths, ['/suggestions/old/revision-options', '/suggestions/old/revise']);
+  });
+
+  test('snooze uses its own endpoint and propagates failure', () async {
+    var status = 200;
+    final client = MockClient((request) async {
+      expect(request.method, 'POST');
+      expect(request.url.path, '/suggestions/s1/snooze');
+      return _jsonResponse({'ok': true}, status);
+    });
+    final api = RpiApiService('http://rpi5.local:8000', client: client);
+    await api.snoozeSuggestion('s1');
+    status = 503;
+    await expectLater(api.snoozeSuggestion('s1'), throwsA(isA<RpiApiException>()));
+  });
+
   group('RpiApiService.executeButtons (job 모델)', () {
     test('POST /execute-buttons에 버튼 목록을 보내고 job_id 접수 응답을 파싱한다', () async {
       http.Request? captured;

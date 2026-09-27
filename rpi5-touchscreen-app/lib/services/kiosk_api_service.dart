@@ -357,6 +357,28 @@ class KioskApiService {
     if (res.statusCode != 404) _ensureOk(res);
   }
 
+  Future<void> snoozeSuggestion(String id) async {
+    final res = await _client.post(
+      _base.replace(path: '/suggestions/$id/snooze'),
+    ).timeout(_timeout);
+    _ensureOk(res);
+  }
+
+  Future<Map<String, List<String>>> revisionOptions(String id) async {
+    final res = await _client.get(_base.replace(path: '/suggestions/$id/revision-options')).timeout(_timeout);
+    _ensureOk(res);
+    final options = jsonDecode(res.body)['options'] as Map<String, dynamic>;
+    return options.map((key, value) => MapEntry(key, (value as List).cast<String>()));
+  }
+
+  Future<KioskSuggestion> reviseSuggestion(String id, String purpose) async {
+    final res = await _client.post(_base.replace(path: '/suggestions/$id/revise'),
+      headers: {'Content-Type': 'application/json'}, body: jsonEncode({'purpose': purpose}),
+    ).timeout(_timeout);
+    _ensureOk(res);
+    return KioskSuggestion.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   Future<void> stop() async {
     await _client.post(_base.replace(path: '/stop')).timeout(_timeout);
   }

@@ -40,6 +40,22 @@ class FakeKioskApi implements KioskApiService {
   final approvedIds = <String>[];
   final rejectedIds = <String>[];
   final mutedIds = <String>[];
+  final snoozedIds = <String>[];
+  final revisedIds = <String>[];
+  @override
+  Future<Map<String, List<String>>> revisionOptions(String id) async => {'30초 돌려줘': ['30초', '시작']};
+  @override
+  Future<KioskSuggestion> reviseSuggestion(String id, String purpose) async {
+    revisedIds.add(id);
+    final revised = KioskSuggestion(id: 'revised', purpose: purpose, occurrences: 0, applianceId: 'microwave', steps: ['30초', '시작']);
+    suggestionList = [revised];
+    return revised;
+  }
+  @override
+  Future<void> snoozeSuggestion(String id) async {
+    if (rejectError != null) throw rejectError!;
+    snoozedIds.add(id);
+  }
   int stopCalls = 0;
 
   @override
@@ -170,6 +186,45 @@ Future<void> _pumpKiosk(
 }
 
 void main() {
+  testWidgets('changing action shows a new preview and needs a second approval', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    await tester.tap(find.text('이번 동작 바꾸기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('30초 돌려줘\n30초 → 시작'));
+    await tester.pumpAndSettle();
+    expect(api.revisedIds, ['s1']);
+    expect(api.approvedIds, isEmpty);
+    expect(find.text('30초 돌려줘,\n지금 할까요?'), findsOneWidget);
+    await tester.tap(find.text('지금 실행'));
+    await tester.pump();
+    expect(api.approvedIds, ['revised']);
+  });
+
+  testWidgets('pause failure keeps card; success never approves or rejects', (tester) async {
+    tester.view.physicalSize = const Size(1280, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final api = FakeKioskApi()..suggestionList = [_sug]
+      ..rejectError = Exception('offline');
+    await _pumpKiosk(tester, api);
+    await tester.tap(find.textContaining('이 제안 30분 쉬기'));
+    await tester.pump();
+    expect(find.byType(KioskSuggestionView), findsOneWidget);
+    expect(api.snoozedIds, isEmpty);
+    api.rejectError = null;
+    api.suggestionList = [];
+    await tester.tap(find.textContaining('이 제안 30분 쉬기'));
+    await tester.pump();
+    expect(api.snoozedIds, ['s1']);
+    expect(api.approvedIds, isEmpty);
+    expect(api.rejectedIds, isEmpty);
+    expect(find.byType(KioskSuggestionView), findsNothing);
+  });
+
   testWidgets('환경 근거 갱신은 음성을 반복하거나 표시 시간을 늘리지 않는다', (tester) async {
     final api = FakeKioskApi()..suggestionList = const [KioskSuggestion(
       id: 'env1', purpose: '에어컨 켜줘', occurrences: 0, timeBand: '환경',

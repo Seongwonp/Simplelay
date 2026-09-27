@@ -117,3 +117,4 @@ class ProactiveSuggestion:
     # 서버 시계 기준. 조회뿐 아니라 승인 시에도 검사한다.
     expires_at: datetime | None = None
     is_demo: bool = False
+    revised_from: str | None = None

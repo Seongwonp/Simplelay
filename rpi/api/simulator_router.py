@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, Response
 
 from .deps import get_service
 from rpi.services.simulator_controller import SimulatorController
@@ -40,6 +40,8 @@ class RehearsalEvent(BaseModel):
     stop_y: float = Field(default=.7, ge=0, le=1, allow_inf_nan=False)
     park_x: float = Field(default=.5, ge=0, le=1, allow_inf_nan=False)
     edge: Literal['top', 'bottom'] = 'top'
+    end_x: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    end_y: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
 
 
 @router.get('/parking', response_class=HTMLResponse)
@@ -52,16 +54,26 @@ def parking_state(controller=Depends(require_simulator)):
     return controller.parking_rehearsal.snapshot()
 
 
+@router.get('/parking-motion.js')
+def parking_motion_script(controller=Depends(require_simulator)):
+    source = pathlib.Path(__file__).parent.parent / 'touchscreen' / 'parking-motion.js'
+    return Response(source.read_text(encoding='utf-8'), media_type='text/javascript')
+
+
 @router.post('/parking/event')
 def parking_event(body: RehearsalEvent, controller=Depends(require_simulator)):
     from rpi.services.parking_rehearsal import StaleRehearsal
     from rpi4.parking_simulator import Mapping, Point
     try:
+        if (body.end_x is None) != (body.end_y is None):
+            raise ValueError('both mock end coordinates are required')
+        position = Point(body.end_x, body.end_y) if body.end_x is not None else None
         mapping = (Mapping(Point(body.stop_x, body.stop_y),
                            Point(body.park_x, 0 if body.edge == 'top' else 1), body.edge)
                    if body.event == 'new' else None)
         return controller.parking_rehearsal.event(body.session, body.revision, body.event,
-                                                 action_id=body.action_id, mapping=mapping)
+                                                 action_id=body.action_id, mapping=mapping,
+                                                 sequence_position=position)
     except StaleRehearsal as exc:
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:

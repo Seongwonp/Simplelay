@@ -337,6 +337,56 @@ class ProactiveSuggestionService:
                     related = self._suggestions.pop(sid)
                     self._record(related, "withdrawn", "routine_muted")
 
+    def revision_options(self, suggestion_id: str) -> dict[str, tuple[str, ...]]:
+        with self._state_lock:
+            self._expire_locked()
+            old = self._suggestions.get(suggestion_id)
+            if old is None or old.status is not SuggestionStatus.PENDING:
+                raise UnknownSuggestionError(suggestion_id)
+            # Environmental eligibility is tied to the original action.
+            if old.time_band == "환경":
+                return {}
+            options = getattr(self._executor, 'revision_options', lambda _: {})(old.appliance_id)
+            return {name: steps for name, steps in options.items() if name != old.purpose}
+
+    def revise(self, suggestion_id: str, purpose: str) -> ProactiveSuggestion:
+        with self._state_lock:
+            self._expire_locked()
+            old = self._suggestions.get(suggestion_id)
+            if old is None or old.status is not SuggestionStatus.PENDING:
+                raise UnknownSuggestionError(suggestion_id)
+            options = getattr(self._executor, 'revision_options', lambda _: {})(old.appliance_id)
+            steps = options.get(purpose)
+            if old.time_band == "환경" or not steps or purpose == old.purpose:
+                raise UnknownIntentError('choose a different registered action')
+            # Suppress recreation of the original candidate this time band only.
+            # Save before removing it; failure leaves the original review intact.
+            self._remember_locked(old)
+            new = replace(old, suggestion_id=uuid4().hex, purpose=purpose,
+                          steps=tuple(steps), occurrences=0, revised_from=old.suggestion_id,
+                          reason='이번 요청에서 바꾼 동작이에요. 순서를 확인하고 다시 승인해 주세요.')
+            self._suggestions.pop(suggestion_id)
+            self._suggestions[new.suggestion_id] = new
+            self._record(old, 'revised', 'user_changed_this_request')
+            self._record(new, 'created', 'user_revision')
+            return new
+
+    def snooze(self, suggestion_id: str) -> None:
+        """Pause this target/purpose/time-band for 30 minutes; never schedule execution.
+
+        Persist before retiring the card. Future candidates pass the usual context
+        gates and need a new approval; a stale approval cannot revive this card.
+        """
+        with self._state_lock:
+            self._expire_locked()
+            suggestion = self._suggestions.get(suggestion_id)
+            if suggestion is None or suggestion.status is not SuggestionStatus.PENDING:
+                raise UnknownSuggestionError(suggestion_id)
+            now = self._clock.now()
+            self._cooldowns.remember(self._key(suggestion), now + timedelta(minutes=30), now)
+            self._suggestions.pop(suggestion_id)
+            self._record(suggestion, "snoozed", "user_pause_30_minutes")
+
     def drop_for_appliance(self, appliance_id: str) -> int:
         """그 가전을 대상으로 하던 pending 제안을 내린다.
 
@@ -589,6 +639,12 @@ class ProactiveSuggestionService:
         )
 
     def _approval_options(self, suggestion):
+        if suggestion.revised_from is not None:
+            def revised_guard():
+                reason = self._withdrawal_reason(suggestion)
+                if reason is not None:
+                    raise UnknownSuggestionError(suggestion.suggestion_id, reason=reason)
+            return {"expected_buttons": suggestion.steps, "approval_guard": revised_guard}
         if suggestion.time_band == "데모":
             return {}
         if (self._completed_actions is None and self._presence_gate is None

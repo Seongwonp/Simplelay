@@ -30,6 +30,33 @@ class SuggestionScreen extends ConsumerWidget {
 
   final String sequenceId;
 
+  Future<void> _revise(BuildContext context, WidgetRef ref, Suggestion suggestion) async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null) return;
+    try {
+      final options = await api.revisionOptions(suggestion.sequenceId);
+      if (!context.mounted) return;
+      if (options.isEmpty) {
+        _notifyError(context, '이 가전에는 바꿀 수 있는 등록 동작이 없어요.');
+        return;
+      }
+      final purpose = await showDialog<String>(context: context, builder: (dialogContext) => SimpleDialog(
+        title: const Text('이번 동작 바꾸기 · 아직 실행하지 않아요'),
+        children: options.entries.map((e) => SimpleDialogOption(
+          onPressed: () => Navigator.pop(dialogContext, e.key),
+          child: Text('${e.key}\n${e.value.join(' → ')}'),
+        )).toList(),
+      ));
+      if (purpose == null || !context.mounted) return;
+      final revised = await api.reviseSuggestion(suggestion.sequenceId, purpose);
+      if (!context.mounted) return;
+      ref.read(suggestionProvider.notifier).replaceHttp(suggestion.sequenceId, revised);
+      context.replace('/suggestion/${revised.id}');
+    } catch (_) {
+      if (context.mounted) _notifyError(context, '동작을 바꾸지 못했어요. 최신 제안을 확인해 주세요.');
+    }
+  }
+
   static void _notifyError(BuildContext context, String message) {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context)
@@ -44,27 +71,41 @@ class SuggestionScreen extends ConsumerWidget {
     WidgetRef ref,
     Suggestion suggestion, {
     required bool mute,
+    bool snooze = false,
   }) async {
     final rpiApi = ref.read(rpiApiServiceProvider);
+    var paused = false;
+    if (snooze && rpiApi == null) {
+      _notifyError(context, '쉬기를 전달하지 못했어요. 연결을 확인해주세요.');
+      return;
+    }
     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
       try {
-        await rpiApi.rejectSuggestion(suggestion.sequenceId, mute: mute);
+        if (snooze) {
+          await rpiApi.snoozeSuggestion(suggestion.sequenceId);
+          paused = true;
+        } else {
+          await rpiApi.rejectSuggestion(suggestion.sequenceId, mute: mute);
+        }
       } on RpiApiException catch (error) {
         if (error.statusCode != 404) {
           if (context.mounted) {
-            _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+            _notifyError(context, '선택을 전달하지 못했어요. 연결을 확인해주세요.');
           }
           return;
         }
       } catch (_) {
         if (context.mounted) {
-          _notifyError(context, '거부를 전달하지 못했어요. 연결을 확인해주세요.');
+          _notifyError(context, '선택을 전달하지 못했어요. 연결을 확인해주세요.');
         }
         return;
       }
     }
     await ref.read(suggestionProvider.notifier).respond(suggestion, false);
     if (!context.mounted) return;
+    if (paused) {
+      _notifyError(context, '30분간 이 제안을 쉬어요. 이후에도 상황이 맞을 때만 다시 물어요.');
+    }
     if (mute) {
       // 무엇이 바뀌었는지 말하고 물릴 길을 같이 준다 -- 설정 화면까지
       // 찾아 들어가야 되돌릴 수 있으면 되돌릴 수 있는 게 아니다.
@@ -273,6 +314,12 @@ class SuggestionScreen extends ConsumerWidget {
         canMute: suggestion.canMute,
         onSkip: () => _dismissSuggestion(context, ref, suggestion, mute: false),
         onMute: () => _dismissSuggestion(context, ref, suggestion, mute: true),
+        onRevise: suggestion.source == SuggestionSource.http && suggestion.timeBand != '환경'
+            ? () => _revise(context, ref, suggestion) : null,
+        onSnooze: suggestion.source == SuggestionSource.http && !suggestion.isDemo
+            && suggestion.timeBand != '데모'
+            ? () => _dismissSuggestion(context, ref, suggestion, mute: false, snooze: true)
+            : null,
         onRun: blocked ? null : () => _approve(context, ref, suggestion),
       ),
     );
@@ -392,6 +439,8 @@ class _ActionBar extends StatelessWidget {
     required this.onSkip,
     required this.onMute,
     required this.onRun,
+    this.onSnooze,
+    this.onRevise,
   });
 
   final ApplianceMap appliance;
@@ -403,6 +452,8 @@ class _ActionBar extends StatelessWidget {
   final VoidCallback onSkip;
   final VoidCallback onMute;
   final VoidCallback? onRun;
+  final VoidCallback? onSnooze;
+  final VoidCallback? onRevise;
 
   @override
   Widget build(BuildContext context) {
@@ -479,6 +530,18 @@ class _ActionBar extends StatelessWidget {
               // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE
               // 경로는 '이번만 넘기기'와 같은 거절 메시지라 약속을 지킬 수
               // 없다.
+              if (onSnooze != null)
+                TextButton.icon(
+                  onPressed: onSnooze,
+                  icon: const Icon(Icons.snooze, size: 18),
+                  label: const Text('이 제안 30분 쉬기'),
+                ),
+              if (onRevise != null)
+                TextButton.icon(
+                  onPressed: onRevise,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('이번 동작 바꾸기'),
+                ),
               if (canMute)
                 TextButton.icon(
                   onPressed: onMute,

@@ -891,6 +891,16 @@ class AlertResponse(BaseModel):
     updated_at: datetime | None = None
 
 
+class ReviseSuggestionRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+    purpose: str
+
+    @field_validator("purpose")
+    @classmethod
+    def validate_purpose(cls, value: str) -> str:
+        return _validate_purpose_text(value)
+
+
 class RejectSuggestionRequest(BaseModel):
     """POST /suggestions/{id}/reject 본문(선택). mute=True면 "다시 추천 안 함"."""
 

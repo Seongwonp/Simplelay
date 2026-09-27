@@ -14,7 +14,7 @@ const _sug = KioskSuggestion(
   applianceId: 'microwave',
 );
 
-Future<void> _pump(WidgetTester tester, {ApplianceMap? target}) async {
+Future<void> _pump(WidgetTester tester, {ApplianceMap? target, VoidCallback? onSnooze}) async {
   tester.view.physicalSize = const Size(800, 480);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -28,12 +28,22 @@ Future<void> _pump(WidgetTester tester, {ApplianceMap? target}) async {
         onApprove: () {},
         onReject: () {},
         onRejectMute: () {},
+        onSnooze: onSnooze,
       ),
     ),
   ));
 }
 
 void main() {
+  testWidgets('pause has its own action at 800x480', (tester) async {
+    var paused = 0;
+    await _pump(tester, target: kMicrowaveAppliance, onSnooze: () => paused++);
+    await tester.tap(find.textContaining('이 제안 30분 쉬기'));
+    expect(paused, 1);
+    expect(tester.takeException(), isNull);
+    expect(find.text('지금 실행'), findsOneWidget);
+  });
+
   testWidgets('대상 가전·질문·번호 붙은 순서·두 행동을 보여준다', (tester) async {
     await _pump(tester, target: kMicrowaveAppliance);
 
