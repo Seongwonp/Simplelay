@@ -329,6 +329,10 @@ class RpiApiService {
   final Uri _base;
   final http.Client _client;
 
+  /// 이 서비스가 붙어 있는 서버 주소(끝 슬래시 없음). 응답이 **어느 서버의**
+  /// 것인지 표시할 때 쓴다.
+  String get baseUrl => _base.toString();
+
   // 서버 SIMPLELAY_API_KEY와 짝 — 설정돼 있으면 모든 요청에 X-API-Key 헤더
   final String? _apiKey;
 
@@ -711,6 +715,31 @@ class RpiApiService {
       return [
         for (final item in body.cast<Map<String, dynamic>>())
           if (item['is_custom'] == true) ApplianceMap.fromJson(item),
+      ];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /appliances **전체** -- 서버 내장 가전과 사용자 등록 가전을 함께,
+  /// 각각 `isCustom`으로 구분해 돌려준다.
+  ///
+  /// 내장 가전 목록(`serverApplianceCatalogProvider`)이 쓴다. 준비 상태
+  /// (`can_execute`·`readiness`)도 항목마다 실려 오므로, 목록에 있다는
+  /// 사실만으로 실행 가능하다고 보지 않는다.
+  ///
+  /// 조회 실패는 `customAppliances()`와 같은 이유로 **null**이다 -- 빈
+  /// 목록과 섞으면 "서버에 가전이 없다"로 읽힌다.
+  Future<List<ApplianceMap>?> listAppliances() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/appliances'), headers: _headers)
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+      return [
+        for (final item in body.cast<Map<String, dynamic>>())
+          ApplianceMap.fromJson(item),
       ];
     } catch (_) {
       return null;

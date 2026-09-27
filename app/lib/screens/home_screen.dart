@@ -10,6 +10,7 @@ import '../providers/navigation_provider.dart';
 import '../widgets/appliance_portrait.dart';
 import '../widgets/demo_badge.dart';
 import '../providers/rpi_api_provider.dart';
+import '../providers/server_appliance_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/ble_service.dart';
 import '../services/rpi_api_service.dart';
@@ -110,7 +111,10 @@ class HomeScreen extends ConsumerWidget {
           // 오류 문구도 쓰지 않고, 다음에 할 일 하나만 놓는다. 아래의 제안·
           // 센서·연결 구획은 그대로 둔다 -- 가전이 없어도 홈은 홈이다.
           if (appliance == null)
-            _NoApplianceStage(onAdd: () => context.push('/appliance/new'))
+            _NoApplianceStage(
+              onAdd: () => context.push('/appliance/new'),
+              note: _serverCatalogNote(ref.watch(serverApplianceCatalogProvider)),
+            )
           else
             _ApplianceStage(
               appliance: appliance,
@@ -272,10 +276,25 @@ class _ApplianceRow extends ConsumerWidget {
 /// 빈 자리를 남기거나 예시 가전을 세워 두지 않는다. 예시를 세우면 사용자는
 /// 자기가 등록하지도 않은 전자레인지가 어디서 왔는지 묻게 되고, 그 순간
 /// 앱이 말하는 다른 상태도 못 믿게 된다.
+/// 가전이 0대인 화면에서 **서버 목록 사정**을 한 줄로. 없으면 null.
+///
+/// 조회 실패와 '서버에 정말 없음'을 같은 빈 화면으로 두지 않는다. 실패는
+/// 연결 문제라 사용자가 고칠 수 있는 일이 다르다. 성공했는데 비어 있으면
+/// 아무 말도 덧붙이지 않는다 -- 그것이 정상 빈 상태다.
+String? _serverCatalogNote(ServerApplianceCatalog catalog) =>
+    switch (catalog.status) {
+      ServerCatalogStatus.loading => '기기의 가전 목록을 확인하는 중이에요.',
+      ServerCatalogStatus.failed => '기기의 가전 목록을 가져오지 못했어요. 연결을 확인해 주세요.',
+      ServerCatalogStatus.loaded || ServerCatalogStatus.unconfigured => null,
+    };
+
 class _NoApplianceStage extends StatelessWidget {
-  const _NoApplianceStage({required this.onAdd});
+  const _NoApplianceStage({required this.onAdd, this.note});
 
   final VoidCallback onAdd;
+
+  /// 서버 목록 사정(확인 중·실패). 정상 빈 상태면 null.
+  final String? note;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -292,6 +311,10 @@ class _NoApplianceStage extends StatelessWidget {
             '조작하고 싶은 가전을 추가하면\n여기서 상태를 보고 바로 조작할 수 있어요.',
             style: TextStyle(fontSize: 16, color: context.appMuted),
           ),
+          if (note case final note?) ...[
+            const SizedBox(height: 8),
+            Text(note, style: TextStyle(fontSize: 14, color: context.appMuted)),
+          ],
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: onAdd,

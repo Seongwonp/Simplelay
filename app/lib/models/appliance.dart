@@ -164,6 +164,12 @@ class ApplianceMap {
   /// 조작 수단이 통째로 사라진다.
   bool get mayDispatchWithoutServer => !readinessKnown || canExecute;
 
+  /// 서버가 제공하는 내장 가전인가.
+  ///
+  /// 이 폰이 만든 것이 아니므로 편집·삭제·PUT/DELETE 동기화 대상이 아니고
+  /// 기기 저장소에도 남기지 않는다. 서버 주소가 바뀌면 함께 사라진다.
+  bool get isServerBuiltin => !isCustom && !isDemo;
+
   /// 맡길 수 없는 이유. '안 됩니다'만 말하면 할 수 있는 일이 없다.
   final List<String> readinessReasons;
 
@@ -214,7 +220,10 @@ class ApplianceMap {
             .cast<Map<String, dynamic>>()
             .map(ApplianceButton.fromJson)
             .toList(),
-        isCustom: true,
+        // 기기 저장분(toJson)에는 이 키가 없다 -- 그것은 전부 이 폰이 등록한
+        // 가전이다. 서버 응답만 `is_custom`을 말하고, false면 서버 내장
+        // 가전이다: 편집·저장·동기화 대상이 아니다.
+        isCustom: json['is_custom'] as bool? ?? true,
         photoPath: json['photo_path'] as String?,
         // 서버 응답에만 있는 값 — 기기에 저장된 정의에는 없다(저장하지
         // 않는다: 살아 있는 준비 상태는 재확인 전까지 사실이 아니다).

@@ -7,6 +7,7 @@ import '../models/appliance.dart';
 import '../services/rpi_api_service.dart';
 import 'appliance_provider.dart';
 import 'rpi_api_provider.dart';
+import 'server_appliance_provider.dart';
 
 /// 아직 서버에 전달하지 못한 변경들. **순서가 있는 목록**이다.
 const _kOutboxKey = 'appliance_sync_outbox';
@@ -219,6 +220,9 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
   /// 가전을 저장한다(등록·수정). 로컬 저장은 무조건 성립하고, 서버 전달은
   /// 대기열을 통해 **끝까지** 시도된다.
   Future<ApplianceSyncResult> saveAppliance(ApplianceMap appliance) async {
+    // 서버 내장 가전은 이 폰의 것이 아니다. 저장하지도, 올려 보내지도
+    // 않는다 -- 대기열에 들어가면 서버 정의를 서버에 되돌려 보내게 된다.
+    if (!appliance.isCustom) return const ApplianceSyncResult();
     final customs = _ref.read(customAppliancesProvider);
     final notifier = _ref.read(customAppliancesProvider.notifier);
     if (customs.any((a) => a.id == appliance.id)) {
@@ -246,6 +250,13 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
     String applianceId, {
     int? expectedRevision,
   }) async {
+    // 서버 내장 가전은 지울 수 없다 -- DELETE를 보내면 서버 정의를 지우려
+    // 드는 셈이다. 이 폰의 목록에도 없으므로 할 일이 없다.
+    final isServerBuiltin = _ref
+        .read(serverApplianceCatalogProvider)
+        .appliances
+        .any((a) => a.id == applianceId);
+    if (isServerBuiltin) return const ApplianceSyncResult();
     final known = _ref
         .read(customAppliancesProvider)
         .where((a) => a.id == applianceId)
@@ -429,6 +440,10 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
 
     var adopted = 0;
     for (final incoming in remote) {
+      // `customAppliances()`가 이미 is_custom으로 거르지만, 서버 내장 가전이
+      // 여기로 새어 들어오면 기기에 저장되고 다음 동기화가 올려 보낸다.
+      // 마지막 문에서 한 번 더 막는다.
+      if (!incoming.isCustom) continue;
       if (pendingDeletes.contains(incoming.id)) continue;
       final mine = localById[incoming.id];
       if (mine == null) {

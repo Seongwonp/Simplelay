@@ -96,6 +96,8 @@ void main() {
       await tester.tap(find.text('켜기'));
       await tester.pump();
       expect(executed, 0);
+      // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
+      await tester.pump(Duration.zero);
     });
   });
 
@@ -130,6 +132,8 @@ void main() {
     expect(find.text('버튼 2개 · 누르면 실제 가전 버튼이 눌려요'), findsOneWidget);
     expect(find.text('켜기'), findsOneWidget);
     expect(find.text('끄기'), findsOneWidget);
+    // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
+    await tester.pump(Duration.zero);
   });
 
   http.Response jsonRes(Object body) => http.Response.bytes(

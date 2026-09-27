@@ -197,8 +197,9 @@ void main() {
     var executeCalls = 0;
     final api = RpiApiService(
       'http://rpi5.local:8000',
-      client: MockClient((_) async {
-        executeCalls++;
+      client: MockClient((request) async {
+        // 가전 목록 조회 같은 다른 요청은 세지 않는다 -- 관심사는 실행 전송이다.
+        if (request.url.path == '/execute') executeCalls++;
         return http.Response.bytes(
           utf8.encode(jsonEncode({'job_id': 'job-1'})),
           200,
@@ -284,7 +285,11 @@ void main() {
     var executeCalls = 0;
     final api = RpiApiService(
       'http://rpi5.local:8000',
-      client: MockClient((_) async {
+      client: MockClient((request) async {
+        if (request.url.path != '/execute') {
+          // 가전 목록 조회는 이 테스트의 관심사가 아니다. 지연 없이 빈 응답.
+          return http.Response('[]', 200);
+        }
         executeCalls++;
         await Future<void>.delayed(const Duration(milliseconds: 50));
         // 409로 끝내 job 추적(주기 폴링)이 시작되지 않게 한다 -- 이
@@ -474,7 +479,11 @@ void main() {
     });
 
     testWidgets('RPi 연결이 없으면 안내만 뜨고 전송하지 않는다', (tester) async {
-      final container = await makeCustomContainer();
+      // 전제를 명시한다. 기본 주소가 기기에서 올라오면 서비스가 생기므로,
+      // '서버 없음'은 오버라이드로 만들어야 한다.
+      final container = await makeCustomContainer(
+        extra: [rpiApiServiceProvider.overrideWithValue(null)],
+      );
       container.read(voiceTextProvider.notifier).state = '켜줘';
 
       await tester.pumpWidget(_buildScreen(container));
@@ -486,6 +495,8 @@ void main() {
         find.text('사용자 정의 가전의 음성 명령은 RPi5 서버 연결이 필요해요. 설정에서 URL을 확인하세요.'),
         findsOneWidget,
       );
+      // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
+      await tester.pump(Duration.zero);
     });
 
     testWidgets('전송 시 /execute-for-appliance를 등록된 버튼 어휘와 함께 호출한다',
@@ -561,6 +572,8 @@ void main() {
         find.text('음성 해석 기능이 서버에 설정되어 있지 않아요.'),
         findsOneWidget,
       );
+      // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
+      await tester.pump(Duration.zero);
     });
   });
 
