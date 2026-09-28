@@ -23,6 +23,12 @@ import threading
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import TYPE_CHECKING
+
+from rpi.commands.models import ControlRoute
+
+if TYPE_CHECKING:  # pragma: no cover
+    from rpi.services.thinq.bindings import ThinqBinding
 
 
 class BuiltinApplianceError(ValueError):
@@ -62,6 +68,7 @@ class ApplianceCategory(str, Enum):
     WASHING_MACHINE = "washing_machine"
     INDUCTION = "induction"
     RICE_COOKER = "rice_cooker"
+    AIR_PURIFIER = "air_purifier"
     OTHER = "other"
 
     @classmethod
@@ -239,6 +246,10 @@ class ApplianceDef:
     functions: tuple[tuple[str, tuple[str, ...]], ...] = ()
     #: 버튼 mm 좌표를 만든 보정 결과의 버전. 좌표가 무효화되면 None.
     calibration_version: str | None = None
+    #: 제어 경로(U1-a). 기본은 물리(갠트리·노드). ``thinq``면 버튼이 없고
+    #: ``thinq`` 등록 정보(기기 ID·동작 대응표)로만 실행한다.
+    control_path: ControlRoute = ControlRoute.PHYSICAL
+    thinq: "ThinqBinding | None" = None
 
     def function_steps(self, purpose: str) -> tuple[FunctionStep, ...] | None:
         key = purpose.strip()
@@ -383,6 +394,11 @@ class ApplianceRegistry:
         self._store = store
         self._lock = threading.Lock()
         self._custom: dict[str, ApplianceDef] = {}
+        # 서버 구성이 등록하는 **시스템 가전**(ThinQ 가전·모의 시나리오 가전).
+        # 저장하지 않고, 폰 편집기로 덮거나 지울 수 없다. ``list()``(GET
+        # /appliances)에는 나오지 않는다 -- 버튼 격자가 없는 가전을 기존 화면이
+        # 그리게 하지 않기 위해서다. ``get()``과 ``list_all()``에서는 보인다.
+        self._system: dict[str, ApplianceDef] = {}
         # 내장 가전의 보정 좌표. 내장 정의 자체는 바꾸지 않고(키오스크·규칙이
         # 전제한다) 부착 위치마다 다른 mm 좌표만 덧씌운다.
         # 내장 가전 보정: (보정 버전, 버튼 mm, 판 번호). 내장 정의 자체는 고정이라
@@ -416,7 +432,41 @@ class ApplianceRegistry:
             for builtin in BUILTIN_APPLIANCES:
                 if builtin.appliance_id == appliance_id:
                     return self._with_overlay(builtin)
-            return self._custom.get(appliance_id)
+            found = self._custom.get(appliance_id)
+            return found if found is not None else self._system.get(appliance_id)
+
+    def list_all(self) -> tuple[ApplianceDef, ...]:
+        with self._lock:
+            system = tuple(self._system.values())
+        return self.list() + system
+
+    def system_appliances(self) -> tuple[ApplianceDef, ...]:
+        with self._lock:
+            return tuple(self._system.values())
+
+    def register_system(self, appliance: ApplianceDef) -> ApplianceDef:
+        """서버 구성이 가전을 등록한다(메모리만). 내장·커스텀 ID와 겹치면 거절."""
+        aid = appliance.appliance_id
+        if any(b.appliance_id == aid for b in BUILTIN_APPLIANCES):
+            raise BuiltinApplianceError(f"'{aid}' is a built-in appliance")
+        if appliance.control_path is ControlRoute.THINQ and appliance.thinq is None:
+            raise ValueError(f"thinq appliance '{aid}' needs a thinq binding")
+        with self._lock:
+            if aid in self._custom:
+                raise BuiltinApplianceError(f"'{aid}' is already a custom appliance")
+            self._system[aid] = appliance
+            return appliance
+
+    def unregister_system(self, appliance_id: str) -> bool:
+        with self._lock:
+            return self._system.pop(appliance_id, None) is not None
+
+    def _require_not_system(self, appliance_id: str) -> None:
+        with self._lock:
+            if appliance_id in self._system:
+                raise BuiltinApplianceError(
+                    f"'{appliance_id}' is a system appliance (server configuration)"
+                )
 
     def apply_calibration(
         self,
@@ -513,6 +563,7 @@ class ApplianceRegistry:
             raise BuiltinApplianceError(
                 f"'{appliance.appliance_id}' is a built-in appliance"
             )
+        self._require_not_system(appliance.appliance_id)
         with self._lock:
             existing = self._custom.get(appliance.appliance_id)
             current = existing.revision if existing is not None else 0
@@ -550,6 +601,7 @@ class ApplianceRegistry:
             raise BuiltinApplianceError(
                 f"'{appliance_id}' is a built-in appliance"
             )
+        self._require_not_system(appliance_id)
         with self._lock:
             existing = self._custom.get(appliance_id)
             existed = existing is not None

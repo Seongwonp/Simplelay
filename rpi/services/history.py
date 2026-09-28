@@ -81,6 +81,16 @@ class JobHistoryEntry:
     #: 검증 실패 안전 정지를 뭉갠다. 원격 실행기가 보고한 값도 여기 남는다.
     #: 이 열이 생기기 전 기록은 None — `effective_outcome`이 보수적으로 유도한다.
     outcome: str | None = None
+    # ── 명령 계약(U1-a) — 실행 환경과 독립인 두 축 ────────────────────────
+    #: 제어 경로 physical | thinq. 열이 생기기 전 기록은 unknown.
+    route: str = "unknown"
+    #: 상대가 받았나 accepted | unknown | not_dispatched (옛 기록 unknown).
+    receipt: str = "unknown"
+    #: 무엇을 근거로 확인했나 none | reported | press_confirmed |
+    #: state_confirmed | operation_confirmed (옛 기록 unknown).
+    confirmation: str = "unknown"
+    #: 사람이 읽을 한 줄(확인 못 한 이유 등). 토큰·주소는 넣지 않는다.
+    detail: str = ""
 
     @property
     def effective_outcome(self) -> str:
@@ -162,6 +172,10 @@ _CSV_COLUMNS = (
     "calibration_profile_version",
     "retry_count",
     "buttons",
+    # 명령 계약(U1-a) — 뒤에 붙인다(앞 열 순서를 읽는 기존 분석을 깨지 않게).
+    "route",
+    "receipt",
+    "confirmation",
 )
 
 
@@ -216,6 +230,9 @@ def history_csv(entries: tuple[JobHistoryEntry, ...]) -> str:
                     f"{b.button}:{'ok' if b.success else 'fail'}:{b.attempts}"
                     for b in entry.buttons
                 ),
+                entry.route,
+                entry.receipt,
+                entry.confirmation,
             ]
         )
     return buffer.getvalue()

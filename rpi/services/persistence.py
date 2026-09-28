@@ -555,6 +555,46 @@ class SimpleLayDb:
             ).fetchall()
         return frozenset(row[0] for row in rows)
 
+    # ── 실행 이력의 명령 계약 열(U1-a) ──────────────────────────────────────
+    # 기존 job_history 행을 건드리지 않고 job_id로 붙이는 옆 표다. 옛 기록은
+    # 여기 행이 없어 route·receipt·confirmation이 unknown으로 읽힌다(지어내지 않음).
+
+    def _ensure_command_meta_locked(self) -> None:
+        if getattr(self, "_command_meta_ready", False):
+            return
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS job_history_command ("
+            " job_id TEXT PRIMARY KEY, route TEXT, receipt TEXT,"
+            " confirmation TEXT, detail TEXT)"
+        )
+        self._conn.commit()
+        self._command_meta_ready = True
+
+    def save_job_command_meta(self, entry: JobHistoryEntry) -> None:
+        with self._lock:
+            self._ensure_command_meta_locked()
+            self._conn.execute(
+                "INSERT OR REPLACE INTO job_history_command"
+                " (job_id, route, receipt, confirmation, detail) VALUES (?, ?, ?, ?, ?)",
+                (entry.job_id, entry.route, entry.receipt, entry.confirmation, entry.detail),
+            )
+            self._conn.commit()
+
+    def job_command_meta(self, job_ids) -> dict[str, tuple[str, str, str, str]]:
+        ids = [j for j in job_ids if j]
+        if not ids:
+            return {}
+        with self._lock:
+            self._ensure_command_meta_locked()
+            marks = ",".join("?" for _ in ids)
+            rows = self._conn.execute(
+                "SELECT job_id, route, receipt, confirmation, detail"
+                f" FROM job_history_command WHERE job_id IN ({marks})",
+                ids,
+            ).fetchall()
+        return {r[0]: (r[1] or "unknown", r[2] or "unknown", r[3] or "unknown", r[4] or "")
+                for r in rows}
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()
@@ -568,9 +608,19 @@ class SqliteJobHistory:
 
     def append(self, entry: JobHistoryEntry) -> None:
         self._db.append_job_history(entry)
+        if entry.route != "unknown":
+            self._db.save_job_command_meta(entry)
 
     def recent(self, limit: int = 50) -> tuple[JobHistoryEntry, ...]:
-        return self._db.recent_job_history(limit)
+        from dataclasses import replace  # noqa: PLC0415
+
+        entries = self._db.recent_job_history(limit)
+        meta = self._db.job_command_meta(e.job_id for e in entries)
+        return tuple(
+            replace(e, route=m[0], receipt=m[1], confirmation=m[2], detail=m[3])
+            if (m := meta.get(e.job_id)) is not None else e
+            for e in entries
+        )
 
 
 class SqliteSuppressionStore(SuppressionStore):

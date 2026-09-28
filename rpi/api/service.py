@@ -29,6 +29,10 @@ from rpi.intent.models import UsageSource
 from rpi.intent.completed_actions import CompletedActions
 from rpi.intent.rules import UnknownIntentError, RuleBasedIntentResolver
 from rpi.services import NodeRegistry
+from rpi.commands import ApprovalMismatchError, ControlRoute
+from rpi.services.appliance_registry import BUILTIN_APPLIANCES
+
+from .service_commands import CommandExecutionMixin, WrongRouteError
 from rpi.services.history import (
     ButtonAttempt,
     ExecutionMode,
@@ -57,6 +61,10 @@ class EmergencyStopReport:
     was_running: bool
     nodes_acknowledged: tuple[str, ...] = ()
     nodes_unconfirmed: tuple[str, ...] = ()
+    #: ThinQ 명령을 보내기 전이라 취소한 가전(전송 안 됨).
+    cloud_cancelled: tuple[str, ...] = ()
+    #: 이미 보낸 ThinQ 명령 -- 취소할 수 없다. 가전 운전 정지는 자동으로 보내지 않는다.
+    cloud_uncancellable: tuple[str, ...] = ()
 
 
 class ServiceNotReadyError(RuntimeError):
@@ -71,6 +79,21 @@ def _mode_of(controller: object | None) -> ExecutionMode:
     대해 아무것도 말해주지 않는다.
     """
     return getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
+
+
+_BUILTIN_IDS = frozenset(a.appliance_id for a in BUILTIN_APPLIANCES)
+
+
+def _check_approved(buttons, approved_buttons) -> None:
+    """결정 #1(승인 고정): 승인 카드가 보여 준 시퀀스와 지금 해석이 다르면 실행하지 않는다.
+
+    승인 뒤 규칙·가전 기능이 바뀌어 해석이 달라졌다면 그것은 사용자가 승인한
+    명령이 아니다 -- 새 카드로 다시 승인받는다(ApprovalMismatchError → 409).
+    """
+    if approved_buttons is not None and tuple(buttons) != tuple(approved_buttons):
+        raise ApprovalMismatchError(
+            f"승인 {' → '.join(approved_buttons)} / 지금 {' → '.join(buttons)}"
+        )
 
 
 class ApplianceNotReadyError(LookupError):
@@ -139,9 +162,17 @@ class StatusSnapshot:
     last_appliance_id: str | None = None
     execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
     last_execution_mode: ExecutionMode = ExecutionMode.UNKNOWN
+    # ── 명령 계약(U1-a) — 실행 환경과 독립인 축 ──
+    route: str | None = None
+    last_route: str | None = None
+    last_receipt: str | None = None
+    last_confirmation: str | None = None
+    last_detail: str | None = None
+    #: ThinQ 등 명령 경로의 상태(succeeded/failed/stopped/unconfirmed). 물리는 None.
+    last_command_status: str | None = None
 
 
-class SimpleLayService(PurposeExecutor):
+class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
     """Small framework-neutral API suitable for wrapping with FastAPI later.
 
     Readiness is tracked separately from "process started": a caller that
@@ -176,7 +207,15 @@ class SimpleLayService(PurposeExecutor):
         care_events=None,
         control_arbiter=None,
         completed_actions: CompletedActions | None = None,
+        thinq_controller=None,
+        system_controllers=None,
+        job_listeners=(),
     ) -> None:
+        # ThinQ 경로 실행기와 서버 구성 가전(모의 선풍기 등)의 실행기. 둘 다 없으면
+        # 종전 동작 그대로다(service_commands.py).
+        self._init_commands(thinq_controller, system_controllers)
+        for listener in job_listeners:
+            self.add_job_listener(listener)
         self.completed_actions = completed_actions or CompletedActions()
         self._intent = intent
         self._controller = controller
@@ -252,8 +291,12 @@ class SimpleLayService(PurposeExecutor):
         *, usage_source: UsageSource = UsageSource.DIRECT,
         approval_guard=None,
         expected_buttons: tuple[str, ...] | None = None,
+        approved_buttons: tuple[str, ...] | None = None,
     ) -> ExecutionResult:
-        return self._execute_via_resolver(purpose, self._intent, appliance_id, usage_source, approval_guard, expected_buttons)
+        if self.route_of(appliance_id) is ControlRoute.THINQ:
+            return self._submit_thinq_purpose(purpose, appliance_id, usage_source,
+                                              approval_guard, background=False)
+        return self._execute_via_resolver(purpose, self._intent, appliance_id, usage_source, approval_guard, expected_buttons, approved_buttons)
 
     def execute_purpose_for_appliance(
         self,
@@ -349,11 +392,13 @@ class SimpleLayService(PurposeExecutor):
         usage_source: UsageSource = UsageSource.DIRECT,
         approval_guard=None,
         expected_buttons: tuple[str, ...] | None = None,
+        approved_buttons: tuple[str, ...] | None = None,
     ) -> ExecutionResult:
         defined = self._function_sequence(purpose, appliance_id)
         buttons = self._validate_resolved_sequence(
             defined if defined is not None else tuple(resolver.resolve(purpose))
         )
+        _check_approved(buttons, approved_buttons)
         if expected_buttons is not None:
             if (tuple(buttons) != expected_buttons
                     or self.revision_options(appliance_id).get(purpose) != expected_buttons):
@@ -410,9 +455,16 @@ class SimpleLayService(PurposeExecutor):
         *, usage_source: UsageSource = UsageSource.DIRECT,
         approval_guard=None,
         expected_buttons: tuple[str, ...] | None = None,
+        approved_buttons: tuple[str, ...] | None = None,
     ) -> str:
+        if self.route_of(appliance_id) is ControlRoute.THINQ:
+            return self._submit_thinq_purpose(purpose, appliance_id, usage_source,
+                                              approval_guard, background=True)
         defined = self._function_sequence(purpose, appliance_id)
         buttons = defined if defined is not None else self._intent.resolve(purpose)
+        if approved_buttons is not None:
+            # 상한 거절(422, 카드 유지)이 불일치(409, 재승인)보다 먼저다.
+            _check_approved(self._validate_resolved_sequence(tuple(buttons)), approved_buttons)
         if expected_buttons is not None:
             if (tuple(buttons) != expected_buttons
                     or self.revision_options(appliance_id).get(purpose) != expected_buttons):
@@ -587,6 +639,8 @@ class SimpleLayService(PurposeExecutor):
             self._running = True
             self._stop_requested_this_run = False
             self._stop_requested_at = None
+            self._stop_sticky = False
+            self._current_route = ControlRoute.PHYSICAL
             job_id = uuid.uuid4().hex[:12]
             self._current_job_id = job_id
             self._execution_mode = _mode_of(controller)
@@ -610,6 +664,8 @@ class SimpleLayService(PurposeExecutor):
             self._last_execution_mode = self._execution_mode
             self._execution_mode = ExecutionMode.UNKNOWN
             self._last_appliance_id = self._current_appliance_id
+            self._last_route = self._current_route
+            self._current_route = None
             self._current_job_id = None
             self._current_appliance_id = None
             self._current_total_steps = None
@@ -637,7 +693,12 @@ class SimpleLayService(PurposeExecutor):
         try:
             self._history_store.append(
                 JobHistoryEntry(
-                    job_id=self._current_job_id or "",
+                    # 시나리오의 여러 단계는 job_id 뒤에 단계 번호를 붙인다.
+                    job_id=self._history_job_id(),
+                    # 명령 계약 열(경로·수신·확인 근거) — U1-a.
+                    **self._physical_contract_fields(
+                        result, getattr(self, "_physical_expected", None)
+                    ),
                     finished_at=self._clock.now(),
                     purpose=purpose,
                     status=result.status.value,
@@ -729,6 +790,7 @@ class SimpleLayService(PurposeExecutor):
         learning_purpose: str | None = None,
         targets: "dict[str, ButtonTarget] | None" = None,
     ) -> ExecutionResult:
+        self._physical_expected = len(buttons)
         if targets:
             self._last_result = controller.execute(buttons, targets)
         else:
@@ -788,6 +850,10 @@ class SimpleLayService(PurposeExecutor):
                     source=usage_source,
                 )
             )
+        # 상태 표시용 계약 필드 + 완료 이벤트(시나리오 트리거가 듣는다).
+        self._after_physical_run(
+            self._last_result, buttons, controller, appliance_id, purpose, usage_source
+        )
         return self._last_result
 
     def _controller_for(self, appliance_id: str | None) -> ButtonSequenceController:
@@ -804,6 +870,13 @@ class SimpleLayService(PurposeExecutor):
         구멍이 생기므로, 대상을 고르는 이 한 곳에서 거절한다.
         """
         self._require_known_appliance(appliance_id)
+        if self.route_of(appliance_id) is ControlRoute.THINQ:
+            # ThinQ 가전에는 누를 조작부가 없다. 로컬 갠트리로 흘리면 전자레인지를
+            # 누른다 -- 물리 오라우팅이므로 여기서 거절한다(422).
+            raise WrongRouteError(
+                f"'{appliance_id}'는 ThinQ 가전이라 버튼 시퀀스로 실행하지 않아요 — "
+                "등록된 동작 이름으로 요청해 주세요"
+            )
         controller = self._route_to(appliance_id)
         self._require_ready(appliance_id, controller)
         return controller
@@ -851,6 +924,9 @@ class SimpleLayService(PurposeExecutor):
         return targets or None
 
     def _route_to(self, appliance_id: str | None) -> ButtonSequenceController:
+        system = self._system_controllers.get(appliance_id) if appliance_id else None
+        if system is not None:
+            return system
         if appliance_id is not None and self._node_registry is not None:
             node_controller = self._node_registry.get(appliance_id)
             if node_controller is not None:
@@ -888,11 +964,21 @@ class SimpleLayService(PurposeExecutor):
         if self._appliance_registry is None:
             return True  # 가전 개념이 없는 구성 -- 종전 동작 유지
         appliance = self._appliance_registry.get(appliance_id)
-        return appliance is not None and not appliance.is_custom
+        # 내장 가전만. 서버 구성 가전(ThinQ·모의 선풍기)은 is_custom이 아니지만
+        # 로컬 갠트리의 대상이 아니다.
+        return (appliance is not None and not appliance.is_custom
+                and appliance_id in _BUILTIN_IDS)
 
     def _require_ready(
         self, appliance_id: str | None, controller: ButtonSequenceController
     ) -> None:
+        if (controller is not self._controller
+                and controller in self._system_controllers.values()
+                and getattr(controller, "mock_ready", False) is True
+                and _mode_of(controller) is ExecutionMode.MOCK):
+            # 서버 구성의 **모의** 실행기(예: 시나리오 선풍기)는 자기 준비를
+            # 스스로 선언한다. 실제 노드 준비 상태(4축)를 대신하지 않는다.
+            return
         """실행 대상이 **준비됐다고 확인된** 뒤에만 컨트롤러로 보낸다.
 
         로컬 컨트롤러로 가는 실행도 그냥 통과시키지 않는다. 노드가 없다는
@@ -962,12 +1048,19 @@ class SimpleLayService(PurposeExecutor):
             local = self._controller
             if hasattr(local, "request_stop"):
                 local.request_stop()
+            if was_running:
+                # 시나리오의 남은 단계를 보내지 않게 단계 사이에도 남긴다.
+                self._stop_sticky = True
+            # ThinQ: 보내기 전이면 취소, 보냈으면 취소 불가로 보고(결정 #5).
+            cloud_cancelled, cloud_uncancellable = self._stop_command_paths()
 
         acknowledged, unconfirmed = self._broadcast_stop_to_nodes(nodes)
         return EmergencyStopReport(
             was_running=was_running,
             nodes_acknowledged=acknowledged,
             nodes_unconfirmed=unconfirmed,
+            cloud_cancelled=cloud_cancelled,
+            cloud_uncancellable=cloud_uncancellable,
         )
 
     def _broadcast_stop_to_nodes(
@@ -1018,9 +1111,13 @@ class SimpleLayService(PurposeExecutor):
         return tuple(acknowledged), tuple(unconfirmed)
 
     def _stoppable_nodes(self) -> list[tuple[str, ButtonSequenceController]]:
+        nodes: list[tuple[str, ButtonSequenceController]] = [
+            (appliance_id, controller)
+            for appliance_id, controller in self._system_controllers.items()
+            if hasattr(controller, "request_stop")
+        ]
         if self._node_registry is None:
-            return []
-        nodes: list[tuple[str, ButtonSequenceController]] = []
+            return nodes
         for appliance_id in self._node_registry.list_appliance_ids():
             node = self._node_registry.get(appliance_id)
             if node is not None and hasattr(node, "request_stop"):
@@ -1068,4 +1165,14 @@ class SimpleLayService(PurposeExecutor):
                 last_appliance_id=self._last_appliance_id,
                 execution_mode=self._execution_mode,
                 last_execution_mode=self._last_execution_mode,
+                route=self._current_route.value if self._current_route else None,
+                last_route=self._last_route.value if self._last_route else None,
+                last_receipt=self._last_receipt.value if self._last_receipt else None,
+                last_confirmation=(
+                    self._last_confirmation.value if self._last_confirmation else None
+                ),
+                last_detail=self._last_detail,
+                last_command_status=(
+                    self._last_command_status.value if self._last_command_status else None
+                ),
             )

@@ -208,9 +208,10 @@ def test_suggestion_preview_failure_does_not_block_suggestion_creation():
     assert suggestions[0].steps == ()  # 미리보기만 실패, 제안 자체는 그대로 생성됨
 
 
-def test_approve_still_reresolves_independently_of_the_preview():
-    # 승인 시점의 실제 실행은 항상 SimpleLayService의 RuleBasedIntentResolver로
-    # 다시 해석된다 — 미리보기에 쓴 리졸버가 승인 실행 결과를 대신하지 않는다.
+def test_approve_runs_the_previewed_sequence_it_is_bound_to():
+    # 2026-09-29 결정 #1(승인 고정): 승인은 카드가 보여 준 시퀀스에 묶인다.
+    # 서비스가 다시 해석은 하지만, 결과가 미리보기와 다르면 실행하지 않고 재승인을
+    # 받는다(불일치 경우는 test_thinq_u1.test_physical_suggestion_refuses_changed_resolution).
     records = tuple(
         UsageRecord(
             at_morning(day), "즉석밥 데워줘", UsageOutcome.SUCCEEDED,

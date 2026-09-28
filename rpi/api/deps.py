@@ -505,7 +505,15 @@ def get_service() -> SimpleLayService:
         on_alert=store.record,
         failure_state=get_demo_failure_state(),
     )
+    # ThinQ 경로(U1): SIMPLELAY_THINQ_MODE=off(기본)면 (None, {}) — 종전 그대로.
+    from .thinq_wiring import build_command_paths, forward_to_scenarios  # noqa: PLC0415
+
+    thinq_controller, system_controllers = build_command_paths(get_appliance_registry())
     return SimpleLayService(
+        thinq_controller=thinq_controller,
+        system_controllers=system_controllers,
+        # 실행 완료 → 시나리오 트리거(제안만 만든다. 자동 실행 없음).
+        job_listeners=(forward_to_scenarios,),
         intent=_build_intent_resolver(),
         controller=controller,
         usage_log=get_usage_log(),
@@ -628,7 +636,7 @@ def get_suggestion_service() -> ProactiveSuggestionService:
     )
     # 미리보기 해석은 빠르고 오프라인이어야 하므로 규칙 계층만 쓴다 —
     # 실제 실행 시퀀스는 approve 시점에 서비스의 전체 리졸버로 다시 해석된다.
-    return ProactiveSuggestionService(
+    svc = ProactiveSuggestionService(
         detector,
         _clock,
         get_service(),
@@ -643,3 +651,8 @@ def get_suggestion_service() -> ProactiveSuggestionService:
             save=db.append_suggestion_event if db else None,
         ),
     )
+    # 시나리오 트리거(실행 완료·ThinQ 이벤트) → 제안. 자동 실행은 없다.
+    from .thinq_wiring import wire_scenarios  # noqa: PLC0415
+
+    wire_scenarios(svc, get_service())
+    return svc

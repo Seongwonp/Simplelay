@@ -1,0 +1,123 @@
+"""여러 가전이 함께 움직이는 **시나리오 정의** (화면 하드코딩이 아니라 데이터).
+
+시나리오 = 트리거 + 질문 문장 + 단계(가전·경로·동작·인자). 정의는 제안을 **만들**
+뿐이다. 실행은 언제나 사용자의 승인 뒤이고, 승인은 그 순간 정의로 만든 명령에
+묶인다. 정의가 그 사이 바뀌면(예: 풍량 강 → 중) 카드의 승인은 무효이고 재승인한다.
+
+기본 두 개:
+
+- ``cook_then_air`` 조리 확인 → 공기 관리: 전자레인지(물리) 실행이 **가열 확인(L3)**
+  으로 끝나면 "공기청정기 강풍으로 바꿀까요?"를 제안한다. 모의 실행은 L3가 없으므로
+  ``allow_mock_success``일 때만 **시연 제안**으로 만든다(근거 문장에 모의임을 적는다).
+  가열 확인만으로 강풍이 필요하다고 단정하지 않는다 -- 그래서 제안이다.
+- ``evening_rest`` 저녁 휴식: 공기청정기 켜기(ThinQ) + 선풍기 약풍(물리, 지금은 모의).
+  수동(시연) 트리거로만 만든다. 합성 이력이 근거라는 사실을 숨기지 않는다.
+"""
+
+from __future__ import annotations
+
+import threading
+from dataclasses import dataclass
+
+from rpi.commands import Command, ControlRoute
+
+
+@dataclass(frozen=True)
+class ScenarioStep:
+    target_id: str
+    route: ControlRoute
+    action: str = ""
+    args: tuple[tuple[str, object], ...] = ()
+    buttons: tuple[str, ...] = ()
+
+    def command(self) -> Command:
+        if self.route is ControlRoute.PHYSICAL:
+            return Command.physical(self.target_id, self.buttons)
+        return Command.thinq(self.target_id, self.action, dict(self.args))
+
+
+@dataclass(frozen=True)
+class ScenarioTrigger:
+    #: job_completed | thinq_event | manual
+    kind: str
+    appliance_id: str | None = None
+    #: thinq_event 트리거의 이벤트 이름(예: wash_complete).
+    event: str | None = None
+    #: 모의 실행 성공을 트리거로 받을지(시연 제안으로만 만든다).
+    allow_mock_success: bool = False
+
+
+@dataclass(frozen=True)
+class ScenarioDefinition:
+    scenario_id: str
+    name: str
+    #: 카드 문장. 제안의 purpose로 쓰인다.
+    question: str
+    trigger: ScenarioTrigger
+    steps: tuple[ScenarioStep, ...]
+    #: 트리거 근거가 없을 때(수동) 카드에 적을 근거.
+    manual_reason: str = ""
+    valid_minutes: int = 15
+
+    def commands(self) -> tuple[Command, ...]:
+        return tuple(step.command() for step in self.steps)
+
+
+COOK_THEN_AIR = ScenarioDefinition(
+    scenario_id="cook_then_air",
+    name="조리 확인 → 공기 관리",
+    question="공기청정기 강풍으로 바꿀까요?",
+    trigger=ScenarioTrigger("job_completed", appliance_id="microwave", allow_mock_success=True),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
+                     (("wind_strength", "HIGH"),)),
+    ),
+)
+
+EVENING_REST = ScenarioDefinition(
+    scenario_id="evening_rest",
+    name="저녁 휴식",
+    question="저녁 휴식 — 공기청정기를 켜고 선풍기를 약풍으로 켤까요?",
+    trigger=ScenarioTrigger("manual"),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
+        ScenarioStep("fan", ControlRoute.PHYSICAL, buttons=("전원", "약풍")),
+    ),
+    manual_reason="시연: 합성 이력(저녁에 공기청정기와 선풍기를 함께 사용한 예시) — 실제 사용 기록이 아니에요",
+)
+
+DEFAULT_SCENARIOS = (COOK_THEN_AIR, EVENING_REST)
+
+
+class ScenarioCatalog:
+    def __init__(self, definitions=DEFAULT_SCENARIOS) -> None:
+        self._lock = threading.Lock()
+        self._defs = {d.scenario_id: d for d in definitions}
+
+    def get(self, scenario_id: str) -> ScenarioDefinition | None:
+        with self._lock:
+            return self._defs.get(scenario_id)
+
+    def list(self) -> tuple[ScenarioDefinition, ...]:
+        with self._lock:
+            return tuple(self._defs.values())
+
+    def replace_definition(self, definition: ScenarioDefinition) -> None:
+        """정의 교체. 이미 떠 있는 카드의 승인은 다음 승인 시 지문 대조로 무효가 된다."""
+        with self._lock:
+            self._defs[definition.scenario_id] = definition
+
+    def current_commands(self, scenario_id: str) -> tuple[Command, ...]:
+        definition = self.get(scenario_id)
+        return definition.commands() if definition is not None else ()
+
+
+__all__ = [
+    "COOK_THEN_AIR",
+    "DEFAULT_SCENARIOS",
+    "EVENING_REST",
+    "ScenarioCatalog",
+    "ScenarioDefinition",
+    "ScenarioStep",
+    "ScenarioTrigger",
+]

@@ -253,6 +253,9 @@ def test_emergency_stop_returns_ok(client):
         "nodes_requested": 0,
         "nodes_acknowledged": [],
         "nodes_unconfirmed": [],
+        # ThinQ 경로(U1) — 꺼져 있으면 항상 비어 있다.
+        "cloud_cancelled": [],
+        "cloud_uncancellable": [],
     }
 
 

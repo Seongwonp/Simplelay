@@ -3,6 +3,12 @@
 기존 실행 경로와 분리된 값 객체만 있다. 서비스·DB·화면 연결은 다음 단계.
 """
 
+from .approval import (
+    ApprovalError,
+    ApprovalExpiredError,
+    ApprovalInvalidError,
+    ApprovalMismatchError,
+)
 from .args import (
     MAX_ARG_NAME_LEN,
     MAX_ARG_STRING_LEN,
@@ -40,6 +46,10 @@ __all__ = [
     "MAX_ARG_NAME_LEN",
     "MAX_ARG_STRING_LEN",
     "PHYSICAL_PRESS_ACTION",
+    "ApprovalError",
+    "ApprovalExpiredError",
+    "ApprovalInvalidError",
+    "ApprovalMismatchError",
     "ApprovedCommand",
     "ArgValue",
     "ArgumentError",

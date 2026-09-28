@@ -1,3 +1,5 @@
+> 2026-09-29: ThinQ U1-a 연결 + U1-b·U1-c(**모의**) — 명령·승인 고정(§5 8건 결정 표)·경로별 준비 상태(오프라인 412)·모의 공기청정기/세탁기·다가전 시나리오(조리 확인→공기 관리, 저녁 휴식; 승인 없는 실행 없음). 기본 `SIMPLELAY_THINQ_MODE=off`, 실물 호출 미구현(PAT·모델명·속성 이름 필요), 앱·키오스크 문구 미반영: [devlog](docs/devlog_2026-09-29-thinq-u1.md).
+
 > 2026-09-29: 홈·조그 CLI `python -m rpi.tools.jog`(`--fake-mcu` 리허설, 자동 홈 없음, 줄 로그) + act_main 원시 기록기 배선(`SIMPLELAY_RECORDER_PATH`, 기본 꺼짐, 합성 입력은 `mock_*`로 표시)(**실물 미검증**). 하드웨어 도착 첫날 순서 포함: [devlog](docs/devlog_2026-09-29-jog-cli.md).
 
 > 2026-09-29: 결함 4건 수리 — 웹 키오스크 dart:io 분리(설정 localStorage·음성 speechSynthesis)·`deploy_kiosk.ps1` `--base-href /kiosk/`·**API 키 미설정 시 루프백만 허용**(LAN 개방은 `SIMPLELAY_ALLOW_UNAUTHENTICATED=1` 명시)·UART `result`에 `outcome`(stopped/safety_stop 구분, `/status`·SSE `last_outcome`)(**RPi 실배포 미검증**, 화면은 아직 `last_outcome` 미사용): [devlog](docs/devlog_2026-09-29-defects.md).

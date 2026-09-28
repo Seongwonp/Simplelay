@@ -684,6 +684,17 @@ class StatusResponse(BaseModel):
     last_appliance_id: str | None = None
     execution_mode: str = "unknown"
     last_execution_mode: str = "unknown"
+    # ── 명령 계약(U1-a) — 실행 환경(real/mock)과 독립인 축. 옛 클라이언트는 무시한다.
+    #: 제어 경로 physical | thinq (실행 중 / 마지막).
+    route: str | None = None
+    last_route: str | None = None
+    #: 상대가 받았나: accepted | unknown | not_dispatched.
+    last_receipt: str | None = None
+    #: 확인 근거: none | reported | press_confirmed | state_confirmed | operation_confirmed.
+    #: ThinQ의 "접수됨"은 receipt=accepted·confirmation=none, "상태 확인됨"은 state_confirmed.
+    last_confirmation: str | None = None
+    #: 사람이 읽을 한 줄(ThinQ 결과). ThinQ면 last_status가 unconfirmed일 수 있다(실패 아님).
+    last_detail: str | None = None
 
 
 class SuggestionResponse(BaseModel):
@@ -700,6 +711,10 @@ class SuggestionResponse(BaseModel):
     # 취급하고 실행을 막는다** -- 지금 고른 가전으로 메우면 화면과 실제
     # 실행 대상이 어긋난다.
     appliance_id: str | None = None
+    #: 시나리오 제안이면 그 ID. 승인은 아래 commands에 그대로 묶인다(재해석 없음).
+    scenario_id: str | None = None
+    #: [{target_id, route, action, args, buttons, summary}] — 비었으면 종전 물리 제안.
+    commands: list[dict] = []
 
 
 class ApproveResponse(BaseModel):
@@ -735,6 +750,11 @@ class HistoryEntryResponse(BaseModel):
     #: 보수적으로 유도한다(근거 없이 stopped로 적지 않는다).
     outcome: str = "failed"
     duration_seconds: float | None = None
+    # 명령 계약(U1-a). 이 열이 생기기 전 기록은 unknown.
+    route: str = "unknown"
+    receipt: str = "unknown"
+    confirmation: str = "unknown"
+    detail: str = ""
 
 
 class OkResponse(BaseModel):
@@ -756,6 +776,10 @@ class StopResponse(BaseModel):
     nodes_requested: int = 0
     nodes_acknowledged: list[str] = []
     nodes_unconfirmed: list[str] = []
+    #: ThinQ 명령을 보내기 전이라 취소한 가전.
+    cloud_cancelled: list[str] = []
+    #: 이미 보낸 ThinQ 명령 — 취소할 수 없다. 가전 운전 정지는 자동으로 보내지 않는다.
+    cloud_uncancellable: list[str] = []
 
 
 class CareEventResponse(BaseModel):

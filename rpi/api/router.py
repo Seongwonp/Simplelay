@@ -99,6 +99,8 @@ from .service import (
     SimpleLayService,
     UnknownApplianceError,
 )
+from .thinq_router import command_payloads
+from .thinq_router import router as thinq_router
 
 log = logging.getLogger(__name__)
 
@@ -785,7 +787,7 @@ async def status(
     snapshot = service.status()
     progress = snapshot.progress
     verification = progress.verification if progress else None
-    return StatusResponse(
+    response = StatusResponse(
         running=snapshot.running,
         last_status=snapshot.last_result.status.value if snapshot.last_result else None,
         last_outcome=outcome_of(snapshot.last_result).value if snapshot.last_result else None,
@@ -803,6 +805,7 @@ async def status(
         execution_mode=snapshot.execution_mode.value,
         last_execution_mode=snapshot.last_execution_mode.value,
     )
+    return response.model_copy(update=command_status_fields(snapshot))
 
 
 @router.post("/stop", response_model=StopResponse)
@@ -829,6 +832,8 @@ async def emergency_stop(
         + len(report.nodes_unconfirmed),
         nodes_acknowledged=list(report.nodes_acknowledged),
         nodes_unconfirmed=list(report.nodes_unconfirmed),
+        cloud_cancelled=list(report.cloud_cancelled),
+        cloud_uncancellable=list(report.cloud_uncancellable),
     )
 
 
@@ -861,6 +866,8 @@ async def list_suggestions(
             steps=list(s.steps),
             reason=s.reason,
             appliance_id=s.appliance_id,
+            scenario_id=s.scenario_id,
+            commands=command_payloads(s),
         )
         for s in await asyncio.to_thread(svc.pending)
     ]
@@ -1065,6 +1072,10 @@ async def history(
                 )
                 for b in e.buttons
             ],
+            route=e.route,
+            receipt=e.receipt,
+            confirmation=e.confirmation,
+            detail=e.detail,
         )
         for e in store.recent(limit)
     ]
@@ -1347,7 +1358,31 @@ def status_event_payload(service: SimpleLayService) -> dict:
         "total_steps": snap.total_steps,
         "appliance_id": snap.appliance_id,
         "last_appliance_id": snap.last_appliance_id,
+        # 명령 계약(U1-a): 경로·수신·확인 근거. ThinQ 미확인은 실패가 아니다.
+        **command_status_fields(snap),
     }
+
+
+def command_status_fields(snap) -> dict:
+    """/status·SSE 공통 — 제어 경로와 확인 수준. ThinQ 결과면 상태 문자열도 계약 값으로.
+
+    ThinQ의 ``unconfirmed``(보냈지만 확인 못 함)를 ``failed``로 적으면 사용자가 다시
+    보내 중복 실행이 된다(계약 §3). 물리 결과의 last_status는 종전 그대로 둔다.
+    """
+    fields = {
+        "route": snap.route,
+        "last_route": snap.last_route,
+        "last_receipt": snap.last_receipt,
+        "last_confirmation": snap.last_confirmation,
+        "last_detail": snap.last_detail,
+    }
+    if snap.last_route == "thinq" and snap.last_command_status is not None:
+        fields["last_status"] = snap.last_command_status
+        fields["last_outcome"] = {
+            "succeeded": "success", "stopped": "stopped",
+            "failed": "failed", "unconfirmed": "unconfirmed",
+        }[snap.last_command_status]
+    return fields
 
 
 @router.get("/events")
@@ -1385,3 +1420,7 @@ async def alerts(
         mean_period_seconds=state.mean_period_seconds,
         updated_at=state.updated_at,
     )
+
+
+# ThinQ 경로·시나리오(U1) — 같은 인증 의존성 아래에 둔다.
+router.include_router(thinq_router)

@@ -58,7 +58,11 @@ class ProactiveSuggestionService:
         cooldowns: SuggestionCooldowns | None = None,
         completed_actions: CompletedActions | None = None,
         feedback: SuggestionFeedback | None = None,
+        scenario_resolver=None,
     ) -> None:
+        # 시나리오 ID → **지금** 정의대로 만든 명령들. 승인 시 카드가 들고 있는
+        # 명령과 지문을 대조한다(달라졌으면 재승인). None이면 대조를 건너뛴다.
+        self._scenario_resolver = scenario_resolver
         self._feedback = feedback if feedback is not None else SuggestionFeedback()
         self._completed_actions = completed_actions
         self._detector = detector
@@ -302,6 +306,97 @@ class ProactiveSuggestionService:
             self._record(suggestion, "created", "explicit_demo")
             return suggestion
 
+    def set_scenario_resolver(self, resolver) -> None:
+        self._scenario_resolver = resolver
+
+    def create_scenario_suggestion(
+        self,
+        *,
+        scenario_id: str,
+        purpose: str,
+        commands: tuple,
+        summaries: tuple[str, ...],
+        reason: str,
+        is_demo: bool,
+        valid_minutes: int = 15,
+    ) -> ProactiveSuggestion | None:
+        """시나리오 제안 — **확정 명령**을 들고 다니는 카드. 자동 실행하지 않는다.
+
+        근거 규칙(``is_demo``)은 호출자(시나리오 엔진)가 트리거의 실행 환경으로
+        정한다: 실제 L3 확인이면 일반 제안, 모의 성공이면 시연 제안. DND·다시 추천
+        안 함은 일반 제안과 같다. 부재 게이트는 시연이 아닐 때만 본다.
+        """
+        if not commands or len(commands) != len(summaries):
+            raise ValueError("scenario suggestion needs one summary per command")
+        if self.is_dnd():
+            return None
+        muted = (self._suppression_store.muted()
+                 if self._suppression_store is not None else frozenset())
+        if purpose.strip() in muted:
+            return None
+        if not is_demo and self._presence_gate is not None and not self._presence_gate():
+            return None
+        with self._state_lock:
+            self._expire_locked()
+            existing = next(
+                (s for s in self._suggestions.values()
+                 if s.scenario_id == scenario_id and s.status is SuggestionStatus.PENDING),
+                None,
+            )
+            if existing is not None:
+                return existing
+            now = self._clock.now()
+            suggestion = ProactiveSuggestion(
+                suggestion_id=f"suggestion-{self._id_prefix}-{self._next_id}",
+                purpose=purpose,
+                time_band="시나리오",
+                occurrences=0,
+                created_at=now,
+                steps=(),
+                reason=reason,
+                is_demo=is_demo,
+                appliance_id=commands[0].target_id,
+                expires_at=now + timedelta(minutes=valid_minutes),
+                commands=tuple(commands),
+                command_summaries=tuple(summaries),
+                scenario_id=scenario_id,
+            )
+            self._next_id += 1
+            self._suggestions[suggestion.suggestion_id] = suggestion
+            self._record(suggestion, "created", "scenario_trigger")
+            return suggestion
+
+    def _approved_commands(self, suggestion: ProactiveSuggestion) -> tuple:
+        """카드의 명령을 승인 1건으로 묶는다. 정의가 바뀌었으면 재승인(결정 #1)."""
+        from rpi.commands import ApprovalMismatchError, ApprovedCommand  # noqa: PLC0415
+
+        if self._scenario_resolver is not None and suggestion.scenario_id is not None:
+            current = tuple(self._scenario_resolver(suggestion.scenario_id))
+            if (len(current) != len(suggestion.commands)
+                    or any(not a.same_content(b) for a, b in zip(suggestion.commands, current))):
+                raise ApprovalMismatchError("시나리오 내용이 바뀌었어요")
+        now = self._clock.now()
+        expires = (suggestion.expires_at
+                   if suggestion.expires_at is not None and suggestion.expires_at > now else None)
+        return tuple(
+            ApprovedCommand(command=cmd, approval_id=suggestion.suggestion_id,
+                            approved_at=now, shown_summary=summary, expires_at=expires)
+            for cmd, summary in zip(suggestion.commands, suggestion.command_summaries)
+        )
+
+    def _source_of(self, suggestion: ProactiveSuggestion) -> UsageSource:
+        return (UsageSource.DEMO if suggestion.time_band == "데모" or suggestion.is_demo
+                else UsageSource.SUGGESTION)
+
+    def _approve_commands(self, suggestion: ProactiveSuggestion, *, background: bool):
+        approved = self._approved_commands(suggestion)
+        run = self._executor.submit_approved if background else self._executor.execute_approved
+        return run(
+            approved, purpose=suggestion.purpose, usage_source=self._source_of(suggestion),
+            scenario_id=suggestion.scenario_id,
+            approval_guard=self._approval_options(suggestion).get("approval_guard"),
+        )
+
     def reject(self, suggestion_id: str, mute: bool = False) -> None:
         """실행 없이 pending에서 제거(dismiss). 없는 id이거나 이미 승인된
         제안이면 UnknownSuggestionError — 기존 라우터의 pending 전용
@@ -422,7 +517,9 @@ class ProactiveSuggestionService:
             self._suppression_store.unmute(purpose)
 
     def _preview_steps(self, purpose: str) -> tuple[str, ...]:
-        """Best-effort preview only -- approve() re-resolves for real execution.
+        """Preview shown on the card. Since 2026-09-29 (decision #1) a non-empty
+        preview is also what the approval binds to: approve() still resolves again,
+        but refuses to run a sequence that differs from this one (re-approval).
 
         A blank result here (no resolver injected, or resolution fails) just
         means the caller shows no highlight; it never blocks suggestion
@@ -451,6 +548,15 @@ class ProactiveSuggestionService:
         # 승인권 획득(원자적) 후 실행은 락 밖에서 — 물리 실행을 락 안에서
         # 돌리면 그동안 모든 제안 조작이 멈춘다.
         suggestion = self._claim_for_approval(suggestion_id)
+        if suggestion.commands:
+            try:
+                result = self._approve_commands(suggestion, background=False)
+                self._record(suggestion, "execution_returned", "controller_returned",
+                             execution_status=result.status.value)
+                return result
+            except Exception as exc:
+                self._fail_approval(suggestion, exc)
+                raise
         try:
             result = self._executor.execute_purpose(
                 suggestion.purpose, suggestion.appliance_id,
@@ -463,10 +569,7 @@ class ProactiveSuggestionService:
                          execution_status=status)
             return result
         except Exception as exc:
-            reason = getattr(exc, "reason", None)
-            self._record(suggestion, "approval_failed", reason or "executor_error")
-            self._release_claim(suggestion_id, retire=isinstance(exc, UnknownSuggestionError),
-                                reason=reason)
+            self._fail_approval(suggestion, exc)
             raise
 
     def approve_submit(self, suggestion_id: str) -> str:
@@ -477,6 +580,14 @@ class ProactiveSuggestionService:
         # 화면이 보여준 대상 가전으로 실행한다 -- 전역 선택값이 그 사이
         # 바뀌어도 승인한 제안의 대상은 달라지지 않아야 한다.
         suggestion = self._claim_for_approval(suggestion_id)
+        if suggestion.commands:
+            try:
+                result = self._approve_commands(suggestion, background=True)
+                self._record(suggestion, "submitted", "job_accepted", job_id=result)
+                return result
+            except Exception as exc:
+                self._fail_approval(suggestion, exc)
+                raise
         try:
             result = self._executor.submit_purpose(
                 suggestion.purpose, suggestion.appliance_id,
@@ -487,11 +598,20 @@ class ProactiveSuggestionService:
             self._record(suggestion, "submitted", "job_accepted", job_id=result)
             return result
         except Exception as exc:
-            reason = getattr(exc, "reason", None)
-            self._record(suggestion, "approval_failed", reason or "executor_error")
-            self._release_claim(suggestion_id, retire=isinstance(exc, UnknownSuggestionError),
-                                reason=reason)
+            self._fail_approval(suggestion, exc)
             raise
+
+    def _fail_approval(self, suggestion: ProactiveSuggestion, exc: Exception) -> None:
+        """승인 실행 실패. 승인 내용 불일치·만료·무효는 카드를 **내린다**(재승인 필요)."""
+        from rpi.commands import ApprovalError  # noqa: PLC0415
+
+        reason = getattr(exc, "reason", None)
+        self._record(suggestion, "approval_failed", reason or "executor_error")
+        self._release_claim(
+            suggestion.suggestion_id,
+            retire=isinstance(exc, (UnknownSuggestionError, ApprovalError)),
+            reason=reason,
+        )
 
     def _release_claim(self, suggestion_id: str, *, retire: bool = False,
                        reason: str | None = None) -> None:
@@ -639,6 +759,18 @@ class ProactiveSuggestionService:
         )
 
     def _approval_options(self, suggestion):
+        options = self._base_approval_options(suggestion)
+        # 결정 #1(승인 고정): 카드가 구체적 시퀀스를 보여 줬으면 그 시퀀스에 묶는다.
+        # 승인 뒤 해석이 달라지면 실행하지 않고 재승인(ApprovalMismatchError).
+        # 미리보기가 비어 있던 카드(해석 실패·리졸버 없음)는 보여 준 명령이 없어
+        # 묶을 대상이 없다 -- 종전 동작이다(devlog 2026-09-29 결정 표).
+        if (suggestion.steps and not suggestion.commands
+                and "expected_buttons" not in options
+                and getattr(self._executor, "binds_approved_buttons", False) is True):
+            options = {**options, "approved_buttons": tuple(suggestion.steps)}
+        return options
+
+    def _base_approval_options(self, suggestion):
         if suggestion.revised_from is not None:
             def revised_guard():
                 reason = self._withdrawal_reason(suggestion)

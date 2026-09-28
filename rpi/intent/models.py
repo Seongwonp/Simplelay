@@ -118,3 +118,9 @@ class ProactiveSuggestion:
     expires_at: datetime | None = None
     is_demo: bool = False
     revised_from: str | None = None
+    #: 시나리오 제안(U1): 승인에 **그대로 묶이는** 확정 명령들(rpi.commands.Command).
+    #: 비어 있으면 종전 물리 제안이다. 승인 뒤 목적을 다시 해석하지 않는다.
+    commands: tuple = ()
+    #: 명령마다 사용자가 본 한 줄(승인에 함께 묶인다).
+    command_summaries: tuple[str, ...] = ()
+    scenario_id: str | None = None
