@@ -11,6 +11,7 @@
 | SAFETY_STOPPED, 전부 눌림(센서), L3 실패/미관측     | stopped     | accepted | press_confirmed     |
 | SAFETY_STOPPED, 일부만 눌림 또는 0개(로컬)         | stopped     | accepted | none                |
 | SAFETY_STOPPED, 원격 집계 보고(합성된 정지)         | failed      | accepted | none                |
+| SAFETY_STOPPED, 원격 집계 + outcome=stopped 보고    | stopped     | accepted | none                |
 | FAILED, 버튼 결과 있음                             | failed      | accepted | none                |
 | FAILED, 버튼 결과 없음(예외 종료)                   | unconfirmed | unknown  | none                |
 
@@ -31,6 +32,11 @@
 보고한 결과(로컬 폐루프의 SAFETY_STOPPED)에만 붙는다. 원격 집계의 ``success=false``는
 ``synthesize``가 SAFETY_STOPPED로 **합성**한 것이라 정지 확인이 아니다 -- 실패 보고로
 적고, 정지를 요청했다는 사실은 ``stop_requested``에 따로 남긴다.
+
+예외는 원격이 결과 프레임의 ``outcome``으로 **정지 요청을 받아 멈췄다**(``stopped``)고
+스스로 보고한 경우다(2026-09-29, docs/protocol.md). 로컬 폐루프가 멈춘 것을 보고하는
+것과 같은 수준의 근거라 ``stopped``로 적는다. ``safety_stop``(검증 실패로 스스로 정지)과
+``failed``는 계속 실패다. 멈춘 버튼·눌림 개수는 여전히 보고에 없다.
 """
 
 from __future__ import annotations
@@ -41,6 +47,7 @@ from rpi.controller.models import (
     ButtonResult,
     ButtonStatus,
     ExecutionMode,
+    ExecutionOutcome,
     ExecutionResult,
     ExecutionStatus,
     VerificationLayer,
@@ -124,7 +131,10 @@ def status_of(result: ExecutionResult) -> CommandStatus:
     if result.status is ExecutionStatus.SAFETY_STOPPED:
         # 집계 보고의 SAFETY_STOPPED는 합성된 값이다. 원격이 멈췄다고 확인한
         # 것이 아니라 실패했다고 보고한 것이므로 정지로 승격하지 않는다.
+        # 단, 원격이 outcome=stopped로 '정지 요청을 받아 멈췄다'고 보고했으면 정지다.
         if is_aggregate_report(result):
+            if result.outcome is ExecutionOutcome.STOPPED:
+                return CommandStatus.STOPPED
             return CommandStatus.FAILED
         return CommandStatus.STOPPED
     # FAILED: 근거가 하나도 없으면 실패가 아니라 확인 불가다.
@@ -156,7 +166,9 @@ def _detail(
     """
     # total은 **명령이 요구한** 버튼 수다. 결과에 든 버튼 수로 세면 정지로 잘린
     # 시퀀스가 '1개 중 1개'가 되어 다 눌린 것처럼 읽힌다.
-    stopped = result.status is ExecutionStatus.SAFETY_STOPPED and not is_aggregate_report(result)
+    stopped = result.status is ExecutionStatus.SAFETY_STOPPED and (
+        not is_aggregate_report(result) or result.outcome is ExecutionOutcome.STOPPED
+    )
     note = " · 정지 요청 있음" if stop_requested else ""
 
     if receipt is Receipt.UNKNOWN:
@@ -178,6 +190,16 @@ def _detail(
         # 집계 보고: 어느 버튼에서 멈췄는지, 몇 개가 눌렸는지, 멈췄는지는 보고에 없다.
         # synthesize가 채운 버튼별 값은 추정이므로 사실로 적지 않는다.
         retries = sum(max(0, b.attempts - 1) for b in result.buttons)
+        if result.outcome is ExecutionOutcome.STOPPED:
+            return (
+                "실행기가 정지 요청으로 멈췄다고 보고했어요 "
+                "(멈춘 버튼·눌림 개수는 보고되지 않음)"
+            ) + note
+        if result.outcome is ExecutionOutcome.SAFETY_STOP:
+            return (
+                f"실행기가 확인 실패로 안전 정지했다고 보고했어요 (재시도 {retries}회 보고, "
+                "멈춘 버튼·눌림 개수는 보고되지 않음)"
+            ) + note
         return (
             f"실행기가 실패를 보고했어요 (재시도 {retries}회 보고, "
             "멈춘 버튼·눌림 개수·정지 여부는 보고되지 않음)"

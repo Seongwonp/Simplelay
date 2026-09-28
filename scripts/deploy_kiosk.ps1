@@ -1,4 +1,4 @@
-# Flutter 키오스크를 웹으로 빌드해 라즈베리파이로 복사한다.
+﻿# Flutter 키오스크를 웹으로 빌드해 라즈베리파이로 복사한다.
 #
 # 라즈베리파이에는 Flutter 툴체인이 없어서 기기에서 빌드할 수 없다. 그렇다고 36MB짜리
 # 빌드 산출물을 git에 넣으면 빌드할 때마다 쌓이므로, PC에서 만들어 복사하는 쪽을 택했다.
@@ -29,7 +29,10 @@ if (-not $SkipBuild) {
     Write-Host "[1/3] Flutter 웹 빌드..." -ForegroundColor Yellow
     Push-Location $kioskDir
     try {
-        & $FlutterBin build web --release
+        # 백엔드는 산출물을 /kiosk/ 아래에만 마운트한다(rpi/main.py). base href를
+        # 빼면 index.html이 루트(/)에서 main.dart.js·자산을 찾아 첫 화면이 404로
+        # 깨진다 — 수동으로 고친 산출물이 아니라 이 스크립트가 재현 가능해야 한다.
+        & $FlutterBin build web --release --base-href /kiosk/
         if ($LASTEXITCODE -ne 0) { throw "flutter build web 실패" }
     } finally {
         Pop-Location
@@ -38,8 +41,14 @@ if (-not $SkipBuild) {
     Write-Host "[1/3] 빌드 건너뜀 (-SkipBuild)" -ForegroundColor DarkGray
 }
 
-if (-not (Test-Path (Join-Path $buildDir "index.html"))) {
+$indexHtml = Join-Path $buildDir "index.html"
+if (-not (Test-Path $indexHtml)) {
     throw "빌드 산출물이 없습니다: $buildDir"
+}
+# -SkipBuild로 예전 산출물을 복사하는 경우도 막는다 — base href가 /kiosk/가
+# 아니면 기기에서 흰 화면이 된다.
+if (-not (Select-String -Path $indexHtml -Pattern '<base href="/kiosk/">' -SimpleMatch -Quiet)) {
+    throw "index.html의 base href가 /kiosk/ 가 아닙니다 — -SkipBuild 없이 다시 빌드하세요"
 }
 
 $target = "${PiUser}@${PiHost}"

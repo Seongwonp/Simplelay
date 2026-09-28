@@ -8,7 +8,7 @@ from collections import deque
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
-from rpi.controller import ExecutionResult
+from rpi.controller import ExecutionResult, outcome_of
 from rpi.intent.rules import UnknownIntentError
 from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestionError
 
@@ -788,6 +788,7 @@ async def status(
     return StatusResponse(
         running=snapshot.running,
         last_status=snapshot.last_result.status.value if snapshot.last_result else None,
+        last_outcome=outcome_of(snapshot.last_result).value if snapshot.last_result else None,
         last_buttons=_to_steps(snapshot.last_result) if snapshot.last_result else None,
         current_button=progress.button if progress else None,
         current_attempt=progress.attempt if progress else None,
@@ -1051,6 +1052,7 @@ async def history(
             appliance_id=e.appliance_id,
             execution_mode=e.execution_mode.value,
             termination=e.termination.value,
+            outcome=e.effective_outcome,
             # timedelta(0)은 falsy다 — mock 실행이 시계 한 틱 안에 끝나면
             # 진짜 0.0초 기록이 '기록 없음'(None)으로 둔갑한다. None 비교로만
             # 가른다(실측 표본에서 0초와 결측은 다른 데이터다).
@@ -1329,6 +1331,11 @@ def status_event_payload(service: SimpleLayService) -> dict:
         "job_id": snap.job_id,
         "last_job_id": snap.last_job_id,
         "last_status": snap.last_result.status.value if snap.last_result else None,
+        # 정지 요청으로 멈춤(stopped)과 실패(failed·safety_stop)를 가른다 —
+        # last_status의 safety_stopped는 둘을 뭉갠다. 옛 클라이언트는 무시한다.
+        "last_outcome": (
+            outcome_of(snap.last_result).value if snap.last_result else None
+        ),
         # 진행 필드 — GET /status와 같은 의미(실행 중일 때만 값). 이게 없으면
         # SSE만 보는 클라이언트는 "몇 번째 버튼을 재시도 중인지"를 위해 결국
         # 폴링을 병행해야 했다(교차 리뷰 #13). 버튼 진행·재시도 시마다

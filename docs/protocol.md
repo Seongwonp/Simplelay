@@ -93,9 +93,30 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 
 ```json
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }
-{ "type": "result", "sequence_id": "seq_001", "success": true, "retry": 0 }
+{ "type": "result", "sequence_id": "seq_001", "success": true, "retry": 0, "outcome": "success" }
+{ "type": "result", "sequence_id": "seq_002", "success": false, "retry": 0, "outcome": "stopped" }
+{ "type": "result", "sequence_id": "seq_003", "success": false, "retry": 2, "outcome": "safety_stop" }
 { "type": "error", "sequence_id": "seq_001", "reason": "actuator_fail" }
 ```
+
+`result`의 `outcome`(2026-09-29 추가) — **어떻게 끝났는지**. 예전에는 정지 요청으로 멈춘 것과
+검증 실패로 안전 정지한 것이 모두 `success=false` 하나라 RPi5가 둘을 가를 수 없었다.
+
+| outcome | 뜻 | success |
+|---|---|---|
+| `success` | 시퀀스를 끝까지 성공 | `true` |
+| `stopped` | `abort`(긴급 정지)를 받아 버튼·재시도 경계에서 멈춤. 실패가 아니다 | `false` |
+| `safety_stop` | 재시도 소진·L2/L3 불확인·센서 불가로 RPi4가 스스로 안전 정지 | `false` |
+| `failed` | 그 밖의 실패(이유 불명) | `false` |
+
+- **하위 호환:** `success`는 그대로 보낸다. 옛 RPi5는 `outcome`을 무시한다. `outcome`이 없는 옛 RPi4의
+  `success=false`는 RPi5가 `failed`로 적는다 — 정지로 추측하지 않는다.
+- 모르는 값이거나 `success`와 모순(`success=true`인데 `stopped` 등)이면 RPi5는 `outcome`을 버리고
+  `success`만 믿는다.
+- RPi5는 이 값을 `/status`·SSE `status` 이벤트의 `last_outcome`, `/history`·CSV의 `outcome`으로 내보낸다.
+  `last_status`(`succeeded`/`safety_stopped`/`failed`)는 옛 클라이언트용으로 종전 값을 유지한다.
+- **물리 정지 확인이 아니다.** 실행 루프가 멈춘 이유일 뿐, 모터가 실제로 멈췄다는 보고는 별도다.
+- 멈춘 버튼·눌림 개수는 여전히 프레임에 없다(`retry`만 집계).
 
 `result`/`error`/`ack`는 모두 RPi5가 보낸 `execute`에 대한 응답이다. 아래 두 개는
 유일하게 RPi5가 요청하지 않아도 RPi4가 스스로 보내는 메시지 — 마이크가 물려 있는

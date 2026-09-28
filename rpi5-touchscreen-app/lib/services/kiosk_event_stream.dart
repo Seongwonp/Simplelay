@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'kiosk_api_service.dart';
@@ -43,8 +44,12 @@ class SseLineParser {
 /// 폴링의 대체가 아니라 상위 채널: 스트림이 끊겨도 키오스크는 기존 폴링으로
 /// 계속 동작하고, 이 클래스는 백오프(1→15초)로 조용히 재접속을 시도한다.
 class KioskEventStream {
-  KioskEventStream({String baseUrl = 'http://localhost:8000'})
-      : _base = baseUrl.replaceAll(RegExp(r'/$'), '');
+  // 웹(/kiosk/)은 자기를 서빙한 서버(같은 오리진)에 붙는다 — KioskApiService와
+  // 같은 규칙. 고정 localhost:8000이면 다른 포트로 띄운 서버(브라우저 시뮬레이터
+  // 등)에서 SSE만 연결 거부로 끊기고 폴링으로만 돌았다(9/29 웹 확인 중 발견).
+  KioskEventStream({String? baseUrl})
+      : _base = (baseUrl ?? (kIsWeb ? Uri.base.origin : 'http://localhost:8000'))
+            .replaceAll(RegExp(r'/$'), '');
 
   final String _base;
   bool _running = false;

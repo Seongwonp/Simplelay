@@ -34,11 +34,17 @@ Environment=SIMPLELAY_KIOSK_SETTINGS=/home/pi/SimpleLay/data/kiosk-settings.json
 # **되돌리기**: 실기기에서 너무 느리면 아래 /kiosk/ 를 /ui 로 바꾸면 구형 HTML
 # 키오스크로 즉시 후퇴한다. 그쪽은 백엔드에 딸려 있어 항상 뜬다.
 #   sudo systemctl edit simplelay-kiosk
+#
+# 웹 키오스크의 설정(음성 안내·큰 글씨·선택 가전)은 브라우저 localStorage에
+# 저장된다. --incognito는 재시작마다 이를 비워 설정이 날아갔다(본선 준비
+# 평가 9/21 P0) — 대신 전용 프로필 폴더를 쓴다. 크래시 뒤 '페이지 복원'
+# 풍선이 터치 화면을 가리지 않게 숨긴다. (9/29 변경, 실기기 재부팅 복원 미확인)
 ExecStart=/usr/bin/cage -d -- /usr/bin/chromium \
     --kiosk \
     --noerrdialogs \
     --disable-infobars \
-    --incognito \
+    --user-data-dir=/home/pi/SimpleLay/data/chromium-kiosk \
+    --hide-crash-restore-bubble \
     --check-for-update-interval=31536000 \
     http://localhost:8000/kiosk/
 

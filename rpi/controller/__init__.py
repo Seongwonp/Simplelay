@@ -15,12 +15,14 @@ from .models import (
     ButtonTarget,
     Correction,
     ExecutionMode,
+    ExecutionOutcome,
     ExecutionProgress,
     ExecutionResult,
     ExecutionStatus,
     LayerOutcome,
     PressCommand,
     VerificationLayer,
+    outcome_of,
 )
 from .ports import (
     AlertSink,
@@ -56,6 +58,7 @@ __all__ = [
     "ExecutionProgressTracker",
     "ExecutionResult",
     "ExecutionMode",
+    "ExecutionOutcome",
     "ExecutionStatus",
     "GrblClient",
     "NoOpRetryWaiter",
@@ -65,4 +68,5 @@ __all__ = [
     "RetryWaiter",
     "SafetyController",
     "UnknownButtonError",
+    "outcome_of",
 ]

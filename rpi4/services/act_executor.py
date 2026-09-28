@@ -8,8 +8,8 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
 
   INBOUND (RPi5 -> RPi4)          OUTBOUND (RPi4 -> RPi5)
   ──────────────────────────────────────────────────────────
-  execute {sequence_id, buttons,  →  result {sequence_id, success, retry}
-           targets?}
+  execute {sequence_id, buttons,  →  result {sequence_id, success, retry,
+           targets?}                         outcome}
   abort                          →  (cooperative stop; see _on_abort)
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
@@ -29,7 +29,7 @@ import json
 import logging
 from typing import Protocol
 
-from rpi.controller import ClosedLoopController, ExecutionStatus
+from rpi.controller import ClosedLoopController, ExecutionStatus, outcome_of
 from rpi.services.demo_failure import DemoFailureState
 from rpi.verifier import DangerSoundResult
 
@@ -265,16 +265,21 @@ class ActExecutor:
 
         success = result.status is ExecutionStatus.SUCCEEDED
         retry = max((b.attempts - 1 for b in result.buttons), default=0)
+        # success=false 하나로는 '정지 요청으로 멈춤'과 '검증 실패로 안전 정지'가
+        # 구별되지 않았다. 종료 방식을 함께 보낸다(docs/protocol.md outcome).
+        # success는 옛 RPi5와의 호환을 위해 그대로 둔다.
+        outcome = outcome_of(result).value
 
         await self._send({
             "type": "result",
             "sequence_id": msg.sequence_id,
             "success": success,
             "retry": retry,
+            "outcome": outcome,
         })
         log.info(
             "sequence %r finished — %s (retry=%d)",
-            msg.sequence_id, "ok" if success else "FAILED", retry,
+            msg.sequence_id, outcome, retry,
         )
 
     def _on_inject_failure(self, msg: InjectFailureMsg) -> None:

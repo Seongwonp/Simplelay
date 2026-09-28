@@ -9,7 +9,7 @@ from fastapi import Depends, FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from rpi.api.auth import require_api_key
+from rpi.api.auth import log_auth_mode, require_api_key
 from rpi.api.deps import (
     get_actuator_status,
     get_suggestion_service,
@@ -117,6 +117,8 @@ async def _shutdown_cleanup() -> None:
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
+    # 인증 방식을 기동 로그에 남긴다 — 키 없이 LAN을 연 상태면 경고
+    log_auth_mode()
     # 블로킹 서브프로세스 호출이라 이벤트 루프를 막지 않게 스레드로 넘긴다
     await asyncio.to_thread(_seed_vectordb_if_enabled)
     refresh_task = asyncio.create_task(_suggestion_refresh_loop())
@@ -159,7 +161,8 @@ async def _unknown_appliance(_request: Request, exc: UnknownApplianceError):
     다시 시도하세요'로 안내하는데, 기다려도 영원히 안 되는 상황이다.
     """
     return JSONResponse(status_code=404, content={"detail": str(exc)})
-# SIMPLELAY_API_KEY 설정 시 라우터 전체에 X-API-Key 요구 (auth.py 참고).
+# LAN 요청은 SIMPLELAY_API_KEY(X-API-Key)가 필요하다. 키 미설정이면 루프백만
+# 허용하고, 명시적 SIMPLELAY_ALLOW_UNAUTHENTICATED=1일 때만 개방 (auth.py 참고).
 # /health(아래)와 /ui는 의도적으로 키 없이 개방.
 app.include_router(router, dependencies=[Depends(require_api_key)])
 from rpi.api.simulator_router import router as simulator_router

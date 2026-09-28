@@ -1,6 +1,10 @@
-import 'dart:io';
+// 실행 수단은 플랫폼마다 다르다 — 네이티브는 espeak-ng 프로세스(dart:io),
+// 웹은 브라우저 speechSynthesis. 이 파일은 dart:io를 직접 쓰지 않는다.
+import 'kiosk_tts_runner_io.dart'
+    if (dart.library.html) 'kiosk_tts_runner_web.dart' as platform_tts;
 
-/// 키오스크 음성 안내 — espeak-ng CLI를 프로세스로 호출한다.
+/// 키오스크 음성 안내 — 네이티브는 espeak-ng CLI 프로세스, 웹은 브라우저
+/// speechSynthesis로 말한다(kiosk_tts_runner_*.dart).
 ///
 /// flutter_tts는 elinux 임베더를 지원하지 않으므로, RPi5(리눅스)에 설치된
 /// espeak-ng를 직접 부른다(설치는 setup_rpi.sh가 담당). 타깃 사용자(고령·
@@ -17,7 +21,8 @@ import 'dart:io';
 typedef TtsProcessRunner = Future<void> Function(List<String> command);
 
 class KioskTtsService {
-  KioskTtsService({TtsProcessRunner? runner}) : _runner = runner ?? _runProcess;
+  KioskTtsService({TtsProcessRunner? runner})
+      : _runner = runner ?? platform_tts.runTtsCommand;
 
   final TtsProcessRunner _runner;
 
@@ -37,9 +42,5 @@ class KioskTtsService {
     } catch (_) {
       // espeak-ng 미설치·실행 실패 — 음성은 보조 채널이므로 조용히 무시
     }
-  }
-
-  static Future<void> _runProcess(List<String> command) async {
-    await Process.run(command.first, command.sublist(1));
   }
 }

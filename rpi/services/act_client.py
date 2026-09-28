@@ -4,7 +4,8 @@ RPi4 side of this same link.
 
   OUTBOUND (RPi5 -> RPi4)          INBOUND (RPi4 -> RPi5)
   ──────────────────────────────────────────────────────────
-  execute {sequence_id, buttons} ←  result {sequence_id, success, retry}
+  execute {sequence_id, buttons} ←  result {sequence_id, success, retry,
+                                             outcome?}
                                    ←  error  {sequence_id, reason}
   abort                           ←  (no reply expected)
   (nothing — self-initiated)      ←  alert {kind, band_energy_ratio,
@@ -97,11 +98,39 @@ class ActClientConfig:
         )
 
 
+#: result 프레임의 ``outcome`` 값(docs/protocol.md). rpi.controller.ExecutionOutcome과 같다.
+RESULT_OUTCOMES = frozenset({"success", "failed", "stopped", "safety_stop"})
+
+
 @dataclass(frozen=True)
 class ActResult:
     sequence_id: str
     success: bool
     retry: int
+    #: RPi4가 보고한 종료 방식(success|failed|stopped|safety_stop). 필드가 없는
+    #: 옛 RPi4거나 값이 이상하면 None -- 호출자가 실패 이유를 모르는 것으로 다룬다.
+    outcome: str | None = None
+
+
+def parse_result_outcome(doc: dict, success: bool) -> str | None:
+    """result 프레임의 ``outcome``을 읽는다. 없거나 모르는 값·``success``와 모순이면 None.
+
+    ``success``가 기준이다(옛 프레임과의 호환 축). ``success=true``인데
+    ``outcome=stopped``처럼 둘이 어긋나면 어느 쪽도 믿지 않고 보고 없음으로 둔다
+    -- 정지를 성공으로, 실패를 정지로 바꿔 적지 않는다.
+    """
+    raw = doc.get("outcome")
+    if raw is None:
+        return None
+    if not isinstance(raw, str) or raw not in RESULT_OUTCOMES:
+        log.warning("ActClient: unknown result outcome %r ignored", raw)
+        return None
+    if (raw == "success") != success:
+        log.warning(
+            "ActClient: result outcome %r contradicts success=%s — ignored", raw, success
+        )
+        return None
+    return raw
 
 
 @dataclass(frozen=True)
@@ -239,10 +268,12 @@ class ActClient:
             raise ActLinkError(
                 f"RPi4 reported error for sequence_id={seq_id!r}: {doc.get('reason', 'unknown')}"
             )
+        success = bool(doc.get("success", False))
         return ActResult(
             sequence_id=doc.get("sequence_id", seq_id),
-            success=bool(doc.get("success", False)),
+            success=success,
             retry=int(doc.get("retry", 0)),
+            outcome=parse_result_outcome(doc, success),
         )
 
     async def abort(self) -> None:

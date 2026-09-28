@@ -12,6 +12,7 @@ from rpi.controller import (
     ExecutionProgressTracker,
     ExecutionResult,
     ExecutionStatus,
+    outcome_of,
 )
 from rpi.intent import (
     Clock,
@@ -659,6 +660,7 @@ class SimpleLayService(PurposeExecutor):
                     stop_requested_at=(
                         stop_requested_at if stopped_by_user else None
                     ),
+                    outcome=outcome_of(result).value,
                 )
             )
         except Exception:

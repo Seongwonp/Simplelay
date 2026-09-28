@@ -120,8 +120,11 @@ if [[ ! -f /etc/simplelay/environment ]]; then
 # RPi4 실연결 시 반드시 주석 해제 (기본 local = mock 폐루프, 실물 안 움직임!)
 #SIMPLELAY_ACT_MODE=uart
 #SIMPLELAY_UART_PORT=/dev/ttyAMA0
-# 시연장 공유 Wi-Fi 방어 — 설정 시 폰 앱 설정에도 같은 키 입력
+# 시연장 공유 Wi-Fi 방어 — 설정 시 폰 앱 설정에도 같은 키 입력.
+# 미설정이면 이 기기(localhost, 키오스크)만 API를 쓸 수 있고 폰은 401을 받는다.
 #SIMPLELAY_API_KEY=change-me
+# 키 없이 LAN 전체에 여는 개발용 스위치 — 시연·실기기에서는 쓰지 않는다(기동 로그 경고)
+#SIMPLELAY_ALLOW_UNAUTHENTICATED=1
 # 실행 응답 대기 = 기저 + 버튼당(초). 실기기에서 버튼 1개 소요 시간(이동+
 # 누름+검증+재시도)의 p95를 측정해 조정한다. 기본 30 / 6.
 #SIMPLELAY_UART_BASE_TIMEOUT=30

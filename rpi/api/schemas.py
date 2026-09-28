@@ -654,6 +654,10 @@ class JobAcceptedResponse(BaseModel):
 class StatusResponse(BaseModel):
     running: bool
     last_status: str | None
+    #: success | failed | stopped | safety_stop — 화면이 "정지됨"(stopped)과
+    #: "실패"(failed·safety_stop)를 가르는 값. last_status의 safety_stopped는
+    #: 정지 요청과 검증 실패 안전 정지를 뭉갠다(2026-09-29 추가, 옛 클라이언트는 무시).
+    last_outcome: str | None = None
     last_buttons: list[ButtonStep] | None
     # 실행 중 실시간 진행 상황 (running=True일 때만 값이 있음). 원시 센서값(mA/dB)이
     # 아니라 검증기가 이미 계산한 신뢰도·상세 설명을 노출한다 — verifier가 그 이상의
@@ -727,6 +731,9 @@ class HistoryEntryResponse(BaseModel):
     # completed | stopped_by_user | retries_exhausted | unknown.
     # status만으로는 '사용자가 멈춤'과 '재시도 소진'이 뭉개진다.
     termination: str = "unknown"
+    #: success | failed | stopped | safety_stop. 옛 기록은 status·termination에서
+    #: 보수적으로 유도한다(근거 없이 stopped로 적지 않는다).
+    outcome: str = "failed"
     duration_seconds: float | None = None
 
 

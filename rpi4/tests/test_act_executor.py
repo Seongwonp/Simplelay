@@ -131,7 +131,7 @@ def test_execute_succeeds_on_first_attempt_reports_success_with_no_retry():
 
         msgs = writer.messages()
         assert len(msgs) == 1
-        assert msgs[0] == {"type": "result", "sequence_id": "seq-1", "success": True, "retry": 0}
+        assert msgs[0] == {"type": "result", "sequence_id": "seq-1", "success": True, "retry": 0, "outcome": "success"}
     run(_t())
 
 
@@ -166,6 +166,8 @@ def test_execute_exhausting_retries_reports_failure():
         assert msgs[0]["type"] == "result"
         assert msgs[0]["sequence_id"] == "seq-3"
         assert msgs[0]["success"] is False
+        # 재시도 소진은 스스로 멈춘 안전 정지 — 정지 요청과 다른 값으로 보낸다
+        assert msgs[0]["outcome"] == "safety_stop"
     run(_t())
 
 
@@ -214,7 +216,7 @@ def test_second_execute_while_busy_is_rejected():
 
         msgs = writer.messages()
         assert {"type": "error", "sequence_id": "second", "reason": "busy"} in msgs
-        assert {"type": "result", "sequence_id": "first", "success": True, "retry": 0} in msgs
+        assert {"type": "result", "sequence_id": "first", "success": True, "retry": 0, "outcome": "success"} in msgs
     run(_t())
 
 
@@ -256,7 +258,7 @@ def test_abort_while_busy_does_not_interrupt_execution():
         await executor.wait_idle()
 
         msgs = writer.messages()
-        assert msgs == [{"type": "result", "sequence_id": "seq-5", "success": True, "retry": 0}]
+        assert msgs == [{"type": "result", "sequence_id": "seq-5", "success": True, "retry": 0, "outcome": "success"}]
     run(_t())
 
 
@@ -300,7 +302,8 @@ def test_abort_mid_execution_stops_closed_loop_and_reports_safety_stopped():
         (msg,) = writer.messages()
         assert msg["type"] == "result"
         assert msg["sequence_id"] == "seq-stop"
-        assert msg["success"] is False     # SAFETY_STOPPED → 실패로 보고
+        assert msg["success"] is False     # 옛 RPi5 호환: success는 그대로 false
+        assert msg["outcome"] == "stopped" # 정지 요청으로 멈춤 — 실패와 구별된다
         assert len(grbl.pressed) < 5       # 나머지 버튼은 눌리지 않았다
     run(_t())
 
@@ -431,7 +434,7 @@ def test_danger_sound_alert_interleaves_safely_with_execute_result():
         msgs = writer.messages()
         assert {"type": "alert", "kind": "danger_sound", "band_energy_ratio": 0.8,
                 "mean_period_seconds": 0.4} in msgs
-        assert {"type": "result", "sequence_id": "seq-danger", "success": True, "retry": 0} in msgs
+        assert {"type": "result", "sequence_id": "seq-danger", "success": True, "retry": 0, "outcome": "success"} in msgs
         assert len(msgs) == 2  # both lines arrived intact, no interleaved/corrupted JSON
     run(_t())
 
@@ -641,6 +644,7 @@ def test_inject_failure_with_exhausting_attempts_reports_failure():
         await executor.wait_idle()
 
         assert writer.messages()[0]["success"] is False  # 재시도 소진 → 안전 정지
+        assert writer.messages()[0]["outcome"] == "safety_stop"
     run(_t())
 
 

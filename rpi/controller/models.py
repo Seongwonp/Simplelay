@@ -145,6 +145,29 @@ class ExecutionStatus(str, Enum):
     FAILED = "failed"
 
 
+class ExecutionOutcome(str, Enum):
+    """실행이 **어떻게** 끝났나 — 화면이 "정지됨"과 "실패"를 가르는 값.
+
+    ``ExecutionStatus.SAFETY_STOPPED`` 하나에 두 사건이 섞여 있다. 폐루프는
+    정지 요청을 받아 멈춰도, 검증 실패로 스스로 안전 정지해도 같은 상태로
+    끝낸다. UART 결과 프레임도 ``success=false`` 하나뿐이라 RPi5는 둘을 가를
+    수 없었다(본선 준비 결함 목록 P1, docs/protocol.md ``outcome``).
+
+    - ``success``: 시퀀스를 끝까지 성공.
+    - ``stopped``: 정지 요청(긴급 정지·abort)을 받아 멈췄다. 실패가 아니다.
+    - ``safety_stop``: 검증 실패·센서 불가 등으로 컨트롤러가 스스로 안전 정지.
+    - ``failed``: 그 밖의 실패, 또는 **실패만 알고 이유는 모르는** 경우
+      (outcome을 보내지 않는 옛 RPi4·ESP 노드의 ``success=false``).
+
+    물리 정지 확인이 아니다 — 실행 루프가 어떤 이유로 끝났는지다.
+    """
+
+    SUCCESS = "success"
+    FAILED = "failed"
+    STOPPED = "stopped"
+    SAFETY_STOP = "safety_stop"
+
+
 @dataclass(frozen=True)
 class ExecutionResult:
     status: ExecutionStatus
@@ -154,6 +177,31 @@ class ExecutionResult:
     #: 시퀀스 끝의 L3 판정. L3 검증기가 없는 구성이면 None -- '확인 안 함'과
     #: '확인했는데 안 돌았다'를 섞지 않는다.
     operation: LayerOutcome | None = None
+    #: 원격 실행기가 **보고한** 종료 방식. 로컬 폐루프는 None이고
+    #: `outcome_of`가 status·버튼 결과에서 유도한다. 원격 집계 결과는 버튼별
+    #: 값이 추정이라 유도하면 안 되므로 합성하는 쪽이 반드시 채운다.
+    outcome: ExecutionOutcome | None = None
+
+
+def outcome_of(result: ExecutionResult) -> ExecutionOutcome:
+    """결과의 종료 방식. 보고된 값이 있으면 그것, 없으면 로컬 폐루프 규칙으로 유도.
+
+    로컬 ``SAFETY_STOPPED``는 실패한 버튼이나 실패 층(``failed_layer``)이
+    있으면 스스로 멈춘 안전 정지, 없으면 정지 요청으로 멈춘 것이다
+    (ClosedLoopController의 반환 경로가 이 둘뿐이다).
+    """
+    reported = getattr(result, "outcome", None)
+    if reported is not None:
+        return reported
+    if result.status is ExecutionStatus.SUCCEEDED:
+        return ExecutionOutcome.SUCCESS
+    if result.status is ExecutionStatus.SAFETY_STOPPED:
+        if getattr(result, "failed_layer", None) is not None or any(
+            b.status is ButtonStatus.FAILED for b in result.buttons
+        ):
+            return ExecutionOutcome.SAFETY_STOP
+        return ExecutionOutcome.STOPPED
+    return ExecutionOutcome.FAILED
 
 
 @dataclass(frozen=True)

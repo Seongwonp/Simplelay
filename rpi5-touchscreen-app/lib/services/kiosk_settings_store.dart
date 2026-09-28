@@ -1,8 +1,11 @@
 import 'dart:convert';
-import 'dart:io';
-import 'package:flutter/foundation.dart';
-import 'browser_settings_stub.dart'
-    if (dart.library.html) 'browser_settings_web.dart' as browser;
+
+// 저장 매체는 플랫폼마다 다르다 — 네이티브는 JSON 파일(dart:io), 웹은
+// localStorage. 조건부 import로 갈라서 이 파일 자체는 dart:io를 모른다.
+// 웹 빌드에 File·Platform이 섞여 들어가 /kiosk/ 첫 진입이 깨지던 경로를
+// 구조적으로 막는다(본선 준비 평가 9/21 P0).
+import 'kiosk_settings_backend_io.dart'
+    if (dart.library.html) 'kiosk_settings_backend_web.dart' as backend;
 
 import '../widgets/kiosk/kiosk_timings.dart';
 
@@ -66,100 +69,57 @@ class KioskSettings {
       };
 }
 
-/// 설정을 JSON 파일 하나로 영속화한다.
+/// 설정을 영속화한다 — 네이티브는 JSON 파일 하나, 웹은 브라우저 저장소.
 ///
 /// shared_preferences 대신 평문 파일인 이유: 키오스크(elinux/RPi5) 빌드에서
 /// 플러그인 지원을 타지 않는 dart:io만 쓰고, SSH로 파일을 열어 바로 확인·
 /// 수정할 수 있어 현장 디버깅이 쉽다. 경로 주입으로 테스트는 temp 파일 사용.
+/// 파일 경로 결정·원자적 저장은 kiosk_settings_backend_io.dart에 있다.
 class KioskSettingsStore {
   KioskSettingsStore({String? path}) : _path = path;
 
   final String? _path;
-  late final File _file = File(_path ?? _defaultPath());
+  // 생성자에서 만들지 않는다 — 저장 매체 준비 실패가 시작 화면 생성을
+  // 막으면 안 된다. load()/save()의 예외 처리 안에서 처음 만든다.
+  late final backend.SettingsBackend _backend = backend.SettingsBackend(_path);
 
   /// 마지막 save()가 실패했는지 — 호출자가 "저장하지 못했습니다"를 보여줄 수
   /// 있게 남긴다. 예외를 삼키기만 하면 사용자는 저장된 줄 안다.
   bool get lastSaveFailed => _lastSaveFailed;
   bool _lastSaveFailed = false;
 
-  /// 쓰기 가능 경로 우선순위:
-  ///   1. SIMPLELAY_KIOSK_SETTINGS — 배포에서 명시 지정(systemd Environment)
-  ///   2. $HOME
-  ///   3. 현재 디렉터리 — 최후 폴백. 앱 샌드박스나 읽기 전용 루트에서는
-  ///      실패할 수 있으므로 실기기에서는 1번을 쓰는 것이 맞다.
-  static String _defaultPath() {
-    final explicit = Platform.environment['SIMPLELAY_KIOSK_SETTINGS'];
-    if (explicit != null && explicit.isNotEmpty) return explicit;
-    final home = Platform.environment['HOME'];
-    final base = (home == null || home.isEmpty) ? '.' : home;
-    return '$base/.simplelay-kiosk.json';
-  }
-
-  /// 읽기 실패(파일 없음·손상 JSON·권한)는 전부 기본값 — 설정 파일 때문에
-  /// 키오스크가 못 뜨는 일은 없어야 한다. 본 파일이 손상됐으면 직전 저장분
-  /// (.bak)으로 한 번 더 시도한다.
+  /// 읽기 실패(파일 없음·손상 JSON·권한·저장소 차단)는 전부 기본값 — 설정
+  /// 때문에 키오스크가 못 뜨는 일은 없어야 한다. 본 파일이 손상됐으면 직전
+  /// 저장분(.bak, 네이티브만)으로 한 번 더 시도한다.
   KioskSettings load() {
-    if (kIsWeb) {
-      try {
-        final decoded = jsonDecode(browser.readSettings() ?? '{}');
-        if (decoded is Map<String, dynamic>) return KioskSettings.fromJson(decoded);
-      } catch (_) {
-        // Storage can be unavailable or contain an older/corrupt value.
+    try {
+      for (final raw in _backend.readCandidates()) {
+        final settings = _decode(raw);
+        if (settings != null) return settings;
       }
-      return const KioskSettings();
+    } catch (_) {
+      // 저장 매체 자체를 쓸 수 없다 — 기본값
     }
-    final fromMain = _tryLoad(_file);
-    if (fromMain != null) return fromMain;
-    final fromBackup = _tryLoad(File('${_file.path}.bak'));
-    if (fromBackup != null) return fromBackup;
     return const KioskSettings();
   }
 
-  KioskSettings? _tryLoad(File file) {
+  KioskSettings? _decode(String raw) {
     try {
-      final decoded = jsonDecode(file.readAsStringSync());
+      final decoded = jsonDecode(raw);
       if (decoded is Map<String, dynamic>) return KioskSettings.fromJson(decoded);
     } catch (_) {
-      // 없거나 손상 — 호출자가 다음 후보로 넘어간다
+      // 손상 — 호출자가 다음 후보로 넘어간다
     }
     return null;
   }
 
-  /// 원자적 저장: 임시 파일에 다 쓴 뒤 교체한다.
-  ///
-  /// 그냥 덮어쓰면 기록 도중 정전 시 본 파일이 잘린 JSON이 되고, 다음 부팅에
-  /// 모든 설정이 기본값으로 돌아간다 — 키오스크는 벽 전원으로 상시 동작하는
-  /// 기기라 쓰기 중 정전이 현실적인 시나리오다.
-  ///
   /// 반환값은 저장 성공 여부. 실패해도 세션 내 동작은 그대로 유지된다.
   bool save(KioskSettings settings) {
-    if (kIsWeb) {
-      try {
-        browser.writeSettings(jsonEncode(settings.toJson()));
-        _lastSaveFailed = false;
-        return true;
-      } catch (_) {
-        _lastSaveFailed = true;
-        return false;
-      }
-    }
-    final tmp = File('${_file.path}.tmp');
     try {
-      tmp.writeAsStringSync(jsonEncode(settings.toJson()), flush: true);
-      // 직전 성공본을 백업으로 남긴 뒤 교체 — rename은 같은 파일시스템에서
-      // 원자적이라 "둘 중 하나는 온전한 파일"이 항상 보장된다.
-      if (_file.existsSync()) {
-        _file.copySync('${_file.path}.bak');
-      }
-      tmp.renameSync(_file.path);
+      _backend.write(jsonEncode(settings.toJson()));
       _lastSaveFailed = false;
       return true;
     } catch (_) {
-      try {
-        if (tmp.existsSync()) tmp.deleteSync();
-      } catch (_) {
-        // 임시 파일 정리 실패는 무시
-      }
       _lastSaveFailed = true;
       return false;
     }

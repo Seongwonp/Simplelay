@@ -76,6 +76,29 @@ class JobHistoryEntry:
     #: 갠트리가 실제로 정지한 시각이 아니다 -- 그건 장치가 스스로
     #: 보고해야 알 수 있고, 하드웨어 통합 때 따로 잰다.
     stop_requested_at: datetime | None = None
+    #: 어떻게 끝났나 — success | failed | stopped | safety_stop
+    #: (rpi.controller.ExecutionOutcome). ``status``의 safety_stopped는 정지 요청과
+    #: 검증 실패 안전 정지를 뭉갠다. 원격 실행기가 보고한 값도 여기 남는다.
+    #: 이 열이 생기기 전 기록은 None — `effective_outcome`이 보수적으로 유도한다.
+    outcome: str | None = None
+
+    @property
+    def effective_outcome(self) -> str:
+        """기록된 outcome, 없으면(옛 기록) status·termination에서 유도.
+
+        근거 없이 정지로 적지 않는다: safety_stopped는 사용자 정지로 끝났다고
+        기록된 경우만 stopped, 재시도 소진이면 safety_stop, 그 밖은 failed.
+        """
+        if self.outcome:
+            return self.outcome
+        if self.status == "succeeded":
+            return "success"
+        if self.status == "safety_stopped":
+            if self.termination is Termination.STOPPED_BY_USER:
+                return "stopped"
+            if self.termination is Termination.RETRIES_EXHAUSTED:
+                return "safety_stop"
+        return "failed"
 
     @property
     def stop_latency(self) -> timedelta | None:
@@ -129,6 +152,7 @@ _CSV_COLUMNS = (
     "purpose",
     "execution_mode",
     "status",
+    "outcome",
     "termination",
     "started_at",
     "finished_at",
@@ -169,6 +193,7 @@ def history_csv(entries: tuple[JobHistoryEntry, ...]) -> str:
                 entry.purpose or "",
                 entry.execution_mode.value,
                 entry.status,
+                entry.effective_outcome,
                 entry.termination.value,
                 entry.started_at.isoformat() if entry.started_at else "",
                 entry.finished_at.isoformat(),
