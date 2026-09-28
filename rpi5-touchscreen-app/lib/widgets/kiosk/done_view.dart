@@ -28,7 +28,19 @@ class KioskDoneView extends StatelessWidget {
     this.route,
     this.confirmation,
     this.detail,
+    this.operationConfirmed,
+    this.operationSource,
+    this.operationDetail,
   });
+
+  /// L3(가전 동작) 판정. **null이면 말하지 않는다** — 버튼을 누른 것과
+  /// 가전이 실제로 움직인 것은 다른 사실이고, 판정기가 없는 실행에서
+  /// "동작을 확인했다"는 말이 나오면 안 된다.
+  final bool? operationConfirmed;
+
+  /// 판정 입력 real | mock. mock의 true는 실제 동작 근거가 아니다.
+  final String? operationSource;
+  final String? operationDetail;
 
   /// 제어 경로 physical | thinq. 옛 서버면 null이고 배지를 그리지 않는다.
   final String? route;
@@ -71,6 +83,19 @@ class KioskDoneView extends StatelessWidget {
       if (routeLabel(route) case final path?) path,
       if (confirmation case final c?) c,
     ];
+    // 성공의 가장 큰 글자. 물리 경로에서 실행 환경을 모르면(옛 노드·UART가
+    // 보고하지 않음) '버튼 조작을 마쳤어요'라고 단정하지 않는다 — 실행기가
+    // 완료를 보고했다는 사실까지만 안다.
+    final successHeadline = thinq
+        ? '가전 상태를 확인했어요'
+        : executionMode == 'unknown'
+            ? '실행기가 완료를 보고했어요'
+            : '버튼 조작을 마쳤어요';
+    final operationSentence = switch (operationConfirmed) {
+      true => '가전 동작도 확인했어요',
+      false => '가전 동작은 확인하지 못했어요',
+      null => null,
+    };
 
     return ColoredBox(
       color: KioskColors.bg,
@@ -80,10 +105,9 @@ class KioskDoneView extends StatelessWidget {
           child: Semantics(
             liveRegion: true,
             label: [
-              success
-                  ? '$label — ${thinq ? '가전 상태를 확인했어요' : '버튼 조작을 마쳤어요'}'
-                  : r.detail(label),
+              success ? '$label — $successHeadline' : r.detail(label),
               ...facts,
+              if (operationSentence != null) operationSentence,
             ].join('. '),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -103,9 +127,7 @@ class KioskDoneView extends StatelessWidget {
                 Text(
                   // 연결 유실은 정지의 증거가 아니다. 서버가 정지 결과를
                   // 반환한 경우에만 실행을 멈췄다고 표시한다.
-                  success
-                      ? (thinq ? '가전 상태를 확인했어요' : '버튼 조작을 마쳤어요')
-                      : r.headline,
+                  success ? successHeadline : r.headline,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 36,
@@ -147,9 +169,17 @@ class KioskDoneView extends StatelessWidget {
                             : 'ThinQ로 보낸 뒤 가전 상태를 다시 읽어 확인했어요')
                         : executionMode == 'mock'
                             ? '모의 절차를 마쳤어요 · 실제 조작 아님'
-                            : '실행기가 버튼 조작 완료를 보고했어요',
+                            : executionMode == 'real'
+                                ? '실행기가 버튼 조작 완료를 보고했어요'
+                                : '실제 조작 여부는 확인하지 못했어요',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 22, color: KioskColors.muted),
+                  ),
+                  _OperationLine(
+                    sentence: operationSentence,
+                    confirmed: operationConfirmed == true,
+                    source: operationSource,
+                    detail: operationDetail,
                   ),
                   const SizedBox(height: 18),
                   _AutoReturn(onDismiss: onDismiss),
@@ -169,6 +199,12 @@ class KioskDoneView extends StatelessWidget {
                           fontSize: 18, color: KioskColors.muted),
                     ),
                   ],
+                  _OperationLine(
+                    sentence: operationSentence,
+                    confirmed: operationConfirmed == true,
+                    source: operationSource,
+                    detail: operationDetail,
+                  ),
                   const SizedBox(height: 20),
                   _FailureActions(
                     onRetry: onRetry,
@@ -180,6 +216,67 @@ class KioskDoneView extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// L3(가전 동작) 판정 한 줄. 판정이 없으면 자리도 차지하지 않는다.
+class _OperationLine extends StatelessWidget {
+  const _OperationLine({
+    required this.sentence,
+    required this.confirmed,
+    this.source,
+    this.detail,
+  });
+
+  final String? sentence;
+  final bool confirmed;
+  final String? source;
+  final String? detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final sentence = this.sentence;
+    if (sentence == null) return const SizedBox.shrink();
+    final caption = [
+      // 모의 판정의 true는 실제 동작 근거가 아니다 — 출처를 같이 말한다.
+      if (source == 'mock') '모의 판정 · 실제 동작 근거는 아니에요',
+      if (source == 'real') '실측 판정',
+      if (detail case final d? when d.isNotEmpty) d,
+    ].join(' · ');
+    final color = confirmed ? KioskColors.success : KioskColors.warning;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 색으로만 말하지 않는다 — 모양이 같이 간다.
+              Icon(confirmed ? Icons.verified_outlined : Icons.help_outline,
+                  size: 24, color: color),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  sentence,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 22, fontWeight: FontWeight.w600, color: color),
+                ),
+              ),
+            ],
+          ),
+          if (caption.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              caption,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 18, color: KioskColors.muted),
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -137,6 +137,8 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     now.headline,
                     if (now.detail != null) now.detail!,
                     if (_finished(status.phase)) ..._resultFactWords(status),
+                    if (_finished(status.phase))
+                      if (operationSentence(status) case final o?) o,
                     if (totalSteps > 0 && status.phase != ExecutionPhase.idle)
                       '총 $totalSteps단계 중 ${status.completedSteps}단계 완료',
                   ].join('. '),
@@ -339,7 +341,9 @@ class _ResultFacts extends StatelessWidget {
   Widget build(BuildContext context) {
     final words = _resultFactWords(status);
     final detail = status.detail;
-    if (words.isEmpty && (detail == null || detail.isEmpty)) {
+    if (words.isEmpty &&
+        (detail == null || detail.isEmpty) &&
+        status.operationConfirmed == null) {
       return const SizedBox.shrink();
     }
     return Padding(
@@ -367,6 +371,68 @@ class _ResultFacts extends StatelessWidget {
             const SizedBox(height: 6),
             Text(detail,
                 style: TextStyle(fontSize: 15, color: context.appMuted)),
+          ],
+          _OperationLine(status: status),
+        ],
+      ),
+    );
+  }
+}
+
+/// L3(가전 동작) 판정 한 줄. **판정이 없으면(null) 아무 말도 하지 않는다** --
+/// 버튼을 누른 것과 가전이 실제로 움직인 것은 다른 사실이고, 판정기가 없는
+/// 실행에서 "동작을 확인했다"는 말이 나오면 안 된다.
+/// L3 판정 한 문장. 판정이 없으면 null — 말하지 않는다.
+String? operationSentence(ExecutionStatus s) => switch (s.operationConfirmed) {
+      true => '가전 동작도 확인했어요',
+      false => '가전 동작은 확인하지 못했어요',
+      null => null,
+    };
+
+class _OperationLine extends StatelessWidget {
+  const _OperationLine({required this.status});
+
+  final ExecutionStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final confirmed = status.operationConfirmed;
+    if (confirmed == null) return const SizedBox.shrink();
+    final caption = [
+      // 모의 판정의 true는 실제 동작 근거가 아니다 -- 출처를 같이 말한다.
+      if (status.operationSource == 'mock') '모의 판정 — 실제 동작 근거는 아니에요',
+      if (status.operationSource == 'real') '실측 판정',
+      if (status.operationDetail case final d? when d.isNotEmpty) d,
+    ].join(' · ');
+    final color = confirmed ? context.appSuccess : context.appWarning;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 색으로만 말하지 않는다 -- 모양이 같이 간다.
+              Icon(
+                confirmed ? Icons.verified_outlined : Icons.help_outline,
+                size: 18,
+                color: color,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  operationSentence(status)!,
+                  style: TextStyle(
+                      fontSize: 15, fontWeight: FontWeight.w600, color: color),
+                ),
+              ),
+            ],
+          ),
+          if (caption.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(caption,
+                style: TextStyle(fontSize: 14, color: context.appMuted)),
           ],
         ],
       ),
@@ -451,13 +517,30 @@ class _NowState {
           retryNote: '눌림이 확인되지 않아 자리를 맞추고 다시 눌러요.',
         );
       case ExecutionPhase.completed:
+        // 서버 문장이 없을 때 기본값이 "버튼 조작을 마쳤어요"면, 실행 환경도
+        // 확인 근거도 모르는 실행을 확인했다고 말하게 된다. 같은 규칙
+        // (finishedMessage)으로 아는 만큼만 말한다.
         return _NowState(
-          headline: s.message ?? '버튼 조작을 마쳤어요.',
+          headline: s.message ??
+              finishedMessage(
+                kind: ResultKind.success,
+                // 모의 실행은 이 job에 새겨져 있다(전역 토글이 아니다).
+                executionMode: s.isDemo ? 'mock' : s.executionMode,
+                route: s.route,
+                receipt: s.receipt,
+              ),
           tone: _Tone.done,
         );
       case ExecutionPhase.failed:
         return _NowState(
-          headline: s.message ?? '실행하지 못했어요.',
+          headline: s.message ??
+              finishedMessage(
+                kind: ResultKind.failed,
+                // 모의 실행은 이 job에 새겨져 있다(전역 토글이 아니다).
+                executionMode: s.isDemo ? 'mock' : s.executionMode,
+                route: s.route,
+                receipt: s.receipt,
+              ),
           tone: _Tone.failed,
         );
       case ExecutionPhase.unknown:

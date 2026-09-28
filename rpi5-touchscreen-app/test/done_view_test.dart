@@ -40,6 +40,8 @@ void main() {
       KioskDoneView(
         success: true,
         label: '즉석밥 데워줘',
+        // 실행 환경을 아는 실행만 '버튼 조작을 마쳤어요'라고 말한다.
+        executionMode: 'real',
         target: kMicrowaveAppliance,
         onDismiss: () => dismissed++,
       ),
@@ -55,6 +57,43 @@ void main() {
 
     await tester.tap(find.text('처음으로'));
     expect(dismissed, 1);
+  });
+
+  testWidgets('실행 환경을 모르면 버튼 조작을 마쳤다고 단정하지 않는다', (tester) async {
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: true,
+        label: '즉석밥 데워줘',
+        // executionMode 미지정 = unknown(옛 노드·UART가 보고하지 않음).
+        target: kMicrowaveAppliance,
+        onDismiss: () {},
+      ),
+    );
+
+    expect(find.text('버튼 조작을 마쳤어요'), findsNothing);
+    expect(find.text('실행기가 완료를 보고했어요'), findsOneWidget);
+    expect(find.text('실제 조작 여부는 확인하지 못했어요'), findsOneWidget);
+  });
+
+  testWidgets('L3 판정은 있을 때만 말하고, 모의 판정이면 그 사실을 밝힌다',
+      (tester) async {
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: true,
+        label: '즉석밥 데워줘',
+        executionMode: 'real',
+        target: kMicrowaveAppliance,
+        operationConfirmed: true,
+        operationSource: 'mock',
+        operationDetail: '전력 파형에서 가열 시작을 확인했어요',
+        onDismiss: () {},
+      ),
+    );
+
+    expect(find.text('가전 동작도 확인했어요'), findsOneWidget);
+    expect(find.textContaining('모의 판정'), findsOneWidget);
   });
 
   testWidgets('실패는 자동으로 돌아간다고 말하지 않고 다음 행동을 준다', (tester) async {

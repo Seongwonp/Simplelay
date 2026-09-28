@@ -39,6 +39,10 @@ class ExecutionStatus {
     this.receipt,
     this.confirmation,
     this.detail,
+    this.retryCount,
+    this.operationConfirmed,
+    this.operationSource,
+    this.operationDetail,
   });
 
   final String? sequenceId;
@@ -86,6 +90,17 @@ class ExecutionStatus {
 
   /// 서버가 쓴 한 줄(ThinQ 결과).
   final String? detail;
+
+  /// 끝난 실행의 재시도 합. 버튼별 보고가 없으면 null이다(0이 아니다).
+  final int? retryCount;
+
+  /// L3(가전 동작) 판정. **null은 '판정하지 않았다'**이고, false를 true로
+  /// 올리지 않는다 -- 확인하지 않은 일을 확인했다고 말하지 않는다.
+  final bool? operationConfirmed;
+
+  /// 판정 입력 real | mock. mock의 true는 실제 동작 근거가 아니다.
+  final String? operationSource;
+  final String? operationDetail;
   final String executionMode;
   String get modeLabel => isDemo || executionMode == 'mock'
       ? '모의 실행 — 실제 조작이 아닙니다'
@@ -112,6 +127,10 @@ class ExecutionStatus {
     String? receipt,
     String? confirmation,
     String? detail,
+    int? retryCount,
+    bool? operationConfirmed,
+    String? operationSource,
+    String? operationDetail,
   }) =>
       ExecutionStatus(
         executionMode: executionMode ?? this.executionMode,
@@ -133,6 +152,10 @@ class ExecutionStatus {
         receipt: receipt ?? this.receipt,
         confirmation: confirmation ?? this.confirmation,
         detail: detail ?? this.detail,
+        retryCount: retryCount ?? this.retryCount,
+        operationConfirmed: operationConfirmed ?? this.operationConfirmed,
+        operationSource: operationSource ?? this.operationSource,
+        operationDetail: operationDetail ?? this.operationDetail,
         phase: phase ?? this.phase,
         message: message ?? this.message,
         // 실행 모드는 시작할 때 정해지고 그 job이 끝날 때까지 바뀌지

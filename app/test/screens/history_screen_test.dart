@@ -75,6 +75,33 @@ void main() {
     expect(find.textContaining('안전 정지'), findsOneWidget);
   });
 
+  testWidgets('서버가 센 재시도 1회(버튼 attempts 2)를 배지로 그대로 보여준다',
+      (tester) async {
+    // G1(2026-09-30) 이후 서버가 성공한 실행에서도 재시도를 센다.
+    // 시뮬레이터 실측과 같은 모양: 즉석밥 2회 시도 → retry_count 1.
+    final api = _apiWithHistory([
+      {
+        'job_id': 'job-g1',
+        'finished_at': '2026-08-23T19:30:00+09:00',
+        'purpose': '즉석밥 데워줘',
+        'status': 'succeeded',
+        'outcome': 'success',
+        'execution_mode': 'mock',
+        'route': 'physical',
+        'retry_count': 1,
+        'buttons': [
+          {'button': '즉석밥', 'success': true, 'attempts': 2},
+          {'button': '시작', 'success': true, 'attempts': 1},
+        ],
+      },
+    ]);
+    await tester.pumpWidget(_build(api));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('재시도 1회 후 성공'), findsOneWidget);
+  });
+
   testWidgets('끝이 안 좋았던 실행만 어디서 멈췄는지와 다음 할 일을 보여준다',
       (tester) async {
     // 실패 기록에는 버튼별 확인 결과가 이미 들어 있는데 화면이 버리고 있었다.

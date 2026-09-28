@@ -44,8 +44,44 @@ const _card = {
   ],
 };
 
+/// 세탁 완료 → 제습기(G3). 폰이 모르는 가전 종류·대상이다.
+const _washCard = {
+  'id': 'sug-1',
+  'purpose': '세탁이 끝났어요. 실내 건조를 위해 제습기를 켤까요?',
+  'time_band': '시나리오',
+  'occurrences': 0,
+  'steps': <String>[],
+  'reason': '세탁기가 세탁 완료를 알렸어요 — 빨래를 실내에 널면 습도가 올라가요',
+  'appliance_id': 'dehumidifier',
+  'is_demo': true,
+  'scenario_id': 'wash_then_dry',
+  'commands': [
+    {
+      'target_id': 'dehumidifier',
+      'route': 'thinq',
+      'action': 'set_power',
+      'args': {'power': 'POWER_ON'},
+      'buttons': <String>[],
+      'summary': '제습기 전원 켜기',
+    },
+  ],
+};
+
 class _Server {
   _Server({this.purifierReady = true, this.approveDetail = _mismatch});
+
+  /// 세탁 완료 → 제습기 카드를 주는 서버.
+  factory _Server.washThenDry() => _Server()
+    ..card = _washCard
+    ..scenarios = const [
+      {'scenario_id': 'wash_then_dry', 'name': '세탁 후 건조'},
+    ];
+
+  /// 이 서버가 주는 제안 카드. 기본은 저녁 휴식.
+  Map<String, dynamic> card = _card;
+  List<Map<String, String>> scenarios = const [
+    {'scenario_id': 'evening_rest', 'name': '저녁 휴식'},
+  ];
 
   static const _mismatch = '승인한 내용과 지금 실행할 내용이 달라졌어요 — '
       '다시 확인하고 승인해 주세요 (승인한 명령과 실행할 명령의 지문이 달라요)';
@@ -65,11 +101,16 @@ class _Server {
         'http://rpi5.local:8000',
         client: MockClient((req) async {
           final path = req.url.path;
-          if (path == '/suggestions') return _json(retired ? [] : [_card]);
-          if (path == '/scenarios') {
-            return _json([
-              {'scenario_id': 'evening_rest', 'name': '저녁 휴식'},
-            ]);
+          if (path == '/suggestions') return _json(retired ? [] : [card]);
+          if (path == '/scenarios') return _json(scenarios);
+          if (path == '/readiness/dehumidifier') {
+            return _json({
+              'appliance_id': 'dehumidifier',
+              'route': 'thinq',
+              'state': 'operable',
+              'can_execute': true,
+              'reasons': <String>[],
+            });
           }
           if (path == '/readiness/air_purifier') {
             return _json({
@@ -187,6 +228,25 @@ void main() {
 
     expect(find.textContaining('다른 작업이 실행 중이에요'), findsOneWidget);
     expect(find.text('제안 내용이 바뀌어 다시 확인이 필요해요'), findsNothing);
+  });
+
+  testWidgets('세탁 완료 → 제습기(wash_then_dry) 카드도 그대로 보여 준다',
+      (tester) async {
+    // 제습기는 폰이 아는 가전 종류 표에 없다(서버 구성 가전, category other).
+    // 모르는 대상이라고 카드가 깨지거나 '대상을 찾지 못함'으로 빠지면 안 된다.
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server.washThenDry()));
+    await _settle(tester);
+
+    expect(find.text('시나리오 · 세탁 후 건조'), findsOneWidget);
+    expect(find.textContaining('세탁이 끝났어요'), findsOneWidget);
+    expect(find.text('제습기 전원 켜기'), findsOneWidget);
+    expect(find.text('ThinQ'), findsOneWidget);
+    expect(find.text('대상 가전 정보를 확인해 주세요.'), findsNothing);
+    final run = tester.widget<FilledButton>(find.ancestor(
+        of: find.text('지금 실행'),
+        matching: find.byWidgetPredicate((w) => w is FilledButton)));
+    expect(run.onPressed, isNotNull);
   });
 
   testWidgets('ThinQ 대상이 준비 안 됐으면 실행을 막고 이유(412 사유)를 말한다',

@@ -246,6 +246,10 @@ class KioskStatus {
     this.lastReceipt,
     this.lastConfirmation,
     this.lastDetail,
+    this.lastRetryCount,
+    this.lastOperationConfirmed,
+    this.lastOperationSource,
+    this.lastOperationDetail,
   });
 
   final bool running;
@@ -265,6 +269,16 @@ class KioskStatus {
 
   /// 서버가 쓴 한 줄(ThinQ 결과).
   final String? lastDetail;
+
+  /// 마지막 물리 실행의 재시도 합. 버튼별 보고가 없으면 null(0이 아니다).
+  final int? lastRetryCount;
+
+  /// L3(가전 동작) 판정. 판정기가 없거나 판정하지 못했으면 null.
+  final bool? lastOperationConfirmed;
+
+  /// 판정 입력 real | mock. mock의 true는 실제 동작 근거가 아니다.
+  final String? lastOperationSource;
+  final String? lastOperationDetail;
   final List<KioskButtonResult>? lastButtons;
 
   // 실행 중 진행 상황 — /status가 폴링될 때만 채워지고, 완료되면 서버가 비운다.
@@ -309,6 +323,10 @@ class KioskStatus {
         lastReceipt: json['last_receipt'] as String?,
         lastConfirmation: json['last_confirmation'] as String?,
         lastDetail: json['last_detail'] as String?,
+        lastRetryCount: (json['last_retry_count'] as num?)?.toInt(),
+        lastOperationConfirmed: json['last_operation_confirmed'] as bool?,
+        lastOperationSource: json['last_operation_source'] as String?,
+        lastOperationDetail: json['last_operation_detail'] as String?,
       );
 }
 

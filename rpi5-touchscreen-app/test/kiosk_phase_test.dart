@@ -1446,4 +1446,136 @@ void main() {
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });
+
+  // ── 2026-09-30 후속: L3(가전 동작) 판정 · 세탁 완료 카드 ────────────────
+
+  testWidgets('L3 확인됨이면 완료 화면이 가전 동작까지 확인했다고 말한다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    final done = await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'succeeded',
+          lastOutcome: 'success',
+          lastRoute: 'physical',
+          lastConfirmation: 'operation_confirmed',
+          lastExecutionMode: 'real',
+          lastOperationConfirmed: true,
+          lastOperationSource: 'mock',
+          lastOperationDetail: '전력 파형에서 가열 시작을 확인했어요'),
+    );
+    expect(done.operationConfirmed, isTrue);
+    expect(find.text('가전 동작도 확인했어요'), findsOneWidget);
+    // 모의 판정의 true는 실제 동작 근거가 아니다 — 그 사실을 같이 말한다.
+    expect(find.textContaining('모의 판정'), findsOneWidget);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('L3 미확인(false)은 확인하지 못했다고 말한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'succeeded',
+          lastOutcome: 'success',
+          lastRoute: 'physical',
+          lastExecutionMode: 'real',
+          lastOperationConfirmed: false,
+          lastOperationDetail: '전력 변화가 없었어요'),
+    );
+    expect(find.text('가전 동작은 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('가전 동작도 확인했어요'), findsNothing);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('L3 판정이 없으면 가전 동작 이야기를 새로 하지 않는다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'succeeded',
+          lastOutcome: 'success',
+          lastRoute: 'physical',
+          lastExecutionMode: 'real'),
+    );
+    expect(find.textContaining('가전 동작'), findsNothing);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('실행 환경을 모르면 버튼 조작을 마쳤다고 단정하지 않는다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    await finishWith(
+      tester,
+      api,
+      // last_execution_mode 없음(unknown) · 확인 근거 없음.
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'succeeded',
+          lastOutcome: 'success',
+          lastRoute: 'physical',
+          lastConfirmation: 'none'),
+    );
+    expect(find.text('버튼 조작을 마쳤어요'), findsNothing);
+    expect(find.textContaining('실제 조작 여부는 확인하지 못했어요'), findsOneWidget);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('세탁 완료 → 제습기(wash_then_dry) 카드도 조작판 없이 보여 준다',
+      (tester) async {
+    useKioskViewport(tester);
+    const washThenDry = KioskSuggestion(
+      id: 'sc2',
+      purpose: '세탁이 끝났어요. 실내 건조를 위해 제습기를 켤까요?',
+      occurrences: 0,
+      timeBand: '시나리오',
+      reason: '세탁기가 세탁 완료를 알렸어요 — 빨래를 실내에 널면 습도가 올라가요',
+      isDemo: true,
+      applianceId: 'dehumidifier',
+      scenarioId: 'wash_then_dry',
+      commands: [
+        KioskSuggestionCommand(
+          targetId: 'dehumidifier',
+          route: 'thinq',
+          action: 'set_power',
+          summary: '제습기 전원 켜기',
+        ),
+      ],
+    );
+    final api = FakeKioskApi()
+      ..suggestionList = [washThenDry]
+      ..scenarioNameMap = {'wash_then_dry': '세탁 후 건조'};
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    expect(find.text('시나리오 · 세탁 후 건조'), findsOneWidget);
+    expect(find.textContaining('세탁이 끝났어요'), findsWidgets);
+    expect(find.text('제습기 전원 켜기'), findsOneWidget);
+    expect(find.text('ThinQ'), findsOneWidget);
+    final run = tester.widget<ElevatedButton>(find.ancestor(
+        of: find.text('지금 실행'), matching: find.byType(ElevatedButton)));
+    expect(run.onPressed, isNotNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
 }

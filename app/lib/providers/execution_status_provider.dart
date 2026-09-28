@@ -202,6 +202,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           receipt: status.lastReceipt,
           confirmation: status.lastConfirmation,
           detail: status.lastDetail,
+          retryCount: status.lastRetryCount,
+          operationConfirmed: status.lastOperationConfirmed,
+          operationSource: status.lastOperationSource,
+          operationDetail: status.lastOperationDetail,
         );
         _announce(message);
         _stopHttpTracking();
@@ -337,8 +341,15 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         if (state.sequenceId == null ||
             message['sequence_id'] == state.sequenceId) {
           final success = message['success'] == true;
-          final resultMessage =
-              success ? '버튼 조작을 마쳤어요.' : '실행하지 못했어요.';
+          // BLE 프레임은 success 하나뿐이다 -- 경로·확인 근거·실행 환경을
+          // 말해주지 않는다. 그런데도 "버튼 조작을 마쳤어요"라고 하면,
+          // 아무것도 확인하지 않은 실행을 확인했다고 말하게 된다.
+          // HTTP 경로와 같은 규칙(finishedMessage)으로 출처까지 말한다.
+          final resultMessage = finishedMessage(
+            kind: success ? ResultKind.success : ResultKind.failed,
+            // 모의 실행은 시작할 때 이 job에 새겨졌다(전역 토글이 아니다).
+            executionMode: state.isDemo ? 'mock' : state.executionMode,
+          );
           state = state.copyWith(
             phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
             completedSteps: success ? state.steps.length : state.completedSteps,

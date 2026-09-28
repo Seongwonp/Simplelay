@@ -143,6 +143,10 @@ class _KioskScreenState extends State<KioskScreen> {
   String? _doneRoute;
   String? _doneConfirmation;
   String? _doneDetail;
+  // L3(가전 동작) 판정. null은 '판정하지 않았다' — 화면이 말하지 않는다.
+  bool? _doneOperationConfirmed;
+  String? _doneOperationSource;
+  String? _doneOperationDetail;
 
   // 시나리오 카드 — 이름(GET /scenarios)과 대상별 준비 상태(GET /readiness/{id}).
   Map<String, String> _scenarioNames = const {};
@@ -354,6 +358,9 @@ class _KioskScreenState extends State<KioskScreen> {
           kind: kind,
         );
         _doneDetail = st.lastDetail;
+        _doneOperationConfirmed = st.lastOperationConfirmed;
+        _doneOperationSource = st.lastOperationSource;
+        _doneOperationDetail = st.lastOperationDetail;
         _finishExecuting(
           success: kind == ResultKind.success,
           buttons: st.lastButtons ?? const [],
@@ -576,6 +583,9 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneRoute = null;
     _doneConfirmation = null;
     _doneDetail = null;
+    _doneOperationConfirmed = null;
+    _doneOperationSource = null;
+    _doneOperationDetail = null;
     _activeJobId = jobId;
     _retryAction = null;
     _lastStatusOk = DateTime.now();
@@ -999,6 +1009,9 @@ class _KioskScreenState extends State<KioskScreen> {
           route: _doneRoute,
           confirmation: _doneConfirmation,
           detail: _doneDetail,
+          operationConfirmed: _doneOperationConfirmed,
+          operationSource: _doneOperationSource,
+          operationDetail: _doneOperationDetail,
           // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
           // 그때는 수동 조작(사람이 직접 누르기)을 앞세운다.
           // ThinQ 확인 못 함·접수 불명은 다시 보내면 중복 실행이 될 수 있어

@@ -73,6 +73,10 @@ class RpiStatusResult {
     this.lastReceipt,
     this.lastConfirmation,
     this.lastDetail,
+    this.lastRetryCount,
+    this.lastOperationConfirmed,
+    this.lastOperationSource,
+    this.lastOperationDetail,
   });
   final bool running;
   final String? lastStatus;
@@ -93,6 +97,17 @@ class RpiStatusResult {
 
   /// 서버가 쓴 사람이 읽을 한 줄(ThinQ 결과).
   final String? lastDetail;
+
+  /// 마지막 물리 실행의 재시도 합(버튼별 시도 수 - 1). 버튼별 보고가 없으면
+  /// null이다 -- **0으로 지어내지 않는다**(2026-09-30 G1).
+  final int? lastRetryCount;
+
+  /// L3(가전 동작) 판정. 판정기가 없거나 판정하지 못했으면 null(G2).
+  final bool? lastOperationConfirmed;
+
+  /// 판정 입력 real | mock. mock의 true는 실제 동작 근거가 아니다.
+  final String? lastOperationSource;
+  final String? lastOperationDetail;
   final List<RpiButtonStep>? lastButtons;
   // 실행 중 실시간 진행 (running=true일 때만 값이 있을 수 있음)
   final String? currentButton;
@@ -697,6 +712,10 @@ class RpiApiService {
       lastReceipt: body['last_receipt'] as String?,
       lastConfirmation: body['last_confirmation'] as String?,
       lastDetail: body['last_detail'] as String?,
+      lastRetryCount: (body['last_retry_count'] as num?)?.toInt(),
+      lastOperationConfirmed: body['last_operation_confirmed'] as bool?,
+      lastOperationSource: body['last_operation_source'] as String?,
+      lastOperationDetail: body['last_operation_detail'] as String?,
     );
   }
 
