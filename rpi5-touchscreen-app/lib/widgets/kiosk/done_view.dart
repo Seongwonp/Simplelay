@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
+import '../../models/command_result.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_target_line.dart';
 import 'kiosk_timings.dart';
@@ -24,7 +25,19 @@ class KioskDoneView extends StatelessWidget {
     this.onRetry,
     this.onManual,
     this.onDismiss,
+    this.route,
+    this.confirmation,
+    this.detail,
   });
+
+  /// 제어 경로 physical | thinq. 옛 서버면 null이고 배지를 그리지 않는다.
+  final String? route;
+
+  /// 확인 수준 문구(상태 확인됨·접수됨·접수 불명 등). 모르면 null.
+  final String? confirmation;
+
+  /// 서버가 쓴 한 줄(ThinQ 결과).
+  final String? detail;
 
   final String executionMode;
   String get modeLabel => executionMode == 'mock' ? '모의 실행 · 실제 조작 아님'
@@ -45,8 +58,19 @@ class KioskDoneView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = success ? KioskColors.success : KioskColors.danger;
+    final r = reason ?? KioskFailureReason.execution;
+    // 확인 못 함은 실패가 아니다 — 빨강이 아니라 주의색으로 말한다.
+    final color = success
+        ? KioskColors.success
+        : r.isUnconfirmed
+            ? KioskColors.warning
+            : KioskColors.danger;
     final target = this.target;
+    final thinq = route == 'thinq';
+    final facts = [
+      if (routeLabel(route) case final path?) path,
+      if (confirmation case final c?) c,
+    ];
 
     return ColoredBox(
       color: KioskColors.bg,
@@ -55,25 +79,33 @@ class KioskDoneView extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
           child: Semantics(
             liveRegion: true,
-            label: success
-                ? '$label — 버튼 조작을 마쳤어요'
-                : (reason ?? KioskFailureReason.execution).detail(label),
+            label: [
+              success
+                  ? '$label — ${thinq ? '가전 상태를 확인했어요' : '버튼 조작을 마쳤어요'}'
+                  : r.detail(label),
+              ...facts,
+            ].join('. '),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(modeLabel, style: const TextStyle(fontSize: 18, color: KioskColors.warning)),
-                _ResultRing(success: success, color: color),
+                _ResultRing(
+                  icon: success
+                      ? Icons.check
+                      : r.isUnconfirmed
+                          ? Icons.question_mark
+                          : Icons.close,
+                  color: color,
+                ),
                 const SizedBox(height: 14),
                 // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
                 // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 조작**이다.
                 Text(
                   // 연결 유실은 정지의 증거가 아니다. 서버가 정지 결과를
                   // 반환한 경우에만 실행을 멈췄다고 표시한다.
-                  success ? '버튼 조작을 마쳤어요'
-                      : reason == KioskFailureReason.serverLost
-                          ? '실행 상태를 확인할 수 없어요'
-                          : reason == KioskFailureReason.stopped
-                              ? '실행을 멈췄어요' : '버튼 조작을 확인하지 못했어요',
+                  success
+                      ? (thinq ? '가전 상태를 확인했어요' : '버튼 조작을 마쳤어요')
+                      : r.headline,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 36,
@@ -85,6 +117,15 @@ class KioskDoneView extends StatelessWidget {
                 if (target != null) ...[
                   const SizedBox(height: 8),
                   KioskTargetLine(appliance: target),
+                ],
+                // 경로(물리 버튼 / ThinQ)와 확인 수준. 서버가 준 값만 말한다.
+                if (facts.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    facts.join(' · '),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 22, color: Colors.white),
+                  ),
                 ],
                 const SizedBox(height: 6),
                 if (success) ...[
@@ -100,8 +141,13 @@ class KioskDoneView extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    executionMode == 'mock' ? '모의 절차를 마쳤어요 · 실제 조작 아님'
-                        : '실행기가 버튼 조작 완료를 보고했어요',
+                    thinq
+                        ? (executionMode == 'mock'
+                            ? '모의 ThinQ 상태를 확인했어요 · 실제 가전 아님'
+                            : 'ThinQ로 보낸 뒤 가전 상태를 다시 읽어 확인했어요')
+                        : executionMode == 'mock'
+                            ? '모의 절차를 마쳤어요 · 실제 조작 아님'
+                            : '실행기가 버튼 조작 완료를 보고했어요',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 22, color: KioskColors.muted),
                   ),
@@ -109,11 +155,20 @@ class KioskDoneView extends StatelessWidget {
                   _AutoReturn(onDismiss: onDismiss),
                 ] else ...[
                   Text(
-                    (reason ?? KioskFailureReason.execution).detail(label),
+                    r.detail(label),
                     textAlign: TextAlign.center,
                     style:
                         const TextStyle(fontSize: 22, color: KioskColors.muted),
                   ),
+                  if (detail case final d? when d.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      d,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 18, color: KioskColors.muted),
+                    ),
+                  ],
                   const SizedBox(height: 20),
                   _FailureActions(
                     onRetry: onRetry,
@@ -140,7 +195,35 @@ enum KioskFailureReason {
   serverLost,
 
   /// 긴급 정지로 멈춤 — 실패가 아니라 의도된 중단
-  stopped;
+  stopped,
+
+  /// 눌림을 확인하지 못해 스스로 안전 정지(재시도 소진 등)
+  safetyStop,
+
+  /// ThinQ — 보냈고 접수됐지만 상태로 확인하지 못함. 실패가 아니다.
+  unconfirmed,
+
+  /// ThinQ — 보냈지만 받았는지조차 모름(접수 불명). 실패가 아니다.
+  receiptUnknown,
+
+  /// ThinQ — 거절되거나 보내지 않아 실행되지 않음.
+  notExecuted;
+
+  /// 실패가 아니라 '확인 못 함'. 다시 보내면 중복 실행이 될 수 있다.
+  bool get isUnconfirmed =>
+      this == KioskFailureReason.unconfirmed ||
+      this == KioskFailureReason.receiptUnknown;
+
+  /// 가장 큰 글자.
+  String get headline => switch (this) {
+        KioskFailureReason.execution => '버튼 조작을 확인하지 못했어요',
+        KioskFailureReason.serverLost => '실행 상태를 확인할 수 없어요',
+        KioskFailureReason.stopped => '실행을 멈췄어요',
+        KioskFailureReason.safetyStop => '안전하게 멈췄어요',
+        KioskFailureReason.unconfirmed => '보냈지만 확인하지 못했어요',
+        KioskFailureReason.receiptUnknown => '접수 불명',
+        KioskFailureReason.notExecuted => '명령이 실행되지 않았어요',
+      };
 
   String detail(String label) => switch (this) {
         KioskFailureReason.execution =>
@@ -149,13 +232,43 @@ enum KioskFailureReason {
           'SimpleLay 본체의 실행 결과를 확인하지 못했어요.\n가전 상태를 직접 확인해주세요.',
         KioskFailureReason.stopped =>
           '$label — 실행을 멈췄어요.\n장치가 완전히 멈췄는지 확인한 뒤 다시 시도해 주세요.',
+        KioskFailureReason.safetyStop =>
+          '$label — 눌림을 확인하지 못해 안전하게 멈췄어요.\n가전을 살펴본 뒤 다시 시도해 주세요.',
+        KioskFailureReason.unconfirmed =>
+          '$label — 명령을 보냈지만 확인하지 못했어요.\n가전을 직접 확인해 주세요.',
+        KioskFailureReason.receiptUnknown =>
+          '$label — 가전이 명령을 받았는지 알 수 없어요.\n다시 보내기 전에 가전을 직접 확인해 주세요.',
+        KioskFailureReason.notExecuted =>
+          '$label — 명령이 실행되지 않았어요.\n가전 연결을 확인해 주세요.',
       };
 }
 
-class _ResultRing extends StatelessWidget {
-  const _ResultRing({required this.success, required this.color});
+/// 서버 결과 → 실패 화면의 이유. 성공이면 쓰지 않는다.
+///
+/// 원격(UART) 실패는 예전에 last_status=safety_stopped로만 와서 "멈췄어요"로
+/// 안내됐다(9/29 결함 §4). 이제 last_outcome으로 정지 요청(stopped)·안전 정지·
+/// 실패를 가른다.
+KioskFailureReason failureReasonOf(
+  ResultKind kind, {
+  String? route,
+  String? receipt,
+}) =>
+    switch (kind) {
+      ResultKind.stopped => KioskFailureReason.stopped,
+      ResultKind.safetyStop => KioskFailureReason.safetyStop,
+      ResultKind.unconfirmed => receipt == 'unknown'
+          ? KioskFailureReason.receiptUnknown
+          : KioskFailureReason.unconfirmed,
+      ResultKind.failed => route == 'thinq'
+          ? KioskFailureReason.notExecuted
+          : KioskFailureReason.execution,
+      ResultKind.success => KioskFailureReason.execution,
+    };
 
-  final bool success;
+class _ResultRing extends StatelessWidget {
+  const _ResultRing({required this.icon, required this.color});
+
+  final IconData icon;
   final Color color;
 
   @override
@@ -170,7 +283,7 @@ class _ResultRing extends StatelessWidget {
           border: Border.all(color: color.withValues(alpha: 0.45), width: 2),
         ),
         child: Icon(
-          success ? Icons.check : Icons.close,
+          icon,
           size: 38,
           color: color,
         ),

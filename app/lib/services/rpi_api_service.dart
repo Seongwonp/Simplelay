@@ -11,6 +11,12 @@ class RpiApiException implements Exception {
   final int statusCode;
   final String message;
 
+  /// 제안 승인 재검사 실패(409) — 승인한 대상·경로·동작·인자가 바뀌었거나 승인이
+  /// 만료·무효가 됐다. 서버는 이 카드를 내리므로 다시 확인해야 한다. 같은 409인
+  /// '다른 작업 실행 중'(`an execution is already in progress`)과 구분한다 —
+  /// 서버의 승인 오류 문장은 모두 '승인'을 담는다(`rpi/commands/approval.py`).
+  bool get isApprovalChanged => statusCode == 409 && message.contains('승인');
+
   @override
   String toString() => 'RpiApiException($statusCode): $message';
 }
@@ -61,9 +67,32 @@ class RpiStatusResult {
     this.lastJobId,
     this.applianceId,
     this.lastApplianceId,
+    this.lastOutcome,
+    this.route,
+    this.lastRoute,
+    this.lastReceipt,
+    this.lastConfirmation,
+    this.lastDetail,
   });
   final bool running;
   final String? lastStatus;
+
+  /// success | failed | stopped | safety_stop | unconfirmed. 옛 서버는 null —
+  /// 그때는 [lastStatus]로 판정한다(`resultKindOf`).
+  final String? lastOutcome;
+
+  /// 제어 경로 physical | thinq (실행 중 / 마지막). 옛 서버는 null.
+  final String? route;
+  final String? lastRoute;
+
+  /// 상대가 받았나: accepted | unknown | not_dispatched.
+  final String? lastReceipt;
+
+  /// 확인 근거: none | reported | press_confirmed | state_confirmed | operation_confirmed.
+  final String? lastConfirmation;
+
+  /// 서버가 쓴 사람이 읽을 한 줄(ThinQ 결과).
+  final String? lastDetail;
   final List<RpiButtonStep>? lastButtons;
   // 실행 중 실시간 진행 (running=true일 때만 값이 있을 수 있음)
   final String? currentButton;
@@ -96,12 +125,20 @@ class RpiSuggestion {
     this.steps = const [],
     this.reason = '',
     this.applianceId,
+    this.scenarioId,
+    this.commands = const [],
   });
   final bool isDemo;
   final String id;
   final String purpose;
   final String timeBand;
   final int occurrences;
+
+  /// 시나리오 제안이면 그 ID. 옛 서버·일반 제안은 null.
+  final String? scenarioId;
+
+  /// 승인에 **고정되는** 명령들(대상·경로·동작). 비었으면 종전 물리 제안.
+  final List<RpiSuggestionCommand> commands;
 
   // 환경 기반 제안 등의 "왜 지금" 근거(예: "지금 30°C · 습도 72% — 더워요").
   final String reason;
@@ -121,6 +158,122 @@ class RpiSuggestion {
         steps: (json['steps'] as List<dynamic>?)?.cast<String>() ?? const [],
         reason: json['reason'] as String? ?? '',
         applianceId: json['appliance_id'] as String?,
+        scenarioId: json['scenario_id'] as String?,
+        commands: [
+          for (final c in (json['commands'] as List<dynamic>?) ?? const [])
+            if (c is Map<String, dynamic>) RpiSuggestionCommand.fromJson(c),
+        ],
+      );
+}
+
+/// 시나리오 카드의 확정 명령 하나 — 서버 `commands[]` 항목.
+class RpiSuggestionCommand {
+  const RpiSuggestionCommand({
+    required this.targetId,
+    required this.route,
+    this.action,
+    this.buttons = const [],
+    this.summary = '',
+  });
+
+  final String targetId;
+
+  /// physical | thinq
+  final String route;
+  final String? action;
+  final List<String> buttons;
+
+  /// 서버가 만든 사람이 읽을 한 줄(예: "공기청정기 풍량 강풍"). 승인에 묶이는 문장.
+  final String summary;
+
+  factory RpiSuggestionCommand.fromJson(Map<String, dynamic> json) =>
+      RpiSuggestionCommand(
+        targetId: json['target_id'] as String? ?? '',
+        route: json['route'] as String? ?? 'physical',
+        action: json['action'] as String?,
+        buttons: (json['buttons'] as List<dynamic>?)?.cast<String>() ?? const [],
+        summary: json['summary'] as String? ?? '',
+      );
+}
+
+/// GET /readiness/{id} — 경로별 준비 상태(물리 4축 / ThinQ 모드·연결·기기·온라인).
+class RpiReadiness {
+  const RpiReadiness({
+    required this.applianceId,
+    required this.route,
+    required this.state,
+    required this.canExecute,
+    this.reasons = const [],
+  });
+
+  final String applianceId;
+  final String route;
+  final String state;
+  final bool canExecute;
+  final List<String> reasons;
+
+  factory RpiReadiness.fromJson(Map<String, dynamic> json) => RpiReadiness(
+        applianceId: json['appliance_id'] as String? ?? '',
+        route: json['route'] as String? ?? 'physical',
+        state: json['state'] as String? ?? 'unknown',
+        canExecute: json['can_execute'] as bool? ?? false,
+        reasons: (json['reasons'] as List<dynamic>?)?.cast<String>() ?? const [],
+      );
+}
+
+/// GET /thinq/devices의 등록 가전 하나(서버 구성, 폰에서 편집하지 않는다).
+class RpiThinqAppliance {
+  const RpiThinqAppliance({
+    required this.applianceId,
+    required this.name,
+    required this.state,
+    required this.canExecute,
+    this.reasons = const [],
+    this.readOnly = false,
+  });
+
+  final String applianceId;
+  final String name;
+  final String state;
+  final bool canExecute;
+  final List<String> reasons;
+  final bool readOnly;
+
+  factory RpiThinqAppliance.fromJson(Map<String, dynamic> json) =>
+      RpiThinqAppliance(
+        applianceId: json['appliance_id'] as String? ?? '',
+        name: json['name'] as String? ?? '',
+        state: json['readiness'] as String? ?? 'unknown',
+        canExecute: json['can_execute'] as bool? ?? false,
+        reasons: (json['readiness_reasons'] as List<dynamic>?)?.cast<String>() ??
+            const [],
+        readOnly: json['read_only'] as bool? ?? false,
+      );
+}
+
+/// GET /thinq/devices 요약. 서버가 ThinQ를 끈 상태(404)면 조회 결과가 null이다.
+class RpiThinqOverview {
+  const RpiThinqOverview({
+    required this.mode,
+    required this.executionMode,
+    this.appliances = const [],
+  });
+
+  /// off | mock | real
+  final String mode;
+
+  /// mock | real | unknown — mock이면 화면이 '모의'로 표시한다.
+  final String executionMode;
+  final List<RpiThinqAppliance> appliances;
+
+  factory RpiThinqOverview.fromJson(Map<String, dynamic> json) =>
+      RpiThinqOverview(
+        mode: json['mode'] as String? ?? 'unknown',
+        executionMode: json['execution_mode'] as String? ?? 'unknown',
+        appliances: [
+          for (final a in (json['appliances'] as List<dynamic>?) ?? const [])
+            if (a is Map<String, dynamic>) RpiThinqAppliance.fromJson(a),
+        ],
       );
 }
 
@@ -181,6 +334,11 @@ class RpiHistoryEntry {
     this.purpose,
     this.applianceId,
     this.termination = 'unknown',
+    this.outcome,
+    this.route = 'unknown',
+    this.receipt = 'unknown',
+    this.confirmation = 'unknown',
+    this.detail = '',
   });
   final String jobId;
   final DateTime finishedAt;
@@ -195,6 +353,15 @@ class RpiHistoryEntry {
   /// completed | stopped_by_user | retries_exhausted | unknown.
   /// status만으로는 '사용자가 멈춤'과 '재시도 소진'이 뭉개진다.
   final String termination;
+
+  /// success | failed | stopped | safety_stop | unconfirmed. 옛 서버는 null.
+  final String? outcome;
+
+  /// physical | thinq | unknown(옛 기록).
+  final String route;
+  final String receipt;
+  final String confirmation;
+  final String detail;
 
   /// 목록 표시용 제목 — 목적이 없으면 누른 버튼 라벨을 나열
   String get displayTitle =>
@@ -213,6 +380,11 @@ class RpiHistoryEntry {
             .toList(),
         applianceId: json['appliance_id'] as String?,
         termination: json['termination'] as String? ?? 'unknown',
+        outcome: json['outcome'] as String?,
+        route: json['route'] as String? ?? 'unknown',
+        receipt: json['receipt'] as String? ?? 'unknown',
+        confirmation: json['confirmation'] as String? ?? 'unknown',
+        detail: json['detail'] as String? ?? '',
       );
 }
 
@@ -497,7 +669,7 @@ class RpiApiService {
     final res =
         await _client.get(_base.replace(path: '/status'), headers: _headers).timeout(_timeout);
     _checkStatus(res);
-    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
     final rawButtons = body['last_buttons'] as List<dynamic>?;
     return RpiStatusResult(
         executionMode: body['execution_mode'] as String? ?? 'unknown',
@@ -519,6 +691,12 @@ class RpiApiService {
       lastJobId: body['last_job_id'] as String?,
       applianceId: body['appliance_id'] as String?,
       lastApplianceId: body['last_appliance_id'] as String?,
+      lastOutcome: body['last_outcome'] as String?,
+      route: body['route'] as String?,
+      lastRoute: body['last_route'] as String?,
+      lastReceipt: body['last_receipt'] as String?,
+      lastConfirmation: body['last_confirmation'] as String?,
+      lastDetail: body['last_detail'] as String?,
     );
   }
 
@@ -544,7 +722,7 @@ class RpiApiService {
         .get(_base.replace(path: '/suggestions'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
-    final body = jsonDecode(res.body) as List<dynamic>;
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
     return body
         .cast<Map<String, dynamic>>()
         .map(RpiSuggestion.fromJson)
@@ -695,11 +873,57 @@ class RpiApiService {
         )
         .timeout(_timeout);
     _checkStatus(res);
-    final body = jsonDecode(res.body) as List<dynamic>;
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
     return body
         .cast<Map<String, dynamic>>()
         .map(RpiHistoryEntry.fromJson)
         .toList();
+  }
+
+  /// GET /readiness/{id} — 경로별 준비 상태. 조회 실패는 null(모름 ≠ 준비 안 됨).
+  Future<RpiReadiness?> readiness(String applianceId) async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/readiness/$applianceId'), headers: _headers)
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return RpiReadiness.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /scenarios — 시나리오 ID → 이름. 옛 서버·실패는 빈 맵(이름 없이 질문만 보인다).
+  Future<Map<String, String>> scenarioNames() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/scenarios'), headers: _headers)
+          .timeout(_timeout);
+      if (res.statusCode != 200) return const {};
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+      return {
+        for (final d in body.whereType<Map<String, dynamic>>())
+          if (d['scenario_id'] is String && d['name'] is String)
+            d['scenario_id'] as String: d['name'] as String,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
+  /// GET /thinq/devices — ThinQ가 꺼져 있거나(404) 조회 실패면 null.
+  Future<RpiThinqOverview?> thinqOverview() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/thinq/devices'), headers: _headers)
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return RpiThinqOverview.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
   }
 
   // GET /nodes — 등록된 ESP32 노드 목록
@@ -968,11 +1192,18 @@ class RpiApiService {
 
   void _checkStatus(http.Response res) {
     if (res.statusCode >= 400) {
-      String detail = res.body;
+      // FastAPI는 charset 없이 JSON을 보낸다 — res.body(latin1)로 풀면 한글
+      // detail이 깨져 승인 불일치(409) 같은 사유를 가를 수 없다.
+      String detail;
       try {
-        detail = (jsonDecode(res.body) as Map<String, dynamic>)['detail']
+        detail = utf8.decode(res.bodyBytes);
+      } catch (_) {
+        detail = res.body;
+      }
+      try {
+        detail = (jsonDecode(detail) as Map<String, dynamic>)['detail']
                 as String? ??
-            res.body;
+            detail;
       } catch (_) {}
       throw RpiApiException(res.statusCode, detail);
     }

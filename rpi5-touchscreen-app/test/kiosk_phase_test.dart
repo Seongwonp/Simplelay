@@ -122,6 +122,17 @@ class FakeKioskApi implements KioskApiService {
   @override
   Future<bool> unregisterNode(String applianceId) async => true;
 
+  /// 대상별 준비 상태. 없으면 null(모름 — 막지 않는다).
+  Map<String, KioskReadiness> readinessById = {};
+  Map<String, String> scenarioNameMap = {};
+
+  @override
+  Future<KioskReadiness?> readiness(String applianceId) async =>
+      readinessById[applianceId];
+
+  @override
+  Future<Map<String, String>> scenarioNames() async => scenarioNameMap;
+
   @override
   void dispose() {}
 }
@@ -1220,5 +1231,219 @@ void main() {
     await tester.tap(find.byType(KioskIdleView));
     await tester.pump();
     expect(find.text('전자레인지'), findsOneWidget);
+  });
+
+  // ── 2026-09-30: last_outcome·ThinQ 경로·시나리오 카드 ──────────────────
+
+  Future<KioskDoneView> finishWith(WidgetTester tester, FakeKioskApi api,
+      KioskStatus status) async {
+    api.suggestionList = [];
+    await tester.tap(find.text('지금 실행'));
+    await tester.pump();
+    api.statusResult = status;
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    return tester.widget<KioskDoneView>(find.byType(KioskDoneView));
+  }
+
+  testWidgets('원격 실패(last_outcome=failed)는 정지 문구가 아니라 실행 실패로 안내한다',
+      (tester) async {
+    useKioskViewport(tester);
+    final tts = FakeTts();
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api, tts: tts);
+    final done = await finishWith(
+      tester,
+      api,
+      // 옛 필드는 여전히 safety_stopped — 예전 화면은 이걸 '멈췄어요'로 읽었다.
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'safety_stopped',
+          lastOutcome: 'failed',
+          lastRoute: 'physical'),
+    );
+    expect(done.reason, KioskFailureReason.execution);
+    expect(find.text('실행을 멈췄어요'), findsNothing);
+    expect(tts.utterances.last, isNot(contains('멈췄어요')));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('안전 정지(safety_stop)와 정지 요청(stopped)을 가른다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    final done = await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'safety_stopped',
+          lastOutcome: 'safety_stop'),
+    );
+    expect(done.reason, KioskFailureReason.safetyStop);
+    expect(find.text('안전하게 멈췄어요'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  const scenario = KioskSuggestion(
+    id: 'sc1',
+    purpose: '공기청정기 강풍으로 바꿀까요?',
+    occurrences: 0,
+    timeBand: '시나리오',
+    reason: '전자레인지 모의 실행 성공 — 실제 가열을 확인한 것은 아니에요',
+    isDemo: true,
+    applianceId: 'air_purifier',
+    scenarioId: 'cook_then_air',
+    commands: [
+      KioskSuggestionCommand(
+        targetId: 'air_purifier',
+        route: 'thinq',
+        action: 'set_wind_strength',
+        summary: '공기청정기 풍량 강풍',
+      ),
+    ],
+  );
+
+  testWidgets('시나리오 카드: 이름·근거·고정 명령·ThinQ 배지를 보이고 조작판 없이도 승인할 수 있다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [scenario]
+      ..scenarioNameMap = {'cook_then_air': '조리 확인 → 공기 관리'};
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    expect(find.text('시나리오 · 조리 확인 → 공기 관리'), findsOneWidget);
+    expect(find.text('공기청정기 풍량 강풍'), findsOneWidget);
+    expect(find.text('ThinQ'), findsOneWidget);
+    expect(find.textContaining('근거: 전자레인지 모의 실행'), findsOneWidget);
+    final run = tester.widget<ElevatedButton>(find.ancestor(
+        of: find.text('지금 실행'), matching: find.byType(ElevatedButton)));
+    expect(run.onPressed, isNotNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('시나리오 카드: ThinQ 대상이 준비 안 됐으면 실행을 막고 이유를 말한다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [scenario]
+      ..readinessById = {
+        'air_purifier': const KioskReadiness(
+            applianceId: 'air_purifier',
+            route: 'thinq',
+            canExecute: false,
+            reasons: ['가전이 오프라인이에요']),
+      };
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    expect(find.textContaining('가전이 오프라인이에요'), findsOneWidget);
+    final run = tester.widget<ElevatedButton>(find.ancestor(
+        of: find.text('지금 실행'), matching: find.byType(ElevatedButton)));
+    expect(run.onPressed, isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('승인 재검사 실패(409)면 실패 화면이 아니라 다시 확인 안내 후 처음 화면으로',
+      (tester) async {
+    useKioskViewport(tester);
+    final tts = FakeTts();
+    final api = FakeKioskApi()
+      ..suggestionList = [scenario]
+      ..executeError = KioskApiException(409,
+          '승인한 내용과 지금 실행할 내용이 달라졌어요 — 다시 확인하고 승인해 주세요');
+    await _pumpKiosk(tester, api, tts: tts);
+    await tester.pump();
+
+    api.suggestionList = [];
+    await tester.tap(find.text('지금 실행'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.byType(KioskDoneView), findsNothing);
+    expect(find.byType(KioskIdleView), findsOneWidget);
+    expect(find.text('제안 내용이 바뀌어 다시 확인이 필요해요'), findsOneWidget);
+    expect(tts.utterances.last, '제안 내용이 바뀌어 다시 확인이 필요해요');
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('ThinQ 확인 못 함은 실패가 아니다 — 다시 시도 없이 접수 수준을 말한다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [scenario];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+    final done = await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'unconfirmed',
+          lastOutcome: 'unconfirmed',
+          lastRoute: 'thinq',
+          lastReceipt: 'accepted',
+          lastConfirmation: 'none',
+          lastExecutionMode: 'mock'),
+    );
+    expect(done.reason, KioskFailureReason.unconfirmed);
+    expect(find.text('보냈지만 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('ThinQ · 접수됨'), findsOneWidget);
+    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('버튼으로 조작'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('ThinQ 접수 불명은 접수 불명으로 말한다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [scenario];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+    final done = await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'unconfirmed',
+          lastOutcome: 'unconfirmed',
+          lastRoute: 'thinq',
+          lastReceipt: 'unknown',
+          lastConfirmation: 'none'),
+    );
+    expect(done.reason, KioskFailureReason.receiptUnknown);
+    expect(find.text('ThinQ · 접수 불명'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('ThinQ 상태 확인됨만 성공이고, 모의면 실제 가전이 아니라고 말한다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [scenario];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+    final done = await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'succeeded',
+          lastOutcome: 'success',
+          lastRoute: 'thinq',
+          lastReceipt: 'accepted',
+          lastConfirmation: 'state_confirmed',
+          lastExecutionMode: 'mock'),
+    );
+    expect(done.success, isTrue);
+    expect(find.text('가전 상태를 확인했어요'), findsOneWidget);
+    expect(find.text('ThinQ · 상태 확인됨'), findsOneWidget);
+    expect(find.textContaining('실제 가전 아님'), findsOneWidget);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
   });
 }

@@ -9,6 +9,11 @@ enum ExecutionPhase {
   completed,
   failed,
   unknown,
+
+  /// 보냈지만 확인하지 못함(ThinQ). 실패도 성공도 아니다 -- 다시 보내라고
+  /// 권하지 않고 가전을 직접 확인하라고 한다. 이미 보낸 클라우드 명령은
+  /// 취소할 수 없으므로 정지 버튼도 내걸지 않는다.
+  unconfirmed,
 }
 
 class ExecutionStatus {
@@ -29,6 +34,11 @@ class ExecutionStatus {
     this.message,
     this.isDemo = false,
     this.applianceId,
+    this.outcome,
+    this.route,
+    this.receipt,
+    this.confirmation,
+    this.detail,
   });
 
   final String? sequenceId;
@@ -60,6 +70,22 @@ class ExecutionStatus {
   /// 이미 시작한 작업의 표시가 뒤집힌다 -- 실제로 움직이고 있는 작업이
   /// "실제 조작이 아닙니다"가 되거나 그 반대가 된다.
   final bool isDemo;
+
+  /// 끝난 실행의 서버 결과 축(옛 서버는 null). `models/command_result.dart`가 읽는다.
+  /// success | failed | stopped | safety_stop | unconfirmed
+  final String? outcome;
+
+  /// physical | thinq
+  final String? route;
+
+  /// accepted | unknown | not_dispatched
+  final String? receipt;
+
+  /// none | reported | press_confirmed | state_confirmed | operation_confirmed
+  final String? confirmation;
+
+  /// 서버가 쓴 한 줄(ThinQ 결과).
+  final String? detail;
   final String executionMode;
   String get modeLabel => isDemo || executionMode == 'mock'
       ? '모의 실행 — 실제 조작이 아닙니다'
@@ -81,9 +107,15 @@ class ExecutionStatus {
     ExecutionPhase? phase,
     String? message,
     String? applianceId,
+    String? outcome,
+    String? route,
+    String? receipt,
+    String? confirmation,
+    String? detail,
   }) =>
       ExecutionStatus(
-        executionMode: executionMode ?? this.executionMode,        sequenceId: sequenceId ?? this.sequenceId,
+        executionMode: executionMode ?? this.executionMode,
+        sequenceId: sequenceId ?? this.sequenceId,
         label: label ?? this.label,
         steps: steps ?? this.steps,
         completedSteps: completedSteps ?? this.completedSteps,
@@ -96,6 +128,11 @@ class ExecutionStatus {
         currentMa: currentMa ?? this.currentMa,
         soundDb: soundDb ?? this.soundDb,
         applianceId: applianceId ?? this.applianceId,
+        outcome: outcome ?? this.outcome,
+        route: route ?? this.route,
+        receipt: receipt ?? this.receipt,
+        confirmation: confirmation ?? this.confirmation,
+        detail: detail ?? this.detail,
         phase: phase ?? this.phase,
         message: message ?? this.message,
         // 실행 모드는 시작할 때 정해지고 그 job이 끝날 때까지 바뀌지

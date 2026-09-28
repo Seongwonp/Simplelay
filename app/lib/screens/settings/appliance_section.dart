@@ -153,6 +153,8 @@ class _ApplianceSection extends ConsumerWidget {
             ),
           ),
         ],
+        // 서버가 구성한 ThinQ 가전(편집 불가). ThinQ가 꺼져 있으면 아무것도 없다.
+        const _ThinqApplianceList(),
       ],
     );
   }
@@ -267,4 +269,84 @@ class _EmptyApplianceRow extends StatelessWidget {
           ),
         ],
       );
+}
+
+/// 서버가 구성한 ThinQ 가전. 폰에서 등록·편집하지 않으므로 버튼 칩과 따로
+/// 보여 주고, 물리 가전과 같은 방식으로 준비 상태(안 되는 이유)를 말한다.
+class _ThinqApplianceList extends ConsumerWidget {
+  const _ThinqApplianceList();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final overview = ref.watch(thinqOverviewProvider).valueOrNull;
+    if (overview == null || overview.appliances.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final mock = overview.executionMode == 'mock';
+    return Padding(
+      padding: const EdgeInsets.only(top: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(mock ? 'ThinQ 가전 · 모의 연결(실제 가전 아님)' : 'ThinQ 가전'),
+          const SizedBox(height: 6),
+          for (final a in overview.appliances)
+            Semantics(
+              label: [
+                a.name,
+                '경로 ThinQ',
+                if (mock) '모의',
+                a.canExecute ? '조작 가능' : '조작 불가',
+                ...a.reasons,
+              ].join('. '),
+              child: ExcludeSemantics(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        a.canExecute
+                            ? Icons.check_circle_outline
+                            : Icons.error_outline,
+                        size: 20,
+                        color: a.canExecute
+                            ? context.appSuccess
+                            : context.appDanger,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${a.name} · ThinQ${mock ? ' · 모의' : ''}',
+                              style: const TextStyle(
+                                  fontSize: 15, fontWeight: FontWeight.w600),
+                            ),
+                            Text(
+                              a.canExecute
+                                  ? '조작할 수 있어요'
+                                  : (a.reasons.isNotEmpty
+                                      ? a.reasons.join(' · ')
+                                      : '아직 조작할 준비가 되지 않았어요'),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: a.canExecute
+                                    ? context.appMuted
+                                    : context.appDanger,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

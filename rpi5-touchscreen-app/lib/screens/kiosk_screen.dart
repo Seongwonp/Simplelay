@@ -4,6 +4,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../models/appliance.dart';
+import '../models/command_result.dart';
 import '../services/kiosk_api_service.dart';
 import '../services/kiosk_event_stream.dart';
 import '../services/kiosk_settings_store.dart';
@@ -138,6 +139,14 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _doneSuccess = true;
   String _doneLabel = '';
   KioskFailureReason? _doneReason;
+  // 끝난 실행의 경로·확인 수준(서버 값, 옛 서버면 null).
+  String? _doneRoute;
+  String? _doneConfirmation;
+  String? _doneDetail;
+
+  // 시나리오 카드 — 이름(GET /scenarios)과 대상별 준비 상태(GET /readiness/{id}).
+  Map<String, String> _scenarioNames = const {};
+  String? _scenarioBlockedWhy;
   // 실패 화면의 '다시 시도'가 무엇을 다시 할지 — 실행을 시작한 쪽이 심는다.
   Future<void> Function()? _retryAction;
 
@@ -333,11 +342,23 @@ class _KioskScreenState extends State<KioskScreen> {
       // 처리하면 그 완료를 영영 놓친다(추월 레이스).
       if (st.lastJobId != null && st.lastJobId == _activeJobId) {
         _executionMode = st.lastExecutionMode;
+        // last_outcome이 정지 요청(stopped)과 안전 정지·실패를 가른다. 옛 서버는
+        // last_status로 판정한다(종전 동작). ThinQ 확인 못 함은 실패가 아니다.
+        final kind =
+            resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
+        _doneRoute = st.lastRoute;
+        _doneConfirmation = confirmationLabel(
+          route: st.lastRoute,
+          receipt: st.lastReceipt,
+          confirmation: st.lastConfirmation,
+          kind: kind,
+        );
+        _doneDetail = st.lastDetail;
         _finishExecuting(
-          success: st.lastStatus == 'succeeded',
+          success: kind == ResultKind.success,
           buttons: st.lastButtons ?? const [],
-          reason: st.lastStatus == 'safety_stopped'
-              ? KioskFailureReason.stopped : KioskFailureReason.execution,
+          reason: failureReasonOf(kind,
+              route: st.lastRoute, receipt: st.lastReceipt),
         );
         return;
       }
@@ -502,12 +523,17 @@ class _KioskScreenState extends State<KioskScreen> {
     // 제안 도착을 소리로도 알린다 — 사용자가 화면 근처에 없어도 알 수 있게.
     // 화면의 제목·버튼과 **같은 말**을 쓴다 -- 음성을 듣고 화면을 보는 사용자가
     // '승인'을 찾다가 '지금 실행'을 못 알아보면 그 순간 막힌다.
-    _tts.speak('${suggestion.purpose}, 지금 할까요? 화면에서 지금 실행을 눌러 주세요.');
+    // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다("…바꿀까요?").
+    _tts.speak(suggestion.isScenario
+        ? '${suggestion.purpose} 화면에서 지금 실행을 눌러 주세요.'
+        : '${suggestion.purpose}, 지금 할까요? 화면에서 지금 실행을 눌러 주세요.');
     setState(() {
       _phase = KioskPhase.suggestion;
       _currentSuggestion = suggestion;
       _cdRemaining = _countdownSeconds;
+      _scenarioBlockedWhy = null;
     });
+    if (suggestion.isScenario) _loadScenarioContext(suggestion);
     _countdownTimer?.cancel();
     _countdownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       if (!mounted) return;
@@ -519,8 +545,37 @@ class _KioskScreenState extends State<KioskScreen> {
     });
   }
 
+  /// 시나리오 카드의 이름과 대상별 준비 상태를 받는다. 실패는 막지 않는다 —
+  /// 모름을 '안 됨'으로 단정하지 않고, 서버가 실행 직전에 다시 검사한다.
+  Future<void> _loadScenarioContext(KioskSuggestion suggestion) async {
+    final names = await _api.scenarioNames();
+    String? blocked;
+    for (final c in suggestion.commands) {
+      final r = await _api.readiness(c.targetId);
+      if (r != null && !r.canExecute) {
+        final who = c.summary.isNotEmpty ? c.summary : c.targetId;
+        blocked = r.reasons.isNotEmpty
+            ? '$who — ${r.reasons.first}'
+            : '$who — 아직 조작할 준비가 되지 않았어요';
+        break;
+      }
+    }
+    if (!mounted ||
+        _phase != KioskPhase.suggestion ||
+        _currentSuggestion?.id != suggestion.id) {
+      return;
+    }
+    setState(() {
+      if (names.isNotEmpty) _scenarioNames = names;
+      _scenarioBlockedWhy = blocked;
+    });
+  }
+
   void _toExecuting(String title, {String? applianceId, String? jobId}) {
     _executionMode = 'unknown';
+    _doneRoute = null;
+    _doneConfirmation = null;
+    _doneDetail = null;
     _activeJobId = jobId;
     _retryAction = null;
     _lastStatusOk = DateTime.now();
@@ -573,14 +628,23 @@ class _KioskScreenState extends State<KioskScreen> {
       // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
       // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
-          ? (_executionMode == 'mock' ? '$label, 모의 버튼 조작을 마쳤어요. 실제 조작은 하지 않았어요.'
-              : _executionMode == 'real' ? '$label, 버튼 조작을 마쳤어요.'
-              : '$label, 실행기가 완료를 보고했어요. 실제 조작 여부는 확인하지 못했어요.')
-          : reason == KioskFailureReason.serverLost
-              ? '실행 상태를 확인할 수 없어요. 가전 상태를 직접 확인해 주세요.'
-              : reason == KioskFailureReason.stopped
-                  ? '실행을 멈췄어요. 장치가 완전히 멈췄는지 확인해 주세요.'
-                  : '$label, 실행하지 못했어요. 화면을 확인해 주세요.',
+          ? '$label, ${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute)}'
+          : switch (reason) {
+              KioskFailureReason.serverLost =>
+                '실행 상태를 확인할 수 없어요. 가전 상태를 직접 확인해 주세요.',
+              KioskFailureReason.stopped =>
+                '실행을 멈췄어요. 장치가 완전히 멈췄는지 확인해 주세요.',
+              KioskFailureReason.safetyStop =>
+                '$label, 눌림을 확인하지 못해 안전하게 멈췄어요. 가전을 확인해 주세요.',
+              KioskFailureReason.unconfirmed =>
+                '$label, ${unconfirmedSentence()}',
+              KioskFailureReason.receiptUnknown =>
+                '$label, ${unconfirmedSentence(receipt: 'unknown')}',
+              KioskFailureReason.notExecuted =>
+                '$label, 명령이 실행되지 않았어요. 화면을 확인해 주세요.',
+              KioskFailureReason.execution =>
+                '$label, 실행하지 못했어요. 화면을 확인해 주세요.',
+            },
     );
     setState(() {
       _phase = KioskPhase.done;
@@ -604,7 +668,13 @@ class _KioskScreenState extends State<KioskScreen> {
     // 버튼을 잠갔지만, 재시도 콜백 등 다른 경로로 와도 같은 규칙이다 --
     // 서버도 409로 거절하므로 실행 화면으로 넘어가 봐야 실패만 보여준다.
     final targetId = suggestion.applianceId;
-    if (targetId == null || _findIn(_appliances, targetId) == null) return;
+    // 시나리오 카드는 서버가 고정한 명령으로 승인한다 — ThinQ 가전은 조작판
+    // 목록에 없다. 준비 안 된 대상이 있으면 실행을 내걸지 않는다.
+    if (suggestion.isScenario) {
+      if (_scenarioBlockedWhy != null) return;
+    } else if (targetId == null || _findIn(_appliances, targetId) == null) {
+      return;
+    }
     _countdownTimer?.cancel();
     setState(() => _currentSuggestion = null);
     _toExecuting(suggestion.purpose, applianceId: suggestion.applianceId);
@@ -614,6 +684,24 @@ class _KioskScreenState extends State<KioskScreen> {
       // job 모델: 즉시 접수 — 진행·완료는 _pollExecuting이 job_id 대조로 따라간다
       final accepted = await _api.approveSuggestion(suggestion.id);
       _activeJobId = accepted.jobId;
+    } on KioskApiException catch (e) {
+      if (!mounted || _phase != KioskPhase.executing) return;
+      if (e.isApprovalChanged || e.statusCode == 412) {
+        // 승인 재검사 실패: 서버가 카드를 내렸다. 실패 화면('다시 시도')으로
+        // 보내면 옛 승인을 또 누르게 된다 — 처음 화면으로 돌아가 새 카드를 받는다.
+        // 412(준비 안 됨)는 서버 문장이 이유를 말한다.
+        final message = e.isApprovalChanged
+            ? kApprovalChangedMessage
+            : (e.detail.isNotEmpty ? e.detail : '가전이 아직 조작할 준비가 되지 않았어요.');
+        _tts.speak(message);
+        _toIdle();
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(message)));
+        _poll();
+        return;
+      }
+      _toDone(false, suggestion.purpose,
+          reason: KioskFailureReason.serverLost);
     } catch (_) {
       // 접수 자체가 실패(서버 다운·409 등) — 올 수 없는 완료를 기다리는 대신
       // 즉시 실패 화면으로 탈출한다.
@@ -873,6 +961,8 @@ class _KioskScreenState extends State<KioskScreen> {
           target: targetId == null ? null : _findIn(_appliances, targetId),
           cdRemaining: _cdRemaining,
           cdTotal: _countdownSeconds,
+          scenarioName: _scenarioNames[suggestion.scenarioId],
+          blockedWhy: suggestion.isScenario ? _scenarioBlockedWhy : null,
           onApprove: _onApprove,
           onReject: _onReject,
           onRejectMute: _onRejectMute,
@@ -906,12 +996,19 @@ class _KioskScreenState extends State<KioskScreen> {
               ? null
               : _findIn(_appliances, _execApplianceId!),
           reason: _doneReason,
+          route: _doneRoute,
+          confirmation: _doneConfirmation,
+          detail: _doneDetail,
           // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
           // 그때는 수동 조작(사람이 직접 누르기)을 앞세운다.
-          onRetry: _doneReason == KioskFailureReason.serverLost
+          // ThinQ 확인 못 함·접수 불명은 다시 보내면 중복 실행이 될 수 있어
+          // '다시 시도'를 내걸지 않는다.
+          onRetry: _doneReason == KioskFailureReason.serverLost ||
+                  (_doneReason?.isUnconfirmed ?? false)
               ? null
               : _onRetryFailed,
-          onManual: _onManualFromFailure,
+          // ThinQ 명령에는 누를 조작판이 없다.
+          onManual: _doneRoute == 'thinq' ? null : _onManualFromFailure,
           onDismiss: _toIdle,
         );
     }

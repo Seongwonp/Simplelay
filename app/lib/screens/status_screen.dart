@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/appliance.dart';
+import '../models/command_result.dart';
 import '../models/execution_status.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -135,6 +136,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     if (now.button != null) "${now.button} 버튼",
                     now.headline,
                     if (now.detail != null) now.detail!,
+                    if (_finished(status.phase)) ..._resultFactWords(status),
                     if (totalSteps > 0 && status.phase != ExecutionPhase.idle)
                       '총 $totalSteps단계 중 ${status.completedSteps}단계 완료',
                   ].join('. '),
@@ -163,6 +165,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                         // 화면에 도착하는 지점이다. 없으면 '빙글빙글 돌다
                         // 완료되는 앱'이 된다.
                         _NowBlock(now: now),
+                        // 끝난 실행의 경로·확인 수준. 서버가 준 값만 말한다.
+                        if (_finished(status.phase))
+                          _ResultFacts(status: status),
                       ],
                     ),
                   ),
@@ -292,6 +297,83 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           : readableStep(code);
 }
 
+// ── 끝난 실행의 경로·확인 수준 ──────────────────────────────────────────
+
+bool _finished(ExecutionPhase p) =>
+    p == ExecutionPhase.completed ||
+    p == ExecutionPhase.failed ||
+    p == ExecutionPhase.unconfirmed;
+
+ResultKind _kindOf(ExecutionStatus s) => s.outcome != null
+    ? resultKindOf(outcome: s.outcome)
+    : switch (s.phase) {
+        ExecutionPhase.completed => ResultKind.success,
+        ExecutionPhase.unconfirmed => ResultKind.unconfirmed,
+        _ => ResultKind.failed,
+      };
+
+/// 결과 한 단어 · 경로 · 확인 수준. 옛 서버(필드 없음)면 결과 단어만 남는다.
+List<String> _resultFactWords(ExecutionStatus s) {
+  final kind = _kindOf(s);
+  return [
+    // 옛 서버에서 outcome이 없으면 phase로만 안다 -- 정지·안전 정지를 지어내지 않는다.
+    if (s.outcome != null) resultWord(kind),
+    if (routeLabel(s.route) case final r?) r,
+    if (confirmationLabel(
+      route: s.route,
+      receipt: s.receipt,
+      confirmation: s.confirmation,
+      kind: kind,
+    )
+        case final c?)
+      c,
+  ];
+}
+
+class _ResultFacts extends StatelessWidget {
+  const _ResultFacts({required this.status});
+
+  final ExecutionStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final words = _resultFactWords(status);
+    final detail = status.detail;
+    if (words.isEmpty && (detail == null || detail.isEmpty)) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 6,
+            children: [
+              for (final w in words)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: context.appBorderSubtle),
+                  ),
+                  child: Text(w, style: const TextStyle(fontSize: 15)),
+                ),
+            ],
+          ),
+          if (detail != null && detail.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(detail,
+                style: TextStyle(fontSize: 15, color: context.appMuted)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 // ── 지금 상태 ─────────────────────────────────────────────────────────────
 
 /// 화면이 가장 크게 말할 한 줄과 그 근거.
@@ -381,6 +463,12 @@ class _NowState {
       case ExecutionPhase.unknown:
         return _NowState(
           headline: s.message ?? '동작을 확인할 수 없어요.',
+          tone: _Tone.caution,
+        );
+      case ExecutionPhase.unconfirmed:
+        // 실패로 말하지 않는다 -- 다시 보내면 중복 실행이 될 수 있다.
+        return _NowState(
+          headline: s.message ?? unconfirmedSentence(receipt: s.receipt),
           tone: _Tone.caution,
         );
     }

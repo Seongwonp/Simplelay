@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/command_result.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/clock_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -203,6 +204,50 @@ class _StepBreakdown extends StatelessWidget {
   BuildContext context,
   RpiHistoryEntry entry,
 ) {
+  // 새 서버는 outcome을 준다(정지 요청 / 안전 정지 / ThinQ 확인 못 함을 가른다).
+  if (entry.outcome != null) {
+    final thinq = entry.route == 'thinq';
+    switch (resultKindOf(outcome: entry.outcome)) {
+      case ResultKind.success:
+        return (
+          icon: Icons.check_circle,
+          color: context.appSuccess,
+          sentence: thinq ? '가전 상태를 확인했어요' : '버튼 조작을 마쳤어요',
+        );
+      case ResultKind.stopped:
+        return (
+          icon: Icons.front_hand,
+          color: context.appWarning,
+          sentence: '정지됨',
+        );
+      case ResultKind.safetyStop:
+        return (
+          icon: Icons.front_hand,
+          color: context.appWarning,
+          sentence: entry.termination == 'retries_exhausted'
+              ? '다시 눌러도 확인하지 못해 안전 정지'
+              : '안전 정지',
+        );
+      case ResultKind.unconfirmed:
+        // 실패가 아니다 -- 보냈지만 가전 상태로 확인하지 못했다.
+        return (
+          icon: Icons.help_outline,
+          color: context.appWarning,
+          sentence: '보냈지만 확인하지 못했어요',
+        );
+      case ResultKind.failed:
+        return (
+          icon: Icons.cancel,
+          color: context.appDanger,
+          sentence: thinq
+              ? '실행 안 됨'
+              : entry.termination == 'retries_exhausted'
+                  ? '다시 눌러도 확인하지 못했어요'
+                  : '실패',
+        );
+    }
+  }
+  // 옛 서버 — 종전 판정.
   switch (entry.status) {
     case 'succeeded':
       return (
@@ -249,8 +294,21 @@ class _HistoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final succeeded = entry.status == 'succeeded';
+    final kind = resultKindOf(outcome: entry.outcome, status: entry.status);
+    final succeeded = kind == ResultKind.success;
+    // 버튼 단계·'버튼으로 직접 조작'은 물리 경로의 이야기다. ThinQ 기록과
+    // 확인 못 함(실패 아님)은 펼치지 않는다.
+    final expand = !succeeded &&
+        kind != ResultKind.unconfirmed &&
+        entry.route != 'thinq';
     final o = _outcome(context, entry);
+    final route = routeLabel(entry.route);
+    final confirmation = confirmationLabel(
+      route: entry.route,
+      receipt: entry.receipt,
+      confirmation: entry.confirmation,
+      kind: kind,
+    );
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
@@ -282,6 +340,24 @@ class _HistoryRow extends StatelessWidget {
                   ].join(' · '),
                   style: TextStyle(fontSize: 14, color: context.appMuted),
                 ),
+                // 경로·확인 수준 열. 이 열이 생기기 전 기록(unknown)은 말하지 않는다.
+                if (route != null || confirmation != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    [
+                      if (route != null) '경로 $route',
+                      if (confirmation != null) '확인 $confirmation',
+                    ].join(' · '),
+                    style: TextStyle(fontSize: 14, color: context.appMuted),
+                  ),
+                ],
+                if (entry.detail.isNotEmpty && !succeeded) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    entry.detail,
+                    style: TextStyle(fontSize: 14, color: context.appMuted),
+                  ),
+                ],
                 if (entry.retryCount > 0 && succeeded) ...[
                   const SizedBox(height: 6),
                   // 폐루프의 핵심 증거 — 실패를 스스로 재시도로 회복했다.
@@ -303,7 +379,7 @@ class _HistoryRow extends StatelessWidget {
 
                 // 끝이 안 좋았던 실행만 안을 펼친다. 성공한 이력까지
                 // 단계를 늘어놓으면 목록이 다시 개발 도구처럼 보인다.
-                if (!succeeded) ...[
+                if (expand) ...[
                   const SizedBox(height: 10),
                   _StepBreakdown(buttons: entry.buttons),
                   // 읽고 나서 할 수 있는 일을 남긴다. 무엇이 안 됐는지만

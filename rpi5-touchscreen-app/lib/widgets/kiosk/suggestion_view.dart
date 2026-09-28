@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
+import '../../models/command_result.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_target_line.dart';
+
+/// 승인 재검사 실패(409) 안내. 폰 앱과 같은 문장.
+const kApprovalChangedMessage = '제안 내용이 바뀌어 다시 확인이 필요해요';
 
 /// 제안 확인 화면.
 ///
@@ -26,9 +30,17 @@ class KioskSuggestionView extends StatelessWidget {
     required this.onRejectMute,
     this.onSnooze,
     this.onRevise,
+    this.scenarioName,
+    this.blockedWhy,
   });
 
   final KioskSuggestion suggestion;
+
+  /// 시나리오 이름(GET /scenarios). 모르면 null이고 질문만 보인다.
+  final String? scenarioName;
+
+  /// 시나리오 대상 중 준비 안 된 것이 있으면 그 이유(GET /readiness/{id}).
+  final String? blockedWhy;
 
   /// 이 제안이 조작할 가전 -- **제안 자신의 appliance_id**로 찾은 것.
   /// 모르면 null이고, 지금 고른 가전으로 대신 채우지 않는다.
@@ -53,18 +65,28 @@ class KioskSuggestionView extends StatelessWidget {
     // 대상을 모르는 제안은 실행을 내걸지 않는다(백로그 B10) — 서버도 대상
     // 없는 승인을 거절하므로, 눌리는 버튼을 세워 두면 눌렀는데 아무 일도
     // 안 일어나는 화면이 된다. 폰 제안 확인(D1)과 같은 규칙.
-    final canExecute = target != null;
+    // 시나리오 카드는 서버가 고정한 명령으로 승인한다(ThinQ 가전은 조작판 목록에
+    // 없다). 막는 것은 준비 안 된 대상뿐이다.
+    final scenario = suggestion.isScenario;
+    final canExecute = scenario ? blockedWhy == null : target != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(40, 24, 40, 14),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (target != null) ...[
+          if (target != null && !scenario) ...[
             Align(
               alignment: Alignment.centerLeft,
               child: KioskTargetLine(appliance: target),
             ),
             const SizedBox(height: 10),
+          ],
+          if (scenario && scenarioName != null) ...[
+            Text(
+              '시나리오 · $scenarioName',
+              style: const TextStyle(fontSize: 22, color: KioskColors.muted),
+            ),
+            const SizedBox(height: 6),
           ],
           Expanded(
             child: Row(
@@ -83,7 +105,10 @@ class KioskSuggestionView extends StatelessWidget {
                         // 질문은 따로 한 줄. 이어 쓰면 폭에 따라 '할까 / 요?'처럼
                         // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다.
                         Text(
-                          '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose},\n지금 할까요?',
+                          // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다.
+                          scenario
+                              ? '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose}'
+                              : '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose},\n지금 할까요?',
                           style: const TextStyle(
                             fontSize: 36,
                             fontWeight: FontWeight.w700,
@@ -96,7 +121,9 @@ class KioskSuggestionView extends StatelessWidget {
                         if (suggestion.whyNow.isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Text(
-                            suggestion.whyNow,
+                            scenario
+                                ? '근거: ${suggestion.whyNow}'
+                                : suggestion.whyNow,
                             style: const TextStyle(
                               fontSize: 22,
                               color: KioskColors.muted,
@@ -107,8 +134,29 @@ class KioskSuggestionView extends StatelessWidget {
                     ),
                   ),
                 ),
+                // ── 오른쪽(시나리오): 어느 가전을 어느 경로로 무엇을 ─────────
+                if (scenario) ...[
+                  const SizedBox(width: 28),
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          '승인하면 할 일',
+                          style:
+                              TextStyle(fontSize: 20, color: KioskColors.muted),
+                        ),
+                        const SizedBox(height: 8),
+                        Expanded(
+                          child: _CommandList(commands: suggestion.commands),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]
                 // ── 오른쪽: 어떤 순서로 ─────────────────────────────────
-                if (suggestion.steps.isNotEmpty) ...[
+                else if (suggestion.steps.isNotEmpty) ...[
                   const SizedBox(width: 28),
                   Expanded(
                     flex: 4,
@@ -210,10 +258,15 @@ class KioskSuggestionView extends StatelessWidget {
                 child: Text(
                   canExecute
                       ? '누르지 않으면 실행하지 않아요 · $cdRemaining초'
-                      : '이 제안의 가전을 찾을 수 없어 실행할 수 없어요 · '
-                          '$cdRemaining초',
-                  style:
-                      const TextStyle(fontSize: 18, color: KioskColors.muted),
+                      : scenario
+                          ? '$blockedWhy · $cdRemaining초'
+                          : '이 제안의 가전을 찾을 수 없어 실행할 수 없어요 · '
+                              '$cdRemaining초',
+                  style: TextStyle(
+                      fontSize: 18,
+                      color: canExecute || !scenario
+                          ? KioskColors.muted
+                          : KioskColors.danger),
                 ),
               ),
               TextButton.icon(
@@ -328,4 +381,62 @@ class _StepList extends StatelessWidget {
       ),
     );
   }
+}
+
+
+/// 시나리오의 확정 명령 — 번호 · 서버가 쓴 문장(가전·동작) · 경로 배지.
+class _CommandList extends StatelessWidget {
+  const _CommandList({required this.commands});
+
+  final List<KioskSuggestionCommand> commands;
+
+  @override
+  Widget build(BuildContext context) => ListView.separated(
+        padding: EdgeInsets.zero,
+        itemCount: commands.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 12),
+        itemBuilder: (context, i) {
+          final c = commands[i];
+          final summary = c.summary.isNotEmpty
+              ? c.summary
+              : '${c.targetId} ${c.action ?? c.buttons.join(' → ')}';
+          final path = routeLabel(c.route) ?? c.route;
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _StepList._number(i + 1),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      summary,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 2),
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: KioskColors.border),
+                      ),
+                      child: Text(
+                        path,
+                        style: const TextStyle(
+                            fontSize: 18, color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      );
 }

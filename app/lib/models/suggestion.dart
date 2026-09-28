@@ -14,7 +14,18 @@ class Suggestion {
     this.applianceId,
     this.timeBand = '',
     this.occurrences = 0,
+    this.scenarioId,
+    this.commands = const [],
   });
+
+  /// 시나리오 제안이면 그 ID(서버 `scenario_id`). 없으면 종전 제안.
+  final String? scenarioId;
+
+  /// 승인에 **고정되는** 명령들. 비어 있지 않으면 시나리오 카드다 -- 폰의 버튼맵이
+  /// 아니라 서버가 확정한 대상·경로·동작을 그대로 보여 주고 승인한다.
+  final List<SuggestionCommand> commands;
+
+  bool get isScenario => commands.isNotEmpty;
 
   final bool isDemo;
   final String sequenceId;
@@ -72,6 +83,27 @@ class Suggestion {
         receivedAt: DateTime.now(),
         source: SuggestionSource.ble,
       );
+}
+
+/// 시나리오 카드의 확정 명령 하나(서버 `commands[]`).
+class SuggestionCommand {
+  const SuggestionCommand({
+    required this.targetId,
+    required this.route,
+    this.action,
+    this.buttons = const [],
+    this.summary = '',
+  });
+
+  final String targetId;
+
+  /// physical | thinq
+  final String route;
+  final String? action;
+  final List<String> buttons;
+
+  /// 서버가 만든 한 줄 — 어느 가전의 무엇을 어떻게(승인에 묶이는 문장).
+  final String summary;
 }
 
 const buttonLabels = <String, String>{

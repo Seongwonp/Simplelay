@@ -127,7 +127,27 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
       timeBand: r.timeBand,
       occurrences: r.occurrences,
       isDemo: r.isDemo,
+      scenarioId: r.scenarioId,
+      commands: [
+        for (final c in r.commands)
+          SuggestionCommand(
+            targetId: c.targetId,
+            route: c.route,
+            action: c.action,
+            buttons: c.buttons,
+            summary: c.summary,
+          ),
+      ],
     );
+  }
+
+  /// 승인 재검사 실패(409) 뒤 — 서버가 카드를 내렸으니 로컬에서도 지우고 곧바로
+  /// 다시 받는다. 다음 5초 폴링을 기다리면 사용자가 옛 카드를 또 누를 수 있다.
+  Future<void> refreshAfterApprovalChanged(String suggestionId) async {
+    _httpSuggestions =
+        _httpSuggestions.where((s) => s.sequenceId != suggestionId).toList();
+    _publish();
+    await _pollHttp();
   }
 
   void add(Suggestion suggestion) {

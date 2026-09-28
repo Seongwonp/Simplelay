@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/command_result.dart';
 import '../models/execution_status.dart';
 import '../models/suggestion.dart';
 import '../services/rpi_api_service.dart';
@@ -176,27 +177,31 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       // J2가 시작되면 running=true여도 last_job_id는 여전히 J1이다.
       // running을 먼저 보고 return하면 그 완료를 영영 놓친다(추월 레이스).
       if (status.lastJobId == jobId) {
-        final success = status.lastStatus == 'succeeded';
-        final stopped = status.lastStatus == 'safety_stopped';
-        // "실행 완료"는 조리가 끝난 뜻으로 읽힐 수 있다.
-        // 우리가 보장하는 것은 버튼 조작까지다.
-        final message = success
-            ? (status.lastExecutionMode == 'mock'
-                ? '모의 버튼 조작을 마쳤어요. 실제 조작은 하지 않았어요.'
-                : status.lastExecutionMode == 'real' ? '버튼 조작을 마쳤어요.'
-                : '실행기가 완료를 보고했어요. 실제 조작 여부는 확인하지 못했어요.')
-            : stopped
-                // 서버가 확인한 것은 실행 루프 종료까지다. 가전 쪽 장치가
-                // 멈췄는지는 사람이 본다(물리 정지 확인은 실측 대기).
-                ? '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.'
-                : '실행하지 못했어요.';
+        final kind = resultKindOf(
+            outcome: status.lastOutcome, status: status.lastStatus);
+        final success = kind == ResultKind.success;
+        final message = finishedMessage(
+          kind: kind,
+          executionMode: status.lastExecutionMode,
+          route: status.lastRoute,
+          receipt: status.lastReceipt,
+        );
         state = state.copyWith(
           executionMode: status.lastExecutionMode,
-          phase: success ? ExecutionPhase.completed : ExecutionPhase.failed,
+          phase: switch (kind) {
+            ResultKind.success => ExecutionPhase.completed,
+            ResultKind.unconfirmed => ExecutionPhase.unconfirmed,
+            _ => ExecutionPhase.failed,
+          },
           completedSteps: success
               ? (state.totalSteps ?? state.steps.length)
               : state.completedSteps,
           message: message,
+          outcome: status.lastOutcome,
+          route: status.lastRoute,
+          receipt: status.lastReceipt,
+          confirmation: status.lastConfirmation,
+          detail: status.lastDetail,
         );
         _announce(message);
         _stopHttpTracking();
@@ -303,7 +308,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         // 작업의 메시지가 섞이는 경우가 실제로 있다.
         if (state.phase == ExecutionPhase.completed ||
             state.phase == ExecutionPhase.failed ||
-            state.phase == ExecutionPhase.unknown) {
+            state.phase == ExecutionPhase.unknown ||
+            state.phase == ExecutionPhase.unconfirmed) {
           return;
         }
         // 실행을 식별할 수 있으면 내 것인지도 확인한다.

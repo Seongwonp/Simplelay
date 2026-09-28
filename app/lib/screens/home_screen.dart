@@ -503,6 +503,12 @@ class _SuggestionRow extends StatelessWidget {
 /// "3단계 동작"은 몇 번 움직이는지만 알려줄 뿐 무엇을 누르는지는 알려주지
 /// 않는다 -- 맡길지 판단하려면 그쪽이 필요하다.
 String _stepPreview(Suggestion suggestion) {
+  // 시나리오 카드는 버튼 순서가 아니라 서버가 고정한 명령 문장을 보인다.
+  if (suggestion.isScenario) {
+    return suggestion.commands
+        .map((c) => c.summary.isNotEmpty ? c.summary : c.targetId)
+        .join(' · ');
+  }
   if (suggestion.steps.isEmpty) return '누를 버튼을 확인하려면 눌러 보세요';
   return suggestion.steps.map(readableStep).join(' → ');
 }

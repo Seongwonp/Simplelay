@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../models/command_result.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/demo_provider.dart';
@@ -168,15 +169,29 @@ class SuggestionScreen extends ConsumerWidget {
               steps: suggestion.steps,
             );
       } on RpiApiException catch (error) {
+        if (error.isApprovalChanged) {
+          // 승인한 대상·경로·동작이 바뀌었거나 승인이 만료됐다. 서버는 카드를
+          // 내렸다 -- 옛 카드를 다시 누르지 않게 지우고 새 목록을 받는다.
+          if (context.mounted) {
+            _notifyError(context, approvalChangedMessage);
+          }
+          await ref
+              .read(suggestionProvider.notifier)
+              .refreshAfterApprovalChanged(suggestion.sequenceId);
+          if (context.mounted && context.canPop()) context.pop();
+          return;
+        }
         if (context.mounted) {
           _notifyError(
             context,
             switch (error.statusCode) {
               409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.',
               // 412: 준비 안 된 가전. 기다린다고 되는 일이 아니므로
-              // '잠시 후'라고 하지 않는다.
-              412 => '이 가전은 아직 조작할 준비가 되지 않았어요. '
-                  '설정에서 연결 상태를 확인해주세요.',
+              // '잠시 후'라고 하지 않는다. 서버 문장(경로별 이유)이 있으면 그대로.
+              412 => error.message.isNotEmpty && suggestion.isScenario
+                  ? error.message
+                  : '이 가전은 아직 조작할 준비가 되지 않았어요. '
+                      '설정에서 연결 상태를 확인해주세요.',
               _ => '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
             },
           );
@@ -217,6 +232,29 @@ class SuggestionScreen extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(title: const Text('제안 확인')),
         body: const Center(child: Text('제안을 찾을 수 없어요.')),
+      );
+    }
+
+    // 시나리오 카드는 서버가 확정한 명령(대상·경로·동작)을 그대로 보여 주고
+    // 승인한다. ThinQ 가전은 폰의 가전 목록(버튼맵)에 없으므로 아래의 버튼맵
+    // 규칙으로 그리면 '대상을 찾지 못함'이 된다.
+    if (suggestion.isScenario) {
+      return _ScenarioSuggestionScreen(
+        suggestion: suggestion,
+        onSkip: () =>
+            _dismissSuggestion(context, ref, suggestion, mute: false),
+        onMute: () => _dismissSuggestion(context, ref, suggestion, mute: true),
+        onSnooze: suggestion.source == SuggestionSource.http &&
+                !suggestion.isDemo &&
+                suggestion.timeBand != '데모'
+            ? () => _dismissSuggestion(context, ref, suggestion,
+                mute: false, snooze: true)
+            : null,
+        onRevise: suggestion.source == SuggestionSource.http &&
+                suggestion.timeBand != '환경'
+            ? () => _revise(context, ref, suggestion)
+            : null,
+        onRun: () => _approve(context, ref, suggestion),
       );
     }
 
@@ -607,6 +645,314 @@ class _UnknownTargetScreen extends StatelessWidget {
               label: const Text('가전 목록 확인'),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── 시나리오 카드 ─────────────────────────────────────────────────────────
+
+/// 승인 재검사 실패(409) 안내. 키오스크와 같은 문장.
+const approvalChangedMessage = '제안 내용이 바뀌어 다시 확인이 필요해요';
+
+/// GET /scenarios의 이름 표. 실패·옛 서버는 빈 맵 -- 이름 없이 질문만 보인다.
+final scenarioNamesProvider =
+    FutureProvider.autoDispose<Map<String, String>>((ref) async {
+  final api = ref.watch(rpiApiServiceProvider);
+  if (api == null) return const {};
+  return api.scenarioNames();
+});
+
+/// GET /readiness/{id} — 명령 대상 하나의 경로별 준비 상태. null은 **모름**이다
+/// (막지 않는다 -- 서버가 실행 직전에 다시 검사하고 412로 거절한다).
+final commandReadinessProvider = FutureProvider.autoDispose
+    .family<RpiReadiness?, String>((ref, applianceId) async {
+  final api = ref.watch(rpiApiServiceProvider);
+  if (api == null) return null;
+  return api.readiness(applianceId);
+});
+
+/// 시나리오 제안 확인 — 어느 가전을, 어느 경로로, 무엇을 할지 **서버가 고정한
+/// 문장 그대로** 보여 준다. 승인은 이 명령들에만 묶인다(재해석 없음).
+class _ScenarioSuggestionScreen extends ConsumerWidget {
+  const _ScenarioSuggestionScreen({
+    required this.suggestion,
+    required this.onSkip,
+    required this.onMute,
+    required this.onRun,
+    this.onSnooze,
+    this.onRevise,
+  });
+
+  final Suggestion suggestion;
+  final VoidCallback onSkip;
+  final VoidCallback onMute;
+  final VoidCallback onRun;
+  final VoidCallback? onSnooze;
+  final VoidCallback? onRevise;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final names = ref.watch(scenarioNamesProvider).valueOrNull ?? const {};
+    final name = names[suggestion.scenarioId];
+
+    // 준비 상태는 물리 제안과 같은 자리(실행 버튼 바로 위)에서 말한다.
+    String? blockedWhy;
+    final readiness = <String, RpiReadiness?>{};
+    for (final c in suggestion.commands) {
+      final r = ref.watch(commandReadinessProvider(c.targetId)).valueOrNull;
+      readiness[c.targetId] = r;
+      if (blockedWhy == null && r != null && !r.canExecute) {
+        final who = c.summary.isNotEmpty ? c.summary : c.targetId;
+        blockedWhy = r.reasons.isNotEmpty
+            ? '$who — ${r.reasons.first}'
+            : '$who — 아직 조작할 준비가 되지 않았어요';
+      }
+    }
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('제안 확인')),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        children: [
+          if (suggestion.isDemo)
+            const Text('시연 데이터로 만든 제안', style: AppText.body),
+          if (name != null)
+            Text(
+              '시나리오 · $name',
+              style: TextStyle(fontSize: 16, color: context.appMuted),
+            ),
+          const SizedBox(height: 4),
+          // 서버의 질문 문장 그대로(예: "공기청정기 강풍으로 바꿀까요?").
+          Text(suggestion.label, style: AppText.heading),
+          if (suggestion.whyNow.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              '근거: ${suggestion.whyNow}',
+              style: TextStyle(fontSize: 16, color: context.appMuted),
+            ),
+          ],
+          const SizedBox(height: 24),
+          Text('승인하면 할 일', style: AppText.title),
+          const SizedBox(height: 6),
+          for (var i = 0; i < suggestion.commands.length; i++)
+            _CommandRow(
+              index: i,
+              command: suggestion.commands[i],
+              readiness: readiness[suggestion.commands[i].targetId],
+            ),
+          const SizedBox(height: 12),
+          Text(
+            '승인하면 위 내용 그대로만 실행해요. 내용이 바뀌면 다시 물어봐요.',
+            style: TextStyle(fontSize: 15, color: context.appMuted),
+          ),
+        ],
+      ),
+      bottomNavigationBar: _ScenarioActionBar(
+        commandCount: suggestion.commands.length,
+        blockedWhy: blockedWhy,
+        canMute: suggestion.canMute,
+        onSkip: onSkip,
+        onMute: onMute,
+        onSnooze: onSnooze,
+        onRevise: onRevise,
+        onRun: blockedWhy == null ? onRun : null,
+      ),
+    );
+  }
+}
+
+class _CommandRow extends StatelessWidget {
+  const _CommandRow({
+    required this.index,
+    required this.command,
+    required this.readiness,
+  });
+
+  final int index;
+  final SuggestionCommand command;
+  final RpiReadiness? readiness;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = routeLabel(command.route) ?? command.route;
+    final summary = command.summary.isNotEmpty
+        ? command.summary
+        : '${command.targetId} ${command.action ?? command.buttons.join(' → ')}';
+    final r = readiness;
+    return Semantics(
+      label: '${index + 1}번. $summary. 경로 $path',
+      child: ExcludeSemantics(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              CircleAvatar(
+                radius: 16,
+                backgroundColor: context.appInk,
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: context.appOnAccent,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      summary,
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 4),
+                    _PathBadge(label: path),
+                    if (r != null && !r.canExecute) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        r.reasons.isNotEmpty
+                            ? r.reasons.join(' · ')
+                            : '아직 조작할 준비가 되지 않았어요',
+                        style:
+                            TextStyle(fontSize: 15, color: context.appDanger),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 제어 경로 배지(물리 버튼 / ThinQ). 색이 아니라 글자로 말한다.
+class _PathBadge extends StatelessWidget {
+  const _PathBadge({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: context.appBorderSubtle),
+        ),
+        child: Text(label, style: const TextStyle(fontSize: 14)),
+      );
+}
+
+class _ScenarioActionBar extends StatelessWidget {
+  const _ScenarioActionBar({
+    required this.commandCount,
+    required this.blockedWhy,
+    required this.canMute,
+    required this.onSkip,
+    required this.onMute,
+    required this.onRun,
+    this.onSnooze,
+    this.onRevise,
+  });
+
+  final int commandCount;
+  final String? blockedWhy;
+  final bool canMute;
+  final VoidCallback onSkip;
+  final VoidCallback onMute;
+  final VoidCallback? onRun;
+  final VoidCallback? onSnooze;
+  final VoidCallback? onRevise;
+
+  @override
+  Widget build(BuildContext context) {
+    final skip = OutlinedButton(
+      onPressed: onSkip,
+      child: const Text('이번만 넘기기'),
+    );
+    final run = FilledButton.icon(
+      onPressed: onRun,
+      icon: const Icon(Icons.play_arrow_rounded),
+      label: const Text('지금 실행'),
+    );
+    final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+    final why = blockedWhy;
+    return Material(
+      color: context.appBackground,
+      child: SafeArea(
+        top: false,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          decoration: BoxDecoration(
+            border: Border(top: BorderSide(color: context.appBorderFaint)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: why != null
+                    ? Row(
+                        children: [
+                          Icon(Icons.error_outline,
+                              size: 18, color: context.appDanger),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              why,
+                              style: TextStyle(
+                                  fontSize: 15, color: context.appDanger),
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        '명령 $commandCount개 · 누르지 않으면 실행하지 않아요',
+                        style:
+                            TextStyle(fontSize: 14, color: context.appMuted),
+                      ),
+              ),
+              if (stacked) ...[
+                run,
+                const SizedBox(height: 8),
+                skip,
+              ] else
+                Row(
+                  children: [
+                    Expanded(flex: 3, child: skip),
+                    const SizedBox(width: 12),
+                    Expanded(flex: 4, child: run),
+                  ],
+                ),
+              if (onSnooze != null)
+                TextButton.icon(
+                  onPressed: onSnooze,
+                  icon: const Icon(Icons.snooze, size: 18),
+                  label: const Text('이 제안 30분 쉬기'),
+                ),
+              if (onRevise != null)
+                TextButton.icon(
+                  onPressed: onRevise,
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('이번 동작 바꾸기'),
+                ),
+              if (canMute)
+                TextButton.icon(
+                  onPressed: onMute,
+                  icon: const Icon(Icons.notifications_off_outlined, size: 18),
+                  label: const Text('이 제안 다시 받지 않기'),
+                ),
+            ],
+          ),
         ),
       ),
     );

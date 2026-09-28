@@ -254,3 +254,13 @@ final nodeRegistryProvider =
   final nodes = await service.listNodes();
   return {for (final n in nodes) n.applianceId: n.baseUrl};
 });
+
+// ── ThinQ 가전(서버 구성) ────────────────────────────────────────────────
+
+/// GET /thinq/devices. ThinQ가 꺼져 있거나(404) 연결이 없으면 null.
+final thinqOverviewProvider =
+    FutureProvider.autoDispose<RpiThinqOverview?>((ref) async {
+  final service = ref.watch(rpiApiServiceProvider);
+  if (service == null) return null;
+  return service.thinqOverview();
+});

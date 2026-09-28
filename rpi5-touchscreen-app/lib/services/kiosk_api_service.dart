@@ -73,9 +73,21 @@ class KioskSuggestion {
     this.reason = '',
     this.timeBand = '',
     this.applianceId,
+    this.scenarioId,
+    this.commands = const [],
   });
 
   final bool isDemo;
+
+  /// 시나리오 제안이면 그 ID. 옛 서버·일반 제안은 null.
+  final String? scenarioId;
+
+  /// 승인에 **고정되는** 명령들(대상·경로·동작). 비어 있지 않으면 시나리오 카드다 --
+  /// ThinQ 가전은 키오스크 조작판 목록(/appliances)에 없으므로 대상 확인을
+  /// 조작판이 아니라 이 명령과 서버 준비 상태로 한다.
+  final List<KioskSuggestionCommand> commands;
+
+  bool get isScenario => commands.isNotEmpty;
   final String id;
   final String purpose;
   final int occurrences;
@@ -120,7 +132,82 @@ class KioskSuggestion {
         reason: json['reason'] as String? ?? '',
         timeBand: json['time_band'] as String? ?? '',
         applianceId: json['appliance_id'] as String?,
+        scenarioId: json['scenario_id'] as String?,
+        commands: [
+          for (final c in (json['commands'] as List<dynamic>?) ?? const [])
+            if (c is Map<String, dynamic>) KioskSuggestionCommand.fromJson(c),
+        ],
       );
+}
+
+/// 시나리오 카드의 확정 명령 하나(서버 `commands[]`).
+class KioskSuggestionCommand {
+  const KioskSuggestionCommand({
+    required this.targetId,
+    required this.route,
+    this.action,
+    this.buttons = const [],
+    this.summary = '',
+  });
+
+  final String targetId;
+
+  /// physical | thinq
+  final String route;
+  final String? action;
+  final List<String> buttons;
+
+  /// 서버가 만든 한 줄(어느 가전의 무엇을 어떻게). 승인에 묶이는 문장.
+  final String summary;
+
+  factory KioskSuggestionCommand.fromJson(Map<String, dynamic> json) =>
+      KioskSuggestionCommand(
+        targetId: json['target_id'] as String? ?? '',
+        route: json['route'] as String? ?? 'physical',
+        action: json['action'] as String?,
+        buttons:
+            (json['buttons'] as List<dynamic>?)?.cast<String>() ?? const [],
+        summary: json['summary'] as String? ?? '',
+      );
+}
+
+/// GET /readiness/{id} — 경로별 준비 상태.
+class KioskReadiness {
+  const KioskReadiness({
+    required this.applianceId,
+    required this.route,
+    required this.canExecute,
+    this.reasons = const [],
+  });
+
+  final String applianceId;
+  final String route;
+  final bool canExecute;
+  final List<String> reasons;
+
+  factory KioskReadiness.fromJson(Map<String, dynamic> json) => KioskReadiness(
+        applianceId: json['appliance_id'] as String? ?? '',
+        route: json['route'] as String? ?? 'physical',
+        canExecute: json['can_execute'] as bool? ?? false,
+        reasons:
+            (json['reasons'] as List<dynamic>?)?.cast<String>() ?? const [],
+      );
+}
+
+/// API 오류 — 상태 코드와 서버 문장(detail)을 남긴다.
+class KioskApiException implements Exception {
+  KioskApiException(this.statusCode, this.detail);
+
+  final int statusCode;
+  final String detail;
+
+  /// 제안 승인 재검사 실패(409) — 승인한 내용이 바뀌었거나 승인이 만료·무효.
+  /// '다른 작업 실행 중'(같은 409)과 가른다: 서버의 승인 오류 문장은 모두
+  /// '승인'을 담는다(`rpi/commands/approval.py`).
+  bool get isApprovalChanged => statusCode == 409 && detail.contains('승인');
+
+  @override
+  String toString() => 'kiosk api $statusCode: $detail';
 }
 
 class KioskButtonResult {
@@ -154,10 +241,30 @@ class KioskStatus {
     this.lastJobId,
     this.applianceId,
     this.lastApplianceId,
+    this.lastOutcome,
+    this.lastRoute,
+    this.lastReceipt,
+    this.lastConfirmation,
+    this.lastDetail,
   });
 
   final bool running;
   final String? lastStatus;
+
+  /// success | failed | stopped | safety_stop | unconfirmed. 옛 서버는 null.
+  final String? lastOutcome;
+
+  /// physical | thinq. 옛 서버는 null.
+  final String? lastRoute;
+
+  /// accepted | unknown | not_dispatched
+  final String? lastReceipt;
+
+  /// none | reported | press_confirmed | state_confirmed | operation_confirmed
+  final String? lastConfirmation;
+
+  /// 서버가 쓴 한 줄(ThinQ 결과).
+  final String? lastDetail;
   final List<KioskButtonResult>? lastButtons;
 
   // 실행 중 진행 상황 — /status가 폴링될 때만 채워지고, 완료되면 서버가 비운다.
@@ -197,6 +304,11 @@ class KioskStatus {
         lastJobId: json['last_job_id'] as String?,
         applianceId: json['appliance_id'] as String?,
         lastApplianceId: json['last_appliance_id'] as String?,
+        lastOutcome: json['last_outcome'] as String?,
+        lastRoute: json['last_route'] as String?,
+        lastReceipt: json['last_receipt'] as String?,
+        lastConfirmation: json['last_confirmation'] as String?,
+        lastDetail: json['last_detail'] as String?,
       );
 }
 
@@ -307,7 +419,8 @@ class KioskApiService {
     final res = await _client
         .get(_base.replace(path: '/suggestions'))
         .timeout(_timeout);
-    final body = jsonDecode(res.body) as List<dynamic>;
+    // FastAPI는 charset 없이 JSON을 보낸다 — 바이트를 UTF-8로 직접 푼다.
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
     return body
         .cast<Map<String, dynamic>>()
         .map(KioskSuggestion.fromJson)
@@ -317,7 +430,8 @@ class KioskApiService {
   Future<KioskStatus> status() async {
     final res =
         await _client.get(_base.replace(path: '/status')).timeout(_timeout);
-    return KioskStatus.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+    return KioskStatus.fromJson(
+        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
   Future<KioskJobAccepted> executeButtons(
@@ -353,7 +467,49 @@ class KioskApiService {
   // 409(이미 실행 중) 등이 조용히 삼켜져 실행 화면에 고착되는 것을 막는다.
   static void _ensureOk(http.Response res) {
     if (res.statusCode >= 400) {
-      throw Exception('kiosk api ${res.statusCode}: ${res.body}');
+      String detail;
+      try {
+        detail = utf8.decode(res.bodyBytes);
+      } catch (_) {
+        detail = res.body;
+      }
+      try {
+        final d = (jsonDecode(detail) as Map<String, dynamic>)['detail'];
+        if (d is String) detail = d;
+      } catch (_) {}
+      throw KioskApiException(res.statusCode, detail);
+    }
+  }
+
+  /// GET /readiness/{id}. 조회 실패는 null — 모름은 막지 않는다(서버가 실행 직전에
+  /// 다시 검사해 412로 거절한다).
+  Future<KioskReadiness?> readiness(String applianceId) async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/readiness/$applianceId'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return KioskReadiness.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /scenarios — ID → 이름. 실패·옛 서버는 빈 맵.
+  Future<Map<String, String>> scenarioNames() async {
+    try {
+      final res =
+          await _client.get(_base.replace(path: '/scenarios')).timeout(_timeout);
+      if (res.statusCode != 200) return const {};
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+      return {
+        for (final d in body.whereType<Map<String, dynamic>>())
+          if (d['scenario_id'] is String && d['name'] is String)
+            d['scenario_id'] as String: d['name'] as String,
+      };
+    } catch (_) {
+      return const {};
     }
   }
 
