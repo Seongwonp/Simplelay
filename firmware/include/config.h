@@ -47,7 +47,11 @@
 //     RPi5 --UART--> (이 보드) --ESP-NOW--> 노드 ESP32 --UART--> RPi4
 // 겸용이라 BLE와 Wi-Fi 라디오를 함께 쓴다(ESP32 coexistence). 전용 보드로
 // 분리하려면 이 값만 0으로 두고 새 보드에서 1로 켜면 된다.
+// 소스를 고치지 말고 platformio.ini의 env:firebeetle32_espnow
+// (-D ESPNOW_GATEWAY_ENABLED=1)로 고른다.
+#ifndef ESPNOW_GATEWAY_ENABLED
 #define ESPNOW_GATEWAY_ENABLED    0
+#endif
 
 // 노드와 반드시 같아야 하는 값들 (firmware-node/include/config.h와 짝)
 #define ESPNOW_CHANNEL            1

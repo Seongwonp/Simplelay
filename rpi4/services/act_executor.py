@@ -8,7 +8,8 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
 
   INBOUND (RPi5 -> RPi4)          OUTBOUND (RPi4 -> RPi5)
   ──────────────────────────────────────────────────────────
-  execute {sequence_id, buttons} →  result {sequence_id, success, retry}
+  execute {sequence_id, buttons,  →  result {sequence_id, success, retry}
+           targets?}
   abort                          →  (cooperative stop; see _on_abort)
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
@@ -240,9 +241,16 @@ class ActExecutor:
         try:
             # Run the synchronous controller in a thread so the event loop
             # stays responsive to incoming UART data during execution.
-            result = await asyncio.to_thread(
-                self._controller.execute, list(msg.buttons)
-            )
+            if msg.targets:
+                # 좌표가 실린 실행만 targets를 넘긴다 — 좌표 없는 종전 실행은
+                # 호출 모양까지 그대로 둔다.
+                result = await asyncio.to_thread(
+                    self._controller.execute, list(msg.buttons), msg.targets
+                )
+            else:
+                result = await asyncio.to_thread(
+                    self._controller.execute, list(msg.buttons)
+                )
         except Exception:
             log.exception("controller.execute raised for sequence %r", msg.sequence_id)
             await self._send({

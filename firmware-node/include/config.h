@@ -2,9 +2,14 @@
 
 // ─── WiFi (dev-mode transport only — production demo path is ESP-NOW,
 // see docs/roadmap.md M2) ────────────────────────────────────────────────────
-// 개발 중 임시 하드코딩 — 나중에 프로비저닝 방식(WiFiManager 등)으로 교체 예정.
+// 실제 값은 소스에 적지 않는다 — 빌드 시 secrets.ini(추적 안 함)의 build_flags로
+// 덮어쓴다(secrets.ini.example 참고). 아래는 컴파일만 되게 하는 자리표시자다.
+#ifndef WIFI_SSID
 #define WIFI_SSID       "CHANGE_ME"
+#endif
+#ifndef WIFI_PASSWORD
 #define WIFI_PASSWORD   "CHANGE_ME"
+#endif
 
 // ─── HTTP server (RPi5 -> 이 노드) ───────────────────────────────────────────
 // rpi/services/esp_node_controller.py의 EspNodeController가 이 포트로 붙는다.
@@ -45,10 +50,17 @@
 // 않는다. 다만 ESP-NOW는 ESP32 라디오끼리만 통하므로, RPi5 쪽에도 게이트웨이
 // ESP32가 UART로 붙어 있어야 한다:
 //     RPi5 --UART--> ESP32 게이트웨이 --ESP-NOW--> 이 노드 --UART--> RPi4
-#define ESPNOW_ENABLED            0   // 1로 바꾸면 HTTP 대신 ESP-NOW로 동작
+// 1이면 HTTP 대신 ESP-NOW로 동작. 소스를 고치지 말고 platformio.ini의
+// env:firebeetle32_espnow(-D ESPNOW_ENABLED=1)로 고른다.
+#ifndef ESPNOW_ENABLED
+#define ESPNOW_ENABLED            0
+#endif
 
-// 게이트웨이 ESP32의 MAC. 실기기에서 게이트웨이의 WiFi.macAddress()로 확인해 채운다.
+// 게이트웨이 ESP32의 MAC. 실기기에서 게이트웨이의 WiFi.macAddress()로 확인해
+// secrets.ini의 build_flags로 넣는다(secrets.ini.example 참고). 기본값 0은 자리표시자다.
+#ifndef ESPNOW_GATEWAY_MAC
 #define ESPNOW_GATEWAY_MAC        {0x00, 0x00, 0x00, 0x00, 0x00, 0x00}
+#endif
 
 // 양쪽이 같은 채널이어야 통신된다. AP에 붙지 않으므로 명시적으로 고정한다.
 #define ESPNOW_CHANNEL            1

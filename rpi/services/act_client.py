@@ -29,9 +29,12 @@ import logging
 import os
 import uuid
 from collections import deque
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from rpi.controller.models import ButtonTarget
 
 log = logging.getLogger(__name__)
 
@@ -180,9 +183,15 @@ class ActClient:
         self._read_task = None
 
     async def execute(
-        self, buttons: Sequence[str], sequence_id: str | None = None
+        self,
+        buttons: Sequence[str],
+        sequence_id: str | None = None,
+        targets: "Mapping[str, ButtonTarget] | None" = None,
     ) -> ActResult:
         """Send one button sequence and await RPi4's result.
+
+        ``targets``(선택): 버튼 → 갠트리 좌표(mm). 비어 있으면 메시지에
+        ``targets`` 키를 넣지 않는다 — 종전 execute 줄과 바이트까지 같다.
 
         Raises ActLinkBusyError if a previous execute() hasn't resolved yet,
         ActLinkTimeoutError if RPi4 never responds, ActLinkError if RPi4
@@ -202,9 +211,10 @@ class ActClient:
         # 않음) 이후 모든 실행이 ActLinkBusyError로 거부됐다 — 케이블 접촉
         # 불량 한 번이 재부팅 전까지 실행 경로를 통째로 막는 구조였다.
         try:
-            await self._send(
-                {"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)}
-            )
+            message: dict = {"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)}
+            if targets:
+                message["targets"] = targets_payload(targets)
+            await self._send(message)
             doc = await asyncio.wait_for(future, timeout)
         except asyncio.TimeoutError as exc:
             # 이 sequence의 응답이 늦게라도 오면 폐기 대상으로 기록
@@ -315,3 +325,14 @@ class ActClient:
         log.debug("TX -> %s", payload.rstrip().decode())
         self._writer.write(payload)
         await self._writer.drain()
+
+
+def targets_payload(targets: "Mapping[str, ButtonTarget]") -> dict[str, dict]:
+    """ButtonTarget → docs/protocol.md의 ``targets`` JSON 모양."""
+    out: dict[str, dict] = {}
+    for name, target in targets.items():
+        entry: dict = {"x_mm": target.x_mm, "y_mm": target.y_mm}
+        if target.press_ms is not None:
+            entry["press_ms"] = target.press_ms
+        out[name] = entry
+    return out

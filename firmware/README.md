@@ -18,8 +18,9 @@
 RPi5 --UART--> (이 보드) --ESP-NOW--> 노드 ESP32 --UART--> RPi4
 ```
 
-`include/config.h`의 `ESPNOW_GATEWAY_ENABLED`로 켠다(기본 꺼짐). 전용 보드로 분리하고
-싶어지면 이 값만 0으로 두고 새 보드에서 1로 켜면 된다 — 나머지 코드는 그대로다.
+`ESPNOW_GATEWAY_ENABLED`로 켠다(기본 꺼짐). 소스를 고치지 말고 env로 고른다 —
+`pio run -e firebeetle32_espnow`(= `-D ESPNOW_GATEWAY_ENABLED=1`). 전용 보드로 분리하고
+싶어지면 이 보드는 기본 env, 새 보드는 `_espnow` env로 올리면 된다 — 나머지 코드는 그대로다.
 
 ### 프로토콜 (RPi5 ↔ 이 보드, 기존 UART JSON 라인에 얹음)
 
@@ -45,11 +46,14 @@ RPi5 --UART--> (이 보드) --ESP-NOW--> 노드 ESP32 --UART--> RPi4
 ### 빌드
 
 노드 펌웨어와 같다 — `firmware-node/README.md`의 "빌드" 절 참고
-(`pio run -d D:\Simplelay\firmware`).
+(`pio run -d <이 디렉터리>`, ESP-NOW 겸용은 `-e firebeetle32_espnow`).
 
 ### 검증 상태
 
-**컴파일 검증됨** (2026-08-29, espressif32@7.0.1 = Arduino-ESP32 코어 3.x, 경고 0건).
+**컴파일 검증됨** (2026-09-28, 기록: [../docs/devlog_2026-09-28-firmware-build.md](../docs/devlog_2026-09-28-firmware-build.md)).
+고정 플랫폼 pioarduino 55.03.312-1(코어 3.3.12)과 공식 espressif32@7.0.1(코어 2.0.17)
+양쪽에서 `firebeetle32`·`firebeetle32_espnow` 두 env 모두 경고 0건.
+(이전 기록의 "7.0.1 = 코어 3.x"는 틀렸다 — 7.0.1은 코어 2.0.17을 설치한다.)
 BLE(NimBLE)와 ESP-NOW가 한 바이너리에 함께 링크되는 것까지 확인했다 -- 다만 **둘이
 런타임에 실제로 공존하는지는 별개 문제**이고 여전히 실기기에서만 확인된다.
 

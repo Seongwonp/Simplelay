@@ -20,9 +20,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
-from rpi.controller import ExecutionMode, ExecutionResult
+from rpi.controller import ButtonTarget, ExecutionMode, ExecutionResult
 
 from .act_client import ActClient, ActClientConfig, ActLinkTimeoutError, AlertEvent
 from .aggregate_result import synthesize_execution_result
@@ -31,6 +31,9 @@ log = logging.getLogger(__name__)
 
 
 class ActClientController:
+    #: execute()가 ``targets``(버튼별 좌표)를 받아 RPi4로 전달한다.
+    supports_button_targets = True
+
     #: UART 너머 RPi4가 실제 모터를 돌리는지, 자기 안에서 mock을 돌리는지
     #: 이쪽에서는 알 수 없다. 'UART니까 real'은 추측이다 -- 실기기 통합
     #: 초기에는 실제로 저쪽이 mock인 기간이 있다.
@@ -68,10 +71,19 @@ class ActClientController:
             return self._call_timeout
         return self._client.response_timeout_for(button_count) + self.CALL_MARGIN_SECONDS
 
-    def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult:
+    def execute(
+        self,
+        buttons: list[str] | tuple[str, ...],
+        targets: "Mapping[str, ButtonTarget] | None" = None,
+    ) -> ExecutionResult:
         buttons = list(buttons)
         call_timeout = self._timeout_for(len(buttons))
-        future = asyncio.run_coroutine_threadsafe(self._client.execute(buttons), self._loop)
+        coro = (
+            self._client.execute(buttons, targets=targets)
+            if targets
+            else self._client.execute(buttons)
+        )
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         try:
             result = future.result(timeout=call_timeout)
         except TimeoutError as exc:

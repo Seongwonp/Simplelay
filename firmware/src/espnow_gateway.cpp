@@ -3,6 +3,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <esp_now.h>
+#include <esp_idf_version.h>
 #include <esp_wifi.h>
 #include <string.h>
 
@@ -38,8 +39,15 @@ bool parseMacText(const char* text, uint8_t out[6]) {
 static volatile bool s_sendDone = true;
 static volatile bool s_sendOk = false;
 
+// 송신 콜백 시그니처도 ESP-IDF 5.5(Arduino-ESP32 코어 3.3.x)에서 바뀌었다
+// (mac -> wifi_tx_info_t*). 본문은 주소를 쓰지 않으므로 인자 형만 맞춘다.
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 5, 0)
+static void onDataSent(const wifi_tx_info_t* info, esp_now_send_status_t status) {
+    (void)info;
+#else
 static void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
     (void)mac;
+#endif
     s_sendOk = (status == ESP_NOW_SEND_SUCCESS);
     s_sendDone = true;
 }

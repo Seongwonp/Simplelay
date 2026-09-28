@@ -1,5 +1,6 @@
 """Data exchanged across the closed-loop controller boundary."""
 
+import math
 from dataclasses import dataclass
 from enum import Enum
 
@@ -15,10 +16,61 @@ class Correction:
     increase_press_depth: bool
 
 
+def _check_xy_pair(owner: str, x_mm: float | None, y_mm: float | None) -> None:
+    if (x_mm is None) != (y_mm is None):
+        raise ValueError(f"{owner}: x_mm와 y_mm는 함께 주거나 함께 비워야 합니다")
+    for label, value in (("x_mm", x_mm), ("y_mm", y_mm)):
+        if value is None:
+            continue
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
+            raise ValueError(f"{owner}: {label}는 유한한 수여야 합니다: {value!r}")
+
+
+def _check_press_ms(owner: str, press_ms: int | None) -> None:
+    if press_ms is None:
+        return
+    if isinstance(press_ms, bool) or not isinstance(press_ms, int) or press_ms <= 0:
+        raise ValueError(f"{owner}: press_ms는 1 이상의 정수여야 합니다: {press_ms!r}")
+
+
+@dataclass(frozen=True)
+class ButtonTarget:
+    """버튼 하나의 갠트리 좌표(mm)와 누름 유지 시간.
+
+    보정(`rpi/calibration/transform.py` → 가전 레지스트리 ``x_mm``·``y_mm``)에서
+    온 값만 싣는다. 격자 칸 번호에서 계산하지 않는다.
+    """
+
+    x_mm: float
+    y_mm: float
+    #: 버튼맵의 누름 유지 시간. None이면 모션 어댑터 설정값을 쓴다.
+    press_ms: int | None = None
+
+    def __post_init__(self) -> None:
+        _check_xy_pair("ButtonTarget", self.x_mm, self.y_mm)
+        if self.x_mm is None:
+            raise ValueError("ButtonTarget: x_mm·y_mm가 필요합니다")
+        _check_press_ms("ButtonTarget", self.press_ms)
+
+
 @dataclass(frozen=True)
 class PressCommand:
     button: str
     correction: Correction | None = None
+    #: 갠트리 좌표(mm). 둘 다 None이면 좌표 없는 종전 명령 — mock 경로는 그대로
+    #: 동작하고, 실제 모션 어댑터(serial_motion)는 누름을 거절한다.
+    x_mm: float | None = None
+    y_mm: float | None = None
+    #: 누름 유지 시간(ms). None이면 어댑터 설정값.
+    press_ms: int | None = None
+
+    def __post_init__(self) -> None:
+        _check_xy_pair("PressCommand", self.x_mm, self.y_mm)
+        _check_press_ms("PressCommand", self.press_ms)
+
+    @property
+    def has_coordinates(self) -> bool:
+        return self.x_mm is not None and self.y_mm is not None
 
 
 class ButtonStatus(str, Enum):

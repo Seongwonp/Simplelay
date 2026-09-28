@@ -1,7 +1,7 @@
 """Closed-loop orchestration with bounded recovery and fail-safe behavior."""
 
 import threading
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 
 from rpi.verifier import VerificationResult, Verifier
 
@@ -14,6 +14,7 @@ from .layered import (
 from .models import (
     ButtonResult,
     ButtonStatus,
+    ButtonTarget,
     ExecutionMode,
     ExecutionProgress,
     ExecutionResult,
@@ -30,11 +31,31 @@ class _EmergencyStopRequested(Exception):
     """Internal control-flow signal: a stop was requested mid-execution."""
 
 
+class MissingButtonCoordinates(ValueError):
+    """좌표가 필요한 모션 어댑터인데 시퀀스의 일부 버튼에 좌표가 없다.
+
+    **아무것도 누르기 전에** 거절한다. 중간 버튼에서 알게 되면 앞 단계가 이미
+    눌려 반쯤 설정된 가전이 남는다(appliance_registry.validate_functions와 같은 이유).
+    """
+
+    def __init__(self, missing: tuple[str, ...]) -> None:
+        self.missing = missing
+        super().__init__(
+            "좌표(x_mm, y_mm)가 없는 버튼이 있어 실행을 거절합니다: "
+            + ", ".join(missing)
+            + " — 먼저 보정(PUT /appliances/{id}/calibration)으로 좌표를 기록해 주세요"
+        )
+
+
 class _OperationObservationFailed(Exception):
     """L3 관측(전력 센서 읽기)이 실패했다 — 확인할 수 없으니 더 누르지 않는다."""
 
 
 class ClosedLoopController:
+    #: execute()가 ``targets``(버튼별 좌표)를 받는다. 서비스는 이 표시가 있는
+    #: 대상에만 좌표를 넘긴다 -- 다른 ButtonSequenceController 구현은 모른다.
+    supports_button_targets = True
+
     def __init__(
         self,
         grbl: GrblClient,
@@ -66,6 +87,8 @@ class ClosedLoopController:
         # /stop(긴급 정지)용. 실행은 별도 스레드(asyncio.to_thread)에서 돌고
         # 정지 요청은 FastAPI 요청 스레드에서 오므로 threading.Event를 쓴다.
         self._stop_requested = threading.Event()
+        # 이번 execute()의 버튼 → 좌표. 실행은 한 번에 하나라 인스턴스에 둔다.
+        self._targets: dict[str, ButtonTarget] = {}
         if operation is not None:
             # L3가 판정을 기다리는 동안에도 정지 요청을 볼 수 있게 한다.
             operation.set_stop_check(self._stop_requested.is_set)
@@ -84,8 +107,17 @@ class ClosedLoopController:
 
     def request_stop(self) -> None:
         """Ask a running execute() to safety-stop at the next button/attempt
-        boundary."""
+        boundary.
+
+        모션 어댑터가 ``request_stop``을 가지면 **즉시** 함께 부른다 -- 블로킹
+        누름(이동·Z 하강) 도중에도 정지 명령이 MCU로 나가야 한다
+        (docs/하드웨어-연결-설계.md §2 "이동 중 정지"). 플래그를 먼저 세워서,
+        어댑터가 중단 예외로 돌아오면 재시도하지 않고 다음 경계에서 멈춘다.
+        """
         self._stop_requested.set()
+        adapter_stop = getattr(self._grbl, "request_stop", None)
+        if callable(adapter_stop):
+            adapter_stop()
 
     def reset_stop(self) -> None:
         """Discard any stale stop request. 호출 책임은 '실행을 시작시키는 쪽'
@@ -93,8 +125,26 @@ class ClosedLoopController:
         스스로 clear하면, job 접수 직후 스레드가 뜨기 전에 들어온 정지
         요청이 시작 시점에 지워져 유실된다(리뷰 지적 #5)."""
         self._stop_requested.clear()
+        adapter_reset = getattr(self._grbl, "reset_stop", None)
+        if callable(adapter_reset):
+            adapter_reset()
 
-    def execute(self, buttons: list[str] | tuple[str, ...]) -> ExecutionResult:
+    def execute(
+        self,
+        buttons: list[str] | tuple[str, ...],
+        targets: Mapping[str, ButtonTarget] | None = None,
+    ) -> ExecutionResult:
+        """``targets``: 버튼 → 갠트리 좌표(mm). 없으면 좌표 없는 종전 명령을 보낸다.
+
+        어댑터가 ``requires_coordinates``를 밝히면(실제 모션 어댑터) 좌표 없는
+        버튼이 하나라도 있을 때 누르기 전에 `MissingButtonCoordinates`로 거절한다.
+        """
+        targets = dict(targets or {})
+        if getattr(self._grbl, "requires_coordinates", False) is True:
+            missing = tuple(dict.fromkeys(b for b in buttons if b not in targets))
+            if missing:
+                raise MissingButtonCoordinates(missing)
+        self._targets = targets
         results: list[ButtonResult] = []
         completed_steps = 0
         if self._operation is not None:
@@ -212,7 +262,7 @@ class ClosedLoopController:
                     except Exception as exc:  # noqa: BLE001 - 센서 고장은 fail closed
                         raise _OperationObservationFailed(str(exc)) from exc
                 try:
-                    self._grbl.press(PressCommand(button, correction))
+                    self._grbl.press(self._press_command(button, correction))
                 except Exception as exc:  # adapter errors are recoverable within the hard limit
                     errors.append(str(exc))
                     self._report_progress(button, presses, completed_steps, None)
@@ -269,6 +319,18 @@ class ClosedLoopController:
                     reinputs=reinputs,
                 )
             reinputs += 1
+
+    def _press_command(self, button: str, correction) -> PressCommand:
+        target = self._targets.get(button)
+        if target is None:
+            return PressCommand(button, correction)
+        return PressCommand(
+            button,
+            correction,
+            x_mm=target.x_mm,
+            y_mm=target.y_mm,
+            press_ms=target.press_ms,
+        )
 
     def _check_stop(self) -> None:
         if self._stop_requested.is_set():

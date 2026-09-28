@@ -7,8 +7,8 @@
 - 가전마다 이 ESP32 + RPi4가 한 세트로 붙는다. 이 둘 사이(`ACT_UART_*`, `Serial2`)는
   유선 UART — RPi4가 이미 구현해둔 `execute`/`abort` → `result`/`error`/`alert`/
   `alert_cleared` 프로토콜(`rpi4/services/act_executor.py`)을 그대로 이어받는다.
-- 이 노드와 중앙 허브(RPi5) 사이가 무선 구간. 전송이 두 가지고 `config.h`의
-  `ESPNOW_ENABLED`로 고른다(자동 폴백 없음 — 어느 쪽으로 도는지 모호하면 시연장에서
+- 이 노드와 중앙 허브(RPi5) 사이가 무선 구간. 전송이 두 가지고
+  `ESPNOW_ENABLED`로 고른다(env `firebeetle32` = HTTP, `firebeetle32_espnow` = ESP-NOW)(자동 폴백 없음 — 어느 쪽으로 도는지 모호하면 시연장에서
   원인을 못 좁힌다):
   - **개발용 HTTP** (`0`, 기본): `rpi/services/esp_node_controller.py`의
     `EspNodeController`가 클라이언트, 이 펌웨어가 `POST /execute` 서버
@@ -40,8 +40,8 @@ ESP32가 그 역할을 겸한다**(팀 결정). 게이트웨이 쪽은 `firmware
 2. **포트가 없다** — HTTP는 긴급 정지를 별도 포트로 분리했지만(단일 스레드 WebServer가
    실행 처리 중 새 연결을 못 받으므로) ESP-NOW엔 포트 개념이 없어 프레임 종류로
    구분한다. 수신이 콜백이라 실행 대기 중에도 즉시 도착한다 — 이 점은 폴링보다 낫다.
-- WiFi 자격증명은 `include/config.h`에 하드코딩(개발 전용) — 프로비저닝 방식은
-  아직 미정.
+- WiFi 자격증명·게이트웨이 MAC은 소스에 없다 — `secrets.ini.example`을 `secrets.ini`로
+  복사해 채운다(git 추적 안 함). 없으면 자리표시자로 컴파일만 된다. 프로비저닝 방식은 아직 미정.
 - `firmware/`(폰 앱 BLE 폴백 브릿지)와는 별개의 PlatformIO 프로젝트다. 역할이
   겹치지 않고(하나는 BLE, 하나는 WiFi+UART-to-RPi4), ESP32라는 칩만 같을 뿐
   물리적으로 다른 개체 여러 대가 된다 — 자세한 구분은 architecture.md 참고.
@@ -54,7 +54,8 @@ pio run -t upload       # 빌드 + 플래시
 pio device monitor      # 시리얼 로그 (WiFi 연결 상태, execute 처리 로그 등)
 ```
 
-`config.h`의 `WIFI_SSID`/`WIFI_PASSWORD`를 실제 값으로 바꾼 뒤 빌드할 것.
+`secrets.ini`에 `WIFI_SSID`/`WIFI_PASSWORD`(HTTP)·`ESPNOW_GATEWAY_MAC`(ESP-NOW)을 채운 뒤 빌드할 것.
+ESP-NOW 노드는 `pio run -e firebeetle32_espnow -t upload`.
 
 ## 빌드
 
@@ -70,9 +71,16 @@ py -3.11 -m venv "$env:USERPROFILE\.pio-venv"
 & "$env:USERPROFILE\.pio-venv\Scripts\pio.exe" run -d <이 디렉터리>
 ```
 
+Windows에서 사용자/프로젝트 경로에 한글이 있으면(2026-09-28 확인) PowerShell에서
+`$env:PLATFORMIO_CORE_DIR='C:\.platformio'`, `$env:PLATFORMIO_BUILD_DIR='C:\pio-build\firmware-node'`
+처럼 ASCII 경로를 지정한다. Git Bash에서는 pioarduino 설치 단계가 MSYS를 거부한다.
+
 ## 검증 상태
 
-**컴파일 검증됨** (2026-08-29, espressif32@7.0.1 = Arduino-ESP32 코어 3.x, 경고 0건).
+**컴파일 검증됨** (2026-09-28, 기록: [../docs/devlog_2026-09-28-firmware-build.md](../docs/devlog_2026-09-28-firmware-build.md)).
+고정 플랫폼 pioarduino 55.03.312-1(코어 3.3.12)과 공식 espressif32@7.0.1(코어 2.0.17)
+양쪽에서 `firebeetle32`·`firebeetle32_espnow` 두 env 모두 경고 0건.
+(이전 기록의 "7.0.1 = 코어 3.x"는 틀렸다 — 7.0.1은 코어 2.0.17을 설치한다.)
 `ESPNOW_ENABLED`가 0이어도 런타임 분기라 `espnow_transport.cpp`는 함께 컴파일된다.
 
 **실기기 동작은 여전히 미검증.** 실제 ESP32 + RPi4를 붙여서 `pio run -t upload` 후
@@ -85,9 +93,9 @@ end-to-end 확인 필요.
 
 ESP-NOW 경로는 그 위에 확인할 것이 더 있다:
 
-- 수신 콜백 시그니처는 코어 3.x의 `recv_info` 분기를 탄다(빌드로 확인). 2.x 분기는
-  `platformio.ini`가 플랫폼 버전을 고정하지 않아 남겨둔 보험이다
-- `ESPNOW_GATEWAY_MAC`을 실제 게이트웨이 MAC으로 채워야 한다(현재 전부 0). 게이트웨이
+- 송수신 콜백 시그니처는 코어별 `#if` 분기다. 고정 플랫폼(코어 3.3.12)은 `recv_info`·
+  `wifi_tx_info_t` 분기, 코어 2.x는 `mac` 분기를 탄다 — 둘 다 빌드로 확인(2026-09-28)
+- `ESPNOW_GATEWAY_MAC`을 `secrets.ini`에 실제 게이트웨이 MAC으로 채워야 한다(기본 전부 0). 게이트웨이
   부팅 로그의 `WiFi.macAddress()`로 확인
 - 양쪽 `ESPNOW_CHANNEL`이 같아야 한다 — 다르면 조용히 아무것도 안 온다
 - **조각 분할 왕복 검증**: 버튼 20개 × 긴 라벨로 250바이트를 넘겨 실제로 쪼개지고

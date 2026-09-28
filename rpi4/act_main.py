@@ -15,6 +15,14 @@ Environment variables:
                                   하므로 (SIMPLELAY_GPIO_ENABLED와 같은 관례)
   SIMPLELAY_DANGER_SOUND_ENABLED  "true" → 위험소리(경보음) 상시 감지 태스크
                                   가동, 감지 시 RPi5로 alert 자체발신
+  SIMPLELAY_MOTION_MODE           "mock"(기본) | "serial". serial이면 줄 단위 JSON
+                                  모션 MCU 어댑터(rpi/controller/serial_motion.py,
+                                  **실물 미검증**)를 쓴다
+  SIMPLELAY_MOTION_PORT           serial 모드의 MCU 시리얼 장치 경로 (기본값 없음)
+  SIMPLELAY_MOTION_BAUD           serial 모드의 보드레이트 (기본값 없음 — MCU 펌웨어가 정한다)
+  SIMPLELAY_MOTION_*              기구·누름·타임아웃 값. 전부 기본 없음, 비어 있으면
+                                  누름을 거절한다(serial_motion.MOTION_ENV_NAMES,
+                                  kinematics.ENV_NAMES)
 
 Usage:
   python -m rpi4.act_main
@@ -30,6 +38,7 @@ import sys
 
 from rpi.controller import ClosedLoopController
 from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
+from rpi.controller.ports import GrblClient, SafetyController
 from rpi.services.demo_failure import DemoFailureState, FailureInjectionVerifier
 from rpi.verifier import MockVerifier, Verifier
 
@@ -67,24 +76,74 @@ def _build_verifier() -> Verifier:
     return MockVerifier(outcomes=[True] * 1000)
 
 
+def _open_motion_transport(port: str, baud: int):
+    """실기기 시리얼 전송. 테스트는 이 함수를 바꿔 끼운다."""
+    from rpi.controller.serial_motion import PySerialLineTransport
+
+    return PySerialLineTransport(port, baud)
+
+
+def _build_motion() -> tuple[GrblClient, SafetyController]:
+    """SIMPLELAY_MOTION_MODE=serial이면 모션 MCU 어댑터, 아니면(기본) mock.
+
+    serial 어댑터는 **실물 미검증**이다. 포트·보드레이트가 없으면 시작을
+    거절한다(추측한 장치로 열지 않는다). 기구·누름·타임아웃 값이 비어 있으면
+    시작은 하되 누름마다 거절하고, 무엇이 비었는지 시작 로그에 남긴다.
+    """
+    mode = os.getenv("SIMPLELAY_MOTION_MODE", "mock").strip().lower() or "mock"
+    if mode == "mock":
+        log.info("MockGrblClient active (set SIMPLELAY_MOTION_MODE=serial for the motion MCU)")
+        return MockGrblClient(), MockSafetyController()
+    if mode != "serial":
+        raise RuntimeError(f"unknown SIMPLELAY_MOTION_MODE={mode!r} (mock | serial)")
+
+    from rpi.controller.serial_motion import (
+        MotionConfig,
+        MotionError,
+        MotionSafetyController,
+        SerialMotionClient,
+    )
+
+    port = os.getenv("SIMPLELAY_MOTION_PORT", "").strip()
+    baud_raw = os.getenv("SIMPLELAY_MOTION_BAUD", "").strip()
+    if not port or not baud_raw:
+        raise RuntimeError(
+            "SIMPLELAY_MOTION_MODE=serial에는 SIMPLELAY_MOTION_PORT와 "
+            "SIMPLELAY_MOTION_BAUD가 필요합니다(기본값 없음)"
+        )
+    config = MotionConfig.from_env()
+    client = SerialMotionClient(_open_motion_transport(port, int(baud_raw)), config)
+    missing = config.missing_for_press()
+    if missing:
+        log.warning("motion config incomplete — every press will be refused: %s", ", ".join(missing))
+    try:
+        status = client.connect()
+        log.info("motion MCU on %s: state=%s homed=%s (실물 미검증 어댑터)", port, status.state, status.homed)
+    except (MotionError, RuntimeError) as exc:
+        # 연결 확인 실패 = 준비 안 됨. 누름은 홈 확인이 없어 거절된다.
+        log.error("motion MCU status check failed on %s: %s", port, exc)
+    return client, MotionSafetyController(client)
+
+
 def _build_executor(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
 ) -> ActExecutor:
     """Wire up the executor with current adapters.
 
-    GrblClient는 아직 mock — 실물 모션 어댑터(Arduino PID 시리얼)는 W5
-    HW 통합에서 이 자리에 꽂는다. Verifier는 env로 실물 전환 가능.
+    GrblClient는 기본 mock. SIMPLELAY_MOTION_MODE=serial이면 모션 MCU 어댑터
+    (실물 미검증)를 꽂는다. Verifier는 env로 실물 전환 가능.
     """
     # 데모 실패 주입(POST /demo/inject-failure → UART inject_failure)이 UART
     # 모드에서도 통하도록, RPi5와 동일하게 verifier를 래핑하고 같은 상태를
     # ActExecutor에 넘긴다 — 결선 리허설 장면이 실기기 구성에서도 성립한다.
     failure_state = DemoFailureState()
+    grbl, safety = _build_motion()
     controller = ClosedLoopController(
-        grbl=MockGrblClient(),
+        grbl=grbl,
         verifier=FailureInjectionVerifier(_build_verifier(), failure_state),
         alerts=MockAlertSink(),
-        safety=MockSafetyController(),
+        safety=safety,
     )
     return ActExecutor(
         reader=reader,

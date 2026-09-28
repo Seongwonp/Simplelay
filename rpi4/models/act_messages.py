@@ -17,13 +17,19 @@ Outbound (RPi4 → RPi5): plain dicts serialised by ActExecutor._send().
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, field
+
+from rpi.controller.models import ButtonTarget
 
 
 @dataclass(frozen=True)
 class ExecuteMsg:
     sequence_id: str
     buttons: tuple[str, ...]
+    #: 선택 — 버튼 → 갠트리 좌표(mm)·누름 유지 시간. 보정된 버튼만 싣는다.
+    #: 없으면 빈 dict(종전 메시지와 같다).
+    targets: dict[str, ButtonTarget] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -75,7 +81,10 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
             return None
         if not all(isinstance(b, str) and b.strip() for b in buttons):
             return None
-        return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons))
+        targets = _parse_targets(doc.get("targets"), buttons)
+        if targets is None:
+            return None
+        return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), targets=targets)
 
     if msg_type == "abort":
         return AbortMsg()
@@ -97,3 +106,37 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
         return ClearFailureMsg()
 
     return None  # unknown type — not an error, just silently ignored
+
+
+def _is_number(value: object) -> bool:
+    return (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    )
+
+
+def _parse_targets(raw: object, buttons: list) -> dict[str, ButtonTarget] | None:
+    """``targets``를 엄격하게 읽는다. 하나라도 이상하면 메시지 전체를 버린다(None).
+
+    좌표 한 개가 틀린 채 실행되면 **엉뚱한 버튼을 누른다** — 일부만 받아들이지 않는다.
+    시퀀스에 없는 버튼의 좌표도 거절한다(보낸 쪽과 받는 쪽이 다른 시퀀스를 보고 있다).
+    """
+    if raw is None:
+        return {}
+    if not isinstance(raw, dict):
+        return None
+    wanted = set(buttons)
+    targets: dict[str, ButtonTarget] = {}
+    for name, value in raw.items():
+        if name not in wanted or not isinstance(value, dict):
+            return None
+        x, y, press_ms = value.get("x_mm"), value.get("y_mm"), value.get("press_ms")
+        if not (_is_number(x) and _is_number(y)):
+            return None
+        if press_ms is not None and (
+            isinstance(press_ms, bool) or not isinstance(press_ms, int) or press_ms <= 0
+        ):
+            return None
+        targets[name] = ButtonTarget(float(x), float(y), press_ms)
+    return targets

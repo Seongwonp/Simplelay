@@ -5,4 +5,6 @@
 extern volatile bool estopTriggered;
 
 void estopBegin();
-void IRAM_ATTR estopISR();
+// IRAM_ATTR는 정의(estop.cpp)에만 단다. 선언에도 달면 코어 3.x(IDF 5)에서 섹션
+// 이름이 둘로 갈려 -Wattributes 경고가 난다. 정의 쪽 속성으로 IRAM 배치는 같다.
+void estopISR();

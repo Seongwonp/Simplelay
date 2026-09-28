@@ -1,7 +1,7 @@
 """Closed-loop button sequence controller."""
 
 from .dbus_gpio import DbusCallError, DbusGpioClient, UnknownButtonError
-from .closed_loop import ClosedLoopController
+from .closed_loop import ClosedLoopController, MissingButtonCoordinates
 from .layered import (
     DEFAULT_ACCEPTANCE_REINPUTS,
     AcceptanceVerifier,
@@ -12,6 +12,7 @@ from .layered import (
 from .models import (
     ButtonResult,
     ButtonStatus,
+    ButtonTarget,
     Correction,
     ExecutionMode,
     ExecutionProgress,
@@ -46,7 +47,9 @@ __all__ = [
     "ButtonResult",
     "ButtonSequenceController",
     "ButtonStatus",
+    "ButtonTarget",
     "ClosedLoopController",
+    "MissingButtonCoordinates",
     "Correction",
     "DocumentedRetryPolicy",
     "ExecutionProgress",

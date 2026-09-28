@@ -7,6 +7,7 @@ from datetime import datetime
 
 from rpi.controller import (
     ButtonSequenceController,
+    ButtonTarget,
     ExecutionProgress,
     ExecutionProgressTracker,
     ExecutionResult,
@@ -358,11 +359,13 @@ class SimpleLayService(PurposeExecutor):
                 raise UnknownIntentError('reviewed action changed; review again')
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
+        targets = self._targets_snapshot(appliance_id, tuple(buttons), controller)
         self._begin_run(len(buttons), controller, appliance_id, approval_guard)
         try:
             return self._run_buttons(
                 tuple(buttons), controller, purpose, appliance_id, calibration, usage_source,
                 self._learning_purpose(purpose, buttons, resolver, appliance_id, defined),
+                targets=targets,
             )
         finally:
             self._end_run()
@@ -383,13 +386,14 @@ class SimpleLayService(PurposeExecutor):
         buttons = self._validate_resolved_sequence(tuple(buttons))
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
+        targets = self._targets_snapshot(appliance_id, buttons, controller)
         self._begin_run(len(buttons), controller, appliance_id)
         try:
             # 목적은 없지만 대상 가전은 있다. 넘기지 않으면 수동 버튼
             # 실행의 이력이 '어느 가전에서'를 잃는다 — 커스텀 가전은
             # 대부분 이 경로로 조작되므로 실험 표본이 통째로 빈다.
             return self._run_buttons(
-                buttons, controller, None, appliance_id, calibration
+                buttons, controller, None, appliance_id, calibration, targets=targets
             )
         finally:
             self._end_run()
@@ -483,10 +487,13 @@ class SimpleLayService(PurposeExecutor):
         # 보정 버전은 **대상을 확정하는 지금** 캡처해 실행 스레드로 넘긴다.
         # 스레드 안에서 다시 읽으면 실행 중에 갱신된 값을 찍는다.
         calibration = self._calibration_snapshot(appliance_id)
+        # 좌표도 같은 순간에 잡는다 -- 보정 버전과 실제로 쓴 좌표가 어긋나지 않게.
+        targets = self._targets_snapshot(appliance_id, buttons, controller)
         job_id = self._begin_run(len(buttons), controller, appliance_id, approval_guard)
         thread = threading.Thread(
             target=self._run_job,
             args=(buttons, controller, purpose, appliance_id, calibration, usage_source, learning_purpose),
+            kwargs={"targets": targets},
             daemon=True,
             name=f"simplelay-exec-{job_id}",
         )
@@ -502,10 +509,12 @@ class SimpleLayService(PurposeExecutor):
         calibration_version: str | None = None,
         usage_source: UsageSource = UsageSource.DIRECT,
         learning_purpose: str | None = None,
+        targets: "dict[str, ButtonTarget] | None" = None,
     ) -> None:
         try:
             self._run_buttons(
-                buttons, controller, purpose, appliance_id, calibration_version, usage_source, learning_purpose
+                buttons, controller, purpose, appliance_id, calibration_version, usage_source, learning_purpose,
+                targets=targets,
             )
         except Exception:
             # 백그라운드 스레드라 HTTP 500으로 표면화할 곳이 없다 — 로그를
@@ -716,8 +725,13 @@ class SimpleLayService(PurposeExecutor):
         calibration_version: str | None = None,
         usage_source: UsageSource = UsageSource.DIRECT,
         learning_purpose: str | None = None,
+        targets: "dict[str, ButtonTarget] | None" = None,
     ) -> ExecutionResult:
-        self._last_result = controller.execute(buttons)
+        if targets:
+            self._last_result = controller.execute(buttons, targets)
+        else:
+            # 좌표가 없으면 종전 호출 그대로 — targets를 모르는 구현도 받는다.
+            self._last_result = controller.execute(buttons)
         # stop 여부는 실행이 반환된 '직후' 스냅샷+소진한다 (교차 리뷰 #8) —
         # 이후에 도착한 stop이 자연 실패(재시도 소진)를 '긴급 정지로 멈춤'
         # 으로 오분류하는 창을 최소화한다. (완전 제거는 컨트롤러가 종료
@@ -805,6 +819,34 @@ class SimpleLayService(PurposeExecutor):
         return self._readiness_registry.get(
             appliance_id
         ).calibration_profile_version
+
+    def _targets_snapshot(
+        self,
+        appliance_id: str | None,
+        buttons: tuple[str, ...],
+        controller: ButtonSequenceController,
+    ) -> "dict[str, ButtonTarget] | None":
+        """대상을 확정하는 순간의 버튼 좌표(mm). 보정된 버튼만 싣는다.
+
+        좌표를 받는다고 밝힌 실행 대상(``supports_button_targets``)에만 만든다.
+        좌표가 없는 버튼을 거절할지는 실행 대상(모션 어댑터)이 정한다 --
+        mock은 좌표 없이도 돌고, 실제 모션 어댑터는 누르기 전에 거절한다.
+        격자 칸 번호(x, y)로 좌표를 만들지 않는다.
+        """
+        if appliance_id is None or self._appliance_registry is None:
+            return None
+        if getattr(controller, "supports_button_targets", False) is not True:
+            return None
+        appliance = self._appliance_registry.get(appliance_id)
+        if appliance is None:
+            return None
+        by_label = {b.label: b for b in appliance.buttons if b.calibrated}
+        targets = {
+            step: ButtonTarget(by_label[step].x_mm, by_label[step].y_mm, by_label[step].press_ms)
+            for step in buttons
+            if step in by_label
+        }
+        return targets or None
 
     def _route_to(self, appliance_id: str | None) -> ButtonSequenceController:
         if appliance_id is not None and self._node_registry is not None:

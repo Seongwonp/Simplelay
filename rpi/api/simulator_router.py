@@ -109,3 +109,23 @@ def parking_event(body: RehearsalEvent, controller=Depends(require_simulator)):
         raise HTTPException(409, str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+
+
+# ── 디지털 트윈(개념 모션) 화면 ─────────────────────────────────────────────
+# 읽기 전용이다. 실행·정지는 기존 /execute-buttons·/stop을 그대로 쓴다.
+
+@router.get('/twin', response_class=HTMLResponse)
+def twin_panel(controller=Depends(require_simulator)):
+    return (pathlib.Path(__file__).parent.parent / 'touchscreen' / 'twin.html').read_text(encoding='utf-8')
+
+
+@router.get('/twin/state')
+def twin_state(controller=Depends(require_simulator)):
+    from rpi.services.twin_view import build_twin_state
+    return build_twin_state(controller.snapshot())
+
+
+@router.get('/twin-motion.js')
+def twin_motion_script(controller=Depends(require_simulator)):
+    source = pathlib.Path(__file__).parent.parent / 'touchscreen' / 'twin-motion.js'
+    return Response(source.read_text(encoding='utf-8'), media_type='text/javascript')
