@@ -26,6 +26,9 @@ import하지 않는다(테스트가 고정한다).
 시각의 한계(측정 필요): 행 시각은 판독이 끝난 직후의 호스트 단조 시각이다. I2C 변환
 지연·음향 장치 버퍼 지연·MCU 이벤트의 시리얼 지연은 포함하지 않는다.
 
+상시 기록(`LiveRecorder`): `rpi4/act_main.py`가 ``SIMPLELAY_RECORDER_PATH``를 받으면 켠다.
+실기기 리더가 없거나 켜지 않은 입력은 합성으로 대체하되 행의 source를 ``mock_*``로 적는다.
+
 CLI:
     python -m rpi.verifier.recorder --mock --duration 2 --out data/bench/rec.jsonl
     python -m rpi.verifier.recorder --current --adc-gain 1 --audio --duration 60
@@ -84,10 +87,11 @@ DEFAULT_OUT_DIR = Path("data") / "bench"
 
 
 class CsvSink:
-    def __init__(self, stream: TextIO) -> None:
+    def __init__(self, stream: TextIO, *, header: bool = True) -> None:
         self._stream = stream
         self._writer = csv.writer(stream, lineterminator="\n")
-        self._writer.writerow(COLUMNS)
+        if header:  # 기존 파일에 이어 쓸 때는 머리행을 다시 쓰지 않는다
+            self._writer.writerow(COLUMNS)
 
     def write(self, row: dict[str, Any]) -> None:
         self._writer.writerow([_csv_cell(row.get(column)) for column in COLUMNS])
@@ -158,13 +162,19 @@ class PressWindowRecorder:
 
     # 샘플 ------------------------------------------------------------------
 
-    def record_current_voltage(self, voltage: float, t_ns: int | None = None) -> None:
-        self._sample(t_ns, "current", current_voltage=float(voltage))
+    # ``source``: 행의 source 칸. 합성 입력은 ``mock_current``처럼 따로 적어 실측과 섞이지 않게 한다.
 
-    def record_power(self, sample: PowerSample, t_ns: int | None = None) -> None:
-        self._sample(t_ns, "power", power_watts=float(sample.watts), power_sensor_t_s=float(sample.t_s))
+    def record_current_voltage(
+        self, voltage: float, t_ns: int | None = None, *, source: str = "current"
+    ) -> None:
+        self._sample(t_ns, source, current_voltage=float(voltage))
 
-    def record_audio_frame(self, frame: Sequence[float] | np.ndarray, t_ns: int | None = None) -> None:
+    def record_power(self, sample: PowerSample, t_ns: int | None = None, *, source: str = "power") -> None:
+        self._sample(t_ns, source, power_watts=float(sample.watts), power_sensor_t_s=float(sample.t_s))
+
+    def record_audio_frame(
+        self, frame: Sequence[float] | np.ndarray, t_ns: int | None = None, *, source: str = "audio"
+    ) -> None:
         block = np.asarray(frame, dtype=np.float64).ravel()
         fields: dict[str, Any] = {"audio_samples": int(block.size)}
         if block.size:
@@ -172,7 +182,7 @@ class PressWindowRecorder:
             fields["audio_peak"] = float(np.max(np.abs(block)))
         if self._keep_audio_samples and isinstance(self._sink, JsonlSink):
             fields["audio_pcm"] = [float(v) for v in block]
-        self._sample(t_ns, "audio", **fields)
+        self._sample(t_ns, source, **fields)
 
     # 이벤트 ----------------------------------------------------------------
 
@@ -317,16 +327,22 @@ def run_source_loop(
             break
 
 
-def current_reader_step(reader: CurrentReader, recorder: PressWindowRecorder) -> Callable[[], None]:
-    return lambda: recorder.record_current_voltage(reader.read_voltage())
+def current_reader_step(
+    reader: CurrentReader, recorder: PressWindowRecorder, source: str = "current"
+) -> Callable[[], None]:
+    return lambda: recorder.record_current_voltage(reader.read_voltage(), source=source)
 
 
-def audio_reader_step(reader: AudioReader, recorder: PressWindowRecorder) -> Callable[[], None]:
-    return lambda: recorder.record_audio_frame(reader.read_frame())
+def audio_reader_step(
+    reader: AudioReader, recorder: PressWindowRecorder, source: str = "audio"
+) -> Callable[[], None]:
+    return lambda: recorder.record_audio_frame(reader.read_frame(), source=source)
 
 
-def power_sensor_step(sensor: PowerSensor, recorder: PressWindowRecorder) -> Callable[[], None]:
-    return lambda: recorder.record_power(sensor.read())
+def power_sensor_step(
+    sensor: PowerSensor, recorder: PressWindowRecorder, source: str = "power"
+) -> Callable[[], None]:
+    return lambda: recorder.record_power(sensor.read(), source=source)
 
 
 # ── 모의 입력(시험·CLI --mock) ─────────────────────────────────────────────
@@ -341,6 +357,164 @@ def mock_sources(n: int = 256) -> tuple[FakeCurrentReader, FakeAudioReader, Mock
     ]
     power = [PowerSample(t_s=i * 0.1, watts=3.0 + (i % 10)) for i in range(n)]
     return FakeCurrentReader(voltages), FakeAudioReader(frames), MockPowerSensor(power)
+
+
+# ── 실행 경로 상시 기록(act_main 배선) ─────────────────────────────────────
+
+
+class SourceChoice:
+    """한 입력의 선택 결과. ``mock``이면 행의 source가 ``mock_*``로 찍힌다."""
+
+    def __init__(self, kind: str, mock: bool, reason: str) -> None:
+        self.kind = kind
+        self.mock = mock
+        self.reason = reason
+
+    @property
+    def label(self) -> str:
+        return f"mock_{self.kind}" if self.mock else self.kind
+
+    def __repr__(self) -> str:  # 로그용
+        return f"{self.label}({self.reason})"
+
+
+class LiveRecorder:
+    """파일 하나에 이어 쓰며 전류·음향·전력 샘플을 백그라운드로 계속 기록한다.
+
+    실기기 리더를 열 수 없거나 켜지 않은 입력은 **합성 입력으로 대체하되 숨기지 않는다**:
+    행의 source를 ``mock_current``/``mock_audio``/``mock_power``로 적고, 시작 이벤트
+    메모와 ``sources``에 무엇이 합성인지 남긴다. 합성 값은 실측이 아니다.
+
+    - 전류: ``adc_gain``이 있을 때만 ADS1115를 연다(기본값 없음 — CLI와 같은 규칙).
+    - 음향: ``audio=True``일 때만 마이크를 연다(위험소리 감지와 같은 마이크를 쓸 수 있어 기본 꺼짐).
+    - 전력: 이 저장소에 실기기 전력 리더가 아직 없다 → 항상 합성.
+    """
+
+    def __init__(
+        self,
+        path: str | Path,
+        *,
+        pre_s: float | None = None,
+        post_s: float | None = None,
+        adc_gain: float | None = None,
+        adc_channel: int = 0,
+        audio: bool = False,
+        current_period_s: float = 0.0,
+        open_current: Callable[[float, int], CurrentReader] | None = None,
+        open_audio: Callable[[], AudioReader] | None = None,
+    ) -> None:
+        if (pre_s is None) != (post_s is None):
+            raise ValueError("pre_s와 post_s는 함께 주거나 함께 비워야 합니다")
+        for name, value in (("pre_s", pre_s), ("post_s", post_s)):
+            if value is not None and not (math.isfinite(value) and value >= 0):
+                raise ValueError(f"{name}는 0 이상의 유한한 수여야 합니다: {value!r}")
+        self.path = Path(path)
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        fmt = "csv" if self.path.suffix.lower() == ".csv" else "jsonl"
+        fresh = not self.path.exists() or self.path.stat().st_size == 0
+        self._handle = self.path.open("a", newline="", encoding="utf-8")
+        sink: CsvSink | JsonlSink = CsvSink(self._handle, header=fresh) if fmt == "csv" else JsonlSink(self._handle)
+        self.recorder = PressWindowRecorder(sink, pre_s=pre_s, post_s=post_s)
+        self._stop = threading.Event()
+        self._workers: list[threading.Thread] = []
+        self._closers: list[Callable[[], None]] = []
+        self.sources: list[SourceChoice] = []
+
+        mock_current, mock_audio, mock_power = mock_sources()
+        steps: list[tuple[SourceChoice, Callable[[], None], float]] = []
+
+        # 전류
+        current: CurrentReader | None = None
+        if adc_gain is None:
+            choice = SourceChoice("current", True, "ADC gain 미설정")
+        else:
+            try:
+                current = (open_current or _open_ads1115)(adc_gain, adc_channel)
+                choice = SourceChoice("current", False, f"ADS1115 gain={adc_gain:g} ch={adc_channel}")
+            except Exception as exc:  # noqa: BLE001 - 열기 실패는 합성으로 대체하고 이유를 남긴다
+                choice = SourceChoice("current", True, f"ADS1115 열기 실패: {exc}")
+        reader = current if current is not None else mock_current
+        period = current_period_s if current is not None else max(current_period_s, 0.01)
+        steps.append((choice, current_reader_step(reader, self.recorder, choice.label), period))
+        self.sources.append(choice)
+
+        # 음향
+        audio_reader: AudioReader | None = None
+        if not audio:
+            choice = SourceChoice("audio", True, "마이크 기록 꺼짐")
+        else:
+            try:
+                audio_reader = (open_audio or _open_microphone)()
+                self._closers.append(audio_reader.close)
+                choice = SourceChoice("audio", False, "마이크")
+            except Exception as exc:  # noqa: BLE001
+                choice = SourceChoice("audio", True, f"마이크 열기 실패: {exc}")
+        steps.append(
+            (
+                choice,
+                audio_reader_step(audio_reader or mock_audio, self.recorder, choice.label),
+                0.0 if audio_reader is not None else 0.032,
+            )
+        )
+        self.sources.append(choice)
+
+        # 전력
+        choice = SourceChoice("power", True, "실기기 전력 리더 없음")
+        steps.append((choice, power_sensor_step(mock_power, self.recorder, choice.label), 0.1))
+        self.sources.append(choice)
+
+        self._steps = steps
+        self.recorder.mark(
+            "marker",
+            "live start sources=" + ", ".join(repr(c) for c in self.sources)
+            + f" pre_s={pre_s} post_s={post_s}",
+        )
+        self.recorder.flush()
+
+    @property
+    def mock_sources(self) -> list[str]:
+        return [c.label for c in self.sources if c.mock]
+
+    def start(self) -> None:
+        for choice, step, period in self._steps:
+            worker = threading.Thread(
+                target=run_source_loop,
+                args=(step, self.recorder, self._stop, period, choice.label),
+                daemon=True,
+                name=f"recorder-{choice.label}",
+            )
+            self._workers.append(worker)
+            worker.start()
+
+    def close(self) -> None:
+        self._stop.set()
+        for worker in self._workers:
+            worker.join(timeout=2.0)
+        for close in self._closers:
+            try:
+                close()
+            except Exception:  # noqa: BLE001
+                pass
+        try:
+            self.recorder.mark("marker", "live end")
+            self.recorder.flush()
+        finally:
+            self._handle.close()
+
+
+def _open_ads1115(gain: float, channel: int) -> CurrentReader:
+    from .config import CurrentSensorConfig  # noqa: PLC0415
+    from .current_sensor import Ads1115Reader  # noqa: PLC0415
+
+    value = int(gain) if float(gain).is_integer() else gain
+    return Ads1115Reader(CurrentSensorConfig(ads_gain=value, channel=channel))  # type: ignore[arg-type]
+
+
+def _open_microphone() -> AudioReader:
+    from .audio_sensor import SounddeviceReader  # noqa: PLC0415
+    from .config import AudioSensorConfig  # noqa: PLC0415
+
+    return SounddeviceReader(AudioSensorConfig())
 
 
 # ── CLI ───────────────────────────────────────────────────────────────────

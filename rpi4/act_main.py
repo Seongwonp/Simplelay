@@ -23,6 +23,16 @@ Environment variables:
   SIMPLELAY_MOTION_*              기구·누름·타임아웃 값. 전부 기본 없음, 비어 있으면
                                   누름을 거절한다(serial_motion.MOTION_ENV_NAMES,
                                   kinematics.ENV_NAMES)
+  SIMPLELAY_RECORDER_PATH         설정하면 누름 주변 원시 기록기를 켠다(기본 꺼짐).
+                                  .csv면 CSV, 그 밖은 JSONL로 **이어 쓴다**. 누름 호출
+                                  앞뒤(press_start/press_end)와 모션 MCU 이벤트(mcu_*)를
+                                  같은 시각축에 찍는다(rpi/verifier/recorder.py)
+  SIMPLELAY_RECORDER_PRE_S        창 모드: press_start 전 보존(초). POST_S와 함께 준다.
+  SIMPLELAY_RECORDER_POST_S       비우면 전부 기록(파일이 계속 커진다) — 창 길이는 측정 필요
+  SIMPLELAY_RECORDER_ADC_GAIN     전류(ADS1115) gain. 없으면 전류는 합성(mock_current)
+  SIMPLELAY_RECORDER_ADC_CHANNEL  ADS1115 채널 0~3 (기본 0)
+  SIMPLELAY_RECORDER_AUDIO        "true"면 마이크를 연다. 아니면 합성(mock_audio)
+  (전력은 실기기 리더가 아직 없어 항상 합성 mock_power. 합성 입력은 시작 로그에 경고로 남는다)
 
 Usage:
   python -m rpi4.act_main
@@ -35,6 +45,7 @@ import contextlib
 import logging
 import os
 import sys
+from typing import TYPE_CHECKING
 
 from rpi.controller import ClosedLoopController
 from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
@@ -43,6 +54,9 @@ from rpi.services.demo_failure import DemoFailureState, FailureInjectionVerifier
 from rpi.verifier import MockVerifier, Verifier
 
 from .services.act_executor import ActExecutor
+
+if TYPE_CHECKING:
+    from rpi.verifier.recorder import LiveRecorder
 
 SERIAL_PORT = os.getenv("SIMPLELAY_UART_PORT", "/dev/ttyAMA0")
 BAUD_RATE = int(os.getenv("SIMPLELAY_UART_BAUD", "115200"))
@@ -83,7 +97,7 @@ def _open_motion_transport(port: str, baud: int):
     return PySerialLineTransport(port, baud)
 
 
-def _build_motion() -> tuple[GrblClient, SafetyController]:
+def _build_motion(on_event=None) -> tuple[GrblClient, SafetyController]:
     """SIMPLELAY_MOTION_MODE=serial이면 모션 MCU 어댑터, 아니면(기본) mock.
 
     serial 어댑터는 **실물 미검증**이다. 포트·보드레이트가 없으면 시작을
@@ -112,7 +126,7 @@ def _build_motion() -> tuple[GrblClient, SafetyController]:
             "SIMPLELAY_MOTION_BAUD가 필요합니다(기본값 없음)"
         )
     config = MotionConfig.from_env()
-    client = SerialMotionClient(_open_motion_transport(port, int(baud_raw)), config)
+    client = SerialMotionClient(_open_motion_transport(port, int(baud_raw)), config, on_event=on_event)
     missing = config.missing_for_press()
     if missing:
         log.warning("motion config incomplete — every press will be refused: %s", ", ".join(missing))
@@ -125,9 +139,57 @@ def _build_motion() -> tuple[GrblClient, SafetyController]:
     return client, MotionSafetyController(client)
 
 
+def _optional_float(name: str) -> float | None:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return None
+    try:
+        return float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} 값을 숫자로 읽을 수 없습니다: {raw!r}") from exc
+
+
+def _build_recorder() -> "LiveRecorder | None":
+    """SIMPLELAY_RECORDER_PATH가 있으면 원시 기록기를 연다(기본 꺼짐).
+
+    켜짐/꺼짐과 경로를 항상 시작 로그에 남긴다. 합성으로 대체된 입력은 경고로 남긴다 —
+    기록 파일에서도 source가 ``mock_*``라 실측과 섞이지 않는다.
+    """
+    path = os.getenv("SIMPLELAY_RECORDER_PATH", "").strip()
+    if not path:
+        log.info("press recorder off (set SIMPLELAY_RECORDER_PATH to record raw samples around presses)")
+        return None
+
+    from rpi.verifier.recorder import LiveRecorder
+
+    pre_s = _optional_float("SIMPLELAY_RECORDER_PRE_S")
+    post_s = _optional_float("SIMPLELAY_RECORDER_POST_S")
+    channel_raw = os.getenv("SIMPLELAY_RECORDER_ADC_CHANNEL", "0").strip() or "0"
+    try:
+        live = LiveRecorder(
+            path,
+            pre_s=pre_s,
+            post_s=post_s,
+            adc_gain=_optional_float("SIMPLELAY_RECORDER_ADC_GAIN"),
+            adc_channel=int(channel_raw),
+            audio=_flag("SIMPLELAY_RECORDER_AUDIO"),
+        )
+    except ValueError as exc:
+        raise RuntimeError(f"recorder config invalid: {exc}") from exc
+    window = f"window pre_s={pre_s} post_s={post_s}" if live.recorder.windowed else "no window (records everything)"
+    log.info("press recorder ON -> %s (%s)", live.path, window)
+    for choice in live.sources:
+        if choice.mock:
+            log.warning("press recorder source %s is MOCK (synthetic, not measured): %s", choice.kind, choice.reason)
+        else:
+            log.info("press recorder source %s is real: %s", choice.kind, choice.reason)
+    return live
+
+
 def _build_executor(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
+    recorder: "LiveRecorder | None" = None,
 ) -> ActExecutor:
     """Wire up the executor with current adapters.
 
@@ -138,7 +200,14 @@ def _build_executor(
     # 모드에서도 통하도록, RPi5와 동일하게 verifier를 래핑하고 같은 상태를
     # ActExecutor에 넘긴다 — 결선 리허설 장면이 실기기 구성에서도 성립한다.
     failure_state = DemoFailureState()
-    grbl, safety = _build_motion()
+    if recorder is None:
+        grbl, safety = _build_motion()
+    else:
+        from rpi.verifier.recorder import RecordingGrblClient, motion_event_hook
+
+        # 모션 MCU 이벤트(mcu_press_start 등)는 어댑터 훅으로, 호스트 호출 시각은 래퍼로 찍는다.
+        grbl, safety = _build_motion(on_event=motion_event_hook(recorder.recorder))
+        grbl = RecordingGrblClient(grbl, recorder.recorder)
     controller = ClosedLoopController(
         grbl=grbl,
         verifier=FailureInjectionVerifier(_build_verifier(), failure_state),
@@ -195,7 +264,15 @@ async def _run() -> None:
         baudrate=BAUD_RATE,
     )
     log.info("Serial open — waiting for RPi5 execute commands")
-    executor = _build_executor(reader, writer)
+    recorder = _build_recorder()
+    try:
+        executor = _build_executor(reader, writer, recorder)
+    except BaseException:
+        if recorder is not None:
+            recorder.close()
+        raise
+    if recorder is not None:
+        recorder.start()
     monitor_task = _maybe_start_danger_monitor(executor)
     try:
         await executor.run()
@@ -208,6 +285,8 @@ async def _run() -> None:
             monitor_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await monitor_task
+        if recorder is not None:
+            recorder.close()
 
 
 if __name__ == "__main__":

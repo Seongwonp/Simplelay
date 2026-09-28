@@ -1,3 +1,5 @@
+> 2026-09-29: 홈·조그 CLI `python -m rpi.tools.jog`(`--fake-mcu` 리허설, 자동 홈 없음, 줄 로그) + act_main 원시 기록기 배선(`SIMPLELAY_RECORDER_PATH`, 기본 꺼짐, 합성 입력은 `mock_*`로 표시)(**실물 미검증**). 하드웨어 도착 첫날 순서 포함: [devlog](docs/devlog_2026-09-29-jog-cli.md).
+
 > 2026-09-28: ESP32 펌웨어(`firmware/`·`firmware-node/`) 첫 빌드 — 플랫폼 코어 3.3.12 고정, 4개 env 컴파일 성공, Wi-Fi·게이트웨이 MAC은 `firmware-node/secrets.ini`로 분리(**실기기 미검증**): [devlog](docs/devlog_2026-09-28-firmware-build.md).
 
 > 2026-09-28: 모션 MCU 어댑터 뼈대·CoreXY 변환·좌표 전달·누름 주변 원시 기록기 추가(**실물 미검증**, 기본은 여전히 mock, 기구 값 미설정 시 누름 거절): [devlog](docs/devlog_2026-09-28-motion-adapter.md).

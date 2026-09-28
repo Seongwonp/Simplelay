@@ -34,6 +34,7 @@ from rpi.controller.serial_motion import (
     MotionTimeout,
     SerialMotionClient,
 )
+from rpi.tools.fake_mcu import FakeMcu
 from rpi.verifier import MockVerifier
 
 # 시험용 임의 값 — 실물 값 아님
@@ -61,58 +62,6 @@ TEST_CONFIG = MotionConfig(
     move_timeout_s=1.0,
     press_timeout_s=1.0,
 )
-
-
-class FakeMcu:
-    """명령 한 줄에 대해 ``handlers[cmd](doc)``가 돌려준 줄들을 답한다.
-
-    핸들러가 None을 돌려주면 답하지 않는다(시간 초과 시험).
-    """
-
-    def __init__(self, pipe: InMemoryLinePipe, homed: bool = False) -> None:
-        self._end = pipe.device
-        self.received: list[dict] = []
-        self.homed = homed
-        self.handlers = {
-            "status": lambda d: [self._ok(d, state="idle", homed=self.homed, a=0, b=0, z=0, alarm=None)],
-            "home": self._home,
-            "move": lambda d: [self._ok(d)],
-            "press": lambda d: [
-                {"event": "press_start"},
-                {"event": "press_end"},
-                self._ok(d),
-            ],
-            "stop": lambda d: [self._ok(d)],
-        }
-        self._stop = threading.Event()
-        self._thread = threading.Thread(target=self._loop, daemon=True)
-        self._thread.start()
-
-    def _home(self, doc):
-        self.homed = True
-        return [self._ok(doc)]
-
-    @staticmethod
-    def _ok(doc, **fields):
-        return {"id": doc["id"], "ok": True, **fields}
-
-    def cmds(self) -> list[str]:
-        return [d["cmd"] for d in self.received]
-
-    def _loop(self) -> None:
-        while not self._stop.is_set():
-            line = self._end.read_line(0.02)
-            if line is None:
-                continue
-            doc = json.loads(line)
-            self.received.append(doc)
-            replies = self.handlers[doc["cmd"]](doc)
-            for reply in replies or ():
-                self._end.write_line(reply if isinstance(reply, str) else json.dumps(reply))
-
-    def close(self) -> None:
-        self._stop.set()
-        self._thread.join(timeout=1.0)
 
 
 @pytest.fixture
