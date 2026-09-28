@@ -17,6 +17,14 @@
 - ``drop_state_updates`` -- 접수는 하지만 상태가 끝내 바뀌지 않는다.
 - ``latency_seconds`` -- 호출마다 지연(주입한 ``sleep``으로; 테스트는 0).
 
+리허설용 **지속** 장애(G6, ``set_fault`` — ``POST /demo/thinq/fault``, mock 모드만):
+``normal``으로 되돌릴 때까지 그 기기에 계속 걸린다.
+
+- ``offline`` -- 기기 오프라인. 준비 상태 disconnected, 실행 요청은 412.
+- ``unconfirmed`` -- 전송은 받지만 상태가 끝내 바뀌지 않는다 → ``접수됨``(accepted/none).
+- ``lost`` -- 전송 뒤 응답을 매번 잃는다(가전은 받는다) → ``접수 불명``(unknown/none).
+- ``latency_ms`` -- 그 기기 조회·전송마다 지연.
+
 모든 결과는 **모의**다. ``execution_mode``는 MOCK이고, 여기서 확인한 상태 변경은
 실제 가전의 동작 근거가 아니다.
 """
@@ -40,6 +48,9 @@ from .client import (
     ThinqOfflineError,
     ThinqTransportError,
 )
+
+#: 지속 장애 모드(G6).
+FAULT_MODES = ("normal", "offline", "unconfirmed", "lost")
 
 MOCK_PURIFIER_ID = "mock-purifier-01"
 MOCK_WASHER_ID = "mock-washer-01"
@@ -92,6 +103,8 @@ class MockThinqClient:
             },
             MOCK_WASHER_ID: {"runState": {"currentState": "RUNNING"}},
         }
+        self._faults: dict[str, str] = {}
+        self._device_latency: dict[str, float] = {}
         self.controls: list[tuple[str, dict]] = []
         self._events: deque[dict] = deque(maxlen=50)
         self._listeners: list[Callable[[dict], None]] = []
@@ -112,6 +125,50 @@ class MockThinqClient:
             raise ValueError("kind must be reject | timeout | None")
         with self._lock:
             self._next_failure = kind
+
+    def set_fault(self, device_id: str, mode: str, latency_ms: int | None = None) -> dict:
+        """리허설용 지속 장애(G6). ``normal``이면 장애·지연을 모두 걷어 낸다.
+
+        ``latency_ms``를 주지 않으면 지연은 그대로 둔다(normal은 0으로 되돌림).
+        """
+        if mode not in FAULT_MODES:
+            raise ValueError(f"mode must be one of {', '.join(FAULT_MODES)}")
+        if latency_ms is not None and not 0 <= latency_ms <= 30_000:
+            raise ValueError("latency_ms must be between 0 and 30000")
+        with self._lock:
+            if device_id not in self._devices:
+                raise KeyError(device_id)
+            self._device_online[device_id] = mode != "offline"
+            if mode == "normal":
+                self._faults.pop(device_id, None)
+                self._device_latency.pop(device_id, None)
+            else:
+                self._faults[device_id] = mode
+            if latency_ms is not None:
+                if latency_ms:
+                    self._device_latency[device_id] = latency_ms / 1000.0
+                else:
+                    self._device_latency.pop(device_id, None)
+            return self._fault_view_locked(device_id)
+
+    def faults(self) -> dict[str, dict]:
+        with self._lock:
+            return {d: self._fault_view_locked(d) for d in self._devices}
+
+    def _fault_view_locked(self, device_id: str) -> dict:
+        return {
+            "device_id": device_id,
+            "mode": self._faults.get(device_id, "normal"),
+            "online": self._device_online[device_id],
+            "latency_ms": int(round(self._device_latency.get(device_id, 0.0) * 1000)),
+            "execution_mode": "mock",
+        }
+
+    def _device_delay(self, device_id: str) -> None:
+        with self._lock:
+            extra = self._device_latency.get(device_id, 0.0)
+        if extra > 0:
+            self._sleep(extra)
 
     @property
     def online(self) -> bool:
@@ -138,6 +195,7 @@ class MockThinqClient:
 
     def get_status(self, device_id: str) -> dict:
         self._delay()
+        self._device_delay(device_id)
         with self._lock:
             self._require_cloud()
             if device_id not in self._devices:
@@ -149,6 +207,7 @@ class MockThinqClient:
 
     def post_control(self, device_id: str, payload: dict) -> dict:
         self._delay()
+        self._device_delay(device_id)
         with self._lock:
             self._require_cloud()
             if device_id not in self._devices:
@@ -162,7 +221,10 @@ class MockThinqClient:
                 raise ThinqCommandRejected("2201", "read-only device (mock)")
             changes = self._validate_locked(payload)
             self.controls.append((device_id, copy.deepcopy(payload)))
-            if not self.drop_state_updates:
+            fault = self._faults.get(device_id)
+            if fault == "lost":
+                failure = "timeout"  # 지속 장애: 매번 응답을 잃는다(가전은 받는다)
+            if not self.drop_state_updates and fault != "unconfirmed":
                 for resource, prop, value in changes:
                     self._pending.append(
                         (device_id, resource, prop, value, self.state_delay_reads)

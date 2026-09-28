@@ -33,6 +33,11 @@ Environment variables:
   SIMPLELAY_RECORDER_ADC_CHANNEL  ADS1115 채널 0~3 (기본 0)
   SIMPLELAY_RECORDER_AUDIO        "true"면 마이크를 연다. 아니면 합성(mock_audio)
   (전력은 실기기 리더가 아직 없어 항상 합성 mock_power. 합성 입력은 시작 로그에 경고로 남는다)
+  SIMPLELAY_L3_MODE               L3(가전 동작) 검증기. "off"(기본) = 없음 → 결과 프레임의
+                                  operation_confirmed는 null. "mock" = MockPowerSensor 합성
+                                  파형으로 판정(operation_source=mock, 실제 근거 아님).
+                                  "real" = CT(ADS1115) 실물 리더가 아직 없어 **시작을 거절**
+  SIMPLELAY_L3_MOCK_OUTCOME       mock 모드의 합성 결과 "confirmed"(기본) | "unconfirmed"
 
 Usage:
   python -m rpi4.act_main
@@ -186,6 +191,20 @@ def _build_recorder() -> "LiveRecorder | None":
     return live
 
 
+def _build_operation_verifier():
+    """SIMPLELAY_L3_MODE로 L3 검증기를 고른다(기본 off). real은 리더가 없어 거절한다."""
+    from rpi.controller.power_operation import operation_verifier_from_env
+
+    verifier = operation_verifier_from_env()
+    if verifier is None:
+        log.info("L3 operation verifier off (set SIMPLELAY_L3_MODE=mock to rehearse; "
+                 "result frames carry operation_confirmed=null)")
+    else:
+        log.warning("L3 operation verifier is MOCK (synthetic power, outcome=%s) — "
+                    "not evidence of real appliance operation", verifier.outcome)
+    return verifier
+
+
 def _build_executor(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
@@ -194,12 +213,15 @@ def _build_executor(
     """Wire up the executor with current adapters.
 
     GrblClient는 기본 mock. SIMPLELAY_MOTION_MODE=serial이면 모션 MCU 어댑터
-    (실물 미검증)를 꽂는다. Verifier는 env로 실물 전환 가능.
+    (실물 미검증)를 꽂는다. Verifier는 env로 실물 전환 가능. L3는 SIMPLELAY_L3_MODE.
     """
     # 데모 실패 주입(POST /demo/inject-failure → UART inject_failure)이 UART
     # 모드에서도 통하도록, RPi5와 동일하게 verifier를 래핑하고 같은 상태를
     # ActExecutor에 넘긴다 — 결선 리허설 장면이 실기기 구성에서도 성립한다.
     failure_state = DemoFailureState()
+    # 시리얼을 열기 전에 끝나는 설정 검사가 좋지만, 모션보다 먼저 확인해 real L3 거절이
+    # 모터 연결 시도보다 앞서게 한다.
+    operation = _build_operation_verifier()
     if recorder is None:
         grbl, safety = _build_motion()
     else:
@@ -213,6 +235,7 @@ def _build_executor(
         verifier=FailureInjectionVerifier(_build_verifier(), failure_state),
         alerts=MockAlertSink(),
         safety=safety,
+        operation=operation,
     )
     return ActExecutor(
         reader=reader,

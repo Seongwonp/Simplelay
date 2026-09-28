@@ -57,6 +57,20 @@ class SlowController:
         return self._result
 
 
+
+#: 2026-09-30 확장 필드(버튼별 보고·L3·실행 환경). 종전 핵심 필드만 비교하는 테스트용.
+_EXTENDED_RESULT_KEYS = ("button_results", "operation_confirmed", "operation_detail",
+                         "operation_source", "execution_mode")
+
+
+def _core(msgs):
+    return [
+        {k: v for k, v in m.items() if k not in _EXTENDED_RESULT_KEYS}
+        if m.get("type") == "result" else m
+        for m in msgs
+    ]
+
+
 def feed(reader: asyncio.StreamReader, doc: dict) -> None:
     reader.feed_data((json.dumps(doc, ensure_ascii=False) + "\n").encode())
 
@@ -129,7 +143,7 @@ def test_execute_succeeds_on_first_attempt_reports_success_with_no_retry():
         await executor.run_once()
         await executor.wait_idle()
 
-        msgs = writer.messages()
+        msgs = _core(writer.messages())
         assert len(msgs) == 1
         assert msgs[0] == {"type": "result", "sequence_id": "seq-1", "success": True, "retry": 0, "outcome": "success"}
     run(_t())
@@ -214,7 +228,7 @@ def test_second_execute_while_busy_is_rejected():
         await first
         await executor.wait_idle()  # 첫 실행 task 완료 대기
 
-        msgs = writer.messages()
+        msgs = _core(writer.messages())
         assert {"type": "error", "sequence_id": "second", "reason": "busy"} in msgs
         assert {"type": "result", "sequence_id": "first", "success": True, "retry": 0, "outcome": "success"} in msgs
     run(_t())
@@ -257,7 +271,7 @@ def test_abort_while_busy_does_not_interrupt_execution():
         await first
         await executor.wait_idle()
 
-        msgs = writer.messages()
+        msgs = _core(writer.messages())
         assert msgs == [{"type": "result", "sequence_id": "seq-5", "success": True, "retry": 0, "outcome": "success"}]
     run(_t())
 
@@ -431,7 +445,7 @@ def test_danger_sound_alert_interleaves_safely_with_execute_result():
         await asyncio.gather(exec_task, alert_task)
         await executor.wait_idle()  # 실행 task의 result 전송까지 대기
 
-        msgs = writer.messages()
+        msgs = _core(writer.messages())
         assert {"type": "alert", "kind": "danger_sound", "band_energy_ratio": 0.8,
                 "mean_period_seconds": 0.4} in msgs
         assert {"type": "result", "sequence_id": "seq-danger", "success": True, "retry": 0, "outcome": "success"} in msgs

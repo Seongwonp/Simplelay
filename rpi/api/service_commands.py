@@ -439,7 +439,7 @@ class CommandExecutionMixin:
             self._scenario_context = None
         try:
             return command_result_from_execution(
-                command, execution, execution_mode=_mode(step.controller),
+                command, execution, execution_mode=_mode(step.controller, execution),
                 observed_at=self._clock.now(), stopped_by_user=self._stop_sticky,
             )
         except Exception:  # noqa: BLE001
@@ -478,7 +478,7 @@ class CommandExecutionMixin:
         self._emit_job_finished(JobFinishedEvent(
             job_id=self._history_job_id(), appliance_id=appliance_id, route=ControlRoute.PHYSICAL,
             status=result.status.value, receipt=receipt, confirmation=confirmation,
-            execution_mode=_mode(controller), usage_source=usage_source, purpose=purpose,
+            execution_mode=_mode(controller, result), usage_source=usage_source, purpose=purpose,
             scenario_id=getattr(self, "_scenario_context", None),
         ))
 
@@ -569,8 +569,13 @@ class CommandExecutionMixin:
         return (), ()
 
 
-def _mode(controller) -> ExecutionMode:
-    return getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
+def _mode(controller, result=None) -> ExecutionMode:
+    """컨트롤러가 밝힌 모드. UNKNOWN이면 결과에 실린 원격 보고(있을 때만)를 쓴다."""
+    declared = getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
+    reported = getattr(result, "execution_mode", None)
+    if declared is ExecutionMode.UNKNOWN and isinstance(reported, ExecutionMode):
+        return reported
+    return declared
 
 
 __all__ = ["CommandExecutionMixin", "JobFinishedEvent", "RunRecord"]

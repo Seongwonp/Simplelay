@@ -634,6 +634,8 @@ class NodeResponse(BaseModel):
 class ButtonStep(BaseModel):
     button: str
     success: bool
+    #: 이 버튼을 실제로 누른 횟수(재시도 포함). 옛 클라이언트는 무시한다(2026-09-30).
+    attempts: int | None = None
 
 
 class ExecuteResponse(BaseModel):
@@ -695,6 +697,14 @@ class StatusResponse(BaseModel):
     last_confirmation: str | None = None
     #: 사람이 읽을 한 줄(ThinQ 결과). ThinQ면 last_status가 unconfirmed일 수 있다(실패 아님).
     last_detail: str | None = None
+    # ── 2026-09-30 (G1·G2) — 옛 클라이언트는 무시한다.
+    #: 마지막 물리 실행의 재시도 합(버튼별 시도 수 - 1의 합). ThinQ·버튼 결과 없음이면 None.
+    last_retry_count: int | None = None
+    #: L3(가전 동작) 판정 true/false. 판정기가 없거나 판정하지 못했으면 None.
+    last_operation_confirmed: bool | None = None
+    #: 판정 입력 real | mock(합성 전력). mock의 true는 실제 동작 근거가 아니다.
+    last_operation_source: str | None = None
+    last_operation_detail: str | None = None
 
 
 class SuggestionResponse(BaseModel):
@@ -755,6 +765,9 @@ class HistoryEntryResponse(BaseModel):
     receipt: str = "unknown"
     confirmation: str = "unknown"
     detail: str = ""
+    #: L3 판정(2026-09-30). 판정기 없음·미판정·옛 기록은 None.
+    operation_confirmed: bool | None = None
+    operation_detail: str = ""
 
 
 class OkResponse(BaseModel):

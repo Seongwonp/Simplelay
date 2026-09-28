@@ -91,6 +91,10 @@ class JobHistoryEntry:
     confirmation: str = "unknown"
     #: 사람이 읽을 한 줄(확인 못 한 이유 등). 토큰·주소는 넣지 않는다.
     detail: str = ""
+    #: L3(가전 동작) 판정 — True/False, 판정기 없음·미판정·옛 기록은 None(G2).
+    #: 합성 입력(모의 전력)의 판정이면 ``operation_detail``이 "모의 전력 센서"로 시작한다.
+    operation_confirmed: bool | None = None
+    operation_detail: str = ""
 
     @property
     def effective_outcome(self) -> str:
@@ -176,6 +180,8 @@ _CSV_COLUMNS = (
     "route",
     "receipt",
     "confirmation",
+    # L3 판정(2026-09-30) — true | false | 빈칸(판정 없음).
+    "operation_confirmed",
 )
 
 
@@ -233,6 +239,11 @@ def history_csv(entries: tuple[JobHistoryEntry, ...]) -> str:
                 entry.route,
                 entry.receipt,
                 entry.confirmation,
+                (
+                    ""
+                    if entry.operation_confirmed is None
+                    else ("true" if entry.operation_confirmed else "false")
+                ),
             ]
         )
     return buffer.getvalue()

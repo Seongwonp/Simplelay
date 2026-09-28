@@ -103,6 +103,9 @@ class LayerOutcome:
     layer: VerificationLayer
     passed: bool
     detail: str = ""
+    #: 판정 근거가 **합성 입력**(모의 전력 센서 등)인가. True면 통과해도 실제 동작
+    #: 근거가 아니다 -- 확인 수준을 ``operation_confirmed``로 올리지 않는다.
+    mock: bool = False
 
 
 @dataclass(frozen=True)
@@ -117,6 +120,8 @@ class ButtonResult:
     failed_layer: VerificationLayer | None = None
     #: L2 불수용으로 같은 입력을 다시 넣은 횟수.
     reinputs: int = 0
+    #: 재시도 누름마다 요청한 정성 보정(첫 누름은 보정이 없어 빠진다).
+    corrections: tuple[Correction, ...] = ()
 
 
 class ExecutionMode(str, Enum):
@@ -181,6 +186,10 @@ class ExecutionResult:
     #: `outcome_of`가 status·버튼 결과에서 유도한다. 원격 집계 결과는 버튼별
     #: 값이 추정이라 유도하면 안 되므로 합성하는 쪽이 반드시 채운다.
     outcome: ExecutionOutcome | None = None
+    #: 원격 실행기가 **보고한** 실행 환경(real/mock/unknown). 로컬은 None --
+    #: 컨트롤러가 밝힌 값을 쓴다. 원격 링크(UART)는 저쪽이 실물을 돌렸는지
+    #: 스스로 알 수 없으므로 이 보고가 유일한 근거다.
+    execution_mode: ExecutionMode | None = None
 
 
 def outcome_of(result: ExecutionResult) -> ExecutionOutcome:

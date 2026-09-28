@@ -595,6 +595,45 @@ class SimpleLayDb:
         return {r[0]: (r[1] or "unknown", r[2] or "unknown", r[3] or "unknown", r[4] or "")
                 for r in rows}
 
+    # ── 실행 이력의 L3 판정 열(2026-09-30, G2) ────────────────────────────
+    # 같은 방식의 옆 표. 행이 없으면 판정 없음(None)으로 읽는다.
+
+    def _ensure_operation_meta_locked(self) -> None:
+        if getattr(self, "_operation_meta_ready", False):
+            return
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS job_history_operation ("
+            " job_id TEXT PRIMARY KEY, operation_confirmed INTEGER, operation_detail TEXT)"
+        )
+        self._conn.commit()
+        self._operation_meta_ready = True
+
+    def save_job_operation_meta(self, entry: JobHistoryEntry) -> None:
+        confirmed = entry.operation_confirmed
+        with self._lock:
+            self._ensure_operation_meta_locked()
+            self._conn.execute(
+                "INSERT OR REPLACE INTO job_history_operation"
+                " (job_id, operation_confirmed, operation_detail) VALUES (?, ?, ?)",
+                (entry.job_id, None if confirmed is None else int(bool(confirmed)),
+                 entry.operation_detail),
+            )
+            self._conn.commit()
+
+    def job_operation_meta(self, job_ids) -> dict[str, tuple[bool | None, str]]:
+        ids = [j for j in job_ids if j]
+        if not ids:
+            return {}
+        with self._lock:
+            self._ensure_operation_meta_locked()
+            marks = ",".join("?" for _ in ids)
+            rows = self._conn.execute(
+                "SELECT job_id, operation_confirmed, operation_detail"
+                f" FROM job_history_operation WHERE job_id IN ({marks})",
+                ids,
+            ).fetchall()
+        return {r[0]: (None if r[1] is None else bool(r[1]), r[2] or "") for r in rows}
+
     def close(self) -> None:
         with self._lock:
             self._conn.close()
@@ -610,15 +649,23 @@ class SqliteJobHistory:
         self._db.append_job_history(entry)
         if entry.route != "unknown":
             self._db.save_job_command_meta(entry)
+        if entry.operation_confirmed is not None or entry.operation_detail:
+            self._db.save_job_operation_meta(entry)
 
     def recent(self, limit: int = 50) -> tuple[JobHistoryEntry, ...]:
         from dataclasses import replace  # noqa: PLC0415
 
         entries = self._db.recent_job_history(limit)
         meta = self._db.job_command_meta(e.job_id for e in entries)
-        return tuple(
+        entries = tuple(
             replace(e, route=m[0], receipt=m[1], confirmation=m[2], detail=m[3])
             if (m := meta.get(e.job_id)) is not None else e
+            for e in entries
+        )
+        operation = self._db.job_operation_meta(e.job_id for e in entries)
+        return tuple(
+            replace(e, operation_confirmed=o[0], operation_detail=o[1])
+            if (o := operation.get(e.job_id)) is not None else e
             for e in entries
         )
 

@@ -3,7 +3,7 @@
 SimulatorController.snapshot()의 통신 프레임과 모의 실행기 내부 누름 기록만
 정리한다. 새 결과를 만들지 않는다 -- 성공·실패는 RPi4 → RPi5 ``result`` 프레임이
 있을 때만 옮겨 적고, 없으면 ``None``이다. 버튼별 성공 여부도 추정하지 않는다
-(통신 결과는 시퀀스 전체의 success/retry 하나뿐이다).
+(통신 결과의 ``button_results``가 있으면 그것을 옮길 뿐이다).
 """
 from __future__ import annotations
 
@@ -92,6 +92,10 @@ def build_twin_state(snapshot: dict[str, Any]) -> dict[str, Any]:
         if (f.get("direction") == "act_to_hub" and msg.get("type") == "result"
                 and msg.get("sequence_id") == sequence_id):
             result = {"success": bool(msg.get("success")), "retry": msg.get("retry")}
+            # 2026-09-30: 실행기가 버튼별 시도·L3 판정을 보고하면 그대로 옮긴다(지어내지 않음).
+            for key in ("button_results", "operation_confirmed"):
+                if key in msg:
+                    result[key] = msg[key]
     presses = [str(p) for p in local.get("presses") or []]
     corrections = list(local.get("press_corrections") or [])
     local_status = local.get("status")

@@ -116,8 +116,9 @@ def confirmation_of(
     """
     if not _complete(result, expected_count):
         return Confirmation.NONE
-    if result.operation is not None and result.operation.passed:
-        # L3는 이쪽 전력 센서의 직접 판정이다.
+    if (result.operation is not None and result.operation.passed
+            and not getattr(result.operation, "mock", False)):
+        # L3는 전력 센서의 직접 판정이다. 합성 입력(모의 전력)의 통과는 근거가 아니다.
         return Confirmation.OPERATION_CONFIRMED
     if all(_sensor_verified(b) for b in result.buttons):
         return Confirmation.PRESS_CONFIRMED
@@ -174,8 +175,21 @@ def _detail(
     if receipt is Receipt.UNKNOWN:
         return "실행기 응답이 없어 눌렸는지 알 수 없어요 -- 자동으로 다시 누르지 않아요" + note
     if confirmation is Confirmation.OPERATION_CONFIRMED:
+        if is_aggregate_report(result):
+            return "실행기가 버튼 눌림과 가전 동작(L3 전력)을 확인했다고 보고했어요" + note
         return "버튼 눌림과 가전 동작을 확인했어요" + note
     if confirmation is Confirmation.REPORTED:
+        operation = result.operation
+        if result.failed_layer is VerificationLayer.OPERATION:
+            reason = operation.detail if operation is not None and operation.detail else "판정 불가"
+            return (
+                "실행기가 버튼은 모두 눌렀다고 보고했지만 가전 동작을 확인하지 못했어요 "
+                f"(L3: {reason})"
+            ) + note
+        if operation is not None and operation.passed and getattr(operation, "mock", False):
+            return (
+                "실행기가 완료를 보고했어요 (모의 전력 판정은 통과 — 실제 가전 동작 근거 아님)"
+            ) + note
         return "실행기가 완료를 보고했어요 (이쪽 센서 근거 없음, 가전 동작은 확인하지 않음)" + note
     if confirmation is Confirmation.PRESS_CONFIRMED:
         if result.failed_layer is VerificationLayer.OPERATION:

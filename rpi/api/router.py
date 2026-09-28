@@ -109,9 +109,31 @@ router = APIRouter()
 
 def _to_steps(result: ExecutionResult) -> list[ButtonStep]:
     return [
-        ButtonStep(button=b.button, success=b.status.value == "succeeded")
+        ButtonStep(button=b.button, success=b.status.value == "succeeded", attempts=b.attempts)
         for b in result.buttons
     ]
+
+
+def result_detail_fields(result: ExecutionResult | None) -> dict:
+    """/status·SSE 공통 — 재시도 합과 L3 판정(G1·G2, 2026-09-30).
+
+    버튼 결과가 없으면(ThinQ 단계·예외 종료) 재시도 수를 0으로 지어내지 않고 None.
+    """
+    if result is None:
+        return {"last_retry_count": None, "last_operation_confirmed": None,
+                "last_operation_source": None, "last_operation_detail": None}
+    operation = getattr(result, "operation", None)
+    return {
+        "last_retry_count": (
+            sum(max(0, b.attempts - 1) for b in result.buttons) if result.buttons else None
+        ),
+        "last_operation_confirmed": operation.passed if operation is not None else None,
+        "last_operation_source": (
+            ("mock" if getattr(operation, "mock", False) else "real")
+            if operation is not None else None
+        ),
+        "last_operation_detail": (operation.detail or None) if operation is not None else None,
+    }
 
 
 # 실행 엔드포인트 3종은 모두 비동기 job 모델: 의도 해석(즉시 실패 가능)만
@@ -804,6 +826,7 @@ async def status(
         last_appliance_id=snapshot.last_appliance_id,
         execution_mode=snapshot.execution_mode.value,
         last_execution_mode=snapshot.last_execution_mode.value,
+        **result_detail_fields(snapshot.last_result),
     )
     return response.model_copy(update=command_status_fields(snapshot))
 
@@ -1076,6 +1099,8 @@ async def history(
             receipt=e.receipt,
             confirmation=e.confirmation,
             detail=e.detail,
+            operation_confirmed=e.operation_confirmed,
+            operation_detail=e.operation_detail,
         )
         for e in store.recent(limit)
     ]
@@ -1358,6 +1383,8 @@ def status_event_payload(service: SimpleLayService) -> dict:
         "total_steps": snap.total_steps,
         "appliance_id": snap.appliance_id,
         "last_appliance_id": snap.last_appliance_id,
+        # 재시도 합·L3 판정(G1·G2) — GET /status와 같은 값.
+        **result_detail_fields(snap.last_result),
         # 명령 계약(U1-a): 경로·수신·확인 근거. ThinQ 미확인은 실패가 아니다.
         **command_status_fields(snap),
     }

@@ -43,7 +43,9 @@ def _correction(correction):
 class SimulatorController(ActClientController):
     execution_mode = ExecutionMode.MOCK
 
-    def __init__(self, *, step_seconds: float = 0.8, on_alert=None):
+    def __init__(self, *, step_seconds: float = 0.8, on_alert=None, operation=None):
+        """``operation``: L3 검증기(선택). 없으면 ``SIMPLELAY_L3_MODE``(기본 off)로 고른다 --
+        mock이면 합성 전력 판정이 결과 프레임에 ``operation_source=mock``으로 실린다."""
         if not 0 <= step_seconds <= 3:
             raise ValueError("simulator step_seconds must be between 0 and 3")
         self._state_lock = threading.Lock()
@@ -60,6 +62,10 @@ class SimulatorController(ActClientController):
         self._loop, self._thread = start_background_loop()
 
         owner = self
+        if operation is None:
+            from rpi.controller.power_operation import operation_verifier_from_env
+            operation = operation_verifier_from_env()
+        self.operation_verifier = operation
 
         class Wire:
             def __init__(self, peer, direction):
@@ -94,6 +100,7 @@ class SimulatorController(ActClientController):
                 MockAlertSink(), MockSafetyController(),
                 retry_waiter=SleepingRetryWaiter(step_seconds),
                 step_pacer=lambda *_: time.sleep(step_seconds),
+                operation=operation,
             )
             executor = ActExecutor(act_reader, Wire(hub_reader, "act_to_hub"), controller, state)
             client = ActClient(hub_reader, Wire(act_reader, "hub_to_act"),

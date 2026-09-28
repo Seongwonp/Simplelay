@@ -167,3 +167,122 @@ class PowerOperationVerifier(OperationVerifier):
             f"전력 샘플이 판정 시간({last_t - since_s:.1f}초) 안에 끝나지 않아 "
             "동작을 확인하지 못함",
         )
+
+
+# ── L3 배선 모드(SIMPLELAY_L3_MODE) ─────────────────────────────────────────
+#
+# off(기본)  L3 검증기 없음 -- 결과의 operation은 None(판정기 없음).
+# mock       MockPowerSensor 합성 파형으로 판정한다. 결과는 ``mock=True``라 통과해도
+#            확인 수준을 operation_confirmed로 올리지 않는다(실제 가열 근거 아님).
+#            SIMPLELAY_L3_MOCK_OUTCOME=confirmed(기본) | unconfirmed.
+# real       CT(ADS1115) 실물 리더가 아직 없어 **시작을 거절한다**. 있는 척하지 않는다.
+
+L3_MODES = ("off", "mock", "real")
+L3_MOCK_OUTCOMES = ("confirmed", "unconfirmed")
+
+REAL_L3_UNAVAILABLE = (
+    "SIMPLELAY_L3_MODE=real: 실물 전력 센서 리더(CT 클램프 + ADS1115)가 아직 없습니다 "
+    "(rpi/verifier/power.py에는 판정기와 MockPowerSensor만 있음). 하드웨어 도착 후 "
+    "PowerSensor 구현을 붙이기 전까지는 off 또는 mock으로 실행하세요"
+)
+
+_MOCK_PREFIX = "모의 전력 센서 — "
+
+
+class _SwitchablePowerSensor:
+    """대기 전력을 흘리다가 ``start()`` 뒤로는 MockPowerSensor(합성 전자레인지 파형)를 읽는다.
+
+    시각은 가상(10 Hz 한 칸씩)이라 실제로 기다리지 않는다. 합성 입력이다 -- 실측이 아니다.
+    """
+
+    def __init__(self, *, idle_w: float = 3.0, run_w: float = 1200.0, hz: float = 10.0) -> None:
+        self._idle_w = idle_w
+        self._run_w = run_w
+        self._hz = hz
+        self._t = 0.0
+        self._running = None
+
+    def start(self) -> None:
+        from rpi.verifier.power import MockPowerSensor, PowerSample, microwave_profile
+
+        t0 = self._t
+        profile = microwave_profile(idle_w=self._idle_w, run_w=self._run_w, run_s=30.0,
+                                    hz=self._hz, start_at_s=0.0, tail_s=0.0)
+        self._running = MockPowerSensor([PowerSample(t0 + s.t_s, s.watts) for s in profile])
+
+    def read(self):
+        from rpi.verifier.power import PowerSample
+
+        if self._running is not None:
+            return self._running.read()
+        sample = PowerSample(self._t, self._idle_w)
+        self._t += 1.0 / self._hz
+        return sample
+
+
+class MockPowerOperationVerifier(OperationVerifier):
+    """리허설용 L3 -- 실행마다 새 합성 센서로 ``PowerOperationVerifier``를 돌린다.
+
+    ``outcome="confirmed"``면 시퀀스를 다 넣은 뒤 합성 파형이 올라가고(판정기가 실제로
+    '시작 확정'을 낸다), ``"unconfirmed"``면 대기 전력만 흘러 시작 제한시간에 '확인 못 함'이
+    난다. 판정 규칙은 실물과 같은 ``PowerSignatureDetector``이고 입력만 합성이다.
+    결과는 ``mock=True``로 표시한다.
+    """
+
+    def __init__(self, outcome: str = "confirmed", config: PowerConfig | None = None) -> None:
+        if outcome not in L3_MOCK_OUTCOMES:
+            raise ValueError(f"L3 mock outcome must be one of {L3_MOCK_OUTCOMES}: {outcome!r}")
+        self.outcome = outcome
+        self._config = config
+        self._stop_check: Callable[[], bool] | None = None
+        self._sensor: _SwitchablePowerSensor | None = None
+        self._inner: PowerOperationVerifier | None = None
+
+    def set_stop_check(self, should_stop: Callable[[], bool]) -> None:
+        self._stop_check = should_stop
+
+    def begin_observation(self) -> None:
+        self._sensor = _SwitchablePowerSensor()
+        self._inner = PowerOperationVerifier(self._sensor, self._config, sleep=lambda _s: None)
+        if self._stop_check is not None:
+            self._inner.set_stop_check(self._stop_check)
+        self._inner.begin_observation()
+
+    def note_press(self, button: str, press_number: int) -> None:
+        if self._inner is None:
+            self.begin_observation()
+        self._inner.note_press(button, press_number)
+
+    def verify_operation(self, buttons: tuple[str, ...]) -> LayerOutcome:
+        if self._inner is None:
+            self.begin_observation()
+        if self.outcome == "confirmed":
+            self._sensor.start()
+        try:
+            verdict = self._inner.verify_operation(buttons)
+        finally:
+            self._inner = None
+            self._sensor = None
+        if verdict.detail == OPERATION_STOPPED_DETAIL:
+            return verdict  # 정지 사유는 컨트롤러가 그대로 알아봐야 한다
+        return LayerOutcome(verdict.layer, verdict.passed, _MOCK_PREFIX + verdict.detail, mock=True)
+
+
+def operation_verifier_from_env(env=None) -> OperationVerifier | None:
+    """``SIMPLELAY_L3_MODE``로 L3 검증기를 고른다. 모르는 값·real은 시작을 거절한다."""
+    import os
+
+    env = os.environ if env is None else env
+    mode = (env.get("SIMPLELAY_L3_MODE", "off") or "off").strip().lower() or "off"
+    if mode not in L3_MODES:
+        raise RuntimeError(f"unknown SIMPLELAY_L3_MODE={mode!r} ({' | '.join(L3_MODES)})")
+    if mode == "off":
+        return None
+    if mode == "real":
+        raise RuntimeError(REAL_L3_UNAVAILABLE)
+    outcome = (env.get("SIMPLELAY_L3_MOCK_OUTCOME", "confirmed") or "confirmed").strip().lower()
+    if outcome not in L3_MOCK_OUTCOMES:
+        raise RuntimeError(
+            f"unknown SIMPLELAY_L3_MOCK_OUTCOME={outcome!r} ({' | '.join(L3_MOCK_OUTCOMES)})"
+        )
+    return MockPowerOperationVerifier(outcome)

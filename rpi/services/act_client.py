@@ -5,7 +5,9 @@ RPi4 side of this same link.
   OUTBOUND (RPi5 -> RPi4)          INBOUND (RPi4 -> RPi5)
   ──────────────────────────────────────────────────────────
   execute {sequence_id, buttons} ←  result {sequence_id, success, retry,
-                                             outcome?}
+                                             outcome?, button_results?,
+                                             operation_confirmed?, operation_detail?,
+                                             operation_source?, execution_mode?}
                                    ←  error  {sequence_id, reason}
   abort                           ←  (no reply expected)
   (nothing — self-initiated)      ←  alert {kind, band_energy_ratio,
@@ -110,6 +112,89 @@ class ActResult:
     #: RPi4가 보고한 종료 방식(success|failed|stopped|safety_stop). 필드가 없는
     #: 옛 RPi4거나 값이 이상하면 None -- 호출자가 실패 이유를 모르는 것으로 다룬다.
     outcome: str | None = None
+    #: 버튼별 보고(2026-09-30). 없거나 형식이 틀리면 None -- 집계 값으로 합성한다.
+    button_results: "tuple[ButtonReport, ...] | None" = None
+    #: L3 판정. True/False, 판정기 없음·미판정·옛 프레임이면 None.
+    operation_confirmed: bool | None = None
+    operation_detail: str | None = None
+    #: 판정 입력 real | mock. 모르면 None(실제 근거로 치지 않는다).
+    operation_source: str | None = None
+    #: RPi4가 밝힌 실행 환경 real | mock | unknown. 옛 프레임이면 None.
+    execution_mode: str | None = None
+
+
+@dataclass(frozen=True)
+class ButtonReport:
+    """result 프레임 ``button_results``의 한 칸 -- RPi4 폐루프가 실제로 센 값."""
+
+    button: str
+    ok: bool
+    attempts: int
+    #: 실패했다면 층(L1/L2/L3). 성공이면 None.
+    layer: str | None = None
+    #: 재시도 누름마다의 정성 보정 {retry_number, xy_adjustment_required, increase_press_depth}.
+    corrections: tuple[dict, ...] = ()
+
+
+_LAYERS = frozenset({"L1", "L2", "L3"})
+
+
+def parse_button_results(doc: dict, buttons: Sequence[str], success: bool) -> "tuple[ButtonReport, ...] | None":
+    """``button_results``를 엄격하게 읽는다. 하나라도 이상하면 전체를 버린다(None).
+
+    버린다는 것은 집계 ``retry``로 되돌아간다는 뜻이다(종전 동작). 요청한 시퀀스의
+    앞부분이 아니거나, 성공이라면서 전 버튼을 덮지 않거나 실패 칸이 있으면 믿지 않는다.
+    """
+    raw = doc.get("button_results")
+    if raw is None:
+        return None
+    try:
+        if not isinstance(raw, list) or len(raw) > len(buttons):
+            raise ValueError("length")
+        reports = []
+        for i, item in enumerate(raw):
+            if not isinstance(item, dict):
+                raise ValueError("item")
+            button, ok, attempts = item.get("button"), item.get("ok"), item.get("attempts")
+            layer = item.get("layer")
+            if button != buttons[i] or not isinstance(ok, bool):
+                raise ValueError("button")
+            if isinstance(attempts, bool) or not isinstance(attempts, int) or attempts < 1:
+                raise ValueError("attempts")
+            if layer is not None and layer not in _LAYERS:
+                raise ValueError("layer")
+            corrections = item.get("corrections") or []
+            if not isinstance(corrections, list) or not all(isinstance(c, dict) for c in corrections):
+                raise ValueError("corrections")
+            reports.append(ButtonReport(button, ok, attempts, layer,
+                                        tuple(dict(c) for c in corrections)))
+        if success and (len(reports) != len(buttons) or not all(r.ok for r in reports)):
+            raise ValueError("success mismatch")
+        if any(not r.ok for r in reports[:-1]):
+            raise ValueError("failure before the end")
+    except ValueError as exc:
+        log.warning("ActClient: malformed button_results ignored (%s)", exc)
+        return None
+    return tuple(reports)
+
+
+def parse_operation(doc: dict) -> tuple[bool | None, str | None, str | None]:
+    """(operation_confirmed, operation_detail, operation_source). 형식이 틀리면 None으로."""
+    confirmed = doc.get("operation_confirmed")
+    if not isinstance(confirmed, bool):
+        if confirmed is not None:
+            log.warning("ActClient: operation_confirmed %r ignored", confirmed)
+        confirmed = None
+    detail = doc.get("operation_detail")
+    detail = detail if isinstance(detail, str) and detail else None
+    source = doc.get("operation_source")
+    source = source if source in ("real", "mock") else None
+    return confirmed, detail, source
+
+
+def parse_execution_mode(doc: dict) -> str | None:
+    mode = doc.get("execution_mode")
+    return mode if mode in ("real", "mock", "unknown") else None
 
 
 def parse_result_outcome(doc: dict, success: bool) -> str | None:
@@ -269,11 +354,17 @@ class ActClient:
                 f"RPi4 reported error for sequence_id={seq_id!r}: {doc.get('reason', 'unknown')}"
             )
         success = bool(doc.get("success", False))
+        confirmed, detail, source = parse_operation(doc)
         return ActResult(
             sequence_id=doc.get("sequence_id", seq_id),
             success=success,
             retry=int(doc.get("retry", 0)),
             outcome=parse_result_outcome(doc, success),
+            button_results=parse_button_results(doc, list(buttons), success),
+            operation_confirmed=confirmed,
+            operation_detail=detail,
+            operation_source=source,
+            execution_mode=parse_execution_mode(doc),
         )
 
     async def abort(self) -> None:

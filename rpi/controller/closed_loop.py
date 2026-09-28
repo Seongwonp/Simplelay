@@ -243,6 +243,7 @@ class ClosedLoopController:
         last_verification = None
         presses = 0
         reinputs = 0
+        corrections: list = []
         while True:
             pressed = False
             for attempt in range(1, self._retry_policy.max_attempts + 1):
@@ -255,6 +256,8 @@ class ClosedLoopController:
                     else self._retry_policy.correction_for(attempt - 1)
                 )
                 presses += 1
+                if correction is not None:
+                    corrections.append(correction)
                 if self._operation is not None:
                     # 누르기 직전 시각을 L3에 알린다(판정 기준 시각·기준선 이어 붙이기).
                     try:
@@ -283,6 +286,7 @@ class ClosedLoopController:
                     tuple(errors),
                     failed_layer=VerificationLayer.PRESS,
                     reinputs=reinputs,
+                    corrections=tuple(corrections),
                 )
 
             if self._acceptance is None:
@@ -294,6 +298,7 @@ class ClosedLoopController:
                     last_verification,
                     tuple(errors),
                     reinputs=reinputs,
+                    corrections=tuple(corrections),
                 )
 
             accepted = self._acceptance.verify_acceptance(button)
@@ -306,6 +311,7 @@ class ClosedLoopController:
                     last_verification,
                     tuple(errors),
                     reinputs=reinputs,
+                    corrections=tuple(corrections),
                 )
             errors.append(f"L2: {accepted.detail}" if accepted.detail else "L2: not accepted")
             if reinputs >= self._acceptance_reinputs:
@@ -317,6 +323,7 @@ class ClosedLoopController:
                     tuple(errors),
                     failed_layer=VerificationLayer.ACCEPTANCE,
                     reinputs=reinputs,
+                    corrections=tuple(corrections),
                 )
             reinputs += 1
 

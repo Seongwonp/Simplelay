@@ -9,7 +9,9 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   INBOUND (RPi5 -> RPi4)          OUTBOUND (RPi4 -> RPi5)
   ──────────────────────────────────────────────────────────
   execute {sequence_id, buttons,  →  result {sequence_id, success, retry,
-           targets?}                         outcome}
+           targets?}                         outcome, button_results,
+                                             operation_confirmed, operation_detail,
+                                             operation_source, execution_mode}
   abort                          →  (cooperative stop; see _on_abort)
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
@@ -29,7 +31,14 @@ import json
 import logging
 from typing import Protocol
 
-from rpi.controller import ClosedLoopController, ExecutionStatus, outcome_of
+from rpi.controller import (
+    ClosedLoopController,
+    ExecutionMode,
+    ExecutionResult,
+    ExecutionStatus,
+    VerificationLayer,
+    outcome_of,
+)
 from rpi.services.demo_failure import DemoFailureState
 from rpi.verifier import DangerSoundResult
 
@@ -47,6 +56,56 @@ log = logging.getLogger(__name__)
 # 종료 시 협조적 정지가 실제로 반영되기를 기다리는 시간. 폐루프의 정지 확인
 # 지점은 버튼 사이·재시도 경계라, 한 번의 누름+검증이 끝날 만큼은 줘야 한다.
 SHUTDOWN_STOP_GRACE_SECONDS = 5.0
+
+
+def result_detail_fields(result: ExecutionResult, controller: object) -> dict:
+    """result 프레임의 확장 필드(docs/protocol.md, 2026-09-30).
+
+    - ``button_results``: 실제로 돈 버튼마다 {button, ok, attempts, layer, corrections}.
+      RPi5가 재시도 수를 버튼별로 정확히 기록하게 한다(집계 ``retry``만으로는 성공 시
+      재시도가 사라졌다 — G1).
+    - ``operation_confirmed``: L3 판정. true/false, 판정기가 없거나 판정하지 못했으면 null.
+    - ``operation_detail``: 판정 사유 한 줄(없으면 null).
+    - ``operation_source``: 판정 입력이 실물(real)인지 합성(mock)인지. 판정 없으면 null.
+    - ``execution_mode``: 이 보드가 실제 모터를 돌렸나(모션 어댑터가 스스로 밝힌 값).
+    """
+    button_results = []
+    for b in result.buttons:
+        button_results.append({
+            "button": b.button,
+            "ok": b.status.value == "succeeded",
+            "attempts": b.attempts,
+            "layer": b.failed_layer.value if b.failed_layer is not None else None,
+            "corrections": [
+                {
+                    "retry_number": c.retry_number,
+                    "xy_adjustment_required": c.xy_adjustment_required,
+                    "increase_press_depth": c.increase_press_depth,
+                }
+                for c in getattr(b, "corrections", ())
+            ],
+        })
+    operation = result.operation
+    if operation is not None:
+        confirmed: bool | None = bool(operation.passed)
+        detail: str | None = operation.detail or None
+        source: str | None = "mock" if getattr(operation, "mock", False) else "real"
+    else:
+        confirmed, source = None, None
+        detail = (
+            "L3 판정 불가 — 전력 센서를 읽지 못했거나 판정 전에 멈춤"
+            if result.failed_layer is VerificationLayer.OPERATION
+            else None
+        )
+    mode = getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
+    mode_value = mode.value if isinstance(mode, ExecutionMode) else "unknown"
+    return {
+        "button_results": button_results,
+        "operation_confirmed": confirmed,
+        "operation_detail": detail,
+        "operation_source": source,
+        "execution_mode": mode_value,
+    }
 
 
 class _WriterLike(Protocol):
@@ -276,6 +335,8 @@ class ActExecutor:
             "success": success,
             "retry": retry,
             "outcome": outcome,
+            # 2026-09-30: 버튼별 시도 수·보정, L3 판정, 실행 환경. 옛 RPi5는 무시한다.
+            **result_detail_fields(result, self._controller),
         })
         log.info(
             "sequence %r finished — %s (retry=%d)",

@@ -127,8 +127,15 @@ def test_twin_state_follows_real_simulator_execution_retry_and_stop():
         twin = c.get('/simulator/twin/state').json()
         assert twin['execution_mode'] == 'mock'
         assert twin['job']['buttons'] == ['즉석밥', '시작']
-        assert twin['job']['result'] == {'success': True, 'retry': 2}
+        result = twin['job']['result']
+        assert (result['success'], result['retry']) == (True, 2)
+        # 결과 프레임의 버튼별 보고(G1)가 트윈의 누름 대응과 같은 시도 수를 말한다.
+        assert [b['attempts'] for b in result['button_results']] == [3, 1]
+        assert result['operation_confirmed'] is None
         assert [s['attempts'] for s in twin['job']['steps']] == [3, 1]
+        # 같은 실행의 /status도 재시도 2회를 잃지 않는다(이력은 test_retry_operation_link).
+        assert status['last_retry_count'] == 2
+        assert [b['attempts'] for b in status['last_buttons']] == [3, 1]
     finally:
         app.dependency_overrides.pop(get_service, None)
         controller.close()

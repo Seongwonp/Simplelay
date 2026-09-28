@@ -81,6 +81,20 @@ def _mode_of(controller: object | None) -> ExecutionMode:
     return getattr(controller, "execution_mode", ExecutionMode.UNKNOWN)
 
 
+def _run_mode(controller: object | None, result: object | None) -> ExecutionMode:
+    """이번 실행의 모드 -- 컨트롤러가 모른다고(UNKNOWN) 밝혔을 때만 결과의 보고를 쓴다.
+
+    UART 링크(ActClientController)는 저쪽 보드가 실물을 돌렸는지 알 수 없어
+    UNKNOWN이다. RPi4가 결과 프레임에 ``execution_mode``를 실어 보내면 그것이 근거다.
+    컨트롤러가 스스로 MOCK이라고 밝혔으면(시뮬레이터) 보고로 REAL이 되지 않는다.
+    """
+    declared = _mode_of(controller)
+    reported = getattr(result, "execution_mode", None)
+    if declared is ExecutionMode.UNKNOWN and isinstance(reported, ExecutionMode):
+        return reported
+    return declared
+
+
 _BUILTIN_IDS = frozenset(a.appliance_id for a in BUILTIN_APPLIANCES)
 
 
@@ -709,7 +723,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                         for b in result.buttons
                     ),
                     appliance_id=appliance_id,
-                    execution_mode=_mode_of(controller),
+                    execution_mode=_run_mode(controller, result),
                     started_at=self._current_started_at,
                     # 실행 시작 시점의 스냅샷 -- 여기서 다시 조회하면
                     # 실행 중에 갱신된 값을 찍게 된다.
@@ -722,6 +736,12 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                         stop_requested_at if stopped_by_user else None
                     ),
                     outcome=outcome_of(result).value,
+                    operation_confirmed=(
+                        result.operation.passed if result.operation is not None else None
+                    ),
+                    operation_detail=(
+                        result.operation.detail if result.operation is not None else ""
+                    ),
                 )
             )
         except Exception:
@@ -796,6 +816,10 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         else:
             # 좌표가 없으면 종전 호출 그대로 — targets를 모르는 구현도 받는다.
             self._last_result = controller.execute(buttons)
+        run_mode = _run_mode(controller, self._last_result)
+        with self._lock:
+            # 원격이 보고한 모드로 이번 실행의 표시값을 고친다(_end_run이 last로 옮긴다).
+            self._execution_mode = run_mode
         # stop 여부는 실행이 반환된 '직후' 스냅샷+소진한다 (교차 리뷰 #8) —
         # 이후에 도착한 stop이 자연 실패(재시도 소진)를 '긴급 정지로 멈춤'
         # 으로 오분류하는 창을 최소화한다. (완전 제거는 컨트롤러가 종료
@@ -822,7 +846,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         )
         if (not stopped_by_user
                 and self._last_result.status is ExecutionStatus.SUCCEEDED
-                and _mode_of(controller) is ExecutionMode.REAL
+                and run_mode is ExecutionMode.REAL
                 and usage_source is UsageSource.DIRECT):
             try:
                 self.completed_actions.remember(
@@ -846,7 +870,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                     learning_purpose or purpose.strip(),
                     outcome,
                     appliance_id=appliance_id,
-                    execution_mode=_mode_of(controller),
+                    execution_mode=run_mode,
                     source=usage_source,
                 )
             )

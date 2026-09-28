@@ -22,10 +22,10 @@ import logging
 import threading
 from collections.abc import Callable, Mapping
 
-from rpi.controller import ButtonTarget, ExecutionMode, ExecutionOutcome, ExecutionResult
+from rpi.controller import ButtonTarget, ExecutionMode, ExecutionResult
 
 from .act_client import ActClient, ActClientConfig, ActLinkTimeoutError, AlertEvent
-from .aggregate_result import synthesize_execution_result
+from .aggregate_result import synthesize_from_act_result
 
 log = logging.getLogger(__name__)
 
@@ -44,7 +44,7 @@ class ActClientController:
 
     Precision note (docs/roadmap.md M2): RPi4 only reports an aggregate
     {success, retry, outcome?} for the sequence, not a per-button breakdown -- see
-    aggregate_result.synthesize_execution_result() for how that gets
+    aggregate_result.synthesize_from_act_result() for how that gets
     approximated into a full ExecutionResult.
     """
 
@@ -92,11 +92,9 @@ class ActClientController:
                 f"ActClientController.execute() timed out after {call_timeout}s"
             ) from exc
 
-        # RPi4가 종료 방식을 보고했으면 그대로 싣는다 -- 없으면(옛 RPi4) 실패만 안다.
-        outcome = ExecutionOutcome(result.outcome) if result.outcome else None
-        return synthesize_execution_result(
-            buttons, result.success, result.retry, outcome=outcome
-        )
+        # RPi4가 보고한 것(종료 방식·버튼별 시도·L3·실행 환경)을 그대로 싣는다 --
+        # 없으면(옛 RPi4) 집계 값만으로 합성한다.
+        return synthesize_from_act_result(buttons, result)
 
     def request_stop(self) -> None:
         """긴급 정지 — RPi4에 abort를 보낸다. fire-and-forget(프로토콜상 abort는
