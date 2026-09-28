@@ -4,7 +4,7 @@
 뿐이다. 실행은 언제나 사용자의 승인 뒤이고, 승인은 그 순간 정의로 만든 명령에
 묶인다. 정의가 그 사이 바뀌면(예: 풍량 강 → 중) 카드의 승인은 무효이고 재승인한다.
 
-기본 두 개:
+기본 세 개:
 
 - ``cook_then_air`` 조리 확인 → 공기 관리: 전자레인지(물리) 실행이 **가열 확인(L3)**
   으로 끝나면 "공기청정기 강풍으로 바꿀까요?"를 제안한다. 모의 실행은 L3가 없으므로
@@ -12,6 +12,9 @@
   가열 확인만으로 강풍이 필요하다고 단정하지 않는다 -- 그래서 제안이다.
 - ``evening_rest`` 저녁 휴식: 공기청정기 켜기(ThinQ) + 선풍기 약풍(물리, 지금은 모의).
   수동(시연) 트리거로만 만든다. 합성 이력이 근거라는 사실을 숨기지 않는다.
+- ``wash_then_dry`` 세탁 완료 → 제습(2026-09-30): ThinQ 세탁기의 ``wash_complete`` 이벤트로
+  "세탁이 끝났어요. 제습기를 켤까요?"를 제안한다. 모의 이벤트면 시연 제안이다. 제습기
+  (ThinQ)가 등록·준비되지 않았으면(ThinQ off 포함) 카드를 만들지 않는다 -- 에러도 없다.
 """
 
 from __future__ import annotations
@@ -57,6 +60,8 @@ class ScenarioDefinition:
     steps: tuple[ScenarioStep, ...]
     #: 트리거 근거가 없을 때(수동) 카드에 적을 근거.
     manual_reason: str = ""
+    #: thinq_event 트리거의 근거 문장(없으면 이벤트 이름으로 적는다).
+    event_reason: str = ""
     valid_minutes: int = 15
 
     def commands(self) -> tuple[Command, ...]:
@@ -86,7 +91,18 @@ EVENING_REST = ScenarioDefinition(
     manual_reason="시연: 합성 이력(저녁에 공기청정기와 선풍기를 함께 사용한 예시) — 실제 사용 기록이 아니에요",
 )
 
-DEFAULT_SCENARIOS = (COOK_THEN_AIR, EVENING_REST)
+WASH_THEN_DRY = ScenarioDefinition(
+    scenario_id="wash_then_dry",
+    name="세탁 완료 → 제습",
+    question="세탁이 끝났어요. 실내 건조를 위해 제습기를 켤까요?",
+    trigger=ScenarioTrigger("thinq_event", appliance_id="washer", event="wash_complete"),
+    steps=(
+        ScenarioStep("dehumidifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
+    ),
+    event_reason="세탁기가 세탁 완료를 알렸어요 — 빨래를 실내에 널면 습도가 올라가요",
+)
+
+DEFAULT_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
 
 
 class ScenarioCatalog:
@@ -120,4 +136,5 @@ __all__ = [
     "ScenarioDefinition",
     "ScenarioStep",
     "ScenarioTrigger",
+    "WASH_THEN_DRY",
 ]

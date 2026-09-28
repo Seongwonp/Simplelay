@@ -6,6 +6,7 @@ from .bindings import (
     ThinqCapability,
     ThinqFunction,
     air_purifier_binding,
+    dehumidifier_binding,
     washer_binding,
 )
 from .client import (
@@ -20,11 +21,12 @@ from .client import (
 )
 from .config import ThinqConfig, ThinqMode
 from .controller import CommandController, StopOutcome, ThinqController, ThinqReadiness
-from .mock_client import MOCK_PURIFIER_ID, MOCK_WASHER_ID, MockThinqClient
+from .mock_client import MOCK_DEHUMIDIFIER_ID, MOCK_PURIFIER_ID, MOCK_WASHER_ID, MockThinqClient
 
 __all__ = [
     "CapabilityError",
     "CommandController",
+    "MOCK_DEHUMIDIFIER_ID",
     "MOCK_PURIFIER_ID",
     "MOCK_WASHER_ID",
     "MockThinqClient",
@@ -45,5 +47,6 @@ __all__ = [
     "ThinqReadiness",
     "ThinqTransportError",
     "air_purifier_binding",
+    "dehumidifier_binding",
     "washer_binding",
 ]

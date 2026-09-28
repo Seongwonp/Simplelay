@@ -1,7 +1,7 @@
 """ThinQ 경로·시나리오 조립 — ``SIMPLELAY_THINQ_MODE``로만 켠다(기본 off).
 
 - off: 아무것도 등록하지 않는다. 기존 동작과 같다.
-- mock: 모의 클라이언트 + 모의 공기청정기·세탁기(ThinQ 경로) + 모의 선풍기(물리 경로,
+- mock: 모의 클라이언트 + 모의 공기청정기·세탁기·제습기(ThinQ 경로) + 모의 선풍기(물리 경로,
   모의 실행기). 전부 **서버 구성 가전**이라 저장·편집되지 않고 GET /appliances에
   나오지 않는다.
 - real: 실물 클라이언트 자리(호출하면 NotImplementedError). 기기 ID는
@@ -20,6 +20,7 @@ log = logging.getLogger(__name__)
 
 AIR_PURIFIER_ID = "air_purifier"
 WASHER_ID = "washer"
+DEHUMIDIFIER_ID = "dehumidifier"
 FAN_ID = "fan"
 
 
@@ -33,15 +34,18 @@ def get_thinq_config():
 def _thinq_appliances(config):
     from rpi.services.appliance_registry import ApplianceCategory, ApplianceDef  # noqa: PLC0415
     from rpi.services.thinq import (  # noqa: PLC0415
+        MOCK_DEHUMIDIFIER_ID,
         MOCK_PURIFIER_ID,
         MOCK_WASHER_ID,
         ThinqMode,
         air_purifier_binding,
+        dehumidifier_binding,
         washer_binding,
     )
 
     if config.mode is ThinqMode.MOCK:
-        ids = {AIR_PURIFIER_ID: MOCK_PURIFIER_ID, WASHER_ID: MOCK_WASHER_ID}
+        ids = {AIR_PURIFIER_ID: MOCK_PURIFIER_ID, WASHER_ID: MOCK_WASHER_ID,
+               DEHUMIDIFIER_ID: MOCK_DEHUMIDIFIER_ID}
         suffix = "(모의)"
     else:
         ids = dict(config.device_ids)
@@ -58,6 +62,14 @@ def _thinq_appliances(config):
             appliance_id=WASHER_ID, name=f"세탁기{suffix}", rows=0, cols=0, buttons=(),
             category=ApplianceCategory.WASHING_MACHINE, control_path=ControlRoute.THINQ,
             thinq=washer_binding(ids[WASHER_ID]),
+        ))
+    if ids.get(DEHUMIDIFIER_ID):
+        # 가전 종류 목록(폰과 공유하는 계약)에 제습기가 없어 other로 둔다 -- 서버 구성
+        # 가전이라 GET /appliances에는 나오지 않는다.
+        appliances.append(ApplianceDef(
+            appliance_id=DEHUMIDIFIER_ID, name=f"제습기{suffix}", rows=0, cols=0, buttons=(),
+            category=ApplianceCategory.OTHER, control_path=ControlRoute.THINQ,
+            thinq=dehumidifier_binding(ids[DEHUMIDIFIER_ID]),
         ))
     return appliances
 

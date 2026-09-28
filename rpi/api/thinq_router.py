@@ -236,6 +236,11 @@ async def demo_thinq_event(body: ThinqEventRequest,
     inject = getattr(controller.client, "inject_event", None)
     if inject is None:
         raise HTTPException(409, "모의(mock) 모드에서만 이벤트를 주입할 수 있어요")
+    # 시나리오 엔진은 제안 서비스와 함께 만들어지고 그때 이벤트를 구독한다. 서버를
+    # 막 띄워 이벤트가 첫 요청이면 구독 전이라 카드가 조용히 안 생겼다(2026-09-30).
+    from .thinq_wiring import get_scenario_engine  # noqa: PLC0415
+
+    await asyncio.to_thread(get_scenario_engine)
     return await asyncio.to_thread(inject, body.event)
 
 

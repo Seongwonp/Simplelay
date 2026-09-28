@@ -3,7 +3,10 @@
 근거 규칙(기존 제안과 같다):
 
 - 실제 실행(REAL)이 가열 확인(L3, ``operation_confirmed``)으로 끝났을 때만 일반 제안.
-  L1(눌림)·보고만 받은 성공은 가열의 근거가 아니므로 제안하지 않는다.
+  L1(눌림)·보고만 받은 성공은 가열의 근거가 아니므로 제안하지 않는다. UART 경로에서는
+  RPi4가 결과 프레임에 실은 ``execution_mode=real``과 ``operation_confirmed=true``
+  (``operation_source=real``)가 이 근거다 -- 모의 전력 판정(``mock``)의 통과는 확인 수준이
+  ``reported``로 남아 트리거가 되지 않는다(2026-09-30, G2).
 - 모의 실행(MOCK)의 성공은 ``allow_mock_success``인 시나리오에서만, **시연 제안**
   (``is_demo``)으로 만들고 근거 문장에 모의라고 적는다.
 - 실행 환경을 모르는(UNKNOWN) 결과는 트리거가 되지 않는다.
@@ -66,7 +69,8 @@ class ScenarioEngine:
             trigger = definition.trigger
             if trigger.kind == "thinq_event" and trigger.event == record.get("event"):
                 is_demo = record.get("execution_mode") != "real"
-                reason = f"ThinQ 이벤트 '{record.get('event')}'" + (" (모의)" if is_demo else "")
+                base = definition.event_reason or f"ThinQ 이벤트 '{record.get('event')}'"
+                reason = base + (" (시연: 모의 이벤트예요)" if is_demo else "")
                 self._offer(definition, reason, is_demo)
 
     def trigger_manual(self, scenario_id: str):

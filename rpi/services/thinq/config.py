@@ -5,7 +5,7 @@
 - ``SIMPLELAY_THINQ_COUNTRY`` — 국가 코드(기본 ``KR``).
 - ``SIMPLELAY_THINQ_CONFIRM_SECONDS`` — 상태 확인 대기 상한(기본 3초, **추측** —
   구형 기기는 5분 주기라 상한 안에 못 들어오는 것이 정상일 수 있다).
-- ``SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER`` · ``SIMPLELAY_THINQ_DEVICE_WASHER`` —
+- ``SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER`` · ``..._WASHER`` · ``..._DEHUMIDIFIER`` —
   real 모드에서 가전 ID에 묶을 ThinQ 기기 ID(없으면 그 가전을 등록하지 않는다).
 
 모르는 모드 값은 조용히 off로 떨어뜨리지 않고 기동 시 실패한다 -- 켰다고 믿는데

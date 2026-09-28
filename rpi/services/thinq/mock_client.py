@@ -1,10 +1,11 @@
 """모의 ThinQ 클라이언트 — 네트워크·PAT 없이 계약을 돌려 보는 대역 (U1-c).
 
-기기 두 대:
+기기 세 대:
 
 - 공기청정기 ``mock-purifier-01`` -- 전원·풍량·운전 모드 쓰기 가능.
 - 세탁기 ``mock-washer-01`` -- **읽기 전용.** ``inject_event("wash_complete")``로
   세탁 완료를 흉내 낸다(상태 ``runState.currentState`` → ``END``).
+- 제습기 ``mock-dehumidifier-01`` -- 전원만 쓰기 가능(2026-09-30, 세탁 완료 시나리오 대상).
 
 주입 가능한 장애(모두 다음 호출 1회에만 걸린다 — 연쇄 장애는 여러 번 주입):
 
@@ -41,7 +42,13 @@ from datetime import datetime, timezone
 
 from rpi.controller.models import ExecutionMode
 
-from .bindings import AIR_PURIFIER_CAPABILITIES, AIR_PURIFIER_DEVICE_TYPE, WASHER_DEVICE_TYPE
+from .bindings import (
+    AIR_PURIFIER_CAPABILITIES,
+    AIR_PURIFIER_DEVICE_TYPE,
+    DEHUMIDIFIER_CAPABILITIES,
+    DEHUMIDIFIER_DEVICE_TYPE,
+    WASHER_DEVICE_TYPE,
+)
 from .client import (
     ThinqCommandRejected,
     ThinqDeviceInfo,
@@ -54,6 +61,8 @@ FAULT_MODES = ("normal", "offline", "unconfirmed", "lost")
 
 MOCK_PURIFIER_ID = "mock-purifier-01"
 MOCK_WASHER_ID = "mock-washer-01"
+#: 모의 제습기(2026-09-30, G3 세탁 완료 → 제습 시나리오의 대상).
+MOCK_DEHUMIDIFIER_ID = "mock-dehumidifier-01"
 
 #: 주입 가능한 이벤트 → (기기, 상태 변경). 세탁기만 둔다.
 EVENTS = {
@@ -62,8 +71,15 @@ EVENTS = {
 }
 
 
-def _allowed_values() -> dict[tuple[str, str], tuple[str, ...]]:
-    return {(c.resource, c.property): c.allowed for c in AIR_PURIFIER_CAPABILITIES}
+_CAPABILITIES_BY_DEVICE = {
+    MOCK_PURIFIER_ID: AIR_PURIFIER_CAPABILITIES,
+    MOCK_DEHUMIDIFIER_ID: DEHUMIDIFIER_CAPABILITIES,
+}
+
+
+def _allowed_values(device_id: str = MOCK_PURIFIER_ID) -> dict[tuple[str, str], tuple[str, ...]]:
+    caps = _CAPABILITIES_BY_DEVICE.get(device_id, ())
+    return {(c.resource, c.property): c.allowed for c in caps}
 
 
 class MockThinqClient:
@@ -83,7 +99,8 @@ class MockThinqClient:
         self.state_delay_reads = 0
         self.drop_state_updates = False
         self._online = True
-        self._device_online = {MOCK_PURIFIER_ID: True, MOCK_WASHER_ID: True}
+        self._device_online = {MOCK_PURIFIER_ID: True, MOCK_WASHER_ID: True,
+                               MOCK_DEHUMIDIFIER_ID: True}
         self._next_failure: str | None = None
         self._pending: list[tuple[str, str, str, str, int]] = []
         self._ids = itertools.count(1)
@@ -94,6 +111,9 @@ class MockThinqClient:
             MOCK_WASHER_ID: ThinqDeviceInfo(
                 MOCK_WASHER_ID, WASHER_DEVICE_TYPE, "세탁기(모의)", "MOCK-WM", True
             ),
+            MOCK_DEHUMIDIFIER_ID: ThinqDeviceInfo(
+                MOCK_DEHUMIDIFIER_ID, DEHUMIDIFIER_DEVICE_TYPE, "제습기(모의)", "MOCK-DH", True
+            ),
         }
         self._state = {
             MOCK_PURIFIER_ID: {
@@ -102,6 +122,7 @@ class MockThinqClient:
                 "airPurifierJobMode": {"currentJobMode": "CLEAN"},
             },
             MOCK_WASHER_ID: {"runState": {"currentState": "RUNNING"}},
+            MOCK_DEHUMIDIFIER_ID: {"operation": {"dehumidifierOperationMode": "POWER_OFF"}},
         }
         self._faults: dict[str, str] = {}
         self._device_latency: dict[str, float] = {}
@@ -219,7 +240,7 @@ class MockThinqClient:
                 raise ThinqCommandRejected("2305", "command not supported in mode (mock)")
             if device_id == MOCK_WASHER_ID:
                 raise ThinqCommandRejected("2201", "read-only device (mock)")
-            changes = self._validate_locked(payload)
+            changes = self._validate_locked(device_id, payload)
             self.controls.append((device_id, copy.deepcopy(payload)))
             fault = self._faults.get(device_id)
             if fault == "lost":
@@ -236,8 +257,8 @@ class MockThinqClient:
                 raise ThinqTransportError("응답을 받지 못했어요(모의)")
             return {"messageId": f"mock-msg-{next(self._ids)}"}
 
-    def _validate_locked(self, payload: dict) -> list[tuple[str, str, str]]:
-        allowed = _allowed_values()
+    def _validate_locked(self, device_id: str, payload: dict) -> list[tuple[str, str, str]]:
+        allowed = _allowed_values(device_id)
         changes = []
         if not isinstance(payload, dict) or len(payload) != 1:
             raise ThinqCommandRejected("1101", "payload must hold one resource")

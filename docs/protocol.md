@@ -116,7 +116,44 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 - RPi5는 이 값을 `/status`·SSE `status` 이벤트의 `last_outcome`, `/history`·CSV의 `outcome`으로 내보낸다.
   `last_status`(`succeeded`/`safety_stopped`/`failed`)는 옛 클라이언트용으로 종전 값을 유지한다.
 - **물리 정지 확인이 아니다.** 실행 루프가 멈춘 이유일 뿐, 모터가 실제로 멈췄다는 보고는 별도다.
-- 멈춘 버튼·눌림 개수는 여전히 프레임에 없다(`retry`만 집계).
+- ~~멈춘 버튼·눌림 개수는 여전히 프레임에 없다(`retry`만 집계).~~ 2026-09-30부터 아래 `button_results`로 보낸다.
+
+`result` 확장 필드(2026-09-30 추가, G1·G2) — 옛 RPi5는 모르는 키를 무시한다.
+
+```json
+{ "type": "result", "sequence_id": "seq_004", "success": true, "retry": 1, "outcome": "success",
+  "button_results": [
+    { "button": "즉석밥", "ok": true, "attempts": 2, "layer": null,
+      "corrections": [ { "retry_number": 1, "xy_adjustment_required": true, "increase_press_depth": true } ] },
+    { "button": "시작", "ok": true, "attempts": 1, "layer": null, "corrections": [] } ],
+  "operation_confirmed": true, "operation_detail": "모의 전력 센서 — 시작 확정 …",
+  "operation_source": "mock", "execution_mode": "mock" }
+```
+
+| 필드 | 값 | 뜻 |
+|---|---|---|
+| `button_results` | 배열(실제로 돈 버튼만, 요청 시퀀스의 앞부분) | 버튼마다 `ok`·`attempts`(재시도 포함 누름 수, 1 이상)·`layer`(실패 층 `L1`/`L2`/`L3`, 성공이면 null)·`corrections`(재시도 누름마다의 정성 보정) |
+| `operation_confirmed` | `true` / `false` / `null` | L3(가전 동작) 판정. **`null` = 판정기 없음(`SIMPLELAY_L3_MODE=off`) 또는 판정 전 정지** — "안 돌았다"(`false`)와 다르다 |
+| `operation_detail` | 문자열 / `null` | 판정 사유 한 줄 |
+| `operation_source` | `real` / `mock` / `null` | 판정 입력이 실물 전력 센서인가, 합성 파형(모의)인가 |
+| `execution_mode` | `real` / `mock` / `unknown` | RPi4 모션 어댑터가 스스로 밝힌 실행 환경 |
+
+- RPi5는 `button_results`를 **엄격하게** 읽는다: 버튼 이름이 요청 순서와 다르거나, 성공이라면서 전 버튼을
+  덮지 않거나, 마지막이 아닌 칸이 실패면 **통째로 버리고** 종전처럼 집계 `retry`로 합성한다(성공이면 마지막
+  버튼에 싣는다 — 어느 버튼이 재시도했는지는 모름).
+- 재시도 수는 `/history`·CSV `retry_count`(버튼별 `attempts - 1`의 합), `/status`·SSE `last_retry_count`로
+  나간다. 버튼 결과가 없으면(ThinQ 단계 등) `last_retry_count`는 `null`이다(0으로 지어내지 않음).
+- L3는 `/status`·SSE `last_operation_confirmed`·`last_operation_source`·`last_operation_detail`,
+  `/history`·CSV `operation_confirmed`로 나간다.
+- **확인 수준(`confirmation`)을 `operation_confirmed`로 올리는 것은 `operation_confirmed=true` +
+  `operation_source=real`뿐이다.** `mock`의 `true`는 `reported`로 남는다(합성 입력은 가열 근거가 아님).
+  `source`가 없으면 `mock`으로 본다.
+- RPi5의 UART 컨트롤러는 실행 환경을 모르므로(`unknown`) `execution_mode` 보고를 이번 실행의 모드로 쓴다.
+  시뮬레이터처럼 스스로 `mock`이라고 밝힌 컨트롤러는 보고로 `real`이 되지 않는다.
+- 시나리오 `cook_then_air`의 **일반(실물) 제안은 `execution_mode=real` + L3 실물 확인일 때만** 생긴다.
+  모의 실행은 종전대로 시연 제안(`is_demo`)이다.
+- RPi4 `SIMPLELAY_L3_MODE`: `off`(기본, `null`) · `mock`(합성 전력 파형, `SIMPLELAY_L3_MOCK_OUTCOME=
+  confirmed|unconfirmed`) · `real`(CT·ADS1115 리더가 아직 없어 **기동 거절**). 시뮬레이터도 같은 변수를 읽는다.
 
 `result`/`error`/`ack`는 모두 RPi5가 보낸 `execute`에 대한 응답이다. 아래 두 개는
 유일하게 RPi5가 요청하지 않아도 RPi4가 스스로 보내는 메시지 — 마이크가 물려 있는

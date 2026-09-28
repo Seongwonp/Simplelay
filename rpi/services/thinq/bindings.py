@@ -125,6 +125,7 @@ class ThinqBinding:
 
 AIR_PURIFIER_DEVICE_TYPE = "DEVICE_AIR_PURIFIER"
 WASHER_DEVICE_TYPE = "DEVICE_WASHER"
+DEHUMIDIFIER_DEVICE_TYPE = "DEVICE_DEHUMIDIFIER"
 
 AIR_PURIFIER_CAPABILITIES = (
     ThinqCapability(
@@ -166,6 +167,25 @@ AIR_PURIFIER_FUNCTIONS = (
 
 WASHER_READABLE = (("runState", "currentState"),)
 
+# 제습기(2026-09-30, G3 세탁 완료 시나리오의 대상). 속성 이름은 **추측** — 공기청정기와
+# 같은 모양(operation.<기기>OperationMode)으로 두었고, 실물 프로필 확인 전까지 모의 전용이다.
+DEHUMIDIFIER_CAPABILITIES = (
+    ThinqCapability(
+        action="set_power",
+        resource="operation",
+        property="dehumidifierOperationMode",
+        arg="power",
+        allowed=("POWER_ON", "POWER_OFF"),
+        label="전원",
+        value_labels=(("POWER_ON", "켜기"), ("POWER_OFF", "끄기")),
+    ),
+)
+
+DEHUMIDIFIER_FUNCTIONS = (
+    ThinqFunction("제습기 켜줘", "set_power", (("power", "POWER_ON"),)),
+    ThinqFunction("제습기 꺼줘", "set_power", (("power", "POWER_OFF"),)),
+)
+
 
 def air_purifier_binding(device_id: str) -> ThinqBinding:
     return ThinqBinding(
@@ -181,4 +201,14 @@ def washer_binding(device_id: str) -> ThinqBinding:
     """세탁기는 **읽기 전용**으로만 둔다 — 원격 시작은 모델·안전 설정에 달려 가정하지 않는다."""
     return ThinqBinding(
         device_id=device_id, device_type=WASHER_DEVICE_TYPE, readable=WASHER_READABLE
+    )
+
+
+def dehumidifier_binding(device_id: str) -> ThinqBinding:
+    return ThinqBinding(
+        device_id=device_id,
+        device_type=DEHUMIDIFIER_DEVICE_TYPE,
+        capabilities=DEHUMIDIFIER_CAPABILITIES,
+        functions=DEHUMIDIFIER_FUNCTIONS,
+        readable=(("operation", "dehumidifierOperationMode"),),
     )

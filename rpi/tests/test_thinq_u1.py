@@ -313,7 +313,7 @@ def test_thinq_devices_and_events(client):
     body = client.get("/thinq/devices").json()
     assert body["mode"] == "mock" and body["execution_mode"] == "mock"
     ids = {a["appliance_id"] for a in body["appliances"]}
-    assert ids == {"air_purifier", "washer"}
+    assert ids == {"air_purifier", "washer", "dehumidifier"}
     event = client.post("/demo/thinq/event", json={"event": "wash_complete"}).json()
     assert event["state"] == {"runState": {"currentState": "END"}}
     assert client.get("/thinq/events").json()["events"][0]["event"] == "wash_complete"

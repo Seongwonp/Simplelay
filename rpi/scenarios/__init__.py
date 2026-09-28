@@ -8,6 +8,7 @@ from .catalog import (
     ScenarioDefinition,
     ScenarioStep,
     ScenarioTrigger,
+    WASH_THEN_DRY,
 )
 from .engine import ScenarioEngine, ScenarioUnavailableError
 
@@ -21,4 +22,5 @@ __all__ = [
     "ScenarioStep",
     "ScenarioTrigger",
     "ScenarioUnavailableError",
+    "WASH_THEN_DRY",
 ]
