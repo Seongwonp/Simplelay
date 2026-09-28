@@ -1,0 +1,29 @@
+<!doctype html><html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SimpleLay · 저녁 휴식 모의 시나리오</title>
+<style>
+:root{font-family:system-ui,sans-serif;color:#eef3fc;background:#101620;color-scheme:dark}body{max-width:1050px;margin:auto;padding:24px}h1{font-size:30px}p{line-height:1.65;color:#c2cce0}section{border:1px solid #42516b;border-radius:18px;padding:22px;margin:18px 0;background:#1b2434}.cards{display:grid;grid-template-columns:1fr 1fr;gap:16px}.card{padding:20px;border:1px solid #526581;border-radius:12px}button,input{font:inherit}button{padding:12px 18px;min-height:48px;border:1px solid #7195aa;border-radius:9px;background:#264558;color:white;margin:5px;cursor:pointer}button:disabled{opacity:.4;cursor:default}.primary{background:#15634f}.danger{background:#793246}label{display:block;padding:12px 0;font-size:21px}input[type=checkbox]{width:24px;height:24px;vertical-align:middle}a{color:#a5d9ff}.badge{color:#8ce7ca;font-weight:bold}#status{font-size:24px}#message{min-height:2em;color:#ffe2a7}button:focus-visible,input:focus-visible{outline:3px solid #ffe2a7}@media(max-width:650px){.cards{grid-template-columns:1fr}body{padding:12px}}
+</style><body>
+<div class="badge">모의 전용 · 합성 이력 · 실제 가전 연결 없음</div>
+<h1>저녁 휴식 준비</h1><p>평소의 두 가전 제안을 오늘 상황에 맞게 바꿔 보세요. 제외한 가전은 실행하지 않고, 바뀐 구성을 다시 확인해야 진행됩니다.</p>
+<a href="/simulator">← 통신 리허설</a> · <a href="/simulator/parking">CoreXY 정지·보관</a>
+<details><summary>API 키 설정</summary><input id="key" type="password" aria-label="API 키" autocomplete="off"><button id="connect">다시 연결</button></details>
+<p id="message" role="status" aria-live="polite"></p>
+<section><p id="reason"></p><div class="cards" id="cards"></div>
+<p id="preview">가전을 선택하고 미리보기를 확인하세요.</p>
+<button id="review">선택한 구성 미리보기</button><button class="primary" id="approve" disabled>확인한 구성 승인 · 모의 실행</button>
+<p>제외 선택은 이번 시나리오에만 적용됩니다. 무응답이면 실행하지 않습니다.</p></section>
+<section><h2>가전별 진행 결과</h2><p id="status"></p><div id="results"></div>
+<button class="danger" id="stop">전체 정지 요청</button><p>정지 요청은 정지 확인이 아닙니다. 먼저 성공한 가전의 동작을 자동으로 되돌리지 않습니다.</p></section>
+<section><h2>검증용 결과 주입</h2><p>현재 진행 중인 가전 한 대에만 적용합니다. 아래 결과는 실제 센서 관측이 아닙니다.</p>
+<button id="success">동작 성공 주입</button><button id="failure">실패 주입</button><button id="link_lost">응답 유실 주입</button><button id="stop_confirmed">정지 확인 주입</button><button id="reset">새 모의 시나리오</button></section>
+<script>
+const $=id=>document.getElementById(id);let state=null,busy=false,dirty=false,online=false;
+const labels={not_started:'미실행',excluded:'이번에는 제외',running:'진행 중 · 결과 미확인',succeeded:'모의 동작 성공',failed:'모의 실패',unconfirmed:'응답 유실 · 동작 여부 모름',cancelled:'후속 실행 취소',stopped:'모의 정지 확인'};
+const phases={draft:'구성 선택',review:'미리보기 · 재승인 대기',running:'순서대로 진행 중',stopping:'정지 요청함 · 확인 대기',completed:'선택한 가전 모두 모의 성공',halted:'진행 중단 · 가전별 결과 확인',unconfirmed:'확인 불가 · 자동 재시도 없음'};
+async function api(path,body){const headers={'Content-Type':'application/json'};if($('key').value)headers['X-API-Key']=$('key').value;const r=await fetch('/simulator/routine/'+path,{method:body?'POST':'GET',headers,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(5000)});const d=await r.json();if(!r.ok)throw Error(typeof d.detail==='string'?d.detail:'요청을 확인해 주세요.');return d}
+function controls(){const usable=online&&!busy&&state,editable=usable&&['draft','review'].includes(state.phase);$('review').disabled=!editable;$('approve').disabled=!usable||dirty||state.phase!=='review';for(const id of ['success','failure','link_lost'])$(id).disabled=!usable||!['running','stopping'].includes(state.phase);$('stop').disabled=!usable||state.phase!=='running';$('stop_confirmed').disabled=!usable||state.phase!=='stopping';$('reset').disabled=!usable||['running','stopping'].includes(state.phase);document.querySelectorAll('[data-device]').forEach(c=>c.disabled=!editable)}
+function render(s){const changed=!state||s.session!==state.session||s.revision!==state.revision;state=s;online=true;if(changed){dirty=false;$('cards').replaceChildren();for(const item of s.items){const div=document.createElement('div');div.className='card';const label=document.createElement('label'),check=document.createElement('input');check.type='checkbox';check.dataset.device=item.id;check.checked=item.selected;check.onchange=()=>{dirty=true;$('preview').textContent='구성이 바뀌었어요. 새 미리보기를 확인하세요.';controls()};label.append(check,document.createTextNode(' '+item.name));div.append(label,document.createTextNode(item.action));$('cards').append(div)}$('preview').textContent=(s.phase==='draft'?'미리보기 전: ':'확인할 구성: ')+s.items.filter(i=>i.selected).map(i=>i.name+' · '+i.action).join(' → ')}$('reason').textContent=s.reason;$('status').textContent=phases[s.phase];$('results').replaceChildren();for(const item of s.items){const p=document.createElement('p');p.textContent=item.name+': '+labels[item.status]+(item.receipt==='unknown'?' · 접수 여부 미확인':'')+(s.stop_requested&&item.status==='succeeded'?' · 성공 기록 유지, 정지 보장 아님':'');$('results').append(p)}controls()}
+async function refresh(){if(busy)return;try{render(await api('state'))}catch(e){online=false;$('message').textContent='서버 연결 확인 불가. 마지막 상태는 최신이 아닐 수 있어요. '+e.message;controls()}}
+async function send(event){if(!state||busy||!online)return;const body={session:state.session,revision:state.revision,event};if(event==='review')body.selected=[...document.querySelectorAll('[data-device]:checked')].map(c=>c.dataset.device);busy=true;controls();try{render(await api('event',body));$('message').textContent=event==='review'?'새 구성입니다. 확인 후 별도로 승인하세요.':event==='approve'?'모의 실행을 시작했어요. 결과를 주입해 보세요.':''}catch(e){$('message').textContent=e.message;online=false}finally{busy=false;controls()}}
+for(const id of ['review','approve','success','failure','link_lost','stop','stop_confirmed','reset'])$(id).onclick=()=>send(id);$('connect').onclick=refresh;refresh();setInterval(refresh,1500);
+</script></body></html>

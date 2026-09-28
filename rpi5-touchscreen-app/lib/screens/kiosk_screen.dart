@@ -1,3 +1,4 @@
+import 'package:routine_rehearsal/routine_rehearsal.dart';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -755,6 +756,13 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Widget _buildScaffold() {
     return Scaffold(
+      floatingActionButton: const bool.fromEnvironment('SIMPLELAY_ROUTINE_MOCK') && _phase == KioskPhase.idle && !_showSettings && !_showDnd && !_alert.active
+          ? FloatingActionButton.extended(
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => RoutineRehearsalScreen(request: _api.routineRequest),
+              )),
+              label: const Text('다가전 모의'), icon: const Icon(Icons.science_outlined),
+            ) : null,
       backgroundColor: KioskColors.bg,
       body: Stack(
         children: [

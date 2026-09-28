@@ -1,3 +1,4 @@
+import 'package:routine_rehearsal/routine_rehearsal.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -73,6 +74,17 @@ class HomeScreen extends ConsumerWidget {
         // 아래 가전 상태 문장이 같은 말을 하므로 없앴다 -- 같은 사실을
         // 두 군데서 다르게 말하면 어느 쪽을 믿을지 알 수 없다.
         actions: [
+          if (const bool.fromEnvironment('SIMPLELAY_ROUTINE_MOCK'))
+            IconButton(
+              tooltip: '다가전 모의', icon: const Icon(Icons.science_outlined),
+              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => Consumer(builder: (context, ref, _) {
+                  final api = ref.watch(rpiApiServiceProvider);
+                  if (api == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('모의 서버 주소를 먼저 설정하세요.')));
+                  return RoutineRehearsalScreen(key: ObjectKey(api), request: api.routineRequest);
+                }),
+              )),
+            ),
           // 실행 기록 (공감지능 근거 + 폐루프 재시도 기록). 하단 탭에 자리가
           // 없어 여기 남긴다 -- 이제 혼자라 붐비지 않는다.
           IconButton(

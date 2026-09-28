@@ -44,6 +44,37 @@ class RehearsalEvent(BaseModel):
     end_y: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
 
 
+class RoutineEvent(BaseModel):
+    model_config = ConfigDict(extra='forbid', strict=True)
+    session: str = Field(min_length=1, max_length=64)
+    revision: int = Field(ge=0)
+    event: Literal['reset', 'review', 'approve', 'success', 'failure', 'link_lost', 'stop', 'stop_confirmed']
+    selected: list[Literal['purifier', 'fan']] | None = Field(default=None, max_length=2)
+
+
+@router.get('/routine', response_class=HTMLResponse)
+def routine_panel(controller=Depends(require_simulator)):
+    return (pathlib.Path(__file__).parent.parent / 'touchscreen' / 'routine.html').read_text(encoding='utf-8')
+
+
+@router.get('/routine/state')
+def routine_state(controller=Depends(require_simulator)):
+    return controller.routine_rehearsal.snapshot()
+
+
+@router.post('/routine/event')
+def routine_event(body: RoutineEvent, controller=Depends(require_simulator)):
+    from rpi.services.parking_rehearsal import StaleRehearsal
+    try:
+        if body.event != 'review' and body.selected is not None:
+            raise ValueError('선택 변경은 미리보기에서만 가능해요.')
+        return controller.routine_rehearsal.event(body.session, body.revision, body.event, body.selected)
+    except StaleRehearsal as exc:
+        raise HTTPException(409, str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+
+
 @router.get('/parking', response_class=HTMLResponse)
 def parking_panel(controller=Depends(require_simulator)):
     return (pathlib.Path(__file__).parent.parent / 'touchscreen' / 'parking.html').read_text(encoding='utf-8')

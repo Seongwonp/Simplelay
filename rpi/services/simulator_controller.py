@@ -41,6 +41,8 @@ class SimulatorController(ActClientController):
         self._state_lock = threading.Lock()
         from .parking_rehearsal import ParkingRehearsal
         self.parking_rehearsal = ParkingRehearsal()
+        from .routine_rehearsal import RoutineRehearsal
+        self.routine_rehearsal = RoutineRehearsal()
         self._closed = False
         self._busy = False
         self._trace = deque(maxlen=80)

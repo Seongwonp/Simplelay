@@ -235,6 +235,18 @@ class KioskApiService {
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};
 
+  Future<Map<String, dynamic>> routineRequest(Map<String, dynamic>? event) async {
+    final uri = _base.replace(path: '/simulator/routine/${event == null ? 'state' : 'event'}');
+    final response = await (event == null
+        ? _client.get(uri, headers: _jsonHeaders)
+        : _client.post(uri, headers: _jsonHeaders, body: jsonEncode(event)))
+        .timeout(_timeout);
+    if (response.statusCode != 200) {
+      throw StateError('모의 요청 실패: ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   Future<HealthStatus> checkHealth() async {
     try {
       final res =

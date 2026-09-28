@@ -22,6 +22,8 @@ import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 class FakeKioskApi implements KioskApiService {
   @override
+  Future<Map<String, dynamic>> routineRequest(Map<String, dynamic>? event) async => throw StateError('simulator unavailable');
+  @override
   Future<LearningStatus> learningStatus() async => throw StateError('offline');
 
   List<KioskSuggestion> suggestionList = [];

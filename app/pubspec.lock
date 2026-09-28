@@ -584,6 +584,13 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.6.1"
+  routine_rehearsal:
+    dependency: "direct main"
+    description:
+      path: "../packages/routine_rehearsal"
+      relative: true
+    source: path
+    version: "0.1.0"
   rxdart:
     dependency: transitive
     description:

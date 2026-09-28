@@ -12,6 +12,20 @@ http.Response _jsonResponse(Object body, int status) => http.Response.bytes(
     );
 
 void main() {
+  test('routine uses simulator paths, carries auth and never retries rejected approval', () async {
+    final requests = <http.Request>[];
+    final api = RpiApiService('http://localhost:8768', apiKey: 'test-key', client: MockClient((r) async {
+      requests.add(r);
+      expect(r.headers['X-API-Key'], 'test-key');
+      return _jsonResponse({'execution_mode': 'mock'}, r.method == 'GET' ? 200 : 409);
+    }));
+    expect((await api.routineRequest(null))['execution_mode'], 'mock');
+    final event = {'session': 'one', 'revision': 1, 'event': 'approve'};
+    await expectLater(api.routineRequest(event), throwsStateError);
+    expect(requests.map((r) => r.url.path), ['/simulator/routine/state', '/simulator/routine/event']);
+    expect(jsonDecode(requests.last.body), event);
+    api.dispose();
+  });
   test('revision fetches choices then returns a new preview without approval', () async {
     final paths = <String>[];
     final api = RpiApiService('http://rpi5.local:8000', client: MockClient((request) async {

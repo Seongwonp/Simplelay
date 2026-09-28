@@ -5,7 +5,7 @@
 :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#101419;color:#f5f6f7}body{max-width:1100px;margin:auto;padding:28px}h1{font-size:30px;margin:14px 0}h2{font-size:20px}p{line-height:1.6;color:#c5ccd4}.badge{color:#f2ce74;font-weight:700}.grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}section{border:1px solid #414b58;border-radius:14px;padding:22px}button,select,input,a.action{font:inherit;padding:13px 17px;border-radius:8px;border:1px solid #667381;background:#25303c;color:inherit;min-height:48px}button{cursor:pointer;margin:4px}button:disabled{opacity:.45;cursor:wait}.primary{background:#235e58}.stop{background:#92322c}label{display:block;margin:12px 0}select{width:100%}a{color:#b6e7e0}pre{white-space:pre-wrap;overflow-wrap:anywhere;max-height:360px;overflow:auto;font-size:14px}#notice{min-height:3em}#status{font-size:24px;font-weight:700}.buttons{display:flex;flex-wrap:wrap}@media(max-width:760px){.grid{grid-template-columns:1fr}}details{margin:20px 0}
 </style>
 <body><div class="badge">모의 실행 전용 · 실제 모터와 센서를 사용하지 않습니다</div>
-<h1>SimpleLay 통신 리허설</h1><p><a href="/simulator/parking">정지 버튼·보관 위치 모의 동작 열기 ↗</a></p>
+<h1>SimpleLay 통신 리허설</h1><p><a href="/simulator/parking">정지 버튼·보관 위치 모의 동작 열기 ↗</a> · <a href="/simulator/routine">다가전 저녁 휴식 시나리오 ↗</a></p>
 <p>앱·키오스크와 같은 실행 API를 사용합니다. RPi5 요청 → 모의 통신 → RPi4 실행기 → 결과를 확인하세요.</p>
 <p><a href="/kiosk/" target="_blank" rel="noopener">기존 Flutter 키오스크 열기 ↗</a> · 폰 앱은 이 서버 주소로 연결하고 앱 자체 데모 모드는 꺼주세요.</p>
 <details><summary>서버 인증 설정</summary><label>API 키(설정된 서버에서만 필요) <input id="key" type="password" autocomplete="off"></label><button id="connect">다시 연결</button></details>

@@ -359,6 +359,18 @@ class RpiApiService {
   static const _timeout = Duration(seconds: 8);
 
   // GET /health — 연결 확인 + DND 상태 + actuator 상태
+  Future<Map<String, dynamic>> routineRequest(Map<String, dynamic>? event) async {
+    final uri = _base.replace(path: '/simulator/routine/${event == null ? 'state' : 'event'}');
+    final response = await (event == null
+        ? _client.get(uri, headers: _jsonHeaders)
+        : _client.post(uri, headers: _jsonHeaders, body: jsonEncode(event)))
+        .timeout(_timeout);
+    if (response.statusCode != 200) {
+      throw StateError('모의 요청 실패: ${response.statusCode}');
+    }
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
   Future<bool> ping() async {
     try {
       final res = await _client
