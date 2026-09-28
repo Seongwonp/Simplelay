@@ -1,28 +1,46 @@
 // Digital-twin concept motion. Pure: no DOM, no requests, no results.
 // Coordinates are normalized to the control-panel workspace (0~1, y down).
 // Pulley radius, mm scale, motor RPM and real timing are unknown, so every
-// duration here is a screen pacing value, not a device speed.
+// duration here is a screen pacing value, not a device speed. The official
+// 310 rpm no-load speed is an upper bound for display only and is never used
+// in timing.
 (function (root) {
   'use strict';
 
   const DEFAULT_TIMING = { home: 0.7, moveBase: 0.3, movePerUnit: 0.8, press: 0.25, ret: 0.25 };
   const HOME = [0, 0];
+  // Catch-up: every button still queued behind the current one shortens the
+  // current segment. Once the server result is in, playback hurries further.
+  // Screen pacing only (the server presses every step_seconds, ~0.8 s).
+  const CATCH_UP = { gain: 0.6, hurry: 2, max: 6 };
+  // Retry XY nudge drawn on screen. The executor records only a qualitative
+  // correction request (no distance), so this size is a concept marker.
+  const CONCEPT_NUDGE = 0.03;
 
   // CoreXY: ΔA = ΔX + ΔY, ΔB = ΔX − ΔY (same relative unit as X/Y).
   function corexy(dx, dy) { return { a: dx + dy, b: dx - dy }; }
   function inverse(a, b) { return { dx: (a + b) / 2, dy: (a - b) / 2 }; }
   function ease(t) { const c = Math.max(0, Math.min(1, t)); return c * c * (3 - 2 * c); }
+  const clamp01 = v => Math.max(0, Math.min(1, v));
 
   // Button map → normalized positions. Never invents mm: grid cells stay grid cells.
-  function layoutButtons(appliance, fallbackLabels) {
+  // mm coordinates keep their aspect ratio (uniform scale, centered). `aspect`
+  // is the workspace width/height on screen so a square stays square.
+  function layoutButtons(appliance, fallbackLabels, options) {
     const buttons = (appliance && Array.isArray(appliance.buttons)) ? appliance.buttons : [];
     const num = v => typeof v === 'number' && Number.isFinite(v);
+    const aspect = options && num(options.aspect) && options.aspect > 0 ? options.aspect : 1;
     if (buttons.length && buttons.every(b => num(b.x_mm) && num(b.y_mm))) {
       const xs = buttons.map(b => b.x_mm), ys = buttons.map(b => b.y_mm);
       const [minX, maxX, minY, maxY] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
-      const n = (v, lo, hi) => (hi - lo > 1e-9 ? 0.1 + 0.8 * (v - lo) / (hi - lo) : 0.5);
-      return { mode: 'mm', note: '보정된 mm 좌표를 패널 범위로 정규화했습니다. 축척·원점은 개념입니다.',
-        buttons: buttons.map(b => ({ id: b.id, label: b.label, x: n(b.x_mm, minX, maxX), y: n(b.y_mm, minY, maxY) })) };
+      const cx = (minX + maxX) / 2, cy = (minY + maxY) / 2;
+      // Workspace in "height units": width = aspect, height = 1. Fit the span into 80 %.
+      const sx = maxX - minX, sy = maxY - minY;
+      const k = Math.min(sx > 1e-9 ? 0.8 * aspect / sx : Infinity, sy > 1e-9 ? 0.8 / sy : Infinity);
+      const kk = Number.isFinite(k) ? k : 0;
+      return { mode: 'mm', note: '보정된 mm 좌표를 가로세로 비율을 유지해 패널 가운데에 배치했습니다. 축척·원점은 개념입니다.',
+        buttons: buttons.map(b => ({ id: b.id, label: b.label,
+          x: 0.5 + (b.x_mm - cx) * kk / aspect, y: 0.5 + (b.y_mm - cy) * kk })) };
     }
     const rows = appliance && appliance.rows, cols = appliance && appliance.cols;
     if (buttons.length && rows > 0 && cols > 0 && buttons.every(b => num(b.x) && num(b.y))) {
@@ -36,25 +54,70 @@
       buttons: unique.map((label, i) => ({ id: 'tmp-' + i, label, x: ((i % c) + 0.5) / c, y: (Math.floor(i / c) + 0.5) / r })) };
   }
 
+  // Id first (unique), label only as a fallback (the wire protocol sends labels).
+  function findButton(layout, ref) {
+    if (!layout || !ref) return null;
+    const r = typeof ref === 'string' ? { label: ref } : ref;
+    if (r.id != null) { const b = layout.buttons.find(x => x.id === r.id); if (b) return b; }
+    return r.label != null ? layout.buttons.find(x => x.label === r.label) || null : null;
+  }
+
+  // Concept nudge for retry n (1-based): rotates right/down/left/up.
+  function conceptNudge(retry) {
+    const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    const d = dirs[(Math.max(1, retry) - 1) % 4];
+    return [d[0] * CONCEPT_NUDGE, d[1] * CONCEPT_NUDGE];
+  }
+
+  // Single-motor demo: A only → ΔB = 0 → ΔX = ΔY (diagonal); B only → ΔX = −ΔY.
+  // Flips direction if the move would leave the workspace.
+  function demoTarget(pos, motor, amount) {
+    const d = amount == null ? 0.3 : amount;
+    for (const s of [1, -1]) {
+      const { dx, dy } = motor === 'A' ? inverse(s * d, 0) : inverse(0, s * d);
+      const t = [pos[0] + dx, pos[1] + dy];
+      if (t[0] >= 0 && t[0] <= 1 && t[1] >= 0 && t[1] <= 1) {
+        return { to: t, da: motor === 'A' ? s * d : 0, db: motor === 'B' ? s * d : 0, dx, dy };
+      }
+    }
+    const { dx, dy } = motor === 'A' ? inverse(d, 0) : inverse(0, d);
+    const t = [clamp01(pos[0] + dx), clamp01(pos[1] + dy)];
+    const back = corexy(t[0] - pos[0], t[1] - pos[1]);
+    return { to: t, da: back.a, db: back.b, dx: t[0] - pos[0], dy: t[1] - pos[1] };
+  }
+
   function createEngine(options) {
     const timing = Object.assign({}, DEFAULT_TIMING, options && options.timing);
+    const catchUp = options && options.catchUp === false ? null : Object.assign({}, CATCH_UP, options && options.catchUp);
     let scale = options && typeof options.scale === 'number' ? options.scale : 1;
     let pos = (options && options.start) ? options.start.slice() : HOME.slice();
     let z = 0, totalA = 0, totalB = 0;
-    let queue = [], active = null, stopped = false, events = [], last = null;
+    let queue = [], active = null, events = [], last = null, hurry = false;
+    // halt: null (normal) | 'aligning' (stop: Z up, then go to last press) | 'stopped'
+    let halt = null, alignTarget = null, alignLabel = null;
 
     function emit(e) { events.push(e); }
+    function backlog() { return queue.filter(s => s.kind === 'move' && !s.align).length; }
+    function speedup() {
+      if (!catchUp || halt) return 1;
+      const f = (1 + catchUp.gain * backlog()) * (hurry ? catchUp.hurry : 1);
+      return Math.min(catchUp.max, f);
+    }
     function dur(seg) {
-      if (seg.kind === 'home') return timing.home * scale;
-      if (seg.kind === 'move') return (timing.moveBase + timing.movePerUnit * Math.hypot(seg.to[0] - seg.from[0], seg.to[1] - seg.from[1])) * scale;
-      return (seg.kind === 'press' ? timing.press : timing.ret) * scale;
+      let base;
+      if (seg.kind === 'home') base = timing.home;
+      else if (seg.kind === 'move') base = timing.moveBase + timing.movePerUnit * Math.hypot(seg.to[0] - seg.from[0], seg.to[1] - seg.from[1]);
+      else base = seg.kind === 'press' ? timing.press : timing.ret;
+      return base * scale / speedup();
     }
     function begin(seg, start) {
       if (seg.kind === 'home' || seg.kind === 'move') seg.from = pos.slice();
-      seg.start = start; seg.duration = dur(seg);
       seg.zFrom = z;
+      seg.start = start; seg.speedup = speedup(); seg.duration = dur(seg);
       active = seg;
-      emit({ type: 'phase', kind: seg.kind, label: seg.label || null, step_index: seg.step_index, attempt: seg.attempt });
+      emit({ type: 'phase', kind: seg.align ? 'align_' + seg.kind : seg.kind, label: seg.label || null,
+        id: seg.id ?? null, step_index: seg.step_index, attempt: seg.attempt, nudge: seg.nudge || null,
+        correction: seg.correction || null, speedup: seg.speedup, demo: !!seg.demo });
     }
     function poseOf(seg, t) {
       const e = ease(t);
@@ -75,61 +138,101 @@
       } else z = seg.kind === 'press' ? 1 : 0;
       active = null;
     }
+    function phaseName() { return halt === 'stopped' ? 'stopped' : halt === 'aligning' ? 'aligning' : 'idle'; }
     function snapshot(extra) {
       return Object.assign({ x: pos[0], y: pos[1], z, a: totalA, b: totalB, da: 0, db: 0,
-        phase: stopped ? 'stopped' : 'idle', label: null, step_index: null, attempt: null,
-        pressing: z > 0.9, queued: queue.length }, extra || {});
+        phase: phaseName(), label: null, id: null, step_index: null, attempt: null, nudge: null, base: null,
+        correction: null, pressing: z > 0.9, queued: queue.length, backlog: backlog(), speedup: 1, hurry }, extra || {});
+    }
+    function settleHalt() {
+      if (halt === 'aligning' && !active && !queue.length) {
+        halt = 'stopped';
+        emit({ type: 'phase', kind: 'stopped', label: alignLabel });
+      }
+    }
+    function freezeAt(now) {
+      // Take the live pose as the new base (mid-move or mid-Z).
+      const p = api.tick(now);
+      pos = [p.x, p.y]; z = p.z; totalA = p.a; totalB = p.b;
+      queue = []; active = null;
+      return p;
     }
 
     const api = {
-      home() { if (!stopped) queue.push({ kind: 'home', to: HOME.slice(), label: '원점' }); },
+      home() { if (!halt) queue.push({ kind: 'home', to: HOME.slice(), label: '원점' }); },
       enqueue(target, meta) {
-        if (stopped) return false;
+        if (halt) return false;
         const m = meta || {};
-        const base = { label: m.label || null, step_index: m.step_index ?? null, attempt: m.attempt ?? null };
-        queue.push(Object.assign({ kind: 'move', to: [target[0], target[1]] }, base));
+        const base = { label: m.label || null, id: m.id ?? null, step_index: m.step_index ?? null, attempt: m.attempt ?? null,
+          nudge: m.nudge || null, correction: m.correction || null, base: [target[0], target[1]] };
+        const to = m.nudge ? [clamp01(target[0] + m.nudge[0]), clamp01(target[1] + m.nudge[1])] : [target[0], target[1]];
+        queue.push(Object.assign({ kind: 'move', to }, base));
         queue.push(Object.assign({ kind: 'press' }, base));
         queue.push(Object.assign({ kind: 'return' }, base));
         return true;
       },
+      // XY only (no Z) — used by the single-motor demo.
+      moveTo(target, meta) {
+        if (halt) return false;
+        queue.push(Object.assign({ kind: 'move', to: [target[0], target[1]], demo: true }, meta || {}));
+        return true;
+      },
       tick(now) {
-        if (stopped) return last || (last = snapshot());
+        if (halt === 'stopped') return last || (last = snapshot());
         let clock = null;
         for (;;) {
           if (!active) {
-            if (!queue.length) { last = snapshot(); return last; }
+            if (!queue.length) { hurry = false; settleHalt(); last = snapshot(); return last; }
             begin(queue.shift(), clock === null ? now : clock);
           }
           const t = active.duration > 0 ? (now - active.start) / active.duration : 1;
           if (t < 1) {
             const p = poseOf(active, t);
-            const d = corexy(p.x - (active.from ? active.from[0] : pos[0]) , p.y - (active.from ? active.from[1] : pos[1]));
+            const d = corexy(p.x - (active.from ? active.from[0] : pos[0]), p.y - (active.from ? active.from[1] : pos[1]));
             last = snapshot({ x: p.x, y: p.y, z: p.z, a: totalA + d.a, b: totalB + d.b, da: p.da, db: p.db,
-              phase: active.kind, label: active.label, step_index: active.step_index, attempt: active.attempt,
-              pressing: p.z > 0.9, progress: t });
+              phase: active.align ? 'aligning' : active.kind, label: active.label, id: active.id ?? null,
+              step_index: active.step_index, attempt: active.attempt, nudge: active.nudge || null,
+              base: active.base || null, correction: active.correction || null,
+              pressing: p.z > 0.9, progress: t, speedup: active.speedup || 1 });
             return last;
           }
           clock = active.start + active.duration;
           finish(active);
         }
       },
-      // Freeze where the carriage is now. Queued concept steps are dropped;
-      // nothing about the server result is implied.
-      stop(now) {
-        if (stopped) return last;
-        const p = api.tick(now);
-        pos = [p.x, p.y]; z = p.z; totalA = p.a; totalB = p.b;
-        queue = []; active = null; stopped = true;
-        last = snapshot({ phase: 'stopped' });
-        emit({ type: 'phase', kind: 'stopped', label: null });
-        return last;
+      // Stop: drop queued concept steps, never freeze mid-Z. Retract Z, then
+      // (if given) move to the server's last recorded press position. Calling
+      // again with a different target realigns (a press recorded after stop).
+      // Nothing about the server result is implied.
+      stop(now, target, meta) {
+        const m = meta || {};
+        const same = (target && alignTarget && Math.abs(target[0] - alignTarget[0]) < 1e-9 && Math.abs(target[1] - alignTarget[1]) < 1e-9)
+          || (!target && halt);
+        if (halt && same) return last;
+        const wasHalted = !!halt;
+        const p = freezeAt(now);
+        halt = 'aligning'; hurry = false;
+        alignTarget = target ? [target[0], target[1]] : alignTarget;
+        alignLabel = m.label || alignLabel || null;
+        if (z > 1e-6) queue.push({ kind: 'return', align: true, label: alignLabel });
+        if (target && (Math.abs(target[0] - pos[0]) > 1e-9 || Math.abs(target[1] - pos[1]) > 1e-9)) {
+          queue.push({ kind: 'move', to: [target[0], target[1]], align: true, label: alignLabel });
+        }
+        emit({ type: 'phase', kind: wasHalted ? 'realign' : 'halt', label: alignLabel, z: p.z, target: alignTarget });
+        const out = api.tick(now);
+        return out;
       },
-      reset() { queue = []; active = null; stopped = false; last = null; z = 0; },
+      hurry(on) { hurry = !!on; },
+      reset() { queue = []; active = null; halt = null; alignTarget = null; alignLabel = null; last = null; z = 0; hurry = false; },
       place(p) { pos = p.slice(); z = 0; last = null; },
       setScale(s) { scale = s; },
       drain() { const out = events; events = []; return out; },
-      get stopped() { return stopped; },
+      get stopped() { return !!halt; },
+      get halted() { return halt; },
       get busy() { return !!active || queue.length > 0; },
+      get backlog() { return backlog(); },
+      get alignTarget() { return alignTarget; },
+      get position() { return pos.slice(); },
     };
     return api;
   }
@@ -138,22 +241,34 @@
   // repeated polls add nothing, and no result is ever produced here.
   function createFollower(engine) {
     let key = null, cursor = 0, missing = new Set(), historic = false;
-    function where(layout, label) {
-      const b = layout && layout.buttons.find(x => x.label === label);
+    function where(layout, p) {
+      const b = findButton(layout, { id: p.button_id, label: p.label });
       return b ? [b.x, b.y] : null;
+    }
+    function lastPressTarget(job, layout) {
+      for (let i = job.press_log.length - 1; i >= 0; i--) {
+        const at = where(layout, job.press_log[i]);
+        if (at) return { at, label: job.press_log[i].label };
+      }
+      return null;
     }
     function feed(job, layout, from) {
       const notes = [];
       for (const p of job.press_log.slice(from)) {
-        const at = where(layout, p.label);
+        const at = where(layout, p);
         if (!at) { if (!missing.has(p.label)) notes.push('버튼맵에 없는 이름: ' + p.label); missing.add(p.label); continue; }
-        engine.enqueue(at, { label: p.label, step_index: p.step_index, attempt: p.attempt });
+        const retry = p.attempt > 1 ? p.attempt - 1 : 0;
+        const b = findButton(layout, { id: p.button_id, label: p.label });
+        engine.enqueue(at, { label: p.label, id: b ? b.id : null, step_index: p.step_index, attempt: p.attempt,
+          nudge: retry ? conceptNudge(retry) : null,
+          correction: retry ? { recorded: !!p.correction, xy: !!(p.correction && p.correction.xy_adjustment_required),
+            depth: !!(p.correction && p.correction.increase_press_depth) } : null });
       }
       return notes;
     }
     return {
       update(state, layout, now) {
-        const out = { changed: false, historic: false, froze: false, notes: [] };
+        const out = { changed: false, historic: false, froze: false, realigned: false, notes: [] };
         const job = state && state.job;
         if (!job) return out;
         if (job.sequence_id !== key) {
@@ -163,9 +278,8 @@
           if (first && job.result && !state.running) {
             // Already finished before this page opened: show where the last
             // recorded press was, without replaying it as if it were live.
-            const lastPress = job.press_log[job.press_log.length - 1];
-            const at = lastPress && where(layout, lastPress.label);
-            if (at) engine.place(at);
+            const lp = lastPressTarget(job, layout);
+            if (lp) engine.place(lp.at);
             cursor = job.press_log.length; out.historic = historic = true;
             return out;
           }
@@ -175,9 +289,25 @@
           out.notes = feed(job, layout, cursor);
           cursor = job.press_log.length;
         }
+        // Result in while motion is still behind: hurry (screen pacing only).
+        if (job.result && engine.busy && !engine.stopped) engine.hurry(true);
         // A finished job's old abort must not freeze the static view.
-        if (job.abort_requested && !historic && !engine.stopped) { engine.stop(now); out.froze = true; }
+        if (job.abort_requested && !historic) {
+          const lp = lastPressTarget(job, layout);
+          const was = engine.halted;
+          const target = lp ? lp.at : null;
+          const differs = target && (!engine.alignTarget || engine.alignTarget[0] !== target[0] || engine.alignTarget[1] !== target[1]);
+          if (!was || differs) {
+            engine.stop(now, target, { label: lp ? lp.label : null });
+            if (!was) out.froze = true; else out.realigned = true;
+          }
+        }
         return out;
+      },
+      // Server's last recorded press position for the current job (for the stop button).
+      stopTarget(state, layout) {
+        const job = state && state.job;
+        return job && job.sequence_id === key ? lastPressTarget(job, layout) : null;
       },
       replay(job, layout, now) {
         if (!job) return;
@@ -188,7 +318,36 @@
     };
   }
 
-  const api = { corexy, inverse, ease, layoutButtons, createEngine, createFollower, DEFAULT_TIMING, HOME };
+  // Server verdict text. The animation never decides it; while a result has
+  // arrived but motion is still replaying, the final verdict is held back.
+  function verdictText(twin, motionBusy) {
+    const job = twin && twin.job;
+    if (!job) return '아직 실행 기록이 없습니다.';
+    const r = job.result;
+    if (!r) return twin.running ? '결과 대기 · 서버 보고 전' : '결과 프레임 없음 · 결과 미확인';
+    if (motionBusy) return '모션 재생 중 · 서버 결과 도착';
+    const retry = r.retry ?? '?';
+    if (r.success && job.abort_requested) return `서버 보고: 성공(success=true, 재시도 ${retry}회) · 정지 요청이 늦어 모든 버튼 입력 후 성공 보고`;
+    if (r.success) return `서버 보고: 성공(success=true, 재시도 ${retry}회) · 모의 실행`;
+    if (job.abort_requested) return `서버 보고: 실패(success=false) · 정지 요청 뒤 · 재시도 ${retry}회`;
+    return `서버 보고: 실패(success=false) · 재시도 ${retry}회`;
+  }
+
+  // Execution mode line: running → execution_mode; else last_execution_mode;
+  // before any job, the simulator's own declared mode (not "unknown").
+  function execModeText(status, twin) {
+    const ok = v => v && v !== 'unknown';
+    if (status && status.running && ok(status.execution_mode)) return `${status.execution_mode} (실행 중)`;
+    if (status && ok(status.last_execution_mode)) return `${status.last_execution_mode} (마지막 실행)`;
+    if (twin && ok(twin.execution_mode)) return `${twin.execution_mode} (시뮬레이터 선언 · 아직 실행 기록 없음)`;
+    return 'unknown';
+  }
+
+  // Poll pacing: fast only while the server job runs.
+  function pollInterval(twin) { return twin && twin.running ? 400 : 2000; }
+
+  const api = { corexy, inverse, ease, layoutButtons, findButton, conceptNudge, demoTarget, createEngine, createFollower,
+    verdictText, execModeText, pollInterval, DEFAULT_TIMING, CATCH_UP, CONCEPT_NUDGE, HOME };
   root.TwinMotion = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window === 'undefined' ? globalThis : window);

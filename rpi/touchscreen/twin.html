@@ -2,12 +2,12 @@
 <html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>SimpleLay · 디지털 트윈(개념 모션)</title>
 <style>
-:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#10141d;color:#edf1fa}body{max-width:1240px;margin:auto;padding:24px}h1{font-size:28px;margin:10px 0}h2{font-size:19px;margin:6px 0 10px}p{line-height:1.6;color:#bdc9de}.badge{color:#f2ce74;font-weight:700}.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:20px}section{background:#1b2332;border:1px solid #344159;border-radius:18px;padding:20px}button,select,input{font:inherit;border-radius:9px;border:1px solid #51617c;padding:11px 14px;margin:4px;background:#263249;color:inherit;min-height:46px}button{cursor:pointer}button:disabled{opacity:.38;cursor:default}button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #85e2cd}.primary{background:#195d54}.danger{background:#92322c}a{color:#a9d8ff}svg{width:100%;background:#111925;border-radius:12px}.mode{display:inline-block;padding:4px 10px;border-radius:999px;background:#3b2f14;color:#f2ce74;font-weight:700}.mode.preview{background:#223a5a;color:#a9d8ff}dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0}dt{color:#abbad1}dd{margin:0;font-weight:600;overflow-wrap:anywhere}ol{padding-left:22px;margin:6px 0}li{padding:6px 8px;border-radius:8px;margin:3px 0}li.active{background:#26314a;outline:1px solid #6d7df0}li .meta{color:#abbad1;font-size:14px}#log{max-height:260px;overflow:auto;font-size:14px;font-family:ui-monospace,Consolas,monospace;background:#111925;border-radius:10px;padding:8px}#log div{padding:2px 0;border-bottom:1px solid #1f2a3b}.src-server{color:#85e2cd}.src-anim{color:#b6a0f8}.src-local{color:#f2ce74}.row{display:flex;flex-wrap:wrap;align-items:center}#confirm{display:none;border:1px solid #f2ce74;border-radius:12px;padding:10px;margin-top:8px}#layoutNote{color:#f2ce74}#result{font-size:20px;font-weight:700}@media(max-width:860px){.grid{grid-template-columns:1fr}body{padding:14px}}
+:root{color-scheme:dark;font-family:system-ui,sans-serif;background:#10141d;color:#edf1fa}body{max-width:1240px;margin:auto;padding:24px}h1{font-size:28px;margin:10px 0}h2{font-size:19px;margin:6px 0 10px}p{line-height:1.6;color:#bdc9de}.badge{color:#f2ce74;font-weight:700}.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:20px}section{background:#1b2332;border:1px solid #344159;border-radius:18px;padding:20px}button,select,input{font:inherit;border-radius:9px;border:1px solid #51617c;padding:11px 14px;margin:4px;background:#263249;color:inherit;min-height:46px}button{cursor:pointer}button:disabled{opacity:.38;cursor:default}button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #85e2cd}.primary{background:#195d54}.danger{background:#92322c}a{color:#a9d8ff}svg{width:100%;background:#111925;border-radius:12px}.mode{display:inline-block;padding:4px 10px;border-radius:999px;background:#3b2f14;color:#f2ce74;font-weight:700}.mode.preview{background:#223a5a;color:#a9d8ff}dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0}dt{color:#abbad1}dd{margin:0;font-weight:600;overflow-wrap:anywhere}ol,ul{padding-left:22px;margin:6px 0}li{padding:6px 8px;border-radius:8px;margin:3px 0}li.active{background:#26314a;outline:1px solid #6d7df0}li .meta,.meta{color:#abbad1;font-size:14px}#log{max-height:260px;overflow:auto;font-size:14px;font-family:ui-monospace,Consolas,monospace;background:#111925;border-radius:10px;padding:8px}#log div{padding:2px 0;border-bottom:1px solid #1f2a3b}.src-server{color:#85e2cd}.src-anim{color:#b6a0f8}.src-local{color:#f2ce74}.row{display:flex;flex-wrap:wrap;align-items:center}#confirm{display:none;border:1px solid #f2ce74;border-radius:12px;padding:10px;margin-top:8px}#layoutNote{color:#f2ce74}#result{font-size:20px;font-weight:700}#result.pending{color:#f2ce74}#hw li{padding:3px 4px;margin:0}#hw code{font-size:13px;color:#a9d8ff}.tag{display:inline-block;padding:1px 8px;border-radius:999px;background:#3b2f14;color:#f2ce74;font-size:13px;font-weight:700}@media(max-width:860px){.grid{grid-template-columns:1fr}body{padding:14px}}
 </style>
 <body>
 <div class="badge">개념 모션 · 실제 동역학 아님 · MOCK 실행기 연결</div>
 <h1>CoreXY 버튼 누름 디지털 트윈</h1>
-<p>서버의 모의 실행기가 기록한 누름을 따라 캐리지를 움직여 보여 줍니다. 경로·속도·벨트 배치·Z 깊이는 개념도이며 실제 모터·센서 값이 아닙니다. <strong>애니메이션이 끝나도 결과는 생기지 않습니다.</strong> 성공·실패는 서버의 result 프레임만 표시합니다.</p>
+<p>서버의 모의 실행기가 기록한 누름을 따라 캐리지를 움직여 보여 줍니다. 경로·속도·Z 깊이는 개념도이며 실제 모터·센서 값이 아닙니다. <strong>애니메이션이 끝나도 결과는 생기지 않습니다.</strong> 성공·실패는 서버의 result 프레임만 표시합니다.</p>
 <p><a href="/simulator">← 통신 리허설</a> · <a href="/simulator/parking">정지 버튼 대기·보관 모의 동작 ↗</a>(정지·보관 절차는 그 화면이 담당합니다)</p>
 <details><summary>API 키 설정</summary><input id="key" type="password" aria-label="API 키" autocomplete="off"><button id="connect">다시 연결</button></details>
 <div class="grid">
@@ -15,39 +15,46 @@
 <div class="row"><span id="modeBadge" class="mode">실행 따라가기</span>&nbsp;<span id="execMode">실행 환경 확인 중</span></div>
 <svg id="twinCanvas" viewBox="0 0 820 520" role="img" aria-labelledby="twinTitle twinDesc">
 <title id="twinTitle">가전 조작부와 CoreXY 갠트리 개념도</title>
-<desc id="twinDesc">왼쪽은 가전 본체, 오른쪽 조작부 위에 CoreXY 갠트리가 있습니다. 모터 A/B는 프레임 아래에 고정되어 있고, 캐리지의 누름봉(Z)이 버튼을 누르면 초록색으로 바뀝니다. 개념도입니다.</desc>
-<defs><pattern id="mesh" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M 8 0 L 0 0 0 8" fill="none" stroke="#1b2636" stroke-width="1"/></pattern></defs>
+<desc id="twinDesc">왼쪽은 가전 본체, 오른쪽 조작부 위에 CoreXY 갠트리가 있습니다. 모터 A/B는 프레임 아래 두 모서리에 고정되어 있고, 두 벨트는 모서리 풀리와 갠트리 양 끝 풀리를 돌아 캐리지 양쪽에 물려 있어 캐리지가 움직이면 벨트 경로가 바뀝니다. 캐리지의 누름봉(Z)이 버튼을 누르면 초록색으로 바뀝니다. 개념도입니다.</desc>
+<defs><pattern id="mesh" width="8" height="8" patternUnits="userSpaceOnUse"><path d="M 8 0 L 0 0 0 8" fill="none" stroke="#1b2636" stroke-width="1"/></pattern>
+<marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" fill="#f2ce74"/></marker></defs>
 <rect x="18" y="40" width="720" height="400" rx="22" fill="#232c3b" stroke="#4a5873" stroke-width="3"/>
 <rect x="40" y="66" width="420" height="348" rx="12" fill="#0b1018"/><rect x="40" y="66" width="420" height="348" rx="12" fill="url(#mesh)"/>
 <path d="M40 66 H460 L40 210 Z" fill="#ffffff" fill-opacity=".03"/>
 <text id="applianceName" x="250" y="245" text-anchor="middle" fill="#56657f" font-size="22">가전</text>
 <rect x="484" y="62" width="236" height="356" rx="12" fill="#1a2130" stroke="#39465e"/>
-<g id="buttonsLayer"></g>
 <!-- CoreXY frame (concept) over the control panel -->
 <rect x="474" y="52" width="256" height="376" fill="none" stroke="#657793" stroke-width="4" rx="4"/>
-<path id="beltA" d="M 474 470 H 462 V 40 H 742 V 452 H 474" fill="none" stroke="#f4ad67" stroke-width="2.5" stroke-dasharray="7 5" opacity=".8"/>
-<path id="beltB" d="M 730 470 H 750 V 32 H 454 V 460 H 730" fill="none" stroke="#b6a0f8" stroke-width="2.5" stroke-dasharray="7 5" opacity=".8"/>
-<g id="gantry"><rect x="470" y="-7" width="264" height="14" rx="4" fill="#425574" stroke="#7994b6"/></g>
+<!-- Belts: redrawn from the carriage position (see beltPaths). Both ends of each belt are fixed to the carriage. -->
+<path id="beltA" fill="none" stroke="#f4ad67" stroke-width="2.5" stroke-dasharray="7 5" stroke-linejoin="round" opacity=".85"/>
+<path id="beltB" fill="none" stroke="#b6a0f8" stroke-width="2.5" stroke-dasharray="7 5" stroke-linejoin="round" opacity=".85"/>
+<g fill="#39465e" stroke="#8494ad" stroke-width="1.5"><circle cx="458" cy="36" r="6"/><circle cx="748" cy="30" r="8"/><circle cx="744" cy="492" r="4"/><circle cx="460" cy="496" r="4"/></g>
+<!-- Gantry: semi-transparent and under the button labels -->
+<g id="gantry"><rect x="452" y="-8" width="308" height="16" rx="4" fill="#425574" fill-opacity=".45" stroke="#7994b6" stroke-opacity=".7"/>
+<g fill="#2a3448" stroke-width="1.5"><circle cx="464" cy="-3" r="4" stroke="#f4ad67"/><circle cx="744" cy="-3" r="4" stroke="#f4ad67"/><circle cx="460" cy="3" r="4" stroke="#b6a0f8"/><circle cx="740" cy="3" r="4" stroke="#b6a0f8"/></g></g>
+<g id="buttonsLayer"></g>
 <g id="homeMark"><path d="M 494 72 l 10 0 M 494 72 l 0 10" stroke="#72ddc4" stroke-width="3"/><text x="508" y="96" fill="#72ddc4" font-size="11">원점(개념)</text></g>
+<g id="retryMark" style="display:none"><circle id="retryBase" r="24" fill="none" stroke="#f2ce74" stroke-width="2" stroke-dasharray="4 3"/><line id="retryArrow" stroke="#f2ce74" stroke-width="2" marker-end="url(#arrow)"/><text id="retryText" fill="#f2ce74" font-size="11" text-anchor="middle"></text></g>
 <g id="carriage"><rect x="-18" y="-18" width="36" height="36" rx="7" fill="#dba84b" fill-opacity=".35" stroke="#ffd785" stroke-width="2"/><circle id="probe" r="9" fill="#ff5d5d" stroke="#fff" stroke-width="1.5"/><text id="pressLabel" y="-24" text-anchor="middle" fill="#7ff0b8" font-size="12" font-weight="700" style="display:none">누름</text></g>
 <circle cx="474" cy="470" r="20" fill="#302519" stroke="#f4ad67" stroke-width="3"/><g id="motorA"><path d="M474 454 V486 M458 470 H490" stroke="#f4ad67" stroke-width="3"/></g>
 <circle cx="730" cy="470" r="20" fill="#292238" stroke="#b6a0f8" stroke-width="3"/><g id="motorB"><path d="M730 454 V486 M714 470 H746" stroke="#b6a0f8" stroke-width="3"/></g>
-<text x="474" y="510" text-anchor="middle" fill="#f4ad67" font-size="14">모터 A</text><text x="730" y="510" text-anchor="middle" fill="#b6a0f8" font-size="14">모터 B</text>
+<text x="474" y="514" text-anchor="middle" fill="#f4ad67" font-size="14">모터 A(고정)</text><text x="730" y="514" text-anchor="middle" fill="#b6a0f8" font-size="14">모터 B(고정)</text>
 <text x="786" y="70" text-anchor="middle" fill="#bccbe2" font-size="13">Z</text><rect x="774" y="80" width="24" height="200" rx="6" fill="#1a2130" stroke="#39465e"/><rect id="zBar" x="778" y="84" width="16" height="0" rx="4" fill="#7ff0b8"/>
 <text x="786" y="298" text-anchor="middle" fill="#bccbe2" font-size="11">위 복귀</text><text x="786" y="314" text-anchor="middle" fill="#bccbe2" font-size="11">아래 누름</text>
 <text x="40" y="30" fill="#bccbe2" font-size="13">상단 y=0 · X → · Y ↓ · 좌표는 조작부 범위 0~1 상대 단위</text>
 </svg>
 <p id="layoutNote">버튼맵 불러오는 중</p>
-<dl><dt>캐리지 X / Y</dt><dd id="xy">—</dd><dt>이번 이동 ΔA / ΔB</dt><dd id="dab">—</dd><dt>원점 기준 누적 A / B</dt><dd id="tab">—</dd><dt>Z</dt><dd id="zText">—</dd><dt>애니메이션 단계</dt><dd id="animPhase" role="status">대기</dd></dl>
-<p>ΔA = ΔX + ΔY · ΔB = ΔX − ΔY (같은 상대 단위). 실제 모터 방향·풀리 반경·RPM은 장착·엔코더 확인 후 정합니다. 원점 복귀도 개념 표시이며 서버가 원점 복귀를 보고한 것이 아닙니다.</p>
+<dl><dt>캐리지 X / Y</dt><dd id="xy">—</dd><dt>이번 이동 ΔA / ΔB</dt><dd id="dab">—</dd><dt>원점 기준 누적 A / B</dt><dd id="tab">—</dd><dt>Z</dt><dd id="zText">—</dd><dt>애니메이션 단계</dt><dd id="animPhase" role="status">대기</dd><dt>모션 지연</dt><dd id="lag">—</dd></dl>
+<p>ΔA = ΔX + ΔY · ΔB = ΔX − ΔY (같은 상대 단위). 한 모터만 돌면 X와 Y가 함께 바뀌어 캐리지가 대각선으로 갑니다. 실제 모터 방향·풀리·RPM은 장착·엔코더 확인 후 정합니다. 원점 복귀도 개념 표시이며 서버가 원점 복귀를 보고한 것이 아닙니다.</p>
 <div class="row"><label>속도<select id="speed"><option value="0.5">빠르게</option><option value="1" selected>보통</option><option value="2">느리게</option></select></label><label><input id="reduceMotion" type="checkbox">움직임 줄이기</label><button id="replay">누름 기록 다시 재생</button></div>
+<div class="row"><span class="meta">한 모터만 돌리기(화면 데모 · 서버 호출 없음):</span><button id="demoA">A만 회전</button><button id="demoB">B만 회전</button></div>
 </section>
 <section>
 <h2>보기 방식</h2>
 <div class="row"><label><input type="radio" name="mode" value="follow" checked> 실행 따라가기(서버)</label><label><input type="radio" name="mode" value="preview"> 미리보기(서버 호출 없음)</label></div>
 <label>대상 가전<select id="appliance"></select></label>
 <label>시퀀스<select id="preset"></select></label>
-<div class="row"><button class="primary" id="go">이 시퀀스로 모의 실행</button><button class="danger" id="stop">정지</button></div>
+<div class="row"><button class="primary" id="go">이 시퀀스로 모의 실행</button><button class="danger" id="stop" disabled>정지</button></div>
 <div id="confirm" role="dialog" aria-label="실행 확인"><p id="confirmText"></p><button class="primary" id="confirmYes">확인 후 시작</button><button id="confirmNo">취소</button></div>
 <p id="modeHelp"></p>
 <h2>서버 보고</h2>
@@ -56,6 +63,8 @@
 <h2>시퀀스 단계</h2><ol id="steps"></ol>
 <h2>기록</h2><div id="log" aria-live="polite"></div>
 <p><span class="src-server">[서버]</span> 서버 상태에서 읽은 내용 · <span class="src-anim">[모션]</span> 화면 개념 모션 · <span class="src-local">[화면]</span> 이 화면의 조작</p>
+<h2>하드웨어 요약</h2>
+<div id="hw"><p class="meta">불러오는 중</p></div>
 </section></div>
 <script src="/simulator/twin-motion.js"></script>
 <script>
@@ -87,13 +96,14 @@ const signed = n => (n >= 0 ? '+' : '') + n.toFixed(3);
 function currentAppliance() { return appliances.find(a => a.id === $('appliance').value) || null; }
 function sequenceLabels() { return (lastTwin && lastTwin.job && lastTwin.job.buttons) || []; }
 function applyLayout(appliance) {
-  layout = T.layoutButtons(appliance, sequenceLabels()); layoutFor = appliance ? appliance.id : null;
+  layout = T.layoutButtons(appliance, sequenceLabels(), {aspect: WS.w / WS.h}); layoutFor = appliance ? appliance.id : null;
   $('applianceName').textContent = appliance ? appliance.name : '가전 미확인';
   $('layoutNote').textContent = (layout.mode === 'placeholder' ? '⚠ ' : '') + layout.note;
   const g = $('buttonsLayer'); g.replaceChildren();
   for (const b of layout.buttons) {
     const [x, y] = toSvg([b.x, b.y]);
-    const c = document.createElementNS('http://www.w3.org/2000/svg', 'g'); c.setAttribute('transform', `translate(${x},${y})`); c.dataset.label = b.label;
+    const c = document.createElementNS('http://www.w3.org/2000/svg', 'g'); c.setAttribute('transform', `translate(${x},${y})`);
+    c.dataset.label = b.label; c.dataset.id = b.id ?? '';
     c.innerHTML = '<circle r="19" fill="#1c2230" stroke="#4a5873" stroke-width="2"/><text y="4" text-anchor="middle" font-size="11" fill="#c9d3e6"></text>';
     c.querySelector('text').textContent = b.label; g.append(c);
   }
@@ -107,40 +117,96 @@ function renderPresets() {
   for (const p of list) { const o = document.createElement('option'); o.value = JSON.stringify(p); o.textContent = p.join(' → '); $('preset').append(o); }
   if ([...$('preset').options].some(o => o.value === keep)) $('preset').value = keep;
 }
+// CoreXY belt paths for carriage (c, g) in SVG units. Motors fixed at the bottom
+// corners; each belt: carriage → gantry-end idler → frame side → corner idler →
+// motor → bottom run → other side → other gantry-end idler → carriage.
+// Motor A side length (744 − c) + (492 − g) changes by −(ΔX + ΔY); motor B side
+// (c − 460) + (496 − g) by ΔX − ΔY — the CoreXY relation (concept geometry).
+function beltPaths(c, g) {
+  return {
+    a: `M ${c - 18} ${g - 3} H 464 V 36 H 452 V 470 A 22 22 0 0 0 474 492 H 744 V ${g - 3} H ${c + 18}`,
+    b: `M ${c + 18} ${g + 3} H 740 V 30 H 756 V 470 A 26 26 0 0 1 730 496 H 460 V ${g + 3} H ${c - 18}`,
+    feedA: (744 - c) + (492 - g), feedB: (c - 460) + (496 - g),
+  };
+}
 function draw(p) {
   const [x, y] = toSvg([p.x, p.y]);
   $('carriage').setAttribute('transform', `translate(${x},${y})`);
   $('gantry').setAttribute('transform', `translate(0,${y})`);
+  const belts = beltPaths(x, y);
+  $('beltA').setAttribute('d', belts.a); $('beltB').setAttribute('d', belts.b);
+  $('motorA').setAttribute('transform', `rotate(${-belts.feedA / (2 * Math.PI * 20) * 360} 474 470)`);
+  $('motorB').setAttribute('transform', `rotate(${belts.feedB / (2 * Math.PI * 20) * 360} 730 470)`);
   $('probe').setAttribute('r', String(9 - 4 * p.z));
   $('probe').setAttribute('fill', p.pressing ? '#10b981' : '#ff5d5d');
   $('pressLabel').style.display = p.pressing ? '' : 'none';
   $('zBar').setAttribute('height', String(192 * p.z));
-  $('motorA').setAttribute('transform', `rotate(${p.a * 360} 474 470)`);
-  $('motorB').setAttribute('transform', `rotate(${p.b * 360} 730 470)`);
-  $('beltA').style.strokeDashoffset = String(-p.a * 100); $('beltB').style.strokeDashoffset = String(-p.b * 100);
   $('xy').textContent = `${p.x.toFixed(3)} / ${p.y.toFixed(3)}`;
   $('dab').textContent = `${signed(p.da)} / ${signed(p.db)}`;
   $('tab').textContent = `${signed(p.a)} / ${signed(p.b)} (상대 단위)`;
   $('zText').textContent = p.z < 0.02 ? '복귀(개념)' : p.pressing ? '누름 끝(개념)' : `${Math.round(p.z * 100)}% 스트로크(개념)`;
-  const name = ({home:'원점 복귀', move:'이동', press:'Z 누름', return:'Z 복귀', idle:'대기', stopped:'정지 · 캐리지 고정'})[p.phase] || p.phase;
-  $('animPhase').textContent = name + (p.label ? ` · ${p.label}` : '') + (p.attempt > 1 ? ` (${p.attempt}회째)` : '') + (p.phase === 'idle' || p.phase === 'stopped' ? '' : ' · 개념 모션');
+  const name = ({home:'원점 복귀', move:'이동', press:'Z 누름', return:'Z 복귀', idle:'대기', aligning:'정지 정렬 · Z 복귀 후 서버 마지막 누름 위치로', stopped:'정지 · 캐리지 고정(Z 복귀)'})[p.phase] || p.phase;
+  const retry = p.attempt > 1 && !['idle', 'stopped', 'aligning'].includes(p.phase) ? `검증 불합격 추정 → 재시도 ${p.attempt - 1}회째 · ` : '';
+  $('animPhase').textContent = retry + name + (p.label ? ` · ${p.label}` : '') + (['idle', 'stopped'].includes(p.phase) ? '' : ' · 개념 모션');
+  $('lag').textContent = p.backlog > 0 || p.speedup > 1.05
+    ? `서버 기록보다 버튼 ${p.backlog}개 뒤 · 따라잡는 중 ×${(p.speedup || 1).toFixed(1)}${p.hurry ? ' (결과 도착)' : ''}` : '없음';
+  // Retry XY offset: executor records a qualitative correction only (no distance) → concept marker.
+  const showRetry = p.nudge && p.base && !['idle', 'stopped', 'aligning'].includes(p.phase);
+  $('retryMark').style.display = showRetry ? '' : 'none';
+  if (showRetry) {
+    const [bx, by] = toSvg(p.base), [tx, ty] = toSvg([p.base[0] + p.nudge[0], p.base[1] + p.nudge[1]]);
+    $('retryBase').setAttribute('cx', bx); $('retryBase').setAttribute('cy', by);
+    $('retryArrow').setAttribute('x1', bx); $('retryArrow').setAttribute('y1', by); $('retryArrow').setAttribute('x2', tx); $('retryArrow').setAttribute('y2', ty);
+    $('retryText').setAttribute('x', bx); $('retryText').setAttribute('y', by + 38);
+    $('retryText').textContent = p.correction && p.correction.xy ? 'XY 보정 요청 기록 · 거리 미정(개념)' : '보정 오프셋(개념)';
+  }
   document.querySelectorAll('#buttonsLayer g').forEach(g => {
-    const c = g.querySelector('circle'), target = p.label && g.dataset.label === p.label && p.phase !== 'idle' && p.phase !== 'stopped';
+    const hit = p.id != null && p.id !== '' ? g.dataset.id === String(p.id) : g.dataset.label === p.label;
+    const c = g.querySelector('circle'), target = p.label && hit && !['idle', 'stopped', 'aligning'].includes(p.phase);
     c.setAttribute('fill', target && p.pressing ? '#10b981' : target ? '#3b3f8f' : '#1c2230');
     c.setAttribute('stroke', target ? '#9aa6ff' : '#4a5873');
   });
-  document.querySelectorAll('#steps li').forEach(li => li.classList.toggle('active', p.step_index !== null && Number(li.dataset.index) === p.step_index && p.phase !== 'idle'));
+  document.querySelectorAll('#steps li').forEach(li => li.classList.toggle('active', p.step_index !== null && Number(li.dataset.index) === p.step_index && !['idle', 'stopped', 'aligning'].includes(p.phase)));
 }
-let lastRender = 0;
+function eventText(e) {
+  const retry = e.attempt > 1 ? `검증 불합격 추정 → 재시도 ${e.attempt - 1}회째 · ` : '';
+  switch (e.kind) {
+    case 'home': return '원점 복귀 시작(개념)';
+    case 'move':
+      if (e.demo) return null;
+      return retry + `${e.label} 위치로 이동` + (e.nudge ? (e.correction && e.correction.xy ? ' · 실행기 XY 보정 요청 기록(거리 미정) → 개념 오프셋' : ' · 보정 기록 없음 → 개념 오프셋') : '')
+        + (e.speedup > 1.05 ? ` · 따라잡기 ×${e.speedup.toFixed(1)}` : '');
+    case 'press': return retry + `${e.label} Z 누름`;
+    case 'return': return `${e.label} Z 복귀`;
+    case 'halt': return `캐리지 고정 · 대기열 비움 · ${e.z > 0.02 ? 'Z 복귀 후 ' : ''}${e.label ? `서버 마지막 누름 위치(${e.label})로 정렬` : '제자리 유지'}(개념)`;
+    case 'realign': return `정지 뒤 서버 누름 기록 추가 → ${e.label} 위치로 다시 정렬(개념)`;
+    case 'align_return': return 'Z 복귀(정지 정렬)';
+    case 'align_move': return `${e.label || '마지막 누름'} 위치로 정렬 이동`;
+    case 'stopped': return `정렬 완료 · Z 복귀 · 캐리지 고정${e.label ? `(${e.label})` : ''}`;
+    default: return null;
+  }
+}
+let lastRender = 0, lastBusy = null, lastVerdict = null;
 function render() {
   lastRender = performance.now();
   engine.setScale(scale());
   const p = engine.tick(now());
   for (const e of engine.drain()) {
-    const msg = ({home:'원점 복귀 시작(개념)', move:`${e.label} 위치로 이동`, press:`${e.label} Z 누름`, return:`${e.label} Z 복귀`, stopped:'캐리지 고정'})[e.kind];
-    if (msg) log('anim', msg + (e.attempt > 1 ? ` · ${e.attempt}회째` : '') + (mode === 'preview' ? ' · 미리보기' : ''));
+    const msg = eventText(e);
+    if (msg) log('anim', msg + (mode === 'preview' ? ' · 미리보기' : ''));
   }
   draw(p);
+  if (engine.busy !== lastBusy) { lastBusy = engine.busy; locks(); }
+  renderVerdict();
+}
+function renderVerdict() {
+  let text;
+  if (!online) text = lastTwin ? '연결 또는 실행 상태 확인 불가' : '서버 연결 확인 중';
+  else text = T.verdictText(lastTwin, mode === 'follow' && engine.busy && follower.key === (lastTwin.job && lastTwin.job.sequence_id));
+  if (text !== lastVerdict) {
+    lastVerdict = text; $('result').textContent = text;
+    $('result').className = text.startsWith('서버 보고') ? '' : 'pending';
+  }
 }
 function frame() { render(); requestAnimationFrame(frame); }
 function renderSteps(job, preview) {
@@ -148,36 +214,34 @@ function renderSteps(job, preview) {
   const steps = preview ? preview.map((label, index) => ({index, label, attempts: null})) : (job ? job.steps : []);
   for (const s of steps) {
     const li = document.createElement('li'); li.dataset.index = s.index;
-    const at = layout && layout.buttons.find(b => b.label === s.label);
+    const at = T.findButton(layout, {label: s.label});
     li.textContent = `${s.label} `;
     const m = document.createElement('span'); m.className = 'meta';
     m.textContent = (at ? `(${at.x.toFixed(2)}, ${at.y.toFixed(2)})` : '(버튼맵에 없음)') +
-      (s.attempts === null ? ' · 미리보기' : s.attempts === 0 ? ' · 누름 기록 없음' : ` · 누름 기록 ${s.attempts}회${s.attempts > 1 ? '(재시도 포함)' : ''}`);
+      (s.attempts === null ? ' · 미리보기' : s.attempts === 0 ? ' · 누름 기록 없음' : ` · 누름 기록 ${s.attempts}회${s.attempts > 1 ? `(재시도 ${s.attempts - 1}회 포함)` : ''}`);
     li.append(m); ol.append(li);
   }
   if (!steps.length) { const li = document.createElement('li'); li.textContent = '표시할 시퀀스가 없습니다.'; ol.append(li); }
 }
 function renderServer(twin, status) {
-  const execMode = status ? (status.running ? status.execution_mode : status.last_execution_mode) : twin.execution_mode;
-  $('execMode').textContent = `실행 환경: ${execMode || 'unknown'} · 통신: ${twin.transport || '—'}`;
+  $('execMode').textContent = `실행 환경: ${T.execModeText(status, twin)} · 통신: ${twin.transport || '—'}`;
   $('srvRunning').textContent = twin.running ? '모의 버튼 입력 중' : '실행 중 아님';
   const job = twin.job;
-  if (!job) { $('result').textContent = '아직 실행 기록이 없습니다.'; $('srvPresses').textContent = '—'; $('srvLocal').textContent = '—'; $('srvAttr').textContent = '—'; return; }
+  if (!job) { $('srvPresses').textContent = '—'; $('srvLocal').textContent = '—'; $('srvAttr').textContent = '—'; renderVerdict(); return; }
   $('srvPresses').textContent = job.press_count ? job.presses.join(', ') : '없음';
   $('srvLocal').textContent = job.act_local_status || '보고 없음';
   $('srvAttr').textContent = ({sequential:'순서대로 대응', ambiguous:'같은 이름 연속 · 재시도와 다음 단계 구분 불가', mismatch:'기록이 시퀀스와 맞지 않음'})[job.attribution];
-  const r = job.result;
-  $('result').textContent = !r ? (twin.running ? '결과 대기 · 서버 보고 전' : '결과 프레임 없음 · 결과 미확인')
-    : r.success ? `서버 보고: 성공(success=true, 재시도 ${r.retry ?? '?'}회) · 모의 실행`
-    : job.abort_requested ? `서버 보고: 실패(success=false) · 정지 요청 뒤 · 재시도 ${r.retry ?? '?'}회`
-    : `서버 보고: 실패(success=false) · 재시도 ${r.retry ?? '?'}회`;
+  renderVerdict();
   if (mode === 'follow') renderSteps(job);
 }
 function logServer(twin) {
   const job = twin.job; if (!job) return;
   const key = job.sequence_id;
   if (!(key in seenPress)) { seenPress[key] = 0; if (historicShown !== key) log('server', `실행 프레임 수신: ${job.buttons.join(' → ')}`); }
-  for (const p of job.press_log.slice(seenPress[key])) log('server', `누름 기록: ${p.label}${p.attempt > 1 ? ` · 재시도(${p.attempt}회째)` : ''}`);
+  for (const p of job.press_log.slice(seenPress[key])) {
+    const corr = p.correction ? ` · 보정 요청(XY ${p.correction.xy_adjustment_required ? '예' : '아니오'}, 깊이 ${p.correction.increase_press_depth ? '증가' : '유지'}, 거리 없음)` : '';
+    log('server', `누름 기록: ${p.label}${p.attempt > 1 ? ` · 재시도(${p.attempt}회째 누름)` : ''}${corr}`);
+  }
   seenPress[key] = job.press_log.length;
   if (job.abort_requested && seenAbort !== key) { seenAbort = key; log('server', '중단 요청(abort) 프레임 확인'); }
   if (job.result && seenResult !== key) { seenResult = key; log('server', `result 프레임: success=${job.result.success}, retry=${job.result.retry}`); }
@@ -205,32 +269,39 @@ async function poll() {
       if (out.historic) { historicShown = twin.job.sequence_id; seenPress[historicShown] = twin.job.press_log.length; log('server', `이 화면을 열기 전에 끝난 실행: ${twin.job.buttons.join(' → ')} · 재생하려면 '다시 재생'`); }
       else if (out.changed && !first) log('anim', '새 실행 · 원점 복귀부터 개념 모션 재생');
       for (const n of out.notes) log('server', n);
-      if (out.froze) log('anim', '정지 요청 확인 · 캐리지를 현재 위치에 고정(개념)');
       logServer(twin);
+      render();  // 서버 기록을 먼저 남기고, 그 기록으로 생긴 모션 기록을 뒤에 남긴다.
     }
     renderServer(twin, status);
   } catch (e) {
     if (online) log('local', '연결 또는 상태 확인 불가: ' + e.message);
-    online = false; $('result').textContent = '연결 또는 실행 상태 확인 불가';
-    if (mode === 'follow' && engine.busy) { engine.stop(now()); log('anim', '연결 확인 불가 · 모션 정지'); }
+    online = false; renderVerdict();
+    if (mode === 'follow' && engine.busy && !engine.stopped) { engine.stop(now()); render(); log('anim', '연결 확인 불가 · 모션 정지(Z 복귀)'); }
   } finally { polling = false; locks(); }
 }
+// Idle: ~2 s. Only while the server job runs: 400 ms.
+let pollTimer = null;
+async function kick() { clearTimeout(pollTimer); await poll(); clearTimeout(pollTimer); pollTimer = setTimeout(kick, T.pollInterval(online ? lastTwin : null)); }
 function locks() {
-  $('go').disabled = (mode === 'follow' && (!online || (lastTwin && lastTwin.running))) || !$('preset').value;
+  const serverRunning = !!(online && lastTwin && lastTwin.running);
+  $('go').disabled = (mode === 'follow' && (!online || serverRunning)) || !$('preset').value;
   $('go').textContent = mode === 'follow' ? '이 시퀀스로 모의 실행' : '미리보기 재생';
   $('stop').textContent = mode === 'follow' ? '정지(서버 중단 요청)' : '미리보기 정지';
+  $('stop').disabled = mode === 'follow' ? !serverRunning : !(engine.busy && !engine.stopped);
+  const demoOff = engine.busy || (mode === 'follow' && serverRunning);
+  $('demoA').disabled = demoOff; $('demoB').disabled = demoOff;
 }
 function setMode(m) {
   mode = m; document.querySelectorAll('[name=mode]').forEach(r => r.checked = r.value === m);
   $('modeBadge').textContent = m === 'follow' ? '실행 따라가기' : '미리보기 · 서버 실행 아님';
   $('modeBadge').className = 'mode' + (m === 'preview' ? ' preview' : '');
   $('modeHelp').textContent = m === 'follow'
-    ? '서버의 누름 기록이 늘어날 때만 캐리지가 움직입니다. 모션은 기록을 뒤따라 재생하므로 서버 보고가 먼저 도착할 수 있습니다. 결과는 서버 result 프레임으로만 표시합니다.'
+    ? '서버의 누름 기록이 늘어날 때만 캐리지가 움직입니다. 모션이 기록보다 뒤처지면 이동·누름 시간을 줄여 따라잡고, 결과가 먼저 와도 모션 재생이 끝날 때까지 "모션 재생 중 · 서버 결과 도착"으로 표시합니다. 결과는 서버 result 프레임으로만 표시합니다.'
     : '미리보기는 /execute를 부르지 않습니다. 어떤 결과도 만들지 않으며 서버 상태와 무관합니다.';
   $('confirm').style.display = 'none';
   engine = T.createEngine({scale: scale()}); follower = T.createFollower(engine);
-  seenPress = {}; seenResult = null; seenAbort = null; historicShown = null;
-  if (m === 'preview') renderSteps(null, currentPreset()); else if (lastTwin) poll();
+  seenPress = {}; seenResult = null; seenAbort = null; historicShown = null; lastVerdict = null;
+  if (m === 'preview') renderSteps(null, currentPreset()); else if (lastTwin) kick();
   locks();
 }
 function currentPreset() { try { return JSON.parse($('preset').value || '[]'); } catch { return []; } }
@@ -238,10 +309,11 @@ function preview() {
   const seq = currentPreset();
   engine.reset(); engine.home(); renderSteps(null, seq);
   for (const [i, label] of seq.entries()) {
-    const b = layout.buttons.find(x => x.label === label);
-    if (b) engine.enqueue([b.x, b.y], {label, step_index: i, attempt: 1}); else log('local', `버튼맵에 없는 이름: ${label}`);
+    const b = T.findButton(layout, {label});
+    if (b) engine.enqueue([b.x, b.y], {label, id: b.id, step_index: i, attempt: 1}); else log('local', `버튼맵에 없는 이름: ${label}`);
   }
   log('local', `미리보기 재생: ${seq.join(' → ')} · 서버 호출 없음`);
+  locks();
 }
 $('go').onclick = () => {
   if (mode === 'preview') return preview();
@@ -255,24 +327,58 @@ $('confirmYes').onclick = async () => {
   const seq = currentPreset();
   try { const d = await api('/execute-buttons', 'POST', {buttons: seq, appliance_id: $('appliance').value}); log('local', `모의 실행 요청 접수 · job ${d.job_id}`); }
   catch (e) { log('local', '실행 요청 실패: ' + e.message); }
-  poll();
+  kick();
 };
 $('stop').onclick = async () => {
-  engine.stop(now());
-  if (mode === 'preview') { log('local', '미리보기 정지 · 캐리지 고정'); return; }
-  log('local', '정지 요청 · 화면의 캐리지를 먼저 고정합니다');
+  if (mode === 'preview') { engine.stop(now()); render(); log('local', '미리보기 정지'); return; }
+  // 화면 먼저: 대기열을 비우고 Z를 올린 뒤 서버가 마지막으로 기록한 누름 위치로 정렬한다.
+  const t = follower.stopTarget(lastTwin, layout);
+  engine.stop(now(), t ? t.at : null, {label: t ? t.label : null});
+  render();  // "캐리지 고정" 모션 기록이 정지 요청 기록보다 먼저 남는다.
+  log('local', '정지 요청 · 서버에 중단을 요청합니다');
   try { await api('/stop', 'POST'); log('local', '서버에 중단을 요청했어요. 결과는 서버 보고를 기다립니다.'); }
   catch (e) { log('local', '중단 요청 전달을 확인하지 못했어요. ' + e.message); }
-  poll();
+  kick();
 };
 $('replay').onclick = () => {
   if (mode === 'preview') return preview();
-  if (lastTwin && lastTwin.job) { follower.replay(lastTwin.job, layout, now()); log('anim', '서버 누름 기록을 다시 재생(개념 · 새 결과 없음)'); }
+  if (lastTwin && lastTwin.job) { follower.replay(lastTwin.job, layout, now()); log('anim', '서버 누름 기록을 다시 재생(개념 · 새 결과 없음)'); locks(); }
 };
+function demo(motor) {
+  if (engine.busy) return;
+  if (engine.stopped) engine.reset();
+  const d = T.demoTarget(engine.position, motor, 0.3);
+  engine.moveTo(d.to, {label: `${motor}만 회전`});
+  log('local', `${motor}만 회전 데모 · ΔA=${signed(d.da)}, ΔB=${signed(d.db)} → ΔX=${signed(d.dx)}, ΔY=${signed(d.dy)}: X·Y가 함께 바뀌어 대각선 이동(개념 · 서버 호출 없음)`);
+  locks();
+}
+$('demoA').onclick = () => demo('A');
+$('demoB').onclick = () => demo('B');
 document.querySelectorAll('[name=mode]').forEach(r => r.onchange = () => setMode(r.value));
 $('appliance').onchange = () => { applyLayout(currentAppliance()); if (mode === 'preview') renderSteps(null, currentPreset()); locks(); };
 $('preset').onchange = () => { if (mode === 'preview') renderSteps(null, currentPreset()); locks(); };
 $('connect').onclick = connect;
+function renderHardware(hw) {
+  const box = $('hw'); box.replaceChildren();
+  const add = (tag, text, cls) => { const el = document.createElement(tag); if (text != null) el.textContent = text; if (cls) el.className = cls; box.append(el); return el; };
+  add('p', hw.note, 'meta');
+  add('h3', '공식 사양(제조사 표기)').style.fontSize = '16px';
+  const ul = add('ul');
+  for (const s of hw.official) { const li = document.createElement('li'); li.textContent = `${s.item}: ${s.value}`; ul.append(li); }
+  const ch = add('p'); ch.textContent = `채널 배정: ${hw.channel_assignment.plan} `;
+  const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = hw.channel_assignment.confirmed ? '확정' : '미확정'; ch.append(tag);
+  add('p', `310 rpm은 무부하 상한 표시용입니다. 화면 모션 시간은 이 값으로 계산하지 않습니다.`, 'meta');
+  add('h3', `미설정 항목 ${hw.unset.length}개(실측·제작자 제공 전)`).style.fontSize = '16px';
+  const un = add('ul');
+  for (const u of hw.unset) { const li = document.createElement('li'); li.textContent = `${u.name} — `; const c = document.createElement('code'); c.textContent = u.env; li.append(c); un.append(li); }
+  if (!hw.unset.length) un.append(Object.assign(document.createElement('li'), {textContent: '없음'}));
+  if (hw.configured.length) {
+    add('h3', '설정된 항목(환경 변수)').style.fontSize = '16px';
+    const cu = add('ul');
+    for (const u of hw.configured) { const li = document.createElement('li'); li.textContent = `${u.name} = ${u.value} (${u.env})`; cu.append(li); }
+  }
+  if (hw.config_error) add('p', '설정 읽기 오류: ' + hw.config_error, 'src-local');
+}
 async function connect() {
   try {
     appliances = await api('/appliances');
@@ -283,9 +389,10 @@ async function connect() {
   } catch (e) {
     appliances = []; applyLayout(null); log('local', '버튼맵을 불러오지 못했어요: ' + e.message);
   }
-  await poll();
+  api('/simulator/twin/hardware').then(renderHardware).catch(e => { $('hw').textContent = '하드웨어 요약을 불러오지 못했어요: ' + e.message; });
+  await kick();
 }
-setMode('follow'); connect(); requestAnimationFrame(frame); setInterval(poll, 400);
+setMode('follow'); connect(); requestAnimationFrame(frame);
 // 일부 내장 화면은 requestAnimationFrame을 멈춘다. 시간 기반이라 느린 갱신으로 이어 그려도 위치는 같다.
 setInterval(() => { if (performance.now() - lastRender > 200) render(); }, 100);
 </script></body></html>

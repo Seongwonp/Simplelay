@@ -32,7 +32,7 @@ def test_result_only_from_matching_result_frame():
     running = build_twin_state(_snapshot(frames, ["즉석밥"], running=True))
     assert running["job"]["result"] is None
     assert running["job"]["press_log"] == [
-        {"n": 0, "label": "즉석밥", "step_index": 0, "attempt": 1}]
+        {"n": 0, "label": "즉석밥", "step_index": 0, "attempt": 1, "correction": None}]
     # 다른 시퀀스의 result는 이 실행의 결과가 아니다.
     other = frames + [_frame("act_to_hub", type="result", sequence_id="zzz", success=True, retry=0)]
     assert build_twin_state(_snapshot(other, ["즉석밥"], running=True))["job"]["result"] is None
@@ -149,3 +149,84 @@ def test_twin_state_follows_real_simulator_execution_retry_and_stop():
         assert job['presses'] == ['즉석밥']
     finally:
         slow.close()
+
+
+def test_abort_before_success_result_is_kept_for_late_stop_wording():
+    # 정지 요청이 마지막 버튼 뒤에 도착하면 서버는 성공을 보고할 수 있다. 둘 다 그대로 옮긴다.
+    frames = [_frame("hub_to_act", type="execute", sequence_id="a", buttons=["시작"]),
+              _frame("hub_to_act", type="abort"),
+              _frame("act_to_hub", type="result", sequence_id="a", success=True, retry=0)]
+    job = build_twin_state(_snapshot(frames, ["시작"], status="succeeded"))["job"]
+    assert job["abort_requested"] is True
+    assert job["result"] == {"success": True, "retry": 0}
+
+
+def test_execute_frame_pinned_when_trace_dropped_it():
+    # 긴 재시도로 execute 프레임이 trace 밖으로 밀려나도 시뮬레이터가 고정한 프레임을 쓴다.
+    pinned = _frame("hub_to_act", type="execute", sequence_id="long", buttons=["즉석밥", "시작"])
+    frames = [_frame("act_to_hub", type="progress", sequence_id="long")] * 5
+    snap = _snapshot(frames, ["즉석밥"], running=True)
+    assert build_twin_state(snap)["job"] is None
+    snap["last_execute_frame"] = pinned
+    job = build_twin_state(snap)["job"]
+    assert job["sequence_id"] == "long" and job["buttons"] == ["즉석밥", "시작"]
+    # 고정 프레임 뒤의 result는 그대로 대응된다.
+    snap["frames"].append(_frame("act_to_hub", type="result", sequence_id="long", success=False, retry=1))
+    snap["act_local"]["status"] = "safety_stopped"
+    assert build_twin_state(snap)["job"]["result"] == {"success": False, "retry": 1}
+
+
+def test_press_log_carries_recorded_correction():
+    corr = {"retry_number": 1, "xy_adjustment_required": True, "increase_press_depth": True}
+    frames = [_frame("hub_to_act", type="execute", sequence_id="a", buttons=["즉석밥"])]
+    snap = _snapshot(frames, ["즉석밥", "즉석밥"], running=True)
+    snap["act_local"]["press_corrections"] = [None, corr]
+    log = build_twin_state(snap)["job"]["press_log"]
+    assert log[0]["correction"] is None and log[1]["correction"] == corr
+    # 기록이 없는 구버전 스냅샷은 None
+    assert build_twin_state(_snapshot(frames, ["즉석밥"], running=True))["job"]["press_log"][0]["correction"] is None
+
+
+def test_hardware_summary_lists_official_specs_and_unset_env_names():
+    from rpi.controller.kinematics import ENV_NAMES
+    from rpi.services.twin_view import build_hardware_summary
+    hw = build_hardware_summary({})
+    assert {u["name"] for u in hw["unset"]} == set(ENV_NAMES)
+    assert {u["env"] for u in hw["unset"]} == set(ENV_NAMES.values())
+    assert hw["configured"] == [] and hw["config_error"] is None
+    text = " ".join(s["value"] for s in hw["official"])
+    for needle in ("6.0 V", "310 rpm", "180 rpm", "50:1", "700", "short brake", "High-Z"):
+        assert needle in text, needle
+    assert "상한" in text and "타이밍에 쓰지 않음" in text
+    assert hw["channel_assignment"]["confirmed"] is False
+    assert "미확정" in hw["channel_assignment"]["note"]
+    part = build_hardware_summary({"SIMPLELAY_MOTION_STOP_MODE": "Brake", "SIMPLELAY_MOTION_DECODING_MULTIPLIER": "4"})
+    assert {c["name"]: c["value"] for c in part["configured"]} == {"stop_mode": "brake", "decoding_multiplier": 4}
+    assert "stop_mode" not in {u["name"] for u in part["unset"]}
+    bad = build_hardware_summary({"SIMPLELAY_MOTION_MAX_RPM": "fast"})
+    assert bad["config_error"] and len(bad["unset"]) == len(ENV_NAMES)
+
+
+def test_hardware_route(client):
+    r = client.get('/simulator/twin/hardware')
+    assert r.status_code == 200
+    assert r.json()["unset"]
+
+
+def test_real_simulator_records_retry_corrections_and_pins_execute():
+    from rpi.services.simulator_controller import SimulatorController
+    controller = SimulatorController(step_seconds=0)
+    try:
+        controller.inject_failure(0, 2)
+        result = controller.execute(['즉석밥', '시작'])
+        assert result is not None
+        snap = controller.snapshot()
+        assert snap["last_execute_frame"]["message"]["type"] == "execute"
+        corr = snap["act_local"]["press_corrections"]
+        assert corr[0] is None
+        assert corr[1]["retry_number"] == 1 and corr[1]["xy_adjustment_required"] is True
+        job = build_twin_state(snap)["job"]
+        assert [p["attempt"] for p in job["press_log"]] == [1, 2, 3, 1]
+        assert job["press_log"][2]["correction"]["retry_number"] == 2
+    finally:
+        controller.close()

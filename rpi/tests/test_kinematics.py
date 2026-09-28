@@ -147,3 +147,22 @@ def test_from_env_rejects_garbage():
 def test_from_mapping_rejects_unknown_fields():
     with pytest.raises(ValueError):
         CoreXYConfig.from_mapping({"pulley_teeth": 10, "belt_pitch": 2.0})
+
+
+def test_hardware_metadata_fields_are_optional_and_validated():
+    """디코딩 배율·최대 rpm·정지 방식은 기본 None이고 변환 의미를 바꾸지 않는다."""
+    from rpi.controller.kinematics import STOP_MODES
+    config = CoreXYConfig()
+    assert config.decoding_multiplier is None and config.max_rpm is None and config.stop_mode is None
+    assert STOP_MODES == ("brake", "coast")
+    assert "decoding_multiplier" not in config.missing_for_motion()
+    for kwargs in ({"decoding_multiplier": 3}, {"decoding_multiplier": True}, {"max_rpm": 0},
+                   {"max_rpm": float("nan")}, {"stop_mode": "hold"}):
+        with pytest.raises(ValueError):
+            CoreXYConfig(**kwargs)
+    env = CoreXYConfig.from_env({"SIMPLELAY_MOTION_DECODING_MULTIPLIER": "2", "SIMPLELAY_MOTION_MAX_RPM": "150",
+                                 "SIMPLELAY_MOTION_STOP_MODE": "COAST"})
+    assert (env.decoding_multiplier, env.max_rpm, env.stop_mode) == (2, 150.0, "coast")
+    # 배율은 기록용 — 변환은 여전히 배율 포함 실측 R_out만 쓴다.
+    with_meta = CoreXYConfig(counts_per_output_rev=1000.0, pulley_teeth=10, belt_pitch_mm=3.0, decoding_multiplier=4)
+    assert counts_to_belt_mm(500, with_meta) == pytest.approx(15.0)

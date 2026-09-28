@@ -62,7 +62,14 @@ ENV_NAMES: dict[str, str] = {
     "y_max_mm": "SIMPLELAY_MOTION_Y_MAX_MM",
     "a_sign": "SIMPLELAY_MOTION_A_SIGN",
     "b_sign": "SIMPLELAY_MOTION_B_SIGN",
+    "decoding_multiplier": "SIMPLELAY_MOTION_DECODING_MULTIPLIER",
+    "max_rpm": "SIMPLELAY_MOTION_MAX_RPM",
+    "stop_mode": "SIMPLELAY_MOTION_STOP_MODE",
 }
+
+#: TB6612FNG 정지 방식(보고서 A-2 제어표). brake = PWM=L short brake(권선 단락),
+#: coast = IN1=IN2=L·PWM=H Stop(출력 High-Z, 공회전). 어느 쪽을 쓸지는 정지 거리 실측 뒤 정한다.
+STOP_MODES = ("brake", "coast")
 
 _BELT_FIELDS = ("counts_per_output_rev", "pulley_teeth", "belt_pitch_mm")
 _SIGN_FIELDS = ("a_sign", "b_sign")
@@ -89,6 +96,13 @@ class CoreXYConfig:
     #: 증가하면 +1. 배선·엔코더 방향 실측으로 정한다.
     a_sign: int | None = None
     b_sign: int | None = None
+    #: 엔코더 디코딩 배율(1/2/4). 펌웨어 방식 + 실측 카운트로 정한다(보고서 D절 ③).
+    #: 기록용 메타데이터다 — 변환은 여전히 ``counts_per_output_rev``(배율 포함 실측값)만 쓴다.
+    decoding_multiplier: int | None = None
+    #: 실측 최대 출력축 속도(rpm). 공식 무부하 310 rpm은 상한일 뿐 이 값의 기본값이 아니다.
+    max_rpm: float | None = None
+    #: 정지 방식 'brake' | 'coast' (``STOP_MODES``). 정지 거리 실측 전에는 None.
+    stop_mode: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("counts_per_output_rev", "belt_pitch_mm"):
@@ -112,6 +126,13 @@ class CoreXYConfig:
             value = getattr(self, name)
             if value is not None and (isinstance(value, bool) or value not in (1, -1)):
                 raise ValueError(f"{name}는 +1 또는 -1이어야 합니다: {value!r}")
+        dm = self.decoding_multiplier
+        if dm is not None and (isinstance(dm, bool) or dm not in (1, 2, 4)):
+            raise ValueError(f"decoding_multiplier는 1, 2, 4 중 하나여야 합니다: {dm!r}")
+        if self.max_rpm is not None and not (_finite(self.max_rpm) and self.max_rpm > 0):
+            raise ValueError(f"max_rpm는 0보다 큰 유한한 수여야 합니다: {self.max_rpm!r}")
+        if self.stop_mode is not None and self.stop_mode not in STOP_MODES:
+            raise ValueError(f"stop_mode는 {STOP_MODES} 중 하나여야 합니다: {self.stop_mode!r}")
 
     # ── 설정 상태 ────────────────────────────────────────────────────────────
 
@@ -147,7 +168,9 @@ class CoreXYConfig:
             if not raw:
                 continue
             try:
-                if name in ("pulley_teeth", "a_sign", "b_sign"):
+                if name == "stop_mode":
+                    values[name] = raw.lower()
+                elif name in ("pulley_teeth", "a_sign", "b_sign", "decoding_multiplier"):
                     values[name] = int(raw)
                 else:
                     values[name] = float(raw)

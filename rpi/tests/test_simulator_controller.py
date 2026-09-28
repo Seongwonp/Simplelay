@@ -11,11 +11,11 @@ def test_persistent_link_retains_mock_provenance_and_does_not_exhaust_verifier()
     controller = SimulatorController(step_seconds=0)
     try:
         assert controller.execution_mode == ExecutionMode.MOCK
-        for _ in range(105):
+        for _ in range(205):
             assert controller.execute(['start']).status.value == 'succeeded'
         snapshot = controller.snapshot()
         assert snapshot['act_local']['presses'] == ['start']
-        assert len(snapshot['frames']) == 80
+        assert len(snapshot['frames']) == 400  # bounded trace (raised from 80 so long retries keep the execute frame)
         assert {f['direction'] for f in snapshot['frames']} == {'hub_to_act', 'act_to_hub'}
     finally:
         controller.close()

@@ -125,6 +125,12 @@ def twin_state(controller=Depends(require_simulator)):
     return build_twin_state(controller.snapshot())
 
 
+@router.get('/twin/hardware')
+def twin_hardware(controller=Depends(require_simulator)):
+    from rpi.services.twin_view import build_hardware_summary
+    return build_hardware_summary()
+
+
 @router.get('/twin-motion.js')
 def twin_motion_script(controller=Depends(require_simulator)):
     source = pathlib.Path(__file__).parent.parent / 'touchscreen' / 'twin-motion.js'

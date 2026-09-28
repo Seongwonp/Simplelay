@@ -32,6 +32,14 @@ class _AlwaysMockVerifier(MockVerifier):
         return VerificationResult(True, 1.0, "모의 눌림 검증 — 실제 센서 아님")
 
 
+def _correction(correction):
+    if correction is None:
+        return None
+    return {"retry_number": correction.retry_number,
+            "xy_adjustment_required": correction.xy_adjustment_required,
+            "increase_press_depth": correction.increase_press_depth}
+
+
 class SimulatorController(ActClientController):
     execution_mode = ExecutionMode.MOCK
 
@@ -45,7 +53,10 @@ class SimulatorController(ActClientController):
         self.routine_rehearsal = RoutineRehearsal()
         self._closed = False
         self._busy = False
-        self._trace = deque(maxlen=80)
+        # 재시도가 긴 시퀀스에서도 execute 프레임이 밀려나지 않게 넉넉히 둔다.
+        # 그래도 밀려나면 마지막 execute 프레임을 따로 고정해 둔다(_last_execute).
+        self._trace = deque(maxlen=400)
+        self._last_execute = None
         self._loop, self._thread = start_background_loop()
 
         owner = self
@@ -56,7 +67,10 @@ class SimulatorController(ActClientController):
 
             def write(self, data):
                 with owner._state_lock:
-                    owner._trace.append({"direction": self.direction, "message": json.loads(data)})
+                    frame = {"direction": self.direction, "message": json.loads(data)}
+                    owner._trace.append(frame)
+                    if self.direction == "hub_to_act" and frame["message"].get("type") == "execute":
+                        owner._last_execute = frame
                 self.peer.feed_data(data)
 
             async def drain(self):
@@ -116,9 +130,12 @@ class SimulatorController(ActClientController):
             return {
                 "execution_mode": "mock", "transport": "in_memory", "running": self._busy,
                 "frames": list(self._trace),
+                "last_execute_frame": self._last_execute,
                 "act_local": {
                     "status": result.status.value if result else None,
                     "presses": [c.button for c in self._motor.commands],
+                    # 재시도 누름의 정성 보정 요청(거리 없음). 첫 누름은 None.
+                    "press_corrections": [_correction(c.correction) for c in self._motor.commands],
                     "note": "모의 실행기 내부 관측. 허브의 수신 증거와 별개입니다.",
                 },
             }

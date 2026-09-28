@@ -27,7 +27,8 @@ test('layout keeps grid cells as grid, uses mm only when every button has it, el
   const mm = T.layoutButtons({rows: 4, cols: 3, buttons: [
     {label: 'a', x: 0, y: 0, x_mm: 10, y_mm: 20}, {label: 'b', x: 1, y: 1, x_mm: 30, y_mm: 60}]});
   assert.equal(mm.mode, 'mm');
-  close(mm.buttons[0].x, 0.1); close(mm.buttons[1].y, 0.9);
+  // span 20 x 40 mm: uniform scale fits the taller side, centered horizontally
+  close(mm.buttons[0].x, 0.3); close(mm.buttons[1].x, 0.7); close(mm.buttons[0].y, 0.1); close(mm.buttons[1].y, 0.9);
   const partial = T.layoutButtons({rows: 4, cols: 3, buttons: [
     {label: 'a', x: 0, y: 0, x_mm: 10, y_mm: 20}, {label: 'b', x: 1, y: 1}]});
   assert.equal(partial.mode, 'grid');
@@ -38,14 +39,14 @@ test('layout keeps grid cells as grid, uses mm only when every button has it, el
 });
 
 test('sequence stepping: home, then move → press → return per button, A/B totals follow CoreXY', () => {
-  const e = T.createEngine({timing: {home: 1, moveBase: 1, movePerUnit: 0, press: 1, ret: 1}});
+  const e = T.createEngine({catchUp: false, timing: {home: 1, moveBase: 1, movePerUnit: 0, press: 1, ret: 1}});
   e.home();
   e.enqueue([1, 0], {label: 'x'});
   e.enqueue([1, 1], {label: 'y'});
   const phases = [];
   for (let t = 0.5; t < 8; t += 1) phases.push(e.tick(t).phase);
   assert.deepEqual(phases, ['home', 'move', 'press', 'return', 'move', 'press', 'return', 'idle']);
-  const mid = T.createEngine({timing: {home: 1, moveBase: 1, movePerUnit: 0, press: 1, ret: 1}});
+  const mid = T.createEngine({catchUp: false, timing: {home: 1, moveBase: 1, movePerUnit: 0, press: 1, ret: 1}});
   mid.enqueue([0.4, 0], {label: 'p'});
   mid.tick(0);
   const pressing = mid.tick(1.99);
@@ -139,4 +140,176 @@ test('unknown button label is reported, not guessed', () => {
   assert.deepEqual(out.notes, ['버튼맵에 없는 이름: 없는버튼']);
   e.tick(0);
   assert.deepEqual(e.drain().map(x => x.kind), ['home']);
+});
+
+test('mm layout preserves aspect ratio on a non-square workspace; grid fallback unchanged', () => {
+  const wide = {rows: 2, cols: 2, buttons: [
+    {id: 'a', label: 'a', x: 0, y: 0, x_mm: 0, y_mm: 0}, {id: 'b', label: 'b', x: 1, y: 1, x_mm: 100, y_mm: 20}]};
+  const sq = T.layoutButtons(wide);
+  close(sq.buttons[0].x, 0.1); close(sq.buttons[1].x, 0.9);
+  close(sq.buttons[1].y - sq.buttons[0].y, 0.16);  // 20/100 of the x spread, not stretched to 0.8
+  close((sq.buttons[0].y + sq.buttons[1].y) / 2, 0.5);
+  // Workspace half as wide as tall: 1 mm must cover the same screen length on both axes.
+  const tall = T.layoutButtons(wide, [], {aspect: 0.5});
+  const dxScreen = (tall.buttons[1].x - tall.buttons[0].x) * 0.5, dyScreen = (tall.buttons[1].y - tall.buttons[0].y) * 1;
+  close(dxScreen / dyScreen, 100 / 20);
+  close(tall.buttons[1].x - tall.buttons[0].x, 0.8);
+  assert.equal(T.layoutButtons(microwave, [], {aspect: 0.5}).mode, 'grid');
+  close(T.layoutButtons(microwave, [], {aspect: 0.5}).buttons[0].x, 0.5);
+});
+
+test('button lookup prefers id over label', () => {
+  const layout = {buttons: [{id: 'p1', label: '시작', x: 0.1, y: 0.1}, {id: 'p2', label: '시작', x: 0.9, y: 0.9}]};
+  assert.equal(T.findButton(layout, {id: 'p2', label: '시작'}).x, 0.9);
+  assert.equal(T.findButton(layout, {label: '시작'}).x, 0.1);
+  assert.equal(T.findButton(layout, {id: 'zz', label: '시작'}).x, 0.1);
+  assert.equal(T.findButton(layout, {id: 'zz'}), null);
+});
+
+function runUntilIdle(e, dt = 0.01, limit = 100) {
+  let t = 0; while (t < limit) { const p = e.tick(t); if (!e.busy && p.phase === 'idle') return t; t += dt; }
+  return Infinity;
+}
+
+test('catch-up: a backed-up queue plays faster than one-by-one, single button unchanged', () => {
+  const timing = {home: 0, moveBase: 0.3, movePerUnit: 0.8, press: 0.25, ret: 0.25};
+  const targets = [[0.2, 0.2], [0.8, 0.3], [0.5, 0.9], [0.1, 0.6], [0.9, 0.9]];
+  const slow = T.createEngine({timing, catchUp: false});
+  const fast = T.createEngine({timing});
+  for (const e of [slow, fast]) for (const t of targets) e.enqueue(t, {label: 'x'});
+  const tSlow = runUntilIdle(slow), tFast = runUntilIdle(fast);
+  assert.ok(tFast < tSlow * 0.75, `catch-up ${tFast} vs ${tSlow}`);
+  // Server presses arrive every 0.8 s (step_seconds). Without catch-up the lag
+  // behind the last press grows with sequence length; with it, it stays bounded.
+  const lagAfterLast = (n, catchUp) => {
+    const e = T.createEngine({timing, catchUp});
+    let t = 0, i = 0;
+    while (t < 200) {
+      if (i < n && t >= 0.8 * i - 1e-9) { e.enqueue(targets[i % targets.length], {label: 'x'}); i++; }
+      e.tick(t);
+      if (i === n && !e.busy) return t - 0.8 * (n - 1);
+      t += 0.01;
+    }
+    return Infinity;
+  };
+  const lag8 = lagAfterLast(8), lag32 = lagAfterLast(32), off32 = lagAfterLast(32, false);
+  assert.ok(lag32 < 3 && lag8 < 3, `bounded lag ${lag8} / ${lag32}`);
+  assert.ok(off32 > 10, `without catch-up the lag grows (${off32})`);
+  const one = T.createEngine({timing}), ref = T.createEngine({timing, catchUp: false});
+  one.enqueue([0.5, 0.5]); ref.enqueue([0.5, 0.5]);
+  close(runUntilIdle(one), runUntilIdle(ref));
+  // hurry (server result already in) shortens further
+  const h = T.createEngine({timing}); h.enqueue([0.5, 0.5]); h.hurry(true);
+  const ref2 = T.createEngine({timing, catchUp: false}); ref2.enqueue([0.5, 0.5]);
+  assert.ok(runUntilIdle(h) < runUntilIdle(ref2) * 0.6);
+  // final pose is exact regardless of speed
+  const end = fast.tick(999); close(end.x, 0.9); close(end.y, 0.9); assert.equal(end.z, 0);
+});
+
+test('verdict: held back while motion replays; abort + success wording; never from animation', () => {
+  const j = (extra) => ({running: false, job: Object.assign({sequence_id: 's', buttons: ['a'], press_log: [], abort_requested: false, result: {success: true, retry: 0}}, extra)});
+  assert.equal(T.verdictText(j(), true), '모션 재생 중 · 서버 결과 도착');
+  assert.match(T.verdictText(j(), false), /성공\(success=true, 재시도 0회\)/);
+  assert.match(T.verdictText(j({abort_requested: true}), false), /정지 요청이 늦어 모든 버튼 입력 후 성공 보고/);
+  assert.match(T.verdictText(j({abort_requested: true, result: {success: false, retry: 1}}), false), /실패.*정지 요청 뒤/);
+  assert.equal(T.verdictText(j({result: null}), false), '결과 프레임 없음 · 결과 미확인');
+  assert.equal(T.verdictText({running: true, job: j({result: null}).job}, true), '결과 대기 · 서버 보고 전');
+  assert.equal(T.verdictText({running: false, job: null}, false), '아직 실행 기록이 없습니다.');
+});
+
+test('follower hurries once the server result is in but motion is still behind', () => {
+  const e = T.createEngine({timing: {home: 1, moveBase: 1, movePerUnit: 0, press: 1, ret: 1}});
+  const f = T.createFollower(e);
+  const layout = T.layoutButtons(microwave);
+  f.update(job(['즉석밥', '시작']), layout, 0);
+  assert.equal(e.tick(0.1).hurry, false);
+  f.update({running: false, job: Object.assign(job(['즉석밥', '시작']).job, {result: {success: true, retry: 0}})}, layout, 0.2);
+  assert.equal(e.tick(0.3).hurry, true);
+  assert.equal(e.busy, true, 'result must not jump the carriage to the end');
+  assert.equal(e.tick(999).hurry, false, 'hurry ends once playback drains');
+});
+
+test('stop mid-Z retracts and aligns to the server last press, then stays; realigns on a later press', () => {
+  const e = T.createEngine({catchUp: false, timing: {home: 0, moveBase: 1, movePerUnit: 0, press: 1, ret: 1}});
+  e.enqueue([0.2, 0.2], {label: 'a'});
+  e.enqueue([0.8, 0.8], {label: 'b'});
+  e.tick(0);
+  const mid = e.tick(1.5);   // pressing 'a', halfway down
+  assert.equal(mid.phase, 'press'); assert.ok(mid.z > 0.2 && mid.z < 0.9);
+  e.drain();
+  const s = e.stop(1.5, [0.5, 0.25], {label: '즉석밥'});
+  assert.equal(s.phase, 'aligning');
+  assert.ok(e.stopped);
+  assert.equal(e.enqueue([0, 0], {label: 'x'}), false);
+  let p; for (let t = 1.5; t < 10; t += 0.05) { p = e.tick(t); }
+  assert.deepEqual(e.drain().map(x => x.kind), ['halt', 'align_return', 'align_move', 'stopped']);
+  assert.equal(p.phase, 'stopped'); assert.equal(p.z, 0);
+  close(p.x, 0.5); close(p.y, 0.25);
+  assert.equal(e.busy, false);
+  // a press the server recorded after the stop request moves the alignment
+  e.stop(20, [0.9, 0.1], {label: '시작'});
+  const q = e.tick(40); assert.equal(q.phase, 'stopped'); close(q.x, 0.9); close(q.y, 0.1);
+  // same target again: no-op
+  e.drain(); e.stop(41, [0.9, 0.1]); assert.deepEqual(e.drain(), []);
+  // reduced motion: instant
+  const r = T.createEngine({scale: 0}); r.enqueue([0.3, 0.3]); r.tick(0);
+  const rs = r.stop(0, [0.6, 0.6]); assert.equal(rs.phase, 'stopped'); close(rs.x, 0.6);
+});
+
+test('follower stop realignment uses the last recorded press and reports it', () => {
+  const e = T.createEngine({scale: 0});
+  const f = T.createFollower(e);
+  const layout = T.layoutButtons(microwave);
+  f.update(job(['즉석밥']), layout, 0);
+  const out = f.update(job(['즉석밥'], {abort_requested: true}), layout, 1);
+  assert.ok(out.froze);
+  const p = e.tick(2);
+  assert.equal(p.phase, 'stopped'); close(p.x, 1.5 / 3); close(p.y, 2.5 / 4); assert.equal(p.z, 0);
+  const again = f.update(job(['즉석밥', '시작'], {abort_requested: true}), layout, 3);
+  assert.ok(again.realigned);
+  const q = e.tick(4); close(q.x, 2.5 / 3); close(q.y, 3.5 / 4);
+  assert.equal(f.stopTarget(job(['즉석밥', '시작']), layout).label, '시작');
+});
+
+test('retry presses carry a concept XY nudge and the recorded correction flag', () => {
+  const e = T.createEngine({scale: 0});
+  const f = T.createFollower(e);
+  const layout = T.layoutButtons(microwave);
+  const state = job(['즉석밥']);
+  state.job.press_log.push({n: 1, label: '즉석밥', step_index: 0, attempt: 2,
+    correction: {retry_number: 1, xy_adjustment_required: true, increase_press_depth: true}});
+  state.job.press_log.push({n: 2, label: '즉석밥', step_index: 0, attempt: 3, correction: null});
+  f.update(state, layout, 0);
+  e.tick(0);
+  const moves = e.drain().filter(x => x.kind === 'move');
+  assert.equal(moves.length, 3);
+  assert.equal(moves[0].nudge, null);
+  assert.deepEqual(moves[1].nudge, T.conceptNudge(1));
+  assert.deepEqual(moves[1].correction, {recorded: true, xy: true, depth: true});
+  assert.deepEqual(moves[2].nudge, T.conceptNudge(2));
+  assert.equal(moves[2].correction.recorded, false);
+  assert.ok(Math.hypot(...T.conceptNudge(1)) > 0);
+});
+
+test('single-motor demo: A only moves X and Y together (dB = 0), B only moves them oppositely', () => {
+  const a = T.demoTarget([0.2, 0.2], 'A', 0.3);
+  close(a.dx, 0.15); close(a.dy, 0.15); close(a.db, 0);
+  const d = T.corexy(a.dx, a.dy); close(d.b, 0); close(d.a, 0.3);
+  const b = T.demoTarget([0.2, 0.8], 'B', 0.3);
+  close(b.dx, 0.15); close(b.dy, -0.15); close(T.corexy(b.dx, b.dy).a, 0);
+  const flipped = T.demoTarget([0.95, 0.95], 'A', 0.3);
+  close(flipped.dx, -0.15); close(flipped.dy, -0.15);
+  const e = T.createEngine({scale: 0}); e.moveTo(a.to, {label: 'A만 회전'}); const p = e.tick(0);
+  close(p.x, 0.35); close(p.y, 0.35); assert.equal(p.z, 0);
+});
+
+test('exec mode falls back to the simulator declaration before any job; poll pacing', () => {
+  assert.equal(T.execModeText({running: false, execution_mode: 'unknown', last_execution_mode: 'unknown'}, {execution_mode: 'mock'}),
+    'mock (시뮬레이터 선언 · 아직 실행 기록 없음)');
+  assert.equal(T.execModeText({running: true, execution_mode: 'mock'}, {execution_mode: 'mock'}), 'mock (실행 중)');
+  assert.equal(T.execModeText({running: false, execution_mode: 'unknown', last_execution_mode: 'mock'}, {}), 'mock (마지막 실행)');
+  assert.equal(T.execModeText(null, null), 'unknown');
+  assert.equal(T.pollInterval({running: true}), 400);
+  assert.equal(T.pollInterval({running: false}), 2000);
+  assert.equal(T.pollInterval(null), 2000);
 });
