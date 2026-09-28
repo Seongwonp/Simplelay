@@ -151,6 +151,9 @@ class ProactiveSuggestionService:
                 continue  # 사용자가 이 루틴을 "다시 추천 안 함"으로 내렸다
             # 미리보기 해석(느릴 수 있음)은 락 밖에서
             steps = self._preview_steps(candidate.purpose)
+            commands, summaries = self._purpose_commands(
+                candidate.purpose, candidate.appliance_id
+            )
             with self._state_lock:
                 self._expire_locked()
                 if not self._context_valid(candidate.purpose, candidate.time_band, candidate.appliance_id):
@@ -186,6 +189,8 @@ class ProactiveSuggestionService:
                     reason=(f"최근 {candidate.window_days}일 동안 "
                             f"{candidate.time_band} 시간에 "
                             f"{candidate.distinct_days}일 사용하셨어요."),
+                    commands=commands,
+                    command_summaries=summaries,
                 )
                 self._next_id += 1
                 self._suggestions[suggestion.suggestion_id] = suggestion
@@ -195,6 +200,7 @@ class ProactiveSuggestionService:
         env = self._current_environment()
         if env is not None and not self._is_muted(env.purpose, muted):
             steps = self._preview_steps(env.purpose)
+            env_commands, env_summaries = self._purpose_commands(env.purpose, env.appliance_id)
             self._refresh_environment()
             with self._state_lock:
                 self._expire_locked()
@@ -229,6 +235,8 @@ class ProactiveSuggestionService:
                         is_demo=getattr(env, "is_demo", False),
                         appliance_id=env.appliance_id,
                         expires_at=self._clock.now() + timedelta(minutes=15),
+                        commands=env_commands,
+                        command_summaries=env_summaries,
                     )
                     self._next_id += 1
                     self._suggestions[env_suggestion.suggestion_id] = (
@@ -286,6 +294,7 @@ class ProactiveSuggestionService:
         if self.is_dnd():
             return None
         steps = self._preview_steps(purpose)
+        commands, summaries = self._purpose_commands(purpose, appliance_id)
         with self._state_lock:
             self._expire_locked()
             existing = self._pending_for(purpose, "데모", appliance_id)
@@ -300,6 +309,8 @@ class ProactiveSuggestionService:
                 steps=steps,
                 appliance_id=appliance_id,
                 expires_at=self._clock.now() + timedelta(minutes=15),
+                commands=commands,
+                command_summaries=summaries,
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion
@@ -375,6 +386,14 @@ class ProactiveSuggestionService:
             if (len(current) != len(suggestion.commands)
                     or any(not a.same_content(b) for a, b in zip(suggestion.commands, current))):
                 raise ApprovalMismatchError("시나리오 내용이 바뀌었어요")
+        elif suggestion.scenario_id is None:
+            # 목적에서 확정한 카드(ThinQ 경로)는 승인 시점에 목적을 다시 해석해
+            # 대조한다. 그 사이 가전의 목적→동작 정의가 바뀌었으면 사용자가
+            # 승인한 명령이 아니다 -- 실행하지 않고 재승인을 받는다.
+            current, _ = self._purpose_commands(suggestion.purpose, suggestion.appliance_id)
+            if (len(current) != len(suggestion.commands)
+                    or any(not a.same_content(b) for a, b in zip(suggestion.commands, current))):
+                raise ApprovalMismatchError("이 가전의 동작 정의가 바뀌었어요")
         now = self._clock.now()
         expires = (suggestion.expires_at
                    if suggestion.expires_at is not None and suggestion.expires_at > now else None)
@@ -531,6 +550,35 @@ class ProactiveSuggestionService:
             return self._intent_resolver.resolve(purpose)
         except UnknownIntentError:
             return ()
+
+    def _purpose_commands(self, purpose: str, appliance_id) -> tuple[tuple, tuple[str, ...]]:
+        """ThinQ 경로 가전이면 카드를 만들 때 **명령을 확정**한다(결정 #1).
+
+        확정해 두면 승인이 ``commands`` 경로(지문 대조)로 흘러, 목적 문자열을
+        승인 뒤에 다시 해석하지 않는다. 해석이 안 되는 목적이거나 실행기가
+        ThinQ를 모르면 빈 튜플 -- 미리보기가 비어 있던 물리 카드와 같이
+        **묶을 대상이 없는 상태**로 두고, 종전 목적 경로로 간다.
+        """
+        if appliance_id is None:
+            return (), ()
+        route_of = getattr(self._executor, "route_of", None)
+        resolve = getattr(self._executor, "resolve_thinq_purpose", None)
+        if route_of is None or resolve is None:
+            return (), ()
+        try:
+            if getattr(route_of(appliance_id), "value", None) != "thinq":
+                return (), ()
+            command = resolve(purpose, appliance_id)
+        except Exception:  # noqa: BLE001 -- 해석 실패는 카드 생성을 막지 않는다
+            return (), ()
+        summary = purpose.strip()
+        summarize = getattr(self._executor, "summary_of", None)
+        if summarize is not None:
+            try:
+                summary = summarize(command) or summary
+            except Exception:  # noqa: BLE001
+                pass
+        return (command,), (summary,)
 
     def pending(self) -> tuple[ProactiveSuggestion, ...]:
         self._refresh_environment()

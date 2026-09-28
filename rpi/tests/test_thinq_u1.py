@@ -575,3 +575,117 @@ def test_pat_not_persisted_in_sqlite(monkeypatch, tmp_path_factory):
     finally:
         deps.get_db.cache_clear()
         _reset()
+
+
+# ── 8. ThinQ 경로 제안·목적 실행의 승인 고정(gap 1) ────────────────────────
+#
+# 시나리오 카드(§5)와 물리 카드(§6)는 승인에 묶였지만 ThinQ '목적' 경로는
+# 묶이지 않았다 -- 카드를 만들 때 명령을 확정하고, 승인 결속 인자가 오면
+# ThinQ 경로에서도 대조한다.
+
+
+def _thinq_suggestion_env(*, purpose_action=None):
+    """ThinQ 공기청정기 하나를 등록한 서비스 + 제안 서비스."""
+    from dataclasses import replace as dc_replace
+
+    from rpi.api.service import SimpleLayService
+    from rpi.controller import ClosedLoopController
+    from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
+    from rpi.intent.log import InMemoryUsageLog
+    from rpi.intent.mock import FixedClock
+    from rpi.intent.models import PatternConfig, TimeBand
+    from rpi.intent.patterns import PatternDetector
+    from rpi.intent.rules import RuleBasedIntentResolver
+    from rpi.intent.suggestions import ProactiveSuggestionService
+    from rpi.services.appliance_registry import (
+        ApplianceCategory,
+        ApplianceDef,
+        ApplianceRegistry,
+    )
+    from rpi.services.thinq import MOCK_PURIFIER_ID
+    from rpi.verifier import MockVerifier
+    from datetime import time as dtime
+
+    registry = ApplianceRegistry()
+
+    def install(binding):
+        registry.unregister_system("air_purifier")
+        registry.register_system(ApplianceDef(
+            appliance_id="air_purifier", name="공기청정기(모의)", rows=0, cols=0, buttons=(),
+            category=ApplianceCategory.AIR_PURIFIER, control_path=ControlRoute.THINQ,
+            thinq=binding,
+        ))
+
+    install(air_purifier_binding(MOCK_PURIFIER_ID))
+    client = MockThinqClient()
+    thinq = ThinqController(
+        client, lambda aid: getattr(registry.get(aid), "thinq", None),
+        mode=ThinqMode.MOCK, confirm_seconds=0.5, poll_interval=0.0, sleep=lambda s: None,
+    )
+    clock = FixedClock(datetime(2026, 9, 29, 20, tzinfo=timezone.utc))
+    service = SimpleLayService(
+        RuleBasedIntentResolver(),
+        ClosedLoopController(MockGrblClient(), MockVerifier([True] * 4), MockAlertSink(),
+                             MockSafetyController()),
+        clock=clock, appliance_registry=registry, thinq_controller=thinq,
+    )
+    detector = PatternDetector(InMemoryUsageLog(), clock, PatternConfig(
+        minimum_occurrences=3, time_bands=(TimeBand("저녁", dtime(17), dtime(21)),)))
+    svc = ProactiveSuggestionService(detector, clock, service,
+                                     intent_resolver=RuleBasedIntentResolver())
+
+    def change_definition():
+        """'강풍으로 바꿔줘'가 이제 약풍을 뜻하게 정의를 바꾼다."""
+        base = air_purifier_binding(MOCK_PURIFIER_ID)
+        install(dc_replace(base, functions=tuple(
+            dc_replace(fn, args=(("wind_strength", "LOW"),))
+            if fn.purpose == "강풍으로 바꿔줘" else fn
+            for fn in base.functions
+        )))
+
+    return svc, service, client, change_definition
+
+
+def test_thinq_suggestion_binds_the_command_at_creation():
+    svc, _service, client, _change = _thinq_suggestion_env()
+    card = svc.create_demo_suggestion("강풍으로 바꿔줘", appliance_id="air_purifier")
+    assert [c.route for c in card.commands] == [ControlRoute.THINQ]
+    assert card.commands[0].args_dict() == {"wind_strength": "HIGH"}
+    assert card.command_summaries[0].strip()
+    assert client.controls == []
+
+
+def test_thinq_suggestion_refuses_changed_purpose_definition():
+    svc, _service, client, change = _thinq_suggestion_env()
+    card = svc.create_demo_suggestion("강풍으로 바꿔줘", appliance_id="air_purifier")
+    change()
+    with pytest.raises(ApprovalMismatchError):
+        svc.approve_submit(card.suggestion_id)
+    assert client.controls == []  # 보내지 않았다
+    assert svc.pending() == ()  # 카드를 내리고 재승인을 받는다
+
+
+def test_thinq_suggestion_dispatches_once_when_unchanged():
+    svc, service, client, _change = _thinq_suggestion_env()
+    card = svc.create_demo_suggestion("강풍으로 바꿔줘", appliance_id="air_purifier")
+    svc.approve_submit(card.suggestion_id)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and service.status().running:
+        time.sleep(0.01)
+    assert [payload for _device, payload in client.controls] == [
+        {"airFlow": {"windStrength": "HIGH"}}
+    ]
+    run = service.last_run()
+    assert run is not None and run.status is CommandStatus.SUCCEEDED
+
+
+def test_execute_purpose_on_thinq_refuses_a_mismatching_approved_binding():
+    _svc, service, client, _change = _thinq_suggestion_env()
+    with pytest.raises(ApprovalMismatchError):
+        service.execute_purpose("강풍으로 바꿔줘", "air_purifier",
+                                approved_buttons=("강풍",))
+    assert client.controls == []
+    with pytest.raises(ApprovalMismatchError):
+        service.submit_purpose("강풍으로 바꿔줘", "air_purifier",
+                               expected_buttons=("강풍",))
+    assert client.controls == []

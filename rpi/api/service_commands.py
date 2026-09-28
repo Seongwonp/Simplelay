@@ -306,9 +306,24 @@ class CommandExecutionMixin:
         steps = [self._prepare(a.command, a) for a in approved]
         return self._start_plan(steps, purpose, usage_source, approval_guard, scenario_id, background=False)
 
-    def _submit_thinq_purpose(self, purpose, appliance_id, usage_source, approval_guard, background):
+    def _submit_thinq_purpose(self, purpose, appliance_id, usage_source, approval_guard, background,
+                              *, expected_buttons=None, approved_buttons=None,
+                              approved_command: ApprovedCommand | None = None):
+        """목적 → ThinQ 명령. 승인 결속(결정 #1)은 이 경로에도 그대로 적용한다.
+
+        승인 인자를 말없이 버리면 ThinQ 경로만 '승인 뒤 재해석'이 되살아난다 --
+        묶인 것이 있으면 여기서 대조하고, 다르면 실행하지 않고 재승인이다.
+        """
         command = self.resolve_thinq_purpose(purpose, appliance_id)
-        steps = [self._prepare(command, None)]
+        bound = approved_buttons if approved_buttons is not None else expected_buttons
+        if bound is not None:
+            # ThinQ 명령은 버튼을 들지 않는다(Command 불변 조건). 버튼 시퀀스로
+            # 승인한 카드가 이 경로로 들어왔다는 것은 승인 당시와 대상·경로가
+            # 달라졌다는 뜻이므로 실행하지 않는다.
+            raise ApprovalMismatchError(
+                f"승인 {' → '.join(bound)} / 지금 ThinQ {self.summary_of(command)}"
+            )
+        steps = [self._prepare(command, approved_command)]
         return self._start_plan(steps, purpose.strip(), usage_source, approval_guard, None,
                                 background=background)
 

@@ -33,7 +33,7 @@ SDK 코루틴을 돌리는 방식(기존 `ActClientController`와 같은 구조)
 
 | # | 충돌 | 결정 | 구현 위치 |
 |---|---|---|---|
-| 1 | 승인 후 재해석 | **물리·ThinQ 모두 승인 고정.** 시나리오 카드는 확정 `Command`를 들고 다니고, 승인 시 정의로 다시 만든 명령과 지문을 대조 → 다르면 `ApprovalMismatchError`(409)·카드 내림·재승인. 물리 패턴 제안은 카드의 미리보기 시퀀스에 묶어, 승인 때 해석이 다르면 실행하지 않음. 미리보기가 비었던 카드(해석 실패)는 보여 준 명령이 없어 종전 동작 | `suggestions._approved_commands`·`_approval_options`, `service._check_approved`, `service_commands._prepare` |
+| 1 | 승인 후 재해석 | **물리·ThinQ 모두 승인 고정.** 시나리오 카드는 확정 `Command`를 들고 다니고, 승인 시 정의로 다시 만든 명령과 지문을 대조 → 다르면 `ApprovalMismatchError`(409)·카드 내림·재승인. 물리 패턴 제안은 카드의 미리보기 시퀀스에 묶어, 승인 때 해석이 다르면 실행하지 않음. 미리보기가 비었던 카드(해석 실패)는 보여 준 명령이 없어 종전 동작. **ThinQ 경로 제안(패턴·환경·데모)도 카드를 만들 때 목적을 명령으로 확정해 같은 지문 경로로 승인하며, 승인 시 목적을 다시 해석해 대조한다** — 정의가 바뀌었으면 보내지 않고 재승인. 목적 해석이 안 되면 확정 명령이 없어 묶지 않는다(미리보기가 비었던 물리 카드와 같음). `execute_purpose`·`submit_purpose`가 ThinQ 가전에 승인 결속 인자(`approved_buttons`·`expected_buttons`)를 받으면 버리지 않고 대조한다 — ThinQ 명령은 버튼을 들지 않으므로 불일치(409) | `suggestions._purpose_commands`·`_approved_commands`·`_approval_options`, `service._check_approved`, `service_commands._prepare`·`_submit_thinq_purpose` |
 | 2 | 결과 표시 | `/status`·SSE·`/history`에 `route`·`last_receipt`·`last_confirmation`·`last_detail`(기존 필드 유지, 하위 호환). **앱·키오스크 문구 분기는 미착수**(이번 범위에서 Flutter 제외) | `schemas.py`, `router.command_status_fields` |
 | 3 | 상태 enum | 물리 `ExecutionStatus`에는 추가하지 않고, 명령 계약 `CommandStatus.UNCONFIRMED`를 쓴다. ThinQ 결과면 `/status.last_status`가 `unconfirmed`(실패 아님)일 수 있다 — 물리 결과는 종전 값 그대로 | `service_commands`, `router.command_status_fields` |
 | 4 | 학습 조건 | 기존(REAL+DIRECT+성공) 유지 + **ThinQ는 `state_confirmed`일 때만 성공으로 기록**, 접수만 된 결과는 실패로 적어 습관에 안 들어감. 시나리오·승인 실행은 사용 이력에 넣지 않음(제안 수락 선호도 별도 집계는 미구현). `UsageRecord`에 열 추가는 하지 않았고, 이력(job_history)에는 옆 표 `job_history_command`로 경로·수신·확인 근거를 남긴다(옛 기록은 unknown) | `service_commands._run_thinq_step`, `persistence.save_job_command_meta` |
@@ -128,6 +128,7 @@ SDK 코루틴을 돌리는 방식(기존 `ActClientController`와 같은 구조)
 
 ## 9. 남은 일
 
+- (2026-09-29 보완) ThinQ 목적 경로의 승인 결속 구멍을 막았다 — ThinQ 가전 제안은 생성 시점에 명령을 확정하고, 승인 때 다시 해석해 지문이 다르면 `ApprovalMismatchError`(409)로 보내지 않는다. 모의 어댑터 기준 검증이며 실물 호출로는 확인 전이다.
 - 1-7 앱·키오스크 문구 분기(설계 §6 표) + 골든 — `last_status=unconfirmed`, `last_confirmation`을 화면이 아직 모른다.
 - 제안 수락 선호도 별도 집계, `UsageRecord`의 경로·확인 열.
 - 원복 제안(이전 설정 저장·사용자 변경 확인), 전자레인지 종료 지속 감지 — U3.

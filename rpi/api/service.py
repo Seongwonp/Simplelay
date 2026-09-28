@@ -306,10 +306,14 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         approval_guard=None,
         expected_buttons: tuple[str, ...] | None = None,
         approved_buttons: tuple[str, ...] | None = None,
+        approved_command=None,
     ) -> ExecutionResult:
         if self.route_of(appliance_id) is ControlRoute.THINQ:
-            return self._submit_thinq_purpose(purpose, appliance_id, usage_source,
-                                              approval_guard, background=False)
+            return self._submit_thinq_purpose(
+                purpose, appliance_id, usage_source, approval_guard, background=False,
+                expected_buttons=expected_buttons, approved_buttons=approved_buttons,
+                approved_command=approved_command,
+            )
         return self._execute_via_resolver(purpose, self._intent, appliance_id, usage_source, approval_guard, expected_buttons, approved_buttons)
 
     def execute_purpose_for_appliance(
@@ -470,10 +474,14 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         approval_guard=None,
         expected_buttons: tuple[str, ...] | None = None,
         approved_buttons: tuple[str, ...] | None = None,
+        approved_command=None,
     ) -> str:
         if self.route_of(appliance_id) is ControlRoute.THINQ:
-            return self._submit_thinq_purpose(purpose, appliance_id, usage_source,
-                                              approval_guard, background=True)
+            return self._submit_thinq_purpose(
+                purpose, appliance_id, usage_source, approval_guard, background=True,
+                expected_buttons=expected_buttons, approved_buttons=approved_buttons,
+                approved_command=approved_command,
+            )
         defined = self._function_sequence(purpose, appliance_id)
         buttons = defined if defined is not None else self._intent.resolve(purpose)
         if approved_buttons is not None:
