@@ -59,6 +59,7 @@ from rpi.controller.serial_motion import (
     MotionConfig,
     MotionError,
     SerialMotionClient,
+    heartbeat_off_warning,
 )
 
 PROMPT = "jog> "
@@ -395,6 +396,9 @@ def main(
     if config.auto_home:
         say("SIMPLELAY_MOTION_AUTO_HOME은 이 도구에서 무시합니다 — 홈은 home 명령으로만")
         config = dataclasses.replace(config, auto_home=False)
+    heartbeat_warning = heartbeat_off_warning(config)
+    if heartbeat_warning:
+        say(f"경고: {heartbeat_warning}")
 
     fake = None
     log_handle: TextIO | None = None

@@ -10,6 +10,10 @@
 - ``watchdog_s``를 주면 늦은 응답을 기다리는 동안 **받은 줄이 하나도 없이** 그 시간이 지나면
   ``{"event":"alarm","reason":"host_timeout"}``을 먼저, 대기 명령의 ``ok:false``를 나중에 보낸다
   (펌웨어 HOST_WATCHDOG_MS와 같은 순서). 호스트 heartbeat(``ping``)가 이것을 막는다.
+- ``ready_banner=True``면 시작할 때(``boot_noise`` 줄들 뒤에) 펌웨어 부팅 배너
+  ``{"event":"ready","fw":"fake_mcu","protocol":"line-json/v0","reset":"poweron"}``를 보낸다.
+  ``boot_delay_s``를 주면 그동안은 받은 줄을 버린다(부팅 중 — 첫 status가 사라지는 경우).
+  ``reboot()``는 대기 명령·원점을 버리고 같은 순서로 다시 부팅한다.
 
 `REHEARSAL_CONFIG`의 수치는 **리허설용 임의 값**이다. 실물 값이 아니며 실기기 설정의
 근거로 쓰지 않는다(조그 CLI는 ``--fake-mcu``와 함께일 때만 이 값을 받는다).
@@ -68,9 +72,22 @@ class FakeMcu:
     """
 
     def __init__(
-        self, pipe: InMemoryLinePipe, homed: bool = False, *, watchdog_s: float | None = None
+        self,
+        pipe: InMemoryLinePipe,
+        homed: bool = False,
+        *,
+        watchdog_s: float | None = None,
+        ready_banner: bool = False,
+        boot_noise: tuple[str, ...] = (),
+        boot_delay_s: float = 0.0,
     ) -> None:
         self._end = pipe.device
+        self.ready_banner = ready_banner
+        self.boot_noise = boot_noise
+        self.boot_delay_s = boot_delay_s
+        self._booting_until = 0.0
+        #: 부팅 중이라 버린 줄 수.
+        self.dropped_while_booting = 0
         self.received: list[dict] = []
         self.homed = homed
         self.a = 0
@@ -83,6 +100,7 @@ class FakeMcu:
         self.delays: dict[str, float] = {}
         self.watchdog_s = watchdog_s
         self._pending: tuple[dict, list, float] | None = None  # (요청, 응답 줄들, 보낼 시각)
+        self._pending_boot_reset: str | None = None
         self._last_line = time.monotonic()
         self.handlers: dict[str, Handler] = {
             "status": lambda d: [
@@ -105,8 +123,33 @@ class FakeMcu:
             ],
         }
         self._stop = threading.Event()
+        self._boot()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="fake-mcu")
         self._thread.start()
+
+    def ready_event(self, reset: str = "poweron") -> dict:
+        # 펌웨어 부팅 배너 — firmware-motion/protocol_table.json events.ready
+        return {"event": "ready", "fw": "fake_mcu", "protocol": "line-json/v0", "reset": reset}
+
+    def _boot(self, reset: str = "poweron") -> None:
+        self._booting_until = time.monotonic() + self.boot_delay_s
+        if self.boot_delay_s <= 0:
+            self._emit_boot(reset)
+        else:
+            self._pending_boot_reset = reset
+
+    def _emit_boot(self, reset: str) -> None:
+        self._pending_boot_reset = None
+        self._send(list(self.boot_noise))
+        if self.ready_banner:
+            self._send([self.ready_event(reset)])
+
+    def reboot(self, reset: str = "sw") -> None:
+        """MCU 재시작 흉내: 대기 명령·원점·알람을 버리고 부팅 잡음·배너를 다시 보낸다."""
+        self._pending = None
+        self.homed = False
+        self.alarm = None
+        self._boot(reset)
 
     def _home(self, doc: dict) -> list[dict]:
         self.homed = True
@@ -154,7 +197,7 @@ class FakeMcu:
             self.alarm = "host_timeout"
             self.homed = False
             self._send([
-                {"event": "alarm", "reason": "host_timeout"},
+                {"event": "alarm", "reason": "host_timeout", "z_retract": "skipped"},
                 {"id": doc.get("id"), "ok": False, "error": "host_timeout"},
             ])
         elif now >= due:
@@ -191,6 +234,12 @@ class FakeMcu:
         while not self._stop.is_set():
             line = self._end.read_line(0.02)
             now = time.monotonic()
+            if self._pending_boot_reset is not None or now < self._booting_until:
+                if line is not None:
+                    self.dropped_while_booting += 1  # 부팅 중 — 펌웨어는 아직 시리얼을 읽지 않는다
+                if now >= self._booting_until and self._pending_boot_reset is not None:
+                    self._emit_boot(self._pending_boot_reset)
+                continue
             if line is not None:
                 self._last_line = now  # 펌웨어처럼 받은 줄이면 무엇이든 워치독을 갱신한다
             self._tick(now)

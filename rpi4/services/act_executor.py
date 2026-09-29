@@ -147,6 +147,7 @@ class ActExecutor:
         failure_state: DemoFailureState | None = None,
         progress: bool | None = None,
         job_observer: "Callable[[str, dict], None] | None" = None,
+        readiness: "Callable[[], str | None] | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -156,7 +157,9 @@ class ActExecutor:
         progress: 누름마다 ``progress`` 프레임을 보낼지. None이면 SIMPLELAY_ACT_PROGRESS
         (기본 켜짐). 컨트롤러가 ``set_press_observer``를 가져야 실제로 나간다.
         job_observer: 실행 시작·끝(``job_start``/``job_end``, sequence_id 포함)을 받는
-        함수(선택). act_main이 모션 줄 기록·원시 기록기에 같은 sequence_id를 찍는 데 쓴다."""
+        함수(선택). act_main이 모션 줄 기록·원시 기록기에 같은 sequence_id를 찍는 데 쓴다.
+        readiness: 실행 전에 부르는 준비 확인(선택). 이유 문자열을 돌려주면 execute를 시작하지 않고
+        ``{"type":"error","reason":"motion_not_ready","detail":…}``로 거절한다(모션 MCU 연결 확인 전)."""
         self._reader = reader
         self._writer = writer
         self._controller = controller
@@ -168,6 +171,7 @@ class ActExecutor:
         self._execute_task: asyncio.Task[None] | None = None
         self._progress = progress_enabled_from_env() if progress is None else progress
         self._job_observer = job_observer
+        self._readiness = readiness
         self._drain_tasks: set[asyncio.Task[None]] = set()
 
     # ── Public API ───────────────────────────────────────────────────────────
@@ -312,6 +316,17 @@ class ActExecutor:
             })
             return
 
+        not_ready = self._not_ready_reason()
+        if not_ready is not None:
+            log.warning("execute %r refused — motion not ready: %s", msg.sequence_id, not_ready)
+            await self._send({
+                "type": "error",
+                "sequence_id": msg.sequence_id,
+                "reason": "motion_not_ready",
+                "detail": not_ready,
+            })
+            return
+
         self._busy = True
         # 이전 run의 stale stop 제거 — 토큰 리셋 책임은 실행을 시작시키는 쪽
         reset_stop = getattr(self._controller, "reset_stop", None)
@@ -321,6 +336,15 @@ class ActExecutor:
         # 루프가 실행 완료까지 멈춰서, 실행 중 도착한 abort(긴급 정지)를
         # 읽을 수 없었다 — "실행 중 정지 불가"였던 진짜 원인.
         self._execute_task = asyncio.create_task(self._execute_and_report(msg))
+
+    def _not_ready_reason(self) -> str | None:
+        if self._readiness is None:
+            return None
+        try:
+            return self._readiness()
+        except Exception as exc:  # noqa: BLE001 - 확인 고장은 준비 안 됨으로 본다
+            log.exception("readiness check failed")
+            return f"준비 확인 실패: {exc}"
 
     def _notify_job(self, event: str, fields: dict) -> None:
         if self._job_observer is None:

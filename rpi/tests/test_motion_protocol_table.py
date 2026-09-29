@@ -141,6 +141,9 @@ def test_firmware_source_mentions_every_table_name():
     names.update(TABLE["alarm_reasons"])
     names.update(TABLE["states"])
     names.update(TABLE["limit_inputs"])
+    for fields in TABLE["events"].values():
+        names.update(fields)  # 이벤트 필드(ready의 fw·protocol·reset, alarm의 z_retract 등)
+    names.update(TABLE["z_retract_values"])
     names.discard("cmd")  # 펌웨어는 cmd 키를 읽기만 한다(아래에서 따로 확인)
     missing = sorted(n for n in names if not _in_firmware(n))
     assert missing == []
@@ -254,3 +257,30 @@ def test_firmware_watchdog_is_short_and_checked_against_heartbeat():
     assert heartbeat == REHEARSAL_CONFIG.heartbeat_ms == 500  # 호스트 기본값과 같은 박자
     assert 3 * heartbeat <= watchdog <= 5000  # 초 단위로 줄였다(이전 25 s)
     assert "HOST_WATCHDOG_MS < 3 * HOST_HEARTBEAT_MS" in config_h  # 빌드 검사
+
+
+# ── 부팅 배너·알람 필드(2026-09-29 첫날 위험 보완) ──────────────────────────
+
+
+def test_fake_mcu_ready_banner_and_alarm_fields_match_table():
+    pipe = InMemoryLinePipe()
+    mcu = FakeMcu(pipe, ready_banner=True, boot_noise=("ets Jun  8 2016",), watchdog_s=0.1)
+    mcu.delays["home"] = 1.0
+    try:
+        assert pipe.host.read_line(1.0) == "ets Jun  8 2016"  # 부트 잡음이 배너보다 먼저
+        ready = json.loads(pipe.host.read_line(1.0) or "{}")
+        pipe.host.write_line(json.dumps({"id": 1, "cmd": "home"}))
+        alarm = json.loads(pipe.host.read_line(2.0) or "{}")
+    finally:
+        mcu.close()
+    assert sorted(ready) == sorted(TABLE["events"]["ready"]) and ready["event"] == "ready"
+    assert ready["protocol"] == TABLE["protocol"]
+    assert sorted(alarm) == sorted(TABLE["events"]["alarm"]) and alarm["reason"] == "host_timeout"
+    assert alarm["z_retract"] in TABLE["z_retract_values"]
+    assert alarm["z_retract"] == "skipped"  # 워치독 부류는 후퇴 없이 즉시 끊는다(펌웨어 fault(.., true))
+
+
+def test_firmware_emits_ready_banner_at_boot():
+    main_cpp = (ROOT / "firmware-motion" / "src" / "main.cpp").read_text(encoding="utf-8")
+    assert "proto_event_ready(" in main_cpp
+    assert '\\"protocol\\":\\"' + TABLE["protocol"] + '\\"' in FIRMWARE_SRC

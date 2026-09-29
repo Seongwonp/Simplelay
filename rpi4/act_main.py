@@ -23,6 +23,11 @@ Environment variables:
   SIMPLELAY_MOTION_*              기구·누름·타임아웃 값. 전부 기본 없음, 비어 있으면
                                   누름을 거절한다(serial_motion.MOTION_ENV_NAMES,
                                   kinematics.ENV_NAMES)
+                                  시작 때 MCU가 status에 답하지 않으면(포트 열기로 리셋·부팅 중·케이블)
+                                  배경에서 1→2→4…30 s 간격으로 연결을 다시 시도한다. 연결 확인 전의
+                                  execute는 ``{"type":"error","reason":"motion_not_ready","detail":…}``로
+                                  바로 거절한다(누름을 시도하지 않는다).
+  SIMPLELAY_MOTION_HEARTBEAT_MS   "off"면 시작 때 경고 — 2 s 넘는 동작은 MCU 워치독에 끊긴다
   SIMPLELAY_RECORDER_PATH         설정하면 누름 주변 원시 기록기를 켠다(기본 꺼짐).
                                   .csv면 CSV, 그 밖은 JSONL로 **이어 쓴다**. 누름 호출
                                   앞뒤(press_start/press_end)와 모션 MCU 이벤트(mcu_*)를
@@ -57,6 +62,8 @@ import contextlib
 import logging
 import os
 import sys
+import threading
+from collections.abc import Callable
 from typing import TYPE_CHECKING, TextIO
 
 from rpi.controller import ClosedLoopController
@@ -108,6 +115,67 @@ def _open_motion_transport(port: str, baud: int):
     from rpi.controller.serial_motion import PySerialLineTransport
 
     return PySerialLineTransport(port, baud)
+
+
+#: 연결 재시도 간격(초). 마지막 값에서 멈춰 그 간격으로 계속한다. 호스트 박자라 기구 값이 아니다.
+MOTION_CONNECT_BACKOFF_S = (1.0, 2.0, 4.0, 8.0, 16.0, 30.0)
+
+
+class MotionConnectRetry:
+    """시작 때 연결 확인에 실패한 모션 MCU를 배경 스레드에서 다시 연결한다.
+
+    ``client.connect()``가 성공할 때까지 backoff 간격으로 부른다(설정 누락은 재시도로 풀리지 않아
+    부르지 않는다). 그동안 ``client.not_ready_reason()``이 이유를 돌려주고 ActExecutor가 execute를
+    ``motion_not_ready``로 거절한다 — 조용히 누름마다 실패하지 않는다.
+    """
+
+    def __init__(self, client, backoff_s: tuple[float, ...] | None = None) -> None:
+        self._client = client
+        self._backoff_s = backoff_s or MOTION_CONNECT_BACKOFF_S
+        self._stop = threading.Event()
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="motion-connect-retry")
+        self.attempts = 0
+        self.connected = threading.Event()
+
+    def start(self) -> "MotionConnectRetry":
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def join(self, timeout: float | None = None) -> None:
+        self._thread.join(timeout)
+
+    def _loop(self) -> None:
+        from rpi.controller.serial_motion import MotionError
+
+        index = 0
+        while True:
+            wait = self._backoff_s[min(index, len(self._backoff_s) - 1)]
+            index += 1
+            if self._stop.wait(wait):
+                return
+            self.attempts += 1
+            try:
+                status = self._client.connect()
+            except (MotionError, RuntimeError, OSError) as exc:
+                log.warning("motion MCU still not ready (retry %d, next in %.0fs): %s", self.attempts,
+                            self._backoff_s[min(index, len(self._backoff_s) - 1)], exc)
+                continue
+            log.info("motion MCU connected on retry %d: state=%s homed=%s", self.attempts, status.state, status.homed)
+            self.connected.set()
+            return
+
+
+#: act_main이 띄운 연결 재시도(없으면 None). 종료 때 멈춘다. 시험이 들여다본다.
+_motion_retry: MotionConnectRetry | None = None
+
+
+def _motion_readiness(grbl: object) -> "Callable[[], str | None] | None":
+    """모션 어댑터가 준비 이유를 알려 주면 그 함수를(없으면 None — mock은 늘 준비됨)."""
+    reason = getattr(grbl, "not_ready_reason", None)
+    return reason if callable(reason) else None
 
 
 def _build_motion_log() -> "tuple[LineLog, TextIO] | None":
@@ -167,9 +235,11 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
 
     from rpi.controller.serial_motion import (
         MotionConfig,
+        MotionConfigError,
         MotionError,
         MotionSafetyController,
         SerialMotionClient,
+        heartbeat_off_warning,
     )
 
     port = os.getenv("SIMPLELAY_MOTION_PORT", "").strip()
@@ -189,12 +259,23 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
     missing = config.missing_for_press()
     if missing:
         log.warning("motion config incomplete — every press will be refused: %s", ", ".join(missing))
+    warning = heartbeat_off_warning(config)
+    if warning:
+        log.warning("%s", warning)
+    global _motion_retry
+    if _motion_retry is not None:
+        _motion_retry.stop()
+        _motion_retry = None
     try:
         status = client.connect()
         log.info("motion MCU on %s: state=%s homed=%s (실물 미검증 어댑터)", port, status.state, status.homed)
-    except (MotionError, RuntimeError) as exc:
-        # 연결 확인 실패 = 준비 안 됨. 누름은 홈 확인이 없어 거절된다.
-        log.error("motion MCU status check failed on %s: %s", port, exc)
+    except MotionConfigError as exc:
+        # 설정 누락은 다시 시도해도 풀리지 않는다 — 준비 안 됨으로 남긴다.
+        log.error("motion MCU status check impossible on %s: %s", port, exc)
+    except (MotionError, RuntimeError, OSError) as exc:
+        # 연결 확인 실패 = 준비 안 됨. 배경에서 다시 연결하고, 그동안 execute는 motion_not_ready로 거절한다.
+        log.error("motion MCU status check failed on %s: %s — retrying in background", port, exc)
+        _motion_retry = MotionConnectRetry(client).start()
     return client, MotionSafetyController(client)
 
 
@@ -280,12 +361,14 @@ def _build_executor(
     if recorder is None:
         # 줄 기록이 없으면 종전 호출 모양 그대로
         grbl, safety = _build_motion(**({"line_log": motion_log} if motion_log is not None else {}))
+        readiness = _motion_readiness(grbl)
     else:
         from rpi.verifier.recorder import RecordingGrblClient, motion_event_hook
 
         # 모션 MCU 이벤트(mcu_press_start 등)는 어댑터 훅으로, 호스트 호출 시각은 래퍼로 찍는다.
         grbl, safety = _build_motion(on_event=motion_event_hook(recorder.recorder),
                                      **({"line_log": motion_log} if motion_log is not None else {}))
+        readiness = _motion_readiness(grbl)
         grbl = RecordingGrblClient(grbl, recorder.recorder)
     controller = ClosedLoopController(
         grbl=grbl,
@@ -304,6 +387,7 @@ def _build_executor(
         controller=controller,
         failure_state=failure_state,
         job_observer=_job_observer(recorder, motion_log),
+        **({"readiness": readiness} if readiness is not None else {}),
     )
 
 
@@ -373,6 +457,8 @@ async def _run() -> None:
             monitor_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await monitor_task
+        if _motion_retry is not None:
+            _motion_retry.stop()
         if recorder is not None:
             recorder.close()
         if motion_log is not None:

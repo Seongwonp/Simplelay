@@ -126,6 +126,8 @@ void proto_handle_line(char* line, size_t len) {
   JsonDocument doc(&g_pool);
   if (deserializeJson(doc, line, len)) return;  // 해석 불가 줄은 무시(fake_mcu와 같다)
   if (!doc.is<JsonObject>()) return;
+  // 해석은 잠금 밖(loop 태스크), 상태 변경·응답 쓰기는 잠금 안 — 제어 태스크는 해석 시간만큼 밀리지 않는다.
+  MotionGuard guard;
 
   ReqId id = {false, 0};
   int32_t idv = 0;
@@ -229,7 +231,15 @@ void proto_event_position(int32_t a, int32_t b, int32_t z) {
   write_line(g_out);
 }
 
-void proto_event_alarm(const char* reason) {
-  snprintf(g_out, sizeof g_out, "{\"event\":\"alarm\",\"reason\":\"%s\"}", reason);
+void proto_event_alarm(const char* reason, const char* z_retract) {
+  snprintf(g_out, sizeof g_out, "{\"event\":\"alarm\",\"reason\":\"%s\",\"z_retract\":\"%s\"}", reason,
+           z_retract);
+  write_line(g_out);
+}
+
+void proto_event_ready(const char* reset_reason) {
+  snprintf(g_out, sizeof g_out,
+           "{\"event\":\"ready\",\"fw\":\"%s\",\"protocol\":\"line-json/v0\",\"reset\":\"%s\"}", FW_NAME,
+           reset_reason);
   write_line(g_out);
 }

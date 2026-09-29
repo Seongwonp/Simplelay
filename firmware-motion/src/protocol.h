@@ -28,6 +28,9 @@ void proto_reply_status(const ReqId& id, const MotionSnapshot& snap);
 // limits 응답. raw·deb는 X·Y·Z 순서 3개(활성 = true).
 void proto_reply_limits(const ReqId& id, const bool raw[3], const bool deb[3]);
 void proto_event(const char* name);
-void proto_event_alarm(const char* reason);
+// 알람 이벤트. z_retract: 알람 때 Z 후퇴 결과(not_needed|done|timeout|stalled|skipped|stopped).
+void proto_event_alarm(const char* reason, const char* z_retract);
+// 부팅 배너(setup 끝에 한 번). reset = 직전 리셋 이유(poweron|sw|panic|task_wdt|int_wdt|wdt|brownout|ext|other).
+void proto_event_ready(const char* reset_reason);
 // 엔코더 위치 보고(선택 이벤트). 이동·누름 중 POSITION_EVENT_MS마다, 끝날 때 ok 직전 한 번.
 void proto_event_position(int32_t a, int32_t b, int32_t z);

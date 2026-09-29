@@ -61,12 +61,16 @@
     "hw_init"
   ],
   "events": {
-    "alarm": ["event", "reason"],
+    "ready": ["event", "fw", "protocol", "reset"],
+    "alarm": ["event", "reason", "z_retract"],
     "press_start": ["event"],
     "press_end": ["event"],
     "position": ["event", "a", "b", "z"]
   },
   "position_event_note": "position(엔코더 카운트)은 이동·누름의 ok 응답 직전에 한 번(표의 events 순서) 오고, 이동·누름 중에는 POSITION_EVENT_MS(100ms)마다 더 올 수 있다. 호스트는 선택 이벤트로 다룬다(serial_motion.py last_position).",
+  "ready_note": "부팅 배너(2026-09-29). setup 끝에 한 번 보낸다. reset = 직전 리셋 이유(poweron|sw|panic|task_wdt|int_wdt|wdt|brownout|ext|other). 호스트 connect()는 포트를 연 뒤 JSON이 아닌 부트 로그를 버리고 이 줄 또는 status 재시도(backoff)로 준비를 안다. 동작 중에 오면 MCU가 재시작한 것 — 진행 중 명령은 실패, 재홈 필요.",
+  "z_retract_values": ["not_needed", "done", "timeout", "stalled", "skipped", "stopped"],
+  "z_retract_note": "alarm 이벤트의 z_retract(2026-09-29): 알람 때 Z가 눌린 쪽이면 XY는 제동하고 Z만 위로 개루프 후퇴(Z_RETRACT_MS 한도)한 뒤 차단한다. host_timeout(워치독 부류)·원점 모름은 skipped(즉시 차단). 후퇴가 필요한 알람의 이벤트·실패 응답은 후퇴가 끝난 뒤 온다.",
   "alarm_reasons": ["stall", "limit", "home_not_found", "timeout", "host_timeout", "soft_limit", "hw_init"],
   "states": ["idle", "homing", "moving", "pressing", "stopped", "alarm"]
 }

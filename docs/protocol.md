@@ -97,7 +97,12 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 { "type": "result", "sequence_id": "seq_002", "success": false, "retry": 0, "outcome": "stopped" }
 { "type": "result", "sequence_id": "seq_003", "success": false, "retry": 2, "outcome": "safety_stop" }
 { "type": "error", "sequence_id": "seq_001", "reason": "actuator_fail" }
+{ "type": "error", "sequence_id": "seq_005", "reason": "motion_not_ready", "detail": "모션 MCU 연결 확인 전(…)" }
 ```
+
+`error`의 `motion_not_ready`(2026-09-29): `SIMPLELAY_MOTION_MODE=serial`에서 모션 MCU 연결 확인(`status` 성공) 전에
+`execute`가 오면 RPi4는 누름을 시도하지 않고 바로 이것으로 거절한다. RPi4는 배경에서 1→2→4…30 s 간격으로 다시
+연결한다. 옛 RPi5는 `reason`을 문자열로만 기록한다.
 
 `result`의 `outcome`(2026-09-29 추가) — **어떻게 끝났는지**. 예전에는 정지 요청으로 멈춘 것과
 검증 실패로 안전 정지한 것이 모두 `success=false` 하나라 RPi5가 둘을 가를 수 없었다.
@@ -241,7 +246,8 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 { "id": 1, "ok": true, "state": "idle", "homed": false, "a": 0, "b": 0, "z": 0, "alarm": null }
 { "id": 3, "ok": true }
 { "id": 3, "ok": false, "error": "stall" }
-{ "event": "alarm", "reason": "limit" }
+{ "event": "ready", "fw": "firmware-motion", "protocol": "line-json/v0", "reset": "poweron" }
+{ "event": "alarm", "reason": "limit", "z_retract": "not_needed" }
 { "event": "press_start" }
 { "event": "press_end" }
 { "id": 7, "ok": true }
@@ -264,6 +270,14 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   기구 값이 있으면 mm로 바꿔 progress 프레임 `position`으로 RPi5에 넘긴다. 보내지 않는 MCU면 RPi5 트윈은
   "명령 기준 추정"으로 그린다.
 
+- `ready` 이벤트(2026-09-29 추가): 펌웨어가 부팅을 마치면 한 줄 보낸다. `reset` = 직전 리셋 이유(`poweron`·`sw`·`panic`·
+  `task_wdt`·`int_wdt`·`wdt`·`brownout`·`ext`·`other`). FireBeetle ESP32는 USB 시리얼 DTR/RTS로 자동 리셋되므로 RPi4는
+  DTR/RTS를 내린 채(dsrdtr·rtscts 끔) 포트를 열고, `connect()`에서 부트 로그(JSON 아닌 줄)를 버리며 이 줄을 기다리거나
+  `status`를 backoff(0.2 s→1 s)로 `SIMPLELAY_MOTION_CONNECT_TIMEOUT_S`(기본 5 s)까지 재시도한다. 동작 중에 `ready`가
+  오면 MCU가 재시작한 것 — 진행 중 명령은 실패, 재홈 전까지 이동·누름 거절. 조회 중이면 같은 요청을 새 `id`로 다시 보낸다.
+- `alarm`의 `z_retract`(2026-09-29 추가): 알람 때 Z가 눌린 쪽이면 MCU가 XY는 제동하고 Z만 위로 한도(`Z_RETRACT_MS`)
+  안에서 올린 뒤 끊는다. 값 `not_needed`·`done`·`timeout`·`stalled`·`skipped`(워치독 `host_timeout` 부류·원점 모름 —
+  즉시 차단)·`stopped`(후퇴 중 `stop`). 후퇴가 필요한 알람은 이벤트와 `ok:false`가 후퇴 뒤에 온다.
 - 응답은 동작이 **끝난 뒤** 보낸다(홈 완료·도착·Z 복귀). `id` 없는 줄은 자발 이벤트다.
 - `alarm` 이벤트나 `ok:false`를 받으면 RPi4는 해당 동작을 실패로 끝내고 알람 상태로 둔다.
 - 기한 초과 시 RPi4는 `stop`을 보내고 위치를 믿지 않는다(재홈 전까지 이동·누름 거절).

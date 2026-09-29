@@ -17,34 +17,59 @@
 // TODO(HW 실측): 보드레이트는 RPi4 쪽 SIMPLELAY_MOTION_BAUD와 같은 값으로 정한다.
 #define HOST_SERIAL_BAUD       115200
 #define HOST_RX_BUFFER_BYTES   1024
+// 송신 링 버퍼. 0이면 Serial.write가 UART FIFO(128 B)가 빌 때까지 막혀 제어 태스크가 멈춘다.
+#define HOST_TX_BUFFER_BYTES   1024
 #define HOST_LINE_MAX          256     // 한 줄 최대 바이트(넘으면 그 줄은 버린다)
 #define JSON_POOL_BYTES        6144    // ArduinoJson 고정 풀(힙 미사용)
-// 워치독: 동작(home/move/press) 중 호스트 줄이 이 시간 동안 하나도 없으면 제동 후 STBY LOW +
-// host_timeout 알람. 받은 줄이면 무엇이든(ping·status·limits 포함) 갱신한다(main.cpp poll_host).
-// 호스트(serial_motion.py)는 동작 응답을 기다리는 동안 HOST_HEARTBEAT_MS마다 ping을 보내므로
-// 명령 기한과 무관하게 짧게 둘 수 있다 — 호스트가 죽거나 케이블이 빠지면 이 시간 안에 멈춘다.
+// 워치독: 출력이 켜져 있는 동안(동작 중이든, IDLE_POLICY_HOLD로 정지 유지 중이든) 호스트 줄이 이 시간
+// 동안 하나도 없으면 멈춘다. 동작 중이면 제동 후 STBY LOW + host_timeout 알람(Z 후퇴 없이 즉시 끊는 부류),
+// 유지 중이면 알람 없이 출력만 내린다. 받은 줄이면 무엇이든(ping·status·limits 포함) 갱신한다.
+// 호스트(serial_motion.py)는 동작 응답을 기다리는 동안 HOST_HEARTBEAT_MS마다 ping을 보낸다.
 // HOST_HEARTBEAT_MS는 호스트 SIMPLELAY_MOTION_HEARTBEAT_MS(기본 500)와 같게 둔다.
 // TODO(HW 실측): USB 시리얼 지연·RPi4 부하에서 ping 간격이 얼마나 벌어지는지 재고 정한다.
 #define HOST_HEARTBEAT_MS      500
 #define HOST_WATCHDOG_MS       2000
+// 부팅 배너 {"event":"ready",...}의 펌웨어 이름. 호스트는 이것(또는 status 재시도)으로 준비를 안다.
+#define FW_NAME                "firmware-motion"
 
-// ─── 제어 주기 ───────────────────────────────────────────────────────────────
+// ─── 제어 주기·태스크 ────────────────────────────────────────────────────────
+// 제어는 esp_timer가 CONTROL_HZ로 깨우는 전용 태스크에서 돈다(JSON 해석은 loop 태스크, 더 낮은 우선순위).
 // TODO(HW 실측): 엔코더 최대 속도·PID 안정성 보고 정한다.
-#define CONTROL_PERIOD_US      1000
+#define CONTROL_HZ             1000
+#define CONTROL_PERIOD_US      (1000000 / CONTROL_HZ)
+#define CONTROL_TASK_PRIORITY  5       // loop(1)보다 높게. esp_timer 태스크(22)보다 낮게
+#define CONTROL_TASK_CORE      1
+#define CONTROL_TASK_STACK     4096
+// MCU 태스크 워치독(esp_task_wdt): loop·제어 태스크가 이 시간 동안 돌지 않으면 패닉 → 재부팅.
+// 재부팅하면 GPIO가 입력(High-Z)이 되므로 STBY 핀에 외부 풀다운이 있어야 출력이 꺼진 채 남는다.
+// TODO(HW 실측): 최악 loop 시간(긴 줄 해석·시리얼 쓰기) 재고, 그 몇 배로 둔다.
+#define MCU_TASK_WDT_MS        1000
+
+// ─── 정지 유지 정책(동작이 끝난 뒤) ──────────────────────────────────────────
+// IDLE_POLICY_RELEASE(기본): 짧게 제동(IDLE_RELEASE_BRAKE_MS) 뒤 STBY LOW. 엔코더는 계속 센다.
+// IDLE_POLICY_HOLD: PID로 위치 유지(출력 켜 둠). 호스트가 조용해지면 HOST_WATCHDOG_MS 뒤 출력을 내린다.
+// TODO(HW 실측): 벨트·Z 기구가 전원 없이 밀리는지 보고 고른다.
+#define IDLE_POLICY_RELEASE    0
+#define IDLE_POLICY_HOLD       1
+#define IDLE_POLICY            IDLE_POLICY_RELEASE
+#define IDLE_RELEASE_BRAKE_MS  30
 
 // ─── 모터 드라이버 핀(JMOD-MOTOR-1 = TB6612FNG ×2) ───────────────────────────
 // 드라이버1: 채널A → 모터 A(CoreXY), 채널B → 모터 B(CoreXY). 드라이버2: 채널A → Z, 채널B 미사용.
 // TODO(HW 실측): FireBeetle 실제 핀 배치·배선표로 확정. 모듈 논리 전원이 5 V면 3.3 V GPIO 직결을
 //                보장할 수 없다(docs/JMOD-MOTOR-1-제어-검토.md) — 레벨 변환 여부 먼저 확인.
+// 스트래핑 핀(0·2·5·12·15)은 입력으로 쓰지 않는다. GPIO5는 부팅 때 풀업·PWM 신호가 나올 수 있어
+// 출력(모터 B IN2)으로만 쓴다 — STBY가 LOW(외부 풀다운)인 동안 IN 핀 흔들림은 모터에 닿지 않는다.
 #define PIN_MOTOR_A_PWM        25
 #define PIN_MOTOR_A_IN1        26
 #define PIN_MOTOR_A_IN2        27
 #define PIN_MOTOR_B_PWM        16
 #define PIN_MOTOR_B_IN1        17
-#define PIN_MOTOR_B_IN2        4
+#define PIN_MOTOR_B_IN2        5       // 2026-09-29: GPIO4 → GPIO5(리밋 Z를 스트래핑 핀에서 빼느라 맞바꿈)
 #define PIN_MOTOR_Z_PWM        18
 #define PIN_MOTOR_Z_IN1        19
 #define PIN_MOTOR_Z_IN2        23
+// TODO(HW 실측): STBY 두 핀에 외부 풀다운(예: 10 kΩ) — 리셋·패닉 중에도 출력이 꺼져 있게.
 #define PIN_STBY_AB            22      // 드라이버1 STBY (HIGH = 출력 켬)
 #define PIN_STBY_Z             21      // 드라이버2 STBY
 
@@ -61,7 +86,7 @@
 // TODO(HW 실측): 공급 전압(FIT0482 정격 6 V)에 맞춘 듀티 상한. 12 V 공급에 50%를 6 V 대용으로 쓰지 않는다.
 #define PWM_LIMIT_XY           700
 #define PWM_LIMIT_Z            600
-// TODO(HW 실측): 모터가 실제로 돌기 시작하는 최소 듀티(데드밴드 보상).
+// TODO(HW 실측): 모터가 실제로 돌기 시작하는 최소 듀티(마찰 보상). 허용 오차 안에서는 쓰지 않는다.
 #define PWM_MIN_EFFECTIVE      60
 
 // ─── 엔코더(PCNT, x4 디코딩) ─────────────────────────────────────────────────
@@ -69,6 +94,9 @@
 // SIMPLELAY_MOTION_R_OUT은 이 x4 카운트 기준 실측값을 넣는다.
 // TODO(HW 실측): 엔코더 출력 전압이 5 V면 ESP32 입력(3.3 V) 전에 분압·레벨 변환 필요.
 //                GPIO34~39는 내부 풀업이 없다 — 오픈 컬렉터 출력이면 외부 풀업.
+// ESP32 errata 3.11: ADC1·ADC2·Hall 센서를 켜면 GPIO36·GPIO39 입력이 약 80 ns LOW로 끌린다.
+// 이 펌웨어는 ADC·Hall·Wi-Fi를 쓰지 않는다. 쓰게 되면 엔코더 B를 다른 핀으로 옮기거나
+// ENC_GLITCH_NS(현재 1000 ns)가 그 펄스를 걸러내는지 확인한다.
 #define PIN_ENC_A_CHA          34
 #define PIN_ENC_A_CHB          35
 #define PIN_ENC_B_CHA          36
@@ -85,37 +113,55 @@
 // ─── 리밋 스위치(NC) ─────────────────────────────────────────────────────────
 // 기본 가정: NC 스위치를 GND에 연결 + 풀업 → 평소 LOW, 눌림(또는 단선) 시 HIGH = 활성.
 // TODO(HW 실측): 실제 결선에 맞춰 활성 레벨·풀업 사용 여부 확정.
-//                GPIO5는 부팅 스트래핑 핀이다(풀업 기본) — 다른 핀이 비면 옮긴다.
+// 2026-09-29: 리밋 Z를 스트래핑 핀 GPIO5에서 GPIO4로 옮겼다(NC 스위치가 부팅 때 GPIO5를 LOW로 끌면
+//             스트래핑 값이 바뀐다). GPIO4는 내부 풀업이 있는 일반 입출력 핀이다.
 #define PIN_LIMIT_X            13      // X 원점 쪽
 #define PIN_LIMIT_Y            14      // Y 원점 쪽
-#define PIN_LIMIT_Z            5       // Z 위쪽(후퇴) 끝
+#define PIN_LIMIT_Z            4       // Z 위쪽(후퇴) 끝
 #define LIMIT_ACTIVE_LEVEL     HIGH
 #define LIMIT_USE_PULLUP       1
 #define LIMIT_DEBOUNCE_TICKS   3       // 연속 같은 값 샘플 수(제어 주기 단위)
 
-// ─── 위치 PID(듀티/카운트) ───────────────────────────────────────────────────
+// ─── 위치 PID(듀티/카운트) + 속도 피드포워드 ─────────────────────────────────
 // TODO(HW 실측): 전부 튜닝 전 자리표시자. 무부하 → 벨트 장착 순으로 잡는다.
+// 출력 = KP·오차 + 적분 + KFF·기준속도 − KD·측정속도(필터) ± 마찰 보상(PWM_MIN_EFFECTIVE).
+// 적분은 작게 두고, 출력이 포화된 쪽으로는 더 쌓지 않는다(anti-windup) + I_LIMIT로 자른다.
 #define PID_XY_KP              2.0f
-#define PID_XY_KI              0.0f
-#define PID_XY_KD              0.02f   // 측정값 미분(카운트/초)에 곱한다
-#define PID_XY_I_LIMIT         200.0f
+#define PID_XY_KI              0.5f    // 작게 — 정지 마찰로 남는 오차만 천천히 민다
+#define PID_XY_KD              0.02f   // 측정 속도(카운트/초, VEL_WINDOW_TICKS 창 + 저역 필터)에 곱한다
+#define PID_XY_KFF             0.05f   // 기준 속도(카운트/초)에 곱한다
+#define PID_XY_I_LIMIT         150.0f
 #define PID_Z_KP               2.0f
-#define PID_Z_KI               0.0f
+#define PID_Z_KI               0.5f
 #define PID_Z_KD               0.02f
-#define PID_Z_I_LIMIT          200.0f
-#define POS_TOLERANCE_COUNTS   4       // 도착 판정 허용 오차
-#define SETTLE_MS              50      // 허용 오차 안에 머물러야 하는 시간
+#define PID_Z_KFF              0.05f
+#define PID_Z_I_LIMIT          150.0f
+// 속도 추정: VEL_WINDOW_TICKS 제어 주기 동안의 위치 차 / 시간, 그 뒤 1차 저역 필터(계수 0~1, 클수록 빠름).
+#define VEL_WINDOW_TICKS       8
+#define VEL_FILTER_ALPHA       0.3f
+// 도착·유지 데드밴드: 궤적이 끝난 축은 허용 오차 안이면 출력 0(마찰 보상 킥 없음). 한 번 들어오면
+// POS_REENGAGE_COUNTS를 넘을 때까지 다시 밀지 않는다(히스테리시스 — 한계 순환 방지).
+#define POS_TOLERANCE_COUNTS   4
+#define POS_REENGAGE_COUNTS    8
+// 도착 = 궤적 끝 + 마스크 축이 허용 오차 안에 이 시간 연속으로 머묾.
+#define ARRIVE_DWELL_MS        50
 
-// ─── 속도(카운트/초) ─────────────────────────────────────────────────────────
-// TODO(HW 실측): 공식 무부하 310 rpm은 상한일 뿐. 부하 상태 속도 실측 뒤 정한다.
+// ─── 속도·가속(카운트/초, 카운트/초²) — 사다리꼴 궤적 ─────────────────────────
+// A/B는 한 시간 매개변수를 공유한다(이동량이 큰 모터 기준으로 두 모터가 같은 비율로 진행).
+// 한 축이라도 추종 오차가 FOLLOW_ERR_HOLD_COUNTS를 넘으면 그 주기에는 궤적 시간을 멈춰 기다린다.
+// TODO(HW 실측): 공식 무부하 310 rpm은 상한일 뿐. 부하 상태 속도·가속 실측 뒤 정한다.
 #define MOVE_SPEED_CPS         2000.0f // 이동량이 큰 모터 기준
+#define MOVE_ACCEL_CPS2        8000.0f
 #define Z_SPEED_CPS            1000.0f
-#define HOME_FAST_CPS          800.0f  // 첫 접근(느린 쪽 속도로 둔다)
-#define HOME_SLOW_CPS          200.0f  // 후퇴·재접근
-#define HOME_MAX_LEAD_COUNTS   60      // 목표가 실제 위치보다 이만큼 앞서면 더 밀지 않는다
+#define Z_ACCEL_CPS2           8000.0f
+#define FOLLOW_ERR_HOLD_COUNTS 80
+// 이동·누름 명령 기한 = 궤적 예상 시간 + 이 여유(상한 MOVE_MAX_MS·PRESS_MAX_MS).
+#define MOVE_TIMEOUT_MARGIN_MS 1500
 
-// ─── 원점 복귀 ───────────────────────────────────────────────────────────────
-// 순서: Z(위로) → X → Y. 각 축: 접근 → 스위치 해제까지 후퇴 → 저속 재접근 → 후퇴한 곳을 0.
+// ─── 원점 복귀(개루프 듀티 프로파일) ─────────────────────────────────────────
+// 순서: Z(위로) → X → Y. 각 축: 빠른 접근 → 스위치 해제까지 후퇴 → 저속 재접근 → BACKOFF만큼 후퇴한 곳을 0.
+// PID를 쓰지 않고 정해진 듀티를 직접 준다(벨트 부하에서도 기동 듀티를 넘도록). XY는 두 모터를 함께 돌리며
+// 이동량 차이를 HOME_SYNC_GAIN으로 작게 보정한다(±HOME_SYNC_MAX_DUTY).
 // CoreXY에서 순수 X/Y 이동은 두 모터를 함께 돌린다. 아래 부호는 호스트 a_sign=b_sign=+1 가정의
 // -X(A-,B-), -Y(A-,B+)이다. TODO(HW 실측): 호스트 a_sign·b_sign과 스위치 위치에 맞춰 확정.
 #define HOME_X_DIR_A           (-1)
@@ -123,10 +169,25 @@
 #define HOME_Y_DIR_A           (-1)
 #define HOME_Y_DIR_B           (+1)
 #define HOME_Z_DIR             (-1)    // Z 카운트 + = 누름, 원점은 위쪽
-// TODO(HW 실측): 스위치 해제 여유·최대 탐색 거리.
+// TODO(HW 실측): 벨트 장착 상태의 기동 듀티보다 확실히 크게. 너무 크면 스위치를 세게 친다.
+#define HOME_DUTY_FAST         350
+#define HOME_DUTY_SLOW         250
+#define HOME_SYNC_GAIN         0.5f    // 듀티/카운트
+#define HOME_SYNC_MAX_DUTY     80
+// 스톨: 듀티를 주는데 HOME_STALL_MS 동안 카운트 변화가 STALL_MIN_DELTA_COUNTS 미만이면 stall 알람.
+// (스위치가 고장 나 끝에 닿은 경우도 여기서 멈춘다 — 20 s 기한까지 벽을 밀지 않는다.)
+#define HOME_STALL_MS          250
+// TODO(HW 실측): 스위치 해제 여유·축별 최대 탐색 거리(기구 전체 길이 + 여유, 카운트).
 #define HOME_BACKOFF_COUNTS    200
-#define HOME_MAX_TRAVEL_COUNTS 200000
 #define HOME_RELEASE_FACTOR    4       // 후퇴·재접근 탐색 한도 = BACKOFF × 이 값
+#define HOME_XY_MAX_TRAVEL_COUNTS 12000
+#define HOME_Z_MAX_TRAVEL_COUNTS  3000
+// 단계별 시간 예산 = 그 단계 최대 이동 카운트 / 최저 허용 속도 + 여유. 넘으면 home_not_found.
+// TODO(HW 실측): HOME_DUTY_* 에서 잰 실제 속도의 절반쯤으로.
+#define HOME_FAST_MIN_CPS      1000.0f
+#define HOME_SLOW_MIN_CPS      500.0f
+#define HOME_PHASE_MARGIN_MS   1000
+#define HOME_SETTLE_MS         100     // 마지막 후퇴 뒤 제동하고 기다렸다가 0으로 잡는다
 
 // ─── 소프트 리밋(원점 기준 카운트) ───────────────────────────────────────────
 // 호스트도 mm 소프트 리밋을 먼저 검사한다. 이것은 MCU 쪽 두 번째 벽이다.
@@ -148,9 +209,21 @@
 #define PRESS_DRIVE_PWM        400     // duration 방식 구동 듀티
 #define PRESS_DWELL_MAX_MS     3000
 
+// ─── 알람 때 Z 후퇴 ──────────────────────────────────────────────────────────
+// 알람 때 Z가 후퇴 위치(0) 아래(Z_RETRACT_ZONE_COUNTS 초과)에 있으면 XY는 제동하고 Z만 위쪽으로
+// 개루프 구동한다: Z_RETRACT_MS 동안, 또는 Z가 Z_RETRACT_DONE_COUNTS 이하·Z 리밋 활성·스톨까지.
+// 그 뒤 제동 → STBY LOW. host_timeout(워치독) 부류는 후퇴 없이 즉시 끊는다. 결과는 alarm 이벤트의
+// z_retract 필드: not_needed | done | timeout | stalled | skipped | stopped.
+// TODO(HW 실측): Z 기구가 전원 없이 스스로 올라오는지(스프링)·후퇴 속도.
+#define Z_RETRACT_DUTY         400
+#define Z_RETRACT_MS           400
+#define Z_RETRACT_ZONE_COUNTS  5
+#define Z_RETRACT_DONE_COUNTS  2
+
 // ─── 명령 기한(MCU 자체) ─────────────────────────────────────────────────────
 // TODO(HW 실측): 호스트 *_TIMEOUT_S보다 짧게 잡아 MCU가 먼저 실패를 보고하게 한다.
-#define HOME_MAX_MS            20000
+// HOME_MAX_MS는 단계별 예산 합보다 커야 한다(motion.cpp static_assert). 호스트 home_timeout_s는 이보다 길게.
+#define HOME_MAX_MS            60000
 #define MOVE_MAX_MS            8000
 #define PRESS_MAX_MS           5000
 
@@ -169,6 +242,21 @@
 #if PWM_LIMIT_XY > PWM_MAX_DUTY || PWM_LIMIT_Z > PWM_MAX_DUTY || PRESS_DRIVE_PWM > PWM_MAX_DUTY
 #error "PWM 상한이 PWM_MAX_DUTY보다 크다"
 #endif
+#if HOME_DUTY_FAST + HOME_SYNC_MAX_DUTY > PWM_LIMIT_XY || HOME_DUTY_FAST > PWM_LIMIT_Z || Z_RETRACT_DUTY > PWM_LIMIT_Z
+#error "원점·후퇴 듀티가 축 PWM 상한보다 크다"
+#endif
+#if HOME_DUTY_SLOW <= PWM_MIN_EFFECTIVE
+#error "HOME_DUTY_SLOW는 PWM_MIN_EFFECTIVE보다 커야 한다(기동 못 하는 듀티로 원점을 찾지 않는다)"
+#endif
 #if HOST_WATCHDOG_MS < 3 * HOST_HEARTBEAT_MS
 #error "HOST_WATCHDOG_MS는 HOST_HEARTBEAT_MS의 3배 이상이어야 한다 — ping 한두 개 늦음으로 정상 동작이 끊기지 않게"
+#endif
+#if POS_REENGAGE_COUNTS < POS_TOLERANCE_COUNTS
+#error "POS_REENGAGE_COUNTS는 POS_TOLERANCE_COUNTS 이상이어야 한다"
+#endif
+#if (1000000 % CONTROL_HZ) != 0
+#error "CONTROL_HZ는 1 s를 정수 us로 나누는 값이어야 한다"
+#endif
+#if IDLE_POLICY != IDLE_POLICY_RELEASE && IDLE_POLICY != IDLE_POLICY_HOLD
+#error "IDLE_POLICY는 IDLE_POLICY_RELEASE 또는 IDLE_POLICY_HOLD"
 #endif

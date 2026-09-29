@@ -37,7 +37,8 @@ RPi4 쪽 절반이다.
                                                          "debounced":{"x":false,"y":false,"z":false}}
   실패 응답: {"id":N,"ok":false,"error":"<코드>"}
 MCU → 호스트(자발 이벤트, id 없음)
-  {"event":"alarm","reason":"limit|stall|home_not_found|..."}
+  {"event":"ready","fw":"firmware-motion","protocol":"line-json/v0","reset":"poweron"}  (부팅 때 한 번)
+  {"event":"alarm","reason":"limit|stall|home_not_found|...","z_retract":"done|..."}
   {"event":"press_start"} / {"event":"press_end"}  (원시 기록기 시각축용)
   {"event":"position","a":..,"b":..,"z":..}          (선택, 2026-09-29)
 
@@ -54,12 +55,20 @@ heartbeat(2026-09-29): home·move·press 응답을 기다리는 동안 ``heartbe
 있으면 `motor_counts_to_xy`로 mm도 계산한다. MCU가 보내지 않으면 None — 지어내지 않는다.
 RPi4 ActExecutor가 이 값을 progress 프레임의 ``position``으로 RPi5에 보낸다(실모드 트윈).
 
+부팅 배너·연결(2026-09-29 첫날 위험 보완): FireBeetle ESP32는 USB 시리얼의 DTR/RTS로 자동 리셋된다.
+`PySerialLineTransport`는 DTR/RTS를 **열기 전에** 내려 두고(dsrdtr·rtscts 끔) 연다. 그래도 리셋될 수 있으므로
+(리눅스는 열 때 커널이 DTR을 잠깐 올린다) `SerialMotionClient.connect()`는 부트 로그(JSON 아닌 줄)를 버리고,
+펌웨어의 한 줄 배너 ``{"event":"ready","fw":..,"protocol":..,"reset":..}``를 기다리거나 ``status``를 backoff로
+``connect_timeout_s``(기본 5 s)까지 재시도한다. 동작 중에 ``ready``가 오면 MCU가 재시작한 것 — 진행 중 명령을
+실패(`MotionReset`)로 끝내고 재홈 전까지 준비 안 됨으로 둔다. 조회 중이면 같은 요청을 새 id로 다시 보낸다.
+
 모든 하드웨어 값(풀리·벨트·R_out·리밋·방향·누름 깊이/시간·타임아웃)은 설정으로만
 받는다. 기본값은 None이고, 필요한 값이 비어 있으면 **움직이기 전에** 거절한다.
 """
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import math
@@ -117,6 +126,10 @@ class MotionAlarm(MotionError):
     """MCU가 오류·알람을 보고했다(리밋·스톨·원점 미검출 등)."""
 
 
+class MotionReset(MotionAlarm):
+    """동작 중 MCU가 재시작했다(``ready`` 배너). 진행 중 명령은 사라졌고 원점 기준도 없다."""
+
+
 # ── 전송 ─────────────────────────────────────────────────────────────────────
 
 
@@ -156,16 +169,36 @@ class InMemoryLinePipe:
 
 
 class PySerialLineTransport:
-    """pyserial 기반 실기기 전송 — **실물 미검증**. pyserial은 ``.[gpio]`` extra에 있다."""
+    """pyserial 기반 실기기 전송 — **실물 미검증**. pyserial은 ``.[gpio]`` extra에 있다.
 
-    def __init__(self, port: str, baud: int) -> None:
-        try:
-            import serial  # type: ignore[import-untyped]  # noqa: PLC0415
-        except ImportError as exc:
-            raise RuntimeError(
-                "pyserial is not installed. Run: pip install -e \".[gpio]\""
-            ) from exc
-        self._serial = serial.Serial(port, baud, timeout=0)
+    포트를 열 때 ESP32 자동 리셋(DTR/RTS)을 피하려고 ``serial.Serial()``을 인자 없이 만든 뒤
+    흐름 제어(dsrdtr·rtscts·xonxoff)를 끄고 DTR/RTS를 **내린 상태로** 설정하고 나서 ``open()``한다
+    (pyserial은 이 값을 열 때 적용한다). 리눅스는 열 때 커널이 DTR을 잠깐 올릴 수 있어(HUPCL) 리셋을
+    완전히 막는다고 보장하지 않는다 — 필요하면 ``stty -F <포트> -hupcl``. 그래서 연결 쪽
+    (`SerialMotionClient.connect`)이 부트 잡음·``ready`` 배너·status 재시도를 따로 처리한다.
+    """
+
+    def __init__(self, port: str, baud: int, *, serial_module: Any = None) -> None:
+        if serial_module is None:
+            try:
+                import serial as serial_module  # type: ignore[import-untyped, no-redef]  # noqa: PLC0415
+            except ImportError as exc:
+                raise RuntimeError(
+                    "pyserial is not installed. Run: pip install -e \".[gpio]\""
+                ) from exc
+        ser = serial_module.Serial()
+        ser.port = port
+        ser.baudrate = baud
+        ser.timeout = 0
+        ser.dsrdtr = False
+        ser.rtscts = False
+        ser.xonxoff = False
+        ser.dtr = False  # 열기 전에 내려 둔다 — FireBeetle 자동 리셋 회로(EN·IO0)를 건드리지 않게
+        ser.rts = False
+        ser.open()
+        with contextlib.suppress(Exception):
+            ser.reset_input_buffer()  # 열기 전에 쌓인 줄은 이번 연결과 무관하다
+        self._serial = ser
         self._buffer = bytearray()
         self._write_lock = threading.Lock()
 
@@ -211,6 +244,7 @@ MOTION_ENV_NAMES: dict[str, str] = {
     "press_timeout_s": "SIMPLELAY_MOTION_PRESS_TIMEOUT_S",
     "auto_home": "SIMPLELAY_MOTION_AUTO_HOME",
     "heartbeat_ms": "SIMPLELAY_MOTION_HEARTBEAT_MS",
+    "connect_timeout_s": "SIMPLELAY_MOTION_CONNECT_TIMEOUT_S",
 }
 
 #: 응답을 기다리는 동안 heartbeat(ping)를 보내는 명령 — MCU 워치독이 도는 동작들.
@@ -226,7 +260,13 @@ _INT_FIELDS = (
     "press_dwell_ms",
     "heartbeat_ms",
 )
-_TIMEOUT_FIELDS = ("status_timeout_s", "home_timeout_s", "move_timeout_s", "press_timeout_s")
+_TIMEOUT_FIELDS = ("status_timeout_s", "home_timeout_s", "move_timeout_s", "press_timeout_s", "connect_timeout_s")
+
+#: connect()의 status 재시도 간격(초): 처음 값에서 두 배씩, 상한까지. 호스트 박자라 기구 값이 아니다.
+CONNECT_BACKOFF_START_S = 0.2
+CONNECT_BACKOFF_MAX_S = 1.0
+#: 이 리셋 이유로 ready가 오면 경고한다(펌웨어 워치독·패닉·전압 강하로 재부팅).
+_ABNORMAL_RESETS = frozenset({"panic", "task_wdt", "int_wdt", "wdt", "brownout"})
 
 
 @dataclass(frozen=True)
@@ -260,6 +300,9 @@ class MotionConfig:
     #: (환경 변수 0/off). 기구 실측값이 아니라 호스트 박자라 기본값을 둔다 — MCU 워치독
     #: (firmware-motion HOST_WATCHDOG_MS)은 이 값의 3배 이상이어야 한다.
     heartbeat_ms: int | None = 500
+    #: connect()가 부팅 배너·status 응답을 기다리는 총 시간(초). 포트를 열면 ESP32가 리셋될 수 있어
+    #: 첫 status가 사라질 수 있다 — 이 시간 동안 backoff로 재시도한다. 호스트 박자라 기본값을 둔다.
+    connect_timeout_s: float | None = 5.0
 
     def __post_init__(self) -> None:
         if self.press_mode is not None and self.press_mode not in PRESS_MODES:
@@ -339,6 +382,17 @@ def _parse_offsets(raw: str) -> tuple[tuple[float, float], ...]:
     return tuple(pairs)
 
 
+def heartbeat_off_warning(config: MotionConfig) -> str | None:
+    """heartbeat를 끈 설정이면 시작 경고 문구(아니면 None). act_main·조그 CLI가 쓴다."""
+    if config.heartbeat_ms is not None:
+        return None
+    return (
+        "SIMPLELAY_MOTION_HEARTBEAT_MS=off — 동작 응답을 기다리는 동안 ping을 보내지 않습니다. "
+        "MCU 워치독(firmware-motion HOST_WATCHDOG_MS, 2 s 자리표시자)이 2 s 넘게 걸리는 "
+        "home·move·press를 host_timeout으로 끊습니다"
+    )
+
+
 # ── 상태 ─────────────────────────────────────────────────────────────────────
 
 
@@ -408,6 +462,11 @@ class SerialMotionClient(GrblClient):
         self._last_position: dict | None = None
         #: 보낸 heartbeat(ping) 수 — 시험·로그용.
         self.heartbeats_sent = 0
+        #: 마지막으로 받은 부팅 배너(``ready`` 이벤트) — 없으면 None.
+        self.ready_info: dict | None = None
+        #: 마지막 connect()의 status 시도 횟수와 실패 이유(성공하면 None).
+        self.connect_attempts = 0
+        self._connect_error: str | None = None
 
     @property
     def last_position(self) -> dict | None:
@@ -454,13 +513,62 @@ class SerialMotionClient(GrblClient):
     # ── 명령 ─────────────────────────────────────────────────────────────────
 
     def connect(self) -> MotionStatus:
-        """시작 시 상태 조회. MCU가 알람이면 준비 안 됨, 홈 완료를 보고해야만 READY."""
-        return self.status()
+        """포트를 연 직후의 상태 조회. MCU가 알람이면 준비 안 됨, 홈 완료를 보고해야만 READY.
+
+        포트를 열면 ESP32가 리셋될 수 있다(자동 리셋 회로). 부팅 중에 보낸 status는 사라지므로
+        ``connect_timeout_s`` 동안 status를 backoff(0.2 s → 두 배 → 1 s 상한)로 재시도한다. 기다리는
+        동안 부트 로그(JSON 아닌 줄)는 버리고, 펌웨어 ``ready`` 배너가 오면 바로 다시 묻는다.
+        기한 안에 답이 없으면 `MotionTimeout` — 상태는 UNKNOWN으로 남는다(`not_ready_reason`).
+        """
+        self._config.require("상태 조회", ("status_timeout_s",))
+        status_timeout = self._config.status_timeout_s
+        assert status_timeout is not None
+        budget = self._config.connect_timeout_s or status_timeout
+        deadline = self._clock() + budget
+        delay = CONNECT_BACKOFF_START_S
+        attempts = 0
+        last_error = "응답 없음"
+        with self._op_lock:
+            while True:
+                attempts += 1
+                self.connect_attempts = attempts
+                remaining = deadline - self._clock()
+                try:
+                    reply = self._request(
+                        {"cmd": "status"},
+                        max(min(status_timeout, remaining), self._poll_s),
+                        allow_when_stopped=True,
+                        stop_on_timeout=False,
+                        quiet_noise=True,
+                    )
+                except MotionTimeout as exc:
+                    last_error = str(exc)
+                else:
+                    self._connect_error = None
+                    return self._apply_status(reply)
+                remaining = deadline - self._clock()
+                if remaining <= 0:
+                    break
+                self._drain_until_ready(min(delay, remaining))
+                delay = min(delay * 2, CONNECT_BACKOFF_MAX_S)
+        self._connect_error = f"{budget:g}s 동안 status 시도 {attempts}회 무응답"
+        raise MotionTimeout(f"모션 MCU 연결 확인 실패: {self._connect_error} ({last_error})")
+
+    def not_ready_reason(self) -> str | None:
+        """연결 확인(status 성공) 전이면 사람이 읽을 이유, 아니면 None. act_main readiness가 쓴다."""
+        with self._state_lock:
+            if self._state is not MotionState.UNKNOWN:
+                return None
+        error = self._connect_error
+        return f"모션 MCU 연결 확인 전({error})" if error else "모션 MCU 연결 확인 전"
 
     def status(self) -> MotionStatus:
         self._config.require("상태 조회", ("status_timeout_s",))
         with self._op_lock:
             reply = self._request({"cmd": "status"}, self._config.status_timeout_s, allow_when_stopped=True)
+        return self._apply_status(reply)
+
+    def _apply_status(self, reply: dict) -> MotionStatus:
         status = MotionStatus(
             state=str(reply.get("state", "unknown")),
             homed=reply.get("homed") is True,
@@ -623,6 +731,8 @@ class SerialMotionClient(GrblClient):
         except MotionStopped:
             self._set_state(MotionState.STOPPED)
             raise
+        except MotionReset:
+            raise  # _note_ready가 이미 UNHOMED로 두었다 — 재홈 필요
         except MotionAlarm:
             self._set_state(MotionState.ALARM)
             raise
@@ -635,13 +745,16 @@ class SerialMotionClient(GrblClient):
         return reply
 
     def _request(
-        self, body: dict, timeout_s: float | None, *, allow_when_stopped: bool = False
+        self,
+        body: dict,
+        timeout_s: float | None,
+        *,
+        allow_when_stopped: bool = False,
+        stop_on_timeout: bool = True,
+        quiet_noise: bool = False,
     ) -> dict:
         assert timeout_s is not None  # require()가 먼저 거른다
-        with self._write_lock:
-            self._next_id += 1
-            request_id = self._next_id
-            self._transport.write_line(json.dumps({"id": request_id, **body}, ensure_ascii=False))
+        request_id = self._send_request(body)
         deadline = self._clock() + timeout_s
         beat_s = self._heartbeat_s(body["cmd"])
         next_beat = self._clock() + beat_s if beat_s is not None else None
@@ -651,7 +764,8 @@ class SerialMotionClient(GrblClient):
             now = self._clock()
             remaining = deadline - now
             if remaining <= 0:
-                self._send_stop_after_timeout(body["cmd"])
+                if stop_on_timeout:
+                    self._send_stop_after_timeout(body["cmd"])
                 raise MotionTimeout(f"'{body['cmd']}' 응답이 {timeout_s:g}s 안에 오지 않았습니다")
             wait = min(self._poll_s, remaining)
             if next_beat is not None and beat_s is not None:
@@ -664,10 +778,18 @@ class SerialMotionClient(GrblClient):
                 continue
             doc = _parse_line(line)
             if doc is None:
-                log.warning("motion: ignored unparsable line: %.120s", line)
+                # 부트 로그·잡음. 연결 중에는 흔하므로 조용히 버린다.
+                (log.debug if quiet_noise else log.warning)("motion: ignored unparsable line: %.120s", line)
                 continue
             if "event" in doc:
                 self._note_position(doc, "mcu_event")
+                if doc.get("event") == "ready":
+                    self._note_ready(doc)
+                    if body["cmd"] in HEARTBEAT_CMDS:
+                        raise MotionReset(f"'{body['cmd']}' 도중 MCU가 재시작했습니다(ready 배너) — 재홈 필요")
+                    # 조회는 MCU가 부팅 중에 받은 요청을 잃었을 수 있다 — 새 id로 다시 묻는다.
+                    request_id = self._send_request(body)
+                    continue
                 self._handle_event(doc)
                 continue
             if doc.get("id") != request_id:
@@ -677,6 +799,47 @@ class SerialMotionClient(GrblClient):
                 return doc
             error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
             raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}")
+
+    def _send_request(self, body: dict) -> int:
+        with self._write_lock:
+            self._next_id += 1
+            request_id = self._next_id
+            self._transport.write_line(json.dumps({"id": request_id, **body}, ensure_ascii=False))
+        return request_id
+
+    def _note_ready(self, doc: dict) -> None:
+        """부팅 배너. MCU가 (재)시작했으므로 원점 기준이 없다 — 정지 표시가 아니면 UNHOMED로."""
+        self.ready_info = dict(doc)
+        reset = doc.get("reset")
+        self._emit("ready", doc)
+        if reset in _ABNORMAL_RESETS:
+            log.warning("motion MCU restarted after abnormal reset=%s (fw=%s)", reset, doc.get("fw"))
+        else:
+            log.info("motion MCU ready (fw=%s protocol=%s reset=%s)", doc.get("fw"), doc.get("protocol"), reset)
+        with self._state_lock:
+            if self._state is not MotionState.STOPPED:
+                self._state = MotionState.UNHOMED
+
+    def _drain_until_ready(self, wait_s: float) -> bool:
+        """연결 재시도 사이에 줄을 읽어 버린다. ``ready`` 배너를 받으면 True로 바로 돌아온다."""
+        deadline = self._clock() + wait_s
+        while True:
+            remaining = deadline - self._clock()
+            if remaining <= 0:
+                return False
+            line = self._transport.read_line(min(self._poll_s, remaining))
+            if line is None:
+                continue
+            doc = _parse_line(line)
+            if doc is None:
+                log.debug("motion: boot noise ignored: %.120s", line)
+                continue
+            if doc.get("event") == "ready":
+                self._note_ready(doc)
+                return True
+            if "event" in doc:
+                self._emit(str(doc.get("event")), doc)
+            # 응답 줄은 이전 시도의 늦은 응답 — 버린다.
 
     def _heartbeat_s(self, cmd: str) -> float | None:
         interval = self._config.heartbeat_ms
