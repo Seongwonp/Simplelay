@@ -54,7 +54,7 @@ RPi5와 유선으로 묶을 수가 없다.
                         │
             ┌───────────┴───────────┐
             ▼                       ▼
-  [Arduino 커스텀 PID, X/Y]   [상용 BLE 버튼 장치, Z]
+  [모션 MCU(미정), CoreXY A/B]   [같은 MCU, Z 누름 FIT0482]   ← 9/27 확정: FIT0482 ×3 + JMOD-MOTOR-1 ×2
             │                       │
             └───────────┬───────────┘
                          ▼
@@ -110,10 +110,9 @@ RPi5 근처)에 한 대, 2번은 가전마다 한 대씩 여러 대.
       "ESP32 ↔ RPi4" 로컬 구간에 그대로 재사용(그 구간은 원래도 유선 co-located
       가정이 맞음). `SimpleLayService`가 `appliance_id`로 로컬 기본 컨트롤러
       대신 등록된 노드로 라우팅하도록 배선 완료.
-- [ ] ESP32(노드) 펌웨어: RPi5의 HTTP(추후 ESP-NOW) 요청을 받아 RPi4로 UART
-      전달하고 결과를 회신 — 아직 구현 안 됨
-- [ ] RPi4 ↔ Arduino(X/Y 커스텀 PID): 연결 방식(UART 직결 vs 다른 방식) 미정
-- [ ] RPi4 ↔ Z축 BLE 버튼 장치: 연결 방식 미정
+- [x] ESP32(노드) 펌웨어: RPi5의 HTTP(추후 ESP-NOW) 요청을 받아 RPi4로 UART
+      전달하고 결과를 회신 — 코드·컴파일 완료(9/28 4 env 빌드), 실기기 미확인
+- [ ] RPi4 ↔ 모션 MCU(X/Y/Z 모두, MCU 미정): 링크 계약은 줄 단위 JSON(`SerialMotionClient`, protocol.md "모션 MCU 링크", 9/28) — MCU 종류·포트는 HW 팀원 결정 대기. (옛 항목 "Arduino PID / Z축 BLE 버튼 장치"는 폐기)
 - [ ] 센서 → RPi4 입력: GPIO(디지털) vs ADC(아날로그, MCP3008 등) — 센서 종류에 따라
 - [ ] 앱의 가전 등록 흐름에 "이 가전의 노드 주소" 입력 추가 (지금은 `/nodes` API만
       있고 앱 UI에서 호출하는 곳이 없음)
