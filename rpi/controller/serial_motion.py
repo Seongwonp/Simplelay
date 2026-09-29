@@ -31,11 +31,23 @@ RPi4 쪽 절반이다.
   {"id":5,"cmd":"press","mode":"duration",
    "drive_ms":120,"dwell_ms":150}
   {"id":6,"cmd":"stop"}                                {"id":6,"ok":true}
+  {"id":7,"cmd":"ping"}                                {"id":7,"ok":true}   (즉시, 동작 방해 없음)
+  {"id":8,"cmd":"limits"}                              {"id":8,"ok":true,
+                                                         "raw":{"x":false,"y":false,"z":false},
+                                                         "debounced":{"x":false,"y":false,"z":false}}
   실패 응답: {"id":N,"ok":false,"error":"<코드>"}
 MCU → 호스트(자발 이벤트, id 없음)
   {"event":"alarm","reason":"limit|stall|home_not_found|..."}
   {"event":"press_start"} / {"event":"press_end"}  (원시 기록기 시각축용)
   {"event":"position","a":..,"b":..,"z":..}          (선택, 2026-09-30)
+
+heartbeat(2026-09-30): home·move·press 응답을 기다리는 동안 ``heartbeat_ms``(기본 500ms)마다
+``ping``을 따로 보낸다. MCU 워치독은 "받은 줄" 아무것으로나 갱신되므로 긴 원점 복귀 중에도
+워치독을 초 단위로 줄일 수 있다(firmware-motion HOST_WATCHDOG_MS). ``ping``도 자기 ``id``를
+받으므로 그 응답이 명령 응답으로 오인되지 않는다(아래 id 대조에서 걸러진다).
+
+리밋 조회(2026-09-30): ``limits``는 X·Y·Z 원점/리밋 입력의 즉시 판독(``raw``, 활성=true)과
+디바운스 값(``debounced``)을 돌려준다. 움직이지 않으며 첫날 배선 확인용이다.
 
 위치 보고(선택, 2026-09-30): 응답(``ok:true``)이나 이벤트에 정수 ``a``·``b``(엔코더
 카운트, ``z`` 선택)가 실려 오면 `SerialMotionClient.last_position`에 남긴다. 기구 값이
@@ -198,7 +210,11 @@ MOTION_ENV_NAMES: dict[str, str] = {
     "move_timeout_s": "SIMPLELAY_MOTION_MOVE_TIMEOUT_S",
     "press_timeout_s": "SIMPLELAY_MOTION_PRESS_TIMEOUT_S",
     "auto_home": "SIMPLELAY_MOTION_AUTO_HOME",
+    "heartbeat_ms": "SIMPLELAY_MOTION_HEARTBEAT_MS",
 }
+
+#: 응답을 기다리는 동안 heartbeat(ping)를 보내는 명령 — MCU 워치독이 도는 동작들.
+HEARTBEAT_CMDS = frozenset({"home", "move", "press"})
 
 _INT_FIELDS = (
     "press_depth_counts",
@@ -208,6 +224,7 @@ _INT_FIELDS = (
     "press_drive_step_ms",
     "press_drive_max_ms",
     "press_dwell_ms",
+    "heartbeat_ms",
 )
 _TIMEOUT_FIELDS = ("status_timeout_s", "home_timeout_s", "move_timeout_s", "press_timeout_s")
 
@@ -239,6 +256,10 @@ class MotionConfig:
     press_timeout_s: float | None = None
     #: 홈 전에 누름 요청이 오면 자동으로 홈을 돌릴지. 기본 False(거절).
     auto_home: bool = False
+    #: home·move·press 응답을 기다리는 동안 ping을 보내는 간격(ms). None이면 보내지 않는다
+    #: (환경 변수 0/off). 기구 실측값이 아니라 호스트 박자라 기본값을 둔다 — MCU 워치독
+    #: (firmware-motion HOST_WATCHDOG_MS)은 이 값의 3배 이상이어야 한다.
+    heartbeat_ms: int | None = 500
 
     def __post_init__(self) -> None:
         if self.press_mode is not None and self.press_mode not in PRESS_MODES:
@@ -280,6 +301,8 @@ class MotionConfig:
                     values[name] = raw.lower()
                 elif name == "auto_home":
                     values[name] = raw.lower() == "true"
+                elif name == "heartbeat_ms" and raw.lower() in ("0", "off", "none"):
+                    values[name] = None
                 elif name in _INT_FIELDS:
                     values[name] = int(raw)
                 elif name == "retry_xy_offsets_mm":
@@ -329,6 +352,17 @@ class MotionState(str, Enum):
 
 
 @dataclass(frozen=True)
+class LimitStatus:
+    """리밋 입력 판독. 값은 "활성(눌림·단선)이면 True" — 핀 레벨은 MCU 설정(LIMIT_ACTIVE_LEVEL)."""
+
+    raw: dict[str, bool | None]
+    debounced: dict[str, bool | None]
+
+
+LIMIT_INPUTS = ("x", "y", "z")
+
+
+@dataclass(frozen=True)
 class MotionStatus:
     state: str
     homed: bool
@@ -372,6 +406,8 @@ class SerialMotionClient(GrblClient):
         self._next_id = 0
         self.last_status: MotionStatus | None = None
         self._last_position: dict | None = None
+        #: 보낸 heartbeat(ping) 수 — 시험·로그용.
+        self.heartbeats_sent = 0
 
     @property
     def last_position(self) -> dict | None:
@@ -440,6 +476,13 @@ class SerialMotionClient(GrblClient):
             # 정지로 끊긴 뒤에는 MCU가 homed라고 해도 재홈 전까지 믿지 않는다.
             self._set_state(MotionState.READY if status.homed else MotionState.UNHOMED)
         return status
+
+    def limits(self) -> LimitStatus:
+        """리밋 입력 판독(움직이지 않음). 첫날 배선 확인용 — 어댑터 상태를 바꾸지 않는다."""
+        self._config.require("리밋 조회", ("status_timeout_s",))
+        with self._op_lock:
+            reply = self._request({"cmd": "limits"}, self._config.status_timeout_s, allow_when_stopped=True)
+        return LimitStatus(raw=_limit_map(reply.get("raw")), debounced=_limit_map(reply.get("debounced")))
 
     def home(self) -> None:
         """원점 복귀. 절차(저속 접근·후퇴·재접근)는 MCU가 수행한다(보고서 C절)."""
@@ -600,14 +643,23 @@ class SerialMotionClient(GrblClient):
             request_id = self._next_id
             self._transport.write_line(json.dumps({"id": request_id, **body}, ensure_ascii=False))
         deadline = self._clock() + timeout_s
+        beat_s = self._heartbeat_s(body["cmd"])
+        next_beat = self._clock() + beat_s if beat_s is not None else None
         while True:
             if self._stop.is_set() and not allow_when_stopped:
                 raise MotionStopped(f"'{body['cmd']}' 도중 정지 요청으로 중단됨")
-            remaining = deadline - self._clock()
+            now = self._clock()
+            remaining = deadline - now
             if remaining <= 0:
                 self._send_stop_after_timeout(body["cmd"])
                 raise MotionTimeout(f"'{body['cmd']}' 응답이 {timeout_s:g}s 안에 오지 않았습니다")
-            line = self._transport.read_line(min(self._poll_s, remaining))
+            wait = min(self._poll_s, remaining)
+            if next_beat is not None and beat_s is not None:
+                if now >= next_beat:
+                    self._send_heartbeat()
+                    next_beat = now + beat_s
+                wait = max(0.0, min(wait, next_beat - now))
+            line = self._transport.read_line(wait)
             if line is None:
                 continue
             doc = _parse_line(line)
@@ -619,12 +671,25 @@ class SerialMotionClient(GrblClient):
                 self._handle_event(doc)
                 continue
             if doc.get("id") != request_id:
-                continue  # 시간 초과로 버린 요청의 늦은 응답·정지 응답
+                continue  # 시간 초과로 버린 요청의 늦은 응답·정지 응답·heartbeat(ping) 응답
             if doc.get("ok") is True:
                 self._note_position(doc, "mcu_reply")
                 return doc
             error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
             raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}")
+
+    def _heartbeat_s(self, cmd: str) -> float | None:
+        interval = self._config.heartbeat_ms
+        if cmd not in HEARTBEAT_CMDS or interval is None:
+            return None
+        return interval / 1000.0
+
+    def _send_heartbeat(self) -> None:
+        """ping 한 줄. 자기 id를 받으므로 응답은 진행 중 명령의 응답과 섞이지 않는다."""
+        with self._write_lock:
+            self._next_id += 1
+            self._transport.write_line(json.dumps({"id": self._next_id, "cmd": "ping"}))
+        self.heartbeats_sent += 1
 
     def _handle_event(self, doc: dict) -> None:
         name = str(doc.get("event"))
@@ -671,6 +736,11 @@ def _parse_line(line: str) -> dict | None:
     except json.JSONDecodeError:
         return None
     return doc if isinstance(doc, dict) else None
+
+
+def _limit_map(value: object) -> dict[str, bool | None]:
+    source = value if isinstance(value, dict) else {}
+    return {name: source.get(name) if isinstance(source.get(name), bool) else None for name in LIMIT_INPUTS}
 
 
 def _opt_int(value: object) -> int | None:

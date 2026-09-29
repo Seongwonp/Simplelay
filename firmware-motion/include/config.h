@@ -19,12 +19,14 @@
 #define HOST_RX_BUFFER_BYTES   1024
 #define HOST_LINE_MAX          256     // 한 줄 최대 바이트(넘으면 그 줄은 버린다)
 #define JSON_POOL_BYTES        6144    // ArduinoJson 고정 풀(힙 미사용)
-// 워치독: 동작(home/move/press) 중 호스트 줄이 이 시간 동안 없으면 제동 후 STBY LOW + 알람.
-// 현재 호스트(serial_motion.py)는 명령 하나를 보내고 응답만 기다리며 그 사이 아무 줄도 보내지
-// 않는다. 그래서 이 값은 가장 긴 명령 기한보다 커야 한다(아래 #warning). 동작 중 heartbeat를
-// 넣으면(호스트·fake_mcu·이 표를 함께 고친다) 줄일 수 있다.
-// TODO(HW 실측): 원점 복귀 최장 시간 실측 뒤 정한다.
-#define HOST_WATCHDOG_MS       25000
+// 워치독: 동작(home/move/press) 중 호스트 줄이 이 시간 동안 하나도 없으면 제동 후 STBY LOW +
+// host_timeout 알람. 받은 줄이면 무엇이든(ping·status·limits 포함) 갱신한다(main.cpp poll_host).
+// 호스트(serial_motion.py)는 동작 응답을 기다리는 동안 HOST_HEARTBEAT_MS마다 ping을 보내므로
+// 명령 기한과 무관하게 짧게 둘 수 있다 — 호스트가 죽거나 케이블이 빠지면 이 시간 안에 멈춘다.
+// HOST_HEARTBEAT_MS는 호스트 SIMPLELAY_MOTION_HEARTBEAT_MS(기본 500)와 같게 둔다.
+// TODO(HW 실측): USB 시리얼 지연·RPi4 부하에서 ping 간격이 얼마나 벌어지는지 재고 정한다.
+#define HOST_HEARTBEAT_MS      500
+#define HOST_WATCHDOG_MS       2000
 
 // ─── 제어 주기 ───────────────────────────────────────────────────────────────
 // TODO(HW 실측): 엔코더 최대 속도·PID 안정성 보고 정한다.
@@ -167,6 +169,6 @@
 #if PWM_LIMIT_XY > PWM_MAX_DUTY || PWM_LIMIT_Z > PWM_MAX_DUTY || PRESS_DRIVE_PWM > PWM_MAX_DUTY
 #error "PWM 상한이 PWM_MAX_DUTY보다 크다"
 #endif
-#if HOST_WATCHDOG_MS <= HOME_MAX_MS || HOST_WATCHDOG_MS <= MOVE_MAX_MS || HOST_WATCHDOG_MS <= PRESS_MAX_MS
-#warning "HOST_WATCHDOG_MS가 명령 기한보다 짧다 — 호스트가 동작 중 heartbeat를 보내지 않으면 정상 동작도 host_timeout으로 끊긴다"
+#if HOST_WATCHDOG_MS < 3 * HOST_HEARTBEAT_MS
+#error "HOST_WATCHDOG_MS는 HOST_HEARTBEAT_MS의 3배 이상이어야 한다 — ping 한두 개 늦음으로 정상 동작이 끊기지 않게"
 #endif

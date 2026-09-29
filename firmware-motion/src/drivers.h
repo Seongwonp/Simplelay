@@ -24,4 +24,6 @@ void encoder_zero(Axis axis);
 // 제어 주기마다 호출(디바운스). 인터럽트 없이 폴링한다.
 void limits_sample();
 bool limit_active(LimitId id);
+// 디바운스 없이 지금 핀을 읽는다(활성 = true). 배선 확인(limits 명령)용 — 동작 판정에는 쓰지 않는다.
+bool limit_raw_now(LimitId id);
 bool any_limit_active();

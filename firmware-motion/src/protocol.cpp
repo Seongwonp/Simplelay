@@ -148,6 +148,15 @@ void proto_handle_line(char* line, size_t len) {
     motion_cmd_status(id);
     return;
   }
+  // heartbeat: 진행 중 동작을 건드리지 않고 바로 답한다. 워치독은 줄을 받을 때 이미 갱신됐다.
+  if (strcmp(cmd, "ping") == 0) {
+    proto_reply_ok(id);
+    return;
+  }
+  if (strcmp(cmd, "limits") == 0) {
+    motion_cmd_limits(id);
+    return;
+  }
 
   const bool known = strcmp(cmd, "home") == 0 || strcmp(cmd, "move") == 0 || strcmp(cmd, "press") == 0;
   if (!known) {
@@ -195,6 +204,17 @@ void proto_reply_status(const ReqId& id, const MotionSnapshot& s) {
            "{\"id\":%s,\"ok\":true,\"state\":\"%s\",\"homed\":%s,\"a\":%ld,\"b\":%ld,\"z\":%ld,\"alarm\":%s}",
            idb, s.state, s.homed ? "true" : "false", static_cast<long>(s.a), static_cast<long>(s.b),
            static_cast<long>(s.z), alarm);
+  write_line(g_out);
+}
+
+void proto_reply_limits(const ReqId& id, const bool raw[3], const bool deb[3]) {
+  char idb[16];
+  format_id(idb, sizeof idb, id);
+  auto tf = [](bool v) { return v ? "true" : "false"; };
+  snprintf(g_out, sizeof g_out,
+           "{\"id\":%s,\"ok\":true,\"raw\":{\"x\":%s,\"y\":%s,\"z\":%s},"
+           "\"debounced\":{\"x\":%s,\"y\":%s,\"z\":%s}}",
+           idb, tf(raw[0]), tf(raw[1]), tf(raw[2]), tf(deb[0]), tf(deb[1]), tf(deb[2]));
   write_line(g_out);
 }
 

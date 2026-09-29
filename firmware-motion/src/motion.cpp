@@ -531,6 +531,16 @@ void motion_cmd_status(const ReqId& id) {
   proto_reply_status(id, s);
 }
 
+void motion_cmd_limits(const ReqId& id) {
+  bool raw[LIMIT_COUNT];
+  bool deb[LIMIT_COUNT];
+  for (uint8_t i = 0; i < LIMIT_COUNT; ++i) {
+    raw[i] = limit_raw_now(static_cast<LimitId>(i));
+    deb[i] = limit_active(static_cast<LimitId>(i));
+  }
+  proto_reply_limits(id, raw, deb);
+}
+
 void motion_cmd_home(const ReqId& id) {
   if (busy()) {
     proto_reply_error(id, "busy");

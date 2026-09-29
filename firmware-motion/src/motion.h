@@ -17,3 +17,5 @@ void motion_cmd_move(const ReqId& id, int32_t a, int32_t b, bool has_xy, float x
 // depth=true: z_counts까지(카운트), false: drive_ms 동안 구동(시간).
 void motion_cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell_ms);
 void motion_cmd_stop(const ReqId& id);
+// 리밋 입력 X·Y·Z의 즉시값·디바운스 값. 상태를 바꾸지 않고 동작 중에도 바로 답한다.
+void motion_cmd_limits(const ReqId& id);

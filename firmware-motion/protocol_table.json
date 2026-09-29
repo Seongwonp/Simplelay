@@ -29,8 +29,21 @@
       "request": ["id", "cmd"],
       "reply": ["id", "ok"],
       "events": []
+    },
+    "ping": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok"],
+      "events": []
+    },
+    "limits": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok", "raw", "debounced"],
+      "events": []
     }
   },
+  "limit_inputs": ["x", "y", "z"],
+  "limits_note": "limits 응답의 raw·debounced는 각각 {x,y,z: bool} 객체. true = 활성(눌림·단선, config.h LIMIT_ACTIVE_LEVEL 기준). raw는 즉시 판독, debounced는 LIMIT_DEBOUNCE_TICKS 적용 값(동작 판정에 쓰는 값). 움직이지 않으며 동작 중에도 바로 답한다.",
+  "heartbeat_note": "호스트는 home·move·press 응답을 기다리는 동안 heartbeat_ms(기본 500ms, SIMPLELAY_MOTION_HEARTBEAT_MS)마다 자기 id를 단 ping을 보낸다. MCU는 진행 중 동작을 건드리지 않고 즉시 ok로 답하며, 받은 줄이면 무엇이든 워치독(HOST_WATCHDOG_MS)을 갱신한다. ping 응답은 id가 달라 명령 응답으로 오인되지 않는다.",
   "error_reply": ["id", "ok", "error"],
   "errors": [
     "unknown_cmd",

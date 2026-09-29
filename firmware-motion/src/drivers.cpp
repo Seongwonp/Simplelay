@@ -179,6 +179,8 @@ void limits_sample() {
 
 bool limit_active(LimitId id) { return g_limit_state[id]; }
 
+bool limit_raw_now(LimitId id) { return read_limit_raw(id); }
+
 bool any_limit_active() {
   for (uint8_t i = 0; i < LIMIT_COUNT; ++i) {
     if (g_limit_state[i]) return true;

@@ -14,6 +14,7 @@
 
 명령(REPL·``-c`` 공통):
     status                      MCU 상태 조회(움직이지 않음)
+    limits                      X·Y·Z 리밋 입력 판독(즉시값·디바운스, 움직이지 않음) — 첫날 배선 확인
     home                        원점 복귀 — **시작 시 자동으로 하지 않는다**
     jog DX DY                   현재 위치(MCU 보고 카운트 → mm)에서 상대 이동(mm)
     goto X Y                    절대 좌표(mm)로 이동
@@ -53,6 +54,7 @@ from rpi.controller.kinematics import (
 )
 from rpi.controller.models import PressCommand
 from rpi.controller.serial_motion import (
+    LIMIT_INPUTS,
     LineTransport,
     MotionConfig,
     MotionError,
@@ -64,7 +66,7 @@ RAW_MOTION_CMDS = frozenset({"move", "press", "home"})
 _RAW_ID_BASE = 900_000  # 어댑터 요청 id와 겹치지 않게 떨어뜨린다
 
 HELP = """명령:
-  status | home | jog DX DY | goto X Y
+  status | home | jog DX DY | goto X Y | limits
   press [--depth N | --duration MS] [--dwell MS]
   stop | reset | raw JSON | help | quit"""
 
@@ -209,6 +211,19 @@ class JogSession:
             f"MCU state={status.state} homed={status.homed} a={status.a_counts} b={status.b_counts} "
             f"z={status.z_counts} alarm={status.alarm} | 어댑터 상태={self.client.state.value}{pos}"
         )
+
+    def _cmd_limits(self, rest: str) -> None:
+        _no_args("limits", rest)
+        limits = self.client.limits()
+
+        def mark(value: bool | None) -> str:
+            return "?" if value is None else ("ON" if value else "off")
+
+        cells = " ".join(
+            f"{name}=raw:{mark(limits.raw[name])}/deb:{mark(limits.debounced[name])}"
+            for name in LIMIT_INPUTS
+        )
+        self.say(f"리밋(ON=활성: 눌림·단선) {cells} — 손으로 하나씩 눌러 해당 축만 바뀌는지 보세요")
 
     def _cmd_home(self, rest: str) -> None:
         _no_args("home", rest)

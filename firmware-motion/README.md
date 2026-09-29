@@ -33,14 +33,18 @@
 | `move` | `id, a, b, x_mm, y_mm` | (`position` 이벤트) → `id, ok` | a·b = 목표 카운트. x_mm·y_mm는 MCU 쪽 두 번째 리밋 검사용 |
 | `press` | `id, mode, z_counts\|drive_ms, dwell_ms` | `press_start` → `press_end` → `position` 이벤트 → `id, ok` | depth=Z 카운트, duration=구동 시간 |
 | `stop` | `id` | `id, ok` | 즉시 듀티 0 + STBY LOW. 진행 중 명령은 `error:"stopped"` |
+| `ping` | `id` | `id, ok` | heartbeat. 동작을 건드리지 않고 즉시 답한다(2026-09-30) |
+| `limits` | `id` | `id, ok, raw{x,y,z}, debounced{x,y,z}` | 리밋 입력 판독, 활성 = true. 동작 중에도 답한다(2026-09-30) |
 
 - 오류 응답 `{"id":N,"ok":false,"error":"<코드>"}` — 코드 목록은 표의 `errors`.
 - 위치 보고(2026-09-30 추가, 선택 이벤트) `{"event":"position","a":..,"b":..,"z":..}` — 이동·누름 중 `POSITION_EVENT_MS`(100ms)마다, 끝날 때 `ok` 직전 한 번. 호스트 `serial_motion.py`가 `last_position`으로 받아 RPi4 progress 프레임 → RPi5 실모드 트윈(`/twin`)의 "엔코더 보고 위치"가 된다. 실물 미검증.
 - 알람(`stall`·`limit`·`home_not_found`·`timeout`·`host_timeout`·`soft_limit`)은 **`{"event":"alarm"}`을 먼저**,
   대기 중 명령의 `ok:false`를 나중에 보낸다. 반대 순서면 호스트가 늦게 온 이벤트로 다음 요청(복구용 `home`)을
   실패 처리한다. 알람·정지 뒤에는 `homed=false`가 되고 `home`으로만 복구한다.
-- 워치독: 동작 중 호스트 줄이 `HOST_WATCHDOG_MS` 동안 없으면 short brake 뒤 STBY LOW + `host_timeout`.
-  **지금 호스트는 명령 사이에 heartbeat를 보내지 않으므로** 이 값은 가장 긴 명령 기한보다 커야 한다(빌드 경고로 검사).
+- 워치독: 동작 중 호스트 줄이 `HOST_WATCHDOG_MS`(2 s 자리표시자) 동안 하나도 없으면 short brake 뒤 STBY LOW + `host_timeout`.
+  호스트는 동작 응답을 기다리는 동안 `HOST_HEARTBEAT_MS`(500 ms, 호스트 `SIMPLELAY_MOTION_HEARTBEAT_MS`와 같게)마다
+  `ping`을 보내고, 받은 줄이면 무엇이든 워치독을 갱신한다. 워치독이 heartbeat의 3배 미만이면 빌드 오류.
+- `limits`: X·Y·Z 리밋 입력의 즉시값(`raw`)·디바운스 값(`debounced`)을 돌려준다(움직이지 않음, 배선 확인용).
 - 해석할 수 없는 줄은 무시한다(fake_mcu와 같다). 256바이트를 넘는 줄은 통째로 버린다.
 
 ## 구현 요약
@@ -108,14 +112,15 @@ RAM 29,232 B(5.5%), Flash 294,091 B(22.4%). 경고는 자리표시자 `#warning`
 1. 플래시 후 시리얼 모니터(115200 또는 정한 값)에서 `{"id":1,"cmd":"status"}` 입력 →
    `{"id":1,"ok":true,"state":"idle","homed":false,...}`가 오는지. 안 오면 여기서 멈춘다.
 2. 모터 축을 손으로 돌리며 `status`의 `a`·`b`·`z`가 바뀌는지, 방향이 기대와 같은지(부호 기록).
-3. 리밋 스위치: 상태 조회 명령이 아직 없다 — 테스터로 핀 레벨을 확인한다(눌림 = `LIMIT_ACTIVE_LEVEL`).
-   필요하면 규약 확장(호스트·fake_mcu·이 표를 함께 고친다).
+3. 리밋 스위치: `{"id":2,"cmd":"limits"}`(또는 조그 CLI `limits`)를 부르며 X·Y·Z 스위치를 하나씩 누른다 —
+   해당 축의 `raw`·`debounced`만 `true`가 되는지. 아무것도 안 눌렀는데 `true`면 단선·활성 레벨·풀업부터 확인한다.
 4. 그다음은 [jog-cli devlog](../docs/devlog_2026-09-29-jog-cli.md) §5 "하드웨어 도착 첫날 순서" 6단계를 그대로 따른다
    (가짜 MCU 리허설 → 실제 포트 status → home → 1 mm 조그 → 가장 작은 누름).
 
 ## 하지 않은 것 / 알려진 한계
 
 - 실물 검증 0건: PCNT 계수·PID 안정성·원점 절차·정지 거리·워치독 동작은 전부 확인 전이다.
-- 동작 중 heartbeat 없음(위 워치독 항목). 리밋 스위치 상태 조회 없음.
+- heartbeat·`limits`는 가짜 MCU·컴파일로만 확인했다. USB 시리얼 지연·RPi4 부하에서 `ping` 간격이 얼마나 벌어지는지 재고
+  `HOST_WATCHDOG_MS`를 정한다.
 - 정지(`stop`)는 STBY LOW로 출력을 끊을 뿐 기계적 즉시 정지·위치 유지를 보장하지 않는다. 누름 중 정지하면
   Z가 내려간 채 남을 수 있다 — `home`으로 올린다. 최종 권한은 모터 전원을 끊는 물리 E-STOP이다.

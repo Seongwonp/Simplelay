@@ -231,6 +231,8 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 { "id": 4, "cmd": "press", "mode": "depth", "z_counts": 40, "dwell_ms": 100 }
 { "id": 5, "cmd": "press", "mode": "duration", "drive_ms": 120, "dwell_ms": 100 }
 { "id": 6, "cmd": "stop" }
+{ "id": 7, "cmd": "ping" }
+{ "id": 8, "cmd": "limits" }
 ```
 
 ### MCU → RPi4
@@ -242,7 +244,19 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 { "event": "alarm", "reason": "limit" }
 { "event": "press_start" }
 { "event": "press_end" }
+{ "id": 7, "ok": true }
+{ "id": 8, "ok": true, "raw": { "x": false, "y": true, "z": false }, "debounced": { "x": false, "y": false, "z": false } }
 ```
+
+- `ping`(heartbeat, 2026-09-30 추가): RPi4는 `home`·`move`·`press` 응답을 기다리는 동안
+  `SIMPLELAY_MOTION_HEARTBEAT_MS`(기본 500ms, `0`/`off`면 끔)마다 자기 `id`를 단 `ping`을 보낸다. MCU는
+  진행 중 동작을 건드리지 않고 바로 `ok`로 답한다. **받은 줄이면 무엇이든** MCU 워치독을 갱신하므로
+  `firmware-motion`의 `HOST_WATCHDOG_MS`를 명령 기한(원점 복귀 최장 20 s 자리표시자)과 무관하게 2 s로 줄였다
+  (`HOST_HEARTBEAT_MS`의 3배 미만이면 빌드 오류, 값은 `TODO(HW 실측)`). `ping` 응답은 `id`가 달라 진행 중
+  명령의 응답으로 오인되지 않는다. 조회(`status`·`limits`)에는 `ping`을 섞지 않는다(워치독은 동작 중에만 돈다).
+- `limits`(2026-09-30 추가): X·Y·Z 원점/리밋 입력의 즉시 판독(`raw`)과 디바운스 값(`debounced`). `true` = 활성
+  (눌림·단선, `LIMIT_ACTIVE_LEVEL` 기준). 움직이지 않고 동작 중에도 바로 답한다. 첫날 배선 확인은 조그 CLI
+  `limits` 명령으로 스위치를 하나씩 눌러 해당 축만 바뀌는지 본다.
 
 - `position` 이벤트(2026-09-30 추가, 선택): `{ "event": "position", "a": 300, "b": -100, "z": 0 }` — 엔코더 카운트.
   `firmware-motion`은 이동·누름 중 `POSITION_EVENT_MS`(100ms)마다, 끝날 때 `ok` 응답 직전에 한 번 보낸다.
@@ -254,7 +268,8 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 - `alarm` 이벤트나 `ok:false`를 받으면 RPi4는 해당 동작을 실패로 끝내고 알람 상태로 둔다.
 - 기한 초과 시 RPi4는 `stop`을 보내고 위치를 믿지 않는다(재홈 전까지 이동·누름 거절).
 - `stop`은 다른 스레드에서 즉시 보낸다. 보낸 것은 '명령 전송'까지이며, MCU 정지 보고·물리 정지 확인은
-  별도 단계로 실물에서 재야 한다. MCU는 호스트 신호가 끊기면 스스로 멈춰야 한다(워치독 주기는 측정 필요).
+  별도 단계로 실물에서 재야 한다. MCU는 호스트 줄이 `HOST_WATCHDOG_MS`(2 s 자리표시자) 동안 없으면 스스로 멈추고
+  `alarm`(`host_timeout`) 이벤트 뒤 대기 명령에 `ok:false`를 보낸다(실측 전).
 - 수치 예시는 형식 설명용이다. 카운트 값은 시험용 임의 기구 값으로 계산한 것이며 실물 값이 아니다.
 
 ---

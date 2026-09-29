@@ -1,8 +1,15 @@
 """메모리 파이프 위의 가짜 모션 MCU — 시험과 조그 CLI 리허설(``--fake-mcu``)이 같이 쓴다.
 
 **실물 MCU가 아니다.** `rpi/controller/serial_motion.py` 머리말의 줄 단위 JSON 규약을
-흉내 낼 뿐, 모터·엔코더·리밋 스위치·기한을 흉내 내지 않는다. 이것으로 통과한 것은
+흉내 낼 뿐, 모터·엔코더·리밋 스위치를 흉내 내지 않는다. 이것으로 통과한 것은
 "호스트 쪽 규약 처리"까지다.
+
+규약의 실행 가능한 기준이라 펌웨어(firmware-motion)와 같은 규칙 두 가지는 흉내 낸다.
+- ``delays[cmd]``(초)를 주면 그 명령의 응답을 그만큼 늦게 보낸다. 그동안 다른 줄(``ping``·
+  ``status``·``limits``·``stop``)은 바로 처리하고, 움직이는 명령은 ``busy``로 거절한다.
+- ``watchdog_s``를 주면 늦은 응답을 기다리는 동안 **받은 줄이 하나도 없이** 그 시간이 지나면
+  ``{"event":"alarm","reason":"host_timeout"}``을 먼저, 대기 명령의 ``ok:false``를 나중에 보낸다
+  (펌웨어 HOST_WATCHDOG_MS와 같은 순서). 호스트 heartbeat(``ping``)가 이것을 막는다.
 
 `REHEARSAL_CONFIG`의 수치는 **리허설용 임의 값**이다. 실물 값이 아니며 실기기 설정의
 근거로 쓰지 않는다(조그 CLI는 ``--fake-mcu``와 함께일 때만 이 값을 받는다).
@@ -12,6 +19,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from collections.abc import Callable
 
 from rpi.controller.kinematics import CoreXYConfig
@@ -46,6 +54,9 @@ REHEARSAL_CONFIG = MotionConfig(
 
 Handler = Callable[[dict], "list[dict | str] | None"]
 
+MOTION_CMDS = frozenset({"home", "move", "press"})
+_BUSY_STATE = {"home": "homing", "move": "moving", "press": "pressing"}
+
 
 class FakeMcu:
     """명령 한 줄에 대해 ``handlers[cmd](doc)``가 돌려준 줄들을 답한다.
@@ -56,16 +67,28 @@ class FakeMcu:
       보고한다(조그 CLI가 상대 이동 기준을 MCU 보고값에서 얻는지 시험하려고).
     """
 
-    def __init__(self, pipe: InMemoryLinePipe, homed: bool = False) -> None:
+    def __init__(
+        self, pipe: InMemoryLinePipe, homed: bool = False, *, watchdog_s: float | None = None
+    ) -> None:
         self._end = pipe.device
         self.received: list[dict] = []
         self.homed = homed
         self.a = 0
         self.b = 0
         self.z = 0
+        self.alarm: str | None = None
+        #: 리밋 입력(활성=True). 시험이 바꿔 배선 확인 출력을 본다.
+        self.limits_raw = {"x": False, "y": False, "z": False}
+        self.limits_debounced = {"x": False, "y": False, "z": False}
+        self.delays: dict[str, float] = {}
+        self.watchdog_s = watchdog_s
+        self._pending: tuple[dict, list, float] | None = None  # (요청, 응답 줄들, 보낼 시각)
+        self._last_line = time.monotonic()
         self.handlers: dict[str, Handler] = {
             "status": lambda d: [
-                self._ok(d, state="idle", homed=self.homed, a=self.a, b=self.b, z=self.z, alarm=None)
+                self._ok(
+                    d, state=self._state(), homed=self.homed, a=self.a, b=self.b, z=self.z, alarm=self.alarm
+                )
             ],
             "home": self._home,
             "move": self._move,
@@ -76,6 +99,10 @@ class FakeMcu:
                 self._ok(d),
             ],
             "stop": lambda d: [self._ok(d)],
+            "ping": lambda d: [self._ok(d)],
+            "limits": lambda d: [
+                self._ok(d, raw=dict(self.limits_raw), debounced=dict(self.limits_debounced))
+            ],
         }
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._loop, daemon=True, name="fake-mcu")
@@ -99,12 +126,74 @@ class FakeMcu:
     def _ok(doc: dict, **fields: object) -> dict:
         return {"id": doc["id"], "ok": True, **fields}
 
+    def _state(self) -> str:
+        if self.alarm is not None:
+            return "alarm"
+        pending = self._pending
+        return _BUSY_STATE.get(str(pending[0].get("cmd")), "idle") if pending else "idle"
+
     def cmds(self) -> list[str]:
-        return [d["cmd"] for d in self.received]
+        """받은 명령 이름(heartbeat ``ping`` 제외 — 링크 유지용 줄이라 명령 순서 시험에서 뺀다)."""
+        return [d["cmd"] for d in self.received if d.get("cmd") != "ping"]
+
+    def pings(self) -> int:
+        return sum(1 for d in self.received if d.get("cmd") == "ping")
+
+    def _send(self, replies: list) -> None:
+        for reply in replies:
+            self._end.write_line(reply if isinstance(reply, str) else json.dumps(reply))
+
+    def _tick(self, now: float) -> None:
+        pending = self._pending
+        if pending is None:
+            return
+        doc, replies, due = pending
+        if self.watchdog_s is not None and now - self._last_line >= self.watchdog_s:
+            # 펌웨어 fault(): 이벤트 먼저, 대기 명령의 실패 응답 나중.
+            self._pending = None
+            self.alarm = "host_timeout"
+            self.homed = False
+            self._send([
+                {"event": "alarm", "reason": "host_timeout"},
+                {"id": doc.get("id"), "ok": False, "error": "host_timeout"},
+            ])
+        elif now >= due:
+            self._pending = None
+            self._send(replies)
+
+    def _handle(self, doc: dict) -> None:
+        cmd = str(doc.get("cmd"))
+        if cmd == "stop" and self._pending is not None:
+            held = self._pending[0]
+            self._pending = None
+            self.homed = False
+            self._send([{"id": held.get("id"), "ok": False, "error": "stopped"}])
+        elif cmd in MOTION_CMDS and self._pending is not None:
+            self._send([{"id": doc.get("id"), "ok": False, "error": "busy"}])
+            return
+        elif cmd in MOTION_CMDS and self.alarm is not None and cmd != "home":
+            self._send([{"id": doc.get("id"), "ok": False, "error": "alarm"}])
+            return
+        if cmd == "home":
+            self.alarm = None
+        handler = self.handlers.get(cmd)
+        if handler is None:
+            replies: list = [{"id": doc.get("id"), "ok": False, "error": "unknown_cmd"}]
+        else:
+            replies = handler(doc) or []
+        delay = self.delays.get(cmd)
+        if delay and replies:
+            self._pending = (doc, list(replies), time.monotonic() + delay)
+            return
+        self._send(replies)
 
     def _loop(self) -> None:
         while not self._stop.is_set():
             line = self._end.read_line(0.02)
+            now = time.monotonic()
+            if line is not None:
+                self._last_line = now  # 펌웨어처럼 받은 줄이면 무엇이든 워치독을 갱신한다
+            self._tick(now)
             if line is None:
                 continue
             try:
@@ -114,13 +203,7 @@ class FakeMcu:
             if not isinstance(doc, dict):
                 continue
             self.received.append(doc)
-            handler = self.handlers.get(str(doc.get("cmd")))
-            if handler is None:
-                replies: list = [{"id": doc.get("id"), "ok": False, "error": "unknown_cmd"}]
-            else:
-                replies = handler(doc) or []
-            for reply in replies:
-                self._end.write_line(reply if isinstance(reply, str) else json.dumps(reply))
+            self._handle(doc)
 
     def close(self) -> None:
         self._stop.set()

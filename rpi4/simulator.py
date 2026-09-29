@@ -27,13 +27,23 @@ SCENARIOS = (
 
 class _Wire:
     def __init__(self, peer: asyncio.StreamReader, *, fragment: bool = False,
-                 drop_result: bool = False) -> None:
+                 drop_result: bool = False,
+                 hold_abort_until: threading.Event | None = None) -> None:
         self.peer = peer
         self.fragment = fragment
         self.drop_result = drop_result
         self.frames: list[dict] = []
         self.dropped: list[dict] = []
         self.fragments: deque[bytes] = deque()
+        # Set when a result frame is dropped (the act side has finished).
+        self.result_dropped = threading.Event()
+        # lost_response premise: the act finished and only its result line was lost.
+        # The hub's 0.1 s timer races the mock act (progress frames hop threads), so
+        # under load the abort used to land mid-execution and turn the rehearsal into
+        # a different fault (stop). Hold the abort on the wire until the act's result
+        # has been dropped; the hub still times out, still sends exactly one abort.
+        self.hold_abort_until = hold_abort_until
+        self.held: deque[bytes] = deque()
 
     def write(self, data: bytes) -> None:
         # Production writers emit one complete JSON line per write.
@@ -41,6 +51,10 @@ class _Wire:
         self.frames.append(doc)
         if self.drop_result and doc.get("type") == "result":
             self.dropped.append(doc)
+            self.result_dropped.set()
+            return
+        if self.hold_abort_until is not None and doc.get("type") == "abort":
+            self.held.append(data)
             return
         if self.fragment:
             # Split inside UTF-8 characters as well as JSON tokens.
@@ -50,6 +64,15 @@ class _Wire:
             self.peer.feed_data(data)
 
     async def drain(self) -> None:
+        if self.held:
+            loop = asyncio.get_running_loop()
+            deadline = loop.time() + 5  # test budget, not a hardware measurement
+            while not self.hold_abort_until.is_set():  # type: ignore[union-attr]
+                if loop.time() > deadline:
+                    raise RuntimeError("simulator: act never finished before the held abort")
+                await asyncio.sleep(0.005)
+            while self.held:
+                self.peer.feed_data(self.held.popleft())
         while self.fragments:
             self.peer.feed_data(self.fragments.popleft())
             await asyncio.sleep(0)
@@ -83,9 +106,10 @@ async def run_scenario(name: str) -> dict:
     if name not in SCENARIOS:
         raise ValueError(f"unknown scenario: {name}")
     act_reader, hub_reader = asyncio.StreamReader(), asyncio.StreamReader()
-    outbound = _Wire(act_reader, fragment=name == "fragmented")
     inbound = _Wire(hub_reader, fragment=name == "fragmented",
                     drop_result=name == "lost_response")
+    outbound = _Wire(act_reader, fragment=name == "fragmented",
+                     hold_abort_until=inbound.result_dropped if name == "lost_response" else None)
     grbl, safety = MockGrblClient(), MockSafetyController()
     entered, release = threading.Event(), threading.Event()
 

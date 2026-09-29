@@ -151,3 +151,15 @@ export SIMPLELAY_L3_MODE=off                   # 전력 센서 드라이버 전�
 - MCU `position` 이벤트는 컴파일만 했다. 엔코더 방향·배율(x4)·기구 값이 없으면 mm가 없어 트윈은 계속 "명령 기준 추정"이다.
 - RPi5·RPi4 시계 차이: 세션 기록(RPi5)과 RPi4 기록은 `sequence_id`로만 정확히 잇는다.
 - ESP32 노드 경유(HTTP) 구성에서는 progress가 노드에서 끊겨 트윈이 결과만 보인다(본선 시연은 직결이라 해당 없음).
+
+## 9. 후속 — `test_rehearsal_contract[lost_response]` 간헐 실패 수리
+
+- 증상: 전체 실행 중 한 번, 단독 실행 중 한 번 실패, 재실행하면 통과. 부하(CPU 스레드 3개)를 걸고 40회 돌리면
+  **15회 실패** — 전부 `local_status`·`press_count`(로컬 `safety_stopped`, 누름 1회).
+- 원인: `lost_response`는 "RPi4는 끝까지 실행했고 결과 줄만 선에서 사라졌다"는 장면인데, 허브 기한(0.1 s)이 모의 실행과
+  경주한다. progress 프레임(3508ff4)이 스레드를 건너 쓰이면서 두 버튼 모의 실행이 부하에서 0.1 s를 넘기고, 그러면 허브의
+  `abort`가 실행 도중 도착해 협조 정지 → 장면이 `stop`으로 바뀌었다.
+- 수리(`rpi4/simulator.py`): 이 장면에서만 허브→RPi4 선이 `abort`를 **결과 줄이 버려질 때까지** 붙들었다가 넘긴다
+  (5 s 시험 한도). 허브는 여전히 기한을 넘겨 `timeout_result_unknown`을 내고, `execute` 1회·`abort` 1회를 보내며,
+  로컬은 두 번 누르고 성공 — 시험의 확인 항목은 그대로다. 제품 코드(ActClient·ActExecutor)는 바꾸지 않았다.
+- 확인: 같은 부하 40회 **0 실패**, 해당 시험 단독 **30회 연속 통과**, `rpi4/tests/test_simulator.py` 전체 **5회 연속 통과**(각 11).

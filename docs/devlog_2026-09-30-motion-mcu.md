@@ -50,8 +50,35 @@
 ## 5. 하지 않은 것 / 남은 것
 
 - 실물 검증 0건: PCNT 계수, PID 안정성, 원점 절차, 정지 거리, 워치독, 스톨 판정 전부 확인 전.
-- 호스트는 명령 중 heartbeat를 보내지 않는다 → 워치독은 가장 긴 명령 기한보다 길게 둬야 한다(빌드 경고로 검사).
-  줄이려면 호스트·fake_mcu·표·펌웨어를 함께 고친다.
-- 리밋 스위치 상태 조회 명령이 없다. 첫 시험은 테스터로 확인.
+- ~~호스트는 명령 중 heartbeat를 보내지 않는다~~ → §6에서 `ping` heartbeat 추가, 워치독 25 s → 2 s.
+- ~~리밋 스위치 상태 조회 명령이 없다~~ → §6에서 `limits` 추가(조그 CLI `limits`).
 - RPi4 쪽 CT(ADS1115) 경로와 RPi5↔RPi4 직결 기본값 전환은 이 로그 범위 밖이다.
 - 다음: 하드웨어 도착 시 `firmware-motion/README.md` "첫 시험 순서" → [jog-cli devlog](devlog_2026-09-29-jog-cli.md) §5 6단계.
+
+## 6. heartbeat·limits 추가 (같은 날 후속)
+
+**확인한 것은 가짜 MCU 시험과 컴파일까지다.** USB 시리얼 지연·실제 스위치로는 확인 전.
+
+- **heartbeat:** `SerialMotionClient`가 `home`·`move`·`press` 응답을 기다리는 동안 `heartbeat_ms`(기본 500,
+  `SIMPLELAY_MOTION_HEARTBEAT_MS`, `0`/`off`면 끔)마다 `{"id":N,"cmd":"ping"}`을 보낸다. 새 명령 대신 `status`를
+  재사용하지 않은 이유: 응답이 짧고 상태를 싣지 않아 표·펌웨어가 단순하다. `ping`도 자기 `id`를 받으므로 응답이
+  진행 중 명령의 응답으로 오인되지 않는다(기존 `id` 대조가 거른다). 조회(`status`·`limits`)에는 섞지 않는다.
+- **펌웨어:** `ping`은 동작을 건드리지 않고 즉시 `ok`. 워치독은 원래부터 받은 줄이면 무엇이든 갱신한다(`poll_host`).
+  `HOST_WATCHDOG_MS` 25000 → **2000**, `HOST_HEARTBEAT_MS` 500 추가, 워치독 < 3×heartbeat면 `#error`(옛 "명령 기한보다
+  짧다" 경고는 삭제). 둘 다 `TODO(HW 실측)` — RPi4 부하·USB 지연에서 ping 간격이 얼마나 벌어지는지 재고 정한다.
+- **limits:** `{"id":N,"cmd":"limits"}` → `raw{x,y,z}`(디바운스 없는 즉시 판독)·`debounced{x,y,z}`(동작 판정 값),
+  `true` = 활성(눌림·단선). 리밋 입력은 A/B 모터가 아니라 **X·Y·Z 스위치**(config.h `PIN_LIMIT_X/Y/Z`)라 키도 x·y·z다.
+  움직이지 않고 동작 중에도 답한다. 호스트 `SerialMotionClient.limits()`, 조그 CLI `limits`
+  (`x=raw:off/deb:off …` — 스위치를 하나씩 눌러 해당 축만 바뀌는지). README "첫 시험 순서" 3번을 테스터 대신 이것으로 바꿨다.
+- **가짜 MCU(실행 가능한 기준):** `delays[cmd]`로 응답을 늦추고 그동안 다른 줄을 처리(움직이는 명령은 `busy`),
+  `watchdog_s`를 주면 받은 줄 없이 그 시간이 지나면 `alarm(host_timeout)` 이벤트 → 대기 명령 `ok:false`(펌웨어와 같은
+  순서). `cmds()`는 `ping`을 빼고 센다(`pings()` 따로).
+- 표(`protocol_table.json`)에 `ping`·`limits`·`limit_inputs`·설명 두 줄, `docs/protocol.md` 모션 MCU 링크 절 갱신.
+
+빌드(기본 env, 이 PC): **성공, RAM 29,232 B(5.5%) / Flash 294,651 B(22.5%)**(+560 B). 경고는 자리표시자 `#warning` 하나.
+
+시험: `test_motion_protocol_table.py` 5 → 11(heartbeat 100ms·가짜 워치독 0.3 s에서 1.0 s 원점 복귀가 끝남 — ping 응답을
+home 응답으로 받았다면 1.0 s 전에 끝났을 것 / heartbeat 끄면 1.0 s 전에 `host_timeout` 알람 / 조회에는 ping 없음 /
+limits 즉시값·디바운스 / 환경 변수 끄기 / config.h 워치독·heartbeat 관계), `test_jog_cli.py` +2(`limits` 출력).
+heartbeat를 끄거나 `id` 대조를 풀면 첫 시험이 실패하는 것을 확인했다(되돌림). 관련 76 통과, 백엔드 전체 1회
+**1,879 통과·1 실패**(기존 `test_dbus_native` — 이 PC에 `dbus_fast` 없음).

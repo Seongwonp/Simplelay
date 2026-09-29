@@ -39,7 +39,9 @@ def _sent(log_path: Path) -> list[dict]:
     for line in log_path.read_text(encoding="utf-8").splitlines():
         parts = line.split(" ", 3)
         if parts[2] == ">>":
-            docs.append(json.loads(parts[3]))
+            doc = json.loads(parts[3])
+            if doc.get("cmd") != "ping":  # heartbeat는 명령 순서 비교에서 뺀다
+                docs.append(doc)
     return docs
 
 
@@ -199,3 +201,29 @@ def test_keyboard_interrupt_during_a_command_sends_stop(log_path):
         assert "stop" in mcu.cmds()
     finally:
         mcu.close()
+
+
+def test_limits_command_prints_raw_and_debounced_per_axis(log_path):
+    code, out = _run(["--fake-mcu", "--rehearsal-config", "--log", str(log_path), "-c", "limits"])
+    assert code == 0, out
+    assert "x=raw:off/deb:off y=raw:off/deb:off z=raw:off/deb:off" in out
+    assert [d["cmd"] for d in _sent(log_path)] == ["limits"]  # 홈 없이도 조회만 한다
+
+
+def test_limits_command_shows_a_pressed_switch():
+    from rpi.controller.serial_motion import InMemoryLinePipe
+    from rpi.tools.fake_mcu import REHEARSAL_CONFIG, FakeMcu
+
+    out = io.StringIO()
+    pipe = InMemoryLinePipe()
+    mcu = FakeMcu(pipe)
+    mcu.limits_raw["y"] = True  # 눌렀지만 아직 디바운스 전
+    try:
+        client = jog.JogMotionClient(pipe.host, REHEARSAL_CONFIG, poll_s=0.01)
+        session = jog.JogSession(client, pipe.host, out, jog.LineLog(None))
+        assert session.run_line("limits") is True
+        assert session.run_line("limits now") is False  # 인자 없음
+    finally:
+        mcu.close()
+    assert "y=raw:ON/deb:off" in out.getvalue()
+    assert "x=raw:off/deb:off" in out.getvalue()

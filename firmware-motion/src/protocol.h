@@ -25,6 +25,8 @@ void proto_handle_line(char* line, size_t len);
 void proto_reply_ok(const ReqId& id);
 void proto_reply_error(const ReqId& id, const char* code);
 void proto_reply_status(const ReqId& id, const MotionSnapshot& snap);
+// limits 응답. raw·deb는 X·Y·Z 순서 3개(활성 = true).
+void proto_reply_limits(const ReqId& id, const bool raw[3], const bool deb[3]);
 void proto_event(const char* name);
 void proto_event_alarm(const char* reason);
 // 엔코더 위치 보고(선택 이벤트). 이동·누름 중 POSITION_EVENT_MS마다, 끝날 때 ok 직전 한 번.
