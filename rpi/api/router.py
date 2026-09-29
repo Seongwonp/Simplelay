@@ -118,7 +118,7 @@ def _to_steps(result: ExecutionResult) -> list[ButtonStep]:
 
 
 def result_detail_fields(result: ExecutionResult | None) -> dict:
-    """/status·SSE 공통 — 재시도 합과 L3 판정(G1·G2, 2026-09-30).
+    """/status·SSE 공통 — 재시도 합과 L3 판정(G1·G2, 2026-09-29).
 
     버튼 결과가 없으면(ThinQ 단계·예외 종료) 재시도 수를 0으로 지어내지 않고 None.
     """

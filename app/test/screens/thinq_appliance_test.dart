@@ -1,4 +1,4 @@
-// G5(화면) — /appliances의 control_path로 ThinQ 가전을 가른다(2026-09-30).
+// G5(화면) — /appliances의 control_path로 ThinQ 가전을 가른다(2026-09-29).
 // ThinQ 가전에는 누를 버튼이 없다: 배지로 경로를 말하고, 버튼판·사진 채우기를
 // 내걸지 않는다. 물리 가전은 종전과 같다.
 import 'package:flutter/material.dart';

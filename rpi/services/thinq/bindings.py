@@ -167,7 +167,7 @@ AIR_PURIFIER_FUNCTIONS = (
 
 WASHER_READABLE = (("runState", "currentState"),)
 
-# 제습기(2026-09-30, G3 세탁 완료 시나리오의 대상). 속성 이름은 **추측** — 공기청정기와
+# 제습기(2026-09-29, G3 세탁 완료 시나리오의 대상). 속성 이름은 **추측** — 공기청정기와
 # 같은 모양(operation.<기기>OperationMode)으로 두었고, 실물 프로필 확인 전까지 모의 전용이다.
 DEHUMIDIFIER_CAPABILITIES = (
     ThinqCapability(

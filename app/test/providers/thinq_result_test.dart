@@ -1,4 +1,4 @@
-// /status의 last_outcome·route·receipt·confirmation을 실행 추적이 읽는지(2026-09-30).
+// /status의 last_outcome·route·receipt·confirmation을 실행 추적이 읽는지(2026-09-29).
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';

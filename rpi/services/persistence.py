@@ -595,7 +595,7 @@ class SimpleLayDb:
         return {r[0]: (r[1] or "unknown", r[2] or "unknown", r[3] or "unknown", r[4] or "")
                 for r in rows}
 
-    # ── 실행 이력의 L3 판정 열(2026-09-30, G2) ────────────────────────────
+    # ── 실행 이력의 L3 판정 열(2026-09-29, G2) ────────────────────────────
     # 같은 방식의 옆 표. 행이 없으면 판정 없음(None)으로 읽는다.
 
     def _ensure_operation_meta_locked(self) -> None:

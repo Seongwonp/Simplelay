@@ -148,7 +148,7 @@ class FakeKioskApi implements KioskApiService {
   void dispose() {}
 }
 
-// ── G4: 다단계 실행의 단계별 결과(2026-09-30) ─────────────────────────────
+// ── G4: 다단계 실행의 단계별 결과(2026-09-29) ─────────────────────────────
 // 두 단계 픽스처 — ThinQ 상태 확인됨 + 물리 실행기 보고.
 const kTwoStepRun = ScenarioRun(
   jobId: 'job-1',
@@ -1273,7 +1273,7 @@ void main() {
     expect(find.text('전자레인지'), findsOneWidget);
   });
 
-  // ── 2026-09-30: last_outcome·ThinQ 경로·시나리오 카드 ──────────────────
+  // ── 2026-09-29: last_outcome·ThinQ 경로·시나리오 카드 ──────────────────
 
   Future<KioskDoneView> finishWith(WidgetTester tester, FakeKioskApi api,
       KioskStatus status) async {
@@ -1487,7 +1487,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  // ── 2026-09-30 후속: L3(가전 동작) 판정 · 세탁 완료 카드 ────────────────
+  // ── 2026-09-29 후속: L3(가전 동작) 판정 · 세탁 완료 카드 ────────────────
 
   testWidgets('L3 확인됨이면 완료 화면이 가전 동작까지 확인했다고 말한다',
       (tester) async {

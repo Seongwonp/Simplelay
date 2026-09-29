@@ -1,5 +1,5 @@
 // G4 — 다단계 실행이 끝나면 상태 화면이 GET /scenarios/last-run으로 단계별
-// 결과를 보인다(2026-09-30). **끝난 그 job의 기록일 때만** 보이고, 확인 수준은
+// 결과를 보인다(2026-09-29). **끝난 그 job의 기록일 때만** 보이고, 확인 수준은
 // 기존 문구 규칙(confirmationLabel)을 그대로 쓴다 -- 미확인을 확인으로 올리지 않는다.
 import 'dart:convert';
 
@@ -22,7 +22,7 @@ Map<String, dynamic> _run(String jobId) => {
         'scenario_id': 'evening_rest',
         'purpose': '저녁 쉬기',
         'status': 'succeeded',
-        'finished_at': '2026-09-30T19:30:00+09:00',
+        'finished_at': '2026-09-29T19:30:00+09:00',
         'steps': [
           {
             'target_id': 'air_purifier',

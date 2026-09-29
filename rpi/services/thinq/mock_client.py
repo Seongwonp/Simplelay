@@ -5,7 +5,7 @@
 - 공기청정기 ``mock-purifier-01`` -- 전원·풍량·운전 모드 쓰기 가능.
 - 세탁기 ``mock-washer-01`` -- **읽기 전용.** ``inject_event("wash_complete")``로
   세탁 완료를 흉내 낸다(상태 ``runState.currentState`` → ``END``).
-- 제습기 ``mock-dehumidifier-01`` -- 전원만 쓰기 가능(2026-09-30, 세탁 완료 시나리오 대상).
+- 제습기 ``mock-dehumidifier-01`` -- 전원만 쓰기 가능(2026-09-29, 세탁 완료 시나리오 대상).
 
 주입 가능한 장애(모두 다음 호출 1회에만 걸린다 — 연쇄 장애는 여러 번 주입):
 
@@ -61,7 +61,7 @@ FAULT_MODES = ("normal", "offline", "unconfirmed", "lost")
 
 MOCK_PURIFIER_ID = "mock-purifier-01"
 MOCK_WASHER_ID = "mock-washer-01"
-#: 모의 제습기(2026-09-30, G3 세탁 완료 → 제습 시나리오의 대상).
+#: 모의 제습기(2026-09-29, G3 세탁 완료 → 제습 시나리오의 대상).
 MOCK_DEHUMIDIFIER_ID = "mock-dehumidifier-01"
 
 #: 주입 가능한 이벤트 → (기기, 상태 변경). 세탁기만 둔다.

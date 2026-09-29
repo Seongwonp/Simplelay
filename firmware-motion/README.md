@@ -4,7 +4,7 @@
 `include/config.h`의 핀·방향·PID 게인·PWM·속도·기한·리밋 값은 전부 **자리표시자**다.
 채우기 전까지 빌드 때 `#warning`이 뜬다. 실측값이 아니므로 실기기 설정의 근거로 쓰지 않는다.
 
-## 역할과 위치 (2026-09-30 팀 결정)
+## 역할과 위치 (2026-09-29 팀 결정)
 
 ```
 폰 ─Wi-Fi─ RPi5(중앙) ─UART/LAN 직결─ RPi4(시퀀스·센서 검증·재시도, CT/전류는 RPi4 ADS1115)
@@ -33,11 +33,11 @@
 | `move` | `id, a, b, x_mm, y_mm` | (`position` 이벤트) → `id, ok` | a·b = 목표 카운트. x_mm·y_mm는 MCU 쪽 두 번째 리밋 검사용 |
 | `press` | `id, mode, z_counts\|drive_ms, dwell_ms` | `press_start` → `press_end` → `position` 이벤트 → `id, ok` | depth=Z 카운트, duration=구동 시간 |
 | `stop` | `id` | `id, ok` | 즉시 듀티 0 + STBY LOW. 진행 중 명령은 `error:"stopped"` |
-| `ping` | `id` | `id, ok` | heartbeat. 동작을 건드리지 않고 즉시 답한다(2026-09-30) |
-| `limits` | `id` | `id, ok, raw{x,y,z}, debounced{x,y,z}` | 리밋 입력 판독, 활성 = true. 동작 중에도 답한다(2026-09-30) |
+| `ping` | `id` | `id, ok` | heartbeat. 동작을 건드리지 않고 즉시 답한다(2026-09-29) |
+| `limits` | `id` | `id, ok, raw{x,y,z}, debounced{x,y,z}` | 리밋 입력 판독, 활성 = true. 동작 중에도 답한다(2026-09-29) |
 
 - 오류 응답 `{"id":N,"ok":false,"error":"<코드>"}` — 코드 목록은 표의 `errors`.
-- 위치 보고(2026-09-30 추가, 선택 이벤트) `{"event":"position","a":..,"b":..,"z":..}` — 이동·누름 중 `POSITION_EVENT_MS`(100ms)마다, 끝날 때 `ok` 직전 한 번. 호스트 `serial_motion.py`가 `last_position`으로 받아 RPi4 progress 프레임 → RPi5 실모드 트윈(`/twin`)의 "엔코더 보고 위치"가 된다. 실물 미검증.
+- 위치 보고(2026-09-29 추가, 선택 이벤트) `{"event":"position","a":..,"b":..,"z":..}` — 이동·누름 중 `POSITION_EVENT_MS`(100ms)마다, 끝날 때 `ok` 직전 한 번. 호스트 `serial_motion.py`가 `last_position`으로 받아 RPi4 progress 프레임 → RPi5 실모드 트윈(`/twin`)의 "엔코더 보고 위치"가 된다. 실물 미검증.
 - 알람(`stall`·`limit`·`home_not_found`·`timeout`·`host_timeout`·`soft_limit`)은 **`{"event":"alarm"}`을 먼저**,
   대기 중 명령의 `ok:false`를 나중에 보낸다. 반대 순서면 호스트가 늦게 온 이벤트로 다음 요청(복구용 `home`)을
   실패 처리한다. 알람·정지 뒤에는 `homed=false`가 되고 `home`으로만 복구한다.
@@ -102,7 +102,7 @@ $env:PLATFORMIO_BUILD_DIR = 'C:\pio-build\firmware-motion'
 .\.venv\Scripts\python.exe -m platformio run -d firmware-motion -t upload --upload-port COM<n>
 ```
 
-2026-09-30 빌드(고정 플랫폼 pioarduino 55.03.312-1 / Arduino-ESP32 3.3.12, ArduinoJson 7.4.3):
+2026-09-29 빌드(고정 플랫폼 pioarduino 55.03.312-1 / Arduino-ESP32 3.3.12, ArduinoJson 7.4.3):
 RAM 29,232 B(5.5%), Flash 294,091 B(22.4%). 경고는 자리표시자 `#warning` 하나.
 
 ## 첫 시험 순서

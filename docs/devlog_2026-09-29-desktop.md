@@ -1,4 +1,4 @@
-# 개발 로그 2026-09-30 — 데스크톱 마감 (노트북 인계 A·B·C·F + 감사 gap 수리)
+# 개발 로그 2026-09-29 — 데스크톱 마감 (노트북 인계 A·B·C·F + 감사 gap 수리)
 
 기준: `82de83f`(노트북 인계) → 이 로그의 커밋들. 작업 중 노트북이 `da82a4c`~`a3aee0e`(문서 통합·모션 MCU 펌웨어·실모드 트윈)를 올려 그 위로 rebase 했다. 전부 **모의·브라우저 수준**이다. 실물 검증은 여전히 0건.
 
@@ -55,7 +55,7 @@
 - `kiosk-web/` 재빌드(현재 HEAD, gitignore). Git Bash에서는 `--base-href /kiosk/`가 경로로 변환되므로 `MSYS_NO_PATHCONV=1` 또는 PowerShell.
 - `SIMPLELAY_THINQ_MODE=mock SIMPLELAY_PRESENCE_GATING=true python -m rpi.simulator_main --port 8765`로 §3-3 전 장면을 HTTP로 완주하고 키오스크 웹을 붙여 확인했다.
 
-| 장면 | 결과(2026-09-30 실측, 모의) |
+| 장면 | 결과(2026-09-29 실측, 모의) |
 |---|---|
 | 0 | inject 해제 ok, `act_mode simulator`, `air_purifier` readiness `operable` |
 | ① | 데모 카드 승인 → `succeeded / success / mock / physical / reported`, `last_retry_count 0`, `last_operation_confirmed true(source mock)` |
@@ -111,7 +111,7 @@ Copilot CLI는 월 사용량 초과(quota)로 응답하지 않았고, 별도 검
 
 ## 8. 인계 F — 문서 정리
 
-데스크톱에서도 같은 통합을 했지만, 노트북이 먼저 `da82a4c`로 CLAUDE.md 배너 통합·개발현황 9/28~30 반영·Z축/제어기 서술 정리를 올렸다. rebase 시 충돌은 노트북 판을 택하고, 데스크톱 판에서는 이 로그 링크와 검증 수치만 얹었다.
+데스크톱에서도 같은 통합을 했지만, 노트북이 먼저 `da82a4c`로 CLAUDE.md 배너 통합·개발현황 9/28~29 반영·Z축/제어기 서술 정리를 올렸다. rebase 시 충돌은 노트북 판을 택하고, 데스크톱 판에서는 이 로그 링크와 검증 수치만 얹었다.
 
 ## 9. 다음
 

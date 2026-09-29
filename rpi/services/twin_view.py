@@ -94,7 +94,7 @@ def build_twin_state(snapshot: dict[str, Any]) -> dict[str, Any]:
         if (f.get("direction") == "act_to_hub" and msg.get("type") == "result"
                 and msg.get("sequence_id") == sequence_id):
             result = {"success": bool(msg.get("success")), "retry": msg.get("retry")}
-            # 2026-09-30: 실행기가 버튼별 시도·L3 판정을 보고하면 그대로 옮긴다(지어내지 않음).
+            # 2026-09-29: 실행기가 버튼별 시도·L3 판정을 보고하면 그대로 옮긴다(지어내지 않음).
             for key in ("button_results", "operation_confirmed"):
                 if key in msg:
                     result[key] = msg[key]

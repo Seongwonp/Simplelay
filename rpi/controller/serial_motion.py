@@ -39,17 +39,17 @@ RPi4 쪽 절반이다.
 MCU → 호스트(자발 이벤트, id 없음)
   {"event":"alarm","reason":"limit|stall|home_not_found|..."}
   {"event":"press_start"} / {"event":"press_end"}  (원시 기록기 시각축용)
-  {"event":"position","a":..,"b":..,"z":..}          (선택, 2026-09-30)
+  {"event":"position","a":..,"b":..,"z":..}          (선택, 2026-09-29)
 
-heartbeat(2026-09-30): home·move·press 응답을 기다리는 동안 ``heartbeat_ms``(기본 500ms)마다
+heartbeat(2026-09-29): home·move·press 응답을 기다리는 동안 ``heartbeat_ms``(기본 500ms)마다
 ``ping``을 따로 보낸다. MCU 워치독은 "받은 줄" 아무것으로나 갱신되므로 긴 원점 복귀 중에도
 워치독을 초 단위로 줄일 수 있다(firmware-motion HOST_WATCHDOG_MS). ``ping``도 자기 ``id``를
 받으므로 그 응답이 명령 응답으로 오인되지 않는다(아래 id 대조에서 걸러진다).
 
-리밋 조회(2026-09-30): ``limits``는 X·Y·Z 원점/리밋 입력의 즉시 판독(``raw``, 활성=true)과
+리밋 조회(2026-09-29): ``limits``는 X·Y·Z 원점/리밋 입력의 즉시 판독(``raw``, 활성=true)과
 디바운스 값(``debounced``)을 돌려준다. 움직이지 않으며 첫날 배선 확인용이다.
 
-위치 보고(선택, 2026-09-30): 응답(``ok:true``)이나 이벤트에 정수 ``a``·``b``(엔코더
+위치 보고(선택, 2026-09-29): 응답(``ok:true``)이나 이벤트에 정수 ``a``·``b``(엔코더
 카운트, ``z`` 선택)가 실려 오면 `SerialMotionClient.last_position`에 남긴다. 기구 값이
 있으면 `motor_counts_to_xy`로 mm도 계산한다. MCU가 보내지 않으면 None — 지어내지 않는다.
 RPi4 ActExecutor가 이 값을 progress 프레임의 ``position``으로 RPi5에 보낸다(실모드 트윈).

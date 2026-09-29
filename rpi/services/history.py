@@ -180,7 +180,7 @@ _CSV_COLUMNS = (
     "route",
     "receipt",
     "confirmation",
-    # L3 판정(2026-09-30) — true | false | 빈칸(판정 없음).
+    # L3 판정(2026-09-29) — true | false | 빈칸(판정 없음).
     "operation_confirmed",
 )
 

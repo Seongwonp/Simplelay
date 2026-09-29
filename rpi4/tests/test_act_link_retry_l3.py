@@ -1,4 +1,4 @@
-"""G1·G2 (2026-09-30): 재시도 수와 L3 판정이 UART 결과 프레임을 건너 RPi5 기록까지 살아남는다.
+"""G1·G2 (2026-09-29): 재시도 수와 L3 판정이 UART 결과 프레임을 건너 RPi5 기록까지 살아남는다.
 
 실제 ActClient(RPi5)와 실제 ActExecutor(RPi4)를 메모리 파이프로 잇는다. 결과 프레임을
 ``synthesize_from_act_result``로 합성한 뒤 이력(retry_count)·/status·SSE 공통 필드

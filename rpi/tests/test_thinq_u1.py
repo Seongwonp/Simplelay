@@ -317,7 +317,7 @@ def test_thinq_devices_and_events(client):
     event = client.post("/demo/thinq/event", json={"event": "wash_complete"}).json()
     assert event["state"] == {"runState": {"currentState": "END"}}
     assert client.get("/thinq/events").json()["events"][0]["event"] == "wash_complete"
-    # 폰·키오스크 목록에 ThinQ 가전은 control_path=thinq로 나오고(9/30 G5),
+    # 폰·키오스크 목록에 ThinQ 가전은 control_path=thinq로 나오고(9/29 G5),
     # 모의 물리 가전(선풍기)은 종전대로 숨긴다.
     listed = {a["id"]: a for a in client.get("/appliances").json()}
     assert listed["air_purifier"]["control_path"] == "thinq"

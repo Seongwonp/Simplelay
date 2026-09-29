@@ -77,7 +77,7 @@ void main() {
 
   testWidgets('서버가 센 재시도 1회(버튼 attempts 2)를 배지로 그대로 보여준다',
       (tester) async {
-    // G1(2026-09-30) 이후 서버가 성공한 실행에서도 재시도를 센다.
+    // G1(2026-09-29) 이후 서버가 성공한 실행에서도 재시도를 센다.
     // 시뮬레이터 실측과 같은 모양: 즉석밥 2회 시도 → retry_count 1.
     final api = _apiWithHistory([
       {

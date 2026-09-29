@@ -17,7 +17,7 @@ status/history/SSE can tell a stop from a failure. When the remote doesn't
 send it (older RPi4 firmware, ESP nodes) a failure is recorded as ``failed`` --
 "실패했다는 것만 안다" -- never guessed as a stop.
 
-``button_results`` (2026-09-30, G1): the RPi4 now also sends what its closed loop
+``button_results`` (2026-09-29, G1): the RPi4 now also sends what its closed loop
 actually counted per button (attempts, failed layer, corrections). When present
 and well-formed it replaces the guesses above -- retries survive on success too.
 Without it (older RPi4, ESP nodes) a success still keeps the aggregate ``retry``,
@@ -25,7 +25,7 @@ attributed to the last button (the same convention as the failure branch -- whic
 button needed it is unknown; ``retry_count`` is then a lower bound, since ``retry``
 is the per-button maximum).
 
-``operation_confirmed`` (2026-09-30, G2): the RPi4's L3 verdict. ``None`` means no
+``operation_confirmed`` (2026-09-29, G2): the RPi4's L3 verdict. ``None`` means no
 L3 verifier / no verdict and leaves ``ExecutionResult.operation`` empty. A verdict
 from synthetic input (``operation_source`` != ``real``) is marked ``mock`` so it never
 counts as appliance-operation evidence.

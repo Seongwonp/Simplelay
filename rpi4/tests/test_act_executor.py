@@ -38,7 +38,7 @@ class FakeWriter:
         pass
 
     def messages(self, include_progress: bool = False) -> list[dict]:
-        # 2026-09-30부터 누름마다 progress 프레임이 섞인다(선택·결과 아님). 이 파일의
+        # 2026-09-29부터 누름마다 progress 프레임이 섞인다(선택·결과 아님). 이 파일의
         # 기존 시험은 결과·오류·경보 줄만 본다. progress는 test_act_progress.py가 본다.
         docs = [json.loads(line) for line in self._buf.split(b"\n") if line.strip()]
         return [d for d in docs if include_progress or d.get("type") != "progress"]
@@ -61,7 +61,7 @@ class SlowController:
 
 
 
-#: 2026-09-30 확장 필드(버튼별 보고·L3·실행 환경). 종전 핵심 필드만 비교하는 테스트용.
+#: 2026-09-29 확장 필드(버튼별 보고·L3·실행 환경). 종전 핵심 필드만 비교하는 테스트용.
 _EXTENDED_RESULT_KEYS = ("button_results", "operation_confirmed", "operation_detail",
                          "operation_source", "execution_mode")
 

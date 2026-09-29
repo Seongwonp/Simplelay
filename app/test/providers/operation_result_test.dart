@@ -1,4 +1,4 @@
-// /status의 2026-09-30 필드(last_retry_count·last_operation_*)를 실행 추적이
+// /status의 2026-09-29 필드(last_retry_count·last_operation_*)를 실행 추적이
 // 읽는지. 판정기가 없으면 null이고, 화면이 0이나 false로 지어내지 않는다.
 import 'dart:convert';
 

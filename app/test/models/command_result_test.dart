@@ -1,4 +1,4 @@
-// 결과·경로·확인 수준 문구 규칙(2026-09-30). 서버 필드 이름은 rpi/api/schemas.py
+// 결과·경로·확인 수준 문구 규칙(2026-09-29). 서버 필드 이름은 rpi/api/schemas.py
 // StatusResponse·HistoryEntryResponse 기준이다.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/command_result.dart';

@@ -100,7 +100,7 @@ class RpiStatusResult {
   final String? lastDetail;
 
   /// 마지막 물리 실행의 재시도 합(버튼별 시도 수 - 1). 버튼별 보고가 없으면
-  /// null이다 -- **0으로 지어내지 않는다**(2026-09-30 G1).
+  /// null이다 -- **0으로 지어내지 않는다**(2026-09-29 G1).
   final int? lastRetryCount;
 
   /// L3(가전 동작) 판정. 판정기가 없거나 판정하지 못했으면 null(G2).

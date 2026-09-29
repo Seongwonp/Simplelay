@@ -6,7 +6,7 @@
 |----------|------|------|
 | Flutter App | Sense — 음성/터치 명령 수집, 루틴 확인 UI | BLE (← ESP32) |
 | ESP32 | UI·Sensor 노드 — BLE 브릿지, LED UI, 센서 중계 | BLE ↔ App, UART → RPi5 |
-| Raspberry Pi 5 | Interpret — LLM 의도 해석, 시퀀스 생성, 패턴 DB | UART ← ESP32; RPi4로는 가전별 ESP32 노드 경유(HTTP/ESP-NOW)가 기본, UART 직결은 개발·대체 경로(9/30 정리) |
+| Raspberry Pi 5 | Interpret — LLM 의도 해석, 시퀀스 생성, 패턴 DB | UART ← ESP32; RPi4로는 가전별 ESP32 노드 경유(HTTP/ESP-NOW)가 기본, UART 직결은 개발·대체 경로(9/29 정리) |
 | Raspberry Pi 4 | Act — 액추에이터 제어, 폐루프 검증 | UART ← RPi5, GPIO |
 
 ---
@@ -116,9 +116,9 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 - RPi5는 이 값을 `/status`·SSE `status` 이벤트의 `last_outcome`, `/history`·CSV의 `outcome`으로 내보낸다.
   `last_status`(`succeeded`/`safety_stopped`/`failed`)는 옛 클라이언트용으로 종전 값을 유지한다.
 - **물리 정지 확인이 아니다.** 실행 루프가 멈춘 이유일 뿐, 모터가 실제로 멈췄다는 보고는 별도다.
-- ~~멈춘 버튼·눌림 개수는 여전히 프레임에 없다(`retry`만 집계).~~ 2026-09-30부터 아래 `button_results`로 보낸다.
+- ~~멈춘 버튼·눌림 개수는 여전히 프레임에 없다(`retry`만 집계).~~ 2026-09-29부터 아래 `button_results`로 보낸다.
 
-`result` 확장 필드(2026-09-30 추가, G1·G2) — 옛 RPi5는 모르는 키를 무시한다.
+`result` 확장 필드(2026-09-29 추가, G1·G2) — 옛 RPi5는 모르는 키를 무시한다.
 
 ```json
 { "type": "result", "sequence_id": "seq_004", "success": true, "retry": 1, "outcome": "success",
@@ -155,7 +155,7 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 - RPi4 `SIMPLELAY_L3_MODE`: `off`(기본, `null`) · `mock`(합성 전력 파형, `SIMPLELAY_L3_MOCK_OUTCOME=
   confirmed|unconfirmed`) · `real`(CT·ADS1115 리더가 아직 없어 **기동 거절**). 시뮬레이터도 같은 변수를 읽는다.
 
-`progress`(2026-09-30 추가, 선택) — RPi4가 **누름 시도의 단계마다** 보내는 진행 보고. **결과가 아니다.**
+`progress`(2026-09-29 추가, 선택) — RPi4가 **누름 시도의 단계마다** 보내는 진행 보고. **결과가 아니다.**
 실모드 디지털 트윈(`GET /twin`)과 세션 기록(`SIMPLELAY_SESSION_LOG_PATH`)이 쓴다.
 
 ```json
@@ -189,7 +189,7 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
   RPi4 `SIMPLELAY_ACT_PROGRESS=0`으로 끈다. 새 RPi5도 `progress`로 실행을 끝내지 않는다 — 결과는 `result`뿐.
 - 트래픽: 버튼 하나(재시도 없음)에 3줄, 한 줄 약 250~400바이트. 115200bps에서 누름당 수십 ms 미만.
 
-RPi5 세션 기록(2026-09-30): RPi5 `ActClient`는 보내고 받은 **모든 줄**을 프레임 탭(`rpi/services/link_tap.py`)에
+RPi5 세션 기록(2026-09-29): RPi5 `ActClient`는 보내고 받은 **모든 줄**을 프레임 탭(`rpi/services/link_tap.py`)에
 남긴다 — 링 버퍼(최근 2000개) + `SIMPLELAY_SESSION_LOG_PATH`가 있으면 JSONL 이어 쓰기(`{date}` 치환으로 하루 한
 파일, `SIMPLELAY_SESSION_LOG_MAX_BYTES`·`_BACKUPS` 크기 회전). 한 줄 = `{"kind":"frame","n","t_wall",
 "t_monotonic_ns"(RPi5 시각),"direction":"hub_to_act"|"act_to_hub","type","sequence_id","message"}`. 키 이름에
@@ -248,17 +248,17 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 { "id": 8, "ok": true, "raw": { "x": false, "y": true, "z": false }, "debounced": { "x": false, "y": false, "z": false } }
 ```
 
-- `ping`(heartbeat, 2026-09-30 추가): RPi4는 `home`·`move`·`press` 응답을 기다리는 동안
+- `ping`(heartbeat, 2026-09-29 추가): RPi4는 `home`·`move`·`press` 응답을 기다리는 동안
   `SIMPLELAY_MOTION_HEARTBEAT_MS`(기본 500ms, `0`/`off`면 끔)마다 자기 `id`를 단 `ping`을 보낸다. MCU는
   진행 중 동작을 건드리지 않고 바로 `ok`로 답한다. **받은 줄이면 무엇이든** MCU 워치독을 갱신하므로
   `firmware-motion`의 `HOST_WATCHDOG_MS`를 명령 기한(원점 복귀 최장 20 s 자리표시자)과 무관하게 2 s로 줄였다
   (`HOST_HEARTBEAT_MS`의 3배 미만이면 빌드 오류, 값은 `TODO(HW 실측)`). `ping` 응답은 `id`가 달라 진행 중
   명령의 응답으로 오인되지 않는다. 조회(`status`·`limits`)에는 `ping`을 섞지 않는다(워치독은 동작 중에만 돈다).
-- `limits`(2026-09-30 추가): X·Y·Z 원점/리밋 입력의 즉시 판독(`raw`)과 디바운스 값(`debounced`). `true` = 활성
+- `limits`(2026-09-29 추가): X·Y·Z 원점/리밋 입력의 즉시 판독(`raw`)과 디바운스 값(`debounced`). `true` = 활성
   (눌림·단선, `LIMIT_ACTIVE_LEVEL` 기준). 움직이지 않고 동작 중에도 바로 답한다. 첫날 배선 확인은 조그 CLI
   `limits` 명령으로 스위치를 하나씩 눌러 해당 축만 바뀌는지 본다.
 
-- `position` 이벤트(2026-09-30 추가, 선택): `{ "event": "position", "a": 300, "b": -100, "z": 0 }` — 엔코더 카운트.
+- `position` 이벤트(2026-09-29 추가, 선택): `{ "event": "position", "a": 300, "b": -100, "z": 0 }` — 엔코더 카운트.
   `firmware-motion`은 이동·누름 중 `POSITION_EVENT_MS`(100ms)마다, 끝날 때 `ok` 응답 직전에 한 번 보낸다.
   RPi4 `SerialMotionClient.last_position`이 이것(또는 `status` 응답·`ok` 응답에 실린 정수 `a`·`b`)을 쥐고,
   기구 값이 있으면 mm로 바꿔 progress 프레임 `position`으로 RPi5에 넘긴다. 보내지 않는 MCU면 RPi5 트윈은

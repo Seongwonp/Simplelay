@@ -75,7 +75,7 @@ SHUTDOWN_STOP_GRACE_SECONDS = 5.0
 
 
 def result_detail_fields(result: ExecutionResult, controller: object) -> dict:
-    """result 프레임의 확장 필드(docs/protocol.md, 2026-09-30).
+    """result 프레임의 확장 필드(docs/protocol.md, 2026-09-29).
 
     - ``button_results``: 실제로 돈 버튼마다 {button, ok, attempts, layer, corrections}.
       RPi5가 재시도 수를 버튼별로 정확히 기록하게 한다(집계 ``retry``만으로는 성공 시
@@ -419,7 +419,7 @@ class ActExecutor:
             "success": success,
             "retry": retry,
             "outcome": outcome,
-            # 2026-09-30: 버튼별 시도 수·보정, L3 판정, 실행 환경. 옛 RPi5는 무시한다.
+            # 2026-09-29: 버튼별 시도 수·보정, L3 판정, 실행 환경. 옛 RPi5는 무시한다.
             **result_detail_fields(result, self._controller),
         })
         log.info(

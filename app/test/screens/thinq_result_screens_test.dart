@@ -1,4 +1,4 @@
-// 실행 기록·실행 상태 화면의 결과/경로/확인 수준 표시(2026-09-30).
+// 실행 기록·실행 상태 화면의 결과/경로/확인 수준 표시(2026-09-29).
 import 'dart:convert';
 
 import 'package:flutter/material.dart';

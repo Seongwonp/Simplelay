@@ -1,4 +1,4 @@
-"""progress 프레임(2026-09-30): RPi4 ActExecutor가 누름마다 진행을 보내고 RPi5가 기록한다.
+"""progress 프레임(2026-09-29): RPi4 ActExecutor가 누름마다 진행을 보내고 RPi5가 기록한다.
 
 실제 ActClient(RPi5) ↔ 실제 ActExecutor(RPi4)를 메모리 파이프로 잇는다. 모션 어댑터 자리에는
 MCU 엔코더 위치를 보고하는 가짜를 둔다. 결과는 여전히 result 프레임에서만 온다.

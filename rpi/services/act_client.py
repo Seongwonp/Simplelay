@@ -20,7 +20,7 @@ only ever runs one sequence at a time, so only one execute() may be
 in-flight per ActClient. `alert`/`alert_cleared` are unsolicited pushes
 that can arrive at any time (even mid-execute) and are forwarded to
 `on_alert` immediately rather than resolving the pending execute().
-`progress` frames (2026-09-30, optional) never resolve execute() either --
+`progress` frames (2026-09-29, optional) never resolve execute() either --
 they are only recorded (``tap``) and forwarded to ``on_progress``; a result
 still comes only from a ``result`` frame.
 
@@ -123,7 +123,7 @@ class ActResult:
     #: RPi4가 보고한 종료 방식(success|failed|stopped|safety_stop). 필드가 없는
     #: 옛 RPi4거나 값이 이상하면 None -- 호출자가 실패 이유를 모르는 것으로 다룬다.
     outcome: str | None = None
-    #: 버튼별 보고(2026-09-30). 없거나 형식이 틀리면 None -- 집계 값으로 합성한다.
+    #: 버튼별 보고(2026-09-29). 없거나 형식이 틀리면 None -- 집계 값으로 합성한다.
     button_results: "tuple[ButtonReport, ...] | None" = None
     #: L3 판정. True/False, 판정기 없음·미판정·옛 프레임이면 None.
     operation_confirmed: bool | None = None
