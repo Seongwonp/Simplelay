@@ -1,0 +1,27 @@
+#pragma once
+// 하드웨어 경계: TB6612 채널(LEDC PWM + IN1/IN2 + STBY), PCNT 엔코더, 리밋 스위치.
+// **실물 미검증** — 핀·방향은 include/config.h 자리표시자.
+#include <stdint.h>
+
+enum Axis : uint8_t { AXIS_A = 0, AXIS_B = 1, AXIS_Z = 2, AXIS_COUNT = 3 };
+enum LimitId : uint8_t { LIMIT_X = 0, LIMIT_Y = 1, LIMIT_Z = 2, LIMIT_COUNT = 3 };
+
+// 핀·LEDC·PCNT 초기화. STBY는 LOW(출력 꺼짐)로 시작한다. PCNT 설정 실패 시 false.
+bool drivers_init();
+
+// 부호 있는 듀티(+ = 카운트 증가 방향). 0이면 IN1=IN2=LOW(출력 High-Z, 공회전).
+void motor_set_duty(Axis axis, int32_t duty);
+// IN1=IN2=HIGH short brake.
+void motor_brake(Axis axis);
+// 두 드라이버 STBY를 함께 올리거나 내린다.
+void drivers_standby_outputs(bool enable);
+
+// 원점 오프셋·부호를 적용한 누적 카운트.
+int32_t encoder_read(Axis axis);
+// 현재 위치를 0으로 둔다.
+void encoder_zero(Axis axis);
+
+// 제어 주기마다 호출(디바운스). 인터럽트 없이 폴링한다.
+void limits_sample();
+bool limit_active(LimitId id);
+bool any_limit_active();

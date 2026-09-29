@@ -1,0 +1,57 @@
+{
+  "protocol": "line-json/v0",
+  "note": "RPi4(rpi/controller/serial_motion.py) <-> 모션 MCU(firmware-motion) 명령 표. 실행 가능한 기준은 rpi/tools/fake_mcu.py이며 rpi/tests/test_motion_protocol_table.py가 셋을 대조한다. 실물 미검증.",
+  "commands": {
+    "status": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok", "state", "homed", "a", "b", "z", "alarm"],
+      "events": []
+    },
+    "home": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok"],
+      "events": []
+    },
+    "move": {
+      "request": ["id", "cmd", "a", "b", "x_mm", "y_mm"],
+      "reply": ["id", "ok"],
+      "events": []
+    },
+    "press": {
+      "request_by_mode": {
+        "depth": ["id", "cmd", "mode", "z_counts", "dwell_ms"],
+        "duration": ["id", "cmd", "mode", "drive_ms", "dwell_ms"]
+      },
+      "reply": ["id", "ok"],
+      "events": ["press_start", "press_end"]
+    },
+    "stop": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok"],
+      "events": []
+    }
+  },
+  "error_reply": ["id", "ok", "error"],
+  "errors": [
+    "unknown_cmd",
+    "bad_args",
+    "busy",
+    "not_homed",
+    "alarm",
+    "soft_limit",
+    "stopped",
+    "stall",
+    "limit",
+    "home_not_found",
+    "timeout",
+    "host_timeout",
+    "hw_init"
+  ],
+  "events": {
+    "alarm": ["event", "reason"],
+    "press_start": ["event"],
+    "press_end": ["event"]
+  },
+  "alarm_reasons": ["stall", "limit", "home_not_found", "timeout", "host_timeout", "soft_limit", "hw_init"],
+  "states": ["idle", "homing", "moving", "pressing", "stopped", "alarm"]
+}
