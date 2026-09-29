@@ -5,6 +5,7 @@ import '../../models/command_result.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_target_line.dart';
+import 'route_badge.dart';
 
 /// 승인 재검사 실패(409) 안내. 폰 앱과 같은 문장.
 const kApprovalChangedMessage = '제안 내용이 바뀌어 다시 확인이 필요해요';
@@ -419,19 +420,7 @@ class _CommandList extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 2),
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: KioskColors.border),
-                      ),
-                      child: Text(
-                        path,
-                        style: const TextStyle(
-                            fontSize: 18, color: Colors.white),
-                      ),
-                    ),
+                    KioskRouteBadge(label: path),
                   ],
                 ),
               ),

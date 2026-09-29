@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
+import 'route_badge.dart';
 
 /// 수동 조작 — 조작판을 직접 눌러 버튼 하나씩 맡긴다.
 ///
@@ -67,9 +68,18 @@ class KioskManualView extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
+                if (appliance.isThinq) ...[
+                  const SizedBox(width: 12),
+                  const KioskRouteBadge(label: 'ThinQ'),
+                ],
               ],
             ),
           ),
+          // ThinQ 가전에는 누를 버튼이 없다(G5). 빈 판을 그리면 고장으로
+          // 읽힌다 -- 경로를 밝히고 어디서 맡기는지만 말한다.
+          if (appliance.isThinq)
+            const Expanded(child: _ThinqNotice())
+          else ...[
           // 아직 맡길 수 없는 가전이면 여기서 먼저 말한다. 눌러 보고
           // 실패로 알게 되면, 서버가 막은 것을 가전 고장으로 오해한다.
           if (!appliance.canExecute) _NotReadyNotice(appliance: appliance),
@@ -95,10 +105,45 @@ class KioskManualView extends StatelessWidget {
               },
             ),
           ),
+          ],
         ],
       ),
     );
   }
+}
+
+/// ThinQ 가전 — 조작판 대신 경로와 맡기는 곳을 말한다.
+class _ThinqNotice extends StatelessWidget {
+  const _ThinqNotice();
+
+  @override
+  Widget build(BuildContext context) => const Center(
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 32),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_outlined, size: 44, color: KioskColors.muted),
+              SizedBox(height: 14),
+              Text(
+                '이 가전은 ThinQ로 조작해요. 누를 버튼이 없어요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              SizedBox(height: 8),
+              Text(
+                '제안이 오면 승인하거나 휴대폰에서 말로 맡겨 주세요.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 18, color: KioskColors.muted),
+              ),
+            ],
+          ),
+        ),
+      );
 }
 
 /// 준비가 끝나지 않은 가전임을 큰 글씨로 알린다.

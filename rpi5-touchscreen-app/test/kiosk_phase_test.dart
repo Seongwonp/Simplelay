@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/learning_status.dart';
+import 'package:simplelay_touchscreen/models/scenario_run.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/services/kiosk_event_stream.dart';
@@ -133,9 +134,48 @@ class FakeKioskApi implements KioskApiService {
   @override
   Future<Map<String, String>> scenarioNames() async => scenarioNameMap;
 
+  /// GET /scenarios/last-run. null이면 기록 없음.
+  ScenarioRun? lastRun;
+  int lastRunCalls = 0;
+
+  @override
+  Future<ScenarioRun?> scenarioLastRun() async {
+    lastRunCalls++;
+    return lastRun;
+  }
+
   @override
   void dispose() {}
 }
+
+// ── G4: 다단계 실행의 단계별 결과(2026-09-30) ─────────────────────────────
+// 두 단계 픽스처 — ThinQ 상태 확인됨 + 물리 실행기 보고.
+const kTwoStepRun = ScenarioRun(
+  jobId: 'job-1',
+  scenarioId: 'evening_rest',
+  status: 'succeeded',
+  steps: [
+    ScenarioRunStep(
+      targetId: 'air_purifier',
+      route: 'thinq',
+      action: 'set_wind_strength',
+      summary: '공기청정기 풍량 약하게',
+      status: 'succeeded',
+      receipt: 'accepted',
+      confirmation: 'state_confirmed',
+      executionMode: 'mock',
+    ),
+    ScenarioRunStep(
+      targetId: 'microwave',
+      route: 'physical',
+      summary: '전자레인지 즉석밥',
+      status: 'succeeded',
+      receipt: 'accepted',
+      confirmation: 'reported',
+      executionMode: 'mock',
+    ),
+  ],
+);
 
 // SSE 스트림 — 실제 네트워크·재접속 타이머 없이 콜백만 노출
 class FakeEventStream extends KioskEventStream {
@@ -1576,6 +1616,68 @@ void main() {
     final run = tester.widget<ElevatedButton>(find.ancestor(
         of: find.text('지금 실행'), matching: find.byType(ElevatedButton)));
     expect(run.onPressed, isNotNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // ── G4: 끝난 job의 단계별 결과 ──────────────────────────────────────────
+
+  const lastStep = KioskStatus(
+      running: false,
+      lastJobId: 'job-1',
+      lastStatus: 'succeeded',
+      lastOutcome: 'success',
+      lastRoute: 'physical',
+      lastReceipt: 'accepted',
+      lastConfirmation: 'reported',
+      lastExecutionMode: 'mock');
+
+  testWidgets('다단계 실행이 끝나면 완료 화면이 그 job의 단계별 결과를 보인다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [scenario]
+      ..lastRun = kTwoStepRun;
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+    final done = await finishWith(tester, api, lastStep);
+    await tester.pump();
+
+    expect(api.lastRunCalls, greaterThan(0));
+    expect(done.success, isTrue);
+    expect(find.text('1. 공기청정기 풍량 약하게'), findsOneWidget);
+    expect(find.text('ThinQ · 모의 실행 · 상태 확인됨 · 성공'), findsOneWidget);
+    expect(find.text('2. 전자레인지 즉석밥'), findsOneWidget);
+    expect(find.text('물리 버튼 · 모의 실행 · 실행기 보고만 받음 · 성공'),
+        findsOneWidget);
+    // 한 줄 요약(마지막 단계 기준)은 그대로 남는다.
+    expect(find.text('물리 버튼 · 실행기 보고만 받음'), findsOneWidget);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('last-run이 다른 job의 기록이면 단계 목록을 보이지 않는다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [scenario]
+      ..lastRun = const ScenarioRun(
+        jobId: 'job-0',
+        status: 'succeeded',
+        steps: [
+          ScenarioRunStep(
+              targetId: 'a', route: 'thinq', summary: '이전 단계 1', status: 'succeeded'),
+          ScenarioRunStep(
+              targetId: 'b', route: 'physical', summary: '이전 단계 2', status: 'succeeded'),
+        ],
+      );
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+    await finishWith(tester, api, lastStep);
+    await tester.pump();
+
+    expect(find.textContaining('이전 단계'), findsNothing);
+    expect(find.textContaining('1. '), findsNothing);
+    await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 }

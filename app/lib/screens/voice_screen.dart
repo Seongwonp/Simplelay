@@ -202,6 +202,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           applianceId: appliance.id,
         );
         _trackJob(rpiApi, accepted.jobId, trimmed);
+      } else if (appliance.isThinq) {
+        // ThinQ 가전은 서버를 거쳐야 한다 -- BLE 릴레이(ESP32)는 누를 버튼이
+        // 없는 가전을 조작할 수 없다.
+        _notice('ThinQ 가전은 기기 연결이 필요해요. 설정에서 연결을 확인하세요.');
       } else {
         // BLE 폴백
         await ref

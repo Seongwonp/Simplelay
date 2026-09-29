@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/appliance.dart';
 import '../models/learning_status.dart';
+import '../models/scenario_run.dart';
 
 class HealthStatus {
   const HealthStatus({
@@ -508,6 +509,21 @@ class KioskApiService {
           .timeout(_timeout);
       if (res.statusCode != 200) return null;
       return KioskReadiness.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /scenarios/last-run — 마지막 실행의 단계별 결과(G4). 기록이 없거나
+  /// 옛 서버·조회 실패면 null — 화면은 아무것도 새로 말하지 않는다.
+  Future<ScenarioRun?> scenarioLastRun() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/scenarios/last-run'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return ScenarioRun.fromLastRunJson(
           jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
     } catch (_) {
       return null;

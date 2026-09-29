@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
 import '../../models/command_result.dart';
+import '../../models/scenario_run.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_target_line.dart';
 import 'kiosk_timings.dart';
@@ -31,7 +32,13 @@ class KioskDoneView extends StatelessWidget {
     this.operationConfirmed,
     this.operationSource,
     this.operationDetail,
+    this.runSteps = const [],
   });
+
+  /// 끝난 다단계 실행의 단계별 결과(G4, GET /scenarios/last-run). **이 job의
+  /// 기록일 때만** 화면이 넘긴다. 두 단계 이상일 때만 그린다 — 한 단계는 위
+  /// 한 줄이 이미 같은 말을 한다.
+  final List<ScenarioRunStep> runSteps;
 
   /// L3(가전 동작) 판정. **null이면 말하지 않는다** — 버튼을 누른 것과
   /// 가전이 실제로 움직인 것은 다른 사실이고, 판정기가 없는 실행에서
@@ -108,6 +115,9 @@ class KioskDoneView extends StatelessWidget {
               success ? '$label — $successHeadline' : r.detail(label),
               ...facts,
               if (operationSentence != null) operationSentence,
+              if (runSteps.length > 1)
+                for (var i = 0; i < runSteps.length; i++)
+                  '${_stepTitle(i, runSteps[i])}. ${runStepFacts(runSteps[i])}',
             ].join('. '),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -149,6 +159,9 @@ class KioskDoneView extends StatelessWidget {
                     style: const TextStyle(fontSize: 22, color: Colors.white),
                   ),
                 ],
+                // 위 한 줄은 /status의 **마지막 단계** 기준이다. 두 가전을
+                // 잇는 실행이면 단계마다 경로·확인 수준을 따로 말한다.
+                if (runSteps.length > 1) _RunSteps(steps: runSteps),
                 const SizedBox(height: 6),
                 if (success) ...[
                   // 무엇을 했는지 한 줄로 재확인하고, 어떻게 확인했는지를 말한다.
@@ -219,6 +232,53 @@ class KioskDoneView extends StatelessWidget {
       ),
     );
   }
+}
+
+String _stepTitle(int i, ScenarioRunStep step) =>
+    '${i + 1}. ${step.summary.isNotEmpty ? step.summary : step.targetId}';
+
+/// 단계별 결과 — 번호·서버가 쓴 문장, 그 아래 경로·실행 환경·확인 수준·결과.
+/// 확인 수준은 한 줄 요약과 같은 규칙(`confirmationLabel`)이다.
+class _RunSteps extends StatelessWidget {
+  const _RunSteps({required this.steps});
+
+  final List<ScenarioRunStep> steps;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: ExcludeSemantics(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < steps.length; i++)
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _stepTitle(i, steps[i]),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        runStepFacts(steps[i]),
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                            fontSize: 18, color: KioskColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+            ],
+          ),
+        ),
+      );
 }
 
 /// L3(가전 동작) 판정 한 줄. 판정이 없으면 자리도 차지하지 않는다.

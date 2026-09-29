@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/scenario_run.dart';
 import '../services/mdns_resolver.dart';
 import '../services/rpi_api_service.dart';
 import '../services/simulated_execution_service.dart';
@@ -253,6 +254,19 @@ final nodeRegistryProvider =
   if (service == null) return {};
   final nodes = await service.listNodes();
   return {for (final n in nodes) n.applianceId: n.baseUrl};
+});
+
+// ── 다단계 실행 결과(G4) ────────────────────────────────────────────────
+
+/// 끝난 job [jobId]의 단계별 결과. GET /scenarios/last-run이 **그 job의 기록**일
+/// 때만 값이 있고, 다른 실행의 기록·조회 실패·연결 없음은 null이다 -- 다른
+/// 실행의 단계를 내 결과처럼 보이지 않는다.
+final scenarioRunForJobProvider = FutureProvider.autoDispose
+    .family<ScenarioRun?, String>((ref, jobId) async {
+  final service = ref.watch(rpiApiServiceProvider);
+  if (service == null) return null;
+  final run = await service.scenarioLastRun();
+  return run != null && run.jobId == jobId ? run : null;
 });
 
 // ── ThinQ 가전(서버 구성) ────────────────────────────────────────────────

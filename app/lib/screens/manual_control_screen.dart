@@ -16,6 +16,7 @@ import '../theme/app_text.dart';
 import '../widgets/appliance_portrait.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/no_appliance_notice.dart';
+import '../widgets/route_badge.dart';
 
 enum _CellState { idle, pending, success, failure }
 
@@ -139,6 +140,30 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       );
     }
 
+    // ThinQ 가전에는 누를 버튼이 없다(G5). 빈 격자를 그리면 고장으로
+    // 읽힌다 -- 경로를 밝히고 말(목적) 경로로 보낸다.
+    if (appliance.isThinq) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('버튼 조작')),
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          children: [
+            _TargetHeader(appliance: appliance),
+            const SizedBox(height: 20),
+            Text(
+              '이 가전은 ThinQ로 조작해요. 누를 버튼이 없어요.',
+              style: AppText.title,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '말로 맡기거나 제안을 승인해 주세요.',
+              style: TextStyle(fontSize: 15, color: context.appMuted),
+            ),
+          ],
+        ),
+      );
+    }
+
     final api = ref.watch(rpiApiServiceProvider);
     if (api == null) {
       return Scaffold(
@@ -234,13 +259,19 @@ class _TargetHeader extends StatelessWidget {
                       const SizedBox(width: 8),
                       const DemoBadge(),
                     ],
+                    if (appliance.isThinq) ...[
+                      const SizedBox(width: 8),
+                      const RouteBadge(label: 'ThinQ'),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  '버튼 ${appliance.buttons.length}개 · 누르면 실제 가전 버튼이 눌려요',
-                  style: TextStyle(fontSize: 15, color: context.appMuted),
-                ),
+                if (!appliance.isThinq) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '버튼 ${appliance.buttons.length}개 · 누르면 실제 가전 버튼이 눌려요',
+                    style: TextStyle(fontSize: 15, color: context.appMuted),
+                  ),
+                ],
               ],
             ),
           ),

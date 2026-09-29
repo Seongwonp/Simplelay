@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
+import 'route_badge.dart';
 
 /// 수동 조작 진입 시 가전 선택 — 키오스크는 특정 가전 전속이 아니라
 /// 공간의 가전들을 다루는 허브다.
@@ -135,6 +136,7 @@ class _ApplianceCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: '${appliance.name} 조작하기'
+          '${appliance.isThinq ? '. 경로 ThinQ' : ''}'
           '${isLastUsed ? '. 지난번에 썼어요' : ''}',
       child: Material(
         color: KioskColors.surface,
@@ -166,6 +168,11 @@ class _ApplianceCard extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
+                // ThinQ 가전은 버튼판이 없다 -- 고르기 전에 경로를 글자로 말한다.
+                if (appliance.isThinq) ...[
+                  const SizedBox(height: 6),
+                  const KioskRouteBadge(label: 'ThinQ'),
+                ],
                 if (isLastUsed) ...[
                   const SizedBox(height: 6),
                   Container(

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/appliance.dart';
 import '../models/command_result.dart';
+import '../models/scenario_run.dart';
 import '../services/kiosk_api_service.dart';
 import '../services/kiosk_event_stream.dart';
 import '../services/kiosk_settings_store.dart';
@@ -147,6 +148,8 @@ class _KioskScreenState extends State<KioskScreen> {
   bool? _doneOperationConfirmed;
   String? _doneOperationSource;
   String? _doneOperationDetail;
+  // 끝난 다단계 실행의 단계별 결과(G4). **이 job의 기록일 때만** 채운다.
+  List<ScenarioRunStep> _doneRunSteps = const [];
 
   // 시나리오 카드 — 이름(GET /scenarios)과 대상별 준비 상태(GET /readiness/{id}).
   Map<String, String> _scenarioNames = const {};
@@ -367,6 +370,7 @@ class _KioskScreenState extends State<KioskScreen> {
           reason: failureReasonOf(kind,
               route: st.lastRoute, receipt: st.lastReceipt),
         );
+        _loadRunSteps(jobId);
         return;
       }
 
@@ -418,6 +422,17 @@ class _KioskScreenState extends State<KioskScreen> {
             reason: KioskFailureReason.serverLost);
       }
     }
+  }
+
+  /// 끝난 job [jobId]의 단계별 결과를 받아 둔다(G4). last-run이 다른 job의
+  /// 기록이면 버린다 — 다른 실행의 단계를 이 결과로 보이지 않는다. 그사이 새
+  /// 실행이 시작됐어도 버린다.
+  Future<void> _loadRunSteps(String jobId) async {
+    final run = await _api.scenarioLastRun();
+    if (!mounted || run == null || run.jobId != jobId) return;
+    if (_activeJobId != jobId) return;
+    if (_phase != KioskPhase.executing && _phase != KioskPhase.done) return;
+    setState(() => _doneRunSteps = run.steps);
   }
 
   void _toIdle() {
@@ -586,6 +601,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneOperationConfirmed = null;
     _doneOperationSource = null;
     _doneOperationDetail = null;
+    _doneRunSteps = const [];
     _activeJobId = jobId;
     _retryAction = null;
     _lastStatusOk = DateTime.now();
@@ -1012,6 +1028,7 @@ class _KioskScreenState extends State<KioskScreen> {
           operationConfirmed: _doneOperationConfirmed,
           operationSource: _doneOperationSource,
           operationDetail: _doneOperationDetail,
+          runSteps: _doneRunSteps,
           // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
           // 그때는 수동 조작(사람이 직접 누르기)을 앞세운다.
           // ThinQ 확인 못 함·접수 불명은 다시 보내면 중복 실행이 될 수 있어

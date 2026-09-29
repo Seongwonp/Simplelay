@@ -81,6 +81,10 @@ class _ApplianceSection extends ConsumerWidget {
                                   : FontWeight.normal,
                             ),
                           ),
+                          if (appliance.isThinq) ...[
+                            const SizedBox(width: 6),
+                            const RouteBadge(label: 'ThinQ'),
+                          ],
                           if (isSelected) ...[
                             const SizedBox(width: 4),
                             Icon(Icons.check_circle,

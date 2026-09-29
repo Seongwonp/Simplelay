@@ -97,10 +97,20 @@ class ApplianceMap {
     this.readinessReasons = const [],
     this.readinessKnown = false,
     this.revision = 0,
+    this.controlPath = 'physical',
   });
 
   final String id;
   final String name;
+
+  /// 이 가전을 무엇으로 조작하는가 -- `physical`(갠트리가 버튼을 누름) 또는
+  /// `thinq`(클라우드 가전). 서버 `/appliances`의 `control_path`이고, 없으면
+  /// 종전대로 물리 경로다. ThinQ 가전에는 누를 버튼이 없다 -- 버튼판·사진
+  /// 추가를 내걸지 않고, 실행은 목적(말) 경로로만 간다.
+  final String controlPath;
+
+  /// ThinQ(클라우드) 경로 가전인가.
+  bool get isThinq => controlPath == 'thinq';
 
   /// 어디에 있는 가전인가(거실·안방...). 없을 수 있다.
   ///
@@ -162,7 +172,10 @@ class ApplianceMap {
   /// "안 된다"고 말한 가전은 BLE로도 내보내지 않는다. 서버 얘기를 들은
   /// 적이 없으면(하드코딩 폴백) 막지 않는다 -- 막으면 서버가 죽었을 때
   /// 조작 수단이 통째로 사라진다.
-  bool get mayDispatchWithoutServer => !readinessKnown || canExecute;
+  ///
+  /// ThinQ 가전은 BLE 릴레이(ESP32)로 조작할 수 없다 -- 누를 버튼이 없다.
+  bool get mayDispatchWithoutServer =>
+      !isThinq && (!readinessKnown || canExecute);
 
   /// 서버가 제공하는 내장 가전인가.
   ///
@@ -237,6 +250,8 @@ class ApplianceMap {
                 const [],
         readinessKnown: json.containsKey('can_execute'),
         revision: (json['revision'] as num?)?.toInt() ?? 0,
+        // 서버 응답에만 있다(G5). 없으면(옛 서버·기기 저장분) 물리 경로.
+        controlPath: json['control_path'] as String? ?? 'physical',
       );
 
   /// 서버에서 받은 정의에 **이 폰의 사진 경로**를 얹는다.
@@ -259,6 +274,7 @@ class ApplianceMap {
         readinessReasons: readinessReasons,
         readinessKnown: readinessKnown,
         revision: revision,
+        controlPath: controlPath,
       );
 
   Map<String, dynamic> toJson() => {

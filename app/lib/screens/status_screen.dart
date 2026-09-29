@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/execution_status.dart';
+import '../models/scenario_run.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
+import '../providers/rpi_api_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../widgets/button_map_grid.dart';
@@ -174,6 +176,13 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     ),
                   ),
                 ),
+
+                // ── 단계별 결과(G4) ───────────────────────────────────────
+                // 위 한 줄은 /status의 **마지막 단계** 기준이다. 두 가전을 잇는
+                // 실행이 끝났으면 단계마다 경로·확인 수준을 따로 보인다 -- 그
+                // job의 기록일 때만(다른 실행의 단계를 내 결과로 보이지 않는다).
+                if (_finished(status.phase) && status.sequenceId != null)
+                  _RunSteps(jobId: status.sequenceId!),
 
                 // ── 진행 — 구간형 ─────────────────────────────────────────
                 // 연속 퍼센트가 아니다. 버튼 5개 중 2개를 눌렀다는 사실은
@@ -373,6 +382,63 @@ class _ResultFacts extends StatelessWidget {
                 style: TextStyle(fontSize: 15, color: context.appMuted)),
           ],
           _OperationLine(status: status),
+        ],
+      ),
+    );
+  }
+}
+
+/// 끝난 다단계 실행의 단계 목록. 기록이 그 job의 것이 아니거나 한 단계뿐이면
+/// 아무것도 그리지 않는다(한 단계는 위 한 줄이 이미 같은 말을 한다).
+class _RunSteps extends ConsumerWidget {
+  const _RunSteps({required this.jobId});
+
+  final String jobId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final run = ref.watch(scenarioRunForJobProvider(jobId)).valueOrNull;
+    if (run == null || run.jobId != jobId || run.steps.length < 2) {
+      return const SizedBox.shrink();
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('단계별 결과', style: AppText.title),
+          const SizedBox(height: 6),
+          for (var i = 0; i < run.steps.length; i++)
+            Builder(builder: (context) {
+              final step = run.steps[i];
+              final title = '${i + 1}. ${step.summary.isNotEmpty ? step.summary : step.targetId}';
+              final facts = runStepFacts(step);
+              final detail = step.detail;
+              return Semantics(
+                label: '$title. $facts',
+                child: ExcludeSemantics(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                fontSize: 17, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: 2),
+                        Text(facts,
+                            style: TextStyle(
+                                fontSize: 15, color: context.appMuted)),
+                        if (detail != null && detail.isNotEmpty)
+                          Text(detail,
+                              style: TextStyle(
+                                  fontSize: 15, color: context.appMuted)),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            }),
         ],
       ),
     );

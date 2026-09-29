@@ -25,10 +25,20 @@ class ApplianceMap {
     this.canExecute = true,
     this.readiness = 'unknown',
     this.readinessReasons = const [],
+    this.controlPath = 'physical',
   });
 
   final String id;
   final String name;
+
+  /// 이 가전을 무엇으로 조작하는가 -- `physical`(갠트리가 버튼을 누름) 또는
+  /// `thinq`(클라우드 가전). 서버 `/appliances`의 `control_path`이고, 없으면
+  /// 종전대로 물리 경로다. ThinQ 가전에는 누를 버튼이 없다 -- 조작판을
+  /// 그리지 않는다(폰과 같은 규칙).
+  final String controlPath;
+
+  /// ThinQ(클라우드) 경로 가전인가.
+  bool get isThinq => controlPath == 'thinq';
 
   /// 이 기기의 **종류**. 서버가 준 값을 그대로 보관한다.
   ///
@@ -181,6 +191,8 @@ ApplianceMap applianceFromServerJson(Map<String, dynamic> json) => ApplianceMap(
       readinessReasons:
           (json['readiness_reasons'] as List<dynamic>?)?.cast<String>() ??
               const [],
+      // G5 — 없으면(옛 서버) 물리 경로.
+      controlPath: json['control_path'] as String? ?? 'physical',
       buttons: [
         for (final b in json['buttons'] as List<dynamic>)
           ApplianceButton(

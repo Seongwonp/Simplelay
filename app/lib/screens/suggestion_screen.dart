@@ -18,6 +18,7 @@ import '../theme/app_text.dart';
 import '../widgets/appliance_portrait.dart';
 import '../widgets/button_map_grid.dart';
 import '../widgets/demo_badge.dart';
+import '../widgets/route_badge.dart';
 
 /// 제안 하나를 확인하고 맡길지 정하는 화면.
 ///
@@ -812,7 +813,7 @@ class _CommandRow extends StatelessWidget {
                           fontSize: 20, fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 4),
-                    _PathBadge(label: path),
+                    RouteBadge(label: path),
                     if (r != null && !r.canExecute) ...[
                       const SizedBox(height: 4),
                       Text(
@@ -832,23 +833,6 @@ class _CommandRow extends StatelessWidget {
       ),
     );
   }
-}
-
-/// 제어 경로 배지(물리 버튼 / ThinQ). 색이 아니라 글자로 말한다.
-class _PathBadge extends StatelessWidget {
-  const _PathBadge({required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: context.appBorderSubtle),
-        ),
-        child: Text(label, style: const TextStyle(fontSize: 14)),
-      );
 }
 
 class _ScenarioActionBar extends StatelessWidget {

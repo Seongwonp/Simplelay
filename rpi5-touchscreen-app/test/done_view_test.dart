@@ -3,6 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/models/scenario_run.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 
 Future<void> _pump(
@@ -147,5 +148,68 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(find.text('처음으로'), findsOneWidget);
+  });
+
+  testWidgets('단계별 결과: 확인 못 한 ThinQ 단계를 확인됨으로 올리지 않는다',
+      (tester) async {
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: false,
+        label: '저녁 쉬기',
+        reason: KioskFailureReason.receiptUnknown,
+        route: 'thinq',
+        runSteps: const [
+          ScenarioRunStep(
+            targetId: 'air_purifier',
+            route: 'thinq',
+            summary: '공기청정기 풍량 약하게',
+            status: 'unconfirmed',
+            receipt: 'unknown',
+            confirmation: 'none',
+            executionMode: 'mock',
+          ),
+          ScenarioRunStep(
+            targetId: 'microwave',
+            route: 'physical',
+            summary: '전자레인지 즉석밥',
+            status: 'failed',
+            receipt: 'not_dispatched',
+            confirmation: 'none',
+            executionMode: 'mock',
+          ),
+        ],
+        onDismiss: () {},
+      ),
+    );
+
+    expect(find.text('ThinQ · 모의 실행 · 접수 불명 · 확인 못 함'), findsOneWidget);
+    expect(find.text('물리 버튼 · 모의 실행 · 확인 근거 없음 · 실패'),
+        findsOneWidget);
+    expect(find.textContaining('상태 확인됨'), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('단계가 하나뿐이면 단계 목록을 새로 그리지 않는다', (tester) async {
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: true,
+        label: '즉석밥 데워줘',
+        executionMode: 'mock',
+        runSteps: const [
+          ScenarioRunStep(
+            targetId: 'microwave',
+            route: 'physical',
+            summary: '전자레인지 즉석밥',
+            status: 'succeeded',
+            confirmation: 'reported',
+            executionMode: 'mock',
+          ),
+        ],
+        onDismiss: () {},
+      ),
+    );
+    expect(find.text('1. 전자레인지 즉석밥'), findsNothing);
   });
 }

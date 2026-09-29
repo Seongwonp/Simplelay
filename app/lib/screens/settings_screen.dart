@@ -21,6 +21,7 @@ import '../theme/app_text.dart';
 
 import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/learning_status_dialog.dart';
+import '../widgets/route_badge.dart';
 import '../widgets/sync_status_line.dart';
 
 // 구획별 파일. `part`라서 private 이름·import·provider 읽는 시점이 이 파일에

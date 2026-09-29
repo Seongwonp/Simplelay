@@ -10,6 +10,7 @@ import '../providers/ble_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../widgets/appliance_portrait.dart';
 import '../widgets/demo_badge.dart';
+import '../widgets/route_badge.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/server_appliance_provider.dart';
 import '../providers/suggestion_provider.dart';
@@ -264,6 +265,11 @@ class _ApplianceRow extends ConsumerWidget {
                             on ? context.appPrimary : context.appOnSurfaceSoft,
                       ),
                     ),
+                    // ThinQ 가전은 버튼판이 없다 -- 고르기 전에 경로를 글자로 말한다.
+                    if (a.isThinq) ...[
+                      const SizedBox(width: 6),
+                      const RouteBadge(label: 'ThinQ'),
+                    ],
                   ],
                 ),
               ),
@@ -389,6 +395,10 @@ class _ApplianceStage extends StatelessWidget {
               const SizedBox(width: 8),
               const DemoBadge(),
             ],
+            if (appliance.isThinq) ...[
+              const SizedBox(width: 8),
+              const RouteBadge(label: 'ThinQ'),
+            ],
           ],
         ),
         const SizedBox(height: 6),
@@ -413,6 +423,14 @@ class _ApplianceStage extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
+        // ThinQ 가전에는 누를 버튼이 없다(G5). 버튼판·사진 추가를 내걸면
+        // 빈 판을 열게 된다 -- 실행은 말(목적) 경로로만 간다.
+        if (appliance.isThinq)
+          Text(
+            '누를 버튼이 없는 ThinQ 가전이에요. 말로 맡겨 주세요.',
+            style: TextStyle(fontSize: 15, color: context.appMuted),
+          )
+        else
         // 말로 하는 경로는 탭바 가운데에 있다. 여기에는 **다른 경로**를 둔다 --
         // 말이 잘 안 되는 사용자에게 길이 하나뿐이면 안 된다.
         FilledButton.icon(
@@ -420,7 +438,7 @@ class _ApplianceStage extends StatelessWidget {
           icon: const Icon(Icons.touch_app, size: 20),
           label: const Text('버튼으로 조작'),
         ),
-        if (!hasPhoto)
+        if (!hasPhoto && !appliance.isThinq)
           // 주 행동과 경쟁하지 않게 아래에 작게. 거절해도 그대로 쓸 수 있다.
           Align(
             alignment: Alignment.centerLeft,
@@ -447,6 +465,10 @@ class _ApplianceStage extends StatelessWidget {
       return checking
           ? ('연결을 확인하고 있어요', false)
           : ('기기와 연결되면 조작할 수 있어요', false);
+    }
+    // ThinQ 가전은 예비 연결(BLE)로 조작할 수 없다 -- 서버를 거쳐야 한다.
+    if (backupOnly && appliance.isThinq) {
+      return ('기기와 연결되면 조작할 수 있어요', false);
     }
     if (backupOnly) return ('예비 연결로 조작할 수 있어요', false);
     return ('조작할 수 있어요', false);
