@@ -75,18 +75,26 @@ HELP = """명령:
 class LineLog:
     """보낸/받은 줄을 시각과 함께 남긴다. 파일이 없으면 아무것도 하지 않는다."""
 
-    def __init__(self, stream: TextIO | None) -> None:
+    def __init__(self, stream: TextIO | None, *, monotonic: bool = False) -> None:
+        """``monotonic=True``(RPi4 act_main의 SIMPLELAY_MOTION_LOG_PATH): 두 번째 칸을
+        시작 기준 상대 초 대신 ``mono_ns=<time.monotonic_ns()>``로 쓴다. 원시 기록기
+        (``t_monotonic_ns``)·progress 프레임(``t_monotonic_ns``)과 같은 시각축이라 바로
+        맞춰 볼 수 있다. 칸 수(시각 · 시각 · 태그 · 본문)는 같다."""
         self._stream = stream
         self._t0 = time.perf_counter()
         self._lock = threading.Lock()
+        self._monotonic = monotonic
 
     def write(self, tag: str, text: str) -> None:
         if self._stream is None:
             return
         wall = datetime.now().isoformat(timespec="microseconds")
-        rel = time.perf_counter() - self._t0
+        if self._monotonic:
+            second = f"mono_ns={time.monotonic_ns()}"
+        else:
+            second = f"+{time.perf_counter() - self._t0:.6f}s"
         with self._lock:
-            self._stream.write(f"{wall} +{rel:.6f}s {tag} {text}\n")
+            self._stream.write(f"{wall} {second} {tag} {text}\n")
             self._stream.flush()
 
 

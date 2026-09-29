@@ -72,6 +72,7 @@ class FakeMcu:
             "press": lambda d: [
                 {"event": "press_start"},
                 {"event": "press_end"},
+                self._position(),
                 self._ok(d),
             ],
             "stop": lambda d: [self._ok(d)],
@@ -88,7 +89,11 @@ class FakeMcu:
     def _move(self, doc: dict) -> list[dict]:
         if isinstance(doc.get("a"), int) and isinstance(doc.get("b"), int):
             self.a, self.b = doc["a"], doc["b"]
-        return [self._ok(doc)]
+        return [self._position(), self._ok(doc)]
+
+    def _position(self) -> dict:
+        # 펌웨어의 선택 위치 이벤트(ok 직전 한 번) — firmware-motion/protocol_table.json
+        return {"event": "position", "a": self.a, "b": self.b, "z": self.z}
 
     @staticmethod
     def _ok(doc: dict, **fields: object) -> dict:

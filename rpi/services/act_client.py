@@ -9,6 +9,8 @@ RPi4 side of this same link.
                                              operation_confirmed?, operation_detail?,
                                              operation_source?, execution_mode?}
                                    ←  error  {sequence_id, reason}
+                                   ←  progress {sequence_id, button, attempt,
+                                       phase, ...}  (optional, never a result)
   abort                           ←  (no reply expected)
   (nothing — self-initiated)      ←  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
@@ -18,6 +20,13 @@ only ever runs one sequence at a time, so only one execute() may be
 in-flight per ActClient. `alert`/`alert_cleared` are unsolicited pushes
 that can arrive at any time (even mid-execute) and are forwarded to
 `on_alert` immediately rather than resolving the pending execute().
+`progress` frames (2026-09-30, optional) never resolve execute() either --
+they are only recorded (``tap``) and forwarded to ``on_progress``; a result
+still comes only from a ``result`` frame.
+
+``tap`` (rpi/services/link_tap.py): every line sent or received is recorded
+there (ring buffer + optional JSONL session log). Tap failures never break
+the link.
 
 Duck-typed reader/writer, matching ActExecutor's and UartBridge's pattern:
   - real hardware: asyncio.StreamReader / asyncio.StreamWriter (serial_asyncio)
@@ -38,6 +47,8 @@ from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
     from rpi.controller.models import ButtonTarget
+
+    from .link_tap import LinkFrameTap
 
 log = logging.getLogger(__name__)
 
@@ -265,11 +276,16 @@ class ActClient:
         writer: _WriterLike,
         config: ActClientConfig | None = None,
         on_alert: Callable[[AlertEvent], None] | None = None,
+        tap: "LinkFrameTap | None" = None,
+        on_progress: Callable[[dict], None] | None = None,
     ) -> None:
         self._reader = reader
         self._writer = writer
         self._cfg = config or ActClientConfig()
         self._on_alert = on_alert
+        #: 보내고 받은 모든 줄의 기록(rpi/services/link_tap.py). None이면 기록 안 함.
+        self.tap = tap
+        self._on_progress = on_progress
         # (sequence_id, future) — 수신한 result/error를 반드시 현재 요청의
         # sequence_id와 대조해서 완료시킨다. 대조 없이 완료시키면, timeout으로
         # 버려진 이전 요청의 늦은 응답이 다음 요청의 결과로 오인된다.
@@ -409,10 +425,16 @@ class ActClient:
         try:
             doc = json.loads(raw)
         except json.JSONDecodeError:
+            if self.tap is not None:
+                self.tap.record("act_to_hub", None, raw)
             log.warning("ActClient: ignored unparseable line: %.120s", raw)
             return
         if not isinstance(doc, dict):
+            if self.tap is not None:
+                self.tap.record("act_to_hub", None, raw)
             return
+        if self.tap is not None:
+            self.tap.record("act_to_hub", doc)
 
         msg_type = doc.get("type")
         if msg_type in ("result", "error"):
@@ -435,16 +457,27 @@ class ActClient:
                 log.warning("ActClient: unsolicited %s ignored: %.120s", msg_type, raw)
             return
 
+        if msg_type == "progress":
+            # 진행 보고는 기록·관찰용이다. 대기 중인 execute()를 끝내지 않는다.
+            if self._on_progress is not None:
+                try:
+                    self._on_progress(doc)
+                except Exception:  # noqa: BLE001 - 관찰자 고장이 읽기 루프를 죽이지 않는다
+                    log.exception("ActClient: on_progress callback failed")
+            return
+
         event = _parse_alert(doc)
         if event is not None and self._on_alert is not None:
             self._on_alert(event)
-        # "ack" (per-step progress) and unknown types: not yet consumed.
+        # "ack" and unknown types: recorded by the tap only, otherwise ignored.
 
     # ── IO helper ────────────────────────────────────────────────────────────
 
     async def _send(self, doc: dict) -> None:
         payload = (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
         log.debug("TX -> %s", payload.rstrip().decode())
+        if self.tap is not None:
+            self.tap.record("hub_to_act", doc)
         self._writer.write(payload)
         await self._writer.drain()
 

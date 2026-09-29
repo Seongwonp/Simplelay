@@ -5,10 +5,10 @@
 :root{color-scheme:dark;font-family:system-ui,sans-serif;background:#10141d;color:#edf1fa}body{max-width:1240px;margin:auto;padding:24px}h1{font-size:28px;margin:10px 0}h2{font-size:19px;margin:6px 0 10px}p{line-height:1.6;color:#bdc9de}.badge{color:#f2ce74;font-weight:700}.grid{display:grid;grid-template-columns:1.5fr 1fr;gap:20px}section{background:#1b2332;border:1px solid #344159;border-radius:18px;padding:20px}button,select,input{font:inherit;border-radius:9px;border:1px solid #51617c;padding:11px 14px;margin:4px;background:#263249;color:inherit;min-height:46px}button{cursor:pointer}button:disabled{opacity:.38;cursor:default}button:focus-visible,a:focus-visible,select:focus-visible{outline:3px solid #85e2cd}.primary{background:#195d54}.danger{background:#92322c}a{color:#a9d8ff}svg{width:100%;background:#111925;border-radius:12px}.mode{display:inline-block;padding:4px 10px;border-radius:999px;background:#3b2f14;color:#f2ce74;font-weight:700}.mode.preview{background:#223a5a;color:#a9d8ff}dl{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;margin:0}dt{color:#abbad1}dd{margin:0;font-weight:600;overflow-wrap:anywhere}ol,ul{padding-left:22px;margin:6px 0}li{padding:6px 8px;border-radius:8px;margin:3px 0}li.active{background:#26314a;outline:1px solid #6d7df0}li .meta,.meta{color:#abbad1;font-size:14px}#log{max-height:260px;overflow:auto;font-size:14px;font-family:ui-monospace,Consolas,monospace;background:#111925;border-radius:10px;padding:8px}#log div{padding:2px 0;border-bottom:1px solid #1f2a3b}.src-server{color:#85e2cd}.src-anim{color:#b6a0f8}.src-local{color:#f2ce74}.row{display:flex;flex-wrap:wrap;align-items:center}#confirm{display:none;border:1px solid #f2ce74;border-radius:12px;padding:10px;margin-top:8px}#layoutNote{color:#f2ce74}#result{font-size:20px;font-weight:700}#result.pending{color:#f2ce74}#hw li{padding:3px 4px;margin:0}#hw code{font-size:13px;color:#a9d8ff}.tag{display:inline-block;padding:1px 8px;border-radius:999px;background:#3b2f14;color:#f2ce74;font-size:13px;font-weight:700}@media(max-width:860px){.grid{grid-template-columns:1fr}body{padding:14px}}
 </style>
 <body>
-<div class="badge">개념 모션 · 실제 동역학 아님 · MOCK 실행기 연결</div>
+<div class="badge" id="topBadge">개념 모션 · 실제 동역학 아님 · MOCK 실행기 연결</div>
 <h1>CoreXY 버튼 누름 디지털 트윈</h1>
-<p>서버의 모의 실행기가 기록한 누름을 따라 캐리지를 움직여 보여 줍니다. 경로·속도·Z 깊이는 개념도이며 실제 모터·센서 값이 아닙니다. <strong>애니메이션이 끝나도 결과는 생기지 않습니다.</strong> 성공·실패는 서버의 result 프레임만 표시합니다.</p>
-<p><a href="/simulator">← 통신 리허설</a> · <a href="/simulator/parking">정지 버튼 대기·보관 모의 동작 ↗</a>(정지·보관 절차는 그 화면이 담당합니다)</p>
+<p id="intro">서버의 모의 실행기가 기록한 누름을 따라 캐리지를 움직여 보여 줍니다. 경로·속도·Z 깊이는 개념도이며 실제 모터·센서 값이 아닙니다. <strong>애니메이션이 끝나도 결과는 생기지 않습니다.</strong> 성공·실패는 서버의 result 프레임만 표시합니다.</p>
+<p id="links"><a href="/simulator">← 통신 리허설</a> · <a href="/simulator/parking">정지 버튼 대기·보관 모의 동작 ↗</a>(정지·보관 절차는 그 화면이 담당합니다)</p>
 <details><summary>API 키 설정</summary><input id="key" type="password" aria-label="API 키" autocomplete="off"><button id="connect">다시 연결</button></details>
 <div class="grid">
 <section>
@@ -44,7 +44,7 @@
 <text x="40" y="30" fill="#bccbe2" font-size="13">상단 y=0 · X → · Y ↓ · 좌표는 조작부 범위 0~1 상대 단위</text>
 </svg>
 <p id="layoutNote">버튼맵 불러오는 중</p>
-<dl><dt>캐리지 X / Y</dt><dd id="xy">—</dd><dt>이번 이동 ΔA / ΔB</dt><dd id="dab">—</dd><dt>원점 기준 누적 A / B</dt><dd id="tab">—</dd><dt>Z</dt><dd id="zText">—</dd><dt>애니메이션 단계</dt><dd id="animPhase" role="status">대기</dd><dt>모션 지연</dt><dd id="lag">—</dd></dl>
+<dl><dt>캐리지 X / Y</dt><dd id="xy">—</dd><dt>캐리지 위치 근거</dt><dd id="carriageSrc">개념 모션</dd><dt>이번 이동 ΔA / ΔB</dt><dd id="dab">—</dd><dt>원점 기준 누적 A / B</dt><dd id="tab">—</dd><dt>Z</dt><dd id="zText">—</dd><dt>애니메이션 단계</dt><dd id="animPhase" role="status">대기</dd><dt>모션 지연</dt><dd id="lag">—</dd></dl>
 <p>ΔA = ΔX + ΔY · ΔB = ΔX − ΔY (같은 상대 단위). 한 모터만 돌면 X와 Y가 함께 바뀌어 캐리지가 대각선으로 갑니다. 실제 모터 방향·풀리·RPM은 장착·엔코더 확인 후 정합니다. 원점 복귀도 개념 표시이며 서버가 원점 복귀를 보고한 것이 아닙니다.</p>
 <div class="row"><label>속도<select id="speed"><option value="0.5">빠르게</option><option value="1" selected>보통</option><option value="2">느리게</option></select></label><label><input id="reduceMotion" type="checkbox">움직임 줄이기</label><button id="replay">누름 기록 다시 재생</button></div>
 <div class="row"><span class="meta">한 모터만 돌리기(화면 데모 · 서버 호출 없음):</span><button id="demoA">A만 회전</button><button id="demoB">B만 회전</button></div>
@@ -59,18 +59,21 @@
 <p id="modeHelp"></p>
 <h2>서버 보고</h2>
 <p id="result" role="status">—</p>
-<dl><dt>서버 실행 상태</dt><dd id="srvRunning">—</dd><dt>누름 기록(재시도 포함)</dt><dd id="srvPresses">—</dd><dt>모의 실행기 내부 상태</dt><dd id="srvLocal">—</dd><dt>단계 대응</dt><dd id="srvAttr">—</dd></dl>
+<dl><dt>서버 실행 상태</dt><dd id="srvRunning">—</dd><dt>누름 기록(재시도 포함)</dt><dd id="srvPresses">—</dd><dt id="srvLocalLabel">모의 실행기 내부 상태</dt><dd id="srvLocal">—</dd><dt>단계 대응</dt><dd id="srvAttr">—</dd></dl>
 <h2>시퀀스 단계</h2><ol id="steps"></ol>
 <h2>기록</h2><div id="log" aria-live="polite"></div>
 <p><span class="src-server">[서버]</span> 서버 상태에서 읽은 내용 · <span class="src-anim">[모션]</span> 화면 개념 모션 · <span class="src-local">[화면]</span> 이 화면의 조작</p>
 <h2>하드웨어 요약</h2>
 <div id="hw"><p class="meta">불러오는 중</p></div>
 </section></div>
-<script src="/simulator/twin-motion.js"></script>
+<script src="twin-motion.js"></script>
 <script>
 'use strict';
 const $ = id => document.getElementById(id);
 const T = window.TwinMotion;
+// simulator: /simulator/twin (모의 실행기 내부 관측) · real: /twin (통신 프레임 탭 + progress) · replay: /twin?replay=
+const CFG = T.pageConfig(location.pathname, location.search);
+let replayStart = performance.now() / 1000, replayDone = false;
 const WS = {x0: 500, y0: 80, w: 204, h: 320};  // workspace in SVG units (control panel)
 const PRESETS = [['즉석밥','시작'],['30초','시작'],['라면','시작'],['해동','시작'],['1분','30초','시작'],['10초','10초','시작'],['전원','3단','시작'],['전원','타이머','취소']];
 const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -129,7 +132,11 @@ function beltPaths(c, g) {
     feedA: (744 - c) + (492 - g), feedB: (c - 460) + (496 - g),
   };
 }
-function draw(p) {
+function draw(pose) {
+  const view = T.carriageView(lastTwin, layout, pose, CFG.kind);
+  const p = Object.assign({}, pose, {x: view.x, y: view.y});
+  const counts = view.counts && view.counts.a_counts != null ? ` · 엔코더 A ${view.counts.a_counts} / B ${view.counts.b_counts}${view.counts.z_counts != null ? ` / Z ${view.counts.z_counts}` : ''}` : '';
+  $('carriageSrc').textContent = view.label + counts + (view.note ? ` · ${view.note}` : '');
   const [x, y] = toSvg([p.x, p.y]);
   $('carriage').setAttribute('transform', `translate(${x},${y})`);
   $('gantry').setAttribute('transform', `translate(0,${y})`);
@@ -224,12 +231,27 @@ function renderSteps(job, preview) {
   if (!steps.length) { const li = document.createElement('li'); li.textContent = '표시할 시퀀스가 없습니다.'; ol.append(li); }
 }
 function renderServer(twin, status) {
-  $('execMode').textContent = `실행 환경: ${T.execModeText(status, twin)} · 통신: ${twin.transport || '—'}`;
-  $('srvRunning').textContent = twin.running ? '모의 버튼 입력 중' : '실행 중 아님';
+  if (CFG.kind === 'simulator') {
+    $('execMode').textContent = `실행 환경: ${T.execModeText(status, twin)} · 통신: ${twin.transport || '—'}`;
+  } else {
+    const b = T.modeBadge(status, twin);
+    $('modeBadge').textContent = CFG.kind === 'replay' ? `기록 재생 · ${b.text}` : `실기기 따라가기 · ${b.text}`;
+    $('modeBadge').className = 'mode' + (b.mode === 'real' ? '' : ' preview');
+    const slog = twin.session_log ? ` · 세션 기록 ${twin.session_log.enabled ? '켜짐 ' + twin.session_log.path : '꺼짐'}` : '';
+    const rp = twin.replay ? ` · ${twin.replay.name} ${twin.replay.t.toFixed(1)}/${twin.replay.duration_s.toFixed(1)}초${twin.replay.done ? ' · 재생 끝' : ''}` : '';
+    $('execMode').textContent = `실행 환경: ${b.text} (${b.detail}) · 통신: ${twin.transport || '—'}${slog}${rp}`;
+  }
+  $('srvRunning').textContent = twin.running ? (CFG.kind === 'simulator' ? '모의 버튼 입력 중' : '실행 중(결과 프레임 대기)') : '실행 중 아님';
   const job = twin.job;
   if (!job) { $('srvPresses').textContent = '—'; $('srvLocal').textContent = '—'; $('srvAttr').textContent = '—'; renderVerdict(); return; }
   $('srvPresses').textContent = job.press_count ? job.presses.join(', ') : '없음';
-  $('srvLocal').textContent = job.act_local_status || '보고 없음';
+  if (CFG.kind === 'simulator') $('srvLocal').textContent = job.act_local_status || '보고 없음';
+  else {
+    const now = job.phase_now ? ` · 지금: ${job.phase_now.button} ${({retry:'재시도 보정', move:'이동', press:'누름', verify:'검증', accept:'수용 확인'})[job.phase_now.phase] || job.phase_now.phase}(${job.phase_now.attempt}회째)` : '';
+    $('srvLocal').textContent = job.press_source === 'none'
+      ? 'progress 프레임 없음(옛 RPi4이거나 SIMPLELAY_ACT_PROGRESS=0) · 누름 그림 없음, 결과만 표시'
+      : `progress 프레임 ${job.progress_count}개${now}`;
+  }
   $('srvAttr').textContent = ({sequential:'순서대로 대응', ambiguous:'같은 이름 연속 · 재시도와 다음 단계 구분 불가', mismatch:'기록이 시퀀스와 맞지 않음'})[job.attribution];
   renderVerdict();
   if (mode === 'follow') renderSteps(job);
@@ -244,7 +266,8 @@ function logServer(twin) {
   }
   seenPress[key] = job.press_log.length;
   if (job.abort_requested && seenAbort !== key) { seenAbort = key; log('server', '중단 요청(abort) 프레임 확인'); }
-  if (job.result && seenResult !== key) { seenResult = key; log('server', `result 프레임: success=${job.result.success}, retry=${job.result.retry}`); }
+  if (job.result && seenResult !== key) { seenResult = key; log('server', `result 프레임: success=${job.result.success}, retry=${job.result.retry}${job.result.outcome ? `, outcome=${job.result.outcome}` : ''}${job.result.execution_mode ? `, execution_mode=${job.result.execution_mode}` : ''}`); }
+  if (job.link_error && seenResult !== key + ':error') { seenResult = key + ':error'; log('server', `error 프레임: ${job.link_error} · 결과 없음`); }
 }
 async function ensureLayoutFor(id) {
   if (!id || id === layoutFor) return;
@@ -254,10 +277,13 @@ async function ensureLayoutFor(id) {
 async function poll() {
   if (polling) return; polling = true;
   try {
-    const [twin, status] = await Promise.all([api('/simulator/twin/state'), api('/status')]);
-    if (!online) log('local', '서버 연결 확인');
+    let twin, status = null;
+    if (CFG.kind === 'replay') twin = await api(T.stateUrl(CFG, replayDone ? 1e9 : now() - replayStart));
+    else [twin, status] = await Promise.all([api(T.stateUrl(CFG)), api('/status')]);
+    if (twin.replay && twin.replay.done && !replayDone) { replayDone = true; log('local', `기록 재생 끝 · ${twin.replay.frames_total}개 프레임`); }
+    if (!online) log('local', CFG.kind === 'replay' ? '기록 파일 열기 확인' : '서버 연결 확인');
     online = true; lastTwin = twin; lastStatus = status;
-    const target = status.appliance_id || status.last_appliance_id;
+    const target = status ? (status.appliance_id || status.last_appliance_id) : null;
     if (mode === 'preview' && twin.running && twin.job && twin.job.sequence_id !== follower.key) {
       setMode('follow'); log('local', '서버에서 모의 실행이 시작돼 실행 따라가기로 바꿨습니다.');
     }
@@ -281,13 +307,19 @@ async function poll() {
 }
 // Idle: ~2 s. Only while the server job runs: 400 ms.
 let pollTimer = null;
-async function kick() { clearTimeout(pollTimer); await poll(); clearTimeout(pollTimer); pollTimer = setTimeout(kick, T.pollInterval(online ? lastTwin : null)); }
+async function kick() { clearTimeout(pollTimer); await poll(); clearTimeout(pollTimer); pollTimer = setTimeout(kick, CFG.kind === 'replay' && !replayDone ? 400 : T.pollInterval(online ? lastTwin : null)); }
 function locks() {
   const serverRunning = !!(online && lastTwin && lastTwin.running);
   $('go').disabled = (mode === 'follow' && (!online || serverRunning)) || !$('preset').value;
   $('go').textContent = mode === 'follow' ? '이 시퀀스로 모의 실행' : '미리보기 재생';
   $('stop').textContent = mode === 'follow' ? '정지(서버 중단 요청)' : '미리보기 정지';
-  $('stop').disabled = mode === 'follow' ? !serverRunning : !(engine.busy && !engine.stopped);
+  $('stop').disabled = mode === 'follow' ? (!serverRunning || CFG.kind === 'replay') : !(engine.busy && !engine.stopped);
+  if (CFG.kind !== 'simulator') {
+    // 실모드·재생은 읽기 전용: 실행은 앱·키오스크가 한다. 재생에는 정지할 서버 실행이 없다.
+    $('go').style.display = mode === 'follow' ? 'none' : '';
+    $('stop').style.display = CFG.kind === 'replay' && mode === 'follow' ? 'none' : '';
+    if (mode === 'follow') $('stop').textContent = '정지(서버 /stop 요청)';
+  }
   const demoOff = engine.busy || (mode === 'follow' && serverRunning);
   $('demoA').disabled = demoOff; $('demoB').disabled = demoOff;
 }
@@ -342,6 +374,7 @@ $('stop').onclick = async () => {
 };
 $('replay').onclick = () => {
   if (mode === 'preview') return preview();
+  if (CFG.kind === 'replay') { replayStart = now(); replayDone = false; log('local', '기록을 처음부터 다시 재생'); setMode('follow'); return; }
   if (lastTwin && lastTwin.job) { follower.replay(lastTwin.job, layout, now()); log('anim', '서버 누름 기록을 다시 재생(개념 · 새 결과 없음)'); locks(); }
 };
 function demo(motor) {
@@ -389,9 +422,26 @@ async function connect() {
   } catch (e) {
     appliances = []; applyLayout(null); log('local', '버튼맵을 불러오지 못했어요: ' + e.message);
   }
-  api('/simulator/twin/hardware').then(renderHardware).catch(e => { $('hw').textContent = '하드웨어 요약을 불러오지 못했어요: ' + e.message; });
+  api(CFG.base + '/hardware').then(renderHardware).catch(e => { $('hw').textContent = '하드웨어 요약을 불러오지 못했어요: ' + e.message; });
   await kick();
 }
+function applyPageKind() {
+  if (CFG.kind === 'simulator') return;
+  document.title = CFG.kind === 'replay' ? 'SimpleLay 트윈 · 기록 재생' : 'SimpleLay 트윈 · 실기기 따라가기';
+  $('topBadge').textContent = CFG.kind === 'replay'
+    ? `기록 재생 · 지난 세션 파일(${CFG.replay}) · 지금 서버 실행 아님`
+    : '실기기 따라가기 · 통신 프레임 기준 · 캐리지 그림은 엔코더 보고 위치 또는 명령 기준 추정';
+  $('intro').textContent = CFG.kind === 'replay'
+    ? '기록된 RPi5↔RPi4 통신 프레임을 시간 순서대로 다시 보여 줍니다. 결과는 기록 속 result 프레임만 표시하고, 정지 버튼은 없습니다(재생은 장치를 움직이지 않습니다).'
+    : 'RPi5가 RPi4와 실제로 주고받은 프레임(execute·progress·result·abort)을 따라 캐리지를 그립니다. 누름 시도는 RPi4 progress 프레임에서, 성공·실패는 result 프레임에서만 옵니다. 애니메이션은 결과를 만들지 않습니다. 실행은 앱·키오스크에서 하고, 이 화면은 읽기 전용입니다(정지만 가능).';
+  $('links').textContent = '';
+  const a = document.createElement('a'); a.href = '/twin'; a.textContent = '실기기 따라가기(/twin)';
+  $('links').append(a, ' · 재생 목록: ');
+  const code = document.createElement('code'); code.textContent = 'GET /twin/replays'; $('links').append(code, ' → /twin?replay=<파일 이름>');
+  $('srvLocalLabel').textContent = 'RPi4 진행 보고';
+  if (CFG.kind === 'replay') $('replay').textContent = '기록 처음부터';
+}
+applyPageKind();
 setMode('follow'); connect(); requestAnimationFrame(frame);
 // 일부 내장 화면은 requestAnimationFrame을 멈춘다. 시간 기반이라 느린 갱신으로 이어 그려도 위치는 같다.
 setInterval(() => { if (performance.now() - lastRender > 200) render(); }, 100);

@@ -15,7 +15,7 @@
     "move": {
       "request": ["id", "cmd", "a", "b", "x_mm", "y_mm"],
       "reply": ["id", "ok"],
-      "events": []
+      "events": ["position"]
     },
     "press": {
       "request_by_mode": {
@@ -23,7 +23,7 @@
         "duration": ["id", "cmd", "mode", "drive_ms", "dwell_ms"]
       },
       "reply": ["id", "ok"],
-      "events": ["press_start", "press_end"]
+      "events": ["press_start", "press_end", "position"]
     },
     "stop": {
       "request": ["id", "cmd"],
@@ -50,8 +50,10 @@
   "events": {
     "alarm": ["event", "reason"],
     "press_start": ["event"],
-    "press_end": ["event"]
+    "press_end": ["event"],
+    "position": ["event", "a", "b", "z"]
   },
+  "position_event_note": "position(엔코더 카운트)은 이동·누름의 ok 응답 직전에 한 번(표의 events 순서) 오고, 이동·누름 중에는 POSITION_EVENT_MS(100ms)마다 더 올 수 있다. 호스트는 선택 이벤트로 다룬다(serial_motion.py last_position).",
   "alarm_reasons": ["stall", "limit", "home_not_found", "timeout", "host_timeout", "soft_limit", "hw_init"],
   "states": ["idle", "homing", "moving", "pressing", "stopped", "alarm"]
 }

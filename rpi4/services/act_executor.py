@@ -12,6 +12,9 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
            targets?}                         outcome, button_results,
                                              operation_confirmed, operation_detail,
                                              operation_source, execution_mode}
+                                 →  progress {sequence_id, n, button, step_index,
+                                             attempt, phase, ...} (누름마다, 선택 —
+                                             SIMPLELAY_ACT_PROGRESS=0이면 끔. 결과 아님)
   abort                          →  (cooperative stop; see _on_abort)
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
@@ -29,6 +32,9 @@ import asyncio
 import contextlib
 import json
 import logging
+import os
+import time
+from collections.abc import Callable
 from typing import Protocol
 
 from rpi.controller import (
@@ -52,6 +58,16 @@ from ..models.act_messages import (
 )
 
 log = logging.getLogger(__name__)
+
+PROGRESS_ENV = "SIMPLELAY_ACT_PROGRESS"
+
+
+def progress_enabled_from_env() -> bool:
+    """progress 프레임 송신 여부. 기본 켜짐 — 옛 RPi5 ActClient와 ESP32 노드 펌웨어는
+    모르는 ``type``을 무시한다(docs/protocol.md). ``0``/``false``/``off``면 끈다."""
+    raw = os.environ.get(PROGRESS_ENV, "").strip().lower()
+    return raw not in ("0", "false", "no", "off")
+
 
 # 종료 시 협조적 정지가 실제로 반영되기를 기다리는 시간. 폐루프의 정지 확인
 # 지점은 버튼 사이·재시도 경계라, 한 번의 누름+검증이 끝날 만큼은 줘야 한다.
@@ -129,11 +145,18 @@ class ActExecutor:
         writer: _WriterLike,
         controller: ClosedLoopController,
         failure_state: DemoFailureState | None = None,
+        progress: bool | None = None,
+        job_observer: "Callable[[str, dict], None] | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
         발동한다 — act_main._build_executor()가 그 배선을 담당한다.
-        None이면 inject_failure/clear_failure 메시지는 로그만 남기고 무시."""
+        None이면 inject_failure/clear_failure 메시지는 로그만 남기고 무시.
+
+        progress: 누름마다 ``progress`` 프레임을 보낼지. None이면 SIMPLELAY_ACT_PROGRESS
+        (기본 켜짐). 컨트롤러가 ``set_press_observer``를 가져야 실제로 나간다.
+        job_observer: 실행 시작·끝(``job_start``/``job_end``, sequence_id 포함)을 받는
+        함수(선택). act_main이 모션 줄 기록·원시 기록기에 같은 sequence_id를 찍는 데 쓴다."""
         self._reader = reader
         self._writer = writer
         self._controller = controller
@@ -143,6 +166,9 @@ class ActExecutor:
         # 실행은 별도 task — 읽기 루프가 실행 중에도 abort를 수신할 수 있어야
         # 긴급 정지가 성립한다 (여기서 await하면 루프가 통째로 멈춘다)
         self._execute_task: asyncio.Task[None] | None = None
+        self._progress = progress_enabled_from_env() if progress is None else progress
+        self._job_observer = job_observer
+        self._drain_tasks: set[asyncio.Task[None]] = set()
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -296,7 +322,61 @@ class ActExecutor:
         # 읽을 수 없었다 — "실행 중 정지 불가"였던 진짜 원인.
         self._execute_task = asyncio.create_task(self._execute_and_report(msg))
 
+    def _notify_job(self, event: str, fields: dict) -> None:
+        if self._job_observer is None:
+            return
+        try:
+            self._job_observer(event, fields)
+        except Exception:  # noqa: BLE001 - 기록 고장이 실행을 막지 않는다
+            log.exception("job observer failed")
+
+    def _attach_progress(self, sequence_id: str) -> bool:
+        setter = getattr(self._controller, "set_press_observer", None)
+        if not self._progress or not callable(setter):
+            return False
+        loop = asyncio.get_running_loop()
+        counter = 0
+        mode = getattr(self._controller, "execution_mode", ExecutionMode.UNKNOWN)
+        mode_value = mode.value if isinstance(mode, ExecutionMode) else "unknown"
+
+        def observer(event: dict) -> None:
+            # 실행 스레드에서 불린다. 줄 쓰기는 이벤트 루프로 넘긴다(순서 유지: 결과
+            # 프레임보다 먼저 예약되므로 먼저 써진다).
+            nonlocal counter
+            counter += 1
+            doc = {"type": "progress", "sequence_id": sequence_id, "n": counter, **event,
+                   "execution_mode": mode_value, "t_monotonic_ns": time.monotonic_ns()}
+            loop.call_soon_threadsafe(self._write_now, doc)
+
+        setter(observer)
+        return True
+
+    def _detach_progress(self) -> None:
+        setter = getattr(self._controller, "set_press_observer", None)
+        if callable(setter):
+            setter(None)
+
+    def _write_now(self, doc: dict) -> None:
+        """이벤트 루프 스레드에서 한 줄을 즉시 쓰고 drain은 뒤로 미룬다."""
+        try:
+            payload = (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
+            self._writer.write(payload)
+        except Exception:  # noqa: BLE001 - 진행 보고 실패가 실행을 막지 않는다
+            log.exception("progress frame write failed")
+            return
+
+        async def _drain() -> None:
+            with contextlib.suppress(Exception):
+                await self._writer.drain()
+
+        task = asyncio.ensure_future(_drain())
+        self._drain_tasks.add(task)
+        task.add_done_callback(self._drain_tasks.discard)
+
     async def _execute_and_report(self, msg: ExecuteMsg) -> None:
+        progress_on = self._attach_progress(msg.sequence_id)
+        self._notify_job("job_start", {"sequence_id": msg.sequence_id, "buttons": list(msg.buttons),
+                                       "progress": progress_on})
         try:
             # Run the synchronous controller in a thread so the event loop
             # stays responsive to incoming UART data during execution.
@@ -312,6 +392,7 @@ class ActExecutor:
                 )
         except Exception:
             log.exception("controller.execute raised for sequence %r", msg.sequence_id)
+            self._notify_job("job_end", {"sequence_id": msg.sequence_id, "outcome": "error"})
             await self._send({
                 "type": "error",
                 "sequence_id": msg.sequence_id,
@@ -319,6 +400,8 @@ class ActExecutor:
             })
             return
         finally:
+            if progress_on:
+                self._detach_progress()
             self._busy = False
             self._execute_task = None
 
@@ -328,6 +411,7 @@ class ActExecutor:
         # 구별되지 않았다. 종료 방식을 함께 보낸다(docs/protocol.md outcome).
         # success는 옛 RPi5와의 호환을 위해 그대로 둔다.
         outcome = outcome_of(result).value
+        self._notify_job("job_end", {"sequence_id": msg.sequence_id, "outcome": outcome, "retry": retry})
 
         await self._send({
             "type": "result",

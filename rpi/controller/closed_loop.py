@@ -1,5 +1,6 @@
 """Closed-loop orchestration with bounded recovery and fail-safe behavior."""
 
+import logging
 import threading
 from collections.abc import Callable, Mapping
 
@@ -25,6 +26,11 @@ from .models import (
 from .ports import AlertSink, GrblClient, NoOpRetryWaiter, RetryWaiter, SafetyController
 from .progress import ProgressCallback
 from .retry import DocumentedRetryPolicy, RetryPolicy
+
+log = logging.getLogger(__name__)
+
+#: 누름 관찰자(``set_press_observer``)가 받는 단계 이름.
+PRESS_PHASES = ("retry", "move", "press", "verify", "accept")
 
 
 class _EmergencyStopRequested(Exception):
@@ -92,6 +98,18 @@ class ClosedLoopController:
         if operation is not None:
             # L3가 판정을 기다리는 동안에도 정지 요청을 볼 수 있게 한다.
             operation.set_stop_check(self._stop_requested.is_set)
+        # 누름 단계 관찰자(선택). RPi4 ActExecutor가 progress 프레임으로 내보낸다.
+        self._press_observer: Callable[[dict], None] | None = None
+
+    def set_press_observer(self, observer: "Callable[[dict], None] | None") -> None:
+        """누름 시도마다 단계 이벤트를 받을 함수를 건다(실행 스레드에서 호출된다).
+
+        이벤트 모양: ``{"phase", "button", "step_index", "attempt", ...}`` —
+        ``retry``(보정 요청), ``move``(누름 명령 직전, 좌표 ``target``), ``press``(어댑터 반환,
+        ``ok``·``error``·어댑터가 아는 ``position``), ``verify``(L1 ``pressed``), ``accept``(L2).
+        관찰은 결과를 바꾸지 않는다. 관찰자 예외는 로그만 남긴다.
+        """
+        self._press_observer = observer
 
     @property
     def execution_mode(self) -> ExecutionMode:
@@ -258,6 +276,12 @@ class ClosedLoopController:
                 presses += 1
                 if correction is not None:
                     corrections.append(correction)
+                    self._observe("retry", button, completed_steps, presses,
+                                  correction=_correction_fields(correction))
+                command = self._press_command(button, correction)
+                self._observe("move", button, completed_steps, presses,
+                              target=_target_fields(command),
+                              correction=_correction_fields(correction))
                 if self._operation is not None:
                     # 누르기 직전 시각을 L3에 알린다(판정 기준 시각·기준선 이어 붙이기).
                     try:
@@ -265,13 +289,19 @@ class ClosedLoopController:
                     except Exception as exc:  # noqa: BLE001 - 센서 고장은 fail closed
                         raise _OperationObservationFailed(str(exc)) from exc
                 try:
-                    self._grbl.press(self._press_command(button, correction))
+                    self._grbl.press(command)
                 except Exception as exc:  # adapter errors are recoverable within the hard limit
                     errors.append(str(exc))
+                    self._observe("press", button, completed_steps, presses, ok=False,
+                                  error=str(exc)[:200], position=self._adapter_position())
                     self._report_progress(button, presses, completed_steps, None)
                     continue
+                self._observe("press", button, completed_steps, presses, ok=True,
+                              position=self._adapter_position())
 
                 last_verification = self._verifier.verify(button)
+                self._observe("verify", button, completed_steps, presses,
+                              pressed=bool(last_verification.pressed))
                 self._report_progress(button, presses, completed_steps, last_verification)
                 if last_verification.pressed:
                     pressed = True
@@ -302,6 +332,7 @@ class ClosedLoopController:
                 )
 
             accepted = self._acceptance.verify_acceptance(button)
+            self._observe("accept", button, completed_steps, presses, passed=bool(accepted.passed))
             if accepted.passed:
                 self._pace(button, completed_steps)
                 return ButtonResult(
@@ -339,6 +370,24 @@ class ClosedLoopController:
             press_ms=target.press_ms,
         )
 
+    def _observe(self, phase: str, button: str, step_index: int, attempt: int, **fields: object) -> None:
+        observer = self._press_observer
+        if observer is None:
+            return
+        try:
+            observer({"phase": phase, "button": button, "step_index": step_index,
+                      "attempt": attempt, **fields})
+        except Exception:  # noqa: BLE001 - 관찰 고장이 누름을 막지 않는다
+            log.exception("press observer failed")
+
+    def _adapter_position(self) -> dict | None:
+        """모션 어댑터가 MCU 보고로 아는 위치(``last_position``). 없으면 None."""
+        try:
+            position = getattr(self._grbl, "last_position", None)
+        except Exception:  # noqa: BLE001
+            return None
+        return dict(position) if isinstance(position, dict) else None
+
     def _check_stop(self) -> None:
         if self._stop_requested.is_set():
             raise _EmergencyStopRequested()
@@ -363,3 +412,19 @@ class ClosedLoopController:
         상태를 잠깐 유지시켜, 폐루프(누름->검증->다음)가 화면에 보이게 한다."""
         if self._step_pacer is not None:
             self._step_pacer(button, completed_steps)
+
+
+def _correction_fields(correction) -> dict | None:
+    if correction is None:
+        return None
+    return {
+        "retry_number": correction.retry_number,
+        "xy_adjustment_required": correction.xy_adjustment_required,
+        "increase_press_depth": correction.increase_press_depth,
+    }
+
+
+def _target_fields(command: PressCommand) -> dict | None:
+    if not command.has_coordinates:
+        return None
+    return {"x_mm": command.x_mm, "y_mm": command.y_mm}

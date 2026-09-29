@@ -66,6 +66,11 @@ class ActClientController:
         self._client = client
         self._call_timeout = call_timeout_seconds
 
+    @property
+    def frame_tap(self):
+        """RPi5↔RPi4 프레임 탭(rpi/services/link_tap.py). 실모드 트윈이 읽는다. 없으면 None."""
+        return getattr(self._client, "tap", None)
+
     def _timeout_for(self, button_count: int) -> float:
         if self._call_timeout is not None:
             return self._call_timeout
@@ -149,10 +154,14 @@ def open_uart_act_controller(
     loop, _thread = start_background_loop()
 
     config = ActClientConfig.from_env()  # 실기기 타이밍 캘리브레이션 반영
+    from .link_tap import get_link_tap
+
+    tap = get_link_tap()  # 모든 프레임을 링 버퍼(+ SIMPLELAY_SESSION_LOG_PATH면 JSONL)에 남긴다
+    tap.transport = tap.transport or "uart"
 
     async def _open() -> ActClient:
         reader, writer = await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
-        client = ActClient(reader, writer, config=config, on_alert=on_alert)
+        client = ActClient(reader, writer, config=config, on_alert=on_alert, tap=tap)
         await client.start()
         return client
 

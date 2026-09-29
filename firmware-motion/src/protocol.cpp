@@ -203,6 +203,12 @@ void proto_event(const char* name) {
   write_line(g_out);
 }
 
+void proto_event_position(int32_t a, int32_t b, int32_t z) {
+  snprintf(g_out, sizeof g_out, "{\"event\":\"position\",\"a\":%ld,\"b\":%ld,\"z\":%ld}",
+           static_cast<long>(a), static_cast<long>(b), static_cast<long>(z));
+  write_line(g_out);
+}
+
 void proto_event_alarm(const char* reason) {
   snprintf(g_out, sizeof g_out, "{\"event\":\"alarm\",\"reason\":\"%s\"}", reason);
   write_line(g_out);

@@ -39,6 +39,7 @@
       const k = Math.min(sx > 1e-9 ? 0.8 * aspect / sx : Infinity, sy > 1e-9 ? 0.8 / sy : Infinity);
       const kk = Number.isFinite(k) ? k : 0;
       return { mode: 'mm', note: '보정된 mm 좌표를 가로세로 비율을 유지해 패널 가운데에 배치했습니다. 축척·원점은 개념입니다.',
+        transform: { cx, cy, k: kk, aspect },
         buttons: buttons.map(b => ({ id: b.id, label: b.label,
           x: 0.5 + (b.x_mm - cx) * kk / aspect, y: 0.5 + (b.y_mm - cy) * kk })) };
     }
@@ -324,11 +325,13 @@
     const job = twin && twin.job;
     if (!job) return '아직 실행 기록이 없습니다.';
     const r = job.result;
+    // RPi4 error frame (busy / actuator_fail): no result frame, never a success.
+    if (!r && job.link_error) return `RPi4 오류 보고(error: ${job.link_error}) · 결과 프레임 없음`;
     if (!r) return twin.running ? '결과 대기 · 서버 보고 전' : '결과 프레임 없음 · 결과 미확인';
     if (motionBusy) return '모션 재생 중 · 서버 결과 도착';
     const retry = r.retry ?? '?';
     if (r.success && job.abort_requested) return `서버 보고: 성공(success=true, 재시도 ${retry}회) · 정지 요청이 늦어 모든 버튼 입력 후 성공 보고`;
-    if (r.success) return `서버 보고: 성공(success=true, 재시도 ${retry}회) · 모의 실행`;
+    if (r.success) return `서버 보고: 성공(success=true, 재시도 ${retry}회) · ${runKindText(twin)}`;
     if (job.abort_requested) return `서버 보고: 실패(success=false) · 정지 요청 뒤 · 재시도 ${retry}회`;
     return `서버 보고: 실패(success=false) · 재시도 ${retry}회`;
   }
@@ -346,8 +349,74 @@
   // Poll pacing: fast only while the server job runs.
   function pollInterval(twin) { return twin && twin.running ? 400 : 2000; }
 
+  // ── Real-mode twin (/twin) and recorded replay (/twin?replay=) ──────────────
+  // Which page is this? /simulator/twin keeps the simulator's own state route.
+  function pageConfig(pathname, search) {
+    const path = String(pathname || '');
+    if (path.startsWith('/simulator/')) return { kind: 'simulator', base: '/simulator/twin', replay: null };
+    let replay = null;
+    try { replay = new URLSearchParams(search || '').get('replay'); } catch (e) { replay = null; }
+    return replay ? { kind: 'replay', base: '/twin', replay } : { kind: 'real', base: '/twin', replay: null };
+  }
+  function stateUrl(cfg, t) {
+    if (cfg.kind !== 'replay') return cfg.base + '/state';
+    return `${cfg.base}/state?replay=${encodeURIComponent(cfg.replay)}&t=${Math.max(0, t || 0).toFixed(2)}`;
+  }
+
+  // Success wording suffix: which kind of run reported it.
+  function runKindText(twin) {
+    const mode = twin && twin.execution_mode;
+    const replay = twin && twin.source === 'replay' ? '기록 재생 · ' : '';
+    if (mode === 'real') return replay + '실기기(REAL) 보고';
+    if (mode === 'mock') return replay + '모의 실행';
+    if (twin && (twin.source === 'link_tap' || twin.source === 'replay')) return replay + '실행 환경 미확인';
+    return '모의 실행';
+  }
+
+  // REAL / MOCK / UNKNOWN badge. Server status first (running → execution_mode,
+  // else last_execution_mode); if it cannot tell (UART link = unknown), the
+  // RPi4-reported mode in the twin state. A replay never reads the live status.
+  function modeBadge(status, twin) {
+    const ok = v => v === 'real' || v === 'mock';
+    const out = (v, detail) => ({ text: String(v).toUpperCase(), mode: v, detail });
+    const replay = twin && twin.source === 'replay';
+    if (!replay && status && status.running && ok(status.execution_mode)) return out(status.execution_mode, '서버 /status · 실행 중');
+    if (!replay && status && ok(status.last_execution_mode)) return out(status.last_execution_mode, '서버 /status · 마지막 실행');
+    if (twin && ok(twin.execution_mode)) {
+      const src = ({ rpi4_result: 'RPi4 result 프레임', rpi4_progress: 'RPi4 progress 프레임', controller: '서버 컨트롤러 선언' })[twin.execution_mode_source] || '트윈 상태';
+      return out(twin.execution_mode, (replay ? '기록 · ' : '') + src);
+    }
+    return { text: 'UNKNOWN', mode: 'unknown', detail: replay ? '기록에 실행 환경 보고 없음' : '아직 보고 없음' };
+  }
+
+  // mm → normalized panel coords, only when the layout itself is mm-based.
+  function mmToLayout(layout, xMm, yMm) {
+    const num = v => typeof v === 'number' && Number.isFinite(v);
+    if (!layout || layout.mode !== 'mm' || !layout.transform || !num(xMm) || !num(yMm)) return null;
+    const { cx, cy, k, aspect } = layout.transform;
+    return [clamp01(0.5 + (xMm - cx) * k / aspect), clamp01(0.5 + (yMm - cy) * k)];
+  }
+
+  // Where to draw the carriage and what to call it. Only the MCU-reported
+  // encoder position (converted to mm on RPi4) is labelled as a measurement;
+  // everything else is the command-based estimate (real page) or concept motion.
+  function carriageView(twin, layout, pose, pageKind) {
+    const base = { x: pose.x, y: pose.y };
+    if (pageKind === 'simulator') return Object.assign(base, { kind: 'concept', label: '개념 모션' });
+    const c = twin && twin.job && twin.job.carriage;
+    if (c && c.kind === 'encoder') {
+      const at = mmToLayout(layout, c.x_mm, c.y_mm);
+      if (at) return { x: at[0], y: at[1], kind: 'encoder', label: '엔코더 보고 위치', counts: c };
+      return Object.assign(base, { kind: 'estimate', label: '명령 기준 추정',
+        note: '엔코더 보고는 있지만 버튼맵이 mm 배치가 아니어서 그림에 옮기지 못함', counts: c });
+    }
+    return Object.assign(base, { kind: 'estimate', label: '명령 기준 추정',
+      counts: c && c.encoder_counts ? c.encoder_counts : null });
+  }
+
   const api = { corexy, inverse, ease, layoutButtons, findButton, conceptNudge, demoTarget, createEngine, createFollower,
-    verdictText, execModeText, pollInterval, DEFAULT_TIMING, CATCH_UP, CONCEPT_NUDGE, HOME };
+    verdictText, execModeText, pollInterval, pageConfig, stateUrl, runKindText, modeBadge, mmToLayout, carriageView,
+    DEFAULT_TIMING, CATCH_UP, CONCEPT_NUDGE, HOME };
   root.TwinMotion = api;
   if (typeof module !== 'undefined') module.exports = api;
 })(typeof window === 'undefined' ? globalThis : window);

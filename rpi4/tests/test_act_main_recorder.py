@@ -213,7 +213,8 @@ def test_serial_motion_gets_the_mcu_event_hook(monkeypatch, rec_dir):
     finally:
         live.close()
         mcu.close()
-    events = [r["event"] for r in _rows(path) if r["source"] == "event"]
+    # mcu_position(선택 위치 이벤트, 2026-09-30)은 이 시험의 관심 밖이라 뺀다.
+    events = [r["event"] for r in _rows(path) if r["source"] == "event" and r["event"] != "mcu_position"]
     assert events[1:] == [
         "press_start",
         "mcu_press_command",

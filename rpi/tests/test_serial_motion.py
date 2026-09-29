@@ -181,7 +181,9 @@ def test_press_moves_then_presses_with_configured_depth(link):
     assert mcu.cmds() == ["home", "move", "press"]
     press = mcu.received[-1]
     assert press == {"id": press["id"], "cmd": "press", "mode": "depth", "z_counts": 40, "dwell_ms": 100}
-    assert events == ["press_command", "press_start", "press_end", "press_done"]
+    # 2026-09-30: 가짜 MCU가 move·press ok 직전에 선택 이벤트 position을 보낸다(펌웨어와 같음).
+    assert [e for e in events if e != "position"] == ["press_command", "press_start", "press_end", "press_done"]
+    assert events.count("position") == 2
 
 
 def test_button_press_ms_overrides_configured_dwell(link):

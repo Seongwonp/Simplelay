@@ -27,3 +27,5 @@ void proto_reply_error(const ReqId& id, const char* code);
 void proto_reply_status(const ReqId& id, const MotionSnapshot& snap);
 void proto_event(const char* name);
 void proto_event_alarm(const char* reason);
+// 엔코더 위치 보고(선택 이벤트). 이동·누름 중 POSITION_EVENT_MS마다, 끝날 때 ok 직전 한 번.
+void proto_event_position(int32_t a, int32_t b, int32_t z);

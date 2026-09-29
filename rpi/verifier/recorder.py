@@ -269,6 +269,11 @@ class RecordingGrblClient(GrblClient):
         finally:
             self._recorder.mark("press_end", command.button)
 
+    @property
+    def last_position(self) -> dict | None:
+        """감싼 어댑터의 MCU 위치 보고를 그대로 드러낸다(없으면 None)."""
+        return getattr(self._inner, "last_position", None)
+
     def request_stop(self) -> None:
         stop = getattr(self._inner, "request_stop", None)
         if callable(stop):

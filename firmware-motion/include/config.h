@@ -159,6 +159,9 @@
 #define STALL_TIMEOUT_MS       300
 // TODO(HW 실측): 알람·워치독 시 short brake 유지 시간(그 뒤 STBY LOW). 정지 거리 실측 뒤.
 #define FAULT_BRAKE_MS         50
+// 이동·누름 중 위치 보고 {"event":"position","a","b","z"} 주기(ms). 끝날 때는 ok 응답 직전에
+// 한 번 더 보낸다. 호스트(serial_motion.py last_position → 실모드 트윈)가 엔코더 위치를 안다.
+#define POSITION_EVENT_MS      100
 
 // ─── 정적 검사 ───────────────────────────────────────────────────────────────
 #if PWM_LIMIT_XY > PWM_MAX_DUTY || PWM_LIMIT_Z > PWM_MAX_DUTY || PRESS_DRIVE_PWM > PWM_MAX_DUTY

@@ -38,6 +38,13 @@ Environment variables:
                                   파형으로 판정(operation_source=mock, 실제 근거 아님).
                                   "real" = CT(ADS1115) 실물 리더가 아직 없어 **시작을 거절**
   SIMPLELAY_L3_MOCK_OUTCOME       mock 모드의 합성 결과 "confirmed"(기본) | "unconfirmed"
+  SIMPLELAY_MOTION_LOG_PATH       설정하면 모션 MCU와 주고받은 **원시 줄**을 이어 쓴다(기본 꺼짐).
+                                  형식은 `python -m rpi.tools.jog --log`와 같고(보냄 ``>>``,
+                                  받음 ``<<``) 두 번째 칸이 ``mono_ns=<monotonic ns>``다. 실행마다
+                                  ``## job_start {"sequence_id":…}`` / ``## job_end …`` 줄을 찍는다.
+                                  원시 기록기(SIMPLELAY_RECORDER_PATH)에도 같은 순간 ``job_start``·
+                                  ``job_end`` 이벤트(note에 sequence_id)를 찍어 둘을 이을 수 있다.
+  SIMPLELAY_ACT_PROGRESS          "0"이면 누름마다의 progress 프레임을 보내지 않는다(기본 보냄).
 
 Usage:
   python -m rpi4.act_main
@@ -50,7 +57,7 @@ import contextlib
 import logging
 import os
 import sys
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TextIO
 
 from rpi.controller import ClosedLoopController
 from rpi.controller.mock import MockAlertSink, MockGrblClient, MockSafetyController
@@ -61,6 +68,7 @@ from rpi.verifier import MockVerifier, Verifier
 from .services.act_executor import ActExecutor
 
 if TYPE_CHECKING:
+    from rpi.tools.jog import LineLog
     from rpi.verifier.recorder import LiveRecorder
 
 SERIAL_PORT = os.getenv("SIMPLELAY_UART_PORT", "/dev/ttyAMA0")
@@ -102,7 +110,46 @@ def _open_motion_transport(port: str, baud: int):
     return PySerialLineTransport(port, baud)
 
 
-def _build_motion(on_event=None) -> tuple[GrblClient, SafetyController]:
+def _build_motion_log() -> "tuple[LineLog, TextIO] | None":
+    """SIMPLELAY_MOTION_LOG_PATH가 있으면 모션 MCU 원시 줄 기록을 연다(기본 꺼짐).
+
+    켜짐/꺼짐과 경로를 항상 시작 로그에 남긴다. jog CLI의 줄 형식을 그대로 쓰되 시각
+    칸은 monotonic ns — 원시 기록기·progress 프레임과 같은 시각축이다.
+    """
+    path = os.getenv("SIMPLELAY_MOTION_LOG_PATH", "").strip()
+    if not path:
+        log.info("motion line log off (set SIMPLELAY_MOTION_LOG_PATH to append raw MCU serial lines)")
+        return None
+    import pathlib
+
+    from rpi.tools.jog import LineLog
+
+    target = pathlib.Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    stream = open(target, "a", encoding="utf-8")
+    log.info("motion line log ON -> %s (>> sent, << received, ## job markers; mono_ns time base)", target)
+    return LineLog(stream, monotonic=True), stream
+
+
+def _job_observer(recorder: "LiveRecorder | None", line_log: "LineLog | None"):
+    """ActExecutor의 job_start/job_end를 모션 줄 기록과 원시 기록기에 같은 sequence_id로 찍는다."""
+    if recorder is None and line_log is None:
+        return None
+    import json
+
+    def observe(event: str, fields: dict) -> None:
+        if line_log is not None:
+            line_log.write("##", f"{event} {json.dumps(fields, ensure_ascii=False)}")
+        if recorder is not None:
+            note = f"sequence_id={fields.get('sequence_id')}"
+            if "outcome" in fields:
+                note += f" outcome={fields['outcome']}"
+            recorder.recorder.mark(event, note)
+
+    return observe
+
+
+def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[GrblClient, SafetyController]:
     """SIMPLELAY_MOTION_MODE=serial이면 모션 MCU 어댑터, 아니면(기본) mock.
 
     serial 어댑터는 **실물 미검증**이다. 포트·보드레이트가 없으면 시작을
@@ -112,6 +159,8 @@ def _build_motion(on_event=None) -> tuple[GrblClient, SafetyController]:
     mode = os.getenv("SIMPLELAY_MOTION_MODE", "mock").strip().lower() or "mock"
     if mode == "mock":
         log.info("MockGrblClient active (set SIMPLELAY_MOTION_MODE=serial for the motion MCU)")
+        if line_log is not None:
+            log.warning("motion line log has no MCU lines in mock mode (job markers only)")
         return MockGrblClient(), MockSafetyController()
     if mode != "serial":
         raise RuntimeError(f"unknown SIMPLELAY_MOTION_MODE={mode!r} (mock | serial)")
@@ -131,7 +180,12 @@ def _build_motion(on_event=None) -> tuple[GrblClient, SafetyController]:
             "SIMPLELAY_MOTION_BAUD가 필요합니다(기본값 없음)"
         )
     config = MotionConfig.from_env()
-    client = SerialMotionClient(_open_motion_transport(port, int(baud_raw)), config, on_event=on_event)
+    transport = _open_motion_transport(port, int(baud_raw))
+    if line_log is not None:
+        from rpi.tools.jog import LoggingTransport
+
+        transport = LoggingTransport(transport, line_log)
+    client = SerialMotionClient(transport, config, on_event=on_event)
     missing = config.missing_for_press()
     if missing:
         log.warning("motion config incomplete — every press will be refused: %s", ", ".join(missing))
@@ -209,6 +263,7 @@ def _build_executor(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
     recorder: "LiveRecorder | None" = None,
+    motion_log: "LineLog | None" = None,
 ) -> ActExecutor:
     """Wire up the executor with current adapters.
 
@@ -223,12 +278,14 @@ def _build_executor(
     # 모터 연결 시도보다 앞서게 한다.
     operation = _build_operation_verifier()
     if recorder is None:
-        grbl, safety = _build_motion()
+        # 줄 기록이 없으면 종전 호출 모양 그대로
+        grbl, safety = _build_motion(**({"line_log": motion_log} if motion_log is not None else {}))
     else:
         from rpi.verifier.recorder import RecordingGrblClient, motion_event_hook
 
         # 모션 MCU 이벤트(mcu_press_start 등)는 어댑터 훅으로, 호스트 호출 시각은 래퍼로 찍는다.
-        grbl, safety = _build_motion(on_event=motion_event_hook(recorder.recorder))
+        grbl, safety = _build_motion(on_event=motion_event_hook(recorder.recorder),
+                                     **({"line_log": motion_log} if motion_log is not None else {}))
         grbl = RecordingGrblClient(grbl, recorder.recorder)
     controller = ClosedLoopController(
         grbl=grbl,
@@ -237,11 +294,16 @@ def _build_executor(
         safety=safety,
         operation=operation,
     )
+    from .services.act_executor import progress_enabled_from_env
+
+    log.info("progress frames %s (SIMPLELAY_ACT_PROGRESS; old RPi5 ignores them)",
+             "ON" if progress_enabled_from_env() else "off")
     return ActExecutor(
         reader=reader,
         writer=writer,
         controller=controller,
         failure_state=failure_state,
+        job_observer=_job_observer(recorder, motion_log),
     )
 
 
@@ -288,11 +350,14 @@ async def _run() -> None:
     )
     log.info("Serial open — waiting for RPi5 execute commands")
     recorder = _build_recorder()
+    motion_log = _build_motion_log()
     try:
-        executor = _build_executor(reader, writer, recorder)
+        executor = _build_executor(reader, writer, recorder, motion_log[0] if motion_log else None)
     except BaseException:
         if recorder is not None:
             recorder.close()
+        if motion_log is not None:
+            motion_log[1].close()
         raise
     if recorder is not None:
         recorder.start()
@@ -310,6 +375,8 @@ async def _run() -> None:
                 await monitor_task
         if recorder is not None:
             recorder.close()
+        if motion_log is not None:
+            motion_log[1].close()
 
 
 if __name__ == "__main__":

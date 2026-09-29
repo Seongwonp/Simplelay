@@ -155,6 +155,46 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 - RPi4 `SIMPLELAY_L3_MODE`: `off`(기본, `null`) · `mock`(합성 전력 파형, `SIMPLELAY_L3_MOCK_OUTCOME=
   confirmed|unconfirmed`) · `real`(CT·ADS1115 리더가 아직 없어 **기동 거절**). 시뮬레이터도 같은 변수를 읽는다.
 
+`progress`(2026-09-30 추가, 선택) — RPi4가 **누름 시도의 단계마다** 보내는 진행 보고. **결과가 아니다.**
+실모드 디지털 트윈(`GET /twin`)과 세션 기록(`SIMPLELAY_SESSION_LOG_PATH`)이 쓴다.
+
+```json
+{ "type": "progress", "sequence_id": "seq_004", "n": 1, "phase": "move", "button": "즉석밥", "step_index": 0,
+  "attempt": 1, "target": { "x_mm": 10.0, "y_mm": 20.0 }, "correction": null,
+  "execution_mode": "real", "t_monotonic_ns": 1234567890123 }
+{ "type": "progress", "sequence_id": "seq_004", "n": 2, "phase": "press", "button": "즉석밥", "step_index": 0,
+  "attempt": 1, "ok": true, "position": { "a_counts": 300, "b_counts": -100, "z_counts": 0,
+  "x_mm": 10.0, "y_mm": 20.0, "source": "mcu_event", "t_monotonic_ns": 1234567990123 }, ... }
+{ "type": "progress", "sequence_id": "seq_004", "n": 3, "phase": "verify", "button": "즉석밥", "attempt": 1, "pressed": false, ... }
+{ "type": "progress", "sequence_id": "seq_004", "n": 4, "phase": "retry", "button": "즉석밥", "attempt": 2,
+  "correction": { "retry_number": 1, "xy_adjustment_required": true, "increase_press_depth": true }, ... }
+```
+
+| phase | 언제 | 추가 필드 |
+|---|---|---|
+| `retry` | 재시도 누름 직전(보정 요청) | `correction`(정성 값, 거리 없음) |
+| `move` | 누름 명령을 모션 어댑터에 넘기기 직전 | `target`(명령 좌표 mm, 없으면 null), `correction` |
+| `press` | 어댑터가 반환(이동·Z 누름·복귀 끝) 또는 예외 | `ok`, `error`(실패 시), `position`(MCU 위치 보고가 있을 때만) |
+| `verify` | L1 누름 검증 직후 | `pressed` |
+| `accept` | L2 수용 확인 직후(검증기가 있을 때만) | `passed` |
+
+- 공통: `n`(이 실행 안 순번 1..), `step_index`(시퀀스 칸), `attempt`(그 버튼의 누름 횟수), `execution_mode`
+  (RPi4 어댑터 선언), `t_monotonic_ns`(**RPi4의** `time.monotonic_ns()` — 원시 기록기 `t_monotonic_ns`·모션 줄
+  기록 `mono_ns=`와 같은 시각축).
+- `position`은 모션 MCU가 엔코더 카운트를 보고했을 때만 있다(아래 MCU `position` 이벤트·`status` 응답).
+  `x_mm`·`y_mm`는 RPi4에 기구 값이 있을 때만 계산하고, 없으면 null(카운트만). **지어내지 않는다.**
+- 순서: 같은 실행의 `progress`는 모두 `result`보다 **먼저** 도착한다(RPi4가 결과 전에 쓴다).
+- **하위 호환:** 옛 RPi5 `ActClient`는 `result`/`error`/`alert`/`alert_cleared` 밖의 `type`을 무시하고, ESP32
+  노드 펌웨어(`firmware-node`)도 모르는 `type`을 무시한다(둘 다 코드 확인). 그래서 **기본 켜짐**이며
+  RPi4 `SIMPLELAY_ACT_PROGRESS=0`으로 끈다. 새 RPi5도 `progress`로 실행을 끝내지 않는다 — 결과는 `result`뿐.
+- 트래픽: 버튼 하나(재시도 없음)에 3줄, 한 줄 약 250~400바이트. 115200bps에서 누름당 수십 ms 미만.
+
+RPi5 세션 기록(2026-09-30): RPi5 `ActClient`는 보내고 받은 **모든 줄**을 프레임 탭(`rpi/services/link_tap.py`)에
+남긴다 — 링 버퍼(최근 2000개) + `SIMPLELAY_SESSION_LOG_PATH`가 있으면 JSONL 이어 쓰기(`{date}` 치환으로 하루 한
+파일, `SIMPLELAY_SESSION_LOG_MAX_BYTES`·`_BACKUPS` 크기 회전). 한 줄 = `{"kind":"frame","n","t_wall",
+"t_monotonic_ns"(RPi5 시각),"direction":"hub_to_act"|"act_to_hub","type","sequence_id","message"}`. 키 이름에
+key·token·secret·password·authorization·cookie가 들어간 값과 설정된 API 키·개발자 토큰 문자열은 `[redacted]`.
+
 `result`/`error`/`ack`는 모두 RPi5가 보낸 `execute`에 대한 응답이다. 아래 두 개는
 유일하게 RPi5가 요청하지 않아도 RPi4가 스스로 보내는 메시지 — 마이크가 물려 있는
 RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(승인 절차 없음, 기존
@@ -203,6 +243,12 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 { "event": "press_start" }
 { "event": "press_end" }
 ```
+
+- `position` 이벤트(2026-09-30 추가, 선택): `{ "event": "position", "a": 300, "b": -100, "z": 0 }` — 엔코더 카운트.
+  `firmware-motion`은 이동·누름 중 `POSITION_EVENT_MS`(100ms)마다, 끝날 때 `ok` 응답 직전에 한 번 보낸다.
+  RPi4 `SerialMotionClient.last_position`이 이것(또는 `status` 응답·`ok` 응답에 실린 정수 `a`·`b`)을 쥐고,
+  기구 값이 있으면 mm로 바꿔 progress 프레임 `position`으로 RPi5에 넘긴다. 보내지 않는 MCU면 RPi5 트윈은
+  "명령 기준 추정"으로 그린다.
 
 - 응답은 동작이 **끝난 뒤** 보낸다(홈 완료·도착·Z 복귀). `id` 없는 줄은 자발 이벤트다.
 - `alarm` 이벤트나 `ok:false`를 받으면 RPi4는 해당 동작을 실패로 끝내고 알람 상태로 둔다.

@@ -119,6 +119,9 @@ async def _shutdown_cleanup() -> None:
 async def lifespan(app: FastAPI):
     # 인증 방식을 기동 로그에 남긴다 — 키 없이 LAN을 연 상태면 경고
     log_auth_mode()
+    # RPi5-RPi4 프레임 세션 기록 켜짐/꺼짐과 경로를 기동 로그에 남긴다(SIMPLELAY_SESSION_LOG_PATH)
+    from rpi.services.link_tap import get_link_tap
+    get_link_tap()
     # 블로킹 서브프로세스 호출이라 이벤트 루프를 막지 않게 스레드로 넘긴다
     await asyncio.to_thread(_seed_vectordb_if_enabled)
     refresh_task = asyncio.create_task(_suggestion_refresh_loop())
@@ -167,6 +170,11 @@ async def _unknown_appliance(_request: Request, exc: UnknownApplianceError):
 app.include_router(router, dependencies=[Depends(require_api_key)])
 from rpi.api.simulator_router import router as simulator_router
 app.include_router(simulator_router, dependencies=[Depends(require_api_key)])
+# 실모드 디지털 트윈(/twin) -- 화면·스크립트는 /ui처럼 키 없이, 상태·재생 목록은 키 필요.
+from rpi.api.twin_router import page_router as twin_page_router
+from rpi.api.twin_router import router as twin_router
+app.include_router(twin_page_router)
+app.include_router(twin_router, dependencies=[Depends(require_api_key)])
 # 개발자 API(/dev/*) — 일반 키 위에 **별도 개발자 토큰**을 더 요구한다.
 # 꺼져 있으면(기본) 전 경로 404. 계약은 dev_router.py 머리말.
 app.include_router(dev_router, dependencies=[Depends(require_api_key)])

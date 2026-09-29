@@ -35,6 +35,12 @@ RPi4 쪽 절반이다.
 MCU → 호스트(자발 이벤트, id 없음)
   {"event":"alarm","reason":"limit|stall|home_not_found|..."}
   {"event":"press_start"} / {"event":"press_end"}  (원시 기록기 시각축용)
+  {"event":"position","a":..,"b":..,"z":..}          (선택, 2026-09-30)
+
+위치 보고(선택, 2026-09-30): 응답(``ok:true``)이나 이벤트에 정수 ``a``·``b``(엔코더
+카운트, ``z`` 선택)가 실려 오면 `SerialMotionClient.last_position`에 남긴다. 기구 값이
+있으면 `motor_counts_to_xy`로 mm도 계산한다. MCU가 보내지 않으면 None — 지어내지 않는다.
+RPi4 ActExecutor가 이 값을 progress 프레임의 ``position``으로 RPi5에 보낸다(실모드 트윈).
 
 모든 하드웨어 값(풀리·벨트·R_out·리밋·방향·누름 깊이/시간·타임아웃)은 설정으로만
 받는다. 기본값은 None이고, 필요한 값이 비어 있으면 **움직이기 전에** 거절한다.
@@ -54,7 +60,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Protocol
 
-from .kinematics import CoreXYConfig, check_soft_limits, xy_to_motor_counts
+from .kinematics import CoreXYConfig, check_soft_limits, motor_counts_to_xy, xy_to_motor_counts
 from .models import Correction, ExecutionMode, PressCommand
 from .ports import GrblClient, SafetyController
 
@@ -365,6 +371,30 @@ class SerialMotionClient(GrblClient):
         self._stop = threading.Event()
         self._next_id = 0
         self.last_status: MotionStatus | None = None
+        self._last_position: dict | None = None
+
+    @property
+    def last_position(self) -> dict | None:
+        """MCU가 마지막으로 보고한 엔코더 위치(없으면 None). 사본을 돌려준다."""
+        with self._state_lock:
+            return dict(self._last_position) if self._last_position is not None else None
+
+    def _note_position(self, doc: dict, source: str) -> None:
+        a, b = _opt_int(doc.get("a")), _opt_int(doc.get("b"))
+        if a is None or b is None:
+            return
+        position: dict[str, Any] = {
+            "a_counts": a, "b_counts": b, "z_counts": _opt_int(doc.get("z")),
+            "x_mm": None, "y_mm": None, "source": source,
+            "t_monotonic_ns": time.monotonic_ns(),
+        }
+        try:
+            x, y = motor_counts_to_xy(a, b, self._config.kinematics)
+            position["x_mm"], position["y_mm"] = round(x, 3), round(y, 3)
+        except Exception:  # noqa: BLE001 - 기구 값 미설정이면 카운트만 남긴다
+            pass
+        with self._state_lock:
+            self._last_position = position
 
     # ── 상태 조회 ──────────────────────────────────────────────────────────────
 
@@ -585,11 +615,13 @@ class SerialMotionClient(GrblClient):
                 log.warning("motion: ignored unparsable line: %.120s", line)
                 continue
             if "event" in doc:
+                self._note_position(doc, "mcu_event")
                 self._handle_event(doc)
                 continue
             if doc.get("id") != request_id:
                 continue  # 시간 초과로 버린 요청의 늦은 응답·정지 응답
             if doc.get("ok") is True:
+                self._note_position(doc, "mcu_reply")
                 return doc
             error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
             raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}")

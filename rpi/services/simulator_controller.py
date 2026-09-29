@@ -43,7 +43,7 @@ def _correction(correction):
 class SimulatorController(ActClientController):
     execution_mode = ExecutionMode.MOCK
 
-    def __init__(self, *, step_seconds: float = 0.8, on_alert=None, operation=None):
+    def __init__(self, *, step_seconds: float = 0.8, on_alert=None, operation=None, tap=None):
         """``operation``: L3 검증기(선택). 없으면 ``SIMPLELAY_L3_MODE``(기본 off)로 고른다 --
         mock이면 합성 전력 판정이 결과 프레임에 ``operation_source=mock``으로 실린다."""
         if not 0 <= step_seconds <= 3:
@@ -82,6 +82,11 @@ class SimulatorController(ActClientController):
             async def drain(self):
                 await asyncio.sleep(0)
 
+        if tap is None:
+            from .link_tap import get_link_tap
+            tap = get_link_tap()
+            tap.transport = tap.transport or "in_memory"
+
         async def open_link():
             act_reader, hub_reader = asyncio.StreamReader(), asyncio.StreamReader()
             state = DemoFailureState()
@@ -103,8 +108,9 @@ class SimulatorController(ActClientController):
                 operation=operation,
             )
             executor = ActExecutor(act_reader, Wire(hub_reader, "act_to_hub"), controller, state)
+            # UART 모드와 같은 프레임 탭을 쓴다 — 실모드 트윈(/twin)·세션 기록이 두 모드에서 같다.
             client = ActClient(hub_reader, Wire(act_reader, "hub_to_act"),
-                               ActClientConfig(5, 12), on_alert=on_alert)
+                               ActClientConfig(5, 12), on_alert=on_alert, tap=tap)
             self._reader, self._executor, self._motor = act_reader, executor, motor
             self._local_result = None
             self._executor_task = asyncio.create_task(executor.run())

@@ -7,6 +7,8 @@ SimulatorController.snapshot()의 통신 프레임과 모의 실행기 내부 �
 """
 from __future__ import annotations
 
+import bisect
+import json
 from collections.abc import Mapping
 from typing import Any
 
@@ -172,3 +174,189 @@ def build_hardware_summary(env: Mapping[str, str] | None = None) -> dict[str, An
         "config_error": config_error,
         "note": HARDWARE_NOTE,
     }
+
+
+# ── 실모드 트윈(GET /twin) — 통신 프레임 탭 + progress 프레임 ─────────────────────
+# 시뮬레이터 내부 관측(act_local)이 없는 실기기 구성에서 쓴다. 근거는 RPi5가 실제로
+# 주고받은 줄뿐이다(rpi/services/link_tap.py). 결과는 result 프레임에서만 온다.
+
+LINK_NOTE = ("통신 프레임 기준 요약입니다. 누름 시도는 RPi4의 progress 프레임(선택)에서, "
+             "결과는 result 프레임에서만 옵니다. progress가 없는 옛 RPi4면 누름 기록이 비어 있습니다.")
+ENCODER_LABEL = "엔코더 보고 위치"
+ESTIMATE_LABEL = "명령 기준 추정"
+_MODES = ("real", "mock")
+PROGRESS_KEEP = 60
+
+
+def _progress_view(msg: dict) -> dict[str, Any]:
+    keys = ("n", "phase", "button", "step_index", "attempt", "ok", "pressed", "passed", "error",
+            "correction", "target", "position", "t_monotonic_ns")
+    return {k: msg.get(k) for k in keys if k in msg}
+
+
+def _num(value: object) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _carriage(progress: list[dict]) -> dict[str, Any] | None:
+    """캐리지 위치의 근거. MCU 위치 보고(mm 환산 가능)가 있으면 그것, 없으면 명령 좌표."""
+    counts = None
+    for msg in reversed(progress):
+        pos = msg.get("position")
+        if isinstance(pos, dict) and _num(pos.get("a_counts")):
+            if _num(pos.get("x_mm")) and _num(pos.get("y_mm")):
+                return {"kind": "encoder", "label": ENCODER_LABEL, "x_mm": pos["x_mm"], "y_mm": pos["y_mm"],
+                        "a_counts": pos.get("a_counts"), "b_counts": pos.get("b_counts"),
+                        "z_counts": pos.get("z_counts"), "source": pos.get("source"),
+                        "button": msg.get("button"), "n": msg.get("n")}
+            counts = counts or pos
+    for msg in reversed(progress):
+        if msg.get("phase") != "move":
+            continue
+        target = msg.get("target") if isinstance(msg.get("target"), dict) else None
+        out: dict[str, Any] = {"kind": "estimate", "label": ESTIMATE_LABEL, "button": msg.get("button"),
+                               "x_mm": target.get("x_mm") if target else None,
+                               "y_mm": target.get("y_mm") if target else None, "n": msg.get("n")}
+        if counts:
+            # 카운트만 왔고 기구 값이 없어 mm로 못 바꿨다 — 위치 근거로 쓰지 않고 숫자만 보인다.
+            out["encoder_counts"] = {k: counts.get(k) for k in ("a_counts", "b_counts", "z_counts")}
+        return out
+    return None
+
+
+def build_link_twin_state(
+    frames: list[dict],
+    *,
+    last_execute: dict | None = None,
+    controller_mode: str = "unknown",
+    transport: str | None = None,
+    running: bool | None = None,
+    source: str = "link_tap",
+) -> dict[str, Any]:
+    """탭 프레임 목록 → 트윈 상태. ``build_twin_state``와 같은 모양에 실모드 필드를 더한다.
+
+    - ``execution_mode``: 컨트롤러가 밝힌 값이 unknown일 때만 RPi4 보고(result → progress 순)를
+      쓴다(서비스 ``_run_mode``와 같은 규칙 — 모의라고 밝힌 컨트롤러는 보고로 real이 되지 않는다).
+    - ``job.carriage``: 엔코더 보고 위치 / 명령 기준 추정 / None.
+    - 결과는 같은 sequence_id의 ``result`` 프레임만. ``error`` 프레임은 ``link_error``로 따로 적는다.
+    """
+    found = _latest_execute(frames, last_execute)
+    progress: list[dict] = []
+    link_error = None
+    result_msg = None
+    if found is not None:
+        index, execute = found
+        seq = execute.get("sequence_id")
+        for f in frames[index + 1:]:
+            msg = f.get("message") or {}
+            if f.get("direction") != "act_to_hub" or msg.get("sequence_id") != seq:
+                continue
+            if msg.get("type") == "progress":
+                progress.append(msg)
+            elif msg.get("type") == "error" and link_error is None:
+                link_error = str(msg.get("reason") or "unknown")
+            elif msg.get("type") == "result" and result_msg is None:
+                result_msg = msg
+    moves = [p for p in progress if p.get("phase") == "move"]
+    link_open = found is not None and result_msg is None and link_error is None
+    snapshot = {
+        "execution_mode": controller_mode,
+        "transport": transport,
+        "running": link_open if running is None else bool(running),
+        "frames": frames,
+        "last_execute_frame": last_execute,
+        "act_local": {"status": None, "presses": [str(p.get("button")) for p in moves],
+                      "press_corrections": [p.get("correction") for p in moves]},
+    }
+    state = build_twin_state(snapshot)
+    state["note"] = LINK_NOTE
+    state["source"] = source
+    mode, mode_source = controller_mode, "controller"
+    if controller_mode not in _MODES:
+        reported = (result_msg or {}).get("execution_mode")
+        if reported in _MODES:
+            mode, mode_source = reported, "rpi4_result"
+        else:
+            for p in reversed(progress):
+                if p.get("execution_mode") in _MODES:
+                    mode, mode_source = p["execution_mode"], "rpi4_progress"
+                    break
+    state["execution_mode"] = mode
+    state["execution_mode_source"] = mode_source
+    job = state["job"]
+    if job is not None:
+        job["press_source"] = "progress" if progress else "none"
+        job["progress"] = [_progress_view(p) for p in progress[-PROGRESS_KEEP:]]
+        job["progress_count"] = len(progress)
+        job["link_error"] = link_error
+        job["carriage"] = _carriage(progress)
+        job["phase_now"] = _progress_view(progress[-1]) if progress and link_open else None
+        if job["result"] is not None and result_msg is not None:
+            for key in ("outcome", "execution_mode", "operation_source"):
+                if key in result_msg:
+                    job["result"][key] = result_msg[key]
+    return state
+
+
+# ── 기록 재생(GET /twin?replay=<name>) ────────────────────────────────────────
+
+REPLAY_MAX_GAP_S = 3.0
+
+
+def load_session_log(lines: Any) -> dict[str, Any]:
+    """세션 JSONL(link_tap 형식) → 재생 타임라인. 깨진 줄은 세고 건너뛴다.
+
+    긴 공백(시연 사이 대기)은 ``REPLAY_MAX_GAP_S``로 줄인다. 서버 재시작으로 monotonic 시각이
+    뒤로 가면 0초로 본다. 반환: ``{"frames", "times", "duration_s", "skipped", "sessions"}``.
+    """
+    frames: list[dict] = []
+    times: list[float] = []
+    skipped = sessions = 0
+    t = 0.0
+    prev_ns: int | None = None
+    for raw in lines:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            doc = json.loads(raw)
+        except ValueError:
+            skipped += 1
+            continue
+        if not isinstance(doc, dict):
+            skipped += 1
+            continue
+        if doc.get("kind") == "session_start":
+            sessions += 1
+            prev_ns = None
+            continue
+        if doc.get("kind") != "frame" or doc.get("direction") not in ("hub_to_act", "act_to_hub"):
+            skipped += 1
+            continue
+        ns = doc.get("t_monotonic_ns")
+        if isinstance(ns, int) and prev_ns is not None:
+            t += min(REPLAY_MAX_GAP_S, max(0.0, (ns - prev_ns) / 1e9))
+        if isinstance(ns, int):
+            prev_ns = ns
+        frames.append(doc)
+        times.append(round(t, 6))
+    return {"frames": frames, "times": times, "duration_s": times[-1] if times else 0.0,
+            "skipped": skipped, "sessions": sessions}
+
+
+def build_replay_state(timeline: dict[str, Any], t: float, name: str) -> dict[str, Any]:
+    """재생 시각 ``t``(초)까지의 프레임으로 만든 트윈 상태. 결과도 기록된 result 프레임뿐이다."""
+    times = timeline["times"]
+    upto = bisect.bisect_right(times, t)
+    frames = timeline["frames"][:upto]
+    last_execute = None
+    for f in reversed(frames):
+        if f.get("direction") == "hub_to_act" and f.get("type") == "execute":
+            last_execute = f
+            break
+    state = build_link_twin_state(frames, last_execute=last_execute, source="replay",
+                                  transport="기록 재생")
+    state["replay"] = {"name": name, "t": t, "duration_s": timeline["duration_s"],
+                       "done": upto >= len(times), "frames_total": len(times), "frames_shown": upto,
+                       "skipped_lines": timeline["skipped"], "label": "기록 재생"}
+    return state

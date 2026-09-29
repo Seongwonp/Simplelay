@@ -114,6 +114,7 @@ uint32_t g_cmd_start = 0;
 uint32_t g_cmd_max_ms = 0;
 uint32_t g_last_host = 0;
 uint32_t g_now = 0;
+uint32_t g_last_position_event = 0;
 
 bool g_settling = false;
 uint32_t g_settle_since = 0;
@@ -176,7 +177,14 @@ void begin_command(const ReqId& id, State state, uint32_t max_ms) {
   g_settling = false;
 }
 
+void emit_position() {
+  g_last_position_event = g_now;
+  proto_event_position(g_ax[AXIS_A].pos, g_ax[AXIS_B].pos, g_ax[AXIS_Z].pos);
+}
+
 void finish_ok() {
+  // 이동·누름이 끝난 위치를 ok 응답보다 먼저 보낸다(호스트는 이벤트를 먼저 처리한다).
+  if (g_state == State::Moving || g_state == State::Pressing) emit_position();
   g_state = State::Idle;
   g_traj.active = false;
   if (g_has_pending) {
@@ -502,6 +510,12 @@ void motion_tick(uint32_t now_ms) {
   }
 
   if (g_outputs_on) drive_axes();
+
+  // 위치 보고(선택 이벤트): 이동·누름 중 POSITION_EVENT_MS마다. 115200bps에서 한 줄 ~40B라 부담이 작다.
+  if ((g_state == State::Moving || g_state == State::Pressing) &&
+      (g_now - g_last_position_event) >= POSITION_EVENT_MS) {
+    emit_position();
+  }
 
   for (uint8_t i = 0; i < AXIS_COUNT; ++i) g_ax[i].prev_pos = g_ax[i].pos;
 }

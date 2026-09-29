@@ -30,11 +30,12 @@
 |---|---|---|---|
 | `status` | `id` | `id, ok, state, homed, a, b, z, alarm` | 동작 중에도 답한다 |
 | `home` | `id` | `id, ok` | Z 위로 → X → Y. 각 축 접근 → 후퇴 → 저속 재접근 → 후퇴한 곳을 0 |
-| `move` | `id, a, b, x_mm, y_mm` | `id, ok` | a·b = 목표 카운트. x_mm·y_mm는 MCU 쪽 두 번째 리밋 검사용 |
-| `press` | `id, mode, z_counts\|drive_ms, dwell_ms` | `press_start` → `press_end` 이벤트 → `id, ok` | depth=Z 카운트, duration=구동 시간 |
+| `move` | `id, a, b, x_mm, y_mm` | (`position` 이벤트) → `id, ok` | a·b = 목표 카운트. x_mm·y_mm는 MCU 쪽 두 번째 리밋 검사용 |
+| `press` | `id, mode, z_counts\|drive_ms, dwell_ms` | `press_start` → `press_end` → `position` 이벤트 → `id, ok` | depth=Z 카운트, duration=구동 시간 |
 | `stop` | `id` | `id, ok` | 즉시 듀티 0 + STBY LOW. 진행 중 명령은 `error:"stopped"` |
 
 - 오류 응답 `{"id":N,"ok":false,"error":"<코드>"}` — 코드 목록은 표의 `errors`.
+- 위치 보고(2026-09-30 추가, 선택 이벤트) `{"event":"position","a":..,"b":..,"z":..}` — 이동·누름 중 `POSITION_EVENT_MS`(100ms)마다, 끝날 때 `ok` 직전 한 번. 호스트 `serial_motion.py`가 `last_position`으로 받아 RPi4 progress 프레임 → RPi5 실모드 트윈(`/twin`)의 "엔코더 보고 위치"가 된다. 실물 미검증.
 - 알람(`stall`·`limit`·`home_not_found`·`timeout`·`host_timeout`·`soft_limit`)은 **`{"event":"alarm"}`을 먼저**,
   대기 중 명령의 `ok:false`를 나중에 보낸다. 반대 순서면 호스트가 늦게 온 이벤트로 다음 요청(복구용 `home`)을
   실패 처리한다. 알람·정지 뒤에는 `homed=false`가 되고 `home`으로만 복구한다.
