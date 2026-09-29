@@ -75,8 +75,8 @@
 |---|---|
 | 백엔드 `rpi` | 1,756 통과(노트북 `a3aee0e` rebase 후 기준, G5·G10·G13 7건 포함) |
 | `rpi4` | 128 통과 |
-| 폰 비골든 | 433 통과 |
-| 키오스크 비골든 | 160 통과 |
+| 폰 비골든 | 441 통과 |
+| 키오스크 비골든 | 168 통과 |
 | 골든 | 폰 53장 비교 통과(갱신 없음) · 키오스크 32장 통과(3장 갱신) |
 | analyze | error·warning 0(기존 info 폰 5·키오스크 1) |
 | 가드 | 5 통과 |
@@ -91,6 +91,20 @@
 
 red → green: `rpi/tests/test_demo_gaps_g5_g10_g13.py` 7건을 수정 전 코드(stash)에서 실행 → **5 failed, 2 passed**(통과 2건은 "ThinQ off면 물리만"·"재실 중이면 카드 생성"의 회귀 가드), 수정 후 7 passed.
 
+## 6-2. 시연 gap G4·G5 화면 (`app/`·`rpi5-touchscreen-app/`)
+
+- G5: `Appliance.controlPath`(기본 physical)·`isThinq`. 폰 홈·수동 조작·설정 칩, 키오스크 가전 선택에 ThinQ 배지(시나리오 카드의 배지를 `RouteBadge`로 공용화). ThinQ면 버튼 격자·"사진으로 버튼 채우기"·BLE 폴백 없음, 음성은 기존 `/execute` 목적 경로.
+- G4: `ScenarioRun`/`ScenarioRunStep` + `GET /scenarios/last-run`. 폰 상태 화면·키오스크 완료 화면이 끝난 job과 `job_id`가 같고 2단계 이상일 때만 "단계별 결과"(경로·실행 환경·확인 수준·결과)를 그린다. 문구는 기존 `confirmationLabel`·`resultWord` 재사용.
+
+| 테스트 | red 근거 | green |
+|---|---|---|
+| `app/test/screens/thinq_appliance_test.dart` 4건 | `isThinq`·`controlPath`·`route_badge.dart` 없음 컴파일 실패 | PASS |
+| `app/test/screens/scenario_run_steps_test.dart` 4건 | `ScenarioRun` 없음 컴파일 실패; job_id 불일치 건은 검사 제거 변형에서 실패 확인 | PASS |
+| 키오스크 `thinq_appliance_test.dart` 4건 | `KioskRouteBadge`·`isThinq` 없음 | PASS |
+| 키오스크 `done_view_test.dart` +2 · `kiosk_phase_test.dart` +2 | `runSteps` 인자 없음 / 2단계 흐름 `lastRunCalls == 0` 단언 실패; 불일치 건은 변형에서 확인 | PASS |
+
+폰 441 · 키오스크 168(골든 제외), 골든 폰 53·키오스크 32 변화 없이 통과, analyze 0. 남은 것: 폰 설정의 옛 ThinQ 목록과 칩의 이중 표시 정리, `dart format`.
+
 ## 7. 교차 리뷰
 
 Copilot CLI는 월 사용량 초과(quota)로 응답하지 않았고, 별도 검토 에이전트는 세션 한도로 중단됐다. 이번 커밋들은 데스크톱 세션이 diff를 직접 읽어 검토했다(자동 교차 리뷰 없음).
@@ -104,4 +118,5 @@ Copilot CLI는 월 사용량 초과(quota)로 응답하지 않았고, 별도 검
 - 하드웨어 도착 → H0~H1([jog-cli](devlog_2026-09-29-jog-cli.md) 첫날 순서).
 - ThinQ 실물: PAT·가전 확보 후 `RealThinqClient`.
 - 폰 앱을 시뮬레이터(LAN, API 키)에 붙여 §3을 폰 화면까지 완주.
+- 폰 설정 옛 ThinQ 목록·칩 이중 표시 정리(팀 결정).
 - 오프라인 웹 키오스크를 쓸 경우 한글 폰트 번들(팀 결정).
