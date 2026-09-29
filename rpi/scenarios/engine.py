@@ -78,6 +78,15 @@ class ScenarioEngine:
         definition = self._catalog.get(scenario_id)
         if definition is None:
             raise KeyError(scenario_id)
+        # 부재 중이면 만들지 않는다(G10). 만들어 두면 다음 조회에서 곧바로
+        # 철회돼 이벤트에 created → withdrawn 두 줄이 남고, 그 사이 화면에
+        # 잠깐 뜬다. 판정은 제안 서비스의 것을 그대로 쓴다 -- 게이트를 켜고
+        # 끄는 조건이 두 군데로 갈리면 안 된다.
+        absent = getattr(self._suggestions, "presence_absent", None)
+        if absent is not None and absent():
+            raise ScenarioUnavailableError(
+                "지금은 자리에 안 계셔서 제안을 만들지 않았어요"
+            )
         return self._offer(definition, definition.manual_reason or "시연 트리거", True,
                            raise_unavailable=True)
 

@@ -238,6 +238,10 @@ class ApplianceResponse(BaseModel):
     rows: int
     cols: int
     is_custom: bool
+    # 이 가전을 무엇으로 조작하는가 -- physical(갠트리가 버튼을 누름) 또는
+    # thinq(클라우드 가전). 추가 필드라 옛 클라이언트는 그냥 무시한다.
+    # 없으면 종전대로 물리 경로로 읽는다.
+    control_path: str = "physical"
     buttons: list[ApplianceButtonModel]
     # 저장할 때마다 오르는 판 번호. 클라이언트가 "내가 본 판"을 밝히고
     # 저장하면 그 사이 다른 기기가 먼저 바꿨는지 서버가 가려준다.
@@ -961,6 +965,31 @@ class UnmuteRequest(BaseModel):
     """POST /suppressions/unmute 본문 -- 억제 해제할 루틴."""
 
     purpose: str
+
+
+class DemoAlertRequest(BaseModel):
+    """POST /demo/alert -- 위험 소리 경보 주입(G13, 모의·시뮬레이터 전용).
+
+    필드는 RPi4가 스스로 보내는 ``alert``/``alert_cleared`` 프레임과 같다
+    (docs/protocol.md). 주입은 **리허설 장치**이지 감지가 아니다 -- 실제
+    UART 모드에서는 열리지 않는다.
+    """
+
+    model_config = {"extra": "forbid"}
+    #: 지금은 ``danger_sound`` 하나뿐이다(RPi4가 보내는 종류와 같은 문자열).
+    kind: str = "danger_sound"
+    #: True면 경보 발생(``alert``), False면 해제(``alert_cleared``).
+    raised: bool = True
+    band_energy_ratio: float | None = None
+    mean_period_seconds: float | None = None
+
+    @field_validator("kind")
+    @classmethod
+    def non_empty(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("kind must not be empty")
+        return value
 
 
 class DemoEnvironmentRequest(BaseModel):

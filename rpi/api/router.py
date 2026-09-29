@@ -13,6 +13,7 @@ from rpi.intent.rules import UnknownIntentError
 from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestionError
 
 from rpi.services import DangerAlertStore, NodeRegistry
+from rpi.services.act_client import AlertEvent
 from rpi.services.history import history_csv
 from rpi.services.readiness import (
     ApplianceReadiness,
@@ -20,6 +21,7 @@ from rpi.services.readiness import (
     ReadinessRegistry,
 )
 
+from rpi.commands import ControlRoute
 from rpi.services import ApplianceButtonDef, ApplianceDef, BuiltinApplianceError
 from rpi.services.appliance_registry import (
     ApplianceCategory,
@@ -64,6 +66,7 @@ from .schemas import (
     CareEventResponse,
     DemoCareEventRequest,
     ButtonStep,
+    DemoAlertRequest,
     DemoEnvironmentRequest,
     DemoInjectFailureRequest,
     DemoSuggestRequest,
@@ -219,32 +222,18 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
     runs_locally = (
         service.runs_locally(a.appliance_id) if service is not None else True
     )
-    return ApplianceResponse(
-        id=a.appliance_id,
-        name=a.name,
-        # 종류가 진실원천이고, icon은 거기서 파생한 호환 출력이다.
-        category=a.category.value,
-        icon=a.icon,
-        rows=a.rows,
-        cols=a.cols,
-        is_custom=a.is_custom,
-        buttons=[
-            ApplianceButtonModel(
-                id=b.id,
-                label=b.label,
-                x=b.x,
-                y=b.y,
-                kind=b.kind.value,
-                detents=b.detents,
-                press_ms=b.press_ms,
-                x_mm=b.x_mm,
-                y_mm=b.y_mm,
-            )
-            for b in a.buttons
-        ],
-        revision=a.revision,
-        functions={name: list(steps) for name, steps in a.functions},
-        calibration_version=a.calibration_version,
+    # ThinQ 가전은 누를 조작부가 없다 -- 물리 4축(전송·모션·센서·보정)으로
+    # 재면 영원히 '미연결'이다. 준비 상태는 ThinQ 경로 판정에서 가져온다.
+    if a.control_path is ControlRoute.THINQ and service is not None:
+        thinq_readiness = service.thinq_readiness(a.appliance_id)
+        return _appliance_response_base(
+            a,
+            readiness=thinq_readiness.state,
+            readiness_reasons=list(thinq_readiness.reasons),
+            can_execute=thinq_readiness.can_execute,
+        )
+    return _appliance_response_base(
+        a,
         readiness=(
             "operable"
             if (not has_node and runs_locally)
@@ -266,6 +255,42 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
             # 노드도 없고 로컬 대상도 아니면 누를 액추에이터가 없다.
             else runs_locally
         ),
+    )
+
+
+def _appliance_response_base(
+    a, *, readiness: str, readiness_reasons: list[str], can_execute: bool
+) -> ApplianceResponse:
+    return ApplianceResponse(
+        id=a.appliance_id,
+        name=a.name,
+        # 종류가 진실원천이고, icon은 거기서 파생한 호환 출력이다.
+        category=a.category.value,
+        icon=a.icon,
+        rows=a.rows,
+        cols=a.cols,
+        is_custom=a.is_custom,
+        control_path=a.control_path.value,
+        buttons=[
+            ApplianceButtonModel(
+                id=b.id,
+                label=b.label,
+                x=b.x,
+                y=b.y,
+                kind=b.kind.value,
+                detents=b.detents,
+                press_ms=b.press_ms,
+                x_mm=b.x_mm,
+                y_mm=b.y_mm,
+            )
+            for b in a.buttons
+        ],
+        revision=a.revision,
+        functions={name: list(steps) for name, steps in a.functions},
+        calibration_version=a.calibration_version,
+        readiness=readiness,
+        readiness_reasons=readiness_reasons,
+        can_execute=can_execute,
     )
 
 
@@ -325,9 +350,21 @@ async def list_appliances(
 
     준비 상태(F1)도 여기 함께 실어 보낸다 -- 폰과 키오스크가 **같은**
     상태와 같은 사유를 보게 하려면 한 곳에서 나와야 한다.
+
+    서버 구성 가전 중 ThinQ 가전도 여기 함께 실어 보낸다(G5) --
+    ``control_path``로 경로를 밝히므로 화면이 버튼 격자가 없는 가전을
+    구분할 수 있다. ThinQ 연동이 꺼져 있으면 등록 자체가 없어 목록도
+    종전과 같다.
     """
     return [
-        _to_appliance_response(a, service, nodes) for a in registry.list()
+        _to_appliance_response(a, service, nodes)
+        for a in registry.list()
+        + tuple(
+            # 서버 구성 가전 중 ThinQ 경로만 얹는다(G5). 모의 물리 가전(선풍기 등)은
+            # 폰 편집기가 덮거나 지울 수 없는 것이라 종전대로 숨긴다.
+            s for s in registry.system_appliances()
+            if s.control_path is ControlRoute.THINQ
+        )
     ]
 
 
@@ -1439,6 +1476,53 @@ async def alerts(
 ) -> AlertResponse:
     # SIMPLELAY_ACT_MODE=uart일 때만 실제로 갱신됨 -- 기본(로컬 mock) 모드에선
     # RPi4가 없으니 항상 active=False.
+    state = store.current()
+    return AlertResponse(
+        active=state.active,
+        kind=state.kind,
+        band_energy_ratio=state.band_energy_ratio,
+        mean_period_seconds=state.mean_period_seconds,
+        updated_at=state.updated_at,
+    )
+
+
+#: /demo/alert를 열어 두는 실행 환경 — 기본(mock)과 시뮬레이터뿐이다.
+_DEMO_ALERT_MODES = ("", "mock", "simulator")
+
+
+def demo_alert_allowed() -> bool:
+    """주입을 열어도 되는 실행 환경인가.
+
+    ``SIMPLELAY_ACT_MODE=uart``면 경보는 RPi4의 실제 감지 결과다. 그 위에
+    가짜 경보를 얹으면 화면의 '위험 소리 감지'가 무엇을 근거로 켜졌는지
+    구분할 수 없게 된다 -- 모의 ThinQ 장애 주입을 mock 모드에만 연 것과
+    같은 이유다.
+    """
+    return os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower() in _DEMO_ALERT_MODES
+
+
+@router.post("/demo/alert", response_model=AlertResponse)
+async def demo_alert(
+    body: DemoAlertRequest,
+    store: DangerAlertStore = Depends(get_alert_store),
+) -> AlertResponse:
+    """리허설 장치(G13) — 위험 소리 경보를 UART 경로와 **같은 자리**에 넣는다.
+
+    RPi4의 자체발신 프레임을 받는 ``DangerAlertStore.record``를 그대로 부르므로
+    ``GET /alerts`` 스냅샷·SSE ``alert`` 이벤트·보호자 알림(상승 에지)이 실제
+    경보와 똑같이 흐른다. 모의·시뮬레이터 모드 밖에서는 404다.
+    """
+    if not demo_alert_allowed():
+        raise HTTPException(404, "경보 주입은 모의·시뮬레이터 모드에서만 열려 있어요")
+    await asyncio.to_thread(
+        store.record,
+        AlertEvent(
+            kind=body.kind,
+            raised=body.raised,
+            band_energy_ratio=body.band_energy_ratio,
+            mean_period_seconds=body.mean_period_seconds,
+        ),
+    )
     state = store.current()
     return AlertResponse(
         active=state.active,

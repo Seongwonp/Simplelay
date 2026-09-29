@@ -101,6 +101,14 @@ class ProactiveSuggestionService:
                 return value.strip()
         return key(purpose) in {key(value) for value in muted}
 
+    def presence_absent(self) -> bool:
+        """부재 게이트가 켜져 있고 지금 '자리에 없음'으로 판정됐는가.
+
+        부재 정책은 여기 하나뿐이다 -- 호출자(시나리오 엔진 등)가 같은 판정을
+        되풀이 구현하면 게이트를 끄는 조건이 두 군데로 갈린다.
+        """
+        return self._presence_gate is not None and not self._presence_gate()
+
     def feedback_events(self, limit: int = 100) -> dict:
         # Read only: observing the journal must not generate/expire suggestions.
         return self._feedback.recent(limit)
