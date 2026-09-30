@@ -265,3 +265,10 @@ def test_response_keeps_the_fields_an_old_phone_reads():
         assert field in builtin, field
     # icon은 여전히 문자열이고, 그 폰이 알던 값 그대로다.
     assert builtin["icon"] == "microwave"
+
+
+@pytest.fixture(autouse=True)
+def _builtin_appliances_listed(monkeypatch):
+    """내장 가전 목록 노출은 개발자·리허설 모드 전용이다(UI 확정 §1-6).
+    이 파일은 내장 가전을 전제로 하므로 그 모드로 둔다."""
+    monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)

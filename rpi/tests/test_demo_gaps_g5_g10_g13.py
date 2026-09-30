@@ -184,3 +184,10 @@ def test_demo_alert_returns_404_in_uart_mode(plain_client, monkeypatch):
     response = plain_client.post("/demo/alert", json=ALERT_BODY)
     assert response.status_code == 404, response.text
     assert plain_client.get("/alerts").json()["active"] is False
+
+
+@pytest.fixture(autouse=True)
+def _builtin_appliances_listed(monkeypatch):
+    """내장 가전 목록 노출은 개발자·리허설 모드 전용이다(UI 확정 §1-6).
+    이 파일은 내장 가전을 전제로 하므로 그 모드로 둔다."""
+    monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)

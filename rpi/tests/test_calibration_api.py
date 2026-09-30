@@ -260,3 +260,9 @@ def test_builtin_calibration_revision_survives_restart(tmp_path) -> None:
             "microwave", version="fedcba654321", coords={"BT-06": (1.0, 2.0)}, expected_revision=0
         )
 
+
+@pytest.fixture(autouse=True)
+def _builtin_appliances_listed(monkeypatch):
+    """내장 가전 목록 노출은 개발자·리허설 모드 전용이다(UI 확정 §1-6).
+    이 파일은 내장 가전을 전제로 하므로 그 모드로 둔다."""
+    monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)

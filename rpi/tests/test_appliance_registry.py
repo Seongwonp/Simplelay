@@ -359,3 +359,10 @@ def test_corrupt_db_row_does_not_block_other_appliances(tmp_path):
     reloaded = ApplianceRegistry(store=SimpleLayDb(db_path))
     assert same_definition(reloaded.get("custom_aircon"), CUSTOM)  # 정상 행은 산다
     assert reloaded.get("broken") is None
+
+
+@pytest.fixture(autouse=True)
+def _builtin_appliances_listed(monkeypatch):
+    """내장 가전 목록 노출은 개발자·리허설 모드 전용이다(UI 확정 §1-6).
+    이 파일은 내장 가전을 전제로 하므로 그 모드로 둔다."""
+    monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)

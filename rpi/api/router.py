@@ -30,6 +30,7 @@ from rpi.services.appliance_registry import (
 )
 
 from .deps import (
+    builtin_appliances_visible,
     developer_mode_enabled,
     get_panel_scanner,
     get_presence_state_machine,
@@ -357,9 +358,17 @@ async def list_appliances(
     구분할 수 있다. ThinQ 연동이 꺼져 있으면 등록 자체가 없어 목록도
     종전과 같다.
     """
+    from rpi.services.appliance_registry import BUILTIN_APPLIANCES  # noqa: PLC0415
+
+    # 내장 가전은 개발자 모드·리허설 런처에서만 보인다(UI 확정 §1-6).
+    hidden = (
+        frozenset()
+        if builtin_appliances_visible()
+        else frozenset(b.appliance_id for b in BUILTIN_APPLIANCES)
+    )
     return [
         _to_appliance_response(a, service, nodes)
-        for a in registry.list()
+        for a in tuple(x for x in registry.list() if x.appliance_id not in hidden)
         + tuple(
             # 서버 구성 가전 중 ThinQ 경로만 얹는다(G5). 모의 물리 가전(선풍기 등)은
             # 폰 편집기가 덮거나 지울 수 없는 것이라 종전대로 숨긴다.

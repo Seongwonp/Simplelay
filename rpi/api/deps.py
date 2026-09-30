@@ -414,6 +414,18 @@ def developer_mode_enabled() -> bool:
     return os.environ.get(DEV_MODE_ENV, "").strip().lower() in {"1", "true"}
 
 
+def builtin_appliances_visible() -> bool:
+    """코드에 미리 넣은 내장 가전을 '내 가전' 목록에 보일지(UI 확정 §1-6).
+
+    개발자 모드이거나 리허설 런처(``rpi.simulator_main``이 ACT_MODE를
+    ``simulator``로 고정)일 때만 보인다. 목록에서만 숨길 뿐 등록부의
+    ``get()``·실행 경로는 그대로라, 시연·테스트의 실행은 바뀌지 않는다.
+    """
+    if developer_mode_enabled():
+        return True
+    return os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower() == "simulator"
+
+
 @lru_cache(maxsize=1)
 def get_control_arbiter():
     """기계 제어권 중재자 — 일반 실행과 개발자 세션의 원자적 상호 배제.

@@ -537,3 +537,10 @@ def test_calibration_version_is_captured_at_start_not_at_finish():
 
     (entry,) = history.recent()
     assert entry.calibration_profile_version == "cal-v1"
+
+
+@pytest.fixture(autouse=True)
+def _builtin_appliances_listed(monkeypatch):
+    """내장 가전 목록 노출은 개발자·리허설 모드 전용이다(UI 확정 §1-6).
+    이 파일은 내장 가전을 전제로 하므로 그 모드로 둔다."""
+    monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)
