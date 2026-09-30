@@ -175,6 +175,9 @@ from rpi.api.twin_router import page_router as twin_page_router
 from rpi.api.twin_router import router as twin_router
 app.include_router(twin_page_router)
 app.include_router(twin_router, dependencies=[Depends(require_api_key)])
+# 키오스크 평소 화면(/ambient 인사말·날씨, /connections 연결 상태) -- 다른 읽기 경로와 같은 인증.
+from rpi.api.ambient_router import router as ambient_router
+app.include_router(ambient_router, dependencies=[Depends(require_api_key)])
 # 개발자 API(/dev/*) — 일반 키 위에 **별도 개발자 토큰**을 더 요구한다.
 # 꺼져 있으면(기본) 전 경로 404. 계약은 dev_router.py 머리말.
 app.include_router(dev_router, dependencies=[Depends(require_api_key)])
