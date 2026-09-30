@@ -1,0 +1,604 @@
+// 키오스크 네 상태(UI 확정 2026-09-30 §3) — 평소 · 다가오면 · 동작 중 · 내 가전.
+//
+// 가짜 API(kiosk_phase_test의 FakeKioskApi)로 KioskScreen 전체를 띄워 본다.
+// 실물 검증이 아니다 — 서버 응답 모양과 화면 규칙까지다.
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/models/ambient.dart';
+import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
+import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
+
+import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
+
+ApplianceMap _appliance(String id, String name, {String category = 'other'}) =>
+    ApplianceMap(
+      id: id,
+      name: name,
+      category: category,
+      rows: 1,
+      cols: 2,
+      buttons: const [
+        ApplianceButton(id: 'B1', label: '전원', x: 0, y: 0),
+        ApplianceButton(id: 'B2', label: '시작', x: 1, y: 0),
+      ],
+      readiness: 'operable',
+    );
+
+final _six = [
+  kMicrowaveAppliance,
+  _appliance('washer', '세탁기', category: 'washing_machine'),
+  _appliance('fan', '선풍기'),
+  _appliance('rice', '밥솥', category: 'rice_cooker'),
+  _appliance('aircon', '에어컨', category: 'air_conditioner'),
+  _appliance('intercom', '인터폰'),
+];
+
+const _ambient = AmbientInfo(
+  greeting: '좋은 아침이에요.',
+  tip: AmbientTip(kind: 'rain', text: '오후 3시부터 비 예보가 있어요. 우산 챙기세요.', icon: 'rain'),
+  hourly: [
+    AmbientHour(label: '9시', icon: 'partly', temp: 16),
+    AmbientHour(label: '12시', icon: 'cloudy', temp: 18),
+    AmbientHour(label: '15시', icon: 'rain', temp: 17, pop: 70, precip: true),
+    AmbientHour(label: '18시', icon: 'rain', temp: 15, pop: 60, precip: true),
+  ],
+  weatherSource: 'mock',
+);
+
+const _plugWeak = ConnectionItem(
+  id: 'plug',
+  state: 'warn',
+  title: '플러그 연결이 약해요',
+  message: '가전이 끝났는지 알려 주는 플러그와 연결이 약해요.',
+  fixes: ['플러그가 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.', '플러그를 허브와 가까운 콘센트로 옮겨 주세요.'],
+  source: 'real',
+);
+
+Future<void> _pump(WidgetTester tester, FakeKioskApi api,
+    {Size size = const Size(1920, 1080)}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(MaterialApp(
+    home: KioskScreen(api: api, tts: FakeTts(), events: FakeEventStream()),
+  ));
+  await tester.pump();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+/// 가장자리 안전 여백(1920x1080 출력 기준 논리 48px). 플랫폼 창 관리자가
+/// 가장자리에서 시작한 터치를 시스템 제스처로 가져간다(2026-09-30 실기기).
+const _safe = Rect.fromLTRB(48, 48, 1920 - 48, 1080 - 48);
+
+/// 화면이 그린 누르는 자리 — 캔버스 안의 것만 센다(Navigator·라우트 장벽 같은
+/// 프레임워크 배관은 누르는 자리가 아니다). 키오스크의 모든 화면·오버레이·모달은
+/// 캔버스 안에 그린다.
+List<Rect> _tappableRects(WidgetTester tester) {
+  final finder = find.descendant(
+      of: find.byType(KioskCanvas),
+      matching: find.byWidgetPredicate((w) =>
+      (w is GestureDetector &&
+          (w.onTap != null ||
+              w.onTapDown != null ||
+              w.onLongPress != null ||
+              w.onHorizontalDragEnd != null)) ||
+      (w is InkResponse && (w.onTap != null || w.onLongPress != null)) ||
+      (w is Listener && w.onPointerDown != null)));
+  return [
+    for (final e in finder.evaluate())
+      if (e.renderObject is RenderBox &&
+          (e.renderObject! as RenderBox).hasSize &&
+          !(e.renderObject! as RenderBox).size.isEmpty)
+        tester.getRect(find.byElementPredicate((x) => x == e)),
+  ];
+}
+
+void _expectEdgeSafe(WidgetTester tester, String state) {
+  final rects = _tappableRects(tester);
+  expect(rects, isNotEmpty, reason: '$state: 누를 것이 하나도 없다');
+  for (final r in rects) {
+    expect(
+      r.left >= _safe.left - 0.5 &&
+          r.top >= _safe.top - 0.5 &&
+          r.right <= _safe.right + 0.5 &&
+          r.bottom <= _safe.bottom + 0.5,
+      isTrue,
+      reason: '$state: 누르는 자리 $r가 가장자리 안전 여백 $_safe 밖',
+    );
+  }
+}
+
+KioskStatus _hovering({
+  String state = 'hovering_stop',
+  String? outcome,
+  String? detail,
+  String mode = 'mock',
+}) =>
+    KioskStatus(
+      running: false,
+      holdState: state,
+      holdStopOutcome: outcome,
+      holdDetail: detail,
+      holdApplianceId: 'microwave',
+      holdStopButton: '취소',
+      holdExecutionMode: mode,
+      lastOutcome: 'success',
+      lastJobId: 'job-9',
+      lastApplianceId: 'microwave',
+      lastExecutionMode: mode,
+      lastButtons: const [
+        KioskButtonResult(button: '해동', success: true),
+        KioskButtonResult(button: '1분', success: true),
+        KioskButtonResult(button: '시작', success: true),
+      ],
+    );
+
+void main() {
+  // ── 평소 ──────────────────────────────────────────────────────────────
+  group('평소', () {
+    testWidgets('인사말·날씨 한 줄·예보 4칸을 서버 값 그대로 보인다', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..ambientResult = _ambient;
+      await _pump(tester, api);
+
+      expect(find.byType(KioskIdleView), findsOneWidget);
+      expect(find.text('좋은 아침이에요.'), findsOneWidget);
+      expect(find.text('오후 3시부터 비 예보가 있어요. 우산 챙기세요.'), findsOneWidget);
+      for (final label in ['9시', '12시', '15시', '18시']) {
+        expect(find.text(label), findsOneWidget);
+      }
+      // 비 오는 칸은 강수확률을 말한다(색만으로 말하지 않는다)
+      expect(find.text('70%'), findsOneWidget);
+      expect(find.text('16°'), findsOneWidget);
+      // 고정 명령 버튼은 없다
+      expect(find.text('즉석밥'), findsNothing);
+    });
+
+    testWidgets('예보가 없으면 인사말만 — 안내·예보를 지어내지 않는다', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..ambientResult = const AmbientInfo(greeting: '편안한 저녁이에요.');
+      await _pump(tester, api);
+
+      expect(find.text('편안한 저녁이에요.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('ambient-tip')), findsNothing);
+      expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
+    });
+
+    testWidgets('연결이 모두 정상이면 "!" 배지가 없다', (tester) async {
+      final api = FakeKioskApi()..applianceList = _six;
+      await _pump(tester, api);
+
+      expect(find.byType(KioskConnectionIcons), findsOneWidget);
+      expect(find.text('!'), findsNothing);
+    });
+
+    testWidgets('등록된 가전이 없으면 앱에서 추가하라고 말한다', (tester) async {
+      final api = FakeKioskApi()..applianceList = const [];
+      await _pump(tester, api);
+
+      expect(find.text('앱에서 가전을 추가해 주세요'), findsOneWidget);
+    });
+  });
+
+  // ── "!" 모달 ──────────────────────────────────────────────────────────
+  group('연결 문제 "!" 모달', () {
+    testWidgets('문제가 있는 연결에만 배지가 붙고, 누르면 설명·해결 방법·다시 연결하기가 뜬다',
+        (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..connectionsResult = [
+          const ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
+          const ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 준비됐어요', message: ''),
+          _plugWeak,
+        ];
+      await _pump(tester, api);
+
+      expect(find.byKey(const ValueKey('conn-badge-plug')), findsOneWidget);
+      expect(find.byKey(const ValueKey('conn-badge-network')), findsNothing);
+      expect(find.byKey(const ValueKey('conn-badge-press')), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('conn-plug')));
+      await _settle(tester);
+
+      expect(find.byType(KioskConnectionModal), findsOneWidget);
+      expect(find.text('플러그 연결이 약해요'), findsOneWidget);
+      expect(find.text('가전이 끝났는지 알려 주는 플러그와 연결이 약해요.'), findsOneWidget);
+      expect(find.text('플러그가 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.'), findsOneWidget);
+
+      // 다시 연결하기 = 연결 상태를 다시 묻는다(서버에 재연결 명령은 없다)
+      final before = api.connectionsCalls;
+      api.connectionsResult = [
+        const ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
+        const ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 준비됐어요', message: ''),
+        const ConnectionItem(id: 'plug', state: 'ok', title: '플러그가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
+      ];
+      await tester.tap(find.text('다시 연결하기'));
+      await _settle(tester);
+      expect(api.connectionsCalls, greaterThan(before));
+      expect(find.byKey(const ValueKey('conn-badge-plug')), findsNothing);
+      expect(find.text('플러그가 연결돼 있어요'), findsOneWidget);
+
+      await tester.tap(find.text('닫기'));
+      await _settle(tester);
+      expect(find.byType(KioskConnectionModal), findsNothing);
+    });
+
+    testWidgets('허브에 닿지 못하면 와이파이에 배지 — 모름을 정상으로 두지 않는다', (tester) async {
+      final api = FakeKioskApi()
+        ..connectionsResult = null
+        ..healthResult = HealthStatus.disconnected;
+      await _pump(tester, api);
+
+      expect(find.byKey(const ValueKey('conn-badge-network')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('conn-network')));
+      await _settle(tester);
+      expect(find.text('허브와 연결되지 않았어요'), findsOneWidget);
+    });
+  });
+
+  // ── 가전 줄: 4개씩 넘기기 + 동작 중 앞으로 ───────────────────────────────
+  group('가전 줄', () {
+    test('확인 필요 → 동작 중 → 나머지(등록 순서 유지)', () {
+      final ordered = orderForStrip(_six,
+          running: {'intercom'}, attention: {'rice'});
+      expect(ordered.map((a) => a.id).toList(),
+          ['rice', 'intercom', 'microwave', 'washer', 'fan', 'aircon']);
+    });
+
+    testWidgets('한 번에 4개, 화살표로 4개씩 넘기고 끝의 화살표는 숨긴다', (tester) async {
+      final api = FakeKioskApi()..applianceList = _six;
+      await _pump(tester, api);
+
+      for (final id in ['microwave', 'washer', 'fan', 'rice']) {
+        expect(find.byKey(ValueKey('strip-$id')), findsOneWidget, reason: id);
+      }
+      expect(find.byKey(const ValueKey('strip-aircon')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-prev')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-next')), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('strip-next')));
+      await _settle(tester);
+      expect(find.byKey(const ValueKey('strip-aircon')), findsOneWidget);
+      expect(find.byKey(const ValueKey('strip-intercom')), findsOneWidget);
+      expect(find.byKey(const ValueKey('strip-microwave')), findsNothing);
+      // 끝에서 처음으로 돌아가지 않는다
+      expect(find.byKey(const ValueKey('strip-next')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-prev')), findsOneWidget);
+
+      // 손가락으로 밀어도 넘어간다
+      await tester.fling(find.byType(KioskApplianceStrip), const Offset(400, 0), 800);
+      await _settle(tester);
+      expect(find.byKey(const ValueKey('strip-microwave')), findsOneWidget);
+    });
+
+    testWidgets('뒤쪽 가전이 동작을 시작하면 맨 앞으로 올라온다', (tester) async {
+      final api = FakeKioskApi()..applianceList = _six;
+      await _pump(tester, api);
+      expect(find.byKey(const ValueKey('strip-intercom')), findsNothing);
+
+      // 폰에서 인터폰을 실행 — 키오스크는 실행 화면으로 갔다가
+      api.statusResult = const KioskStatus(
+          running: true, jobId: 'job-p', applianceId: 'intercom');
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      expect(find.byType(KioskExecutingView), findsOneWidget);
+      // 같은 순서 규칙을 가진 줄은 평소 화면에서 본다: 끝난 뒤 실패로 확인이 필요하면 맨 앞
+      api.statusResult = const KioskStatus(
+          running: false,
+          lastJobId: 'job-p',
+          lastOutcome: 'failed',
+          lastStatus: 'failed',
+          lastApplianceId: 'intercom');
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      await tester.tap(find.text('닫기'));
+      await _settle(tester);
+      expect(find.byType(KioskIdleView), findsOneWidget);
+      final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
+      final second = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
+      expect(first.left, lessThan(second.left));
+      expect(find.text('확인 필요'), findsOneWidget);
+    });
+
+    testWidgets('정지 버튼 대기 중인 가전은 "동작 중"으로 맨 앞에 선다', (tester) async {
+      final api = FakeKioskApi()..applianceList = _six;
+      await _pump(tester, api);
+      final ordered = orderForStrip(_six, running: {'aircon'}, attention: {});
+      expect(ordered.first.id, 'aircon');
+    });
+  });
+
+  // ── 다가오면 ──────────────────────────────────────────────────────────
+  group('다가오면', () {
+    testWidgets('제안 카드 한 장 — 루틴 이름·근거·누를 순서, 버튼은 시작과 다음에 뿐', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..suggestionList = const [
+          KioskSuggestion(
+            id: 'r1',
+            purpose: '아침 데우기',
+            occurrences: 5,
+            timeBand: '아침',
+            applianceId: 'microwave',
+            steps: ['해동', '1분', '시작'],
+            routineId: 'morning',
+            routineName: '아침 데우기',
+          ),
+        ];
+      await _pump(tester, api);
+
+      expect(find.byType(KioskSuggestionView), findsOneWidget);
+      expect(find.textContaining('내 루틴 "아침 데우기"'), findsOneWidget);
+      expect(find.text('아침 시간에 5번 하셨어요.'), findsOneWidget);
+      expect(find.byKey(const ValueKey('suggestion-approve')), findsOneWidget);
+      expect(find.byKey(const ValueKey('suggestion-later')), findsOneWidget);
+      expect(find.text('이 제안 다시 받지 않기'), findsNothing);
+      expect(find.textContaining('30분 쉬기'), findsNothing);
+      expect(find.text('이번 동작 바꾸기'), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('suggestion-approve')));
+      await tester.pump();
+      expect(api.approvedIds, ['r1']);
+    });
+
+    testWidgets('다음에 = 이번만 넘기기(억제하지 않는다)', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..suggestionList = const [
+          KioskSuggestion(id: 'r1', purpose: '아침 데우기', occurrences: 0, applianceId: 'microwave'),
+        ];
+      await _pump(tester, api);
+      await tester.tap(find.byKey(const ValueKey('suggestion-later')));
+      await _settle(tester);
+      expect(api.rejectedIds, ['r1']);
+      expect(api.mutedIds, isEmpty);
+    });
+  });
+
+  // ── 동작 중(정지 버튼 대기·보관) ─────────────────────────────────────────
+  group('동작 중', () {
+    testWidgets('정지 버튼 위 대기 — 근거 세 줄과 큰 정지 버튼, 연습 모드 표시', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..statusResult = _hovering();
+      await _pump(tester, api);
+
+      expect(find.byType(KioskHoldView), findsOneWidget);
+      expect(find.text('전자레인지 동작 중'), findsOneWidget);
+      expect(find.text('버튼 3개를 눌렀어요'), findsOneWidget);
+      expect(find.text('정지 버튼(취소) 위에서 기다리고 있어요'), findsOneWidget);
+      // 전력 판정이 없으면 없다고 말한다 — 남은 시간을 지어내지 않는다
+      expect(find.text('가전이 움직이는지는 확인하지 못했어요'), findsOneWidget);
+      expect(find.textContaining('남은 시간'), findsNothing);
+      // 모의를 실물처럼 보이지 않는다
+      expect(find.text('연습 모드 · 실제 가전 아님'), findsOneWidget);
+
+      await tester.tap(find.byKey(const ValueKey('hold-stop')));
+      await tester.pump();
+      expect(api.stopCalls, 1);
+      expect(find.text('정지 요청을 보냈어요'), findsOneWidget);
+
+      api.statusResult = _hovering(state: 'stopping');
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      expect(find.text('정지 버튼을 누르고 있어요'), findsOneWidget);
+    });
+
+    testWidgets('정지됨 → 보관 위치로 이동했어요를 짧게 보이고 평소 화면으로', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..statusResult = _hovering();
+      await _pump(tester, api);
+      api.statusResult = _hovering(state: 'parked', outcome: 'stopped');
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      expect(find.text('보관 위치로 이동했어요'), findsOneWidget);
+      expect(find.text('가전이 멈췄어요'), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 4));
+      await _settle(tester);
+      expect(find.byType(KioskIdleView), findsOneWidget);
+    });
+
+    testWidgets('정지 요청함·미확인은 멈췄다고 하지 않고, 사람이 닫을 때까지 남는다', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..statusResult = _hovering();
+      await _pump(tester, api);
+      api.statusResult = _hovering(state: 'parked', outcome: 'requested_unconfirmed');
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+
+      expect(find.text('가전이 멈췄어요'), findsNothing);
+      expect(find.text('정지 버튼을 눌렀지만 멈췄는지 확인하지 못했어요'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 10));
+      await _settle(tester);
+      expect(find.byType(KioskHoldView), findsOneWidget);
+      await tester.tap(find.text('닫기'));
+      await _settle(tester);
+      expect(find.byType(KioskIdleView), findsOneWidget);
+    });
+
+    testWidgets('구동부 이상은 빨간 문구와 서버 설명을 남긴다', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..statusResult = _hovering();
+      await _pump(tester, api);
+      api.statusResult = _hovering(
+          state: 'fault',
+          outcome: 'drive_fault',
+          detail: '구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요');
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      expect(find.text('누름 장치에 문제가 생겼어요'), findsOneWidget);
+      expect(find.text('구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요'),
+          findsOneWidget);
+      // 정지 버튼은 여전히 닿는다
+      expect(find.byKey(const ValueKey('hold-stop')), findsOneWidget);
+    });
+  });
+
+  // ── 내 가전 ───────────────────────────────────────────────────────────
+  group('내 가전', () {
+    testWidgets('가전 아이콘 → 버튼판과 내 루틴, 새 루틴은 폰에서 녹화한다는 안내', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..routinesResult = const [
+          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], stepCount: 3),
+          KioskRoutine(id: 'laundry', name: '빨래 시작', applianceIds: ['washer'], stepCount: 2),
+        ]
+        ..triggerResult = const RoutineTriggerResult(
+          suggestion: KioskSuggestion(
+            id: 'card-1',
+            purpose: '아침 데우기',
+            occurrences: 0,
+            applianceId: 'microwave',
+            steps: ['해동', '1분', '시작'],
+            routineId: 'morning',
+            routineName: '아침 데우기',
+          ),
+        );
+      await _pump(tester, api);
+
+      await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await _settle(tester);
+      expect(find.byType(KioskManualView), findsOneWidget);
+      expect(find.text('내 전자레인지'), findsOneWidget);
+      expect(find.text('아침 데우기'), findsOneWidget);
+      expect(find.text('빨래 시작'), findsNothing); // 다른 가전의 루틴
+      expect(find.text('새 루틴은 폰 앱에서 녹화해요'), findsOneWidget);
+
+      // 루틴을 눌러도 바로 실행하지 않는다 — 카드(승인)로 간다
+      await tester.tap(find.byKey(const ValueKey('routine-morning')));
+      await _settle(tester);
+      expect(api.triggeredRoutineIds, ['morning']);
+      expect(api.approvedIds, isEmpty);
+      expect(find.byType(KioskSuggestionView), findsOneWidget);
+    });
+
+    testWidgets('버튼판을 눌러도 확인 없이는 누르지 않는다', (tester) async {
+      final api = FakeKioskApi()..applianceList = _six;
+      await _pump(tester, api);
+      await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await _settle(tester);
+
+      await tester.tap(find.text('해동'));
+      await _settle(tester);
+      expect(find.byType(KioskExecutingView), findsNothing);
+      expect(find.text("'해동' 버튼을 눌러 드릴까요?"), findsOneWidget);
+
+      await tester.tap(find.text('그만두기'));
+      await _settle(tester);
+      expect(find.byType(KioskExecutingView), findsNothing);
+
+      await tester.tap(find.text('해동'));
+      await _settle(tester);
+      await tester.tap(find.text('누르기'));
+      await _settle(tester);
+      expect(find.byType(KioskExecutingView), findsOneWidget);
+    });
+  });
+
+  // ── 가장자리 안전 여백 ──────────────────────────────────────────────────
+  group('1920x1080에서 누르는 자리는 모두 가장자리 48px 안쪽', () {
+    testWidgets('평소 · 모달 · 내 가전 · 다가오면 · 동작 중 · 실행 · 실패', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..ambientResult = _ambient
+        ..connectionsResult = [
+          const ConnectionItem(id: 'network', state: 'ok', title: 'ok', message: ''),
+          const ConnectionItem(id: 'press', state: 'unknown', title: '누름 장치를 아직 확인하지 못했어요', message: ''),
+          _plugWeak,
+        ]
+        ..routinesResult = const [
+          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], stepCount: 3),
+        ];
+      await _pump(tester, api);
+
+      // 평소 — 화살표가 두 쪽 다 보이게 한 장 넘긴 상태도 본다
+      _expectEdgeSafe(tester, '평소');
+      await tester.tap(find.byKey(const ValueKey('strip-next')));
+      await _settle(tester);
+      _expectEdgeSafe(tester, '평소(둘째 장)');
+      await tester.tap(find.byKey(const ValueKey('strip-prev')));
+      await _settle(tester);
+
+      // 설정 진입은 구석이 아니다
+      final settings = tester.getCenter(find.byKey(const ValueKey('settings-entry')));
+      expect(settings.dx, inInclusiveRange(1920 * 0.25, 1920 * 0.75),
+          reason: '설정 진입 $settings가 구석에 있다');
+
+      await tester.tap(find.byKey(const ValueKey('conn-plug')));
+      await _settle(tester);
+      _expectEdgeSafe(tester, '연결 모달');
+      await tester.tap(find.text('닫기'));
+      await _settle(tester);
+
+      await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await _settle(tester);
+      _expectEdgeSafe(tester, '내 가전');
+      await tester.tap(find.text('해동'));
+      await _settle(tester);
+      _expectEdgeSafe(tester, '내 가전 누르기 확인');
+      await tester.tap(find.text('그만두기'));
+      await _settle(tester);
+      await tester.tap(find.byKey(const ValueKey('manual-back')));
+      await _settle(tester);
+
+      // 다가오면
+      api.suggestionList = const [
+        KioskSuggestion(id: 's1', purpose: '아침 데우기', occurrences: 0, applianceId: 'microwave', steps: ['해동', '1분', '시작']),
+      ];
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      expect(find.byType(KioskSuggestionView), findsOneWidget);
+      _expectEdgeSafe(tester, '다가오면');
+
+      // 실행(누르는 중) — 긴급 정지
+      await tester.tap(find.byKey(const ValueKey('suggestion-approve')));
+      await _settle(tester);
+      api.statusResult = const KioskStatus(
+          running: true, jobId: 'job-1', applianceId: 'microwave', totalSteps: 3, completedSteps: 1);
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      expect(find.byType(KioskExecutingView), findsOneWidget);
+      _expectEdgeSafe(tester, '실행');
+
+      // 실패 화면
+      api.statusResult = const KioskStatus(
+          running: false, lastJobId: 'job-1', lastOutcome: 'failed', lastStatus: 'failed', lastApplianceId: 'microwave');
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      await tester.pump(const Duration(seconds: 1));
+      await _settle(tester);
+      _expectEdgeSafe(tester, '실패');
+      await tester.tap(find.text('닫기'));
+      await _settle(tester);
+
+      // 동작 중
+      api.suggestionList = const [];
+      api.statusResult = _hovering();
+      await tester.pump(const Duration(seconds: 2));
+      await _settle(tester);
+      expect(find.byType(KioskHoldView), findsOneWidget);
+      _expectEdgeSafe(tester, '동작 중');
+    });
+  });
+}

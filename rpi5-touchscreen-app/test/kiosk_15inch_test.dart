@@ -6,6 +6,7 @@
 // 증명하지 않는다 — 소프트웨어 확대 변환이 히트테스트를 어긋나게 하지 않는다는 것까지다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
@@ -13,11 +14,15 @@ import 'package:simplelay_touchscreen/widgets/kiosk/danger_alert_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 
 const _panel = Size(1920, 1080);
-const _scale = 1080 / 480; // 2.25 — 세로가 먼저 닿는다
+// 가장자리 48px을 비운 1824x984 안에서 세로가 먼저 닿는다 — 984/480 = 2.05.
+const _inset = KioskCanvas.edgeInset;
+const _scale = (1080 - 2 * _inset) / 480;
 
 Future<void> _pump15(
   WidgetTester tester,
@@ -65,6 +70,74 @@ const _fan = ApplianceMap(
 );
 
 Map<String, Widget Function()> _screens() => {
+      '평소': () => KioskIdleView(
+            now: DateTime(2026, 9, 30, 7, 8),
+            connected: true,
+            ambient: const AmbientInfo(
+              greeting: '좋은 아침이에요.',
+              tip: AmbientTip(
+                  kind: 'rain',
+                  text: '오후 3시부터 비 예보가 있어요. 우산 챙기세요.',
+                  icon: 'rain'),
+              hourly: [
+                AmbientHour(label: '오전 9시', icon: 'partly', temp: 16),
+                AmbientHour(label: '낮 12시', icon: 'cloudy', temp: 18),
+                AmbientHour(
+                    label: '오후 3시', icon: 'rain', pop: 70, precip: true),
+                AmbientHour(
+                    label: '오후 6시', icon: 'rain', pop: 60, precip: true),
+              ],
+            ),
+            connections: const [
+              ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
+              ConnectionItem(id: 'press', state: 'ok', title: '', message: ''),
+              ConnectionItem(id: 'plug', state: 'warn', title: '', message: ''),
+            ],
+            appliances: const [
+              kMicrowaveAppliance,
+              kInductionAppliance,
+              _fan,
+              kMicrowaveAppliance,
+              kInductionAppliance,
+            ],
+            running: const {'custom_fan'},
+            dndUntil: DateTime(2026, 9, 30, 8, 8),
+            temperature: 23,
+            humidity: 58,
+            onSelectAppliance: (_) {},
+            onOpenConnection: (_) {},
+            onDndGesture: () {},
+          ),
+      '동작 중': () => const KioskHoldView(
+            appliance: kMicrowaveAppliance,
+            holdState: 'hovering_stop',
+            stopButton: '취소',
+            executionMode: 'mock',
+            elapsed: Duration(minutes: 1, seconds: 2),
+            buttonsPressed: 3,
+            stopRequested: true,
+            onStop: _noop,
+          ),
+      '동작 중 — 구동부 이상': () => const KioskHoldView(
+            appliance: kMicrowaveAppliance,
+            holdState: 'fault',
+            stopOutcome: 'drive_fault',
+            detail: '구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요',
+            executionMode: 'real',
+            elapsed: Duration.zero,
+            onStop: _noop,
+            onClose: _noop,
+          ),
+      '내 가전(루틴)': () => KioskManualView(
+            appliance: kInductionAppliance,
+            onExecute: (_) {},
+            onCancel: () {},
+            routines: const [
+              KioskRoutine(id: 'a', name: '저녁 국 데우기', stepCount: 4),
+              KioskRoutine(id: 'b', name: '알림만 받는 긴 이름의 루틴입니다', mode: 'notify'),
+            ],
+            onRoutine: (_) {},
+          ),
       '가전 선택': () => KioskApplianceSelectView(
             appliances: const [kMicrowaveAppliance, kInductionAppliance, _fan],
             lastUsedId: 'microwave',
@@ -111,6 +184,8 @@ Map<String, Widget Function()> _screens() => {
       '위험 신호음 경보': () => DangerAlertOverlay(onAcknowledge: () {}),
     };
 
+void _noop() {}
+
 void main() {
   group('모든 상태·오버레이가 15인치에서 넘치지 않는다', () {
     for (final entry in _screens().entries) {
@@ -119,11 +194,12 @@ void main() {
           await _pump15(tester, entry.value(), textScale: textScale);
 
           expect(tester.takeException(), isNull);
-          // 캔버스가 화면을 채우고, 안쪽은 2.25배로 그려진다
+          // 캔버스가 화면을 채우고, 가장자리 여백 안쪽에 2.05배로 그려진다
           expect(tester.getSize(find.byType(KioskCanvas)), _panel);
           final body = tester.getRect(find.byType(Scaffold));
           expect(body.width, closeTo(KioskCanvas.design.width * _scale, 1));
-          expect(body.height, closeTo(_panel.height, 1));
+          expect(body.height, closeTo(_panel.height - 2 * _inset, 1));
+          expect(body.top, closeTo(_inset, 1));
           expect(body.left, closeTo((_panel.width - body.width) / 2, 1));
         });
       }
@@ -185,13 +261,17 @@ void main() {
 
       final start = find.bySemanticsLabel('시작 버튼 누르기');
       await _tapAt(tester, start);
+      expect(pressed, isEmpty); // 누르기 전에 한 번 묻는다
+      await _tapAt(tester, find.text('누르기'));
       expect(pressed, ['시작']);
 
-      // 화면 가장자리 가까운 조작도 확대 뒤 같은 자리에서 닿는다
+      // 왼쪽 위 돌아가기도 확대 뒤 같은 자리에서 닿고, 가장자리 여백 안쪽이다
       final back = find.bySemanticsLabel('대기 화면으로 돌아가기');
-      final corner = tester.getCenter(back);
-      expect(corner.dx, lessThan(_panel.width / 4));
-      expect(corner.dy, lessThan(_panel.height / 4));
+      final corner = tester.getRect(back);
+      expect(corner.center.dx, lessThan(_panel.width / 4));
+      expect(corner.center.dy, lessThan(_panel.height / 4));
+      expect(corner.left, greaterThanOrEqualTo(_inset));
+      expect(corner.top, greaterThanOrEqualTo(_inset));
       await _tapAt(tester, back);
       expect(cancels, 1);
       handle.dispose();

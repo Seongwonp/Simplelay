@@ -1,115 +1,360 @@
 import 'package:flutter/material.dart';
 
+import '../../models/ambient.dart';
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import 'route_badge.dart';
 
-/// 수동 조작 — 조작판을 직접 눌러 버튼 하나씩 맡긴다.
+/// 내 가전(UI 확정 2026-09-30 §3-4) — 조작판 위 버튼과 내 루틴.
 ///
-/// 멀리서도 **어느 가전의 판인지**가 먼저 읽혀야 한다. 예전에는 가전 이름이
-/// 20px 회색이고 버튼 글자가 14px이라, 한 걸음만 떨어져도 무엇을 누르는지
-/// 알기 어려웠다. 버튼에는 등록된 라벨만 쓴다 -- 내부 버튼 id는 나오지 않는다.
-class KioskManualView extends StatelessWidget {
+/// 멀리서도 **어느 가전의 판인지**가 먼저 읽혀야 한다. 버튼에는 등록된 라벨만
+/// 쓴다 -- 내부 버튼 id는 나오지 않는다. 키오스크에는 등록 사진이 없어(사진
+/// 파일은 서버에 올리지 않는다) 등록된 버튼 배치로 판을 그린다.
+///
+/// **승인 없이 누르지 않는다(§1-3).** 판의 버튼을 눌러도 바로 누르지 않고
+/// "눌러 드릴까요?"를 한 번 묻는다. 루틴을 누르면 실행이 아니라 카드(다가오면
+/// 화면)가 뜨고, 그 카드의 "시작"이 승인이다. 새 루틴은 폰 앱에서 녹화한다.
+class KioskManualView extends StatefulWidget {
   const KioskManualView({
     super.key,
     required this.appliance,
     required this.onExecute,
     required this.onCancel,
+    this.routines,
+    this.onRoutine,
   });
 
   final ApplianceMap appliance;
   final void Function(ApplianceButton button) onExecute;
   final VoidCallback onCancel;
 
+  /// 이 가전을 다루는 내 루틴. null이면 루틴 칸을 그리지 않는다(실패 화면에서
+  /// '버튼으로 조작'으로 왔을 때처럼 판만 필요한 경우).
+  final List<KioskRoutine>? routines;
+  final ValueChanged<KioskRoutine>? onRoutine;
+
+  @override
+  State<KioskManualView> createState() => _KioskManualViewState();
+}
+
+class _KioskManualViewState extends State<KioskManualView> {
+  // 누르기 전에 한 번 묻는 버튼. null이면 묻지 않는 중.
+  ApplianceButton? _pending;
+
+  @override
+  void didUpdateWidget(KioskManualView old) {
+    super.didUpdateWidget(old);
+    // 가전 정의가 바뀌어 묻던 버튼이 사라졌으면 묻기를 거둔다.
+    final p = _pending;
+    if (p != null && !widget.appliance.buttons.any((b) => b.id == p.id)) {
+      _pending = null;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final appliance = widget.appliance;
+    final routines = widget.routines;
+    final pending = _pending;
     return ColoredBox(
       color: KioskColors.bg,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 24, 6),
-            child: Row(
-              children: [
-                // 뒤로가기: 아이콘 단독 히트박스는 고령 사용자가 맞추기
-                // 어렵다 — 패딩 포함 52px + 눌림 잉크 피드백
-                Semantics(
-                  button: true,
-                  label: '대기 화면으로 돌아가기',
-                  child: Material(
-                    type: MaterialType.transparency,
-                    child: InkWell(
-                      onTap: onCancel,
-                      borderRadius: BorderRadius.circular(12),
-                      child: const SizedBox(
-                        width: 52,
-                        height: 52,
-                        child: Icon(
-                          Icons.arrow_back_ios_new,
-                          color: KioskColors.muted,
-                          size: 22,
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 24, 6),
+                child: Row(
+                  children: [
+                    // 뒤로가기: 아이콘 단독 히트박스는 고령 사용자가 맞추기
+                    // 어렵다 — 패딩 포함 52px + 눌림 잉크 피드백
+                    Semantics(
+                      button: true,
+                      label: '대기 화면으로 돌아가기',
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: InkWell(
+                          key: const ValueKey('manual-back'),
+                          onTap: widget.onCancel,
+                          borderRadius: BorderRadius.circular(12),
+                          child: const SizedBox(
+                            width: 52,
+                            height: 52,
+                            child: Icon(
+                              Icons.arrow_back_ios_new,
+                              color: KioskColors.muted,
+                              size: 22,
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Icon(appliance.icon, color: KioskColors.muted, size: 30),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(
-                    appliance.name,
-                    style: const TextStyle(
-                      fontSize: 30,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
+                    const SizedBox(width: 8),
+                    Icon(appliance.icon, color: KioskColors.muted, size: 30),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(
+                        '내 ${appliance.name}',
+                        style: const TextStyle(
+                          fontSize: 30,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                    if (appliance.isThinq) ...[
+                      const SizedBox(width: 12),
+                      const KioskRouteBadge(label: 'ThinQ'),
+                    ],
+                    if (!appliance.isThinq && appliance.canExecute) ...[
+                      const SizedBox(width: 16),
+                      const Flexible(
+                        child: Text(
+                          '버튼을 누르면 허브가 대신 눌러요',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 17, color: KioskColors.muted),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
-                if (appliance.isThinq) ...[
-                  const SizedBox(width: 12),
-                  const KioskRouteBadge(label: 'ThinQ'),
-                ],
-              ],
-            ),
+              ),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: _board(appliance)),
+                    if (routines != null)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 4, 20, 16),
+                        child: SizedBox(
+                          width: 220,
+                          child: _RoutinePanel(
+                            routines: routines,
+                            onRoutine: widget.onRoutine,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
           ),
-          // ThinQ 가전에는 누를 버튼이 없다(G5). 빈 판을 그리면 고장으로
-          // 읽힌다 -- 경로를 밝히고 어디서 맡기는지만 말한다.
-          if (appliance.isThinq)
-            const Expanded(child: _ThinqNotice())
-          else ...[
-          // 아직 맡길 수 없는 가전이면 여기서 먼저 말한다. 눌러 보고
-          // 실패로 알게 되면, 서버가 막은 것을 가전 고장으로 오해한다.
-          if (!appliance.canExecute) _NotReadyNotice(appliance: appliance),
-          Expanded(
-            // 남는 자리만큼 칸을 키운다. 고정 크기일 때는 3열 판이 가운데 좁게만
-            // 차고 양옆이 비었다(9/16 화면 평가). 최소는 예전 크기라, 큰 글씨·
-            // 준비 안 됨 안내로 자리가 모자라면 예전처럼 스크롤된다.
-            child: LayoutBuilder(
-              builder: (context, box) {
-                final size = _cellSizeFor(appliance, box.biggest);
-                return SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
-                  child: Center(
-                    child: _ButtonGrid(
-                      appliance: appliance,
-                      cellSize: size,
-                      // 준비 안 된 가전은 탭 자체를 막는다(서버도 412로 거절 —
-                      // 이중 방어). 누를 수 있는데 안 되는 버튼은 두지 않는다.
-                      onExecute: appliance.canExecute ? onExecute : null,
-                    ),
-                  ),
-                );
-              },
+          if (pending != null)
+            Positioned.fill(
+              child: _PressConfirm(
+                button: pending,
+                onConfirm: () {
+                  setState(() => _pending = null);
+                  widget.onExecute(pending);
+                },
+                onCancel: () => setState(() => _pending = null),
+              ),
             ),
-          ),
-          ],
         ],
       ),
     );
   }
+
+  Widget _board(ApplianceMap appliance) {
+    // ThinQ 가전에는 누를 버튼이 없다(G5). 빈 판을 그리면 고장으로
+    // 읽힌다 -- 경로를 밝히고 어디서 맡기는지만 말한다.
+    if (appliance.isThinq) return const _ThinqNotice();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 아직 맡길 수 없는 가전이면 여기서 먼저 말한다. 눌러 보고
+        // 실패로 알게 되면, 서버가 막은 것을 가전 고장으로 오해한다.
+        if (!appliance.canExecute) _NotReadyNotice(appliance: appliance),
+        Expanded(
+          // 남는 자리만큼 칸을 키운다. 최소는 예전 크기라, 큰 글씨·
+          // 준비 안 됨 안내로 자리가 모자라면 예전처럼 스크롤된다.
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final size = _cellSizeFor(appliance, box.biggest);
+              return SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Center(
+                  child: _ButtonGrid(
+                    appliance: appliance,
+                    cellSize: size,
+                    // 준비 안 된 가전은 탭 자체를 막는다(서버도 412로 거절 —
+                    // 이중 방어). 누를 수 있는데 안 되는 버튼은 두지 않는다.
+                    onExecute: appliance.canExecute
+                        ? (b) => setState(() => _pending = b)
+                        : null,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// 내 루틴 칸 — 이 가전을 다루는 루틴. 누르면 카드(승인)로 간다.
+class _RoutinePanel extends StatelessWidget {
+  const _RoutinePanel({required this.routines, required this.onRoutine});
+
+  final List<KioskRoutine> routines;
+  final ValueChanged<KioskRoutine>? onRoutine;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text('내 루틴',
+              style: TextStyle(fontSize: 18, color: KioskColors.muted)),
+          const SizedBox(height: 8),
+          Expanded(
+            child: routines.isEmpty
+                ? const Text(
+                    '아직 이 가전의 루틴이 없어요',
+                    style: TextStyle(fontSize: 18, color: KioskColors.muted),
+                  )
+                : ListView.separated(
+                    padding: EdgeInsets.zero,
+                    itemCount: routines.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 8),
+                    itemBuilder: (context, i) {
+                      final r = routines[i];
+                      return Material(
+                        color: KioskColors.surface2,
+                        borderRadius: BorderRadius.circular(12),
+                        child: InkWell(
+                          key: ValueKey('routine-${r.id}'),
+                          onTap: onRoutine == null ? null : () => onRoutine!(r),
+                          borderRadius: BorderRadius.circular(12),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(minHeight: 56),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 14, vertical: 10),
+                              child: Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      r.name,
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 20,
+                                        fontWeight: FontWeight.w600,
+                                        color: Colors.white,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    r.mode == 'notify'
+                                        ? '알림만'
+                                        : '${r.stepCount}단계',
+                                    style: const TextStyle(
+                                        fontSize: 16, color: KioskColors.muted),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '새 루틴은 폰 앱에서 녹화해요',
+            style: TextStyle(fontSize: 16, color: KioskColors.muted),
+          ),
+        ],
+      );
+}
+
+/// 판의 버튼을 누르기 전 한 번 묻는다 — 누르는 순간 실물 가전이 움직인다.
+class _PressConfirm extends StatelessWidget {
+  const _PressConfirm({
+    required this.button,
+    required this.onConfirm,
+    required this.onCancel,
+  });
+
+  final ApplianceButton button;
+  final VoidCallback onConfirm;
+  final VoidCallback onCancel;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+        color: Colors.black.withValues(alpha: 0.6),
+        child: Center(
+          child: Container(
+            width: 460,
+            padding: const EdgeInsets.fromLTRB(28, 26, 28, 22),
+            decoration: BoxDecoration(
+              color: KioskColors.surface,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: KioskColors.border),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  "'${button.label}' 버튼을 눌러 드릴까요?",
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 22),
+                Row(
+                  children: [
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton(
+                        onPressed: onCancel,
+                        style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(0, 60),
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: KioskColors.border),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('그만두기',
+                            style: TextStyle(
+                                fontSize: 21, fontWeight: FontWeight.w500)),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      flex: 3,
+                      child: ElevatedButton(
+                        onPressed: onConfirm,
+                        style: ElevatedButton.styleFrom(
+                          minimumSize: const Size(0, 60),
+                          backgroundColor: KioskColors.primary,
+                          foregroundColor: KioskColors.onAccent,
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('누르기',
+                            style: TextStyle(
+                                fontSize: 21, fontWeight: FontWeight.w700)),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
 }
 
 /// ThinQ 가전 — 조작판 대신 경로와 맡기는 곳을 말한다.

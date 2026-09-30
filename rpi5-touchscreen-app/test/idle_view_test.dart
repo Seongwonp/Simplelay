@@ -1,15 +1,19 @@
-// 대기 화면 — 멀리서 읽혀야 하는 것은 시각이 아니라
-// **어느 가전을 · 지금 조작할 수 있는지 · 어떻게 시작하는지**다.
+// 평소 화면(UI 확정 2026-09-30 §3-1) — 집에 붙은 시계처럼. 위젯 단위로 본다.
+// 화면 전체의 흐름(서버 값·모달·줄 넘기기)은 kiosk_states_test.dart에 있다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 
 Future<void> _pump(
   WidgetTester tester, {
-  ApplianceMap? appliance,
-  bool connected = true,
-  bool actuatorReady = true,
+  List<ApplianceMap>? appliances = const [kMicrowaveAppliance],
+  AmbientInfo? ambient,
+  DateTime? dndUntil,
+  double? temperature,
+  double? humidity,
+  DateTime? now,
 }) async {
   tester.view.physicalSize = const Size(800, 480);
   tester.view.devicePixelRatio = 1.0;
@@ -17,98 +21,65 @@ Future<void> _pump(
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
       body: KioskIdleView(
-        now: DateTime(2026, 9, 13, 9, 5),
-        connected: connected,
-        actuatorReady: actuatorReady,
-        appliance: appliance,
-        onTap: () {},
-        onLongPress: () {},
+        now: now ?? DateTime(2026, 9, 13, 9, 5),
+        connected: true,
+        ambient: ambient,
+        appliances: appliances,
+        dndUntil: dndUntil,
+        temperature: temperature,
+        humidity: humidity,
+        onSelectAppliance: (_) {},
+        onOpenConnection: (_) {},
+        onDndGesture: () {},
       ),
     ),
   ));
 }
 
 void main() {
-  testWidgets('가전·조작 가능·시작 방법을 말하고 시각은 보조로 둔다', (tester) async {
-    await _pump(tester, appliance: kMicrowaveAppliance);
+  testWidgets('날짜·큰 시계·실내 온습도를 보인다', (tester) async {
+    await _pump(tester, temperature: 23.4, humidity: 58);
 
-    expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('조작할 수 있어요'), findsOneWidget);
-    expect(find.text('화면을 눌러\n시작하세요'), findsOneWidget);
-    // 시각은 날짜와 한 줄에 작게 -- 108px 시계가 아니다.
-    final time = tester.widget<Text>(find.text('9월 13일 일요일 · 09:05'));
-    expect(time.style!.fontSize, lessThan(30));
-    // 이 키오스크는 말을 듣지 않는다. 할 수 없는 일을 권하지 않는다.
-    expect(find.textContaining('말하'), findsNothing);
+    expect(find.text('9월 13일 일요일'), findsOneWidget);
+    final clock = tester.widget<Text>(find.text('9:05'));
+    expect(clock.style!.fontSize, greaterThan(80));
+    expect(find.text('실내 23° · 습도 58%'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 
-  testWidgets('준비 안 된 가전은 이유를 말하고 조작 가능이라 하지 않는다', (tester) async {
-    await _pump(
-      tester,
-      appliance: const ApplianceMap(
-        id: 'microwave',
-        name: '전자레인지',
-        category: 'microwave',
-        rows: 1,
-        cols: 1,
-        buttons: [],
-        canExecute: false,
-        readiness: 'needs_setup',
-        readinessReasons: ['버튼 위치 보정이 아직 안 됐어요'],
-      ),
-    );
-
-    expect(find.text('버튼 위치 보정이 아직 안 됐어요'), findsOneWidget);
-    expect(find.text('조작할 수 있어요'), findsNothing);
-    // 색만이 아니라 모양으로도 구분한다.
-    expect(find.byIcon(Icons.build_outlined), findsOneWidget);
-  });
-
-  testWidgets('서버 준비 상태를 모르면 막지 않는다 — unknown은 안 됨이 아니다',
-      (tester) async {
-    await _pump(
-      tester,
-      appliance: const ApplianceMap(
-        id: 'microwave',
-        name: '전자레인지',
-        category: 'microwave',
-        rows: 1,
-        cols: 1,
-        buttons: [],
-        canExecute: false,
-      ),
-    );
-
-    expect(find.text('조작할 수 있어요'), findsOneWidget);
-  });
-
-  testWidgets('연결이 없으면 시작을 권하지 않는다', (tester) async {
-    await _pump(tester, appliance: kMicrowaveAppliance, connected: false);
-
-    expect(find.text('기기 연결이 필요해요'), findsOneWidget);
-    expect(find.text('화면을 눌러\n시작하세요'), findsNothing);
-  });
-
-  testWidgets('가전을 모르면 이름을 지어내지 않는다', (tester) async {
+  testWidgets('실내 센서 값이 없으면 온습도 줄을 지어내지 않는다', (tester) async {
     await _pump(tester);
+    expect(find.textContaining('실내'), findsNothing);
+  });
 
-    expect(find.text('전자레인지'), findsNothing);
-    expect(find.text('화면을 눌러\n시작하세요'), findsOneWidget);
+  testWidgets('허브에 못 닿으면 인사말만 — 서버와 같은 시간대 규칙', (tester) async {
+    await _pump(tester, now: DateTime(2026, 9, 13, 19, 0));
+    expect(find.text('편안한 저녁 보내세요.'), findsOneWidget);
+    expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 7)), '좋은 아침이에요.');
+    expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 13)), '좋은 오후예요.');
+    expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 23)), '편안한 밤 보내세요.');
   });
 
   testWidgets('설정을 여는 방법을 글자로 말한다', (tester) async {
     // 톱니바퀴만 있으면 짧게 눌러 보고 안 열리면 고장으로 여긴다.
-    await _pump(tester, appliance: kMicrowaveAppliance);
+    await _pump(tester);
     expect(find.text('설정 · 길게 누르기'), findsOneWidget);
   });
 
-  testWidgets('시작하는 자리는 가전 이름 오른쪽의 판이다', (tester) async {
-    // 문장이 왼쪽에 몰리고 오른쪽 절반이 비어 있었다. 어디를 누르면 되는지
-    // 경계도 보이지 않았다.
-    await _pump(tester, appliance: kMicrowaveAppliance);
-    final start = tester.getRect(find.text('화면을 눌러\n시작하세요'));
-    final name = tester.getRect(find.text('전자레인지'));
-    expect(start.left, greaterThan(name.right));
-    expect(start.center.dx, greaterThan(400));
+  testWidgets('서버 목록을 못 봤으면 가전을 세우지 않는다', (tester) async {
+    await _pump(tester, appliances: null);
+    expect(find.text('전자레인지'), findsNothing);
+    expect(find.text('허브와 연결되면 가전이 보여요'), findsOneWidget);
+  });
+
+  testWidgets('방해 금지 중이면 남은 시간을 날짜 옆에 말한다', (tester) async {
+    await _pump(tester, dndUntil: DateTime(2026, 9, 13, 10, 5));
+    expect(find.text('방해 금지 · 1시간'), findsOneWidget);
+  });
+
+  testWidgets('이 키오스크는 말을 듣지 않는다 — 할 수 없는 일을 권하지 않는다', (tester) async {
+    await _pump(tester,
+        ambient: const AmbientInfo(greeting: '좋은 아침이에요.'));
+    expect(find.textContaining('말하'), findsNothing);
   });
 }

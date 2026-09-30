@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/learning_status.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
@@ -15,9 +16,10 @@ import 'package:simplelay_touchscreen/services/kiosk_settings_store.dart';
 import 'package:simplelay_touchscreen/services/kiosk_tts_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
-import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
@@ -144,9 +146,47 @@ class FakeKioskApi implements KioskApiService {
     return lastRun;
   }
 
+  // ── 평소 화면(2026-09-30) ────────────────────────────────────────────
+  AmbientInfo? ambientResult;
+  List<ConnectionItem>? connectionsResult = kOkConnections;
+  int connectionsCalls = 0;
+  List<KioskRoutine>? routinesResult;
+  RoutineTriggerResult? triggerResult;
+  Object? triggerError;
+  final triggeredRoutineIds = <String>[];
+
+  @override
+  Future<AmbientInfo?> ambient() async => ambientResult;
+
+  @override
+  Future<List<ConnectionItem>?> connections() async {
+    connectionsCalls++;
+    return connectionsResult;
+  }
+
+  @override
+  Future<List<KioskRoutine>?> routines() async => routinesResult;
+
+  @override
+  Future<RoutineTriggerResult> triggerRoutine(String id) async {
+    triggeredRoutineIds.add(id);
+    if (triggerError != null) throw triggerError!;
+    return triggerResult ?? const RoutineTriggerResult(notice: '');
+  }
+
   @override
   void dispose() {}
 }
+
+/// 세 연결이 모두 정상인 응답 — 배지가 없는 기본 상태.
+const kOkConnections = [
+  ConnectionItem(
+      id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: '허브와 잘 연결돼 있어요.'),
+  ConnectionItem(
+      id: 'press', state: 'ok', title: '누름 장치가 준비됐어요', message: '지금은 연습용 누름 장치로 동작해요.'),
+  ConnectionItem(
+      id: 'plug', state: 'ok', title: '플러그가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
+];
 
 // ── G4: 다단계 실행의 단계별 결과(2026-09-29) ─────────────────────────────
 // 두 단계 픽스처 — ThinQ 상태 확인됨 + 물리 실행기 보고.
@@ -207,6 +247,10 @@ class FakeTts extends KioskTtsService {
 
 // 실행까지 가는 제안은 대상 가전이 있어야 한다(B10) — 대상 없는 제안은
 // 실행 버튼이 잠기므로, 승인 흐름 테스트의 표본에는 대상을 명시한다.
+// 다가오면 카드의 두 버튼(시작·다음에). '시작'은 버튼판 라벨과 겹쳐 키로 찾는다.
+const _approveKey = ValueKey('suggestion-approve');
+const _laterKey = ValueKey('suggestion-later');
+
 const _sug = KioskSuggestion(
   id: 's1',
   purpose: '즉석밥 데워줘',
@@ -239,45 +283,6 @@ Future<void> _pumpKiosk(
 }
 
 void main() {
-  testWidgets('changing action shows a new preview and needs a second approval', (tester) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final api = FakeKioskApi()..suggestionList = [_sug];
-    await _pumpKiosk(tester, api);
-    await tester.tap(find.text('이번 동작 바꾸기'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('30초 돌려줘\n30초 → 시작'));
-    await tester.pumpAndSettle();
-    expect(api.revisedIds, ['s1']);
-    expect(api.approvedIds, isEmpty);
-    expect(find.text('30초 돌려줘,\n지금 할까요?'), findsOneWidget);
-    await tester.tap(find.text('지금 실행'));
-    await tester.pump();
-    expect(api.approvedIds, ['revised']);
-  });
-
-  testWidgets('pause failure keeps card; success never approves or rejects', (tester) async {
-    tester.view.physicalSize = const Size(1280, 800);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-    final api = FakeKioskApi()..suggestionList = [_sug]
-      ..rejectError = Exception('offline');
-    await _pumpKiosk(tester, api);
-    await tester.tap(find.textContaining('이 제안 30분 쉬기'));
-    await tester.pump();
-    expect(find.byType(KioskSuggestionView), findsOneWidget);
-    expect(api.snoozedIds, isEmpty);
-    api.rejectError = null;
-    api.suggestionList = [];
-    await tester.tap(find.textContaining('이 제안 30분 쉬기'));
-    await tester.pump();
-    expect(api.snoozedIds, ['s1']);
-    expect(api.approvedIds, isEmpty);
-    expect(api.rejectedIds, isEmpty);
-    expect(find.byType(KioskSuggestionView), findsNothing);
-  });
-
   testWidgets('환경 근거 갱신은 음성을 반복하거나 표시 시간을 늘리지 않는다', (tester) async {
     final api = FakeKioskApi()..suggestionList = const [KioskSuggestion(
       id: 'env1', purpose: '에어컨 켜줘', occurrences: 0, timeBand: '환경',
@@ -344,12 +349,12 @@ void main() {
       ..suggestionList = [_sug]
       ..rejectError = Exception('offline');
     await _pumpKiosk(tester, api);
-    await tester.tap(find.text('이번만 넘기기'));
+    await tester.tap(find.byKey(_laterKey));
     await tester.pump();
     expect(find.byType(KioskSuggestionView), findsOneWidget);
     expect(find.textContaining('넘기기를 전달하지 못했어요'), findsOneWidget);
     api.rejectError = null;
-    await tester.tap(find.text('이번만 넘기기'));
+    await tester.tap(find.byKey(_laterKey));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
     expect(api.rejectedIds, ['s1']);
@@ -374,43 +379,42 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
   }
 
-  testWidgets('연결 안 되어 있으면 대기 화면을 눌러도 조작 화면으로 가지 않는다', (tester) async {
-    // 사용자 혼란 방지: "기기 연결 안 됐는데 왜 전자레인지 조작판이 뜨지?"
-    // 대기 화면이 이미 "기기 연결이 필요해요"라고 말하는데, 눌렀더니 조작판이
-    // 뜨면 모순이다. 연결 없이는 실제로 버튼도 못 누른다.
-    useKioskViewport(tester);
-    final api = FakeKioskApi()..healthResult = const HealthStatus(ok: false);
-    await _pumpKiosk(tester, api);
-
-    // 대기 화면: 연결 안 됐다는 안내가 있다
-    expect(find.text('기기 연결이 필요해요'), findsOneWidget);
-
-    // 화면을 눌러도
-    await tester.tap(find.text('기기 연결이 필요해요'));
-    await tester.pump();
-
-    // 여전히 대기 화면(안내 그대로). 조작판으로 넘어가지 않았다.
-    expect(find.text('기기 연결이 필요해요'), findsOneWidget);
-  });
-
-  testWidgets('연결돼 있으면 대기 화면을 눌러 조작 화면으로 간다', (tester) async {
+  testWidgets('연결 안 되어 있으면 가전을 눌러도 버튼판 대신 연결 안내가 뜬다', (tester) async {
+    // 사용자 혼란 방지: 연결 없이는 실제로 버튼도 못 누른다. 버튼판을 여는
+    // 대신 무엇이 안 되는지 말하는 연결 모달을 연다.
     useKioskViewport(tester);
     final api = FakeKioskApi()
-      ..healthResult = const HealthStatus(ok: true, actuatorReady: true);
+      ..healthResult = const HealthStatus(ok: false)
+      ..applianceList = const [kMicrowaveAppliance];
     await _pumpKiosk(tester, api);
 
-    expect(find.text('화면을 눌러\n시작하세요'), findsOneWidget);
-    await tester.tap(find.text('화면을 눌러\n시작하세요'));
+    await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+
+    expect(find.byType(KioskIdleView), findsOneWidget);
+    expect(find.byType(KioskConnectionModal), findsOneWidget);
+  });
+
+  testWidgets('연결돼 있으면 가전 아이콘을 눌러 내 가전으로 간다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..healthResult = const HealthStatus(ok: true, actuatorReady: true)
+      ..applianceList = const [kMicrowaveAppliance, kInductionAppliance];
+    await _pumpKiosk(tester, api);
+
+    await tester.tap(find.byKey(const ValueKey('strip-induction')));
     await tester.pump(); // 탭 반영
     await tester.pump(const Duration(milliseconds: 500)); // AnimatedSwitcher 전환
 
-    // 조작 화면으로 넘어감 -- 대기 안내가 사라졌다
-    expect(find.text('화면을 눌러\n시작하세요'), findsNothing);
+    // 고른 가전의 판으로 바로 간다 — 다시 묻지 않는다
+    expect(find.byType(KioskIdleView), findsNothing);
+    expect(find.text('내 인덕션'), findsOneWidget);
   });
 
-  testWidgets('대기 화면은 서버 목록에서 확인된 가전만 이름을 말한다', (tester) async {
+  testWidgets('평소 화면은 서버 목록에서 확인된 가전만 줄에 세운다', (tester) async {
     // 서버를 못 봤을 때 내장 폴백의 전자레인지를 세우면, 설치한 적 없는
-    // 가전이 대기 화면의 주인공이 된다.
+    // 가전이 평소 화면에 선다.
     useKioskViewport(tester);
     final api = FakeKioskApi()
       ..healthResult = const HealthStatus(ok: true, actuatorReady: true);
@@ -436,11 +440,12 @@ void main() {
     expect(find.text('전자레인지'), findsOneWidget);
   });
 
-  testWidgets('15인치 사양 해상도(1920x1080)에서 화면을 채우고, 확대된 좌표에서도 조작이 된다',
+  testWidgets('15인치 사양 해상도(1920x1080)에서 가장자리 여백 안을 채우고, 확대된 좌표에서도 조작이 된다',
       (tester) async {
     useFifteenInchViewport(tester);
     final api = FakeKioskApi()
-      ..healthResult = const HealthStatus(ok: true, actuatorReady: true);
+      ..healthResult = const HealthStatus(ok: true, actuatorReady: true)
+      ..applianceList = const [kMicrowaveAppliance];
     await _pumpKiosk(tester, api);
 
     // 캔버스가 화면 전체를 차지한다(여백은 배경색으로 채워짐)
@@ -450,19 +455,19 @@ void main() {
     final idleSize = tester.getSize(find.byType(KioskIdleView));
     expect(idleSize.width, KioskCanvas.design.width); // 논리 폭은 1920이 아니라 800
 
-    // 그리고 실제로 **확대돼 그려진다**. 논리 크기로는 안 잡히므로 변환이
-    // 반영된 전역 rect로 본다 (1080/480 = 2.25배 -> 800*2.25 = 1800).
+    // 그리고 실제로 **확대돼 그려진다**. 가장자리 48px을 비우고 남은
+    // 1824x984 안에서 세로가 먼저 닿는다(984/480 = 2.05배 -> 800*2.05 = 1640).
     final painted = tester.getRect(find.byType(KioskIdleView));
-    expect(painted.width, greaterThan(KioskCanvas.design.width));
-    expect(painted.width, closeTo(1800, 1));
+    expect(painted.width, closeTo(1640, 1));
+    final body = tester.getRect(find.byType(Scaffold));
+    expect(body.top, closeTo(48, 1));
+    expect(body.bottom, closeTo(1080 - 48, 1));
 
     // 확대 변환을 통과해도 히트테스트가 어긋나지 않는다(실제 터치 시연의 핵심)
-    await tester.tap(find.text('화면을 눌러\n시작하세요'));
+    await tester.tap(find.byKey(const ValueKey('strip-microwave')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    // 수동 조작 진입 첫 화면(가전 선택)으로 넘어간다 -- 확대 변환을 통과한
-    // 탭이 제대로 히트테스트됐다는 뜻.
-    expect(find.byType(KioskApplianceSelectView), findsOneWidget);
+    expect(find.text('내 전자레인지'), findsOneWidget);
   });
 
   testWidgets('서버 제안이 도착하면 idle → suggestion으로 전환된다', (tester) async {
@@ -472,31 +477,16 @@ void main() {
     await _pumpKiosk(tester, api);
 
     expect(find.byType(KioskSuggestionView), findsOneWidget);
-    expect(find.text('지금 실행'), findsOneWidget);
+    expect(find.byKey(_approveKey), findsOneWidget);
   });
 
-  testWidgets('"이 제안 다시 받지 않기"를 누르면 mute=true로 거절하고 대기로 돌아간다',
-      (tester) async {
+  testWidgets('"다음에"는 mute 없이 거절한다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()..suggestionList = [_sug];
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('이 제안 다시 받지 않기'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 500));
-
-    expect(api.mutedIds, ['s1']);
-    expect(find.byType(KioskSuggestionView), findsNothing);
-  });
-
-  testWidgets('"이번만 넘기기"는 mute 없이 거절한다', (tester) async {
-    useKioskViewport(tester);
-    final api = FakeKioskApi()..suggestionList = [_sug];
-    await _pumpKiosk(tester, api);
-
-    api.suggestionList = [];
-    await tester.tap(find.text('이번만 넘기기'));
+    await tester.tap(find.byKey(_laterKey));
     await tester.pump();
 
     expect(api.rejectedIds, ['s1']);
@@ -509,7 +499,7 @@ void main() {
     final tts = FakeTts();
     await _pumpKiosk(tester, api, tts: tts);
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     // 재시작한 서버는 과거 job을 기억하지 못한다.
     for (var i = 0; i < 5; i++) {
@@ -537,7 +527,7 @@ void main() {
     final api = FakeKioskApi()..suggestionList = [_sug];
     await _pumpKiosk(tester, api);
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     api.statusResult = const KioskStatus(running: false,
         lastJobId: 'job-1', lastStatus: 'succeeded');
@@ -549,7 +539,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 500));
     api.approvalPending = Completer<KioskJobAccepted>();
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 900));
@@ -573,7 +563,7 @@ void main() {
 
     // 승인하면 즉시 실행 화면으로 가고, 접수된 job_id를 추적한다
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     expect(find.byType(KioskExecutingView), findsOneWidget);
     expect(api.approvedIds, ['s1']);
@@ -602,7 +592,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
 
     // 서버에 남아 있던 "이전" 실행의 결과 — 내 job-1이 아니므로 무시해야 한다
@@ -667,7 +657,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump(); // 접수 실패
     await tester.pump();
 
@@ -685,10 +675,10 @@ void main() {
 
     // 제안 도착 발화 — 목적이 포함된 문장
     expect(tts.utterances.single, contains('즉석밥 데워줘'));
-    expect(tts.utterances.single, contains('지금 실행'));
+    expect(tts.utterances.single, contains('시작을 눌러'));
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     api.statusResult = const KioskStatus(
       running: false,
@@ -765,7 +755,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump(); // job-1 접수
 
     // 내 job-1은 완료됐지만, 폰이 시작한 job-2가 이미 실행 중인 상태
@@ -810,7 +800,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     api.statusResult = const KioskStatus(
       running: false,
@@ -839,7 +829,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     api.statusResult = const KioskStatus(
       running: false,
@@ -869,7 +859,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     await tester.pump();
     expect(find.byType(KioskDoneView), findsOneWidget);
@@ -1026,20 +1016,15 @@ void main() {
     ],
   );
 
-  testWidgets('수동 조작 진입 시 가전이 여럿이면 선택 화면부터 보여준다', (tester) async {
+  testWidgets('가전 아이콘을 누르면 묻지 않고 그 가전의 판으로 간다', (tester) async {
     useKioskViewport(tester);
-    await _pumpKiosk(tester, FakeKioskApi()); // 서버 실패 → 내장 2종 폴백
+    final api = FakeKioskApi()
+      ..applianceList = [kMicrowaveAppliance, kInductionAppliance];
+    await _pumpKiosk(tester, api);
 
-    await tester.tap(find.byType(KioskIdleView));
+    await tester.tap(find.byKey(const ValueKey('strip-induction')));
     await tester.pump();
 
-    expect(find.text('어느 가전을 조작할까요?'), findsOneWidget);
-    expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('인덕션'), findsOneWidget);
-
-    // 카드를 고르면 그 가전의 조작판으로
-    await tester.tap(find.text('인덕션'));
-    await tester.pump();
     expect(find.text('어느 가전을 조작할까요?'), findsNothing);
     expect(find.text('화력+'), findsOneWidget); // 인덕션 버튼
   });
@@ -1051,30 +1036,27 @@ void main() {
     await _pumpKiosk(tester, api);
     await tester.pump(); // listAppliances 반영
 
-    await tester.tap(find.byType(KioskIdleView));
-    await tester.pump();
-
     expect(find.text('거실 선풍기'), findsOneWidget);
 
-    await tester.tap(find.text('거실 선풍기'));
+    await tester.tap(find.byKey(const ValueKey('strip-custom_fan')));
     await tester.pump();
     expect(find.text('약풍'), findsOneWidget); // 커스텀 버튼판이 그대로 조작판
   });
 
-  testWidgets('가전이 하나뿐이면 선택 화면 없이 바로 조작판으로 간다', (tester) async {
+  testWidgets('가전이 하나뿐이어도 줄에 서고, 누르면 그 판으로 간다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()..applianceList = [kMicrowaveAppliance];
     await _pumpKiosk(tester, api);
     await tester.pump();
 
-    await tester.tap(find.byType(KioskIdleView));
+    await tester.tap(find.byKey(const ValueKey('strip-microwave')));
     await tester.pump();
 
     expect(find.text('어느 가전을 조작할까요?'), findsNothing);
     expect(find.text('즉석밥'), findsOneWidget); // 전자레인지 조작판
   });
 
-  testWidgets('조작 중 가전이 폰에서 삭제되면 선택 화면으로 돌아간다', (tester) async {
+  testWidgets('조작 중 가전이 폰에서 삭제되면 평소 화면으로 돌아간다', (tester) async {
     // 삭제된 가전의 버튼판을 계속 두면 서버 게이트(404)에 걸리기 전까지
     // 화면과 실물이 어긋난다 (교차 리뷰 치명 #1 클라이언트측)
     useKioskViewport(tester);
@@ -1083,9 +1065,7 @@ void main() {
     await _pumpKiosk(tester, api);
     await tester.pump();
 
-    await tester.tap(find.byType(KioskIdleView));
-    await tester.pump();
-    await tester.tap(find.text('거실 선풍기'));
+    await tester.tap(find.byKey(const ValueKey('strip-custom_fan')));
     await tester.pump();
     expect(find.text('약풍'), findsOneWidget); // 조작판 진입
 
@@ -1096,7 +1076,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300)); // AnimatedSwitcher 소진
 
     expect(find.text('약풍'), findsNothing);
-    expect(find.text('어느 가전을 조작할까요?'), findsOneWidget);
+    expect(find.byType(KioskIdleView), findsOneWidget);
     expect(find.text('거실 선풍기'), findsNothing);
   });
 
@@ -1108,9 +1088,9 @@ void main() {
     await _pumpKiosk(tester, api);
     await tester.pump();
 
-    await tester.tap(find.byType(KioskIdleView));
+    await tester.tap(find.byKey(const ValueKey('strip-custom_fan')));
     await tester.pump();
-    expect(find.text('약풍'), findsOneWidget); // 하나뿐이라 바로 조작판
+    expect(find.text('약풍'), findsOneWidget);
 
     api.applianceList = const []; // 폰에서 마지막 가전 삭제
     await tester.pump(const Duration(seconds: 61));
@@ -1118,7 +1098,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('약풍'), findsNothing);
-    expect(find.text('아직 조작할 가전이 없어요'), findsOneWidget);
+    expect(find.text('앱에서 가전을 추가해 주세요'), findsOneWidget);
   });
 
   testWidgets('목록 조회 실패는 보고 있던 가전 목록을 지우지 않는다', (tester) async {
@@ -1129,7 +1109,7 @@ void main() {
     await _pumpKiosk(tester, api);
     await tester.pump();
 
-    await tester.tap(find.byType(KioskIdleView));
+    await tester.tap(find.byKey(const ValueKey('strip-custom_fan')));
     await tester.pump();
     expect(find.text('약풍'), findsOneWidget);
 
@@ -1140,6 +1120,22 @@ void main() {
 
     expect(find.text('약풍'), findsOneWidget); // 유지
   });
+
+  /// 제안 승인이 접수부터 실패 → 실패 화면의 '버튼으로 조작' → 가전 선택.
+  Future<void> failToManual(WidgetTester tester, FakeKioskApi api) async {
+    api
+      ..suggestionList = [_sug]
+      ..executeError = Exception('server down');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    api.suggestionList = [];
+    await tester.tap(find.byKey(_approveKey));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.text('버튼으로 조작'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 500));
+  }
 
   testWidgets('재부팅 후 저장된 커스텀 가전 선택이 서버 목록 도착 시 복원된다', (tester) async {
     // kAppliances에서만 찾으면 커스텀 선택이 기본값으로 되돌아갔다 (교차 리뷰 #6)
@@ -1159,10 +1155,9 @@ void main() {
     );
     await tester.pump(); // 서버 목록 반영
 
-    await tester.tap(find.byType(KioskIdleView));
-    await tester.pump();
-    // 대기 화면도 이제 가전 이름을 말하므로, 전환이 끝난 뒤에 찾는다.
-    await tester.pump(const Duration(milliseconds: 500));
+    // 가전 선택은 실패 화면의 '버튼으로 조작'에서 연다(평소 화면은 가전을
+    // 아이콘으로 직접 고른다).
+    await failToManual(tester, api);
 
     // '지난번' 배지가 저장된 커스텀 가전에 붙는다
     final badge = find.text('지난번');
@@ -1187,9 +1182,10 @@ void main() {
     ));
 
     final tts = FakeTts();
+    final api = FakeKioskApi();
     await _pumpKiosk(
       tester,
-      FakeKioskApi(),
+      api,
       tts: tts,
       settings: KioskSettingsStore(path: path),
     );
@@ -1201,10 +1197,12 @@ void main() {
         .widgetList<MediaQuery>(find.byType(MediaQuery))
         .map((m) => m.data.textScaler);
     expect(scalers, contains(const TextScaler.linear(1.22)));
-    // 가전 선택 복원 — 대기 화면 탭으로 수동 조작에 들어가면 인덕션 맵
-    await tester.tap(find.byType(KioskIdleView));
-    await tester.pump();
-    expect(find.text('인덕션'), findsOneWidget);
+    // 가전 선택 복원 — 실패 화면의 가전 선택에서 '지난번'이 인덕션에 붙는다
+    await failToManual(tester, api);
+    final badge = tester.getCenter(find.text('지난번'));
+    final induction = tester.getCenter(find.text('인덕션'));
+    expect((badge.dx - induction.dx).abs() < 120, isTrue,
+        reason: '배지가 인덕션 카드에 있어야 한다');
   });
 
   testWidgets('큰 글씨 모드에서 전 화면(대기·수동·제안·실행·완료)이 800x480에 오버플로 없이 렌더된다',
@@ -1218,7 +1216,9 @@ void main() {
     KioskSettingsStore(path: path)
         .save(const KioskSettings(largeText: true));
 
-    final api = FakeKioskApi()..suggestionList = [_sug];
+    final api = FakeKioskApi()
+      ..suggestionList = [_sug]
+      ..applianceList = [kMicrowaveAppliance];
     await _pumpKiosk(
       tester,
       api,
@@ -1227,7 +1227,7 @@ void main() {
     expect(find.byType(KioskSuggestionView), findsOneWidget); // suggestion
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행')); // executing
+    await tester.tap(find.byKey(_approveKey)); // executing
     await tester.pump();
     expect(find.byType(KioskExecutingView), findsOneWidget);
 
@@ -1249,9 +1249,34 @@ void main() {
     // 전환이 소진되기 전에 다음 화면을 열면 두 화면의 같은 글자가 겹친다.
     await tester.pump(const Duration(milliseconds: 300));
 
-    await tester.tap(find.byType(KioskIdleView)); // manual
+    await tester.tap(find.byKey(const ValueKey('strip-microwave'))); // 내 가전
     await tester.pump();
-    expect(find.text('전자레인지'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('내 전자레인지'), findsOneWidget);
+    await tester.tap(find.text('해동')); // 누르기 확인
+    await tester.pump();
+    expect(find.text('누르기'), findsOneWidget);
+    await tester.tap(find.text('그만두기'));
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('manual-back')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // 동작 중(정지 버튼 대기)
+    api.statusResult = const KioskStatus(
+      running: false,
+      holdState: 'hovering_stop',
+      holdApplianceId: 'microwave',
+      holdStopButton: '취소',
+      holdExecutionMode: 'mock',
+      lastOutcome: 'success',
+      lastApplianceId: 'microwave',
+      lastButtons: [KioskButtonResult(button: '해동', success: true)],
+    );
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(KioskHoldView), findsOneWidget);
   });
 
   testWidgets('저장된 가전 id가 목록에 없으면 기본 가전으로 폴백한다', (tester) async {
@@ -1262,15 +1287,17 @@ void main() {
     KioskSettingsStore(path: path)
         .save(const KioskSettings(applianceId: 'no-such-appliance'));
 
+    final api = FakeKioskApi();
     await _pumpKiosk(
       tester,
-      FakeKioskApi(),
+      api,
       settings: KioskSettingsStore(path: path),
     );
 
-    await tester.tap(find.byType(KioskIdleView));
-    await tester.pump();
-    expect(find.text('전자레인지'), findsOneWidget);
+    await failToManual(tester, api);
+    final badge = tester.getCenter(find.text('지난번'));
+    final microwave = tester.getCenter(find.text('전자레인지'));
+    expect((badge.dx - microwave.dx).abs() < 120, isTrue);
   });
 
   // ── 2026-09-29: last_outcome·ThinQ 경로·시나리오 카드 ──────────────────
@@ -1278,7 +1305,7 @@ void main() {
   Future<KioskDoneView> finishWith(WidgetTester tester, FakeKioskApi api,
       KioskStatus status) async {
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     api.statusResult = status;
     await tester.pump(const Duration(seconds: 2));
@@ -1360,8 +1387,7 @@ void main() {
     expect(find.text('공기청정기 풍량 강풍'), findsOneWidget);
     expect(find.text('ThinQ'), findsOneWidget);
     expect(find.textContaining('근거: 전자레인지 모의 실행'), findsOneWidget);
-    final run = tester.widget<ElevatedButton>(find.ancestor(
-        of: find.text('지금 실행'), matching: find.byType(ElevatedButton)));
+    final run = tester.widget<ElevatedButton>(find.byKey(_approveKey));
     expect(run.onPressed, isNotNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -1382,8 +1408,7 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('가전이 오프라인이에요'), findsOneWidget);
-    final run = tester.widget<ElevatedButton>(find.ancestor(
-        of: find.text('지금 실행'), matching: find.byType(ElevatedButton)));
+    final run = tester.widget<ElevatedButton>(find.byKey(_approveKey));
     expect(run.onPressed, isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -1400,7 +1425,7 @@ void main() {
     await tester.pump();
 
     api.suggestionList = [];
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     await tester.pump();
 
@@ -1613,8 +1638,7 @@ void main() {
     expect(find.textContaining('세탁이 끝났어요'), findsWidgets);
     expect(find.text('제습기 전원 켜기'), findsOneWidget);
     expect(find.text('ThinQ'), findsOneWidget);
-    final run = tester.widget<ElevatedButton>(find.ancestor(
-        of: find.text('지금 실행'), matching: find.byType(ElevatedButton)));
+    final run = tester.widget<ElevatedButton>(find.byKey(_approveKey));
     expect(run.onPressed, isNotNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });

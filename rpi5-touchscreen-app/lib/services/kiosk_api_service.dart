@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:flutter/foundation.dart';
 
+import '../models/ambient.dart';
 import '../models/appliance.dart';
 import '../models/learning_status.dart';
 import '../models/scenario_run.dart';
@@ -76,9 +77,16 @@ class KioskSuggestion {
     this.applianceId,
     this.scenarioId,
     this.commands = const [],
+    this.routineId,
+    this.routineName,
   });
 
   final bool isDemo;
+
+  /// 사용자 루틴 카드면 그 루틴(2026-09-30). 이름이 있으면 화면은 이 이름을
+  /// 사용자가 붙인 말로 함께 보여 준다. 승인은 여전히 카드 id에 묶인다.
+  final String? routineId;
+  final String? routineName;
 
   /// 시나리오 제안이면 그 ID. 옛 서버·일반 제안은 null.
   final String? scenarioId;
@@ -134,6 +142,8 @@ class KioskSuggestion {
         timeBand: json['time_band'] as String? ?? '',
         applianceId: json['appliance_id'] as String?,
         scenarioId: json['scenario_id'] as String?,
+        routineId: json['routine_id'] as String?,
+        routineName: json['routine_name'] as String?,
         commands: [
           for (final c in (json['commands'] as List<dynamic>?) ?? const [])
             if (c is Map<String, dynamic>) KioskSuggestionCommand.fromJson(c),
@@ -251,9 +261,38 @@ class KioskStatus {
     this.lastOperationConfirmed,
     this.lastOperationSource,
     this.lastOperationDetail,
+    this.developerMode = false,
+    this.holdState,
+    this.holdStopOutcome,
+    this.holdDetail,
+    this.holdApplianceId,
+    this.holdStopButton,
+    this.holdExecutionMode,
   });
 
   final bool running;
+
+  /// 서버 개발자 모드(SIMPLELAY_DEV_MODE). 시연 흔적은 이 값이 참일 때만 보인다.
+  final bool developerMode;
+
+  // ── 정지 버튼 대기·보관(2026-09-30) — 판정은 RPi4가 하고 서버는 옮기기만 한다.
+  /// hovering_stop | stopping | parking | parked | fault | released | null(대기 없음)
+  final String? holdState;
+
+  /// stopped(정지됨·전력 하강 확인) | requested_unconfirmed(정지 요청함·미확인) |
+  /// drive_fault(구동부 이상으로 정지 버튼을 못 누름) | null
+  final String? holdStopOutcome;
+
+  /// 서버가 쓴 화면 문장.
+  final String? holdDetail;
+  final String? holdApplianceId;
+
+  /// 정지 버튼 **라벨**(버튼 id가 아니다).
+  final String? holdStopButton;
+
+  /// 대기 보고의 실행 환경 mock | real | unknown.
+  final String? holdExecutionMode;
+
   final String? lastStatus;
 
   /// success | failed | stopped | safety_stop | unconfirmed. 옛 서버는 null.
@@ -328,7 +367,23 @@ class KioskStatus {
         lastOperationConfirmed: json['last_operation_confirmed'] as bool?,
         lastOperationSource: json['last_operation_source'] as String?,
         lastOperationDetail: json['last_operation_detail'] as String?,
+        developerMode: json['developer_mode'] as bool? ?? false,
+        holdState: json['hold_state'] as String?,
+        holdStopOutcome: json['hold_stop_outcome'] as String?,
+        holdDetail: json['hold_detail'] as String?,
+        holdApplianceId: json['hold_appliance_id'] as String?,
+        holdStopButton: json['hold_stop_button'] as String?,
+        holdExecutionMode: json['hold_execution_mode'] as String?,
       );
+}
+
+/// `POST /routines/{id}/trigger` 결과 — 승인 루틴은 **카드**(실행은 카드 승인 뒤),
+/// 알림 루틴은 알림 문장만 온다. 여기서 실행이 일어나는 경로는 없다.
+class RoutineTriggerResult {
+  const RoutineTriggerResult({this.suggestion, this.notice});
+
+  final KioskSuggestion? suggestion;
+  final String? notice;
 }
 
 // 실행 접수 응답(비동기 job 모델). 서버는 물리 실행을 기다리지 않고 즉시
@@ -648,6 +703,80 @@ class KioskApiService {
     } catch (_) {
       return false;
     }
+  }
+
+  /// GET /ambient — 인사말·안내 한 줄·예보 4칸. 실패·옛 서버는 null(화면이 인사말만).
+  Future<AmbientInfo?> ambient() async {
+    try {
+      final res =
+          await _client.get(_base.replace(path: '/ambient')).timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      return AmbientInfo.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /connections — 와이파이·누름 장치·플러그. 실패는 null(허브에 못 닿음).
+  Future<List<ConnectionItem>?> connections() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/connections'))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body =
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      return [
+        for (final item in (body['items'] as List<dynamic>?) ?? const [])
+          if (item is Map<String, dynamic>) ConnectionItem.fromJson(item),
+      ];
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /routines — 사용자 루틴. 실패·옛 서버는 null(마지막으로 안 목록 유지).
+  Future<List<KioskRoutine>?> routines() async {
+    try {
+      final res =
+          await _client.get(_base.replace(path: '/routines')).timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>;
+      final result = <KioskRoutine>[];
+      for (final item in body) {
+        try {
+          result.add(KioskRoutine.fromJson(item as Map<String, dynamic>));
+        } catch (_) {
+          // 한 항목이 이상해도 나머지 루틴은 보인다
+        }
+      }
+      return result;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// POST /routines/{id}/trigger — 카드 만들기(승인 루틴) 또는 알림(알림 루틴).
+  /// 실행하지 않는다. 실패는 [KioskApiException](서버 문장 그대로).
+  Future<RoutineTriggerResult> triggerRoutine(String id) async {
+    final res = await _client
+        .post(_base.replace(path: '/routines/$id/trigger'))
+        .timeout(_timeout);
+    _ensureOk(res);
+    final body =
+        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    if (body['kind'] == 'suggestion' &&
+        body['suggestion'] is Map<String, dynamic>) {
+      return RoutineTriggerResult(
+          suggestion: KioskSuggestion.fromJson(
+              body['suggestion'] as Map<String, dynamic>));
+    }
+    final notice = body['notice'];
+    return RoutineTriggerResult(
+        notice: notice is Map<String, dynamic>
+            ? notice['detail'] as String? ?? ''
+            : '');
   }
 
   void dispose() => _client.close();

@@ -32,7 +32,7 @@ void main() {
   testWidgets('가전 이름이 크게, 버튼 라벨은 멀리서 읽히는 크기로', (tester) async {
     await _pump(tester, kMicrowaveAppliance);
 
-    final name = tester.widget<Text>(find.text('전자레인지'));
+    final name = tester.widget<Text>(find.text('내 전자레인지'));
     expect(name.style!.fontSize, greaterThanOrEqualTo(28));
     final label = tester.widget<Text>(find.text('즉석밥'));
     expect(label.style!.fontSize, greaterThanOrEqualTo(20));
@@ -51,7 +51,13 @@ void main() {
     expect(size.height, greaterThanOrEqualTo(48));
     expect(size.width, greaterThanOrEqualTo(48));
 
+    // 누르기 전에 한 번 묻는다 — 판을 스친 것만으로 실물 가전이 움직이지 않게.
     await tester.tap(find.text('시작'));
+    await tester.pump();
+    expect(pressed, isEmpty);
+    expect(find.text("'시작' 버튼을 눌러 드릴까요?"), findsOneWidget);
+    await tester.tap(find.text('누르기'));
+    await tester.pump();
     expect(pressed, ['시작']);
   });
 

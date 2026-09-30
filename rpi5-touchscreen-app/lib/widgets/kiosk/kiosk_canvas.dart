@@ -22,38 +22,59 @@ import '../../theme/kiosk_colors.dart';
 ///
 /// 자식에게는 MediaQuery 크기도 설계 캔버스로 알려준다 — 화면 크기에 따라 분기하는
 /// 코드가 나중에 생겨도 캔버스 안에서는 항상 같은 세계를 보게 하기 위해서다.
+///
+/// **가장자리 안전 여백(2026-09-30 실기기).** 플랫폼 창 관리자는 화면 가장자리에서
+/// 시작한 터치를 시스템 제스처로 가져간다 — 1920x1080에서 (1900, 1051)을 누르자
+/// 아래에서 위로 쓸어 올리기로 읽혀 앱이 닫혔다. 그래서 화면이 설계 캔버스보다
+/// 충분히 크면 네 가장자리에 [edgeInset]만큼 아무것도 두지 않고 그 안쪽에만
+/// 캔버스를 확대한다. 화면마다 여백을 따로 챙기지 않아도 **누르는 자리 전부가**
+/// 구조적으로 가장자리를 피한다(1920x1080에서 배율 2.05, 좌우 140·위아래 48px).
+/// 800x480 그대로인 화면(옛 7인치·골든)은 여백 둘 자리가 없어 종전과 같다.
 class KioskCanvas extends StatelessWidget {
   const KioskCanvas({super.key, required this.child});
 
   /// 모든 키오스크 화면이 전제하는 설계 해상도.
   static const Size design = Size(800, 480);
 
+  /// 실제 출력 기준 가장자리 여백(논리 px). 실측 근거는 한 번의 오동작뿐이라
+  /// 넉넉히 잡은 값이다 — 추측/측정 필요.
+  static const double edgeInset = 48;
+
+  /// 이 화면 크기에서 여백을 두는가 — 여백을 빼고도 설계 캔버스 이상이 남을 때만.
+  static bool insetsFor(Size screen) =>
+      screen.width >= design.width + 2 * edgeInset &&
+      screen.height >= design.height + 2 * edgeInset;
+
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final media = MediaQuery.of(context);
+    final inset = insetsFor(media.size) ? edgeInset : 0.0;
     return ColoredBox(
       color: KioskColors.bg,
       // SizedBox.expand로 **꽉 찬 제약**을 줘야 FittedBox가 확대한다.
       // Center처럼 느슨한 제약을 주면 FittedBox가 자식 크기(800x480)로
       // 쪼그라들어 배율이 1.0이 된다 -- 화면만 커지고 UI는 그대로인 함정.
-      child: SizedBox.expand(
-        child: FittedBox(
-          fit: BoxFit.contain,
-          child: MediaQuery(
-            // 캔버스 안은 언제나 800x480 세계. 실제 화면이 정확히 그 크기면
-            // 배율 1.0이라 렌더 결과가 픽셀 단위로 동일하다(기존 골든 유지).
-            data: media.copyWith(
-              size: design,
-              padding: EdgeInsets.zero,
-              viewPadding: EdgeInsets.zero,
-              viewInsets: EdgeInsets.zero,
-            ),
-            child: SizedBox(
-              width: design.width,
-              height: design.height,
-              child: child,
+      child: Padding(
+        padding: EdgeInsets.all(inset),
+        child: SizedBox.expand(
+          child: FittedBox(
+            fit: BoxFit.contain,
+            child: MediaQuery(
+              // 캔버스 안은 언제나 800x480 세계. 실제 화면이 정확히 그 크기면
+              // 배율 1.0이라 렌더 결과가 픽셀 단위로 동일하다(기존 골든 유지).
+              data: media.copyWith(
+                size: design,
+                padding: EdgeInsets.zero,
+                viewPadding: EdgeInsets.zero,
+                viewInsets: EdgeInsets.zero,
+              ),
+              child: SizedBox(
+                width: design.width,
+                height: design.height,
+                child: child,
+              ),
             ),
           ),
         ),

@@ -72,7 +72,7 @@ void main() {
       ),
     );
 
-    expect(find.text('공기청정기(모의)'), findsOneWidget);
+    expect(find.text('내 공기청정기(모의)'), findsOneWidget);
     expect(find.widgetWithText(KioskRouteBadge, 'ThinQ'), findsOneWidget);
     expect(find.textContaining('누를 버튼이 없어요'), findsOneWidget);
     expect(find.textContaining('버튼 누르기'), findsNothing);

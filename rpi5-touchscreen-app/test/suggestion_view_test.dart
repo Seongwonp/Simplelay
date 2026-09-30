@@ -14,34 +14,52 @@ const _sug = KioskSuggestion(
   applianceId: 'microwave',
 );
 
-Future<void> _pump(WidgetTester tester, {ApplianceMap? target, VoidCallback? onSnooze}) async {
+const _approve = ValueKey('suggestion-approve');
+const _later = ValueKey('suggestion-later');
+
+Future<void> _pump(WidgetTester tester,
+    {ApplianceMap? target, KioskSuggestion suggestion = _sug}) async {
   tester.view.physicalSize = const Size(800, 480);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
       body: KioskSuggestionView(
-        suggestion: _sug,
+        suggestion: suggestion,
         target: target,
         cdRemaining: 20,
         cdTotal: 20,
         onApprove: () {},
         onReject: () {},
-        onRejectMute: () {},
-        onSnooze: onSnooze,
       ),
     ),
   ));
 }
 
 void main() {
-  testWidgets('pause has its own action at 800x480', (tester) async {
-    var paused = 0;
-    await _pump(tester, target: kMicrowaveAppliance, onSnooze: () => paused++);
-    await tester.tap(find.textContaining('이 제안 30분 쉬기'));
-    expect(paused, 1);
+  testWidgets('버튼은 시작과 다음에 두 개뿐 — 억제·미루기·바꾸기는 폰에 둔다', (tester) async {
+    await _pump(tester, target: kMicrowaveAppliance);
     expect(tester.takeException(), isNull);
-    expect(find.text('지금 실행'), findsOneWidget);
+    expect(find.byType(ElevatedButton), findsOneWidget);
+    expect(find.byType(OutlinedButton), findsOneWidget);
+    expect(find.byType(TextButton), findsNothing);
+    expect(find.text('다음에'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(_approve), matching: find.text('시작')),
+        findsOneWidget);
+  });
+
+  testWidgets('루틴 카드는 사용자가 붙인 루틴 이름을 보인다', (tester) async {
+    await _pump(tester,
+        target: kMicrowaveAppliance,
+        suggestion: const KioskSuggestion(
+          id: 'r1',
+          purpose: '아침 데우기',
+          occurrences: 0,
+          applianceId: 'microwave',
+          routineId: 'morning',
+          routineName: '아침 데우기',
+        ));
+    expect(find.text('내 루틴 "아침 데우기"'), findsOneWidget);
   });
 
   testWidgets('대상 가전·질문·번호 붙은 순서·두 행동을 보여준다', (tester) async {
@@ -52,10 +70,13 @@ void main() {
     expect(find.text('누를 순서'), findsOneWidget);
     for (final (i, label) in [(1, '즉석밥'), (2, '시작')]) {
       expect(find.text('$i'), findsOneWidget);
-      expect(find.text(label), findsOneWidget);
+      expect(
+          find.descendant(
+              of: find.byType(ListView), matching: find.text(label)),
+          findsOneWidget);
     }
-    expect(find.text('지금 실행'), findsOneWidget);
-    expect(find.text('이번만 넘기기'), findsOneWidget);
+    expect(find.byKey(_approve), findsOneWidget);
+    expect(find.byKey(_later), findsOneWidget);
     expect(find.textContaining('AI'), findsNothing);
   });
 
@@ -63,7 +84,7 @@ void main() {
     await _pump(tester);
 
     expect(find.text('전자레인지'), findsNothing);
-    expect(find.text('지금 실행'), findsOneWidget);
+    expect(find.byKey(_approve), findsOneWidget);
   });
 
   testWidgets('대상을 모르는 제안은 실행 버튼을 잠그고 이유를 말한다', (tester) async {
@@ -71,42 +92,30 @@ void main() {
     // 버튼을 세워 두면 "눌렀는데 아무 일도 없는" 화면이 된다.
     await _pump(tester);
 
-    final button = tester.widget<ElevatedButton>(find.ancestor(
-      of: find.text('지금 실행'),
-      matching: find.byType(ElevatedButton),
-    ));
+    final button = tester.widget<ElevatedButton>(find.byKey(_approve));
     expect(button.onPressed, isNull);
     expect(
       find.textContaining('가전을 찾을 수 없어 실행할 수 없어요'),
       findsOneWidget,
     );
     // 넘기기는 그대로 된다 — 카드에서 벗어날 길은 항상 있어야 한다.
-    final reject = tester.widget<OutlinedButton>(find.ancestor(
-      of: find.text('이번만 넘기기'),
-      matching: find.byType(OutlinedButton),
-    ));
+    final reject = tester.widget<OutlinedButton>(find.byKey(_later));
     expect(reject.onPressed, isNotNull);
   });
 
   testWidgets('대상이 있으면 실행 버튼이 살아 있다', (tester) async {
     await _pump(tester, target: kMicrowaveAppliance);
 
-    final button = tester.widget<ElevatedButton>(find.ancestor(
-      of: find.text('지금 실행'),
-      matching: find.byType(ElevatedButton),
-    ));
+    final button = tester.widget<ElevatedButton>(find.byKey(_approve));
     expect(button.onPressed, isNotNull);
     expect(find.textContaining('누르지 않으면 실행하지 않아요'), findsOneWidget);
   });
 
-  testWidgets('다시 받지 않기도 최소 터치 크기를 지킨다', (tester) async {
+  testWidgets('두 버튼 모두 최소 터치 크기를 지킨다', (tester) async {
     await _pump(tester, target: kMicrowaveAppliance);
-
-    final size = tester.getSize(find.ancestor(
-      of: find.text('이 제안 다시 받지 않기'),
-      matching: find.byType(TextButton),
-    ));
-    expect(size.height, greaterThanOrEqualTo(48));
+    expect(tester.getSize(find.byKey(_approve)).height,
+        greaterThanOrEqualTo(48));
+    expect(tester.getSize(find.byKey(_later)).height, greaterThanOrEqualTo(48));
   });
 
   test('서버가 준 appliance_id를 받는다', () {

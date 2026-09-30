@@ -49,6 +49,11 @@ Future<List<String>> _pressed(WidgetTester tester, ApplianceMap appliance) async
   await tester.pump();
   await tester.tap(find.text('전원'));
   await tester.pump();
+  // 누르기 전에 한 번 묻는다(승인 없이 누르지 않는다) — 물으면 승인한다.
+  if (find.text('누르기').evaluate().isNotEmpty) {
+    await tester.tap(find.text('누르기'));
+    await tester.pump();
+  }
   return tapped;
 }
 

@@ -22,12 +22,15 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
+import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/danger_alert_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
@@ -67,8 +70,8 @@ Future<void> _shoot(
 }
 
 /// 15.8형 패널 미리보기 — 제품 사양표 해상도 1920x1080
-/// (docs/하드웨어-연결-설계.md §0-1). KioskCanvas가 800x480 설계
-/// 캔버스를 2.25배로 확대해 채운 모습 -- 글씨·버튼·터치타깃이 함께 커진다.
+/// (docs/하드웨어-연결-설계.md §0-1). KioskCanvas가 가장자리 48px을 비우고
+/// 800x480 설계 캔버스를 2.05배로 확대해 채운 모습 -- 글씨·버튼·터치타깃이 함께 커진다.
 Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
   tester.view.physicalSize = const Size(1920, 1080);
   tester.view.devicePixelRatio = 1.0;
@@ -89,6 +92,105 @@ Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
     matchesGoldenFile('goldens/$name.png'),
   );
 }
+
+void _noop() {}
+
+const _okConnections = [
+  ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
+  ConnectionItem(id: 'press', state: 'ok', title: '', message: ''),
+  ConnectionItem(id: 'plug', state: 'ok', title: '', message: ''),
+];
+
+const _ambient = AmbientInfo(
+  greeting: '좋은 아침이에요.',
+  tip: AmbientTip(
+      kind: 'rain', text: '오후 3시부터 비 예보가 있어요. 우산 챙기세요.', icon: 'rain'),
+  hourly: [
+    AmbientHour(label: '오전 9시', icon: 'partly', temp: 16),
+    AmbientHour(label: '낮 12시', icon: 'cloudy', temp: 18),
+    AmbientHour(label: '오후 3시', icon: 'rain', temp: 17, pop: 70, precip: true),
+    AmbientHour(label: '오후 6시', icon: 'rain', temp: 15, pop: 60, precip: true),
+  ],
+  weatherSource: 'mock',
+);
+
+const _washer = ApplianceMap(
+  id: 'washer',
+  name: '세탁기',
+  category: 'washing_machine',
+  rows: 1,
+  cols: 1,
+  buttons: [],
+);
+
+const _fanAppliance = ApplianceMap(
+  id: 'custom_fan',
+  name: '거실 선풍기',
+  category: 'other',
+  rows: 1,
+  cols: 1,
+  buttons: [],
+);
+
+const _rice = ApplianceMap(
+  id: 'rice',
+  name: '밥솥',
+  category: 'rice_cooker',
+  rows: 1,
+  cols: 1,
+  buttons: [],
+);
+
+/// 평소 화면 — 가전 다섯(4개씩 넘기기), 세탁기 동작 중.
+KioskIdleView _idle({
+  List<ConnectionItem> connections = _okConnections,
+  Set<String> attention = const {},
+  AmbientInfo ambient = _ambient,
+}) =>
+    KioskIdleView(
+      now: DateTime(2026, 9, 30, 7, 8),
+      connected: true,
+      ambient: ambient,
+      connections: connections,
+      appliances: const [
+        kMicrowaveAppliance,
+        _washer,
+        kInductionAppliance,
+        _fanAppliance,
+        _rice,
+      ],
+      running: const {'washer'},
+      attention: attention,
+      temperature: 23,
+      humidity: 58,
+      onSelectAppliance: (_) {},
+      onOpenConnection: (_) {},
+      onDndGesture: () {},
+    );
+
+KioskHoldView _hold({bool stopRequested = false}) => KioskHoldView(
+      appliance: kMicrowaveAppliance,
+      holdState: 'hovering_stop',
+      stopButton: '취소',
+      executionMode: 'mock',
+      elapsed: const Duration(minutes: 1, seconds: 2),
+      buttonsPressed: 3,
+      operationConfirmed: true,
+      operationSource: 'mock',
+      stopRequested: stopRequested,
+      onStop: _noop,
+    );
+
+KioskManualView _mine() => KioskManualView(
+      appliance: kMicrowaveAppliance,
+      onExecute: (_) {},
+      onCancel: () {},
+      routines: const [
+        KioskRoutine(id: 'morning', name: '아침 데우기', stepCount: 3),
+        KioskRoutine(id: 'evening', name: '저녁 데우기', stepCount: 4),
+      ],
+      onRoutine: (_) {},
+    );
 
 void main() {
   setUpAll(() async {
@@ -111,85 +213,124 @@ void main() {
     steps: ['즉석밥', '시작'],
   );
 
-  testWidgets('대기', (t) async {
-    await _shoot(
-      t,
-      'idle',
-      KioskIdleView(
-        now: DateTime(2026, 8, 30, 18, 56),
-        connected: true,
-        actuatorReady: true,
-        appliance: kMicrowaveAppliance,
-        temperature: 26.5,
-        humidity: 58,
-        onTap: () {},
-        onLongPress: () {},
-      ),
-    );
+  testWidgets('평소', (t) async {
+    await _shoot(t, 'idle', _idle());
   });
 
-  testWidgets('대기 — 큰 글씨', (t) async {
+  testWidgets('평소 — 큰 글씨·연결 문제·확인 필요', (t) async {
     await _shoot(
       t,
       'idle_large',
-      KioskIdleView(
-        now: DateTime(2026, 8, 30, 18, 56),
-        connected: true,
-        actuatorReady: true,
-        appliance: const ApplianceMap(
-          id: 'custom_ac',
-          name: '거실 창가 스탠드 에어컨',
-          category: 'air_conditioner',
-          rows: 1,
-          cols: 1,
-          buttons: [],
+      _idle(
+        connections: const [
+          ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
+          ConnectionItem(id: 'press', state: 'ok', title: '', message: ''),
+          ConnectionItem(id: 'plug', state: 'warn', title: '', message: ''),
+        ],
+        attention: const {'induction'},
+        ambient: const AmbientInfo(
+          greeting: '편안한 저녁 보내세요.',
+          tip: AmbientTip(
+              kind: 'appliance',
+              text: '인덕션 확인이 필요해요. 마지막 작업이 끝까지 되지 않았어요.',
+              icon: 'attention'),
         ),
-        temperature: 26.5,
-        humidity: 58,
-        onTap: () {},
-        onLongPress: () {},
       ),
       textScale: 1.22,
     );
   });
 
-  testWidgets('대기 — 준비 안 된 가전', (t) async {
+  testWidgets('평소 — 등록된 가전 없음·예보 없음', (t) async {
     await _shoot(
       t,
-      'idle_not_ready',
+      'idle_empty',
       KioskIdleView(
-        now: DateTime(2026, 8, 30, 18, 56),
+        now: DateTime(2026, 9, 30, 18, 56),
         connected: true,
-        actuatorReady: true,
-        appliance: const ApplianceMap(
-          id: 'microwave',
-          name: '전자레인지',
-          category: 'microwave',
-          rows: 1,
-          cols: 1,
-          buttons: [],
-          canExecute: false,
-          readiness: 'needs_setup',
-          readinessReasons: ['버튼 위치 보정이 아직 안 됐어요'],
-        ),
-        onTap: () {},
-        onLongPress: () {},
+        connections: _okConnections,
+        appliances: const [],
+        onSelectAppliance: (_) {},
+        onOpenConnection: (_) {},
+        onDndGesture: () {},
       ),
     );
   });
 
-  testWidgets('대기 — 연결 끊김', (t) async {
+  testWidgets('평소 — 허브 연결 끊김', (t) async {
     await _shoot(
       t,
       'idle_disconnected',
       KioskIdleView(
-        now: DateTime(2026, 8, 30, 18, 56),
+        now: DateTime(2026, 9, 30, 18, 56),
         connected: false,
-        actuatorReady: false,
-        onTap: () {},
-        onLongPress: () {},
+        connections: const [
+          ConnectionItem.hubUnreachable,
+          ConnectionItem(id: 'press', state: 'unreachable', title: '', message: ''),
+          ConnectionItem(id: 'plug', state: 'unreachable', title: '', message: ''),
+        ],
+        onSelectAppliance: (_) {},
+        onOpenConnection: (_) {},
+        onDndGesture: () {},
       ),
     );
+  });
+
+  testWidgets('평소 — 연결 문제 모달', (t) async {
+    await _shoot(
+      t,
+      'connection_modal',
+      Stack(children: [
+        Positioned.fill(child: _idle()),
+        Positioned.fill(
+          child: KioskConnectionModal(
+            item: const ConnectionItem(
+              id: 'plug',
+              state: 'warn',
+              title: '플러그 연결이 약해요',
+              message:
+                  '가전이 끝났는지 알려 주는 플러그와 연결이 약해요. 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
+              fixes: [
+                '플러그가 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.',
+                '플러그를 허브와 가까운 콘센트로 옮겨 주세요.',
+                '그래도 안 되면 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.',
+              ],
+            ),
+            checking: false,
+            onRecheck: () {},
+            onClose: () {},
+          ),
+        ),
+      ]),
+    );
+  });
+
+  testWidgets('동작 중 — 정지 버튼 위 대기', (t) async {
+    await _shoot(t, 'hold', _hold());
+  });
+
+  testWidgets('동작 중 — 큰 글씨·정지 요청 보냄', (t) async {
+    await _shoot(t, 'hold_large', _hold(stopRequested: true), textScale: 1.22);
+  });
+
+  testWidgets('동작 중 — 정지 요청함·미확인', (t) async {
+    await _shoot(
+      t,
+      'hold_unconfirmed',
+      const KioskHoldView(
+        appliance: kMicrowaveAppliance,
+        holdState: 'parked',
+        stopOutcome: 'requested_unconfirmed',
+        stopButton: '취소',
+        executionMode: 'real',
+        elapsed: Duration(minutes: 1, seconds: 40),
+        onStop: _noop,
+        onClose: _noop,
+      ),
+    );
+  });
+
+  testWidgets('내 가전 — 버튼판과 내 루틴', (t) async {
+    await _shoot(t, 'my_appliance', _mine());
   });
 
   testWidgets('가전 선택', (t) async {
@@ -231,7 +372,6 @@ void main() {
         cdTotal: 20,
         onApprove: () {},
         onReject: () {},
-        onRejectMute: () {},
       ),
     );
   });
@@ -247,7 +387,6 @@ void main() {
         cdTotal: 20,
         onApprove: () {},
         onReject: () {},
-        onRejectMute: () {},
       ),
       textScale: 1.22,
     );
@@ -278,7 +417,6 @@ void main() {
         cdTotal: 20,
         onApprove: () {},
         onReject: () {},
-        onRejectMute: () {},
       ),
       textScale: 1.22,
     );
@@ -408,21 +546,16 @@ void main() {
     );
   });
 
-  testWidgets('15인치 미리보기 — 대기', (t) async {
-    await _shoot15(
-      t,
-      'kiosk15_idle',
-      KioskIdleView(
-        now: DateTime(2026, 9, 10, 18, 56),
-        connected: true,
-        actuatorReady: true,
-        appliance: kMicrowaveAppliance,
-        temperature: 26.5,
-        humidity: 58,
-        onTap: () {},
-        onLongPress: () {},
-      ),
-    );
+  testWidgets('15인치 미리보기 — 평소', (t) async {
+    await _shoot15(t, 'kiosk15_idle', _idle());
+  });
+
+  testWidgets('15인치 미리보기 — 동작 중', (t) async {
+    await _shoot15(t, 'kiosk15_hold', _hold());
+  });
+
+  testWidgets('15인치 미리보기 — 내 가전', (t) async {
+    await _shoot15(t, 'kiosk15_my_appliance', _mine());
   });
 
   testWidgets('15인치 미리보기 — 제안', (t) async {
@@ -436,7 +569,6 @@ void main() {
         cdTotal: 20,
         onApprove: () {},
         onReject: () {},
-        onRejectMute: () {},
       ),
     );
   });

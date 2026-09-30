@@ -12,6 +12,9 @@ const kApprovalChangedMessage = '제안 내용이 바뀌어 다시 확인이 필
 
 /// 제안 확인 화면.
 ///
+/// 다가오면(UI 확정 2026-09-30 §3-2) — 제안 카드 **한 장**, 버튼은 "시작"과
+/// "다음에" 두 개뿐이다. 억제·미루기·동작 바꾸기 같은 관리는 폰 앱의 루틴 탭에 둔다.
+///
 /// 여기서 사용자가 판단해야 하는 것은 "AI가 뭘 제안했나"가 아니라 **"내 가전의 어떤
 /// 버튼을 대신 눌러줄 것인가, 그걸 맡길 것인가"**다. 그래서 읽는 순서를
 /// 어느 가전을 → 무엇을(왼쪽, 크게) → 어떤 순서로(오른쪽) → 할까 말까(아래) 로 둔다.
@@ -28,9 +31,6 @@ class KioskSuggestionView extends StatelessWidget {
     required this.cdTotal,
     required this.onApprove,
     required this.onReject,
-    required this.onRejectMute,
-    this.onSnooze,
-    this.onRevise,
     this.scenarioName,
     this.blockedWhy,
   });
@@ -52,13 +52,9 @@ class KioskSuggestionView extends StatelessWidget {
   /// 남은 시간과 바가 어긋나지 않는다.
   final int cdTotal;
   final VoidCallback onApprove;
-  final VoidCallback onReject;
 
-  /// "다시 추천 안 함" -- 이번만 넘기기(onReject)와 달리 그 루틴을
-  /// 아예 억제한다.
-  final VoidCallback onRejectMute;
-  final VoidCallback? onSnooze;
-  final VoidCallback? onRevise;
+  /// "다음에" — 이번만 넘긴다(억제하지 않는다).
+  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) {
@@ -81,6 +77,15 @@ class KioskSuggestionView extends StatelessWidget {
               child: KioskTargetLine(appliance: target),
             ),
             const SizedBox(height: 10),
+          ],
+          // 사용자가 붙인 루틴 이름 — 메뉴는 사용자가 만든다(§1-1).
+          if (suggestion.routineName != null &&
+              suggestion.routineName!.isNotEmpty) ...[
+            Text(
+              '내 루틴 "${suggestion.routineName}"',
+              style: const TextStyle(fontSize: 22, color: KioskColors.muted),
+            ),
+            const SizedBox(height: 6),
           ],
           if (scenario && scenarioName != null) ...[
             Text(
@@ -181,23 +186,6 @@ class KioskSuggestionView extends StatelessWidget {
             ),
           ),
 
-          if (onRevise != null && suggestion.timeBand != '환경')
-            Align(alignment: Alignment.centerLeft, child: TextButton.icon(
-              onPressed: onRevise,
-              icon: const Icon(Icons.edit_outlined),
-              label: const Text('이번 동작 바꾸기'),
-              style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-            )),
-          if (onSnooze != null && !suggestion.isDemo && suggestion.timeBand != '데모')
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: onSnooze,
-                icon: const Icon(Icons.snooze),
-                label: const Text('이 제안 30분 쉬기 · 이후 상황에 따라 다시 물어요'),
-                style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-              ),
-            ),
           const SizedBox(height: 12),
           Row(
             children: [
@@ -207,6 +195,7 @@ class KioskSuggestionView extends StatelessWidget {
               Expanded(
                 flex: 3,
                 child: OutlinedButton(
+                  key: const ValueKey('suggestion-later'),
                   onPressed: onReject,
                   style: OutlinedButton.styleFrom(
                     minimumSize: const Size(0, 64),
@@ -217,7 +206,7 @@ class KioskSuggestionView extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    '이번만 넘기기',
+                    '다음에',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
                   ),
@@ -227,6 +216,7 @@ class KioskSuggestionView extends StatelessWidget {
               Expanded(
                 flex: 4,
                 child: ElevatedButton(
+                  key: const ValueKey('suggestion-approve'),
                   onPressed: canExecute ? onApprove : null,
                   style: ElevatedButton.styleFrom(
                     minimumSize: const Size(0, 64),
@@ -242,7 +232,7 @@ class KioskSuggestionView extends StatelessWidget {
                     ),
                   ),
                   child: const Text(
-                    '지금 실행',
+                    '시작',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
                   ),
@@ -250,7 +240,7 @@ class KioskSuggestionView extends StatelessWidget {
               ),
             ],
           ),
-
+          const SizedBox(height: 10),
           Row(
             children: [
               // 카운트다운에서 정작 중요한 정보는 남은 초가 아니라 "가만히 두면
@@ -270,22 +260,9 @@ class KioskSuggestionView extends StatelessWidget {
                           : KioskColors.danger),
                 ),
               ),
-              TextButton.icon(
-                onPressed: onRejectMute,
-                style: TextButton.styleFrom(
-                  foregroundColor: KioskColors.muted,
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
-                  // 작은 글자여도 누르는 자리는 최소 터치 크기를 지킨다.
-                  minimumSize: const Size(48, 48),
-                ),
-                icon: const Icon(Icons.notifications_off_outlined, size: 18),
-                label: const Text(
-                  '이 제안 다시 받지 않기',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
-                ),
-              ),
             ],
           ),
+          const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(2),
             child: LinearProgressIndicator(

@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../models/ambient.dart';
 import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/scenario_run.dart';
@@ -15,7 +16,9 @@ import '../widgets/kiosk/appliance_select_view.dart';
 import '../widgets/kiosk/danger_alert_overlay.dart';
 import '../widgets/kiosk/dnd_overlay.dart';
 import '../widgets/kiosk/done_view.dart';
+import '../widgets/kiosk/connection_status.dart';
 import '../widgets/kiosk/executing_view.dart';
+import '../widgets/kiosk/hold_view.dart';
 import '../widgets/kiosk/idle_view.dart';
 import '../widgets/kiosk/kiosk_canvas.dart';
 import '../widgets/kiosk/kiosk_phase.dart';
@@ -157,6 +160,30 @@ class _KioskScreenState extends State<KioskScreen> {
   // 실패 화면의 '다시 시도'가 무엇을 다시 할지 — 실행을 시작한 쪽이 심는다.
   Future<void> Function()? _retryAction;
 
+  // ── 평소 화면(2026-09-30) ───────────────────────────────────────────
+  AmbientInfo? _ambient;
+  // null = 허브에 못 닿음. 첫 응답 전에는 _connectionsLoaded가 거짓이다.
+  List<ConnectionItem>? _connections;
+  bool _connectionsLoaded = false;
+  bool _connectionsChecking = false;
+  // 열려 있는 연결 모달의 항목 id — 다시 확인하면 새 내용으로 바뀐다.
+  String? _openConnectionId;
+  // 사용자 루틴(GET /routines). null = 아직 못 받음.
+  List<KioskRoutine>? _routines;
+  // 가전 줄의 순서 근거 — /status에서 읽는다.
+  Set<String> _runningIds = const {};
+  Set<String> _attentionIds = const {};
+
+  // ── 동작 중: 정지 버튼 대기·보관(2026-09-30) ─────────────────────────
+  KioskStatus? _hold;
+  DateTime _holdSince = DateTime.now();
+  bool _holdStopRequested = false;
+  bool _holdStopFailed = false;
+  // 짧게 보여 주고 평소 화면으로 돌아가는 타이머(보관 완료).
+  Timer? _holdReturnTimer;
+  // 사람이 확인해야 하는 결과(미확인·이상)를 한 번만 말하기 위한 기록.
+  String? _holdSpokenKey;
+
   Timer? _pollTimer;
   Timer? _healthTimer;
   Timer? _clockTimer;
@@ -200,13 +227,21 @@ class _KioskScreenState extends State<KioskScreen> {
     _checkHealth();
     _fetchSensors();
     _fetchAppliances();
+    _fetchAmbient();
+    _fetchConnections();
+    _fetchRoutines();
     _fetchAlert();
     _poll();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _poll());
-    _healthTimer = Timer.periodic(_healthInterval, (_) => _checkHealth());
+    _healthTimer = Timer.periodic(_healthInterval, (_) {
+      _checkHealth();
+      _fetchConnections(); // 연결 아이콘도 같은 주기로
+    });
     _sensorTimer = Timer.periodic(_sensorInterval, (_) {
       _fetchSensors();
       _fetchAppliances(); // 가전 목록도 같은 주기로 — 폰 등록이 1분 안에 반영
+      _fetchAmbient();
+      _fetchRoutines();
     });
     _alertTimer = Timer.periodic(_alertInterval, (_) => _fetchAlert());
     _clockTimer = Timer.periodic(
@@ -227,6 +262,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   @override
   void dispose() {
+    _holdReturnTimer?.cancel();
     _countdownTimer?.cancel();
     _pollTimer?.cancel();
     _healthTimer?.cancel();
@@ -247,6 +283,99 @@ class _KioskScreenState extends State<KioskScreen> {
     final data = await _api.sensors();
     if (mounted) setState(() => _sensorData = data);
   }
+
+  Future<void> _fetchAmbient() async {
+    final info = await _api.ambient();
+    // 실패는 null — 화면은 인사말만 보인다(인터넷·예보가 없을 때와 같다).
+    if (mounted) setState(() => _ambient = info);
+  }
+
+  Future<void> _fetchConnections() async {
+    final items = await _api.connections();
+    if (!mounted) return;
+    setState(() {
+      _connections = items;
+      _connectionsLoaded = true;
+    });
+  }
+
+  Future<void> _fetchRoutines() async {
+    final list = await _api.routines();
+    // 실패는 마지막으로 안 목록을 유지한다(오프라인 우선).
+    if (!mounted || list == null) return;
+    setState(() => _routines = list);
+  }
+
+  /// 연결 아이콘 세 개에 보일 항목. 허브에 못 닿으면 와이파이 자리에 그 사실을
+  /// 세우고, 나머지는 **모른다**고만 둔다(허브 너머라 확인할 수 없다).
+  List<ConnectionItem> get _connectionItems {
+    const unreachable = [
+      ConnectionItem(
+          id: 'press',
+          state: 'unreachable',
+          title: '누름 장치 상태를 볼 수 없어요',
+          message: '허브와 연결되면 확인할 수 있어요.'),
+      ConnectionItem(
+          id: 'plug',
+          state: 'unreachable',
+          title: '플러그 상태를 볼 수 없어요',
+          message: '허브와 연결되면 확인할 수 있어요.'),
+    ];
+    if (!_connectionsLoaded) {
+      return const [
+        ConnectionItem(
+            id: 'network',
+            state: 'unreachable',
+            title: '연결을 확인하고 있어요',
+            message: '잠시만 기다려 주세요.'),
+        ...unreachable,
+      ];
+    }
+    final items = _connections;
+    if (items == null || items.isEmpty) {
+      return const [ConnectionItem.hubUnreachable, ...unreachable];
+    }
+    return items;
+  }
+
+  Future<void> _recheckConnections() async {
+    if (_connectionsChecking) return;
+    setState(() => _connectionsChecking = true);
+    await Future.wait([_fetchConnections(), _checkHealth()]);
+    if (mounted) setState(() => _connectionsChecking = false);
+  }
+
+  /// 가전 줄의 순서 근거를 /status에서 읽는다 — 동작 중(실행 중이거나 정지 버튼
+  /// 위 대기 중)과 확인 필요(마지막 실행이 끝까지 되지 않음, 서버 /ambient와 같은 규칙).
+  void _trackStrip(KioskStatus st) {
+    final running = <String>{
+      if (st.running && st.applianceId != null) st.applianceId!,
+      if (_holdActive(st.holdState) && st.holdApplianceId != null)
+        st.holdApplianceId!,
+    };
+    final attention = <String>{};
+    final last = st.lastApplianceId;
+    if (!st.running && last != null &&
+        (st.lastOutcome != null || st.lastStatus != null)) {
+      final kind = resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
+      if (kind == ResultKind.failed || kind == ResultKind.safetyStop) {
+        attention.add(last);
+      }
+    }
+    if (!_sameSet(running, _runningIds) || !_sameSet(attention, _attentionIds)) {
+      setState(() {
+        _runningIds = running;
+        _attentionIds = attention;
+      });
+    }
+  }
+
+  static bool _sameSet(Set<String> a, Set<String> b) =>
+      a.length == b.length && a.containsAll(b);
+
+  /// 사람이 정지 버튼을 눌러야 할 수 있는 대기 상태.
+  static bool _holdActive(String? state) =>
+      state == 'hovering_stop' || state == 'stopping' || state == 'parking';
 
   Future<void> _fetchAlert() async {
     final alert = await _api.alerts();
@@ -280,6 +409,8 @@ class _KioskScreenState extends State<KioskScreen> {
         await _pollExecuting();
       } else if (_phase == KioskPhase.suggestion) {
         await _pollSuggestion();
+      } else if (_phase == KioskPhase.hold) {
+        await _pollHold();
       }
     } finally {
       _pollInFlight = false;
@@ -292,9 +423,16 @@ class _KioskScreenState extends State<KioskScreen> {
     try {
       final st = await _api.status();
       if (!mounted || _phase != KioskPhase.idle) return;
+      _trackStrip(st);
       if (st.running && st.jobId != null) {
         _toExecuting(st.currentButton ?? '실행',
             applianceId: st.applianceId, jobId: st.jobId);
+        return;
+      }
+      // 버튼을 다 누른 뒤 가전이 돌아가는 중 — 동작 중 화면(정지 버튼 대기).
+      // 제안보다 먼저 본다: 안내는 한 번에 하나다.
+      if (_holdActive(st.holdState)) {
+        _toHold(st);
         return;
       }
     } catch (_) {}
@@ -343,6 +481,7 @@ class _KioskScreenState extends State<KioskScreen> {
         return;
       }
       _lastStatusOk = DateTime.now();
+      _trackStrip(st);
 
       // ① 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
@@ -435,7 +574,97 @@ class _KioskScreenState extends State<KioskScreen> {
     setState(() => _doneRunSteps = run.steps);
   }
 
+  void _toHold(KioskStatus st) {
+    _holdReturnTimer?.cancel();
+    _holdReturnTimer = null;
+    _holdSpokenKey = null;
+    setState(() {
+      _phase = KioskPhase.hold;
+      _hold = st;
+      _holdSince = DateTime.now();
+      _holdStopRequested = false;
+      _holdStopFailed = false;
+      _showDnd = false;
+    });
+  }
+
+  Future<void> _pollHold() async {
+    try {
+      final st = await _api.status();
+      if (!mounted || _phase != KioskPhase.hold) return;
+      _trackStrip(st);
+      // 폰이 새 실행을 시작했다 — 그 실행을 따라간다.
+      if (st.running && st.jobId != null) {
+        _holdReturnTimer?.cancel();
+        _toExecuting(st.currentButton ?? '실행',
+            applianceId: st.applianceId, jobId: st.jobId);
+        return;
+      }
+      _applyHold(st);
+    } catch (_) {
+      // 통신 실패는 상태 변화의 증거가 아니다 — 정지 버튼은 계속 닿는다.
+    }
+  }
+
+  void _applyHold(KioskStatus st) {
+    final state = st.holdState;
+    // 대기 보고가 사라졌거나 풀렸다 — 보여 줄 대기가 없다.
+    if (state == null || state == 'released') {
+      _toIdle();
+      return;
+    }
+    final prev = _hold?.holdState;
+    setState(() {
+      _hold = st;
+      // 대기에서 벗어나면 "정지 요청을 보냈어요"는 다음 상태 문장이 대신한다.
+      if (state != 'hovering_stop') _holdStopRequested = false;
+      if (state != prev) _holdStopFailed = false;
+    });
+    final needsPerson = _holdNeedsPerson(st);
+    if (needsPerson) {
+      final key = '${st.holdState}/${st.holdStopOutcome}';
+      if (_holdSpokenKey != key) {
+        _holdSpokenKey = key;
+        _tts.speak(st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
+            ? '누름 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
+            : '정지 버튼을 눌렀지만 가전이 멈췄는지 확인하지 못했어요. 가전을 직접 확인해 주세요.');
+      }
+      return;
+    }
+    // 보관 완료 — "보관 위치로 이동했어요"를 짧게 보인 뒤 평소 화면으로.
+    if (state == 'parked' && _holdReturnTimer == null) {
+      _holdReturnTimer = Timer(_doneReturnDuration, () {
+        _holdReturnTimer = null;
+        if (mounted && _phase == KioskPhase.hold) _toIdle();
+      });
+    }
+  }
+
+  /// 사람이 확인하고 닫아야 하는 결과 — 멈췄는지 모름, 구동부 이상.
+  static bool _holdNeedsPerson(KioskStatus st) =>
+      st.holdState == 'fault' ||
+      st.holdStopOutcome == 'drive_fault' ||
+      (st.holdState == 'parked' &&
+          st.holdStopOutcome == 'requested_unconfirmed');
+
+  Future<void> _onHoldStop() async {
+    // 정지 "요청"만 보낸다 — 판정(정지됨·미확인)은 서버가 옮겨 오는 값으로만.
+    try {
+      await _api.stop();
+      if (!mounted || _phase != KioskPhase.hold) return;
+      setState(() {
+        _holdStopRequested = true;
+        _holdStopFailed = false;
+      });
+    } catch (_) {
+      if (!mounted || _phase != KioskPhase.hold) return;
+      setState(() => _holdStopFailed = true);
+    }
+  }
+
   void _toIdle() {
+    _holdReturnTimer?.cancel();
+    _holdReturnTimer = null;
     _countdownTimer?.cancel();
     setState(() {
       _phase = KioskPhase.idle;
@@ -480,28 +709,59 @@ class _KioskScreenState extends State<KioskScreen> {
         if (refreshed != null) {
           _manualAppliance = refreshed;
         } else if (_phase == KioskPhase.manual) {
-          _manualAppliance = null; // 선택 화면으로 — 삭제 안내는 목록 부재로 자명
+          // 평소 화면으로 — 삭제 사실은 가전 줄에서 빠진 것으로 자명하다.
+          _manualAppliance = null;
+          _phase = KioskPhase.idle;
         }
       }
     });
   }
 
-  void _toManual() {
+  /// 평소 화면의 가전 아이콘 → 내 가전.
+  void _toMyAppliance(ApplianceMap appliance) {
     if (_phase != KioskPhase.idle) return;
-    // 서버에 연결돼 있지 않으면 조작 화면으로 보내지 않는다. 대기 화면이 이미
-    // "기기 연결이 필요해요"라고 말하는데, 눌렀더니 전자레인지 버튼판이 뜨면
-    // "연결도 안 됐는데 왜 조작이 되지?"라는 모순이 된다 -- 실제로 연결 없이는
-    // 버튼도 못 누른다. 대기 화면의 안내가 그대로 이유가 된다.
-    if (!_health.ok) return;
+    // 허브에 닿지 않으면 버튼판을 열지 않는다 — 연결 없이는 실제로 버튼도 못
+    // 누른다. 대신 무엇이 안 되는지 말하는 연결 모달을 연다.
+    if (!_health.ok) {
+      setState(() => _openConnectionId = 'network');
+      return;
+    }
     setState(() {
       _phase = KioskPhase.manual;
-      // 가전이 하나뿐이면 물을 것 없이 바로 조작판. 여럿이면 선택부터 —
-      // 키오스크는 공간의 가전들을 다루는 허브라 "어느 가전인지"는
-      // 조작하려는 순간에 묻는 것이 자연스럽다(설정 속 칩이던 시절엔
-      // 고령 사용자가 가전을 바꿀 방법을 사실상 찾을 수 없었다).
-      _manualAppliance =
-          _appliances.length == 1 ? _appliances.single : null;
+      _manualAppliance = appliance;
+      _currentAppliance = appliance; // 실행 라우팅의 기준
     });
+    _persistSettings();
+    _fetchRoutines();
+  }
+
+  /// 내 가전의 루틴 → 카드(다가오면). 실행은 카드의 "시작"(승인) 뒤에만.
+  Future<void> _onRoutine(KioskRoutine routine) async {
+    try {
+      final result = await _api.triggerRoutine(routine.id);
+      if (!mounted || _phase != KioskPhase.manual) return;
+      final card = result.suggestion;
+      if (card != null) {
+        _toSuggestion(card);
+        return;
+      }
+      final notice = result.notice;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(notice == null || notice.isEmpty
+            ? '알림만 보내는 루틴이에요. 가전은 누르지 않아요.'
+            : notice),
+      ));
+    } on KioskApiException catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(e.detail.isNotEmpty ? e.detail : '루틴 카드를 만들지 못했어요.'),
+      ));
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('루틴 카드를 만들지 못했어요. 연결을 확인해 주세요.'),
+      ));
+    }
   }
 
   void _onManualApplianceSelected(ApplianceMap appliance) {
@@ -547,8 +807,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // '승인'을 찾다가 '지금 실행'을 못 알아보면 그 순간 막힌다.
     // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다("…바꿀까요?").
     _tts.speak(suggestion.isScenario
-        ? '${suggestion.purpose} 화면에서 지금 실행을 눌러 주세요.'
-        : '${suggestion.purpose}, 지금 할까요? 화면에서 지금 실행을 눌러 주세요.');
+        ? '${suggestion.purpose} 화면에서 시작을 눌러 주세요.'
+        : '${suggestion.purpose}, 지금 할까요? 화면에서 시작을 눌러 주세요.');
     setState(() {
       _phase = KioskPhase.suggestion;
       _currentSuggestion = suggestion;
@@ -740,59 +1000,16 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _onReject() => _dismissSuggestion(mute: false);
 
-  Future<void> _onRevise() async {
-    final old = _currentSuggestion;
-    if (old == null || _dismissingSuggestion) return;
-    _dismissingSuggestion = true;
-    try {
-      final options = await _api.revisionOptions(old.id);
-      if (!mounted || _phase != KioskPhase.suggestion || _currentSuggestion?.id != old.id) return;
-      if (options.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('바꿀 수 있는 등록 동작이 없어요.')));
-        return;
-      }
-      final purpose = await showDialog<String>(context: context, builder: (dialogContext) => SimpleDialog(
-        title: const Text('이번 동작 바꾸기 · 아직 실행하지 않아요'),
-        children: options.entries.map((e) => SimpleDialogOption(
-          onPressed: () => Navigator.pop(dialogContext, e.key),
-          child: Text('${e.key}\n${e.value.join(' → ')}'),
-        )).toList(),
-      ));
-      if (purpose == null || !mounted || _phase != KioskPhase.suggestion || _currentSuggestion?.id != old.id) return;
-      final revised = await _api.reviseSuggestion(old.id, purpose);
-      if (mounted && _phase == KioskPhase.suggestion && _currentSuggestion?.id == old.id) {
-        _toSuggestion(revised);
-      }
-    } catch (_) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('동작을 바꾸지 못했어요. 최신 제안을 확인해 주세요.')));
-    } finally {
-      _dismissingSuggestion = false;
-    }
-  }
-
-  // "다시 추천 안 함" -- 이 루틴을 서버 억제 목록에 넣어 패턴이 다시
-  // 띄우지 않게 한다(단순 dismiss와 다름).
-  Future<void> _onRejectMute() => _dismissSuggestion(mute: true);
-
-  Future<void> _dismissSuggestion({required bool mute, bool snooze = false}) async {
+  Future<void> _dismissSuggestion({required bool mute}) async {
     final suggestion = _currentSuggestion;
     if (suggestion == null || _dismissingSuggestion) return;
     _dismissingSuggestion = true;
     _countdownTimer?.cancel();
     try {
-      if (snooze) {
-        await _api.snoozeSuggestion(suggestion.id);
-      } else {
-        await _api.rejectSuggestion(suggestion.id, mute: mute);
-      }
+      await _api.rejectSuggestion(suggestion.id, mute: mute);
       if (mounted && _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
         _toIdle();
-        if (snooze) {
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('30분간 이 제안을 쉬어요. 자동 실행하지 않아요.'),
-          ));
-        }
       }
     } catch (_) {
       if (mounted && _phase == KioskPhase.suggestion &&
@@ -911,6 +1128,8 @@ class _KioskScreenState extends State<KioskScreen> {
                 onAcknowledge: () => setState(() => _alertAcknowledged = true),
               ),
             ),
+          if (_openConnectionId != null && _phase == KioskPhase.idle)
+            Positioned.fill(child: _buildConnectionModal()),
           if (_showSettings)
             Positioned.fill(
               child: KioskSettingsOverlay(
@@ -940,6 +1159,18 @@ class _KioskScreenState extends State<KioskScreen> {
     );
   }
 
+  Widget _buildConnectionModal() {
+    final id = _openConnectionId;
+    final item = _connectionItems.where((c) => c.id == id).firstOrNull ??
+        ConnectionItem.hubUnreachable;
+    return KioskConnectionModal(
+      item: item,
+      checking: _connectionsChecking,
+      onRecheck: _recheckConnections,
+      onClose: () => setState(() => _openConnectionId = null),
+    );
+  }
+
   Widget _buildScreen() {
     switch (_phase) {
       case KioskPhase.idle:
@@ -947,17 +1178,50 @@ class _KioskScreenState extends State<KioskScreen> {
           key: const ValueKey('idle'),
           now: _now,
           connected: _health.ok,
-          actuatorReady: _health.actuatorReady,
-          // 서버 목록에서 확인된 가전일 때만 이름을 말한다.
-          appliance: _appliancesFromServer
-              ? _findIn(_appliances, _currentAppliance.id)
-              : null,
+          ambient: _ambient,
+          connections: _connectionItems,
+          // 서버 목록에서 확인된 가전만 줄에 세운다 — 내장 폴백으로 설치한 적
+          // 없는 가전을 세우지 않는다.
+          appliances: _appliancesFromServer ? _appliances : null,
+          running: _runningIds,
+          attention: _attentionIds,
           dndUntil: _health.dndUntil,
           temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
           humidity: _sensorData?.mocked == false ? _sensorData?.humidity : null,
-          onTap: _toManual,
-          onLongPress: () => setState(() => _showDnd = true),
+          onSelectAppliance: _toMyAppliance,
+          onOpenConnection: (item) =>
+              setState(() => _openConnectionId = item.id),
+          onDndGesture: () => setState(() => _showDnd = true),
           onSettingsGesture: () => setState(() => _showSettings = true),
+        );
+      case KioskPhase.hold:
+        final st = _hold!;
+        final buttons = st.lastButtons;
+        return KioskHoldView(
+          key: const ValueKey('hold'),
+          appliance: st.holdApplianceId == null
+              ? null
+              : _findIn(_appliances, st.holdApplianceId!),
+          holdState: st.holdState ?? 'hovering_stop',
+          stopOutcome: st.holdStopOutcome,
+          detail: st.holdDetail,
+          stopButton: st.holdStopButton,
+          executionMode: st.holdExecutionMode,
+          elapsed: _now.difference(_holdSince).isNegative
+              ? Duration.zero
+              : _now.difference(_holdSince),
+          // 누름 보고는 마지막 실행이 이 가전의 성공일 때만 센다.
+          buttonsPressed: buttons != null &&
+                  st.lastApplianceId == st.holdApplianceId &&
+                  st.lastOutcome == 'success'
+              ? buttons.where((b) => b.success).length
+              : null,
+          operationConfirmed: st.lastOperationConfirmed,
+          operationSource: st.lastOperationSource,
+          stopRequested: _holdStopRequested,
+          stopFailed: _holdStopFailed,
+          onStop: _onHoldStop,
+          onClose: _holdNeedsPerson(st) ? _toIdle : null,
         );
       case KioskPhase.manual:
         final manualAppliance = _manualAppliance;
@@ -975,6 +1239,10 @@ class _KioskScreenState extends State<KioskScreen> {
           appliance: manualAppliance,
           onExecute: _onManualExecute,
           onCancel: _fromManual,
+          routines: _routines
+              ?.where((r) => r.involves(manualAppliance.id))
+              .toList(),
+          onRoutine: _onRoutine,
         );
       case KioskPhase.suggestion:
         final suggestion = _currentSuggestion!;
@@ -991,9 +1259,6 @@ class _KioskScreenState extends State<KioskScreen> {
           blockedWhy: suggestion.isScenario ? _scenarioBlockedWhy : null,
           onApprove: _onApprove,
           onReject: _onReject,
-          onRejectMute: _onRejectMute,
-          onSnooze: () => _dismissSuggestion(mute: false, snooze: true),
-          onRevise: _onRevise,
         );
       case KioskPhase.executing:
         return KioskExecutingView(
