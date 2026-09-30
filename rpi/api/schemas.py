@@ -757,6 +757,9 @@ class HistoryEntryResponse(BaseModel):
     buttons: list[HistoryButton]
     # ── 실험 계측 (F4) ──────────────────────────────────────────────
     # 이 열이 생기기 전 기록은 값이 없거나 'unknown'이다 — 지어내지 않는다.
+    #: 사용자 루틴(2026-09-30). 있으면 화면은 purpose 대신 이 이름을 제목으로 쓴다.
+    routine_id: str | None = None
+    routine_name: str | None = None
     appliance_id: str | None = None
     # real | mock | unknown. mock 실행이 실제 성공률에 섞이지 않게 가른다.
     execution_mode: str = "unknown"

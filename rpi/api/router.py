@@ -986,6 +986,8 @@ async def snooze_suggestion(
         raise HTTPException(status_code=404, detail="suggestion not found")
     return OkResponse()
 
+            routine_id=s.routine_id,
+            routine_name=s.routine_name,
 
 @router.get("/suggestions/{suggestion_id}/revision-options")
 async def suggestion_revision_options(
@@ -1546,3 +1548,8 @@ async def demo_alert(
 
 # ThinQ 경로·시나리오(U1) — 같은 인증 의존성 아래에 둔다.
 router.include_router(thinq_router)
+
+# 사용자 루틴(2026-09-30) — 같은 인증 의존성 아래.
+from .routines_router import router as routines_router  # noqa: E402
+
+router.include_router(routines_router)

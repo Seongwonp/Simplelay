@@ -63,6 +63,10 @@ class ProactiveSuggestionService:
         # 시나리오 ID → **지금** 정의대로 만든 명령들. 승인 시 카드가 들고 있는
         # 명령과 지문을 대조한다(달라졌으면 재승인). None이면 대조를 건너뛴다.
         self._scenario_resolver = scenario_resolver
+        # 사용자 루틴(rpi/routines, 2026-09-30): 습관 카드가 같은 버튼 순서의 루틴 이름을
+        # 빌려 쓰고(``_routine_namer``), 루틴 카드의 승인은 루틴 순서기로 간다(``_plan_runner``).
+        self._routine_namer = None
+        self._plan_runner = None
         self._feedback = feedback if feedback is not None else SuggestionFeedback()
         self._completed_actions = completed_actions
         self._detector = detector
@@ -174,6 +178,7 @@ class ProactiveSuggestionService:
                 until = self._detector.band_end(candidate.time_band, self._clock.now())
                 if until is None:
                     continue  # 느린 미리보기 동안 시간대가 끝난 경우
+                routine = self._routine_for(candidate.appliance_id, steps)
                 key = self._cooldowns.key(
                     candidate.purpose, candidate.time_band, candidate.appliance_id
                 )
@@ -194,11 +199,14 @@ class ProactiveSuggestionService:
                     steps=steps,
                     appliance_id=candidate.appliance_id,
                     expires_at=until,
-                    reason=(f"최근 {candidate.window_days}일 동안 "
+                    reason=((f"평소처럼 '{routine[1]}' 할까요? " if routine else "")
+                            + f"최근 {candidate.window_days}일 동안 "
                             f"{candidate.time_band} 시간에 "
                             f"{candidate.distinct_days}일 사용하셨어요."),
                     commands=commands,
                     command_summaries=summaries,
+                    routine_id=routine[0] if routine else None,
+                    routine_name=routine[1] if routine else None,
                 )
                 self._next_id += 1
                 self._suggestions[suggestion.suggestion_id] = suggestion
@@ -328,6 +336,23 @@ class ProactiveSuggestionService:
     def set_scenario_resolver(self, resolver) -> None:
         self._scenario_resolver = resolver
 
+    def set_routine_namer(self, namer) -> None:
+        """namer(appliance_id, steps) -> (routine_id, name) | None."""
+        self._routine_namer = namer
+
+    def set_plan_runner(self, runner) -> None:
+        """runner.handles(scenario_id)가 참인 카드의 승인은 runner가 실행한다."""
+        self._plan_runner = runner
+
+    def _routine_for(self, appliance_id, steps):
+        if self._routine_namer is None:
+            return None
+        try:
+            return self._routine_namer(appliance_id, tuple(steps))
+        except Exception:  # noqa: BLE001 -- 이름 빌리기 실패가 습관 제안을 막지 않는다
+            log.exception("routine namer failed")
+            return None
+
     def create_scenario_suggestion(
         self,
         *,
@@ -338,6 +363,9 @@ class ProactiveSuggestionService:
         reason: str,
         is_demo: bool,
         valid_minutes: int = 15,
+        routine_id: str | None = None,
+        routine_name: str | None = None,
+        time_band: str = "시나리오",
     ) -> ProactiveSuggestion | None:
         """시나리오 제안 — **확정 명령**을 들고 다니는 카드. 자동 실행하지 않는다.
 
@@ -368,7 +396,7 @@ class ProactiveSuggestionService:
             suggestion = ProactiveSuggestion(
                 suggestion_id=f"suggestion-{self._id_prefix}-{self._next_id}",
                 purpose=purpose,
-                time_band="시나리오",
+                time_band=time_band,
                 occurrences=0,
                 created_at=now,
                 steps=(),
@@ -379,6 +407,8 @@ class ProactiveSuggestionService:
                 commands=tuple(commands),
                 command_summaries=tuple(summaries),
                 scenario_id=scenario_id,
+                routine_id=routine_id,
+                routine_name=routine_name,
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion
@@ -417,7 +447,10 @@ class ProactiveSuggestionService:
 
     def _approve_commands(self, suggestion: ProactiveSuggestion, *, background: bool):
         approved = self._approved_commands(suggestion)
-        run = self._executor.submit_approved if background else self._executor.execute_approved
+        target = self._executor
+        if self._plan_runner is not None and self._plan_runner.handles(suggestion.scenario_id):
+            target = self._plan_runner  # 루틴: 같은 승인 묶음을 단계 순서대로(안내·기다리기 포함)
+        run = target.submit_approved if background else target.execute_approved
         return run(
             approved, purpose=suggestion.purpose, usage_source=self._source_of(suggestion),
             scenario_id=suggestion.scenario_id,

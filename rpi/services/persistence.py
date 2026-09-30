@@ -651,6 +651,51 @@ class SqliteJobHistory:
             self._db.save_job_command_meta(entry)
         if entry.operation_confirmed is not None or entry.operation_detail:
             self._db.save_job_operation_meta(entry)
+    # ── 사용자 루틴(2026-09-30, rpi/routines) ────────────────────────────────
+    # 문서(JSON) 한 칸 + 형식 번호. 문서 안의 형식 이관은 rpi.routines.model이 한다.
+    # 초안 표(routine_id, document)만 있는 DB에는 빠진 열을 ALTER로 더한다.
+
+    def _ensure_routines_locked(self) -> None:
+        if getattr(self, "_routines_ready", False):
+            return
+        self._conn.execute(
+            "CREATE TABLE IF NOT EXISTS routines ("
+            " routine_id TEXT PRIMARY KEY, document TEXT NOT NULL,"
+            " schema_version INTEGER, updated_at TEXT)"
+        )
+        columns = {row[1] for row in self._conn.execute("PRAGMA table_info(routines)")}
+        for column, kind in (("schema_version", "INTEGER"), ("updated_at", "TEXT")):
+            if column not in columns:
+                self._conn.execute(f"ALTER TABLE routines ADD COLUMN {column} {kind}")
+                _log.info("routines migrated: %s column added", column)
+        self._conn.commit()
+        self._routines_ready = True
+
+    def save_routine(self, routine_id: str, document: str, schema_version: int,
+                     updated_at: str | None) -> None:
+        with self._lock:
+            self._ensure_routines_locked()
+            self._conn.execute(
+                "INSERT OR REPLACE INTO routines (routine_id, document, schema_version, updated_at)"
+                " VALUES (?, ?, ?, ?)",
+                (routine_id, document, schema_version, updated_at),
+            )
+            self._conn.commit()
+
+    def delete_routine(self, routine_id: str) -> None:
+        with self._lock:
+            self._ensure_routines_locked()
+            self._conn.execute("DELETE FROM routines WHERE routine_id = ?", (routine_id,))
+            self._conn.commit()
+
+    def routine_documents(self) -> list[tuple[str, str]]:
+        with self._lock:
+            self._ensure_routines_locked()
+            rows = self._conn.execute(
+                "SELECT routine_id, document FROM routines ORDER BY rowid"
+            ).fetchall()
+        return [(r[0], r[1]) for r in rows]
+
 
     def recent(self, limit: int = 50) -> tuple[JobHistoryEntry, ...]:
         from dataclasses import replace  # noqa: PLC0415

@@ -666,5 +666,9 @@ def get_suggestion_service() -> ProactiveSuggestionService:
     # 시나리오 트리거(실행 완료·ThinQ 이벤트) → 제안. 자동 실행은 없다.
     from .thinq_wiring import wire_scenarios  # noqa: PLC0415
 
-    wire_scenarios(svc, get_service())
+    scenario_engine = wire_scenarios(svc, get_service())
+    # 사용자 루틴(2026-09-30) — 트리거는 카드·알림만 만든다. 시나리오 대조기를 감싼다.
+    from rpi.routines.wiring import wire_routines  # noqa: PLC0415
+
+    wire_routines(svc, get_service(), scenario_engine)
     return svc

@@ -124,3 +124,7 @@ class ProactiveSuggestion:
     #: 명령마다 사용자가 본 한 줄(승인에 함께 묶인다).
     command_summaries: tuple[str, ...] = ()
     scenario_id: str | None = None
+    #: 사용자 루틴(2026-09-30): 루틴 카드이거나, 습관 카드가 같은 버튼 순서의 루틴 이름을
+    #: 빌려 쓸 때 채운다. 화면은 이름을 제목으로 쓴다. 실행 내용은 바뀌지 않는다.
+    routine_id: str | None = None
+    routine_name: str | None = None

@@ -125,12 +125,18 @@ async def lifespan(app: FastAPI):
     # 블로킹 서브프로세스 호출이라 이벤트 루프를 막지 않게 스레드로 넘긴다
     await asyncio.to_thread(_seed_vectordb_if_enabled)
     refresh_task = asyncio.create_task(_suggestion_refresh_loop())
+    # 사용자 루틴의 시각·다가옴 트리거(카드·알림만 만든다, 실행 없음).
+    from rpi.routines.wiring import routine_tick_loop
+    routine_task = asyncio.create_task(routine_tick_loop())
     try:
         yield
     finally:
         refresh_task.cancel()
+        routine_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):
             await refresh_task
+        with contextlib.suppress(asyncio.CancelledError):
+            await routine_task
         await _shutdown_cleanup()
 
 
