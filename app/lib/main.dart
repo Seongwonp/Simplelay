@@ -31,11 +31,15 @@ void main() {
   runApp(const ProviderScope(child: SimpleLayApp()));
 }
 
-final _router = GoRouter(
+final _router = buildAppRouter();
+
+/// 앱의 경로표. 테스트가 **실제 경로 구성**으로 뒤로 가기 같은 내비게이션
+/// 동작을 확인할 수 있게 함수로 뺐다(시작 위치만 바꿀 수 있다).
+GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
   // 온보딩 여부와 가전 목록을 **여기서 미리 읽지 않는다.** 결정은
   // 시작 화면 하나가 내린다(`startupRouteProvider`) -- 두 군데서 정하면
   // 홈이 먼저 그려졌다가 뒤늦게 바뀌는 깜빡임이 생긴다.
-  initialLocation: '/splash',
+  initialLocation: initialLocation,
   routes: [
     GoRoute(
       path: '/splash',

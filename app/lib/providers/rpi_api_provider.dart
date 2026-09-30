@@ -139,15 +139,30 @@ enum RpiConnectionState { unconfigured, checking, connected, unreachable }
 
 class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
   RpiConnectionNotifier(this._ref) : super(RpiConnectionState.unconfigured) {
-    // URL이 로드되면 자동으로 한 번 연결 확인
+    // URL이 로드되거나 바뀌면 자동으로 연결 확인.
+    //
+    // 확인은 **마이크로태스크로 미룬다.** Riverpod는 listen 콜백을 의존
+    // provider(rpiApiServiceProvider)를 무효화하기 **전에** 부른다. 여기서
+    // 바로 check()하면 캐시에 남은 옛 주소의 서비스(또는 주소가 없던 때의
+    // null)로 ping을 보내, 새 주소가 닿는데도 '닿지 않음'·'미설정'이 된다
+    // (2026-09-30 에뮬레이터: 주소 저장 뒤 '재시도'를 눌러야만 연결됨).
     _ref.listen(rpiUrlProvider, (_, next) {
-      if (next != null) check();
+      if (next != null) scheduleMicrotask(() => mounted ? check() : null);
     });
   }
 
   final Ref _ref;
 
+  /// 확인 세대. 확인이 겹치면(주소 저장 직후의 자동 확인 + 저장 버튼의 확인,
+  /// 재시도 연타) **마지막에 시작한 확인만** 상태를 쓴다. 늦게 끝난 옛 확인의
+  /// 실패가 새 확인의 '연결됨'을 덮으면 표시가 '닿지 않음'에 굳는다.
+  int _generation = 0;
+
   Future<void> check() async {
+    final generation = ++_generation;
+    bool stale() => !mounted || generation != _generation;
+
+    final checkedUrl = _ref.read(rpiUrlProvider);
     final service = _ref.read(rpiApiServiceProvider);
     if (service == null) {
       state = RpiConnectionState.unconfigured;
@@ -155,7 +170,7 @@ class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
     }
     state = RpiConnectionState.checking;
     final ok = await service.ping();
-    if (!mounted) return; // dispose 후 state 대입 방지
+    if (stale()) return; // dispose 후·더 새 확인이 있으면 쓰지 않는다
     if (ok) {
       state = RpiConnectionState.connected;
       return;
@@ -163,20 +178,21 @@ class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
     // Android는 .local(mDNS) 호스트명을 시스템 DNS로 해석 못 한다 — 앱이
     // 직접 mDNS 질의를 보내 IP를 알아내고 URL을 교체한다. 교체 저장이
     // rpiUrlProvider listen을 통해 재확인을 자동으로 트리거한다.
-    final resolved = await _tryResolveMdns();
-    if (!mounted) return;
+    final resolved = await _tryResolveMdns(stale, checkedUrl);
+    if (stale()) return;
     if (!resolved) state = RpiConnectionState.unreachable;
   }
 
-  Future<bool> _tryResolveMdns() async {
+  Future<bool> _tryResolveMdns(bool Function() stale, String? checkedUrl) async {
     // flutter test 환경에서는 실제 멀티캐스트 소켓/타이머를 만들지 않는다
     if (Platform.environment.containsKey('FLUTTER_TEST')) return false;
     final url = _ref.read(rpiUrlProvider);
-    if (url == null) return false;
+    // 확인하던 사이에 사용자가 주소를 바꿨으면 옛 .local 풀이로 덮지 않는다.
+    if (url == null || url != checkedUrl) return false;
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.host.endsWith('.local')) return false;
     final ip = await _ref.read(mdnsResolverProvider).resolveIPv4(uri.host);
-    if (ip == null || !mounted) return false;
+    if (ip == null || stale()) return false;
     await _ref.read(rpiUrlProvider.notifier).save(uri.replace(host: ip).toString());
     return true;
   }
