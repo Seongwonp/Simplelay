@@ -93,10 +93,12 @@ class SimulatorController(ActClientController):
             motor = MockGrblClient()
 
             class RecordedController(ClosedLoopController):
-                def execute(inner, buttons):
+                def execute(inner, buttons, targets=None):
+                    # 보정된 가전은 좌표(targets)가 함께 온다 — 받지 않으면 TypeError로
+                    # actuator_fail이 됐다(2026-09-30 수리).
                     motor.commands.clear()
                     owner._local_result = None
-                    result = super().execute(buttons)
+                    result = super().execute(buttons, targets) if targets else super().execute(buttons)
                     owner._local_result = result
                     return result
 
@@ -107,7 +109,11 @@ class SimulatorController(ActClientController):
                 step_pacer=lambda *_: time.sleep(step_seconds),
                 operation=operation,
             )
-            executor = ActExecutor(act_reader, Wire(hub_reader, "act_to_hub"), controller, state)
+            # 정지 대기·보관·확인 주행도 같은 모의 속도로 보인다(모의 가전: SIMPLELAY_HOLD_MOCK_*).
+            from rpi4.services.stop_hold import mock_hold_hardware
+            self.hold_hardware = mock_hold_hardware(step_seconds)
+            executor = ActExecutor(act_reader, Wire(hub_reader, "act_to_hub"), controller, state,
+                                   hold=self.hold_hardware)
             # UART 모드와 같은 프레임 탭을 쓴다 — 실모드 트윈(/twin)·세션 기록이 두 모드에서 같다.
             client = ActClient(hub_reader, Wire(act_reader, "hub_to_act"),
                                ActClientConfig(5, 12), on_alert=on_alert, tap=tap)
@@ -126,13 +132,13 @@ class SimulatorController(ActClientController):
             raise
         super().__init__(self._loop, client)
 
-    def execute(self, buttons):
+    def execute(self, buttons, targets=None):
         with self._state_lock:
             if self._closed or self._busy:
                 raise RuntimeError("simulator closed or busy")
             self._busy = True
         try:
-            return super().execute(buttons)
+            return super().execute(buttons, targets)
         finally:
             with self._state_lock:
                 self._busy = False

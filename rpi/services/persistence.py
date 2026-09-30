@@ -370,6 +370,15 @@ class SimpleLayDb:
             }
         if appliance.calibration_version:
             document["calibration_version"] = appliance.calibration_version
+        # 정지 대기·보관(2026-09-30) — 값이 있을 때만 싣는다(예전 행과 같은 모양 유지).
+        if appliance.stop_button is not None:
+            document["stop_button"] = appliance.stop_button
+        if appliance.stop_presses != 1:
+            document["stop_presses"] = appliance.stop_presses
+        if appliance.park_xy is not None:
+            document["park_xy"] = [appliance.park_xy[0], appliance.park_xy[1]]
+        if appliance.panel_mapping:
+            document["panel_mapping"] = appliance.panel_mapping
         payload = json.dumps(document, ensure_ascii=False)
         with self._lock:
             self._conn.execute(
@@ -449,6 +458,14 @@ class SimpleLayDb:
                             for name, steps in (data.get("functions") or {}).items()
                         ),
                         calibration_version=data.get("calibration_version"),
+                        stop_button=data.get("stop_button"),
+                        stop_presses=int(data.get("stop_presses", 1)),
+                        park_xy=(
+                            (float(data["park_xy"][0]), float(data["park_xy"][1]))
+                            if data.get("park_xy") is not None
+                            else None
+                        ),
+                        panel_mapping=data.get("panel_mapping"),
                     )
                 )
             except Exception:

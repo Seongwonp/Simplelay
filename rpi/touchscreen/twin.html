@@ -33,6 +33,8 @@
 <g id="gantry"><rect x="452" y="-8" width="308" height="16" rx="4" fill="#425574" fill-opacity=".45" stroke="#7994b6" stroke-opacity=".7"/>
 <g fill="#2a3448" stroke-width="1.5"><circle cx="464" cy="-3" r="4" stroke="#f4ad67"/><circle cx="744" cy="-3" r="4" stroke="#f4ad67"/><circle cx="460" cy="3" r="4" stroke="#b6a0f8"/><circle cx="740" cy="3" r="4" stroke="#b6a0f8"/></g></g>
 <g id="buttonsLayer"></g>
+<!-- 정지 버튼 위 대기(빨간 점선 원)·보관 위치(점선 사각형) — RPi4 hold 보고가 있을 때만 -->
+<g id="holdLayer" style="display:none"><g id="holdStop"><circle r="27" fill="none" stroke="#ff6b6b" stroke-width="2.5" stroke-dasharray="5 4"/><text y="-33" text-anchor="middle" fill="#ff9b9b" font-size="11">정지 대기</text></g><g id="holdPark"><rect x="-16" y="-16" width="32" height="32" rx="5" fill="none" stroke="#85e2cd" stroke-width="2" stroke-dasharray="4 3"/><text id="holdParkText" y="30" text-anchor="middle" fill="#85e2cd" font-size="11">보관</text></g></g>
 <g id="homeMark"><path d="M 494 72 l 10 0 M 494 72 l 0 10" stroke="#72ddc4" stroke-width="3"/><text x="508" y="96" fill="#72ddc4" font-size="11">원점(개념)</text></g>
 <g id="retryMark" style="display:none"><circle id="retryBase" r="24" fill="none" stroke="#f2ce74" stroke-width="2" stroke-dasharray="4 3"/><line id="retryArrow" stroke="#f2ce74" stroke-width="2" marker-end="url(#arrow)"/><text id="retryText" fill="#f2ce74" font-size="11" text-anchor="middle"></text></g>
 <g id="carriage"><rect x="-18" y="-18" width="36" height="36" rx="7" fill="#dba84b" fill-opacity=".35" stroke="#ffd785" stroke-width="2"/><circle id="probe" r="9" fill="#ff5d5d" stroke="#fff" stroke-width="1.5"/><text id="pressLabel" y="-24" text-anchor="middle" fill="#7ff0b8" font-size="12" font-weight="700" style="display:none">누름</text></g>
@@ -59,7 +61,7 @@
 <p id="modeHelp"></p>
 <h2>서버 보고</h2>
 <p id="result" role="status">—</p>
-<dl><dt>서버 실행 상태</dt><dd id="srvRunning">—</dd><dt>누름 기록(재시도 포함)</dt><dd id="srvPresses">—</dd><dt id="srvLocalLabel">모의 실행기 내부 상태</dt><dd id="srvLocal">—</dd><dt>단계 대응</dt><dd id="srvAttr">—</dd></dl>
+<dl><dt>서버 실행 상태</dt><dd id="srvRunning">—</dd><dt>누름 기록(재시도 포함)</dt><dd id="srvPresses">—</dd><dt id="srvLocalLabel">모의 실행기 내부 상태</dt><dd id="srvLocal">—</dd><dt>단계 대응</dt><dd id="srvAttr">—</dd><dt>정지 대기·보관</dt><dd id="srvHold">—</dd></dl>
 <h2>시퀀스 단계</h2><ol id="steps"></ol>
 <h2>기록</h2><div id="log" aria-live="polite"></div>
 <p><span class="src-server">[서버]</span> 서버 상태에서 읽은 내용 · <span class="src-anim">[모션]</span> 화면 개념 모션 · <span class="src-local">[화면]</span> 이 화면의 조작</p>
@@ -230,7 +232,35 @@ function renderSteps(job, preview) {
   }
   if (!steps.length) { const li = document.createElement('li'); li.textContent = '표시할 시퀀스가 없습니다.'; ol.append(li); }
 }
+const HOLD_TEXT = {hovering_stop: '정지 버튼 위 대기(Z 올림)', stopping: '정지 버튼 누르는 중', parking: '보관 위치로 이동 중',
+  parked: '보관 위치', fault: '구동부 이상 · 대기 멈춤', released: '대기 해제(새 실행)'};
+const STOP_TEXT = {stopped: '정지됨', requested_unconfirmed: '정지 요청함·미확인', drive_fault: '구동부 이상으로 버튼 정지 못 함'};
+let seenHold = '';
+function holdPoint(hold, which) {
+  const mm = hold[which];
+  if (which === 'stop') { const b = T.findButton(layout, {label: hold.stop_button}); if (b) return {at: [b.x, b.y], mm: true}; }
+  const at = mm ? T.mmToLayout(layout, mm.x_mm, mm.y_mm) : null;
+  return at ? {at, mm: true} : {at: which === 'park' ? [0.94, 0.94] : null, mm: false};
+}
+function renderHold(twin) {
+  const hold = twin && twin.hold;
+  $('holdLayer').style.display = hold && hold.hold_state ? '' : 'none';
+  if (!hold) { $('srvHold').textContent = '—'; return; }
+  const text = (HOLD_TEXT[hold.hold_state] || '대기 안 함') + (hold.stop_outcome ? ` · ${STOP_TEXT[hold.stop_outcome] || hold.stop_outcome}` : '')
+    + (hold.execution_mode === 'mock' ? ' · 모의' : '') + (hold.detail ? ` — ${hold.detail}` : '');
+  $('srvHold').textContent = text;
+  if (hold.hold_state) {
+    const stop = holdPoint(hold, 'stop'), park = holdPoint(hold, 'park');
+    $('holdStop').style.display = stop.at ? '' : 'none';
+    if (stop.at) { const [x, y] = toSvg(stop.at); $('holdStop').setAttribute('transform', `translate(${x},${y})`); }
+    const [px, py] = toSvg(park.at); $('holdPark').setAttribute('transform', `translate(${px},${py})`);
+    $('holdParkText').textContent = park.mm ? '보관' : '보관(위치 개념)';
+  }
+  const key = `${hold.sequence_id}:${hold.hold_state}:${hold.stop_outcome}`;
+  if (key !== seenHold) { seenHold = key; log('server', `정지 대기 보고: ${text}`); }
+}
 function renderServer(twin, status) {
+  renderHold(twin);
   if (CFG.kind === 'simulator') {
     $('execMode').textContent = `실행 환경: ${T.execModeText(status, twin)} · 통신: ${twin.transport || '—'}`;
   } else {

@@ -85,6 +85,30 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
   좌표 없는 버튼이 **하나라도** 있으면 아무것도 누르기 전에 거절하고 `error`(`actuator_fail`)로 답한다.
 - 수치 예시는 형식 설명용이며 실물 좌표가 아니다.
 
+**정지 버튼 대기·보관(2026-09-30, 실물 미검증).** `execute`의 `hold`는 **선택** 필드다. 가전에
+정지 버튼(mm)과 보관 위치가 등록돼 있을 때만 RPi5가 싣는다.
+
+```json
+{ "type": "execute", "sequence_id": "seq_004", "buttons": ["즉석밥", "시작"], "targets": { … },
+  "hold": { "appliance_id": "microwave", "stop_button": "취소", "stop_x_mm": 200.0, "stop_y_mm": 150.0,
+            "stop_presses": 2, "park_x_mm": 20.0, "park_y_mm": 185.0, "press_ms": 150 } }
+{ "type": "abort" }                      // 정지 버튼 위 대기 중이면 = 정지 버튼 누름(가전 정지)
+{ "type": "abort", "scope": "drive" }    // 구동부만 멈춘다 — 정지 버튼을 누르지 않는다
+{ "type": "verify_pass", "sequence_id": "v_001",
+  "targets": [ { "button": "즉석밥", "x_mm": 100.0, "y_mm": 60.0 },
+               { "button": "보관 위치", "x_mm": 20.0, "y_mm": 185.0, "kind": "park" } ] }
+```
+
+- `hold`: `stop_presses` 1~3, 좌표는 0 이상 유한한 수, 정지 좌표와 보관 좌표가 같으면 안 된다. 하나라도
+  어긋나면 `targets`와 같은 규칙으로 **메시지 전체를 무시**한다.
+- 시퀀스가 성공하고 가전 동작이 확인되면(L3 `operation_confirmed=true`, 또는 RPi4가 모의) RPi4는 Z를 올린 채
+  정지 버튼 위로 가서 기다린다. 확인이 없으면 대기하지 않고 그 사실만 보고한다.
+- 대기 중 `abort`(scope 생략 = `appliance`)는 정지 버튼을 `stop_presses`번 누른다. 같은 대기에서 두 번째 요청은
+  다시 누르지 않는다. `scope:"drive"`는 모션만 멈추고 대기를 잠근다.
+- 대기 중 새 `execute`가 오면 대기를 풀고 실행한다. 누르거나 보관 이동 중이면 `error`(`hold_busy`).
+- `verify_pass`: 좌표 위를 차례로 **이동만** 한다(실제 어댑터는 `move_to`만). 실행·대기 중이면 `error`
+  (`busy`·`hold_active`), 모션 부품이 없으면 `verify_unavailable`.
+
 `inject_failure`/`clear_failure`는 리허설 장치(POST/DELETE /demo/inject-failure)의
 UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "일부러 실패시켜도
 스스로 재시도" 장면을 같은 API로 연출한다. abort처럼 응답 없는 단방향.
@@ -199,6 +223,25 @@ RPi5 세션 기록(2026-09-29): RPi5 `ActClient`는 보내고 받은 **모든 �
 파일, `SIMPLELAY_SESSION_LOG_MAX_BYTES`·`_BACKUPS` 크기 회전). 한 줄 = `{"kind":"frame","n","t_wall",
 "t_monotonic_ns"(RPi5 시각),"direction":"hub_to_act"|"act_to_hub","type","sequence_id","message"}`. 키 이름에
 key·token·secret·password·authorization·cookie가 들어간 값과 설정된 API 키·개발자 토큰 문자열은 `[redacted]`.
+
+정지 대기·확인 주행 보고(2026-09-30): 둘 다 `progress` 프레임이라 옛 RPi5는 무시한다. 결과가 아니다.
+
+```json
+{ "type": "progress", "sequence_id": "seq_004", "n": 3, "phase": "hold", "hold_state": "hovering_stop",
+  "stop_outcome": null, "detail": "'취소' 위에서 Z를 올린 채 기다리는 중이에요", "stop_button": "취소",
+  "stop_presses": 2, "presses_done": 0, "stop": {"x_mm": 200.0, "y_mm": 150.0},
+  "park": {"x_mm": 20.0, "y_mm": 185.0}, "target": {…}, "park_reason": null, "appliance_id": "microwave",
+  "probe_source": "mock", "sim_phase": "waiting_above_stop", "execution_mode": "mock", "t_monotonic_ns": 0 }
+{ "type": "progress", "sequence_id": "v_001", "n": 2, "phase": "verify", "index": 0, "button": "즉석밥",
+  "kind": "button", "status": "reached", "target": {"x_mm": 100.0, "y_mm": 60.0}, "detail": "…" }
+{ "type": "verify_result", "sequence_id": "v_001", "ok": true,
+  "targets": [ { "index": 0, "button": "즉석밥", "status": "reached", … } ], "execution_mode": "mock" }
+```
+
+- `hold_state`: `hovering_stop` | `stopping` | `parking` | `parked` | `fault` | `released` | null(대기 안 함).
+- `stop_outcome`: `stopped`(누른 뒤 전력 하강 확인 — 모의에서는 모의 가전이 꺼짐) | `requested_unconfirmed`
+  (확인 시간 안에 하강 없음, 전력 리더가 없으면 늘 이것) | `drive_fault`(구동부 이상으로 누르지 못함) | null.
+- `verify` 단계 `status`: `moving` | `reached`(모션이 도착을 응답 — 버튼 위인지는 사람이 확인) | `failed` | `skipped`.
 
 `result`/`error`/`ack`는 모두 RPi5가 보낸 `execute`에 대한 응답이다. 아래 두 개는
 유일하게 RPi5가 요청하지 않아도 RPi4가 스스로 보내는 메시지 — 마이크가 물려 있는

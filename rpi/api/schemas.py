@@ -261,6 +261,16 @@ class ApplianceResponse(BaseModel):
     functions: dict[str, list[str]] = {}
     # 버튼 mm 좌표를 만든 보정 결과의 버전. 보정 전이거나 무효화되면 None.
     calibration_version: str | None = None
+    # ── 정지 대기·보관(2026-09-30). 옛 클라이언트는 무시한다 ──
+    #: 정지(취소) 버튼 id와 정지까지 누를 횟수(1~3).
+    stop_button: str | None = None
+    stop_presses: int = 1
+    #: 보관 위치(갠트리 mm) [x, y].
+    park_xy: list[float] | None = None
+    #: {status: ok|unverified|incomplete|none, notes: [...]} — unverified는 "범위 미확인".
+    stop_park_check: dict | None = None
+    #: 사진 매핑 기록(사진 크기·모서리·버튼 px). 가전 상세가 사진 위에 버튼을 그릴 때 쓴다.
+    panel_mapping: dict | None = None
 
 
 class WellnessPauseRequest(BaseModel):
@@ -319,6 +329,10 @@ class ApplianceRegisterRequest(BaseModel):
     buttons: list[ApplianceButtonModel]
     #: 목적별 시퀀스(선택). 등록 시점에 이 조작부로 실행 가능한지 검증한다.
     functions: dict[str, list[str]] | None = None
+    #: 정지 대기·보관(선택, 2026-09-30). 셋 다 없으면 저장된 값을 이어받는다.
+    stop_button: str | None = None
+    stop_presses: int | None = None
+    park_xy: list[float] | None = None
 
     @field_validator("name")
     @classmethod
@@ -662,6 +676,17 @@ class StatusResponse(BaseModel):
     #: 서버 개발자 모드(SIMPLELAY_DEV_MODE) 여부. 앱은 이 값이 true일 때만
     #: "개발자" 탭을 띄운다(2026-09-30). 옛 클라이언트는 무시한다.
     developer_mode: bool = False
+    # ── 정지 대기·보관(2026-09-30) — RPi4 보고를 옮긴다. 옛 클라이언트는 무시한다 ──
+    #: hovering_stop | stopping | parking | parked | fault | released | None(대기 없음)
+    hold_state: str | None = None
+    #: stopped(정지됨·전력 하강 확인) | requested_unconfirmed(정지 요청함·미확인) |
+    #: drive_fault(구동부 이상으로 버튼 정지 못 함) | None
+    hold_stop_outcome: str | None = None
+    hold_detail: str | None = None
+    hold_appliance_id: str | None = None
+    hold_stop_button: str | None = None
+    #: 대기 보고의 실행 환경(mock | real | unknown)
+    hold_execution_mode: str | None = None
     last_status: str | None
     #: success | failed | stopped | safety_stop — 화면이 "정지됨"(stopped)과
     #: "실패"(failed·safety_stop)를 가르는 값. last_status의 safety_stopped는
@@ -803,6 +828,10 @@ class StopResponse(BaseModel):
     cloud_cancelled: list[str] = []
     #: 이미 보낸 ThinQ 명령 — 취소할 수 없다. 가전 운전 정지는 자동으로 보내지 않는다.
     cloud_uncancellable: list[str] = []
+    #: 요청 순간 정지 버튼 위에서 대기 중이었나 — 그렇다면 이 정지는 **정지 버튼 누름**으로
+    #: 전달됐다(2026-09-30). 결과(정지됨/미확인)는 /status의 hold_stop_outcome으로 온다.
+    appliance_stop_requested: bool = False
+    hold_state_at_request: str | None = None
 
 
 class CareEventResponse(BaseModel):

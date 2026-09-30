@@ -819,6 +819,12 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         targets: "dict[str, ButtonTarget] | None" = None,
     ) -> ExecutionResult:
         self._physical_expected = len(buttons)
+        # 정지 대기·보관 계획(2026-09-30): 받는 대상(RPi4 링크)에만, 이번 실행 한 번에 싣는다.
+        arm_hold = getattr(controller, "arm_stop_hold", None)
+        if callable(arm_hold):
+            from rpi.services.stop_park import hold_plan_for  # noqa: PLC0415
+
+            arm_hold(hold_plan_for(self._appliance_registry, appliance_id))
         if targets:
             self._last_result = controller.execute(buttons, targets)
         else:
@@ -1043,6 +1049,15 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 f"appliance '{appliance_id}' not found -- 삭제되었거나 "
                 "등록되지 않은 가전입니다"
             )
+
+    def hold_status(self) -> dict | None:
+        """로컬 실행 대상이 보고한 마지막 정지 대기 상태(없으면 None). 판정은 RPi4가 한다."""
+        status = getattr(self._controller, "hold_status", None)
+        try:
+            return status() if callable(status) else None
+        except Exception:  # noqa: BLE001 - 상태 조회 고장이 /status를 막지 않는다
+            log.exception("hold status failed")
+            return None
 
     def emergency_stop(self) -> bool:
         """``emergency_stop_report``의 호환 형태 — 실행 중이었는지만 돌려준다."""

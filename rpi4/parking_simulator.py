@@ -22,6 +22,19 @@ class Point:
 
 
 @dataclass(frozen=True)
+class MmPoint(Point):
+    """갠트리 mm 좌표(실행기 정지 대기용, 2026-09-30). 정규화 [0, 1] 대신 유한한 0 이상 값만 본다.
+
+    실행기(rpi4/services/stop_hold.py)가 이 모델을 그대로 상태 기계로 쓴다 — 좌표 단위만 다르다.
+    """
+
+    def __post_init__(self):
+        for value in (self.x, self.y):
+            if type(value) not in (float, int) or not math.isfinite(value) or value < 0:
+                raise ValueError('mm coordinates must be finite non-negative numbers')
+
+
+@dataclass(frozen=True)
 class Mapping:
     stop: Point
     park: Point
@@ -30,9 +43,10 @@ class Mapping:
     def __post_init__(self):
         if not isinstance(self.stop, Point) or not isinstance(self.park, Point):
             raise ValueError('explicit stop and park points required')
-        if self.edge not in ('top', 'bottom'):
-            raise ValueError('park edge must be top or bottom')
-        if self.park.y != (0 if self.edge == 'top' else 1):
+        # 'free': 등록한 보관 위치(mm)를 그대로 쓴다. 모서리 여부는 등록 검증이 본다.
+        if self.edge not in ('top', 'bottom', 'free'):
+            raise ValueError('park edge must be top, bottom or free')
+        if self.edge != 'free' and self.park.y != (0 if self.edge == 'top' else 1):
             raise ValueError('park must lie on the selected simulation edge')
         if self.stop == self.park:
             raise ValueError('stop and park must be separate')

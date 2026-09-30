@@ -78,6 +78,8 @@ def build_twin_state(snapshot: dict[str, Any]) -> dict[str, Any]:
         "running": bool(snapshot.get("running")),
         "note": NOTE,
         "job": None,
+        # 정지 버튼 위 대기·보관(2026-09-30) — RPi4 hold 보고(progress phase "hold")만 옮긴다.
+        "hold": None,
     }
     found = _latest_execute(frames, snapshot.get("last_execute_frame"))
     if found is None:
@@ -98,6 +100,15 @@ def build_twin_state(snapshot: dict[str, Any]) -> dict[str, Any]:
             for key in ("button_results", "operation_confirmed"):
                 if key in msg:
                     result[key] = msg[key]
+    from rpi.services.stop_park import hold_view  # noqa: PLC0415
+
+    hold_msg = None
+    for f in frames[index + 1:] if index >= 0 else frames:
+        msg = f.get("message") or {}
+        if (f.get("direction") == "act_to_hub" and msg.get("type") == "progress"
+                and msg.get("phase") == "hold" and msg.get("sequence_id") == sequence_id):
+            hold_msg = msg
+    base["hold"] = hold_view(hold_msg)
     presses = [str(p) for p in local.get("presses") or []]
     corrections = list(local.get("press_corrections") or [])
     local_status = local.get("status")
@@ -252,7 +263,9 @@ def build_link_twin_state(
             if f.get("direction") != "act_to_hub" or msg.get("sequence_id") != seq:
                 continue
             if msg.get("type") == "progress":
-                progress.append(msg)
+                # 정지 대기·확인 주행 보고는 누름 진행이 아니다(트윈의 state["hold"]가 따로 옮긴다).
+                if msg.get("phase") not in ("hold", "verify"):
+                    progress.append(msg)
             elif msg.get("type") == "error" and link_error is None:
                 link_error = str(msg.get("reason") or "unknown")
             elif msg.get("type") == "result" and result_msg is None:

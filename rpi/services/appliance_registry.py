@@ -250,6 +250,15 @@ class ApplianceDef:
     #: ``thinq`` 등록 정보(기기 ID·동작 대응표)로만 실행한다.
     control_path: ControlRoute = ControlRoute.PHYSICAL
     thinq: "ThinqBinding | None" = None
+    # ── 정지 대기·보관(2026-09-30, rpi/services/stop_park.py가 검증) ──
+    #: 정지(취소) 버튼 id. 실행이 끝나고 가전이 동작하는 동안 캐리지가 이 버튼 위에서 기다린다.
+    stop_button: str | None = None
+    #: 정지까지 누를 횟수 1~3(예: 전자레인지 1회 일시정지·2회 취소).
+    stop_presses: int = 1
+    #: 보관 위치(갠트리 mm). 버튼·표시창을 가리지 않는 모서리.
+    park_xy: tuple[float, float] | None = None
+    #: 사진 매핑 기록(사진 크기·프레임 모서리·버튼 px). 사진 파일은 서버에 두지 않는다.
+    panel_mapping: "dict | None" = field(default=None, hash=False, compare=False)
 
     def function_steps(self, purpose: str) -> tuple[FunctionStep, ...] | None:
         key = purpose.strip()
@@ -320,6 +329,38 @@ def _calibration_key(appliance_id: str) -> str:
     return f"calibration:{appliance_id}"
 
 
+def _stop_park_key(appliance_id: str) -> str:
+    return f"stop_park:{appliance_id}"
+
+
+def _encode_stop_park(fields: Mapping[str, object]) -> str:
+    import json  # noqa: PLC0415
+
+    park = fields.get("park_xy")
+    return json.dumps(
+        {
+            "stop_button": fields.get("stop_button"),
+            "stop_presses": int(fields.get("stop_presses") or 1),
+            "park_xy": None if park is None else [float(park[0]), float(park[1])],  # type: ignore[index]
+            "panel_mapping": fields.get("panel_mapping"),
+        },
+        ensure_ascii=False,
+    )
+
+
+def _decode_stop_park(raw: str) -> dict:
+    import json  # noqa: PLC0415
+
+    data = json.loads(raw)
+    park = data.get("park_xy")
+    return {
+        "stop_button": data.get("stop_button"),
+        "stop_presses": int(data.get("stop_presses") or 1),
+        "park_xy": None if park is None else (float(park[0]), float(park[1])),
+        "panel_mapping": data.get("panel_mapping"),
+    }
+
+
 def _encode_overlay(
     version: str, mapped: Mapping[str, tuple[float, float]], revision: int
 ) -> str:
@@ -345,6 +386,29 @@ def _decode_overlay(raw: str) -> tuple[str, dict[str, tuple[float, float]], int]
         {str(k): (float(v[0]), float(v[1])) for k, v in data["coords"].items()},
         int(data.get("revision", 1)),
     )
+
+
+def merge_for_save(existing: ApplianceDef | None, incoming: ApplianceDef) -> ApplianceDef:
+    """``register``가 저장할 모양을 미리 본다(라우터의 정지·보관 검증용). 규칙은 아래와 같다."""
+    return _carry_calibration(existing, incoming)
+
+
+#: 정지·보관 필드. 요청이 하나도 싣지 않으면 저장된 값을 이어받는다.
+_STOP_PARK_FIELDS = ("stop_button", "stop_presses", "park_xy", "panel_mapping")
+
+
+def _carry_stop_park(existing: ApplianceDef, incoming: ApplianceDef) -> dict:
+    """옛 폰 편집기는 정지·보관을 모른다 — 이름 하나 고칠 때마다 지워지지 않게 이어받는다.
+    정지 버튼이 사라졌으면 정지 버튼만 비운다."""
+    if incoming.stop_button is not None or incoming.park_xy is not None or incoming.panel_mapping:
+        return {}
+    ids = {b.id for b in incoming.buttons}
+    return {
+        "stop_button": existing.stop_button if existing.stop_button in ids else None,
+        "stop_presses": existing.stop_presses,
+        "park_xy": existing.park_xy,
+        "panel_mapping": existing.panel_mapping,
+    }
 
 
 def _carry_calibration(
@@ -380,7 +444,8 @@ def _carry_calibration(
     version = incoming.calibration_version
     if version is None and carried and not lost:
         version = existing.calibration_version
-    return replace(incoming, buttons=tuple(buttons), calibration_version=version)
+    return replace(incoming, buttons=tuple(buttons), calibration_version=version,
+                   **_carry_stop_park(existing, incoming))
 
 
 class ApplianceRegistry:
@@ -406,6 +471,8 @@ class ApplianceRegistry:
         self._builtin_calibration: dict[
             str, tuple[str, dict[str, tuple[float, float]], int]
         ] = {}
+        # 내장 가전의 정지·보관 필드(사진 매핑으로만 채운다). 보정 좌표와 따로 저장한다.
+        self._builtin_stop_park: dict[str, dict] = {}
         if store is not None:
             for appliance in store.appliances():
                 self._custom[appliance.appliance_id] = appliance
@@ -420,6 +487,16 @@ class ApplianceRegistry:
 
                         logging.getLogger(__name__).exception(
                             "skipping corrupt calibration for %r", builtin.appliance_id
+                        )
+                extra = loader(_stop_park_key(builtin.appliance_id)) if loader else None
+                if extra:
+                    try:
+                        self._builtin_stop_park[builtin.appliance_id] = _decode_stop_park(extra)
+                    except Exception:  # 손상되면 정지 대기 없음 — 틀린 위치보다 낫다
+                        import logging  # noqa: PLC0415
+
+                        logging.getLogger(__name__).exception(
+                            "skipping corrupt stop/park for %r", builtin.appliance_id
                         )
 
     def list(self) -> tuple[ApplianceDef, ...]:
@@ -475,8 +552,12 @@ class ApplianceRegistry:
         version: str,
         coords: Mapping[str, tuple[float, float]],
         expected_revision: int | None = None,
+        stop_park: "Mapping[str, object] | None" = None,
     ) -> ApplianceDef:
         """보정 결과(버튼 id → mm)를 **한 번에** 반영한다.
+
+        ``stop_park``(선택, 사진 매핑): ``stop_button``·``stop_presses``·``park_xy``·
+        ``panel_mapping``을 같은 판 번호로 함께 저장한다. 호출자가 검증한 뒤 부른다.
 
         새 보정은 새 변환 행렬이다. 이번에 포함되지 않은 버튼의 옛 mm 좌표는
         다른 행렬로 만든 값이라 섞으면 안 된다 -- 비운다.
@@ -497,10 +578,16 @@ class ApplianceRegistry:
                     raise RevisionConflictError(appliance_id, current)
                 revision = current + 1
                 if self._store is not None and hasattr(self._store, "save_setting"):
+                    if stop_park is not None:
+                        self._store.save_setting(
+                            _stop_park_key(appliance_id), _encode_stop_park(stop_park)
+                        )
                     self._store.save_setting(
                         _calibration_key(appliance_id),
                         _encode_overlay(version, mapped, revision),
                     )
+                if stop_park is not None:
+                    self._builtin_stop_park[appliance_id] = dict(stop_park)
                 self._builtin_calibration[appliance_id] = (version, mapped, revision)
                 return self._with_overlay(builtin)
 
@@ -519,6 +606,7 @@ class ApplianceRegistry:
                 ),
                 calibration_version=version,
                 revision=existing.revision + 1,
+                **{k: v for k, v in (stop_park or {}).items() if k in _STOP_PARK_FIELDS},
             )
             if self._store is not None:
                 self._store.save_appliance(updated)  # DB 먼저 — register와 같은 규칙
@@ -532,6 +620,11 @@ class ApplianceRegistry:
     def _with_overlay(self, builtin: ApplianceDef) -> ApplianceDef:
         from dataclasses import replace  # noqa: PLC0415
 
+        extra = self._builtin_stop_park.get(builtin.appliance_id)
+        if extra:
+            builtin = replace(
+                builtin, **{k: v for k, v in extra.items() if k in _STOP_PARK_FIELDS}
+            )
         overlay = self._builtin_calibration.get(builtin.appliance_id)
         if overlay is None:
             return builtin

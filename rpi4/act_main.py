@@ -50,6 +50,13 @@ Environment variables:
                                   원시 기록기(SIMPLELAY_RECORDER_PATH)에도 같은 순간 ``job_start``·
                                   ``job_end`` 이벤트(note에 sequence_id)를 찍어 둘을 이을 수 있다.
   SIMPLELAY_ACT_PROGRESS          "0"이면 누름마다의 progress 프레임을 보내지 않는다(기본 보냄).
+  SIMPLELAY_HOLD_STOP_CONFIRM_S   정지 버튼을 누른 뒤 전력 하강을 기다리는 시간(기본 5, 설계 초기값)
+  SIMPLELAY_HOLD_MAX_S            정지 버튼 위 최대 대기(기본 1800, 설계 초기값)
+  SIMPLELAY_HOLD_PRESS_GAP_S      정지 버튼 연속 누름 간격(기본 0.6, 설계 초기값)
+  SIMPLELAY_HOLD_MOCK_RUN_S       mock 모션일 때 모의 가전 동작 시간(기본 30)
+  SIMPLELAY_HOLD_MOCK_STOP        honor(기본) | ignore — 모의 가전이 정지 버튼에 반응하는지
+                                  (정지 대기·보관·확인 주행: rpi4/services/stop_hold.py, 실물 미검증.
+                                  serial 모드는 전력 리더가 없어 정지 판정이 늘 '미확인'이다)
 
 Usage:
   python -m rpi4.act_main
@@ -340,6 +347,20 @@ def _build_operation_verifier():
     return verifier
 
 
+def _build_hold(grbl: object, raw_grbl: object):
+    """정지 대기·확인 주행 부품. mock 모션이면 모의 가전까지, 실제 어댑터면 move_to·press만."""
+    from rpi.controller.mock import MockGrblClient as _Mock
+
+    from .services.stop_hold import mock_hold_hardware, real_hold_hardware
+
+    if isinstance(raw_grbl, _Mock):
+        log.info("stop hold: MOCK motion + mock appliance (SIMPLELAY_HOLD_MOCK_*)")
+        return mock_hold_hardware()
+    log.warning("stop hold: real motion adapter (move_to/press), no power reader — "
+                "stop judgement stays 'unconfirmed' (실물 미검증)")
+    return real_hold_hardware(grbl, raw_grbl)
+
+
 def _build_executor(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
@@ -362,6 +383,7 @@ def _build_executor(
         # 줄 기록이 없으면 종전 호출 모양 그대로
         grbl, safety = _build_motion(**({"line_log": motion_log} if motion_log is not None else {}))
         readiness = _motion_readiness(grbl)
+        raw_grbl = grbl
     else:
         from rpi.verifier.recorder import RecordingGrblClient, motion_event_hook
 
@@ -369,6 +391,7 @@ def _build_executor(
         grbl, safety = _build_motion(on_event=motion_event_hook(recorder.recorder),
                                      **({"line_log": motion_log} if motion_log is not None else {}))
         readiness = _motion_readiness(grbl)
+        raw_grbl = grbl
         grbl = RecordingGrblClient(grbl, recorder.recorder)
     controller = ClosedLoopController(
         grbl=grbl,
@@ -387,6 +410,7 @@ def _build_executor(
         controller=controller,
         failure_state=failure_state,
         job_observer=_job_observer(recorder, motion_log),
+        hold=_build_hold(grbl, raw_grbl),
         **({"readiness": readiness} if readiness is not None else {}),
     )
 

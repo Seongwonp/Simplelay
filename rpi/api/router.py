@@ -260,6 +260,24 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
     )
 
 
+def _stop_park_fields(a) -> dict:
+    """정지 대기·보관 필드(2026-09-30). 검증 결과를 함께 싣는다 — 저장 뒤 설정(리밋)이
+    바뀌었으면 여기서 드러난다."""
+    from rpi.services.stop_park import validate_stop_park  # noqa: PLC0415
+
+    try:
+        check = validate_stop_park(a).as_dict()
+    except ValueError as exc:
+        check = {"status": "invalid", "notes": [str(exc)]}
+    return {
+        "stop_button": a.stop_button,
+        "stop_presses": a.stop_presses,
+        "park_xy": None if a.park_xy is None else [a.park_xy[0], a.park_xy[1]],
+        "stop_park_check": check,
+        "panel_mapping": a.panel_mapping,
+    }
+
+
 def _appliance_response_base(
     a, *, readiness: str, readiness_reasons: list[str], can_execute: bool
 ) -> ApplianceResponse:
@@ -290,6 +308,7 @@ def _appliance_response_base(
         revision=a.revision,
         functions={name: list(steps) for name, steps in a.functions},
         calibration_version=a.calibration_version,
+        **_stop_park_fields(a),
         readiness=readiness,
         readiness_reasons=readiness_reasons,
         can_execute=can_execute,
@@ -490,9 +509,29 @@ async def register_appliance(
             (name.strip(), tuple(steps))
             for name, steps in (body.functions or {}).items()
         ),
+        stop_button=body.stop_button,
+        stop_presses=body.stop_presses if body.stop_presses is not None else 1,
+        park_xy=(
+            (float(body.park_xy[0]), float(body.park_xy[1]))
+            if body.park_xy is not None and len(body.park_xy) == 2
+            else None
+        ),
     )
     if not appliance.appliance_id:
         raise HTTPException(status_code=422, detail="appliance id must not be blank")
+    # 정지 대기·보관 검증(2026-09-30) — 저장될 모양(보정 좌표·정지 설정 이어받기 뒤)으로 본다.
+    from rpi.services.appliance_registry import merge_for_save  # noqa: PLC0415
+    from rpi.services.stop_park import validate_stop_park  # noqa: PLC0415
+
+    if body.park_xy is not None and len(body.park_xy) != 2:
+        raise HTTPException(status_code=422, detail="park_xy는 [x, y] 두 값이어야 해요")
+    try:
+        existing = registry.get(appliance.appliance_id)
+        validate_stop_park(
+            merge_for_save(existing if existing is not None and existing.is_custom else None, appliance)
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     try:
         saved = registry.register(
             appliance, expected_revision=body.expected_revision
@@ -876,7 +915,11 @@ async def status(
         last_execution_mode=snapshot.last_execution_mode.value,
         **result_detail_fields(snapshot.last_result),
     )
-    return response.model_copy(update=command_status_fields(snapshot))
+    from rpi.services.stop_park import hold_status_fields  # noqa: PLC0415
+
+    return response.model_copy(
+        update={**command_status_fields(snapshot), **hold_status_fields(service.hold_status())}
+    )
 
 
 @router.post("/stop", response_model=StopResponse)
@@ -893,6 +936,8 @@ async def emergency_stop(
     # 기다렸다 보내지 않고 동시에 보낸다: 두 경로는 서로의 락을 잡지 않는다.
     from rpi.api.deps import stop_developer_session_if_any  # noqa: PLC0415
 
+    # 정지 버튼 위 대기 중이면 이 정지는 정지 버튼 누름으로 전달된다(RPi4가 판단·수행).
+    hold_before = service.hold_status() or {}
     report, _ = await asyncio.gather(
         asyncio.to_thread(service.emergency_stop_report),
         asyncio.to_thread(stop_developer_session_if_any, "emergency_stop"),
@@ -905,6 +950,8 @@ async def emergency_stop(
         nodes_unconfirmed=list(report.nodes_unconfirmed),
         cloud_cancelled=list(report.cloud_cancelled),
         cloud_uncancellable=list(report.cloud_uncancellable),
+        appliance_stop_requested=hold_before.get("hold_state") in ("hovering_stop", "stopping"),
+        hold_state_at_request=hold_before.get("hold_state"),
     )
 
 

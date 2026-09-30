@@ -15,7 +15,11 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
                                  →  progress {sequence_id, n, button, step_index,
                                              attempt, phase, ...} (누름마다, 선택 —
                                              SIMPLELAY_ACT_PROGRESS=0이면 끔. 결과 아님)
-  abort                          →  (cooperative stop; see _on_abort)
+                                 →  progress {phase:"hold", hold_state, stop_outcome, ...}
+                                             (execute에 hold가 있으면 결과 뒤 정지 대기·보관 보고)
+  abort {scope?}                 →  (cooperative stop; 정지 대기 중이면 정지 버튼 누름 — _on_abort)
+  verify_pass {sequence_id,      →  progress {phase:"verify", ...} + verify_result
+               targets}                     {sequence_id, ok, targets:[{button,status,...}]}
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
                                     (see report_danger_sound)
@@ -30,6 +34,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import itertools
 import json
 import logging
 import os
@@ -54,8 +59,10 @@ from ..models.act_messages import (
     ExecuteMsg,
     InboundActMsg,
     InjectFailureMsg,
+    VerifyPassMsg,
     parse_act_message,
 )
+from .stop_hold import HoldHardware, StopHoldSession, run_verify_pass
 
 log = logging.getLogger(__name__)
 
@@ -148,6 +155,7 @@ class ActExecutor:
         progress: bool | None = None,
         job_observer: "Callable[[str, dict], None] | None" = None,
         readiness: "Callable[[], str | None] | None" = None,
+        hold: "HoldHardware | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -159,7 +167,9 @@ class ActExecutor:
         job_observer: 실행 시작·끝(``job_start``/``job_end``, sequence_id 포함)을 받는
         함수(선택). act_main이 모션 줄 기록·원시 기록기에 같은 sequence_id를 찍는 데 쓴다.
         readiness: 실행 전에 부르는 준비 확인(선택). 이유 문자열을 돌려주면 execute를 시작하지 않고
-        ``{"type":"error","reason":"motion_not_ready","detail":…}``로 거절한다(모션 MCU 연결 확인 전)."""
+        ``{"type":"error","reason":"motion_not_ready","detail":…}``로 거절한다(모션 MCU 연결 확인 전).
+        hold: 정지 버튼 대기·보관·확인 주행에 쓸 모션·가전 확인 부품(선택, 2026-09-30).
+        None이면 execute의 ``hold``를 무시하고 ``verify_pass``는 ``verify_unavailable``로 거절한다."""
         self._reader = reader
         self._writer = writer
         self._controller = controller
@@ -173,6 +183,10 @@ class ActExecutor:
         self._job_observer = job_observer
         self._readiness = readiness
         self._drain_tasks: set[asyncio.Task[None]] = set()
+        self._hold_hw = hold
+        #: 지금(또는 마지막) 정지 대기. 끝난 뒤에도 상태 조회용으로 남는다.
+        self.hold_session: StopHoldSession | None = None
+        self._verify_stop = False
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -204,10 +218,12 @@ class ActExecutor:
         수 있는 일이 없다는 뜻이고, 최종 권한은 물리 E-STOP과 모터 드라이버
         enable 차단이다(rpi/controller/ports.py의 SafetyController 참고).
         """
+        self._close_hold()
         task = self._execute_task
         if task is None or task.done():
             return True
 
+        self._verify_stop = True
         request_stop = getattr(self._controller, "request_stop", None)
         if request_stop is not None:
             request_stop()
@@ -296,7 +312,9 @@ class ActExecutor:
         if isinstance(msg, ExecuteMsg):
             await self._on_execute(msg)
         elif isinstance(msg, AbortMsg):
-            self._on_abort()
+            self._on_abort(msg)
+        elif isinstance(msg, VerifyPassMsg):
+            await self._on_verify_pass(msg)
         elif isinstance(msg, InjectFailureMsg):
             self._on_inject_failure(msg)
         elif isinstance(msg, ClearFailureMsg):
@@ -324,6 +342,15 @@ class ActExecutor:
                 "sequence_id": msg.sequence_id,
                 "reason": "motion_not_ready",
                 "detail": not_ready,
+            })
+            return
+
+        if not await self._release_hold_for_new_run():
+            await self._send({
+                "type": "error",
+                "sequence_id": msg.sequence_id,
+                "reason": "hold_busy",
+                "detail": "정지 버튼을 누르거나 보관 위치로 이동하는 중이에요",
             })
             return
 
@@ -436,6 +463,9 @@ class ActExecutor:
         # success는 옛 RPi5와의 호환을 위해 그대로 둔다.
         outcome = outcome_of(result).value
         self._notify_job("job_end", {"sequence_id": msg.sequence_id, "outcome": outcome, "retry": retry})
+        # 결과를 보내기 전에 대기를 연다 — 결과를 본 RPi5가 바로 보낸 정지(abort)가 대기를
+        # 놓치지 않게 한다(대기 보고 프레임은 배경 스레드에서 결과 뒤에 나간다).
+        self._maybe_start_hold(msg, result)
 
         await self._send({
             "type": "result",
@@ -450,6 +480,105 @@ class ActExecutor:
             "sequence %r finished — %s (retry=%d)",
             msg.sequence_id, outcome, retry,
         )
+
+    # ── 정지 대기·보관·확인 주행(2026-09-30) ───────────────────────────────────
+
+    def _mode_value(self) -> str:
+        mode = getattr(self._controller, "execution_mode", ExecutionMode.UNKNOWN)
+        return mode.value if isinstance(mode, ExecutionMode) else "unknown"
+
+    def _frame_emitter(self, sequence_id: str, phase: str) -> "Callable[[dict], None]":
+        loop = asyncio.get_running_loop()
+        counter = itertools.count(1)
+        mode_value = self._mode_value()
+
+        def emit(event: dict) -> None:
+            doc = {"type": "progress", "sequence_id": sequence_id, "n": next(counter), "phase": phase,
+                   **event, "execution_mode": mode_value, "t_monotonic_ns": time.monotonic_ns()}
+            try:
+                loop.call_soon_threadsafe(self._write_now, doc)
+            except RuntimeError:  # 루프가 닫힌 뒤(종료 중)
+                log.debug("progress frame dropped after loop close: %s", phase)
+
+        return emit
+
+    def _maybe_start_hold(self, msg: ExecuteMsg, result: ExecutionResult) -> None:
+        """시퀀스가 성공하고 가전이 동작 중이면(L3 확인 또는 모의) 정지 버튼 위로 가서 기다린다."""
+        plan = msg.hold
+        if plan is None or self._hold_hw is None:
+            return
+        if result.status is not ExecutionStatus.SUCCEEDED:
+            return  # 정지·실패로 끝난 실행 뒤에는 움직이지 않는다
+        emit = self._frame_emitter(msg.sequence_id, "hold")
+        operation = result.operation
+        confirmed = operation is not None and bool(operation.passed)
+        mock = getattr(self._controller, "execution_mode", None) is ExecutionMode.MOCK
+        if not (confirmed or mock):
+            emit({"hold_state": None, "stop_outcome": None, "appliance_id": plan.appliance_id,
+                  "stop_button": plan.stop_button,
+                  "detail": "가전 동작이 확인되지 않아 정지 버튼 위 대기를 하지 않아요"})
+            return
+        last = msg.targets.get(msg.buttons[-1]) if msg.targets else None
+        start = (last.x_mm, last.y_mm) if last is not None else None
+        session = StopHoldSession(plan, self._hold_hw.motion, self._hold_hw.probe_factory(plan), emit,
+                                  timing=self._hold_hw.timing, start_position=start)
+        self.hold_session = session
+        session.start()
+
+    async def _release_hold_for_new_run(self) -> bool:
+        session = self.hold_session
+        if session is None or not session.active:
+            return True
+        if not session.release():
+            return False
+        return await asyncio.to_thread(session.join, 3.0)
+
+    def _close_hold(self) -> None:
+        session = self.hold_session
+        if session is not None and session.active:
+            if not session.release():
+                session.drive_stop()
+            session.join(3.0)
+
+    async def _on_verify_pass(self, msg: VerifyPassMsg) -> None:
+        reason = detail = None
+        if self._busy:
+            reason, detail = "busy", "다른 동작을 실행하는 중이에요"
+        elif self.hold_session is not None and self.hold_session.active:
+            reason, detail = "hold_active", "가전이 동작 중이라 정지 버튼 위에서 기다리는 중이에요"
+        elif self._hold_hw is None:
+            reason, detail = "verify_unavailable", "이 실행기에는 확인 주행용 모션이 연결되지 않았어요"
+        if reason is not None:
+            await self._send({"type": "error", "sequence_id": msg.sequence_id, "reason": reason,
+                              "detail": detail})
+            return
+        self._busy = True
+        self._verify_stop = False
+        self._execute_task = asyncio.create_task(self._verify_and_report(msg))
+
+    async def _verify_and_report(self, msg: VerifyPassMsg) -> None:
+        emit = self._frame_emitter(msg.sequence_id, "verify")
+        motion = self._hold_hw.motion  # type: ignore[union-attr]
+        reset = getattr(motion, "reset_stop", None)
+        if callable(reset):
+            reset()
+        try:
+            results = await asyncio.to_thread(run_verify_pass, motion, list(msg.targets), emit,
+                                              lambda: self._verify_stop)
+        except Exception:
+            log.exception("verify pass raised for %r", msg.sequence_id)
+            await self._send({"type": "error", "sequence_id": msg.sequence_id, "reason": "actuator_fail"})
+            return
+        finally:
+            self._busy = False
+            self._execute_task = None
+        await self._send({
+            "type": "verify_result",
+            "sequence_id": msg.sequence_id,
+            "ok": all(r["status"] == "reached" for r in results),
+            "targets": results,
+            "execution_mode": self._mode_value(),
+        })
 
     def _on_inject_failure(self, msg: InjectFailureMsg) -> None:
         if self._failure_state is None:
@@ -467,14 +596,26 @@ class ActExecutor:
         self._failure_state.disarm()
         log.info("demo failure disarmed")
 
-    def _on_abort(self) -> None:
+    def _on_abort(self, msg: AbortMsg | None = None) -> None:
         # A physical E-STOP is authoritative and out of band from this UART
         # link (see rpi/controller/ports.py SafetyController docstring).
         # ClosedLoopController.request_stop()이 협조적 취소를 지원한다:
         # 실행 스레드가 버튼 사이/재시도 경계에서 플래그를 확인하고
         # SAFETY_STOPPED로 종료하면, 그 result가 RPi5에 정상 회신된다 —
         # 폰/키오스크의 긴급 정지가 UART 모드에서도 끝단까지 완결되는 지점.
+        scope = msg.scope if msg is not None else "appliance"
+        session = self.hold_session
+        if not self._busy and session is not None and session.active:
+            # 정지 버튼 위 대기 중: 가전 정지(정지 버튼 누름). drive면 구동부만 멈춘다(누르지 않음).
+            if scope == "drive":
+                log.warning("drive stop received while holding — stopping motion, no stop press")
+                session.drive_stop()
+            else:
+                log.warning("stop received while holding — pressing the appliance stop button: %s",
+                            session.request_appliance_stop())
+            return
         if self._busy:
+            self._verify_stop = True
             request_stop = getattr(self._controller, "request_stop", None)
             if request_stop is not None:
                 log.warning("abort received mid-execution — requesting cooperative stop")

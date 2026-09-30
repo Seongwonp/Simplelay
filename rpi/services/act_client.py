@@ -11,7 +11,11 @@ RPi4 side of this same link.
                                    ←  error  {sequence_id, reason}
                                    ←  progress {sequence_id, button, attempt,
                                        phase, ...}  (optional, never a result)
-  abort                           ←  (no reply expected)
+  abort {scope?}                  ←  (no reply expected)
+  verify_pass {sequence_id,       ←  verify_result {sequence_id, ok, targets}
+               targets}               (확인 주행, 2026-09-30 — progress phase "verify"가 먼저 온다)
+  execute {..., hold?}            ←  progress {phase:"hold", hold_state, stop_outcome, ...}
+                                      (정지 버튼 대기·보관 보고 — 결과 뒤에도 온다. ``last_hold``)
   (nothing — self-initiated)      ←  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
 
@@ -36,6 +40,7 @@ Duck-typed reader/writer, matching ActExecutor's and UartBridge's pattern:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import logging
 import os
@@ -294,6 +299,9 @@ class ActClient:
         # '알 수 없는 메시지'가 아니라 '지연 도착'으로 명시적으로 폐기한다.
         self._stale_sequence_ids: deque[str] = deque(maxlen=8)
         self._read_task: asyncio.Task[None] | None = None
+        #: RPi4가 보낸 마지막 정지 대기 보고(progress phase "hold"). 새 실행을 보내면 비운다.
+        self.last_hold: dict | None = None
+        self._progress_listeners: list[Callable[[dict], None]] = []
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -317,6 +325,7 @@ class ActClient:
         buttons: Sequence[str],
         sequence_id: str | None = None,
         targets: "Mapping[str, ButtonTarget] | None" = None,
+        hold: "Mapping[str, object] | None" = None,
     ) -> ActResult:
         """Send one button sequence and await RPi4's result.
 
@@ -344,6 +353,10 @@ class ActClient:
             message: dict = {"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)}
             if targets:
                 message["targets"] = targets_payload(targets)
+            if hold:
+                # 정지 대기·보관 계획(선택). 옛 RPi4는 모르는 키를 무시한다.
+                message["hold"] = dict(hold)
+            self.last_hold = None
             await self._send(message)
             doc = await asyncio.wait_for(future, timeout)
         except asyncio.TimeoutError as exc:
@@ -383,9 +396,46 @@ class ActClient:
             execution_mode=parse_execution_mode(doc),
         )
 
-    async def abort(self) -> None:
-        """Request RPi4 abort — best-effort, no reply is awaited (see protocol.md)."""
-        await self._send({"type": "abort"})
+    async def abort(self, scope: str | None = None) -> None:
+        """Request RPi4 abort — best-effort, no reply is awaited (see protocol.md).
+
+        ``scope="drive"``면 구동부만 멈추라는 뜻이다(정지 대기 중에도 정지 버튼을 누르지 않음).
+        생략하면 종전 줄과 바이트까지 같다."""
+        await self._send({"type": "abort"} if scope is None else {"type": "abort", "scope": scope})
+
+    async def verify_pass(self, targets: "Sequence[Mapping[str, object]]",
+                          sequence_id: str | None = None) -> dict:
+        """확인 주행을 보내고 ``verify_result``를 기다린다. ``error``면 ActLinkError."""
+        if self._pending is not None and not self._pending[1].done():
+            raise ActLinkBusyError("another request is already awaiting a response")
+        seq_id = sequence_id or str(uuid.uuid4())
+        timeout = self._cfg.timeout_for(len(targets))
+        future: asyncio.Future[dict] = asyncio.get_running_loop().create_future()
+        self._pending = (seq_id, future)
+        try:
+            await self._send({"type": "verify_pass", "sequence_id": seq_id,
+                              "targets": [dict(t) for t in targets]})
+            doc = await asyncio.wait_for(future, timeout)
+        except asyncio.TimeoutError as exc:
+            self._stale_sequence_ids.append(seq_id)
+            try:
+                await self._send({"type": "abort", "scope": "drive"})
+            except Exception:
+                log.exception("abort send after verify timeout failed")
+            raise ActLinkTimeoutError(f"no verify_result for {seq_id!r} within {timeout}s") from exc
+        finally:
+            if self._pending is not None and self._pending[0] == seq_id:
+                self._pending = None
+        if doc.get("type") == "error":
+            raise ActLinkError(str(doc.get("detail") or doc.get("reason") or "unknown"))
+        return doc
+
+    def add_progress_listener(self, listener: Callable[[dict], None]) -> None:
+        self._progress_listeners.append(listener)
+
+    def remove_progress_listener(self, listener: Callable[[dict], None]) -> None:
+        with contextlib.suppress(ValueError):
+            self._progress_listeners.remove(listener)
 
     async def inject_failure(self, button_index: int, attempts: int) -> None:
         """리허설 실패 주입 무장을 RPi4로 전달 — abort처럼 응답 없는 단방향
@@ -437,7 +487,7 @@ class ActClient:
             self.tap.record("act_to_hub", doc)
 
         msg_type = doc.get("type")
-        if msg_type in ("result", "error"):
+        if msg_type in ("result", "error", "verify_result"):
             received_id = doc.get("sequence_id")
             pending = self._pending
             if (
@@ -459,6 +509,13 @@ class ActClient:
 
         if msg_type == "progress":
             # 진행 보고는 기록·관찰용이다. 대기 중인 execute()를 끝내지 않는다.
+            if doc.get("phase") == "hold":
+                self.last_hold = doc
+            for listener in list(self._progress_listeners):
+                try:
+                    listener(doc)
+                except Exception:  # noqa: BLE001
+                    log.exception("ActClient: progress listener failed")
             if self._on_progress is not None:
                 try:
                     self._on_progress(doc)

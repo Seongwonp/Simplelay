@@ -7,7 +7,11 @@ on this leg.
 
 Inbound (RPi5 → RPi4):
   execute        — already-resolved button sequence to run through the closed loop
-  abort          — cancel; forwarded to the safety controller
+                   (선택 ``hold``: 끝난 뒤 정지 버튼 위 대기·보관 위치, 2026-09-30)
+  abort          — cancel; forwarded to the safety controller. 실행이 끝나고 정지 버튼
+                   위에서 대기 중이면 **가전 정지**(정지 버튼 누름)로 처리한다.
+                   ``scope:"drive"``면 구동부 정지만(누르지 않음)
+  verify_pass    — 확인 주행: Z를 올린 채 좌표 위를 차례로 지나간다(누르지 않음)
   inject_failure — arm demo failure injection for the next execution (rehearsal)
   clear_failure  — disarm a previously armed injection
 
@@ -24,17 +28,55 @@ from rpi.controller.models import ButtonTarget
 
 
 @dataclass(frozen=True)
+class HoldPlan:
+    """실행이 끝난 뒤의 정지 대기·보관 계획(2026-09-30). 좌표는 갠트리 mm.
+
+    RPi5가 가전 레지스트리(``stop_button``·``stop_presses``·``park_xy``)에서 만든다.
+    """
+
+    stop_button: str
+    stop_x_mm: float
+    stop_y_mm: float
+    stop_presses: int
+    park_x_mm: float
+    park_y_mm: float
+    press_ms: int | None = None
+    appliance_id: str | None = None
+
+
+@dataclass(frozen=True)
 class ExecuteMsg:
     sequence_id: str
     buttons: tuple[str, ...]
     #: 선택 — 버튼 → 갠트리 좌표(mm)·누름 유지 시간. 보정된 버튼만 싣는다.
     #: 없으면 빈 dict(종전 메시지와 같다).
     targets: dict[str, ButtonTarget] = field(default_factory=dict)
+    #: 선택 — 정지 대기·보관 계획. 없으면 종전처럼 실행만 한다.
+    hold: HoldPlan | None = None
 
 
 @dataclass(frozen=True)
 class AbortMsg:
-    pass
+    #: "appliance"(기본): 실행 중이면 협조적 정지, 정지 대기 중이면 정지 버튼 누름.
+    #: "drive": 구동부 정지만 — 정지 버튼을 누르지 않는다(가전 정지와 구분).
+    scope: str = "appliance"
+
+
+@dataclass(frozen=True)
+class VerifyTarget:
+    button: str
+    x_mm: float
+    y_mm: float
+    #: "button" | "park"
+    kind: str = "button"
+
+
+@dataclass(frozen=True)
+class VerifyPassMsg:
+    """확인 주행 — Z를 올린 채 좌표 위를 차례로 지나간다. 누르지 않는다."""
+
+    sequence_id: str
+    targets: tuple[VerifyTarget, ...]
 
 
 @dataclass(frozen=True)
@@ -52,7 +94,12 @@ class ClearFailureMsg:
     pass
 
 
-InboundActMsg = ExecuteMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg
+InboundActMsg = ExecuteMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg
+
+#: 정지 버튼 누름 횟수 상한(전자레인지: 1회 일시정지·2회 취소 등). 레지스트리와 같다.
+STOP_PRESSES_RANGE = (1, 3)
+#: 확인 주행 한 번의 좌표 수 상한.
+MAX_VERIFY_TARGETS = 40
 
 
 def parse_act_message(raw: str) -> InboundActMsg | None:
@@ -84,10 +131,39 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
         targets = _parse_targets(doc.get("targets"), buttons)
         if targets is None:
             return None
-        return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), targets=targets)
+        hold = None
+        if doc.get("hold") is not None:
+            hold = _parse_hold(doc.get("hold"))
+            if hold is None:
+                return None  # targets와 같은 규칙 — 이상한 계획으로 움직이지 않는다
+        return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), targets=targets,
+                          hold=hold)
 
     if msg_type == "abort":
-        return AbortMsg()
+        scope = doc.get("scope", "appliance")
+        if scope not in ("appliance", "drive"):
+            return None
+        return AbortMsg(scope=scope)
+
+    if msg_type == "verify_pass":
+        seq_id = doc.get("sequence_id", "")
+        raw_targets = doc.get("targets")
+        if not isinstance(seq_id, str) or not seq_id.strip():
+            return None
+        if not isinstance(raw_targets, list) or not 1 <= len(raw_targets) <= MAX_VERIFY_TARGETS:
+            return None
+        parsed: list[VerifyTarget] = []
+        for item in raw_targets:
+            if not isinstance(item, dict):
+                return None
+            button, x, y = item.get("button"), item.get("x_mm"), item.get("y_mm")
+            kind = item.get("kind", "button")
+            if not isinstance(button, str) or not button.strip() or kind not in ("button", "park"):
+                return None
+            if not (_is_number(x) and _is_number(y)):
+                return None
+            parsed.append(VerifyTarget(button.strip(), float(x), float(y), kind))
+        return VerifyPassMsg(sequence_id=seq_id.strip(), targets=tuple(parsed))
 
     if msg_type == "inject_failure":
         button_index = doc.get("button_index")
@@ -140,3 +216,32 @@ def _parse_targets(raw: object, buttons: list) -> dict[str, ButtonTarget] | None
             return None
         targets[name] = ButtonTarget(float(x), float(y), press_ms)
     return targets
+
+
+def _parse_hold(raw: object) -> HoldPlan | None:
+    """``hold``를 엄격하게 읽는다. 하나라도 이상하면 None(메시지 전체를 버린다)."""
+    if not isinstance(raw, dict):
+        return None
+    button = raw.get("stop_button")
+    presses = raw.get("stop_presses")
+    press_ms = raw.get("press_ms")
+    appliance_id = raw.get("appliance_id")
+    numbers = [raw.get(k) for k in ("stop_x_mm", "stop_y_mm", "park_x_mm", "park_y_mm")]
+    if not isinstance(button, str) or not button.strip():
+        return None
+    if isinstance(presses, bool) or not isinstance(presses, int):
+        return None
+    if not STOP_PRESSES_RANGE[0] <= presses <= STOP_PRESSES_RANGE[1]:
+        return None
+    if not all(_is_number(v) and v >= 0 for v in numbers):
+        return None
+    if press_ms is not None and (
+        isinstance(press_ms, bool) or not isinstance(press_ms, int) or press_ms <= 0
+    ):
+        return None
+    if appliance_id is not None and not isinstance(appliance_id, str):
+        return None
+    sx, sy, px, py = (float(v) for v in numbers)
+    if (sx, sy) == (px, py):
+        return None  # 보관 위치가 정지 버튼 위면 대기와 보관이 구분되지 않는다
+    return HoldPlan(button.strip(), sx, sy, presses, px, py, press_ms, appliance_id)

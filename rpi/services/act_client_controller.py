@@ -65,6 +65,8 @@ class ActClientController:
         self._loop = loop
         self._client = client
         self._call_timeout = call_timeout_seconds
+        #: 다음 execute에 실을 정지 대기 계획(``arm_stop_hold``). 한 번 쓰면 비운다.
+        self._next_hold: dict | None = None
 
     @property
     def frame_tap(self):
@@ -83,11 +85,13 @@ class ActClientController:
     ) -> ExecutionResult:
         buttons = list(buttons)
         call_timeout = self._timeout_for(len(buttons))
-        coro = (
-            self._client.execute(buttons, targets=targets)
-            if targets
-            else self._client.execute(buttons)
-        )
+        hold, self._next_hold = self._next_hold, None
+        if hold:
+            coro = self._client.execute(buttons, targets=targets or None, hold=hold)
+        elif targets:
+            coro = self._client.execute(buttons, targets=targets)
+        else:
+            coro = self._client.execute(buttons)
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         try:
             result = future.result(timeout=call_timeout)
@@ -114,6 +118,40 @@ class ActClientController:
 
         future = asyncio.run_coroutine_threadsafe(self._client.abort(), self._loop)
         future.add_done_callback(_log_send_failure)
+
+    # ── 정지 대기·확인 주행(2026-09-30) ─────────────────────────────────────
+
+    #: 서비스가 이 표시를 보고 실행 직전에 ``arm_stop_hold``를 부른다.
+    supports_stop_hold = True
+
+    def arm_stop_hold(self, plan: "Mapping[str, object] | None") -> None:
+        """다음 execute 한 번에 정지 대기 계획을 싣는다(None이면 싣지 않음)."""
+        self._next_hold = dict(plan) if plan else None
+
+    def hold_status(self) -> dict | None:
+        """RPi4가 보낸 마지막 정지 대기 보고(없으면 None). 판정은 RPi4가 한다."""
+        doc = getattr(self._client, "last_hold", None)
+        return dict(doc) if doc else None
+
+    def request_drive_stop(self) -> None:
+        """구동부만 멈춘다(정지 버튼을 누르지 않음) — 가전 정지와 다른 경로."""
+        asyncio.run_coroutine_threadsafe(self._client.abort("drive"), self._loop)
+
+    def verify_pass(self, targets: list[dict], on_progress=None) -> dict:
+        """확인 주행을 RPi4로 보내고 결과를 기다린다(블로킹). ``on_progress``는 단계 보고."""
+        listener = None
+        if on_progress is not None:
+            def listener(doc: dict) -> None:
+                if doc.get("phase") == "verify":
+                    on_progress(doc)
+            self._loop.call_soon_threadsafe(self._client.add_progress_listener, listener)
+        try:
+            future = asyncio.run_coroutine_threadsafe(self._client.verify_pass(targets), self._loop)
+            return future.result(timeout=self._client.response_timeout_for(len(targets))
+                                 + self.CALL_MARGIN_SECONDS)
+        finally:
+            if listener is not None:
+                self._loop.call_soon_threadsafe(self._client.remove_progress_listener, listener)
 
     def inject_failure(self, button_index: int, attempts: int) -> None:
         """리허설 실패 주입을 RPi4로 전달 — 단방향(응답 없음). 전송 완료는

@@ -266,6 +266,9 @@ def test_emergency_stop_returns_ok(client):
         # ThinQ 경로(U1) — 꺼져 있으면 항상 비어 있다.
         "cloud_cancelled": [],
         "cloud_uncancellable": [],
+        # 정지 버튼 위 대기(2026-09-30) — 대기 중이 아니면 가전 정지 누름으로 가지 않는다.
+        "appliance_stop_requested": False,
+        "hold_state_at_request": None,
     }
 
 
