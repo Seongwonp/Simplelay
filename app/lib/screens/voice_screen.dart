@@ -320,7 +320,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         body: NoApplianceNotice(
           title: '사용할 가전을 먼저 추가해 주세요',
           body: '조작할 가전이 있어야 말로 시킬 수 있어요.\n가전을 추가하면 바로 여기서 쓸 수 있어요.',
-          onAdd: () => context.push('/appliance/new'),
+          onAdd: () => context.push('/appliance/add'),
         ),
       );
     }

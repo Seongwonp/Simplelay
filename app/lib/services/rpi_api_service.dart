@@ -4,7 +4,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/appliance.dart';
+import '../models/hub.dart';
 import '../models/learning_status.dart';
+import '../models/routine.dart';
 import '../models/scenario_run.dart';
 
 class RpiApiException implements Exception {
@@ -143,10 +145,17 @@ class RpiSuggestion {
     this.applianceId,
     this.scenarioId,
     this.commands = const [],
+    this.routineId,
+    this.routineName,
   });
   final bool isDemo;
   final String id;
   final String purpose;
+
+  /// 루틴이 만든 카드면 그 루틴(서버 2026-09-30). 있으면 화면은 `purpose`
+  /// 대신 `routineName`을 제목으로 쓴다.
+  final String? routineId;
+  final String? routineName;
   final String timeBand;
   final int occurrences;
 
@@ -179,6 +188,8 @@ class RpiSuggestion {
           for (final c in (json['commands'] as List<dynamic>?) ?? const [])
             if (c is Map<String, dynamic>) RpiSuggestionCommand.fromJson(c),
         ],
+        routineId: json['routine_id'] as String?,
+        routineName: json['routine_name'] as String?,
       );
 }
 
@@ -1225,6 +1236,211 @@ class RpiApiService {
     }
   }
 
+  // ── 허브 상태·위치 (2026-09-30) ─────────────────────────────────────────
+
+  /// GET /status 중 탭 구조·대기 표시에 쓰는 값. 실패는 예외.
+  Future<HubStatus> hubStatus() async {
+    final res = await _client
+        .get(_base.replace(path: '/status'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return HubStatus.fromJson(_decodeMap(res));
+  }
+
+  Future<HubLocation> hubLocation() async {
+    final res = await _client
+        .get(_base.replace(path: '/hub/location'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return HubLocation.fromJson(_decodeMap(res));
+  }
+
+  /// PUT /hub/location. 서버가 약 1km(소수 둘째 자리)로 줄여 저장한다.
+  /// 국내 밖이면 422 — detail을 그대로 보여 준다.
+  Future<HubLocation> setHubLocation(double lat, double lon) async {
+    final res = await _client
+        .put(
+          _base.replace(path: '/hub/location'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'lat': lat, 'lon': lon}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return HubLocation.fromJson(_decodeMap(res));
+  }
+
+  // ── 루틴 (2026-09-30, docs/devlog_2026-09-30-routines.md §3) ──────────────
+  //
+  // 이 묶음에는 **실행 호출이 없다.** '지금 실행'도 카드를 만들 뿐이고,
+  // 실행은 제안 승인(approveSuggestion) 하나로만 일어난다.
+
+  Future<List<Routine>> routines() async {
+    final res = await _client
+        .get(_base.replace(path: '/routines'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return _decodeList(res).map(Routine.fromJson).toList();
+  }
+
+  Future<List<Routine>> routineTemplates() async {
+    final res = await _client
+        .get(_base.replace(path: '/routines/templates'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return _decodeList(res).map(Routine.fromJson).toList();
+  }
+
+  Future<List<RoutineNextRun>> nextRoutines({int limit = 3}) async {
+    final res = await _client
+        .get(
+          _base.replace(
+            path: '/routines/next',
+            queryParameters: {'limit': '$limit'},
+          ),
+          headers: _headers,
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return _decodeList(res).map(RoutineNextRun.fromJson).toList();
+  }
+
+  /// 새 루틴(id 없음)은 POST, 있으면 PUT(전체 교체). 422 detail은 화면에
+  /// 그대로 보여도 되는 문장이다.
+  Future<Routine> saveRoutine(Routine routine) async {
+    final id = routine.id;
+    final body = jsonEncode(routine.toRequestJson());
+    final res = await (id == null
+            ? _client.post(_base.replace(path: '/routines'),
+                headers: _jsonHeaders, body: body)
+            : _client.put(_base.replace(path: '/routines/$id'),
+                headers: _jsonHeaders, body: body))
+        .timeout(_timeout);
+    _checkStatus(res);
+    return Routine.fromJson(_decodeMap(res));
+  }
+
+  Future<void> deleteRoutine(String id) async {
+    final res = await _client
+        .delete(_base.replace(path: '/routines/$id'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+  }
+
+  Future<Routine> setRoutineEnabled(String id, bool enabled) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/routines/$id/enable'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'enabled': enabled}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return Routine.fromJson(_decodeMap(res));
+  }
+
+  /// '지금 실행' — 승인 루틴은 카드를 만들고, 알림 루틴은 알림만 남긴다.
+  Future<RoutineTriggerResult> triggerRoutine(String id) async {
+    final res = await _client
+        .post(_base.replace(path: '/routines/$id/trigger'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    final body = _decodeMap(res);
+    if (body['kind'] == 'suggestion') {
+      final card = body['suggestion'] as Map<String, dynamic>?;
+      return RoutineTriggerResult(suggestionId: card?['id'] as String?);
+    }
+    final notice = body['notice'];
+    return RoutineTriggerResult(
+      notice: notice is Map<String, dynamic>
+          ? notice['message'] as String? ?? notice['text'] as String?
+          : null,
+    );
+  }
+
+  // ── 가전 추가: 사진 매핑·확인 주행 (2026-09-30) ──────────────────────────
+
+  Future<MappingFrame> mappingFrame() async {
+    final res = await _client
+        .get(_base.replace(path: '/mapping/frame'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return MappingFrame.fromJson(_decodeMap(res));
+  }
+
+  /// PUT /appliances/{id}/mapping — 사진 파일은 보내지 않는다(크기·좌표만).
+  Future<MappingSaveResult> saveMapping(
+    String applianceId,
+    MappingRequest request,
+  ) async {
+    final res = await _client
+        .put(
+          _base.replace(path: '/appliances/$applianceId/mapping'),
+          headers: _jsonHeaders,
+          body: jsonEncode(request.toJson()),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return MappingSaveResult.fromJson(_decodeMap(res));
+  }
+
+  /// POST /appliances/{id}/verify-pass — 누르지 않고 Z를 올린 채 지나간다.
+  Future<VerifyPass> startVerifyPass(String applianceId) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/appliances/$applianceId/verify-pass'),
+          headers: _jsonHeaders,
+          body: jsonEncode(<String, dynamic>{}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return VerifyPass.fromJson(_decodeMap(res));
+  }
+
+  Future<VerifyPass> verifyPassStatus(String applianceId) async {
+    final res = await _client
+        .get(
+          _base.replace(path: '/appliances/$applianceId/verify-pass'),
+          headers: _headers,
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return VerifyPass.fromJson(_decodeMap(res));
+  }
+
+  /// PUT /appliances/{id} 결과를 **기다려서** 알려 준다. [registerAppliance]는
+  /// 실패를 false로 삼키지만, 가전 추가 마지막 단계는 등록이 서버에 닿아야
+  /// 사진 매핑을 저장할 수 있으므로 사유가 필요하다.
+  Future<Map<String, dynamic>> registerApplianceStrict(
+    ApplianceMap appliance,
+  ) async {
+    final res = await _client
+        .put(
+          _base.replace(path: '/appliances/${appliance.id}'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'name': appliance.name,
+            'category': appliance.category.value,
+            'rows': appliance.rows,
+            'cols': appliance.cols,
+            'buttons': [
+              for (final b in appliance.buttons)
+                {'id': b.id, 'label': b.label, 'x': b.x, 'y': b.y},
+            ],
+          }),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return _decodeMap(res);
+  }
+
+  Map<String, dynamic> _decodeMap(http.Response res) =>
+      jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+
+  List<Map<String, dynamic>> _decodeList(http.Response res) =>
+      (jsonDecode(utf8.decode(res.bodyBytes)) as List<dynamic>)
+          .whereType<Map<String, dynamic>>()
+          .toList();
+
   void _checkStatus(http.Response res) {
     if (res.statusCode >= 400) {
       // FastAPI는 charset 없이 JSON을 보낸다 — res.body(latin1)로 풀면 한글
@@ -1236,9 +1452,16 @@ class RpiApiService {
         detail = res.body;
       }
       try {
-        detail = (jsonDecode(detail) as Map<String, dynamic>)['detail']
-                as String? ??
-            detail;
+        final raw = (jsonDecode(detail) as Map<String, dynamic>)['detail'];
+        if (raw is String) {
+          detail = raw;
+        } else if (raw is List && raw.isNotEmpty && raw.first is Map) {
+          // 요청 모양 검증(422)은 목록으로 온다. 첫 문장만 쓴다.
+          final msg = (raw.first as Map)['msg'];
+          if (msg is String && msg.isNotEmpty) {
+            detail = msg.replaceFirst(RegExp(r'^Value error,\s*'), '');
+          }
+        }
       } catch (_) {}
       throw RpiApiException(res.statusCode, detail);
     }

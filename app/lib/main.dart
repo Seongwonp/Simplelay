@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'models/routine.dart';
 import 'providers/execution_status_provider.dart';
+import 'screens/add_appliance_wizard_screen.dart';
+import 'screens/app_info_screen.dart';
+import 'screens/appliance_detail_screen.dart';
 import 'screens/appliance_editor_screen.dart';
 import 'screens/app_shell.dart';
 import 'screens/care_events_screen.dart';
@@ -11,6 +15,9 @@ import 'screens/history_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/manual_control_screen.dart';
 import 'screens/onboarding_screen.dart';
+import 'screens/routine_editor_screen.dart';
+import 'screens/routine_record_screen.dart';
+import 'screens/routines_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/status_screen.dart';
@@ -34,21 +41,45 @@ final _router = GoRouter(
       path: '/splash',
       builder: (_, __) => const SplashScreen(),
     ),
+    // 탭 순서: 홈 · 루틴 · 기록 · 설정 (+ 개발자 모드일 때만 개발자).
+    // 2026-09-30 UI 확정 §2. 실행 상태·음성은 탭이 아니라 홈 위에 얹는
+    // 화면이다 -- `context.go('/status')`는 그대로 쓰이고, 탭바는 남는다.
     StatefulShellRoute.indexedStack(
       builder: (context, state, navigationShell) =>
           AppShell(navigationShell: navigationShell),
       branches: [
         StatefulShellBranch(
-          routes: [GoRoute(path: '/', builder: (_, __) => const HomeScreen())],
-        ),
-        StatefulShellBranch(
           routes: [
-            GoRoute(path: '/voice', builder: (_, __) => const VoiceScreen()),
+            GoRoute(
+              path: '/',
+              builder: (_, __) => const HomeScreen(),
+              routes: [
+                GoRoute(
+                  path: 'status',
+                  builder: (_, __) => const StatusScreen(),
+                ),
+                GoRoute(
+                  path: 'voice',
+                  builder: (_, __) => const VoiceScreen(),
+                ),
+              ],
+            ),
           ],
         ),
         StatefulShellBranch(
           routes: [
-            GoRoute(path: '/status', builder: (_, __) => const StatusScreen()),
+            GoRoute(
+              path: '/routines',
+              builder: (_, __) => const RoutinesScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/history',
+              builder: (_, __) => const HistoryScreen(),
+            ),
           ],
         ),
         StatefulShellBranch(
@@ -56,6 +87,14 @@ final _router = GoRouter(
             GoRoute(
               path: '/settings',
               builder: (_, __) => const SettingsScreen(),
+            ),
+          ],
+        ),
+        StatefulShellBranch(
+          routes: [
+            GoRoute(
+              path: '/dev',
+              builder: (_, __) => const DeveloperTabScreen(),
             ),
           ],
         ),
@@ -70,23 +109,48 @@ final _router = GoRouter(
       builder: (_, state) =>
           SuggestionScreen(sequenceId: state.pathParameters['id']!),
     ),
+    // 가전 추가 5단계(사진 → 모서리 → 버튼 → 정지·쉬는 자리 → 확인 주행).
+    GoRoute(
+      path: '/appliance/add',
+      builder: (_, __) => const AddApplianceWizardScreen(),
+    ),
+    // 사진 없이 버튼판으로 등록하는 예전 편집기. 가전 추가 1단계에서 들어온다.
     GoRoute(
       path: '/appliance/new',
       builder: (_, __) => const ApplianceEditorScreen(),
+    ),
+    GoRoute(
+      path: '/appliance/detail/:id',
+      builder: (_, state) =>
+          ApplianceDetailScreen(applianceId: state.pathParameters['id']!),
+    ),
+    GoRoute(
+      path: '/routine/record/:applianceId',
+      builder: (_, state) => RoutineRecordScreen(
+          applianceId: state.pathParameters['applianceId']!),
+    ),
+    GoRoute(
+      path: '/routine/edit',
+      builder: (_, state) =>
+          RoutineEditorScreen(initial: state.extra as Routine?),
     ),
     GoRoute(
       path: '/manual-control',
       builder: (_, __) => const ManualControlScreen(),
     ),
     GoRoute(
-      path: '/history',
-      builder: (_, __) => const HistoryScreen(),
-    ),
-    GoRoute(
       path: '/care',
       builder: (_, __) => const CareEventsScreen(),
     ),
-    // 개발자 도구 — 설정 > 고급 설정에서만 들어온다. 서버에서 개발자 모드를
+    GoRoute(
+      path: '/settings/hub',
+      builder: (_, __) => const HubSettingsScreen(),
+    ),
+    GoRoute(
+      path: '/settings/info',
+      builder: (_, __) => const AppInfoScreen(),
+    ),
+    // 개발자 도구 — 개발자 탭에서만 들어온다. 서버에서 개발자 모드를
     // 켜지 않았으면 화면이 그 사실을 말하고 아무것도 조작하지 못한다.
     GoRoute(
       path: '/developer',

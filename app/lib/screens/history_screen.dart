@@ -34,7 +34,7 @@ class HistoryScreen extends ConsumerWidget {
     final installed = ref.watch(installedAppliancesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('실행 기록')),
+      appBar: AppBar(title: const Text('기록')),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(historyProvider.future),
         child: historyAsync.when(

@@ -28,7 +28,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/models/hub.dart';
+import 'package:simplelay/models/routine.dart';
+import 'package:simplelay/screens/appliance_detail_screen.dart';
 import 'package:simplelay/screens/appliance_editor_screen.dart';
+import 'package:simplelay/screens/routine_editor_screen.dart';
 import 'package:simplelay/screens/history_screen.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
@@ -362,24 +366,49 @@ void main() {
         connected: false, light: true);
   });
 
-  // ── 사진이 있는 홈 ───────────────────────────────────────────────────────
+  // ── 가전 상세: 사진 위 버튼 ──────────────────────────────────────────────
   //
-  // 사진은 이 디자인의 핵심이라 크롭·BoxFit·모서리가 골든에 남아야 한다.
-  // 파일 이미지는 위젯 테스트에서 디코딩되지 않으므로 화면이 열어둔
-  // `applianceImageOverride`에 **공개 가능한 테스트 이미지**를 끼운다.
-  // 사용자 사진은 저장소·테스트·로그 어디에도 넣지 않는다.
+  // 2026-09-30부터 사진은 홈이 아니라 가전 상세의 사진 패널에 나온다(UI 확정 §2).
+  // 사진 비율과 버튼·정지(빨강)·쉬는 자리(점선) 표시 위치가 골든에 남아야 한다.
+  // 파일 이미지는 위젯 테스트에서 디코딩되지 않으므로 `applianceImageOverride`에
+  // **공개 가능한 테스트 이미지**를 끼운다. 사용자 사진은 저장소·테스트·로그
+  // 어디에도 넣지 않는다.
   for (final (name, light) in [
-    ('lt_home_photo', true),
-    ('home_photo_dark', false),
+    ('lt_detail_photo', true),
+    ('detail_photo_dark', false),
   ]) {
-    testWidgets('홈 — 가전 사진 있음 ($name)', (t) async {
+    testWidgets('가전 상세 — 사진 패널 ($name)', (t) async {
       final image = await t.runAsync(_fixtureImage);
       applianceImageOverride = image;
       addTearDown(() => applianceImageOverride = null);
-      await _shoot(t, name, const HomeScreen(),
-          suggestions: suggestions, light: light, precache: image);
+      await _shoot(t, name, ApplianceDetailScreen(applianceId: _mapped.id),
+          installed: [_mapped], light: light, precache: image);
     });
   }
+
+  testWidgets('루틴 편집 (라이트)', (t) async {
+    await _shoot(
+      t,
+      'lt_routine_editor',
+      RoutineEditorScreen(
+        initial: Routine(
+          id: 'rt-1',
+          name: '아침 데우기',
+          steps: const [
+            RoutineStep.press('microwave', ['BT-07', 'BT-03', 'BT-05']),
+            RoutineStep.wait('microwave'),
+            RoutineStep.announce('약 드실 시간이에요'),
+          ],
+          trigger: const RoutineTrigger(
+            kind: RoutineTriggerKind.time,
+            days: [0, 1, 2, 3, 4],
+            time: '07:30',
+          ),
+        ),
+      ),
+      light: true,
+    );
+  });
 
   // ── 시작 화면 ────────────────────────────────────────────────────────────
   //
@@ -589,6 +618,37 @@ void main() {
   }
 }
 
+/// 사진으로 등록한 전자레인지 — 버튼 자리는 테스트 이미지(320x200) 위 좌표다.
+final _mapped = ApplianceMap(
+  id: 'mine_microwave',
+  name: '전자레인지',
+  location: '주방',
+  category: ApplianceCategory.microwave,
+  rows: 2,
+  cols: 3,
+  buttons: const [
+    ApplianceButton(id: 'B01', label: '해동', x: 0, y: 0),
+    ApplianceButton(id: 'B02', label: '30초', x: 1, y: 0),
+    ApplianceButton(id: 'B03', label: '1분', x: 2, y: 0),
+    ApplianceButton(id: 'B04', label: '취소', x: 0, y: 1),
+    ApplianceButton(id: 'B05', label: '시작', x: 1, y: 1),
+  ],
+  isCustom: true,
+  stopButton: 'B04',
+  panelMapping: const PanelMapping(
+    photoWidth: 320,
+    photoHeight: 200,
+    buttons: {
+      'B01': PhotoPoint(100, 80),
+      'B02': PhotoPoint(160, 80),
+      'B03': PhotoPoint(220, 80),
+      'B04': PhotoPoint(120, 130),
+      'B05': PhotoPoint(200, 130),
+    },
+    parkPoint: PhotoPoint(295, 180),
+  ),
+);
+
 /// 같은 종류를 여러 대 등록한 사람. 위치가 이름 앞에 붙는다.
 final _twoOfMine = <ApplianceMap>[
   ApplianceMap(
@@ -699,21 +759,26 @@ Future<void> _shootShell(
     routes: [
       StatefulShellRoute.indexedStack(
         builder: (_, __, shell) => AppShell(navigationShell: shell),
+        // main.dart와 같은 다섯 브랜치(홈·루틴·기록·설정·개발자). 개발자 탭은
+        // 서버 개발자 모드일 때만 보이므로 이 골든에는 네 탭이 찍힌다.
         branches: [
           StatefulShellBranch(routes: [
             GoRoute(path: '/', builder: (_, __) => const SizedBox.shrink()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
-                path: '/voice', builder: (_, __) => const SizedBox.shrink()),
+                path: '/routines', builder: (_, __) => const SizedBox.shrink()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
-                path: '/status', builder: (_, __) => const SizedBox.shrink()),
+                path: '/history', builder: (_, __) => const SizedBox.shrink()),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
                 path: '/settings', builder: (_, __) => const SizedBox.shrink()),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: '/dev', builder: (_, __) => const SizedBox.shrink()),
           ]),
         ],
       ),

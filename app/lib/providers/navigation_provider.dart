@@ -8,8 +8,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// 자원을 쥔 화면은 이 값을 보고 스스로 정리한다.
 ///
 /// 탭 전환은 하단바 탭 말고 `context.go`로도 일어나므로(실행 시작 시 상태
-/// 탭으로 이동 등), 이벤트가 아니라 shell의 현재 인덱스를 동기화한다.
+/// 화면으로 이동 등), 이벤트가 아니라 shell의 현재 인덱스를 동기화한다.
 final currentTabIndexProvider = StateProvider<int>((ref) => 0);
 
-/// 하단 탭에서 음성 화면의 위치(main.dart의 StatefulShellBranch 순서와 일치).
-const int voiceTabIndex = 1;
+/// 하단 탭 순서(main.dart의 StatefulShellBranch 순서와 일치, UI 확정 §2).
+const int homeTabIndex = 0;
+const int routinesTabIndex = 1;
+const int historyTabIndex = 2;
+const int settingsTabIndex = 3;
+
+/// 서버 개발자 모드일 때만 보이는 다섯 번째 탭.
+const int developerTabIndex = 4;
+
+/// 음성 화면이 사는 탭. 2026-09-30 개편으로 음성은 탭이 아니라 **홈 위에
+/// 얹는 화면**(`/voice`)이 됐다 -- 다른 탭으로 가면 마이크를 놓는다.
+const int voiceTabIndex = homeTabIndex;

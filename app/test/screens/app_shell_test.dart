@@ -1,13 +1,18 @@
-// 하단 탭 shell이 "지금 보이는 탭"을 알리는지 확인한다.
+// 하단 탭 shell — 홈 · 루틴 · 기록 · 설정, 개발자 모드일 때만 다섯 번째 '개발자'
+// (UI 확정 §2, 2026-09-30).
 //
-// 탭은 StatefulShellBranch라 화면을 떠나도 위젯이 살아 있다. 음성 화면처럼
-// 가려지면 마이크를 놓아야 하는 화면은 이 신호에 기대므로, 여기가 끊기면
-// "숨겨진 화면이 계속 듣는" 버그가 조용히 되살아난다.
+// 이 shell은 두 가지를 더 책임진다.
+// 1. "지금 보이는 탭"을 알린다 -- 음성 화면처럼 가려지면 마이크를 놓아야 하는
+//    화면은 이 신호에 기댄다.
+// 2. '상태' 탭이 없어졌으므로, **실행 중에는 어느 탭에서든 정지 줄이 뜬다.**
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/providers/execution_status_provider.dart';
+import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/providers/navigation_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
 
@@ -19,45 +24,141 @@ GoRouter _shellRouter() => GoRouter(
           builder: (_, __, shell) => AppShell(navigationShell: shell),
           branches: [
             StatefulShellBranch(routes: [
-              GoRoute(path: '/', builder: (_, __) => const Text('home')),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(path: '/voice', builder: (_, __) => const Text('voice')),
-            ]),
-            StatefulShellBranch(routes: [
-              GoRoute(path: '/status', builder: (_, __) => const Text('status')),
+              GoRoute(
+                path: '/',
+                builder: (_, __) => const Text('home-body'),
+                routes: [
+                  GoRoute(
+                      path: 'status',
+                      builder: (_, __) => const Text('status-body')),
+                ],
+              ),
             ]),
             StatefulShellBranch(routes: [
               GoRoute(
-                  path: '/settings', builder: (_, __) => const Text('settings')),
+                  path: '/routines',
+                  builder: (_, __) => const Text('routines-body')),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/history',
+                  builder: (_, __) => const Text('history-body')),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(
+                  path: '/settings',
+                  builder: (_, __) => const Text('settings-body')),
+            ]),
+            StatefulShellBranch(routes: [
+              GoRoute(path: '/dev', builder: (_, __) => const Text('dev-body')),
             ]),
           ],
         ),
       ],
     );
 
+Future<ProviderContainer> _pump(
+  WidgetTester tester, {
+  bool developerMode = false,
+  ExecutionStatus? status,
+}) async {
+  final container = ProviderContainer(overrides: [
+    developerModeProvider.overrideWithValue(developerMode),
+  ]);
+  addTearDown(container.dispose);
+  if (status != null) {
+    // Test-only seed of the real notifier.
+    // ignore: invalid_use_of_protected_member
+    container.read(executionStatusProvider.notifier).state = status;
+  }
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(routerConfig: _shellRouter()),
+    ),
+  );
+  await tester.pumpAndSettle();
+  return container;
+}
+
 void main() {
+  testWidgets('탭은 홈·루틴·기록·설정 네 개이고 개발자 탭은 숨는다', (tester) async {
+    await _pump(tester);
+
+    for (final label in ['홈', '루틴', '기록', '설정']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('개발자'), findsNothing);
+    // 예전 탭(상태·말로 조작·알림)은 없다.
+    expect(find.text('상태'), findsNothing);
+    expect(find.bySemanticsLabel('말로 조작하기'), findsNothing);
+  });
+
+  testWidgets('서버 개발자 모드면 설정 옆에 다섯 번째 탭 "개발자"가 생긴다',
+      (tester) async {
+    final container = await _pump(tester, developerMode: true);
+
+    expect(find.text('개발자'), findsOneWidget);
+    // 설정 오른쪽에 있다.
+    expect(tester.getCenter(find.text('개발자')).dx,
+        greaterThan(tester.getCenter(find.text('설정')).dx));
+
+    await tester.tap(find.text('개발자'));
+    await tester.pumpAndSettle();
+    expect(find.text('dev-body'), findsOneWidget);
+    expect(container.read(currentTabIndexProvider), developerTabIndex);
+  });
+
   testWidgets('탭을 옮기면 currentTabIndexProvider가 따라간다', (tester) async {
-    final container = ProviderContainer();
-    addTearDown(container.dispose);
+    final container = await _pump(tester);
+    expect(container.read(currentTabIndexProvider), homeTabIndex);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(routerConfig: _shellRouter()),
-      ),
-    );
+    await tester.tap(find.text('루틴'));
     await tester.pumpAndSettle();
-    expect(container.read(currentTabIndexProvider), 0);
+    expect(find.text('routines-body'), findsOneWidget);
+    expect(container.read(currentTabIndexProvider), routinesTabIndex);
 
-    // 음성은 라벨이 붙은 탭이 아니라 **가운데 떠 있는 주 행동**이다.
-    await tester.tap(find.bySemanticsLabel('말로 조작하기'));
+    await tester.tap(find.text('기록'));
     await tester.pumpAndSettle();
-    expect(container.read(currentTabIndexProvider), voiceTabIndex);
+    expect(container.read(currentTabIndexProvider), historyTabIndex);
 
-    // 음성 탭을 떠나는 것까지 확인 — 이 전이가 마이크 정리를 촉발한다.
+    await tester.tap(find.text('설정'));
+    await tester.pumpAndSettle();
+    expect(container.read(currentTabIndexProvider), settingsTabIndex);
+
+    // 홈으로 돌아오는 전이 -- 음성 화면(홈 위)의 마이크 정리가 여기에 걸린다.
     await tester.tap(find.text('홈'));
     await tester.pumpAndSettle();
-    expect(container.read(currentTabIndexProvider), 0);
+    expect(container.read(currentTabIndexProvider), homeTabIndex);
+  });
+
+  testWidgets('실행 중이면 어느 탭에서든 정지 줄이 뜨고, 없으면 없다', (tester) async {
+    await _pump(tester);
+    expect(find.byKey(const Key('shell-stop')), findsNothing);
+  });
+
+  testWidgets('실행 중 정지 줄은 탭을 옮겨도 남는다', (tester) async {
+    await _pump(
+      tester,
+      status: const ExecutionStatus(
+        phase: ExecutionPhase.running,
+        label: '아침 데우기',
+      ),
+    );
+    expect(find.text('아침 데우기 실행 중'), findsOneWidget);
+    expect(find.byKey(const Key('shell-stop')), findsOneWidget);
+
+    await tester.tap(find.text('루틴'));
+    await tester.pump();
+    expect(find.byKey(const Key('shell-stop')), findsOneWidget);
+  });
+
+  testWidgets('동작을 확인할 수 없는 상태에서도 정지 수단을 남긴다', (tester) async {
+    await _pump(
+      tester,
+      status: const ExecutionStatus(phase: ExecutionPhase.unknown),
+    );
+    expect(find.text('동작을 확인할 수 없어요'), findsOneWidget);
+    expect(find.byKey(const Key('shell-stop')), findsOneWidget);
   });
 }

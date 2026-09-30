@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/screens/appliance_detail_screen.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
 import 'package:simplelay/widgets/route_badge.dart';
@@ -64,13 +65,13 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.text(_purifier.displayName), findsOneWidget);
+    expect(find.text(_purifier.name), findsOneWidget);
     expect(find.widgetWithText(RouteBadge, 'ThinQ'), findsOneWidget);
     expect(find.text('버튼으로 조작'), findsNothing);
     expect(find.text('가전 사진 추가'), findsNothing);
   });
 
-  testWidgets('홈: 물리 가전은 배지 없이 종전대로 버튼 조작을 내건다', (tester) async {
+  testWidgets('홈: 물리 가전은 배지 없이 카드만 둔다(누르기는 상세에서)', (tester) async {
     _tall(tester);
     await tester.pumpWidget(buildScreen(
       const HomeScreen(),
@@ -83,7 +84,25 @@ void main() {
     await tester.pump();
 
     expect(find.byType(RouteBadge), findsNothing);
-    expect(find.text('버튼으로 조작'), findsOneWidget);
+    expect(find.text(kTestAppliance.name), findsOneWidget);
+  });
+
+  testWidgets('가전 상세: ThinQ 가전은 버튼판·루틴 녹화 없이 안내만 보인다',
+      (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(buildScreen(
+      const ApplianceDetailScreen(applianceId: 'air_purifier'),
+      overrides: [
+        ...connectedOverrides(),
+        ...installedOverrides([_purifier]),
+      ],
+    ));
+    await tester.pump();
+
+    expect(find.widgetWithText(RouteBadge, 'ThinQ'), findsOneWidget);
+    expect(find.text('루틴 녹화'), findsNothing);
+    expect(find.text('버튼판으로 하나씩 누르기'), findsNothing);
+    expect(find.textContaining('누를 버튼이 없는 ThinQ 가전'), findsOneWidget);
   });
 
   testWidgets('버튼 조작 화면: ThinQ 가전은 버튼판 없이 배지와 안내만 보인다',

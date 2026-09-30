@@ -236,7 +236,8 @@ void main() {
       extra: [voiceServiceProvider.overrideWithValue(voice)],
     );
 
-    // 음성 탭에 있는 상태에서 시작한다(AppShell이 하는 일).
+    // 음성 화면이 사는 탭(홈)에 있는 상태에서 시작한다(AppShell이 하는 일).
+    // 2026-09-30부터 음성은 탭이 아니라 홈 위에 얹는 화면이다.
     container.read(currentTabIndexProvider.notifier).state = voiceTabIndex;
     await tester.pumpWidget(_buildScreen(container));
     await tester.pump();
@@ -246,7 +247,7 @@ void main() {
 
     // 탭 브랜치는 화면을 떠나도 살아 있다 -- 숨겨진 화면이 계속 듣거나
     // 나중에 옛 문장을 실행하면 안 된다.
-    container.read(currentTabIndexProvider.notifier).state = 0;
+    container.read(currentTabIndexProvider.notifier).state = routinesTabIndex;
     await tester.pump();
     await tester.pump();
     // 파형 막대의 예약 타이머(최대 150ms)를 소진시킨다.

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'hub.dart';
+
 class ApplianceButton {
   const ApplianceButton({
     required this.id,
@@ -98,7 +100,16 @@ class ApplianceMap {
     this.readinessKnown = false,
     this.revision = 0,
     this.controlPath = 'physical',
+    this.panelMapping,
+    this.stopButton,
   });
+
+  /// 등록 때 짚은 **사진 위 버튼 자리**(서버 `panel_mapping`). 없으면 사진
+  /// 패널 대신 버튼판을 그린다 -- 자리를 지어내지 않는다.
+  final PanelMapping? panelMapping;
+
+  /// 정지(취소) 버튼 id(서버 `stop_button`). 사진 위에서 빨갛게 그린다.
+  final String? stopButton;
 
   final String id;
   final String name;
@@ -252,6 +263,8 @@ class ApplianceMap {
         revision: (json['revision'] as num?)?.toInt() ?? 0,
         // 서버 응답에만 있다(G5). 없으면(옛 서버·기기 저장분) 물리 경로.
         controlPath: json['control_path'] as String? ?? 'physical',
+        panelMapping: PanelMapping.fromJson(json['panel_mapping']),
+        stopButton: json['stop_button'] as String?,
       );
 
   /// 서버에서 받은 정의에 **이 폰의 사진 경로**를 얹는다.
@@ -275,6 +288,9 @@ class ApplianceMap {
         readinessKnown: readinessKnown,
         revision: revision,
         controlPath: controlPath,
+        // 서버가 아직 매핑을 모르면(예: 등록 직후 동기화 순서) 이 폰의 기록을 잃지 않는다.
+        panelMapping: panelMapping ?? other.panelMapping,
+        stopButton: stopButton ?? other.stopButton,
       );
 
   Map<String, dynamic> toJson() => {
@@ -291,6 +307,11 @@ class ApplianceMap {
         // 연결됐을 때 "내가 본 판"을 말할 수 있어야 한다.
         if (revision > 0) 'revision': revision,
         if (photoPath != null) 'photo_path': photoPath,
+        // 사진 위 버튼 자리도 기기에 남긴다 -- 서버에 닿지 않을 때도 가전
+        // 상세가 사진 패널을 그릴 수 있어야 한다. 서버 등록 payload에는
+        // 싣지 않는다(registerAppliance가 따로 조립한다).
+        if (panelMapping != null) 'panel_mapping': panelMapping!.toJson(),
+        if (stopButton != null) 'stop_button': stopButton,
       };
 }
 

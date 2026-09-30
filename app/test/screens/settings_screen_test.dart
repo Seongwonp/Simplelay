@@ -8,6 +8,7 @@ import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/demo_provider.dart';
+import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/providers/wellness_pause_provider.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 
@@ -51,11 +52,33 @@ void _useTallViewport(WidgetTester tester) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
-// RPi URL 수동 입력·BLE 스캔 섹션은 "고급 설정" 토글 뒤에 숨어있다 — 열어야 보인다.
-Future<void> _expandAdvanced(WidgetTester tester) async {
-  await tester.tap(find.text('고급 설정'));
-  await tester.pump();
-}
+// 2026-09-30 개편: 예전 '고급 설정'의 서버 주소·API 키·예비 연결(BLE)은 설정 →
+// 허브 화면으로, 데모·개발자 도구는 개발자 탭으로 옮겼다. 같은 테스트를 새 자리에서
+// 다시 본다.
+Widget _buildHub({
+  AsyncValue<List<ScanResult>>? scanValue,
+  void Function(ProviderContainer)? onContainerReady,
+}) =>
+    buildScreen(
+      const HubSettingsScreen(),
+      overrides: [..._scanOverrides(value: scanValue)],
+      onContainerReady: onContainerReady,
+    );
+
+Widget _buildDev({
+  void Function(ProviderContainer)? onContainerReady,
+  ExecutionStatus? executionStatus,
+  bool developerMode = true,
+}) =>
+    buildScreen(
+      const DeveloperTabScreen(),
+      overrides: [
+        ..._scanOverrides(),
+        developerModeProvider.overrideWithValue(developerMode),
+      ],
+      executionStatus: executionStatus,
+      onContainerReady: onContainerReady,
+    );
 
 void main() {
   setUp(() {
@@ -68,6 +91,28 @@ void main() {
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
       expect(find.text('설정'), findsOneWidget);
+    });
+
+    testWidgets('UI 확정 §2의 여섯 항목이 그 순서로 맨 위에 있다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSettings());
+      await tester.pump();
+      const rows = [
+        '가전 추가',
+        '허브',
+        'LG ThinQ 연결',
+        '음성으로 멈추기',
+        '보호자 알림',
+        '글자 크기',
+      ];
+      double? last;
+      for (final label in rows) {
+        final f = find.widgetWithText(ListTile, label);
+        expect(f, findsOneWidget, reason: label);
+        final y = tester.getTopLeft(f).dy;
+        if (last != null) expect(y, greaterThan(last), reason: label);
+        last = y;
+      }
     });
 
     testWidgets('가전 선택 칩이 선택 상태와 터치 목표를 만족한다', (tester) async {
@@ -94,11 +139,10 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('고급 설정을 열면 RPi 서버 URL 입력 필드가 보인다', (tester) async {
+    testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      await tester.pumpWidget(_buildHub());
       await tester.pump();
-      await _expandAdvanced(tester);
       expect(
         find.byWidgetPredicate(
           (w) => w is TextField && w.decoration?.hintText == 'http://simplelay.local:8000',
@@ -107,29 +151,25 @@ void main() {
       );
     });
 
-    testWidgets('고급 설정을 열면 저장 버튼이 보인다', (tester) async {
+    testWidgets('허브 화면에 주소 저장 버튼이 보인다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      await tester.pumpWidget(_buildHub());
       await tester.pump();
-      await _expandAdvanced(tester);
       expect(find.widgetWithText(FilledButton, '저장'), findsOneWidget);
     });
 
-    testWidgets('고급 설정을 열면 주변 BLE 기기 섹션 타이틀이 보인다', (tester) async {
+    testWidgets('허브 화면에 주변 BLE 기기 섹션 타이틀이 보인다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      await tester.pumpWidget(_buildHub());
       await tester.pump();
-      await _expandAdvanced(tester);
       expect(find.text('주변 BLE 기기'), findsOneWidget);
     });
 
-    testWidgets('고급 설정을 열면 검색된 기기 없음 문구가 보인다 (빈 목록)', (tester) async {
+    testWidgets('허브 화면에 검색된 기기 없음 문구가 보인다 (빈 목록)', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      await tester.pumpWidget(_buildHub());
       await tester.pump();
-      await _expandAdvanced(tester);
-      // _BleSection이 확장 시점에 처음 mount되면서 scanResultsProvider를 그제서야
-      // watch하기 시작 — 스트림의 첫 데이터 이벤트가 반영되려면 pump 한 번 더 필요.
+      // 스트림의 첫 데이터 이벤트가 반영되려면 pump 한 번 더 필요.
       await tester.pump();
       expect(find.text('찾은 기기가 없어요.'), findsOneWidget);
     });
@@ -196,21 +236,22 @@ void main() {
   });
 
   group('SettingsScreen — 데모 섹션', () {
-    // 데모는 디버그 빌드가 아니라 '고급'에 있다. 결선 리허설은 릴리즈 APK로
-    // 하는데 디버그에만 있으면 정작 필요한 곳에서 못 켠다.
-    testWidgets('평소에는 데모가 보이지 않는다', (tester) async {
+    // 데모는 디버그 빌드가 아니라 개발자 탭에 있다(UI 확정 §1-6: 데모 흔적은
+    // 개발자 모드에서만). 결선 리허설은 릴리즈 APK로 하므로 빌드로 가르지 않는다.
+    testWidgets('설정 탭에는 데모·개발자 도구가 보이지 않는다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
       expect(find.text('데모 모드'), findsNothing);
       expect(find.text('제안 시뮬레이션'), findsNothing);
+      expect(find.text('개발자 도구'), findsNothing);
+      expect(find.text('고급 설정'), findsNothing);
     });
 
-    testWidgets('고급 설정을 펴면 데모 모드 토글과 시뮬레이션이 보인다', (tester) async {
+    testWidgets('개발자 탭에 데모 모드 토글과 시뮬레이션이 보인다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      await tester.pumpWidget(_buildDev());
       await tester.pump();
-      await _expandAdvanced(tester);
       expect(find.text('데모 모드'), findsOneWidget);
       expect(find.text('제안 시뮬레이션'), findsOneWidget);
       expect(find.text('연결 해제'), findsOneWidget);
@@ -232,10 +273,9 @@ void main() {
       _useTallViewport(tester);
       late ProviderContainer container;
       await tester.pumpWidget(
-        _buildSettings(onContainerReady: (c) => container = c),
+        _buildDev(onContainerReady: (c) => container = c),
       );
       await tester.pump();
-      await _expandAdvanced(tester);
       await tester.tap(
         find.descendant(
           of: find.widgetWithText(SwitchListTile, '데모 모드'),
@@ -251,7 +291,7 @@ void main() {
       // 그 순간 진행 중이던 작업은 추적을 잃는다.
       _useTallViewport(tester);
       await tester.pumpWidget(
-        _buildSettings(
+        _buildDev(
           executionStatus: const ExecutionStatus(
             phase: ExecutionPhase.running,
             label: '즉석밥 데워줘',
@@ -259,7 +299,6 @@ void main() {
         ),
       );
       await tester.pump();
-      await _expandAdvanced(tester);
 
       final toggle = tester.widget<SwitchListTile>(
         find.widgetWithText(SwitchListTile, '데모 모드'),
@@ -268,23 +307,19 @@ void main() {
       expect(find.text('실행이 끝난 뒤에 바꿀 수 있어요'), findsOneWidget);
     });
 
-    testWidgets('개발자 도구 진입은 고급 설정 안에만 있고 모의 제어라고 말한다',
+    testWidgets('개발자 도구 진입은 개발자 탭에만 있고 모의 제어라고 말한다',
         (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      await tester.pumpWidget(_buildDev());
       await tester.pump();
-      expect(find.text('개발자 도구'), findsNothing);
-
-      await _expandAdvanced(tester);
       expect(find.text('개발자 도구'), findsOneWidget);
       expect(find.textContaining('모의 제어 — 실제로 움직이지 않습니다'), findsOneWidget);
     });
 
     testWidgets('제안 시뮬레이션 탭 시 SnackBar 표시', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      await tester.pumpWidget(_buildDev());
       await tester.pump();
-      await _expandAdvanced(tester);
       await tester.tap(find.text('제안 시뮬레이션'));
       await tester.pump();
       expect(find.text('데모 제안 주입 완료'), findsOneWidget);
@@ -292,12 +327,22 @@ void main() {
 
     testWidgets('연결 해제 탭 시 SnackBar 표시', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildSettings());
+      await tester.pumpWidget(_buildDev());
       await tester.pump();
-      await _expandAdvanced(tester);
       await tester.tap(find.text('연결 해제'));
       await tester.pump();
       expect(find.text('연결 해제 시뮬레이션'), findsOneWidget);
+    });
+  });
+
+  group('개발자 탭 — 개발자 모드가 꺼지면', () {
+    testWidgets('데모도 꺼져 있으면 도구 대신 꺼졌다고만 말한다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildDev(developerMode: false));
+      await tester.pump();
+      expect(find.text('허브의 개발자 모드가 꺼져 있어요.'), findsOneWidget);
+      expect(find.text('개발자 도구'), findsNothing);
+      expect(find.text('데모 모드'), findsNothing);
     });
   });
 
@@ -305,11 +350,10 @@ void main() {
     testWidgets('저장 버튼 탭 시 rpiUrlProvider가 기본값으로 반영된다', (tester) async {
       _useTallViewport(tester);
       late ProviderContainer container;
-      await tester.pumpWidget(_buildSettings(
+      await tester.pumpWidget(_buildHub(
         onContainerReady: (c) => container = c,
       ));
       await tester.pump();
-      await _expandAdvanced(tester);
       await tester.tap(find.widgetWithText(FilledButton, '저장'));
       await tester.pump();
       expect(container.read(rpiUrlProvider), 'http://simplelay.local:8000');
@@ -319,11 +363,10 @@ void main() {
         (tester) async {
       _useTallViewport(tester);
       late ProviderContainer container;
-      await tester.pumpWidget(_buildSettings(
+      await tester.pumpWidget(_buildHub(
         onContainerReady: (c) => container = c,
       ));
       await tester.pump();
-      await _expandAdvanced(tester);
       final urlField = find.byWidgetPredicate(
         (w) => w is TextField && w.decoration?.hintText == 'http://simplelay.local:8000',
       );

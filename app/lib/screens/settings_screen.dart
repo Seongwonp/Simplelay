@@ -7,6 +7,9 @@ import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
 import '../models/execution_status.dart';
 import '../providers/appliance_sync_provider.dart';
+import '../providers/care_events_provider.dart';
+import '../providers/hub_provider.dart';
+import '../services/location_service.dart';
 import '../providers/wellness_pause_provider.dart';
 import '../providers/demo_provider.dart';
 import '../providers/execution_status_provider.dart';
@@ -16,6 +19,7 @@ import '../providers/theme_provider.dart';
 import '../providers/tts_provider.dart';
 import '../services/ble_service.dart';
 import '../services/demo_service.dart';
+import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
@@ -34,64 +38,89 @@ part 'settings/connection_section.dart';
 part 'settings/notification_section.dart';
 part 'settings/appliance_section.dart';
 part 'settings/node_section.dart';
+part 'settings/nav_rows.dart';
+part 'settings/hub_screen.dart';
+part 'settings/developer_tab.dart';
 
-class SettingsScreen extends ConsumerStatefulWidget {
+class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
   @override
-  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
-}
-
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  late final TextEditingController _urlController;
-  late final TextEditingController _apiKeyController;
-  bool _showAdvanced = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _urlController = TextEditingController(
-      text: ref.read(rpiUrlProvider) ?? '',
-    );
-    _apiKeyController = TextEditingController(
-      text: ref.read(rpiApiKeyProvider) ?? '',
-    );
-  }
-
-  @override
-  void dispose() {
-    _urlController.dispose();
-    _apiKeyController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rpi = ref.watch(rpiConnectionProvider);
+    final unread = ref.watch(careEventsProvider).unreadCount;
+    final thinq = ref.watch(thinqOverviewProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          // 순서가 곧 이 화면의 주장이다: **무엇을 조작하는가 → 그것이 이어져
-          // 있는가 → 언제 말을 걸지 → 화면·소리 → (접힌) 기술 상세.** 예전에는
-          // 다크 모드가 맨 위였고, 정작 가전과 연결은 아래로 밀려 있었다.
-          // 항목을 카드로 감싸지 않는다 -- 제목·행·구분선으로 구획한다.
+          // 위 두 묶음이 UI 확정 §2의 설정 탭이다: 가전 추가 · 허브 · LG ThinQ
+          // 연결 / 음성으로 멈추기 · 보호자 알림 · 글자 크기. 그 아래는 예전
+          // 설정의 세부(가전 관리·알림·제안·화면)를 그대로 둔다 -- 기능을 잃지
+          // 않는다. 서버 주소·API 키·예비 연결은 '허브' 안으로, 데모·개발자
+          // 도구는 개발자 탭으로 옮겼다.
+          _NavGroup(children: [
+            _NavRow(
+              icon: Icons.add_a_photo_outlined,
+              title: '가전 추가',
+              subtitle: '사진을 찍고 버튼을 짚어 등록',
+              onTap: () => context.push('/appliance/add'),
+            ),
+            _NavRow(
+              icon: Icons.hub_outlined,
+              title: '허브',
+              subtitle: _hubLine(rpi),
+              onTap: () => context.push('/settings/hub'),
+            ),
+            _NavRow(
+              icon: Icons.link,
+              title: 'LG ThinQ 연결',
+              subtitle: thinq == null
+                  ? '계정 연결 전'
+                  : thinq.executionMode == 'mock'
+                      ? '모의 연결(실제 가전 아님) · ${thinq.appliances.length}대'
+                      : '연결됨 · ${thinq.appliances.length}대',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const _ThinqScreen())),
+            ),
+          ]),
+          const SizedBox(height: 16),
+          _NavGroup(children: [
+            _NavRow(
+              icon: Icons.mic_none,
+              title: '음성으로 멈추기',
+              subtitle: '동작 중에만 "멈춰"를 들어요',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const _VoiceStopScreen())),
+            ),
+            _NavRow(
+              icon: Icons.family_restroom,
+              title: '보호자 알림',
+              subtitle: unread > 0
+                  ? '읽지 않은 알림 $unread건'
+                  : '확인이 없으면 알림을 보내요',
+              badge: unread,
+              onTap: () => context.push('/care'),
+            ),
+            _NavRow(
+              icon: Icons.text_increase,
+              title: '글자 크기',
+              subtitle: '휴대폰 글자 크기를 따라요',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => const _TextSizeScreen())),
+            ),
+          ]),
 
-          // ── 가전 ─────────────────────────────────────────────────────────
-          _SectionHeader(title: '가전'),
+          const SizedBox(height: 28),
+
+          // ── 내 가전 ──────────────────────────────────────────────────────
+          _SectionHeader(title: '내 가전'),
           const SizedBox(height: 8),
           _ApplianceSection(),
           const SizedBox(height: 16),
           // 가전마다 버튼을 대신 눌러 줄 장치가 붙어 있는지.
           _NodeSection(),
-
-          const SizedBox(height: 28),
-
-          // ── 연결 ─────────────────────────────────────────────────────────
-          _SectionHeader(title: '연결'),
-          const SizedBox(height: 4),
-          _RpiConnectionTile(),
-          _SavedDeviceSection(),
 
           const SizedBox(height: 28),
 
@@ -131,67 +160,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _ThemeToggleTile(),
           _VoiceGuideTile(),
 
-          const SizedBox(height: 20),
-          // 고급 설정 토글
-          InkWell(
-            onTap: () => setState(() => _showAdvanced = !_showAdvanced),
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
-              child: Row(
-                children: [
-                  Icon(
-                    _showAdvanced ? Icons.expand_less : Icons.expand_more,
-                    color: context.appMuted,
-                    size: 18,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    '고급 설정',
-                    style: TextStyle(color: context.appMuted, fontSize: 15),
-                  ),
-                ],
-              ),
+          const SizedBox(height: 28),
+          _NavGroup(children: [
+            _NavRow(
+              icon: Icons.info_outline,
+              title: '앱 정보',
+              subtitle: '날씨 출처와 이용 허락',
+              onTap: () => context.push('/settings/info'),
             ),
-          ),
-          if (_showAdvanced) ...[
-            const SizedBox(height: 8),
-            _AdvancedSection(
-              controller: _urlController,
-              apiKeyController: _apiKeyController,
-            ),
-          ],
-
-          // ── BLE 스캔 (고급에 포함) ────────────────────────────────────────
-          if (_showAdvanced) ...[
-            const SizedBox(height: 20),
-            _BleSection(),
-          ],
-
-          // ── 데모 ──────────────────────────────────────────────────────────
-          // 디버그 빌드가 아니라 '고급'에 둔다. 결선 리허설은 릴리즈 APK로
-          // 하는데, 디버그에만 있으면 정작 필요한 곳에서 못 켠다. 대신
-          // 켜져 있는 동안에는 실행 화면이 그 사실을 계속 표시한다.
-          if (_showAdvanced) ...[
-            const SizedBox(height: 24),
-            _SectionHeader(title: '데모'),
-            const SizedBox(height: 12),
-            _DemoModeTile(),
-            const SizedBox(height: 8),
-            _DemoSection(),
-          ],
-
-          // ── 개발자 ────────────────────────────────────────────────────────
-          if (_showAdvanced) ...[
-            const SizedBox(height: 24),
-            _SectionHeader(title: '개발자'),
-            const SizedBox(height: 4),
-            _DeveloperToolsTile(),
-          ],
-
+          ]),
           const SizedBox(height: 40),
         ],
       ),
     );
   }
+
+  static String _hubLine(RpiConnectionState state) => switch (state) {
+        RpiConnectionState.connected => '연결됨 · 위치와 주소 설정',
+        RpiConnectionState.checking => '확인하는 중이에요',
+        RpiConnectionState.unreachable => '지금은 닿지 않아요',
+        RpiConnectionState.unconfigured => '아직 주소가 없어요',
+      };
 }

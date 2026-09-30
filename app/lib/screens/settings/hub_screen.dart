@@ -1,0 +1,178 @@
+part of '../settings_screen.dart';
+
+// ── 설정 → 허브 ───────────────────────────────────────────────────────────
+//
+// 허브 연결 상태, 허브 위치("현재 위치로 설정"), 연결 주소·API 키, 예비
+// 연결(BLE). 예전 설정의 '고급 설정'이 여기로 왔다.
+
+class HubSettingsScreen extends ConsumerStatefulWidget {
+  const HubSettingsScreen({super.key});
+
+  @override
+  ConsumerState<HubSettingsScreen> createState() => _HubSettingsScreenState();
+}
+
+class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
+  late final TextEditingController _urlController =
+      TextEditingController(text: ref.read(rpiUrlProvider) ?? '');
+  late final TextEditingController _apiKeyController =
+      TextEditingController(text: ref.read(rpiApiKeyProvider) ?? '');
+
+  @override
+  void dispose() {
+    _urlController.dispose();
+    _apiKeyController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: const Text('허브')),
+        body: ListView(
+          padding: const EdgeInsets.all(20),
+          children: [
+            _RpiConnectionTile(),
+            const SizedBox(height: 24),
+            _SectionHeader(title: '허브 위치'),
+            const SizedBox(height: 8),
+            const _HubLocationSection(),
+            const SizedBox(height: 28),
+            _SectionHeader(title: '연결 주소'),
+            const SizedBox(height: 8),
+            _AdvancedSection(
+              controller: _urlController,
+              apiKeyController: _apiKeyController,
+            ),
+            const SizedBox(height: 24),
+            _SectionHeader(title: '예비 연결'),
+            const SizedBox(height: 4),
+            _SavedDeviceSection(),
+            const SizedBox(height: 12),
+            _BleSection(),
+            const SizedBox(height: 40),
+          ],
+        ),
+      );
+}
+
+/// "현재 위치로 설정" — 폰 위치 권한 → `PUT /hub/location`.
+///
+/// 허브에는 GPS가 없다. 날씨 예보(5km 격자)용이라 **대략 위치**만 묻고,
+/// 서버는 소수 둘째 자리(약 1km)로 줄여 저장한다. 거절해도 다른 기능은
+/// 그대로다 -- 날씨 안내만 빠진다.
+class _HubLocationSection extends ConsumerStatefulWidget {
+  const _HubLocationSection();
+
+  @override
+  ConsumerState<_HubLocationSection> createState() =>
+      _HubLocationSectionState();
+}
+
+class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
+  bool _busy = false;
+  String? _message;
+  bool _warn = false;
+  bool _offerSettings = false;
+
+  void _say(String text, {bool warn = false, bool settings = false}) {
+    if (!mounted) return;
+    setState(() {
+      _message = text;
+      _warn = warn;
+      _offerSettings = settings;
+    });
+  }
+
+  Future<void> _setFromPhone() async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null) {
+      _say('허브 주소를 먼저 정해 주세요.', warn: true);
+      return;
+    }
+    setState(() {
+      _busy = true;
+      _message = null;
+      _offerSettings = false;
+    });
+    try {
+      final outcome = await ref.read(locationServiceProvider).currentLocation();
+      switch (outcome) {
+        case LocationFix(:final lat, :final lon):
+          try {
+            await api.setHubLocation(lat, lon);
+            ref.invalidate(hubLocationProvider);
+            _say('허브 위치를 저장했어요. 약 1km 단위로만 저장해요.');
+          } on RpiApiException catch (e) {
+            _say(e.statusCode == 422 ? e.message : '저장하지 못했어요. 연결을 확인해 주세요.',
+                warn: true);
+          } catch (_) {
+            _say('저장하지 못했어요. 연결을 확인해 주세요.', warn: true);
+          }
+        case LocationDenied():
+          _say('위치 권한을 허용하지 않아서 설정하지 않았어요. 다시 누르면 다시 물어봐요. '
+              '위치 없이도 다른 기능은 그대로 쓸 수 있어요(날씨 안내만 빠져요).',
+              warn: true);
+        case LocationDeniedForever():
+          _say('위치 권한이 꺼져 있어요. 휴대폰 설정에서 이 앱의 위치 권한을 켜 주세요.',
+              warn: true, settings: true);
+        case LocationServiceOff():
+          _say('휴대폰의 위치 기능이 꺼져 있어요. 켠 뒤 다시 눌러 주세요.', warn: true);
+        case LocationFailed():
+          _say('위치를 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.', warn: true);
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final location = ref.watch(hubLocationProvider);
+    final line = location.when(
+      loading: () => '확인하는 중이에요',
+      error: (_, __) => '허브에 닿으면 볼 수 있어요',
+      data: (l) => switch (l?.source) {
+        'app' => '폰에서 정한 위치 (위도 ${l!.lat?.toStringAsFixed(2)}, 경도 ${l.lon?.toStringAsFixed(2)})',
+        'env' => '허브 설정 파일에 적힌 위치',
+        'none' => '아직 위치가 없어요 — 날씨 안내를 하지 않아요',
+        _ => '허브에 닿으면 볼 수 있어요',
+      },
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(line, key: const Key('hub-location-line'),
+            style: const TextStyle(fontSize: 16)),
+        const SizedBox(height: 4),
+        Text('날씨 예보를 받을 동네를 정해요. 허브에는 GPS가 없어 폰 위치를 빌려요.',
+            style: TextStyle(fontSize: 14, color: context.appMuted)),
+        const SizedBox(height: 10),
+        FilledButton.icon(
+          key: const Key('hub-location-set'),
+          onPressed: _busy ? null : _setFromPhone,
+          icon: _busy
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.my_location),
+          label: const Text('현재 위치로 설정'),
+        ),
+        if (_message != null) ...[
+          const SizedBox(height: 8),
+          Text(
+            _message!,
+            key: const Key('hub-location-message'),
+            style: TextStyle(
+                fontSize: 15, color: _warn ? context.appWarning : null),
+          ),
+        ],
+        if (_offerSettings)
+          TextButton(
+            onPressed: () => ref.read(locationServiceProvider).openSettings(),
+            child: const Text('휴대폰 설정 열기'),
+          ),
+      ],
+    );
+  }
+}

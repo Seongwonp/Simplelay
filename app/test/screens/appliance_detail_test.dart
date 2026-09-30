@@ -1,0 +1,172 @@
+// 가전 상세(사진 패널)와 루틴 녹화(2026-09-30).
+//
+// 사진 속 버튼을 눌러도 곧바로 누르지 않는다 -- 확인을 한 번 거친 뒤에만
+// /execute-buttons로 간다. 녹화는 아무것도 보내지 않고 순서만 돌려준다.
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/hub.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/screens/appliance_detail_screen.dart';
+import 'package:simplelay/screens/routine_record_screen.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
+
+import '../helpers/test_helpers.dart';
+
+/// 사진 매핑이 있는 전자레인지. 좌표는 형식 예시다(실물 값 아님).
+final _mapped = ApplianceMap(
+  id: 'custom_1',
+  name: '전자레인지',
+  location: '주방',
+  category: ApplianceCategory.microwave,
+  rows: 1,
+  cols: 3,
+  buttons: const [
+    ApplianceButton(id: 'B01', label: '해동', x: 0, y: 0),
+    ApplianceButton(id: 'B02', label: '시작', x: 1, y: 0),
+    ApplianceButton(id: 'B03', label: '취소', x: 2, y: 0),
+  ],
+  isCustom: true,
+  stopButton: 'B03',
+  panelMapping: const PanelMapping(
+    photoWidth: 1000,
+    photoHeight: 800,
+    buttons: {
+      'B01': PhotoPoint(200, 400),
+      'B02': PhotoPoint(500, 400),
+      'B03': PhotoPoint(800, 400),
+    },
+    parkPoint: PhotoPoint(950, 750),
+  ),
+);
+
+class _Server {
+  final requests = <String>[];
+  Map<String, dynamic>? executeBody;
+
+  http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
+        utf8.encode(jsonEncode(body)),
+        status,
+        headers: {'content-type': 'application/json'},
+      );
+
+  RpiApiService api() => RpiApiService(
+        'http://rpi5.local:8000',
+        client: MockClient((req) async {
+          requests.add('${req.method} ${req.url.path}');
+          if (req.url.path == '/execute-buttons') {
+            executeBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
+            return _json({'job_id': 'job-1'});
+          }
+          if (req.url.path == '/routines') return _json(<dynamic>[]);
+          if (req.url.path == '/history') return _json(<dynamic>[]);
+          return _json({'detail': 'not found'}, 404);
+        }),
+      );
+}
+
+Widget _build(_Server server, {String initial = '/detail'}) {
+  final router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(
+        path: '/',
+        builder: (_, __) => const Scaffold(body: Text('홈')),
+        routes: [
+          GoRoute(
+            path: 'detail',
+            builder: (_, __) => const ApplianceDetailScreen(applianceId: 'custom_1'),
+          ),
+          GoRoute(
+            path: 'record',
+            builder: (_, __) => const RoutineRecordScreen(applianceId: 'custom_1'),
+          ),
+        ],
+      ),
+      GoRoute(path: '/status', builder: (_, __) => const Scaffold(body: Text('상태 화면'))),
+    ],
+  );
+  router.push(initial);
+  return buildWithProviderState(
+    overrides: [
+      ...connectedOverrides(),
+      ...installedOverrides([_mapped]),
+      rpiApiServiceProvider.overrideWithValue(server.api()),
+    ],
+    child: MaterialApp.router(theme: ThemeData.dark(), routerConfig: router),
+  );
+}
+
+void _tall(WidgetTester tester) {
+  tester.view.physicalSize = const Size(500, 1800);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('사진 위에 버튼·정지(빨강)·쉬는 자리를 그리고, 누르기는 확인 뒤에만 보낸다',
+      (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    expect(find.bySemanticsLabel('해동'), findsOneWidget);
+    expect(find.bySemanticsLabel('정지 버튼 취소'), findsOneWidget);
+    expect(find.bySemanticsLabel('쉬는 자리'), findsOneWidget);
+
+    // 누르면 먼저 묻는다 -- 취소하면 아무것도 보내지 않는다.
+    await tester.tap(find.byKey(const Key('mark-B02')));
+    await _settle(tester);
+    expect(find.text("'시작' 버튼을 누를까요?"), findsOneWidget);
+    await tester.tap(find.text('취소').last);
+    await _settle(tester);
+    expect(server.executeBody, isNull);
+
+    await tester.tap(find.byKey(const Key('mark-B02')));
+    await _settle(tester);
+    await tester.tap(find.text('누르기'));
+    await _settle(tester);
+    expect(server.executeBody, {
+      'buttons': ['시작'],
+      'appliance_id': 'custom_1',
+    });
+    expect(find.text('상태 화면'), findsOneWidget);
+  });
+
+  testWidgets('루틴 녹화는 짚은 순서만 쌓고 아무것도 보내지 않는다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server, initial: '/record'));
+    await _settle(tester);
+
+    await tester.tap(find.byKey(const Key('mark-B01')));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('mark-B02')));
+    await tester.pump();
+    expect(find.byKey(const Key('order-0')), findsOneWidget);
+    expect(find.byKey(const Key('order-1')), findsOneWidget);
+    // 사진 위 번호 핀(읽기 전용)도 순서대로 찍힌다.
+    expect(find.byKey(const Key('mark-pin-1')), findsOneWidget);
+
+    await tester.tap(find.text('하나 지우기'));
+    await tester.pump();
+    expect(find.byKey(const Key('order-1')), findsNothing);
+
+    expect(server.requests.where((r) => r.contains('/execute')), isEmpty);
+  });
+}

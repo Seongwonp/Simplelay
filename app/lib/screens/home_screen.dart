@@ -4,11 +4,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../models/execution_status.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
-import '../providers/navigation_provider.dart';
-import '../widgets/appliance_portrait.dart';
+import '../providers/execution_status_provider.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/route_badge.dart';
 import '../providers/rpi_api_provider.dart';
@@ -19,14 +19,20 @@ import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 
-/// 골든 테스트가 실제 사진 렌더를 확인하기 위해 끼우는 이미지.
-///
-/// 파일 이미지는 위젯 테스트에서 디코딩되지 않아, 이 구멍이 없으면 사진
-/// 화면의 크롭·BoxFit·모서리가 아무 데서도 검증되지 않는다. 앱 실행 중에는
-/// 항상 null이다.
-@visibleForTesting
-ImageProvider? applianceImageOverride;
+// 사진 패널의 테스트 이미지 구멍은 사진을 그리는 위젯 쪽에 있다. 예전 경로
+// (home_screen.dart)로 쓰던 테스트가 그대로 쓰도록 다시 내보낸다.
+export '../widgets/panel_photo_view.dart' show applianceImageOverride;
 
+
+
+/// 홈 — "우리 집"(UI 확정 §2).
+///
+/// 읽는 순서: **어디에 붙었나(허브 칩) → 지금 권하는 것 하나(제안 카드) →
+/// 내 가전(2열 카드) → 가전 추가.** 고정 명령 버튼("즉석밥")은 두지 않는다 --
+/// 메뉴는 사용자가 만든 루틴과 이력에서 나온 제안뿐이다.
+///
+/// 가전 카드를 눌러도 **실행하지 않는다.** 상세만 열리고, 누르는 일은 늘
+/// 확인을 한 번 더 거친다.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -38,267 +44,565 @@ class HomeScreen extends ConsumerWidget {
     final suggestions = ref.watch(suggestionProvider);
     final dndUntil = ref.watch(dndProvider);
     final sensorAsync = ref.watch(sensorProvider);
+    final execution = ref.watch(executionStatusProvider);
 
     final connected = connection == BleConnectionState.connected;
-    final rpiOnline = rpiState == RpiConnectionState.connected;
     final dndActive = dndUntil != null && dndUntil.isAfter(DateTime.now());
 
-    final appliance = ref.watch(selectedApplianceProvider);
     // 홈은 **이 폰에 설치된 가전**만 센다. 예시 템플릿을 섞어 세면 아직
     // 아무것도 등록하지 않은 사람의 홈에 남의 가전이 놓인다.
     final appliances = ref.watch(installedAppliancesProvider);
 
     // 연결 문제는 **정도에 따라 자리가 다르다.** 기기(서버)에 닿지 않으면
     // 제안·기록·실행 상태가 모두 멈추므로 맨 위에서 먼저 말한다. 예비
-    // 연결만 꺼진 것은 지금 조작에 지장이 없으니 아래에 조용히 둔다 --
-    // 예전에는 둘을 같은 빨간 줄로 맨 아래에 두어, 같은 화면에 "조작 가능"과
-    // "연결 설정이 필요해요"가 함께 떠서 어느 쪽을 믿을지 알 수 없었다.
+    // 연결만 꺼진 것은 지금 조작에 지장이 없으니 아래에 조용히 둔다.
     //
-    // **확인 중은 끊김이 아니다.** 앱을 켜면 주소를 불러오고(unconfigured)
-    // 핑을 보내는(checking) 몇 초가 있는데, 그걸 끊김으로 보면 켤 때마다
-    // 빨간 경고가 맨 위에 잠깐 떴다(로그 ac #5). 닿지 않는다고 확인된
-    // 경우(unreachable)에만 경고한다.
+    // **확인 중은 끊김이 아니다.** 닿지 않는다고 확인된 경우(unreachable)에만
+    // 경고한다(로그 ac #5).
     final serverDown = rpiState == RpiConnectionState.unreachable;
-    final serverChecking = rpiState == RpiConnectionState.checking ||
-        rpiState == RpiConnectionState.unconfigured;
     final connectionDetails =
         _ConnectionDetails(rpiState: rpiState, bleConnected: connected);
 
+    // 제안은 **한 번에 하나만**(UI 확정 §1-2). 처리하면 다음 것이 올라온다.
+    final suggestion = suggestions.firstOrNull;
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('SimpleLay'),
-        // 앱바에 아이콘을 몰아두지 않는다. 뜻을 추측해야 하는 그림이 셋씩
-        // 붙어 있으면, 디지털에 익숙하지 않은 사용자에게는 그 줄 전체가
-        // 읽을 수 없는 영역이 된다.
-        //
-        // 알림함은 탭바로, 방해 금지는 설정으로 옮겼다. 연결 상태 칩은
-        // 아래 가전 상태 문장이 같은 말을 하므로 없앴다 -- 같은 사실을
-        // 두 군데서 다르게 말하면 어느 쪽을 믿을지 알 수 없다.
-        actions: [
-          if (const bool.fromEnvironment('SIMPLELAY_ROUTINE_MOCK'))
-            IconButton(
-              tooltip: '다가전 모의', icon: const Icon(Icons.science_outlined),
-              onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                builder: (_) => Consumer(builder: (context, ref, _) {
-                  final api = ref.watch(rpiApiServiceProvider);
-                  if (api == null) return Scaffold(appBar: AppBar(), body: const Center(child: Text('모의 서버 주소를 먼저 설정하세요.')));
-                  return RoutineRehearsalScreen(key: ObjectKey(api), request: api.routineRequest);
-                }),
-              )),
+      body: SafeArea(
+        bottom: false,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          children: [
+            _Header(
+              rpiState: rpiState,
+              backupOnly: connected,
+              onVoice: () => context.go('/voice'),
             ),
-          // 실행 기록 (공감지능 근거 + 폐루프 재시도 기록). 하단 탭에 자리가
-          // 없어 여기 남긴다 -- 이제 혼자라 붐비지 않는다.
-          IconButton(
-            onPressed: () => context.push('/history'),
-            icon: const Icon(Icons.history),
-            tooltip: '실행 기록',
-          ),
-          const SizedBox(width: 4),
-        ],
-      ),
-      // 순서가 곧 이 화면의 주장이다: **무엇을 조작하는가 → 지금 되는가 →
-      // 확인할 것 → (필요할 때만) 연결 사정.** 예전에는 연결 카드 두 장이
-      // 위를 차지해서, 실제로 조작할 수 있는 상태에서도 "뭔가 더 연결해야
-      // 하는 앱"으로 보였고 대상 가전은 설정에 들어가야 알 수 있었다.
-      // 구획을 카드로 나누지 않는다. 제목과 여백으로 나눈다 -- 모든 것을
-      // 둥근 카드에 넣으면 정보의 깊이가 전부 같아 보이고, 화면에 편집
-      // 방향이 사라진다.
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
-        children: [
-          // ── 연결 문제(기기에 닿지 않을 때만 맨 위) ──────────────────────
-          if (serverDown) ...[
-            connectionDetails,
-            const SizedBox(height: 12),
-          ],
-
-          // ── 가전 고르기 ──────────────────────────────────────────────────
-          // 등록된 가전이 하나뿐이면 고를 것이 없다. 줄을 통째로 뺀다.
-          if (appliances.length > 1) ...[
-            _ApplianceRow(appliances: appliances, selected: appliance),
-            const SizedBox(height: 20),
-          ],
-
-          // ── 지금 조작할 가전 ─────────────────────────────────────────────
-          // 설치한 가전이 0대인 홈은 **고장이 아니라 시작점**이다. 경고색도
-          // 오류 문구도 쓰지 않고, 다음에 할 일 하나만 놓는다. 아래의 제안·
-          // 센서·연결 구획은 그대로 둔다 -- 가전이 없어도 홈은 홈이다.
-          if (appliance == null)
-            _NoApplianceStage(
-              onAdd: () => context.push('/appliance/new'),
-              note: _serverCatalogNote(ref.watch(serverApplianceCatalogProvider)),
-            )
-          else
-            _ApplianceStage(
-              appliance: appliance,
-              reachable: connected || rpiOnline,
-              backupOnly: connected && !rpiOnline,
-              checking: serverChecking,
-              imageOverride: applianceImageOverride,
-              onManual: () => context.push('/manual-control'),
-              // 편집기는 아직 '새 가전 만들기'만 받는다. 기존 가전에 사진을
-              // 붙이는 경로가 생기기 전까지는 가전 관리가 있는 설정으로
-              // 보낸다 -- 없는 화면으로 보내거나, 새 가전을 만들게 하지 않는다.
-              onAddPhoto: () =>
-                  ref.read(currentTabIndexProvider.notifier).state = 3,
-            ),
-
-          // ── DND 배너 ─────────────────────────────────────────────────────
-          if (dndActive) ...[
-            const SizedBox(height: 20),
-            _DndBanner(
-              until: dndUntil,
-              onClear: () => ref.read(dndProvider.notifier).clear(),
-            ),
-          ],
-
-          // 학습 통계 카드(AI가 N개 패턴을 발견했습니다 + KPI 3칸)는 없앴다.
-          // 제품이 자기가 똑똑하다고 광고하는 자리였고, 사용자가 그걸로 할 수 있는
-          // 판단이 없었다. 게다가 '총 동작 N회'로 표시하던 값은 실제로는 대기 중인
-          // 제안들의 단계 수 합계라, 라벨과 뜻이 아예 달랐다.
-          //
-          // 제안이 없을 때 큰 빈 카드를 두지 않는다. 한 줄이면 충분하다.
-          const SizedBox(height: 28),
-          _SectionTitle('제안'),
-          const SizedBox(height: 4),
-          if (suggestions.isEmpty)
-            _EmptyLine(dndActive: dndActive)
-          else
-            ...suggestions.map(
-              (s) => _SlidingCard(
-                child: _SuggestionRow(
-                  suggestion: s,
-                  onTap: () => context.push('/suggestion/${s.sequenceId}'),
-                ),
-              ),
-            ),
-
-          // ── 온습도 ───────────────────────────────────────────────────────
-          sensorAsync.when(
-            data: (reading) => _SensorStrip(reading: reading),
-            loading: () => const _SensorStrip(reading: null),
-            error: (_, __) => const SizedBox.shrink(),
-          ),
-
-          // ── 예비 연결(기기에는 닿을 때만 아래) ──────────────────────────
-          if (!serverDown) ...[
             const SizedBox(height: 16),
-            connectionDetails,
+
+            // ── 연결 문제(기기에 닿지 않을 때만 맨 위) ──────────────────────
+            if (serverDown) ...[
+              connectionDetails,
+              const SizedBox(height: 12),
+            ],
+
+            // ── DND 배너 ───────────────────────────────────────────────────
+            if (dndActive) ...[
+              _DndBanner(
+                until: dndUntil,
+                onClear: () => ref.read(dndProvider.notifier).clear(),
+              ),
+              const SizedBox(height: 16),
+            ],
+
+            // ── 제안 카드 한 장 ─────────────────────────────────────────────
+            if (suggestion != null)
+              _SlidingCard(
+                key: ValueKey(suggestion.sequenceId),
+                child: _SuggestionCard(
+                  suggestion: suggestion,
+                  appliance: appliances
+                      .where((a) => a.id == suggestion.applianceId)
+                      .firstOrNull,
+                  onRun: () =>
+                      context.push('/suggestion/${suggestion.sequenceId}'),
+                  onLater: () => _later(context, ref, suggestion),
+                ),
+              )
+            else
+              _EmptyLine(dndActive: dndActive),
+
+            // ── 가전 ───────────────────────────────────────────────────────
+            const SizedBox(height: 24),
+            Text('가전', style: AppText.title),
+            const SizedBox(height: 10),
+            if (appliances.isEmpty)
+              _NoApplianceStage(
+                onAdd: () => context.push('/appliance/add'),
+                note: _serverCatalogNote(
+                    ref.watch(serverApplianceCatalogProvider)),
+              )
+            else
+              _ApplianceGrid(
+                appliances: appliances,
+                execution: execution,
+                onOpen: (a) {
+                  ref.read(selectedApplianceProvider.notifier).select(a);
+                  context.push('/appliance/detail/${a.id}');
+                },
+                onAdd: () => context.push('/appliance/add'),
+              ),
+
+            // ── 온습도 ─────────────────────────────────────────────────────
+            const SizedBox(height: 16),
+            sensorAsync.when(
+              data: (reading) => _SensorStrip(reading: reading),
+              loading: () => const _SensorStrip(reading: null),
+              error: (_, __) => const SizedBox.shrink(),
+            ),
+
+            // ── 예비 연결(기기에는 닿을 때만 아래) ──────────────────────────
+            if (!serverDown) ...[
+              const SizedBox(height: 8),
+              connectionDetails,
+            ],
+
+            if (const bool.fromEnvironment('SIMPLELAY_ROUTINE_MOCK'))
+              TextButton.icon(
+                icon: const Icon(Icons.science_outlined),
+                label: const Text('다가전 모의'),
+                onPressed: () =>
+                    Navigator.of(context).push(MaterialPageRoute<void>(
+                  builder: (_) => Consumer(builder: (context, ref, _) {
+                    final api = ref.watch(rpiApiServiceProvider);
+                    if (api == null) {
+                      return Scaffold(
+                          appBar: AppBar(),
+                          body: const Center(
+                              child: Text('모의 서버 주소를 먼저 설정하세요.')));
+                    }
+                    return RoutineRehearsalScreen(
+                        key: ObjectKey(api), request: api.routineRequest);
+                  }),
+                )),
+              ),
           ],
-        ],
+        ),
       ),
     );
   }
+
+  /// '나중에' — 이번만 넘긴다(다시 받지 않기가 아니다). 실패하면 카드를 그대로
+  /// 두고 말한다 -- 조용히 지우면 서버에는 카드가 살아 있다.
+  static Future<void> _later(
+    BuildContext context,
+    WidgetRef ref,
+    Suggestion suggestion,
+  ) async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (suggestion.source == SuggestionSource.http && api != null) {
+      try {
+        await api.rejectSuggestion(suggestion.sequenceId, mute: false);
+      } on RpiApiException catch (e) {
+        if (e.statusCode != 404) {
+          if (context.mounted) {
+            _snack(context, '선택을 전달하지 못했어요. 연결을 확인해 주세요.');
+          }
+          return;
+        }
+      } catch (_) {
+        if (context.mounted) {
+          _snack(context, '선택을 전달하지 못했어요. 연결을 확인해 주세요.');
+        }
+        return;
+      }
+    }
+    await ref.read(suggestionProvider.notifier).respond(suggestion, false);
+  }
+
+  static void _snack(BuildContext context, String text) =>
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
 }
 
-// ── 구획 ──────────────────────────────────────────────────────────────────
+// ── 머리 ──────────────────────────────────────────────────────────────────
 
-/// 섹션 제목. 카드로 감싸지 않고 제목과 여백으로 구획을 만든다.
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.text);
+/// 제목 "우리 집"과 허브 연결 칩. 칩은 색만이 아니라 글자로 말한다.
+class _Header extends StatelessWidget {
+  const _Header({
+    required this.rpiState,
+    required this.backupOnly,
+    required this.onVoice,
+  });
 
-  final String text;
+  final RpiConnectionState rpiState;
 
-  @override
-  Widget build(BuildContext context) => Text(text, style: AppText.title);
-}
-
-// ── 가전 고르기 (한 줄) ────────────────────────────────────────────────────
-
-/// 등록된 가전을 가로 한 줄로. 선택은 **넓은 색면이 아니라** 테두리와
-/// 글자 굵기로 나타낸다 -- 색면으로 칠하면 화면에서 가장 강한 요소가
-/// "고르는 줄"이 되어 정작 주인공인 가전을 이긴다.
-class _ApplianceRow extends ConsumerWidget {
-  const _ApplianceRow({required this.appliances, required this.selected});
-
-  final List<ApplianceMap> appliances;
-
-  /// 아직 아무것도 고르지 않았으면 null. 이 줄은 2대 이상일 때만 나오지만,
-  /// 복원 중인 한 프레임 동안 null일 수 있다.
-  final ApplianceMap? selected;
+  /// 서버에는 닿지 않지만 예비 연결(BLE)은 살아 있다.
+  final bool backupOnly;
+  final VoidCallback onVoice;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // 가로 스크롤을 쓰지 않는다. 마지막 칩이 화면 끝에서 잘려 고장난
-    // 것처럼 보이고, 가로로 밀어야 한다는 것 자체가 잘 발견되지 않는다.
-    // 줄바꿈하면 200%로 키워도 전부 보인다.
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
+  Widget build(BuildContext context) {
+    final (String text, Color dot) = switch (rpiState) {
+      RpiConnectionState.connected => ('허브 연결됨', context.appPrimary),
+      RpiConnectionState.checking ||
+      RpiConnectionState.unconfigured =>
+        ('허브 확인 중', context.appMuted),
+      RpiConnectionState.unreachable =>
+        (backupOnly ? '예비 연결만 돼요' : '허브에 닿지 않아요', context.appWarning),
+    };
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: context.appBorderSubtle),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Flexible(child: Text(text, style: const TextStyle(fontSize: 14))),
+        ],
+      ),
+    );
+    // 말로 하는 길 -- 누르기 어려운 사용자에게 길이 하나뿐이면 안 된다.
+    final voice = IconButton(
+      onPressed: onVoice,
+      tooltip: '말로 조작하기',
+      icon: Icon(Icons.mic_none_rounded, color: context.appPrimary),
+    );
+    // 큰 글씨에서는 칩을 제목 아래 줄로 내린다. 한 줄에 두면 제목과 칩이 서로
+    // 폭을 뺏어 "우리 / 집"처럼 한 글자씩 꺾인다.
+    if (MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Expanded(child: Text('우리 집', style: AppText.heading)),
+            voice,
+          ]),
+          const SizedBox(height: 6),
+          chip,
+        ],
+      );
+    }
+    // 제목은 제 폭만 쓰고 남는 자리를 칩에 준다 -- 칩 문구가 두 줄로 꺾이지 않게.
+    return Row(
       children: [
-        for (final a in appliances)
-          Builder(builder: (context) {
-            final on = a.id == selected?.id;
-            return Semantics(
-            button: true,
-            selected: on,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () =>
-                  ref.read(selectedApplianceProvider.notifier).select(a),
-              child: Container(
-                // alignment를 주면 느슨한 제약에서 가용 폭을 다 차지해
-                // 칩이 화면 폭만큼 늘어난다. 폭은 Row(min)가 정한다.
-                // 세로 여백으로 최소 터치 대상(48)을 맞춘다.
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 13),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: on ? context.appPrimary : context.appBorderSubtle,
-                    width: on ? 2 : 1,
-                  ),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(a.icon,
-                        size: 18,
-                        color: on ? context.appPrimary : context.appMuted),
-                    const SizedBox(width: 7),
-                    Text(
-                      a.displayName,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: on ? FontWeight.w700 : FontWeight.w500,
-                        color:
-                            on ? context.appPrimary : context.appOnSurfaceSoft,
-                      ),
-                    ),
-                    // ThinQ 가전은 버튼판이 없다 -- 고르기 전에 경로를 글자로 말한다.
-                    if (a.isThinq) ...[
-                      const SizedBox(width: 6),
-                      const RouteBadge(label: 'ThinQ'),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          );
-        }),
+        Text('우리 집', style: AppText.heading),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Align(alignment: Alignment.centerRight, child: chip),
+        ),
+        voice,
       ],
     );
   }
 }
 
-// ── 지금 조작할 가전 ──────────────────────────────────────────────────────
+// ── 제안 카드 ─────────────────────────────────────────────────────────────
 
-/// 화면의 주인공. 실제 가전 사진(없으면 실루엣) + 이름 + 지금 되는지 한 줄.
+/// 제안 한 장 — 무엇을(가전·이름), 왜 지금(근거 한 줄), 그리고 두 버튼.
 ///
-/// **내부 축(전송·모션·센서·보정)을 여기에 늘어놓지 않는다.** 그건 장치
-/// 상태지 사용자가 바로 손댈 수 있는 것이 아니라서, 막대 넷으로 보여주면
-/// 기술 대시보드가 된다. 여기서는 가장 중요한 사유 하나만 말하고 상세로
-/// 넘긴다.
-/// 설치한 가전이 0대인 홈의 첫 구획.
-///
-/// 빈 자리를 남기거나 예시 가전을 세워 두지 않는다. 예시를 세우면 사용자는
-/// 자기가 등록하지도 않은 전자레인지가 어디서 왔는지 묻게 되고, 그 순간
-/// 앱이 말하는 다른 상태도 못 믿게 된다.
+/// '실행하기'는 **바로 누르지 않는다.** 누를 순서와 대상 가전을 보여 주는
+/// 확인 화면을 연다 -- 승인은 거기서 한 번이고, 승인 내용이 바뀌면(409)
+/// 그 화면이 다시 확인하게 한다.
+class _SuggestionCard extends StatelessWidget {
+  const _SuggestionCard({
+    required this.suggestion,
+    required this.appliance,
+    required this.onRun,
+    required this.onLater,
+  });
+
+  final Suggestion suggestion;
+  final ApplianceMap? appliance;
+  final VoidCallback onRun;
+  final VoidCallback onLater;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = appliance;
+    final why = suggestion.whyNow;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.appPrimary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.appPrimary.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(a?.icon ?? Icons.lightbulb_outline,
+                  size: 18, color: context.appPrimary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  a == null ? '제안' : a.displayName,
+                  style: TextStyle(fontSize: 14, color: context.appMuted),
+                ),
+              ),
+              if (suggestion.isDemo) const DemoBadge(),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            suggestion.title,
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+          ),
+          if (why.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(why, style: TextStyle(fontSize: 15, color: context.appMuted)),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton(
+                onPressed: onRun,
+                style: FilledButton.styleFrom(minimumSize: const Size(140, 48)),
+                child: const Text('실행하기'),
+              ),
+              OutlinedButton(
+                onPressed: onLater,
+                style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
+                child: const Text('나중에'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 제안이 없을 때. 큰 빈 카드를 두지 않는다 -- 한 줄이면 충분하다.
+class _EmptyLine extends StatelessWidget {
+  const _EmptyLine({required this.dndActive});
+
+  final bool dndActive;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Text(
+          dndActive ? '방해 금지 중이라 제안을 쉬고 있어요.' : '지금 확인할 제안이 없어요.',
+          style: TextStyle(fontSize: 15, color: context.appMuted),
+        ),
+      );
+}
+
+// ── 가전 카드 2열 ─────────────────────────────────────────────────────────
+
+class _ApplianceGrid extends StatelessWidget {
+  const _ApplianceGrid({
+    required this.appliances,
+    required this.execution,
+    required this.onOpen,
+    required this.onAdd,
+  });
+
+  final List<ApplianceMap> appliances;
+  final ExecutionStatus execution;
+  final void Function(ApplianceMap) onOpen;
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final cards = <Widget>[
+      for (final a in appliances)
+        _ApplianceCard(
+          appliance: a,
+          running: _runningOn(a) ? execution : null,
+          onTap: () => onOpen(a),
+        ),
+      _AddCard(onTap: onAdd),
+    ];
+    // 큰 글씨(150% 넘음)에서는 한 칸씩. 두 칸에 두면 가전 이름이 한 글자씩 꺾인다.
+    if (MediaQuery.textScalerOf(context).scale(1) > 1.5) {
+      return Column(
+        children: [
+          for (var i = 0; i < cards.length; i++)
+            Padding(
+              padding: EdgeInsets.only(bottom: i + 1 < cards.length ? 10 : 0),
+              child: cards[i],
+            ),
+        ],
+      );
+    }
+    // 두 칸씩 줄을 세운다. GridView의 고정 높이는 큰 글씨에서 글자를 자른다 --
+    // 줄마다 높이를 내용에 맞춘다.
+    return Column(
+      children: [
+        for (var i = 0; i < cards.length; i += 2)
+          Padding(
+            padding: EdgeInsets.only(bottom: i + 2 < cards.length ? 10 : 0),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: cards[i]),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: i + 1 < cards.length
+                        ? cards[i + 1]
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// 이 가전이 지금 실행 대상인가. 서버가 말해 준 대상 id로만 판단한다.
+  bool _runningOn(ApplianceMap a) {
+    final phase = execution.phase;
+    final active = phase == ExecutionPhase.running ||
+        phase == ExecutionPhase.retrying ||
+        phase == ExecutionPhase.waiting;
+    return active && execution.applianceId == a.id;
+  }
+}
+
+class _ApplianceCard extends StatelessWidget {
+  const _ApplianceCard({
+    required this.appliance,
+    required this.running,
+    required this.onTap,
+  });
+
+  final ApplianceMap appliance;
+
+  /// 이 가전이 실행 대상이면 그 진행. 아니면 null(쉬는 중 -- 회색 아이콘).
+  final ExecutionStatus? running;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final a = appliance;
+    final run = running;
+    final notReady = a.readinessKnown && !a.canExecute;
+    final total = run?.totalSteps ?? run?.steps.length ?? 0;
+    final done = run?.completedSteps ?? 0;
+    return Semantics(
+      button: true,
+      label: [
+        a.displayName,
+        if (a.isThinq) 'ThinQ',
+        if (a.isDemo) '데모',
+        if (run != null) '동작 중',
+        if (notReady) '준비 필요',
+      ].join(', '),
+      excludeSemantics: true,
+      child: Material(
+        color: context.appSurfaceLow,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          key: Key('appliance-card-${a.id}'),
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color:
+                    run != null ? context.appPrimary : context.appBorderSubtle,
+                width: run != null ? 2 : 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    // 회색은 쉬는 중, 강조색은 동작 중. 색만으로 말하지 않고
+                    // 아래에 '동작 중' 글자를 같이 둔다.
+                    Icon(a.icon,
+                        size: 28,
+                        color:
+                            run != null ? context.appPrimary : context.appMuted),
+                    const Spacer(),
+                    if (a.isThinq) const RouteBadge(label: 'ThinQ'),
+                    if (a.isDemo) const DemoBadge(),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  a.name,
+                  style: const TextStyle(
+                      fontSize: 17, fontWeight: FontWeight.w700),
+                ),
+                if ((a.location ?? '').isNotEmpty)
+                  Text(a.location!,
+                      style: TextStyle(fontSize: 14, color: context.appMuted)),
+                if (run != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    total > 0 ? '동작 중 · $done/$total' : '동작 중',
+                    style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: context.appPrimary),
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(3),
+                    child: LinearProgressIndicator(
+                      minHeight: 5,
+                      value:
+                          total > 0 ? (done / total).clamp(0.0, 1.0) : null,
+                    ),
+                  ),
+                ] else if (notReady) ...[
+                  const SizedBox(height: 6),
+                  Row(
+                    children: [
+                      Icon(Icons.error_outline,
+                          size: 16, color: context.appWarning),
+                      const SizedBox(width: 4),
+                      Flexible(
+                        child: Text('준비 필요',
+                            style: TextStyle(
+                                fontSize: 14, color: context.appWarning)),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AddCard extends StatelessWidget {
+  const _AddCard({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: '가전 추가',
+        excludeSemantics: true,
+        child: InkWell(
+          key: const Key('appliance-add-card'),
+          borderRadius: BorderRadius.circular(16),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 110),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: context.appBorderSubtle),
+            ),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.add, size: 28, color: context.appMuted),
+                const SizedBox(height: 4),
+                Text('가전 추가',
+                    style: TextStyle(fontSize: 15, color: context.appMuted)),
+              ],
+            ),
+          ),
+        ),
+      );
+}
+
 /// 가전이 0대인 화면에서 **서버 목록 사정**을 한 줄로. 없으면 null.
 ///
-/// 조회 실패와 '서버에 정말 없음'을 같은 빈 화면으로 두지 않는다. 실패는
-/// 연결 문제라 사용자가 고칠 수 있는 일이 다르다. 성공했는데 비어 있으면
-/// 아무 말도 덧붙이지 않는다 -- 그것이 정상 빈 상태다.
+/// 조회 실패와 '서버에 정말 없음'을 같은 빈 화면으로 두지 않는다.
 String? _serverCatalogNote(ServerApplianceCatalog catalog) =>
     switch (catalog.status) {
       ServerCatalogStatus.loading => '기기의 가전 목록을 확인하는 중이에요.',
@@ -306,27 +610,22 @@ String? _serverCatalogNote(ServerApplianceCatalog catalog) =>
       ServerCatalogStatus.loaded || ServerCatalogStatus.unconfigured => null,
     };
 
+/// 설치한 가전이 0대인 홈. **고장이 아니라 시작점**이다 -- 경고색도 오류
+/// 문구도 쓰지 않고, 다음에 할 일 하나만 놓는다.
 class _NoApplianceStage extends StatelessWidget {
   const _NoApplianceStage({required this.onAdd, this.note});
 
   final VoidCallback onAdd;
-
-  /// 서버 목록 사정(확인 중·실패). 정상 빈 상태면 null.
   final String? note;
 
   @override
   Widget build(BuildContext context) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Icon(Icons.add_home_outlined,
-                size: 72, color: context.appMuted),
-          ),
-          const SizedBox(height: 16),
-          Text('아직 등록한 가전이 없어요', style: AppText.heading),
+          Text('아직 등록한 가전이 없어요', style: AppText.title),
           const SizedBox(height: 6),
           Text(
-            '조작하고 싶은 가전을 추가하면\n여기서 상태를 보고 바로 조작할 수 있어요.',
+            '조작부 사진을 찍고 버튼을 짚어 등록하면\n여기서 상태를 보고 조작할 수 있어요.',
             style: TextStyle(fontSize: 16, color: context.appMuted),
           ),
           if (note case final note?) ...[
@@ -340,214 +639,6 @@ class _NoApplianceStage extends StatelessWidget {
             label: const Text('가전 추가'),
           ),
         ],
-      );
-}
-
-class _ApplianceStage extends StatelessWidget {
-  const _ApplianceStage({
-    required this.appliance,
-    required this.reachable,
-    this.backupOnly = false,
-    this.checking = false,
-    required this.onManual,
-    required this.onAddPhoto,
-    this.imageOverride,
-  });
-
-  /// 골든이 실제 사진 렌더를 확인하기 위한 구멍. 앱 실행에는 항상 null이다.
-  final ImageProvider? imageOverride;
-
-  final ApplianceMap appliance;
-
-  /// BLE나 서버 중 하나로라도 닿는가.
-  final bool reachable;
-
-  /// 서버에는 닿지 않고 예비 연결(BLE)로만 닿는가. 조작은 되지만 제안·기록은
-  /// 오지 않으므로, "조작할 수 있어요"만 말하면 위의 연결 경고와 어긋난다.
-  final bool backupOnly;
-
-  /// 서버에 닿는지 아직 확인하는 중. 끊겼다고 말하지 않는다.
-  final bool checking;
-  final VoidCallback onManual;
-  final VoidCallback onAddPhoto;
-
-  @override
-  Widget build(BuildContext context) {
-    final (line, warn) = _status();
-    final hasPhoto = imageOverride != null ||
-        (appliance.photoPath != null && appliance.photoPath!.isNotEmpty);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Center(
-          child: AppliancePortrait(
-            appliance: appliance,
-            imageOverride: imageOverride,
-            // 화면 폭에 맞추되 지나치게 커지지 않게 둔다.
-            size: (MediaQuery.sizeOf(context).width * 0.52).clamp(150.0, 220.0),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(
-          children: [
-            Flexible(child: Text(appliance.displayName, style: AppText.heading)),
-            if (appliance.isDemo) ...[
-              const SizedBox(width: 8),
-              const DemoBadge(),
-            ],
-            if (appliance.isThinq) ...[
-              const SizedBox(width: 8),
-              const RouteBadge(label: 'ThinQ'),
-            ],
-          ],
-        ),
-        const SizedBox(height: 6),
-        Row(
-          children: [
-            Icon(
-              warn ? Icons.error_outline : Icons.check_circle_outline,
-              size: 18,
-              color: warn ? context.appDanger : context.appMuted,
-            ),
-            const SizedBox(width: 6),
-            // 사유가 길어지면 줄바꿈한다 -- 자르면 복구 방법이 사라진다.
-            Expanded(
-              child: Text(
-                line,
-                style: TextStyle(
-                  fontSize: 16,
-                  color: warn ? context.appDanger : context.appMuted,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        // ThinQ 가전에는 누를 버튼이 없다(G5). 버튼판·사진 추가를 내걸면
-        // 빈 판을 열게 된다 -- 실행은 말(목적) 경로로만 간다.
-        if (appliance.isThinq)
-          Text(
-            '누를 버튼이 없는 ThinQ 가전이에요. 말로 맡겨 주세요.',
-            style: TextStyle(fontSize: 15, color: context.appMuted),
-          )
-        else
-        // 말로 하는 경로는 탭바 가운데에 있다. 여기에는 **다른 경로**를 둔다 --
-        // 말이 잘 안 되는 사용자에게 길이 하나뿐이면 안 된다.
-        FilledButton.icon(
-          onPressed: onManual,
-          icon: const Icon(Icons.touch_app, size: 20),
-          label: const Text('버튼으로 조작'),
-        ),
-        if (!hasPhoto && !appliance.isThinq)
-          // 주 행동과 경쟁하지 않게 아래에 작게. 거절해도 그대로 쓸 수 있다.
-          Align(
-            alignment: Alignment.centerLeft,
-            child: AddPhotoHint(onTap: onAddPhoto),
-          ),
-      ],
-    );
-  }
-
-  /// (문구, 경고인가). **모르는 것을 준비됐다고 말하지 않는다** --
-  /// 서버가 준비 상태를 알려준 경우에만 못 쓴다고 단정한다.
-  (String, bool) _status() {
-    if (appliance.readinessKnown && !appliance.canExecute) {
-      final why = appliance.readinessReasons;
-      if (why.isNotEmpty) return (why.first, true);
-      return (
-        appliance.readiness == 'disconnected'
-            ? '아직 연결되지 않았어요'
-            : '아직 준비가 끝나지 않았어요',
-        true
-      );
-    }
-    if (!reachable) {
-      return checking
-          ? ('연결을 확인하고 있어요', false)
-          : ('기기와 연결되면 조작할 수 있어요', false);
-    }
-    // ThinQ 가전은 예비 연결(BLE)로 조작할 수 없다 -- 서버를 거쳐야 한다.
-    if (backupOnly && appliance.isThinq) {
-      return ('기기와 연결되면 조작할 수 있어요', false);
-    }
-    if (backupOnly) return ('예비 연결로 조작할 수 있어요', false);
-    return ('조작할 수 있어요', false);
-  }
-}
-
-// ── 제안 (카드가 아니라 행) ────────────────────────────────────────────────
-
-/// 제안 하나를 **행**으로 둔다. 카드로 감싸면 화면의 다른 카드들과 깊이가
-/// 같아져서, 지금 확인해야 할 것이 눈에 띄지 않는다.
-class _SuggestionRow extends StatelessWidget {
-  const _SuggestionRow({required this.suggestion, required this.onTap});
-
-  final Suggestion suggestion;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => InkWell(
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 홈의 행은 질문이 아니다. 목록에서 물어보고 상세에서
-                    // 또 물으면 두 번 묻는 꼴이고, 사용자가 부른 말을 어색한
-                    // 물음으로 고쳐 쓰면(`즉석밥 데워줘, 지금 할까요?`) 오히려
-                    // 자기가 한 말처럼 안 들린다. 무엇을 하는 것인지만 쓴다.
-                    Text(
-                      suggestion.label,
-                      style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 3),
-                    Text(
-                      _stepPreview(suggestion),
-                      style: TextStyle(fontSize: 14, color: context.appMuted),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              Icon(Icons.chevron_right, color: context.appMuted),
-            ],
-          ),
-        ),
-      );
-}
-
-/// 눌릴 버튼을 **사용자 언어로** 보여준다. `BT-08`은 아무 뜻이 없고,
-/// "3단계 동작"은 몇 번 움직이는지만 알려줄 뿐 무엇을 누르는지는 알려주지
-/// 않는다 -- 맡길지 판단하려면 그쪽이 필요하다.
-String _stepPreview(Suggestion suggestion) {
-  // 시나리오 카드는 버튼 순서가 아니라 서버가 고정한 명령 문장을 보인다.
-  if (suggestion.isScenario) {
-    return suggestion.commands
-        .map((c) => c.summary.isNotEmpty ? c.summary : c.targetId)
-        .join(' · ');
-  }
-  if (suggestion.steps.isEmpty) return '누를 버튼을 확인하려면 눌러 보세요';
-  return suggestion.steps.map(readableStep).join(' → ');
-}
-
-/// 제안이 없을 때. 큰 빈 카드를 두지 않는다 -- 한 줄이면 충분하다.
-class _EmptyLine extends StatelessWidget {
-  const _EmptyLine({required this.dndActive});
-
-  final bool dndActive;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        child: Text(
-          dndActive ? '방해 금지 중이라 제안을 쉬고 있어요.' : '지금 확인할 제안이 없어요.',
-          style: TextStyle(fontSize: 15, color: context.appMuted),
-        ),
       );
 }
 
@@ -985,13 +1076,10 @@ class _StatusCardBody extends StatelessWidget {
   }
 }
 
-/// 홈의 주 행동 버튼. 떠 있되 구석의 작은 알약이 아니라 화면 폭을 넉넉히 쓴다.
-/// 주 경로가 막혔을 때 갈 수 있는 다른 길. 주 행동보다 조용하되
-/// 발견은 되어야 하므로 같은 자리(하단 중앙)에 함께 둔다.
 // ── 슬라이딩 카드 애니메이션 ───────────────────────────────────────────────
 
 class _SlidingCard extends StatefulWidget {
-  const _SlidingCard({required this.child});
+  const _SlidingCard({super.key, required this.child});
   final Widget child;
 
   @override

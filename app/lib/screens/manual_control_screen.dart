@@ -135,7 +135,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
         body: NoApplianceNotice(
           title: '조작할 가전이 아직 없어요',
           body: '가전을 추가하면 버튼 배치를 그대로 눌러 볼 수 있어요.',
-          onAdd: () => context.push('/appliance/new'),
+          onAdd: () => context.push('/appliance/add'),
         ),
       );
     }

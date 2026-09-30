@@ -46,6 +46,10 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
 
   bool _pollInFlight = false;
 
+  /// 지금 바로 다시 받는다. 루틴 '지금 실행'이 카드를 만든 직후처럼, 다음
+  /// 5초 폴링을 기다리면 사용자가 빈 확인 화면을 보게 되는 경우에 쓴다.
+  Future<void> refresh() => _pollHttp();
+
   Future<void> _pollHttp() async {
     // 재진입 가드 — 5초 주기 폴링 vs 8초 타임아웃이라 서버가 느리면
     // 요청이 겹겹이 쌓일 수 있다.
@@ -128,6 +132,8 @@ class SuggestionNotifier extends StateNotifier<List<Suggestion>> {
       occurrences: r.occurrences,
       isDemo: r.isDemo,
       scenarioId: r.scenarioId,
+      routineId: r.routineId,
+      routineName: r.routineName,
       commands: [
         for (final c in r.commands)
           SuggestionCommand(

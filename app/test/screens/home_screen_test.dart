@@ -1,17 +1,24 @@
+// 홈 — "우리 집"(UI 확정 §2, 2026-09-30 개편).
+//
+// 예전 홈은 가전 한 대를 크게 세우고 '버튼으로 조작'을 걸었다. 이제는 허브 칩 →
+// 제안 카드 한 장 → 가전 카드 2열 → 가전 추가다. 연결 문제의 **정도와 자리**
+// 규칙(닿지 않으면 맨 위 경고, 예비 연결만 꺼지면 아래 조용한 안내, 확인 중은
+// 끊김이 아님)은 그대로 지킨다 -- 아래 테스트가 예전 규칙을 새 배치에서 다시 본다.
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 
 import '../helpers/test_helpers.dart';
 
-/// 홈은 가전 그림·제안·연결 상세까지 세로로 길다. 기본 테스트 뷰포트
-/// (800x600)로는 아래쪽 위젯의 Element가 만들어지지 않아 find가 "없음"으로
-/// 잘못 판정한다 -- status/settings 테스트와 같은 문제다.
+/// 홈은 제안·가전·연결 상세까지 세로로 길다. 기본 테스트 뷰포트(800x600)로는
+/// 아래쪽 위젯의 Element가 만들어지지 않아 find가 "없음"으로 잘못 판정한다.
 void _useTallViewport(WidgetTester tester) {
   tester.view.physicalSize = const Size(400, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -25,12 +32,10 @@ Widget _buildHome({
   // 기본은 **닿지 않는다고 확인된** 서버다. 확인 중은 아래 그룹이 따로 본다.
   RpiConnectionState server = RpiConnectionState.unreachable,
   List<ApplianceMap>? installed,
+  ExecutionStatus? executionStatus,
 }) {
-  // disconnected + suggestions은 두 override를 개별로 합산
   final overrides = [
     ...(connected ? connectedOverrides() : disconnectedOverrides()),
-    // 이 파일의 기본 상황은 '가전 한 대를 등록한 사용자'다. 0대인 홈은
-    // 아래 별도 group에서 확인한다 -- 그쪽도 정상 상태다.
     ...installedOverrides(installed ?? [kTestAppliance]),
     rpiServerOverride(server),
   ];
@@ -38,21 +43,90 @@ Widget _buildHome({
     const HomeScreen(),
     overrides: overrides,
     suggestions: suggestions,
+    executionStatus: executionStatus,
   );
 }
 
+/// 가전 카드 제목(이름). 카드는 이름과 방을 따로 적는다.
+Finder _cardName() => find.text(kTestAppliance.name);
+
 void main() {
+  group('HomeScreen — 머리와 구성', () {
+    testWidgets('"우리 집"과 허브 칩, 가전 카드, 가전 추가가 있다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+          _buildHome(connected: true, server: RpiConnectionState.connected));
+      await tester.pump();
+
+      expect(find.text('우리 집'), findsOneWidget);
+      expect(find.text('허브 연결됨'), findsOneWidget);
+      expect(find.byKey(Key('appliance-card-${kTestAppliance.id}')),
+          findsOneWidget);
+      expect(find.byKey(const Key('appliance-add-card')), findsOneWidget);
+      // 고정 명령 버튼("즉석밥")도, 예전 '버튼으로 조작' 경로도 홈에 없다 --
+      // 누르는 일은 가전 상세에서 확인을 거친다.
+      expect(find.text('버튼으로 조작'), findsNothing);
+      expect(find.text('즉석밥'), findsNothing);
+    });
+
+    testWidgets('가전 카드를 눌러도 실행하지 않고 상세로 간다', (tester) async {
+      String? opened;
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+          GoRoute(
+            path: '/appliance/detail/:id',
+            builder: (_, state) {
+              opened = state.pathParameters['id'];
+              return const Scaffold(body: Text('가전 상세'));
+            },
+          ),
+        ],
+      );
+      _useTallViewport(tester);
+      await tester.pumpWidget(buildWithProviderState(
+        overrides: [
+          ...connectedOverrides(),
+          ...installedOverrides([kTestAppliance]),
+          rpiServerOverride(RpiConnectionState.connected),
+        ],
+        child: MaterialApp.router(routerConfig: router),
+      ));
+      await tester.pump();
+
+      await tester.tap(find.byKey(Key('appliance-card-${kTestAppliance.id}')));
+      await tester.pumpAndSettle();
+      expect(opened, kTestAppliance.id);
+    });
+
+    testWidgets('실행 대상 가전 카드는 "동작 중"을 글자로도 말한다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildHome(
+        connected: true,
+        server: RpiConnectionState.connected,
+        executionStatus: ExecutionStatus(
+          phase: ExecutionPhase.running,
+          applianceId: kTestAppliance.id,
+          steps: const ['BT-08', 'BT-05'],
+          completedSteps: 1,
+        ),
+      ));
+      await tester.pump();
+      // 색만으로 말하지 않는다(UI 확정 §1-4).
+      expect(find.text('동작 중 · 1/2'), findsOneWidget);
+    });
+  });
+
   group('HomeScreen — 연결 문제의 정도와 자리', () {
-    testWidgets('예비 연결로만 닿으면 조작 가능과 연결 경고가 서로 어긋나지 않는다',
+    testWidgets('예비 연결로만 닿으면 칩과 연결 경고가 서로 어긋나지 않는다',
         (tester) async {
-      // 예전에는 "조작 가능"과 "연결 설정이 필요해요"가 한 화면에 함께 떠서
-      // 어느 쪽을 믿을지 알 수 없었다.
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
 
-      expect(find.text('예비 연결로 조작할 수 있어요'), findsOneWidget);
-      expect(find.text('조작할 수 있어요'), findsNothing);
+      expect(find.text('예비 연결만 돼요'), findsOneWidget);
+      expect(find.text('허브 연결됨'), findsNothing);
       expect(find.text('제안·기록이 멈췄어요'), findsOneWidget);
       expect(find.text('연결 설정이 필요해요'), findsNothing);
     });
@@ -62,8 +136,9 @@ void main() {
       await tester.pumpWidget(_buildHome());
       await tester.pump();
 
+      expect(find.text('허브에 닿지 않아요'), findsOneWidget);
       final warning = tester.getTopLeft(find.text('연결 설정이 필요해요')).dy;
-      final name = tester.getTopLeft(find.text(kTestAppliance.displayName)).dy;
+      final name = tester.getTopLeft(_cardName()).dy;
       expect(warning, lessThan(name));
     });
 
@@ -72,11 +147,11 @@ void main() {
       await tester.pumpWidget(_buildHome(server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(find.text('조작할 수 있어요'), findsOneWidget);
+      expect(find.text('허브 연결됨'), findsOneWidget);
       expect(find.text('연결 설정이 필요해요'), findsNothing);
       expect(find.text('제안·기록이 멈췄어요'), findsNothing);
       final notice = tester.getTopLeft(find.text('예비 연결 꺼짐')).dy;
-      final name = tester.getTopLeft(find.text(kTestAppliance.displayName)).dy;
+      final name = tester.getTopLeft(_cardName()).dy;
       expect(notice, greaterThan(name));
 
       await tester.tap(find.text('확인하기'));
@@ -88,10 +163,11 @@ void main() {
 
     testWidgets('서버와 예비 연결이 모두 되면 연결 줄 자체가 없다', (tester) async {
       _useTallViewport(tester);
-      await tester.pumpWidget(_buildHome(connected: true, server: RpiConnectionState.connected));
+      await tester.pumpWidget(
+          _buildHome(connected: true, server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(find.text('조작할 수 있어요'), findsOneWidget);
+      expect(find.text('허브 연결됨'), findsOneWidget);
       expect(find.text('확인하기'), findsNothing);
     });
   });
@@ -103,38 +179,35 @@ void main() {
     ]) {
       testWidgets('${state.name}: 맨 위 경고 없이 확인 중이라고만 말한다',
           (tester) async {
-        // 켤 때마다 빨간 '연결 설정이 필요해요'가 맨 위에 잠깐 떴다.
+        // 켤 때마다 빨간 '연결 설정이 필요해요'가 맨 위에 잠깐 떴다(로그 ac #5).
         _useTallViewport(tester);
         await tester.pumpWidget(_buildHome(server: state));
         await tester.pump();
 
         expect(find.text('연결 설정이 필요해요'), findsNothing);
         expect(find.text('제안·기록이 멈췄어요'), findsNothing);
-        expect(find.text('연결을 확인하고 있어요'), findsOneWidget);
-        expect(find.text('기기와 연결되면 조작할 수 있어요'), findsNothing);
+        expect(find.text('허브 확인 중'), findsOneWidget);
+        expect(find.text('허브에 닿지 않아요'), findsNothing);
         // 예비 연결이 꺼진 것만 아래에 조용히 남는다.
         final notice = tester.getTopLeft(find.text('예비 연결 꺼짐')).dy;
-        final name =
-            tester.getTopLeft(find.text(kTestAppliance.displayName)).dy;
+        final name = tester.getTopLeft(_cardName()).dy;
         expect(notice, greaterThan(name));
       });
     }
 
-    testWidgets('확인 중이어도 예비 연결로 닿으면 그렇게 말한다', (tester) async {
+    testWidgets('확인 중이어도 예비 연결이 닿으면 끊겼다고 하지 않는다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(
           _buildHome(connected: true, server: RpiConnectionState.checking));
       await tester.pump();
 
-      expect(find.text('예비 연결로 조작할 수 있어요'), findsOneWidget);
+      expect(find.text('허브 확인 중'), findsOneWidget);
       expect(find.text('제안·기록이 멈췄어요'), findsNothing);
     });
   });
 
   group('HomeScreen — 연결 해제 상태', () {
     testWidgets('연결 문제는 한 줄로 알리고 눌러야 상세가 나온다', (tester) async {
-      // 기술 정보(RPi 서버·주소 입력·재시도)가 홈 아래를 차지하고 있었다.
-      // 기본은 무엇이 필요한지 한 줄이고, 자세한 것은 눌렀을 때만 나온다.
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome());
       await tester.pump();
@@ -156,16 +229,7 @@ void main() {
       await tester.tap(find.text('확인하기'));
       await tester.pump();
       expect(find.text('연결'), findsOneWidget);
-    });
-
-    testWidgets('연결이 없으면 홈이 그 사실을 먼저 말한다', (tester) async {
-      // 주 행동(말로 조작)은 탭바 가운데로 옮겼다. 예전에는 홈의 버튼을
-      // 비활성화해서 알렸는데, 이제는 **가전 상태 한 줄**이 그 일을
-      // 한다 -- 눌러 본 뒤에 알게 하지 않는 것이 요점이었고 그건 그대로다.
-      _useTallViewport(tester);
-      await tester.pumpWidget(_buildHome());
-      await tester.pump();
-      expect(find.text('기기와 연결되면 조작할 수 있어요'), findsOneWidget);
+      expect(find.text('주소 입력'), findsOneWidget);
     });
 
     testWidgets('제안 없음 메시지 표시', (tester) async {
@@ -188,50 +252,39 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      // 연결됨 상태에서는 trailing TextButton 없음
       expect(find.text('연결'), findsNothing);
     });
 
-    testWidgets('버튼 조작 경로가 홈에 항상 보인다', (tester) async {
-      // 말이 잘 안 되거나 인식이 안 되는 사용자가 같은 시도를 반복하지
-      // 않으려면, 다른 길이 화면에 함께 있어야 한다. 말하는 경로는
-      // 탭바 가운데에 있고(app_shell_test), 버튼 경로는 여기 있다.
+    testWidgets('말로 하는 길이 홈에 함께 있다', (tester) async {
+      // 누르기 어려운 사용자에게 길이 하나뿐이면 안 된다. 예전에는 탭바 가운데
+      // 있었고, 이제는 홈 머리에 있다.
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.text('버튼으로 조작'), findsOneWidget);
-    });
-
-    testWidgets('연결되면 조작할 수 있다고 말한다', (tester) async {
-      _useTallViewport(tester);
-      await tester.pumpWidget(_buildHome(connected: true, server: RpiConnectionState.connected));
-      await tester.pump();
-      expect(find.text('조작할 수 있어요'), findsOneWidget);
+      expect(find.byTooltip('말로 조작하기'), findsOneWidget);
     });
   });
 
-  group('HomeScreen — 제안 목록', () {
+  group('HomeScreen — 제안 카드', () {
     const suggestion = Suggestion(
       sequenceId: 's1',
       label: '즉석밥 데우기',
       steps: ['BT-08', 'BT-03', 'BT-05'],
     );
 
-    testWidgets('제안 카드 1개 표시', (tester) async {
+    testWidgets('제안은 한 장만, 실행하기/나중에 두 버튼', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(
         _buildHome(connected: true, suggestions: const [suggestion]),
       );
       await tester.pump();
-      // 홈의 행은 질문이 아니다 -- 무엇을 하는 것인지만 쓴다.
       expect(find.text('즉석밥 데우기'), findsOneWidget);
-      // "3단계 동작"은 몇 번 움직이는지만 알려줬다 -- 맡길지 판단하려면
-      // 무엇을 누르는지가 필요하다
-      expect(find.text('즉석밥 → 1분 추가 → 시작'), findsOneWidget);
+      expect(find.text('실행하기'), findsOneWidget);
+      expect(find.text('나중에'), findsOneWidget);
       expect(find.text('지금 확인할 제안이 없어요.'), findsNothing);
     });
 
-    testWidgets('여러 제안 카드 모두 표시', (tester) async {
+    testWidgets('여러 제안이 있어도 한 번에 한 장만 보인다', (tester) async {
       const suggestions = [
         Suggestion(sequenceId: 'a', label: '30초 가열', steps: ['BT-02', 'BT-05']),
         Suggestion(sequenceId: 'b', label: '해동', steps: ['BT-07', 'BT-05']),
@@ -242,10 +295,30 @@ void main() {
       );
       await tester.pump();
       expect(find.text('30초 가열'), findsOneWidget);
-      expect(find.text('해동'), findsOneWidget);
+      expect(find.text('해동'), findsNothing);
+      expect(find.text('실행하기'), findsOneWidget);
     });
 
-    testWidgets('제안 탭 시 /suggestion/:id 로 이동', (tester) async {
+    testWidgets('루틴 카드는 루틴 이름을 제목으로 쓴다', (tester) async {
+      const routineCard = Suggestion(
+        sequenceId: 'r1',
+        label: '데우기',
+        steps: ['BT-08'],
+        routineId: 'rt-1',
+        routineName: '아침 데우기',
+        reason: "루틴 '아침 데우기' · 평일 07:30 시각이에요",
+      );
+      _useTallViewport(tester);
+      await tester.pumpWidget(
+        _buildHome(connected: true, suggestions: const [routineCard]),
+      );
+      await tester.pump();
+      expect(find.text('아침 데우기'), findsOneWidget);
+      expect(find.text("루틴 '아침 데우기' · 평일 07:30 시각이에요"), findsOneWidget);
+    });
+
+    testWidgets('실행하기는 곧바로 누르지 않고 확인 화면(/suggestion/:id)을 연다',
+        (tester) async {
       String? pushedRoute;
 
       final router = GoRouter(
@@ -278,7 +351,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('즉석밥 데우기'));
+      await tester.tap(find.text('실행하기'));
       await tester.pumpAndSettle();
 
       expect(pushedRoute, 's1');

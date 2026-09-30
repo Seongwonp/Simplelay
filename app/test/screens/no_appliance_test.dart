@@ -42,6 +42,11 @@ Widget _screen(Widget screen) => buildWithProviderState(
               path: '/appliance/new',
               builder: (_, __) => const Scaffold(body: Text('가전 추가 화면')),
             ),
+            // 2026-09-30부터 홈의 가전 추가는 5단계 등록으로 간다.
+            GoRoute(
+              path: '/appliance/add',
+              builder: (_, __) => const Scaffold(body: Text('가전 추가 5단계')),
+            ),
             GoRoute(
               path: '/manual-control',
               builder: (_, __) => const ManualControlScreen(),
@@ -66,10 +71,10 @@ void main() {
       // 가진 적 없는 가전을 세우지 않는다.
       expect(find.text('전자레인지'), findsNothing);
 
-      await tester.tap(find.text('가전 추가'));
+      await tester.tap(find.widgetWithText(FilledButton, '가전 추가'));
       await tester.pumpAndSettle();
 
-      expect(find.text('가전 추가 화면'), findsOneWidget);
+      expect(find.text('가전 추가 5단계'), findsOneWidget);
     });
 
     testWidgets('조작 버튼을 내걸지 않는다 — 누를 대상이 없다', (tester) async {
@@ -99,10 +104,10 @@ void main() {
       await tester.pumpWidget(_screen(const VoiceScreen()));
       await tester.pump();
 
-      await tester.tap(find.text('가전 추가'));
+      await tester.tap(find.widgetWithText(FilledButton, '가전 추가'));
       await tester.pumpAndSettle();
 
-      expect(find.text('가전 추가 화면'), findsOneWidget);
+      expect(find.text('가전 추가 5단계'), findsOneWidget);
     });
   });
 

@@ -18,7 +18,7 @@ class _ApplianceSection extends ConsumerWidget {
         // 0대는 오류가 아니다. 고를 것이 없다는 사실과 어디서 만드는지만
         // 말하고, 선택 칩 자리를 비워 두지 않는다.
         if (appliances.isEmpty)
-          _EmptyApplianceRow(onAdd: () => context.push('/appliance/new'))
+          _EmptyApplianceRow(onAdd: () => context.push('/appliance/add'))
         else
           Wrap(
             spacing: 8,
@@ -114,7 +114,7 @@ class _ApplianceSection extends ConsumerWidget {
               }),
               // 새 가전 추가 버튼
               GestureDetector(
-                onTap: () => context.push('/appliance/new'),
+                onTap: () => context.push('/appliance/add'),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 14, vertical: 10),

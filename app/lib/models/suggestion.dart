@@ -16,7 +16,20 @@ class Suggestion {
     this.occurrences = 0,
     this.scenarioId,
     this.commands = const [],
+    this.routineId,
+    this.routineName,
   });
+
+  /// 루틴이 만든 카드면 그 루틴 ID·이름(서버 2026-09-30). 없으면 null.
+  final String? routineId;
+  final String? routineName;
+
+  /// 화면 제목. 루틴 카드는 서버 `purpose` 대신 **루틴 이름**을 쓴다 --
+  /// 사용자가 붙인 이름이 곧 메뉴다(UI 확정 §1).
+  String get title {
+    final name = routineName;
+    return (name != null && name.isNotEmpty) ? name : label;
+  }
 
   /// 시나리오 제안이면 그 ID(서버 `scenario_id`). 없으면 종전 제안.
   final String? scenarioId;
