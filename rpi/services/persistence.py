@@ -634,23 +634,6 @@ class SimpleLayDb:
             ).fetchall()
         return {r[0]: (None if r[1] is None else bool(r[1]), r[2] or "") for r in rows}
 
-    def close(self) -> None:
-        with self._lock:
-            self._conn.close()
-
-
-class SqliteJobHistory:
-    """JobHistoryStore 포트의 SQLite 구현 — 재시작에도 이력 유지."""
-
-    def __init__(self, db: SimpleLayDb) -> None:
-        self._db = db
-
-    def append(self, entry: JobHistoryEntry) -> None:
-        self._db.append_job_history(entry)
-        if entry.route != "unknown":
-            self._db.save_job_command_meta(entry)
-        if entry.operation_confirmed is not None or entry.operation_detail:
-            self._db.save_job_operation_meta(entry)
     # ── 사용자 루틴(2026-09-30, rpi/routines) ────────────────────────────────
     # 문서(JSON) 한 칸 + 형식 번호. 문서 안의 형식 이관은 rpi.routines.model이 한다.
     # 초안 표(routine_id, document)만 있는 DB에는 빠진 열을 ALTER로 더한다.
@@ -696,6 +679,23 @@ class SqliteJobHistory:
             ).fetchall()
         return [(r[0], r[1]) for r in rows]
 
+    def close(self) -> None:
+        with self._lock:
+            self._conn.close()
+
+
+class SqliteJobHistory:
+    """JobHistoryStore 포트의 SQLite 구현 — 재시작에도 이력 유지."""
+
+    def __init__(self, db: SimpleLayDb) -> None:
+        self._db = db
+
+    def append(self, entry: JobHistoryEntry) -> None:
+        self._db.append_job_history(entry)
+        if entry.route != "unknown":
+            self._db.save_job_command_meta(entry)
+        if entry.operation_confirmed is not None or entry.operation_detail:
+            self._db.save_job_operation_meta(entry)
 
     def recent(self, limit: int = 50) -> tuple[JobHistoryEntry, ...]:
         from dataclasses import replace  # noqa: PLC0415

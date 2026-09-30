@@ -939,6 +939,8 @@ async def list_suggestions(
             appliance_id=s.appliance_id,
             scenario_id=s.scenario_id,
             commands=command_payloads(s),
+            routine_id=s.routine_id,
+            routine_name=s.routine_name,
         )
         for s in await asyncio.to_thread(svc.pending)
     ]
@@ -986,8 +988,6 @@ async def snooze_suggestion(
         raise HTTPException(status_code=404, detail="suggestion not found")
     return OkResponse()
 
-            routine_id=s.routine_id,
-            routine_name=s.routine_name,
 
 @router.get("/suggestions/{suggestion_id}/revision-options")
 async def suggestion_revision_options(
