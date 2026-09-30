@@ -9,13 +9,14 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import os
 import time
 from datetime import datetime, timezone
 from functools import lru_cache
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from rpi.controller.models import ExecutionOutcome, outcome_of
@@ -26,6 +27,7 @@ from rpi.services.connections import (
     press_link_from_frames,
     read_interface_state,
 )
+from rpi.services.weather.grid import latlon_to_grid
 from rpi.services.weather import (
     AttentionItem,
     WeatherConfig,
@@ -40,10 +42,54 @@ log = logging.getLogger(__name__)
 router = APIRouter()
 
 
+# ── 허브 위치(2026-09-30) ────────────────────────────────────────────────────
+# 폰 앱 "현재 위치로 설정"이 저장한 위치가 환경 변수(LAT/LON·NX/NY)보다 우선한다.
+# 5km 격자 예보라 소수 둘째 자리(약 1km)로 줄여 저장한다 -- 정밀 위치는 남기지 않는다.
+HUB_LOCATION_KEY = "hub_location"
+_memory_location: dict[str, float] = {}
+
+
+def load_hub_location() -> tuple[float, float] | None:
+    db = get_db()
+    raw = db.load_setting(HUB_LOCATION_KEY) if db is not None else None
+    if raw is None:
+        if _memory_location:
+            return _memory_location["lat"], _memory_location["lon"]
+        return None
+    try:
+        doc = json.loads(raw)
+        return float(doc["lat"]), float(doc["lon"])
+    except (ValueError, KeyError, TypeError):
+        log.warning("stored hub_location unreadable; ignored")
+        return None
+
+
+def save_hub_location(location: tuple[float, float] | None) -> None:
+    db = get_db()
+    value = None if location is None else json.dumps({"lat": location[0], "lon": location[1]})
+    if db is not None:
+        db.save_setting(HUB_LOCATION_KEY, value)
+    _memory_location.clear()
+    if location is not None:
+        _memory_location.update(lat=location[0], lon=location[1])
+
+
+def _weather_env() -> dict[str, str]:
+    env = dict(os.environ)
+    stored = load_hub_location()
+    if stored is not None:
+        env.pop("SIMPLELAY_WEATHER_NX", None)
+        env.pop("SIMPLELAY_WEATHER_NY", None)
+        env["SIMPLELAY_WEATHER_LAT"] = str(stored[0])
+        env["SIMPLELAY_WEATHER_LON"] = str(stored[1])
+    return env
+
+
 @lru_cache(maxsize=1)
 def get_weather_service() -> WeatherService:
-    """날씨 캐시 싱글턴. 설정은 기동 때 환경 변수에서 한 번 읽는다."""
-    config = WeatherConfig.from_env()
+    """날씨 캐시 싱글턴. 설정은 환경 변수에서 읽되, 앱이 저장한 허브 위치가 있으면
+    그 위치가 격자를 정한다. 위치가 바뀌면 캐시를 비워 다시 만든다."""
+    config = WeatherConfig.from_env(_weather_env())
     return WeatherService(config, store=get_db() if config.mode == "real" else None)
 
 
@@ -183,3 +229,58 @@ async def connections(
         "items": [item.to_dict() for item in items],
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ── 허브 위치 API ────────────────────────────────────────────────────────────
+
+
+class HubLocationRequest(BaseModel):
+    lat: float
+    lon: float
+
+
+class HubLocationResponse(BaseModel):
+    #: app(폰에서 저장) | env(환경 변수) | none
+    source: str
+    lat: float | None = None
+    lon: float | None = None
+    nx: int | None = None
+    ny: int | None = None
+
+
+# 기상청 단기예보 격자가 덮는 대략의 범위(한반도 주변). 밖이면 예보를 받을 수 없다.
+_LAT_RANGE = (32.0, 39.5)
+_LON_RANGE = (124.0, 132.0)
+
+
+@router.get("/hub/location", response_model=HubLocationResponse)
+def get_hub_location() -> HubLocationResponse:
+    stored = load_hub_location()
+    if stored is not None:
+        nx, ny = latlon_to_grid(*stored)
+        return HubLocationResponse(source="app", lat=stored[0], lon=stored[1], nx=nx, ny=ny)
+    cfg = WeatherConfig.from_env()
+    if cfg.nx is not None and cfg.ny is not None:
+        return HubLocationResponse(source="env", nx=cfg.nx, ny=cfg.ny)
+    return HubLocationResponse(source="none")
+
+
+@router.put("/hub/location", response_model=HubLocationResponse)
+def put_hub_location(body: HubLocationRequest) -> HubLocationResponse:
+    if not (_LAT_RANGE[0] <= body.lat <= _LAT_RANGE[1] and _LON_RANGE[0] <= body.lon <= _LON_RANGE[1]):
+        raise HTTPException(
+            status_code=422,
+            detail="날씨 예보를 받을 수 없는 위치예요. 국내에서 다시 설정해 주세요.",
+        )
+    location = (round(body.lat, 2), round(body.lon, 2))
+    save_hub_location(location)
+    get_weather_service.cache_clear()
+    nx, ny = latlon_to_grid(*location)
+    return HubLocationResponse(source="app", lat=location[0], lon=location[1], nx=nx, ny=ny)
+
+
+@router.delete("/hub/location", response_model=HubLocationResponse)
+def delete_hub_location() -> HubLocationResponse:
+    save_hub_location(None)
+    get_weather_service.cache_clear()
+    return get_hub_location()
