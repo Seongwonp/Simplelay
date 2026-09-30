@@ -24,7 +24,14 @@ RUN pip install --no-cache-dir \
     "pydantic>=2,<3" \
     "numpy>=1.26,<3" \
     "httpx>=0.27,<1" \
-    "dbus-fast>=2,<3"
+    "dbus-fast>=2,<3" \
+    "pyserial>=3.5,<4" \
+    "pyserial-asyncio>=0.6,<1"
+
+# socat: 하드웨어 선 대신 LAN으로 두 보드를 이을 때 RPi4 쪽에서 TCP를 가상 시리얼로
+# 바꾼다(시험용, deploy/run_act.sh). 백엔드만 돌릴 때는 쓰지 않는다.
+RUN apt-get update && apt-get install -y --no-install-recommends socat \
+    && rm -rf /var/lib/apt/lists/*
 
 # 코드만 얹는다(리포 전체 아님 — .dockerignore가 나머지를 막는다).
 COPY rpi ./rpi

@@ -10,16 +10,24 @@ set -e
 
 DATA_DIR=/mnt/rawdata/simplelay   # 루트(2GB)가 좁아 rawdata(4.6GB)에 데이터를 둔다
 mkdir -p "$DATA_DIR"
+# 기기별 설정·비밀(SIMPLELAY_API_KEY, SIMPLELAY_ACT_MODE, SIMPLELAY_UART_PORT, 기상청 키 등)은
+# 저장소가 아니라 기기의 이 파일에 둔다(root 전용 600). 없으면 빈 파일로 시작한다.
+ENV_FILE="$DATA_DIR/env"
+[ -f "$ENV_FILE" ] || { : > "$ENV_FILE"; chmod 600 "$ENV_FILE"; }
 
 # 기존 컨테이너 정리(재실행 안전)
 docker rm -f simplelay-backend 2>/dev/null || true
 
+# --network host: 같은 기기의 키오스크 앱이 localhost로 부르면 백엔드에도 루프백(127.0.0.1)으로
+# 보인다. 브리지 네트워크(-p 8000:8000)면 172.17.0.1로 보여 API 키 루프백 면제가 안 되고
+# 키오스크 요청이 전부 401이 된다(2026-09-30 확인).
 docker run -d --name simplelay-backend \
   --restart unless-stopped \
   --security-opt apparmor=unconfined \
   -v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket \
   -v "$DATA_DIR":/data \
-  -p 8000:8000 \
+  --network host \
+  --env-file "$ENV_FILE" \
   -e SIMPLELAY_DB_PATH=/data/simplelay.db \
   -e SIMPLELAY_DEMO_PACING=1 \
   simplelay-backend
