@@ -30,6 +30,7 @@ from rpi.services.appliance_registry import (
 )
 
 from .deps import (
+    developer_mode_enabled,
     get_panel_scanner,
     get_presence_state_machine,
     get_clock,
@@ -848,6 +849,7 @@ async def status(
     verification = progress.verification if progress else None
     response = StatusResponse(
         running=snapshot.running,
+        developer_mode=developer_mode_enabled(),
         last_status=snapshot.last_result.status.value if snapshot.last_result else None,
         last_outcome=outcome_of(snapshot.last_result).value if snapshot.last_result else None,
         last_buttons=_to_steps(snapshot.last_result) if snapshot.last_result else None,

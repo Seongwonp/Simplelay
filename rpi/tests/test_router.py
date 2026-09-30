@@ -201,6 +201,16 @@ def test_execute_for_appliance_concurrent_returns_409(client):
 
 # ── /status ───────────────────────────────────────────────────────────────────
 
+def test_status_reports_developer_mode_off_by_default(client, monkeypatch):
+    monkeypatch.delenv("SIMPLELAY_DEV_MODE", raising=False)
+    assert client.get("/status").json()["developer_mode"] is False
+
+
+def test_status_reports_developer_mode_on_when_env_set(client, monkeypatch):
+    monkeypatch.setenv("SIMPLELAY_DEV_MODE", "1")
+    assert client.get("/status").json()["developer_mode"] is True
+
+
 def test_status_initially_idle(client):
     response = client.get("/status")
     assert response.status_code == 200

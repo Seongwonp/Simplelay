@@ -659,6 +659,9 @@ class JobAcceptedResponse(BaseModel):
 
 class StatusResponse(BaseModel):
     running: bool
+    #: 서버 개발자 모드(SIMPLELAY_DEV_MODE) 여부. 앱은 이 값이 true일 때만
+    #: "개발자" 탭을 띄운다(2026-09-30). 옛 클라이언트는 무시한다.
+    developer_mode: bool = False
     last_status: str | None
     #: success | failed | stopped | safety_stop — 화면이 "정지됨"(stopped)과
     #: "실패"(failed·safety_stop)를 가르는 값. last_status의 safety_stopped는
