@@ -1,0 +1,535 @@
+<title>SimpleLay 제품 화면 시안</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0&display=block">
+<style>
+/* layout: 설명 한 줄 → 폰 앱(실제 탭 이동) | 키오스크(상태 전환) 두 무대. 색은 기존 앱 디자인 시스템(골드 강조) 토큰을 그대로 따른다 */
+:root{
+  --bg:#F4F1EB;--card:#FDFCF8;--card2:#ECEAE3;--fg:#1E2226;--muted:#6B7175;--line:rgba(30,34,38,.11);
+  --accent:#8B6010;--accent-bg:rgba(139,96,16,.10);--ok:#2F7D57;--warn:#9A6700;--danger:#B3403C;--on-accent:#FFFFFF;
+  --idle:#9A9FA5;--page:#E9E6DF;
+  --k-bg:#0C0E12;--k-card:#15181D;--k-card2:#1D2126;--k-fg:#ECEEF0;--k-muted:#9CA3AA;--k-line:rgba(255,255,255,.10);
+  --k-accent:#D9A356;--k-ok:#5FBF8F;--k-warn:#F0B429;--k-danger:#D9605C;--k-idle:#4A5058;
+  --font:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --r:16px;--r-sm:10px;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0C0E12;--card:#15181D;--card2:#1D2126;--fg:#ECEEF0;--muted:#9CA3AA;--line:rgba(255,255,255,.10);
+  --accent:#D9A356;--accent-bg:rgba(217,163,86,.13);--ok:#5FBF8F;--warn:#F0B429;--danger:#D9605C;--on-accent:#1A1408;
+  --idle:#5A6068;--page:#08090C;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0C0E12;--card:#15181D;--card2:#1D2126;--fg:#ECEEF0;--muted:#9CA3AA;--line:rgba(255,255,255,.10);
+  --accent:#D9A356;--accent-bg:rgba(217,163,86,.13);--ok:#5FBF8F;--warn:#F0B429;--danger:#D9605C;--on-accent:#1A1408;
+  --idle:#5A6068;--page:#08090C;color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--page);color:var(--fg);font-family:var(--font);font-size:15px;line-height:1.55;margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:16px;padding-block:28px 48px}
+.ms{font-family:"Material Symbols Rounded";font-weight:normal;font-style:normal;font-size:22px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;white-space:nowrap;-webkit-font-feature-settings:"liga";font-feature-settings:"liga";user-select:none}
+header.top h1{font-size:26px;font-weight:600;margin:0 0 6px;text-wrap:balance;letter-spacing:-.01em}
+header.top p{margin:0;color:var(--muted);max-width:66ch}
+.eyebrow{font-size:12px;letter-spacing:.08em;color:var(--muted);text-transform:uppercase;font-weight:500;margin:0 0 10px}
+.stage{display:grid;grid-template-columns:380px minmax(0,1fr);gap:28px;margin-top:26px;align-items:start}
+@media (max-width:980px){.stage{grid-template-columns:minmax(0,1fr)}}
+.note{font-size:13px;color:var(--muted);margin:10px 2px 0}
+/* ---------- phone ---------- */
+.phone{width:100%;max-width:380px;margin:0 auto;background:var(--bg);border:1px solid var(--line);border-radius:34px;padding:10px;}
+.screen{position:relative;height:760px;border-radius:26px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column}
+.sbar{display:flex;justify-content:space-between;font:500 12px var(--mono);color:var(--muted);padding:8px 18px 4px}
+.view{flex:1;overflow-y:auto;padding:6px 16px 16px;display:flex;flex-direction:column;gap:14px}
+.view[hidden]{display:none!important}
+.ph-h{display:flex;align-items:center;justify-content:space-between;gap:10px;padding-top:4px}
+.ph-h h2{font-size:22px;font-weight:600;margin:0}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;padding:4px 10px;border-radius:999px;background:var(--card2);color:var(--muted)}
+.chip .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px}
+.sugg{background:var(--accent-bg);border:1px solid color-mix(in srgb,var(--accent) 35%,transparent)}
+.sugg .who{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.sugg h3{font-size:17px;font-weight:600;margin:8px 0 2px}
+.sugg p{margin:0 0 12px;font-size:13px;color:var(--muted)}
+.row{display:flex;gap:8px;align-items:center}
+.btn{font:inherit;font-size:14px;font-weight:500;border-radius:12px;padding:10px 14px;border:1px solid var(--line);background:var(--card);color:var(--fg);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.danger{background:var(--danger);border-color:var(--danger);color:#fff}
+.btn:focus-visible,.tabbar button:focus-visible,.dev:focus-visible,.seg button:focus-visible,.kbtn:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.dev{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px;text-align:left;font:inherit;color:inherit;cursor:pointer;display:flex;flex-direction:column;gap:10px;min-height:118px}
+.dev .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--card2);color:var(--idle)}
+.dev.on .ic{background:var(--accent-bg);color:var(--accent)}
+.dev .nm{font-weight:600;font-size:15px}
+.dev .st{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:6px}
+.dev.on .st b{color:var(--accent);font-weight:600;font-variant-numeric:tabular-nums}
+.bar{height:4px;border-radius:2px;background:var(--card2);overflow:hidden}
+.bar i{display:block;height:100%;background:var(--accent);border-radius:2px}
+.badge{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--card2);color:var(--muted);font-weight:500}
+.add{border:1px dashed var(--line);background:transparent;color:var(--muted);align-items:flex-start;justify-content:center}
+.sec{font-size:13px;font-weight:600;color:var(--muted);margin:4px 2px -4px}
+.tabbar{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--line);background:var(--card);padding:6px 6px 10px}
+.tabbar button{font:inherit;background:none;border:0;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:2px;font-size:11px;padding:6px 0;cursor:pointer;border-radius:12px}
+.tabbar button[aria-selected="true"]{color:var(--accent)}
+.tabbar button[aria-selected="true"] .ms{font-variation-settings:"FILL" 1}
+.seg{display:grid;grid-template-columns:1fr 1fr;background:var(--card2);border-radius:12px;padding:3px}
+.seg button{font:inherit;font-size:13px;border:0;background:none;color:var(--muted);padding:7px;border-radius:9px;cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--card);color:var(--fg);font-weight:600}
+.rt{display:flex;gap:12px;align-items:center}
+.rt .ic{width:42px;height:42px;border-radius:12px;background:var(--card2);display:grid;place-items:center;color:var(--accent);flex:none}
+.rt .t{font-weight:600}
+.rt .s{font-size:12px;color:var(--muted)}
+.rt .grow{flex:1;min-width:0}
+.next{display:flex;gap:12px;align-items:center}
+.next .when{font:600 20px var(--mono);color:var(--accent);font-variant-numeric:tabular-nums}
+.sent{display:flex;flex-direction:column;gap:8px}
+.sent .ln{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;font-size:15px;line-height:1.9}
+.sent .k{font-size:12px;color:var(--muted);display:block;line-height:1.4;margin-bottom:2px}
+.tok{display:inline-flex;align-items:center;gap:4px;background:var(--accent-bg);color:var(--accent);border-radius:8px;padding:1px 8px;font-weight:600;font-size:14px}
+.steps{display:flex;gap:6px;flex-wrap:wrap}
+.pin{display:inline-flex;align-items:center;gap:6px;background:var(--card2);border-radius:999px;padding:4px 10px 4px 4px;font-size:13px}
+.pin b{width:20px;height:20px;border-radius:50%;background:var(--accent);color:var(--on-accent);display:grid;place-items:center;font-size:11px}
+.panel{position:relative;border-radius:14px;overflow:hidden;border:1px solid var(--line);background:#23262B}
+.panel svg{display:block;width:100%;height:auto}
+.tl{display:flex;flex-direction:column}
+.tl .d{font-size:12px;font-weight:600;color:var(--muted);margin:10px 0 6px}
+.tl .e{display:grid;grid-template-columns:44px 20px minmax(0,1fr);gap:8px;padding:6px 0}
+.tl .tm{font:500 12px var(--mono);color:var(--muted);padding-top:2px}
+.tl .mk{width:10px;height:10px;border-radius:50%;margin-top:6px;background:var(--idle)}
+.tl .ok .mk{background:var(--ok)} .tl .st .mk{background:var(--danger)} .tl .wt .mk{background:var(--warn)}
+.tl .tx{font-size:14px}
+.tl .tx small{display:block;color:var(--muted);font-size:12px}
+.set{display:flex;flex-direction:column;border-radius:var(--r);overflow:hidden;border:1px solid var(--line)}
+.set button{font:inherit;color:inherit;text-align:left;display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--card);border:0;border-bottom:1px solid var(--line);cursor:pointer}
+.set button:last-child{border-bottom:0}
+.set .grow{flex:1}.set small{color:var(--muted);font-size:12px}
+.back{display:flex;align-items:center;gap:6px;background:none;border:0;color:var(--fg);font:inherit;font-size:16px;font-weight:600;padding:6px 0;cursor:pointer}
+.stepper{display:grid;grid-template-columns:repeat(5,1fr);gap:4px}
+.stepper span{height:4px;border-radius:2px;background:var(--card2)}
+.stepper span.done{background:var(--accent)}
+.hint{font-size:13px;color:var(--muted);margin:0}
+.foot{margin-top:auto;display:flex;gap:8px}
+.foot .btn{flex:1}
+.toggle{display:flex;justify-content:space-between;align-items:center}
+/* ---------- kiosk (always dark) ---------- */
+.kwrap{display:flex;flex-direction:column;gap:12px;min-width:0}
+.kctl{display:flex;gap:6px;flex-wrap:wrap}
+.kctl .btn{font-size:13px;padding:8px 12px}
+.kctl .btn[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.kiosk{container-type:inline-size;width:100%;max-width:100%;aspect-ratio:16/9;background:#050607;border-radius:18px;padding:1.2%;}
+.kscr{width:100%;height:100%;border-radius:12px;background:var(--k-bg);color:var(--k-fg);position:relative;overflow:hidden;font-family:var(--font)}
+.ks{position:absolute;inset:0;padding:4.2cqw 5cqw;display:flex;flex-direction:column}
+.ks[hidden]{display:none!important}
+.k-top{display:flex;justify-content:space-between;font-size:1.7cqw;color:var(--k-muted)}
+.k-conn{display:flex;align-items:center;gap:1.2cqw}
+.k-conn .ms{font-size:2.2cqw;color:var(--k-muted)}
+.k-warn{position:relative;background:none;border:0;padding:.4cqw;cursor:pointer;color:var(--k-warn);border-radius:1cqw;display:grid;place-items:center}
+.k-warn .ms{color:var(--k-warn)}
+.k-badge{position:absolute;top:-.4cqw;right:-.6cqw;width:1.7cqw;height:1.7cqw;border-radius:50%;background:var(--k-warn);color:#1A1408;font:700 1.2cqw/1.7cqw var(--font);text-align:center}
+.k-modal{position:absolute;inset:0;background:rgba(0,0,0,.55);display:grid;place-items:center;z-index:5}
+.k-dlg{background:var(--k-card);border:1px solid var(--k-line);border-radius:2.4cqw;padding:3.4cqw;width:52cqw;max-width:90%;display:flex;flex-direction:column;gap:1.6cqw}
+.k-dlg .hd{display:flex;align-items:center;gap:1.4cqw;font-size:3cqw;font-weight:600}
+.k-dlg .hd .ms{font-size:3.6cqw;color:var(--k-warn)}
+.k-dlg p{margin:0;font-size:2cqw;color:var(--k-muted);line-height:1.5}
+.k-dlg ul{margin:0;padding-left:2.6cqw;font-size:1.9cqw;color:var(--k-fg);line-height:1.6}
+.k-left{padding-left:2.4cqw}
+.k-amb{margin-top:auto;margin-bottom:4cqw;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4cqw;align-items:end}
+.k-msg{display:flex;flex-direction:column;gap:1.4cqw;min-width:0;position:relative;top:2.6cqw}
+.k-greet{font-size:3.2cqw;font-weight:600;line-height:1.2}
+.k-tip{display:flex;align-items:center;gap:1.4cqw;font-size:2.2cqw;line-height:1.4;color:var(--k-fg);background:var(--k-card);border:1px solid var(--k-line);border-radius:1.6cqw;padding:1.6cqw 2cqw}
+.k-tip .ms{font-size:3.4cqw;color:var(--k-accent)}
+.k-hours{display:grid;grid-template-columns:repeat(4,1fr);gap:1cqw}
+.k-hours>span{display:flex;flex-direction:column;align-items:center;gap:.5cqw;font-size:1.7cqw;color:var(--k-muted);font-variant-numeric:tabular-nums}
+.k-hours b{font-weight:500;font-size:1.5cqw}
+.k-hours .ms{font-size:2.6cqw}
+.k-hours .rain{color:var(--k-fg)}.k-hours .rain .ms{color:var(--k-accent)}
+.k-clock{font:500 11cqw/1 var(--mono);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.k-env{font-size:2.1cqw;color:var(--k-muted);margin-top:1.2cqw}
+.k-strip{margin-top:auto;display:flex;align-items:center;gap:1cqw}
+.k-devs{display:flex;gap:2.6cqw;overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;scrollbar-width:none;padding:.9cqw;flex:none;width:calc(4 * 8cqw + 3 * 2.6cqw + 1.8cqw);max-width:100%}
+.k-devs::-webkit-scrollbar{display:none}
+.kd{scroll-snap-align:start;flex:none;width:8cqw;min-width:0!important}
+.k-arr{flex:none;width:4.4cqw;height:4.4cqw;border-radius:50%;border:1px solid var(--k-line);background:var(--k-card);color:var(--k-fg);display:grid;place-items:center;cursor:pointer;margin-bottom:2.8cqw}
+.k-arr .ms{font-size:3cqw}
+.k-arr:disabled{opacity:.35;cursor:default}
+.k-arr[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){.k-devs{scroll-behavior:auto}}
+.kd{display:flex;flex-direction:column;align-items:center;gap:.8cqw;min-width:8cqw}
+.kd .o{width:7cqw;height:7cqw;border-radius:50%;display:grid;place-items:center;background:var(--k-card);color:var(--k-idle);position:relative}
+.kd .o .ms{font-size:3.4cqw}
+.kd.on .o{color:var(--k-accent);background:color-mix(in srgb,var(--k-accent) 14%,var(--k-card))}
+.kd.on .o::after{content:"";position:absolute;inset:-.5cqw;border-radius:50%;border:.35cqw solid var(--k-card2);border-top-color:var(--k-accent);border-right-color:var(--k-accent)}
+.kd .l{font-size:1.5cqw;color:var(--k-muted);font-variant-numeric:tabular-nums;min-height:2cqw}
+.kd.on .l{color:var(--k-accent);font-weight:600}
+.kd.att .o{color:var(--k-warn);animation:breathe 2.4s ease-in-out 3}
+@keyframes breathe{50%{box-shadow:0 0 0 1.2cqw color-mix(in srgb,var(--k-warn) 22%,transparent)}}
+@media (prefers-reduced-motion:reduce){.kd.att .o{animation:none;box-shadow:0 0 0 .5cqw color-mix(in srgb,var(--k-warn) 35%,transparent)}}
+.k-card{margin:auto 0;background:var(--k-card);border:1px solid var(--k-line);border-radius:2.4cqw;padding:3.4cqw;max-width:62cqw}
+.k-card .who{display:flex;align-items:center;gap:1cqw;font-size:1.9cqw;color:var(--k-muted)}
+.k-card .who .ms{font-size:2.6cqw;color:var(--k-accent)}
+.k-card h3{font-size:4.2cqw;font-weight:600;margin:1.4cqw 0 .6cqw;line-height:1.2}
+.k-card p{font-size:1.9cqw;color:var(--k-muted);margin:0 0 3cqw}
+.krow{display:flex;gap:1.6cqw}
+.kbtn{font:inherit;font-size:2.4cqw;font-weight:600;border-radius:1.6cqw;padding:1.8cqw 3.4cqw;border:1px solid var(--k-line);background:var(--k-card2);color:var(--k-fg);cursor:pointer}
+.kbtn.pri{background:var(--k-accent);border-color:var(--k-accent);color:#1A1408;flex:1}
+.k-run{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:4cqw;height:100%}
+.k-big{font:500 9cqw/1 var(--mono);color:var(--k-accent);font-variant-numeric:tabular-nums}
+.k-lbl{font-size:2cqw;color:var(--k-muted)}
+.k-bar{height:1cqw;border-radius:1cqw;background:var(--k-card2);overflow:hidden;margin:2.4cqw 0 1.6cqw}
+.k-bar i{display:block;height:100%;background:var(--k-accent);transition:width .8s linear}
+.k-stat{display:flex;flex-direction:column;gap:1.2cqw;font-size:1.9cqw;color:var(--k-muted)}
+.k-stat div{display:flex;align-items:center;gap:1cqw}
+.k-stat .ms{font-size:2.4cqw;color:var(--k-ok)}
+.k-stop{margin-top:auto;font:inherit;font-weight:600;font-size:3.4cqw;background:var(--k-danger);color:#fff;border:0;border-radius:2cqw;padding:2.4cqw;display:flex;align-items:center;justify-content:center;gap:1.4cqw;cursor:pointer}
+.k-stop .ms{font-size:4cqw}
+.k-panel{background:#23262B;border-radius:1.6cqw;overflow:hidden}
+.k-panel svg{display:block;width:100%;height:auto}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.principles{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-top:6px}
+.principles div{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.principles b{display:block;font-size:14px;margin-bottom:4px}
+.principles p{margin:0;font-size:13px;color:var(--muted)}
+</style>
+
+<div class="wrap">
+<header class="top">
+  <p class="eyebrow">SimpleLay · 팀 자비스 · 2026.09.30 시안</p>
+  <h1>데모 리모컨이 아니라, 우리 집에 붙은 제품처럼</h1>
+  <p>폰 앱은 탭을 눌러 이동할 수 있습니다. 키오스크는 오른쪽 위 버튼으로 상태를 바꿔 볼 수 있습니다. 가전 이름과 기록은 시안용 예시입니다.</p>
+</header>
+
+<div class="stage">
+<!-- ================= PHONE ================= -->
+<div>
+<p class="eyebrow">폰 앱</p>
+<div class="phone">
+<div class="screen">
+  <div class="sbar"><span>9:41</span><span>5G 86%</span></div>
+
+  <!-- HOME -->
+  <section class="view" id="v-home" aria-label="홈">
+    <div class="ph-h"><h2>우리 집</h2><span class="chip"><span class="dot"></span>허브 연결됨</span></div>
+    <div class="card sugg">
+      <div class="who"><span class="ms" aria-hidden="true">microwave</span>전자레인지 · 주방</div>
+      <h3>평소처럼 아침 데우기 할까요?</h3>
+      <p>최근 2주, 평일 아침 7시대에 5번 하셨어요</p>
+      <div class="row"><button class="btn primary" style="flex:1">실행하기</button><button class="btn">나중에</button></div>
+    </div>
+    <p class="sec">가전</p>
+    <div class="grid2">
+      <button class="dev" data-open="device">
+        <span class="ic"><span class="ms" aria-hidden="true">microwave</span></span>
+        <span><span class="nm">전자레인지</span><span class="st"><span>주방</span></span></span>
+      </button>
+      <button class="dev on" data-open="device">
+        <span class="ic"><span class="ms" aria-hidden="true">local_laundry_service</span></span>
+        <span><span class="nm">세탁기</span><span class="st"><span>다용도실</span><b>32분</b></span></span>
+        <span class="bar"><i style="width:58%"></i></span>
+      </button>
+      <button class="dev" data-open="device">
+        <span class="ic"><span class="ms" aria-hidden="true">doorbell</span></span>
+        <span><span class="nm">인터폰</span><span class="st"><span>현관</span></span></span>
+      </button>
+      <button class="dev" data-open="device">
+        <span class="ic"><span class="ms" aria-hidden="true">mode_fan</span></span>
+        <span><span class="nm">에어컨</span><span class="st"><span>거실</span><span class="badge">ThinQ</span></span></span>
+      </button>
+      <button class="dev add" data-open="wizard"><span class="ms" aria-hidden="true">add</span><span style="font-size:14px">가전 추가</span></button>
+    </div>
+  </section>
+
+  <!-- ROUTINES -->
+  <section class="view" id="v-routine" aria-label="루틴" hidden>
+    <div class="ph-h"><h2>루틴</h2><button class="btn primary" data-open="editor" style="padding:8px 12px"><span class="ms" aria-hidden="true">add</span>새 루틴</button></div>
+    <div class="card next"><span class="when">19:00</span><div style="min-width:0"><div style="font-weight:600">다음 실행 · 저녁 세탁 알림</div><div class="hint">오늘 · 세탁기 · 알림만</div></div></div>
+    <div class="seg" role="group" aria-label="루틴 보기"><button aria-pressed="true">내 루틴</button><button aria-pressed="false">추천</button></div>
+    <div class="card rt" data-open="editor" role="button" tabindex="0"><span class="ic"><span class="ms" aria-hidden="true">wb_twilight</span></span><div class="grow"><div class="t">아침 데우기</div><div class="s">평일 7:00 · 전자레인지 3단계 · 승인 후 실행</div></div><span class="ms" aria-hidden="true" style="color:var(--muted)">chevron_right</span></div>
+    <div class="card rt" data-open="editor" role="button" tabindex="0"><span class="ic"><span class="ms" aria-hidden="true">routine</span></span><div class="grow"><div class="t">나의 하루</div><div class="s">가전 4개 · 아침→외출→귀가</div></div><span class="ms" aria-hidden="true" style="color:var(--muted)">chevron_right</span></div>
+    <div class="card rt" data-open="editor" role="button" tabindex="0"><span class="ic"><span class="ms" aria-hidden="true">door_open</span></span><div class="grow"><div class="t">방문자 문 열기</div><div class="s">인터폰이 울리면 · 알림만</div></div><span class="ms" aria-hidden="true" style="color:var(--muted)">chevron_right</span></div>
+    <div class="card rt" data-open="editor" role="button" tabindex="0"><span class="ic"><span class="ms" aria-hidden="true">humidity_percentage</span></span><div class="grow"><div class="t">세탁 끝나면 제습</div><div class="s">세탁기 완료 → 제습기 · 승인 후 실행</div></div><span class="ms" aria-hidden="true" style="color:var(--muted)">chevron_right</span></div>
+  </section>
+
+  <!-- ACTIVITY -->
+  <section class="view" id="v-activity" aria-label="기록" hidden>
+    <div class="ph-h"><h2>기록</h2><span class="chip">전체 가전</span></div>
+    <div class="tl">
+      <div class="d">오늘</div>
+      <div class="e wt"><span class="tm">14:05</span><span class="mk"></span><span class="tx">세탁기 동작 중<small>표준 코스 · 약 32분 남음 · 전력으로 확인</small></span></div>
+      <div class="e ok"><span class="tm">13:40</span><span class="mk"></span><span class="tx">방문자 문 열기<small>인터폰 · 폰에서 승인 · 버튼 눌림 확인</small></span></div>
+      <div class="e ok"><span class="tm">07:12</span><span class="mk"></span><span class="tx">아침 데우기 완료<small>전자레인지 · 제안 → 승인 → 가열 확인 1분 30초</small></span></div>
+      <div class="e"><span class="tm">07:15</span><span class="mk"></span><span class="tx">복약 안내<small>음성 안내 · 확인함</small></span></div>
+      <div class="d">어제</div>
+      <div class="e st"><span class="tm">21:30</span><span class="mk"></span><span class="tx">전자레인지 정지됨<small>음성 "멈춰" · 정지 버튼 누름 → 전력 꺼짐 확인</small></span></div>
+      <div class="e ok"><span class="tm">19:02</span><span class="mk"></span><span class="tx">세탁 완료 → 제습기 켬<small>ThinQ · 상태 확인됨</small></span></div>
+    </div>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="view" id="v-settings" aria-label="설정" hidden>
+    <div class="ph-h"><h2>설정</h2></div>
+    <div class="set">
+      <button data-open="wizard"><span class="ms" aria-hidden="true">add_a_photo</span><span class="grow">가전 추가<br><small>사진을 찍고 버튼을 짚어 등록</small></span><span class="ms" aria-hidden="true">chevron_right</span></button>
+      <button><span class="ms" aria-hidden="true">hub</span><span class="grow">허브<br><small>주방 허브 · 연결됨</small></span><span class="ms" aria-hidden="true">chevron_right</span></button>
+      <button><span class="ms" aria-hidden="true">link</span><span class="grow">LG ThinQ 연결<br><small>계정 연결 전</small></span><span class="ms" aria-hidden="true">chevron_right</span></button>
+    </div>
+    <div class="set">
+      <button><span class="ms" aria-hidden="true">mic</span><span class="grow">음성으로 멈추기<br><small>동작 중에만 "멈춰"를 들어요</small></span><span class="ms" aria-hidden="true">chevron_right</span></button>
+      <button><span class="ms" aria-hidden="true">family_restroom</span><span class="grow">보호자 알림<br><small>확인이 없으면 알림을 보내요</small></span><span class="ms" aria-hidden="true">chevron_right</span></button>
+      <button><span class="ms" aria-hidden="true">text_increase</span><span class="grow">글자 크기</span><span class="ms" aria-hidden="true">chevron_right</span></button>
+    </div>
+  </section>
+
+  <!-- DEVICE DETAIL -->
+  <section class="view" id="v-device" aria-label="전자레인지" hidden>
+    <button class="back" data-back><span class="ms" aria-hidden="true">arrow_back</span>전자레인지</button>
+    <p class="hint">사진 속 버튼을 누르면 허브가 대신 눌러요. 빨간 점은 정지, 점선은 쉬는 자리예요.</p>
+    <div class="panel"><svg viewBox="0 0 340 250" role="img" aria-label="등록한 전자레인지 조작부 사진 위 버튼 표시">
+      <rect x="0" y="0" width="340" height="250" fill="#2A2D32"/>
+      <rect x="40" y="18" width="260" height="46" rx="6" fill="#111316"/>
+      <text x="170" y="49" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="22" fill="#7FD1A8">0:00</text>
+      <g fill="#3A3E45"><rect x="40" y="82" width="76" height="34" rx="6"/><rect x="132" y="82" width="76" height="34" rx="6"/><rect x="224" y="82" width="76" height="34" rx="6"/><rect x="40" y="128" width="76" height="34" rx="6"/><rect x="132" y="128" width="76" height="34" rx="6"/><rect x="224" y="128" width="76" height="34" rx="6"/><rect x="40" y="174" width="120" height="40" rx="6"/><rect x="180" y="174" width="120" height="40" rx="6"/></g>
+      <g font-family="IBM Plex Sans KR,sans-serif" font-size="12" fill="#C9CDD2" text-anchor="middle"><text x="78" y="104">해동</text><text x="170" y="104">30초</text><text x="262" y="104">1분</text><text x="78" y="150">데우기</text><text x="170" y="150">요리</text><text x="262" y="150">출력</text><text x="100" y="199">정지/취소</text><text x="240" y="199">시작</text></g>
+      <g fill="none" stroke="#D9A356" stroke-width="2.5"><circle cx="78" cy="99" r="20"/><circle cx="170" cy="99" r="20"/><circle cx="262" cy="99" r="20"/><circle cx="78" cy="145" r="20"/><circle cx="170" cy="145" r="20"/><circle cx="262" cy="145" r="20"/><circle cx="240" cy="194" r="22"/></g>
+      <circle cx="100" cy="194" r="22" fill="none" stroke="#D9605C" stroke-width="3"/>
+      <rect x="306" y="206" width="28" height="30" rx="4" fill="none" stroke="#9CA3AA" stroke-width="1.5" stroke-dasharray="4 3"/>
+    </svg></div>
+    <div class="card toggle"><div><div style="font-weight:600">내 루틴 2개</div><div class="hint">아침 데우기 · 저녁 데우기</div></div><button class="btn" data-open="record"><span class="ms" aria-hidden="true">radio_button_checked</span>루틴 녹화</button></div>
+    <div class="card"><div style="font-weight:600;margin-bottom:6px">오늘 사용</div><div class="hint">07:12 아침 데우기 · 가열 1분 30초 확인</div></div>
+  </section>
+
+  <!-- RECORD -->
+  <section class="view" id="v-record" aria-label="루틴 녹화" hidden>
+    <button class="back" data-back><span class="ms" aria-hidden="true">arrow_back</span>루틴 녹화</button>
+    <p class="hint">평소 누르는 순서대로 사진 속 버튼을 짚어 주세요. 지금은 저장만 하고 누르지는 않아요.</p>
+    <div class="panel"><svg viewBox="0 0 340 250" role="img" aria-label="녹화 중인 버튼 순서 1 해동, 2 1분, 3 시작">
+      <rect width="340" height="250" fill="#2A2D32"/><rect x="40" y="18" width="260" height="46" rx="6" fill="#111316"/>
+      <g fill="#3A3E45"><rect x="40" y="82" width="76" height="34" rx="6"/><rect x="132" y="82" width="76" height="34" rx="6"/><rect x="224" y="82" width="76" height="34" rx="6"/><rect x="40" y="128" width="76" height="34" rx="6"/><rect x="132" y="128" width="76" height="34" rx="6"/><rect x="224" y="128" width="76" height="34" rx="6"/><rect x="40" y="174" width="120" height="40" rx="6"/><rect x="180" y="174" width="120" height="40" rx="6"/></g>
+      <g font-family="IBM Plex Sans KR,sans-serif" font-size="12" fill="#C9CDD2" text-anchor="middle"><text x="78" y="104">해동</text><text x="170" y="104">30초</text><text x="262" y="104">1분</text><text x="78" y="150">데우기</text><text x="170" y="150">요리</text><text x="262" y="150">출력</text><text x="100" y="199">정지/취소</text><text x="240" y="199">시작</text></g>
+      <g font-family="IBM Plex Sans KR,sans-serif" font-size="13" font-weight="600" text-anchor="middle"><circle cx="78" cy="99" r="14" fill="#D9A356"/><text x="78" y="104" fill="#1A1408">1</text><circle cx="262" cy="99" r="14" fill="#D9A356"/><text x="262" y="104" fill="#1A1408">2</text><circle cx="240" cy="194" r="14" fill="#D9A356"/><text x="240" y="199" fill="#1A1408">3</text></g>
+    </svg></div>
+    <div class="steps"><span class="pin"><b>1</b>해동</span><span class="pin"><b>2</b>1분</span><span class="pin"><b>3</b>시작</span></div>
+    <div class="foot"><button class="btn">하나 지우기</button><button class="btn primary" data-open="editor">다음</button></div>
+  </section>
+
+  <!-- ROUTINE EDITOR -->
+  <section class="view" id="v-editor" aria-label="루틴 만들기" hidden>
+    <button class="back" data-back><span class="ms" aria-hidden="true">arrow_back</span>아침 데우기</button>
+    <div class="sent">
+      <div class="ln"><span class="k">언제</span><span class="tok">평일 7:00</span> 쯤 <span class="tok">주방에 다가오면</span></div>
+      <div class="ln"><span class="k">무엇을</span><span class="tok"><span class="ms" aria-hidden="true" style="font-size:16px">microwave</span>전자레인지</span> 에서 <span class="tok">해동 → 1분 → 시작</span> 누르기</div>
+      <div class="ln"><span class="k">그다음</span>끝나면 <span class="tok">복약 안내</span> 음성으로 알려 주기</div>
+      <button class="btn ghost" style="justify-content:flex-start"><span class="ms" aria-hidden="true">add</span>단계 추가</button>
+    </div>
+    <div class="card"><div style="font-weight:600;margin-bottom:8px">실행 방식</div>
+      <div class="seg" role="group" aria-label="실행 방식"><button aria-pressed="true">승인 후 실행</button><button aria-pressed="false">알림만</button></div>
+      <p class="hint" style="margin-top:8px">승인 없이 가전을 누르지 않아요.</p></div>
+    <div class="foot"><button class="btn primary">저장</button></div>
+  </section>
+
+  <!-- ADD WIZARD -->
+  <section class="view" id="v-wizard" aria-label="가전 추가" hidden>
+    <button class="back" data-back><span class="ms" aria-hidden="true">close</span>가전 추가</button>
+    <div class="stepper" aria-label="5단계 중 3단계"><span class="done"></span><span class="done"></span><span class="done"></span><span></span><span></span></div>
+    <div><div style="font-weight:600;font-size:17px">3. 버튼을 짚어 주세요</div><p class="hint">사진 속 버튼을 누르고 이름을 붙여요. 모서리 4점은 이미 맞췄어요.</p></div>
+    <div class="panel"><svg viewBox="0 0 340 250" role="img" aria-label="등록 중인 조작부 사진, 모서리 4점과 버튼 3개 지정">
+      <rect width="340" height="250" fill="#2A2D32"/>
+      <rect x="40" y="18" width="260" height="46" rx="6" fill="#111316"/>
+      <g fill="#3A3E45"><rect x="40" y="82" width="76" height="34" rx="6"/><rect x="132" y="82" width="76" height="34" rx="6"/><rect x="224" y="82" width="76" height="34" rx="6"/><rect x="40" y="128" width="76" height="34" rx="6"/><rect x="132" y="128" width="76" height="34" rx="6"/><rect x="224" y="128" width="76" height="34" rx="6"/><rect x="40" y="174" width="120" height="40" rx="6"/><rect x="180" y="174" width="120" height="40" rx="6"/></g>
+      <g fill="#D9A356"><path d="M8 8h18v4H12v14H8z"/><path d="M332 8h-18v4h14v14h4z"/><path d="M8 242h18v-4H12v-14H8z"/><path d="M332 242h-18v-4h14v-14h4z"/></g>
+      <g fill="none" stroke="#D9A356" stroke-width="2.5"><circle cx="78" cy="99" r="20"/><circle cx="170" cy="99" r="20"/><circle cx="262" cy="99" r="20"/></g>
+      <circle cx="78" cy="145" r="20" fill="rgba(217,163,86,.25)" stroke="#D9A356" stroke-width="2.5" stroke-dasharray="5 4"/>
+    </svg></div>
+    <div class="card row"><span class="ms" aria-hidden="true" style="color:var(--accent)">edit</span><div style="flex:1;min-width:0"><div class="hint">방금 짚은 버튼 이름</div><div style="font-weight:600">데우기</div></div><button class="btn">바꾸기</button></div>
+    <p class="hint">다음: 4. 정지 버튼과 쉬는 자리 · 5. 확인 주행(허브가 버튼 위를 한 번씩 지나가요)</p>
+    <div class="foot"><button class="btn">이전</button><button class="btn primary">다음</button></div>
+  </section>
+
+  <nav class="tabbar" role="tablist" aria-label="앱 탭">
+    <button role="tab" aria-selected="true" data-tab="home"><span class="ms" aria-hidden="true">home</span>홈</button>
+    <button role="tab" aria-selected="false" data-tab="routine"><span class="ms" aria-hidden="true">auto_awesome_motion</span>루틴</button>
+    <button role="tab" aria-selected="false" data-tab="activity"><span class="ms" aria-hidden="true">history</span>기록</button>
+    <button role="tab" aria-selected="false" data-tab="settings"><span class="ms" aria-hidden="true">settings</span>설정</button>
+  </nav>
+</div>
+</div>
+<p class="note">가전 카드를 누르면 사진 패널, 루틴 녹화, 루틴 만들기로 이어져요. 설정의 가전 추가는 5단계 등록 화면이에요.</p>
+</div>
+
+<!-- ================= KIOSK ================= -->
+<div class="kwrap">
+  <div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:10px">
+    <p class="eyebrow" style="margin:0">키오스크 · 15.8형 1920×1080 · 항상 어두운 화면</p>
+    <div class="kctl" role="group" aria-label="키오스크 상태">
+      <button class="btn" data-k="ambient" aria-pressed="true">평소</button>
+      <button class="btn" data-k="near" aria-pressed="false">다가오면</button>
+      <button class="btn" data-k="run" aria-pressed="false">동작 중</button>
+      <button class="btn" data-k="mine" aria-pressed="false">내 가전</button>
+    </div>
+  </div>
+  <div class="kiosk"><div class="kscr">
+
+    <div class="ks" id="k-ambient">
+      <div class="k-top"><span>9월 30일 화요일</span><span class="k-conn"><span class="ms" aria-label="와이파이 정상" role="img">wifi</span><span class="ms" aria-label="누름 장치 정상" role="img">precision_manufacturing</span><button class="k-warn" id="k-warn" aria-label="플러그 연결 확인이 필요해요. 자세히 보기"><span class="ms" aria-hidden="true">power</span><span class="k-badge" aria-hidden="true">!</span></button></span></div>
+      <div class="k-amb">
+        <div class="k-left">
+          <div class="k-clock">7:08</div>
+          <div class="k-env">실내 23° · 습도 58%</div>
+        </div>
+        <div class="k-msg">
+          <span class="k-greet">좋은 아침이에요.</span>
+          <div class="k-tip"><span class="ms" aria-hidden="true">umbrella</span><span>오후 3시부터 비 예보가 있어요.<br>우산 챙기세요.</span></div>
+          <div class="k-hours">
+            <span><b>9시</b><span class="ms" aria-hidden="true">partly_cloudy_day</span>16°</span>
+            <span><b>12시</b><span class="ms" aria-hidden="true">cloud</span>18°</span>
+            <span class="rain"><b>15시</b><span class="ms" aria-hidden="true">rainy</span>70%</span>
+            <span class="rain"><b>18시</b><span class="ms" aria-hidden="true">rainy</span>60%</span>
+          </div>
+        </div>
+      </div>
+      <div class="k-strip">
+        <button class="k-arr" id="k-prev" aria-label="이전 가전"><span class="ms" aria-hidden="true">chevron_left</span></button>
+        <div class="k-devs" id="k-devs">
+          <div class="kd on"><span class="o"><span class="ms" aria-hidden="true">local_laundry_service</span></span><span class="l">32:04</span></div>
+          <div class="kd att"><span class="o"><span class="ms" aria-hidden="true">doorbell</span></span><span class="l">방문자</span></div>
+          <div class="kd"><span class="o"><span class="ms" aria-hidden="true">microwave</span></span><span class="l"></span></div>
+          <div class="kd"><span class="o"><span class="ms" aria-hidden="true">mode_fan</span></span><span class="l"></span></div>
+          <div class="kd"><span class="o"><span class="ms" aria-hidden="true">humidity_percentage</span></span><span class="l"></span></div>
+          <div class="kd"><span class="o"><span class="ms" aria-hidden="true">cooking</span></span><span class="l"></span></div>
+          <div class="kd"><span class="o"><span class="ms" aria-hidden="true">air_purifier</span></span><span class="l"></span></div>
+        </div>
+        <button class="k-arr" id="k-next" aria-label="다음 가전"><span class="ms" aria-hidden="true">chevron_right</span></button>
+      </div>
+    </div>
+
+    <div class="ks" id="k-near" hidden>
+      <div class="k-top"><span>7:08</span><span>실내 23° · 58%</span></div>
+      <div class="k-card">
+        <div class="who"><span class="ms" aria-hidden="true">microwave</span>전자레인지 · 내 루틴 "아침 데우기"</div>
+        <h3>평소처럼 아침 데우기 할까요?</h3>
+        <p>최근 2주, 평일 아침 7시대에 5번 · 해동 → 1분 → 시작</p>
+        <div class="krow"><button class="kbtn pri">시작</button><button class="kbtn">다음에</button></div>
+      </div>
+    </div>
+
+    <div class="ks" id="k-run" hidden>
+      <div class="k-run">
+        <div style="display:flex;flex-direction:column;min-width:0">
+          <div class="k-lbl"><span class="ms" aria-hidden="true" style="font-size:2.4cqw;vertical-align:-.4cqw;color:var(--k-accent)">microwave</span> 전자레인지 동작 중</div>
+          <div class="k-big" id="k-time" style="margin-top:auto">1:02</div>
+          <div class="k-lbl">남은 시간 · 전력으로 추정</div>
+          <div class="k-bar"><i id="k-bar" style="width:31%"></i></div>
+          <div class="k-stat">
+            <div><span class="ms" aria-hidden="true">check_circle</span>버튼 3개 눌림 확인</div>
+            <div><span class="ms" aria-hidden="true">bolt</span>가열 중 1,120 W</div>
+            <div><span class="ms" aria-hidden="true" style="color:var(--k-accent)">my_location</span>정지 버튼 위에서 대기 중</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2cqw;min-width:0">
+          <div class="k-panel"><svg viewBox="0 0 340 250" role="img" aria-label="정지 버튼 위 대기 위치 표시">
+            <rect width="340" height="250" fill="#2A2D32"/><rect x="40" y="18" width="260" height="46" rx="6" fill="#111316"/>
+            <text x="170" y="49" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="22" fill="#7FD1A8">1:02</text>
+            <g fill="#3A3E45"><rect x="40" y="82" width="76" height="34" rx="6"/><rect x="132" y="82" width="76" height="34" rx="6"/><rect x="224" y="82" width="76" height="34" rx="6"/><rect x="40" y="128" width="76" height="34" rx="6"/><rect x="132" y="128" width="76" height="34" rx="6"/><rect x="224" y="128" width="76" height="34" rx="6"/><rect x="40" y="174" width="120" height="40" rx="6"/><rect x="180" y="174" width="120" height="40" rx="6"/></g>
+            <g font-family="IBM Plex Sans KR,sans-serif" font-size="12" fill="#C9CDD2" text-anchor="middle"><text x="100" y="199">정지/취소</text><text x="240" y="199">시작</text></g>
+            <circle cx="100" cy="194" r="24" fill="rgba(217,96,92,.18)" stroke="#D9605C" stroke-width="3"/>
+            <rect x="86" y="180" width="28" height="28" rx="6" fill="none" stroke="#D9A356" stroke-width="2.5"/>
+          </svg></div>
+          <button class="k-stop"><span class="ms" aria-hidden="true">stop_circle</span>정지</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="ks" id="k-mine" hidden>
+      <div class="k-top"><span style="color:var(--k-fg);font-size:2.2cqw;font-weight:600">내 전자레인지</span><span>사진 속 버튼을 누르면 허브가 대신 눌러요</span></div>
+      <div style="display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:3cqw;margin-top:2.4cqw;flex:1;min-height:0">
+        <div class="k-panel" style="align-self:start"><svg viewBox="0 0 340 250" role="img" aria-label="내 전자레인지 조작부 사진">
+          <rect width="340" height="250" fill="#2A2D32"/><rect x="40" y="18" width="260" height="46" rx="6" fill="#111316"/>
+          <text x="170" y="49" text-anchor="middle" font-family="IBM Plex Mono,monospace" font-size="22" fill="#7FD1A8">0:00</text>
+          <g fill="#3A3E45"><rect x="40" y="82" width="76" height="34" rx="6"/><rect x="132" y="82" width="76" height="34" rx="6"/><rect x="224" y="82" width="76" height="34" rx="6"/><rect x="40" y="128" width="76" height="34" rx="6"/><rect x="132" y="128" width="76" height="34" rx="6"/><rect x="224" y="128" width="76" height="34" rx="6"/><rect x="40" y="174" width="120" height="40" rx="6"/><rect x="180" y="174" width="120" height="40" rx="6"/></g>
+          <g font-family="IBM Plex Sans KR,sans-serif" font-size="12" fill="#C9CDD2" text-anchor="middle"><text x="78" y="104">해동</text><text x="170" y="104">30초</text><text x="262" y="104">1분</text><text x="78" y="150">데우기</text><text x="170" y="150">요리</text><text x="262" y="150">출력</text><text x="100" y="199">정지/취소</text><text x="240" y="199">시작</text></g>
+          <g fill="none" stroke="#D9A356" stroke-width="2.5"><circle cx="78" cy="99" r="20"/><circle cx="170" cy="99" r="20"/><circle cx="262" cy="99" r="20"/><circle cx="78" cy="145" r="20"/><circle cx="170" cy="145" r="20"/><circle cx="262" cy="145" r="20"/><circle cx="240" cy="194" r="22"/></g>
+          <circle cx="100" cy="194" r="22" fill="none" stroke="#D9605C" stroke-width="3"/>
+          <rect x="306" y="206" width="28" height="30" rx="4" fill="none" stroke="#9CA3AA" stroke-width="1.5" stroke-dasharray="4 3"/>
+        </svg></div>
+        <div style="display:flex;flex-direction:column;gap:1.6cqw;min-width:0">
+          <div class="k-lbl">내 루틴</div>
+          <button class="kbtn" style="text-align:left;display:flex;justify-content:space-between"><span>아침 데우기</span><span style="color:var(--k-muted);font-weight:500">3단계</span></button>
+          <button class="kbtn" style="text-align:left;display:flex;justify-content:space-between"><span>저녁 데우기</span><span style="color:var(--k-muted);font-weight:500">4단계</span></button>
+          <div class="k-lbl" style="margin-top:auto">새 루틴은 폰 앱에서 녹화해요</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="k-modal" id="k-modal" hidden role="dialog" aria-modal="true" aria-labelledby="k-dlg-h">
+      <div class="k-dlg">
+        <div class="hd" id="k-dlg-h"><span class="ms" aria-hidden="true">power</span>플러그 연결이 약해요</div>
+        <p>가전이 끝났는지 알려 주는 플러그와 연결이 약해요. 지금은 끝났다는 알림이 늦거나 오지 않을 수 있어요.</p>
+        <ul><li>플러그가 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.</li><li>허브와 플러그 사이가 너무 멀면 가까이 옮겨 주세요.</li></ul>
+        <div class="krow"><button class="kbtn pri" data-close>다시 연결하기</button><button class="kbtn" data-close>닫기</button></div>
+      </div>
+    </div>
+  </div></div>
+  <div class="legend"><span><i style="background:var(--idle)"></i>회색 · 쉬는 중</span><span><i style="background:var(--accent)"></i>강조색과 숫자 · 동작 중</span><span><i style="background:var(--warn)"></i>느린 깜빡임 3번 · 봐 주세요</span><span><i style="background:var(--danger)"></i>빨강 · 정지</span></div>
+
+  <p class="eyebrow" style="margin-top:14px">이번 시안의 원칙</p>
+  <div class="principles">
+    <div><b>메뉴는 사용자가 만든다</b><p>"즉석밥" 같은 고정 버튼 대신, 사진 위에서 녹화한 내 루틴과 이력에서 나온 제안만 보여요.</p></div>
+    <div><b>한 번에 제안 하나</b><p>키오스크와 홈 모두 제안 카드는 한 장이에요. 나머지는 폰의 루틴 탭에 둬요.</p></div>
+    <div><b>색만으로 말하지 않는다</b><p>동작 중은 강조색에 남은 시간 숫자를 붙이고, 오류와 정지는 문구로도 적어요.</p></div>
+    <div><b>승인 없이 누르지 않는다</b><p>가전 카드를 눌러도 바로 실행되지 않아요. 실행은 항상 시작 버튼을 거쳐요.</p></div>
+  </div>
+</div>
+</div>
+</div>
+
+<script>
+(function(){
+  var tabs=document.querySelectorAll('[data-tab]');
+  var views={home:'v-home',routine:'v-routine',activity:'v-activity',settings:'v-settings'};
+  var stack=[];var current='v-home';
+  function show(id){document.querySelectorAll('.view').forEach(function(v){v.hidden=(v.id!==id)});current=id;
+    var sc=document.getElementById(id);if(sc)sc.scrollTop=0;}
+  tabs.forEach(function(b){b.addEventListener('click',function(){
+    tabs.forEach(function(t){t.setAttribute('aria-selected',t===b?'true':'false')});
+    stack=[];show(views[b.dataset.tab]);});});
+  document.querySelectorAll('[data-open]').forEach(function(el){
+    function go(){stack.push(current);show('v-'+el.dataset.open);}
+    el.addEventListener('click',go);
+    el.addEventListener('keydown',function(e){if(e.key==='Enter'||e.key===' '){e.preventDefault();go();}});});
+  document.querySelectorAll('[data-back]').forEach(function(b){b.addEventListener('click',function(){show(stack.pop()||'v-home');});});
+  document.querySelectorAll('.seg').forEach(function(g){var bs=g.querySelectorAll('button');
+    bs.forEach(function(b){b.addEventListener('click',function(){bs.forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});});});});
+
+  var kb=document.querySelectorAll('[data-k]');
+  kb.forEach(function(b){b.addEventListener('click',function(){
+    kb.forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});
+    document.querySelectorAll('.ks').forEach(function(s){s.hidden=(s.id!=='k-'+b.dataset.k)});});});
+
+  var modal=document.getElementById('k-modal'),warn=document.getElementById('k-warn');
+  warn.addEventListener('click',function(){modal.hidden=false;modal.querySelector('.kbtn').focus();});
+  modal.querySelectorAll('[data-close]').forEach(function(b){b.addEventListener('click',function(){modal.hidden=true;warn.focus();});});
+  modal.addEventListener('click',function(e){if(e.target===modal){modal.hidden=true;}});
+  document.addEventListener('keydown',function(e){if(e.key==='Escape'&&!modal.hidden){modal.hidden=true;warn.focus();}});
+  var devs=document.getElementById('k-devs'),prev=document.getElementById('k-prev'),next=document.getElementById('k-next');
+  function arrows(){var over=devs.scrollWidth>devs.clientWidth+2;
+    var atStart=devs.scrollLeft<=2,atEnd=devs.scrollLeft+devs.clientWidth>=devs.scrollWidth-2;
+    prev.style.visibility=(over&&!atStart)?'visible':'hidden';next.style.visibility=(over&&!atEnd)?'visible':'hidden';}
+  function page(){var k=devs.querySelectorAll('.kd');if(k.length<2)return devs.clientWidth;return (k[1].offsetLeft-k[0].offsetLeft)*4;}
+  prev.addEventListener('click',function(){devs.scrollBy({left:-page()});});
+  next.addEventListener('click',function(){devs.scrollBy({left:page()});});
+  (function(){var down=false,sx=0,sl=0,moved=false;
+    devs.addEventListener('pointerdown',function(e){if(e.pointerType==='touch')return;down=true;moved=false;sx=e.clientX;sl=devs.scrollLeft;devs.style.scrollSnapType='none';devs.style.scrollBehavior='auto';devs.setPointerCapture(e.pointerId);});
+    devs.addEventListener('pointermove',function(e){if(!down)return;var dx=e.clientX-sx;if(Math.abs(dx)>3)moved=true;devs.scrollLeft=sl-dx;});
+    function end(){if(!down)return;down=false;devs.style.scrollBehavior='';devs.style.scrollSnapType='';
+      var w=page()/4,target=Math.round(devs.scrollLeft/w)*w;devs.scrollTo({left:target});}
+    devs.addEventListener('pointerup',end);devs.addEventListener('pointercancel',end);})();
+  devs.style.touchAction='pan-x';devs.style.cursor='grab';
+  devs.addEventListener('scroll',arrows);window.addEventListener('resize',arrows);
+  document.querySelectorAll('[data-k]').forEach(function(b){b.addEventListener('click',function(){setTimeout(arrows,0);});});
+  arrows();
+  var total=90,left=62,reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var t=document.getElementById('k-time'),bar=document.getElementById('k-bar');
+  function paint(){var m=Math.floor(left/60),s=left%60;t.textContent=m+':'+(s<10?'0':'')+s;bar.style.width=Math.round((total-left)/total*100)+'%';}
+  if(!reduce){setInterval(function(){left=left>0?left-1:62;paint();},1000);}
+  paint();
+})();
+</script>
