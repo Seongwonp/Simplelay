@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
@@ -124,8 +123,13 @@ final rpiApiKeyProvider = StateNotifierProvider<RpiApiKeyNotifier, String?>(
 /// 분기(아래)를 건너뛰어 정작 검증하려던 것을 못 본다.
 final rpiHttpClientProvider = Provider<http.Client?>((_) => null);
 
+// 발견한 주소는 현재 세션에서만 쓰고 사용자가 저장한 이름을 보존한다.
+final resolvedRpiUrlProvider = StateProvider<(String, String)?>((_) => null);
+
 final rpiApiServiceProvider = Provider<RpiApiService?>((ref) {
-  final url = ref.watch(rpiUrlProvider);
+  final savedUrl = ref.watch(rpiUrlProvider);
+  final resolved = ref.watch(resolvedRpiUrlProvider);
+  final url = resolved?.$1 == savedUrl ? resolved?.$2 : savedUrl;
   if (url == null || url.isEmpty) return null;
   final apiKey = ref.watch(rpiApiKeyProvider);
   final client = ref.watch(rpiHttpClientProvider);
@@ -141,7 +145,7 @@ final rpiApiServiceProvider = Provider<RpiApiService?>((ref) {
 
 // ── RPi 연결 상태 ─────────────────────────────────────────────────────────
 
-enum RpiConnectionState { unconfigured, checking, connected, unreachable }
+enum RpiConnectionState { unconfigured, checking, connected, keyRequired, unreachable }
 
 class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
   RpiConnectionNotifier(this._ref) : super(RpiConnectionState.unconfigured) {
@@ -152,6 +156,9 @@ class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
     // 바로 check()하면 캐시에 남은 옛 주소의 서비스(또는 주소가 없던 때의
     // null)로 ping을 보내, 새 주소가 닿는데도 '닿지 않음'·'미설정'이 된다
     // (2026-09-30 에뮬레이터: 주소 저장 뒤 '재시도'를 눌러야만 연결됨).
+    _ref.listen(rpiApiKeyProvider, (_, next) {
+      scheduleMicrotask(() => mounted ? check() : null);
+    });
     _ref.listen(rpiUrlProvider, (_, next) {
       if (next != null) scheduleMicrotask(() => mounted ? check() : null);
     });
@@ -175,23 +182,32 @@ class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
       return;
     }
     state = RpiConnectionState.checking;
-    final ok = await service.ping();
-    if (stale()) return; // dispose 후·더 새 확인이 있으면 쓰지 않는다
-    if (ok) {
-      state = RpiConnectionState.connected;
-      return;
+    Future<RpiConnectionState> probe(RpiApiService api) async {
+      try {
+        return await api.ping()
+            ? RpiConnectionState.connected
+            : RpiConnectionState.unreachable;
+      } on RpiApiException catch (e) {
+        return e.statusCode == 401
+            ? RpiConnectionState.keyRequired
+            : RpiConnectionState.unreachable;
+      }
     }
-    // Android는 .local(mDNS) 호스트명을 시스템 DNS로 해석 못 한다 — 앱이
-    // 직접 mDNS 질의를 보내 IP를 알아내고 URL을 교체한다. 교체 저장이
-    // rpiUrlProvider listen을 통해 재확인을 자동으로 트리거한다.
-    final resolved = await _tryResolveMdns(stale, checkedUrl);
+
+    var result = await probe(service);
     if (stale()) return;
-    if (!resolved) state = RpiConnectionState.unreachable;
+    if (result == RpiConnectionState.unreachable) {
+      final resolved = await _tryResolveMdns(stale, checkedUrl);
+      if (stale()) return;
+      if (resolved) {
+        final fresh = _ref.read(rpiApiServiceProvider);
+        if (fresh != null) result = await probe(fresh);
+      }
+    }
+    if (!stale()) state = result;
   }
 
   Future<bool> _tryResolveMdns(bool Function() stale, String? checkedUrl) async {
-    // flutter test 환경에서는 실제 멀티캐스트 소켓/타이머를 만들지 않는다
-    if (Platform.environment.containsKey('FLUTTER_TEST')) return false;
     final url = _ref.read(rpiUrlProvider);
     // 확인하던 사이에 사용자가 주소를 바꿨으면 옛 .local 풀이로 덮지 않는다.
     if (url == null || url != checkedUrl) return false;
@@ -199,7 +215,8 @@ class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
     if (uri == null || !uri.host.endsWith('.local')) return false;
     final ip = await _ref.read(mdnsResolverProvider).resolveIPv4(uri.host);
     if (ip == null || stale()) return false;
-    await _ref.read(rpiUrlProvider.notifier).save(uri.replace(host: ip).toString());
+    _ref.read(resolvedRpiUrlProvider.notifier).state =
+        (url, uri.replace(host: ip).toString());
     return true;
   }
 }

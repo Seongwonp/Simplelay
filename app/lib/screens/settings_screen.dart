@@ -177,6 +177,7 @@ class SettingsScreen extends ConsumerWidget {
 
   static String _hubLine(RpiConnectionState state) => switch (state) {
         RpiConnectionState.connected => '연결됨 · 위치와 주소 설정',
+        RpiConnectionState.keyRequired => '허브 키가 필요해요',
         RpiConnectionState.checking => '확인하는 중이에요',
         RpiConnectionState.unreachable => '지금은 닿지 않아요',
         RpiConnectionState.unconfigured => '아직 주소가 없어요',

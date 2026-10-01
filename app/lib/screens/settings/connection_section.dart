@@ -19,6 +19,7 @@ class _RpiConnectionTile extends ConsumerWidget {
           '확인하는 중이에요…',
           Icons.sync
         ),
+      RpiConnectionState.keyRequired => (context.appWarning, '허브 키가 필요해요', Icons.key),
       RpiConnectionState.connected => (
           context.appSuccess,
           '연결됐어요 — 버튼을 대신 눌러 줄 수 있어요',
@@ -205,7 +206,7 @@ class _AdvancedSection extends ConsumerWidget {
           const SizedBox(height: 4),
           Text(
             '기본값: http://simplelay.local:8000\n'
-            '같은 Wi-Fi에서 mDNS로 자동 연결돼요.',
+            '같은 와이파이에서 허브를 찾아요.',
             style: TextStyle(color: context.appMuted, fontSize: 11),
           ),
           const SizedBox(height: 10),
@@ -241,30 +242,16 @@ class _AdvancedSection extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'API 키 (선택)',
+            '허브 키',
             style: TextStyle(color: context.appMuted, fontSize: 13),
           ),
           const SizedBox(height: 4),
           Text(
-            '서버에 SIMPLELAY_API_KEY가 설정된 경우에만 입력하세요.\n'
-            '시연장 같은 공유 Wi-Fi에서 외부 접근을 막을 때 써요.',
+            '허브에 설정한 키를 입력해 주세요.',
             style: TextStyle(color: context.appMuted, fontSize: 11),
           ),
           const SizedBox(height: 8),
-          TextField(
-            controller: apiKeyController,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
-              hintText: '미설정 시 비워두세요',
-              contentPadding:
-                  EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              isDense: true,
-            ),
-            style: const TextStyle(fontSize: 13),
-            autocorrect: false,
-            obscureText: true,
-            onSubmitted: (_) => _save(ref),
-          ),
+          _HubKeyField(controller: apiKeyController, onSubmitted: () => _save(ref)),
           const SizedBox(height: 6),
           TextButton(
             onPressed: () async {
@@ -387,4 +374,33 @@ class _BleSection extends ConsumerWidget {
       ],
     );
   }
+}
+
+class _HubKeyField extends StatefulWidget {
+  const _HubKeyField({required this.controller, required this.onSubmitted});
+  final TextEditingController controller;
+  final VoidCallback onSubmitted;
+  @override
+  State<_HubKeyField> createState() => _HubKeyFieldState();
+}
+
+class _HubKeyFieldState extends State<_HubKeyField> {
+  bool _visible = false;
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: widget.controller,
+    obscureText: !_visible,
+    autocorrect: false,
+    enableSuggestions: false,
+    decoration: InputDecoration(
+      border: const OutlineInputBorder(),
+      hintText: '허브 키를 입력해 주세요',
+      suffixIcon: IconButton(
+        tooltip: _visible ? '키 숨기기' : '키 보기',
+        icon: Icon(_visible ? Icons.visibility_off : Icons.visibility),
+        onPressed: () => setState(() => _visible = !_visible),
+      ),
+    ),
+    onSubmitted: (_) => widget.onSubmitted(),
+  );
 }

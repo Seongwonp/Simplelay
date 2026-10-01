@@ -30,7 +30,7 @@ http.Client _client() => MockClient((req) async {
         await Future<void>.delayed(const Duration(seconds: 2));
         throw http.ClientException('host lookup failed', req.url);
       }
-      if (req.url.host == _newHost && req.url.path == '/health') {
+      if (req.url.host == _newHost && req.url.path == '/status') {
         return http.Response('{"status":"ok"}', 200,
             headers: {'content-type': 'application/json'});
       }

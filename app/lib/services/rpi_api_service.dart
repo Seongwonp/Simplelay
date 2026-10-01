@@ -573,9 +573,14 @@ class RpiApiService {
   Future<bool> ping() async {
     try {
       final res = await _client
-          .get(_base.replace(path: '/health'), headers: _headers)
+          .get(_base.replace(path: '/status'), headers: _headers)
           .timeout(_timeout);
+      if (res.statusCode == 401) {
+        throw RpiApiException(401, '허브 키가 필요해요');
+      }
       return res.statusCode == 200;
+    } on RpiApiException {
+      rethrow;
     } catch (_) {
       return false;
     }

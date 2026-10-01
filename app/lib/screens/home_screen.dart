@@ -223,6 +223,7 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final (String text, Color dot) = switch (rpiState) {
       RpiConnectionState.connected => ('허브 연결됨', context.appPrimary),
+      RpiConnectionState.keyRequired => ('허브 키가 필요해요', context.appWarning),
       RpiConnectionState.checking ||
       RpiConnectionState.unconfigured =>
         ('허브 확인 중', context.appMuted),
@@ -891,6 +892,9 @@ class _RpiStatusCard extends ConsumerWidget {
       // 확인한 것은 /ping 응답뿐이다. 추론 계층이 켜졌는지, 가전이 물려
       // 있는지는 이 신호로 알 수 없다 -- 확인한 만큼만 말한다.
       // (온디바이스 추론 경계는 docs/inference-boundary.md)
+      RpiConnectionState.keyRequired => (
+          context.appWarning, Icons.key, '허브 키가 필요해요', '설정에서 허브 키를 입력해 주세요.'
+        ),
       RpiConnectionState.connected => (
           context.appSuccess,
           Icons.wifi,
