@@ -13,6 +13,9 @@ import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../widgets/panel_photo_view.dart';
+import '../widgets/input_guard.dart';
+import '../widgets/appliance_setup_card.dart';
+import 'appliance_editor_screen.dart';
 
 /// 가전 추가 5단계(UI 확정 §2, 실행 계획 §3-2):
 /// ① 사진 ② 프레임 모서리 4점 ③ 버튼 짚고 이름 붙이기 ④ 정지 버튼과 쉬는 자리
@@ -23,7 +26,9 @@ import '../widgets/panel_photo_view.dart';
 /// 서버가 쓴 문장을 그대로 보여 준다. 확인 주행은 누르지 않고 버튼 위를
 /// 지나가기만 하며, 모의 주행이면 그렇다고 말한다.
 class AddApplianceWizardScreen extends ConsumerStatefulWidget {
-  const AddApplianceWizardScreen({super.key});
+  const AddApplianceWizardScreen({super.key, this.initial, this.verifyOnly = false});
+  final ApplianceMap? initial;
+  final bool verifyOnly;
 
   @override
   ConsumerState<AddApplianceWizardScreen> createState() =>
@@ -55,7 +60,7 @@ class _AddApplianceWizardScreenState
   // ① 사진
   File? _photo;
   Size? _photoSize;
-  final _name = TextEditingController();
+  final _name = TextEditingController(text: '전자레인지');
   final _room = TextEditingController();
   ApplianceCategory _category = ApplianceCategory.microwave;
 
@@ -85,7 +90,36 @@ class _AddApplianceWizardScreenState
   Timer? _poll;
 
   /// 이 등록의 가전 id. 저장을 다시 시도해도 같은 가전을 가리키게 한 번만 만든다.
-  late final String _id = 'custom_${DateTime.now().millisecondsSinceEpoch}';
+  late final String _id = widget.initial?.id ?? 'custom_${DateTime.now().millisecondsSinceEpoch}';
+  bool _transferring = false;
+  bool _stopChosen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final a = widget.initial;
+    if (a != null) {
+      _name.text = a.name;
+      _room.text = a.location ?? '';
+      _category = a.category;
+      _photo = a.photoPath == null ? null : File(a.photoPath!);
+      _stopId = a.stopButton;
+      _stopChosen = a.stopButton != null;
+      final mapping = a.panelMapping;
+      if (mapping != null) {
+        _photoSize = Size(mapping.photoWidth, mapping.photoHeight);
+        _corners.addAll(mapping.corners);
+        for (final b in a.buttons) {
+          final point = mapping.buttons[b.id];
+          if (point != null) _buttons.add(_Tapped(b.id, b.label, point));
+        }
+        _park = mapping.parkPoint;
+        _step = widget.verifyOnly ? 4 : 1;
+        if (widget.verifyOnly) _saved = a;
+        unawaited(_loadFrame());
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -127,6 +161,10 @@ class _AddApplianceWizardScreenState
     }
     setState(() {
       _step++;
+      if (_step == 3 && !_stopChosen) {
+        final candidates = _buttons.where((b) => RegExp(r'정지|취소|stop|cancel', caseSensitive: false).hasMatch(b.label)).toList();
+        _stopId = candidates.length == 1 ? candidates.single.id : null;
+      }
       _error = null;
     });
     if (_step == 1 && !_frameLoaded) unawaited(_loadFrame());
@@ -187,6 +225,17 @@ class _AddApplianceWizardScreenState
   // ── ③ 버튼 ────────────────────────────────────────────────────────────
 
   Future<void> _addButton(PhotoPoint p) async {
+    final existing = widget.initial;
+    if (existing != null) {
+      final chosen = await showDialog<ApplianceButton>(context: context, builder: (dialog) => SimpleDialog(
+        title: const Text('이 자리에 있는 버튼을 골라 주세요'),
+        children: [for (final b in existing.buttons.where((b) => !_buttons.any((t) => t.id == b.id)))
+          SimpleDialogOption(onPressed: () => Navigator.pop(dialog, b), child: Text(b.label)),
+        ],
+      ));
+      if (chosen != null && mounted) setState(() => _buttons.add(_Tapped(chosen.id, chosen.label, p)));
+      return;
+    }
     final suggested = '버튼 ${_buttons.length + 1}';
     final label = await _askName(suggested);
     if (label == null || !mounted) return;
@@ -197,6 +246,7 @@ class _AddApplianceWizardScreenState
   }
 
   Future<void> _rename(_Tapped b) async {
+    if (widget.initial != null) return;
     final label = await _askName(b.label);
     if (label == null || !mounted) return;
     setState(() => b.label = _unique(label, except: b));
@@ -261,7 +311,7 @@ class _AddApplianceWizardScreenState
     try {
       final draft = await _draftAppliance();
       // 1) 가전과 버튼 이름을 허브에 올린다 -- 매핑은 허브가 아는 버튼에만 붙는다.
-      await api.registerApplianceStrict(draft);
+      if (widget.initial == null) await api.registerApplianceStrict(draft);
       // 2) 사진 좌표 → mm. 거절(422)은 서버 문장 그대로.
       final result = await api.saveMapping(
         _id,
@@ -338,6 +388,9 @@ class _AddApplianceWizardScreenState
   /// 그리므로, 사진 위 위치를 줄(세로) → 칸(가로) 순서로 옮겨 적는다.
   Future<ApplianceMap> _draftAppliance() async {
     final photoPath = await _persistPhoto();
+    if (widget.initial case final a?) {
+      return ApplianceMap.fromJson({...a.toJson(), 'photo_path': photoPath});
+    }
     final grid = gridFromPoints(
       [for (final b in _buttons) (b.id, b.label, b.point)],
       rowTolerance: (_photoSize?.height ?? 1000) * 0.06,
@@ -407,6 +460,7 @@ class _AddApplianceWizardScreenState
 
   void _finish() {
     _poll?.cancel();
+    ref.invalidate(setupPassProvider(_id));
     final saved = _saved;
     if (saved == null) {
       context.pop();
@@ -419,7 +473,9 @@ class _AddApplianceWizardScreenState
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return InputGuard(
+      dirty: !_transferring && _saved == null && (_photo != null || _room.text.isNotEmpty || _name.text != '전자레인지' || _buttons.isNotEmpty),
+      child: Scaffold(
       appBar: AppBar(
         leading: IconButton(
           tooltip: '닫기',
@@ -482,6 +538,7 @@ class _AddApplianceWizardScreenState
                 ),
         ),
       ),
+    ),
     );
   }
 
@@ -548,6 +605,7 @@ class _AddApplianceWizardScreenState
         ),
         TextField(
           controller: _room,
+          onChanged: (_) => setState(() {}),
           maxLength: 20,
           decoration: const InputDecoration(labelText: '방 (선택, 예: 주방)'),
         ),
@@ -561,7 +619,10 @@ class _AddApplianceWizardScreenState
                 avatar: Icon(c.icon, size: 18),
                 label: Text(c.label),
                 selected: _category == c,
-                onSelected: (_) => setState(() => _category = c),
+                onSelected: (_) => setState(() {
+                  if (_name.text.isEmpty || _name.text == _category.label) _name.text = c.label;
+                  _category = c;
+                }),
               ),
           ],
         ),
@@ -569,7 +630,13 @@ class _AddApplianceWizardScreenState
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton(
-            onPressed: () => context.pushReplacement('/appliance/new'),
+            onPressed: widget.initial != null ? null : () async {
+              setState(() => _transferring = true);
+              await WidgetsBinding.instance.endOfFrame;
+              if (!mounted) return;
+              if (context.mounted) context.pushReplacement('/appliance/new', extra: ApplianceDraft(
+                name: _name.text, room: _room.text, category: _category));
+            },
             child: const Text('사진 없이 버튼판으로 등록하기'),
           ),
         ),
@@ -719,7 +786,7 @@ class _AddApplianceWizardScreenState
                 key: Key('wizard-stop-${b.id}'),
                 label: Text(b.label),
                 selected: _stopId == b.id,
-                onSelected: (on) => setState(() => _stopId = on ? b.id : null),
+                onSelected: (on) => setState(() { _stopChosen = true; _stopId = on ? b.id : null; }),
               ),
           ],
         ),

@@ -236,7 +236,7 @@ void main() {
 
     // ④ 정지 버튼과 쉬는 자리.
     expect(_title(tester), '4. 정지 버튼과 쉬는 자리');
-    await tester.tap(find.widgetWithText(ChoiceChip, '취소'));
+    expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '취소')).selected, isTrue);
     await tester.pump();
     await tester.tap(find.text('2번'));
     await tester.pump();

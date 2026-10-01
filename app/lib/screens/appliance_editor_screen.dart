@@ -14,12 +14,21 @@ import '../services/panel_scan_fill.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/input_guard.dart';
 
 const _minGridSize = 1;
 const _maxGridSize = 6;
 
+class ApplianceDraft {
+  const ApplianceDraft({required this.name, required this.room, required this.category});
+  final String name;
+  final String room;
+  final ApplianceCategory category;
+}
+
 class ApplianceEditorScreen extends ConsumerStatefulWidget {
-  const ApplianceEditorScreen({super.key});
+  const ApplianceEditorScreen({super.key, this.draft});
+  final ApplianceDraft? draft;
 
   @override
   ConsumerState<ApplianceEditorScreen> createState() =>
@@ -41,10 +50,17 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
   /// 사진 인식 요청 중. 끝날 때까지 다시 찍기·제거·재요청을 막는다 --
   /// 중간에 사진이 바뀌면 다른 사진의 결과가 격자에 들어간다.
   bool _scanning = false;
+  bool _saved = false;
 
   @override
   void initState() {
     super.initState();
+    final draft = widget.draft;
+    if (draft != null) {
+      _nameController.text = draft.name;
+      _locationController.text = draft.room;
+      _category = draft.category;
+    }
     // 아래 고정 줄이 지금까지 적은 것을 되풀이한다 -- 입력을 따라가야 한다.
     _nameController.addListener(_refresh);
     _locationController.addListener(_refresh);
@@ -308,6 +324,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     await ref.read(selectedApplianceProvider.notifier).select(appliance);
 
     if (!mounted) return;
+    setState(() => _saved = true);
     // 등록됐다는 것과 조작할 수 있다는 것은 다르다. 여기서 바로 사라지면,
     // 사용자는 다 끝난 줄 알고 홈으로 가서 '아직 연결되지 않았어요'를
     // 만나고, 자기가 뭘 잘못했는지 되짚게 된다. 남은 일을 지금 말한다.
@@ -319,7 +336,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
         onGoToSettings: () {
           Navigator.of(dialogContext).pop();
           context.pop();
-          context.push('/settings');
+          context.push('/appliance/setup', extra: appliance);
         },
         onLater: () {
           Navigator.of(dialogContext).pop();
@@ -341,7 +358,9 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     final name = _nameController.text.trim();
     final location = _locationController.text.trim();
 
-    return Scaffold(
+    return InputGuard(
+      dirty: !_saved && (name.isNotEmpty || location.isNotEmpty || _buttonCount > 0 || _photo != null),
+      child: Scaffold(
       appBar: AppBar(title: const Text('새 가전 추가')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
@@ -450,6 +469,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           // 사진은 필수가 아니다. 없어도 등록과 조작이 그대로 된다 -- 있으면
           // 홈의 그림이 되고, 아래 격자를 그 위에 겹쳐 실제 위치를 보며
           // 배치할 수 있다.
+          if (widget.draft == null) ...[
           const _StepTitle(number: 3, title: '사진', optional: true),
           const SizedBox(height: 4),
           Text(
@@ -504,6 +524,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ],
           divider,
 
+          ],
           // ── 4. 버튼 배치 ───────────────────────────────────────────────
           const _StepTitle(number: 4, title: '버튼 배치'),
           const SizedBox(height: 4),
@@ -586,7 +607,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '저장한 뒤에 기기 연결과 버튼 위치 보정이 남아요.',
+                  '저장한 뒤에 위치 맞추기와 확인 주행을 이어가요.',
                   style: TextStyle(fontSize: 13, color: context.appMuted),
                 ),
                 const SizedBox(height: 10),
@@ -600,6 +621,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ),
         ),
       ),
+    ),
     );
   }
 }
@@ -736,14 +758,14 @@ class _SavedNextStepsDialog extends StatelessWidget {
             const SizedBox(height: 14),
             const _NextStep(
               icon: Icons.link,
-              title: '기기 연결',
-              body: '이 가전을 누를 장치를 설정에서 연결해 주세요.',
+              title: '위치 맞추기',
+              body: '조작부 사진에서 버튼 위치를 맞춰 주세요.',
             ),
             const SizedBox(height: 10),
             const _NextStep(
               icon: Icons.center_focus_strong_outlined,
-              title: '버튼 위치 보정',
-              body: '연결한 뒤 실제 버튼 위치를 한 번 맞춰야 정확히 눌러요.',
+              title: '확인 주행',
+              body: '버튼 위를 지나가는 위치를 눈으로 확인해 주세요.',
             ),
             if (syncPending) ...[
               const SizedBox(height: 14),
@@ -756,7 +778,7 @@ class _SavedNextStepsDialog extends StatelessWidget {
         ),
         actions: [
           TextButton(onPressed: onLater, child: const Text('다음에')),
-          FilledButton(onPressed: onGoToSettings, child: const Text('연결하러 가기')),
+          FilledButton(onPressed: onGoToSettings, child: const Text('위치 맞추기')),
         ],
       );
 }

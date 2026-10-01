@@ -1,3 +1,4 @@
+import 'models/appliance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -118,7 +119,11 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
     // 사진 없이 버튼판으로 등록하는 예전 편집기. 가전 추가 1단계에서 들어온다.
     GoRoute(
       path: '/appliance/new',
-      builder: (_, __) => const ApplianceEditorScreen(),
+      builder: (_, state) => ApplianceEditorScreen(draft: state.extra as ApplianceDraft?),
+    ),
+    GoRoute(
+      path: '/appliance/setup',
+      builder: (_, state) => AddApplianceWizardScreen(initial: state.extra as ApplianceMap, verifyOnly: state.uri.queryParameters['verify'] == '1'),
     ),
     GoRoute(
       path: '/appliance/detail/:id',

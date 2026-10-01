@@ -10,6 +10,7 @@ import '../providers/rpi_api_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../widgets/input_guard.dart';
 
 /// 루틴 편집 — 문장형 카드 세 줄(언제 · 무엇을 · 그다음)과 '단계 추가'(UI 확정 §2).
 ///
@@ -56,7 +57,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
     final names = {for (final a in appliances) a.id: a.name};
     final caution = _draft.caution;
 
-    return Scaffold(
+    return InputGuard(dirty: _dirty, child: Scaffold(
       appBar: AppBar(
         title: Text(_isNew ? '새 루틴' : _draft.name),
         actions: [
@@ -213,7 +214,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 
   Widget _stepToken(int index, List<ApplianceMap> appliances) {
@@ -422,7 +423,11 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
       await api.saveRoutine(_draft.copyWith(name: name));
       ref.invalidate(routinesProvider);
       ref.invalidate(nextRoutineProvider);
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        setState(() => _dirty = false);
+        await WidgetsBinding.instance.endOfFrame;
+        if (mounted) Navigator.of(context).pop(true);
+      }
     } on RpiApiException catch (e) {
       // 서버 검증 문장(422)은 화면에 그대로 보여도 되는 한국어다.
       if (mounted) setState(() => _error = e.message);
@@ -457,7 +462,11 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
     try {
       await api.deleteRoutine(id);
       ref.invalidate(routinesProvider);
-      if (mounted) Navigator.of(context).pop(true);
+      if (mounted) {
+        setState(() => _dirty = false);
+        await WidgetsBinding.instance.endOfFrame;
+        if (mounted) Navigator.of(context).pop(true);
+      }
     } on RpiApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {

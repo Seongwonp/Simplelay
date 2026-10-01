@@ -217,8 +217,8 @@ void main() {
     // 남은 일을 여기서 말하지 않으면 사용자는 홈에서 '아직 연결되지
     // 않았어요'를 만나 원인을 자기 가전에서 찾는다.
     expect(find.text("'식기세척기'을 등록했어요"), findsOneWidget);
-    expect(find.text('기기 연결'), findsOneWidget);
-    expect(find.text('버튼 위치 보정'), findsOneWidget);
+    expect(find.text('위치 맞추기'), findsNWidgets(2));
+    expect(find.text('확인 주행'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, '다음에'));
     await tester.pumpAndSettle();

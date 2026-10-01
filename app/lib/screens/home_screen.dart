@@ -10,6 +10,7 @@ import '../providers/appliance_provider.dart';
 import '../providers/ble_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../widgets/demo_badge.dart';
+import '../widgets/appliance_setup_card.dart';
 import '../widgets/route_badge.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/server_appliance_provider.dart';
@@ -113,6 +114,8 @@ class HomeScreen extends ConsumerWidget {
 
             // ── 가전 ───────────────────────────────────────────────────────
             const SizedBox(height: 24),
+            for (final a in appliances.where((a) => a.isCustom && !a.isDemo && !a.isThinq))
+              ApplianceSetupCard(appliance: a),
             Text('가전', style: AppText.title),
             const SizedBox(height: 10),
             if (appliances.isEmpty)

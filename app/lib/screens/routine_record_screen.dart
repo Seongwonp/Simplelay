@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/appliance_provider.dart';
 import '../theme/app_colors.dart';
+import '../widgets/input_guard.dart';
 import '../widgets/panel_photo_view.dart' show applianceImageOverride;
 import '../widgets/appliance_panel.dart';
 
@@ -28,6 +29,7 @@ class RoutineRecordScreen extends ConsumerStatefulWidget {
 }
 
 class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
+  bool _accepted = false;
   late final List<String> _order = [...widget.initial];
 
   /// 서버 루틴 한 단계에 담을 수 있는 버튼 수(서버 MAX_BUTTONS_PER_RUN).
@@ -39,7 +41,7 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
         .watch(installedAppliancesProvider)
         .where((a) => a.id == widget.applianceId)
         .firstOrNull;
-    return Scaffold(
+    return InputGuard(dirty: !_accepted && _order.join("|") != widget.initial.join("|"), child: Scaffold(
       appBar: AppBar(title: const Text('루틴 녹화')),
       body: appliance == null
           ? Padding(
@@ -108,7 +110,11 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
                 child: FilledButton(
                   onPressed: _order.isEmpty
                       ? null
-                      : () => Navigator.of(context).pop(List<String>.of(_order)),
+                      : () async {
+                          setState(() => _accepted = true);
+                          await WidgetsBinding.instance.endOfFrame;
+                          if (context.mounted) Navigator.of(context).pop(List<String>.of(_order));
+                        },
                   child: const Text('다음'),
                 ),
               ),
@@ -116,6 +122,6 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
           ),
         ),
       ),
-    );
+    ));
   }
 }
