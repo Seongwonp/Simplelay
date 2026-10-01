@@ -141,7 +141,7 @@ class _Cell extends StatelessWidget {
           context.appOnSurfaceFaint,
           FontWeight.normal,
         ),
-      // 순서에 든 버튼은 무채색 테두리와 굵은 글자로. 보라는 '지금'에만 쓴다.
+      // 순서에 든 버튼은 무채색 테두리와 굵은 글자로. 강조색은 '지금'에만 쓴다.
       ButtonMapStepState.planned => (
           context.appInk.withValues(alpha: 0.08),
           Border.all(color: context.appInk, width: 1.5),

@@ -291,7 +291,7 @@ class _StepList extends StatelessWidget {
         width: 32,
         height: 32,
         alignment: Alignment.center,
-        // 순서 번호는 정보다. 보라는 주 행동('지금 실행') 몫으로 남긴다.
+        // 순서 번호는 정보다. 강조색은 주 행동('지금 실행') 몫으로 남긴다.
         decoration: const BoxDecoration(
           color: KioskColors.success,
           shape: BoxShape.circle,

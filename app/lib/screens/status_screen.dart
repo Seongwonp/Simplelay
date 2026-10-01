@@ -735,7 +735,7 @@ class _SegmentedProgress extends StatelessWidget {
   Widget build(BuildContext context) {
     final active =
         phase == ExecutionPhase.running || phase == ExecutionPhase.retrying;
-    // 끝난 칸은 무채색으로 채우고, 지금 칸의 테두리만 강조한다 -- 보라는
+    // 끝난 칸은 무채색으로 채우고, 지금 칸의 테두리만 강조한다 -- 강조색은
     // '지금'에만 쓴다. 재시도는 주의색.
     final accent =
         phase == ExecutionPhase.retrying ? context.appWarning : context.appPrimary;

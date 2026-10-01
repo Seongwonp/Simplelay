@@ -14,7 +14,7 @@ class AppTheme {
     final primary    = isDark ? AppColors.primary        : AppColors.primaryLight;
     final border     = isDark ? AppColors.borderSubtle   : AppColors.borderSubtleLight;
     final onPrimary  = isDark ? Colors.black             : Colors.white;
-    // 강조가 아닌 글자·테두리. 시드 색에서 뽑은 보라 기운의 중립색을 쓰지 않는다.
+    // 강조가 아닌 글자·테두리. 시드 색에서 뽑은 강조색 기운의 중립색을 쓰지 않는다.
     final ink        = isDark ? AppColors.success        : AppColors.successLight;
     final muted      = isDark ? AppColors.onSurfaceMuted : AppColors.onSurfaceMutedLight;
     // 보조 버튼 테두리. 바탕 위 3:1 이상(다크 3.9 / 라이트 3.2).
@@ -34,7 +34,7 @@ class AppTheme {
         primary: primary,
         onPrimary: onPrimary,
         error: AppColors.danger,
-        // fromSeed는 글자·테두리·보조 면까지 시드(보라) 기운으로 칠한다.
+        // fromSeed는 글자·테두리·보조 면까지 시드(강조색) 기운으로 칠한다.
         // 강조는 primary 한 자리에만 남기고 나머지는 중립으로 되돌린다.
         onSurface: ink,
         onSurfaceVariant: muted,
@@ -93,7 +93,7 @@ class AppTheme {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
           ),
-          // 보조 행동은 무채색이다. 주 행동(채운 버튼)과 같은 보라 테두리를
+          // 보조 행동은 무채색이다. 주 행동(채운 버튼)과 같은 강조색 테두리를
           // 두르면 둘 중 무엇이 주 행동인지 색으로 구분되지 않는다.
           foregroundColor: ink,
           side: BorderSide(color: outline),
