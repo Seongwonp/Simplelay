@@ -1,0 +1,13 @@
+{
+  "app_account": "APP_ACCOUNT_PLACEHOLDER",
+  "status_url": "http://127.0.0.1:8000/status",
+  "checks": [
+    {"id": "service-1", "kind": "dbus_method", "target": "org.example.Placeholder", "path": "/org/example/Placeholder", "safe_read_only": true, "call": {"interface": "org.example.Placeholder", "member": "GetStatus", "signature": "", "args": []}},
+    {"id": "device-1", "kind": "device_node", "target": "/dev/PLACEHOLDER", "safe_read_only": true},
+    {"id": "module-1", "kind": "python_module", "target": "MODULE_PLACEHOLDER", "call": "import", "safe_read_only": true},
+    {"id": "tool-1", "kind": "executable", "target": "EXECUTABLE_PLACEHOLDER", "args": ["--version"], "safe_read_only": true},
+    {"id": "web-1", "kind": "http", "target": "http://127.0.0.1:8000/status", "safe_read_only": true},
+    {"id": "uart-1", "kind": "serial_port", "target": "/dev/SERIAL_PLACEHOLDER", "safe_read_only": true}
+  ],
+  "active": []
+}
