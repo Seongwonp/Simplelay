@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 
 import '../../models/ambient.dart';
@@ -107,165 +105,50 @@ class KioskIdleView extends StatelessWidget {
 
     return ColoredBox(
       color: KioskColors.bg,
-      child: Stack(
-        children: [
-          // ── 위 줄 ────────────────────────────────────────────────────
-          Positioned(
-            left: 36,
-            right: 24,
-            top: 14,
-            height: 52,
-            child: Row(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(28, 10, 28, 4),
+        child: Column(children: [
+          SizedBox(height: 80, child: Row(children: [
+            Expanded(child: Text(_dateStr, style: const TextStyle(fontSize: 33, color: KioskColors.muted))),
+            OutlinedButton.icon(key: const ValueKey('settings-entry'),
+              onPressed: onSettingsGesture, icon: const Icon(Icons.settings_outlined),
+              label: const Text('설정', style: TextStyle(fontSize: 33))),
+            const SizedBox(width: 12),
+            KioskConnectionIcons(items: connections, onOpen: onOpenConnection),
+          ])),
+          Expanded(child: Row(children: [
+            Expanded(child: SingleChildScrollView(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Row(
-                    children: [
-                      // 큰 글씨 모드에서도 한 줄 — 넘치면 조금 줄인다.
-                      Flexible(
-                        child: FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            _dateStr,
-                            style: const TextStyle(
-                                fontSize: 22, color: KioskColors.muted),
-                          ),
-                        ),
-                      ),
-                      if (dndUntil != null) ...[
-                        const SizedBox(width: 14),
-                        Flexible(
-                          child: Text(
-                            '방해 금지 · ${_dndRemaining(dndUntil!)}',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 16, color: KioskColors.warning),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                // 설정 진입은 구석이 아니라 위 줄 가운데 — 가장자리 스와이프로
-                // 읽히는 자리를 피한다(2026-09-30 실기기).
-                _SettingsButton(
-                  key: const ValueKey('settings-entry'),
-                  onOpen: onSettingsGesture,
-                ),
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: KioskConnectionIcons(
-                      items: connections,
-                      onOpen: onOpenConnection,
-                    ),
-                  ),
-                ),
+                Text(_clock, style: const TextStyle(fontSize: 104, height: 1, color: Colors.white,
+                  fontFeatures: [FontFeature.tabularFigures()])),
+                if (env != null) Text(env, style: const TextStyle(fontSize: 33, color: KioskColors.muted)),
+                OutlinedButton(onPressed: onDndGesture,
+                  child: Text(dndUntil == null ? '방해 금지' : '방해 금지 · ${_dndRemaining(dndUntil!)}',
+                    style: const TextStyle(fontSize: 33))),
               ],
-            ),
-          ),
-
-          // ── 가운데: 시계 | 인사말·안내·예보 ─────────────────────────────
-          Positioned(
-            left: 44,
-            right: 36,
-            top: 70,
-            bottom: 138,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+            ))),
+            const SizedBox(width: 20),
+            Expanded(child: SingleChildScrollView(child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  flex: 5,
-                  child: Semantics(
-                    label: '방해 금지를 켜려면 시계를 길게 누르세요',
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onLongPress: onDndGesture,
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          FittedBox(
-                            fit: BoxFit.scaleDown,
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              _clock,
-                              style: const TextStyle(
-                                fontSize: 104,
-                                fontWeight: FontWeight.w500,
-                                height: 1.0,
-                                color: Colors.white,
-                                fontFeatures: [FontFeature.tabularFigures()],
-                              ),
-                            ),
-                          ),
-                          if (env != null) ...[
-                            const SizedBox(height: 10),
-                            Text(
-                              env,
-                              style: const TextStyle(
-                                  fontSize: 22, color: KioskColors.muted),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  flex: 6,
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        greeting,
-                        style: const TextStyle(
-                          fontSize: 30,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                          height: 1.2,
-                        ),
-                      ),
-                      if (amb?.tip != null && amb!.tip!.text.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        _TipCard(key: const ValueKey('ambient-tip'), tip: amb.tip!),
-                      ],
-                      if (amb != null && amb.hourly.isNotEmpty) ...[
-                        const SizedBox(height: 10),
-                        _Hours(
-                          key: const ValueKey('ambient-hours'),
-                          hours: amb.hourly.take(4).toList(),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
+                Text(greeting, style: const TextStyle(fontSize: 33, color: Colors.white)),
+                if (amb?.tip != null && amb!.tip!.text.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _TipCard(key: const ValueKey('ambient-tip'), tip: amb.tip!),
+                ],
+                if (amb != null && amb.hourly.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _Hours(key: const ValueKey('ambient-hours'), hours: amb.hourly.take(4).toList()),
+                ],
               ],
-            ),
-          ),
-
-          // ── 아래: 가전 줄 ────────────────────────────────────────────
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 4,
-            height: 134,
-            child: Center(
-              child: list == null
-                  ? const _StripNotice('허브와 연결되면 가전이 보여요')
-                  : list.isEmpty
-                      ? const _StripNotice('앱에서 가전을 추가해 주세요')
-                      : KioskApplianceStrip(
-                          appliances: list,
-                          running: running,
-                          attention: attention,
-                          onSelect: onSelectAppliance,
-                        ),
-            ),
-          ),
-        ],
+            ))),
+          ])),
+          SizedBox(height: 160, child: Center(child: SingleChildScrollView(child: list == null
+            ? const _StripNotice('허브와 연결되면 가전이 보여요')
+            : list.isEmpty ? const _StripNotice('앱에서 가전을 추가해 주세요')
+            : KioskApplianceStrip(appliances: list, running: running, attention: attention, onSelect: onSelectAppliance)))),
+        ]),
       ),
     );
   }
@@ -283,7 +166,7 @@ class _StripNotice extends StatelessWidget {
               size: 28, color: KioskColors.muted),
           const SizedBox(width: 10),
           Text(text,
-              style: const TextStyle(fontSize: 22, color: KioskColors.muted)),
+              style: const TextStyle(fontSize: 33, color: KioskColors.muted)),
         ],
       );
 }
@@ -322,7 +205,7 @@ class _TipCard extends StatelessWidget {
             child: Text(
               tip.text,
               style: const TextStyle(
-                  fontSize: 18, height: 1.3, color: Colors.white),
+                  fontSize: 33, height: 1.3, color: Colors.white),
             ),
           ),
         ],
@@ -356,7 +239,7 @@ class _Hours extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                          fontSize: 15, color: KioskColors.muted)),
+                          fontSize: 33, color: KioskColors.muted)),
                   const SizedBox(height: 4),
                   Icon(_hourIcon(h.icon),
                       size: 26,
@@ -370,7 +253,7 @@ class _Hours extends StatelessWidget {
                             ? '${h.temp}°'
                             : '',
                     style: TextStyle(
-                      fontSize: 17,
+                      fontSize: 33,
                       fontWeight: h.precip ? FontWeight.w700 : FontWeight.w500,
                       color: h.precip ? Colors.white : KioskColors.muted,
                     ),
@@ -382,111 +265,3 @@ class _Hours extends StatelessWidget {
       );
 }
 
-/// 설정 진입 — 존재는 보이되 2초 길게 눌러야 열린다.
-class _SettingsButton extends StatefulWidget {
-  const _SettingsButton({super.key, required this.onOpen});
-  final VoidCallback? onOpen;
-
-  @override
-  State<_SettingsButton> createState() => _SettingsButtonState();
-}
-
-class _SettingsButtonState extends State<_SettingsButton> {
-  static const _holdDuration = Duration(seconds: 2);
-  Timer? _holdTimer;
-  bool _holding = false;
-
-  @override
-  void dispose() {
-    _holdTimer?.cancel();
-    super.dispose();
-  }
-
-  void _startHold() {
-    setState(() => _holding = true);
-    _holdTimer?.cancel();
-    _holdTimer = Timer(_holdDuration, () {
-      if (!mounted) return;
-      setState(() => _holding = false);
-      widget.onOpen?.call();
-    });
-  }
-
-  void _cancelHold() {
-    _holdTimer?.cancel();
-    if (mounted && _holding) setState(() => _holding = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: '설정 열기. 2초간 길게 누르세요.',
-      // 타이밍은 Listener(원시 포인터)로 잡는다 — 제스처 경합에서 다른 길게
-      // 누르기에 지면 onTapCancel이 날아와 설정이 영영 열리지 않는다.
-      // 안쪽 GestureDetector의 빈 onTap/onLongPress는 바깥 제스처가 대신
-      // 발동하는 것을 막는 역할만 한다.
-      child: Listener(
-        onPointerDown: (_) => _startHold(),
-        onPointerUp: (_) => _cancelHold(),
-        onPointerCancel: (_) => _cancelHold(),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () {},
-          onLongPress: () {},
-          child: SizedBox(
-            height: 48,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 30,
-                    height: 30,
-                    child: Stack(
-                      alignment: Alignment.center,
-                      children: [
-                        if (_holding)
-                          SizedBox.expand(
-                            child: TweenAnimationBuilder<double>(
-                              tween: Tween(begin: 0.0, end: 1.0),
-                              duration: _holdDuration,
-                              builder: (context, value, _) =>
-                                  CircularProgressIndicator(
-                                value: value,
-                                strokeWidth: 2,
-                                color: KioskColors.primary,
-                                backgroundColor: KioskColors.border,
-                              ),
-                            ),
-                          ),
-                        Icon(
-                          Icons.settings_outlined,
-                          size: 20,
-                          color: _holding
-                              ? KioskColors.primary
-                              : KioskColors.muted,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  // 어떻게 여는지를 글자로 -- 짧게 눌러 보고 안 열리면
-                  // 고장으로 여긴다.
-                  Text(
-                    _holding ? '계속 누르고 있어요' : '설정 · 길게 누르기',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: _holding ? KioskColors.primary : KioskColors.muted,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

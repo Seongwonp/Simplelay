@@ -63,7 +63,7 @@ void main() {
   testWidgets('설정을 여는 방법을 글자로 말한다', (tester) async {
     // 톱니바퀴만 있으면 짧게 눌러 보고 안 열리면 고장으로 여긴다.
     await _pump(tester);
-    expect(find.text('설정 · 길게 누르기'), findsOneWidget);
+    expect(find.text('설정'), findsOneWidget);
   });
 
   testWidgets('서버 목록을 못 봤으면 가전을 세우지 않는다', (tester) async {

@@ -11,7 +11,7 @@ import '../../theme/kiosk_colors.dart';
 /// 않는다. 특히:
 /// - "가전이 멈췄어요"는 `hold_stop_outcome = stopped`(전력 하강 확인)일 때만.
 /// - 남은 시간은 서버가 주지 않는다(전력 추정 미구현). 대신 시작한 뒤 흐른 시간을
-///   그렇다고 밝혀 보인다.
+///   값을 만들지 않고 남은 시간을 모른다고 안내한다.
 /// - 연습용(mock) 대기는 연습 모드라고 적는다.
 class KioskHoldView extends StatelessWidget {
   const KioskHoldView({
@@ -79,12 +79,6 @@ class KioskHoldView extends StatelessWidget {
       'parked' => ('보관 위치로 이동했어요', Colors.white),
       _ => ('$_name 동작 중', Colors.white),
     };
-  }
-
-  String get _elapsedText {
-    final m = elapsed.inMinutes;
-    final s = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
-    return '$m:$s';
   }
 
   String get _operationLine {
@@ -157,7 +151,7 @@ class KioskHoldView extends StatelessWidget {
             // ── 왼쪽: 무엇이 · 얼마나 · 무엇을 근거로 ───────────────────
             Expanded(
               flex: 11,
-              child: Column(
+              child: SingleChildScrollView(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
@@ -193,30 +187,13 @@ class KioskHoldView extends StatelessWidget {
                     ),
                   ],
                   if (waiting) ...[
-                    const Spacer(),
-                    Text(
-                      _elapsedText,
-                      style: const TextStyle(
-                        fontSize: 76,
-                        fontWeight: FontWeight.w500,
-                        height: 1.0,
-                        color: KioskColors.primary,
-                        fontFeatures: [FontFeature.tabularFigures()],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text('시작한 지',
-                        style:
-                            TextStyle(fontSize: 18, color: KioskColors.muted)),
+                    const SizedBox(height: 12),
+                    const Text('남은 시간을 아직 알 수 없어요',
+                        style: TextStyle(fontSize: 33, color: KioskColors.primary)),
                     const SizedBox(height: 14),
                   ] else
                     const SizedBox(height: 18),
-                  if (waiting)
-                    _Lines(lines: lines)
-                  else
-                    Expanded(
-                      child: SingleChildScrollView(child: _Lines(lines: lines)),
-                    ),
+                  _Lines(lines: lines),
                   if (onClose != null) ...[
                     const SizedBox(height: 8),
                     OutlinedButton(
@@ -234,7 +211,7 @@ class KioskHoldView extends StatelessWidget {
                     ),
                   ],
                 ],
-              ),
+              )),
             ),
             const SizedBox(width: 24),
             // ── 오른쪽: 조작판의 대기 자리 + 큰 정지 ────────────────────
@@ -317,7 +294,7 @@ class _Lines extends StatelessWidget {
                     child: Text(
                       text,
                       style: TextStyle(
-                        fontSize: 19,
+                        fontSize: 33,
                         height: 1.3,
                         color: color == KioskColors.muted ? Colors.white : color,
                       ),
@@ -358,7 +335,7 @@ class _PanelMarker extends StatelessWidget {
           ? const Center(
               child: Text(
                 '조작판 그림이 없어요',
-                style: TextStyle(fontSize: 18, color: KioskColors.muted),
+                style: TextStyle(fontSize: 33, color: KioskColors.muted),
               ),
             )
           : LayoutBuilder(builder: (context, box) {

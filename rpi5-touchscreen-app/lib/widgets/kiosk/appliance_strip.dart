@@ -303,7 +303,7 @@ class _StripItemState extends State<_StripItem>
                   a.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 16, color: Colors.white),
+                  style: const TextStyle(fontSize: 33, color: Colors.white),
                 ),
                 // 상태 줄 자리는 늘 둔다(아이콘 줄 높이가 흔들리지 않게). 큰 글씨
                 // 모드에서 글자가 잘리지 않도록 높이는 최소만 정한다.
@@ -314,7 +314,7 @@ class _StripItemState extends State<_StripItem>
                       : Text(
                           status,
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: 33,
                             fontWeight: FontWeight.w700,
                             color: iconColor,
                           ),

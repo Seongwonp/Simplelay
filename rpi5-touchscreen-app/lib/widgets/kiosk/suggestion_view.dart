@@ -377,8 +377,8 @@ class _CommandList extends StatelessWidget {
           final c = commands[i];
           final summary = c.summary.isNotEmpty
               ? c.summary
-              : '${c.targetId} ${c.action ?? c.buttons.join(' → ')}';
-          final path = routeLabel(c.route) ?? c.route;
+              : '가전과 동작을 폰에서 확인해 주세요';
+          final path = routeLabel(c.route) ?? '경로 확인 필요';
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

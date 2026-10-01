@@ -235,7 +235,7 @@ class KioskDoneView extends StatelessWidget {
 }
 
 String _stepTitle(int i, ScenarioRunStep step) =>
-    '${i + 1}. ${step.summary.isNotEmpty ? step.summary : step.targetId}';
+    '${i + 1}. ${step.summary.isNotEmpty ? step.summary : '가전 확인 필요'}';
 
 /// 단계별 결과 — 번호·서버가 쓴 문장, 그 아래 경로·실행 환경·확인 수준·결과.
 /// 확인 수준은 한 줄 요약과 같은 규칙(`confirmationLabel`)이다.

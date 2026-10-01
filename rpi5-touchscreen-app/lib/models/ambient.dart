@@ -105,11 +105,11 @@ class ConnectionItem {
   /// 확인용(real | mock | none | sysfs | server). 화면 문구로 쓰지 않는다.
   final String source;
 
-  /// "!" 배지를 붙일 상태인가. 모름(unknown)도 확인해 달라고 알린다 --
+  /// "!" 배지를 붙일 상태인가. 모름(unknown)은 회색과 별도 문구로 알린다 --
   /// 확인하지 못한 연결을 정상처럼 회색으로 두지 않는다. 설치 안 됨은 문제가
   /// 아니라 아직 없는 것이라 배지를 붙이지 않는다(누르면 설명은 열린다).
   bool get needsAttention =>
-      state == 'warn' || state == 'error' || state == 'unknown';
+      state == 'warn' || state == 'error';
 
   factory ConnectionItem.fromJson(Map<String, dynamic> json) => ConnectionItem(
         id: json['id'] as String? ?? '',

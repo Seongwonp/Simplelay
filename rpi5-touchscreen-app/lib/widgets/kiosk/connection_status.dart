@@ -74,13 +74,16 @@ class _ConnectionIcon extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: SizedBox(
-            width: 52,
-            height: 48,
+            width: 66,
+            height: 80,
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
-                Icon(connectionIcon(item), size: 28, color: color),
+                Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                  Icon(connectionIcon(item), size: 28, color: color),
+                  if (item.state == 'unknown') const Text('모름', style: TextStyle(fontSize: 33, color: KioskColors.muted)),
+                ]),
                 if (warn)
                   Positioned(
                     top: 4,
@@ -179,7 +182,7 @@ class KioskConnectionModal extends StatelessWidget {
                         Text(
                           item.message,
                           style: const TextStyle(
-                            fontSize: 19,
+                            fontSize: 33,
                             height: 1.45,
                             color: KioskColors.muted,
                           ),
@@ -199,7 +202,7 @@ class KioskConnectionModal extends StatelessWidget {
                                 child: Text(
                                   fix,
                                   style: const TextStyle(
-                                    fontSize: 19,
+                                    fontSize: 33,
                                     height: 1.4,
                                     color: Colors.white,
                                   ),

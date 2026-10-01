@@ -835,7 +835,7 @@ class _KioskScreenState extends State<KioskScreen> {
     for (final c in suggestion.commands) {
       final r = await _api.readiness(c.targetId);
       if (r != null && !r.canExecute) {
-        final who = c.summary.isNotEmpty ? c.summary : c.targetId;
+        final who = c.summary.isNotEmpty ? c.summary : '가전';
         blocked = r.reasons.isNotEmpty
             ? '$who — ${r.reasons.first}'
             : '$who — 아직 조작할 준비가 되지 않았어요';

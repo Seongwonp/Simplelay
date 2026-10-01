@@ -981,24 +981,11 @@ void main() {
     expect(parsed.countdownSeconds, KioskTimings.countdownSeconds);
   });
 
-  testWidgets('설정 버튼은 보이지만 2초 길게 눌러야 열린다', (tester) async {
+  testWidgets('설정은 보이는 버튼을 한 번 눌러 열어요', (tester) async {
     useKioskViewport(tester);
     await _pumpKiosk(tester, FakeKioskApi());
-
-    // 존재가 드러나야 한다 — 5px 점 3연타는 발견 불가능했다
-    final gear = find.byIcon(Icons.settings_outlined);
-    expect(gear, findsOneWidget);
-
-    // 짧게 누르면 열리지 않는다 (지나가다 스치는 오조작 방지)
-    await tester.tap(gear);
+    await tester.tap(find.byKey(const ValueKey('settings-entry')));
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('키오스크 설정'), findsNothing);
-
-    // 2초 유지하면 열린다
-    final gesture = await tester.startGesture(tester.getCenter(gear));
-    await tester.pump(const Duration(milliseconds: 2100));
-    await gesture.up();
-    await tester.pump();
     expect(find.text('키오스크 설정'), findsOneWidget);
   });
 
