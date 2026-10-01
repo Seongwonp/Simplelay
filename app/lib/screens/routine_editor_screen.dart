@@ -9,6 +9,8 @@ import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/suggestion_provider.dart';
 import '../services/rpi_api_service.dart';
+import '../services/routine_time_hint.dart';
+import 'history_screen.dart' show historyProvider;
 import '../theme/app_colors.dart';
 import '../widgets/input_guard.dart';
 
@@ -34,6 +36,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
   late final TextEditingController _name =
       TextEditingController(text: _draft.name);
   bool _dirty = false;
+  late bool _whenChosen = _draft.id != null || _draft.trigger.kind != RoutineTriggerKind.manual;
   bool _busy = false;
   String? _error;
 
@@ -56,6 +59,9 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
     final appliances = ref.watch(installedAppliancesProvider);
     final names = {for (final a in appliances) a.id: a.name};
     final caution = _draft.caution;
+    final hint = _isNew && !_whenChosen
+        ? routineTimeHint(_draft, appliances, ref.watch(historyProvider).valueOrNull ?? [], DateTime.now())
+        : null;
 
     return InputGuard(dirty: _dirty, child: Scaffold(
       appBar: AppBar(
@@ -91,6 +97,25 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                 ),
               ],
             ),
+            const SizedBox(height: 12),
+          ],
+
+          if (_isNew && !_whenChosen) ...[
+            Text(hint == null ? '언제 실행할지 골라 주세요.'
+              : '최근 30일 중 ${hint.count}일에 ${hint.time} 무렵 사용했어요.',
+              key: const Key('routine-time-hint')),
+            if (hint != null)
+              FilledButton(onPressed: () {
+                _whenChosen = true;
+                _update(_draft.copyWith(trigger: RoutineTrigger(
+                  kind: RoutineTriggerKind.time, time: hint.time, days: hint.days)));
+              }, child: Text('${hint.time}로 정하기')),
+            OutlinedButton(onPressed: () => _editTrigger(appliances),
+              child: const Text('실행 시각 고르기')),
+            TextButton(onPressed: () {
+              _whenChosen = true;
+              _update(_draft.copyWith(trigger: const RoutineTrigger.manual()));
+            }, child: const Text('직접 실행으로 정하기')),
             const SizedBox(height: 12),
           ],
 
@@ -398,12 +423,19 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
       isScrollControlled: true,
       builder: (_) => _TriggerSheet(initial: _draft.trigger, appliances: appliances),
     );
-    if (next != null && mounted) _update(_draft.copyWith(trigger: next));
+    if (next != null && mounted) {
+      _whenChosen = true;
+      _update(_draft.copyWith(trigger: next));
+    }
   }
 
   // ── 서버 ──────────────────────────────────────────────────────────────
 
   Future<void> _save() async {
+    if (!_whenChosen) {
+      setState(() => _error = '언제 실행할지 먼저 골라 주세요.');
+      return;
+    }
     final api = ref.read(rpiApiServiceProvider);
     final name = _name.text.trim();
     if (name.isEmpty) {

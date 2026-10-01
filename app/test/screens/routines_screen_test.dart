@@ -233,6 +233,8 @@ void main() {
     expect(find.text('지금 실행'), findsNothing);
     expect(find.textContaining('인터폰 호출 감지는 아직 없어요'), findsOneWidget);
 
+    await tester.tap(find.text('직접 실행으로 정하기'));
+    await tester.pump();
     await tester.tap(find.byKey(const Key('routine-save')));
     await _settle(tester);
     expect(server.requests, contains('POST /routines'));
