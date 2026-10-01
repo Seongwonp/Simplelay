@@ -581,7 +581,7 @@ class _Token extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       onTap: onTap,
       child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 44),
+        constraints: const BoxConstraints(minHeight: 48),
         child: Align(alignment: Alignment.centerLeft, widthFactor: 1, child: body),
       ),
     );

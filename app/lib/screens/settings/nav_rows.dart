@@ -104,42 +104,6 @@ class _ThinqScreen extends ConsumerWidget {
 /// 음성 정지는 **아직 허브에 들어가지 않았다**(실행 계획 §3-3, 통신 확인 뒤
 /// 착수). 켜는 스위치를 두면 되지도 않는 기능을 된다고 말하게 되므로,
 /// 어떻게 동작할 것인지와 지금 상태만 적는다.
-class _VoiceStopScreen extends StatelessWidget {
-  const _VoiceStopScreen();
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('음성으로 멈추기')),
-        body: ListView(
-          padding: const EdgeInsets.all(20),
-          children: [
-            const Text('동작 중에만 "멈춰"를 들어요',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 8),
-            Text(
-              '허브가 버튼을 누르는 동안과 정지 버튼 위에서 기다리는 동안에만 마이크를 열어요. '
-              '"멈춰·정지·그만"을 들으면 정지 버튼을 눌러요. 다시 시작은 화면에서만 할 수 있어요.',
-              style: TextStyle(fontSize: 16, color: context.appMuted),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.info_outline, color: context.appWarning),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '아직 준비 중이에요. 지금은 화면의 정지 버튼이나 허브의 비상정지 버튼을 써 주세요.',
-                    style: TextStyle(fontSize: 16, color: context.appWarning),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-}
-
 // ── 글자 크기 ─────────────────────────────────────────────────────────────
 
 /// 앱 안에 따로 글자 크기 설정을 두지 않는다 -- 휴대폰 설정 하나로 모든 앱이

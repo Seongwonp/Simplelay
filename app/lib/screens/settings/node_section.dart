@@ -260,7 +260,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                         child: Text(
                           '등록됨',
                           style: TextStyle(
-                              fontSize: 11, color: context.appSuccess),
+                              fontSize: 14, color: context.appSuccess),
                         ),
                       ),
                     ],

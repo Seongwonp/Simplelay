@@ -70,10 +70,8 @@ void main() {
     '앱 정보': '앱 정보',
     '허브': '허브',
     'LG ThinQ 연결': 'LG ThinQ 연결',
-    '음성으로 멈추기': '음성으로 멈추기',
     '보호자 알림': '알림',
     '글자 크기': '글자 크기',
-    '가전 추가': '가전 추가',
   };
 
   for (final MapEntry(key: row, value: appBarTitle) in subScreens.entries) {

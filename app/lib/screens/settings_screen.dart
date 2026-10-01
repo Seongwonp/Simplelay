@@ -25,7 +25,6 @@ import '../theme/app_text.dart';
 
 import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/learning_status_dialog.dart';
-import '../widgets/route_badge.dart';
 import '../widgets/sync_status_line.dart';
 
 // 구획별 파일. `part`라서 private 이름·import·provider 읽는 시점이 이 파일에
@@ -55,18 +54,16 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
+          if (ref.watch(demoModeProvider))
+            ListTile(title: const Text('모의 사용 중이에요'),
+              trailing: TextButton(onPressed: () => ref.read(demoModeProvider.notifier).set(false),
+                child: const Text('모의 사용 끝내기'))),
           // 위 두 묶음이 UI 확정 §2의 설정 탭이다: 가전 추가 · 허브 · LG ThinQ
           // 연결 / 음성으로 멈추기 · 보호자 알림 · 글자 크기. 그 아래는 예전
           // 설정의 세부(가전 관리·알림·제안·화면)를 그대로 둔다 -- 기능을 잃지
           // 않는다. 서버 주소·API 키·예비 연결은 '허브' 안으로, 데모·개발자
           // 도구는 개발자 탭으로 옮겼다.
           _NavGroup(children: [
-            _NavRow(
-              icon: Icons.add_a_photo_outlined,
-              title: '가전 추가',
-              subtitle: '사진을 찍고 버튼을 짚어 등록',
-              onTap: () => context.push('/appliance/add'),
-            ),
             _NavRow(
               icon: Icons.hub_outlined,
               title: '허브',
@@ -87,13 +84,6 @@ class SettingsScreen extends ConsumerWidget {
           ]),
           const SizedBox(height: 16),
           _NavGroup(children: [
-            _NavRow(
-              icon: Icons.mic_none,
-              title: '음성으로 멈추기',
-              subtitle: '동작 중에만 "멈춰"를 들어요',
-              onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-                  builder: (_) => const _VoiceStopScreen())),
-            ),
             _NavRow(
               icon: Icons.family_restroom,
               title: '보호자 알림',

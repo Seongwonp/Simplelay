@@ -5,138 +5,24 @@ part of '../settings_screen.dart';
 class _ApplianceSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final selected = ref.watch(selectedApplianceProvider);
-    // 여기는 **이 폰에 설치된 가전**만 고른다. 예시 템플릿을 섞으면 아직
-    // 아무것도 등록하지 않은 사람에게 전자레인지가 이미 있는 것처럼 보인다.
     final appliances = ref.watch(installedAppliancesProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('제어 가전'),
-        const SizedBox(height: 10),
-        // 0대는 오류가 아니다. 고를 것이 없다는 사실과 어디서 만드는지만
-        // 말하고, 선택 칩 자리를 비워 두지 않는다.
-        if (appliances.isEmpty)
-          _EmptyApplianceRow(onAdd: () => context.push('/appliance/add'))
-        else
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ...appliances.map((appliance) {
-                final isSelected = appliance.id == selected?.id;
-                // 선택 상태를 시맨틱으로 노출한다 -- 체크 아이콘은 눈으로만
-                // 보이는 신호라, 스크린리더 사용자는 가전 이름은 읽어도
-                // 무엇이 선택됐는지 알 수 없었다.
-                return Semantics(
-                  button: true,
-                  selected: isSelected,
-                  child: GestureDetector(
-                    onTap: () => ref
-                        .read(selectedApplianceProvider.notifier)
-                        .select(appliance),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 180),
-                      // 터치 목표 하한. 고령 사용자 대상이라 WCAG 2.2 AA의
-                      // 최소치(24)보다 높은 48을 제품 기준으로 잡는다.
-                      constraints: const BoxConstraints(minHeight: 48),
-                      alignment: Alignment.center,
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 10),
-                      decoration: BoxDecoration(
-                        color: isSelected
-                            ? context.appPrimary.withValues(alpha: 0.14)
-                            : Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHigh,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(
-                          color: isSelected
-                              ? context.appPrimary
-                              : context.appBorderSubtle,
-                          width: isSelected ? 1.5 : 0.5,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            appliance.icon,
-                            color: isSelected
-                                ? context.appPrimary
-                                : context.appMuted,
-                            size: 18,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            appliance.displayName,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isSelected
-                                  ? context.appPrimary
-                                  : context.appMuted,
-                              fontWeight: isSelected
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          if (appliance.isThinq) ...[
-                            const SizedBox(width: 6),
-                            const RouteBadge(label: 'ThinQ'),
-                          ],
-                          if (isSelected) ...[
-                            const SizedBox(width: 4),
-                            Icon(Icons.check_circle,
-                                color: context.appPrimary, size: 14),
-                          ],
-                          if (appliance.isCustom) ...[
-                            const SizedBox(width: 2),
-                            // 등록 데이터(버튼맵·사진)가 즉시 유실되는 파괴적
-                            // 동작 — 반드시 확인을 거친다. 히트박스도 14px
-                            // 아이콘 단독이 아니라 패딩 포함으로 확대.
-                            GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => _confirmRemoveAppliance(
-                                  context, ref, appliance),
-                              child: Padding(
-                                padding: const EdgeInsets.all(6),
-                                child: Icon(Icons.close,
-                                    color: context.appMuted, size: 14),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                );
-              }),
-              // 새 가전 추가 버튼
-              GestureDetector(
-                onTap: () => context.push('/appliance/add'),
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.surfaceContainerHigh,
-                    borderRadius: BorderRadius.circular(10),
-                    border:
-                        Border.all(color: context.appBorderSubtle, width: 0.5),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add, color: context.appMuted, size: 18),
-                      const SizedBox(width: 6),
-                      Text('새 가전',
-                          style:
-                              TextStyle(fontSize: 13, color: context.appMuted)),
-                    ],
-                  ),
-                ),
-              ),
-            ],
+        if (appliances.where((a) => !a.isThinq).isEmpty)
+          const Text('홈에서 가전을 추가해 주세요.'),
+        for (final appliance in appliances.where((a) => !a.isThinq))
+          ListTile(
+            leading: Icon(appliance.icon),
+            title: Text(appliance.displayName),
+            onTap: () => context.push('/appliance/detail/${appliance.id}'),
+            trailing: appliance.isCustom ? IconButton(
+              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+              tooltip: '${appliance.name} 지우기',
+              icon: const Icon(Icons.delete_outline),
+              onPressed: () => _confirmRemoveAppliance(context, ref, appliance),
+            ) : null,
           ),
         // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
         // 평상시에는 아무것도 띄우지 않는다 -- 늘 떠 있는 상태 표시는
@@ -158,7 +44,6 @@ class _ApplianceSection extends ConsumerWidget {
           ),
         ],
         // 서버가 구성한 ThinQ 가전(편집 불가). ThinQ가 꺼져 있으면 아무것도 없다.
-        const _ThinqApplianceList(),
       ],
     );
   }
@@ -253,30 +138,6 @@ class _ApplianceSection extends ConsumerWidget {
 }
 
 /// 설치한 가전이 0대일 때 '제어 가전' 자리에 놓는 줄.
-class _EmptyApplianceRow extends StatelessWidget {
-  const _EmptyApplianceRow({required this.onAdd});
-  final VoidCallback onAdd;
-
-  @override
-  Widget build(BuildContext context) => Row(
-        children: [
-          Expanded(
-            child: Text(
-              '아직 추가한 가전이 없어요.',
-              style: TextStyle(color: context.appMuted, fontSize: 13),
-            ),
-          ),
-          TextButton.icon(
-            onPressed: onAdd,
-            icon: const Icon(Icons.add, size: 18),
-            label: const Text('가전 추가'),
-          ),
-        ],
-      );
-}
-
-/// 서버가 구성한 ThinQ 가전. 폰에서 등록·편집하지 않으므로 버튼 칩과 따로
-/// 보여 주고, 물리 가전과 같은 방식으로 준비 상태(안 되는 이유)를 말한다.
 class _ThinqApplianceList extends ConsumerWidget {
   const _ThinqApplianceList();
 

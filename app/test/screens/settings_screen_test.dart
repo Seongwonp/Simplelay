@@ -1,4 +1,3 @@
-import 'package:flutter/semantics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -98,10 +97,8 @@ void main() {
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
       const rows = [
-        '가전 추가',
         '허브',
         'LG ThinQ 연결',
-        '음성으로 멈추기',
         '보호자 알림',
         '글자 크기',
       ];
@@ -115,28 +112,15 @@ void main() {
       }
     });
 
-    testWidgets('가전 선택 칩이 선택 상태와 터치 목표를 만족한다', (tester) async {
-      // 체크 아이콘은 눈으로만 보이는 신호다 -- 스크린리더 사용자도 무엇이
-      // 선택됐는지 알아야 하고, 칩 자체가 누르기 충분해야 한다.
-      final handle = tester.ensureSemantics();
+    testWidgets('가전 목록은 상세로 이어지고 옛 선택 칩을 숨겨요', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
-
-      final chip = find
-          .ancestor(
-            of: find.text('전자레인지'),
-            matching: find.byType(AnimatedContainer),
-          )
-          .first;
-
-      // 제품 터치 목표 48 (WCAG 2.2 AA 최소치 24보다 높게 잡은 값)
-      expect(tester.getSize(chip).height, greaterThanOrEqualTo(48.0));
-      expect(
-        tester.getSemantics(chip).hasFlag(SemanticsFlag.isSelected),
-        isTrue,
-      );
-      handle.dispose();
+      expect(find.text('제어 가전'), findsNothing);
+      expect(find.text('새 가전'), findsNothing);
+      expect(find.text('음성으로 멈추기'), findsNothing);
+      expect(find.text('가전 추가'), findsNothing);
+      expect(find.widgetWithText(ListTile, '전자레인지'), findsWidgets);
     });
 
     testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {

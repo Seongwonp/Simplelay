@@ -40,7 +40,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
             padding: const EdgeInsets.only(right: 12),
             child: FilledButton.icon(
               // 앱바 안에서는 테마의 '폭 채우기'를 끈다.
-              style: FilledButton.styleFrom(minimumSize: const Size(0, 44)),
+              style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
               onPressed: () => _open(context, null),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('새 루틴'),

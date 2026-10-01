@@ -35,9 +35,10 @@ Widget _screen(Widget screen) => buildWithProviderState(
       child: MaterialApp.router(
         theme: ThemeData.dark(),
         routerConfig: GoRouter(
-          initialLocation: '/',
+          initialLocation: screen is HomeScreen ? '/' : '/entry',
           routes: [
-            GoRoute(path: '/', builder: (_, __) => screen),
+            GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+            GoRoute(path: '/entry', builder: (_, __) => screen),
             GoRoute(
               path: '/appliance/new',
               builder: (_, __) => const Scaffold(body: Text('가전 추가 화면')),
@@ -104,10 +105,11 @@ void main() {
       await tester.pumpWidget(_screen(const VoiceScreen()));
       await tester.pump();
 
-      await tester.tap(find.widgetWithText(FilledButton, '가전 추가'));
+      await tester.tap(find.widgetWithText(FilledButton, '홈에서 가전 추가하기'));
       await tester.pumpAndSettle();
 
-      expect(find.text('가전 추가 5단계'), findsOneWidget);
+      expect(find.text('우리 집'), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, '가전 추가'), findsOneWidget);
     });
   });
 

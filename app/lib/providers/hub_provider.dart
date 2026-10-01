@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/hub.dart';
-import 'demo_provider.dart';
 import 'rpi_api_provider.dart';
 
 /// 허브 `/status` 중 탭 구조가 쓰는 값. 닿지 않거나 실패하면 null.
@@ -24,13 +23,9 @@ final developerModeProvider = Provider<bool>(
   (ref) => ref.watch(hubStatusProvider).valueOrNull?.developerMode ?? false,
 );
 
-/// '개발자' 탭을 보일까.
-///
-/// 서버 개발자 모드가 기준이다. 예외 하나 -- 이 폰에서 **데모 모드가 켜져
-/// 있으면** 탭을 남긴다. 데모 토글이 개발자 탭 안에 있어서, 서버에 닿지 않는
-/// 리허설 중에 탭이 사라지면 데모를 끌 길이 없어진다.
+/// 개발자 탭은 허브가 허용할 때만 표시한다.
 final showDeveloperTabProvider = Provider<bool>(
-  (ref) => ref.watch(developerModeProvider) || ref.watch(demoModeProvider),
+  (ref) => ref.watch(developerModeProvider),
 );
 
 /// 허브에 저장된 위치. 실패는 null(모름 -- '위치 없음'과 구분한다).

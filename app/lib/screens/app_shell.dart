@@ -270,7 +270,7 @@ class _Tab extends StatelessWidget {
                             // 채도 있는 면 위 글자는 반대색으로 -- 흰 글자는
                             // 이 빨강 위에서 3:1로 무너진다.
                             color: AppColors.onAccent,
-                            fontSize: 11,
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
                           ),
                         ),

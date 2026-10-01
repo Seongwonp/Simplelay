@@ -23,6 +23,10 @@ class AppTheme {
     return ThemeData(
       brightness: brightness,
       useMaterial3: true,
+      visualDensity: VisualDensity.standard,
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      iconButtonTheme: const IconButtonThemeData(style: ButtonStyle(
+        minimumSize: WidgetStatePropertyAll(Size(48, 48)))),
 
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
@@ -101,7 +105,7 @@ class AppTheme {
       ),
 
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(foregroundColor: ink),
+        style: TextButton.styleFrom(foregroundColor: ink, minimumSize: const Size(48, 48)),
       ),
 
       navigationBarTheme: NavigationBarThemeData(
@@ -110,7 +114,7 @@ class AppTheme {
         indicatorColor: primary.withValues(alpha: 0.16),
         elevation: 0,
         labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
         ),
       ),
 

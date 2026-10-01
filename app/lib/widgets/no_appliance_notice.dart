@@ -45,7 +45,7 @@ class NoApplianceNotice extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.add, size: 20),
-                label: const Text('가전 추가'),
+                label: const Text('홈에서 가전 추가하기'),
               ),
             ],
           ),
