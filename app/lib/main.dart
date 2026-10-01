@@ -22,6 +22,7 @@ import 'screens/routines_screen.dart';
 import 'screens/settings_screen.dart';
 import 'screens/splash_screen.dart';
 import 'screens/status_screen.dart';
+import 'screens/pairing_screen.dart';
 import 'screens/suggestion_screen.dart';
 import 'screens/voice_screen.dart';
 import 'providers/theme_provider.dart';
@@ -41,7 +42,16 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
   // 시작 화면 하나가 내린다(`startupRouteProvider`) -- 두 군데서 정하면
   // 홈이 먼저 그려졌다가 뒤늦게 바뀌는 깜빡임이 생긴다.
   initialLocation: initialLocation,
+  redirect: (_, state) {
+    final uri = state.uri;
+    if (uri.scheme == 'simplelay' && uri.host == 'pair') {
+      return Uri(path: '/pair', queryParameters: uri.queryParameters).toString();
+    }
+    return null;
+  },
   routes: [
+    GoRoute(path: '/pair', builder: (_, state) => PairingScreen(
+      host: state.uri.queryParameters['host'], code: state.uri.queryParameters['code'])),
     GoRoute(
       path: '/splash',
       builder: (_, __) => const SplashScreen(),

@@ -433,6 +433,25 @@ class KioskApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> pairingSession({bool create = false}) async {
+    final uri = _base.replace(path: '/pair/session');
+    final res = await (create ? _client.post(uri) : _client.get(uri)).timeout(_timeout);
+    _ensureOk(res);
+    return jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+  }
+
+  Future<void> approvePairing(String requestId, bool approved) async {
+    final res = await _client.post(_base.replace(path: '/pair/approve'),
+      headers: _jsonHeaders,
+      body: jsonEncode({'request_id': requestId, 'approved': approved})).timeout(_timeout);
+    _ensureOk(res);
+  }
+
+  Future<void> closePairing() async {
+    final res = await _client.delete(_base.replace(path: '/pair/session')).timeout(_timeout);
+    _ensureOk(res);
+  }
+
   Future<HealthStatus> checkHealth() async {
     try {
       final res =

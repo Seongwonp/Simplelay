@@ -67,6 +67,8 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
           padding: const EdgeInsets.all(20),
           children: [
             _RpiConnectionTile(),
+            FilledButton.icon(onPressed: () => context.push('/pair'),
+              icon: const Icon(Icons.qr_code), label: const Text('코드로 폰 연결하기')),
             const SizedBox(height: 24),
             _SectionHeader(title: '허브 위치'),
             const SizedBox(height: 8),

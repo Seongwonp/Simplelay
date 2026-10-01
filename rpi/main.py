@@ -15,6 +15,7 @@ from rpi.api.deps import (
     get_suggestion_service,
     get_wellness_checker,
 )
+from rpi.api.pairing import pairing_router
 from rpi.api.dev_router import dev_router
 from rpi.api.router import router
 from rpi.api.service import ApplianceNotReadyError, UnknownApplianceError
@@ -141,6 +142,8 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="SimpleLay RPi API", version="0.1.0", lifespan=lifespan)
+
+app.include_router(pairing_router)
 
 
 @app.exception_handler(ApplianceNotReadyError)

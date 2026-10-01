@@ -570,6 +570,22 @@ class RpiApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> requestPairing(String code, String phone) async {
+    final res = await _client.post(_base.replace(path: '/pair'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'code': code, 'phone': phone})).timeout(_timeout);
+    _checkStatus(res);
+    return _decodeMap(res);
+  }
+
+  Future<Map<String, dynamic>> pairingResult(String token) async {
+    final res = await _client.post(_base.replace(path: '/pair/result'),
+      headers: const {'Content-Type': 'application/json'},
+      body: jsonEncode({'token': token})).timeout(_timeout);
+    _checkStatus(res);
+    return _decodeMap(res);
+  }
+
   Future<bool> ping() async {
     try {
       final res = await _client

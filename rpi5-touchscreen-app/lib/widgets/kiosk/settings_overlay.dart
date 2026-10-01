@@ -4,6 +4,7 @@ import '../../models/appliance.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_timings.dart';
+import 'pairing_view.dart';
 import '../learning_status_dialog.dart';
 
 // 설정 진입: 대기 화면 우하단 상태 dot 3번 연속 탭
@@ -51,6 +52,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   Map<String, String> _nodes = {};
   bool _loading = true;
   bool _showLearning = false;
+  bool _showPairing = false;
   bool _saving = false;
   String? _saveError;
   late TextEditingController _urlCtrl;
@@ -126,6 +128,9 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    if (_showPairing) {
+      return KioskPairingView(api: widget.api, onClose: () => setState(() => _showPairing = false));
+    }
     if (_showLearning) {
       // Keep the dialog inside KioskCanvas and the large-text MediaQuery.
       return ColoredBox(
@@ -171,6 +176,12 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          FilledButton.icon(
+                            icon: const Icon(Icons.qr_code),
+                            label: const Text('폰 연결하기'),
+                            onPressed: () => setState(() => _showPairing = true),
+                          ),
+                          const SizedBox(height: 16),
                           TextButton.icon(
                             icon: const Icon(Icons.history),
                             label: const Text('생활 습관 알아가기'),
