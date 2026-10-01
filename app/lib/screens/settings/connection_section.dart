@@ -183,9 +183,16 @@ class _AdvancedSection extends ConsumerWidget {
   const _AdvancedSection({
     required this.controller,
     required this.apiKeyController,
+    required this.urlEdited,
+    required this.apiKeyEdited,
   });
   final TextEditingController controller;
   final TextEditingController apiKeyController;
+
+  /// 사용자가 칸을 실제로 고쳤는지. 고치지 않은 칸은 저장하지 않는다 --
+  /// 설정을 읽기 전에 빈 칸으로 열린 화면이 저장된 값을 지우지 않게.
+  final bool Function() urlEdited;
+  final bool Function() apiKeyEdited;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => Column(
@@ -276,8 +283,14 @@ class _AdvancedSection extends ConsumerWidget {
       );
 
   Future<void> _save(WidgetRef ref) async {
-    await ref.read(rpiApiKeyProvider.notifier).save(apiKeyController.text);
-    await ref.read(rpiUrlProvider.notifier).save(controller.text);
+    await ref.read(rpiApiKeyProvider.notifier).ensureLoaded();
+    await ref.read(rpiUrlProvider.notifier).ensureLoaded();
+    if (apiKeyEdited()) {
+      await ref.read(rpiApiKeyProvider.notifier).save(apiKeyController.text);
+    }
+    if (urlEdited()) {
+      await ref.read(rpiUrlProvider.notifier).save(controller.text);
+    }
     await ref.read(rpiConnectionProvider.notifier).check();
   }
 }

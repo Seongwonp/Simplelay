@@ -86,8 +86,14 @@ final mdnsResolverProvider = Provider<MdnsResolver>((_) => MdnsResolver());
 
 class RpiApiKeyNotifier extends StateNotifier<String?> {
   RpiApiKeyNotifier() : super(null) {
-    _load();
+    _loaded = _load();
   }
+
+  late final Future<void> _loaded;
+
+  /// 저장된 키가 기기에서 올라올 때까지 기다린다. 올라오기 전의 null은
+  /// "키 없음"이 아니라 "아직 모름"이다(2026-10-01 키가 지워지던 결함).
+  Future<void> ensureLoaded() => _loaded;
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();

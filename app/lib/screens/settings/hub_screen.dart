@@ -13,10 +13,45 @@ class HubSettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
-  late final TextEditingController _urlController =
-      TextEditingController(text: ref.read(rpiUrlProvider) ?? '');
-  late final TextEditingController _apiKeyController =
-      TextEditingController(text: ref.read(rpiApiKeyProvider) ?? '');
+  // 화면이 저장된 설정을 기기에서 읽기 **전에** 열리면 provider가 아직 null이라
+  // 칸이 빈다. 그 빈 칸을 그대로 저장하면 키가 지워졌다(2026-10-01 결함).
+  // 그래서 ① 값이 늦게 올라오면 사용자가 손대지 않은 칸만 채우고 ② 저장은
+  // 사용자가 실제로 고친 칸만 한다.
+  final TextEditingController _urlController = TextEditingController();
+  final TextEditingController _apiKeyController = TextEditingController();
+  bool _urlEdited = false;
+  bool _keyEdited = false;
+  String _urlShown = '';
+  String _keyShown = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _showUrl(ref.read(rpiUrlProvider));
+    _showKey(ref.read(rpiApiKeyProvider));
+    _urlController.addListener(() {
+      if (_urlController.text != _urlShown) _urlEdited = true;
+    });
+    _apiKeyController.addListener(() {
+      if (_apiKeyController.text != _keyShown) _keyEdited = true;
+    });
+    ref.listenManual<String?>(rpiUrlProvider, (_, next) {
+      if (!_urlEdited) _showUrl(next);
+    });
+    ref.listenManual<String?>(rpiApiKeyProvider, (_, next) {
+      if (!_keyEdited) _showKey(next);
+    });
+  }
+
+  void _showUrl(String? value) {
+    _urlShown = value ?? '';
+    _urlController.text = _urlShown;
+  }
+
+  void _showKey(String? value) {
+    _keyShown = value ?? '';
+    _apiKeyController.text = _keyShown;
+  }
 
   @override
   void dispose() {
@@ -42,6 +77,8 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
             _AdvancedSection(
               controller: _urlController,
               apiKeyController: _apiKeyController,
+              urlEdited: () => _urlEdited,
+              apiKeyEdited: () => _keyEdited,
             ),
             const SizedBox(height: 24),
             _SectionHeader(title: '예비 연결'),
