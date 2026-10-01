@@ -236,7 +236,7 @@ class _CareEventCard extends StatelessWidget {
         'emergency_stop' => (
             Icons.front_hand_outlined,
             context.appWarning,
-            '긴급 정지'
+            '정지'
           ),
         'quiet_routine' => (
             Icons.favorite_outline,

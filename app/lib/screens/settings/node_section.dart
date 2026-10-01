@@ -179,7 +179,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
     } else {
       setState(() {
         _saving = false;
-        _error = '저장 실패 — RPi 서버에 연결되어 있는지 확인하세요';
+        _error = '저장하지 못했어요. 허브 연결을 확인하고 다시 저장해 주세요.';
       });
     }
   }
@@ -271,7 +271,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
-                  'ESP32 IP 입력 — 포트는 자동으로 :8080이 붙어요',
+                  '플러그 주소를 입력해 주세요',
                   style: TextStyle(fontSize: 12, color: context.appMuted),
                 ),
               ),

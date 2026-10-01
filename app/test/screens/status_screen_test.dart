@@ -34,7 +34,7 @@ void main() {
 
     testWidgets('긴급 정지 버튼 없음 (idle)', (tester) async {
       await _pumpStatus(tester, const ExecutionStatus());
-      expect(find.text('긴급 정지'), findsNothing);
+      expect(find.text('정지'), findsNothing);
     });
 
     testWidgets('원시 센서값이 없으면 센서 카드를 숨긴다', (tester) async {
@@ -102,7 +102,7 @@ void main() {
         ),
       );
 
-      expect(find.text('긴급 정지'), findsOneWidget);
+      expect(find.text('정지'), findsOneWidget);
       expect(find.text('다시 확인'), findsOneWidget);
       expect(find.textContaining('가전을 직접 확인'), findsOneWidget);
     });
@@ -239,7 +239,7 @@ void main() {
 
     testWidgets('긴급 정지 버튼 표시', (tester) async {
       await _pumpStatus(tester, runningStatus);
-      expect(find.text('긴급 정지'), findsOneWidget);
+      expect(find.text('정지'), findsOneWidget);
     });
   });
 
@@ -262,7 +262,7 @@ void main() {
 
     testWidgets('긴급 정지 버튼 표시', (tester) async {
       await _pumpStatus(tester, retryingStatus);
-      expect(find.text('긴급 정지'), findsOneWidget);
+      expect(find.text('정지'), findsOneWidget);
     });
   });
 
@@ -283,7 +283,7 @@ void main() {
 
     testWidgets('긴급 정지 버튼 없음 (완료)', (tester) async {
       await _pumpStatus(tester, completedStatus);
-      expect(find.text('긴급 정지'), findsNothing);
+      expect(find.text('정지'), findsNothing);
     });
 
     testWidgets('모든 단계 check_circle 표시', (tester) async {
@@ -299,17 +299,17 @@ void main() {
       sequenceId: 's4',
       steps: ['BT-02', 'BT-05'],
       completedSteps: 0,
-      message: '실행하지 못했어요.',
+      message: '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.',
     );
 
     testWidgets('실패 메시지 표시', (tester) async {
       await _pumpStatus(tester, failedStatus);
-      expect(find.text('실행하지 못했어요.'), findsOneWidget);
+      expect(find.text('실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.'), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 없음 (실패)', (tester) async {
       await _pumpStatus(tester, failedStatus);
-      expect(find.text('긴급 정지'), findsNothing);
+      expect(find.text('정지'), findsNothing);
     });
 
     testWidgets('실패는 모양으로도 구분한다', (tester) async {
@@ -333,7 +333,7 @@ void main() {
       expect(find.byIcon(Icons.stop), findsOneWidget);
       final button = tester.widget<FilledButton>(
         find.ancestor(
-          of: find.text('긴급 정지'),
+          of: find.text('정지'),
           matching: find.byType(FilledButton),
         ),
       );

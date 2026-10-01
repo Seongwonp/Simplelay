@@ -150,7 +150,7 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
-      expect(c.read(executionStatusProvider).message, '실행하지 못했어요.');
+      expect(c.read(executionStatusProvider).message, '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.');
     });
 
     test('result for different sequenceId is ignored', () async {
@@ -175,7 +175,7 @@ void main() {
       await c.read(executionStatusProvider.notifier).emergencyStop();
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
-      expect(c.read(executionStatusProvider).message, contains('긴급 정지'));
+      expect(c.read(executionStatusProvider).message, contains('정지'));
     });
   });
 }

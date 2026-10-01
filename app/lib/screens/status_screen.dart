@@ -910,7 +910,7 @@ class _StopArea extends StatelessWidget {
                     onPressed: onStop,
                     icon: const Icon(Icons.stop, size: 28),
                     label: const Text(
-                      '긴급 정지',
+                      '정지',
                       style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
                     ),
                   ),

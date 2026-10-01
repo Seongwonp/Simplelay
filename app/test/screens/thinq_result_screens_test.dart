@@ -119,6 +119,6 @@ void main() {
     expect(find.text('접수됨'), findsOneWidget);
     expect(find.textContaining('모의 실행'), findsOneWidget);
     expect(find.textContaining('실패'), findsNothing);
-    expect(find.textContaining('긴급 정지'), findsNothing);
+    expect(find.textContaining('정지'), findsNothing);
   });
 }

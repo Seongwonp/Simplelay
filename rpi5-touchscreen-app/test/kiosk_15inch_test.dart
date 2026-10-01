@@ -225,7 +225,7 @@ void main() {
         ),
       );
 
-      await _tapAt(tester, find.text('긴급 정지'));
+      await _tapAt(tester, find.text('정지'));
 
       expect(stops, 1);
     });

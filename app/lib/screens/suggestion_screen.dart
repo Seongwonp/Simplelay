@@ -498,7 +498,7 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final skip = OutlinedButton(
       onPressed: onSkip,
-      child: const Text('이번만 넘기기'),
+      child: const Text('다음에'),
     );
     final run = FilledButton.icon(
       onPressed: onRun,
@@ -507,7 +507,7 @@ class _ActionBar extends StatelessWidget {
       // 시킬지" 정하는 것 -- 키오스크와 같은 문구를 쓴다.
       label: const Text('지금 실행'),
     );
-    // 큰 글씨에서는 두 버튼을 나란히 두면 '이번만 넘기기'가 단어 중간에서
+    // 큰 글씨에서는 두 버튼을 나란히 두면 '다음에'가 단어 중간에서
     // 줄바꿈된다. 세로로 쌓고 주 행동을 위에 둔다.
     final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
 
@@ -567,7 +567,7 @@ class _ActionBar extends StatelessWidget {
                   ],
                 ),
               // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE
-              // 경로는 '이번만 넘기기'와 같은 거절 메시지라 약속을 지킬 수
+              // 경로는 '다음에'와 같은 거절 메시지라 약속을 지킬 수
               // 없다.
               if (onSnooze != null)
                 TextButton.icon(
@@ -860,7 +860,7 @@ class _ScenarioActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final skip = OutlinedButton(
       onPressed: onSkip,
-      child: const Text('이번만 넘기기'),
+      child: const Text('다음에'),
     );
     final run = FilledButton.icon(
       onPressed: onRun,

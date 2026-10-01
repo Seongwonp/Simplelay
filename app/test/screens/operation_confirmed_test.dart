@@ -31,7 +31,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼 조작을 마쳤어요.',
+        message: '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -56,7 +56,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼 조작을 마쳤어요.',
+        message: '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -77,7 +77,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼 조작을 마쳤어요.',
+        message: '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -101,7 +101,7 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼 조작을 마쳤어요.'), findsNothing);
+    expect(find.text('누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.'), findsNothing);
     expect(find.textContaining('실제 조작 여부는 확인하지 못했어요'), findsOneWidget);
   });
 }

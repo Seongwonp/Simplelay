@@ -56,7 +56,7 @@ void main() {
               receipt: 'unknown',
               confirmation: 'none',
               kind: ResultKind.unconfirmed),
-          '접수 불명');
+          '받았는지 확인이 필요해요');
       expect(
           confirmationLabel(
               route: 'thinq',
@@ -75,7 +75,7 @@ void main() {
         expect(m, isNot(contains('마쳤어요')));
         expect(m, isNot(contains('확인했어요')));
       }
-      expect(unconfirmedSentence(receipt: 'unknown'), contains('접수 불명'));
+      expect(unconfirmedSentence(receipt: 'unknown'), contains('받았는지 확인이 필요해요'));
     });
 
     test('경로 배지', () {

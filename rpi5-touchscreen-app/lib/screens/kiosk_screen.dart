@@ -1015,7 +1015,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (mounted && _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('넘기기를 전달하지 못했어요. 연결을 확인하고 다시 눌러주세요.'),
+          content: Text('다음에 실행하겠다는 요청을 보내지 못했어요. 연결을 확인하고 다시 눌러주세요.'),
         ));
       }
     } finally {

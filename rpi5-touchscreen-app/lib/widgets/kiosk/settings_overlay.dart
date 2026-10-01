@@ -409,7 +409,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
       children: [
         Row(
           children: [
-            _SectionLabel('ESP32 노드 — ${_selected.name}'),
+            _SectionLabel('플러그 — ${_selected.name}'),
             const Spacer(),
             if (registered != null)
               Container(

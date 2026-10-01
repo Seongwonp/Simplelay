@@ -378,7 +378,7 @@ enum KioskFailureReason {
         KioskFailureReason.stopped => '실행을 멈췄어요',
         KioskFailureReason.safetyStop => '안전하게 멈췄어요',
         KioskFailureReason.unconfirmed => '보냈지만 확인하지 못했어요',
-        KioskFailureReason.receiptUnknown => '접수 불명',
+        KioskFailureReason.receiptUnknown => '받았는지 확인이 필요해요',
         KioskFailureReason.notExecuted => '명령이 실행되지 않았어요',
       };
 

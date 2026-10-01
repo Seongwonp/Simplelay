@@ -84,16 +84,16 @@ String? confirmationLabel({
   if (confirmation == 'state_confirmed') return '상태 확인됨';
   if (route == 'thinq') {
     if (receipt == 'not_dispatched') return '보내지 않음';
-    if (receipt == 'unknown') return '접수 불명';
+    if (receipt == 'unknown') return '받았는지 확인이 필요해요';
     if (receipt == 'accepted') {
       return kind == ResultKind.unconfirmed ? '접수됨' : '실행 안 됨';
     }
     return null;
   }
   return switch (confirmation) {
-    'operation_confirmed' => '동작 확인됨',
-    'press_confirmed' => '누름 확인됨',
-    'reported' => '실행기 보고만 받음',
+    'operation_confirmed' => '켜진 것을 확인했어요',
+    'press_confirmed' => '버튼을 눌렀어요',
+    'reported' => '누름 장치의 응답을 받았어요',
     'none' => '확인 근거 없음',
     _ => null,
   };
@@ -101,7 +101,7 @@ String? confirmationLabel({
 
 /// ThinQ 확인 못 함의 한 문장. 접수 불명이면 다시 보내기 전에 확인하라고 한다.
 String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
-    ? '명령을 보냈지만 가전이 받았는지 알 수 없어요(접수 불명). '
+    ? '명령을 보냈지만 가전이 받았는지 확인하지 못했어요. '
         '다시 보내기 전에 가전을 직접 확인해 주세요.'
     : '명령을 보냈지만 확인하지 못했어요. 가전을 직접 확인해 주세요.';
 
@@ -126,8 +126,8 @@ String finishedMessage({
       return executionMode == 'mock'
           ? '모의 버튼 조작을 마쳤어요. 실제 조작은 하지 않았어요.'
           : executionMode == 'real'
-              ? '버튼 조작을 마쳤어요.'
-              : '실행기가 완료를 보고했어요. 실제 조작 여부는 확인하지 못했어요.';
+              ? '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.'
+              : '누름 장치가 응답했어요. 실제로 눌렀는지 가전을 확인해 주세요.';
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
     case ResultKind.stopped:
@@ -137,6 +137,6 @@ String finishedMessage({
     case ResultKind.safetyStop:
       return '눌림을 확인하지 못해 안전하게 멈췄어요. 가전을 확인해 주세요.';
     case ResultKind.failed:
-      return thinq ? '명령이 실행되지 않았어요.' : '실행하지 못했어요.';
+      return thinq ? '가전이 명령을 실행하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.' : '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.';
   }
 }

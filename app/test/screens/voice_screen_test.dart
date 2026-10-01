@@ -493,7 +493,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('사용자 정의 가전의 음성 명령은 RPi5 서버 연결이 필요해요. 설정에서 URL을 확인하세요.'),
+        find.text('음성으로 실행하려면 허브에 연결해 주세요. 설정에서 허브 주소를 확인해 주세요.'),
         findsOneWidget,
       );
       // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.

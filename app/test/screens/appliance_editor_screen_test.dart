@@ -220,7 +220,7 @@ void main() {
     expect(find.text('기기 연결'), findsOneWidget);
     expect(find.text('버튼 위치 보정'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(TextButton, '나중에'));
+    await tester.tap(find.widgetWithText(TextButton, '다음에'));
     await tester.pumpAndSettle();
 
     // pop 후 라우터의 '/' 화면으로 돌아감
@@ -246,7 +246,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, '저장'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, '나중에'));
+    await tester.tap(find.widgetWithText(TextButton, '다음에'));
     await tester.pumpAndSettle();
 
     final saved = container.read(customAppliancesProvider).single;

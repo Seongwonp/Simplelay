@@ -171,7 +171,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  /// '나중에' — 이번만 넘긴다(다시 받지 않기가 아니다). 실패하면 카드를 그대로
+  /// '다음에' — 이번만 넘긴다(다시 받지 않기가 아니다). 실패하면 카드를 그대로
   /// 두고 말한다 -- 조용히 지우면 서버에는 카드가 살아 있다.
   static Future<void> _later(
     BuildContext context,
@@ -353,7 +353,7 @@ class _SuggestionCard extends StatelessWidget {
               OutlinedButton(
                 onPressed: onLater,
                 style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
-                child: const Text('나중에'),
+                child: const Text('다음에'),
               ),
             ],
           ),
@@ -855,14 +855,14 @@ class _RpiStatusCard extends ConsumerWidget {
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('RPi 서버 주소'),
+        title: const Text('허브 주소'),
         content: TextField(
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
             hintText: '예: 192.168.0.10',
-            helperText: 'RPi5 화면이나 공유기 관리 페이지에서 IP를 확인할 수 있어요.',
+            helperText: '공유기 관리 화면에서 허브 주소를 확인해 주세요.',
             helperMaxLines: 2,
           ),
           onSubmitted: (v) => Navigator.pop(dialogContext, v),
@@ -906,13 +906,13 @@ class _RpiStatusCard extends ConsumerWidget {
       RpiConnectionState.unreachable => (
           context.appDanger,
           Icons.wifi_off,
-          'RPi 서버에 연결할 수 없어요',
+          '허브에 닿지 않아요',
           '같은 Wi-Fi인지 확인하거나 주소를 직접 입력하세요',
         ),
       RpiConnectionState.unconfigured => (
           context.appMuted,
           Icons.wifi_off,
-          'RPi 서버 미설정',
+          '허브 주소를 입력해 주세요',
           '설정에서 서버 주소를 입력하세요',
         ),
     };

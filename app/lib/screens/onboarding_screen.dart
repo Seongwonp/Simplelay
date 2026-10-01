@@ -62,7 +62,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
                       // ── 타이틀 ─────────────────────────────────────────────────
                       Text(
-                        'SimpleLay에 오신 것을\n환영합니다',
+                        'SimpleLay에 오신 것을\n환영해요',
                         textAlign: TextAlign.center,
                         style: AppText.heading.copyWith(
                           color: cs.onSurface,
@@ -71,7 +71,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '복잡한 가전 버튼을 더 쉽게 조작하세요.\n말하거나 화면에서 고르면 대신 눌러드려요.',
+                        '가전을 등록하고 실행을 승인하면\n허브가 버튼을 대신 눌러 줘요.',
                         textAlign: TextAlign.center,
                         style: AppText.body.copyWith(color: context.appMuted),
                       ),
@@ -81,20 +81,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       // ── 특징 3가지 ──────────────────────────────────────────────
                       _FeatureRow(
                         icon: Icons.wifi_rounded,
-                        title: '자동 연결',
-                        body: 'RPi5와 같은 WiFi에 연결하면\nsimplelay.local로 자동 접속돼요',
+                        title: '허브 연결',
+                        body: '허브와 같은 와이파이에 연결한 뒤\n설정에서 연결을 확인해 주세요.',
                       ),
                       const SizedBox(height: 20),
                       _FeatureRow(
                         icon: Icons.lightbulb_outline_rounded,
                         title: '사용 습관 제안',
-                        body: '상황을 감지하면 가전 조작 제안이\n화면에 나타납니다',
+                        body: '상황을 감지하면 가전 조작 제안이\n화면에 나타나요.',
                       ),
                       const SizedBox(height: 20),
                       _FeatureRow(
                         icon: Icons.do_not_disturb_on_outlined,
-                        title: '방해 금지',
-                        body: '홈 화면 우측 상단 버튼으로\n제안을 잠시 멈출 수 있어요',
+                        title: '내 루틴',
+                        body: '자주 누르는 순서를 저장하고\n루틴 화면에서 실행해요.',
                       ),
 
                       const SizedBox(height: 32),

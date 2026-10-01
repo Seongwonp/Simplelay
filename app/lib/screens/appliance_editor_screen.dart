@@ -755,7 +755,7 @@ class _SavedNextStepsDialog extends StatelessWidget {
           ],
         ),
         actions: [
-          TextButton(onPressed: onLater, child: const Text('나중에')),
+          TextButton(onPressed: onLater, child: const Text('다음에')),
           FilledButton(onPressed: onGoToSettings, child: const Text('연결하러 가기')),
         ],
       );

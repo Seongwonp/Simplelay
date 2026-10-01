@@ -379,7 +379,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     await ref.read(bleServiceProvider).emergencyStop();
     state = state.copyWith(
       phase: ExecutionPhase.failed,
-      message: '긴급 정지를 보냈어요.',
+      message: '정지를 요청했어요.',
     );
   }
 

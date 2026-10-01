@@ -896,7 +896,7 @@ void main() {
     expect(banner.style!.fontSize, greaterThanOrEqualTo(30));
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
     // 재시도 중에도 긴급 정지는 그대로 있다.
-    expect(find.text('긴급 정지'), findsOneWidget);
+    expect(find.text('정지'), findsOneWidget);
     expect(find.textContaining('2번째 시도'), findsWidgets);
   });
 

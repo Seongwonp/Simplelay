@@ -185,7 +185,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         // BLE 릴레이(ESP32)는 의도 해석을 못 하므로 RPi5 HTTP 직통만 지원한다
         // (버튼 직접 실행 — manual_control_screen과 같은 제약).
         if (rpiApi == null) {
-          _notice('사용자 정의 가전의 음성 명령은 RPi5 서버 연결이 필요해요. 설정에서 URL을 확인하세요.');
+          _notice('음성으로 실행하려면 허브에 연결해 주세요. 설정에서 허브 주소를 확인해 주세요.');
           return;
         }
         final accepted = await rpiApi.executeForAppliance(

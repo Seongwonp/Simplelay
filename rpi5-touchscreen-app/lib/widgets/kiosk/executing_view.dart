@@ -190,7 +190,7 @@ class KioskExecutingView extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.stop, size: 36),
                     label: const Text(
-                      '긴급 정지',
+                      '정지',
                       textAlign: TextAlign.center,
                       style:
                           TextStyle(fontSize: 26, fontWeight: FontWeight.w800),

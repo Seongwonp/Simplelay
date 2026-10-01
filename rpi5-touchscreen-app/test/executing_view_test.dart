@@ -71,7 +71,7 @@ void main() {
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
     expect(find.textContaining('2번째 시도'), findsOneWidget);
     expect(find.textContaining('실패'), findsNothing);
-    expect(find.text('긴급 정지'), findsOneWidget);
+    expect(find.text('정지'), findsOneWidget);
   });
 
   testWidgets('긴급 정지는 정지 기호·글자·두꺼운 외곽선을 가진다', (tester) async {
@@ -79,7 +79,7 @@ void main() {
 
     expect(find.byIcon(Icons.stop), findsOneWidget);
     final finder = find.ancestor(
-      of: find.text('긴급 정지'),
+      of: find.text('정지'),
       matching: find.byType(ElevatedButton),
     );
     final button = tester.widget<ElevatedButton>(finder);
@@ -92,7 +92,7 @@ void main() {
       (tester) async {
     await _pump(tester);
     final button = tester.widget<ElevatedButton>(find.ancestor(
-      of: find.text('긴급 정지'),
+      of: find.text('정지'),
       matching: find.byType(ElevatedButton),
     ));
     expect(button.style!.backgroundColor!.resolve({}), KioskColors.stop);
@@ -191,7 +191,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('긴급 정지'), findsOneWidget);
+    expect(find.text('정지'), findsOneWidget);
   });
 
   test('서버가 준 실행 대상 가전을 받는다', () {

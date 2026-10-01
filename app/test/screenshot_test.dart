@@ -277,7 +277,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 2,
     applianceId: 'microwave',
-    message: '버튼 조작을 마쳤어요.',
+    message: '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.',
   );
   const failed = ExecutionStatus(
     phase: ExecutionPhase.failed,
@@ -286,7 +286,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '실행하지 못했어요.',
+    message: '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.',
   );
   const unknownState = ExecutionStatus(
     phase: ExecutionPhase.unknown,

@@ -58,7 +58,7 @@ class _RpiConnectionTile extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: Icon(icon, color: color, size: 22),
             // 200%에서 폭에 들어가는 길이로. 무엇인지는 아래 문장이 말한다.
-            title: const Text('조작 기기'),
+            title: const Text('허브'),
             subtitle: Text(
               label,
               style: TextStyle(color: color, fontSize: 14),
@@ -199,7 +199,7 @@ class _AdvancedSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'RPi 서버 주소',
+            '허브 주소',
             style: TextStyle(color: context.appMuted, fontSize: 13),
           ),
           const SizedBox(height: 4),

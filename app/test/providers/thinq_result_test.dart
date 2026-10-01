@@ -70,7 +70,7 @@ void main() {
       'last_confirmation': 'none',
     });
     expect(s.phase, ExecutionPhase.unconfirmed);
-    expect(s.message, contains('접수 불명'));
+    expect(s.message, contains('받았는지 확인이 필요해요'));
   });
 
   test('원격 안전 정지(safety_stop)는 "멈췄어요"가 아니라 안전 정지로 말한다', () async {
@@ -90,7 +90,7 @@ void main() {
       'last_route': 'physical',
     });
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, '실행하지 못했어요.');
+    expect(s.message, '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.');
   });
 
   test('옛 서버(last_outcome 없음)의 safety_stopped는 종전 문구', () async {

@@ -171,7 +171,7 @@ void main() {
       router.push('/suggestion/test-001');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('이번만 넘기기'));
+      await tester.tap(find.text('다음에'));
       await tester.pumpAndSettle();
 
       // pop 후 홈으로 돌아감
@@ -315,7 +315,7 @@ void main() {
       expect(run.onPressed, isNull);
       expect(find.textContaining('노드가 응답하지 않아요'), findsOneWidget);
       // 넘기는 길은 그대로 열려 있다.
-      expect(find.text('이번만 넘기기'), findsOneWidget);
+      expect(find.text('다음에'), findsOneWidget);
     });
 
     testWidgets('실행 직전에 대상과 단계 수를 한 번 더 말한다', (tester) async {
@@ -338,7 +338,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('이번만 넘기기'), findsOneWidget);
+      expect(find.text('다음에'), findsOneWidget);
       expect(find.text('이 제안 다시 받지 않기'), findsNothing);
     });
 
