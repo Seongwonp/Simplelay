@@ -340,6 +340,18 @@ def _raise_for_result(result: DevResult) -> None:
 dev_router = APIRouter(prefix="/dev", tags=["developer"])
 
 
+@dev_router.get("/diagnostics/board-probe")
+def board_probe_history(_manager=Depends(require_dev_access)):
+    from rpi.services.probe_history import load_last_probe
+    try:
+        result = load_last_probe()
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        raise _error(503, "probe_history_unavailable", "이전 점검 기록을 읽을 수 없습니다") from None
+    if result is None:
+        raise _error(404, "probe_history_disabled", "이전 점검 기록이 없거나 표시가 꺼져 있습니다")
+    return result
+
+
 @dev_router.get("/state", response_model=DevStateResponse)
 def dev_state(
     manager: DeveloperSessionManager = Depends(require_dev_access),
