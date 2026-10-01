@@ -6,6 +6,45 @@ import time
 from urllib.parse import urlsplit
 
 from .core import http_get
+from . import core
+
+
+def recovery_check(cfg, action):
+    matches = [c for c in cfg.get("checks", []) if c["id"] == action.get("check_id")]
+    if len(matches) != 1 or matches[0].get("safe_read_only") is not True:
+        raise ValueError("restart requires a unique safe_read_only check_id")
+    check = matches[0]
+    kind = check["kind"]
+    has_call = (kind == "http" or kind == "executable" and "args" in check
+                or kind.startswith("dbus_") and bool(check.get("call"))
+                or kind == "python_module" and check.get("call") == "import"
+                or kind == "device_node" and check.get("call") == "open_read")
+    if not has_call:
+        raise ValueError("restart target requires a configured minimal call")
+    timeout = float(action.get("recovery_timeout_s", 30))
+    if not math.isfinite(timeout) or timeout <= 0:
+        raise ValueError("recovery_timeout_s must be finite and positive")
+    return check, timeout
+
+
+def wait_for_recovery(cfg, check, timeout):
+    deadline = time.monotonic() + timeout
+    last_error = "target minimal call not attempted"
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError(f"recovery_failed: {last_error}")
+        try:
+            result = core.run_check(check, cfg["app_account"], timeout_s=min(15, remaining))
+            if result["call_attempted"] and result["min_call_ok"] is True:
+                if time.monotonic() <= deadline:
+                    return
+                last_error = "target minimal call exceeded recovery timeout"
+            else:
+                last_error = "; ".join(result["error"]) or "target minimal call did not succeed"
+        except Exception as exc:
+            last_error = str(exc) or type(exc).__name__
+        time.sleep(min(0.2, max(0, deadline - time.monotonic())))
 
 
 def idle(url, get=http_get):
@@ -22,20 +61,14 @@ def run_active(cfg, acknowledged, get=http_get):
     results = []
     for action in cfg.get("active", []):
         idle(cfg["status_url"], get)
-        r = {"kind": action["kind"], "ok": False, "recovery_ms": None, "error": None}
+        r = {"kind": action["kind"], "ok": False, "recovery_ms": None,
+             "recovery_failed": False, "error": None}
         start = time.perf_counter()
         try:
             if action["kind"] == "restart":
+                check, timeout = recovery_check(cfg, action)
                 subprocess.run(["systemctl", "restart", "--", action["unit"]], check=True, capture_output=True, timeout=15)
-                deadline = time.monotonic() + 30
-                while True:
-                    try:
-                        idle(action["reconnect_status_url"], get)
-                        break
-                    except Exception:
-                        if time.monotonic() >= deadline:
-                            raise TimeoutError("재연결 시간 초과")
-                        time.sleep(0.2)
+                wait_for_recovery(cfg, check, timeout)
             elif action["kind"] == "jog":
                 tiny_move(action)
             else:
@@ -43,7 +76,8 @@ def run_active(cfg, acknowledged, get=http_get):
             r["ok"] = True
             r["recovery_ms"] = round((time.perf_counter() - start) * 1000, 3)
         except Exception as exc:
-            r["error"] = str(exc)
+            r["recovery_failed"] = action["kind"] == "restart"
+            r["error"] = str(exc) or type(exc).__name__
         r["elapsed_ms"] = round((time.perf_counter() - start) * 1000, 3)
         results.append(r)
         if not r["ok"]:
