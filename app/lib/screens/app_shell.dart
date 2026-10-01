@@ -95,7 +95,7 @@ class RunningStopStrip extends ConsumerWidget {
                   button: true,
                   label: '실행 상태 보기',
                   child: InkWell(
-                    onTap: () => context.go('/status'),
+                    onTap: () => context.push('/status'),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       child: Row(

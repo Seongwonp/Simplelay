@@ -274,7 +274,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           jobId: jobId,
           label: label,
         );
-    if (mounted) context.go('/status');
+    if (mounted) context.push('/status');
   }
 
   /// 412(준비 안 됨) 안내 — 서버가 준 사유를 그대로 싣는다.

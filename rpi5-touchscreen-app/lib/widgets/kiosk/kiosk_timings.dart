@@ -16,7 +16,7 @@ class KioskTimings {
   static const List<int> countdownChoices = [10, 20, 30];
 
   /// 완료 화면 → 대기 화면 자동 복귀
-  static const Duration doneReturn = Duration(seconds: 3);
+  static const Duration doneReturn = Duration(seconds: 10);
 
   /// 서버가 total_steps를 안 줄 때(UART 집계 모드)만 쓰는 폴백 채움 시간
   static const Duration execBarFill = Duration(seconds: 9);

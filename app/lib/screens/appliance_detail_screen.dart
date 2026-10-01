@@ -209,7 +209,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
             label: b.label,
             steps: [b.label],
           );
-      if (context.mounted) context.go('/status');
+      if (context.mounted) context.push('/status');
     } on RpiApiException catch (e) {
       if (!context.mounted) return;
       _snack(

@@ -1,5 +1,6 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/appliance.dart';
@@ -287,6 +288,28 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           // 정지는 스크롤 안에 두면 안 된다. 큰 글씨에서는 화면 밖으로
           // 밀리고, 정작 급한 순간(동작을 확인할 수 없을 때)에 손이 닿지
           // 않는다. 센서 카드 아래가 아니라 항상 같은 자리에 둔다.
+          if (_finished(status.phase))
+            SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_kindOf(status) == ResultKind.failed ||
+                        _kindOf(status) == ResultKind.safetyStop)
+                      const Text('가전을 확인한 뒤 시작한 화면에서 다시 실행해 주세요.'),
+                    FilledButton(
+                      onPressed: _returnToOrigin,
+                      child: Text(_kindOf(status) == ResultKind.failed ||
+                          _kindOf(status) == ResultKind.safetyStop ? '다시 시도' : '확인'),
+                    ),
+                    TextButton(onPressed: _returnToOrigin, child: const Text('닫기')),
+                  ],
+                ),
+              ),
+            ),
           if (canStop)
             _StopArea(
               showRecheck: unknown,
@@ -298,6 +321,14 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
         ],
       ),
     );
+  }
+
+  void _returnToOrigin() {
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).pop();
+    } else {
+      context.go('/');
+    }
   }
 
   /// 대상 가전에 등록된 이름 그대로. 대상을 모르면 전역 표(내장 코드만

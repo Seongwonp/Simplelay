@@ -59,10 +59,6 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
               builder: (_, __) => const HomeScreen(),
               routes: [
                 GoRoute(
-                  path: 'status',
-                  builder: (_, __) => const StatusScreen(),
-                ),
-                GoRoute(
                   path: 'voice',
                   builder: (_, __) => const VoiceScreen(),
                 ),
@@ -104,6 +100,7 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
         ),
       ],
     ),
+    GoRoute(path: '/status', builder: (_, __) => const StatusScreen()),
     GoRoute(
       path: '/onboarding',
       builder: (_, __) => const OnboardingScreen(),

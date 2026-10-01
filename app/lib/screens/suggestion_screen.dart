@@ -220,7 +220,7 @@ class SuggestionScreen extends ConsumerWidget {
         DemoService(ref.read(bleServiceProvider)).runExecutionFlow();
       }
     }
-    if (context.mounted) context.go('/status');
+    if (context.mounted) context.push('/status');
   }
 
   @override

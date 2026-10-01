@@ -52,10 +52,12 @@ void main() {
     expect(find.text('전자레인지'), findsOneWidget);
     expect(find.text('즉석밥 데워줘'), findsOneWidget);
     expect(find.text('실행기가 버튼 조작 완료를 보고했어요'), findsOneWidget);
-    expect(find.text('잠시 후 처음 화면으로 돌아가요'), findsOneWidget);
+    expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     // 가전이 조리·세탁을 끝냈다고 말하지 않는다.
     expect(find.textContaining('완료되었'), findsNothing);
 
+    await tester.pump(const Duration(seconds: 4));
+    expect(find.text('6초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     await tester.tap(find.text('처음으로'));
     expect(dismissed, 1);
   });
@@ -112,7 +114,7 @@ void main() {
     expect(find.text('버튼 조작을 확인하지 못했어요'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
     expect(find.text('버튼으로 조작'), findsOneWidget);
-    expect(find.text('잠시 후 처음 화면으로 돌아가요'), findsNothing);
+    expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
   });
 
   testWidgets('긴급 정지 뒤에도 장치가 멈췄다고 단정하지 않는다', (tester) async {

@@ -457,9 +457,13 @@ class _AutoReturn extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            '잠시 후 처음 화면으로 돌아가요',
-            style: const TextStyle(fontSize: 18, color: KioskColors.muted),
+          TweenAnimationBuilder<double>(
+            tween: Tween(begin: KioskTimings.doneReturn.inSeconds.toDouble(), end: 0),
+            duration: KioskTimings.doneReturn,
+            builder: (_, seconds, __) => Text(
+              '${seconds.ceil()}초 뒤 처음 화면으로 돌아가요',
+              style: const TextStyle(fontSize: 18, color: KioskColors.muted),
+            ),
           ),
           const SizedBox(height: 8),
           SizedBox(

@@ -197,7 +197,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               pendingLabel: _pendingLabel,
               resultLabel: _resultLabel,
               resultSuccess: _resultSuccess,
-              onSeeStatus: () => context.go('/status'),
+              onSeeStatus: () => context.push('/status'),
             ),
 
           const SizedBox(height: 20),
