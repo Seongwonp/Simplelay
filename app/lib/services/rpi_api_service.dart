@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/appliance.dart';
+import '../models/estop.dart';
 import '../models/hub.dart';
 import '../models/learning_status.dart';
 import '../models/routine.dart';
@@ -80,8 +81,14 @@ class RpiStatusResult {
     this.lastOperationConfirmed,
     this.lastOperationSource,
     this.lastOperationDetail,
+    this.estopLatched = false,
+    this.estopDetail,
   });
   final bool running;
+
+  /// 콘센트 모듈 비상정지 걸림(2026-10-05). 없거나 null이면 거짓.
+  final bool estopLatched;
+  final String? estopDetail;
   final String? lastStatus;
 
   /// success | failed | stopped | safety_stop | unconfirmed. 옛 서버는 null —
@@ -749,6 +756,10 @@ class RpiApiService {
       lastOperationConfirmed: body['last_operation_confirmed'] as bool?,
       lastOperationSource: body['last_operation_source'] as String?,
       lastOperationDetail: body['last_operation_detail'] as String?,
+      estopLatched: body['estop_latched'] == true,
+      estopDetail: body['estop_latched'] == true && body['estop_detail'] is String
+          ? body['estop_detail'] as String
+          : null,
     );
   }
 
@@ -758,6 +769,24 @@ class RpiApiService {
         .post(_base.replace(path: '/stop'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
+  }
+
+  /// POST /stop/ack — 사람이 확인한 비상정지 해제 요청(2026-10-05).
+  ///
+  /// **사용자가 확인 대화에서 '해제'를 누른 뒤에만** 부른다. 예외를 던지지 않고
+  /// 결과 종류로 돌려준다 — 화면은 실패해도 배너를 남기고 이유를 보인다.
+  Future<EstopAckResult> ackEstop() async {
+    try {
+      final res = await _client
+          .post(_base.replace(path: '/stop/ack'), headers: _headers)
+          .timeout(_timeout);
+      _checkStatus(res);
+      return EstopAckResult.fromJson(_decodeMap(res));
+    } on RpiApiException catch (e) {
+      return EstopAckResult.fromStatusCode(e.statusCode, detail: e.message);
+    } catch (_) {
+      return const EstopAckResult(EstopAckOutcome.failed);
+    }
   }
 
   // GET /suggestions

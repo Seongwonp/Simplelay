@@ -8,6 +8,7 @@ import '../providers/execution_status_provider.dart';
 import '../providers/hub_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../theme/app_colors.dart';
+import '../widgets/estop_banner.dart';
 
 /// 하단 탭 shell — **홈 · 루틴 · 기록 · 설정**(UI 확정 §2).
 ///
@@ -18,6 +19,9 @@ import '../theme/app_colors.dart';
 /// 예전 탭바 가운데의 '말로 조작하기'와 '상태' 탭은 없앴다. 대신
 /// **실행 중에는 어느 탭에서든 탭바 바로 위에 정지 줄이 뜬다** -- 상태
 /// 탭이 사라져도 멈출 수단이 한 번의 터치 안에 있어야 한다.
+///
+/// 콘센트 모듈 비상정지가 걸려 있으면(2026-10-05) 정지 줄 위에 걸림 배너가
+/// 함께 뜬다 — 해제는 사람이 확인 대화를 거쳐서만 한다.
 class AppShell extends ConsumerWidget {
   const AppShell({required this.navigationShell, super.key});
 
@@ -48,6 +52,8 @@ class AppShell extends ConsumerWidget {
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // 비상정지 걸림은 정지 줄 **위**에 — 걸린 채로도 정지 줄은 그대로 닿는다.
+          const EstopBanner(),
           const RunningStopStrip(),
           _BottomBar(
             index: index,

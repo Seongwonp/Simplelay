@@ -34,6 +34,8 @@ import 'package:simplelay/screens/appliance_detail_screen.dart';
 import 'package:simplelay/screens/appliance_editor_screen.dart';
 import 'package:simplelay/screens/routine_editor_screen.dart';
 import 'package:simplelay/screens/history_screen.dart';
+import 'package:simplelay/providers/estop_provider.dart';
+import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
@@ -616,6 +618,22 @@ void main() {
       await _shootShell(t, name, light: light);
     });
   }
+
+  // 비상정지 걸림(2026-10-05) — 탭바 위 배너. 실행 중이라 정지 줄도 함께 보인다.
+  testWidgets('하단 탭바 — 비상정지 걸림 (라이트)', (t) async {
+    await _shootShell(t, 'shell_estop', light: true, overrides: [
+      rpiApiServiceProvider.overrideWithValue(_EstopApi()),
+      estopPollIntervalProvider.overrideWithValue(null),
+    ], status: const ExecutionStatus(phase: ExecutionPhase.running, label: '즉석밥'));
+  });
+}
+
+class _EstopApi extends RpiApiService {
+  _EstopApi() : super('http://hub.test');
+
+  @override
+  Future<HubStatus> hubStatus() async => const HubStatus(
+      estopLatched: true, estopDetail: '콘센트 모듈의 비상정지 버튼이 눌렸어요');
 }
 
 /// 사진으로 등록한 전자레인지 — 버튼 자리는 테스트 이미지(320x200) 위 좌표다.
@@ -749,6 +767,8 @@ Future<void> _shootShell(
   WidgetTester tester,
   String name, {
   required bool light,
+  List<Override> overrides = const [],
+  ExecutionStatus? status,
 }) async {
   tester.view.physicalSize = _phoneSize;
   tester.view.devicePixelRatio = 1.0;
@@ -788,6 +808,7 @@ Future<void> _shootShell(
 
   await tester.pumpWidget(
     ProviderScope(
+      overrides: overrides,
       child: MaterialApp.router(
         debugShowCheckedModeBanner: false,
         theme: light
@@ -800,6 +821,14 @@ Future<void> _shootShell(
     ),
   );
   await tester.pumpAndSettle();
+  if (status != null) {
+    // Test-only seed of the real notifier.
+    // ignore: invalid_use_of_protected_member
+    ProviderScope.containerOf(tester.element(find.byType(AppShell)))
+        .read(executionStatusProvider.notifier)
+        .state = status;
+    await tester.pumpAndSettle();
+  }
   await expectLater(
     find.byType(MaterialApp),
     matchesGoldenFile('goldens/$name.png'),

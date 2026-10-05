@@ -9,6 +9,8 @@ class HubStatus {
     this.holdState,
     this.holdStopOutcome,
     this.holdDetail,
+    this.estopLatched = false,
+    this.estopDetail,
   });
 
   /// 서버 `SIMPLELAY_DEV_MODE`. 참일 때만 폰에 '개발자' 탭이 생긴다.
@@ -21,12 +23,23 @@ class HubStatus {
   final String? holdStopOutcome;
   final String? holdDetail;
 
+  /// 콘센트 모듈 비상정지 걸림(2026-10-05). 옛 서버·보고 수단 없는 실행기(null)는
+  /// 걸리지 않은 것으로 본다 — 실행 거절은 어차피 서버가 한다.
+  final bool estopLatched;
+
+  /// 걸린 사유(서버 문장). 걸리지 않았으면 null.
+  final String? estopDetail;
+
   factory HubStatus.fromJson(Map<String, dynamic> json) => HubStatus(
         // 옛 서버는 이 키가 없다 -- 없으면 꺼진 것으로 본다.
         developerMode: json['developer_mode'] == true,
         holdState: json['hold_state'] as String?,
         holdStopOutcome: json['hold_stop_outcome'] as String?,
         holdDetail: json['hold_detail'] as String?,
+        estopLatched: json['estop_latched'] == true,
+        estopDetail: json['estop_latched'] == true && json['estop_detail'] is String
+            ? json['estop_detail'] as String
+            : null,
       );
 }
 
