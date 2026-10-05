@@ -82,7 +82,14 @@ class _ConnectionIcon extends StatelessWidget {
               children: [
                 Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(connectionIcon(item), size: 28, color: color),
-                  if (item.state == 'unknown') const Text('모름', style: TextStyle(fontSize: 33, color: KioskColors.muted)),
+                  // 66x80 칸 안에 아이콘과 한 줄로 들어가야 한다 — 33px이면 두 줄로
+                  // 꺾여 아래로 넘친다(d965888 회귀).
+                  if (item.state == 'unknown')
+                    const Text('모름',
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                            fontSize: 24, height: 1.2, color: KioskColors.muted)),
                 ]),
                 if (warn)
                   Positioned(

@@ -26,6 +26,13 @@ import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 class FakeKioskApi implements KioskApiService {
   @override
   Future<Map<String, dynamic>> routineRequest(Map<String, dynamic>? event) async => throw StateError('simulator unavailable');
+  // 폰 연결 창은 이 파일의 관심사가 아니다 — 허브 없음으로 흉내 낸다.
+  @override
+  Future<Map<String, dynamic>> pairingSession({bool create = false}) async => throw StateError('pairing unavailable');
+  @override
+  Future<void> approvePairing(String requestId, bool approved) async => throw StateError('pairing unavailable');
+  @override
+  Future<void> closePairing() async {}
   @override
   Future<LearningStatus> learningStatus() async => throw StateError('offline');
 
@@ -352,7 +359,8 @@ void main() {
     await tester.tap(find.byKey(_laterKey));
     await tester.pump();
     expect(find.byType(KioskSuggestionView), findsOneWidget);
-    expect(find.textContaining('넘기기를 전달하지 못했어요'), findsOneWidget);
+    // 문구 통일(3c064ec) 뒤에도 실패를 알리고 카드를 남긴다.
+    expect(find.textContaining('다음에 실행하겠다는 요청을 보내지 못했어요'), findsOneWidget);
     api.rejectError = null;
     await tester.tap(find.byKey(_laterKey));
     await tester.pump();
@@ -692,7 +700,9 @@ void main() {
 
     // 완료 발화
     // 화면과 같은 말 -- '완료되었습니다'는 조리·세탁이 끝났다고 들린다.
-    expect(tts.utterances.last, contains('실제 조작 여부는 확인하지 못했어요'));
+    // 실행 환경을 모르면 눌렀다고 단정하지 않고 가전 확인을 부탁한다.
+    expect(tts.utterances.last, contains('실제로 눌렀는지 가전을 확인해 주세요'));
+    expect(tts.utterances.last, isNot(contains('완료')));
     await tester.pump(KioskTimings.doneReturn);
   });
 
@@ -1468,7 +1478,9 @@ void main() {
           lastConfirmation: 'none'),
     );
     expect(done.reason, KioskFailureReason.receiptUnknown);
-    expect(find.text('ThinQ · 접수 불명'), findsOneWidget);
+    // 문구 통일(3c064ec): '접수 불명' → '받았는지 확인이 필요해요'. 확인됨으로 올리지 않는다.
+    expect(find.text('ThinQ · 받았는지 확인이 필요해요'), findsOneWidget);
+    expect(find.textContaining('상태 확인됨'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1658,10 +1670,10 @@ void main() {
     expect(find.text('1. 공기청정기 풍량 약하게'), findsOneWidget);
     expect(find.text('ThinQ · 모의 실행 · 상태 확인됨 · 성공'), findsOneWidget);
     expect(find.text('2. 전자레인지 즉석밥'), findsOneWidget);
-    expect(find.text('물리 버튼 · 모의 실행 · 실행기 보고만 받음 · 성공'),
+    expect(find.text('물리 버튼 · 모의 실행 · 누름 장치의 응답을 받았어요 · 성공'),
         findsOneWidget);
     // 한 줄 요약(마지막 단계 기준)은 그대로 남는다.
-    expect(find.text('물리 버튼 · 실행기 보고만 받음'), findsOneWidget);
+    expect(find.text('물리 버튼 · 누름 장치의 응답을 받았어요'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });

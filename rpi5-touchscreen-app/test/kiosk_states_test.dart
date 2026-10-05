@@ -14,6 +14,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
@@ -160,6 +161,16 @@ void main() {
       expect(find.byType(KioskIdleView), findsOneWidget);
       expect(find.text('좋은 아침이에요.'), findsOneWidget);
       expect(find.text('오후 3시부터 비 예보가 있어요. 우산 챙기세요.'), findsOneWidget);
+      // 안내가 있으면 안내가 먼저다 — 예보까지 넣으면 아래가 잘린다(10/5 잘림 수리).
+      expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
+
+      // 안내가 없을 때 예보 4칸을 서버 값 그대로 보인다.
+      api.ambientResult = AmbientInfo(
+          greeting: _ambient.greeting,
+          hourly: _ambient.hourly,
+          weatherSource: _ambient.weatherSource);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pump(tester, api);
       for (final label in ['9시', '12시', '15시', '18시']) {
         expect(find.text(label), findsOneWidget);
       }
@@ -253,7 +264,7 @@ void main() {
     });
   });
 
-  // ── 가전 줄: 4개씩 넘기기 + 동작 중 앞으로 ───────────────────────────────
+  // ── 가전 줄: 3개씩(큰 글씨 2개) 넘기기 + 동작 중 앞으로 ───────────────────────────────
   group('가전 줄', () {
     test('확인 필요 → 동작 중 → 나머지(등록 순서 유지)', () {
       final ordered = orderForStrip(_six,
@@ -262,13 +273,15 @@ void main() {
           ['rice', 'intercom', 'microwave', 'washer', 'fan', 'aircon']);
     });
 
-    testWidgets('한 번에 4개, 화살표로 4개씩 넘기고 끝의 화살표는 숨긴다', (tester) async {
+    // 이름(전자레인지·거실 선풍기)을 줄이지 않으려고 보통 글씨는 한 장에 3개(10/5).
+    testWidgets('한 번에 3개, 화살표로 3개씩 넘기고 끝의 화살표는 숨긴다', (tester) async {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);
 
-      for (final id in ['microwave', 'washer', 'fan', 'rice']) {
+      for (final id in ['microwave', 'washer', 'fan']) {
         expect(find.byKey(ValueKey('strip-$id')), findsOneWidget, reason: id);
       }
+      expect(find.byKey(const ValueKey('strip-rice')), findsNothing);
       expect(find.byKey(const ValueKey('strip-aircon')), findsNothing);
       expect(find.byKey(const ValueKey('strip-prev')), findsNothing);
       expect(find.byKey(const ValueKey('strip-next')), findsOneWidget);
@@ -386,7 +399,9 @@ void main() {
       expect(find.text('정지 버튼(취소) 위에서 기다리고 있어요'), findsOneWidget);
       // 전력 판정이 없으면 없다고 말한다 — 남은 시간을 지어내지 않는다
       expect(find.text('가전이 움직이는지는 확인하지 못했어요'), findsOneWidget);
-      expect(find.textContaining('남은 시간'), findsNothing);
+      // 남은 시간은 모른다고만 말하고 숫자를 만들지 않는다(d965888).
+      expect(find.text('남은 시간을 아직 알 수 없어요'), findsOneWidget);
+      expect(find.textContaining(RegExp(r'\d+:\d\d')), findsNothing);
       // 모의를 실물처럼 보이지 않는다
       expect(find.text('연습 모드 · 실제 가전 아님'), findsOneWidget);
 
@@ -412,7 +427,8 @@ void main() {
       expect(find.text('보관 위치로 이동했어요'), findsOneWidget);
       expect(find.text('가전이 멈췄어요'), findsOneWidget);
 
-      await tester.pump(const Duration(seconds: 4));
+      // 보관 표시는 완료 화면과 같은 복귀 시간(KioskTimings.doneReturn)을 쓴다.
+      await tester.pump(KioskTimings.doneReturn + const Duration(seconds: 1));
       await _settle(tester);
       expect(find.byType(KioskIdleView), findsOneWidget);
     });

@@ -98,14 +98,6 @@ class KioskHoldView extends StatelessWidget {
       if (waiting && buttonsPressed != null && buttonsPressed! > 0)
         (Icons.check_circle_outline, '버튼 $buttonsPressed개를 눌렀어요',
             KioskColors.muted),
-      if (waiting)
-        (
-          Icons.bolt,
-          _operationLine,
-          operationConfirmed == true && operationSource != 'mock'
-              ? KioskColors.muted
-              : KioskColors.warning
-        ),
       if (holdState == 'hovering_stop')
         (
           Icons.my_location,
@@ -135,6 +127,19 @@ class KioskHoldView extends StatelessWidget {
         ),
     ];
 
+    // 실행 근거(연습용 값인지·실제 확인인지)는 안전 문장이다 — 스크롤 없이 늘
+    // 보이도록 스크롤 영역 밖, 제목·모드 표시 바로 아래에 고정한다(10/5 수리).
+    final provenance = <(IconData, String, Color)>[
+      if (waiting)
+        (
+          Icons.bolt,
+          _operationLine,
+          operationConfirmed == true && operationSource != 'mock'
+              ? KioskColors.muted
+              : KioskColors.warning
+        ),
+    ];
+
     final modeChip = switch (executionMode) {
       'mock' => '연습 모드 · 실제 가전 아님',
       'real' => null,
@@ -151,7 +156,7 @@ class KioskHoldView extends StatelessWidget {
             // ── 왼쪽: 무엇이 · 얼마나 · 무엇을 근거로 ───────────────────
             Expanded(
               flex: 11,
-              child: SingleChildScrollView(child: Column(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
@@ -186,13 +191,19 @@ class KioskHoldView extends StatelessWidget {
                               fontSize: 15, color: KioskColors.warning)),
                     ),
                   ],
-                  if (waiting) ...[
-                    const SizedBox(height: 12),
-                    const Text('남은 시간을 아직 알 수 없어요',
-                        style: TextStyle(fontSize: 33, color: KioskColors.primary)),
-                    const SizedBox(height: 14),
+                  if (provenance.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    _Lines(lines: provenance),
                   ] else
                     const SizedBox(height: 18),
+                  Expanded(child: SingleChildScrollView(child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  if (waiting) ...[
+                    const Text('남은 시간을 아직 알 수 없어요',
+                        style: TextStyle(fontSize: 33, height: 1.25, color: KioskColors.primary)),
+                    const SizedBox(height: 10),
+                  ],
                   _Lines(lines: lines),
                   if (onClose != null) ...[
                     const SizedBox(height: 8),
@@ -210,8 +221,10 @@ class KioskHoldView extends StatelessWidget {
                               fontSize: 20, fontWeight: FontWeight.w600)),
                     ),
                   ],
+                    ],
+                  ))),
                 ],
-              )),
+              ),
             ),
             const SizedBox(width: 24),
             // ── 오른쪽: 조작판의 대기 자리 + 큰 정지 ────────────────────

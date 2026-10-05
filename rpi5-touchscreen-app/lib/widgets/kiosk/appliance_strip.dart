@@ -42,6 +42,7 @@ class KioskApplianceStrip extends StatefulWidget {
     required this.attention,
     required this.onSelect,
     this.perPage = 4,
+    this.itemWidth = 128,
   });
 
   final List<ApplianceMap> appliances;
@@ -50,6 +51,9 @@ class KioskApplianceStrip extends StatefulWidget {
   final ValueChanged<ApplianceMap> onSelect;
   final int perPage;
 
+  /// 가전 한 칸 폭 — 이름(예: 거실 선풍기)을 줄이지 않을 만큼. 평소 화면이 글자 배율에 맞춰 준다.
+  final double itemWidth;
+
   @override
   State<KioskApplianceStrip> createState() => _KioskApplianceStripState();
 }
@@ -57,7 +61,6 @@ class KioskApplianceStrip extends StatefulWidget {
 class _KioskApplianceStripState extends State<KioskApplianceStrip> {
   int _page = 0;
 
-  static const double _itemWidth = 128;
   static const double _arrow = 56;
 
   @override
@@ -115,12 +118,12 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
               : const SizedBox(width: _arrow, height: _arrow),
           const SizedBox(width: 8),
           SizedBox(
-            width: _itemWidth * widget.perPage,
+            width: widget.itemWidth * widget.perPage,
             child: Row(
               children: [
                 for (final a in visible)
                   SizedBox(
-                    width: _itemWidth,
+                    width: widget.itemWidth,
                     child: _StripItem(
                       key: ValueKey('strip-${a.id}'),
                       appliance: a,
@@ -303,7 +306,7 @@ class _StripItemState extends State<_StripItem>
                   a.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 33, color: Colors.white),
+                  style: const TextStyle(fontSize: 33, height: 1.15, color: Colors.white),
                 ),
                 // 상태 줄 자리는 늘 둔다(아이콘 줄 높이가 흔들리지 않게). 큰 글씨
                 // 모드에서 글자가 잘리지 않도록 높이는 최소만 정한다.
@@ -315,6 +318,7 @@ class _StripItemState extends State<_StripItem>
                           status,
                           style: TextStyle(
                             fontSize: 33,
+                            height: 1.15,
                             fontWeight: FontWeight.w700,
                             color: iconColor,
                           ),
