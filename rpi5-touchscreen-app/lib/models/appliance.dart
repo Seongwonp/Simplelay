@@ -159,6 +159,7 @@ const _known = {
   'washing_machine',
   'induction',
   'rice_cooker',
+  'intercom', // 시연 v3 갭 S6(2026-10-06) — 서버·폰과 같은 값
   'other',
 };
 
@@ -168,6 +169,7 @@ IconData applianceIconFor(String category) => switch (category) {
       'air_conditioner' => Icons.ac_unit,
       'washing_machine' => Icons.local_laundry_service,
       'rice_cooker' => Icons.rice_bowl,
+      'intercom' => Icons.doorbell,
       _ => Icons.widgets_outlined,
     };
 

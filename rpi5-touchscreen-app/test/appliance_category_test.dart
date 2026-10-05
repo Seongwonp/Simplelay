@@ -36,6 +36,7 @@ void main() {
         'air_conditioner': Icons.ac_unit,
         'washing_machine': Icons.local_laundry_service,
         'rice_cooker': Icons.rice_bowl,
+        'intercom': Icons.doorbell, // 시연 v3 갭 S6 — ③ 방문자 문 열기
       };
       for (final entry in expected.entries) {
         final a = applianceFromServerJson(_json(category: entry.key));
