@@ -4,15 +4,15 @@
 /// 화면은 고르고 배치만 한다 -- 같은 사실을 폰과 다르게 말하지 않게.
 library;
 
-/// `GET /ambient`의 안내 한 줄. 우선순위(확인 필요 가전 → 날씨 → 없음)는 서버가 정한다.
+/// `GET /ambient`의 안내 한 줄. 우선순위(위험 소리 → 확인 필요 가전 → 최근 루틴 안내 → 날씨 → 없음)는 서버가 정한다.
 class AmbientTip {
   const AmbientTip({required this.kind, required this.text, required this.icon});
 
-  /// appliance | alert | rain | snow | heat | cold
+  /// appliance | alert | routine | rain | snow | heat | cold
   final String kind;
   final String text;
 
-  /// attention | rain | snow | hot | cold
+  /// attention | notice | rain | snow | hot | cold
   final String icon;
 
   factory AmbientTip.fromJson(Map<String, dynamic> json) => AmbientTip(

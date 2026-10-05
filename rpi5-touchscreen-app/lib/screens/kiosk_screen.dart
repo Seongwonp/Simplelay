@@ -247,11 +247,13 @@ class _KioskScreenState extends State<KioskScreen> {
     _healthTimer = Timer.periodic(_healthInterval, (_) {
       _checkHealth();
       _fetchConnections(); // 연결 아이콘도 같은 주기로
+      // 안내 한 줄도 같은 주기로 — 루틴 안내(세탁 끝·복약)가 1분 늦게 뜨지 않게(2026-10-06, 시연 v3 S5).
+      // 예보는 서버가 캐시하므로 기상청 호출은 늘지 않는다.
+      _fetchAmbient();
     });
     _sensorTimer = Timer.periodic(_sensorInterval, (_) {
       _fetchSensors();
       _fetchAppliances(); // 가전 목록도 같은 주기로 — 폰 등록이 1분 안에 반영
-      _fetchAmbient();
       _fetchRoutines();
     });
     _alertTimer = Timer.periodic(_alertInterval, (_) => _fetchAlert());

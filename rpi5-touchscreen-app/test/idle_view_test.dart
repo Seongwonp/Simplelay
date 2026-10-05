@@ -48,6 +48,19 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('루틴 안내는 경고가 아니라 알림 아이콘으로 안내 한 줄에 보인다', (tester) async {
+    // 시연 v3 갭 S5(2026-10-06) — 서버 /ambient tip kind=routine, icon=notice.
+    await _pump(tester,
+        ambient: const AmbientInfo(
+          greeting: '좋은 아침이에요.',
+          tip: AmbientTip(kind: 'routine', text: '약 드실 시간이에요', icon: 'notice'),
+        ));
+    expect(find.text('약 드실 시간이에요'), findsOneWidget);
+    expect(find.byIcon(Icons.notifications_none_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.error_outline), findsNothing);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('실내 센서 값이 없으면 온습도 줄을 지어내지 않는다', (tester) async {
     await _pump(tester);
     expect(find.textContaining('실내'), findsNothing);

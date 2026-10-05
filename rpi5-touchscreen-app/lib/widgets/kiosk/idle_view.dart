@@ -278,6 +278,8 @@ IconData _tipIcon(String icon) => switch (icon) {
       'snow' => Icons.ac_unit,
       'hot' => Icons.wb_sunny_outlined,
       'cold' => Icons.thermostat,
+      // 루틴 안내(세탁 끝·복약, 2026-10-06) — 경고가 아니라 알림이다.
+      'notice' => Icons.notifications_none_outlined,
       _ => Icons.error_outline,
     };
 

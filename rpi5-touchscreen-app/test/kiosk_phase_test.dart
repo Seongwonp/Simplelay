@@ -177,8 +177,13 @@ class FakeKioskApi implements KioskApiService {
   Object? triggerError;
   final triggeredRoutineIds = <String>[];
 
+  int ambientCalls = 0;
+
   @override
-  Future<AmbientInfo?> ambient() async => ambientResult;
+  Future<AmbientInfo?> ambient() async {
+    ambientCalls++;
+    return ambientResult;
+  }
 
   @override
   Future<List<ConnectionItem>?> connections() async {
@@ -1062,6 +1067,23 @@ void main() {
 
     expect(find.text('어느 가전을 조작할까요?'), findsNothing);
     expect(find.text('화력+'), findsOneWidget); // 인덕션 버튼
+  });
+
+  testWidgets('루틴 안내(안내 한 줄)는 1분을 기다리지 않고 10초 안에 평소 화면에 뜬다', (tester) async {
+    // 시연 v3 ④ 세탁 완료 장면은 40초다 — 60초 주기면 키오스크에 안 보인 채 넘어갔다(2026-10-06).
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..applianceList = [kMicrowaveAppliance];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+    expect(find.textContaining('빨래를 꺼내'), findsNothing);
+
+    api.ambientResult = const AmbientInfo(
+      greeting: '좋은 오후예요.',
+      tip: AmbientTip(kind: 'routine', text: '세탁이 끝났어요. 빨래를 꺼내 널어 주세요', icon: 'notice'),
+    );
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pump();
+    expect(find.textContaining('빨래를 꺼내'), findsOneWidget);
   });
 
   testWidgets('폰에서 등록한 커스텀 가전이 서버 목록으로 키오스크에 뜬다', (tester) async {
