@@ -4,7 +4,7 @@
   "commands": {
     "status": {
       "request": ["id", "cmd"],
-      "reply": ["id", "ok", "state", "homed", "a", "b", "z", "alarm"],
+      "reply": ["id", "ok", "state", "homed", "a", "b", "z", "alarm", "z_mode"],
       "events": []
     },
     "home": {
@@ -58,10 +58,12 @@
     "home_not_found",
     "timeout",
     "host_timeout",
-    "hw_init"
+    "hw_init",
+    "z_unsupported",
+    "z_cooldown"
   ],
   "events": {
-    "ready": ["event", "fw", "protocol", "reset"],
+    "ready": ["event", "fw", "protocol", "reset", "z_mode"],
     "alarm": ["event", "reason", "z_retract"],
     "press_start": ["event"],
     "press_end": ["event"],
@@ -72,5 +74,7 @@
   "z_retract_values": ["not_needed", "done", "timeout", "stalled", "skipped", "stopped"],
   "z_retract_note": "alarm 이벤트의 z_retract(2026-09-29): 알람 때 Z가 눌린 쪽이면 XY는 제동하고 Z만 위로 개루프 후퇴(Z_RETRACT_MS 한도)한 뒤 차단한다. host_timeout(워치독 부류)·원점 모름은 skipped(즉시 차단). 후퇴가 필요한 알람의 이벤트·실패 응답은 후퇴가 끝난 뒤 온다.",
   "alarm_reasons": ["stall", "limit", "home_not_found", "timeout", "host_timeout", "soft_limit", "hw_init"],
+  "z_modes": ["motor", "solenoid"],
+  "z_mode_note": "Z 누름 방식(2026-10-05). 빌드 플래그 Z_MODE(board_config.h)로 정하고 ready 배너·status 응답의 z_mode로 알린다. motor = 엔코더 DC 모터(depth·duration 둘 다), solenoid = GPIO 하나로 MOSFET 구동(duration만 — 켜짐 시간 = drive_ms + dwell_ms, 상한 SOLENOID_ON_MAX_MS 넘으면 soft_limit, 직전 꺼짐 뒤 최소 꺼짐 시간 안이면 z_cooldown, depth는 z_unsupported). 솔레노이드의 status·position z는 켜짐 1 / 꺼짐 0, limits z는 항상 false, 알람 때는 즉시 끈다(z_retract done|not_needed). z_mode를 보내지 않는 MCU면 호스트는 제한하지 않는다. z_unsupported·z_cooldown은 움직이기 전 거절이라 호스트가 재홈을 요구하지 않는다.",
   "states": ["idle", "homing", "moving", "pressing", "stopped", "alarm"]
 }

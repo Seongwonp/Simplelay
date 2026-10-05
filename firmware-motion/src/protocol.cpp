@@ -203,9 +203,10 @@ void proto_reply_status(const ReqId& id, const MotionSnapshot& s) {
     snprintf(alarm, sizeof alarm, "null");
   }
   snprintf(g_out, sizeof g_out,
-           "{\"id\":%s,\"ok\":true,\"state\":\"%s\",\"homed\":%s,\"a\":%ld,\"b\":%ld,\"z\":%ld,\"alarm\":%s}",
+           "{\"id\":%s,\"ok\":true,\"state\":\"%s\",\"homed\":%s,\"a\":%ld,\"b\":%ld,\"z\":%ld,\"alarm\":%s,"
+           "\"z_mode\":\"%s\"}",
            idb, s.state, s.homed ? "true" : "false", static_cast<long>(s.a), static_cast<long>(s.b),
-           static_cast<long>(s.z), alarm);
+           static_cast<long>(s.z), alarm, Z_MODE_NAME);
   write_line(g_out);
 }
 
@@ -239,7 +240,7 @@ void proto_event_alarm(const char* reason, const char* z_retract) {
 
 void proto_event_ready(const char* reset_reason) {
   snprintf(g_out, sizeof g_out,
-           "{\"event\":\"ready\",\"fw\":\"%s\",\"protocol\":\"line-json/v0\",\"reset\":\"%s\"}", FW_NAME,
-           reset_reason);
+           "{\"event\":\"ready\",\"fw\":\"%s\",\"protocol\":\"line-json/v0\",\"reset\":\"%s\",\"z_mode\":\"%s\"}",
+           FW_NAME, reset_reason, Z_MODE_NAME);
   write_line(g_out);
 }

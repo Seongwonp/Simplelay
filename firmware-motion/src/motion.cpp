@@ -17,6 +17,11 @@
 // 2026-09-29 첫날 위험 보완: 원점 복귀는 개루프 듀티 + 스톨 판정 + 단계별 시간 예산, 이동은 A/B가 한
 // 시간 매개변수를 공유하는 사다리꼴 궤적 + 작은 적분(anti-windup) + 필터 속도 미분 + 데드밴드 히스테리시스,
 // 동작 뒤 정지 유지 정책(IDLE_POLICY), 알람 때 Z 후퇴. 전부 실물 미검증, 값은 config.h 자리표시자.
+//
+// 2026-10-05 Z 누름 방식 빌드 플래그(board_config.h Z_MODE): Z_MODE_SOLENOID면 Z 원점 단계가 없고,
+// 누름은 duration만(켜짐 = drive_ms + dwell_ms, 상한 SOLENOID_ON_MAX_MS, 끈 뒤 냉각 시간 안이면 z_cooldown,
+// depth는 z_unsupported), 알람·정지·워치독은 솔레노이드를 즉시 끈다(z_retract = done|not_needed).
+// 제어 주기마다 켜짐 시간이 SOLENOID_ON_MAX_MS를 넘었는지 따로 본다(어떤 경로로 켜져 있든 끈다).
 
 namespace {
 
@@ -92,9 +97,11 @@ struct HomeGroup {
   int32_t max_travel;
 };
 
-// 순서: Z 후퇴 → X → Y
+// 순서: Z 후퇴 → X → Y (솔레노이드 방식은 Z 단계 없음 — 꺼져 있으면 스프링이 올려 둔다)
 const HomeGroup kHomeGroups[] = {
+#if Z_MODE == Z_MODE_MOTOR
     {LIMIT_Z, {0, 0, HOME_Z_DIR}, HOME_Z_MAX_TRAVEL_COUNTS},
+#endif
     {LIMIT_X, {HOME_X_DIR_A, HOME_X_DIR_B, 0}, HOME_XY_MAX_TRAVEL_COUNTS},
     {LIMIT_Y, {HOME_Y_DIR_A, HOME_Y_DIR_B, 0}, HOME_XY_MAX_TRAVEL_COUNTS},
 };
@@ -108,7 +115,8 @@ constexpr uint32_t group_budget_ms(uint32_t max_travel) {
   return phase_budget_ms(max_travel, HOME_FAST_MIN_CPS) + 3 * phase_budget_ms(kShortTravel, HOME_SLOW_MIN_CPS) +
          HOME_SETTLE_MS + HOME_PHASE_MARGIN_MS;
 }
-static_assert(group_budget_ms(HOME_Z_MAX_TRAVEL_COUNTS) + 2 * group_budget_ms(HOME_XY_MAX_TRAVEL_COUNTS) <= HOME_MAX_MS,
+constexpr uint32_t kHomeZBudget = (Z_MODE == Z_MODE_MOTOR) ? group_budget_ms(HOME_Z_MAX_TRAVEL_COUNTS) : 0;
+static_assert(kHomeZBudget + 2 * group_budget_ms(HOME_XY_MAX_TRAVEL_COUNTS) <= HOME_MAX_MS,
               "HOME_MAX_MS가 원점 복귀 단계별 예산의 합보다 작다");
 
 struct HomeCtx {
@@ -120,7 +128,8 @@ struct HomeCtx {
   int32_t travel_limit;
 };
 
-enum class PressPhase : uint8_t { Down, DownOpen, Dwell, Up };
+// SolenoidOn·SolenoidRelease는 Z_MODE_SOLENOID에서만 쓴다.
+enum class PressPhase : uint8_t { Down, DownOpen, Dwell, Up, SolenoidOn, SolenoidRelease };
 
 struct PressCtx {
   PressPhase phase;
@@ -162,6 +171,44 @@ uint32_t g_last_position_event = 0;
 
 bool g_settling = false;
 uint32_t g_settle_since = 0;
+
+// ── 솔레노이드(Z_MODE_SOLENOID) ───────────────────────────────────────────────
+// 시각은 millis()로 직접 잰다 — 정지 명령(loop 태스크)에서도 불리고 g_now는 제어 주기에서만 갱신된다.
+// 모터 방식 빌드에서는 sol_off()만 남고 늘 false다(끌 솔레노이드가 없다).
+#if Z_MODE == Z_MODE_SOLENOID
+uint32_t g_sol_on_at = 0;
+uint32_t g_sol_off_at = 0;
+uint32_t g_sol_cooldown_ms = 0;  // 다음에 켤 수 있을 때까지 최소 꺼짐 시간
+
+void sol_on() {
+  g_sol_on_at = millis();
+  solenoid_set(true);
+}
+
+// 끈다. 켜져 있었으면 냉각 시간 = max(SOLENOID_MIN_OFF_MS, 켜짐 시간 × SOLENOID_OFF_RATIO)을 잡고 true.
+bool sol_off() {
+  if (!solenoid_is_on()) return false;
+  solenoid_set(false);
+  const uint32_t now = millis();
+  const uint32_t by_ratio = (now - g_sol_on_at) * SOLENOID_OFF_RATIO;
+  g_sol_off_at = now;
+  g_sol_cooldown_ms = by_ratio > SOLENOID_MIN_OFF_MS ? by_ratio : SOLENOID_MIN_OFF_MS;
+  return true;
+}
+
+// 정상 누름(켜짐 ≤ SOLENOID_ON_MAX_MS)이 백스톱과 같은 주기에 겹치지 않게 두는 여유(제어 주기 몇 번).
+constexpr int32_t kSolBackstopGraceMs = 20;
+
+bool sol_cooling() {
+  return g_sol_cooldown_ms > 0 &&
+         static_cast<int32_t>(millis() - g_sol_off_at) < static_cast<int32_t>(g_sol_cooldown_ms);
+}
+#else
+bool sol_off() { return false; }
+#endif
+
+// status·position의 z: 모터 방식은 Z 엔코더 카운트, 솔레노이드 방식은 켜짐 1 / 꺼짐 0.
+int32_t z_report();
 
 bool busy() { return g_state == State::Homing || g_state == State::Moving || g_state == State::Pressing; }
 
@@ -210,8 +257,9 @@ void enable_outputs() {
   g_outputs_on = true;
 }
 
-// 즉시: 듀티 0, STBY LOW(출력 High-Z). 정지 명령 경로.
+// 즉시: 듀티 0, STBY LOW(출력 High-Z), 솔레노이드 끔. 정지 명령 경로.
 void cut_outputs_now() {
+  sol_off();
   for (uint8_t i = 0; i < AXIS_COUNT; ++i) {
     motor_set_duty(static_cast<Axis>(i), 0);
     g_ax[i].duty = 0;
@@ -225,6 +273,7 @@ void cut_outputs_now() {
 
 // short brake brake_ms 뒤 STBY LOW. 알람·워치독·정지 유지 해제 경로.
 void brake_then_standby(uint32_t brake_ms) {
+  sol_off();  // 솔레노이드는 제동할 것이 없다 — 바로 끈다
   for (uint8_t i = 0; i < AXIS_COUNT; ++i) {
     motor_brake(static_cast<Axis>(i));
     g_ax[i].duty = 0;
@@ -247,7 +296,15 @@ void begin_command(const ReqId& id, State state, uint32_t max_ms) {
 
 void emit_position() {
   g_last_position_event = g_now;
-  proto_event_position(g_ax[AXIS_A].pos, g_ax[AXIS_B].pos, g_ax[AXIS_Z].pos);
+  proto_event_position(g_ax[AXIS_A].pos, g_ax[AXIS_B].pos, z_report());
+}
+
+int32_t z_report() {
+#if Z_MODE == Z_MODE_SOLENOID
+  return solenoid_is_on() ? 1 : 0;
+#else
+  return g_ax[AXIS_Z].pos;
+#endif
 }
 
 // 동작이 끝난 뒤 출력 정책. RELEASE: 짧게 제동 → STBY LOW(엔코더는 계속 센다). HOLD: PID 유지.
@@ -285,6 +342,18 @@ void report_alarm(const char* z_retract) {
 // 알람. cut_now=true(워치독 부류)는 Z 후퇴 없이 즉시 제동·차단한다. 그 밖에는 Z가 눌린 쪽에 있으면
 // XY는 제동하고 Z만 위로 개루프 후퇴(한도 Z_RETRACT_MS)한 뒤 차단하고, 그때 이벤트·실패 응답을 보낸다.
 void fault(const char* reason, bool cut_now = false) {
+#if Z_MODE == Z_MODE_SOLENOID
+  // 솔레노이드는 전원을 끊는 것이 후퇴다(스프링 복귀) — 워치독 부류든 아니든 즉시 끄고 바로 보고한다.
+  (void)cut_now;
+  g_state = State::Alarm;
+  g_alarm = reason;
+  g_homed = false;
+  g_traj.active = false;
+  for (uint8_t i = 0; i < AXIS_COUNT; ++i) g_ax[i].ref_vel = 0.0f;
+  const bool was_on = sol_off();
+  brake_then_standby(FAULT_BRAKE_MS);
+  report_alarm(was_on ? "done" : "not_needed");
+#else
   const bool had_position = g_homed;  // 홈 전이면 Z 위치(카운트)를 믿을 수 없다
   g_state = State::Alarm;
   g_alarm = reason;
@@ -318,6 +387,7 @@ void fault(const char* reason, bool cut_now = false) {
   stall_reset(z);
   g_retract.active = true;
   g_retract.t0 = g_now;
+#endif
 }
 
 bool stall_step(uint8_t i, int32_t min_pwm, uint32_t timeout_ms);
@@ -638,6 +708,18 @@ void press_tick() {
         finish_ok();
       }
       break;
+    case PressPhase::SolenoidOn:
+      if (since(g_press.t0) >= g_press.amount) {
+        sol_off();
+        proto_event("press_end");
+        g_press.phase = PressPhase::SolenoidRelease;
+        g_press.t0 = g_now;
+      }
+      break;
+    case PressPhase::SolenoidRelease:
+      // 스프링이 플런저를 되돌릴 시간을 둔 뒤 완료 — 그 전에 XY가 움직이면 버튼을 긁는다.
+      if (since(g_press.t0) >= static_cast<int32_t>(SOLENOID_RELEASE_MS)) finish_ok();
+      break;
   }
 }
 
@@ -766,6 +848,11 @@ void motion_init(bool hw_ok) {
   g_traj.active = false;
   g_retract.active = false;
   cut_outputs_now();
+#if Z_MODE == Z_MODE_SOLENOID
+  // 재부팅 직전에 코일이 켜져 있었을 수 있다(워치독·패닉) — 부팅 뒤 최소 꺼짐 시간 동안은 켜지 않는다.
+  g_sol_off_at = millis();
+  g_sol_cooldown_ms = SOLENOID_MIN_OFF_MS;
+#endif
   if (!hw_ok) {
     g_state = State::Alarm;
     g_alarm = "hw_init";
@@ -789,6 +876,17 @@ void motion_tick(uint32_t now_ms) {
   }
 
   const bool host_silent = since(g_last_host) >= static_cast<int32_t>(HOST_WATCHDOG_MS);
+#if Z_MODE == Z_MODE_SOLENOID
+  // 백스톱: 어떤 경로로 켜져 있든 SOLENOID_ON_MAX_MS를 넘기면 끈다(코일 발열). 누름 중이면 timeout 알람.
+  if (solenoid_is_on() &&
+      static_cast<int32_t>(millis() - g_sol_on_at) > static_cast<int32_t>(SOLENOID_ON_MAX_MS) + kSolBackstopGraceMs) {
+    if (busy()) {
+      fault("timeout");  // 끄고(z_retract done) 알람 이벤트 → 대기 명령 실패
+    } else {
+      sol_off();
+    }
+  }
+#endif
   if (g_retract.active) {
     retract_tick();  // 한도(Z_RETRACT_MS)가 있어 워치독을 보지 않는다
   } else if (busy()) {
@@ -831,7 +929,7 @@ void motion_cmd_status(const ReqId& id) {
   s.homed = g_homed;
   s.a = g_ax[AXIS_A].pos;
   s.b = g_ax[AXIS_B].pos;
-  s.z = g_ax[AXIS_Z].pos;
+  s.z = z_report();
   s.alarm = g_state == State::Alarm ? g_alarm : nullptr;
   proto_reply_status(id, s);
 }
@@ -900,6 +998,37 @@ void motion_cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell
     proto_reply_error(id, refusal);
     return;
   }
+#if Z_MODE == Z_MODE_SOLENOID
+  // 솔레노이드: 깊이를 모른다 → depth 거절. 켜짐 시간 = 구동(drive_ms) + 유지(dwell_ms).
+  if (depth) {
+    proto_reply_error(id, "z_unsupported");
+    return;
+  }
+  const int32_t on_ms = amount + dwell_ms;
+  if (amount > PRESS_DRIVE_MAX_MS || on_ms > static_cast<int32_t>(SOLENOID_ON_MAX_MS)) {
+    proto_reply_error(id, "soft_limit");
+    return;
+  }
+  if (dwell_ms > PRESS_DWELL_MAX_MS) {
+    proto_reply_error(id, "bad_args");
+    return;
+  }
+  if (sol_cooling()) {
+    proto_reply_error(id, "z_cooldown");  // 코일 냉각 시간 안 — 움직이지 않은 거절(호스트는 재홈하지 않는다)
+    return;
+  }
+  g_now = millis();
+  enable_outputs();  // XY는 PID로 제자리 유지
+  begin_command(id, State::Pressing,
+                capped(static_cast<uint32_t>(on_ms) + SOLENOID_RELEASE_MS + MOVE_TIMEOUT_MARGIN_MS, PRESS_MAX_MS));
+  g_press.depth = false;
+  g_press.amount = on_ms;
+  g_press.dwell_ms = static_cast<uint32_t>(dwell_ms);
+  g_press.phase = PressPhase::SolenoidOn;
+  g_press.t0 = g_now;
+  proto_event("press_start");
+  sol_on();
+#else
   if ((depth && amount > Z_PRESS_MAX_COUNTS) || (!depth && amount > PRESS_DRIVE_MAX_MS)) {
     proto_reply_error(id, "soft_limit");
     return;
@@ -934,6 +1063,7 @@ void motion_cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell
     z.open_duty = PRESS_DRIVE_PWM;
     z.stall_check = false;  // 시간 누름은 버튼에 닿아 멈추는 것이 정상이다(깊이 상한은 따로 본다)
   }
+#endif
 }
 
 void motion_cmd_stop(const ReqId& id) {

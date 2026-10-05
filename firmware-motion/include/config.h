@@ -10,7 +10,11 @@
 // 보낸다. MCU는 모터별 목표 카운트만 다루며 counts-per-mm·풀리·벨트 값은 호스트 설정이다
 // (SIMPLELAY_MOTION_R_OUT 등). Z는 mm 없이 카운트/시간만 쓴다(+ = 누르는 쪽).
 
-// 모든 값이 실측으로 채워지면 0으로 바꾼다.
+// 핀·방향·리밋 결선·원점 방향·기구 범위·Z 누름 방식(모터/솔레노이드)은 include/board_config.h 한 파일에
+// 있다(2026-10-05, 팀원 코드 합치기용). 이 파일은 튜닝 값(PID·속도·기한·워치독)만 둔다.
+#include "board_config.h"
+
+// 모든 값(board_config.h 포함)이 실측으로 채워지면 0으로 바꾼다.
 #define MOTION_CONFIG_PLACEHOLDER 1
 
 // ─── 호스트 링크(RPi4 ↔ USB 시리얼) ─────────────────────────────────────────
@@ -54,30 +58,6 @@
 #define IDLE_POLICY            IDLE_POLICY_RELEASE
 #define IDLE_RELEASE_BRAKE_MS  30
 
-// ─── 모터 드라이버 핀(JMOD-MOTOR-1 = TB6612FNG ×2) ───────────────────────────
-// 드라이버1: 채널A → 모터 A(CoreXY), 채널B → 모터 B(CoreXY). 드라이버2: 채널A → Z, 채널B 미사용.
-// TODO(HW 실측): FireBeetle 실제 핀 배치·배선표로 확정. 모듈 논리 전원이 5 V면 3.3 V GPIO 직결을
-//                보장할 수 없다(docs/JMOD-MOTOR-1-제어-검토.md) — 레벨 변환 여부 먼저 확인.
-// 스트래핑 핀(0·2·5·12·15)은 입력으로 쓰지 않는다. GPIO5는 부팅 때 풀업·PWM 신호가 나올 수 있어
-// 출력(모터 B IN2)으로만 쓴다 — STBY가 LOW(외부 풀다운)인 동안 IN 핀 흔들림은 모터에 닿지 않는다.
-#define PIN_MOTOR_A_PWM        25
-#define PIN_MOTOR_A_IN1        26
-#define PIN_MOTOR_A_IN2        27
-#define PIN_MOTOR_B_PWM        16
-#define PIN_MOTOR_B_IN1        17
-#define PIN_MOTOR_B_IN2        5       // 2026-09-29: GPIO4 → GPIO5(리밋 Z를 스트래핑 핀에서 빼느라 맞바꿈)
-#define PIN_MOTOR_Z_PWM        18
-#define PIN_MOTOR_Z_IN1        19
-#define PIN_MOTOR_Z_IN2        23
-// TODO(HW 실측): STBY 두 핀에 외부 풀다운(예: 10 kΩ) — 리셋·패닉 중에도 출력이 꺼져 있게.
-#define PIN_STBY_AB            22      // 드라이버1 STBY (HIGH = 출력 켬)
-#define PIN_STBY_Z             21      // 드라이버2 STBY
-
-// TODO(HW 실측): 양(+) 듀티에서 엔코더 카운트가 늘지 않으면 해당 축을 1로.
-#define MOTOR_A_INVERT         0
-#define MOTOR_B_INVERT         0
-#define MOTOR_Z_INVERT         0
-
 // ─── PWM(LEDC) ──────────────────────────────────────────────────────────────
 // TODO(HW 실측): TB6612 상한 100 kHz 안에서 소음·발열 보고 정한다.
 #define PWM_FREQ_HZ            20000
@@ -91,35 +71,12 @@
 
 // ─── 엔코더(PCNT, x4 디코딩) ─────────────────────────────────────────────────
 // 카운트는 A/B 두 채널의 모든 엣지를 센다(x4). 호스트 SIMPLELAY_MOTION_DECODING_MULTIPLIER=4,
-// SIMPLELAY_MOTION_R_OUT은 이 x4 카운트 기준 실측값을 넣는다.
-// TODO(HW 실측): 엔코더 출력 전압이 5 V면 ESP32 입력(3.3 V) 전에 분압·레벨 변환 필요.
-//                GPIO34~39는 내부 풀업이 없다 — 오픈 컬렉터 출력이면 외부 풀업.
-// ESP32 errata 3.11: ADC1·ADC2·Hall 센서를 켜면 GPIO36·GPIO39 입력이 약 80 ns LOW로 끌린다.
-// 이 펌웨어는 ADC·Hall·Wi-Fi를 쓰지 않는다. 쓰게 되면 엔코더 B를 다른 핀으로 옮기거나
-// ENC_GLITCH_NS(현재 1000 ns)가 그 펄스를 걸러내는지 확인한다.
-#define PIN_ENC_A_CHA          34
-#define PIN_ENC_A_CHB          35
-#define PIN_ENC_B_CHA          36
-#define PIN_ENC_B_CHB          39
-#define PIN_ENC_Z_CHA          32
-#define PIN_ENC_Z_CHB          33
-// TODO(HW 실측): 모터 방향 확정 뒤 카운트 부호가 반대면 1.
-#define ENC_A_INVERT           0
-#define ENC_B_INVERT           0
-#define ENC_Z_INVERT           0
+// SIMPLELAY_MOTION_R_OUT은 이 x4 카운트 기준 실측값을 넣는다. 핀·부호는 board_config.h.
 // TODO(HW 실측): 최고 속도 엣지 간격보다 짧게(최대 약 12,700 ns).
 #define ENC_GLITCH_NS          1000
 
-// ─── 리밋 스위치(NC) ─────────────────────────────────────────────────────────
-// 기본 가정: NC 스위치를 GND에 연결 + 풀업 → 평소 LOW, 눌림(또는 단선) 시 HIGH = 활성.
-// TODO(HW 실측): 실제 결선에 맞춰 활성 레벨·풀업 사용 여부 확정.
-// 2026-09-29: 리밋 Z를 스트래핑 핀 GPIO5에서 GPIO4로 옮겼다(NC 스위치가 부팅 때 GPIO5를 LOW로 끌면
-//             스트래핑 값이 바뀐다). GPIO4는 내부 풀업이 있는 일반 입출력 핀이다.
-#define PIN_LIMIT_X            13      // X 원점 쪽
-#define PIN_LIMIT_Y            14      // Y 원점 쪽
-#define PIN_LIMIT_Z            4       // Z 위쪽(후퇴) 끝
-#define LIMIT_ACTIVE_LEVEL     HIGH
-#define LIMIT_USE_PULLUP       1
+// ─── 리밋 스위치 ─────────────────────────────────────────────────────────────
+// 핀·활성 레벨·풀업은 board_config.h.
 #define LIMIT_DEBOUNCE_TICKS   3       // 연속 같은 값 샘플 수(제어 주기 단위)
 
 // ─── 위치 PID(듀티/카운트) + 속도 피드포워드 ─────────────────────────────────
@@ -162,13 +119,7 @@
 // 순서: Z(위로) → X → Y. 각 축: 빠른 접근 → 스위치 해제까지 후퇴 → 저속 재접근 → BACKOFF만큼 후퇴한 곳을 0.
 // PID를 쓰지 않고 정해진 듀티를 직접 준다(벨트 부하에서도 기동 듀티를 넘도록). XY는 두 모터를 함께 돌리며
 // 이동량 차이를 HOME_SYNC_GAIN으로 작게 보정한다(±HOME_SYNC_MAX_DUTY).
-// CoreXY에서 순수 X/Y 이동은 두 모터를 함께 돌린다. 아래 부호는 호스트 a_sign=b_sign=+1 가정의
-// -X(A-,B-), -Y(A-,B+)이다. TODO(HW 실측): 호스트 a_sign·b_sign과 스위치 위치에 맞춰 확정.
-#define HOME_X_DIR_A           (-1)
-#define HOME_X_DIR_B           (-1)
-#define HOME_Y_DIR_A           (-1)
-#define HOME_Y_DIR_B           (+1)
-#define HOME_Z_DIR             (-1)    // Z 카운트 + = 누름, 원점은 위쪽
+// 원점 방향 부호(HOME_*_DIR_*)는 board_config.h.
 // TODO(HW 실측): 벨트 장착 상태의 기동 듀티보다 확실히 크게. 너무 크면 스위치를 세게 친다.
 #define HOME_DUTY_FAST         350
 #define HOME_DUTY_SLOW         250
@@ -177,11 +128,9 @@
 // 스톨: 듀티를 주는데 HOME_STALL_MS 동안 카운트 변화가 STALL_MIN_DELTA_COUNTS 미만이면 stall 알람.
 // (스위치가 고장 나 끝에 닿은 경우도 여기서 멈춘다 — 20 s 기한까지 벽을 밀지 않는다.)
 #define HOME_STALL_MS          250
-// TODO(HW 실측): 스위치 해제 여유·축별 최대 탐색 거리(기구 전체 길이 + 여유, 카운트).
+// TODO(HW 실측): 스위치 해제 여유. 축별 최대 탐색 거리(HOME_*_MAX_TRAVEL_COUNTS)는 board_config.h.
 #define HOME_BACKOFF_COUNTS    200
 #define HOME_RELEASE_FACTOR    4       // 후퇴·재접근 탐색 한도 = BACKOFF × 이 값
-#define HOME_XY_MAX_TRAVEL_COUNTS 12000
-#define HOME_Z_MAX_TRAVEL_COUNTS  3000
 // 단계별 시간 예산 = 그 단계 최대 이동 카운트 / 최저 허용 속도 + 여유. 넘으면 home_not_found.
 // TODO(HW 실측): HOME_DUTY_* 에서 잰 실제 속도의 절반쯤으로.
 #define HOME_FAST_MIN_CPS      1000.0f
@@ -189,22 +138,10 @@
 #define HOME_PHASE_MARGIN_MS   1000
 #define HOME_SETTLE_MS         100     // 마지막 후퇴 뒤 제동하고 기다렸다가 0으로 잡는다
 
-// ─── 소프트 리밋(원점 기준 카운트) ───────────────────────────────────────────
-// 호스트도 mm 소프트 리밋을 먼저 검사한다. 이것은 MCU 쪽 두 번째 벽이다.
-// TODO(HW 실측): 기구 이동 한계 - 여유. A=x+y, B=x-y(카운트 환산) 범위로 잡는다.
-#define A_MIN_COUNTS           (-10)
-#define A_MAX_COUNTS           20000
-#define B_MIN_COUNTS           (-10000)
-#define B_MAX_COUNTS           10000
-// move의 x_mm·y_mm가 오면 함께 검사한다(호스트 SIMPLELAY_MOTION_X/Y_MIN/MAX_MM과 같게).
-#define X_MIN_MM               0.0f
-#define X_MAX_MM               100.0f
-#define Y_MIN_MM               0.0f
-#define Y_MAX_MM               100.0f
+// 소프트 리밋(A/B 카운트·X/Y mm)은 board_config.h.
 
 // ─── Z 누름 ──────────────────────────────────────────────────────────────────
-// TODO(HW 실측): 버튼 스트로크·Z 기구 확정 뒤. 호스트 press_depth_max_counts 이하로.
-#define Z_PRESS_MAX_COUNTS     60
+// TODO(HW 실측): 버튼 스트로크·Z 기구 확정 뒤. 최대 깊이(Z_PRESS_MAX_COUNTS)·솔레노이드 시간은 board_config.h.
 #define PRESS_DRIVE_MAX_MS     500     // duration 방식 구동 시간 상한(호스트 press_drive_max_ms 이하)
 #define PRESS_DRIVE_PWM        400     // duration 방식 구동 듀티
 #define PRESS_DWELL_MAX_MS     3000
@@ -256,6 +193,12 @@
 #endif
 #if (1000000 % CONTROL_HZ) != 0
 #error "CONTROL_HZ는 1 s를 정수 us로 나누는 값이어야 한다"
+#endif
+#if Z_MODE == Z_MODE_SOLENOID && SOLENOID_ON_MAX_MS + SOLENOID_RELEASE_MS + MOVE_TIMEOUT_MARGIN_MS > PRESS_MAX_MS
+#error "솔레노이드 최장 누름(켜짐 상한 + 복귀 + 여유)이 PRESS_MAX_MS보다 길다"
+#endif
+#if Z_MODE == Z_MODE_SOLENOID && (SOLENOID_MIN_OFF_MS <= 0 || SOLENOID_OFF_RATIO < 1)
+#error "솔레노이드 냉각(SOLENOID_MIN_OFF_MS > 0, SOLENOID_OFF_RATIO >= 1)이 필요하다 — 코일 발열 보호"
 #endif
 #if IDLE_POLICY != IDLE_POLICY_RELEASE && IDLE_POLICY != IDLE_POLICY_HOLD
 #error "IDLE_POLICY는 IDLE_POLICY_RELEASE 또는 IDLE_POLICY_HOLD"

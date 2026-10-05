@@ -1,6 +1,8 @@
 #pragma once
 // 하드웨어 경계: TB6612 채널(LEDC PWM + IN1/IN2 + STBY), PCNT 엔코더, 리밋 스위치.
-// **실물 미검증** — 핀·방향은 include/config.h 자리표시자.
+// **실물 미검증** — 핀·방향은 include/board_config.h 자리표시자.
+// Z_MODE_SOLENOID 빌드에서는 Z 모터·엔코더·Z 리밋이 없다: Z 축 motor_* 호출은 아무것도 하지 않고
+// encoder_read(AXIS_Z)는 0, limit_*(LIMIT_Z)는 false. 대신 solenoid_set이 MOSFET 게이트 핀을 움직인다.
 #include <stdint.h>
 
 enum Axis : uint8_t { AXIS_A = 0, AXIS_B = 1, AXIS_Z = 2, AXIS_COUNT = 3 };
@@ -27,3 +29,8 @@ bool limit_active(LimitId id);
 // 디바운스 없이 지금 핀을 읽는다(활성 = true). 배선 확인(limits 명령)용 — 동작 판정에는 쓰지 않는다.
 bool limit_raw_now(LimitId id);
 bool any_limit_active();
+
+// 솔레노이드(Z_MODE_SOLENOID). 모터 방식 빌드에서는 아무것도 하지 않고 solenoid_is_on()은 false.
+// 시간 상한·냉각 판정은 motion.cpp가 한다 — 여기는 핀만 움직인다. drivers_standby_outputs(false)도 끈다.
+void solenoid_set(bool on);
+bool solenoid_is_on();

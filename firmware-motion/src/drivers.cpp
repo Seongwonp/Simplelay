@@ -20,19 +20,31 @@ struct EncoderPins {
   bool invert;
 };
 
-const MotorPins kMotors[AXIS_COUNT] = {
+// 핀 번호는 전부 include/board_config.h에서 온다. 솔레노이드 방식(Z_MODE_SOLENOID)은 Z 모터·엔코더가 없어
+// 표가 A·B 두 축뿐이고, Z 축 호출(motor_set_duty·encoder_read 등)은 아무것도 하지 않거나 0을 돌려준다.
+const MotorPins kMotors[] = {
     {PIN_MOTOR_A_PWM, PIN_MOTOR_A_IN1, PIN_MOTOR_A_IN2, MOTOR_A_INVERT != 0},
     {PIN_MOTOR_B_PWM, PIN_MOTOR_B_IN1, PIN_MOTOR_B_IN2, MOTOR_B_INVERT != 0},
+#if Z_MODE == Z_MODE_MOTOR
     {PIN_MOTOR_Z_PWM, PIN_MOTOR_Z_IN1, PIN_MOTOR_Z_IN2, MOTOR_Z_INVERT != 0},
+#endif
 };
+constexpr uint8_t kMotorCount = sizeof(kMotors) / sizeof(kMotors[0]);
 
-const EncoderPins kEncoders[AXIS_COUNT] = {
+const EncoderPins kEncoders[] = {
     {PIN_ENC_A_CHA, PIN_ENC_A_CHB, ENC_A_INVERT != 0},
     {PIN_ENC_B_CHA, PIN_ENC_B_CHB, ENC_B_INVERT != 0},
+#if Z_MODE == Z_MODE_MOTOR
     {PIN_ENC_Z_CHA, PIN_ENC_Z_CHB, ENC_Z_INVERT != 0},
+#endif
 };
+constexpr uint8_t kEncoderCount = sizeof(kEncoders) / sizeof(kEncoders[0]);
+static_assert(kMotorCount == kEncoderCount && kMotorCount <= AXIS_COUNT, "모터·엔코더 표가 맞지 않는다");
 
-const uint8_t kLimitPins[LIMIT_COUNT] = {PIN_LIMIT_X, PIN_LIMIT_Y, PIN_LIMIT_Z};
+// -1 = 그 리밋 입력이 없다(항상 비활성).
+const int8_t kLimitPins[LIMIT_COUNT] = {PIN_LIMIT_X, PIN_LIMIT_Y, PIN_LIMIT_Z};
+
+bool g_solenoid_on = false;
 
 // PCNT 하드웨어 카운터는 16비트다. 한계에 watch point를 두고 accum_count를 켜면 드라이버가
 // 넘침을 누적해 32비트 값을 돌려준다(누적은 드라이버 ISR이 하며 이 코드는 ISR을 두지 않는다).
@@ -48,6 +60,7 @@ bool g_limit_state[LIMIT_COUNT] = {};
 
 int32_t raw_count(Axis axis) {
   int value = 0;
+  if (axis >= kEncoderCount) return 0;
   if (g_units[axis] == nullptr || pcnt_unit_get_count(g_units[axis], &value) != ESP_OK) {
     return 0;
   }
@@ -93,19 +106,29 @@ bool init_encoder(Axis axis) {
   return true;
 }
 
-bool read_limit_raw(LimitId id) { return digitalRead(kLimitPins[id]) == LIMIT_ACTIVE_LEVEL; }
+bool read_limit_raw(LimitId id) {
+  if (kLimitPins[id] < 0) return false;
+  return digitalRead(kLimitPins[id]) == LIMIT_ACTIVE_LEVEL;
+}
 
 }  // namespace
 
 bool drivers_init() {
   // 출력부터 안전한 쪽으로: STBY LOW, IN1=IN2=LOW, 듀티 0.
   pinMode(PIN_STBY_AB, OUTPUT);
-  pinMode(PIN_STBY_Z, OUTPUT);
   digitalWrite(PIN_STBY_AB, LOW);
+#if Z_MODE == Z_MODE_MOTOR
+  pinMode(PIN_STBY_Z, OUTPUT);
   digitalWrite(PIN_STBY_Z, LOW);
+#else
+  // 솔레노이드: 출력 레벨을 '꺼짐'으로 먼저 정한 뒤 출력으로 바꾼다(게이트 풀다운이 리셋 중 꺼짐을 맡는다).
+  digitalWrite(PIN_SOLENOID, SOLENOID_ACTIVE_LEVEL == HIGH ? LOW : HIGH);
+  pinMode(PIN_SOLENOID, OUTPUT);
+  solenoid_set(false);
+#endif
 
   bool ok = true;
-  for (uint8_t i = 0; i < AXIS_COUNT; ++i) {
+  for (uint8_t i = 0; i < kMotorCount; ++i) {
     const MotorPins& m = kMotors[i];
     pinMode(m.in1, OUTPUT);
     pinMode(m.in2, OUTPUT);
@@ -116,19 +139,20 @@ bool drivers_init() {
   }
 
   for (uint8_t i = 0; i < LIMIT_COUNT; ++i) {
-    pinMode(kLimitPins[i], LIMIT_USE_PULLUP ? INPUT_PULLUP : INPUT);
+    if (kLimitPins[i] >= 0) pinMode(kLimitPins[i], LIMIT_USE_PULLUP ? INPUT_PULLUP : INPUT);
     const bool raw = read_limit_raw(static_cast<LimitId>(i));
     g_limit_raw_prev[i] = raw;
     g_limit_state[i] = raw;
   }
 
-  for (uint8_t i = 0; i < AXIS_COUNT; ++i) {
+  for (uint8_t i = 0; i < kEncoderCount; ++i) {
     if (!init_encoder(static_cast<Axis>(i))) ok = false;
   }
   return ok;
 }
 
 void motor_set_duty(Axis axis, int32_t duty) {
+  if (axis >= kMotorCount) return;
   const MotorPins& m = kMotors[axis];
   if (m.invert) duty = -duty;
   if (duty > PWM_MAX_DUTY) duty = PWM_MAX_DUTY;
@@ -149,6 +173,7 @@ void motor_set_duty(Axis axis, int32_t duty) {
 }
 
 void motor_brake(Axis axis) {
+  if (axis >= kMotorCount) return;
   const MotorPins& m = kMotors[axis];
   digitalWrite(m.in1, HIGH);
   digitalWrite(m.in2, HIGH);
@@ -157,10 +182,25 @@ void motor_brake(Axis axis) {
 
 void drivers_standby_outputs(bool enable) {
   digitalWrite(PIN_STBY_AB, enable ? HIGH : LOW);
+#if Z_MODE == Z_MODE_MOTOR
   digitalWrite(PIN_STBY_Z, enable ? HIGH : LOW);
+#else
+  if (!enable) solenoid_set(false);  // 출력을 내리는 경로는 솔레노이드도 끈다
+#endif
 }
 
-int32_t encoder_read(Axis axis) { return raw_count(axis) - g_zero_offset[axis]; }
+void solenoid_set(bool on) {
+#if Z_MODE == Z_MODE_SOLENOID
+  digitalWrite(PIN_SOLENOID, on ? SOLENOID_ACTIVE_LEVEL : (SOLENOID_ACTIVE_LEVEL == HIGH ? LOW : HIGH));
+  g_solenoid_on = on;
+#else
+  (void)on;
+#endif
+}
+
+bool solenoid_is_on() { return g_solenoid_on; }
+
+int32_t encoder_read(Axis axis) { return axis < kEncoderCount ? raw_count(axis) - g_zero_offset[axis] : 0; }
 
 void encoder_zero(Axis axis) { g_zero_offset[axis] = raw_count(axis); }
 

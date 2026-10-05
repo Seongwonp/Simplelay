@@ -62,6 +62,19 @@ RPi4 ActExecutor가 이 값을 progress 프레임의 ``position``으로 RPi5에 
 ``connect_timeout_s``(기본 5 s)까지 재시도한다. 동작 중에 ``ready``가 오면 MCU가 재시작한 것 — 진행 중 명령을
 실패(`MotionReset`)로 끝내고 재홈 전까지 준비 안 됨으로 둔다. 조회 중이면 같은 요청을 새 id로 다시 보낸다.
 
+Z 누름 방식(2026-10-05): Z가 엔코더 모터(``motor``)인지 솔레노이드(``solenoid``)인지 MCU가 ``ready``
+배너와 ``status`` 응답의 ``z_mode``로 알린다(`SerialMotionClient.z_mode`, 안 보내는 MCU면 None).
+솔레노이드는 깊이를 모르므로 ``press_mode=depth``를 **움직이기 전에** 거절한다. MCU의 ``z_unsupported``·
+``z_cooldown``(코일 냉각 시간 안) 거절은 위치를 잃지 않은 거절이라 `MotionRefused`로 올리고 재홈을 요구하지 않는다.
+
+위치 일치 검사(2026-10-05, 선택): ``position_tolerance_counts``를 주면 이동(``move``)이 ``ok``로 끝난 뒤
+그 요청 동안 받은 엔코더 위치 보고(``position`` 이벤트·응답의 ``a``·``b``)를 명령 카운트와 비교해, 어느 모터든
+허용 오차를 넘거나 보고가 없으면 `MotionPositionMismatch`로 실패시키고 재홈 전까지 준비 안 됨으로 둔다 —
+엉뚱한 곳을 누르는 대신 L1 재시도(``auto_home``이면 재홈부터)로 넘긴다. **한계:** FIT0482 엔코더는 모터 축에
+있어 풀리–벨트 미끄럼은 엔코더에 보이지 않는다. 이 검사가 잡는 것은 MCU가 목표에 못 닿고도 ``ok``를 보낸
+경우(팀원 펌웨어의 시간 기반 이동 등)다. 벨트 미끄럼 자체는 원점 복귀(리밋)와 L3 검증으로 잡는다.
+허용 오차는 측정 필요.
+
 모든 하드웨어 값(풀리·벨트·R_out·리밋·방향·누름 깊이/시간·타임아웃)은 설정으로만
 받는다. 기본값은 None이고, 필요한 값이 비어 있으면 **움직이기 전에** 거절한다.
 """
@@ -128,6 +141,13 @@ class MotionAlarm(MotionError):
 
 class MotionReset(MotionAlarm):
     """동작 중 MCU가 재시작했다(``ready`` 배너). 진행 중 명령은 사라졌고 원점 기준도 없다."""
+
+
+class MotionPositionMismatch(MotionError):
+    """이동은 ``ok``였지만 MCU가 보고한 엔코더 위치가 명령과 허용 오차 넘게 다르다(또는 보고 없음).
+
+    어디 있는지 믿을 수 없어 재홈 전까지 준비 안 됨으로 둔다. 폐루프는 누름 실패로 센다.
+    """
 
 
 # ── 전송 ─────────────────────────────────────────────────────────────────────
@@ -245,7 +265,13 @@ MOTION_ENV_NAMES: dict[str, str] = {
     "auto_home": "SIMPLELAY_MOTION_AUTO_HOME",
     "heartbeat_ms": "SIMPLELAY_MOTION_HEARTBEAT_MS",
     "connect_timeout_s": "SIMPLELAY_MOTION_CONNECT_TIMEOUT_S",
+    "position_tolerance_counts": "SIMPLELAY_MOTION_POSITION_TOLERANCE_COUNTS",
 }
+
+#: MCU가 알리는 Z 누름 방식(firmware-motion/protocol_table.json z_modes).
+Z_MODES = ("motor", "solenoid")
+#: 위치를 잃지 않은 MCU 거절 — 알람·재홈으로 번지지 않게 `MotionRefused`로 올린다.
+MCU_REFUSAL_ERRORS = frozenset({"z_unsupported", "z_cooldown"})
 
 #: 응답을 기다리는 동안 heartbeat(ping)를 보내는 명령 — MCU 워치독이 도는 동작들.
 HEARTBEAT_CMDS = frozenset({"home", "move", "press"})
@@ -259,6 +285,7 @@ _INT_FIELDS = (
     "press_drive_max_ms",
     "press_dwell_ms",
     "heartbeat_ms",
+    "position_tolerance_counts",
 )
 _TIMEOUT_FIELDS = ("status_timeout_s", "home_timeout_s", "move_timeout_s", "press_timeout_s", "connect_timeout_s")
 
@@ -303,6 +330,9 @@ class MotionConfig:
     #: connect()가 부팅 배너·status 응답을 기다리는 총 시간(초). 포트를 열면 ESP32가 리셋될 수 있어
     #: 첫 status가 사라질 수 있다 — 이 시간 동안 backoff로 재시도한다. 호스트 박자라 기본값을 둔다.
     connect_timeout_s: float | None = 5.0
+    #: 이동 뒤 엔코더 보고 위치와 명령 카운트의 허용 차(모터 카운트). None이면 검사하지 않는다.
+    #: 값은 측정 필요(MCU 도착 허용 오차 POS_TOLERANCE_COUNTS보다 넉넉하게).
+    position_tolerance_counts: int | None = None
 
     def __post_init__(self) -> None:
         if self.press_mode is not None and self.press_mode not in PRESS_MODES:
@@ -460,6 +490,8 @@ class SerialMotionClient(GrblClient):
         self._next_id = 0
         self.last_status: MotionStatus | None = None
         self._last_position: dict | None = None
+        self._position_seq = 0  # 위치 보고를 받을 때마다 1 증가 — 이번 요청 중에 왔는지 가린다
+        self._z_mode: str | None = None
         #: 보낸 heartbeat(ping) 수 — 시험·로그용.
         self.heartbeats_sent = 0
         #: 마지막으로 받은 부팅 배너(``ready`` 이벤트) — 없으면 None.
@@ -490,6 +522,21 @@ class SerialMotionClient(GrblClient):
             pass
         with self._state_lock:
             self._last_position = position
+            self._position_seq += 1
+
+    @property
+    def z_mode(self) -> str | None:
+        """MCU가 알린 Z 누름 방식(``motor``|``solenoid``). 알리지 않았으면 None."""
+        with self._state_lock:
+            return self._z_mode
+
+    def _note_z_mode(self, doc: dict) -> None:
+        value = doc.get("z_mode")
+        if value in Z_MODES:
+            with self._state_lock:
+                self._z_mode = value
+        elif value is not None:
+            log.warning("motion: unknown z_mode=%r ignored", value)
 
     # ── 상태 조회 ──────────────────────────────────────────────────────────────
 
@@ -578,6 +625,7 @@ class SerialMotionClient(GrblClient):
             alarm=reply.get("alarm") if isinstance(reply.get("alarm"), str) else None,
         )
         self.last_status = status
+        self._note_z_mode(reply)
         if status.alarm or status.state == "alarm":
             self._set_state(MotionState.ALARM)
         elif self.state is not MotionState.STOPPED:
@@ -677,6 +725,11 @@ class SerialMotionClient(GrblClient):
     def _press_request(self, command: PressCommand) -> dict:
         cfg = self._config
         cfg.require("누름", ("press_mode",))
+        if cfg.press_mode == "depth" and self.z_mode == "solenoid":
+            raise MotionRefused(
+                "Z가 솔레노이드라 깊이(depth) 누름을 받지 않습니다 — "
+                "SIMPLELAY_MOTION_PRESS_MODE=duration으로 시간 누름을 쓰세요"
+            )
         dwell = command.press_ms if command.press_ms is not None else cfg.press_dwell_ms
         if dwell is None:
             raise MotionConfigError("누름 유지 시간", ("press_dwell_ms",))
@@ -725,9 +778,17 @@ class SerialMotionClient(GrblClient):
             )
 
     def _run_busy(self, request: dict, timeout_s: float | None) -> dict:
+        previous = self.state
+        with self._state_lock:
+            seq_before = self._position_seq
         self._set_state(MotionState.BUSY)
         try:
             reply = self._request(request, timeout_s)
+        except MotionRefused:
+            # 움직이기 전 MCU 거절(z_unsupported·z_cooldown) — 위치를 잃지 않았다.
+            if self.state is MotionState.BUSY:
+                self._set_state(previous)
+            raise
         except MotionStopped:
             self._set_state(MotionState.STOPPED)
             raise
@@ -741,8 +802,33 @@ class SerialMotionClient(GrblClient):
             if self.state is MotionState.BUSY:
                 self._set_state(MotionState.UNHOMED)
             raise
+        if request.get("cmd") == "move":
+            mismatch = self._position_mismatch(request, seq_before)
+            if mismatch is not None:
+                self._set_state(MotionState.UNHOMED)
+                self._emit("position_mismatch", {"detail": mismatch})
+                raise MotionPositionMismatch(f"이동 뒤 위치 불일치: {mismatch} — 재홈 필요")
         self._set_state(MotionState.READY)
         return reply
+
+    def _position_mismatch(self, request: dict, seq_before: int) -> str | None:
+        """위치 일치 검사(선택). 문제가 없거나 검사가 꺼져 있으면 None, 아니면 사람이 읽을 이유."""
+        tolerance = self._config.position_tolerance_counts
+        if tolerance is None:
+            return None
+        with self._state_lock:
+            fresh = self._position_seq != seq_before
+            position = dict(self._last_position) if self._last_position is not None else None
+        if not fresh or position is None:
+            return "MCU 위치 보고 없음(검사를 켰으면 position 이벤트가 필요)"
+        diffs = []
+        for axis in ("a", "b"):
+            error = position[f"{axis}_counts"] - int(request[axis])
+            if abs(error) > tolerance:
+                diffs.append(f"{axis} 명령 {request[axis]} / 보고 {position[f'{axis}_counts']} (차 {error:+d})")
+        if not diffs:
+            return None
+        return ", ".join(diffs) + f" > 허용 {tolerance}"
 
     def _request(
         self,
@@ -798,6 +884,8 @@ class SerialMotionClient(GrblClient):
                 self._note_position(doc, "mcu_reply")
                 return doc
             error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
+            if error in MCU_REFUSAL_ERRORS:
+                raise MotionRefused(f"MCU가 '{body['cmd']}'를 거절: {error}")
             raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}")
 
     def _send_request(self, body: dict) -> int:
@@ -810,6 +898,7 @@ class SerialMotionClient(GrblClient):
     def _note_ready(self, doc: dict) -> None:
         """부팅 배너. MCU가 (재)시작했으므로 원점 기준이 없다 — 정지 표시가 아니면 UNHOMED로."""
         self.ready_info = dict(doc)
+        self._note_z_mode(doc)
         reset = doc.get("reset")
         self._emit("ready", doc)
         if reset in _ABNORMAL_RESETS:

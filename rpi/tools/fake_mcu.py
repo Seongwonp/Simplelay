@@ -15,6 +15,14 @@
   ``boot_delay_s``를 주면 그동안은 받은 줄을 버린다(부팅 중 — 첫 status가 사라지는 경우).
   ``reboot()``는 대기 명령·원점을 버리고 같은 순서로 다시 부팅한다.
 
+- ``z_mode``(2026-10-05): ``"motor"``(기본)·``"solenoid"``를 ``ready``·``status``에 ``z_mode``로 싣는다.
+  None이면 필드를 빼서 z_mode를 모르는 MCU(팀원 펌웨어 원본)를 흉내 낸다. 솔레노이드는 펌웨어
+  Z_MODE_SOLENOID처럼 ``depth`` 누름을 ``z_unsupported``로, 켜짐 시간(drive_ms + dwell_ms)이
+  ``solenoid_on_max_ms``를 넘으면 ``soft_limit``으로, 직전 누름 뒤 ``solenoid_min_off_s``가 안 지났으면
+  ``z_cooldown``으로 거절한다.
+- ``slip_counts=(da, db)``(2026-10-05): 이동 뒤 실제(보고) 위치를 명령 카운트에서 그만큼 어긋나게 둔다 —
+  벨트 미끄럼·도착 실패 주입. ``report_position=False``면 ``position`` 이벤트를 보내지 않는다.
+
 `REHEARSAL_CONFIG`의 수치는 **리허설용 임의 값**이다. 실물 값이 아니며 실기기 설정의
 근거로 쓰지 않는다(조그 CLI는 ``--fake-mcu``와 함께일 때만 이 값을 받는다).
 """
@@ -80,7 +88,21 @@ class FakeMcu:
         ready_banner: bool = False,
         boot_noise: tuple[str, ...] = (),
         boot_delay_s: float = 0.0,
+        z_mode: str | None = "motor",
+        solenoid_on_max_ms: int = 1000,
+        solenoid_min_off_s: float = 0.0,
+        slip_counts: tuple[int, int] = (0, 0),
+        report_position: bool = True,
     ) -> None:
+        #: Z 누름 방식 — None이면 ready·status에 z_mode를 싣지 않는다.
+        self.z_mode = z_mode
+        #: 솔레노이드 켜짐 시간 상한(ms)·최소 꺼짐 시간(s). 시험용 임의 값 — 펌웨어 SOLENOID_* 자리표시자의 축소판.
+        self.solenoid_on_max_ms = solenoid_on_max_ms
+        self.solenoid_min_off_s = solenoid_min_off_s
+        self._solenoid_off_at: float | None = None
+        #: 이동 뒤 보고 위치의 어긋남(카운트) — 미끄럼 주입.
+        self.slip_counts = slip_counts
+        self.report_position = report_position
         self._end = pipe.device
         self.ready_banner = ready_banner
         self.boot_noise = boot_noise
@@ -105,17 +127,13 @@ class FakeMcu:
         self.handlers: dict[str, Handler] = {
             "status": lambda d: [
                 self._ok(
-                    d, state=self._state(), homed=self.homed, a=self.a, b=self.b, z=self.z, alarm=self.alarm
+                    d, state=self._state(), homed=self.homed, a=self.a, b=self.b, z=self.z, alarm=self.alarm,
+                    **self._z_mode_field(),
                 )
             ],
             "home": self._home,
             "move": self._move,
-            "press": lambda d: [
-                {"event": "press_start"},
-                {"event": "press_end"},
-                self._position(),
-                self._ok(d),
-            ],
+            "press": self._press,
             "stop": lambda d: [self._ok(d)],
             "ping": lambda d: [self._ok(d)],
             "limits": lambda d: [
@@ -129,7 +147,10 @@ class FakeMcu:
 
     def ready_event(self, reset: str = "poweron") -> dict:
         # 펌웨어 부팅 배너 — firmware-motion/protocol_table.json events.ready
-        return {"event": "ready", "fw": "fake_mcu", "protocol": "line-json/v0", "reset": reset}
+        return {"event": "ready", "fw": "fake_mcu", "protocol": "line-json/v0", "reset": reset, **self._z_mode_field()}
+
+    def _z_mode_field(self) -> dict:
+        return {"z_mode": self.z_mode} if self.z_mode is not None else {}
 
     def _boot(self, reset: str = "poweron") -> None:
         self._booting_until = time.monotonic() + self.boot_delay_s
@@ -158,8 +179,32 @@ class FakeMcu:
 
     def _move(self, doc: dict) -> list[dict]:
         if isinstance(doc.get("a"), int) and isinstance(doc.get("b"), int):
-            self.a, self.b = doc["a"], doc["b"]
-        return [self._position(), self._ok(doc)]
+            da, db = self.slip_counts
+            self.a, self.b = doc["a"] + da, doc["b"] + db
+        return [*self._positions(), self._ok(doc)]
+
+    def _press(self, doc: dict) -> list[dict]:
+        if self.z_mode == "solenoid":
+            refusal = self._solenoid_refusal(doc)
+            if refusal is not None:
+                return [{"id": doc.get("id"), "ok": False, "error": refusal}]
+        return [{"event": "press_start"}, {"event": "press_end"}, *self._positions(), self._ok(doc)]
+
+    def _solenoid_refusal(self, doc: dict) -> str | None:
+        # 펌웨어 motion_cmd_press(Z_MODE_SOLENOID)와 같은 순서: 방식 → 켜짐 상한 → 냉각.
+        if doc.get("mode") != "duration":
+            return "z_unsupported"
+        on_ms = int(doc.get("drive_ms") or 0) + int(doc.get("dwell_ms") or 0)
+        if on_ms > self.solenoid_on_max_ms:
+            return "soft_limit"
+        now = time.monotonic()
+        if self._solenoid_off_at is not None and now - self._solenoid_off_at < self.solenoid_min_off_s:
+            return "z_cooldown"
+        self._solenoid_off_at = now  # 가짜는 즉시 끝난다 — 지금 꺼진 것으로 둔다
+        return None
+
+    def _positions(self) -> list[dict]:
+        return [self._position()] if self.report_position else []
 
     def _position(self) -> dict:
         # 펌웨어의 선택 위치 이벤트(ok 직전 한 번) — firmware-motion/protocol_table.json

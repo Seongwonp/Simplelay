@@ -1,7 +1,8 @@
 # firmware-motion — 모션 MCU(ESP32) 펌웨어
 
 **컴파일만 확인했다. 실물(보드·모터·엔코더·스위치)로 한 번도 돌려 보지 않았다.**
-`include/config.h`의 핀·방향·PID 게인·PWM·속도·기한·리밋 값은 전부 **자리표시자**다.
+핀·방향·리밋 결선·기구 범위·Z 누름 방식은 `include/board_config.h` **한 파일**에, PID 게인·PWM·속도·기한·
+워치독은 `include/config.h`에 있고 전부 **자리표시자**다.
 채우기 전까지 빌드 때 `#warning`이 뜬다. 실측값이 아니므로 실기기 설정의 근거로 쓰지 않는다.
 
 > **현재 위치(2026-10-05):** 9/30 결정은 모션 제어기를 Arduino(Uno)로 정했고, 그 뒤 이 펌웨어는
@@ -35,17 +36,17 @@
 
 | 명령 | 요청 필드 | 완료 응답 | 비고 |
 |---|---|---|---|
-| `status` | `id` | `id, ok, state, homed, a, b, z, alarm` | 동작 중에도 답한다 |
+| `status` | `id` | `id, ok, state, homed, a, b, z, alarm, z_mode` | 동작 중에도 답한다. `z_mode` = `motor`\|`solenoid`(2026-10-05) |
 | `home` | `id` | `id, ok` | Z 위로 → X → Y. 각 축 접근 → 후퇴 → 저속 재접근 → 후퇴한 곳을 0 |
 | `move` | `id, a, b, x_mm, y_mm` | (`position` 이벤트) → `id, ok` | a·b = 목표 카운트. x_mm·y_mm는 MCU 쪽 두 번째 리밋 검사용 |
-| `press` | `id, mode, z_counts\|drive_ms, dwell_ms` | `press_start` → `press_end` → `position` 이벤트 → `id, ok` | depth=Z 카운트, duration=구동 시간 |
+| `press` | `id, mode, z_counts\|drive_ms, dwell_ms` | `press_start` → `press_end` → `position` 이벤트 → `id, ok` | depth=Z 카운트, duration=구동 시간. 솔레노이드는 duration만 |
 | `stop` | `id` | `id, ok` | 즉시 듀티 0 + STBY LOW. 진행 중 명령은 `error:"stopped"` |
 | `ping` | `id` | `id, ok` | heartbeat. 동작을 건드리지 않고 즉시 답한다(2026-09-29) |
 | `limits` | `id` | `id, ok, raw{x,y,z}, debounced{x,y,z}` | 리밋 입력 판독, 활성 = true. 동작 중에도 답한다(2026-09-29) |
 
 - 오류 응답 `{"id":N,"ok":false,"error":"<코드>"}` — 코드 목록은 표의 `errors`.
 - 위치 보고(2026-09-29 추가, 선택 이벤트) `{"event":"position","a":..,"b":..,"z":..}` — 이동·누름 중 `POSITION_EVENT_MS`(100ms)마다, 끝날 때 `ok` 직전 한 번. 호스트 `serial_motion.py`가 `last_position`으로 받아 RPi4 progress 프레임 → RPi5 실모드 트윈(`/twin`)의 "엔코더 보고 위치"가 된다. 실물 미검증.
-- 부팅 배너(2026-09-29) `{"event":"ready","fw":"firmware-motion","protocol":"line-json/v0","reset":"<이유>"}` — setup 끝에
+- 부팅 배너(2026-09-29) `{"event":"ready","fw":"firmware-motion","protocol":"line-json/v0","reset":"<이유>","z_mode":"motor"}` — setup 끝에
   한 줄. `reset`은 직전 리셋 이유(`poweron`·`sw`·`panic`·`task_wdt`·`int_wdt`·`wdt`·`brownout`·`ext`·`other`).
   호스트는 포트를 연 뒤 부트 로그(JSON 아님)를 버리고 이 줄 또는 `status` 재시도로 준비를 안다. 동작 중에 오면
   MCU가 재시작한 것 — 호스트는 진행 중 명령을 실패로 끝내고 재홈을 요구한다.
@@ -62,6 +63,62 @@
   `ping`을 보내고, 받은 줄이면 무엇이든 워치독을 갱신한다. 워치독이 heartbeat의 3배 미만이면 빌드 오류.
 - `limits`: X·Y·Z 리밋 입력의 즉시값(`raw`)·디바운스 값(`debounced`)을 돌려준다(움직이지 않음, 배선 확인용).
 - 해석할 수 없는 줄은 무시한다(fake_mcu와 같다). 256바이트를 넘는 줄은 통째로 버린다.
+
+## Z 누름 방식 — 빌드 플래그 `Z_MODE` (2026-10-05)
+
+Z가 모터·스위치봇 모듈·솔레노이드 중 무엇이 될지 아직 정해지지 않아(하드웨어 방향 문서 §5) 두 방식을 같은 소스로
+빌드한다. 기본은 9/29 설계 그대로 `Z_MODE_MOTOR`.
+
+| | `Z_MODE_MOTOR`(기본) | `Z_MODE_SOLENOID`(`-DZ_MODE=Z_MODE_SOLENOID`) |
+|---|---|---|
+| 구동 | FIT0482 + TB6612 두 번째 채널, Z 엔코더, Z 위 리밋 | GPIO 하나 → 로직 레벨 MOSFET → 솔레노이드(역전압 다이오드) |
+| 원점 | Z 위로 → X → Y | X → Y(꺼져 있으면 스프링이 올려 둔다) |
+| `press` depth | Z 카운트까지 | `z_unsupported`로 거절 |
+| `press` duration | `drive_ms` 구동 → `dwell_ms` 유지 → 위로 | 켜짐 = `drive_ms + dwell_ms`, 끈 뒤 `SOLENOID_RELEASE_MS` 기다려 `ok` |
+| 시간 상한 | `PRESS_DRIVE_MAX_MS` | 켜짐이 `SOLENOID_ON_MAX_MS`를 넘는 요청은 `soft_limit`, 제어 주기 백스톱이 넘긴 켜짐을 끈다 |
+| 발열 보호 | — | 끈 뒤 max(`SOLENOID_MIN_OFF_MS`, 켜짐 × `SOLENOID_OFF_RATIO`) 안의 요청은 `z_cooldown`(부팅 직후에도 최소 꺼짐) |
+| 알람·정지·워치독 | Z 후퇴(`z_retract`) | 즉시 끔(`z_retract` = `done`\|`not_needed`) |
+| `status`·`position`의 `z` | Z 엔코더 카운트 | 켜짐 1 / 꺼짐 0 |
+| `limits`의 `z` | Z 위 리밋 | 항상 `false`(입력 없음) |
+
+`ready`·`status`의 `z_mode`로 호스트가 방식을 안다. 호스트(`serial_motion.py`)는 솔레노이드면 `press_mode=depth`
+(조그 CLI `press --depth`도)를 **움직이기 전에** 거절하고, `z_unsupported`·`z_cooldown`은 위치를 잃지 않은 거절이라
+재홈을 요구하지 않는다. `z_mode`를 보내지 않는 MCU(팀원 펌웨어 원본)면 호스트는 제한하지 않는다. 솔레노이드 시간 값은
+전부 측정 필요(코일 발열·스프링 복귀).
+
+## 위치 일치 검사(호스트, 선택, 2026-10-05)
+
+벨트가 풀리에서 헛도는 문제(하드웨어 방향 문서 §5)에 대비해 RPi4 쪽에 `SIMPLELAY_MOTION_POSITION_TOLERANCE_COUNTS`
+(기본 꺼짐, **측정 필요**)를 두었다. 켜면 `move`가 `ok`로 끝난 뒤 그 요청 동안 받은 `position` 보고를 명령 카운트와 비교해
+어느 모터든 허용 오차를 넘거나 보고가 없으면 그 이동을 실패(`MotionPositionMismatch`)로 끝내고 재홈 전까지 이동·누름을
+거절한다 — 엉뚱한 곳을 누르는 대신 L1 재시도로 넘긴다(`SIMPLELAY_MOTION_AUTO_HOME=true`면 재시도가 재홈부터 한다).
+
+**한계:** FIT0482 엔코더는 모터 축에 있어 **풀리–벨트 미끄럼은 엔코더에 보이지 않는다.** 이 검사가 잡는 것은 MCU가
+목표에 못 닿고도 `ok`를 보낸 경우(시간 기반 이동·도착 판정이 느슨한 펌웨어)다. 벨트 미끄럼 자체는 원점 복귀(리밋)로
+기준을 다시 잡고 L3 검증(가전 반응)으로 잡는다. 미끄럼 누적을 재려면 재홈 때 "스위치를 만난 순간의 카운트 − 기대 0"을
+보고하는 것이 다음 후보다(규약 미정, 실측 뒤).
+
+## 팀원 코드 합치기 (2026-10-05)
+
+팀원이 ESP32에서 돌린 모션 코드를 이 펌웨어에 합칠 때 **바뀌는 곳은 `include/board_config.h` 한 파일**이 되게 했다
+(소스에는 핀 번호를 쓰지 않는다 — `rpi/tests/test_motion_z_mode.py`가 확인). 팀원에게 받을 것:
+
+1. **보드 종류**(FireBeetle / 일반 ESP32 DevKit 등)와 **핀 맵 전부** — 모터 A·B(PWM·IN1·IN2), 드라이버 STBY, 엔코더
+   A·B(·Z) 채널, 리밋 스위치, 솔레노이드 게이트. 드라이버 모듈 논리 전원(3.3/5 V)·레벨 변환 여부.
+2. **엔코더 카운트/회전**(출력축 기준, 감속비 포함)과 몇 배(x1/x2/x4)로 셌는지 → RPi4 `SIMPLELAY_MOTION_R_OUT`·
+   `DECODING_MULTIPLIER`.
+3. **풀리 톱니 수·벨트 피치**(GT2면 2 mm) → `SIMPLELAY_MOTION_PULLEY_TEETH`·`BELT_PITCH_MM`. 벨트 장력 보강 뒤 값.
+4. **방향 부호** — 양(+) 듀티에서 카운트가 느는지(`MOTOR_*_INVERT`·`ENC_*_INVERT`), '원점 쪽'으로 갈 때 두 모터 부호
+   (`HOME_*_DIR_*`), RPi4 `A_SIGN`·`B_SIGN`.
+5. **리밋 스위치 결선** — NO/NC, 활성 레벨, 풀업(내부/외부), X·Y 어느 끝에 있는지, 이동 범위(mm).
+6. **Z 방식** — 솔레노이드면 구동 회로(MOSFET 부품·게이트 저항·풀다운·역전압 다이오드), 정격 전압·전류와 전원 여유,
+   몇 ms 켜야 버튼이 눌리는지, 연속 몇 번까지 뜨거워지지 않는지(→ `SOLENOID_*`). 모터·스위치봇 모듈이면 그 구동 방식.
+7. **팀원 코드에서 쓸 만한 튜닝 값** — PWM 주파수·듀티 상한, 기동 듀티, PID 게인, 속도.
+8. **블루투스 조작 코드는 시연 빌드에서 뺀다.** 시연 링크는 RPi4 **USB 시리얼(유선)** 의 줄 단위 JSON 하나다(정지 명령
+   신뢰성. 무선을 켜면 GPIO36·39 엔코더 입력 errata도 다시 봐야 한다). 블루투스는 팀원 시험용으로만 남긴다.
+
+합치는 순서: `board_config.h` 채우기 → 두 Z 방식 중 맞는 환경으로 빌드 → 아래 "첫 시험 순서" → 잰 값은
+[`docs/실측-기록표.md`](../docs/실측-기록표.md)와 RPi4 환경 변수에 같이 적는다.
 
 ## 구현 요약
 
@@ -96,7 +153,7 @@
   (esp_timer·태스크는 정적 스택·초기화 때만 생성).
 - 코어 로그 레벨 0 — 로그가 같은 UART의 JSON 줄 사이에 끼지 않게 한다.
 
-## 배선 표 (자리표시자 — 예솔 확정 전)
+## 배선 표 (자리표시자 — 예솔 확정 전, 값은 `include/board_config.h`)
 
 | 신호 | ESP32 GPIO(임시) | 연결 | 확인할 것 |
 |---|---|---|---|
@@ -107,11 +164,12 @@
 | 엔코더 A CHA / CHB | 34 / 35 | FIT0482 A 엔코더 | 입력 전용 핀, 내부 풀업 없음 |
 | 엔코더 B CHA / CHB | 36 / 39 | FIT0482 B 엔코더 | 엔코더 출력 전압(5 V면 분압). ADC·Hall을 켜면 errata 3.11(~80 ns LOW) |
 | 엔코더 Z CHA / CHB | 32 / 33 | FIT0482 Z 엔코더 | |
-| 리밋 X / Y / Z(위) | 13 / 14 / 4 | NC 스위치 → GND, 풀업 | 9/29 Z를 스트래핑 핀 GPIO5에서 GPIO4로 옮김 |
+| 리밋 X / Y / Z(위) | 13 / 14 / 4 | NC 스위치 → GND, 풀업 | 9/29 Z를 스트래핑 핀 GPIO5에서 GPIO4로 옮김. 솔레노이드 방식은 Z 없음 |
+| 솔레노이드 게이트(솔레노이드 방식) | 18 | 로직 레벨 N-MOSFET 게이트 | 게이트 풀다운·역전압 다이오드. 모터 Z PWM 자리를 쓴다 |
 | RPi4 링크 | USB(UART0) | RPi4 USB | `/dev/ttyUSB*` 또는 `/dev/ttyACM*` |
 | 모터 전원 VM | — | E-STOP 경유 | 물리 E-STOP이 모터 전원을 끊는지 |
 
-## 예솔이 채울 값 (`include/config.h`의 `TODO(HW 실측)`)
+## 예솔이 채울 값 (`include/board_config.h`의 `팀원 확인 필요`, `include/config.h`의 `TODO(HW 실측)`)
 
 1. 실제 보드(FireBeetle ESP32 맞는지)와 **핀 배치 전부**, 드라이버 채널 배정.
 2. 드라이버 모듈 논리 전원(3.3/5 V)과 레벨 변환 여부, 엔코더 출력 전압·출력 방식(푸시풀/오픈 컬렉터).
@@ -145,12 +203,16 @@ PowerShell에서(Git Bash는 pioarduino 설치 단계가 거부된다). 경로�
 ```powershell
 $env:PLATFORMIO_CORE_DIR = 'C:\.platformio'
 $env:PLATFORMIO_BUILD_DIR = 'C:\pio-build\firmware-motion'
-.\.venv\Scripts\python.exe -m platformio run -d firmware-motion
+.\.venv\Scripts\python.exe -m platformio run -d firmware-motion              # 기본 환경(firebeetle32, Z 모터)
+.\.venv\Scripts\python.exe -m platformio run -d firmware-motion -e firebeetle32_solenoid
 .\.venv\Scripts\python.exe -m platformio run -d firmware-motion -t upload --upload-port COM<n>
 ```
 
 2026-09-29 빌드(고정 플랫폼 pioarduino 55.03.312-1 / Arduino-ESP32 3.3.12, ArduinoJson 7.4.3), 첫날 위험 보완 뒤:
 RAM 33,944 B(6.4%), Flash 298,263 B(22.8%). 경고는 자리표시자 `#warning` 하나(`-Wall -Wextra`로 따로 빌드해도 같음).
+
+환경(2026-10-05): `firebeetle32`(Z 모터, 기본) · `firebeetle32_solenoid` · `esp32dev` · `esp32dev_solenoid`(팀원 보드가 일반
+DevKit일 때 — 핀은 같은 `board_config.h`). 네 환경 빌드 결과는 [하드웨어 방향 문서](../docs/하드웨어-방향-확정-2026-09-30.md) §5.
 
 ## 첫 시험 순서
 
