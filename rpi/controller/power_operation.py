@@ -4,8 +4,9 @@
 다 넣은 뒤 소비 전력이 실제로 올라가는지 확인하고, 확인되지 않으면 컨트롤러가
 자동 재입력 없이 안전 정지한다(layered.py 정책).
 
-센서는 ``PowerSensor`` 프로토콜이면 무엇이든 된다. 실물 CT(ADS1115) 샘플링
-드라이버는 하드웨어 도착 후 붙인다 -- 지금은 리허설·테스트용 MockPowerSensor만 있다.
+센서는 ``PowerSensor`` 프로토콜이면 무엇이든 된다. 실물 입력은 ESP32 콘센트 모듈의 줄 단위
+JSON 전력 스트림(`rpi/verifier/outlet.py` `SerialPowerSensor`, 2026-10-05 — **실물 미검증**,
+가짜 출력으로만 시험)이고, 리허설·테스트용으로 MockPowerSensor가 있다.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import time
 from collections.abc import Callable
 
 from rpi.verifier.power import (
+    L3Verdict,
     OperationPhase,
     PowerConfig,
     PowerSensor,
@@ -59,6 +61,9 @@ class PowerOperationVerifier(OperationVerifier):
         # 마지막 단계의 첫 누름 직전에 전력이 이미 올라가 있었나.
         self._up_before_final_step = False
         self._stop_check: Callable[[], bool] | None = None
+        #: 마지막 verify_operation의 판정기 결과(기준선·최대 전력). 잔여 전류 꼬리 측정이
+        #: 사용 전 기준선으로 쓴다. 판정이 없었으면 None.
+        self.last_verdict: L3Verdict | None = None
 
     def set_stop_check(self, should_stop: Callable[[], bool]) -> None:
         self._stop_check = should_stop
@@ -116,6 +121,7 @@ class PowerOperationVerifier(OperationVerifier):
     def verify_operation(self, buttons: tuple[str, ...]) -> LayerOutcome:
         detector = self._detector
         since_s = self._since_s
+        self.last_verdict = None
         try:
             if self._up_before_final_step:
                 return LayerOutcome(
@@ -154,6 +160,7 @@ class PowerOperationVerifier(OperationVerifier):
                 )
             verdict = detector.verify_started(since_s=since_s)
             if verdict.confirmed or verdict.detail != _PENDING_DETAIL:
+                self.last_verdict = verdict
                 return LayerOutcome(
                     VerificationLayer.OPERATION, verdict.confirmed, verdict.detail
                 )
@@ -175,16 +182,50 @@ class PowerOperationVerifier(OperationVerifier):
 # mock       MockPowerSensor 합성 파형으로 판정한다. 결과는 ``mock=True``라 통과해도
 #            확인 수준을 operation_confirmed로 올리지 않는다(실제 가열 근거 아님).
 #            SIMPLELAY_L3_MOCK_OUTCOME=confirmed(기본) | unconfirmed.
-# real       CT(ADS1115) 실물 리더가 아직 없어 **시작을 거절한다**. 있는 척하지 않는다.
+# real       ESP32 콘센트 모듈의 전력 스트림으로 판정한다(SIMPLELAY_OUTLET_PORT·_BAUD, 2026-10-05).
+#            포트가 없으면 **시작을 거절한다** -- 있는 척하지 않는다. 포트가 ``fake``면 가짜 출력
+#            (rpi/tools/fake_outlet.py)이라 판정은 ``mock=True``로 표시한다.
 
 L3_MODES = ("off", "mock", "real")
 L3_MOCK_OUTCOMES = ("confirmed", "unconfirmed")
 
 REAL_L3_UNAVAILABLE = (
-    "SIMPLELAY_L3_MODE=real: 실물 전력 센서 리더(CT 클램프 + ADS1115)가 아직 없습니다 "
-    "(rpi/verifier/power.py에는 판정기와 MockPowerSensor만 있음). 하드웨어 도착 후 "
-    "PowerSensor 구현을 붙이기 전까지는 off 또는 mock으로 실행하세요"
+    "SIMPLELAY_L3_MODE=real: 콘센트 모듈(ESP32 CT 전력) 연결 설정이 아직 없습니다 — "
+    "SIMPLELAY_OUTLET_PORT와 SIMPLELAY_OUTLET_BAUD를 주세요(리허설은 SIMPLELAY_OUTLET_PORT=fake). "
+    "모듈이 없으면 off 또는 mock으로 실행하세요"
 )
+REAL_L3_NOT_WIRED = (
+    "SIMPLELAY_L3_MODE=real: SIMPLELAY_OUTLET_PORT는 있는데 콘센트 모듈 링크가 배선되지 않았습니다 "
+    "(호출하는 쪽이 OutletLink를 넘겨야 합니다)"
+)
+
+_FAKE_OUTLET_PREFIX = "모의 콘센트(가짜 출력) — "
+
+
+class OutletOperationVerifier(PowerOperationVerifier):
+    """콘센트 모듈 전력 스트림으로 L3를 판정한다 -- **실물 미검증**.
+
+    판정 규칙은 `PowerOperationVerifier` 그대로이고 입력만 `SerialPowerSensor`다. 링크가 가짜 출력
+    (``link.mock``)이면 결과를 ``mock=True``로 표시해 실제 동작 근거로 올리지 않는다.
+    ``on_sequence_done``은 시퀀스를 다 넣은 직후(판정 대기 전) 부른다 -- 가짜 출력 리허설이 그 순간
+    합성 가전을 돌리는 데만 쓴다. 실물에서는 None이다.
+    """
+
+    def __init__(self, link, config: PowerConfig | None = None, *,
+                 on_sequence_done: Callable[[], None] | None = None, **kwargs) -> None:
+        super().__init__(link.sensor(), config, **kwargs)
+        self.link = link
+        self.mock = bool(getattr(link, "mock", False))
+        self.source = "mock" if self.mock else "real"
+        self._on_sequence_done = on_sequence_done
+
+    def verify_operation(self, buttons: tuple[str, ...]) -> LayerOutcome:
+        if self._on_sequence_done is not None:
+            self._on_sequence_done()
+        verdict = super().verify_operation(buttons)
+        if not self.mock or verdict.detail == OPERATION_STOPPED_DETAIL:
+            return verdict
+        return LayerOutcome(verdict.layer, verdict.passed, _FAKE_OUTLET_PREFIX + verdict.detail, mock=True)
 
 _MOCK_PREFIX = "모의 전력 센서 — "
 
@@ -268,8 +309,14 @@ class MockPowerOperationVerifier(OperationVerifier):
         return LayerOutcome(verdict.layer, verdict.passed, _MOCK_PREFIX + verdict.detail, mock=True)
 
 
-def operation_verifier_from_env(env=None) -> OperationVerifier | None:
-    """``SIMPLELAY_L3_MODE``로 L3 검증기를 고른다. 모르는 값·real은 시작을 거절한다."""
+def operation_verifier_from_env(env=None, *, outlet=None,
+                                on_sequence_done: Callable[[], None] | None = None,
+                                config: PowerConfig | None = None) -> OperationVerifier | None:
+    """``SIMPLELAY_L3_MODE``로 L3 검증기를 고른다. 모르는 값은 시작을 거절한다.
+
+    real은 콘센트 모듈 링크(``outlet``, `rpi.verifier.outlet.OutletLink`)가 있어야 한다.
+    ``SIMPLELAY_OUTLET_PORT``가 없으면 `REAL_L3_UNAVAILABLE`로 거절한다(종전과 같다).
+    """
     import os
 
     env = os.environ if env is None else env
@@ -279,7 +326,12 @@ def operation_verifier_from_env(env=None) -> OperationVerifier | None:
     if mode == "off":
         return None
     if mode == "real":
-        raise RuntimeError(REAL_L3_UNAVAILABLE)
+        port = (env.get("SIMPLELAY_OUTLET_PORT") or "").strip()
+        if not port:
+            raise RuntimeError(REAL_L3_UNAVAILABLE)
+        if outlet is None:
+            raise RuntimeError(REAL_L3_NOT_WIRED)
+        return OutletOperationVerifier(outlet, config, on_sequence_done=on_sequence_done)
     outcome = (env.get("SIMPLELAY_L3_MOCK_OUTCOME", "confirmed") or "confirmed").strip().lower()
     if outcome not in L3_MOCK_OUTCOMES:
         raise RuntimeError(

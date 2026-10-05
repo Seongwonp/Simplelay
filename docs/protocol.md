@@ -286,10 +286,10 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 ### MCU → RPi4
 
 ```json
-{ "id": 1, "ok": true, "state": "idle", "homed": false, "a": 0, "b": 0, "z": 0, "alarm": null }
+{ "id": 1, "ok": true, "state": "idle", "homed": false, "a": 0, "b": 0, "z": 0, "alarm": null, "z_mode": "motor" }
 { "id": 3, "ok": true }
 { "id": 3, "ok": false, "error": "stall" }
-{ "event": "ready", "fw": "firmware-motion", "protocol": "line-json/v0", "reset": "poweron" }
+{ "event": "ready", "fw": "firmware-motion", "protocol": "line-json/v0", "reset": "poweron", "z_mode": "motor" }
 { "event": "alarm", "reason": "limit", "z_retract": "not_needed" }
 { "event": "press_start" }
 { "event": "press_end" }
@@ -321,6 +321,14 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 - `alarm`의 `z_retract`(2026-09-29 추가): 알람 때 Z가 눌린 쪽이면 MCU가 XY는 제동하고 Z만 위로 한도(`Z_RETRACT_MS`)
   안에서 올린 뒤 끊는다. 값 `not_needed`·`done`·`timeout`·`stalled`·`skipped`(워치독 `host_timeout` 부류·원점 모름 —
   즉시 차단)·`stopped`(후퇴 중 `stop`). 후퇴가 필요한 알람은 이벤트와 `ok:false`가 후퇴 뒤에 온다.
+- `z_mode`(2026-10-05 추가): `ready`·`status`에 Z 누름 방식 `motor`|`solenoid`(펌웨어 빌드 플래그 `Z_MODE`). 솔레노이드는
+  `duration` 누름만 받는다 — 켜짐 = `drive_ms + dwell_ms`, 상한(`SOLENOID_ON_MAX_MS`)을 넘으면 `soft_limit`, 직전 꺼짐 뒤
+  냉각 시간 안이면 `z_cooldown`, `depth`는 `z_unsupported`. 솔레노이드의 `status`·`position` `z`는 켜짐 1/꺼짐 0, `limits` `z`는
+  항상 `false`, 알람 때는 즉시 끈다(`z_retract` `done`|`not_needed`). RPi4는 `z_mode`가 `solenoid`면 `depth` 누름을 보내기 전에
+  거절하고, `z_unsupported`·`z_cooldown`은 위치를 잃지 않은 거절로 다뤄 재홈을 요구하지 않는다. `z_mode`가 없는 MCU면 제한하지 않는다.
+- 위치 일치 검사(2026-10-05, RPi4 선택): `SIMPLELAY_MOTION_POSITION_TOLERANCE_COUNTS`(기본 꺼짐, 측정 필요)를 주면 `move`의
+  `ok` 뒤 그 요청 동안 받은 `position`(`a`·`b`)이 명령과 허용 오차 넘게 다르거나 보고가 없을 때 이동을 실패로 끝내고 재홈 전까지
+  거절한다. 엔코더가 모터 축에 있어 풀리–벨트 미끄럼은 이것으로 보이지 않는다 — MCU가 목표에 못 닿고 `ok`를 보낸 경우를 잡는다.
 - 응답은 동작이 **끝난 뒤** 보낸다(홈 완료·도착·Z 복귀). `id` 없는 줄은 자발 이벤트다.
 - `alarm` 이벤트나 `ok:false`를 받으면 RPi4는 해당 동작을 실패로 끝내고 알람 상태로 둔다.
 - 기한 초과 시 RPi4는 `stop`을 보내고 위치를 믿지 않는다(재홈 전까지 이동·누름 거절).
@@ -328,6 +336,64 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   별도 단계로 실물에서 재야 한다. MCU는 호스트 줄이 `HOST_WATCHDOG_MS`(2 s 자리표시자) 동안 없으면 스스로 멈추고
   `alarm`(`host_timeout`) 이벤트 뒤 대기 명령에 `ok:false`를 보낸다(실측 전).
 - 수치 예시는 형식 설명용이다. 카운트 값은 시험용 임의 기구 값으로 계산한 것이며 실물 값이 아니다.
+
+---
+
+## 콘센트 모듈 링크 (RPi4 ↔ ESP32 콘센트 모듈) — **컴파일·가짜 출력 수준, 실물 미검증**
+
+2026-10-05 추가. 9/30 하드웨어 방향 확정(ESP32 = 콘센트 모듈, CT 전력 → RPi4 직접, 물리 비상정지는 모듈의
+버튼과 가전 전원 릴레이)에 맞춘 규약이다. 펌웨어 `firmware-outlet/`, 호스트 `rpi/verifier/outlet.py`, 실행 가능한
+기준 `rpi/tools/fake_outlet.py`, 명령 표 `firmware-outlet/protocol_table.json`(`rpi/tests/test_outlet_protocol.py`가
+셋을 대조). CT·릴레이·버튼을 붙여 돌려 본 적이 없다.
+
+- 포맷: 줄 단위 JSON(`\n`), USB 시리얼 **115200 고정**(`SIMPLELAY_OUTLET_BAUD`를 같은 값으로). 모션 MCU 링크와 같은 전송 계층.
+- 프로토콜 이름 `line-json/outlet-v0`. 요청 `id`로 응답을 짝짓는다. `id` 없는 줄은 자발 이벤트.
+
+### RPi4 → 모듈
+
+```json
+{ "id": 1, "cmd": "status" }
+{ "id": 2, "cmd": "ping" }
+{ "id": 3, "cmd": "relay_on" }
+{ "id": 4, "cmd": "relay_off" }
+{ "id": 5, "cmd": "estop_reset" }
+{ "id": 6, "cmd": "rate", "hz": 10 }
+```
+
+### 모듈 → RPi4
+
+```json
+{ "id": 1, "ok": true, "relay": "off", "estop": false, "button": false, "rate_hz": 10, "ct": "ads1115", "cal": "placeholder", "uptime_ms": 5230 }
+{ "id": 3, "ok": false, "error": "estop_latched" }
+{ "event": "ready", "fw": "firmware-outlet", "protocol": "line-json/outlet-v0", "reset": "poweron", "relay": "off", "ct": "ads1115", "ct_ok": true }
+{ "event": "power", "t_ms": 5300, "seq": 52, "watts": 3.1, "irms_a": 0.014, "vrms_est": 220.0, "ct_mv": 0.47, "n": 80, "err": 0, "relay": "on" }
+{ "event": "estop", "source": "button", "t_ms": 9120, "relay": "off" }
+{ "event": "fault", "reason": "ct_init" }
+```
+
+- `power`: 기본 10 Hz(`rate`, 1~20). `watts`는 **추정값** = CT 실효 전류(보정 배율·잡음 바닥 적용) × `vrms_est`
+  (설정 상수, 측정 아님) × 설정 역률. 보정 값은 전부 자리표시자(`status.cal = "placeholder"`) — 절대값은 근거가 아니다.
+  L3는 기준선 대비 변화로 판정한다. CT 초기화가 실패하면 `fault`(`ct_init`)만 보내고 `power`를 내지 않는다(0 W를 지어내지 않는다).
+- 시각: RPi4는 모듈 `t_ms`를 호스트 단조 시각에 맞춰(`anchor = 수신 시각 − t_ms/1000`, 모듈 재시작 때 다시 맞춤) 샘플 시각으로 쓴다.
+- 끊김: 마지막 `power` 수신 뒤 `SIMPLELAY_OUTLET_STALE_MS`(기본 1000)가 지나면 RPi4 센서는 `PowerSensorStale`을 던진다 →
+  L3는 'L3 판정 불가 — 전력 센서를 읽지 못함'으로 안전 정지(자동 재입력 없음).
+- **릴레이 기본 = 꺼짐(fail-safe).** 부팅·재부팅 뒤 가전 전원은 끊긴 채이고 `relay_on`이 있어야 켠다
+  (`SIMPLELAY_OUTLET_RELAY_ON_START=1`이면 RPi4가 시작 때 보낸다. 기본은 보내지 않는다).
+- **물리 비상정지**: 버튼(NC, 눌림·단선 = 활성)이 연속 `ESTOP_TRIP_SAMPLES` 활성이면 모듈이 **그 자리에서** 릴레이를 연다
+  (호스트·시리얼과 무관). 그 뒤 `estop` 이벤트를 한 번 보낸다. 걸린 동안 `relay_on`은 `estop_latched`, 버튼이 눌린 채면
+  `estop_reset`은 `estop_active`. 해제해도 릴레이는 꺼진 채 — 다시 켜려면 `relay_on`.
+- RPi4는 `estop`을 받으면 실행 중 시퀀스를 `abort`와 같은 정지 경로로 멈추고(모션 MCU `stop`도 즉시), 정지 버튼 대기 중이면
+  구동부만 멈춘다(전원이 이미 끊겨 정지 버튼을 누르지 않는다). RPi5에는 `{"type":"alert","kind":"outlet_estop","source":"button"}`.
+- 호스트 침묵: 모듈은 기본적으로 호스트가 조용해도 릴레이를 두고(`HOST_SILENCE_RELAY_OFF 0`), 1로 빌드하면 `HOST_SILENCE_MS`
+  뒤 릴레이를 열고 `host_timeout`을 보낸다. RPi4는 `ping`을 `SIMPLELAY_OUTLET_HEARTBEAT_MS`(기본 1000)마다 보낸다.
+
+### RPi4 → RPi5 추가 프레임
+
+- `progress {phase:"power_tail", power_tail:{status, tail_s, tail_mean_w, tail_max_w, pre_baseline_w, post_baseline_w,
+  finished_at_s, returned_at_s, band_w, samples, source, detail}, operation_source}` — L3가 동작 시작을 확인한 실행 뒤,
+  완료 판정(전력 ≤ `off_max_w`가 `off_confirm_s` 유지) → 대기 전력 띠로 복귀하기까지의 잔여 전류 꼬리(피드백 ③). 기록용이며
+  판정이 아니다. 정의·기준값은 `rpi/verifier/power_tail.py`(`SIMPLELAY_TAIL_*`, 전부 측정 필요). RPi5 `ActClient.last_power_tail`.
+  원시 기록기(`SIMPLELAY_RECORDER_PATH`)에는 `event=power_tail` 행과 `tail_*`·`pre/post_baseline_w` 열로 남는다.
 
 ---
 

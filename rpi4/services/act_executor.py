@@ -23,6 +23,10 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
                                     (see report_danger_sound)
+  (outlet module estop event)    →  alert {kind:"outlet_estop", source} + 실행 중이면 정지 경로
+                                    (see handle_outlet_estop, 2026-10-05)
+  (after an L3-confirmed result) →  progress {phase:"power_tail", power_tail:{...}}
+                                    (잔여 전류 꼬리 기록 — after_result 훅, 2026-10-05)
 
 Duck-typed reader/writer so this is fully testable without a real serial
 port, matching services/bridge.py's pattern:
@@ -156,6 +160,7 @@ class ActExecutor:
         job_observer: "Callable[[str, dict], None] | None" = None,
         readiness: "Callable[[], str | None] | None" = None,
         hold: "HoldHardware | None" = None,
+        after_result: "Callable[[str, ExecutionResult, Callable[[dict], None]], None] | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -169,7 +174,10 @@ class ActExecutor:
         readiness: 실행 전에 부르는 준비 확인(선택). 이유 문자열을 돌려주면 execute를 시작하지 않고
         ``{"type":"error","reason":"motion_not_ready","detail":…}``로 거절한다(모션 MCU 연결 확인 전).
         hold: 정지 버튼 대기·보관·확인 주행에 쓸 모션·가전 확인 부품(선택, 2026-09-30).
-        None이면 execute의 ``hold``를 무시하고 ``verify_pass``는 ``verify_unavailable``로 거절한다."""
+        None이면 execute의 ``hold``를 무시하고 ``verify_pass``는 ``verify_unavailable``로 거절한다.
+        after_result: 결과를 보낸 뒤 부르는 훅(선택, 2026-10-05) ``(sequence_id, result, emit)``.
+        콘센트 모듈의 잔여 전류 꼬리 관찰(`outlet_watch.OutletTailHook`)이 쓴다. ``emit``은
+        ``progress {phase:"power_tail"}`` 프레임을 보낸다. 훅에 ``stop()``이 있으면 새 실행·종료 때 부른다."""
         self._reader = reader
         self._writer = writer
         self._controller = controller
@@ -187,6 +195,9 @@ class ActExecutor:
         #: 지금(또는 마지막) 정지 대기. 끝난 뒤에도 상태 조회용으로 남는다.
         self.hold_session: StopHoldSession | None = None
         self._verify_stop = False
+        self._after_result = after_result
+        #: 콘센트 모듈 비상정지 이벤트 수(시험·상태 확인용).
+        self.outlet_estops = 0
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -219,6 +230,7 @@ class ActExecutor:
         enable 차단이다(rpi/controller/ports.py의 SafetyController 참고).
         """
         self._close_hold()
+        self._stop_after_result()
         task = self._execute_task
         if task is None or task.done():
             return True
@@ -355,6 +367,7 @@ class ActExecutor:
             return
 
         self._busy = True
+        self._stop_after_result()  # 지난 실행의 꼬리 관찰은 새 실행에서 끊는다(status=stopped)
         # 이전 run의 stale stop 제거 — 토큰 리셋 책임은 실행을 시작시키는 쪽
         reset_stop = getattr(self._controller, "reset_stop", None)
         if reset_stop is not None:
@@ -476,6 +489,12 @@ class ActExecutor:
             # 2026-09-29: 버튼별 시도 수·보정, L3 판정, 실행 환경. 옛 RPi5는 무시한다.
             **result_detail_fields(result, self._controller),
         })
+        if self._after_result is not None:
+            try:
+                self._after_result(msg.sequence_id, result,
+                                   self._frame_emitter(msg.sequence_id, "power_tail"))
+            except Exception:  # noqa: BLE001 - 기록 훅 고장이 실행 보고를 막지 않게
+                log.exception("after_result hook failed for %r", msg.sequence_id)
         log.info(
             "sequence %r finished — %s (retry=%d)",
             msg.sequence_id, outcome, retry,
@@ -579,6 +598,41 @@ class ActExecutor:
             "targets": results,
             "execution_mode": self._mode_value(),
         })
+
+    def _stop_after_result(self) -> None:
+        stop = getattr(self._after_result, "stop", None)
+        if callable(stop):
+            try:
+                stop()
+            except Exception:  # noqa: BLE001
+                log.exception("after_result stop failed")
+
+    def handle_outlet_estop(self, source: str = "button") -> None:
+        """콘센트 모듈 물리 비상정지(``{"event":"estop"}``) — **이벤트 루프 스레드에서** 부른다.
+
+        모듈은 이미 스스로 가전 전원 릴레이를 열었다(호스트와 무관). 여기서는 구동부를 같은 정지
+        경로로 멈추고 RPi5에 알린다:
+        - 실행 중이면 ``abort``와 같은 협조적 정지(`ClosedLoopController.request_stop` — 모션 어댑터
+          정지 명령도 즉시 나간다).
+        - 정지 버튼 대기 중이면 **구동부 정지**(``drive_stop``) — 전원이 이미 끊겼으니 정지 버튼을 누르지
+          않는다.
+        - ``{"type":"alert","kind":"outlet_estop","source":…}``를 보낸다(RPi5 알림함이 kind 그대로 남긴다).
+        """
+        self.outlet_estops += 1
+        log.warning("outlet E-STOP (source=%s) — appliance relay opened by the module; stopping drive",
+                    source)
+        session = self.hold_session
+        if session is not None and session.active:
+            session.drive_stop()
+        if self._busy:
+            self._verify_stop = True
+            request_stop = getattr(self._controller, "request_stop", None)
+            if request_stop is not None:
+                request_stop()
+            else:
+                log.warning("outlet estop mid-execution — controller has no request_stop hook")
+        self._write_now({"type": "alert", "kind": "outlet_estop", "source": source,
+                         "t_monotonic_ns": time.monotonic_ns()})
 
     def _on_inject_failure(self, msg: InjectFailureMsg) -> None:
         if self._failure_state is None:

@@ -1,0 +1,49 @@
+{
+  "protocol": "line-json/outlet-v0",
+  "note": "RPi4(rpi/verifier/outlet.py) <-> ESP32 콘센트 모듈(firmware-outlet) 명령 표. 실행 가능한 기준은 rpi/tools/fake_outlet.py이며 rpi/tests/test_outlet_protocol.py가 셋을 대조한다. 실물 미검증(컴파일·가짜 출력 수준).",
+  "baud": 115200,
+  "commands": {
+    "status": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok", "relay", "estop", "button", "rate_hz", "ct", "cal", "uptime_ms"]
+    },
+    "ping": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok"]
+    },
+    "relay_on": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok"],
+      "errors": ["estop_latched"]
+    },
+    "relay_off": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok"]
+    },
+    "estop_reset": {
+      "request": ["id", "cmd"],
+      "reply": ["id", "ok"],
+      "errors": ["estop_active"]
+    },
+    "rate": {
+      "request": ["id", "cmd", "hz"],
+      "reply": ["id", "ok"],
+      "errors": ["bad_args"]
+    }
+  },
+  "error_reply": ["id", "ok", "error"],
+  "errors": ["unknown_cmd", "bad_args", "estop_latched", "estop_active"],
+  "events": {
+    "ready": ["event", "fw", "protocol", "reset", "relay", "ct", "ct_ok"],
+    "power": ["event", "t_ms", "seq", "watts", "irms_a", "vrms_est", "ct_mv", "n", "err", "relay"],
+    "estop": ["event", "source", "t_ms", "relay"],
+    "fault": ["event", "reason"],
+    "host_timeout": ["event", "relay"]
+  },
+  "fault_reasons": ["ct_init", "sampling_task"],
+  "relay_states": ["on", "off"],
+  "power_note": "watts는 추정값 = CT 실효 전류(보정 배율·잡음 바닥 적용) × vrms_est(설정 상수, 측정 아님) × 설정 역률. ct_mv는 DC(창 평균)를 뺀 CT 출력 실효값(mV), n은 창 샘플 수, err는 창 안 판독 실패 수. 보고 주기 기본 10 Hz(rate 명령, 1~20, SAMPLE_HZ를 나누어떨어지는 값). 릴레이가 꺼져 있으면 가전 전원이 없어 watts는 대기 잡음만 보인다.",
+  "relay_note": "부팅 기본 릴레이 꺼짐(fail-safe). 호스트 relay_on이 있어야 켠다. 비상정지가 걸려 있으면 relay_on은 estop_latched로 거절. estop_reset은 버튼이 돌아온 뒤에만 되고(아니면 estop_active), 해제해도 릴레이는 꺼진 채다 — 다시 켜려면 relay_on.",
+  "estop_note": "물리 버튼(NC, 눌림·단선 = 활성)이 ESTOP_TRIP_SAMPLES 연속 활성이면 모듈이 그 자리에서 릴레이를 연다(호스트 무관). 그 뒤 estop 이벤트를 한 번 보낸다. 호스트(RPi4)는 이것을 받아 구동부를 같은 정지 경로로 멈추고 RPi5에 alert kind=outlet_estop을 보낸다.",
+  "host_silence_note": "HOST_SILENCE_RELAY_OFF=1로 빌드하면 HOST_SILENCE_MS 동안 받은 줄이 없을 때 릴레이를 열고 host_timeout 이벤트를 보낸다. 기본 0(꺼짐). 호스트는 heartbeat ping(기본 1 s)을 보낸다."
+}

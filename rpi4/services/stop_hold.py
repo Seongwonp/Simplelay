@@ -285,10 +285,12 @@ def mock_hold_hardware(step_seconds: float = 0.0, env: MappingABC[str, str] | No
 
 
 def real_hold_hardware(press_client: Any, move_client: Any | None = None,
-                       env: MappingABC[str, str] | None = None) -> HoldHardware:
-    """실제 모션 어댑터 + 전력 리더 없음(NoRunProbe). CT 리더가 생기면 probe만 바꾼다."""
-    return HoldHardware(GrblHoldMotion(press_client, move_client), lambda plan: NoRunProbe(),
-                        HoldTiming.from_env(env))
+                       env: MappingABC[str, str] | None = None,
+                       probe_factory: Callable[[HoldPlan], Any] | None = None) -> HoldHardware:
+    """실제 모션 어댑터 + 가전 켜짐 확인. ``probe_factory``가 없으면 전력 리더 없음(NoRunProbe) —
+    정지는 '미확인'으로만 끝난다. 콘센트 모듈이 있으면 act_main이 `OutletRunProbe`를 넘긴다."""
+    return HoldHardware(GrblHoldMotion(press_client, move_client),
+                        probe_factory or (lambda plan: NoRunProbe()), HoldTiming.from_env(env))
 
 
 _TERMINAL = ("parked", "fault", "released")

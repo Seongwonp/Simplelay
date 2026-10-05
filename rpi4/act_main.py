@@ -37,11 +37,21 @@ Environment variables:
   SIMPLELAY_RECORDER_ADC_GAIN     전류(ADS1115) gain. 없으면 전류는 합성(mock_current)
   SIMPLELAY_RECORDER_ADC_CHANNEL  ADS1115 채널 0~3 (기본 0)
   SIMPLELAY_RECORDER_AUDIO        "true"면 마이크를 연다. 아니면 합성(mock_audio)
-  (전력은 실기기 리더가 아직 없어 항상 합성 mock_power. 합성 입력은 시작 로그에 경고로 남는다)
+  (전력은 콘센트 모듈이 있으면 그 스트림, 없으면 합성 mock_power. 합성 입력은 시작 로그에 경고로 남는다)
   SIMPLELAY_L3_MODE               L3(가전 동작) 검증기. "off"(기본) = 없음 → 결과 프레임의
                                   operation_confirmed는 null. "mock" = MockPowerSensor 합성
                                   파형으로 판정(operation_source=mock, 실제 근거 아님).
-                                  "real" = CT(ADS1115) 실물 리더가 아직 없어 **시작을 거절**
+                                  "real" = 콘센트 모듈 전력 스트림으로 판정. SIMPLELAY_OUTLET_PORT가
+                                  없으면 **시작을 거절**(실물 미검증 — 2026-10-05 가짜 출력으로만 시험)
+  SIMPLELAY_OUTLET_PORT           콘센트 모듈(ESP32 CT·릴레이, firmware-outlet) USB 시리얼 장치. 기본 없음.
+                                  "fake"면 가짜 출력(rpi/tools/fake_outlet.py) — 판정은 모의로 표시
+  SIMPLELAY_OUTLET_BAUD           콘센트 모듈 보드레이트(fake가 아니면 필수, 펌웨어 HOST_SERIAL_BAUD와 같게)
+  SIMPLELAY_OUTLET_RELAY_ON_START "1"이면 연결 뒤 relay_on을 보낸다. 기본은 보내지 않는다 — 모듈 부팅 기본이
+                                  릴레이 꺼짐(fail-safe)이라, 켜기는 사람이 정한 설정으로만
+  SIMPLELAY_OUTLET_STALE_MS       전력 샘플 끊김 판단(기본 1000). 넘으면 L3는 '센서를 읽지 못함'으로 안전 정지
+  SIMPLELAY_OUTLET_HEARTBEAT_MS   모듈로 ping 간격(기본 1000, 0/off = 끔)
+  SIMPLELAY_TAIL_*                잔여 전류 꼬리 기준(rpi/verifier/power_tail.py TAIL_ENV_NAMES, 전부 측정 필요).
+                                  L3 확인 뒤 progress {phase:"power_tail"}와 기록기 power_tail 행으로 남긴다
   SIMPLELAY_L3_MOCK_OUTCOME       mock 모드의 합성 결과 "confirmed"(기본) | "unconfirmed"
   SIMPLELAY_MOTION_LOG_PATH       설정하면 모션 MCU와 주고받은 **원시 줄**을 이어 쓴다(기본 꺼짐).
                                   형식은 `python -m rpi.tools.jog --log`와 같고(보냄 ``>>``,
@@ -296,7 +306,7 @@ def _optional_float(name: str) -> float | None:
         raise RuntimeError(f"{name} 값을 숫자로 읽을 수 없습니다: {raw!r}") from exc
 
 
-def _build_recorder() -> "LiveRecorder | None":
+def _build_recorder(outlet=None) -> "LiveRecorder | None":
     """SIMPLELAY_RECORDER_PATH가 있으면 원시 기록기를 연다(기본 꺼짐).
 
     켜짐/꺼짐과 경로를 항상 시작 로그에 남긴다. 합성으로 대체된 입력은 경고로 남긴다 —
@@ -320,6 +330,9 @@ def _build_recorder() -> "LiveRecorder | None":
             adc_gain=_optional_float("SIMPLELAY_RECORDER_ADC_GAIN"),
             adc_channel=int(channel_raw),
             audio=_flag("SIMPLELAY_RECORDER_AUDIO"),
+            **({"power_sensor": outlet.sensor(), "power_mock": bool(outlet.mock),
+                "power_reason": "콘센트 모듈(가짜 출력)" if outlet.mock else "콘센트 모듈 USB 시리얼"}
+               if outlet is not None else {}),
         )
     except ValueError as exc:
         raise RuntimeError(f"recorder config invalid: {exc}") from exc
@@ -333,22 +346,90 @@ def _build_recorder() -> "LiveRecorder | None":
     return live
 
 
-def _build_operation_verifier():
-    """SIMPLELAY_L3_MODE로 L3 검증기를 고른다(기본 off). real은 리더가 없어 거절한다."""
-    from rpi.controller.power_operation import operation_verifier_from_env
+def _open_outlet_transport(port: str, baud: int):
+    """콘센트 모듈 실기기 시리얼 전송. 테스트는 이 함수를 바꿔 끼운다."""
+    from rpi.controller.serial_motion import PySerialLineTransport
 
-    verifier = operation_verifier_from_env()
+    return PySerialLineTransport(port, baud)
+
+
+#: act_main이 띄운 가짜 콘센트 모듈(SIMPLELAY_OUTLET_PORT=fake). 시험이 들여다본다.
+_fake_outlet = None
+
+
+def _build_outlet():
+    """SIMPLELAY_OUTLET_PORT가 있으면 콘센트 모듈 링크를 연다(없으면 None). **실물 미검증.**
+
+    fake면 가짜 출력에 붙고 링크를 ``mock=True``로 표시한다. 연결 확인(부팅 배너·status)에 실패해도
+    시작은 한다 — 샘플이 오지 않으면 L3가 '센서를 읽지 못함'으로 멈추므로 숨겨지지 않는다.
+    """
+    global _fake_outlet
+    port = os.getenv("SIMPLELAY_OUTLET_PORT", "").strip()
+    if not port:
+        log.info("outlet module off (set SIMPLELAY_OUTLET_PORT for the ESP32 CT/relay module)")
+        return None
+    from rpi.verifier.outlet import OutletConfig, OutletError, OutletLink
+
+    config = OutletConfig.from_env()
+    if port.lower() == "fake":
+        from rpi.tools.fake_outlet import open_fake_outlet
+
+        pipe, _fake_outlet = open_fake_outlet()
+        link = OutletLink(pipe.host, config, mock=True).start()
+        log.warning("outlet module is FAKE (synthetic power, rpi/tools/fake_outlet.py) — "
+                    "L3 results are marked mock")
+    else:
+        baud_raw = os.getenv("SIMPLELAY_OUTLET_BAUD", "").strip()
+        if not baud_raw:
+            raise RuntimeError("SIMPLELAY_OUTLET_PORT에는 SIMPLELAY_OUTLET_BAUD가 필요합니다(기본값 없음)")
+        try:
+            baud = int(baud_raw)
+        except ValueError as exc:
+            raise RuntimeError(f"SIMPLELAY_OUTLET_BAUD 값을 정수로 읽을 수 없습니다: {baud_raw!r}") from exc
+        link = OutletLink(_open_outlet_transport(port, baud), config).start()
+        log.info("outlet module link on %s @ %d (실물 미검증)", port, baud)
+    ready = link.wait_ready(3.0)
+    if ready is None:
+        log.error("outlet module did not answer (no ready banner / status) — power data will be "
+                  "'stale' until it does")
+    else:
+        log.info("outlet module ready: %s", ready)
+    if os.getenv("SIMPLELAY_OUTLET_RELAY_ON_START", "").strip() == "1":
+        try:
+            link.relay_on()
+            log.warning("outlet relay ON at start (SIMPLELAY_OUTLET_RELAY_ON_START=1)")
+        except OutletError as exc:
+            log.error("outlet relay_on at start failed: %s", exc)
+    else:
+        log.warning("outlet relay left as the module booted (default OFF = appliance unpowered); "
+                    "set SIMPLELAY_OUTLET_RELAY_ON_START=1 to switch it on at start")
+    return link
+
+
+def _build_operation_verifier(outlet=None):
+    """SIMPLELAY_L3_MODE로 L3 검증기를 고른다(기본 off). real은 콘센트 모듈이 없으면 거절한다."""
+    from rpi.controller.power_operation import OutletOperationVerifier, operation_verifier_from_env
+
+    fake = _fake_outlet if outlet is not None and getattr(outlet, "mock", False) else None
+    verifier = operation_verifier_from_env(
+        outlet=outlet, on_sequence_done=fake.start_run if fake is not None else None)
     if verifier is None:
         log.info("L3 operation verifier off (set SIMPLELAY_L3_MODE=mock to rehearse; "
                  "result frames carry operation_confirmed=null)")
+    elif isinstance(verifier, OutletOperationVerifier):
+        if verifier.mock:
+            log.warning("L3 operation verifier reads the FAKE outlet — results are marked mock")
+        else:
+            log.warning("L3 operation verifier reads the outlet module power stream (실물 미검증)")
     else:
         log.warning("L3 operation verifier is MOCK (synthetic power, outcome=%s) — "
                     "not evidence of real appliance operation", verifier.outcome)
     return verifier
 
 
-def _build_hold(grbl: object, raw_grbl: object):
-    """정지 대기·확인 주행 부품. mock 모션이면 모의 가전까지, 실제 어댑터면 move_to·press만."""
+def _build_hold(grbl: object, raw_grbl: object, outlet=None):
+    """정지 대기·확인 주행 부품. mock 모션이면 모의 가전까지, 실제 어댑터면 move_to·press만.
+    콘센트 모듈이 있으면 실제 어댑터의 가전 켜짐 확인을 그 전력으로 한다."""
     from rpi.controller.mock import MockGrblClient as _Mock
 
     from .services.stop_hold import mock_hold_hardware, real_hold_hardware
@@ -356,6 +437,15 @@ def _build_hold(grbl: object, raw_grbl: object):
     if isinstance(raw_grbl, _Mock):
         log.info("stop hold: MOCK motion + mock appliance (SIMPLELAY_HOLD_MOCK_*)")
         return mock_hold_hardware()
+    if outlet is not None:
+        from rpi.verifier.power_tail import TailConfig
+
+        from .services.outlet_watch import OutletRunProbe
+
+        tail_config = TailConfig.from_env()
+        log.warning("stop hold: real motion adapter + outlet power probe (실물 미검증)")
+        return real_hold_hardware(grbl, raw_grbl,
+                                  probe_factory=lambda plan: OutletRunProbe(outlet, tail_config))
     log.warning("stop hold: real motion adapter (move_to/press), no power reader — "
                 "stop judgement stays 'unconfirmed' (실물 미검증)")
     return real_hold_hardware(grbl, raw_grbl)
@@ -366,6 +456,7 @@ def _build_executor(
     writer: asyncio.StreamWriter,
     recorder: "LiveRecorder | None" = None,
     motion_log: "LineLog | None" = None,
+    outlet=None,
 ) -> ActExecutor:
     """Wire up the executor with current adapters.
 
@@ -378,7 +469,7 @@ def _build_executor(
     failure_state = DemoFailureState()
     # 시리얼을 열기 전에 끝나는 설정 검사가 좋지만, 모션보다 먼저 확인해 real L3 거절이
     # 모터 연결 시도보다 앞서게 한다.
-    operation = _build_operation_verifier()
+    operation = _build_operation_verifier(outlet)
     if recorder is None:
         # 줄 기록이 없으면 종전 호출 모양 그대로
         grbl, safety = _build_motion(**({"line_log": motion_log} if motion_log is not None else {}))
@@ -404,15 +495,52 @@ def _build_executor(
 
     log.info("progress frames %s (SIMPLELAY_ACT_PROGRESS; old RPi5 ignores them)",
              "ON" if progress_enabled_from_env() else "off")
-    return ActExecutor(
+    extra: dict = {}
+    if readiness is not None:
+        extra["readiness"] = readiness
+    if outlet is not None and operation is not None and hasattr(operation, "last_verdict"):
+        from rpi.verifier.power_tail import TailConfig
+
+        from .services.outlet_watch import OutletTailHook
+
+        extra["after_result"] = OutletTailHook(outlet, operation, config=TailConfig.from_env(),
+                                               recorder=recorder.recorder if recorder is not None else None)
+    executor = ActExecutor(
         reader=reader,
         writer=writer,
         controller=controller,
         failure_state=failure_state,
         job_observer=_job_observer(recorder, motion_log),
-        hold=_build_hold(grbl, raw_grbl),
-        **({"readiness": readiness} if readiness is not None else {}),
+        hold=_build_hold(grbl, raw_grbl, outlet),
+        **extra,
     )
+    if outlet is not None:
+        _wire_outlet_estop(outlet, executor)
+    return executor
+
+
+def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
+    """콘센트 모듈 ``estop`` 이벤트 → 실행기 정지 경로(이벤트 루프 스레드로 넘긴다).
+
+    모듈은 이미 스스로 릴레이를 열었다. 여기서는 구동부 정지와 RPi5 알림만 한다.
+    실행 중인 이벤트 루프가 없으면(시험 등) 배선하지 않고 경고만 남긴다.
+    """
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        log.warning("outlet estop events not wired to the executor (no running event loop)")
+        return
+
+    def on_event(doc: dict) -> None:
+        if doc.get("event") != "estop":
+            return
+        source = doc.get("source") if isinstance(doc.get("source"), str) else "button"
+        try:
+            loop.call_soon_threadsafe(executor.handle_outlet_estop, source)
+        except RuntimeError:  # 루프가 닫힌 뒤
+            log.error("outlet estop arrived after the event loop closed — drive stop not requested")
+
+    outlet.add_listener(on_event)
 
 
 def _maybe_start_danger_monitor(executor: ActExecutor) -> "asyncio.Task[None] | None":
@@ -457,11 +585,15 @@ async def _run() -> None:
         baudrate=BAUD_RATE,
     )
     log.info("Serial open — waiting for RPi5 execute commands")
-    recorder = _build_recorder()
+    outlet = _build_outlet()
+    recorder = _build_recorder(outlet)
     motion_log = _build_motion_log()
     try:
-        executor = _build_executor(reader, writer, recorder, motion_log[0] if motion_log else None)
+        executor = _build_executor(reader, writer, recorder, motion_log[0] if motion_log else None,
+                                   outlet=outlet)
     except BaseException:
+        if outlet is not None:
+            outlet.close()
         if recorder is not None:
             recorder.close()
         if motion_log is not None:
@@ -487,6 +619,10 @@ async def _run() -> None:
             recorder.close()
         if motion_log is not None:
             motion_log[1].close()
+        if outlet is not None:
+            outlet.close()
+        if _fake_outlet is not None:
+            _fake_outlet.close()
 
 
 if __name__ == "__main__":

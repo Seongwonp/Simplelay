@@ -72,7 +72,25 @@ COLUMNS: tuple[str, ...] = (
     "audio_samples",
     "event",
     "note",
+    # 잔여 전류 꼬리(피드백 ③, 2026-10-05) — ``power_tail`` 이벤트 행에만 값이 있다. 뒤에 붙인다
+    # (앞 열 순서를 읽는 기존 분석을 깨지 않게). 정의·기준은 rpi/verifier/power_tail.py(측정 필요).
+    "tail_status",
+    "tail_s",
+    "tail_mean_w",
+    "tail_max_w",
+    "pre_baseline_w",
+    "post_baseline_w",
 )
+
+#: ``record_power_tail``이 받는 측정값 키 → 열 이름.
+_TAIL_FIELDS = {
+    "status": "tail_status",
+    "tail_s": "tail_s",
+    "tail_mean_w": "tail_mean_w",
+    "tail_max_w": "tail_max_w",
+    "pre_baseline_w": "pre_baseline_w",
+    "post_baseline_w": "post_baseline_w",
+}
 
 #: 이벤트 이름 규칙. 모션 어댑터 이벤트(press_command·alarm 등)도 받도록 목록이 아니라
 #: 형식으로 제한한다 — CSV 한 칸을 깨는 문자만 막는다.
@@ -206,6 +224,24 @@ class PressWindowRecorder:
                     self._close_until_ns = t + self._post_ns
             # 이벤트 행은 창과 무관하게 항상 남긴다 — 어디서 무엇이 일어났는지가 기록의 뼈대다.
             self._emit(row)
+
+    def record_power_tail(self, metrics: dict[str, Any], note: str = "", t_ns: int | None = None) -> None:
+        """잔여 전류 꼬리 측정값 한 행(``event=power_tail``). 창과 무관하게 항상 남긴다.
+
+        ``metrics``는 `rpi.verifier.power_tail.TailMetrics.as_dict()` 모양의 dict다 — 이 모듈은
+        측정 코드를 import하지 않고 값만 옮긴다. ``source``(real|mock)는 행의 source 칸이 된다.
+        """
+        source = "power_tail" if metrics.get("source", "real") == "real" else "mock_power_tail"
+        with self._lock:
+            t = self._clock() if t_ns is None else int(t_ns)
+            row: dict[str, Any] = {"t_monotonic_ns": t, "source": source, "event": "power_tail",
+                                   "note": note or None}
+            for key, column in _TAIL_FIELDS.items():
+                value = metrics.get(key)
+                if value is not None:
+                    row[column] = value
+            self._emit(row)
+            self._sink.flush()
 
     def flush(self) -> None:
         with self._lock:
@@ -392,7 +428,8 @@ class LiveRecorder:
 
     - 전류: ``adc_gain``이 있을 때만 ADS1115를 연다(기본값 없음 — CLI와 같은 규칙).
     - 음향: ``audio=True``일 때만 마이크를 연다(위험소리 감지와 같은 마이크를 쓸 수 있어 기본 꺼짐).
-    - 전력: 이 저장소에 실기기 전력 리더가 아직 없다 → 항상 합성.
+    - 전력: ``power_sensor``(콘센트 모듈 `SerialPowerSensor` 등)를 주면 그것을 읽는다. 없으면 합성.
+      ``power_mock=True``면(가짜 출력) 행의 source를 ``mock_power``로 적는다.
     """
 
     def __init__(
@@ -407,6 +444,9 @@ class LiveRecorder:
         current_period_s: float = 0.0,
         open_current: Callable[[float, int], CurrentReader] | None = None,
         open_audio: Callable[[], AudioReader] | None = None,
+        power_sensor: PowerSensor | None = None,
+        power_mock: bool = False,
+        power_reason: str = "콘센트 모듈",
     ) -> None:
         if (pre_s is None) != (post_s is None):
             raise ValueError("pre_s와 post_s는 함께 주거나 함께 비워야 합니다")
@@ -464,8 +504,13 @@ class LiveRecorder:
         self.sources.append(choice)
 
         # 전력
-        choice = SourceChoice("power", True, "실기기 전력 리더 없음")
-        steps.append((choice, power_sensor_step(mock_power, self.recorder, choice.label), 0.1))
+        if power_sensor is None:
+            choice = SourceChoice("power", True, "실기기 전력 리더 없음")
+            steps.append((choice, power_sensor_step(mock_power, self.recorder, choice.label), 0.1))
+        else:
+            # 센서 read()가 다음 샘플까지 기다린다(끊기면 예외 → error 행). 추가 대기 없이 돈다.
+            choice = SourceChoice("power", power_mock, power_reason)
+            steps.append((choice, power_sensor_step(power_sensor, self.recorder, choice.label), 0.0))
         self.sources.append(choice)
 
         self._steps = steps

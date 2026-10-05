@@ -16,6 +16,8 @@ RPi4 side of this same link.
                targets}               (확인 주행, 2026-09-30 — progress phase "verify"가 먼저 온다)
   execute {..., hold?}            ←  progress {phase:"hold", hold_state, stop_outcome, ...}
                                       (정지 버튼 대기·보관 보고 — 결과 뒤에도 온다. ``last_hold``)
+  (after an L3-confirmed result)  ←  progress {phase:"power_tail", power_tail:{status, tail_s, ...}}
+                                      (콘센트 모듈 잔여 전류 꼬리 기록, 2026-10-05. ``last_power_tail``)
   (nothing — self-initiated)      ←  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
 
@@ -301,6 +303,9 @@ class ActClient:
         self._read_task: asyncio.Task[None] | None = None
         #: RPi4가 보낸 마지막 정지 대기 보고(progress phase "hold"). 새 실행을 보내면 비운다.
         self.last_hold: dict | None = None
+        #: RPi4가 보낸 마지막 잔여 전류 꼬리 보고(progress phase "power_tail"). 새 실행을 보내면 비운다.
+        #: 기록용 측정값이다(판정 아님). 이력·CSV에는 아직 잇지 않았다(결과 저장 뒤에 도착한다).
+        self.last_power_tail: dict | None = None
         self._progress_listeners: list[Callable[[dict], None]] = []
 
     # ── Public API ───────────────────────────────────────────────────────────
@@ -357,6 +362,7 @@ class ActClient:
                 # 정지 대기·보관 계획(선택). 옛 RPi4는 모르는 키를 무시한다.
                 message["hold"] = dict(hold)
             self.last_hold = None
+            self.last_power_tail = None
             await self._send(message)
             doc = await asyncio.wait_for(future, timeout)
         except asyncio.TimeoutError as exc:
@@ -511,6 +517,8 @@ class ActClient:
             # 진행 보고는 기록·관찰용이다. 대기 중인 execute()를 끝내지 않는다.
             if doc.get("phase") == "hold":
                 self.last_hold = doc
+            elif doc.get("phase") == "power_tail":
+                self.last_power_tail = doc
             for listener in list(self._progress_listeners):
                 try:
                     listener(doc)
