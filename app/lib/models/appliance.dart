@@ -41,6 +41,8 @@ enum ApplianceCategory {
   washingMachine('washing_machine', '세탁기', Icons.local_laundry_service),
   induction('induction', '인덕션', Icons.soup_kitchen),
   riceCooker('rice_cooker', '밥솥', Icons.rice_bowl),
+  // 시연 v3 ③ 방문자 문 열기(2026-10-06 갭 S6). 서버·키오스크와 같은 값.
+  intercom('intercom', '인터폰', Icons.doorbell),
   other('other', '기타', Icons.widgets_outlined);
 
   const ApplianceCategory(this.value, this.label, this.icon);

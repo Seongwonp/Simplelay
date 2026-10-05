@@ -159,6 +159,8 @@ class _SilhouettePainter extends CustomPainter {
         _induction(canvas, s, p);
       case ApplianceCategory.riceCooker:
         _riceCooker(canvas, s, p);
+      case ApplianceCategory.intercom:
+        _intercom(canvas, s, p);
       case ApplianceCategory.other:
         _generic(canvas, s, p);
     }
@@ -257,6 +259,20 @@ class _SilhouettePainter extends CustomPainter {
     c.drawRRect(_r(s, 0.40, 0.53, 0.20, 0.045, 0.01), p.solid);
     c.drawCircle(Offset(s * 0.44, s * 0.625), s * 0.02, p.soft);
     c.drawCircle(Offset(s * 0.56, s * 0.625), s * 0.02, p.soft);
+  }
+
+  void _intercom(Canvas c, double s, _Pens p) {
+    // 벽에 붙은 세로 판: 화면 + 스피커 구멍 + 버튼 줄(문열림).
+    _shape(c, _r(s, 0.28, 0.14, 0.44, 0.72, 0.06), p.body, p.line);
+    c.drawRRect(_r(s, 0.35, 0.22, 0.30, 0.22, 0.025), p.glass);
+    c.drawRRect(_r(s, 0.35, 0.22, 0.30, 0.22, 0.025), p.detail);
+    for (var i = 0; i < 3; i++) {
+      c.drawCircle(Offset(s * (0.44 + i * 0.06), s * 0.51), s * 0.012, p.soft);
+    }
+    for (var i = 0; i < 3; i++) {
+      c.drawRRect(_r(s, 0.35 + i * 0.105, 0.60, 0.085, 0.06, 0.015), p.soft);
+    }
+    c.drawRRect(_r(s, 0.35, 0.70, 0.30, 0.07, 0.02), p.solid);
   }
 
   void _generic(Canvas c, double s, _Pens p) {
