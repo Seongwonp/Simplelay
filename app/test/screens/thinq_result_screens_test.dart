@@ -94,7 +94,9 @@ void main() {
     expect(find.text('ThinQ · 가전이 받았는지 확인이 필요해요'), findsOneWidget);
     expect(find.textContaining('확인 받았는지'), findsNothing);
     expect(find.textContaining('확인 확인'), findsNothing);
-    expect(find.textContaining('가전 상태를 확인했어요'), findsOneWidget);
+    // t2는 모의 실행이다 — 실제 가전 확인 문장을 쓰지 않는다.
+    expect(find.textContaining('가전 상태를 확인했어요'), findsNothing);
+    expect(find.textContaining('모의 상태만 확인했어요'), findsOneWidget);
     expect(find.textContaining('안전 정지'), findsOneWidget);
     expect(find.textContaining('정지됨'), findsOneWidget);
     // ThinQ 기록에는 '버튼으로 직접 조작'을 내걸지 않는다(물리 실패 2건만).
@@ -125,5 +127,57 @@ void main() {
     expect(find.textContaining('모의 실행'), findsOneWidget);
     expect(find.textContaining('실패'), findsNothing);
     expect(find.textContaining('정지'), findsNothing);
+  });
+
+  testWidgets('이력: 모의 ThinQ 상태 확인은 결과 문장 자체가 모의라고 말한다',
+      (tester) async {
+    tester.view.physicalSize = const Size(900, 1600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final api = _apiWithHistory([
+      _entry('m1', {
+        'status': 'succeeded',
+        'outcome': 'success',
+        'route': 'thinq',
+        'receipt': 'accepted',
+        'confirmation': 'state_confirmed',
+        'execution_mode': 'mock',
+      }),
+      _entry('r1', {
+        'status': 'succeeded',
+        'outcome': 'success',
+        'route': 'thinq',
+        'receipt': 'accepted',
+        'confirmation': 'state_confirmed',
+        'execution_mode': 'real',
+      }),
+    ]);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [rpiApiServiceProvider.overrideWithValue(api)],
+      child: const MaterialApp(home: HistoryScreen()),
+    ));
+    await tester.pump();
+    await tester.pump();
+
+    String lineOf(String id) {
+      final row = find.ancestor(
+        of: find.text('목적 $id'),
+        matching: find.byType(Column),
+      ).first;
+      return tester
+          .widgetList<Text>(find.descendant(of: row, matching: find.byType(Text)))
+          .map((t) => t.data ?? '')
+          .firstWhere((s) => s.contains(' · 19:30 · '));
+    }
+
+    final mock = lineOf('m1');
+    // 모의 기록의 결과 문장이 실제 확인처럼 읽히면 안 된다.
+    expect(mock, contains('모의 상태만 확인했어요'));
+    expect(mock, isNot(contains('가전 상태를 확인했어요')));
+    // 실제 장치 기록은 종전 문장 그대로.
+    final real = lineOf('r1');
+    expect(real, contains('가전 상태를 확인했어요'));
+    expect(real, contains('실제 장치로 실행'));
+    expect(real, isNot(contains('실기기')));
   });
 }

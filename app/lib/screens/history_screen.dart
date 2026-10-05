@@ -212,7 +212,13 @@ class _StepBreakdown extends StatelessWidget {
         return (
           icon: Icons.check_circle,
           color: context.appSuccess,
-          sentence: thinq ? '가전 상태를 확인했어요' : '버튼 조작을 마쳤어요',
+          // 모의 ThinQ의 '확인'은 모의 상태를 읽은 것이다 — 결과 문장
+          // 자체가 그렇게 말해야 실제 가전 확인으로 읽히지 않는다.
+          sentence: !thinq
+              ? '버튼 조작을 마쳤어요'
+              : entry.executionMode == 'mock'
+                  ? '모의 상태만 확인했어요(실제 가전 아님)'
+                  : '가전 상태를 확인했어요',
         );
       case ResultKind.stopped:
         return (
@@ -333,7 +339,7 @@ class _HistoryRow extends StatelessWidget {
                 Text(
                   [
                     entry.executionMode == 'mock' ? '모의 실행'
-                        : entry.executionMode == 'real' ? '실기기 실행' : '실행 환경 미확인',
+                        : entry.executionMode == 'real' ? '실제 장치로 실행' : '실행 환경 미확인',
                     _hm(entry.finishedAt),
                     o.sentence,
                     if (applianceName != null) applianceName!,
