@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/models/estop.dart';
 import 'package:simplelay_touchscreen/models/learning_status.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
@@ -70,6 +71,19 @@ class FakeKioskApi implements KioskApiService {
     snoozedIds.add(id);
   }
   int stopCalls = 0;
+
+  // 비상정지 해제 확인(2026-10-05). statusAfterAck가 있으면 해제 성공 뒤 /status가 그것이 된다.
+  EstopAckResult estopAckResult = const EstopAckResult(EstopAckOutcome.cleared);
+  KioskStatus? statusAfterAck;
+  int estopAckCalls = 0;
+
+  @override
+  Future<EstopAckResult> ackEstop() async {
+    estopAckCalls++;
+    final after = statusAfterAck;
+    if (estopAckResult.cleared && after != null) statusResult = after;
+    return estopAckResult;
+  }
 
   @override
   Future<HealthStatus> checkHealth() async => healthResult;

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../models/ambient.dart';
 import '../models/appliance.dart';
 import '../models/command_result.dart';
+import '../models/estop.dart';
 import '../models/scenario_run.dart';
 import '../services/kiosk_api_service.dart';
 import '../services/kiosk_event_stream.dart';
@@ -15,6 +16,7 @@ import '../theme/kiosk_colors.dart';
 import '../widgets/kiosk/appliance_select_view.dart';
 import '../widgets/kiosk/danger_alert_overlay.dart';
 import '../widgets/kiosk/dnd_overlay.dart';
+import '../widgets/kiosk/estop_banner.dart';
 import '../widgets/kiosk/done_view.dart';
 import '../widgets/kiosk/connection_status.dart';
 import '../widgets/kiosk/executing_view.dart';
@@ -183,6 +185,15 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _holdReturnTimer;
   // 사람이 확인해야 하는 결과(미확인·이상)를 한 번만 말하기 위한 기록.
   String? _holdSpokenKey;
+
+  // ── 비상정지 걸림(2026-10-05) — /status.estop_latched. 해제는 사람이 확인한 뒤에만.
+  bool _estopLatched = false;
+  String? _estopDetail;
+  // 경고 안에서 확인 문장을 보이는 중.
+  bool _estopConfirming = false;
+  bool _estopAcking = false;
+  // 마지막 해제 시도가 실패한 이유 — 풀릴 때까지 남긴다.
+  String? _estopMessage;
 
   Timer? _pollTimer;
   Timer? _healthTimer;
@@ -370,6 +381,59 @@ class _KioskScreenState extends State<KioskScreen> {
     }
   }
 
+  /// /status의 비상정지 걸림을 화면에 옮긴다. **해제 요청은 여기서 보내지 않는다.**
+  /// 새로 걸리는 순간에만 한 번 말한다(풀렸다 다시 걸리면 다시 말한다).
+  void _trackEstop(KioskStatus st) {
+    final latched = st.estopLatched;
+    if (latched && !_estopLatched) _tts.speak(kEstopSpoken);
+    final detail = latched ? st.estopDetail : null;
+    if (latched == _estopLatched && detail == _estopDetail) return;
+    setState(() {
+      _estopLatched = latched;
+      _estopDetail = detail;
+      if (!latched) {
+        _estopConfirming = false;
+        _estopMessage = null;
+      }
+    });
+  }
+
+  /// 경고의 '해제' — 사람이 확인 문장을 본 뒤에만 불린다.
+  Future<void> _onEstopConfirm() async {
+    if (_estopAcking) return;
+    setState(() {
+      _estopAcking = true;
+      _estopConfirming = false;
+      _estopMessage = null;
+    });
+    final result = await _api.ackEstop();
+    if (!mounted) return;
+    setState(() {
+      _estopAcking = false;
+      if (result.cleared) {
+        _estopLatched = false;
+        _estopDetail = null;
+      } else {
+        _estopMessage = result.message;
+      }
+    });
+    if (!result.cleared) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(result.message)));
+    // 해제 응답만 믿지 않고 상태를 다시 읽는다 — 그사이 다시 걸렸을 수 있다.
+    try {
+      final st = await _api.status();
+      if (mounted) _trackEstop(st);
+    } catch (_) {}
+  }
+
+  /// 경고를 보이는 화면 — 평소·실행·동작 중(이 셋이 /status를 읽는다).
+  bool get _showEstop =>
+      _estopLatched &&
+      (_phase == KioskPhase.idle ||
+          _phase == KioskPhase.executing ||
+          _phase == KioskPhase.hold);
+
   static bool _sameSet(Set<String> a, Set<String> b) =>
       a.length == b.length && a.containsAll(b);
 
@@ -424,6 +488,7 @@ class _KioskScreenState extends State<KioskScreen> {
       final st = await _api.status();
       if (!mounted || _phase != KioskPhase.idle) return;
       _trackStrip(st);
+      _trackEstop(st);
       if (st.running && st.jobId != null) {
         _toExecuting(st.currentButton ?? '실행',
             applianceId: st.applianceId, jobId: st.jobId);
@@ -482,6 +547,7 @@ class _KioskScreenState extends State<KioskScreen> {
       }
       _lastStatusOk = DateTime.now();
       _trackStrip(st);
+      _trackEstop(st);
 
       // ① 완료 판정 최우선 — 내 job 완료 직후 다른 클라이언트의 새 job이
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
@@ -593,6 +659,7 @@ class _KioskScreenState extends State<KioskScreen> {
       final st = await _api.status();
       if (!mounted || _phase != KioskPhase.hold) return;
       _trackStrip(st);
+      _trackEstop(st);
       // 폰이 새 실행을 시작했다 — 그 실행을 따라간다.
       if (st.running && st.jobId != null) {
         _holdReturnTimer?.cancel();
@@ -1107,9 +1174,24 @@ class _KioskScreenState extends State<KioskScreen> {
           Positioned.fill(
             child: Padding(
               padding: const EdgeInsets.only(top: 3),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 250),
-                child: _buildScreen(),
+              // 비상정지 경고는 화면 **위에 한 줄**을 차지한다 — 덮지 않으므로
+              // 실행·동작 중 화면의 정지 버튼이 그대로 닿는다.
+              child: KioskEstopLayout(
+                banner: _showEstop
+                    ? KioskEstopBanner(
+                        detail: _estopDetail,
+                        confirming: _estopConfirming,
+                        acking: _estopAcking,
+                        message: _estopMessage,
+                        onRequest: () => setState(() => _estopConfirming = true),
+                        onConfirm: _onEstopConfirm,
+                        onCancel: () => setState(() => _estopConfirming = false),
+                      )
+                    : null,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 250),
+                  child: _buildScreen(),
+                ),
               ),
             ),
           ),

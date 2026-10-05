@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/ambient.dart';
 import '../models/appliance.dart';
+import '../models/estop.dart';
 import '../models/learning_status.dart';
 import '../models/scenario_run.dart';
 
@@ -268,9 +269,18 @@ class KioskStatus {
     this.holdApplianceId,
     this.holdStopButton,
     this.holdExecutionMode,
+    this.estopLatched = false,
+    this.estopDetail,
   });
 
   final bool running;
+
+  /// 콘센트 모듈 비상정지 걸림(2026-10-05). 옛 서버·보고 수단 없는 실행기(null)는
+  /// 걸리지 않은 것으로 본다 — 실행 거절은 어차피 서버가 한다.
+  final bool estopLatched;
+
+  /// 걸린 사유(서버 문장). 걸리지 않았으면 null.
+  final String? estopDetail;
 
   /// 서버 개발자 모드(SIMPLELAY_DEV_MODE). 시연 흔적은 이 값이 참일 때만 보인다.
   final bool developerMode;
@@ -374,6 +384,10 @@ class KioskStatus {
         holdApplianceId: json['hold_appliance_id'] as String?,
         holdStopButton: json['hold_stop_button'] as String?,
         holdExecutionMode: json['hold_execution_mode'] as String?,
+        estopLatched: json['estop_latched'] == true,
+        estopDetail: json['estop_latched'] == true && json['estop_detail'] is String
+            ? json['estop_detail'] as String
+            : null,
       );
 }
 
@@ -657,6 +671,25 @@ class KioskApiService {
 
   Future<void> stop() async {
     await _client.post(_base.replace(path: '/stop')).timeout(_timeout);
+  }
+
+  /// POST /stop/ack — 사람이 확인한 비상정지 해제 요청(2026-10-05).
+  ///
+  /// **사용자가 경고 안의 확인 문장에서 '해제'를 누른 뒤에만** 부른다. 예외를
+  /// 던지지 않고 결과 종류로 돌려준다 — 화면은 실패해도 경고를 남기고 이유를 보인다.
+  Future<EstopAckResult> ackEstop() async {
+    try {
+      final res = await _client
+          .post(_base.replace(path: '/stop/ack'))
+          .timeout(_timeout);
+      _ensureOk(res);
+      return EstopAckResult.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } on KioskApiException catch (e) {
+      return EstopAckResult.fromStatusCode(e.statusCode, detail: e.detail);
+    } catch (_) {
+      return const EstopAckResult(EstopAckOutcome.failed);
+    }
   }
 
   /// GET /appliances — 서버가 가진 가전 목록(내장 + 폰에서 등록한 커스텀).

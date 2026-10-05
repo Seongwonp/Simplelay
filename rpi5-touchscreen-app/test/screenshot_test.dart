@@ -27,6 +27,7 @@ import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/danger_alert_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/estop_banner.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
@@ -313,6 +314,18 @@ void main() {
 
   testWidgets('동작 중 — 정지 버튼 위 대기', (t) async {
     await _shoot(t, 'hold', _hold());
+  });
+
+  // 비상정지 걸림(2026-10-05) — 위쪽 전폭 경고, 아래 화면의 정지 버튼은 그대로.
+  testWidgets('동작 중 — 비상정지 걸림 경고', (t) async {
+    await _shoot(
+        t,
+        'hold_estop',
+        KioskEstopLayout(
+          banner: KioskEstopBanner(
+              detail: '콘센트 모듈의 비상정지 버튼이 눌렸어요', onRequest: () {}),
+          child: _hold(),
+        ));
   });
 
   testWidgets('동작 중 — 큰 글씨·정지 요청 보냄', (t) async {
