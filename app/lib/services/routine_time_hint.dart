@@ -29,7 +29,9 @@ RoutineTimeHint? routineTimeHint(Routine draft, List<ApplianceMap> appliances,
         h.buttons.any((b) => !b.success) ||
         h.buttons.map((b) => b.button).join('\u0000') != labels ||
         at.isAfter(now) || now.difference(at) > const Duration(days: 30) ||
-        !jobs.add(h.jobId)) continue;
+        !jobs.add(h.jobId)) {
+      continue;
+    }
     final bucket = (at.hour * 60 + at.minute) ~/ 30;
     (groups[bucket] ??= {})['${at.year}-${at.month}-${at.day}'] = at;
   }
@@ -38,7 +40,9 @@ RoutineTimeHint? routineTimeHint(Routine draft, List<ApplianceMap> appliances,
   final top = ranked.first;
   final total = ranked.fold<int>(0, (n, g) => n + g.value.length);
   if (top.value.length < 3 || top.value.length / total < 0.6 ||
-      (ranked.length > 1 && ranked[1].value.length == top.value.length)) return null;
+      (ranked.length > 1 && ranked[1].value.length == top.value.length)) {
+    return null;
+  }
   final minutes = top.value.values.map((t) => t.hour * 60 + t.minute).toList()..sort();
   final minute = (minutes[minutes.length ~/ 2] ~/ 5) * 5;
   final days = top.value.values.map((t) => t.weekday - 1).toSet().toList()..sort();

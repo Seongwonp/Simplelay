@@ -75,7 +75,12 @@ void main() {
         expect(m, isNot(contains('마쳤어요')));
         expect(m, isNot(contains('확인했어요')));
       }
-      expect(unconfirmedSentence(receipt: 'unknown'), contains('받았는지 확인이 필요해요'));
+      // 접수 불명: 받았는지 모른다고 말하고, 다시 보내기 전에 확인하라고 한다.
+      final unknown = unconfirmedSentence(receipt: 'unknown');
+      expect(unknown, contains('받았는지 확인하지 못했어요'));
+      expect(unknown, contains('다시 보내기 전에'));
+      expect(unknown, isNot(contains('실패')));
+      expect(unknown, isNot(contains('확인했어요')));
     });
 
     test('경로 배지', () {

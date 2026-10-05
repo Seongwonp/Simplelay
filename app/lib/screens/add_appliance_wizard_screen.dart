@@ -480,7 +480,9 @@ class _AddApplianceWizardScreenState
         leading: IconButton(
           tooltip: '닫기',
           icon: const Icon(Icons.close),
-          onPressed: _step == 4 ? _finish : () => context.pop(),
+          // context.pop()은 PopScope를 거치지 않아 입력 보호를 건너뛴다 —
+          // maybePop으로 InputGuard의 확인 대화를 거친다.
+          onPressed: _step == 4 ? _finish : () => Navigator.of(context).maybePop(),
         ),
         title: const Text('가전 추가'),
       ),
@@ -634,8 +636,10 @@ class _AddApplianceWizardScreenState
               setState(() => _transferring = true);
               await WidgetsBinding.instance.endOfFrame;
               if (!mounted) return;
-              if (context.mounted) context.pushReplacement('/appliance/new', extra: ApplianceDraft(
-                name: _name.text, room: _room.text, category: _category));
+              if (context.mounted) {
+                context.pushReplacement('/appliance/new', extra: ApplianceDraft(
+                    name: _name.text, room: _room.text, category: _category));
+              }
             },
             child: const Text('사진 없이 버튼판으로 등록하기'),
           ),

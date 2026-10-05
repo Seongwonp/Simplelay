@@ -70,7 +70,11 @@ void main() {
       'last_confirmation': 'none',
     });
     expect(s.phase, ExecutionPhase.unconfirmed);
-    expect(s.message, contains('받았는지 확인이 필요해요'));
+    expect(s.message, contains('받았는지 확인하지 못했어요'));
+    expect(s.message, contains('다시 보내기 전에'));
+    // 실패도 성공도 말하지 않는다.
+    expect(s.message, isNot(contains('실패')));
+    expect(s.message, isNot(contains('확인했어요')));
   });
 
   test('원격 안전 정지(safety_stop)는 "멈췄어요"가 아니라 안전 정지로 말한다', () async {

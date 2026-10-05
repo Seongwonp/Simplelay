@@ -102,6 +102,8 @@ void main() {
     );
 
     expect(find.text('누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.'), findsNothing);
-    expect(find.textContaining('실제 조작 여부는 확인하지 못했어요'), findsOneWidget);
+    // 실행 환경을 모르면 실제로 눌렀는지 사람에게 확인을 맡긴다.
+    expect(find.textContaining('실제로 눌렀는지 가전을 확인해 주세요'), findsOneWidget);
+    expect(find.textContaining('마쳤어요'), findsNothing);
   });
 }

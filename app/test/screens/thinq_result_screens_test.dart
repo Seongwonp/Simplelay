@@ -88,7 +88,8 @@ void main() {
     expect(find.textContaining('보냈지만 확인하지 못했어요'), findsNWidgets(2));
     expect(find.text('경로 ThinQ · 확인 접수됨'), findsOneWidget);
     expect(find.text('경로 ThinQ · 확인 상태 확인됨'), findsOneWidget);
-    expect(find.text('경로 ThinQ · 확인 접수 불명'), findsOneWidget);
+    // 접수 불명은 받았는지 모른다고만 말한다(접수됨·확인됨으로 올리지 않는다).
+    expect(find.text('경로 ThinQ · 확인 받았는지 확인이 필요해요'), findsOneWidget);
     expect(find.textContaining('가전 상태를 확인했어요'), findsOneWidget);
     expect(find.textContaining('안전 정지'), findsOneWidget);
     expect(find.textContaining('정지됨'), findsOneWidget);

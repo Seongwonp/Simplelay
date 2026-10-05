@@ -108,8 +108,11 @@ void main() {
     expect(find.text('2. 전자레인지 즉석밥'), findsOneWidget);
     // 확인 수준은 기존 규칙 그대로 — ThinQ는 상태 확인됨, 물리 보고는 보고만.
     expect(find.text('ThinQ · 모의 실행 · 상태 확인됨 · 성공'), findsOneWidget);
-    expect(find.text('물리 버튼 · 모의 실행 · 실행기 보고만 받음 · 성공'),
+    expect(find.text('물리 버튼 · 모의 실행 · 누름 장치의 응답을 받았어요 · 성공'),
         findsOneWidget);
+    // 보고만 받은 물리 단계를 눌림·동작 확인으로 올리지 않는다.
+    expect(find.textContaining('버튼을 눌렀어요'), findsNothing);
+    expect(find.textContaining('켜진 것을 확인했어요'), findsNothing);
     // 한 줄 요약(헤드라인)은 그대로 남는다.
     expect(find.text('저녁 쉬기'), findsOneWidget);
   });
@@ -134,7 +137,8 @@ void main() {
       ..['confirmation'] = 'none';
     await _pump(tester, _api(body));
 
-    expect(find.text('ThinQ · 모의 실행 · 접수 불명 · 확인 못 함'), findsOneWidget);
+    expect(find.text('ThinQ · 모의 실행 · 받았는지 확인이 필요해요 · 확인 못 함'),
+        findsOneWidget);
     expect(find.text('물리 버튼 · 모의 실행 · 확인 근거 없음 · 실패'),
         findsOneWidget);
     expect(find.textContaining('상태 확인됨'), findsNothing);

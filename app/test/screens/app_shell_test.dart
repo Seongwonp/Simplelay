@@ -11,9 +11,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/providers/demo_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/hub_provider.dart';
-import 'package:simplelay/providers/demo_provider.dart';
 import 'package:simplelay/providers/navigation_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
 
@@ -85,8 +85,12 @@ Future<ProviderContainer> _pump(
 void main() {
   testWidgets('모의 사용만으로 개발자 탭을 열지 않아요', (tester) async {
     final container = await _pump(tester);
-    await container.read(demoModeProvider.notifier).set(true);
+    // set()은 기기 저장소를 기다려 가짜 시계 위에서 멈춘다 — 상태만 직접 켠다.
+    // Test-only seed of the real notifier.
+    // ignore: invalid_use_of_protected_member
+    container.read(demoModeProvider.notifier).state = true;
     await tester.pumpAndSettle();
+    expect(container.read(demoModeProvider), isTrue);
     expect(find.text('개발자'), findsNothing);
   });
 
