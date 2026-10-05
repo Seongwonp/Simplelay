@@ -80,7 +80,7 @@ def test_wash_complete_with_offline_dehumidifier_makes_no_card_and_no_error(clie
 
 
 def test_wash_complete_with_thinq_off_is_silent():
-    from rpi.scenarios import ScenarioCatalog, ScenarioEngine
+    from rpi.scenarios import V2_SCENARIOS, ScenarioCatalog, ScenarioEngine
 
     offered = []
 
@@ -98,15 +98,17 @@ def test_wash_complete_with_thinq_off_is_silent():
     class Service:
         _appliance_registry = Registry()
 
-    engine = ScenarioEngine(ScenarioCatalog(), Suggestions(), Service())
+    engine = ScenarioEngine(ScenarioCatalog(V2_SCENARIOS), Suggestions(), Service())
     engine.on_thinq_event({"event": "wash_complete", "execution_mode": "mock"})  # 예외 없음
     assert offered == []
 
 
-def test_wash_then_dry_is_registered_in_catalog():
-    from rpi.scenarios import DEFAULT_SCENARIOS, WASH_THEN_DRY
+def test_wash_then_dry_is_a_v2_scenario_kept_out_of_the_default_catalog():
+    # 시연 v3(2026-10-06): 제습기는 v3에 없다 — 기본 카탈로그에서 빠지고 opt-in(SIMPLELAY_V2_SCENARIOS)으로만.
+    from rpi.scenarios import DEFAULT_SCENARIOS, V2_SCENARIOS, WASH_THEN_DRY
 
-    assert WASH_THEN_DRY in DEFAULT_SCENARIOS
+    assert WASH_THEN_DRY in V2_SCENARIOS
+    assert WASH_THEN_DRY not in DEFAULT_SCENARIOS
     assert WASH_THEN_DRY.trigger.kind == "thinq_event"
     assert WASH_THEN_DRY.trigger.event == "wash_complete"
 

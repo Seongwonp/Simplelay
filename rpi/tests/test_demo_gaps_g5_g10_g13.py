@@ -49,7 +49,7 @@ def test_appliances_expose_control_path_and_thinq_entries(client):
     assert "air_purifier" in appliances, "ThinQ 가전이 목록에 없다"
     assert appliances["air_purifier"]["control_path"] == "thinq"
     assert appliances["air_purifier"]["name"] == "공기청정기(모의)"
-    assert appliances["washer"]["control_path"] == "thinq"
+    assert appliances["thinq_washer"]["control_path"] == "thinq"
     assert appliances["dehumidifier"]["control_path"] == "thinq"
     # ThinQ 가전은 누를 조작부가 없다 — 기존 화면이 격자를 그리지 않도록 빈 목록.
     assert appliances["air_purifier"]["buttons"] == []
@@ -63,7 +63,7 @@ def test_appliances_expose_control_path_and_thinq_entries(client):
 def test_appliances_without_thinq_have_only_physical_entries(plain_client):
     appliances = _by_id(plain_client.get("/appliances"))
     assert "air_purifier" not in appliances
-    assert "washer" not in appliances
+    assert "thinq_washer" not in appliances
     assert appliances["microwave"]["control_path"] == "physical"
     assert all(a["control_path"] == "physical" for a in appliances.values())
 
@@ -80,6 +80,7 @@ def gated_client(monkeypatch):
     monkeypatch.setenv("SIMPLELAY_THINQ_MODE", "mock")
     monkeypatch.setenv("SIMPLELAY_THINQ_CONFIRM_SECONDS", "0.5")
     monkeypatch.setenv("SIMPLELAY_PRESENCE_GATING", "true")
+    monkeypatch.setenv("SIMPLELAY_V2_SCENARIOS", "1")  # evening_rest는 v2 정의(opt-in)
     monkeypatch.delenv("SIMPLELAY_DB_PATH", raising=False)
     _reset()
     from rpi.main import app

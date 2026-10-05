@@ -80,5 +80,7 @@ def test_simulator_main_sets_the_mode_that_shows_builtins():
 
     import rpi.simulator_main as sim
 
-    src = inspect.getsource(sim.main)
-    assert 'os.environ["SIMPLELAY_ACT_MODE"] = "simulator"' in src
+    env: dict[str, str] = {}
+    sim.prepare_environment(env)
+    assert env["SIMPLELAY_ACT_MODE"] == "simulator"
+    assert "prepare_environment(os.environ)" in inspect.getsource(sim.main)

@@ -1,9 +1,11 @@
-"""추천 루틴 템플릿 — "한 사람의 하루"(본선 실행 계획 §5)의 네 장면 + 세탁 완료.
+"""추천 루틴 템플릿 — 시연 v3 "한 사람의 하루"(docs/본선-시연-시나리오-v3.md §3-3)의 네 루틴.
 
 **사용자 데이터가 아니다.** 저장돼 있지 않고 실행되지도 않는다. 앱의 '추천' 목록이
 보여 주고, 사용자가 자기 가전·버튼으로 고친 뒤 ``POST /routines``로 저장해야 루틴이
-된다. 가전 ID(``microwave``·``washer``·``intercom``·``air_conditioner``·
-``dehumidifier``)와 버튼 이름은 **예시**라서 등록된 가전과 다르면 저장할 때 422가 난다.
+된다. 가전 ID(``microwave``·``washer``·``intercom``)와 버튼 이름은 **예시**라서 등록된 가전과
+다르면 저장할 때 422가 난다. ``washer``는 사용자가 등록하는 버튼식 세탁기다 — ThinQ 모의 세탁기는
+``thinq_washer``로 비켜 있다(2026-10-06). v2의 '귀가 냉방'(에어컨)·'세탁 끝나면 제습'(제습기)은 v3에
+없는 가전이라 뺐다.
 """
 
 from __future__ import annotations
@@ -43,7 +45,7 @@ TEMPLATES: tuple[dict, ...] = (
         "conditions": [],
         "mode": "approve",
         "steps": [
-            {"kind": "press_sequence", "appliance_id": "washer", "buttons": ["전원", "시작"],
+            {"kind": "press_sequence", "appliance_id": "washer", "buttons": ["전원", "표준", "시작"],
              "note": "사진 속 버튼으로 바꿔 주세요"},
         ],
     },
@@ -63,33 +65,17 @@ TEMPLATES: tuple[dict, ...] = (
         ],
     },
     {
-        "template_id": "homecoming",
+        "template_id": "wash_done",
         "scene": "귀가",
-        "name": "귀가 냉방",
-        "icon": "home",
-        "description": "집에 도착할 때 덥거나 습하면 에어컨을 켤지 물어봐요",
-        "caution": "ThinQ 에어컨 연결이 필요해요(모의 에어컨은 아직 없어요)",
-        "trigger": {"kind": "approach", "zone": "arrival"},
-        "conditions": [{"kind": "environment", "temperature_at_least": 28, "humidity_at_least": 70}],
-        "mode": "approve",
-        "steps": [
-            {"kind": "thinq_command", "appliance_id": "air_conditioner", "action": "set_power",
-             "args": {"power": "POWER_ON"}},
-        ],
-    },
-    {
-        "template_id": "wash_then_dry",
-        "scene": "귀가",
-        "name": "세탁 끝나면 제습",
-        "icon": "drop",
-        "description": "세탁기가 세탁 완료를 알리면 제습기를 켤지 물어봐요",
-        "caution": "ThinQ 세탁기·제습기 연결이 필요해요",
+        "name": "세탁 끝 알림",
+        "icon": "laundry",
+        "description": "세탁기가 끝났다고 알리면 빨래를 꺼내 널라고 알려 드려요",
+        "caution": "세탁 완료 신호는 지금 모의 이벤트예요. 버튼식 세탁기의 완료 판정은 아직 없어요",
         "trigger": {"kind": "event", "event": "wash_complete"},
         "conditions": [],
-        "mode": "approve",
+        "mode": "notify",
         "steps": [
-            {"kind": "thinq_command", "appliance_id": "dehumidifier", "action": "set_power",
-             "args": {"power": "POWER_ON"}},
+            {"kind": "announce", "text": "세탁이 끝났어요. 빨래를 꺼내 널어 주세요"},
         ],
     },
 )

@@ -40,6 +40,11 @@ def _correction(correction):
             "increase_press_depth": correction.increase_press_depth}
 
 
+async def _call(fn):
+    """이벤트 루프 스레드에서 동기 함수를 부른다(실행기 상태는 그 스레드 것이다)."""
+    fn()
+
+
 class SimulatorController(ActClientController):
     execution_mode = ExecutionMode.MOCK
 
@@ -158,6 +163,32 @@ class SimulatorController(ActClientController):
                     "note": "모의 실행기 내부 관측. 허브의 수신 증거와 별개입니다.",
                 },
             }
+
+    # ── 리허설 비상 버튼(2026-10-06, 시연 v3 갭 S3) ────────────────────────────
+    # 실물 콘센트 모듈이 아니다. 모의 RPi4 실행기의 ``handle_outlet_estop``(실물 모듈의 estop 이벤트가
+    # 부르는 것과 같은 함수)을 부르고, 해제 확인 때 버튼이 눌린 채인지만 흉내 낸다.
+
+    def rehearse_outlet_estop(self, hold_button: bool = False) -> None:
+        with self._state_lock:
+            if self._closed:
+                raise RuntimeError("simulator closed")
+            self._rehearsal_button_held = bool(hold_button)
+        executor = self._executor
+
+        def reset() -> tuple[bool, str | None]:
+            with self._state_lock:
+                held = getattr(self, "_rehearsal_button_held", False)
+            return (False, "estop_button_pressed") if held else (True, None)
+
+        def trip() -> None:
+            executor.set_estop_reset(reset)
+            executor.handle_outlet_estop("button")
+
+        asyncio.run_coroutine_threadsafe(_call(trip), self._loop).result(5)
+
+    def release_rehearsal_estop_button(self) -> None:
+        with self._state_lock:
+            self._rehearsal_button_held = False
 
     def close(self):
         with self._state_lock:

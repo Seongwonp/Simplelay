@@ -13,7 +13,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -35,7 +35,7 @@ from rpi.services.weather import (
     build_ambient,
 )
 
-from .deps import get_alert_store, get_appliance_registry, get_db, get_service
+from .deps import get_alert_store, get_appliance_registry, get_care_events, get_db, get_service
 
 log = logging.getLogger(__name__)
 
@@ -146,11 +146,31 @@ class ConnectionsResponse(BaseModel):
 # ── /ambient ────────────────────────────────────────────────────────────────
 
 
-def _attention(service, registry, alerts) -> list[AttentionItem]:
-    """확인이 필요한 일 -- 위험 소리 경보, 마지막 실행이 끝까지 되지 않은 가전.
+#: 키오스크 안내 한 줄에 올리는 루틴 안내 종류(시연 v3 갭 S5) — 루틴의 ``announce``와 '알림만' 기록.
+ROUTINE_TIP_KINDS = ("routine_announce", "routine_notice")
+#: 루틴 안내를 안내 한 줄에 남겨 두는 시간. 시연 장면 하나(1~2분)를 넉넉히 덮는 값 -- 실측 아님.
+ROUTINE_TIP_MINUTES = 10
+
+
+def _routine_tip(care_events) -> AttentionItem | None:
+    """가장 최근 루틴 안내(``ROUTINE_TIP_MINUTES`` 안). 폰 보호자 알림함에만 가던 것을 키오스크에도 보인다."""
+    from .deps import get_clock  # noqa: PLC0415
+
+    now = get_clock().now()
+    for event in care_events.recent(limit=20):
+        if event.kind not in ROUTINE_TIP_KINDS:
+            continue
+        if now - event.occurred_at > timedelta(minutes=ROUTINE_TIP_MINUTES):
+            return None  # 최신순이라 더 볼 것이 없다
+        return AttentionItem("routine", event.message, icon="notice")
+    return None
+
+
+def _attention(service, registry, alerts, care_events=None) -> list[AttentionItem]:
+    """확인이 필요한 일 -- 위험 소리 경보, 마지막 실행이 끝까지 되지 않은 가전, 최근 루틴 안내(순서대로).
 
     마지막 실행 실패는 다음 실행이 시작될 때까지 남는다(실행 기록에 시각이
-    필요 없는 가장 단순한 규칙).
+    필요 없는 가장 단순한 규칙). 루틴 안내는 ``ROUTINE_TIP_MINUTES`` 동안만 남는다.
     """
     items: list[AttentionItem] = []
     try:
@@ -177,6 +197,13 @@ def _attention(service, registry, alerts) -> list[AttentionItem]:
             )
     except Exception:  # noqa: BLE001
         log.exception("service status unavailable for ambient tip")
+    if care_events is not None:
+        try:
+            tip = _routine_tip(care_events)
+            if tip is not None:
+                items.append(tip)
+        except Exception:  # noqa: BLE001
+            log.exception("care events unavailable for ambient tip")
     return items
 
 
@@ -186,11 +213,12 @@ async def ambient(
     registry=Depends(get_appliance_registry),
     alerts=Depends(get_alert_store),
     weather: WeatherService = Depends(get_weather_service),
+    care_events=Depends(get_care_events),
 ) -> dict:
     now = datetime.now(timezone.utc)
     # 기상청 호출(최대 timeout초)이 이벤트 루프를 막지 않게 스레드로 넘긴다.
     snapshot = await asyncio.to_thread(weather.snapshot, now)
-    return build_ambient(now, snapshot, _attention(service, registry, alerts), weather.config)
+    return build_ambient(now, snapshot, _attention(service, registry, alerts, care_events), weather.config)
 
 
 # ── /connections ────────────────────────────────────────────────────────────

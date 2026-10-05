@@ -838,6 +838,23 @@ class StopResponse(BaseModel):
     hold_state_at_request: str | None = None
 
 
+class DemoOutletEstopRequest(BaseModel):
+    """POST /demo/outlet-estop — 리허설용 콘센트 모듈 비상 버튼(2026-10-06, 시연 v3 갭 S3).
+
+    **실물 콘센트 모듈이 아니다.** 시뮬레이터의 모의 RPi4 실행기에 모듈 ``estop`` 이벤트를 넣을 뿐이다."""
+
+    model_config = {"extra": "forbid"}
+    #: True면 버튼이 눌린 채로 둔다 — ``POST /stop/ack``가 ``ok=false``(estop_button_pressed)로 거절된다.
+    #: ``DELETE /demo/outlet-estop``으로 버튼을 푼다.
+    hold_button: bool = False
+
+
+class DemoOutletEstopResponse(BaseModel):
+    ok: bool
+    button_held: bool
+    detail: str
+
+
 class EstopAckResponse(BaseModel):
     """POST /stop/ack 응답 — 비상정지 걸림 해제 확인의 결과(2026-10-05).
 

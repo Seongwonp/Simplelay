@@ -66,6 +66,9 @@ def mock_mode(monkeypatch):
     monkeypatch.setenv("SIMPLELAY_THINQ_MODE", "mock")
     monkeypatch.setenv("SIMPLELAY_THINQ_PAT", SECRET_PAT)
     monkeypatch.setenv("SIMPLELAY_THINQ_CONFIRM_SECONDS", "0.5")
+    # 시나리오 메커니즘(승인 결속·지문 대조·이벤트 트리거)은 v2 정의로 시험한다 — v3 기본 카탈로그는
+    # 비어 있어 SIMPLELAY_V2_SCENARIOS로 명시적으로 싣는다(2026-10-06).
+    monkeypatch.setenv("SIMPLELAY_V2_SCENARIOS", "1")
     monkeypatch.delenv("SIMPLELAY_DB_PATH", raising=False)
     _reset()
     yield
@@ -305,7 +308,7 @@ def test_thinq_command_validates_capability(client):
         "appliance_id": "air_purifier", "action": "set_wind_strength", "args": {"wind_strength": "TURBO"}})
     assert bad.status_code == 422
     washer = client.post("/thinq/command", json={
-        "appliance_id": "washer", "action": "set_power", "args": {"power": "POWER_ON"}})
+        "appliance_id": "thinq_washer", "action": "set_power", "args": {"power": "POWER_ON"}})
     assert washer.status_code in (412, 422)
 
 
@@ -313,7 +316,7 @@ def test_thinq_devices_and_events(client):
     body = client.get("/thinq/devices").json()
     assert body["mode"] == "mock" and body["execution_mode"] == "mock"
     ids = {a["appliance_id"] for a in body["appliances"]}
-    assert ids == {"air_purifier", "washer", "dehumidifier"}
+    assert ids == {"air_purifier", "thinq_washer", "dehumidifier"}
     event = client.post("/demo/thinq/event", json={"event": "wash_complete"}).json()
     assert event["state"] == {"runState": {"currentState": "END"}}
     assert client.get("/thinq/events").json()["events"][0]["event"] == "wash_complete"
@@ -398,7 +401,7 @@ def test_cook_then_air_end_to_end_with_mock(client):
 def test_real_run_without_l3_does_not_trigger():
     from rpi.api.service_commands import JobFinishedEvent
     from rpi.intent.models import UsageSource
-    from rpi.scenarios import ScenarioCatalog, ScenarioEngine
+    from rpi.scenarios import V2_SCENARIOS, ScenarioCatalog, ScenarioEngine
 
     offered = []
 
@@ -412,7 +415,7 @@ def test_real_run_without_l3_does_not_trigger():
     class Service:
         _appliance_registry = None
 
-    engine = ScenarioEngine(ScenarioCatalog(), Suggestions(), Service())
+    engine = ScenarioEngine(ScenarioCatalog(V2_SCENARIOS), Suggestions(), Service())
 
     def event(mode, confirmation):
         return JobFinishedEvent("j", "microwave", ControlRoute.PHYSICAL, "succeeded",

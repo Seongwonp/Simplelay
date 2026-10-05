@@ -41,7 +41,13 @@ class DangerAlertStore:
         self._lock = threading.Lock()
         self._state = DangerAlertState(active=False)
 
+    #: 위험 소리가 아닌 alert 종류 — 콘센트 모듈 비상정지는 ``/status.estop_latched``로 따로 보인다.
+    #: 여기서 받으면 '위험할 수 있는 신호음' 경보·보호자 알림으로 잘못 보였다(2026-10-06).
+    NOT_DANGER_KINDS = frozenset({"outlet_estop"})
+
     def record(self, event: AlertEvent) -> None:
+        if event.kind in self.NOT_DANGER_KINDS:
+            return
         with self._lock:
             # rising edge 판정과 상태 갱신만 락 안에서 — care append는
             # SQLite commit(블로킹 I/O)이라 락 안에서 하면 current()와

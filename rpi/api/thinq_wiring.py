@@ -1,7 +1,7 @@
 """ThinQ 경로·시나리오 조립 — ``SIMPLELAY_THINQ_MODE``로만 켠다(기본 off).
 
 - off: 아무것도 등록하지 않는다. 기존 동작과 같다.
-- mock: 모의 클라이언트 + 모의 공기청정기·세탁기·제습기(ThinQ 경로) + 모의 선풍기(물리 경로,
+- mock: 모의 클라이언트 + 모의 공기청정기·세탁기(``thinq_washer``)·제습기(ThinQ 경로) + 모의 선풍기(물리 경로,
   모의 실행기). 전부 **서버 구성 가전**이라 저장·편집되지 않고 GET /appliances에
   나오지 않는다.
 - real: 실물 클라이언트 자리(호출하면 NotImplementedError). 기기 ID는
@@ -19,7 +19,11 @@ from rpi.commands import ControlRoute
 log = logging.getLogger(__name__)
 
 AIR_PURIFIER_ID = "air_purifier"
-WASHER_ID = "washer"
+#: ThinQ 세탁기의 **가전 ID**. 버튼식 세탁기를 사용자가 ``washer``로 등록할 수 있게 비켜 둔다(2026-10-06,
+#: 시연 v3 갭 S4·S7). real 모드 기기 ID 환경 변수 이름은 그대로 ``SIMPLELAY_THINQ_DEVICE_WASHER``다.
+WASHER_ID = "thinq_washer"
+#: ``ThinqConfig.device_ids``의 키(환경 변수 이름에서 온다).
+WASHER_DEVICE_KEY = "washer"
 DEHUMIDIFIER_ID = "dehumidifier"
 FAN_ID = "fan"
 
@@ -44,7 +48,7 @@ def _thinq_appliances(config):
     )
 
     if config.mode is ThinqMode.MOCK:
-        ids = {AIR_PURIFIER_ID: MOCK_PURIFIER_ID, WASHER_ID: MOCK_WASHER_ID,
+        ids = {AIR_PURIFIER_ID: MOCK_PURIFIER_ID, WASHER_DEVICE_KEY: MOCK_WASHER_ID,
                DEHUMIDIFIER_ID: MOCK_DEHUMIDIFIER_ID}
         suffix = "(모의)"
     else:
@@ -57,11 +61,11 @@ def _thinq_appliances(config):
             category=ApplianceCategory.AIR_PURIFIER, control_path=ControlRoute.THINQ,
             thinq=air_purifier_binding(ids[AIR_PURIFIER_ID]),
         ))
-    if ids.get(WASHER_ID):
+    if ids.get(WASHER_DEVICE_KEY):
         appliances.append(ApplianceDef(
             appliance_id=WASHER_ID, name=f"세탁기{suffix}", rows=0, cols=0, buttons=(),
             category=ApplianceCategory.WASHING_MACHINE, control_path=ControlRoute.THINQ,
-            thinq=washer_binding(ids[WASHER_ID]),
+            thinq=washer_binding(ids[WASHER_DEVICE_KEY]),
         ))
     if ids.get(DEHUMIDIFIER_ID):
         # 가전 종류 목록(폰과 공유하는 계약)에 제습기가 없어 other로 둔다 -- 서버 구성
@@ -132,9 +136,10 @@ _engine = None
 def wire_scenarios(suggestions, service):
     """시나리오 엔진을 제안 서비스·실행 서비스·ThinQ 이벤트에 붙인다(한 번)."""
     global _engine
-    from rpi.scenarios import ScenarioCatalog, ScenarioEngine  # noqa: PLC0415
+    from rpi.scenarios import ScenarioCatalog, ScenarioEngine, scenarios_from_env  # noqa: PLC0415
 
-    engine = ScenarioEngine(ScenarioCatalog(), suggestions, service)
+    # 기본은 v3 빈 카탈로그 — v2 시나리오(공기청정기·선풍기·제습기)는 SIMPLELAY_V2_SCENARIOS로만.
+    engine = ScenarioEngine(ScenarioCatalog(scenarios_from_env()), suggestions, service)
     client = get_thinq_client()
     subscribe = getattr(client, "subscribe", None)
     if subscribe is not None and not getattr(client, "_simplelay_dispatch", False):

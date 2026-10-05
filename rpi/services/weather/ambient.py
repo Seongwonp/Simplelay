@@ -22,7 +22,7 @@ HOURLY_STEP_HOURS = 3
 class AttentionItem:
     """확인이 필요한 일 하나. ``text``는 사용자에게 그대로 보이는 문장이다."""
 
-    kind: str  # "appliance" | "alert"
+    kind: str  # "appliance" | "alert" | "routine"(루틴 안내, 2026-10-06)
     text: str
     icon: str = "attention"
 

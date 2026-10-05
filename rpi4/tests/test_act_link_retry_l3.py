@@ -233,7 +233,7 @@ class _Service:
 
 
 def _engine():
-    from rpi.scenarios import ScenarioCatalog, ScenarioEngine
+    from rpi.scenarios import V2_SCENARIOS, ScenarioCatalog, ScenarioEngine
 
     offered = []
 
@@ -245,7 +245,7 @@ def _engine():
             offered.append(kw)
             return kw
 
-    return ScenarioEngine(ScenarioCatalog(), Suggestions(), _Service()), offered
+    return ScenarioEngine(ScenarioCatalog(V2_SCENARIOS), Suggestions(), _Service()), offered
 
 
 class _UartLike:

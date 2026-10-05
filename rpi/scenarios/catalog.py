@@ -4,7 +4,12 @@
 뿐이다. 실행은 언제나 사용자의 승인 뒤이고, 승인은 그 순간 정의로 만든 명령에
 묶인다. 정의가 그 사이 바뀌면(예: 풍량 강 → 중) 카드의 승인은 무효이고 재승인한다.
 
-기본 세 개:
+**기본 카탈로그는 비어 있다(2026-10-06, 시연 v3).** 아래 세 개는 v2 시연(공기청정기·선풍기·제습기)의
+정의라 v3("한 사람의 하루": 전자레인지·세탁기·인터폰)에서 뺐다. v3의 카드는 사용자 루틴이 만든다.
+``SIMPLELAY_V2_SCENARIOS=1``로 명시적으로 켤 때만 다시 실린다(질의응답·회귀 시험용). 메커니즘(승인 결속·
+지문 대조·ThinQ 이벤트 트리거)은 그대로다.
+
+v2 세 개:
 
 - ``cook_then_air`` 조리 확인 → 공기 관리: 전자레인지(물리) 실행이 **가열 확인(L3)**
   으로 끝나면 "공기청정기 강풍으로 바꿀까요?"를 제안한다. 모의 실행은 L3가 없으므로
@@ -19,7 +24,9 @@
 
 from __future__ import annotations
 
+import os
 import threading
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from rpi.commands import Command, ControlRoute
@@ -95,14 +102,27 @@ WASH_THEN_DRY = ScenarioDefinition(
     scenario_id="wash_then_dry",
     name="세탁 완료 → 제습",
     question="세탁이 끝났어요. 실내 건조를 위해 제습기를 켤까요?",
-    trigger=ScenarioTrigger("thinq_event", appliance_id="washer", event="wash_complete"),
+    trigger=ScenarioTrigger("thinq_event", appliance_id="thinq_washer", event="wash_complete"),
     steps=(
         ScenarioStep("dehumidifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
     ),
     event_reason="세탁기가 세탁 완료를 알렸어요 — 빨래를 실내에 널면 습도가 올라가요",
 )
 
-DEFAULT_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
+#: v2 시연의 시나리오 — v3에서 뺐다. ``SIMPLELAY_V2_SCENARIOS``로만 싣는다.
+V2_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
+#: 기본 카탈로그(v3): 비어 있다. 카드는 사용자 루틴이 만든다.
+DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = ()
+
+V2_SCENARIOS_ENV = "SIMPLELAY_V2_SCENARIOS"
+
+
+def scenarios_from_env(env: Mapping[str, str] | None = None) -> tuple[ScenarioDefinition, ...]:
+    """서버가 실을 시나리오. 기본은 v3(빈 카탈로그), ``SIMPLELAY_V2_SCENARIOS=1``이면 v2 세 개."""
+    env = os.environ if env is None else env
+    if env.get(V2_SCENARIOS_ENV, "").strip().lower() in {"1", "true", "yes", "on"}:
+        return V2_SCENARIOS
+    return DEFAULT_SCENARIOS
 
 
 class ScenarioCatalog:
@@ -136,5 +156,8 @@ __all__ = [
     "ScenarioDefinition",
     "ScenarioStep",
     "ScenarioTrigger",
+    "V2_SCENARIOS",
+    "V2_SCENARIOS_ENV",
     "WASH_THEN_DRY",
+    "scenarios_from_env",
 ]

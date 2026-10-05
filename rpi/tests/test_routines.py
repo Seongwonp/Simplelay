@@ -658,7 +658,7 @@ def test_routine_stop_between_segments_sends_nothing_more():
 
 def test_templates_are_listed_and_are_not_user_data(client):
     templates = client.get("/routines/templates").json()
-    assert {t["template_id"] for t in templates} >= {"morning", "outing", "visitor", "homecoming"}
+    assert {t["template_id"] for t in templates} == {"morning", "outing", "visitor", "wash_done"}
     assert all(t["is_template"] is True for t in templates)
     morning = next(t for t in templates if t["template_id"] == "morning")
     assert [s["kind"] for s in morning["steps"]] == ["press_sequence", "wait_until_done", "announce"]
@@ -668,7 +668,7 @@ def test_templates_are_listed_and_are_not_user_data(client):
 
 
 def test_every_template_passes_structural_validation():
-    assert len(template_payloads()) == 5
+    assert len(template_payloads()) == 4  # 시연 v3의 네 루틴(2026-10-06)
 
 
 # ── 8. 습관 제안이 루틴 이름을 빌려 쓴다 ─────────────────────────────────

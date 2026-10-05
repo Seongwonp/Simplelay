@@ -69,6 +69,8 @@ from .schemas import (
     DemoCareEventRequest,
     ButtonStep,
     DemoAlertRequest,
+    DemoOutletEstopRequest,
+    DemoOutletEstopResponse,
     DemoEnvironmentRequest,
     DemoInjectFailureRequest,
     DemoSuggestRequest,
@@ -492,6 +494,8 @@ async def register_appliance(
     appliance_id: str,
     body: ApplianceRegisterRequest,
     registry=Depends(get_appliance_registry),
+    service: SimpleLayService = Depends(get_service),
+    nodes: NodeRegistry = Depends(get_node_registry),
 ) -> ApplianceResponse:
     # 같은 id로 다시 부르면 교체(폰 편집기의 저장 버튼과 1:1) — 노드 등록과
     # 같은 upsert 관례.
@@ -554,7 +558,9 @@ async def register_appliance(
             detail="다른 기기에서 먼저 변경되었어요",
             headers={"X-Current-Revision": str(exc.current_revision)},
         ) from exc
-    return _to_appliance_response(saved)
+    # 목록(GET /appliances)과 같은 규칙으로 준비 상태를 싣는다 — 서비스 없이 만들면 '실행 가능'으로
+    # 나가 놓고 승인하면 412가 났다(2026-10-06, 시연 v3 갭 S2).
+    return _to_appliance_response(saved, service, nodes)
 
 
 @router.put(
@@ -1625,6 +1631,57 @@ async def demo_alert(
         mean_period_seconds=state.mean_period_seconds,
         updated_at=state.updated_at,
     )
+
+
+_REHEARSAL_ESTOP_DETAIL = (
+    "(시연: 모의 콘센트 모듈 비상 버튼이에요 — 실제 모듈·릴레이가 아니에요)"
+)
+
+
+def _require_rehearsal_mode() -> None:
+    """모의·시뮬레이터 모드가 아니면 404. 서비스 의존성보다 **먼저** 둔다 — UART 모드에서 시리얼을 열지 않는다."""
+    if not demo_alert_allowed():
+        raise HTTPException(404, "비상 버튼 주입은 모의·시뮬레이터 모드에서만 열려 있어요")
+
+
+def _rehearsal_estop_controller(service: SimpleLayService):
+    """리허설 비상 버튼을 받을 실행기. 걸림을 흉내 낼 수 없는 실행기(기본 mock)면 409."""
+    controller = getattr(service, "_controller", None)
+    if not callable(getattr(controller, "rehearse_outlet_estop", None)):
+        raise HTTPException(
+            409,
+            "이 실행기는 비상정지 걸림을 흉내 내지 않아요 — SIMPLELAY_ACT_MODE=simulator로 리허설하세요",
+        )
+    return controller
+
+
+@router.post("/demo/outlet-estop", response_model=DemoOutletEstopResponse)
+async def demo_outlet_estop(
+    body: DemoOutletEstopRequest,
+    _mode: None = Depends(_require_rehearsal_mode),
+    service: SimpleLayService = Depends(get_service),
+) -> DemoOutletEstopResponse:
+    """리허설 장치(시연 v3 갭 S3) — 콘센트 모듈 비상 버튼을 누른 것처럼 모의 RPi4 실행기에 ``estop``을 넣는다.
+
+    실행기 쪽 처리(걸림·실행 중 정지·``estop_state`` 보고)는 실물 경로와 같은 코드다. 그래서 화면의
+    비상 띠·배너, 실행 412, ``POST /stop/ack``까지 회로 없이 이어서 리허설할 수 있다. 모의·시뮬레이터
+    모드 밖은 404, 걸림을 흉내 낼 수 없는 실행기(기본 mock)는 409다.
+    """
+    controller = _rehearsal_estop_controller(service)
+    await asyncio.to_thread(controller.rehearse_outlet_estop, body.hold_button)
+    return DemoOutletEstopResponse(ok=True, button_held=body.hold_button,
+                                   detail=_REHEARSAL_ESTOP_DETAIL)
+
+
+@router.delete("/demo/outlet-estop", response_model=DemoOutletEstopResponse)
+async def demo_outlet_estop_release(
+    _mode: None = Depends(_require_rehearsal_mode),
+    service: SimpleLayService = Depends(get_service),
+) -> DemoOutletEstopResponse:
+    """리허설 비상 버튼을 푼다. 걸림은 그대로다 — 풀려면 사람이 ``POST /stop/ack``."""
+    controller = _rehearsal_estop_controller(service)
+    await asyncio.to_thread(controller.release_rehearsal_estop_button)
+    return DemoOutletEstopResponse(ok=True, button_held=False, detail=_REHEARSAL_ESTOP_DETAIL)
 
 
 # ThinQ 경로·시나리오(U1) — 같은 인증 의존성 아래에 둔다.
