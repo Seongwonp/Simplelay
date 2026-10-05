@@ -31,6 +31,7 @@ def build_controller(
     progress_tracker: ExecutionProgressTracker | None = None,
     on_alert: Callable[[AlertEvent], None] | None = None,
     failure_state: DemoFailureState | None = None,
+    on_appliance_done: Callable[[dict], None] | None = None,
 ) -> ButtonSequenceController:
     """``SIMPLELAY_ACT_MODE=uart``: dispatch to a real RPi4 board over UART
     (ActClientController) -- aggregate result only, no live per-button
@@ -46,11 +47,13 @@ def build_controller(
     mode = os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower()
     if mode == "simulator":
         from .simulator_controller import SimulatorController
-        return SimulatorController(on_alert=on_alert)
+        return SimulatorController(on_alert=on_alert, on_appliance_done=on_appliance_done)
     if mode == "uart":
         port = os.environ.get("SIMPLELAY_UART_PORT", "/dev/ttyAMA0")
         baud = int(os.environ.get("SIMPLELAY_UART_BAUD", "115200"))
-        return open_uart_act_controller(port, baud, on_alert=on_alert)
+        # 완료 콜백이 없으면 종전 호출 모양 그대로(2026-10-06 appliance_done 이전과 같게).
+        extra = {"on_appliance_done": on_appliance_done} if on_appliance_done is not None else {}
+        return open_uart_act_controller(port, baud, on_alert=on_alert, **extra)
 
     grbl = MockGrblClient()
     verifier: object = MockVerifier(outcomes=[True] * 100)

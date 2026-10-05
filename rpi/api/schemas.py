@@ -9,7 +9,9 @@ from urllib.parse import urlparse
 
 import math
 
-from pydantic import BaseModel, field_validator, model_validator
+from typing import Literal
+
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 # ── 물리 실행 입력의 제품 계약(상한) ─────────────────────────────────────────
 # 무한 입력은 장시간 물리 실행·거대 LLM 프롬프트·로그/DB 팽창으로 이어진다.
@@ -852,6 +854,31 @@ class DemoOutletEstopRequest(BaseModel):
 class DemoOutletEstopResponse(BaseModel):
     ok: bool
     button_held: bool
+    detail: str
+
+
+class DemoApplianceDoneRequest(BaseModel):
+    """POST /demo/appliance-done — 리허설용 '버튼식 가전 끝' 주입(2026-10-06, 시연 v3 갭 S8).
+
+    **측정이 아니다.** 실물 세탁기·CT·마이크 없이, RPi4가 융합해 보내는 ``appliance_done``과 같은 규칙
+    (`rpi/verifier/done_fusion.py`)에 주입 입력을 넣는다. 결과와 루틴 안내에는 "(시연 주입)"이 붙는다."""
+
+    model_config = {"extra": "forbid"}
+    appliance_id: str = Field(default="washer", pattern=r"^[A-Za-z0-9_-]{1,64}$")
+    #: 끝을 알린 입력 — power(콘센트 CT 전력 하강)·beep(종료음). 둘 다면 done_confirmed.
+    inputs: list[Literal["power", "beep"]] = Field(min_length=1, max_length=2)
+    event: str = Field(default="wash_complete", pattern=r"^[a-z][a-z0-9_]{0,63}$")
+
+
+class DemoApplianceDoneResponse(BaseModel):
+    ok: bool
+    appliance_id: str
+    state: str
+    confidence: str
+    inputs: list[str]
+    source: str
+    #: injected_in: rpi4_simulator(모의 RPi4 실행기가 프레임을 보냄) | rpi5_mock(RPi5 안에서 같은 규칙으로)
+    injected_in: str
     detail: str
 
 

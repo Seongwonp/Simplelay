@@ -71,6 +71,8 @@ from .schemas import (
     DemoAlertRequest,
     DemoOutletEstopRequest,
     DemoOutletEstopResponse,
+    DemoApplianceDoneRequest,
+    DemoApplianceDoneResponse,
     DemoEnvironmentRequest,
     DemoInjectFailureRequest,
     DemoSuggestRequest,
@@ -1682,6 +1684,48 @@ async def demo_outlet_estop_release(
     controller = _rehearsal_estop_controller(service)
     await asyncio.to_thread(controller.release_rehearsal_estop_button)
     return DemoOutletEstopResponse(ok=True, button_held=False, detail=_REHEARSAL_ESTOP_DETAIL)
+
+
+_REHEARSAL_DONE_DETAIL = "(시연 주입) 실제 세탁기·콘센트 CT·마이크로 잰 값이 아니에요"
+
+
+def _require_done_rehearsal_mode() -> None:
+    """모의·시뮬레이터 모드가 아니면 404 — 실물 보드의 판정 위에 주입을 얹지 않는다(서비스 의존성보다 먼저)."""
+    if not demo_alert_allowed():
+        raise HTTPException(404, "가전 완료 주입은 모의·시뮬레이터 모드에서만 열려 있어요")
+
+
+@router.post("/demo/appliance-done", response_model=DemoApplianceDoneResponse)
+async def demo_appliance_done(
+    body: DemoApplianceDoneRequest,
+    _mode: None = Depends(_require_done_rehearsal_mode),
+    service: SimpleLayService = Depends(get_service),
+) -> DemoApplianceDoneResponse:
+    """리허설 장치(시연 v3 갭 S8) — 세탁기 끝(전력 하강·종료음)을 주입한다.
+
+    융합 규칙은 RPi4 실물 경로와 같다(`rpi/verifier/done_fusion.py`): 두 입력이면 done_confirmed, 하나면
+    done_power_only/done_beep_only(루틴 안내가 '끝난 것 같아요, 확인해 주세요'). 시뮬레이터면 모의 RPi4 실행기가
+    ``appliance_done`` 프레임을 보내고 RPi5는 실물 프레임과 같은 길(ActClient → 루틴 엔진)로 받는다. 기본 mock이면
+    RPi5 안에서 같은 규칙으로 만든 기록을 같은 수신 함수에 넣는다. 출처는 늘 ``injected``. 모의·시뮬레이터 밖은 404.
+    """
+    from rpi.verifier.done_fusion import rehearsal_done_event
+
+    from .deps import receive_appliance_done
+
+    controller = getattr(service, "_controller", None)
+    rehearse = getattr(controller, "rehearse_appliance_done", None)
+    if callable(rehearse):
+        frame = await asyncio.to_thread(rehearse, body.appliance_id, list(body.inputs), body.event)
+        where = "rpi4_simulator"
+    else:
+        frame = rehearsal_done_event(body.appliance_id, list(body.inputs), now_s=time.monotonic(),
+                                     event=body.event).to_frame()
+        await asyncio.to_thread(receive_appliance_done, frame)
+        where = "rpi5_mock"
+    return DemoApplianceDoneResponse(
+        ok=True, appliance_id=frame["appliance_id"], state=frame["state"], confidence=frame["confidence"],
+        inputs=list(frame["inputs"]), source=frame["source"], injected_in=where,
+        detail=_REHEARSAL_DONE_DETAIL)
 
 
 # ThinQ 경로·시나리오(U1) — 같은 인증 의존성 아래에 둔다.

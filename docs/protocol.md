@@ -427,6 +427,29 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   완료 판정(전력 ≤ `off_max_w`가 `off_confirm_s` 유지) → 대기 전력 띠로 복귀하기까지의 잔여 전류 꼬리(피드백 ③). 기록용이며
   판정이 아니다. 정의·기준값은 `rpi/verifier/power_tail.py`(`SIMPLELAY_TAIL_*`, 전부 측정 필요). RPi5 `ActClient.last_power_tail`.
   원시 기록기(`SIMPLELAY_RECORDER_PATH`)에는 `event=power_tail` 행과 `tail_*`·`pre/post_baseline_w` 열로 남는다.
+- `appliance_done`(2026-10-06, **가짜 콘센트 모듈·합성 음으로만 시험, 실물 미검증**) — RPi4가 스스로 보내는 가전 끝 알림.
+  `alert`처럼 RPi5가 묻지 않아도 오며 `execute`의 결과가 아니다(실행 중에도 올 수 있다). RPi4 `SIMPLELAY_DONE_WATCH=<가전>:outlet[,mic]`일
+  때 콘센트 모듈 CT 전력의 사이클 끝(`rpi/verifier/cycle_end.py`: 운전 ≥ `run_min_w`를 `min_run_s` 지난 뒤 대기 ≤ `standby_max_w`에
+  `settle_s` 머묾 — 그보다 짧은 하강은 끝이 아니다)과 마이크 종료음(`rpi/verifier/end_beep.py`: 위험 소리와 같은 대역 에너지·간격
+  DSP, 몇 번 울리고 멈추는 묶음)을 `rpi/verifier/done_fusion.py`가 융합한다. 기준값은 `SIMPLELAY_CYCLE_*`·`SIMPLELAY_BEEP_*`·
+  `SIMPLELAY_DONE_FUSION_*`, **전부 측정 필요**. 관찰은 릴레이 명령을 보내지 않는다(세탁기는 CT 계측만).
+
+```json
+{ "type": "appliance_done", "appliance_id": "washer", "event": "wash_complete", "state": "done_confirmed",
+  "confidence": "confirmed", "inputs": ["beep", "power"], "expected_inputs": ["power", "beep"], "source": "real",
+  "at_s": 1234.5, "gap_s": 3.8, "fusion_window_s": 120.0,
+  "evidence": { "power": { "run_s": 3120.0, "peak_w": 1850.0, "mean_run_w": 310.0, "standby_w": 2.1, "dips": 14, "…": "…" },
+                "beep": { "beeps": 3, "mean_period_s": 0.6, "…": "…" } },
+  "t_monotonic_ns": 0 }
+```
+
+  - `state`: `done_confirmed`(두 입력이 `fusion_window_s` 안) | `done_power_only` | `done_beep_only`(하나만 — 먼저 온 입력이
+    `SIMPLELAY_DONE_FUSION_WAIT_S` 동안 짝을 기다린 뒤). `inputs`와 `state`가 어긋나면 RPi5가 버린다.
+  - `source`: `real` | `mock`(가짜 콘센트 모듈 등 합성 입력) | `injected`(리허설 주입 — 시뮬레이터 실행기만 보낸다).
+  - RPi5: `ActClient.on_appliance_done` → `deps.receive_appliance_done` → 루틴 엔진 `on_appliance_done`(같은 가전의 `after_done`,
+    같은 이름의 `event` 트리거). `done_confirmed`만 "세탁이 끝났어요", 나머지는 "끝난 것 같아요 — 확인해 주세요"이고 루틴의
+    안내 문장을 읽지 않는다. 주입은 "(시연 주입)", 모의는 "(모의 입력)". 리허설은 `POST /demo/appliance-done`(모의·시뮬레이터만, 그 밖 404).
+  - 하위 호환: 옛 RPi5는 모르는 `type`을 무시한다(위 progress와 같다).
 
 ---
 

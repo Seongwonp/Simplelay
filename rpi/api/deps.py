@@ -184,6 +184,35 @@ def get_alert_store() -> DangerAlertStore:
     return DangerAlertStore(_clock, care_events=get_care_events())
 
 
+@lru_cache(maxsize=1)
+def get_appliance_done_log():
+    """RPi4가 보낸(또는 리허설로 주입한) 가전 완료 기록 — 세탁 끝 융합 증거(2026-10-06)."""
+    from rpi.services.appliance_done import ApplianceDoneLog  # noqa: PLC0415
+
+    return ApplianceDoneLog(_clock)
+
+
+def receive_appliance_done(record: dict) -> None:
+    """``appliance_done`` 기록(검증한 것) → 기록 + 루틴 엔진(``wash_complete`` 이벤트·``after_done``).
+
+    ActClient 읽기 루프 스레드(UART·시뮬레이터)나 리허설 주입(모의)에서 불린다. 루틴 쪽 고장이
+    읽기 루프를 죽이지 않게 예외는 기록만 한다. 아무것도 실행하지 않는다(알림·승인 카드뿐).
+    """
+    from rpi.services.appliance_done import parse_appliance_done  # noqa: PLC0415
+
+    checked = parse_appliance_done(record)
+    if checked is None:
+        log.warning("appliance_done record rejected: %r", record)
+        return
+    get_appliance_done_log().append(checked)
+    try:
+        from rpi.routines.wiring import get_routine_engine  # noqa: PLC0415
+
+        get_routine_engine().on_appliance_done(checked)
+    except Exception:  # noqa: BLE001
+        log.exception("routine dispatch for appliance_done failed")
+
+
 log = logging.getLogger(__name__)
 
 NODE_TRANSPORT_ENV = "SIMPLELAY_NODE_TRANSPORT"
@@ -516,6 +545,7 @@ def get_service() -> SimpleLayService:
         progress_tracker,
         on_alert=store.record,
         failure_state=get_demo_failure_state(),
+        on_appliance_done=receive_appliance_done,
     )
     # ThinQ 경로(U1): SIMPLELAY_THINQ_MODE=off(기본)면 (None, {}) — 종전 그대로.
     from .thinq_wiring import build_command_paths, forward_to_scenarios  # noqa: PLC0415

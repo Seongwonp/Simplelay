@@ -20,6 +20,9 @@ RPi4 side of this same link.
                                       (콘센트 모듈 잔여 전류 꼬리 기록, 2026-10-05. ``last_power_tail``)
   (nothing — self-initiated)      ←  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
+  (nothing — self-initiated)      ←  appliance_done {appliance_id, event, state, inputs, source, ...}
+                                      (세탁 끝: CT 전력 + 종료음 융합, 2026-10-06. 검증 뒤 ``on_appliance_done``,
+                                       ``last_appliance_done``. 검증에 실패한 프레임은 버린다)
   estop_ack                       ←  estop_state {latched, source, reason, detail}
                                       (콘센트 모듈 비상정지 걸림 해제 확인, 2026-10-05. 걸릴 때도 자발로 온다.
                                        ``estop_latched``·``estop_detail``에 남는다)
@@ -54,6 +57,8 @@ from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
+
+from .appliance_done import parse_appliance_done
 
 if TYPE_CHECKING:
     from rpi.controller.models import ButtonTarget
@@ -288,6 +293,7 @@ class ActClient:
         on_alert: Callable[[AlertEvent], None] | None = None,
         tap: "LinkFrameTap | None" = None,
         on_progress: Callable[[dict], None] | None = None,
+        on_appliance_done: Callable[[dict], None] | None = None,
     ) -> None:
         self._reader = reader
         self._writer = writer
@@ -296,6 +302,9 @@ class ActClient:
         #: 보내고 받은 모든 줄의 기록(rpi/services/link_tap.py). None이면 기록 안 함.
         self.tap = tap
         self._on_progress = on_progress
+        self._on_appliance_done = on_appliance_done
+        #: RPi4가 보낸 마지막 가전 완료 기록(검증한 것만). 2026-10-06.
+        self.last_appliance_done: dict | None = None
         # (sequence_id, future) — 수신한 result/error를 반드시 현재 요청의
         # sequence_id와 대조해서 완료시킨다. 대조 없이 완료시키면, timeout으로
         # 버려진 이전 요청의 늦은 응답이 다음 요청의 결과로 오인된다.
@@ -568,6 +577,19 @@ class ActClient:
                     self._on_progress(doc)
                 except Exception:  # noqa: BLE001 - 관찰자 고장이 읽기 루프를 죽이지 않는다
                     log.exception("ActClient: on_progress callback failed")
+            return
+
+        if msg_type == "appliance_done":
+            record = parse_appliance_done(doc)
+            if record is None:
+                log.warning("ActClient: invalid appliance_done ignored: %.160s", raw)
+                return
+            self.last_appliance_done = record
+            if self._on_appliance_done is not None:
+                try:
+                    self._on_appliance_done(record)
+                except Exception:  # noqa: BLE001 - 듣는 쪽 고장이 읽기 루프를 죽이지 않는다
+                    log.exception("ActClient: on_appliance_done callback failed")
             return
 
         event = _parse_alert(doc)

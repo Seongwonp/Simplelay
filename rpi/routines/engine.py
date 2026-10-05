@@ -11,6 +11,11 @@
   끝났을 때만 일반 카드, 모의 성공은 시연 카드, 그 밖은 무시. 루틴 — 그 루틴의 실행이
   성공으로 끝났을 때(모의 단계가 섞였으면 시연 카드).
 - ``event``: ThinQ 이벤트 이름(예: wash_complete). 모의 이벤트면 시연 카드.
+- 버튼식 가전의 끝(``on_appliance_done``, 2026-10-06): RPi4가 CT 전력 하강 + 종료음을 융합한
+  ``appliance_done``. 그 가전의 ``after_done`` 트리거와 같은 이름의 ``event`` 트리거를 깨운다.
+  **두 입력이 다 맞을 때만(done_confirmed) '끝났어요'** — 하나뿐이면 '끝난 것 같아요, 확인해 주세요'로
+  말하고 루틴의 안내 문장(끝났다고 단정하는 문장)을 읽지 않는다. 주입은 "(시연 주입)", 모의 입력은
+  "(모의 입력)"을 붙인다.
 - ``manual``: 앱의 '지금 실행' — 카드를 만든다. 실행은 여전히 승인 뒤다.
 
 조건(``conditions``)은 트리거 시점에 본다. 만족하지 않으면 카드도 알림도 없다(기록만).
@@ -164,6 +169,40 @@ class RoutineEngine:
                 reason = f"가전 알림 '{name}'이 왔어요" + (" (시연: 모의 이벤트예요)" if is_demo else "")
                 self._fire(routine, reason, is_demo, "event")
 
+    def on_appliance_done(self, record: dict) -> list:
+        """검증한 ``appliance_done`` 기록(`rpi.services.appliance_done.parse_appliance_done`)."""
+        appliance_id = record["appliance_id"]
+        event_name = record.get("event")
+        confirmed = record.get("state") == "done_confirmed"
+        source = record.get("source")
+        noun = "세탁" if event_name == "wash_complete" else f"{self._name_of(appliance_id)} 동작"
+        if confirmed:
+            reason = f"{noun}이 끝났어요 (전력·종료음 둘 다 확인)"
+        else:
+            which = "전력 하강만" if record.get("inputs") == ["power"] else "종료음만"
+            reason = f"{noun}이 끝난 것 같아요 — 확인해 주세요 ({which} 감지)"
+        if source == "injected":
+            reason += " (시연 주입)"
+        elif source != "real":
+            reason += " (모의 입력)"
+        is_demo = source != "real"
+        extra = {"confidence": "confirmed" if confirmed else "probable",
+                 "inputs": list(record.get("inputs") or []), "input_source": source}
+        fired = []
+        for routine in self._store.list():
+            trigger = routine.trigger
+            if not routine.enabled:
+                continue
+            if trigger.kind == "after_done" and trigger.appliance_id == appliance_id:
+                kind = "after_done"
+            elif (trigger.kind == "event" and trigger.event == event_name
+                  and trigger.appliance_id in (None, appliance_id)):
+                kind = "event"
+            else:
+                continue
+            fired.append(self._fire(routine, reason, is_demo, kind, probable=not confirmed, extra=extra))
+        return [f for f in fired if f is not None]
+
     def trigger_manual(self, routine_id: str):
         """앱의 '지금 실행'. 승인 루틴은 카드를, 알림 루틴은 알림을 만든다."""
         routine = self._store.get(routine_id)
@@ -277,31 +316,36 @@ class RoutineEngine:
         return entry
 
     def _fire(self, routine: Routine, reason: str, is_demo: bool, source: str, *,
-              raise_unavailable: bool = False, check_conditions: bool = True):
+              raise_unavailable: bool = False, check_conditions: bool = True,
+              probable: bool = False, extra: dict | None = None):
+        extra = extra or {}
         if check_conditions:
             ok, why = self._conditions_met(routine)
             if not ok:
-                self._record(routine, source, "skipped", why)
+                self._record(routine, source, "skipped", why, **extra)
                 return None
         line = f"루틴 '{routine.name}' · {reason}"
         if routine.mode == "notify":
-            return self._notify(routine, line, source)
+            return self._notify(routine, line, source, probable=probable, extra=extra)
         try:
-            return self._offer(routine, line, is_demo, source)
+            return self._offer(routine, line, is_demo, source, extra=extra)
         except RoutineUnavailableError as exc:
-            self._record(routine, source, "unavailable", str(exc))
+            self._record(routine, source, "unavailable", str(exc), **extra)
             if raise_unavailable:
                 raise
             return None
 
-    def _notify(self, routine: Routine, line: str, source: str):
-        notices = [s.text for s in routine.steps if s.kind == "announce"]
+    def _notify(self, routine: Routine, line: str, source: str, *, probable: bool = False,
+                extra: dict | None = None):
+        # 확신이 없으면(입력 하나만) 루틴의 안내 문장을 읽지 않는다 — '끝났어요'라고 단정하는 문장일 수 있다.
+        notices = [] if probable else [s.text for s in routine.steps if s.kind == "announce"]
         message = line + (f" — {' / '.join(notices)}" if notices else "")
         if self._care is not None:
             self._care.append(KIND_ROUTINE_NOTICE, message, purpose=routine.name)
-        return self._record(routine, source, "notified", message)
+        return self._record(routine, source, "notified", message, **(extra or {}))
 
-    def _offer(self, routine: Routine, reason: str, is_demo: bool, source: str):
+    def _offer(self, routine: Routine, reason: str, is_demo: bool, source: str, *,
+               extra: dict | None = None):
         absent = getattr(self._suggestions, "presence_absent", None)
         if not is_demo and absent is not None and absent():
             raise RoutineUnavailableError("지금은 자리에 안 계셔서 제안을 만들지 않았어요")
@@ -325,5 +369,6 @@ class RoutineEngine:
         )
         if suggestion is None:
             raise RoutineUnavailableError("지금은 제안을 쉬는 중이거나 이 제안을 그만 받기로 하셨어요")
-        self._record(routine, source, "offered", reason, suggestion_id=suggestion.suggestion_id)
+        self._record(routine, source, "offered", reason, suggestion_id=suggestion.suggestion_id,
+                     **(extra or {}))
         return suggestion

@@ -70,7 +70,8 @@ TEMPLATES: tuple[dict, ...] = (
         "name": "세탁 끝 알림",
         "icon": "laundry",
         "description": "세탁기가 끝났다고 알리면 빨래를 꺼내 널라고 알려 드려요",
-        "caution": "세탁 완료 신호는 지금 모의 이벤트예요. 버튼식 세탁기의 완료 판정은 아직 없어요",
+        "caution": ("버튼식 세탁기는 콘센트 전력 하강과 종료음이 같이 확인될 때만 '끝났어요', 하나만이면 "
+                    "'끝난 것 같아요, 확인해 주세요'로 알려요. 기준값은 아직 실측 전이에요"),
         "trigger": {"kind": "event", "event": "wash_complete"},
         "conditions": [],
         "mode": "notify",

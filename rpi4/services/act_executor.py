@@ -31,6 +31,9 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   (콘센트 모듈 무응답 중 execute/verify_pass) → error {reason:"outlet_offline"}
   (after an L3-confirmed result) →  progress {phase:"power_tail", power_tail:{...}}
                                     (잔여 전류 꼬리 기록 — after_result 훅, 2026-10-05)
+  (none — self-initiated)        →  appliance_done {appliance_id, event, state, confidence, inputs,
+                                       source, evidence, ...} (세탁 끝: CT 전력 + 종료음 융합,
+                                       appliance_done_watch, 2026-10-06 — see report_appliance_done)
 
 Duck-typed reader/writer so this is fully testable without a real serial
 port, matching services/bridge.py's pattern:
@@ -60,6 +63,7 @@ from rpi.controller import (
 )
 from rpi.services.demo_failure import DemoFailureState
 from rpi.verifier import DangerSoundResult
+from rpi.verifier.done_fusion import DEFAULT_DONE_EVENT, rehearsal_done_event
 
 from ..models.act_messages import (
     AbortMsg,
@@ -345,6 +349,39 @@ class ActExecutor:
             self._danger_alert_active = False
             await self._send({"type": "alert_cleared", "kind": "danger_sound"})
             log.info("danger sound alert cleared")
+
+    # ── 가전 완료(세탁 끝, 2026-10-06) ───────────────────────────────────────
+
+    def report_appliance_done(self, frame: dict) -> None:
+        """세탁 끝 관찰(`appliance_done_watch.ApplianceDoneWatch`)이 낸 ``appliance_done`` 프레임을 RPi5로 보낸다.
+
+        **이벤트 루프 스레드에서** 부른다(다른 스레드는 `thread_safe_done_emitter`). 실행 중이어도 보낸다 —
+        결과(``result``)가 아니라 자체발신 알림이다. 아무것도 움직이지 않는다.
+        """
+        if not isinstance(frame, dict) or frame.get("type") != "appliance_done":
+            log.warning("report_appliance_done ignored a non-appliance_done frame: %r", frame)
+            return
+        self._write_now(frame)
+
+    def thread_safe_done_emitter(self, loop: asyncio.AbstractEventLoop) -> "Callable[[dict], None]":
+        """관찰 스레드(전력 읽기)·오디오 루프 어디서든 부를 수 있는 보내기 함수."""
+
+        def emit(frame: dict) -> None:
+            try:
+                loop.call_soon_threadsafe(self.report_appliance_done, dict(frame))
+            except RuntimeError:  # 루프가 닫힌 뒤
+                log.error("appliance_done arrived after the event loop closed — not sent")
+
+        return emit
+
+    def inject_appliance_done(self, appliance_id: str, inputs: "list[str] | tuple[str, ...]",
+                              event: str = DEFAULT_DONE_EVENT) -> dict:
+        """리허설 주입(시연 v3 갭 S8) — **시뮬레이터 실행기 전용**. 같은 융합 규칙에 주입 입력을 넣어
+        ``source:"injected"`` 프레임을 보내고 그 프레임을 돌려준다. 실물 경로(act_main)는 이것을 부르지 않는다."""
+        done = rehearsal_done_event(appliance_id, list(inputs), now_s=time.monotonic(), event=event)
+        frame = done.to_frame(time.monotonic_ns())
+        self._write_now(frame)
+        return frame
 
     # ── Dispatch ─────────────────────────────────────────────────────────────
 

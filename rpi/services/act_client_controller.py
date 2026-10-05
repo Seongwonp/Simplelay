@@ -197,6 +197,7 @@ def open_uart_act_controller(
     port: str,
     baud: int,
     on_alert: Callable[[AlertEvent], None] | None = None,
+    on_appliance_done: Callable[[dict], None] | None = None,
 ) -> ActClientController:
     """Production factory -- opens the real serial port to RPi4 and starts
     the background loop + ActClient. Requires pyserial-asyncio and a real
@@ -213,7 +214,8 @@ def open_uart_act_controller(
 
     async def _open() -> ActClient:
         reader, writer = await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
-        client = ActClient(reader, writer, config=config, on_alert=on_alert, tap=tap)
+        client = ActClient(reader, writer, config=config, on_alert=on_alert, tap=tap,
+                           on_appliance_done=on_appliance_done)
         await client.start()
         return client
 

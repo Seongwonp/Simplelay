@@ -90,3 +90,20 @@ def test_uart_mode_forwards_on_alert_callback(monkeypatch: pytest.MonkeyPatch):
     build_controller(on_alert=_on_alert)
 
     assert received == [_on_alert]
+
+
+def test_uart_mode_forwards_on_appliance_done_callback(monkeypatch):
+    # 세탁 끝(appliance_done) 프레임 콜백이 UART 실행기까지 간다(2026-10-06).
+    monkeypatch.setenv("SIMPLELAY_ACT_MODE", "uart")
+    received = []
+    monkeypatch.setattr(
+        controller_factory,
+        "open_uart_act_controller",
+        lambda port, baud, on_alert=None, on_appliance_done=None: received.append(on_appliance_done) or object(),
+    )
+
+    def callback(record):
+        return None
+
+    build_controller(on_appliance_done=callback)
+    assert received == [callback]

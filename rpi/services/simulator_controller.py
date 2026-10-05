@@ -48,7 +48,8 @@ async def _call(fn):
 class SimulatorController(ActClientController):
     execution_mode = ExecutionMode.MOCK
 
-    def __init__(self, *, step_seconds: float = 0.8, on_alert=None, operation=None, tap=None):
+    def __init__(self, *, step_seconds: float = 0.8, on_alert=None, operation=None, tap=None,
+                 on_appliance_done=None):
         """``operation``: L3 검증기(선택). 없으면 ``SIMPLELAY_L3_MODE``(기본 off)로 고른다 --
         mock이면 합성 전력 판정이 결과 프레임에 ``operation_source=mock``으로 실린다."""
         if not 0 <= step_seconds <= 3:
@@ -121,7 +122,8 @@ class SimulatorController(ActClientController):
                                    hold=self.hold_hardware)
             # UART 모드와 같은 프레임 탭을 쓴다 — 실모드 트윈(/twin)·세션 기록이 두 모드에서 같다.
             client = ActClient(hub_reader, Wire(act_reader, "hub_to_act"),
-                               ActClientConfig(5, 12), on_alert=on_alert, tap=tap)
+                               ActClientConfig(5, 12), on_alert=on_alert, tap=tap,
+                               on_appliance_done=on_appliance_done)
             self._reader, self._executor, self._motor = act_reader, executor, motor
             self._local_result = None
             self._executor_task = asyncio.create_task(executor.run())
@@ -189,6 +191,21 @@ class SimulatorController(ActClientController):
     def release_rehearsal_estop_button(self) -> None:
         with self._state_lock:
             self._rehearsal_button_held = False
+
+    # ── 리허설 세탁 끝(2026-10-06, 시연 v3 갭 S8) ──────────────────────────────
+    # 실물 세탁기·CT·마이크가 아니다. 모의 RPi4 실행기가 같은 융합 규칙으로 ``appliance_done``
+    # (``source:"injected"``) 프레임을 보내고, RPi5 ActClient → 루틴 엔진은 실물 프레임과 같은 길로 받는다.
+
+    def rehearse_appliance_done(self, appliance_id: str, inputs, event: str = "wash_complete") -> dict:
+        with self._state_lock:
+            if self._closed:
+                raise RuntimeError("simulator closed")
+        executor = self._executor
+
+        async def inject() -> dict:
+            return executor.inject_appliance_done(appliance_id, list(inputs), event)
+
+        return asyncio.run_coroutine_threadsafe(inject(), self._loop).result(5)
 
     def close(self):
         with self._state_lock:

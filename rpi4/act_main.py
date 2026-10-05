@@ -59,6 +59,11 @@ Environment variables:
   (비상정지 걸림: 모듈 estop을 받으면 RPi4가 걸린 채로 있고, RPi5 POST /stop/ack → estop_ack로만 풀린다)
   SIMPLELAY_TAIL_*                잔여 전류 꼬리 기준(rpi/verifier/power_tail.py TAIL_ENV_NAMES, 전부 측정 필요).
                                   L3 확인 뒤 progress {phase:"power_tail"}와 기록기 power_tail 행으로 남긴다
+  SIMPLELAY_DONE_WATCH            세탁 끝 관찰(2026-10-06, 실물 미검증) — ``<가전 ID>:outlet[,mic]``(예: washer:outlet,mic).
+                                  outlet = 콘센트 모듈 CT 전력 하강(SIMPLELAY_OUTLET_PORT 필수), mic = 종료음(마이크).
+                                  둘이 SIMPLELAY_DONE_FUSION_WINDOW_S 안에서 맞으면 done_confirmed, 하나면 *_only로
+                                  ``appliance_done`` 프레임을 RPi5에 보낸다. 릴레이 명령은 보내지 않는다(CT 계측만).
+                                  기준값 SIMPLELAY_CYCLE_*·SIMPLELAY_BEEP_*·SIMPLELAY_DONE_FUSION_*·_COOLDOWN_S 전부 측정 필요
   SIMPLELAY_L3_MOCK_OUTCOME       mock 모드의 합성 결과 "confirmed"(기본) | "unconfirmed"
   SIMPLELAY_MOTION_LOG_PATH       설정하면 모션 MCU와 주고받은 **원시 줄**을 이어 쓴다(기본 꺼짐).
                                   형식은 `python -m rpi.tools.jog --log`와 같고(보냄 ``>>``,
@@ -571,7 +576,42 @@ def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
         loop.call_soon(executor.handle_outlet_estop, "ready")
 
 
-def _maybe_start_danger_monitor(executor: ActExecutor) -> "asyncio.Task[None] | None":
+def _build_done_watch(outlet, executor: ActExecutor):
+    """SIMPLELAY_DONE_WATCH가 있으면 세탁 끝 관찰을 만든다(없으면 None). **실물 미검증.**
+
+    outlet 입력은 콘센트 모듈 전력 스트림을 읽는 스레드(`PowerCycleFeeder`)를 띄운다. mic 입력은 위험 소리
+    감지 루프가 같은 마이크 프레임을 나눠 준다(`_maybe_start_danger_monitor`). 반환: (관찰, 전력 공급기 | None).
+    """
+    from rpi.verifier.cycle_end import CycleEndConfig
+    from rpi.verifier.done_fusion import DoneFusionConfig
+    from rpi.verifier.end_beep import EndBeepConfig
+
+    from .services.appliance_done_watch import ApplianceDoneWatch, PowerCycleFeeder, parse_done_watch
+
+    spec = parse_done_watch(os.getenv("SIMPLELAY_DONE_WATCH"))
+    if spec is None:
+        log.info("appliance done watch off (set SIMPLELAY_DONE_WATCH=washer:outlet,mic)")
+        return None
+    if "power" in spec.inputs and outlet is None:
+        raise RuntimeError("SIMPLELAY_DONE_WATCH에 outlet이 있으면 SIMPLELAY_OUTLET_PORT가 필요합니다")
+    cycle = CycleEndConfig.from_env()
+    beep = EndBeepConfig.from_env()
+    # 전력 끝은 settle_s 늦게 오므로 먼저 온 종료음이 짝을 기다릴 시간을 settle_s + 창으로 잡는다(env가 이긴다).
+    base = DoneFusionConfig()
+    fusion = DoneFusionConfig.from_env(wait_s=max(base.wait_s, cycle.settle_s + base.window_s))
+    loop = asyncio.get_running_loop()
+    watch = ApplianceDoneWatch(
+        spec, executor.thread_safe_done_emitter(loop), cycle_config=cycle, beep_config=beep,
+        fusion_config=fusion,
+        power_source="mock" if outlet is not None and getattr(outlet, "mock", False) else "real",
+        beep_source="real")
+    feeder = PowerCycleFeeder(outlet, watch).start() if "power" in spec.inputs else None
+    log.warning("appliance done watch on: %s inputs=%s (실물 미검증, 기준값 측정 필요)",
+                spec.appliance_id, ",".join(spec.inputs))
+    return watch, feeder
+
+
+def _maybe_start_danger_monitor(executor: ActExecutor, done_watch=None) -> "asyncio.Task[None] | None":
     """위험소리 감지 태스크 — 코드·테스트는 완성돼 있었지만 그동안 어느
     엔트리포인트도 기동하지 않아 /alerts가 실기기에서도 절대 울리지 않았다.
 
@@ -579,7 +619,9 @@ def _maybe_start_danger_monitor(executor: ActExecutor) -> "asyncio.Task[None] | 
     스트림 2개가 공존하는지는 실기기에서 확인 필요(문제 시 프레임 팬아웃
     공유 리더로 교체).
     """
-    if not _flag("SIMPLELAY_DANGER_SOUND_ENABLED"):
+    danger = _flag("SIMPLELAY_DANGER_SOUND_ENABLED")
+    listeners = [done_watch.feed_audio] if done_watch is not None and done_watch.wants_beep else []
+    if not danger and not listeners:
         log.info(
             "DangerSoundMonitor off (set SIMPLELAY_DANGER_SOUND_ENABLED=true to enable)"
         )
@@ -591,8 +633,9 @@ def _maybe_start_danger_monitor(executor: ActExecutor) -> "asyncio.Task[None] | 
     from .services.danger_sound_monitor import DangerSoundMonitor
 
     reader = SounddeviceReader(SensorConfig().audio)
-    monitor = DangerSoundMonitor(reader, executor)
-    log.info("DangerSoundMonitor active — continuous alarm-sound detection")
+    monitor = DangerSoundMonitor(reader, executor, frame_listeners=listeners, danger=danger)
+    log.info("DangerSoundMonitor active — alarm-sound detection %s, washer end beep %s",
+             "on" if danger else "off", "on" if listeners else "off")
     return asyncio.create_task(monitor.run())
 
 
@@ -629,7 +672,13 @@ async def _run() -> None:
         raise
     if recorder is not None:
         recorder.start()
-    monitor_task = _maybe_start_danger_monitor(executor)
+    try:
+        done = _build_done_watch(outlet, executor)
+    except BaseException:
+        if outlet is not None:
+            outlet.close()
+        raise
+    monitor_task = _maybe_start_danger_monitor(executor, done[0] if done else None)
     try:
         await executor.run()
     finally:
@@ -641,6 +690,8 @@ async def _run() -> None:
             monitor_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await monitor_task
+        if done is not None and done[1] is not None:
+            done[1].stop()
         if _motion_retry is not None:
             _motion_retry.stop()
         if recorder is not None:
