@@ -91,7 +91,9 @@ _FORBIDDEN_SUFFIXES = (
 # 여기 적혀 있다고 안전해진 것이 아니다 -- 이미 커밋 이력에 들어가 있고,
 # `.gitignore`로도 되돌릴 수 없다. **이 파일을 다시 stage 하거나 갱신하지
 # 않는다.** 이력에서 지우는 것은 되돌릴 수 없는 작업이라 사용자가 결정한다.
-_PRE_EXISTING_DOCUMENTS = frozenset({"0818_임베디드.pptx"})
+# 2026-10-06: 유일한 예외였던 발표 자료의 추적을 끊었다(git rm --cached, 로컬 파일은 남김).
+# 이제 예외는 없다 -- 문서 파일이 다시 추적되면 이 가드가 막는다. 과거 커밋 이력에는 남아 있다.
+_PRE_EXISTING_DOCUMENTS: frozenset[str] = frozenset()
 
 
 def _tracked_files() -> list[str]:
