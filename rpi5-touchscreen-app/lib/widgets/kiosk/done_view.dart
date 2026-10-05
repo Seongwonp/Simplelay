@@ -60,7 +60,7 @@ class KioskDoneView extends StatelessWidget {
 
   final String executionMode;
   String get modeLabel => executionMode == 'mock' ? '모의 실행 · 실제 조작 아님'
-      : executionMode == 'real' ? '실기기 실행' : '실행 환경 미확인';
+      : executionMode == 'real' ? '실제 장치로 실행' : '실행 환경 미확인';
 
   final bool success;
   final String label;

@@ -207,4 +207,29 @@ void main() {
       'a1',
     );
   });
+
+  testWidgets('real 실행 표시는 환경만 말하고 실기기 검증처럼 읽히지 않는다',
+      (tester) async {
+    tester.view.physicalSize = const Size(800, 480);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: KioskExecutingView(
+          executionMode: 'real',
+          title: '즉석밥 데워줘',
+          lastButtons: null,
+          currentButton: '해동',
+          currentAttempt: 1,
+          completedSteps: 1,
+          verificationConfidence: null,
+          verificationDetail: null,
+          onStop: () {},
+        ),
+      ),
+    ));
+
+    expect(find.text('실제 장치로 실행'), findsOneWidget);
+    expect(find.textContaining('실기기'), findsNothing);
+  });
 }

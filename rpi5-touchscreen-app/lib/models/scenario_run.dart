@@ -68,7 +68,7 @@ String runStepFacts(ScenarioRunStep step) {
     routeLabel(step.route) ?? step.route,
     switch (step.executionMode) {
       'mock' => '모의 실행',
-      'real' => '실기기 실행',
+      'real' => '실제 장치로 실행',
       _ => '실행 환경 미확인',
     },
     if (confirmationLabel(

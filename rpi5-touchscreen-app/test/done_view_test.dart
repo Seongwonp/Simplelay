@@ -215,4 +215,25 @@ void main() {
     );
     expect(find.text('1. 전자레인지 즉석밥'), findsNothing);
   });
+
+  testWidgets('real 실행 표시는 환경만 말하고 센서·기계 검증을 암시하지 않는다',
+      (tester) async {
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: true,
+        label: '즉석밥 데워줘',
+        executionMode: 'real',
+        target: kMicrowaveAppliance,
+        onDismiss: () {},
+      ),
+    );
+
+    // execution_mode=real은 실행 경로가 실제 장치였다는 뜻일 뿐이다 —
+    // 눌림·동작 확인은 확인 수준(L3 판정 등)이 따로 말한다.
+    expect(find.text('실제 장치로 실행'), findsOneWidget);
+    expect(find.textContaining('실기기'), findsNothing);
+    expect(find.textContaining('검증'), findsNothing);
+    expect(find.text('가전 동작도 확인했어요'), findsNothing);
+  });
 }
