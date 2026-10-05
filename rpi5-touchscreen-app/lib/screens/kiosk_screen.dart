@@ -1152,6 +1152,11 @@ class _KioskScreenState extends State<KioskScreen> {
                   _persistSettings();
                 },
                 onDismiss: () => setState(() => _showSettings = false),
+                // 설정을 닫고 평소 화면 위 줄과 같은 방해 금지 선택을 연다.
+                onOpenDnd: () => setState(() {
+                  _showSettings = false;
+                  _showDnd = true;
+                }),
               ),
             ),
         ],

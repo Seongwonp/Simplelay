@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/learning_status.dart';
@@ -989,6 +990,29 @@ void main() {
     // 0이 들어오면 제안이 뜨자마자 사라진다
     final parsed = KioskSettings.fromJson({'countdown_seconds': 0});
     expect(parsed.countdownSeconds, KioskTimings.countdownSeconds);
+  });
+
+  testWidgets('위 줄 방해 금지 단추를 누르면 방해 금지 선택이 열려요', (tester) async {
+    useKioskViewport(tester);
+    await _pumpKiosk(tester, FakeKioskApi());
+    expect(find.byType(DndOverlay), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byType(DndOverlay), findsOneWidget);
+    expect(find.text('30분'), findsOneWidget);
+  });
+
+  testWidgets('설정에도 방해 금지 줄이 있고 같은 선택을 열어요', (tester) async {
+    useKioskViewport(tester);
+    await _pumpKiosk(tester, FakeKioskApi());
+    await tester.tap(find.byKey(const ValueKey('settings-entry')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.byKey(const ValueKey('settings-dnd')), findsOneWidget);
+    await tester.ensureVisible(find.byKey(const ValueKey('settings-dnd')));
+    await tester.tap(find.byKey(const ValueKey('settings-dnd')));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('키오스크 설정'), findsNothing);
+    expect(find.byType(DndOverlay), findsOneWidget);
   });
 
   testWidgets('설정은 보이는 버튼을 한 번 눌러 열어요', (tester) async {

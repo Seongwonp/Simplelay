@@ -21,6 +21,7 @@ class KioskSettingsOverlay extends StatefulWidget {
     this.onLargeTextChanged,
     this.countdownSeconds = KioskTimings.countdownSeconds,
     this.onCountdownChanged,
+    this.onOpenDnd,
   });
 
   final ApplianceMap currentAppliance;
@@ -42,6 +43,9 @@ class KioskSettingsOverlay extends StatefulWidget {
   /// 제안 카드 자동 닫힘 시간(초) + 변경 콜백
   final int countdownSeconds;
   final ValueChanged<int>? onCountdownChanged;
+
+  /// 방해 금지 선택 열기 — 평소 화면 위 줄의 방해 금지 단추와 같은 선택이 열린다.
+  final VoidCallback? onOpenDnd;
 
   @override
   State<KioskSettingsOverlay> createState() => _KioskSettingsOverlayState();
@@ -187,6 +191,15 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                             label: const Text('생활 습관 알아가기'),
                             onPressed: () => setState(() => _showLearning = true),
                           ),
+                          if (widget.onOpenDnd != null) ...[
+                            const SizedBox(height: 8),
+                            TextButton.icon(
+                              key: const ValueKey('settings-dnd'),
+                              icon: const Icon(Icons.bedtime_outlined),
+                              label: const Text('방해 금지'),
+                              onPressed: widget.onOpenDnd,
+                            ),
+                          ],
                           const SizedBox(height: 16),
                           _buildTtsSection(),
                           const SizedBox(height: 16),

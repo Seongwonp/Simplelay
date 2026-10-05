@@ -21,7 +21,9 @@ void main() {
       now: DateTime(2026, 10, 1, 9), connected: true, appliances: const [],
       onSelectAppliance: (_) {}, onOpenConnection: (_) {}, onDndGesture: () => opened++,
     ))));
-    await tester.tap(find.text('방해 금지'));
+    // 꺼져 있을 때는 글자 없이 달 아이콘 단추(켜진 것으로 읽히지 않게, 10/5).
+    expect(find.text('방해 금지'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('dnd-entry')));
     expect(opened, 1);
     expect(tester.widget<Text>(find.text('좋은 아침이에요.')).style!.fontSize, greaterThanOrEqualTo(33));
     expect(tester.takeException(), isNull);

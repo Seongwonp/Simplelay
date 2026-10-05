@@ -159,18 +159,23 @@ void main() {
       await _pump(tester, api);
 
       expect(find.byType(KioskIdleView), findsOneWidget);
-      expect(find.text('좋은 아침이에요.'), findsOneWidget);
+      // 안내는 한 번에 하나 — 안내 카드가 있으면 인사말은 접는다(UI 확정 §3-1).
+      expect(find.text('좋은 아침이에요.'), findsNothing);
       expect(find.text('오후 3시부터 비 예보가 있어요. 우산 챙기세요.'), findsOneWidget);
-      // 안내가 있으면 안내가 먼저다 — 예보까지 넣으면 아래가 잘린다(10/5 잘림 수리).
-      expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
+      // 보통 글씨에서는 안내와 예보 4칸을 함께 보인다(10/5 사용자 결정).
+      expect(find.byKey(const ValueKey('ambient-hours')), findsOneWidget);
+      for (final label in ['9시', '12시', '15시', '18시']) {
+        expect(find.text(label), findsOneWidget);
+      }
 
-      // 안내가 없을 때 예보 4칸을 서버 값 그대로 보인다.
+      // 안내가 없으면 인사말과 예보 4칸을 서버 값 그대로 보인다.
       api.ambientResult = AmbientInfo(
           greeting: _ambient.greeting,
           hourly: _ambient.hourly,
           weatherSource: _ambient.weatherSource);
       await tester.pumpWidget(const SizedBox.shrink());
       await _pump(tester, api);
+      expect(find.text('좋은 아침이에요.'), findsOneWidget);
       for (final label in ['9시', '12시', '15시', '18시']) {
         expect(find.text(label), findsOneWidget);
       }

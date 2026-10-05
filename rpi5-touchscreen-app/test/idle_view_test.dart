@@ -14,6 +14,7 @@ Future<void> _pump(
   double? temperature,
   double? humidity,
   DateTime? now,
+  VoidCallback? onDnd,
 }) async {
   tester.view.physicalSize = const Size(800, 480);
   tester.view.devicePixelRatio = 1.0;
@@ -30,7 +31,7 @@ Future<void> _pump(
         humidity: humidity,
         onSelectAppliance: (_) {},
         onOpenConnection: (_) {},
-        onDndGesture: () {},
+        onDndGesture: onDnd ?? () {},
       ),
     ),
   ));
@@ -72,9 +73,50 @@ void main() {
     expect(find.text('허브와 연결되면 가전이 보여요'), findsOneWidget);
   });
 
-  testWidgets('방해 금지 중이면 남은 시간을 날짜 옆에 말한다', (tester) async {
-    await _pump(tester, dndUntil: DateTime(2026, 9, 13, 10, 5));
-    expect(find.text('방해 금지 · 1시간'), findsOneWidget);
+  testWidgets('방해 금지가 꺼져 있으면 글자 없이 달 아이콘 단추만 — 누르면 선택이 열린다',
+      (tester) async {
+    // 늘 보이던 "방해 금지" 글자 단추는 켜진 것으로 읽혔다(10/5).
+    final semantics = tester.ensureSemantics();
+    var opened = 0;
+    await _pump(tester, onDnd: () => opened++);
+    expect(find.text('방해 금지'), findsNothing);
+    expect(find.textContaining('방해 금지 ·'), findsNothing);
+    expect(find.bySemanticsLabel('방해 금지 켜기'), findsOneWidget);
+    expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
+    final size = tester.getSize(find.byKey(const ValueKey('dnd-entry')));
+    expect(size.width, greaterThanOrEqualTo(48));
+    expect(size.height, greaterThanOrEqualTo(48));
+    await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+    expect(opened, 1);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
+  testWidgets('방해 금지 중이면 위 줄 칩에 아이콘·글자·남은 시간 — 누르면 선택이 열린다',
+      (tester) async {
+    final semantics = tester.ensureSemantics();
+    var opened = 0;
+    await _pump(tester,
+        dndUntil: DateTime(2026, 9, 13, 10, 5), onDnd: () => opened++);
+    // 색만으로 말하지 않는다 — 채운 칩 + 아이콘 + 글자.
+    expect(find.text('방해 금지'), findsOneWidget);
+    expect(find.text('1시간'), findsOneWidget);
+    expect(find.byIcon(Icons.bedtime), findsOneWidget);
+    expect(find.bySemanticsLabel('방해 금지 중, 해제하려면 누르세요'), findsOneWidget);
+    expect(find.bySemanticsLabel('방해 금지 켜기'), findsNothing);
+    // 위 줄(높이 80) 안, 시계 열이 아니다.
+    final chip = tester.getRect(find.byKey(const ValueKey('dnd-entry')));
+    expect(chip.bottom, lessThanOrEqualTo(10 + 80 + 0.5));
+    await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+    expect(opened, 1);
+    expect(tester.takeException(), isNull);
+    semantics.dispose();
+  });
+
+  testWidgets('끝난 방해 금지 시각은 켜진 것으로 보이지 않는다', (tester) async {
+    await _pump(tester, dndUntil: DateTime(2026, 9, 13, 9, 0));
+    expect(find.text('방해 금지'), findsNothing);
+    expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
   });
 
   testWidgets('이 키오스크는 말을 듣지 않는다 — 할 수 없는 일을 권하지 않는다', (tester) async {

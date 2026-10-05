@@ -106,10 +106,11 @@ const _ambient = AmbientInfo(
   tip: AmbientTip(
       kind: 'rain', text: '오후 3시부터 비 예보가 있어요. 우산 챙기세요.', icon: 'rain'),
   hourly: [
-    AmbientHour(label: '오전 9시', icon: 'partly', temp: 16),
-    AmbientHour(label: '낮 12시', icon: 'cloudy', temp: 18),
-    AmbientHour(label: '오후 3시', icon: 'rain', temp: 17, pop: 70, precip: true),
-    AmbientHour(label: '오후 6시', icon: 'rain', temp: 15, pop: 60, precip: true),
+    // 서버(services/weather/ambient.py)가 실제로 보내는 칸 이름 꼴 — "15시".
+    AmbientHour(label: '9시', icon: 'partly', temp: 16),
+    AmbientHour(label: '12시', icon: 'cloudy', temp: 18),
+    AmbientHour(label: '15시', icon: 'rain', temp: 17, pop: 70, precip: true),
+    AmbientHour(label: '18시', icon: 'rain', temp: 15, pop: 60, precip: true),
   ],
   weatherSource: 'mock',
 );
@@ -146,6 +147,7 @@ KioskIdleView _idle({
   List<ConnectionItem> connections = _okConnections,
   Set<String> attention = const {},
   AmbientInfo ambient = _ambient,
+  DateTime? dndUntil,
 }) =>
     KioskIdleView(
       now: DateTime(2026, 9, 30, 7, 8),
@@ -163,6 +165,7 @@ KioskIdleView _idle({
       attention: attention,
       temperature: 23,
       humidity: 58,
+      dndUntil: dndUntil,
       onSelectAppliance: (_) {},
       onOpenConnection: (_) {},
       onDndGesture: () {},
@@ -215,6 +218,10 @@ void main() {
 
   testWidgets('평소', (t) async {
     await _shoot(t, 'idle', _idle());
+  });
+
+  testWidgets('평소 — 방해 금지 중(위 줄 칩)', (t) async {
+    await _shoot(t, 'idle_dnd', _idle(dndUntil: DateTime(2026, 9, 30, 8, 38)));
   });
 
   testWidgets('평소 — 큰 글씨·연결 문제·확인 필요', (t) async {

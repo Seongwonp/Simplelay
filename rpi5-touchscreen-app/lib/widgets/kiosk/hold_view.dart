@@ -106,9 +106,6 @@ class KioskHoldView extends StatelessWidget {
               : '정지 버튼($stopButton) 위에서 기다리고 있어요',
           KioskColors.primary
         ),
-      if (stopOutcome == 'stopped') (Icons.check, '가전이 멈췄어요', Colors.white),
-      if (stopOutcome == 'requested_unconfirmed')
-        (Icons.visibility_outlined, '가전을 직접 확인해 주세요', KioskColors.warning),
       if (stopOutcome == 'requested_unconfirmed' && holdState == 'parked')
         (Icons.check, '보관 위치로 이동했어요', KioskColors.muted),
       if (detail != null && detail!.isNotEmpty && stopOutcome != 'stopped')
@@ -117,7 +114,17 @@ class KioskHoldView extends StatelessWidget {
           detail!,
           _fault ? KioskColors.danger : KioskColors.muted
         ),
-      if (stopRequested && holdState == 'hovering_stop')
+    ];
+
+    // 정지가 어떻게 됐는지(보냄·못 보냄·멈춤·확인 필요)는 정지 버튼과 한 묶음이다 —
+    // 큰 글씨에서도 스크롤 없이 보이도록 오른쪽 정지 버튼 바로 위에 고정한다(10/5 수리).
+    // 나머지 안내 줄은 왼쪽에서 스크롤돼도 된다.
+    final stopLines = <(IconData, String, Color)>[
+      if (stopOutcome == 'stopped') (Icons.check, '가전이 멈췄어요', Colors.white),
+      if (stopOutcome == 'requested_unconfirmed')
+        (Icons.visibility_outlined, '가전을 직접 확인해 주세요', KioskColors.warning),
+      // 마지막 시도가 실패했으면 앞선 "보냈어요"는 지운다 — 지금 할 일은 다시 누르기다.
+      if (stopRequested && !stopFailed && holdState == 'hovering_stop')
         (Icons.send, '정지 요청을 보냈어요', Colors.white),
       if (stopFailed)
         (
@@ -230,7 +237,7 @@ class KioskHoldView extends StatelessWidget {
             // ── 오른쪽: 조작판의 대기 자리 + 큰 정지 ────────────────────
             Expanded(
               flex: 10,
-              child: Column(
+              child: LayoutBuilder(builder: (context, box) => Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(
@@ -242,6 +249,21 @@ class KioskHoldView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 14),
+                  if (stopLines.isNotEmpty) ...[
+                    // 조작판 그림이 먼저 줄어든다. 정지 줄이 정지 버튼 몫까지 넘볼
+                    // 만큼 길어질 때만(여러 결과가 겹친 드문 경우) 이 자리 안에서
+                    // 스크롤한다 — 넘쳐서 버튼을 밀어내지 않는다.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                          maxHeight: (box.maxHeight - _stopButtonHeight - 16)
+                              .clamp(0, double.infinity)),
+                      child: SingleChildScrollView(
+                        key: const ValueKey('hold-stop-status'),
+                        child: _Lines(lines: stopLines),
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                  ],
                   // 정지는 어느 대기 상태에서든 닿는다 — 보내기만 하고 판정은 서버.
                   Semantics(
                     button: true,
@@ -255,7 +277,7 @@ class KioskHoldView extends StatelessWidget {
                           onTap: onStop,
                           borderRadius: BorderRadius.circular(16),
                           child: const SizedBox(
-                            height: 96,
+                            height: _stopButtonHeight,
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
@@ -278,7 +300,7 @@ class KioskHoldView extends StatelessWidget {
                     ),
                   ),
                 ],
-              ),
+              )),
             ),
           ],
         ),
@@ -286,6 +308,9 @@ class KioskHoldView extends StatelessWidget {
     );
   }
 }
+
+/// 큰 정지 버튼 높이 — 정지 상태 줄이 차지할 수 있는 높이의 상한을 이 값으로 뺀다.
+const double _stopButtonHeight = 96;
 
 class _Lines extends StatelessWidget {
   const _Lines({required this.lines});
