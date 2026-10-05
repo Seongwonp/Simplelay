@@ -19,7 +19,8 @@
   None이면 필드를 빼서 z_mode를 모르는 MCU(팀원 펌웨어 원본)를 흉내 낸다. 솔레노이드는 펌웨어
   Z_MODE_SOLENOID처럼 ``depth`` 누름을 ``z_unsupported``로, 켜짐 시간(drive_ms + dwell_ms)이
   ``solenoid_on_max_ms``를 넘으면 ``soft_limit``으로, 직전 누름 뒤 ``solenoid_min_off_s``가 안 지났으면
-  ``z_cooldown``으로 거절한다.
+  ``z_cooldown``으로 거절한다. ``ready``·``status``에는 켜짐 상한 ``z_on_max_ms``(모터면 null)를,
+  ``z_cooldown`` 거절에는 남은 냉각 시간 ``retry_ms``를 싣는다(2026-10-05 리뷰 L6, 펌웨어와 같다).
 - ``slip_counts=(da, db)``(2026-10-05): 이동 뒤 실제(보고) 위치를 명령 카운트에서 그만큼 어긋나게 둔다 —
   벨트 미끄럼·도착 실패 주입. ``report_position=False``면 ``position`` 이벤트를 보내지 않는다.
 
@@ -150,7 +151,10 @@ class FakeMcu:
         return {"event": "ready", "fw": "fake_mcu", "protocol": "line-json/v0", "reset": reset, **self._z_mode_field()}
 
     def _z_mode_field(self) -> dict:
-        return {"z_mode": self.z_mode} if self.z_mode is not None else {}
+        if self.z_mode is None:
+            return {}
+        on_max = self.solenoid_on_max_ms if self.z_mode == "solenoid" else None
+        return {"z_mode": self.z_mode, "z_on_max_ms": on_max}
 
     def _boot(self, reset: str = "poweron") -> None:
         self._booting_until = time.monotonic() + self.boot_delay_s
@@ -186,6 +190,11 @@ class FakeMcu:
     def _press(self, doc: dict) -> list[dict]:
         if self.z_mode == "solenoid":
             refusal = self._solenoid_refusal(doc)
+            if refusal == "z_cooldown":
+                assert self._solenoid_off_at is not None
+                left = self.solenoid_min_off_s - (time.monotonic() - self._solenoid_off_at)
+                return [{"id": doc.get("id"), "ok": False, "error": refusal,
+                         "retry_ms": max(0, int(round(left * 1000)))}]
             if refusal is not None:
                 return [{"id": doc.get("id"), "ok": False, "error": refusal}]
         return [{"event": "press_start"}, {"event": "press_end"}, *self._positions(), self._ok(doc)]

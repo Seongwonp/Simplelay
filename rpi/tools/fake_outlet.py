@@ -9,6 +9,9 @@
 - 비상정지(``press_estop``)는 호스트와 무관하게 릴레이를 열고 ``estop`` 이벤트를 보낸다. 걸린 동안
   ``relay_on``은 ``estop_latched``로 거절, 버튼이 눌린 채면 ``estop_reset``은 ``estop_active``로 거절.
 - ``ct_ok=False``면 ``fault``(ct_init)만 보내고 power 이벤트를 내지 않는다(0 W를 지어내지 않는다).
+- 걸림은 재부팅을 넘어 남는다(펌웨어 RTC·NVS 보존, 2026-10-05): ``estop_latched=True``로 만들면 재부팅 전에
+  걸린 모듈을 흉내 낸다 — ready·status의 ``estop``이 true, 릴레이는 꺼짐.
+- ``silent=True``면 아무 줄도 보내지 않는다(응답도 없음) — 모듈 멈춤·USB 끊김 흉내.
 
 가전 모형(합성, 실측 아님): 대기 ``idle_w`` → ``start_run`` 뒤 ``run_w``로 ``run_s`` 동안 →
 ``tail_w``로 ``tail_s`` 동안(잔여 전류 꼬리 흉내) → 대기. 수치는 리허설용 임의 값이다.
@@ -47,6 +50,7 @@ class FakeOutlet:
         relay_on: bool = False,
         ct_ok: bool = True,
         ready_banner: bool = True,
+        estop_latched: bool = False,
     ) -> None:
         self._end = pipe.device
         self.rate_hz = rate_hz
@@ -54,7 +58,11 @@ class FakeOutlet:
         self.idle_w = idle_w
         self.relay_on = relay_on
         self.ct_ok = ct_ok
-        self.estop_latched = False
+        self.estop_latched = estop_latched
+        if estop_latched:
+            self.relay_on = False  # 걸림이 남아 있으면 부팅 뒤에도 꺼짐
+        #: True면 아무 줄도 보내지 않는다(멈춤·끊김 흉내).
+        self.silent = False
         self.button_active = False
         self.received: list[dict] = []
         self.t_ms = 0
@@ -69,7 +77,8 @@ class FakeOutlet:
         self._stop = threading.Event()
         if ready_banner:
             self._send({"event": "ready", "fw": FAKE_FW, "protocol": PROTOCOL, "reset": "poweron",
-                        "relay": "on" if relay_on else "off", "ct": "fake", "ct_ok": ct_ok})
+                        "relay": "on" if self.relay_on else "off", "ct": "fake", "ct_ok": ct_ok,
+                        "estop": self.estop_latched})
         if not ct_ok:
             self._send({"event": "fault", "reason": "ct_init"})
         self._threads = [
@@ -105,6 +114,13 @@ class FakeOutlet:
         with self._lock:
             self.button_active = False
 
+    def latch_silently(self) -> None:
+        """이벤트 줄 없이 걸린 상태로 둔다 — estop 이벤트를 잃은 경우(주기 status로만 알 수 있다)."""
+        with self._lock:
+            self.estop_latched = True
+            self.relay_on = False
+            self._segments = []
+
     def close(self) -> None:
         self._stop.set()
         for thread in self._threads:
@@ -113,6 +129,8 @@ class FakeOutlet:
     # ── 내부 ─────────────────────────────────────────────────────────────────
 
     def _send(self, doc: dict) -> None:
+        if self.silent:
+            return
         self._end.write_line(json.dumps(doc, separators=(",", ":")))
 
     def _watts_locked(self) -> float:

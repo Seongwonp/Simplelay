@@ -93,6 +93,7 @@ from .schemas import (
     SensorResponse,
     StatusResponse,
     StopResponse,
+    EstopAckResponse,
     SuggestionResponse,
     LearningStatusResponse,
     SuggestionEventsResponse,
@@ -233,6 +234,13 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
             readiness=thinq_readiness.state,
             readiness_reasons=list(thinq_readiness.reasons),
             can_execute=thinq_readiness.can_execute,
+        )
+    if not has_node and runs_locally and service is not None and service.estop_latched():
+        # 로컬 갠트리(RPi4)가 비상정지 걸림을 보고했다 — 실행 버튼을 막고 사유를 그대로 보인다.
+        from .service import ESTOP_LATCHED_REASON  # noqa: PLC0415
+
+        return _appliance_response_base(
+            a, readiness="needs_setup", readiness_reasons=[ESTOP_LATCHED_REASON], can_execute=False
         )
     return _appliance_response_base(
         a,
@@ -917,9 +925,35 @@ async def status(
     )
     from rpi.services.stop_park import hold_status_fields  # noqa: PLC0415
 
+    estop = service.estop_status() or {}
     return response.model_copy(
-        update={**command_status_fields(snapshot), **hold_status_fields(service.hold_status())}
+        update={**command_status_fields(snapshot), **hold_status_fields(service.hold_status()),
+                "estop_latched": estop.get("latched"),
+                "estop_detail": estop.get("detail") if estop.get("latched") else None}
     )
+
+
+@router.post("/stop/ack", response_model=EstopAckResponse)
+async def acknowledge_estop(
+    service: SimpleLayService = Depends(get_service),
+) -> EstopAckResponse:
+    """콘센트 모듈 비상정지 걸림 해제 확인(2026-10-05). 사람이 버튼을 풀고 누른다.
+
+    RPi4는 모듈 버튼이 아직 눌려 있으면 풀지 않는다 — 그때는 ok=false·latched=true와 사유를 돌려준다.
+    걸림을 보고하지 않는 실행기(로컬 모의 등)면 409, RPi4가 답하지 않으면 504.
+    """
+    from rpi.services.act_client import ActLinkTimeoutError  # noqa: PLC0415
+
+    try:
+        state = await asyncio.to_thread(service.acknowledge_estop)
+    except ActLinkTimeoutError as exc:
+        raise HTTPException(status_code=504, detail="RPi4가 비상정지 해제 확인에 답하지 않았어요") from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    latched = state.get("latched") is not False
+    reason = state.get("reason") if isinstance(state.get("reason"), str) else None
+    detail = state.get("detail") if isinstance(state.get("detail"), str) else None
+    return EstopAckResponse(ok=not latched, latched=latched, reason=reason, detail=detail)
 
 
 @router.post("/stop", response_model=StopResponse)

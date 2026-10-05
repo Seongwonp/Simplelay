@@ -19,7 +19,7 @@
   {"id":6,"cmd":"rate","hz":10}                   {"id":6,"ok":true} | bad_args
 모듈 → 호스트(자발 이벤트, id 없음)
   {"event":"ready","fw":"firmware-outlet","protocol":"line-json/outlet-v0","reset":"poweron","relay":"off",
-   "ct":"ads1115","ct_ok":true}
+   "ct":"ads1115","ct_ok":true,"estop":false}   (estop: 재부팅 전에 걸린 비상정지를 기억하고 있으면 true)
   {"event":"power","t_ms":…,"seq":…,"watts":…,"irms_a":…,"vrms_est":220.0,"ct_mv":…,"n":…,"err":…,"relay":"on"}
   {"event":"estop","source":"button","t_ms":…,"relay":"off"}
   {"event":"fault","reason":"ct_init"} / {"event":"host_timeout","relay":"off"}
@@ -28,16 +28,28 @@
 보정 계수가 자리표시자인 동안(``status.cal == "placeholder"``) 절대값은 근거가 아니다 — L3 판정은
 기준선 대비 변화에 기대므로 그 오차에 비교적 둔감하다(rpi/verifier/power.py).
 
-시각: 샘플의 ``t_s``는 **호스트 단조 시각에 맞춘 모듈 시각**이다. 첫 샘플(또는 모듈 재시작으로 ``t_ms``가
-되돌아간 샘플)에서 ``anchor = 수신 시각 − t_ms/1000``을 잡고 이후 ``t_s = anchor + t_ms/1000``.
-시리얼 지연으로 수신 간격이 흔들려도 샘플 간격은 모듈 시계를 따른다(측정 필요: 지연 크기).
+시각: 샘플의 ``t_s``는 **호스트 단조 시각에 맞춘 모듈 시각**이다. 첫 샘플, ``ready`` 배너(모듈 재시작) 뒤
+첫 샘플, 또는 ``seq``가 작은 값으로 되돌아간 샘플에서만 ``anchor = 수신 시각 − t_ms/1000``을 다시 잡고 이후
+``t_s = anchor + t_ms/1000``. 그 밖에 ``t_ms``·``seq``가 늘지 않은 줄(중복·순서 뒤바뀜)은 버리고 신선도도
+갱신하지 않는다 — 같은 줄의 반복이 '샘플이 오고 있음'으로 보이지 않게(2026-10-05 리뷰 L1).
+
+품질(2026-10-05 리뷰 M1): 창 샘플 수 ``n``이 ``min_samples`` 미만이거나 판독 실패 비율 ``err/n``이
+``max_err_ratio``를 넘는 power 줄은 버린다(신선한 샘플로 세지 않는다). 둘 다 측정 필요.
 
 끊김: 마지막 power 수신 뒤 ``stale_s``가 지나면 ``SerialPowerSensor.read()``는 0 W를 지어내지 않고
 `PowerSensorStale`을 던진다. 컨트롤러는 그것을 'L3 판정 불가 — 전력 센서를 읽지 못함'으로 안전 정지한다.
+
+생존(2026-10-05 리뷰 M2): 어떤 줄이든(응답·ping 응답 포함) 마지막으로 받은 뒤 ``offline_s``가 지나면
+`OutletLink.not_ready_reason`이 이유를 돌려준다 — RPi4는 그동안 execute를 ``outlet_offline``으로 거절한다
+(모듈이 조용하면 물리 비상정지 이벤트도 볼 수 없다). 읽기에서 포트 오류가 나면 ``reopen``으로 backoff
+간격을 두고 다시 연다. ``status_poll_s``마다 status를 물어 ``estop`` 표시를 반영한다(이벤트 줄을 잃어도
+걸림을 놓치지 않게). 모듈 걸림(``module_estop``)이 새로 참이 되면 듣는 쪽에 ``{"event":"estop",
+"source":"ready"|"status"}``를 넘긴다.
 """
 
 from __future__ import annotations
 
+import contextlib
 import itertools
 import json
 import logging
@@ -74,6 +86,10 @@ class OutletTimeout(OutletError):
     """명령 응답이 기한 안에 오지 않았다."""
 
 
+class OutletOffline(OutletError):
+    """포트를 다시 여는 중이라 보낼 수 없다."""
+
+
 class OutletRefused(OutletError):
     """모듈이 ``ok:false``로 답했다(``code``: estop_latched·estop_active·bad_args·unknown_cmd)."""
 
@@ -97,31 +113,60 @@ class OutletConfig:
     heartbeat_s: float | None = 1.0
     #: 읽는 쪽이 이만큼 넘게 밀리면 밀린 샘플을 건너뛰고 최신으로 간다(초).
     max_lag_s: float = 1.0
+    #: 어떤 줄도 이만큼 받지 못하면 모듈 무응답(초). heartbeat(1 s) 응답 몇 개를 놓칠 여유. 측정 필요.
+    offline_s: float = 3.0
+    #: status 조회 간격(초) — 응답의 ``estop``을 반영한다. None이면 조회하지 않는다.
+    status_poll_s: float | None = 2.0
+    #: power 줄의 창 샘플 수 하한. 10 Hz 보고면 ADS1115 창 80·내장 ADC 창 200 — 그 1/4. 측정 필요.
+    min_samples: int = 20
+    #: power 줄의 판독 실패 비율(err/n) 상한. 넘으면 버린다. 측정 필요.
+    max_err_ratio: float = 0.1
 
     def __post_init__(self) -> None:
-        for name in ("stale_s", "reply_timeout_s", "max_lag_s"):
+        for name in ("stale_s", "reply_timeout_s", "max_lag_s", "offline_s"):
             value = getattr(self, name)
             if not (isinstance(value, (int, float)) and math.isfinite(value) and value > 0):
                 raise ValueError(f"{name}는 0보다 큰 유한한 수여야 합니다: {value!r}")
-        if self.heartbeat_s is not None and not (math.isfinite(self.heartbeat_s) and self.heartbeat_s > 0):
-            raise ValueError(f"heartbeat_s는 0보다 큰 수 또는 None이어야 합니다: {self.heartbeat_s!r}")
+        for name in ("heartbeat_s", "status_poll_s"):
+            value = getattr(self, name)
+            if value is not None and not (math.isfinite(value) and value > 0):
+                raise ValueError(f"{name}는 0보다 큰 수 또는 None이어야 합니다: {value!r}")
         if self.ring_size < 10:
             raise ValueError("ring_size는 10 이상이어야 합니다")
+        if isinstance(self.min_samples, bool) or not isinstance(self.min_samples, int) or self.min_samples < 1:
+            raise ValueError(f"min_samples는 1 이상의 정수여야 합니다: {self.min_samples!r}")
+        if not (math.isfinite(self.max_err_ratio) and 0 <= self.max_err_ratio <= 1):
+            raise ValueError(f"max_err_ratio는 0~1이어야 합니다: {self.max_err_ratio!r}")
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> "OutletConfig":
-        """``SIMPLELAY_OUTLET_STALE_MS``·``SIMPLELAY_OUTLET_HEARTBEAT_MS``(0/off = 끔)."""
+        """``SIMPLELAY_OUTLET_STALE_MS``·``_HEARTBEAT_MS``·``_STATUS_POLL_MS``(0/off = 끔)·``_OFFLINE_MS``·
+        ``_MIN_SAMPLES``·``_MAX_ERR_RATIO``."""
         src = os.environ if env is None else env
         base = cls()
         stale = _env_ms(src, "SIMPLELAY_OUTLET_STALE_MS")
-        hb_raw = (src.get("SIMPLELAY_OUTLET_HEARTBEAT_MS") or "").strip().lower()
-        heartbeat: float | None = base.heartbeat_s
-        if hb_raw in ("0", "off", "false", "no"):
-            heartbeat = None
-        elif hb_raw:
-            heartbeat = _env_ms(src, "SIMPLELAY_OUTLET_HEARTBEAT_MS")
+        offline = _env_ms(src, "SIMPLELAY_OUTLET_OFFLINE_MS")
+        min_raw = (src.get("SIMPLELAY_OUTLET_MIN_SAMPLES") or "").strip()
+        err_raw = (src.get("SIMPLELAY_OUTLET_MAX_ERR_RATIO") or "").strip()
+        try:
+            min_samples = int(min_raw) if min_raw else base.min_samples
+            max_err = float(err_raw) if err_raw else base.max_err_ratio
+        except ValueError as exc:
+            raise RuntimeError(f"SIMPLELAY_OUTLET_MIN_SAMPLES/MAX_ERR_RATIO 값을 읽을 수 없습니다: {exc}") from exc
         return cls(stale_s=stale if stale is not None else base.stale_s, ring_size=base.ring_size,
-                   reply_timeout_s=base.reply_timeout_s, heartbeat_s=heartbeat, max_lag_s=base.max_lag_s)
+                   reply_timeout_s=base.reply_timeout_s,
+                   heartbeat_s=_env_optional_ms(src, "SIMPLELAY_OUTLET_HEARTBEAT_MS", base.heartbeat_s),
+                   max_lag_s=base.max_lag_s,
+                   offline_s=offline if offline is not None else base.offline_s,
+                   status_poll_s=_env_optional_ms(src, "SIMPLELAY_OUTLET_STATUS_POLL_MS", base.status_poll_s),
+                   min_samples=min_samples, max_err_ratio=max_err)
+
+
+def _env_optional_ms(src: Mapping[str, str], name: str, default: float | None) -> float | None:
+    raw = (src.get(name) or "").strip().lower()
+    if raw in ("0", "off", "false", "no"):
+        return None
+    return _env_ms(src, name) if raw else default
 
 
 def _env_ms(src: Mapping[str, str], name: str) -> float | None:
@@ -174,6 +219,29 @@ def parse_outlet_line(line: str) -> dict | None:
     return doc if isinstance(doc, dict) else None
 
 
+#: ``seq``가 이 값 이하로 되돌아가면 모듈 재시작으로 본다(ready 배너를 놓쳤을 때). 부팅 뒤 0부터 센다.
+SEQ_RESTART_MAX = 5
+#: 포트를 다시 여는 간격(초). 마지막 값에서 멈춘다. 호스트 박자.
+REOPEN_BACKOFF_S = (0.5, 1.0, 2.0, 4.0, 5.0)
+
+
+def _opt_int(value: object) -> int | None:
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
+def power_quality_problem(doc: Mapping[str, Any], config: "OutletConfig") -> str | None:
+    """창 샘플 수·판독 실패 비율로 본 power 줄의 문제(없으면 None). ``n``이 없으면 믿지 않는다."""
+    n = _opt_int(doc.get("n"))
+    if n is None:
+        return "n 없음"
+    if n < config.min_samples:
+        return f"창 샘플 {n}개 < 하한 {config.min_samples}"
+    err = _opt_int(doc.get("err"))
+    if err is not None and err > 0 and err / n > config.max_err_ratio:
+        return f"판독 실패 {err}/{n} > {config.max_err_ratio:g}"
+    return None
+
+
 def power_fields(doc: Mapping[str, Any]) -> tuple[int, float] | None:
     """power 이벤트의 (t_ms, watts). 형식이 틀리거나 음수·비유한 전력이면 None(버린다)."""
     t_ms = doc.get("t_ms")
@@ -199,8 +267,16 @@ class OutletLink:
         *,
         mock: bool = False,
         clock: Callable[[], float] = time.monotonic,
+        reopen: Callable[[], Any] | None = None,
+        reopen_backoff_s: tuple[float, ...] = REOPEN_BACKOFF_S,
     ) -> None:
+        """``reopen``: 읽기에서 포트 오류(USB 빠짐 등)가 나면 새 전송을 여는 함수. None이면 다시 열지 않는다."""
         self._transport = transport
+        self._reopen = reopen
+        self._reopen_backoff_s = reopen_backoff_s
+        self._reopening = False
+        #: 포트를 다시 연 횟수(시험·상태 확인용).
+        self.reopens = 0
         self.config = config or OutletConfig()
         self.mock = mock
         self._clock = clock
@@ -211,6 +287,12 @@ class OutletLink:
         self._last_t_ms: int | None = None
         self._last_t_s: float | None = None
         self._last_power_rx: float | None = None
+        self._last_seq: int | None = None
+        self._reanchor = False
+        #: 어떤 줄이든 마지막으로 받은 호스트 시각(생존 판단). 신선도(_last_power_rx)와 다르다.
+        self._last_rx: float | None = None
+        #: 모듈이 보고한 비상정지 걸림(estop 이벤트·ready·status). 모르면 None.
+        self.module_estop: bool | None = None
         self._replies: dict[int, dict] = {}
         self._ids = itertools.count(1)
         self._write_lock = threading.Lock()
@@ -221,6 +303,10 @@ class OutletLink:
         self.last_fault: dict | None = None
         self.estop_events: list[dict] = []
         self.dropped_power = 0
+        #: 품질(n·err) 미달로 버린 power 줄 수.
+        self.dropped_quality = 0
+        #: 중복·순서 뒤바뀜으로 버린 power 줄 수.
+        self.dropped_out_of_order = 0
         self.started_at_s = clock()
 
     # ── 수명 ─────────────────────────────────────────────────────────────────
@@ -229,8 +315,8 @@ class OutletLink:
         reader = threading.Thread(target=self._read_loop, daemon=True, name="outlet-reader")
         self._threads.append(reader)
         reader.start()
-        if self.config.heartbeat_s is not None:
-            hb = threading.Thread(target=self._heartbeat_loop, daemon=True, name="outlet-heartbeat")
+        if self.config.heartbeat_s is not None or self.config.status_poll_s is not None:
+            hb = threading.Thread(target=self._keepalive_loop, daemon=True, name="outlet-keepalive")
             self._threads.append(hb)
             hb.start()
         return self
@@ -272,6 +358,20 @@ class OutletLink:
         reference = last if last is not None else self.started_at_s
         return self._clock() - reference > self.config.stale_s
 
+    def not_ready_reason(self) -> str | None:
+        """모듈과 말이 통하지 않으면 사람이 읽을 이유, 아니면 None. RPi4 실행기가 execute 전에 본다."""
+        if self._reopening:
+            return "콘센트 모듈 포트를 다시 여는 중이에요(USB 연결 확인)"
+        with self._cond:
+            last = self._last_rx
+        reference = last if last is not None else self.started_at_s
+        silence = self._clock() - reference
+        if silence > self.config.offline_s:
+            if last is None:
+                return f"콘센트 모듈이 {silence:.1f}초째 한 번도 답하지 않았어요(연결 확인)"
+            return f"콘센트 모듈이 {silence:.1f}초째 답하지 않아요(한도 {self.config.offline_s:g}초)"
+        return None
+
     # ── 명령 ─────────────────────────────────────────────────────────────────
 
     def request(self, cmd: str, timeout_s: float | None = None, **fields: Any) -> dict:
@@ -305,6 +405,31 @@ class OutletLink:
 
     def estop_reset(self) -> None:
         self.request("estop_reset")
+        with self._cond:
+            self.module_estop = False
+
+    def reset_estop_if_released(self) -> tuple[bool, str | None]:
+        """사람의 해제 확인을 모듈에 옮긴다. ``(풀렸나, 사유)`` — 버튼이 아직 눌려 있으면 보내지 않는다.
+
+        사유: ``estop_button_pressed``(눌림·단선) · ``outlet_unreachable``(무응답·거절).
+        """
+        try:
+            status = self.status()
+        except OutletError as exc:
+            log.warning("outlet status before estop reset failed: %s", exc)
+            return False, "outlet_unreachable"
+        if status.get("button") is not False:
+            return False, "estop_button_pressed"
+        if status.get("estop") is False:
+            return True, None
+        try:
+            self.estop_reset()
+        except OutletRefused as exc:
+            return False, "estop_button_pressed" if exc.code == "estop_active" else "outlet_unreachable"
+        except OutletError as exc:
+            log.warning("outlet estop_reset failed: %s", exc)
+            return False, "outlet_unreachable"
+        return True, None
 
     def set_rate(self, hz: int) -> None:
         self.request("rate", hz=int(hz))
@@ -325,23 +450,45 @@ class OutletLink:
 
     def _write(self, body: dict) -> None:
         with self._write_lock:
-            self._transport.write_line(json.dumps(body, separators=(",", ":")))
-
-    def _heartbeat_loop(self) -> None:
-        assert self.config.heartbeat_s is not None
-        while not self._stop.wait(self.config.heartbeat_s):
+            if self._reopening:
+                raise OutletOffline("콘센트 모듈 포트를 다시 여는 중")
             try:
-                self._write({"id": next(self._ids), "cmd": "ping"})  # 응답은 기다리지 않는다
-            except Exception:  # noqa: BLE001 - heartbeat 실패가 읽기를 죽이지 않게
-                log.debug("outlet heartbeat write failed", exc_info=True)
+                self._transport.write_line(json.dumps(body, separators=(",", ":")))
+            except OutletError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - 포트 오류는 링크 오류로 올린다
+                raise OutletOffline(f"콘센트 모듈로 쓰지 못함: {exc}") from exc
+
+    def _keepalive_loop(self) -> None:
+        """ping(응답은 기다리지 않는다 — 생존은 받은 줄로 본다)과 주기 status(``estop`` 반영)."""
+        hb, poll = self.config.heartbeat_s, self.config.status_poll_s
+        tick = min(v for v in (hb, poll) if v is not None)
+        next_poll = self._clock() + poll if poll is not None else None
+        while not self._stop.wait(tick):
+            if next_poll is not None and poll is not None and self._clock() >= next_poll:
+                next_poll = self._clock() + poll
+                try:
+                    self.status()  # 응답의 estop은 handle_doc이 반영한다
+                except OutletError as exc:
+                    log.debug("outlet status poll failed: %s", exc)
+                continue  # status 응답도 생존 신호다 — 이번 틱 ping은 생략
+            if hb is not None:
+                try:
+                    self._write({"id": next(self._ids), "cmd": "ping"})
+                except Exception:  # noqa: BLE001 - heartbeat 실패가 읽기를 죽이지 않게
+                    log.debug("outlet heartbeat write failed", exc_info=True)
 
     def _read_loop(self) -> None:
         while not self._stop.is_set():
             try:
                 line = self._transport.read_line(0.1)
-            except Exception:  # noqa: BLE001 - 포트 오류는 끊김(stale)으로 드러난다
+            except Exception:  # noqa: BLE001 - 포트 오류는 무응답(not_ready_reason)으로 드러난다
                 log.exception("outlet read failed")
-                if self._stop.wait(0.5):
+                if self._reopen is None:
+                    if self._stop.wait(0.5):
+                        return
+                    continue
+                if not self._reconnect():
                     return
                 continue
             if line is None:
@@ -351,8 +498,58 @@ class OutletLink:
                 continue
             self.handle_doc(doc)
 
+    def _reconnect(self) -> bool:
+        """포트를 닫고 backoff 간격으로 다시 연다. 닫히는 중이면 False."""
+        assert self._reopen is not None
+        with self._write_lock:
+            self._reopening = True
+            old = self._transport
+        with contextlib.suppress(Exception):
+            close = getattr(old, "close", None)
+            if callable(close):
+                close()
+        attempt = 0
+        while True:
+            wait = self._reopen_backoff_s[min(attempt, len(self._reopen_backoff_s) - 1)]
+            attempt += 1
+            if self._stop.wait(wait):
+                return False
+            try:
+                fresh = self._reopen()
+            except Exception as exc:  # noqa: BLE001 - 아직 꽂히지 않음
+                log.warning("outlet port reopen failed (attempt %d): %s", attempt, exc)
+                continue
+            with self._write_lock:
+                self._transport = fresh
+                self._reopening = False
+            with self._cond:
+                self._reanchor = True  # 포트 열기로 모듈이 리셋됐을 수 있다
+            self.reopens += 1
+            log.warning("outlet port reopened (attempt %d)", attempt)
+            return True
+
+    def _notify(self, doc: dict) -> None:
+        for listener in list(self._listeners):
+            try:
+                listener(doc)
+            except Exception:  # noqa: BLE001 - 듣는 쪽 오류가 읽기를 멈추지 않게
+                log.exception("outlet listener failed for %s", doc.get("event"))
+
+    def _note_module_estop(self, value: object, source: str) -> None:
+        """ready·status가 보고한 걸림 표시를 반영한다. 새로 참이 되면 듣는 쪽에 estop으로 넘긴다."""
+        if not isinstance(value, bool):
+            return
+        with self._cond:
+            newly = value and self.module_estop is not True
+            self.module_estop = value
+        if newly:
+            log.warning("outlet module reports a latched E-STOP (via %s)", source)
+            self._notify({"event": "estop", "source": source, "reported": True})
+
     def handle_doc(self, doc: dict) -> None:
         """받은 문서 하나를 처리한다(읽기 스레드, 또는 시험에서 직접)."""
+        with self._cond:
+            self._last_rx = self._clock()  # 어떤 줄이든 생존 신호(신선도와 별개)
         event = doc.get("event")
         if event == "power":
             self._on_power(doc)
@@ -360,21 +557,25 @@ class OutletLink:
         if isinstance(event, str):
             if event == "ready":
                 self.last_ready = doc
+                with self._cond:
+                    self._reanchor = True  # 모듈 재시작 — 다음 power에서 시각을 다시 맞춘다
             elif event == "fault":
                 self.last_fault = doc
                 log.error("outlet module fault: %s", doc.get("reason"))
             elif event == "estop":
                 self.estop_events.append(doc)
+                with self._cond:
+                    self.module_estop = True
                 log.warning("outlet module E-STOP (source=%s) — appliance relay opened by the module",
                             doc.get("source"))
-            for listener in list(self._listeners):
-                try:
-                    listener(doc)
-                except Exception:  # noqa: BLE001 - 듣는 쪽 오류가 읽기를 멈추지 않게
-                    log.exception("outlet listener failed for %s", event)
+            self._notify(doc)
+            if event == "ready":
+                self._note_module_estop(doc.get("estop"), "ready")
             return
         req_id = doc.get("id")
         if isinstance(req_id, int) and not isinstance(req_id, bool):
+            if doc.get("ok") is True and "estop" in doc:
+                self._note_module_estop(doc.get("estop"), "status")
             with self._cond:
                 self._replies[req_id] = doc
                 # 오래 안 찾아간 응답(heartbeat ping 등)이 쌓이지 않게 자른다.
@@ -388,24 +589,40 @@ class OutletLink:
         if parsed is None:
             self.dropped_power += 1
             return
+        problem = power_quality_problem(doc, self.config)
+        if problem is not None:
+            self.dropped_quality += 1
+            log.debug("outlet power line dropped (%s)", problem)
+            return
         t_ms, watts = parsed
+        seq = _opt_int(doc.get("seq"))
         now = self._clock()
         with self._cond:
-            if self._anchor_s is None or self._last_t_ms is None or t_ms <= self._last_t_ms:
-                # 첫 샘플 또는 모듈 재시작(시계가 되돌아감) — 다시 맞춘다. 시각은 계속 늘어나야 한다.
+            restarted = self._reanchor or (
+                seq is not None and self._last_seq is not None and seq < self._last_seq
+                and seq <= SEQ_RESTART_MAX
+            )
+            if self._anchor_s is None or self._last_t_ms is None or restarted:
+                # 첫 샘플 또는 모듈 재시작(ready 배너·seq 되돌아감) — 다시 맞춘다. 시각은 계속 늘어나야 한다.
                 anchor = now - t_ms / 1000.0
                 if self._last_t_s is not None and anchor + t_ms / 1000.0 <= self._last_t_s:
                     anchor = self._last_t_s + 1e-3 - t_ms / 1000.0
                 self._anchor_s = anchor
+                self._reanchor = False
+            elif t_ms <= self._last_t_ms or (
+                seq is not None and self._last_seq is not None and seq <= self._last_seq
+            ):
+                # 중복·순서 뒤바뀜 — 버리고 신선도도 갱신하지 않는다.
+                self.dropped_out_of_order += 1
+                return
             t_s = self._anchor_s + t_ms / 1000.0
-            seq = doc.get("seq")
             relay = doc.get("relay")
             item = OutletPower(
                 index=self._next_index,
                 t_s=t_s,
                 watts=watts,
                 t_ms=t_ms,
-                seq=seq if isinstance(seq, int) and not isinstance(seq, bool) else None,
+                seq=seq,
                 irms_a=_num(doc.get("irms_a")),
                 vrms_est=_num(doc.get("vrms_est")),
                 relay=relay if isinstance(relay, str) else None,
@@ -415,6 +632,7 @@ class OutletLink:
             self._ring.append(item)
             self._last_t_ms = t_ms
             self._last_t_s = t_s
+            self._last_seq = seq
             self._last_power_rx = now
             self._cond.notify_all()
 

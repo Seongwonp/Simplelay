@@ -66,6 +66,11 @@ Z 누름 방식(2026-10-05): Z가 엔코더 모터(``motor``)인지 솔레노이
 배너와 ``status`` 응답의 ``z_mode``로 알린다(`SerialMotionClient.z_mode`, 안 보내는 MCU면 None).
 솔레노이드는 깊이를 모르므로 ``press_mode=depth``를 **움직이기 전에** 거절한다. MCU의 ``z_unsupported``·
 ``z_cooldown``(코일 냉각 시간 안) 거절은 위치를 잃지 않은 거절이라 `MotionRefused`로 올리고 재홈을 요구하지 않는다.
+2026-10-05 리뷰 L6: MCU가 ``z_on_max_ms``(솔레노이드 한 번 켜짐 상한)를 알리면 구동+유지가 그것을 넘는 누름을
+**보내기 전에** 거절한다. 누름이 ``z_cooldown``으로 거절되면 MCU가 알린 남은 시간(``retry_ms``, 없으면
+``z_cooldown_backoff_ms``·기본 0.5 s)만큼 기다렸다가 **한 번** 다시 누른다 — 기다림은 `Z_COOLDOWN_WAIT_MAX_S`로
+묶고, 남은 시간이 그보다 길면 기다리지 않고 거절한다. 알람 이벤트 없이 온 ``soft_limit`` 응답은 MCU가 움직이기
+전에 범위를 거절한 것이라(펌웨어는 움직이다 넘으면 alarm 이벤트를 먼저 보낸다) `MotionRefused`로 올린다.
 
 위치 일치 검사(2026-10-05, 선택): ``position_tolerance_counts``를 주면 이동(``move``)이 ``ok``로 끝난 뒤
 그 요청 동안 받은 엔코더 위치 보고(``position`` 이벤트·응답의 ``a``·``b``)를 명령 카운트와 비교해, 어느 모터든
@@ -124,7 +129,14 @@ class MotionConfigError(MotionError):
 
 
 class MotionRefused(MotionError):
-    """지금 상태로는 명령을 받을 수 없다(홈 전, 좌표 없음, 정지 뒤 등)."""
+    """지금 상태로는 명령을 받을 수 없다(홈 전, 좌표 없음, 정지 뒤 등).
+
+    MCU가 거절했으면 ``code``(z_cooldown·soft_limit 등)와, 알렸다면 ``retry_ms``(냉각 남은 시간)를 싣는다."""
+
+    def __init__(self, message: str, *, code: str | None = None, retry_ms: int | None = None) -> None:
+        super().__init__(message)
+        self.code = code
+        self.retry_ms = retry_ms
 
 
 class MotionTimeout(MotionError):
@@ -266,12 +278,19 @@ MOTION_ENV_NAMES: dict[str, str] = {
     "heartbeat_ms": "SIMPLELAY_MOTION_HEARTBEAT_MS",
     "connect_timeout_s": "SIMPLELAY_MOTION_CONNECT_TIMEOUT_S",
     "position_tolerance_counts": "SIMPLELAY_MOTION_POSITION_TOLERANCE_COUNTS",
+    "z_cooldown_backoff_ms": "SIMPLELAY_MOTION_Z_COOLDOWN_BACKOFF_MS",
 }
 
 #: MCU가 알리는 Z 누름 방식(firmware-motion/protocol_table.json z_modes).
 Z_MODES = ("motor", "solenoid")
 #: 위치를 잃지 않은 MCU 거절 — 알람·재홈으로 번지지 않게 `MotionRefused`로 올린다.
-MCU_REFUSAL_ERRORS = frozenset({"z_unsupported", "z_cooldown"})
+#: soft_limit: 알람 이벤트 없이 온 거절 응답은 움직이기 전 범위 검사다(움직이다 넘으면 alarm 이벤트가 먼저 온다).
+MCU_REFUSAL_ERRORS = frozenset({"z_unsupported", "z_cooldown", "soft_limit"})
+#: z_cooldown 재시도: MCU가 남은 시간을 알리지 않을 때의 기본 기다림(초, 호스트 박자 — 측정 필요)과
+#: 기다림 상한(초). 남은 시간이 상한보다 길면 기다리지 않고 거절한다. 남은 시간에 더하는 여유(초).
+Z_COOLDOWN_DEFAULT_BACKOFF_S = 0.5
+Z_COOLDOWN_WAIT_MAX_S = 2.0
+Z_COOLDOWN_MARGIN_S = 0.05
 
 #: 응답을 기다리는 동안 heartbeat(ping)를 보내는 명령 — MCU 워치독이 도는 동작들.
 HEARTBEAT_CMDS = frozenset({"home", "move", "press"})
@@ -286,6 +305,7 @@ _INT_FIELDS = (
     "press_dwell_ms",
     "heartbeat_ms",
     "position_tolerance_counts",
+    "z_cooldown_backoff_ms",
 )
 _TIMEOUT_FIELDS = ("status_timeout_s", "home_timeout_s", "move_timeout_s", "press_timeout_s", "connect_timeout_s")
 
@@ -333,6 +353,9 @@ class MotionConfig:
     #: 이동 뒤 엔코더 보고 위치와 명령 카운트의 허용 차(모터 카운트). None이면 검사하지 않는다.
     #: 값은 측정 필요(MCU 도착 허용 오차 POS_TOLERANCE_COUNTS보다 넉넉하게).
     position_tolerance_counts: int | None = None
+    #: 솔레노이드 z_cooldown 거절 뒤 MCU가 남은 시간(retry_ms)을 알리지 않을 때 기다릴 시간(ms).
+    #: None이면 `Z_COOLDOWN_DEFAULT_BACKOFF_S`. 호스트 박자 — 측정 필요.
+    z_cooldown_backoff_ms: int | None = None
 
     def __post_init__(self) -> None:
         if self.press_mode is not None and self.press_mode not in PRESS_MODES:
@@ -492,6 +515,9 @@ class SerialMotionClient(GrblClient):
         self._last_position: dict | None = None
         self._position_seq = 0  # 위치 보고를 받을 때마다 1 증가 — 이번 요청 중에 왔는지 가린다
         self._z_mode: str | None = None
+        self._z_on_max_ms: int | None = None
+        #: z_cooldown 뒤 기다렸다가 다시 누른 횟수 — 시험·로그용.
+        self.cooldown_retries = 0
         #: 보낸 heartbeat(ping) 수 — 시험·로그용.
         self.heartbeats_sent = 0
         #: 마지막으로 받은 부팅 배너(``ready`` 이벤트) — 없으면 None.
@@ -530,11 +556,20 @@ class SerialMotionClient(GrblClient):
         with self._state_lock:
             return self._z_mode
 
+    @property
+    def z_on_max_ms(self) -> int | None:
+        """MCU가 알린 솔레노이드 한 번 켜짐 상한(ms). 모터 방식이거나 알리지 않았으면 None."""
+        with self._state_lock:
+            return self._z_on_max_ms
+
     def _note_z_mode(self, doc: dict) -> None:
         value = doc.get("z_mode")
         if value in Z_MODES:
+            on_max = _opt_int(doc.get("z_on_max_ms"))
             with self._state_lock:
                 self._z_mode = value
+                if "z_on_max_ms" in doc:
+                    self._z_on_max_ms = on_max if on_max is not None and on_max > 0 else None
         elif value is not None:
             log.warning("motion: unknown z_mode=%r ignored", value)
 
@@ -685,7 +720,19 @@ class SerialMotionClient(GrblClient):
         with self._op_lock:
             self._run_busy(move, self._config.move_timeout_s)
             self._emit("press_command", {"button": command.button})
-            self._run_busy(press, self._config.press_timeout_s)
+            try:
+                self._run_busy(press, self._config.press_timeout_s)
+            except MotionRefused as exc:
+                wait = self._cooldown_wait(exc)
+                if wait is None:
+                    raise
+                # 코일 냉각 시간 안 — 움직이지 않은 거절. 남은 시간만큼 기다렸다가 한 번만 다시 누른다.
+                log.info("motion: '%s' press in solenoid cooldown — retrying once in %.2fs", command.button, wait)
+                self._emit("press_cooldown_wait", {"button": command.button, "wait_s": round(wait, 3)})
+                if self._stop.wait(wait):
+                    raise MotionStopped(f"'{command.button}' 누름: 냉각 대기 중 정지 요청") from exc
+                self.cooldown_retries += 1
+                self._run_busy(press, self._config.press_timeout_s)
             self._emit("press_done", {"button": command.button})
 
     def request_stop(self) -> None:
@@ -722,6 +769,22 @@ class SerialMotionClient(GrblClient):
             "y_mm": y_mm,
         }
 
+    def _cooldown_wait(self, exc: MotionRefused) -> float | None:
+        """z_cooldown 거절이면 기다릴 시간(초), 아니면 None. 상한보다 길면 None(바로 거절)."""
+        if exc.code != "z_cooldown":
+            return None
+        if exc.retry_ms is not None:
+            wait = max(exc.retry_ms, 0) / 1000.0 + Z_COOLDOWN_MARGIN_S
+        elif self._config.z_cooldown_backoff_ms is not None:
+            wait = self._config.z_cooldown_backoff_ms / 1000.0
+        else:
+            wait = Z_COOLDOWN_DEFAULT_BACKOFF_S
+        if wait > Z_COOLDOWN_WAIT_MAX_S:
+            log.warning("motion: solenoid cooldown %.2fs exceeds the %.1fs wait bound — refusing", wait,
+                        Z_COOLDOWN_WAIT_MAX_S)
+            return None
+        return wait
+
     def _press_request(self, command: PressCommand) -> dict:
         cfg = self._config
         cfg.require("누름", ("press_mode",))
@@ -752,6 +815,13 @@ class SerialMotionClient(GrblClient):
                 )
         elif getattr(cfg, cap) is not None and amount > getattr(cfg, cap):
             raise MotionRefused(f"누름 {key}={amount}가 상한 {getattr(cfg, cap)}을 넘어 거절합니다")
+        on_max = self.z_on_max_ms
+        if cfg.press_mode == "duration" and self.z_mode == "solenoid" and on_max is not None:
+            if amount + dwell > on_max:
+                raise MotionRefused(
+                    f"솔레노이드 켜짐 {amount + dwell}ms(구동 {amount} + 유지 {dwell})가 MCU 상한 "
+                    f"{on_max}ms를 넘어 움직이기 전에 거절합니다"
+                )
         return {"cmd": "press", "mode": cfg.press_mode, key: amount, "dwell_ms": dwell}
 
     def _retry_offset(self, correction: Correction | None) -> tuple[float, float]:
@@ -885,7 +955,8 @@ class SerialMotionClient(GrblClient):
                 return doc
             error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
             if error in MCU_REFUSAL_ERRORS:
-                raise MotionRefused(f"MCU가 '{body['cmd']}'를 거절: {error}")
+                raise MotionRefused(f"MCU가 '{body['cmd']}'를 거절: {error}", code=error,
+                                    retry_ms=_opt_int(doc.get("retry_ms")))
             raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}")
 
     def _send_request(self, body: dict) -> int:

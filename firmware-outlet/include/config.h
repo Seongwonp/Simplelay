@@ -57,6 +57,9 @@
 #define REPORT_HZ_DEFAULT      10
 #define REPORT_HZ_MIN          1
 #define REPORT_HZ_MAX          20      // 창 하나에 최소 40(ADS)·100(ADC) 샘플
+// 창 샘플이 기대치(SAMPLE_HZ / 보고 주기)의 이 비율(%) 미만이면 그 창은 보고하지 않는다(판독 실패가 쌓인 창이
+// 몇 개 안 되는 샘플로 0 W처럼 보이지 않게). 호스트도 n·err로 한 번 더 거른다(SIMPLELAY_OUTLET_MIN_SAMPLES). 측정 필요.
+#define CT_MIN_WINDOW_PCT      50
 
 // ─── CT 보정(전부 측정 필요) ────────────────────────────────────────────────
 // SCT-013-030(전압 출력형, 부담 저항 내장): 정격 30 A → 1 V rms. 팀원이 다른 모델(전류 출력형
@@ -107,6 +110,8 @@
 // 활성 샘플이 이만큼 연속이면 릴레이를 연다(SAMPLE_HZ 기준 약 2.5 ms·1 ms). 차단 쪽은 짧게 둔다 —
 // 잡음으로 잘못 끊기는 것은 안전 쪽 실패다. 해제(estop_reset)는 버튼이 돌아온 뒤 호스트 명령으로만.
 #define ESTOP_TRIP_SAMPLES     2
+// 걸림을 재부팅 너머로 보존(RTC 메모리 + NVS). 1 = 켬(기본). 0이면 RTC 메모리만(전원이 꺼지면 풀린다) — 권하지 않는다.
+#define OUTLET_ESTOP_PERSIST   1
 
 // ─── 정적 검사 ───────────────────────────────────────────────────────────────
 #if OUTLET_CT_SOURCE != OUTLET_CT_ADS1115 && OUTLET_CT_SOURCE != OUTLET_CT_ESP32_ADC

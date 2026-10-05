@@ -20,6 +20,9 @@ RPi4 side of this same link.
                                       (콘센트 모듈 잔여 전류 꼬리 기록, 2026-10-05. ``last_power_tail``)
   (nothing — self-initiated)      ←  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
+  estop_ack                       ←  estop_state {latched, source, reason, detail}
+                                      (콘센트 모듈 비상정지 걸림 해제 확인, 2026-10-05. 걸릴 때도 자발로 온다.
+                                       ``estop_latched``·``estop_detail``에 남는다)
 
 `execute()` sends one sequence and awaits its matching result/error — RPi4
 only ever runs one sequence at a time, so only one execute() may be
@@ -307,6 +310,11 @@ class ActClient:
         #: 기록용 측정값이다(판정 아님). 이력·CSV에는 아직 잇지 않았다(결과 저장 뒤에 도착한다).
         self.last_power_tail: dict | None = None
         self._progress_listeners: list[Callable[[dict], None]] = []
+        #: RPi4의 비상정지 걸림(2026-10-05). True/False, 보고를 받은 적 없으면 None.
+        #: ``alert kind=outlet_estop``·``estop_state``·``error reason=estop_latched``로 갱신한다.
+        self.estop_latched: bool | None = None
+        self.estop_detail: str | None = None
+        self._estop_waiters: list[asyncio.Future[dict]] = []
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -443,6 +451,25 @@ class ActClient:
         with contextlib.suppress(ValueError):
             self._progress_listeners.remove(listener)
 
+    async def estop_ack(self, timeout_s: float = 10.0) -> dict:
+        """비상정지 해제 확인을 보내고 RPi4의 ``estop_state``를 기다린다. 기한 안에 없으면 ActLinkTimeoutError.
+
+        풀렸는지는 돌아온 ``latched``로 본다 — 버튼이 아직 눌려 있으면 RPi4가 풀지 않는다."""
+        future: asyncio.Future[dict] = asyncio.get_running_loop().create_future()
+        self._estop_waiters.append(future)
+        try:
+            await self._send({"type": "estop_ack"})
+            return await asyncio.wait_for(future, timeout_s)
+        except asyncio.TimeoutError as exc:
+            raise ActLinkTimeoutError(f"no estop_state within {timeout_s}s") from exc
+        finally:
+            with contextlib.suppress(ValueError):
+                self._estop_waiters.remove(future)
+
+    def _note_estop(self, latched: bool, detail: str | None) -> None:
+        self.estop_latched = latched
+        self.estop_detail = detail if latched else None
+
     async def inject_failure(self, button_index: int, attempts: int) -> None:
         """리허설 실패 주입 무장을 RPi4로 전달 — abort처럼 응답 없는 단방향
         (protocol.md). 검증이 RPi4에서 일어나는 UART 모드에서 POST
@@ -493,6 +520,18 @@ class ActClient:
             self.tap.record("act_to_hub", doc)
 
         msg_type = doc.get("type")
+        if msg_type == "estop_state":
+            latched = doc.get("latched")
+            if isinstance(latched, bool):
+                detail = doc.get("detail")
+                self._note_estop(latched, detail if isinstance(detail, str) else None)
+            for waiter in list(self._estop_waiters):
+                if not waiter.done():
+                    waiter.set_result(doc)
+            return
+        if msg_type == "error" and doc.get("reason") == "estop_latched":
+            detail = doc.get("detail")
+            self._note_estop(True, detail if isinstance(detail, str) else self.estop_detail)
         if msg_type in ("result", "error", "verify_result"):
             received_id = doc.get("sequence_id")
             pending = self._pending
@@ -532,6 +571,8 @@ class ActClient:
             return
 
         event = _parse_alert(doc)
+        if event is not None and event.kind == "outlet_estop" and event.raised:
+            self._note_estop(True, self.estop_detail or "비상정지가 걸려 있어요")
         if event is not None and self._on_alert is not None:
             self._on_alert(event)
         # "ack" and unknown types: recorded by the tap only, otherwise ignored.

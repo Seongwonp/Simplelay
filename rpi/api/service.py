@@ -97,6 +97,9 @@ def _run_mode(controller: object | None, result: object | None) -> ExecutionMode
 
 _BUILTIN_IDS = frozenset(a.appliance_id for a in BUILTIN_APPLIANCES)
 
+#: 콘센트 모듈 비상정지가 걸려 있을 때 화면에 그대로 보이는 사유(2026-10-05).
+ESTOP_LATCHED_REASON = "비상정지가 걸려 있어요 — 버튼을 풀고 정지 해제 확인을 눌러 주세요"
+
 
 def _check_approved(buttons, approved_buttons) -> None:
     """결정 #1(승인 고정): 승인 카드가 보여 준 시퀀스와 지금 해석이 다르면 실행하지 않는다.
@@ -1010,6 +1013,9 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
     def _require_ready(
         self, appliance_id: str | None, controller: ButtonSequenceController
     ) -> None:
+        if controller is self._controller and self.estop_latched():
+            # 로컬 갠트리(RPi4)가 비상정지 걸림을 보고했다 — RPi4도 거절하지만 화면에 같은 사유를 준다.
+            raise ApplianceNotReadyError(appliance_id or "", (ESTOP_LATCHED_REASON,))
         if (controller is not self._controller
                 and controller in self._system_controllers.values()
                 and getattr(controller, "mock_ready", False) is True
@@ -1058,6 +1064,28 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         except Exception:  # noqa: BLE001 - 상태 조회 고장이 /status를 막지 않는다
             log.exception("hold status failed")
             return None
+
+    def estop_status(self) -> dict | None:
+        """로컬 실행 대상(RPi4)이 보고한 비상정지 걸림 ``{"latched", "detail"}``. 보고 수단이 없으면 None."""
+        status = getattr(self._controller, "estop_status", None)
+        if not callable(status):
+            return None
+        try:
+            return status()
+        except Exception:  # noqa: BLE001 - 상태 조회 고장이 /status를 막지 않는다
+            log.exception("estop status failed")
+            return None
+
+    def estop_latched(self) -> bool:
+        status = self.estop_status() or {}
+        return status.get("latched") is True
+
+    def acknowledge_estop(self) -> dict:
+        """사람의 비상정지 해제 확인을 RPi4로 보낸다. 지원하지 않는 실행 대상이면 RuntimeError."""
+        ack = getattr(self._controller, "acknowledge_estop", None)
+        if not callable(ack):
+            raise RuntimeError("이 실행기는 비상정지 걸림을 보고하지 않아요")
+        return ack()
 
     def emergency_stop(self) -> bool:
         """``emergency_stop_report``의 호환 형태 — 실행 중이었는지만 돌려준다."""

@@ -266,3 +266,70 @@ def test_platformio_builds_both_z_modes():
     assert "-DZ_MODE=Z_MODE_SOLENOID" in ini
     envs = re.findall(r"^\[env:(\w+)\]", ini, flags=re.M)
     assert len(envs) >= 2
+
+
+# ── 5. 솔레노이드 운용(2026-10-05 리뷰 L6) ────────────────────────────────────
+
+
+def test_mcu_reports_solenoid_on_max_in_ready_and_status():
+    assert "z_on_max_ms" in TABLE["events"]["ready"]
+    assert "z_on_max_ms" in TABLE["commands"]["status"]["reply"]
+    pipe = InMemoryLinePipe()
+    mcu = FakeMcu(pipe, ready_banner=True, z_mode="solenoid", solenoid_on_max_ms=300)
+    try:
+        ready = json.loads(pipe.host.read_line(1.0) or "{}")
+        motor = FakeMcu(InMemoryLinePipe(), z_mode="motor")
+        motor_status = motor.handlers["status"]({"id": 1, "cmd": "status"})[0]
+        motor.close()
+    finally:
+        mcu.close()
+    assert ready["z_on_max_ms"] == 300
+    assert motor_status["z_on_max_ms"] is None  # 모터 방식은 켜짐 상한이 없다
+
+
+def test_host_refuses_solenoid_press_over_reported_on_max_before_moving():
+    mcu, client = _link(DURATION, z_mode="solenoid", homed=True, solenoid_on_max_ms=150)  # 120 + 100 > 150
+    try:
+        client.connect()
+        assert client.z_on_max_ms == 150
+        with pytest.raises(MotionRefused, match="켜짐"):
+            client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100))
+        cmds = mcu.cmds()
+    finally:
+        mcu.close()
+    assert cmds == ["status"]  # 움직이기 전에 거절
+    assert client.state is MotionState.READY
+
+
+def test_cooldown_waits_the_reported_remaining_time_and_retries_once():
+    mcu, client = _link(DURATION, z_mode="solenoid", homed=True, solenoid_min_off_s=0.3)
+    command = PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100)
+    try:
+        client.connect()
+        client.press(command)
+        client.press(command)  # 냉각 안 — 남은 시간만큼 기다렸다가 한 번 더
+        cmds = mcu.cmds()
+        refusal = [d for d in mcu.received if d.get("cmd") == "press"]
+    finally:
+        mcu.close()
+    assert cmds == ["status", "move", "press", "move", "press", "press"]
+    assert len(refusal) == 3 and client.state is MotionState.READY and mcu.alarm is None
+
+
+def test_cooldown_backoff_env():
+    env = {"SIMPLELAY_MOTION_Z_COOLDOWN_BACKOFF_MS": "250"}
+    assert MotionConfig.from_env(env).z_cooldown_backoff_ms == 250
+
+
+def test_soft_limit_refusal_on_press_is_not_an_alarm():
+    """MCU가 누름을 soft_limit으로 거절했을 뿐(움직이지 않음)이면 알람·재홈으로 번지지 않는다."""
+    mcu, client = _link(DURATION, z_mode=None, homed=True)
+    mcu.handlers["press"] = lambda d: [{"id": d["id"], "ok": False, "error": "soft_limit"}]
+    try:
+        client.connect()
+        with pytest.raises(MotionRefused, match="soft_limit"):
+            client.press(PressCommand("시작", x_mm=10.0, y_mm=5.0, press_ms=100))
+        state = client.state
+    finally:
+        mcu.close()
+    assert state is MotionState.READY

@@ -24,6 +24,8 @@ void proto_handle_line(char* line, size_t len);
 
 void proto_reply_ok(const ReqId& id);
 void proto_reply_error(const ReqId& id, const char* code);
+// 다시 시도할 수 있는 거절(z_cooldown) — 남은 시간 retry_ms(ms)를 싣는다.
+void proto_reply_error_retry(const ReqId& id, const char* code, uint32_t retry_ms);
 void proto_reply_status(const ReqId& id, const MotionSnapshot& snap);
 // limits 응답. raw·deb는 X·Y·Z 순서 3개(활성 = true).
 void proto_reply_limits(const ReqId& id, const bool raw[3], const bool deb[3]);

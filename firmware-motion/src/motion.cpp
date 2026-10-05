@@ -203,6 +203,12 @@ bool sol_cooling() {
   return g_sol_cooldown_ms > 0 &&
          static_cast<int32_t>(millis() - g_sol_off_at) < static_cast<int32_t>(g_sol_cooldown_ms);
 }
+
+// 냉각이 끝날 때까지 남은 시간(ms). 냉각 중이 아니면 0. z_cooldown 거절의 retry_ms로 보낸다.
+uint32_t sol_cooldown_left_ms() {
+  if (!sol_cooling()) return 0;
+  return g_sol_cooldown_ms - (millis() - g_sol_off_at);
+}
 #else
 bool sol_off() { return false; }
 #endif
@@ -1014,7 +1020,8 @@ void motion_cmd_press(const ReqId& id, bool depth, int32_t amount, int32_t dwell
     return;
   }
   if (sol_cooling()) {
-    proto_reply_error(id, "z_cooldown");  // 코일 냉각 시간 안 — 움직이지 않은 거절(호스트는 재홈하지 않는다)
+    // 코일 냉각 시간 안 — 움직이지 않은 거절(호스트는 재홈하지 않고, retry_ms만큼 기다렸다가 한 번 다시 보낸다).
+    proto_reply_error_retry(id, "z_cooldown", sol_cooldown_left_ms());
     return;
   }
   g_now = millis();

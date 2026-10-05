@@ -133,6 +133,20 @@ class ActClientController:
         doc = getattr(self._client, "last_hold", None)
         return dict(doc) if doc else None
 
+    def estop_status(self) -> dict | None:
+        """RPi4가 보고한 비상정지 걸림 ``{"latched": bool|None, "detail": str|None}``(2026-10-05)."""
+        return {"latched": getattr(self._client, "estop_latched", None),
+                "detail": getattr(self._client, "estop_detail", None)}
+
+    def acknowledge_estop(self, timeout_s: float = 10.0) -> dict:
+        """사람의 비상정지 해제 확인을 RPi4로 보내고 ``estop_state``를 기다린다(블로킹)."""
+        future = asyncio.run_coroutine_threadsafe(self._client.estop_ack(timeout_s), self._loop)
+        try:
+            return future.result(timeout=timeout_s + self.CALL_MARGIN_SECONDS)
+        except TimeoutError as exc:
+            future.cancel()
+            raise ActLinkTimeoutError("estop_ack timed out") from exc
+
     def request_drive_stop(self) -> None:
         """구동부만 멈춘다(정지 버튼을 누르지 않음) — 가전 정지와 다른 경로."""
         asyncio.run_coroutine_threadsafe(self._client.abort("drive"), self._loop)

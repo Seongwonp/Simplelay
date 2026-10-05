@@ -687,6 +687,10 @@ class StatusResponse(BaseModel):
     hold_stop_button: str | None = None
     #: 대기 보고의 실행 환경(mock | real | unknown)
     hold_execution_mode: str | None = None
+    # ── 콘센트 모듈 비상정지 걸림(2026-10-05) — RPi4 보고. 옛 클라이언트는 무시한다 ──
+    #: true면 POST /stop/ack로 해제 확인 전까지 실행을 거절한다. 보고 수단이 없는 실행기면 None.
+    estop_latched: bool | None = None
+    estop_detail: str | None = None
     last_status: str | None
     #: success | failed | stopped | safety_stop — 화면이 "정지됨"(stopped)과
     #: "실패"(failed·safety_stop)를 가르는 값. last_status의 safety_stopped는
@@ -832,6 +836,19 @@ class StopResponse(BaseModel):
     #: 전달됐다(2026-09-30). 결과(정지됨/미확인)는 /status의 hold_stop_outcome으로 온다.
     appliance_stop_requested: bool = False
     hold_state_at_request: str | None = None
+
+
+class EstopAckResponse(BaseModel):
+    """POST /stop/ack 응답 — 비상정지 걸림 해제 확인의 결과(2026-10-05).
+
+    ok=true(latched=false)면 풀렸다. 버튼이 아직 눌려 있거나 콘센트 모듈이 답하지 않으면 ok=false·latched=true와
+    사유(reason: estop_button_pressed | outlet_unreachable | estop_retriggered)를 돌려준다. 풀려도 가전 전원
+    릴레이는 꺼진 채다 — 켜기는 별도다."""
+
+    ok: bool
+    latched: bool
+    reason: str | None = None
+    detail: str | None = None
 
 
 class CareEventResponse(BaseModel):

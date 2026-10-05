@@ -47,9 +47,16 @@ Environment variables:
                                   "fake"면 가짜 출력(rpi/tools/fake_outlet.py) — 판정은 모의로 표시
   SIMPLELAY_OUTLET_BAUD           콘센트 모듈 보드레이트(fake가 아니면 필수, 펌웨어 HOST_SERIAL_BAUD와 같게)
   SIMPLELAY_OUTLET_RELAY_ON_START "1"이면 연결 뒤 relay_on을 보낸다. 기본은 보내지 않는다 — 모듈 부팅 기본이
-                                  릴레이 꺼짐(fail-safe)이라, 켜기는 사람이 정한 설정으로만
+                                  릴레이 꺼짐(fail-safe)이라, 켜기는 사람이 정한 설정으로만. 모듈이 비상정지
+                                  걸림을 보고하거나(ready·status estop) 상태를 확인하지 못하면 보내지 않는다
   SIMPLELAY_OUTLET_STALE_MS       전력 샘플 끊김 판단(기본 1000). 넘으면 L3는 '센서를 읽지 못함'으로 안전 정지
   SIMPLELAY_OUTLET_HEARTBEAT_MS   모듈로 ping 간격(기본 1000, 0/off = 끔)
+  SIMPLELAY_OUTLET_STATUS_POLL_MS 모듈 status 조회 간격(기본 2000, 0/off = 끔) — 응답의 estop을 반영한다
+  SIMPLELAY_OUTLET_OFFLINE_MS     어떤 줄도 이만큼 못 받으면 모듈 무응답(기본 3000) — 그동안 execute는
+                                  ``outlet_offline``으로 거절(비상정지를 볼 수 없으므로). 포트 오류면 backoff로 다시 연다
+  SIMPLELAY_OUTLET_MIN_SAMPLES    power 줄 창 샘플 수 하한(기본 20, 측정 필요) — 미달 줄은 버린다
+  SIMPLELAY_OUTLET_MAX_ERR_RATIO  power 줄 판독 실패 비율 상한(기본 0.1, 측정 필요)
+  (비상정지 걸림: 모듈 estop을 받으면 RPi4가 걸린 채로 있고, RPi5 POST /stop/ack → estop_ack로만 풀린다)
   SIMPLELAY_TAIL_*                잔여 전류 꼬리 기준(rpi/verifier/power_tail.py TAIL_ENV_NAMES, 전부 측정 필요).
                                   L3 확인 뒤 progress {phase:"power_tail"}와 기록기 power_tail 행으로 남긴다
   SIMPLELAY_L3_MOCK_OUTCOME       mock 모드의 합성 결과 "confirmed"(기본) | "unconfirmed"
@@ -386,7 +393,8 @@ def _build_outlet():
             baud = int(baud_raw)
         except ValueError as exc:
             raise RuntimeError(f"SIMPLELAY_OUTLET_BAUD 값을 정수로 읽을 수 없습니다: {baud_raw!r}") from exc
-        link = OutletLink(_open_outlet_transport(port, baud), config).start()
+        link = OutletLink(_open_outlet_transport(port, baud), config,
+                          reopen=lambda: _open_outlet_transport(port, baud)).start()
         log.info("outlet module link on %s @ %d (실물 미검증)", port, baud)
     ready = link.wait_ready(3.0)
     if ready is None:
@@ -395,11 +403,23 @@ def _build_outlet():
     else:
         log.info("outlet module ready: %s", ready)
     if os.getenv("SIMPLELAY_OUTLET_RELAY_ON_START", "").strip() == "1":
-        try:
-            link.relay_on()
-            log.warning("outlet relay ON at start (SIMPLELAY_OUTLET_RELAY_ON_START=1)")
-        except OutletError as exc:
-            log.error("outlet relay_on at start failed: %s", exc)
+        latched = link.module_estop
+        if latched is None:
+            # 배너에 estop이 없으면(옛 펌웨어·배너 놓침) status로 확인한다. 확인 못 하면 켜지 않는다.
+            try:
+                latched = link.status().get("estop") is not False
+            except OutletError as exc:
+                log.error("outlet status before relay_on failed — relay left OFF: %s", exc)
+                latched = True
+        if latched:
+            log.error("outlet module reports a latched E-STOP — relay left OFF despite "
+                      "SIMPLELAY_OUTLET_RELAY_ON_START=1 (clear it with POST /stop/ack on RPi5)")
+        else:
+            try:
+                link.relay_on()
+                log.warning("outlet relay ON at start (SIMPLELAY_OUTLET_RELAY_ON_START=1)")
+            except OutletError as exc:
+                log.error("outlet relay_on at start failed: %s", exc)
     else:
         log.warning("outlet relay left as the module booted (default OFF = appliance unpowered); "
                     "set SIMPLELAY_OUTLET_RELAY_ON_START=1 to switch it on at start")
@@ -520,9 +540,13 @@ def _build_executor(
 
 
 def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
-    """콘센트 모듈 ``estop`` 이벤트 → 실행기 정지 경로(이벤트 루프 스레드로 넘긴다).
+    """콘센트 모듈 ↔ 실행기 배선(이벤트는 이벤트 루프 스레드로 넘긴다).
 
-    모듈은 이미 스스로 릴레이를 열었다. 여기서는 구동부 정지와 RPi5 알림만 한다.
+    - ``estop``(버튼 이벤트, ready·status가 보고한 걸림) → ``handle_outlet_estop``: 호스트 걸림 + 구동부
+      정지 + RPi5 알림. 모듈은 이미 스스로 릴레이를 열었다.
+    - 해제 확인(``estop_ack``) 때 모듈 쪽 해제 → ``outlet.reset_estop_if_released``(버튼이 풀렸을 때만).
+    - 모듈 무응답 → execute를 ``outlet_offline``으로 거절(``outlet.not_ready_reason``).
+    - 배선 전에 이미 모듈이 걸림을 보고했으면(부팅 배너) 곧바로 걸린 채로 시작한다.
     실행 중인 이벤트 루프가 없으면(시험 등) 배선하지 않고 경고만 남긴다.
     """
     try:
@@ -540,7 +564,11 @@ def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
         except RuntimeError:  # 루프가 닫힌 뒤
             log.error("outlet estop arrived after the event loop closed — drive stop not requested")
 
+    executor.set_estop_reset(outlet.reset_estop_if_released)
+    executor.set_outlet_readiness(outlet.not_ready_reason)
     outlet.add_listener(on_event)
+    if getattr(outlet, "module_estop", None) is True:
+        loop.call_soon(executor.handle_outlet_estop, "ready")
 
 
 def _maybe_start_danger_monitor(executor: ActExecutor) -> "asyncio.Task[None] | None":

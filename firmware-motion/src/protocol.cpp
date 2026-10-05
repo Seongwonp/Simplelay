@@ -55,7 +55,18 @@ class PoolAllocator : public ArduinoJson::Allocator {
 };
 
 PoolAllocator g_pool;
-char g_out[192];
+char g_out[256];  // status 한 줄 최악 약 190바이트(z_on_max_ms 추가 2026-10-05) — 여유를 둔다
+
+// ready·status의 z_on_max_ms: 솔레노이드 한 번 켜짐 상한(ms), 모터 방식이면 null.
+const char* z_on_max_text() {
+#if Z_MODE == Z_MODE_SOLENOID
+  static char buf[12];
+  snprintf(buf, sizeof buf, "%lu", static_cast<unsigned long>(SOLENOID_ON_MAX_MS));
+  return buf;
+#else
+  return "null";
+#endif
+}
 
 void write_line(const char* s) {
   Serial.write(reinterpret_cast<const uint8_t*>(s), strlen(s));
@@ -193,6 +204,14 @@ void proto_reply_error(const ReqId& id, const char* code) {
   write_line(g_out);
 }
 
+void proto_reply_error_retry(const ReqId& id, const char* code, uint32_t retry_ms) {
+  char idb[16];
+  format_id(idb, sizeof idb, id);
+  snprintf(g_out, sizeof g_out, "{\"id\":%s,\"ok\":false,\"error\":\"%s\",\"retry_ms\":%lu}", idb, code,
+           static_cast<unsigned long>(retry_ms));
+  write_line(g_out);
+}
+
 void proto_reply_status(const ReqId& id, const MotionSnapshot& s) {
   char idb[16];
   format_id(idb, sizeof idb, id);
@@ -204,9 +223,9 @@ void proto_reply_status(const ReqId& id, const MotionSnapshot& s) {
   }
   snprintf(g_out, sizeof g_out,
            "{\"id\":%s,\"ok\":true,\"state\":\"%s\",\"homed\":%s,\"a\":%ld,\"b\":%ld,\"z\":%ld,\"alarm\":%s,"
-           "\"z_mode\":\"%s\"}",
+           "\"z_mode\":\"%s\",\"z_on_max_ms\":%s}",
            idb, s.state, s.homed ? "true" : "false", static_cast<long>(s.a), static_cast<long>(s.b),
-           static_cast<long>(s.z), alarm, Z_MODE_NAME);
+           static_cast<long>(s.z), alarm, Z_MODE_NAME, z_on_max_text());
   write_line(g_out);
 }
 
@@ -240,7 +259,8 @@ void proto_event_alarm(const char* reason, const char* z_retract) {
 
 void proto_event_ready(const char* reset_reason) {
   snprintf(g_out, sizeof g_out,
-           "{\"event\":\"ready\",\"fw\":\"%s\",\"protocol\":\"line-json/v0\",\"reset\":\"%s\",\"z_mode\":\"%s\"}",
-           FW_NAME, reset_reason, Z_MODE_NAME);
+           "{\"event\":\"ready\",\"fw\":\"%s\",\"protocol\":\"line-json/v0\",\"reset\":\"%s\",\"z_mode\":\"%s\","
+           "\"z_on_max_ms\":%s}",
+           FW_NAME, reset_reason, Z_MODE_NAME, z_on_max_text());
   write_line(g_out);
 }

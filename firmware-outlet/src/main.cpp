@@ -11,6 +11,8 @@
 //   우편함(한 칸)에 넣는다. 시리얼에는 쓰지 않는다.
 // - loop: 호스트 줄 해석·응답, 우편함의 power 이벤트·estop 이벤트 송신, 호스트 침묵 정책.
 // - 릴레이 기본 = 꺼짐(fail-safe). 부팅·재부팅·패닉 뒤에도 꺼짐에서 시작하고 호스트 relay_on이 있어야 켠다.
+// - 비상정지 걸림은 재부팅을 넘어 남는다(RTC 메모리 + NVS, outlet.cpp). ready의 estop으로 알리고, estop_reset 전에는
+//   relay_on을 거절한다.
 // - MCU 태스크 워치독: loop·샘플링 태스크를 esp_task_wdt에 등록(MCU_TASK_WDT_MS). 멈추면 패닉 → 재부팅.
 // - CT 초기화 실패면 {"event":"fault","reason":"ct_init"}을 보내고 power 이벤트를 내지 않는다
 //   (0 W를 지어내지 않는다 — 호스트는 '데이터 없음'으로 본다). 비상정지·릴레이는 그대로 동작한다.
@@ -73,7 +75,12 @@ void sample_task(void*) {
     const uint32_t per_window = SAMPLE_HZ / (hz > 0 ? hz : 1);
     if (ticks >= per_window) {
       PowerReport report;
-      if (g_ct_ok && ct_window_finish(window, &report)) {
+      // 창 샘플이 기대치의 CT_MIN_WINDOW_PCT% 미만이면(I2C 판독 실패 연속 등) 보고하지 않는다 — n=1 창이
+      // 0 W로 보이는 것을 막는다(2026-10-05 리뷰 M1). seq는 늘려 호스트가 빠짐을 볼 수 있게 한다.
+      const bool enough = window.n * 100u >= per_window * CT_MIN_WINDOW_PCT;
+      if (g_ct_ok && !enough) {
+        ++seq;
+      } else if (g_ct_ok && ct_window_finish(window, &report)) {
         report.t_ms = now;
         report.seq = seq++;
         portENTER_CRITICAL(&g_mail_mux);
@@ -153,6 +160,7 @@ bool start_sampling() {
 void flush_events() {
   uint32_t estop_t = 0;
   if (outlet_take_estop_event(&estop_t)) proto_event_estop(estop_t);
+  outlet_persist();  // 걸림·해제를 NVS로(이벤트를 먼저 보낸 뒤 — 플래시 쓰기가 알림을 늦추지 않게)
 
   PowerReport report;
   bool have = false;

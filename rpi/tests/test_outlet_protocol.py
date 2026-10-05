@@ -37,6 +37,7 @@ CONFIG_H = (ROOT / "firmware-outlet" / "include" / "config.h").read_text(encodin
 
 def _link(fake_kwargs=None, **config) -> tuple[OutletLink, FakeOutlet]:
     pipe, fake = open_fake_outlet(**(fake_kwargs or {"speed": 50.0}))
+    config.setdefault("status_poll_s", None)  # 시험은 명령 순서를 본다 — 주기 status를 끈다
     link = OutletLink(pipe.host, OutletConfig(heartbeat_s=None, **config), mock=True).start()
     return link, fake
 
@@ -139,14 +140,15 @@ def test_bad_power_lines_are_dropped_not_zeroed():
 def test_time_follows_module_clock_and_reanchors_on_reset():
     clock = [100.0]
     link = OutletLink(InMemoryLinePipe().host, OutletConfig(heartbeat_s=None), clock=lambda: clock[0])
-    link.handle_doc({"event": "power", "t_ms": 1000, "watts": 3.0})
+    link.handle_doc({"event": "power", "t_ms": 1000, "watts": 3.0, "n": 80})
     clock[0] = 100.5  # 시리얼 지연으로 늦게 받아도
-    link.handle_doc({"event": "power", "t_ms": 1100, "watts": 3.0})
+    link.handle_doc({"event": "power", "t_ms": 1100, "watts": 3.0, "n": 80})
     a, b = link.samples_since(0.0)
     assert b.t_s - a.t_s == pytest.approx(0.1)  # 간격은 모듈 시계를 따른다
-    # 모듈 재시작: t_ms가 되돌아가도 호스트 시각은 계속 늘어난다
+    # 모듈 재시작(ready 배너): t_ms가 되돌아가도 호스트 시각은 계속 늘어난다
     clock[0] = 100.6
-    link.handle_doc({"event": "power", "t_ms": 50, "watts": 4.0})
+    link.handle_doc({"event": "ready", "fw": "x", "reset": "sw"})
+    link.handle_doc({"event": "power", "t_ms": 50, "watts": 4.0, "n": 80})
     c = link.samples_since(0.0)[-1]
     assert c.t_s > b.t_s
 
@@ -214,7 +216,7 @@ def test_slow_reader_skips_to_recent_samples():
                       clock=lambda: clock[0])
     sensor = link.sensor()
     for i in range(50):  # 5초 분량이 한꺼번에 쌓였다
-        link.handle_doc({"event": "power", "t_ms": i * 100, "watts": float(i)})
+        link.handle_doc({"event": "power", "t_ms": i * 100, "watts": float(i), "n": 80})
     first = sensor.read()
     assert first.watts == 49.0  # 1초 넘게 밀려 최신으로 건너뜀
 
@@ -276,3 +278,152 @@ def test_config_from_env():
     assert OutletConfig.from_env({}).heartbeat_s == 1.0
     with pytest.raises(RuntimeError):
         OutletConfig.from_env({"SIMPLELAY_OUTLET_STALE_MS": "soon"})
+
+
+# ── 2026-10-05 리뷰 수리: 중복 줄(L1)·창 품질(M1)·포트 재연결(M2) ─────────────────
+
+
+def _good(t_ms: int, seq: int, watts: float = 850.0, **extra) -> dict:
+    return {"event": "power", "t_ms": t_ms, "seq": seq, "watts": watts, "n": 80, "err": 0, **extra}
+
+
+def test_repeated_identical_lines_do_not_refresh_freshness():
+    """L1: 같은 줄이 반복돼도(에코·버퍼 재전송) '샘플이 오고 있음'이 되지 않는다 — stale로 드러난다."""
+    clock = [0.0]
+    link = OutletLink(InMemoryLinePipe().host, OutletConfig(heartbeat_s=None, status_poll_s=None, stale_s=1.0),
+                      clock=lambda: clock[0])
+    sensor = link.sensor()
+    link.handle_doc(_good(1000, 7))
+    assert sensor.read().watts == 850.0
+    for _ in range(30):
+        clock[0] += 0.5
+        link.handle_doc(_good(1000, 7))
+    assert link.is_stale()
+    with pytest.raises(PowerSensorStale):
+        sensor.read()
+    assert len(link.samples_since(-1e9)) == 1
+
+
+def test_out_of_order_line_is_dropped_without_reanchoring():
+    clock = [10.0]
+    link = OutletLink(InMemoryLinePipe().host, OutletConfig(heartbeat_s=None, status_poll_s=None),
+                      clock=lambda: clock[0])
+    link.handle_doc(_good(2000, 20))
+    clock[0] = 10.1
+    link.handle_doc(_good(2100, 21))
+    clock[0] = 10.2
+    link.handle_doc(_good(1900, 19))  # 늦게 온 옛 줄 — 재시작이 아니다
+    times = [s.t_s for s in link.samples_since(-1e9)]
+    assert len(times) == 2 and link.dropped_out_of_order == 1
+
+
+def test_reanchor_on_ready_banner_or_small_seq():
+    clock = [100.0]
+    link = OutletLink(InMemoryLinePipe().host, OutletConfig(heartbeat_s=None, status_poll_s=None),
+                      clock=lambda: clock[0])
+    link.handle_doc(_good(9000, 90))
+    clock[0] = 100.5
+    link.handle_doc({"event": "ready", "fw": "x", "reset": "sw"})
+    link.handle_doc(_good(100, 0))  # 재시작 뒤 첫 샘플 — ready가 있어 다시 맞춘다
+    clock[0] = 100.6
+    link.handle_doc(_good(200, 1))
+    clock[0] = 101.0
+    link.handle_doc(_good(50, 0))  # ready를 놓쳤어도 seq가 작은 값으로 되돌아가면 재시작
+    clock[0] = 101.1
+    link.handle_doc(_good(40, 70))  # 시계가 되돌아갔지만 seq는 재시작이 아니다 — 버린다
+    samples = link.samples_since(-1e9)
+    assert len(samples) == 4 and link.dropped_out_of_order == 1
+    times = [s.t_s for s in samples]
+    assert times == sorted(times) and len(set(times)) == 4
+    assert times[1] == pytest.approx(100.5)  # ready 뒤 첫 샘플은 받은 시각에 맞춘다
+
+
+def test_power_windows_with_too_few_samples_or_errors_are_dropped():
+    """M1: 창 샘플이 몇 개뿐(n=1 → 0 W)이거나 판독 실패가 많은 줄은 신선한 샘플로 세지 않는다."""
+    clock = [0.0]
+    link = OutletLink(InMemoryLinePipe().host,
+                      OutletConfig(heartbeat_s=None, status_poll_s=None, min_samples=20, max_err_ratio=0.1),
+                      clock=lambda: clock[0])
+    link.handle_doc({"event": "power", "t_ms": 100, "seq": 1, "watts": 0.0, "n": 1, "err": 79})
+    link.handle_doc({"event": "power", "t_ms": 200, "seq": 2, "watts": 640.0, "n": 80, "err": 20})
+    link.handle_doc({"event": "power", "t_ms": 300, "seq": 3, "watts": 640.0})  # n 없음
+    assert link.latest() is None and link.dropped_quality == 3
+    assert link._last_power_rx is None  # noqa: SLF001 - 버린 줄은 신선도를 갱신하지 않는다
+    link.handle_doc({"event": "power", "t_ms": 400, "seq": 4, "watts": 640.0, "n": 80, "err": 2})
+    assert link.latest().watts == 640.0
+    cfg = OutletConfig.from_env({"SIMPLELAY_OUTLET_MIN_SAMPLES": "40", "SIMPLELAY_OUTLET_MAX_ERR_RATIO": "0.05"})
+    assert cfg.min_samples == 40 and cfg.max_err_ratio == 0.05
+
+
+class _FlakyTransport:
+    """읽기에서 포트 오류를 내는 전송(USB 빠짐 흉내). ``unplugged``가 참이면 read_line이 OSError."""
+
+    def __init__(self, inner) -> None:
+        self.inner = inner
+        self.unplugged = False
+        self.closed = False
+
+    def write_line(self, line: str) -> None:
+        if self.unplugged:
+            raise OSError("device disconnected")
+        self.inner.write_line(line)
+
+    def read_line(self, timeout_s: float):
+        if self.unplugged:
+            raise OSError("device reports readiness to read but returned no data")
+        return self.inner.read_line(timeout_s)
+
+    def close(self) -> None:
+        self.closed = True
+
+
+def test_link_reopens_port_after_usb_loss_and_reports_offline_meanwhile():
+    """M2: USB가 빠지면 not_ready_reason이 이유를 내고, 꽂히면 backoff로 다시 열어 샘플이 다시 온다."""
+    pipe, fake = open_fake_outlet(speed=50.0, relay_on=True)
+    first = _FlakyTransport(pipe.host)
+    plugged = {"ok": False}
+
+    def reopen():
+        if not plugged["ok"]:
+            raise OSError("no such device")
+        return pipe.host
+
+    link = OutletLink(first, OutletConfig(heartbeat_s=None, status_poll_s=None, offline_s=0.5), mock=True,
+                      reopen=reopen, reopen_backoff_s=(0.05,)).start()
+    try:
+        sensor = link.sensor()
+        sensor.read()
+        first.unplugged = True
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and link.not_ready_reason() is None:
+            time.sleep(0.01)
+        assert "다시 여는 중" in (link.not_ready_reason() or "")
+        assert first.closed
+        plugged["ok"] = True
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline and link.reopens == 0:
+            time.sleep(0.01)
+        assert link.reopens == 1 and link.not_ready_reason() is None
+        assert link.sensor().read().watts == pytest.approx(3.0)
+        assert link.status()["ok"] is True
+    finally:
+        _close(link, fake)
+
+
+def test_reset_estop_if_released_checks_the_button_first():
+    link, fake = _link()
+    try:
+        fake.press_estop()
+        assert link.reset_estop_if_released() == (False, "estop_button_pressed")
+        assert not any(d.get("cmd") == "estop_reset" for d in fake.received)
+        fake.release_estop_button()
+        assert link.reset_estop_if_released() == (True, None)
+        assert fake.estop_latched is False and link.module_estop is False
+    finally:
+        _close(link, fake)
+
+
+def test_offline_and_poll_env():
+    cfg = OutletConfig.from_env({"SIMPLELAY_OUTLET_OFFLINE_MS": "5000", "SIMPLELAY_OUTLET_STATUS_POLL_MS": "off"})
+    assert cfg.offline_s == 5.0 and cfg.status_poll_s is None
+    assert OutletConfig.from_env({}).status_poll_s == 2.0

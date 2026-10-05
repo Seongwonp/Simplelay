@@ -23,8 +23,12 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
                                        mean_period_seconds} / alert_cleared
                                     (see report_danger_sound)
-  (outlet module estop event)    →  alert {kind:"outlet_estop", source} + 실행 중이면 정지 경로
-                                    (see handle_outlet_estop, 2026-10-05)
+  (outlet module estop event)    →  alert {kind:"outlet_estop", source} + estop_state {latched:true}
+                                    + 실행 중이면 정지 경로 (see handle_outlet_estop, 2026-10-05)
+  estop_ack                      →  estop_state {latched, reason, detail}
+                                    (비상정지 걸림 해제 확인 — 버튼이 풀렸을 때만 풀린다)
+  (걸린 동안의 execute/verify_pass) → error {reason:"estop_latched"}
+  (콘센트 모듈 무응답 중 execute/verify_pass) → error {reason:"outlet_offline"}
   (after an L3-confirmed result) →  progress {phase:"power_tail", power_tail:{...}}
                                     (잔여 전류 꼬리 기록 — after_result 훅, 2026-10-05)
 
@@ -60,6 +64,7 @@ from rpi.verifier import DangerSoundResult
 from ..models.act_messages import (
     AbortMsg,
     ClearFailureMsg,
+    EstopAckMsg,
     ExecuteMsg,
     InboundActMsg,
     InjectFailureMsg,
@@ -83,6 +88,14 @@ def progress_enabled_from_env() -> bool:
 # 종료 시 협조적 정지가 실제로 반영되기를 기다리는 시간. 폐루프의 정지 확인
 # 지점은 버튼 사이·재시도 경계라, 한 번의 누름+검증이 끝날 만큼은 줘야 한다.
 SHUTDOWN_STOP_GRACE_SECONDS = 5.0
+
+#: 비상정지 걸림 해제 결과 사유(``estop_state.reason``) → 사람이 읽을 설명.
+ESTOP_REASON_DETAIL = {
+    "estop_button_pressed": "비상정지 버튼이 아직 눌려 있어요 — 버튼을 풀고 다시 확인해 주세요",
+    "outlet_unreachable": "콘센트 모듈이 답하지 않아 비상정지를 풀지 못했어요",
+    "estop_retriggered": "확인하는 사이 비상정지가 다시 걸렸어요",
+}
+ESTOP_LATCHED_DETAIL = "비상정지가 걸려 있어요 — 버튼을 풀고 확인을 눌러야 다시 움직여요"
 
 
 def result_detail_fields(result: ExecutionResult, controller: object) -> dict:
@@ -161,6 +174,7 @@ class ActExecutor:
         readiness: "Callable[[], str | None] | None" = None,
         hold: "HoldHardware | None" = None,
         after_result: "Callable[[str, ExecutionResult, Callable[[dict], None]], None] | None" = None,
+        outlet_readiness: "Callable[[], str | None] | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -177,7 +191,14 @@ class ActExecutor:
         None이면 execute의 ``hold``를 무시하고 ``verify_pass``는 ``verify_unavailable``로 거절한다.
         after_result: 결과를 보낸 뒤 부르는 훅(선택, 2026-10-05) ``(sequence_id, result, emit)``.
         콘센트 모듈의 잔여 전류 꼬리 관찰(`outlet_watch.OutletTailHook`)이 쓴다. ``emit``은
-        ``progress {phase:"power_tail"}`` 프레임을 보낸다. 훅에 ``stop()``이 있으면 새 실행·종료 때 부른다."""
+        ``progress {phase:"power_tail"}`` 프레임을 보낸다. 훅에 ``stop()``이 있으면 새 실행·종료 때 부른다.
+        outlet_readiness: 콘센트 모듈 생존 확인(선택, 2026-10-05). 이유 문자열이면 execute·verify_pass를
+        ``outlet_offline``으로 거절한다 — 모듈이 조용하면 물리 비상정지를 볼 수 없으므로 안전 쪽으로 멈춘다.
+
+        비상정지 걸림(2026-10-05): 콘센트 모듈의 비상정지(이벤트·ready·status 보고)를 받으면
+        ``estop_latched``가 켜지고, RPi5가 ``estop_ack``로 해제를 확인할 때까지 execute·verify_pass를
+        ``estop_latched``로 거절한다. 해제 때 모듈 쪽 해제는 ``set_estop_reset``으로 꽂은 함수가 한다
+        (버튼이 아직 눌려 있으면 풀지 않는다)."""
         self._reader = reader
         self._writer = writer
         self._controller = controller
@@ -198,6 +219,13 @@ class ActExecutor:
         self._after_result = after_result
         #: 콘센트 모듈 비상정지 이벤트 수(시험·상태 확인용).
         self.outlet_estops = 0
+        self._outlet_readiness = outlet_readiness
+        #: 호스트 쪽 비상정지 걸림. 사람의 해제 확인(``estop_ack``) 전에는 움직이지 않는다.
+        self.estop_latched = False
+        #: 걸린 원인(button·ready·status). 풀리면 None.
+        self.estop_source: str | None = None
+        self._estop_gen = 0  # 걸릴 때마다 1 증가 — 해제 확인 중 다시 걸렸는지 가린다
+        self._estop_reset: "Callable[[], tuple[bool, str | None]] | None" = None
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -323,6 +351,8 @@ class ActExecutor:
     async def _dispatch(self, msg: InboundActMsg) -> None:
         if isinstance(msg, ExecuteMsg):
             await self._on_execute(msg)
+        elif isinstance(msg, EstopAckMsg):
+            await self._on_estop_ack()
         elif isinstance(msg, AbortMsg):
             self._on_abort(msg)
         elif isinstance(msg, VerifyPassMsg):
@@ -346,15 +376,7 @@ class ActExecutor:
             })
             return
 
-        not_ready = self._not_ready_reason()
-        if not_ready is not None:
-            log.warning("execute %r refused — motion not ready: %s", msg.sequence_id, not_ready)
-            await self._send({
-                "type": "error",
-                "sequence_id": msg.sequence_id,
-                "reason": "motion_not_ready",
-                "detail": not_ready,
-            })
+        if await self._refuse_if_unsafe("execute", msg.sequence_id):
             return
 
         if not await self._release_hold_for_new_run():
@@ -364,6 +386,11 @@ class ActExecutor:
                 "reason": "hold_busy",
                 "detail": "정지 버튼을 누르거나 보관 위치로 이동하는 중이에요",
             })
+            return
+
+        # 대기 해제를 기다리는(await) 사이에는 _busy가 False라 비상정지가 '쉬는 중'으로 처리됐을 수 있다.
+        # 여기서 다시 확인하고, 이 뒤로는 await 없이 _busy를 세운다(이벤트 루프 한 턴 안).
+        if await self._refuse_if_unsafe("execute", msg.sequence_id):
             return
 
         self._busy = True
@@ -378,13 +405,38 @@ class ActExecutor:
         self._execute_task = asyncio.create_task(self._execute_and_report(msg))
 
     def _not_ready_reason(self) -> str | None:
-        if self._readiness is None:
+        return self._check(self._readiness, "readiness")
+
+    @staticmethod
+    def _check(fn: "Callable[[], str | None] | None", name: str) -> str | None:
+        if fn is None:
             return None
         try:
-            return self._readiness()
+            return fn()
         except Exception as exc:  # noqa: BLE001 - 확인 고장은 준비 안 됨으로 본다
-            log.exception("readiness check failed")
+            log.exception("%s check failed", name)
             return f"준비 확인 실패: {exc}"
+
+    def _unsafe_reason(self) -> tuple[str, str] | None:
+        """움직이면 안 되는 이유 (reason, detail). 비상정지 → 콘센트 무응답 → 모션 준비 순."""
+        if self.estop_latched:
+            return "estop_latched", ESTOP_LATCHED_DETAIL
+        outlet = self._check(self._outlet_readiness, "outlet readiness")
+        if outlet is not None:
+            return "outlet_offline", outlet
+        motion = self._not_ready_reason()
+        if motion is not None:
+            return "motion_not_ready", motion
+        return None
+
+    async def _refuse_if_unsafe(self, what: str, sequence_id: str) -> bool:
+        unsafe = self._unsafe_reason()
+        if unsafe is None:
+            return False
+        reason, detail = unsafe
+        log.warning("%s %r refused — %s: %s", what, sequence_id, reason, detail)
+        await self._send({"type": "error", "sequence_id": sequence_id, "reason": reason, "detail": detail})
+        return True
 
     def _notify_job(self, event: str, fields: dict) -> None:
         if self._job_observer is None:
@@ -561,7 +613,10 @@ class ActExecutor:
 
     async def _on_verify_pass(self, msg: VerifyPassMsg) -> None:
         reason = detail = None
-        if self._busy:
+        unsafe = None if self._busy else self._unsafe_reason()
+        if unsafe is not None and unsafe[0] != "motion_not_ready":
+            reason, detail = unsafe  # 비상정지 걸림·콘센트 무응답이면 확인 주행도 움직이지 않는다
+        elif self._busy:
             reason, detail = "busy", "다른 동작을 실행하는 중이에요"
         elif self.hold_session is not None and self.hold_session.active:
             reason, detail = "hold_active", "가전이 동작 중이라 정지 버튼 위에서 기다리는 중이에요"
@@ -607,17 +662,33 @@ class ActExecutor:
             except Exception:  # noqa: BLE001
                 log.exception("after_result stop failed")
 
-    def handle_outlet_estop(self, source: str = "button") -> None:
-        """콘센트 모듈 물리 비상정지(``{"event":"estop"}``) — **이벤트 루프 스레드에서** 부른다.
+    def set_outlet_readiness(self, fn: "Callable[[], str | None] | None") -> None:
+        """콘센트 모듈 생존 확인 함수를 (다시) 꽂는다 — 생성자 ``outlet_readiness``와 같다."""
+        self._outlet_readiness = fn
 
-        모듈은 이미 스스로 가전 전원 릴레이를 열었다(호스트와 무관). 여기서는 구동부를 같은 정지
-        경로로 멈추고 RPi5에 알린다:
+    def set_estop_reset(self, fn: "Callable[[], tuple[bool, str | None]] | None") -> None:
+        """해제 확인 때 모듈 쪽 걸림을 푸는 함수(작업 스레드에서 불림). ``(풀렸나, 사유)``를 돌려준다."""
+        self._estop_reset = fn
+
+    def handle_outlet_estop(self, source: str = "button") -> None:
+        """콘센트 모듈 물리 비상정지 — **이벤트 루프 스레드에서** 부른다.
+
+        ``source``: ``button``(estop 이벤트) · ``ready``(재부팅 배너가 걸림을 보고) · ``status``(주기 조회가
+        걸림을 보고). 모듈은 이미 스스로 가전 전원 릴레이를 열었다(호스트와 무관). 여기서는:
+        - **호스트 걸림**(``estop_latched``)을 켠다 — ``estop_ack`` 전에는 execute·verify_pass를 거절한다.
         - 실행 중이면 ``abort``와 같은 협조적 정지(`ClosedLoopController.request_stop` — 모션 어댑터
           정지 명령도 즉시 나간다).
         - 정지 버튼 대기 중이면 **구동부 정지**(``drive_stop``) — 전원이 이미 끊겼으니 정지 버튼을 누르지
           않는다.
-        - ``{"type":"alert","kind":"outlet_estop","source":…}``를 보낸다(RPi5 알림함이 kind 그대로 남긴다).
+        - ``{"type":"alert","kind":"outlet_estop","source":…}``와 ``estop_state``를 보낸다.
+        이미 걸린 상태에서 온 ready·status 보고는 같은 걸림의 재확인이라 다시 알리지 않는다.
         """
+        already = self.estop_latched
+        self.estop_latched = True
+        if already and source != "button":
+            return  # 같은 걸림의 재확인 — 해제 확인 중이어도 '다시 걸림'으로 세지 않는다
+        self._estop_gen += 1
+        self.estop_source = source
         self.outlet_estops += 1
         log.warning("outlet E-STOP (source=%s) — appliance relay opened by the module; stopping drive",
                     source)
@@ -633,6 +704,39 @@ class ActExecutor:
                 log.warning("outlet estop mid-execution — controller has no request_stop hook")
         self._write_now({"type": "alert", "kind": "outlet_estop", "source": source,
                          "t_monotonic_ns": time.monotonic_ns()})
+        self._write_now(self._estop_state_doc())
+
+    def _estop_state_doc(self, reason: str | None = None) -> dict:
+        detail = ESTOP_REASON_DETAIL.get(reason) if reason else None
+        if detail is None and self.estop_latched:
+            detail = ESTOP_LATCHED_DETAIL
+        return {"type": "estop_state", "latched": self.estop_latched, "source": self.estop_source,
+                "reason": reason, "detail": detail}
+
+    async def _on_estop_ack(self) -> None:
+        """사람의 비상정지 해제 확인. 모듈 버튼이 아직 눌려 있으면(또는 모듈이 답하지 않으면) 풀지 않는다.
+
+        읽기 루프 안에서 기다린다(모듈 응답 기한만큼) — 걸린 동안에는 움직이는 실행이 없다.
+        """
+        reason: str | None = None
+        if self.estop_latched:
+            gen = self._estop_gen
+            ok = True
+            if self._estop_reset is not None:
+                try:
+                    ok, reason = await asyncio.to_thread(self._estop_reset)
+                except Exception:  # noqa: BLE001 - 모듈 고장은 '풀지 못함'으로
+                    log.exception("outlet estop reset failed")
+                    ok, reason = False, "outlet_unreachable"
+            if ok and gen != self._estop_gen:
+                ok, reason = False, "estop_retriggered"
+            if ok:
+                self.estop_latched = False
+                self.estop_source = None
+                log.warning("outlet E-STOP latch cleared by operator acknowledgement")
+            else:
+                log.warning("outlet E-STOP acknowledgement refused: %s", reason)
+        await self._send(self._estop_state_doc(reason))
 
     def _on_inject_failure(self, msg: InjectFailureMsg) -> None:
         if self._failure_state is None:

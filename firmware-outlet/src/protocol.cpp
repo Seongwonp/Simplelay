@@ -150,10 +150,13 @@ void proto_handle_line(char* line, size_t len) {
 }
 
 void proto_event_ready(const char* reset_reason, bool ct_ok) {
+  // estop: 재부팅 전에 걸린 비상정지를 기억하고 있으면 true — 호스트는 걸린 채로 시작한다(2026-10-05 H2).
+  const OutletSnapshot s = outlet_snapshot();
   snprintf(g_out, sizeof(g_out),
            "{\"event\":\"ready\",\"fw\":\"%s\",\"protocol\":\"%s\",\"reset\":\"%s\",\"relay\":\"off\","
-           "\"ct\":\"%s\",\"ct_ok\":%s}",
-           FW_NAME, FW_PROTOCOL, reset_reason, ct_source_name(), ct_ok ? "true" : "false");
+           "\"ct\":\"%s\",\"ct_ok\":%s,\"estop\":%s}",
+           FW_NAME, FW_PROTOCOL, reset_reason, ct_source_name(), ct_ok ? "true" : "false",
+           s.estop_latched ? "true" : "false");
   write_line(g_out);
 }
 

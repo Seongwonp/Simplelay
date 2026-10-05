@@ -14,6 +14,8 @@ Inbound (RPi5 → RPi4):
   verify_pass    — 확인 주행: Z를 올린 채 좌표 위를 차례로 지나간다(누르지 않음)
   inject_failure — arm demo failure injection for the next execution (rehearsal)
   clear_failure  — disarm a previously armed injection
+  estop_ack      — 사람이 비상정지 해제를 확인했다(2026-10-05). RPi4의 비상정지 걸림(estop_latched)을
+                   풀어 달라는 요청 — 콘센트 모듈 버튼이 아직 눌려 있으면 풀지 않고 걸린 채로 답한다
 
 Outbound (RPi4 → RPi5): plain dicts serialised by ActExecutor._send().
 """
@@ -94,7 +96,14 @@ class ClearFailureMsg:
     pass
 
 
-InboundActMsg = ExecuteMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg
+@dataclass(frozen=True)
+class EstopAckMsg:
+    """비상정지 해제 확인(RPi5 ``POST /stop/ack``). 답은 ``estop_state`` 프레임이다."""
+
+
+InboundActMsg = (
+    ExecuteMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg | EstopAckMsg
+)
 
 #: 정지 버튼 누름 횟수 상한(전자레인지: 1회 일시정지·2회 취소 등). 레지스트리와 같다.
 STOP_PRESSES_RANGE = (1, 3)
@@ -180,6 +189,9 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
 
     if msg_type == "clear_failure":
         return ClearFailureMsg()
+
+    if msg_type == "estop_ack":
+        return EstopAckMsg()
 
     return None  # unknown type — not an error, just silently ignored
 

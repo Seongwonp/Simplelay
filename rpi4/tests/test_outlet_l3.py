@@ -35,6 +35,7 @@ BUTTONS = ["즉석밥", "시작"]
 
 def _link(*, mock: bool = True, relay_on: bool = True, **cfg) -> tuple[OutletLink, FakeOutlet]:
     pipe, fake = open_fake_outlet(speed=50.0, relay_on=relay_on)
+    cfg.setdefault("status_poll_s", None)
     link = OutletLink(pipe.host, OutletConfig(heartbeat_s=None, **cfg), mock=mock).start()
     return link, fake
 
@@ -211,15 +212,243 @@ def test_outlet_estop_event_stops_the_running_sequence_and_alerts():
     asyncio.run(_t())
 
 
-def test_outlet_estop_while_idle_only_alerts():
+class _RecordingGrbl:
+    """누름을 기록만 하는 모션(비상정지 뒤 누름이 나가는지 본다)."""
+
+    def __init__(self) -> None:
+        self.pressed: list[str] = []
+
+    def press(self, command) -> None:
+        self.pressed.append(command.button)
+
+    def request_stop(self) -> None:
+        pass
+
+
+async def _wait_for(predicate, timeout: float = 2.0) -> None:
+    loop = asyncio.get_running_loop()
+    end = loop.time() + timeout
+    while not predicate():
+        assert loop.time() < end, "조건이 기한 안에 참이 되지 않음"
+        await asyncio.sleep(0.01)
+
+
+def _estop_rig(link):
+    grbl = _RecordingGrbl()
+    controller = ClosedLoopController(grbl, MockVerifier([True] * 20), MockAlertSink(), MockSafetyController())
+    reader = asyncio.StreamReader()
+    writer = FakeWriter()
+    executor = ActExecutor(reader=reader, writer=writer, controller=controller, progress=False)
+    act_main._wire_outlet_estop(link, executor)
+    return grbl, reader, writer, executor
+
+
+def test_outlet_estop_while_idle_latches_and_refuses_next_execute():
+    """H1: 쉬는 중에 걸린 비상정지 — 버튼을 풀어도 확인(estop_ack) 전에는 다음 execute를 누르지 않는다."""
     async def _t():
-        reader = asyncio.StreamReader()
-        writer = FakeWriter()
-        executor = ActExecutor(reader=reader, writer=writer, controller=_controller(None), progress=False)
-        executor.handle_outlet_estop("button")
-        await asyncio.sleep(0)
-        (doc,) = writer.docs()
-        assert doc["type"] == "alert" and doc["kind"] == "outlet_estop"
+        link, fake = _link()
+        try:
+            grbl, reader, writer, executor = _estop_rig(link)
+            fake.press_estop()
+            await _wait_for(lambda: executor.outlet_estops == 1)
+            fake.release_estop_button()  # 버튼만 풀었다 — 사람의 해제 확인은 아직
+            _feed(reader, {"type": "execute", "sequence_id": "after", "buttons": BUTTONS})
+            await executor.run_once()
+            await executor.wait_idle()
+            docs = writer.docs()
+            assert any(d.get("type") == "alert" and d.get("kind") == "outlet_estop" for d in docs)
+            error = next(d for d in docs if d.get("type") == "error")
+            assert error["sequence_id"] == "after" and error["reason"] == "estop_latched"
+            assert grbl.pressed == []
+            assert executor.estop_latched is True
+            # 확인 주행도 움직이지 않는다
+            _feed(reader, {"type": "verify_pass", "sequence_id": "v1",
+                           "targets": [{"button": "시작", "x_mm": 1.0, "y_mm": 1.0}]})
+            await executor.run_once()
+            verify_err = [d for d in writer.docs() if d.get("sequence_id") == "v1"]
+            assert verify_err and verify_err[0]["reason"] == "estop_latched"
+        finally:
+            link.close()
+            fake.close()
+
+    asyncio.run(_t())
+
+
+def test_outlet_estop_during_hold_release_window_is_refused():
+    """H1: 정지 대기 해제를 기다리는(_busy가 아직 False인) 사이에 걸린 비상정지도 그 execute를 막는다."""
+    async def _t():
+        link, fake = _link()
+        try:
+            grbl, reader, writer, executor = _estop_rig(link)
+
+            class SlowRelease:
+                active = True
+
+                def release(self):
+                    return True
+
+                def join(self, timeout):
+                    time.sleep(0.3)  # 대기 해제가 끝나기를 기다리는 동안
+                    self.active = False
+                    return True
+
+                def drive_stop(self):
+                    pass
+
+            executor.hold_session = SlowRelease()  # type: ignore[assignment]
+            _feed(reader, {"type": "execute", "sequence_id": "window", "buttons": BUTTONS})
+            asyncio.get_running_loop().call_later(0.1, fake.press_estop)
+            await executor.run_once()
+            await executor.wait_idle()
+            docs = writer.docs()
+            error = next(d for d in docs if d.get("sequence_id") == "window")
+            assert error["type"] == "error" and error["reason"] == "estop_latched"
+            assert grbl.pressed == []
+        finally:
+            link.close()
+            fake.close()
+
+    asyncio.run(_t())
+
+
+def test_estop_ack_while_button_still_pressed_stays_latched():
+    async def _t():
+        link, fake = _link()
+        try:
+            grbl, reader, writer, executor = _estop_rig(link)
+            fake.press_estop()
+            await _wait_for(lambda: executor.estop_latched)
+            _feed(reader, {"type": "estop_ack"})
+            await executor.run_once()
+            state = [d for d in writer.docs() if d.get("type") == "estop_state"][-1]
+            assert state["latched"] is True and state["reason"] == "estop_button_pressed"
+            assert executor.estop_latched is True and fake.estop_latched is True
+            assert not any(d.get("cmd") == "estop_reset" for d in fake.received)  # 눌린 채면 보내지 않는다
+            _feed(reader, {"type": "execute", "sequence_id": "still", "buttons": BUTTONS})
+            await executor.run_once()
+            await executor.wait_idle()
+            error = next(d for d in writer.docs() if d.get("sequence_id") == "still")
+            assert error["reason"] == "estop_latched" and grbl.pressed == []
+        finally:
+            link.close()
+            fake.close()
+
+    asyncio.run(_t())
+
+
+def test_estop_ack_after_release_resets_module_and_allows_execute():
+    async def _t():
+        link, fake = _link()
+        try:
+            grbl, reader, writer, executor = _estop_rig(link)
+            fake.press_estop()
+            await _wait_for(lambda: executor.estop_latched)
+            fake.release_estop_button()
+            _feed(reader, {"type": "estop_ack"})
+            await executor.run_once()
+            state = [d for d in writer.docs() if d.get("type") == "estop_state"][-1]
+            assert state["latched"] is False
+            assert executor.estop_latched is False
+            assert fake.estop_latched is False  # 모듈에도 estop_reset을 보냈다
+            assert fake.relay_on is False  # 해제가 릴레이를 켜지 않는다(켜기는 따로)
+            _feed(reader, {"type": "execute", "sequence_id": "ok", "buttons": BUTTONS})
+            await executor.run_once()
+            await executor.wait_idle()
+            result = next(d for d in writer.docs() if d.get("sequence_id") == "ok")
+            assert result["type"] == "result" and result["success"] is True
+            assert grbl.pressed == BUTTONS
+        finally:
+            link.close()
+            fake.close()
+
+    asyncio.run(_t())
+
+
+def test_module_reported_latch_at_boot_latches_host():
+    """H2: 모듈이 재부팅 뒤에도 걸림을 기억해 ready·status로 알리면 호스트도 걸린 채로 시작한다."""
+    async def _t():
+        pipe, fake = open_fake_outlet(speed=50.0, estop_latched=True)
+        link = OutletLink(pipe.host, OutletConfig(heartbeat_s=None, status_poll_s=None), mock=True).start()
+        try:
+            await _wait_for(lambda: link.last_ready is not None)
+            assert link.last_ready["estop"] is True
+            grbl, reader, writer, executor = _estop_rig(link)
+            await _wait_for(lambda: executor.estop_latched)
+            _feed(reader, {"type": "execute", "sequence_id": "boot", "buttons": BUTTONS})
+            await executor.run_once()
+            await executor.wait_idle()
+            error = next(d for d in writer.docs() if d.get("sequence_id") == "boot")
+            assert error["reason"] == "estop_latched" and grbl.pressed == []
+        finally:
+            link.close()
+            fake.close()
+
+    asyncio.run(_t())
+
+
+def test_status_poll_reporting_estop_latches_host_without_event():
+    """M2: estop 이벤트 줄을 잃어도(시리얼 잡음 등) 주기 status가 걸림을 알려 호스트가 걸린다."""
+    async def _t():
+        pipe, fake = open_fake_outlet(speed=50.0, relay_on=True)
+        link = OutletLink(pipe.host, OutletConfig(heartbeat_s=None, status_poll_s=0.05), mock=True).start()
+        try:
+            grbl, reader, writer, executor = _estop_rig(link)
+            fake.latch_silently()  # 이벤트 없이 모듈만 걸림
+            await _wait_for(lambda: executor.estop_latched)
+            _feed(reader, {"type": "execute", "sequence_id": "poll", "buttons": BUTTONS})
+            await executor.run_once()
+            await executor.wait_idle()
+            error = next(d for d in writer.docs() if d.get("sequence_id") == "poll")
+            assert error["reason"] == "estop_latched" and grbl.pressed == []
+        finally:
+            link.close()
+            fake.close()
+
+    asyncio.run(_t())
+
+
+def test_relay_on_start_is_skipped_while_module_latched(monkeypatch):
+    """H2: SIMPLELAY_OUTLET_RELAY_ON_START=1이어도 모듈이 걸림을 보고하면 relay_on을 보내지 않는다."""
+    import rpi.tools.fake_outlet as fake_outlet_module
+
+    real_open = fake_outlet_module.open_fake_outlet
+    monkeypatch.setattr(fake_outlet_module, "open_fake_outlet",
+                        lambda **kw: real_open(estop_latched=True, **kw))
+    monkeypatch.setenv("SIMPLELAY_OUTLET_PORT", "fake")
+    monkeypatch.setenv("SIMPLELAY_OUTLET_RELAY_ON_START", "1")
+    link = act_main._build_outlet()
+    try:
+        fake = act_main._fake_outlet
+        assert not any(d.get("cmd") == "relay_on" for d in fake.received)
+        assert fake.relay_on is False
+        assert link.module_estop is True
+    finally:
+        link.close()
+        act_main._fake_outlet.close()
+
+
+def test_outlet_offline_refuses_execute():
+    """M2: 콘센트 모듈이 조용해지면(USB 빠짐·멈춤) 비상정지를 볼 수 없다 — execute를 outlet_offline으로 거절."""
+    async def _t():
+        pipe, fake = open_fake_outlet(speed=50.0)
+        link = OutletLink(pipe.host, OutletConfig(heartbeat_s=None, status_poll_s=None, offline_s=0.3),
+                          mock=True).start()
+        try:
+            grbl, reader, writer, executor = _estop_rig(link)
+            await _wait_for(lambda: link.latest() is not None)
+            assert link.not_ready_reason() is None
+            fake.silent = True  # 아무 줄도 보내지 않는다(응답도 없음)
+            await _wait_for(lambda: link.not_ready_reason() is not None)
+            _feed(reader, {"type": "execute", "sequence_id": "quiet", "buttons": BUTTONS})
+            await executor.run_once()
+            await executor.wait_idle()
+            error = next(d for d in writer.docs() if d.get("sequence_id") == "quiet")
+            assert error["reason"] == "outlet_offline" and grbl.pressed == []
+            fake.silent = False  # 다시 말하면 준비됨
+            await _wait_for(lambda: link.not_ready_reason() is None)
+        finally:
+            link.close()
+            fake.close()
 
     asyncio.run(_t())
 
