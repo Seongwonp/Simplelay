@@ -137,7 +137,7 @@ void main() {
       ..['confirmation'] = 'none';
     await _pump(tester, _api(body));
 
-    expect(find.text('ThinQ · 모의 실행 · 받았는지 확인이 필요해요 · 확인 못 함'),
+    expect(find.text('ThinQ · 모의 실행 · 가전이 받았는지 확인이 필요해요 · 확인 못 함'),
         findsOneWidget);
     expect(find.text('물리 버튼 · 모의 실행 · 확인 근거 없음 · 실패'),
         findsOneWidget);

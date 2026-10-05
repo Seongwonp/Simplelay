@@ -341,12 +341,14 @@ class _HistoryRow extends StatelessWidget {
                   style: TextStyle(fontSize: 14, color: context.appMuted),
                 ),
                 // 경로·확인 수준 열. 이 열이 생기기 전 기록(unknown)은 말하지 않는다.
+                // '경로'·'확인' 꼬리표를 붙이면 "확인 받았는지 확인이…"처럼 겹쳐
+                // 읽힌다 — 상태 화면·시나리오 단계 줄과 같이 값만 잇는다(10/5).
                 if (route != null || confirmation != null) ...[
                   const SizedBox(height: 2),
                   Text(
                     [
-                      if (route != null) '경로 $route',
-                      if (confirmation != null) '확인 $confirmation',
+                      if (route != null) route,
+                      if (confirmation != null) confirmation,
                     ].join(' · '),
                     style: TextStyle(fontSize: 14, color: context.appMuted),
                   ),

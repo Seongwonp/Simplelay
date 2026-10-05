@@ -56,7 +56,7 @@ void main() {
               receipt: 'unknown',
               confirmation: 'none',
               kind: ResultKind.unconfirmed),
-          '받았는지 확인이 필요해요');
+          '가전이 받았는지 확인이 필요해요');
       expect(
           confirmationLabel(
               route: 'thinq',

@@ -74,7 +74,8 @@ String? routeLabel(String? route) => switch (route) {
 /// 무엇을 근거로 확인했나. 모르면(옛 기록 unknown·필드 없음) null.
 ///
 /// ThinQ는 수신과 확인을 나눠 말한다: 상태까지 봤으면 "상태 확인됨", 받았다는
-/// 응답만 있으면 "접수됨", 받았는지조차 모르면 "접수 불명".
+/// 응답만 있으면 "접수됨", 받았는지조차 모르면 "가전이 받았는지 확인이 필요해요"
+/// (받았다·확인됐다로도, 실패로도 읽히지 않게).
 String? confirmationLabel({
   String? route,
   String? receipt,
@@ -84,7 +85,7 @@ String? confirmationLabel({
   if (confirmation == 'state_confirmed') return '상태 확인됨';
   if (route == 'thinq') {
     if (receipt == 'not_dispatched') return '보내지 않음';
-    if (receipt == 'unknown') return '받았는지 확인이 필요해요';
+    if (receipt == 'unknown') return '가전이 받았는지 확인이 필요해요';
     if (receipt == 'accepted') {
       return kind == ResultKind.unconfirmed ? '접수됨' : '실행 안 됨';
     }
