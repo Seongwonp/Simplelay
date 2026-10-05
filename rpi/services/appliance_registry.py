@@ -69,6 +69,8 @@ class ApplianceCategory(str, Enum):
     INDUCTION = "induction"
     RICE_COOKER = "rice_cooker"
     AIR_PURIFIER = "air_purifier"
+    #: 인터폰(시연 v3 ③ 방문자 문 열기, 2026-10-06 갭 S6). 버튼식 — 문열림 버튼을 누른다.
+    INTERCOM = "intercom"
     OTHER = "other"
 
     @classmethod

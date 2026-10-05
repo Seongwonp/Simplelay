@@ -867,7 +867,8 @@ class DemoApplianceDoneRequest(BaseModel):
     appliance_id: str = Field(default="washer", pattern=r"^[A-Za-z0-9_-]{1,64}$")
     #: 끝을 알린 입력 — power(콘센트 CT 전력 하강)·beep(종료음). 둘 다면 done_confirmed.
     inputs: list[Literal["power", "beep"]] = Field(min_length=1, max_length=2)
-    event: str = Field(default="wash_complete", pattern=r"^[a-z][a-z0-9_]{0,63}$")
+    #: 비우면 가전의 끝 이벤트(세탁기 wash_complete · 전자레인지 heat_complete, `done_event_for`).
+    event: str | None = Field(default=None, pattern=r"^[a-z][a-z0-9_]{0,63}$")
 
 
 class DemoApplianceDoneResponse(BaseModel):

@@ -259,7 +259,7 @@ def test_act_main_done_watch_wiring(monkeypatch):
         link = OutletLink(pipe.host, OutletConfig(heartbeat_s=None, status_poll_s=None), mock=True).start()
         try:
             monkeypatch.setenv("SIMPLELAY_CYCLE_SETTLE_S", "400")
-            watch, feeder = act_main._build_done_watch(link, executor)
+            [(watch, feeder)] = act_main._build_done_watch(link, executor)
             assert watch.spec.inputs == ("power", "beep")
             assert watch.power_source == "mock"  # 가짜 콘센트 모듈 → 모의로 표시
             assert watch.fusion.config.wait_s >= 400 + watch.fusion.config.window_s

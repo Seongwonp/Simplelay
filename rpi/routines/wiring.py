@@ -13,7 +13,7 @@ from functools import lru_cache
 
 from .engine import RoutineEngine
 from .model import parse_scenario_key
-from .runner import RoutineRunner
+from .runner import RoutineRunner, routine_done_settings_from_env
 from .store import RoutineStore
 
 log = logging.getLogger(__name__)
@@ -38,15 +38,19 @@ def wire_routines(suggestions, service, scenario_engine=None) -> RoutineEngine:
     store = get_routine_store()
     clock = deps.get_clock()
     care = deps.get_care_events()
+    done_sensors, done_timeout = routine_done_settings_from_env()
     runner = RoutineRunner(
         store, service, clock, care,
         on_finished=lambda run: _engine.on_routine_finished(run) if _engine else None,
+        done_log=deps.get_appliance_done_log(), done_sensors=done_sensors,
+        done_timeout_seconds=done_timeout,
     )
     engine = RoutineEngine(
         store, suggestions, service, clock, care_events=care,
         presence_machine=deps.get_presence_state_machine(),
         environment_reader=deps._read_environment,
         runner=runner,
+        done_sensors=done_sensors,
     )
     scenarios = scenario_engine.catalog.current_commands if scenario_engine is not None else None
 

@@ -15,6 +15,14 @@ mkdir -p "$DATA_DIR"
 ENV_FILE="$DATA_DIR/env"
 [ -f "$ENV_FILE" ] || { : > "$ENV_FILE"; chmod 600 "$ENV_FILE"; }
 
+# 시연 페이싱(SIMPLELAY_DEMO_PACING, 버튼마다 1.2초 쉼)은 위 env 파일을 따른다 — 없으면 꺼짐(2026-10-06 갭 S9).
+# 실물·부분 실물은 끈 채로 둔다(실제 누름이 이미 느리다 — 켜면 이중으로 느려진다). 전부 모의 리허설에서만
+# env 파일에 SIMPLELAY_DEMO_PACING=1 줄을 넣는다(docs/결선-운영-런북.md §3-2). 예전처럼 스크립트가 강제로 켜지 않는다.
+PACING=off
+if grep -Eiq '^[[:space:]]*SIMPLELAY_DEMO_PACING=(1|true|yes|on)[[:space:]]*$' "$ENV_FILE"; then
+  PACING=on
+fi
+
 # 기존 컨테이너 정리(재실행 안전)
 docker rm -f simplelay-backend 2>/dev/null || true
 
@@ -29,8 +37,9 @@ docker run -d --name simplelay-backend \
   --network host \
   --env-file "$ENV_FILE" \
   -e SIMPLELAY_DB_PATH=/data/simplelay.db \
-  -e SIMPLELAY_DEMO_PACING=1 \
   simplelay-backend
+
+echo "== 시연 페이싱: $PACING (env 파일 $ENV_FILE 의 SIMPLELAY_DEMO_PACING) =="
 
 echo "== 컨테이너 기동 =="
 sleep 3

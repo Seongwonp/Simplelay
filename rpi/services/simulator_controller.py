@@ -196,7 +196,7 @@ class SimulatorController(ActClientController):
     # 실물 세탁기·CT·마이크가 아니다. 모의 RPi4 실행기가 같은 융합 규칙으로 ``appliance_done``
     # (``source:"injected"``) 프레임을 보내고, RPi5 ActClient → 루틴 엔진은 실물 프레임과 같은 길로 받는다.
 
-    def rehearse_appliance_done(self, appliance_id: str, inputs, event: str = "wash_complete") -> dict:
+    def rehearse_appliance_done(self, appliance_id: str, inputs, event: str | None = None) -> dict:
         with self._state_lock:
             if self._closed:
                 raise RuntimeError("simulator closed")

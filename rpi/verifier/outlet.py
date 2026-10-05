@@ -19,10 +19,18 @@
   {"id":6,"cmd":"rate","hz":10}                   {"id":6,"ok":true} | bad_args
 모듈 → 호스트(자발 이벤트, id 없음)
   {"event":"ready","fw":"firmware-outlet","protocol":"line-json/outlet-v0","reset":"poweron","relay":"off",
-   "ct":"ads1115","ct_ok":true,"estop":false}   (estop: 재부팅 전에 걸린 비상정지를 기억하고 있으면 true)
-  {"event":"power","t_ms":…,"seq":…,"watts":…,"irms_a":…,"vrms_est":220.0,"ct_mv":…,"n":…,"err":…,"relay":"on"}
+   "ct":"ads1115","ct_ok":true,"estop":false,"channels":2,"relay_ch":0}
+                                                (estop: 재부팅 전에 걸린 비상정지를 기억하고 있으면 true)
+  {"event":"power","ch":0,"t_ms":…,"seq":…,"watts":…,"irms_a":…,"vrms_est":220.0,"ct_mv":…,"n":…,"err":…,"relay":"on"}
   {"event":"estop","source":"button","t_ms":…,"relay":"off"}
   {"event":"fault","reason":"ct_init"} / {"event":"host_timeout","relay":"off"}
+
+CT 채널(2026-10-06 사용자 결정: 두 번째 CT로 전자레인지·세탁기를 동시에 잰다): power 줄의 ``ch``(0~3)로
+채널을 나누고, 링 버퍼·시각 맞춤·seq·신선도를 **채널마다 따로** 둔다. ``ch``가 없는 줄(옛 펌웨어)은 채널 0이다.
+`OutletLink.channel(ch)`가 채널 하나의 보기(`OutletChannel`)를 돌려준다 — 소비자(L3·꼬리·기록기·사이클 끝)는 그
+보기를 링크처럼 쓴다. 링크 자체의 ``sensor()``·``latest()``·``samples_since()``·``is_stale()``은 채널 0이다.
+채널 → 가전 대응은 ``SIMPLELAY_OUTLET_CHANNELS``(예: ``microwave:0,washer:1``, `parse_outlet_channels`). 릴레이는
+하나이고 ``relay_ch`` 채널(전자레인지)만 끊는다 — 세탁기 채널은 릴레이를 거치지 않게 배선한다.
 
 ``watts``는 **추정값**이다: CT 실효 전류 × 설정 상용 전압(``vrms_est``, 측정 아님) × 설정 역률.
 보정 계수가 자리표시자인 동안(``status.cal == "placeholder"``) 절대값은 근거가 아니다 — L3 판정은
@@ -36,7 +44,7 @@
 품질(2026-10-05 리뷰 M1): 창 샘플 수 ``n``이 ``min_samples`` 미만이거나 판독 실패 비율 ``err/n``이
 ``max_err_ratio``를 넘는 power 줄은 버린다(신선한 샘플로 세지 않는다). 둘 다 측정 필요.
 
-끊김: 마지막 power 수신 뒤 ``stale_s``가 지나면 ``SerialPowerSensor.read()``는 0 W를 지어내지 않고
+끊김(채널마다): 그 채널의 마지막 power 수신 뒤 ``stale_s``가 지나면 ``SerialPowerSensor.read()``는 0 W를 지어내지 않고
 `PowerSensorStale`을 던진다. 컨트롤러는 그것을 'L3 판정 불가 — 전력 센서를 읽지 못함'으로 안전 정지한다.
 
 생존(2026-10-05 리뷰 M2): 어떤 줄이든(응답·ping 응답 포함) 마지막으로 받은 뒤 ``offline_s``가 지나면
@@ -55,6 +63,7 @@ import json
 import logging
 import math
 import os
+import re
 import threading
 import time
 from collections import deque
@@ -72,6 +81,83 @@ OUTLET_PROTOCOL = "line-json/outlet-v0"
 OUTLET_EVENTS = ("ready", "power", "estop", "fault", "host_timeout")
 #: 호스트가 보내는 명령.
 OUTLET_COMMANDS = ("status", "ping", "relay_on", "relay_off", "estop_reset", "rate")
+#: CT 채널 수 상한(ADS1115 MUX 4개). 내장 ADC 빌드는 2까지다.
+OUTLET_MAX_CHANNELS = 4
+#: 채널 → 가전 대응 환경 변수(예: ``microwave:0,washer:1``).
+OUTLET_CHANNELS_ENV = "SIMPLELAY_OUTLET_CHANNELS"
+_APPLIANCE_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+@dataclass(frozen=True)
+class OutletChannelMap:
+    """CT 채널 → 가전 대응. 비어 있으면 모든 가전이 채널 0이다(CT 하나 시절과 같다)."""
+
+    by_appliance: Mapping[str, int]
+
+    def channel_for(self, appliance_id: str) -> int:
+        """가전의 CT 채널. 대응이 주어졌는데 그 가전이 없으면 RuntimeError(기동 거절 — 다른 가전 전력을 읽지 않게)."""
+        if not self.by_appliance:
+            return 0
+        try:
+            return self.by_appliance[appliance_id]
+        except KeyError:
+            raise RuntimeError(
+                f"{OUTLET_CHANNELS_ENV}에 '{appliance_id}'의 CT 채널이 없습니다"
+                f"(지금 값: {self.describe()})") from None
+
+    @property
+    def channels(self) -> tuple[int, ...]:
+        return tuple(sorted(self.by_appliance.values()))
+
+    def describe(self) -> str:
+        return ",".join(f"{a}:{c}" for a, c in self.by_appliance.items()) or "(없음 — 모두 채널 0)"
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, OutletChannelMap) and dict(self.by_appliance) == dict(other.by_appliance)
+
+    def __hash__(self) -> int:
+        return hash(tuple(sorted(self.by_appliance.items())))
+
+
+def parse_outlet_channels(raw: str | None) -> OutletChannelMap:
+    """``SIMPLELAY_OUTLET_CHANNELS`` 값(``<가전 ID>:<채널>[,…]``)을 읽는다. 비면 빈 대응.
+
+    잘못되면 RuntimeError(기동 거절): 형식, 채널 범위(0~3), 한 가전에 두 채널, 한 채널에 두 가전.
+    """
+    text = (raw or "").strip()
+    if not text:
+        return OutletChannelMap({})
+    mapping: dict[str, int] = {}
+    for part in text.split(","):
+        part = part.strip()
+        appliance, sep, ch_raw = part.partition(":")
+        appliance, ch_raw = appliance.strip(), ch_raw.strip()
+        if not sep or not _APPLIANCE_ID.fullmatch(appliance) or not ch_raw.isdigit():
+            raise RuntimeError(f"{OUTLET_CHANNELS_ENV} 형식은 '<가전 ID>:<채널>[,…]'입니다(예: microwave:0,washer:1): {text!r}")
+        ch = int(ch_raw)
+        if not 0 <= ch < OUTLET_MAX_CHANNELS:
+            raise RuntimeError(f"{OUTLET_CHANNELS_ENV}의 채널은 0~{OUTLET_MAX_CHANNELS - 1}입니다: {part!r}")
+        if appliance in mapping:
+            raise RuntimeError(f"{OUTLET_CHANNELS_ENV}에 '{appliance}'가 두 번 있습니다: {text!r}")
+        if ch in mapping.values():
+            raise RuntimeError(f"{OUTLET_CHANNELS_ENV}에서 채널 {ch}을 두 가전이 같이 씁니다(CT 하나 = 가전 하나): {text!r}")
+        mapping[appliance] = ch
+    return OutletChannelMap(mapping)
+
+
+def outlet_channels_from_env(env: Mapping[str, str] | None = None) -> OutletChannelMap:
+    src = os.environ if env is None else env
+    return parse_outlet_channels(src.get(OUTLET_CHANNELS_ENV))
+
+
+def power_channel(doc: Mapping[str, Any]) -> int | None:
+    """power 줄의 채널. ``ch``가 없으면 0(옛 펌웨어), 정수 0~3이 아니면 None(버린다)."""
+    if "ch" not in doc:
+        return 0
+    ch = doc.get("ch")
+    if isinstance(ch, bool) or not isinstance(ch, int) or not 0 <= ch < OUTLET_MAX_CHANNELS:
+        return None
+    return ch
 
 
 class OutletError(RuntimeError):
@@ -186,7 +272,7 @@ def _env_ms(src: Mapping[str, str], name: str) -> float | None:
 class OutletPower:
     """power 이벤트 하나(호스트 시각에 맞춘 뒤)."""
 
-    index: int  # 호스트가 매긴 연속 번호(링 버퍼 커서용)
+    index: int  # 호스트가 채널마다 매긴 연속 번호(링 버퍼 커서용)
     t_s: float  # 호스트 단조 시각에 맞춘 모듈 시각
     watts: float
     t_ms: int  # 모듈 millis
@@ -195,6 +281,7 @@ class OutletPower:
     vrms_est: float | None
     relay: str | None
     received_s: float  # 수신한 호스트 단조 시각
+    ch: int = 0  # CT 채널
 
     def sample(self) -> PowerSample:
         return PowerSample(self.t_s, self.watts)
@@ -253,6 +340,20 @@ def power_fields(doc: Mapping[str, Any]) -> tuple[int, float] | None:
     return t_ms, watts
 
 
+class _ChannelState:
+    """채널 하나의 링 버퍼·시각 맞춤·신선도. 링크의 ``_cond`` 아래에서만 만진다."""
+
+    def __init__(self, ring_size: int) -> None:
+        self.ring: deque[OutletPower] = deque(maxlen=ring_size)
+        self.next_index = 0
+        self.anchor_s: float | None = None
+        self.last_t_ms: int | None = None
+        self.last_t_s: float | None = None
+        self.last_power_rx: float | None = None
+        self.last_seq: int | None = None
+        self.reanchor = False
+
+
 class OutletLink:
     """콘센트 모듈 한 대와의 링크. 읽기 스레드가 줄을 받아 power는 링 버퍼로, 응답은 대기 중인
     명령으로, 그 밖의 이벤트는 듣는 쪽(``add_listener``)으로 보낸다.
@@ -281,14 +382,8 @@ class OutletLink:
         self.mock = mock
         self._clock = clock
         self._cond = threading.Condition()
-        self._ring: deque[OutletPower] = deque(maxlen=self.config.ring_size)
-        self._next_index = 0
-        self._anchor_s: float | None = None
-        self._last_t_ms: int | None = None
-        self._last_t_s: float | None = None
-        self._last_power_rx: float | None = None
-        self._last_seq: int | None = None
-        self._reanchor = False
+        #: CT 채널별 상태(power 줄이 처음 오거나 보기를 만들 때 생긴다).
+        self._channels: dict[int, _ChannelState] = {}
         #: 어떤 줄이든 마지막으로 받은 호스트 시각(생존 판단). 신선도(_last_power_rx)와 다르다.
         self._last_rx: float | None = None
         #: 모듈이 보고한 비상정지 걸림(estop 이벤트·ready·status). 모르면 None.
@@ -338,23 +433,39 @@ class OutletLink:
         """power 외 자발 이벤트(ready·estop·fault·host_timeout)를 받는다. **읽기 스레드에서** 불린다."""
         self._listeners.append(listener)
 
-    # ── 전력 샘플 ────────────────────────────────────────────────────────────
+    # ── 전력 샘플(채널마다, 기본 채널 0) ───────────────────────────────────────
 
-    def sensor(self) -> "SerialPowerSensor":
+    def _state(self, ch: int) -> _ChannelState:
+        """채널 상태(없으면 만든다). ``_cond``를 쥔 채로 부른다."""
+        state = self._channels.get(ch)
+        if state is None:
+            state = self._channels[ch] = _ChannelState(self.config.ring_size)
+        return state
+
+    def channel(self, ch: int) -> "OutletChannel":
+        """CT 채널 하나의 보기. 소비자에게 링크 대신 넘긴다."""
+        if isinstance(ch, bool) or not isinstance(ch, int) or not 0 <= ch < OUTLET_MAX_CHANNELS:
+            raise ValueError(f"CT 채널은 0~{OUTLET_MAX_CHANNELS - 1}입니다: {ch!r}")
+        return OutletChannel(self, ch)
+
+    def sensor(self, ch: int = 0) -> "SerialPowerSensor":
         """독립 커서를 가진 PowerSensor 하나. 소비자(L3·꼬리 관찰·기록기)마다 따로 만든다."""
-        return SerialPowerSensor(self)
+        return SerialPowerSensor(self, ch)
 
-    def latest(self) -> OutletPower | None:
+    def latest(self, ch: int = 0) -> OutletPower | None:
         with self._cond:
-            return self._ring[-1] if self._ring else None
+            state = self._channels.get(ch)
+            return state.ring[-1] if state is not None and state.ring else None
 
-    def samples_since(self, t_s: float) -> list[PowerSample]:
+    def samples_since(self, t_s: float, ch: int = 0) -> list[PowerSample]:
         with self._cond:
-            return [p.sample() for p in self._ring if p.t_s >= t_s]
+            state = self._channels.get(ch)
+            return [p.sample() for p in state.ring if p.t_s >= t_s] if state is not None else []
 
-    def is_stale(self) -> bool:
+    def is_stale(self, ch: int = 0) -> bool:
         with self._cond:
-            last = self._last_power_rx
+            state = self._channels.get(ch)
+            last = state.last_power_rx if state is not None else None
         reference = last if last is not None else self.started_at_s
         return self._clock() - reference > self.config.stale_s
 
@@ -523,7 +634,7 @@ class OutletLink:
                 self._transport = fresh
                 self._reopening = False
             with self._cond:
-                self._reanchor = True  # 포트 열기로 모듈이 리셋됐을 수 있다
+                self._mark_reanchor()  # 포트 열기로 모듈이 리셋됐을 수 있다
             self.reopens += 1
             log.warning("outlet port reopened (attempt %d)", attempt)
             return True
@@ -558,7 +669,7 @@ class OutletLink:
             if event == "ready":
                 self.last_ready = doc
                 with self._cond:
-                    self._reanchor = True  # 모듈 재시작 — 다음 power에서 시각을 다시 맞춘다
+                    self._mark_reanchor()  # 모듈 재시작 — 다음 power에서 시각을 다시 맞춘다
             elif event == "fault":
                 self.last_fault = doc
                 log.error("outlet module fault: %s", doc.get("reason"))
@@ -584,9 +695,15 @@ class OutletLink:
                         self._replies.pop(stale, None)
                 self._cond.notify_all()
 
+    def _mark_reanchor(self) -> None:
+        """모든 채널이 다음 power에서 시각을 다시 맞추게 한다. ``_cond``를 쥔 채로 부른다."""
+        for state in self._channels.values():
+            state.reanchor = True
+
     def _on_power(self, doc: dict) -> None:
         parsed = power_fields(doc)
-        if parsed is None:
+        ch = power_channel(doc)
+        if parsed is None or ch is None:
             self.dropped_power += 1
             return
         problem = power_quality_problem(doc, self.config)
@@ -598,27 +715,28 @@ class OutletLink:
         seq = _opt_int(doc.get("seq"))
         now = self._clock()
         with self._cond:
-            restarted = self._reanchor or (
-                seq is not None and self._last_seq is not None and seq < self._last_seq
+            st = self._state(ch)  # 시각·seq·신선도는 채널마다 따로 센다
+            restarted = st.reanchor or (
+                seq is not None and st.last_seq is not None and seq < st.last_seq
                 and seq <= SEQ_RESTART_MAX
             )
-            if self._anchor_s is None or self._last_t_ms is None or restarted:
+            if st.anchor_s is None or st.last_t_ms is None or restarted:
                 # 첫 샘플 또는 모듈 재시작(ready 배너·seq 되돌아감) — 다시 맞춘다. 시각은 계속 늘어나야 한다.
                 anchor = now - t_ms / 1000.0
-                if self._last_t_s is not None and anchor + t_ms / 1000.0 <= self._last_t_s:
-                    anchor = self._last_t_s + 1e-3 - t_ms / 1000.0
-                self._anchor_s = anchor
-                self._reanchor = False
-            elif t_ms <= self._last_t_ms or (
-                seq is not None and self._last_seq is not None and seq <= self._last_seq
+                if st.last_t_s is not None and anchor + t_ms / 1000.0 <= st.last_t_s:
+                    anchor = st.last_t_s + 1e-3 - t_ms / 1000.0
+                st.anchor_s = anchor
+                st.reanchor = False
+            elif t_ms <= st.last_t_ms or (
+                seq is not None and st.last_seq is not None and seq <= st.last_seq
             ):
                 # 중복·순서 뒤바뀜 — 버리고 신선도도 갱신하지 않는다.
                 self.dropped_out_of_order += 1
                 return
-            t_s = self._anchor_s + t_ms / 1000.0
+            t_s = st.anchor_s + t_ms / 1000.0
             relay = doc.get("relay")
             item = OutletPower(
-                index=self._next_index,
+                index=st.next_index,
                 t_s=t_s,
                 watts=watts,
                 t_ms=t_ms,
@@ -627,18 +745,53 @@ class OutletLink:
                 vrms_est=_num(doc.get("vrms_est")),
                 relay=relay if isinstance(relay, str) else None,
                 received_s=now,
+                ch=ch,
             )
-            self._next_index += 1
-            self._ring.append(item)
-            self._last_t_ms = t_ms
-            self._last_t_s = t_s
-            self._last_seq = seq
-            self._last_power_rx = now
+            st.next_index += 1
+            st.ring.append(item)
+            st.last_t_ms = t_ms
+            st.last_t_s = t_s
+            st.last_seq = seq
+            st.last_power_rx = now
             self._cond.notify_all()
 
 
+class OutletChannel:
+    """링크의 CT 채널 하나를 링크처럼 보이게 한다 — L3·꼬리·기록기·사이클 끝이 받는 것.
+
+    전력(``sensor``·``latest``·``samples_since``·``is_stale``)은 이 채널만, 그 밖(명령·생존·비상정지·``mock``)은
+    링크 그대로다.
+    """
+
+    def __init__(self, link: OutletLink, ch: int) -> None:
+        self._link = link
+        self.channel = ch
+
+    @property
+    def link(self) -> OutletLink:
+        return self._link
+
+    def sensor(self) -> "SerialPowerSensor":
+        return SerialPowerSensor(self._link, self.channel)
+
+    def latest(self) -> OutletPower | None:
+        return self._link.latest(self.channel)
+
+    def samples_since(self, t_s: float) -> list[PowerSample]:
+        return self._link.samples_since(t_s, self.channel)
+
+    def is_stale(self) -> bool:
+        return self._link.is_stale(self.channel)
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._link, name)
+
+    def __repr__(self) -> str:
+        return f"OutletChannel(ch={self.channel}, mock={self._link.mock})"
+
+
 class SerialPowerSensor:
-    """`PowerSensor` 구현 — 콘센트 모듈 power 이벤트를 한 개씩 돌려준다.
+    """`PowerSensor` 구현 — 콘센트 모듈 power 이벤트(채널 하나)를 한 개씩 돌려준다.
 
     - 커서는 만든 시점의 최신 샘플 **다음**부터다(이전 실행의 묵은 샘플을 기준선에 섞지 않는다).
     - 다음 샘플이 아직 없으면 기다린다. 마지막 수신 뒤 ``stale_s``가 지나면 `PowerSensorStale`.
@@ -646,10 +799,12 @@ class SerialPowerSensor:
     - 읽는 쪽이 ``max_lag_s`` 넘게 밀리면 최신 샘플로 건너뛴다(판정이 과거를 보지 않게).
     """
 
-    def __init__(self, link: OutletLink) -> None:
+    def __init__(self, link: OutletLink, ch: int = 0) -> None:
         self._link = link
-        latest = link.latest()
-        self._cursor = latest.index if latest is not None else -1
+        self.channel = ch
+        with link._cond:  # noqa: SLF001 - 같은 모듈의 짝 클래스
+            self._state = link._state(ch)  # noqa: SLF001
+            self._cursor = self._state.ring[-1].index if self._state.ring else -1
         self.source = "mock" if link.mock else "real"
 
     @property
@@ -659,9 +814,10 @@ class SerialPowerSensor:
     def read(self) -> PowerSample:
         link = self._link
         cfg = link.config
+        state = self._state
         with link._cond:  # noqa: SLF001 - 같은 모듈의 짝 클래스
             while True:
-                ring = link._ring  # noqa: SLF001
+                ring = state.ring
                 if ring and ring[-1].index > self._cursor:
                     first = ring[0].index
                     offset = max(0, self._cursor + 1 - first)
@@ -671,17 +827,17 @@ class SerialPowerSensor:
                         candidate = newest
                     self._cursor = candidate.index
                     return candidate.sample()
-                last = link._last_power_rx  # noqa: SLF001
+                last = state.last_power_rx
                 reference = last if last is not None else link.started_at_s
                 waited = link._clock() - reference  # noqa: SLF001
                 if waited > cfg.stale_s:
                     if last is None:
                         raise PowerSensorStale(
-                            f"콘센트 모듈 전력 샘플을 한 번도 받지 못함({cfg.stale_s:.1f}초 넘게) — "
-                            "연결·CT 초기화 확인 필요"
+                            f"콘센트 모듈 CT {self.channel}번 전력 샘플을 한 번도 받지 못함({cfg.stale_s:.1f}초 넘게) — "
+                            "연결·CT 초기화·채널 수 확인 필요"
                         )
                     raise PowerSensorStale(
-                        f"콘센트 모듈 전력 샘플이 {waited:.1f}초째 끊김(한도 {cfg.stale_s:.1f}초)"
+                        f"콘센트 모듈 CT {self.channel}번 전력 샘플이 {waited:.1f}초째 끊김(한도 {cfg.stale_s:.1f}초)"
                     )
                 if link._stop.is_set():  # noqa: SLF001
                     raise PowerSensorStale("콘센트 모듈 링크가 닫힘")

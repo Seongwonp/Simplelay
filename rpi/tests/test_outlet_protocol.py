@@ -348,7 +348,7 @@ def test_power_windows_with_too_few_samples_or_errors_are_dropped():
     link.handle_doc({"event": "power", "t_ms": 200, "seq": 2, "watts": 640.0, "n": 80, "err": 20})
     link.handle_doc({"event": "power", "t_ms": 300, "seq": 3, "watts": 640.0})  # n 없음
     assert link.latest() is None and link.dropped_quality == 3
-    assert link._last_power_rx is None  # noqa: SLF001 - 버린 줄은 신선도를 갱신하지 않는다
+    assert link._state(0).last_power_rx is None  # noqa: SLF001 - 버린 줄은 신선도를 갱신하지 않는다
     link.handle_doc({"event": "power", "t_ms": 400, "seq": 4, "watts": 640.0, "n": 80, "err": 2})
     assert link.latest().watts == 640.0
     cfg = OutletConfig.from_env({"SIMPLELAY_OUTLET_MIN_SAMPLES": "40", "SIMPLELAY_OUTLET_MAX_ERR_RATIO": "0.05"})

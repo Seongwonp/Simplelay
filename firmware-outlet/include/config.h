@@ -19,6 +19,19 @@
 #define OUTLET_CT_SOURCE OUTLET_CT_ADS1115
 #endif
 
+// ─── CT 채널 수(2026-10-06 사용자 결정: 두 번째 CT — 전자레인지·세탁기를 동시에 잰다) ─────────────
+// 채널 0 = 전자레인지(릴레이를 거치는 플러그), 채널 1 = 세탁기(릴레이를 거치지 않는다). 호스트가 채널 → 가전을
+// SIMPLELAY_OUTLET_CHANNELS(예: microwave:0,washer:1)로 잇는다. ADS1115는 최대 4(MUX), 내장 ADC 빌드는 최대 2(핀 2개).
+// 1로 빌드하면 CT 하나 배선과 같다(power 이벤트에 "ch":0이 붙는 것만 다르다).
+#ifndef OUTLET_CT_CHANNELS
+#define OUTLET_CT_CHANNELS     2
+#endif
+#define OUTLET_CT_MAX_CHANNELS 4       // 아래 채널별 표의 길이
+// 릴레이는 하나이고 이 채널(전자레인지)의 가전 전원만 끊는다. **세탁기 채널은 릴레이를 거치지 않게 배선한다** —
+// 모터 기동 전류가 릴레이 정격을 넘을 수 있고(정격 확인 전), 세탁기는 CT로 재기만 한다(2026-10-06 결정).
+// 비상정지 버튼도 이 릴레이만 연다 — 세탁기 전원은 끊지 않는다. TODO(HW 확인): 실제 배선.
+#define OUTLET_RELAY_CH        0
+
 // ─── 호스트 링크(RPi4 ↔ USB 시리얼) ─────────────────────────────────────────
 // 고정 보드레이트. RPi4 쪽 SIMPLELAY_OUTLET_BAUD를 같은 값으로 둔다.
 #define HOST_SERIAL_BAUD       115200
@@ -41,12 +54,16 @@
 #define MCU_TASK_WDT_MS        1000
 
 // ─── 샘플링 ──────────────────────────────────────────────────────────────────
-// 샘플링 태스크가 SAMPLE_HZ로 깨어나 CT 한 점을 읽고 비상정지 버튼을 본다.
+// 샘플링 태스크가 SAMPLE_HZ로 깨어나 비상정지 버튼을 보고 CT를 읽는다(ADS1115는 틱마다 채널 하나, 내장 ADC는 모든 채널).
 // 보고 주기(기본 REPORT_HZ_DEFAULT)마다 그 창의 실효값을 power 이벤트로 낸다.
 // ADS1115 연속 변환 최대 860 SPS — 그보다 느리게 읽어 같은 변환값을 두 번 읽지 않게 한다.
 // 60 Hz 상용 전원 기준 10 Hz 보고 = 창 하나에 정확히 6주기. TODO(HW 실측): 지역 주파수(60 Hz) 확인.
 #if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115
-#define SAMPLE_HZ              800
+// 단발 변환(single-shot) + 채널 돌려 읽기: 틱마다 ① 지난 틱에 시작한 변환이 끝났는지(OS 비트) 보고 읽어 그
+// 채널 창에 넣고 ② 다음 채널 MUX로 새 변환을 시작한다. 860 SPS 한 변환이 약 1.16 ms(내부 발진기 ±10%면
+// 1.28 ms)라 2 ms 틱에 여유를 둔다. 채널당 SAMPLE_HZ / OUTLET_CT_CHANNELS(2채널 = 250 Hz, 10 Hz 창에 25점 —
+// 60 Hz 6주기에 25점이 고르게 퍼진다). 측정 필요.
+#define SAMPLE_HZ              500
 #else
 #define SAMPLE_HZ              2000
 #endif
@@ -56,42 +73,54 @@
 #define SAMPLE_TASK_STACK      4096
 #define REPORT_HZ_DEFAULT      10
 #define REPORT_HZ_MIN          1
-#define REPORT_HZ_MAX          20      // 창 하나에 최소 40(ADS)·100(ADC) 샘플
+#define REPORT_HZ_MAX          20
+// rate 명령은 채널 하나의 창 샘플이 이 값보다 적어지는 주기를 거절한다(호스트 SIMPLELAY_OUTLET_MIN_SAMPLES 기본과 같다).
+// 예: ADS1115 2채널이면 10 Hz(채널당 25점)까지, 20 Hz(12.5점)는 bad_args. 측정 필요.
+#define CT_MIN_SAMPLES_PER_WINDOW 20
 // 창 샘플이 기대치(SAMPLE_HZ / 보고 주기)의 이 비율(%) 미만이면 그 창은 보고하지 않는다(판독 실패가 쌓인 창이
 // 몇 개 안 되는 샘플로 0 W처럼 보이지 않게). 호스트도 n·err로 한 번 더 거른다(SIMPLELAY_OUTLET_MIN_SAMPLES). 측정 필요.
 #define CT_MIN_WINDOW_PCT      50
 
-// ─── CT 보정(전부 측정 필요) ────────────────────────────────────────────────
+// ─── CT 보정(채널별, 전부 측정 필요) ─────────────────────────────────────────
+// 표는 채널 0, 1, 2, 3 순서. 쓰는 것은 앞의 OUTLET_CT_CHANNELS개다. CT마다 개체 차이·배선이 달라 따로 맞춘다.
 // SCT-013-030(전압 출력형, 부담 저항 내장): 정격 30 A → 1 V rms. 팀원이 다른 모델(전류 출력형
-// SCT-013-000 + 외부 부담 저항 등)을 쓰면 이 값이 바뀐다. TODO(HW 확인): 실제 CT 모델.
-#define CT_AMPS_PER_VOLT       30.0f
+// SCT-013-000 + 외부 부담 저항 등)을 쓰면 이 값이 바뀐다. TODO(HW 확인): 실제 CT 모델(두 번째 CT 포함).
+#define CT_AMPS_PER_VOLT_CH    {30.0f, 30.0f, 30.0f, 30.0f}
 // 보정 배율 — 기준 부하(정격을 아는 전열기 등)·클램프 미터와 비교해 정한다. 1.0은 '보정 안 함'.
-// TODO(HW 실측)
-#define CT_CAL_GAIN            1.0f
+// TODO(HW 실측): 채널마다.
+#define CT_CAL_GAIN_CH         {1.0f, 1.0f, 1.0f, 1.0f}
 // 무부하에서도 남는 잡음 전류(A rms). 측정 전에는 0(빼지 않음) — 잡음이 그대로 W로 보인다.
-// TODO(HW 실측): 가전 전원을 뺀 상태에서 몇 분 기록해 정한다.
-#define CT_NOISE_FLOOR_A       0.0f
-// 상용 전원 전압(V rms) — **측정하지 않는다**. vrms_est 필드로 그대로 내보내 추정임을 밝힌다.
+// TODO(HW 실측): 채널마다, 가전 전원을 뺀 상태에서 몇 분 기록해 정한다.
+#define CT_NOISE_FLOOR_A_CH    {0.0f, 0.0f, 0.0f, 0.0f}
+// 상용 전원 전압(V rms) — **측정하지 않는다**. vrms_est 필드로 그대로 내보내 추정임을 밝힌다. 한 콘센트라 공통.
 // TODO(HW 실측): 현장 콘센트 전압.
 #define MAINS_VRMS_EST         220.0f
-// 역률 — 저항성 부하 가정. 전자레인지 인버터·모터 부하는 1보다 작다. TODO(HW 실측)
-#define POWER_FACTOR_EST       1.0f
+// 역률 — 저항성 부하 가정. 전자레인지 인버터·세탁기 모터 부하는 1보다 작다. TODO(HW 실측): 채널마다.
+#define POWER_FACTOR_EST_CH    {1.0f, 1.0f, 1.0f, 1.0f}
 
 // ─── ADS1115(I2C) ───────────────────────────────────────────────────────────
-// 가정 배선: CT 두 선 → AIN0·AIN1, AIN1 쪽을 VDD/2 바이어스(분압 + 커패시터)에 묶어 차동으로 읽는다.
+// 가정 배선(채널마다 차동 한 쌍): CT 0 두 선 → AIN0·AIN1, CT 1 두 선 → AIN2·AIN3. 쌍의 뒤쪽(AIN1·AIN3)을 각각
+// VDD/2 바이어스(분압 + 커패시터)에 묶는다. CT 하나일 때의 배선(AIN0-AIN1)이 그대로 채널 0이다.
 // 차동 ±2.048 V 범위(PGA=2) — SCT-013-030 최대 1.414 V 피크에 여유. TODO(HW 확인): 실제 배선.
 #define PIN_I2C_SDA            21
 #define PIN_I2C_SCL            22
 #define ADS1115_ADDR           0x48    // ADDR → GND
 #define ADS1115_I2C_HZ         400000
-// 설정 레지스터: OS=0, MUX=000(AIN0-AIN1), PGA=010(±2.048 V), MODE=0(연속), DR=111(860 SPS), 비교기 끔.
-#define ADS1115_CONFIG         0x04E3
+// 채널 → MUX 값(설정 레지스터 14:12). 기본 ch0 = 000(AIN0-AIN1), ch1 = 011(AIN2-AIN3) — 차동 두 쌍이라 이 배선은 최대 2채널.
+// 3채널 이상은 배선을 바꿔야 한다: 공통 바이어스 AIN3에 001(AIN0-AIN3)·010(AIN1-AIN3)·011(AIN2-AIN3)(최대 3), 또는
+// 단일 입력 100~111(AINx-GND, 최대 4 — 바이어스 1.65 V + 피크 1.41 V가 ±2.048 V를 넘어 PGA를 001(±4.096 V)로 바꿔야
+// 한다). 그때 이 표·ADS1115_CONFIG_BASE·ADS1115_UV_PER_LSB를 함께 고친다. 뒤 두 칸은 자리표시자. TODO(HW 확인)
+#define ADS1115_MUX_CH         {0x0, 0x3, 0x6, 0x7}
+// 설정 레지스터(MUX 제외): OS=1(변환 시작), PGA=010(±2.048 V), MODE=1(단발), DR=111(860 SPS), 비교기 끔.
+#define ADS1115_CONFIG_BASE    0x85E3
 #define ADS1115_UV_PER_LSB     62.5f   // 2.048 V / 32768
 
 // ─── ESP32 내장 ADC(대안) ────────────────────────────────────────────────────
-// 가정 배선: CT 한 선 → GPIO36(ADC1_CH0), 다른 선 → 1.65 V 바이어스. 창마다 평균을 빼 DC를 없앤다.
-// ADC1만 쓴다(ADC2는 Wi-Fi와 충돌). TODO(HW 확인)
-#define PIN_CT_ADC             36
+// 가정 배선: CT 0 한 선 → GPIO36(ADC1_CH0), CT 1 한 선 → GPIO39(ADC1_CH3), 다른 선은 각각 1.65 V 바이어스.
+// 창마다 평균을 빼 DC를 없앤다. ADC1만 쓴다(ADC2는 Wi-Fi와 충돌) — 입력 전용 핀 두 개라 이 빌드는 최대 2채널.
+// 틱마다 모든 채널을 읽는다(채널당 SAMPLE_HZ). TODO(HW 확인)
+#define PIN_CT_ADC_CH          {36, 39}
+#define OUTLET_CT_ADC_MAX_CHANNELS 2
 
 // ─── 릴레이(가전 전원 차단) ──────────────────────────────────────────────────
 // 부팅 기본 = 꺼짐(열림, 가전 전원 없음). 호스트가 relay_on을 보내야 켠다(fail-safe, README 참고).
@@ -122,6 +151,21 @@
 #endif
 #if (SAMPLE_HZ % REPORT_HZ_DEFAULT) != 0
 #error "REPORT_HZ_DEFAULT는 SAMPLE_HZ를 나누어떨어지게 해야 한다(창 길이 정수)"
+#endif
+#if OUTLET_CT_CHANNELS < 1 || OUTLET_CT_CHANNELS > OUTLET_CT_MAX_CHANNELS
+#error "OUTLET_CT_CHANNELS는 1~4"
+#endif
+#if OUTLET_CT_SOURCE == OUTLET_CT_ESP32_ADC && OUTLET_CT_CHANNELS > OUTLET_CT_ADC_MAX_CHANNELS
+#error "내장 ADC 빌드는 CT 2채널까지(입력 핀 GPIO36·GPIO39)"
+#endif
+#if OUTLET_RELAY_CH < 0 || OUTLET_RELAY_CH >= OUTLET_CT_CHANNELS
+#error "OUTLET_RELAY_CH는 0 ~ OUTLET_CT_CHANNELS-1"
+#endif
+#if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115 && ((SAMPLE_HZ / REPORT_HZ_DEFAULT) % OUTLET_CT_CHANNELS) != 0
+#error "ADS1115 돌려 읽기: 기본 창 길이(틱)가 채널 수로 나누어떨어져야 채널마다 같은 샘플 수가 된다"
+#endif
+#if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115 && (SAMPLE_HZ / REPORT_HZ_DEFAULT / OUTLET_CT_CHANNELS) < CT_MIN_SAMPLES_PER_WINDOW
+#error "기본 보고 주기에서 채널당 창 샘플이 CT_MIN_SAMPLES_PER_WINDOW보다 적다"
 #endif
 #if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115 && SAMPLE_HZ > 860
 #error "ADS1115 연속 변환(860 SPS)보다 빨리 읽으면 같은 값을 두 번 읽는다"

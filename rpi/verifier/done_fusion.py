@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 from collections import deque
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
@@ -28,6 +29,19 @@ DONE_INPUTS = ("power", "beep")
 DONE_SOURCES = ("real", "mock", "injected")
 #: 세탁기 끝의 루틴 이벤트 이름(템플릿 '세탁 끝 알림'의 트리거와 같다).
 DEFAULT_DONE_EVENT = "wash_complete"
+#: 가전별 끝 이벤트 이름(2026-10-06, CT 두 채널). 전자레인지 끝이 '세탁 끝 알림' 루틴을 깨우지 않게 나눈다.
+DONE_EVENTS = {"washer": DEFAULT_DONE_EVENT, "microwave": "heat_complete"}
+
+
+def done_event_for(appliance_id: str) -> str:
+    """가전의 끝 이벤트 이름. 표에 없으면 ``<가전 ID>_done``(소문자·밑줄로 다듬음)."""
+    known = DONE_EVENTS.get(appliance_id)
+    if known is not None:
+        return known
+    slug = re.sub(r"[^a-z0-9_]", "_", appliance_id.lower()).strip("_") or "appliance"
+    if not slug[0].isalpha():
+        slug = "a_" + slug
+    return f"{slug[:58]}_done"
 
 FUSION_ENV_NAMES = {
     "window_s": "SIMPLELAY_DONE_FUSION_WINDOW_S",
@@ -216,8 +230,10 @@ class ApplianceDoneFusion:
 
 
 def rehearsal_done_event(appliance_id: str, inputs: Iterable[str], *, now_s: float,
-                         event: str = DEFAULT_DONE_EVENT) -> ApplianceDoneEvent:
-    """리허설 주입(시연 v3 갭 S8) — 같은 융합 규칙에 주입 입력을 넣고 곧바로 낸다. 출처는 injected."""
+                         event: str | None = None) -> ApplianceDoneEvent:
+    """리허설 주입(시연 v3 갭 S8) — 같은 융합 규칙에 주입 입력을 넣고 곧바로 낸다. 출처는 injected.
+    ``event``가 없으면 가전의 끝 이벤트(`done_event_for`, 세탁기 = wash_complete·전자레인지 = heat_complete)."""
+    event = event or done_event_for(appliance_id)
     kinds = list(dict.fromkeys(inputs))
     if not kinds:
         raise ValueError("주입할 입력이 하나 이상 있어야 합니다(power·beep)")

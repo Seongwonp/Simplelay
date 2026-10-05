@@ -1,14 +1,15 @@
 // firmware-outlet — ESP32 콘센트 모듈. **컴파일만 확인, 실물 미검증.**
 //
-// 가전 전원선(AC 라인 스플리터의 L 한 가닥) ─ 분할형 CT ─ ADS1115(또는 ESP32 ADC) ─ 이 보드
-//   ─USB 시리얼, 줄 단위 JSON─ RPi4(rpi/verifier/outlet.py: 전력 샘플 → L3 판정·잔여 전류 기록)
-// 이 보드 ─ 릴레이(가전 전원 차단) · 비상정지 버튼(NC)
+// 가전 전원선(AC 라인 스플리터의 L 한 가닥) ─ 분할형 CT(채널마다 하나) ─ ADS1115(또는 ESP32 ADC) ─ 이 보드
+//   ─USB 시리얼, 줄 단위 JSON─ RPi4(rpi/verifier/outlet.py: 채널별 전력 샘플 → L3 판정·잔여 전류·사이클 끝)
+// 이 보드 ─ 릴레이(OUTLET_RELAY_CH 채널 가전 = 전자레인지 전원만 차단) · 비상정지 버튼(NC)
+// CT 채널(2026-10-06): ch0 = 전자레인지(릴레이 거침), ch1 = 세탁기(**릴레이를 거치지 않는다** — CT 계측만).
 // 규약의 실행 가능한 기준은 rpi/tools/fake_outlet.py, 명령 표는 firmware-outlet/protocol_table.json.
 //
 // 구조:
 // - 샘플링: esp_timer가 SAMPLE_HZ로 깨우는 전용 태스크가 매 틱 ① 비상정지 버튼을 보고(걸리면 그 자리에서
-//   릴레이를 연다 — 호스트·시리얼과 무관) ② CT 한 점을 읽어 창에 누적한다. 창이 차면 실효값·전력 추정을
-//   우편함(한 칸)에 넣는다. 시리얼에는 쓰지 않는다.
+//   릴레이를 연다 — 호스트·시리얼과 무관) ② CT를 읽어 채널별 창에 누적한다(ct_sample_tick). 창이 차면 채널마다
+//   실효값·전력 추정을 우편함(채널마다 한 칸)에 넣는다. 시리얼에는 쓰지 않는다.
 // - loop: 호스트 줄 해석·응답, 우편함의 power 이벤트·estop 이벤트 송신, 호스트 침묵 정책.
 // - 릴레이 기본 = 꺼짐(fail-safe). 부팅·재부팅·패닉 뒤에도 꺼짐에서 시작하고 호스트 relay_on이 있어야 켠다.
 // - 비상정지 걸림은 재부팅을 넘어 남는다(RTC 메모리 + NVS, outlet.cpp). ready의 estop으로 알리고, estop_reset 전에는
@@ -40,8 +41,8 @@ bool g_silence_tripped = false;
 
 bool g_ct_ok = false;
 portMUX_TYPE g_mail_mux = portMUX_INITIALIZER_UNLOCKED;
-PowerReport g_mail;
-bool g_mail_full = false;
+PowerReport g_mail[OUTLET_CT_CHANNELS];
+bool g_mail_full[OUTLET_CT_CHANNELS] = {};
 
 StaticTask_t g_tcb;
 StackType_t g_stack[SAMPLE_TASK_STACK];
@@ -55,40 +56,37 @@ void on_sample_timer(void*) {
 void sample_task(void*) {
   ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
   esp_task_wdt_add(nullptr);
-  CtWindow window;
-  ct_window_reset(&window);
+  CtWindow windows[OUTLET_CT_CHANNELS];
+  uint32_t seq[OUTLET_CT_CHANNELS] = {};
+  for (int ch = 0; ch < OUTLET_CT_CHANNELS; ++ch) ct_window_reset(&windows[ch]);
   uint32_t ticks = 0;
-  uint32_t seq = 0;
   for (;;) {
     const uint32_t now = millis();
     outlet_poll_estop(now);  // 버튼 차단이 먼저 — CT 읽기(I2C)가 늦어도 차단은 이 틱에 끝난다
-    if (g_ct_ok) {
-      int32_t uv = 0;
-      if (ct_read_uv(&uv)) {
-        ct_window_add(&window, uv);
-      } else {
-        ++window.read_errors;
-      }
-    }
+    if (g_ct_ok) ct_sample_tick(windows);
     ++ticks;
     const uint32_t hz = proto_report_hz();
     const uint32_t per_window = SAMPLE_HZ / (hz > 0 ? hz : 1);
     if (ticks >= per_window) {
-      PowerReport report;
-      // 창 샘플이 기대치의 CT_MIN_WINDOW_PCT% 미만이면(I2C 판독 실패 연속 등) 보고하지 않는다 — n=1 창이
-      // 0 W로 보이는 것을 막는다(2026-10-05 리뷰 M1). seq는 늘려 호스트가 빠짐을 볼 수 있게 한다.
-      const bool enough = window.n * 100u >= per_window * CT_MIN_WINDOW_PCT;
-      if (g_ct_ok && !enough) {
-        ++seq;
-      } else if (g_ct_ok && ct_window_finish(window, &report)) {
-        report.t_ms = now;
-        report.seq = seq++;
-        portENTER_CRITICAL(&g_mail_mux);
-        g_mail = report;  // loop가 못 가져갔으면 덮어쓴다(최신 값 우선, seq로 빠짐이 보인다)
-        g_mail_full = true;
-        portEXIT_CRITICAL(&g_mail_mux);
+      const uint32_t expected = ct_expected_samples(per_window);
+      for (int ch = 0; ch < OUTLET_CT_CHANNELS; ++ch) {
+        PowerReport report;
+        CtWindow& window = windows[ch];
+        // 창 샘플이 기대치의 CT_MIN_WINDOW_PCT% 미만이면(I2C 판독 실패 연속 등) 보고하지 않는다 — n=1 창이
+        // 0 W로 보이는 것을 막는다(2026-10-05 리뷰 M1). seq는 늘려 호스트가 빠짐을 볼 수 있게 한다(채널마다).
+        const bool enough = window.n * 100u >= expected * CT_MIN_WINDOW_PCT;
+        if (g_ct_ok && !enough) {
+          ++seq[ch];
+        } else if (g_ct_ok && ct_window_finish(window, static_cast<uint8_t>(ch), &report)) {
+          report.t_ms = now;
+          report.seq = seq[ch]++;
+          portENTER_CRITICAL(&g_mail_mux);
+          g_mail[ch] = report;  // loop가 못 가져갔으면 덮어쓴다(최신 값 우선, seq로 빠짐이 보인다)
+          g_mail_full[ch] = true;
+          portEXIT_CRITICAL(&g_mail_mux);
+        }
+        ct_window_reset(&window);
       }
-      ct_window_reset(&window);
       ticks = 0;
     }
     esp_task_wdt_reset();
@@ -162,16 +160,18 @@ void flush_events() {
   if (outlet_take_estop_event(&estop_t)) proto_event_estop(estop_t);
   outlet_persist();  // 걸림·해제를 NVS로(이벤트를 먼저 보낸 뒤 — 플래시 쓰기가 알림을 늦추지 않게)
 
-  PowerReport report;
-  bool have = false;
-  portENTER_CRITICAL(&g_mail_mux);
-  if (g_mail_full) {
-    report = g_mail;
-    g_mail_full = false;
-    have = true;
+  for (int ch = 0; ch < OUTLET_CT_CHANNELS; ++ch) {
+    PowerReport report;
+    bool have = false;
+    portENTER_CRITICAL(&g_mail_mux);
+    if (g_mail_full[ch]) {
+      report = g_mail[ch];
+      g_mail_full[ch] = false;
+      have = true;
+    }
+    portEXIT_CRITICAL(&g_mail_mux);
+    if (have) proto_event_power(report, outlet_snapshot().relay_on);
   }
-  portEXIT_CRITICAL(&g_mail_mux);
-  if (have) proto_event_power(report, outlet_snapshot().relay_on);
 
 #if HOST_SILENCE_RELAY_OFF
   if (!g_silence_tripped && millis() - g_last_host_ms >= HOST_SILENCE_MS) {

@@ -8,7 +8,8 @@
   본다. arrival=폰 귀가 신호, room=방 안(ROOM_PRESENT 이상), near=가전 앞(APPROACHING
   이상). 노드는 하나라 가전별 구역은 아직 없다(트리거의 가전은 기록용).
 - ``after_done``: 가전 — 실제 실행이 L3(operation_confirmed)·상태 확인(state_confirmed)으로
-  끝났을 때만 일반 카드, 모의 성공은 시연 카드, 그 밖은 무시. 루틴 — 그 루틴의 실행이
+  끝났을 때만 일반 카드, 모의 성공은 시연 카드, 그 밖은 무시. 끝 센서가 있는 가전
+  (``SIMPLELAY_ROUTINE_DONE_SENSORS``, 2026-10-06 M2)은 L3 시작 확인이 아니라 사이클 끝(``appliance_done``)에서 깬다. 루틴 — 그 루틴의 실행이
   성공으로 끝났을 때(모의 단계가 섞였으면 시연 카드).
 - ``event``: ThinQ 이벤트 이름(예: wash_complete). 모의 이벤트면 시연 카드.
 - 버튼식 가전의 끝(``on_appliance_done``, 2026-10-06): RPi4가 CT 전력 하강 + 종료음을 융합한
@@ -55,8 +56,11 @@ class RoutineUnavailableError(RuntimeError):
 
 class RoutineEngine:
     def __init__(self, store, suggestions, service, clock, *, care_events=None,
-                 presence_machine=None, environment_reader=None, runner=None) -> None:
+                 presence_machine=None, environment_reader=None, runner=None,
+                 done_sensors: frozenset = frozenset()) -> None:
         self._store = store
+        #: 끝 센서(RPi4 사이클 끝)가 있는 가전 — 그 가전의 after_done은 시작 확인이 아니라 appliance_done에서 깬다(M2).
+        self._done_sensors = frozenset(done_sensors)
         self._suggestions = suggestions
         self._service = service
         self._clock = clock
@@ -139,6 +143,8 @@ class RoutineEngine:
         own = parse_scenario_key(event.scenario_id)
         if (event.execution_mode is ExecutionMode.REAL
                 and event.confirmation in (Confirmation.OPERATION_CONFIRMED, Confirmation.STATE_CONFIRMED)):
+            if event.appliance_id in self._done_sensors:
+                return  # 끝 센서가 있으면 시작 확인으로 깨우지 않는다 — 사이클 끝(on_appliance_done)에서 한 번
             reason, is_demo = "동작을 확인했어요", False
         elif event.execution_mode is ExecutionMode.MOCK:
             reason, is_demo = "시연: 모의 실행이 끝났어요 — 실제 완료를 확인한 것은 아니에요", True

@@ -272,3 +272,23 @@ def _builtin_appliances_listed(monkeypatch):
     """내장 가전 목록 노출은 개발자·리허설 모드 전용이다(UI 확정 §1-6).
     이 파일은 내장 가전을 전제로 하므로 그 모드로 둔다."""
     monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)
+
+
+def test_intercom_category_is_stored_as_intercom():
+    """시연 v3 갭 S6 — 인터폰(③ 방문자 문 열기)이 other로 떨어지지 않는다."""
+    assert ApplianceCategory.parse("intercom") is ApplianceCategory.INTERCOM
+    client = _client()
+    resp = client.put(
+        "/appliances/intercom",
+        json={
+            "name": "인터폰",
+            "category": "intercom",
+            "rows": 1,
+            "cols": 1,
+            "buttons": [{"id": "b1", "label": "문열림", "x": 0, "y": 0}],
+        },
+    )
+    assert resp.status_code == 200, resp.text
+    (stored,) = [a for a in client.get("/appliances").json() if a["id"] == "intercom"]
+    assert stored["category"] == "intercom"
+    assert stored["icon"] == "intercom"

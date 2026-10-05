@@ -616,7 +616,7 @@ def test_wait_until_done_passes_on_operation_confirmed_and_expiry_does_not_cut_t
         [HEAT, {"kind": "wait_until_done", "appliance_id": "microwave"}, INDUCTION])
     run = runner.execute_approved(approved, scenario_id=routine.scenario_key())
     assert run.status is RunStatus.SUCCEEDED and len(service.calls) == 2
-    assert run.steps[1]["detail"] == "가전 동작을 확인했어요"
+    assert run.steps[1]["detail"] == "시작만 확인 — 끝남 판정 센서 없음"  # 끝 센서 없음(M2)
 
 
 def _halted(command, status):

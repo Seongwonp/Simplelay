@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import math
 import os
+import re
 import statistics
 from collections.abc import Iterable, Mapping
 from dataclasses import asdict, dataclass
@@ -82,6 +83,40 @@ class CycleEndConfig:
             return cls(**values)
         except ValueError as exc:
             raise RuntimeError(f"사이클 끝 판정 설정이 잘못됐습니다: {exc}") from exc
+
+    @classmethod
+    def for_appliance(cls, appliance_id: str, env: Mapping[str, str] | None = None) -> "CycleEndConfig":
+        """가전 하나의 기준(CT 두 채널, 2026-10-06). 앞선 것이 이긴다:
+        ``SIMPLELAY_CYCLE_<가전>_<항목>``(예: ``SIMPLELAY_CYCLE_MICROWAVE_SETTLE_S``) → ``SIMPLELAY_CYCLE_<항목>``
+        → 가전별 설계 초기값(`APPLIANCE_CYCLE_DEFAULTS`) → 기본값(세탁기 기준). 전부 측정 필요."""
+        src = os.environ if env is None else env
+        prefix = _appliance_env_prefix(appliance_id)
+        values: dict[str, float] = dict(APPLIANCE_CYCLE_DEFAULTS.get(appliance_id, {}))
+        for field_name, env_name in CYCLE_ENV_NAMES.items():
+            for name in (prefix + env_name.removeprefix("SIMPLELAY_CYCLE_"), env_name):
+                raw = (src.get(name) or "").strip()
+                if not raw:
+                    continue
+                try:
+                    values[field_name] = float(raw)
+                except ValueError as exc:
+                    raise RuntimeError(f"{name} 값을 숫자로 읽을 수 없습니다: {raw!r}") from exc
+                break
+        try:
+            return cls(**values)
+        except ValueError as exc:
+            raise RuntimeError(f"'{appliance_id}' 사이클 끝 판정 설정이 잘못됐습니다: {exc}") from exc
+
+
+#: 가전별 설계 초기값(2026-10-06, CT 두 채널) — **전부 측정 필요**. 전자레인지는 가열이 몇 분이고 끝나면 표시창
+#: 대기로 바로 돌아온다. 출력 조절(마그네트론 켜짐/꺼짐) 중에도 팬·조명·회전판 전력이 대기 상한보다 높다는 가정이다.
+APPLIANCE_CYCLE_DEFAULTS: dict[str, dict[str, float]] = {
+    "microwave": {"run_min_w": 100.0, "min_run_s": 10.0, "standby_max_w": 15.0, "settle_s": 10.0, "max_gap_s": 5.0},
+}
+
+
+def _appliance_env_prefix(appliance_id: str) -> str:
+    return "SIMPLELAY_CYCLE_" + re.sub(r"[^A-Z0-9]", "_", appliance_id.upper()) + "_"
 
 
 @dataclass(frozen=True)

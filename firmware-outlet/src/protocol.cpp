@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "config.h"
+#include "ct.h"
 #include "outlet.h"
 
 namespace {
@@ -86,10 +87,11 @@ void reply_status(const char* id) {
   const OutletSnapshot s = outlet_snapshot();
   snprintf(g_out, sizeof(g_out),
            "{\"id\":%s,\"ok\":true,\"relay\":\"%s\",\"estop\":%s,\"button\":%s,\"rate_hz\":%lu,"
-           "\"ct\":\"%s\",\"cal\":\"%s\",\"uptime_ms\":%lu}",
+           "\"ct\":\"%s\",\"cal\":\"%s\",\"uptime_ms\":%lu,\"channels\":%d,\"relay_ch\":%d}",
            id, s.relay_on ? "on" : "off", s.estop_latched ? "true" : "false",
            s.button_active ? "true" : "false", static_cast<unsigned long>(g_report_hz), ct_source_name(),
-           OUTLET_CONFIG_PLACEHOLDER ? "placeholder" : "set", static_cast<unsigned long>(millis()));
+           OUTLET_CONFIG_PLACEHOLDER ? "placeholder" : "set", static_cast<unsigned long>(millis()),
+           OUTLET_CT_CHANNELS, OUTLET_RELAY_CH);
   write_line(g_out);
 }
 
@@ -137,8 +139,16 @@ void proto_handle_line(char* line, size_t len) {
       return;
     }
     const int32_t v = hz.as<int32_t>();
-    // 창 길이가 정수 샘플이어야 한다(SAMPLE_HZ % hz == 0).
-    if (v < REPORT_HZ_MIN || v > REPORT_HZ_MAX || (SAMPLE_HZ % v) != 0) {
+    // 창 길이가 정수 샘플이어야 한다(SAMPLE_HZ % hz == 0). ADS1115 돌려 읽기면 창 틱이 채널 수로 나누어떨어져야
+    // 채널마다 같은 샘플 수가 되고, 채널 하나의 창 샘플이 CT_MIN_SAMPLES_PER_WINDOW 이상이어야 한다.
+    const uint32_t ticks = (v > 0) ? static_cast<uint32_t>(SAMPLE_HZ / v) : 0;
+#if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115
+    const bool split_ok = (ticks % OUTLET_CT_CHANNELS) == 0;
+#else
+    const bool split_ok = true;
+#endif
+    if (v < REPORT_HZ_MIN || v > REPORT_HZ_MAX || (SAMPLE_HZ % v) != 0 || !split_ok ||
+        ct_expected_samples(ticks) < CT_MIN_SAMPLES_PER_WINDOW) {
       reply_error(id, "bad_args");
       return;
     }
@@ -154,18 +164,20 @@ void proto_event_ready(const char* reset_reason, bool ct_ok) {
   const OutletSnapshot s = outlet_snapshot();
   snprintf(g_out, sizeof(g_out),
            "{\"event\":\"ready\",\"fw\":\"%s\",\"protocol\":\"%s\",\"reset\":\"%s\",\"relay\":\"off\","
-           "\"ct\":\"%s\",\"ct_ok\":%s,\"estop\":%s}",
+           "\"ct\":\"%s\",\"ct_ok\":%s,\"estop\":%s,\"channels\":%d,\"relay_ch\":%d}",
            FW_NAME, FW_PROTOCOL, reset_reason, ct_source_name(), ct_ok ? "true" : "false",
-           s.estop_latched ? "true" : "false");
+           s.estop_latched ? "true" : "false", OUTLET_CT_CHANNELS, OUTLET_RELAY_CH);
   write_line(g_out);
 }
 
 void proto_event_power(const PowerReport& r, bool relay_on) {
   // vrms_est: 측정값이 아니라 설정 상수(MAINS_VRMS_EST)다 — 이름에 est를 단 이유.
+  // ch: CT 채널(2026-10-06). relay는 릴레이(OUTLET_RELAY_CH 채널만 끊는다) 상태이고 그 줄 채널의 전원 상태가 아니다.
   snprintf(g_out, sizeof(g_out),
-           "{\"event\":\"power\",\"t_ms\":%lu,\"seq\":%lu,\"watts\":%.1f,\"irms_a\":%.3f,\"vrms_est\":%.1f,"
+           "{\"event\":\"power\",\"ch\":%u,\"t_ms\":%lu,\"seq\":%lu,\"watts\":%.1f,\"irms_a\":%.3f,\"vrms_est\":%.1f,"
            "\"ct_mv\":%.2f,\"n\":%lu,\"err\":%lu,\"relay\":\"%s\"}",
-           static_cast<unsigned long>(r.t_ms), static_cast<unsigned long>(r.seq), r.watts, r.irms_a,
+           static_cast<unsigned>(r.ch), static_cast<unsigned long>(r.t_ms), static_cast<unsigned long>(r.seq),
+           r.watts, r.irms_a,
            static_cast<double>(MAINS_VRMS_EST), r.ct_mv_rms, static_cast<unsigned long>(r.n),
            static_cast<unsigned long>(r.read_errors), relay_on ? "on" : "off");
   write_line(g_out);

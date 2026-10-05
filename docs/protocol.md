@@ -374,14 +374,25 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 ### 모듈 → RPi4
 
 ```json
-{ "id": 1, "ok": true, "relay": "off", "estop": false, "button": false, "rate_hz": 10, "ct": "ads1115", "cal": "placeholder", "uptime_ms": 5230 }
+{ "id": 1, "ok": true, "relay": "off", "estop": false, "button": false, "rate_hz": 10, "ct": "ads1115", "cal": "placeholder", "uptime_ms": 5230, "channels": 2, "relay_ch": 0 }
 { "id": 3, "ok": false, "error": "estop_latched" }
-{ "event": "ready", "fw": "firmware-outlet", "protocol": "line-json/outlet-v0", "reset": "poweron", "relay": "off", "ct": "ads1115", "ct_ok": true, "estop": false }
-{ "event": "power", "t_ms": 5300, "seq": 52, "watts": 3.1, "irms_a": 0.014, "vrms_est": 220.0, "ct_mv": 0.47, "n": 80, "err": 0, "relay": "on" }
+{ "event": "ready", "fw": "firmware-outlet", "protocol": "line-json/outlet-v0", "reset": "poweron", "relay": "off", "ct": "ads1115", "ct_ok": true, "estop": false, "channels": 2, "relay_ch": 0 }
+{ "event": "power", "ch": 0, "t_ms": 5300, "seq": 52, "watts": 3.1, "irms_a": 0.014, "vrms_est": 220.0, "ct_mv": 0.47, "n": 25, "err": 0, "relay": "on" }
+{ "event": "power", "ch": 1, "t_ms": 5300, "seq": 52, "watts": 412.0, "irms_a": 1.873, "vrms_est": 220.0, "ct_mv": 62.4, "n": 25, "err": 0, "relay": "on" }
 { "event": "estop", "source": "button", "t_ms": 9120, "relay": "off" }
 { "event": "fault", "reason": "ct_init" }
 ```
 
+- **CT 채널(2026-10-06, 사용자 결정: 두 번째 CT로 전자레인지·세탁기를 동시에 잰다).** `power` 줄마다 `ch`(0~3)가 붙는다.
+  `ch`가 없는 줄(옛 펌웨어)은 채널 0이다. 펌웨어 `OUTLET_CT_CHANNELS`(기본 2; ADS1115 최대 4, 내장 ADC 최대 2), 기본 배선
+  ch0 = 전자레인지(AIN0-AIN1), ch1 = 세탁기(AIN2-AIN3). ADS1115는 단발 변환으로 채널을 돌려 읽는다(500 Hz → 2채널이면 채널당
+  250 Hz, 10 Hz 창에 25점). 보정은 채널마다(`CT_*_CH`, 전부 측정 필요). `ready`·`status`의 `channels`는 빌드 채널 수,
+  `relay_ch`는 릴레이가 끊는 채널. **릴레이는 하나이고 `relay_ch`(전자레인지) 가전 전원만 끊는다 — 세탁기 채널은 릴레이를
+  거치지 않게 배선한다**(모터 기동 전류, CT 계측만). 비상정지 버튼도 그 릴레이만 연다. `power`의 `relay`는 릴레이 상태다.
+  RPi4는 링 버퍼·시각 맞춤·`seq`·신선도를 **채널마다 따로** 둔다(한 채널의 줄이 다른 채널을 순서 뒤바뀜으로 버리지 않는다).
+  채널 → 가전은 `SIMPLELAY_OUTLET_CHANNELS=microwave:0,washer:1`(비우면 모두 채널 0). L3·잔여 전류 꼬리·정지 확인·기록기는
+  `microwave` 채널, `SIMPLELAY_DONE_WATCH`의 가전은 각자 채널을 읽는다. 대응에 가전이 빠졌거나 한 채널에 두 가전이면 기동 거절.
+  `rate`는 채널당 창 샘플이 20 미만이 되는 주기를 `bad_args`로 거절한다(2채널 ADS1115는 10 Hz까지).
 - `power`: 기본 10 Hz(`rate`, 1~20). `watts`는 **추정값** = CT 실효 전류(보정 배율·잡음 바닥 적용) × `vrms_est`
   (설정 상수, 측정 아님) × 설정 역률. 보정 값은 전부 자리표시자(`status.cal = "placeholder"`) — 절대값은 근거가 아니다.
   L3는 기준선 대비 변화로 판정한다. CT 초기화가 실패하면 `fault`(`ct_init`)만 보내고 `power`를 내지 않는다(0 W를 지어내지 않는다).
@@ -391,7 +402,7 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 - 창 품질(2026-10-05 리뷰 M1): 모듈은 창 샘플이 기대치의 `CT_MIN_WINDOW_PCT`(50 %) 미만인 창을 보고하지 않고 `seq`만 늘린다.
   RPi4는 `n` < `SIMPLELAY_OUTLET_MIN_SAMPLES`(기본 20) 또는 `err/n` > `SIMPLELAY_OUTLET_MAX_ERR_RATIO`(기본 0.1)인 줄, `n`이
   없는 줄을 버린다(신선한 샘플로 세지 않는다). 기준값은 측정 필요.
-- 끊김: 마지막 `power` 수신 뒤 `SIMPLELAY_OUTLET_STALE_MS`(기본 1000)가 지나면 RPi4 센서는 `PowerSensorStale`을 던진다 →
+- 끊김(채널마다): 그 채널의 마지막 `power` 수신 뒤 `SIMPLELAY_OUTLET_STALE_MS`(기본 1000)가 지나면 RPi4 센서는 `PowerSensorStale`을 던진다 →
   L3는 'L3 판정 불가 — 전력 센서를 읽지 못함'으로 안전 정지(자동 재입력 없음).
 - 생존(2026-10-05 리뷰 M2): RPi4는 어떤 줄이든(ping·status 응답 포함) 받은 시각을 남기고, `SIMPLELAY_OUTLET_OFFLINE_MS`
   (기본 3000) 넘게 아무것도 받지 못하면 모듈 무응답으로 본다 — 그동안 `execute`·`verify_pass`는 `error`(`outlet_offline`)로
@@ -428,7 +439,8 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   판정이 아니다. 정의·기준값은 `rpi/verifier/power_tail.py`(`SIMPLELAY_TAIL_*`, 전부 측정 필요). RPi5 `ActClient.last_power_tail`.
   원시 기록기(`SIMPLELAY_RECORDER_PATH`)에는 `event=power_tail` 행과 `tail_*`·`pre/post_baseline_w` 열로 남는다.
 - `appliance_done`(2026-10-06, **가짜 콘센트 모듈·합성 음으로만 시험, 실물 미검증**) — RPi4가 스스로 보내는 가전 끝 알림.
-  `alert`처럼 RPi5가 묻지 않아도 오며 `execute`의 결과가 아니다(실행 중에도 올 수 있다). RPi4 `SIMPLELAY_DONE_WATCH=<가전>:outlet[,mic]`일
+  `alert`처럼 RPi5가 묻지 않아도 오며 `execute`의 결과가 아니다(실행 중에도 올 수 있다). RPi4 `SIMPLELAY_DONE_WATCH=<가전>:outlet[,mic][;…]`
+  (예: `washer:outlet,mic;microwave:outlet`, 2026-10-06 CT 두 채널 — 가전마다 자기 CT 채널, `mic`은 한 가전만)일
   때 콘센트 모듈 CT 전력의 사이클 끝(`rpi/verifier/cycle_end.py`: 운전 ≥ `run_min_w`를 `min_run_s` 지난 뒤 대기 ≤ `standby_max_w`에
   `settle_s` 머묾 — 그보다 짧은 하강은 끝이 아니다)과 마이크 종료음(`rpi/verifier/end_beep.py`: 위험 소리와 같은 대역 에너지·간격
   DSP, 몇 번 울리고 멈추는 묶음)을 `rpi/verifier/done_fusion.py`가 융합한다. 기준값은 `SIMPLELAY_CYCLE_*`·`SIMPLELAY_BEEP_*`·
@@ -449,6 +461,11 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   - RPi5: `ActClient.on_appliance_done` → `deps.receive_appliance_done` → 루틴 엔진 `on_appliance_done`(같은 가전의 `after_done`,
     같은 이름의 `event` 트리거). `done_confirmed`만 "세탁이 끝났어요", 나머지는 "끝난 것 같아요 — 확인해 주세요"이고 루틴의
     안내 문장을 읽지 않는다. 주입은 "(시연 주입)", 모의는 "(모의 입력)". 리허설은 `POST /demo/appliance-done`(모의·시뮬레이터만, 그 밖 404).
+  - `event`는 가전마다 다르다(`rpi/verifier/done_fusion.py` `done_event_for`): 세탁기 `wash_complete`, 전자레인지 `heat_complete`,
+    그 밖 `<가전>_done`. 전자레인지 끝이 '세탁 끝 알림' 루틴을 깨우지 않게 나눴다. 사이클 기준은 가전별로
+    `SIMPLELAY_CYCLE_<가전>_<항목>`(예: `SIMPLELAY_CYCLE_MICROWAVE_SETTLE_S`) → `SIMPLELAY_CYCLE_<항목>` → 가전별 설계 초기값 순.
+  - 루틴 `wait_until_done`(갭 M2): RPi5 `SIMPLELAY_ROUTINE_DONE_SENSORS`에 든 가전이면 L3 시작 확인 뒤 이 프레임을
+    `SIMPLELAY_ROUTINE_DONE_TIMEOUT_S`(기본 1200, 측정 필요)까지 기다린다. 그 가전의 `after_done` 트리거도 L3가 아니라 이 프레임에서 깬다.
   - 하위 호환: 옛 RPi5는 모르는 `type`을 무시한다(위 progress와 같다).
 
 ---

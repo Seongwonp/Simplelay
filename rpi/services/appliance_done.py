@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 import threading
+import time
 from collections import deque
 from collections.abc import Mapping
 
@@ -58,21 +59,48 @@ def parse_appliance_done(doc: Mapping) -> dict | None:
 
 
 class ApplianceDoneLog:
-    """받은 완료 기록(최근 50건). 스레드 안전."""
+    """받은 완료 기록(최근 50건). 스레드 안전.
+
+    루틴 ``wait_until_done``(시연 v3 갭 M2)이 기다릴 수 있게 받은 순서 번호를 매긴다: 구간을 보내기 전에 `mark`를
+    잡고, 그 뒤에 온 그 가전의 기록만 `wait_for`로 받는다(지난 사이클의 끝을 세지 않는다).
+    """
 
     def __init__(self, clock=None) -> None:
         self._clock = clock
-        self._lock = threading.Lock()
+        self._cond = threading.Condition()
         self._items: deque[dict] = deque(maxlen=50)
+        self._seq = 0
 
     def append(self, record: dict) -> dict:
         entry = dict(record)
         if self._clock is not None:
             entry["received_at"] = self._clock.now().isoformat()
-        with self._lock:
+        with self._cond:
+            self._seq += 1
+            entry["_seq"] = self._seq
             self._items.append(entry)
-        return entry
+            self._cond.notify_all()
+        return {k: v for k, v in entry.items() if k != "_seq"}
 
     def recent(self) -> list[dict]:
-        with self._lock:
-            return list(reversed(self._items))
+        with self._cond:
+            return [{k: v for k, v in e.items() if k != "_seq"} for e in reversed(self._items)]
+
+    def mark(self) -> int:
+        """지금까지 받은 기록의 번호. 이 뒤에 온 것만 `wait_for`가 본다."""
+        with self._cond:
+            return self._seq
+
+    def wait_for(self, appliance_id: str, after: int, timeout_s: float,
+                 cancel: threading.Event | None = None, *, poll_s: float = 0.1) -> dict | None:
+        """``after`` 뒤에 온 그 가전의 첫 기록. ``timeout_s``가 지나거나 ``cancel``이 서면 None."""
+        deadline = time.monotonic() + timeout_s
+        with self._cond:
+            while True:
+                for entry in self._items:
+                    if entry["_seq"] > after and entry.get("appliance_id") == appliance_id:
+                        return {k: v for k, v in entry.items() if k != "_seq"}
+                remaining = deadline - time.monotonic()
+                if remaining <= 0 or (cancel is not None and cancel.is_set()):
+                    return None
+                self._cond.wait(min(remaining, poll_s))

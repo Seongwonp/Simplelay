@@ -63,7 +63,7 @@ from rpi.controller import (
 )
 from rpi.services.demo_failure import DemoFailureState
 from rpi.verifier import DangerSoundResult
-from rpi.verifier.done_fusion import DEFAULT_DONE_EVENT, rehearsal_done_event
+from rpi.verifier.done_fusion import rehearsal_done_event
 
 from ..models.act_messages import (
     AbortMsg,
@@ -375,7 +375,7 @@ class ActExecutor:
         return emit
 
     def inject_appliance_done(self, appliance_id: str, inputs: "list[str] | tuple[str, ...]",
-                              event: str = DEFAULT_DONE_EVENT) -> dict:
+                              event: str | None = None) -> dict:
         """리허설 주입(시연 v3 갭 S8) — **시뮬레이터 실행기 전용**. 같은 융합 규칙에 주입 입력을 넣어
         ``source:"injected"`` 프레임을 보내고 그 프레임을 돌려준다. 실물 경로(act_main)는 이것을 부르지 않는다."""
         done = rehearsal_done_event(appliance_id, list(inputs), now_s=time.monotonic(), event=event)
