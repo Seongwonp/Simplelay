@@ -20,7 +20,7 @@ docker run --name simplelay-build --security-opt apparmor=unconfined \
     pip install --no-cache-dir \
       "fastapi>=0.111,<1" "uvicorn[standard]>=0.29,<1" "pydantic>=2,<3" \
       "numpy>=1.26,<3" "httpx>=0.27,<1" "dbus-fast>=2,<3" \
-      "pyserial>=3.5,<4" "pyserial-asyncio>=0.6,<1"
+      "pyserial>=3.5,<4" "pyserial-asyncio>=0.6,<1" "qrcode[pil]>=8,<9"
     apt-get update && apt-get install -y --no-install-recommends socat
     rm -rf /var/lib/apt/lists/*
     mkdir -p /app /data
