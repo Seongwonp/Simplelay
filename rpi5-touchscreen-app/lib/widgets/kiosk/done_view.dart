@@ -97,7 +97,10 @@ class KioskDoneView extends StatelessWidget {
         ? '가전 상태를 확인했어요'
         : executionMode == 'unknown'
             ? '실행기가 완료를 보고했어요'
-            : '버튼 조작을 마쳤어요';
+            // 모의 실행은 가장 큰 글자부터 모의라고 말한다(10/6 S11 실패널).
+            : executionMode == 'mock'
+                ? '모의 버튼 조작을 마쳤어요'
+                : '버튼 조작을 마쳤어요';
     final operationSentence = switch (operationConfirmed) {
       true => '가전 동작도 확인했어요',
       false => '가전 동작은 확인하지 못했어요',

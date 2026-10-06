@@ -80,6 +80,7 @@ String? confirmationLabel({
   String? receipt,
   String? confirmation,
   ResultKind? kind,
+  String? executionMode,
 }) {
   if (confirmation == 'state_confirmed') return '상태 확인됨';
   if (route == 'thinq') {
@@ -89,6 +90,17 @@ String? confirmationLabel({
       return kind == ResultKind.unconfirmed ? '접수됨' : '실행 안 됨';
     }
     return null;
+  }
+  // 모의 실행의 근거는 모의 실행기가 낸 것이다 — 누름 장치·가전이 응답했다고
+  // 말하지 않는다(10/6 S11 실패널).
+  if (executionMode == 'mock') {
+    return switch (confirmation) {
+      'operation_confirmed' => '모의 동작 확인',
+      'press_confirmed' => '모의 눌림 확인',
+      'reported' => '모의 실행기 응답',
+      'none' => '확인 근거 없음',
+      _ => null,
+    };
   }
   return switch (confirmation) {
     'operation_confirmed' => '켜진 것을 확인했어요',

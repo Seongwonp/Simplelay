@@ -79,6 +79,23 @@ void main() {
     expect(find.text('실제 조작 여부는 확인하지 못했어요'), findsOneWidget);
   });
 
+  testWidgets('모의 실행은 가장 큰 글자부터 모의라고 말한다', (tester) async {
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: true,
+        label: '즉석밥 데워줘',
+        executionMode: 'mock',
+        target: kMicrowaveAppliance,
+        onDismiss: () {},
+      ),
+    );
+
+    expect(find.text('모의 버튼 조작을 마쳤어요'), findsOneWidget);
+    expect(find.text('버튼 조작을 마쳤어요'), findsNothing);
+    expect(find.text('모의 절차를 마쳤어요 · 실제 조작 아님'), findsOneWidget);
+  });
+
   testWidgets('L3 판정은 있을 때만 말하고, 모의 판정이면 그 사실을 밝힌다',
       (tester) async {
     await _pump(

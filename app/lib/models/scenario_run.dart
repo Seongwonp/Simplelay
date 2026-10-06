@@ -76,6 +76,7 @@ String runStepFacts(ScenarioRunStep step) {
       receipt: step.receipt,
       confirmation: step.confirmation,
       kind: kind,
+      executionMode: step.executionMode,
     )
         case final c?)
       c,

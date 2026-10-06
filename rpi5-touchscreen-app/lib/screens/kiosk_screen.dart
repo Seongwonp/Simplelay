@@ -582,6 +582,7 @@ class _KioskScreenState extends State<KioskScreen> {
           receipt: st.lastReceipt,
           confirmation: st.lastConfirmation,
           kind: kind,
+          executionMode: st.lastExecutionMode,
         );
         _doneDetail = st.lastDetail;
         _doneOperationConfirmed = st.lastOperationConfirmed;
@@ -1048,7 +1049,10 @@ class _KioskScreenState extends State<KioskScreen> {
     }
     _countdownTimer?.cancel();
     setState(() => _currentSuggestion = null);
-    _toExecuting(suggestion.purpose, applianceId: suggestion.applianceId);
+    // 실행·완료 화면은 카드의 질문이 아니라 무엇을 하는지(평서형)를 말한다.
+    final label =
+        suggestion.doneLabel(scenarioName: _scenarioNames[suggestion.scenarioId]);
+    _toExecuting(label, applianceId: suggestion.applianceId);
     _retryAction = () => _onApprove(suggestion: suggestion);
 
     try {
@@ -1071,13 +1075,13 @@ class _KioskScreenState extends State<KioskScreen> {
         _poll();
         return;
       }
-      _toDone(false, suggestion.purpose,
+      _toDone(false, label,
           reason: KioskFailureReason.serverLost);
     } catch (_) {
       // 접수 자체가 실패(서버 다운·409 등) — 올 수 없는 완료를 기다리는 대신
       // 즉시 실패 화면으로 탈출한다.
       if (mounted && _phase == KioskPhase.executing) {
-        _toDone(false, suggestion.purpose,
+        _toDone(false, label,
             reason: KioskFailureReason.serverLost);
       }
     }

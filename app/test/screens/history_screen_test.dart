@@ -102,6 +102,39 @@ void main() {
     expect(find.text('재시도 1회 후 성공'), findsOneWidget);
   });
 
+  testWidgets('모의 실행 기록은 버튼 조작을 마쳤다·누름 장치가 응답했다고 말하지 않는다',
+      (tester) async {
+    // 10/6 S11: "모의 실행 · 03:06 · 버튼 조작을 마쳤어요"는 실제 조작으로 읽혔다.
+    final api = _apiWithHistory([
+      {
+        'job_id': 'job-mock',
+        'finished_at': '2026-08-23T19:30:00+09:00',
+        'purpose': '아침 데우기',
+        'status': 'succeeded',
+        'outcome': 'success',
+        'execution_mode': 'mock',
+        'route': 'physical',
+        'receipt': 'accepted',
+        'confirmation': 'reported',
+        'retry_count': 0,
+        'buttons': [
+          {'button': '즉석밥', 'success': true, 'attempts': 1},
+        ],
+      },
+    ]);
+    await tester.pumpWidget(_build(api));
+    await tester.pump();
+    await tester.pump();
+
+    final row = find.byWidgetPredicate((w) =>
+        w is Text && (w.data ?? '').startsWith('모의 실행 · '));
+    expect(row, findsOneWidget);
+    final text = tester.widget<Text>(row).data!;
+    expect(text, endsWith(' · 모의 버튼 조작을 마쳤어요(실제 조작 아님)'));
+    expect(find.textContaining('누름 장치'), findsNothing);
+    expect(find.text('물리 버튼 · 모의 실행기 응답'), findsOneWidget);
+  });
+
   testWidgets('끝이 안 좋았던 실행만 어디서 멈췄는지와 다음 할 일을 보여준다',
       (tester) async {
     // 실패 기록에는 버튼별 확인 결과가 이미 들어 있는데 화면이 버리고 있었다.

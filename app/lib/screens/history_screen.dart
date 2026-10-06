@@ -214,8 +214,12 @@ class _StepBreakdown extends StatelessWidget {
           color: context.appSuccess,
           // 모의 ThinQ의 '확인'은 모의 상태를 읽은 것이다 — 결과 문장
           // 자체가 그렇게 말해야 실제 가전 확인으로 읽히지 않는다.
+          // 모의 물리 실행도 같다 — 상태 화면의 "모의 버튼 조작을 마쳤어요.
+          // 실제 조작은 하지 않았어요"와 맞춘다(10/6 S11).
           sentence: !thinq
-              ? '버튼 조작을 마쳤어요'
+              ? (entry.executionMode == 'mock'
+                  ? '모의 버튼 조작을 마쳤어요(실제 조작 아님)'
+                  : '버튼 조작을 마쳤어요')
               : entry.executionMode == 'mock'
                   ? '모의 상태만 확인했어요(실제 가전 아님)'
                   : '가전 상태를 확인했어요',
@@ -259,7 +263,9 @@ class _StepBreakdown extends StatelessWidget {
       return (
         icon: Icons.check_circle,
         color: context.appSuccess,
-        sentence: '버튼 조작을 마쳤어요',
+        sentence: entry.executionMode == 'mock'
+            ? '모의 버튼 조작을 마쳤어요(실제 조작 아님)'
+            : '버튼 조작을 마쳤어요',
       );
     case 'safety_stopped':
       // 사용자가 멈춘 것과 안전 장치가 멈춘 것은 다른 이야기다. 서버가
@@ -314,6 +320,7 @@ class _HistoryRow extends StatelessWidget {
       receipt: entry.receipt,
       confirmation: entry.confirmation,
       kind: kind,
+      executionMode: entry.executionMode,
     );
 
     return Padding(

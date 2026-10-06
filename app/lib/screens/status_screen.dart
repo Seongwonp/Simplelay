@@ -366,6 +366,7 @@ List<String> _resultFactWords(ExecutionStatus s) {
       receipt: s.receipt,
       confirmation: s.confirmation,
       kind: kind,
+      executionMode: s.isDemo ? 'mock' : s.executionMode,
     )
         case final c?)
       c,

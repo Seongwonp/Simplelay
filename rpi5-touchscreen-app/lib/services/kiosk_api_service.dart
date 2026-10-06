@@ -130,6 +130,21 @@ class KioskSuggestion {
     return '$timeBand 시간에 $occurrences번 하셨어요.';
   }
 
+  /// 실행 중·완료 화면이 "무엇을 했는지" 부를 이름 — **평서형**이다.
+  ///
+  /// purpose는 카드의 질문("'아침 데우기' 루틴을 실행할까요?")일 수 있다. 완료
+  /// 화면이 그 질문을 되풀이하면 아직 묻는 중처럼 읽힌다(10/6 S11 실패널).
+  /// 루틴 이름 → 시나리오 이름 → 질문이 아닌 purpose 순으로 쓰고, 셋 다
+  /// 없으면 질문 대신 일반 명사로 말한다.
+  String doneLabel({String? scenarioName}) {
+    final routine = routineName;
+    if (routine != null && routine.isNotEmpty) return "'$routine' 루틴";
+    final isQuestion = purpose.trimRight().endsWith('?');
+    if (!isQuestion) return purpose;
+    if (scenarioName != null && scenarioName.isNotEmpty) return scenarioName;
+    return '제안한 실행';
+  }
+
   factory KioskSuggestion.fromJson(Map<String, dynamic> json) =>
       KioskSuggestion(
         isDemo: json['is_demo'] == true || json['time_band'] == '데모',

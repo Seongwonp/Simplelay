@@ -1690,6 +1690,94 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // ── 2026-10-06 S11 실패널: 루틴 카드 완료 화면이 질문을 되풀이했다 ─────────
+
+  const routineCard = KioskSuggestion(
+    id: 'rt1',
+    purpose: "'아침 데우기' 루틴을 실행할까요?",
+    occurrences: 0,
+    timeBand: '루틴',
+    applianceId: 'microwave',
+    scenarioId: 'routine:r1',
+    routineId: 'r1',
+    routineName: '아침 데우기',
+    commands: [
+      KioskSuggestionCommand(
+        targetId: 'microwave',
+        route: 'physical',
+        action: 'press',
+        summary: '전자레인지 즉석밥',
+      ),
+    ],
+  );
+
+  const mockPhysicalDone = KioskStatus(
+      running: false,
+      lastJobId: 'job-1',
+      lastStatus: 'succeeded',
+      lastOutcome: 'success',
+      lastRoute: 'physical',
+      lastReceipt: 'accepted',
+      lastConfirmation: 'reported',
+      lastExecutionMode: 'mock');
+
+  testWidgets('루틴 카드는 실행·완료 화면에서 질문이 아니라 루틴 이름으로 말한다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [routineCard];
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+
+    api.suggestionList = [];
+    await tester.tap(find.byKey(_approveKey));
+    await tester.pump();
+    // 실행 중 화면도 질문을 되풀이하지 않는다.
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+    expect(find.textContaining('실행할까요?'), findsNothing);
+
+    api.statusResult = mockPhysicalDone;
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    final done = tester.widget<KioskDoneView>(find.byType(KioskDoneView));
+
+    expect(done.label, "'아침 데우기' 루틴");
+    expect(find.textContaining('실행할까요?'), findsNothing);
+    expect(find.text("'아침 데우기' 루틴"), findsWidgets);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('이름 없는 시나리오 카드는 완료 화면에서 시나리오 이름으로 말한다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..suggestionList = [scenario]
+      ..scenarioNameMap = {'cook_then_air': '조리 확인 → 공기 관리'};
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+    final done = await finishWith(tester, api, mockPhysicalDone);
+    expect(done.label, '조리 확인 → 공기 관리');
+    expect(find.textContaining('바꿀까요?'), findsNothing);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('모의 실행 완료는 실제 버튼 조작·누름 장치 응답을 말하지 않는다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    await finishWith(tester, api, mockPhysicalDone);
+
+    expect(find.text('모의 버튼 조작을 마쳤어요'), findsOneWidget);
+    expect(find.text('버튼 조작을 마쳤어요'), findsNothing);
+    expect(find.textContaining('누름 장치'), findsNothing);
+    expect(find.text('물리 버튼 · 모의 실행기 응답'), findsOneWidget);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('세탁 완료 → 제습기(wash_then_dry) 카드도 조작판 없이 보여 준다',
       (tester) async {
     useKioskViewport(tester);
@@ -1754,10 +1842,10 @@ void main() {
     expect(find.text('1. 공기청정기 풍량 약하게'), findsOneWidget);
     expect(find.text('ThinQ · 모의 실행 · 상태 확인됨 · 성공'), findsOneWidget);
     expect(find.text('2. 전자레인지 즉석밥'), findsOneWidget);
-    expect(find.text('물리 버튼 · 모의 실행 · 누름 장치의 응답을 받았어요 · 성공'),
+    expect(find.text('물리 버튼 · 모의 실행 · 모의 실행기 응답 · 성공'),
         findsOneWidget);
     // 한 줄 요약(마지막 단계 기준)은 그대로 남는다.
-    expect(find.text('물리 버튼 · 누름 장치의 응답을 받았어요'), findsOneWidget);
+    expect(find.text('물리 버튼 · 모의 실행기 응답'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });
