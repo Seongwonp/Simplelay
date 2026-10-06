@@ -80,8 +80,20 @@ class FailureInjectionVerifier(Verifier):
         self._inner = inner
         self._state = state
 
+    def begin_press(self, button: str) -> None:
+        """누름 관측 구간(센서 검증기, 2026-10-07)을 안쪽으로 넘긴다. 없으면 아무것도 안 한다."""
+        begin = getattr(self._inner, "begin_press", None)
+        if callable(begin):
+            begin(button)
+
+    def cancel_press(self) -> None:
+        cancel = getattr(self._inner, "cancel_press", None)
+        if callable(cancel):
+            cancel()
+
     def verify(self, button: str) -> VerificationResult:
         if self._state.should_fail_current():
+            self.cancel_press()  # 열린 관측 구간을 닫는다(판정은 주입값)
             result = VerificationResult(False, 0.0, f"데모 실패 주입: {button}")
             self._state.note_result(False)
             return result

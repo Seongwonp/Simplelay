@@ -364,8 +364,6 @@ class TestSensorVerifier:
         voltages = [_ZERO_V] * 5 + [spike_v]
         frames = [FakeAudioReader.tone(1500)]
         verifier = _make_verifier(voltages, frames)
-        for _ in range(5):
-            verifier.verify("BT-05")
         result = verifier.verify("BT-05")
         assert result.pressed is True
         assert result.confidence >= 0.5
@@ -374,8 +372,6 @@ class TestSensorVerifier:
         voltages = [_ZERO_V] * 6
         frames = [FakeAudioReader.silence()] * 6
         verifier = _make_verifier(voltages, frames)
-        for _ in range(5):
-            verifier.verify("BT-05")
         result = verifier.verify("BT-05")
         assert result.pressed is False
         assert result.confidence == pytest.approx(0.0)
@@ -385,12 +381,8 @@ class TestSensorVerifier:
         voltages = [_ZERO_V] * 6
         frames = [FakeAudioReader.silence()] * 6
         verifier = _make_verifier(voltages, frames)
-        for _ in range(5):
-            verifier.verify("BT-01")
         r1 = verifier.verify("BT-01")
         verifier2 = _make_verifier([_ZERO_V] * 6, [FakeAudioReader.silence()] * 6)
-        for _ in range(5):
-            verifier2.verify("BT-99")
         r2 = verifier2.verify("BT-99")
         assert r1.pressed == r2.pressed
 
@@ -398,8 +390,6 @@ class TestSensorVerifier:
         voltages = [_ZERO_V] * 6
         frames = [FakeAudioReader.silence()] * 6
         verifier = _make_verifier(voltages, frames)
-        for _ in range(5):
-            verifier.verify("BT-01")
         result = verifier.verify("BT-01")
         assert 0.0 <= result.confidence <= 1.0
         assert isinstance(result.detail, str)
@@ -410,8 +400,6 @@ class TestSensorVerifier:
         voltages = [_ZERO_V] * 6
         frames = [FakeAudioReader.silence()] * 6
         verifier = _make_verifier(voltages, frames)
-        for _ in range(5):
-            verifier.verify("BT-05")
         result = verifier.verify("BT-05")
         assert isinstance(result, VerificationResult)
 
@@ -435,8 +423,6 @@ class TestSensorVerifier:
         voltages = [_ZERO_V] * 5 + [spike_v]
         frames = [FakeAudioReader.silence()]   # audio NOT pressed
         verifier = _make_verifier(voltages, frames, config=cfg)
-        for _ in range(5):
-            verifier.verify("BT-05")
         result = verifier.verify("BT-05")
         # current alone (0.55) < threshold (0.80) → not pressed
         assert result.pressed is False
@@ -456,9 +442,7 @@ class TestSensorVerifier:
         frames = [FakeAudioReader.tone(1500)] * 8
         verifier = _make_verifier(voltages, frames)
 
-        # Prime the window so the first verify() call sees a baseline
-        for _ in range(5):
-            verifier.verify("BT-05")
+        # 준비 호출 없이(2026-10-07): 컨트롤러가 누르기 직전에 기준선을 잡는다
 
         controller = ClosedLoopController(
             grbl=MockGrblClient(),

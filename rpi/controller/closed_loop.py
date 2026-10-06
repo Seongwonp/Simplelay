@@ -4,7 +4,7 @@ import logging
 import threading
 from collections.abc import Callable, Mapping
 
-from rpi.verifier import VerificationResult, Verifier
+from rpi.verifier import SensorUnavailable, VerificationResult, Verifier
 
 from .layered import (
     DEFAULT_ACCEPTANCE_REINPUTS,
@@ -55,6 +55,14 @@ class MissingButtonCoordinates(ValueError):
 
 class _OperationObservationFailed(Exception):
     """L3 관측(전력 센서 읽기)이 실패했다 — 확인할 수 없으니 더 누르지 않는다."""
+
+
+class _PressObservationFailed(Exception):
+    """L1 누름 센서(전류·마이크)를 읽을 수 없다 — 단절은 '안 눌림'이 아니라 다시 누르지 않는다."""
+
+    def __init__(self, result: ButtonResult) -> None:
+        super().__init__(result.errors[-1] if result.errors else "press sensor unavailable")
+        self.result = result
 
 
 class ClosedLoopController:
@@ -183,6 +191,16 @@ class ClosedLoopController:
                 return self._stop_for_unobservable_operation(
                     exc.__cause__ or exc, tuple(results)
                 )
+            except _PressObservationFailed as exc:
+                # 센서 단절 — 보정 재시도로 다시 누르지 않고 멈춘다.
+                results.append(exc.result)
+                self._safety.stop(f"L1 press sensor unavailable for {button}: {exc}")
+                self._alerts.notify_failure(button, exc.result.attempts)
+                return ExecutionResult(
+                    ExecutionStatus.SAFETY_STOPPED,
+                    tuple(results),
+                    failed_layer=VerificationLayer.PRESS,
+                )
             results.append(result)
             if result.status is ButtonStatus.SUCCEEDED:
                 completed_steps += 1
@@ -288,9 +306,22 @@ class ClosedLoopController:
                         self._operation.note_press(button, presses)
                     except Exception as exc:  # noqa: BLE001 - 센서 고장은 fail closed
                         raise _OperationObservationFailed(str(exc)) from exc
+                # L1 관측 구간 시작: 누르기 직전 기준선, 누르는 동안 연속 수집(verify가 닫는다).
+                begin = getattr(self._verifier, "begin_press", None)
+                if callable(begin):
+                    try:
+                        begin(button)
+                    except SensorUnavailable as exc:
+                        # 아직 누르지 않았다 — 이번 시도는 누름 횟수에서 뺀다.
+                        presses -= 1
+                        raise self._press_sensor_failure(
+                            button, presses, errors, last_verification, reinputs,
+                            corrections, f"press sensor unavailable before pressing: {exc}",
+                        ) from exc
                 try:
                     self._grbl.press(command)
                 except Exception as exc:  # adapter errors are recoverable within the hard limit
+                    self._cancel_press_observation()
                     errors.append(str(exc))
                     self._observe("press", button, completed_steps, presses, ok=False,
                                   error=str(exc)[:200], position=self._adapter_position())
@@ -299,7 +330,13 @@ class ClosedLoopController:
                 self._observe("press", button, completed_steps, presses, ok=True,
                               position=self._adapter_position())
 
-                last_verification = self._verifier.verify(button)
+                try:
+                    last_verification = self._verifier.verify(button)
+                except SensorUnavailable as exc:
+                    raise self._press_sensor_failure(
+                        button, presses, errors, last_verification, reinputs,
+                        corrections, f"press sensor unavailable: {exc}",
+                    ) from exc
                 self._observe("verify", button, completed_steps, presses,
                               pressed=bool(last_verification.pressed))
                 self._report_progress(button, presses, completed_steps, last_verification)
@@ -357,6 +394,32 @@ class ClosedLoopController:
                     corrections=tuple(corrections),
                 )
             reinputs += 1
+
+    def _press_sensor_failure(
+        self, button: str, presses: int, errors: list[str], last_verification,
+        reinputs: int, corrections: list, message: str,
+    ) -> _PressObservationFailed:
+        self._cancel_press_observation()
+        errors.append(message)
+        return _PressObservationFailed(ButtonResult(
+            button,
+            ButtonStatus.FAILED,
+            presses,
+            last_verification,
+            tuple(errors),
+            failed_layer=VerificationLayer.PRESS,
+            reinputs=reinputs,
+            corrections=tuple(corrections),
+        ))
+
+    def _cancel_press_observation(self) -> None:
+        cancel = getattr(self._verifier, "cancel_press", None)
+        if not callable(cancel):
+            return
+        try:
+            cancel()
+        except Exception:  # noqa: BLE001 - 정리 실패가 정지 경로를 막지 않는다
+            log.exception("press observation cancel failed")
 
     def _press_command(self, button: str, correction) -> PressCommand:
         target = self._targets.get(button)

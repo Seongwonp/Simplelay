@@ -1,7 +1,7 @@
 """Button press verification contracts and hardware-free test doubles."""
 
 from .audio_sensor import AudioReader, AudioSensor, FakeAudioReader
-from .base import VerificationResult, Verifier
+from .base import SensorUnavailable, VerificationResult, Verifier
 from .config import (
     AudioSensorConfig,
     CurrentSensorConfig,
@@ -30,6 +30,7 @@ __all__ = [
     "FusionConfig",
     "MockVerifier",
     "SensorConfig",
+    "SensorUnavailable",
     "SensorVerifier",
     "VerificationResult",
     "Verifier",

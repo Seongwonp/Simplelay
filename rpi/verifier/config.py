@@ -32,6 +32,28 @@ class CurrentSensorConfig:
     # ADC channel index (0–3 for ADS1115)
     channel: int = 0
 
+    # ── 누름 관측 구간(2026-10-07) — 아래 값은 전부 추측, 실측 필요 ──
+    # 누르는 동안 ADC를 읽는 간격(초). ADS1115 860 SPS면 한 번 읽기에 약 1.2 ms.
+    sample_interval_s: float = 0.002
+    # 누름 명령이 끝난 뒤에도 더 읽는 시간(초) — 가전 반응 지연을 덮는다.
+    post_press_s: float = 0.05
+    # 기준선 대비 임계값을 넘은 표본이 이만큼 있어야 누름으로 본다(단발 잡음 거르기).
+    min_samples_above: int = 2
+    # 한 관측 구간의 상한(초). 넘으면 센서 이상으로 본다(닫히지 않은 창 방지).
+    max_window_s: float = 30.0
+    # 이 범위 밖 전압은 단절로 본다(None이면 검사 안 함). 분압 회로 확인 전이라 기본 꺼짐.
+    valid_voltage_range: tuple[float, float] | None = None
+
+    def __post_init__(self) -> None:
+        if self.window_size < 1:
+            raise ValueError("window_size must be at least 1")
+        if self.min_samples_above < 1:
+            raise ValueError("min_samples_above must be at least 1")
+        if self.sample_interval_s <= 0 or self.max_window_s <= 0 or self.post_press_s < 0:
+            raise ValueError(
+                "sample_interval_s/max_window_s must be positive, post_press_s non-negative"
+            )
+
 
 @dataclass(frozen=True)
 class AudioSensorConfig:
@@ -50,6 +72,23 @@ class AudioSensorConfig:
 
     # Device index for PyAudio (None = system default)
     device_index: int | None = None
+
+    # ── 누름 관측 구간(2026-10-07) — 아래 값은 전부 추측, 실측 필요 ──
+    # 콜백 큐 길이(프레임). 차면 가장 오래된 프레임을 버리고 최신을 남긴다.
+    # 512 샘플/16 kHz 기준 128프레임 ≈ 4 s.
+    queue_frames: int = 128
+    # 누름 명령이 끝난 뒤에도 기다리는 시간(초) — 입력 지연·버튼음 꼬리를 덮는다.
+    post_press_s: float = 0.15
+    # 이만큼 더 기다려도 구간 안 프레임이 없으면 마이크 단절로 본다(초).
+    stall_timeout_s: float = 0.5
+    # 구간 안에서 임계값을 넘은 프레임이 이만큼 있어야 버튼음으로 본다.
+    min_frames_above: int = 1
+
+    def __post_init__(self) -> None:
+        if self.queue_frames < 1 or self.min_frames_above < 1:
+            raise ValueError("queue_frames and min_frames_above must be at least 1")
+        if self.post_press_s < 0 or self.stall_timeout_s <= 0:
+            raise ValueError("post_press_s must be non-negative and stall_timeout_s positive")
 
 
 @dataclass(frozen=True)
