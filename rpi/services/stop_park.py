@@ -154,7 +154,50 @@ MOCK_PARK_XY = (20.0, 180.0)
 HOLD_UNAVAILABLE_DETAILS = {
     "no_appliance": "가전이 정해지지 않아 정지 버튼 위 대기를 하지 않아요",
     "no_stop_button": "정지 버튼이 등록되지 않아 정지 버튼 위 대기를 하지 않아요 — 가전 편집에서 정지 버튼을 정해 주세요",
+    "no_park_position": "버튼과 충분히 떨어진 모의 보관 위치를 찾지 못해 정지 버튼 위 대기를 하지 않아요",
 }
+
+#: 모의 보관 위치를 찾을 때 훑는 격자 간격(mm).
+_PARK_SEARCH_STEP_MM = 5.0
+
+
+def _mock_park_position(preferred: tuple[float, float], stop_xy: tuple[float, float],
+                        buttons: Any) -> tuple[float, float] | None:
+    """범위(MM_RANGE, 소프트 리밋이 있으면 그 안) 안이고 정지 위치·보정된 모든 버튼에서
+    ``PARK_CLEARANCE_MM`` 이상 떨어진 보관 위치. ``preferred``가 맞으면 그대로, 아니면 격자에서
+    가장 가까운 자리. 없으면 None(2026-10-06 교차 리뷰 — 예전엔 x+15mm로만 비켜 범위·여유를 어겼다)."""
+    from rpi.services import appliance_registry  # noqa: PLC0415
+
+    lo, hi = appliance_registry.MM_RANGE
+    x_lo, x_hi, y_lo, y_hi = lo, hi, lo, hi
+    limits = _soft_limits()
+    if limits is not None:
+        x_lo, x_hi = max(x_lo, limits.x_min_mm), min(x_hi, limits.x_max_mm)
+        y_lo, y_hi = max(y_lo, limits.y_min_mm), min(y_hi, limits.y_max_mm)
+    obstacles = [stop_xy] + [(float(b.x_mm), float(b.y_mm)) for b in buttons if b.calibrated]
+
+    def ok(p: tuple[float, float]) -> bool:
+        return (x_lo <= p[0] <= x_hi and y_lo <= p[1] <= y_hi
+                and all(math.dist(p, o) >= PARK_CLEARANCE_MM for o in obstacles))
+
+    if ok(preferred):
+        return preferred
+    if x_lo > x_hi or y_lo > y_hi:
+        return None
+
+    def axis(a: float, b: float) -> list[float]:
+        n = int((b - a) // _PARK_SEARCH_STEP_MM)
+        values = [a + i * _PARK_SEARCH_STEP_MM for i in range(n + 1)]
+        return values + ([b] if values[-1] < b else [])
+
+    best: tuple[float, tuple[float, float]] | None = None
+    for x in axis(x_lo, x_hi):
+        for y in axis(y_lo, y_hi):
+            if ok((x, y)):
+                d = math.dist((x, y), preferred)
+                if best is None or d < best[0]:
+                    best = (d, (x, y))
+    return None if best is None else best[1]
 
 
 def simulated_hold_plan(registry: Any, appliance_id: str | None) -> tuple[dict | None, str | None]:
@@ -166,6 +209,8 @@ def simulated_hold_plan(registry: Any, appliance_id: str | None) -> tuple[dict |
       (``position_source`` ``mock``). 판정을 지어내지 않도록 시뮬레이터가 모의 가전을 정지 버튼에
       반응하지 않게 둔다(``SimulatorController``).
     - 정지 버튼이 없으면 ``(None, "no_stop_button")`` — 대기하지 않는다.
+    - 모의로 채울 때 보관 위치는 범위 안·정지 위치와 보정된 버튼 모두에서 ``PARK_CLEARANCE_MM`` 밖으로
+      고른다. 그런 자리가 없으면 ``(None, "no_park_position")``.
 
     UART·실물 경로는 이 함수를 쓰지 않는다(``hold_plan_for`` 그대로).
     """
@@ -187,9 +232,10 @@ def simulated_hold_plan(registry: Any, appliance_id: str | None) -> tuple[dict |
         (float(appliance.park_xy[0]), float(appliance.park_xy[1]))
         if appliance.park_xy is not None else MOCK_PARK_XY
     )
-    if park_xy == stop_xy:
-        # 대기와 보관이 구분돼야 한다(RPi4 메시지 검증) — 모의 보관 위치를 옆으로 비킨다.
-        park_xy = (stop_xy[0] + PARK_CLEARANCE_MM, stop_xy[1])
+    # 대기와 보관이 구분돼야 하고(RPi4 메시지 검증) 보관 위치는 범위 안·모든 버튼에서 여유 거리 밖이어야 한다.
+    park_xy = _mock_park_position(park_xy, stop_xy, appliance.buttons)
+    if park_xy is None:
+        return None, "no_park_position"
     plan: dict = {
         "appliance_id": appliance_id,
         "stop_button": stop.label,

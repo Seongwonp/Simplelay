@@ -694,7 +694,7 @@ class StatusResponse(BaseModel):
     hold_position_source: str | None = None
     #: 가전 켜짐 근거: mock(모의 가전) | real | none(전력 리더 없음) | None
     hold_probe_source: str | None = None
-    #: 대기를 하지 않은 이유(no_stop_button | no_appliance). 이때 hold_state는 null이다.
+    #: 대기를 하지 않은 이유(no_stop_button | no_appliance | no_park_position). 이때 hold_state는 null이다.
     hold_unavailable_reason: str | None = None
     # ── 콘센트 모듈 비상정지 걸림(2026-10-05) — RPi4 보고. 옛 클라이언트는 무시한다 ──
     #: true면 POST /stop/ack로 해제 확인 전까지 실행을 거절한다. 보고 수단이 없는 실행기면 None.

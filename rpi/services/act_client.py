@@ -58,7 +58,7 @@ import logging
 import os
 import uuid
 from collections import deque
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
@@ -300,9 +300,15 @@ class ActClient:
         on_appliance_done: Callable[[dict], None] | None = None,
         on_act_info: Callable[[dict], None] | None = None,
         hello: bool = False,
+        connector: "Callable[[], Awaitable[tuple[asyncio.StreamReader, _WriterLike]]] | None" = None,
+        reconnect_backoff: tuple[float, float] | None = None,
     ) -> None:
         """``hello``: start() 때 ``hello``를 보낸다(2026-10-06 평가 C1). 운영 경로(UART 공장·시뮬레이터)는 True로
-        만든다 — 기본 False는 줄 단위로 RPi4를 흉내 내는 시험이 첫 줄을 execute로 기대하기 때문이다."""
+        만든다 — 기본 False는 줄 단위로 RPi4를 흉내 내는 시험이 첫 줄을 execute로 기대하기 때문이다.
+
+        ``connector``(2026-10-06 교차 리뷰): 링크가 끊기면(EOF·읽기 오류) 이것으로 새 (reader, writer)를 연다.
+        ``reconnect_backoff=(처음, 상한)`` 초 간격으로 두 배씩 늘리며 다시 시도하고, 이으면 hello부터 보낸다.
+        None이면 종전처럼 읽기 루프가 끝난다(끊김 표시·대기 요청 실패는 똑같이 한다)."""
         self._reader = reader
         self._writer = writer
         self._cfg = config or ActClientConfig()
@@ -339,6 +345,16 @@ class ActClient:
         self.estop_latched: bool | None = None
         self.estop_detail: str | None = None
         self._estop_waiters: list[asyncio.Future[dict]] = []
+        self._connector = connector
+        self._backoff = reconnect_backoff or self.RECONNECT_BACKOFF
+        #: 링크가 살아 있나(끊긴 동안 False — 보내기는 ActLinkError로 거절한다).
+        self.link_up = True
+        #: 끊긴 횟수·마지막 끊김 이유(진단용).
+        self.link_drops = 0
+        self.link_down_reason: str | None = None
+
+    #: 재연결 간격(처음, 상한) 초. 끊긴 뒤 처음 간격만큼 쉬고 시도하며, 실패마다 두 배(상한까지).
+    RECONNECT_BACKOFF: tuple[float, float] = (0.5, 5.0)
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -352,6 +368,8 @@ class ActClient:
         """RPi4에 (다시) 연결했다고 알린다 — 답은 ``act_info``와 ``estop_state``(평가 C1)."""
         try:
             await self._send({"type": "hello"})
+        except ActLinkError as exc:  # 끊긴 동안 — 재연결이 hello를 다시 보낸다
+            log.info("ActClient: hello not sent (%s)", exc)
         except Exception:  # noqa: BLE001 - 보내지 못하면 걸림 상태는 None(확인 중)으로 남는다
             log.exception("ActClient: hello send failed")
 
@@ -540,16 +558,68 @@ class ActClient:
     # ── Background read loop ────────────────────────────────────────────────
 
     async def _read_loop(self) -> None:
-        try:
-            while True:
-                raw_bytes = await self._reader.readuntil(b"\n")
-                raw = raw_bytes.decode("utf-8", errors="replace").strip()
-                if raw:
-                    self._handle_line(raw)
-        except asyncio.IncompleteReadError:
-            log.info("ActClient: serial stream closed (EOF)")
-        except asyncio.CancelledError:
-            raise
+        """줄을 읽는다. 끊기면(EOF·읽기 오류) 끊김으로 표시하고, ``connector``가 있으면 다시 잇는다."""
+        while True:
+            try:
+                while True:
+                    raw_bytes = await self._reader.readuntil(b"\n")
+                    raw = raw_bytes.decode("utf-8", errors="replace").strip()
+                    if raw:
+                        self._handle_line(raw)
+            except asyncio.IncompleteReadError:
+                reason = "EOF"
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - serial.SerialException(socket disconnected) 등
+                reason = f"{type(exc).__name__}: {exc}"
+            self._mark_link_down(reason)
+            if self._connector is None:
+                return
+            await self._reconnect()
+
+    def _mark_link_down(self, reason: str) -> None:
+        """끊김: 기다리던 요청을 모두 바로 실패시키고, 걸림 상태를 '모름'으로 돌린다(풀림으로 가정하지 않는다)."""
+        log.warning("ActClient: link down (%s)", reason)
+        self.link_up = False
+        self.link_drops += 1
+        self.link_down_reason = reason
+        # 다시 이은 뒤 RPi4의 답(estop_state)으로만 다시 안다 — 그때까지 서비스가 '확인하는 중'으로 거절한다.
+        self.estop_latched = None
+        self.estop_detail = None
+        error = ActLinkError(f"RPi4 연결이 끊겼어요 ({reason})")
+        pending = self._pending
+        if pending is not None and not pending[1].done():
+            # 짧은 단선이었다면 RPi4가 늦게 결과를 보낼 수 있다 — 다음 요청의 결과로 오인하지 않게.
+            self._stale_sequence_ids.append(pending[0])
+            pending[1].set_exception(error)
+        for waiter in [*self._estop_waiters, *self._rehearsal_waiters.values()]:
+            if not waiter.done():
+                waiter.set_exception(error)
+        close = getattr(self._writer, "close", None)
+        if callable(close):
+            with contextlib.suppress(Exception):
+                close()
+
+    async def _reconnect(self) -> None:
+        delay, ceiling = self._backoff
+        while True:
+            await asyncio.sleep(delay)
+            try:
+                reader, writer = await self._connector()  # type: ignore[misc]
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - 상대가 아직 다시 뜨는 중
+                log.info("ActClient: reconnect failed (%s) — retry in %.1fs",
+                         exc, min(delay * 2, ceiling))
+                delay = min(delay * 2, ceiling)
+                continue
+            self._reader, self._writer = reader, writer
+            self.link_up = True
+            self.link_down_reason = None
+            log.info("ActClient: link re-established — sending hello")
+            # 걸림 상태·구성을 다시 받는다. 답(estop_state)이 올 때까지 estop_latched는 None(확인 중).
+            await self.hello()
+            return
 
     def _handle_line(self, raw: str) -> None:
         log.debug("RX <- %s", raw)
@@ -656,6 +726,8 @@ class ActClient:
     # ── IO helper ────────────────────────────────────────────────────────────
 
     async def _send(self, doc: dict) -> None:
+        if not self.link_up:
+            raise ActLinkError(f"RPi4 연결이 끊겨 다시 잇는 중이에요 ({self.link_down_reason})")
         payload = (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
         log.debug("TX -> %s", payload.rstrip().decode())
         if self.tap is not None:

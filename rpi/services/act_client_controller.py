@@ -146,7 +146,9 @@ class ActClientController:
         if latched is None:
             self._maybe_hello()
         return {"latched": latched, "detail": getattr(self._client, "estop_detail", None),
-                "known": latched is not None, "trips": getattr(self._client, "estop_trips", None)}
+                "known": latched is not None, "trips": getattr(self._client, "estop_trips", None),
+                # 링크가 끊긴 동안 known=False(확인 중)다 — 다시 이은 뒤 RPi4 답으로만 다시 안다.
+                "link_up": getattr(self._client, "link_up", True)}
 
     def _maybe_hello(self) -> None:
         import time  # noqa: PLC0415
@@ -256,8 +258,10 @@ def open_uart_act_controller(
     on_act_info: Callable[[dict], None] | None = None,
 ) -> ActClientController:
     """Production factory -- opens the real serial port to RPi4 and starts
-    the background loop + ActClient. Requires pyserial-asyncio and a real
-    device; not exercised by unit tests."""
+    the background loop + ActClient, with a connector that reopens the same
+    port when the link drops (socket:// and /dev/tty* alike). Requires
+    pyserial-asyncio and a real device; the reconnect wiring is covered with a
+    fake serial_asyncio in test_act_client_reconnect.py."""
     import serial_asyncio  # type: ignore[import-untyped]
 
     loop, _thread = start_background_loop()
@@ -268,11 +272,16 @@ def open_uart_act_controller(
     tap = get_link_tap()  # 모든 프레임을 링 버퍼(+ SIMPLELAY_SESSION_LOG_PATH면 JSONL)에 남긴다
     tap.transport = tap.transport or "uart"
 
+    async def _connect():
+        return await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
+
     async def _open() -> ActClient:
-        reader, writer = await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
+        reader, writer = await _connect()
+        # 끊기면(RPi4 실행기 재시작·socket 끊김·USB 뽑힘) 같은 포트를 다시 열고 hello로 걸림 상태를 다시 받는다.
+        # socket://·/dev/tty* 공통(2026-10-06 교차 리뷰 HIGH).
         client = ActClient(reader, writer, config=config, on_alert=on_alert, tap=tap,
                            on_appliance_done=on_appliance_done, on_act_info=on_act_info,
-                           hello=True)
+                           hello=True, connector=_connect)
         await client.start()
         return client
 
