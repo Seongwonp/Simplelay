@@ -1,11 +1,16 @@
 """Combines current and audio evidence into a single VerificationResult.
 
-Truth table (docs/sensor-spec.md §4):
+Truth table with the default FusionConfig (current_weight=0.55,
+audio_weight=0.45, confidence_threshold=0.50):
 
   current ✅  audio ✅  → pressed=True,  confidence=1.0
-  current ✅  audio ❌  → pressed=True,  confidence=0.7  (current dominates)
-  current ❌  audio ✅  → pressed=True,  confidence=0.6  (audio alone, weaker)
+  current ✅  audio ❌  → pressed=True,  confidence=0.55 (current alone passes)
+  current ❌  audio ✅  → pressed=False, confidence=0.45 (audio alone fails)
   current ❌  audio ❌  → pressed=False, confidence=0.0
+
+So the current (L1) judgement is required and audio only adds supporting
+confidence. Changing the weights/threshold changes this table; it is pinned
+by rpi/tests/test_fusion_truth_table.py.
 """
 
 from __future__ import annotations

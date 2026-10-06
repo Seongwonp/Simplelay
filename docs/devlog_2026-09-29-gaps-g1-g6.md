@@ -1,7 +1,7 @@
 # 2026-09-29 — 본선 시연 gap G1·G2·G3·G6 (재시도 기록·L3 판정 배선·세탁 완료 카드·ThinQ 장애 주입)
 
 [본선 시연 시나리오 v2](본선-시연-시나리오-v2.md) §6의 서버 쪽 gap 네 개를 닫았다.
-앞선 세션이 중간 저장한 **WIP 커밋 `c17612d`**(21파일, 테스트 미확인)를 파일별로 검토해 그대로 살리고,
+앞선 세션이 중간 저장한 **WIP 커밋 `108bc58`**(21파일, 테스트 미확인)를 파일별로 검토해 그대로 살리고,
 빠진 테스트·G3·프로토콜 문서를 더했다. **실물(RPi4 UART·전력 센서·ThinQ 클라우드)로는 하나도 확인하지 않았다.**
 앱·키오스크 화면도 이번에 바꾸지 않았다 — 새 필드는 서버 응답에만 있다.
 
@@ -9,7 +9,7 @@
 
 - 원인: RPi4 `result` 프레임은 집계 `retry` 하나뿐이었고, RPi5 `synthesize_execution_result`는 성공이면 모든 버튼을
   `attempts 1`로 합성했다. 그래서 시뮬레이터·UART 모드에서 `/history.retry_count`가 항상 0.
-- `c17612d`에서 한 것(검토 후 유지): RPi4 `ActExecutor`가 `button_results`(버튼별 `ok`·`attempts`·실패 층·보정)를
+- `108bc58`에서 한 것(검토 후 유지): RPi4 `ActExecutor`가 `button_results`(버튼별 `ok`·`attempts`·실패 층·보정)를
   보내고, RPi5 `ActClient.parse_button_results`가 **엄격하게** 읽는다(이름 순서·성공 모순·중간 실패면 통째로 버리고
   종전 집계로). 버튼별 보고가 없는 옛 RPi4면 집계 `retry`를 마지막 버튼에 싣는다(어느 버튼인지는 모름 — 하한값).
   `/status`·SSE `last_retry_count`(버튼 결과가 없으면 `null`, 0으로 지어내지 않음), 트윈 `result.button_results`.
@@ -19,7 +19,7 @@
 
 ## 2. G2 — L3 판정을 결과 프레임에 싣는다 (배선만, 실물 센서 없음)
 
-- `c17612d`: `rpi/controller/power_operation.py`에 `SIMPLELAY_L3_MODE=off|mock|real`. off(기본)는 판정기 없음 → `null`.
+- `108bc58`: `rpi/controller/power_operation.py`에 `SIMPLELAY_L3_MODE=off|mock|real`. off(기본)는 판정기 없음 → `null`.
   mock은 합성 전력 파형으로 **실제 판정기**(`PowerSignatureDetector`)를 돌리고 `SIMPLELAY_L3_MOCK_OUTCOME`으로
   확인/미확인을 고른다. **real은 CT·ADS1115 리더가 아직 없어 기동을 거절한다** — 있는 척하지 않는다.
   `result`에 `operation_confirmed`(true/false/null)·`operation_detail`·`operation_source`(real/mock)·`execution_mode`.
@@ -47,7 +47,7 @@
 
 ## 4. G6 — 모의 ThinQ 장애 주입 API
 
-- `c17612d`의 `POST /demo/thinq/fault {"device_id","mode","latency_ms"}` / `GET /demo/thinq/fault`를 검토하고 테스트를 붙였다.
+- `108bc58`의 `POST /demo/thinq/fault {"device_id","mode","latency_ms"}` / `GET /demo/thinq/fault`를 검토하고 테스트를 붙였다.
   `device_id`는 ThinQ 기기 ID나 가전 ID. `normal`로 걷어 낼 때까지 유지된다.
   - offline → 준비 상태 `disconnected`, 명령 412(보내지 않음)
   - unconfirmed → `last_status unconfirmed`, `receipt accepted`, `confirmation none`(접수됨, 실패 아님)
