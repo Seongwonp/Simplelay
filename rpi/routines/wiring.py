@@ -13,7 +13,7 @@ from functools import lru_cache
 
 from .engine import RoutineEngine
 from .model import parse_scenario_key
-from .runner import RoutineRunner, routine_done_settings_from_env
+from .runner import RoutineRunner, routine_done_settings_from_env, routine_done_timeouts_from_env
 from .store import RoutineStore
 
 log = logging.getLogger(__name__)
@@ -38,12 +38,14 @@ def wire_routines(suggestions, service, scenario_engine=None) -> RoutineEngine:
     store = get_routine_store()
     clock = deps.get_clock()
     care = deps.get_care_events()
-    done_sensors, done_timeout = routine_done_settings_from_env()
+    _, done_timeout = routine_done_settings_from_env()
+    # 끝 센서 목록은 RPi4 act_info가 오면 그것을 따른다(평가 B3) — 엔진과 러너가 같은 집합을 본다.
+    done_sensors = deps.get_done_sensor_set()
     runner = RoutineRunner(
         store, service, clock, care,
         on_finished=lambda run: _engine.on_routine_finished(run) if _engine else None,
         done_log=deps.get_appliance_done_log(), done_sensors=done_sensors,
-        done_timeout_seconds=done_timeout,
+        done_timeout_seconds=done_timeout, done_timeouts=routine_done_timeouts_from_env(),
     )
     engine = RoutineEngine(
         store, suggestions, service, clock, care_events=care,
@@ -77,6 +79,16 @@ def wire_routines(suggestions, service, scenario_engine=None) -> RoutineEngine:
     return engine
 
 
+def stop_routines_if_any(reason: str = "전체 정지 요청") -> int:
+    """``POST /stop``·비상정지 — 이미 만들어진 루틴 러너가 있으면 진행 중인 루틴을 모두 멈춘다(평가 B5).
+    엔진이 아직 없으면 아무것도 만들지 않는다(정지 경로에서 새 객체를 띄우지 않는다)."""
+    engine = _engine
+    runner = getattr(engine, "runner", None) if engine is not None else None
+    if runner is None:
+        return 0
+    return runner.stop_all(reason)
+
+
 def get_routine_engine() -> RoutineEngine:
     from rpi.api.deps import get_suggestion_service  # noqa: PLC0415
 
@@ -89,6 +101,9 @@ def reset_routines() -> None:
     """테스트용."""
     global _engine
     get_routine_store.cache_clear()
+    from rpi.api import deps  # noqa: PLC0415
+
+    deps.get_done_sensor_set.cache_clear()
     _engine = None
 
 

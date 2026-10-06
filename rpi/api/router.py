@@ -239,12 +239,11 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
             readiness_reasons=list(thinq_readiness.reasons),
             can_execute=thinq_readiness.can_execute,
         )
-    if not has_node and runs_locally and service is not None and service.estop_latched():
-        # 로컬 갠트리(RPi4)가 비상정지 걸림을 보고했다 — 실행 버튼을 막고 사유를 그대로 보인다.
-        from .service import ESTOP_LATCHED_REASON  # noqa: PLC0415
-
+    blocked = service.estop_block_reason() if (not has_node and runs_locally and service is not None) else None
+    if blocked is not None:
+        # 로컬 갠트리(RPi4)가 걸림을 보고했거나 아직 상태를 모른다(평가 C1) — 실행 버튼을 막고 사유를 그대로 보인다.
         return _appliance_response_base(
-            a, readiness="needs_setup", readiness_reasons=[ESTOP_LATCHED_REASON], can_execute=False
+            a, readiness="needs_setup", readiness_reasons=[blocked], can_execute=False
         )
     return _appliance_response_base(
         a,
@@ -984,6 +983,10 @@ async def emergency_stop(
         asyncio.to_thread(service.emergency_stop_report),
         asyncio.to_thread(stop_developer_session_if_any, "emergency_stop"),
     )
+    # 끝을 기다리던 루틴도 멈춘다 — 해제 뒤 다음 단계가 이어서 나가지 않게(평가 B5).
+    from rpi.routines.wiring import stop_routines_if_any  # noqa: PLC0415
+
+    await asyncio.to_thread(stop_routines_if_any, "긴급 정지 요청")
     return StopResponse(
         was_running=report.was_running,
         nodes_requested=len(report.nodes_acknowledged)
@@ -1592,6 +1595,16 @@ async def alerts(
 _DEMO_ALERT_MODES = ("", "mock", "simulator")
 
 
+UART_REHEARSAL_ENV = "SIMPLELAY_UART_REHEARSAL"
+
+
+def uart_rehearsal_enabled() -> bool:
+    """UART 모드 리허설 스위치(2026-10-06) — RPi5에서 명시적으로 켜야 한다. 켜도 RPi4가 가짜 콘센트·모의 모션이라고
+    ``act_info``로 알린 때만 주입이 나간다(RPi4도 한 번 더 거절한다)."""
+    return (os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower() == "uart"
+            and os.environ.get(UART_REHEARSAL_ENV, "").strip().lower() in ("1", "true", "yes", "on"))
+
+
 def demo_alert_allowed() -> bool:
     """주입을 열어도 되는 실행 환경인가.
 
@@ -1641,9 +1654,24 @@ _REHEARSAL_ESTOP_DETAIL = (
 
 
 def _require_rehearsal_mode() -> None:
-    """모의·시뮬레이터 모드가 아니면 404. 서비스 의존성보다 **먼저** 둔다 — UART 모드에서 시리얼을 열지 않는다."""
-    if not demo_alert_allowed():
-        raise HTTPException(404, "비상 버튼 주입은 모의·시뮬레이터 모드에서만 열려 있어요")
+    """모의·시뮬레이터 모드가 아니면 404. 서비스 의존성보다 **먼저** 둔다 — UART 모드에서 시리얼을 열지 않는다.
+    UART 모드는 ``SIMPLELAY_UART_REHEARSAL=1``일 때만 연다(그다음 RPi4 구성은 `_uart_rehearsal_controller`가 본다)."""
+    if not demo_alert_allowed() and not uart_rehearsal_enabled():
+        raise HTTPException(404, "비상 버튼 주입은 모의·시뮬레이터 모드(또는 UART 리허설 스위치)에서만 열려 있어요")
+
+
+def _uart_rehearsal_controller(service: SimpleLayService):
+    """UART 리허설: RPi4가 가짜 콘센트(또는 없음)·모의 모션이라고 알렸을 때만 그 실행기를 돌려준다. 아니면 409."""
+    controller = getattr(service, "_controller", None)
+    status_fn = getattr(controller, "rehearsal_status", None)
+    status = status_fn() if callable(status_fn) else {}
+    if status.get("rehearsal") is not True:
+        raise HTTPException(
+            409,
+            "RPi4가 실물 콘센트 모듈·모션 MCU에 붙어 있거나 구성을 아직 알리지 않았어요 — "
+            "리허설은 RPi4를 SIMPLELAY_OUTLET_PORT=fake(또는 없음)·SIMPLELAY_MOTION_MODE=mock으로 띄워야 해요",
+        )
+    return controller
 
 
 def _rehearsal_estop_controller(service: SimpleLayService):
@@ -1669,6 +1697,11 @@ async def demo_outlet_estop(
     비상 띠·배너, 실행 412, ``POST /stop/ack``까지 회로 없이 이어서 리허설할 수 있다. 모의·시뮬레이터
     모드 밖은 404, 걸림을 흉내 낼 수 없는 실행기(기본 mock)는 409다.
     """
+    if uart_rehearsal_enabled():
+        controller = _uart_rehearsal_controller(service)
+        await asyncio.to_thread(controller.uart_rehearse_outlet_estop, body.hold_button)
+        return DemoOutletEstopResponse(ok=True, button_held=body.hold_button,
+                                       detail=_UART_REHEARSAL_ESTOP_DETAIL)
     controller = _rehearsal_estop_controller(service)
     await asyncio.to_thread(controller.rehearse_outlet_estop, body.hold_button)
     return DemoOutletEstopResponse(ok=True, button_held=body.hold_button,
@@ -1681,18 +1714,26 @@ async def demo_outlet_estop_release(
     service: SimpleLayService = Depends(get_service),
 ) -> DemoOutletEstopResponse:
     """리허설 비상 버튼을 푼다. 걸림은 그대로다 — 풀려면 사람이 ``POST /stop/ack``."""
+    if uart_rehearsal_enabled():
+        controller = _uart_rehearsal_controller(service)
+        await asyncio.to_thread(controller.uart_release_rehearsal_estop_button)
+        return DemoOutletEstopResponse(ok=True, button_held=False, detail=_UART_REHEARSAL_ESTOP_DETAIL)
     controller = _rehearsal_estop_controller(service)
     await asyncio.to_thread(controller.release_rehearsal_estop_button)
     return DemoOutletEstopResponse(ok=True, button_held=False, detail=_REHEARSAL_ESTOP_DETAIL)
 
 
 _REHEARSAL_DONE_DETAIL = "(시연 주입) 실제 세탁기·콘센트 CT·마이크로 잰 값이 아니에요"
+_UART_REHEARSAL_ESTOP_DETAIL = (
+    "(시연 주입: RPi4 가짜 콘센트 모듈 비상 버튼이에요 — 실제 모듈·릴레이가 아니에요)"
+)
 
 
 def _require_done_rehearsal_mode() -> None:
-    """모의·시뮬레이터 모드가 아니면 404 — 실물 보드의 판정 위에 주입을 얹지 않는다(서비스 의존성보다 먼저)."""
-    if not demo_alert_allowed():
-        raise HTTPException(404, "가전 완료 주입은 모의·시뮬레이터 모드에서만 열려 있어요")
+    """모의·시뮬레이터 모드가 아니면 404 — 실물 보드의 판정 위에 주입을 얹지 않는다(서비스 의존성보다 먼저).
+    UART 모드는 ``SIMPLELAY_UART_REHEARSAL=1``이고 RPi4가 가짜 콘센트·모의 모션일 때만(2026-10-06)."""
+    if not demo_alert_allowed() and not uart_rehearsal_enabled():
+        raise HTTPException(404, "가전 완료 주입은 모의·시뮬레이터 모드(또는 UART 리허설 스위치)에서만 열려 있어요")
 
 
 @router.post("/demo/appliance-done", response_model=DemoApplianceDoneResponse)
@@ -1714,7 +1755,16 @@ async def demo_appliance_done(
 
     controller = getattr(service, "_controller", None)
     rehearse = getattr(controller, "rehearse_appliance_done", None)
-    if callable(rehearse):
+    if uart_rehearsal_enabled():
+        # RPi4가 같은 융합 규칙으로 appliance_done(source=injected)을 보내고, RPi5는 실물 프레임과 같은 길로 받는다.
+        controller = _uart_rehearsal_controller(service)
+        try:
+            frame = await asyncio.to_thread(controller.uart_rehearse_appliance_done, body.appliance_id,
+                                            list(body.inputs), body.event)
+        except RuntimeError as exc:
+            raise HTTPException(409, str(exc)) from exc
+        where = "rpi4_uart"
+    elif callable(rehearse):
         frame = await asyncio.to_thread(rehearse, body.appliance_id, list(body.inputs), body.event)
         where = "rpi4_simulator"
     else:

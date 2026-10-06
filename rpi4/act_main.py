@@ -47,12 +47,19 @@ Environment variables:
                                   "fake"면 가짜 출력(rpi/tools/fake_outlet.py) — 판정은 모의로 표시
   SIMPLELAY_OUTLET_BAUD           콘센트 모듈 보드레이트(fake가 아니면 필수, 펌웨어 HOST_SERIAL_BAUD와 같게)
   SIMPLELAY_OUTLET_CHANNELS       CT 채널 → 가전(2026-10-06 두 번째 CT, 예: microwave:0,washer:1). 비우면 모든 가전이
-                                  채널 0(CT 하나 시절과 같다). 주면 L3·잔여 전류 꼬리·정지 확인·기록기는 microwave
-                                  채널을, 세탁 끝 관찰은 그 가전 채널을 읽는다 — 이름이 빠지면 시작을 거절한다.
-                                  릴레이는 하나이고 전자레인지 채널만 끊는다(세탁기는 릴레이를 거치지 않게 배선)
+                                  채널 0(CT 하나 시절과 같다) — **전력을 읽는 가전이 둘 이상이면 시작을 거절한다**
+                                  (2026-10-06 평가 A1: L3·기록기·실물 모션의 정지 확인은 microwave, 세탁 끝 관찰은 그 가전).
+                                  주면 이름이 빠진 가전도 거절한다. 릴레이는 하나이고 전자레인지 채널만 끊는다(세탁기는
+                                  릴레이를 거치지 않게 배선) — 모듈이 알린 relay_ch가 microwave 채널과 다르거나, 대응한
+                                  채널이 모듈에 없으면 시작을 거절하고(평가 A2), 실행 중 바뀌면 execute를 outlet_offline으로 거절
+  SIMPLELAY_FAKE_OUTLET_RELAY_CH  fake 모듈의 릴레이 채널(기본 0 = 펌웨어 OUTLET_RELAY_CH 기본). 대응에서 베끼지 않는다
+  SIMPLELAY_FAKE_OUTLET_CHANNELS  fake 모듈의 CT 채널 수(기본 = 대응의 가장 큰 채널 + 1)
   SIMPLELAY_OUTLET_RELAY_ON_START "1"이면 연결 뒤 relay_on을 보낸다. 기본은 보내지 않는다 — 모듈 부팅 기본이
                                   릴레이 꺼짐(fail-safe)이라, 켜기는 사람이 정한 설정으로만. 모듈이 비상정지
-                                  걸림을 보고하거나(ready·status estop) 상태를 확인하지 못하면 보내지 않는다
+                                  걸림을 보고하거나(ready·status estop) 상태를 확인하지 못하면 보내지 않는다.
+                                  켜 둔 뒤 모듈이 재부팅해 꺼지면 **다시 켜지 않고** 걸림(source=outlet_reboot,
+                                  "콘센트 모듈이 다시 켜져 전원이 꺼져 있어요 — 확인 후 켜 주세요")으로 두며,
+                                  RPi5 POST /stop/ack(estop_ack) 뒤에만 켠다(2026-10-06 평가 A4)
   SIMPLELAY_OUTLET_STALE_MS       전력 샘플 끊김 판단(기본 1000). 넘으면 L3는 '센서를 읽지 못함'으로 안전 정지
   SIMPLELAY_OUTLET_HEARTBEAT_MS   모듈로 ping 간격(기본 1000, 0/off = 끔)
   SIMPLELAY_OUTLET_STATUS_POLL_MS 모듈 status 조회 간격(기본 2000, 0/off = 끔) — 응답의 estop을 반영한다
@@ -375,6 +382,35 @@ def _open_outlet_transport(port: str, baud: int):
 #: act_main이 띄운 가짜 콘센트 모듈(SIMPLELAY_OUTLET_PORT=fake). 시험이 들여다본다.
 _fake_outlet = None
 
+
+def _press_reads_outlet() -> bool:
+    """누르는 가전(전자레인지)의 CT 채널을 읽는 소비자가 있나: L3 real, 원시 기록기, 실물 모션의 정지 확인."""
+    l3 = (os.getenv("SIMPLELAY_L3_MODE", "off") or "off").strip().lower()
+    motion = (os.getenv("SIMPLELAY_MOTION_MODE", "mock") or "mock").strip().lower()
+    return (l3 == "real" or bool(os.getenv("SIMPLELAY_RECORDER_PATH", "").strip())
+            or motion == "serial")
+
+
+def _outlet_consumers() -> tuple[str, ...]:
+    """콘센트 전력을 읽을 가전 ID(중복 없음) — 누르는 가전 + SIMPLELAY_DONE_WATCH의 outlet 입력 가전."""
+    from .services.appliance_done_watch import parse_done_watches
+
+    consumers: list[str] = [OUTLET_PRESS_APPLIANCE] if _press_reads_outlet() else []
+    for spec in parse_done_watches(os.getenv("SIMPLELAY_DONE_WATCH")):
+        if "power" in spec.inputs and spec.appliance_id not in consumers:
+            consumers.append(spec.appliance_id)
+    return tuple(consumers)
+
+
+def _env_int(name: str, default: int) -> int:
+    raw = os.getenv(name, "").strip()
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} 값을 정수로 읽을 수 없습니다: {raw!r}") from exc
+
 #: 갠트리가 누르고 릴레이가 끊는 가전 — L3·잔여 전류 꼬리·정지 확인·기록기가 이 가전의 CT 채널을 읽는다.
 OUTLET_PRESS_APPLIANCE = "microwave"
 
@@ -405,15 +441,19 @@ def _build_outlet():
     if not port:
         log.info("outlet module off (set SIMPLELAY_OUTLET_PORT for the ESP32 CT/relay module)")
         return None
-    from rpi.verifier.outlet import OutletConfig, OutletError, OutletLink
+    from rpi.verifier.outlet import OutletConfig, OutletError, OutletLink, require_outlet_channels
 
     config = OutletConfig.from_env()
     channels = _outlet_channel_map()
+    consumers = _outlet_consumers()
+    # 포트를 열기 전에 대응을 확인한다(평가 A1) — 두 가전이 채널 0을 같이 읽는 구성은 시작하지 않는다.
+    require_outlet_channels(channels, consumers)
     if port.lower() == "fake":
         from rpi.tools.fake_outlet import open_fake_outlet
 
-        count = max(channels.channels, default=0) + 1
-        relay_ch = channels.by_appliance.get(OUTLET_PRESS_APPLIANCE, 0)
+        # 릴레이 채널은 대응에서 베끼지 않는다(평가 A2) — 펌웨어처럼 기본 0, 다르면 env로 준다.
+        count = _env_int("SIMPLELAY_FAKE_OUTLET_CHANNELS", max(channels.channels, default=0) + 1)
+        relay_ch = _env_int("SIMPLELAY_FAKE_OUTLET_RELAY_CH", 0)
         pipe, _fake_outlet = open_fake_outlet(**({"channels": count, "relay_channel": relay_ch}
                                                  if count > 1 or relay_ch else {}))
         link = OutletLink(pipe.host, config, mock=True).start()
@@ -436,7 +476,10 @@ def _build_outlet():
                   "'stale' until it does")
     else:
         log.info("outlet module ready: %s", ready)
-        _check_outlet_channels(ready, channels)
+        problem = _check_outlet_channels(ready, channels, consumers)
+        if problem is not None:
+            link.close()
+            raise RuntimeError(problem)
     if os.getenv("SIMPLELAY_OUTLET_RELAY_ON_START", "").strip() == "1":
         latched = link.module_estop
         if latched is None:
@@ -461,22 +504,35 @@ def _build_outlet():
     return link
 
 
-def _check_outlet_channels(ready: dict, channels) -> None:
-    """모듈이 알린 채널 수·릴레이 채널이 SIMPLELAY_OUTLET_CHANNELS와 맞는지 시작 로그로 남긴다(거절하지 않는다)."""
-    count, relay_ch = ready.get("channels"), ready.get("relay_ch")
-    if not channels.by_appliance:
-        if isinstance(count, int) and count > 1:
-            log.warning("outlet module has %d CT channels but SIMPLELAY_OUTLET_CHANNELS is empty — "
-                        "every consumer reads channel 0", count)
-        return
-    if isinstance(count, int) and any(ch >= count for ch in channels.channels):
-        log.error("SIMPLELAY_OUTLET_CHANNELS=%s names a channel the module does not have (channels=%d) — "
-                  "that appliance's power will stay 'stale'", channels.describe(), count)
-    press = channels.by_appliance.get(OUTLET_PRESS_APPLIANCE)
-    if isinstance(relay_ch, int) and press is not None and press != relay_ch:
-        log.error("outlet relay cuts CT channel %d but %s is mapped to channel %d — the relay/E-STOP does "
-                  "not switch the appliance whose power L3 reads (check wiring / OUTLET_RELAY_CH)",
-                  relay_ch, OUTLET_PRESS_APPLIANCE, press)
+def _check_outlet_channels(ready: dict, channels, consumers: "tuple[str, ...]" = ()) -> str | None:
+    """모듈이 알린 채널 수·릴레이 채널이 SIMPLELAY_OUTLET_CHANNELS와 맞지 않으면 이유(맞으면 None).
+
+    2026-10-06 평가 A2: 로그만 남기던 것을 시작 거절로 바꿨다(호출하는 쪽이 RuntimeError로 올린다).
+    """
+    from rpi.verifier.outlet import outlet_module_channel_problem
+
+    count = ready.get("channels")
+    if not channels.by_appliance and isinstance(count, int) and count > 1:
+        log.warning("outlet module has %d CT channels but SIMPLELAY_OUTLET_CHANNELS is empty — "
+                    "the single consumer reads channel 0", count)
+    return outlet_module_channel_problem(ready, channels, consumers, OUTLET_PRESS_APPLIANCE)
+
+
+def _outlet_readiness(outlet):
+    """execute 전 콘센트 확인: 무응답 → 모듈이 (다시) 알린 채널 정보가 대응과 어긋남(평가 A2) 순."""
+    from rpi.verifier.outlet import outlet_module_channel_problem
+
+    channels = _outlet_channel_map()
+    consumers = _outlet_consumers()
+
+    def reason() -> str | None:
+        offline = outlet.not_ready_reason()
+        if offline is not None:
+            return offline
+        info = getattr(outlet, "module_info", None)
+        return outlet_module_channel_problem(info, channels, consumers, OUTLET_PRESS_APPLIANCE)
+
+    return reason
 
 
 def _build_operation_verifier(outlet=None):
@@ -617,19 +673,75 @@ def _wire_outlet_estop(outlet, executor: ActExecutor) -> None:
         return
 
     def on_event(doc: dict) -> None:
-        if doc.get("event") != "estop":
-            return
+        event = doc.get("event")
         source = doc.get("source") if isinstance(doc.get("source"), str) else "button"
+        if event == "power_lost":
+            # 재부팅으로 꺼진 릴레이 — 자동으로 켜지 않고 사람 확인까지 걸어 둔다(평가 A4).
+            try:
+                loop.call_soon_threadsafe(executor.handle_outlet_power_lost, source)
+            except RuntimeError:
+                executor.emergency_stop_sync("outlet_reboot")
+            return
+        if event != "estop":
+            return
         try:
             loop.call_soon_threadsafe(executor.handle_outlet_estop, source)
-        except RuntimeError:  # 루프가 닫힌 뒤
-            log.error("outlet estop arrived after the event loop closed — drive stop not requested")
+        except RuntimeError:  # 루프가 닫힌 뒤(Copilot#2) — 로그로 끝내지 않고 이 스레드에서 바로 멈춘다
+            log.error("outlet estop arrived after the event loop closed — stopping drive synchronously")
+            executor.emergency_stop_sync(source)
 
-    executor.set_estop_reset(outlet.reset_estop_if_released)
-    executor.set_outlet_readiness(outlet.not_ready_reason)
+    reset = getattr(outlet, "acknowledge_and_restore", None)
+    executor.set_estop_reset(reset if callable(reset) else outlet.reset_estop_if_released)
+    executor.set_outlet_readiness(_outlet_readiness(outlet))
     outlet.add_listener(on_event)
     if getattr(outlet, "module_estop", None) is True:
         loop.call_soon(executor.handle_outlet_estop, "ready")
+
+
+class _RehearsalHooks:
+    """UART 리허설 주입(2026-10-06) — RPi4가 가짜 콘센트(또는 콘센트 없음)·모의 모션일 때만 꽂는다.
+
+    비상 버튼: 가짜 모듈이 있으면 그 버튼을 누른다 — 모듈 estop 이벤트 → 링크 → 실행기로 실물과 같은 길을 탄다.
+    콘센트가 없으면 실행기의 ``handle_outlet_estop``을 바로 부르고 해제 때 버튼 상태만 흉내 낸다(시뮬레이터와 같다).
+    가전 끝은 실행기의 ``inject_appliance_done``(출처 injected)이 맡는다.
+    """
+
+    def __init__(self) -> None:
+        self._held = False
+
+    def outlet_estop(self, executor: ActExecutor, hold_button: bool) -> None:
+        fake = _fake_outlet
+        if fake is not None:
+            fake.press_estop()
+            if not hold_button:
+                fake.release_estop_button()
+            return
+        self._held = bool(hold_button)
+        executor.set_estop_reset(lambda: (False, "estop_button_pressed") if self._held else (True, None))
+        executor.handle_outlet_estop("button")
+
+    def release_button(self, executor: ActExecutor) -> None:
+        fake = _fake_outlet
+        if fake is not None:
+            fake.release_estop_button()
+        self._held = False
+
+
+def _describe_act(executor: ActExecutor, *, outlet_kind: str, motion_kind: str) -> None:
+    """RPi5에 알릴 구성(``act_info``)을 채우고 리허설 주입을 열지 정한다(2026-10-06 평가 C1·B3, UART 리허설).
+
+    ``done_watch``: SIMPLELAY_DONE_WATCH의 가전 ID — RPi5가 SIMPLELAY_ROUTINE_DONE_SENSORS·가전 목록과 대조한다.
+    리허설은 모션이 mock이고 콘센트가 가짜이거나 없을 때만 연다(실물 판정 위에 주입을 얹지 않는다).
+    """
+    from .services.appliance_done_watch import parse_done_watches
+
+    specs = parse_done_watches(os.getenv("SIMPLELAY_DONE_WATCH"))
+    executor.act_info = {"done_watch": [spec.appliance_id for spec in specs],
+                         "outlet": outlet_kind, "motion": motion_kind}
+    allowed = motion_kind == "mock" and outlet_kind in ("fake", "none")
+    executor.set_rehearsal(_RehearsalHooks() if allowed else None)
+    log.info("act_info: done_watch=%s outlet=%s motion=%s rehearsal=%s",
+             executor.act_info["done_watch"], outlet_kind, motion_kind, "ON" if allowed else "off")
 
 
 def _build_done_watch(outlet, executor: ActExecutor):
@@ -662,7 +774,9 @@ def _build_done_watch(outlet, executor: ActExecutor):
             cycle = CycleEndConfig.for_appliance(spec.appliance_id)
             # 전력 끝은 settle_s 늦게 오므로 먼저 온 종료음이 짝을 기다릴 시간을 settle_s + 창으로 잡는다(env가 이긴다).
             base = DoneFusionConfig()
-            fusion = DoneFusionConfig.from_env(wait_s=max(base.wait_s, cycle.settle_s + base.window_s))
+            # 쿨다운은 가전마다(평가 B2) — 전자레인지 두 번째 가열 끝을 버리지 않게 짧다(측정 필요).
+            fusion = DoneFusionConfig.for_appliance(spec.appliance_id,
+                                                    wait_s=max(base.wait_s, cycle.settle_s + base.window_s))
             view = views.get(spec.appliance_id)
             watch = ApplianceDoneWatch(
                 spec, executor.thread_safe_done_emitter(loop), cycle_config=cycle, beep_config=beep,
@@ -748,6 +862,9 @@ async def _run() -> None:
         raise
     if recorder is not None:
         recorder.start()
+    motion_kind = (os.getenv("SIMPLELAY_MOTION_MODE", "mock") or "mock").strip().lower() or "mock"
+    outlet_kind = "none" if outlet is None else ("fake" if getattr(outlet, "mock", False) else "real")
+    _describe_act(executor, outlet_kind=outlet_kind, motion_kind=motion_kind)
     try:
         done = _build_done_watch(outlet, executor)
     except BaseException:

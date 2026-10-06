@@ -14,6 +14,8 @@ Inbound (RPi5 → RPi4):
   verify_pass    — 확인 주행: Z를 올린 채 좌표 위를 차례로 지나간다(누르지 않음)
   inject_failure — arm demo failure injection for the next execution (rehearsal)
   clear_failure  — disarm a previously armed injection
+  hello          — RPi5가 (다시) 연결했다(2026-10-06 평가 C1·B3). 답은 act_info와 estop_state
+  rehearsal      — 리허설 주입(2026-10-06): RPi4가 가짜 콘센트·모의 모션일 때만 받는다. 답은 rehearsal_result
   estop_ack      — 사람이 비상정지 해제를 확인했다(2026-10-05). RPi4의 비상정지 걸림(estop_latched)을
                    풀어 달라는 요청 — 콘센트 모듈 버튼이 아직 눌려 있으면 풀지 않고 걸린 채로 답한다
 
@@ -24,6 +26,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass, field
 
 from rpi.controller.models import ButtonTarget
@@ -101,8 +104,30 @@ class EstopAckMsg:
     """비상정지 해제 확인(RPi5 ``POST /stop/ack``). 답은 ``estop_state`` 프레임이다."""
 
 
+@dataclass(frozen=True)
+class HelloMsg:
+    """RPi5 연결 알림. RPi4는 act_info(끝 관찰 가전·리허설 가능 여부)와 estop_state로 답한다."""
+
+
+#: 리허설 주입 동작 — 콘센트 비상 버튼 누름·풀기, 가전 끝 주입.
+REHEARSAL_ACTIONS = ("outlet_estop", "outlet_estop_release", "appliance_done")
+
+
+@dataclass(frozen=True)
+class RehearsalMsg:
+    """리허설 주입(시연 장면 ④⑤를 보드에서). RPi4가 실물 모듈·모터에 붙어 있으면 거절한다."""
+
+    action: str
+    request_id: str
+    hold_button: bool = False
+    appliance_id: str = "washer"
+    inputs: tuple[str, ...] = ()
+    event: str | None = None
+
+
 InboundActMsg = (
     ExecuteMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg | EstopAckMsg
+    | HelloMsg | RehearsalMsg
 )
 
 #: 정지 버튼 누름 횟수 상한(전자레인지: 1회 일시정지·2회 취소 등). 레지스트리와 같다.
@@ -193,7 +218,38 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
     if msg_type == "estop_ack":
         return EstopAckMsg()
 
+    if msg_type == "hello":
+        return HelloMsg()
+
+    if msg_type == "rehearsal":
+        return _parse_rehearsal(doc)
+
     return None  # unknown type — not an error, just silently ignored
+
+
+_REHEARSAL_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+_REHEARSAL_EVENT = re.compile(r"[a-z][a-z0-9_]{0,63}")
+
+
+def _parse_rehearsal(doc: dict) -> RehearsalMsg | None:
+    """리허설 주입을 엄격하게 읽는다(RPi5 스키마 DemoApplianceDoneRequest와 같은 범위)."""
+    action, request_id = doc.get("action"), doc.get("request_id")
+    if action not in REHEARSAL_ACTIONS or not isinstance(request_id, str) or not _REHEARSAL_ID.fullmatch(request_id):
+        return None
+    if action != "appliance_done":
+        hold = doc.get("hold_button", False)
+        if not isinstance(hold, bool):
+            return None
+        return RehearsalMsg(action, request_id, hold_button=hold)
+    appliance, inputs, event = doc.get("appliance_id"), doc.get("inputs"), doc.get("event")
+    if not isinstance(appliance, str) or not _REHEARSAL_ID.fullmatch(appliance):
+        return None
+    if (not isinstance(inputs, list) or not 1 <= len(inputs) <= 2
+            or any(i not in ("power", "beep") for i in inputs)):
+        return None
+    if event is not None and (not isinstance(event, str) or not _REHEARSAL_EVENT.fullmatch(event)):
+        return None
+    return RehearsalMsg(action, request_id, appliance_id=appliance, inputs=tuple(inputs), event=event)
 
 
 def _is_number(value: object) -> bool:

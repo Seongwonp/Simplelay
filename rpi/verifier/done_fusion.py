@@ -10,6 +10,9 @@
   ``now_s``  융합이 그 입력을 받은 시각. 전력 끝은 대기에 ``settle_s`` 머문 뒤에야 오므로, 먼저 온 입력은
              ``wait_s``만큼 짝을 기다린 뒤 단일 입력으로 낸다(``poll``).
 한 번 낸 뒤 ``cooldown_s`` 안에 든 입력은 같은 끝의 늦은 증거라 다시 알리지 않고 ``ignored``에만 남긴다.
+쿨다운은 **가전마다** 다르다(2026-10-06 평가 B2): 전자레인지는 몇 분 간격으로 다시 돌릴 수 있어 짧게(설계 초기값
+60 s), 세탁기는 길게(900 s). `DoneFusionConfig.for_appliance` — ``SIMPLELAY_DONE_<가전>_COOLDOWN_S`` →
+``SIMPLELAY_DONE_COOLDOWN_S`` → 가전별 기본 → 900 s. 전부 측정 필요.
 
 출처(``source``): 입력 중 하나라도 모의(mock)면 mock, 리허설 주입이면 injected — **실물(real)로 보이지 않게**.
 이 모듈은 판단만 한다. 가전을 움직이지 않고 릴레이를 건드리지 않는다. 기준값은 전부 측정 필요.
@@ -83,6 +86,41 @@ class DoneFusionConfig:
             return cls(**values)
         except ValueError as exc:
             raise RuntimeError(f"완료 융합 설정이 잘못됐습니다: {exc}") from exc
+
+    @classmethod
+    def for_appliance(cls, appliance_id: str, env: Mapping[str, str] | None = None,
+                      **defaults: float) -> "DoneFusionConfig":
+        """가전 하나의 융합 박자. 앞선 것이 이긴다: ``SIMPLELAY_DONE_<가전>_<항목>`` → 공통 env(`FUSION_ENV_NAMES`)
+        → 호출자 기본(``defaults``) → 가전별 설계 초기값(`APPLIANCE_FUSION_DEFAULTS`) → 기본값. 전부 측정 필요."""
+        src = os.environ if env is None else env
+        values: dict[str, float] = {**APPLIANCE_FUSION_DEFAULTS.get(appliance_id, {}), **defaults}
+        base = cls.from_env(src, **values)
+        out = {name: getattr(base, name) for name in FUSION_ENV_NAMES}
+        for field_name in FUSION_ENV_NAMES:
+            name = _appliance_fusion_env(appliance_id, field_name)
+            raw = (src.get(name) or "").strip()
+            if not raw:
+                continue
+            try:
+                out[field_name] = float(raw)
+            except ValueError as exc:
+                raise RuntimeError(f"{name} 값을 숫자로 읽을 수 없습니다: {raw!r}") from exc
+        try:
+            return cls(**out)
+        except ValueError as exc:
+            raise RuntimeError(f"'{appliance_id}' 완료 융합 설정이 잘못됐습니다: {exc}") from exc
+
+
+#: 가전별 융합 설계 초기값(2026-10-06 평가 B2) — **전부 측정 필요**. 전자레인지는 두 번째 가열 끝을 버리지 않게
+#: 쿨다운을 한 사이클(최소 가동 10 s + 대기 확인 10 s)보다 조금 길게만 둔다.
+APPLIANCE_FUSION_DEFAULTS: dict[str, dict[str, float]] = {"microwave": {"cooldown_s": 60.0}}
+
+
+def _appliance_fusion_env(appliance_id: str, field_name: str) -> str:
+    """``SIMPLELAY_DONE_<가전>_<항목>``(예: SIMPLELAY_DONE_MICROWAVE_COOLDOWN_S)."""
+    slug = re.sub(r"[^A-Z0-9]", "_", appliance_id.upper())
+    suffix = FUSION_ENV_NAMES[field_name].removeprefix("SIMPLELAY_DONE_").removeprefix("FUSION_")
+    return f"SIMPLELAY_DONE_{slug}_{suffix}"
 
 
 @dataclass(frozen=True)

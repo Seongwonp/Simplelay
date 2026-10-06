@@ -13,13 +13,21 @@
 3. 첫 구간은 호출 스레드에서 **제출**한다 -- 바쁨(409)·준비 안 됨(412) 같은 거절이 그대로
    승인 응답으로 올라가고, 제안 서비스가 카드를 되돌린다. 나머지는 백그라운드에서 이어간다.
 
-``wait_until_done`` 판정(실물 미검증, 2026-10-06 갭 M2):
-- 그 가전의 마지막 결과가 성공이고 ``operation_confirmed``(L3) 또는 ``state_confirmed``여야 한다(시작 확인).
-- **끝 센서가 있는 가전**(``SIMPLELAY_ROUTINE_DONE_SENSORS``, RPi4 ``SIMPLELAY_DONE_WATCH``와 맞춘다)이면 그 위에서
-  RPi4가 그 가전의 CT 채널 전력 하강(`rpi/verifier/cycle_end.py`)으로 보내는 ``appliance_done``을 기다린다 --
-  구간을 보내기 전에 잡은 표(`ApplianceDoneLog.mark`) 뒤에 온 것만, ``SIMPLELAY_ROUTINE_DONE_TIMEOUT_S``(기본 1200,
-  측정 필요)까지. 오면 통과(``basis: cycle_end``), 안 오면 루틴을 멈추고 알림함에 남긴다. 정지 요청이면 멈춤.
-- 끝 센서가 없으면 시작 확인으로 통과하되 단계에 **"시작만 확인 — 끝남 판정 센서 없음"**(``basis: start_only``).
+``wait_until_done`` 판정(실물 미검증, 2026-10-06 갭 M2 · 같은 날 평가 B1·B4·B5·Copilot#5):
+- **끝 센서가 있는 가전**(RPi4가 ``act_info.done_watch``로 알린 목록, 알기 전에는 ``SIMPLELAY_ROUTINE_DONE_SENSORS``
+  — `DoneSensorSet`)이면 그 가전의 마지막 결과가 성공이기만 하면(L1 눌림 확인이어도 — L3는 전자레인지 채널만
+  읽으므로 세탁기는 L3 시작 확인을 받을 수 없다, 평가 B4) RPi4가 그 가전 CT 채널 전력 하강(`rpi/verifier/cycle_end.py`)
+  으로 보내는 ``appliance_done``을 기다린다 — 구간을 보내기 전에 잡은 표(`ApplianceDoneLog.mark`) 뒤에 온 것만,
+  가전별 상한(``SIMPLELAY_ROUTINE_DONE_TIMEOUT_<가전>_S`` → ``SIMPLELAY_ROUTINE_DONE_TIMEOUT_S`` → 가전별 기본
+  `DEFAULT_DONE_TIMEOUTS_S` → 1200 s, 전부 측정 필요)까지.
+  **``done_confirmed``(전력·종료음 둘 다)만 끝남 확인**이다(평가 B1). 입력 하나뿐(``done_power_only``·``done_beep_only``)
+  이면 "끝난 것 같아요 — 확인해 주세요"라고 남기고 뒤 단계(안내·장치)를 **보내지 않고** 루틴을 멈춘다(보수적 선택).
+  안 오면 루틴을 멈추고 알림함에 남긴다.
+- 끝 센서가 없으면 L3·상태 확인으로 통과하되 단계에 **"시작만 확인 — 끝남 판정 센서 없음"**(``basis: start_only``).
+- 정지: 루틴 정지·전체 정지(``POST /stop`` → `stop_all`)·비상정지 걸림(실행 중 한 번이라도 걸렸으면 해제 확인 뒤에도)은
+  기다림을 끊고 남은 단계를 보내지 않는다(평가 B5).
+- 기다리는 동안 실행 서비스는 쉬는 중이다 — 새 사용자 명령은 막히지 않는다. 다음 장치 단계는 그 명령이 끝나기를
+  ``idle_timeout``만큼 기다렸다가, 안 끝나면 루틴을 멈춘다(Copilot#5).
 - 모의 실행(``mock``)의 성공은 센서가 있어도 기다리지 않고 **시연 통과**로 적는다(``basis: mock``).
 - 그 밖(L1 눌림만·보고만·미확인·실패)은 루틴을 멈추고 보호자 알림함에 남긴다.
 
@@ -56,8 +64,93 @@ DONE_SENSORS_ENV = "SIMPLELAY_ROUTINE_DONE_SENSORS"
 #: ``wait_until_done``이 사이클 끝을 기다리는 상한(초). 기본 20분 — 측정 필요(가열 시간 + 대기 확인 시간).
 DONE_TIMEOUT_ENV = "SIMPLELAY_ROUTINE_DONE_TIMEOUT_S"
 DEFAULT_DONE_TIMEOUT_S = 1200.0
+#: 가전별 기다림 기본 상한(초) — 설계 초기값, **측정 필요**. 전자레인지는 가열 몇 분 + 대기 확인(settle) 여유,
+#: 세탁기는 표준 코스 한 바퀴(1~2시간)에 여유를 둔다.
+DEFAULT_DONE_TIMEOUTS_S: dict[str, float] = {"microwave": 900.0, "washer": 3 * 3600.0}
 START_ONLY_DETAIL = "시작만 확인 — 끝남 판정 센서 없음"
+PROBABLE_DETAIL = "끝난 것 같아요 — 확인해 주세요"
+ESTOP_STOP_DETAIL = "비상정지가 걸려 남은 단계를 보내지 않았어요(해제 확인 뒤에도 이어서 하지 않아요)"
 _ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
+def routine_done_timeouts_from_env(env=None) -> dict[str, float]:
+    """가전별 기다림 상한(Copilot#5). 앞선 것이 이긴다: ``SIMPLELAY_ROUTINE_DONE_TIMEOUT_<가전>_S`` →
+    ``SIMPLELAY_ROUTINE_DONE_TIMEOUT_S``(모든 가전) → `DEFAULT_DONE_TIMEOUTS_S`. 반환에 없는 가전은 러너 기본값."""
+    src = os.environ if env is None else env
+    out = dict(DEFAULT_DONE_TIMEOUTS_S)
+    common = (src.get(DONE_TIMEOUT_ENV) or "").strip()
+    if common:
+        value = _positive_seconds(DONE_TIMEOUT_ENV, common)
+        out = {k: value for k in out}
+    prefix = DONE_TIMEOUT_ENV.removesuffix("_S") + "_"
+    for name, raw in src.items():
+        if not name.startswith(prefix) or not name.endswith("_S") or name == DONE_TIMEOUT_ENV:
+            continue
+        appliance = name[len(prefix):-2].lower()
+        if raw.strip():
+            out[appliance] = _positive_seconds(name, raw.strip())
+    return out
+
+
+def _positive_seconds(name: str, raw: str) -> float:
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} 값을 숫자로 읽을 수 없습니다: {raw!r}") from exc
+    if not (math.isfinite(value) and value > 0):
+        raise RuntimeError(f"{name}는 0보다 커야 합니다: {raw!r}")
+    return value
+
+
+class DoneSensorSet:
+    """끝 센서가 있는 가전 목록(평가 B3). RPi4가 ``act_info.done_watch``로 알리면 **그 목록을 따르고**, 알기 전에는
+    ``SIMPLELAY_ROUTINE_DONE_SENSORS``를 쓴다. 두 목록이 다르거나 RPi4 가전 ID가 RPi5 가전 목록에 없으면
+    `problems`에 사람이 읽을 문장으로 남기고 로그(error)로 알린다.
+
+    ID 공간: RPi4 ``SIMPLELAY_DONE_WATCH``의 이름은 RPi5 가전 목록의 ``appliance_id``(예: 내장 전자레인지
+    ``microwave``)와 **같아야** 한다 — RPi4가 보낸 ``appliance_done.appliance_id``를 루틴의 가전과 그대로 대조하기
+    때문이다. 사용자가 추가한 가전(ID 자동 생성)이면 RPi4 설정에 그 ID를 써야 한다.
+    """
+
+    def __init__(self, configured: frozenset | set = frozenset()) -> None:
+        self.configured = frozenset(configured)
+        self.reported: frozenset | None = None
+        self.problems: list[str] = []
+        self._lock = threading.Lock()
+
+    def current(self) -> frozenset:
+        with self._lock:
+            return self.reported if self.reported is not None else self.configured
+
+    def __contains__(self, appliance_id: object) -> bool:
+        return appliance_id in self.current()
+
+    def __iter__(self):
+        return iter(self.current())
+
+    def report(self, done_watch, known_ids=None) -> list[str]:
+        """RPi4가 알린 끝 관찰 가전 목록을 받는다. 어긋남을 돌려준다(없으면 빈 목록)."""
+        ids = frozenset(i for i in (done_watch or ()) if isinstance(i, str) and _ID.fullmatch(i))
+        problems: list[str] = []
+        only_rpi5 = sorted(self.configured - ids)
+        only_rpi4 = sorted(ids - self.configured)
+        if only_rpi5:
+            problems.append(f"{DONE_SENSORS_ENV}에 있는 {', '.join(only_rpi5)}의 끝을 RPi4가 관찰하지 않아요 "
+                            "(RPi4 SIMPLELAY_DONE_WATCH 확인) — 그 가전은 끝을 기다리지 않고 시작 확인으로 처리해요")
+        if only_rpi4:
+            problems.append(f"RPi4가 {', '.join(only_rpi4)}의 끝을 보내는데 {DONE_SENSORS_ENV}에 없어요 — "
+                            "RPi4 목록을 따라요(설정을 맞춰 주세요)")
+        if known_ids is not None:
+            unknown = sorted(ids - set(known_ids))
+            if unknown:
+                problems.append(f"RPi4 SIMPLELAY_DONE_WATCH의 가전 ID {', '.join(unknown)}가 RPi5 가전 목록에 없어요 — "
+                                "이 가전의 끝 알림은 어떤 루틴에도 닿지 않아요(RPi5 가전 ID로 맞춰 주세요)")
+        with self._lock:
+            self.reported = ids
+            self.problems = problems
+        for problem in problems:
+            log.error("done sensor mismatch: %s", problem)
+        return problems
 
 
 def routine_done_settings_from_env(env=None) -> tuple[frozenset, float]:
@@ -110,6 +203,10 @@ class RoutineRun:
     active: bool = False
     #: 마지막 장치 구간을 보내기 전의 가전 끝 기록 표(`ApplianceDoneLog.mark`). 이 뒤에 온 끝만 센다.
     done_mark: int = 0
+    #: 시작할 때 본 비상정지 횟수(평가 B5) — 실행 중 늘면 해제 확인 뒤에도 남은 단계를 보내지 않는다.
+    estop_trips: int | None = None
+    #: 정지 사유(루틴 정지·전체 정지). 없으면 기본 문장.
+    stop_reason: str | None = None
 
     def as_dict(self) -> dict:
         return {
@@ -130,8 +227,9 @@ class RoutineRunner:
     def __init__(self, store, service, clock, care_events=None, *, on_finished=None,
                  poll_seconds: float = 0.05, sleep=time.sleep,
                  job_timeout_seconds: float = 3 * 3600, idle_timeout_seconds: float = 60.0,
-                 done_log=None, done_sensors: frozenset = frozenset(),
-                 done_timeout_seconds: float = DEFAULT_DONE_TIMEOUT_S) -> None:
+                 done_log=None, done_sensors: "frozenset | DoneSensorSet" = frozenset(),
+                 done_timeout_seconds: float = DEFAULT_DONE_TIMEOUT_S,
+                 done_timeouts: dict | None = None) -> None:
         self._store = store
         self._service = service
         self._clock = clock
@@ -143,8 +241,11 @@ class RoutineRunner:
         self._idle_timeout = idle_timeout_seconds
         #: 가전 끝 기록(`rpi.services.appliance_done.ApplianceDoneLog`)·끝 센서가 있는 가전·기다림 상한(M2).
         self._done_log = done_log
-        self._done_sensors = frozenset(done_sensors)
+        self._done_sensors = (done_sensors if isinstance(done_sensors, DoneSensorSet)
+                              else frozenset(done_sensors))
         self._done_timeout = done_timeout_seconds
+        #: 가전별 기다림 상한(Copilot#5). 없는 가전은 ``done_timeout_seconds``.
+        self._done_timeouts = dict(done_timeouts or {})
         self._lock = threading.Lock()
         self._runs: deque[RoutineRun] = deque(maxlen=20)
 
@@ -205,6 +306,48 @@ class RoutineRunner:
             self._service.emergency_stop_report()
         return True
 
+    def stop_all(self, reason: str = "전체 정지 요청") -> int:
+        """진행 중인 루틴을 모두 멈춘다(평가 B5) — ``POST /stop``이 부른다. 장치 정지는 부른 쪽이 이미 했다.
+        끝을 기다리는 루틴도 기다림을 끊고 남은 단계를 보내지 않는다. 멈춘 수를 돌려준다."""
+        stopped = 0
+        with self._lock:
+            runs = [r for r in self._runs if r.status is RunStatus.RUNNING]
+        for run in runs:
+            run.stop_reason = reason
+            run.cancel.set()
+            stopped += 1
+        if stopped:
+            log.warning("stopped %d routine run(s): %s", stopped, reason)
+        return stopped
+
+    def _estop_snapshot(self) -> tuple[bool, int | None]:
+        status_fn = getattr(self._service, "estop_status", None)
+        if not callable(status_fn):
+            return False, None
+        try:
+            status = status_fn() or {}
+        except Exception:  # noqa: BLE001 - 조회 고장은 '모름'(걸림으로 단정하지 않는다)
+            log.exception("estop status for routine failed")
+            return False, None
+        trips = status.get("trips")
+        return status.get("latched") is True, trips if isinstance(trips, int) else None
+
+    def _estop_hit(self, run: RoutineRun) -> bool:
+        """실행 중 비상정지가 걸렸나(지금 걸려 있거나, 시작 뒤 걸림 횟수가 늘었다)."""
+        latched, trips = self._estop_snapshot()
+        if latched:
+            return True
+        return run.estop_trips is not None and trips is not None and trips != run.estop_trips
+
+    def _stopped_detail(self, run: RoutineRun) -> str:
+        if self._estop_hit(run):
+            return ESTOP_STOP_DETAIL
+        return (f"{run.stop_reason}으로 남은 단계를 보내지 않았어요" if run.stop_reason
+                else "정지 요청으로 남은 단계를 보내지 않았어요")
+
+    def _halted(self, run: RoutineRun) -> bool:
+        return run.cancel.is_set() or self._estop_hit(run)
+
     # ── 내부 ──────────────────────────────────────────────────────────────
     def _plan(self, scenario_id, approved) -> tuple[Routine, list]:
         key = parse_scenario_key(scenario_id)
@@ -256,6 +399,7 @@ class RoutineRunner:
         run = RoutineRun(run_id=job_id, routine_id=routine.routine_id, routine_name=routine.name,
                          scenario_id=scenario_id, started_at=self._clock.now(), job_ids=[job_id],
                          active=True)
+        run.estop_trips = self._estop_snapshot()[1]
         with self._lock:
             self._runs.append(run)
         return run
@@ -279,22 +423,22 @@ class RoutineRunner:
             self._finish(run, routine, _FROM_COMMAND[record.status], "앞 단계가 확인되지 않아 멈췄어요")
             return
         for kind, payload in rest:
-            if run.cancel.is_set():
-                self._finish(run, routine, RunStatus.STOPPED, "정지 요청으로 남은 단계를 보내지 않았어요")
+            if self._halted(run):
+                self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
                 return
             if kind == "announce":
                 self._announce(run, routine, payload)
                 continue
             if kind == "wait":
                 ok, detail, basis = self._check_done(run, payload)
-                if run.cancel.is_set():
+                if self._halted(run):
                     run.steps.append({"kind": "wait_until_done", "appliance_id": payload, "status": "stopped",
                                       "detail": "정지 요청으로 기다림을 멈췄어요", "basis": basis})
-                    self._finish(run, routine, RunStatus.STOPPED, "정지 요청으로 남은 단계를 보내지 않았어요")
+                    self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
                     return
+                status = "passed" if ok else ("probable" if detail.startswith(PROBABLE_DETAIL) else "not_confirmed")
                 run.steps.append({"kind": "wait_until_done", "appliance_id": payload,
-                                  "status": "passed" if ok else "not_confirmed", "detail": detail,
-                                  "basis": basis})
+                                  "status": status, "detail": detail, "basis": basis})
                 if not ok:
                     self._finish(run, routine, RunStatus.UNCONFIRMED, detail, notify=True)
                     return
@@ -319,8 +463,8 @@ class RoutineRunner:
             if not self._absorb(run, record):
                 self._finish(run, routine, _FROM_COMMAND[record.status], "앞 단계가 확인되지 않아 멈췄어요")
                 return
-        if run.cancel.is_set():
-            self._finish(run, routine, RunStatus.STOPPED, "정지 요청으로 멈췄어요")
+        if self._halted(run):
+            self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
             return
         self._finish(run, routine, RunStatus.SUCCEEDED,
                      "모든 단계를 마쳤어요" + (" (시연: 모의 실행 포함)" if run.is_demo else ""))
@@ -351,9 +495,12 @@ class RoutineRunner:
         result = next((r for r in reversed(run.results) if r.command.target_id == appliance_id), None)
         if result is None:
             return False, "기다릴 가전의 실행 결과가 없어요", "none"
+        sensored = appliance_id in self._done_sensors and self._done_log is not None
+        if (sensored and result.status is CommandStatus.SUCCEEDED
+                and result.execution_mode is not ExecutionMode.MOCK):
+            # 끝 관찰 스트림이 곧 동작 근거다 — L3 시작 확인을 요구하지 않는다(평가 B4: L3는 전자레인지 채널만 읽는다).
+            return self._wait_cycle_end(run, appliance_id)
         if result.status is CommandStatus.SUCCEEDED and result.confirmation.confirms_appliance:
-            if appliance_id in self._done_sensors and self._done_log is not None:
-                return self._wait_cycle_end(run, appliance_id)
             return True, START_ONLY_DETAIL, "start_only"
         if result.status is CommandStatus.SUCCEEDED and result.execution_mode is ExecutionMode.MOCK:
             run.is_demo = True
@@ -361,18 +508,40 @@ class RoutineRunner:
         return False, (f"완료를 확인하지 못해 다음 단계를 보내지 않았어요 "
                        f"(확인 수준: {result.confirmation.value})"), "none"
 
+    def done_timeout_for(self, appliance_id: str) -> float:
+        return self._done_timeouts.get(appliance_id, self._done_timeout)
+
     def _wait_cycle_end(self, run: RoutineRun, appliance_id: str) -> tuple[bool, str, str]:
-        """RPi4가 그 가전 CT 채널의 사이클 끝(``appliance_done``)을 보낼 때까지 기다린다(상한·정지 요청)."""
-        record = self._done_log.wait_for(appliance_id, run.done_mark, self._done_timeout, run.cancel)
-        if record is None:
-            if run.cancel.is_set():
+        """RPi4가 그 가전 CT 채널의 사이클 끝(``appliance_done``)을 보낼 때까지 기다린다(가전별 상한·정지·비상정지).
+
+        짧게 나눠 기다리며 비상정지를 본다(평가 B5). 입력 하나뿐인 끝은 확인으로 치지 않는다(평가 B1).
+        """
+        timeout = self.done_timeout_for(appliance_id)
+        deadline = time.monotonic() + timeout
+        record = None
+        while record is None:
+            if self._halted(run):
                 return False, "정지 요청으로 기다림을 멈췄어요", "cycle_end"
-            return False, (f"시작은 확인했지만 {self._done_timeout / 60:.0f}분 안에 끝남(전력 하강)을 확인하지 못해 "
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            record = self._done_log.wait_for(appliance_id, run.done_mark, min(remaining, 0.5), run.cancel)
+        if record is None:
+            return False, (f"시작은 확인했지만 {timeout / 60:.0f}분 안에 끝남(전력 하강)을 확인하지 못해 "
                            f"다음 단계를 보내지 않았어요"), "cycle_end"
         inputs = record.get("inputs") or []
-        how = "전력·종료음" if len(inputs) == 2 else ("전력 하강" if inputs == ["power"] else "종료음")
-        detail = f"끝난 것을 확인했어요({how})"
         source = record.get("source")
+        if record.get("state") != "done_confirmed":
+            which = "전력 하강만" if inputs == ["power"] else "종료음만"
+            detail = f"{PROBABLE_DETAIL} ({which} 감지 — 다음 단계는 보내지 않았어요)"
+            if source == "injected":
+                run.is_demo = True
+                detail += " (시연 주입)"
+            elif source != "real":
+                run.is_demo = True
+                detail += " (모의 입력)"
+            return False, detail, "cycle_end"
+        detail = "끝난 것을 확인했어요(전력·종료음)"
         if source == "injected":
             run.is_demo = True
             detail += " (시연 주입)"

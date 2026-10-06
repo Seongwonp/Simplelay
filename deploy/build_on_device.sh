@@ -20,8 +20,10 @@ docker run --name simplelay-build --security-opt apparmor=unconfined \
     pip install --no-cache-dir \
       "fastapi>=0.111,<1" "uvicorn[standard]>=0.29,<1" "pydantic>=2,<3" \
       "numpy>=1.26,<3" "httpx>=0.27,<1" "dbus-fast>=2,<3" \
-      "pyserial>=3.5,<4" "pyserial-asyncio>=0.6,<1" "qrcode[pil]>=8,<9"
-    apt-get update && apt-get install -y --no-install-recommends socat
+      "pyserial>=3.5,<4" "pyserial-asyncio>=0.6,<1" "qrcode[pil]>=8,<9" \
+      "sounddevice>=0.4,<1"
+    # libportaudio2: 마이크(sounddevice) — backend.Dockerfile과 같다(2026-10-06 평가)
+    apt-get update && apt-get install -y --no-install-recommends socat libportaudio2
     rm -rf /var/lib/apt/lists/*
     mkdir -p /app /data
     cp -r /src/rpi /src/rpi4 /app/

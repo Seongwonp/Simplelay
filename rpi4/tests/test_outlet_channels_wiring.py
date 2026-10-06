@@ -21,7 +21,8 @@ from rpi4.tests.test_appliance_done_watch import _controller
 @pytest.fixture
 def fake_env(monkeypatch):
     for name in ("SIMPLELAY_OUTLET_CHANNELS", "SIMPLELAY_DONE_WATCH", "SIMPLELAY_L3_MODE",
-                 "SIMPLELAY_MOTION_MODE", "SIMPLELAY_OUTLET_RELAY_ON_START"):
+                 "SIMPLELAY_MOTION_MODE", "SIMPLELAY_OUTLET_RELAY_ON_START", "SIMPLELAY_RECORDER_PATH",
+                 "SIMPLELAY_FAKE_OUTLET_RELAY_CH", "SIMPLELAY_FAKE_OUTLET_CHANNELS"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("SIMPLELAY_OUTLET_PORT", "fake")
     monkeypatch.setenv("SIMPLELAY_OUTLET_HEARTBEAT_MS", "off")
@@ -45,6 +46,7 @@ def test_parse_done_watches_allows_one_entry_per_appliance_and_one_mic():
 
 def test_fake_module_gets_the_mapped_channel_count_and_l3_reads_the_microwave_channel(fake_env):
     fake_env.setenv("SIMPLELAY_OUTLET_CHANNELS", "washer:0,microwave:1")
+    fake_env.setenv("SIMPLELAY_FAKE_OUTLET_RELAY_CH", "1")  # 가짜 모듈 릴레이는 대응에서 베끼지 않는다(평가 A2)
     fake_env.setenv("SIMPLELAY_L3_MODE", "real")
     link = act_main._build_outlet()
     try:
@@ -62,17 +64,9 @@ def test_fake_module_gets_the_mapped_channel_count_and_l3_reads_the_microwave_ch
 def test_mapping_without_the_watched_appliance_refuses_to_start(fake_env):
     fake_env.setenv("SIMPLELAY_OUTLET_CHANNELS", "microwave:0")
     fake_env.setenv("SIMPLELAY_DONE_WATCH", "washer:outlet")
-    link = act_main._build_outlet()
-
-    async def _t():
-        executor = ActExecutor(asyncio.StreamReader(), FakeWriter(), _controller())
-        with pytest.raises(RuntimeError, match="washer"):
-            act_main._build_done_watch(link, executor)
-
-    try:
-        asyncio.run(_t())
-    finally:
-        link.close()
+    # 2026-10-06 평가 A1: 포트를 열기 전(_build_outlet)에 거절한다.
+    with pytest.raises(RuntimeError, match="washer"):
+        act_main._build_outlet()
 
 
 def test_washer_done_comes_from_its_own_channel_while_the_microwave_relay_is_off(fake_env):

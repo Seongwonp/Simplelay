@@ -86,6 +86,10 @@ def _roundtrip(controller, *, progress=None, tap=None, on_progress=None, job_obs
     return asyncio.run(_t())
 
 
+#: 연결 알림 프레임(2026-10-06 평가 C1) — 실행 흐름 비교에서 뺀다.
+_HANDSHAKE = {"hello", "act_info", "estop_state"}
+
+
 def test_progress_frames_round_trip_before_result_with_encoder_counts():
     tap = LinkFrameTap()
     seen: list[dict] = []
@@ -93,7 +97,8 @@ def test_progress_frames_round_trip_before_result_with_encoder_counts():
     result = _roundtrip(_controller([False]), tap=tap, on_progress=seen.append)
     assert (result.success, result.retry) == (True, 1)
 
-    frames = tap.frames()
+    # 연결 알림(hello·act_info·estop_state, 2026-10-06 평가 C1)은 실행 흐름 밖이다.
+    frames = [f for f in tap.frames() if f["type"] not in _HANDSHAKE]
     types = [f["type"] for f in frames]
     assert types[0] == "execute" and types[-1] == "result"
     progress = [f["message"] for f in frames if f["type"] == "progress"]
@@ -144,7 +149,7 @@ def test_progress_can_be_switched_off_and_twin_still_reports_only_the_result(mon
     tap = LinkFrameTap()
     result = _roundtrip(_controller([]), tap=tap)
     assert result.success is True
-    assert [f["type"] for f in tap.frames()] == ["execute", "result"]
+    assert [f["type"] for f in tap.frames() if f["type"] not in _HANDSHAKE] == ["execute", "result"]
     state = build_link_twin_state(tap.frames(), last_execute=tap.last_execute())
     job = state["job"]
     assert job["press_source"] == "none" and job["presses"] == [] and job["carriage"] is None

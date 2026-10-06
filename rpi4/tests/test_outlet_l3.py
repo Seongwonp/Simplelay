@@ -320,6 +320,7 @@ def test_estop_ack_while_button_still_pressed_stays_latched():
             await _wait_for(lambda: executor.estop_latched)
             _feed(reader, {"type": "estop_ack"})
             await executor.run_once()
+            await executor.wait_ack()  # 해제 확인은 따로 돈다(2026-10-06 평가 C2)
             state = [d for d in writer.docs() if d.get("type") == "estop_state"][-1]
             assert state["latched"] is True and state["reason"] == "estop_button_pressed"
             assert executor.estop_latched is True and fake.estop_latched is True
@@ -346,6 +347,7 @@ def test_estop_ack_after_release_resets_module_and_allows_execute():
             fake.release_estop_button()
             _feed(reader, {"type": "estop_ack"})
             await executor.run_once()
+            await executor.wait_ack()  # 해제 확인은 따로 돈다(2026-10-06 평가 C2)
             state = [d for d in writer.docs() if d.get("type") == "estop_state"][-1]
             assert state["latched"] is False
             assert executor.estop_latched is False

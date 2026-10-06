@@ -23,6 +23,10 @@ RPi4 side of this same link.
   (nothing — self-initiated)      ←  appliance_done {appliance_id, event, state, inputs, source, ...}
                                       (세탁 끝: CT 전력 + 종료음 융합, 2026-10-06. 검증 뒤 ``on_appliance_done``,
                                        ``last_appliance_done``. 검증에 실패한 프레임은 버린다)
+  hello (start() 때 한 번)        ←  act_info {done_watch, rehearsal, outlet, motion} + estop_state {announce:true}
+                                      (2026-10-06 평가 C1·B3: RPi5가 다시 켜져도 걸림 상태를 다시 안다. 받기 전
+                                       ``estop_latched``는 None = '확인 중'이고 실행을 거절한다)
+  rehearsal {action, request_id}  ←  rehearsal_result {request_id, ok, ...}(가짜 콘센트·모의 모션 RPi4만)
   estop_ack                       ←  estop_state {latched, source, reason, detail}
                                       (콘센트 모듈 비상정지 걸림 해제 확인, 2026-10-05. 걸릴 때도 자발로 온다.
                                        ``estop_latched``·``estop_detail``에 남는다)
@@ -294,7 +298,11 @@ class ActClient:
         tap: "LinkFrameTap | None" = None,
         on_progress: Callable[[dict], None] | None = None,
         on_appliance_done: Callable[[dict], None] | None = None,
+        on_act_info: Callable[[dict], None] | None = None,
+        hello: bool = False,
     ) -> None:
+        """``hello``: start() 때 ``hello``를 보낸다(2026-10-06 평가 C1). 운영 경로(UART 공장·시뮬레이터)는 True로
+        만든다 — 기본 False는 줄 단위로 RPi4를 흉내 내는 시험이 첫 줄을 execute로 기대하기 때문이다."""
         self._reader = reader
         self._writer = writer
         self._cfg = config or ActClientConfig()
@@ -303,6 +311,13 @@ class ActClient:
         self.tap = tap
         self._on_progress = on_progress
         self._on_appliance_done = on_appliance_done
+        self._on_act_info = on_act_info
+        self._hello_on_start = hello
+        #: RPi4가 알린 구성(``act_info``). 받기 전에는 빈 dict.
+        self.act_info: dict = {}
+        #: 비상정지가 새로 걸린 횟수(평가 B5) — 루틴이 '실행 중 한 번이라도 걸렸나'를 본다.
+        self.estop_trips = 0
+        self._rehearsal_waiters: dict[str, asyncio.Future[dict]] = {}
         #: RPi4가 보낸 마지막 가전 완료 기록(검증한 것만). 2026-10-06.
         self.last_appliance_done: dict | None = None
         # (sequence_id, future) — 수신한 result/error를 반드시 현재 요청의
@@ -330,6 +345,15 @@ class ActClient:
     async def start(self) -> None:
         """Start the background read loop. Call once before execute()/abort()."""
         self._read_task = asyncio.create_task(self._read_loop())
+        if self._hello_on_start:
+            await self.hello()
+
+    async def hello(self) -> None:
+        """RPi4에 (다시) 연결했다고 알린다 — 답은 ``act_info``와 ``estop_state``(평가 C1)."""
+        try:
+            await self._send({"type": "hello"})
+        except Exception:  # noqa: BLE001 - 보내지 못하면 걸림 상태는 None(확인 중)으로 남는다
+            log.exception("ActClient: hello send failed")
 
     async def stop(self) -> None:
         """Cancel the background read loop. Safe to call more than once."""
@@ -475,7 +499,22 @@ class ActClient:
             with contextlib.suppress(ValueError):
                 self._estop_waiters.remove(future)
 
+    async def rehearsal(self, action: str, timeout_s: float = 5.0, **fields: object) -> dict:
+        """리허설 주입을 RPi4로 보내고 ``rehearsal_result``를 기다린다(가짜 콘센트·모의 모션 RPi4만 받는다)."""
+        request_id = uuid.uuid4().hex[:12]
+        future: asyncio.Future[dict] = asyncio.get_running_loop().create_future()
+        self._rehearsal_waiters[request_id] = future
+        try:
+            await self._send({"type": "rehearsal", "action": action, "request_id": request_id, **fields})
+            return await asyncio.wait_for(future, timeout_s)
+        except asyncio.TimeoutError as exc:
+            raise ActLinkTimeoutError(f"no rehearsal_result within {timeout_s}s") from exc
+        finally:
+            self._rehearsal_waiters.pop(request_id, None)
+
     def _note_estop(self, latched: bool, detail: str | None) -> None:
+        if latched and self.estop_latched is not True:
+            self.estop_trips += 1
         self.estop_latched = latched
         self.estop_detail = detail if latched else None
 
@@ -534,9 +573,24 @@ class ActClient:
             if isinstance(latched, bool):
                 detail = doc.get("detail")
                 self._note_estop(latched, detail if isinstance(detail, str) else None)
+            if doc.get("announce") is True:
+                return  # 연결 알림 — 해제 확인의 답이 아니다
             for waiter in list(self._estop_waiters):
                 if not waiter.done():
                     waiter.set_result(doc)
+            return
+        if msg_type == "act_info":
+            self.act_info = {k: v for k, v in doc.items() if k != "type"}
+            if self._on_act_info is not None:
+                try:
+                    self._on_act_info(dict(self.act_info))
+                except Exception:  # noqa: BLE001 - 듣는 쪽 고장이 읽기 루프를 죽이지 않는다
+                    log.exception("ActClient: on_act_info callback failed")
+            return
+        if msg_type == "rehearsal_result":
+            waiter = self._rehearsal_waiters.get(doc.get("request_id"))
+            if waiter is not None and not waiter.done():
+                waiter.set_result(doc)
             return
         if msg_type == "error" and doc.get("reason") == "estop_latched":
             detail = doc.get("detail")

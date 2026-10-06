@@ -133,10 +133,65 @@ class ActClientController:
         doc = getattr(self._client, "last_hold", None)
         return dict(doc) if doc else None
 
+    #: 걸림 상태를 다시 물을 최소 간격(초). '확인 중'인 동안 실행 시도마다 hello를 보내지 않게.
+    HELLO_RETRY_SECONDS = 2.0
+    _last_hello = 0.0
+
     def estop_status(self) -> dict | None:
-        """RPi4가 보고한 비상정지 걸림 ``{"latched": bool|None, "detail": str|None}``(2026-10-05)."""
-        return {"latched": getattr(self._client, "estop_latched", None),
-                "detail": getattr(self._client, "estop_detail", None)}
+        """RPi4가 보고한 비상정지 걸림 ``{"latched": bool|None, "detail", "known", "trips"}``(2026-10-05).
+
+        ``known=False``(RPi5가 다시 켜진 뒤 아직 답을 못 받음)는 '풀림'이 아니라 '확인 중'이다 — 서비스가 실행을
+        거절하고, 여기서 hello를 다시 보낸다(2026-10-06 평가 C1)."""
+        latched = getattr(self._client, "estop_latched", None)
+        if latched is None:
+            self._maybe_hello()
+        return {"latched": latched, "detail": getattr(self._client, "estop_detail", None),
+                "known": latched is not None, "trips": getattr(self._client, "estop_trips", None)}
+
+    def _maybe_hello(self) -> None:
+        import time  # noqa: PLC0415
+
+        now = time.monotonic()
+        if now - self._last_hello < self.HELLO_RETRY_SECONDS or not hasattr(self._client, "hello"):
+            return
+        self._last_hello = now
+        try:
+            asyncio.run_coroutine_threadsafe(self._client.hello(), self._loop)
+        except RuntimeError:
+            log.warning("hello not sent — act client loop closed")
+
+    # ── UART 리허설(2026-10-06) ─────────────────────────────────────────────
+    # RPi4가 가짜 콘센트(또는 없음)·모의 모션으로 돌 때만 RPi4가 받는다. RPi5는 SIMPLELAY_UART_REHEARSAL=1일 때만 연다.
+
+    def rehearsal_status(self) -> dict:
+        """RPi4가 ``act_info``로 알린 구성(리허설 가능 여부 ``rehearsal``·``outlet``·``motion``)."""
+        return dict(getattr(self._client, "act_info", {}) or {})
+
+    def _rehearse(self, action: str, **fields) -> dict:
+        future = asyncio.run_coroutine_threadsafe(self._client.rehearsal(action, **fields), self._loop)
+        try:
+            reply = future.result(timeout=5.0 + self.CALL_MARGIN_SECONDS)
+        except TimeoutError as exc:
+            future.cancel()
+            raise ActLinkTimeoutError("rehearsal timed out") from exc
+        if reply.get("ok") is not True:
+            raise RuntimeError(str(reply.get("detail") or reply.get("reason") or "RPi4가 리허설 주입을 거절했어요"))
+        return reply
+
+    def uart_rehearse_outlet_estop(self, hold_button: bool = False) -> None:
+        self._rehearse("outlet_estop", hold_button=bool(hold_button))
+
+    def uart_release_rehearsal_estop_button(self) -> None:
+        self._rehearse("outlet_estop_release")
+
+    def uart_rehearse_appliance_done(self, appliance_id: str, inputs, event: str | None = None) -> dict:
+        fields: dict = {"appliance_id": appliance_id, "inputs": list(inputs)}
+        if event is not None:
+            fields["event"] = event
+        frame = self._rehearse("appliance_done", **fields).get("frame")
+        if not isinstance(frame, dict):
+            raise RuntimeError("RPi4가 주입한 완료 프레임을 돌려주지 않았어요")
+        return frame
 
     def acknowledge_estop(self, timeout_s: float = 10.0) -> dict:
         """사람의 비상정지 해제 확인을 RPi4로 보내고 ``estop_state``를 기다린다(블로킹)."""
@@ -198,6 +253,7 @@ def open_uart_act_controller(
     baud: int,
     on_alert: Callable[[AlertEvent], None] | None = None,
     on_appliance_done: Callable[[dict], None] | None = None,
+    on_act_info: Callable[[dict], None] | None = None,
 ) -> ActClientController:
     """Production factory -- opens the real serial port to RPi4 and starts
     the background loop + ActClient. Requires pyserial-asyncio and a real
@@ -215,7 +271,8 @@ def open_uart_act_controller(
     async def _open() -> ActClient:
         reader, writer = await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
         client = ActClient(reader, writer, config=config, on_alert=on_alert, tap=tap,
-                           on_appliance_done=on_appliance_done)
+                           on_appliance_done=on_appliance_done, on_act_info=on_act_info,
+                           hello=True)
         await client.start()
         return client
 

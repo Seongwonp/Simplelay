@@ -30,9 +30,23 @@ constexpr bool mux_distinct(int i = 0, int j = 1) {
 }
 static_assert(mux_distinct(), "ADS1115_MUX_CH: 쓰는 채널의 MUX 값이 겹치거나 범위(0~7) 밖이다");
 
-// 변환 중인 채널(-1 = 없음)과 다음에 시작할 채널. 샘플링 태스크만 쓴다.
+// 변환 중인 채널(-1 = 없음)과 다음에 시작할 채널, 끝나기를 기다린 틱 수. 샘플링 태스크만 쓴다.
 int g_pending = -1;
 int g_next = 0;
+int g_wait_ticks = 0;
+
+// 변환이 끝나기를 기다리는 최대 틱 수. 860 SPS 한 변환은 약 1.16 ms(내부 발진기 ±10%면 1.28 ms)라 2 ms 틱이면
+// 보통 다음 틱에 끝난다. 이만큼 넘으면 판독 실패로 센다(MUX는 바꾸지 않는다 — 측정 필요).
+constexpr int kMaxWaitTicks = 3;
+
+// 설정 레지스터의 MUX(14:12)로 실제로 변환한 채널을 찾는다(쓰는 채널 밖이면 -1).
+int channel_for_mux(uint16_t cfg) {
+  const uint8_t mux = static_cast<uint8_t>((cfg >> 12) & 0x7);
+  for (int ch = 0; ch < OUTLET_CT_CHANNELS; ++ch) {
+    if ((kMux[ch] & 0x7) == mux) return ch;
+  }
+  return -1;
+}
 
 bool ads_write_reg(uint8_t reg, uint16_t value) {
   Wire.beginTransmission(ADS1115_ADDR);
@@ -74,20 +88,36 @@ bool ct_init() {
 }
 
 void ct_sample_tick(CtWindow windows[OUTLET_CT_CHANNELS]) {
-  // ① 지난 틱에 시작한 변환을 읽는다. 아직 안 끝났으면(OS=0) 그 채널의 판독 실패로 센다 — 같은 값을 두 번 넣지 않는다.
+  // ① 지난 틱에 시작한 변환을 읽는다(2026-10-06 평가 A3).
+  //    - 아직 변환 중(OS=0)이면 **새 변환을 시작하지 않고** 이 틱을 건너뛴다. 단발 모드에서 변환 중에 설정을 쓰면
+  //      OS=1은 무시되고 MUX만 바뀌어, 끝난 값이 다음 채널 창에 들어갈 수 있었다.
+  //    - 끝났으면 설정 레지스터의 MUX로 실제로 변환한 채널을 찾아 그 창에 넣는다. 시작할 때 기록과 다르면 버린다.
   if (g_pending >= 0) {
-    CtWindow& w = windows[g_pending];
     uint16_t cfg = 0;
-    uint16_t raw = 0;
-    if (ads_read_reg(0x01, &cfg) && (cfg & 0x8000) != 0 && ads_read_reg(0x00, &raw)) {
-      const int16_t counts = static_cast<int16_t>(raw);
-      ct_window_add(&w, static_cast<int32_t>(lroundf(static_cast<float>(counts) * ADS1115_UV_PER_LSB)));
+    const bool cfg_ok = ads_read_reg(0x01, &cfg);
+    if (!cfg_ok || (cfg & 0x8000) == 0) {
+      if (++g_wait_ticks <= kMaxWaitTicks) return;  // 아직 변환 중(또는 I2C 일시 오류) — 기다린다
+      // 너무 오래 — 판독 실패로 센다. 설정 판독도 못 하면(버스 오류) 버리고 새로 시작한다. 변환 중이면 계속 기다린다.
+      ++windows[g_pending].read_errors;
+      g_wait_ticks = 0;
+      if (cfg_ok) return;
+      g_pending = -1;
     } else {
-      ++w.read_errors;
+      const int converted = channel_for_mux(cfg);
+      uint16_t raw = 0;
+      if (converted == g_pending && ads_read_reg(0x00, &raw)) {
+        const int16_t counts = static_cast<int16_t>(raw);
+        ct_window_add(&windows[converted],
+                      static_cast<int32_t>(lroundf(static_cast<float>(counts) * ADS1115_UV_PER_LSB)));
+      } else {
+        ++windows[g_pending].read_errors;  // 다른 채널 값이거나 판독 실패 — 어느 창에도 넣지 않는다
+      }
+      g_pending = -1;
+      g_wait_ticks = 0;
     }
-    g_pending = -1;
   }
-  // ② 다음 채널 변환을 시작한다. 쓰기 실패는 그 채널 판독 실패로 세고 다음 틱에 그다음 채널로 넘어간다.
+  // ② 다음 채널 변환을 시작한다(앞 변환이 끝난 뒤에만 여기 온다). 쓰기 실패는 그 채널 판독 실패로 세고
+  //    다음 틱에 그다음 채널로 넘어간다.
   const int ch = g_next;
   g_next = (g_next + 1) % OUTLET_CT_CHANNELS;
   if (ads_write_reg(0x01, config_for(ch))) {

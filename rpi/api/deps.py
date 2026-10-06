@@ -204,13 +204,51 @@ def receive_appliance_done(record: dict) -> None:
     if checked is None:
         log.warning("appliance_done record rejected: %r", record)
         return
-    get_appliance_done_log().append(checked)
+    get_appliance_done_log().append(checked)  # 기록이 먼저 — 루틴 쪽이 고장 나도 증거는 남는다
     try:
         from rpi.routines.wiring import get_routine_engine  # noqa: PLC0415
 
         get_routine_engine().on_appliance_done(checked)
-    except Exception:  # noqa: BLE001
-        log.exception("routine dispatch for appliance_done failed")
+    except Exception:  # noqa: BLE001 - 읽기 루프는 살리되 조용히 버리지 않는다(Copilot#3)
+        log.error("routine dispatch for appliance_done failed (appliance=%s event=%s state=%s source=%s)",
+                  checked.get("appliance_id"), checked.get("event"), checked.get("state"),
+                  checked.get("source"), exc_info=True)
+        noun = "세탁 끝" if checked.get("event") == "wash_complete" else f"{checked.get('appliance_id')} 끝"
+        try:
+            get_care_events().append(KIND_DONE_DISPATCH_FAILED,
+                                     f"{noun} 알림을 보내지 못했어요 — 루틴 처리 중 오류가 났어요(기록은 남겼어요)",
+                                     purpose=str(checked.get("appliance_id")))
+        except Exception:  # noqa: BLE001
+            log.exception("care notice for failed appliance_done dispatch also failed")
+
+
+#: 가전 끝 기록을 루틴에 넘기지 못했을 때 알림함 종류(Copilot#3).
+KIND_DONE_DISPATCH_FAILED = "appliance_done_undelivered"
+
+
+@lru_cache(maxsize=1)
+def get_done_sensor_set():
+    """끝 센서가 있는 가전(평가 B3) — ``SIMPLELAY_ROUTINE_DONE_SENSORS``로 시작하고 RPi4 ``act_info``가 오면 그것을 따른다."""
+    from rpi.routines.runner import DoneSensorSet, routine_done_settings_from_env  # noqa: PLC0415
+
+    configured, _ = routine_done_settings_from_env()
+    return DoneSensorSet(configured)
+
+
+def receive_act_info(info: dict) -> None:
+    """RPi4 ``act_info``(연결 알림) → 끝 관찰 가전 목록을 RPi5 설정·가전 목록과 대조한다(평가 B3).
+
+    ActClient 읽기 루프에서 불린다. 어긋남은 log.error와 `DoneSensorSet.problems`로 남고, 루틴은 RPi4 목록을 따른다.
+    """
+    done_watch = info.get("done_watch") if isinstance(info, dict) else None
+    if not isinstance(done_watch, list):
+        return
+    try:
+        known = {a.appliance_id for a in get_appliance_registry().list_all()}
+    except Exception:  # noqa: BLE001 - 가전 목록을 못 읽으면 ID 대조만 건너뛴다
+        log.exception("appliance registry unavailable for done-watch check")
+        known = None
+    get_done_sensor_set().report(done_watch, known_ids=known)
 
 
 log = logging.getLogger(__name__)
@@ -546,6 +584,7 @@ def get_service() -> SimpleLayService:
         on_alert=store.record,
         failure_state=get_demo_failure_state(),
         on_appliance_done=receive_appliance_done,
+        on_act_info=receive_act_info,
     )
     # ThinQ 경로(U1): SIMPLELAY_THINQ_MODE=off(기본)면 (None, {}) — 종전 그대로.
     from .thinq_wiring import build_command_paths, forward_to_scenarios  # noqa: PLC0415

@@ -99,6 +99,8 @@ _BUILTIN_IDS = frozenset(a.appliance_id for a in BUILTIN_APPLIANCES)
 
 #: 콘센트 모듈 비상정지가 걸려 있을 때 화면에 그대로 보이는 사유(2026-10-05).
 ESTOP_LATCHED_REASON = "비상정지가 걸려 있어요 — 버튼을 풀고 정지 해제 확인을 눌러 주세요"
+#: RPi5가 다시 켜진 뒤 RPi4의 걸림 상태를 아직 모를 때(2026-10-06 평가 C1). '풀림'으로 보지 않는다.
+ESTOP_UNKNOWN_REASON = "비상정지 상태를 확인하는 중이에요 — RPi4 응답을 기다려요"
 
 
 def _check_approved(buttons, approved_buttons) -> None:
@@ -1013,9 +1015,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
     def _require_ready(
         self, appliance_id: str | None, controller: ButtonSequenceController
     ) -> None:
-        if controller is self._controller and self.estop_latched():
-            # 로컬 갠트리(RPi4)가 비상정지 걸림을 보고했다 — RPi4도 거절하지만 화면에 같은 사유를 준다.
-            raise ApplianceNotReadyError(appliance_id or "", (ESTOP_LATCHED_REASON,))
+        if controller is self._controller:
+            blocked = self.estop_block_reason()
+            if blocked is not None:
+                # 로컬 갠트리(RPi4)가 걸림을 보고했거나(RPi4도 거절한다) 아직 상태를 모른다 — 화면에 같은 사유를 준다.
+                raise ApplianceNotReadyError(appliance_id or "", (blocked,))
         if (controller is not self._controller
                 and controller in self._system_controllers.values()
                 and getattr(controller, "mock_ready", False) is True
@@ -1079,6 +1083,19 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
     def estop_latched(self) -> bool:
         status = self.estop_status() or {}
         return status.get("latched") is True
+
+    def estop_block_reason(self) -> str | None:
+        """로컬 실행 대상을 막는 걸림 사유: 걸림(RPi4 보고, 재부팅으로 꺼진 콘센트 포함) → 상태 모름(확인 중) 순."""
+        status = self.estop_status() or {}
+        if status.get("latched") is True:
+            detail = status.get("detail")
+            # RPi4가 이유를 따로 밝힌 걸림(예: 콘센트 모듈 재부팅)은 그 문장을 그대로 보인다.
+            if isinstance(detail, str) and "다시 켜져" in detail:
+                return detail
+            return ESTOP_LATCHED_REASON
+        if status.get("known") is False:
+            return ESTOP_UNKNOWN_REASON
+        return None
 
     def acknowledge_estop(self) -> dict:
         """사람의 비상정지 해제 확인을 RPi4로 보낸다. 지원하지 않는 실행 대상이면 RuntimeError."""

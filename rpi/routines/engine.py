@@ -19,6 +19,10 @@
   "(모의 입력)"을 붙인다.
 - ``manual``: 앱의 '지금 실행' — 카드를 만든다. 실행은 여전히 승인 뒤다.
 
+한 사이클에 한 번(2026-10-06 평가 B3): 같은 가전의 ``after_done``이 실행 끝(``on_job_finished``)으로 이미 깼으면 뒤이어
+온 그 사이클의 ``appliance_done``(RPi5·RPi4 끝 센서 목록이 어긋났을 때, 또는 모의 실행 끝 + 리허설 주입)은 다시 깨우지
+않는다. 또 그 가전을 돌린 루틴 자신은 그 사이클의 끝으로 깨우지 않는다(``on_job_finished``와 같은 자기 제외).
+
 조건(``conditions``)은 트리거 시점에 본다. 만족하지 않으면 카드도 알림도 없다(기록만).
 """
 
@@ -60,7 +64,10 @@ class RoutineEngine:
                  done_sensors: frozenset = frozenset()) -> None:
         self._store = store
         #: 끝 센서(RPi4 사이클 끝)가 있는 가전 — 그 가전의 after_done은 시작 확인이 아니라 appliance_done에서 깬다(M2).
-        self._done_sensors = frozenset(done_sensors)
+        self._done_sensors = done_sensors if not isinstance(done_sensors, (set, frozenset, list, tuple)) \
+            else frozenset(done_sensors)
+        #: 가전 → (이번 사이클을 돌린 루틴 ID 또는 None, after_done을 이미 깼나). 실행 끝에서 잡고 끝 알림에서 쓴다.
+        self._cycles: dict[str, tuple[str | None, bool]] = {}
         self._suggestions = suggestions
         self._service = service
         self._clock = clock
@@ -141,6 +148,9 @@ class RoutineEngine:
         if event.status != CommandStatus.SUCCEEDED.value or event.appliance_id is None:
             return
         own = parse_scenario_key(event.scenario_id)
+        with self._lock:
+            # 새 사이클 — 이 실행을 낸 루틴(있으면)을 기억한다. after_done을 깨면 아래에서 True로 바꾼다.
+            self._cycles[event.appliance_id] = (own[0] if own else None, False)
         if (event.execution_mode is ExecutionMode.REAL
                 and event.confirmation in (Confirmation.OPERATION_CONFIRMED, Confirmation.STATE_CONFIRMED)):
             if event.appliance_id in self._done_sensors:
@@ -150,12 +160,17 @@ class RoutineEngine:
             reason, is_demo = "시연: 모의 실행이 끝났어요 — 실제 완료를 확인한 것은 아니에요", True
         else:
             return
+        fired_any = False
         for routine in self._store.list():
             trigger = routine.trigger
             if (routine.enabled and trigger.kind == "after_done"
                     and trigger.appliance_id == event.appliance_id
                     and not (own and own[0] == routine.routine_id)):
                 self._fire(routine, f"{self._name_of(event.appliance_id)} {reason}", is_demo, "after_done")
+                fired_any = True
+        if fired_any:
+            with self._lock:
+                self._cycles[event.appliance_id] = (own[0] if own else None, True)
 
     def on_routine_finished(self, run) -> None:
         if run.status.value != "succeeded":
@@ -194,12 +209,20 @@ class RoutineEngine:
         is_demo = source != "real"
         extra = {"confidence": "confirmed" if confirmed else "probable",
                  "inputs": list(record.get("inputs") or []), "input_source": source}
+        with self._lock:
+            # 이 사이클 정보는 한 번만 쓴다 — 다음 끝(우리 실행 없이 사람이 돌린 것)은 새 사이클이다.
+            owner, already = self._cycles.pop(appliance_id, (None, False))
         fired = []
         for routine in self._store.list():
             trigger = routine.trigger
             if not routine.enabled:
                 continue
             if trigger.kind == "after_done" and trigger.appliance_id == appliance_id:
+                if already or routine.routine_id == owner:
+                    # 같은 사이클의 실행 끝에서 이미 깼거나, 이 가전을 돌린 루틴 자신이다(평가 B3).
+                    self._record(routine, "after_done", "skipped",
+                                 "같은 사이클에서 이미 알렸거나 이 가전을 돌린 루틴이에요", **extra)
+                    continue
                 kind = "after_done"
             elif (trigger.kind == "event" and trigger.event == event_name
                   and trigger.appliance_id in (None, appliance_id)):

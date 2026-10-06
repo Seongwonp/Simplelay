@@ -878,7 +878,8 @@ class DemoApplianceDoneResponse(BaseModel):
     confidence: str
     inputs: list[str]
     source: str
-    #: injected_in: rpi4_simulator(모의 RPi4 실행기가 프레임을 보냄) | rpi5_mock(RPi5 안에서 같은 규칙으로)
+    #: injected_in: rpi4_simulator(모의 RPi4 실행기가 프레임을 보냄) | rpi4_uart(UART 리허설 — 가짜 콘센트·모의 모션 RPi4가
+    #: 보냄, 2026-10-06) | rpi5_mock(RPi5 안에서 같은 규칙으로)
     injected_in: str
     detail: str
 

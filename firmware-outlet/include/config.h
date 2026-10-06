@@ -61,8 +61,8 @@
 #if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115
 // 단발 변환(single-shot) + 채널 돌려 읽기: 틱마다 ① 지난 틱에 시작한 변환이 끝났는지(OS 비트) 보고 읽어 그
 // 채널 창에 넣고 ② 다음 채널 MUX로 새 변환을 시작한다. 860 SPS 한 변환이 약 1.16 ms(내부 발진기 ±10%면
-// 1.28 ms)라 2 ms 틱에 여유를 둔다. 채널당 SAMPLE_HZ / OUTLET_CT_CHANNELS(2채널 = 250 Hz, 10 Hz 창에 25점 —
-// 60 Hz 6주기에 25점이 고르게 퍼진다). 측정 필요.
+// 1.28 ms)라 2 ms 틱에 여유를 둔다. 채널당 SAMPLE_HZ / OUTLET_CT_CHANNELS(2채널 = 250 Hz, 기본 5 Hz 창에 50점 —
+// 60 Hz 12주기에 50점). 변환이 아직 끝나지 않았으면 다음 변환을 시작하지 않고 그 틱을 건너뛴다(ct.cpp). 측정 필요.
 #define SAMPLE_HZ              500
 #else
 #define SAMPLE_HZ              2000
@@ -71,11 +71,18 @@
 #define SAMPLE_TASK_PRIORITY   5
 #define SAMPLE_TASK_CORE       1
 #define SAMPLE_TASK_STACK      4096
+// 기본 보고 주기(2026-10-06 평가 A3): ADS1115 돌려 읽기로 CT가 둘 이상이면 5 Hz — 채널당 창 샘플 50(500 Hz / 2채널 /
+// 5 Hz)으로 호스트 하한(SIMPLELAY_OUTLET_MIN_SAMPLES 기본 20)의 2.5배 여유. 10 Hz면 25점이라 변환 대기로 몇 틱만
+// 건너뛰어도 하한에 닿아 창이 버려지고 L3가 '센서 끊김'으로 멈췄다. 60 Hz 상용 전원 12주기. 측정 필요.
+#if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115 && OUTLET_CT_CHANNELS > 1
+#define REPORT_HZ_DEFAULT      5
+#else
 #define REPORT_HZ_DEFAULT      10
+#endif
 #define REPORT_HZ_MIN          1
 #define REPORT_HZ_MAX          20
 // rate 명령은 채널 하나의 창 샘플이 이 값보다 적어지는 주기를 거절한다(호스트 SIMPLELAY_OUTLET_MIN_SAMPLES 기본과 같다).
-// 예: ADS1115 2채널이면 10 Hz(채널당 25점)까지, 20 Hz(12.5점)는 bad_args. 측정 필요.
+// 예: ADS1115 2채널이면 10 Hz(채널당 25점)까지 받지만 하한 근처다 — 기본은 5 Hz(50점). 20 Hz(12.5점)는 bad_args. 측정 필요.
 #define CT_MIN_SAMPLES_PER_WINDOW 20
 // 창 샘플이 기대치(SAMPLE_HZ / 보고 주기)의 이 비율(%) 미만이면 그 창은 보고하지 않는다(판독 실패가 쌓인 창이
 // 몇 개 안 되는 샘플로 0 W처럼 보이지 않게). 호스트도 n·err로 한 번 더 거른다(SIMPLELAY_OUTLET_MIN_SAMPLES). 측정 필요.
@@ -163,6 +170,15 @@
 #endif
 #if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115 && ((SAMPLE_HZ / REPORT_HZ_DEFAULT) % OUTLET_CT_CHANNELS) != 0
 #error "ADS1115 돌려 읽기: 기본 창 길이(틱)가 채널 수로 나누어떨어져야 채널마다 같은 샘플 수가 된다"
+#endif
+#if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115
+#define CT_DEFAULT_SAMPLES_PER_CHANNEL (SAMPLE_HZ / REPORT_HZ_DEFAULT / OUTLET_CT_CHANNELS)
+#else
+#define CT_DEFAULT_SAMPLES_PER_CHANNEL (SAMPLE_HZ / REPORT_HZ_DEFAULT)
+#endif
+// 기본 주기에서 평소에 하한 근처가 아니게 — 채널당 창 샘플이 하한의 두 배 이상(평가 A3).
+#if CT_DEFAULT_SAMPLES_PER_CHANNEL < 2 * CT_MIN_SAMPLES_PER_WINDOW
+#error "기본 보고 주기에서 채널당 창 샘플이 CT_MIN_SAMPLES_PER_WINDOW의 두 배보다 적다(평소에 끊김 근처)"
 #endif
 #if OUTLET_CT_SOURCE == OUTLET_CT_ADS1115 && (SAMPLE_HZ / REPORT_HZ_DEFAULT / OUTLET_CT_CHANNELS) < CT_MIN_SAMPLES_PER_WINDOW
 #error "기본 보고 주기에서 채널당 창 샘플이 CT_MIN_SAMPLES_PER_WINDOW보다 적다"

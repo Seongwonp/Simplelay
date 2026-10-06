@@ -150,6 +150,50 @@ def outlet_channels_from_env(env: Mapping[str, str] | None = None) -> OutletChan
     return parse_outlet_channels(src.get(OUTLET_CHANNELS_ENV))
 
 
+def require_outlet_channels(channels: OutletChannelMap, consumers: "tuple[str, ...] | list[str]") -> None:
+    """콘센트 전력을 읽는 가전(``consumers``)마다 채널이 정해졌는지 확인한다. 아니면 RuntimeError(기동 거절).
+
+    2026-10-06 평가 A1: 대응이 비면 모든 가전이 채널 0을 읽는다 — 가전이 둘 이상이면 전자레인지 끝이
+    세탁 끝(wash_complete)으로 잡힌다. 경고로 두지 않고 거절한다. 가전이 하나면 종전처럼 채널 0이다.
+    """
+    distinct = list(dict.fromkeys(consumers))
+    if len(distinct) > 1 and not channels.by_appliance:
+        raise RuntimeError(
+            f"콘센트 전력을 읽는 가전이 둘 이상({', '.join(distinct)})인데 {OUTLET_CHANNELS_ENV}가 비어 있습니다 — "
+            "모두 채널 0을 읽어 한 가전의 끝이 다른 가전의 끝으로 잡힙니다(예: microwave:0,washer:1)")
+    for appliance_id in distinct:
+        channels.channel_for(appliance_id)  # 빠진 가전이 있으면 RuntimeError
+
+
+def outlet_module_channel_problem(info: "Mapping[str, Any] | None", channels: OutletChannelMap,
+                                  consumers: "tuple[str, ...] | list[str]", press_appliance: str) -> str | None:
+    """모듈이 알린 채널 수·릴레이 채널(ready·status)이 대응과 맞지 않으면 사람이 읽을 이유(맞으면 None).
+
+    2026-10-06 평가 A2: 어긋나면 로그만 남기던 것을 기동 거절·실행 거절의 근거로 쓴다.
+    - 전력을 읽는 가전의 채널이 모듈에 없다 → 그 가전 전력은 영영 '끊김'이다.
+    - 릴레이 채널이 누르는 가전(전자레인지) 채널과 다르다 → 비상정지·릴레이가 L3가 읽는 가전을 끊지 않는다
+      (대응에 전자레인지가 있으면 늘, 대응이 비면 누르는 가전이 전력을 읽을 때 채널 0과 비교).
+    정보가 없으면(옛 펌웨어·배너 놓침) 판단하지 않는다(None).
+    """
+    if not isinstance(info, Mapping):
+        return None
+    count, relay_ch = _opt_int(info.get("channels")), _opt_int(info.get("relay_ch"))
+    distinct = list(dict.fromkeys(consumers))
+    if count is not None:
+        missing = [f"{a}:{channels.channel_for(a)}" for a in distinct if channels.channel_for(a) >= count]
+        if missing:
+            return (f"콘센트 모듈 CT 채널은 {count}개인데 {OUTLET_CHANNELS_ENV}가 없는 채널을 가리켜요"
+                    f"({', '.join(missing)}) — 배선·펌웨어 OUTLET_CT_CHANNELS 확인")
+    if relay_ch is not None:
+        press = channels.by_appliance.get(press_appliance)
+        if press is None and not channels.by_appliance and press_appliance in distinct:
+            press = 0
+        if press is not None and press != relay_ch:
+            return (f"콘센트 모듈 릴레이는 CT {relay_ch}번 가전을 끊는데 {press_appliance}는 CT {press}번이에요 — "
+                    "비상정지가 그 가전 전원을 끊지 못해요(배선·펌웨어 OUTLET_RELAY_CH 확인)")
+    return None
+
+
 def power_channel(doc: Mapping[str, Any]) -> int | None:
     """power 줄의 채널. ``ch``가 없으면 0(옛 펌웨어), 정수 0~3이 아니면 None(버린다)."""
     if "ch" not in doc:
@@ -174,6 +218,10 @@ class OutletTimeout(OutletError):
 
 class OutletOffline(OutletError):
     """포트를 다시 여는 중이라 보낼 수 없다."""
+
+
+#: 모듈이 다시 켜져(재부팅) 켜 두었던 릴레이가 꺼졌을 때 사람에게 보이는 이유(2026-10-06 평가 A4).
+POWER_LOST_DETAIL = "콘센트 모듈이 다시 켜져 전원이 꺼져 있어요 — 확인 후 켜 주세요"
 
 
 class OutletRefused(OutletError):
@@ -203,7 +251,8 @@ class OutletConfig:
     offline_s: float = 3.0
     #: status 조회 간격(초) — 응답의 ``estop``을 반영한다. None이면 조회하지 않는다.
     status_poll_s: float | None = 2.0
-    #: power 줄의 창 샘플 수 하한. 10 Hz 보고면 ADS1115 창 80·내장 ADC 창 200 — 그 1/4. 측정 필요.
+    #: power 줄의 창 샘플 수 하한. 펌웨어 기본 주기에서 채널당 창은 ADS1115 50(CT 하나 10 Hz·CT 둘 5 Hz)·
+    #: 내장 ADC 200 — 하한의 2.5배 이상(펌웨어 config.h가 컴파일 때 2배를 강제, 2026-10-06 평가 A3). 측정 필요.
     min_samples: int = 20
     #: power 줄의 판독 실패 비율(err/n) 상한. 넘으면 버린다. 측정 필요.
     max_err_ratio: float = 0.1
@@ -395,6 +444,12 @@ class OutletLink:
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
         self.last_ready: dict | None = None
+        #: 모듈이 마지막으로 알린 채널 정보(ready 배너 또는 channels가 든 status 응답).
+        self.module_info: dict | None = None
+        #: 호스트가 relay_on으로 켜 둔 상태인가(2026-10-06 평가 A4). relay_off·비상정지면 False.
+        self.relay_expected_on = False
+        #: 켜 두었던 릴레이가 모듈 재부팅으로 꺼졌다 — 사람이 확인(``estop_ack``)해야 다시 켠다. 자동으로 켜지 않는다.
+        self.power_lost = False
         self.last_fault: dict | None = None
         self.estop_events: list[dict] = []
         self.dropped_power = 0
@@ -510,9 +565,34 @@ class OutletLink:
 
     def relay_on(self) -> None:
         self.request("relay_on")
+        with self._cond:
+            self.relay_expected_on = True
+            self.power_lost = False
 
     def relay_off(self) -> None:
+        with self._cond:
+            self.relay_expected_on = False
         self.request("relay_off")
+
+    def acknowledge_and_restore(self) -> tuple[bool, str | None]:
+        """사람의 해제 확인(``estop_ack``)을 모듈에 옮긴다 — 비상정지 해제(`reset_estop_if_released`)에 더해,
+        재부팅으로 꺼진 릴레이(``power_lost``)는 **이 확인 뒤에만** 다시 켠다(2026-10-06 평가 A4).
+
+        비상정지로 꺼진 릴레이는 종전처럼 켜지 않는다(해제해도 꺼진 채 — protocol.md).
+        """
+        ok, reason = self.reset_estop_if_released()
+        if not ok or not self.power_lost:
+            return ok, reason
+        try:
+            self.relay_on()
+        except OutletRefused as exc:
+            log.warning("outlet relay_on after reboot acknowledgement refused: %s", exc)
+            return False, "estop_button_pressed" if exc.code == "estop_latched" else "outlet_unreachable"
+        except OutletError as exc:
+            log.warning("outlet relay_on after reboot acknowledgement failed: %s", exc)
+            return False, "outlet_unreachable"
+        log.warning("outlet relay ON again after operator acknowledged the module reboot")
+        return True, None
 
     def estop_reset(self) -> None:
         self.request("estop_reset")
@@ -646,6 +726,17 @@ class OutletLink:
             except Exception:  # noqa: BLE001 - 듣는 쪽 오류가 읽기를 멈추지 않게
                 log.exception("outlet listener failed for %s", doc.get("event"))
 
+    def _note_power_lost(self, source: str) -> None:
+        """켜 두었던 릴레이가 재부팅으로 꺼졌다 — 듣는 쪽에 ``power_lost``를 넘긴다(한 번만)."""
+        with self._cond:
+            if not self.relay_expected_on or self.power_lost:
+                return
+            self.relay_expected_on = False
+            self.power_lost = True
+        log.error("outlet module restarted (via %s) — appliance relay is OFF; waiting for operator "
+                  "acknowledgement before switching it on again", source)
+        self._notify({"event": "power_lost", "source": source, "detail": POWER_LOST_DETAIL})
+
     def _note_module_estop(self, value: object, source: str) -> None:
         """ready·status가 보고한 걸림 표시를 반영한다. 새로 참이 되면 듣는 쪽에 estop으로 넘긴다."""
         if not isinstance(value, bool):
@@ -668,6 +759,7 @@ class OutletLink:
         if isinstance(event, str):
             if event == "ready":
                 self.last_ready = doc
+                self.module_info = doc
                 with self._cond:
                     self._mark_reanchor()  # 모듈 재시작 — 다음 power에서 시각을 다시 맞춘다
             elif event == "fault":
@@ -677,16 +769,24 @@ class OutletLink:
                 self.estop_events.append(doc)
                 with self._cond:
                     self.module_estop = True
+                    self.relay_expected_on = False  # 모듈이 릴레이를 열었다 — 해제해도 꺼진 채(종전 규칙)
                 log.warning("outlet module E-STOP (source=%s) — appliance relay opened by the module",
                             doc.get("source"))
             self._notify(doc)
             if event == "ready":
                 self._note_module_estop(doc.get("estop"), "ready")
+                if doc.get("estop") is not True:
+                    self._note_power_lost("ready")
             return
         req_id = doc.get("id")
         if isinstance(req_id, int) and not isinstance(req_id, bool):
+            if doc.get("ok") is True and "channels" in doc:
+                self.module_info = doc
             if doc.get("ok") is True and "estop" in doc:
                 self._note_module_estop(doc.get("estop"), "status")
+                # 배너를 놓쳤어도 status가 릴레이 꺼짐을 보이면 같은 일이다(걸림이 아닐 때만).
+                if doc.get("estop") is False and doc.get("relay") == "off":
+                    self._note_power_lost("status")
             with self._cond:
                 self._replies[req_id] = doc
                 # 오래 안 찾아간 응답(heartbeat ping 등)이 쌓이지 않게 자른다.

@@ -146,6 +146,19 @@ class FakeOutlet:
         with self._lock:
             self.button_active = False
 
+    def reboot(self) -> None:
+        """모듈 재부팅 흉내(전원 순간 끊김·USB 재열거) — 펌웨어처럼 릴레이 꺼짐으로 다시 시작하고 ready 배너를
+        보낸다. 걸림은 재부팅을 넘어 남는다. 보고 번호·모듈 시각은 0부터 다시 센다."""
+        with self._lock:
+            self.relay_on = False
+            self.t_ms = 0
+            self.seqs = [0] * self.channels
+            self._segments = {ch: [] for ch in range(self.channels)}
+            banner = {"event": "ready", "fw": FAKE_FW, "protocol": PROTOCOL, "reset": "poweron",
+                      "relay": "off", "ct": "fake", "ct_ok": self.ct_ok, "estop": self.estop_latched,
+                      "channels": self.channels, "relay_ch": self.relay_channel}
+        self._send(banner)
+
     def latch_silently(self) -> None:
         """이벤트 줄 없이 걸린 상태로 둔다 — estop 이벤트를 잃은 경우(주기 status로만 알 수 있다)."""
         with self._lock:

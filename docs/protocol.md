@@ -67,7 +67,25 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 { "type": "inject_failure", "button_index": 0, "attempts": 1 }
 { "type": "clear_failure" }
 { "type": "estop_ack" }
+{ "type": "hello" }
+{ "type": "rehearsal", "action": "appliance_done", "request_id": "a1b2c3", "appliance_id": "washer", "inputs": ["power", "beep"] }
+{ "type": "rehearsal", "action": "outlet_estop", "request_id": "a1b2c4", "hold_button": false }
+{ "type": "rehearsal", "action": "outlet_estop_release", "request_id": "a1b2c5" }
 ```
+
+`hello`(2026-10-06 평가 C1·B3): RPi5 `ActClient.start()`가 한 번 보낸다(RPi5가 다시 켜졌을 때 포함). RPi4는
+`act_info`와 `estop_state {…, "announce": true}`로 답하고, RPi4가 켜질 때도 같은 두 줄을 스스로 한 번 보낸다.
+RPi5는 답을 받기 전 걸림 상태를 **모름**(`estop_latched=null`)으로 두고 '풀림'으로 보지 않는다 — 내장 가전 실행은 412
+"비상정지 상태를 확인하는 중이에요 — RPi4 응답을 기다려요"이고, 상태를 볼 때마다 2초 간격으로 `hello`를 다시 보낸다.
+`announce:true`인 `estop_state`는 `estop_ack`의 답으로 치지 않는다.
+
+`rehearsal`(2026-10-06, UART 리허설): 시연 장면 ④⑤(가전 끝·콘센트 비상 버튼)를 보드 구성에서 연습하는 주입. RPi4는
+**모션이 mock이고 콘센트 모듈이 가짜(`SIMPLELAY_OUTLET_PORT=fake`)이거나 없을 때만** 받는다(`act_info.rehearsal=true`).
+그 밖이면 `rehearsal_result {ok:false, reason:"rehearsal_refused"}`. `appliance_done`은 같은 융합 규칙으로 `source:"injected"`
+프레임을 보내고, `outlet_estop`은 가짜 모듈의 버튼을 눌러 실물과 같은 `estop` 이벤트 경로를 탄다(`hold_button:true`면 눌린 채 —
+`estop_ack`가 거절된다). RPi5는 `SIMPLELAY_ACT_MODE=uart`에서 `SIMPLELAY_UART_REHEARSAL=1`일 때만 `POST /demo/appliance-done`·
+`POST|DELETE /demo/outlet-estop`을 열고(아니면 404), RPi4가 리허설 가능하다고 알리지 않았으면 409다. 응답의 `injected_in`은
+`rpi4_uart`, 비상 버튼 응답 문구에 "(시연 주입: RPi4 가짜 콘센트 모듈 …)"이 붙는다.
 
 `estop_ack`(2026-10-05): 콘센트 모듈 비상정지로 RPi4가 **걸린**(`estop_latched`) 뒤, 사람이 버튼을 풀고 해제를
 확인했다는 뜻(RPi5 `POST /stop/ack`). RPi4는 모듈 `status`로 버튼을 확인해 풀렸을 때만 모듈에 `estop_reset`을 보내고
@@ -121,6 +139,8 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 ### RPi4 → RPi5
 
 ```json
+{ "type": "act_info", "done_watch": ["washer", "microwave"], "outlet": "fake", "motion": "mock", "rehearsal": true }
+{ "type": "rehearsal_result", "request_id": "a1b2c3", "ok": true, "action": "appliance_done", "source": "injected", "frame": { "…": "…" } }
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }
 { "type": "result", "sequence_id": "seq_001", "success": true, "retry": 0, "outcome": "success" }
 { "type": "result", "sequence_id": "seq_002", "success": false, "retry": 0, "outcome": "stopped" }
@@ -392,8 +412,11 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   RPi4는 링 버퍼·시각 맞춤·`seq`·신선도를 **채널마다 따로** 둔다(한 채널의 줄이 다른 채널을 순서 뒤바뀜으로 버리지 않는다).
   채널 → 가전은 `SIMPLELAY_OUTLET_CHANNELS=microwave:0,washer:1`(비우면 모두 채널 0). L3·잔여 전류 꼬리·정지 확인·기록기는
   `microwave` 채널, `SIMPLELAY_DONE_WATCH`의 가전은 각자 채널을 읽는다. 대응에 가전이 빠졌거나 한 채널에 두 가전이면 기동 거절.
-  `rate`는 채널당 창 샘플이 20 미만이 되는 주기를 `bad_args`로 거절한다(2채널 ADS1115는 10 Hz까지).
-- `power`: 기본 10 Hz(`rate`, 1~20). `watts`는 **추정값** = CT 실효 전류(보정 배율·잡음 바닥 적용) × `vrms_est`
+  `rate`는 채널당 창 샘플이 20 미만이 되는 주기를 `bad_args`로 거절한다(2채널 ADS1115는 10 Hz까지 — 25점이라 하한 근처).
+- ADS1115 돌려 읽기(2026-10-06 평가 A3): 단발 변환이 끝나기 전(OS=0)에는 다음 채널 변환을 시작하지 않고 그 틱을 건너뛰며,
+  읽은 값은 설정 레지스터의 MUX로 실제로 변환한 채널 창에 넣는다(시작할 때 기록과 다르면 버리고 판독 실패로 센다).
+- `power`: 기본 10 Hz, **ADS1115 CT가 둘 이상이면 5 Hz**(채널당 창 50점 — 호스트 하한 20의 2.5배. 펌웨어가 컴파일 때 2배를
+  강제한다)(`rate`, 1~20). `watts`는 **추정값** = CT 실효 전류(보정 배율·잡음 바닥 적용) × `vrms_est`
   (설정 상수, 측정 아님) × 설정 역률. 보정 값은 전부 자리표시자(`status.cal = "placeholder"`) — 절대값은 근거가 아니다.
   L3는 기준선 대비 변화로 판정한다. CT 초기화가 실패하면 `fault`(`ct_init`)만 보내고 `power`를 내지 않는다(0 W를 지어내지 않는다).
 - 시각: RPi4는 모듈 `t_ms`를 호스트 단조 시각에 맞춰(`anchor = 수신 시각 − t_ms/1000`) 샘플 시각으로 쓴다. 다시 맞추는 것은
@@ -410,6 +433,15 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   `SIMPLELAY_OUTLET_STATUS_POLL_MS`(기본 2000)마다 `status`를 물어 `estop` 표시를 반영한다(이벤트 줄을 잃어도 걸림을 놓치지 않게).
 - **릴레이 기본 = 꺼짐(fail-safe).** 부팅·재부팅 뒤 가전 전원은 끊긴 채이고 `relay_on`이 있어야 켠다
   (`SIMPLELAY_OUTLET_RELAY_ON_START=1`이면 RPi4가 시작 때 보낸다. 기본은 보내지 않는다).
+- **모듈 재부팅으로 꺼진 릴레이**(2026-10-06 평가 A4): RPi4가 켜 둔 뒤 모듈이 다시 켜지면(`ready` 배너, 또는 `status`가
+  걸림 없이 `relay:"off"`) RPi4는 **다시 켜지 않는다**. 대신 걸린다(`estop_state {latched:true, source:"outlet_reboot",
+  detail:"콘센트 모듈이 다시 켜져 전원이 꺼져 있어요 — 확인 후 켜 주세요"}`) — 실행은 그 문장으로 거절되고, 사람이
+  `POST /stop/ack`(`estop_ack`)를 누르면 버튼을 확인한 뒤 `relay_on`을 보내고 풀린다. 비상정지로 꺼진 릴레이는 종전처럼 켜지 않는다.
+- **채널 대응 확인**(2026-10-06 평가 A1·A2): 콘센트 전력을 읽는 가전(L3·기록기·실물 모션의 정지 확인 = 전자레인지,
+  `SIMPLELAY_DONE_WATCH`의 outlet 가전)이 둘 이상인데 `SIMPLELAY_OUTLET_CHANNELS`가 비면 RPi4는 시작을 거절한다(모두 채널 0을
+  읽어 전자레인지 끝이 세탁 끝으로 잡힌다). `ready`·`status`의 `relay_ch`가 전자레인지 채널과 다르거나 대응한 채널이 `channels`
+  밖이면 시작을 거절하고, 실행 중 모듈이 그렇게 알리면 `execute`를 `outlet_offline`으로 거절한다. 가짜 모듈의 릴레이 채널은
+  대응에서 베끼지 않는다(`SIMPLELAY_FAKE_OUTLET_RELAY_CH`, 기본 0).
 - **물리 비상정지**: 버튼(NC, 눌림·단선 = 활성)이 연속 `ESTOP_TRIP_SAMPLES` 활성이면 모듈이 **그 자리에서** 릴레이를 연다
   (호스트·시리얼과 무관). 그 뒤 `estop` 이벤트를 한 번 보낸다. 걸린 동안 `relay_on`은 `estop_latched`, 버튼이 눌린 채면
   `estop_reset`은 `estop_active`. 해제해도 릴레이는 꺼진 채 — 다시 켜려면 `relay_on`.
@@ -421,7 +453,8 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   않는다). 걸린 동안 `execute`·`verify_pass`는 `{"type":"error","reason":"estop_latched","detail":…}`로 거절한다 — 쉬는 중에
   걸렸어도, 정지 대기 해제를 기다리는 사이에 걸렸어도 같다. RPi5에는 `{"type":"alert","kind":"outlet_estop","source":…}`와
   `{"type":"estop_state","latched":true,"source":…,"reason":null,"detail":…}`.
-- 해제: RPi5 `POST /stop/ack` → `{"type":"estop_ack"}` → RPi4가 모듈 `status`로 버튼을 확인한다. 버튼이 눌린 채면
+- 해제: RPi5 `POST /stop/ack` → `{"type":"estop_ack"}` → RPi4가 모듈 `status`로 버튼을 확인한다(2026-10-06 평가 C2:
+  확인은 읽기 루프와 따로 돌아, 모듈 응답을 기다리는 동안에도 `abort`를 처리한다). 버튼이 눌린 채면
   `estop_reset`을 보내지 않고 `estop_state {latched:true, reason:"estop_button_pressed"}`, 모듈이 답하지 않으면
   `reason:"outlet_unreachable"`, 확인 중 다시 걸리면 `estop_retriggered`. 풀리면 `estop_state {latched:false}` — 가전 릴레이는
   꺼진 채다(켜기는 별도).
@@ -460,12 +493,25 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   - `source`: `real` | `mock`(가짜 콘센트 모듈 등 합성 입력) | `injected`(리허설 주입 — 시뮬레이터 실행기만 보낸다).
   - RPi5: `ActClient.on_appliance_done` → `deps.receive_appliance_done` → 루틴 엔진 `on_appliance_done`(같은 가전의 `after_done`,
     같은 이름의 `event` 트리거). `done_confirmed`만 "세탁이 끝났어요", 나머지는 "끝난 것 같아요 — 확인해 주세요"이고 루틴의
-    안내 문장을 읽지 않는다. 주입은 "(시연 주입)", 모의는 "(모의 입력)". 리허설은 `POST /demo/appliance-done`(모의·시뮬레이터만, 그 밖 404).
+    안내 문장을 읽지 않는다. 주입은 "(시연 주입)", 모의는 "(모의 입력)". 리허설은 `POST /demo/appliance-done`(모의·시뮬레이터,
+    그리고 UART 리허설 스위치 + 가짜 RPi4 — 그 밖 404).
+  - 한 사이클에 한 번(2026-10-06 평가 B3): 같은 가전의 `after_done`이 실행 끝에서 이미 깼으면 그 사이클의 이 프레임은 다시 깨우지
+    않고, 그 가전을 돌린 루틴 자신도 깨우지 않는다. 루틴 처리가 실패하면 기록은 남기고 알림함에
+    "세탁 끝 알림을 보내지 못했어요"(종류 `appliance_done_undelivered`)를 남긴다(Copilot#3).
+  - 쿨다운은 가전마다(평가 B2): `SIMPLELAY_DONE_<가전>_COOLDOWN_S` → `SIMPLELAY_DONE_COOLDOWN_S` → 가전별 기본(전자레인지 60 s,
+    그 밖 900 s, 측정 필요) — 전자레인지 두 번째 가열의 끝을 버리지 않는다.
   - `event`는 가전마다 다르다(`rpi/verifier/done_fusion.py` `done_event_for`): 세탁기 `wash_complete`, 전자레인지 `heat_complete`,
     그 밖 `<가전>_done`. 전자레인지 끝이 '세탁 끝 알림' 루틴을 깨우지 않게 나눴다. 사이클 기준은 가전별로
     `SIMPLELAY_CYCLE_<가전>_<항목>`(예: `SIMPLELAY_CYCLE_MICROWAVE_SETTLE_S`) → `SIMPLELAY_CYCLE_<항목>` → 가전별 설계 초기값 순.
-  - 루틴 `wait_until_done`(갭 M2): RPi5 `SIMPLELAY_ROUTINE_DONE_SENSORS`에 든 가전이면 L3 시작 확인 뒤 이 프레임을
-    `SIMPLELAY_ROUTINE_DONE_TIMEOUT_S`(기본 1200, 측정 필요)까지 기다린다. 그 가전의 `after_done` 트리거도 L3가 아니라 이 프레임에서 깬다.
+  - 루틴 `wait_until_done`(갭 M2, 2026-10-06 평가 B1·B4·B5·Copilot#5): 끝 센서가 있는 가전(RPi4 `act_info.done_watch`, 받기 전에는
+    RPi5 `SIMPLELAY_ROUTINE_DONE_SENSORS`)이면 실행이 성공하기만 하면(L3 시작 확인을 요구하지 않는다 — L3는 전자레인지 채널만 읽는다)
+    이 프레임을 가전별 상한(`SIMPLELAY_ROUTINE_DONE_TIMEOUT_<가전>_S` → `SIMPLELAY_ROUTINE_DONE_TIMEOUT_S` → 전자레인지 900 s·세탁기
+    3 h → 1200 s, 측정 필요)까지 기다린다. **`done_confirmed`만 끝남 확인**이고, 입력 하나뿐이면 "끝난 것 같아요 — 확인해 주세요"를 남기고
+    뒤 단계를 보내지 않은 채 멈춘다. `POST /stop`·비상정지(해제 확인 뒤에도)는 기다리는 루틴을 멈춘다. 기다리는 동안 새 명령은 막히지 않는다.
+    그 가전의 `after_done` 트리거도 L3가 아니라 이 프레임에서 깬다.
+  - 가전 ID(평가 B3): `SIMPLELAY_DONE_WATCH`의 이름은 RPi5 가전 목록의 `appliance_id`(내장 전자레인지 = `microwave`, 사용자가 추가한
+    가전은 그 ID)여야 한다 — 프레임의 `appliance_id`를 루틴의 가전과 그대로 대조한다. RPi5는 `act_info.done_watch`를
+    `SIMPLELAY_ROUTINE_DONE_SENSORS`·가전 목록과 대조해 어긋나면 로그(error)로 알리고 RPi4 목록을 따른다.
   - 하위 호환: 옛 RPi5는 모르는 `type`을 무시한다(위 progress와 같다).
 
 ---

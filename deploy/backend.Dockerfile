@@ -27,11 +27,14 @@ RUN pip install --no-cache-dir \
     "dbus-fast>=2,<3" \
     "pyserial>=3.5,<4" \
     "pyserial-asyncio>=0.6,<1" \
-    "qrcode[pil]>=8,<9"
+    "qrcode[pil]>=8,<9" \
+    "sounddevice>=0.4,<1"
 
 # socat: 하드웨어 선 대신 LAN으로 두 보드를 이을 때 RPi4 쪽에서 TCP를 가상 시리얼로
 # 바꾼다(시험용, deploy/run_act.sh). 백엔드만 돌릴 때는 쓰지 않는다.
-RUN apt-get update && apt-get install -y --no-install-recommends socat \
+# libportaudio2: sounddevice가 여는 PortAudio 공유 라이브러리 — RPi4 마이크(종료음·위험 소리, 2026-10-06 평가).
+# 컨테이너는 /dev/snd를 넘겨받아야 마이크를 본다(deploy/run_act.sh의 SIMPLELAY_ACT_DEVICES).
+RUN apt-get update && apt-get install -y --no-install-recommends socat libportaudio2 \
     && rm -rf /var/lib/apt/lists/*
 
 # 코드만 얹는다(리포 전체 아님 — .dockerignore가 나머지를 막는다).

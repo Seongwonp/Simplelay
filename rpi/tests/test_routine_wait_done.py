@@ -62,7 +62,8 @@ def test_waits_for_cycle_end_before_the_next_step():
         [_confirmed, lambda c: _result(c)], [HEAT, WAIT_MW, INDUCTION],
         _done_log=log, _done_sensors=frozenset({"microwave"}), _done_timeout=5.0)
     seen_calls = []
-    _later(lambda: (seen_calls.append(len(service.calls)), log.append(_done())))
+    # 끝남 확인은 두 입력(전력·종료음)일 때만이다(2026-10-06 평가 B1 — 하나뿐이면 확인 요청으로 멈춘다).
+    _later(lambda: (seen_calls.append(len(service.calls)), log.append(_done(inputs=("power", "beep")))))
     run = runner.execute_approved(approved, scenario_id=routine.scenario_key())
     assert seen_calls == [1]  # 끝이 오기 전에는 인덕션 단계를 보내지 않았다
     assert run.status is RunStatus.SUCCEEDED and len(service.calls) == 2
@@ -111,7 +112,7 @@ def test_injected_or_mock_done_marks_the_run_as_demo():
     runner, routine, approved, _, _ = _setup(
         [_confirmed, lambda c: _result(c)], [HEAT, WAIT_MW, INDUCTION],
         _done_log=log, _done_sensors=frozenset({"microwave"}), _done_timeout=5.0)
-    _later(lambda: log.append(_done(source="injected")))
+    _later(lambda: log.append(_done(source="injected", inputs=("power", "beep"))))
     run = runner.execute_approved(approved, scenario_id=routine.scenario_key())
     assert run.status is RunStatus.SUCCEEDED and run.is_demo
     assert "시연 주입" in run.steps[1]["detail"]

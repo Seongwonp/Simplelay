@@ -123,7 +123,7 @@ class SimulatorController(ActClientController):
             # UART 모드와 같은 프레임 탭을 쓴다 — 실모드 트윈(/twin)·세션 기록이 두 모드에서 같다.
             client = ActClient(hub_reader, Wire(act_reader, "hub_to_act"),
                                ActClientConfig(5, 12), on_alert=on_alert, tap=tap,
-                               on_appliance_done=on_appliance_done)
+                               on_appliance_done=on_appliance_done, hello=True)
             self._reader, self._executor, self._motor = act_reader, executor, motor
             self._local_result = None
             self._executor_task = asyncio.create_task(executor.run())

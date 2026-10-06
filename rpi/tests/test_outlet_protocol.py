@@ -427,3 +427,23 @@ def test_offline_and_poll_env():
     cfg = OutletConfig.from_env({"SIMPLELAY_OUTLET_OFFLINE_MS": "5000", "SIMPLELAY_OUTLET_STATUS_POLL_MS": "off"})
     assert cfg.offline_s == 5.0 and cfg.status_poll_s is None
     assert OutletConfig.from_env({}).status_poll_s == 2.0
+
+
+def test_ads1115_round_robin_waits_for_conversion_and_tags_by_converted_mux():
+    """2026-10-06 평가 A3 — 단발 변환이 끝나기 전에 다음 채널 MUX를 쓰면 그 변환 값이 다른 채널 창에 들어간다.
+
+    C 코드를 돌리지 않는 소스 고정이다(실물 ADS1115 미검증): ① 변환 중(OS=0)이면 새 변환을 시작하지 않고 그 틱을
+    건너뛴다 ② 읽은 값은 설정 레지스터의 MUX로 **실제로 변환한 채널**을 찾아 그 창에 넣는다.
+    """
+    ct = (ROOT / "firmware-outlet" / "src" / "ct.cpp").read_text(encoding="utf-8")
+    tick = ct[ct.index("void ct_sample_tick"):ct.index("uint32_t ct_expected_samples")]
+    busy = tick.index("(cfg & 0x8000) == 0")
+    start = tick.index("ads_write_reg(0x01, config_for(")
+    assert busy < start and "return;" in tick[busy:start]  # 변환 중이면 시작 전에 돌아간다
+    assert "channel_for_mux(cfg)" in tick  # 실제 변환 채널로 태그
+
+
+def test_default_report_rate_leaves_margin_over_the_host_minimum():
+    """채널당 창 샘플이 호스트 하한(SIMPLELAY_OUTLET_MIN_SAMPLES 기본 20)의 두 배 이상이어야 평소에 끊김 근처가 아니다."""
+    assert "CT_DEFAULT_SAMPLES_PER_CHANNEL < 2 * CT_MIN_SAMPLES_PER_WINDOW" in CONFIG_H
+    assert OutletConfig().min_samples == 20
