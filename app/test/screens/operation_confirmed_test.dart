@@ -106,4 +106,24 @@ void main() {
     expect(find.textContaining('실제로 눌렀는지 가전을 확인해 주세요'), findsOneWidget);
     expect(find.textContaining('마쳤어요'), findsNothing);
   });
+
+  // 10/6 Copilot 리뷰(66990be): 모의 실행의 L3 true를 실제 가전 확인처럼 말했다.
+  testWidgets('모의 실행의 L3 확인은 모의 판정이라고 말한다', (tester) async {
+    await _pump(
+      tester,
+      const ExecutionStatus(
+        label: '즉석밥 데워줘',
+        phase: ExecutionPhase.completed,
+        executionMode: 'mock',
+        outcome: 'success',
+        route: 'physical',
+        confirmation: 'operation_confirmed',
+        operationConfirmed: true,
+        operationSource: 'mock',
+      ),
+    );
+
+    expect(find.text('가전 동작도 확인했어요'), findsNothing);
+    expect(find.text('모의 동작 판정 · 실제 가전 아님'), findsOneWidget);
+  });
 }

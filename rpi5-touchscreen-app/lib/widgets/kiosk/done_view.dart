@@ -93,15 +93,20 @@ class KioskDoneView extends StatelessWidget {
     // 성공의 가장 큰 글자. 물리 경로에서 실행 환경을 모르면(옛 노드·UART가
     // 보고하지 않음) '버튼 조작을 마쳤어요'라고 단정하지 않는다 — 실행기가
     // 완료를 보고했다는 사실까지만 안다.
+    final mock = executionMode == 'mock';
     final successHeadline = thinq
-        ? '가전 상태를 확인했어요'
+        // 모의 ThinQ는 모의 상태를 읽은 것이다(10/6 Copilot 리뷰 66990be).
+        ? (mock ? '모의 상태를 확인했어요' : '가전 상태를 확인했어요')
         : executionMode == 'unknown'
             ? '실행기가 완료를 보고했어요'
             // 모의 실행은 가장 큰 글자부터 모의라고 말한다(10/6 S11 실패널).
             : executionMode == 'mock'
                 ? '모의 버튼 조작을 마쳤어요'
                 : '버튼 조작을 마쳤어요';
+    // 실행 환경을 판정보다 먼저 본다 — 모의 실행의 true는 모의 판정일 뿐
+    // 실제 가전이 움직였다는 말이 아니다(10/6 Copilot 리뷰 66990be).
     final operationSentence = switch (operationConfirmed) {
+      true when mock => '모의 동작 판정 · 실제 가전 아님',
       true => '가전 동작도 확인했어요',
       false => '가전 동작은 확인하지 못했어요',
       null => null,

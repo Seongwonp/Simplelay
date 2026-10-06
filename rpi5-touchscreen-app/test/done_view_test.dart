@@ -253,4 +253,46 @@ void main() {
     expect(find.textContaining('검증'), findsNothing);
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
   });
+
+  // 10/6 Copilot 리뷰(66990be): 모의 실행에서 L3 true가 "가전 동작도
+  // 확인했어요"로 나와 실제 가전 확인으로 읽혔다. 실행 환경을 먼저 본다.
+  testWidgets('모의 실행의 L3 확인은 모의 판정이라고 말하고 가전 확인으로 말하지 않는다',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: true,
+        label: '즉석밥 데워줘',
+        executionMode: 'mock',
+        target: kMicrowaveAppliance,
+        operationConfirmed: true,
+        operationSource: 'mock',
+        onDismiss: () {},
+      ),
+    );
+
+    expect(find.text('가전 동작도 확인했어요'), findsNothing);
+    expect(find.text('모의 동작 판정 · 실제 가전 아님'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('가전 동작도 확인했어요')), findsNothing);
+    handle.dispose();
+  });
+
+  testWidgets('모의 ThinQ 성공의 큰 글자는 가전 상태를 확인했다고 말하지 않는다',
+      (tester) async {
+    await _pump(
+      tester,
+      KioskDoneView(
+        success: true,
+        label: '에어컨 켜줘',
+        executionMode: 'mock',
+        route: 'thinq',
+        confirmation: '모의 상태 확인',
+        onDismiss: () {},
+      ),
+    );
+
+    expect(find.text('가전 상태를 확인했어요'), findsNothing);
+    expect(find.text('모의 상태를 확인했어요'), findsOneWidget);
+  });
 }

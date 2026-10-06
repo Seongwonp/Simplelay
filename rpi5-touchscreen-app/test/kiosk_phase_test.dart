@@ -1588,8 +1588,10 @@ void main() {
           lastExecutionMode: 'mock'),
     );
     expect(done.success, isTrue);
-    expect(find.text('가전 상태를 확인했어요'), findsOneWidget);
-    expect(find.text('ThinQ · 상태 확인됨'), findsOneWidget);
+    // 모의가 앞선다 — 모의 상태를 가전 상태 확인으로 말하지 않는다(10/6 리뷰).
+    expect(find.text('모의 상태를 확인했어요'), findsOneWidget);
+    expect(find.text('가전 상태를 확인했어요'), findsNothing);
+    expect(find.text('ThinQ · 모의 상태 확인'), findsOneWidget);
     expect(find.textContaining('실제 가전 아님'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1840,7 +1842,7 @@ void main() {
     expect(api.lastRunCalls, greaterThan(0));
     expect(done.success, isTrue);
     expect(find.text('1. 공기청정기 풍량 약하게'), findsOneWidget);
-    expect(find.text('ThinQ · 모의 실행 · 상태 확인됨 · 성공'), findsOneWidget);
+    expect(find.text('ThinQ · 모의 실행 · 모의 상태 확인 · 성공'), findsOneWidget);
     expect(find.text('2. 전자레인지 즉석밥'), findsOneWidget);
     expect(find.text('물리 버튼 · 모의 실행 · 모의 실행기 응답 · 성공'),
         findsOneWidget);

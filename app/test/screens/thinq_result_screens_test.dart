@@ -88,7 +88,8 @@ void main() {
     expect(find.textContaining('보냈지만 확인하지 못했어요'), findsNWidgets(2));
     // 경로 · 확인 수준은 '경로'·'확인' 꼬리표 없이 자연스러운 한 줄로 말한다.
     expect(find.text('ThinQ · 접수됨'), findsOneWidget);
-    expect(find.text('ThinQ · 상태 확인됨'), findsOneWidget);
+    // t2는 모의 실행 — 모의가 앞선다(10/6 Copilot 리뷰 66990be).
+    expect(find.text('ThinQ · 모의 상태 확인'), findsOneWidget);
     // 접수 불명은 받았는지 모른다고만 말한다(접수됨·확인됨으로 올리지 않는다,
     // 실패로도 말하지 않는다).
     expect(find.text('ThinQ · 가전이 받았는지 확인이 필요해요'), findsOneWidget);

@@ -82,7 +82,11 @@ String? confirmationLabel({
   ResultKind? kind,
   String? executionMode,
 }) {
-  if (confirmation == 'state_confirmed') return '상태 확인됨';
+  // 모의가 앞선다 — 모의 상태를 읽은 것을 실제 가전 상태 확인으로 말하지
+  // 않는다(10/6 Copilot 리뷰 66990be).
+  if (confirmation == 'state_confirmed') {
+    return executionMode == 'mock' ? '모의 상태 확인' : '상태 확인됨';
+  }
   if (route == 'thinq') {
     if (receipt == 'not_dispatched') return '보내지 않음';
     if (receipt == 'unknown') return '받았는지 확인이 필요해요';

@@ -481,7 +481,11 @@ class _RunSteps extends ConsumerWidget {
 /// 버튼을 누른 것과 가전이 실제로 움직인 것은 다른 사실이고, 판정기가 없는
 /// 실행에서 "동작을 확인했다"는 말이 나오면 안 된다.
 /// L3 판정 한 문장. 판정이 없으면 null — 말하지 않는다.
+/// 실행 환경을 판정보다 먼저 본다 — 모의 실행의 true는 모의 판정일 뿐이다
+/// (10/6 Copilot 리뷰 66990be).
 String? operationSentence(ExecutionStatus s) => switch (s.operationConfirmed) {
+      true when s.isDemo || s.executionMode == 'mock' =>
+        '모의 동작 판정 · 실제 가전 아님',
       true => '가전 동작도 확인했어요',
       false => '가전 동작은 확인하지 못했어요',
       null => null,
