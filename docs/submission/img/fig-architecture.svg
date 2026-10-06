@@ -1,0 +1,104 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="800" viewBox="0 0 1000 800" font-family="'Noto Sans KR','Malgun Gothic',sans-serif">
+  <defs>
+    <marker id="aOk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#2e7d32"/></marker>
+    <marker id="aNo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="800" fill="#ffffff"/>
+  <text x="30" y="32" font-size="20" font-weight="700" fill="#111827">SimpleLay 시스템 구성 (2026-10-06 기준)</text>
+  <text x="30" y="54" font-size="13" fill="#4b5563">초록 실선 = 실제 보드에서 확인(모션·판정은 모의) · 주황 점선 = 설계·실물 미연결</text>
+
+  <!-- Phone -->
+  <rect x="30" y="90" width="190" height="100" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="125" y="120" font-size="16" font-weight="700" fill="#1b5e20" text-anchor="middle">폰 앱 (Flutter)</text>
+  <text x="125" y="143" font-size="12" fill="#1f2937" text-anchor="middle">가전 등록·루틴·승인·기록</text>
+  <text x="125" y="163" font-size="12" fill="#1f2937" text-anchor="middle">에뮬레이터로 확인</text>
+  <text x="125" y="181" font-size="11" fill="#6b7280" text-anchor="middle">실폰 확인 전</text>
+
+  <!-- RPi5 -->
+  <rect x="300" y="75" width="320" height="170" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="460" y="103" font-size="17" font-weight="700" fill="#1b5e20" text-anchor="middle">RPi5 · 해석·제안·승인</text>
+  <text x="460" y="127" font-size="12" fill="#1f2937" text-anchor="middle">백엔드(FastAPI·SQLite): 루틴·제안 카드·명령 지문</text>
+  <text x="460" y="147" font-size="12" fill="#1f2937" text-anchor="middle">승인·이력·정지 요청·래치 확인</text>
+  <rect x="320" y="160" width="280" height="70" rx="8" fill="#ffffff" stroke="#2e7d32" stroke-width="1.5"/>
+  <text x="460" y="184" font-size="13" font-weight="700" fill="#1b5e20" text-anchor="middle">15.8형 키오스크 (HDMI·USB 터치)</text>
+  <text x="460" y="204" font-size="12" fill="#1f2937" text-anchor="middle">평소·다가오면·동작 중·내 가전</text>
+  <text x="460" y="221" font-size="11" fill="#4b5563" text-anchor="middle">실제 패널 표시·부팅 자동 실행 확인</text>
+
+  <!-- Weather -->
+  <rect x="710" y="100" width="260" height="70" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="840" y="128" font-size="14" font-weight="700" fill="#1b5e20" text-anchor="middle">기상청 날씨 API</text>
+  <text x="840" y="150" font-size="12" fill="#1f2937" text-anchor="middle">실제 호출 확인</text>
+
+  <!-- RPi4 -->
+  <rect x="300" y="330" width="320" height="130" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="460" y="358" font-size="17" font-weight="700" fill="#1b5e20" text-anchor="middle">RPi4 · 실행·검증·정지</text>
+  <text x="460" y="382" font-size="12" fill="#1f2937" text-anchor="middle">버튼 순서 실행·L1~L3 판정·재시도·안전 정지</text>
+  <text x="460" y="402" font-size="12" fill="#1f2937" text-anchor="middle">비상정지 래치 수신·새 실행 차단</text>
+  <text x="460" y="426" font-size="11" fill="#b45309" text-anchor="middle">보드 배포 확인 · 모션·판정 입력은 모의</text>
+  <text x="460" y="445" font-size="11" fill="#6b7280" text-anchor="middle">(실행기 컨테이너, 읽기 전용 루트)</text>
+
+  <!-- Motion MCU -->
+  <rect x="30" y="520" width="250" height="90" rx="10" fill="#fff7ed" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="155" y="548" font-size="15" font-weight="700" fill="#92400e" text-anchor="middle">모션 MCU (미정)</text>
+  <text x="155" y="570" font-size="12" fill="#1f2937" text-anchor="middle">Arduino 또는 ESP32</text>
+  <text x="155" y="592" font-size="11" fill="#6b7280" text-anchor="middle">참고 펌웨어 컴파일·가짜 MCU 시험</text>
+
+  <!-- CoreXY -->
+  <rect x="30" y="660" width="250" height="90" rx="10" fill="#fff7ed" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="155" y="687" font-size="15" font-weight="700" fill="#92400e" text-anchor="middle">CoreXY 갠트리 (조립 중)</text>
+  <text x="155" y="709" font-size="12" fill="#1f2937" text-anchor="middle">FIT0482 ×2 · Z 누름 미정</text>
+  <text x="155" y="728" font-size="11" fill="#6b7280" text-anchor="middle">(스위치봇 모듈 또는 솔레노이드)</text>
+
+  <!-- Sensors -->
+  <rect x="330" y="520" width="260" height="80" rx="10" fill="#fff7ed" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="460" y="548" font-size="15" font-weight="700" fill="#92400e" text-anchor="middle">전류·음향 센서 (설계)</text>
+  <text x="460" y="570" font-size="12" fill="#1f2937" text-anchor="middle">L1 눌림 전류 · L2 비프음</text>
+  <text x="460" y="589" font-size="11" fill="#6b7280" text-anchor="middle">실물 미연결 · 임계값 실측 전</text>
+
+  <!-- Outlet -->
+  <rect x="660" y="500" width="310" height="160" rx="10" fill="#fff7ed" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="815" y="528" font-size="15" font-weight="700" fill="#92400e" text-anchor="middle">ESP32 콘센트 모듈 (회로 미조립)</text>
+  <text x="680" y="555" font-size="12" fill="#1f2937">· CT ch0 → 전자레인지 (릴레이 경로)</text>
+  <text x="680" y="577" font-size="12" fill="#1f2937">· CT ch1 → 세탁기 (계측 전용, 릴레이 없음)</text>
+  <text x="680" y="599" font-size="12" fill="#1f2937">· 비상정지 버튼·래치 → 릴레이 개방</text>
+  <text x="680" y="625" font-size="11" fill="#6b7280">펌웨어 컴파일 · 호스트 경로는 가짜 모듈 시험</text>
+  <text x="680" y="644" font-size="11" fill="#6b7280">CT 보정·실제 배선 남음</text>
+
+  <!-- Appliances -->
+  <rect x="660" y="700" width="140" height="60" rx="8" fill="#f3f4f6" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="730" y="735" font-size="13" fill="#111827" text-anchor="middle">전자레인지</text>
+  <rect x="830" y="700" width="140" height="60" rx="8" fill="#f3f4f6" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="900" y="735" font-size="13" fill="#111827" text-anchor="middle">세탁기</text>
+  <rect x="330" y="680" width="260" height="70" rx="8" fill="#f3f4f6" stroke="#6b7280" stroke-width="1.5"/>
+  <text x="460" y="708" font-size="13" fill="#111827" text-anchor="middle">기존 가전 버튼</text>
+  <text x="460" y="728" font-size="11" fill="#6b7280" text-anchor="middle">전자레인지·세탁기·인터폰 조작부</text>
+
+  <!-- Arrows verified -->
+  <line x1="220" y1="140" x2="298" y2="140" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#aOk)"/>
+  <text x="259" y="130" font-size="11" fill="#1b5e20" text-anchor="middle">HTTP</text>
+  <line x1="710" y1="135" x2="622" y2="135" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#aOk)"/>
+  <line x1="460" y1="245" x2="460" y2="328" stroke="#2e7d32" stroke-width="2.5" marker-end="url(#aOk)"/>
+  <text x="472" y="270" font-size="11" fill="#1b5e20">줄 단위 JSON · 현재 LAN TCP↔가상 시리얼로 확인</text>
+  <text x="472" y="288" font-size="11" fill="#b45309">최종 UART 배선은 미검증</text>
+  <text x="472" y="306" font-size="11" fill="#1b5e20">폰→RPi5→RPi4 모의 실행 왕복 확인</text>
+
+  <!-- Arrows unverified -->
+  <path d="M330,460 L155,518" fill="none" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#aNo)"/>
+  <text x="170" y="478" font-size="11" fill="#92400e">USB 시리얼 (계획)</text>
+  <line x1="155" y1="610" x2="155" y2="658" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#aNo)"/>
+  <line x1="280" y1="715" x2="328" y2="715" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#aNo)"/>
+  <text x="304" y="705" font-size="10" fill="#92400e" text-anchor="middle">누름</text>
+  <line x1="460" y1="680" x2="460" y2="602" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#aNo)"/>
+  <text x="468" y="645" font-size="10" fill="#92400e">반응</text>
+  <line x1="460" y1="520" x2="460" y2="462" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#aNo)"/>
+  <path d="M660,540 L622,440" fill="none" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#aNo)"/>
+  <text x="648" y="478" font-size="11" fill="#92400e">USB 시리얼</text>
+  <text x="648" y="494" font-size="11" fill="#92400e">CT 값·래치 (구현, 미연결)</text>
+  <line x1="730" y1="660" x2="730" y2="698" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#aNo)"/>
+  <line x1="900" y1="660" x2="900" y2="698" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5" marker-end="url(#aNo)"/>
+  <text x="738" y="684" font-size="10" fill="#92400e">ch0·릴레이</text>
+  <text x="908" y="684" font-size="10" fill="#92400e">ch1 계측</text>
+
+  <text x="30" y="778" font-size="11" fill="#4b5563">모터·센서 실물 검증 0건. 모션 MCU와 Z 누름 방식은 팀원 코드·핀맵을 받은 뒤 확정한다.</text>
+  <text x="30" y="794" font-size="11" fill="#4b5563">갠트리 모터 전원은 콘센트 릴레이가 아닌 별도 스위치로 차단한다(운영 계획).</text>
+</svg>

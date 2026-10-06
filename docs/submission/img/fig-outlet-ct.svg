@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="540" viewBox="0 0 1000 540" font-family="'Noto Sans KR','Malgun Gothic',sans-serif">
+  <defs>
+    <marker id="aNo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#b45309"/></marker>
+    <marker id="aPw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#374151"/></marker>
+  </defs>
+  <rect x="0" y="0" width="1000" height="540" fill="#ffffff"/>
+  <text x="30" y="32" font-size="20" font-weight="700" fill="#111827">콘센트 모듈 CT 두 채널 경로 (설계 · 회로 미조립)</text>
+  <text x="30" y="54" font-size="13" fill="#4b5563">굵은 회색 = 가전 전원선 · 주황 점선 = 신호(펌웨어 컴파일·가짜 모듈 시험까지, 실물 미연결)</text>
+
+  <!-- AC input -->
+  <rect x="30" y="200" width="130" height="90" rx="10" fill="#f3f4f6" stroke="#374151" stroke-width="2"/>
+  <text x="95" y="238" font-size="15" font-weight="700" fill="#111827" text-anchor="middle">AC 입력</text>
+  <text x="95" y="260" font-size="12" fill="#4b5563" text-anchor="middle">콘센트</text>
+
+  <!-- power bus -->
+  <line x1="160" y1="245" x2="190" y2="245" stroke="#374151" stroke-width="4"/>
+  <line x1="190" y1="120" x2="190" y2="390" stroke="#374151" stroke-width="4"/>
+
+  <!-- ch0 path -->
+  <line x1="190" y1="120" x2="250" y2="120" stroke="#374151" stroke-width="4"/>
+  <rect x="250" y="88" width="130" height="64" rx="8" fill="#fff7ed" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="315" y="116" font-size="14" font-weight="700" fill="#92400e" text-anchor="middle">릴레이</text>
+  <text x="315" y="136" font-size="11" fill="#4b5563" text-anchor="middle">평상시 닫힘(통전)</text>
+  <line x1="380" y1="120" x2="757" y2="120" stroke="#374151" stroke-width="4" marker-end="url(#aPw)"/>
+  <circle cx="500" cy="120" r="22" fill="#fff7ed" stroke="#b45309" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="500" y="125" font-size="12" font-weight="700" fill="#92400e" text-anchor="middle">CT</text>
+  <text x="500" y="84" font-size="13" font-weight="700" fill="#92400e" text-anchor="middle">ch0</text>
+  <rect x="760" y="85" width="200" height="70" rx="10" fill="#f3f4f6" stroke="#374151" stroke-width="2"/>
+  <text x="860" y="115" font-size="15" font-weight="700" fill="#111827" text-anchor="middle">전자레인지</text>
+  <text x="860" y="137" font-size="12" fill="#4b5563" text-anchor="middle">릴레이로 전원 차단 대상</text>
+
+  <!-- ch1 path -->
+  <line x1="190" y1="390" x2="757" y2="390" stroke="#374151" stroke-width="4" marker-end="url(#aPw)"/>
+  <circle cx="500" cy="390" r="22" fill="#fff7ed" stroke="#b45309" stroke-width="2" stroke-dasharray="5 4"/>
+  <text x="500" y="395" font-size="12" font-weight="700" fill="#92400e" text-anchor="middle">CT</text>
+  <text x="500" y="436" font-size="13" font-weight="700" fill="#92400e" text-anchor="middle">ch1 (두 번째 CT 미확보)</text>
+  <text x="315" y="378" font-size="12" fill="#4b5563" text-anchor="middle">릴레이 없음 · 계측 전용</text>
+  <rect x="760" y="355" width="200" height="70" rx="10" fill="#f3f4f6" stroke="#374151" stroke-width="2"/>
+  <text x="860" y="385" font-size="15" font-weight="700" fill="#111827" text-anchor="middle">세탁기</text>
+  <text x="860" y="407" font-size="12" fill="#4b5563" text-anchor="middle">세탁 완료 판정용 계측</text>
+
+  <!-- ESP32 + ADC -->
+  <rect x="400" y="200" width="220" height="100" rx="10" fill="#fff7ed" stroke="#b45309" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="510" y="228" font-size="15" font-weight="700" fill="#92400e" text-anchor="middle">ESP32 + ADS1115</text>
+  <text x="510" y="250" font-size="12" fill="#1f2937" text-anchor="middle">ch0 = AIN0-AIN1</text>
+  <text x="510" y="268" font-size="12" fill="#1f2937" text-anchor="middle">ch1 = AIN2-AIN3</text>
+  <text x="510" y="287" font-size="11" fill="#6b7280" text-anchor="middle">채널별 버퍼·신선도 확인</text>
+  <line x1="500" y1="142" x2="500" y2="198" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#aNo)"/>
+  <line x1="500" y1="368" x2="500" y2="302" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#aNo)"/>
+
+  <!-- E-stop -->
+  <rect x="220" y="215" width="140" height="70" rx="10" fill="#fef2f2" stroke="#b91c1c" stroke-width="2" stroke-dasharray="7 5"/>
+  <text x="290" y="244" font-size="14" font-weight="700" fill="#991b1b" text-anchor="middle">비상정지 버튼</text>
+  <text x="290" y="266" font-size="11" fill="#4b5563" text-anchor="middle">래치 보존</text>
+  <line x1="360" y1="250" x2="398" y2="250" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#aNo)"/>
+  <path d="M430,200 L340,154" fill="none" stroke="#b91c1c" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#aNo)"/>
+  <text x="200" y="198" font-size="11" fill="#991b1b">즉시 개방(호스트 응답 대기 없음)</text>
+
+  <!-- RPi4 -->
+  <rect x="760" y="215" width="200" height="70" rx="10" fill="#e8f5e9" stroke="#2e7d32" stroke-width="2"/>
+  <text x="860" y="244" font-size="15" font-weight="700" fill="#1b5e20" text-anchor="middle">RPi4 실행기</text>
+  <text x="860" y="266" font-size="11" fill="#4b5563" text-anchor="middle">판정·래치 수신·실행 차단</text>
+  <line x1="620" y1="250" x2="758" y2="250" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#aNo)"/>
+  <text x="690" y="240" font-size="11" fill="#92400e" text-anchor="middle">USB 시리얼</text>
+  <text x="690" y="270" font-size="11" fill="#92400e" text-anchor="middle">CT 값·래치</text>
+
+  <!-- notes -->
+  <rect x="30" y="460" width="940" height="66" rx="8" fill="#f9fafb" stroke="#d1d5db" stroke-width="1"/>
+  <text x="46" y="484" font-size="12" fill="#1f2937">· CT로 계산한 전력은 보정이 필요한 추정값이다. 채널별 보정·잡음·동작/대기 임계값은 【실측 후 기입】.</text>
+  <text x="46" y="504" font-size="12" fill="#1f2937">· 연결이 끊기면 0 W로 채우지 않고 읽기 실패로 처리한다. 세탁 완료 경로는 세탁기 릴레이 차단 명령을 보내지 않는다.</text>
+  <text x="46" y="520" font-size="12" fill="#1f2937">· 릴레이 대상은 전자레인지 전원뿐이다. 갠트리 모터 전원은 별도 스위치로 끊는다(운영 계획).</text>
+</svg>
