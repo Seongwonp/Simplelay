@@ -183,7 +183,7 @@ def test_serial_never_opens(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("deny_intro,deny_call", [(False, False), (True, False), (False, True)])
 def test_dbus_transport_fixtures(check, monkeypatch, deny_intro, deny_call):
-    MessageFlag = SimpleNamespace(NO_AUTO_START=2)
+    MessageFlag = SimpleNamespace(NO_AUTOSTART=2)
     MessageType = SimpleNamespace(ERROR=3, METHOD_RETURN=2)
     calls = []
     class Bus:
@@ -194,7 +194,7 @@ def test_dbus_transport_fixtures(check, monkeypatch, deny_intro, deny_call):
             calls.append("disconnect")
 
         async def call(self, msg):
-            assert msg.flags & MessageFlag.NO_AUTO_START
+            assert msg.flags & MessageFlag.NO_AUTOSTART
             calls.append(msg.member)
             denied = (msg.member == "Introspect" and deny_intro) or (msg.member == "GetStatus" and deny_call)
             body = [True] if msg.member == "NameHasOwner" else ["<node><interface name='org.example.Private'><method name='GetStatus'><arg type='s' direction='out'/></method></interface></node>"]
@@ -211,3 +211,9 @@ def test_dbus_transport_fixtures(check, monkeypatch, deny_intro, deny_call):
     if not deny_call:
         assert r["reply_signature"] == "s"
     assert calls == ["NameHasOwner", "Introspect", "GetStatus", "disconnect"]
+
+
+def test_real_dbus_fast_flag_name_matches_core():
+    """가짜 MessageFlag가 실제 라이브러리와 어긋나 결함을 가린 적이 있다(2026-10-06 RPi5 실행)."""
+    dbus_fast = pytest.importorskip("dbus_fast")
+    assert hasattr(dbus_fast.MessageFlag, "NO_AUTOSTART")

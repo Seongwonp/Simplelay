@@ -90,7 +90,7 @@ async def dbus_probe(c, r):
     async def call(destination, path, interface, member, signature="", body=None, raw=False):
         reply = await bus.call(Message(destination=destination, path=path, interface=interface,
                                        member=member, signature=signature, body=body or [],
-                                       flags=MessageFlag.NO_AUTO_START))
+                                       flags=MessageFlag.NO_AUTOSTART))
         if reply.message_type == MessageType.ERROR:
             raise RuntimeError(f"{reply.error_name}: {reply.body}")
         if raw:
