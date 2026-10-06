@@ -34,3 +34,15 @@ RPi4 `act_main`의 폐루프는 버튼마다 L1(누름: 전류+소리 융합 또
 
 ## 검증
 - 백엔드+rpi4 `PYTHONUTF8=1 pytest -q rpi rpi4` **2,484 통과**(골든 없음, `bbcae0b` 위 작업 트리). `test_repo_guard.py` 5 통과. 폰·키오스크는 바꾸지 않아 실행하지 않았다.
+
+## 교차 리뷰(`92876bd`) 수리 — 2026-10-07
+- **결속 실패가 실행기 루프를 죽이던 것** `rpi4/act_main.py` `_build_target_binder`: 잔여 전류 설정 `TailConfig.from_env()`를 시작 때 한 번 읽는다(콘센트 모듈이 있을 때) — `SIMPLELAY_TAIL_OFF_MAX_W=abc` 같은 값은 첫 실행이 아니라 **시작에서 거절**(종전과 같음). `ActExecutor._on_execute`는 결속 중 예상 밖 예외를 잡아 `error {reason:"target_bind_failed"}`로 답하고 루프를 유지한다(전에는 `_dispatch → run_once → run()`으로 새어 실행기가 멈추고 응답도 없었다).
+- **새 RPi5 + 옛 RPi4** `rpi/services/act_client.py`: 결과 프레임에 `appliance_id`가 없으면(옛 규약) `operation_confirmed`를 `None`(모름)으로 낮춘다 — 전자레인지 CT 확인이 세탁기 확인으로 쓰이지 않는다. 성공·재시도·버튼 결과 등 나머지는 그대로. 위 "한계"의 첫 줄(옛 RPi4가 전자레인지 채널로 판정)은 이제 RPi5에서 '모름'으로 받는다.
+- **정지 대기 대상 불일치** `rpi4/models/act_messages.py`: `hold.appliance_id ≠ execute.appliance_id`면 버리지 않고 `ExecuteRefusedMsg(seq, "hold_target_mismatch", …)` → RPi5가 `error`를 받는다(누르지 않음).
+- 시험 4건 추가(`test_target_binding.py` 3·`test_act_target.py` 1), 기존 hold 불일치 시험은 '실행 아님'으로 고쳤다. **수정 전 코드에서 4건 모두 실패 확인**(시작 거절 없음 `DID NOT RAISE`, 실행기 task가 `RuntimeError('boom')`으로 끝남, hold 불일치가 `None`, 옛 결과가 `operation_confirmed=True`).
+- 검증: `PYTHONUTF8=1 pytest -q rpi rpi4` **2,497 통과**(골든 없음, `a2cea93` 위 작업 트리), `test_repo_guard.py` 통과.
+
+### 후속(이번에 고치지 않은 리뷰 항목)
+- **#3** `current_sensor` 측정 스레드: `join` 제한시간이 지나면 세대(generation)가 새어 옛 스레드가 남는다.
+- **#5** `_reset_mid_run`이 준비 배너(재부팅) 때만 세워진다 — 누름 중 `MotionTimeout`·전송 오류에서는 세우지 않는다.
+- **#6** 관찰 창(L3)이 XY 이동·자동 원점까지 포함하고, `max_window_s` 30 s와 이동 제한시간의 관계가 정리되지 않았다.

@@ -467,6 +467,12 @@ class ActExecutor:
                 await self._send({"type": "error", "sequence_id": msg.sequence_id, "reason": exc.reason,
                                   "detail": exc.detail})
                 return
+            except Exception as exc:  # noqa: BLE001 - 결속 고장이 실행기 루프를 죽이지 않게(교차 리뷰 92876bd)
+                log.exception("execute %r — target bind failed", msg.sequence_id)
+                await self._send({"type": "error", "sequence_id": msg.sequence_id,
+                                  "reason": "target_bind_failed",
+                                  "detail": f"실행 대상 결속 실패로 누르지 않았어요: {exc}"})
+                return
 
         if not await self._release_hold_for_new_run():
             await self._send({

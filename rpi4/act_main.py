@@ -603,14 +603,19 @@ def _build_target_binder(outlet, recorder: "LiveRecorder | None" = None):
         log.warning("L3 power check skipped for %s (%s) — their results carry operation_confirmed=null",
                     ",".join(sorted(none_targets)), L3_NONE_TARGETS_ENV)
 
+    tail_config = None
+    if outlet is not None:
+        from rpi.verifier.power_tail import TailConfig
+
+        # 잔여 전류 설정은 시작 때 한 번 읽는다 — 잘못된 값은 첫 실행이 아니라 시작에서 거절(교차 리뷰 92876bd).
+        tail_config = TailConfig.from_env()
+
     def make_tail(view, operation):
         if not hasattr(operation, "last_verdict"):
             return None
-        from rpi.verifier.power_tail import TailConfig
-
         from .services.outlet_watch import OutletTailHook
 
-        return OutletTailHook(view, operation, config=TailConfig.from_env(),
+        return OutletTailHook(view, operation, config=tail_config,
                               recorder=recorder.recorder if recorder is not None else None)
 
     return TargetBinder(

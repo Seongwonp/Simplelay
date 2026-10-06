@@ -477,6 +477,12 @@ class ActClient:
             )
         success = bool(doc.get("success", False))
         confirmed, detail, source = parse_operation(doc)
+        if reported is None and confirmed is not None:
+            # 옛 RPi4(결과에 대상 없음)의 L3는 어느 가전 채널로 본 것인지 모른다 — 확인으로 쓰지 않고 '모름'으로
+            # 낮춘다(교차 리뷰 92876bd: 전자레인지 CT 확인이 세탁기를 확인하지 않게).
+            log.warning("ActClient: result %r has no appliance_id (old RPi4) — operation_confirmed %r "
+                        "treated as unknown", seq_id, confirmed)
+            confirmed = None
         return ActResult(
             sequence_id=doc.get("sequence_id", seq_id),
             success=success,

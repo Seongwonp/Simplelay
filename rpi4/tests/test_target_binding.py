@@ -130,10 +130,11 @@ def test_execute_with_target_carries_it_and_hold_must_match():
     assert isinstance(msg, ExecuteMsg) and msg.appliance_id == "washer"
     hold = {"stop_button": "정지", "stop_x_mm": 10, "stop_y_mm": 10, "stop_presses": 1,
             "park_x_mm": 0, "park_y_mm": 0}
-    # 대기 계획의 대상이 실행 대상과 다르면 메시지 전체를 버린다(다른 가전 정지 버튼을 누르지 않게)
-    assert parse_act_message(json.dumps({"type": "execute", "sequence_id": "s1", "buttons": ["시작"],
-                                         "appliance_id": "washer",
-                                         "hold": {**hold, "appliance_id": "microwave"}})) is None
+    # 대기 계획의 대상이 실행 대상과 다르면 실행하지 않는다(다른 가전 정지 버튼을 누르지 않게) — 거절로 답한다
+    assert not isinstance(parse_act_message(json.dumps({"type": "execute", "sequence_id": "s1", "buttons": ["시작"],
+                                                        "appliance_id": "washer",
+                                                        "hold": {**hold, "appliance_id": "microwave"}})),
+                          ExecuteMsg)
     ok = parse_act_message(json.dumps({"type": "execute", "sequence_id": "s1", "buttons": ["시작"],
                                        "appliance_id": "washer", "hold": hold}))
     assert ok.hold.appliance_id == "washer"  # 계획에 대상이 없으면 실행 대상으로 채운다
@@ -248,3 +249,73 @@ def test_stop_probe_reads_the_hold_target_channel_not_the_microwave(outlet_env):
     assert washer_running is True
     # 대응 없는 대상은 전력 근거가 없다 — '모름'(정지는 미확인으로만 끝난다).
     assert intercom_source == "none" and intercom_running is None
+
+
+# ── 교차 리뷰(92876bd) 수리: 결속 실패가 실행기 루프를 죽이지 않는다 ─────────────
+
+
+def test_bad_tail_env_refuses_at_startup_not_on_first_execute(outlet_env):
+    """잘못된 잔여 전류 설정은 시작 때 거절한다 — 첫 실행에서 터져 루프가 죽지 않게."""
+    outlet_env.setenv("SIMPLELAY_TAIL_OFF_MAX_W", "abc")
+
+    async def _t():
+        link = act_main._build_outlet()
+        try:
+            with pytest.raises(RuntimeError, match="SIMPLELAY_TAIL_OFF_MAX_W"):
+                act_main._build_executor(asyncio.StreamReader(), _Writer(), outlet=link)
+        finally:
+            link.close()
+
+    asyncio.run(_t())
+
+
+def test_unexpected_bind_failure_answers_error_and_keeps_the_loop(outlet_env):
+    """결속 중 예상 밖 예외 → ``target_bind_failed`` 오류로 답하고, 다음 실행은 그대로 받는다."""
+
+    async def _t():
+        link = act_main._build_outlet()
+        reader, writer = asyncio.StreamReader(), _Writer()
+        try:
+            executor = act_main._build_executor(reader, writer, outlet=link)
+            binder = executor._target_binder  # noqa: SLF001
+            real_bind = binder.bind
+            calls = {"n": 0}
+
+            def flaky_bind(appliance_id):
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise RuntimeError("boom")
+                return real_bind(appliance_id)
+
+            binder.bind = flaky_bind
+            task = asyncio.create_task(executor.run())
+            for seq in ("bad", "good"):
+                _feed(reader, {"type": "execute", "sequence_id": seq, "buttons": ["즉석밥", "시작"],
+                               "appliance_id": "microwave"})
+                deadline = time.monotonic() + 15.0
+                while not any(d.get("sequence_id") == seq and d.get("type") in ("result", "error")
+                              for d in writer.docs()):
+                    assert not task.done(), writer.docs()
+                    assert time.monotonic() < deadline, writer.docs()
+                    await asyncio.sleep(0.02)
+            reader.feed_eof()
+            await asyncio.wait_for(task, 5.0)
+            await executor.shutdown()
+        finally:
+            link.close()
+        return writer.docs()
+
+    docs = asyncio.run(_t())
+    bad = _final(docs, "bad")
+    assert bad["type"] == "error" and bad["reason"] == "target_bind_failed", bad
+    assert _final(docs, "good")["type"] == "result"
+
+
+def test_hold_for_another_target_is_answered_not_dropped():
+    hold = {"stop_button": "정지", "stop_x_mm": 10, "stop_y_mm": 10, "stop_presses": 1,
+            "park_x_mm": 0, "park_y_mm": 0, "appliance_id": "microwave"}
+    msg = parse_act_message(json.dumps({"type": "execute", "sequence_id": "s1", "buttons": ["시작"],
+                                        "appliance_id": "washer", "hold": hold}))
+    assert msg is not None and not isinstance(msg, ExecuteMsg)
+    assert msg.reason == "hold_target_mismatch" and msg.sequence_id == "s1"
+    assert "microwave" in msg.detail and "washer" in msg.detail

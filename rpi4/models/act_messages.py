@@ -70,6 +70,7 @@ EXECUTE_PROTOCOL = 2
 
 #: 대상 없는 execute의 거절 사유.
 TARGET_REQUIRED = "target_required"
+HOLD_TARGET_MISMATCH = "hold_target_mismatch"
 TARGET_REQUIRED_DETAIL = (
     "실행 대상 가전(appliance_id)이 없는 실행 요청이라 누르지 않았어요 — "
     "RPi5와 RPi4를 같은 판으로 배포해 주세요(execute 규약 2)"
@@ -80,7 +81,8 @@ TARGET_REQUIRED_DETAIL = (
 class ExecuteRefusedMsg:
     """모양은 execute인데 실행할 수 없는 프레임 — 조용히 버리지 않고 ``error``로 답한다.
 
-    지금은 대상(``appliance_id``)이 없는 옛 RPi5 프레임만 이렇게 읽는다. 버리면 RPi5가 응답 제한시간까지
+    대상(``appliance_id``)이 없는 옛 RPi5 프레임(``target_required``)과 정지 대기 대상이 실행 대상과 다른
+    프레임(``hold_target_mismatch``)을 이렇게 읽는다. 버리면 RPi5가 응답 제한시간까지
     기다렸다가 '응답 없음'으로 끝나 원인이 숨는다.
     """
 
@@ -208,7 +210,10 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
             if hold.appliance_id is None:
                 hold = replace(hold, appliance_id=target)
             elif hold.appliance_id != target:
-                return None  # 다른 가전의 정지 버튼·전력으로 대기하지 않는다
+                # 다른 가전의 정지 버튼·전력으로 대기하지 않는다 — 버리지 않고 거절로 답한다(교차 리뷰 92876bd).
+                return ExecuteRefusedMsg(
+                    seq_id.strip(), HOLD_TARGET_MISMATCH,
+                    f"정지 대기 대상({hold.appliance_id})이 실행 대상({target})과 달라 누르지 않았어요")
         return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), appliance_id=target,
                           targets=targets, hold=hold)
 

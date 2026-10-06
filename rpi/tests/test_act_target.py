@@ -139,3 +139,23 @@ def test_controller_without_armed_target_refuses(sim):
     with pytest.raises(ActLinkError, match="target"):
         controller.execute(["시작"])
     assert controller.snapshot()["last_execute_frame"] is None
+
+
+def test_old_rpi4_result_without_target_never_confirms_operation():
+    """옛 RPi4(결과에 appliance_id 없음)의 L3 확인은 어느 가전 것인지 몰라 '모름'으로 낮춘다."""
+
+    async def _t():
+        reader, writer = asyncio.StreamReader(), _Writer()
+        client = ActClient(reader=reader, writer=writer)
+        await client.start()
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="s1", appliance_id="washer"))
+        await asyncio.sleep(0)
+        _feed(reader, {"type": "result", "sequence_id": "s1", "success": True, "retry": 0,
+                       "operation_confirmed": True, "operation_source": "real"})
+        result = await task
+        await client.stop()
+        return result
+
+    result = asyncio.run(_t())
+    assert result.success is True  # 나머지는 종전대로
+    assert result.operation_confirmed is None
