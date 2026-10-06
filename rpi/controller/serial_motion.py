@@ -525,6 +525,9 @@ class SerialMotionClient(GrblClient):
         #: 마지막 connect()의 status 시도 횟수와 실패 이유(성공하면 None).
         self.connect_attempts = 0
         self._connect_error: str | None = None
+        #: 동작 중 MCU 재시작(MotionReset)을 본 뒤 새 실행(reset_stop)이나 명시적 home() 전까지 True —
+        #: 그동안은 auto_home이 켜져 있어도 스스로 재홈해 다시 누르지 않는다(장애 복구 결과표, 2026-10-07).
+        self._reset_mid_run = False
 
     @property
     def last_position(self) -> dict | None:
@@ -688,6 +691,7 @@ class SerialMotionClient(GrblClient):
                     self._set_state(MotionState.UNHOMED)
                 raise
             self._set_state(MotionState.READY)
+            self._reset_mid_run = False
 
     def move_to(self, x_mm: float, y_mm: float) -> None:
         """절대 좌표(mm)로 이동. 소프트 리밋·기구 값·홈 확인을 **보내기 전에** 한다."""
@@ -712,6 +716,11 @@ class SerialMotionClient(GrblClient):
         self._config.require("누름", ("move_timeout_s", "press_timeout_s"))
 
         if not self.homed:
+            if self._reset_mid_run:
+                raise MotionRefused(
+                    f"'{command.button}' 누름: 이번 실행 중 MCU가 재시작했습니다 — 자동 재홈·재누름 없이 멈춤"
+                    "(사람이 확인한 뒤 새로 요청)"
+                )
             if self._config.auto_home and self.state in (MotionState.UNHOMED, MotionState.UNKNOWN):
                 self.home()
             else:
@@ -754,6 +763,7 @@ class SerialMotionClient(GrblClient):
     def reset_stop(self) -> None:
         """다음 실행을 위해 정지 요청 표시를 지운다. STOPPED 상태(재홈 필요)는 남는다."""
         self._stop.clear()
+        self._reset_mid_run = False
 
     # ── 내부 ─────────────────────────────────────────────────────────────────
 
@@ -942,6 +952,7 @@ class SerialMotionClient(GrblClient):
                 if doc.get("event") == "ready":
                     self._note_ready(doc)
                     if body["cmd"] in HEARTBEAT_CMDS:
+                        self._reset_mid_run = True
                         raise MotionReset(f"'{body['cmd']}' 도중 MCU가 재시작했습니다(ready 배너) — 재홈 필요")
                     # 조회는 MCU가 부팅 중에 받은 요청을 잃었을 수 있다 — 새 id로 다시 묻는다.
                     request_id = self._send_request(body)
