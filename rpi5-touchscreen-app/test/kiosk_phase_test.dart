@@ -1086,6 +1086,30 @@ void main() {
     expect(find.textContaining('빨래를 꺼내'), findsOneWidget);
   });
 
+  testWidgets('안내 한 줄 조회가 잠깐 실패해도 마지막 안내를 지우지 않고, 오래 실패하면 접는다', (tester) async {
+    // Copilot#4(2026-10-06): 한 번의 /ambient 실패가 보이던 안내를 null로 덮어썼다. 오프라인 우선 —
+    // 마지막으로 받은 값을 정해 둔 시간(10분)까지만 유지한다. 성공한 빈 응답(안내 없음)은 그대로 반영한다.
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..applianceList = [kMicrowaveAppliance]
+      ..ambientResult = const AmbientInfo(
+        greeting: '좋은 오후예요.',
+        tip: AmbientTip(kind: 'routine', text: '세탁이 끝났어요. 빨래를 꺼내 널어 주세요', icon: 'notice'),
+      );
+    await _pumpKiosk(tester, api);
+    await tester.pump();
+    expect(find.textContaining('빨래를 꺼내'), findsOneWidget);
+
+    api.ambientResult = null; // 네트워크 순간 끊김 — 조회 실패
+    await tester.pump(const Duration(seconds: 11));
+    await tester.pump();
+    expect(find.textContaining('빨래를 꺼내'), findsOneWidget);
+
+    await tester.pump(const Duration(minutes: 11)); // 실패가 계속되면 묵은 안내를 접는다
+    await tester.pump();
+    expect(find.textContaining('빨래를 꺼내'), findsNothing);
+  });
+
   testWidgets('폰에서 등록한 커스텀 가전이 서버 목록으로 키오스크에 뜬다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()

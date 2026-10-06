@@ -32,6 +32,9 @@ import '../widgets/kiosk/top_progress_bar.dart';
 
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
+
+/// 안내 한 줄(/ambient) 조회가 이만큼 연속으로 실패하면 마지막 안내를 접는다(Copilot#4). 그전에는 유지한다.
+const _ambientStaleAfter = Duration(minutes: 10);
 const _sensorInterval = Duration(seconds: 60);
 const _alertInterval = Duration(seconds: 3);
 // 타이밍 상수는 KioskTimings(위젯과 공유) 참조 — 여기 별도 정의 금지
@@ -164,6 +167,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   // ── 평소 화면(2026-09-30) ───────────────────────────────────────────
   AmbientInfo? _ambient;
+  int _ambientFailures = 0;
   // null = 허브에 못 닿음. 첫 응답 전에는 _connectionsLoaded가 거짓이다.
   List<ConnectionItem>? _connections;
   bool _connectionsLoaded = false;
@@ -299,8 +303,20 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Future<void> _fetchAmbient() async {
     final info = await _api.ambient();
-    // 실패는 null — 화면은 인사말만 보인다(인터넷·예보가 없을 때와 같다).
-    if (mounted) setState(() => _ambient = info);
+    if (!mounted) return;
+    if (info != null) {
+      _ambientFailures = 0;
+      setState(() => _ambient = info);
+      return;
+    }
+    // 조회 실패(null) — 오프라인 우선: 마지막으로 받은 안내를 바로 지우지 않는다(Copilot#4, 2026-10-06).
+    // 실패가 _ambientStaleAfter만큼 이어지면 묵은 안내를 접고 인사말 없는 화면(예보 없음과 같다)으로 둔다.
+    // 시각 대신 조회 주기(_healthInterval) × 연속 실패 수로 잰다 — 화면 시계와 무관하게 같은 규칙이다.
+    _ambientFailures++;
+    if (_ambient != null &&
+        _healthInterval * _ambientFailures >= _ambientStaleAfter) {
+      setState(() => _ambient = null);
+    }
   }
 
   Future<void> _fetchConnections() async {
