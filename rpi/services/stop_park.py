@@ -6,6 +6,8 @@
   움직이기 전에 한 번 더 거절한다.
 - ``hold_plan_for``: 실행 직전에 RPi4로 보낼 ``hold`` 계획(정지 버튼 mm·횟수·보관 mm).
   정지 버튼 mm나 보관 위치가 없으면 None — 대기 없이 종전처럼 실행만 한다.
+- ``simulated_hold_plan``(2026-10-06, 시연 v3 갭 M3): **시뮬레이터 전용.** 정지 버튼만 등록돼
+  있어도 빠진 mm를 모의 위치로 채워 대기·보관을 흉내 낸다. UART·실물 경로는 쓰지 않는다.
 - ``hold_status_fields``·``hold_view``: RPi4가 보낸 ``progress``(phase ``hold``)를 /status·
   트윈에 옮긴다. 판정(정지됨/미확인)은 RPi4가 한다 — 여기서 지어내지 않는다.
 
@@ -143,8 +145,69 @@ def hold_plan_for(registry: Any, appliance_id: str | None) -> dict | None:
     return plan
 
 
+#: 시뮬레이터 모의 위치(mm, 2026-10-06 시연 v3 갭 M3). **실물 좌표가 아니다** — 정지 버튼 mm나
+#: 보관 위치가 없는 가전을 전부 모의 등급에서 리허설할 때 트윈에 그릴 자리일 뿐이다.
+MOCK_STOP_XY = (150.0, 100.0)
+MOCK_PARK_XY = (20.0, 180.0)
+
+#: 시뮬레이터가 대기 계획을 만들지 못한 이유 → 화면 문장.
+HOLD_UNAVAILABLE_DETAILS = {
+    "no_appliance": "가전이 정해지지 않아 정지 버튼 위 대기를 하지 않아요",
+    "no_stop_button": "정지 버튼이 등록되지 않아 정지 버튼 위 대기를 하지 않아요 — 가전 편집에서 정지 버튼을 정해 주세요",
+}
+
+
+def simulated_hold_plan(registry: Any, appliance_id: str | None) -> tuple[dict | None, str | None]:
+    """시뮬레이터 전용 대기 계획(시연 v3 갭 M3). ``(계획, 없는 이유)``를 돌려준다.
+
+    - 정지 버튼 mm·보관 위치가 다 있으면 ``hold_plan_for``와 같은 계획(``position_source``
+      ``calibrated``).
+    - 정지 버튼만 등록돼 있으면 빠진 좌표를 모의 위치(``MOCK_STOP_XY``·``MOCK_PARK_XY``)로 채운다
+      (``position_source`` ``mock``). 판정을 지어내지 않도록 시뮬레이터가 모의 가전을 정지 버튼에
+      반응하지 않게 둔다(``SimulatorController``).
+    - 정지 버튼이 없으면 ``(None, "no_stop_button")`` — 대기하지 않는다.
+
+    UART·실물 경로는 이 함수를 쓰지 않는다(``hold_plan_for`` 그대로).
+    """
+    if registry is None or appliance_id is None:
+        return None, "no_appliance"
+    appliance = registry.get(appliance_id)
+    if appliance is None:
+        return None, "no_appliance"
+    stop = None
+    if appliance.stop_button is not None:
+        stop = next((b for b in appliance.buttons if b.id == appliance.stop_button), None)
+    if stop is None:
+        return None, "no_stop_button"
+    calibrated = hold_plan_for(registry, appliance_id)
+    if calibrated is not None:
+        return {**calibrated, "position_source": "calibrated"}, None
+    stop_xy = (float(stop.x_mm), float(stop.y_mm)) if stop.calibrated else MOCK_STOP_XY
+    park_xy = (
+        (float(appliance.park_xy[0]), float(appliance.park_xy[1]))
+        if appliance.park_xy is not None else MOCK_PARK_XY
+    )
+    if park_xy == stop_xy:
+        # 대기와 보관이 구분돼야 한다(RPi4 메시지 검증) — 모의 보관 위치를 옆으로 비킨다.
+        park_xy = (stop_xy[0] + PARK_CLEARANCE_MM, stop_xy[1])
+    plan: dict = {
+        "appliance_id": appliance_id,
+        "stop_button": stop.label,
+        "stop_x_mm": stop_xy[0],
+        "stop_y_mm": stop_xy[1],
+        "stop_presses": int(appliance.stop_presses),
+        "park_x_mm": park_xy[0],
+        "park_y_mm": park_xy[1],
+        "position_source": "mock",
+    }
+    if stop.press_ms is not None:
+        plan["press_ms"] = int(stop.press_ms)
+    return plan, None
+
+
 _HOLD_KEYS = ("hold_state", "stop_outcome", "detail", "stop_button", "stop_presses", "presses_done",
-              "stop", "park", "target", "park_reason", "appliance_id", "probe_source", "execution_mode")
+              "stop", "park", "target", "park_reason", "appliance_id", "probe_source", "execution_mode",
+              "position_source", "unavailable_reason")
 
 
 def hold_view(doc: Mapping[str, Any] | None) -> dict | None:
@@ -166,6 +229,10 @@ def hold_status_fields(doc: Mapping[str, Any] | None) -> dict:
         "hold_appliance_id": view.get("appliance_id"),
         "hold_stop_button": view.get("stop_button"),
         "hold_execution_mode": view.get("execution_mode"),
+        # 시뮬레이터만 채운다(M3) — 위치 출처(mock | calibrated)·가전 켜짐 근거·대기 안 한 이유.
+        "hold_position_source": view.get("position_source"),
+        "hold_probe_source": view.get("probe_source"),
+        "hold_unavailable_reason": view.get("unavailable_reason"),
     }
 
 

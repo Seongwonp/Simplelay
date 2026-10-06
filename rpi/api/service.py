@@ -826,7 +826,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         self._physical_expected = len(buttons)
         # 정지 대기·보관 계획(2026-09-30): 받는 대상(RPi4 링크)에만, 이번 실행 한 번에 싣는다.
         arm_hold = getattr(controller, "arm_stop_hold", None)
-        if callable(arm_hold):
+        arm_simulated = getattr(controller, "arm_simulated_stop_hold", None)
+        if getattr(controller, "simulates_stop_hold", False) is True and callable(arm_simulated):
+            # 전부 모의 등급(시뮬레이터)만 — 정지 버튼만 있어도 모의 위치로 대기를 흉내 낸다(M3).
+            arm_simulated(self._appliance_registry, appliance_id)
+        elif callable(arm_hold):
             from rpi.services.stop_park import hold_plan_for  # noqa: PLC0415
 
             arm_hold(hold_plan_for(self._appliance_registry, appliance_id))
