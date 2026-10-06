@@ -125,21 +125,26 @@ class KioskIdleView extends StatelessWidget {
     return ColoredBox(
       color: KioskColors.bg,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(28, 10, 28, 4),
+        // 여백을 넉넉히(10/7 "빽빽하다" 수리) — 화면을 끝까지 채우지 않는다.
+        padding: const EdgeInsets.fromLTRB(_Idle.side, 14, _Idle.side, 10),
         child: Column(children: [
-          SizedBox(height: 80, child: Row(children: [
+          SizedBox(height: _Idle.topRow, child: Row(children: [
             // 방해 금지 칩이 켜지면 위 줄이 좁아진다 — 날짜는 말줄임 대신 살짝
-            // 줄여 다 보인다(큰 글씨+칩에서 약 0.83배 → 보통 글씨 33px 이상 유지).
+            // 줄여 다 보인다.
             Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
               child: Text(_dateStr, maxLines: 1, softWrap: false,
-                style: const TextStyle(fontSize: 33, color: KioskColors.muted)))),
+                style: const TextStyle(fontSize: _Idle.topText, color: KioskColors.muted)))),
             OutlinedButton.icon(key: const ValueKey('settings-entry'),
-              onPressed: onSettingsGesture, icon: const Icon(Icons.settings_outlined),
-              label: const Text('설정', style: TextStyle(fontSize: 33))),
+              onPressed: onSettingsGesture,
+              // 글자는 줄여도 누르는 자리는 48px 이상.
+              style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+              icon: const Icon(Icons.settings_outlined),
+              label: const Text('설정', style: TextStyle(fontSize: _Idle.topText))),
             const SizedBox(width: 8),
             _DndEntry(remaining: dnd == null ? null : _dndRemaining(dnd), onTap: onDndGesture),
             KioskConnectionIcons(items: connections, onOpen: onOpenConnection),
           ])),
+          const SizedBox(height: 8),
           Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Expanded(flex: 5, child: SingleChildScrollView(child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -148,38 +153,114 @@ class KioskIdleView extends StatelessWidget {
                   textScaler: TextScaler.noScaling,
                   style: TextStyle(fontSize: large ? 84 : 104, height: 1, color: Colors.white,
                     fontFeatures: const [FontFeature.tabularFigures()])),
-                if (envText != null) Text(envText,
-                  style: const TextStyle(fontSize: 33, height: 1.25, color: KioskColors.muted)),
-              ],
-            ))),
-            const SizedBox(width: 20),
-            Expanded(flex: 6, child: SingleChildScrollView(child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (showGreeting)
-                  Text(greeting, style: const TextStyle(fontSize: 33, height: 1.25, color: Colors.white)),
-                if (tip != null)
-                  _TipCard(key: const ValueKey('ambient-tip'), tip: tip,
-                      compact: large || showHours),
-                if (showHours) ...[
-                  SizedBox(height: tip != null ? 6 : 10),
-                  _Hours(key: const ValueKey('ambient-hours'),
-                      hours: amb.hourly.take(4).toList(), compact: tip != null),
+                if (envText != null) ...[
+                  const SizedBox(height: 6),
+                  Text(envText,
+                    style: const TextStyle(fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
                 ],
               ],
             ))),
+            const SizedBox(width: _Idle.columnGap),
+            Expanded(flex: 6, child: LayoutBuilder(builder: (context, box) {
+              // 예보는 이 화면에서 가장 덜 중요하다 — 남은 높이에 다 들어가지 않으면
+              // (비상정지 띠가 위 한 줄을 차지할 때 등) 반쯤 걸치게 두지 않고 접는다
+              // (2026-10-06 실패널: 띠가 생기자 예보 위쪽이 가전 줄에 걸려 잘렸다).
+              final hourly = showHours ? amb.hourly.take(4).toList() : const <AmbientHour>[];
+              final hoursFit = showHours &&
+                  _rightColumnHeight(context, box.maxWidth,
+                          greeting: showGreeting ? greeting : null,
+                          tip: tip,
+                          hours: hourly,
+                          large: large) <=
+                      box.maxHeight;
+              return SingleChildScrollView(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (showGreeting)
+                    Text(greeting, style: const TextStyle(
+                        fontSize: _Idle.greeting, height: 1.25, color: Colors.white)),
+                  if (tip != null)
+                    _TipCard(key: const ValueKey('ambient-tip'), tip: tip,
+                        compact: large),
+                  if (hoursFit) ...[
+                    SizedBox(height: tip != null ? _Idle.hoursGapTip : _Idle.hoursGap),
+                    _Hours(key: const ValueKey('ambient-hours'),
+                        hours: hourly, compact: tip != null),
+                  ],
+                ],
+              ));
+            })),
           ])),
-          SizedBox(height: large ? 176 : 158, child: Center(child: SingleChildScrollView(child: list == null
+          const SizedBox(height: 8),
+          SizedBox(height: large ? 156 : _Idle.strip, child: Center(child: SingleChildScrollView(child: list == null
             ? const _StripNotice('허브와 연결되면 가전이 보여요')
             : list.isEmpty ? const _StripNotice('앱에서 가전을 추가해 주세요')
             : KioskApplianceStrip(appliances: list, running: running, attention: attention,
                 onSelect: onSelectAppliance,
                 perPage: large ? 2 : 3,
-                itemWidth: large ? 280 : 200)))),
+                itemWidth: large ? 230 : 170,
+                labelSize: _Idle.stripName,
+                statusSize: _Idle.stripStatus,
+                iconBox: 52)))),
         ]),
       ),
     );
   }
+
+  /// 오른쪽 칸(인사말 또는 안내 + 예보)이 [width] 폭에서 차지할 높이. 화면과 같은
+  /// 글꼴·배율로 잰다 — 예보를 넣을지 정하는 데만 쓴다.
+  static double _rightColumnHeight(BuildContext context, double width,
+      {String? greeting, AmbientTip? tip, required List<AmbientHour> hours, required bool large}) {
+    var h = 0.0;
+    if (greeting != null) {
+      h += _textHeight(context, greeting,
+          const TextStyle(fontSize: _Idle.greeting, height: 1.25), width);
+    }
+    if (tip != null) h += _TipCard.heightFor(context, tip, width, compact: large);
+    if (hours.isNotEmpty) {
+      h += tip != null ? _Idle.hoursGapTip : _Idle.hoursGap;
+      h += _Hours.heightFor(context, hours, compact: tip != null);
+    }
+    return h;
+  }
+}
+
+/// 평소 화면 치수(캔버스 800x480 기준 논리 px, 1920x1080 실패널에서는 2.05배).
+///
+/// 글자 하한: 고령층 키오스크 지침의 14pt(사용자편의 가이드 체크리스트)는
+/// 15.8형(약 139.5 PPI)에서 약 27 물리 px, 캔버스 기준 약 13.2 — 가장 작은
+/// 글자(예보 시각 18)도 그 위다. 위계는 시계 > 인사말·안내 > 가전·예보 순.
+abstract final class _Idle {
+  static const double side = 44; // 좌우 여백(전 28)
+  static const double topRow = 64; // 위 줄(전 80)
+  static const double topText = 24; // 날짜·설정(전 33)
+  static const double envText = 22; // 실내 온습도(전 33)
+  static const double columnGap = 40; // 시계 칸과 안내 칸 사이(전 20)
+  static const double greeting = 28; // 인사말(전 33)
+  static const double tipText = 24; // 안내 카드 글자(전 33)
+  static const double tipIcon = 24; // 안내 카드 아이콘(전 30)
+  static const double hourLabel = 18; // 예보 시각(전 33)
+  static const double hourValue = 20; // 예보 값(전 33)
+  static const double hourIcon = 18; // 예보 아이콘(전 26·22)
+  static const double hoursGap = 14;
+  static const double hoursGapTip = 10;
+  static const double strip = 128; // 가전 줄 높이(전 158)
+  static const double stripName = 22; // 가전 이름(전 33)
+  static const double stripStatus = 18; // 가전 상태(전 33)
+}
+
+/// 한 덩어리 글의 높이 — [Text]와 같은 기본 글꼴·배율로 잰다.
+double _textHeight(BuildContext context, String text, TextStyle style, double maxWidth,
+    {int? maxLines}) {
+  final tp = TextPainter(
+    text: TextSpan(text: text, style: DefaultTextStyle.of(context).style.merge(style)),
+    textDirection: Directionality.of(context),
+    textScaler: MediaQuery.textScalerOf(context),
+    maxLines: maxLines,
+  )..layout(maxWidth: maxWidth < 0 ? 0 : maxWidth);
+  final h = tp.height;
+  tp.dispose();
+  return h;
 }
 
 /// 위 줄의 방해 금지 자리. 꺼져 있으면 달 아이콘 단추(글자 없음 — 늘 보이는 글자는
@@ -265,10 +346,10 @@ class _StripNotice extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const Icon(Icons.add_circle_outline,
-              size: 28, color: KioskColors.muted),
+              size: 26, color: KioskColors.muted),
           const SizedBox(width: 10),
           Text(text,
-              style: const TextStyle(fontSize: 33, color: KioskColors.muted)),
+              style: const TextStyle(fontSize: _Idle.stripName, color: KioskColors.muted)),
         ],
       );
 }
@@ -290,32 +371,49 @@ class _TipCard extends StatelessWidget {
   /// 큰 글씨 모드 — 여백·줄 간격을 줄여 같은 문장을 다 담는다.
   final bool compact;
 
+  static const _maxLines = 4;
+  static EdgeInsets _pad(bool compact) =>
+      EdgeInsets.symmetric(horizontal: compact ? 10 : 14, vertical: compact ? 6 : 10);
+  static double _gap(bool compact) => compact ? 8 : 10;
+  static TextStyle _style(bool compact) =>
+      TextStyle(fontSize: _Idle.tipText, height: compact ? 1.2 : 1.3);
+
+  /// 폭 [width]에서 이 카드가 차지할 높이(테두리 1px 포함).
+  static double heightFor(BuildContext context, AmbientTip tip, double width,
+      {required bool compact}) {
+    final pad = _pad(compact);
+    final textWidth = width - pad.horizontal - 2 - _Idle.tipIcon - _gap(compact);
+    final text = _textHeight(context, tip.text, _style(compact), textWidth,
+        maxLines: _maxLines);
+    return pad.vertical + 2 + (text > _Idle.tipIcon ? text : _Idle.tipIcon);
+  }
+
   @override
   Widget build(BuildContext context) {
-    // 확인이 필요한 가전·위험 소리는 노란색 — 날씨는 강조색.
+    // 확인이 필요한 가전·위험 소리는 노란 테 — 그 밖의 안내(날씨·루틴)는 테 없이
+    // 차분한 면만(10/7). 테 자리(1px)는 늘 둬서 높이가 같다.
     final attention = tip.icon == 'attention';
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: compact ? 10 : 16, vertical: compact ? 5 : 8),
+      padding: _pad(compact),
       decoration: BoxDecoration(
         color: KioskColors.surface,
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-            color: attention ? KioskColors.warning : KioskColors.border),
+            color: attention ? KioskColors.warning : Colors.transparent),
       ),
       child: Row(
         children: [
           Icon(_tipIcon(tip.icon),
-              size: compact ? 26 : 30,
+              size: _Idle.tipIcon,
               color: attention ? KioskColors.warning : KioskColors.primary),
-          SizedBox(width: compact ? 8 : 12),
+          SizedBox(width: _gap(compact)),
           Expanded(
             // 서버 문장이 아주 길 때만 마지막 수단으로 말줄임한다.
             child: Text(
               tip.text,
-              maxLines: 4,
+              maxLines: _maxLines,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 33, height: compact ? 1.15 : 1.2, color: Colors.white),
+              style: _style(compact).copyWith(color: Colors.white),
             ),
           ),
         ],
@@ -340,7 +438,33 @@ class _Hours extends StatelessWidget {
   /// 안내 카드 아래에 함께 놓일 때 — 아이콘을 숫자 옆으로 붙여 한 줄을 줄인다.
   final bool compact;
 
-  String _value(AmbientHour h) => h.precip && h.pop != null
+  static TextStyle _labelStyle(bool compact) =>
+      TextStyle(fontSize: _Idle.hourLabel, height: compact ? 1.2 : null);
+
+  /// 예보 칸의 높이 — 가장 높은 칸 기준(FittedBox는 줄이기만 하므로 상한이다).
+  static double heightFor(BuildContext context, List<AmbientHour> hours,
+      {required bool compact}) {
+    var max = 0.0;
+    for (final h in hours) {
+      final label =
+          _textHeight(context, h.label, _labelStyle(compact), double.infinity);
+      final value = _textHeight(
+          context,
+          _valueOf(h),
+          TextStyle(
+              fontSize: _Idle.hourValue,
+              height: compact ? 1.2 : null,
+              fontWeight: h.precip ? FontWeight.w700 : FontWeight.w500),
+          double.infinity);
+      final cell = compact
+          ? label + (value > _Idle.hourIcon ? value : _Idle.hourIcon)
+          : label + 4 + _Idle.hourIcon + 4 + value;
+      if (cell > max) max = cell;
+    }
+    return max;
+  }
+
+  static String _valueOf(AmbientHour h) => h.precip && h.pop != null
       ? '${h.pop}%'
       : h.temp != null
           ? '${h.temp}°'
@@ -361,10 +485,8 @@ class _Hours extends StatelessWidget {
                     child: Text(h.label,
                         maxLines: 1,
                         softWrap: false,
-                        style: TextStyle(
-                            fontSize: 33,
-                            height: compact ? 1.15 : null,
-                            color: KioskColors.muted)),
+                        style: _labelStyle(compact)
+                            .copyWith(color: KioskColors.muted)),
                   ),
                   if (compact)
                     // 아이콘과 숫자를 한 줄에 — 안내 카드 아래 남은 높이에 맞춘다.
@@ -372,19 +494,19 @@ class _Hours extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(_hourIcon(h.icon),
-                            size: 22,
+                            size: _Idle.hourIcon,
                             color: h.precip ? KioskColors.primary : KioskColors.muted),
                         const SizedBox(width: 2),
-                        _ValueText(h: h, text: _value(h), height: 1.15),
+                        _ValueText(h: h, text: _valueOf(h), height: 1.2),
                       ]),
                     )
                   else ...[
                     const SizedBox(height: 4),
                     Icon(_hourIcon(h.icon),
-                        size: 26,
+                        size: _Idle.hourIcon,
                         color: h.precip ? KioskColors.primary : KioskColors.muted),
                     const SizedBox(height: 4),
-                    _ValueText(h: h, text: _value(h)),
+                    _ValueText(h: h, text: _valueOf(h)),
                   ],
                 ],
               ),
@@ -406,7 +528,7 @@ class _ValueText extends StatelessWidget {
         maxLines: 1,
         softWrap: false,
         style: TextStyle(
-          fontSize: 33,
+          fontSize: _Idle.hourValue,
           height: height,
           fontWeight: h.precip ? FontWeight.w700 : FontWeight.w500,
           color: h.precip ? Colors.white : KioskColors.muted,

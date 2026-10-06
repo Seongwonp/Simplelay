@@ -43,6 +43,9 @@ class KioskApplianceStrip extends StatefulWidget {
     required this.onSelect,
     this.perPage = 4,
     this.itemWidth = 128,
+    this.labelSize = 33,
+    this.statusSize = 33,
+    this.iconBox = 62,
   });
 
   final List<ApplianceMap> appliances;
@@ -53,6 +56,11 @@ class KioskApplianceStrip extends StatefulWidget {
 
   /// 가전 한 칸 폭 — 이름(예: 거실 선풍기)을 줄이지 않을 만큼. 평소 화면이 글자 배율에 맞춰 준다.
   final double itemWidth;
+
+  /// 가전 이름·상태 글자 크기와 아이콘 원 지름 — 평소 화면이 위계에 맞춰 준다.
+  final double labelSize;
+  final double statusSize;
+  final double iconBox;
 
   @override
   State<KioskApplianceStrip> createState() => _KioskApplianceStripState();
@@ -129,6 +137,9 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                       appliance: a,
                       running: widget.running.contains(a.id),
                       attention: widget.attention.contains(a.id),
+                      labelSize: widget.labelSize,
+                      statusSize: widget.statusSize,
+                      iconBox: widget.iconBox,
                       onTap: () => widget.onSelect(a),
                     ),
                   ),
@@ -189,12 +200,18 @@ class _StripItem extends StatefulWidget {
     required this.running,
     required this.attention,
     required this.onTap,
+    this.labelSize = 33,
+    this.statusSize = 33,
+    this.iconBox = 62,
   });
 
   final ApplianceMap appliance;
   final bool running;
   final bool attention;
   final VoidCallback onTap;
+  final double labelSize;
+  final double statusSize;
+  final double iconBox;
 
   @override
   State<_StripItem> createState() => _StripItemState();
@@ -271,8 +288,8 @@ class _StripItemState extends State<_StripItem>
                         ? math.sin(_breath.value * math.pi)
                         : (widget.attention ? 0.6 : 0.0);
                     return Container(
-                      width: 62,
-                      height: 62,
+                      width: widget.iconBox,
+                      height: widget.iconBox,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: widget.running
@@ -297,7 +314,7 @@ class _StripItemState extends State<_StripItem>
                     // 동작 중 테(멈춘 호) — 도는 애니메이션은 쓰지 않는다.
                     painter: widget.running ? _RunningRing() : null,
                     child: Center(
-                      child: Icon(a.icon, size: 32, color: iconColor),
+                      child: Icon(a.icon, size: widget.iconBox * 0.52, color: iconColor),
                     ),
                   ),
                 ),
@@ -306,7 +323,7 @@ class _StripItemState extends State<_StripItem>
                   a.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 33, height: 1.15, color: Colors.white),
+                  style: TextStyle(fontSize: widget.labelSize, height: 1.15, color: Colors.white),
                 ),
                 // 상태 줄 자리는 늘 둔다(아이콘 줄 높이가 흔들리지 않게). 큰 글씨
                 // 모드에서 글자가 잘리지 않도록 높이는 최소만 정한다.
@@ -317,7 +334,7 @@ class _StripItemState extends State<_StripItem>
                       : Text(
                           status,
                           style: TextStyle(
-                            fontSize: 33,
+                            fontSize: widget.statusSize,
                             height: 1.15,
                             fontWeight: FontWeight.w700,
                             color: iconColor,

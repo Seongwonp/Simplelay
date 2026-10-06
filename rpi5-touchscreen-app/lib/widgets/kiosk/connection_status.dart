@@ -75,14 +75,14 @@ class _ConnectionIcon extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: SizedBox(
             width: 66,
-            height: 80,
+            height: 64,
             child: Stack(
               clipBehavior: Clip.none,
               alignment: Alignment.center,
               children: [
                 Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(connectionIcon(item), size: 28, color: color),
-                  // 66x80 칸 안에 아이콘과 한 줄로 들어가야 한다 — 33px이면 두 줄로
+                  // 66x64 칸(평소 화면 위 줄 64, 10/7) 안에 아이콘과 한 줄로 들어가야 한다 — 33px이면 두 줄로
                   // 꺾여 아래로 넘친다(d965888 회귀).
                   if (item.state == 'unknown')
                     const Text('모름',

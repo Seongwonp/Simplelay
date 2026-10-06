@@ -25,7 +25,9 @@ void main() {
     expect(find.text('방해 금지'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('dnd-entry')));
     expect(opened, 1);
-    expect(tester.widget<Text>(find.text('좋은 아침이에요.')).style!.fontSize, greaterThanOrEqualTo(33));
+    // 10/7 평소 화면 여백 정리로 인사말 33 → 28. 시계 다음 위계라 다른 글자보다 크고,
+    // 14pt 하한(15.8형 캔버스 기준 약 13.2)보다 넉넉히 크다.
+    expect(tester.widget<Text>(find.text('좋은 아침이에요.')).style!.fontSize, greaterThanOrEqualTo(24));
     expect(tester.takeException(), isNull);
   });
 

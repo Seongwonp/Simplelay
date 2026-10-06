@@ -570,6 +570,33 @@ void main() {
     await _shoot15(t, 'kiosk15_idle', _idle());
   });
 
+  // 2026-10-06 실패널 결함 — 비상정지 띠 + 루틴 안내 + 예보 + 가전 줄이 함께 있어도
+  // 예보가 가전 줄에 걸려 잘리지 않는다(남은 높이가 모자라면 예보를 접는다).
+  testWidgets('15인치 미리보기 — 평소, 비상정지 띠와 안내', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_estop',
+        KioskEstopLayout(
+          banner: KioskEstopBanner(
+              detail: '콘센트 모듈의 비상정지 버튼이 눌렸어요', onRequest: () {}),
+          child: _idle(
+            ambient: const AmbientInfo(
+              greeting: '좋은 아침이에요.',
+              tip: AmbientTip(
+                  kind: 'routine',
+                  text: '약 드실 시간이에요. 드셨으면 화면에서 확인을 눌러 주세요',
+                  icon: 'notice'),
+              hourly: [
+                AmbientHour(label: '9시', icon: 'partly', temp: 16, precip: false),
+                AmbientHour(label: '12시', icon: 'cloudy', temp: 18, precip: false),
+                AmbientHour(label: '15시', icon: 'rain', pop: 70, precip: true),
+                AmbientHour(label: '18시', icon: 'rain', pop: 60, precip: true),
+              ],
+            ),
+          ),
+        ));
+  });
+
   testWidgets('15인치 미리보기 — 동작 중', (t) async {
     await _shoot15(t, 'kiosk15_hold', _hold());
   });
