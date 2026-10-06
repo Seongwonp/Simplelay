@@ -58,10 +58,10 @@ def test_execute_sends_execute_message_with_given_sequence_id():
         client = _make_client(reader, writer)
         await client.start()
 
-        task = asyncio.create_task(client.execute(["시작", "정지"], sequence_id="seq-1"))
+        task = asyncio.create_task(client.execute(["시작", "정지"], sequence_id="seq-1", appliance_id="microwave"))
         await asyncio.sleep(0)  # let execute() write before we inspect
         assert writer.messages() == [
-            {"type": "execute", "sequence_id": "seq-1", "buttons": ["시작", "정지"]}
+            {"type": "execute", "sequence_id": "seq-1", "buttons": ["시작", "정지"], "appliance_id": "microwave"}
         ]
 
         feed(reader, {"type": "result", "sequence_id": "seq-1", "success": True, "retry": 0})
@@ -81,7 +81,7 @@ def test_execute_without_sequence_id_generates_one():
         client = _make_client(reader, writer)
         await client.start()
 
-        task = asyncio.create_task(client.execute(["시작"]))
+        task = asyncio.create_task(client.execute(["시작"], appliance_id="microwave"))
         await asyncio.sleep(0)
         sent = writer.messages()[0]
         assert sent["type"] == "execute"
@@ -102,7 +102,7 @@ def test_execute_reports_retry_count():
         client = _make_client(reader, writer)
         await client.start()
 
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-2"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-2", appliance_id="microwave"))
         await asyncio.sleep(0)
         feed(reader, {"type": "result", "sequence_id": "seq-2", "success": True, "retry": 3})
         result = await task
@@ -121,7 +121,7 @@ def test_execute_raises_on_error_response():
         client = _make_client(reader, writer)
         await client.start()
 
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-3"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-3", appliance_id="microwave"))
         await asyncio.sleep(0)
         feed(reader, {"type": "error", "sequence_id": "seq-3", "reason": "actuator_fail"})
 
@@ -146,7 +146,7 @@ def test_execute_raises_timeout_when_rpi4_never_responds():
         await client.start()
 
         with pytest.raises(ActLinkTimeoutError):
-            await client.execute(["시작"], sequence_id="seq-4")
+            await client.execute(["시작"], sequence_id="seq-4", appliance_id="microwave")
 
         # RPi5가 실패로 보고하는 순간 RPi4도 멈춰야 한다 — timeout 직후
         # abort가 전송됐는지 확인 (화면은 실패인데 실물은 계속 누르는
@@ -180,12 +180,12 @@ def test_send_failure_does_not_leave_the_client_permanently_busy():
 
         # 첫 실행: 송신 자체가 실패한다
         with pytest.raises(ConnectionResetError):
-            await client.execute(["시작"], sequence_id="J1")
+            await client.execute(["시작"], sequence_id="J1", appliance_id="microwave")
 
         # 케이블이 복구되면 다음 실행은 정상 동작해야 한다 — 이전에는
         # _pending이 남아 ActLinkBusyError로 영구히 막혔다
         writer.fail = False
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="J2"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="J2", appliance_id="microwave"))
         await asyncio.sleep(0.01)
         feed(reader, {"type": "result", "sequence_id": "J2", "success": True, "retry": 0})
         result = await task
@@ -246,11 +246,11 @@ def test_second_execute_while_first_pending_raises_busy():
         client = _make_client(reader, writer)
         await client.start()
 
-        first = asyncio.create_task(client.execute(["시작"], sequence_id="first"))
+        first = asyncio.create_task(client.execute(["시작"], sequence_id="first", appliance_id="microwave"))
         await asyncio.sleep(0)  # let the first execute() claim self._pending
 
         with pytest.raises(ActLinkBusyError):
-            await client.execute(["정지"], sequence_id="second")
+            await client.execute(["정지"], sequence_id="second", appliance_id="microwave")
 
         feed(reader, {"type": "result", "sequence_id": "first", "success": True, "retry": 0})
         await first
@@ -265,12 +265,12 @@ def test_execute_can_be_called_again_after_previous_call_resolved():
         client = _make_client(reader, writer)
         await client.start()
 
-        first = asyncio.create_task(client.execute(["시작"], sequence_id="first"))
+        first = asyncio.create_task(client.execute(["시작"], sequence_id="first", appliance_id="microwave"))
         await asyncio.sleep(0)
         feed(reader, {"type": "result", "sequence_id": "first", "success": True, "retry": 0})
         await first
 
-        second = asyncio.create_task(client.execute(["정지"], sequence_id="second"))
+        second = asyncio.create_task(client.execute(["정지"], sequence_id="second", appliance_id="microwave"))
         await asyncio.sleep(0)
         feed(reader, {"type": "result", "sequence_id": "second", "success": False, "retry": 5})
         result = await second
@@ -346,7 +346,7 @@ def test_alert_mid_execute_does_not_resolve_the_pending_execute():
         client = _make_client(reader, writer, on_alert=received.append)
         await client.start()
 
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-5"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-5", appliance_id="microwave"))
         await asyncio.sleep(0)
 
         feed(reader, {"type": "alert", "kind": "danger_sound"})
@@ -402,7 +402,7 @@ def test_malformed_json_line_does_not_crash_the_read_loop():
         reader.feed_data(b"this is not json\n")
         await asyncio.sleep(0.02)
 
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-6"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="seq-6", appliance_id="microwave"))
         await asyncio.sleep(0)
         feed(reader, {"type": "result", "sequence_id": "seq-6", "success": True, "retry": 0})
         result = await task
@@ -438,7 +438,7 @@ def test_result_with_wrong_sequence_id_does_not_complete_pending():
         )
         await client.start()
 
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="J2"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="J2", appliance_id="microwave"))
         await asyncio.sleep(0.02)
         # 다른(이전) 시퀀스의 결과가 도착 — J2의 결과로 오인하면 안 된다
         feed(reader, {"type": "result", "sequence_id": "J1", "success": True, "retry": 0})
@@ -470,10 +470,10 @@ def test_late_result_after_timeout_is_discarded_not_matched_to_next_job():
 
         # J1: 응답이 없어 timeout으로 실패 처리
         with pytest.raises(ActLinkTimeoutError):
-            await client.execute(["시작"], sequence_id="J1")
+            await client.execute(["시작"], sequence_id="J1", appliance_id="microwave")
 
         # J2 시작 — 그 직후 J1의 '늦은' 결과가 도착한다
-        task = asyncio.create_task(client.execute(["취소"], sequence_id="J2"))
+        task = asyncio.create_task(client.execute(["취소"], sequence_id="J2", appliance_id="microwave"))
         await asyncio.sleep(0.01)
         feed(reader, {"type": "result", "sequence_id": "J1", "success": True, "retry": 0})
         await asyncio.sleep(0.01)

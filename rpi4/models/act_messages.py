@@ -7,7 +7,10 @@ on this leg.
 
 Inbound (RPi5 → RPi4):
   execute        — already-resolved button sequence to run through the closed loop
-                   (선택 ``hold``: 끝난 뒤 정지 버튼 위 대기·보관 위치, 2026-09-30)
+                   (선택 ``hold``: 끝난 뒤 정지 버튼 위 대기·보관 위치, 2026-09-30).
+                   **대상 가전 ``appliance_id`` 필수(2026-10-07, 평가 H3)** — RPi4가 그 대상의 CT 채널로
+                   L3·정지 확인을 고른다. 대상이 없는 옛 프레임은 실행하지 않고
+                   ``error {reason:"target_required"}``로 답한다(`ExecuteRefusedMsg`)
   abort          — cancel; forwarded to the safety controller. 실행이 끝나고 정지 버튼
                    위에서 대기 중이면 **가전 정지**(정지 버튼 누름)로 처리한다.
                    ``scope:"drive"``면 구동부 정지만(누르지 않음)
@@ -27,7 +30,7 @@ from __future__ import annotations
 import json
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from rpi.controller.models import ButtonTarget
 
@@ -53,11 +56,37 @@ class HoldPlan:
 class ExecuteMsg:
     sequence_id: str
     buttons: tuple[str, ...]
+    #: 필수 — 실행 대상 가전 ID(2026-10-07). L3 전력 채널·정지 확인 채널을 이 대상으로 고른다.
+    appliance_id: str
     #: 선택 — 버튼 → 갠트리 좌표(mm)·누름 유지 시간. 보정된 버튼만 싣는다.
     #: 없으면 빈 dict(종전 메시지와 같다).
     targets: dict[str, ButtonTarget] = field(default_factory=dict)
     #: 선택 — 정지 대기·보관 계획. 없으면 종전처럼 실행만 한다.
     hold: HoldPlan | None = None
+
+
+#: execute 프레임 규약 판(2026-10-07). 2 = ``appliance_id`` 필수. ``act_info.execute_protocol``로 알린다.
+EXECUTE_PROTOCOL = 2
+
+#: 대상 없는 execute의 거절 사유.
+TARGET_REQUIRED = "target_required"
+TARGET_REQUIRED_DETAIL = (
+    "실행 대상 가전(appliance_id)이 없는 실행 요청이라 누르지 않았어요 — "
+    "RPi5와 RPi4를 같은 판으로 배포해 주세요(execute 규약 2)"
+)
+
+
+@dataclass(frozen=True)
+class ExecuteRefusedMsg:
+    """모양은 execute인데 실행할 수 없는 프레임 — 조용히 버리지 않고 ``error``로 답한다.
+
+    지금은 대상(``appliance_id``)이 없는 옛 RPi5 프레임만 이렇게 읽는다. 버리면 RPi5가 응답 제한시간까지
+    기다렸다가 '응답 없음'으로 끝나 원인이 숨는다.
+    """
+
+    sequence_id: str
+    reason: str
+    detail: str
 
 
 @dataclass(frozen=True)
@@ -126,7 +155,7 @@ class RehearsalMsg:
 
 
 InboundActMsg = (
-    ExecuteMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg | EstopAckMsg
+    ExecuteMsg | ExecuteRefusedMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg | EstopAckMsg
     | HelloMsg | RehearsalMsg
 )
 
@@ -165,13 +194,23 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
         targets = _parse_targets(doc.get("targets"), buttons)
         if targets is None:
             return None
+        target = doc.get("appliance_id")
+        if target is None:
+            # 옛 RPi5(대상 없음) — 전자레인지로 가정하지 않는다. 거절을 답한다(2026-10-07, 평가 H3).
+            return ExecuteRefusedMsg(seq_id.strip(), TARGET_REQUIRED, TARGET_REQUIRED_DETAIL)
+        if not isinstance(target, str) or not _APPLIANCE_ID.fullmatch(target):
+            return None
         hold = None
         if doc.get("hold") is not None:
             hold = _parse_hold(doc.get("hold"))
             if hold is None:
                 return None  # targets와 같은 규칙 — 이상한 계획으로 움직이지 않는다
-        return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), targets=targets,
-                          hold=hold)
+            if hold.appliance_id is None:
+                hold = replace(hold, appliance_id=target)
+            elif hold.appliance_id != target:
+                return None  # 다른 가전의 정지 버튼·전력으로 대기하지 않는다
+        return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), appliance_id=target,
+                          targets=targets, hold=hold)
 
     if msg_type == "abort":
         scope = doc.get("scope", "appliance")
@@ -228,6 +267,8 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
 
 
 _REHEARSAL_ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
+#: 가전 ID 모양(RPi5 스키마·SIMPLELAY_OUTLET_CHANNELS와 같다).
+_APPLIANCE_ID = _REHEARSAL_ID
 _REHEARSAL_EVENT = re.compile(r"[a-z][a-z0-9_]{0,63}")
 
 

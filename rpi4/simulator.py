@@ -141,7 +141,7 @@ async def run_scenario(name: str) -> dict:
             hub_reader.feed_data(b'not-json\n{"type":"result",'
                                  b'"sequence_id":"unrelated","success":true,"retry":99}\n')
         pending = asyncio.create_task(client.execute(
-            ["즉석밥", "시작"], sequence_id=f"sim-{name}",
+            ["즉석밥", "시작"], sequence_id=f"sim-{name}", appliance_id="microwave",
         ))
         if name == "stop":
             if not await asyncio.to_thread(entered.wait, 3):

@@ -74,7 +74,7 @@ def test_after_success_hovers_then_abort_presses_stop_and_parks():
         executor, client, task = await _link(_controller(), hw)
         seen = []
         client.add_progress_listener(lambda d: seen.append(d) if d.get("phase") == "hold" else None)
-        result = await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD)
+        result = await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD, appliance_id="microwave")
         assert result.success
         await _until(lambda: (client.last_hold or {}).get("hold_state") == "hovering_stop"
                      and client.last_hold.get("sim_phase") == "waiting_above_stop")
@@ -95,7 +95,7 @@ def test_drive_scope_abort_does_not_press():
     async def t():
         hw = _hw()
         executor, client, task = await _link(_controller(), hw)
-        await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD)
+        await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD, appliance_id="microwave")
         await _until(lambda: (client.last_hold or {}).get("sim_phase") == "waiting_above_stop")
         await client.abort("drive")
         await _until(lambda: client.last_hold.get("hold_state") == "fault")
@@ -109,7 +109,7 @@ def test_real_run_without_l3_confirmation_does_not_hover():
     async def t():
         hw = _hw()
         executor, client, task = await _link(_controller(_RealGrbl()), hw)
-        await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD)
+        await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD, appliance_id="microwave")
         await _until(lambda: client.last_hold is not None)
         assert client.last_hold["hold_state"] is None
         assert "확인되지 않아" in client.last_hold["detail"]
@@ -123,12 +123,12 @@ def test_new_execute_releases_a_hover_and_verify_is_refused_while_holding():
     async def t():
         hw = _hw()
         executor, client, task = await _link(_controller(), hw)
-        await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD)
+        await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD, appliance_id="microwave")
         await _until(lambda: (client.last_hold or {}).get("sim_phase") == "waiting_above_stop")
         with pytest.raises(ActLinkError, match="정지 버튼 위에서"):
             await client.verify_pass([{"button": "시작", "x_mm": 90.0, "y_mm": 60.0}])
         first = executor.hold_session
-        result = await client.execute(["시작"], targets={"시작": TARGETS["시작"]})
+        result = await client.execute(["시작"], targets={"시작": TARGETS["시작"]}, appliance_id="microwave")
         assert result.success and first.snapshot()["hold_state"] == "released"
         assert hw.motion.presses() == []
         await _close(executor, client, task)
@@ -156,7 +156,7 @@ def test_verify_pass_over_the_link_moves_only():
 def test_without_hold_hardware_hold_is_ignored_and_verify_unavailable():
     async def t():
         executor, client, task = await _link(_controller(), None)
-        result = await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD)
+        result = await client.execute(["즉석밥", "시작"], targets=TARGETS, hold=HOLD, appliance_id="microwave")
         assert result.success
         await asyncio.sleep(0.05)
         assert client.last_hold is None

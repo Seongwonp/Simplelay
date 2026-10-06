@@ -71,7 +71,7 @@ def test_client_execute_succeeds_against_a_real_executor():
         await client.start()
         executor_task = asyncio.create_task(executor.run_once())
 
-        result = await client.execute(["시작"], sequence_id="link-1")
+        result = await client.execute(["시작"], sequence_id="link-1", appliance_id="microwave")
 
         await executor_task
         assert result.sequence_id == "link-1"
@@ -91,7 +91,7 @@ def test_client_execute_reports_real_retries_from_the_executor():
         await client.start()
         executor_task = asyncio.create_task(executor.run_once())
 
-        result = await client.execute(["시작"], sequence_id="link-2")
+        result = await client.execute(["시작"], sequence_id="link-2", appliance_id="microwave")
 
         await executor_task
         assert result.success is True
@@ -114,7 +114,7 @@ def test_client_execute_raises_on_a_real_actuator_failure():
         executor_task = asyncio.create_task(executor.run_once())
 
         with pytest.raises(ActLinkError, match="actuator_fail"):
-            await client.execute(["시작"], sequence_id="link-3")
+            await client.execute(["시작"], sequence_id="link-3", appliance_id="microwave")
 
         await executor_task
         await client.stop()
@@ -158,7 +158,7 @@ def test_alert_arrives_correctly_even_while_an_execute_is_in_flight():
         client = ActClient(rpi5_reader, rpi5_writer, on_alert=received.append)
         await client.start()
 
-        exec_task = asyncio.create_task(client.execute(["시작"], sequence_id="link-4"))
+        exec_task = asyncio.create_task(client.execute(["시작"], sequence_id="link-4", appliance_id="microwave"))
         # give the executor a beat to pick up the execute request
         await asyncio.sleep(0)
         executor_run_task = asyncio.create_task(executor.run_once())
@@ -218,7 +218,7 @@ def test_abort_mid_execution_arrives_as_stopped_not_failed():
         executor_loop = asyncio.create_task(executor.run())
 
         buttons = ["b1", "b2", "b3", "b4", "b5"]
-        exec_task = asyncio.create_task(client.execute(buttons, sequence_id="link-stop"))
+        exec_task = asyncio.create_task(client.execute(buttons, sequence_id="link-stop", appliance_id="microwave"))
         await asyncio.sleep(0.08)  # 1~2번째 버튼 진행 중
         await client.abort()
         result = await exec_task
@@ -247,7 +247,7 @@ def test_retry_exhaustion_arrives_as_safety_stop():
         await client.start()
         executor_task = asyncio.create_task(executor.run_once())
 
-        result = await client.execute(["시작"], sequence_id="link-fail")
+        result = await client.execute(["시작"], sequence_id="link-fail", appliance_id="microwave")
 
         await executor_task
         await executor.wait_idle()
@@ -265,7 +265,7 @@ def test_success_arrives_with_success_outcome():
         client = ActClient(rpi5_reader, rpi5_writer)
         await client.start()
         executor_task = asyncio.create_task(executor.run_once())
-        result = await client.execute(["시작"], sequence_id="link-ok")
+        result = await client.execute(["시작"], sequence_id="link-ok", appliance_id="microwave")
         await executor_task
         await executor.wait_idle()
         assert result.success is True and result.outcome == "success"
@@ -304,7 +304,7 @@ def test_old_rpi4_without_outcome_is_recorded_as_failed_not_stopped():
         await client.start()
         executor_loop = asyncio.create_task(executor.run())
 
-        exec_task = asyncio.create_task(client.execute(["b1", "b2", "b3"], sequence_id="legacy"))
+        exec_task = asyncio.create_task(client.execute(["b1", "b2", "b3"], sequence_id="legacy", appliance_id="microwave"))
         await asyncio.sleep(0.06)
         await client.abort()
         result = await exec_task

@@ -132,8 +132,8 @@ def test_request_stop_is_forwarded_to_an_adapter_that_supports_it():
 
 
 def test_execute_without_targets_parses_as_before():
-    msg = parse_act_message('{"type":"execute","sequence_id":"s1","buttons":["시작"]}')
-    assert msg == ExecuteMsg("s1", ("시작",))
+    msg = parse_act_message('{"type":"execute","sequence_id":"s1","buttons":["시작"],"appliance_id":"microwave"}')
+    assert msg == ExecuteMsg("s1", ("시작",), "microwave")
     assert msg.targets == {}
 
 
@@ -143,6 +143,7 @@ def test_execute_with_targets_parses_coordinates():
             {
                 "type": "execute",
                 "sequence_id": "s1",
+                "appliance_id": "microwave",
                 "buttons": ["해동", "시작"],
                 "targets": {"해동": {"x_mm": 10, "y_mm": 20.5, "press_ms": 150}},
             },
@@ -173,7 +174,7 @@ def test_malformed_targets_drop_the_whole_message(targets):
 
 
 def test_non_finite_coordinates_are_rejected():
-    raw = '{"type":"execute","sequence_id":"s1","buttons":["시작"],"targets":{"시작":{"x_mm":NaN,"y_mm":1}}}'
+    raw = '{"type":"execute","sequence_id":"s1","buttons":["시작"],"appliance_id":"microwave","targets":{"시작":{"x_mm":NaN,"y_mm":1}}}'
     assert parse_act_message(raw) is None
 
 
@@ -202,8 +203,7 @@ def test_targets_travel_from_act_client_to_the_rpi4_adapter():
         result = await client.execute(
             ["해동", "시작"],
             sequence_id="c1",
-            targets={"시작": ButtonTarget(40.0, 5.0)},
-        )
+            targets={"시작": ButtonTarget(40.0, 5.0)}, appliance_id="microwave")
         await task
         await executor.wait_idle()
         await client.stop()
@@ -221,7 +221,7 @@ def test_act_client_without_targets_sends_the_legacy_line():
         rpi5_writer = _PipeWriter(rpi4_reader)
         client = ActClient(rpi5_reader, rpi5_writer)
         await client.start()
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="c2"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="c2", appliance_id="microwave"))
         await asyncio.sleep(0.01)
         rpi5_reader.feed_data(b'{"type":"result","sequence_id":"c2","success":true,"retry":0}\n')
         await task
@@ -229,7 +229,8 @@ def test_act_client_without_targets_sends_the_legacy_line():
         return rpi5_writer.lines
 
     (line,) = asyncio.run(_t())
-    assert line == {"type": "execute", "sequence_id": "c2", "buttons": ["시작"]}
+    # 좌표 키는 없고, 대상(appliance_id)은 2026-10-07부터 늘 싣는다(평가 H3).
+    assert line == {"type": "execute", "sequence_id": "c2", "buttons": ["시작"], "appliance_id": "microwave"}
 
 
 # ── 서비스(RPi5): 레지스트리의 보정 좌표 → 실행 대상 ─────────────────────────

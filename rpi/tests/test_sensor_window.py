@@ -152,6 +152,10 @@ def world(monkeypatch):
                  "SIMPLELAY_DEMO_PACING"):
         monkeypatch.delenv(name, raising=False)
     monkeypatch.setenv("SIMPLELAY_SENSORS_ENABLED", "true")
+    # 영전류 2.5 V는 gain 2(±2.048 V) 밖이라 기동이 거절된다(평가 M2, test_sensor_config_check.py).
+    # 여기서는 2.5 V를 읽을 수 있는 gain 1(±4.096 V)로 둔다 — 실제 분압 회로·gain은 실측 필요.
+    monkeypatch.setenv("SIMPLELAY_CURRENT_ADC_GAIN", "1")
+    monkeypatch.delenv("SIMPLELAY_CURRENT_ZERO_V", raising=False)
     w = _World()
     _install_fake_hardware(monkeypatch, w)
     return w

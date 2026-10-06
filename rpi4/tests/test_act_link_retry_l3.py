@@ -79,7 +79,7 @@ def _roundtrip(controller, buttons=BUTTONS):
         client = ActClient(rpi5_reader, _PipeWriter(rpi4_reader))
         await client.start()
         task = asyncio.create_task(executor.run_once())
-        act = await client.execute(list(buttons), sequence_id="g1")
+        act = await client.execute(list(buttons), sequence_id="g1", appliance_id="microwave")
         await task
         await client.stop()
         return act

@@ -24,7 +24,7 @@ from collections.abc import Callable, Mapping
 
 from rpi.controller import ButtonTarget, ExecutionMode, ExecutionResult
 
-from .act_client import ActClient, ActClientConfig, ActLinkTimeoutError, AlertEvent
+from .act_client import ActClient, ActClientConfig, ActLinkError, ActLinkTimeoutError, AlertEvent
 from .aggregate_result import synthesize_from_act_result
 
 log = logging.getLogger(__name__)
@@ -67,6 +67,8 @@ class ActClientController:
         self._call_timeout = call_timeout_seconds
         #: 다음 execute에 실을 정지 대기 계획(``arm_stop_hold``). 한 번 쓰면 비운다.
         self._next_hold: dict | None = None
+        #: 다음 execute의 대상 가전(``arm_execute_target``). 한 번 쓰면 비운다. 없으면 보내지 않는다.
+        self._next_target: str | None = None
 
     @property
     def frame_tap(self):
@@ -86,12 +88,16 @@ class ActClientController:
         buttons = list(buttons)
         call_timeout = self._timeout_for(len(buttons))
         hold, self._next_hold = self._next_hold, None
+        target, self._next_target = self._next_target, None
+        if target is None:
+            # RPi4는 대상 없는 execute를 거절한다(평가 H3) — 전자레인지로 가정해 보내지 않는다.
+            raise ActLinkError("execute target (appliance_id) was not armed — not sent to RPi4")
         if hold:
-            coro = self._client.execute(buttons, targets=targets or None, hold=hold)
+            coro = self._client.execute(buttons, targets=targets or None, hold=hold, appliance_id=target)
         elif targets:
-            coro = self._client.execute(buttons, targets=targets)
+            coro = self._client.execute(buttons, targets=targets, appliance_id=target)
         else:
-            coro = self._client.execute(buttons)
+            coro = self._client.execute(buttons, appliance_id=target)
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         try:
             result = future.result(timeout=call_timeout)
@@ -123,6 +129,10 @@ class ActClientController:
 
     #: 서비스가 이 표시를 보고 실행 직전에 ``arm_stop_hold``를 부른다.
     supports_stop_hold = True
+
+    def arm_execute_target(self, appliance_id: str) -> None:
+        """다음 execute 한 번의 대상 가전(2026-10-07, 평가 H3). 서비스가 실행마다 부른다."""
+        self._next_target = appliance_id
 
     def arm_stop_hold(self, plan: "Mapping[str, object] | None") -> None:
         """다음 execute 한 번에 정지 대기 계획을 싣는다(None이면 싣지 않음)."""

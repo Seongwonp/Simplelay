@@ -109,6 +109,21 @@ class ClosedLoopController:
         # 누름 단계 관찰자(선택). RPi4 ActExecutor가 progress 프레임으로 내보낸다.
         self._press_observer: Callable[[dict], None] | None = None
 
+    @property
+    def operation(self) -> OperationVerifier | None:
+        """지금 꽂힌 L3 판정기(없으면 None)."""
+        return self._operation
+
+    def use_operation(self, operation: OperationVerifier | None) -> None:
+        """다음 execute()의 L3 판정기를 바꾼다 — **실행과 실행 사이에만** 부른다.
+
+        RPi4 실행기가 실행 대상 가전마다 그 가전 CT 채널의 판정기를 고른다(2026-10-07, 평가 H3).
+        None이면 L3 판정 없음(결과의 operation은 None).
+        """
+        self._operation = operation
+        if operation is not None:
+            operation.set_stop_check(self._stop_requested.is_set)
+
     def set_press_observer(self, observer: "Callable[[dict], None] | None") -> None:
         """누름 시도마다 단계 이벤트를 받을 함수를 건다(실행 스레드에서 호출된다).
 

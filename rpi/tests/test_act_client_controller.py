@@ -97,6 +97,7 @@ def test_execute_success_marks_all_buttons_succeeded():
             loop, reader, writer,
             lambda sent: {"type": "result", "sequence_id": sent["sequence_id"], "success": True, "retry": 0},
         )
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         result = controller.execute(["시작", "정지"])
 
         assert result.status is ExecutionStatus.SUCCEEDED
@@ -114,6 +115,7 @@ def test_execute_failure_marks_last_button_failed_with_retry_count():
             loop, reader, writer,
             lambda sent: {"type": "result", "sequence_id": sent["sequence_id"], "success": False, "retry": 3},
         )
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         result = controller.execute(["시작", "정지", "취소"])
 
         assert result.status is ExecutionStatus.SAFETY_STOPPED
@@ -133,6 +135,7 @@ def test_execute_single_button_failure_has_no_preceding_succeeded_entries():
             loop, reader, writer,
             lambda sent: {"type": "result", "sequence_id": sent["sequence_id"], "success": False, "retry": 1},
         )
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         result = controller.execute(["시작"])
 
         assert len(result.buttons) == 1
@@ -150,6 +153,7 @@ def test_execute_propagates_actuator_error_as_runtime_error():
             lambda sent: {"type": "error", "sequence_id": sent["sequence_id"], "reason": "actuator_fail"},
         )
         with pytest.raises(RuntimeError, match="actuator_fail"):
+            controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
             controller.execute(["시작"])
     finally:
         _teardown(controller, loop, thread)
@@ -164,6 +168,7 @@ def test_execute_times_out_when_rpi4_never_responds():
     )
     try:
         with pytest.raises(RuntimeError, match="no response"):
+            controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
             controller.execute(["시작"])
     finally:
         _teardown(controller, loop, thread)
@@ -194,6 +199,7 @@ def test_execute_outer_call_timeout_fires_when_the_loop_bridge_itself_stalls():
     )
     try:
         with pytest.raises(RuntimeError, match=r"ActClientController\.execute\(\) timed out"):
+            controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
             controller.execute(["시작"])
     finally:
         _teardown(controller, loop, thread)

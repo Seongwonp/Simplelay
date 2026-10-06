@@ -53,10 +53,14 @@ def test_fake_module_gets_the_mapped_channel_count_and_l3_reads_the_microwave_ch
         assert act_main._fake_outlet.channels == 2  # noqa: SLF001
         assert act_main._fake_outlet.relay_channel == 1  # 릴레이는 전자레인지 채널  # noqa: SLF001
         executor = act_main._build_executor(object(), object(), outlet=link)  # type: ignore[arg-type]
-        operation = executor._controller._operation  # noqa: SLF001
+        # 2026-10-07(평가 H3): 판정기는 실행 대상마다 고른다 — 전자레인지 대상은 전자레인지 채널.
+        binding = executor._target_binder.bind("microwave")  # noqa: SLF001
+        operation = binding.operation
         assert isinstance(operation, OutletOperationVerifier)
         assert operation.link.channel == 1
-        assert executor._after_result._link.channel == 1  # noqa: SLF001 - 꼬리 관찰도 같은 채널
+        assert binding.after_result._link.channel == 1  # noqa: SLF001 - 꼬리 관찰도 같은 채널
+        washer = executor._target_binder.bind("washer")  # noqa: SLF001
+        assert washer.operation.link.channel == 0 and washer.after_result._link.channel == 0  # noqa: SLF001
     finally:
         link.close()
 

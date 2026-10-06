@@ -143,6 +143,7 @@ def test_twin_state_follows_real_simulator_execution_retry_and_stop():
     slow = SimulatorController(step_seconds=0.3)
     try:
         with ThreadPoolExecutor() as pool:
+            slow.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
             future = pool.submit(slow.execute, ['즉석밥', '시작'])
             deadline = time.monotonic() + 3
             while not build_twin_state(slow.snapshot())['job'] or not build_twin_state(slow.snapshot())['job']['presses']:
@@ -225,6 +226,7 @@ def test_real_simulator_records_retry_corrections_and_pins_execute():
     controller = SimulatorController(step_seconds=0)
     try:
         controller.inject_failure(0, 2)
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         result = controller.execute(['즉석밥', '시작'])
         assert result is not None
         snap = controller.snapshot()

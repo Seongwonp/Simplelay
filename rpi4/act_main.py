@@ -12,7 +12,14 @@ Environment variables:
   SIMPLELAY_SENSORS_ENABLED       "true" → SensorVerifier (ADS1115 전류 +
                                   마이크 음향 퓨전 검증). 기본 false = mock —
                                   센서 하드웨어 없이도 실행 경로가 살아있어야
-                                  하므로 (SIMPLELAY_GPIO_ENABLED와 같은 관례)
+                                  하므로 (SIMPLELAY_GPIO_ENABLED와 같은 관례).
+                                  켤 때 전류 설정 모순(영전류 전압이 ADC 범위 밖 등)이면 시작을 거절한다
+                                  — 기본 2.5 V·gain 2(±2.048 V)는 거절된다(2026-10-07 평가 M2)
+  SIMPLELAY_CURRENT_ZERO_V        ADC 입력에서 본 영전류 전압(V, 기본 2.5). 실측 필요
+  SIMPLELAY_CURRENT_ADC_GAIN      ADS1115 gain(2/3·1·2·4·8·16, 기본 2). 실측 필요
+  SIMPLELAY_L3_NONE_TARGETS       L3 real에서 전력 판정을 하지 않을 대상 가전(쉼표 목록, 예: intercom).
+                                  CT 채널 없는 대상은 실행 전 거절(target_unbound)인데, 여기 적은 대상만
+                                  판정 없이(operation_confirmed=null) 실행한다(2026-10-07 평가 H3)
   SIMPLELAY_DANGER_SOUND_ENABLED  "true" → 위험소리(경보음) 상시 감지 태스크
                                   가동, 감지 시 RPi5로 alert 자체발신
   SIMPLELAY_MOTION_MODE           "mock"(기본) | "serial". serial이면 줄 단위 JSON
@@ -145,10 +152,16 @@ def _build_verifier() -> Verifier:
     경로 자체가 죽지 않는다.
     """
     if _flag("SIMPLELAY_SENSORS_ENABLED"):
-        from rpi.verifier import SensorVerifier
+        from rpi.verifier import SensorConfig, SensorVerifier
+        from rpi.verifier.config import check_current_sensor_config, current_sensor_config_from_env
 
-        log.info("SensorVerifier active — ADS1115 current + microphone fusion")
-        return SensorVerifier()
+        # 장치를 열기 전에 설정 모순(영전류 전압이 ADC 범위 밖 등)을 거절한다(2026-10-07, 평가 M2).
+        # 기본값(2.5 V·gain 2)은 이 검사에 걸린다 — 분압 회로 확인 뒤 env로 맞춘다(실측 필요).
+        current = current_sensor_config_from_env()
+        check_current_sensor_config(current)
+        log.info("SensorVerifier active — ADS1115 current + microphone fusion "
+                 "(zero=%s V, gain=%s — 실측 필요)", current.zero_current_voltage, current.ads_gain)
+        return SensorVerifier(SensorConfig(current=current))
     log.info("MockVerifier active (set SIMPLELAY_SENSORS_ENABLED=true for real sensors)")
     return MockVerifier(outcomes=[True] * 1000)
 
@@ -563,9 +576,59 @@ def _build_operation_verifier(outlet=None):
     return verifier
 
 
-def _build_hold(grbl: object, raw_grbl: object, outlet=None):
+def _build_target_binder(outlet, recorder: "LiveRecorder | None" = None):
+    """실행 대상 → L3 판정기·잔여 전류 꼬리·정지 확인 채널 결속(2026-10-07, 평가 H3, target_binding.py).
+
+    시작 때 확인은 종전과 같다: 모르는 SIMPLELAY_L3_MODE, real인데 콘센트 포트·링크가 없으면 거절.
+    판정기는 대상마다 그 대상 CT 채널 보기로 처음 실행할 때 만든다.
+    """
+    from rpi.controller.power_operation import operation_verifier_from_env
+
+    from .services.target_binding import (
+        L3_NONE_TARGETS_ENV,
+        TargetBinder,
+        l3_mode_from_env,
+        parse_l3_none_targets,
+    )
+
+    mode = l3_mode_from_env()
+    mock_operation = None
+    # off·mock 판정기, 모르는 값·real 설정 누락의 거절은 종전 함수가 맡는다.
+    if mode != "real":
+        mock_operation = _build_operation_verifier(None)
+    elif outlet is None:
+        operation_verifier_from_env(outlet=None)  # 포트·링크 없음 → RuntimeError(시작 거절)
+    none_targets = parse_l3_none_targets(os.getenv(L3_NONE_TARGETS_ENV))
+    if none_targets:
+        log.warning("L3 power check skipped for %s (%s) — their results carry operation_confirmed=null",
+                    ",".join(sorted(none_targets)), L3_NONE_TARGETS_ENV)
+
+    def make_tail(view, operation):
+        if not hasattr(operation, "last_verdict"):
+            return None
+        from rpi.verifier.power_tail import TailConfig
+
+        from .services.outlet_watch import OutletTailHook
+
+        return OutletTailHook(view, operation, config=TailConfig.from_env(),
+                              recorder=recorder.recorder if recorder is not None else None)
+
+    return TargetBinder(
+        l3_mode=mode if mode in ("off", "mock", "real") else "off",
+        outlet=outlet,
+        channels=_outlet_channel_map(),
+        press_appliance=OUTLET_PRESS_APPLIANCE,
+        make_operation=lambda view, _ch: _build_operation_verifier(view),
+        make_tail=make_tail if outlet is not None else None,
+        mock_operation=mock_operation,
+        l3_none_targets=none_targets,
+    )
+
+
+def _build_hold(grbl: object, raw_grbl: object, outlet=None, binder=None):
     """정지 대기·확인 주행 부품. mock 모션이면 모의 가전까지, 실제 어댑터면 move_to·press만.
-    콘센트 모듈이 있으면 실제 어댑터의 가전 켜짐 확인을 그 전력으로 한다."""
+    콘센트 모듈이 있으면 실제 어댑터의 가전 켜짐 확인을 **대기 계획 대상 가전의 CT 채널** 전력으로 한다
+    (2026-10-07 평가 H3 — 전에는 늘 전자레인지 채널). 채널이 없는 대상은 '모름'(정지 미확인)."""
     from rpi.controller.mock import MockGrblClient as _Mock
 
     from .services.stop_hold import mock_hold_hardware, real_hold_hardware
@@ -579,9 +642,13 @@ def _build_hold(grbl: object, raw_grbl: object, outlet=None):
         from .services.outlet_watch import OutletRunProbe
 
         tail_config = TailConfig.from_env()
-        log.warning("stop hold: real motion adapter + outlet power probe (실물 미검증)")
-        return real_hold_hardware(grbl, raw_grbl,
-                                  probe_factory=lambda plan: OutletRunProbe(outlet, tail_config))
+        log.warning("stop hold: real motion adapter + outlet power probe on the hold target's CT channel "
+                    "(실물 미검증)")
+        if binder is None:  # 시험용 직접 호출 — 넘겨받은 채널 보기 하나
+            return real_hold_hardware(grbl, raw_grbl,
+                                      probe_factory=lambda plan: OutletRunProbe(outlet, tail_config))
+        return real_hold_hardware(grbl, raw_grbl, probe_factory=lambda plan: binder.probe_for(
+            plan.appliance_id, lambda view: OutletRunProbe(view, tail_config)))
     log.warning("stop hold: real motion adapter (move_to/press), no power reader — "
                 "stop judgement stays 'unconfirmed' (실물 미검증)")
     return real_hold_hardware(grbl, raw_grbl)
@@ -604,9 +671,9 @@ def _build_executor(
     # ActExecutor에 넘긴다 — 결선 리허설 장면이 실기기 구성에서도 성립한다.
     failure_state = DemoFailureState()
     # 시리얼을 열기 전에 끝나는 설정 검사가 좋지만, 모션보다 먼저 확인해 real L3 거절이
-    # 모터 연결 시도보다 앞서게 한다. 전력 소비자(L3·꼬리·정지 확인)는 전자레인지 CT 채널을 읽는다.
-    press = _outlet_view(outlet, OUTLET_PRESS_APPLIANCE)
-    operation = _build_operation_verifier(press)
+    # 모터 연결 시도보다 앞서게 한다. 전력 소비자(L3·꼬리·정지 확인)는 **실행 대상 가전의** CT 채널을
+    # 읽는다(2026-10-07 평가 H3, target_binding.py) — 실행기가 execute마다 대상으로 고른다.
+    binder = _build_target_binder(outlet, recorder)
     if recorder is None:
         # 줄 기록이 없으면 종전 호출 모양 그대로
         grbl, safety = _build_motion(**({"line_log": motion_log} if motion_log is not None else {}))
@@ -626,7 +693,10 @@ def _build_executor(
         verifier=FailureInjectionVerifier(_build_verifier(), failure_state),
         alerts=MockAlertSink(),
         safety=safety,
-        operation=operation,
+        # L3 판정기는 실행마다 대상으로 꽂는다(ActExecutor → use_operation).
+        # L2(acceptance)는 운영 경로에 판정기가 없다 — 꽂지 않는다(인계 노트북-3 §C, 2026-10-07):
+        # 누름 확인(L1) 뒤 바로 다음 단계로 가고, L2 재입력 정책은 타지 않는다.
+        operation=None,
     )
     from .services.act_executor import progress_enabled_from_env
 
@@ -635,20 +705,14 @@ def _build_executor(
     extra: dict = {}
     if readiness is not None:
         extra["readiness"] = readiness
-    if outlet is not None and operation is not None and hasattr(operation, "last_verdict"):
-        from rpi.verifier.power_tail import TailConfig
-
-        from .services.outlet_watch import OutletTailHook
-
-        extra["after_result"] = OutletTailHook(press, operation, config=TailConfig.from_env(),
-                                               recorder=recorder.recorder if recorder is not None else None)
     executor = ActExecutor(
         reader=reader,
         writer=writer,
         controller=controller,
         failure_state=failure_state,
         job_observer=_job_observer(recorder, motion_log),
-        hold=_build_hold(grbl, raw_grbl, press),
+        hold=_build_hold(grbl, raw_grbl, outlet, binder),
+        target_binder=binder,
         **extra,
     )
     if outlet is not None:

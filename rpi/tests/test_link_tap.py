@@ -142,7 +142,7 @@ def test_act_client_records_every_sent_and_received_line(tmp_path):
                 to_rpi5.feed_data(doc)
 
         rpi4 = asyncio.create_task(fake_rpi4())
-        result = await client.execute(["a"], sequence_id="s-1")
+        result = await client.execute(["a"], sequence_id="s-1", appliance_id="microwave")
         await rpi4
         await client.abort()
         await client.stop()

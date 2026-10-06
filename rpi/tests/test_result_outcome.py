@@ -144,7 +144,7 @@ def _client_result(frame: dict):
         reader = asyncio.StreamReader()
         client = ActClient(reader, _FakeWriter())
         await client.start()
-        task = asyncio.create_task(client.execute(["즉석밥", "시작"], sequence_id="s1"))
+        task = asyncio.create_task(client.execute(["즉석밥", "시작"], sequence_id="s1", appliance_id="microwave"))
         await asyncio.sleep(0)
         reader.feed_data((json.dumps({"type": "result", "sequence_id": "s1", **frame}) + "\n").encode())
         result = await task

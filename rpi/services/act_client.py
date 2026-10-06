@@ -403,8 +403,14 @@ class ActClient:
         sequence_id: str | None = None,
         targets: "Mapping[str, ButtonTarget] | None" = None,
         hold: "Mapping[str, object] | None" = None,
+        *,
+        appliance_id: str | None = None,
     ) -> ActResult:
         """Send one button sequence and await RPi4's result.
+
+        ``appliance_id``: 실행 대상 가전 — **필수**(2026-10-07, 평가 H3, execute 규약 2). RPi4는 이 대상의
+        CT 채널로 L3·정지 확인을 고르고, 대상 없는 프레임은 ``target_required``로 거절한다. 없으면
+        보내지 않고 `ActLinkError`. 결과 프레임의 ``appliance_id``가 다르면 `ActLinkError`.
 
         ``targets``(선택): 버튼 → 갠트리 좌표(mm). 비어 있으면 메시지에
         ``targets`` 키를 넣지 않는다 — 종전 execute 줄과 바이트까지 같다.
@@ -413,6 +419,8 @@ class ActClient:
         ActLinkTimeoutError if RPi4 never responds, ActLinkError if RPi4
         reports an ``error`` message for this sequence.
         """
+        if not isinstance(appliance_id, str) or not appliance_id.strip():
+            raise ActLinkError("execute target (appliance_id) is required — not sent to RPi4")
         if self._pending is not None and not self._pending[1].done():
             raise ActLinkBusyError("an execute() call is already awaiting a response")
 
@@ -427,7 +435,8 @@ class ActClient:
         # 않음) 이후 모든 실행이 ActLinkBusyError로 거부됐다 — 케이블 접촉
         # 불량 한 번이 재부팅 전까지 실행 경로를 통째로 막는 구조였다.
         try:
-            message: dict = {"type": "execute", "sequence_id": seq_id, "buttons": list(buttons)}
+            message: dict = {"type": "execute", "sequence_id": seq_id, "buttons": list(buttons),
+                             "appliance_id": appliance_id}
             if targets:
                 message["targets"] = targets_payload(targets)
             if hold:
@@ -459,6 +468,12 @@ class ActClient:
         if doc.get("type") == "error":
             raise ActLinkError(
                 f"RPi4 reported error for sequence_id={seq_id!r}: {doc.get('reason', 'unknown')}"
+            )
+        reported = doc.get("appliance_id")
+        if reported is not None and reported != appliance_id:
+            # 다른 가전의 결과(L3 확인 포함)를 이 실행의 결과로 쓰지 않는다.
+            raise ActLinkError(
+                f"RPi4 result for sequence_id={seq_id!r} is for {reported!r}, not {appliance_id!r}"
             )
         success = bool(doc.get("success", False))
         confirmed, detail, source = parse_operation(doc)

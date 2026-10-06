@@ -114,7 +114,7 @@ def test_module_reboot_with_relay_expected_on_latches_until_human_ack(fake_env):
             states = [m for m in writer.messages() if m.get("type") == "estop_state"]
             assert states and "다시 켜져" in states[-1]["detail"]
             # 실행 거절 — 이유가 화면에 그대로 보인다
-            _feed(reader, {"type": "execute", "sequence_id": "s1", "buttons": ["시작"]})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "s1", "buttons": ["시작"]})
             await executor.run_once()
             refused = [m for m in writer.messages() if m.get("type") == "error"]
             assert refused and refused[-1]["reason"] == "estop_latched"

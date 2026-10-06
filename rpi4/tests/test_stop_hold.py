@@ -188,10 +188,10 @@ def test_verify_pass_moves_only_and_stops_after_a_failure():
 
 def test_messages_parse_hold_scope_and_verify_strictly():
     ok = parse_act_message(
-        '{"type":"execute","sequence_id":"s1","buttons":["시작"],'
+        '{"type":"execute","appliance_id":"microwave","sequence_id":"s1","buttons":["시작"],'
         '"hold":{"stop_button":"취소","stop_x_mm":1,"stop_y_mm":2,"stop_presses":2,"park_x_mm":3,"park_y_mm":4}}')
-    assert ok.hold == HoldPlan("취소", 1.0, 2.0, 2, 3.0, 4.0)
-    bad_presses = ('{"type":"execute","sequence_id":"s1","buttons":["시작"],"hold":{"stop_button":"취소",'
+    assert ok.hold == HoldPlan("취소", 1.0, 2.0, 2, 3.0, 4.0, None, "microwave")  # 대상으로 채운다(2026-10-07)
+    bad_presses = ('{"type":"execute","appliance_id":"microwave","sequence_id":"s1","buttons":["시작"],"hold":{"stop_button":"취소",'
                    '"stop_x_mm":1,"stop_y_mm":2,"stop_presses":4,"park_x_mm":3,"park_y_mm":4}}')
     assert parse_act_message(bad_presses) is None
     same_spot = bad_presses.replace('"stop_presses":4', '"stop_presses":1').replace('"park_x_mm":3,"park_y_mm":4',

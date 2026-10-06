@@ -77,7 +77,7 @@ def _roundtrip(controller, *, progress=None, tap=None, on_progress=None, job_obs
         await client.start()
         run = asyncio.create_task(executor.run())
         try:
-            return await asyncio.wait_for(client.execute(BUTTONS, sequence_id="seq-p", targets=TARGETS), 5)
+            return await asyncio.wait_for(client.execute(BUTTONS, sequence_id="seq-p", targets=TARGETS, appliance_id="microwave"), 5)
         finally:
             rpi4_reader.feed_eof()
             await run
@@ -176,11 +176,11 @@ def test_old_rpi5_client_without_progress_handling_is_unaffected():
             to_rpi5.feed_data(json.dumps(final).encode() + b"\n")
 
         task = asyncio.create_task(fake_rpi4("result"))
-        ok = await asyncio.wait_for(client.execute(["a"]), 2)
+        ok = await asyncio.wait_for(client.execute(["a"], appliance_id="microwave"), 2)
         await task
         task = asyncio.create_task(fake_rpi4("error"))
         with pytest.raises(ActLinkError):
-            await asyncio.wait_for(client.execute(["a"]), 2)
+            await asyncio.wait_for(client.execute(["a"], appliance_id="microwave"), 2)
         await task
         await client.stop()
         return ok

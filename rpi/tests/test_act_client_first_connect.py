@@ -76,7 +76,7 @@ def test_client_without_initial_stream_starts_down_and_connects_in_background():
         await client.start()
         assert client.estop_latched is None
         with pytest.raises(ActLinkError):
-            await asyncio.wait_for(client.execute(["시작"], sequence_id="s-down"), 1.0)
+            await asyncio.wait_for(client.execute(["시작"], sequence_id="s-down", appliance_id="microwave"), 1.0)
 
         deadline = time.monotonic() + 2.0
         while {"type": "hello"} not in writer.messages():
@@ -89,7 +89,7 @@ def test_client_without_initial_stream_starts_down_and_connects_in_background():
         reader.feed_data(_line(ANNOUNCE_CLEAR))
         while client.estop_latched is not False:
             await asyncio.sleep(0.005)
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="s1"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="s1", appliance_id="microwave"))
         while not any(m.get("sequence_id") == "s1" for m in writer.messages()):
             await asyncio.sleep(0.005)
         reader.feed_data(_line({"type": "result", "sequence_id": "s1", "success": True, "retry": 0}))
@@ -209,6 +209,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
                 time.sleep(0.005)
 
         threading.Thread(target=_reply, daemon=True).start()
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         result = controller.execute(["즉석밥", "시작"])
         assert result.status.value == "succeeded"
     finally:

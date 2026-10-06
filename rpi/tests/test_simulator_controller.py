@@ -12,6 +12,7 @@ def test_persistent_link_retains_mock_provenance_and_does_not_exhaust_verifier()
     try:
         assert controller.execution_mode == ExecutionMode.MOCK
         for _ in range(205):
+            controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
             assert controller.execute(['start']).status.value == 'succeeded'
         snapshot = controller.snapshot()
         assert snapshot['act_local']['presses'] == ['start']
@@ -22,6 +23,7 @@ def test_persistent_link_retains_mock_provenance_and_does_not_exhaust_verifier()
     controller.close()
     assert not controller._thread.is_alive()
     with pytest.raises(RuntimeError):
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         controller.execute(['start'])
 
 
@@ -29,11 +31,14 @@ def test_failure_injection_travels_over_link_and_can_be_cleared():
     controller = SimulatorController(step_seconds=0)
     try:
         controller.inject_failure(0, 2)
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         assert controller.execute(['start']).status.value == 'succeeded'
         assert len(controller.snapshot()['act_local']['presses']) == 3
         controller.inject_failure(0, 3)
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         assert controller.execute(['start']).status.value == 'safety_stopped'
         controller.clear_failure()
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         assert controller.execute(['start']).status.value == 'succeeded'
         assert controller.snapshot()['act_local']['presses'] == ['start']
     finally:
@@ -44,6 +49,7 @@ def test_stop_crosses_protocol_and_prevents_second_button():
     controller = SimulatorController(step_seconds=0.3)
     try:
         with ThreadPoolExecutor() as pool:
+            controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
             future = pool.submit(controller.execute, ['first', 'second'])
             deadline = time.monotonic() + 3
             while not controller.snapshot()['act_local']['presses']:
@@ -53,6 +59,7 @@ def test_stop_crosses_protocol_and_prevents_second_button():
             future.result(3)
         assert controller.snapshot()['act_local']['presses'] == ['first']
         assert controller.snapshot()['act_local']['status'] == 'safety_stopped'
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         assert controller.execute(['next']).status.value == 'succeeded'
     finally:
         controller.close()

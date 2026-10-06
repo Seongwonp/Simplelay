@@ -4,7 +4,10 @@ All thresholds here are starting estimates from docs/sensor-spec.md.
 Replace with real measurements after M1 hardware is connected.
 """
 
-from dataclasses import dataclass, field
+import math
+import os
+from collections.abc import Mapping
+from dataclasses import dataclass, field, replace
 
 
 @dataclass(frozen=True)
@@ -14,10 +17,14 @@ class CurrentSensorConfig:
     # ACS712-05B sensitivity: 185 mV/A
     sensitivity_mv_per_a: float = 185.0
 
-    # Voltage at zero current (VCC/2 = 2.5 V for 5 V supply)
+    # Voltage at zero current (VCC/2 = 2.5 V for 5 V supply) — 실측 필요.
+    # ADC 입력에서 본 값이다. 분압 회로가 있으면 그 뒤 전압을 준다(SIMPLELAY_CURRENT_ZERO_V).
+    # 주의(2026-10-07, 평가 M2): 이 기본값은 아래 gain 2(±2.048 V)와 함께 쓸 수 없다 — 영점이 측정 범위
+    # 밖이다. 실제 분압 회로는 팀원 확인 전이라 어느 쪽도 고치지 않고, 센서를 켤 때
+    # `check_current_sensor_config`가 시작을 거절한다.
     zero_current_voltage: float = 2.5
 
-    # ADS1115 gain setting (2 → ±2.048 V range)
+    # ADS1115 gain setting (2 → ±2.048 V range) — 실측 필요(SIMPLELAY_CURRENT_ADC_GAIN)
     ads_gain: int = 2
 
     # ADS1115 data rate (samples per second)
@@ -53,6 +60,87 @@ class CurrentSensorConfig:
             raise ValueError(
                 "sample_interval_s/max_window_s must be positive, post_press_s non-negative"
             )
+
+
+#: ADS1115 gain → 측정 범위(±V). 단일 입력(AINx–GND)은 0~이 값까지 읽는다.
+ADS1115_FULL_SCALE_V: dict[float, float] = {2 / 3: 6.144, 1: 4.096, 2: 2.048, 4: 1.024, 8: 0.512, 16: 0.256}
+
+#: 전류 센서 설정 환경 변수(센서를 켤 때만 읽는다). 값은 전부 실측 필요.
+CURRENT_ZERO_V_ENV = "SIMPLELAY_CURRENT_ZERO_V"
+CURRENT_ADC_GAIN_ENV = "SIMPLELAY_CURRENT_ADC_GAIN"
+
+
+class SensorConfigError(ValueError):
+    """센서 설정이 물리적으로 맞지 않는다 — 기동 전에 거절한다(메시지는 사람이 읽는 한국어)."""
+
+
+def _full_scale(gain: float) -> float | None:
+    for key, volts in ADS1115_FULL_SCALE_V.items():
+        if math.isclose(float(gain), key, rel_tol=0, abs_tol=1e-9):
+            return volts
+    return None
+
+
+def current_sensor_config_problems(cfg: CurrentSensorConfig) -> list[str]:
+    """전류 센서 설정의 모순(없으면 빈 목록). 실측 전 기본값의 조합 오류를 잡는 검사이지 보정이 아니다."""
+    problems: list[str] = []
+    fs = _full_scale(cfg.ads_gain)
+    if fs is None:
+        problems.append(f"ADS1115 gain {cfg.ads_gain}은 없는 값이에요(2/3·1·2·4·8·16 중 하나)")
+    if not 0 <= cfg.channel <= 3:
+        problems.append(f"ADS1115 채널 {cfg.channel}은 없는 값이에요(0~3)")
+    if not (math.isfinite(cfg.sensitivity_mv_per_a) and cfg.sensitivity_mv_per_a > 0):
+        problems.append(f"전류 센서 감도 {cfg.sensitivity_mv_per_a} mV/A는 0보다 커야 해요")
+    zero = cfg.zero_current_voltage
+    if fs is not None:
+        if not (math.isfinite(zero) and 0 < zero < fs):
+            problems.append(
+                f"영전류 전압 {zero} V가 ADS1115 gain {cfg.ads_gain}의 측정 범위(0~{fs} V) 밖이에요 — "
+                "전류가 0일 때도 ADC가 끝값에 붙어 누름 전류를 읽을 수 없어요")
+        else:
+            swing = cfg.press_threshold_a * cfg.sensitivity_mv_per_a / 1000.0
+            if zero + swing >= fs:
+                problems.append(
+                    f"영전류 전압 {zero} V에 누름 임계 전류({cfg.press_threshold_a} A)만큼 더하면 "
+                    f"측정 범위(0~{fs} V)를 넘어요")
+        rng = cfg.valid_voltage_range
+        if rng is not None:
+            lo, hi = rng
+            if not (0 <= lo < hi <= fs) or not lo < zero < hi:
+                problems.append(
+                    f"정상 전압 범위 {lo}~{hi} V는 측정 범위(0~{fs} V) 안에 있고 영전류 전압 {zero} V를 "
+                    "품어야 해요")
+    return problems
+
+
+def check_current_sensor_config(cfg: CurrentSensorConfig) -> None:
+    """모순이 있으면 `SensorConfigError`(시작 거절). 센서를 켤 때만 부른다 — 기본 mock 기동은 검사하지 않는다."""
+    problems = current_sensor_config_problems(cfg)
+    if problems:
+        raise SensorConfigError(
+            "전류 센서 설정이 맞지 않아 센서 검증을 시작하지 않아요: " + "; ".join(problems)
+            + f". 분압 회로·ADC gain을 팀원과 확인해 {CURRENT_ZERO_V_ENV}·{CURRENT_ADC_GAIN_ENV}로 맞춰 "
+            "주세요(값은 실측 필요)")
+
+
+def current_sensor_config_from_env(env: Mapping[str, str] | None = None,
+                                   base: "CurrentSensorConfig | None" = None) -> CurrentSensorConfig:
+    """``SIMPLELAY_CURRENT_ZERO_V``·``SIMPLELAY_CURRENT_ADC_GAIN``로 기본값을 덮는다(없으면 그대로)."""
+    src = os.environ if env is None else env
+    cfg = base or CurrentSensorConfig()
+    changes: dict = {}
+    for name, key in ((CURRENT_ZERO_V_ENV, "zero_current_voltage"), (CURRENT_ADC_GAIN_ENV, "ads_gain")):
+        raw = (src.get(name) or "").strip()
+        if not raw:
+            continue
+        try:
+            value = float(raw)
+        except ValueError as exc:
+            raise SensorConfigError(f"{name} 값을 숫자로 읽을 수 없어요: {raw!r}") from exc
+        if key == "ads_gain" and value.is_integer():
+            value = int(value)
+        changes[key] = value
+    return replace(cfg, **changes) if changes else cfg
 
 
 @dataclass(frozen=True)

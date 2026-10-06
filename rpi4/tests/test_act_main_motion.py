@@ -182,7 +182,7 @@ def test_executor_refuses_execute_while_motion_not_ready(monkeypatch):
         reader = asyncio.StreamReader()
         writer = _Writer()
         executor = act_main._build_executor(reader, writer)  # type: ignore[arg-type]
-        line = json.dumps({"type": "execute", "sequence_id": "seq-nr", "buttons": ["시작"]}, ensure_ascii=False)
+        line = json.dumps({"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-nr", "buttons": ["시작"]}, ensure_ascii=False)
         reader.feed_data((line + "\n").encode("utf-8"))
         await executor.run_once()
         await executor.wait_idle()

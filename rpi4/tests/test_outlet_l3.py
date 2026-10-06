@@ -191,7 +191,7 @@ def test_outlet_estop_event_stops_the_running_sequence_and_alerts():
             writer = FakeWriter()
             executor = ActExecutor(reader=reader, writer=writer, controller=controller, progress=False)
             act_main._wire_outlet_estop(link, executor)
-            _feed(reader, {"type": "execute", "sequence_id": "seq-estop",
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-estop",
                            "buttons": ["b1", "b2", "b3", "b4", "b5"]})
             await executor.run_once()
             await asyncio.sleep(0.08)
@@ -252,7 +252,7 @@ def test_outlet_estop_while_idle_latches_and_refuses_next_execute():
             fake.press_estop()
             await _wait_for(lambda: executor.outlet_estops == 1)
             fake.release_estop_button()  # 버튼만 풀었다 — 사람의 해제 확인은 아직
-            _feed(reader, {"type": "execute", "sequence_id": "after", "buttons": BUTTONS})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "after", "buttons": BUTTONS})
             await executor.run_once()
             await executor.wait_idle()
             docs = writer.docs()
@@ -296,7 +296,7 @@ def test_outlet_estop_during_hold_release_window_is_refused():
                     pass
 
             executor.hold_session = SlowRelease()  # type: ignore[assignment]
-            _feed(reader, {"type": "execute", "sequence_id": "window", "buttons": BUTTONS})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "window", "buttons": BUTTONS})
             asyncio.get_running_loop().call_later(0.1, fake.press_estop)
             await executor.run_once()
             await executor.wait_idle()
@@ -325,7 +325,7 @@ def test_estop_ack_while_button_still_pressed_stays_latched():
             assert state["latched"] is True and state["reason"] == "estop_button_pressed"
             assert executor.estop_latched is True and fake.estop_latched is True
             assert not any(d.get("cmd") == "estop_reset" for d in fake.received)  # 눌린 채면 보내지 않는다
-            _feed(reader, {"type": "execute", "sequence_id": "still", "buttons": BUTTONS})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "still", "buttons": BUTTONS})
             await executor.run_once()
             await executor.wait_idle()
             error = next(d for d in writer.docs() if d.get("sequence_id") == "still")
@@ -353,7 +353,7 @@ def test_estop_ack_after_release_resets_module_and_allows_execute():
             assert executor.estop_latched is False
             assert fake.estop_latched is False  # 모듈에도 estop_reset을 보냈다
             assert fake.relay_on is False  # 해제가 릴레이를 켜지 않는다(켜기는 따로)
-            _feed(reader, {"type": "execute", "sequence_id": "ok", "buttons": BUTTONS})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "ok", "buttons": BUTTONS})
             await executor.run_once()
             await executor.wait_idle()
             result = next(d for d in writer.docs() if d.get("sequence_id") == "ok")
@@ -376,7 +376,7 @@ def test_module_reported_latch_at_boot_latches_host():
             assert link.last_ready["estop"] is True
             grbl, reader, writer, executor = _estop_rig(link)
             await _wait_for(lambda: executor.estop_latched)
-            _feed(reader, {"type": "execute", "sequence_id": "boot", "buttons": BUTTONS})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "boot", "buttons": BUTTONS})
             await executor.run_once()
             await executor.wait_idle()
             error = next(d for d in writer.docs() if d.get("sequence_id") == "boot")
@@ -397,7 +397,7 @@ def test_status_poll_reporting_estop_latches_host_without_event():
             grbl, reader, writer, executor = _estop_rig(link)
             fake.latch_silently()  # 이벤트 없이 모듈만 걸림
             await _wait_for(lambda: executor.estop_latched)
-            _feed(reader, {"type": "execute", "sequence_id": "poll", "buttons": BUTTONS})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "poll", "buttons": BUTTONS})
             await executor.run_once()
             await executor.wait_idle()
             error = next(d for d in writer.docs() if d.get("sequence_id") == "poll")
@@ -441,7 +441,7 @@ def test_outlet_offline_refuses_execute():
             assert link.not_ready_reason() is None
             fake.silent = True  # 아무 줄도 보내지 않는다(응답도 없음)
             await _wait_for(lambda: link.not_ready_reason() is not None)
-            _feed(reader, {"type": "execute", "sequence_id": "quiet", "buttons": BUTTONS})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "quiet", "buttons": BUTTONS})
             await executor.run_once()
             await executor.wait_idle()
             error = next(d for d in writer.docs() if d.get("sequence_id") == "quiet")
@@ -477,7 +477,7 @@ def test_tail_progress_frame_after_confirmed_result():
             writer = FakeWriter()
             executor = ActExecutor(reader=reader, writer=writer, controller=_controller(verifier),
                                    progress=False, after_result=hook)
-            _feed(reader, {"type": "execute", "sequence_id": "seq-tail", "buttons": BUTTONS})
+            _feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-tail", "buttons": BUTTONS})
             await executor.run_once()
             await executor.wait_idle()
             assert await asyncio.to_thread(hook.watch.join, 5.0)
@@ -569,8 +569,10 @@ def test_act_main_real_l3_refuses_without_port_and_wires_with_fake(monkeypatch):
     link = act_main._build_outlet()
     try:
         executor = act_main._build_executor(object(), object(), outlet=link)  # type: ignore[arg-type]
-        assert isinstance(executor._controller._operation, OutletOperationVerifier)  # noqa: SLF001
-        assert isinstance(executor._after_result, OutletTailHook)  # noqa: SLF001
+        # 2026-10-07(평가 H3): 판정기·꼬리 훅은 실행 대상마다 결속한다.
+        binding = executor._target_binder.bind("microwave")  # noqa: SLF001
+        assert isinstance(binding.operation, OutletOperationVerifier)
+        assert isinstance(binding.after_result, OutletTailHook)
     finally:
         link.close()
         act_main._fake_outlet.close()
@@ -607,7 +609,7 @@ def test_rpi5_client_keeps_last_power_tail_and_gets_estop_alert():
             await client.start()
             task = asyncio.create_task(executor.run())
             act_main._wire_outlet_estop(link, executor)
-            result = await client.execute(BUTTONS)
+            result = await client.execute(BUTTONS, appliance_id="microwave")
             assert result.success and result.operation_confirmed is True
             assert result.operation_source == "mock"  # 가짜 출력 — 실물 근거 아님
             loop = asyncio.get_running_loop()

@@ -102,7 +102,7 @@ def run(coro):
 
 def test_parse_execute_with_valid_fields():
     msg = parse_act_message(
-        json.dumps({"type": "execute", "sequence_id": "seq-1", "buttons": ["BT-01", "BT-05"]})
+        json.dumps({"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-1", "buttons": ["BT-01", "BT-05"]})
     )
     assert msg is not None
     assert msg.sequence_id == "seq-1"
@@ -111,13 +111,13 @@ def test_parse_execute_with_valid_fields():
 
 def test_parse_execute_with_empty_buttons_is_invalid():
     msg = parse_act_message(
-        json.dumps({"type": "execute", "sequence_id": "seq-1", "buttons": []})
+        json.dumps({"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-1", "buttons": []})
     )
     assert msg is None
 
 
 def test_parse_execute_with_missing_sequence_id_is_invalid():
-    msg = parse_act_message(json.dumps({"type": "execute", "buttons": ["BT-01"]}))
+    msg = parse_act_message(json.dumps({"type": "execute", "appliance_id": "microwave", "buttons": ["BT-01"]}))
     assert msg is None
 
 
@@ -142,13 +142,13 @@ def test_execute_succeeds_on_first_attempt_reports_success_with_no_retry():
         writer = FakeWriter()
         executor = _make_executor(reader, writer)
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-1", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-1", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
 
         msgs = _core(writer.messages())
         assert len(msgs) == 1
-        assert msgs[0] == {"type": "result", "sequence_id": "seq-1", "success": True, "retry": 0, "outcome": "success"}
+        assert msgs[0] == {"type": "result", "sequence_id": "seq-1", "appliance_id": "microwave", "success": True, "retry": 0, "outcome": "success"}
     run(_t())
 
 
@@ -159,7 +159,7 @@ def test_execute_with_retries_reports_success_with_retry_count():
         # Fails twice, then succeeds — 3 attempts, 2 retries.
         executor = _make_executor(reader, writer, verifier_outcomes=[False, False, True])
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-2", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-2", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
 
@@ -175,7 +175,7 @@ def test_execute_exhausting_retries_reports_failure():
         writer = FakeWriter()
         executor = _make_executor(reader, writer, verifier_outcomes=[False] * 20)
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-3", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-3", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
 
@@ -198,7 +198,7 @@ def test_controller_exception_reports_error_actuator_fail():
         writer = FakeWriter()
         executor = ActExecutor(reader=reader, writer=writer, controller=ExplodingController())
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-4", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-4", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
 
@@ -221,11 +221,11 @@ def test_second_execute_while_busy_is_rejected():
             reader=reader, writer=writer, controller=SlowController(0.2, slow_result)
         )
 
-        feed(reader, {"type": "execute", "sequence_id": "first", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "first", "buttons": ["시작"]})
         first = asyncio.create_task(executor.run_once())
         await asyncio.sleep(0.05)  # let the first execute claim the busy flag
 
-        feed(reader, {"type": "execute", "sequence_id": "second", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "second", "buttons": ["시작"]})
         await executor.run_once()  # the second call — should see busy=True
 
         await first
@@ -233,7 +233,7 @@ def test_second_execute_while_busy_is_rejected():
 
         msgs = _core(writer.messages())
         assert {"type": "error", "sequence_id": "second", "reason": "busy"} in msgs
-        assert {"type": "result", "sequence_id": "first", "success": True, "retry": 0, "outcome": "success"} in msgs
+        assert {"type": "result", "sequence_id": "first", "appliance_id": "microwave", "success": True, "retry": 0, "outcome": "success"} in msgs
     run(_t())
 
 
@@ -264,7 +264,7 @@ def test_abort_while_busy_does_not_interrupt_execution():
             reader=reader, writer=writer, controller=SlowController(0.2, slow_result)
         )
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-5", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-5", "buttons": ["시작"]})
         first = asyncio.create_task(executor.run_once())
         await asyncio.sleep(0.05)
 
@@ -275,7 +275,7 @@ def test_abort_while_busy_does_not_interrupt_execution():
         await executor.wait_idle()
 
         msgs = _core(writer.messages())
-        assert msgs == [{"type": "result", "sequence_id": "seq-5", "success": True, "retry": 0, "outcome": "success"}]
+        assert msgs == [{"type": "result", "sequence_id": "seq-5", "appliance_id": "microwave", "success": True, "retry": 0, "outcome": "success"}]
     run(_t())
 
 
@@ -306,7 +306,7 @@ def test_abort_mid_execution_stops_closed_loop_and_reports_safety_stopped():
         executor = ActExecutor(reader=reader, writer=writer, controller=controller)
 
         feed(reader, {
-            "type": "execute", "sequence_id": "seq-stop",
+            "type": "execute", "appliance_id": "microwave", "sequence_id": "seq-stop",
             "buttons": ["b1", "b2", "b3", "b4", "b5"],
         })
         await executor.run_once()          # 실행 task 생성 후 즉시 반환
@@ -442,7 +442,7 @@ def test_danger_sound_alert_interleaves_safely_with_execute_result():
         writer = FakeWriter()
         executor = _make_executor(reader, writer)
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-danger", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-danger", "buttons": ["시작"]})
         exec_task = asyncio.create_task(executor.run_once())
         alert_task = asyncio.create_task(executor.report_danger_sound(_detected()))
         await asyncio.gather(exec_task, alert_task)
@@ -451,7 +451,7 @@ def test_danger_sound_alert_interleaves_safely_with_execute_result():
         msgs = _core(writer.messages())
         assert {"type": "alert", "kind": "danger_sound", "band_energy_ratio": 0.8,
                 "mean_period_seconds": 0.4} in msgs
-        assert {"type": "result", "sequence_id": "seq-danger", "success": True, "retry": 0, "outcome": "success"} in msgs
+        assert {"type": "result", "sequence_id": "seq-danger", "appliance_id": "microwave", "success": True, "retry": 0, "outcome": "success"} in msgs
         assert len(msgs) == 2  # both lines arrived intact, no interleaved/corrupted JSON
     run(_t())
 
@@ -478,7 +478,7 @@ def test_abort_while_busy_requests_cooperative_stop():
         controller = StoppableSlowController(0.2, slow_result)
         executor = ActExecutor(reader=reader, writer=writer, controller=controller)
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-9", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-9", "buttons": ["시작"]})
         first = asyncio.create_task(executor.run_once())
         await asyncio.sleep(0.05)
 
@@ -526,7 +526,7 @@ def test_shutdown_waits_for_the_execution_thread_to_actually_stop():
         controller = CooperativeController()
         executor = ActExecutor(reader=reader, writer=writer, controller=controller)
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-s1", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-s1", "buttons": ["시작"]})
         await executor.run_once()
         await asyncio.sleep(0.02)  # 실행 스레드 진입
 
@@ -557,7 +557,7 @@ def test_shutdown_reports_false_when_execution_ignores_the_stop():
         executor = ActExecutor(
             reader=reader, writer=writer, controller=StubbornController()
         )
-        feed(reader, {"type": "execute", "sequence_id": "seq-s2", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-s2", "buttons": ["시작"]})
         await executor.run_once()
         await asyncio.sleep(0.02)
 
@@ -631,7 +631,7 @@ def test_inject_failure_forces_retry_on_next_uart_execution():
         feed(reader, {"type": "inject_failure", "button_index": 0, "attempts": 1})
         await executor.run_once()
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-f1", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f1", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
 
@@ -641,7 +641,7 @@ def test_inject_failure_forces_retry_on_next_uart_execution():
 
         # 1회용 — 다음 실행은 정상
         writer.clear()
-        feed(reader, {"type": "execute", "sequence_id": "seq-f2", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f2", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
         assert writer.messages()[0]["retry"] == 0
@@ -656,7 +656,7 @@ def test_inject_failure_with_exhausting_attempts_reports_failure():
 
         feed(reader, {"type": "inject_failure", "button_index": 0, "attempts": 3})
         await executor.run_once()
-        feed(reader, {"type": "execute", "sequence_id": "seq-f3", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f3", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
 
@@ -676,7 +676,7 @@ def test_clear_failure_disarms_before_execution():
         feed(reader, {"type": "clear_failure"})
         await executor.run_once()
 
-        feed(reader, {"type": "execute", "sequence_id": "seq-f4", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f4", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
 
@@ -694,7 +694,7 @@ def test_inject_failure_without_wired_state_is_ignored():
 
         feed(reader, {"type": "inject_failure", "button_index": 0, "attempts": 3})
         await executor.run_once()
-        feed(reader, {"type": "execute", "sequence_id": "seq-f5", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f5", "buttons": ["시작"]})
         await executor.run_once()
         await executor.wait_idle()
 

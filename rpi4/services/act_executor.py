@@ -8,8 +8,8 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
 
   INBOUND (RPi5 -> RPi4)          OUTBOUND (RPi4 -> RPi5)
   ──────────────────────────────────────────────────────────
-  execute {sequence_id, buttons,  →  result {sequence_id, success, retry,
-           targets?}                         outcome, button_results,
+  execute {sequence_id, buttons,  →  result {sequence_id, appliance_id, success, retry,
+           appliance_id, targets?}           outcome, button_results,
                                              operation_confirmed, operation_detail,
                                              operation_source, execution_mode}
                                  →  progress {sequence_id, n, button, step_index,
@@ -34,6 +34,8 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   estop_ack                      →  estop_state {latched, reason, detail}
                                     (비상정지 걸림 해제 확인 — 버튼이 풀렸을 때만 풀린다)
   (걸린 동안의 execute/verify_pass) → error {reason:"estop_latched"}
+  (대상 appliance_id 없는 execute) → error {reason:"target_required"} (2026-10-07, 평가 H3)
+  (대상 CT 채널이 없는데 L3 real) → error {reason:"target_unbound"} — 누르기 전 (target_binding.py)
   (콘센트 모듈 무응답 중 execute/verify_pass) → error {reason:"outlet_offline"}
   (after an L3-confirmed result) →  progress {phase:"power_tail", power_tail:{...}}
                                     (잔여 전류 꼬리 기록 — after_result 훅, 2026-10-05)
@@ -75,7 +77,9 @@ from ..models.act_messages import (
     AbortMsg,
     ClearFailureMsg,
     EstopAckMsg,
+    EXECUTE_PROTOCOL,
     ExecuteMsg,
+    ExecuteRefusedMsg,
     HelloMsg,
     InboundActMsg,
     InjectFailureMsg,
@@ -84,6 +88,7 @@ from ..models.act_messages import (
     parse_act_message,
 )
 from .stop_hold import HoldHardware, StopHoldSession, run_verify_pass
+from .target_binding import TargetBinder, TargetBinding, TargetRefused
 
 log = logging.getLogger(__name__)
 
@@ -191,6 +196,7 @@ class ActExecutor:
         hold: "HoldHardware | None" = None,
         after_result: "Callable[[str, ExecutionResult, Callable[[dict], None]], None] | None" = None,
         outlet_readiness: "Callable[[], str | None] | None" = None,
+        target_binder: "TargetBinder | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -210,6 +216,10 @@ class ActExecutor:
         ``progress {phase:"power_tail"}`` 프레임을 보낸다. 훅에 ``stop()``이 있으면 새 실행·종료 때 부른다.
         outlet_readiness: 콘센트 모듈 생존 확인(선택, 2026-10-05). 이유 문자열이면 execute·verify_pass를
         ``outlet_offline``으로 거절한다 — 모듈이 조용하면 물리 비상정지를 볼 수 없으므로 안전 쪽으로 멈춘다.
+        target_binder: 실행 대상 가전 → L3 판정기·잔여 전류 꼬리 결속(선택, 2026-10-07 평가 H3). 있으면 execute마다
+        대상의 판정기를 컨트롤러에 꽂고(``use_operation``) 그 대상의 꼬리 훅을 ``after_result`` 대신 쓴다.
+        결속할 수 없는 대상(L3 real인데 CT 채널 없음)은 누르기 전에 ``error {reason}``으로 거절한다.
+        None이면 컨트롤러에 꽂힌 판정기를 그대로 쓴다(시험·시뮬레이터).
 
         비상정지 걸림(2026-10-05): 콘센트 모듈의 비상정지(이벤트·ready·status 보고)를 받으면
         ``estop_latched``가 켜지고, RPi5가 ``estop_ack``로 해제를 확인할 때까지 execute·verify_pass를
@@ -233,6 +243,9 @@ class ActExecutor:
         self.hold_session: StopHoldSession | None = None
         self._verify_stop = False
         self._after_result = after_result
+        self._target_binder = target_binder
+        #: 마지막 결과에 쓴 꼬리 훅(새 실행·종료 때 멈춘다).
+        self._active_after_result = after_result
         #: 콘센트 모듈 비상정지 이벤트 수(시험·상태 확인용).
         self.outlet_estops = 0
         self._outlet_readiness = outlet_readiness
@@ -408,6 +421,10 @@ class ActExecutor:
     async def _dispatch(self, msg: InboundActMsg) -> None:
         if isinstance(msg, ExecuteMsg):
             await self._on_execute(msg)
+        elif isinstance(msg, ExecuteRefusedMsg):
+            log.warning("execute %r refused — %s", msg.sequence_id, msg.reason)
+            await self._send({"type": "error", "sequence_id": msg.sequence_id, "reason": msg.reason,
+                              "detail": msg.detail})
         elif isinstance(msg, EstopAckMsg):
             self._start_estop_ack()
         elif isinstance(msg, HelloMsg):
@@ -440,6 +457,17 @@ class ActExecutor:
         if await self._refuse_if_unsafe("execute", msg.sequence_id):
             return
 
+        # 대상 결속은 대기 해제보다 먼저 — 결속할 수 없는 실행이 지금 정지 대기를 건드리지 않게.
+        binding: TargetBinding | None = None
+        if self._target_binder is not None:
+            try:
+                binding = self._target_binder.bind(msg.appliance_id)
+            except TargetRefused as exc:
+                log.warning("execute %r refused — %s: %s", msg.sequence_id, exc.reason, exc.detail)
+                await self._send({"type": "error", "sequence_id": msg.sequence_id, "reason": exc.reason,
+                                  "detail": exc.detail})
+                return
+
         if not await self._release_hold_for_new_run():
             await self._send({
                 "type": "error",
@@ -460,10 +488,13 @@ class ActExecutor:
         reset_stop = getattr(self._controller, "reset_stop", None)
         if reset_stop is not None:
             reset_stop()
+        if binding is not None:
+            # 이번 실행의 L3는 대상 CT 채널(또는 없음) — 전자레인지 채널로 다른 가전을 확인하지 않는다.
+            self._controller.use_operation(binding.operation)
         # 실행을 별도 task로 띄우고 즉시 반환한다. 여기서 await하면 읽기
         # 루프가 실행 완료까지 멈춰서, 실행 중 도착한 abort(긴급 정지)를
         # 읽을 수 없었다 — "실행 중 정지 불가"였던 진짜 원인.
-        self._execute_task = asyncio.create_task(self._execute_and_report(msg))
+        self._execute_task = asyncio.create_task(self._execute_and_report(msg, binding))
 
     def _not_ready_reason(self) -> str | None:
         return self._check(self._readiness, "readiness")
@@ -550,7 +581,7 @@ class ActExecutor:
         self._drain_tasks.add(task)
         task.add_done_callback(self._drain_tasks.discard)
 
-    async def _execute_and_report(self, msg: ExecuteMsg) -> None:
+    async def _execute_and_report(self, msg: ExecuteMsg, binding: "TargetBinding | None" = None) -> None:
         progress_on = self._attach_progress(msg.sequence_id)
         self._notify_job("job_start", {"sequence_id": msg.sequence_id, "buttons": list(msg.buttons),
                                        "progress": progress_on})
@@ -596,15 +627,19 @@ class ActExecutor:
         await self._send({
             "type": "result",
             "sequence_id": msg.sequence_id,
+            # 2026-10-07: 결과가 어느 대상의 것인지. RPi5가 보낸 대상과 다르면 RPi5가 오류로 본다.
+            "appliance_id": msg.appliance_id,
             "success": success,
             "retry": retry,
             "outcome": outcome,
             # 2026-09-29: 버튼별 시도 수·보정, L3 판정, 실행 환경. 옛 RPi5는 무시한다.
             **result_detail_fields(result, self._controller),
         })
-        if self._after_result is not None:
+        after_result = binding.after_result if binding is not None else self._after_result
+        self._active_after_result = after_result
+        if after_result is not None:
             try:
-                self._after_result(msg.sequence_id, result,
+                after_result(msg.sequence_id, result,
                                    self._frame_emitter(msg.sequence_id, "power_tail"))
             except Exception:  # noqa: BLE001 - 기록 훅 고장이 실행 보고를 막지 않게
                 log.exception("after_result hook failed for %r", msg.sequence_id)
@@ -716,7 +751,7 @@ class ActExecutor:
         })
 
     def _stop_after_result(self) -> None:
-        stop = getattr(self._after_result, "stop", None)
+        stop = getattr(self._active_after_result, "stop", None)
         if callable(stop):
             try:
                 stop()
@@ -867,7 +902,7 @@ class ActExecutor:
 
     def _announce(self) -> None:
         """``act_info``와 ``estop_state``를 보낸다 — RPi5가 (다시) 연결했거나 RPi4가 막 켜졌을 때."""
-        info = {"type": "act_info", "done_watch": [], **self.act_info,
+        info = {"type": "act_info", "done_watch": [], "execute_protocol": EXECUTE_PROTOCOL, **self.act_info,
                 "rehearsal": self._rehearsal is not None}
         self._write_now(info)
         # announce: 해제 확인(estop_ack)의 답이 아니라 상태 알림이다 — RPi5가 대기 중인 확인으로 착각하지 않게.

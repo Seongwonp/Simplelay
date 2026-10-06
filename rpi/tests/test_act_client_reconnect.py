@@ -71,7 +71,7 @@ def test_read_error_without_connector_fails_pending_and_forgets_latch_state():
         await client.start()
         r1.feed_data(_line(ANNOUNCE_CLEAR))
         await _until(lambda: client.estop_latched is False)
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="s1"))
+        task = asyncio.create_task(client.execute(["시작"], sequence_id="s1", appliance_id="microwave"))
         await _until(lambda: any(m.get("type") == "execute" for m in w1.messages()))
         r1.set_exception(SocketDisconnected("read failed: socket disconnected"))
         with pytest.raises(ActLinkError):
@@ -100,7 +100,7 @@ def test_disconnect_fails_pending_refuses_while_down_and_recovers_after_handshak
         r1.feed_data(_line(ANNOUNCE_CLEAR))
         await _until(lambda: client.estop_latched is False)
 
-        task = asyncio.create_task(client.execute(["즉석밥", "시작"], sequence_id="s1"))
+        task = asyncio.create_task(client.execute(["즉석밥", "시작"], sequence_id="s1", appliance_id="microwave"))
         await _until(lambda: any(m.get("type") == "execute" for m in w1.messages()))
         r1.set_exception(SocketDisconnected("read failed: socket disconnected"))
 
@@ -111,7 +111,7 @@ def test_disconnect_fails_pending_refuses_while_down_and_recovers_after_handshak
         assert client.estop_latched is None
         assert client.link_up is False
         with pytest.raises(ActLinkError):
-            await asyncio.wait_for(client.execute(["시작"], sequence_id="s-down"), 1.0)
+            await asyncio.wait_for(client.execute(["시작"], sequence_id="s-down", appliance_id="microwave"), 1.0)
         assert not any(m.get("sequence_id") == "s-down" for m in w1.messages())
 
         # 다시 이으면 hello부터 보낸다(첫 시도 실패 → 늘린 간격으로 재시도).
@@ -124,7 +124,7 @@ def test_disconnect_fails_pending_refuses_while_down_and_recovers_after_handshak
         r2.feed_data(_line(ANNOUNCE_CLEAR))
         await _until(lambda: client.estop_latched is False)
 
-        task2 = asyncio.create_task(client.execute(["즉석밥", "시작"], sequence_id="s2"))
+        task2 = asyncio.create_task(client.execute(["즉석밥", "시작"], sequence_id="s2", appliance_id="microwave"))
         await _until(lambda: any(m.get("sequence_id") == "s2" for m in w2.messages()))
         r2.feed_data(_line({"type": "result", "sequence_id": "s2", "success": True, "retry": 0}))
         result = await asyncio.wait_for(task2, 1.0)
@@ -242,6 +242,7 @@ def test_service_refuses_as_checking_while_link_down_then_allows_after_reconnect
                 time.sleep(0.005)
 
         threading.Thread(target=_reply, daemon=True).start()
+        controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
         result = controller.execute(["즉석밥", "시작"])
         assert result.status.value == "succeeded"
     finally:

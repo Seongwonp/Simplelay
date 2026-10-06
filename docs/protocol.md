@@ -62,7 +62,7 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 ### RPi5 → RPi4
 
 ```json
-{ "type": "execute", "sequence_id": "seq_001", "buttons": ["BT-08", "BT-03", "BT-05"] }
+{ "type": "execute", "sequence_id": "seq_001", "buttons": ["BT-08", "BT-03", "BT-05"], "appliance_id": "microwave" }
 { "type": "abort" }
 { "type": "inject_failure", "button_index": 0, "attempts": 1 }
 { "type": "clear_failure" }
@@ -90,6 +90,21 @@ RPi5는 답을 받기 전 걸림 상태를 **모름**(`estop_latched=null`)으�
 `estop_ack`(2026-10-05): 콘센트 모듈 비상정지로 RPi4가 **걸린**(`estop_latched`) 뒤, 사람이 버튼을 풀고 해제를
 확인했다는 뜻(RPi5 `POST /stop/ack`). RPi4는 모듈 `status`로 버튼을 확인해 풀렸을 때만 모듈에 `estop_reset`을 보내고
 자기 걸림을 푼다. 답은 `estop_state` 하나(아래 "콘센트 모듈 링크" 절).
+
+`execute`의 `appliance_id`는 **필수**다(2026-10-07, 평가 H3 — execute 규약 2, `act_info.execute_protocol: 2`).
+RPi4는 이 대상의 CT 채널(`SIMPLELAY_OUTLET_CHANNELS`, 대응이 비면 채널 0은 전자레인지만)로 L3 판정기·잔여 전류
+꼬리·정지 대기 전력 확인을 고른다(`rpi4/services/target_binding.py`). 그래서 전자레인지 채널 변화로 세탁기·인터폰
+실행이나 정지가 확인되지 않는다. 규칙:
+- 대상이 없는 옛 프레임 → 누르지 않고 `{"type":"error","sequence_id":…,"reason":"target_required","detail":…}`.
+  RPi5·RPi4는 같은 판으로 배포한다(새 RPi5 → 옛 RPi4는 옛 RPi4가 모르는 키를 무시해 전자레인지 채널로 판정한다 —
+  `act_info`에 `execute_protocol`이 없으면 옛 RPi4다).
+- `SIMPLELAY_L3_MODE=real`인데 대상 CT 채널이 없음 → 누르기 전 `error`(`target_unbound`). 전력으로 동작을 볼 수
+  없는 가전은 `SIMPLELAY_L3_NONE_TARGETS`(예: `intercom`)에 적으면 판정 없이(`operation_confirmed: null`) 실행한다.
+- `hold.appliance_id`가 있으면 실행 대상과 같아야 한다(다르면 메시지 전체를 버린다). 없으면 실행 대상으로 채운다.
+- `result`에 `appliance_id`가 실린다. RPi5는 보낸 대상과 다르면 그 결과를 쓰지 않는다(`ActLinkError`).
+- RPi5는 대상이 없으면 보내지 않는다. `appliance_id` 없는 옛 API 요청은 규칙 해석과 같은 내장 갠트리 가전
+  (`microwave`)을 **명시해** 싣는다(`rpi/api/service.py` `BUILTIN_GANTRY_APPLIANCE`).
+- L2(수용 판정)는 대상과 무관하게 운영 경로(RPi4 `act_main`)에 판정기가 없다 — 결과에 L2 판정이 없다.
 
 `execute`의 `targets`는 **선택** 필드다(2026-09-28). 보정(`PUT /appliances/{id}/calibration`)으로
 갠트리 좌표가 기록된 버튼만 싣는다. 좌표가 하나도 없으면 키 자체를 넣지 않는다 —

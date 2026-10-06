@@ -47,6 +47,10 @@ log = logging.getLogger(__name__)
 # 잡아, 살아 있는 노드는 확인하고 죽은 노드 하나가 호출자를 붙잡지는 않게.
 EMERGENCY_STOP_BROADCAST_SECONDS = 2.5
 
+#: appliance_id 없는 옛 실행 요청의 대상 — 규칙 해석(즉석밥 등)이 쓰는 내장 갠트리 가전.
+#: RPi4 execute에는 이 값을 **명시해** 싣는다(2026-10-07, 평가 H3). RPi4가 대상을 가정하지 않는다.
+BUILTIN_GANTRY_APPLIANCE = "microwave"
+
 
 @dataclass(frozen=True)
 class EmergencyStopReport:
@@ -826,6 +830,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         targets: "dict[str, ButtonTarget] | None" = None,
     ) -> ExecutionResult:
         self._physical_expected = len(buttons)
+        # 실행 대상 가전(2026-10-07, 평가 H3): RPi4 링크는 대상 없는 execute를 보내지 않는다. RPi4가 그 대상의
+        # CT 채널로 L3·정지 확인을 고른다. appliance_id 없는 옛 요청은 규칙 해석과 같은 내장 갠트리 가전이다.
+        arm_target = getattr(controller, "arm_execute_target", None)
+        if callable(arm_target):
+            arm_target(appliance_id if appliance_id is not None else BUILTIN_GANTRY_APPLIANCE)
         # 정지 대기·보관 계획(2026-09-30): 받는 대상(RPi4 링크)에만, 이번 실행 한 번에 싣는다.
         arm_hold = getattr(controller, "arm_stop_hold", None)
         arm_simulated = getattr(controller, "arm_simulated_stop_hold", None)
