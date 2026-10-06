@@ -936,7 +936,8 @@ async def status(
     return response.model_copy(
         update={**command_status_fields(snapshot), **hold_status_fields(service.hold_status()),
                 "estop_latched": estop.get("latched"),
-                "estop_detail": estop.get("detail") if estop.get("latched") else None}
+                "estop_detail": estop.get("detail") if estop.get("latched") else None,
+                "actuator_link_up": service.actuator_link_up()}
     )
 
 

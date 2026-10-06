@@ -229,6 +229,10 @@ def _press_link(service) -> str:
 
     try:
         controller = getattr(service, "_controller", None)
+        # 링크 끊김·첫 연결 전(2026-10-06 인계 §6)이 프레임 기록보다 먼저다 — 지난 프레임이 정상이어도 지금은 못 누른다.
+        link_status = getattr(controller, "link_status", None)
+        if callable(link_status) and link_status().get("link_up") is False:
+            return "down"
         tap = getattr(controller, "frame_tap", None) or get_link_tap()
         return press_link_from_frames(tap.frames(), time.monotonic_ns())
     except Exception:  # noqa: BLE001

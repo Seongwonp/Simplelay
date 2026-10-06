@@ -101,6 +101,8 @@ _BUILTIN_IDS = frozenset(a.appliance_id for a in BUILTIN_APPLIANCES)
 ESTOP_LATCHED_REASON = "비상정지가 걸려 있어요 — 버튼을 풀고 정지 해제 확인을 눌러 주세요"
 #: RPi5가 다시 켜진 뒤 RPi4의 걸림 상태를 아직 모를 때(2026-10-06 평가 C1). '풀림'으로 보지 않는다.
 ESTOP_UNKNOWN_REASON = "비상정지 상태를 확인하는 중이에요 — RPi4 응답을 기다려요"
+#: RPi4(누름 장치) 링크가 끊겼거나 첫 연결 전일 때(2026-10-06 인계 §6). 걸림 상태도 모름이라 실행하지 않는다.
+ACT_LINK_DOWN_REASON = "누름 장치 연결 안 됨 — 다시 연결하는 중이에요"
 
 
 def _check_approved(buttons, approved_buttons) -> None:
@@ -1089,7 +1091,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         return status.get("latched") is True
 
     def estop_block_reason(self) -> str | None:
-        """로컬 실행 대상을 막는 걸림 사유: 걸림(RPi4 보고, 재부팅으로 꺼진 콘센트 포함) → 상태 모름(확인 중) 순."""
+        """로컬 실행 대상을 막는 걸림 사유: 걸림(RPi4 보고, 재부팅으로 꺼진 콘센트 포함) → 링크 끊김·첫 연결 전
+        (누름 장치 연결 안 됨) → 상태 모름(확인 중) 순."""
         status = self.estop_status() or {}
         if status.get("latched") is True:
             detail = status.get("detail")
@@ -1097,9 +1100,22 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             if isinstance(detail, str) and "다시 켜져" in detail:
                 return detail
             return ESTOP_LATCHED_REASON
+        if status.get("link_up") is False:
+            return ACT_LINK_DOWN_REASON
         if status.get("known") is False:
             return ESTOP_UNKNOWN_REASON
         return None
+
+    def actuator_link_up(self) -> bool | None:
+        """로컬 실행 대상(RPi4)과의 링크. 링크를 보고하지 않는 실행 대상(로컬 모의 등)이면 None."""
+        status = getattr(self._controller, "link_status", None)
+        if not callable(status):
+            return None
+        try:
+            return bool(status().get("link_up"))
+        except Exception:  # noqa: BLE001 - 상태 조회 고장이 /status를 막지 않는다
+            log.exception("link status failed")
+            return None
 
     def acknowledge_estop(self) -> dict:
         """사람의 비상정지 해제 확인을 RPi4로 보낸다. 지원하지 않는 실행 대상이면 RuntimeError."""

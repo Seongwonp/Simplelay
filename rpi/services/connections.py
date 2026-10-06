@@ -117,7 +117,8 @@ def network_item(interface: str, internet: str = "unknown") -> ConnectionItem:
 def press_link_from_frames(
     frames: Iterable[dict], now_ns: int, reply_timeout_s: float = PRESS_REPLY_TIMEOUT_SECONDS
 ) -> str:
-    """통신 프레임 탭으로 본 링크: ok | no_reply | error | never.
+    """통신 프레임 탭으로 본 링크: ok | no_reply | error | never. (``down``=링크 끊김·첫 연결 전은
+    호출하는 쪽이 컨트롤러의 ``link_status``로 먼저 가른다.)
 
     - never: 허브를 켠 뒤 누름 장치에서 온 줄이 하나도 없다.
     - no_reply: 마지막으로 보낸 실행 명령 뒤로 기한이 지나도록 답이 없다.
@@ -163,6 +164,15 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
             "지금은 연습용 누름 장치로 동작해요.",
             (),
             "mock",
+        )
+    if link == "down":
+        return ConnectionItem(
+            "press",
+            "error",
+            "누름 장치 연결 안 됨",
+            "허브가 누름 장치에 다시 연결하는 중이에요. 연결되기 전에는 버튼을 대신 눌러 드릴 수 없어요.",
+            _PRESS_FIXES,
+            "real",
         )
     if link == "no_reply":
         return ConnectionItem(

@@ -12,6 +12,7 @@ from fastapi.staticfiles import StaticFiles
 from rpi.api.auth import log_auth_mode, require_api_key
 from rpi.api.deps import (
     get_actuator_status,
+    get_service,
     get_suggestion_service,
     get_wellness_checker,
 )
@@ -261,10 +262,15 @@ def mount_kiosk(target: FastAPI, directory: pathlib.Path | None = None) -> bool:
 async def health(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
     actuator=Depends(get_actuator_status),
+    service=Depends(get_service),
 ) -> HealthResponse:
     act_mode = os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower() or "local"
     # 홈 스위치 판독은 기한까지 기다릴 수 있다 — 이벤트 루프 밖에서 읽는다
     actuator_ready = await asyncio.to_thread(actuator.is_ready)
+    # RPi4(누름 장치) 링크가 끊겼거나 첫 연결 전이면 준비 안 됨(2026-10-06 인계 §6). 보고 없는 실행 대상은 그대로.
+    link_up = getattr(service, "actuator_link_up", None)
+    if callable(link_up) and link_up() is False:
+        actuator_ready = False
     return HealthResponse(
         ok=True,
         actuator_ready=actuator_ready,

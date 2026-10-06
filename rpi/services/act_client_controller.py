@@ -150,6 +150,12 @@ class ActClientController:
                 # 링크가 끊긴 동안 known=False(확인 중)다 — 다시 이은 뒤 RPi4 답으로만 다시 안다.
                 "link_up": getattr(self._client, "link_up", True)}
 
+    def link_status(self) -> dict:
+        """RPi4 링크 ``{"link_up": bool, "ever_connected": bool, "reason": str|None}``(2026-10-06 인계 §6)."""
+        return {"link_up": bool(getattr(self._client, "link_up", True)),
+                "ever_connected": bool(getattr(self._client, "ever_connected", True)),
+                "reason": getattr(self._client, "link_down_reason", None)}
+
     def _maybe_hello(self) -> None:
         import time  # noqa: PLC0415
 
@@ -259,7 +265,9 @@ def open_uart_act_controller(
 ) -> ActClientController:
     """Production factory -- opens the real serial port to RPi4 and starts
     the background loop + ActClient, with a connector that reopens the same
-    port when the link drops (socket:// and /dev/tty* alike). Requires
+    port when the link drops (socket:// and /dev/tty* alike). The first
+    connection is made in the background with the same backoff, so a
+    missing RPi4 does not fail backend startup (link stays down until then). Requires
     pyserial-asyncio and a real device; the reconnect wiring is covered with a
     fake serial_asyncio in test_act_client_reconnect.py."""
     import serial_asyncio  # type: ignore[import-untyped]
@@ -276,15 +284,15 @@ def open_uart_act_controller(
         return await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
 
     async def _open() -> ActClient:
-        reader, writer = await _connect()
-        # 끊기면(RPi4 실행기 재시작·socket 끊김·USB 뽑힘) 같은 포트를 다시 열고 hello로 걸림 상태를 다시 받는다.
-        # socket://·/dev/tty* 공통(2026-10-06 교차 리뷰 HIGH).
-        client = ActClient(reader, writer, config=config, on_alert=on_alert, tap=tap,
+        # 첫 연결도 배경에서 한다(2026-10-06 인계 §6) — RPi4 실행기가 꺼져 있어도 백엔드는 뜨고, 잇기 전에는
+        # 링크 끊김(실행 거절·걸림 상태 모름)이다. 끊기면(RPi4 실행기 재시작·socket 끊김·USB 뽑힘) 같은 포트를
+        # 다시 열고 hello로 걸림 상태를 다시 받는다. socket://·/dev/tty* 공통(2026-10-06 교차 리뷰 HIGH).
+        client = ActClient(None, None, config=config, on_alert=on_alert, tap=tap,
                            on_appliance_done=on_appliance_done, on_act_info=on_act_info,
                            hello=True, connector=_connect)
         await client.start()
         return client
 
     client = asyncio.run_coroutine_threadsafe(_open(), loop).result(timeout=10.0)
-    log.info("ActClientController connected to RPi4 on %s @ %d baud", port, baud)
+    log.info("ActClientController connecting to RPi4 on %s @ %d baud (background, retries until up)", port, baud)
     return ActClientController(loop, client)

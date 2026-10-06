@@ -179,7 +179,7 @@ def test_backoff_is_bounded():
 
 def test_service_refuses_as_checking_while_link_down_then_allows_after_reconnect():
     """동기 브리지·서비스까지: 끊긴 동안 실행 전 거절 사유는 '확인하는 중', 다시 이은 뒤 실행 성공."""
-    from rpi.api.service import ESTOP_UNKNOWN_REASON, SimpleLayService
+    from rpi.api.service import ACT_LINK_DOWN_REASON, ESTOP_UNKNOWN_REASON, SimpleLayService
     from rpi.intent import RuleBasedIntentResolver
     from rpi.services.act_client_controller import ActClientController, start_background_loop
 
@@ -215,7 +215,9 @@ def test_service_refuses_as_checking_while_link_down_then_allows_after_reconnect
         deadline = time.monotonic() + 2.0
         while service.estop_block_reason() is None and time.monotonic() < deadline:
             time.sleep(0.005)
-        assert service.estop_block_reason() == ESTOP_UNKNOWN_REASON
+        # 끊긴 동안은 더 구체적인 사유(누름 장치 연결 안 됨, 2026-10-06 인계 §6) — 걸림 상태도 여전히 모름이다.
+        assert service.estop_block_reason() == ACT_LINK_DOWN_REASON
+        assert controller.estop_status()["known"] is False
 
         w2 = r2_w2["w"]
         deadline = time.monotonic() + 2.0
@@ -268,6 +270,10 @@ def test_uart_factory_wires_a_reconnecting_connector(monkeypatch):
 
     controller = acc.open_uart_act_controller("socket://rpi4:7000", 115200)
     try:
+        # 첫 연결은 배경에서 한다(2026-10-06 인계 §6) — 이어질 때까지 기다린다.
+        deadline = time.monotonic() + 2.0
+        while not streams and time.monotonic() < deadline:
+            time.sleep(0.005)
         assert opened == [("socket://rpi4:7000", 115200)]
         reader, _ = streams[0]
         controller._loop.call_soon_threadsafe(reader.feed_eof)

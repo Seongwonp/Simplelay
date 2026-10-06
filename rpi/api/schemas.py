@@ -700,6 +700,9 @@ class StatusResponse(BaseModel):
     #: true면 POST /stop/ack로 해제 확인 전까지 실행을 거절한다. 보고 수단이 없는 실행기면 None.
     estop_latched: bool | None = None
     estop_detail: str | None = None
+    #: RPi4(누름 장치) 링크(2026-10-06 인계 §6). false면 끊김·첫 연결 전 — 실행은 거절된다.
+    #: 링크를 보고하지 않는 실행 대상(로컬 모의 등)이면 null. 옛 클라이언트는 무시한다.
+    actuator_link_up: bool | None = None
     last_status: str | None
     #: success | failed | stopped | safety_stop — 화면이 "정지됨"(stopped)과
     #: "실패"(failed·safety_stop)를 가르는 값. last_status의 safety_stopped는

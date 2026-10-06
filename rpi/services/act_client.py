@@ -291,8 +291,8 @@ class ActClient:
 
     def __init__(
         self,
-        reader: asyncio.StreamReader,
-        writer: _WriterLike,
+        reader: asyncio.StreamReader | None,
+        writer: _WriterLike | None,
         config: ActClientConfig | None = None,
         on_alert: Callable[[AlertEvent], None] | None = None,
         tap: "LinkFrameTap | None" = None,
@@ -308,7 +308,15 @@ class ActClient:
 
         ``connector``(2026-10-06 교차 리뷰): 링크가 끊기면(EOF·읽기 오류) 이것으로 새 (reader, writer)를 연다.
         ``reconnect_backoff=(처음, 상한)`` 초 간격으로 두 배씩 늘리며 다시 시도하고, 이으면 hello부터 보낸다.
-        None이면 종전처럼 읽기 루프가 끝난다(끊김 표시·대기 요청 실패는 똑같이 한다)."""
+        None이면 종전처럼 읽기 루프가 끝난다(끊김 표시·대기 요청 실패는 똑같이 한다).
+
+        ``reader``·``writer``가 None이면(첫 연결 전, 2026-10-06 인계 §6) 링크 끊김으로 시작하고 start()가 배경에서
+        ``connector``로 첫 연결을 시도한다 — 첫 시도는 바로, 실패하면 재연결과 같은 간격으로. 잇기 전에는
+        보내기를 ``ActLinkError``로 거절하고 걸림 상태는 None(모름)이다."""
+        if (reader is None) != (writer is None):
+            raise ValueError("reader and writer must both be given or both be None")
+        if reader is None and connector is None:
+            raise ValueError("connector is required when starting without a stream")
         self._reader = reader
         self._writer = writer
         self._cfg = config or ActClientConfig()
@@ -347,21 +355,26 @@ class ActClient:
         self._estop_waiters: list[asyncio.Future[dict]] = []
         self._connector = connector
         self._backoff = reconnect_backoff or self.RECONNECT_BACKOFF
-        #: 링크가 살아 있나(끊긴 동안 False — 보내기는 ActLinkError로 거절한다).
-        self.link_up = True
+        #: 링크가 살아 있나(끊긴 동안·첫 연결 전 False — 보내기는 ActLinkError로 거절한다).
+        self.link_up = reader is not None
         #: 끊긴 횟수·마지막 끊김 이유(진단용).
         self.link_drops = 0
-        self.link_down_reason: str | None = None
+        self.link_down_reason: str | None = None if reader is not None else self.NOT_CONNECTED_REASON
+        #: 한 번이라도 이어졌나(첫 연결 전 False).
+        self.ever_connected = reader is not None
 
     #: 재연결 간격(처음, 상한) 초. 끊긴 뒤 처음 간격만큼 쉬고 시도하며, 실패마다 두 배(상한까지).
     RECONNECT_BACKOFF: tuple[float, float] = (0.5, 5.0)
+    #: 첫 연결 전 ``link_down_reason``.
+    NOT_CONNECTED_REASON = "not connected yet"
 
     # ── Public API ───────────────────────────────────────────────────────────
 
     async def start(self) -> None:
         """Start the background read loop. Call once before execute()/abort()."""
         self._read_task = asyncio.create_task(self._read_loop())
-        if self._hello_on_start:
+        # 첫 연결 전이면 hello는 연결이 이어진 뒤 _reconnect가 보낸다.
+        if self._hello_on_start and self.link_up:
             await self.hello()
 
     async def hello(self) -> None:
@@ -559,6 +572,8 @@ class ActClient:
 
     async def _read_loop(self) -> None:
         """줄을 읽는다. 끊기면(EOF·읽기 오류) 끊김으로 표시하고, ``connector``가 있으면 다시 잇는다."""
+        if self._reader is None:  # 첫 연결 전 — 바로 한 번 시도하고, 실패하면 같은 간격으로 다시
+            await self._reconnect(initial=True)
         while True:
             try:
                 while True:
@@ -600,23 +615,30 @@ class ActClient:
             with contextlib.suppress(Exception):
                 close()
 
-    async def _reconnect(self) -> None:
+    async def _reconnect(self, initial: bool = False) -> None:
+        """``initial``(첫 연결): 첫 시도는 쉬지 않고 바로 한다. 그 뒤 간격은 재연결과 같다."""
         delay, ceiling = self._backoff
+        wait = 0.0 if initial else delay
         while True:
-            await asyncio.sleep(delay)
+            await asyncio.sleep(wait)
             try:
                 reader, writer = await self._connector()  # type: ignore[misc]
             except asyncio.CancelledError:
                 raise
             except Exception as exc:  # noqa: BLE001 - 상대가 아직 다시 뜨는 중
-                log.info("ActClient: reconnect failed (%s) — retry in %.1fs",
-                         exc, min(delay * 2, ceiling))
-                delay = min(delay * 2, ceiling)
+                if initial and wait == 0.0:
+                    wait = delay
+                else:
+                    wait = delay = min(delay * 2, ceiling)
+                log.info("ActClient: %s failed (%s) — retry in %.1fs",
+                         "first connect" if not self.ever_connected else "reconnect", exc, wait)
                 continue
             self._reader, self._writer = reader, writer
             self.link_up = True
             self.link_down_reason = None
-            log.info("ActClient: link re-established — sending hello")
+            log.info("ActClient: link %s — sending hello",
+                     "established" if not self.ever_connected else "re-established")
+            self.ever_connected = True
             # 걸림 상태·구성을 다시 받는다. 답(estop_state)이 올 때까지 estop_latched는 None(확인 중).
             await self.hello()
             return
