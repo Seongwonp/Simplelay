@@ -47,6 +47,10 @@ class CurrentSensorConfig:
     # 기준선 대비 임계값을 넘은 표본이 이만큼 있어야 누름으로 본다(단발 잡음 거르기).
     min_samples_above: int = 2
     # 한 관측 구간의 상한(초). 넘으면 센서 이상으로 본다(닫히지 않은 창 방지).
+    # L1 전류 창이다(L3 전력의 시작 제한시간과 별개). 모션 어댑터에서는 자동 원점·
+    # XY 이동 뒤 Z 직전에 열므로 home_timeout_s/move_timeout_s는 이 30초를 쓰지 않는다.
+    # Z 누름·냉각 대기·post_press_s는 포함된다. press_timeout_s와 함께 실측해 정해야 하며
+    # 누름이 더 오래 걸리면 센서 이상으로 중단한다. 임계값·시간은 실측 필요.
     max_window_s: float = 30.0
     # 이 범위 밖 전압은 단절로 본다(None이면 검사 안 함). 분압 회로 확인 전이라 기본 꺼짐.
     valid_voltage_range: tuple[float, float] | None = None

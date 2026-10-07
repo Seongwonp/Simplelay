@@ -702,7 +702,11 @@ class SerialMotionClient(GrblClient):
         with self._op_lock:
             self._run_busy(request, self._config.move_timeout_s)
 
-    def press(self, command: PressCommand) -> None:
+    def press_with_observation(self, command: PressCommand, before_press: Callable[[], None]) -> None:
+        """자동 원점·XY 이동 뒤, Z 명령 직전에 관측을 시작한다."""
+        self.press(command, before_press=before_press)
+
+    def press(self, command: PressCommand, *, before_press: Callable[[], None] | None = None) -> None:
         """좌표로 이동 → Z 누름 → 복귀. 검증 가능한 것은 전부 움직이기 전에 확인한다."""
         self._refuse_if_stopped(f"'{command.button}' 누름")
         if not command.has_coordinates:
@@ -728,6 +732,9 @@ class SerialMotionClient(GrblClient):
 
         with self._op_lock:
             self._run_busy(move, self._config.move_timeout_s)
+            if before_press is not None:
+                before_press()
+            self._refuse_if_stopped(f"'{command.button}' 누름")
             self._emit("press_command", {"button": command.button})
             try:
                 self._run_busy(press, self._config.press_timeout_s)

@@ -119,6 +119,57 @@ def test_declares_real_execution_and_requires_coordinates():
     assert SerialMotionClient.requires_coordinates is True
 
 
+@pytest.mark.parametrize("sensor_failure", [None, "l1", "l3"])
+def test_observation_starts_after_home_and_xy_before_z(link, monkeypatch, sensor_failure):
+    from dataclasses import replace
+    from rpi.controller.layered import OperationVerifier
+    from rpi.controller.models import LayerOutcome, VerificationLayer
+    from rpi.verifier import SensorUnavailable
+
+    pipe, mcu = link
+    client = _client(pipe, replace(TEST_CONFIG, auto_home=True))
+    events = []
+    write_line = pipe.host.write_line
+
+    def write(line):
+        events.append(json.loads(line)["cmd"])
+        write_line(line)
+
+    monkeypatch.setattr(pipe.host, "write_line", write)
+
+    class PressSensor(MockVerifier):
+        def begin_press(self, button):
+            events.append("l1")
+            if sensor_failure == "l1":
+                raise SensorUnavailable("fake ADC disconnected")
+
+    class OperationSensor(OperationVerifier):
+        def begin_observation(self):
+            events.append("l3_begin")
+            if sensor_failure == "l3":
+                raise OSError("fake power disconnected")
+
+        def note_press(self, button, press_number):
+            events.append("l3_note")
+
+        def verify_operation(self, buttons):
+            return LayerOutcome(VerificationLayer.OPERATION, True, "모의")
+
+    controller = ClosedLoopController(
+        client, PressSensor([True]), MockAlertSink(), MotionSafetyController(client),
+        operation=OperationSensor(),
+    )
+    result = controller.execute(["시작"], targets={"시작": ButtonTarget(1, 1)})
+    assert events[:3] == ["home", "move", "l3_begin"], events
+    if sensor_failure:
+        assert "press" not in events
+        assert events.count("move") == 1
+        assert result.status is ExecutionStatus.SAFETY_STOPPED
+    else:
+        assert events == ["home", "move", "l3_begin", "l3_note", "l1", "press"]
+        assert result.status is ExecutionStatus.SUCCEEDED
+
+
 def test_default_config_refuses_everything_before_sending(link):
     pipe, mcu = link
     client = _client(pipe, MotionConfig())

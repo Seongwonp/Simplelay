@@ -188,13 +188,7 @@ class ClosedLoopController:
         self._targets = targets
         results: list[ButtonResult] = []
         completed_steps = 0
-        if self._operation is not None:
-            # 누르기 전 상태를 먼저 잡는다 — L3 기준선은 조작 이전 구간에서 온다.
-            # 여기서 센서를 못 읽으면 동작을 확인할 방법이 없으니 누르지 않는다.
-            try:
-                self._operation.begin_observation()
-            except Exception as exc:  # noqa: BLE001 - 센서 고장은 종류와 무관하게 fail closed
-                return self._stop_for_unobservable_operation(exc, ())
+        self._operation_observing = False
         for button in buttons:
             try:
                 self._check_stop()
@@ -315,26 +309,42 @@ class ClosedLoopController:
                 self._observe("move", button, completed_steps, presses,
                               target=_target_fields(command),
                               correction=_correction_fields(correction))
-                if self._operation is not None:
-                    # 누르기 직전 시각을 L3에 알린다(판정 기준 시각·기준선 이어 붙이기).
-                    try:
-                        self._operation.note_press(button, presses)
-                    except Exception as exc:  # noqa: BLE001 - 센서 고장은 fail closed
-                        raise _OperationObservationFailed(str(exc)) from exc
-                # L1 관측 구간 시작: 누르기 직전 기준선, 누르는 동안 연속 수집(verify가 닫는다).
-                begin = getattr(self._verifier, "begin_press", None)
-                if callable(begin):
-                    try:
-                        begin(button)
-                    except SensorUnavailable as exc:
-                        # 아직 누르지 않았다 — 이번 시도는 누름 횟수에서 뺀다.
-                        presses -= 1
-                        raise self._press_sensor_failure(
-                            button, presses, errors, last_verification, reinputs,
-                            corrections, f"press sensor unavailable before pressing: {exc}",
-                        ) from exc
+                def before_press() -> None:
+                    nonlocal presses
+                    self._check_stop()
+                    if self._operation is not None:
+                        # 모션 어댑터에서는 자동 원점·XY 뒤, Z 직전의 기준선·시각이다.
+                        try:
+                            if not self._operation_observing:
+                                self._operation.begin_observation()
+                                self._operation_observing = True
+                            self._operation.note_press(button, presses)
+                        except Exception as exc:  # noqa: BLE001 - 센서 고장은 fail closed
+                            raise _OperationObservationFailed(str(exc)) from exc
+                    # L1도 이동이 끝난 뒤 연다. verify가 누름 뒤 창을 닫는다.
+                    begin = getattr(self._verifier, "begin_press", None)
+                    if callable(begin):
+                        try:
+                            begin(button)
+                        except SensorUnavailable as exc:
+                            presses -= 1  # 아직 Z를 누르지 않았다.
+                            raise self._press_sensor_failure(
+                                button, presses, errors, last_verification, reinputs,
+                                corrections, f"press sensor unavailable before pressing: {exc}",
+                            ) from exc
+                    self._check_stop()
+
                 try:
-                    self._grbl.press(command)
+                    observed_press = getattr(self._grbl, "press_with_observation", None)
+                    if callable(observed_press):
+                        observed_press(command, before_press)
+                    else:
+                        # 이동 경계를 제공하지 않는 기존 어댑터는 누름 호출 직전에 연다.
+                        before_press()
+                        self._grbl.press(command)
+                except (_OperationObservationFailed, _PressObservationFailed, _EmergencyStopRequested):
+                    self._cancel_press_observation()
+                    raise
                 except Exception as exc:  # adapter errors are recoverable within the hard limit
                     self._cancel_press_observation()
                     errors.append(str(exc))
