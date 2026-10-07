@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/appliance.dart';
+import 'appliance_sync_provider.dart';
 import 'demo_provider.dart';
 import 'server_appliance_provider.dart';
 
@@ -91,7 +92,7 @@ final customAppliancesProvider =
   (ref) => CustomAppliancesNotifier(),
 );
 
-/// 지금 이 폰에서 **고를 수 있는** 가전 -- 두 출처를 합친다.
+/// 지금 이 폰에서 **고를 수 있는** 가전 -- 세 출처를 합친다(3은 아래 본문).
 ///
 /// 1. **서버 내장 가전**(`serverApplianceCatalogProvider`). 서버가 지금
 ///    제공하는 것이라 기기에 저장하지 않고, 서버가 바뀌면 함께 사라진다.
@@ -111,15 +112,34 @@ final customAppliancesProvider =
 /// 저장되지 않는다.
 final installedAppliancesProvider = Provider<List<ApplianceMap>>((ref) {
   final own = ref.watch(customAppliancesProvider);
-  final server = ref.watch(serverApplianceCatalogProvider).appliances;
+  final catalog = ref.watch(serverApplianceCatalogProvider);
+  final server = catalog.appliances;
   // 같은 id가 양쪽에 있으면 사용자 것이 남는다 -- 사용자 데이터를 서버
   // 항목으로 가리지 않는다. 정상 경로에서는 생기지 않는 충돌이다(등록
   // id는 시각으로 만든다).
   final ownIds = {for (final a in own) a.id};
+  // 3. **서버에만 있는 사용자 등록 가전**(다른 폰·PUT /appliances로 바로
+  //    등록). 이 폰에 저장하지 않고 보여 주기만 한다 -- 저장은 동기화 병합이
+  //    맡는다. 빼면 서버 5대 중 이 폰이 저장한 2대만 홈에 보이고, 루틴 줄은
+  //    가전 이름 대신 ID를 적는다(2026-10-07). 설정이 덜 된 가전도 숨기지
+  //    않는다 -- 카드가 '준비 필요'로 말한다.
+  final serverOnly = [
+    for (final a in catalog.customAppliances)
+      if (!ownIds.contains(a.id)) a,
+  ];
+  // 이 폰에서 지웠는데 서버에 아직 닿지 못한 가전은 되살리지 않는다.
+  final pendingDeletes = serverOnly.isEmpty
+      ? const <String>{}
+      : {
+          for (final op in ref.watch(applianceSyncProvider).pending)
+            if (op.kind == SyncOpKind.delete) op.applianceId,
+        };
   final combined = [
     for (final a in server)
       if (!ownIds.contains(a.id)) a,
     ...own,
+    for (final a in serverOnly)
+      if (!pendingDeletes.contains(a.id)) a,
   ];
   if (combined.isNotEmpty) return combined;
   return ref.watch(demoModeProvider) ? kDemoAppliances : const [];

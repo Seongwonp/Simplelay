@@ -11,6 +11,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/routine.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/routine_editor_screen.dart';
@@ -65,6 +66,12 @@ const _template = {
 
 class _Server {
   Map<String, dynamic> stored = _routine();
+
+  /// 있으면 GET /routines가 이것을 돌려준다(저장 경로는 쓰지 않는 테스트용).
+  List<Map<String, dynamic>>? routines;
+
+  /// GET /appliances 응답. 없으면 404(가전 목록 조회 실패).
+  List<Map<String, dynamic>>? appliances;
   final requests = <String>[];
   Map<String, dynamic>? lastBody;
   String? rejectDetail;
@@ -83,7 +90,13 @@ class _Server {
           if (path.startsWith('/execute') || path.endsWith('/approve')) {
             fail('루틴 화면이 실행 경로를 불렀어요: ${req.method} $path');
           }
-          if (req.method == 'GET' && path == '/routines') return _json([stored]);
+          if (req.method == 'GET' && path == '/routines') {
+            return _json(routines ?? [stored]);
+          }
+          if (req.method == 'GET' && path == '/appliances') {
+            final list = appliances;
+            if (list != null) return _json(list);
+          }
           if (req.method == 'GET' && path == '/routines/templates') {
             return _json([_template]);
           }
@@ -119,7 +132,7 @@ class _Server {
       );
 }
 
-Widget _build(_Server server) {
+Widget _build(_Server server, {List<ApplianceMap>? installed}) {
   final router = GoRouter(
     initialLocation: '/routines',
     routes: [
@@ -134,7 +147,7 @@ Widget _build(_Server server) {
   return buildWithProviderState(
     overrides: [
       ...connectedOverrides(),
-      ...installedOverrides([kTestAppliance]),
+      ...installedOverrides(installed ?? [kTestAppliance]),
       rpiApiServiceProvider.overrideWithValue(server.api()),
     ],
     child: MaterialApp.router(theme: ThemeData.dark(), routerConfig: router),
@@ -168,6 +181,62 @@ void main() {
     expect(find.textContaining('평일 07:30 · 전자레인지 1단계 · 승인 후 실행'),
         findsOneWidget);
     expect(find.text('새 루틴'), findsOneWidget);
+  });
+
+  testWidgets('루틴 줄은 가전 ID가 아니라 이름을 쓴다 -- 서버에만 등록된 가전도',
+      (tester) async {
+    // 2026-10-07 에뮬레이터: "직접 실행할 때 · home_mw 2단계 · 승인 후 실행".
+    // home_mw·washer는 PUT /appliances로 서버에만 올린 사용자 가전이다.
+    Map<String, dynamic> appliance(String id, String name, String category) => {
+          'id': id,
+          'name': name,
+          'category': category,
+          'rows': 1,
+          'cols': 1,
+          'is_custom': true,
+          'revision': 1,
+          'buttons': [
+            {'id': '$id-1', 'label': '시작', 'x': 0, 'y': 0},
+          ],
+        };
+    Map<String, dynamic> manual(
+            String id, String name, List<Map<String, dynamic>> steps) =>
+        {
+          ..._routine(),
+          'id': id,
+          'name': name,
+          'trigger': {'kind': 'manual'},
+          'when': '직접 실행할 때',
+          'steps': steps,
+        };
+    final server = _Server()
+      ..appliances = [
+        appliance('home_mw', '전자레인지', 'microwave'),
+        appliance('washer', '세탁기', 'washing_machine'),
+      ]
+      ..routines = [
+        manual('rt-mw', '즉석밥', [
+          {'kind': 'press_sequence', 'appliance_id': 'home_mw', 'buttons': ['시작']},
+          {'kind': 'wait_until_done', 'appliance_id': 'home_mw'},
+        ]),
+        manual('rt-wash', '빨래', [
+          {'kind': 'press_sequence', 'appliance_id': 'washer', 'buttons': ['시작']},
+        ]),
+        manual('rt-ghost', '모르는 가전', [
+          {'kind': 'press_sequence', 'appliance_id': 'ghost', 'buttons': ['시작']},
+        ]),
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_build(server, installed: const []));
+    await _settle(tester);
+
+    expect(find.text('직접 실행할 때 · 전자레인지 2단계 · 승인 후 실행'),
+        findsOneWidget);
+    expect(find.text('직접 실행할 때 · 세탁기 1단계 · 승인 후 실행'), findsOneWidget);
+    expect(find.textContaining('home_mw'), findsNothing);
+    expect(find.textContaining('washer'), findsNothing);
+    // 이름을 모르는 가전만 ID로 남는다.
+    expect(find.text('직접 실행할 때 · ghost 1단계 · 승인 후 실행'), findsOneWidget);
   });
 
   testWidgets('루틴을 열어 알림만으로 바꿔 저장하면 PUT하고 목록이 다시 읽힌다',

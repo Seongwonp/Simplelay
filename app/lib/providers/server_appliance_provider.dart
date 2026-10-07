@@ -23,10 +23,11 @@ enum ServerCatalogStatus {
   failed,
 }
 
-/// 서버가 제공하는 **내장 가전**(is_custom=false)만 담는 목록.
+/// 서버가 제공하는 **내장 가전**(is_custom=false) 목록과, 서버에 올라 있는
+/// 사용자 등록 가전의 보여 주기용 사본(`customAppliances`).
 ///
-/// 사용자 등록 가전은 여기 없다 -- 그쪽은 `customAppliancesProvider`가 들고
-/// 있고 동기화 대기열(PUT/DELETE)의 대상이다. 서버 내장 가전은 이 폰이
+/// 사용자 등록 가전의 원본은 여기 없다 -- 그쪽은 `customAppliancesProvider`가
+/// 들고 있고 동기화 대기열(PUT/DELETE)의 대상이다. 서버 내장 가전은 이 폰이
 /// 편집·저장·삭제할 것이 아니므로 기기 저장소에도 대기열에도 넣지 않는다.
 ///
 /// `baseUrl`은 이 목록이 **어느 서버의 것**인지 말한다. 주소가 바뀌면 목록은
@@ -38,6 +39,7 @@ class ServerApplianceCatalog {
     required this.status,
     this.baseUrl,
     this.appliances = const [],
+    this.customAppliances = const [],
   });
 
   static const empty = ServerApplianceCatalog(
@@ -49,6 +51,14 @@ class ServerApplianceCatalog {
 
   /// 서버 내장 가전만. 사용자 등록 가전은 걸러져 있다.
   final List<ApplianceMap> appliances;
+
+  /// 서버에 올라 있는 **사용자 등록 가전**(is_custom=true) -- 보여 주기만 한다.
+  ///
+  /// 이 폰이 저장하지도 대기열에 넣지도 않는다(그것은 동기화 병합의 일이다).
+  /// 그래도 목록에서는 빠지면 안 된다: 다른 폰이나 PUT /appliances로 바로
+  /// 등록한 가전이 홈·루틴에서 사라지고 루틴 줄에 ID가 그대로 보였다
+  /// (2026-10-07 에뮬레이터, 서버 5대 중 2대만 보임).
+  final List<ApplianceMap> customAppliances;
 
   bool get isLoading => status == ServerCatalogStatus.loading;
   bool get isFailed => status == ServerCatalogStatus.failed;
@@ -159,6 +169,27 @@ class ServerApplianceNotifier extends StateNotifier<ServerApplianceCatalog> {
       appliances: [
         for (final a in result)
           if (!a.isCustom) a,
+      ],
+      // 사용자 등록 가전은 보여 주기용으로만 따로 든다.
+      customAppliances: [
+        for (final a in result)
+          if (a.isCustom) a,
+      ],
+    );
+  }
+
+  /// 이 폰에서 지운 사용자 가전을 **다음 조회 전에도** 목록에서 뺀다.
+  ///
+  /// 안 빼면 삭제가 서버에 닿은 뒤에도 옛 조회 결과에 남아 홈에 그대로 보인다.
+  void forgetCustom(String applianceId) {
+    if (!state.customAppliances.any((a) => a.id == applianceId)) return;
+    state = ServerApplianceCatalog(
+      status: state.status,
+      baseUrl: state.baseUrl,
+      appliances: state.appliances,
+      customAppliances: [
+        for (final a in state.customAppliances)
+          if (a.id != applianceId) a,
       ],
     );
   }

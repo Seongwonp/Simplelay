@@ -262,6 +262,9 @@ class ApplianceSyncNotifier extends StateNotifier<ApplianceSyncState> {
         .where((a) => a.id == applianceId)
         .firstOrNull;
     await _ref.read(customAppliancesProvider.notifier).remove(applianceId);
+    // 서버 목록의 보여 주기용 사본에서도 뺀다 -- 다음 조회 전까지 홈에
+    // 지운 가전이 남지 않게.
+    _ref.read(serverApplianceCatalogProvider.notifier).forgetCustom(applianceId);
     await _enqueue(
       SyncOperation(
         opId: _nextOpId(),

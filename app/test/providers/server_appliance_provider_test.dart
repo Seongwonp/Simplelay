@@ -91,6 +91,12 @@ class _FakeServers {
         }
         if (path.startsWith('/appliances/')) {
           writes.add('${request.method} ${path.split('/').last}');
+          final code = statusCodes[host] ?? 200;
+          if (code != 200) return http.Response('boom', code);
+          if (request.method == 'DELETE') {
+            final id = path.split('/').last;
+            lists[host]?.removeWhere((a) => a['id'] == id);
+          }
           return _json({..._custom(path.split('/').last), 'revision': 2});
         }
         return http.Response('not found', 404);
@@ -152,10 +158,67 @@ void main() {
       expect(catalog.appliances.map((a) => a.id), ['microwave']);
       expect(catalog.appliances.single.isServerBuiltin, isTrue);
       expect(catalog.appliances.single.isCustom, isFalse);
-      // 서버에만 있는 사용자 가전은 조회만으로 이 폰에 등록되지 않는다 --
-      // 그것은 동기화 병합이 맡는다.
+      // 서버에만 있는 사용자 가전은 조회만으로 이 폰에 **저장되지** 않는다 --
+      // 그것은 동기화 병합이 맡는다. 그래도 **보이기는** 한다(2026-10-07:
+      // 서버 5대 중 이 폰이 저장한 2대만 홈에 보였다).
+      expect(catalog.customAppliances.map((a) => a.id), ['fan']);
       expect(c.read(customAppliancesProvider), isEmpty);
-      expect(c.read(installedAppliancesProvider).map((a) => a.id), ['microwave']);
+      expect(c.read(installedAppliancesProvider).map((a) => a.id),
+          ['microwave', 'fan']);
+    });
+
+    test('서버에만 있는 사용자 가전도 고를 수 있다 -- 이 폰 저장분과 겹치면 하나만',
+        () async {
+      final mine = ApplianceMap.fromJson(_custom('custom_1'));
+      final servers = _FakeServers()
+        ..lists[Uri.parse(_serverA).host] = [
+          _custom('custom_1'),
+          _builtin('microwave'),
+          _custom('home_mw'),
+          _custom('washer'),
+        ];
+      final c = await _ready(servers, prefs: {
+        'custom_appliances': [jsonEncode(mine.toJson())],
+      });
+
+      expect(c.read(installedAppliancesProvider).map((a) => a.id),
+          ['microwave', 'custom_1', 'home_mw', 'washer']);
+      // 기기 저장소에는 여전히 이 폰 것만.
+      expect(c.read(customAppliancesProvider).map((a) => a.id), ['custom_1']);
+      expect(servers.writes, isEmpty);
+    });
+
+    test('서버에만 있던 가전을 지우면 다음 조회 전에도 목록에서 빠진다', () async {
+      final hostA = Uri.parse(_serverA).host;
+      final servers = _FakeServers()
+        ..lists[hostA] = [_custom('washer')];
+      final c = await _ready(servers);
+      expect(c.read(installedAppliancesProvider).map((a) => a.id), ['washer']);
+
+      await c.read(applianceSyncProvider.notifier).deleteAppliance('washer');
+
+      expect(servers.writes, ['DELETE washer']);
+      expect(c.read(installedAppliancesProvider), isEmpty);
+    });
+
+    test('삭제가 서버에 닿지 못해도, 다시 조회한 목록이 지운 가전을 되살리지 않는다',
+        () async {
+      final hostA = Uri.parse(_serverA).host;
+      final servers = _FakeServers()
+        ..lists[hostA] = [_custom('washer')];
+      final c = await _ready(servers);
+
+      // 서버가 쓰기를 못 받는다 -- 삭제는 대기열에 남는다.
+      servers.statusCodes[hostA] = 500;
+      await c.read(applianceSyncProvider.notifier).deleteAppliance('washer');
+      expect(c.read(applianceSyncProvider).isPending('washer'), isTrue);
+
+      servers.statusCodes.remove(hostA);
+      await c.read(serverApplianceCatalogProvider.notifier).refresh();
+      expect(
+          c.read(serverApplianceCatalogProvider).customAppliances.map((a) => a.id),
+          ['washer']);
+      expect(c.read(installedAppliancesProvider), isEmpty);
     });
 
     test('내장 가전은 기기 저장소에 남지 않는다', () async {
