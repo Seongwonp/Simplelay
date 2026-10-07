@@ -31,6 +31,19 @@ class Suggestion {
     return (name != null && name.isNotEmpty) ? name : label;
   }
 
+  /// 승인한 뒤 실행 상태·결과 화면이 부르는 이름. 서버 `purpose`는 승인 전
+  /// **질문**("'아침 데우기' 루틴을 실행할까요?")이라, 승인 뒤에 그대로 쓰면
+  /// 끝난 일을 아직 묻는 말이 된다(2026-10-07 에뮬레이터). 키오스크
+  /// `KioskSuggestion.doneLabel`(15ac5b6)과 같은 규칙이다.
+  String doneLabel({String? scenarioName}) {
+    final routine = routineName;
+    if (routine != null && routine.isNotEmpty) return "'$routine' 루틴";
+    final isQuestion = label.trimRight().endsWith('?');
+    if (!isQuestion) return label;
+    if (scenarioName != null && scenarioName.isNotEmpty) return scenarioName;
+    return '제안한 실행';
+  }
+
   /// 시나리오 제안이면 그 ID(서버 `scenario_id`). 없으면 종전 제안.
   final String? scenarioId;
 

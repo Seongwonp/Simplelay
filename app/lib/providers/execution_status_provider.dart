@@ -48,7 +48,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     _stopHttpTracking();
     state = ExecutionStatus(
       sequenceId: suggestion.sequenceId,
-      label: suggestion.label,
+      // 승인 뒤의 이름 — 질문 문장(purpose)이 아니다(Suggestion.doneLabel).
+      label: suggestion.doneLabel(),
       steps: suggestion.steps,
       phase: ExecutionPhase.waiting,
       message: '실행 요청을 보냈어요',

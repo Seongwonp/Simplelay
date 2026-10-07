@@ -166,7 +166,12 @@ class SuggestionScreen extends ConsumerWidget {
         ref.read(executionStatusProvider.notifier).beginHttpJob(
               api: rpiApi,
               jobId: accepted.jobId,
-              label: suggestion.label,
+              // 승인 뒤의 이름은 질문(purpose)이 아니다 — 루틴·시나리오 이름.
+              label: suggestion.doneLabel(
+                scenarioName: ref
+                    .read(scenarioNamesProvider)
+                    .valueOrNull?[suggestion.scenarioId],
+              ),
               steps: suggestion.steps,
             );
       } on RpiApiException catch (error) {

@@ -3,11 +3,13 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -67,8 +69,39 @@ const _washCard = {
   ],
 };
 
+/// 루틴이 만든 카드(2026-10-07 에뮬레이터 결함). 서버 `purpose`는 질문이다.
+const _routineCard = {
+  'id': 'sug-1',
+  'purpose': "'아침 데우기' 루틴을 실행할까요?",
+  'time_band': '루틴',
+  'occurrences': 0,
+  'steps': <String>[],
+  'reason': "루틴 '아침 데우기' · 평일 07:30 시각이에요",
+  'appliance_id': 'microwave',
+  'is_demo': false,
+  'routine_id': 'rt-1',
+  'routine_name': '아침 데우기',
+  'commands': [
+    {
+      'target_id': 'microwave',
+      'route': 'physical',
+      'action': null,
+      'args': <String, dynamic>{},
+      'buttons': ['즉석밥', '시작'],
+      'summary': '전자레인지 즉석밥 → 시작',
+    },
+  ],
+};
+
 class _Server {
-  _Server({this.purifierReady = true, this.approveDetail = _mismatch});
+  _Server({
+    this.purifierReady = true,
+    this.approveDetail = _mismatch,
+    this.approveOk = false,
+  });
+
+  /// 승인이 받아들여지는 서버(job 접수).
+  final bool approveOk;
 
   /// 세탁 완료 → 제습기 카드를 주는 서버.
   factory _Server.washThenDry() => _Server()
@@ -121,6 +154,15 @@ class _Server {
               'reasons': purifierReady ? [] : ['가전이 오프라인이에요'],
             });
           }
+          if (path == '/readiness/microwave') {
+            return _json({
+              'appliance_id': 'microwave',
+              'route': 'physical',
+              'state': 'operable',
+              'can_execute': true,
+              'reasons': <String>[],
+            });
+          }
           if (path == '/readiness/fan') {
             return _json({
               'appliance_id': 'fan',
@@ -132,6 +174,7 @@ class _Server {
           }
           if (path == '/suggestions/sug-1/approve') {
             approveCalls++;
+            if (approveOk) return _json({'job_id': 'job-1'});
             // 승인 오류면 서버가 카드를 내린다(_fail_approval retire).
             retired = approveDetail.contains('승인');
             return _json({'detail': approveDetail}, 409);
@@ -153,7 +196,15 @@ Widget _build(_Server server) {
       ),
       GoRoute(
         path: '/status',
-        builder: (_, __) => const Scaffold(body: Text('상태 화면')),
+        // 실행 상태 화면이 제목으로 쓰는 값(status.label)을 그대로 보인다.
+        builder: (_, __) => Scaffold(
+          body: Consumer(
+            builder: (_, ref, __) => Column(children: [
+              const Text('상태 화면'),
+              Text('라벨: ${ref.watch(executionStatusProvider).label}'),
+            ]),
+          ),
+        ),
       ),
     ],
   );
@@ -247,6 +298,41 @@ void main() {
         of: find.text('지금 실행'),
         matching: find.byWidgetPredicate((w) => w is FilledButton)));
     expect(run.onPressed, isNotNull);
+  });
+
+  // 2026-10-07 에뮬레이터: 루틴 제안을 승인하면 실행 상태 화면 제목이 제안의
+  // 질문("'아침 데우기' 루틴을 실행할까요?")으로 남았다. 키오스크(15ac5b6)와
+  // 같은 규칙 — 끝난 일의 이름은 질문이 아니라 루틴·시나리오 이름이다.
+  testWidgets('루틴 제안을 승인하면 실행 상태 제목은 질문이 아니라 루틴 이름',
+      (tester) async {
+    _tall(tester);
+    final server = _Server(approveOk: true)..card = _routineCard;
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    await tester.tap(find.text('지금 실행'));
+    await _settle(tester);
+
+    expect(server.approveCalls, 1);
+    expect(find.text('상태 화면'), findsOneWidget);
+    expect(find.text("라벨: '아침 데우기' 루틴"), findsOneWidget);
+    expect(find.textContaining('실행할까요?'), findsNothing);
+    // 폴링 타이머를 정리한다(위젯 트리를 내리면 provider가 정리된다).
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('시나리오 제안(질문)을 승인하면 실행 상태 제목은 시나리오 이름',
+      (tester) async {
+    _tall(tester);
+    final server = _Server(approveOk: true);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    await tester.tap(find.text('지금 실행'));
+    await _settle(tester);
+
+    expect(find.text('라벨: 저녁 휴식'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('ThinQ 대상이 준비 안 됐으면 실행을 막고 이유(412 사유)를 말한다',
