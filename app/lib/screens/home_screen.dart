@@ -114,8 +114,11 @@ class HomeScreen extends ConsumerWidget {
 
             // ── 가전 ───────────────────────────────────────────────────────
             const SizedBox(height: 24),
-            for (final a in appliances.where((a) => a.isCustom && !a.isDemo && !a.isThinq))
-              ApplianceSetupCard(appliance: a),
+            // 설정이 남은 가전: 한 대면 그 카드, 여럿이면 요약 한 장.
+            ApplianceSetupSection(appliances: [
+              for (final a in appliances)
+                if (a.isCustom && !a.isDemo && !a.isThinq) a,
+            ]),
             Text('가전', style: AppText.title),
             const SizedBox(height: 10),
             if (appliances.isEmpty)
