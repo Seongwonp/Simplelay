@@ -82,6 +82,38 @@ def _homed_client(pipe, config=TEST_CONFIG, **kwargs) -> SerialMotionClient:
     return client
 
 
+@pytest.mark.parametrize("failure", ["timeout", "write"])
+def test_uncertain_press_never_rehomes_or_represses_in_same_run(link, monkeypatch, failure):
+    from dataclasses import replace
+
+    pipe, mcu = link
+    client = _homed_client(pipe, replace(TEST_CONFIG, auto_home=True, press_timeout_s=0.03))
+    original_write = pipe.host.write_line
+    sent = []
+
+    def write(line):
+        doc = json.loads(line)
+        sent.append(doc["cmd"])
+        if doc["cmd"] == "press" and sent.count("press") == 1:
+            if failure == "write":
+                raise OSError("uncertain serial write")
+            return  # 응답 유실을 모의한다.
+        original_write(line)
+
+    monkeypatch.setattr(pipe.host, "write_line", write)
+    controller = ClosedLoopController(client, MockVerifier([True]), MockAlertSink(), MotionSafetyController(client))
+    result = controller.execute(["시작"], targets={"시작": ButtonTarget(1, 1)})
+    assert result.status is ExecutionStatus.SAFETY_STOPPED
+    assert sent.count("press") == 1
+    assert "home" not in sent
+    assert sent.count("move") == 1
+    # 사람의 다음 요청 경계에서만 해제한다.
+    client.reset_stop()
+    client.press(PressCommand("시작", x_mm=1, y_mm=1))
+    assert sent.count("home") == 1
+    assert sent.count("press") == 2
+
+
 def test_declares_real_execution_and_requires_coordinates():
     assert SerialMotionClient.execution_mode is ExecutionMode.REAL
     assert SerialMotionClient.requires_coordinates is True

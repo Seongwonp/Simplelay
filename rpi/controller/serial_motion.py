@@ -718,7 +718,7 @@ class SerialMotionClient(GrblClient):
         if not self.homed:
             if self._reset_mid_run:
                 raise MotionRefused(
-                    f"'{command.button}' 누름: 이번 실행 중 MCU가 재시작했습니다 — 자동 재홈·재누름 없이 멈춤"
+                    f"'{command.button}' 누름: 이번 실행 중 MCU 재시작 또는 통신 오류가 발생했습니다 — 자동 재홈·재누름 없이 멈춤"
                     "(사람이 확인한 뒤 새로 요청)"
                 )
             if self._config.auto_home and self.state in (MotionState.UNHOMED, MotionState.UNKNOWN):
@@ -879,6 +879,9 @@ class SerialMotionClient(GrblClient):
             raise
         except BaseException:
             # 기한 초과·프로토콜 오류: 어디서 멈췄는지 모른다 → 재홈 전까지 준비 안 됨
+            # 전송 오류도 실제 누름 여부가 불명확하다. 같은 실행의 보정 루프가
+            # 자동 원점·재누름으로 이어지지 않게 재부팅과 같은 차단을 유지한다.
+            self._reset_mid_run = True
             if self.state is MotionState.BUSY:
                 self._set_state(MotionState.UNHOMED)
             raise
