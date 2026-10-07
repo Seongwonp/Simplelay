@@ -43,6 +43,6 @@ RPi4 `act_main`의 폐루프는 버튼마다 L1(누름: 전류+소리 융합 또
 - 검증: `PYTHONUTF8=1 pytest -q rpi rpi4` **2,497 통과**(골든 없음, `a2cea93` 위 작업 트리), `test_repo_guard.py` 통과.
 
 ### 후속(이번에 고치지 않은 리뷰 항목)
-- **#3** `current_sensor` 측정 스레드: `join` 제한시간이 지나면 세대(generation)가 새어 옛 스레드가 남는다.
+- **#3 [닫음]** `current_sensor` 측정 스레드: 세대별 종료 신호와 잠금 안의 세대 검사로 늦은 표본·오류를 버린다. 회귀 2건 수정 전 실패 확인. [후속 기록](devlog_2026-10-07-review-followup.md).
 - **#5** `_reset_mid_run`이 준비 배너(재부팅) 때만 세워진다 — 누름 중 `MotionTimeout`·전송 오류에서는 세우지 않는다.
 - **#6** 관찰 창(L3)이 XY 이동·자동 원점까지 포함하고, `max_window_s` 30 s와 이동 제한시간의 관계가 정리되지 않았다.

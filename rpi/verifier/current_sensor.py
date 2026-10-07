@@ -126,6 +126,7 @@ class CurrentSensor:
         self._samples: list[CurrentSample] = []
         self._fault: SensorUnavailable | None = None
         self._halt = threading.Event()
+        self._generation = 0
         self._thread: threading.Thread | None = None
         self._baseline_a = 0.0
         self._opened_at = 0.0
@@ -169,9 +170,13 @@ class CurrentSensor:
             self._samples = []
             self._fault = None
         self._opened_at = self._clock()
-        self._halt.clear()
+        # 종료된 세대의 신호는 절대 clear하지 않는다. 막힌 ADC 읽기는 강제 종료할 수
+        # 없지만, 돌아온 뒤에는 세대 검사로 표본·오류를 버리고 종료한다.
+        self._halt = threading.Event()
         self._thread = threading.Thread(
-            target=self._collect, name="current-window", daemon=True
+            target=self._collect,
+            args=(self._generation, self._halt, self._opened_at),
+            name="current-window", daemon=True
         )
         self._thread.start()
 
@@ -232,29 +237,33 @@ class CurrentSensor:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _collect(self) -> None:
-        deadline = self._opened_at + self._cfg.max_window_s
-        while not self._halt.is_set():
+    def _collect(self, generation: int, halt: threading.Event, opened_at: float) -> None:
+        deadline = opened_at + self._cfg.max_window_s
+        while not halt.is_set():
             try:
                 sample = self.read_sample()
             except SensorUnavailable as exc:
                 with self._lock:
-                    self._fault = exc
+                    if generation == self._generation and not halt.is_set():
+                        self._fault = exc
                 return
             with self._lock:
+                if generation != self._generation or halt.is_set():
+                    return
                 self._samples.append(sample)
-            if sample.t > deadline:
-                with self._lock:
+                if sample.t > deadline:
                     self._fault = SensorUnavailable(
                         f"current observation window exceeded {self._cfg.max_window_s} s"
                     )
-                return
-            self._halt.wait(self._cfg.sample_interval_s)
+                    return
+            halt.wait(self._cfg.sample_interval_s)
 
     def _stop_thread(self) -> None:
         thread = self._thread
         self._thread = None
-        self._halt.set()
+        with self._lock:
+            self._halt.set()
+            self._generation += 1
         if thread is not None:
             thread.join(timeout=2.0)
 
