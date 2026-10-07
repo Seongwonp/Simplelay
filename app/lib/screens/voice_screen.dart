@@ -114,7 +114,9 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
 
   Future<void> _toggle() async {
     final voice = _voiceService;
-    if (voice.isListening) {
+    // 엔진은 실행 중 '멈춰' 듣기와 같이 쓴다 — 그쪽이 쥐고 있을 때 누른 마이크는
+    // '끄기'가 아니라 '시작'이다(이 화면이 듣는 중일 때만 끈다).
+    if (voice.isListening && ref.read(voiceListeningProvider)) {
       await voice.stop();
       ref.read(voiceListeningProvider.notifier).state = false;
       return;

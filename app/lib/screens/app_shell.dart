@@ -9,6 +9,7 @@ import '../providers/hub_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/estop_banner.dart';
+import '../widgets/voice_stop_indicator.dart';
 
 /// 하단 탭 shell — **홈 · 루틴 · 기록 · 설정**(UI 확정 §2).
 ///
@@ -54,6 +55,8 @@ class AppShell extends ConsumerWidget {
         children: [
           // 비상정지 걸림은 정지 줄 **위**에 — 걸린 채로도 정지 줄은 그대로 닿는다.
           const EstopBanner(),
+          // 실행 중 음성 '멈춰'를 듣는 동안만 보인다(2026-10-07).
+          const VoiceStopIndicator(),
           const RunningStopStrip(),
           _BottomBar(
             index: index,

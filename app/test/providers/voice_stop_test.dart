@@ -1,0 +1,352 @@
+// 실행 중 음성 '멈춰' 정지(2026-10-07, 9/30 결정).
+//
+// - 실행 중(또는 정지 버튼 위 대기 중)에만 듣는다. 듣는 동안 "듣는 중".
+// - 짧은 정지 말이면 화면 정지 버튼과 같은 호출(emergencyStop)을 탄다.
+// - 실행 중이 아니면 무시, 정지 요청은 한 번만, 인식 오류·권한 거부는 조용히
+//   무시하고 정지 버튼은 그대로. 실행 문장은 듣는 중에도 아무것도 하지 않는다.
+//
+// 인식기는 가짜다 — 실물 마이크 인식률은 실측 필요.
+
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/providers/estop_provider.dart';
+import 'package:simplelay/providers/execution_status_provider.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/providers/voice_stop_provider.dart';
+import 'package:simplelay/screens/app_shell.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
+import 'package:simplelay/services/voice_service.dart';
+import 'package:simplelay/widgets/voice_stop_indicator.dart';
+
+class _FakeRecognizer implements SpeechRecognizer {
+  bool available = true;
+  bool throwOnInit = false;
+  int initializeCalls = 0;
+  int listenCalls = 0;
+  int cancelCalls = 0;
+  bool _listening = false;
+  void Function(String)? _onText;
+  void Function(String)? _onSilence;
+  void Function(String)? _onError;
+  void Function()? _onInterrupted;
+
+  @override
+  bool get isListening => _listening;
+
+  @override
+  Future<bool> initialize() async {
+    initializeCalls++;
+    if (throwOnInit) throw Exception('no engine');
+    return available;
+  }
+
+  @override
+  Future<void> listen({
+    required void Function(String text) onText,
+    required void Function(String finalText) onSilence,
+    void Function(String errorId)? onError,
+    void Function(double level)? onSoundLevel,
+    void Function()? onInterrupted,
+  }) async {
+    listenCalls++;
+    _listening = true;
+    _onText = onText;
+    _onSilence = onSilence;
+    _onError = onError;
+    _onInterrupted = onInterrupted;
+  }
+
+  /// 엔진이 (부분) 인식 문장을 준다.
+  void say(String text) => _onText?.call(text);
+
+  /// 5초 침묵으로 세션이 끝난다.
+  void silence() {
+    _listening = false;
+    _onSilence?.call('');
+  }
+
+  void fail(String errorId) {
+    _listening = false;
+    _onError?.call(errorId);
+  }
+
+  /// 다른 화면(홈 '말로 조작하기')이 엔진을 가져갔다.
+  void interruptByOther() {
+    final cb = _onInterrupted;
+    _onInterrupted = null;
+    _listening = false;
+    cb?.call();
+  }
+
+  @override
+  Future<void> stop() async => _listening = false;
+
+  @override
+  Future<void> cancel() async {
+    cancelCalls++;
+    _listening = false;
+  }
+}
+
+/// 진짜 실행 추적기에서 정지만 센다 — 정지 버튼과 같은 호출이 몇 번 왔는지.
+class _CountingExecution extends ExecutionStatusNotifier {
+  _CountingExecution(super.ref);
+
+  int stops = 0;
+  int begins = 0;
+  Completer<void>? gate;
+
+  void seed(ExecutionPhase phase) =>
+      state = ExecutionStatus(phase: phase, label: '즉석밥 데우기');
+
+  @override
+  Future<void> emergencyStop() async {
+    stops++;
+    final g = gate;
+    if (g != null) await g.future;
+  }
+}
+
+class _HoldEstop extends EstopNotifier {
+  _HoldEstop() : super(null);
+
+  void hold(String? holdState) => state = EstopState(holdState: holdState);
+}
+
+class _Rig {
+  _Rig(this.container, this.recognizer, this.exec, this.estop);
+  final ProviderContainer container;
+  final _FakeRecognizer recognizer;
+  final _CountingExecution exec;
+  final _HoldEstop estop;
+
+  VoiceStopState get voice => container.read(voiceStopProvider);
+}
+
+Future<_Rig> _rig(
+  WidgetTester tester, {
+  _FakeRecognizer? recognizer,
+  RpiApiService? api,
+}) async {
+  final fake = recognizer ?? _FakeRecognizer();
+  late _CountingExecution exec;
+  late _HoldEstop estop;
+  final container = ProviderContainer(overrides: [
+    speechRecognizerProvider.overrideWithValue(fake),
+    executionStatusProvider.overrideWith((ref) => exec = _CountingExecution(ref)),
+    estopProvider.overrideWith((ref) => estop = _HoldEstop()),
+    rpiApiServiceProvider.overrideWithValue(api),
+  ]);
+  addTearDown(container.dispose);
+  // 앱(main.dart)처럼 시작부터 살려 둔다.
+  container.listen(voiceStopProvider, (_, __) {});
+  container.read(executionStatusProvider);
+  container.read(estopProvider);
+  await tester.pump();
+  return _Rig(container, fake, exec, estop);
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 600));
+  }
+}
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  group('isStopPhrase', () {
+    test('짧은 정지 말과 가까운 변형을 받는다', () {
+      for (final t in [
+        '멈춰', '멈춰줘', '멈춰 줘', '멈춰!', '멈춰요', '정지', '정지해', '그만',
+        '그만해', '스톱', '스탑', '멈춰 멈춰', ' 정지. ',
+      ]) {
+        expect(isStopPhrase(t), isTrue, reason: t);
+      }
+    });
+
+    test('실행 문장·긴 문장·빈 말은 정지 말이 아니다', () {
+      for (final t in [
+        '즉석밥 데워줘', '세탁기 시작해줘', '정지 버튼이 어디야', '전자레인지 멈춰 있어',
+        '', '   ', '멈', '그만 데워줘',
+      ]) {
+        expect(isStopPhrase(t), isFalse, reason: t);
+      }
+    });
+  });
+
+  testWidgets('실행 중 "멈춰" → 정지 버튼과 같은 호출이 한 번', (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+
+    expect(r.recognizer.listenCalls, 1);
+    expect(r.voice.listening, isTrue);
+
+    r.recognizer.say('멈춰');
+    await _settle(tester);
+    expect(r.exec.stops, 1);
+  });
+
+  testWidgets('대기(idle)에서 "멈춰" → 아무것도 안 한다, 듣지도 않는다', (tester) async {
+    final r = await _rig(tester);
+    await _settle(tester);
+
+    expect(r.recognizer.listenCalls, 0);
+    expect(r.voice.listening, isFalse);
+    r.recognizer.say('멈춰');
+    await _settle(tester);
+    expect(r.exec.stops, 0);
+  });
+
+  testWidgets('실행이 끝나면 듣기를 놓고, 늦게 온 "멈춰"는 무시한다', (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    expect(r.voice.listening, isTrue);
+
+    r.exec.seed(ExecutionPhase.completed);
+    await _settle(tester);
+    expect(r.voice.listening, isFalse);
+    expect(r.recognizer.cancelCalls, greaterThanOrEqualTo(1));
+
+    r.recognizer.say('멈춰'); // 끝난 세션의 늦은 콜백
+    await _settle(tester);
+    expect(r.exec.stops, 0);
+  });
+
+  testWidgets('실행 중 "즉석밥 데워줘" → 아무것도 안 한다(음성 실행 금지)', (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+
+    r.recognizer.say('즉석밥 데워줘');
+    await _settle(tester);
+    expect(r.exec.stops, 0);
+    expect(r.container.read(executionStatusProvider).phase,
+        ExecutionPhase.running);
+    expect(r.voice.listening, isTrue); // 계속 정지 말만 기다린다
+  });
+
+  testWidgets('"멈춰"가 여러 번 와도 정지 요청은 한 번', (tester) async {
+    final r = await _rig(tester);
+    r.exec.gate = Completer<void>();
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+
+    r.recognizer.say('멈춰'); // 부분 결과
+    r.recognizer.say('멈춰 멈춰'); // 같은 세션의 다음 부분 결과
+    await _settle(tester);
+    expect(r.exec.stops, 1); // 보내는 중에는 다시 보내지 않는다
+
+    r.exec.gate!.complete();
+    await _settle(tester);
+    r.recognizer.say('정지');
+    await _settle(tester);
+    expect(r.exec.stops, 1); // 이번 실행에서는 이미 보냈다
+  });
+
+  testWidgets('인식 오류·권한 거부 → 조용히 멈추고, 정지 버튼은 그대로 동작', (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    expect(r.voice.listening, isTrue);
+
+    r.recognizer.fail('error_insufficient_permissions');
+    await _settle(tester);
+    expect(r.voice.listening, isFalse);
+    expect(r.exec.stops, 0);
+
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: r.container,
+      child: const MaterialApp(
+        home: Scaffold(
+          body: Column(children: [VoiceStopIndicator(), RunningStopStrip()]),
+        ),
+      ),
+    ));
+    await tester.pump();
+    expect(find.text('듣는 중'), findsNothing);
+    await tester.tap(find.byKey(const Key('shell-stop')));
+    await tester.pump();
+    expect(r.exec.stops, 1);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('엔진을 못 쓰면(초기화 실패·예외) 조용히 넘어간다', (tester) async {
+    final fake = _FakeRecognizer()..throwOnInit = true;
+    final r = await _rig(tester, recognizer: fake);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    expect(r.voice.listening, isFalse);
+    expect(fake.listenCalls, 0);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('한 번 못 알아들으면(no_match) 다시 듣는다', (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    r.recognizer.fail('error_no_match');
+    await _settle(tester);
+    expect(r.recognizer.listenCalls, 2);
+    r.recognizer.silence();
+    await _settle(tester);
+    expect(r.recognizer.listenCalls, 3);
+    r.recognizer.say('그만');
+    await _settle(tester);
+    expect(r.exec.stops, 1);
+  });
+
+  testWidgets('다른 화면이 마이크를 가져갔다가 놓으면 다시 듣는다', (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    r.recognizer.interruptByOther();
+    await _settle(tester);
+    expect(r.recognizer.listenCalls, 2);
+    expect(r.voice.listening, isTrue);
+  });
+
+  testWidgets('정지 버튼 위 대기 중이면 듣고, "멈춰"는 같은 POST /stop', (tester) async {
+    var stopPosts = 0;
+    final api = RpiApiService('http://hub:8000',
+        client: MockClient((req) async {
+          if (req.method == 'POST' && req.url.path == '/stop') stopPosts++;
+          return http.Response('{}', 200);
+        }));
+    final r = await _rig(tester, api: api);
+    r.exec.seed(ExecutionPhase.completed);
+    r.estop.hold('hovering_stop');
+    await _settle(tester);
+    expect(r.voice.listening, isTrue);
+
+    r.recognizer.say('멈춰');
+    r.recognizer.say('멈춰');
+    await _settle(tester);
+    expect(stopPosts, 1);
+
+    r.estop.hold('stopping');
+    await _settle(tester);
+    expect(r.voice.listening, isFalse);
+  });
+
+  testWidgets('듣는 동안 화면에 "듣는 중"', (tester) async {
+    final r = await _rig(tester);
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: r.container,
+      child: const MaterialApp(home: Scaffold(body: VoiceStopIndicator())),
+    ));
+    expect(find.text('듣는 중'), findsNothing);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    expect(find.text('듣는 중'), findsOneWidget);
+  });
+}

@@ -14,6 +14,7 @@ import '../providers/rpi_api_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../widgets/button_map_grid.dart';
+import '../widgets/voice_stop_indicator.dart';
 
 /// 실행 상태 -- 센서 대시보드가 아니라 **물리 폐루프의 진행과 회복**을 보여준다.
 ///
@@ -310,6 +311,8 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 ),
               ),
             ),
+          // 실행 중 음성 '멈춰'를 듣는 동안만 보인다(2026-10-07).
+          const VoiceStopIndicator(),
           if (canStop)
             _StopArea(
               showRecheck: unknown,

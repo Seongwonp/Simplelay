@@ -48,6 +48,7 @@ class _FakeVoiceService extends VoiceService {
     required void Function(String finalText) onSilence,
     void Function(String errorId)? onError,
     void Function(double level)? onSoundLevel,
+    void Function()? onInterrupted,
   }) async {
     _listening = true;
     _errorCallback = onError;

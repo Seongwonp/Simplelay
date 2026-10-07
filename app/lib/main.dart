@@ -26,6 +26,7 @@ import 'screens/pairing_screen.dart';
 import 'screens/suggestion_screen.dart';
 import 'screens/voice_screen.dart';
 import 'providers/theme_provider.dart';
+import 'providers/voice_stop_provider.dart';
 import 'theme/app_theme.dart';
 
 void main() {
@@ -185,6 +186,9 @@ class SimpleLayApp extends ConsumerWidget {
     // 이어붙이는 일이 이 안에서 벌어지는데, 상태 화면을 열어야만 만들어지면
     // 앱을 다시 연 사용자는 홈에서 아무 흔적도 못 본다.
     ref.watch(executionStatusProvider);
+    // 실행 중 음성 '멈춰' 듣기(2026-10-07)도 시작부터 살려 둔다 — 실행 상태
+    // 화면은 탭 shell 밖이라, shell에만 매달면 가장 필요한 순간에 사라진다.
+    ref.listen(voiceStopProvider, (_, __) {});
     return MaterialApp.router(
       title: 'SimpleLay',
       debugShowCheckedModeBanner: false,

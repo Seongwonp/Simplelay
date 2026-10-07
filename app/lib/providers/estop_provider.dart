@@ -13,6 +13,7 @@ class EstopState {
     this.detail,
     this.acking = false,
     this.message,
+    this.holdState,
   });
 
   final bool latched;
@@ -24,6 +25,13 @@ class EstopState {
   /// 마지막 해제 시도가 실패한 이유(배너에 남긴다). 풀리면 지운다.
   final String? message;
 
+  /// 같은 `/status` 응답의 정지 버튼 대기 상태(`hold_state`, 2026-10-07 음성 정지).
+  /// hovering_stop이면 실행은 끝났어도 '멈춰'를 듣는다. 조회 실패 때는 마지막 값을 둔다.
+  final String? holdState;
+
+  /// 정지 버튼 위에서 기다리는 중 — 정지 요청이 그 버튼 누름으로 간다.
+  bool get holdingAtStop => holdState == 'hovering_stop';
+
   EstopState copyWith({
     bool? latched,
     String? detail,
@@ -31,12 +39,15 @@ class EstopState {
     bool? acking,
     String? message,
     bool clearMessage = false,
+    String? holdState,
+    bool clearHold = false,
   }) =>
       EstopState(
         latched: latched ?? this.latched,
         detail: clearDetail ? null : (detail ?? this.detail),
         acking: acking ?? this.acking,
         message: clearMessage ? null : (message ?? this.message),
+        holdState: clearHold ? null : (holdState ?? this.holdState),
       );
 }
 
@@ -68,9 +79,10 @@ class EstopNotifier extends StateNotifier<EstopState> {
     try {
       final hub = await api.hubStatus();
       if (!mounted) return;
-      state = hub.estopLatched
+      final next = hub.estopLatched
           ? state.copyWith(latched: true, detail: hub.estopDetail, clearDetail: hub.estopDetail == null)
           : state.copyWith(latched: false, clearDetail: true, clearMessage: true);
+      state = next.copyWith(holdState: hub.holdState, clearHold: hub.holdState == null);
     } catch (_) {
       // 모름 — 그대로 둔다.
     } finally {

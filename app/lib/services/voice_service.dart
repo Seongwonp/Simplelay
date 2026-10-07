@@ -19,7 +19,31 @@ String voiceErrorGuide(String errorId) => switch (errorId) {
       _ => '음성 인식이 중단됐어요. 다시 시도해주세요.',
     };
 
-class VoiceService {
+/// 음성 인식기 계약. 홈 '말로 조작하기'와 실행 중 '멈춰' 듣기가 같은 엔진을
+/// 나눠 쓰고, 시험은 가짜 인식기로 바꿔 끼운다.
+abstract interface class SpeechRecognizer {
+  bool get isListening;
+
+  /// 엔진 준비. false면 이 기기에서 음성 인식을 쓸 수 없다(권한 거부·엔진 없음).
+  Future<bool> initialize();
+
+  /// [onInterrupted]는 **다른 호출자가** 이 세션을 끊었을 때(새 listen·stop·cancel)
+  /// 한 번 불린다. 침묵 종료([onSilence])나 오류([onError])로 끝난 세션에서는
+  /// 불리지 않는다 — 엔진을 나눠 쓰는 쪽이 "아직 듣는 줄 아는" 상태로 남지 않게 한다.
+  Future<void> listen({
+    required void Function(String text) onText,
+    required void Function(String finalText) onSilence,
+    void Function(String errorId)? onError,
+    void Function(double level)? onSoundLevel,
+    void Function()? onInterrupted,
+  });
+
+  Future<void> stop();
+
+  Future<void> cancel();
+}
+
+class VoiceService implements SpeechRecognizer {
   /// 이만큼 조용하면 듣기를 멈춘다. 화면이 이 숫자를 미리 말해준다 --
   /// 사용자가 생각하다 멈춘 사이에 듣기가 끝나는 것을 예측할 수 있어야 한다.
   static const silenceTimeout = Duration(seconds: 5);
@@ -32,12 +56,22 @@ class VoiceService {
   // 다음(또는 이미 끝난) 세션의 타이머를 되살리지 못하게 하는 열쇠.
   int _session = 0;
   bool _sessionFailed = false;
+  // 지금 세션을 연 쪽에 "남이 끊었다"를 알릴 콜백. 정상 종료·오류 때는 먼저 비운다.
+  void Function()? _onInterrupted;
 
+  void _interruptCurrent() {
+    final callback = _onInterrupted;
+    _onInterrupted = null;
+    callback?.call();
+  }
+
+  @override
   bool get isListening => _speech.isListening;
 
   /// 엔진 초기화. onError는 여기(플러그인 계약)에서만 등록할 수 있어서,
   /// 세션별 콜백은 [_onError]에 보관했다가 전달한다. 재호출은 no-op —
   /// speech_to_text는 중복 initialize에 민감하다.
+  @override
   Future<bool> initialize() async {
     if (_initialized) return true;
     _initialized = await _speech.initialize(
@@ -48,6 +82,7 @@ class VoiceService {
         // 타이머를 끊고 호출자에게 에러로 알린다.
         _silenceTimer?.cancel();
         _sessionFailed = true;
+        _onInterrupted = null; // 오류로 끝났다 — onError가 알린다
         _onError?.call(error.errorMsg);
       },
       onStatus: (status) {
@@ -63,13 +98,17 @@ class VoiceService {
   /// 애니메이션은 아무것도 안 들려도 똑같이 움직여서 "잘 듣고 있다"는
   /// 인상을 과장한다. 플랫폼이 음량을 안 주면 콜백이 한 번도 오지
   /// 않는다(그 경우의 표시는 호출자가 정한다).
+  @override
   Future<void> listen({
     required void Function(String text) onText,
     required void Function(String finalText) onSilence,
     void Function(String errorId)? onError,
     void Function(double level)? onSoundLevel,
+    void Function()? onInterrupted,
   }) async {
     var latestText = '';
+    _interruptCurrent(); // 앞 세션을 연 쪽에 알린다(새 세션이 엔진을 가져간다)
+    _onInterrupted = onInterrupted;
     _onError = onError;
     _sessionFailed = false;
     final session = ++_session;
@@ -82,6 +121,7 @@ class VoiceService {
       _silenceTimer?.cancel();
       _silenceTimer = Timer(silenceTimeout, () async {
         if (session != _session || _sessionFailed) return;
+        _onInterrupted = null; // 침묵으로 정상 종료 — onSilence가 알린다
         await stop();
         onSilence(latestText.trim()); // 텍스트 없어도 항상 호출해 listening 상태 해제
       });
@@ -111,14 +151,18 @@ class VoiceService {
     resetTimer();
   }
 
+  @override
   Future<void> stop() async {
+    _interruptCurrent();
     _silenceTimer?.cancel();
     _session++; // 이후 도착하는 콜백은 전부 무효
     _onError = null; // 세션 종료 — 늦게 도착한 엔진 에러를 다음 세션에 흘리지 않기
     await _speech.stop();
   }
 
+  @override
   Future<void> cancel() async {
+    _interruptCurrent();
     _silenceTimer?.cancel();
     _session++;
     _onError = null;
