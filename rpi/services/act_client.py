@@ -781,13 +781,18 @@ class ActClient:
         log.debug("TX -> %s", payload.rstrip().decode())
         if self.tap is not None:
             self.tap.record("hub_to_act", doc)
+        # 이 쓰기가 시작된 링크를 붙잡아 둔다 — drain이 늦게 실패하는 사이 읽기 루프가 이미 링크를 내리고
+        # 다시 이었을 수 있다(10/8 리뷰 LOW). 그때는 옛 링크의 실패이므로 새 링크를 내리지 않는다.
+        writer, reader = self._writer, self._reader
         try:
-            self._writer.write(payload)
-            await self._writer.drain()
+            writer.write(payload)
+            await writer.drain()
         except Exception as exc:
-            self._mark_link_down(f"write failed: {type(exc).__name__}: {exc}")
-            # EOF가 오지 않는 쓰기 전용 고장도 같은 재연결 경로로 보낸다.
-            self._reader.set_exception(exc)
+            if self.link_up and self._writer is writer:
+                self._mark_link_down(f"write failed: {type(exc).__name__}: {exc}")
+                # EOF가 오지 않는 쓰기 전용 고장도 같은 재연결 경로로 보낸다.
+                if reader is not None:
+                    reader.set_exception(exc)
             # execute가 아직 future를 await하기 전이면 예외를 회수해 경고 누수를 막는다.
             # 응답 기한 경로에서는 wait_for가 이미 future를 취소했다 — 취소된 future의 .exception()은
             # CancelledError(BaseException)를 던져 execute/verify_pass의 기한 초과 오류를 덮는다(10/8 리뷰).

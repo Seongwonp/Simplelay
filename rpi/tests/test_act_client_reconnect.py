@@ -345,3 +345,61 @@ def test_old_announced_protocol_refused_before_execute(version):
             await asyncio.wait_for(client.execute(["start"], appliance_id="home_mw"), 0.02)
         assert writer.messages() == []
     asyncio.run(run())
+
+
+@pytest.mark.parametrize("when", ["after_reconnect", "before_reconnect"])
+def test_stale_drain_failure_does_not_tear_down_new_link_or_double_count(when):
+    """2026-10-08 리뷰(LOW): 읽기 루프가 EOF로 링크를 내리고 옛 writer를 닫은 뒤, 진행 중이던 옛 ``drain()``이
+    늦게 실패한다. 이미 내려간 링크를 다시 세지 않고(``link_drops`` 1), 재연결이 끝난 뒤라면 새 링크
+    (걸림 상태·구성·writer·reader)를 건드리지 않는다."""
+    async def run():
+        r1, w1 = asyncio.StreamReader(), FakeWriter()
+        r2, w2 = asyncio.StreamReader(), FakeWriter()
+
+        async def connector():
+            return r2, w2
+
+        backoff = (0.01, 0.05) if when == "after_reconnect" else (0.5, 1.0)
+        client = ActClient(r1, w1, hello=True, connector=connector, reconnect_backoff=backoff)
+        await client.start()
+        r1.feed_data(_line(ANNOUNCE_CLEAR))
+        await _until(lambda: client.estop_latched is False)
+
+        gate = asyncio.Event()
+
+        async def slow_failing_drain():
+            await gate.wait()
+            raise OSError("late drain failure on old link")
+
+        w1.drain = slow_failing_drain
+        try:
+            send = asyncio.create_task(client.clear_failure())
+            await _until(lambda: {"type": "clear_failure"} in w1.messages())
+            r1.feed_eof()
+            await _until(lambda: client.link_up is False)
+            assert client.link_drops == 1
+            if when == "after_reconnect":
+                await _until(lambda: {"type": "hello"} in w2.messages())
+                r2.feed_data(_line(ANNOUNCE_CLEAR))
+                await _until(lambda: client.estop_latched is False and bool(client.act_info))
+            gate.set()
+            with pytest.raises(OSError):
+                await asyncio.wait_for(send, 1.0)
+            assert client.link_drops == 1
+            if when == "after_reconnect":
+                assert client.link_up is True
+                assert client.estop_latched is False
+                assert client.act_info == {"execute_protocol": 2}
+                assert w2.closed is False
+                assert r2.exception() is None
+                # 새 링크는 계속 읽는다.
+                r2.feed_data(_line({"type": "estop_state", "latched": True, "announce": True}))
+                await _until(lambda: client.estop_latched is True)
+            else:
+                assert client.link_up is False
+                await _until(lambda: {"type": "hello"} in w2.messages())
+                assert client.link_drops == 1
+        finally:
+            await client.stop()
+
+    asyncio.run(run())
