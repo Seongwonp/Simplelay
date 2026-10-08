@@ -424,6 +424,10 @@ class ActClient:
         if self._pending is not None and not self._pending[1].done():
             raise ActLinkBusyError("an execute() call is already awaiting a response")
 
+        if self.act_info or self._hello_on_start:
+            protocol = self.act_info.get("execute_protocol")
+            if type(protocol) is not int or protocol < 2:
+                raise ActLinkError("execute_protocol_v2_required: target binding requires execute_protocol >= 2")
         seq_id = sequence_id or str(uuid.uuid4())
         timeout = self._cfg.timeout_for(len(buttons))
         loop = asyncio.get_running_loop()
@@ -608,7 +612,8 @@ class ActClient:
                 raise
             except Exception as exc:  # noqa: BLE001 - serial.SerialException(socket disconnected) 등
                 reason = f"{type(exc).__name__}: {exc}"
-            self._mark_link_down(reason)
+            if self.link_up:
+                self._mark_link_down(reason)
             if self._connector is None:
                 return
             await self._reconnect()
@@ -622,6 +627,7 @@ class ActClient:
         # 다시 이은 뒤 RPi4의 답(estop_state)으로만 다시 안다 — 그때까지 서비스가 '확인하는 중'으로 거절한다.
         self.estop_latched = None
         self.estop_detail = None
+        self.act_info = {}
         error = ActLinkError(f"RPi4 연결이 끊겼어요 ({reason})")
         pending = self._pending
         if pending is not None and not pending[1].done():
@@ -775,8 +781,17 @@ class ActClient:
         log.debug("TX -> %s", payload.rstrip().decode())
         if self.tap is not None:
             self.tap.record("hub_to_act", doc)
-        self._writer.write(payload)
-        await self._writer.drain()
+        try:
+            self._writer.write(payload)
+            await self._writer.drain()
+        except Exception as exc:
+            self._mark_link_down(f"write failed: {type(exc).__name__}: {exc}")
+            # EOF가 오지 않는 쓰기 전용 고장도 같은 재연결 경로로 보낸다.
+            self._reader.set_exception(exc)
+            # execute가 아직 future를 await하기 전이면 예외를 회수해 경고 누수를 막는다.
+            if self._pending is not None and self._pending[1].done():
+                self._pending[1].exception()
+            raise
 
 
 def targets_payload(targets: "Mapping[str, ButtonTarget]") -> dict[str, dict]:

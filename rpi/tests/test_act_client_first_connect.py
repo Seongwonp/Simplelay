@@ -45,7 +45,9 @@ class FakeWriter:
 
 
 def _line(doc: dict) -> bytes:
-    return (json.dumps(doc, ensure_ascii=False) + "\n").encode()
+    # 실제 실행기는 hello에 구성(v2)과 래치 상태를 함께 광고한다.
+    prefix = '{"type":"act_info","execute_protocol":2}\n' if doc.get("type") == "estop_state" else ""
+    return (prefix + json.dumps(doc, ensure_ascii=False) + "\n").encode()
 
 
 ANNOUNCE_CLEAR = {"type": "estop_state", "latched": False, "announce": True}

@@ -49,7 +49,9 @@ class SocketDisconnected(Exception):
 
 
 def _line(doc: dict) -> bytes:
-    return (json.dumps(doc, ensure_ascii=False) + "\n").encode()
+    # 실제 실행기는 hello에 구성(v2)과 래치 상태를 함께 광고한다.
+    prefix = '{"type":"act_info","execute_protocol":2}\n' if doc.get("type") == "estop_state" else ""
+    return (prefix + json.dumps(doc, ensure_ascii=False) + "\n").encode()
 
 
 ANNOUNCE_CLEAR = {"type": "estop_state", "latched": False, "announce": True}
@@ -197,7 +199,7 @@ def test_service_refuses_as_checking_while_link_down_then_allows_after_reconnect
         async def connector():
             return r2_w2["r"], r2_w2["w"]
 
-        client = ActClient(r1, w1, hello=True, connector=connector, reconnect_backoff=(0.01, 0.05))
+        client = ActClient(r1, w1, hello=True, connector=connector, reconnect_backoff=(0.1, 0.2))
         await client.start()
         return client, r1
 
@@ -290,3 +292,56 @@ def test_uart_factory_wires_a_reconnecting_connector(monkeypatch):
         loop = controller._loop
         controller.close()
         loop.call_soon_threadsafe(loop.stop)
+
+
+@pytest.mark.parametrize("where", ["write", "drain"])
+def test_write_only_failure_reconnects_without_eof(where):
+    async def run():
+        r1, w1 = asyncio.StreamReader(), FakeWriter()
+        r2, w2 = asyncio.StreamReader(), FakeWriter()
+        attempts = []
+        async def connector():
+            attempts.append(time.perf_counter())
+            return r2, w2
+        client = ActClient(r1, w1, connector=connector, reconnect_backoff=(0.1, 0.2))
+        await client.start()
+        client.estop_latched = False
+        client.act_info = {"execute_protocol": 2}
+        def fail_write(data):
+            raise OSError("write only failure")
+        async def fail_drain():
+            raise OSError("drain only failure")
+        if where == "write":
+            w1.write = fail_write
+        else:
+            w1.drain = fail_drain
+        started = time.perf_counter()
+        try:
+            with pytest.raises((OSError, ActLinkError)):
+                await client.execute(["start"], appliance_id="home_mw")
+            assert client.link_up is False
+            assert client.estop_latched is None
+            with pytest.raises(ActLinkError):
+                await client.execute(["start"], appliance_id="home_mw")
+            await _until(lambda: bool(w2.messages()))
+            assert attempts[0] - started >= 0.08
+            assert w2.messages() == [{"type": "hello"}]
+            assert client.estop_latched is None
+            r2.feed_data(_line(ANNOUNCE_CLEAR))
+            await _until(lambda: client.estop_latched is False)
+            assert not any(m["type"] == "execute" for m in w2.messages())
+        finally:
+            await client.stop()
+    asyncio.run(run())
+
+
+@pytest.mark.parametrize("version", [0, 1, None, "2"])
+def test_old_announced_protocol_refused_before_execute(version):
+    async def run():
+        reader, writer = asyncio.StreamReader(), FakeWriter()
+        client = ActClient(reader, writer)
+        client._handle_line(json.dumps({"type": "act_info", "execute_protocol": version}))
+        with pytest.raises(ActLinkError, match="execute_protocol"):
+            await asyncio.wait_for(client.execute(["start"], appliance_id="home_mw"), 0.02)
+        assert writer.messages() == []
+    asyncio.run(run())

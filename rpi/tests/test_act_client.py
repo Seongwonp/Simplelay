@@ -182,14 +182,13 @@ def test_send_failure_does_not_leave_the_client_permanently_busy():
         with pytest.raises(ConnectionResetError):
             await client.execute(["시작"], sequence_id="J1", appliance_id="microwave")
 
-        # 케이블이 복구되면 다음 실행은 정상 동작해야 한다 — 이전에는
-        # _pending이 남아 ActLinkBusyError로 영구히 막혔다
+        # pending은 해제되지만 새 연결·래치 확인 없이 같은 스트림으로 재실행하지 않는다.
+        assert client._pending is None
         writer.fail = False
-        task = asyncio.create_task(client.execute(["시작"], sequence_id="J2", appliance_id="microwave"))
-        await asyncio.sleep(0.01)
-        feed(reader, {"type": "result", "sequence_id": "J2", "success": True, "retry": 0})
-        result = await task
-        assert result.sequence_id == "J2"
+        with pytest.raises(ActLinkError):
+            await client.execute(["시작"], sequence_id="J2", appliance_id="microwave")
+        assert not any(m.get("sequence_id") == "J2" for m in writer.messages())
+        assert client.estop_latched is None
 
         await client.stop()
     run(_t())
