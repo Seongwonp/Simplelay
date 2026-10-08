@@ -194,6 +194,62 @@ def test_send_failure_does_not_leave_the_client_permanently_busy():
     run(_t())
 
 
+class FailsAfterFirstWriter(FakeWriter):
+    """첫 줄(execute/verify_pass)은 보내고 두 번째 쓰기(abort)부터 OSError — 응답 기한 뒤 단선."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.writes = 0
+
+    def write(self, data: bytes) -> None:
+        self.writes += 1
+        if self.writes >= 2:
+            raise OSError("serial link down")
+        super().write(data)
+
+
+def _short_timeout_cfg() -> ActClientConfig:
+    return ActClientConfig(response_timeout_seconds=0.05, per_button_timeout_seconds=0.0)
+
+
+def test_execute_timeout_then_abort_write_failure_raises_timeout_not_cancelled():
+    # 리뷰 LOW(10/8): wait_for가 취소한 future에 .exception()을 부르면 CancelledError가
+    # 새어 나가 호출자가 ActLinkTimeoutError 대신 BaseException을 받았다.
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FailsAfterFirstWriter()
+        client = _make_client(reader, writer, config=_short_timeout_cfg())
+        await client.start()
+        try:
+            await client.execute(["시작"], sequence_id="T1", appliance_id="microwave")
+        except BaseException as exc:  # noqa: BLE001 — CancelledError까지 잡아 종류를 본다
+            caught = exc
+        else:
+            caught = None
+        assert isinstance(caught, ActLinkTimeoutError), repr(caught)
+        assert client._pending is None
+        await client.stop()
+    run(_t())
+
+
+def test_verify_pass_timeout_then_abort_write_failure_raises_timeout_not_cancelled():
+    async def _t():
+        reader = asyncio.StreamReader()
+        writer = FailsAfterFirstWriter()
+        client = _make_client(reader, writer, config=_short_timeout_cfg())
+        await client.start()
+        try:
+            await client.verify_pass([{"x_mm": 1.0, "y_mm": 2.0}], sequence_id="V1")
+        except BaseException as exc:  # noqa: BLE001
+            caught = exc
+        else:
+            caught = None
+        assert isinstance(caught, ActLinkTimeoutError), repr(caught)
+        assert client._pending is None
+        await client.stop()
+    run(_t())
+
+
 def test_inject_failure_sends_arm_message():
     async def _t():
         reader = asyncio.StreamReader()

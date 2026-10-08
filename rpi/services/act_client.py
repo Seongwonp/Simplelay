@@ -789,8 +789,11 @@ class ActClient:
             # EOF가 오지 않는 쓰기 전용 고장도 같은 재연결 경로로 보낸다.
             self._reader.set_exception(exc)
             # execute가 아직 future를 await하기 전이면 예외를 회수해 경고 누수를 막는다.
-            if self._pending is not None and self._pending[1].done():
-                self._pending[1].exception()
+            # 응답 기한 경로에서는 wait_for가 이미 future를 취소했다 — 취소된 future의 .exception()은
+            # CancelledError(BaseException)를 던져 execute/verify_pass의 기한 초과 오류를 덮는다(10/8 리뷰).
+            pending = self._pending
+            if pending is not None and pending[1].done() and not pending[1].cancelled():
+                pending[1].exception()
             raise
 
 
