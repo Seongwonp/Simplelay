@@ -364,7 +364,10 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     }
   }
 
-  Future<void> emergencyStop() async {
+  /// 정지 요청. 화면 정지 버튼은 결과를 보지 않고(문구로 알린다), 음성 '멈춰'는
+  /// 반환값으로 보냈는지 안다 — **false면 보내지 못했다**(HTTP 실패). 예외로
+  /// 바꾸지 않은 것은 화면 버튼의 동작·문구를 그대로 두기 위해서다(10/8 인계 5차 §1).
+  Future<bool> emergencyStop() async {
     final api = _httpApi;
     if (api != null) {
       // HTTP 추적 중 — 서버에 정지를 요청하고, 종료 판정은 폴링이
@@ -372,16 +375,18 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       try {
         await api.stop();
         state = state.copyWith(message: '정지 요청을 보냈어요.');
+        return true;
       } catch (_) {
         state = state.copyWith(message: '정지 요청을 보내지 못했어요. 다시 시도해주세요.');
+        return false;
       }
-      return;
     }
     await ref.read(bleServiceProvider).emergencyStop();
     state = state.copyWith(
       phase: ExecutionPhase.failed,
       message: '정지를 요청했어요.',
     );
+    return true;
   }
 
   @override

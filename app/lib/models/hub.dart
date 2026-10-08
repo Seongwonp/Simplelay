@@ -6,6 +6,7 @@ library;
 class HubStatus {
   const HubStatus({
     this.developerMode = false,
+    this.running = false,
     this.holdState,
     this.holdStopOutcome,
     this.holdDetail,
@@ -15,6 +16,10 @@ class HubStatus {
 
   /// 서버 `SIMPLELAY_DEV_MODE`. 참일 때만 폰에 '개발자' 탭이 생긴다.
   final bool developerMode;
+
+  /// 서버가 지금 실행 중인가(`/status.running`). 키오스크·루틴이 시작한 실행도
+  /// 여기로 안다 — 폰이 추적하지 않는 실행의 음성 정지 듣기에 쓴다(10/8 인계 5차 §2).
+  final bool running;
 
   /// hovering_stop | stopping | parking | parked | fault | released | null
   final String? holdState;
@@ -33,6 +38,7 @@ class HubStatus {
   factory HubStatus.fromJson(Map<String, dynamic> json) => HubStatus(
         // 옛 서버는 이 키가 없다 -- 없으면 꺼진 것으로 본다.
         developerMode: json['developer_mode'] == true,
+        running: json['running'] == true,
         holdState: json['hold_state'] as String?,
         holdStopOutcome: json['hold_stop_outcome'] as String?,
         holdDetail: json['hold_detail'] as String?,

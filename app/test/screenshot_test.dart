@@ -754,6 +754,8 @@ class _GoldenVoice extends VoiceService {
     void Function(String errorId)? onError,
     void Function(double level)? onSoundLevel,
     void Function()? onInterrupted,
+    void Function(String text)? onFinal,
+    void Function()? onDone,
   }) async {}
 
   @override

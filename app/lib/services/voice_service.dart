@@ -30,12 +30,20 @@ abstract interface class SpeechRecognizer {
   /// [onInterrupted]는 **다른 호출자가** 이 세션을 끊었을 때(새 listen·stop·cancel)
   /// 한 번 불린다. 침묵 종료([onSilence])나 오류([onError])로 끝난 세션에서는
   /// 불리지 않는다 — 엔진을 나눠 쓰는 쪽이 "아직 듣는 줄 아는" 상태로 남지 않게 한다.
+  ///
+  /// [onText]는 부분·최종 결과 모두에 불린다. [onFinal]은 엔진이 **최종** 결과라고
+  /// 표시한 문장에만(onText 다음에) 불린다. [onDone]을 주면 엔진이 스스로 세션을
+  /// 끝냈을 때(speech_to_text `done`) 한 번 불리고 그 세션은 끝난 것으로 친다 —
+  /// 이때 [onSilence]는 오지 않는다. [onDone]을 주지 않으면(홈 '말로 조작하기')
+  /// 지금처럼 침묵 타이머 하나로 끝을 정한다(10/8 인계 5차 §3).
   Future<void> listen({
     required void Function(String text) onText,
     required void Function(String finalText) onSilence,
     void Function(String errorId)? onError,
     void Function(double level)? onSoundLevel,
     void Function()? onInterrupted,
+    void Function(String text)? onFinal,
+    void Function()? onDone,
   });
 
   Future<void> stop();
@@ -58,6 +66,8 @@ class VoiceService implements SpeechRecognizer {
   bool _sessionFailed = false;
   // 지금 세션을 연 쪽에 "남이 끊었다"를 알릴 콜백. 정상 종료·오류 때는 먼저 비운다.
   void Function()? _onInterrupted;
+  // 엔진 자체 종료('done')를 받겠다고 한 세션의 콜백. 정상·오류·남의 종료 때 비운다.
+  void Function()? _onDone;
 
   void _interruptCurrent() {
     final callback = _onInterrupted;
@@ -83,11 +93,23 @@ class VoiceService implements SpeechRecognizer {
         _silenceTimer?.cancel();
         _sessionFailed = true;
         _onInterrupted = null; // 오류로 끝났다 — onError가 알린다
+        _onDone = null;
         _onError?.call(error.errorMsg);
       },
       onStatus: (status) {
         // 'done'(엔진 자체 종료)에서 조기 전송하지 않는 건 의도다 —
         // "5초 동안 말이 없으면 전송" 계약을 침묵 타이머 하나로 유지한다.
+        // 단, onDone을 준 세션(실행 중 '멈춰' 듣기)에는 엔진이 끝났다고 알린다 —
+        // 엔진이 끝났는데 화면이 계속 "듣는 중"이면 안 된다(10/8 인계 5차 §3).
+        if (status != SpeechToText.doneStatus) return;
+        final done = _onDone;
+        if (done == null || _sessionFailed) return;
+        _onDone = null;
+        _onInterrupted = null; // 엔진이 끝냈다 — onDone이 알린다
+        _onError = null;
+        _silenceTimer?.cancel();
+        _session++; // 이 세션의 늦은 결과·타이머는 무효
+        done();
       },
     );
     return _initialized;
@@ -105,10 +127,13 @@ class VoiceService implements SpeechRecognizer {
     void Function(String errorId)? onError,
     void Function(double level)? onSoundLevel,
     void Function()? onInterrupted,
+    void Function(String text)? onFinal,
+    void Function()? onDone,
   }) async {
     var latestText = '';
     _interruptCurrent(); // 앞 세션을 연 쪽에 알린다(새 세션이 엔진을 가져간다)
     _onInterrupted = onInterrupted;
+    _onDone = onDone;
     _onError = onError;
     _sessionFailed = false;
     final session = ++_session;
@@ -122,6 +147,7 @@ class VoiceService implements SpeechRecognizer {
       _silenceTimer = Timer(silenceTimeout, () async {
         if (session != _session || _sessionFailed) return;
         _onInterrupted = null; // 침묵으로 정상 종료 — onSilence가 알린다
+        _onDone = null;
         await stop();
         onSilence(latestText.trim()); // 텍스트 없어도 항상 호출해 listening 상태 해제
       });
@@ -145,6 +171,11 @@ class VoiceService implements SpeechRecognizer {
         if (session != _session || _sessionFailed) return;
         latestText = result.recognizedWords;
         onText(latestText);
+        if (result.finalResult) {
+          onFinal?.call(latestText);
+          // onFinal이 세션을 끝냈을 수 있다(정지 요청 → cancel).
+          if (session != _session) return;
+        }
         resetTimer();
       },
     );
@@ -157,6 +188,7 @@ class VoiceService implements SpeechRecognizer {
     _silenceTimer?.cancel();
     _session++; // 이후 도착하는 콜백은 전부 무효
     _onError = null; // 세션 종료 — 늦게 도착한 엔진 에러를 다음 세션에 흘리지 않기
+    _onDone = null;
     await _speech.stop();
   }
 
@@ -166,6 +198,7 @@ class VoiceService implements SpeechRecognizer {
     _silenceTimer?.cancel();
     _session++;
     _onError = null;
+    _onDone = null;
     await _speech.cancel();
   }
 }

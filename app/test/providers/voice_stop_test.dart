@@ -8,6 +8,7 @@
 // 인식기는 가짜다 — 실물 마이크 인식률은 실측 필요.
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,8 +20,10 @@ import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/estop_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/providers/tts_provider.dart';
 import 'package:simplelay/providers/voice_stop_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
+import 'package:simplelay/services/app_tts_service.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
 import 'package:simplelay/services/voice_service.dart';
 import 'package:simplelay/widgets/voice_stop_indicator.dart';
@@ -36,6 +39,8 @@ class _FakeRecognizer implements SpeechRecognizer {
   void Function(String)? _onSilence;
   void Function(String)? _onError;
   void Function()? _onInterrupted;
+  void Function(String)? _onFinal;
+  void Function()? _onDone;
 
   @override
   bool get isListening => _listening;
@@ -54,6 +59,8 @@ class _FakeRecognizer implements SpeechRecognizer {
     void Function(String errorId)? onError,
     void Function(double level)? onSoundLevel,
     void Function()? onInterrupted,
+    void Function(String text)? onFinal,
+    void Function()? onDone,
   }) async {
     listenCalls++;
     _listening = true;
@@ -61,10 +68,26 @@ class _FakeRecognizer implements SpeechRecognizer {
     _onSilence = onSilence;
     _onError = onError;
     _onInterrupted = onInterrupted;
+    _onFinal = onFinal;
+    _onDone = onDone;
   }
 
-  /// 엔진이 (부분) 인식 문장을 준다.
+  /// 엔진이 **부분** 인식 문장을 준다.
   void say(String text) => _onText?.call(text);
+
+  /// 엔진이 **최종** 인식 문장을 준다(VoiceService처럼 onText 뒤에 onFinal).
+  void sayFinal(String text) {
+    _onText?.call(text);
+    _onFinal?.call(text);
+  }
+
+  /// 엔진이 스스로 세션을 끝냈다(speech_to_text 'done').
+  void done() {
+    _listening = false;
+    final cb = _onDone;
+    _onDone = null;
+    cb?.call();
+  }
 
   /// 5초 침묵으로 세션이 끝난다.
   void silence() {
@@ -107,11 +130,42 @@ class _CountingExecution extends ExecutionStatusNotifier {
       state = ExecutionStatus(phase: phase, label: '즉석밥 데우기');
 
   @override
-  Future<void> emergencyStop() async {
+  Future<bool> emergencyStop() async {
     stops++;
     final g = gate;
     if (g != null) await g.future;
+    return true;
   }
+}
+
+class _SilentTts extends AppTtsService {
+  @override
+  Future<void> speak(String text) async {}
+}
+
+/// 허브 흉내 — /status 본문을 바꿔 끼우고, /stop은 정해 둔 순서대로 실패·성공한다.
+class _Hub {
+  Map<String, dynamic> status = {
+    'running': false, 'last_status': null, 'last_buttons': null,
+  };
+  bool statusFails = false;
+  final List<int> stopCodes = [];
+  int stopPosts = 0;
+
+  late final api =
+      RpiApiService('http://hub:8000', client: MockClient((req) async {
+    if (req.method == 'POST' && req.url.path == '/stop') {
+      stopPosts++;
+      final code = stopCodes.isEmpty ? 200 : stopCodes.removeAt(0);
+      return http.Response('{}', code);
+    }
+    if (req.url.path == '/status') {
+      if (statusFails) throw http.ClientException('hub unreachable');
+      return http.Response.bytes(utf8.encode(jsonEncode(status)), 200,
+          headers: {'content-type': 'application/json; charset=utf-8'});
+    }
+    return http.Response('{}', 404);
+  }));
 }
 
 class _HoldEstop extends EstopNotifier {
@@ -121,11 +175,14 @@ class _HoldEstop extends EstopNotifier {
 }
 
 class _Rig {
-  _Rig(this.container, this.recognizer, this.exec, this.estop);
+  _Rig(this.container, this.recognizer, this._exec, this._estop);
   final ProviderContainer container;
   final _FakeRecognizer recognizer;
-  final _CountingExecution exec;
-  final _HoldEstop estop;
+  final _CountingExecution? _exec;
+  final _HoldEstop? _estop;
+
+  _CountingExecution get exec => _exec!;
+  _HoldEstop get estop => _estop!;
 
   VoiceStopState get voice => container.read(voiceStopProvider);
 }
@@ -134,14 +191,22 @@ Future<_Rig> _rig(
   WidgetTester tester, {
   _FakeRecognizer? recognizer,
   RpiApiService? api,
+  bool realExecution = false,
+  bool realEstop = false,
 }) async {
   final fake = recognizer ?? _FakeRecognizer();
-  late _CountingExecution exec;
-  late _HoldEstop estop;
+  _CountingExecution? exec;
+  _HoldEstop? estop;
   final container = ProviderContainer(overrides: [
     speechRecognizerProvider.overrideWithValue(fake),
-    executionStatusProvider.overrideWith((ref) => exec = _CountingExecution(ref)),
-    estopProvider.overrideWith((ref) => estop = _HoldEstop()),
+    ttsServiceProvider.overrideWithValue(_SilentTts()),
+    if (!realExecution)
+      executionStatusProvider
+          .overrideWith((ref) => exec = _CountingExecution(ref)),
+    if (realEstop)
+      estopPollIntervalProvider.overrideWithValue(null)
+    else
+      estopProvider.overrideWith((ref) => estop = _HoldEstop()),
     rpiApiServiceProvider.overrideWithValue(api),
   ]);
   addTearDown(container.dispose);
@@ -348,5 +413,132 @@ void main() {
     r.exec.seed(ExecutionPhase.running);
     await _settle(tester);
     expect(find.text('듣는 중'), findsOneWidget);
+  });
+
+  // ── 2026-10-08 인계 5차 §1~3 ──────────────────────────────────────────
+
+  testWidgets('정지 요청이 HTTP 실패면 보낸 것으로 치지 않는다 — 다시 말하면 다시 요청',
+      (tester) async {
+    // 진짜 실행 추적기 + 가짜 허브(/stop 첫 번째 500, 두 번째 200).
+    final hub = _Hub()
+      ..status = {
+        'running': true, 'job_id': 'j1', 'last_status': null, 'last_buttons': null,
+      }
+      ..stopCodes.addAll([500, 200]);
+    final r = await _rig(tester, api: hub.api, realExecution: true);
+    r.container.read(executionStatusProvider.notifier).beginHttpJob(
+        api: hub.api, jobId: 'j1', label: '즉석밥 데우기');
+    await _settle(tester);
+    expect(r.voice.listening, isTrue);
+
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 1);
+    expect(r.voice.listening, isTrue, reason: '실패했으니 다시 듣는다');
+
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 2, reason: '두 번째 "멈춰"는 다시 요청해야 한다');
+    expect(r.voice.listening, isFalse, reason: '보냈으면 이번 실행에서는 그만 듣는다');
+
+    // 서버가 정지 결과를 내면 추적이 끝난다(남은 폴링 타이머 정리).
+    hub.status = {
+      'running': false, 'job_id': null, 'last_job_id': 'j1',
+      'last_status': 'safety_stopped', 'last_outcome': 'stopped', 'last_buttons': [],
+    };
+    await _settle(tester);
+    expect(r.container.read(executionStatusProvider).phase,
+        isNot(ExecutionPhase.running));
+  });
+
+  testWidgets('키오스크·루틴이 시작한 실행(서버 running)도 듣고, "멈춰"는 POST /stop',
+      (tester) async {
+    final hub = _Hub()
+      ..status = {
+        'running': true, 'job_id': 'kiosk-1', 'last_status': null, 'last_buttons': null,
+      };
+    final r = await _rig(tester, api: hub.api, realEstop: true);
+    await _settle(tester);
+    // 폰은 이 실행을 추적하지 않는다(idle) — 서버 상태로 듣는다.
+    expect(r.container.read(executionStatusProvider).phase, ExecutionPhase.idle);
+    expect(r.voice.listening, isTrue);
+
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 1);
+    expect(r.exec.stops, 0, reason: '폰이 추적하지 않는 실행은 같은 POST /stop으로');
+
+    hub.status = {'running': false, 'last_status': 'safety_stopped', 'last_buttons': []};
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
+    expect(r.voice.listening, isFalse);
+  });
+
+  testWidgets('/status 조회가 실패하면 듣기를 끈다(이전 값을 붙들지 않는다)',
+      (tester) async {
+    final hub = _Hub()
+      ..status = {
+        'running': false, 'hold_state': 'hovering_stop',
+        'last_status': null, 'last_buttons': null,
+      };
+    final r = await _rig(tester, api: hub.api, realEstop: true);
+    await _settle(tester);
+    expect(r.voice.listening, isTrue);
+
+    hub.statusFails = true;
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
+    expect(r.voice.listening, isFalse);
+    expect(r.container.read(estopProvider).holdingAtStop, isFalse);
+  });
+
+  testWidgets('엔진이 스스로 끝나면(done) "듣는 중"을 바로 끄고 다시 연다', (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    expect(r.voice.listening, isTrue);
+    expect(r.recognizer.listenCalls, 1);
+
+    r.recognizer.done();
+    await tester.pump();
+    expect(r.voice.listening, isFalse, reason: '엔진이 끝났는데 듣는 중이라고 하지 않는다');
+
+    await _settle(tester);
+    expect(r.recognizer.listenCalls, 2);
+    expect(r.voice.listening, isTrue);
+  });
+
+  testWidgets('부분 결과 "그만"으로는 정지하지 않는다 — "그만 데워줘"가 이어지면 무시',
+      (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+
+    r.recognizer.say('그만');
+    await tester.pump(const Duration(milliseconds: 300));
+    r.recognizer.say('그만 데워줘');
+    await tester.pump(const Duration(milliseconds: 300));
+    r.recognizer.sayFinal('그만 데워줘');
+    await _settle(tester);
+    expect(r.exec.stops, 0);
+    expect(r.voice.listening, isTrue);
+
+    // 최종 결과가 정지 말이면 바로 보낸다.
+    r.recognizer.sayFinal('그만');
+    await tester.pump();
+    await tester.pump();
+    expect(r.exec.stops, 1);
+  });
+
+  testWidgets('정지 말뿐인 부분 결과 뒤 짧게 조용하면 정지한다', (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+
+    r.recognizer.say('멈춰');
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(r.exec.stops, 0, reason: '부분 결과 즉시는 아니다');
+    await _settle(tester);
+    expect(r.exec.stops, 1);
   });
 }
