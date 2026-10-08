@@ -408,7 +408,7 @@ def _outlet_consumers() -> tuple[str, ...]:
     """콘센트 전력을 읽을 가전 ID(중복 없음) — 누르는 가전 + SIMPLELAY_DONE_WATCH의 outlet 입력 가전."""
     from .services.appliance_done_watch import parse_done_watches
 
-    consumers: list[str] = [OUTLET_PRESS_APPLIANCE] if _press_reads_outlet() else []
+    consumers: list[str] = [_outlet_press_appliance()] if _press_reads_outlet() else []
     for spec in parse_done_watches(os.getenv("SIMPLELAY_DONE_WATCH")):
         if "power" in spec.inputs and spec.appliance_id not in consumers:
             consumers.append(spec.appliance_id)
@@ -426,6 +426,16 @@ def _env_int(name: str, default: int) -> int:
 
 #: 갠트리가 누르고 릴레이가 끊는 가전 — L3·잔여 전류 꼬리·정지 확인·기록기가 이 가전의 CT 채널을 읽는다.
 OUTLET_PRESS_APPLIANCE = "microwave"
+
+
+def _outlet_press_appliance() -> str:
+    """릴레이·기록기 대상 등록 ID. 미설정이면 기존 내장 전자레인지 ID를 유지한다."""
+    from .models.act_messages import _APPLIANCE_ID
+
+    target = os.getenv("SIMPLELAY_OUTLET_PRESS_APPLIANCE", OUTLET_PRESS_APPLIANCE).strip()
+    if not _APPLIANCE_ID.fullmatch(target):
+        raise RuntimeError("SIMPLELAY_OUTLET_PRESS_APPLIANCE에 유효한 가전 ID가 필요합니다")
+    return target
 
 
 def _outlet_channel_map():
@@ -528,7 +538,7 @@ def _check_outlet_channels(ready: dict, channels, consumers: "tuple[str, ...]" =
     if not channels.by_appliance and isinstance(count, int) and count > 1:
         log.warning("outlet module has %d CT channels but SIMPLELAY_OUTLET_CHANNELS is empty — "
                     "the single consumer reads channel 0", count)
-    return outlet_module_channel_problem(ready, channels, consumers, OUTLET_PRESS_APPLIANCE)
+    return outlet_module_channel_problem(ready, channels, consumers, _outlet_press_appliance())
 
 
 def _outlet_readiness(outlet):
@@ -543,7 +553,7 @@ def _outlet_readiness(outlet):
         if offline is not None:
             return offline
         info = getattr(outlet, "module_info", None)
-        return outlet_module_channel_problem(info, channels, consumers, OUTLET_PRESS_APPLIANCE)
+        return outlet_module_channel_problem(info, channels, consumers, _outlet_press_appliance())
 
     return reason
 
@@ -622,7 +632,7 @@ def _build_target_binder(outlet, recorder: "LiveRecorder | None" = None):
         l3_mode=mode if mode in ("off", "mock", "real") else "off",
         outlet=outlet,
         channels=_outlet_channel_map(),
-        press_appliance=OUTLET_PRESS_APPLIANCE,
+        press_appliance=_outlet_press_appliance(),
         make_operation=lambda view, _ch: _build_operation_verifier(view),
         make_tail=make_tail if outlet is not None else None,
         mock_operation=mock_operation,
@@ -912,7 +922,7 @@ async def _run() -> None:
     log.info("Serial open — waiting for RPi5 execute commands")
     outlet = _build_outlet()
     try:
-        recorder = _build_recorder(_outlet_view(outlet, OUTLET_PRESS_APPLIANCE))
+        recorder = _build_recorder(_outlet_view(outlet, _outlet_press_appliance()))
     except BaseException:
         if outlet is not None:
             outlet.close()

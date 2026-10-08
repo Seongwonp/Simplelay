@@ -73,6 +73,29 @@ def test_mapping_without_the_watched_appliance_refuses_to_start(fake_env):
         act_main._build_outlet()
 
 
+def test_v3_example_starts_and_binds_all_three_registered_appliances(fake_env):
+    from pathlib import Path
+
+    example = Path(__file__).resolve().parents[2] / "deploy/act-v3.env.example"
+    for line in example.read_text(encoding="utf-8").splitlines():
+        if line and not line.startswith("#"):
+            key, value = line.split("=", 1)
+            fake_env.setenv(key, value)
+    fake_env.setenv("SIMPLELAY_L3_MODE", "real")
+    link = act_main._build_outlet()
+    try:
+        assert act_main._outlet_readiness(link)() is None
+        executor = act_main._build_executor(object(), object(), outlet=link)
+        binder = executor._target_binder
+        assert binder.bind("home_mw").operation.link.channel == 0
+        assert binder.bind("washer").operation.link.channel == 1
+        assert binder.bind("intercom").operation is None
+        assert binder.bind("intercom").l3 == "none"
+        assert act_main._outlet_view(link, act_main._outlet_consumers()[0]).channel == 0
+    finally:
+        link.close()
+
+
 def test_washer_done_comes_from_its_own_channel_while_the_microwave_relay_is_off(fake_env):
     """세탁기 채널은 릴레이를 거치지 않는다 — 릴레이(전자레인지)가 꺼져 있어도 세탁 끝을 본다."""
     fake_env.setenv("SIMPLELAY_OUTLET_CHANNELS", "microwave:0,washer:1")

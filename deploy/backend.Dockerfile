@@ -28,7 +28,9 @@ RUN pip install --no-cache-dir \
     "pyserial>=3.5,<4" \
     "pyserial-asyncio>=0.6,<1" \
     "qrcode[pil]>=8,<9" \
-    "sounddevice>=0.4,<1"
+    "sounddevice>=0.4,<1" \
+    "adafruit-circuitpython-ads1x15>=2,<3" \
+    "adafruit-blinka>=8,<9"
 
 # socat: 하드웨어 선 대신 LAN으로 두 보드를 이을 때 RPi4 쪽에서 TCP를 가상 시리얼로
 # 바꾼다(시험용, deploy/run_act.sh). 백엔드만 돌릴 때는 쓰지 않는다.
