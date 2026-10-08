@@ -15,6 +15,8 @@ class EstopState {
     this.message,
     this.holdState,
     this.hubRunning = false,
+    this.hubJobId,
+    this.hubLastJobId,
   });
 
   final bool latched;
@@ -34,6 +36,11 @@ class EstopState {
   /// 같은 응답의 `running` — 키오스크·루틴이 시작한 실행도 포함한다. 조회 실패면 false.
   final bool hubRunning;
 
+  /// 같은 응답의 `job_id`·`last_job_id`(10/8 리뷰) — 음성 정지가 실행이 바뀐 것을
+  /// 안다. 조회 실패면 null. 이 값은 5초 조회 주기만큼 늦다.
+  final String? hubJobId;
+  final String? hubLastJobId;
+
   /// 정지 버튼 위에서 기다리는 중 — 정지 요청이 그 버튼 누름으로 간다.
   bool get holdingAtStop => holdState == 'hovering_stop';
 
@@ -47,6 +54,9 @@ class EstopState {
     String? holdState,
     bool clearHold = false,
     bool? hubRunning,
+    String? hubJobId,
+    String? hubLastJobId,
+    bool clearJobs = false,
   }) =>
       EstopState(
         latched: latched ?? this.latched,
@@ -55,6 +65,8 @@ class EstopState {
         message: clearMessage ? null : (message ?? this.message),
         holdState: clearHold ? null : (holdState ?? this.holdState),
         hubRunning: hubRunning ?? this.hubRunning,
+        hubJobId: clearJobs ? null : (hubJobId ?? this.hubJobId),
+        hubLastJobId: clearJobs ? null : (hubLastJobId ?? this.hubLastJobId),
       );
 }
 
@@ -93,11 +105,15 @@ class EstopNotifier extends StateNotifier<EstopState> {
         holdState: hub.holdState,
         clearHold: hub.holdState == null,
         hubRunning: hub.running,
-      );
+        clearJobs: true,
+      ).copyWith(hubJobId: hub.jobId, hubLastJobId: hub.lastJobId);
     } catch (_) {
       // 걸림은 모름 — 그대로 둔다(위 이유). 대기·실행 중은 음성 정지 듣기에만 쓰여서
       // 모를 때 끄는 쪽이 안전하다(10/8 인계 5차 §2) — 정지 버튼은 그대로 있다.
-      if (mounted) state = state.copyWith(clearHold: true, hubRunning: false);
+      if (mounted) {
+        state = state.copyWith(
+            clearHold: true, hubRunning: false, clearJobs: true);
+      }
     } finally {
       _inFlight = false;
     }

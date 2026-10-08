@@ -7,6 +7,8 @@ class HubStatus {
   const HubStatus({
     this.developerMode = false,
     this.running = false,
+    this.jobId,
+    this.lastJobId,
     this.holdState,
     this.holdStopOutcome,
     this.holdDetail,
@@ -20,6 +22,14 @@ class HubStatus {
   /// 서버가 지금 실행 중인가(`/status.running`). 키오스크·루틴이 시작한 실행도
   /// 여기로 안다 — 폰이 추적하지 않는 실행의 음성 정지 듣기에 쓴다(10/8 인계 5차 §2).
   final bool running;
+
+  /// 실행 중인 job(`/status.job_id`) — 실행이 끝나면 null. 음성 정지가 "이 실행에
+  /// 이미 보냈다"를 실행 단위로 묶는 데 쓴다(10/8 리뷰). 옛 서버는 없다(null).
+  final String? jobId;
+
+  /// 마지막으로 끝난 job(`/status.last_job_id`). 정지 버튼 위 대기는 실행이 끝난
+  /// 뒤라 job_id가 없다 — 대기의 식별에 이것을 쓴다.
+  final String? lastJobId;
 
   /// hovering_stop | stopping | parking | parked | fault | released | null
   final String? holdState;
@@ -39,6 +49,9 @@ class HubStatus {
         // 옛 서버는 이 키가 없다 -- 없으면 꺼진 것으로 본다.
         developerMode: json['developer_mode'] == true,
         running: json['running'] == true,
+        jobId: json['job_id'] is String ? json['job_id'] as String : null,
+        lastJobId:
+            json['last_job_id'] is String ? json['last_job_id'] as String : null,
         holdState: json['hold_state'] as String?,
         holdStopOutcome: json['hold_stop_outcome'] as String?,
         holdDetail: json['hold_detail'] as String?,

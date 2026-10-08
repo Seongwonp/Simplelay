@@ -126,8 +126,8 @@ class _CountingExecution extends ExecutionStatusNotifier {
   int begins = 0;
   Completer<void>? gate;
 
-  void seed(ExecutionPhase phase) =>
-      state = ExecutionStatus(phase: phase, label: '즉석밥 데우기');
+  void seed(ExecutionPhase phase, {String? sequenceId}) => state =
+      ExecutionStatus(phase: phase, label: '즉석밥 데우기', sequenceId: sequenceId);
 
   @override
   Future<bool> emergencyStop() async {
@@ -540,5 +540,91 @@ void main() {
     expect(r.exec.stops, 0, reason: '부분 결과 즉시는 아니다');
     await _settle(tester);
     expect(r.exec.stops, 1);
+  });
+
+  // ── 2026-10-08 리뷰 수리(침묵 종료·실행 식별) ─────────────────────────
+
+  testWidgets('침묵 종료(no_match·speech_timeout)가 6번 이어져도 "멈춰"는 정지 한 번',
+      (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    for (var i = 0; i < 6; i++) {
+      r.recognizer.fail(i.isEven ? 'error_no_match' : 'error_speech_timeout');
+      await _settle(tester);
+    }
+    expect(r.recognizer.listenCalls, 7, reason: '침묵은 오류가 아니다 — 매번 다시 연다');
+    expect(r.voice.listening, isTrue);
+
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(r.exec.stops, 1);
+  });
+
+  testWidgets('다른 인식 오류가 이어져도 포기하지 않고 간격을 늘려 다시 연다',
+      (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running);
+    await _settle(tester);
+    for (var i = 0; i < 8; i++) {
+      r.recognizer.fail('error_network');
+      // 늘어나는 간격의 상한보다 넉넉히 기다린다.
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pump(const Duration(milliseconds: 10));
+    }
+    expect(r.recognizer.listenCalls, 9);
+    expect(r.voice.listening, isTrue);
+
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(r.exec.stops, 1);
+  });
+
+  testWidgets('음성으로 멈춘 실행 A 뒤 곧바로 실행 B가 시작되면 B의 "멈춰"도 보낸다',
+      (tester) async {
+    final r = await _rig(tester);
+    r.exec.seed(ExecutionPhase.running, sequenceId: 'job-A');
+    await _settle(tester);
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(r.exec.stops, 1);
+    expect(r.voice.listening, isFalse);
+
+    // 듣기 구간이 끊기지 않은 채(5초 조회 사이) 다음 실행이 시작됐다.
+    r.exec.seed(ExecutionPhase.running, sequenceId: 'job-B');
+    await _settle(tester);
+    expect(r.voice.listening, isTrue, reason: '새 실행이면 다시 듣는다');
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(r.exec.stops, 2);
+  });
+
+  testWidgets('서버만 아는 실행도 job_id가 바뀌면 다시 듣는다', (tester) async {
+    final hub = _Hub()
+      ..status = {
+        'running': true, 'job_id': 'kiosk-1', 'last_status': null, 'last_buttons': null,
+      };
+    final r = await _rig(tester, api: hub.api, realEstop: true);
+    await _settle(tester);
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 1);
+    expect(r.voice.listening, isFalse);
+
+    hub.status = {
+      'running': true, 'job_id': 'kiosk-2', 'last_job_id': 'kiosk-1',
+      'last_status': 'safety_stopped', 'last_buttons': [],
+    };
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
+    expect(r.voice.listening, isTrue);
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 2);
+
+    // 같은 실행이 이어지면 다시 보내지 않는다.
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
+    expect(r.voice.listening, isFalse);
   });
 }

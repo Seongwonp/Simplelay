@@ -70,7 +70,8 @@ void main() {
 
     test('emergencyStop is no-op when simulated', () async {
       ble.simulateConnected();
-      await expectLater(ble.emergencyStop(), completes);
+      // 아무것도 보내지 않았으니 보냈다고 하지 않는다(10/8 리뷰).
+      await expectLater(ble.emergencyStop(), completion(isFalse));
     });
 
     test('sendCommand is no-op when simulated', () async {

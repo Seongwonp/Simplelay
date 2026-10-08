@@ -104,7 +104,13 @@ class BleService {
         'approved': approved,
       });
 
-  Future<void> emergencyStop() => send({'type': 'emergency_stop'});
+  /// 정지 프레임을 보낸다. **실제로 보냈을 때만 true** — 모의 연결은 아무것도
+  /// 보내지 않으므로 false다(음성 '멈춰'가 보낸 것으로 치지 않게, 10/8 리뷰).
+  Future<bool> emergencyStop() async {
+    if (_isSimulated) return false;
+    await send({'type': 'emergency_stop'});
+    return true;
+  }
 
   void _decode(List<int> data) {
     _buffer.write(utf8.decode(data, allowMalformed: true));

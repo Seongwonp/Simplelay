@@ -381,12 +381,14 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         return false;
       }
     }
-    await ref.read(bleServiceProvider).emergencyStop();
+    // 모의 BLE는 아무것도 보내지 않는다 — 화면 표시는 그대로 두되 보낸 것으로
+    // 치지 않는다(음성 '멈춰'가 다시 들을 수 있게, 10/8 리뷰).
+    final sent = await ref.read(bleServiceProvider).emergencyStop();
     state = state.copyWith(
       phase: ExecutionPhase.failed,
       message: '정지를 요청했어요.',
     );
-    return true;
+    return sent;
   }
 
   @override

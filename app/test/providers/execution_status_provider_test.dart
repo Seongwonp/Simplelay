@@ -179,5 +179,20 @@ void main() {
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
       expect(c.read(executionStatusProvider).message, contains('정지'));
     });
+
+    // 10/8 리뷰 LOW: 모의 BLE는 아무것도 보내지 않는다 — 음성 '멈춰'가 이것을
+    // 보낸 것으로 치면 다시 듣지 않는다. 화면 표시는 그대로 둔다.
+    test('모의 BLE에서는 정지를 보낸 것으로 치지 않는다(화면 표시는 그대로)', () async {
+      final c = makeContainer();
+      c.read(bleServiceProvider).simulateConnected();
+      c.read(executionStatusProvider.notifier).begin(_suggestion);
+
+      final sent =
+          await c.read(executionStatusProvider.notifier).emergencyStop();
+
+      expect(sent, isFalse);
+      expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
+      expect(c.read(executionStatusProvider).message, '정지를 요청했어요.');
+    });
   });
 }

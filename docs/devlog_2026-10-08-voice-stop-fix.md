@@ -21,3 +21,17 @@
 
 - 실기기에서 엔진 `done`이 오는 시점, 부분→최종 결과 간격, 1초 대기가 체감상 괜찮은지 확인 필요.
 - 서버 `running`은 `/status` 5초 주기로 읽는다 — 키오스크에서 시작한 실행은 최대 약 5초 뒤부터 듣는다.
+
+## 리뷰 수리 (`06469c9` 기준 리뷰 3건)
+
+| 항목 | 수정 | 수정 전 실패를 실제 실행해 확인한 결과 |
+|---|---|---|
+| MEDIUM 침묵 종료를 오류로 셈 | `error_no_match`·`error_speech_timeout`은 보통 끝남과 같이 `restartDelay` 뒤 다시 연다. 포기는 권한 거부(`error_insufficient_permissions`·`error_permission`)와 엔진 없음(초기화 실패·예외)뿐. 그 밖의 오류는 1.2초부터 두 배씩 늘려 8초 상한으로 계속 다시 연다(상한은 추측 — 실기기 확인 필요). 오류 수는 부분 결과·`done`·침묵 종료에서 0으로 | 침묵 종료 6번 뒤 다시 열기가 5번에서 멈춤(`listenCalls` 5, 기대 7), 네트워크 오류 8번 뒤 다시 열기 5번에서 멈춤(기대 9) |
+| LOW 모의 BLE를 '보냄'으로 침 | `BleService.emergencyStop()`이 실제로 보냈을 때만 true(모의 연결은 false). `ExecutionStatusNotifier.emergencyStop()`은 BLE 경로에서 그 값을 돌려준다. 화면 상태·문구('정지를 요청했어요.', failed)는 그대로 | 모의 BLE에서 `emergencyStop()`이 true |
+| LOW '보냄'이 듣기 구간에 묶임 | '보냄'을 실행 식별에 묶었다: 폰이 추적하는 실행의 `sequenceId`(HTTP 실행은 job_id), 아니면 `/status.job_id`(`HubStatus.jobId`·`EstopState.hubJobId`로 새로 받음), 정지 버튼 위 대기면 `'hold:' + last_job_id`. 듣기 구간 안에서 식별이 바뀌면 '보냄'을 지운다. 보내는 사이 실행이 바뀌면 새 실행에 '보냄'을 새기지 않는다. 조회 실패면 job 값도 지운다 | 폰 실행 A 음성 정지 뒤 실행 B에서 듣지 않음, 서버 job_id가 kiosk-1→kiosk-2로 바뀌어도 듣지 않음 |
+
+- 한계: 서버만 아는 실행의 식별은 `/status` 5초 조회만큼 늦다(실행 B가 시작되고 다음 조회까지는 A의 '보냄'이 남는다). `job_id`를 주지 않는 옛 서버에서는 예전처럼 듣기 구간이 끝날 때만 지운다.
+- 새 시험 5건(음성 4·실행 추적 1)을 먼저 넣고 수정 전 코드에서 5건 모두 실패를 확인한 뒤 수정했다. `ble_service_test`의 모의 정지 시험은 `completion(isFalse)`로 강화.
+- `flutter analyze`: error 0·warning 0(기존 info 4).
+- `flutter test --exclude-tags screenshot`: **575** 통과(골든 제외, 570 + 5).
+- `flutter test --tags screenshot`: **55** 통과(골든, 갱신 없음).

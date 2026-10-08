@@ -73,6 +73,14 @@ class VoiceStopState {
 /// - "듣는 중" 표시는 엔진 세션이 열려 있는 동안만이다. 엔진이 스스로 끝나면
 ///   (`done`) 표시를 끄고 잠시 뒤 다시 연다.
 /// - 인식 오류·권한 거부·엔진 없음은 조용히 넘어간다(화면 안내 없음).
+///   침묵으로 끝난 세션(`error_no_match`·`error_speech_timeout`)은 오류가 아니다 —
+///   보통 끝남처럼 [restartDelay] 뒤 다시 연다(데우는 중·대기처럼 긴 조용한 구간).
+///   포기는 **권한 거부·엔진 없음**뿐이고, 그 밖의 오류는 간격을 늘려
+///   ([errorRestartDelay]부터 두 배씩, [maxErrorRestartDelay] 상한) 다시 연다(10/8 리뷰).
+/// - '보냈다'는 **실행 단위**다. 실행 식별(폰이 추적하는 `sequenceId`, 아니면
+///   서버 `/status.job_id`, 정지 버튼 위 대기면 `last_job_id`)이 바뀌면 듣기 구간이
+///   끊기지 않았어도 새 실행으로 보고 다시 듣는다(10/8 리뷰). 서버 값은 5초 조회만큼
+///   늦고, 식별을 주지 않는 옛 서버에서는 듣기 구간이 끝날 때만 지운다.
 /// - 이 듣기는 정지 말 말고는 아무것도 하지 않는다 — **음성으로 실행 시작 금지.**
 class VoiceStopController extends StateNotifier<VoiceStopState>
     with WidgetsBindingObserver {
@@ -94,22 +102,29 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
   static const restartDelay = Duration(milliseconds: 400);
   static const errorRestartDelay = Duration(milliseconds: 1200);
 
+  /// 오류가 이어질 때 다시 듣기 간격의 상한(추측 — 실기기에서 확인 필요).
+  static const maxErrorRestartDelay = Duration(seconds: 8);
+
   /// 정지 말뿐인 부분 결과 뒤 이만큼 다른 결과가 없으면 정지로 본다.
   /// 최종 결과가 먼저 오면 그쪽으로 바로 판정한다(추측 — 실기기에서 확인 필요).
   static const partialStopDelay = Duration(milliseconds: 1000);
 
-  /// 연속 오류가 이만큼이면 이번 듣기 구간은 접는다(무한 재시도 방지).
-  static const maxConsecutiveErrors = 5;
+  /// 침묵으로 끝난 세션 — 오류로 세지 않는다.
+  static const _silenceErrors = {'error_no_match', 'error_speech_timeout'};
+
+  /// 다시 열어도 소용없는 오류 — 이번 듣기 구간은 접는다.
+  static const _fatalErrors = {'error_insufficient_permissions', 'error_permission'};
 
   bool _active = false; // 듣기 구간 안인가(실행 중·대기 중)
-  bool _sent = false; // 이번 구간에서 정지를 보냈고 서버가 받았다
+  bool _sent = false; // 이번 실행([_runKey])에서 정지를 보냈고 서버가 받았다
+  String? _runKey; // 지금 듣는 실행의 식별(모르면 null)
   bool _stopInFlight = false;
-  bool _gaveUp = false; // 권한 거부·엔진 없음·오류 반복
+  bool _gaveUp = false; // 권한 거부·엔진 없음
   bool _paused = false; // 앱이 뒤로 갔다
   bool _starting = false;
   bool _sessionOpen = false; // 내 듣기 세션이 엔진에 열려 있다(여는 중 포함)
   bool _disposed = false;
-  int _errors = 0;
+  int _errors = 0; // 연속 오류(침묵 종료 제외) — 다시 듣기 간격을 늘린다
   int _gen = 0; // 내 듣기 세션 세대 — 끝난 세션의 늦은 콜백을 버린다
   Timer? _restartTimer;
   Timer? _partialTimer; // 정지 말뿐인 부분 결과 뒤 조용함을 기다린다
@@ -127,6 +142,20 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
     return hub.hubRunning || hub.holdingAtStop;
   }
 
+  /// 지금 실행의 식별. 폰이 추적하는 실행이면 그 `sequenceId`(HTTP 실행은 job_id와
+  /// 같다), 아니면 서버 실행의 `job_id`, 정지 버튼 위 대기면 끝난 실행의
+  /// `last_job_id`. 아무것도 모르면 null.
+  String? _currentRunKey() {
+    if (_phoneTracking()) {
+      final seq = _ref.read(executionStatusProvider).sequenceId;
+      if (seq != null) return seq;
+    }
+    final hub = _ref.read(estopProvider);
+    if (hub.hubRunning) return hub.hubJobId;
+    if (hub.holdingAtStop) return 'hold:${hub.hubLastJobId ?? ''}';
+    return null;
+  }
+
   bool get _otherHoldsMic => _ref.read(voiceListeningProvider);
 
   bool get _wanted =>
@@ -141,12 +170,19 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
   void _evaluate() {
     if (_disposed) return;
     final active = _phoneTracking() || _hubActive();
-    if (active && !_active) {
-      // 새 듣기 구간 — 지난 실행의 '보냄'·포기를 들고 오지 않는다.
+    final key = active ? _currentRunKey() : null;
+    final newRun =
+        key != null && _runKey != null && key != _runKey; // 구간 안에서 실행이 바뀜
+    if ((active && !_active) || newRun) {
+      // 새 듣기 구간·새 실행 — 지난 실행의 '보냄'·포기를 들고 오지 않는다.
       _sent = false;
       _gaveUp = false;
       _errors = 0;
+      _runKey = key;
+    } else if (key != null) {
+      _runKey = key;
     }
+    if (!active) _runKey = null;
     _active = active;
     if (_wanted) {
       if (!_sessionOpen && _restartTimer == null) _start();
@@ -182,21 +218,31 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
         },
         onSilence: (text) {
           if (gen != _gen) return;
+          _errors = 0;
           if (isStopPhrase(text)) _onStopWord();
           _sessionEnded(restartDelay);
         },
         onDone: () {
           if (gen != _gen) return;
           // 엔진이 스스로 끝냈다 — 최종 결과는 이미 onFinal로 왔다.
+          _errors = 0;
           _sessionEnded(restartDelay);
         },
         onError: (errorId) {
           if (gen != _gen) return;
-          if (errorId == 'error_insufficient_permissions' ||
-              ++_errors >= maxConsecutiveErrors) {
-            _gaveUp = true;
+          if (_silenceErrors.contains(errorId)) {
+            // 말이 없어서 끝났다 — 보통 끝남과 같다.
+            _errors = 0;
+            _sessionEnded(restartDelay);
+            return;
           }
-          _sessionEnded(errorRestartDelay);
+          if (_fatalErrors.contains(errorId)) {
+            _gaveUp = true;
+            _sessionEnded(errorRestartDelay);
+            return;
+          }
+          _errors++;
+          _sessionEnded(_errorBackoff(_errors));
         },
         onInterrupted: () {
           if (gen != _gen) return;
@@ -232,6 +278,18 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
     });
   }
 
+  /// 연속 오류 n번째 뒤 다시 듣기 간격 — 두 배씩, 상한에서 멈춘다.
+  static Duration _errorBackoff(int n) {
+    var ms = errorRestartDelay.inMilliseconds;
+    for (var i = 1; i < n && ms < maxErrorRestartDelay.inMilliseconds; i++) {
+      ms *= 2;
+    }
+    return Duration(
+        milliseconds: ms < maxErrorRestartDelay.inMilliseconds
+            ? ms
+            : maxErrorRestartDelay.inMilliseconds);
+  }
+
   void _sessionEnded(Duration delay) {
     _gen++;
     _sessionOpen = false;
@@ -264,6 +322,7 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
   Future<void> _onStopWord() async {
     if (!_active || _sent || _stopInFlight) return;
     _stopInFlight = true;
+    final runAtSend = _runKey; // 보내는 사이 실행이 바뀌면 새 실행에 '보냄'을 새기지 않는다
     _release(); // 보내는 동안은 듣지 않는다
     try {
       final bool sent;
@@ -281,7 +340,7 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
           sent = true;
         }
       }
-      if (sent) _sent = true;
+      if (sent && _runKey == runAtSend) _sent = true;
     } catch (_) {
       // 보내지 못했다 — 조용히. 정지 버튼은 그대로 있고, 다시 말해도 된다.
     } finally {
