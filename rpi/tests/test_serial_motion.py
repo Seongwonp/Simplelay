@@ -119,8 +119,9 @@ def test_declares_real_execution_and_requires_coordinates():
     assert SerialMotionClient.requires_coordinates is True
 
 
+@pytest.mark.parametrize("recording", [False, True])
 @pytest.mark.parametrize("sensor_failure", [None, "l1", "l3"])
-def test_observation_starts_after_home_and_xy_before_z(link, monkeypatch, sensor_failure):
+def test_observation_starts_after_home_and_xy_before_z(link, monkeypatch, sensor_failure, recording):
     from dataclasses import replace
     from rpi.controller.layered import OperationVerifier
     from rpi.controller.models import LayerOutcome, VerificationLayer
@@ -155,6 +156,10 @@ def test_observation_starts_after_home_and_xy_before_z(link, monkeypatch, sensor
         def verify_operation(self, buttons):
             return LayerOutcome(VerificationLayer.OPERATION, True, "모의")
 
+    if recording:
+        from unittest.mock import Mock
+        from rpi.verifier.recorder import RecordingGrblClient
+        client = RecordingGrblClient(client, Mock())
     controller = ClosedLoopController(
         client, PressSensor([True]), MockAlertSink(), MotionSafetyController(client),
         operation=OperationSensor(),

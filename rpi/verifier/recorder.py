@@ -305,6 +305,21 @@ class RecordingGrblClient(GrblClient):
         finally:
             self._recorder.mark("press_end", command.button)
 
+    def press_with_observation(self, command: PressCommand, before_press: Callable[[], None]) -> None:
+        self._recorder.mark("press_start", _press_note(command))
+        try:
+            observed = getattr(self._inner, "press_with_observation", None)
+            if callable(observed):
+                observed(command, before_press)
+            else:
+                before_press()
+                self._inner.press(command)
+        except Exception as exc:
+            self._recorder.mark("error", f"{command.button}: {exc}")
+            raise
+        finally:
+            self._recorder.mark("press_end", command.button)
+
     @property
     def last_position(self) -> dict | None:
         """감싼 어댑터의 MCU 위치 보고를 그대로 드러낸다(없으면 None)."""

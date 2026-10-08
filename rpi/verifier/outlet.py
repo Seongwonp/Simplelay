@@ -906,10 +906,23 @@ class SerialPowerSensor:
             self._state = link._state(ch)  # noqa: SLF001
             self._cursor = self._state.ring[-1].index if self._state.ring else -1
         self.source = "mock" if link.mock else "real"
+        self._observing = False
 
     @property
     def link(self) -> OutletLink:
         return self._link
+
+    def retain_observation(self, enabled: bool) -> None:
+        """L3 관측 중에는 읽기 지연으로 상승 표본을 건너뛰지 않는다."""
+        self._observing = enabled
+
+    def pending_observation(self) -> list[PowerSample]:
+        """다음 누름 직전까지 쌓인 표본을 모두 돌려준다(대기 없음)."""
+        with self._link._cond:
+            result = []
+            while self._state.ring and self._state.ring[-1].index > self._cursor:
+                result.append(self.read())
+            return result
 
     def read(self) -> PowerSample:
         link = self._link
@@ -920,10 +933,12 @@ class SerialPowerSensor:
                 ring = state.ring
                 if ring and ring[-1].index > self._cursor:
                     first = ring[0].index
+                    if self._observing and self._cursor + 1 < first:
+                        raise PowerSensorStale("L3 observation samples overwritten before judgement")
                     offset = max(0, self._cursor + 1 - first)
                     candidate = ring[offset]
                     newest = ring[-1]
-                    if newest.t_s - candidate.t_s > cfg.max_lag_s:
+                    if not self._observing and newest.t_s - candidate.t_s > cfg.max_lag_s:
                         candidate = newest
                     self._cursor = candidate.index
                     return candidate.sample()

@@ -47,3 +47,25 @@ def test_retired_reader_cannot_publish_into_new_window(late_error):
         sensor.cancel_window()
         if old_thread is not None:
             old_thread.join(2)
+
+
+@pytest.mark.parametrize("case", ["alive", "stale", "sparse", "gap"])
+def test_incomplete_current_window_never_confirms(case):
+    from unittest.mock import Mock
+    from rpi.verifier.base import SensorUnavailable
+    from rpi.verifier.current_sensor import CurrentSample, FakeCurrentReader
+
+    sensor = CurrentSensor(FakeCurrentReader([2.5]), CurrentSensorConfig(post_press_s=0), clock=lambda: 1.0)
+    sensor._opened_at = 0.0
+    sensor._thread = Mock()
+    sensor._thread.is_alive.return_value = case == "alive"
+    times = [i / 100 for i in range(101)]
+    if case == "stale":
+        times = times[:20]
+    elif case == "sparse":
+        times = [0.0, 1.0]
+    elif case == "gap":
+        times = [t for t in times if not 0.2 < t < 0.8]
+    sensor._samples = [CurrentSample(t, 1.0) for t in times]
+    with pytest.raises(SensorUnavailable):
+        sensor.close_window()

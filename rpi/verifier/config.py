@@ -52,10 +52,21 @@ class CurrentSensorConfig:
     # Z 누름·냉각 대기·post_press_s는 포함된다. press_timeout_s와 함께 실측해 정해야 하며
     # 누름이 더 오래 걸리면 센서 이상으로 중단한다. 임계값·시간은 실측 필요.
     max_window_s: float = 30.0
+    # 수집 완전성 한계는 추측값이며 ADC 속도·스케줄링 지연 실측 필요.
+    max_sample_age_s: float = 0.25
+    max_sample_gap_s: float = 0.25
+    min_window_samples: int = 3
+    thread_join_timeout_s: float = 2.0
     # 이 범위 밖 전압은 단절로 본다(None이면 검사 안 함). 분압 회로 확인 전이라 기본 꺼짐.
     valid_voltage_range: tuple[float, float] | None = None
 
     def __post_init__(self) -> None:
+        for name in ("max_sample_age_s", "max_sample_gap_s", "thread_join_timeout_s"):
+            value = getattr(self, name)
+            if not math.isfinite(value) or value <= 0:
+                raise ValueError(f"{name} must be finite and positive")
+        if self.min_window_samples < 1:
+            raise ValueError("min_window_samples must be at least 1")
         if self.window_size < 1:
             raise ValueError("window_size must be at least 1")
         if self.min_samples_above < 1:

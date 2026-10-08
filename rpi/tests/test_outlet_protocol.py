@@ -447,3 +447,28 @@ def test_default_report_rate_leaves_margin_over_the_host_minimum():
     """채널당 창 샘플이 호스트 하한(SIMPLELAY_OUTLET_MIN_SAMPLES 기본 20)의 두 배 이상이어야 평소에 끊김 근처가 아니다."""
     assert "CT_DEFAULT_SAMPLES_PER_CHANNEL < 2 * CT_MIN_SAMPLES_PER_WINDOW" in CONFIG_H
     assert OutletConfig().min_samples == 20
+
+
+@pytest.mark.parametrize("delay", [0.2, 4.5])
+def test_l3_keeps_rise_during_press_and_l1_delay(delay):
+    from rpi.controller.power_operation import PowerOperationVerifier
+    clock = [0.0]
+    link = OutletLink(InMemoryLinePipe().host, OutletConfig(heartbeat_s=None, status_poll_s=None),
+                      clock=lambda: clock[0])
+    sensor = link.sensor()
+    running = [False]
+    seq = [0]
+    def emit(dt):
+        clock[0] = round(clock[0] + dt, 6)
+        seq[0] += 1
+        link.handle_doc(_good(round(clock[0] * 1000), seq[0], 1200.0 if running[0] else 3.0))
+    operation = PowerOperationVerifier(sensor, sleep=emit)
+    emit(0.1)
+    operation.begin_observation()
+    emit(0.1)
+    operation.note_press("start", 1)
+    running[0] = True
+    for _ in range(round(delay * 10)):
+        emit(0.1)
+    result = operation.verify_operation(("start",))
+    assert result.passed is True, result

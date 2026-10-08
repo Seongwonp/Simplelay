@@ -188,6 +188,7 @@ class CurrentSensor:
         remaining = end + self._cfg.post_press_s - self._clock()
         if remaining > 0:
             self._sleep(remaining)
+        closed_at = self._clock()
         self._stop_thread()
         with self._lock:
             fault = self._fault
@@ -196,6 +197,13 @@ class CurrentSensor:
             raise fault
         if not samples:
             raise SensorUnavailable("current sensor produced no samples during the press window")
+        if len(samples) < self._cfg.min_window_samples:
+            raise SensorUnavailable("current observation has insufficient samples")
+        if closed_at - samples[-1].t > self._cfg.max_sample_age_s:
+            raise SensorUnavailable("current observation last sample is stale")
+        times = [self._opened_at, *(s.t for s in samples), closed_at]
+        if any(b - a > self._cfg.max_sample_gap_s for a, b in zip(times, times[1:])):
+            raise SensorUnavailable("current observation has an uncovered interval")
         deltas = [s.amps - self._baseline_a for s in samples]
         above = sum(1 for d in deltas if d > self._cfg.press_threshold_a)
         return CurrentWindowResult(
@@ -265,7 +273,10 @@ class CurrentSensor:
             self._halt.set()
             self._generation += 1
         if thread is not None:
-            thread.join(timeout=2.0)
+            thread.join(timeout=self._cfg.thread_join_timeout_s)
+            if thread.is_alive():
+                with self._lock:
+                    self._fault = SensorUnavailable("current reader still alive after join timeout")
 
     def _voltage_to_current(self, voltage: float) -> float:
         sensitivity_v = self._cfg.sensitivity_mv_per_a / 1000.0

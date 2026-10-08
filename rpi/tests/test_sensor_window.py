@@ -180,6 +180,39 @@ def _close(controller) -> None:
         close()
 
 
+def test_blocked_adc_after_two_high_samples_stops_recorded_execution(monkeypatch, world):
+    from unittest.mock import Mock
+    from rpi.verifier.recorder import RecordingGrblClient
+
+    blocked, release = threading.Event(), threading.Event()
+    count = [0]
+
+    def voltage():
+        if threading.current_thread().name == "current-window":
+            count[0] += 1
+            if count[0] > 2:
+                blocked.set()
+                assert release.wait(10)
+            return _ZERO_V + 0.1 * _SENS_V_PER_A
+        return _ZERO_V
+
+    monkeypatch.setattr(world, "voltage", voltage)
+
+    def press(w, n):
+        assert blocked.wait(2)
+        w.tone(3)
+
+    controller, grbl, safety, _ = _entry_point_controller(monkeypatch, world, press)
+    controller._grbl = RecordingGrblClient(grbl, Mock())
+    try:
+        result = controller.execute(["BT-05"])
+        assert result.status is ExecutionStatus.SAFETY_STOPPED
+        assert len(grbl.commands) == 1
+    finally:
+        release.set()
+        _close(controller)
+
+
 # ── 1. 기본 설정 첫 실행(H1) ──────────────────────────────────────────────────
 
 
@@ -272,7 +305,7 @@ def test_step_load_between_primed_window_and_press_is_not_attributed_to_the_pres
 
     current = _Reader()
     verifier = SensorVerifier(
-        config=SensorConfig(current=CurrentSensorConfig(window_size=5)),
+        config=SensorConfig(current=CurrentSensorConfig(window_size=5, post_press_s=0.1)),
         current_reader=current,  # type: ignore[arg-type]
         audio_reader=_SilentAudio(),
     )

@@ -79,6 +79,9 @@ class PowerOperationVerifier(OperationVerifier):
         대기 시간은 기준선 창(``baseline_window_s``)까지다. 센서가 시각을
         진전시키지 못하면 폴링 상한에서 끊고, 모은 만큼만 기준선으로 쓴다.
         """
+        retain = getattr(self._sensor, "retain_observation", None)
+        if callable(retain):
+            retain(False)
         detector = PowerSignatureDetector(self._config)
         first = self._sensor.read()
         detector.feed(first)
@@ -96,6 +99,8 @@ class PowerOperationVerifier(OperationVerifier):
         self._detector = detector
         self._since_s = last.t_s
         self._up_before_final_step = False
+        if callable(retain):
+            retain(True)
 
     def note_press(self, button: str, press_number: int) -> None:
         """누르기 직전 샘플을 하나 읽어 판정기에 이어 넣는다.
@@ -114,8 +119,12 @@ class PowerOperationVerifier(OperationVerifier):
         if detector is None:
             detector = PowerSignatureDetector(self._config)
             self._detector = detector
-        sample = self._sensor.read()
-        detector.feed(sample)
+        pending = getattr(self._sensor, "pending_observation", None)
+        samples = pending() if callable(pending) else []
+        if not samples:
+            samples = [self._sensor.read()]
+        for sample in samples:
+            detector.feed(sample)
         if press_number == 1:
             self._since_s = sample.t_s
             self._up_before_final_step = detector.phase is not OperationPhase.IDLE
@@ -144,6 +153,9 @@ class PowerOperationVerifier(OperationVerifier):
                 since_s = first.t_s
             return self._poll_until_verdict(detector, since_s)
         finally:
+            retain = getattr(self._sensor, "retain_observation", None)
+            if callable(retain):
+                retain(False)
             # 다음 실행이 지난 관측을 물려받지 않게 비운다.
             self._detector = None
             self._since_s = None
