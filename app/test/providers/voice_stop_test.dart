@@ -627,4 +627,51 @@ void main() {
     await _settle(tester);
     expect(r.voice.listening, isFalse);
   });
+
+  testWidgets('조회 한 번 실패 뒤 같은 job_id가 다시 보이면 다시 듣지도 보내지도 않는다',
+      (tester) async {
+    final hub = _Hub()
+      ..status = {
+        'running': true, 'job_id': 'kiosk-X', 'last_status': null, 'last_buttons': null,
+      };
+    final r = await _rig(tester, api: hub.api, realEstop: true);
+    await _settle(tester);
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 1);
+    expect(r.voice.listening, isFalse);
+
+    // 조회 한 번 실패 — 실행 중을 모름(꺼진 것으로 본다).
+    hub.statusFails = true;
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
+    expect(r.voice.listening, isFalse);
+
+    // 다음 조회는 같은 실행 X가 아직 도는 중 — 듣기 구간이 다시 열린 것처럼 보이지만
+    // 이미 음성으로 멈춘 실행이다.
+    hub.statusFails = false;
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
+    expect(r.voice.listening, isFalse, reason: '같은 실행이면 마이크를 다시 열지 않는다');
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 1, reason: '같은 실행에 정지를 두 번 보내지 않는다');
+
+    // 실패를 한 번 더 거친 뒤 새 실행 Y면 다시 듣는다.
+    hub.statusFails = true;
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
+    hub
+      ..statusFails = false
+      ..status = {
+        'running': true, 'job_id': 'kiosk-Y', 'last_job_id': 'kiosk-X',
+        'last_status': 'safety_stopped', 'last_buttons': [],
+      };
+    await r.container.read(estopProvider.notifier).refresh();
+    await _settle(tester);
+    expect(r.voice.listening, isTrue, reason: '새 실행이면 다시 듣는다');
+    r.recognizer.sayFinal('멈춰');
+    await _settle(tester);
+    expect(hub.stopPosts, 2);
+  });
 }

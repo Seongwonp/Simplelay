@@ -35,3 +35,15 @@
 - `flutter analyze`: error 0·warning 0(기존 info 4).
 - `flutter test --exclude-tags screenshot`: **575** 통과(골든 제외, 570 + 5).
 - `flutter test --tags screenshot`: **55** 통과(골든, 갱신 없음).
+
+## 리뷰 수리 2 (조회 한 번 실패 뒤 같은 실행)
+
+| 항목 | 수정 | 수정 전 실패를 실제 실행해 확인한 결과 |
+|---|---|---|
+| LOW 조회 한 번 실패로 같은 실행에 다시 들음 | `/status` 조회가 한 번 실패하면 `hubRunning=false`라 듣기 구간이 끝난 것으로 보이고, 다음 조회에서 같은 실행이 보이면 새 구간으로 여겨 '보냄'이 지워졌다. 정지를 보낸(서버가 받은) 실행의 식별을 `_sentKey`로 따로 남기고, 구간이 다시 열려도 식별이 같으면 '보냄'을 유지한다. 식별이 다르면(새 실행) 예전처럼 다시 듣고, 식별을 모르면(null, 옛 서버) 예전처럼 새 구간으로 본다 | 키오스크 실행 kiosk-X 음성 정지 → 조회 1회 실패 → kiosk-X 다시 보임에서 마이크가 다시 열림(`listening` true, 기대 false) |
+
+- 새 시험 1건(`조회 한 번 실패 뒤 같은 job_id가 다시 보이면 다시 듣지도 보내지도 않는다`): 같은 실행 X에서 다시 듣지 않고 `/stop`도 한 번뿐, 이어서 실패 한 번 뒤 새 실행 Y면 다시 듣고 두 번째 정지를 보낸다. 수정 전 코드에서 실패 확인 후 수정.
+- 별도 LOW(동작 변경 없음, 주석만): 긴 실행·대기 동안 침묵 종료마다 세션을 다시 열며 횟수 상한이 없다. 기기에 따라 시작음 반복·배터리 소모가 있을 수 있어 **실기기에서 시작음·배터리 확인 필요**. 문제가 되면 `VoiceService.listen`에서 speech_to_text의 pauseFor·listenFor(지금은 넘기지 않음)를 정하는 쪽을 먼저 검토한다.
+- `flutter analyze`: error 0·warning 0(기존 info 4).
+- `flutter test --exclude-tags screenshot`: **576** 통과(골든 제외, 575 + 1).
+- `flutter test --tags screenshot`: **55** 통과(골든, 갱신 없음).

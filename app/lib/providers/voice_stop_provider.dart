@@ -99,6 +99,12 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
 
   /// 다시 듣기 사이 간격. 엔진이 침묵·오류로 세션을 끝낸 뒤 바로 다시 열면
   /// 엔진이 바쁘다고 거절하는 기기가 있다(추측 — 실기기에서 확인 필요).
+  ///
+  /// 다시 듣기 횟수에는 상한이 없다(10/8 리뷰 LOW, 동작은 그대로 둠) — 긴 실행·대기
+  /// 동안 침묵 종료마다 세션을 다시 연다. 기기에 따라 세션 시작음이 반복되거나
+  /// 배터리를 먹을 수 있어 **실기기에서 시작음·배터리 확인 필요**. 문제가 되면
+  /// `VoiceService.listen`에서 speech_to_text의 pauseFor·listenFor(지금은 넘기지
+  /// 않아 엔진 기본값)를 정하는 쪽을 먼저 검토한다.
   static const restartDelay = Duration(milliseconds: 400);
   static const errorRestartDelay = Duration(milliseconds: 1200);
 
@@ -118,6 +124,7 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
   bool _active = false; // 듣기 구간 안인가(실행 중·대기 중)
   bool _sent = false; // 이번 실행([_runKey])에서 정지를 보냈고 서버가 받았다
   String? _runKey; // 지금 듣는 실행의 식별(모르면 null)
+  String? _sentKey; // 정지를 보낸(서버가 받은) 실행의 식별 — 구간이 끊겨도 남긴다
   bool _stopInFlight = false;
   bool _gaveUp = false; // 권한 거부·엔진 없음
   bool _paused = false; // 앱이 뒤로 갔다
@@ -173,9 +180,14 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
     final key = active ? _currentRunKey() : null;
     final newRun =
         key != null && _runKey != null && key != _runKey; // 구간 안에서 실행이 바뀜
-    if ((active && !_active) || newRun) {
+    // 조회 한 번 실패로 듣기 구간이 끊겼다 다시 열려도 같은 실행이면 새 구간이 아니다
+    // (10/8 리뷰 LOW) — 이미 음성으로 멈춘 실행에 마이크를 다시 열거나 정지를 또
+    // 보내지 않는다. 식별을 모르면(null) 전처럼 새 구간으로 본다.
+    final sameStoppedRun = key != null && key == _sentKey;
+    if (((active && !_active) || newRun) && !sameStoppedRun) {
       // 새 듣기 구간·새 실행 — 지난 실행의 '보냄'·포기를 들고 오지 않는다.
       _sent = false;
+      _sentKey = null;
       _gaveUp = false;
       _errors = 0;
       _runKey = key;
@@ -340,7 +352,10 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
           sent = true;
         }
       }
-      if (sent && _runKey == runAtSend) _sent = true;
+      if (sent && _runKey == runAtSend) {
+        _sent = true;
+        _sentKey = runAtSend;
+      }
     } catch (_) {
       // 보내지 못했다 — 조용히. 정지 버튼은 그대로 있고, 다시 말해도 된다.
     } finally {
