@@ -13,25 +13,29 @@
 SimpleLay가 그 하드웨어를 공유한다면 **"무엇이 재사용이고 무엇이 신규인지"를 스스로 투명하게
 구분**해 두는 것이 정당성을 지키는 방법이다.
 
-핵심 입장 (갱신):
+핵심 입장 (2026-10-10 재정정, 팀원 확인):
 
-> **XY 갠트리는 Touch Bridge의 피니언/렉 레일 구조를 버리고 CoreXY 방식으로 바꿨다 — 사유와 구조는
-> [docs/actuator-design.md](actuator-design.md) 참고.**
+> **구동 계층은 Touch Bridge와 공유한다.** CoreXY 갠트리(기구부)와 ESP32 모션 펌웨어는 팀원의 Touch Bridge와
+> **같은 것**이다. 기구는 같은 CoreXY 갠트리이고(피니언/렉 레일을 버리고 CoreXY로 바꾼 사유·구조는
+> [docs/actuator-design.md](actuator-design.md)), 모션 펌웨어 [`firmware-motion-corexy/`](../firmware-motion-corexy/)는
+> 팀원의 **Touch Bridge CoreXY 펌웨어 v3**(2026-10-10 수령)을 옮겨 고친 것이다. 제어 핵심(PID·CoreXY 기구학·사다리꼴
+> 궤적·스톨 원점 복귀·추종 오차 감시·솔레노이드 구동·단일 동작 큐)은 원작 그대로다
+> ([devlog](devlog_2026-10-10-motion-firmware-merge.md)). 이전 판의 "CoreXY는 따로 설계했다", "기구 설계·펌웨어·코드는
+> 공유하지 않는다/독립"이라는 문장은 **틀렸으므로 철회한다.**
 >
-> **(2026-10-10 정정) 모션 제어 펌웨어는 독립 구현이 아니다.** 시연에 쓸 모션 MCU 펌웨어
-> [`firmware-motion-corexy/`](../firmware-motion-corexy/)의 제어 핵심(PID·CoreXY 기구학·사다리꼴 궤적·스톨 원점 복귀·
-> 추종 오차 감시·솔레노이드 구동·단일 동작 큐)은 팀원(서예솔)의 **Touch Bridge CoreXY 펌웨어 v3**(2026-10-10 수령)에서
-> 왔다. SimpleLay에서는 통신(BLE·앱 JSON·인증·G-code 제거 → RPi4 USB 시리얼 줄 단위 JSON), 이름, 안전 규약(호스트
-> 워치독·명령 기한·알람 순서·원점 기준 버리기·솔레노이드 켜짐 상한과 냉각·MCU 태스크 워치독)을 바꾸고 더했다
-> ([devlog](devlog_2026-10-10-motion-firmware-merge.md)). 2026-10-07 판의 "기구·모션 구현 범위에서는 독립적으로
-> 작업했다"는 문장은 **철회한다.** 같은 이유로 CoreXY 갠트리(기구부)가 Touch Bridge 쪽 CoreXY 재설계와 어떤 관계인지도
-> 독립이라고 단정하지 않는다 — 팀원 확인 필요.
+> **두 프로젝트의 차이는 그 위 계층에 있다.** Touch Bridge는 폰 → ESP32(BLE)로 바로 명령해 누르고 끝난다.
+> SimpleLay는 폰·키오스크 → RPi5 → RPi4 → ESP32(USB 시리얼 줄 단위 JSON)로 가며, 다음을 이 저장소에서 새로 만들었다.
+> - 승인 결속(명령 지문) — 승인한 그 명령만 실행
+> - L1~L3 층별 폐루프 확인과 재시도·안전 정지 정책
+> - 사용 습관 기반 선제 제안
+> - 키오스크·폰 제품 UI
+> - ESP32 콘센트 모듈(CT 전력 확인·비상정지 래치)
+> - 호스트 안전 규약(워치독·명령 기한·자동 재전송 금지·재누름 차단) — 펌웨어 쪽 규약 계층(`firmware-motion-corexy/src/host_protocol.*`) 포함
+> - RPi4 운동학(`rpi/controller/kinematics.py`, 표준 CoreXY 식)·모션 어댑터(`rpi/controller/serial_motion.py`)·가짜 MCU
 >
-> 이 저장소에서 새로 작성한 것: RPi4 운동학(`rpi/controller/kinematics.py`, 표준 CoreXY 식), RPi4 모션 어댑터
-> (`rpi/controller/serial_motion.py`)와 줄 단위 JSON 규약·가짜 MCU, 규약 계층(`firmware-motion-corexy/src/host_protocol.*`),
-> 참고 펌웨어 `firmware-motion/`(채택하지 않은 SimpleLay 작성 대안, 규약 기준으로 남김).
-> 원 프로젝트 전체와 대조하지 않았으므로 재사용 비율은 확정하지 않는다. **승인·검증·제안 로직은 본 대회를 위해
-> 새로 구현했다.**
+> 즉 선은 "누가 무엇을 판단하고 확인하느냐"에 긋는다. 누르는 몸(기구·모션 펌웨어)은 공유하고, 무엇을 누를지
+> 승인받고 눌렸는지 확인하는 계층이 SimpleLay의 것이다. 참고 펌웨어 `firmware-motion/`(채택하지 않은 SimpleLay 작성
+> 대안)은 규약 기준으로 남긴다. 원 프로젝트 전체와 대조하지 않았으므로 재사용 비율은 확정하지 않는다.
 
 ---
 
@@ -39,7 +43,7 @@ SimpleLay가 그 하드웨어를 공유한다면 **"무엇이 재사용이고 �
 
 | 구성요소 | 재사용 / 신규 | 출처 | 비고 |
 | --- | --- | --- | --- |
-| **CoreXY 갠트리 (기구부)** | **관계 확인 필요** | SimpleLay / Touch Bridge? | 피니언/렉 레일 구조를 버리고 CoreXY로 바꿈. Touch Bridge도 같은 시기 CoreXY를 재설계했고, 모션 펌웨어가 그쪽에서 온 만큼(아래 줄) 기구 독립성은 단정하지 않는다(2026-10-10 정정). 사유·구조는 actuator-design.md |
+| **CoreXY 갠트리 (기구부)** | **재사용(공유)** | Touch Bridge (팀원) | Touch Bridge와 같은 CoreXY 갠트리(팀원 확인 2026-10-10). 피니언/렉 레일을 버리고 CoreXY로 바꾼 사유·구조는 actuator-design.md |
 | **모션 제어 펌웨어** (`firmware-motion-corexy/`) | **재사용(수정)** | Touch Bridge CoreXY 펌웨어 v3 (팀원 서예솔, 2026-10-10 수령) | 제어 핵심(PID·기구학·궤적·스톨 원점·추종 오차·솔레노이드 구동·단일 동작 큐)은 원작 그대로. BLE·앱 JSON v2·인증·G-code·이름을 빼고, RPi4 USB 시리얼 줄 단위 JSON 규약·호스트 워치독·명령 기한·알람 순서·원점 기준 버리기·솔레노이드 상한/냉각·MCU 태스크 워치독을 더함. 파일 머리말에 원작 표기. 컴파일만, 실물 미검증 |
 | 참고 모션 펌웨어 (`firmware-motion/`) | 신규(미채택) | SimpleLay | 규약 기준으로 먼저 작성한 대안 구현. 시연 펌웨어로 쓰지 않는다. 규약 계층(`protocol.cpp`)은 위 펌웨어로 옮겨 씀 |
 | **Z축 버튼 누름** | **솔레노이드(팀원 코드 기준, 실물 확정 전)** | Touch Bridge CoreXY 펌웨어 v3의 솔레노이드 구동 | SparkFun ROB-11015, GPIO23 → MOSFET. 켜짐 상한·냉각·`z_mode` 보고는 SimpleLay 추가. 누름 시간·발열은 실측 필요 |
@@ -58,10 +62,10 @@ SimpleLay가 그 하드웨어를 공유한다면 **"무엇이 재사용이고 �
 
 ## 한 문장 설명 (심사·발표용)
 
-> "SimpleLay는 앱·통신 등의 기존 자산 일부와, 팀원이 만든 Touch Bridge CoreXY 모션 펌웨어의 제어 핵심을
-> 재사용했습니다. 모션 펌웨어는 통신과 안전 규약을 SimpleLay에 맞게 고쳐 썼고, 승인·검증·제안 로직은 새로
-> 구현했습니다. 누름 장치 전류로 L1 반응을 판정하고 대상 CT로 L3 동작 시작을 확인하는 구조이며, 모터·센서의
-> 실물 동작과 성능은 아직 미검증입니다."
+> "SimpleLay의 구동부, 즉 CoreXY 갠트리와 ESP32 모션 펌웨어는 팀원의 Touch Bridge와 같은 것을 씁니다.
+> SimpleLay가 새로 만든 것은 그 위 계층입니다. 승인한 명령만 실행하도록 묶고, 누름 장치 전류(L1)부터 대상 CT 전력(L3)까지
+> 눌렸는지 확인해 재시도하거나 안전 정지하며, 사용 습관으로 먼저 제안합니다. 모터·센서의 실물 동작과 성능은 아직
+> 미검증입니다."
 
 ---
 
@@ -71,4 +75,5 @@ SimpleLay가 그 하드웨어를 공유한다면 **"무엇이 재사용이고 �
 - 재사용 자산을 SimpleLay에 맞게 수정한 경우, "재사용(확장)"으로 표기하고 무엇을 바꿨는지 남긴다.
 - 개발완료보고서 작성 시 이 표를 그대로 근거 자료로 사용한다.
 - 2026-10-10: 모션 제어 펌웨어를 팀원의 Touch Bridge CoreXY 펌웨어 v3에서 가져와 `firmware-motion-corexy/`로 옮기면서
-  "기구·모션 구현은 독립" 주장을 철회했다. 원작 코드의 라이선스·공개 범위는 팀원과 확인한다(제출 체크리스트 G6).
+  "기구·모션 구현은 독립" 주장을 철회했다. 같은 날 팀원 확인으로 CoreXY 갠트리도 Touch Bridge와 공유임을 확정해
+  경계 표의 갠트리 줄을 재사용(공유)으로 고쳤다. 원작 코드의 라이선스·공개 범위는 팀원과 확인한다(제출 체크리스트 G6).

@@ -111,19 +111,21 @@ flowchart LR
 | **Act** | RPi 4 (4GB) | 폐루프 제어(누름·재시도) · 전류/음향 판정(설계, 현재 모의) · 정지 요청. 가산점 구성에서 RPi Zero 자리를 맡는다(2026-10-05 팀 확정, 역할 매핑). 세 보드 실제 연동 증거는 모의·미측정([증거 대장](docs/가산점-증거-대장.md)) |
 | **콘센트 모듈** | ESP32 | CT 전력 측정 · 릴레이 비상 차단 · 대기 전력 (펌웨어 컴파일·가짜 모듈 시험까지, 회로 미제작) |
 | **Node (구 설계)** | ESP32 (가전마다) | 실행 중계 — HTTP 또는 ESP-NOW (구 설계·컴파일만, 현재 구성의 경로 아님) |
-| **Act 하드웨어** | 모션 MCU + Z 누름 장치 | CoreXY(FIT0482 ×2). 모션 MCU는 ESP32 — 팀원의 Touch Bridge CoreXY 펌웨어를 받아 SimpleLay 규약으로 옮긴 `firmware-motion-corexy/`(10/10, 컴파일만). Z는 솔레노이드(팀원 코드 기준, 실물 확정 전). 갠트리 조립 중, RPi4 운영 경로의 모션은 아직 mock |
+| **Act 하드웨어** | 모션 MCU + Z 누름 장치 | CoreXY(FIT0482 ×2) 갠트리는 팀원의 Touch Bridge와 같은 기구(공유). 모션 MCU는 ESP32 — 팀원의 Touch Bridge CoreXY 펌웨어를 받아 SimpleLay 규약으로 옮긴 `firmware-motion-corexy/`(10/10, 컴파일만). Z는 솔레노이드(팀원 코드 기준, 실물 확정 전). 갠트리 조립 중, RPi4 운영 경로의 모션은 아직 mock |
 | **App** | Flutter 폰 앱 · Flutter 키오스크(RPi5) | 음성/터치 입력, 상태 확인. 키오스크는 15.8형 실패널에서 표시·부팅 자동 실행 확인 |
 
 > **핵심:** 각 계층의 "자가 검증 + 선제 제어" 지능 레이어(intent/controller/verifier)가
-> SimpleLay만의 신규 구현이다. 모션 MCU 펌웨어의 제어 핵심은 팀원의 Touch Bridge CoreXY 펌웨어에서 왔고
-> 통신·안전 규약만 SimpleLay에 맞게 고쳤다(재사용). 재사용과 신규의 경계는
+> SimpleLay만의 신규 구현이다. 구동 계층(CoreXY 갠트리·ESP32 모션 펌웨어)은 팀원의 Touch Bridge와 공유하며,
+> 펌웨어는 통신·안전 규약만 SimpleLay에 맞게 고쳤다(재사용). SimpleLay 고유는 그 위 계층 — 승인 결속(명령 지문),
+> L1~L3 확인과 재시도·정지 정책, 습관 기반 제안, 키오스크·폰 UI, 콘센트 모듈(CT·비상정지 래치), 호스트 안전 규약,
+> RPi4 운동학·모션 어댑터다. 재사용과 신규의 경계는
 > [docs/reuse-boundary.md](docs/reuse-boundary.md)에 명확히 구분해 둔다.
 
 ---
 
 ## 왜 폐루프인가 (Touch Bridge와의 결정적 차이)
 
-- **Touch Bridge (한이음)** = 반응형. 사용자가 명령하면 누르고 끝난다.
+- **Touch Bridge (한이음)** = 반응형. 폰 → ESP32(BLE)로 명령하면 누르고 끝난다. 갠트리·ESP32 모션 펌웨어는 SimpleLay와 같다.
 - **SimpleLay (본 대회)** = 선제형 + **자가 검증**. L1은 누름 장치 전류로 반응을 판정하고 음향은 보조 신뢰도로 쓴다.
   L3는 대상 CT 전력으로 가전 동작 시작을 확인하며, 확인 실패 시 자동 재입력 없이 안전 정지한다(현재 모의 입력으로만 검증, 실물 미검증). 나아가 사용 패턴 통계로 먼저 제안한다.
 
