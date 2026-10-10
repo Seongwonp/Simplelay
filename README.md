@@ -111,11 +111,12 @@ flowchart LR
 | **Act** | RPi 4 (4GB) | 폐루프 제어(누름·재시도) · 전류/음향 판정(설계, 현재 모의) · 정지 요청. 가산점 구성에서 RPi Zero 자리를 맡는다(2026-10-05 팀 확정, 역할 매핑). 세 보드 실제 연동 증거는 모의·미측정([증거 대장](docs/가산점-증거-대장.md)) |
 | **콘센트 모듈** | ESP32 | CT 전력 측정 · 릴레이 비상 차단 · 대기 전력 (펌웨어 컴파일·가짜 모듈 시험까지, 회로 미제작) |
 | **Node (구 설계)** | ESP32 (가전마다) | 실행 중계 — HTTP 또는 ESP-NOW (구 설계·컴파일만, 현재 구성의 경로 아님) |
-| **Act 하드웨어** | 모션 MCU + Z 누름 장치 | CoreXY(FIT0482 ×2). 모션 MCU는 미정(Arduino 또는 ESP32 — 10/5 팀원이 ESP32로 시험 중). Z는 스위치봇 모듈 또는 솔레노이드(미정). 갠트리 조립 중, 코드는 mock |
+| **Act 하드웨어** | 모션 MCU + Z 누름 장치 | CoreXY(FIT0482 ×2). 모션 MCU는 ESP32 — 팀원의 Touch Bridge CoreXY 펌웨어를 받아 SimpleLay 규약으로 옮긴 `firmware-motion-corexy/`(10/10, 컴파일만). Z는 솔레노이드(팀원 코드 기준, 실물 확정 전). 갠트리 조립 중, RPi4 운영 경로의 모션은 아직 mock |
 | **App** | Flutter 폰 앱 · Flutter 키오스크(RPi5) | 음성/터치 입력, 상태 확인. 키오스크는 15.8형 실패널에서 표시·부팅 자동 실행 확인 |
 
 > **핵심:** 각 계층의 "자가 검증 + 선제 제어" 지능 레이어(intent/controller/verifier)가
-> SimpleLay만의 신규 구현이다. 재사용과 신규의 경계는
+> SimpleLay만의 신규 구현이다. 모션 MCU 펌웨어의 제어 핵심은 팀원의 Touch Bridge CoreXY 펌웨어에서 왔고
+> 통신·안전 규약만 SimpleLay에 맞게 고쳤다(재사용). 재사용과 신규의 경계는
 > [docs/reuse-boundary.md](docs/reuse-boundary.md)에 명확히 구분해 둔다.
 
 ---
@@ -148,7 +149,8 @@ simplelay/
 │   └── main.py             #   uvicorn 진입점 (python -m rpi.main)
 ├── rpi4/                   # RPi4 Act 실행기 (UART 수신 → 폐루프 실행, 모션은 아직 mock)
 ├── firmware-outlet/        # ESP32 콘센트 모듈 펌웨어 (CT 전력 · 릴레이 · 비상정지 래치, 컴파일만)
-├── firmware-motion/        # 모션 MCU 참고 펌웨어 (CoreXY · Z 누름, board_config.h로 팀원 코드와 합칠 준비, 컴파일만)
+├── firmware-motion-corexy/ # 모션 MCU 펌웨어 (ESP32 CoreXY + 솔레노이드, 원작 팀원 Touch Bridge CoreXY v3 → SimpleLay 규약, 컴파일만)
+├── firmware-motion/        # 모션 MCU 참고 펌웨어 (SimpleLay 작성 대안·규약 기준, 미채택, 컴파일만)
 ├── firmware/               # 구 설계(미사용) — ESP32 BLE↔UART 브릿지
 ├── firmware-node/          # 구 설계(미사용) — ESP32 가전 노드 (HTTP · ESP-NOW)
 ├── app/                    # ★ Flutter 폰 앱 (음성 · 제안 · 상태 · 가전 등록 · 설정)

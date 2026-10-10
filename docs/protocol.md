@@ -382,6 +382,12 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   별도 단계로 실물에서 재야 한다. MCU는 호스트 줄이 `HOST_WATCHDOG_MS`(2 s 자리표시자) 동안 없으면 스스로 멈추고
   `alarm`(`host_timeout`) 이벤트 뒤 대기 명령에 `ok:false`를 보낸다(실측 전).
 - 수치 예시는 형식 설명용이다. 카운트 값은 시험용 임의 기구 값으로 계산한 것이며 실물 값이 아니다.
+- 2026-10-10: 팀원 코드에서 옮긴 [`firmware-motion-corexy/`](../firmware-motion-corexy/)도 이 규약(같은 명령 표)을 따른다.
+  `ready`의 `fw`는 `firmware-motion-corexy`(사람용 시험 빌드는 `firmware-motion-corexy-bringup` — RPi4에 연결하지 않는다),
+  `z_mode`는 항상 `solenoid`. 이 펌웨어는 `move`의 `a`·`b`를 자기 기구 값으로 mm로 되돌려 함께 온 `x_mm`·`y_mm`과
+  0.5 mm 넘게 다르면 `bad_args`로 거절한다(RPi4 `SIMPLELAY_MOTION_*` 기구 값과 펌웨어 `config.h`가 같아야 한다).
+  누름은 마지막으로 끝난 이동(또는 원점) 위치에서 0.7 mm 넘게 밀렸으면 `not_homed`로 거절하고 원점 기준을 버린다.
+  리밋 스위치를 쓰지 않는 기본 빌드에서 `limits`는 x·y·z 모두 `false`다(원점은 스톨 감지). 실물 미검증.
 
 ---
 

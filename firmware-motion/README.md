@@ -1,6 +1,11 @@
 # firmware-motion — 모션 MCU(ESP32) 펌웨어
 
 **컴파일만 확인했다. 실물(보드·모터·엔코더·스위치)로 한 번도 돌려 보지 않았다.**
+
+> **2026-10-10:** 팀원의 ESP32 CoreXY 펌웨어(원작 Touch Bridge CoreXY v3)를 받아 이 폴더에 합치지 않고
+> [`../firmware-motion-corexy/`](../firmware-motion-corexy/)로 옮겼다 — 제어 구조(ISR 엔코더·mm 단위 코어·자체 뮤텍스)가
+> 이 펌웨어(PCNT·카운트 단위 상태기계)와 달라 `board_config.h` 한 파일로 합칠 수 없었다. 시연 후보는 그쪽이고,
+> 이 펌웨어는 규약 기준(`protocol_table.json`)과 대안 구현으로 남긴다. 규약 계층(`src/protocol.cpp`)은 그쪽으로 옮겨 썼다.
 핀·방향·리밋 결선·기구 범위·Z 누름 방식은 `include/board_config.h` **한 파일**에, PID 게인·PWM·속도·기한·
 워치독은 `include/config.h`에 있고 전부 **자리표시자**다.
 채우기 전까지 빌드 때 `#warning`이 뜬다. 실측값이 아니므로 실기기 설정의 근거로 쓰지 않는다.
