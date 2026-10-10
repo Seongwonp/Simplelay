@@ -24,7 +24,9 @@ dependencies = [
 # dbus-fast는 실기기 전용(dbus extra)이지만 테스트에도 넣는다: 온디바이스
 # D-Bus 인코딩 테스트가 실제 Variant 타입으로 검증하기 때문이다. 빼면
 # 개발 PC의 깨끗한 venv에서 그 테스트만 조용히 실패한다.
-test = ["pytest>=8,<10", "dbus-fast>=2,<3"]
+# matplotlib은 scripts/plots/(실측 그래프 4종, 2026-10-10)용이다. 기기 실행 경로에는 필요 없다.
+# 없는 환경에서는 그림 그리기 시험만 건너뛰고 입력 검사 시험은 돈다.
+test = ["pytest>=8,<10", "dbus-fast>=2,<3", "matplotlib>=3.8,<4"]
 # RPi5 실기기 전용 — 개발 PC에서는 설치 불필요
 # setup_rpi.sh에서 pip install -e ".[gpio]" 로 설치
 gpio = [
