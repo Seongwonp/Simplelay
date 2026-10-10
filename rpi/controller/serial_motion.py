@@ -751,21 +751,25 @@ class SerialMotionClient(GrblClient):
                 self._run_busy(press, self._config.press_timeout_s)
             self._emit("press_done", {"button": command.button})
 
-    def request_stop(self) -> None:
+    def request_stop(self) -> bool:
         """다른 스레드에서 즉시 정지 명령을 보낸다. 진행 중 명령의 반환을 기다리지 않는다.
 
         보낸 것은 '명령 전송'까지다. MCU의 정지 보고와 물리 정지(엔코더 속도 0)는
         별도 단계이며 실물로 재야 한다(docs/하드웨어-연결-설계.md §2·§5).
+        돌려주는 값은 정지 줄을 전송 계층에 썼는지(2026-10-10, 개발자 정지 확인용) — 종전 호출자는 무시한다.
         """
         self._stop.set()
+        sent = True
         try:
             with self._write_lock:
                 self._next_id += 1
                 self._transport.write_line(json.dumps({"id": self._next_id, "cmd": "stop"}))
         except Exception:  # noqa: BLE001 - 정지 경로에서 호출자를 죽이지 않는다
+            sent = False
             log.exception("motion stop send failed — physical E-STOP is the final authority")
         if self.state is MotionState.BUSY:
             self._set_state(MotionState.STOPPED)
+        return sent
 
     def reset_stop(self) -> None:
         """다음 실행을 위해 정지 요청 표시를 지운다. STOPPED 상태(재홈 필요)는 남는다."""

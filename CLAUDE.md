@@ -204,7 +204,7 @@ Phase 2.1 시작 게시 직렬화·세션 수명 중복 방지·폰 응답 세�
 - 오프라인 우선: 모든 실기기 의존은 env 게이트(`SIMPLELAY_*`), 기본은 mock — 개발 PC에서 전 기능 동작
 - 클라이언트: 폰(app/), 키오스크(rpi5-touchscreen-app/, flutter-platform 구조) — 서비스는 생성자 주입으로 테스트
 - 리허설 API: `POST /demo/suggest`(제안 강제 생성), `POST /demo/inject-failure`(검증 실패 주입)
-- 개발자 API(`/dev/*`): `SIMPLELAY_DEV_MODE` + `SIMPLELAY_DEV_TOKEN`(일반 API 키와 별개), **mock 전용**. 계약은 `rpi/api/dev_router.py` 머리말, 제어권 반환 규칙은 `rpi/services/developer_session.py`의 `_maybe_release_locked`가 유일한 반환 지점
+- 개발자 API(`/dev/*`): `SIMPLELAY_DEV_MODE` + `SIMPLELAY_DEV_TOKEN`(일반 API 키와 별개), **기본 모의, 실물은 env 두 개(`SIMPLELAY_DEV_MODE`·`SIMPLELAY_DEV_REAL_MOTION`) + RPi4 실물 링크(`act_info.motion=serial`·`dev_motion_protocol`)일 때만**(10/10, 원점 필수·이동량 상한·정지 우선, 실물 미검증 — [devlog](docs/devlog_2026-10-10-dev-real-motion.md)). 계약은 `rpi/api/dev_router.py` 머리말, 제어권 반환 규칙은 `rpi/services/developer_session.py`의 `_maybe_release_locked`가 유일한 반환 지점
 - 개발자 API 유지 규칙: 시작→소유권 게시는 직렬화하되 정지는 기다리지 않는다.
   요청 ID는 세션 수명 동안 보존(4096건 상한에서 거절). 폰의 정지/이탈/연결 변경은
   응답 세대를 무효화한다. `confirmed=true`라도 `phase=stopping`이면 완료가 아니다.

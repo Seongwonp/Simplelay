@@ -32,8 +32,14 @@
   수동 변경)이 heartbeat TTL을 늘리거나 줄이지 못한다.
 - **mock 강제.** 실제 어댑터는 ``allow_real_adapter=True``를 명시해야만
   물릴 수 있다(H 주차에 하드웨어 확인 후 연다).
+- **실물 경로(2026-10-10).** 서버는 ``SIMPLELAY_DEV_MODE``와 ``SIMPLELAY_DEV_REAL_MOTION``이 둘 다
+  켜졌을 때만 RPi4 링크 어댑터(`rpi.services.dev_real_motion.ActDevMotionAdapter`)를
+  ``allow_real_adapter=True``로 문다. 어댑터가 움직이기 **전에** 거절하면 `DevAdapterRefused`를 올리고,
+  매니저는 그 코드로 거절한다(정지를 따로 보내지 않는다 — 움직이지 않았다). 그 밖의 예외(움직였을 수
+  있음)는 종전대로 정지로 정리한다. 실물 어댑터의 한 번 조그 상한은 ``max_step_mm``로 더 작을 수 있다
+  (`max_jog_mm`).
 
-API 경로·화면 진입은 여전히 없다. 일반 사용자에게 노출되지 않는다.
+API 경로는 rpi/api/dev_router.py, 폰 화면은 app/lib/screens/developer_console_screen.dart.
 
 안전 불변식(계획 문서 3.4)을 테스트가 못 박는다:
 `rpi/tests/test_developer_session.py`.
@@ -163,6 +169,19 @@ def _parse_jog(tokens: list[str]) -> DevCommand:
 
 
 # ── 모션 어댑터 ───────────────────────────────────────────────────────────
+
+
+class DevAdapterRefused(RuntimeError):
+    """어댑터가 **움직이기 전에** 명령을 거절했다(2026-10-10, 실물 경로).
+
+    ``code``는 API ``detail.code``로 그대로 나간다(``not_homed``·``estop_latched``·``link_down`` 등).
+    움직이지 않았으므로 매니저는 정지를 따로 보내지 않고 세션을 유지한다.
+    """
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
 
 
 class MotionAdapter(Protocol):
@@ -423,6 +442,28 @@ class DeveloperSessionManager:
     def is_mock(self) -> bool:
         return bool(getattr(self._adapter, "is_mock", False))
 
+    @property
+    def max_jog_mm(self) -> float:
+        """한 번 조그 상한(mm). 어댑터가 더 작은 상한(``max_step_mm``)을 밝히면 그것."""
+        own = getattr(self._adapter, "max_step_mm", None)
+        if isinstance(own, (int, float)) and 0 < own < MAX_JOG_MM:
+            return float(own)
+        return MAX_JOG_MM
+
+    def adapter_status(self) -> tuple[bool, str | None] | None:
+        """실물 어댑터의 준비 상태 ``(준비됨, 이유)`` — 표시용. 모의 어댑터처럼 밝히지 않으면 None."""
+        availability = getattr(self._adapter, "availability", None)
+        if not callable(availability):
+            return None
+        try:
+            problem = availability()
+        except Exception as exc:  # noqa: BLE001 - 상태 조회 고장은 '준비 안 됨'으로 보인다
+            log.exception("developer adapter availability failed")
+            return False, f"실제 장치 상태를 확인하지 못했어요: {exc}"
+        if problem is None:
+            return True, None
+        return False, problem[1]
+
     def state(self) -> DevControlState:
         """표시용 스냅샷. 만료된 세션이 있으면 먼저 정리해서, 이미 끊긴
         세션을 '진행 중'으로 보여주지 않는다.
@@ -651,6 +692,16 @@ class DeveloperSessionManager:
                     appliance_id,
                     code="wrong_target",
                 )
+            if (
+                command.kind is DevCommandKind.JOG
+                and command.amount_mm > self.max_jog_mm
+            ):
+                return self._reject_locked(
+                    request_id,
+                    f"한 번에 {self.max_jog_mm:g}mm까지만 움직여요",
+                    appliance_id,
+                    code="step_too_large",
+                )
             if command.kind is DevCommandKind.PRESS:
                 if self._known_button is not None and not self._known_button(
                     appliance_id, command.button_id
@@ -687,11 +738,16 @@ class DeveloperSessionManager:
                 self._inflight = True
             try:
                 sensor = self._dispatch(command)
-            except Exception:
+            except DevAdapterRefused as exc:
+                return self._settle_refused(
+                    request_id, appliance_id, epoch, command, exc
+                )
+            except Exception as exc:
                 log.exception("developer command dispatch failed")
                 return self._settle_after_dispatch(
                     request_id, appliance_id, epoch, command,
                     sensor=None, dispatch_failed=True,
+                    failure_detail=getattr(exc, "detail", None),
                 )
             return self._settle_after_dispatch(
                 request_id, appliance_id, epoch, command,
@@ -699,6 +755,34 @@ class DeveloperSessionManager:
             )
 
     # ── 내부 ──
+
+    def _settle_refused(
+        self,
+        request_id: str,
+        appliance_id: str,
+        epoch: int,
+        command: DevCommand,
+        exc: DevAdapterRefused,
+    ) -> DevResult:
+        """어댑터가 움직이기 전에 거절했다(2026-10-10). 정지와 경합했으면 종전 경합 정리(재정지)를 지나고,
+        아니면 그 코드로 거절한다 — 정지를 보내지 않고 세션을 유지한다. 출구는 언제나 _finish_settle."""
+        with self._lock:
+            stale = self._epoch != epoch
+            if not stale:
+                self._record(
+                    "command_rejected", request_id,
+                    f"{command.normalized()}: {exc.code}",
+                    appliance_id=appliance_id,
+                )
+        if stale:
+            return self._settle_after_dispatch(
+                request_id, appliance_id, epoch, command,
+                sensor=None, dispatch_failed=True,
+            )
+        return self._finish_settle(
+            DevResult(False, request_id, normalized=command.normalized(),
+                      reason=exc.message, code=exc.code)
+        )
 
     def _settle_after_dispatch(
         self,
@@ -709,6 +793,7 @@ class DeveloperSessionManager:
         *,
         sensor: dict[str, float] | None,
         dispatch_failed: bool,
+        failure_detail: str | None = None,
     ) -> DevResult:
         """모든 디스패치의 단일 종착점 -- 정상 반환·예외 공통.
 
@@ -769,11 +854,17 @@ class DeveloperSessionManager:
         )
         if ok:
             # 정지가 확인됐으니 세션은 유지 -- 사용자가 다시 시도할 수 있다.
+            reason = (
+                "명령 전달 중 오류가 나 안전을 위해 정지를 보냈습니다 "
+                "-- 다시 시도해 주세요"
+            )
+            if failure_detail:
+                # 실물 어댑터가 밝힌 원인(알람·기한 초과 등)을 덧붙인다(2026-10-10).
+                reason = f"{reason} ({failure_detail})"
             return self._finish_settle(
                 DevResult(
                     False, request_id,
-                    reason="명령 전달 중 오류가 나 안전을 위해 정지를 보냈습니다 "
-                    "-- 다시 시도해 주세요",
+                    reason=reason,
                     code="command_error",
                 )
             )

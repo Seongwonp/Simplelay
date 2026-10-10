@@ -35,6 +35,9 @@ Environment variables:
                                   execute는 ``{"type":"error","reason":"motion_not_ready","detail":…}``로
                                   바로 거절한다(누름을 시도하지 않는다).
   SIMPLELAY_MOTION_HEARTBEAT_MS   "off"면 시작 때 경고 — 2 s 넘는 동작은 MCU 워치독에 끊긴다
+                                  (serial 모드면 RPi5 개발자 조작(dev_motion 프레임, 2026-10-10)도 같은 어댑터로 받고
+                                  act_info.dev_motion_protocol로 알린다 — RPi5가 SIMPLELAY_DEV_REAL_MOTION=1일 때만 보낸다.
+                                  조그 한 번 10 mm 울타리·원점 전 거절·시간 누름 800 ms 상한·bring-up 펌웨어 거절)
   SIMPLELAY_RECORDER_PATH         설정하면 누름 주변 원시 기록기를 켠다(기본 꺼짐).
                                   .csv면 CSV, 그 밖은 JSONL로 **이어 쓴다**. 누름 호출
                                   앞뒤(press_start/press_end)와 모션 MCU 이벤트(mcu_*)를
@@ -669,6 +672,20 @@ def _build_hold(grbl: object, raw_grbl: object, outlet=None, binder=None):
     return real_hold_hardware(grbl, raw_grbl)
 
 
+def _build_dev_motion(raw_grbl: object):
+    """실제 모션 어댑터(serial)일 때만 개발자 조작 서비스를 만든다(2026-10-10). mock이면 None — act_info에
+    dev_motion_protocol을 싣지 않아 RPi5가 개발자 조작을 보내지 않는다."""
+    from rpi.controller.serial_motion import SerialMotionClient
+
+    if not isinstance(raw_grbl, SerialMotionClient):
+        return None
+    from .services.dev_motion import DEV_JOG_STEP_CEILING_MM, DevMotionService
+
+    log.warning("developer motion ops accepted on the serial motion adapter (dev_motion protocol, "
+                "jog ceiling %g mm — 실물 미검증)", DEV_JOG_STEP_CEILING_MM)
+    return DevMotionService(raw_grbl)
+
+
 def _build_executor(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
@@ -728,6 +745,7 @@ def _build_executor(
         job_observer=_job_observer(recorder, motion_log),
         hold=_build_hold(grbl, raw_grbl, outlet, binder),
         target_binder=binder,
+        dev_motion=_build_dev_motion(raw_grbl),
         **extra,
     )
     if outlet is not None:

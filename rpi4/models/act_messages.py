@@ -21,6 +21,9 @@ Inbound (RPi5 → RPi4):
   rehearsal      — 리허설 주입(2026-10-06): RPi4가 가짜 콘센트·모의 모션일 때만 받는다. 답은 rehearsal_result
   estop_ack      — 사람이 비상정지 해제를 확인했다(2026-10-05). RPi4의 비상정지 걸림(estop_latched)을
                    풀어 달라는 요청 — 콘센트 모듈 버튼이 아직 눌려 있으면 풀지 않고 걸린 채로 답한다
+  dev_motion     — 개발자 조작(2026-10-10, 개발자 조작 규약 1): ``op`` home·jog·press·status·stop 한 번.
+                   답은 ``dev_motion_result {request_id, ok, …}`` 하나. 실제 모션 어댑터가 물린 RPi4만
+                   받는다(``act_info.dev_motion_protocol``) — rpi4/services/dev_motion.py
 
 Outbound (RPi4 → RPi5): plain dicts serialised by ActExecutor._send().
 """
@@ -156,9 +159,40 @@ class RehearsalMsg:
     event: str | None = None
 
 
+#: 개발자 조작 동작(2026-10-10). stop은 언제나 받는다.
+DEV_MOTION_OPS = ("status", "home", "jog", "press", "stop")
+DEV_MOTION_AXES = ("x", "y", "z")
+
+
+@dataclass(frozen=True)
+class DevMotionMsg:
+    """개발자 조작 한 번(2026-10-10). RPi5 개발자 API가 실물 모드일 때만 보낸다.
+
+    ``jog``는 ``axis``와 ``delta_mm``(부호 있는 상대 이동, 0 아님)를, ``press``는 기록용 ``label``(버튼 id)을,
+    ``stop``은 기록용 ``reason``을 싣는다. 재전송·자동 재개는 없다 — 요청 하나에 답 하나.
+    """
+
+    request_id: str
+    op: str
+    axis: str | None = None
+    delta_mm: float | None = None
+    label: str | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class DevMotionRefusedMsg:
+    """모양이 틀린 dev_motion — id가 있으면 버리지 않고 ``bad_args``로 답한다(RPi5가 기한까지 기다리지 않게)."""
+
+    request_id: str
+    op: str | None
+    reason: str
+    detail: str
+
+
 InboundActMsg = (
     ExecuteMsg | ExecuteRefusedMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg | EstopAckMsg
-    | HelloMsg | RehearsalMsg
+    | HelloMsg | RehearsalMsg | DevMotionMsg | DevMotionRefusedMsg
 )
 
 #: 정지 버튼 누름 횟수 상한(전자레인지: 1회 일시정지·2회 취소 등). 레지스트리와 같다.
@@ -268,6 +302,9 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
     if msg_type == "rehearsal":
         return _parse_rehearsal(doc)
 
+    if msg_type == "dev_motion":
+        return _parse_dev_motion(doc)
+
     return None  # unknown type — not an error, just silently ignored
 
 
@@ -296,6 +333,38 @@ def _parse_rehearsal(doc: dict) -> RehearsalMsg | None:
     if event is not None and (not isinstance(event, str) or not _REHEARSAL_EVENT.fullmatch(event)):
         return None
     return RehearsalMsg(action, request_id, appliance_id=appliance, inputs=tuple(inputs), event=event)
+
+
+def _parse_dev_motion(doc: dict) -> DevMotionMsg | DevMotionRefusedMsg | None:
+    """개발자 조작을 엄격하게 읽는다. id가 없으면 None(답할 곳이 없다), id가 있고 모양이 틀리면 거절 메시지."""
+    request_id = doc.get("request_id")
+    if not isinstance(request_id, str) or not _REHEARSAL_ID.fullmatch(request_id):
+        return None
+    op = doc.get("op")
+    op_name = op if isinstance(op, str) and op in DEV_MOTION_OPS else None
+
+    def bad(detail: str) -> DevMotionRefusedMsg:
+        return DevMotionRefusedMsg(request_id, op_name, "bad_args", detail)
+
+    if op_name is None:
+        return bad(f"모르는 개발자 조작이에요: {op!r}")
+    if op_name == "jog":
+        axis, delta = doc.get("axis"), doc.get("delta_mm")
+        if axis not in DEV_MOTION_AXES:
+            return bad("조그 축은 x·y·z 중 하나여야 해요")
+        if not _is_number(delta) or float(delta) == 0.0:
+            return bad("조그 거리(delta_mm)는 0이 아닌 유한한 수여야 해요")
+        return DevMotionMsg(request_id, "jog", axis=axis, delta_mm=float(delta))
+    if op_name == "press":
+        label = doc.get("label")
+        if label is not None and (not isinstance(label, str) or not _REHEARSAL_ID.fullmatch(label)):
+            return bad("누름 이름(label) 모양이 틀렸어요")
+        return DevMotionMsg(request_id, "press", label=label)
+    if op_name == "stop":
+        reason = doc.get("reason")
+        reason = reason if isinstance(reason, str) and _REHEARSAL_EVENT.fullmatch(reason) else None
+        return DevMotionMsg(request_id, "stop", reason=reason)
+    return DevMotionMsg(request_id, op_name)
 
 
 def _is_number(value: object) -> bool:

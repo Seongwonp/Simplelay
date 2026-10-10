@@ -1075,6 +1075,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                 "등록되지 않은 가전입니다"
             )
 
+    @property
+    def local_controller(self):
+        """내장 가전의 실행 대상(UART면 RPi4 링크). 개발자 실물 어댑터가 RPi4 링크를 찾을 때 쓴다(2026-10-10)."""
+        return self._controller
+
     def hold_status(self) -> dict | None:
         """로컬 실행 대상이 보고한 마지막 정지 대기 상태(없으면 None). 판정은 RPi4가 한다."""
         status = getattr(self._controller, "hold_status", None)

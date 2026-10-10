@@ -10,15 +10,18 @@ import '../providers/rpi_api_provider.dart';
 import '../services/dev_api_service.dart';
 import '../theme/app_colors.dart';
 
-/// 개발자 도구 (Phase 2) — **모의 제어 전용** 최소 화면.
+/// 개발자 도구 (Phase 2, 2026-10-10 실물 경로) — 기본 모의, 서버가 켜면 실제 장치.
 ///
 /// 설치·보정 준비에 필요한 것만 둔다: 대상 가전, 서버 상태, 제한된 명령,
 /// 정지, 기록. 조이스틱·자유 입력 콘솔은 없다 -- 명령은 버튼으로만 만들고
 /// 서버의 허용 목록을 그대로 따른다.
 ///
 /// 지키는 것:
-/// - 화면 어디에서나 "모의 제어 — 실제로 움직이지 않음"이 보인다. 서버가
-///   모의가 아니라고 답하면 조작을 전부 잠근다.
+/// - 화면 맨 위에 '모의' 또는 '실제 장치' 표시가 늘 보인다. 근거는 서버 응답
+///   (`mock`·`motion_target`)뿐이다. 서버가 모의가 아닌데 실제 장치라고 명시하지
+///   않으면(옛 서버) 조작을 전부 잠근다.
+/// - 실제 장치는 한 번 누를 때 한 번만 움직인다(누르고 있어도 반복하지 않는다).
+///   Z는 솔레노이드라 조그가 없고 누르기로만 움직인다.
 /// - 세션이 열려 있는 동안 heartbeat를 보내고, 화면을 떠나거나 앱이
 ///   백그라운드로 가면 세션을 끝낸다(서버도 heartbeat가 끊기면 스스로 멈춘다).
 /// - 정지를 확인하지 못한 결과를 완료처럼 표시하지 않는다.
@@ -204,7 +207,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         _retire(api, started.sessionId, started.sessionSecret);
         return;
       }
-      if (!started.state.mock ||
+      if (!(started.state.mock || started.state.isReal) ||
           !started.state.heartbeatTtlS.isFinite ||
           started.state.heartbeatTtlS <= 0 ||
           started.state.phase != 'active' ||
@@ -221,7 +224,9 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         _state = started.state;
       });
       _startHeartbeat(started.state.heartbeatTtlS);
-      _say('세션을 열었어요 — 모의 제어라 실제로 움직이지 않아요');
+      _say(started.state.isReal
+          ? '세션을 열었어요 — 실제 장치가 움직여요. 정지 버튼에 손을 두세요.'
+          : '세션을 열었어요 — 모의 제어라 실제로 움직이지 않아요');
     } on DevApiException catch (e) {
       if (!_current(epoch, api)) return;
       _say(_describe(e), problem: true);
@@ -256,7 +261,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
           await api.heartbeat(id, secret, ttlS: _state?.heartbeatTtlS ?? 2);
       if (!_current(epoch, api) || _sessionId != id) return;
       if (state.phase != 'active' ||
-          !state.mock ||
+          !(state.mock || state.isReal) ||
           state.session?.sessionId != id) {
         unawaited(_endSession());
         return;
@@ -297,6 +302,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     // 재전송이 두 번 실행되지 않게 요청마다 id를 붙인다(서버가 중복을 거절).
     final requestId =
         'p${DateTime.now().millisecondsSinceEpoch.toRadixString(36)}${_requestSeq++}';
+    final real = _state?.isReal ?? false;
     try {
       final result = await api.command(
         id,
@@ -304,15 +310,24 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         applianceId: appliance,
         text: text,
         requestId: requestId,
+        // 실제 장치는 동작이 끝나야 답한다 -- 홈은 펌웨어 상한(70초)보다 길게 기다린다.
+        timeout: real
+            ? (text == 'home'
+                ? const Duration(seconds: 100)
+                : const Duration(seconds: 30))
+            : null,
       );
       if (!_current(epoch, api) || _sessionId != id) return;
       _stateRead++;
       setState(() => _state = result.state);
       final sensor = result.sensor;
+      final where = result.state.isReal ? '실제 장치' : '모의';
       _say(
         sensor == null
-            ? "'${result.normalized ?? text}' 명령을 모의 어댑터가 받았어요"
-            : '센서(모의): ${sensor.entries.map((e) => '${e.key} ${e.value.toStringAsFixed(1)}').join(' · ')}',
+            ? (result.state.isReal
+                ? "'${result.normalized ?? text}' 동작을 실제 장치가 마쳤어요"
+                : "'${result.normalized ?? text}' 명령을 모의 어댑터가 받았어요")
+            : '${result.state.isReal ? '위치' : '센서'}($where): ${sensor.entries.map((e) => '${e.key} ${e.value.toStringAsFixed(1)}').join(' · ')}',
       );
     } on DevApiException catch (e) {
       if (!_current(epoch, api) || _sessionId != id) return;
@@ -413,7 +428,14 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         'dev_token_not_configured' => '서버에 개발자 토큰이 설정되지 않았어요',
         'dev_token_required' || 'dev_token_invalid' => '개발자 토큰이 맞지 않아요',
         'auth_rate_limited' => '토큰 확인 실패가 너무 많아요 — 1분 뒤 다시 시도해 주세요',
-        'real_adapter_not_allowed' => '모의 제어 서버가 아니에요 — 이 화면에서는 조작할 수 없어요',
+        'real_adapter_not_allowed' => '서버에서 실제 장치 조작이 켜져 있지 않아요',
+        'not_homed' => '원점을 먼저 잡아 주세요 — 홈을 눌러 주세요',
+        'step_too_large' => '한 번에 움직일 수 있는 거리를 넘었어요',
+        'estop_latched' => '비상정지가 걸려 있어요 — 풀고 확인한 뒤 다시 시도해 주세요',
+        'link_down' || 'act_link_unavailable' => 'RPi4와 연결돼 있지 않아요',
+        'motion_mock' => 'RPi4가 모의 모션이라 실제 장치를 움직일 수 없어요',
+        'dev_protocol_unsupported' => 'RPi4가 개발자 조작을 모르는 판이에요 — 같은 판으로 배포해 주세요',
+        'dev_busy' => '이전 동작이 아직 끝나지 않았어요',
         'session_expired' => '세션이 끝났어요 — 새로 시작해 주세요',
         'not_session_owner' => '다른 기기가 연 세션이에요',
         'session_conflict' => '다른 기기가 이미 세션을 열어 두었어요',
@@ -465,7 +487,9 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     }
 
     final state = _state;
-    final notMock = state != null && !state.mock;
+    final real = state != null && state.isReal;
+    // 모의도 아니고 실제 장치라고 명시하지도 않은 서버(옛 서버)는 조작하지 않는다.
+    final notMock = state != null && !state.mock && !real;
     final canStart = api != null &&
         _visible &&
         state != null &&
@@ -478,6 +502,8 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         _visible &&
         target != null &&
         !notMock &&
+        // 실제 장치인데 서버가 지금 보낼 수 없다고 하면(링크·비상정지 등) 조작을 막는다. 정지는 늘 열려 있다.
+        !(real && state.realMotionReady == false) &&
         _hasSession &&
         !_busy &&
         state?.phase == 'active';
@@ -487,7 +513,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          _MockBanner(notMock: notMock),
+          _MotionBadge(state: state),
           const SizedBox(height: 16),
           if (api == null)
             _TokenSetup(
@@ -585,8 +611,10 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
               ],
             ),
             const SizedBox(height: 12),
-            _Label('한 번 누를 때 1mm 이동'),
-            for (final axis in const ['x', 'y', 'z'])
+            _Label(real
+                ? '한 번 누를 때 1mm 이동 — 한 번에 한 번만 움직여요 (Z는 누르기로만)'
+                : '한 번 누를 때 1mm 이동'),
+            for (final axis in real ? const ['x', 'y'] : const ['x', 'y', 'z'])
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: Row(
@@ -689,43 +717,96 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
 
 // ── 조각 ───────────────────────────────────────────────────────────────────
 
-class _MockBanner extends StatelessWidget {
-  const _MockBanner({required this.notMock});
+/// '모의' / '실제 장치' 표시. 근거는 서버 응답뿐이고, 색만으로 말하지 않는다
+/// -- 글자 배지·아이콘·문장을 함께 둔다.
+class _MotionBadge extends StatelessWidget {
+  const _MotionBadge({required this.state});
 
-  final bool notMock;
+  final DevState? state;
+
+  static String _mm(double v) => v.toStringAsFixed(v % 1 == 0 ? 0 : 1);
 
   @override
   Widget build(BuildContext context) {
-    final color = notMock ? context.appDanger : context.appWarning;
+    final s = state;
+    final real = s != null && s.isReal;
+    final unsupported = s != null && !s.mock && !real;
+    final realBlocked = real && s.realMotionReady == false;
+    final color =
+        real || unsupported ? context.appDanger : context.appWarning;
+    final (String badge, IconData icon, String title, String body) = real
+        ? (
+            '실제 장치',
+            Icons.precision_manufacturing_outlined,
+            '실제 장치 — 기계가 움직여요',
+            realBlocked
+                ? '지금은 움직일 수 없어요: ${s.realMotionReason ?? '이유를 확인하지 못했어요'}'
+                : 'RPi4를 거쳐 모션 보드로 명령이 가요. 한 번에 ${_mm(s.maxJogMm)}mm까지, 홈을 먼저 해 주세요. 정지 버튼에 손을 두세요.',
+          )
+        : unsupported
+            ? (
+                '확인 필요',
+                Icons.block,
+                '모의 제어 서버가 아니에요',
+                '서버가 실제 장치라고 알리지 않았어요. 조작을 모두 잠갔어요.',
+              )
+            : (
+                '모의',
+                Icons.science_outlined,
+                '모의 제어 — 실제로 움직이지 않음',
+                '서버의 모의 어댑터에만 명령이 갑니다. 설치·보정 준비용입니다.',
+              );
     return Semantics(
       container: true,
-      liveRegion: notMock,
+      liveRegion: real || unsupported,
+      label: '개발자 도구 대상: $badge',
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: color, width: 2),
+          border: Border.all(color: color, width: real ? 3 : 2),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(notMock ? Icons.block : Icons.science_outlined,
-                color: color, size: 28),
+            Icon(icon, color: color, size: 28),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Container(
+                    key: const ValueKey('dev-motion-badge'),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: color,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      badge,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.onAccent,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
                   Text(
-                    notMock ? '모의 제어 서버가 아니에요' : '모의 제어 — 실제로 움직이지 않음',
+                    title,
                     style: const TextStyle(
                         fontSize: 17, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    notMock
-                        ? '이 화면은 모의 제어만 지원합니다. 조작을 모두 잠갔어요.'
-                        : '서버의 모의 어댑터에만 명령이 갑니다. 설치·보정 준비용입니다.',
-                    style: TextStyle(fontSize: 13, color: context.appMuted),
+                    body,
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: realBlocked ? context.appDanger : context.appMuted,
+                      fontWeight:
+                          realBlocked ? FontWeight.w600 : FontWeight.w400,
+                    ),
                   ),
                 ],
               ),

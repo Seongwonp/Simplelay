@@ -220,6 +220,23 @@ class ActClientController:
             future.cancel()
             raise ActLinkTimeoutError("estop_ack timed out") from exc
 
+    # ── 개발자 조작(2026-10-10) ─────────────────────────────────────────────
+
+    def dev_motion_link(self) -> dict:
+        """개발자 실물 어댑터가 보는 링크 한 장 ``{"link_up", "act_info", "estop_latched"}`` — 보내지 않고 읽기만."""
+        return {"link_up": bool(getattr(self._client, "link_up", True)),
+                "act_info": dict(getattr(self._client, "act_info", {}) or {}),
+                "estop_latched": getattr(self._client, "estop_latched", None)}
+
+    def dev_motion(self, op: str, timeout_s: float, **fields: object) -> dict:
+        """개발자 조작 한 번을 RPi4로 보내고 답을 기다린다(블로킹). 재전송 없음."""
+        future = asyncio.run_coroutine_threadsafe(self._client.dev_motion(op, timeout_s, **fields), self._loop)
+        try:
+            return future.result(timeout=timeout_s + self.CALL_MARGIN_SECONDS)
+        except TimeoutError as exc:
+            future.cancel()
+            raise ActLinkTimeoutError(f"dev_motion {op} timed out") from exc
+
     def request_drive_stop(self) -> None:
         """구동부만 멈춘다(정지 버튼을 누르지 않음) — 가전 정지와 다른 경로."""
         asyncio.run_coroutine_threadsafe(self._client.abort("drive"), self._loop)

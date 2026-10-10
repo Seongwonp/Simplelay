@@ -50,13 +50,29 @@ class DevState {
     required this.maxJogMm,
     this.session,
     this.faultReason,
+    this.motionTarget,
+    this.realMotionReady,
+    this.realMotionReason,
   });
 
   /// idle · active · stopping · fault · execution_busy
   final String phase;
 
-  /// false면 모의 서버가 아니다 -- 이 앱은 그 서버를 조작하지 않는다.
+  /// false면 모의 서버가 아니다. 서버가 실제 장치라고 **명시**했을 때만([isReal])
+  /// 조작하고, 그 밖의 모의 아닌 서버는 조작하지 않는다.
   final bool mock;
+
+  /// 명령이 가는 곳 `mock`|`real`(2026-10-10). 옛 서버는 보내지 않는다(null).
+  final String? motionTarget;
+
+  /// 실제 장치일 때 지금 보낼 수 있는가(RPi4 링크·실물 모션·비상정지). 모의면 null.
+  final bool? realMotionReady;
+
+  /// 보낼 수 없는 이유(서버 문장). 준비됐거나 모의면 null.
+  final String? realMotionReason;
+
+  /// 서버가 실제 장치로 보낸다고 명시했다 -- 모의 아님 + motion_target `real`.
+  bool get isReal => !mock && motionTarget == 'real';
   final bool shuttingDown;
   final double heartbeatTtlS;
   final double maxJogMm;
@@ -74,6 +90,9 @@ class DevState {
             ? null
             : DevSessionInfo.fromJson(json['session'] as Map<String, dynamic>),
         faultReason: json['fault_reason'] as String?,
+        motionTarget: json['motion_target'] as String?,
+        realMotionReady: json['real_motion_ready'] as bool?,
+        realMotionReason: json['real_motion_reason'] as String?,
       );
 }
 
@@ -256,7 +275,9 @@ class DevApiService {
     required String applianceId,
     required String text,
     String? requestId,
+    Duration? timeout,
   }) async {
+    // 실제 장치의 홈은 수십 초 걸린다 -- 화면이 기한을 늘려 준다(서버가 정한 상한 안에서).
     final json = await _send(
       'POST',
       '/dev/sessions/$sessionId/commands',
@@ -266,6 +287,7 @@ class DevApiService {
         'text': text,
         if (requestId != null) 'request_id': requestId,
       },
+      timeout: timeout,
     ) as Map<String, dynamic>;
     final sensor = json['sensor'] as Map<String, dynamic>?;
     return DevCommandResult(

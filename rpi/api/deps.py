@@ -470,7 +470,7 @@ def get_node_registry() -> NodeRegistry:
     return NodeRegistry(store=get_db(), controller_factory=_node_controller_factory())
 
 
-# ── 개발자 모드 (Phase 1: mock 전용, 기본 OFF) ──────────────────────────
+# ── 개발자 모드 (기본 OFF, 기본 모의 — 실물은 env 두 개 + RPi4 실물 링크일 때만) ──
 
 DEV_MODE_ENV = "SIMPLELAY_DEV_MODE"
 
@@ -479,6 +479,15 @@ def developer_mode_enabled() -> bool:
     """기본 OFF — 명시적으로 켜야만 개발자 세션 매니저가 만들어진다.
     켜지 않은 서버에는 진입 자체가 없다(화면에서 숨기는 것과 다르다)."""
     return os.environ.get(DEV_MODE_ENV, "").strip().lower() in {"1", "true"}
+
+
+def dev_real_motion_enabled() -> bool:
+    """개발자 API가 실물 어댑터(RPi4 링크)를 무는가 — ``SIMPLELAY_DEV_MODE``와 ``SIMPLELAY_DEV_REAL_MOTION``이
+    **둘 다** 켜졌을 때만(2026-10-10). 하나라도 없으면 지금과 똑같이 모의다. 켜져도 RPi4가 실제 모션 링크와
+    개발자 조작 규약을 알리기 전에는 명령마다 거절된다(rpi/services/dev_real_motion.py)."""
+    from rpi.services.dev_real_motion import dev_real_motion_requested  # noqa: PLC0415
+
+    return developer_mode_enabled() and dev_real_motion_requested()
 
 
 def builtin_appliances_visible() -> bool:
@@ -507,10 +516,9 @@ def get_control_arbiter():
 
 @lru_cache(maxsize=1)
 def get_developer_session_manager():
-    """개발자 세션 매니저 — ``SIMPLELAY_DEV_MODE=1``일 때만, 어댑터는
-    **무조건 mock**이다(Phase 1). 실물 어댑터는 하드웨어 검증(H 주차) 후
-    별도 플래그로만 연다. 꺼져 있으면 None — 호출부는 None이면 아무것도
-    하지 않는다."""
+    """개발자 세션 매니저 — ``SIMPLELAY_DEV_MODE=1``일 때만. 어댑터는 기본 **mock**이고,
+    ``SIMPLELAY_DEV_REAL_MOTION=1``도 켜졌을 때만 RPi4 링크 실물 어댑터를 문다(2026-10-10,
+    `dev_real_motion_enabled`). 꺼져 있으면 None — 호출부는 None이면 아무것도 하지 않는다."""
     if not developer_mode_enabled():
         return None
     from rpi.services.developer_session import (  # noqa: PLC0415
@@ -537,8 +545,22 @@ def get_developer_session_manager():
             is not None
         )
 
+    real = dev_real_motion_enabled()
+    if real:
+        from rpi.services.dev_real_motion import (  # noqa: PLC0415
+            ActDevMotionAdapter,
+            real_max_step_from_env,
+        )
+
+        adapter = ActDevMotionAdapter(lambda: get_service().local_controller,
+                                      max_step_mm=real_max_step_from_env())
+        log.warning("developer mode: REAL motion adapter (RPi4 link) — max step %.3g mm (실물 미검증)",
+                    adapter.max_step_mm)
+    else:
+        adapter = MockMotionAdapter()
     return DeveloperSessionManager(
-        adapter=MockMotionAdapter(),
+        adapter=adapter,
+        allow_real_adapter=real,
         clock=_clock,
         arbiter=get_control_arbiter(),
         is_calibrated=is_calibrated,

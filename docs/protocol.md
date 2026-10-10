@@ -151,10 +151,57 @@ RPi4는 이 대상의 CT 채널(`SIMPLELAY_OUTLET_CHANNELS`, 대응이 비면 �
 UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "일부러 실패시켜도
 스스로 재시도" 장면을 같은 API로 연출한다. abort처럼 응답 없는 단방향.
 
+**개발자 조작 `dev_motion`(2026-10-10, 개발자 조작 규약 1 — 실물 미검증).** 폰 개발자 도구의 홈·조그·누름·정지를
+실제 모션 경로(RPi5 `/dev` → RPi4 → 모션 MCU `firmware-motion-corexy`)로 보낸다. **기본은 꺼짐(모의).** RPi5는
+`SIMPLELAY_DEV_MODE=1`과 `SIMPLELAY_DEV_REAL_MOTION=1`이 **둘 다** 켜졌을 때만 실물 어댑터를 물고, 그때도 RPi4가
+`act_info`에 `"motion": "serial"`과 `"dev_motion_protocol": 1`(이상)을 알렸을 때만 보낸다. RPi4는 실제 모션
+어댑터(`SIMPLELAY_MOTION_MODE=serial`)일 때만 `dev_motion_protocol`을 알리고 이 프레임을 받는다.
+
+```json
+{ "type": "dev_motion", "request_id": "d3f1a9c0b2e4d5f6", "op": "home" }
+{ "type": "dev_motion", "request_id": "d3f1a9c0b2e4d5f7", "op": "jog", "axis": "x", "delta_mm": -1.0 }
+{ "type": "dev_motion", "request_id": "d3f1a9c0b2e4d5f8", "op": "press", "label": "BT-05" }
+{ "type": "dev_motion", "request_id": "d3f1a9c0b2e4d5f9", "op": "status" }
+{ "type": "dev_motion", "request_id": "d3f1a9c0b2e4d5fa", "op": "stop", "reason": "user_stop" }
+```
+
+- 요청 하나에 답(`dev_motion_result`) 하나. **재전송·자동 재개는 없다.** RPi5는 기한(홈 90 s, 조그·누름 20 s,
+  상태 5 s, 정지 3 s — 호스트 박자, 측정 필요) 안에 답이 없으면 그 조작을 실패로 보고 정지를 보낸다.
+  늦게 온 답은 요청마다 새 `request_id`라 다음 조작의 답으로 쓰이지 않는다.
+- `jog`: X·Y 상대 이동 한 번(`delta_mm`, 0 아님). RPi4는 MCU가 보고한 A·B 카운트로 현재 위치를 구해 절대 목표
+  하나로 `move`를 보낸다(조그 CLI와 같다). 소프트 리밋은 RPi4 `SIMPLELAY_MOTION_*` 설정. |delta| 상한은 RPi5
+  `SIMPLELAY_DEV_REAL_MAX_STEP_MM`(기본 1 mm, 설정해도 5 mm까지)과 RPi4 울타리 10 mm. Z는 솔레노이드라
+  `z_jog_unsupported`.
+- `home`: MCU `home`(스톨 원점). 조그·누름은 원점 전이거나 정지로 끊긴 뒤면 `not_homed`(재개 없음).
+- `press`: **지금 위치**에서 솔레노이드 시간 누름 한 번(`SIMPLELAY_MOTION_PRESS_MODE=duration`, 구동+유지 ≤ 800 ms —
+  펌웨어 `SOLENOID_ON_MAX_MS`와 같다). `label`은 기록용 버튼 id다 — 버튼 좌표로 이동하지 않는다.
+- `status`: MCU 위치·원점 상태(움직이지 않음). 폰의 '센서 읽기'가 실물에서는 위치를 보인다.
+- `stop`: 어떤 거절에도 걸리지 않는다. RPi4는 MCU에 `stop`을 쓰고 `ok:true`로 답한다(**전송 확인일 뿐 물리 정지
+  확인이 아니다** — 최종 권한은 물리 E-STOP). 진행 중 조작은 `stopped`로 끝난다. 일반 `abort`도 진행 중인 개발자
+  조작을 멈춘다. RPi4가 `dev_motion_protocol`을 알리지 않으면 RPi5는 대신 `abort {scope:"drive"}`를 보낸다.
+
+```json
+{ "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f7", "op": "jog", "ok": true, "homed": true, "x_mm": 11.0, "y_mm": 20.0 }
+{ "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f7", "op": "jog", "ok": false, "reason": "not_homed", "detail": "…", "moved": false }
+{ "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f7", "op": "jog", "ok": false, "reason": "motion_alarm", "detail": "…", "moved": null }
+```
+
+- `moved:false` = **움직이기 전** 거절. RPi5는 정지를 따로 보내지 않고 세션을 유지하며 `reason`을 API `detail.code`로
+  그대로 낸다. `moved:null` = 움직였을 수 있음(알람·기한 초과·정지·MCU 재시작). RPi5는 정지를 보내고
+  `command_error`로 답한다.
+- RPi4의 움직이기 전 거절: `dev_unsupported`(실제 모션 어댑터 없음) · `estop_latched` · `outlet_offline` ·
+  `motion_not_ready` · `execution_busy`(일반 실행·확인 주행·정지 버튼 대기 중) · `dev_busy`(다른 개발자 조작 중) ·
+  `bringup_firmware`(MCU `ready.fw`가 `-bringup`으로 끝남 — 방향 시험 빌드) · `not_homed` · `step_too_large` ·
+  `z_jog_unsupported` · `soft_limit` · `press_mode_unsupported` · `press_too_long` · `motion_config` · `bad_args` ·
+  MCU 거절(`z_cooldown` 등).
+- 개발자 조작이 진행 중이면 RPi4는 `execute`·`verify_pass`를 `error {reason:"dev_busy"}`로 거절한다(RPi5 중재자가 먼저 막는다).
+
 ### RPi4 → RPi5
 
 ```json
 { "type": "act_info", "done_watch": ["washer", "microwave"], "outlet": "fake", "motion": "mock", "rehearsal": true }
+{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 1 }
+{ "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f6", "op": "home", "ok": true, "homed": true, "x_mm": 0.0, "y_mm": 0.0 }
 { "type": "rehearsal_result", "request_id": "a1b2c3", "ok": true, "action": "appliance_done", "source": "injected", "frame": { "…": "…" } }
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }
 { "type": "result", "sequence_id": "seq_001", "success": true, "retry": 0, "outcome": "success" }

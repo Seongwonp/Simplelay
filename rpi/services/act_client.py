@@ -27,6 +27,9 @@ RPi4 side of this same link.
                                       (2026-10-06 평가 C1·B3: RPi5가 다시 켜져도 걸림 상태를 다시 안다. 받기 전
                                        ``estop_latched``는 None = '확인 중'이고 실행을 거절한다)
   rehearsal {action, request_id}  ←  rehearsal_result {request_id, ok, ...}(가짜 콘센트·모의 모션 RPi4만)
+  dev_motion {request_id, op, …}  ←  dev_motion_result {request_id, op, ok, reason?, detail?, moved?, homed?, x_mm?, y_mm?}
+                                      (개발자 조작 규약 1, 2026-10-10 — act_info.dev_motion_protocol을 알린 RPi4에만 보낸다.
+                                       ``dev_motion()``. 요청 하나에 답 하나, 재전송 없음)
   estop_ack                       ←  estop_state {latched, source, reason, detail}
                                       (콘센트 모듈 비상정지 걸림 해제 확인, 2026-10-05. 걸릴 때도 자발로 온다.
                                        ``estop_latched``·``estop_detail``에 남는다)
@@ -332,6 +335,8 @@ class ActClient:
         #: 비상정지가 새로 걸린 횟수(평가 B5) — 루틴이 '실행 중 한 번이라도 걸렸나'를 본다.
         self.estop_trips = 0
         self._rehearsal_waiters: dict[str, asyncio.Future[dict]] = {}
+        #: 개발자 조작 답을 기다리는 요청(request_id → future). 2026-10-10.
+        self._dev_waiters: dict[str, asyncio.Future[dict]] = {}
         #: RPi4가 보낸 마지막 가전 완료 기록(검증한 것만). 2026-10-06.
         self.last_appliance_done: dict | None = None
         # (sequence_id, future) — 수신한 result/error를 반드시 현재 요청의
@@ -568,6 +573,22 @@ class ActClient:
         finally:
             self._rehearsal_waiters.pop(request_id, None)
 
+    async def dev_motion(self, op: str, timeout_s: float, **fields: object) -> dict:
+        """개발자 조작 한 번을 보내고 ``dev_motion_result``를 기다린다(2026-10-10, 개발자 조작 규약 1).
+
+        재전송하지 않는다 — 기한 안에 답이 없으면 `ActLinkTimeoutError`(호출자가 정지로 정리한다). 링크가 끊기면
+        `ActLinkError`. 거절(``ok:false``)은 예외가 아니라 답 그대로 돌려준다."""
+        request_id = "d" + uuid.uuid4().hex[:15]
+        future: asyncio.Future[dict] = asyncio.get_running_loop().create_future()
+        self._dev_waiters[request_id] = future
+        try:
+            await self._send({"type": "dev_motion", "request_id": request_id, "op": op, **fields})
+            return await asyncio.wait_for(future, timeout_s)
+        except asyncio.TimeoutError as exc:
+            raise ActLinkTimeoutError(f"no dev_motion_result for {op!r} within {timeout_s}s") from exc
+        finally:
+            self._dev_waiters.pop(request_id, None)
+
     def _note_estop(self, latched: bool, detail: str | None) -> None:
         if latched and self.estop_latched is not True:
             self.estop_trips += 1
@@ -634,7 +655,7 @@ class ActClient:
             # 짧은 단선이었다면 RPi4가 늦게 결과를 보낼 수 있다 — 다음 요청의 결과로 오인하지 않게.
             self._stale_sequence_ids.append(pending[0])
             pending[1].set_exception(error)
-        for waiter in [*self._estop_waiters, *self._rehearsal_waiters.values()]:
+        for waiter in [*self._estop_waiters, *self._rehearsal_waiters.values(), *self._dev_waiters.values()]:
             if not waiter.done():
                 waiter.set_exception(error)
         close = getattr(self._writer, "close", None)
@@ -710,6 +731,14 @@ class ActClient:
             waiter = self._rehearsal_waiters.get(doc.get("request_id"))
             if waiter is not None and not waiter.done():
                 waiter.set_result(doc)
+            return
+        if msg_type == "dev_motion_result":
+            waiter = self._dev_waiters.get(doc.get("request_id"))
+            if waiter is not None and not waiter.done():
+                waiter.set_result(doc)
+            else:
+                # 기한이 지나 포기한 요청의 늦은 답 — 다음 요청의 결과로 쓰지 않는다(요청마다 새 id).
+                log.warning("ActClient: late or unknown dev_motion_result ignored: %.120s", raw)
             return
         if msg_type == "error" and doc.get("reason") == "estop_latched":
             detail = doc.get("detail")

@@ -1,4 +1,4 @@
-"""개발자 모드 API (Phase 2) — mock 전용, 기본 OFF, 명시적 접근 제한.
+"""개발자 모드 API (Phase 2, 2026-10-10 실물 경로) — 기본 OFF, 기본 모의, 명시적 접근 제한.
 
 화면에서 숨기는 것은 접근 제한이 아니다. 이 라우터는 다음을 서버에서 강제한다:
 
@@ -16,12 +16,26 @@
 6. **정지는 어떤 제한에도 걸리지 않는다.** 빈도·중복 검사 예외이고, 개발자
    토큰이 없는 일반 ``POST /stop``도 개발자 세션을 멈춘다(router.py).
 
-거절은 전부 어댑터에 닿기 **전에** 일어난다. 응답의 ``detail``은
-``{"code", "message"}`` 모양으로 통일한다 -- 화면은 code로 분기하고 message를
+7. **기본은 모의, 실물은 env 두 개 + RPi4 실물 링크일 때만(2026-10-10).** 매니저 어댑터가 모의가
+   아니면 ``SIMPLELAY_DEV_MODE``와 ``SIMPLELAY_DEV_REAL_MOTION``이 둘 다 켜져 있을 때만 API를 연다
+   (아니면 503 ``real_adapter_not_allowed``). 실물 어댑터(rpi/services/dev_real_motion.py)는 RPi4가
+   ``act_info``로 실제 모션 링크(``motion:"serial"``)와 개발자 조작 규약(``dev_motion_protocol`` ≥ 1)을
+   알릴 때만 RPi4로 보낸다(docs/protocol.md ``dev_motion``). 그 밖의 실물 거절:
+   ``motion_mock``·``dev_protocol_unsupported``·``act_link_unavailable``·``link_down``·``estop_latched``·
+   ``estop_unknown``(RPi5에서, 보내기 전) · ``not_homed``·``execution_busy``·``dev_busy``·``soft_limit``·
+   ``z_jog_unsupported``·``press_too_long``·``bringup_firmware``·``motion_not_ready`` 등(RPi4·MCU, 움직이기
+   전 — ``moved:false``) · ``step_too_large``(한 번 조그 상한, ``max_jog_mm`` — 실물 기본 1 mm). 움직이기 전
+   거절은 정지를 보내지 않고 세션을 유지한다. 움직였을 수 있는 실패는 종전처럼 정지를 보내고
+   ``command_error``(원인을 message에 덧붙임)다. 조그는 요청 하나에 답 하나 — 재전송·자동 재개는 없다.
+   정지(/dev/stop·세션 종료·heartbeat 끊김·일반 /stop)는 RPi4 ``dev_motion stop``으로 가고(옛 RPi4면
+   ``abort drive``), 확인하지 못하면 종전처럼 fault로 잠근다. 상태 응답의 ``motion_target``
+   (``mock``|``real``)·``real_motion_ready``·``real_motion_reason``으로 화면이 '실제 장치'/'모의'를 가른다.
+
+거절은 전부 어댑터에 닿기 **전에** 일어난다(실물은 위 7 — RPi4·MCU의 움직이기 전 거절 포함). 응답의
+``detail``은 ``{"code", "message"}`` 모양으로 통일한다 -- 화면은 code로 분기하고 message를
 그대로 보여줄 수 있다.
 
-실물 어댑터·범용 셸 콘솔은 이 단계 범위 밖이다. 명령은 매니저의 허용 목록
-파서만 통과한다.
+범용 셸 콘솔은 범위 밖이다. 명령은 매니저의 허용 목록 파서만 통과한다.
 """
 
 from __future__ import annotations
@@ -43,7 +57,6 @@ from pydantic import BaseModel, ConfigDict, Field
 import rpi.api.deps as deps
 from rpi.services.control_arbiter import ControlFaultedError
 from rpi.services.developer_session import (
-    MAX_JOG_MM,
     DevCommandKind,
     DevControlState,
     DeveloperSessionManager,
@@ -173,9 +186,9 @@ def require_dev_access(
     if not hmac.compare_digest(x_dev_token.encode(), expected.encode()):
         state.auth_failures.record(client)
         raise _error(403, "dev_token_invalid", "개발자 토큰이 올바르지 않습니다")
-    if not manager.is_mock:
-        # Phase 2 계약: mock이 아닌 매니저가 물려 있으면 API를 열지 않는다.
-        raise _error(503, "real_adapter_not_allowed", "이 단계의 개발자 API는 모의 제어 전용입니다")
+    if not manager.is_mock and not deps.dev_real_motion_enabled():
+        # 모의가 아닌 매니저는 env 두 개(SIMPLELAY_DEV_MODE + SIMPLELAY_DEV_REAL_MOTION)가 켜졌을 때만 연다.
+        raise _error(503, "real_adapter_not_allowed", "실제 장치 조작이 서버에서 켜져 있지 않아요")
     return manager
 
 
@@ -227,6 +240,12 @@ class DevSessionView(BaseModel):
 class DevStateResponse(BaseModel):
     phase: str
     mock: bool
+    #: 명령이 가는 곳 ``mock``|``real``(2026-10-10). 화면의 '모의'/'실제 장치' 표시 근거.
+    motion_target: str = "mock"
+    #: 실물일 때 지금 RPi4로 보낼 수 있나(링크·RPi4 실물 모션·규약·비상정지). 모의면 None.
+    real_motion_ready: bool | None = None
+    #: 보낼 수 없는 이유(해요체 한 문장). 준비됐거나 모의면 None.
+    real_motion_reason: str | None = None
     shutting_down: bool
     session: DevSessionView | None
     fault_reason: str | None
@@ -283,9 +302,13 @@ _ALLOWED_COMMANDS = [
 def _state_view(manager: DeveloperSessionManager, snap: DevControlState | None = None) -> DevStateResponse:
     snap = snap or manager.state()
     session = snap.session
+    real_status = None if snap.mock else manager.adapter_status()
     return DevStateResponse(
         phase=snap.phase,
         mock=snap.mock,
+        motion_target="mock" if snap.mock else "real",
+        real_motion_ready=None if real_status is None else real_status[0],
+        real_motion_reason=None if real_status is None else real_status[1],
         shutting_down=snap.shutting_down,
         session=(
             DevSessionView(
@@ -300,7 +323,7 @@ def _state_view(manager: DeveloperSessionManager, snap: DevControlState | None =
         ),
         fault_reason=snap.fault_reason,
         heartbeat_ttl_s=manager.heartbeat_ttl_s,
-        max_jog_mm=MAX_JOG_MM,
+        max_jog_mm=manager.max_jog_mm,
         max_command_len=MAX_COMMAND_LEN,
         allowed_commands=list(_ALLOWED_COMMANDS),
     )
@@ -317,6 +340,29 @@ _RESULT_STATUS: dict[str, int] = {
     "stop_race": 409,
     "stop_unconfirmed": 423,
     "command_error": 502,
+    # 실물 경로(2026-10-10) — 움직이기 전 거절
+    "step_too_large": 422,
+    "z_jog_unsupported": 422,
+    "soft_limit": 422,
+    "press_too_long": 422,
+    "bad_args": 422,
+    "act_link_unavailable": 503,
+    "link_down": 503,
+    "motion_not_ready": 503,
+    "outlet_offline": 503,
+    "act_info_unknown": 409,
+    "motion_mock": 409,
+    "dev_protocol_unsupported": 409,
+    "dev_unsupported": 409,
+    "estop_latched": 423,
+    "estop_unknown": 409,
+    "not_homed": 409,
+    "execution_busy": 409,
+    "dev_busy": 409,
+    "busy": 409,
+    "bringup_firmware": 409,
+    "press_mode_unsupported": 409,
+    "z_cooldown": 409,
 }
 
 

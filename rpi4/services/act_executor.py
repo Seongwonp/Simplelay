@@ -33,6 +33,13 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
                                     (자동으로 켜지 않는다 — estop_ack 뒤에만, 2026-10-06 평가 A4)
   estop_ack                      →  estop_state {latched, reason, detail}
                                     (비상정지 걸림 해제 확인 — 버튼이 풀렸을 때만 풀린다)
+  dev_motion {request_id, op,    →  dev_motion_result {request_id, op, ok, reason?, detail?, moved?,
+              axis?, delta_mm?,                      homed?, x_mm?, y_mm?}
+              label?, reason?}      (개발자 조작 규약 1, 2026-10-10 — 실제 모션 어댑터가 물렸을 때만
+                                    act_info.dev_motion_protocol로 알리고 받는다. rpi4/services/dev_motion.py.
+                                    비상정지 걸림·콘센트 무응답·모션 연결 전·일반 실행/정지 대기 중이면
+                                    움직이기 전에 거절(moved:false). stop은 언제나 받아 MCU stop을 보낸다)
+  (dev_motion 진행 중 execute/verify_pass) → error {reason:"dev_busy"}
   (걸린 동안의 execute/verify_pass) → error {reason:"estop_latched"}
   (대상 appliance_id 없는 execute) → error {reason:"target_required"} (2026-10-07, 평가 H3)
   (대상 CT 채널이 없는데 L3 real) → error {reason:"target_unbound"} — 누르기 전 (target_binding.py)
@@ -76,6 +83,8 @@ from rpi.verifier.done_fusion import rehearsal_done_event
 from ..models.act_messages import (
     AbortMsg,
     ClearFailureMsg,
+    DevMotionMsg,
+    DevMotionRefusedMsg,
     EstopAckMsg,
     EXECUTE_PROTOCOL,
     ExecuteMsg,
@@ -87,6 +96,7 @@ from ..models.act_messages import (
     VerifyPassMsg,
     parse_act_message,
 )
+from .dev_motion import DEV_MOTION_PROTOCOL, DevMotionService
 from .stop_hold import HoldHardware, StopHoldSession, run_verify_pass
 from .target_binding import TargetBinder, TargetBinding, TargetRefused
 
@@ -197,6 +207,7 @@ class ActExecutor:
         after_result: "Callable[[str, ExecutionResult, Callable[[dict], None]], None] | None" = None,
         outlet_readiness: "Callable[[], str | None] | None" = None,
         target_binder: "TargetBinder | None" = None,
+        dev_motion: "DevMotionService | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -220,6 +231,8 @@ class ActExecutor:
         대상의 판정기를 컨트롤러에 꽂고(``use_operation``) 그 대상의 꼬리 훅을 ``after_result`` 대신 쓴다.
         결속할 수 없는 대상(L3 real인데 CT 채널 없음)은 누르기 전에 ``error {reason}``으로 거절한다.
         None이면 컨트롤러에 꽂힌 판정기를 그대로 쓴다(시험·시뮬레이터).
+        dev_motion: 개발자 조작(``dev_motion`` 프레임)을 모션 MCU로 넘기는 서비스(선택, 2026-10-10). 실제 모션
+        어댑터(serial)일 때만 act_main이 꽂는다 — 있을 때만 ``act_info.dev_motion_protocol``을 알린다.
 
         비상정지 걸림(2026-10-05): 콘센트 모듈의 비상정지(이벤트·ready·status 보고)를 받으면
         ``estop_latched``가 켜지고, RPi5가 ``estop_ack``로 해제를 확인할 때까지 execute·verify_pass를
@@ -261,6 +274,9 @@ class ActExecutor:
         self.act_info: dict = {}
         #: 리허설 주입 부품(가짜 콘센트·모의 모션일 때만 act_main이 꽂는다). None이면 rehearsal을 거절한다.
         self._rehearsal: object | None = None
+        #: 개발자 조작 서비스와 진행 중 조작(한 번에 하나).
+        self._dev_motion = dev_motion
+        self._dev_task: asyncio.Task[None] | None = None
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -296,6 +312,7 @@ class ActExecutor:
         """
         self._close_hold()
         self._stop_after_result()
+        self._stop_dev("shutdown")
         task = self._execute_task
         if task is None or task.done():
             return True
@@ -439,10 +456,21 @@ class ActExecutor:
             self._on_inject_failure(msg)
         elif isinstance(msg, ClearFailureMsg):
             self._on_clear_failure()
+        elif isinstance(msg, DevMotionMsg):
+            await self._on_dev_motion(msg)
+        elif isinstance(msg, DevMotionRefusedMsg):
+            await self._send({"type": "dev_motion_result", "request_id": msg.request_id, "op": msg.op, "ok": False,
+                              "reason": msg.reason, "detail": msg.detail, "moved": False})
 
     # ── Handlers ─────────────────────────────────────────────────────────────
 
     async def _on_execute(self, msg: ExecuteMsg) -> None:
+        if self._dev_running():
+            # 개발자 조작과 일반 실행은 같은 모터를 쓴다 — RPi5 중재자가 먼저 막지만 여기서도 막는다.
+            log.warning("execute %r refused — a developer motion op is running", msg.sequence_id)
+            await self._send({"type": "error", "sequence_id": msg.sequence_id, "reason": "dev_busy",
+                              "detail": "개발자 조작이 진행 중이에요"})
+            return
         if self._busy:
             # RPi5 should never send a new execute before the previous result
             # arrived, but stay defensive rather than run two sequences at once.
@@ -716,7 +744,9 @@ class ActExecutor:
     async def _on_verify_pass(self, msg: VerifyPassMsg) -> None:
         reason = detail = None
         unsafe = None if self._busy else self._unsafe_reason()
-        if unsafe is not None and unsafe[0] != "motion_not_ready":
+        if self._dev_running():
+            reason, detail = "dev_busy", "개발자 조작이 진행 중이에요"
+        elif unsafe is not None and unsafe[0] != "motion_not_ready":
             reason, detail = unsafe  # 비상정지 걸림·콘센트 무응답이면 확인 주행도 움직이지 않는다
         elif self._busy:
             reason, detail = "busy", "다른 동작을 실행하는 중이에요"
@@ -797,6 +827,7 @@ class ActExecutor:
         session = self.hold_session
         if session is not None and session.active:
             session.drive_stop()
+        self._stop_dev("outlet_estop")
         if self._busy:
             self._verify_stop = True
             request_stop = getattr(self._controller, "request_stop", None)
@@ -821,6 +852,7 @@ class ActExecutor:
         self._estop_gen += 1
         self.estop_source = "outlet_reboot"
         log.error("outlet module restarted (%s) — relay OFF, latched until operator acknowledgement", source)
+        self._stop_dev("outlet_reboot")
         if self._busy:
             self._verify_stop = True
             request_stop = getattr(self._controller, "request_stop", None)
@@ -837,6 +869,10 @@ class ActExecutor:
         self.estop_latched = True
         self.estop_source = source
         self._verify_stop = True
+        try:
+            self._stop_dev("sync_estop")
+        except Exception:  # noqa: BLE001 - 대체 경로는 가능한 것을 다 한다
+            log.exception("sync emergency stop: dev motion stop failed")
         request_stop = getattr(self._controller, "request_stop", None)
         if request_stop is not None:
             try:
@@ -910,6 +946,9 @@ class ActExecutor:
         """``act_info``와 ``estop_state``를 보낸다 — RPi5가 (다시) 연결했거나 RPi4가 막 켜졌을 때."""
         info = {"type": "act_info", "done_watch": [], "execute_protocol": EXECUTE_PROTOCOL, **self.act_info,
                 "rehearsal": self._rehearsal is not None}
+        if self._dev_motion is not None:
+            # 실제 모션 어댑터가 물렸을 때만 — RPi5는 이 값이 없으면 개발자 조작을 보내지 않는다(2026-10-10).
+            info["dev_motion_protocol"] = DEV_MOTION_PROTOCOL
         self._write_now(info)
         # announce: 해제 확인(estop_ack)의 답이 아니라 상태 알림이다 — RPi5가 대기 중인 확인으로 착각하지 않게.
         self._write_now({**self._estop_state_doc(), "announce": True})
@@ -960,6 +999,11 @@ class ActExecutor:
         # SAFETY_STOPPED로 종료하면, 그 result가 RPi5에 정상 회신된다 —
         # 폰/키오스크의 긴급 정지가 UART 모드에서도 끝단까지 완결되는 지점.
         scope = msg.scope if msg is not None else "appliance"
+        if self._dev_running():
+            # 일반 정지(abort)도 진행 중인 개발자 조작을 멈춘다 — RPi5 /stop이 개발자 정지와 함께 보낸다.
+            log.warning("abort received during a developer motion op — sending MCU stop")
+            self._stop_dev("abort")
+            return
         session = self.hold_session
         if not self._busy and session is not None and session.active:
             # 정지 버튼 위 대기 중: 가전 정지(정지 버튼 누름). drive면 구동부만 멈춘다(누르지 않음).
@@ -982,6 +1026,73 @@ class ActExecutor:
                 )
         else:
             log.info("abort received while idle — nothing to cancel")
+
+    # ── 개발자 조작(2026-10-10) ──────────────────────────────────────────────
+
+    def _dev_running(self) -> bool:
+        return self._dev_task is not None and not self._dev_task.done()
+
+    def _stop_dev(self, reason: str) -> None:
+        """진행 중인 개발자 조작이 있으면 MCU 정지를 보낸다(없으면 아무것도 하지 않는다)."""
+        if self._dev_motion is not None and self._dev_running():
+            self._dev_motion.stop(reason)
+
+    async def wait_dev(self) -> None:
+        """진행 중인 개발자 조작이 끝날 때까지(시험·종료 절차용)."""
+        task = self._dev_task
+        if task is not None:
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+
+    def _dev_refusal(self) -> tuple[str, str] | None:
+        """개발자 조작을 시작하면 안 되는 이유 (reason, detail). 순서: 미지원 → 비상정지·콘센트·모션 준비 →
+        일반 실행·정지 대기 → 다른 개발자 조작."""
+        if self._dev_motion is None:
+            return ("dev_unsupported",
+                    "이 RPi4는 실제 모션 어댑터가 없어 개발자 조작을 받지 않아요(SIMPLELAY_MOTION_MODE=serial)")
+        unsafe = self._unsafe_reason()
+        if unsafe is not None:
+            return unsafe
+        if self._busy:
+            return "execution_busy", "일반 실행이나 확인 주행이 진행 중이에요"
+        if self.hold_session is not None and self.hold_session.active:
+            return "execution_busy", "가전 정지 버튼 위에서 기다리는 중이에요 — 정지 뒤에 조작해 주세요"
+        if self._dev_running():
+            return "dev_busy", "이전 개발자 조작이 아직 끝나지 않았어요"
+        return None
+
+    async def _on_dev_motion(self, msg: DevMotionMsg) -> None:
+        base = {"type": "dev_motion_result", "request_id": msg.request_id, "op": msg.op}
+        if msg.op == "stop":
+            # 정지는 어떤 거절에도 걸리지 않는다 — 걸림·실행 중이어도 MCU stop을 보낸다.
+            if self._dev_motion is None:
+                await self._send({**base, "ok": False, "reason": "dev_unsupported",
+                                  "detail": "개발자 조작을 받지 않는 RPi4예요", "moved": False})
+                return
+            sent = self._dev_motion.stop(msg.reason or "dev_stop")
+            reply = {**base, "ok": bool(sent)}
+            if not sent:
+                reply.update(reason="stop_send_failed",
+                             detail="모션 보드에 정지를 보내지 못했어요 — 물리 비상정지를 눌러 주세요")
+            await self._send(reply)
+            return
+        refusal = self._dev_refusal()
+        if refusal is not None:
+            reason, detail = refusal
+            log.warning("dev_motion %s %r refused — %s: %s", msg.op, msg.request_id, reason, detail)
+            await self._send({**base, "ok": False, "reason": reason, "detail": detail, "moved": False})
+            return
+        self._dev_task = asyncio.create_task(self._run_dev(msg, base))
+
+    async def _run_dev(self, msg: DevMotionMsg, base: dict) -> None:
+        service = self._dev_motion
+        assert service is not None
+        try:
+            fields = await asyncio.to_thread(service.run, msg)
+        except Exception as exc:  # noqa: BLE001 - run은 예외를 내지 않지만 실행기 루프를 지킨다
+            log.exception("dev_motion %s crashed", msg.op)
+            fields = {"ok": False, "reason": "motion_error", "detail": str(exc), "moved": None}
+        await self._send({**base, **fields})
 
     # ── IO helper ────────────────────────────────────────────────────────────
 

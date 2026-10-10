@@ -4,6 +4,8 @@
 // 보낸다 · 화면을 떠나거나 앱이 숨겨지면 세션을 끝내고 heartbeat를 멈춘다 ·
 // 정지 미확인을 완료처럼 말하지 않는다 · 세션 만료를 알리고 명령을 잠근다 ·
 // 모의가 아닌 서버는 조작하지 않는다 · 토큰이 없으면 토큰 입력만 있다.
+// 2026-10-10: '모의'/'실제 장치' 배지는 서버 응답(mock·motion_target)으로만 정한다 ·
+// 실제 장치라고 명시한 서버만 조작한다 · 실제 장치가 준비 안 됐으면 이유를 보이고 명령을 막는다.
 import 'dart:async';
 import 'dart:convert';
 
@@ -22,6 +24,10 @@ import '../helpers/test_helpers.dart';
 class _FakeDevServer {
   String phase = 'idle';
   bool mock = true;
+  // 2026-10-10 실물 경로: null이면 필드를 싣지 않는다(옛 서버).
+  String? motionTarget;
+  bool? realReady;
+  String? realReason;
   bool stopConfirmed = true;
   bool expired = false;
   String? stopPhase;
@@ -34,6 +40,9 @@ class _FakeDevServer {
   Map<String, dynamic> _state(String phase, {bool session = false}) => {
         'phase': phase,
         'mock': mock,
+        if (motionTarget != null) 'motion_target': motionTarget,
+        if (motionTarget != null) 'real_motion_ready': realReady,
+        if (motionTarget != null) 'real_motion_reason': realReason,
         'shutting_down': false,
         'session': session
             ? {
@@ -536,6 +545,68 @@ void main() {
     final start =
         tester.widget<FilledButton>(find.widgetWithText(FilledButton, '세션 시작'));
     expect(start.onPressed, isNull);
+    await _close(tester);
+  });
+
+  testWidgets('모의 서버면 모의 배지를 보인다', (tester) async {
+    final server = _FakeDevServer()..motionTarget = 'mock';
+    await _open(tester, server);
+
+    final badge = find.byKey(const ValueKey('dev-motion-badge'));
+    expect(find.descendant(of: badge, matching: find.text('모의')),
+        findsOneWidget);
+    expect(find.text('실제 장치'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'z +'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('실제 장치 서버면 실제 장치 배지를 보이고 조작을 연다', (tester) async {
+    final server = _FakeDevServer()
+      ..mock = false
+      ..motionTarget = 'real'
+      ..realReady = true;
+    await _open(tester, server);
+
+    final badge = find.byKey(const ValueKey('dev-motion-badge'));
+    expect(find.descendant(of: badge, matching: find.text('실제 장치')),
+        findsOneWidget);
+    expect(find.text('실제 장치 — 기계가 움직여요'), findsOneWidget);
+    expect(find.text('모의 제어 — 실제로 움직이지 않음'), findsNothing);
+    expect(find.text('모의 제어 서버가 아니에요'), findsNothing);
+
+    await _startSession(tester);
+    expect(find.text('세션 진행 중'), findsOneWidget);
+    expect(find.textContaining('실제 장치가 움직여요'), findsOneWidget);
+    // Z는 솔레노이드라 조그 줄이 없다.
+    expect(find.widgetWithText(OutlinedButton, 'z +'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'x +'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(OutlinedButton, '홈'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.textContaining('실제 장치가 마쳤어요'), findsOneWidget);
+    expect(find.textContaining('모의 어댑터가 받았어요'), findsNothing);
+    await _close(tester);
+  });
+
+  testWidgets('실제 장치가 준비 안 됐으면 이유를 보이고 명령을 막는다', (tester) async {
+    final server = _FakeDevServer()
+      ..mock = false
+      ..motionTarget = 'real'
+      ..realReady = false
+      ..realReason = 'RPi4가 모의 모션이에요';
+    await _open(tester, server);
+
+    expect(find.textContaining('지금은 움직일 수 없어요: RPi4가 모의 모션이에요'),
+        findsOneWidget);
+    await _startSession(tester);
+    final home =
+        tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '홈'));
+    expect(home.onPressed, isNull);
+    // 정지는 언제나 누를 수 있다.
+    final stop =
+        tester.widget<FilledButton>(find.widgetWithText(FilledButton, '정지'));
+    expect(stop.onPressed, isNotNull);
     await _close(tester);
   });
 
