@@ -18,6 +18,7 @@ rpi4/act_main.py's untested ``_run()``.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import threading
 from collections.abc import Callable, Mapping
@@ -274,6 +275,30 @@ class ActClientController:
         asyncio.run_coroutine_threadsafe(self._client.stop(), self._loop).result(timeout=5.0)
 
 
+#: (idle s, interval s, count) — 무선(2026-10-12): 사라진 RPi4를 약 11 s 안에 알아채 다시 잇는다. RPi4 socat과 같은 값.
+TCP_KEEPALIVE = (5, 2, 3)
+
+
+def enable_tcp_keepalive(writer: object) -> bool:
+    """``socket://`` 링크면 밑의 TCP 소켓에 keepalive를 켠다(시리얼 장치면 아무것도 안 하고 False).
+
+    Wi-Fi가 끊기거나 RPi4가 꺼지면 FIN 없이 연결이 반쯤 남아 읽기가 영원히 기다린다. keepalive가
+    죽은 상대를 알아채면 읽기가 오류로 끝나고 기존 재연결 경로(_read_loop → _reconnect)를 탄다."""
+    import socket  # noqa: PLC0415
+
+    sock = getattr(getattr(getattr(writer, "transport", None), "serial", None), "_socket", None)
+    if not isinstance(sock, socket.socket):
+        return False
+    idle, interval, count = TCP_KEEPALIVE
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
+    for name, value in (("TCP_KEEPIDLE", idle), ("TCP_KEEPINTVL", interval), ("TCP_KEEPCNT", count)):
+        opt = getattr(socket, name, None)
+        if opt is not None:
+            with contextlib.suppress(OSError):
+                sock.setsockopt(socket.IPPROTO_TCP, opt, value)
+    return True
+
+
 def start_background_loop() -> tuple[asyncio.AbstractEventLoop, threading.Thread]:
     """Start a dedicated event loop on its own thread -- ActClient needs a
     running asyncio loop, but SimpleLayService's call sites are synchronous."""
@@ -308,7 +333,10 @@ def open_uart_act_controller(
     tap.transport = tap.transport or "uart"
 
     async def _connect():
-        return await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
+        reader, writer = await serial_asyncio.open_serial_connection(url=port, baudrate=baud)
+        if enable_tcp_keepalive(writer):
+            log.info("ActClient: TCP keepalive on (idle %ds, every %ds × %d)", *TCP_KEEPALIVE)
+        return reader, writer
 
     async def _open() -> ActClient:
         # 첫 연결도 배경에서 한다(2026-10-06 인계 §6) — RPi4 실행기가 꺼져 있어도 백엔드는 뜨고, 잇기 전에는

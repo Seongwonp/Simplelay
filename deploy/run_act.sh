@@ -12,6 +12,9 @@
 # 적힌 장치가 없으면 컨테이너를 세우지 않는다 — USB가 빠진 채 조용히 돌지 않게. USB 이름이 바뀌면
 # /dev/serial/by-id/… 경로를 쓰는 편이 낫다(실기기 확인 전).
 #
+# 무선(2026-10-12): RPi5가 사라져도(Wi-Fi 끊김·백엔드 재시작) socat은 연결 하나만 받는 구조라 죽은 연결을
+# 계속 붙잡고 새 연결을 받지 못했다. TCP keepalive(5 s 뒤 2 s 간격 3회 ≈ 11 s)로 죽은 상대를 알아채
+# socat이 끝나게 하고, 아래 restart 정책이 다시 세운다.
 # 둘 중 하나(socat·act_main)가 끝나면 컨테이너가 끝나고 restart 정책이 둘 다 다시 세운다
 # — 연결이 끊긴 가상 시리얼을 act_main이 붙잡고 있는 상태를 남기지 않기 위해서다.
 set -e
@@ -64,7 +67,7 @@ else
     $DEVICE_ARGS -p 7000:7000 -v "$DATA_DIR":/data --env-file "$ENV_FILE" \
     -e SIMPLELAY_UART_PORT=/tmp/vserial \
     simplelay-backend bash -c '
-      socat -d PTY,link=/tmp/vserial,raw,echo=0 TCP-LISTEN:7000,reuseaddr &
+      socat -d PTY,link=/tmp/vserial,raw,echo=0 TCP-LISTEN:7000,reuseaddr,keepalive,keepidle=5,keepintvl=2,keepcnt=3 &
       for i in $(seq 50); do [ -e /tmp/vserial ] && break; sleep 0.1; done
       python -m rpi4.act_main &
       wait -n; exit 1'

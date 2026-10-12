@@ -90,3 +90,11 @@ def test_fake_outlet_is_not_a_device_and_a_missing_device_refuses(tmp_path):
                                      f"SIMPLELAY_ACT_DEVICES={_posix(tmp_path)}/missing0"])
     assert code != 0 and run == []  # 없는 장치로 컨테이너를 세우지 않는다(조용히 빠진 채 돌지 않게)
     assert "missing0" in out
+
+
+def test_lan_link_detects_a_dead_hub_with_tcp_keepalive():
+    """무선(2026-10-12): 죽은 RPi5 연결을 붙잡고 새 연결을 못 받던 결함 — socat에 keepalive가 있어야 한다."""
+    text = SCRIPT.read_text(encoding="utf-8")
+    line = next(l for l in text.splitlines() if "TCP-LISTEN:7000" in l)
+    for opt in ("keepalive", "keepidle=", "keepintvl=", "keepcnt="):
+        assert opt in line, line
