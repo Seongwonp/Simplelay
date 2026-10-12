@@ -24,6 +24,7 @@ import '../helpers/test_helpers.dart';
 class _FakeDevServer {
   String phase = 'idle';
   bool mock = true;
+  double maxJogMm = 5.0;
   // 2026-10-10 실물 경로: null이면 필드를 싣지 않는다(옛 서버).
   String? motionTarget;
   bool? realReady;
@@ -56,7 +57,7 @@ class _FakeDevServer {
         'fault_reason':
             phase == 'fault' ? 'stop_unconfirmed:emergency_stop' : null,
         'heartbeat_ttl_s': 2.0,
-        'max_jog_mm': 5.0,
+        'max_jog_mm': maxJogMm,
         'max_command_len': 64,
         'allowed_commands': ['status'],
       };
@@ -462,6 +463,11 @@ void main() {
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     await tester.pump();
     await tester.pump();
+    // 화면에서 사라진(paused) 동안은 프레임이 꺼져 있다. 사용자가 돌아올 때 그릴
+    // 화면을 확인하려고 한 프레임을 강제한다(전에는 다른 애니메이션 프레임에 기대
+    // 우연히 통과했다).
+    tester.binding.scheduleForcedFrame();
+    await tester.pump();
 
     expect(server.count('/dev/sessions/s1/end'), 1);
     expect(find.text('앱이 화면에서 사라져 세션을 끝냈어요'), findsOneWidget);
@@ -518,6 +524,34 @@ void main() {
     await _close(tester);
   });
 
+  testWidgets('방향 패드는 고른 이동량으로 한 번만 보낸다', (tester) async {
+    final server = _FakeDevServer()..maxJogMm = 2.0;
+    await _open(tester, server);
+    await _startSession(tester);
+
+    // 서버 상한(2mm)을 넘는 5mm는 고를 수 없다.
+    final step = find.byKey(const ValueKey('dev-jog-step'));
+    expect(find.descendant(of: step, matching: find.text('5mm')), findsNothing);
+    await tester.tap(find.descendant(of: step, matching: find.text('2mm')));
+    await tester.pump();
+
+    await tester.ensureVisible(find.widgetWithText(OutlinedButton, 'x +'));
+    await tester.tap(find.widgetWithText(OutlinedButton, 'x +'));
+    await tester.pump();
+    await tester.pump();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'y −'));
+    await tester.pump();
+    await tester.pump();
+
+    final texts = [
+      for (final r in server.requests
+          .where((r) => r.url.path == '/dev/sessions/s1/commands'))
+        (jsonDecode(r.body) as Map<String, dynamic>)['text'],
+    ];
+    expect(texts, ['jog x + 2', 'jog y - 2']);
+    await _close(tester);
+  });
+
   testWidgets('명령은 세션의 대상 가전과 request_id를 싣는다', (tester) async {
     final server = _FakeDevServer();
     await _open(tester, server);
@@ -553,8 +587,8 @@ void main() {
     await _open(tester, server);
 
     final badge = find.byKey(const ValueKey('dev-motion-badge'));
-    expect(find.descendant(of: badge, matching: find.text('모의')),
-        findsOneWidget);
+    expect(
+        find.descendant(of: badge, matching: find.text('모의')), findsOneWidget);
     expect(find.text('실제 장치'), findsNothing);
     expect(find.widgetWithText(OutlinedButton, 'z +'), findsOneWidget);
     await _close(tester);
@@ -597,8 +631,8 @@ void main() {
       ..realReason = 'RPi4가 모의 모션이에요';
     await _open(tester, server);
 
-    expect(find.textContaining('지금은 움직일 수 없어요: RPi4가 모의 모션이에요'),
-        findsOneWidget);
+    expect(
+        find.textContaining('지금은 움직일 수 없어요: RPi4가 모의 모션이에요'), findsOneWidget);
     await _startSession(tester);
     final home =
         tester.widget<OutlinedButton>(find.widgetWithText(OutlinedButton, '홈'));

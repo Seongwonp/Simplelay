@@ -43,6 +43,9 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
 
   DevApiService? _api;
   DevState? _state;
+
+  /// 방향 패드 한 번의 이동량(mm). 서버 상한(max_jog_mm)을 넘는 값은 고를 수 없다.
+  double _jogStep = 1;
   String? _sessionId;
   String? _secret;
   String? _sessionApplianceId;
@@ -488,6 +491,13 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
 
     final state = _state;
     final real = state != null && state.isReal;
+    final maxJog = state?.maxJogMm ?? 1;
+    final jogSteps = [
+      for (final v in const [1.0, 2.0, 5.0])
+        if (v <= maxJog) v,
+    ];
+    if (jogSteps.isEmpty) jogSteps.add(1.0);
+    final jogStep = jogSteps.contains(_jogStep) ? _jogStep : jogSteps.first;
     // 모의도 아니고 실제 장치라고 명시하지도 않은 서버(옛 서버)는 조작하지 않는다.
     final notMock = state != null && !state.mock && !real;
     final canStart = api != null &&
@@ -612,27 +622,57 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
             ),
             const SizedBox(height: 12),
             _Label(real
-                ? '한 번 누를 때 1mm 이동 — 한 번에 한 번만 움직여요 (Z는 누르기로만)'
-                : '한 번 누를 때 1mm 이동'),
-            for (final axis in real ? const ['x', 'y'] : const ['x', 'y', 'z'])
+                ? '방향을 누를 때마다 ${_MotionBadge._mm(jogStep)}mm 이동 — 한 번에 한 번만 움직여요 (Z는 누르기로만)'
+                : '방향을 누를 때마다 ${_MotionBadge._mm(jogStep)}mm 이동'),
+            if (jogSteps.length > 1)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(bottom: 12),
+                child: SegmentedButton<double>(
+                  key: const ValueKey('dev-jog-step'),
+                  segments: [
+                    for (final v in jogSteps)
+                      ButtonSegment(
+                          value: v, label: Text('${_MotionBadge._mm(v)}mm')),
+                  ],
+                  selected: {jogStep},
+                  onSelectionChanged:
+                      _busy ? null : (s) => setState(() => _jogStep = s.first),
+                ),
+              ),
+            _JogPad(
+              step: _MotionBadge._mm(jogStep),
+              onJog: canCommand
+                  ? (axis, sign) =>
+                      _command('jog $axis $sign ${_MotionBadge._mm(jogStep)}')
+                  : null,
+            ),
+            if (!real)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
                 child: Row(
                   children: [
-                    SizedBox(
+                    const SizedBox(
                       width: 32,
-                      child: Text(axis.toUpperCase(),
-                          style: const TextStyle(
+                      child: Text('Z',
+                          style: TextStyle(
                               fontSize: 18, fontWeight: FontWeight.w700)),
                     ),
                     Expanded(
-                      child: _CommandButton('$axis −',
-                          canCommand ? () => _command('jog $axis - 1') : null),
+                      child: _CommandButton(
+                          'z −',
+                          canCommand
+                              ? () => _command(
+                                  'jog z - ${_MotionBadge._mm(jogStep)}')
+                              : null),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: _CommandButton('$axis +',
-                          canCommand ? () => _command('jog $axis + 1') : null),
+                      child: _CommandButton(
+                          'z +',
+                          canCommand
+                              ? () => _command(
+                                  'jog z + ${_MotionBadge._mm(jogStep)}')
+                              : null),
                     ),
                   ],
                 ),
@@ -732,8 +772,7 @@ class _MotionBadge extends StatelessWidget {
     final real = s != null && s.isReal;
     final unsupported = s != null && !s.mock && !real;
     final realBlocked = real && s.realMotionReady == false;
-    final color =
-        real || unsupported ? context.appDanger : context.appWarning;
+    final color = real || unsupported ? context.appDanger : context.appWarning;
     final (String badge, IconData icon, String title, String body) = real
         ? (
             '실제 장치',
@@ -876,6 +915,53 @@ class _Label extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: 6),
         child:
             Text(text, style: TextStyle(color: context.appMuted, fontSize: 13)),
+      );
+}
+
+/// 상하좌우 방향 패드. 누를 때마다 한 번만 보낸다(누르고 있어도 반복하지 않는다).
+/// 위 = y+, 아래 = y−, 왼쪽 = x−, 오른쪽 = x+ (갠트리 실제 방향은 기구 확인 전).
+class _JogPad extends StatelessWidget {
+  const _JogPad({required this.step, required this.onJog});
+
+  final String step;
+  final void Function(String axis, String sign)? onJog;
+
+  Widget _dir(String label, IconData icon, String axis, String sign) =>
+      SizedBox(
+        width: 104,
+        height: 64,
+        child: OutlinedButton.icon(
+          onPressed: onJog == null ? null : () => onJog!(axis, sign),
+          icon: Icon(icon),
+          label: Text(label),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Column(
+          key: const ValueKey('dev-jog-pad'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _dir('y +', Icons.arrow_upward, 'y', '+'),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _dir('x −', Icons.arrow_back, 'x', '-'),
+                SizedBox(
+                  width: 72,
+                  child: Text('${step}mm',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontWeight: FontWeight.w700)),
+                ),
+                _dir('x +', Icons.arrow_forward, 'x', '+'),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _dir('y −', Icons.arrow_downward, 'y', '-'),
+          ],
+        ),
       );
 }
 
