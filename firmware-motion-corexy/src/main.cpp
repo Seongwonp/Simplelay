@@ -45,7 +45,20 @@
 #define BRINGUP_TEXT_COMMANDS 0
 #endif
 
-#if BRINGUP_TEXT_COMMANDS
+#ifndef BENCH_HOME_AT_CURRENT
+#define BENCH_HOME_AT_CURRENT 0
+#endif
+
+#if BENCH_HOME_AT_CURRENT && BRINGUP_TEXT_COMMANDS
+#error "BENCH_HOME_AT_CURRENT와 BRINGUP_TEXT_COMMANDS는 함께 켜지 않는다"
+#endif
+
+#if BENCH_HOME_AT_CURRENT
+// 시험대 전용: home이 움직이지 않고 지금 위치를 원점(0,0)으로 삼는다. 리밋·스톨 원점이 아직 안 되는
+// 기구(벨트·풀리 미완성)에서 RPi5→RPi4→ESP32 경로만 확인할 때. 배너 fw에 -benchhome이 붙는다.
+#define FW_NAME FW_NAME_BASE "-benchhome"
+#warning "BENCH_HOME_AT_CURRENT=1: home이 현재 위치를 원점으로 삼는 시험대 빌드 — 시연에 올리지 않는다"
+#elif BRINGUP_TEXT_COMMANDS
 #define FW_NAME FW_NAME_BASE "-bringup"
 #warning "BRINGUP_TEXT_COMMANDS=1: 사람용 방향 시험 명령(M·Z 등)이 켜진 빌드 — 시연·RPi4 연결용으로 올리지 않는다"
 #else
@@ -331,6 +344,14 @@ void startStep() {
       break;
     case StepType::HOME: {
       solenoidOff();
+#if BENCH_HOME_AT_CURRENT
+      motion.setOrigin();
+      g_posRefValid = true;
+      g_refX = g_refY = 0;
+      replyCurOk("HOMED");
+      endActive();
+      return;
+#endif
       const char* err = motion.home();
       if (err) { refuseCur(mapCoreRefusal(err)); return; }
       phase = Phase::WAIT_MOTION;
