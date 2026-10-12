@@ -35,7 +35,8 @@ def test_executor_image_includes_adc_dependencies():
 
 
 @pytest.mark.parametrize("path,required,removed", [
-    ("docs/reuse-boundary.md", "앱·통신", "컨셉만 이어받고"),
+    # 10/10 팀원 확인: 갠트리·모션 펌웨어도 Touch Bridge와 공유 — "컨셉만 이어받고"(과소 서술)는 다시 들어오지 않는다.
+    ("docs/reuse-boundary.md", "구동 계층은 Touch Bridge와 공유한다", "컨셉만 이어받고"),
     ("docs/reuse-boundary.md", "XY FIT0482 ×2", "FIT0482 ×3"),
     ("docs/가산점-증거-대장.md", "실제 앱 문맥 호출은 미검증", "실제 앱 문맥에서도 허용 조건은 같다"),
     ("README.md", "L1", "전류·음향 센서로 실제 실행을"),
