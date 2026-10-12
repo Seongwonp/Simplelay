@@ -82,7 +82,7 @@ void raiseAlarm(const char* reason, bool stopMotion);
 #ifndef SOLENOID_PIN
 #define SOLENOID_PIN 23
 #endif
-#ifndef SOLENOID_LEDC_CH  // Arduino-ESP32 2.x에서만 사용
+#ifndef SOLENOID_LEDC_CH  // 2.x·3.x 모두 이 채널로 고정(모터 0/1과 다른 타이머)
 #define SOLENOID_LEDC_CH 7  // 모터가 0/1 채널을 쓰므로 다른 타이머의 7번
 #endif
 static_assert(gpioOutputOk(SOLENOID_PIN), "솔레노이드 게이트 핀이 ESP32에 없거나 스트래핑·입력 전용 핀이다");
@@ -110,12 +110,16 @@ static void solWrite(uint32_t duty) {
 #endif
 }
 
+bool g_solPwmOk = false;  // SimpleLay 추가: 솔레노이드 PWM 채널이 붙었는가
+
 void solBegin() {
   pinMode(SOLENOID_PIN, OUTPUT);
   digitalWrite(SOLENOID_PIN, LOW);
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-  ledcAttach(SOLENOID_PIN, SOL_PWM_FREQ, SOL_PWM_BITS);
+  // SimpleLay 수정(2026-10-12): 자동 배정 대신 채널 고정 — 모터 PWM 타이머와 겹치지 않게.
+  g_solPwmOk = ledcAttachChannel(SOLENOID_PIN, SOL_PWM_FREQ, SOL_PWM_BITS, SOLENOID_LEDC_CH);
 #else
+  g_solPwmOk = true;
   ledcSetup(SOLENOID_LEDC_CH, SOL_PWM_FREQ, SOL_PWM_BITS);
   ledcAttachPin(SOLENOID_PIN, SOLENOID_LEDC_CH);
 #endif
@@ -773,7 +777,7 @@ void setup() {
   setupTaskWatchdog();
   const BaseType_t ok = xTaskCreatePinnedToCore(controlTask, "corexy", 4096, nullptr,
                                                 configMAX_PRIORITIES - 2, nullptr, 1);
-  if (ok != pdPASS || motionEvents == nullptr) {
+  if (ok != pdPASS || motionEvents == nullptr || !motion.pwmOk() || !g_solPwmOk) {
     g_hwOk = false;  // 제어 태스크가 없다 — home·move·press를 거절한다
     g_alarm = "hw_init";
   }

@@ -16,16 +16,21 @@ public:
   Tb6612Motor(int pinPwm, int pinIn1, int pinIn2, uint8_t ledcCh, bool invert)
     : pwm_(pinPwm), in1_(pinIn1), in2_(pinIn2), ch_(ledcCh), invert_(invert) {}
 
-  void begin() {
+  // SimpleLay 수정(2026-10-12): 코어 3.x에서도 채널을 명시적으로 고정한다. 자동 배정(ledcAttach)은
+  // 먼저 붙은 솔레노이드(8비트)와 같은 타이머를 나눠 B 출력이 나오지 않는 일이 실기기에서 있었다.
+  // 붙이기에 실패하면 false — 호출부가 hw_init으로 거절한다.
+  bool begin() {
     pinMode(in1_, OUTPUT);
     pinMode(in2_, OUTPUT);
 #if ESP_ARDUINO_VERSION_MAJOR >= 3
-    ledcAttach(pwm_, PWM_FREQ_HZ, PWM_RES_BITS);
+    const bool ok = ledcAttachChannel(pwm_, PWM_FREQ_HZ, PWM_RES_BITS, ch_);
 #else
     ledcSetup(ch_, PWM_FREQ_HZ, PWM_RES_BITS);
     ledcAttachPin(pwm_, ch_);
+    const bool ok = true;
 #endif
     brake();
+    return ok;
   }
 
   // u: -1.0 ~ 1.0 (부호 = 방향, 크기 = 듀티)

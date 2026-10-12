@@ -101,8 +101,8 @@ public:
     lock_ = xSemaphoreCreateMutex();
     pinMode(PIN_STBY, OUTPUT);
     digitalWrite(PIN_STBY, LOW);   // SimpleLay 수정: 원작은 HIGH. 명령을 받을 때까지 출력 꺼짐
-    motA_.begin();
-    motB_.begin();
+    pwmOk_ = motA_.begin();          // SimpleLay 수정: PWM 채널 붙이기 결과를 남긴다
+    pwmOk_ = motB_.begin() && pwmOk_;
     encA_.begin();
     encB_.begin();
     if (USE_LIMIT_SWITCHES) {
@@ -204,6 +204,9 @@ public:
     Guard g(lock_);
     homed_ = false;
   }
+
+  // SimpleLay 추가: 두 모터 PWM 채널이 붙었는가(실패면 hw_init).
+  bool pwmOk() const { return pwmOk_; }
 
   // 출력(STBY)이 켜져 위치를 잡고 있거나 움직이는 중인가. 호스트 워치독 판단용.
   bool outputsOn() {
@@ -453,6 +456,7 @@ private:
 
   Tb6612Motor motA_, motB_;
   QuadEncoder encA_, encB_;
+  bool pwmOk_ = false;   // SimpleLay 추가: 두 모터 PWM 채널이 붙었는가
   AxisPid pidA_, pidB_;
   QueueHandle_t evq_ = nullptr;
   SemaphoreHandle_t lock_ = nullptr;
