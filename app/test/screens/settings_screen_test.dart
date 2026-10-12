@@ -291,13 +291,15 @@ void main() {
       expect(find.text('실행이 끝난 뒤에 바꿀 수 있어요'), findsOneWidget);
     });
 
-    testWidgets('개발자 도구 진입은 개발자 탭에만 있고 모의 제어라고 말한다',
+    testWidgets('개발자 도구 진입은 개발자 탭에만 있고 모의·실제 장치를 단정하지 않는다',
         (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildDev());
       await tester.pump();
       expect(find.text('개발자 도구'), findsOneWidget);
-      expect(find.textContaining('모의 제어 — 실제로 움직이지 않습니다'), findsOneWidget);
+      // 서버가 실제 장치일 수 있어 '실제로 움직이지 않는다'고 단정하지 않는다(10/12).
+      expect(find.textContaining('실제로 움직이지 않'), findsNothing);
+      expect(find.textContaining('들어가면 어느 쪽인지 표시돼요'), findsOneWidget);
     });
 
     testWidgets('제안 시뮬레이션 탭 시 SnackBar 표시', (tester) async {
