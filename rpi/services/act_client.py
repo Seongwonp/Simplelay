@@ -65,6 +65,7 @@ from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Protocol
 
+from . import link_auth
 from .appliance_done import parse_appliance_done
 
 if TYPE_CHECKING:
@@ -305,6 +306,7 @@ class ActClient:
         hello: bool = False,
         connector: "Callable[[], Awaitable[tuple[asyncio.StreamReader, _WriterLike]]] | None" = None,
         reconnect_backoff: tuple[float, float] | None = None,
+        link_key: "str | bytes | None" = None,
     ) -> None:
         """``hello``: start() 때 ``hello``를 보낸다(2026-10-06 평가 C1). 운영 경로(UART 공장·시뮬레이터)는 True로
         만든다 — 기본 False는 줄 단위로 RPi4를 흉내 내는 시험이 첫 줄을 execute로 기대하기 때문이다.
@@ -315,7 +317,12 @@ class ActClient:
 
         ``reader``·``writer``가 None이면(첫 연결 전, 2026-10-06 인계 §6) 링크 끊김으로 시작하고 start()가 배경에서
         ``connector``로 첫 연결을 시도한다 — 첫 시도는 바로, 실패하면 재연결과 같은 간격으로. 잇기 전에는
-        보내기를 ``ActLinkError``로 거절하고 걸림 상태는 None(모름)이다."""
+        보내기를 ``ActLinkError``로 거절하고 걸림 상태는 None(모름)이다.
+
+        ``link_key``(2026-10-12, 무선 링크 인증): 짝 키(``SIMPLELAY_LINK_KEY``, 16자 이상 — 짧으면 `LinkKeyError`).
+        주면 hello에 새 ``cn``을 싣고 K로 서명하며, RPi4의 서명된 hello 답(``cn``·``sn``)을 받기 전까지 링크를
+        내려 둔다(``link_up=False``). 그 뒤 모든 프레임은 세션 키로 서명하고 ``seq``를 붙인다(link_auth.py).
+        서명 없는·MAC이 틀린·``seq``를 되돌린 프레임은 버린다. None이면 종전 그대로(봉투 없음)."""
         if (reader is None) != (writer is None):
             raise ValueError("reader and writer must both be given or both be None")
         if reader is None and connector is None:
@@ -360,11 +367,21 @@ class ActClient:
         self._estop_waiters: list[asyncio.Future[dict]] = []
         self._connector = connector
         self._backoff = reconnect_backoff or self.RECONNECT_BACKOFF
-        #: 링크가 살아 있나(끊긴 동안·첫 연결 전 False — 보내기는 ActLinkError로 거절한다).
-        self.link_up = reader is not None
+        self._link_key = None if link_key is None else link_auth.validate_key(link_key)
+        #: 인증된 세션(키가 있을 때만). 보낸 hello의 ``cn``(답 대기 중)·답 기다림 task.
+        self._session: link_auth.LinkSession | None = None
+        self._hello_cn: str | None = None
+        self._auth_task: asyncio.Task[None] | None = None
+        self._auth_drops = link_auth.DropLog()
+        #: 줄이 이어져 있나(인증과 무관). 키가 없으면 ``link_up``과 같다.
+        self._transport_up = reader is not None
+        #: 링크가 살아 있나(끊긴 동안·첫 연결 전·키가 있는데 인증 전 False — 보내기는 ActLinkError로 거절한다).
+        self.link_up = reader is not None and self._link_key is None
         #: 끊긴 횟수·마지막 끊김 이유(진단용).
         self.link_drops = 0
-        self.link_down_reason: str | None = None if reader is not None else self.NOT_CONNECTED_REASON
+        self.link_down_reason: str | None = (
+            self.NOT_CONNECTED_REASON if reader is None
+            else self.AUTH_PENDING_REASON if self._link_key is not None else None)
         #: 한 번이라도 이어졌나(첫 연결 전 False).
         self.ever_connected = reader is not None
 
@@ -372,6 +389,12 @@ class ActClient:
     RECONNECT_BACKOFF: tuple[float, float] = (0.5, 5.0)
     #: 첫 연결 전 ``link_down_reason``.
     NOT_CONNECTED_REASON = "not connected yet"
+    #: 키가 있을 때 hello 답(인증) 전 ``link_down_reason``.
+    AUTH_PENDING_REASON = "RPi4 인증 확인 중"
+    #: 인증 실패(답이 없거나 서명이 맞지 않음). /health·/dev/state에 그대로 보인다.
+    AUTH_FAILED_REASON = "RPi4 인증 실패 — 두 보드의 SIMPLELAY_LINK_KEY가 같은지 확인"
+    #: hello를 보낸 뒤 서명된 답을 이만큼 기다리고, 없으면 인증 실패로 보고 늘어나는 간격으로 다시 보낸다.
+    AUTH_REPLY_TIMEOUT_S = 3.0
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -379,13 +402,19 @@ class ActClient:
         """Start the background read loop. Call once before execute()/abort()."""
         self._read_task = asyncio.create_task(self._read_loop())
         # 첫 연결 전이면 hello는 연결이 이어진 뒤 _reconnect가 보낸다.
-        if self._hello_on_start and self.link_up:
+        if self._hello_on_start and self._transport_up:
             await self.hello()
 
     async def hello(self) -> None:
-        """RPi4에 (다시) 연결했다고 알린다 — 답은 ``act_info``와 ``estop_state``(평가 C1)."""
+        """RPi4에 (다시) 연결했다고 알린다 — 답은 ``act_info``와 ``estop_state``(평가 C1).
+
+        키가 있으면 새 세션을 연다: 지금 세션을 버리고(답이 올 때까지 링크 내려감) 새 ``cn``으로 서명한 hello를
+        보낸다. RPi4도 올바른 hello마다 새 세션을 연다."""
         try:
-            await self._send({"type": "hello"})
+            if self._link_key is None:
+                await self._send({"type": "hello"})
+            else:
+                await self._send_hello()
         except ActLinkError as exc:  # 끊긴 동안 — 재연결이 hello를 다시 보낸다
             log.info("ActClient: hello not sent (%s)", exc)
         except Exception:  # noqa: BLE001 - 보내지 못하면 걸림 상태는 None(확인 중)으로 남는다
@@ -393,6 +422,7 @@ class ActClient:
 
     async def stop(self) -> None:
         """Cancel the background read loop. Safe to call more than once."""
+        self._cancel_auth_task()
         if self._read_task is None:
             return
         self._read_task.cancel()
@@ -633,7 +663,7 @@ class ActClient:
                 raise
             except Exception as exc:  # noqa: BLE001 - serial.SerialException(socket disconnected) 등
                 reason = f"{type(exc).__name__}: {exc}"
-            if self.link_up:
+            if self._transport_up:
                 self._mark_link_down(reason)
             if self._connector is None:
                 return
@@ -643,6 +673,10 @@ class ActClient:
         """끊김: 기다리던 요청을 모두 바로 실패시키고, 걸림 상태를 '모름'으로 돌린다(풀림으로 가정하지 않는다)."""
         log.warning("ActClient: link down (%s)", reason)
         self.link_up = False
+        self._transport_up = False
+        self._session = None
+        self._hello_cn = None
+        self._cancel_auth_task()
         self.link_drops += 1
         self.link_down_reason = reason
         # 다시 이은 뒤 RPi4의 답(estop_state)으로만 다시 안다 — 그때까지 서비스가 '확인하는 중'으로 거절한다.
@@ -682,8 +716,9 @@ class ActClient:
                          "first connect" if not self.ever_connected else "reconnect", exc, wait)
                 continue
             self._reader, self._writer = reader, writer
-            self.link_up = True
-            self.link_down_reason = None
+            self._transport_up = True
+            self.link_up = self._link_key is None
+            self.link_down_reason = None if self._link_key is None else self.AUTH_PENDING_REASON
             log.info("ActClient: link %s — sending hello",
                      "established" if not self.ever_connected else "re-established")
             self.ever_connected = True
@@ -704,6 +739,13 @@ class ActClient:
             if self.tap is not None:
                 self.tap.record("act_to_hub", None, raw)
             return
+        if self._link_key is not None:
+            opened = self._open_frame(doc)
+            if opened is None:
+                if self.tap is not None:
+                    self.tap.record("act_to_hub", None, raw)
+                return  # 버린다 — 아무것도 바꾸지 않는다
+            doc = opened
         if self.tap is not None:
             self.tap.record("act_to_hub", doc)
 
@@ -806,6 +848,11 @@ class ActClient:
     async def _send(self, doc: dict) -> None:
         if not self.link_up:
             raise ActLinkError(f"RPi4 연결이 끊겨 다시 잇는 중이에요 ({self.link_down_reason})")
+        if self._session is not None:
+            doc = self._session.seal(doc)  # seq를 매기고 바로 쓴다(사이에 await 없음 — seq 순서 = 줄 순서)
+        await self._write(doc)
+
+    async def _write(self, doc: dict) -> None:
         payload = (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
         log.debug("TX -> %s", payload.rstrip().decode())
         if self.tap is not None:
@@ -817,7 +864,7 @@ class ActClient:
             writer.write(payload)
             await writer.drain()
         except Exception as exc:
-            if self.link_up and self._writer is writer:
+            if self._transport_up and self._writer is writer:
                 self._mark_link_down(f"write failed: {type(exc).__name__}: {exc}")
                 # EOF가 오지 않는 쓰기 전용 고장도 같은 재연결 경로로 보낸다.
                 if reader is not None:
@@ -829,6 +876,92 @@ class ActClient:
             if pending is not None and pending[1].done() and not pending[1].cancelled():
                 pending[1].exception()
             raise
+
+
+    # ── 링크 인증(2026-10-12) ───────────────────────────────────────────────────
+
+    def _signed_hello(self) -> dict:
+        assert self._link_key is not None
+        doc = {"type": "hello", "cn": link_auth.new_nonce()}
+        doc["mac"] = link_auth.compute_mac(self._link_key, doc)
+        self._hello_cn = doc["cn"]
+        return doc
+
+    async def _send_hello(self) -> None:
+        """새 ``cn``으로 서명한 hello를 보낸다. 답이 올 때까지 링크는 내려가 있다(보내기 거절)."""
+        if not self._transport_up:
+            raise ActLinkError(f"RPi4 연결이 끊겨 다시 잇는 중이에요 ({self.link_down_reason})")
+        self._session = None
+        self.link_up = False
+        if self.link_down_reason != self.AUTH_FAILED_REASON:
+            self.link_down_reason = self.AUTH_PENDING_REASON
+        if self._auth_task is None or self._auth_task.done():
+            self._auth_task = asyncio.create_task(self._watch_auth())
+        await self._write(self._signed_hello())
+
+    async def _watch_auth(self) -> None:
+        """hello 답을 기다린다. 기한 안에 없으면 인증 실패로 두고 재연결과 같은 늘어나는 간격으로 hello를 다시 보낸다."""
+        delay, ceiling = self._backoff
+        while True:
+            await asyncio.sleep(self.AUTH_REPLY_TIMEOUT_S)
+            if self._session is not None or not self._transport_up:
+                return
+            self._note_auth_failure("no signed hello reply")
+            await asyncio.sleep(delay)
+            delay = min(delay * 2, ceiling)
+            if self._session is not None or not self._transport_up:
+                return
+            try:
+                await self._write(self._signed_hello())
+            except asyncio.CancelledError:
+                raise
+            except Exception:  # noqa: BLE001 - 쓰기 실패는 _write가 링크를 내린다
+                return
+
+    def _cancel_auth_task(self) -> None:
+        task, self._auth_task = self._auth_task, None
+        if task is not None and not task.done() and task is not asyncio.current_task():
+            task.cancel()
+
+    def _note_auth_failure(self, why: str) -> None:
+        if self._session is None:
+            self.link_up = False
+            self.link_down_reason = self.AUTH_FAILED_REASON
+        self._auth_drops.warn(log, why, "RPi4")
+
+    def _open_frame(self, doc: dict) -> dict | None:
+        """키가 있을 때 받은 문서를 확인한다. 받아들이면 봉투를 뗀 본문, 아니면 None(버린다)."""
+        key = self._link_key
+        assert key is not None
+        if "sn" in doc:
+            # hello 답 — 지금 기다리는 hello의 cn에 묶여 있고 K로 서명돼 있어야 한다.
+            cn, sn = doc.get("cn"), doc.get("sn")
+            if not link_auth.is_nonce(sn) or "seq" in doc or not link_auth.mac_ok(key, doc):
+                self._note_auth_failure("bad hello reply")
+                return None
+            if self._hello_cn is None or cn != self._hello_cn:
+                # 앞서 보낸 hello의 늦은 답(그 사이 hello를 다시 보냄)·재전송 — 실패가 아니라 버릴 뿐이다.
+                self._auth_drops.warn(log, "stale hello reply", doc.get("type"))
+                return None
+            self._session = link_auth.LinkSession(link_auth.session_key(key, cn, sn))
+            self._hello_cn = None
+            self.link_up = True
+            self.link_down_reason = None
+            self._cancel_auth_task()
+            log.info("ActClient: RPi4 authenticated — link up")
+            return link_auth.strip_auth(doc)
+        if self._session is None:
+            # 인증 전에는 아무것도 믿지 않는다. 서명 없는 답이면 RPi4에 키가 없는 것 — 인증 실패로 보인다.
+            # 서명된 프레임은 hello를 다시 보내기 전 세션의 늦은 프레임일 수 있어 버리기만 한다.
+            if "mac" not in doc:
+                self._note_auth_failure("unsigned frame (RPi4 has no link key?)")
+            else:
+                self._auth_drops.warn(log, "out-of-session frame", doc.get("type"))
+            return None
+        if not self._session.accept(doc):
+            self._auth_drops.warn(log, "bad mac or seq", doc.get("type"))
+            return None
+        return link_auth.strip_auth(doc)
 
 
 def targets_payload(targets: "Mapping[str, ButtonTarget]") -> dict[str, dict]:

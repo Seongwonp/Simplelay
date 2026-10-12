@@ -12,6 +12,8 @@ DATA_DIR=/mnt/rawdata/simplelay   # 루트(2GB)가 좁아 rawdata(4.6GB)에 데�
 mkdir -p "$DATA_DIR"
 # 기기별 설정·비밀(SIMPLELAY_API_KEY, SIMPLELAY_ACT_MODE, SIMPLELAY_UART_PORT, 기상청 키 등)은
 # 저장소가 아니라 기기의 이 파일에 둔다(root 전용 600). 없으면 빈 파일로 시작한다.
+# SIMPLELAY_LINK_KEY(2026-10-12): RPi4 링크 짝 키 — RPi4 env와 같은 값(16자 이상, 예: openssl rand -hex 32).
+# 한쪽만 있으면 링크가 안 열리고 /health actuator_ready=false다(docs/protocol.md "링크 인증").
 ENV_FILE="$DATA_DIR/env"
 [ -f "$ENV_FILE" ] || { : > "$ENV_FILE"; chmod 600 "$ENV_FILE"; }
 

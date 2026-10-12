@@ -126,6 +126,9 @@ class ActDevMotionAdapter:
     def _problem(self, link) -> tuple[str, str] | None:
         snap = self._snapshot(link)
         if not snap.get("link_up"):
+            reason = snap.get("link_reason")
+            if isinstance(reason, str) and reason.startswith("RPi4 인증"):
+                return "link_down", reason  # 짝 키가 맞지 않음(2026-10-12) — 기다려도 이어지지 않는다
             return "link_down", "RPi4 연결이 끊겨 있어요 — 다시 이어진 뒤 조작해 주세요"
         info = snap.get("act_info") or {}
         if not info:

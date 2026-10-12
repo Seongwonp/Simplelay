@@ -428,3 +428,16 @@ def test_stop_during_a_slow_jog_marks_the_late_result_stale(rig) -> None:
     worker.join(5)
     assert out["res"].status_code == 409 and _code(out["res"]) == "stop_race"
     assert r.link.ops() == ["jog", "stop", "stop"]
+
+
+def test_link_down_for_an_auth_failure_says_so_in_the_reason() -> None:
+    """링크 인증(2026-10-12): 키가 맞지 않아 내려간 링크는 /dev/state real_motion_reason에 그 이유를 보인다."""
+    from rpi.services.act_client import ActClient
+
+    link = FakeDevLink()
+    link.link_up = False
+    snap = link.dev_motion_link()
+    link.dev_motion_link = lambda: {**snap, "link_reason": ActClient.AUTH_FAILED_REASON}  # type: ignore[method-assign]
+    code, message = ActDevMotionAdapter(lambda: link).availability()
+    assert code == "link_down"
+    assert "인증 실패" in message and "SIMPLELAY_LINK_KEY" in message

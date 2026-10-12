@@ -9,6 +9,9 @@ runs on RPi5. See the note at the top of main.py.
 Environment variables:
   SIMPLELAY_UART_PORT             serial device path  (default: /dev/ttyAMA0)
   SIMPLELAY_UART_BAUD             baud rate           (default: 115200)
+  SIMPLELAY_LINK_KEY              RPi5↔RPi4 링크 짝 키(2026-10-12, 16자 이상 — 짧으면 시작 거절). RPi5와 같은 값.
+                                  있으면 서명된 hello로 세션을 열고 프레임마다 HMAC·seq를 확인한다(docs/protocol.md
+                                  "링크 인증"). 없으면 종전처럼 인증 없이 돌고 시작 때 경고한다. 한쪽만 있으면 링크가 안 열린다
   SIMPLELAY_SENSORS_ENABLED       "true" → SensorVerifier (ADS1115 전류 +
                                   마이크 음향 퓨전 검증). 기본 false = mock —
                                   센서 하드웨어 없이도 실행 경로가 살아있어야
@@ -692,6 +695,7 @@ def _build_executor(
     recorder: "LiveRecorder | None" = None,
     motion_log: "LineLog | None" = None,
     outlet=None,
+    link_key: bytes | None = None,
 ) -> ActExecutor:
     """Wire up the executor with current adapters.
 
@@ -746,6 +750,7 @@ def _build_executor(
         hold=_build_hold(grbl, raw_grbl, outlet, binder),
         target_binder=binder,
         dev_motion=_build_dev_motion(raw_grbl),
+        link_key=link_key,
         **extra,
     )
     if outlet is not None:
@@ -922,7 +927,11 @@ def _maybe_start_danger_monitor(executor: ActExecutor, done_watches=None) -> "as
 
 
 async def _run() -> None:
-    log.info("Opening %s at %d baud", SERIAL_PORT, BAUD_RATE)
+    from rpi.services.link_auth import link_key_from_env
+
+    # 짝 키를 먼저 확인한다 — 짧으면 시리얼을 열기 전에 LinkKeyError로 끝난다(2026-10-12).
+    link_key = link_key_from_env()
+    log.info("Opening %s at %d baud (link auth %s)", SERIAL_PORT, BAUD_RATE, "on" if link_key else "OFF")
     try:
         import serial_asyncio  # type: ignore[import-untyped]
     except ImportError:
@@ -948,7 +957,7 @@ async def _run() -> None:
     motion_log = _build_motion_log()
     try:
         executor = _build_executor(reader, writer, recorder, motion_log[0] if motion_log else None,
-                                   outlet=outlet)
+                                   outlet=outlet, link_key=link_key)
     except BaseException:
         if outlet is not None:
             outlet.close()

@@ -59,6 +59,34 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 
 ## UART 프로토콜 (RPi5 ↔ RPi4)
 
+### 링크 인증 (2026-10-12, 무선 전환 뒤)
+
+링크가 TCP(`socket://<RPi4>:7000`)가 되면서 같은 망의 누구나 RPi4에 `execute`·`dev_motion`을 보낼 수
+있었다. 두 보드에 같은 짝 키 `SIMPLELAY_LINK_KEY`(16자 이상, 짧으면 링크를 열지 않는다)를 두면 아래 봉투로만
+주고받는다(`rpi/services/link_auth.py`). 정규형은 `mac`을 뺀 문서의
+`json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False)`, MAC은 HMAC-SHA256 hex다.
+
+1. RPi5 `hello`: 새 클라이언트 난수 `cn`(16바이트 hex)을 싣고 K로 서명한다.
+2. RPi4: 올바른 hello마다(이미 쓴 `cn`은 버림) 새 서버 난수 `sn`을 고르고
+   세션 키 `sk = HMAC-SHA256(K, "simplelay-link-v1|" + cn + "|" + sn)`를 만든다. hello 답의 첫 프레임
+   `act_info`에 `cn`·`sn`을 싣고 K로 서명한다(이 hello에 묶인다). 이어지는 `estop_state`부터는 세션 프레임이다.
+3. 그 뒤 양방향 모든 프레임: `seq`(방향마다 세션 안에서 1부터 엄격히 증가) + `mac = HMAC(sk, 정규형)`.
+
+```json
+{"type":"hello","cn":"1f0c3a9e5b7d24c68a0e9f13b2d4c657","mac":"237dfbae…21efad"}
+{"type":"act_info","execute_protocol":2,"motion":"mock",…,"cn":"1f0c3a9e5b7d24c68a0e9f13b2d4c657","sn":"b5289081d3d659397bbc9ad1dce4c57c","mac":"2b1ede4b…ed2e9bbb"}
+{"type":"execute","sequence_id":"seq_001","buttons":["BT-08","BT-05"],"appliance_id":"microwave","seq":1,"mac":"1225ae0d…c5f51cc7"}
+```
+
+- 받는 쪽은 서명 없음·MAC 틀림·`seq` 되돌림 프레임을 **버리고 답하지 않는다**(경고 로그는 10초에 한 번).
+  `abort`·`estop_ack`도 같다 — 위조 정지도 공격 경로라 서명 없는 정지 예외를 두지 않는다.
+- RPi5는 서명된 hello 답을 받기 전까지 링크를 내려 둔다(`/health actuator_ready=false`, 실행 412).
+  3초 안에 답이 없거나 서명 없는 답이 오면 이유를 "RPi4 인증 실패 — 두 보드의 SIMPLELAY_LINK_KEY가 같은지
+  확인"으로 두고(`/dev/state real_motion_reason`에도 보인다) 재연결과 같은 늘어나는 간격으로 hello를 다시 보낸다.
+- 재연결은 새 hello = 새 세션이다. RPi4는 세션 전에는 아무것도 보내지 않는다(켜질 때의 자발 알림도).
+- 한쪽만 키가 있으면 링크가 열리지 않는다(fail closed). 두 쪽 다 없으면 종전과 줄까지 같고 시작 때 경고 한 번.
+- 키는 로그·응답·기록에 남기지 않는다. 기밀성(암호화)은 없다 — 프레임 내용은 망에서 보인다.
+
 ### RPi5 → RPi4
 
 ```json

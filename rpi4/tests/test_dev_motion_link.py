@@ -48,8 +48,9 @@ class _Clock:
         return datetime.now(timezone.utc)
 
 
-@pytest.fixture()
-def link():
+@pytest.fixture(params=[None, "pairing-key-for-tests-0123"], ids=["plain", "signed"])
+def link(request):
+    """``signed``: 두 쪽에 같은 짝 키(SIMPLELAY_LINK_KEY, 2026-10-12) — 개발자 조작도 서명된 봉투로 오간다."""
     loop, thread = start_background_loop()
     pipe = InMemoryLinePipe()
     mcu = FakeMcu(pipe, homed=False, z_mode="solenoid", solenoid_on_max_ms=800)
@@ -61,10 +62,10 @@ def link():
         controller = ClosedLoopController(grbl=MockGrblClient(), verifier=MockVerifier(outcomes=[True] * 10),
                                           alerts=MockAlertSink(), safety=MockSafetyController())
         executor = ActExecutor(reader=rpi4_reader, writer=_PipeWriter(loop, rpi5_reader), controller=controller,
-                               dev_motion=DevMotionService(motion))
+                               dev_motion=DevMotionService(motion), link_key=request.param)
         executor.act_info = {"motion": "serial", "outlet": "none", "done_watch": []}
         task = asyncio.create_task(executor.run())
-        client = ActClient(rpi5_reader, _PipeWriter(loop, rpi4_reader), hello=True)
+        client = ActClient(rpi5_reader, _PipeWriter(loop, rpi4_reader), hello=True, link_key=request.param)
         await client.start()
         return executor, task, client
 

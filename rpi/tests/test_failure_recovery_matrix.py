@@ -612,3 +612,72 @@ def test_request_during_release_confirmation_is_refused_not_queued(rig, monkeypa
     # 풀린 뒤에도 거절된 두 요청은 돌지 않는다
     assert _presses(r) == []
     assert r.broker.executes() == []
+
+
+# ── 8. 링크 인증(2026-10-12, 무선 전환 뒤) ─────────────────────────────────────────
+# 운영 공장 두 개(open_uart_act_controller·act_main._run)가 SIMPLELAY_LINK_KEY를 읽는다. RPi5는 공장을 만들 때,
+# RPi4는 _run이 시작할 때 읽으므로 그 사이에 env를 바꾸면 두 보드의 키가 다른 상황이 된다.
+
+LINK_KEY = "pairing-key-for-tests-0123"
+
+
+def test_matching_link_keys_execute_end_to_end_and_survive_a_reconnect(rig):
+    r = rig(SIMPLELAY_LINK_KEY=LINK_KEY)
+    r.start_rpi4()
+    r.wait_ready()
+    job = r.post_execute()
+    assert job.status_code == 200, job.text
+    assert r.wait_job(job.json()["job_id"])["last_outcome"] == "success"
+    assert _presses(r) == BUTTONS
+    assert all("mac" in f for f in r.broker.to_act) and all("mac" in f for f in r.broker.to_hub)
+
+    # 끊긴 뒤 RPi4가 다시 뜨면 새 hello로 새 세션 — 다시 실행된다
+    r.call(r.broker.drop)
+    r.rpi4_tasks[0].result(8.0)
+    r.start_rpi4()
+    r.wait_ready()
+    again = r.post_execute()
+    assert again.status_code == 200, again.text
+    assert r.wait_job(again.json()["job_id"])["last_outcome"] == "success"
+    assert _presses(r, 1) == BUTTONS
+    hellos = [f for f in r.broker.to_act if f.get("type") == "hello"]
+    assert len({h["cn"] for h in hellos}) == len(hellos) >= 2
+
+
+def test_different_link_keys_keep_the_link_down_with_the_auth_reason(rig, monkeypatch):
+    from rpi.services.act_client import ActClient
+
+    monkeypatch.setattr(ActClient, "AUTH_REPLY_TIMEOUT_S", 0.05, raising=False)
+    r = rig(SIMPLELAY_LINK_KEY=LINK_KEY)
+    monkeypatch.setenv("SIMPLELAY_LINK_KEY", "a-different-pairing-key-987")
+    r.start_rpi4()
+    _wait(lambda: "인증 실패" in (r.controller.link_status()["reason"] or ""), what="auth failure reason")
+    assert r.controller.link_status()["link_up"] is False
+    assert r.client.get("/health").json()["actuator_ready"] is False
+    refused = r.post_execute()
+    assert refused.status_code == 412, refused.text
+    time.sleep(0.3)
+    assert r.broker.executes() == [] and _presses(r) == []
+    assert r.broker.to_hub == []  # RPi4는 키가 맞지 않는 hello에 답하지 않는다
+
+
+def test_short_link_key_refuses_to_open_either_side(monkeypatch):
+    import rpi4.act_main as act_main
+    from rpi.services import act_client_controller as acc
+    from rpi.services.link_auth import LinkKeyError
+
+    monkeypatch.setenv("SIMPLELAY_LINK_KEY", "too-short")
+    opened: list = []
+
+    async def open_serial_connection(url, baudrate):
+        opened.append(url)
+        raise AssertionError("must not open the link with a short key")
+
+    fake = types.ModuleType("serial_asyncio")
+    fake.open_serial_connection = open_serial_connection  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "serial_asyncio", fake)
+    with pytest.raises(LinkKeyError):
+        acc.open_uart_act_controller(RPI5_URL, 115200)
+    with pytest.raises(LinkKeyError):
+        asyncio.run(act_main._run())
+    assert opened == []

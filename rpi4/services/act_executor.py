@@ -77,6 +77,7 @@ from rpi.controller import (
     outcome_of,
 )
 from rpi.services.demo_failure import DemoFailureState
+from rpi.services.link_auth import ServerAuth
 from rpi.verifier import DangerSoundResult
 from rpi.verifier.done_fusion import rehearsal_done_event
 
@@ -208,6 +209,7 @@ class ActExecutor:
         outlet_readiness: "Callable[[], str | None] | None" = None,
         target_binder: "TargetBinder | None" = None,
         dev_motion: "DevMotionService | None" = None,
+        link_key: "str | bytes | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -233,11 +235,16 @@ class ActExecutor:
         None이면 컨트롤러에 꽂힌 판정기를 그대로 쓴다(시험·시뮬레이터).
         dev_motion: 개발자 조작(``dev_motion`` 프레임)을 모션 MCU로 넘기는 서비스(선택, 2026-10-10). 실제 모션
         어댑터(serial)일 때만 act_main이 꽂는다 — 있을 때만 ``act_info.dev_motion_protocol``을 알린다.
+        link_key: 짝 키(``SIMPLELAY_LINK_KEY``, 2026-10-12 무선 링크 인증, 16자 이상 — 짧으면 `LinkKeyError`). 주면
+        서명된 hello마다 새 세션을 열고(첫 답 act_info에 ``cn``·``sn``), 그 세션의 서명·``seq``가 맞는 프레임만
+        받는다. 나머지(서명 없음·MAC 틀림·``seq`` 되돌림·이미 쓴 hello)는 답 없이 버린다 — 정지(abort)도 같다.
+        세션 전에는 아무것도 보내지 않는다(켜질 때의 자발 알림도). None이면 종전 그대로.
 
         비상정지 걸림(2026-10-05): 콘센트 모듈의 비상정지(이벤트·ready·status 보고)를 받으면
         ``estop_latched``가 켜지고, RPi5가 ``estop_ack``로 해제를 확인할 때까지 execute·verify_pass를
         ``estop_latched``로 거절한다. 해제 때 모듈 쪽 해제는 ``set_estop_reset``으로 꽂은 함수가 한다
         (버튼이 아직 눌려 있으면 풀지 않는다)."""
+        self._auth = None if link_key is None else ServerAuth(link_key)
         self._reader = reader
         self._writer = writer
         self._controller = controller
@@ -363,6 +370,8 @@ class ActExecutor:
             return
 
         log.debug("RX <- %s", raw)
+        if self._auth is not None and not self._authentic(raw):
+            return  # 답하지 않는다
         msg = parse_act_message(raw)
         if msg is None:
             log.warning("ignored unrecognised line: %.120s", raw)
@@ -601,7 +610,9 @@ class ActExecutor:
     def _write_now(self, doc: dict) -> None:
         """이벤트 루프 스레드에서 한 줄을 즉시 쓰고 drain은 뒤로 미룬다."""
         try:
-            payload = (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
+            payload = self._encode(doc)
+            if payload is None:
+                return
             self._writer.write(payload)
         except Exception:  # noqa: BLE001 - 진행 보고 실패가 실행을 막지 않는다
             log.exception("progress frame write failed")
@@ -1097,7 +1108,30 @@ class ActExecutor:
     # ── IO helper ────────────────────────────────────────────────────────────
 
     async def _send(self, doc: dict) -> None:
-        payload = (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")
+        payload = self._encode(doc)
+        if payload is None:
+            return
         log.debug("TX -> %s", payload.rstrip().decode())
         self._writer.write(payload)
         await self._writer.drain()
+
+    # ── 링크 인증(2026-10-12) ───────────────────────────────────────────────────
+
+    def _authentic(self, raw: str) -> bool:
+        """키가 있을 때: 받은 줄이 올바른 hello이거나 지금 세션의 서명·``seq``가 맞는지."""
+        try:
+            doc = json.loads(raw)
+        except json.JSONDecodeError:
+            return False
+        return isinstance(doc, dict) and self._auth.open(doc) is not None  # type: ignore[union-attr]
+
+    def _encode(self, doc: dict) -> bytes | None:
+        """보낼 줄. 키가 있으면 봉투를 씌우고(서명·``seq``), 세션이 아직 없으면 None(보내지 않는다).
+        이벤트 루프 스레드에서만 부르고 곧바로 쓴다 — ``seq`` 순서가 줄 순서와 같아야 한다."""
+        if self._auth is not None:
+            sealed = self._auth.seal(doc)
+            if sealed is None:
+                log.debug("link auth: no session yet — %s not sent", doc.get("type"))
+                return None
+            doc = sealed
+        return (json.dumps(doc, ensure_ascii=False) + "\n").encode("utf-8")

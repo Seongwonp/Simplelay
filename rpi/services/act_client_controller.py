@@ -224,8 +224,9 @@ class ActClientController:
     # ── 개발자 조작(2026-10-10) ─────────────────────────────────────────────
 
     def dev_motion_link(self) -> dict:
-        """개발자 실물 어댑터가 보는 링크 한 장 ``{"link_up", "act_info", "estop_latched"}`` — 보내지 않고 읽기만."""
+        """개발자 실물 어댑터가 보는 링크 한 장 ``{"link_up", "link_reason", "act_info", "estop_latched"}`` — 읽기만."""
         return {"link_up": bool(getattr(self._client, "link_up", True)),
+                "link_reason": getattr(self._client, "link_down_reason", None),
                 "act_info": dict(getattr(self._client, "act_info", {}) or {}),
                 "estop_latched": getattr(self._client, "estop_latched", None)}
 
@@ -324,6 +325,10 @@ def open_uart_act_controller(
     fake serial_asyncio in test_act_client_reconnect.py."""
     import serial_asyncio  # type: ignore[import-untyped]
 
+    from .link_auth import link_key_from_env
+
+    # 짝 키(2026-10-12 무선 링크 인증). 짧으면 LinkKeyError로 링크를 열지 않는다. 없으면 경고 한 번(인증 없음).
+    link_key = link_key_from_env()
     loop, _thread = start_background_loop()
 
     config = ActClientConfig.from_env()  # 실기기 타이밍 캘리브레이션 반영
@@ -344,10 +349,11 @@ def open_uart_act_controller(
         # 다시 열고 hello로 걸림 상태를 다시 받는다. socket://·/dev/tty* 공통(2026-10-06 교차 리뷰 HIGH).
         client = ActClient(None, None, config=config, on_alert=on_alert, tap=tap,
                            on_appliance_done=on_appliance_done, on_act_info=on_act_info,
-                           hello=True, connector=_connect)
+                           hello=True, connector=_connect, link_key=link_key)
         await client.start()
         return client
 
     client = asyncio.run_coroutine_threadsafe(_open(), loop).result(timeout=10.0)
-    log.info("ActClientController connecting to RPi4 on %s @ %d baud (background, retries until up)", port, baud)
+    log.info("ActClientController connecting to RPi4 on %s @ %d baud (background, retries until up, link auth %s)",
+             port, baud, "on" if link_key is not None else "OFF")
     return ActClientController(loop, client)

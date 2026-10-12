@@ -17,11 +17,14 @@
 # socat이 끝나게 하고, 아래 restart 정책이 다시 세운다.
 # 둘 중 하나(socat·act_main)가 끝나면 컨테이너가 끝나고 restart 정책이 둘 다 다시 세운다
 # — 연결이 끊긴 가상 시리얼을 act_main이 붙잡고 있는 상태를 남기지 않기 위해서다.
+#
+# 링크 인증(2026-10-12): TCP 7000은 같은 망 누구에게나 열려 있다. env 파일에 SIMPLELAY_LINK_KEY(RPi5 env와
+# 같은 값, 16자 이상)를 두면 서명된 프레임만 받는다(docs/protocol.md "링크 인증"). 키가 들어가므로 파일은 600.
 set -e
 LINK=${LINK:-lan}
 DATA_DIR=${DATA_DIR:-/mnt/rawdata/simplelay-act}
 mkdir -p "$DATA_DIR"
-ENV_FILE="$DATA_DIR/env"; [ -f "$ENV_FILE" ] || : > "$ENV_FILE"
+ENV_FILE="$DATA_DIR/env"; [ -f "$ENV_FILE" ] || { : > "$ENV_FILE"; chmod 600 "$ENV_FILE"; }
 
 # env 파일의 KEY=값(마지막 줄이 이긴다). 따옴표는 docker --env-file처럼 그대로 둔다 — 쓰지 않는다.
 env_value() {
