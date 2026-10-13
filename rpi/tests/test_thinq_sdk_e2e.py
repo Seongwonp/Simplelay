@@ -208,6 +208,35 @@ def test_lost_control_response_is_unknown_receipt_and_never_resent(api, cloud):
     assert api.get("/thinq/status/air_purifier").json()["state"]["airFlow"]["windStrength"] == "HIGH"
 
 
+def test_cloud_rejecting_the_control_is_failed_not_success(api, cloud):
+    """제어 실패: 클라우드가 거절하면 실패(실행 안 됨)로, 사람 말 이유와 코드를 남긴다."""
+    device = cloud.device_id("air_purifier")
+    cloud.set_fault("reject_control", device_id=device)
+    status = _command(api, "air_purifier", "set_wind_strength", {"wind_strength": "HIGH"})
+    assert (status["last_status"], status["last_receipt"], status["last_confirmation"]) == (
+        "failed", "accepted", "none")
+    assert "모드" in status["last_detail"] and "실행되지 않았어요" in status["last_detail"]
+    assert cloud.state(device)["airFlow"]["windStrength"] == "LOW"
+    assert len(cloud.controls()) == 1
+
+
+def test_cloud_connection_lost_before_sending_is_not_sent(api, cloud):
+    """연결 끊김: 준비 판정이 캐시로 통과해도, 보내기 전 상태 조회가 끊기면 보내지 않았다고 적는다."""
+    first = _command(api, "air_purifier", "set_wind_strength", {"wind_strength": "MID"})
+    assert first["last_status"] == "succeeded"
+    cloud.stop()  # 클라우드가 사라졌다(인터넷 끊김과 같은 효과)
+    response = api.post("/thinq/command", json={"appliance_id": "air_purifier",
+                                                "action": "set_wind_strength",
+                                                "args": {"wind_strength": "HIGH"}})
+    if response.status_code == 412:  # 준비 판정에서 먼저 걸려도 정직한 결과다
+        assert "연결" in response.text
+        return
+    assert response.status_code == 200, response.text
+    status = _wait_done(api, response.json()["job_id"], timeout=20)
+    assert (status["last_status"], status["last_receipt"]) == ("failed", "not_dispatched")
+    assert "연결" in status["last_detail"]
+
+
 def test_accepted_but_state_never_changes_is_unconfirmed(api, cloud):
     cloud.set_fault("freeze_state", device_id=cloud.device_id("air_purifier"))
     status = _command(api, "air_purifier", "set_wind_strength", {"wind_strength": "HIGH"})

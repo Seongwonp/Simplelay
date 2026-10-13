@@ -18,6 +18,7 @@ ID가 UUID인지). 토큰·API 키 값은 기록하지 않는다.
 - ``offline`` -- 그 기기 조회·제어에 ``NOT_CONNECTED_DEVICE``.
 - ``drop_control_response`` -- 제어를 **받아 상태를 바꾼 뒤** 응답 없이 연결을 끊는다(응답 유실).
 - ``freeze_state`` -- 제어를 접수(성공 응답)하지만 상태는 바꾸지 않는다(접수 후 상태 미확인).
+- ``reject_control`` -- 조회는 되지만 제어는 ``COMMAND_NOT_SUPPORTED_IN_MODE``로 거절(제어 실패).
 
 세탁기는 ``remoteControlEnable.remoteControlEnabled``가 꺼져 있으면(기본 꺼짐) 제어를
 ``COMMAND_NOT_SUPPORTED_IN_REMOTE_OFF``로 거절한다. 프로필에 없는 속성·값도 거절한다.
@@ -65,7 +66,7 @@ GLOBAL_FAULTS = {
     "rate_limit": (429, "EXCEEDED_API_CALLS"),
     "internal_error": (500, "INTERNAL_SERVER_ERROR"),
 }
-DEVICE_FAULTS = ("offline", "drop_control_response", "freeze_state")
+DEVICE_FAULTS = ("offline", "drop_control_response", "freeze_state", "reject_control")
 FAULTS = tuple(GLOBAL_FAULTS) + DEVICE_FAULTS
 
 _PUBLIC_HEADERS = ("x-country", "x-service-phase", "x-conditional-control")
@@ -99,6 +100,7 @@ class FakeThinqCloud:
         self._device_faults: dict[str, str] = {}
         self._server: ThreadingHTTPServer | None = None
         self._thread: threading.Thread | None = None
+        self._connections: set = set()
 
     # ── 수명 ──────────────────────────────────────────────────────────────
     def start(self, host: str = "127.0.0.1", port: int = 0) -> str:
@@ -117,10 +119,26 @@ class FakeThinqCloud:
         return self.base_url
 
     def stop(self) -> None:
+        """닫는다. 열린 연결(keep-alive)도 끊는다 -- 인터넷이 끊긴 것과 같게."""
         if self._server is not None:
             self._server.shutdown()
             self._server.server_close()
             self._server = None
+        with self._lock:
+            connections, self._connections = list(self._connections), set()
+        for conn in connections:
+            try:
+                conn.shutdown(2)
+            except OSError:
+                pass
+            try:
+                conn.close()
+            except OSError:
+                pass
+
+    def _track(self, conn, alive: bool) -> None:
+        with self._lock:
+            (self._connections.add if alive else self._connections.discard)(conn)
 
     @property
     def base_url(self) -> str:
@@ -221,6 +239,8 @@ class FakeThinqCloud:
             with self._lock:
                 return 200, _ok(copy.deepcopy(device["state"]))
         if what == "control" and method == "POST":
+            if device_fault == "reject_control":
+                return 400, _error("COMMAND_NOT_SUPPORTED_IN_MODE", "fake cloud: reject_control")
             return self._control(device_id, device, device_fault, body)
         return 405, _error("BAD_REQUEST", "method")
 
@@ -288,6 +308,16 @@ def _error(name: str, message: str) -> dict:
 class _Handler(BaseHTTPRequestHandler):
     fake: FakeThinqCloud
     protocol_version = "HTTP/1.1"
+
+    def setup(self) -> None:
+        super().setup()
+        self.fake._track(self.connection, True)
+
+    def finish(self) -> None:
+        try:
+            super().finish()
+        finally:
+            self.fake._track(self.connection, False)
 
     def log_message(self, *args) -> None:  # 머리글·토큰이 섞일 수 있는 기본 접근 로그를 끈다
         return

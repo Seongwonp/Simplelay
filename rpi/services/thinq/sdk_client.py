@@ -177,7 +177,7 @@ class SdkThinqClient:
         except (asyncio.TimeoutError, concurrent.futures.TimeoutError, aiohttp.ClientError,
                 ValueError, AttributeError, TypeError):
             reason = ("응답을 받지 못했어요 — 가전이 받았는지 몰라요. 자동으로 다시 보내지 않아요"
-                      if control else "ThinQ 클라우드 응답을 읽지 못했어요")
+                      if control else "ThinQ 클라우드 연결이 끊겼거나 응답을 읽지 못했어요")
             failure = ThinqTransportError(reason, reason=reason)
         raise failure
 
