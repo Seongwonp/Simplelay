@@ -75,7 +75,7 @@ _PATH = re.compile(r"^/devices(?:/([^/]+)/(profile|state|control))?$")
 _WASHER_RUN = {"START": "RUNNING", "STOP": "PAUSE", "POWER_OFF": "POWER_OFF", "WAKE_UP": "INITIAL"}
 
 
-def _default_devices() -> dict[str, dict]:
+def default_devices() -> dict[str, dict]:
     return {
         "fake-ap-0001": {"kind": "air_purifier", "type": "DEVICE_AIR_PURIFIER", "model": "FAKE-AP",
                          "alias": "공기청정기(모의 클라우드)", "profile": air_purifier_profile(),
@@ -93,7 +93,7 @@ class FakeThinqCloud:
     def __init__(self, *, token: str = FAKE_CLOUD_TOKEN, devices: dict[str, dict] | None = None) -> None:
         self._token = token
         self._lock = threading.Lock()
-        self._devices = devices or _default_devices()
+        self._devices = devices or default_devices()
         self._requests: list[dict] = []
         self._global_fault: str | None = None
         self._device_faults: dict[str, str] = {}

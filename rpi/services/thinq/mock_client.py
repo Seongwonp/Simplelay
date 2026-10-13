@@ -3,8 +3,12 @@
 기기 세 대:
 
 - 공기청정기 ``mock-purifier-01`` -- 전원·풍량·운전 모드 쓰기 가능.
-- 세탁기 ``mock-washer-01`` -- **읽기 전용.** ``inject_event("wash_complete")``로
-  세탁 완료를 흉내 낸다(상태 ``runState.currentState`` → ``END``).
+- 세탁기 ``mock-washer-01`` -- 시작·일시정지(``operation.washerOperationMode``, 위치 ``MAIN``).
+  **원격 제어는 기본 꺼짐**(``set_remote_control(True)``로 켠다) -- 꺼져 있으면 제어를 거절한다.
+  ``inject_event("wash_complete")``로 세탁 완료를 흉내 낸다(상태 ``runState.currentState`` → ``END``).
+
+프로필은 ``profiles_sample``의 예시(공개 SDK 형식)이고 ``set_profile``로 바꿀 수 있다 --
+제어는 그 프로필로 검사한다(프로필에 없는 속성·값은 거절).
 - 제습기 ``mock-dehumidifier-01`` -- 전원만 쓰기 가능(2026-09-29, 세탁 완료 시나리오 대상).
 
 주입 가능한 장애(모두 다음 호출 1회에만 걸린다 — 연쇄 장애는 여러 번 주입):
@@ -43,9 +47,7 @@ from datetime import datetime, timezone
 from rpi.controller.models import ExecutionMode
 
 from .bindings import (
-    AIR_PURIFIER_CAPABILITIES,
     AIR_PURIFIER_DEVICE_TYPE,
-    DEHUMIDIFIER_CAPABILITIES,
     DEHUMIDIFIER_DEVICE_TYPE,
     WASHER_DEVICE_TYPE,
 )
@@ -55,6 +57,9 @@ from .client import (
     ThinqOfflineError,
     ThinqTransportError,
 )
+from .errors import API_ERROR_CODES, error_from_api
+from .profile import DeviceProfile
+from .profiles_sample import air_purifier_profile, dehumidifier_profile, washer_profile
 
 #: 지속 장애 모드(G6).
 FAULT_MODES = ("normal", "offline", "unconfirmed", "lost")
@@ -71,15 +76,12 @@ EVENTS = {
 }
 
 
-_CAPABILITIES_BY_DEVICE = {
-    MOCK_PURIFIER_ID: AIR_PURIFIER_CAPABILITIES,
-    MOCK_DEHUMIDIFIER_ID: DEHUMIDIFIER_CAPABILITIES,
-}
+#: 세탁기 운전 명령 → 바뀌는 운전 상태(모의 규칙).
+_WASHER_RUN = {"START": "RUNNING", "STOP": "PAUSE", "POWER_OFF": "POWER_OFF", "WAKE_UP": "INITIAL"}
 
 
-def _allowed_values(device_id: str = MOCK_PURIFIER_ID) -> dict[tuple[str, str], tuple[str, ...]]:
-    caps = _CAPABILITIES_BY_DEVICE.get(device_id, ())
-    return {(c.resource, c.property): c.allowed for c in caps}
+def _api_error(name: str):
+    return error_from_api(API_ERROR_CODES[name], name)
 
 
 class MockThinqClient:
@@ -121,8 +123,14 @@ class MockThinqClient:
                 "airFlow": {"windStrength": "LOW"},
                 "airPurifierJobMode": {"currentJobMode": "CLEAN"},
             },
-            MOCK_WASHER_ID: {"runState": {"currentState": "RUNNING"}},
+            MOCK_WASHER_ID: {"runState": {"currentState": "RUNNING"},
+                             "remoteControlEnable": {"remoteControlEnabled": False}},
             MOCK_DEHUMIDIFIER_ID: {"operation": {"dehumidifierOperationMode": "POWER_OFF"}},
+        }
+        self._profiles = {
+            MOCK_PURIFIER_ID: air_purifier_profile(),
+            MOCK_WASHER_ID: washer_profile(),
+            MOCK_DEHUMIDIFIER_ID: dehumidifier_profile(),
         }
         self._faults: dict[str, str] = {}
         self._device_latency: dict[str, float] = {}
@@ -140,6 +148,19 @@ class MockThinqClient:
             if device_id not in self._devices:
                 raise KeyError(device_id)
             self._device_online[device_id] = online
+
+    def set_profile(self, device_id: str, profile: dict) -> None:
+        """그 기기의 프로필을 바꾼다(모델마다 다른 프로필 흉내)."""
+        with self._lock:
+            if device_id not in self._devices:
+                raise KeyError(device_id)
+            self._profiles[device_id] = copy.deepcopy(profile)
+
+    def set_remote_control(self, enabled: bool) -> None:
+        """세탁기 본체의 원격 제어(원격 시작) 허용 스위치."""
+        with self._lock:
+            self._state[MOCK_WASHER_ID].setdefault("remoteControlEnable", {})[
+                "remoteControlEnabled"] = bool(enabled)
 
     def fail_next_control(self, kind: str | None) -> None:
         if kind not in (None, "reject", "timeout"):
@@ -214,13 +235,21 @@ class MockThinqClient:
                 for d in self._devices.values()
             )
 
+    def get_profile(self, device_id: str) -> dict:
+        self._delay()
+        with self._lock:
+            self._require_cloud()
+            if device_id not in self._devices:
+                raise _api_error("NOT_EXIST_DEVICE")
+            return copy.deepcopy(self._profiles[device_id])
+
     def get_status(self, device_id: str) -> dict:
         self._delay()
         self._device_delay(device_id)
         with self._lock:
             self._require_cloud()
             if device_id not in self._devices:
-                raise ThinqCommandRejected("1222", "unknown device")
+                raise _api_error("NOT_EXIST_DEVICE")
             if not self._device_online[device_id]:
                 raise ThinqOfflineError("기기가 오프라인이에요(모의)")
             self._apply_due_locked(device_id)
@@ -232,15 +261,17 @@ class MockThinqClient:
         with self._lock:
             self._require_cloud()
             if device_id not in self._devices:
-                raise ThinqCommandRejected("1222", "unknown device")
+                raise _api_error("NOT_EXIST_DEVICE")
             if not self._device_online[device_id]:
                 raise ThinqOfflineError("기기가 오프라인이에요(모의)")
             failure, self._next_failure = self._next_failure, None
             if failure == "reject":
-                raise ThinqCommandRejected("2305", "command not supported in mode (mock)")
-            if device_id == MOCK_WASHER_ID:
-                raise ThinqCommandRejected("2201", "read-only device (mock)")
+                raise _api_error("COMMAND_NOT_SUPPORTED_IN_MODE")
             changes = self._validate_locked(device_id, payload)
+            if device_id == MOCK_WASHER_ID:
+                remote = self._state[device_id].get("remoteControlEnable", {}).get("remoteControlEnabled")
+                if remote is not True:
+                    raise _api_error("COMMAND_NOT_SUPPORTED_IN_REMOTE_OFF")
             self.controls.append((device_id, copy.deepcopy(payload)))
             fault = self._faults.get(device_id)
             if fault == "lost":
@@ -258,18 +289,30 @@ class MockThinqClient:
             return {"messageId": f"mock-msg-{next(self._ids)}"}
 
     def _validate_locked(self, device_id: str, payload: dict) -> list[tuple[str, str, str]]:
-        allowed = _allowed_values(device_id)
+        """그 기기 프로필로 검사한다 -- 프로필에 없는 속성·쓰기 아닌 속성·목록 밖 값은 거절."""
+        profile = DeviceProfile(self._profiles[device_id])
         changes = []
-        if not isinstance(payload, dict) or len(payload) != 1:
-            raise ThinqCommandRejected("1101", "payload must hold one resource")
-        for resource, props in payload.items():
+        if not isinstance(payload, dict):
+            raise _api_error("MISSING_PARAMETERS")
+        body = dict(payload)
+        location = None
+        if isinstance(body.get("location"), dict):
+            location = body.pop("location").get("locationName")
+        if len(body) != 1:
+            raise ThinqCommandRejected(API_ERROR_CODES["MISSING_PARAMETERS"],
+                                       "payload must hold one resource")
+        for resource, props in body.items():
             if not isinstance(props, dict) or len(props) != 1:
-                raise ThinqCommandRejected("1101", "resource must hold one property")
+                raise ThinqCommandRejected(API_ERROR_CODES["MISSING_PARAMETERS"],
+                                           "resource must hold one property")
             for prop, value in props.items():
-                values = allowed.get((resource, prop))
-                if values is None or value not in values:
-                    raise ThinqCommandRejected("2305", f"{resource}.{prop}={value!r} not supported")
-                changes.append((resource, prop, value))
+                spec = profile.spec(resource, prop, location=location)
+                if spec is None or not spec.accepts(value):
+                    raise _api_error("NOT_PROVIDED_FEATURE")
+                if device_id == MOCK_WASHER_ID and (resource, prop) == ("operation", "washerOperationMode"):
+                    changes.append(("runState", "currentState", _WASHER_RUN.get(value, value)))
+                else:
+                    changes.append((resource, prop, value))
         return changes
 
     def _apply_due_locked(self, device_id: str) -> None:

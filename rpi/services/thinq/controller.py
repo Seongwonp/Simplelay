@@ -44,7 +44,7 @@ from rpi.commands import (
 )
 from rpi.controller.models import ExecutionMode
 
-from .bindings import CapabilityError, ThinqBinding
+from .bindings import CapabilityError, ThinqBinding, ThinqCapability
 from .client import (
     ThinqClientError,
     ThinqClientPort,
@@ -52,6 +52,10 @@ from .client import (
     ThinqOfflineError,
 )
 from .config import ThinqMode
+from .profile import DeviceProfile, read_state
+
+REMOTE_OFF_REASON = "가전의 원격 제어(원격 시작)가 꺼져 있어요 — 가전 본체에서 원격 제어를 켜 주세요"
+REMOTE_UNKNOWN_REASON = "가전의 원격 제어(원격 시작)가 켜져 있는지 확인하지 못했어요"
 
 
 class CommandController(Protocol):
@@ -162,13 +166,89 @@ class ThinqController:
         if device is None:
             return ThinqReadiness(appliance_id, self.mode.value, True, False, False,
                                   ("ThinQ 계정에서 이 기기를 찾지 못했어요",))
-        if not device.online:
+        online = device.online
+        probe = getattr(self._client, "probe_online", None)
+        if online and probe is not None:
+            # SDK 목록에는 온라인 여부가 없다 -- 상태 조회(짧게 캐시)로 본다.
+            try:
+                online = probe(binding.device_id)
+            except ThinqClientError as exc:
+                return ThinqReadiness(appliance_id, self.mode.value, False, True, False,
+                                      (_reason(exc, "ThinQ 상태를 확인하지 못했어요"),))
+        if not online:
             return ThinqReadiness(appliance_id, self.mode.value, True, True, False,
                                   ("가전이 오프라인이에요 — 전원·Wi-Fi를 확인해 주세요",))
         if binding.read_only:
             return ThinqReadiness(appliance_id, self.mode.value, True, True, True,
                                   ("상태만 읽을 수 있는 가전이에요",), read_only=True)
-        return ThinqReadiness(appliance_id, self.mode.value, True, True, True)
+        reasons = self._setup_reasons(binding)
+        return ThinqReadiness(appliance_id, self.mode.value, True, True, True, reasons)
+
+    def _setup_reasons(self, binding: ThinqBinding) -> tuple[str, ...]:
+        """프로필에서 쓸 수 있는 동작이 하나도 없거나, 원격 제어가 꺼져 있으면 준비 안 됨."""
+        try:
+            profile = self._profile(binding.device_id)
+        except ThinqClientError as exc:
+            return (_reason(exc, "기기 프로필을 읽지 못했어요"),)
+        if profile is not None and not any(
+                self._resolve(profile, cap)[0] is not None for cap in binding.capabilities):
+            return ("이 모델 프로필에서 쓸 수 있는 동작이 없어요 — 프로필을 확인해 주세요",)
+        remote_caps = [c for c in binding.capabilities if c.requires_remote is not None]
+        if not remote_caps:
+            return ()
+        cap = remote_caps[0]
+        try:
+            state = self._status_for_readiness(binding.device_id)
+        except ThinqClientError as exc:
+            return (_reason(exc, "가전 상태를 읽지 못했어요"),)
+        remote = read_state(state, *cap.requires_remote, location=cap.location)
+        if remote is not True:
+            return (REMOTE_OFF_REASON if remote is False else REMOTE_UNKNOWN_REASON,)
+        return ()
+
+    def _status_for_readiness(self, device_id: str):
+        cached = getattr(self._client, "cached_status", None)
+        return cached(device_id) if cached is not None else self._client.get_status(device_id)
+
+    # ── 프로필 ────────────────────────────────────────────────────────────
+    def _profile(self, device_id: str) -> DeviceProfile | None:
+        """기기 프로필. 클라이언트가 프로필을 주지 않으면 None(판정 생략 -- 옛 대역 호환)."""
+        get_profile = getattr(self._client, "get_profile", None)
+        if get_profile is None:
+            return None
+        return DeviceProfile(get_profile(device_id))
+
+    @staticmethod
+    def _resolve(profile: DeviceProfile | None, cap: ThinqCapability):
+        """(쓸 속성 이름, 판정 사양, 거절 이유). 프로필이 없으면 기본 이름을 그대로 쓴다."""
+        if profile is None:
+            return cap.property, None, None
+        key = profile.resolve_key(cap.resource, cap.keys, location=cap.location)
+        if key is None:
+            return None, None, (f"이 모델 프로필에 '{cap.label}' 속성이 없어 보내지 않았어요 "
+                                f"({cap.resource}.{'/'.join(cap.keys)})")
+        spec = profile.spec(cap.resource, key, location=cap.location)
+        if spec is None or not spec.writable:
+            return None, spec, f"이 모델 프로필에서 '{cap.label}'은(는) 쓸 수 없는 속성이라 보내지 않았어요"
+        return key, spec, None
+
+    def profile_support(self, appliance_id: str) -> dict[str, dict]:
+        """동작별로 이 모델 프로필이 허용하는 값(우리 후보 ∩ 프로필 쓰기 값). 프로필 모르면 {}."""
+        binding = self._binding_of(appliance_id)
+        if binding is None:
+            return {}
+        try:
+            profile = self._profile(binding.device_id)
+        except ThinqClientError:
+            return {}
+        if profile is None:
+            return {}
+        support = {}
+        for cap in binding.capabilities:
+            key, spec, _ = self._resolve(profile, cap)
+            allowed = [v for v in cap.allowed if spec is not None and key is not None and spec.accepts(v)]
+            support[cap.action] = {"property": key, "allowed": allowed}
+        return support
 
     # ── 정지 ──────────────────────────────────────────────────────────────
     def reset_stop(self) -> None:
@@ -221,15 +301,48 @@ class ThinqController:
             return self._result(command, failed, not_sent, none, f"보내지 않았어요: {exc}", requested_at)
         target = command.args_dict()[cap.arg]
 
-        # 보내기 전 상태 -- 이미 목표 값이면 나중에 "바뀐 것을 봤다"고 말할 수 없다.
+        # 1) 기기 프로필 -- 그 속성이 있고, 쓰기 모드이고, 그 값을 쓸 수 있을 때만 보낸다.
         try:
-            before = _read(self._client.get_status(binding.device_id), cap.resource, cap.property)
-        except ThinqOfflineError:
+            profile = self._profile(binding.device_id)
+        except ThinqOfflineError as exc:
             return self._result(command, failed, not_sent, none,
-                                "가전·클라우드에 연결되지 않아 보내지 않았어요", requested_at)
+                                _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
         except ThinqClientError as exc:
             return self._result(command, failed, not_sent, none,
-                                f"상태를 읽지 못해 보내지 않았어요 ({type(exc).__name__})", requested_at)
+                                f"기기 프로필을 읽지 못해 보내지 않았어요 — {_reason(exc, type(exc).__name__)}",
+                                requested_at)
+        key, spec, refusal = self._resolve(profile, cap)
+        if refusal is not None:
+            return self._result(command, failed, not_sent, none, refusal, requested_at)
+        if spec is not None and not spec.accepts(target):
+            allowed = [cap.value_label(str(v)) for v in cap.allowed if spec.accepts(v)]
+            return self._result(
+                command, failed, not_sent, none,
+                f"이 모델 프로필은 '{cap.label}' 값 '{cap.value_label(str(target))}'을(를) 허용하지 않아 "
+                f"보내지 않았어요 (허용: {', '.join(allowed) or '없음'})", requested_at)
+        confirm_resource, confirm_prop = cap.confirm or (cap.resource, key)
+        confirmable = True
+        if profile is not None:
+            confirm_spec = profile.spec(confirm_resource, confirm_prop, location=cap.location)
+            confirmable = confirm_spec is not None and confirm_spec.readable
+
+        # 2) 보내기 전 상태 -- 이미 목표 상태면 나중에 "바뀐 것을 봤다"고 말할 수 없다.
+        try:
+            state = self._client.get_status(binding.device_id)
+        except ThinqOfflineError as exc:
+            return self._result(command, failed, not_sent, none,
+                                _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
+        except ThinqClientError as exc:
+            return self._result(command, failed, not_sent, none,
+                                f"상태를 읽지 못해 보내지 않았어요 — {_reason(exc, type(exc).__name__)}",
+                                requested_at)
+        before = read_state(state, confirm_resource, confirm_prop, location=cap.location)
+        if cap.requires_remote is not None:
+            remote = read_state(state, *cap.requires_remote, location=cap.location)
+            if remote is not True:
+                reason = REMOTE_OFF_REASON if remote is False else REMOTE_UNKNOWN_REASON
+                return self._result(command, failed, not_sent, none,
+                                    f"{reason} (보내지 않았어요)", requested_at)
 
         with self._lock:
             if self._cancel:
@@ -238,14 +351,14 @@ class ThinqController:
                                     stop_requested=True)
             self._phase = "dispatched"
         try:
-            response = self._client.post_control(binding.device_id, cap.payload(target))
+            response = self._client.post_control(binding.device_id, cap.payload_for(target, key))
         except ThinqCommandRejected as exc:
             return self._result(command, failed, Receipt.ACCEPTED, none,
-                                f"클라우드가 명령을 거절했어요 (코드 {exc.code}) — 실행되지 않았어요",
-                                requested_at)
-        except ThinqOfflineError:
+                                f"클라우드가 명령을 거절했어요 — {_reason(exc, '거절')} "
+                                f"(코드 {exc.code}) — 실행되지 않았어요", requested_at)
+        except ThinqOfflineError as exc:
             return self._result(command, failed, not_sent, none,
-                                "가전·클라우드에 연결되지 않아 보내지 않았어요", requested_at)
+                                _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
         except Exception:  # noqa: BLE001 -- 전송 중 끊김·응답 유실·모르는 오류
             return self._result(command, CommandStatus.UNCONFIRMED, Receipt.UNKNOWN, none,
                                 "보냈는지 확인하지 못했어요 — 자동으로 다시 보내지 않아요. "
@@ -255,7 +368,12 @@ class ThinqController:
         ref = response.get("messageId") if isinstance(response, dict) else None
         ref = str(ref) if ref else None
 
-        if before == target:
+        if not confirmable:
+            return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
+                                "명령을 보냈어요 — 이 모델 프로필에는 결과를 읽을 상태 칸이 없어 확인할 수 없어요",
+                                requested_at, accepted_at=accepted_at, provider_ref=ref,
+                                stop_requested=self._stop_during_confirm)
+        if cap.confirmed_by(target, before):
             return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
                                 "명령을 보냈어요 — 보내기 전에도 같은 값이라 변경을 확인할 수 없어요",
                                 requested_at, accepted_at=accepted_at, provider_ref=ref,
@@ -271,11 +389,11 @@ class ThinqController:
                                     requested_at, accepted_at=accepted_at, provider_ref=ref,
                                     stop_requested=True)
             try:
-                now_value = _read(self._client.get_status(binding.device_id),
-                                  cap.resource, cap.property)
+                now_value = read_state(self._client.get_status(binding.device_id),
+                                       confirm_resource, confirm_prop, location=cap.location)
             except Exception:  # noqa: BLE001 -- 조회 실패는 확인 못 함일 뿐
                 now_value = None
-            if now_value == target:
+            if now_value is not None and cap.confirmed_by(target, now_value):
                 return self._result(command, CommandStatus.SUCCEEDED, Receipt.ACCEPTED,
                                     Confirmation.STATE_CONFIRMED,
                                     "명령을 보냈고 상태가 바뀐 것을 확인했어요",

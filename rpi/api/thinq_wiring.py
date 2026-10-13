@@ -153,8 +153,10 @@ def build_command_paths(registry):
         appliance = registry.get(appliance_id)
         return appliance.thinq if appliance is not None else None
 
+    # SDK 모드는 조회 한 번이 클라우드 호출 한 번이다 -- 확인 조회 간격을 넓혀 호출 한도를 아낀다.
+    poll = 0.5 if config.mode.uses_sdk else 0.25
     controller = ThinqController(client, binding_of, mode=config.mode,
-                                 confirm_seconds=config.confirm_seconds)
+                                 confirm_seconds=config.confirm_seconds, poll_interval=poll)
     return controller, system
 
 

@@ -127,7 +127,15 @@ def test_binding_rejects_unsupported_action_and_out_of_range_value():
         binding.command("air_purifier", "set_temperature", {"temperature": 20})
     with pytest.raises(CapabilityError):
         binding.command("air_purifier", "set_wind_strength", {"wind_strength": "TURBO"})
-    assert washer_binding("w").read_only
+    # 2026-10-13: 세탁기는 읽기 전용이 아니라 시작·일시정지만 받는다(원격 시작 조건은 실행 직전 검사,
+    # test_thinq_profile_gate). 그 밖의 동작·값은 여전히 거절이다.
+    washer = washer_binding("w")
+    assert not washer.read_only
+    assert [c.action for c in washer.capabilities] == ["set_operation"]
+    with pytest.raises(CapabilityError):
+        washer.command("thinq_washer", "set_operation", {"operation": "POWER_OFF"})
+    with pytest.raises(CapabilityError):
+        washer.command("thinq_washer", "set_power", {"power": "POWER_ON"})
 
 
 # ── 2. ThinQ 실행기: 확인 수준 ────────────────────────────────────────────

@@ -48,10 +48,13 @@ def _reason(exc: Exception, fallback: str) -> str:
     return reason if isinstance(reason, str) and reason else fallback
 
 
-def _capabilities(binding) -> list[dict]:
+def _capabilities(binding, support: dict | None = None) -> list[dict]:
+    """동작 표. ``profile_allowed``는 이 기기 프로필이 실제로 허용하는 값(프로필을 못 읽었으면 None)."""
+    support = support or {}
     return [
         {"action": c.action, "label": c.label, "arg": c.arg, "allowed": list(c.allowed),
-         "value_labels": dict(c.value_labels)}
+         "value_labels": dict(c.value_labels),
+         "profile_allowed": support[c.action]["allowed"] if c.action in support else None}
         for c in binding.capabilities
     ]
 
@@ -70,13 +73,14 @@ async def thinq_devices(service: SimpleLayService = Depends(get_service),
         if appliance.thinq is None:
             continue
         readiness = await asyncio.to_thread(service.thinq_readiness, appliance.appliance_id)
+        support = await asyncio.to_thread(controller.profile_support, appliance.appliance_id)
         appliances.append({
             "appliance_id": appliance.appliance_id,
             "name": appliance.name,
             "device_id": appliance.thinq.device_id,
             "device_type": appliance.thinq.device_type,
             "read_only": appliance.thinq.read_only,
-            "capabilities": _capabilities(appliance.thinq),
+            "capabilities": _capabilities(appliance.thinq, support),
             "functions": [f.purpose for f in appliance.thinq.functions],
             "readiness": readiness.state,
             "readiness_reasons": list(readiness.reasons),
