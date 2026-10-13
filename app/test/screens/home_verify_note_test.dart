@@ -145,11 +145,11 @@ void main() {
 
     expect(_inTile('a', '모의 주행만 확인했어요'), findsOneWidget);
     expect(_inTile('b', '확인 주행을 마치지 못했어요'), findsOneWidget);
-    expect(_inTile('c', '확인 주행 전이에요'), findsOneWidget);
+    expect(_inTile('c', '확인 주행 기록이 없어요'), findsOneWidget);
     for (final t in [
       '모의 주행만 확인했어요',
       '확인 주행을 마치지 못했어요',
-      '확인 주행 전이에요',
+      '확인 주행 기록이 없어요',
       '확인 주행 여부를 확인하지 못했어요',
     ]) {
       expect(_inTile('d', t), findsNothing, reason: '실제 완료는 보조 줄 없음: $t');
@@ -171,7 +171,7 @@ void main() {
     await _settle(tester);
     expect(_inTile('a', '확인 주행 여부를 확인하지 못했어요'), findsOneWidget);
     expect(_inTile('b', '확인 주행 여부를 확인하지 못했어요'), findsOneWidget);
-    expect(find.text('확인 주행 전이에요'), findsNothing);
+    expect(find.text('확인 주행 기록이 없어요'), findsNothing);
   });
 
   testWidgets('위치 미설정·허브 장애 타일에는 보조 줄을 붙이지 않는다', (tester) async {

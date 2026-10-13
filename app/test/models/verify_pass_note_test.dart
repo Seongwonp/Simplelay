@@ -4,7 +4,7 @@
 //   실제(real) 확인 주행 완료 → 없음
 //   모의 확인 주행 완료       → 모의 주행만 확인했어요
 //   실제 확인 주행 실패       → 확인 주행을 마치지 못했어요
-//   서버가 기록 없음을 명시   → 확인 주행 전이에요
+//   서버가 기록 없음을 명시   → 확인 주행 기록이 없어요
 //   조회 실패·로딩·근거 불명  → 확인 주행 여부를 확인하지 못했어요
 // 조회 실패(옛 코드의 null)를 '확인 주행 전'으로 단정하지 않는다.
 import 'dart:convert';
@@ -93,7 +93,7 @@ void main() {
           '확인 주행을 마치지 못했어요');
     });
     test('서버가 기록 없음을 명시', () {
-      expect(_note(const VerifyPassLookup.noRecord()), '확인 주행 전이에요');
+      expect(_note(const VerifyPassLookup.noRecord()), '확인 주행 기록이 없어요');
     });
     test('조회 실패·로딩', () {
       expect(_note(const VerifyPassLookup.unknown()), _unknownText);
@@ -103,7 +103,7 @@ void main() {
   group('근거가 모자라면 단정하지 않는다', () {
     test('조회 실패(옛 null)는 "확인 주행 전"이 아니다', () {
       final n = _note(const VerifyPassLookup.unknown());
-      expect(n, isNot('확인 주행 전이에요'));
+      expect(n, isNot('확인 주행 기록이 없어요'));
       expect(n, _unknownText);
     });
     test('진행 중·실행 모드 모름·모의 실패는 근거 불명', () {

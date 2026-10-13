@@ -176,7 +176,7 @@ TileStatus applianceTileStatus({
 /// | 실제(real) 확인 주행 완료 | 없음(null) |
 /// | 모의 확인 주행 완료 | 모의 주행만 확인했어요 |
 /// | 실제 확인 주행 실패 | 확인 주행을 마치지 못했어요 |
-/// | 서버가 기록 없음을 명시 | 확인 주행 전이에요 |
+/// | 서버가 기록 없음을 명시 | 확인 주행 기록이 없어요 |
 /// | 조회 실패·로딩·근거 불명(진행 중·실행 모드 모름·모의 실패 포함) | 확인 주행 여부를 확인하지 못했어요 |
 ///
 /// 붙이지 않는 타일(null): 확인 주행이 없는 가전(내장·ThinQ·데모), 위치를 아직
@@ -195,7 +195,7 @@ String? verifyPassTileNote({
   const unknown = '확인 주행 여부를 확인하지 못했어요';
   switch (lookup.kind) {
     case VerifyPassLookupKind.noRecord:
-      return '확인 주행 전이에요';
+      return '확인 주행 기록이 없어요';
     case VerifyPassLookupKind.unknown:
       return unknown;
     case VerifyPassLookupKind.found:
