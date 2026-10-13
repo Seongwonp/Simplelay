@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/command_result.dart';
 
 void main() {
-  test('모의 실행의 state_confirmed는 모의 상태 확인이다', () {
+  test('모의 실행의 state_confirmed는 연습 상태 확인이다', () {
     expect(
         confirmationLabel(
             route: 'thinq',
@@ -12,7 +12,7 @@ void main() {
             confirmation: 'state_confirmed',
             kind: ResultKind.success,
             executionMode: 'mock'),
-        '모의 상태 확인');
+        '연습 상태 확인');
   });
 
   test('실제·미확인 실행은 상태 확인됨 그대로', () {

@@ -62,24 +62,27 @@ class ScenarioRunStep {
 ///
 /// 확인 수준은 한 줄 요약과 **같은 규칙**(`confirmationLabel`)으로 말한다 --
 /// 서버가 확인하지 못한 단계를 여기서 확인됨으로 올리지 않는다.
+///
+/// 실행 환경은 연습(mock)일 때만 말한다 — 실제·모름에 "실제 장치로 실행"·"실행 환경 미확인"을
+/// 붙이지 않는다(2026-10-14 문구 정리). 멈춘 단계(정지·안전 정지)에는 "눌렸는지 확인 못 했어요"를
+/// 덧붙이지 않는다 — 멈춘 원인은 위에서 이미 말했다.
 String runStepFacts(ScenarioRunStep step) {
   final kind = resultKindOf(status: step.status);
+  final halted =
+      kind == ResultKind.stopped || kind == ResultKind.safetyStop;
+  final confirmation = confirmationLabel(
+    route: step.route,
+    receipt: step.receipt,
+    confirmation: step.confirmation,
+    kind: kind,
+    executionMode: step.executionMode,
+  );
   return [
-    routeLabel(step.route) ?? step.route,
-    switch (step.executionMode) {
-      'mock' => '모의 실행',
-      'real' => '실제 장치로 실행',
-      _ => '실행 환경 미확인',
-    },
-    if (confirmationLabel(
-      route: step.route,
-      receipt: step.receipt,
-      confirmation: step.confirmation,
-      kind: kind,
-      executionMode: step.executionMode,
-    )
-        case final c?)
-      c,
+    if (routeLabel(step.route) case final r?) r,
+    if (step.executionMode == 'mock') '연습 모드',
+    if (confirmation != null &&
+        !(halted && step.confirmation == 'none' && step.receipt != 'not_dispatched'))
+      confirmation,
     resultWord(kind),
   ].join(' · ');
 }

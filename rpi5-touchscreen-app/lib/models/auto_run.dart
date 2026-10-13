@@ -48,7 +48,7 @@ class KioskAutoRun {
   }
 }
 
-/// 한 줄 알림 — 실제 결과 그대로 짧게. 모의면 같은 줄 안에 모의 표시.
+/// 한 줄 알림 — 실제 결과 그대로 짧게. 모의면 같은 줄 끝에 "연습 모드"(2026-10-14 문구 정리).
 ///
 /// - 상태 재조회로 확인: "공기청정기 풍량을 강으로 바꿨어요"
 /// - 결과 미확인: "공기청정기 설정이 바뀌었는지 확인하지 못했어요"
@@ -56,7 +56,7 @@ String autoRunNotice(KioskAutoRun run) {
   final target = (run.targetName == null || run.targetName!.trim().isEmpty)
       ? '가전'
       : run.targetName!.trim();
-  final mock = run.executionMode == 'mock' ? ' · 모의 실행(실제 조작 아님)' : '';
+  final mock = run.executionMode == 'mock' ? ' · 연습 모드' : '';
   if (run.outcome == 'blocked') {
     return '$target 자동 실행을 보내지 않았어요$mock';
   }

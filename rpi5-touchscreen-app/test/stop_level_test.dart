@@ -28,9 +28,9 @@ KioskDoneView _stopped({String? level, int? ackMs}) => KioskDoneView(
 void main() {
   test('정지 단계 문장 — 보냄은 확인이라고 하지 않는다', () {
     expect(stopLevelSentence('sent'), '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요');
-    expect(stopLevelSentence('mcu_ack', ackMs: 12), '모션 보드가 정지를 확인했어요 (12 ms)');
-    expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요 (모션 보드 응답 9 ms)');
-    // ms는 보낸 뒤 모션 보드 응답까지다 — 멈춤 확인까지 걸린 시간으로 읽히지 않게(1차 평가 L2, 폰과 같은 문장).
+    expect(stopLevelSentence('mcu_ack', ackMs: 12), '정지 신호가 전달됐어요');
+    expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요');
+    // 응답 시간(ms)은 사용자 화면에 싣지 않는다(2026-10-14 문구 정리). 세 단계는 서로 다른 말로 남는다.
     expect(stopLevelSentence('verified'), '멈춘 것을 확인했어요');
     expect(stopLevelSentence(null), isNull);
     expect(stopLevelSentence('stopped_for_sure'), isNull);
@@ -58,21 +58,23 @@ void main() {
     expect(find.byIcon(Icons.help_outline), findsOneWidget);
   });
 
-  testWidgets('멈춘 실행 화면 — 모션 보드 확인은 지연과 함께', (tester) async {
+  testWidgets('멈춘 실행 화면 — 모션 보드 확인은 ms 없이 "정지 신호가 전달됐어요"', (tester) async {
     await tester.pumpWidget(_wrap(_stopped(level: 'mcu_ack', ackMs: 12)));
-    expect(find.text('모션 보드가 정지를 확인했어요 (12 ms)'), findsOneWidget);
+    expect(find.text('정지 신호가 전달됐어요'), findsOneWidget);
+    expect(find.textContaining('ms'), findsNothing);
     expect(find.byIcon(Icons.verified_outlined), findsOneWidget);
   });
 
   testWidgets('멈춘 실행 화면 — 멈춤 확인', (tester) async {
     await tester.pumpWidget(_wrap(_stopped(level: 'verified', ackMs: 9)));
-    expect(find.text('멈춘 것을 확인했어요 (모션 보드 응답 9 ms)'), findsOneWidget);
+    expect(find.text('멈춘 것을 확인했어요'), findsOneWidget);
+    expect(find.textContaining('ms'), findsNothing);
   });
 
   testWidgets('단계가 없으면 정지 줄을 그리지 않는다(종전 화면)', (tester) async {
     await tester.pumpWidget(_wrap(_stopped()));
     expect(find.textContaining('정지 명령을 보냈어요'), findsNothing);
-    expect(find.textContaining('정지를 확인했어요'), findsNothing);
+    expect(find.textContaining('정지 신호가 전달됐어요'), findsNothing);
     expect(find.text('실행을 멈췄어요'), findsOneWidget);
   });
 
@@ -84,6 +86,6 @@ void main() {
       stopLevel: 'mcu_ack',
       stopAckMs: 5,
     )));
-    expect(find.textContaining('모션 보드가 정지를 확인했어요'), findsNothing);
+    expect(find.textContaining('정지 신호가 전달됐어요'), findsNothing);
   });
 }

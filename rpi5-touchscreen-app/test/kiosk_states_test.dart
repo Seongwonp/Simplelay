@@ -408,7 +408,7 @@ void main() {
       expect(find.text('남은 시간을 아직 알 수 없어요'), findsOneWidget);
       expect(find.textContaining(RegExp(r'\d+:\d\d')), findsNothing);
       // 모의를 실물처럼 보이지 않는다
-      expect(find.text('연습 모드 · 실제 가전 아님'), findsOneWidget);
+      expect(find.text('연습 모드'), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('hold-stop')));
       await tester.pump();

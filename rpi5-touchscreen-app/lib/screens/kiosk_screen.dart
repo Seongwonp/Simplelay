@@ -537,7 +537,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _trackStrip(st);
       _trackEstop(st);
       if (st.running && st.jobId != null) {
-        _toExecuting(st.currentButton ?? '실행',
+        _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
             applianceId: st.applianceId, jobId: st.jobId);
         return;
       }
@@ -715,7 +715,7 @@ class _KioskScreenState extends State<KioskScreen> {
     }
     _seenLastJobId = last;
     if (st.lastAutoRun?.jobId == last) return false;
-    _toExecuting('실행', applianceId: st.lastApplianceId, jobId: last);
+    _toExecuting(_nameOf(st.lastApplianceId), applianceId: st.lastApplianceId, jobId: last);
     _completeFromStatus(st, last);
     return true;
   }
@@ -728,7 +728,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (!mounted || _phase != KioskPhase.done) return;
       _trackAutoRun(st);
       if (st.running && st.jobId != null && st.jobId != _activeJobId) {
-        _toExecuting(st.currentButton ?? '실행',
+        _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
             applianceId: st.applianceId, jobId: st.jobId);
         return;
       }
@@ -833,7 +833,7 @@ class _KioskScreenState extends State<KioskScreen> {
       // 폰이 새 실행을 시작했다 — 그 실행을 따라간다.
       if (st.running && st.jobId != null) {
         _holdReturnTimer?.cancel();
-        _toExecuting(st.currentButton ?? '실행',
+        _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
             applianceId: st.applianceId, jobId: st.jobId);
         return;
       }
@@ -917,6 +917,11 @@ class _KioskScreenState extends State<KioskScreen> {
     }
     return null;
   }
+
+  /// 이어받은 실행의 이름 — 가전 이름, 모르면 빈 문자열(2026-10-14). 예전에는 '실행'으로 메워
+  /// "실행 — 다시 누르지 않았어요"가 됐다. 빈 이름이면 완료 화면·음성이 이름 머리를 붙이지 않는다.
+  String _nameOf(String? applianceId) =>
+      applianceId == null ? '' : (_findIn(_appliances, applianceId)?.name ?? '');
 
   Future<void> _fetchAppliances() async {
     final list = await _api.listAppliances();
@@ -1151,26 +1156,28 @@ class _KioskScreenState extends State<KioskScreen> {
   }) {
     // 실행 결과 음성 안내. '서버 응답 없음'은 라벨이 아니라 오류 상황이라
     // 문장을 따로 쓴다 ("서버 응답 없음, 실행하지 못했어요"는 어색).
+    // 이름을 모르면(빈 문자열) 이름 머리 없이 말한다(2026-10-14).
+    final lead = label.isEmpty ? '' : '$label, ';
     _tts.speak(
       // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
       // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
-          ? '$label, ${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute)}'
+          ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute)}'
           : switch (reason) {
               KioskFailureReason.serverLost =>
                 '실행 상태를 확인할 수 없어요. 가전 상태를 직접 확인해 주세요.',
               KioskFailureReason.stopped =>
-                '실행을 멈췄어요. 장치가 완전히 멈췄는지 확인해 주세요.',
+                '실행을 멈췄어요. 기계가 멈췄는지 한 번 봐 주세요.',
               KioskFailureReason.safetyStop =>
-                '$label, ${finishedMessage(kind: ResultKind.safetyStop, abortReason: _doneAbortReason)}',
+                '$lead${finishedMessage(kind: ResultKind.safetyStop, abortReason: _doneAbortReason)}',
               KioskFailureReason.unconfirmed =>
-                '$label, ${unconfirmedSentence()}',
+                '$lead${unconfirmedSentence()}',
               KioskFailureReason.receiptUnknown =>
-                '$label, ${unconfirmedSentence(receipt: 'unknown')}',
+                '$lead${unconfirmedSentence(receipt: 'unknown')}',
               KioskFailureReason.notExecuted =>
-                '$label, 명령이 실행되지 않았어요. 화면을 확인해 주세요.',
+                '$lead명령이 실행되지 않았어요. 화면을 확인해 주세요.',
               KioskFailureReason.execution =>
-                '$label, 실행하지 못했어요. 화면을 확인해 주세요.',
+                '$lead실행하지 못했어요. 화면을 확인해 주세요.',
             },
     );
     setState(() {

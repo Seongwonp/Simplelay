@@ -7,8 +7,7 @@ import '../../theme/kiosk_colors.dart';
 ///
 /// 정상이면 회색 아이콘뿐이다. 문제가 생기면 그 아이콘이 노란색이 되고 "!" 배지가
 /// 붙는다. 누르면 [KioskConnectionModal]이 무엇이 안 되는지와 해결 방법을 말한다.
-/// 설치 안 됨(플러그가 아직 없음)은 문제가 아니라 배지를 붙이지 않고 흐린 모양만
-/// 바꾼다 — 누르면 설명은 열린다.
+/// 설치 안 됨(플러그가 아직 없음)은 문제가 아니라 아이콘 자체를 그리지 않는다(2026-10-14).
 class KioskConnectionIcons extends StatelessWidget {
   const KioskConnectionIcons({
     super.key,
@@ -19,11 +18,16 @@ class KioskConnectionIcons extends StatelessWidget {
   final List<ConnectionItem> items;
   final ValueChanged<ConnectionItem> onOpen;
 
+  /// 설치되지 않은 플러그(콘센트 모듈)는 그리지 않는다(2026-10-14) — 줄 그은 플러그가 늘 떠 있어
+  /// 고장처럼 보였다. 없는 장치는 문제가 아니다.
+  static bool _shown(ConnectionItem item) =>
+      !(item.id == 'plug' && item.state == 'not_installed');
+
   @override
   Widget build(BuildContext context) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final item in items)
+          for (final item in items.where(_shown))
             Padding(
               padding: const EdgeInsets.only(left: 4),
               child: _ConnectionIcon(item: item, onTap: () => onOpen(item)),

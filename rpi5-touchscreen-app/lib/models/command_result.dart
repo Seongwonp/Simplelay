@@ -65,8 +65,10 @@ String resultWord(ResultKind kind) => switch (kind) {
     };
 
 /// 제어 경로 배지. 모르면 null(말하지 않는다).
+///
+/// 물리 경로는 배지를 달지 않는다 — "물리 버튼"은 시스템 말이고, 버튼을 대신
+/// 누르는 것은 이 제품의 기본 동작이다(2026-10-14 문구 정리, 폰 10/13과 같은 방향).
 String? routeLabel(String? route) => switch (route) {
-      'physical' => '물리 버튼',
       'thinq' => 'ThinQ',
       _ => null,
     };
@@ -85,7 +87,7 @@ String? confirmationLabel({
   // 모의가 앞선다 — 모의 상태를 읽은 것을 실제 가전 상태 확인으로 말하지
   // 않는다(10/6 Copilot 리뷰 66990be).
   if (confirmation == 'state_confirmed') {
-    return executionMode == 'mock' ? '모의 상태 확인' : '상태 확인됨';
+    return executionMode == 'mock' ? '연습 상태 확인' : '상태 확인됨';
   }
   if (route == 'thinq') {
     if (receipt == 'not_dispatched') return '보내지 않음';
@@ -95,14 +97,20 @@ String? confirmationLabel({
     }
     return null;
   }
+  // 누름 장치에 보내지도 않은 단계는 '확인 못 함'이 아니라 누르지 않은 것이다(2026-10-14).
+  if (receipt == 'not_dispatched' &&
+      (confirmation == null || confirmation == 'none')) {
+    return '누르지 않음';
+  }
   // 모의 실행의 근거는 모의 실행기가 낸 것이다 — 누름 장치·가전이 응답했다고
-  // 말하지 않는다(10/6 S11 실패널).
+  // 말하지 않는다(10/6 S11 실패널). 시스템 말("모의 실행기 응답"·"확인 근거 없음")
+  // 대신 사람 말로 하되, 연습이라는 사실은 남긴다(2026-10-14, 폰 10/13과 같은 방향).
   if (executionMode == 'mock') {
     return switch (confirmation) {
-      'operation_confirmed' => '모의 동작 확인',
-      'press_confirmed' => '모의 눌림 확인',
-      'reported' => '모의 실행기 응답',
-      'none' => '확인 근거 없음',
+      'operation_confirmed' => '연습 동작 확인',
+      'press_confirmed' => '연습 눌림 확인',
+      'reported' => '연습 결과',
+      'none' => '눌렸는지 확인 못 했어요',
       _ => null,
     };
   }
@@ -110,7 +118,7 @@ String? confirmationLabel({
     'operation_confirmed' => '켜진 것을 확인했어요',
     'press_confirmed' => '버튼을 눌렀어요',
     'reported' => '누름 장치의 응답을 받았어요',
-    'none' => '확인 근거 없음',
+    'none' => '눌렸는지 확인 못 했어요',
     _ => null,
   };
 }
@@ -125,15 +133,12 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
 /// 모르는 값·단계 없음은 null — 화면은 종전대로 그린다(단계를 지어내지 않는다).
 ///
-/// `ackMs`는 정지를 보낸 뒤 **모션 보드 응답까지**다(멈춤 확인까지가 아니다). 그래서 `verified`는
-/// 폰과 같이 "(모션 보드 응답 n ms)"로 밝힌다(1차 평가 L2 잔여, 2026-10-13).
+/// 세 단계는 서로 다른 말로 남긴다. [ackMs](보낸 뒤 모션 보드 응답까지)는 사용자 화면에 싣지 않는다
+/// (2026-10-14 문구 정리 — 사용자에게는 뜻이 없는 수치다). 인자는 호출 자리를 바꾸지 않으려고 둔다.
 String? stopLevelSentence(String? level, {int? ackMs}) {
-  final ms = ackMs == null ? '' : ' ($ackMs ms)';
   return switch (level) {
-    'verified' => ackMs == null
-        ? '멈춘 것을 확인했어요'
-        : '멈춘 것을 확인했어요 (모션 보드 응답 $ackMs ms)',
-    'mcu_ack' => '모션 보드가 정지를 확인했어요$ms',
+    'verified' => '멈춘 것을 확인했어요',
+    'mcu_ack' => '정지 신호가 전달됐어요',
     'sent' => '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요',
     _ => null,
   };
@@ -159,11 +164,11 @@ String finishedMessage({
     case ResultKind.success:
       if (thinq) {
         return executionMode == 'mock'
-            ? '모의 ThinQ 명령을 보내고 모의 상태를 확인했어요. 실제 가전은 조작하지 않았어요.'
+            ? '연습으로 명령을 보내고 상태를 확인했어요. 실제 가전은 조작하지 않았어요.'
             : '명령을 보냈고 가전 상태를 확인했어요.';
       }
       return executionMode == 'mock'
-          ? '모의 버튼 조작을 마쳤어요. 실제 조작은 하지 않았어요.'
+          ? '연습으로 버튼 조작을 마쳤어요. 실제로 누르지는 않았어요.'
           : executionMode == 'real'
               ? '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.'
               : '누름 장치가 응답했어요. 실제로 눌렀는지 가전을 확인해 주세요.';
@@ -172,7 +177,7 @@ String finishedMessage({
     case ResultKind.stopped:
       // 서버가 확인한 것은 실행 루프 종료까지다. 가전 쪽 장치가 멈췄는지는
       // 사람이 본다(물리 정지 확인은 실측 대기).
-      return '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.';
+      return '실행을 멈췄어요. 기계가 멈췄는지 한 번 봐 주세요.';
     case ResultKind.safetyStop:
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
       final motion = motionAbortSentence(abortReason);

@@ -88,11 +88,11 @@ class KioskHoldView extends StatelessWidget {
     // 외부 평가 2026-10-13 M5: 출처가 real일 때만 확인이라고 말한다. 모의 실행·모의 입력은 연습 값,
     // 출처를 모르면 단정하지 않는다.
     if (executionMode == 'mock' || operationSource == 'mock') {
-      return '연습용 전력 값이에요 · 실제 동작 확인 아님';
+      return '연습용 전력 값이에요';
     }
     return operationSource == 'real'
         ? '전력으로 가전 동작을 확인했어요'
-        : '전력 판정의 근거를 몰라요 · 가전을 확인해 주세요';
+        : '가전이 켜졌는지는 직접 봐 주세요';
   }
 
   @override
@@ -154,11 +154,9 @@ class KioskHoldView extends StatelessWidget {
         ),
     ];
 
-    final modeChip = switch (executionMode) {
-      'mock' => '연습 모드 · 실제 가전 아님',
-      'real' => null,
-      _ => '실행 환경을 확인하지 못했어요',
-    };
+    // 연습일 때만 표시한다(2026-10-14 문구 정리) — 실제·모름에는 머리 표시를 달지 않는다.
+    // 모름에서 실제 동작을 단정하지 않는 것은 아래 근거 줄의 몫이다.
+    final modeChip = executionMode == 'mock' ? '연습 모드' : null;
 
     return ColoredBox(
       color: KioskColors.bg,

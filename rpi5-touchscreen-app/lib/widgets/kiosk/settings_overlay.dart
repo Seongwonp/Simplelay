@@ -247,7 +247,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           _toggleRow(
             icon: Icons.record_voice_over,
             title: '음성 안내',
-            subtitle: '제안·실행 결과·위험 경보를 소리로 읽어줍니다',
+            subtitle: '제안·실행 결과·위험 경보를 소리로 읽어 줘요',
             value: widget.ttsEnabled,
             onChanged: widget.onTtsChanged,
           ),

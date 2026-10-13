@@ -33,7 +33,7 @@ void main() {
           home: MediaQuery(data: MediaQueryData(textScaler: TextScaler.linear(scale)), child: Scaffold(body: view))));
         await tester.pump(const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull);
-        expect(find.text('모의 실행 · 실제 조작 아님'), findsOneWidget);
+        expect(find.text('연습 모드'), findsOneWidget);
         await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/provenance_${done ? "done" : "running"}_$scale.png'));
       });
     }

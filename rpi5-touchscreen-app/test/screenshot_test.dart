@@ -740,4 +740,41 @@ void main() {
       ),
     );
   });
+
+  // 2026-10-14 문구 정리: 사용자가 멈춘 실행은 실패가 아니다 — 손 아이콘·차분한 색, 닫기가 먼저.
+  testWidgets('완료 — 사용자 정지', (t) async {
+    await _shoot(
+      t,
+      'done_user_stop',
+      KioskDoneView(
+        success: false,
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        reason: KioskFailureReason.stopped,
+        stopLevel: 'verified',
+        stopAckMs: 9,
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
+    );
+  });
+
+  testWidgets('완료 — 사용자 정지, 큰 글씨', (t) async {
+    await _shoot(
+      t,
+      'done_user_stop_large',
+      KioskDoneView(
+        success: false,
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        reason: KioskFailureReason.stopped,
+        stopLevel: 'sent',
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
+      textScale: 1.22,
+    );
+  });
 }

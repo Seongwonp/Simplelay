@@ -74,10 +74,14 @@ void main() {
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 23)), '편안한 밤 보내세요.');
   });
 
-  testWidgets('설정을 여는 방법을 글자로 말한다', (tester) async {
-    // 톱니바퀴만 있으면 짧게 눌러 보고 안 열리면 고장으로 여긴다.
+  testWidgets('설정은 한 번 누르는 톱니 단추 — 읽는 이름은 "설정"', (tester) async {
+    // 길게 누르기가 아니라 한 번 누르면 열린다. 글자 알약은 화면에서 가장 밝아 시선을 빼앗아(2026-10-14)
+    // 회색 아이콘으로 바꿨다 — 스크린리더·길게 누르기 도움말로는 '설정'이라고 말한다.
+    final semantics = tester.ensureSemantics();
     await _pump(tester);
-    expect(find.text('설정'), findsOneWidget);
+    expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
+    expect(find.bySemanticsLabel('설정'), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('서버 목록을 못 봤으면 가전을 세우지 않는다', (tester) async {

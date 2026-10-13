@@ -59,7 +59,7 @@ class KioskIdleView extends StatelessWidget {
   /// 위 줄의 방해 금지 단추(꺼짐)·칩(켜짐)을 누르면 방해 금지 선택을 연다.
   final VoidCallback onDndGesture;
 
-  /// 가운데 위 설정 단추를 2초간 길게 누르면 설정 오버레이를 연다.
+  /// 위 줄의 설정 단추(톱니바퀴)를 한 번 누르면 설정 오버레이를 연다.
   final VoidCallback? onSettingsGesture;
 
   String get _dateStr {
@@ -134,12 +134,16 @@ class KioskIdleView extends StatelessWidget {
             Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
               child: Text(_dateStr, maxLines: 1, softWrap: false,
                 style: const TextStyle(fontSize: _Idle.topText, color: KioskColors.muted)))),
-            OutlinedButton.icon(key: const ValueKey('settings-entry'),
-              onPressed: onSettingsGesture,
-              // 글자는 줄여도 누르는 자리는 48px 이상.
-              style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
-              icon: const Icon(Icons.settings_outlined),
-              label: const Text('설정', style: TextStyle(fontSize: _Idle.topText))),
+            // 설정은 자주 쓰지 않는다 — 금색 글자 알약이 화면에서 가장 밝아 시선을 빼앗았다(2026-10-14).
+            // 회색 톱니 아이콘 단추로 두되, 누르는 자리는 48px 이상·읽는 이름은 '설정'.
+            Semantics(button: true, label: '설정', excludeSemantics: true, onTap: onSettingsGesture,
+              child: IconButton(key: const ValueKey('settings-entry'),
+                onPressed: onSettingsGesture,
+                tooltip: '설정',
+                constraints: const BoxConstraints(minWidth: 56, minHeight: 56),
+                color: KioskColors.muted,
+                iconSize: 30,
+                icon: const Icon(Icons.settings_outlined))),
             const SizedBox(width: 8),
             _DndEntry(remaining: dnd == null ? null : _dndRemaining(dnd), onTap: onDndGesture),
             KioskConnectionIcons(items: connections, onOpen: onOpenConnection),

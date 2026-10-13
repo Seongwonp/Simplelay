@@ -207,8 +207,8 @@ void main() {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       await _pump(tester, _hold(), scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
-      _expectFullyVisible(tester, find.text('연습 모드 · 실제 가전 아님'));
-      _expectFullyVisible(tester, find.text('연습용 전력 값이에요 · 실제 동작 확인 아님'));
+      _expectFullyVisible(tester, find.text('연습 모드'));
+      _expectFullyVisible(tester, find.text('연습용 전력 값이에요'));
       _expectFullyVisible(tester, find.text('정지'));
       // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리).
       _expectFullyVisible(tester, find.text('정지 요청을 보냈어요'));

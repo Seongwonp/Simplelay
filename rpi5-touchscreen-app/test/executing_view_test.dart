@@ -208,7 +208,7 @@ void main() {
     );
   });
 
-  testWidgets('real 실행 표시는 환경만 말하고 실기기 검증처럼 읽히지 않는다',
+  testWidgets('real 실행에는 머리 표시를 달지 않고 실기기 검증처럼 읽히지 않는다',
       (tester) async {
     tester.view.physicalSize = const Size(800, 480);
     tester.view.devicePixelRatio = 1.0;
@@ -229,7 +229,9 @@ void main() {
       ),
     ));
 
-    expect(find.text('실제 장치로 실행'), findsOneWidget);
+    // 실제 실행은 평소라 따로 말하지 않는다(2026-10-14). 연습일 때만 '연습 모드'.
+    expect(find.text('실제 장치로 실행'), findsNothing);
+    expect(find.text('연습 모드'), findsNothing);
     expect(find.textContaining('실기기'), findsNothing);
   });
 }

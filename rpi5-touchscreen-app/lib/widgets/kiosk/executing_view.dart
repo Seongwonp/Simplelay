@@ -31,8 +31,9 @@ class KioskExecutingView extends StatelessWidget {
   });
 
   final String executionMode;
-  String get modeLabel => executionMode == 'mock' ? '모의 실행 · 실제 조작 아님'
-      : executionMode == 'real' ? '실제 장치로 실행' : '실행 환경 미확인';
+
+  /// 연습(mock)일 때만 "연습 모드". 실제·모름은 머리 표시를 달지 않는다(2026-10-14 문구 정리).
+  String? get modeLabel => executionMode == 'mock' ? '연습 모드' : null;
 
   final String title;
 
@@ -109,14 +110,18 @@ class KioskExecutingView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(modeLabel, style: const TextStyle(fontSize: 18, color: KioskColors.warning)),
+                if (modeLabel case final m?)
+                  Text(m, style: const TextStyle(fontSize: 18, color: KioskColors.warning)),
                 if (target != null) ...[
                   KioskTargetLine(appliance: target),
                   const SizedBox(height: 6),
                 ],
                 // 목적(무엇을 하려고)은 보조로. 버튼 하나를 누르는 실행이면
                 // 제목과 버튼이 같으니 되풀이하지 않는다.
-                if (title.isNotEmpty && title != currentButton)
+                // 이어받은 실행은 제목이 가전 이름일 수 있다 — 위 대상 줄과 같은 말이면 쓰지 않는다.
+                if (title.isNotEmpty &&
+                    title != currentButton &&
+                    title != target?.name)
                   Text(
                     title,
                     style: const TextStyle(
