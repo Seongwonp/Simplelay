@@ -83,7 +83,8 @@ final estopPollIntervalProvider =
     Provider<Duration?>((_) => const Duration(seconds: 5));
 
 class EstopNotifier extends StateNotifier<EstopState> {
-  EstopNotifier(this._api, {Duration? pollInterval}) : super(const EstopState()) {
+  EstopNotifier(this._api, {Duration? pollInterval, this.onPoll})
+      : super(const EstopState()) {
     if (_api == null) return;
     refresh();
     if (pollInterval != null) {
@@ -92,6 +93,10 @@ class EstopNotifier extends StateNotifier<EstopState> {
   }
 
   final RpiApiService? _api;
+
+  /// 조회마다 허브에 닿았는지 알린다(평가 M2) — 연결 상태가 허브 전원 끊김·복구를 따라오게.
+  /// 허브가 오류 코드로 답한 것(RpiApiException)은 닿은 것이다.
+  final void Function(bool reachable)? onPoll;
   Timer? _timer;
   bool _inFlight = false;
 
@@ -106,6 +111,7 @@ class EstopNotifier extends StateNotifier<EstopState> {
     try {
       final hub = await api.hubStatus();
       if (!mounted) return;
+      onPoll?.call(true);
       final next = hub.estopLatched
           ? state.copyWith(latched: true, detail: hub.estopDetail, clearDetail: hub.estopDetail == null)
           : state.copyWith(latched: false, clearDetail: true, clearMessage: true);
@@ -118,7 +124,11 @@ class EstopNotifier extends StateNotifier<EstopState> {
           hubJobId: hub.jobId,
           hubLastJobId: hub.lastJobId,
           localGate: hub.localGate);
-    } catch (_) {
+    } catch (e) {
+      // 허브가 답했으면(오류 코드·해석 실패) 닿은 것, 키 거절(401)은 연결 판정에 맡기고 알리지 않는다.
+      if (mounted && !(e is RpiApiException && e.statusCode == 401)) {
+        onPoll?.call(e is RpiApiException || e is FormatException);
+      }
       // 걸림은 모름 — 그대로 둔다(위 이유). 대기·실행 중은 음성 정지 듣기에만 쓰여서
       // 모를 때 끄는 쪽이 안전하다(10/8 인계 5차 §2) — 정지 버튼은 그대로 있다.
       if (mounted) {
@@ -159,5 +169,11 @@ class EstopNotifier extends StateNotifier<EstopState> {
 
 final estopProvider = StateNotifierProvider<EstopNotifier, EstopState>((ref) {
   final api = ref.watch(rpiApiServiceProvider);
-  return EstopNotifier(api, pollInterval: ref.watch(estopPollIntervalProvider));
+  return EstopNotifier(
+    api,
+    pollInterval: ref.watch(estopPollIntervalProvider),
+    // 기존 주기 조회의 성공/실패를 연결 상태에 반영한다(평가 M2). 새 조회를 만들지 않는다.
+    onPoll: (reachable) =>
+        ref.read(rpiConnectionProvider.notifier).reportHubPoll(reachable: reachable),
+  );
 });

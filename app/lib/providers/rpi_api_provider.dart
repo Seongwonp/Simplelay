@@ -210,8 +210,38 @@ class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
         if (fresh != null) result = await probe(fresh);
       }
     }
-    if (!stale()) state = result;
+    if (!stale()) {
+      _pollFailures = 0;
+      state = result;
+    }
   }
+
+  /// 기존 주기 `/status` 조회(estopProvider, 5초)의 통신 결과(외부 평가 2026-10-13 M2).
+  ///
+  /// 주소·키가 그대로면 판정은 처음·주소/키 변화·사용자 확인 때만이었다 — 허브가 꺼졌다 켜져도 '연결됨'에
+  /// 머물러, 연결을 듣는 확인 주행 조회가 다시 묻지 않았다. 이제 **연속 [_pollFailuresToUnreachable]번** 닿지
+  /// 않으면 '닿지 않음', 닿지 않음에서 조회가 다시 성공하면 '연결됨'으로 바꾼다. 확인 중·미설정·키 필요는
+  /// 건드리지 않는다(그 판정은 [check]가 한다). 허브가 오류 코드로 답한 것은 닿은 것이다(호출자가 가른다).
+  void reportHubPoll({required bool reachable}) {
+    if (!mounted) return;
+    if (reachable) {
+      _pollFailures = 0;
+      if (state == RpiConnectionState.unreachable) {
+        _generation++; // 늦게 끝난 옛 확인의 실패가 이 복구를 덮지 않게
+        state = RpiConnectionState.connected;
+      }
+      return;
+    }
+    _pollFailures++;
+    if (state == RpiConnectionState.connected &&
+        _pollFailures >= _pollFailuresToUnreachable) {
+      _generation++;
+      state = RpiConnectionState.unreachable;
+    }
+  }
+
+  int _pollFailures = 0;
+  static const _pollFailuresToUnreachable = 2;
 
   Future<bool> _tryResolveMdns(bool Function() stale, String? checkedUrl) async {
     final url = _ref.read(rpiUrlProvider);

@@ -67,6 +67,10 @@ class FixedRpiConnection extends RpiConnectionNotifier {
 
   @override
   Future<void> check() async {}
+
+  // 고정된 연결 상태 — 주기 /status 결과로 바꾸지 않는다(평가 M2의 반영은 connection_poll_test가 본다).
+  @override
+  void reportHubPoll({required bool reachable}) {}
 }
 
 Override rpiServerOverride(RpiConnectionState state) =>
