@@ -7,7 +7,7 @@
 > (이 문서는 예전에 "ESP32가 G-code를 조립해서 Arduino Uno의 GRBL로 전달"하는 설계를
 > 담고 있었다. 그 설계는 폐기됐다 — GRBL은 DC 기어드 모터와 호환되지 않아 커스텀 PID
 > 펌웨어로 교체됐고, 그 모터 제어 링크는 RPi4↔Arduino 사이에 있지 ESP32와는 무관하다.
-> 자세한 사유는 [actuator-design.md](actuator-design.md) 참고.)
+> 자세한 사유는 [actuator-design.md](../actuator-design.md) 참고.)
 
 ---
 
@@ -38,7 +38,7 @@ ESP32는 위 두 링크 사이에서 **바이트를 그대로 전달**한다. JS
 | Line ending | `\n` |
 | 인코딩 | UTF-8 (한글 라벨 포함 가능) |
 
-메시지 JSON 포맷은 [docs/protocol.md](protocol.md)의 "BLE 프로토콜 (App ↔ ESP32)"와
+메시지 JSON 포맷은 [docs/protocol.md](../protocol.md)의 "BLE 프로토콜 (App ↔ ESP32)"와
 "UART 프로토콜 (ESP32 ↔ RPi5)" 절이 기준이다 — ESP32는 이 포맷을 알 필요 없이 그대로
 중계만 하면 되지만, 디버깅 시 참고.
 
@@ -164,6 +164,6 @@ lib_deps =
 
 ## 관련 문서
 
-- [docs/protocol.md](protocol.md) — BLE/UART 메시지 JSON 포맷 전체
-- [docs/actuator-design.md](actuator-design.md) — 왜 GRBL을 버렸는지, 실제 구동부 구조
-- [docs/개발현황.md](개발현황.md) — 전체 보드 역할 분담
+- [docs/protocol.md](../protocol.md) — BLE/UART 메시지 JSON 포맷 전체
+- [docs/actuator-design.md](../actuator-design.md) — 왜 GRBL을 버렸는지, 실제 구동부 구조
+- [docs/개발현황.md](../개발현황.md) — 전체 보드 역할 분담

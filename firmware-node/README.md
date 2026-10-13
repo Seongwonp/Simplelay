@@ -77,7 +77,7 @@ Windows에서 사용자/프로젝트 경로에 한글이 있으면(2026-09-28 �
 
 ## 검증 상태
 
-**컴파일 검증됨** (2026-09-28, 기록: [../docs/devlog_2026-09-28-firmware-build.md](../docs/devlog_2026-09-28-firmware-build.md)).
+**컴파일 검증됨** (2026-09-28, 기록: [../docs/devlog/devlog_2026-09-28-firmware-build.md](../docs/devlog/devlog_2026-09-28-firmware-build.md)).
 고정 플랫폼 pioarduino 55.03.312-1(코어 3.3.12)과 공식 espressif32@7.0.1(코어 2.0.17)
 양쪽에서 `firebeetle32`·`firebeetle32_espnow` 두 env 모두 경고 0건.
 (이전 기록의 "7.0.1 = 코어 3.x"는 틀렸다 — 7.0.1은 코어 2.0.17을 설치한다.)

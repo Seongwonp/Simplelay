@@ -1,6 +1,6 @@
 # 2026-09-29 — 본선 준비 결함 4건 수리(웹 키오스크·배포 base href·무키 인증·정지/실패 구분)
 
-[본선 준비 평가(9/21)](본선-준비-평가-2026-09-21.md)와 [9/21 로그](devlog_2026-09-21.md)에 남은 결함 중
+[본선 준비 평가(9/21)](../archive/본선-준비-평가-2026-09-21.md)와 [9/21 로그](devlog_2026-09-21.md)에 남은 결함 중
 P0 2건·P1 2건을 고쳤다. 9/21에 이미 고친 것(키오스크 연결 유실을 정지로 단정하던 화면)은 다시 손대지 않았다.
 **실제 RPi5·Chromium·터치 패널·RPi4 UART로는 확인하지 않았다.** 아래 "확인하지 못한 것"을 먼저 본다.
 
@@ -62,7 +62,7 @@ RPi4 → RPi5 `result`는 `success=false` 하나라, 정지 요청(abort)으로 
 - 노출: `/status`·SSE `status` 이벤트에 `last_outcome`, `/history`·CSV에 `outcome`. `last_status`는 옛 클라이언트용으로
   종전 값 유지. 이력 SQLite는 `outcome` 열을 ALTER로 더하고(기존 DB 보존), 옛 행은 `status`·`termination`에서 보수적으로
   유도한다(사용자 정지로 기록된 것만 `stopped`, 재시도 소진은 `safety_stop`, 그 밖은 `failed`).
-- 문서: [protocol.md](protocol.md) RPi4 → RPi5 절에 표와 호환 규칙.
+- 문서: [protocol.md](../protocol.md) RPi4 → RPi5 절에 표와 호환 규칙.
 - 테스트: `rpi/tests/test_result_outcome.py`(유도·파싱·합성·명령 상태·서비스 이력·/status·SSE·/history·CSV·SQLite 이전),
   메모리 파이프 통합(`rpi4/tests/test_act_link_integration.py`)에 abort → `stopped`, 재시도 소진 → `safety_stop`,
   성공 → `success`, outcome을 빼는 옛 RPi4 흉내 → `failed` 4건. 기존 `test_act_executor.py`의 프레임 기대값에 `outcome`

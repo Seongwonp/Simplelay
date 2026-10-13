@@ -1,6 +1,6 @@
 # 2026-10-13 노트북 — 정지 확인을 "보냄"과 "확인"으로 나눔
 
-[정지 확인 계획](계획-정지-확인-2026-10-12.md) "순서와 크기" 1~4단계를 구현했다. 배경은
+[정지 확인 계획](../계획-정지-확인-2026-10-12.md) "순서와 크기" 1~4단계를 구현했다. 배경은
 [10/12 devlog](devlog_2026-10-12-motion-bringup.md) 발견 2: RPi4가 정지 줄을 **쓰기만** 하고 MCU 응답은 버렸는데,
 RPi5 `/dev/stop`·세션 끝·폰은 "정지를 확인했어요"라고 말했다(과장).
 
@@ -11,7 +11,7 @@ RPi5 `/dev/stop`·세션 끝·폰은 "정지를 확인했어요"라고 말했다
 | 단계 | 커밋 | 내용 |
 |---|---|---|
 | 1 | `3be54d1` | RPi4 `SerialMotionClient`: `request_stop()`은 그대로 바로 돌아오고 보낸 id·시각을 남긴다. 진행 중 요청의 읽기 루프가 정지 응답을 버리지 않고 기록하고, 대기 중이면 `wait_stop_ack()`가 짧은 기한(0.3 s) 안에 직접 읽는다(읽는 쪽은 op 잠금을 쥔 하나). `confirm_stop()`은 MCU 확인 뒤 `status` 두 번(0.1 s 간격)의 엔코더 a·b가 같을 때만 `verified`. `ok:false` 응답·옛 정지의 늦은 응답은 확인이 아니다 |
-| 2 | `98a7e5f` | RPi4 규약: `dev_motion stop` 답에 `stop_level`·`ack_ms`(개발자 조작 규약 **2**), `abort {stop_id}`에 새 `stop_report {stop_id, target, stop_level, ack_ms}`(정지 보고 규약 1, `act_info.stop_report_protocol`). 정지 줄을 먼저 쓰고 확인은 따로 기다려 읽기 루프를 막지 않는다. `stop_id` 없는 옛 abort에는 종전처럼 답하지 않는다. act_main은 serial일 때만 실제 어댑터로 확인하고 모의 모션은 `sent`. 줄 기록에 `>> stop`과 `<< {"id":…,"ok":true}`가 둘 다 남는다. [protocol.md](protocol.md) 갱신 |
+| 2 | `98a7e5f` | RPi4 규약: `dev_motion stop` 답에 `stop_level`·`ack_ms`(개발자 조작 규약 **2**), `abort {stop_id}`에 새 `stop_report {stop_id, target, stop_level, ack_ms}`(정지 보고 규약 1, `act_info.stop_report_protocol`). 정지 줄을 먼저 쓰고 확인은 따로 기다려 읽기 루프를 막지 않는다. `stop_id` 없는 옛 abort에는 종전처럼 답하지 않는다. act_main은 serial일 때만 실제 어댑터로 확인하고 모의 모션은 `sent`. 줄 기록에 `>> stop`과 `<< {"id":…,"ok":true}`가 둘 다 남는다. [protocol.md](../protocol.md) 갱신 |
 | 3 | `b97fa86` | RPi5: `confirmed`는 **`mcu_ack` 이상일 때만** 참(`rpi/services/stop_confirm.py`). 단계 없는 답(옛 RPi4)·모르는 값·`abort drive` 대체는 `sent`. `sent`는 잠그지 않되 "정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요". 일반 `/stop`은 abort를 먼저 보내고 보고를 최대 약 1.5 s 기다려 `stop_level`·`stop_ack_ms`·`stop_target`·`stop_confirmed`로 돌려주고, `/status`에 `last_stop_level`·`last_stop_ack_ms`(새 실행에서 지움). 정지 보고 규약을 모르는 RPi4는 기다리지 않는다 |
 | 4 | `66402a9` | 폰: 개발자 도구 정지·세션 끝, 실행 화면 정지 안내, 멈춘 실행의 결과 문장. 키오스크: 멈춘 실행 화면에 정지 줄(확인이면 확인색, 보냄이면 주의색). 단계가 없는 옛 서버·모의는 종전 문장 그대로 |
 
@@ -57,7 +57,7 @@ RPi5 `/dev/stop`·세션 끝·폰은 "정지를 확인했어요"라고 말했다
 
 ## 실측 계획 G3
 
-[실측 계획](실측-계획-결선.md) §3에 모션 MCU 구간 두 개를 더했다: **A. `sent → mcu_ack`**(줄 기록 `>>`/`<<` 또는 `ack_ms`),
+[실측 계획](../실측-계획-결선.md) §3에 모션 MCU 구간 두 개를 더했다: **A. `sent → mcu_ack`**(줄 기록 `>>`/`<<` 또는 `ack_ms`),
 **B. `sent → verified`**(두 번째 `status` 응답). `stop.csv` 선택 열 `t_sent_ms`·`t_mcu_ack_ms`·`t_verified_ms` — 그림 도구는 아직
 이 열을 그리지 않는다(첫 측정 뒤 넓힌다).
 
@@ -98,9 +98,9 @@ RPi5 `/dev/stop`·세션 끝·폰은 "정지를 확인했어요"라고 말했다
 
 - `ack_ms`는 정지를 보낸 뒤 **모션 보드 응답까지**(sent→mcu_ack)다. 멈춤 확인(verified, status 두 번)까지의 시간이 아니다.
   위 '문구' 절의 `verified` "멈춘 것을 확인했어요 (n ms)"는 n ms 만에 멈춤을 확인했다고 읽혀, 폰은 **"멈춘 것을 확인했어요 (모션 보드 응답 n ms)"**로
-  고쳤다. `mcu_ack` "모션 보드가 정지를 확인했어요 (n ms)"는 그 응답 자체라 그대로. [protocol.md](protocol.md) 표에도 적었다.
+  고쳤다. `mcu_ack` "모션 보드가 정지를 확인했어요 (n ms)"는 그 응답 자체라 그대로. [protocol.md](../protocol.md) 표에도 적었다.
 - **키오스크의 같은 문장은 고치지 않았다**(이번 키오스크 수정 허용 범위 밖) — 남은 일. (뒤에 2차 평가 수리 `4852abf`에서 맞췄다) 발표·문서에서 화면의 ms를 정지까지 걸린 시간으로 말하지 않는다.
-  verified까지의 전체 지연은 [실측 계획](실측-계획-결선.md) G3의 B 구간으로 따로 잰다.
+  verified까지의 전체 지연은 [실측 계획](../실측-계획-결선.md) G3의 B 구간으로 따로 잰다.
 
 ### 시험 수
 
@@ -113,7 +113,7 @@ RPi5 `/dev/stop`·세션 끝·폰은 "정지를 확인했어요"라고 말했다
 
 | 항목 | 커밋 | 재현(코드 경로) | 수정 | 수정 전 실패 |
 |---|---|---|---|---|
-| M-N1 | `b1654ab` | 폰이 J1을 추적하는 사이 서버 실행이 끝나 `/stop`이 `stop_job_id:null`과 단계를 돌려주면, `outcome.jobId == null`이 옛 서버 호환 조건을 통과해 J1 문장에 실렸다(실행 중 화면·결과 뒤 늦은 응답 둘 다) | `StopOutcome.reportsJobId`로 필드 존재를 보존. 필드가 있으면 값이 내 job과 같을 때만, 없으면(옛 서버)만 종전처럼. [protocol.md](protocol.md) 문장을 사실에 맞춤(키오스크는 `/stop` 응답을 읽지 않아 같은 경로 없음, `/status`는 이미 필드 존재를 구분) | `stop_report_binding_test.dart` 없음·null·다른 job·같은 job × (실행 중, 결과 뒤) 8건 + 파서 1건 — 실제 `RpiApiService` 파서→notifier. 수정 전 null 2건 실패(파서 시험은 구현 뒤 추가) |
+| M-N1 | `b1654ab` | 폰이 J1을 추적하는 사이 서버 실행이 끝나 `/stop`이 `stop_job_id:null`과 단계를 돌려주면, `outcome.jobId == null`이 옛 서버 호환 조건을 통과해 J1 문장에 실렸다(실행 중 화면·결과 뒤 늦은 응답 둘 다) | `StopOutcome.reportsJobId`로 필드 존재를 보존. 필드가 있으면 값이 내 job과 같을 때만, 없으면(옛 서버)만 종전처럼. [protocol.md](../protocol.md) 문장을 사실에 맞춤(키오스크는 `/stop` 응답을 읽지 않아 같은 경로 없음, `/status`는 이미 필드 존재를 구분) | `stop_report_binding_test.dart` 없음·null·다른 job·같은 job × (실행 중, 결과 뒤) 8건 + 파서 1건 — 실제 `RpiApiService` 파서→notifier. 수정 전 null 2건 실패(파서 시험은 구현 뒤 추가) |
 | M-N2 | `751f89d` | 두 abort가 연속이면 첫 확인의 멈춤 확인(status) 도중 두 번째 MCU 정지가 `_last_stop`을 바꿔, 첫 `confirm_stop`이 두 번째 정지의 기록(`sent`)을 첫 `stop_id`로 보고했다 | `SerialMotionClient`가 정지 기록을 id별로 남기고(최근 16개) `last_stop_id`를 알린다. `confirm_stop`/`wait_stop_ack(stop_id=)`는 그 정지의 기록만, 기록이 없으면 다른 정지로 대신하지 않는다. MCU 응답은 그 id의 기록에 남는다. 실행기는 정지 전송 직전·직후 id로 확인을 묶는다(run·dev·hold drive·`dev_motion stop`) — 새 MCU 정지가 없으면 `sent`까지만 | `test_dev_motion.py` 두 abort 교차 1건(실제 `ActExecutor`→`SerialMotionClient`→`FakeMcu`, 첫 확인의 status를 붙잡은 사이 두 번째 abort, 두 번째 MCU 정지는 무응답): 수정 전 st1이 `sent`로 실패. `test_stop_confirm.py` +1(수정 전 `last_stop_id` 없음) |
 | L-N1 | `079b5b1` | 주기 `/status`가 200 + `hold_state: 123`(TypeError)이면 FormatException이 아니어서 실패 두 번에 '닿지 않음'이 됐다 | `hubStatus`는 응답을 받은 뒤의 해석 실패(본문이 맵 아님·필드 타입 오류)를 모두 FormatException으로 알리고, 주기 조회는 이를 닿은 것으로 센다. 오류를 정상 상태로 처리하지는 않는다(걸림·대기 상태는 모름으로 둔다 — 종전과 같음) | `connection_poll_test.dart` +2(타입 오류·목록 본문, 조회 3번 넘게): 수정 전 2건 실패 |
 | 1차 L2 잔여 | `4852abf` | 키오스크 `verified` 정지 줄이 "(n ms)" — 멈춤 확인까지의 시간으로 읽힘 | 폰과 같은 "멈춘 것을 확인했어요 (모션 보드 응답 n ms)", ms 없으면 숫자 없이 | 키오스크 기대 문구를 고친 3건 수정 전 실패 |
@@ -123,7 +123,7 @@ RPi5 `/dev/stop`·세션 끝·폰은 "정지를 확인했어요"라고 말했다
 - M-N2 범위: 실행기 이벤트 루프 안에서 정지 전송이 동기로 끝나므로 직후의 `last_stop_id`가 이번 정지다. 다른 **스레드**가 같은 순간 MCU 정지를
   보내는 경합(예: 콘센트 비상정지 동기 경로)은 이 시험이 다루지 않는다. 실제 UART·보드 경합은 미재현.
 - M-N1 범위: 새 폰 + 옛 서버(필드 없음)는 여전히 호환으로 단계를 싣고, 그 단계의 출처가 그 job인지 증명하지 못한다. 옛 폰 + 새 서버는 필드를
-  무시하므로 폰도 함께 배포해야 한다([인계](인계-2026-10-13-데스크톱.md) §6).
+  무시하므로 폰도 함께 배포해야 한다([인계](../인계-2026-10-13-데스크톱.md) §6).
 
 ### 시험과 문서의 주장 범위(2차 평가 1~7) 정정
 
@@ -146,6 +146,6 @@ RPi5 `/dev/stop`·세션 끝·폰은 "정지를 확인했어요"라고 말했다
 
 ### 남은 것
 
-- 실물: 실제 ESP32 정지 응답·연속 정지 경합·verified, RPi5·RPi4·폰·키오스크 같은 커밋 배포([인계](인계-2026-10-13-데스크톱.md) §6).
+- 실물: 실제 ESP32 정지 응답·연속 정지 경합·verified, RPi5·RPi4·폰·키오스크 같은 커밋 배포([인계](../인계-2026-10-13-데스크톱.md) §6).
 - 다른 스레드의 동시 MCU 정지와 확인 결속(M-N2 범위 밖), 새 폰 + 옛 서버 호환의 출처 증명 불가(M-N1 범위 밖).
 - 실기기 TalkBack·200%·권한 창, 골든 눈 검토·갱신, 짧은 허브 재시작, 확인 주행 기록 서버 저장 — 인계 §0 남은 일 그대로.

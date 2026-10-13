@@ -2,7 +2,7 @@
 
 > 원작: 팀원(서예솔) Touch Bridge CoreXY 펌웨어 v3, SimpleLay용으로 통신·이름 수정 (2026-10-10 수령·이식).
 > 재사용 경계는 [docs/reuse-boundary.md](../docs/reuse-boundary.md), 이식 기록은
-> [devlog 2026-10-10](../docs/devlog_2026-10-10-motion-firmware-merge.md).
+> [devlog 2026-10-10](../docs/devlog/devlog_2026-10-10-motion-firmware-merge.md).
 
 **컴파일만 확인했다. 보드에 올리지 않았고, 모터·엔코더·솔레노이드로 한 번도 돌려 보지 않았다.**
 기구·게인·시간 값은 `include/config.h`에 있고 전부 `실측 필요`다.
@@ -86,7 +86,7 @@ RPi4 (rpi/controller/serial_motion.py) ─USB 시리얼 115200, 줄 단위 JSON�
 ## 빌드 (Windows, 이 저장소 기준)
 
 PowerShell에서. 짧은 코어 경로가 필요하다(사용자 폴더 코어는 Windows 경로 길이 제한으로 프레임워크 압축 해제 실패 —
-[outlet devlog](../docs/devlog_2026-10-05-outlet-module.md)).
+[outlet devlog](../docs/devlog/devlog_2026-10-05-outlet-module.md)).
 
 ```powershell
 $env:PLATFORMIO_CORE_DIR = 'C:\pio'
@@ -117,7 +117,7 @@ Flash 296,747 B(22.6%). `esp32dev_bringup` SUCCESS — Flash 305,679 B(23.3%), �
    예: `K 0.015 0.05 0.00005 0.00012`. 정한 값은 `config.h`의 `DEFAULT_*`에 옮겨 적는다(`K`는 재부팅하면 사라진다).
 6. `T 100` → 솔레노이드 한 번(누를 곳 없이 공중에서). 발열·복귀를 본다. 연속으로 보내면 냉각 시간 안이라 거절된다.
 7. 기구가 안정되면 `H`로 원점 복귀(스톨 감지) → `HOMED`. 벽을 너무 세게 밀면 `HOMING_PWM_LIMIT`·`STALL_ERR_MM`을 낮춘다.
-8. 그다음 **시연 빌드(`esp32dev`)를 다시 올리고** RPi4에서 [jog-cli devlog](../docs/devlog_2026-09-29-jog-cli.md) §5 순서
+8. 그다음 **시연 빌드(`esp32dev`)를 다시 올리고** RPi4에서 [jog-cli devlog](../docs/devlog/devlog_2026-09-29-jog-cli.md) §5 순서
    (가짜 MCU 리허설 → 실제 포트 status → home → 1 mm 조그 → 가장 작은 누름)를 따른다.
 
 잰 값은 [`docs/실측-기록표.md`](../docs/실측-기록표.md)와 RPi4 환경 변수에 같이 적는다.

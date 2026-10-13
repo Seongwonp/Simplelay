@@ -67,7 +67,7 @@ RPi5와 유선으로 묶을 수가 없다.
 ESP32는 두 가지 역할로 쓰인다 — 혼동하지 않게 구분:
 1. **폰 앱 BLE 폴백 브릿지** (기존 역할, 변경 없음): 폰이 Wi-Fi에 못 붙을 때만 쓰는
    BLE↔UART 릴레이. 의도 해석도 모션 제어도 안 함 —
-   [esp32-firmware-spec.md](esp32-firmware-spec.md) 참고.
+   [esp32-firmware-spec.md](archive/esp32-firmware-spec.md) 참고.
 2. **노드의 무선 창구** (신규 역할): 가전마다 붙는 ESP32가 그 옆 RPi4를 대신해서
    RPi5와 무선으로 통신 — 위 "확정 아키텍처" 참고.
 

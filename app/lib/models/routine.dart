@@ -1,4 +1,4 @@
-/// 사용자 루틴 — 서버 `/routines` 문서(docs/devlog_2026-09-30-routines.md §2)의 거울.
+/// 사용자 루틴 — 서버 `/routines` 문서(docs/devlog/devlog_2026-09-30-routines.md §2)의 거울.
 ///
 /// **폰은 루틴을 실행하지 않는다.** 서버도 루틴 코드에는 실행 진입점이 없고, 실행은
 /// 제안 카드 승인(`POST /suggestions/{id}/approve`) 하나로만 일어난다. 여기 있는

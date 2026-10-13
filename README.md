@@ -164,9 +164,9 @@ simplelay/
 
 ## 진행 상황
 
-일정·완료 기준은 [docs/결선로드맵.md](docs/결선로드맵.md), 기능별 현황은
+일정·완료 기준은 [docs/archive/결선로드맵.md](docs/archive/결선로드맵.md), 기능별 현황은
 [docs/개발현황.md](docs/개발현황.md)가 기준이다. 최신 변경과 테스트 범위·수치는
-`CLAUDE.md`의 "현재 기준" 절과 날짜별 `docs/devlog_YYYY-MM-DD*.md`에 기록했다. 전체 테스트와 일부 회귀 테스트를 구분해서 읽는다.
+`CLAUDE.md`의 "현재 기준" 절과 날짜별 `docs/devlog/devlog_YYYY-MM-DD*.md`에 기록했다. 전체 테스트와 일부 회귀 테스트를 구분해서 읽는다.
 
 | 영역 | 상태 |
 | --- | --- |
@@ -210,9 +210,9 @@ simplelay/
 | [docs/결선-운영-런북.md](docs/결선-운영-런북.md) | 결선 당일 설치·리허설·장애 대응 |
 | [docs/submission/개발완료보고서-초안.md](docs/submission/개발완료보고서-초안.md) · [작품소개서](docs/submission/작품소개서-초안.md) · [체크리스트](docs/submission/제출-체크리스트.md) | 제출 서류 초안 |
 | [docs/가산점-증거-대장.md](docs/가산점-증거-대장.md) | 가산점 항목별 증거와 미측정 칸 |
-| [docs/공감지능-기능-UI-실행계획-2026-09-21.md](docs/공감지능-기능-UI-실행계획-2026-09-21.md) | 기능·UI 계획 및 차수별 진행 |
+| [docs/archive/공감지능-기능-UI-실행계획-2026-09-21.md](docs/archive/공감지능-기능-UI-실행계획-2026-09-21.md) | 기능·UI 계획 및 차수별 진행 |
 | [docs/개발현황.md](docs/개발현황.md) | 실제 배선 기준 아키텍처 · 기능 현황 · 환경 변수 |
-| [docs/결선로드맵.md](docs/결선로드맵.md) | 결선까지 주차별 일정 · 완료 기준 |
+| [docs/archive/결선로드맵.md](docs/archive/결선로드맵.md) | 결선까지 주차별 일정 · 완료 기준 |
 | [docs/하드웨어-연결-설계.md](docs/하드웨어-연결-설계.md) | 모션 어댑터 계약 · 센서 캡처 · 정지 명칭 · 수령 직후 검증 순서 |
 | [docs/reuse-boundary.md](docs/reuse-boundary.md) | Touch Bridge 재사용 vs SimpleLay 신규 구현 경계 (대회 정당성) |
 | [docs/architecture.md](docs/architecture.md) | 시스템 아키텍처 · 데이터 흐름 · 계층 계약 |
@@ -220,7 +220,7 @@ simplelay/
 | [docs/closed-loop-design.md](docs/closed-loop-design.md) | 폐루프 검증 설계 (센서 → 판정 → 재시도) |
 | [docs/roadmap.md](docs/roadmap.md) | 마일스톤 · 심사평 대응 계획 |
 | [docs/sensor-spec.md](docs/sensor-spec.md) | ACS712 전류 센서 + 음향 감지 명세 (M1 구현 참조) |
-| [docs/esp32-firmware-spec.md](docs/esp32-firmware-spec.md) | ESP32 BLE GATT + UART 릴레이 펌웨어 명세 |
+| [docs/archive/esp32-firmware-spec.md](docs/archive/esp32-firmware-spec.md) | ESP32 BLE GATT + UART 릴레이 펌웨어 명세 |
 | [docs/design-system.md](docs/design-system.md) | Flutter 앱 디자인 시스템 — 색상 · 컴포넌트 · 애니메이션 |
 
 ## 라이선스

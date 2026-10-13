@@ -20,7 +20,7 @@ SimpleLay가 그 하드웨어를 공유한다면 **"무엇이 재사용이고 �
 > [docs/actuator-design.md](actuator-design.md)), 모션 펌웨어 [`firmware-motion-corexy/`](../firmware-motion-corexy/)는
 > 팀원의 **Touch Bridge CoreXY 펌웨어 v3**(2026-10-10 수령)을 옮겨 고친 것이다. 제어 핵심(PID·CoreXY 기구학·사다리꼴
 > 궤적·스톨 원점 복귀·추종 오차 감시·솔레노이드 구동·단일 동작 큐)은 원작 그대로다
-> ([devlog](devlog_2026-10-10-motion-firmware-merge.md)). 이전 판의 "CoreXY는 따로 설계했다", "기구 설계·펌웨어·코드는
+> ([devlog](devlog/devlog_2026-10-10-motion-firmware-merge.md)). 이전 판의 "CoreXY는 따로 설계했다", "기구 설계·펌웨어·코드는
 > 공유하지 않는다/독립"이라는 문장은 **틀렸으므로 철회한다.**
 >
 > **두 프로젝트의 차이는 그 위 계층에 있다.** Touch Bridge는 폰 → ESP32(BLE)로 바로 명령해 누르고 끝난다.

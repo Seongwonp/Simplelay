@@ -1,4 +1,4 @@
-"""날씨(기상청 단기예보)와 키오스크 평소 화면 안내 — 설계는 docs/devlog_2026-09-30-ambient-api.md."""
+"""날씨(기상청 단기예보)와 키오스크 평소 화면 안내 — 설계는 docs/devlog/devlog_2026-09-30-ambient-api.md."""
 
 from .ambient import AttentionItem, build_ambient, greeting, hourly_strip, weather_tip
 from .config import WeatherConfig

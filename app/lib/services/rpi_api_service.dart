@@ -1581,7 +1581,7 @@ class RpiApiService {
     return HubLocation.fromJson(_decodeMap(res));
   }
 
-  // ── 루틴 (2026-09-30, docs/devlog_2026-09-30-routines.md §3) ──────────────
+  // ── 루틴 (2026-09-30, docs/devlog/devlog_2026-09-30-routines.md §3) ──────────────
   //
   // 이 묶음에는 **실행 호출이 없다.** '지금 실행'도 카드를 만들 뿐이고,
   // 실행은 제안 승인(approveSuggestion) 하나로만 일어난다.

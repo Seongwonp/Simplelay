@@ -213,7 +213,7 @@ Z가 모터·스위치봇 모듈·솔레노이드 중 무엇이 될지 아직 �
 ## 빌드·플래시 (Windows, 이 저장소 기준)
 
 PowerShell에서(Git Bash는 pioarduino 설치 단계가 거부된다). 경로에 한글이 있어 빌드 폴더를 ASCII로 돌린다
-— 자세한 사정은 [firmware-build devlog](../docs/devlog_2026-09-28-firmware-build.md).
+— 자세한 사정은 [firmware-build devlog](../docs/devlog/devlog_2026-09-28-firmware-build.md).
 
 ```powershell
 $env:PLATFORMIO_CORE_DIR = 'C:\.platformio'
@@ -239,7 +239,7 @@ DevKit일 때 — 핀은 같은 `board_config.h`). 네 환경 빌드 결과는 [
 2. 모터 축을 손으로 돌리며 `status`의 `a`·`b`·`z`가 바뀌는지, 방향이 기대와 같은지(부호 기록).
 3. 리밋 스위치: `{"id":2,"cmd":"limits"}`(또는 조그 CLI `limits`)를 부르며 X·Y·Z 스위치를 하나씩 누른다 —
    해당 축의 `raw`·`debounced`만 `true`가 되는지. 아무것도 안 눌렀는데 `true`면 단선·활성 레벨·풀업부터 확인한다.
-4. 그다음은 [jog-cli devlog](../docs/devlog_2026-09-29-jog-cli.md) §5 "하드웨어 도착 첫날 순서" 6단계를 그대로 따른다
+4. 그다음은 [jog-cli devlog](../docs/devlog/devlog_2026-09-29-jog-cli.md) §5 "하드웨어 도착 첫날 순서" 6단계를 그대로 따른다
    (가짜 MCU 리허설 → 실제 포트 status → home → 1 mm 조그 → 가장 작은 누름).
 
 ## 하지 않은 것 / 알려진 한계

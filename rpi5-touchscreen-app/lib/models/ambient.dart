@@ -1,6 +1,6 @@
 /// 평소 화면이 읽는 서버 값 — `GET /ambient`·`GET /connections`·`GET /routines`.
 ///
-/// 문구는 서버가 사용자 말로 만들어 보낸다(docs/devlog_2026-09-30-ambient-api.md).
+/// 문구는 서버가 사용자 말로 만들어 보낸다(docs/devlog/devlog_2026-09-30-ambient-api.md).
 /// 화면은 고르고 배치만 한다 -- 같은 사실을 폰과 다르게 말하지 않게.
 library;
 

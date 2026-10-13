@@ -1,6 +1,6 @@
 # firmware — ESP32 BLE↔UART 브릿지
 
-명세: [../docs/esp32-firmware-spec.md](../docs/esp32-firmware-spec.md) · 재사용 경계: [../docs/reuse-boundary.md](../docs/reuse-boundary.md)
+명세: [../docs/archive/esp32-firmware-spec.md](../docs/archive/esp32-firmware-spec.md) · 재사용 경계: [../docs/reuse-boundary.md](../docs/reuse-boundary.md)
 
 - ESP32: 폰 앱 BLE ↔ RPi5 UART 사이의 순수 릴레이 (GRBL 아님 — 그 설계는 폐기됨,
   자세한 사유는 [../docs/actuator-design.md](../docs/actuator-design.md))
@@ -50,7 +50,7 @@ RPi5 --UART--> (이 보드) --ESP-NOW--> 노드 ESP32 --UART--> RPi4
 
 ### 검증 상태
 
-**컴파일 검증됨** (2026-09-28, 기록: [../docs/devlog_2026-09-28-firmware-build.md](../docs/devlog_2026-09-28-firmware-build.md)).
+**컴파일 검증됨** (2026-09-28, 기록: [../docs/devlog/devlog_2026-09-28-firmware-build.md](../docs/devlog/devlog_2026-09-28-firmware-build.md)).
 고정 플랫폼 pioarduino 55.03.312-1(코어 3.3.12)과 공식 espressif32@7.0.1(코어 2.0.17)
 양쪽에서 `firebeetle32`·`firebeetle32_espnow` 두 env 모두 경고 0건.
 (이전 기록의 "7.0.1 = 코어 3.x"는 틀렸다 — 7.0.1은 코어 2.0.17을 설치한다.)

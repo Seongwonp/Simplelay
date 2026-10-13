@@ -3,7 +3,7 @@
 인증은 다른 읽기 경로와 같다(main.py가 ``require_api_key``를 붙인다 --
 키오스크는 루프백이라 키 없이 통과). 두 경로 모두 네트워크·장치 상태와
 상관없이 200으로 답하고, 모르는 것은 모른다고 적는다.
-설계와 문구 규칙은 docs/devlog_2026-09-30-ambient-api.md.
+설계와 문구 규칙은 docs/devlog/devlog_2026-09-30-ambient-api.md.
 """
 
 from __future__ import annotations

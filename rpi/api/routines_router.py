@@ -1,4 +1,4 @@
-"""사용자 루틴 API (2026-09-30) — 계약은 docs/devlog_2026-09-30-routines.md.
+"""사용자 루틴 API (2026-09-30) — 계약은 docs/devlog/devlog_2026-09-30-routines.md.
 
 저장·수정·켜기/끄기·다음 실행·템플릿·'지금 실행'(카드 만들기)·실행 기록. 이 모듈에는
 **실행 진입점이 없다.** 실행은 ``POST /suggestions/{id}/approve``로만 일어난다.
