@@ -14,6 +14,8 @@ class HubStatus {
     this.holdDetail,
     this.estopLatched = false,
     this.estopDetail,
+    this.estopReported,
+    this.actuatorLinkUp,
   });
 
   /// 서버 `SIMPLELAY_DEV_MODE`. 참일 때만 폰에 '개발자' 탭이 생긴다.
@@ -45,6 +47,18 @@ class HubStatus {
   /// 걸린 사유(서버 문장). 걸리지 않았으면 null.
   final String? estopDetail;
 
+  /// `/status.estop_latched` 원래 값 — 보고 수단이 없거나 아직 모르면 null.
+  /// [estopLatched]와 달리 null을 false로 접지 않는다(준비 판정 변화 감지용, 검토 M1).
+  final bool? estopReported;
+
+  /// `/status.actuator_link_up` — 로컬 누름 장치(RPi4) 링크. 보고하지 않는 대상이면 null.
+  final bool? actuatorLinkUp;
+
+  /// 서버가 **로컬 실행 대상**의 준비 판정에 쓰는 신호(걸림·링크). 이것이 바뀌면 가전 목록의
+  /// 준비 판정도 바뀌었을 수 있다(`rpi/api/readiness_view.py`의 로컬 분기, 검토 M1).
+  ({bool? estop, bool? linkUp}) get localGate =>
+      (estop: estopReported, linkUp: actuatorLinkUp);
+
   factory HubStatus.fromJson(Map<String, dynamic> json) => HubStatus(
         // 옛 서버는 이 키가 없다 -- 없으면 꺼진 것으로 본다.
         developerMode: json['developer_mode'] == true,
@@ -58,6 +72,11 @@ class HubStatus {
         estopLatched: json['estop_latched'] == true,
         estopDetail: json['estop_latched'] == true && json['estop_detail'] is String
             ? json['estop_detail'] as String
+            : null,
+        estopReported:
+            json['estop_latched'] is bool ? json['estop_latched'] as bool : null,
+        actuatorLinkUp: json['actuator_link_up'] is bool
+            ? json['actuator_link_up'] as bool
             : null,
       );
 }

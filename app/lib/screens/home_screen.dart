@@ -13,6 +13,7 @@ import '../providers/routine_provider.dart';
 import '../widgets/routine_run.dart';
 import 'routines_screen.dart' show routineSubtitle;
 import '../providers/ble_provider.dart';
+import '../providers/estop_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/appliance_setup_card.dart';
@@ -51,6 +52,20 @@ class HomeScreen extends ConsumerWidget {
     final dndUntil = ref.watch(dndProvider);
     final sensorAsync = ref.watch(sensorProvider);
     final execution = ref.watch(executionStatusProvider);
+
+    // 허브 연결은 그대로인데 로컬 실행 대상의 걸림·링크가 바뀌면(비상정지 걸림·해제,
+    // 누름 장치 링크 끊김·복구) 타일의 준비 판정도 바뀌었을 수 있다 — 가전 목록을 다시
+    // 받는다(검토 M1, 2026-10-13). 다시 받는 동안 목록은 loading이라 타일이 예전 긍정을
+    // 쓰지 않는다. 어느 가전이 막히는지는 서버(`readiness_view`)가 정한다 — 폰이 모의·
+    // ThinQ까지 일괄로 막지 않는다. 처음 받은 값(null → 값)은 변화로 세지 않는다.
+    ref.listen<({bool? estop, bool? linkUp})?>(
+        estopProvider.select((s) => s.localGate), (prev, next) {
+      if (prev == null || next == null || prev == next) return;
+      final catalog = ref.read(serverApplianceCatalogProvider.notifier);
+      Future.microtask(() {
+        if (catalog.mounted) catalog.refresh();
+      });
+    });
 
     final connected = connection == BleConnectionState.connected;
     final dndActive = dndUntil != null && dndUntil.isAfter(DateTime.now());

@@ -3,7 +3,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -33,11 +32,20 @@ http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
       headers: {'content-type': 'application/json'},
     );
 
+const _estopReason = '비상정지가 걸려 있어요';
+
 /// 응답을 시험 도중 바꿀 수 있는 가짜 허브.
 class _Server {
   http.Response verify = _json({'state': 'done', 'execution_mode': 'real'});
   int verifyCalls = 0;
   Duration verifyDelay = Duration.zero;
+
+  /// `/status.estop_latched` — 로컬 갠트리 걸림.
+  bool estop = false;
+
+  /// 서버 구성 모의 실행기 가전(걸림과 무관하게 실행 가능)을 목록에 넣는다.
+  bool withMock = false;
+  Duration appliancesDelay = Duration.zero;
 
   RpiApiService api() => RpiApiService(
         'http://rpi5.local:8000',
@@ -46,8 +54,17 @@ class _Server {
           if (path.startsWith('/execute') || path.endsWith('/approve')) {
             fail('홈이 실행 경로를 불렀어요: ${req.method} $path');
           }
+          if (req.method == 'GET' && path == '/status') {
+            return _json({
+              'running': false,
+              'estop_latched': estop,
+              if (estop) 'estop_detail': _estopReason,
+            });
+          }
           if (req.method == 'GET' && path == '/appliances') {
-            return _json([
+            // 서버 판정(readiness_view)을 흉내 낸다: 걸림은 로컬 대상(a)만 막는다.
+            final blocked = estop;
+            final reply = _json([
               {
                 'id': 'a',
                 'name': '전자레인지',
@@ -56,9 +73,9 @@ class _Server {
                 'cols': 1,
                 'is_custom': true,
                 'revision': 1,
-                'can_execute': true,
-                'readiness': 'operable',
-                'readiness_reasons': <String>[],
+                'can_execute': !blocked,
+                'readiness': blocked ? 'needs_setup' : 'operable',
+                'readiness_reasons': blocked ? [_estopReason] : <String>[],
                 'buttons': [
                   {'id': 'a-1', 'label': '시작', 'x': 0, 'y': 0},
                 ],
@@ -66,7 +83,27 @@ class _Server {
                   'photo': {'width': 100, 'height': 100},
                 },
               },
+              if (withMock)
+                {
+                  'id': 'm',
+                  'name': '모의 세탁기',
+                  'category': 'washer',
+                  'rows': 1,
+                  'cols': 1,
+                  'is_custom': false,
+                  'revision': 1,
+                  'can_execute': true,
+                  'readiness': 'operable',
+                  'readiness_reasons': <String>[],
+                  'buttons': [
+                    {'id': 'm-1', 'label': '시작', 'x': 0, 'y': 0},
+                  ],
+                },
             ]);
+            if (appliancesDelay > Duration.zero) {
+              await Future<void>.delayed(appliancesDelay);
+            }
+            return reply;
           }
           if (req.method == 'GET' && path == '/routines') return _json(const []);
           if (path == '/suggestions') return _json(const []);
@@ -87,8 +124,8 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
-Finder _inTile(String text) => find.descendant(
-    of: find.byKey(const Key('appliance-card-a')), matching: find.text(text));
+Finder _inTile(String text, [String id = 'a']) => find.descendant(
+    of: find.byKey(Key('appliance-card-$id')), matching: find.text(text));
 
 Future<_Conn> _pumpHome(WidgetTester tester, _Server server) async {
   tester.view.physicalSize = const Size(400, 2400);
@@ -173,6 +210,40 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
       await _settle(tester);
       expect(_inTile('확인 주행 여부를 확인하지 못했어요'), findsNothing);
+    });
+  });
+
+  group('M1 — 연결을 유지한 채 걸림이 바뀌면 준비 판정을 다시 받는다', () {
+    testWidgets('실행 가능 → 비상정지 걸림 → 타일이 예전 긍정을 버리고 서버 사유로, 풀리면 다시',
+        (tester) async {
+      final server = _Server()..withMock = true;
+      await _pumpHome(tester, server);
+      expect(_inTile('실행을 요청할 수 있어요'), findsOneWidget);
+      expect(_inTile('실행을 요청할 수 있어요', 'm'), findsOneWidget);
+
+      // 허브 연결은 그대로, 로컬 갠트리만 걸린다. 목록 응답은 늦게 온다.
+      server
+        ..estop = true
+        ..appliancesDelay = const Duration(seconds: 2);
+      await tester.pump(const Duration(seconds: 5)); // 걸림 조회 주기
+      await _settle(tester);
+      expect(_inTile('실행을 요청할 수 있어요'), findsNothing,
+          reason: '다시 받는 동안 예전 긍정을 쓰지 않는다');
+      await tester.pump(const Duration(seconds: 3));
+      await _settle(tester);
+      expect(_inTile('준비가 필요해요'), findsOneWidget);
+      expect(_inTile(_estopReason), findsOneWidget, reason: '서버가 준 사유 그대로');
+      expect(_inTile('실행을 요청할 수 있어요'), findsNothing);
+      // 걸림의 범위는 서버가 정한다 — 모의 실행기 가전까지 폰이 일괄로 막지 않는다.
+      expect(_inTile('실행을 요청할 수 있어요', 'm'), findsOneWidget);
+
+      server
+        ..estop = false
+        ..appliancesDelay = Duration.zero;
+      await tester.pump(const Duration(seconds: 5));
+      await _settle(tester);
+      expect(_inTile('실행을 요청할 수 있어요'), findsOneWidget);
+      expect(_inTile('준비가 필요해요'), findsNothing);
     });
   });
 }

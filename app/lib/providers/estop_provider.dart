@@ -17,9 +17,15 @@ class EstopState {
     this.hubRunning = false,
     this.hubJobId,
     this.hubLastJobId,
+    this.localGate,
   });
 
   final bool latched;
+
+  /// 마지막으로 **성공한** `/status`의 로컬 실행 대상 신호(걸림·링크, `HubStatus.localGate`).
+  /// 아직 못 받았으면 null, 조회 실패·해제 직후에도 그대로 둔다. 홈이 이 변화를 듣고
+  /// 가전 목록의 준비 판정을 다시 받는다(검토 M1, 2026-10-13).
+  final ({bool? estop, bool? linkUp})? localGate;
   final String? detail;
 
   /// 해제 요청을 보내고 답을 기다리는 중.
@@ -57,8 +63,10 @@ class EstopState {
     String? hubJobId,
     String? hubLastJobId,
     bool clearJobs = false,
+    ({bool? estop, bool? linkUp})? localGate,
   }) =>
       EstopState(
+        localGate: localGate ?? this.localGate,
         latched: latched ?? this.latched,
         detail: clearDetail ? null : (detail ?? this.detail),
         acking: acking ?? this.acking,
@@ -106,7 +114,10 @@ class EstopNotifier extends StateNotifier<EstopState> {
         clearHold: hub.holdState == null,
         hubRunning: hub.running,
         clearJobs: true,
-      ).copyWith(hubJobId: hub.jobId, hubLastJobId: hub.lastJobId);
+      ).copyWith(
+          hubJobId: hub.jobId,
+          hubLastJobId: hub.lastJobId,
+          localGate: hub.localGate);
     } catch (_) {
       // 걸림은 모름 — 그대로 둔다(위 이유). 대기·실행 중은 음성 정지 듣기에만 쓰여서
       // 모를 때 끄는 쪽이 안전하다(10/8 인계 5차 §2) — 정지 버튼은 그대로 있다.
@@ -129,7 +140,9 @@ class EstopNotifier extends StateNotifier<EstopState> {
     final result = await api.ackEstop();
     if (!mounted) return result;
     if (result.cleared) {
-      state = const EstopState();
+      // 마지막으로 안 걸림·링크 신호는 남긴다 — 비워 두면 다음 조회의 변화(걸림→풀림)를
+      // 가전 목록이 놓친다(검토 M1).
+      state = EstopState(localGate: state.localGate);
       await refresh();
     } else {
       state = state.copyWith(acking: false, message: result.message);
