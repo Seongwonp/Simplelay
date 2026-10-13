@@ -348,7 +348,7 @@ void main() {
   });
 
   // ── 2026-10-14 보드 날 발견 4: 글꼴 2.0·360×780에서 아래 고정 영역 ───────────────────────────
-  testWidgets('글꼴 2.0·360×780: 아래 고정 영역은 실행·다음에만 — 할 일 줄이 첫 화면에 보이고 보조 행동은 본문 끝',
+  testWidgets('글꼴 2.0·360×780: 아래 고정 영역은 실행·다음에만 — 할 일 줄은 스크롤 후 가리지 않고 접근, 보조 행동은 본문 끝',
       (tester) async {
     tester.view.physicalSize = const Size(360, 780);
     tester.view.devicePixelRatio = 1.0;

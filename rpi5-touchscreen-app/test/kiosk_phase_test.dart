@@ -1456,7 +1456,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
-  testWidgets('폴링 사이에 시작해 끝난 짧은 실행(0.45 s)과 그 사용자 정지도 결과를 띄운다', (tester) async {
+  testWidgets('running을 한 번도 못 봐도 마지막 결과(사용자 정지 포함)를 띄운다 — 폴링 사이에 끝난 짧은 실행', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()
       ..statusResult = const KioskStatus(
