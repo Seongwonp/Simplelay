@@ -79,8 +79,8 @@ class HomeScreen extends ConsumerWidget {
       String? note(VerifyPassLookup lookup) => verifyPassTileNote(
           appliance: a, hub: rpiState, catalog: catalog.status, lookup: lookup);
       if (note(const VerifyPassLookup.unknown()) == null) return null;
-      return note(ref.watch(setupPassProvider(a.id)).valueOrNull ??
-          const VerifyPassLookup.unknown());
+      // 다시 묻는 중에는 예전 결과 대신 모름(검토 M3).
+      return note(setupPassLookupOf(ref.watch(setupPassProvider(a.id))));
     }
 
     final verifyNotes = {for (final a in appliances) a.id: verifyNoteOf(a)};

@@ -31,10 +31,26 @@ Future<VerifyPassLookup> lookupVerifyPass(RpiApiService? api, String id) async {
   }
 }
 
-/// 로딩 중에는 값이 없다 — 읽는 쪽은 `valueOrNull ?? VerifyPassLookup.unknown()`.
+/// 가전 하나의 확인 주행 조회. 읽는 쪽은 [setupPassLookupOf]로 읽는다.
+///
+/// 허브가 **다시 연결되면** 새로 묻는다(검토 M3, 2026-10-13) — 서버가 재시작해 메모리의
+/// 확인 주행 기록이 사라졌거나, 끊기기 전 조회가 실패했을 수 있다. 홈이 계속 구독해
+/// autoDispose되지 않으므로 연결을 듣지 않으면 예전 결과가 남는다. 연결이 아닐 때는
+/// 묻지 않고 모름이다.
 final setupPassProvider = FutureProvider.autoDispose
-    .family<VerifyPassLookup, String>((ref, id) =>
-        lookupVerifyPass(ref.watch(rpiApiServiceProvider), id));
+    .family<VerifyPassLookup, String>((ref, id) {
+  final connected = ref.watch(rpiConnectionProvider
+      .select((s) => s == RpiConnectionState.connected));
+  final api = ref.watch(rpiApiServiceProvider);
+  if (!connected) return const VerifyPassLookup.unknown();
+  return lookupVerifyPass(api, id);
+});
+
+/// 조회 중(다시 묻는 중 포함)·오류·값 없음은 모름 — 예전 결과를 지금의 것으로 쓰지 않는다.
+VerifyPassLookup setupPassLookupOf(AsyncValue<VerifyPassLookup> value) =>
+    value.isLoading || !value.hasValue
+        ? const VerifyPassLookup.unknown()
+        : value.requireValue;
 
 /// 위치를 맞췄고 실제 확인 주행까지 끝났는가.
 bool _setupDone(ApplianceMap appliance, VerifyPass? pass) =>
@@ -55,8 +71,7 @@ class ApplianceSetupCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final lookup = ref.watch(setupPassProvider(appliance.id)).valueOrNull ??
-        const VerifyPassLookup.unknown();
+    final lookup = setupPassLookupOf(ref.watch(setupPassProvider(appliance.id)));
     final pass = lookup.pass;
     final mapped = appliance.panelMapping != null;
     final verified = pass?.state == 'done' && pass?.executionMode == 'real';
@@ -107,7 +122,8 @@ class ApplianceSetupSection extends ConsumerWidget {
     final pending = [
       for (final a in appliances)
         if (a.panelMapping == null ||
-            !_setupDone(a, ref.watch(setupPassProvider(a.id)).valueOrNull?.pass))
+            !_setupDone(
+                a, setupPassLookupOf(ref.watch(setupPassProvider(a.id))).pass))
           a,
     ];
     if (pending.isEmpty) return const SizedBox.shrink();
