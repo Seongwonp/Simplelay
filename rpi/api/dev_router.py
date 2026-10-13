@@ -507,7 +507,7 @@ def dev_end_session(
             message="세션은 닫았지만 정지를 확인하지 못했습니다 -- 기기가 잠겼습니다",
             state=_state_view(manager),
         )
-    return _stop_response(manager, info, mock_message="세션을 끝내고 정지를 확인했습니다", prefix="세션을 끝냈어요 — ")
+    return _stop_response(manager, info, mock_message="세션을 끝내고 모의 장치에서 정지를 확인했습니다", prefix="세션을 끝냈어요 — ")
 
 
 def _stop_response(manager: DeveloperSessionManager, info: dict | None, *, mock_message: str,
@@ -537,7 +537,7 @@ def dev_stop(
             message="정지를 보냈지만 확인하지 못했습니다 -- 다시 정지를 눌러 확인해 주세요",
             state=_state_view(manager),
         )
-    return _stop_response(manager, info, mock_message="정지를 확인했습니다")
+    return _stop_response(manager, info, mock_message="모의 장치에서 정지를 확인했습니다")
 
 
 @dev_router.get("/log", response_model=list[DevLogEntryView])
