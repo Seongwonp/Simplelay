@@ -147,6 +147,13 @@ class HelloMsg:
     """RPi5 연결 알림. RPi4는 act_info(끝 관찰 가전·리허설 가능 여부)와 estop_state로 답한다."""
 
 
+@dataclass(frozen=True)
+class ClockProbeMsg:
+    """사건 신선도 기준점 탐침(3차 평가 M1). RPi4는 ``clock_ref {probe, clock_id, t_monotonic_ns}``로 곧바로 답한다."""
+
+    probe: str
+
+
 #: 리허설 주입 동작 — 콘센트 비상 버튼 누름·풀기, 가전 끝 주입.
 REHEARSAL_ACTIONS = ("outlet_estop", "outlet_estop_release", "appliance_done")
 
@@ -196,7 +203,7 @@ class DevMotionRefusedMsg:
 
 InboundActMsg = (
     ExecuteMsg | ExecuteRefusedMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg | EstopAckMsg
-    | HelloMsg | RehearsalMsg | DevMotionMsg | DevMotionRefusedMsg
+    | HelloMsg | ClockProbeMsg | RehearsalMsg | DevMotionMsg | DevMotionRefusedMsg
 )
 
 #: 정지 버튼 누름 횟수 상한(전자레인지: 1회 일시정지·2회 취소 등). 레지스트리와 같다.
@@ -305,6 +312,12 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
 
     if msg_type == "hello":
         return HelloMsg()
+
+    if msg_type == "clock_probe":
+        probe = doc.get("probe")
+        if not isinstance(probe, str) or not 1 <= len(probe) <= 64:
+            return None
+        return ClockProbeMsg(probe)
 
     if msg_type == "rehearsal":
         return _parse_rehearsal(doc)

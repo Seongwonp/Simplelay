@@ -24,6 +24,7 @@ import math
 import os
 import re
 from collections import deque
+from uuid import uuid4
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
@@ -123,6 +124,11 @@ def _appliance_fusion_env(appliance_id: str, field_name: str) -> str:
     return f"SIMPLELAY_DONE_{slug}_{suffix}"
 
 
+#: 이 프로세스의 단조 시계 식별자(3차 평가 M1, 2026-10-14). ``at_s``·``t_monotonic_ns``는 이 프로세스의
+#: ``time.monotonic`` 값이다 — 받는 쪽(RPi5)은 같은 식별자의 기준점(``clock_ref``)이 있을 때만 자기 시계로 옮긴다.
+CLOCK_ID = uuid4().hex[:16]
+
+
 @dataclass(frozen=True)
 class _Input:
     kind: str
@@ -167,6 +173,8 @@ class ApplianceDoneEvent:
         }
         if t_monotonic_ns is not None:
             doc["t_monotonic_ns"] = t_monotonic_ns
+            # 어느 단조 시계의 값인지(3차 평가 M1) — 다른 장치의 시계 값과 그대로 비교하지 않게.
+            doc["clock_id"] = CLOCK_ID
         return doc
 
 

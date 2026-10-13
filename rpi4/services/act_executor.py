@@ -83,11 +83,12 @@ from rpi.controller import (
 from rpi.services.demo_failure import DemoFailureState
 from rpi.services.link_auth import ServerAuth
 from rpi.verifier import DangerSoundResult
-from rpi.verifier.done_fusion import rehearsal_done_event
+from rpi.verifier.done_fusion import CLOCK_ID, rehearsal_done_event
 
 from ..models.act_messages import (
     AbortMsg,
     ClearFailureMsg,
+    ClockProbeMsg,
     DevMotionMsg,
     DevMotionRefusedMsg,
     EstopAckMsg,
@@ -111,6 +112,8 @@ from .target_binding import TargetBinder, TargetBinding, TargetRefused
 log = logging.getLogger(__name__)
 
 PROGRESS_ENV = "SIMPLELAY_ACT_PROGRESS"
+#: act_info로 알리는 사건 신선도 기준점 규약 판(3차 평가 M1, 2026-10-14). 1 = ``clock_probe``에 ``clock_ref``로 답한다.
+CLOCK_PROTOCOL = 1
 #: act_info로 알리는 정지 보고 규약 판(2026-10-13). 1 = ``abort {stop_id}``에 ``stop_report``로 답한다.
 #: RPi5는 이 값이 없는 RPi4(옛 판)면 보고를 기다리지 않고 ``sent``(보냄)로만 말한다.
 STOP_REPORT_PROTOCOL = 1
@@ -471,6 +474,10 @@ class ActExecutor:
             self._start_estop_ack()
         elif isinstance(msg, HelloMsg):
             self._announce()
+        elif isinstance(msg, ClockProbeMsg):
+            # 사건 신선도 기준점(3차 평가 M1) — 읽은 즉시 이 프로세스의 단조 시각으로 답한다.
+            self._write_now({"type": "clock_ref", "probe": msg.probe, "clock_id": CLOCK_ID,
+                             "t_monotonic_ns": time.monotonic_ns()})
         elif isinstance(msg, RehearsalMsg):
             await self._on_rehearsal(msg)
         elif isinstance(msg, AbortMsg):
@@ -974,7 +981,9 @@ class ActExecutor:
     def _announce(self) -> None:
         """``act_info``와 ``estop_state``를 보낸다 — RPi5가 (다시) 연결했거나 RPi4가 막 켜졌을 때."""
         info = {"type": "act_info", "done_watch": [], "execute_protocol": EXECUTE_PROTOCOL, **self.act_info,
-                "rehearsal": self._rehearsal is not None, "stop_report_protocol": STOP_REPORT_PROTOCOL}
+                "rehearsal": self._rehearsal is not None, "stop_report_protocol": STOP_REPORT_PROTOCOL,
+                # 사건 신선도 기준점 규약(3차 평가 M1): clock_probe에 clock_ref로 답한다.
+                "clock_protocol": CLOCK_PROTOCOL}
         if self._dev_motion is not None:
             # 실제 모션 어댑터가 물렸을 때만 — RPi5는 이 값이 없으면 개발자 조작을 보내지 않는다(2026-10-10).
             info["dev_motion_protocol"] = DEV_MOTION_PROTOCOL

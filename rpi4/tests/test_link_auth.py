@@ -229,6 +229,8 @@ def test_unsigned_or_forged_execute_during_live_session_is_dropped():
     async def _t():
         link = await _Link(KEY, KEY).start()
         await _ready(link)
+        # 연결 알림의 마지막(사건 신선도 기준점 답 clock_ref, 3차 평가 M1)까지 받은 뒤 센다.
+        await _until(lambda: any(d["type"] == "clock_ref" for d in link.to_hub.docs()))
         before = len(link.to_hub.docs())
         evil = {"type": "execute", "sequence_id": "evil", "buttons": BUTTONS, "appliance_id": "microwave"}
         link.inject(evil)

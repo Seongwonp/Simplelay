@@ -27,6 +27,9 @@ RPi4 side of this same link.
                                       (세탁 끝: CT 전력 + 종료음 융합, 2026-10-06. 검증 뒤 ``on_appliance_done``,
                                        ``last_appliance_done``. 검증에 실패한 프레임은 버린다)
   hello (start() 때 한 번)        ←  act_info {done_watch, rehearsal, outlet, motion} + estop_state {announce:true}
+  clock_probe {probe}             ←  clock_ref {probe, clock_id, t_monotonic_ns}
+                                      (사건 신선도 기준점, 3차 평가 M1 2026-10-14 — act_info.clock_protocol을 알린 RPi4에만,
+                                       act_info를 받을 때마다 한 번. rpi/services/event_clock.py)
                                       (2026-10-06 평가 C1·B3: RPi5가 다시 켜져도 걸림 상태를 다시 안다. 받기 전
                                        ``estop_latched``는 None = '확인 중'이고 실행을 거절한다)
   rehearsal {action, request_id}  ←  rehearsal_result {request_id, ok, ...}(가짜 콘센트·모의 모션 RPi4만)
@@ -730,9 +733,35 @@ class ActClient:
                 return
             await self._reconnect()
 
+    @staticmethod
+    def _event_clock():
+        from .event_clock import get_event_clock  # noqa: PLC0415
+
+        return get_event_clock()
+
+    def _request_clock_ref(self) -> None:
+        """사건 신선도 기준점(3차 평가 M1): ``act_info.clock_protocol`` ≥ 1인 RPi4에 탐침을 보낸다. 옛 RPi4면 보내지 않는다 —
+        그러면 그 링크의 사건은 신선도 근거가 없어 자동 실행이 보류된다."""
+        protocol = self.act_info.get("clock_protocol")
+        if not isinstance(protocol, int) or isinstance(protocol, bool) or protocol < 1:
+            return
+
+        async def send() -> None:
+            try:
+                await self._send({"type": "clock_probe", "probe": self._event_clock().new_probe()})
+            except Exception as exc:  # noqa: BLE001 - 못 보내면 기준점이 없다(보류) — 읽기 루프는 살린다
+                log.info("ActClient: clock_probe not sent (%s)", exc)
+
+        try:
+            asyncio.get_running_loop().create_task(send())
+        except RuntimeError:  # 루프 밖(시험 대역) — 기준점 없음
+            log.info("ActClient: no running loop for clock_probe")
+
     def _mark_link_down(self, reason: str) -> None:
         """끊김: 기다리던 요청을 모두 바로 실패시키고, 걸림 상태를 '모름'으로 돌린다(풀림으로 가정하지 않는다)."""
         log.warning("ActClient: link down (%s)", reason)
+        # 사건 신선도 기준점도 버린다(3차 평가 M1) — 다음 세션의 clock_ref 전까지 그 링크 사건은 자동 실행 보류.
+        self._event_clock().link_down()
         self.link_up = False
         self._transport_up = False
         self._session = None
@@ -823,8 +852,13 @@ class ActClient:
                 if not waiter.done():
                     waiter.set_result(doc)
             return
+        if msg_type == "clock_ref":
+            if not self._event_clock().on_clock_ref(doc):
+                log.info("ActClient: clock_ref without a matching probe ignored")
+            return
         if msg_type == "act_info":
             self.act_info = {k: v for k, v in doc.items() if k != "type"}
+            self._request_clock_ref()
             if self._on_act_info is not None:
                 try:
                     self._on_act_info(dict(self.act_info))

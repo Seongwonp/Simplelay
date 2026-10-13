@@ -284,3 +284,169 @@ def test_stop_landing_inside_the_allow_save_never_leaves_a_usable_rule(monkeypat
         _assert_no_auto_on_next_event(api, cloud, len(cloud.controls()))
     finally:
         _reset()
+
+
+# ── M1: 전송 뒤 늦게 온 사건의 나이 — 이 허브 시계로 옮긴 끝 시각 기준 ─────────────────────────────
+
+RPI4_CLOCK = "rpi4clock0000001"
+
+
+class _HubClock:
+    """이 허브(RPi5)의 가짜 단조 시계. RPi4 시계(초)와 일부러 다른 값에서 시작한다(서로 다른 장치)."""
+
+    def __init__(self) -> None:
+        self.now = 10_000.0
+
+
+@pytest.fixture()
+def hub_clock():
+    from rpi.services.event_clock import reset_event_clock
+
+    clock = _HubClock()
+    events = reset_event_clock(lambda: clock.now)
+    # 링크 세션 기준점: 허브 10,000초에 탐침을 보냈고 RPi4는 자기 시계 500초로 답했다(clock_ref).
+    probe = events.new_probe()
+    assert events.on_clock_ref({"probe": probe, "clock_id": RPI4_CLOCK, "t_monotonic_ns": 500 * 10**9})
+    yield clock
+    reset_event_clock()
+
+
+def _rpi4_frame(at_rpi4_s: float, clock_id: str = RPI4_CLOCK) -> dict:
+    """RPi4가 끝을 본 즉시 낸 프레임(RPi4 시계). 낸 시각 = 끝 시각 — 예전 판정의 '나이'는 0초다."""
+    from rpi.verifier.done_fusion import rehearsal_done_event
+
+    frame = rehearsal_done_event("microwave", ["power"], now_s=at_rpi4_s).to_frame(int(at_rpi4_s * 1e9))
+    frame["clock_id"] = clock_id
+    frame["source"] = "injected"
+    return frame
+
+
+def _backdate_allowance(seconds: float) -> None:
+    """허용 시각을 과거로(지문에 들어가지 않는 칸) — 나이 경계만 보려고 '허용 전 사건' 판정을 비켜 둔다."""
+    from dataclasses import replace
+    from datetime import timedelta
+
+    from rpi.api import deps
+
+    engine = _engine()
+    rule = engine.store.list()[0]
+    past = (deps.get_clock().now() - timedelta(seconds=seconds)).isoformat()
+    engine.store.save(replace(rule, allowed_at=past))
+
+
+def _deliver(frame: dict) -> None:
+    from rpi.api import deps
+
+    deps.receive_appliance_done(dict(frame))
+
+
+def _setup_allowed(monkeypatch, tmp_path, cloud):
+    _env(monkeypatch, tmp_path, cloud)
+    _reset()
+    from rpi.main import app
+
+    api = TestClient(app)
+    _allow(api)
+    _set_low(api)
+    return api
+
+
+def test_frame_delayed_after_sending_is_judged_by_its_age_on_arrival(monkeypatch, tmp_path, cloud, hub_clock):
+    """M1: RPi4가 끝을 본 즉시 낸 프레임이 링크에서 301초 늦게 처음 도착했다 — 나이 301초로 막는다(예전: 0초로 보냄)."""
+    try:
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)
+        _backdate_allowance(3600)
+        before = len(cloud.controls())
+        frame = _rpi4_frame(500 + 20)  # RPi4 520초 = 허브 10,020초
+        hub_clock.now = 10_020 + 301
+        _deliver(frame)
+        run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+        assert "오래된" in run["reason"]
+        time.sleep(0.3)
+        assert len(cloud.controls()) == before
+    finally:
+        _reset()
+
+
+def test_event_from_before_the_allowance_delivered_late_is_not_run(monkeypatch, tmp_path, cloud, hub_clock):
+    """M1: 허용하기 60초 전에 끝난 가열의 프레임이 허용 뒤에 처음 도착 — 120초 안이어도 '허용 전 사건'으로 막는다."""
+    try:
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)  # 방금 허용
+        before = len(cloud.controls())
+        frame = _rpi4_frame(500 + 100)  # 허브 10,100초에 끝
+        hub_clock.now = 10_100 + 60  # 60초 뒤에 도착 — 허용(방금)보다 앞선 가열
+        _deliver(frame)
+        run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+        assert "허용하기 전" in run["reason"]
+        time.sleep(0.3)
+        assert len(cloud.controls()) == before
+    finally:
+        _reset()
+
+
+@pytest.mark.parametrize(("age", "sent"), [(119.0, True), (121.0, False)])
+def test_120_second_boundary_uses_the_age_on_this_hub(monkeypatch, tmp_path, cloud, hub_clock, age, sent):
+    """M1: 상한 120초 경계 — 이 허브 시계로 잰 나이 119초는 보내고 121초는 막는다."""
+    try:
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)
+        _backdate_allowance(3600)
+        before = len(cloud.controls())
+        hub_clock.now = 10_200 + age
+        _deliver(_rpi4_frame(500 + 200))
+        if sent:
+            run = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+            assert run["status"] == "succeeded"
+            assert len(cloud.controls()) == before + 1
+        else:
+            run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+            assert "오래된" in run["reason"]
+            time.sleep(0.3)
+            assert len(cloud.controls()) == before
+    finally:
+        _reset()
+
+
+def test_event_expiring_while_waiting_to_send_is_not_sent(monkeypatch, tmp_path, cloud, hub_clock):
+    """M1: 판단 때 나이 100초(통과) → controller 상태 조회 대기 30초 → 전송 직전 130초 → 보내지 않는다."""
+    try:
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)
+        _backdate_allowance(3600)
+        before = len(cloud.controls())
+        gate = _NetworkGate(monkeypatch, "get_status")
+        gate.armed = True
+        hub_clock.now = 10_300 + 100
+        _deliver(_rpi4_frame(500 + 300))
+        assert gate.entered.wait(10)
+        hub_clock.now += 30
+        gate.release.set()
+        run = _wait_run(api, lambda r: r.get("job_id") and r.get("status"))
+        time.sleep(0.3)
+        assert len(cloud.controls()) == before
+        assert run["outcome"] == "blocked" and run["receipt"] == "not_dispatched"
+        assert "지나" in run["reason"]
+    finally:
+        _reset()
+
+
+@pytest.mark.parametrize("case", ["other_session", "link_down"])
+def test_without_a_clock_reference_for_the_frame_auto_run_is_held(monkeypatch, tmp_path, cloud, hub_clock, case):
+    """M1: 근거가 없으면 보류 — 프레임의 시계가 지금 링크 세션 것이 아니거나(RPi4 재시작) 링크가 끊겨 기준점을 버렸다."""
+    from rpi.services.event_clock import get_event_clock
+
+    try:
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)
+        _backdate_allowance(3600)
+        before = len(cloud.controls())
+        hub_clock.now = 10_400 + 1
+        if case == "other_session":
+            frame = _rpi4_frame(500 + 400, clock_id="rpi4clock0000002")
+        else:
+            frame = _rpi4_frame(500 + 400)
+            get_event_clock().link_down()
+        _deliver(frame)
+        run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+        assert "근거가 없어" in run["reason"]
+        time.sleep(0.3)
+        assert len(cloud.controls()) == before
+    finally:
+        _reset()

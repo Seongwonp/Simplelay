@@ -19,7 +19,8 @@ def test_lost_response_does_not_claim_success_or_resend():
     report = asyncio.run(run_scenario("lost_response"))
     assert report["act_local"]["status"] == "succeeded"
     assert report["hub"] == {"outcome": "timeout_result_unknown", "result": None}
-    assert [f["type"] for f in report["wire"]["hub_to_act"]] == ["execute", "abort"]
+    # 사건 신선도 기준점 탐침(clock_probe, 3차 평가 M1)은 연결 알림이라 실행 흐름 비교에서 뺀다.
+    assert [f["type"] for f in report["wire"]["hub_to_act"] if f["type"] != "clock_probe"] == ["execute", "abort"]
     assert len(report["wire"]["dropped"]) == 1
 
 

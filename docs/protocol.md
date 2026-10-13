@@ -107,6 +107,18 @@ RPi5는 답을 받기 전 걸림 상태를 **모름**(`estop_latched=null`)으�
 "비상정지 상태를 확인하는 중이에요 — RPi4 응답을 기다려요"이고, 상태를 볼 때마다 2초 간격으로 `hello`를 다시 보낸다.
 `announce:true`인 `estop_state`는 `estop_ack`의 답으로 치지 않는다.
 
+`clock_probe {probe}`(사건 신선도 기준점 규약 1, 3차 평가 M1 2026-10-14): `act_info`에 `"clock_protocol": 1`(이상)을 알린
+RPi4에만, `act_info`를 받을 때마다 한 번 보낸다. RPi4는 곧바로 `clock_ref {probe, clock_id, t_monotonic_ns}`(그 순간
+**RPi4 프로세스의** 단조 시각과 그 시계 식별자)로 답한다. RPi5는 탐침을 보내기 직전 자기 단조 시각 `L0`을 적어 두고,
+그 RPi4 시계의 시각 `x`를 `L0 + (x - t_monotonic_ns/1e9)`로 옮긴다 — RPi4가 답을 만든 실제 순간은 `L0` 이후이므로 옮긴
+시각은 실제보다 이르거나 같고, 사건 나이는 길게(최대 왕복 시간만큼) 잡힌다(보수적). 링크가 끊기면 기준점을 버린다. 옛 RPi4
+(`clock_protocol` 없음)에는 보내지 않고, 그 링크의 사건은 신선도 근거가 없어 자동 실행을 보류한다(`rpi/services/event_clock.py`).
+
+```json
+{ "type": "clock_probe", "probe": "81c9805dd4184535" }
+{ "type": "clock_ref", "probe": "81c9805dd4184535", "clock_id": "f445ea42be9e405f", "t_monotonic_ns": 279831562000000 }
+```
+
 `rehearsal`(2026-10-06, UART 리허설): 시연 장면 ④⑤(가전 끝·콘센트 비상 버튼)를 보드 구성에서 연습하는 주입. RPi4는
 **모션이 mock이고 콘센트 모듈이 가짜(`SIMPLELAY_OUTLET_PORT=fake`)이거나 없을 때만** 받는다(`act_info.rehearsal=true`).
 그 밖이면 `rehearsal_result {ok:false, reason:"rehearsal_refused"}`. `appliance_done`은 같은 융합 규칙으로 `source:"injected"`
@@ -265,7 +277,7 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 
 ```json
 { "type": "act_info", "done_watch": ["washer", "microwave"], "outlet": "fake", "motion": "mock", "rehearsal": true }
-{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 2, "stop_report_protocol": 1 }
+{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 2, "stop_report_protocol": 1, "clock_protocol": 1 }
 { "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f6", "op": "home", "ok": true, "homed": true, "x_mm": 0.0, "y_mm": 0.0 }
 { "type": "rehearsal_result", "request_id": "a1b2c3", "ok": true, "action": "appliance_done", "source": "injected", "frame": { "…": "…" } }
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }
@@ -619,9 +631,14 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   "at_s": 1234.5, "gap_s": 3.8, "fusion_window_s": 120.0,
   "evidence": { "power": { "run_s": 3120.0, "peak_w": 1850.0, "mean_run_w": 310.0, "standby_w": 2.1, "dips": 14, "…": "…" },
                 "beep": { "beeps": 3, "mean_period_s": 0.6, "…": "…" } },
-  "t_monotonic_ns": 0 }
+  "t_monotonic_ns": 0, "clock_id": "f445ea42be9e405f" }
 ```
 
+  - `at_s`·`t_monotonic_ns`는 **RPi4 프로세스의** 단조 시각이고 `clock_id`가 그 시계를 가리킨다(3차 평가 M1, 2026-10-14).
+    RPi5는 받는 순간 `clock_ref` 기준점(위 `clock_probe`)으로 `at_s`를 자기 단조 시계로 옮겨 `event_end_mono_s`로 둔다 — 같은
+    `clock_id`의 기준점이 없으면(옛 RPi4·RPi4 재시작·링크 끊김) None이고 자동 실행 허용 규칙은 **보류**한다. 다른 장치의 단조 값을
+    그대로 빼지 않는다. RPi5 모의 주입은 RPi5 자기 시계 식별자를 싣는다(같은 시계). 사건 나이(지금 − 옮긴 끝 시각)는 판단 때와
+    ThinQ 전송 직전에 다시 본다(`SIMPLELAY_AUTO_RULE_MAX_EVENT_AGE_S`, 기본 120초, 측정 필요).
   - `state`: `done_confirmed`(두 입력이 `fusion_window_s` 안) | `done_power_only` | `done_beep_only`(하나만 — 먼저 온 입력이
     `SIMPLELAY_DONE_FUSION_WAIT_S` 동안 짝을 기다린 뒤). `inputs`와 `state`가 어긋나면 RPi5가 버린다.
   - `source`: `real` | `mock`(가짜 콘센트 모듈 등 합성 입력) | `injected`(리허설 주입 — 시뮬레이터 실행기만 보낸다).

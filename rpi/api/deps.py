@@ -204,6 +204,12 @@ def receive_appliance_done(record: dict) -> None:
     if checked is None:
         log.warning("appliance_done record rejected: %r", record)
         return
+    # 사건 신선도(3차 평가 M1): 받은 순간, 사건 끝 시각을 이 허브 단조 시계로 옮겨 둔다(근거 없으면 None — 자동 실행 보류).
+    from rpi.services.event_clock import get_event_clock  # noqa: PLC0415
+
+    clock = get_event_clock()
+    checked["event_end_mono_s"] = clock.end_local_s(checked)
+    checked["received_mono_s"] = clock.monotonic()
     get_appliance_done_log().append(checked)  # 기록이 먼저 — 루틴 쪽이 고장 나도 증거는 남는다
     try:
         from rpi.routines.wiring import get_routine_engine  # noqa: PLC0415

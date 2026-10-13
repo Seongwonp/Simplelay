@@ -56,6 +56,10 @@ def parse_appliance_done(doc: Mapping) -> dict | None:
         # 같은 사건 판별(재전송·재연결)과 사건 나이(내보낸 시각 - 끝 시각)에 쓴다. 없거나 숫자가 아니면 None.
         "at_s": float(at_s) if _number(at_s) else None,
         "t_monotonic_ns": int(sent_ns) if _number(sent_ns) else None,
+        # 그 시각들의 단조 시계(RPi4 프로세스) 식별자(3차 평가 M1). 받는 쪽은 같은 식별자의 기준점이 있을 때만
+        # 자기 시계로 옮긴다(rpi/services/event_clock.py). 없거나 형식이 틀리면 None — 자동 실행은 보류.
+        "clock_id": doc.get("clock_id") if isinstance(doc.get("clock_id"), str)
+        and _ID.fullmatch(doc.get("clock_id")) else None,
         "appliance_id": appliance,
         "event": event,
         "state": state,

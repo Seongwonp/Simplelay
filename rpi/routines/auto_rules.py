@@ -10,8 +10,11 @@
    카드는 허용 제안이 없고(`offer_for` → None) 서버도 거절한다. 저장된 규칙도 실행 직전에 다시 본다.
 2. **모의 사건 → 모의 ThinQ만.** 대상 실행 환경이 real이면 사건 출처도 real(RPi4 L3 실물 판정)이어야 보낸다.
 3. **같은 사건 한 번.** 사건 키(가전·이벤트·출처·RPi4 끝 시각)로 멱등 — 재전송·재연결로 다시 와도 한 번.
-   RPi4 시각이 없거나 사건이 오래됐거나(``SIMPLELAY_AUTO_RULE_MAX_EVENT_AGE_S``, 기본 120초, 측정 필요)
-   허용하기 전에 끝난 조리면 보내지 않는다. 결과가 미확인이어도 **다시 보내지 않는다**(재시도 코드 없음).
+   사건 나이는 **이 허브 단조 시계로 옮긴 끝 시각**부터 잰다(3차 평가 M1, ``rpi/services/event_clock.py`` — RPi4가
+   프레임을 낸 뒤 링크에서 늦어진 시간까지 센다. 다른 장치의 monotonic을 그대로 비교하지 않는다). 옮길 근거가 없거나
+   (옛 RPi4·연결 세션 바뀜) 사건이 오래됐거나(``SIMPLELAY_AUTO_RULE_MAX_EVENT_AGE_S``, 기본 120초, 측정 필요) 허용하기
+   전에 끝난 가열이면 보내지 않는다(보류가 기본). 전송 직전에도 나이를 다시 본다(전송 대기 중 만료).
+   결과가 미확인이어도 **다시 보내지 않는다**(재시도 코드 없음).
 4. **허용은 지문에 묶인다**(조건 가전·이벤트·대상 가전·대상 기기 키·종류·동작·속성·값). 값을 바꾸면 꺼지고 다시
    허용해야 한다. 대상 기기가 없어지거나 다른 기기로 바뀌면 그 자리에서 무효(꺼짐 + 이유)가 된다.
 5. **비상정지**: 세대를 올려(`halt`) 판단은 끝났지만 아직 보내지 않은 자동 실행을 실행 게이트 안에서 막고
@@ -51,7 +54,8 @@ LOW_RISK_ACTIONS: dict[str, dict[str, tuple[str, ...] | None]] = {
 }
 
 MAX_EVENT_AGE_ENV = "SIMPLELAY_AUTO_RULE_MAX_EVENT_AGE_S"
-#: 사건 나이 상한(초) — RPi4가 끝을 본 뒤 프레임을 낼 때까지. **측정 필요**(전자레인지 settle_s 10초 + 여유).
+#: 사건 나이 상한(초) — RPi4가 끝을 본 뒤 이 허브가 보내기 직전까지(링크 지연 포함, 3차 평가 M1). **측정 필요**
+#: (전자레인지 settle_s 10초 + 여유).
 DEFAULT_MAX_EVENT_AGE_S = 120.0
 #: 자동 실행 승인 1건의 유효 시간(초).
 APPROVAL_SECONDS = 60
@@ -237,13 +241,20 @@ def event_key(record: Mapping) -> str | None:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
-def event_age_s(record: Mapping) -> float | None:
-    """RPi4가 끝을 본 시각부터 프레임을 낸 시각까지(초, 같은 단조 시계). 모르면 None."""
-    at_s, sent_ns = record.get("at_s"), record.get("t_monotonic_ns")
-    if not isinstance(at_s, (int, float)) or not isinstance(sent_ns, int) or isinstance(sent_ns, bool):
+#: 신선도 근거가 없을 때(3차 평가 M1) — 보류가 기본이다.
+NO_FRESHNESS_REASON = ("가열 종료 시각을 이 허브 시계로 확인할 근거가 없어(연결이 바뀌었거나 옛 RPi4) "
+                       "자동 실행하지 않았어요")
+
+
+def event_age_s(record: Mapping, now_mono_s: float) -> float | None:
+    """사건 나이(초) — 받을 때 이 허브 단조 시계로 옮겨 둔 끝 시각(``event_end_mono_s``)부터 ``now_mono_s``까지.
+
+    옮길 근거가 없었으면(``None``) 또는 1초 넘게 미래면(근거가 어긋남) None — 자동 실행은 보류한다(3차 평가 M1)."""
+    end = record.get("event_end_mono_s")
+    if not isinstance(end, (int, float)) or isinstance(end, bool) or not math.isfinite(end):
         return None
-    age = sent_ns / 1e9 - float(at_s)
-    return age if age >= -1.0 else None
+    age = now_mono_s - float(end)
+    return max(age, 0.0) if age >= -1.0 else None
 
 
 def max_event_age_from_env(env: Mapping[str, str] | None = None) -> float:
@@ -265,8 +276,11 @@ class AutoRuleEngine:
 
     def __init__(self, store: AutoRuleStore, seen: SeenEvents, service, clock, *,
                  scenarios: Callable[[], object] | None = None, care_events=None,
-                 max_event_age_s: float = DEFAULT_MAX_EVENT_AGE_S) -> None:
+                 max_event_age_s: float = DEFAULT_MAX_EVENT_AGE_S,
+                 monotonic: Callable[[], float] | None = None) -> None:
         self.store = store
+        #: 이 허브의 단조 시계 — 사건 끝 시각을 옮긴 시계와 같아야 한다(기본: rpi/services/event_clock.py).
+        self._monotonic = monotonic or _hub_monotonic
         self._seen = seen
         self.service = service
         self._clock = clock
@@ -462,11 +476,10 @@ class AutoRuleEngine:
         if "power" not in (record.get("inputs") or []):
             return self._record(rule, record, key, "blocked",
                                 "가열 종료가 콘센트 전력(CT)으로 감지되지 않아 자동 실행하지 않았어요")
-        # ③ 같은 사건·오래된 사건.
-        age = event_age_s(record)
+        # ③ 같은 사건·오래된 사건 — 나이는 이 허브 시계로 옮긴 끝 시각부터 지금까지(링크 지연 포함, 3차 평가 M1).
+        age = event_age_s(record, self._monotonic())
         if key is None or age is None:
-            return self._record(rule, record, key, "blocked",
-                                "가열 종료 시각을 확인할 수 없어 자동 실행하지 않았어요")
+            return self._record(rule, record, key, "blocked", NO_FRESHNESS_REASON)
         if age > self._max_age:
             return self._record(rule, record, key, "blocked",
                                 f"오래된 가열 종료({age:.0f}초 전)라 자동 실행하지 않았어요")
@@ -543,6 +556,11 @@ class AutoRuleEngine:
                 raise AutoRuleBlocked("자동 실행이 꺼져 보내지 않았어요")
             if current.fingerprint() != decided:
                 raise AutoRuleBlocked("자동 실행 설정이 바뀌어 이전 내용을 보내지 않았어요")
+            # 전송 대기 중 만료(3차 평가 M1) — 판단 뒤 조회·대기로 상한을 넘겼으면 보내지 않는다.
+            age = event_age_s(record, self._monotonic())
+            if age is None or age > self._max_age:
+                raise AutoRuleBlocked(
+                    f"가열 종료 뒤 {age:.0f}초가 지나 보내지 않았어요" if age is not None else NO_FRESHNESS_REASON)
 
         def dispatch_guard(binding=None) -> None:
             # 보내기 직전(실행 스레드) 재검사 — 시작 게이트 뒤에 꺼지거나 바뀌었으면 보내지 않는다. 실행기는 프로필·상태
@@ -817,6 +835,12 @@ class AutoRuleEngine:
         if reoffer:
             result["reoffer"] = True
         return result
+
+
+def _hub_monotonic() -> float:
+    from rpi.services.event_clock import get_event_clock  # noqa: PLC0415
+
+    return get_event_clock().monotonic()
 
 
 def _parse_time(value: str | None) -> datetime | None:

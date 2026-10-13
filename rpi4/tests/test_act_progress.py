@@ -86,8 +86,8 @@ def _roundtrip(controller, *, progress=None, tap=None, on_progress=None, job_obs
     return asyncio.run(_t())
 
 
-#: 연결 알림 프레임(2026-10-06 평가 C1) — 실행 흐름 비교에서 뺀다.
-_HANDSHAKE = {"hello", "act_info", "estop_state"}
+#: 연결 알림 프레임(2026-10-06 평가 C1)·사건 신선도 기준점(3차 평가 M1 — clock_probe·clock_ref) — 실행 흐름 비교에서 뺀다.
+_HANDSHAKE = {"hello", "act_info", "estop_state", "clock_probe", "clock_ref"}
 
 
 def test_progress_frames_round_trip_before_result_with_encoder_counts():
