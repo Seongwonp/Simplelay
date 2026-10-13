@@ -208,7 +208,7 @@ class RoutineTrigger {
         }
         return '${applianceNames[applianceId] ?? applianceId ?? '가전'} 동작이 끝나면';
       case RoutineTriggerKind.event:
-        return "가전 알림 '${event ?? ''}'이 오면";
+        return knownEventLabel(event) ?? "가전 알림 '${event ?? ''}'이 오면";
       case RoutineTriggerKind.manual:
         return '직접 실행할 때';
     }
@@ -222,6 +222,14 @@ class RoutineTrigger {
     return true;
   }
 }
+
+/// 서버가 아는 가전 알림(event)을 사람 말로. 모르는 값은 null(지어내지 않는다).
+/// 서버 `ThinqEventRequest.event`(wash_complete·wash_start)와 같다.
+String? knownEventLabel(String? event) => switch (event) {
+      'wash_complete' => '세탁이 끝나면',
+      'wash_start' => '세탁을 시작하면',
+      _ => null,
+    };
 
 /// 실행 방식. **알림만(notify)은 어떤 경우에도 실행하지 않는다**(서버 규칙).
 enum RoutineMode {
@@ -283,6 +291,21 @@ class Routine {
     }
     return seen;
   }
+
+  /// 실제로 가전을 조작하는 단계(버튼 누름·ThinQ 명령)가 있는가.
+  /// 알림·대기만 있는 루틴은 '실행하기'로 가전을 움직이지 않는다.
+  bool get operatesAppliance => steps.any((s) =>
+      s.kind == RoutineStepKind.pressSequence ||
+      s.kind == RoutineStepKind.thinqCommand);
+
+  /// 목록·홈에서 '실행하기'를 내걸 수 있는 루틴(2026-10-13): 저장된 사용자 루틴,
+  /// 켜짐, 승인 후 실행, 가전 조작 단계 있음. 실행은 승인 카드를 만들 뿐이다.
+  bool get isRunCandidate =>
+      id != null &&
+      !isTemplate &&
+      enabled &&
+      mode == RoutineMode.approve &&
+      operatesAppliance;
 
   factory Routine.fromJson(Map<String, dynamic> json) => Routine(
         id: json['id'] as String?,

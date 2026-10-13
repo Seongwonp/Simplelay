@@ -3,6 +3,7 @@
 // 이 화면들은 **실행하지 않는다.** 저장은 POST/PUT /routines, '지금 실행'도
 // 카드를 만들 뿐이다 -- 아래 서버는 실행 경로(/execute*, approve)가 불리면
 // 테스트를 실패시킨다.
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -76,6 +77,18 @@ class _Server {
   Map<String, dynamic>? lastBody;
   String? rejectDetail;
 
+  /// POST /routines/{id}/trigger 응답. null이면 카드 'card-1'을 만든다.
+  (int, Map<String, dynamic>)? triggerReply;
+
+  /// 있으면 trigger 응답을 이것이 끝날 때까지 붙든다(중복 탭 시험).
+  Future<void>? triggerGate;
+
+  /// true면 GET /routines/next가 실패한다(예약 조회 실패 ≠ 예약 없음).
+  bool nextFails = false;
+
+  int get triggerCount =>
+      requests.where((r) => r.startsWith('POST') && r.endsWith('/trigger')).length;
+
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
         utf8.encode(jsonEncode(body)),
         status,
@@ -100,7 +113,18 @@ class _Server {
           if (req.method == 'GET' && path == '/routines/templates') {
             return _json([_template]);
           }
+          if (req.method == 'POST' && path.endsWith('/trigger')) {
+            final gate = triggerGate;
+            if (gate != null) await gate;
+            final reply = triggerReply;
+            if (reply != null) return _json(reply.$2, reply.$1);
+            return _json({
+              'kind': 'suggestion',
+              'suggestion': {'id': 'card-1'},
+            });
+          }
           if (req.method == 'GET' && path == '/routines/next') {
+            if (nextFails) return _json({'detail': 'boom'}, 500);
             return _json([
               {
                 'routine_id': 'rt-1',
@@ -142,6 +166,11 @@ Widget _build(_Server server, {List<ApplianceMap>? installed}) {
         builder: (_, state) =>
             RoutineEditorScreen(initial: state.extra as Routine?),
       ),
+      GoRoute(
+        path: '/suggestion/:id',
+        builder: (_, state) =>
+            Scaffold(body: Text('승인 화면 ${state.pathParameters['id']}')),
+      ),
     ],
   );
   return buildWithProviderState(
@@ -177,9 +206,9 @@ void main() {
     expect(find.text('다음 실행 · 아침 데우기'), findsOneWidget);
     expect(find.text('07:30'), findsOneWidget);
     expect(find.text('아침 데우기'), findsOneWidget);
-    // 언제 · 대상 · 실행 방식을 한 줄로.
-    expect(find.textContaining('평일 07:30 · 전자레인지 1단계 · 승인 후 실행'),
-        findsOneWidget);
+    // 언제 · 대상을 한 줄로. 승인 반복 설명('승인 후 실행')은 줄마다 되풀이하지 않는다.
+    expect(find.text('평일 07:30 · 전자레인지 1단계'), findsOneWidget);
+    expect(find.textContaining('승인 후 실행 ·'), findsNothing);
     expect(find.text('새 루틴'), findsOneWidget);
   });
 
@@ -230,13 +259,12 @@ void main() {
     await tester.pumpWidget(_build(server, installed: const []));
     await _settle(tester);
 
-    expect(find.text('직접 실행할 때 · 전자레인지 2단계 · 승인 후 실행'),
-        findsOneWidget);
-    expect(find.text('직접 실행할 때 · 세탁기 1단계 · 승인 후 실행'), findsOneWidget);
+    expect(find.text('직접 실행할 때 · 전자레인지 2단계'), findsOneWidget);
+    expect(find.text('직접 실행할 때 · 세탁기 1단계'), findsOneWidget);
     expect(find.textContaining('home_mw'), findsNothing);
     expect(find.textContaining('washer'), findsNothing);
     // 이름을 모르는 가전만 ID로 남는다.
-    expect(find.text('직접 실행할 때 · ghost 1단계 · 승인 후 실행'), findsOneWidget);
+    expect(find.text('직접 실행할 때 · ghost 1단계'), findsOneWidget);
   });
 
   testWidgets('루틴을 열어 알림만으로 바꿔 저장하면 PUT하고 목록이 다시 읽힌다',
@@ -328,5 +356,152 @@ void main() {
     expect(find.text("'전자레인지' 조작부 사진에 없는 버튼이에요: 순간이동"),
         findsOneWidget);
     expect(find.text('언제'), findsOneWidget);
+  });
+
+  // ── 2026-10-13 B안: 행마다 편집 / 실행하기 ──────────────────────────────────
+
+  Finder runButton(String routineId) =>
+      find.byKey(Key('routine-run-$routineId'));
+  Finder editButton(String routineId) =>
+      find.byKey(Key('routine-edit-$routineId'));
+
+  testWidgets('실행하기는 편집을 열지 않고 카드만 만들어 승인 화면으로 간다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    expect(runButton('rt-1'), findsOneWidget);
+    expect(editButton('rt-1'), findsOneWidget);
+    // 둘 다 48 이상 터치 영역.
+    expect(tester.getSize(runButton('rt-1')).height, greaterThanOrEqualTo(48));
+    expect(tester.getSize(editButton('rt-1')).height, greaterThanOrEqualTo(48));
+
+    await tester.tap(runButton('rt-1'));
+    await _settle(tester);
+    expect(server.triggerCount, 1);
+    expect(find.text('승인 화면 card-1'), findsOneWidget);
+    // 행 편집이 함께 열리지 않았다.
+    expect(find.text('언제'), findsNothing);
+  });
+
+  testWidgets('편집 버튼은 편집기를 연다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    await tester.tap(editButton('rt-1'));
+    await _settle(tester);
+    expect(find.text('언제'), findsOneWidget);
+    expect(server.triggerCount, 0);
+  });
+
+  testWidgets('실행하기를 빠르게 두 번 눌러도 카드 요청은 한 번이다', (tester) async {
+    final gate = Completer<void>();
+    final server = _Server()..triggerGate = gate.future;
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    await tester.tap(runButton('rt-1'));
+    await tester.pump();
+    await tester.tap(runButton('rt-1'), warnIfMissed: false);
+    await tester.pump();
+    gate.complete();
+    await _settle(tester);
+    expect(server.triggerCount, 1);
+  });
+
+  testWidgets('409·404 실패는 그 행 아래에 사람 말로 남고 승인 화면으로 가지 않는다',
+      (tester) async {
+    final server = _Server()
+      ..triggerReply = (409, {'detail': '지금은 루틴 카드를 만들 수 없어요: 이미 떠 있는 카드가 있어요'});
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    await tester.tap(runButton('rt-1'));
+    await _settle(tester);
+    expect(find.text('지금은 루틴 카드를 만들 수 없어요: 이미 떠 있는 카드가 있어요'),
+        findsOneWidget);
+    expect(find.textContaining('승인 화면'), findsNothing);
+
+    server.triggerReply = (404, {'detail': '루틴을 찾을 수 없어요'});
+    await tester.tap(runButton('rt-1'));
+    await _settle(tester);
+    expect(find.text('이 루틴을 찾지 못했어요. 목록을 새로 고쳐 주세요.'), findsOneWidget);
+  });
+
+  testWidgets('알림만·꺼진 루틴에는 실행하기를 두지 않고 꺼짐을 말한다', (tester) async {
+    final server = _Server()
+      ..routines = [
+        {..._routine(mode: 'notify'), 'id': 'rt-n', 'name': '세탁 알림'},
+        {..._routine(), 'id': 'rt-off', 'name': '꺼둔 루틴', 'enabled': false},
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    expect(runButton('rt-n'), findsNothing);
+    expect(runButton('rt-off'), findsNothing);
+    expect(editButton('rt-n'), findsOneWidget);
+    expect(find.text('평일 07:30 · 전자레인지 1단계 · 알림만'), findsOneWidget);
+    expect(find.text('평일 07:30 · 전자레인지 1단계 · 꺼짐'), findsOneWidget);
+  });
+
+  testWidgets('알려진 가전 알림은 "세탁이 끝나면"으로, 이름은 사용자 것 그대로', (tester) async {
+    final server = _Server()
+      ..routines = [
+        {
+          ..._routine(mode: 'notify'),
+          'id': 'rt-w',
+          'name': '빨래 다 됐어',
+          'trigger': {'kind': 'event', 'event': 'wash_complete'},
+          'when': "가전 알림 'wash_complete'이 오면",
+        },
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    expect(find.text('빨래 다 됐어'), findsOneWidget);
+    expect(find.textContaining('세탁이 끝나면'), findsOneWidget);
+    expect(find.textContaining('wash_complete'), findsNothing);
+  });
+
+  testWidgets('예약 조회가 실패하면 "예약된 루틴이 없어요"라고 단정하지 않는다', (tester) async {
+    final server = _Server()..nextFails = true;
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    expect(find.textContaining('예약된 루틴이 없어요'), findsNothing);
+    expect(find.textContaining('다음 실행'), findsNothing);
+    // 만들기 예시(추천) 진입은 그대로다.
+    expect(find.text('추천'), findsOneWidget);
+  });
+
+  testWidgets('200% 글자에서도 편집·실행하기가 겹치지 않고 넘치지 않는다', (tester) async {
+    final server = _Server();
+    tester.view.physicalSize = const Size(360, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    expect(MediaQuery.textScalerOf(tester.element(runButton('rt-1'))).scale(1), 2.0);
+    expect(tester.takeException(), isNull);
+    final run = tester.getRect(runButton('rt-1'));
+    final edit = tester.getRect(editButton('rt-1'));
+    expect(run.overlaps(edit), isFalse);
+    expect(run.height, greaterThanOrEqualTo(48));
+  });
+
+  testWidgets('실행하기 접근성 이름에 루틴 이름이 들어간다', (tester) async {
+    final handle = tester.ensureSemantics();
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    expect(find.bySemanticsLabel('아침 데우기 실행하기'), findsOneWidget);
+    expect(find.bySemanticsLabel('아침 데우기 편집'), findsOneWidget);
+    handle.dispose();
   });
 }

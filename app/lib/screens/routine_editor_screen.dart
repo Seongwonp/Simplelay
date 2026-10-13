@@ -7,12 +7,12 @@ import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
-import '../providers/suggestion_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../services/routine_time_hint.dart';
 import 'history_screen.dart' show historyProvider;
 import '../theme/app_colors.dart';
 import '../widgets/input_guard.dart';
+import '../widgets/routine_run.dart';
 
 /// 루틴 편집 — 문장형 카드 세 줄(언제 · 무엇을 · 그다음)과 '단계 추가'(UI 확정 §2).
 ///
@@ -510,25 +510,14 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
 
   /// '지금 실행' — 승인 루틴은 **카드를 만들 뿐**이다. 카드 확인 화면으로 가서
   /// 거기서 승인해야 가전이 움직인다.
+  /// 루틴 목록·홈의 '실행하기'와 같은 경로(`widgets/routine_run.dart`).
   Future<void> _runNow() async {
     final id = _draft.id;
-    final api = ref.read(rpiApiServiceProvider);
-    if (id == null || api == null) return;
+    if (id == null || ref.read(rpiApiServiceProvider) == null) return;
     setState(() => _busy = true);
     try {
-      final result = await api.triggerRoutine(id);
-      if (!mounted) return;
-      final cardId = result.suggestionId;
-      if (cardId != null) {
-        await ref.read(suggestionProvider.notifier).refresh();
-        if (mounted) context.push('/suggestion/$cardId');
-      } else {
-        _snack('알림만 보냈어요. 가전은 누르지 않아요.');
-      }
-    } on RpiApiException catch (e) {
-      if (mounted) setState(() => _error = e.message);
-    } catch (_) {
-      if (mounted) setState(() => _error = '카드를 만들지 못했어요. 연결을 확인해 주세요.');
+      final error = await runRoutineNow(context, ref, id);
+      if (mounted && error != null) setState(() => _error = error);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
