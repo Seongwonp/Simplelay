@@ -374,6 +374,20 @@ class SuggestionScreen extends ConsumerWidget {
               style: AppText.title),
           const SizedBox(height: 10),
           ButtonMapGrid(appliance: appliance, steps: suggestion.steps),
+          // 큰 글씨: 보조 행동은 본문 끝에(고정 영역을 실행·다음에로 줄인다, 2026-10-14).
+          if (_largeText(context)) ...[
+            const SizedBox(height: 20),
+            _SecondaryActions(
+              canMute: suggestion.canMute,
+              onMute: () => _dismissSuggestion(context, ref, suggestion, mute: true),
+              onRevise: suggestion.source == SuggestionSource.http && suggestion.timeBand != '환경'
+                  ? () => _revise(context, ref, suggestion) : null,
+              onSnooze: suggestion.source == SuggestionSource.http && !suggestion.isDemo
+                  && suggestion.timeBand != '데모'
+                  ? () => _dismissSuggestion(context, ref, suggestion, mute: false, snooze: true)
+                  : null,
+            ),
+          ],
         ],
       ),
       // 주 행동은 스크롤과 무관하게 항상 손 닿는 자리에.
@@ -539,10 +553,11 @@ class _ActionBar extends StatelessWidget {
       label: const Text('지금 실행'),
     );
     // 큰 글씨에서는 두 버튼을 나란히 두면 '다음에'가 단어 중간에서
-    // 줄바꿈된다. 세로로 쌓고 주 행동을 위에 둔다.
-    final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+    // 줄바꿈된다. 세로로 쌓고 주 행동을 위에 둔다. 보조 행동과 안내 줄은 본문 끝으로 옮긴다(2026-10-14).
+    final stacked = _largeText(context);
 
     return Material(
+      key: const Key('suggestion-action-bar'),
       color: context.appBackground,
       child: SafeArea(
         top: false,
@@ -575,7 +590,8 @@ class _ActionBar extends StatelessWidget {
                     ],
                   ),
                 )
-              else
+              else if (!stacked)
+                // 큰 글씨에서는 빼도 된다 — 위 머리(대상·버튼 수)가 같은 말을 한다.
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
@@ -597,26 +613,12 @@ class _ActionBar extends StatelessWidget {
                     Expanded(flex: 4, child: run),
                   ],
                 ),
-              // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE
-              // 경로는 '다음에'와 같은 거절 메시지라 약속을 지킬 수
-              // 없다.
-              if (onSnooze != null)
-                TextButton.icon(
-                  onPressed: onSnooze,
-                  icon: const Icon(Icons.snooze, size: 18),
-                  label: const Text('이 제안 30분 쉬기'),
-                ),
-              if (onRevise != null)
-                TextButton.icon(
-                  onPressed: onRevise,
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('이번 동작 바꾸기'),
-                ),
-              if (canMute)
-                TextButton.icon(
-                  onPressed: onMute,
-                  icon: const Icon(Icons.notifications_off_outlined, size: 18),
-                  label: const Text('이 제안 다시 받지 않기'),
+              if (!stacked)
+                _SecondaryActions(
+                  canMute: canMute,
+                  onMute: onMute,
+                  onSnooze: onSnooze,
+                  onRevise: onRevise,
                 ),
             ],
           ),
@@ -624,6 +626,56 @@ class _ActionBar extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 큰 글씨(1.5배 이상)인가 — 아래 고정 영역을 줄이는 기준(2026-10-14, 보드 날 발견 4).
+bool _largeText(BuildContext context) => MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+
+/// 보조 행동(30분 쉬기·이번 동작 바꾸기·다시 받지 않기). 기본 글씨에서는 아래 고정 영역에, 큰 글씨에서는
+/// 본문 끝에 둔다 — 글꼴 2.0·360×780에서 고정 영역이 화면 절반을 차지해 '승인하면 할 일'이 첫 화면에서 밀렸다.
+/// 실행·다음에(정지 성격의 거절 포함)는 늘 고정 영역에 남는다.
+class _SecondaryActions extends StatelessWidget {
+  const _SecondaryActions({
+    required this.canMute,
+    required this.onMute,
+    this.onSnooze,
+    this.onRevise,
+  });
+
+  final bool canMute;
+  final VoidCallback onMute;
+  final VoidCallback? onSnooze;
+  final VoidCallback? onRevise;
+
+  bool get isEmpty => !canMute && onSnooze == null && onRevise == null;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE 경로는 '다음에'와 같은 거절 메시지라
+          // 약속을 지킬 수 없다.
+          if (onSnooze != null)
+            TextButton.icon(
+              onPressed: onSnooze,
+              icon: const Icon(Icons.snooze, size: 18),
+              label: const Text('이 제안 30분 쉬기'),
+            ),
+          if (onRevise != null)
+            TextButton.icon(
+              onPressed: onRevise,
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('이번 동작 바꾸기'),
+            ),
+          if (canMute)
+            TextButton.icon(
+              onPressed: onMute,
+              icon: const Icon(Icons.notifications_off_outlined, size: 18),
+              label: const Text('이 제안 다시 받지 않기'),
+            ),
+        ],
+      );
 }
 
 // ── 대상 가전을 모를 때 ───────────────────────────────────────────────────
@@ -783,6 +835,21 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
             '승인하면 위 내용 그대로만 실행해요. 내용이 바뀌면 다시 물어봐요.',
             style: TextStyle(fontSize: 15, color: context.appMuted),
           ),
+          // 큰 글씨: 안내 줄·보조 행동은 본문 끝에(고정 영역을 실행·다음에로 줄인다, 2026-10-14).
+          if (_largeText(context)) ...[
+            const SizedBox(height: 8),
+            Text(
+              '명령 ${suggestion.commands.length}개 · 누르지 않으면 실행하지 않아요',
+              style: TextStyle(fontSize: 15, color: context.appMuted),
+            ),
+            const SizedBox(height: 12),
+            _SecondaryActions(
+              canMute: suggestion.canMute,
+              onMute: onMute,
+              onSnooze: onSnooze,
+              onRevise: onRevise,
+            ),
+          ],
         ],
       ),
       bottomNavigationBar: _ScenarioActionBar(
@@ -912,9 +979,11 @@ class _ScenarioActionBar extends StatelessWidget {
       label: Text(hasAllow ? '이번만 실행' : '지금 실행'),
     );
     // 세 갈래는 늘 세로로 — 위계: 이번만 실행(채움) > 다음부터도 자동으로(톤) > 안 할래요(외곽선).
-    final stacked = hasAllow || MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+    final large = _largeText(context);
+    final stacked = hasAllow || large;
     final why = blockedWhy;
     return Material(
+      key: const Key('suggestion-action-bar'),
       color: context.appBackground,
       child: SafeArea(
         top: false,
@@ -927,6 +996,7 @@ class _ScenarioActionBar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (why != null || !large)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: why != null
@@ -971,23 +1041,12 @@ class _ScenarioActionBar extends StatelessWidget {
                     Expanded(flex: 4, child: run),
                   ],
                 ),
-              if (onSnooze != null)
-                TextButton.icon(
-                  onPressed: onSnooze,
-                  icon: const Icon(Icons.snooze, size: 18),
-                  label: const Text('이 제안 30분 쉬기'),
-                ),
-              if (onRevise != null)
-                TextButton.icon(
-                  onPressed: onRevise,
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('이번 동작 바꾸기'),
-                ),
-              if (canMute)
-                TextButton.icon(
-                  onPressed: onMute,
-                  icon: const Icon(Icons.notifications_off_outlined, size: 18),
-                  label: const Text('이 제안 다시 받지 않기'),
+              if (!large)
+                _SecondaryActions(
+                  canMute: canMute,
+                  onMute: onMute,
+                  onSnooze: onSnooze,
+                  onRevise: onRevise,
                 ),
             ],
           ),

@@ -485,11 +485,20 @@ class _RoutineHeroCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(routine.name,
-                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 4),
-            Text(subtitle,
-                style: TextStyle(fontSize: 15, color: context.appMuted)),
+            // 루틴마다 제 접근성 노드(2026-10-14, 발견 5) — 이웃 루틴 글과 한 덩어리로 읽히지 않게.
+            Semantics(
+              container: true,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(routine.name,
+                      style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 4),
+                  Text(subtitle,
+                      style: TextStyle(fontSize: 15, color: context.appMuted)),
+                ],
+              ),
+            ),
             const SizedBox(height: 12),
             _runButton(
               key: Key('home-routine-run-${routine.id}'),
@@ -522,13 +531,18 @@ class _RoutineQuickRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(routine.name,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-        Text(subtitle, style: TextStyle(fontSize: 14, color: context.appMuted)),
-      ],
+    // 루틴마다 제 접근성 노드(2026-10-14, 발견 5) — 세 줄이 한 노드로 묶여 한꺼번에 읽혔다.
+    final text = Semantics(
+      container: true,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(routine.name,
+              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+          Text(subtitle,
+              style: TextStyle(fontSize: 14, color: context.appMuted)),
+        ],
+      ),
     );
     final button = _runButton(
       key: Key('home-routine-run-${routine.id}'),
@@ -701,15 +715,28 @@ class _SuggestionCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              FilledButton(
-                onPressed: onRun,
-                style: FilledButton.styleFrom(minimumSize: const Size(140, 48)),
-                child: const Text('실행하기'),
+              // 화면 글자는 짧게, 읽는 이름에는 대상을(2026-10-14, 발견 5) — '실행하기'만으로는 무엇을 하는지 모른다.
+              Semantics(
+                label: '${suggestion.title} 실행하기',
+                container: true,
+                button: true,
+                excludeSemantics: true,
+                child: FilledButton(
+                  onPressed: onRun,
+                  style: FilledButton.styleFrom(minimumSize: const Size(140, 48)),
+                  child: const Text('실행하기'),
+                ),
               ),
-              OutlinedButton(
-                onPressed: onLater,
-                style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
-                child: const Text('다음에'),
+              Semantics(
+                label: '${suggestion.title} 다음에',
+                container: true,
+                button: true,
+                excludeSemantics: true,
+                child: OutlinedButton(
+                  onPressed: onLater,
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
+                  child: const Text('다음에'),
+                ),
               ),
             ],
           ),

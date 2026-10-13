@@ -346,4 +346,54 @@ void main() {
         find.ancestor(of: find.text('지금 실행'), matching: find.byWidgetPredicate((w) => w is FilledButton)));
     expect(run.onPressed, isNull);
   });
+
+  // ── 2026-10-14 보드 날 발견 4: 글꼴 2.0·360×780에서 아래 고정 영역 ───────────────────────────
+  testWidgets('글꼴 2.0·360×780: 아래 고정 영역은 실행·다음에만 — 할 일 줄이 첫 화면에 보이고 보조 행동은 본문 끝',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    final handle = tester.ensureSemantics();
+    final server = _Server()..card = _routineCard;
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    final bar = find.byKey(const Key('suggestion-action-bar'));
+    expect(bar, findsOneWidget);
+    final barTop = tester.getTopLeft(bar).dy;
+    expect(780 - barTop, lessThan(780 * 0.35), reason: '고정 영역이 화면의 35% 이상을 차지한다');
+    // 본문(무엇을 승인하는지)이 화면의 절반 넘게 남는다. 시험 글꼴은 실제 글꼴보다 넓어 할 일 줄이 첫 화면 아래일 수
+    // 있다 — 스크롤하면 고정 영역에 가리지 않고 닿는다.
+    final row = find.text('전자레인지 즉석밥 → 시작');
+    await tester.ensureVisible(row);
+    await tester.pump();
+    expect(tester.getBottomLeft(row).dy, lessThanOrEqualTo(barTop));
+    expect(row.hitTestable(), findsOneWidget);
+    // 실행·다음에는 고정 영역에 남아 언제든 닿는다.
+    expect(find.descendant(of: bar, matching: find.text('지금 실행')).hitTestable(), findsOneWidget);
+    expect(find.descendant(of: bar, matching: find.text('다음에')).hitTestable(), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('지금 실행')), findsWidgets);
+    // 보조 행동은 고정 영역에서 빠져 본문 끝으로 — 스크롤하면 닿는다.
+    for (final text in ['이 제안 30분 쉬기', '이 제안 다시 받지 않기']) {
+      expect(find.descendant(of: bar, matching: find.text(text)), findsNothing, reason: text);
+    }
+    await tester.scrollUntilVisible(find.text('이 제안 다시 받지 않기'), 120,
+        scrollable: find.byType(Scrollable).first);
+    await tester.ensureVisible(find.text('이 제안 다시 받지 않기'));
+    await tester.pump();
+    expect(find.text('이 제안 다시 받지 않기').hitTestable(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    handle.dispose();
+  });
+
+  testWidgets('기본 글꼴에서는 보조 행동도 아래 고정 영역에 그대로', (tester) async {
+    _tall(tester);
+    final server = _Server()..card = _routineCard;
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    final bar = find.byKey(const Key('suggestion-action-bar'));
+    expect(find.descendant(of: bar, matching: find.text('이 제안 다시 받지 않기')), findsOneWidget);
+  });
 }

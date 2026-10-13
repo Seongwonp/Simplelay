@@ -265,4 +265,60 @@ void main() {
     expect(find.bySemanticsLabel('저녁 데우기 실행하기'), findsOneWidget);
     handle.dispose();
   });
+
+  // ── 2026-10-14 보드 날 발견 5: 접근성 트리 ─────────────────────────────────────────
+  testWidgets('접근성: 루틴마다 글이 제 노드를 갖는다(세 줄이 한 덩어리로 읽히지 않게)', (tester) async {
+    final handle = tester.ensureSemantics();
+    final hub = _Hub(routines: [
+      _routine('r-a', '아침 데우기'),
+      _routine('r-b', '빨래 시작'),
+      _routine('r-c', '문 열기'),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    const names = ['아침 데우기', '빨래 시작', '문 열기'];
+    for (final name in names) {
+      final label = tester.getSemantics(find.text(name)).label;
+      expect(label, contains(name));
+      for (final other in names.where((n) => n != name)) {
+        expect(label, isNot(contains(other)), reason: '"$name" 노드에 "$other"가 섞였다: $label');
+      }
+    }
+    // 실행 버튼은 여전히 루틴 이름으로 따로 읽힌다.
+    for (final name in names) {
+      expect(find.bySemanticsLabel('$name 실행하기'), findsOneWidget);
+    }
+    handle.dispose();
+  });
+
+  testWidgets('접근성: 제안 카드의 버튼 이름에 대상(루틴·제안 이름)이 들어간다', (tester) async {
+    final handle = tester.ensureSemantics();
+    final hub = _Hub(routines: const [])
+      ..suggestions = [
+        {
+          'id': 's1',
+          'purpose': "'아침 데우기' 루틴을 실행할까요?",
+          'time_band': '루틴',
+          'occurrences': 0,
+          'steps': ['시작'],
+          'appliance_id': 'mw',
+          'routine_id': 'rt-1',
+          'routine_name': '아침 데우기',
+        },
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_home(hub, suggestions: const [
+      Suggestion(
+          sequenceId: 's1',
+          label: "'아침 데우기' 루틴을 실행할까요?",
+          routineName: '아침 데우기',
+          steps: ['BT-08']),
+    ]));
+    await _settle(tester);
+    expect(find.bySemanticsLabel('아침 데우기 실행하기'), findsOneWidget);
+    expect(find.bySemanticsLabel('아침 데우기 다음에'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'^실행하기$')), findsNothing);
+    handle.dispose();
+  });
 }
