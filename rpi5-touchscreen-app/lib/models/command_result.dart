@@ -121,6 +121,23 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
         '다시 보내기 전에 가전을 직접 확인해 주세요.'
     : '명령을 보냈지만 확인하지 못했어요. 가전을 직접 확인해 주세요.';
 
+/// 정지 확인 단계(2026-10-13)의 한 문장. 서버가 올리는 단계는
+/// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
+/// 모르는 값·단계 없음은 null — 화면은 종전대로 그린다(단계를 지어내지 않는다).
+String? stopLevelSentence(String? level, {int? ackMs}) {
+  final ms = ackMs == null ? '' : ' ($ackMs ms)';
+  return switch (level) {
+    'verified' => '멈춘 것을 확인했어요$ms',
+    'mcu_ack' => '모션 보드가 정지를 확인했어요$ms',
+    'sent' => '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요',
+    _ => null,
+  };
+}
+
+/// '확인'은 모션 보드가 받았을 때(mcu_ack)부터다. 보냄(sent)은 확인이 아니다.
+bool stopLevelConfirmed(String? level) =>
+    level == 'mcu_ack' || level == 'verified';
+
 /// 끝난 실행의 한 문장(상태 화면·음성 안내).
 ///
 /// "실행 완료"는 조리가 끝난 뜻으로 읽힐 수 있다 — 물리 경로가 보장하는 것은

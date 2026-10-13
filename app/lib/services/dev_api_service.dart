@@ -126,16 +126,24 @@ class DevCommandResult {
 }
 
 /// 정지·세션 종료 결과. [confirmed]가 false면 **정지되지 않았을 수 있다.**
+///
+/// 2026-10-13: 실물이면 [stopLevel]이 정지 확인 단계(sent | mcu_ack | verified)다.
+/// `sent`는 '정지 명령을 보냄'까지 — confirmed는 false지만 잠긴 것은 아니다.
+/// 모의·옛 서버는 null.
 class DevStopResult {
   const DevStopResult({
     required this.confirmed,
     required this.message,
     required this.state,
+    this.stopLevel,
+    this.ackMs,
   });
 
   final bool confirmed;
   final String message;
   final DevState state;
+  final String? stopLevel;
+  final int? ackMs;
 }
 
 class DevLogLine {
@@ -319,6 +327,8 @@ class DevApiService {
       confirmed: json['confirmed'] == true,
       message: json['message'] as String? ?? '',
       state: DevState.fromJson(json['state'] as Map<String, dynamic>),
+      stopLevel: json['stop_level'] is String ? json['stop_level'] as String : null,
+      ackMs: (json['stop_ack_ms'] as num?)?.toInt(),
     );
   }
 }

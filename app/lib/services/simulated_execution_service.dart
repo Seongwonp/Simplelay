@@ -109,7 +109,7 @@ class SimulatedExecutionService extends RpiApiService {
   /// 모의 실행 정지. 진짜 작업이 함께 돌고 있을 수 있으므로 실제 `/stop`도
   /// 보낸다 — 여기서 아끼면 멈출 수단이 사라진다.
   @override
-  Future<void> stop() async {
+  Future<StopOutcome> stop() async {
     _jobId = null;
     _startedAt = null;
     return super.stop();

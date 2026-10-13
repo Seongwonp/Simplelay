@@ -186,6 +186,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           executionMode: status.lastExecutionMode,
           route: status.lastRoute,
           receipt: status.lastReceipt,
+          stopLevel: status.lastStopLevel,
+          stopAckMs: status.lastStopAckMs,
         );
         state = state.copyWith(
           executionMode: status.lastExecutionMode,
@@ -373,8 +375,11 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       // HTTP 추적 중 — 서버에 정지를 요청하고, 종료 판정은 폴링이
       // safety_stopped 결과를 받아서 처리한다(성급한 '정지됨' 표시 방지).
       try {
-        await api.stop();
-        state = state.copyWith(message: '정지 요청을 보냈어요.');
+        final outcome = await api.stop();
+        // 서버가 알린 정지 확인 단계까지만 말한다(2026-10-13). 없으면 종전 문장.
+        state = state.copyWith(
+            message: stopLevelSentence(outcome.stopLevel, ackMs: outcome.ackMs) ??
+                '정지 요청을 보냈어요.');
         return true;
       } catch (_) {
         state = state.copyWith(message: '정지 요청을 보내지 못했어요. 다시 시도해주세요.');

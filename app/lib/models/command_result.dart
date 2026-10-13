@@ -122,15 +122,35 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
         '다시 보내기 전에 가전을 직접 확인해 주세요.'
     : '명령을 보냈지만 확인하지 못했어요. 가전을 직접 확인해 주세요.';
 
+/// 정지 확인 단계(2026-10-13)의 한 문장. 서버가 올리는 단계는
+/// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
+/// 모르는 값·단계 없음은 null — 호출자가 종전 문장을 쓴다(단계를 지어내지 않는다).
+String? stopLevelSentence(String? level, {int? ackMs}) {
+  final ms = ackMs == null ? '' : ' ($ackMs ms)';
+  return switch (level) {
+    'verified' => '멈춘 것을 확인했어요$ms',
+    'mcu_ack' => '모션 보드가 정지를 확인했어요$ms',
+    'sent' => '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요',
+    _ => null,
+  };
+}
+
+/// '확인'은 모션 보드가 받았을 때(mcu_ack)부터다. 보냄(sent)은 확인이 아니다.
+bool stopLevelConfirmed(String? level) =>
+    level == 'mcu_ack' || level == 'verified';
+
 /// 끝난 실행의 한 문장(상태 화면·음성 안내).
 ///
 /// "실행 완료"는 조리가 끝난 뜻으로 읽힐 수 있다 — 물리 경로가 보장하는 것은
 /// 버튼 조작까지다. ThinQ 성공은 서버가 상태를 다시 읽어 확인한 경우뿐이다.
+/// [stopLevel]·[stopAckMs]: 사용자가 멈춘 실행이면 마지막 정지의 확인 단계(서버 /status).
 String finishedMessage({
   required ResultKind kind,
   String executionMode = 'unknown',
   String? route,
   String? receipt,
+  String? stopLevel,
+  int? stopAckMs,
 }) {
   final thinq = route == 'thinq';
   switch (kind) {
@@ -148,9 +168,12 @@ String finishedMessage({
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
     case ResultKind.stopped:
-      // 서버가 확인한 것은 실행 루프 종료까지다. 가전 쪽 장치가 멈췄는지는
-      // 사람이 본다(물리 정지 확인은 실측 대기).
-      return '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.';
+      // 서버가 확인한 것은 실행 루프 종료까지다. 정지 확인 단계가 오면 그만큼만
+      // 말하고(2026-10-13), 없으면 가전 쪽 장치가 멈췄는지는 사람이 본다.
+      final stop = stopLevelSentence(stopLevel, ackMs: stopAckMs);
+      return stop == null
+          ? '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.'
+          : '실행을 멈췄어요. $stop.';
     case ResultKind.safetyStop:
       return '눌림을 확인하지 못해 안전하게 멈췄어요. 가전을 확인해 주세요.';
     case ResultKind.failed:

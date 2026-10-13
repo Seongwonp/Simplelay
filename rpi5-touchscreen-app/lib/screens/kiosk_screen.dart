@@ -155,6 +155,10 @@ class _KioskScreenState extends State<KioskScreen> {
   // L3(가전 동작) 판정. null은 '판정하지 않았다' — 화면이 말하지 않는다.
   bool? _doneOperationConfirmed;
   String? _doneOperationSource;
+
+  /// 정지로 멈춘 실행의 확인 단계(2026-10-13, /status last_stop_level).
+  String? _doneStopLevel;
+  int? _doneStopAckMs;
   String? _doneOperationDetail;
   // 끝난 다단계 실행의 단계별 결과(G4). **이 job의 기록일 때만** 채운다.
   List<ScenarioRunStep> _doneRunSteps = const [];
@@ -587,6 +591,8 @@ class _KioskScreenState extends State<KioskScreen> {
         _doneDetail = st.lastDetail;
         _doneOperationConfirmed = st.lastOperationConfirmed;
         _doneOperationSource = st.lastOperationSource;
+        _doneStopLevel = st.lastStopLevel;
+        _doneStopAckMs = st.lastStopAckMs;
         _doneOperationDetail = st.lastOperationDetail;
         _finishExecuting(
           success: kind == ResultKind.success,
@@ -946,6 +952,8 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneDetail = null;
     _doneOperationConfirmed = null;
     _doneOperationSource = null;
+    _doneStopLevel = null;
+    _doneStopAckMs = null;
     _doneOperationDetail = null;
     _doneRunSteps = const [];
     _activeJobId = jobId;
@@ -1403,6 +1411,8 @@ class _KioskScreenState extends State<KioskScreen> {
           operationSource: _doneOperationSource,
           operationDetail: _doneOperationDetail,
           runSteps: _doneRunSteps,
+          stopLevel: _doneStopLevel,
+          stopAckMs: _doneStopAckMs,
           // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
           // 그때는 수동 조작(사람이 직접 누르기)을 앞세운다.
           // ThinQ 확인 못 함·접수 불명은 다시 보내면 중복 실행이 될 수 있어

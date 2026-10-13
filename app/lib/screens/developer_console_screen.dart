@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/appliance.dart';
+import '../models/command_result.dart' show stopLevelConfirmed, stopLevelSentence;
 import '../providers/appliance_provider.dart';
 import '../providers/dev_api_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -54,6 +55,18 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
   String? _message;
   bool _messageIsProblem = false;
   bool _busy = false;
+
+  /// 마지막 정지 응답의 확인 단계(2026-10-13). 정리(stopping) 뒤 '멈춤'을 말할 때 쓴다.
+  String? _lastStopLevel;
+  int? _lastStopAckMs;
+
+  /// 정리가 끝나 유휴가 된 뒤의 문장 — 실물이면 마지막 정지 단계까지만 말한다.
+  String _settledSentence(DevState state) {
+    final sentence = stopLevelSentence(_lastStopLevel, ackMs: _lastStopAckMs);
+    if (sentence != null) return sentence;
+    // 모의는 종전 문장, 실물인데 단계를 모르면 '보냄'까지만.
+    return state.isReal ? stopLevelSentence('sent')! : '정지를 확인했어요';
+  }
   Timer? _heartbeat;
   bool _beatInFlight = false;
   int _epoch = 0;
@@ -166,7 +179,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
         _settlePoll?.cancel();
         _say(
             state.phase == 'idle'
-                ? '정지를 확인했어요'
+                ? _settledSentence(state)
                 : state.phase == 'fault'
                     ? '정지를 확인하지 못해 새 조작을 막았어요. 다시 정지를 눌러 주세요.'
                     : '서버 상태가 바뀌었어요. 현재 상태를 확인해 주세요.',
@@ -374,11 +387,22 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
 
   void _showStopResult(DevStopResult result, {bool backgrounded = false}) {
     setState(() => _state = result.state);
+    _lastStopLevel = result.stopLevel;
+    _lastStopAckMs = result.ackMs;
+    // 실물 정지의 확인 단계(2026-10-13): 보냄(sent)은 확인이라고 말하지 않는다.
+    final stopSentence =
+        stopLevelSentence(result.stopLevel, ackMs: result.ackMs);
     if (result.state.phase == 'fault') {
       _say('정지를 확인하지 못했어요 — 기기가 잠겼습니다. 다시 정지를 눌러 확인해 주세요.', problem: true);
     } else if (result.state.phase == 'stopping') {
       _say('정지 요청을 확인했어요. 남은 동작을 정리하고 있어요.');
       _scheduleSettlePoll();
+    } else if (stopSentence != null && result.state.phase == 'idle') {
+      _say(
+          backgrounded
+              ? '앱이 화면에서 사라져 세션을 끝냈어요 — $stopSentence'
+              : stopSentence,
+          problem: !stopLevelConfirmed(result.stopLevel));
     } else if (result.confirmed && result.state.phase == 'idle') {
       _say(backgrounded ? '앱이 화면에서 사라져 세션을 끝냈어요' : '정지를 확인했어요');
     } else {

@@ -30,6 +30,9 @@ class _FakeDevServer {
   bool? realReady;
   String? realReason;
   bool stopConfirmed = true;
+  // 2026-10-13 정지 확인 단계: null이면 필드를 싣지 않는다(옛 서버·모의).
+  String? stopLevel;
+  int? stopAckMs;
   bool expired = false;
   String? stopPhase;
   bool commandExpires = false;
@@ -112,14 +115,21 @@ class _FakeDevServer {
         });
       case '/dev/sessions/s1/end':
         phase = 'idle';
-        return _json(
-            {'confirmed': true, 'message': '', 'state': _state('idle')});
+        return _json({
+          'confirmed': stopLevel == null ? true : stopConfirmed,
+          'message': '',
+          'state': _state('idle'),
+          if (stopLevel != null) 'stop_level': stopLevel,
+          if (stopLevel != null) 'stop_ack_ms': stopAckMs,
+        });
       case '/dev/stop':
-        phase = stopPhase ?? (stopConfirmed ? 'idle' : 'fault');
+        phase = stopPhase ?? (stopConfirmed || stopLevel == 'sent' ? 'idle' : 'fault');
         return _json({
           'confirmed': stopConfirmed,
           'message': '',
           'state': _state(phase),
+          if (stopLevel != null) 'stop_level': stopLevel,
+          if (stopLevel != null) 'stop_ack_ms': stopAckMs,
         });
       case '/dev/log':
         return _json([]);
@@ -175,8 +185,14 @@ Future<void> _close(WidgetTester tester) async {
   await tester.pump();
 }
 
+_FakeDevServer _realServer() => _FakeDevServer()
+  ..mock = false
+  ..motionTarget = 'real'
+  ..realReady = true;
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
 
   testWidgets('stopping 조회는 유한하며 수동 조회로 다시 확인할 수 있다', (tester) async {
     final server = _FakeDevServer()..stopPhase = 'stopping';
@@ -653,6 +669,62 @@ void main() {
     expect(find.text('개발자 토큰'), findsOneWidget);
     expect(find.text('세션 시작'), findsNothing);
     expect(server.requests, isEmpty);
+    await _close(tester);
+  });
+
+  // 버튼을 처음 누르는 시험이 맨 앞에 오면 이 노트북의 잉크 셰이더 판 불일치가 그 시험에 걸린다 — 뒤에 둔다.
+  // ── 정지 확인 단계(2026-10-13): 보냄과 확인을 가른다 ──────────────────────
+
+  testWidgets('실물 정지가 보냄(sent)까지면 확인했다고 말하지 않는다', (tester) async {
+    final server = _realServer()
+      ..stopConfirmed = false
+      ..stopLevel = 'sent';
+    await _open(tester, server);
+    await tester.tap(find.widgetWithText(FilledButton, '정지'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요'), findsOneWidget);
+    expect(find.textContaining('확인했어요'), findsNothing);
+    // '보냄'은 잠금이 아니다 — 잠겼다고 겁주지 않는다.
+    expect(find.textContaining('잠겼'), findsNothing);
+    await _close(tester);
+  });
+
+  testWidgets('모션 보드 확인(mcu_ack)이면 지연 ms와 함께 말한다', (tester) async {
+    final server = _realServer()
+      ..stopLevel = 'mcu_ack'
+      ..stopAckMs = 12;
+    await _open(tester, server);
+    await tester.tap(find.widgetWithText(FilledButton, '정지'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('모션 보드가 정지를 확인했어요 (12 ms)'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('멈춤 확인(verified)이면 멈춘 것을 확인했다고 말한다', (tester) async {
+    final server = _realServer()
+      ..stopLevel = 'verified'
+      ..stopAckMs = 9;
+    await _open(tester, server);
+    await tester.tap(find.widgetWithText(FilledButton, '정지'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('멈춘 것을 확인했어요 (9 ms)'), findsOneWidget);
+    await _close(tester);
+  });
+
+  testWidgets('실물 세션 끝도 정지 단계대로 말한다', (tester) async {
+    final server = _realServer()
+      ..stopConfirmed = false
+      ..stopLevel = 'sent';
+    await _open(tester, server);
+    await _startSession(tester);
+    await tester.tap(find.widgetWithText(OutlinedButton, '세션 끝내기'));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요'), findsOneWidget);
+    expect(find.text('정지를 확인했어요'), findsNothing);
     await _close(tester);
   });
 }

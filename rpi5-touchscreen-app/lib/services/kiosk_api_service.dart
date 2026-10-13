@@ -286,9 +286,15 @@ class KioskStatus {
     this.holdExecutionMode,
     this.estopLatched = false,
     this.estopDetail,
+    this.lastStopLevel,
+    this.lastStopAckMs,
   });
 
   final bool running;
+
+  /// 마지막 긴급 정지의 확인 단계(2026-10-13): sent | mcu_ack | verified. 옛 서버·보고 없음은 null.
+  final String? lastStopLevel;
+  final int? lastStopAckMs;
 
   /// 콘센트 모듈 비상정지 걸림(2026-10-05). 옛 서버·보고 수단 없는 실행기(null)는
   /// 걸리지 않은 것으로 본다 — 실행 거절은 어차피 서버가 한다.
@@ -403,6 +409,8 @@ class KioskStatus {
         estopDetail: json['estop_latched'] == true && json['estop_detail'] is String
             ? json['estop_detail'] as String
             : null,
+        lastStopLevel: json['last_stop_level'] as String?,
+        lastStopAckMs: (json['last_stop_ack_ms'] as num?)?.toInt(),
       );
 }
 

@@ -52,6 +52,27 @@ class RpiJobAccepted {
       RpiJobAccepted(jobId: json['job_id'] as String);
 }
 
+/// POST /stop 응답의 정지 확인 단계(2026-10-13). 옛 서버·보고 수단이 없으면 [stopLevel]이 null.
+class StopOutcome {
+  const StopOutcome({this.stopLevel, this.ackMs, this.confirmed = false});
+
+  factory StopOutcome.fromJson(Map<String, dynamic> json) {
+    final level = json['stop_level'];
+    return StopOutcome(
+      stopLevel: level is String ? level : null,
+      ackMs: (json['stop_ack_ms'] as num?)?.toInt(),
+      confirmed: json['stop_confirmed'] == true,
+    );
+  }
+
+  /// sent | mcu_ack | verified | null
+  final String? stopLevel;
+  final int? ackMs;
+
+  /// mcu_ack 이상일 때만 true.
+  final bool confirmed;
+}
+
 class RpiStatusResult {
   final String executionMode;
   final String lastExecutionMode;
@@ -83,8 +104,14 @@ class RpiStatusResult {
     this.lastOperationDetail,
     this.estopLatched = false,
     this.estopDetail,
+    this.lastStopLevel,
+    this.lastStopAckMs,
   });
   final bool running;
+
+  /// 마지막 긴급 정지의 확인 단계(2026-10-13): sent | mcu_ack | verified. 옛 서버·보고 없음은 null.
+  final String? lastStopLevel;
+  final int? lastStopAckMs;
 
   /// 콘센트 모듈 비상정지 걸림(2026-10-05). 없거나 null이면 거짓.
   final bool estopLatched;
@@ -760,15 +787,26 @@ class RpiApiService {
       estopDetail: body['estop_latched'] == true && body['estop_detail'] is String
           ? body['estop_detail'] as String
           : null,
+      lastStopLevel: body['last_stop_level'] as String?,
+      lastStopAckMs: (body['last_stop_ack_ms'] as num?)?.toInt(),
     );
   }
 
   // POST /stop
-  Future<void> stop() async {
+  /// 정지 요청. 돌려주는 값은 서버가 알린 정지 확인 단계(2026-10-13) — 옛 서버면 단계 없음.
+  Future<StopOutcome> stop() async {
     final res = await _client
         .post(_base.replace(path: '/stop'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
+    try {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      return body is Map<String, dynamic>
+          ? StopOutcome.fromJson(body)
+          : const StopOutcome();
+    } on FormatException {
+      return const StopOutcome();
+    }
   }
 
   /// POST /stop/ack — 사람이 확인한 비상정지 해제 요청(2026-10-05).

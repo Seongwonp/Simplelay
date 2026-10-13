@@ -33,7 +33,14 @@ class KioskDoneView extends StatelessWidget {
     this.operationSource,
     this.operationDetail,
     this.runSteps = const [],
+    this.stopLevel,
+    this.stopAckMs,
   });
+
+  /// 정지로 멈춘 실행의 확인 단계(2026-10-13, /status last_stop_level): sent | mcu_ack | verified.
+  /// null이면 정지 줄을 그리지 않는다(옛 서버·로컬 모의). 정지로 멈춘 실행(stopped)에만 쓴다.
+  final String? stopLevel;
+  final int? stopAckMs;
 
   /// 끝난 다단계 실행의 단계별 결과(G4, GET /scenarios/last-run). **이 job의
   /// 기록일 때만** 화면이 넘긴다. 두 단계 이상일 때만 그린다 — 한 단계는 위
@@ -111,6 +118,10 @@ class KioskDoneView extends StatelessWidget {
       false => '가전 동작은 확인하지 못했어요',
       null => null,
     };
+    // 정지 확인 단계 — 보냄(sent)은 확인이라고 하지 않는다(2026-10-13).
+    final stopSentence = !success && r == KioskFailureReason.stopped
+        ? stopLevelSentence(stopLevel, ackMs: stopAckMs)
+        : null;
 
     return ColoredBox(
       color: KioskColors.bg,
@@ -123,6 +134,7 @@ class KioskDoneView extends StatelessWidget {
               success ? '$label — $successHeadline' : r.detail(label),
               ...facts,
               if (operationSentence != null) operationSentence,
+              if (stopSentence != null) stopSentence,
               if (runSteps.length > 1)
                 for (var i = 0; i < runSteps.length; i++)
                   '${_stepTitle(i, runSteps[i])}. ${runStepFacts(runSteps[i])}',
@@ -220,6 +232,11 @@ class KioskDoneView extends StatelessWidget {
                           fontSize: 18, color: KioskColors.muted),
                     ),
                   ],
+                  // 정지 줄은 판정 줄과 같은 모양(아이콘+글자) — 확인이면 확인색, 보냄이면 주의색.
+                  _OperationLine(
+                    sentence: stopSentence,
+                    confirmed: stopLevelConfirmed(stopLevel),
+                  ),
                   _OperationLine(
                     sentence: operationSentence,
                     confirmed: operationConfirmed == true,
