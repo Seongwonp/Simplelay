@@ -220,6 +220,47 @@ def test_confirm_stop_stays_at_mcu_ack_when_encoders_still_change(link):
     assert report.detail and "움직" in report.detail
 
 
+def test_confirm_stop_verifies_after_the_axis_coasts_to_rest(link):
+    """10/13 실물: 이동 중 정지 뒤 첫 status(약 +27 ms)와 0.1 s 뒤 status의 엔코더가 달랐다(관성 1~7카운트).
+    엔코더는 약 0.15 s 안에 멈췄다. 같은 값이 두 번 연속 나올 때까지 다시 물어 ``verified``로 올린다."""
+    pipe, mcu = link
+    client = _client(pipe)
+    client.home()
+    original = mcu.handlers["status"]
+    coasting = {"left": 2}
+
+    def coast(doc: dict) -> list:
+        if coasting["left"] > 0:
+            coasting["left"] -= 1
+            mcu.a += 3  # 정지 응답 뒤에도 잠깐 더 도는 축
+        return original(doc)
+
+    mcu.handlers["status"] = coast
+    client.request_stop()
+    report = client.confirm_stop(ack_timeout_s=0.5, verify_interval_s=0.02, verify_deadline_s=0.5)
+    assert report.level == STOP_VERIFIED
+    assert [d["cmd"] for d in mcu.received].count("status") >= 3
+
+
+def test_confirm_stop_gives_up_at_the_deadline_while_still_moving(link):
+    pipe, mcu = link
+    client = _client(pipe)
+    client.home()
+    original = mcu.handlers["status"]
+
+    def drifting(doc: dict) -> list:
+        mcu.a += 5
+        return original(doc)
+
+    mcu.handlers["status"] = drifting
+    client.request_stop()
+    started = time.monotonic()
+    report = client.confirm_stop(ack_timeout_s=0.5, verify_interval_s=0.02, verify_deadline_s=0.2)
+    assert report.level == STOP_MCU_ACK
+    assert report.detail and "움직" in report.detail
+    assert time.monotonic() - started < 1.0  # 기한에서 멈춘다(status 응답 기한 하나만큼 여유)
+
+
 def test_confirm_stop_without_ack_does_not_verify(link):
     pipe, mcu = link
     client = _client(pipe)

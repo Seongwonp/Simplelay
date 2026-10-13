@@ -498,9 +498,13 @@ STOP_MCU_ACK = "mcu_ack"
 #: 정지 뒤 status 두 번의 엔코더 a·b가 같았다(모터 축 기준 — 벨트 미끄럼은 보이지 않는다).
 STOP_VERIFIED = "verified"
 STOP_LEVELS = (STOP_SENT, STOP_MCU_ACK, STOP_VERIFIED)
-#: 대기 중 정지에서 MCU 응답을 기다리는 기본 기한(초)과 멈춤 확인 status 간격(초). 호스트 박자 — 측정 필요.
+#: 대기 중 정지에서 MCU 응답을 기다리는 기본 기한(초)과 멈춤 확인 status 간격(초). 10/13 실물(ESP32 USB, n=10):
+#: 정지→MCU 응답 중앙 10.6 ms·최대 11.0 ms라 0.3 s는 여유를 둔 값이다.
 STOP_ACK_TIMEOUT_S = 0.3
-STOP_VERIFY_INTERVAL_S = 0.1
+STOP_VERIFY_INTERVAL_S = 0.05
+#: 멈춤 확인 기한(초). 10/13 실물(벨트 없이 모터 축, 이동 중 정지 n=10): 정지 뒤 관성 1~7카운트, 엔코더는 약 0.15 s 안에
+#: 멈췄다(같은 값 두 번 연속까지 중앙 160 ms·최대 162 ms). 기한 안에 같은 값 두 번을 못 보면 ``mcu_ack``로 남는다.
+STOP_VERIFY_DEADLINE_S = 0.5
 #: id별로 남겨 두는 최근 정지 기록 수(2차 평가 M-N2). 확인 기한(1초 미만) 안의 연속 정지만 덮으면 된다.
 _STOP_RECORDS_KEPT = 16
 
@@ -887,6 +891,7 @@ class SerialMotionClient(GrblClient):
         *,
         verify: bool = True,
         verify_interval_s: float = STOP_VERIFY_INTERVAL_S,
+        verify_deadline_s: float = STOP_VERIFY_DEADLINE_S,
         stop_id: int | None = None,
     ) -> StopReport:
         """MCU 응답을 기다리고(`wait_stop_ack`), 받았으면 status 두 번으로 멈춤을 확인한다(``verified``).
@@ -899,7 +904,7 @@ class SerialMotionClient(GrblClient):
         status_timeout = self._config.status_timeout_s
         if not verify or report.level != STOP_MCU_ACK or status_timeout is None:
             return report
-        detail = self._verify_still(report.stop_id, verify_interval_s, status_timeout)
+        detail = self._verify_still(report.stop_id, verify_interval_s, status_timeout, verify_deadline_s)
         if detail is not None:
             with self._state_lock:
                 record = self._stops.get(report.stop_id) if report.stop_id is not None else None
@@ -908,24 +913,34 @@ class SerialMotionClient(GrblClient):
         final = self._stop_report(report.stop_id)
         return final if final is not None else report
 
-    def _verify_still(self, stop_id: int | None, interval_s: float, status_timeout: float) -> str | None:
-        """status 두 번의 a·b가 같으면 기록을 ``verified``로 올리고 None, 아니면 사람이 읽을 이유."""
+    def _verify_still(self, stop_id: int | None, interval_s: float, status_timeout: float,
+                      deadline_s: float = STOP_VERIFY_DEADLINE_S) -> str | None:
+        """status를 ``interval_s``마다 물어 a·b가 **두 번 연속 같으면** 기록을 ``verified``로 올리고 None,
+        ``deadline_s`` 안에 못 보면 사람이 읽을 이유. 이동 중 정지는 정지 응답 뒤에도 잠깐 관성으로 돈다(10/13 실물)."""
         if not self._op_lock.acquire(timeout=status_timeout):
             return "다른 명령이 끝나지 않아 멈춤을 확인하지 못했어요"
         try:
-            first = self._apply_status(self._request(
+            deadline = self._clock() + max(deadline_s, 0.0)
+            first = second = self._apply_status(self._request(
                 {"cmd": "status"}, status_timeout, allow_when_stopped=True, stop_on_timeout=False))
-            time.sleep(max(interval_s, 0.0))
-            second = self._apply_status(self._request(
-                {"cmd": "status"}, status_timeout, allow_when_stopped=True, stop_on_timeout=False))
+            settled = False
+            while True:
+                time.sleep(max(interval_s, 0.0))
+                prev, second = second, self._apply_status(self._request(
+                    {"cmd": "status"}, status_timeout, allow_when_stopped=True, stop_on_timeout=False))
+                if None in (prev.a_counts, prev.b_counts, second.a_counts, second.b_counts):
+                    return "모션 보드가 위치를 알려 주지 않아 멈춤을 확인하지 못했어요"
+                if (prev.a_counts, prev.b_counts) == (second.a_counts, second.b_counts):
+                    settled = True
+                    break
+                if self._clock() >= deadline:
+                    break
         except MotionError as exc:
             return f"멈춤 확인 중 오류: {exc}"
         finally:
             self._op_lock.release()
-        if None in (first.a_counts, first.b_counts, second.a_counts, second.b_counts):
-            return "모션 보드가 위치를 알려 주지 않아 멈춤을 확인하지 못했어요"
-        if (first.a_counts, first.b_counts) != (second.a_counts, second.b_counts):
-            return (f"정지 뒤에도 엔코더가 움직였어요(a {first.a_counts}→{second.a_counts}, "
+        if not settled:
+            return (f"정지 뒤 {deadline_s:g}s 동안 엔코더가 움직였어요(a {first.a_counts}→{second.a_counts}, "
                     f"b {first.b_counts}→{second.b_counts})")
         with self._state_lock:
             record = self._stops.get(stop_id) if stop_id is not None else None
