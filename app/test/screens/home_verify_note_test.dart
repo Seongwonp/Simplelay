@@ -13,6 +13,7 @@ import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+import 'package:simplelay/widgets/appliance_setup_card.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -231,6 +232,47 @@ void main() {
         findsOneWidget);
     expect(find.bySemanticsLabel('밥솥, 실행을 요청할 수 있어요'), findsOneWidget);
     handle.dispose();
+  });
+
+  // 검토 M4(2026-10-13): 같은 홈의 타일과 설정 카드가 같은 근거 수준으로 말한다.
+  // '모의 주행을 확인했어요'는 모의 확인 주행을 **마친** 경우(done/mock)에만.
+  for (final c in [
+    (state: 'failed', label: '모의 실패'),
+    (state: 'running', label: '모의 진행 중'),
+  ]) {
+    testWidgets('${c.label}이면 타일·설정 카드 모두 "확인하지 못했어요" — 확인했다고 하지 않는다',
+        (tester) async {
+      _tall(tester);
+      final api = _hub([_appliance('a', '전자레인지')], {
+        'a': _json({'state': c.state, 'execution_mode': 'mock'}),
+      });
+      await tester.pumpWidget(_home(api));
+      await _settle(tester);
+      final card = find.byType(ApplianceSetupCard);
+      expect(card, findsOneWidget);
+      expect(_inTile('a', '확인 주행 여부를 확인하지 못했어요'), findsOneWidget);
+      expect(find.textContaining('주행을 확인했어요'), findsNothing,
+          reason: '마치지 않은 모의 주행을 확인했다고 하지 않는다');
+      expect(
+          find.descendant(
+              of: card, matching: find.text('확인 주행 여부를 확인하지 못했어요')),
+          findsOneWidget);
+    });
+  }
+
+  testWidgets('모의 확인 주행을 마쳤으면 설정 카드가 모의 확인을 말한다(보존)', (tester) async {
+    _tall(tester);
+    final api = _hub([_appliance('a', '전자레인지')], {
+      'a': _json({'state': 'done', 'execution_mode': 'mock'}),
+    });
+    await tester.pumpWidget(_home(api));
+    await _settle(tester);
+    expect(_inTile('a', '모의 주행만 확인했어요'), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byType(ApplianceSetupCard),
+            matching: find.text('모의 주행을 확인했어요. 실제 위치는 확인이 필요해요.')),
+        findsOneWidget);
   });
 
   testWidgets('360×780·글씨 200%에서 보조 줄 타일이 넘치지 않고 다른 버튼을 가리지 않는다',

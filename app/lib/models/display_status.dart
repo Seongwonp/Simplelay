@@ -192,6 +192,12 @@ String? verifyPassTileNote({
   if (needsPanelMapping(appliance)) return null;
   if (hub != RpiConnectionState.connected) return null;
   if (catalog == ServerCatalogStatus.failed) return null;
+  return verifyPassLookupNote(lookup);
+}
+
+/// 확인 주행 조회 결과 하나를 말로 — 타일 보조 줄과 설정 카드가 **같은 근거 수준**으로
+/// 쓴다(검토 M4, 2026-10-13). 실제 완료면 null. 진행 중·모의 실패·모드 모름은 모름.
+String? verifyPassLookupNote(VerifyPassLookup lookup) {
   const unknown = '확인 주행 여부를 확인하지 못했어요';
   switch (lookup.kind) {
     case VerifyPassLookupKind.noRecord:

@@ -112,3 +112,12 @@
   숫자 state(형 오류) → unknown, 모델이 state 누락을 `failed`로 읽지 않음. **수정 전 2건 실패**(found로 분류, `'failed'`).
 - 수정: 누락 시 `unknown`(`VerifyPass.unknownState`), `lookupVerifyPass`는 state가 running·done·failed가 아니면 unknown.
   마법사의 폴링 종료(`!running`)는 그대로다.
+
+### M4 — 설정 카드가 모의 실패·진행 중에도 '모의 주행을 확인했어요' (고침)
+
+- 재현: `ApplianceSetupCard`가 `pass.isMock`만 보고 "모의 주행을 확인했어요. 실제 위치는 확인이 필요해요."를 붙였다.
+  failed/mock·running/mock이면 같은 홈의 타일은 "확인 주행 여부를 확인하지 못했어요", 카드는 "확인했어요"였다.
+- 시험(`test/screens/home_verify_note_test.dart` +3, 실제 HomeScreen): 모의 실패·모의 진행 중이면 화면 어디에도 "주행을 확인했어요"가 없고
+  설정 카드에 타일과 같은 "확인 주행 여부를 확인하지 못했어요"가 있다(**수정 전 2건 실패**). done/mock은 카드 문구 유지(보존 시험, 수정 전에도 통과).
+- 수정: 카드 문구는 done/mock에만. 위치를 맞춘 가전의 카드는 그 밖의 경우 타일과 같은 판단 함수(`verifyPassLookupNote`,
+  `display_status.dart`로 분리)의 문장을 붙인다(기록 없음·마치지 못함·모름). 타일 함수는 이 함수를 그대로 부른다.

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
+import '../models/display_status.dart' show verifyPassLookupNote;
 import '../models/hub.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
@@ -54,9 +55,15 @@ class ApplianceSetupCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pass = ref.watch(setupPassProvider(appliance.id)).valueOrNull?.pass;
+    final lookup = ref.watch(setupPassProvider(appliance.id)).valueOrNull ??
+        const VerifyPassLookup.unknown();
+    final pass = lookup.pass;
     final mapped = appliance.panelMapping != null;
     final verified = pass?.state == 'done' && pass?.executionMode == 'real';
+    // 모의 확인 주행을 **마친** 경우만 '모의 주행을 확인했어요'. 모의 실패·진행 중·
+    // 기록 없음·모름은 타일 보조 줄과 같은 말로(검토 M4, 2026-10-13).
+    final mockDone = pass?.state == 'done' && pass?.isMock == true;
+    final passNote = !mapped || mockDone ? null : verifyPassLookupNote(lookup);
     final remaining = (mapped ? 0 : 1) + (verified ? 0 : 1);
     if (remaining == 0) return const SizedBox.shrink();
     void open(String location) {
@@ -68,7 +75,8 @@ class ApplianceSetupCard extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${appliance.name} · 설정이 $remaining개 남았어요'),
-        if (pass?.isMock == true) const Text('모의 주행을 확인했어요. 실제 위치는 확인이 필요해요.'),
+        if (mockDone) const Text('모의 주행을 확인했어요. 실제 위치는 확인이 필요해요.'),
+        if (passNote != null) Text(passNote),
         Wrap(spacing: 12, children: [
           OutlinedButton(onPressed: () => open('/appliance/setup'),
             child: const Text('위치 맞추기')),
