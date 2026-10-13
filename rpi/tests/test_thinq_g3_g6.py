@@ -11,6 +11,7 @@ from fastapi.testclient import TestClient
 from rpi.api import deps
 from rpi.tests.test_thinq_u1 import _reset, _wait_done, client, mock_mode  # noqa: F401
 from rpi.services.thinq import MOCK_DEHUMIDIFIER_ID, MOCK_PURIFIER_ID
+from rpi.services.thinq.discovery import device_key
 
 HIGH = {"appliance_id": "air_purifier", "action": "set_wind_strength",
         "args": {"wind_strength": "HIGH"}}
@@ -118,7 +119,9 @@ def test_wash_then_dry_is_a_v2_scenario_kept_out_of_the_default_catalog():
 
 def test_fault_offline_makes_readiness_412_and_normal_restores(client):
     body = _fault(client, device_id="air_purifier", mode="offline").json()
-    assert body["device_id"] == MOCK_PURIFIER_ID and body["mode"] == "offline"
+    # 3차 평가 M3: 응답은 기기 ID 원문 대신 key와 가전 ID.
+    assert body["appliance_id"] == "air_purifier" and body["mode"] == "offline"
+    assert body["device_key"] == device_key(MOCK_PURIFIER_ID) and "device_id" not in body
     assert body["online"] is False and body["execution_mode"] == "mock"
     readiness = client.get("/readiness/air_purifier").json()
     assert readiness["can_execute"] is False
@@ -152,9 +155,26 @@ def test_fault_lost_is_unknown_receipt_without_resend(client):
 def test_fault_latency_is_listed_and_command_still_confirms(client):
     body = _fault(client, device_id=MOCK_PURIFIER_ID, mode="normal", latency_ms=20).json()
     assert body["latency_ms"] == 20 and body["mode"] == "normal"
-    faults = {f["device_id"]: f for f in client.get("/demo/thinq/fault").json()["faults"]}
-    assert faults[MOCK_PURIFIER_ID]["latency_ms"] == 20
+    faults = {f["appliance_id"]: f for f in client.get("/demo/thinq/fault").json()["faults"]}
+    assert faults["air_purifier"]["latency_ms"] == 20
     assert _run_high(client)["last_confirmation"] == "state_confirmed"
+
+
+def test_mock_event_and_fault_views_carry_keys_not_raw_device_ids(client):
+    """3차 평가 M3: 모의 이벤트·장애 주입 응답에도 기기 ID 원문이 없다(key·가전 ID만)."""
+    from rpi.services.thinq import MOCK_WASHER_ID
+
+    texts = [client.post("/demo/thinq/event", json={"event": "wash_complete"}).text,
+             client.get("/thinq/events").text,
+             _fault(client, device_id="air_purifier", mode="offline").text,
+             client.get("/demo/thinq/fault").text,
+             _fault(client, device_id="air_purifier", mode="normal").text,
+             client.get("/thinq/devices").text]
+    joined = "\n".join(texts)
+    for raw in (MOCK_PURIFIER_ID, MOCK_WASHER_ID, MOCK_DEHUMIDIFIER_ID):
+        assert raw not in joined, raw
+    event = client.get("/thinq/events").json()["events"][0]
+    assert event["device_key"] == device_key(MOCK_WASHER_ID) and event["appliance_id"] == "thinq_washer"
 
 
 def test_fault_rejects_unknown_device_and_mode(client):

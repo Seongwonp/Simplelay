@@ -17,6 +17,10 @@
 
 ``/demo/*``는 다른 리허설 경로와 같은 보호(API 키)를 받고, ThinQ 이벤트 주입은
 추가로 **mock 모드에서만** 열린다 -- real 모드에서 가짜 이벤트가 실제처럼 섞이지 않게.
+
+**기기 ID 원문은 서버 안에만 둔다(3차 평가 M3, 2026-10-14).** 응답에는 기기 ID 대신 ``key``(``device_key``,
+`rpi/services/thinq/discovery.py`)와 가전 ID를 싣는다 — ``/thinq/devices``·이벤트·장애 주입 응답 모두. 앱·키오스크는
+원문 ID를 쓰지 않는다(소비자 확인: 폰은 ``appliances[].appliance_id``·이름·준비 상태만 읽는다).
 """
 
 from __future__ import annotations
@@ -42,6 +46,24 @@ def _thinq_on(service: SimpleLayService):
     if controller is None:
         raise HTTPException(404, "ThinQ 연동이 꺼져 있어요 (SIMPLELAY_THINQ_MODE=off)")
     return controller
+
+
+def _key(device_id: str) -> str:
+    from rpi.services.thinq.discovery import device_key  # noqa: PLC0415
+
+    return device_key(device_id)
+
+
+def _public(record: dict, registry) -> dict:
+    """응답용 사본 — ``device_id`` 원문을 빼고 ``device_key``와(등록돼 있으면) 가전 ID를 싣는다(3차 평가 M3)."""
+    out = {k: v for k, v in record.items() if k != "device_id"}
+    device_id = record.get("device_id")
+    if isinstance(device_id, str):
+        out["device_key"] = _key(device_id)
+        appliance = next((a for a in registry.system_appliances()
+                          if a.thinq is not None and a.thinq.device_id == device_id), None)
+        out["appliance_id"] = appliance.appliance_id if appliance is not None else None
+    return out
 
 
 def _reason(exc: Exception, fallback: str) -> str:
@@ -80,7 +102,8 @@ async def thinq_devices(service: SimpleLayService = Depends(get_service),
         appliances.append({
             "appliance_id": appliance.appliance_id,
             "name": appliance.name,
-            "device_id": appliance.thinq.device_id,
+            # 3차 평가 M3: 원문 기기 ID 대신 key(발견 API와 같은 값).
+            "device_key": _key(appliance.thinq.device_id),
             "device_type": appliance.thinq.device_type,
             "read_only": appliance.thinq.read_only,
             "capabilities": _capabilities(appliance.thinq, support),
@@ -95,7 +118,7 @@ async def thinq_devices(service: SimpleLayService = Depends(get_service),
         "client_reachable": reachable,
         "error": error,
         "devices": [
-            {"device_id": d.device_id, "device_type": d.device_type, "alias": d.alias,
+            {"key": _key(d.device_id), "device_type": d.device_type, "alias": d.alias,
              "model_name": d.model_name, "online": d.online}
             for d in devices
         ],
@@ -289,7 +312,8 @@ class ThinqEventRequest(BaseModel):
 
 @router.post("/demo/thinq/event")
 async def demo_thinq_event(body: ThinqEventRequest,
-                           service: SimpleLayService = Depends(get_service)) -> dict:
+                           service: SimpleLayService = Depends(get_service),
+                           registry=Depends(get_appliance_registry)) -> dict:
     controller = _thinq_on(service)
     inject = getattr(controller.client, "inject_event", None)
     if inject is None:
@@ -299,14 +323,15 @@ async def demo_thinq_event(body: ThinqEventRequest,
     from .thinq_wiring import get_scenario_engine  # noqa: PLC0415
 
     await asyncio.to_thread(get_scenario_engine)
-    return await asyncio.to_thread(inject, body.event)
+    return _public(await asyncio.to_thread(inject, body.event), registry)
 
 
 @router.get("/thinq/events")
-async def thinq_events(service: SimpleLayService = Depends(get_service)) -> dict:
+async def thinq_events(service: SimpleLayService = Depends(get_service),
+                       registry=Depends(get_appliance_registry)) -> dict:
     controller = _thinq_on(service)
     events = getattr(controller.client, "events", None)
-    return {"events": list(events()) if events is not None else []}
+    return {"events": [_public(dict(e), registry) for e in events()] if events is not None else []}
 
 
 class ThinqFaultRequest(BaseModel):
@@ -346,13 +371,14 @@ async def demo_thinq_fault(body: ThinqFaultRequest,
     try:
         view = await asyncio.to_thread(client.set_fault, device_id, body.mode, body.latency_ms)
     except KeyError as exc:
-        raise HTTPException(404, "모의 ThinQ 기기를 찾지 못했어요") from exc
+        raise HTTPException(404, "모의 ThinQ 기기를 찾지 못했어요") from None
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
-    return view
+    return _public(view, registry)
 
 
 @router.get("/demo/thinq/fault")
-async def demo_thinq_faults(service: SimpleLayService = Depends(get_service)) -> dict:
+async def demo_thinq_faults(service: SimpleLayService = Depends(get_service),
+                            registry=Depends(get_appliance_registry)) -> dict:
     client = _fault_client(service)
-    return {"faults": list(client.faults().values())}
+    return {"faults": [_public(dict(v), registry) for v in client.faults().values()]}

@@ -425,3 +425,41 @@ def test_added_device_reaches_kiosk_in_the_same_shape_as_env_device(monkeypatch,
         assert added["control_path"] == "thinq" and added["is_custom"] is False
     finally:
         _reset()
+
+
+def test_device_ids_never_reach_any_thinq_response_error_or_debug_log(api, cloud, caplog):
+    """3차 평가 M3: '기기 ID는 서버만, API에는 key' — 새 발견 API만이 아니라 기존 /thinq/devices·상태·준비·명령·기록·
+    자동 실행·오류 응답과 DEBUG 로그 어디에도 원문 기기 ID가 없다(모의 클라우드, 공식 SDK 경로)."""
+    caplog.set_level(logging.DEBUG)
+    _add(api, "air_purifier")
+    texts = []
+    devices = api.get("/thinq/devices")
+    assert devices.status_code == 200
+    body = devices.json()
+    assert {d["key"] for d in body["devices"]} == {r["key"] for r in _rows(api).values()}
+    assert all("device_id" not in d for d in body["devices"])
+    purifier = next(a for a in body["appliances"] if a["appliance_id"] == "air_purifier")
+    assert "device_id" not in purifier and purifier["device_key"] == _rows(api)["air_purifier"]["key"]
+    texts.append(devices.text)
+    for path in ("/thinq/discovered", "/thinq/status/air_purifier", "/readiness/air_purifier", "/appliances",
+                 "/thinq/events", "/suggestions", "/status", "/routines/auto-rules", "/routines/auto-rules/runs"):
+        texts.append(api.get(path).text)
+    ok = api.post("/thinq/command", json={"appliance_id": "air_purifier", "action": "set_wind_strength",
+                                          "args": {"wind_strength": "HIGH"}})
+    assert ok.status_code == 200, ok.text
+    _wait_done(api, ok.json()["job_id"])
+    texts += [ok.text, api.get("/history").text, api.get("/care-events").text]
+    cloud.set_fault("offline", device_id=cloud.device_id("air_purifier"))
+    offline = api.post("/thinq/command", json={"appliance_id": "air_purifier", "action": "set_wind_strength",
+                                               "args": {"wind_strength": "LOW"}})
+    texts += [offline.text, api.get("/readiness/air_purifier").text, api.get("/thinq/status/air_purifier").text]
+    cloud.set_fault(None)
+    texts += [api.post("/thinq/command", json={"appliance_id": "air_purifier", "action": "set_wind_strength",
+                                               "args": {"wind_strength": "TURBO"}}).text,
+              api.post("/thinq/added", json={"key": "0" * 16}).text,
+              api.delete(f"/thinq/added/{'0' * 16}").text]
+    joined = "\n".join(texts)
+    for device_id in default_devices():
+        assert device_id not in joined, device_id
+        assert device_id not in caplog.text, device_id
+    assert SECRET_PAT not in joined and SECRET_PAT not in caplog.text
