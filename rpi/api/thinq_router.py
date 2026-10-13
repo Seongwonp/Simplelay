@@ -27,7 +27,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from rpi.commands import Command
 from rpi.intent.rules import UnknownIntentError
 
-from .deps import get_appliance_registry, get_readiness_registry, get_service
+from .deps import get_appliance_registry, get_node_registry, get_readiness_registry, get_service
+from .readiness_view import readiness_view
 from .service import SimpleLayService
 
 router = APIRouter()
@@ -134,7 +135,8 @@ async def thinq_command(body: ThinqCommandRequest,
 @router.get("/readiness/{appliance_id}")
 async def readiness(appliance_id: str, service: SimpleLayService = Depends(get_service),
                     registry=Depends(get_appliance_registry),
-                    readiness_registry=Depends(get_readiness_registry)) -> dict:
+                    readiness_registry=Depends(get_readiness_registry),
+                    nodes=Depends(get_node_registry)) -> dict:
     appliance = registry.get(appliance_id)
     if appliance is None:
         raise HTTPException(404, "appliance not found")
@@ -151,10 +153,12 @@ async def readiness(appliance_id: str, service: SimpleLayService = Depends(get_s
     r = readiness_registry.get(appliance_id)
     local = service.runs_locally(appliance_id)
     system = appliance_id in service._system_controllers
+    # 가전 목록과 같은 판정(같은 대상·같은 조건 → 같은 state·can_execute·reasons, 걸림 사유 포함).
+    state, reasons, can_execute = readiness_view(appliance, service, nodes)
     return {
         "appliance_id": appliance_id, "route": route,
-        "state": r.state.value, "can_execute": r.can_execute or local or system,
-        "reasons": [] if (local or system) else list(r.blocking_reasons),
+        "state": state, "can_execute": can_execute,
+        "reasons": reasons,
         "physical": {c.value: r.is_ready(c) for c in r.checks},
         "runs_locally": local,
         "mock_system": system,

@@ -1013,6 +1013,17 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             return ApplianceReadiness.unknown(appliance_id)
         return self._readiness_registry.get(appliance_id)
 
+    def system_mock_ready(self, appliance_id: str | None) -> bool | None:
+        """서버 구성 실행기가 맡은 가전인가, 그렇다면 스스로 준비를 선언한 **모의** 실행기인가.
+
+        서버 구성 실행기가 아니면 None. _require_ready와 같은 조건이다 — 화면 판정과 실행 거절이 어긋나지 않게.
+        """
+        controller = self._system_controllers.get(appliance_id) if appliance_id else None
+        if controller is None:
+            return None
+        return (getattr(controller, "mock_ready", False) is True
+                and _mode_of(controller) is ExecutionMode.MOCK)
+
     def runs_locally(self, appliance_id: str | None) -> bool:
         """이 가전을 로컬 갠트리로 실행해도 되는가.
 

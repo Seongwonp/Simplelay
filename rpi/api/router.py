@@ -110,6 +110,7 @@ from .service import (
     SimpleLayService,
     UnknownApplianceError,
 )
+from .readiness_view import readiness_view
 from .thinq_router import command_payloads
 from .thinq_router import router as thinq_router
 
@@ -221,54 +222,12 @@ def _to_appliance_response(a, service=None, nodes=None) -> ApplianceResponse:
     # 준비 상태는 **노드로 라우팅되는 가전**의 계약이다. 노드가 없는
     # 내장 가전은 종전대로 로컬에서 실행되므로 can_execute는 True다 --
     # 화면이 실행 버튼을 막을지 정할 때는 readiness가 아니라 이 값을 본다.
-    readiness = (
-        service.readiness_of(a.appliance_id) if service is not None else None
-    )
     # 화면이 보는 값과 서버가 실제로 거절하는 기준은 **같은 규칙**이어야
     # 한다. 어긋나면 누를 수 있는데 안 되는 버튼(또는 그 반대)이 생긴다.
-    has_node = nodes is not None and nodes.get(a.appliance_id) is not None
-    runs_locally = (
-        service.runs_locally(a.appliance_id) if service is not None else True
-    )
-    # ThinQ 가전은 누를 조작부가 없다 -- 물리 4축(전송·모션·센서·보정)으로
-    # 재면 영원히 '미연결'이다. 준비 상태는 ThinQ 경로 판정에서 가져온다.
-    if a.control_path is ControlRoute.THINQ and service is not None:
-        thinq_readiness = service.thinq_readiness(a.appliance_id)
-        return _appliance_response_base(
-            a,
-            readiness=thinq_readiness.state,
-            readiness_reasons=list(thinq_readiness.reasons),
-            can_execute=thinq_readiness.can_execute,
-        )
-    blocked = service.estop_block_reason() if (not has_node and runs_locally and service is not None) else None
-    if blocked is not None:
-        # 로컬 갠트리(RPi4)가 걸림을 보고했거나 아직 상태를 모른다(평가 C1) — 실행 버튼을 막고 사유를 그대로 보인다.
-        return _appliance_response_base(
-            a, readiness="needs_setup", readiness_reasons=[blocked], can_execute=False
-        )
+    # GET /readiness도 같은 함수를 쓴다(2026-10-13).
+    state, reasons, can_execute = readiness_view(a, service, nodes)
     return _appliance_response_base(
-        a,
-        readiness=(
-            "operable"
-            if (not has_node and runs_locally)
-            else readiness.state.value
-            if readiness is not None
-            else "disconnected"
-        ),
-        readiness_reasons=(
-            []
-            if (not has_node and runs_locally)
-            else list(readiness.blocking_reasons)
-            if readiness is not None
-            else []
-        ),
-        can_execute=(
-            (readiness.can_execute if readiness is not None else False)
-            if has_node
-            # 노드가 없으면 정당한 로컬 대상일 때만 실행할 수 있다.
-            # 노드도 없고 로컬 대상도 아니면 누를 액추에이터가 없다.
-            else runs_locally
-        ),
+        a, readiness=state, readiness_reasons=reasons, can_execute=can_execute
     )
 
 
