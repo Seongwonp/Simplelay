@@ -28,11 +28,26 @@ from rpi.controller.models import ExecutionMode
 
 
 class ThinqClientError(Exception):
-    """ThinQ 호출 실패의 공통 부모. 메시지에 토큰을 넣지 않는다."""
+    """ThinQ 호출 실패의 공통 부모. 메시지에 토큰을 넣지 않는다.
+
+    ``reason``은 사람이 읽을 이유(화면·기록용), ``code``·``name``은 클라우드 오류 코드와
+    그 이름(공식 SDK ``ThinQAPIErrorCodes``)이다. 클라우드 오류가 아니면 둘 다 None.
+    """
+
+    def __init__(self, message: str = "", *, reason: str | None = None,
+                 code: str | None = None, name: str | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason or message
+        self.code = code
+        self.name = name
 
 
 class ThinqOfflineError(ThinqClientError):
     """클라우드·기기에 닿지 않는다. **보내기 전에** 알았다(전송 안 됨)."""
+
+
+class ThinqRateLimited(ThinqOfflineError):
+    """우리 쪽 호출 상한에 걸려 **보내지 않았다**(클라우드 한도를 넘기 전에 멈춤)."""
 
 
 class ThinqTransportError(ThinqClientError):
@@ -40,11 +55,11 @@ class ThinqTransportError(ThinqClientError):
 
 
 class ThinqCommandRejected(ThinqClientError):
-    """클라우드가 응답으로 거절했다(지원 안 함·모드 불일치 등). 실행되지 않았다."""
+    """클라우드가 응답으로 거절했다(지원 안 함·모드 불일치·인증 등). 실행되지 않았다."""
 
-    def __init__(self, code: str, message: str) -> None:
-        self.code = code
-        super().__init__(f"{code}: {message}")
+    def __init__(self, code: str, message: str, *, name: str | None = None,
+                 reason: str | None = None) -> None:
+        super().__init__(f"{code}: {message}", reason=reason or message, code=code, name=name)
 
 
 @dataclass(frozen=True)

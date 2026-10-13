@@ -43,6 +43,12 @@ gpio = [
 dbus = [
     "dbus-fast>=2,<3",
 ]
+# ThinQ Connect 공식 SDK(github.com/thinq-connect/pythinqconnect). SIMPLELAY_THINQ_MODE=real·fake_cloud에서만
+# 필요하다 -- 기본 설치·기본 시험은 SDK 없이 돈다(없으면 그 모드 기동을 거절한다).
+# 버전은 Home Assistant core의 lg_thinq와 같은 값으로 고정한다. 설치: pip install -e ".[thinq]"
+thinq = [
+    "thinqconnect==1.0.14",
+]
 
 # 빌드 백엔드는 setuptools다(위 [build-system]). 리포 루트에 app/·docs/ 등
 # 파이썬이 아닌 최상위 디렉터리가 많아 자동 탐색이 실패하므로 범위를 못 박는다.
