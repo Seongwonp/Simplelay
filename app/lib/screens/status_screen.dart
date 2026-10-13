@@ -358,12 +358,16 @@ ResultKind _kindOf(ExecutionStatus s) => s.outcome != null
       };
 
 /// 결과 한 단어 · 경로 · 확인 수준. 옛 서버(필드 없음)면 결과 단어만 남는다.
+///
+/// 물리 경로 칩은 두지 않는다 — 결과 문장("버튼 조작을 마쳤어요"·"누름 장치가
+/// 응답했어요")이 이미 말한다(2026-10-13, 기록 문구 규칙과 같은 원칙). ThinQ는
+/// 결과 문장만으로 경로가 드러나지 않을 수 있어 남긴다.
 List<String> _resultFactWords(ExecutionStatus s) {
   final kind = _kindOf(s);
   return [
     // 옛 서버에서 outcome이 없으면 phase로만 안다 -- 정지·안전 정지를 지어내지 않는다.
     if (s.outcome != null) resultWord(kind),
-    if (routeLabel(s.route) case final r?) r,
+    if (s.route == 'thinq') 'ThinQ',
     if (confirmationLabel(
       route: s.route,
       receipt: s.receipt,

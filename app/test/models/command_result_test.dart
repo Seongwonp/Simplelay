@@ -84,7 +84,7 @@ void main() {
     });
 
     test('경로 배지', () {
-      expect(routeLabel('physical'), '물리 버튼');
+      expect(routeLabel('physical'), '버튼을 대신 눌러요');
       expect(routeLabel('thinq'), 'ThinQ');
       expect(routeLabel('unknown'), isNull);
       expect(routeLabel(null), isNull);

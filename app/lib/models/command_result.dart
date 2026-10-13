@@ -65,8 +65,11 @@ String resultWord(ResultKind kind) => switch (kind) {
     };
 
 /// 제어 경로 배지. 모르면 null(말하지 않는다).
+///
+/// 물리 경로는 시스템 말("물리 버튼") 대신 무엇을 하는지로 말한다(2026-10-13,
+/// 기록 문구 규칙과 같은 원칙).
 String? routeLabel(String? route) => switch (route) {
-      'physical' => '물리 버튼',
+      'physical' => '버튼을 대신 눌러요',
       'thinq' => 'ThinQ',
       _ => null,
     };
@@ -97,13 +100,14 @@ String? confirmationLabel({
     return null;
   }
   // 모의 실행의 근거는 모의 실행기가 낸 것이다 — 누름 장치·가전이 응답했다고
-  // 말하지 않는다(10/6 S11 실패널, 키오스크와 같은 규칙).
+  // 말하지 않는다(10/6 S11 실패널, 키오스크와 같은 규칙). 시스템 말("모의 실행기
+  // 응답"·"확인 근거 없음") 대신 사람 말로 — 모의라는 사실은 남긴다(2026-10-13).
   if (executionMode == 'mock') {
     return switch (confirmation) {
       'operation_confirmed' => '모의 동작 확인',
       'press_confirmed' => '모의 눌림 확인',
-      'reported' => '모의 실행기 응답',
-      'none' => '확인 근거 없음',
+      'reported' => '연습(모의) 결과',
+      'none' => '연습(모의) · 눌렸는지 확인하지 못했어요',
       _ => null,
     };
   }
@@ -111,7 +115,7 @@ String? confirmationLabel({
     'operation_confirmed' => '켜진 것을 확인했어요',
     'press_confirmed' => '버튼을 눌렀어요',
     'reported' => '누름 장치의 응답을 받았어요',
-    'none' => '확인 근거 없음',
+    'none' => '눌렸는지 확인하지 못했어요',
     _ => null,
   };
 }

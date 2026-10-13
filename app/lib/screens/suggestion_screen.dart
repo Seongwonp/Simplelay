@@ -792,7 +792,7 @@ class _CommandRow extends StatelessWidget {
         : '${command.targetId} ${command.action ?? command.buttons.join(' → ')}';
     final r = readiness;
     return Semantics(
-      label: '${index + 1}번. $summary. 경로 $path',
+      label: '${index + 1}번. $summary. $path',
       child: ExcludeSemantics(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
