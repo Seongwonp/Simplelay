@@ -95,7 +95,8 @@ class EstopNotifier extends StateNotifier<EstopState> {
   final RpiApiService? _api;
 
   /// 조회마다 허브에 닿았는지 알린다(평가 M2) — 연결 상태가 허브 전원 끊김·복구를 따라오게.
-  /// 허브가 오류 코드로 답한 것(RpiApiException)은 닿은 것이다.
+  /// 허브가 오류 코드로 답한 것(RpiApiException)과 200이지만 해석하지 못한 응답(FormatException —
+  /// `hubStatus`가 필드 타입 오류도 이것으로 바꾼다, 2차 평가 L-N1)은 닿은 것이다.
   final void Function(bool reachable)? onPoll;
   Timer? _timer;
   bool _inFlight = false;

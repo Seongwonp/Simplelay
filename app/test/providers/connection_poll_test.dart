@@ -21,10 +21,16 @@ class _Hub {
   int statusCode = 200;
   int verifyCalls = 0;
 
+  /// 있으면 /status가 이 본문을 200으로 돌려준다(형식이 틀린 응답).
+  Object? statusBody;
+  int statusCalls = 0;
+
   http.Client get client => MockClient((request) async {
         if (!up) throw http.ClientException('허브 꺼짐');
         if (request.url.path == '/status') {
-          return _json({'running': false, 'last_status': null}, statusCode);
+          statusCalls++;
+          return _json(
+              statusBody ?? {'running': false, 'last_status': null}, statusCode);
         }
         if (request.url.path.endsWith('/verify-pass')) {
           verifyCalls++;
@@ -101,4 +107,21 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 600));
     expect(c.read(rpiConnectionProvider), RpiConnectionState.connected);
   });
+
+  // 2차 평가 L-N1: HTTP 200으로 답했지만 필드 타입이 틀린 응답(TypeError)은 해석 실패이지 통신 단절이 아니다.
+  for (final (name, body) in <(String, Object)>[
+    ('hold_state가 숫자', {'running': false, 'hold_state': 123}),
+    ('본문이 목록', <Object>[1, 2]),
+  ]) {
+    test('허브가 200으로 답했지만 형식이 틀리면($name) 두 번 넘게 와도 닿지 않음이 아니다', () async {
+      final hub = _Hub();
+      final c = _container(hub);
+      await _until(() => c.read(rpiConnectionProvider) == RpiConnectionState.connected);
+      hub.statusBody = body;
+      final before = hub.statusCalls;
+      await _until(() => hub.statusCalls >= before + 3);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(c.read(rpiConnectionProvider), RpiConnectionState.connected);
+    });
+  }
 }

@@ -1366,7 +1366,15 @@ class RpiApiService {
         .get(_base.replace(path: '/status'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
-    return HubStatus.fromJson(_decodeMap(res));
+    // 여기부터는 허브가 답했다 — 해석 실패(본문이 맵이 아님·필드 타입 오류 TypeError 등)는 통신 단절과 구별되게
+    // 모두 FormatException으로 알린다(2차 평가 L-N1). 주기 조회는 이것을 '닿음'으로 센다.
+    try {
+      return HubStatus.fromJson(_decodeMap(res));
+    } on FormatException {
+      rethrow;
+    } on Object catch (e) {
+      throw FormatException('허브 /status 응답 형식이 맞지 않아요: $e');
+    }
   }
 
   Future<HubLocation> hubLocation() async {
