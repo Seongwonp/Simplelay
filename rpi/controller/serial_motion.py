@@ -80,6 +80,13 @@ Z 누름 방식(2026-10-05): Z가 엔코더 모터(``motor``)인지 솔레노이
 경우(팀원 펌웨어의 시간 기반 이동 등)다. 벨트 미끄럼 자체는 원점 복귀(리밋)와 L3 검증으로 잡는다.
 허용 오차는 측정 필요.
 
+정지 확인 단계(2026-10-13, docs/계획-정지-확인-2026-10-12.md): `SerialMotionClient.request_stop`은 정지 줄을
+쓰고 **바로** 돌아온다(정지 경로를 막지 않는다). 보낸 id·시각을 남기고, MCU의 같은 id ``ok:true``를 읽으면 받은
+시각을 기록한다 — 진행 중 요청의 읽기 루프가 그 줄을 버리지 않고 기록하고, 대기 중이면 `wait_stop_ack`가
+짧은 기한 안에 직접 읽는다(읽는 쪽은 언제나 op 잠금을 쥔 하나). 단계: ``sent``(정지 줄을 썼다) → ``mcu_ack``
+(MCU가 받았다, 지연 ms) → ``verified``(`confirm_stop`: 정지 뒤 status 두 번의 엔코더 a·b가 같다). 엔코더가
+모터 축에 있어 벨트 미끄럼은 보이지 않고, 물리 E-STOP이 여전히 최종 권한이다. 기한 값은 측정 필요.
+
 모든 하드웨어 값(풀리·벨트·R_out·리밋·방향·누름 깊이/시간·타임아웃)은 설정으로만
 받는다. 기본값은 None이고, 필요한 값이 비어 있으면 **움직이기 전에** 거절한다.
 """
@@ -482,6 +489,48 @@ class MotionStatus:
 EventHook = Callable[[str, dict], None]
 
 
+# ── 정지 확인 단계(2026-10-13) ─────────────────────────────────────────────────
+
+#: 정지 줄을 전송 계층에 썼다(MCU가 받았는지는 모름).
+STOP_SENT = "sent"
+#: MCU가 같은 id로 ``ok:true``를 답했다.
+STOP_MCU_ACK = "mcu_ack"
+#: 정지 뒤 status 두 번의 엔코더 a·b가 같았다(모터 축 기준 — 벨트 미끄럼은 보이지 않는다).
+STOP_VERIFIED = "verified"
+STOP_LEVELS = (STOP_SENT, STOP_MCU_ACK, STOP_VERIFIED)
+#: 대기 중 정지에서 MCU 응답을 기다리는 기본 기한(초)과 멈춤 확인 status 간격(초). 호스트 박자 — 측정 필요.
+STOP_ACK_TIMEOUT_S = 0.3
+STOP_VERIFY_INTERVAL_S = 0.1
+
+
+@dataclass(frozen=True)
+class StopReport:
+    """정지 한 번의 확인 단계. ``level``은 `STOP_LEVELS` 중 하나, 정지 줄을 쓰지 못했으면 None."""
+
+    stop_id: int | None
+    sent: bool
+    level: str | None
+    ack_ms: int | None = None
+    detail: str | None = None
+
+    def fields(self) -> dict:
+        """규약 프레임에 싣는 모양 ``{"stop_level", "ack_ms"}``(+ 있으면 ``stop_detail``)."""
+        out: dict = {"stop_level": self.level, "ack_ms": self.ack_ms}
+        if self.detail:
+            out["stop_detail"] = self.detail
+        return out
+
+
+@dataclass
+class _StopRecord:
+    stop_id: int
+    sent_ns: int
+    sent: bool = True
+    acked_ns: int | None = None
+    verified: bool = False
+    detail: str | None = None
+
+
 class SerialMotionClient(GrblClient):
     """줄 단위 JSON으로 모션 MCU와 대화하는 GrblClient — **실물 미검증**."""
 
@@ -528,6 +577,8 @@ class SerialMotionClient(GrblClient):
         #: 동작 중 MCU 재시작(MotionReset)을 본 뒤 새 실행(reset_stop)이나 명시적 home() 전까지 True —
         #: 그동안은 auto_home이 켜져 있어도 스스로 재홈해 다시 누르지 않는다(장애 복구 결과표, 2026-10-07).
         self._reset_mid_run = False
+        #: 마지막으로 보낸 정지(id·보낸 시각·MCU 응답 시각). 정지 확인 단계용(2026-10-13).
+        self._last_stop: _StopRecord | None = None
 
     @property
     def last_position(self) -> dict | None:
@@ -754,22 +805,180 @@ class SerialMotionClient(GrblClient):
     def request_stop(self) -> bool:
         """다른 스레드에서 즉시 정지 명령을 보낸다. 진행 중 명령의 반환을 기다리지 않는다.
 
-        보낸 것은 '명령 전송'까지다. MCU의 정지 보고와 물리 정지(엔코더 속도 0)는
-        별도 단계이며 실물로 재야 한다(docs/하드웨어-연결-설계.md §2·§5).
+        보낸 것은 '명령 전송'까지다. MCU의 정지 응답은 `wait_stop_ack`·`confirm_stop`이 따로 확인하고(2026-10-13),
+        물리 정지는 실물로 재야 한다(docs/하드웨어-연결-설계.md §2·§5).
         돌려주는 값은 정지 줄을 전송 계층에 썼는지(2026-10-10, 개발자 정지 확인용) — 종전 호출자는 무시한다.
         """
         self._stop.set()
         sent = True
+        record: _StopRecord | None = None
         try:
             with self._write_lock:
                 self._next_id += 1
+                # 응답이 쓰기보다 먼저 읽힐 수 있다 — 쓰기 전에 남긴다.
+                record = _StopRecord(stop_id=self._next_id, sent_ns=time.monotonic_ns())
+                with self._state_lock:
+                    self._last_stop = record
                 self._transport.write_line(json.dumps({"id": self._next_id, "cmd": "stop"}))
         except Exception:  # noqa: BLE001 - 정지 경로에서 호출자를 죽이지 않는다
             sent = False
+            if record is not None:
+                with self._state_lock:
+                    record.sent = False
             log.exception("motion stop send failed — physical E-STOP is the final authority")
         if self.state is MotionState.BUSY:
             self._set_state(MotionState.STOPPED)
         return sent
+
+    # ── 정지 확인(2026-10-13) ────────────────────────────────────────────────
+
+    @property
+    def last_stop(self) -> StopReport | None:
+        """마지막 정지의 지금 확인 단계(보낸 적 없으면 None). 읽기만 한다."""
+        return self._stop_report()
+
+    def wait_stop_ack(self, timeout_s: float = STOP_ACK_TIMEOUT_S) -> StopReport:
+        """마지막 정지의 MCU 응답을 ``timeout_s`` 안에서 기다린다. 기한이 지나면 그때의 단계(``sent``)를 돌려준다.
+
+        진행 중 요청이 op 잠금을 쥐고 있으면 그 읽기 루프가 응답을 기록하므로 기록만 다시 본다. 잠금이 비면 직접
+        줄을 읽는다(사건 줄은 기존처럼 처리하고, 다른 id의 늦은 응답은 버린다). 정지 자체는 이미 나갔다."""
+        deadline = time.monotonic() + max(timeout_s, 0.0)
+        while True:
+            report = self._stop_report()
+            if report is None:
+                return StopReport(stop_id=None, sent=False, level=None, detail="보낸 정지가 없어요")
+            if report.level != STOP_SENT:
+                return report
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return report
+            if self._op_lock.acquire(timeout=min(self._poll_s, remaining)):
+                try:
+                    self._read_for_stop_ack(deadline)
+                finally:
+                    self._op_lock.release()
+                report = self._stop_report()
+                assert report is not None
+                return report
+
+    def confirm_stop(
+        self,
+        ack_timeout_s: float = STOP_ACK_TIMEOUT_S,
+        *,
+        verify: bool = True,
+        verify_interval_s: float = STOP_VERIFY_INTERVAL_S,
+    ) -> StopReport:
+        """MCU 응답을 기다리고(`wait_stop_ack`), 받았으면 status 두 번으로 멈춤을 확인한다(``verified``).
+
+        엔코더가 달라졌거나 위치를 알려 주지 않으면 ``mcu_ack``로 남기고 ``detail``에 이유를 쓴다."""
+        report = self.wait_stop_ack(ack_timeout_s)
+        status_timeout = self._config.status_timeout_s
+        if not verify or report.level != STOP_MCU_ACK or status_timeout is None:
+            return report
+        detail = self._verify_still(report.stop_id, verify_interval_s, status_timeout)
+        if detail is not None:
+            with self._state_lock:
+                record = self._last_stop
+                if record is not None and record.stop_id == report.stop_id:
+                    record.detail = detail
+        final = self._stop_report()
+        return final if final is not None else report
+
+    def _verify_still(self, stop_id: int | None, interval_s: float, status_timeout: float) -> str | None:
+        """status 두 번의 a·b가 같으면 기록을 ``verified``로 올리고 None, 아니면 사람이 읽을 이유."""
+        if not self._op_lock.acquire(timeout=status_timeout):
+            return "다른 명령이 끝나지 않아 멈춤을 확인하지 못했어요"
+        try:
+            first = self._apply_status(self._request(
+                {"cmd": "status"}, status_timeout, allow_when_stopped=True, stop_on_timeout=False))
+            time.sleep(max(interval_s, 0.0))
+            second = self._apply_status(self._request(
+                {"cmd": "status"}, status_timeout, allow_when_stopped=True, stop_on_timeout=False))
+        except MotionError as exc:
+            return f"멈춤 확인 중 오류: {exc}"
+        finally:
+            self._op_lock.release()
+        if None in (first.a_counts, first.b_counts, second.a_counts, second.b_counts):
+            return "모션 보드가 위치를 알려 주지 않아 멈춤을 확인하지 못했어요"
+        if (first.a_counts, first.b_counts) != (second.a_counts, second.b_counts):
+            return (f"정지 뒤에도 엔코더가 움직였어요(a {first.a_counts}→{second.a_counts}, "
+                    f"b {first.b_counts}→{second.b_counts})")
+        with self._state_lock:
+            record = self._last_stop
+            if record is not None and record.stop_id == stop_id:
+                record.verified = True
+        self._emit("stop_verified", {"id": stop_id, "a": second.a_counts, "b": second.b_counts})
+        return None
+
+    def _stop_report(self) -> StopReport | None:
+        with self._state_lock:
+            record = self._last_stop
+            if record is None:
+                return None
+            stop_id, sent, acked_ns, verified, detail = (
+                record.stop_id, record.sent, record.acked_ns, record.verified, record.detail)
+            sent_ns = record.sent_ns
+        ack_ms = None if acked_ns is None else max(0, round((acked_ns - sent_ns) / 1_000_000))
+        if not sent:
+            level = None
+        elif verified:
+            level = STOP_VERIFIED
+        elif acked_ns is not None:
+            level = STOP_MCU_ACK
+        else:
+            level = STOP_SENT
+        return StopReport(stop_id=stop_id, sent=sent, level=level, ack_ms=ack_ms, detail=detail)
+
+    def _note_stop_ack(self, doc: dict) -> bool:
+        """마지막 정지의 응답이면 받은 시각을 남기고 True. 실패 응답(``ok:false``)은 확인이 아니다."""
+        request_id = doc.get("id")
+        now = time.monotonic_ns()
+        with self._state_lock:
+            record = self._last_stop
+            if record is None or request_id != record.stop_id or record.acked_ns is not None:
+                return False
+            if doc.get("ok") is not True:
+                error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
+                record.detail = f"모션 보드가 정지에 실패로 답했어요({error})"
+                ack_ms = None
+            else:
+                record.acked_ns = now
+                ack_ms = max(0, round((now - record.sent_ns) / 1_000_000))
+        if ack_ms is not None:
+            self._emit("stop_ack", {"id": request_id, "ack_ms": ack_ms})
+        return True
+
+    def _read_for_stop_ack(self, deadline: float) -> None:
+        """op 잠금을 쥔 채 마지막 정지의 응답이 올 때까지(또는 기한까지) 줄을 읽는다. 예외를 내지 않는다."""
+        while True:
+            report = self._stop_report()
+            if report is None or report.level != STOP_SENT:
+                return
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                return
+            try:
+                line = self._transport.read_line(min(self._poll_s, remaining))
+            except Exception:  # noqa: BLE001 - 정지 확인이 읽기 오류로 호출자를 죽이지 않는다
+                log.exception("motion: reading the stop reply failed")
+                return
+            if line is None:
+                continue
+            doc = _parse_line(line)
+            if doc is None:
+                log.debug("motion: ignored unparsable line while waiting for stop reply: %.120s", line)
+                continue
+            if "event" in doc:
+                self._note_position(doc, "mcu_event")
+                name = str(doc.get("event"))
+                if name == "ready":
+                    self._note_ready(doc)
+                    continue
+                self._emit(name, doc)
+                if name == "alarm":
+                    self._set_state(MotionState.ALARM)
+                continue
+            self._note_stop_ack(doc)  # 다른 id는 시간 초과로 버린 요청의 늦은 응답·heartbeat 응답 — 버린다
 
     def reset_stop(self) -> None:
         """다음 실행을 위해 정지 요청 표시를 지운다. STOPPED 상태(재홈 필요)는 남는다."""
@@ -974,7 +1183,10 @@ class SerialMotionClient(GrblClient):
                 self._handle_event(doc)
                 continue
             if doc.get("id") != request_id:
-                continue  # 시간 초과로 버린 요청의 늦은 응답·정지 응답·heartbeat(ping) 응답
+                # 정지 응답이면 확인 시각을 남긴다(2026-10-13). 나머지는 시간 초과로 버린 요청의 늦은 응답·
+                # heartbeat(ping) 응답 — 어느 쪽도 이 요청의 응답이 아니다.
+                self._note_stop_ack(doc)
+                continue
             if doc.get("ok") is True:
                 self._note_position(doc, "mcu_reply")
                 return doc
@@ -1024,7 +1236,9 @@ class SerialMotionClient(GrblClient):
                 return True
             if "event" in doc:
                 self._emit(str(doc.get("event")), doc)
-            # 응답 줄은 이전 시도의 늦은 응답 — 버린다.
+                continue
+            # 응답 줄은 이전 시도의 늦은 응답 — 버린다(정지 응답이면 확인 시각만 남긴다).
+            self._note_stop_ack(doc)
 
     def _heartbeat_s(self, cmd: str) -> float | None:
         interval = self._config.heartbeat_ms
