@@ -143,6 +143,33 @@ def test_ack_of_an_older_stop_does_not_confirm_a_newer_one(link):
     assert client.wait_stop_ack(0.5).level == STOP_MCU_ACK
 
 
+def test_confirm_with_a_stop_id_returns_only_that_stops_record(link):
+    """2차 평가 M-N2: 보낼 때 얻은 id로 확인하면, 그 뒤 다른 정지가 나가도 최신 기록으로 바꿔 답하지 않는다."""
+    pipe, mcu = link
+    client = _client(pipe)
+    client.home()
+    answered: list[int] = []
+
+    def first_only(doc: dict):
+        answered.append(doc["id"])
+        return [{"id": doc["id"], "ok": True}] if len(answered) == 1 else None
+
+    mcu.handlers["stop"] = first_only
+    client.request_stop()
+    first = client.last_stop_id
+    assert client.wait_stop_ack(0.5, stop_id=first).level == STOP_MCU_ACK
+    client.request_stop()  # 답이 없는 두 번째 정지
+    second = client.last_stop_id
+    assert second is not None and second != first
+    report = client.confirm_stop(ack_timeout_s=0.1, verify_interval_s=0.02, stop_id=first)
+    assert report.stop_id == first and report.level == STOP_VERIFIED and report.ack_ms is not None
+    later = client.confirm_stop(ack_timeout_s=0.05, verify_interval_s=0.02, stop_id=second)
+    assert later.stop_id == second and later.level == STOP_SENT and later.ack_ms is None
+    # 기록이 없는 id는 다른 정지의 기록으로 대신하지 않는다.
+    missing = client.wait_stop_ack(0.0, stop_id=9999)
+    assert missing.stop_id == 9999 and missing.level is None
+
+
 def test_failed_stop_ack_reply_is_not_a_confirmation(link):
     pipe, mcu = link
     client = _client(pipe)

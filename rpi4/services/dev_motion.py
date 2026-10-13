@@ -89,9 +89,15 @@ class DevMotionService:
         self._stop_seen.set()
         return bool(self._client.request_stop())
 
-    def confirm_stop(self) -> StopReport:
-        """마지막 정지의 확인 단계(블로킹, 짧은 기한 — 실행기가 작업 스레드에서 부른다). `SerialMotionClient.confirm_stop`."""
-        return self._client.confirm_stop()
+    @property
+    def last_stop_id(self) -> int | None:
+        """마지막으로 보낸 MCU 정지의 id(`SerialMotionClient.last_stop_id`) — 확인을 그 정지에 묶는 데 쓴다."""
+        return self._client.last_stop_id
+
+    def confirm_stop(self, stop_id: int | None = None) -> StopReport:
+        """``stop_id`` 정지(없으면 마지막 정지)의 확인 단계(블로킹, 짧은 기한 — 실행기가 작업 스레드에서 부른다).
+        `SerialMotionClient.confirm_stop`."""
+        return self._client.confirm_stop(stop_id=stop_id)
 
     # ── 조작 ────────────────────────────────────────────────────────────────
 

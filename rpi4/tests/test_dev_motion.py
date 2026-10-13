@@ -500,6 +500,87 @@ def test_abort_mid_execution_without_a_motion_client_says_sent(rig) -> None:
     run(_t())
 
 
+class _HeldController:
+    """정지가 와도 시험이 놓을 때까지 실행을 붙잡는다 — 두 번째 abort도 '실행 중'에 들어온다.
+
+    정지는 실제 SerialMotionClient로 보낸다(실행기 → 어댑터 → 가짜 MCU 배선)."""
+
+    def __init__(self, motion: SerialMotionClient) -> None:
+        import threading
+
+        self._motion = motion
+        self.release = threading.Event()
+
+    def execute(self, buttons, targets=None):
+        from rpi.controller import ButtonResult, ButtonStatus, ExecutionResult, ExecutionStatus
+
+        self.release.wait(5.0)
+        return ExecutionResult(status=ExecutionStatus.SAFETY_STOPPED,
+                               buttons=(ButtonResult("시작", ButtonStatus.FAILED, 1, None),))
+
+    def request_stop(self) -> None:
+        self._motion.request_stop()
+
+    def reset_stop(self) -> None:
+        pass
+
+
+def test_two_interleaved_aborts_each_report_their_own_mcu_stop(rig) -> None:
+    """2차 평가 M-N2: 첫 정지의 멈춤 확인(status) 도중 두 번째 정지가 MCU에 나가도, 첫 보고는 첫 MCU 정지의
+    기록만 싣는다(최신 정지의 기록으로 바꿔 답하지 않는다). 두 번째 MCU 정지에는 답이 없어 ``sent``에 머문다."""
+    import threading
+
+    async def _t():
+        r = rig(homed=True)
+        held = _HeldController(r.client)
+        r.executor = ActExecutor(reader=r.reader, writer=r.writer, controller=held,
+                                 dev_motion=DevMotionService(r.client), motion_stop=r.client)
+        stop_ids: list[int] = []
+
+        def stop_handler(doc: dict):
+            stop_ids.append(doc["id"])
+            return [{"id": doc["id"], "ok": True}] if len(stop_ids) == 1 else None
+
+        in_verify, go = threading.Event(), threading.Event()
+        original_status = r.mcu.handlers["status"]
+
+        def gated_status(doc: dict):
+            if not in_verify.is_set():
+                in_verify.set()
+                go.wait(2.0)  # 첫 확인이 status를 기다리는 동안 두 번째 정지를 넣는다
+            return original_status(doc)
+
+        r.mcu.handlers["stop"] = stop_handler
+        r.mcu.handlers["status"] = gated_status
+        feed(r.reader, {"type": "execute", "sequence_id": "q1", "buttons": ["시작"], "appliance_id": "microwave"})
+        first = asyncio.create_task(r.executor.run_once())
+        await _until(lambda: r.executor._busy)
+        await r.send({"type": "abort", "stop_id": "st1"})
+        await _until(in_verify.is_set)
+        assert in_verify.is_set()
+        await r.send({"type": "abort", "stop_id": "st2"})  # 두 번째 MCU 정지가 이 안에서 나간다
+        go.set()
+
+        def reports() -> list[dict]:
+            return [d for d in r.writer.docs() if d.get("type") == "stop_report"]
+
+        await _until(lambda: len(reports()) == 2, 3.0)
+        held.release.set()
+        await first
+        await r.executor.wait_dev()
+        by_id = {d["stop_id"]: d for d in reports()}
+        assert set(by_id) == {"st1", "st2"}
+        assert by_id["st1"]["target"] == by_id["st2"]["target"] == "run"
+        # 첫 정지는 MCU가 답했다 — 그 기록(mcu_ack 이상, ack_ms 있음)만.
+        assert by_id["st1"]["stop_level"] in ("mcu_ack", "verified")
+        assert isinstance(by_id["st1"]["ack_ms"], int)
+        # 두 번째 정지는 답이 없다 — 첫 정지의 응답을 빌려 오지 않는다.
+        assert by_id["st2"]["stop_level"] == "sent" and by_id["st2"]["ack_ms"] is None
+        assert len(stop_ids) == 2
+
+    run(_t())
+
+
 # ── 누름 ────────────────────────────────────────────────────────────────────
 
 

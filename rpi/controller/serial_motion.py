@@ -501,6 +501,8 @@ STOP_LEVELS = (STOP_SENT, STOP_MCU_ACK, STOP_VERIFIED)
 #: 대기 중 정지에서 MCU 응답을 기다리는 기본 기한(초)과 멈춤 확인 status 간격(초). 호스트 박자 — 측정 필요.
 STOP_ACK_TIMEOUT_S = 0.3
 STOP_VERIFY_INTERVAL_S = 0.1
+#: id별로 남겨 두는 최근 정지 기록 수(2차 평가 M-N2). 확인 기한(1초 미만) 안의 연속 정지만 덮으면 된다.
+_STOP_RECORDS_KEPT = 16
 
 
 @dataclass(frozen=True)
@@ -579,6 +581,9 @@ class SerialMotionClient(GrblClient):
         self._reset_mid_run = False
         #: 마지막으로 보낸 정지(id·보낸 시각·MCU 응답 시각). 정지 확인 단계용(2026-10-13).
         self._last_stop: _StopRecord | None = None
+        #: 최근 정지들의 기록(id별, 최대 `_STOP_RECORDS_KEPT`개) — 연속 정지에서도 각 확인이 자기 정지의 기록만
+        #: 읽게 한다(2차 평가 M-N2).
+        self._stops: dict[int, _StopRecord] = {}
 
     @property
     def last_position(self) -> dict | None:
@@ -819,6 +824,9 @@ class SerialMotionClient(GrblClient):
                 record = _StopRecord(stop_id=self._next_id, sent_ns=time.monotonic_ns())
                 with self._state_lock:
                     self._last_stop = record
+                    self._stops[record.stop_id] = record
+                    while len(self._stops) > _STOP_RECORDS_KEPT:
+                        del self._stops[next(iter(self._stops))]
                 self._transport.write_line(json.dumps({"id": self._next_id, "cmd": "stop"}))
         except Exception:  # noqa: BLE001 - 정지 경로에서 호출자를 죽이지 않는다
             sent = False
@@ -837,15 +845,28 @@ class SerialMotionClient(GrblClient):
         """마지막 정지의 지금 확인 단계(보낸 적 없으면 None). 읽기만 한다."""
         return self._stop_report()
 
-    def wait_stop_ack(self, timeout_s: float = STOP_ACK_TIMEOUT_S) -> StopReport:
-        """마지막 정지의 MCU 응답을 ``timeout_s`` 안에서 기다린다. 기한이 지나면 그때의 단계(``sent``)를 돌려준다.
+    @property
+    def last_stop_id(self) -> int | None:
+        """마지막으로 보낸(보내려 한) 정지의 MCU 요청 id. 보낸 적 없으면 None.
 
-        진행 중 요청이 op 잠금을 쥐고 있으면 그 읽기 루프가 응답을 기록하므로 기록만 다시 본다. 잠금이 비면 직접
-        줄을 읽는다(사건 줄은 기존처럼 처리하고, 다른 id의 늦은 응답은 버린다). 정지 자체는 이미 나갔다."""
+        정지를 보내는 쪽이 보내기 직전·직후에 읽어 **그 정지의 불변 id**를 얻고 ``confirm_stop(stop_id=…)``에
+        넘긴다(2차 평가 M-N2) — 확인하는 사이 다른 정지가 나가도 그 기록으로 바꿔 답하지 않는다."""
+        with self._state_lock:
+            return self._last_stop.stop_id if self._last_stop is not None else None
+
+    def wait_stop_ack(self, timeout_s: float = STOP_ACK_TIMEOUT_S, *, stop_id: int | None = None) -> StopReport:
+        """정지의 MCU 응답을 ``timeout_s`` 안에서 기다린다. 기한이 지나면 그때의 단계(``sent``)를 돌려준다.
+
+        ``stop_id``를 주면 그 정지의 기록만 본다(없으면 마지막 정지 — 종전). 진행 중 요청이 op 잠금을 쥐고 있으면
+        그 읽기 루프가 응답을 기록하므로 기록만 다시 본다. 잠금이 비면 직접 줄을 읽는다(사건 줄은 기존처럼 처리하고,
+        모르는 id의 늦은 응답은 버린다). 정지 자체는 이미 나갔다."""
         deadline = time.monotonic() + max(timeout_s, 0.0)
         while True:
-            report = self._stop_report()
+            report = self._stop_report(stop_id)
             if report is None:
+                if stop_id is not None:
+                    return StopReport(stop_id=stop_id, sent=False, level=None,
+                                      detail="이 정지의 기록이 남아 있지 않아요")
                 return StopReport(stop_id=None, sent=False, level=None, detail="보낸 정지가 없어요")
             if report.level != STOP_SENT:
                 return report
@@ -854,12 +875,11 @@ class SerialMotionClient(GrblClient):
                 return report
             if self._op_lock.acquire(timeout=min(self._poll_s, remaining)):
                 try:
-                    self._read_for_stop_ack(deadline)
+                    self._read_for_stop_ack(deadline, report.stop_id)
                 finally:
                     self._op_lock.release()
-                report = self._stop_report()
-                assert report is not None
-                return report
+                final = self._stop_report(report.stop_id)
+                return final if final is not None else report
 
     def confirm_stop(
         self,
@@ -867,21 +887,25 @@ class SerialMotionClient(GrblClient):
         *,
         verify: bool = True,
         verify_interval_s: float = STOP_VERIFY_INTERVAL_S,
+        stop_id: int | None = None,
     ) -> StopReport:
         """MCU 응답을 기다리고(`wait_stop_ack`), 받았으면 status 두 번으로 멈춤을 확인한다(``verified``).
 
-        엔코더가 달라졌거나 위치를 알려 주지 않으면 ``mcu_ack``로 남기고 ``detail``에 이유를 쓴다."""
-        report = self.wait_stop_ack(ack_timeout_s)
+        엔코더가 달라졌거나 위치를 알려 주지 않으면 ``mcu_ack``로 남기고 ``detail``에 이유를 쓴다.
+        ``stop_id``(정지를 보낼 때 얻은 `last_stop_id`)를 주면 처음부터 끝까지 **그 정지의 기록만** 돌려준다 —
+        확인하는 사이 다른 정지가 나가도 그 최신 기록으로 바꾸지 않는다(2차 평가 M-N2). 없으면 이 호출이 처음 본
+        마지막 정지에 묶는다."""
+        report = self.wait_stop_ack(ack_timeout_s, stop_id=stop_id)
         status_timeout = self._config.status_timeout_s
         if not verify or report.level != STOP_MCU_ACK or status_timeout is None:
             return report
         detail = self._verify_still(report.stop_id, verify_interval_s, status_timeout)
         if detail is not None:
             with self._state_lock:
-                record = self._last_stop
-                if record is not None and record.stop_id == report.stop_id:
+                record = self._stops.get(report.stop_id) if report.stop_id is not None else None
+                if record is not None:
                     record.detail = detail
-        final = self._stop_report()
+        final = self._stop_report(report.stop_id)
         return final if final is not None else report
 
     def _verify_still(self, stop_id: int | None, interval_s: float, status_timeout: float) -> str | None:
@@ -904,15 +928,16 @@ class SerialMotionClient(GrblClient):
             return (f"정지 뒤에도 엔코더가 움직였어요(a {first.a_counts}→{second.a_counts}, "
                     f"b {first.b_counts}→{second.b_counts})")
         with self._state_lock:
-            record = self._last_stop
-            if record is not None and record.stop_id == stop_id:
+            record = self._stops.get(stop_id) if stop_id is not None else None
+            if record is not None:
                 record.verified = True
         self._emit("stop_verified", {"id": stop_id, "a": second.a_counts, "b": second.b_counts})
         return None
 
-    def _stop_report(self) -> StopReport | None:
+    def _stop_report(self, stop_id: int | None = None) -> StopReport | None:
+        """``stop_id`` 정지의 지금 단계(없으면 마지막 정지). 기록이 없으면 None — 다른 정지의 기록으로 대신하지 않는다."""
         with self._state_lock:
-            record = self._last_stop
+            record = self._last_stop if stop_id is None else self._stops.get(stop_id)
             if record is None:
                 return None
             stop_id, sent, acked_ns, verified, detail = (
@@ -930,12 +955,13 @@ class SerialMotionClient(GrblClient):
         return StopReport(stop_id=stop_id, sent=sent, level=level, ack_ms=ack_ms, detail=detail)
 
     def _note_stop_ack(self, doc: dict) -> bool:
-        """마지막 정지의 응답이면 받은 시각을 남기고 True. 실패 응답(``ok:false``)은 확인이 아니다."""
+        """최근 정지 중 하나의 응답이면 **그 정지의 기록에** 받은 시각을 남기고 True(2차 평가 M-N2 — 옛 정지의 늦은
+        응답이 새 정지를 확인하지는 않는다). 실패 응답(``ok:false``)은 확인이 아니다."""
         request_id = doc.get("id")
         now = time.monotonic_ns()
         with self._state_lock:
-            record = self._last_stop
-            if record is None or request_id != record.stop_id or record.acked_ns is not None:
+            record = self._stops.get(request_id) if isinstance(request_id, int) else None
+            if record is None or record.acked_ns is not None:
                 return False
             if doc.get("ok") is not True:
                 error = doc.get("error") if isinstance(doc.get("error"), str) else "unknown"
@@ -948,10 +974,11 @@ class SerialMotionClient(GrblClient):
             self._emit("stop_ack", {"id": request_id, "ack_ms": ack_ms})
         return True
 
-    def _read_for_stop_ack(self, deadline: float) -> None:
-        """op 잠금을 쥔 채 마지막 정지의 응답이 올 때까지(또는 기한까지) 줄을 읽는다. 예외를 내지 않는다."""
+    def _read_for_stop_ack(self, deadline: float, stop_id: int | None = None) -> None:
+        """op 잠금을 쥔 채 ``stop_id`` 정지(없으면 마지막 정지)의 응답이 올 때까지(또는 기한까지) 줄을 읽는다.
+        예외를 내지 않는다."""
         while True:
-            report = self._stop_report()
+            report = self._stop_report(stop_id)
             if report is None or report.level != STOP_SENT:
                 return
             remaining = deadline - time.monotonic()
