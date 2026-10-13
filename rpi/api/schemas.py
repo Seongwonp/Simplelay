@@ -753,6 +753,10 @@ class StatusResponse(BaseModel):
     #: 판정 입력 real | mock(합성 전력). mock의 true는 실제 동작 근거가 아니다.
     last_operation_source: str | None = None
     last_operation_detail: str | None = None
+    # ── 정지 확인 단계(2026-10-13) — 마지막 긴급 정지의 모션 확인. 새 실행이 시작되면 null. 옛 클라이언트는 무시 ──
+    #: sent | mcu_ack | verified | None
+    last_stop_level: str | None = None
+    last_stop_ack_ms: int | None = None
 
 
 class SuggestionResponse(BaseModel):
@@ -848,6 +852,16 @@ class StopResponse(BaseModel):
     #: 전달됐다(2026-09-30). 결과(정지됨/미확인)는 /status의 hold_stop_outcome으로 온다.
     appliance_stop_requested: bool = False
     hold_state_at_request: str | None = None
+    # ── 정지 확인 단계(2026-10-13) — RPi4 정지 보고. 옛 클라이언트는 무시한다 ──
+    #: sent(정지 명령을 보냄) | mcu_ack(모션 보드가 받음) | verified(엔코더로 멈춤 확인) | None(보고 수단 없음·멈출 것 없음)
+    stop_level: str | None = None
+    #: 정지를 보낸 뒤 모션 보드 응답까지(ms). mcu_ack 이상일 때만.
+    stop_ack_ms: int | None = None
+    #: RPi4가 멈춘 대상: run | dev | hold | idle | None
+    stop_target: str | None = None
+    #: mcu_ack 이상일 때만 true — sent는 '보냄'이지 확인이 아니다.
+    stop_confirmed: bool = False
+    stop_detail: str | None = None
 
 
 class DemoOutletEstopRequest(BaseModel):

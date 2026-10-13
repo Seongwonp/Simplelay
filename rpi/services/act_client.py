@@ -12,6 +12,9 @@ RPi4 side of this same link.
                                    ←  progress {sequence_id, button, attempt,
                                        phase, ...}  (optional, never a result)
   abort {scope?}                  ←  (no reply expected)
+  abort {scope?, stop_id}         ←  stop_report {stop_id, target, stop_level, ack_ms, stop_detail?}
+                                      (정지 보고 규약 1, 2026-10-13 — act_info.stop_report_protocol을 알린 RPi4만 답한다.
+                                       ``abort_with_report()``. 옛 RPi4면 기다리지 않고 ``sent``)
   verify_pass {sequence_id,       ←  verify_result {sequence_id, ok, targets}
                targets}               (확인 주행, 2026-09-30 — progress phase "verify"가 먼저 온다)
   execute {..., hold?}            ←  progress {phase:"hold", hold_state, stop_outcome, ...}
@@ -344,6 +347,10 @@ class ActClient:
         self._rehearsal_waiters: dict[str, asyncio.Future[dict]] = {}
         #: 개발자 조작 답을 기다리는 요청(request_id → future). 2026-10-10.
         self._dev_waiters: dict[str, asyncio.Future[dict]] = {}
+        #: 정지 보고를 기다리는 abort(stop_id → future). 2026-10-13.
+        self._stop_waiters: dict[str, asyncio.Future[dict]] = {}
+        #: RPi4가 보낸 마지막 정지 보고(``stop_report``). 없으면 None.
+        self.last_stop_report: dict | None = None
         #: RPi4가 보낸 마지막 가전 완료 기록(검증한 것만). 2026-10-06.
         self.last_appliance_done: dict | None = None
         # (sequence_id, future) — 수신한 result/error를 반드시 현재 요청의
@@ -534,12 +541,48 @@ class ActClient:
             execution_mode=parse_execution_mode(doc),
         )
 
-    async def abort(self, scope: str | None = None) -> None:
+    async def abort(self, scope: str | None = None, stop_id: str | None = None) -> None:
         """Request RPi4 abort — best-effort, no reply is awaited (see protocol.md).
 
         ``scope="drive"``면 구동부만 멈추라는 뜻이다(정지 대기 중에도 정지 버튼을 누르지 않음).
-        생략하면 종전 줄과 바이트까지 같다."""
-        await self._send({"type": "abort"} if scope is None else {"type": "abort", "scope": scope})
+        ``stop_id``를 주면 RPi4가 ``stop_report``로 확인 단계를 알린다(`abort_with_report`).
+        둘 다 생략하면 종전 줄과 바이트까지 같다."""
+        doc: dict = {"type": "abort"}
+        if scope is not None:
+            doc["scope"] = scope
+        if stop_id is not None:
+            doc["stop_id"] = stop_id
+        await self._send(doc)
+
+    #: 정지 보고를 기다리는 기본 기한(초) — RPi4의 MCU 응답 기한(0.3 s)+멈춤 확인(status 두 번)보다 넉넉하게.
+    #: 호스트 박자, 측정 필요.
+    STOP_REPORT_TIMEOUT_S = 1.5
+
+    async def abort_with_report(self, scope: str | None = None, timeout_s: float | None = None) -> dict:
+        """정지를 **먼저 보내고**, RPi4의 ``stop_report``를 기다려 ``{"stop_level", "ack_ms", "target", …}``로 돌려준다.
+
+        RPi4가 정지 보고 규약(``act_info.stop_report_protocol``)을 알리지 않았으면(옛 판·구성 받기 전) 기다리지 않고
+        ``sent``다 — 보낸 것까지만 안다. 기한 안에 보고가 없어도 ``sent``. 보내지 못하면 `ActLinkError`."""
+        stop_id = "s" + uuid.uuid4().hex[:15]
+        protocol = (self.act_info or {}).get("stop_report_protocol")
+        supported = type(protocol) is int and protocol >= 1
+        future: asyncio.Future[dict] | None = None
+        if supported:
+            future = asyncio.get_running_loop().create_future()
+            self._stop_waiters[stop_id] = future
+        try:
+            await self.abort(scope, stop_id=stop_id)
+            if future is None:
+                return {"stop_id": stop_id, "stop_level": "sent", "ack_ms": None, "target": None,
+                        "stop_detail": "RPi4가 정지 확인 단계를 알리지 않는 판이에요"}
+            try:
+                doc = await asyncio.wait_for(future, self.STOP_REPORT_TIMEOUT_S if timeout_s is None else timeout_s)
+            except asyncio.TimeoutError:
+                return {"stop_id": stop_id, "stop_level": "sent", "ack_ms": None, "target": None,
+                        "stop_detail": "RPi4의 정지 확인 보고가 기한 안에 오지 않았어요"}
+        finally:
+            self._stop_waiters.pop(stop_id, None)
+        return _read_stop_report(doc)
 
     async def verify_pass(self, targets: "Sequence[Mapping[str, object]]",
                           sequence_id: str | None = None) -> dict:
@@ -689,7 +732,8 @@ class ActClient:
             # 짧은 단선이었다면 RPi4가 늦게 결과를 보낼 수 있다 — 다음 요청의 결과로 오인하지 않게.
             self._stale_sequence_ids.append(pending[0])
             pending[1].set_exception(error)
-        for waiter in [*self._estop_waiters, *self._rehearsal_waiters.values(), *self._dev_waiters.values()]:
+        for waiter in [*self._estop_waiters, *self._rehearsal_waiters.values(), *self._dev_waiters.values(),
+                       *self._stop_waiters.values()]:
             if not waiter.done():
                 waiter.set_exception(error)
         close = getattr(self._writer, "close", None)
@@ -771,6 +815,12 @@ class ActClient:
             return
         if msg_type == "rehearsal_result":
             waiter = self._rehearsal_waiters.get(doc.get("request_id"))
+            if waiter is not None and not waiter.done():
+                waiter.set_result(doc)
+            return
+        if msg_type == "stop_report":
+            self.last_stop_report = _read_stop_report(doc)
+            waiter = self._stop_waiters.get(doc.get("stop_id"))
             if waiter is not None and not waiter.done():
                 waiter.set_result(doc)
             return
@@ -962,6 +1012,25 @@ class ActClient:
             self._auth_drops.warn(log, "bad mac or seq", doc.get("type"))
             return None
         return link_auth.strip_auth(doc)
+
+
+_STOP_TARGETS = ("run", "dev", "hold", "idle")
+
+
+def _read_stop_report(doc: dict) -> dict:
+    """``stop_report`` → ``{"stop_id", "stop_level", "ack_ms", "target", "stop_detail"}``(2026-10-13).
+
+    ``stop_level``이 null이면 멈출 것이 없었거나 정지 줄을 쓰지 못한 것이라 None으로 둔다. 모르는 값은 ``sent``로
+    낮춰 읽는다(`rpi.services.stop_confirm`)."""
+    from .stop_confirm import read_ack_ms, read_stop_level  # noqa: PLC0415
+
+    raw = doc.get("stop_level")
+    level = None if raw is None else read_stop_level(raw)
+    target = doc.get("target") if doc.get("target") in _STOP_TARGETS else None
+    detail = doc.get("stop_detail") if isinstance(doc.get("stop_detail"), str) else None
+    return {"stop_id": doc.get("stop_id") if isinstance(doc.get("stop_id"), str) else None,
+            "stop_level": level, "ack_ms": read_ack_ms(doc.get("ack_ms"), level) if level else None,
+            "target": target, "stop_detail": detail}
 
 
 def targets_payload(targets: "Mapping[str, ButtonTarget]") -> dict[str, dict]:

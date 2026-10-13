@@ -243,6 +243,13 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
   `target`: `run`(일반 실행 중) · `dev`(개발자 조작 중) · `hold`(정지 버튼 대기 중 — 가전 정지 결과는 `progress phase
   "hold"`가 따로 알린다) · `idle`(멈출 것 없음, `stop_level:null`).
 - RPi4는 `act_info`에 `"stop_report_protocol": 1`을 알린다.
+- RPi5(`rpi/services/stop_confirm.py`): **확인(`confirmed`)은 `mcu_ack` 이상일 때만**이다. 단계가 없는 답(옛 RPi4 —
+  개발자 조작 규약 1)·모르는 값·`abort drive` 대체 경로는 `sent`로 읽는다. `POST /stop`은 `abort`를 먼저 보내고(기다리지
+  않음) 보고를 최대 약 1.5 s 기다린다 — RPi4가 `stop_report_protocol`을 알리지 않았으면 기다리지 않고 `sent`. 응답에
+  `stop_level`·`stop_ack_ms`·`stop_target`·`stop_confirmed`·`stop_detail`, `GET /status`에 `last_stop_level`·
+  `last_stop_ack_ms`(새 실행이 시작되면 null). `POST /dev/stop`·세션 끝(`/dev/sessions/{id}/end`)은 `stop_level`·
+  `stop_ack_ms`를 싣고, 실물이면 `confirmed`를 단계로 정한다(`sent`면 false지만 잠그지 않는다 — 잠금은 RPi4에 닿지
+  못했을 때). 모의 개발자 어댑터는 단계 없이 종전처럼 `confirmed:true`.
 
 ```json
 { "type": "abort", "stop_id": "s7c1d2e3f4a5" }

@@ -124,6 +124,22 @@ def test_home_jog_press_and_stop_reach_the_motion_mcu(link) -> None:
     manager.close()
 
 
+def test_dev_stop_level_comes_back_through_both_boards(link) -> None:
+    """정지 확인 단계(2026-10-13): RPi4가 MCU 응답·멈춤 확인을 읽어 RPi5 매니저까지 올린다(가짜 MCU)."""
+    act, mcu = link
+    manager = _manager(act)
+    session = manager.start("microwave", "phone")
+    assert manager.submit(session.session_id, "microwave", "home").accepted
+    info = manager.emergency_stop("emergency_stop")
+    assert info is not None and info["stop_level"] in ("mcu_ack", "verified")
+    assert isinstance(info["ack_ms"], int)
+
+    mcu.handlers["stop"] = lambda d: None  # 답하지 않는 MCU — '보냄'까지만
+    info = manager.emergency_stop("emergency_stop")
+    assert info == {"stop_level": "sent", "ack_ms": None}
+    manager.close()
+
+
 def test_sensor_read_reports_the_mcu_position(link) -> None:
     act, mcu = link
     manager = _manager(act)

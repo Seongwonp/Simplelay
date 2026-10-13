@@ -206,7 +206,8 @@ class MotionAdapter(Protocol):
 
     def press(self, button_id: str) -> None: ...
 
-    def stop(self, reason: str) -> None: ...
+    def stop(self, reason: str) -> "dict | None": ...
+    # 정지는 확인 단계 ``{"stop_level", "ack_ms"}``를 돌려줄 수 있다(실물 어댑터, 2026-10-13). 모의는 None.
 
     def read_sensor(self) -> dict[str, float]: ...
 
@@ -594,15 +595,22 @@ class DeveloperSessionManager:
         self._send_stop("heartbeat_timeout", session, raise_on_failure=False)
         return "heartbeat_timeout"
 
-    def end(self, session_id: str, reason: str = "session_ended") -> None:
+    def end(self, session_id: str, reason: str = "session_ended") -> dict | None:
+        """세션을 끝내고 정지를 보낸다. 돌려주는 값은 어댑터가 알린 정지 확인 단계(모의면 None, 2026-10-13)."""
         self.tick()
         with self._lock:
             self._require_locked(session_id)
             session = self._detach_session_locked()
             self._reserve_stop_locked()
-        self._send_stop(reason, session, raise_on_failure=True)
+        return self._send_stop_report(reason, session)
 
-    def emergency_stop(self, reason: str = "emergency_stop") -> None:
+    def _send_stop_report(self, reason: str, session: DevSession | None) -> dict | None:
+        holder: dict = {}
+        self._send_stop(reason, session, raise_on_failure=True, report=holder)
+        info = holder.get("info")
+        return dict(info) if isinstance(info, dict) else None
+
+    def emergency_stop(self, reason: str = "emergency_stop") -> dict | None:
         """세션이 있든 없든, 명령이 무엇이었든 **먼저** 멈춘다.
 
         정지가 실패하면 fault를 걸고 예외를 올린다. 정지가 성공하면 --
@@ -616,7 +624,7 @@ class DeveloperSessionManager:
         with self._lock:
             session = self._detach_session_locked()
             self._reserve_stop_locked()  # 세션이 없어도 정지는 나간다
-        self._send_stop(reason, session, raise_on_failure=True)
+        return self._send_stop_report(reason, session)
 
     def close(self) -> None:
         """서버 종료 정리 -- 감시 스레드를 멈추고, 열린 세션이 있으면
@@ -1027,6 +1035,7 @@ class DeveloperSessionManager:
         *,
         raise_on_failure: bool,
         request_id: str | None = None,
+        report: dict | None = None,
     ) -> bool:
         """어댑터에 정지를 보내고 결과를 fault/복구/반납 판정으로 옮긴다.
         락 밖 전용.
@@ -1053,7 +1062,11 @@ class DeveloperSessionManager:
             self._arbiter.fault_snapshot()
         )
         try:
-            self._adapter.stop(reason)
+            info = self._adapter.stop(reason)
+            if report is not None:
+                # 정지 확인 단계(2026-10-13) — 호출자(API)가 '보냄'과 '확인'을 가른다. 아래 판정은 종전과 같다:
+                # 어댑터가 예외 없이 돌아오면 RPi4에 닿은 것이고, 잠금(fault)은 닿지 못했을 때만이다.
+                report["info"] = info
         except Exception:
             if session is not None:
                 # 반납 판정보다 fault가 먼저다 -- 둘 사이에 실행이

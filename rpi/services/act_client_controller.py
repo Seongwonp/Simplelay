@@ -18,6 +18,7 @@ rpi4/act_main.py's untested ``_run()``.
 from __future__ import annotations
 
 import asyncio
+import concurrent.futures
 import contextlib
 import logging
 import threading
@@ -113,18 +114,41 @@ class ActClientController:
         return synthesize_from_act_result(buttons, result)
 
     def request_stop(self) -> None:
-        """긴급 정지 — RPi4에 abort를 보낸다. fire-and-forget(프로토콜상 abort는
-        응답이 없음): 진행 중이던 execute()는 RPi4 쪽 중단 결과(error/result)로
-        스스로 마무리된다. 전송 실패는 로그만 남긴다 — 정지 경로에서 예외로
-        호출자를 죽이는 것보다 물리 E-STOP이 최종 권한이라는 설계를 따른다."""
+        """긴급 정지 — RPi4에 abort를 보낸다. **기다리지 않는다**: 진행 중이던 execute()는 RPi4 쪽 중단
+        결과(error/result)로 스스로 마무리된다. 전송 실패는 로그만 남긴다 — 정지 경로에서 예외로
+        호출자를 죽이는 것보다 물리 E-STOP이 최종 권한이라는 설계를 따른다.
 
-        def _log_send_failure(future: "asyncio.Future[None]") -> None:
+        2026-10-13: abort에 ``stop_id``를 실어 RPi4의 정지 확인 보고를 받는다(`wait_stop_report`가 따로 기다린다)."""
+
+        def _log_send_failure(future: "concurrent.futures.Future[dict]") -> None:
             exc = future.exception()
             if exc is not None:
                 log.error("emergency abort send failed: %s", exc)
 
-        future = asyncio.run_coroutine_threadsafe(self._client.abort(), self._loop)
+        with_report = getattr(self._client, "abort_with_report", None)
+        coro = with_report() if callable(with_report) else self._client.abort()
+        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         future.add_done_callback(_log_send_failure)
+        self._stop_future = future if callable(with_report) else None
+
+    _stop_future: "concurrent.futures.Future[dict] | None" = None
+
+    def wait_stop_report(self, timeout_s: float | None = None) -> dict | None:
+        """마지막 `request_stop`의 확인 단계 ``{"stop_level", "ack_ms", "target", …}``를 기다린다(블로킹, 짧은 기한).
+
+        정지를 보내지 않았으면 None. 보내지 못했으면 ``stop_level: None``과 이유. 기한이 지나면 ``sent``."""
+        future = self._stop_future
+        if future is None:
+            return None
+        wait = (getattr(self._client, "STOP_REPORT_TIMEOUT_S", 1.5) + 0.5) if timeout_s is None else timeout_s
+        try:
+            return dict(future.result(timeout=wait))
+        except concurrent.futures.TimeoutError:
+            return {"stop_level": "sent", "ack_ms": None, "target": None,
+                    "stop_detail": "RPi4의 정지 확인 보고를 기다리다 기한이 지났어요"}
+        except Exception as exc:  # noqa: BLE001 - 보내지 못함(링크 끊김 등)
+            return {"stop_level": None, "ack_ms": None, "target": None,
+                    "stop_detail": f"RPi4에 정지를 보내지 못했어요: {exc}"}
 
     # ── 정지 대기·확인 주행(2026-09-30) ─────────────────────────────────────
 

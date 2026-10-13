@@ -269,6 +269,12 @@ def test_emergency_stop_returns_ok(client):
         # 정지 버튼 위 대기(2026-09-30) — 대기 중이 아니면 가전 정지 누름으로 가지 않는다.
         "appliance_stop_requested": False,
         "hold_state_at_request": None,
+        # 정지 확인 단계(2026-10-13) — 로컬 모의 폐루프는 보고 수단이 없다: 단계를 지어내지 않는다.
+        "stop_level": None,
+        "stop_ack_ms": None,
+        "stop_target": None,
+        "stop_confirmed": False,
+        "stop_detail": None,
     }
 
 

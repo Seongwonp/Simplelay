@@ -66,6 +66,7 @@ from rpi.services.developer_session import (
     DevTargetUnknownError,
 )
 from rpi.services.rate_limit import SlidingWindowLimiter
+from rpi.services.stop_confirm import stop_level_confirmed, stop_sentence
 
 DEV_TOKEN_ENV = "SIMPLELAY_DEV_TOKEN"
 MIN_DEV_TOKEN_LEN = 16
@@ -272,11 +273,18 @@ class DevCommandResponse(BaseModel):
 class DevStopResponse(BaseModel):
     """confirmed는 이번 stop 호출의 확인이다. 최종 정리는 state.phase로
     구분한다: stopping이면 이전 명령 정리가 남았고 fault이면 사용 불가다.
-    confirmed=False만으로 fault를 추론하면 안 된다(유휴 정지 실패)."""
+    confirmed=False만으로 fault를 추론하면 안 된다(유휴 정지 실패).
+
+    2026-10-13: 실물이면 ``confirmed``는 정지 확인 단계가 ``mcu_ack``(모션 보드가 받음) 이상일 때만 참이다.
+    ``sent``는 '정지 명령을 보냄'까지다 — 잠그지 않지만 확인도 아니다. 모의는 단계 없이 종전처럼 참."""
 
     confirmed: bool
     message: str
     state: DevStateResponse
+    #: sent | mcu_ack | verified | None(모의·RPi4에 닿지 못함)
+    stop_level: str | None = None
+    #: 정지를 보낸 뒤 모션 보드 응답까지(ms). mcu_ack 이상일 때만.
+    stop_ack_ms: int | None = None
 
 
 class DevLogEntryView(BaseModel):
@@ -490,7 +498,7 @@ def dev_end_session(
 ) -> DevStopResponse:
     _require_owner(manager, session_id, x_dev_session_secret)
     try:
-        manager.end(session_id)
+        info = manager.end(session_id)
     except DevSessionExpired as exc:
         raise _error(410, "session_expired", str(exc)) from exc
     except Exception:
@@ -499,7 +507,20 @@ def dev_end_session(
             message="세션은 닫았지만 정지를 확인하지 못했습니다 -- 기기가 잠겼습니다",
             state=_state_view(manager),
         )
-    return DevStopResponse(confirmed=True, message="세션을 끝내고 정지를 확인했습니다", state=_state_view(manager))
+    return _stop_response(manager, info, mock_message="세션을 끝내고 정지를 확인했습니다", prefix="세션을 끝냈어요 — ")
+
+
+def _stop_response(manager: DeveloperSessionManager, info: dict | None, *, mock_message: str,
+                   prefix: str = "") -> DevStopResponse:
+    """RPi4에 닿은 정지의 응답. 실물은 확인 단계로 ``confirmed``와 문장을 정한다(2026-10-13)."""
+    if manager.is_mock:
+        return DevStopResponse(confirmed=True, message=mock_message, state=_state_view(manager))
+    level = info.get("stop_level") if isinstance(info, dict) else None
+    ack_ms = info.get("ack_ms") if isinstance(info, dict) else None
+    level = level if isinstance(level, str) else "sent"  # 실물인데 단계를 모르면 '보냄'까지만
+    sentence = stop_sentence(level, ack_ms) or "정지 명령을 보냈어요"
+    return DevStopResponse(confirmed=stop_level_confirmed(level), message=prefix + sentence,
+                           state=_state_view(manager), stop_level=level, stop_ack_ms=ack_ms)
 
 
 @dev_router.post("/stop", response_model=DevStopResponse)
@@ -509,14 +530,14 @@ def dev_stop(
     """개발자 긴급 정지 -- 세션 소유권·빈도 제한 없이 토큰만 본다.
     토큰조차 없는 경우를 위해 일반 ``POST /stop``도 같은 정지를 보낸다."""
     try:
-        manager.emergency_stop("emergency_stop")
+        info = manager.emergency_stop("emergency_stop")
     except Exception:
         return DevStopResponse(
             confirmed=False,
             message="정지를 보냈지만 확인하지 못했습니다 -- 다시 정지를 눌러 확인해 주세요",
             state=_state_view(manager),
         )
-    return DevStopResponse(confirmed=True, message="정지를 확인했습니다", state=_state_view(manager))
+    return _stop_response(manager, info, mock_message="정지를 확인했습니다")
 
 
 @dev_router.get("/log", response_model=list[DevLogEntryView])

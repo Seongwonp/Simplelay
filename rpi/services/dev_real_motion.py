@@ -14,9 +14,10 @@
 위치에서 ``±amount_mm`` 떨어진 **절대 목표 한 번**이라 스스로 끝나고, 크기가 상한으로 묶인다. 요청 하나에 답 하나,
 재전송·자동 재개는 없다.
 
-정지: RPi4가 개발자 조작 규약을 알리면 ``dev_motion stop``을 보내고 RPi4가 MCU에 정지 줄을 썼다는 답을 확인으로
-본다(물리 정지 확인이 아니다 — 최종 권한은 물리 E-STOP). 옛 RPi4·모의 모션이면 ``abort {scope:"drive"}``를 보낸다
-(그런 RPi4에는 개발자 이동이 애초에 가지 않았다). 링크가 끊겼으면 예외 — 매니저가 정지 미확인(fault)으로 잠근다.
+정지: RPi4가 개발자 조작 규약을 알리면 ``dev_motion stop``을 보낸다. RPi4가 답한 정지 확인 단계(2026-10-13,
+규약 2 — ``sent``·``mcu_ack``·``verified``)를 돌려주고, API의 ``confirmed``는 ``mcu_ack`` 이상일 때만 참이다(최종 권한은
+물리 E-STOP). 옛 RPi4·모의 모션이면 ``abort {scope:"drive"}``를 보내고 ``sent``다(그런 RPi4에는 개발자 이동이 애초에
+가지 않았다). 링크가 끊겼으면 예외 — 매니저가 정지 미확인(fault)으로 잠근다.
 """
 
 from __future__ import annotations
@@ -209,8 +210,14 @@ class ActDevMotionAdapter:
         out["homed"] = 1.0 if reply.get("homed") is True else 0.0
         return out
 
-    def stop(self, reason: str) -> None:
-        """정지 — 거절 조건(비상정지·모의·상한)을 보지 않는다. 링크가 없거나 끊겼으면 예외(정지 미확인)."""
+    def stop(self, reason: str) -> dict:
+        """정지 — 거절 조건(비상정지·모의·상한)을 보지 않는다. 링크가 없거나 끊겼으면 예외(RPi4에 닿지 못함).
+
+        돌려주는 값은 정지 확인 단계 ``{"stop_level", "ack_ms"}``(2026-10-13): RPi4가 개발자 조작 규약 2로 답한
+        ``sent``·``mcu_ack``·``verified``. 단계가 없는 답(규약 1)·모르는 값·``abort drive`` 대체 경로는 ``sent``다 —
+        RPi4가 정지를 보냈다는 것까지만 안다(`rpi.services.stop_confirm`)."""
+        from .stop_confirm import STOP_SENT, read_ack_ms, read_stop_level  # noqa: PLC0415
+
         link = self._link()
         snap = self._snapshot(link)
         if not snap.get("link_up"):
@@ -220,11 +227,13 @@ class ActDevMotionAdapter:
             drive_stop = getattr(link, "request_drive_stop", None)
             if callable(drive_stop):
                 drive_stop()
-            return
+            return {"stop_level": STOP_SENT, "ack_ms": None}
         reply = link.dev_motion("stop", STOP_TIMEOUT_S, reason=_reason_token(reason))
         if not isinstance(reply, dict) or reply.get("ok") is not True:
             detail = reply.get("detail") if isinstance(reply, dict) else None
-            raise RuntimeError(f"RPi4가 정지를 확인하지 못했어요: {detail or reply!r}")
+            raise RuntimeError(f"RPi4가 정지를 보내지 못했어요: {detail or reply!r}")
+        level = read_stop_level(reply.get("stop_level"))
+        return {"stop_level": level, "ack_ms": read_ack_ms(reply.get("ack_ms"), level)}
 
 
 def _reason_token(reason: str) -> str:

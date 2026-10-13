@@ -315,8 +315,76 @@ def test_dev_stop_is_forwarded_to_rpi4(rig) -> None:
     r = rig()
     r.open_session()
     res = r.client.post("/dev/stop", headers=r.headers())
-    assert res.status_code == 200 and res.json()["confirmed"] is True
+    # 2026-10-13: 단계 없는 답(개발자 조작 규약 1 RPi4)은 '보냄'까지다 — 확인으로 올리지 않는다.
+    assert res.status_code == 200
     assert r.link.ops()[-1] == "stop"
+
+
+# ── 정지 확인 단계(2026-10-13) ───────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(("level", "ack_ms", "phrase"), [
+    ("mcu_ack", 12, "모션 보드가 정지를 확인했어요 (12 ms)"),
+    ("verified", 9, "멈춘 것을 확인했어요"),
+])
+def test_dev_stop_is_confirmed_only_from_the_mcu_ack_up(rig, level, ack_ms, phrase) -> None:
+    r = rig()
+    r.link.act_info["dev_motion_protocol"] = 2
+    r.link.replies["stop"] = {"ok": True, "op": "stop", "stop_level": level, "ack_ms": ack_ms}
+    r.open_session()
+    body = r.client.post("/dev/stop", headers=r.headers()).json()
+    assert body["confirmed"] is True
+    assert body["stop_level"] == level and body["stop_ack_ms"] == ack_ms
+    assert phrase in body["message"]
+
+
+@pytest.mark.parametrize("reply", [
+    {"ok": True, "op": "stop"},                                          # 옛 RPi4(규약 1) — 단계 없음
+    {"ok": True, "op": "stop", "stop_level": "sent", "ack_ms": None},     # MCU가 답하지 않음
+    {"ok": True, "op": "stop", "stop_level": "stopped_for_sure"},         # 모르는 값은 낮춰 읽는다
+], ids=["old_rpi4", "sent", "unknown_level"])
+def test_dev_stop_that_was_only_sent_is_not_reported_as_confirmed(rig, reply) -> None:
+    r = rig()
+    r.link.replies["stop"] = reply
+    r.open_session()
+    body = r.client.post("/dev/stop", headers=r.headers()).json()
+    assert body["confirmed"] is False
+    assert body["stop_level"] == "sent" and body["stop_ack_ms"] is None
+    assert "정지 명령을 보냈어요" in body["message"] and "확인했" not in body["message"]
+    # 보낸 것은 확실하다 — 잠그지는 않는다(잠금은 RPi4에 닿지 못했을 때).
+    assert body["state"]["phase"] == "idle"
+
+
+def test_dev_stop_on_an_old_rpi4_drive_abort_is_only_sent(rig) -> None:
+    r = rig()
+    del r.link.act_info["dev_motion_protocol"]
+    r.open_session()
+    body = r.client.post("/dev/stop", headers=r.headers()).json()
+    assert r.link.drive_stops == 1
+    assert body["confirmed"] is False and body["stop_level"] == "sent"
+
+
+def test_session_end_says_what_the_stop_reached(rig) -> None:
+    r = rig()
+    r.link.replies["stop"] = {"ok": True, "op": "stop", "stop_level": "mcu_ack", "ack_ms": 30}
+    sid, secret = r.open_session()
+    body = r.client.post(f"/dev/sessions/{sid}/end", headers=r.headers(secret)).json()
+    assert body["confirmed"] is True and body["stop_level"] == "mcu_ack"
+    assert "(30 ms)" in body["message"]
+
+    r.link.replies["stop"] = {"ok": True, "op": "stop"}
+    sid, secret = r.open_session()
+    body = r.client.post(f"/dev/sessions/{sid}/end", headers=r.headers(secret)).json()
+    assert body["confirmed"] is False and body["stop_level"] == "sent"
+    assert "정지 명령을 보냈어요" in body["message"]
+
+
+def test_link_down_stop_has_no_level(rig) -> None:
+    r = rig()
+    r.open_session()
+    r.link.link_up = False
+    body = r.client.post("/dev/stop", headers=r.headers()).json()
+    assert body["confirmed"] is False and body["stop_level"] is None
 
 
 def test_global_stop_also_reaches_rpi4(rig) -> None:

@@ -15,6 +15,7 @@ from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestion
 from rpi.services import DangerAlertStore, NodeRegistry
 from rpi.services.act_client import AlertEvent
 from rpi.services.history import history_csv
+from rpi.services.stop_confirm import stop_level_confirmed
 from rpi.services.readiness import (
     ApplianceReadiness,
     ReadinessCheck,
@@ -937,8 +938,18 @@ async def status(
         update={**command_status_fields(snapshot), **hold_status_fields(service.hold_status()),
                 "estop_latched": estop.get("latched"),
                 "estop_detail": estop.get("detail") if estop.get("latched") else None,
-                "actuator_link_up": service.actuator_link_up()}
+                "actuator_link_up": service.actuator_link_up(),
+                **_last_stop_fields(service)}
     )
+
+
+def _last_stop_fields(service: SimpleLayService) -> dict:
+    """마지막 긴급 정지의 모션 확인 단계(2026-10-13). 보고 수단이 없는 서비스·대역이면 비운다."""
+    reader = getattr(service, "last_motion_stop", None)
+    stop = reader() if callable(reader) else None
+    if not isinstance(stop, dict):
+        return {"last_stop_level": None, "last_stop_ack_ms": None}
+    return {"last_stop_level": stop.get("stop_level"), "last_stop_ack_ms": stop.get("ack_ms")}
 
 
 @router.post("/stop/ack", response_model=EstopAckResponse)
@@ -998,6 +1009,11 @@ async def emergency_stop(
         cloud_uncancellable=list(report.cloud_uncancellable),
         appliance_stop_requested=hold_before.get("hold_state") in ("hovering_stop", "stopping"),
         hold_state_at_request=hold_before.get("hold_state"),
+        stop_level=report.motion_stop_level,
+        stop_ack_ms=report.motion_stop_ack_ms,
+        stop_target=report.motion_stop_target,
+        stop_confirmed=stop_level_confirmed(report.motion_stop_level),
+        stop_detail=report.motion_stop_detail,
     )
 
 

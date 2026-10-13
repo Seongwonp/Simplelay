@@ -69,6 +69,13 @@ class EmergencyStopReport:
     cloud_cancelled: tuple[str, ...] = ()
     #: 이미 보낸 ThinQ 명령 -- 취소할 수 없다. 가전 운전 정지는 자동으로 보내지 않는다.
     cloud_uncancellable: tuple[str, ...] = ()
+    #: 모션 정지의 확인 단계(2026-10-13): sent | mcu_ack | verified, 보고 수단이 없거나 멈출 것이 없었으면 None.
+    #: ``mcu_ack`` 이상만 확인이다(`rpi.services.stop_confirm`).
+    motion_stop_level: str | None = None
+    motion_stop_ack_ms: int | None = None
+    #: RPi4가 멈춘 대상: run | dev | hold | idle | None(모름).
+    motion_stop_target: str | None = None
+    motion_stop_detail: str | None = None
 
 
 class ServiceNotReadyError(RuntimeError):
@@ -295,6 +302,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         # 시각만으로는 "멈추라고 한 뒤 얼마나 걸렸나"를 뺄 수 없다.
         # _lock으로 보호.
         self._stop_requested_at = None
+        # 마지막 긴급 정지의 모션 확인 단계(2026-10-13) — RPi4 정지 보고. 새 실행이 시작되면 지운다. _lock으로 보호.
+        self._last_motion_stop: dict | None = None
         # 지금 실행의 시작 시각 — 소요시간을 재려면 필요하다. _lock으로 보호.
         self._current_started_at = None
         # 기계 제어권 중재자(ControlArbiter) — 개발자 세션과의 상호 배제.
@@ -672,6 +681,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             self._running = True
             self._stop_requested_this_run = False
             self._stop_requested_at = None
+            self._last_motion_stop = None
             self._stop_sticky = False
             self._current_route = ControlRoute.PHYSICAL
             job_id = uuid.uuid4().hex[:12]
@@ -1181,13 +1191,43 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             cloud_cancelled, cloud_uncancellable = self._stop_command_paths()
 
         acknowledged, unconfirmed = self._broadcast_stop_to_nodes(nodes)
+        motion = self._motion_stop_report(local)
         return EmergencyStopReport(
             was_running=was_running,
             nodes_acknowledged=acknowledged,
             nodes_unconfirmed=unconfirmed,
             cloud_cancelled=cloud_cancelled,
             cloud_uncancellable=cloud_uncancellable,
+            motion_stop_level=motion.get("stop_level"),
+            motion_stop_ack_ms=motion.get("ack_ms"),
+            motion_stop_target=motion.get("target"),
+            motion_stop_detail=motion.get("stop_detail"),
         )
+
+    def _motion_stop_report(self, local: object) -> dict:
+        """로컬 실행 대상(RPi4 링크)의 정지 확인 단계를 짧게 기다린다(락 밖, 2026-10-13). 정지는 이미 나갔다.
+
+        보고 수단이 없는 대상(로컬 모의 폐루프)이면 빈 dict — 단계를 지어내지 않는다. 받은 보고는 RPi4가 무언가를
+        멈췄을 때(run·dev·hold)나 실행 중이었을 때 /status에 남긴다."""
+        wait = getattr(local, "wait_stop_report", None)
+        if not callable(wait):
+            return {}
+        try:
+            report = wait()
+        except Exception:  # noqa: BLE001 - 정지 확인 실패가 정지 응답을 막지 않는다
+            log.exception("emergency stop: waiting for the motion stop report failed")
+            return {}
+        if not isinstance(report, dict):
+            return {}
+        with self._lock:
+            if report.get("target") in ("run", "dev", "hold") or self._stop_requested_this_run:
+                self._last_motion_stop = dict(report)
+        return report
+
+    def last_motion_stop(self) -> dict | None:
+        """마지막 긴급 정지의 모션 확인 단계(새 실행이 시작되면 None). /status가 옮긴다."""
+        with self._lock:
+            return dict(self._last_motion_stop) if self._last_motion_stop is not None else None
 
     def _broadcast_stop_to_nodes(
         self, nodes: list[tuple[str, ButtonSequenceController]]
