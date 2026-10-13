@@ -16,12 +16,24 @@
 지금 링크 세션의 것과 다름(RPi4 재시작·세션 바뀜), 링크가 끊겨 기준점을 버림. 같은 프로세스(RPi5 모의 주입)에서 만든
 프레임은 ``clock_id``가 이 프로세스의 것이라 그대로 같은 시계다.
 
-시계 드리프트(수 ppm)는 120초 상한에 비해 무시한다. 측정한 값이 아니다.
+**기준점 유효 기간·상대 드리프트(4차 평가 M-N1).** 위 '보수적' 증명은 두 시계 속도가 같다는 전제다. 실제로는 상대 속도 차
+δ가 있어, 옮긴 값의 오차가 기준점과 사건 사이 간격 ``|x − R|``에 비례해 쌓인다(RPi4가 빠르면 사건을 늦게 옮겨 나이를
+짧게 잡는다). 그래서:
+
+- 기준점은 잡은 뒤 ``SIMPLELAY_EVENT_CLOCK_REF_MAX_AGE_S``(기본 600초)까지만 쓴다. 넘기면 근거 없음(보류). RPi5는 연결이
+  유지되는 동안 ``SIMPLELAY_EVENT_CLOCK_REFRESH_S``(기본 60초)마다 다시 탐침한다(``rpi/services/act_client.py``).
+- 그 안에서는 상대 드리프트 상한 ``SIMPLELAY_EVENT_CLOCK_DRIFT_PPM``(기본 500ppm — 리눅스 NTP 최대 보정 속도 수준의
+  설계값, **측정 필요**) × ``|x − R|``만큼 끝 시각을 더 이르게(나이를 길게) 옮긴다. 상대 드리프트가 이 상한 안이면 나이를
+  실제보다 짧게 잡지 않는다.
+- 그 불확실성이 ``SIMPLELAY_EVENT_CLOCK_MAX_UNCERTAINTY_S``(기본 1초)를 넘으면 보류한다.
+
+두 보드 사이 실제 드리프트·왕복 시간은 아직 재지 않았다.
 """
 
 from __future__ import annotations
 
 import math
+import os
 import re
 import threading
 import time
@@ -35,14 +47,53 @@ from rpi.verifier.done_fusion import CLOCK_ID as LOCAL_CLOCK_ID
 MAX_PENDING_PROBES = 8
 _ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
+REF_MAX_AGE_ENV = "SIMPLELAY_EVENT_CLOCK_REF_MAX_AGE_S"
+DRIFT_PPM_ENV = "SIMPLELAY_EVENT_CLOCK_DRIFT_PPM"
+MAX_UNCERTAINTY_ENV = "SIMPLELAY_EVENT_CLOCK_MAX_UNCERTAINTY_S"
+REFRESH_ENV = "SIMPLELAY_EVENT_CLOCK_REFRESH_S"
+#: 기준점 유효 기간(초) — 측정 필요.
+DEFAULT_REF_MAX_AGE_S = 600.0
+#: 두 보드 단조 시계의 상대 드리프트 상한(ppm) — 설계값, 측정 필요.
+DEFAULT_DRIFT_PPM = 500.0
+#: 드리프트 불확실성 한계(초) — 넘으면 보류.
+DEFAULT_MAX_UNCERTAINTY_S = 1.0
+#: 연결이 유지되는 동안 다시 탐침하는 간격(초) — 유효 기간보다 충분히 짧게.
+DEFAULT_REFRESH_S = 60.0
+
+
+def _env_float(name: str, default: float, *, allow_zero: bool = False) -> float:
+    raw = (os.environ.get(name) or "").strip()
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError as exc:
+        raise RuntimeError(f"{name} 값을 숫자로 읽을 수 없습니다: {raw!r}") from exc
+    if not math.isfinite(value) or value < 0 or (value == 0 and not allow_zero):
+        raise RuntimeError(f"{name}는 0보다 커야 합니다: {raw!r}")
+    return value
+
+
+def refresh_interval_s() -> float:
+    """다시 탐침하는 간격(초, ``SIMPLELAY_EVENT_CLOCK_REFRESH_S``)."""
+    return _env_float(REFRESH_ENV, DEFAULT_REFRESH_S)
+
 
 def _finite(value) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 class EventClock:
-    def __init__(self, monotonic: Callable[[], float] = time.monotonic) -> None:
+    def __init__(self, monotonic: Callable[[], float] = time.monotonic, *,
+                 ref_max_age_s: float | None = None, drift_ppm: float | None = None,
+                 max_uncertainty_s: float | None = None) -> None:
         self._mono = monotonic
+        self._ref_max_age_s = ref_max_age_s if ref_max_age_s is not None else _env_float(
+            REF_MAX_AGE_ENV, DEFAULT_REF_MAX_AGE_S)
+        self._drift = (drift_ppm if drift_ppm is not None else _env_float(
+            DRIFT_PPM_ENV, DEFAULT_DRIFT_PPM, allow_zero=True)) * 1e-6
+        self._max_uncertainty_s = max_uncertainty_s if max_uncertainty_s is not None else _env_float(
+            MAX_UNCERTAINTY_ENV, DEFAULT_MAX_UNCERTAINTY_S, allow_zero=True)
         self._lock = threading.Lock()
         self._probes: OrderedDict[str, float] = OrderedDict()
         #: (RPi4 clock_id, RPi4 기준 시각 초, RPi5 기준 시각 초) — 지금 링크 세션의 기준점.
@@ -96,7 +147,15 @@ class EventClock:
             link = self._link
         if link is None or link[0] != clock_id:
             return None
-        return link[2] + (float(at_s) - link[1])
+        _, ref_remote, ref_local = link
+        # 4차 평가 M-N1: 낡은 기준점은 쓰지 않고, 드리프트 상한만큼 이르게 옮긴다(나이를 길게). 한계를 넘으면 보류.
+        if self._mono() - ref_local > self._ref_max_age_s:
+            return None
+        span = float(at_s) - ref_remote
+        uncertainty = abs(span) * self._drift
+        if uncertainty > self._max_uncertainty_s:
+            return None
+        return ref_local + span - uncertainty
 
 
 _default = EventClock()
@@ -115,4 +174,4 @@ def reset_event_clock(monotonic: Callable[[], float] | None = None) -> EventCloc
         return _default
 
 
-__all__ = ["LOCAL_CLOCK_ID", "EventClock", "get_event_clock", "reset_event_clock"]
+__all__ = ["LOCAL_CLOCK_ID", "EventClock", "get_event_clock", "refresh_interval_s", "reset_event_clock"]

@@ -105,3 +105,25 @@ def test_clock_ref_for_a_probe_we_did_not_send_is_ignored():
     clock = get_event_clock()
     assert not clock.on_clock_ref({"probe": "never-sent", "clock_id": RPI4_CLOCK, "t_monotonic_ns": 5})
     assert clock.link_clock_id() is None
+
+
+def test_a_long_lived_link_reprobes_the_clock_periodically(rpi4_clock, fast_auth, monkeypatch):
+    """4차 평가 M-N1: 기준점은 유효 기간이 있어 오래 유지한 연결은 주기적으로 다시 탐침한다
+    (``SIMPLELAY_EVENT_CLOCK_REFRESH_S``, 기본 60초 — 시험은 0.05초). 끊기면 다시 탐침하지 않는다."""
+    monkeypatch.setenv("SIMPLELAY_EVENT_CLOCK_REFRESH_S", "0.05")
+
+    async def _t():
+        link = _Link(None, None)
+        await link.start()
+        try:
+            await _ready(link)
+            await _until(lambda: sum(d["type"] == "clock_ref" for d in link.to_hub.docs()) >= 3)
+            assert get_event_clock().link_clock_id() == RPI4_CLOCK
+            link.client._mark_link_down("test: cable pulled")
+            sent = sum(d["type"] == "clock_probe" for d in link.to_act.docs())
+            await asyncio.sleep(0.2)
+            assert sum(d["type"] == "clock_probe" for d in link.to_act.docs()) == sent
+        finally:
+            await link.close()
+
+    asyncio.run(_t())

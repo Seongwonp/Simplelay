@@ -386,3 +386,65 @@ def test_revoke_after_the_send_began_says_the_sent_command_is_not_cancelled(monk
         assert len(cloud.controls()) == after
     finally:
         _reset()
+
+
+# ── M-N1: 시각 기준점의 유효 기간·상대 드리프트 ─────────────────────────────────────────────────────
+
+from rpi.tests.test_auto_rule_boundary import (  # noqa: E402
+    RPI4_CLOCK,
+    _backdate_allowance,
+    _deliver,
+    _rpi4_frame,
+    _setup_allowed,
+    hub_clock,  # noqa: F401
+)
+
+
+def test_drifting_rpi4_clock_cannot_pull_a_120_second_old_event_inside_the_limit(monkeypatch, tmp_path, cloud,
+                                                                                 hub_clock):
+    """M-N1: RPi4 시계가 허브보다 400ppm 빠르다(상한 500ppm 안). 기준점 뒤 300초에 끝난 가열이 실제 120.05초 뒤에 도착 —
+    예전 계산은 119.93초로 보냈다. 이제 드리프트 상한만큼 나이를 길게 잡아 막는다(POST 0건)."""
+    from rpi.tests.test_auto_rule_e2e import _wait_run
+
+    try:
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)
+        _backdate_allowance(3600)
+        before = len(cloud.controls())
+        true_end_hub = 10_300.0
+        frame = _rpi4_frame(500 + (true_end_hub - 10_000) * (1 + 400e-6))
+        hub_clock.now = true_end_hub + 120.05
+        _deliver(frame)
+        run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+        assert "오래된" in run["reason"]
+        time.sleep(0.3)
+        assert len(cloud.controls()) == before
+    finally:
+        _reset()
+
+
+def test_a_long_held_link_without_a_fresh_reference_holds_until_it_reprobes(monkeypatch, tmp_path, cloud, hub_clock):
+    """M-N1: 기준점을 잡은 뒤 700초 동안 다시 탐침하지 않은 연결 — 갓 끝난(5초) 사건도 근거가 없어 보류. 새 기준점을
+    받으면 다음 사건은 보낸다."""
+    from rpi.services.event_clock import get_event_clock
+    from rpi.tests.test_auto_rule_e2e import _wait_run
+
+    try:
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)
+        _backdate_allowance(3600)  # 허용 시각 비교는 M-N2에서 따로 본다
+        before = len(cloud.controls())
+        hub_clock.now = 10_700 + 5
+        _deliver(_rpi4_frame(500 + 700))
+        run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+        assert "근거가 없어" in run["reason"]
+        time.sleep(0.3)
+        assert len(cloud.controls()) == before
+        events = get_event_clock()
+        probe = events.new_probe()  # 다시 탐침(허브 10,705초 ↔ RPi4 1,205초)
+        assert events.on_clock_ref({"probe": probe, "clock_id": RPI4_CLOCK, "t_monotonic_ns": 1205 * 10**9})
+        hub_clock.now = 10_708
+        _deliver(_rpi4_frame(1206))
+        sent = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+        assert sent["status"] == "succeeded"
+        assert len(cloud.controls()) == before + 1
+    finally:
+        _reset()

@@ -399,6 +399,8 @@ class ActClient:
         self._session: link_auth.LinkSession | None = None
         self._hello_cn: str | None = None
         self._auth_task: asyncio.Task[None] | None = None
+        #: 사건 신선도 기준점을 주기적으로 다시 잡는 작업(4차 평가 M-N1). 끊기면 멈춘다.
+        self._clock_task: asyncio.Task[None] | None = None
         self._auth_drops = link_auth.DropLog()
         #: 줄이 이어져 있나(인증과 무관). 키가 없으면 ``link_up``과 같다.
         self._transport_up = reader is not None
@@ -450,6 +452,7 @@ class ActClient:
     async def stop(self) -> None:
         """Cancel the background read loop. Safe to call more than once."""
         self._cancel_auth_task()
+        self._cancel_clock_task()
         if self._read_task is None:
             return
         self._read_task.cancel()
@@ -743,25 +746,41 @@ class ActClient:
         """사건 신선도 기준점(3차 평가 M1): ``act_info.clock_protocol`` ≥ 1인 RPi4에 탐침을 보낸다. 옛 RPi4면 보내지 않는다 —
         그러면 그 링크의 사건은 신선도 근거가 없어 자동 실행이 보류된다."""
         protocol = self.act_info.get("clock_protocol")
+        self._cancel_clock_task()
         if not isinstance(protocol, int) or isinstance(protocol, bool) or protocol < 1:
             return
+        from .event_clock import refresh_interval_s  # noqa: PLC0415
+
+        interval = refresh_interval_s()
 
         async def send() -> None:
-            try:
-                await self._send({"type": "clock_probe", "probe": self._event_clock().new_probe()})
-            except Exception as exc:  # noqa: BLE001 - 못 보내면 기준점이 없다(보류) — 읽기 루프는 살린다
-                log.info("ActClient: clock_probe not sent (%s)", exc)
+            # 4차 평가 M-N1: 기준점은 유효 기간이 있다 — 연결이 유지되는 동안 주기적으로 다시 탐침한다(끊기면 멈춘다).
+            while True:
+                try:
+                    await self._send({"type": "clock_probe", "probe": self._event_clock().new_probe()})
+                except asyncio.CancelledError:
+                    raise
+                except Exception as exc:  # noqa: BLE001 - 못 보내면 기준점이 없다(보류) — 읽기 루프는 살린다
+                    log.info("ActClient: clock_probe not sent (%s)", exc)
+                    return
+                await asyncio.sleep(interval)
 
         try:
-            asyncio.get_running_loop().create_task(send())
+            self._clock_task = asyncio.get_running_loop().create_task(send())
         except RuntimeError:  # 루프 밖(시험 대역) — 기준점 없음
             log.info("ActClient: no running loop for clock_probe")
+
+    def _cancel_clock_task(self) -> None:
+        task, self._clock_task = self._clock_task, None
+        if task is not None and not task.done() and task is not asyncio.current_task():
+            task.cancel()
 
     def _mark_link_down(self, reason: str) -> None:
         """끊김: 기다리던 요청을 모두 바로 실패시키고, 걸림 상태를 '모름'으로 돌린다(풀림으로 가정하지 않는다)."""
         log.warning("ActClient: link down (%s)", reason)
         # 사건 신선도 기준점도 버린다(3차 평가 M1) — 다음 세션의 clock_ref 전까지 그 링크 사건은 자동 실행 보류.
         self._event_clock().link_down()
+        self._cancel_clock_task()
         self.link_up = False
         self._transport_up = False
         self._session = None
