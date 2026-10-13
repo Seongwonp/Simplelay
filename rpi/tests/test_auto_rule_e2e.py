@@ -114,6 +114,88 @@ def test_mock_cook_done_drives_the_mock_cloud_purifier_end_to_end(monkeypatch, t
         _reset()
 
 
+def _frame():
+    from rpi.tests.test_auto_rules import _frame as frame
+
+    return frame()
+
+
+def test_same_event_arriving_twice_at_once_sends_one_cloud_control(monkeypatch, tmp_path, cloud):
+    """A3(10/14): 같은 사건이 동시에 두 번 도착(재연결·중복 알림) → 모의 클라우드 제어 요청은 1회."""
+    import threading
+
+    from rpi.api import deps
+
+    _env(monkeypatch, tmp_path, cloud)
+    _reset()
+    from rpi.main import app
+
+    try:
+        api = TestClient(app)
+        _allow(api)
+        _set_low(api)
+        before = len(cloud.controls())
+        frame = _frame()
+        gate = threading.Barrier(2)
+
+        def deliver():
+            gate.wait()
+            deps.receive_appliance_done(dict(frame))
+
+        threads = [threading.Thread(target=deliver) for _ in range(2)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(5)
+        _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+        time.sleep(0.5)
+        assert len(cloud.controls()) == before + 1
+        outcomes = sorted(r["outcome"] for r in api.get("/routines/auto-rules/runs").json())
+        assert outcomes == ["duplicate", "sent"]  # 둘째는 '실행 중이라 못 보냄'이 아니라 같은 사건으로 걸렀다
+    finally:
+        _reset()
+
+
+def test_processed_event_is_not_rerun_after_a_server_restart(monkeypatch, tmp_path, cloud):
+    """A4(10/14): 서버 재시작·재연결 뒤 이전 사건을 다시 받아도 실행하지 않는다 — 처리한 사건 키가 DB에 남는다."""
+    from rpi.api import deps
+
+    _env(monkeypatch, tmp_path, cloud)
+    monkeypatch.setenv("SIMPLELAY_DB_PATH", str(tmp_path / "simplelay.db"))
+    deps.get_db.cache_clear()
+    _reset()
+    from rpi.main import app
+
+    try:
+        api = TestClient(app)
+        _allow(api)
+        _set_low(api)
+        frame = _frame()
+        deps.receive_appliance_done(dict(frame))
+        _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+        after_first = len(cloud.controls())
+
+        # 재시작: 메모리 상태를 모두 버리고 같은 DB 파일에서 다시 연다.
+        _reset()
+        deps.get_db.cache_clear()
+        api = TestClient(app)
+        assert api.get("/routines/auto-rules").json()[0]["enabled"] is True  # 규칙은 남아 있다
+        _set_low(api)
+        before = len(cloud.controls())
+        deps.receive_appliance_done(dict(frame))  # RPi4 재연결 뒤 같은 사건 재수신
+        _wait_run(api, lambda r: r["outcome"] == "duplicate")
+        time.sleep(0.5)
+        assert len(cloud.controls()) == before
+        assert before == after_first + 1  # (되돌린 약풍 1건만)
+
+        deps.receive_appliance_done(_frame())  # 새 사건은 그대로 자동 실행
+        _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+        assert len(cloud.controls()) == before + 1
+    finally:
+        _reset()
+        deps.get_db.cache_clear()
+
+
 def test_real_assembly_never_moves_the_purifier_on_an_injected_event(monkeypatch, tmp_path):
     """real 조립 경로(시험 안에서만 SDK 주소를 모의 클라우드로) — 주입 사건은 실가전 대상을 움직이지 않는다."""
     from rpi.services.thinq import sdk_client

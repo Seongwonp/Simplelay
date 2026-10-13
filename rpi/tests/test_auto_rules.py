@@ -134,6 +134,26 @@ def test_allow_with_a_stale_fingerprint_saves_nothing_and_runs_nothing(api):
     assert _rules(api) == [] and _controls() == []
 
 
+def test_allow_runs_this_event_once_and_the_rule_applies_only_to_later_events(api):
+    """A1(10/14): '허용하고 이번에도 실행'은 사용자의 명시 승인으로 **이 사건을 한 번** 실행한다. 저장된 규칙은 다음 사건부터.
+    같은 사건이 허용 뒤 다시 와도(재전송·재연결) 승인 경로와 자동 경로가 각각 실행하지 않는다."""
+    frame = _frame()
+    deps.receive_appliance_done(dict(frame))
+    cards = _cards(api)
+    assert len(cards) == 1
+    _allow(api, cards[0])
+    assert len(_controls()) == 1  # 승인 경로 1회
+    deps.receive_appliance_done(dict(frame))  # 같은 사건 재수신 — 이제 규칙이 켜져 있다
+    time.sleep(0.3)
+    assert len(_controls()) == 1  # 자동 경로가 같은 사건을 또 실행하지 않는다
+    assert [r for r in _runs(api) if r["outcome"] == "sent"] == []
+    assert any(r["outcome"] == "duplicate" for r in _runs(api))
+    assert _cards(api) == []
+    deps.receive_appliance_done(_frame())  # 다음 사건부터 규칙이 적용된다
+    _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+    assert len(_controls()) == 2
+
+
 def test_next_cook_done_runs_without_approval_and_reports_per_device(api):
     sent = _after_allow(api)
     _inject(api, inputs=("power",))
@@ -378,6 +398,75 @@ def test_stop_between_decision_and_send_blocks_the_unsent_command(api, monkeypat
     assert "비상정지" in run["reason"]
     time.sleep(0.3)
     assert len(_controls()) == sent
+
+
+def _engine():
+    from rpi.routines.wiring import get_auto_rule_engine
+
+    return get_auto_rule_engine()
+
+
+def test_rule_turned_off_while_waiting_to_send_is_not_sent(api, monkeypatch):
+    """A2(10/14): 판단 뒤·보내기 전에 사용자가 자동 실행을 끄면 보내지 않는다."""
+    sent = _after_allow(api)
+    rule_id = _rules(api)[0]["id"]
+    service = deps.get_service()
+    original = service.submit_approved
+
+    def off_first(*args, **kwargs):
+        _engine().set_enabled(rule_id, False)
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(service, "submit_approved", off_first)
+    _inject(api, inputs=("power",))
+    run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+    assert "꺼져" in run["reason"]
+    time.sleep(0.3)
+    assert len(_controls()) == sent
+
+
+def test_value_changed_and_reallowed_while_waiting_never_sends_the_old_value(api, monkeypatch):
+    """A2(10/14): 판단 뒤·보내기 전에 설정값을 바꾸고 다시 허용했다 — 판단 때의 옛 값(강)을 보내지 않는다.
+    (규칙이 '켜져 있음'만 보면 옛 명령이 새 허용으로 나간다.)"""
+    sent = _after_allow(api)
+    rule_id = _rules(api)[0]["id"]
+    service = deps.get_service()
+    original = service.submit_approved
+
+    def change_first(*args, **kwargs):
+        engine = _engine()
+        changed = engine.update(rule_id, {"value": "MID"})
+        engine.set_enabled(rule_id, True, changed.fingerprint())
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(service, "submit_approved", change_first)
+    _inject(api, inputs=("power",))
+    run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+    assert "바뀌" in run["reason"]
+    time.sleep(0.3)
+    assert len(_controls()) == sent  # 옛 값도, 새 값도 이 사건으로는 보내지 않았다
+
+
+def test_rule_turned_off_after_the_start_gate_is_rechecked_right_before_sending(api, monkeypatch):
+    """A2(10/14): 실행 시작 게이트는 통과했고 클라우드로 보내기 직전에 꺼졌다 — 보내기 직전 재검사로 막는다."""
+    sent = _after_allow(api)
+    rule_id = _rules(api)[0]["id"]
+    service = deps.get_service()
+    original = service._begin_run
+
+    def off_after_gate(*args, **kwargs):
+        job_id = original(*args, **kwargs)
+        _engine().set_enabled(rule_id, False)  # 게이트 뒤, 실행 스레드가 보내기 전
+        return job_id
+
+    monkeypatch.setattr(service, "_begin_run", off_after_gate)
+    _inject(api, inputs=("power",))
+    run = _wait_run(api, lambda r: r["outcome"] == "blocked" and r.get("status"))
+    assert "보내지 않았어요" in run["reason"]
+    assert run["receipt"] == "not_dispatched"
+    assert len(_controls()) == sent
+    notices = " / ".join(run["notices"])
+    assert "바꿨어요" not in notices and "보내지 않았어요" in notices
 
 
 def test_latched_outlet_estop_blocks_auto(api, monkeypatch):

@@ -277,6 +277,8 @@ class AutoRuleEngine:
         self._runs: deque[dict] = deque(maxlen=50)
         #: 기록보다 먼저 끝난 자동 실행의 결과(job_id → 완료 이벤트).
         self._early_results: dict[str, object] = {}
+        #: 보내기 직전 재검사에 걸린 자동 실행(규칙:사건 키 → 이유). 결과가 오면 기록을 '막힘'으로 고친다.
+        self._dispatch_blocked: dict[str, str] = {}
 
     # ── 등록부·문장 ─────────────────────────────────────────────────────────
     def _registry(self):
@@ -482,20 +484,35 @@ class AutoRuleEngine:
             expires_at=now + timedelta(seconds=APPROVAL_SECONDS),
         )
 
+        decided = rule.fingerprint()
+        block_key = f"{rule.rule_id}:{key}"
+
         def guard() -> None:
-            # 실행 게이트(서비스 락) 안에서 — 비상정지 세대가 바뀌었거나 규칙이 꺼졌으면 시작하지 않는다.
+            # 실행 게이트(서비스 락) 안에서 — 비상정지 세대가 바뀌었거나 규칙이 꺼졌거나, 판단 때와 내용
+            # (설정값·대상)이 달라졌으면 시작하지 않는다. 값을 바꾸고 다시 허용해도 판단 때의 옛 명령은 보내지 않는다.
             with self._gen_lock:
                 if self._generation != generation:
                     raise AutoRuleBlocked("비상정지로 아직 보내지 않은 자동 실행을 보내지 않았어요")
             current = self.store.get(rule.rule_id)
             if current is None or not current.allowed:
                 raise AutoRuleBlocked("자동 실행이 꺼져 보내지 않았어요")
+            if current.fingerprint() != decided:
+                raise AutoRuleBlocked("자동 실행 설정이 바뀌어 이전 내용을 보내지 않았어요")
+
+        def dispatch_guard() -> None:
+            # 보내기 직전(실행 스레드) 재검사 — 시작 게이트 뒤에 꺼지거나 바뀌었으면 보내지 않는다.
+            try:
+                guard()
+            except AutoRuleBlocked as exc:
+                with self._lock:
+                    self._dispatch_blocked[block_key] = str(exc)
+                raise
 
         try:
             job_id = self.service.submit_approved(
                 (approved,), purpose=f"자동 실행 · {self.action_text(rule)}",
                 usage_source=UsageSource.SUGGESTION, approval_guard=guard,
-                scenario_id=f"{AUTO_SCENARIO_PREFIX}{rule.rule_id}",
+                scenario_id=f"{AUTO_SCENARIO_PREFIX}{rule.rule_id}", dispatch_guard=dispatch_guard,
             )
         except AutoRuleBlocked as exc:
             return self._record(rule, record, key, "blocked", str(exc))
@@ -534,7 +551,12 @@ class AutoRuleEngine:
 
     def _apply_result_locked(self, entry: dict, event) -> None:
         rule = self.store.get(entry["rule_id"])
-        notice = self._result_notice(entry, rule, event)
+        blocked = self._dispatch_blocked.pop(f"{entry['rule_id']}:{entry.get('event_key')}", None)
+        if blocked is not None and event.receipt.value == "not_dispatched":
+            notice = blocked
+            entry.update({"outcome": "blocked", "reason": blocked})
+        else:
+            notice = self._result_notice(entry, rule, event)
         entry.update({"status": event.status, "receipt": event.receipt.value,
                       "confirmation": event.confirmation.value,
                       "execution_mode": event.execution_mode.value,

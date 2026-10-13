@@ -295,10 +295,16 @@ class CommandExecutionMixin:
 
     def submit_approved(self, approved: tuple[ApprovedCommand, ...], *, purpose: str | None = None,
                         usage_source: UsageSource = UsageSource.SUGGESTION,
-                        approval_guard=None, scenario_id: str | None = None) -> str:
-        """승인한 명령(들)을 **그대로** 제출한다. 모든 단계를 먼저 재검사한다."""
+                        approval_guard=None, scenario_id: str | None = None,
+                        dispatch_guard=None) -> str:
+        """승인한 명령(들)을 **그대로** 제출한다. 모든 단계를 먼저 재검사한다.
+
+        ``dispatch_guard``(선택, 2026-10-14): ThinQ 단계를 클라우드로 **보내기 직전**에 다시 부른다. 예외를 올리면
+        그 단계는 보내지 않고(``not_dispatched``) 예외 문장을 결과에 남긴다 — 시작 게이트와 실제 전송 사이에
+        자동 실행 규칙이 꺼지거나 바뀐 경우(자동 실행 허용 규칙)."""
         steps = [self._prepare(a.command, a) for a in approved]
-        return self._start_plan(steps, purpose, usage_source, approval_guard, scenario_id, background=True)
+        return self._start_plan(steps, purpose, usage_source, approval_guard, scenario_id, background=True,
+                                dispatch_guard=dispatch_guard)
 
     def execute_approved(self, approved: tuple[ApprovedCommand, ...], *, purpose: str | None = None,
                          usage_source: UsageSource = UsageSource.SUGGESTION,
@@ -328,7 +334,8 @@ class CommandExecutionMixin:
                                 background=background)
 
     # ── 실행 ──────────────────────────────────────────────────────────────
-    def _start_plan(self, steps, purpose, usage_source, approval_guard, scenario_id, *, background):
+    def _start_plan(self, steps, purpose, usage_source, approval_guard, scenario_id, *, background,
+                    dispatch_guard=None):
         if not steps:
             raise UnknownIntentError("실행할 명령이 없어요")
         first = steps[0]
@@ -340,7 +347,7 @@ class CommandExecutionMixin:
             reset = getattr(step.controller, "reset_stop", None)
             if reset is not None and step.controller is not first.controller:
                 reset()
-        args = (job_id, steps, purpose, usage_source, scenario_id)
+        args = (job_id, steps, purpose, usage_source, scenario_id, dispatch_guard)
         if not background:
             try:
                 return self._run_plan(*args)
@@ -359,7 +366,7 @@ class CommandExecutionMixin:
         finally:
             self._end_run()
 
-    def _run_plan(self, job_id, steps, purpose, usage_source, scenario_id) -> RunRecord:
+    def _run_plan(self, job_id, steps, purpose, usage_source, scenario_id, dispatch_guard=None) -> RunRecord:
         results: list[CommandResult] = []
         multi = len(steps) > 1
         for index, step in enumerate(steps):
@@ -382,7 +389,8 @@ class CommandExecutionMixin:
                 ))
                 continue
             if command.route is ControlRoute.THINQ:
-                result = self._run_thinq_step(job_id, step, purpose, usage_source, scenario_id)
+                result = self._run_thinq_step(job_id, step, purpose, usage_source, scenario_id,
+                                              dispatch_guard)
             else:
                 result = self._run_physical_step(step, usage_source, scenario_id)
             results.append(result)
@@ -397,10 +405,24 @@ class CommandExecutionMixin:
         base = self._current_job_id or ""
         return f"{base}-{self._step_suffix}" if self._step_suffix else base
 
-    def _run_thinq_step(self, job_id, step: _Step, purpose, usage_source, scenario_id) -> CommandResult:
+    def _run_thinq_step(self, job_id, step: _Step, purpose, usage_source, scenario_id,
+                        dispatch_guard=None) -> CommandResult:
         command = step.command
+        blocked = None
+        if dispatch_guard is not None:
+            try:
+                dispatch_guard()
+            except Exception as exc:  # noqa: BLE001 -- 보내기 직전 재검사에 걸림: 보내지 않는다
+                blocked = str(exc) or "보내기 직전 확인에 걸려 보내지 않았어요"
         try:
-            result = self._thinq.execute_command(command)
+            if blocked is not None:
+                result = CommandResult(
+                    command=command, status=CommandStatus.FAILED, receipt=Receipt.NOT_DISPATCHED,
+                    confirmation=Confirmation.NONE, execution_mode=_mode(self._thinq),
+                    detail=blocked, observed_at=self._clock.now(),
+                )
+            else:
+                result = self._thinq.execute_command(command)
         except Exception:  # noqa: BLE001 -- 실행기 예외는 '받았는지 모름'이다
             log.exception("thinq controller raised")
             result = CommandResult(
