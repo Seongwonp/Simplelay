@@ -166,7 +166,15 @@ class _BottomBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 보호자 알림함은 설정 안으로 옮겼다. 읽지 않은 알림 수는 설정 탭에
     // 배지로 남긴다 -- 실패·긴급 정지 알림이 눈에 띄지 않으면 안 된다.
-    final unread = ref.watch(careEventsProvider).unreadCount;
+    // 2026-10-13: 숫자 대신 점 하나 — "13"은 무엇이 13개인지 말하지 않는다. 건수는
+    // 접근성 이름과 설정 안 '보호자 알림' 줄이 말한다. 조회 실패는 0건과 다르게 읽힌다.
+    final care = ref.watch(careEventsProvider);
+    final unread = care.unreadCount;
+    final settingsLabel = unread > 0
+        ? '설정, 읽지 않은 알림 $unread건'
+        : care.status == CareInboxStatus.failed
+            ? '설정, 알림을 확인하지 못했어요'
+            : '설정';
     // 글씨를 키우면 라벨이 커진다. 바 높이를 같이 늘려 잘리지 않게 한다.
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
     final barHeight = 62.0 + (scale - 1) * 26;
@@ -208,7 +216,8 @@ class _BottomBar extends ConsumerWidget {
                 selectedIcon: Icons.settings,
                 label: '설정',
                 selected: index == settingsTabIndex,
-                badge: unread,
+                dot: unread > 0,
+                semanticsLabel: settingsLabel,
                 onTap: () => onTab(settingsTabIndex),
               ),
               if (showDeveloper)
@@ -234,7 +243,8 @@ class _Tab extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    this.badge = 0,
+    this.dot = false,
+    this.semanticsLabel,
   });
 
   final IconData icon;
@@ -242,7 +252,12 @@ class _Tab extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  final int badge;
+
+  /// 읽지 않은 것이 있다는 점 하나. 뜻은 [semanticsLabel]이 말한다.
+  final bool dot;
+
+  /// 읽을 이름. 없으면 [label].
+  final String? semanticsLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -251,7 +266,7 @@ class _Tab extends StatelessWidget {
       child: Semantics(
         button: true,
         selected: selected,
-        label: badge > 0 ? '$label, 읽지 않은 알림 $badge건' : label,
+        label: semanticsLabel ?? label,
         excludeSemantics: true,
         child: InkWell(
           onTap: onTap,
@@ -262,26 +277,17 @@ class _Tab extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Icon(selected ? selectedIcon : icon, size: 25, color: color),
-                  if (badge > 0)
+                  if (dot)
                     Positioned(
-                      right: -8,
-                      top: -4,
+                      right: -3,
+                      top: -2,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 5, vertical: 1),
-                        decoration: BoxDecoration(
+                        key: const Key('settings-unread-dot'),
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
                           color: AppColors.danger,
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        child: Text(
-                          badge > 99 ? '99+' : '$badge',
-                          style: const TextStyle(
-                            // 채도 있는 면 위 글자는 반대색으로 -- 흰 글자는
-                            // 이 빨강 위에서 3:1로 무너진다.
-                            color: AppColors.onAccent,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          shape: BoxShape.circle,
                         ),
                       ),
                     ),

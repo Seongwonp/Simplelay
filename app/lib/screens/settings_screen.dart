@@ -47,7 +47,8 @@ class SettingsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final rpi = ref.watch(rpiConnectionProvider);
-    final unread = ref.watch(careEventsProvider).unreadCount;
+    final care = ref.watch(careEventsProvider);
+    final unread = care.unreadCount;
     final thinq = ref.watch(thinqOverviewProvider).valueOrNull;
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
@@ -87,9 +88,12 @@ class SettingsScreen extends ConsumerWidget {
             _NavRow(
               icon: Icons.family_restroom,
               title: '보호자 알림',
+              // 조회 실패를 '아무 일 없음'(0건)처럼 말하지 않는다(2026-10-13).
               subtitle: unread > 0
                   ? '읽지 않은 알림 $unread건'
-                  : '확인이 없으면 알림을 보내요',
+                  : care.status == CareInboxStatus.failed
+                      ? '알림을 불러오지 못했어요'
+                      : '확인이 없으면 알림을 보내요',
               badge: unread,
               onTap: () => context.push('/care'),
             ),
