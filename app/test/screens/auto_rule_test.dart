@@ -243,6 +243,27 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
+    testWidgets('이번 실행은 접수됐지만 자동 허용이 저장되지 않으면(정지가 끼어듦) 그 사실을 따로 알린다', (tester) async {
+      _tall(tester);
+      const reason = '허용을 저장하는 사이 전체 정지가 들어와 다음부터 자동 실행은 켜지 않았어요 — '
+          '다시 켜려면 조건·동작을 확인하고 허용해 주세요';
+      final server = _Server(allowReply: (200, {
+        'job_id': 'job-2',
+        'rule': null,
+        'auto_allow': {'ok': false, 'reason': reason},
+      }));
+      await tester.pumpWidget(_cardApp(server));
+      await _settle(tester);
+
+      await tester.tap(find.text('다음부터도 자동으로'));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('auto-rule-allow')));
+      await _settle(tester);
+      expect(find.text('상태 화면'), findsOneWidget); // 이번 실행은 실행 상태로 따라간다
+      expect(find.text(reason), findsOneWidget); // 자동 허용 실패는 따로
+      await tester.pumpWidget(const SizedBox());
+    });
+
     testWidgets('이번만 실행은 종전 승인 하나뿐(규칙 저장 없음)', (tester) async {
       _tall(tester);
       final server = _Server();

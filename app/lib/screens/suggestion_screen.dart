@@ -181,6 +181,10 @@ class SuggestionScreen extends ConsumerWidget {
               ),
               steps: suggestion.steps,
             );
+        // 이번 실행은 제출됐지만 자동 허용은 저장되지 않았다(허용 저장 사이 전체 정지 등, 3차 평가 H2) —
+        // 실행 추적과 따로 서버 문장을 그대로 알린다. 규칙은 켜지지 않았다.
+        final allowFailure = accepted.autoAllowFailure;
+        if (allowFailure != null && context.mounted) _notifyError(context, allowFailure);
       } on RpiApiException catch (error) {
         if (error.isApprovalChanged) {
           // 승인한 대상·경로·동작이 바뀌었거나 승인이 만료됐다. 서버는 카드를

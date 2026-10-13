@@ -67,6 +67,9 @@ ESTOP_NOTICE = ("비상정지로 자동 실행을 껐어요 — 새 자동 실�
 USER_OFF_REASON = "사용자가 자동 실행을 껐어요"
 VALUE_CHANGED_REASON = "설정값을 바꿔 다시 허용이 필요해요"
 PHYSICAL_REFUSED = "버튼을 누르는 단계는 자동 실행할 수 없어요 — 매번 승인해 주세요"
+#: 허용 요청을 처리하는 사이 전체 정지가 들어왔다(3차 평가 H2) — 이번 허용은 저장하지 않는다.
+STOP_RACE_REASON = ("허용을 저장하는 사이 전체 정지가 들어와 다음부터 자동 실행은 켜지 않았어요 — "
+                    "다시 켜려면 조건·동작을 확인하고 허용해 주세요")
 
 
 class AutoRuleError(Exception):
@@ -274,6 +277,10 @@ class AutoRuleEngine:
         #: 비상정지 세대. 판단 시점과 실행 게이트 안의 값이 다르면 보내지 않는다.
         self._gen_lock = threading.Lock()
         self._generation = 0
+        #: 이 프로세스에서 규칙이 허용된 세대(3차 평가 H2, 메모리). 지금 세대와 다르면 저장된 '켜짐'이어도 쓰지 않는다 —
+        #: 정지(세대 올림)가 규칙 끄기 저장보다 먼저 끝나거나, 정지 전에 시작한 허용 요청이 정지 뒤에 저장해도 켜지지 않는다.
+        #: 재시작 직후 불러온 규칙은 세대 0(아직 정지 없음)으로 본다.
+        self._allowed_generation: dict[str, int] = {}
         self._runs: deque[dict] = deque(maxlen=50)
         #: 기록보다 먼저 끝난 자동 실행의 결과(job_id → 완료 이벤트).
         self._early_results: dict[str, object] = {}
@@ -360,8 +367,44 @@ class AutoRuleEngine:
         return {"condition_text": self.condition_text(draft), "action_text": self.action_text(draft),
                 "fingerprint": draft.fingerprint()}
 
-    def allow_from_offer(self, draft: AutoRule) -> AutoRule:
-        """확인 화면에서 허용한 내용을 규칙으로 저장한다. 같은 조건·대상·동작의 규칙이 있으면 바꾼다."""
+    # ── 정지 세대 ───────────────────────────────────────────────────────────
+    def generation(self) -> int:
+        """지금 정지 세대. 허용 요청은 시작할 때 이 값을 잡아 저장 단계까지 넘긴다(3차 평가 H2)."""
+        with self._gen_lock:
+            return self._generation
+
+    def _generation_ok(self, rule: AutoRule) -> bool:
+        """규칙이 지금 정지 세대에서 허용된 것인가(메모리 판정, 입출력 없음)."""
+        with self._gen_lock:
+            return self._allowed_generation.get(rule.rule_id, 0) == self._generation
+
+    def usable(self, rule: AutoRule) -> bool:
+        """저장된 허용(켜짐·지문 일치)이고 그 뒤로 정지가 없었다."""
+        return rule.allowed and self._generation_ok(rule)
+
+    def _save_allowed(self, rule: AutoRule, start_generation: int | None) -> AutoRule:
+        """허용 저장 — 요청 시작 세대와 지금 세대를 저장 앞뒤로 대조한다. 정지가 끼면 켜지 않고 409.
+
+        세대 판정은 메모리에서만 한다(정지 경로의 ``halt``는 이 저장의 DB 쓰기를 기다리지 않는다). 저장 전에 이 규칙의 허용
+        세대를 **요청 시작 세대**로 적어 두므로, 저장 도중 정지가 들어와도 저장된 '켜짐'은 쓰이지 않고, 저장 뒤 다시 대조해
+        꺼진 상태로 되돌린다."""
+        generation = self.generation() if start_generation is None else start_generation
+        with self._gen_lock:
+            if self._generation != generation:
+                raise AutoRuleError(409, STOP_RACE_REASON)
+            self._allowed_generation[rule.rule_id] = generation
+        self.store.save(rule)
+        if self.generation() != generation:
+            self.store.save(replace(rule, enabled=False, updated_at=self._clock.now().isoformat(),
+                                    disabled_reason=ESTOP_REASON))
+            raise AutoRuleError(409, STOP_RACE_REASON)
+        return rule
+
+    def allow_from_offer(self, draft: AutoRule, start_generation: int | None = None) -> AutoRule:
+        """확인 화면에서 허용한 내용을 규칙으로 저장한다. 같은 조건·대상·동작의 규칙이 있으면 바꾼다.
+
+        ``start_generation``: 허용 요청을 시작할 때의 정지 세대(:meth:`generation`). 그 뒤 전체 정지가 들어왔으면
+        저장하지 않고(또는 꺼진 상태로 되돌리고) ``AutoRuleError(409)`` — 이번 실행과는 따로 알린다(3차 평가 H2)."""
         now = self._clock.now().isoformat()
         existing = next((r for r in self.store.list()
                          if (r.scenario_id, r.condition_appliance_id, r.condition_event,
@@ -372,7 +415,7 @@ class AutoRuleEngine:
                        enabled=True, allowed_fingerprint=draft.fingerprint(),
                        created_at=existing.created_at if existing else now,
                        allowed_at=now, updated_at=now, disabled_reason=None)
-        self.store.save(rule)
+        self._save_allowed(rule, start_generation)
         log.info("auto rule allowed by user: %s (%s → %s %s)", rule.rule_id, rule.condition_event,
                  rule.target_appliance_id, rule.action)
         return rule
@@ -391,7 +434,8 @@ class AutoRuleEngine:
         entries: list[dict] = []
         handled: set[str] = set()
         for rule in self.store.list():
-            if not (rule.enabled and self._matches(rule, record)):
+            # 정지 뒤(세대가 바뀐 뒤)로 다시 허용받지 않은 규칙은 저장된 '켜짐'이어도 맡지 않는다(3차 평가 H2).
+            if not (rule.enabled and self._generation_ok(rule) and self._matches(rule, record)):
                 continue
             entry = self._try_run(rule, record, key, received_at)
             entries.append(entry)
@@ -495,7 +539,7 @@ class AutoRuleEngine:
                 if self._generation != generation:
                     raise AutoRuleBlocked("비상정지로 아직 보내지 않은 자동 실행을 보내지 않았어요")
             current = self.store.get(rule.rule_id)
-            if current is None or not current.allowed:
+            if current is None or not self.usable(current):
                 raise AutoRuleBlocked("자동 실행이 꺼져 보내지 않았어요")
             if current.fingerprint() != decided:
                 raise AutoRuleBlocked("자동 실행 설정이 바뀌어 이전 내용을 보내지 않았어요")
@@ -671,7 +715,9 @@ class AutoRuleEngine:
         return replace(rule, target_device_key=draft.target_device_key,
                        target_device_type=draft.target_device_type)
 
-    def set_enabled(self, rule_id: str, enabled: bool, fingerprint: str | None = None) -> AutoRule:
+    def set_enabled(self, rule_id: str, enabled: bool, fingerprint: str | None = None,
+                    start_generation: int | None = None) -> AutoRule:
+        """끄기·다시 허용. 다시 허용은 요청 시작 세대(``start_generation``)를 저장 단계까지 대조한다(3차 평가 H2)."""
         rule = self._require(rule_id)
         now = self._clock.now().isoformat()
         if not enabled:
@@ -681,8 +727,8 @@ class AutoRuleEngine:
             raise AutoRuleError(409, "대상 가전을 찾지 못해 켤 수 없어요 — 가전 연결을 확인해 주세요")
         if fingerprint != rebound.fingerprint():
             raise AutoRuleError(409, "허용할 내용이 바뀌었어요 — 조건과 동작을 다시 확인해 주세요")
-        return self.store.save(replace(rebound, enabled=True, allowed_fingerprint=fingerprint,
-                                       allowed_at=now, updated_at=now, disabled_reason=None))
+        return self._save_allowed(replace(rebound, enabled=True, allowed_fingerprint=fingerprint,
+                                          allowed_at=now, updated_at=now, disabled_reason=None), start_generation)
 
     def update(self, rule_id: str, body: Mapping) -> AutoRule:
         """설정값만 바꿀 수 있다. 바꾸면 꺼지고 다시 허용해야 한다."""
@@ -729,8 +775,8 @@ class AutoRuleEngine:
             "condition_text": self.condition_text(rule), "action_text": self.action_text(rule),
             "target_appliance_id": rule.target_appliance_id, "action": rule.action, "value": rule.value,
             "allowed_values": values,
-            "enabled": rule.enabled and rule.allowed,
-            "status_label": "자동 실행 켜짐" if rule.enabled and rule.allowed else "자동 실행 꺼짐",
+            "enabled": self.usable(rule),
+            "status_label": "자동 실행 켜짐" if self.usable(rule) else "자동 실행 꺼짐",
             "disabled_reason": rule.disabled_reason,
             #: 다시 허용할 때 보낼 지문(지금 등록된 대상 기기로 묶은 내용). 대상이 없으면 null.
             "fingerprint": rebound.fingerprint() if rebound is not None else None,

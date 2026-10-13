@@ -46,11 +46,22 @@ class RpiExecuteResult {
 // 실행 접수 응답(비동기 job 모델). 서버는 물리 실행을 기다리지 않고 즉시
 // job_id를 돌려주며, 진행·완료는 status() 폴링에서 lastJobId와 대조해 판정한다.
 class RpiJobAccepted {
-  const RpiJobAccepted({required this.jobId});
+  const RpiJobAccepted({required this.jobId, this.autoAllowFailure});
   final String jobId;
 
-  factory RpiJobAccepted.fromJson(Map<String, dynamic> json) =>
-      RpiJobAccepted(jobId: json['job_id'] as String);
+  /// '다음부터 자동으로'(approve-and-allow)에서 이번 실행은 제출됐지만 자동 허용은 저장되지 않았을 때 서버 문장
+  /// (`auto_allow: {ok: false, reason}`, 3차 평가 H2 — 허용 저장 사이 전체 정지). 그 밖에는 null.
+  final String? autoAllowFailure;
+
+  factory RpiJobAccepted.fromJson(Map<String, dynamic> json) {
+    final allow = json['auto_allow'];
+    String? failure;
+    if (allow is Map<String, dynamic> && allow['ok'] == false) {
+      final reason = allow['reason'];
+      failure = reason is String && reason.isNotEmpty ? reason : '다음부터 자동 실행은 켜지 않았어요';
+    }
+    return RpiJobAccepted(jobId: json['job_id'] as String, autoAllowFailure: failure);
+  }
 }
 
 /// POST /stop 응답의 정지 확인 단계(2026-10-13). 옛 서버·보고 수단이 없으면 [stopLevel]이 null.

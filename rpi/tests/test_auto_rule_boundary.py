@@ -133,3 +133,154 @@ def test_stop_does_not_wait_for_the_controller_network_read_and_nothing_is_sent(
         assert run["receipt"] == "not_dispatched"
     finally:
         _reset()
+
+
+# ── H2: 전체 정지와 '다음부터 자동으로' 허용 저장의 경쟁 ─────────────────────────────────────────
+
+
+def _engine():
+    from rpi.routines.wiring import get_auto_rule_engine
+
+    return get_auto_rule_engine()
+
+
+def _assert_no_auto_on_next_event(api, cloud, before):
+    _inject(api, inputs=("power",))
+    time.sleep(0.5)
+    assert len(cloud.controls()) == before
+    assert [r for r in api.get("/routines/auto-rules/runs").json() if r["outcome"] == "sent"] == []
+
+
+def test_stop_completed_before_the_late_allow_save_keeps_the_rule_off(monkeypatch, tmp_path, cloud):
+    """H2: approve-and-allow가 이번 실행을 제출한 뒤·규칙을 저장하기 전에 POST /stop이 끝났다 → 규칙은 켜지지 않는다.
+    응답은 이번 실행(job_id)과 '자동 허용 실패'를 나눠 돌려주고, 다음 사건에 제어가 나가지 않는다."""
+    from rpi.api.deps import get_suggestion_service
+
+    _env(monkeypatch, tmp_path, cloud)
+    _reset()
+    from rpi.main import app
+
+    try:
+        api = TestClient(app)
+        _inject(api, inputs=("power",))
+        card = next(s for s in api.get("/suggestions").json() if s.get("scenario_id") == "cook_done_air")
+        svc = get_suggestion_service()
+        original = svc.approve_submit
+        stops = []
+
+        def submit_then_stop(*args, **kwargs):
+            job_id = original(*args, **kwargs)
+            stops.append(api.post("/stop").status_code)  # 이번 실행 제출 뒤, 허용 저장 전에 전체 정지 완료
+            return job_id
+
+        monkeypatch.setattr(svc, "approve_submit", submit_then_stop)
+        res = api.post(f"/suggestions/{card['id']}/approve-and-allow",
+                       json={"offer_fingerprint": card["auto_rule_offer"]["fingerprint"]})
+        assert stops == [200]
+        assert res.status_code == 200, res.text
+        assert all(r["enabled"] is False for r in api.get("/routines/auto-rules").json())  # 늦은 저장이 켜지 않았다
+        body = res.json()
+        assert body["job_id"]  # 이번 실행은 따로 — 결과는 job으로 본다
+        assert body["auto_allow"]["ok"] is False
+        assert "비상정지" in body["auto_allow"]["reason"] or "정지" in body["auto_allow"]["reason"]
+        assert body["rule"] is None or body["rule"]["enabled"] is False
+        assert all(r["enabled"] is False for r in api.get("/routines/auto-rules").json())
+        _set_low(api)
+        _assert_no_auto_on_next_event(api, cloud, len(cloud.controls()))
+    finally:
+        _reset()
+
+
+def test_stop_during_reallow_of_an_existing_rule_keeps_it_off(monkeypatch, tmp_path, cloud):
+    """H2: 목록에서 '다시 허용'(enable)을 처리하는 사이 전체 정지가 끝났다 → 늦은 저장이 규칙을 다시 켜지 않는다(409)."""
+    _env(monkeypatch, tmp_path, cloud)
+    _reset()
+    from rpi.main import app
+
+    try:
+        api = TestClient(app)
+        _allow(api)
+        rule = api.get("/routines/auto-rules").json()[0]
+        assert api.post(f"/routines/auto-rules/{rule['id']}/enable", json={"enabled": False}).status_code == 200
+        engine = _engine()
+        original = engine._rebound
+
+        def stop_then_rebound(*args, **kwargs):
+            assert api.post("/stop").status_code == 200  # 다시 허용 요청 처리 중 정지 완료
+            return original(*args, **kwargs)
+
+        monkeypatch.setattr(engine, "_rebound", stop_then_rebound)
+        res = api.post(f"/routines/auto-rules/{rule['id']}/enable",
+                       json={"enabled": True, "fingerprint": rule["fingerprint"]})
+        assert res.status_code == 409, res.text
+        assert "정지" in res.json()["detail"]
+        monkeypatch.setattr(engine, "_rebound", original)
+        assert api.get("/routines/auto-rules").json()[0]["enabled"] is False
+        _set_low(api)
+        _assert_no_auto_on_next_event(api, cloud, len(cloud.controls()))
+        # 정지 뒤에 새로 시작한 다시 허용은 정상으로 켜진다.
+        ok = api.post(f"/routines/auto-rules/{rule['id']}/enable",
+                      json={"enabled": True, "fingerprint": rule["fingerprint"]})
+        assert ok.status_code == 200 and ok.json()["enabled"] is True
+    finally:
+        _reset()
+
+
+def test_stop_landing_inside_the_allow_save_never_leaves_a_usable_rule(monkeypatch, tmp_path, cloud):
+    """H2: 정지가 허용 저장(DB 쓰기 대기) 한가운데 들어왔다 — 물리 정지(서비스 정지 보고)는 그 DB 대기를 기다리지 않고,
+    저장이 끝나도 규칙은 꺼진 채이고 다음 사건에 제어가 나가지 않는다."""
+    from rpi.api import deps
+
+    _env(monkeypatch, tmp_path, cloud)
+    _reset()
+    from rpi.main import app
+
+    try:
+        api = TestClient(app)
+        _inject(api, inputs=("power",))
+        card = next(s for s in api.get("/suggestions").json() if s.get("scenario_id") == "cook_done_air")
+        engine = _engine()
+        entered, release = threading.Event(), threading.Event()
+
+        def slow_db_write(_value):
+            entered.set()
+            assert release.wait(10)
+
+        engine.store._save_fn = slow_db_write  # 규칙 저장의 DB 쓰기를 붙잡는다
+        service = deps.get_service()
+        physical_done = threading.Event()
+        original_stop = service.emergency_stop_report
+
+        def stop_report(*args, **kwargs):
+            try:
+                return original_stop(*args, **kwargs)
+            finally:
+                physical_done.set()
+
+        monkeypatch.setattr(service, "emergency_stop_report", stop_report)
+        result = {}
+
+        def allow():
+            result["res"] = api.post(f"/suggestions/{card['id']}/approve-and-allow",
+                                     json={"offer_fingerprint": card["auto_rule_offer"]["fingerprint"]})
+
+        allow_thread = threading.Thread(target=allow)
+        allow_thread.start()
+        assert entered.wait(10), "허용 저장이 DB 쓰기까지 오지 않았다"
+        stop_thread = threading.Thread(target=lambda: result.setdefault("stop", api.post("/stop")))
+        stop_thread.start()
+        assert physical_done.wait(5), "물리 정지가 허용 저장의 DB 대기를 기다렸다"
+        assert not release.is_set()
+        release.set()
+        allow_thread.join(10)
+        stop_thread.join(10)
+        engine.store._save_fn = None
+        assert result["stop"].status_code == 200
+        assert all(r["enabled"] is False for r in api.get("/routines/auto-rules").json())
+        body = result["res"].json()
+        assert result["res"].status_code == 200 and body["auto_allow"]["ok"] is False
+        assert all(r["enabled"] is False for r in api.get("/routines/auto-rules").json())
+        _set_low(api)
+        _assert_no_auto_on_next_event(api, cloud, len(cloud.controls()))
+    finally:
+        _reset()

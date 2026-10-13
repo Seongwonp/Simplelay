@@ -164,8 +164,11 @@ async def enable_auto_rule(rule_id: str, body: dict = Body(...)) -> dict:
     if not isinstance(enabled, bool):
         raise HTTPException(status_code=422, detail="켜기/끄기 값은 true 또는 false로 보내 주세요")
     engine = await asyncio.to_thread(get_auto_rule_engine)
+    # 3차 평가 H2: 요청을 시작할 때의 정지 세대 — 처리하는 사이 전체 정지가 끝났으면 늦은 저장이 규칙을 다시 켜지 않는다.
+    start_generation = engine.generation()
     try:
-        rule = await asyncio.to_thread(engine.set_enabled, rule_id, enabled, body.get("fingerprint"))
+        rule = await asyncio.to_thread(engine.set_enabled, rule_id, enabled, body.get("fingerprint"),
+                                       start_generation)
     except AutoRuleError as exc:
         raise _auto_error(exc) from exc
     return engine.payload(rule)
@@ -189,17 +192,21 @@ async def approve_and_allow(suggestion_id: str, body: dict = Body(...)) -> dict:
     """'이번에 실행하고 다음부터 자동으로' — 카드의 허용 내용(``auto_rule_offer.fingerprint``)을 확인한 뒤
     이번 실행은 종전 승인 경로로 제출하고, 같은 내용을 자동 실행 규칙으로 저장한다.
 
-    물리 누름이 있는 카드는 422(자동 실행 불가), 허용 내용이 화면과 다르면 409(저장·실행 둘 다 안 함)."""
+    물리 누름이 있는 카드는 422(자동 실행 불가), 허용 내용이 화면과 다르면 409(저장·실행 둘 다 안 함).
+
+    3차 평가 H2: 요청을 시작할 때의 정지 세대를 저장 단계까지 넘긴다. 이번 실행을 제출한 뒤 전체 정지가 끼면 규칙은
+    켜지지 않고, 응답은 이번 실행(``job_id``)과 자동 허용 결과(``auto_allow: {ok: false, reason}``)를 나눠 돌려준다."""
     from rpi.commands import ControlRoute  # noqa: PLC0415
     from rpi.intent.rules import UnknownIntentError  # noqa: PLC0415
     from rpi.intent.suggestions import UnknownSuggestionError  # noqa: PLC0415
-    from rpi.routines.auto_rules import PHYSICAL_REFUSED  # noqa: PLC0415
+    from rpi.routines.auto_rules import PHYSICAL_REFUSED, AutoRuleError  # noqa: PLC0415
     from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
 
     from .deps import get_suggestion_service  # noqa: PLC0415
 
     svc = get_suggestion_service()
     engine = await asyncio.to_thread(get_auto_rule_engine)
+    start_generation = engine.generation()
     pending = await asyncio.to_thread(svc.pending)
     suggestion = next((s for s in pending if s.suggestion_id == suggestion_id), None)
     if suggestion is None:
@@ -219,8 +226,15 @@ async def approve_and_allow(suggestion_id: str, body: dict = Body(...)) -> dict:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
-    rule = await asyncio.to_thread(engine.allow_from_offer, draft)
-    return {"job_id": job_id, "rule": engine.payload(rule)}
+    try:
+        rule = await asyncio.to_thread(engine.allow_from_offer, draft, start_generation)
+    except AutoRuleError as exc:
+        # 이번 실행은 이미 제출했다(결과는 job으로) — 자동 허용만 실패. 규칙은 켜지지 않았다.
+        current = next((r for r in engine.store.list() if r.scenario_id == draft.scenario_id
+                        and r.target_appliance_id == draft.target_appliance_id and r.action == draft.action), None)
+        return {"job_id": job_id, "rule": engine.payload(current) if current is not None else None,
+                "auto_allow": {"ok": False, "reason": exc.message}}
+    return {"job_id": job_id, "rule": engine.payload(rule), "auto_allow": {"ok": True, "reason": None}}
 
 
 @router.get("/routines/{routine_id}")
