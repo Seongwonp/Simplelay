@@ -37,4 +37,27 @@ void main() {
     expect(find.text('다시 시도'), findsNothing);
     expect(find.text('확인'), findsOneWidget);
   });
+
+  // 외부 평가 2026-10-13 M4: 실패만으로 다시 시도를 권하지 않는다 — 미전송 근거가 있을 때만.
+  for (final (receipt, retry) in [
+    ('not_dispatched', true),
+    ('accepted', false),
+    ('unknown', false),
+    (null, false),
+  ]) {
+    testWidgets('실패한 실행(receipt=${receipt ?? '없음'})의 아래 버튼: 다시 시도 ${retry ? '권함' : '권하지 않음'}',
+        (tester) async {
+      await tester.pumpWidget(buildScreen(const StatusScreen(),
+          executionStatus: ExecutionStatus(
+            phase: ExecutionPhase.failed,
+            outcome: 'failed',
+            route: 'physical',
+            receipt: receipt,
+          )));
+      expect(find.text('다시 시도'), retry ? findsOneWidget : findsNothing);
+      expect(find.textContaining('다시 실행해 주세요'),
+          retry ? findsOneWidget : findsNothing);
+      expect(find.text(retry ? '다시 시도' : '확인'), findsOneWidget);
+    });
+  }
 }

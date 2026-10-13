@@ -288,7 +288,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.',
+    message: '끝까지 실행하지 못했어요. 가전 상태를 확인해 주세요.',
   );
   const unknownState = ExecutionStatus(
     phase: ExecutionPhase.unknown,

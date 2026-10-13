@@ -298,13 +298,11 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (_kindOf(status) == ResultKind.failed ||
-                        _kindOf(status) == ResultKind.safetyStop)
+                    if (_retryAdvised(status))
                       const Text('가전을 확인한 뒤 시작한 화면에서 다시 실행해 주세요.'),
                     FilledButton(
                       onPressed: _returnToOrigin,
-                      child: Text(_kindOf(status) == ResultKind.failed ||
-                          _kindOf(status) == ResultKind.safetyStop ? '다시 시도' : '확인'),
+                      child: Text(_retryAdvised(status) ? '다시 시도' : '확인'),
                     ),
                     TextButton(onPressed: _returnToOrigin, child: const Text('닫기')),
                   ],
@@ -325,6 +323,15 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
       ),
     );
   }
+
+  /// 다시 실행을 권해도 되는가. 실패는 **미전송 근거(not_dispatched)가 있을 때만** — 접수된 뒤 일부를 누르고
+  /// 실패했을 수 있어 일괄 재시도 권고는 이미 한 조작을 되풀이하게 한다(외부 평가 2026-10-13 M4).
+  /// 안전 정지는 종전대로(가전을 확인한 뒤).
+  bool _retryAdvised(ExecutionStatus status) => switch (_kindOf(status)) {
+        ResultKind.safetyStop => true,
+        ResultKind.failed => status.receipt == 'not_dispatched',
+        _ => false,
+      };
 
   void _returnToOrigin() {
     if (Navigator.of(context).canPop()) {
