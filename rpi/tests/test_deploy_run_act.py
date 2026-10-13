@@ -98,3 +98,21 @@ def test_lan_link_detects_a_dead_hub_with_tcp_keepalive():
     line = next(l for l in text.splitlines() if "TCP-LISTEN:7000" in l)
     for opt in ("keepalive", "keepidle=", "keepintvl=", "keepcnt="):
         assert opt in line, line
+
+
+def test_by_id_port_is_hotplug_capable_not_frozen(tmp_path):
+    """10/14 실물: USB 재열거(ttyACM0→1) 뒤 실행기가 by-id 경로를 다시 열려 해도 `--device`로 넘긴 장치는
+    컨테이너를 띄운 순간의 장치 번호(166:0)에 고정돼 새 장치(166:1)를 열 수 없었다. by-id·by-path 경로면
+    `/dev`를 잇고 USB 시리얼(ttyACM 166·ttyUSB 188)만 허용해 다시 열 수 있게 한다."""
+    by_id = tmp_path / "serial" / "by-id"
+    by_id.mkdir(parents=True)
+    motion = by_id / "usb-1a86_USB_Single_Serial_X-if00"
+    motion.write_text("")
+    code, out, run = _run(tmp_path, [f"SIMPLELAY_MOTION_PORT={_posix(motion)}"])
+    assert code == 0, out
+    assert len(run) == 1, out
+    line = run[0]
+    assert f"--device {_posix(motion)}" not in line, line
+    assert "-v /dev:/dev" in line, line
+    assert "--device-cgroup-rule c 166:* rmw" in line, line
+    assert "--device-cgroup-rule c 188:* rmw" in line, line

@@ -42,9 +42,15 @@ DEVICES="$DEVICES $(env_value SIMPLELAY_ACT_DEVICES)"
 
 DEVICE_ARGS=""
 MISSING=""
+HOTPLUG=""
 for dev in $DEVICES; do
   if [ -e "$dev" ]; then
-    DEVICE_ARGS="$DEVICE_ARGS --device $dev"
+    case "$dev" in
+      # by-id·by-path(USB 시리얼 고정 이름)은 --device로 넘기지 않는다 — --device는 띄운 순간의 장치 번호에 고정돼
+      # USB 재열거(ttyACM0→1) 뒤 실행기가 같은 경로를 다시 열 수 없었다(10/14 실물). 아래에서 /dev를 잇는다.
+      */serial/by-id/*|*/serial/by-path/*) HOTPLUG=1 ;;
+      *) DEVICE_ARGS="$DEVICE_ARGS --device $dev" ;;
+    esac
   else
     MISSING="$MISSING $dev"
   fi
@@ -53,7 +59,7 @@ if [ -n "$MISSING" ]; then
   echo "장치가 없어 실행기를 세우지 않았어요:$MISSING (USB 연결·$ENV_FILE 확인)" >&2
   exit 1
 fi
-echo "넘기는 장치:${DEVICE_ARGS:- 없음}"
+echo "넘기는 장치:${DEVICE_ARGS:- 없음}${HOTPLUG:+ (+ /dev 연결, USB 시리얼 ttyACM·ttyUSB만 허용 — 재열거 뒤 다시 열기)}"
 
 docker rm -f simplelay-act 2>/dev/null || true
 
@@ -61,13 +67,13 @@ docker rm -f simplelay-act 2>/dev/null || true
 if [ "$LINK" = "uart" ]; then
   docker run -d --name simplelay-act --restart unless-stopped \
     --security-opt apparmor=unconfined \
-    --device /dev/ttyAMA0 $DEVICE_ARGS -v "$DATA_DIR":/data --env-file "$ENV_FILE" \
+    --device /dev/ttyAMA0 $DEVICE_ARGS ${HOTPLUG:+-v /dev:/dev --device-cgroup-rule "c 166:* rmw" --device-cgroup-rule "c 188:* rmw"} -v "$DATA_DIR":/data --env-file "$ENV_FILE" \
     -e SIMPLELAY_UART_PORT=/dev/ttyAMA0 \
     simplelay-backend python -m rpi4.act_main
 else
   docker run -d --name simplelay-act --restart unless-stopped \
     --security-opt apparmor=unconfined \
-    $DEVICE_ARGS -p 7000:7000 -v "$DATA_DIR":/data --env-file "$ENV_FILE" \
+    $DEVICE_ARGS ${HOTPLUG:+-v /dev:/dev --device-cgroup-rule "c 166:* rmw" --device-cgroup-rule "c 188:* rmw"} -p 7000:7000 -v "$DATA_DIR":/data --env-file "$ENV_FILE" \
     -e SIMPLELAY_UART_PORT=/tmp/vserial \
     simplelay-backend bash -c '
       socat -d PTY,link=/tmp/vserial,raw,echo=0 TCP-LISTEN:7000,reuseaddr,keepalive,keepidle=5,keepintvl=2,keepcnt=3 &
