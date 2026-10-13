@@ -94,6 +94,7 @@ Z 누름 방식(2026-10-05): Z가 엔코더 모터(``motor``)인지 솔레노이
 from __future__ import annotations
 
 import contextlib
+import errno
 import json
 import logging
 import math
@@ -296,6 +297,140 @@ class PySerialLineTransport:
             chunk = self._serial.read(max(1, self._serial.in_waiting))
             if chunk:
                 self._buffer.extend(chunk)
+
+    def close(self) -> None:
+        """포트를 닫는다(끊긴 포트를 붙잡지 않게 — `ReopeningLineTransport`가 부른다)."""
+        with contextlib.suppress(Exception):
+            self._serial.close()
+
+
+#: 포트 다시 열기 간격(초) — 마지막 값에서 멈춰 그 간격으로 계속한다. 호스트 박자(측정 필요 아님).
+REOPEN_BACKOFF_S = (0.5, 1.0, 2.0, 4.0, 8.0)
+
+
+class ReopeningLineTransport:
+    """끊기면 닫고 **설정 경로로 다시 여는** 전송(2026-10-14, 보드 날 발견 1) — **실물 재열거 미검증**.
+
+    USB 재열거(모터 전원 투입 때 저전압 등)로 ``ttyACM0``가 사라지고 ``ttyACM1``로 다시 잡히면, 열린 파일은 영영 EIO다.
+    쓰기·읽기에서 ``OSError``(pyserial ``SerialException`` 포함)가 나면 그 포트를 닫고 끊김으로 표시한 뒤 예외를 그대로 올린다
+    (진행 중 명령은 연결 오류로 끝나고 폐루프는 다시 누르지 않는다). 끊긴 동안의 쓰기·읽기는 죽은 포트에 닿지 않고 바로
+    ``OSError``다. 다시 열기는 `try_reopen`(백오프)만 한다 — RPi4 실행기의 감시 스레드가 부른다.
+
+    경로는 **설정 그대로**다. 재열거 뒤 이름이 바뀌는 ``/dev/ttyACM0`` 대신 ``/dev/serial/by-id/…``를 쓰라고 런북에 적었다.
+    """
+
+    def __init__(
+        self,
+        opener: Callable[[], "LineTransport"],
+        *,
+        describe: str = "",
+        initial: "LineTransport | None" = None,
+        backoff_s: tuple[float, ...] = REOPEN_BACKOFF_S,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        if not backoff_s:
+            raise ValueError("backoff_s must not be empty")
+        self._opener = opener
+        self._describe = describe
+        self._backoff_s = tuple(backoff_s)
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._inner = initial if initial is not None else opener()
+        self._down_reason: str | None = None
+        self._failures = 0
+        self._next_try = 0.0
+        self._listener: Callable[[str], None] | None = None
+        #: 다시 연 횟수 — 시험·로그용.
+        self.reopens = 0
+
+    def set_link_listener(self, listener: "Callable[[str], None] | None") -> None:
+        """끊김을 알 함수(이유 한 줄). 끊김을 처음 본 스레드에서 한 번 불린다."""
+        self._listener = listener
+
+    @property
+    def link_down_reason(self) -> str | None:
+        """끊겨 있으면 사람이 읽을 이유, 열려 있으면 None."""
+        with self._lock:
+            return self._down_reason
+
+    def write_line(self, line: str) -> None:
+        inner = self._current()
+        try:
+            inner.write_line(line)
+        except OSError as exc:
+            self._drop(inner, exc)
+            raise
+
+    def read_line(self, timeout_s: float) -> str | None:
+        inner = self._current()
+        try:
+            return inner.read_line(timeout_s)
+        except OSError as exc:
+            self._drop(inner, exc)
+            raise
+
+    def try_reopen(self) -> bool:
+        """끊겨 있고 백오프가 지났으면 설정 경로로 한 번 다시 연다. 열려 있게 됐으면 True."""
+        with self._lock:
+            if self._inner is not None:
+                return True
+            if self._clock() < self._next_try:
+                return False
+        try:
+            fresh = self._opener()
+        except (OSError, RuntimeError, ValueError) as exc:
+            with self._lock:
+                self._failures += 1
+                self._next_try = self._clock() + self._backoff_s[min(self._failures, len(self._backoff_s) - 1)]
+                self._down_reason = f"{self._describe or '모션 포트'} 다시 열기 실패: {exc}"
+            log.warning("motion port reopen failed (%s): %s", self._describe, exc)
+            return False
+        with self._lock:
+            self._inner = fresh
+            self._down_reason = None
+            self._failures = 0
+            self.reopens += 1
+        log.warning("motion port reopened: %s (재열거 뒤 — 연결 확인·원점 전까지 준비 안 됨)", self._describe)
+        return True
+
+    def close(self) -> None:
+        with self._lock:
+            inner, self._inner = self._inner, None
+            self._down_reason = self._down_reason or "닫힘"
+        _close_quietly(inner)
+
+    def _current(self) -> "LineTransport":
+        with self._lock:
+            inner = self._inner
+            reason = self._down_reason
+        if inner is None:
+            raise OSError(errno.ENODEV, f"모션 포트 끊김 — 다시 여는 중 ({reason})")
+        return inner
+
+    def _drop(self, inner: "LineTransport", exc: BaseException) -> None:
+        with self._lock:
+            if self._inner is not inner:
+                return  # 이미 다른 스레드가 내렸다
+            self._inner = None
+            self._down_reason = f"{type(exc).__name__}: {exc}"
+            self._failures = 0
+            self._next_try = self._clock() + self._backoff_s[0]
+            reason = self._down_reason
+        _close_quietly(inner)
+        log.error("motion port lost (%s): %s — closed, reopening the configured path", self._describe, reason)
+        listener = self._listener
+        if listener is not None:
+            try:
+                listener(reason)
+            except Exception:  # noqa: BLE001 - 알림 고장이 전송 오류 보고를 가리지 않는다
+                log.exception("motion link listener failed")
+
+
+def _close_quietly(transport: object) -> None:
+    close = getattr(transport, "close", None)
+    if callable(close):
+        with contextlib.suppress(Exception):
+            close()
 
 
 # ── 설정 ─────────────────────────────────────────────────────────────────────
@@ -623,6 +758,8 @@ class SerialMotionClient(GrblClient):
         #: 최근 정지들의 기록(id별, 최대 `_STOP_RECORDS_KEPT`개) — 연속 정지에서도 각 확인이 자기 정지의 기록만
         #: 읽게 한다(2차 평가 M-N2).
         self._stops: dict[int, _StopRecord] = {}
+        #: 전송 계층이 포트를 잃은 뒤 연결 확인(connect)을 아직 못 했으면 True(2026-10-14).
+        self._link_dropped = False
 
     @property
     def last_position(self) -> dict | None:
@@ -725,6 +862,7 @@ class SerialMotionClient(GrblClient):
                     last_error = str(exc)
                 else:
                     self._connect_error = None
+                    self._link_dropped = False
                     return self._apply_status(reply)
                 remaining = deadline - self._clock()
                 if remaining <= 0:
@@ -733,6 +871,21 @@ class SerialMotionClient(GrblClient):
                 delay = min(delay * 2, CONNECT_BACKOFF_MAX_S)
         self._connect_error = f"{budget:g}s 동안 status 시도 {attempts}회 무응답"
         raise MotionTimeout(f"모션 MCU 연결 확인 실패: {self._connect_error} ({last_error})")
+
+    def note_link_down(self, reason: str) -> None:
+        """전송 계층이 포트를 잃었다(EIO·포트 사라짐, 2026-10-14). 다시 연결을 확인하기 전까지 준비 안 됨으로 두고,
+        이번 실행 안의 자동 재홈·재누름 차단(``_reset_mid_run``)을 건다 — 재부팅·통신 오류와 같은 규칙."""
+        with self._state_lock:
+            self._state = MotionState.UNKNOWN
+        self._connect_error = f"모션 포트 연결 끊김 — 다시 여는 중({reason})"
+        self._reset_mid_run = True
+        self._link_dropped = True
+        self._emit("link_down", {"detail": reason})
+
+    @property
+    def needs_reconnect(self) -> bool:
+        """포트를 잃은 뒤 연결 확인을 아직 못 했다."""
+        return self._link_dropped
 
     def not_ready_reason(self) -> str | None:
         """연결 확인(status 성공) 전이면 사람이 읽을 이유, 아니면 None. act_main readiness가 쓴다."""

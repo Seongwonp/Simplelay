@@ -234,6 +234,65 @@ class MotionConnectRetry:
 _motion_retry: MotionConnectRetry | None = None
 
 
+#: 포트 다시 열기 백오프(초)와 감시 주기(초) — 호스트 박자(2026-10-14, 발견 1). 시험이 바꿔 끼운다.
+MOTION_REOPEN_BACKOFF_S = (0.5, 1.0, 2.0, 4.0, 8.0)
+MOTION_WATCH_INTERVAL_S = 0.5
+
+
+class MotionLinkWatch:
+    """USB 재열거·EIO로 잃은 모션 포트를 설정 경로로 다시 열고 연결을 확인한다(2026-10-14, 보드 날 발견 1).
+
+    전송(`ReopeningLineTransport`)이 끊김을 알리면 깨어나, 백오프에 맞춰 ``try_reopen`` → ``client.connect()``를 한다.
+    그동안 ``client.not_ready_reason()``이 이유를 돌려주고 ActExecutor가 execute를 ``motion_not_ready``로 거절한다.
+    다시 붙어도 이번 실행의 자동 재홈·재누름 차단은 그대로다(사람의 다음 요청에서만 풀림). **실물 재열거 미검증.**
+    """
+
+    def __init__(self, transport, client, interval_s: float | None = None) -> None:
+        self._transport = transport
+        self._client = client
+        self._interval_s = MOTION_WATCH_INTERVAL_S if interval_s is None else interval_s
+        self._stop = threading.Event()
+        self._wake = threading.Event()
+        self._thread = threading.Thread(target=self._loop, daemon=True, name="motion-link-watch")
+        self.reconnects = 0
+
+    def start(self) -> "MotionLinkWatch":
+        self._thread.start()
+        return self
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._wake.set()
+
+    def wake(self) -> None:
+        self._wake.set()
+
+    def _loop(self) -> None:
+        from rpi.controller.serial_motion import MotionError
+
+        while not self._stop.is_set():
+            self._wake.wait(self._interval_s)
+            self._wake.clear()
+            if self._stop.is_set():
+                return
+            if not getattr(self._client, "needs_reconnect", False):
+                continue
+            if self._transport.link_down_reason is not None and not self._transport.try_reopen():
+                continue
+            try:
+                status = self._client.connect()
+            except (MotionError, RuntimeError, OSError) as exc:
+                log.warning("motion MCU not back yet after port loss: %s", exc)
+                continue
+            self.reconnects += 1
+            log.warning("motion MCU reconnected after port loss: state=%s homed=%s (원점 전이면 누름 거절)",
+                        status.state, status.homed)
+
+
+#: act_main이 띄운 포트 감시(없으면 None). 종료 때 멈춘다. 시험이 들여다본다.
+_motion_watch: MotionLinkWatch | None = None
+
+
 def _motion_readiness(grbl: object) -> "Callable[[], str | None] | None":
     """모션 어댑터가 준비 이유를 알려 주면 그 함수를(없으면 None — mock은 늘 준비됨)."""
     reason = getattr(grbl, "not_ready_reason", None)
@@ -300,6 +359,7 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
         MotionConfigError,
         MotionError,
         MotionSafetyController,
+        ReopeningLineTransport,
         SerialMotionClient,
         heartbeat_off_warning,
     )
@@ -312,12 +372,32 @@ def _build_motion(on_event=None, line_log: "LineLog | None" = None) -> tuple[Grb
             "SIMPLELAY_MOTION_BAUD가 필요합니다(기본값 없음)"
         )
     config = MotionConfig.from_env()
-    transport = _open_motion_transport(port, int(baud_raw))
+    baud = int(baud_raw)
+    if not port.startswith("/dev/serial/by-id/"):
+        # 10/13 보드 날: 모터 전원 투입 때 ESP32가 ttyACM0 → ttyACM1로 다시 잡혀 실행기가 죽은 포트를 붙잡았다.
+        log.warning("SIMPLELAY_MOTION_PORT=%s — USB 재열거 뒤 이름이 바뀔 수 있어요. "
+                    "/dev/serial/by-id/… 경로를 쓰세요(docs/결선-운영-런북.md)", port)
+    # 시작 때 못 열면 종전대로 기동 실패. 연 뒤에 잃으면(EIO·포트 사라짐) 닫고 같은 경로로 다시 연다.
+    reopening = ReopeningLineTransport(lambda: _open_motion_transport(port, baud), describe=port,
+                                       initial=_open_motion_transport(port, baud),
+                                       backoff_s=MOTION_REOPEN_BACKOFF_S)
+    transport = reopening
     if line_log is not None:
         from rpi.tools.jog import LoggingTransport
 
         transport = LoggingTransport(transport, line_log)
     client = SerialMotionClient(transport, config, on_event=on_event)
+    global _motion_watch
+    if _motion_watch is not None:
+        _motion_watch.stop()
+    watch = MotionLinkWatch(reopening, client)
+
+    def link_down(reason: str) -> None:
+        client.note_link_down(reason)
+        watch.wake()
+
+    reopening.set_link_listener(link_down)
+    _motion_watch = watch.start()
     missing = config.missing_for_press()
     if missing:
         log.warning("motion config incomplete — every press will be refused: %s", ", ".join(missing))
@@ -1002,6 +1082,8 @@ async def _run() -> None:
                 feeder.stop()
         if _motion_retry is not None:
             _motion_retry.stop()
+        if _motion_watch is not None:
+            _motion_watch.stop()
         if recorder is not None:
             recorder.close()
         if motion_log is not None:

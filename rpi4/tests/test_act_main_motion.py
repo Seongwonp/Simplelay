@@ -42,6 +42,9 @@ def _clean_env(monkeypatch):
     if act_main._motion_retry is not None:  # 배경 재연결 스레드를 다음 시험으로 넘기지 않는다
         act_main._motion_retry.stop()
         act_main._motion_retry = None
+    if act_main._motion_watch is not None:  # 포트 감시 스레드(2026-10-14)도 넘기지 않는다
+        act_main._motion_watch.stop()
+        act_main._motion_watch = None
 
 
 def test_default_motion_is_mock():
