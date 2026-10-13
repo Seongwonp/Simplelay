@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 import re
 import threading
 import time
@@ -22,6 +23,10 @@ _STATE_INPUTS = {
     "done_power_only": {"power"},
     "done_beep_only": {"beep"},
 }
+
+
+def _number(value) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
 
 
 def parse_appliance_done(doc: Mapping) -> dict | None:
@@ -44,7 +49,13 @@ def parse_appliance_done(doc: Mapping) -> dict | None:
     if set(inputs) != _STATE_INPUTS[state]:
         return None
     evidence = doc.get("evidence")
+    at_s = doc.get("at_s")
+    sent_ns = doc.get("t_monotonic_ns")
     return {
+        # RPi4 단조 시각(2026-10-13, 자동 실행 규칙): 끝의 물리 시각(at_s)과 프레임을 낸 시각(t_monotonic_ns).
+        # 같은 사건 판별(재전송·재연결)과 사건 나이(내보낸 시각 - 끝 시각)에 쓴다. 없거나 숫자가 아니면 None.
+        "at_s": float(at_s) if _number(at_s) else None,
+        "t_monotonic_ns": int(sent_ns) if _number(sent_ns) else None,
         "appliance_id": appliance,
         "event": event,
         "state": state,

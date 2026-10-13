@@ -1,0 +1,156 @@
+"""시연 v4(2026-10-13) — 전자레인지 조리 완료(CT 끝 판정) → 공기청정기 강풍 **제안 카드**.
+
+조리 완료의 근거는 RPi4가 보내는 ``appliance_done``(전자레인지 CT 채널 전력 하강, 이벤트 ``heat_complete``)뿐이다.
+버튼 누름 완료(실행 성공)는 조리 완료가 아니다. 카드는 제안이며 실행은 승인 뒤다(자동 실행 규칙은
+test_auto_rules.py). 전부 모의 — 실제 CT 판정·실가전으로 확인한 것이 아니다.
+"""
+
+from __future__ import annotations
+
+import time
+
+import pytest
+from fastapi.testclient import TestClient
+
+from rpi.api import deps
+from rpi.api.thinq_wiring import reset_thinq_caches
+from rpi.routines.wiring import reset_routines
+from rpi.services.appliance_done import parse_appliance_done
+
+_SINGLETONS = (
+    deps.get_service, deps.get_suggestion_service, deps.get_suppression_store,
+    deps.get_alert_store, deps.get_node_registry, deps.get_demo_failure_state,
+    deps.get_job_history, deps.get_presence_store, deps.get_appliance_registry,
+    deps.get_readiness_registry, deps.get_usage_log, deps.get_care_events,
+    deps.get_control_arbiter, deps.get_presence_state_machine, deps.get_appliance_done_log,
+)
+
+
+def _reset():
+    for dep in _SINGLETONS:
+        dep.cache_clear()
+    reset_thinq_caches()
+    reset_routines()
+
+
+def _env(monkeypatch, thinq_mode: str | None):
+    for name in ("SIMPLELAY_API_KEY", "SIMPLELAY_DB_PATH", "SIMPLELAY_V2_SCENARIOS",
+                 "SIMPLELAY_LOCAL_APPLIANCES", "SIMPLELAY_ACT_MODE", "SIMPLELAY_ROUTINE_DONE_SENSORS"):
+        monkeypatch.delenv(name, raising=False)
+    if thinq_mode is None:
+        monkeypatch.delenv("SIMPLELAY_THINQ_MODE", raising=False)
+    else:
+        monkeypatch.setenv("SIMPLELAY_THINQ_MODE", thinq_mode)
+    monkeypatch.setenv("SIMPLELAY_THINQ_CONFIRM_SECONDS", "0.3")
+
+
+@pytest.fixture()
+def api(monkeypatch):
+    _env(monkeypatch, "mock")
+    _reset()
+    from rpi.main import app
+
+    yield TestClient(app)
+    _reset()
+
+
+def _cards(client, scenario_id="cook_done_air"):
+    return [s for s in client.get("/suggestions").json() if s.get("scenario_id") == scenario_id]
+
+
+def _inject(client, appliance_id="microwave", inputs=("power",)):
+    res = client.post("/demo/appliance-done", json={"appliance_id": appliance_id, "inputs": list(inputs)})
+    assert res.status_code == 200, res.text
+    return res.json()
+
+
+def _wait_done(client, job_id, timeout=5.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        body = client.get("/status").json()
+        if not body["running"] and body["last_job_id"] == job_id:
+            return body
+        time.sleep(0.01)
+    raise AssertionError(f"job {job_id} did not finish")
+
+
+def test_default_catalog_is_the_v4_cook_done_scenario(api):
+    scenarios = api.get("/scenarios").json()
+    assert [s["scenario_id"] for s in scenarios] == ["cook_done_air"]
+    trigger = scenarios[0]["trigger"]
+    assert (trigger["kind"], trigger["appliance_id"], trigger["event"]) == (
+        "appliance_done", "microwave", "heat_complete")
+    assert scenarios[0]["steps"] == [{"target_id": "air_purifier", "route": "thinq",
+                                      "action": "set_wind_strength", "args": {"wind_strength": "HIGH"},
+                                      "buttons": []}]
+
+
+def test_ct_cook_done_offers_the_air_purifier_card(api):
+    _inject(api, inputs=("power",))
+    cards = _cards(api)
+    assert len(cards) == 1
+    card = cards[0]
+    assert card["purpose"] == "공기청정기 강풍으로 바꿀까요?"
+    assert card["commands"][0]["summary"] == "공기청정기(모의) 풍량 강"
+    assert card["is_demo"] is True  # 주입 사건 — 실제 CT 판정이 아니다
+    assert "콘센트 전력" in card["reason"] and "(시연 주입)" in card["reason"]
+    # 카드는 제안일 뿐 — 아무것도 보내지 않았다.
+    from rpi.api.thinq_wiring import get_thinq_client
+
+    assert get_thinq_client().controls == []
+
+
+def test_beep_only_end_is_not_cook_done(api):
+    """CT 전력 끝이 없는 종료음만으로는 조리 완료가 아니다 — 카드 없음."""
+    _inject(api, inputs=("beep",))
+    assert _cards(api) == []
+
+
+def test_button_press_success_is_not_cook_done(api):
+    """버튼 누름(실행) 성공은 조리 완료가 아니다 — 실행 끝으로는 카드를 만들지 않는다."""
+    job = api.post("/execute", json={"text": "즉석밥 데워줘", "appliance_id": "microwave"})
+    assert job.status_code == 200, job.text
+    assert _wait_done(api, job.json()["job_id"])["last_status"] == "succeeded"
+    assert _cards(api) == []
+
+
+def test_washer_end_does_not_offer_the_cook_card(api):
+    _inject(api, appliance_id="washer", inputs=("power", "beep"))
+    assert _cards(api) == []
+
+
+def test_no_card_when_thinq_is_off(monkeypatch):
+    _env(monkeypatch, None)
+    _reset()
+    from rpi.main import app
+
+    try:
+        client = TestClient(app)
+        _inject(client, inputs=("power",))
+        assert _cards(client) == []
+    finally:
+        _reset()
+
+
+def test_parsed_done_record_keeps_the_event_time_fields():
+    """같은 사건 판별(재전송·재연결)과 오래된 사건 판별에 쓰는 RPi4 시각을 버리지 않는다."""
+    record = parse_appliance_done({
+        "type": "appliance_done", "appliance_id": "microwave", "event": "heat_complete",
+        "state": "done_power_only", "inputs": ["power"], "expected_inputs": ["power"],
+        "source": "real", "at_s": 1234.5, "t_monotonic_ns": 1_244_500_000_000,
+    })
+    assert record["at_s"] == 1234.5
+    assert record["t_monotonic_ns"] == 1_244_500_000_000
+    bad = parse_appliance_done({
+        "type": "appliance_done", "appliance_id": "microwave", "event": "heat_complete",
+        "state": "done_power_only", "inputs": ["power"], "source": "real", "at_s": "soon",
+        "t_monotonic_ns": True,
+    })
+    assert bad["at_s"] is None and bad["t_monotonic_ns"] is None
+
+
+def test_rpi5_mock_injection_carries_the_send_time(api):
+    _inject(api, inputs=("power",))
+    record = deps.get_appliance_done_log().recent()[0]
+    assert isinstance(record["at_s"], float)
+    assert isinstance(record["t_monotonic_ns"], int)

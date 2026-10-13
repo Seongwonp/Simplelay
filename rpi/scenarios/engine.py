@@ -73,6 +73,32 @@ class ScenarioEngine:
                 reason = base + (" (시연: 모의 이벤트예요)" if is_demo else "")
                 self._offer(definition, reason, is_demo)
 
+    def on_appliance_done(self, record: dict, *, skip: frozenset = frozenset()) -> list:
+        """RPi4 가전 끝 판정(``appliance_done``, 검증한 기록) → ``appliance_done`` 트리거 카드(v4 2026-10-13).
+
+        조리 완료의 근거는 **CT 전력 끝**이다 — 입력에 ``power``가 없으면(종료음만) 카드를 만들지 않는다.
+        버튼 누름 완료(``on_job_finished``)는 이 트리거를 깨우지 않는다. ``skip``의 시나리오는 건너뛴다
+        (자동 실행 허용 규칙이 이미 맡은 것). 모의·주입 입력이면 시연 카드다."""
+        if "power" not in (record.get("inputs") or []):
+            return []
+        source = record.get("source")
+        offered = []
+        for definition in self._catalog.list():
+            trigger = definition.trigger
+            if (trigger.kind != "appliance_done" or definition.scenario_id in skip
+                    or trigger.appliance_id != record.get("appliance_id")
+                    or trigger.event != record.get("event")):
+                continue
+            reason = definition.event_reason or f"'{trigger.appliance_id}' 끝을 확인했어요"
+            if source == "injected":
+                reason += " (시연 주입)"
+            elif source != "real":
+                reason += " (모의 입력)"
+            card = self._offer(definition, reason, source != "real")
+            if card is not None:
+                offered.append(card)
+        return offered
+
     def trigger_manual(self, scenario_id: str):
         """수동(시연) 트리거. 항상 시연 제안이다."""
         definition = self._catalog.get(scenario_id)

@@ -1747,7 +1747,7 @@ async def demo_appliance_done(
         where = "rpi4_simulator"
     else:
         frame = rehearsal_done_event(body.appliance_id, list(body.inputs), now_s=time.monotonic(),
-                                     event=body.event).to_frame()
+                                     event=body.event).to_frame(time.monotonic_ns())
         await asyncio.to_thread(receive_appliance_done, frame)
         where = "rpi5_mock"
     return DemoApplianceDoneResponse(

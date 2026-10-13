@@ -71,7 +71,8 @@ def _routine_body(template):
 
 
 def test_default_catalog_has_no_v2_scenarios(thinq_mock):
-    assert thinq_mock.get("/scenarios").json() == []
+    # v4(2026-10-13): 기본 카탈로그는 조리 완료 → 공기청정기(cook_done_air) 하나. v2 셋은 여전히 없다.
+    assert [s["scenario_id"] for s in thinq_mock.get("/scenarios").json()] == ["cook_done_air"]
 
 
 def test_wash_complete_makes_the_routine_notice_and_no_dehumidifier_card(thinq_mock):

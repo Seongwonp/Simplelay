@@ -220,6 +220,20 @@ def receive_appliance_done(record: dict) -> None:
                                      purpose=str(checked.get("appliance_id")))
         except Exception:  # noqa: BLE001
             log.exception("care notice for failed appliance_done dispatch also failed")
+    _dispatch_done_to_scenarios(checked)
+
+
+def _dispatch_done_to_scenarios(checked: dict) -> None:
+    """가전 끝 → 시나리오 카드(v4 조리 완료 → 공기청정기). 실행하지 않는다(카드만)."""
+    try:
+        from .thinq_wiring import get_scenario_engine  # noqa: PLC0415
+
+        engine = get_scenario_engine()
+        if engine is not None:
+            engine.on_appliance_done(checked)
+    except Exception:  # noqa: BLE001 - 읽기 루프는 살린다
+        log.exception("scenario dispatch for appliance_done failed (appliance=%s event=%s)",
+                      checked.get("appliance_id"), checked.get("event"))
 
 
 #: 가전 끝 기록을 루틴에 넘기지 못했을 때 알림함 종류(Copilot#3).

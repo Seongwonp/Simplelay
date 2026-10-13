@@ -4,10 +4,17 @@
 뿐이다. 실행은 언제나 사용자의 승인 뒤이고, 승인은 그 순간 정의로 만든 명령에
 묶인다. 정의가 그 사이 바뀌면(예: 풍량 강 → 중) 카드의 승인은 무효이고 재승인한다.
 
-**기본 카탈로그는 비어 있다(2026-10-06, 시연 v3).** 아래 세 개는 v2 시연(공기청정기·선풍기·제습기)의
+**기본 카탈로그는 v4의 ``cook_done_air`` 하나다(2026-10-13).** v3(2026-10-06)에서 비웠고, 아래 세 개는 v2 시연(공기청정기·선풍기·제습기)의
 정의라 v3("한 사람의 하루": 전자레인지·세탁기·인터폰)에서 뺐다. v3의 카드는 사용자 루틴이 만든다.
 ``SIMPLELAY_V2_SCENARIOS=1``로 명시적으로 켤 때만 다시 실린다(질의응답·회귀 시험용). 메커니즘(승인 결속·
 지문 대조·ThinQ 이벤트 트리거)은 그대로다.
+
+v4(2026-10-13, docs/본선-시연-계획-v4.md):
+
+- ``cook_done_air`` 조리 완료 → 공기청정기: RPi4가 보낸 **전자레인지 CT 끝 판정**(``appliance_done``,
+  이벤트 ``heat_complete``, 입력에 전력 ``power``)일 때만 "공기청정기 강풍으로 바꿀까요?"를 제안한다. 버튼 누름
+  완료(실행 성공)는 조리 완료가 아니라 트리거가 아니다. 이 카드만 '다음부터도 자동으로'(자동 실행 허용 규칙,
+  ``rpi/routines/auto_rules.py``)를 고를 수 있다(``auto_allowed``).
 
 v2 세 개:
 
@@ -48,7 +55,7 @@ class ScenarioStep:
 
 @dataclass(frozen=True)
 class ScenarioTrigger:
-    #: job_completed | thinq_event | manual
+    #: job_completed | thinq_event | appliance_done | manual
     kind: str
     appliance_id: str | None = None
     #: thinq_event 트리거의 이벤트 이름(예: wash_complete).
@@ -70,6 +77,8 @@ class ScenarioDefinition:
     #: thinq_event 트리거의 근거 문장(없으면 이벤트 이름으로 적는다).
     event_reason: str = ""
     valid_minutes: int = 15
+    #: 이 카드에서 '다음부터도 자동으로'(자동 실행 허용 규칙)를 고를 수 있는가(v4 ``cook_done_air``만).
+    auto_allowed: bool = False
 
     def commands(self) -> tuple[Command, ...]:
         return tuple(step.command() for step in self.steps)
@@ -84,6 +93,19 @@ COOK_THEN_AIR = ScenarioDefinition(
         ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
                      (("wind_strength", "HIGH"),)),
     ),
+)
+
+COOK_DONE_AIR = ScenarioDefinition(
+    scenario_id="cook_done_air",
+    name="조리 완료 → 공기청정기",
+    question="공기청정기 강풍으로 바꿀까요?",
+    trigger=ScenarioTrigger("appliance_done", appliance_id="microwave", event="heat_complete"),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
+                     (("wind_strength", "HIGH"),)),
+    ),
+    event_reason="전자레인지 조리 완료를 콘센트 전력(CT)으로 확인했어요. 식사 뒤 공기청정기를 켜 두시곤 해요",
+    auto_allowed=True,
 )
 
 EVENING_REST = ScenarioDefinition(
@@ -111,14 +133,14 @@ WASH_THEN_DRY = ScenarioDefinition(
 
 #: v2 시연의 시나리오 — v3에서 뺐다. ``SIMPLELAY_V2_SCENARIOS``로만 싣는다.
 V2_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
-#: 기본 카탈로그(v3): 비어 있다. 카드는 사용자 루틴이 만든다.
-DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = ()
+#: 기본 카탈로그(v4): 조리 완료 → 공기청정기 하나. 그 밖의 카드는 사용자 루틴이 만든다.
+DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR,)
 
 V2_SCENARIOS_ENV = "SIMPLELAY_V2_SCENARIOS"
 
 
 def scenarios_from_env(env: Mapping[str, str] | None = None) -> tuple[ScenarioDefinition, ...]:
-    """서버가 실을 시나리오. 기본은 v3(빈 카탈로그), ``SIMPLELAY_V2_SCENARIOS=1``이면 v2 세 개."""
+    """서버가 실을 시나리오. 기본은 v4(``cook_done_air``), ``SIMPLELAY_V2_SCENARIOS=1``이면 v2 세 개."""
     env = os.environ if env is None else env
     if env.get(V2_SCENARIOS_ENV, "").strip().lower() in {"1", "true", "yes", "on"}:
         return V2_SCENARIOS
@@ -149,6 +171,7 @@ class ScenarioCatalog:
 
 
 __all__ = [
+    "COOK_DONE_AIR",
     "COOK_THEN_AIR",
     "DEFAULT_SCENARIOS",
     "EVENING_REST",
