@@ -188,7 +188,7 @@ void main() {
       final s = c.read(executionStatusProvider);
       expect(s.sequenceId, 'J1');
       expect(s.outcome, 'stopped');
-      expect(s.message, '실행을 멈췄어요. 멈춘 것을 확인했어요 (9 ms).');
+      expect(s.message, '실행을 멈췄어요. 멈춘 것을 확인했어요 (모션 보드 응답 9 ms).');
       expect(tts.spoken.length, spoken);
     });
 

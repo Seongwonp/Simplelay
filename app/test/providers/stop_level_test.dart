@@ -45,7 +45,8 @@ void main() {
       expect(stopLevelSentence('sent'), '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요');
       expect(stopLevelSentence('mcu_ack', ackMs: 12), '모션 보드가 정지를 확인했어요 (12 ms)');
       expect(stopLevelSentence('mcu_ack'), '모션 보드가 정지를 확인했어요');
-      expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요 (9 ms)');
+      // ack_ms는 정지를 보낸 뒤 모션 보드 응답까지다 — 멈춤 확인(verified)까지의 시간이 아니다(외부 평가 L2).
+      expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요 (모션 보드 응답 9 ms)');
       expect(stopLevelSentence(null), isNull);
       expect(stopLevelSentence('stopped_for_sure'), isNull);
       expect(stopLevelConfirmed('sent'), isFalse);
@@ -176,7 +177,7 @@ void main() {
           );
       await Future<void>.delayed(const Duration(milliseconds: 1500));
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 멈춘 것을 확인했어요 (8 ms).');
+          '실행을 멈췄어요. 멈춘 것을 확인했어요 (모션 보드 응답 8 ms).');
     });
   });
 }
