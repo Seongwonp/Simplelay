@@ -11,7 +11,7 @@ from rpi4.services.target_binding import TargetBinder, parse_l3_none_targets
 ROOT = Path(__file__).resolve().parents[2]
 
 
-@pytest.mark.parametrize("source", ["docs/본선-시연-시나리오-v3.md", "docs/결선-운영-런북.md", "deploy/act-v3.env.example"])
+@pytest.mark.parametrize("source", ["docs/archive/본선-시연-시나리오-v3.md", "docs/결선-운영-런북.md", "deploy/act-v3.env.example"])
 def test_v3_documented_bindings_accept_registered_appliances(source):
     text = (ROOT / source).read_text(encoding="utf-8")
     channels = re.search(r"SIMPLELAY_OUTLET_CHANNELS=([a-z0-9_:,]+)", text)
@@ -40,10 +40,10 @@ def test_executor_image_includes_adc_dependencies():
     ("docs/reuse-boundary.md", "XY FIT0482 ×2", "FIT0482 ×3"),
     ("docs/가산점-증거-대장.md", "실제 앱 문맥 호출은 미검증", "실제 앱 문맥에서도 허용 조건은 같다"),
     ("README.md", "L1", "전류·음향 센서로 실제 실행을"),
-    ("docs/본선-시연-시나리오-v3.md", "소프트웨어 정지 요청", "같은 정지를 요청하지만"),
-    ("docs/본선-시연-시나리오-v3.md", "폰이 추적하는 실행", "실행 중이 아니면 듣지 않는다"),
-    ("docs/본선-시연-시나리오-v3.md", "10/6", "부분 실물(가짜 모듈)에서는 버튼을 누를 외부 수단이 없다"),
-    ("docs/본선-시연-시나리오-v3.md", "패널", "15.8형 패널에서 띠를 눈으로 보지는 않았다"),
+    ("docs/archive/본선-시연-시나리오-v3.md", "소프트웨어 정지 요청", "같은 정지를 요청하지만"),
+    ("docs/archive/본선-시연-시나리오-v3.md", "폰이 추적하는 실행", "실행 중이 아니면 듣지 않는다"),
+    ("docs/archive/본선-시연-시나리오-v3.md", "10/6", "부분 실물(가짜 모듈)에서는 버튼을 누를 외부 수단이 없다"),
+    ("docs/archive/본선-시연-시나리오-v3.md", "패널", "15.8형 패널에서 띠를 눈으로 보지는 않았다"),
     ("docs/submission/개발완료보고서-초안.md", "기록기", "XY 이동 전체와 Z 누름을 함께 덮는다"),
 ])
 def test_document_claims_match_verified_scope(path, required, removed):
