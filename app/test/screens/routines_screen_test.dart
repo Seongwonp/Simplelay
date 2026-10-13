@@ -207,7 +207,7 @@ void main() {
     expect(find.text('07:30'), findsOneWidget);
     expect(find.text('아침 데우기'), findsOneWidget);
     // 언제 · 대상을 한 줄로. 승인 반복 설명('승인 후 실행')은 줄마다 되풀이하지 않는다.
-    expect(find.text('평일 07:30 · 전자레인지 1단계'), findsOneWidget);
+    expect(find.text('평일 07:30 · 전자레인지 1\u2060단계'), findsOneWidget);
     expect(find.textContaining('승인 후 실행 ·'), findsNothing);
     expect(find.text('새 루틴'), findsOneWidget);
   });
@@ -259,12 +259,12 @@ void main() {
     await tester.pumpWidget(_build(server, installed: const []));
     await _settle(tester);
 
-    expect(find.text('직접 실행할 때 · 전자레인지 2단계'), findsOneWidget);
-    expect(find.text('직접 실행할 때 · 세탁기 1단계'), findsOneWidget);
+    expect(find.text('직접 실행할 때 · 전자레인지 2\u2060단계'), findsOneWidget);
+    expect(find.text('직접 실행할 때 · 세탁기 1\u2060단계'), findsOneWidget);
     expect(find.textContaining('home_mw'), findsNothing);
     expect(find.textContaining('washer'), findsNothing);
     // 이름을 모르는 가전만 ID로 남는다.
-    expect(find.text('직접 실행할 때 · ghost 1단계'), findsOneWidget);
+    expect(find.text('직접 실행할 때 · ghost 1\u2060단계'), findsOneWidget);
   });
 
   testWidgets('루틴을 열어 알림만으로 바꿔 저장하면 PUT하고 목록이 다시 읽힌다',
@@ -443,8 +443,8 @@ void main() {
     expect(runButton('rt-n'), findsNothing);
     expect(runButton('rt-off'), findsNothing);
     expect(editButton('rt-n'), findsOneWidget);
-    expect(find.text('평일 07:30 · 전자레인지 1단계 · 알림만'), findsOneWidget);
-    expect(find.text('평일 07:30 · 전자레인지 1단계 · 꺼짐'), findsOneWidget);
+    expect(find.text('평일 07:30 · 전자레인지 1\u2060단계 · 알림만'), findsOneWidget);
+    expect(find.text('평일 07:30 · 전자레인지 1\u2060단계 · 꺼짐'), findsOneWidget);
   });
 
   testWidgets('알려진 가전 알림은 "세탁이 끝나면"으로, 이름은 사용자 것 그대로', (tester) async {

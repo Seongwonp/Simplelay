@@ -144,7 +144,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     if (_finished(status.phase))
                       if (operationSentence(status) case final o?) o,
                     if (totalSteps > 0 && status.phase != ExecutionPhase.idle)
-                      '총 $totalSteps단계 중 ${status.completedSteps}단계 완료',
+                      '조작 $totalSteps개 중 ${status.completedSteps}개 마침',
                   ].join('. '),
                   child: ExcludeSemantics(
                     child: Column(
@@ -810,7 +810,10 @@ class _SegmentedProgress extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('총 $total단계 중 $completed단계', style: AppText.title),
+        // 이 실행의 조작 진행(서버 total_steps — 버튼 하나 또는 명령 한 묶음). 루틴 목록의
+        // "N단계"(루틴 단계 수)와 다른 축이라 다른 말로 부른다. 숫자와 단위는 붙어 다닌다
+        // (단어 결합 문자 U+2060, 외부 평가 2026-10-13 L3).
+        Text('조작 $total\u2060개 중 $completed\u2060개', style: AppText.title),
         if (drawSegments) ...[
           const SizedBox(height: 10),
           Row(

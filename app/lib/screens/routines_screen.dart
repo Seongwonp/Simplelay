@@ -212,7 +212,9 @@ String routineSubtitle(Routine r, Map<String, String> applianceNames) {
       r.applianceIds.map((id) => applianceNames[id] ?? id).toList();
   return [
     when,
-    if (targets.isNotEmpty) '${targets.join('·')} ${r.steps.length}단계',
+    // 루틴 단계 수(실행 화면의 조작 진행과 다른 축). 숫자와 '단계'가 큰 글씨에서 다른 줄로
+    // 떨어지지 않게 단어 결합 문자(U+2060)로 붙인다(외부 평가 2026-10-13 L3).
+    if (targets.isNotEmpty) '${targets.join('·')} ${r.steps.length}\u2060단계',
     if (r.mode == RoutineMode.notify) r.mode.label,
     if (!r.enabled) '꺼짐',
   ].join(' · ');

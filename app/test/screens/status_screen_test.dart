@@ -85,8 +85,9 @@ void main() {
       expect(find.textContaining('센서로 눌림 확인'), findsOneWidget);
       expect(find.textContaining('센서 93%'), findsOneWidget);
       // steps 미리보기가 없어도 total_steps로 진행이 보인다(음성 실행 경로).
-      // 퍼센트가 아니라 '총 N단계 중 K단계'다 -- 남은 시간을 아는 척하지 않는다.
-      expect(find.text('총 3단계 중 1단계'), findsOneWidget);
+      // 퍼센트가 아니라 '조작 N개 중 K개'다 -- 남은 시간을 아는 척하지 않는다.
+      // 루틴의 'N단계'와 다른 축이라 다른 말(외부 평가 L3).
+      expect(find.text('조작 3\u2060개 중 1\u2060개'), findsOneWidget);
       expect(find.textContaining('%'), findsOneWidget); // 센서 93%뿐
     });
 
