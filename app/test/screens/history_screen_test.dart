@@ -323,7 +323,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('한 건은 날짜 → 제목 → 결과 → 시각 → 모의 여부 → 다음 행동 순서로 읽힌다',
+  testWidgets('한 건의 시각적 배치 순서: 날짜 → 제목 → 결과 → 시각 → 모의 여부 → 다음 행동(낭독 순서 아님)',
       (tester) async {
     await pumpWith(tester, [
       {

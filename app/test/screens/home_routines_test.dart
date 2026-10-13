@@ -226,7 +226,7 @@ void main() {
     expect(find.text('루틴 편집기'), findsOneWidget);
   });
 
-  testWidgets('설정 안내는 가전 목록 아래 작게, 해당 타일은 "설정이 필요해요"', (tester) async {
+  testWidgets('설정 안내는 가전 목록 아래 배치(크기는 보지 않음), 해당 타일은 "설정이 필요해요"', (tester) async {
     final hub = _Hub(routines: const [], appliances: [
       _appliance('mw', '주방 전자레인지'),
       _appliance('w1', '세탁기', mapped: false),
