@@ -12,7 +12,8 @@
 v4(2026-10-13, docs/본선-시연-계획-v4.md):
 
 - ``cook_done_air`` 조리 완료 → 공기청정기: RPi4가 보낸 **전자레인지 CT 끝 판정**(``appliance_done``,
-  이벤트 ``heat_complete``, 입력에 전력 ``power``)일 때만 "공기청정기 강풍으로 바꿀까요?"를 제안한다. 버튼 누름
+  이벤트 ``heat_complete``, 입력에 전력 ``power``)일 때만 "공기청정기 풍량을 강으로 바꿀까요?"를 제안한다. 사용자의
+  습관은 단정하지 않는다 — 같은 제안을 승인한 기록이 있을 때만 그 횟수를 근거로 붙인다(3차 평가 M4, 엔진). 버튼 누름
   완료(실행 성공)는 조리 완료가 아니라 트리거가 아니다. 이 카드만 '다음부터도 자동으로'(자동 실행 허용 규칙,
   ``rpi/routines/auto_rules.py``)를 고를 수 있다(``auto_allowed``).
 
@@ -98,16 +99,16 @@ COOK_THEN_AIR = ScenarioDefinition(
 COOK_DONE_AIR = ScenarioDefinition(
     scenario_id="cook_done_air",
     name="가열 종료 → 공기청정기",
-    question="공기청정기 강풍으로 바꿀까요?",
+    question="공기청정기 풍량을 강으로 바꿀까요?",
     trigger=ScenarioTrigger("appliance_done", appliance_id="microwave", event="heat_complete"),
     steps=(
         ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
                      (("wind_strength", "HIGH"),)),
     ),
     # 2026-10-14(A5): CT 끝 판정은 취소·문 열림으로 가열이 끝난 것과 구분하지 못한다(실측 기록표 §6) —
-    # 구분 근거가 생기기 전까지 '조리 완료'라고 말하지 않는다.
-    event_reason=("전자레인지 가열 종료를 콘센트 전력(CT)으로 감지했어요(조리 완료가 아닐 수 있어요). "
-                  "식사 뒤 공기청정기를 켜 두시곤 해요"),
+    # 구분 근거가 생기기 전까지 '조리 완료'라고 말하지 않는다. 3차 평가 M4: 이력을 보지 않은 습관 단정
+    # ('식사 뒤 공기청정기를 켜 두시곤 해요')은 뺐다 — 집계 근거는 엔진이 있을 때만 붙인다.
+    event_reason="전자레인지 가열 종료를 콘센트 전력(CT)으로 감지했어요(조리 완료가 아닐 수 있어요)",
     auto_allowed=True,
 )
 

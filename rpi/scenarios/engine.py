@@ -94,10 +94,27 @@ class ScenarioEngine:
                 reason += " (시연 주입)"
             elif source != "real":
                 reason += " (모의 입력)"
+            # 3차 평가 M4: 사용자의 습관은 실제 기록을 센 근거가 있을 때만 말한다. 없으면 제안·감지 근거만.
+            approvals = self._approval_count(definition)
+            if approvals:
+                reason += f" · 최근 기록에서 이 제안을 {approvals}번 승인하셨어요"
             card = self._offer(definition, reason, source != "real")
             if card is not None:
                 offered.append(card)
         return offered
+
+    def _approval_count(self, definition: ScenarioDefinition) -> int:
+        """같은 제안(질문 문장)을 승인한 횟수 — 제안 기록(``feedback_events``, 최근 200건)에서 센 그대로. 모르면 0."""
+        reader = getattr(self._suggestions, "feedback_events", None)
+        if reader is None:
+            return 0
+        try:
+            events = reader(200).get("events", [])
+        except Exception:  # noqa: BLE001 -- 근거를 못 읽으면 근거 문장을 붙이지 않는다
+            log.exception("suggestion history unreadable")
+            return 0
+        return sum(1 for e in events if e.get("purpose") == definition.question
+                   and e.get("action") in ("submitted", "execution_returned"))
 
     def trigger_manual(self, scenario_id: str):
         """수동(시연) 트리거. 항상 시연 제안이다."""

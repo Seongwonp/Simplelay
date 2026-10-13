@@ -91,7 +91,7 @@ def test_ct_cook_done_offers_the_air_purifier_card(api):
     cards = _cards(api)
     assert len(cards) == 1
     card = cards[0]
-    assert card["purpose"] == "공기청정기 강풍으로 바꿀까요?"
+    assert card["purpose"] == "공기청정기 풍량을 강으로 바꿀까요?"
     assert card["commands"][0]["summary"] == "공기청정기(모의) 풍량 강"
     assert card["is_demo"] is True  # 주입 사건 — 실제 CT 판정이 아니다
     assert "콘센트 전력" in card["reason"] and "(시연 주입)" in card["reason"]
@@ -102,6 +102,31 @@ def test_ct_cook_done_offers_the_air_purifier_card(api):
     from rpi.api.thinq_wiring import get_thinq_client
 
     assert get_thinq_client().controls == []
+
+
+def test_first_event_with_no_history_states_no_habit(api):
+    """3차 평가 M4: 사용 이력이 없는 첫 가열 종료 — 사용자의 습관을 단정하지 않는다('식사 뒤 … 켜 두시곤 해요' 없음).
+    제안 문장과 감지 근거(가열 종료·조리 완료가 아닐 수 있음)만."""
+    _inject(api, inputs=("power",))
+    card = _cards(api)[0]
+    assert card["purpose"] == "공기청정기 풍량을 강으로 바꿀까요?"
+    for claim in ("식사", "두시곤", "습관", "자주", "승인하셨어요"):
+        assert claim not in card["reason"], claim
+    assert "가열 종료" in card["reason"]
+
+
+def test_habit_sentence_only_with_counted_history(api):
+    """3차 평가 M4: 근거 문장은 실제 집계가 있을 때만 — 같은 제안을 승인한 횟수(제안 기록)를 센 그대로."""
+    _inject(api, inputs=("power",))
+    first = _cards(api)[0]
+    res = api.post(f"/suggestions/{first['id']}/approve")
+    assert res.status_code == 200, res.text
+    _wait_done(api, res.json()["job_id"])
+    _inject(api, inputs=("power",))
+    second = _cards(api)[0]
+    assert second["id"] != first["id"]
+    assert "이 제안을 1번 승인하셨어요" in second["reason"]
+    assert "식사" not in second["reason"] and "두시곤" not in second["reason"]
 
 
 def test_beep_only_end_is_not_cook_done(api):
