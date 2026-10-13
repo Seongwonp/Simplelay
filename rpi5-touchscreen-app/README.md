@@ -1,5 +1,7 @@
 # rpi5-touchscreen-app
 
+> 역할: RPi5에 붙은 15.8형 터치 패널 키오스크(Flutter Linux) — 평소·제안·동작 중·완료 화면과 정지 버튼.
+
 RPi5(15.8형 터치 패널)용 대기/제안/실행중/완료 UI. 800x480 설계 캔버스를 화면 크기에 맞춰
 비율 확대한다(`lib/widgets/kiosk/kiosk_canvas.dart`). 패널은 제품 사양표상 1920x1080이고
 15인치 테스트도 그 해상도로 돈다. 터치는 HDMI가 아니라 USB(모니터 Type-C 데이터 포트)로

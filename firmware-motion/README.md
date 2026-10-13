@@ -1,5 +1,7 @@
 # firmware-motion — 모션 MCU(ESP32) 펌웨어
 
+> 역할: **모션 규약 표([`protocol_table.json`](protocol_table.json)) 기준.** RPi4↔모션 보드 줄 단위 JSON 규약의 기준 표와 참고 구현이며, 시험과 현행 펌웨어 [`firmware-motion-corexy/`](../firmware-motion-corexy/README.md)가 이 표를 따른다. 이 폴더의 펌웨어 자체는 채택하지 않았다.
+
 **컴파일만 확인했다. 실물(보드·모터·엔코더·스위치)로 한 번도 돌려 보지 않았다.**
 
 > **2026-10-10:** 팀원의 ESP32 CoreXY 펌웨어(원작 Touch Bridge CoreXY v3)를 받아 이 폴더에 합치지 않고

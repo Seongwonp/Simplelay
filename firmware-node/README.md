@@ -1,5 +1,7 @@
 # firmware-node — 가전별 Act 노드의 ESP32 (RPi5 ↔ RPi4 무선 창구)
 
+> **예비 경로(옛 설계) — 현행 모션은 [`firmware-motion-corexy/`](../firmware-motion-corexy/README.md), 콘센트 CT는 [`firmware-outlet/`](../firmware-outlet/README.md).** 파이썬 노드 경로와 시험(`rpi/tests/test_payload_budget.py`)이 이 규약을 참조해 남겨 둔다.
+
 아키텍처: [../docs/architecture.md](../docs/architecture.md)의 "확정 아키텍처(다중 노드)" ·
 프로토콜: [../docs/protocol.md](../docs/protocol.md)의 "UART 프로토콜 (RPi5 ↔ RPi4)" (이 노드가
 그 프로토콜을 RPi4 쪽 그대로 이어받아 무선으로 중계한다)

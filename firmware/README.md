@@ -1,5 +1,7 @@
 # firmware — ESP32 BLE↔UART 브릿지
 
+> **예비 경로(옛 설계) — 현행 모션은 [`firmware-motion-corexy/`](../firmware-motion-corexy/README.md), 콘센트 CT는 [`firmware-outlet/`](../firmware-outlet/README.md).** 시험(`rpi/tests/test_payload_budget.py`)이 이 폴더의 `config.h`를 읽어 남겨 둔다.
+
 명세: [../docs/archive/esp32-firmware-spec.md](../docs/archive/esp32-firmware-spec.md) · 재사용 경계: [../docs/reuse-boundary.md](../docs/reuse-boundary.md)
 
 - ESP32: 폰 앱 BLE ↔ RPi5 UART 사이의 순수 릴레이 (GRBL 아님 — 그 설계는 폐기됨,
