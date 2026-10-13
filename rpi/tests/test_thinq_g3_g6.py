@@ -178,9 +178,19 @@ def test_fault_api_is_404_when_thinq_off(monkeypatch):
         _reset()
 
 
+@pytest.mark.parametrize("thinq_mode", ["real", "fake_cloud"])
 @pytest.mark.parametrize("mode", ["offline", "unconfirmed", "lost"])
-def test_fault_is_mock_only_in_real_mode(monkeypatch, mode):
-    monkeypatch.setenv("SIMPLELAY_THINQ_MODE", "real")
+def test_fault_is_mock_only_in_real_mode(monkeypatch, tmp_path, mode, thinq_mode):
+    """허브 API의 장애 주입은 프로세스 안 모의(mock)에만 있다. SDK 모드(real·모의 클라우드)는 409.
+
+    real은 공식 SDK가 있어야 기동하므로 SDK가 없으면 건너뛴다. 네트워크 호출은 없다(서비스 조립만).
+    """
+    pytest.importorskip("thinqconnect")
+    monkeypatch.setenv("SIMPLELAY_THINQ_MODE", thinq_mode)
+    monkeypatch.setenv("SIMPLELAY_THINQ_PAT", "pat-for-test-only")
+    monkeypatch.setenv("SIMPLELAY_THINQ_CLIENT_ID_FILE", str(tmp_path / "thinq_client_id"))
+    if thinq_mode == "fake_cloud":
+        monkeypatch.setenv("SIMPLELAY_THINQ_FAKE_CLOUD_URL", "http://127.0.0.1:9")
     monkeypatch.setenv("SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER", "dev-123")
     _reset()
     try:

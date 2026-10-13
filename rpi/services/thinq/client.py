@@ -1,22 +1,18 @@
-"""ThinQ 클라이언트 포트 — 공식 SDK의 동기 대역 (U1-c).
+"""ThinQ 클라이언트 포트 — 공식 SDK(``thinqconnect`` 1.0.14) 호출의 동기 대역.
 
-모델로 삼은 것: **pythinqconnect 1.0.14** (``pip`` 이름 ``thinqconnect``,
-github.com/thinq-connect/pythinqconnect, 2026-09-28 소스 확인, **설치하지 않음**).
+| 이 포트              | SDK ``ThinQApi`` (asyncio, aiohttp 세션)                                   |
+|----------------------|-----------------------------------------------------------------------------|
+| ``list_devices()``   | ``async_get_device_list`` → ``GET devices``                                |
+| ``get_profile(id)``  | ``async_get_device_profile`` → ``GET devices/{id}/profile``                |
+| ``get_status(id)``   | ``async_get_device_status`` → ``GET devices/{id}/state``                   |
+| ``post_control``     | ``async_post_device_control`` → ``POST devices/{id}/control``              |
 
-| 이 포트            | SDK ``ThinQApi`` (asyncio, aiohttp 세션)                                |
-|--------------------|--------------------------------------------------------------------------|
-| ``list_devices()`` | ``async_get_device_list(timeout=15)`` → ``GET devices``                  |
-| ``get_status(id)`` | ``async_get_device_status(device_id, timeout=15)`` → ``GET devices/{id}/state`` |
-| ``post_control``   | ``async_post_device_control(device_id, payload, timeout=15)`` → ``POST devices/{id}/control`` |
+구현: ``MockThinqClient``(프로세스 안 모의, SDK 없음), ``SdkThinqClient``(``sdk_client.py`` --
+공식 SDK를 실제로 부른다. fake_cloud 모드는 저장소 안 모의 클라우드로, real 모드는 실제 클라우드로).
+푸시(MQTT)·이벤트 구독은 범위 밖이다 -- 상태 확인은 조회(poll)로만 한다.
 
-SDK 생성자: ``ThinQApi(session, access_token, country_code, client_id)``. 오류는
-``ThinQAPIException``(code·message)이고 코드 표는 ``ThinQAPIErrorCodes``다.
-푸시(MQTT)·이벤트 구독(``async_post_event_subscribe``)은 이번 범위 밖이다 -- 상태
-확인은 조회(poll)로만 한다.
-
-포트를 **동기**로 둔 이유: 서비스의 실행 job은 스레드에서 돈다. 실제 어댑터는
-전용 이벤트 루프 스레드에서 SDK 코루틴을 돌리고 결과를 기다리는 식으로 붙인다
-(기존 ``ActClientController``와 같은 방식). 그 연결은 PAT·보유 기기 확인 뒤(U2).
+포트를 **동기**로 둔 이유: 서비스의 실행 job은 스레드에서 돈다. SDK 클라이언트는 전용 이벤트
+루프 스레드에서 SDK 코루틴을 돌리고 결과를 기다린다.
 """
 
 from __future__ import annotations
@@ -77,39 +73,8 @@ class ThinqClientPort(Protocol):
 
     def list_devices(self) -> tuple[ThinqDeviceInfo, ...]: ...
 
-    def get_status(self, device_id: str) -> dict: ...
+    def get_profile(self, device_id: str) -> dict: ...
+
+    def get_status(self, device_id: str): ...
 
     def post_control(self, device_id: str, payload: dict) -> dict: ...
-
-
-NOT_IMPLEMENTED_MESSAGE = (
-    "ThinQ 실물 연동은 아직 구현하지 않았어요 — SIMPLELAY_THINQ_PAT 필요, 실물 미구현. "
-    "보유 가전 모델명·PAT 확인 뒤 U2에서 연결합니다"
-)
-
-
-class RealThinqClient:
-    """실물 클라이언트 자리. **호출하면 항상 NotImplementedError.**
-
-    ``execution_mode``는 REAL이다 -- 이 클래스가 성공을 돌려줄 날이 오면 그것은
-    실제 가전 제어이므로, 모의 통계에 섞이지 않게 처음부터 REAL로 선언한다.
-    PAT는 속성으로 보관하지 않는다(repr·로그·예외에 섞일 자리를 만들지 않는다).
-    """
-
-    execution_mode = ExecutionMode.REAL
-
-    def __init__(self, *, has_pat: bool, country: str) -> None:
-        self.has_pat = has_pat
-        self.country = country
-
-    def _fail(self):
-        raise NotImplementedError(NOT_IMPLEMENTED_MESSAGE)
-
-    def list_devices(self) -> tuple[ThinqDeviceInfo, ...]:
-        self._fail()
-
-    def get_status(self, device_id: str) -> dict:
-        self._fail()
-
-    def post_control(self, device_id: str, payload: dict) -> dict:
-        self._fail()

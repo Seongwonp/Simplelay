@@ -4,9 +4,12 @@
 - mock: 모의 클라이언트 + 모의 공기청정기·세탁기(``thinq_washer``)·제습기(ThinQ 경로) + 모의 선풍기(물리 경로,
   모의 실행기). 전부 **서버 구성 가전**이라 저장·편집되지 않고 GET /appliances에
   나오지 않는다.
-- real: 실물 클라이언트 자리(호출하면 NotImplementedError). 기기 ID는
-  ``SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER``·``..._WASHER``로 준다. PAT가 없으면 기동은
-  하되 준비 상태가 '미연결'로 남는다(PAT는 로그에 쓰지 않는다 -- 있는지만 적는다).
+- fake_cloud: **공식 SDK**가 저장소 안 모의 ThinQ 클라우드(``rpi/tools/fake_thinq_cloud.py``,
+  127.0.0.1)로 요청한다. 실행 환경은 모의(mock), 가전 이름에 '(모의 클라우드)'. 기기 ID는 real과
+  같은 환경 변수로 준다(모의 클라우드 기기 ID).
+- real: 공식 SDK → 실제 ThinQ 클라우드. 기기 ID는 ``SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER``·
+  ``..._WASHER``·``..._DEHUMIDIFIER``로 준다. **SDK·PAT가 없으면 기동을 거절한다**(PAT 값은
+  로그에 쓰지 않는다 -- 있는지만 적는다).
 """
 
 from __future__ import annotations
@@ -53,7 +56,7 @@ def _thinq_appliances(config):
         suffix = "(모의)"
     else:
         ids = dict(config.device_ids)
-        suffix = ""
+        suffix = "(모의 클라우드)" if config.mode is ThinqMode.FAKE_CLOUD else ""
     appliances = []
     if ids.get(AIR_PURIFIER_ID):
         appliances.append(ApplianceDef(
@@ -93,16 +96,41 @@ def _mock_fan():
 
 @lru_cache(maxsize=1)
 def get_thinq_client():
-    from rpi.services.thinq import MockThinqClient, RealThinqClient, ThinqMode  # noqa: PLC0415
+    """모드별 클라이언트. SDK 모드(real·fake_cloud)는 조건이 안 맞으면 **기동을 거절**한다."""
+    import uuid  # noqa: PLC0415
+
+    from rpi.controller.models import ExecutionMode  # noqa: PLC0415
+    from rpi.services.thinq import MockThinqClient, ThinqMode  # noqa: PLC0415
+    from rpi.services.thinq.config import load_access_token, load_or_create_client_id  # noqa: PLC0415
 
     config = get_thinq_config()
     if config.mode is ThinqMode.MOCK:
         return MockThinqClient()
-    if config.mode is ThinqMode.REAL:
-        log.info("ThinQ real mode: PAT %s, country %s (실물 호출은 아직 미구현)",
-                 "설정됨" if config.has_pat else "없음", config.country)
-        return RealThinqClient(has_pat=config.has_pat, country=config.country)
-    return None
+    if not config.mode.uses_sdk:
+        return None
+    from rpi.services.thinq.sdk_client import SdkThinqClient  # noqa: PLC0415
+
+    if config.mode is ThinqMode.FAKE_CLOUD:
+        from rpi.tools.fake_thinq_cloud import FAKE_CLOUD_TOKEN  # noqa: PLC0415
+
+        # 모의 클라우드에는 실제 PAT를 보내지 않는다. 클라이언트 ID도 실행마다 새로(실제 ID 파일 미사용).
+        log.info("ThinQ fake_cloud mode: 공식 SDK → 모의 클라우드 %s (실제 클라우드 아님)",
+                 config.fake_cloud_url)
+        return SdkThinqClient(access_token=FAKE_CLOUD_TOKEN, country=config.country,
+                              client_id=str(uuid.uuid4()), execution_mode=ExecutionMode.MOCK,
+                              base_url=config.fake_cloud_url,
+                              max_calls_per_minute=config.max_calls_per_minute)
+    token = load_access_token()
+    if not token:
+        raise RuntimeError(
+            "SIMPLELAY_THINQ_MODE=real에는 PAT가 필요합니다 — SIMPLELAY_THINQ_PAT 또는 "
+            "저장소 밖 파일 SIMPLELAY_THINQ_PAT_FILE (docs/ThinQ-실물-확인-절차.md)")
+    client = SdkThinqClient(access_token=token, country=config.country,
+                            client_id=load_or_create_client_id(), execution_mode=ExecutionMode.REAL,
+                            max_calls_per_minute=config.max_calls_per_minute)
+    del token
+    log.info("ThinQ real mode: 공식 SDK, PAT 설정됨, country %s", config.country)
+    return client
 
 
 def build_command_paths(registry):
@@ -168,6 +196,13 @@ def get_scenario_engine():
 def reset_thinq_caches() -> None:
     """테스트용 — 환경 변수를 바꾼 뒤 부른다."""
     global _engine
+    if get_thinq_client.cache_info().currsize:
+        try:
+            close = getattr(get_thinq_client(), "close", None)
+            if close is not None:
+                close()
+        except Exception:  # noqa: BLE001 -- 정리 실패가 초기화를 막지 않는다
+            pass
     get_thinq_config.cache_clear()
     get_thinq_client.cache_clear()
     _engine = None

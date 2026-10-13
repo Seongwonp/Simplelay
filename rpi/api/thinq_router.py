@@ -41,6 +41,13 @@ def _thinq_on(service: SimpleLayService):
     return controller
 
 
+def _reason(exc: Exception, fallback: str) -> str:
+    from rpi.services.thinq.client import ThinqClientError  # noqa: PLC0415
+
+    reason = getattr(exc, "reason", None) if isinstance(exc, ThinqClientError) else None
+    return reason if isinstance(reason, str) and reason else fallback
+
+
 def _capabilities(binding) -> list[dict]:
     return [
         {"action": c.action, "label": c.label, "arg": c.arg, "allowed": list(c.allowed),
@@ -56,10 +63,8 @@ async def thinq_devices(service: SimpleLayService = Depends(get_service),
     try:
         devices = await asyncio.to_thread(controller.client.list_devices)
         reachable, error = True, None
-    except NotImplementedError as exc:
-        devices, reachable, error = (), False, str(exc)
-    except Exception:  # noqa: BLE001
-        devices, reachable, error = (), False, "ThinQ 클라우드에 연결되지 않았어요"
+    except Exception as exc:  # noqa: BLE001 -- 사람 말 이유만 싣는다(토큰 없음)
+        devices, reachable, error = (), False, _reason(exc, "ThinQ 클라우드에 연결되지 않았어요")
     appliances = []
     for appliance in registry.system_appliances():
         if appliance.thinq is None:
@@ -100,10 +105,8 @@ async def thinq_status(appliance_id: str, service: SimpleLayService = Depends(ge
         raise HTTPException(404, "ThinQ 가전이 아니에요")
     try:
         state = await asyncio.to_thread(controller.client.get_status, appliance.thinq.device_id)
-    except NotImplementedError as exc:
-        raise HTTPException(503, str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
-        raise HTTPException(503, "상태를 읽지 못했어요 — 가전·인터넷 연결을 확인해 주세요") from exc
+        raise HTTPException(503, _reason(exc, "상태를 읽지 못했어요 — 가전·인터넷 연결을 확인해 주세요")) from None
     return {"appliance_id": appliance_id, "execution_mode": controller.execution_mode.value,
             "state": state}
 

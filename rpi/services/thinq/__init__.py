@@ -1,4 +1,4 @@
-"""ThinQ 제어 경로 (U1-b 준비 상태 · U1-c 모의 어댑터). 실물 호출은 아직 없다."""
+"""ThinQ 제어 경로 — 준비 상태·모의 어댑터·공식 SDK 클라이언트(``sdk_client``, SDK는 선택 의존성)."""
 
 from .bindings import (
     CapabilityError,
@@ -10,13 +10,12 @@ from .bindings import (
     washer_binding,
 )
 from .client import (
-    NOT_IMPLEMENTED_MESSAGE,
-    RealThinqClient,
     ThinqClientError,
     ThinqClientPort,
     ThinqCommandRejected,
     ThinqDeviceInfo,
     ThinqOfflineError,
+    ThinqRateLimited,
     ThinqTransportError,
 )
 from .config import ThinqConfig, ThinqMode
@@ -30,8 +29,6 @@ __all__ = [
     "MOCK_PURIFIER_ID",
     "MOCK_WASHER_ID",
     "MockThinqClient",
-    "NOT_IMPLEMENTED_MESSAGE",
-    "RealThinqClient",
     "StopOutcome",
     "ThinqBinding",
     "ThinqCapability",
@@ -44,6 +41,7 @@ __all__ = [
     "ThinqFunction",
     "ThinqMode",
     "ThinqOfflineError",
+    "ThinqRateLimited",
     "ThinqReadiness",
     "ThinqTransportError",
     "air_purifier_binding",

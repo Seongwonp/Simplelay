@@ -27,7 +27,6 @@ from rpi.controller.models import ExecutionMode
 from rpi.services.thinq import (
     MOCK_PURIFIER_ID,
     MockThinqClient,
-    RealThinqClient,
     StopOutcome,
     ThinqConfig,
     ThinqController,
@@ -246,13 +245,6 @@ def test_stop_after_dispatch_is_uncancellable_and_sends_no_power_off():
     assert ctrl.request_stop() is StopOutcome.IDLE
 
 
-def test_real_client_is_real_mode_and_not_implemented():
-    real = RealThinqClient(has_pat=True, country="KR")
-    assert real.execution_mode is ExecutionMode.REAL
-    with pytest.raises(NotImplementedError, match="SIMPLELAY_THINQ_PAT 필요, 실물 미구현"):
-        real.post_control("x", {})
-
-
 def test_config_rejects_unknown_mode_and_keeps_no_token():
     with pytest.raises(RuntimeError):
         ThinqConfig.from_env({"SIMPLELAY_THINQ_MODE": "cloud"})
@@ -341,23 +333,27 @@ def test_thinq_off_by_default(monkeypatch):
         _reset()
 
 
-def test_real_mode_without_implementation_is_not_ready(monkeypatch):
+def test_real_mode_refuses_to_start_without_sdk(monkeypatch, tmp_path):
+    """real 모드는 공식 SDK가 없으면 서비스를 만들지 않는다(조용히 '미연결'로 떠 있지 않는다).
+
+    2026-10-13 전에는 real이 '실물 미구현' 자리였다. 이제 real은 공식 SDK로 실제 클라우드를
+    부르므로, SDK가 없으면 기동 단계에서 설치 방법과 함께 거절한다. 실제 네트워크 호출은 없다.
+    """
+    import sys
+
     monkeypatch.setenv("SIMPLELAY_THINQ_MODE", "real")
     monkeypatch.setenv("SIMPLELAY_THINQ_PAT", SECRET_PAT)
+    monkeypatch.setenv("SIMPLELAY_THINQ_CLIENT_ID_FILE", str(tmp_path / "thinq_client_id"))
     monkeypatch.setenv("SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER", "dev-123")
+    monkeypatch.setitem(sys.modules, "thinqconnect", None)
     _reset()
     try:
         from rpi.main import app
 
         c = TestClient(app)
-        readiness = c.get("/readiness/air_purifier").json()
-        assert readiness["can_execute"] is False
-        assert "실물 미구현" in " ".join(readiness["reasons"])
-        response = c.post("/thinq/command", json={
-            "appliance_id": "air_purifier", "action": "set_power", "args": {"power": "POWER_ON"}})
-        assert response.status_code == 412
-        assert c.post("/demo/thinq/event", json={"event": "wash_complete"}).status_code == 409
-        assert deps.get_service().thinq_controller.execution_mode is ExecutionMode.REAL
+        with pytest.raises(RuntimeError, match=r"\.\[thinq\]") as info:
+            c.get("/readiness/air_purifier")
+        assert SECRET_PAT not in str(info.value)
     finally:
         _reset()
 

@@ -46,7 +46,6 @@ from rpi.controller.models import ExecutionMode
 
 from .bindings import CapabilityError, ThinqBinding
 from .client import (
-    NOT_IMPLEMENTED_MESSAGE,
     ThinqClientError,
     ThinqClientPort,
     ThinqCommandRejected,
@@ -95,6 +94,12 @@ class ThinqReadiness:
         if not self.client_reachable or not self.device_present or not self.device_online:
             return "disconnected"
         return "operable" if self.can_execute else "needs_setup"
+
+
+def _reason(exc: Exception, fallback: str) -> str:
+    """사람 말 이유. 클라우드 오류면 그 이유(토큰 없음), 아니면 대체 문장."""
+    reason = getattr(exc, "reason", None)
+    return reason if isinstance(reason, str) and reason else fallback
 
 
 def _read(state: dict, resource: str, prop: str):
@@ -147,12 +152,9 @@ class ThinqController:
                                   ("ThinQ 기기가 등록되지 않았어요",))
         try:
             devices = self._client.list_devices()
-        except NotImplementedError:
+        except ThinqClientError as exc:
             return ThinqReadiness(appliance_id, self.mode.value, False, False, False,
-                                  (NOT_IMPLEMENTED_MESSAGE,))
-        except ThinqClientError:
-            return ThinqReadiness(appliance_id, self.mode.value, False, False, False,
-                                  ("ThinQ 클라우드에 연결되지 않았어요",))
+                                  (_reason(exc, "ThinQ 클라우드에 연결되지 않았어요"),))
         except Exception:  # noqa: BLE001 -- 모르는 실패도 준비 안 됨이다
             return ThinqReadiness(appliance_id, self.mode.value, False, False, False,
                                   ("ThinQ 상태를 확인하지 못했어요",))
@@ -222,8 +224,6 @@ class ThinqController:
         # 보내기 전 상태 -- 이미 목표 값이면 나중에 "바뀐 것을 봤다"고 말할 수 없다.
         try:
             before = _read(self._client.get_status(binding.device_id), cap.resource, cap.property)
-        except NotImplementedError:
-            return self._result(command, failed, not_sent, none, NOT_IMPLEMENTED_MESSAGE, requested_at)
         except ThinqOfflineError:
             return self._result(command, failed, not_sent, none,
                                 "가전·클라우드에 연결되지 않아 보내지 않았어요", requested_at)
