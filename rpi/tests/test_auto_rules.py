@@ -518,3 +518,22 @@ def test_rule_texts_are_short_and_never_raw():
     action = AutoRuleEngine.action_text(Fake(), rule)
     assert action == "공기청정기 바람 세기 변경(대상 가전을 다시 골라 주세요)"
     assert "set_wind_strength" not in action and "HIGH" not in action
+
+
+def test_missing_target_name_and_legacy_reason_are_human_words():
+    """10/14 실물(ThinQ 끔): 대상이 없으면 이름 자리에 'air_purifier'가 나왔고, 10/14 전에 저장된 꺼짐 사유는
+    옛 긴 문장 그대로였다. 대상 종류 이름으로, 옛 사유는 지금 문장으로 바꿔 보여 준다(저장값은 그대로)."""
+    from rpi.routines.auto_rules import UNCLEAN_RESTART_REASON, ESTOP_REASON, AutoRuleEngine, display_reason
+
+    class Fake:
+        def _appliance(self, _appliance_id):
+            return None
+
+    assert AutoRuleEngine._name(Fake(), "air_purifier") == "공기청정기"
+    assert "air_purifier" not in AutoRuleEngine._name(Fake(), "air_purifier")
+    old = ("허브가 정상 종료되지 않아(전원 끊김·강제 종료 등) 자동 실행을 멈췄어요 — "
+           "다시 켜려면 조건·동작을 확인하고 허용해 주세요")
+    assert display_reason(old) == UNCLEAN_RESTART_REASON
+    assert display_reason("비상정지로 자동 실행을 껐어요 — 다시 켜려면 조건·동작을 확인하고 허용해 주세요") == ESTOP_REASON
+    assert display_reason(UNCLEAN_RESTART_REASON) == UNCLEAN_RESTART_REASON
+    assert display_reason(None) is None

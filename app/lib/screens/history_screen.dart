@@ -326,7 +326,8 @@ class _HistoryRow extends StatelessWidget {
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
             ),
           ],
-          if (entry.detail.isNotEmpty && !succeeded) ...[
+          // 연습(모의) 기록은 위 한 줄이 이미 말한다 — 서버 설명('명령을 보냈어요 …')을 겹치면 어긋난다(10/14).
+          if (entry.detail.isNotEmpty && !succeeded && entry.executionMode != 'mock') ...[
             const SizedBox(height: 2),
             Text(entry.detail, style: muted),
           ],

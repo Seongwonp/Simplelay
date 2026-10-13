@@ -93,6 +93,31 @@ PROCESS_SESSION = uuid4().hex
 PERSIST_ATTEMPTS = 3
 PERSIST_RETRY_S = 1.0
 
+#: 대상 가전 ID → 화면 이름(대상이 지금 없을 때만 쓴다).
+_TARGET_KIND_NAMES = {"air_purifier": "공기청정기", "thinq_washer": "세탁기", "dehumidifier": "제습기"}
+
+#: 10/14 전에 저장된 꺼짐 사유(긴 문장)의 앞머리 → 지금 문장. 저장값은 바꾸지 않고 보여 줄 때만 바꾼다.
+_LEGACY_REASON_PREFIXES = (
+    ("허브가 정상 종료되지 않아", "UNCLEAN"),
+    ("비상정지로 자동 실행을 껐어요 —", "ESTOP"),
+    ("사용자가 자동 실행을 껐어요", "USER_OFF"),
+    ("설정값을 바꿔 다시 허용이 필요해요", "VALUE"),
+    ("허용을 저장하는 사이 전체 정지가", "STOP_RACE"),
+)
+
+
+def display_reason(reason: str | None) -> str | None:
+    """화면에 낼 꺼짐 사유 — 옛 긴 문장이면 지금 짧은 문장으로."""
+    if not reason:
+        return reason
+    current = {"UNCLEAN": UNCLEAN_RESTART_REASON, "ESTOP": ESTOP_REASON, "USER_OFF": USER_OFF_REASON,
+               "VALUE": VALUE_CHANGED_REASON, "STOP_RACE": STOP_RACE_REASON}
+    for prefix, key in _LEGACY_REASON_PREFIXES:
+        if reason.startswith(prefix):
+            return current[key]
+    return reason
+
+
 
 class AutoRuleError(Exception):
     """허용·수정할 수 없다. ``status``는 HTTP 상태, 메시지는 화면에 보여도 되는 문장."""
@@ -462,7 +487,10 @@ class AutoRuleEngine:
 
     def _name(self, appliance_id: str) -> str:
         appliance = self._appliance(appliance_id)
-        return appliance.name if appliance is not None else appliance_id
+        if appliance is not None:
+            return appliance.name
+        # 대상이 지금 없으면(ThinQ 끔·지움) 원시 ID 대신 종류 이름(10/14 실물: 'air_purifier'가 보였다).
+        return _TARGET_KIND_NAMES.get(appliance_id, "대상 가전")
 
     def _definition(self, scenario_id: str | None):
         engine = self._scenarios()
@@ -1035,7 +1063,7 @@ class AutoRuleEngine:
             "allowed_values": values,
             "enabled": self.usable(rule),
             "status_label": "자동 실행 켜짐" if self.usable(rule) else "자동 실행 꺼짐",
-            "disabled_reason": rule.disabled_reason,
+            "disabled_reason": display_reason(rule.disabled_reason),
             #: 다시 허용할 때 보낼 지문(지금 등록된 대상 기기로 묶은 내용). 대상이 없으면 null.
             "fingerprint": rebound.fingerprint() if rebound is not None else None,
             "created_at": rule.created_at, "allowed_at": rule.allowed_at,

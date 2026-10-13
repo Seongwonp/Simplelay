@@ -107,6 +107,31 @@ void main() {
     expect(find.text('버튼으로 직접 조작'), findsNWidgets(2));
   });
 
+  testWidgets('이력: 연습(모의) 기록에는 서버 설명 줄("명령을 보냈어요 …")을 겹치지 않는다', (tester) async {
+    // 10/14 실물 캡처: '연습 · 가전에 보내지 않았어요' 아래에 '명령을 보냈어요 — …'가 함께 나와 서로 어긋났다.
+    tester.view.physicalSize = const Size(900, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final api = _apiWithHistory([
+      _entry('m1', {
+        'status': 'failed',
+        'outcome': 'unconfirmed',
+        'route': 'thinq',
+        'receipt': 'accepted',
+        'confirmation': 'none',
+        'detail': '명령을 보냈어요 — 보내기 전에도 같은 값이라 변경을 확인할 수 없어요',
+      }),
+    ]);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [rpiApiServiceProvider.overrideWithValue(api)],
+      child: const MaterialApp(home: HistoryScreen()),
+    ));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('연습 · 가전에 보내지 않았어요'), findsOneWidget);
+    expect(find.textContaining('명령을 보냈어요'), findsNothing);
+  });
+
   testWidgets('실행 상태: ThinQ 확인 못 함은 주의로, 정지 버튼 없이 경로·확인 수준을 말한다',
       (tester) async {
     await tester.pumpWidget(buildScreen(
