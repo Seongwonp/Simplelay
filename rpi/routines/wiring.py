@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import threading
 from functools import lru_cache
 
 from .engine import RoutineEngine
@@ -89,6 +90,58 @@ def stop_routines_if_any(reason: str = "전체 정지 요청") -> int:
     return runner.stop_all(reason)
 
 
+# ── 자동 실행 허용 규칙(2026-10-13, v4) ─────────────────────────────────────
+
+_auto_engine = None
+_auto_lock = threading.Lock()
+AUTO_RULES_SETTING = "auto_rules"
+AUTO_SEEN_SETTING = "auto_rule_seen_events"
+
+
+def get_auto_rule_engine():
+    """자동 실행 허용 규칙 엔진. 실행 서비스가 다시 만들어지면(시험) 새로 만든다. DB가 있으면 규칙·처리한 사건이 남는다."""
+    global _auto_engine
+    from rpi.api import deps  # noqa: PLC0415
+    from rpi.api.thinq_wiring import get_scenario_engine  # noqa: PLC0415
+
+    from .auto_rules import AutoRuleEngine, AutoRuleStore, SeenEvents, max_event_age_from_env  # noqa: PLC0415
+
+    service = deps.get_service()
+    with _auto_lock:
+        engine = _auto_engine
+        if engine is not None and engine.service is service:
+            return engine
+        db = deps.get_db()
+        store = AutoRuleStore(load=(lambda: db.load_setting(AUTO_RULES_SETTING)) if db else None,
+                              save=(lambda v: db.save_setting(AUTO_RULES_SETTING, v)) if db else None)
+        seen = SeenEvents(load=(lambda: db.load_setting(AUTO_SEEN_SETTING)) if db else None,
+                          save=(lambda v: db.save_setting(AUTO_SEEN_SETTING, v)) if db else None)
+        engine = AutoRuleEngine(store, seen, service, deps.get_clock(), scenarios=get_scenario_engine,
+                                care_events=deps.get_care_events(),
+                                max_event_age_s=max_event_age_from_env())
+        _auto_engine = engine
+    if not getattr(service, "_simplelay_auto_rule_listener", False):
+        service.add_job_listener(lambda event: _auto_engine.on_job_finished(event)
+                                 if _auto_engine is not None and _auto_engine.service is service else None)
+        service._simplelay_auto_rule_listener = True
+    return engine
+
+
+def halt_auto_rules_if_any() -> None:
+    """정지 경로 맨 앞 — 아직 보내지 않은 자동 실행을 막는다(세대만 올림, 입출력 없음)."""
+    engine = _auto_engine
+    if engine is not None:
+        engine.halt()
+
+
+def stop_auto_rules_if_any(reason: str = "비상정지") -> int:
+    """비상정지 — 이미 만든 자동 실행 엔진이 있으면 세대를 올리고 켜진 규칙을 끈다. 없으면 만들지 않는다."""
+    engine = _auto_engine
+    if engine is None:
+        return 0
+    return engine.emergency_stop(reason)
+
+
 def get_routine_engine() -> RoutineEngine:
     from rpi.api.deps import get_suggestion_service  # noqa: PLC0415
 
@@ -99,7 +152,8 @@ def get_routine_engine() -> RoutineEngine:
 
 def reset_routines() -> None:
     """테스트용."""
-    global _engine
+    global _engine, _auto_engine
+    _auto_engine = None
     get_routine_store.cache_clear()
     from rpi.api import deps  # noqa: PLC0415
 

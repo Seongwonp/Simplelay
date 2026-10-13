@@ -949,11 +949,17 @@ async def emergency_stop(
     # 기다렸다 보내지 않고 동시에 보낸다: 두 경로는 서로의 락을 잡지 않는다.
     from rpi.api.deps import stop_developer_session_if_any  # noqa: PLC0415
 
+    from rpi.routines.wiring import halt_auto_rules_if_any, stop_auto_rules_if_any  # noqa: PLC0415
+
+    # 자동 실행 허용 규칙(2026-10-13): 판단은 끝났지만 아직 실행 게이트를 지나지 않은 자동 실행을 먼저 막는다.
+    # 세대만 올려 입출력이 없다 — 모션 정지를 늦추지 않는다. 규칙 끄기(저장)는 아래에서 함께 한다.
+    halt_auto_rules_if_any()
     # 정지 버튼 위 대기 중이면 이 정지는 정지 버튼 누름으로 전달된다(RPi4가 판단·수행).
     hold_before = service.hold_status() or {}
-    report, _ = await asyncio.gather(
+    report, _, _ = await asyncio.gather(
         asyncio.to_thread(service.emergency_stop_report),
         asyncio.to_thread(stop_developer_session_if_any, "emergency_stop"),
+        asyncio.to_thread(stop_auto_rules_if_any, "비상정지"),
     )
     # 끝을 기다리던 루틴도 멈춘다 — 해제 뒤 다음 단계가 이어서 나가지 않게(평가 B5).
     from rpi.routines.wiring import stop_routines_if_any  # noqa: PLC0415
@@ -997,8 +1003,11 @@ async def learning_status(
 async def list_suggestions(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> list[SuggestionResponse]:
+    pending = await asyncio.to_thread(svc.pending)
+    offers = await asyncio.to_thread(_auto_rule_offers, pending)
     return [
         SuggestionResponse(
+            auto_rule_offer=offers.get(s.suggestion_id),
             is_demo=s.is_demo or s.time_band == "데모",
             id=s.suggestion_id,
             purpose=s.purpose,
@@ -1012,8 +1021,23 @@ async def list_suggestions(
             routine_id=s.routine_id,
             routine_name=s.routine_name,
         )
-        for s in await asyncio.to_thread(svc.pending)
+        for s in pending
     ]
+
+
+def _auto_rule_offers(pending) -> dict[str, dict]:
+    """카드별 '다음부터도 자동으로' 내용. 시나리오 카드가 아니면 묻지도 않는다. 실패는 버튼 없음(목록은 그대로)."""
+    if not any(s.scenario_id for s in pending):
+        return {}
+    try:
+        from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+        engine = get_auto_rule_engine()
+        return {s.suggestion_id: offer for s in pending
+                if s.scenario_id and (offer := engine.offer_payload(s)) is not None}
+    except Exception:  # noqa: BLE001
+        log.exception("auto rule offers failed")
+        return {}
 
 
 @router.post("/suggestions/{suggestion_id}/approve", response_model=JobAcceptedResponse)

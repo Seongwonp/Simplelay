@@ -224,7 +224,16 @@ def receive_appliance_done(record: dict) -> None:
 
 
 def _dispatch_done_to_scenarios(checked: dict) -> None:
-    """가전 끝 → 시나리오 카드(v4 조리 완료 → 공기청정기). 실행하지 않는다(카드만)."""
+    """가전 끝 → 자동 실행 허용 규칙(사용자가 허용한 조건만, 2026-10-13) → 나머지는 시나리오 카드(v4 조리 완료 →
+    공기청정기). 규칙 엔진이 같은 사건 1회·오래된 사건·모의/실물 출처·비상정지를 거른다."""
+    try:
+        from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+        get_auto_rule_engine().on_appliance_done(checked)
+        return
+    except Exception:  # noqa: BLE001 - 규칙 쪽 고장은 자동 실행 없이 카드만 남긴다
+        log.exception("auto rule dispatch for appliance_done failed (appliance=%s event=%s)",
+                      checked.get("appliance_id"), checked.get("event"))
     try:
         from .thinq_wiring import get_scenario_engine  # noqa: PLC0415
 
@@ -324,7 +333,11 @@ def handle_gateway_line(doc: dict) -> None:
     kind = doc.get("type")
     if kind == "abort":
         log.warning("게이트웨이 물리 E-STOP 수신 — 긴급 정지를 실행합니다")
+        from rpi.routines.wiring import halt_auto_rules_if_any, stop_auto_rules_if_any  # noqa: PLC0415
+
+        halt_auto_rules_if_any()  # 아직 보내지 않은 자동 실행부터 막는다
         get_service().emergency_stop()
+        stop_auto_rules_if_any("물리 비상정지")
         stop_developer_session_if_any("emergency_stop")
         return
     # 나머지(intent·confirm·sensor_log 등)는 아직 RPi5 쪽 소비자가 없다.

@@ -116,6 +116,113 @@ async def routine_trigger_log() -> list[dict]:
     return get_routine_engine().recent_log()
 
 
+# ── 자동 실행 허용 규칙(2026-10-13, 시연 v4) ─────────────────────────────────
+# 규칙은 제안 카드에서만 생긴다(빈 폼 없음). 목록에서는 끄기·켜기(다시 허용)·설정값 바꾸기·삭제만.
+
+
+def _auto_error(exc) -> HTTPException:
+    return HTTPException(status_code=exc.status, detail=exc.message)
+
+
+@router.get("/routines/auto-rules")
+async def list_auto_rules() -> list[dict]:
+    from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+    engine = await asyncio.to_thread(get_auto_rule_engine)
+    return await asyncio.to_thread(engine.list_payloads)
+
+
+@router.get("/routines/auto-rules/runs")
+async def auto_rule_runs() -> list[dict]:
+    """자동 실행 기록(최근 50건, 최신 먼저) — 보냄·막힘(이유)·중복·비상정지와 장치별 결과 문장."""
+    from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+    return (await asyncio.to_thread(get_auto_rule_engine)).recent_runs()
+
+
+@router.put("/routines/auto-rules/{rule_id}")
+async def update_auto_rule(rule_id: str, body: dict = Body(...)) -> dict:
+    """설정값만 바꾼다. 바꾸면 자동 실행이 꺼지고 다시 허용(확인 화면)해야 켜진다."""
+    from rpi.routines.auto_rules import AutoRuleError  # noqa: PLC0415
+    from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+    engine = await asyncio.to_thread(get_auto_rule_engine)
+    try:
+        rule = await asyncio.to_thread(engine.update, rule_id, body)
+    except AutoRuleError as exc:
+        raise _auto_error(exc) from exc
+    return engine.payload(rule)
+
+
+@router.post("/routines/auto-rules/{rule_id}/enable")
+async def enable_auto_rule(rule_id: str, body: dict = Body(...)) -> dict:
+    """끄기 ``{"enabled": false}`` · 다시 허용 ``{"enabled": true, "fingerprint": <목록의 fingerprint>}``."""
+    from rpi.routines.auto_rules import AutoRuleError  # noqa: PLC0415
+    from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+    enabled = body.get("enabled")
+    if not isinstance(enabled, bool):
+        raise HTTPException(status_code=422, detail="켜기/끄기 값은 true 또는 false로 보내 주세요")
+    engine = await asyncio.to_thread(get_auto_rule_engine)
+    try:
+        rule = await asyncio.to_thread(engine.set_enabled, rule_id, enabled, body.get("fingerprint"))
+    except AutoRuleError as exc:
+        raise _auto_error(exc) from exc
+    return engine.payload(rule)
+
+
+@router.delete("/routines/auto-rules/{rule_id}")
+async def delete_auto_rule(rule_id: str) -> dict:
+    from rpi.routines.auto_rules import AutoRuleError  # noqa: PLC0415
+    from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+    engine = await asyncio.to_thread(get_auto_rule_engine)
+    try:
+        await asyncio.to_thread(engine.delete, rule_id)
+    except AutoRuleError as exc:
+        raise _auto_error(exc) from exc
+    return {"ok": True}
+
+
+@router.post("/suggestions/{suggestion_id}/approve-and-allow")
+async def approve_and_allow(suggestion_id: str, body: dict = Body(...)) -> dict:
+    """'이번에 실행하고 다음부터 자동으로' — 카드의 허용 내용(``auto_rule_offer.fingerprint``)을 확인한 뒤
+    이번 실행은 종전 승인 경로로 제출하고, 같은 내용을 자동 실행 규칙으로 저장한다.
+
+    물리 누름이 있는 카드는 422(자동 실행 불가), 허용 내용이 화면과 다르면 409(저장·실행 둘 다 안 함)."""
+    from rpi.commands import ControlRoute  # noqa: PLC0415
+    from rpi.intent.rules import UnknownIntentError  # noqa: PLC0415
+    from rpi.intent.suggestions import UnknownSuggestionError  # noqa: PLC0415
+    from rpi.routines.auto_rules import PHYSICAL_REFUSED  # noqa: PLC0415
+    from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+    from .deps import get_suggestion_service  # noqa: PLC0415
+
+    svc = get_suggestion_service()
+    engine = await asyncio.to_thread(get_auto_rule_engine)
+    pending = await asyncio.to_thread(svc.pending)
+    suggestion = next((s for s in pending if s.suggestion_id == suggestion_id), None)
+    if suggestion is None:
+        raise HTTPException(status_code=404, detail="suggestion not found")
+    draft = await asyncio.to_thread(engine.offer_for, suggestion)
+    if draft is None:
+        physical = not suggestion.commands or any(c.route is ControlRoute.PHYSICAL for c in suggestion.commands)
+        raise HTTPException(status_code=422, detail=PHYSICAL_REFUSED if physical
+                            else "이 제안은 다음부터 자동으로 정할 수 없어요 — 이번만 실행해 주세요")
+    if body.get("offer_fingerprint") != draft.fingerprint():
+        raise HTTPException(status_code=409, detail="허용할 내용이 바뀌었어요 — 다시 확인하고 승인해 주세요")
+    try:
+        job_id = await asyncio.to_thread(svc.approve_submit, suggestion_id)
+    except UnknownSuggestionError as exc:
+        raise HTTPException(status_code=404, detail="suggestion not found") from exc
+    except UnknownIntentError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    rule = await asyncio.to_thread(engine.allow_from_offer, draft)
+    return {"job_id": job_id, "rule": engine.payload(rule)}
+
+
 @router.get("/routines/{routine_id}")
 async def get_routine(routine_id: str) -> dict:
     return _payload(_require(routine_id), _names())
