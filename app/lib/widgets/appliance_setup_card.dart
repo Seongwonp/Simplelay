@@ -9,13 +9,17 @@ import '../theme/app_text.dart';
 
 /// 가전 하나의 확인 주행 조회. 실패를 '기록 없음'으로 뭉개지 않는다(2026-10-13).
 ///
-/// - 200 → [VerifyPassLookup.found]
+/// - 200 + state(running·done·failed) → [VerifyPassLookup.found]
+/// - 200인데 state가 없거나 모르는 값 → [VerifyPassLookup.unknown]
 /// - 404 + 서버의 기록 없음 문장 → [VerifyPassLookup.noRecord]
 /// - 그 밖(일반 404·다른 상태·응답 해석 실패·예외·허브 없음) → [VerifyPassLookup.unknown]
 Future<VerifyPassLookup> lookupVerifyPass(RpiApiService? api, String id) async {
   if (api == null) return const VerifyPassLookup.unknown();
   try {
-    return VerifyPassLookup.found(await api.verifyPassStatus(id));
+    final pass = await api.verifyPassStatus(id);
+    // 해석은 됐지만 state가 없거나 모르는 값 — 서버가 실패를 말한 것이 아니다(검토 M2).
+    if (!pass.stateKnown) return const VerifyPassLookup.unknown();
+    return VerifyPassLookup.found(pass);
   } on RpiApiException catch (e) {
     if (e.statusCode == 404 && e.message == VerifyPassLookup.noRecordDetail) {
       return const VerifyPassLookup.noRecord();

@@ -173,6 +173,25 @@ void main() {
           _api((_) async => _json(['done'], 200)), 'mw');
       expect(list.kind, VerifyPassLookupKind.unknown);
     });
+    // 검토 M2(2026-10-13): 해석은 되지만 필수 근거(state)가 빠진 응답을 '실패'로 바꾸지 않는다.
+    test('정상 JSON이지만 state가 없거나 null·알 수 없는 값이면 모름', () async {
+      for (final body in <Map<String, dynamic>>[
+        {'execution_mode': 'real'},
+        {'state': null, 'execution_mode': 'real'},
+        {'state': 'paused', 'execution_mode': 'real'},
+        {'state': '', 'execution_mode': 'mock'},
+      ]) {
+        final r = await lookupVerifyPass(_api((_) async => _json(body, 200)), 'mw');
+        expect(r.kind, VerifyPassLookupKind.unknown, reason: '$body');
+        expect(_note(r), _unknownText, reason: '$body');
+      }
+      final wrongType = await lookupVerifyPass(
+          _api((_) async => _json({'state': 3, 'execution_mode': 'real'}, 200)), 'mw');
+      expect(wrongType.kind, VerifyPassLookupKind.unknown);
+    });
+    test('state가 빠진 응답을 실패로 읽지 않는다(모델)', () {
+      expect(VerifyPass.fromJson({'execution_mode': 'real'}).state, isNot('failed'));
+    });
     test('예외·서버 오류·허브 없음은 모름', () async {
       final thrown = await lookupVerifyPass(
           _api((_) async => throw http.ClientException('down')), 'mw');

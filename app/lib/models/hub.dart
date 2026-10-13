@@ -294,8 +294,15 @@ class VerifyPass {
     this.executionMode,
   });
 
-  /// running | done | failed
+  /// running | done | failed. 응답에 없거나 그 밖의 값이면 [unknownState] —
+  /// 근거가 빠진 응답을 '실패'로 바꾸지 않는다(검토 M2, 2026-10-13).
   final String state;
+
+  static const unknownState = 'unknown';
+  static const knownStates = {'running', 'done', 'failed'};
+
+  /// 서버가 running·done·failed 중 하나를 말했는가.
+  bool get stateKnown => knownStates.contains(state);
   final List<VerifyPassStep> steps;
   final String? detail;
   final String? note;
@@ -307,7 +314,7 @@ class VerifyPass {
   bool get isMock => executionMode == 'mock';
 
   factory VerifyPass.fromJson(Map<String, dynamic> json) => VerifyPass(
-        state: json['state'] as String? ?? 'failed',
+        state: json['state'] as String? ?? unknownState,
         steps: [
           for (final s in (json['steps'] as List<dynamic>?) ?? const [])
             if (s is Map<String, dynamic>) VerifyPassStep.fromJson(s),

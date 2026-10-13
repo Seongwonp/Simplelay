@@ -98,3 +98,17 @@
 ### 문구 조정(같은 날)
 
 - 서버는 확인 주행을 메모리에만 두어 재시작하면 기록이 사라진다. 그래서 '확인 주행 전이에요'(안 했다고 단정)를 **'확인 주행 기록이 없어요'**(서버가 말한 사실 그대로)로 바꿨다. 분기 조건(정확한 서버 문장의 404만)은 그대로다.
+
+## 추가 2: 외부 검토(폰 UI 구현) MEDIUM 4건 수리
+
+근거: 저장소 밖 검토 보고서(폰 UI 구현 검토, 판정 '고칠 것 있음', HIGH 0·MEDIUM 4·LOW 2). 시작 HEAD `3a814ba`.
+건마다 시험을 먼저 쓰고 수정 전 실패를 본 뒤 고쳤다. 서버(rpi/)는 바꾸지 않았다.
+
+### M2 — 확인 주행 응답의 state 누락을 실패로 단정 (고침)
+
+- 재현: `VerifyPass.fromJson`이 state가 없으면 `'failed'`를 넣었다. `GET /verify-pass`가 200 + `{"execution_mode":"real"}`이면
+  found/failed/real → "확인 주행을 마치지 못했어요". 서버가 실패를 말한 것이 아니라 근거가 빠진 응답이다.
+- 시험(`test/models/verify_pass_note_test.dart` +2): state 없음·null·`paused`·빈 문자열 → unknown과 "확인 주행 여부를 확인하지 못했어요",
+  숫자 state(형 오류) → unknown, 모델이 state 누락을 `failed`로 읽지 않음. **수정 전 2건 실패**(found로 분류, `'failed'`).
+- 수정: 누락 시 `unknown`(`VerifyPass.unknownState`), `lookupVerifyPass`는 state가 running·done·failed가 아니면 unknown.
+  마법사의 폴링 종료(`!running`)는 그대로다.
