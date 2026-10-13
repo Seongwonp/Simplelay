@@ -230,7 +230,7 @@ def receive_appliance_done(record: dict) -> None:
 
 
 def _dispatch_done_to_scenarios(checked: dict) -> None:
-    """가전 끝 → 자동 실행 허용 규칙(사용자가 허용한 조건만, 2026-10-13) → 나머지는 시나리오 카드(v4 조리 완료 →
+    """가전 끝 → 자동 실행 허용 규칙(사용자가 허용한 조건만, 2026-10-13) → 나머지는 시나리오 카드(v4 가열 종료 →
     공기청정기). 규칙 엔진이 같은 사건 1회·오래된 사건·모의/실물 출처·비상정지를 거른다."""
     try:
         from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415

@@ -11,7 +11,7 @@
 
 v4(2026-10-13, docs/본선-시연-계획-v4.md):
 
-- ``cook_done_air`` 조리 완료 → 공기청정기: RPi4가 보낸 **전자레인지 CT 끝 판정**(``appliance_done``,
+- ``cook_done_air`` 가열 종료 → 공기청정기(취소·문 열림 종료도 같게 잡힌다 — 정책상 허용, '조리 완료가 아닐 수 있음' 표기): RPi4가 보낸 **전자레인지 CT 끝 판정**(``appliance_done``,
   이벤트 ``heat_complete``, 입력에 전력 ``power``)일 때만 "공기청정기 풍량을 강으로 바꿀까요?"를 제안한다. 사용자의
   습관은 단정하지 않는다 — 같은 제안을 승인한 기록이 있을 때만 그 횟수를 근거로 붙인다(3차 평가 M4, 엔진). 버튼 누름
   완료(실행 성공)는 조리 완료가 아니라 트리거가 아니다. 이 카드만 '다음부터도 자동으로'(자동 실행 허용 규칙,
@@ -137,7 +137,7 @@ WASH_THEN_DRY = ScenarioDefinition(
 
 #: v2 시연의 시나리오 — v3에서 뺐다. ``SIMPLELAY_V2_SCENARIOS``로만 싣는다.
 V2_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
-#: 기본 카탈로그(v4): 조리 완료 → 공기청정기 하나. 그 밖의 카드는 사용자 루틴이 만든다.
+#: 기본 카탈로그(v4): 가열 종료 감지 → 공기청정기 하나. 그 밖의 카드는 사용자 루틴이 만든다.
 DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR,)
 
 V2_SCENARIOS_ENV = "SIMPLELAY_V2_SCENARIOS"

@@ -966,7 +966,7 @@ class _ScenarioActionBar extends StatelessWidget {
   final VoidCallback? onSnooze;
   final VoidCallback? onRevise;
 
-  /// 자동 실행을 고를 수 있는 카드(v4 조리 완료 → 공기청정기). 그러면 세 갈래:
+  /// 자동 실행을 고를 수 있는 카드(v4 가열 종료 감지 → 공기청정기). 그러면 세 갈래:
   /// [이번만 실행] [다음부터도 자동으로] [안 할래요]. [onAllow]가 null이면(준비 안 됨) 누를 수 없다.
   final bool hasAllow;
   final VoidCallback? onAllow;

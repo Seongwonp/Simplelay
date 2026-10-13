@@ -787,7 +787,7 @@ class SuggestionResponse(BaseModel):
     #: 사용자 루틴(2026-09-30). 있으면 화면은 purpose 대신 이 이름을 제목으로 쓴다.
     routine_id: str | None = None
     routine_name: str | None = None
-    #: '다음부터도 자동으로'를 고를 수 있는 카드(2026-10-13, v4 조리 완료 → 공기청정기)면
+    #: '다음부터도 자동으로'를 고를 수 있는 카드(2026-10-13, v4 가열 종료 감지 → 공기청정기)면
     #: {condition_text, action_text, fingerprint}. 물리 누름이 있거나 대상이 아니면 null — 화면에 버튼이 없다.
     auto_rule_offer: dict | None = None
 

@@ -76,7 +76,7 @@ class ScenarioEngine:
     def on_appliance_done(self, record: dict, *, skip: frozenset = frozenset()) -> list:
         """RPi4 가전 끝 판정(``appliance_done``, 검증한 기록) → ``appliance_done`` 트리거 카드(v4 2026-10-13).
 
-        조리 완료의 근거는 **CT 전력 끝**이다 — 입력에 ``power``가 없으면(종료음만) 카드를 만들지 않는다.
+        가열 종료의 근거는 **CT 전력 끝**이다(취소·문 열림 종료와 구분하지 못한다 — 문구로 밝힌다) — 입력에 ``power``가 없으면(종료음만) 카드를 만들지 않는다.
         버튼 누름 완료(``on_job_finished``)는 이 트리거를 깨우지 않는다. ``skip``의 시나리오는 건너뛴다
         (자동 실행 허용 규칙이 이미 맡은 것). 모의·주입 입력이면 시연 카드다."""
         if "power" not in (record.get("inputs") or []):

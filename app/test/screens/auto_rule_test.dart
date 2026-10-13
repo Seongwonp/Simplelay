@@ -16,7 +16,7 @@ import 'package:simplelay/services/rpi_api_service.dart';
 import '../helpers/test_helpers.dart';
 
 const _offer = {
-  'condition_text': '전자레인지 조리 완료가 확인됐을 때',
+  'condition_text': '전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)',
   'action_text': '거실 공기청정기 풍량을 강으로 변경',
   'fingerprint': 'fp-offer-1',
 };
@@ -54,7 +54,7 @@ Map<String, dynamic> _rule({
       'id': 'ar-1',
       'scenario_id': 'cook_done_air',
       'name': '조리 완료 → 공기청정기',
-      'condition_text': '전자레인지 조리 완료가 확인됐을 때',
+      'condition_text': '전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)',
       'action_text': '거실 공기청정기 풍량을 ${value == 'MID' ? '중' : '강'}으로 변경',
       'action': 'set_wind_strength',
       'value': value,
@@ -214,7 +214,7 @@ void main() {
       await tester.tap(find.text('다음부터도 자동으로'));
       await _settle(tester);
       expect(find.text('이번에 실행하고, 다음부터 자동으로 실행할까요?'), findsOneWidget);
-      expect(find.text('조건: 전자레인지 조리 완료가 확인됐을 때'), findsOneWidget);
+      expect(find.text('조건: 전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)'), findsOneWidget);
       expect(find.text('동작: 거실 공기청정기 풍량을 강으로 변경'), findsOneWidget);
       expect(find.text('허용하고 이번에도 실행'), findsOneWidget);
 
@@ -309,7 +309,7 @@ void main() {
       await _settle(tester);
 
       expect(find.text('조리 완료 → 공기청정기'), findsOneWidget);
-      expect(find.text('조건: 전자레인지 조리 완료가 확인됐을 때'), findsOneWidget);
+      expect(find.text('조건: 전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)'), findsOneWidget);
       expect(find.text('동작: 거실 공기청정기 풍량을 강으로 변경'), findsOneWidget);
       expect(find.text('자동 실행 켜짐'), findsOneWidget);
       expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
