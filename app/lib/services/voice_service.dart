@@ -25,7 +25,12 @@ abstract interface class SpeechRecognizer {
   bool get isListening;
 
   /// 엔진 준비. false면 이 기기에서 음성 인식을 쓸 수 없다(권한 거부·엔진 없음).
+  /// **처음이면 OS가 마이크 권한을 묻는다** — 사용자가 마이크를 누른 자리에서만 부른다.
   Future<bool> initialize();
+
+  /// 마이크 권한이 **이미** 있는가. 묻지 않는다(OS 창 없음). 실행 중 '멈춰' 듣기는
+  /// 이것이 참일 때만 [initialize]한다(외부 평가 2026-10-13 M3).
+  Future<bool> hasPermission();
 
   /// [onInterrupted]는 **다른 호출자가** 이 세션을 끊었을 때(새 listen·stop·cancel)
   /// 한 번 불린다. 침묵 종료([onSilence])나 오류([onError])로 끝난 세션에서는
@@ -81,6 +86,16 @@ class VoiceService implements SpeechRecognizer {
   /// 엔진 초기화. onError는 여기(플러그인 계약)에서만 등록할 수 있어서,
   /// 세션별 콜백은 [_onError]에 보관했다가 전달한다. 재호출은 no-op —
   /// speech_to_text는 중복 initialize에 민감하다.
+  @override
+  Future<bool> hasPermission() async {
+    if (_initialized) return true;
+    try {
+      return await _speech.hasPermission;
+    } catch (_) {
+      return false; // 모르면 없는 것으로 — 묻지 않는 쪽
+    }
+  }
+
   @override
   Future<bool> initialize() async {
     if (_initialized) return true;

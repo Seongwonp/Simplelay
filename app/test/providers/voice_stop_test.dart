@@ -52,6 +52,16 @@ class _FakeRecognizer implements SpeechRecognizer {
     return available;
   }
 
+  /// 마이크 권한이 이미 있는가(묻지 않는다). 기본은 허용 — 권한 시험만 바꾼다(평가 M3).
+  bool permitted = true;
+  int permissionChecks = 0;
+
+  @override
+  Future<bool> hasPermission() async {
+    permissionChecks++;
+    return permitted;
+  }
+
   @override
   Future<void> listen({
     required void Function(String text) onText,
@@ -258,6 +268,59 @@ void main() {
     r.recognizer.say('멈춰');
     await _settle(tester);
     expect(r.exec.stops, 1);
+  });
+
+  // 외부 평가 2026-10-13 M3: 첫 실행 중 OS 마이크 권한 창이 실행·정지 화면을 가렸다. 실행 중에는 권한 창을
+  // 띄우지 않는다 — 권한이 이미 있을 때만 듣고, 없으면 조용히 건너뛴다(화면 정지 버튼은 그대로).
+  // 권한 요청은 기존 '말로 조작하기' 화면의 마이크 버튼이 한다.
+  group('마이크 권한(평가 M3)', () {
+    testWidgets('아직 허용하지 않았으면 실행 중에 권한을 묻지 않고(엔진 초기화 없음) 듣지 않는다',
+        (tester) async {
+      final r = await _rig(tester, recognizer: _FakeRecognizer()..permitted = false);
+      r.exec.seed(ExecutionPhase.running);
+      await _settle(tester);
+      expect(r.recognizer.permissionChecks, greaterThanOrEqualTo(1));
+      expect(r.recognizer.initializeCalls, 0, reason: '실행 중 OS 권한 창을 띄우지 않는다');
+      expect(r.recognizer.listenCalls, 0);
+      expect(r.voice.listening, isFalse);
+      // 화면 정지(같은 호출)는 그대로 된다.
+      await r.container.read(executionStatusProvider.notifier).emergencyStop();
+      expect(r.exec.stops, 1);
+    });
+
+    testWidgets('거부한 뒤에는 실행을 거듭해도 다시 묻지 않는다', (tester) async {
+      final r = await _rig(tester,
+          recognizer: _FakeRecognizer()
+            ..permitted = false
+            ..available = false);
+      for (final id in ['j1', 'j2']) {
+        r.exec.seed(ExecutionPhase.running, sequenceId: id);
+        await _settle(tester);
+        r.exec.seed(ExecutionPhase.completed, sequenceId: id);
+        await _settle(tester);
+      }
+      expect(r.recognizer.initializeCalls, 0);
+      expect(r.recognizer.listenCalls, 0);
+    });
+
+    testWidgets('허용돼 있으면 듣는다 — 나중에 말로 조작하기에서 허용하면 다음 실행부터 듣는다',
+        (tester) async {
+      final r = await _rig(tester, recognizer: _FakeRecognizer()..permitted = false);
+      r.exec.seed(ExecutionPhase.running, sequenceId: 'j1');
+      await _settle(tester);
+      expect(r.voice.listening, isFalse);
+      r.exec.seed(ExecutionPhase.completed, sequenceId: 'j1');
+      await _settle(tester);
+
+      r.recognizer.permitted = true; // '말로 조작하기' 마이크 버튼에서 허용했다
+      r.exec.seed(ExecutionPhase.running, sequenceId: 'j2');
+      await _settle(tester);
+      expect(r.recognizer.initializeCalls, 1);
+      expect(r.voice.listening, isTrue);
+      r.recognizer.say('멈춰');
+      await _settle(tester);
+      expect(r.exec.stops, 1);
+    });
   });
 
   testWidgets('대기(idle)에서 "멈춰" → 아무것도 안 한다, 듣지도 않는다', (tester) async {

@@ -72,7 +72,9 @@ class VoiceStopState {
 ///   "그만 데워줘"가 오면 보내지 않는다). 정지가 그만큼 늦어지는 것은 감수한다.
 /// - "듣는 중" 표시는 엔진 세션이 열려 있는 동안만이다. 엔진이 스스로 끝나면
 ///   (`done`) 표시를 끄고 잠시 뒤 다시 연다.
-/// - 인식 오류·권한 거부·엔진 없음은 조용히 넘어간다(화면 안내 없음).
+/// - **마이크 권한이 이미 있을 때만** 듣는다. 실행 중에는 OS 권한 창을 띄우지 않는다
+///   (외부 평가 2026-10-13 M3) — 권한 요청은 '말로 조작하기' 마이크 버튼에서.
+/// - 인식 오류·권한 없음·엔진 없음은 조용히 넘어간다(화면 안내 없음).
 ///   침묵으로 끝난 세션(`error_no_match`·`error_speech_timeout`)은 오류가 아니다 —
 ///   보통 끝남처럼 [restartDelay] 뒤 다시 연다(데우는 중·대기처럼 긴 조용한 구간).
 ///   포기는 **권한 거부·엔진 없음**뿐이고, 그 밖의 오류는 간격을 늘려
@@ -203,10 +205,27 @@ class VoiceStopController extends StateNotifier<VoiceStopState>
     }
   }
 
+  Future<bool> _hasPermission() async {
+    try {
+      return await _recognizer.hasPermission();
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _start() async {
     if (_starting || _sessionOpen) return;
     _starting = true;
     try {
+      // 실행 중에는 OS 마이크 권한 창을 띄우지 않는다(외부 평가 2026-10-13 M3) — 창이 실행·정지 화면을
+      // 가리고 실행 중에 새 결정을 요구한다. 권한이 이미 있을 때만 엔진을 열고, 없으면 이번 실행은
+      // 조용히 건너뛴다(화면 정지 버튼은 그대로). 권한 요청은 '말로 조작하기' 화면의 마이크 버튼이 한다.
+      final permitted = await _hasPermission();
+      if (_disposed) return;
+      if (!permitted) {
+        _gaveUp = true;
+        return;
+      }
       final ok = await _recognizer.initialize();
       if (_disposed) return;
       if (!ok) {
