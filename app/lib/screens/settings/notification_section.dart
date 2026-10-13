@@ -184,9 +184,9 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
         }
         final items = snapshot.data ?? const <String>[];
         if (items.isEmpty) {
-          return _SuppressionNote(
-            text: _noServer ? '기기와 연결되면 여기에 표시돼요.' : '다시 추천 안 하는 항목이 없어요.',
-          );
+          // 비었으면 아무것도 두지 않는다(2026-10-14 UX) — 연결 전 안내만 남긴다.
+          if (!_noServer) return const SizedBox.shrink();
+          return const _SuppressionNote(text: '기기와 연결되면 여기에 표시돼요.');
         }
         return Column(
           children: [

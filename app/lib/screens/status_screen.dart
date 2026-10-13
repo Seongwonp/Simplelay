@@ -94,7 +94,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
           // 보면 진짜로 움직이고 있는 작업 위에도 이 배너가 떠서, 화면이
           // 정반대의 말을 하게 된다 -- 폐루프의 존재 이유가 "눌림을
           // 확인했는가"인데 그 확인을 화면이 뒤집는 셈이다.
-          if (status.phase != ExecutionPhase.idle)
+          if (status.phase != ExecutionPhase.idle && status.modeLabel.isNotEmpty)
             Semantics(
               liveRegion: true,
               label: status.modeLabel,
@@ -382,6 +382,7 @@ List<String> _resultFactWords(ExecutionStatus s) {
       confirmation: s.confirmation,
       kind: kind,
       executionMode: s.isDemo ? 'mock' : s.executionMode,
+      aborted: s.abortReason != null,
     )
         case final c?)
       c,

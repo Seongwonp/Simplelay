@@ -51,6 +51,12 @@ class Suggestion {
     return '제안한 실행';
   }
 
+  /// 사용자가 루틴 '실행'을 눌러 만든 카드인가(제안이 아니다). 서버에 따로 필드가 없어
+  /// `trigger_manual`이 붙이는 근거 문장 끝(`직접 실행을 눌렀어요`)으로 가른다
+  /// (`rpi/routines/engine.py`). 이 카드에는 '근거'·'제안 쉬기'·'다시 받지 않기'를 두지 않는다.
+  bool get userStarted =>
+      routineId != null && reason.trimRight().endsWith('직접 실행을 눌렀어요');
+
   /// 시나리오 제안이면 그 ID(서버 `scenario_id`). 없으면 종전 제안.
   final String? scenarioId;
 

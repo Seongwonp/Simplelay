@@ -149,8 +149,9 @@ TileStatus applianceTileStatus({
   final reason = r.readinessReasons.isEmpty ? null : r.readinessReasons.first;
   switch (r.readiness) {
     case 'operable':
+      // 평소(실행 가능)는 말하지 않는다 — 빈 상태 줄(2026-10-14 UX). 문제 상태만 적는다.
       return r.canExecute
-          ? const TileStatus('실행을 요청할 수 있어요', TileTone.ready)
+          ? const TileStatus('', TileTone.ready)
           : const TileStatus('실행 가능 여부를 확인해 주세요', TileTone.unknown);
     case 'needs_setup':
       // 서버는 비상정지 걸림·링크 확인 대기도 needs_setup으로 보낸다 —
@@ -236,12 +237,19 @@ String objectParticle(String word) {
 /// 알 수 없는 id를 이름처럼 내놓지 않는다.
 String historyTitle(RpiHistoryEntry e, {String? applianceName}) {
   final purpose = e.purpose?.trim();
-  if (purpose != null && purpose.isNotEmpty) return purpose;
+  if (purpose != null && purpose.isNotEmpty) {
+    final title = historyStatement(purpose);
+    // 모의 기록은 아래 '연습' 한 줄이 말한다 — 제목의 "(모의)"를 되풀이하지 않는다.
+    return e.executionMode == 'mock' ? withoutMockMark(title) : title;
+  }
   final labels = [
     for (final b in e.buttons)
       if (b.button.trim().isNotEmpty) b.button.trim(),
   ];
-  final name = applianceName?.trim();
+  final rawName = applianceName?.trim();
+  final name = rawName != null && e.executionMode == 'mock'
+      ? withoutMockMark(rawName)
+      : rawName;
   final hasName = name != null && name.isNotEmpty;
   if (labels.isNotEmpty) {
     final pressed = '${labels.join(', ')} 버튼 조작';
@@ -268,7 +276,7 @@ class HistoryResult {
   /// 사람이 이어서 할 일. 없으면 null(무조건 '확인해 주세요'를 붙이지 않는다).
   final String? next;
 
-  /// 모의 기록에만: "연습(모의) · 실제로 누르지 않았어요". 그 밖에는 null.
+  /// 모의 기록에만: "연습 · 실제로 누르지 않았어요"(결과 문장이 이미 그 말이면 null). 그 밖에는 null.
   final String? mockNote;
 }
 
@@ -278,14 +286,16 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
   final kind = resultKindOf(outcome: e.outcome, status: e.status);
   final mock = e.executionMode == 'mock';
   final thinq = e.route == 'thinq';
-  final name = applianceName?.trim();
+  final rawName = applianceName?.trim();
+  final name = rawName != null && mock ? withoutMockMark(rawName) : rawName;
   final target = (name == null || name.isEmpty) ? '가전' : name;
   final checkTarget = '$target${objectParticle(target)} 직접 확인해 주세요';
+  // 모의는 한 번만 말한다(2026-10-14 UX) — 이름의 "(모의)"·연습 줄·다음 행동에 세 번 나오던 것을 이 한 줄로.
   final mockNote = !mock
       ? null
       : thinq
-          ? '연습(모의) · 실제 가전에 명령하지 않았어요'
-          : '연습(모의) · 실제로 누르지 않았어요';
+          ? '연습 · $target에 보내지 않았어요'
+          : '연습 · 실제로 누르지 않았어요';
 
   // 정지·안전 정지 — 정지 확인 단계 작업의 계약을 건드리지 않는다.
   if (kind == ResultKind.stopped) {
@@ -319,15 +329,34 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
 
   final base = _liveResult(e, kind, thinq: thinq, target: target, checkTarget: checkTarget);
   if (!mock) return base;
-  // 모의 기록: 성공 문장은 모의라고 말하고, 실제 가전 확인을 부탁하지 않는다.
-  return HistoryResult(
-    kind: kind,
-    sentence: kind == ResultKind.success
-        ? (thinq ? '모의 상태만 확인했어요' : '모의 버튼 조작을 마쳤어요')
-        : base.sentence,
-    next: kind == ResultKind.success ? null : '연습 결과를 확인해 주세요',
-    mockNote: mockNote,
-  );
+  // 모의 기록: 실제 가전 확인을 부탁하지 않는다(다음 행동 없음). ThinQ 모의는 "보냈지만 확인 못 함"과
+  // "보내지 않았다"가 한 카드에서 엇갈리지 않게 결과 문장 하나로 말한다. 물리 성공도 같은 말 한 줄.
+  if (thinq || kind == ResultKind.success) {
+    return HistoryResult(kind: kind, sentence: mockNote!);
+  }
+  return HistoryResult(kind: kind, sentence: base.sentence, mockNote: mockNote);
+}
+
+/// "(모의)"·"(모의 클라우드)" 같은 괄호 표기를 뺀 이름(표시만). 모의 기록은 '연습' 줄이 이미 말한다.
+String withoutMockMark(String text) =>
+    text.replaceAll(RegExp(r'\s*\(모의[^)]*\)'), '').trim();
+
+/// 기록 제목은 묻지 않는다 — 끝난 일이다. 서버 목적이 질문("공기청정기 풍량을 강으로 바꿀까요?")이면
+/// 서술형("공기청정기 풍량 강으로")으로 줄인다. 질문이 아니면 그대로.
+String historyStatement(String purpose) {
+  final text = purpose.trim();
+  if (!text.endsWith('?')) return text;
+  final words = text.substring(0, text.length - 1).trim().split(RegExp(r'\s+'));
+  // 끝 동사("바꿀까요"·"켤까요"·"실행할까요")를 뗀다.
+  if (words.length > 1 && words.last.endsWith('까요')) words.removeLast();
+  // 목적격 조사(을/를)를 뗀다 — "풍량을 강으로" → "풍량 강으로". 따옴표로 끝난 이름은 건드리지 않는다.
+  final out = [
+    for (final w in words)
+      (w.length > 1 && (w.endsWith('을') || w.endsWith('를')))
+          ? w.substring(0, w.length - 1)
+          : w,
+  ];
+  return out.join(' ');
 }
 
 HistoryResult _liveResult(
@@ -389,4 +418,24 @@ HistoryResult _liveResult(
     case ResultKind.safetyStop:
       throw StateError('handled above');
   }
+}
+
+// ── 가전 타일: 같은 이름 구분 (2026-10-14) ──────────────────────────────────
+
+/// 타일에 적을 이름(가전 id → 이름). **표시만** 바꾼다 — 저장된 이름은 그대로다.
+///
+/// 방이 있으면 타일이 방을 부제로 적으므로 이름은 그대로 둔다. 이름과 방(없음 포함)이
+/// 모두 같은 가전이 둘 이상이면 두 번째부터 " (2)"·" (3)"을 붙인다 — '전자레인지'와
+/// '전자레인지'를 타일에서 가를 수 없었다.
+Map<String, String> distinctTileNames(List<ApplianceMap> appliances) {
+  final seen = <String, int>{};
+  return {
+    for (final a in appliances)
+      a.id: () {
+        final key = '${a.name.trim()}\u0000${(a.location ?? '').trim()}';
+        final n = (seen[key] ?? 0) + 1;
+        seen[key] = n;
+        return n == 1 ? a.name : '${a.name} ($n)';
+      }(),
+  };
 }

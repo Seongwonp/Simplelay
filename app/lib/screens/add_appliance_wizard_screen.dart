@@ -45,7 +45,7 @@ class _Tapped {
 
 const _stepTitles = [
   '조작부 사진',
-  '프레임 모서리 4점',
+  '기계 틀 네 귀퉁이 짚기',
   '버튼 짚고 이름 붙이기',
   '정지 버튼과 쉬는 자리',
   '확인 주행',
@@ -568,8 +568,13 @@ class _AddApplianceWizardScreenState
       ];
 
   List<Widget> _photoStep() => [
-        ..._hint('기구를 붙인 상태로 조작부 전체가 보이게 찍어 주세요. 네 모서리가 가리지 않아야 해요. '
-            '사진은 이 폰에만 남고 허브에는 짚은 자리만 보내요.'),
+        ..._hint('기계 틀이 다 보이게 찍어 주세요.'),
+        // 개인정보 안내는 작은 글씨 한 줄로(2026-10-14 UX).
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Text('사진은 이 폰에만 남고 허브에는 짚은 자리만 보내요.',
+              style: TextStyle(fontSize: 13, color: context.appMuted)),
+        ),
         if (_photo == null || _photoSize == null)
           Container(
             height: 180,
@@ -650,10 +655,10 @@ class _AddApplianceWizardScreenState
     final nextCorner = _corners.length < 4 ? _cornerNames[_corners.length] : null;
     return [
       ..._hint(nextCorner == null
-          ? '네 모서리를 모두 짚었어요. 틀렸으면 "다시 짚기"를 눌러 주세요.'
-          : '갠트리 프레임 모서리를 왼쪽 위부터 시계 방향으로 짚어 주세요. 지금: $nextCorner'),
+          ? '네 귀퉁이를 모두 짚었어요. 틀렸으면 "다시 짚기"를 눌러 주세요.'
+          : '사진에서 기계 틀 귀퉁이를 왼쪽 위부터 차례로 눌러 주세요. 지금: $nextCorner'),
       _photoPanel(
-        label: '프레임 모서리를 짚는 사진',
+        label: '기계 틀 귀퉁이를 짚는 사진',
         marks: [
           for (var i = 0; i < _corners.length; i++)
             PanelMark(
@@ -679,11 +684,11 @@ class _AddApplianceWizardScreenState
         const LinearProgressIndicator()
       else if (_frame?.known ?? false)
         Text(
-          '프레임 크기: 가로 ${_frame!.widthMm!.toStringAsFixed(0)}mm · 세로 ${_frame!.heightMm!.toStringAsFixed(0)}mm (허브 설정)',
+          '기계 틀 크기: 가로 ${_frame!.widthMm!.toStringAsFixed(0)}mm · 세로 ${_frame!.heightMm!.toStringAsFixed(0)}mm',
           style: TextStyle(fontSize: 14, color: context.appMuted),
         )
       else ...[
-        Text('허브에 프레임 크기가 없어요. 자로 잰 안쪽 크기를 적어 주세요.',
+        Text('기계 틀 크기를 아직 몰라요. 자로 잰 안쪽 크기를 적어 주세요.',
             style: TextStyle(fontSize: 14, color: context.appWarning)),
         Row(
           children: [
@@ -713,7 +718,7 @@ class _AddApplianceWizardScreenState
   }
 
   List<Widget> _buttonStep() => [
-        ..._hint('사진 속 버튼을 누르고 이름을 붙여요. 모서리 4점은 이미 맞췄어요.'),
+        ..._hint('사진 속 버튼을 누르고 이름을 붙여요.'),
         _photoPanel(
           label: '버튼을 짚는 사진, ${_buttons.length}개 지정',
           marks: [

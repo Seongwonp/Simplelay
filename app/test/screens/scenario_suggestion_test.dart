@@ -242,7 +242,9 @@ void main() {
     expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
     expect(find.text('선풍기 전원 → 약풍'), findsOneWidget);
     expect(find.text('ThinQ'), findsOneWidget);
-    expect(find.text('버튼을 대신 눌러요'), findsOneWidget);
+    // 물리 경로 칩은 두지 않는다(2026-10-14 UX). 섞인 카드라 목록 제목은 '할 일'.
+    expect(find.text('버튼을 대신 눌러요'), findsNothing);
+    expect(find.text('할 일'), findsOneWidget);
     // ThinQ 가전은 폰 가전 목록에 없어도 '대상을 찾지 못함'이 아니다.
     expect(find.text('대상 가전 정보를 확인해 주세요.'), findsNothing);
     final run = tester.widget<FilledButton>(

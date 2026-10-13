@@ -116,9 +116,9 @@ void main() {
       expect(_tile(source: null).text, '준비 상태를 확인하지 못했어요');
     });
 
-    test('operable + canExecute만 긍정한다 — "실행을 요청할 수 있어요"', () {
+    test('operable + canExecute는 상태 줄을 비운다(평소 상태는 말하지 않는다, 2026-10-14)', () {
       final s = _tile(source: _server(const {'can_execute': true, 'readiness': 'operable'}));
-      expect(s.text, '실행을 요청할 수 있어요');
+      expect(s.text, '');
       expect(s.tone, TileTone.ready);
     });
 
@@ -214,15 +214,15 @@ void main() {
   });
 
   group('기록 결과·다음 행동', () {
-    test('모의 성공 — 연습(모의) 표시는 mock 기록에만', () {
+    test('모의 성공 — 연습 한 줄은 mock 기록에만(결과 문장이 그 한 줄, 2026-10-14)', () {
       final r = historyResult(_entry(const {
         'outcome': 'success',
         'execution_mode': 'mock',
         'route': 'physical',
         'confirmation': 'reported',
       }));
-      expect(r.sentence, '모의 버튼 조작을 마쳤어요');
-      expect(r.mockNote, '연습(모의) · 실제로 누르지 않았어요');
+      expect(r.sentence, '연습 · 실제로 누르지 않았어요');
+      expect(r.mockNote, isNull, reason: '같은 말을 두 줄로 되풀이하지 않는다');
       expect(r.next, isNull);
       for (final mode in ['real', 'unknown']) {
         expect(
@@ -237,8 +237,28 @@ void main() {
         'status': 'failed',
         'execution_mode': 'mock',
       }), applianceName: '인터폰');
-      expect(r.next, '연습 결과를 확인해 주세요');
-      expect(r.next!.contains('인터폰'), isFalse);
+      // 다음 행동 줄을 두지 않는다 — 모의는 '연습' 한 줄로만 말한다(2026-10-14 UX).
+      expect(r.next, isNull);
+      expect(r.mockNote, '연습 · 실제로 누르지 않았어요');
+    });
+
+    test('모의 ThinQ — "(모의)" 이름·보냈지만 확인 못 함을 겹치지 않고 한 줄', () {
+      final r = historyResult(_entry(const {
+        'outcome': 'unconfirmed',
+        'status': 'unconfirmed',
+        'execution_mode': 'mock',
+        'route': 'thinq',
+        'receipt': 'unknown',
+      }), applianceName: '공기청정기(모의)');
+      expect(r.sentence, '연습 · 공기청정기에 보내지 않았어요');
+      expect(r.mockNote, isNull);
+      expect(r.next, isNull);
+    });
+
+    test('기록 제목은 질문이 아니라 서술', () {
+      expect(historyStatement('공기청정기 풍량을 강으로 바꿀까요?'), '공기청정기 풍량 강으로');
+      expect(historyStatement("'아침 데우기' 루틴을 실행할까요?"), "'아침 데우기' 루틴");
+      expect(historyStatement('즉석밥 데워줘'), '즉석밥 데워줘');
     });
 
     test('실물 동작 확인(real) 성공은 다음 행동이 없다', () {

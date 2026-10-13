@@ -47,6 +47,8 @@ void main() {
         'receipt': 'accepted',
         'confirmation': 'none',
         'detail': '상태를 확인하지 못했어요',
+        // 실제 경로의 수신 수준을 본다(모의 기록은 '연습' 한 줄만 말한다, 2026-10-14).
+        'execution_mode': 'real',
       }),
       _entry('t2', {
         'status': 'succeeded',
@@ -61,6 +63,7 @@ void main() {
         'route': 'thinq',
         'receipt': 'unknown',
         'confirmation': 'none',
+        'execution_mode': 'real',
       }),
       _entry('p1', {
         'status': 'safety_stopped',
@@ -88,8 +91,9 @@ void main() {
     expect(find.textContaining('보냈지만 확인하지 못했어요'), findsNWidgets(2));
     // 경로 · 확인 수준은 '경로'·'확인' 꼬리표 없이 자연스러운 한 줄로 말한다.
     expect(find.text('ThinQ · 접수됨'), findsOneWidget);
-    // t2는 모의 실행 — 모의가 앞선다(10/6 Copilot 리뷰 66990be).
-    expect(find.text('ThinQ · 모의 상태 확인'), findsOneWidget);
+    // t2는 모의 실행 — 결과 문장 한 줄이 연습이라고 말하고 수신 줄을 겹치지 않는다(2026-10-14).
+    expect(find.text('ThinQ · 모의 상태 확인'), findsNothing);
+    expect(find.text('연습 · 가전에 보내지 않았어요'), findsOneWidget);
     // 접수 불명은 받았는지 모른다고만 말한다(접수됨·확인됨으로 올리지 않는다,
     // 실패로도 말하지 않는다).
     expect(find.text('ThinQ · 가전이 받았는지 확인이 필요해요'), findsOneWidget);
@@ -97,7 +101,6 @@ void main() {
     expect(find.textContaining('확인 확인'), findsNothing);
     // t2는 모의 실행이다 — 실제 가전 확인 문장을 쓰지 않는다.
     expect(find.textContaining('가전 상태를 확인했어요'), findsNothing);
-    expect(find.textContaining('모의 상태만 확인했어요'), findsOneWidget);
     expect(find.textContaining('안전 정지'), findsOneWidget);
     expect(find.textContaining('정지됨'), findsOneWidget);
     // ThinQ 기록에는 '버튼으로 직접 조작'을 내걸지 않는다(물리 실패 2건만).
@@ -125,7 +128,7 @@ void main() {
     expect(find.text('확인 못 함'), findsOneWidget);
     expect(find.text('ThinQ'), findsOneWidget);
     expect(find.text('접수됨'), findsOneWidget);
-    expect(find.textContaining('모의 실행'), findsOneWidget);
+    expect(find.text('연습 모드 · 실제 가전에 보내지 않아요'), findsOneWidget);
     expect(find.textContaining('실패'), findsNothing);
     expect(find.textContaining('정지'), findsNothing);
   });
@@ -162,8 +165,9 @@ void main() {
 
     // 2026-10-13: 결과는 한 문장으로, 모의 여부는 따로 한 줄로 말한다.
     // 모의 기록의 결과 문장이 실제 확인처럼 읽히면 안 된다.
-    expect(find.text('모의 상태만 확인했어요'), findsOneWidget);
-    expect(find.text('연습(모의) · 실제 가전에 명령하지 않았어요'), findsOneWidget);
+    // 2026-10-14: 모의는 한 줄로만 — 결과 문장이 곧 연습 표시다.
+    expect(find.text('연습 · 가전에 보내지 않았어요'), findsOneWidget);
+    expect(find.textContaining('모의 상태만'), findsNothing);
     // 실제 장치 기록은 실제 확인 문장 그대로, 모의 표시는 없다.
     expect(find.text('가전 상태를 확인했어요'), findsOneWidget);
     expect(find.textContaining('실기기'), findsNothing);

@@ -146,28 +146,29 @@ class _SetupSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 홈 가전 목록 **아래**의 작은 안내(2026-10-13). 카드로 감싸 맨 위를 차지하지
-    // 않는다 — 각 타일이 '설정이 필요해요'로 말하고, 이어 하는 길만 남긴다.
+    // 홈 가전 목록 **아래**의 한 줄(2026-10-14 UX). 각 타일이 이미 '설정이 필요해요'로
+    // 말하므로 이름 목록·안내 문장을 되풀이하지 않고, 이어 하는 길만 남긴다.
     return Padding(
       key: const Key('setup-summary-card'),
       padding: const EdgeInsets.only(top: 12),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('설정이 남은 가전 ${appliances.length}개'),
-        Text(
-          setupSummaryNames(appliances),
-          style: context.appCaption,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        TextButton(
-          onPressed: () => _openList(context),
-          style: TextButton.styleFrom(
-            minimumSize: const Size(48, 48),
-            padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Semantics(
+          button: true,
+          label: '설정할 가전 ${appliances.length}개, ${setupSummaryNames(appliances)}',
+          excludeSemantics: true,
+          child: TextButton.icon(
+            onPressed: () => _openList(context),
+            style: TextButton.styleFrom(
+              minimumSize: const Size(48, 48),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+            ),
+            iconAlignment: IconAlignment.end,
+            icon: const Icon(Icons.chevron_right, size: 20),
+            label: Text('설정할 가전 ${appliances.length}개'),
           ),
-          child: const Text('설정 이어하기'),
         ),
-      ]),
+      ),
     );
   }
 

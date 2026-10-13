@@ -80,7 +80,7 @@ class SuggestionScreen extends ConsumerWidget {
     final rpiApi = ref.read(rpiApiServiceProvider);
     var paused = false;
     if (snooze && rpiApi == null) {
-      _notifyError(context, '쉬기를 전달하지 못했어요. 연결을 확인해주세요.');
+      _notifyError(context, '쉬기를 전달하지 못했어요. 연결을 확인해 주세요.');
       return;
     }
     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
@@ -94,13 +94,13 @@ class SuggestionScreen extends ConsumerWidget {
       } on RpiApiException catch (error) {
         if (error.statusCode != 404) {
           if (context.mounted) {
-            _notifyError(context, '선택을 전달하지 못했어요. 연결을 확인해주세요.');
+            _notifyError(context, '선택을 전달하지 못했어요. 연결을 확인해 주세요.');
           }
           return;
         }
       } catch (_) {
         if (context.mounted) {
-          _notifyError(context, '선택을 전달하지 못했어요. 연결을 확인해주세요.');
+          _notifyError(context, '선택을 전달하지 못했어요. 연결을 확인해 주세요.');
         }
         return;
       }
@@ -202,23 +202,23 @@ class SuggestionScreen extends ConsumerWidget {
           _notifyError(
             context,
             switch (error.statusCode) {
-              409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.',
+              409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해 주세요.',
               // 412: 준비 안 된 가전. 기다린다고 되는 일이 아니므로
               // '잠시 후'라고 하지 않는다. 서버 문장(경로별 이유)이 있으면 그대로.
               412 => error.message.isNotEmpty && suggestion.isScenario
                   ? error.message
                   : '이 가전은 아직 조작할 준비가 되지 않았어요. '
-                      '설정에서 연결 상태를 확인해주세요.',
+                      '설정에서 연결 상태를 확인해 주세요.',
               // 자동 실행으로 정할 수 없는 카드(물리 누름 등) — 서버 문장 그대로.
               422 when allow != null && error.message.isNotEmpty => error.message,
-              _ => '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
+              _ => '실행 요청을 전달하지 못했어요. 연결을 확인해 주세요.',
             },
           );
         }
         return;
       } catch (_) {
         if (context.mounted) {
-          _notifyError(context, '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.');
+          _notifyError(context, '실행 요청을 전달하지 못했어요. 연결을 확인해 주세요.');
         }
         return;
       }
@@ -788,6 +788,12 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final names = ref.watch(scenarioNamesProvider).valueOrNull ?? const {};
     final name = names[suggestion.scenarioId];
+    // 사용자가 루틴을 직접 실행했으면 제안이 아니다 — 근거·제안 쉬기·다시 받지 않기를 두지 않는다(2026-10-14 UX).
+    final userStarted = suggestion.userStarted;
+    final canMute = suggestion.canMute && !userStarted;
+    final onSnooze = userStarted ? null : this.onSnooze;
+    final allPhysical =
+        suggestion.commands.every((c) => c.route == 'physical');
 
     // 준비 상태는 물리 제안과 같은 자리(실행 버튼 바로 위)에서 말한다.
     String? blockedWhy;
@@ -804,7 +810,7 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
     }
 
     return Scaffold(
-      appBar: AppBar(title: const Text('제안 확인')),
+      appBar: AppBar(title: Text(userStarted ? '실행 확인' : '제안 확인')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
@@ -818,7 +824,7 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
           const SizedBox(height: 4),
           // 서버의 질문 문장 그대로(예: "공기청정기 강풍으로 바꿀까요?").
           Text(suggestion.label, style: AppText.heading),
-          if (suggestion.whyNow.isNotEmpty) ...[
+          if (suggestion.whyNow.isNotEmpty && !userStarted) ...[
             const SizedBox(height: 6),
             Text(
               '근거: ${suggestion.whyNow}',
@@ -826,7 +832,7 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
             ),
           ],
           const SizedBox(height: 24),
-          Text('승인하면 할 일', style: AppText.title),
+          Text(allPhysical ? '누를 버튼' : '할 일', style: AppText.title),
           const SizedBox(height: 6),
           for (var i = 0; i < suggestion.commands.length; i++)
             _CommandRow(
@@ -834,21 +840,12 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
               command: suggestion.commands[i],
               readiness: readiness[suggestion.commands[i].targetId],
             ),
-          const SizedBox(height: 12),
-          Text(
-            '승인하면 위 내용 그대로만 실행해요. 내용이 바뀌면 다시 물어봐요.',
-            style: TextStyle(fontSize: 15, color: context.appMuted),
-          ),
-          // 큰 글씨: 안내 줄·보조 행동은 본문 끝에(고정 영역을 실행·다음에로 줄인다, 2026-10-14).
+          // 큰 글씨: 보조 행동은 본문 끝에(고정 영역을 실행·다음에로 줄인다, 2026-10-14).
+          // 안심 문장("승인하면 위 내용 그대로만…"·"누르지 않으면 실행하지 않아요")은 뺐다 — 버튼이 이미 말한다.
           if (_largeText(context)) ...[
-            const SizedBox(height: 8),
-            Text(
-              '명령 ${suggestion.commands.length}개 · 누르지 않으면 실행하지 않아요',
-              style: TextStyle(fontSize: 15, color: context.appMuted),
-            ),
             const SizedBox(height: 12),
             _SecondaryActions(
-              canMute: suggestion.canMute,
+              canMute: canMute,
               onMute: onMute,
               onSnooze: onSnooze,
               onRevise: onRevise,
@@ -857,9 +854,8 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
         ],
       ),
       bottomNavigationBar: _ScenarioActionBar(
-        commandCount: suggestion.commands.length,
         blockedWhy: blockedWhy,
-        canMute: suggestion.canMute,
+        canMute: canMute,
         onSkip: onSkip,
         onMute: onMute,
         onSnooze: onSnooze,
@@ -885,13 +881,14 @@ class _CommandRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final path = routeLabel(command.route) ?? command.route;
+    // 물리 경로는 칩이 없다(routeLabel null, 2026-10-14 UX). ThinQ만 칩을 단다.
+    final path = routeLabel(command.route);
     final summary = command.summary.isNotEmpty
         ? command.summary
         : '${command.targetId} ${command.action ?? command.buttons.join(' → ')}';
     final r = readiness;
     return Semantics(
-      label: '${index + 1}번. $summary. $path',
+      label: path == null ? '${index + 1}번. $summary' : '${index + 1}번. $summary. $path',
       child: ExcludeSemantics(
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 10),
@@ -920,8 +917,10 @@ class _CommandRow extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: 20, fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(height: 4),
-                    RouteBadge(label: path),
+                    if (path != null) ...[
+                      const SizedBox(height: 4),
+                      RouteBadge(label: path),
+                    ],
                     if (r != null && !r.canExecute) ...[
                       const SizedBox(height: 4),
                       Text(
@@ -945,7 +944,6 @@ class _CommandRow extends StatelessWidget {
 
 class _ScenarioActionBar extends StatelessWidget {
   const _ScenarioActionBar({
-    required this.commandCount,
     required this.blockedWhy,
     required this.canMute,
     required this.onSkip,
@@ -957,7 +955,6 @@ class _ScenarioActionBar extends StatelessWidget {
     this.onAllow,
   });
 
-  final int commandCount;
   final String? blockedWhy;
   final bool canMute;
   final VoidCallback onSkip;
@@ -1000,30 +997,24 @@ class _ScenarioActionBar extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (why != null || !large)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: why != null
-                    ? Row(
-                        children: [
-                          Icon(Icons.error_outline,
-                              size: 18, color: context.appDanger),
-                          const SizedBox(width: 6),
-                          Expanded(
-                            child: Text(
-                              why,
-                              style: TextStyle(
-                                  fontSize: 15, color: context.appDanger),
-                            ),
-                          ),
-                        ],
-                      )
-                    : Text(
-                        '명령 $commandCount개 · 누르지 않으면 실행하지 않아요',
-                        style:
-                            TextStyle(fontSize: 14, color: context.appMuted),
+              if (why != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Icon(Icons.error_outline,
+                          size: 18, color: context.appDanger),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          why,
+                          style: TextStyle(
+                              fontSize: 15, color: context.appDanger),
+                        ),
                       ),
-              ),
+                    ],
+                  ),
+                ),
               if (stacked) ...[
                 run,
                 if (hasAllow) ...[

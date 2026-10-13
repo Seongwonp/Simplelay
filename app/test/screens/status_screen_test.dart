@@ -99,7 +99,7 @@ void main() {
         const ExecutionStatus(
           phase: ExecutionPhase.unknown,
           label: '즉석밥 데워줘',
-          message: '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해주세요.',
+          message: '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.',
         ),
       );
 

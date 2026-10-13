@@ -259,12 +259,12 @@ void main() {
     await tester.pumpWidget(_build(server, installed: const []));
     await _settle(tester);
 
-    expect(find.text('직접 실행할 때 · 전자레인지 2\u2060단계'), findsOneWidget);
-    expect(find.text('직접 실행할 때 · 세탁기 1\u2060단계'), findsOneWidget);
+    expect(find.text('전자레인지 2\u2060단계'), findsOneWidget);
+    expect(find.text('세탁기 1\u2060단계'), findsOneWidget);
     expect(find.textContaining('home_mw'), findsNothing);
     expect(find.textContaining('washer'), findsNothing);
     // 이름을 모르는 가전만 ID로 남는다.
-    expect(find.text('직접 실행할 때 · ghost 1\u2060단계'), findsOneWidget);
+    expect(find.text('ghost 1\u2060단계'), findsOneWidget);
   });
 
   testWidgets('루틴을 열어 알림만으로 바꿔 저장하면 PUT하고 목록이 다시 읽힌다',

@@ -194,7 +194,7 @@ void main() {
     await _settle(tester);
 
     // ② 모서리 4점 — 허브 프레임 치수를 읽는다.
-    expect(_title(tester), '2. 프레임 모서리 4점');
+    expect(_title(tester), '2. 기계 틀 네 귀퉁이 짚기');
     expect(server.requests, contains('GET /mapping/frame'));
     expect(find.textContaining('가로 300mm'), findsOneWidget);
     expect(next().onPressed, isNull);
@@ -211,7 +211,7 @@ void main() {
     expect(_title(tester), '1. 조작부 사진');
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
-    expect(_title(tester), '2. 프레임 모서리 4점');
+    expect(_title(tester), '2. 기계 틀 네 귀퉁이 짚기');
     expect(next().onPressed, isNotNull);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
@@ -304,7 +304,7 @@ void main() {
     }
     FilledButton next() =>
         tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
-    expect(find.textContaining('허브에 프레임 크기가 없어요'), findsOneWidget);
+    expect(find.textContaining('기계 틀 크기를 아직 몰라요'), findsOneWidget);
     expect(next().onPressed, isNull);
     await tester.enterText(find.byKey(const Key('wizard-frame-w')), '300');
     await tester.enterText(find.byKey(const Key('wizard-frame-h')), '200');

@@ -220,7 +220,9 @@ String routineSubtitle(Routine r, Map<String, String> applianceNames) {
   final targets =
       r.applianceIds.map((id) => applianceNames[id] ?? id).toList();
   return [
-    when,
+    // 직접 실행 루틴은 '언제'를 적지 않는다 — "직접 실행할 때"는 모든 루틴이 그렇다(2026-10-14 UX).
+    // 서버 `when` 문장으로 가른다(목록의 루틴은 trigger 없이 when만 올 수 있다).
+    if (when != const RoutineTrigger.manual().describe()) when,
     // 루틴 단계 수(실행 화면의 조작 진행과 다른 축). 숫자와 '단계'가 큰 글씨에서 다른 줄로
     // 떨어지지 않게 단어 결합 문자(U+2060)로 붙인다(외부 평가 2026-10-13 L3).
     if (targets.isNotEmpty) '${targets.join('·')} ${r.steps.length}\u2060단계',
@@ -423,8 +425,13 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     final value = await showDialog<String>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
-        title: const Text('설정값 바꾸기 · 바꾸면 다시 허용해야 켜져요'),
+        title: const Text('세기 바꾸기'),
         children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            child: Text('바꾸면 다시 허용해야 자동 실행이 켜져요.',
+                style: TextStyle(fontSize: 15, color: dialogContext.appMuted)),
+          ),
           for (final (v, label) in choices)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(dialogContext, v),
@@ -478,8 +485,9 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('조건: ${r.conditionText}', style: const TextStyle(fontSize: 15)),
-                Text('동작: ${r.actionText}', style: const TextStyle(fontSize: 15)),
+                // 규칙을 한 문장으로(2026-10-14 UX) — "조건:/동작:" 표 대신.
+                Text('${r.conditionText} → ${r.actionText}',
+                    style: const TextStyle(fontSize: 15)),
                 const SizedBox(height: 4),
                 Text(
                   r.statusLabel,
@@ -520,7 +528,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                         key: Key('auto-rule-edit-${r.id}'),
                         onPressed: _busy ? null : () => _run(_changeValue),
                         style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
-                        child: const Text('설정값 바꾸기'),
+                        child: const Text('세기 바꾸기'),
                       ),
                     TextButton(
                       key: Key('auto-rule-delete-${r.id}'),

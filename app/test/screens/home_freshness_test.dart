@@ -130,6 +130,9 @@ Finder _inTile(String text, [String id = 'a']) => find.descendant(
     matching: find.byWidgetPredicate(
         (w) => w is Text && (w.data ?? '').replaceAll('\u2060', '') == text));
 
+/// 타일 상태 줄. 평소(실행 가능)에는 없다(2026-10-14 UX) — 없으면 긍정 상태, 있으면 무언가를 말한다.
+Finder _statusLine([String id = 'a']) => find.byKey(Key('appliance-status-$id'));
+
 Future<_Conn> _pumpHome(WidgetTester tester, _Server server) async {
   tester.view.physicalSize = const Size(400, 2400);
   tester.view.devicePixelRatio = 1.0;
@@ -170,7 +173,7 @@ void main() {
         (tester) async {
       final server = _Server();
       final conn = await _pumpHome(tester, server);
-      expect(_inTile('실행을 요청할 수 있어요'), findsOneWidget);
+      expect(_statusLine(), findsNothing);
       expect(find.byType(ApplianceSetupCard), findsNothing, reason: '실제 완료면 설정 카드 없음');
       for (final t in ['확인 주행 기록이 없어요', '확인 주행 여부를 확인하지 못했어요']) {
         expect(_inTile(t), findsNothing);
@@ -221,8 +224,8 @@ void main() {
         (tester) async {
       final server = _Server()..withMock = true;
       await _pumpHome(tester, server);
-      expect(_inTile('실행을 요청할 수 있어요'), findsOneWidget);
-      expect(_inTile('실행을 요청할 수 있어요', 'm'), findsOneWidget);
+      expect(_statusLine(), findsNothing);
+      expect(_statusLine('m'), findsNothing);
 
       // 허브 연결은 그대로, 로컬 갠트리만 걸린다. 목록 응답은 늦게 온다.
       server
@@ -230,22 +233,26 @@ void main() {
         ..appliancesDelay = const Duration(seconds: 2);
       await tester.pump(const Duration(seconds: 5)); // 걸림 조회 주기
       await _settle(tester);
-      expect(_inTile('실행을 요청할 수 있어요'), findsNothing,
+      // 다시 받는 동안 예전 긍정(빈 상태 줄)을 쓰지 않는다 — 타일이 없거나, 있으면 무언가를 말한다.
+      expect(
+          find.byKey(const Key('appliance-card-a')).evaluate().isEmpty ||
+              _statusLine().evaluate().isNotEmpty,
+          isTrue,
           reason: '다시 받는 동안 예전 긍정을 쓰지 않는다');
       await tester.pump(const Duration(seconds: 3));
       await _settle(tester);
       expect(_inTile('준비가 필요해요'), findsOneWidget);
       expect(_inTile(_estopReason), findsOneWidget, reason: '서버가 준 사유 그대로');
-      expect(_inTile('실행을 요청할 수 있어요'), findsNothing);
+      expect(_statusLine(), findsOneWidget);
       // 걸림의 범위는 서버가 정한다 — 모의 실행기 가전까지 폰이 일괄로 막지 않는다.
-      expect(_inTile('실행을 요청할 수 있어요', 'm'), findsOneWidget);
+      expect(_statusLine('m'), findsNothing);
 
       server
         ..estop = false
         ..appliancesDelay = Duration.zero;
       await tester.pump(const Duration(seconds: 5));
       await _settle(tester);
-      expect(_inTile('실행을 요청할 수 있어요'), findsOneWidget);
+      expect(_statusLine(), findsNothing);
       expect(_inTile('준비가 필요해요'), findsNothing);
     });
   });

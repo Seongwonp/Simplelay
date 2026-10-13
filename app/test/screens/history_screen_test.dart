@@ -127,9 +127,9 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('모의 버튼 조작을 마쳤어요'), findsOneWidget);
-    // 모의 여부는 사람 말로 한 줄 — mock 기록에만.
-    expect(find.text('연습(모의) · 실제로 누르지 않았어요'), findsOneWidget);
+    // 모의 여부는 사람 말로 한 줄 — mock 기록에만, 한 번만(2026-10-14 UX).
+    expect(find.text('연습 · 실제로 누르지 않았어요'), findsOneWidget);
+    expect(find.textContaining('모의 버튼 조작'), findsNothing);
     expect(find.textContaining('누름 장치'), findsNothing);
     // 시스템 용어를 앞에 내지 않는다(2026-10-13).
     expect(find.textContaining('모의 실행기 응답'), findsNothing);
@@ -323,7 +323,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets('한 건의 시각적 배치 순서: 날짜 → 제목 → 결과 → 시각 → 모의 여부 → 다음 행동(낭독 순서 아님)',
+  testWidgets('한 건의 시각적 배치 순서: 날짜 → 제목 → 결과 → 시각 → 모의 여부(낭독 순서 아님)',
       (tester) async {
     await pumpWith(tester, [
       {
@@ -348,13 +348,14 @@ void main() {
       find.text('아침 데우기'),
       find.text('다시 눌러도 확인하지 못했어요'),
       find.text('08:10 · 전자레인지'),
-      find.text('연습(모의) · 실제로 누르지 않았어요'),
-      find.text('연습 결과를 확인해 주세요'),
+      find.text('연습 · 실제로 누르지 않았어요'),
       find.text('버튼으로 직접 조작'),
     ];
     for (final f in order) {
       expect(f, findsOneWidget);
     }
+    // 모의 기록에는 다음 행동 줄이 없다 — 연습은 한 줄로만 말한다(2026-10-14 UX).
+    expect(find.text('연습 결과를 확인해 주세요'), findsNothing);
     for (var i = 1; i < order.length; i++) {
       expect(y(order[i]), greaterThan(y(order[i - 1])), reason: '순서 $i');
     }
@@ -417,5 +418,29 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('기록을 불러오지 못했어요'), findsOneWidget);
+  });
+
+  testWidgets('모션 장치가 걸려 멈춘 단계는 "누르지 않음" — "확인 못 함"이 아니다(2026-10-14)',
+      (tester) async {
+    await pumpWith(tester, [
+      {
+        'job_id': 'job-stall',
+        'finished_at': '2026-09-09T08:10:00+09:00',
+        'purpose': '아침 데우기',
+        'status': 'safety_stopped',
+        'outcome': 'safety_stop',
+        'abort_reason': 'motion_alarm: stall',
+        'execution_mode': 'real',
+        'route': 'physical',
+        'retry_count': 0,
+        'buttons': [
+          {'button': '즉석밥', 'success': true, 'attempts': 1},
+          {'button': '시작', 'success': false, 'attempts': 1},
+        ],
+      },
+    ]);
+    expect(find.text('누르지 않음'), findsOneWidget);
+    expect(find.text('확인 못 함'), findsNothing);
+    expect(find.text('확인됨'), findsOneWidget);
   });
 }

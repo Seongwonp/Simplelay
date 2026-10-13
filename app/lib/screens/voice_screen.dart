@@ -163,7 +163,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     } catch (_) {
       if (!mounted) return;
       ref.read(voiceListeningProvider.notifier).state = false;
-      _fail('음성 인식을 시작하지 못했어요. 다시 시도해주세요.');
+      _fail('음성 인식을 시작하지 못했어요. 다시 시도해 주세요.');
     }
   }
 
@@ -218,14 +218,14 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     } on RpiApiException catch (error) {
       if (mounted) {
         _notice(switch (error.statusCode) {
-          422 => '이해하지 못한 명령이에요. 다시 말해주세요.',
-          409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해주세요.',
+          422 => '이해하지 못한 명령이에요. 다시 말해 주세요.',
+          409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해 주세요.',
           503 => '음성 해석 기능이 서버에 설정되어 있지 않아요.',
           // 412: 가전이 아직 조작할 준비가 안 됐다. 서버가 무엇이
           // 남았는지 말해주므로 일반 문구로 덮지 않는다 -- 덮으면
           // 사용자가 원인을 가전 고장 쪽에서 찾게 된다.
           412 => _readinessMessage(error),
-          _ => '명령을 전달하지 못했어요. 연결을 확인해주세요.',
+          _ => '명령을 전달하지 못했어요. 연결을 확인해 주세요.',
         });
       }
     } on TimeoutException {
@@ -233,7 +233,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       // 단정하고 BLE로 다시 보내면 같은 명령이 두 번 실행된다 -- 채널 간
       // 중복을 걸러낼 요청 ID가 아직 없으므로 자동 재전송하지 않는다.
       if (mounted) {
-        _notice('요청이 접수됐는지 확인 중이에요. 실행 상태를 확인해주세요.');
+        _notice('요청이 접수됐는지 확인 중이에요. 실행 상태를 확인해 주세요.');
       }
     } catch (_) {
       // 연결 자체가 성립하지 않은 실패(서버에 닿지도 못함). 서버가 살아서
@@ -261,7 +261,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           // BLE마저 실패 — 아래 공통 안내로
         }
       }
-      if (mounted) _notice('명령을 전달하지 못했어요. 연결을 확인해주세요.');
+      if (mounted) _notice('명령을 전달하지 못했어요. 연결을 확인해 주세요.');
     } finally {
       if (mounted) setState(() => _sending = false);
     }

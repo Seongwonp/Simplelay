@@ -84,7 +84,8 @@ void main() {
     });
 
     test('경로 배지', () {
-      expect(routeLabel('physical'), '버튼을 대신 눌러요');
+      // 물리 경로는 칩을 두지 않는다(2026-10-14 UX).
+      expect(routeLabel('physical'), isNull);
       expect(routeLabel('thinq'), 'ThinQ');
       expect(routeLabel('unknown'), isNull);
       expect(routeLabel(null), isNull);

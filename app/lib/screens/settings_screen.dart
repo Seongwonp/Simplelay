@@ -78,7 +78,7 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: thinq == null
                   ? '계정 연결 전'
                   : thinq.executionMode == 'mock'
-                      ? '모의 연결(실제 가전 아님) · ${thinq.appliances.length}대'
+                      ? '연습 연결 · ${thinq.appliances.length}대'
                       : '연결됨 · ${thinq.appliances.length}대',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => const _ThinqScreen())),
@@ -113,9 +113,8 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(title: '내 가전'),
           const SizedBox(height: 8),
           _ApplianceSection(),
-          const SizedBox(height: 16),
-          // 가전마다 버튼을 대신 눌러 줄 장치가 붙어 있는지.
-          _NodeSection(),
+          // 가전마다 버튼을 눌러 줄 장치(노드) 등록은 개발자 탭으로 옮겼다(2026-10-14 UX) —
+          // 허브가 대신 누르는 기본 구성에서는 '미연결'이 늘 보여 홈의 준비 상태와 엇갈렸다.
 
           const SizedBox(height: 28),
 
@@ -171,7 +170,7 @@ class SettingsScreen extends ConsumerWidget {
   }
 
   static String _hubLine(RpiConnectionState state) => switch (state) {
-        RpiConnectionState.connected => '연결됨 · 위치와 주소 설정',
+        RpiConnectionState.connected => '연결됨',
         RpiConnectionState.keyRequired => '허브 키가 필요해요',
         RpiConnectionState.checking => '확인하는 중이에요',
         RpiConnectionState.unreachable => '지금은 닿지 않아요',

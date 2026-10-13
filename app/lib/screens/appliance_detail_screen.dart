@@ -77,7 +77,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
             Text(
               a.panelMapping != null
                   ? '사진 속 버튼을 누르면 허브가 대신 눌러요. 빨간 원은 정지, 점선은 쉬는 자리예요.'
-                  : '버튼을 누르면 허브가 대신 눌러요. 사진으로 등록하면 사진 위에 버튼이 보여요.',
+                  : '버튼을 누르면 허브가 대신 눌러요.',
               style: TextStyle(fontSize: 15, color: context.appMuted),
             ),
             const SizedBox(height: 10),
@@ -97,16 +97,17 @@ class ApplianceDetailScreen extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('내 루틴 ${mine.length}개',
+                      // 0개면 숫자와 빈 문장을 겹치지 않고 한 줄로(2026-10-14 UX).
+                      Text(mine.isEmpty ? '아직 루틴이 없어요' : '내 루틴 ${mine.length}개',
                           style: const TextStyle(
                               fontSize: 17, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text(
-                        mine.isEmpty
-                            ? '이 가전으로 만든 루틴이 없어요'
-                            : mine.map((r) => r.name).join(' · '),
-                        style: TextStyle(fontSize: 14, color: context.appMuted),
-                      ),
+                      if (mine.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          mine.map((r) => r.name).join(' · '),
+                          style: TextStyle(fontSize: 14, color: context.appMuted),
+                        ),
+                      ],
                     ],
                   ),
                 ),

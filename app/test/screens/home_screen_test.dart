@@ -162,7 +162,7 @@ void main() {
       expect(warning, lessThan(name));
     });
 
-    testWidgets('예비 연결만 꺼지면 경고가 아니라 아래의 조용한 안내다', (tester) async {
+    testWidgets('허브가 닿으면 예비 연결만 꺼져도 연결 줄을 두지 않는다(2026-10-14 UX)', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(server: RpiConnectionState.connected));
       await tester.pump();
@@ -170,15 +170,9 @@ void main() {
       expect(find.text('허브 연결됨'), findsOneWidget);
       expect(find.text('연결 설정이 필요해요'), findsNothing);
       expect(find.text('제안·기록이 멈췄어요'), findsNothing);
-      final notice = tester.getTopLeft(find.text('예비 연결 꺼짐')).dy;
-      final name = tester.getTopLeft(_cardName()).dy;
-      expect(notice, greaterThan(name));
-
-      await tester.tap(find.text('확인하기'));
-      await tester.pump();
-      // 닿는 기기를 다시 "연결됐어요"로 말하지 않고, 꺼진 것만 보여 준다.
-      expect(find.text('예비 연결이 꺼져 있어요'), findsOneWidget);
-      expect(find.text('기기와 연결됐어요'), findsNothing);
+      // 조작은 되고 사용자가 할 판단이 없다 — 허브 문제일 때만 연결 줄을 둔다.
+      expect(find.text('예비 연결 꺼짐'), findsNothing);
+      expect(find.text('확인하기'), findsNothing);
     });
 
     testWidgets('서버와 예비 연결이 모두 되면 연결 줄 자체가 없다', (tester) async {
@@ -208,10 +202,8 @@ void main() {
         expect(find.text('제안·기록이 멈췄어요'), findsNothing);
         expect(find.text('허브 확인 중'), findsOneWidget);
         expect(find.text('허브에 닿지 않아요'), findsNothing);
-        // 예비 연결이 꺼진 것만 아래에 조용히 남는다.
-        final notice = tester.getTopLeft(find.text('예비 연결 꺼짐')).dy;
-        final name = tester.getTopLeft(_cardName()).dy;
-        expect(notice, greaterThan(name));
+        // 확인 중에는 예비 연결이 꺼져도 연결 줄을 두지 않는다 — 허브 문제가 확인될 때만(2026-10-14 UX).
+        expect(find.text('예비 연결 꺼짐'), findsNothing);
       });
     }
 

@@ -239,17 +239,13 @@ void main() {
 
     final summary = find.byKey(const Key('setup-summary-card'));
     expect(summary, findsOneWidget);
-    expect(find.text('설정 이어하기'), findsOneWidget);
+    expect(find.textContaining('설정할 가전'), findsOneWidget);
     final lastTile = find.byKey(const Key('appliance-card-w2'));
     expect(tester.getTopLeft(summary).dy, greaterThan(tester.getTopLeft(lastTile).dy));
     expect(find.descendant(of: lastTile, matching: find.text(keepWordsTogether('설정이 필요해요'))),
         findsOneWidget);
-    // 준비된 가전은 '바로 쓸 수 있어요'가 아니라 요청 가능까지만.
-    expect(
-        find.descendant(
-            of: find.byKey(const Key('appliance-card-mw')),
-            matching: find.text(keepWordsTogether('실행을 요청할 수 있어요'))),
-        findsOneWidget);
+    // 준비된 가전은 상태 줄을 두지 않는다(2026-10-14 UX) — '바로 쓸 수 있어요'로 단정하지도 않는다.
+    expect(find.byKey(const Key('appliance-status-mw')), findsNothing);
     expect(find.textContaining('바로 쓸 수 있어요'), findsNothing);
   });
 
@@ -340,11 +336,7 @@ void main() {
     // 홈 루틴 줄(큰 카드·간결한 행)의 "1단계"는 단과 계 사이도 붙어 있다.
     expect(shown('1\u2060단\u2060계'), isTrue);
     expect(shown('1\u2060단계'), isFalse);
-    // 타일 상태 줄도 같은 규칙.
-    expect(
-        find.descendant(
-            of: find.byKey(const Key('appliance-card-mw')),
-            matching: find.text(keepWordsTogether('실행을 요청할 수 있어요'))),
-        findsOneWidget);
+    // 타일 상태 줄도 같은 규칙('설정이 필요해요'는 위 배치 테스트가 본다). 평소 상태는 줄이 없다.
+    expect(find.byKey(const Key('appliance-status-mw')), findsNothing);
   });
 }

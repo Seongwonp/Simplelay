@@ -106,9 +106,10 @@ class ExecutionStatus {
   /// 모션 걸림 등으로 재시도 없이 멈춘 원인(서버 `last_abort_reason`). null이면 해당 없음.
   final String? abortReason;
   final String executionMode;
+  /// 실행 상태 화면 위 띠. 실제 실행이면 빈 문자열 — 평소 상태라 띠를 두지 않는다(2026-10-14 UX).
   String get modeLabel => isDemo || executionMode == 'mock'
-      ? '모의 실행 — 실제 조작이 아닙니다'
-      : executionMode == 'real' ? '실제 장치로 실행' : '실행 환경 미확인';
+      ? (route == 'thinq' ? '연습 모드 · 실제 가전에 보내지 않아요' : '연습 모드 · 실제로 누르지 않아요')
+      : executionMode == 'real' ? '' : '실행 환경 미확인';
 
   ExecutionStatus copyWith({
     String? executionMode,

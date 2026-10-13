@@ -160,7 +160,9 @@ void main() {
   });
 
   group('SettingsScreen — 스캔 로딩', () {
-    testWidgets('로딩 중일 때 CircularProgressIndicator 표시', (tester) async {
+    // 이 로딩 표시는 '가전마다 버튼을 눌러 줄 장치'(노드 목록) 구획의 것이었다. 그 구획을 개발자 탭으로
+    // 옮겨(2026-10-14 UX) 설정 첫 화면에는 로딩 표시가 남지 않는다.
+    testWidgets('누름 장치 구획을 옮겨 설정 첫 화면엔 로딩 표시가 없다', (tester) async {
       _useTallViewport(tester);
       // scanResultsProvider가 loading 상태를 내보내도록 절대 완료되지 않는 스트림을 사용
       final w = buildScreen(
@@ -174,7 +176,7 @@ void main() {
       );
       await tester.pumpWidget(w);
       await tester.pump();
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
   });
 

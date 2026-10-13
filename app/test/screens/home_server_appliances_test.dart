@@ -180,9 +180,11 @@ void setupSummaryTests() {
     await _pumpHome(tester, kServerFive, verifyCalls);
 
     expect(find.byKey(const Key('setup-summary-card')), findsOneWidget);
-    expect(find.text('설정이 남은 가전 5개'), findsOneWidget);
-    expect(find.text('시험용 전자레인지, Phone-MW, 전자레인지 외 2개'), findsOneWidget);
-    expect(find.text('설정 이어하기'), findsOneWidget);
+    // 한 줄(2026-10-14 UX) — 타일이 이미 '설정이 필요해요'라 이름 목록을 되풀이하지 않는다(낭독 이름에만 둔다).
+    expect(find.text('설정할 가전 5개'), findsOneWidget);
+    expect(find.bySemanticsLabel('설정할 가전 5개, 시험용 전자레인지, Phone-MW, 전자레인지 외 2개'),
+        findsOneWidget);
+    expect(find.text('설정 이어하기'), findsNothing);
     expect(find.textContaining('설정이 2개 남았어요'), findsNothing,
         reason: '가전마다 카드를 쌓지 않는다');
 
@@ -207,9 +209,8 @@ void setupSummaryTests() {
     _phoneViewport(tester);
     await _pumpHome(tester, kServerFive.take(2).toList(), <Uri>[]);
 
-    expect(find.text('설정이 남은 가전 2개'), findsOneWidget);
-    expect(find.text('시험용 전자레인지, Phone-MW'), findsOneWidget);
-    await tester.tap(find.text('설정 이어하기'));
+    expect(find.text('설정할 가전 2개'), findsOneWidget);
+    await tester.tap(find.text('설정할 가전 2개'));
     await tester.pumpAndSettle();
 
     expect(find.text('시험용 전자레인지 · 설정이 2개 남았어요'), findsOneWidget);

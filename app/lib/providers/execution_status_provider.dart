@@ -256,7 +256,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (_missingPolls >= 10) {
         // 실패가 아니라 '모름'이다. 가전은 계속 움직이고 있을 수 있으므로
         // 정지·재확인 수단을 남긴 채 사용자에게 직접 확인을 청한다.
-        const notice = '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해주세요.';
+        const notice = '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.';
         state = state.copyWith(
           phase: ExecutionPhase.unknown,
           message: notice,
@@ -270,7 +270,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (since != null &&
           DateTime.now().difference(since) > _unreachableAfter) {
         if (mounted) {
-          const notice = '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해주세요.';
+          const notice = '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.';
           state = state.copyWith(
             phase: ExecutionPhase.unknown,
             message: notice,
@@ -476,7 +476,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         state = state.copyWith(
             message: error is TimeoutException
                 ? '정지 요청의 응답을 받지 못했어요. 멈췄는지 확인하고 있어요 — 멈추지 않으면 다시 눌러 주세요.'
-                : '정지 요청을 보내지 못했어요. 다시 시도해주세요.');
+                : '정지 요청을 보내지 못했어요. 다시 시도해 주세요.');
         return false;
       }
     }

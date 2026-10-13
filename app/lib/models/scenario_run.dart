@@ -64,22 +64,24 @@ class ScenarioRunStep {
 /// 서버가 확인하지 못한 단계를 여기서 확인됨으로 올리지 않는다.
 String runStepFacts(ScenarioRunStep step) {
   final kind = resultKindOf(status: step.status);
+  final confirmation = confirmationLabel(
+    route: step.route,
+    receipt: step.receipt,
+    confirmation: step.confirmation,
+    kind: kind,
+    executionMode: step.executionMode,
+  );
+  final saysMock = confirmation != null &&
+      (confirmation.contains('연습') || confirmation.contains('모의'));
   return [
-    routeLabel(step.route) ?? step.route,
-    switch (step.executionMode) {
-      'mock' => '모의 실행',
-      'real' => '실제 장치로 실행',
-      _ => '실행 환경 미확인',
-    },
-    if (confirmationLabel(
-      route: step.route,
-      receipt: step.receipt,
-      confirmation: step.confirmation,
-      kind: kind,
-      executionMode: step.executionMode,
-    )
-        case final c?)
-      c,
+    // 물리 경로는 칩이 없다(routeLabel null) — 경로 코드를 그대로 내지 않는다.
+    if (routeLabel(step.route) case final r?) r,
+    // 실제 실행은 따로 말하지 않는다(평소 상태). 연습은 한 번만, 모름은 그대로.
+    if (step.executionMode == 'mock' && !saysMock)
+      '연습'
+    else if (step.executionMode != 'real' && step.executionMode != 'mock')
+      '실행 환경 미확인',
+    if (confirmation != null) confirmation,
     resultWord(kind),
   ].join(' · ');
 }

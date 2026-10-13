@@ -66,10 +66,10 @@ String resultWord(ResultKind kind) => switch (kind) {
 
 /// 제어 경로 배지. 모르면 null(말하지 않는다).
 ///
-/// 물리 경로는 시스템 말("물리 버튼") 대신 무엇을 하는지로 말한다(2026-10-13,
-/// 기록 문구 규칙과 같은 원칙).
+/// 물리 경로는 칩을 두지 않는다(2026-10-14 UX) — 이 제품의 기본 동작이라 "버튼을
+/// 대신 눌러요"를 줄마다 되풀이하면 잡음이다. ThinQ만 결과 문장으로 경로가 드러나지
+/// 않아 남긴다.
 String? routeLabel(String? route) => switch (route) {
-      'physical' => '버튼을 대신 눌러요',
       'thinq' => 'ThinQ',
       _ => null,
     };
@@ -85,7 +85,16 @@ String? confirmationLabel({
   String? confirmation,
   ResultKind? kind,
   String? executionMode,
+  bool aborted = false,
 }) {
+  // 누름 장치에 보내기 전에 끝났다 — 확인 못 함이 아니라 누르지 않았다.
+  if (route != 'thinq' && receipt == 'not_dispatched') return '누르지 않음';
+  // 사용자가 멈췄거나 모션 장치가 걸려 멈췄으면(aborted) 눌림 확인을 묻지 않는다 —
+  // 멈춘 사실이 이미 결과 문장이고, "눌렸는지 확인하지 못했어요"는 고장처럼 읽힌다(2026-10-14 UX).
+  if (confirmation == 'none' &&
+      (kind == ResultKind.stopped || aborted)) {
+    return null;
+  }
   // 모의가 앞선다 — 모의 상태를 읽은 것을 실제 가전 상태 확인으로 말하지
   // 않는다(10/6 Copilot 리뷰 66990be).
   if (confirmation == 'state_confirmed') {
@@ -106,8 +115,8 @@ String? confirmationLabel({
     return switch (confirmation) {
       'operation_confirmed' => '모의 동작 확인',
       'press_confirmed' => '모의 눌림 확인',
-      'reported' => '연습(모의) 결과',
-      'none' => '연습(모의) · 눌렸는지 확인하지 못했어요',
+      'reported' => '연습 결과',
+      'none' => '연습 · 눌렸는지 확인하지 못했어요',
       _ => null,
     };
   }

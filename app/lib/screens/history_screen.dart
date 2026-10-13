@@ -44,7 +44,7 @@ class HistoryScreen extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, __) => _Message(
             icon: Icons.wifi_off,
-            text: '기록을 불러오지 못했어요.\n연결을 확인하고 아래로 당겨 새로고침해주세요.',
+            text: '기록을 불러오지 못했어요.\n연결을 확인하고 아래로 당겨 새로고침해 주세요.',
           ),
           data: (entries) => entries.isEmpty
               ? _Message(
@@ -158,9 +158,13 @@ class _Message extends StatelessWidget {
 /// **어디서** 멈췄는지는 그 기록에 이미 들어 있는데 화면이 버리고 있었다.
 /// 가전 앞에서 무엇을 이어서 해야 하는지가 여기서 갈린다.
 class _StepBreakdown extends StatelessWidget {
-  const _StepBreakdown({required this.buttons});
+  const _StepBreakdown({required this.buttons, this.notPressed = false});
 
   final List<RpiHistoryButton> buttons;
+
+  /// 모션 장치가 걸려 멈춘 실행(abortReason) — 실패한 단계는 누르지 못한 것이다.
+  /// "확인 못 함"(눌렀을 수도 있음)으로 말하지 않는다(2026-10-14 UX).
+  final bool notPressed;
 
   @override
   Widget build(BuildContext context) {
@@ -174,7 +178,11 @@ class _StepBreakdown extends StatelessWidget {
             child: Row(
               children: [
                 Icon(
-                  b.success ? Icons.check_circle_outline : Icons.help_outline,
+                  b.success
+                      ? Icons.check_circle_outline
+                      : notPressed
+                          ? Icons.remove_circle_outline
+                          : Icons.help_outline,
                   size: 18,
                   color: b.success ? context.appSuccess : context.appWarning,
                 ),
@@ -193,7 +201,9 @@ class _StepBreakdown extends StatelessWidget {
                   // 구분할 재료는 없다 -- 확인 여부까지만 말한다.
                   b.success
                       ? (b.attempts > 1 ? '${b.attempts}번 만에 확인' : '확인됨')
-                      : '확인 못 함',
+                      : notPressed
+                          ? '누르지 않음'
+                          : '확인 못 함',
                   style: TextStyle(fontSize: 14, color: context.appMuted),
                 ),
               ],
@@ -220,6 +230,8 @@ class _StepBreakdown extends StatelessWidget {
 /// 없음" 같은 시스템 용어를 앞에 내지 않는다).
 String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   if (e.route != 'thinq') return null;
+  // 모의는 결과 문장("연습 · ○○에 보내지 않았어요")이 이미 다 말한다 — 접수 줄을 겹치지 않는다.
+  if (e.executionMode == 'mock') return null;
   final label = confirmationLabel(
     route: e.route,
     receipt: e.receipt,
@@ -254,7 +266,11 @@ class _HistoryRow extends StatelessWidget {
         entry.route != 'thinq';
     final look = _look(context, kind);
     final title = historyTitle(entry, applianceName: applianceName);
-    final name = applianceName;
+    final rawName = applianceName;
+    // 모의 기록은 '연습' 한 줄이 말한다 — 이름의 "(모의)"를 되풀이하지 않는다(표시만).
+    final name = rawName != null && entry.executionMode == 'mock'
+        ? withoutMockMark(rawName)
+        : rawName;
     // 제목이 이미 가전 이름을 말하면 시각 줄에서 되풀이하지 않는다.
     final timeLine = [
       _hm(entry.finishedAt),
@@ -337,7 +353,8 @@ class _HistoryRow extends StatelessWidget {
           // 단계를 늘어놓으면 목록이 다시 개발 도구처럼 보인다.
           if (expand) ...[
             const SizedBox(height: 10),
-            _StepBreakdown(buttons: entry.buttons),
+            _StepBreakdown(
+                buttons: entry.buttons, notPressed: entry.abortReason != null),
             // 읽고 나서 할 수 있는 일을 남긴다. 무엇이 안 됐는지만
             // 알려주고 끝내면 사용자는 앱을 닫는 것 말고 할 게 없다.
             Align(

@@ -16,8 +16,8 @@ import 'package:simplelay/services/rpi_api_service.dart';
 import '../helpers/test_helpers.dart';
 
 const _offer = {
-  'condition_text': '전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)',
-  'action_text': '거실 공기청정기 풍량을 강으로 변경',
+  'condition_text': '전자레인지가 멈추면',
+  'action_text': '거실 공기청정기 풍량 강으로',
   'fingerprint': 'fp-offer-1',
 };
 
@@ -54,8 +54,8 @@ Map<String, dynamic> _rule({
       'id': 'ar-1',
       'scenario_id': 'cook_done_air',
       'name': '조리 완료 → 공기청정기',
-      'condition_text': '전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)',
-      'action_text': '거실 공기청정기 풍량을 ${value == 'MID' ? '중' : '강'}으로 변경',
+      'condition_text': '전자레인지가 멈추면',
+      'action_text': '거실 공기청정기 풍량 ${value == 'MID' ? '중' : '강'}으로',
       'action': 'set_wind_strength',
       'value': value,
       'allowed_values': [
@@ -122,7 +122,7 @@ class _Server {
           if (req.method == 'POST' && path == '/routines/auto-rules/ar-1/enable') {
             final body = bodies['POST $path']!;
             if (body['enabled'] == false) {
-              rule = _rule(enabled: false, reason: '사용자가 자동 실행을 껐어요');
+              rule = _rule(enabled: false, reason: '직접 자동 실행을 껐어요.');
             } else if (body['fingerprint'] == rule['fingerprint']) {
               rule = _rule(value: rule['value'] as String, fingerprint: rule['fingerprint'] as String);
             } else {
@@ -214,8 +214,11 @@ void main() {
       await tester.tap(find.text('다음부터도 자동으로'));
       await _settle(tester);
       expect(find.text('이번에 실행하고, 다음부터 자동으로 실행할까요?'), findsOneWidget);
-      expect(find.text('조건: 전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)'), findsOneWidget);
-      expect(find.text('동작: 거실 공기청정기 풍량을 강으로 변경'), findsOneWidget);
+      expect(find.text('조건: 전자레인지가 멈추면'), findsOneWidget);
+      expect(find.text('동작: 거실 공기청정기 풍량 강으로'), findsOneWidget);
+      // 짧아진 조건 문장의 한계(조리 완료가 아닐 수 있음)는 허용하는 이 시트에서 말한다(2026-10-14).
+      expect(find.byKey(const Key('auto-rule-caveat')), findsOneWidget);
+      expect(find.textContaining('조리 완료가 아닐 수 있어요'), findsOneWidget);
       expect(find.text('허용하고 이번에도 실행'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('auto-rule-cancel')));
@@ -309,8 +312,10 @@ void main() {
       await _settle(tester);
 
       expect(find.text('조리 완료 → 공기청정기'), findsOneWidget);
-      expect(find.text('조건: 전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)'), findsOneWidget);
-      expect(find.text('동작: 거실 공기청정기 풍량을 강으로 변경'), findsOneWidget);
+      // 규칙은 한 문장(2026-10-14 UX) — "조건:/동작:" 표가 아니다.
+      expect(find.text('전자레인지가 멈추면 → 거실 공기청정기 풍량 강으로'), findsOneWidget);
+      expect(find.textContaining('조건:'), findsNothing);
+      expect(find.text('세기 바꾸기'), findsOneWidget);
       expect(find.text('자동 실행 켜짐'), findsOneWidget);
       expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
       expect(find.textContaining('깨끗'), findsNothing);
@@ -319,7 +324,7 @@ void main() {
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'], {'enabled': false});
       expect(find.text('자동 실행 꺼짐'), findsOneWidget);
-      expect(find.text('사용자가 자동 실행을 껐어요'), findsOneWidget);
+      expect(find.text('직접 자동 실행을 껐어요.'), findsOneWidget);
     });
 
     testWidgets('다시 허용은 확인 시트를 거쳐 목록의 지문으로만 켠다', (tester) async {
@@ -349,7 +354,7 @@ void main() {
       await tester.tap(find.text('중'));
       await _settle(tester);
       expect(server.bodies['PUT /routines/auto-rules/ar-1'], {'value': 'MID'});
-      expect(find.text('동작: 거실 공기청정기 풍량을 중으로 변경'), findsWidgets);
+      expect(find.text('동작: 거실 공기청정기 풍량 중으로'), findsWidgets);
       await tester.tap(find.byKey(const Key('auto-rule-allow')));
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'],

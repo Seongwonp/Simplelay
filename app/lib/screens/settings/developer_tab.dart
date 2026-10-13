@@ -36,6 +36,11 @@ class DeveloperTabScreen extends ConsumerWidget {
                 const SizedBox(height: 4),
                 _DeveloperToolsTile(),
                 const SizedBox(height: 24),
+                // 가전마다 버튼을 눌러 줄 장치(노드) 등록 — 설정에서 옮겨 왔다(2026-10-14 UX).
+                _SectionHeader(title: '누름 장치'),
+                const SizedBox(height: 8),
+                _NodeSection(),
+                const SizedBox(height: 24),
                 _SectionHeader(title: '데모'),
                 const SizedBox(height: 12),
                 _DemoModeTile(),

@@ -772,10 +772,12 @@ class _ApplianceGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final names = distinctTileNames(appliances);
     final cards = <Widget>[
       for (final a in appliances)
         _ApplianceCard(
           appliance: a,
+          name: names[a.id] ?? a.name,
           status: statusOf(a),
           verifyNote: verifyNoteOf(a),
           onTap: () => onOpen(a),
@@ -825,12 +827,16 @@ class _ApplianceGrid extends StatelessWidget {
 class _ApplianceCard extends ConsumerWidget {
   const _ApplianceCard({
     required this.appliance,
+    required this.name,
     required this.status,
     required this.onTap,
     this.verifyNote,
   });
 
   final ApplianceMap appliance;
+
+  /// 타일에 적을 이름([distinctTileNames]) — 같은 이름이 둘이면 " (2)"가 붙는다.
+  final String name;
 
   /// '확인 주행' 보조 줄. 상태 줄과 따로 그리고, 접근성 이름에도 넣는다.
   final String? verifyNote;
@@ -857,10 +863,10 @@ class _ApplianceCard extends ConsumerWidget {
       button: true,
       // excludeSemantics라 아래 글자가 따로 읽히지 않는다 — 상태를 이름에 함께 넣는다.
       label: [
-        a.displayName,
+        if ((a.location ?? '').isNotEmpty) '${a.location} $name' else name,
         if (a.isThinq) 'ThinQ',
         if (a.isDemo) '데모',
-        s.text,
+        if (s.text.isNotEmpty) s.text,
         if (s.detail case final d?) d,
         if (verifyNote case final v?) v,
       ].join(', '),
@@ -898,15 +904,18 @@ class _ApplianceCard extends ConsumerWidget {
                 ),
                 const SizedBox(height: 10),
                 Text(
-                  a.name,
+                  name,
                   style: const TextStyle(
                       fontSize: 17, fontWeight: FontWeight.w700),
                 ),
                 if ((a.location ?? '').isNotEmpty)
                   Text(a.location!,
                       style: TextStyle(fontSize: 14, color: context.appMuted)),
+                // 평소(실행 가능)는 상태 줄을 두지 않는다(빈 문자열, 2026-10-14 UX).
+                if (s.text.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Row(
+                  key: Key('appliance-status-${a.id}'),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (icon != null) ...[
@@ -929,6 +938,7 @@ class _ApplianceCard extends ConsumerWidget {
                     ),
                   ],
                 ),
+                ],
                 if (s.detail case final d?)
                   Text(
                     d,
@@ -1066,7 +1076,9 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
   /// 닿지 않는다고 **확인된** 경우만. 확인 중(checking·unconfigured)은 아니다.
   bool get _serverDown => widget.rpiState == RpiConnectionState.unreachable;
 
-  bool get _hasProblem => _serverDown || !widget.bleConnected;
+  /// 허브에 닿으면 예비 연결이 꺼져도 말하지 않는다(2026-10-14 UX) — 조작은 되고,
+  /// 사용자가 그걸로 할 판단이 없다. 허브 연결에 문제가 있을 때만 줄을 둔다.
+  bool get _hasProblem => _serverDown;
 
   @override
   Widget build(BuildContext context) {
@@ -1074,12 +1086,9 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
     // 줄은 화면을 관리 도구로 되돌릴 뿐, 사용자가 그걸로 할 판단이 없다.
     if (!_hasProblem) return const SizedBox.shrink();
 
-    // 기기에 닿지 않으면 경고색, 예비 연결만 꺼졌으면 보조색. 둘 다 끊긴
-    // 것과 예비 연결로 버티는 것도 문장을 나눈다 -- 조작은 되는데 "연결
-    // 설정이 필요해요"라고만 하면 무엇이 안 되는지 알 수 없다.
-    final (String label, Color color, IconData icon) = !_serverDown
-        ? ('예비 연결 꺼짐', context.appMuted, Icons.bluetooth_disabled)
-        : widget.bleConnected
+    // 둘 다 끊긴 것과 예비 연결로 버티는 것은 문장을 나눈다 -- 조작은 되는데
+    // "연결 설정이 필요해요"라고만 하면 무엇이 안 되는지 알 수 없다.
+    final (String label, Color color, IconData icon) = widget.bleConnected
             ? ('제안·기록이 멈췄어요', context.appWarning,
                 Icons.wifi_tethering_error)
             : ('연결 설정이 필요해요', context.appDanger,

@@ -145,7 +145,7 @@ class _SavedDeviceSection extends ConsumerWidget {
                   await ble.stopScan();
                   if (match == null) {
                     messenger.showSnackBar(const SnackBar(
-                      content: Text('저장된 기기를 찾지 못했어요. 기기 전원을 확인해주세요.'),
+                      content: Text('저장된 기기를 찾지 못했어요. 기기 전원을 확인해 주세요.'),
                     ));
                     return;
                   }
@@ -153,7 +153,7 @@ class _SavedDeviceSection extends ConsumerWidget {
                     await ble.connect(match.device);
                   } catch (_) {
                     messenger.showSnackBar(const SnackBar(
-                      content: Text('연결에 실패했어요. 다시 시도해주세요.'),
+                      content: Text('연결에 실패했어요. 다시 시도해 주세요.'),
                     ));
                   }
                 },

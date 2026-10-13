@@ -158,8 +158,8 @@ void main() {
     ]) {
       expect(_inTile('d', t), findsNothing, reason: '실제 완료는 보조 줄 없음: $t');
     }
-    // 기존 상태 줄은 그대로(별개의 줄).
-    expect(_inTile('a', '실행을 요청할 수 있어요'), findsOneWidget);
+    // 평소 상태 줄은 비어 있다(2026-10-14 UX) — 보조 줄은 별개로 남는다.
+    expect(find.byKey(const Key('appliance-status-a')), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -227,13 +227,13 @@ void main() {
     await _settle(tester);
     expect(
         find.bySemanticsLabel(
-            '전자레인지, 실행을 요청할 수 있어요, 모의 주행만 확인했어요'),
+            '전자레인지, 모의 주행만 확인했어요'),
         findsOneWidget);
     expect(
         find.bySemanticsLabel(
-            '세탁기, 실행을 요청할 수 있어요, 확인 주행 여부를 확인하지 못했어요'),
+            '세탁기, 확인 주행 여부를 확인하지 못했어요'),
         findsOneWidget);
-    expect(find.bySemanticsLabel('밥솥, 실행을 요청할 수 있어요'), findsOneWidget);
+    expect(find.bySemanticsLabel('밥솥'), findsOneWidget);
     handle.dispose();
   });
 

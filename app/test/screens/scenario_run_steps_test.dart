@@ -108,8 +108,8 @@ void main() {
     expect(find.text('2. 전자레인지 즉석밥'), findsOneWidget);
     // 확인 수준은 기존 규칙 그대로 — ThinQ는 상태 확인됨, 물리 보고는 보고만.
     // 모의 실행이면 모의 상태 확인이다(10/6 Copilot 리뷰 66990be).
-    expect(find.text('ThinQ · 모의 실행 · 모의 상태 확인 · 성공'), findsOneWidget);
-    expect(find.text('버튼을 대신 눌러요 · 모의 실행 · 연습(모의) 결과 · 성공'),
+    expect(find.text('ThinQ · 모의 상태 확인 · 성공'), findsOneWidget);
+    expect(find.text('연습 결과 · 성공'),
         findsOneWidget);
     // 보고만 받은 물리 단계를 눌림·동작 확인으로 올리지 않는다.
     expect(find.textContaining('버튼을 눌렀어요'), findsNothing);
@@ -138,9 +138,10 @@ void main() {
       ..['confirmation'] = 'none';
     await _pump(tester, _api(body));
 
-    expect(find.text('ThinQ · 모의 실행 · 가전이 받았는지 확인이 필요해요 · 확인 못 함'),
+    expect(find.text('ThinQ · 연습 · 가전이 받았는지 확인이 필요해요 · 확인 못 함'),
         findsOneWidget);
-    expect(find.text('버튼을 대신 눌러요 · 모의 실행 · 연습(모의) · 눌렸는지 확인하지 못했어요 · 실패'),
+    // 누름 장치에 보내기 전에 끝난 단계는 '누르지 않음'(2026-10-14) — 확인 못 함이 아니다.
+    expect(find.text('연습 · 누르지 않음 · 실패'),
         findsOneWidget);
     expect(find.textContaining('상태 확인됨'), findsNothing);
   });

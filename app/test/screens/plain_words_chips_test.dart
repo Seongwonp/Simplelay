@@ -18,8 +18,8 @@ void _tall(WidgetTester tester) {
 
 void main() {
   group('경로·확인 수준 문구', () {
-    test('물리 경로는 "버튼을 대신 눌러요", ThinQ는 그대로', () {
-      expect(routeLabel('physical'), '버튼을 대신 눌러요');
+    test('물리 경로는 칩이 없다(2026-10-14), ThinQ는 그대로', () {
+      expect(routeLabel('physical'), isNull);
       expect(routeLabel('thinq'), 'ThinQ');
     });
 
@@ -30,7 +30,7 @@ void main() {
               confirmation: 'reported',
               kind: ResultKind.success,
               executionMode: 'mock'),
-          '연습(모의) 결과');
+          '연습 결과');
       // 모의 눌림·동작 확인은 그대로(확인 수준을 줄이지 않는다).
       expect(
           confirmationLabel(
@@ -53,7 +53,7 @@ void main() {
           kind: ResultKind.failed,
           executionMode: 'mock');
       expect(real, '눌렸는지 확인하지 못했어요');
-      expect(mock, '연습(모의) · 눌렸는지 확인하지 못했어요');
+      expect(mock, '연습 · 눌렸는지 확인하지 못했어요');
     });
   });
 
@@ -76,7 +76,7 @@ void main() {
       expect(find.text('모의 실행기 응답'), findsNothing);
       // 경로 칩은 결과 문장("모의 버튼 조작을 마쳤어요")과 겹치므로 두지 않는다.
       expect(find.text('버튼을 대신 눌러요'), findsNothing);
-      expect(find.text('연습(모의) 결과'), findsOneWidget);
+      expect(find.text('연습 결과'), findsOneWidget);
       expect(find.textContaining('모의 버튼 조작을 마쳤어요'), findsWidgets);
     });
 
