@@ -70,7 +70,7 @@ flowchart LR
 | ESP32 모션 보드: 모터 A·B 개루프 구동·엔코더 계수 | **실물 확인** 10/12 | [motion-bringup](docs/devlog/devlog_2026-10-12-motion-bringup.md) |
 | 폰(에뮬레이터) → RPi5 → RPi4(Wi-Fi) → ESP32 조이스틱 이동·정지 전달 | **실물 확인** 10/12(모터 축 기준, 벨트 미완성으로 캐리지는 안 움직임) | [motion-bringup](docs/devlog/devlog_2026-10-12-motion-bringup.md) |
 | 일반 실행 경로(이동 → 누름 신호 → 이동 → 사용자 정지), 모터 축 | **실물 확인(모터 축)** 10/13 — RPi5·RPi4 `1bba354`(코드 `af7e2df`), 시험대 펌웨어 `esp32dev_benchhome`, 시험 좌표. 벨트 없음(캐리지 안 움직임)·솔레노이드 없음(신호만) | [desktop-board](docs/devlog/devlog_2026-10-13-desktop-board.md) |
-| 정지 확인 단계(보냄·모션 보드 확인·멈춤 확인) | **실물 확인(모터 축)** 10/13 — 같은 빌드, 이동 중 정지 sent→mcu_ack 중앙 10.95 ms·sent→verified 중앙 160 ms, 10회 `verified`. 10/14 수리(걸림 원인·포트 다시 열기 등)는 미배포 | [desktop-board](docs/devlog/devlog_2026-10-13-desktop-board.md) · [stop-confirm](docs/devlog/devlog_2026-10-13-stop-confirm.md) |
+| 정지 확인 단계(보냄·모션 보드 확인·멈춤 확인) | **실물 확인(모터 축)** 10/13 — G3 시료는 `4819401` 2차 배포 뒤 **개발자 경로**(5 mm 조그 약 88 ms 뒤 `/dev/stop`), n=10: sent→mcu_ack 중앙 10.95 ms·sent→verified 중앙 160 ms, 10/10 `verified`. 위 줄의 최종 배포 `1bba354`(코드 `af7e2df`)는 **그 뒤** 배포로, 일반 실행 정지 문장만 확인했고 G3를 다시 재지 않았다(같은 값일 수는 있으나 잰 것은 `4819401`). 10/14·4차 수리는 미배포 | [desktop-board](docs/devlog/devlog_2026-10-13-desktop-board.md) · [stop-confirm](docs/devlog/devlog_2026-10-13-stop-confirm.md) |
 | 모션 펌웨어 스톨 원점·솔레노이드 누름·시연 빌드 | 컴파일만(폐루프 이동은 위 시험대 빌드로 모터 축만) | [motion-firmware-merge](docs/devlog/devlog_2026-10-10-motion-firmware-merge.md) |
 | 누름·동작 확인(L1 전류·L3 CT, 음향은 보조) | 모의만 — 층별 계약·모의 입력 시험, L2는 RPi4 운영 경로 미연결 | [eval64-fix](docs/devlog/devlog_2026-10-08-eval64-fix.md) |
 | 콘센트 모듈(CT 2채널·릴레이·비상정지 래치) | 컴파일·가짜 모듈 시험만, 회로 미제작 | [outlet-module](docs/devlog/devlog_2026-10-05-outlet-module.md) |
