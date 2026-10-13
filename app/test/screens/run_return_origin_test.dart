@@ -5,8 +5,13 @@
 //
 // 세 진입점(홈·루틴 목록·편집기 '지금 실행')은 모두 `runRoutineNow`로 승인
 // 화면을 연다. 그래서 출발 화면 하나가 `runRoutineNow`를 부르게 두고, 승인
-// 화면은 진짜 SuggestionScreen, 실행 상태 화면은 StatusScreen의 돌아가기
-// 규칙(`canPop`이면 pop, 아니면 홈)과 같은 대역으로 둔다.
+// 화면은 진짜 SuggestionScreen이다.
+//
+// 실행 상태 화면은 두 가지로 본다(외부 평가 2026-10-13 L1):
+//  - 대역(`_StatusStandIn`): StatusScreen의 돌아가기 규칙(`canPop`이면 pop, 아니면 홈)을 복제한
+//    것 — 수정 전 2건 실패는 이 대역 경로의 실패다(ecb90e9).
+//  - 실제 StatusScreen: 허브가 실행 완료를 알리면 아래 '확인'·'닫기'·안드로이드 뒤로가기가
+//    출발한 곳(홈·루틴 목록)으로 돌아가는지. 편집기 출발은 같은 `runRoutineNow`라 여기서 따로 보지 않는다.
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -17,6 +22,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
 import 'package:simplelay/widgets/routine_run.dart';
@@ -75,6 +81,19 @@ class _Hub {
             approved = true;
             return _json({'job_id': 'job-1'});
           }
+          // 실제 StatusScreen이 따라가는 실행 — 접수 뒤 바로 끝난 것으로 알린다.
+          if (path == '/status') {
+            return _json({
+              'running': false,
+              'job_id': null,
+              'last_job_id': approved ? 'job-1' : null,
+              'last_status': approved ? 'succeeded' : null,
+              'last_outcome': approved ? 'success' : null,
+              'last_execution_mode': 'mock',
+              'last_route': 'physical',
+              'last_buttons': <Object>[],
+            });
+          }
           if (path == '/readiness/microwave') {
             return _json({
               'appliance_id': 'microwave',
@@ -127,7 +146,7 @@ class _StatusStandIn extends StatelessWidget {
       );
 }
 
-Widget _build(_Hub hub, String initial) {
+Widget _build(_Hub hub, String initial, {bool realStatus = false}) {
   final router = GoRouter(
     initialLocation: initial,
     routes: [
@@ -138,7 +157,10 @@ Widget _build(_Hub hub, String initial) {
         builder: (_, state) =>
             SuggestionScreen(sequenceId: state.pathParameters['id']!),
       ),
-      GoRoute(path: '/status', builder: (_, __) => const _StatusStandIn()),
+      GoRoute(
+          path: '/status',
+          builder: (_, __) =>
+              realStatus ? const StatusScreen() : const _StatusStandIn()),
     ],
   );
   return buildWithProviderState(
@@ -197,5 +219,41 @@ void main() {
       // 폴링 타이머를 정리한다.
       await tester.pumpWidget(const SizedBox());
     });
+  }
+
+  // 실제 StatusScreen(L1). 버튼마다·뒤로가기마다 출발한 곳으로 돌아가는지.
+  for (final (initial, name) in [('/', '홈'), ('/routines', '루틴 목록')]) {
+    for (final how in ['확인', '닫기', '뒤로가기']) {
+      testWidgets('실제 실행 상태 화면: $name 출발 → 완료 뒤 $how → $name', (tester) async {
+        _tall(tester);
+        final hub = _Hub();
+        await tester.pumpWidget(_build(hub, initial, realStatus: true));
+        await _settle(tester);
+
+        await tester.tap(find.text('실행하기'));
+        await _settle(tester);
+        await tester.tap(find.text('지금 실행'));
+        await _settle(tester);
+        expect(hub.approved, isTrue);
+        expect(find.byType(StatusScreen), findsOneWidget);
+        // 폴링(1초)이 완료를 받을 때까지.
+        await tester.pump(const Duration(seconds: 2));
+        await _settle(tester);
+        expect(find.text('확인'), findsOneWidget, reason: '완료 뒤 아래 버튼');
+
+        if (how == '뒤로가기') {
+          await tester.binding.handlePopRoute();
+        } else {
+          await tester.tap(find.text(how));
+        }
+        await _settle(tester);
+        await tester.pump(const Duration(seconds: 1)); // 화면 전환이 끝나도록
+
+        expect(find.byType(StatusScreen), findsNothing);
+        expect(find.text('제안을 찾을 수 없어요.'), findsNothing);
+        expect(find.text('출발 $name'), findsOneWidget);
+        await tester.pumpWidget(const SizedBox());
+      });
+    }
   }
 }
