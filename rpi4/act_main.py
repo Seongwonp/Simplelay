@@ -675,6 +675,12 @@ def _build_hold(grbl: object, raw_grbl: object, outlet=None, binder=None):
     return real_hold_hardware(grbl, raw_grbl)
 
 
+def _is_serial_motion(raw_grbl: object) -> bool:
+    from rpi.controller.serial_motion import SerialMotionClient
+
+    return isinstance(raw_grbl, SerialMotionClient)
+
+
 def _build_dev_motion(raw_grbl: object):
     """실제 모션 어댑터(serial)일 때만 개발자 조작 서비스를 만든다(2026-10-10). mock이면 None — act_info에
     dev_motion_protocol을 싣지 않아 RPi5가 개발자 조작을 보내지 않는다."""
@@ -751,6 +757,8 @@ def _build_executor(
         target_binder=binder,
         dev_motion=_build_dev_motion(raw_grbl),
         link_key=link_key,
+        # 정지 확인 단계(2026-10-13): 실제 모션 어댑터면 정지 보고가 MCU 응답·멈춤 확인을 읽는다. mock이면 None('보냄').
+        motion_stop=raw_grbl if _is_serial_motion(raw_grbl) else None,
         **extra,
     )
     if outlet is not None:

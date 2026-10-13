@@ -17,7 +17,10 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
                                              SIMPLELAY_ACT_PROGRESS=0이면 끔. 결과 아님)
                                  →  progress {phase:"hold", hold_state, stop_outcome, ...}
                                              (execute에 hold가 있으면 결과 뒤 정지 대기·보관 보고)
-  abort {scope?}                 →  (cooperative stop; 정지 대기 중이면 정지 버튼 누름 — _on_abort)
+  abort {scope?, stop_id?}       →  (cooperative stop; 정지 대기 중이면 정지 버튼 누름 — _on_abort)
+                                 →  stop_report {stop_id, target, stop_level, ack_ms, stop_detail?}
+                                    (stop_id가 있을 때만, 정지 보고 규약 1 — 2026-10-13. target run·dev·hold·idle,
+                                    stop_level sent·mcu_ack·verified, 아무것도 멈추지 않았으면 null)
   verify_pass {sequence_id,      →  progress {phase:"verify", ...} + verify_result
                targets}                     {sequence_id, ok, targets:[{button,status,...}]}
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
@@ -34,8 +37,8 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
   estop_ack                      →  estop_state {latched, reason, detail}
                                     (비상정지 걸림 해제 확인 — 버튼이 풀렸을 때만 풀린다)
   dev_motion {request_id, op,    →  dev_motion_result {request_id, op, ok, reason?, detail?, moved?,
-              axis?, delta_mm?,                      homed?, x_mm?, y_mm?}
-              label?, reason?}      (개발자 조작 규약 1, 2026-10-10 — 실제 모션 어댑터가 물렸을 때만
+              axis?, delta_mm?,                      homed?, x_mm?, y_mm?, stop_level?, ack_ms?}
+              label?, reason?}      (개발자 조작 규약 2 — stop 답에 정지 확인 단계, 2026-10-13. 규약 1은 2026-10-10 — 실제 모션 어댑터가 물렸을 때만
                                     act_info.dev_motion_protocol로 알리고 받는다. rpi4/services/dev_motion.py.
                                     비상정지 걸림·콘센트 무응답·모션 연결 전·일반 실행/정지 대기 중이면
                                     움직이기 전에 거절(moved:false). stop은 언제나 받아 MCU stop을 보낸다)
@@ -66,7 +69,7 @@ import logging
 import os
 import time
 from collections.abc import Callable
-from typing import Protocol
+from typing import TYPE_CHECKING, Protocol
 
 from rpi.controller import (
     ClosedLoopController,
@@ -98,12 +101,18 @@ from ..models.act_messages import (
     parse_act_message,
 )
 from .dev_motion import DEV_MOTION_PROTOCOL, DevMotionService
+
+if TYPE_CHECKING:
+    from rpi.controller.serial_motion import StopReport
 from .stop_hold import HoldHardware, StopHoldSession, run_verify_pass
 from .target_binding import TargetBinder, TargetBinding, TargetRefused
 
 log = logging.getLogger(__name__)
 
 PROGRESS_ENV = "SIMPLELAY_ACT_PROGRESS"
+#: act_info로 알리는 정지 보고 규약 판(2026-10-13). 1 = ``abort {stop_id}``에 ``stop_report``로 답한다.
+#: RPi5는 이 값이 없는 RPi4(옛 판)면 보고를 기다리지 않고 ``sent``(보냄)로만 말한다.
+STOP_REPORT_PROTOCOL = 1
 
 
 def progress_enabled_from_env() -> bool:
@@ -210,6 +219,7 @@ class ActExecutor:
         target_binder: "TargetBinder | None" = None,
         dev_motion: "DevMotionService | None" = None,
         link_key: "str | bytes | None" = None,
+        motion_stop: object | None = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -239,6 +249,8 @@ class ActExecutor:
         서명된 hello마다 새 세션을 열고(첫 답 act_info에 ``cn``·``sn``), 그 세션의 서명·``seq``가 맞는 프레임만
         받는다. 나머지(서명 없음·MAC 틀림·``seq`` 되돌림·이미 쓴 hello)는 답 없이 버린다 — 정지(abort)도 같다.
         세션 전에는 아무것도 보내지 않는다(켜질 때의 자발 알림도). None이면 종전 그대로.
+        motion_stop: 실행 중 정지의 확인 단계를 읽을 실제 모션 어댑터(``confirm_stop()``을 가진 것, 2026-10-13).
+        act_main이 serial 모드면 `SerialMotionClient`를 꽂는다. None(모의 모션)이면 실행 중 정지는 ``sent``로 보고한다.
 
         비상정지 걸림(2026-10-05): 콘센트 모듈의 비상정지(이벤트·ready·status 보고)를 받으면
         ``estop_latched``가 켜지고, RPi5가 ``estop_ack``로 해제를 확인할 때까지 execute·verify_pass를
@@ -284,6 +296,9 @@ class ActExecutor:
         #: 개발자 조작 서비스와 진행 중 조작(한 번에 하나).
         self._dev_motion = dev_motion
         self._dev_task: asyncio.Task[None] | None = None
+        self._motion_stop = motion_stop
+        #: 정지 확인을 기다렸다 답하는 task(dev_motion stop 답·stop_report) — 읽기 루프를 막지 않게 따로 돈다.
+        self._stop_tasks: set[asyncio.Task[None]] = set()
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -956,7 +971,7 @@ class ActExecutor:
     def _announce(self) -> None:
         """``act_info``와 ``estop_state``를 보낸다 — RPi5가 (다시) 연결했거나 RPi4가 막 켜졌을 때."""
         info = {"type": "act_info", "done_watch": [], "execute_protocol": EXECUTE_PROTOCOL, **self.act_info,
-                "rehearsal": self._rehearsal is not None}
+                "rehearsal": self._rehearsal is not None, "stop_report_protocol": STOP_REPORT_PROTOCOL}
         if self._dev_motion is not None:
             # 실제 모션 어댑터가 물렸을 때만 — RPi5는 이 값이 없으면 개발자 조작을 보내지 않는다(2026-10-10).
             info["dev_motion_protocol"] = DEV_MOTION_PROTOCOL
@@ -1010,33 +1025,74 @@ class ActExecutor:
         # SAFETY_STOPPED로 종료하면, 그 result가 RPi5에 정상 회신된다 —
         # 폰/키오스크의 긴급 정지가 UART 모드에서도 끝단까지 완결되는 지점.
         scope = msg.scope if msg is not None else "appliance"
+        stop_id = msg.stop_id if msg is not None else None
+        target, probe = self._abort(scope)
+        if stop_id is not None:
+            # 정지는 위에서 이미 나갔다 — 확인 단계만 따로 기다렸다 보고한다(읽기 루프를 막지 않는다).
+            self._spawn_stop_task(self._report_stop(stop_id, target, probe))
+
+    def _abort(self, scope: str) -> "tuple[str, Callable[[], StopReport] | str | None]":
+        """정지를 보내고 (보고 대상, 확인 방법)을 돌려준다. 확인 방법은 ``confirm_stop`` 함수, 고정 단계 문자열,
+        또는 None(멈출 것이 없었다)."""
         if self._dev_running():
             # 일반 정지(abort)도 진행 중인 개발자 조작을 멈춘다 — RPi5 /stop이 개발자 정지와 함께 보낸다.
             log.warning("abort received during a developer motion op — sending MCU stop")
             self._stop_dev("abort")
-            return
+            assert self._dev_motion is not None
+            return "dev", self._dev_motion.confirm_stop
         session = self.hold_session
         if not self._busy and session is not None and session.active:
             # 정지 버튼 위 대기 중: 가전 정지(정지 버튼 누름). drive면 구동부만 멈춘다(누르지 않음).
             if scope == "drive":
                 log.warning("drive stop received while holding — stopping motion, no stop press")
                 session.drive_stop()
-            else:
-                log.warning("stop received while holding — pressing the appliance stop button: %s",
-                            session.request_appliance_stop())
-            return
+                return "hold", self._motion_probe()
+            log.warning("stop received while holding — pressing the appliance stop button: %s",
+                        session.request_appliance_stop())
+            # 가전 정지 결과는 정지 대기 보고(progress phase "hold"의 stop_outcome)가 따로 알린다.
+            return "hold", None
         if self._busy:
             self._verify_stop = True
             request_stop = getattr(self._controller, "request_stop", None)
             if request_stop is not None:
                 log.warning("abort received mid-execution — requesting cooperative stop")
                 request_stop()
-            else:
-                log.warning(
-                    "abort received mid-execution — controller has no request_stop hook"
-                )
-        else:
-            log.info("abort received while idle — nothing to cancel")
+                return "run", self._motion_probe()
+            log.warning(
+                "abort received mid-execution — controller has no request_stop hook"
+            )
+            return "run", None
+        log.info("abort received while idle — nothing to cancel")
+        return "idle", None
+
+    def _motion_probe(self) -> "Callable[[], StopReport] | str":
+        """실제 모션 어댑터가 있으면 그 ``confirm_stop``, 없으면(모의 모션) ``sent`` — 넘긴 것까지만."""
+        confirm = getattr(self._motion_stop, "confirm_stop", None)
+        return confirm if callable(confirm) else "sent"
+
+    async def _confirm(self, probe: "Callable[[], StopReport] | str | None") -> dict:
+        """확인 방법을 돌려 ``{"stop_level", "ack_ms"(, "stop_detail")}``. 실패해도 예외를 내지 않는다."""
+        if probe is None:
+            return {"stop_level": None, "ack_ms": None}
+        if isinstance(probe, str):
+            return {"stop_level": probe, "ack_ms": None}
+        try:
+            report = await asyncio.to_thread(probe)
+        except Exception as exc:  # noqa: BLE001 - 확인 실패는 '보냄'까지만으로 낮춘다
+            log.exception("stop confirmation failed")
+            return {"stop_level": "sent", "ack_ms": None, "stop_detail": f"정지 확인 중 오류: {exc}"}
+        return report.fields()
+
+    async def _report_stop(self, stop_id: str, target: str, probe) -> None:
+        fields = await self._confirm(probe)
+        log.warning("stop report %s: target=%s level=%s ack_ms=%s", stop_id, target,
+                    fields.get("stop_level"), fields.get("ack_ms"))
+        await self._send({"type": "stop_report", "stop_id": stop_id, "target": target, **fields})
+
+    def _spawn_stop_task(self, coro) -> None:
+        task = asyncio.create_task(coro)
+        self._stop_tasks.add(task)
+        task.add_done_callback(self._stop_tasks.discard)
 
     # ── 개발자 조작(2026-10-10) ──────────────────────────────────────────────
 
@@ -1049,11 +1105,14 @@ class ActExecutor:
             self._dev_motion.stop(reason)
 
     async def wait_dev(self) -> None:
-        """진행 중인 개발자 조작이 끝날 때까지(시험·종료 절차용)."""
+        """진행 중인 개발자 조작과 정지 확인 보고가 끝날 때까지(시험·종료 절차용)."""
         task = self._dev_task
         if task is not None:
             with contextlib.suppress(asyncio.CancelledError):
                 await task
+        while self._stop_tasks:
+            with contextlib.suppress(asyncio.CancelledError):
+                await asyncio.gather(*list(self._stop_tasks), return_exceptions=True)
 
     def _dev_refusal(self) -> tuple[str, str] | None:
         """개발자 조작을 시작하면 안 되는 이유 (reason, detail). 순서: 미지원 → 비상정지·콘센트·모션 준비 →
@@ -1084,8 +1143,12 @@ class ActExecutor:
             reply = {**base, "ok": bool(sent)}
             if not sent:
                 reply.update(reason="stop_send_failed",
-                             detail="모션 보드에 정지를 보내지 못했어요 — 물리 비상정지를 눌러 주세요")
-            await self._send(reply)
+                             detail="모션 보드에 정지를 보내지 못했어요 — 물리 비상정지를 눌러 주세요",
+                             stop_level=None, ack_ms=None)
+                await self._send(reply)
+                return
+            # 정지 줄은 이미 나갔다. MCU 확인·멈춤 확인은 따로 기다렸다 답한다(규약 2, 2026-10-13).
+            self._spawn_stop_task(self._reply_dev_stop(reply, self._dev_motion.confirm_stop))
             return
         refusal = self._dev_refusal()
         if refusal is not None:
@@ -1094,6 +1157,9 @@ class ActExecutor:
             await self._send({**base, "ok": False, "reason": reason, "detail": detail, "moved": False})
             return
         self._dev_task = asyncio.create_task(self._run_dev(msg, base))
+
+    async def _reply_dev_stop(self, reply: dict, probe) -> None:
+        await self._send({**reply, **await self._confirm(probe)})
 
     async def _run_dev(self, msg: DevMotionMsg, base: dict) -> None:
         service = self._dev_motion

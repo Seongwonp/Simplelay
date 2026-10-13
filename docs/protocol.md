@@ -204,9 +204,10 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 - `press`: **지금 위치**에서 솔레노이드 시간 누름 한 번(`SIMPLELAY_MOTION_PRESS_MODE=duration`, 구동+유지 ≤ 800 ms —
   펌웨어 `SOLENOID_ON_MAX_MS`와 같다). `label`은 기록용 버튼 id다 — 버튼 좌표로 이동하지 않는다.
 - `status`: MCU 위치·원점 상태(움직이지 않음). 폰의 '센서 읽기'가 실물에서는 위치를 보인다.
-- `stop`: 어떤 거절에도 걸리지 않는다. RPi4는 MCU에 `stop`을 쓰고 `ok:true`로 답한다(**전송 확인일 뿐 물리 정지
-  확인이 아니다** — 최종 권한은 물리 E-STOP). 진행 중 조작은 `stopped`로 끝난다. 일반 `abort`도 진행 중인 개발자
-  조작을 멈춘다. RPi4가 `dev_motion_protocol`을 알리지 않으면 RPi5는 대신 `abort {scope:"drive"}`를 보낸다.
+- `stop`: 어떤 거절에도 걸리지 않는다. RPi4는 MCU에 `stop`을 쓰고(`ok:true` = **정지 줄을 썼다**), 규약 2부터는 답에
+  정지 확인 단계 `stop_level`·`ack_ms`를 싣는다(아래 "정지 확인 단계"). 최종 권한은 물리 E-STOP이다. 진행 중 조작은
+  `stopped`로 끝난다. 일반 `abort`도 진행 중인 개발자 조작을 멈춘다. RPi4가 `dev_motion_protocol`을 알리지 않으면
+  RPi5는 대신 `abort {scope:"drive"}`를 보낸다.
 
 ```json
 { "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f7", "op": "jog", "ok": true, "homed": true, "x_mm": 11.0, "y_mm": 20.0 }
@@ -224,11 +225,35 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
   MCU 거절(`z_cooldown` 등).
 - 개발자 조작이 진행 중이면 RPi4는 `execute`·`verify_pass`를 `error {reason:"dev_busy"}`로 거절한다(RPi5 중재자가 먼저 막는다).
 
+**정지 확인 단계(2026-10-13 — 개발자 조작 규약 2·정지 보고 규약 1, 가짜 MCU로만 시험, 실물 미검증).** 정지가 어디까지
+확인됐는지를 셋으로 나눠 올린다([계획](계획-정지-확인-2026-10-12.md)).
+
+| `stop_level` | 근거 | `ack_ms` |
+|---|---|---|
+| `sent` | RPi4가 모션 MCU에 `stop` 줄을 썼다(모의 모션이면 컨트롤러에 넘겼다). MCU가 받았는지는 모름 | null |
+| `mcu_ack` | MCU가 같은 `id`로 `{"ok":true}`를 답했다 | 보낸 뒤 응답까지 ms |
+| `verified` | MCU 응답 뒤 `status` 두 번(약 100 ms 간격)의 엔코더 a·b가 같다(모터 축 기준 — 벨트 미끄럼은 안 보인다) | 위와 같다 |
+| null | 멈출 것이 없었다(유휴) 또는 정지 줄을 쓰지 못했다 | null |
+
+- RPi4는 정지 줄을 **먼저** 쓰고(기다리지 않는다), 확인은 따로 기다린다 — MCU 응답 기한 0.3 s, 멈춤 확인 status 두 번
+  (호스트 박자, 측정 필요). 진행 중 명령의 읽기 루프가 정지 응답을 버리지 않고 기록한다. 확인을 기다리는 동안에도
+  읽기 루프는 다음 프레임을 처리한다. 확인 실패 이유는 `stop_detail`(선택)에 싣는다.
+- `dev_motion stop`의 답: `{"type":"dev_motion_result","request_id":…,"op":"stop","ok":true,"stop_level":"mcu_ack","ack_ms":12}`.
+- `abort`에 `stop_id`(문자열 1~64자)가 있으면 RPi4는 `stop_report`로 답한다. 없으면(옛 RPi5) 종전처럼 답하지 않는다.
+  `target`: `run`(일반 실행 중) · `dev`(개발자 조작 중) · `hold`(정지 버튼 대기 중 — 가전 정지 결과는 `progress phase
+  "hold"`가 따로 알린다) · `idle`(멈출 것 없음, `stop_level:null`).
+- RPi4는 `act_info`에 `"stop_report_protocol": 1`을 알린다.
+
+```json
+{ "type": "abort", "stop_id": "s7c1d2e3f4a5" }
+{ "type": "stop_report", "stop_id": "s7c1d2e3f4a5", "target": "run", "stop_level": "verified", "ack_ms": 9 }
+```
+
 ### RPi4 → RPi5
 
 ```json
 { "type": "act_info", "done_watch": ["washer", "microwave"], "outlet": "fake", "motion": "mock", "rehearsal": true }
-{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 1 }
+{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 2, "stop_report_protocol": 1 }
 { "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f6", "op": "home", "ok": true, "homed": true, "x_mm": 0.0, "y_mm": 0.0 }
 { "type": "rehearsal_result", "request_id": "a1b2c3", "ok": true, "action": "appliance_done", "source": "injected", "frame": { "…": "…" } }
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }

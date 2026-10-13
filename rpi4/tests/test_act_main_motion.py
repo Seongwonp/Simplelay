@@ -116,6 +116,38 @@ def test_build_executor_uses_the_selected_motion(monkeypatch):
     assert executor._controller.execution_mode is ExecutionMode.REAL
 
 
+def test_build_executor_wires_the_motion_stop_confirmation_only_for_serial(monkeypatch, tmp_path):
+    """정지 확인 단계(2026-10-13): serial이면 실행기의 정지 보고가 실제 어댑터의 confirm_stop을 쓰고,
+    줄 기록(SIMPLELAY_MOTION_LOG_PATH)에 보낸 정지(>>)와 MCU의 정지 응답(<<)이 둘 다 남는다."""
+    from rpi.tools.fake_mcu import REHEARSAL_CONFIG, FakeMcu
+    from rpi.controller.serial_motion import MotionConfig
+
+    assert act_main._build_executor(object(), object())._motion_stop is None  # 기본 mock — 확인할 어댑터 없음
+
+    pipe = InMemoryLinePipe()
+    mcu = FakeMcu(pipe, homed=True)
+    log_path = tmp_path / "motion.log"
+    monkeypatch.setattr(act_main, "_open_motion_transport", lambda port, baud: pipe.host)
+    monkeypatch.setattr(MotionConfig, "from_env", classmethod(lambda cls, env=None: REHEARSAL_CONFIG))
+    monkeypatch.setenv("SIMPLELAY_MOTION_LOG_PATH", str(log_path))
+    _serial_env(monkeypatch)
+    line_log, stream = act_main._build_motion_log()
+    try:
+        executor = act_main._build_executor(object(), object(), motion_log=line_log)  # type: ignore[arg-type]
+        client = executor._motion_stop
+        assert isinstance(client, SerialMotionClient)
+        client.request_stop()
+        report = client.confirm_stop(verify=False)
+    finally:
+        mcu.close()
+        stream.close()
+    assert report.level == "mcu_ack"
+    text = log_path.read_text(encoding="utf-8")
+    stop_lines = [line for line in text.splitlines() if f'"id": {report.stop_id}' in line]
+    assert any(" >> " in line and '"stop"' in line for line in stop_lines)
+    assert any(" << " in line and '"ok": true' in line for line in stop_lines)
+
+
 # ── 연결 재시도·readiness·heartbeat 경고(2026-09-29 첫날 위험 보완) ─────────
 
 

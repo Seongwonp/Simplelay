@@ -34,6 +34,7 @@ from rpi.controller.serial_motion import (
     MotionStopped,
     MotionTimeout,
     SerialMotionClient,
+    StopReport,
 )
 
 from ..models.act_messages import DevMotionMsg
@@ -41,7 +42,9 @@ from ..models.act_messages import DevMotionMsg
 log = logging.getLogger(__name__)
 
 #: act_info로 알리는 개발자 조작 규약 판. RPi5는 이 값이 없거나 1 미만이면 보내지 않는다.
-DEV_MOTION_PROTOCOL = 1
+#: 2(2026-10-13): ``stop`` 답에 정지 확인 단계 ``stop_level``(sent·mcu_ack·verified)과 ``ack_ms``를 싣는다.
+#: 1인 RPi4의 답에는 없다 — RPi5는 그때 ``sent``(보냄)로만 읽는다.
+DEV_MOTION_PROTOCOL = 2
 #: 조그 한 번의 절대 상한(mm). RPi5가 더 작은 상한(기본 1 mm)을 따로 둔다 — 이것은 RPi4의 마지막 울타리다.
 DEV_JOG_STEP_CEILING_MM = 10.0
 #: 개발자 누름의 솔레노이드 켜짐 상한(ms) — firmware-motion-corexy SOLENOID_ON_MAX_MS와 같다.
@@ -85,6 +88,10 @@ class DevMotionService:
         log.warning("dev motion stop (%s) — sending MCU stop", reason or "unspecified")
         self._stop_seen.set()
         return bool(self._client.request_stop())
+
+    def confirm_stop(self) -> StopReport:
+        """마지막 정지의 확인 단계(블로킹, 짧은 기한 — 실행기가 작업 스레드에서 부른다). `SerialMotionClient.confirm_stop`."""
+        return self._client.confirm_stop()
 
     # ── 조작 ────────────────────────────────────────────────────────────────
 

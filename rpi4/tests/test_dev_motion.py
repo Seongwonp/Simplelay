@@ -29,7 +29,7 @@ from rpi.controller.serial_motion import InMemoryLinePipe, SerialMotionClient
 from rpi.tools.fake_mcu import REHEARSAL_CONFIG, FakeMcu
 from rpi.verifier import MockVerifier
 
-from rpi4.models.act_messages import DevMotionMsg, DevMotionRefusedMsg, parse_act_message
+from rpi4.models.act_messages import AbortMsg, DevMotionMsg, DevMotionRefusedMsg, parse_act_message
 from rpi4.services.act_executor import ActExecutor
 from rpi4.services.dev_motion import DEV_JOG_STEP_CEILING_MM, DEV_MOTION_PROTOCOL, DevMotionService
 
@@ -320,6 +320,182 @@ def test_stop_is_answered_even_while_idle(rig) -> None:
         assert reply["ok"] is True
         await _until(lambda: "stop" in r.mcu.cmds())
         assert "stop" in r.mcu.cmds()
+
+    run(_t())
+
+
+# ── 정지 확인 단계(2026-10-13, 개발자 조작 규약 2) ─────────────────────────────
+
+
+def test_dev_stop_reply_carries_the_confirmed_stop_level(rig) -> None:
+    """대기 중 정지: MCU 응답(지연 ms)과 status 두 번의 같은 엔코더로 ``verified``까지 싣는다."""
+    async def _t():
+        r = rig(homed=True)
+        reply = await r.op("stop", reason="emergency_stop")
+        assert reply["ok"] is True
+        assert reply["stop_level"] == "verified"
+        assert isinstance(reply["ack_ms"], int) and reply["ack_ms"] >= 0
+
+    run(_t())
+
+
+def test_dev_stop_without_mcu_reply_says_only_sent(rig) -> None:
+    async def _t():
+        r = rig(homed=True)
+        r.mcu.handlers["stop"] = lambda d: None  # 답하지 않는 MCU
+        reply = await r.op("stop", reason="emergency_stop")
+        assert reply["ok"] is True  # 정지 줄은 썼다
+        assert reply["stop_level"] == "sent"
+        assert reply["ack_ms"] is None
+
+    run(_t())
+
+
+def test_dev_stop_during_a_jog_reports_the_mcu_ack(rig) -> None:
+    async def _t():
+        r = rig(homed=True)
+        r.mcu.delays["move"] = 0.6
+        await r.send({"type": "dev_motion", "request_id": "j1", "op": "jog", "axis": "x", "delta_mm": 1.0})
+        await asyncio.sleep(0.05)
+        stop = await r.op("stop", request_id="s1", reason="user_stop")
+        assert stop["ok"] is True
+        assert stop["stop_level"] in ("mcu_ack", "verified")
+        assert isinstance(stop["ack_ms"], int)
+
+    run(_t())
+
+
+def test_dev_stop_reply_does_not_block_the_read_loop(rig) -> None:
+    """정지 확인을 기다리는 동안에도 읽기 루프는 다음 프레임(abort 등)을 바로 처리한다."""
+    async def _t():
+        r = rig(homed=True)
+        r.mcu.handlers["stop"] = lambda d: None  # 확인 기한까지 기다리게
+        started = time.monotonic()
+        await r.send({"type": "dev_motion", "request_id": "s1", "op": "stop", "reason": "user_stop"})
+        assert time.monotonic() - started < 0.1
+        await r.executor.wait_dev()
+        assert [d for d in r.writer.dev_results() if d["request_id"] == "s1"][-1]["stop_level"] == "sent"
+
+    run(_t())
+
+
+def test_act_info_advertises_the_stop_report_protocol(rig) -> None:
+    async def _t() -> dict:
+        r = rig()
+        await r.send({"type": "hello"})
+        return next(d for d in r.writer.docs() if d["type"] == "act_info")
+
+    from rpi4.services.act_executor import STOP_REPORT_PROTOCOL
+
+    info = run(_t())
+    assert info["dev_motion_protocol"] == DEV_MOTION_PROTOCOL == 2
+    assert info["stop_report_protocol"] == STOP_REPORT_PROTOCOL == 1
+
+
+def test_parse_abort_keeps_the_stop_id() -> None:
+    assert parse_act_message(json.dumps({"type": "abort", "stop_id": "st1"})) == AbortMsg(stop_id="st1")
+    assert parse_act_message(json.dumps({"type": "abort"})) == AbortMsg()
+    # 모양이 틀린 stop_id는 정지를 막지 않는다 — 보고만 하지 않는다.
+    assert parse_act_message(json.dumps({"type": "abort", "stop_id": 5})) == AbortMsg()
+
+
+def test_abort_with_stop_id_reports_the_dev_stop_level(rig) -> None:
+    async def _t():
+        r = rig(homed=True)
+        r.mcu.delays["move"] = 0.6
+        await r.send({"type": "dev_motion", "request_id": "j1", "op": "jog", "axis": "x", "delta_mm": 1.0})
+        await asyncio.sleep(0.05)
+        await r.send({"type": "abort", "stop_id": "st1"})
+        await r.executor.wait_dev()
+        reports = [d for d in r.writer.docs() if d.get("type") == "stop_report"]
+        assert len(reports) == 1
+        assert reports[0]["stop_id"] == "st1" and reports[0]["target"] == "dev"
+        assert reports[0]["stop_level"] in ("mcu_ack", "verified")
+
+    run(_t())
+
+
+def test_abort_with_stop_id_while_idle_reports_nothing_to_stop(rig) -> None:
+    async def _t():
+        r = rig(homed=True)
+        await r.send({"type": "abort", "stop_id": "st2"})
+        await r.executor.wait_dev()
+        report = next(d for d in r.writer.docs() if d.get("type") == "stop_report")
+        assert report["target"] == "idle" and report["stop_level"] is None
+        assert "stop" not in r.mcu.cmds()  # 유휴면 MCU에 보내지 않는다(종전과 같다)
+
+    run(_t())
+
+
+def test_abort_without_stop_id_sends_no_report(rig) -> None:
+    """옛 RPi5(stop_id 없음)에는 종전처럼 답하지 않는다."""
+    async def _t():
+        r = rig(homed=True)
+        await r.send({"type": "abort"})
+        await r.executor.wait_dev()
+        assert not [d for d in r.writer.docs() if d.get("type") == "stop_report"]
+
+    run(_t())
+
+
+class _BlockingController:
+    """request_stop이 올 때까지 실행을 붙잡는 컨트롤러 — 정지는 실제 SerialMotionClient로 보낸다."""
+
+    def __init__(self, motion: SerialMotionClient) -> None:
+        import threading
+
+        self._motion = motion
+        self._stopped = threading.Event()
+
+    def execute(self, buttons, targets=None):
+        from rpi.controller import ButtonResult, ButtonStatus, ExecutionResult, ExecutionStatus
+
+        self._stopped.wait(3.0)
+        return ExecutionResult(status=ExecutionStatus.SAFETY_STOPPED,
+                               buttons=(ButtonResult("시작", ButtonStatus.FAILED, 1, None),))
+
+    def request_stop(self) -> None:
+        self._motion.request_stop()
+        self._stopped.set()
+
+    def reset_stop(self) -> None:
+        self._stopped.clear()
+
+
+def test_abort_mid_execution_reports_the_motion_stop_level(rig) -> None:
+    async def _t():
+        r = rig(homed=True)
+        blocking = _BlockingController(r.client)
+        r.executor = ActExecutor(reader=r.reader, writer=r.writer, controller=blocking,
+                                 dev_motion=DevMotionService(r.client), motion_stop=r.client)
+        feed(r.reader, {"type": "execute", "sequence_id": "q1", "buttons": ["시작"], "appliance_id": "microwave"})
+        first = asyncio.create_task(r.executor.run_once())
+        await _until(lambda: r.executor._busy)
+        await r.send({"type": "abort", "stop_id": "st3"})
+        await first
+        await r.executor.wait_dev()
+        report = next(d for d in r.writer.docs() if d.get("type") == "stop_report")
+        assert report["stop_id"] == "st3" and report["target"] == "run"
+        assert report["stop_level"] in ("mcu_ack", "verified")
+        assert isinstance(report["ack_ms"], int)
+
+    run(_t())
+
+
+def test_abort_mid_execution_without_a_motion_client_says_sent(rig) -> None:
+    """모의 모션(실제 모션 어댑터 없음)이면 RPi4가 정지를 넘긴 것까지만 — ``sent``."""
+    async def _t():
+        r = rig(homed=True, wired=False)
+        blocking = _BlockingController(r.client)
+        r.executor = ActExecutor(reader=r.reader, writer=r.writer, controller=blocking)
+        feed(r.reader, {"type": "execute", "sequence_id": "q1", "buttons": ["시작"], "appliance_id": "microwave"})
+        first = asyncio.create_task(r.executor.run_once())
+        await _until(lambda: r.executor._busy)
+        await r.send({"type": "abort", "stop_id": "st4"})
+        await first
+        await r.executor.wait_dev()
+        report = next(d for d in r.writer.docs() if d.get("type") == "stop_report")
+        assert report["target"] == "run" and report["stop_level"] == "sent" and report["ack_ms"] is None
 
     run(_t())
 

@@ -13,7 +13,8 @@ Inbound (RPi5 → RPi4):
                    ``error {reason:"target_required"}``로 답한다(`ExecuteRefusedMsg`)
   abort          — cancel; forwarded to the safety controller. 실행이 끝나고 정지 버튼
                    위에서 대기 중이면 **가전 정지**(정지 버튼 누름)로 처리한다.
-                   ``scope:"drive"``면 구동부 정지만(누르지 않음)
+                   ``scope:"drive"``면 구동부 정지만(누르지 않음). ``stop_id``가 있으면 정지 확인 단계를
+                   ``stop_report``로 답한다(2026-10-13, 정지 보고 규약 1)
   verify_pass    — 확인 주행: Z를 올린 채 좌표 위를 차례로 지나간다(누르지 않음)
   inject_failure — arm demo failure injection for the next execution (rehearsal)
   clear_failure  — disarm a previously armed injection
@@ -99,6 +100,9 @@ class AbortMsg:
     #: "appliance"(기본): 실행 중이면 협조적 정지, 정지 대기 중이면 정지 버튼 누름.
     #: "drive": 구동부 정지만 — 정지 버튼을 누르지 않는다(가전 정지와 구분).
     scope: str = "appliance"
+    #: 정지 보고 짝(2026-10-13, 정지 보고 규약 1). 있으면 RPi4가 ``stop_report {stop_id, target, stop_level, ack_ms}``로
+    #: 답한다. 없으면(옛 RPi5) 종전처럼 답하지 않는다. 모양이 틀려도 정지는 그대로 하고 보고만 하지 않는다.
+    stop_id: str | None = None
 
 
 @dataclass(frozen=True)
@@ -255,7 +259,10 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
         scope = doc.get("scope", "appliance")
         if scope not in ("appliance", "drive"):
             return None
-        return AbortMsg(scope=scope)
+        stop_id = doc.get("stop_id")
+        if not (isinstance(stop_id, str) and 0 < len(stop_id) <= 64):
+            stop_id = None
+        return AbortMsg(scope=scope, stop_id=stop_id)
 
     if msg_type == "verify_pass":
         seq_id = doc.get("sequence_id", "")
