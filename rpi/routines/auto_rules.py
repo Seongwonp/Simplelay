@@ -38,6 +38,7 @@ from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, replace
 from datetime import datetime, timedelta
+from types import MappingProxyType
 from uuid import uuid4
 
 from rpi.commands import ApprovedCommand, ControlRoute, canonical_json
@@ -160,7 +161,12 @@ class AutoRule:
 
 
 class AutoRuleStore:
-    """규칙 목록 — 서버 DB 설정 칸(``auto_rules``)이 있으면 재시작에도 남는다. 없으면 메모리."""
+    """규칙 목록 — 서버 DB 설정 칸(``auto_rules``)이 있으면 재시작에도 남는다. 없으면 메모리.
+
+    4차 평가 H-N2: **판정용 메모리와 영속 쓰기를 나눈다.** 규칙 목록은 불변 사본(``MappingProxyType``)을 통째로 바꿔
+    끼우고(``put``·``remove``, 짧은 메모리 잠금), 읽기(``get``·``list``)는 지금 사본을 잠금 없이 본다. DB 쓰기(``flush``)는
+    따로 잠금을 잡고 그때의 **가장 새 사본**을 쓴다(늦게 끝난 쓰기가 새 상태를 옛 상태로 덮지 않는다). 그래서 실행
+    게이트(서비스 잠금 안)의 ``get``이 다른 요청의 DB 쓰기 대기에 묶이지 않는다 — 정지 경로가 서비스 잠금을 기다리지 않는다."""
 
     def __init__(self, load: Callable[[], str | None] | None = None,
                  save: Callable[[str], None] | None = None) -> None:
@@ -168,41 +174,77 @@ class AutoRuleStore:
 
         self._json = json
         self._save_fn = save
-        self._lock = threading.Lock()
-        self._rules: dict[str, AutoRule] = {}
+        #: 메모리 사본 교체만(입출력 없음).
+        self._mem_lock = threading.Lock()
+        #: DB 쓰기 직렬화 — 이 잠금을 잡은 채 메모리 잠금을 기다리지 않는다(사본·판 번호만 짧게 읽는다).
+        self._persist_lock = threading.Lock()
+        rules: dict[str, AutoRule] = {}
         raw = load() if load is not None else None
         if raw:
             try:
                 for item in json.loads(raw):
                     rule = AutoRule.from_dict(item)
-                    self._rules[rule.rule_id] = rule
+                    rules[rule.rule_id] = rule
             except (ValueError, TypeError, KeyError):
                 log.exception("auto rules unreadable; starting empty (자동 실행은 꺼진 것과 같다)")
+                rules = {}
+        self._rules: Mapping[str, AutoRule] = MappingProxyType(rules)
+        self._version = 0
+        self._persisted_version = 0
 
+    # ── 읽기: 잠금 없음(불변 사본) ─────────────────────────────────────────────
     def list(self) -> tuple[AutoRule, ...]:
-        with self._lock:
-            return tuple(self._rules.values())
+        return tuple(self._rules.values())
 
     def get(self, rule_id: str) -> AutoRule | None:
-        with self._lock:
-            return self._rules.get(rule_id)
+        return self._rules.get(rule_id)
+
+    # ── 메모리 바꾸기(즉시 효력) ─────────────────────────────────────────────
+    def put(self, rule: AutoRule) -> AutoRule:
+        with self._mem_lock:
+            rules = dict(self._rules)
+            rules[rule.rule_id] = rule
+            self._rules = MappingProxyType(rules)
+            self._version += 1
+        return rule
+
+    def remove(self, rule_id: str) -> bool:
+        with self._mem_lock:
+            if rule_id not in self._rules:
+                return False
+            rules = dict(self._rules)
+            del rules[rule_id]
+            self._rules = MappingProxyType(rules)
+            self._version += 1
+        return True
+
+    # ── 영속 ────────────────────────────────────────────────────────────────
+    def flush(self) -> None:
+        """지금 메모리 사본을 DB에 쓴다(이미 쓴 판이면 아무것도 안 함). 실패는 예외로 올린다(메모리는 그대로)."""
+        with self._persist_lock:
+            with self._mem_lock:
+                rules, version = self._rules, self._version
+            if version <= self._persisted_version:
+                return
+            if self._save_fn is not None:
+                self._save_fn(self._json.dumps([r.to_dict() for r in rules.values()], ensure_ascii=False))
+            self._persisted_version = version
+
+    def pending(self) -> bool:
+        """메모리에만 있고 아직 DB에 쓰지 못한 변경이 있다."""
+        with self._mem_lock:
+            return self._version > self._persisted_version
 
     def save(self, rule: AutoRule) -> AutoRule:
-        with self._lock:
-            self._rules[rule.rule_id] = rule
-            self._persist_locked()
+        self.put(rule)
+        self.flush()
         return rule
 
     def delete(self, rule_id: str) -> bool:
-        with self._lock:
-            removed = self._rules.pop(rule_id, None) is not None
-            if removed:
-                self._persist_locked()
+        removed = self.remove(rule_id)
+        if removed:
+            self.flush()
         return removed
-
-    def _persist_locked(self) -> None:
-        if self._save_fn is not None:
-            self._save_fn(self._json.dumps([r.to_dict() for r in self._rules.values()], ensure_ascii=False))
 
 
 class SeenEvents:
@@ -554,6 +596,8 @@ class AutoRuleEngine:
         def guard() -> None:
             # 실행 게이트(서비스 락) 안에서 — 비상정지 세대가 바뀌었거나 규칙이 꺼졌거나, 판단 때와 내용
             # (설정값·대상)이 달라졌으면 시작하지 않는다. 값을 바꾸고 다시 허용해도 판단 때의 옛 명령은 보내지 않는다.
+            # 4차 평가 H-N2: 메모리 사본만 읽는다(``store.get``은 잠금 없음) — 다른 요청의 규칙 DB 쓰기를 기다리지 않으므로
+            # 이 게이트를 품은 서비스 잠금도, 그 잠금을 잡아야 하는 정지(``request_stop``)도 DB에 묶이지 않는다.
             with self._gen_lock:
                 if self._generation != generation:
                     raise AutoRuleBlocked("비상정지로 아직 보내지 않은 자동 실행을 보내지 않았어요")
