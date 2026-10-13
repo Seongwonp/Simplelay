@@ -283,3 +283,106 @@ def test_clean_shutdown_keeps_an_allowed_rule_and_a_stuck_final_write_does_not(m
         from rpi.api import deps
 
         deps.get_db.cache_clear()
+
+
+# ── H-N1: 최종 재판정 반환과 실제 POST 사이의 철회 — 공통 전송권 ─────────────────────────────────────
+
+IN_FLIGHT_WORDS = "취소되지 않아요"
+
+
+def _revoke(api, rule_id: str, change: str):
+    if change == "off":
+        return api.post(f"/routines/auto-rules/{rule_id}/enable", json={"enabled": False})
+    if change == "value":
+        return api.put(f"/routines/auto-rules/{rule_id}", json={"value": "MID"})
+    return api.delete(f"/routines/auto-rules/{rule_id}")
+
+
+@pytest.mark.parametrize("change", ["off", "value", "delete"])
+def test_revoke_completed_after_the_final_guard_returned_but_before_the_post_sends_nothing(
+        monkeypatch, tmp_path, cloud, change):
+    """H-N1: 최종 재판정(``dispatch_guard``)이 통과로 돌아온 직후 → API로 끄기·값 변경·삭제 응답 완료 → 그 뒤 controller가
+    POST를 시도한다 — 모의 클라우드 POST 0건, 기록은 '보내지 않음'. 끄기 응답은 '이미 보내는 중'이라고 하지 않는다."""
+    from rpi.services.thinq.controller import ThinqController
+    from rpi.tests.test_auto_rule_e2e import _wait_run
+    from rpi.tests.test_cook_done_card import _inject
+
+    _env(monkeypatch, tmp_path, cloud)
+    _reset()
+    from rpi.main import app
+
+    try:
+        api = TestClient(app)
+        _allow(api)
+        _set_low(api)
+        rule = api.get("/routines/auto-rules").json()[0]
+        before = len(cloud.controls())
+        original_execute = ThinqController.execute_command
+        responses = []
+
+        def execute(controller, command, *, dispatch_guard=None):
+            if dispatch_guard is None:
+                return original_execute(controller, command)
+
+            def guard_then_revoke(binding=None):
+                out = dispatch_guard(binding)
+                if binding is not None and not responses:
+                    responses.append(_revoke(api, rule["id"], change))  # 최종 재판정 반환 뒤, POST 전
+                return out
+
+            return original_execute(controller, command, dispatch_guard=guard_then_revoke)
+
+        monkeypatch.setattr(ThinqController, "execute_command", execute)
+        _inject(api, inputs=("power",))
+        run = _wait_run(api, lambda r: r.get("job_id") and r.get("status"))
+        time.sleep(0.3)
+        assert responses and responses[0].status_code == 200, responses
+        assert IN_FLIGHT_WORDS not in str(responses[0].json())
+        assert len(cloud.controls()) == before, cloud.controls()[before:]
+        assert run["receipt"] == "not_dispatched" and run["outcome"] == "blocked"
+        assert "바꿨어요" not in " / ".join(run["notices"])
+    finally:
+        _reset()
+
+
+@pytest.mark.parametrize("change", ["off", "delete"])
+def test_revoke_after_the_send_began_says_the_sent_command_is_not_cancelled(monkeypatch, tmp_path, cloud, change):
+    """H-N1 반대 순서: 전송을 시작한 뒤(POST 진행 중) 끄기·삭제 — 그 명령은 나가고(POST 1건), 끄기 응답은 이미 보낸
+    명령은 취소되지 않는다고 정직하게 알린다. 다음 사건부터는 보내지 않는다."""
+    from rpi.services.thinq import sdk_client
+    from rpi.tests.test_auto_rule_e2e import _wait_run
+    from rpi.tests.test_cook_done_card import _inject
+
+    _env(monkeypatch, tmp_path, cloud)
+    _reset()
+    from rpi.main import app
+
+    try:
+        api = TestClient(app)
+        _allow(api)
+        _set_low(api)
+        rule = api.get("/routines/auto-rules").json()[0]
+        before = len(cloud.controls())
+        original_post = sdk_client.SdkThinqClient.post_control
+        responses = []
+
+        def post_while_revoking(client, device_id, payload):
+            if not responses:
+                responses.append(_revoke(api, rule["id"], change))  # 전송 개시 뒤
+            return original_post(client, device_id, payload)
+
+        monkeypatch.setattr(sdk_client.SdkThinqClient, "post_control", post_while_revoking)
+        _inject(api, inputs=("power",))
+        _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+        assert len(cloud.controls()) == before + 1
+        body = responses[0].json()
+        assert responses[0].status_code == 200
+        assert IN_FLIGHT_WORDS in (body.get("in_flight_notice") or ""), body
+        monkeypatch.setattr(sdk_client.SdkThinqClient, "post_control", original_post)
+        _set_low(api)
+        after = len(cloud.controls())
+        _inject(api, inputs=("power",))
+        time.sleep(0.5)
+        assert len(cloud.controls()) == after
+    finally:
+        _reset()

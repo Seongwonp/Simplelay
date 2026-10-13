@@ -82,6 +82,9 @@ STOP_RACE_REASON = ("허용을 저장하는 사이 전체 정지가 들어와 �
 #: 닿기 전에 끝났을 수 있어 켜진 규칙을 믿지 않는다.
 UNCLEAN_RESTART_REASON = ("허브가 정상 종료되지 않아(전원 끊김·강제 종료 등) 자동 실행을 멈췄어요 — "
                           "다시 켜려면 조건·동작을 확인하고 허용해 주세요")
+#: 철회가 이미 전송을 시작한 자동 실행과 겹쳤다(4차 평가 H-N1) — 그 명령은 되돌리지 않는다.
+IN_FLIGHT_NOTICE = ("자동 실행 명령을 이미 보내기 시작했어요 — 그 명령은 취소되지 않아요(공기청정기를 되돌리거나 끄지 않아요). "
+                    "다음부터는 보내지 않아요")
 #: 이 프로세스의 표시(세션). 규칙 DB의 세션 표시가 다른 프로세스 것이고 열려 있으면 지난 종료가 깨끗하지 않았다.
 PROCESS_SESSION = uuid4().hex
 #: 정지의 규칙 끄기를 뒤에서 DB에 쓸 때 다시 해 보는 횟수·간격(초).
@@ -425,6 +428,10 @@ class AutoRuleEngine:
         self._early_results: dict[str, object] = {}
         #: 보내기 직전 재검사에 걸린 자동 실행(규칙:사건 키 → 이유). 결과가 오면 기록을 '막힘'으로 고친다.
         self._dispatch_blocked: dict[str, str] = {}
+        #: 전송권(4차 평가 H-N1) — 전송 개시 표시와 철회를 직렬화하는 메모리 잠금. 입출력·다른 잠금 대기 없음.
+        self._send_lock = threading.Lock()
+        #: 전송을 시작한 규칙(규칙 ID → 규칙:사건 키). job이 끝나면 지운다.
+        self._sending: dict[str, str] = {}
 
     # ── 등록부·문장 ─────────────────────────────────────────────────────────
     def _registry(self):
@@ -693,10 +700,28 @@ class AutoRuleEngine:
                 raise AutoRuleBlocked(
                     f"가열 종료 뒤 {age:.0f}초가 지나 보내지 않았어요" if age is not None else NO_FRESHNESS_REASON)
 
-        def dispatch_guard(binding=None) -> None:
+        def blocked(exc: AutoRuleBlocked) -> None:
+            with self._lock:
+                self._dispatch_blocked[block_key] = str(exc)
+
+        def commit() -> None:
+            # 4차 평가 H-N1: 전송권 — 실행기가 정지 확인과 같은 잠금 안에서 POST 바로 앞에 부른다. 철회(끄기·값 바꾸기·
+            # 삭제·비상정지의 규칙 끄기)와 같은 잠금(``_send_lock``, 메모리만)으로 직렬화한다: 철회가 먼저 끝났으면 여기서
+            # 걸려 보내지 않고, 여기를 지났으면 '전송 개시'로 표시해 그 뒤의 철회는 '이미 보내는 중'임을 안다.
+            # 네트워크 응답까지 잠그지 않는다(표시만 남기고 곧바로 놓는다).
+            with self._send_lock:
+                try:
+                    guard()
+                except AutoRuleBlocked as exc:
+                    blocked(exc)
+                    raise
+                self._sending[rule.rule_id] = block_key
+
+        def dispatch_guard(binding=None):
             # 보내기 직전(실행 스레드) 재검사 — 시작 게이트 뒤에 꺼지거나 바뀌었으면 보내지 않는다. 실행기는 프로필·상태
             # 조회를 마친 뒤 이번에 보낼 대상 바인딩을 넘겨 한 번 더 부른다(3차 평가 H1): 그 대상이 판단 때 결속한 기기
-            # (기기 키·종류)와 다르면 보내지 않는다. 메모리 판정만(입출력 없음).
+            # (기기 키·종류)와 다르면 보내지 않는다. 메모리 판정만(입출력 없음). 바인딩과 함께 불렸으면 전송권 확인
+            # (``commit``)을 돌려준다 — 실행기가 POST 바로 앞에서 부른다(4차 평가 H-N1).
             try:
                 guard()
                 if binding is not None and (
@@ -704,9 +729,9 @@ class AutoRuleEngine:
                         or _device_key(getattr(binding, "device_id", "")) != rule.target_device_key):
                     raise AutoRuleBlocked("대상 공기청정기가 판단 때와 달라 보내지 않았어요")
             except AutoRuleBlocked as exc:
-                with self._lock:
-                    self._dispatch_blocked[block_key] = str(exc)
+                blocked(exc)
                 raise
+            return commit if binding is not None else None
 
         try:
             job_id = self.service.submit_approved(
@@ -741,6 +766,8 @@ class AutoRuleEngine:
         scenario_id = getattr(event, "scenario_id", None) or ""
         if not scenario_id.startswith(AUTO_SCENARIO_PREFIX):
             return
+        with self._send_lock:
+            self._sending.pop(scenario_id[len(AUTO_SCENARIO_PREFIX):], None)
         with self._lock:
             entry = next((e for e in reversed(self._runs) if e.get("job_id") == event.job_id), None)
             if entry is None:
@@ -830,9 +857,10 @@ class AutoRuleEngine:
         알아채고 켜진 규칙을 끈다(:class:`AutoRuleStore` 내구성 경계)."""
         self.halt()
         now = self._clock.now().isoformat()
-        disabled = [r for r in self.store.list() if r.enabled]
-        for rule in disabled:
-            self.store.put(replace(rule, enabled=False, updated_at=now, disabled_reason=ESTOP_REASON))
+        with self._send_lock:  # 전송권과 직렬화(4차 평가 H-N1) — 메모리만
+            disabled = [r for r in self.store.list() if r.enabled]
+            for rule in disabled:
+                self.store.put(replace(rule, enabled=False, updated_at=now, disabled_reason=ESTOP_REASON))
         if disabled:
             entry = {"at": now, "rule_id": disabled[0].rule_id, "outcome": "estop", "reason": ESTOP_NOTICE,
                      "event_key": None, "event_source": None, "job_id": None, "notices": [ESTOP_NOTICE],
@@ -884,13 +912,35 @@ class AutoRuleEngine:
         return replace(rule, target_device_key=draft.target_device_key,
                        target_device_type=draft.target_device_type)
 
+    def _revoke(self, rule_id: str, change: Callable[[AutoRule], AutoRule | None],
+                report: dict | None) -> AutoRule | None:
+        """철회(끄기·값 바꾸기·삭제) — 전송권 잠금 안에서 메모리를 바꿔(4차 평가 H-N1) 그 뒤의 전송 개시를 막고, 이미 전송을
+        시작했으면 ``report["in_flight"]``로 알린다. DB 쓰기는 잠금 밖에서."""
+        with self._send_lock:
+            current = self.store.get(rule_id)
+            if current is None:
+                raise AutoRuleError(404, "자동 실행 규칙을 찾을 수 없어요")
+            in_flight = rule_id in self._sending
+            changed = change(current)
+            if changed is None:
+                self.store.remove(rule_id)
+            elif changed is not current:
+                self.store.put(changed)
+        if report is not None:
+            report["in_flight"] = in_flight
+            report["in_flight_notice"] = IN_FLIGHT_NOTICE if in_flight else None
+        self.store.flush()
+        return changed
+
     def set_enabled(self, rule_id: str, enabled: bool, fingerprint: str | None = None,
-                    start_generation: int | None = None) -> AutoRule:
-        """끄기·다시 허용. 다시 허용은 요청 시작 세대(``start_generation``)를 저장 단계까지 대조한다(3차 평가 H2)."""
+                    start_generation: int | None = None, report: dict | None = None) -> AutoRule:
+        """끄기·다시 허용. 다시 허용은 요청 시작 세대(``start_generation``)를 저장 단계까지 대조한다(3차 평가 H2).
+        ``report``(선택): 끄기가 이미 전송을 시작한 자동 실행과 겹쳤는지(4차 평가 H-N1)."""
         rule = self._require(rule_id)
         now = self._clock.now().isoformat()
         if not enabled:
-            return self.store.save(replace(rule, enabled=False, updated_at=now, disabled_reason=USER_OFF_REASON))
+            return self._revoke(rule_id, lambda r: replace(r, enabled=False, updated_at=now,
+                                                           disabled_reason=USER_OFF_REASON), report)
         rebound = self._rebound(rule)
         if rebound is None or self._appliance(rule.condition_appliance_id) is None:
             raise AutoRuleError(409, "대상 가전을 찾지 못해 켤 수 없어요 — 가전 연결을 확인해 주세요")
@@ -899,7 +949,7 @@ class AutoRuleEngine:
         return self._save_allowed(replace(rebound, enabled=True, allowed_fingerprint=fingerprint,
                                           allowed_at=now, updated_at=now, disabled_reason=None), start_generation)
 
-    def update(self, rule_id: str, body: Mapping) -> AutoRule:
+    def update(self, rule_id: str, body: Mapping, report: dict | None = None) -> AutoRule:
         """설정값만 바꿀 수 있다. 바꾸면 꺼지고 다시 허용해야 한다."""
         rule = self._require(rule_id)
         if not isinstance(body, Mapping):
@@ -916,14 +966,16 @@ class AutoRuleEngine:
                        rule.target_appliance_id, rule.action, {rule.arg: value}) is None:
             raise AutoRuleError(422, "이 가전에서 자동 실행할 수 없는 설정값이에요")
         if value == rule.value:
+            if report is not None:
+                report.update(in_flight=False, in_flight_notice=None)
             return rule
-        return self.store.save(replace(rule, value=value, enabled=False, allowed_fingerprint=None,
-                                       updated_at=self._clock.now().isoformat(),
-                                       disabled_reason=VALUE_CHANGED_REASON))
+        now = self._clock.now().isoformat()
+        return self._revoke(rule_id, lambda r: replace(r, value=value, enabled=False, allowed_fingerprint=None,
+                                                       updated_at=now, disabled_reason=VALUE_CHANGED_REASON),
+                            report)
 
-    def delete(self, rule_id: str) -> None:
-        if not self.store.delete(rule_id):
-            raise AutoRuleError(404, "자동 실행 규칙을 찾을 수 없어요")
+    def delete(self, rule_id: str, report: dict | None = None) -> None:
+        self._revoke(rule_id, lambda _r: None, report)
 
     # ── 조회 ─────────────────────────────────────────────────────────────────
     def payload(self, rule: AutoRule) -> dict:

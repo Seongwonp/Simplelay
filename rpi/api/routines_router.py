@@ -147,11 +147,12 @@ async def update_auto_rule(rule_id: str, body: dict = Body(...)) -> dict:
     from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
 
     engine = await asyncio.to_thread(get_auto_rule_engine)
+    report: dict = {}
     try:
-        rule = await asyncio.to_thread(engine.update, rule_id, body)
+        rule = await asyncio.to_thread(engine.update, rule_id, body, report)
     except AutoRuleError as exc:
         raise _auto_error(exc) from exc
-    return engine.payload(rule)
+    return {**engine.payload(rule), "in_flight_notice": report.get("in_flight_notice")}
 
 
 @router.post("/routines/auto-rules/{rule_id}/enable")
@@ -166,12 +167,14 @@ async def enable_auto_rule(rule_id: str, body: dict = Body(...)) -> dict:
     engine = await asyncio.to_thread(get_auto_rule_engine)
     # 3차 평가 H2: 요청을 시작할 때의 정지 세대 — 처리하는 사이 전체 정지가 끝났으면 늦은 저장이 규칙을 다시 켜지 않는다.
     start_generation = engine.generation()
+    # 4차 평가 H-N1: 끄기가 이미 전송을 시작한 자동 실행과 겹쳤으면 그 명령은 취소되지 않는다고 함께 알린다.
+    report: dict = {}
     try:
         rule = await asyncio.to_thread(engine.set_enabled, rule_id, enabled, body.get("fingerprint"),
-                                       start_generation)
+                                       start_generation, report)
     except AutoRuleError as exc:
         raise _auto_error(exc) from exc
-    return engine.payload(rule)
+    return {**engine.payload(rule), "in_flight_notice": report.get("in_flight_notice")}
 
 
 @router.delete("/routines/auto-rules/{rule_id}")
@@ -180,11 +183,12 @@ async def delete_auto_rule(rule_id: str) -> dict:
     from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
 
     engine = await asyncio.to_thread(get_auto_rule_engine)
+    report: dict = {}
     try:
-        await asyncio.to_thread(engine.delete, rule_id)
+        await asyncio.to_thread(engine.delete, rule_id, report)
     except AutoRuleError as exc:
         raise _auto_error(exc) from exc
-    return {"ok": True}
+    return {"ok": True, "in_flight_notice": report.get("in_flight_notice")}
 
 
 @router.post("/suggestions/{suggestion_id}/approve-and-allow")

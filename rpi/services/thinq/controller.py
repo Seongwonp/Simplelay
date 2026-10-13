@@ -282,7 +282,9 @@ class ThinqController:
                         dispatch_guard: Callable[[ThinqBinding], None] | None = None) -> CommandResult:
         """``dispatch_guard``(선택, 3차 평가 H1): 프로필·상태 조회(네트워크 대기)를 **마친 뒤**, 클라우드로 보내기 직전에
         이번 전송 대상 바인딩을 넘겨 부른다. 예외를 올리면 보내지 않는다(``not_dispatched``, 예외 문장).
-        이 확인은 이 실행기의 잠금 밖에서 부른다 — 정지(``request_stop``)가 그 확인을 기다리지 않는다."""
+        이 확인은 이 실행기의 잠금 밖에서 부른다 — 정지(``request_stop``)가 그 확인을 기다리지 않는다.
+        확인이 함수(전송권 확인, 4차 평가 H-N1)를 돌려주면 POST 바로 앞, 정지 확인과 같은 잠금 안에서 부르고, 예외면 보내지
+        않는다 — 메모리 판정이라 짧다."""
         if command.route is not ControlRoute.THINQ:
             raise ValueError("ThinqController runs thinq commands only")
         requested_at = self._now()
@@ -353,9 +355,10 @@ class ThinqController:
 
         # 3) 전송 직전 재판정(3차 평가 H1) -- 위 조회를 기다리는 동안 자동 실행 규칙이 꺼지거나 바뀌거나 지워졌으면,
         #    또는 대상 바인딩이 판단 때와 다르면 보내지 않는다. 메모리 판정만(입출력 없음), 이 실행기 잠금 밖.
+        commit = None
         if dispatch_guard is not None:
             try:
-                dispatch_guard(binding)
+                commit = dispatch_guard(binding)
             except Exception as exc:  # noqa: BLE001 -- 재판정에 걸림: 보내지 않는다
                 return self._result(command, failed, not_sent, none,
                                     str(exc) or "보내기 직전 확인에 걸려 보내지 않았어요", requested_at)
@@ -365,6 +368,14 @@ class ThinqController:
                 return self._result(command, CommandStatus.STOPPED, not_sent, none,
                                     "보내기 전에 정지 요청을 받아 보내지 않았어요", requested_at,
                                     stop_requested=True)
+            # 4차 평가 H-N1: 재판정이 돌려준 전송권 확인을 POST 바로 앞, 정지 확인과 같은 자리에서 부른다 — 재판정 반환
+            # 뒤에 끝난 철회는 여기서 걸린다. 메모리 판정뿐이라 짧고, 네트워크 응답까지 잠그지 않는다.
+            if callable(commit):
+                try:
+                    commit()
+                except Exception as exc:  # noqa: BLE001 -- 전송권 없음: 보내지 않는다
+                    return self._result(command, failed, not_sent, none,
+                                        str(exc) or "보내기 직전 확인에 걸려 보내지 않았어요", requested_at)
             self._phase = "dispatched"
         try:
             response = self._client.post_control(binding.device_id, cap.payload_for(target, key))
