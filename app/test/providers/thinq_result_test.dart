@@ -94,7 +94,8 @@ void main() {
       'last_route': 'physical',
     });
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.');
+    // 접수 여부를 모르는 실패는 시작 못 함으로 단정하지 않는다(평가 M4).
+    expect(s.message, '끝까지 실행하지 못했어요. 가전 상태를 확인해 주세요.');
   });
 
   test('옛 서버(last_outcome 없음)의 safety_stopped는 종전 문구', () async {

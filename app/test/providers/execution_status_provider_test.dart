@@ -152,7 +152,8 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
-      expect(c.read(executionStatusProvider).message, '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.');
+      // BLE 결과는 접수·전송 여부를 말하지 않는다 — 시작 못 함으로 단정하지 않는다(평가 M4).
+      expect(c.read(executionStatusProvider).message, '끝까지 실행하지 못했어요. 가전 상태를 확인해 주세요.');
     });
 
     test('result for different sequenceId is ignored', () async {
