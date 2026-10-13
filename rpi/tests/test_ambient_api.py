@@ -107,7 +107,37 @@ def test_ambient_failed_appliance_takes_priority(client, monkeypatch):
     app.dependency_overrides[deps.get_service] = lambda: FakeService()
     body = client.get("/ambient").json()
     assert body["tip"]["kind"] == "appliance"
-    assert body["tip"]["text"] == "전자레인지 확인이 필요해요. 마지막 작업이 끝까지 되지 않았어요."
+    assert body["tip"]["text"] == "전자레인지 작업이 멈췄어요 · 기계를 봐 주세요"
+
+
+@pytest.mark.parametrize("outcome_name", ["FAILED", "SAFETY_STOP"])
+def test_ambient_unconfirmed_command_is_not_failure(client, monkeypatch, outcome_name):
+    """보냈지만 확인 못 한 명령(unconfirmed)을 '끝까지 되지 않았다'로 말하지 않는다."""
+    from rpi.controller.models import ExecutionOutcome
+
+    class Snap:
+        running = False
+        last_result = object()
+        last_appliance_id = "air"
+        last_command_status = "unconfirmed"
+
+    class FakeService:
+        def status(self):
+            return Snap()
+
+    class Appliance:
+        name = "공기청정기(모의)"
+
+    class Registry:
+        def get(self, _id):
+            return Appliance()
+
+    monkeypatch.setattr(ambient_router, "outcome_of", lambda _r: getattr(ExecutionOutcome, outcome_name))
+    app.dependency_overrides[deps.get_service] = lambda: FakeService()
+    app.dependency_overrides[deps.get_appliance_registry] = lambda: Registry()
+    tip = client.get("/ambient").json()["tip"]
+    assert tip["kind"] == "appliance"
+    assert tip["text"] == "공기청정기(모의)가 바뀌었는지 확인하지 못했어요"
 
 
 def test_ambient_success_is_not_attention(client, monkeypatch):

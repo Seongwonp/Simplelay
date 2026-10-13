@@ -149,11 +149,11 @@ def test_hourly_strip_skips_missing_hours():
 
 
 def test_priority_appliance_before_weather():
-    attention = [AttentionItem("appliance", "전자레인지 확인이 필요해요. 마지막 작업이 끝까지 되지 않았어요.")]
+    attention = [AttentionItem("appliance", "전자레인지 작업이 멈췄어요 · 기계를 봐 주세요")]
     body = build_ambient(_at(9, 5), _snap(_fixture_forecast()), attention, CFG)
     assert body["tip"] == {
         "kind": "appliance",
-        "text": "전자레인지 확인이 필요해요. 마지막 작업이 끝까지 되지 않았어요.",
+        "text": "전자레인지 작업이 멈췄어요 · 기계를 봐 주세요",
         "icon": "attention",
     }
     # 예보 4칸은 그대로 보인다 -- 안내만 하나다.

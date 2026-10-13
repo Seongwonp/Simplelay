@@ -80,7 +80,7 @@ def test_mock_cook_done_drives_the_mock_cloud_purifier_end_to_end(monkeypatch, t
         api = TestClient(app)
         device = cloud.device_id("air_purifier")
         card, first = _allow(api)  # 장면 ②: 이번에 실행 + 다음부터 자동으로
-        assert card["auto_rule_offer"]["action_text"] == "공기청정기(모의 클라우드) 풍량을 강으로 변경"
+        assert card["auto_rule_offer"]["action_text"] == "공기청정기(모의 클라우드) 풍량 강으로"
         assert first["last_confirmation"] == "state_confirmed"
         _set_low(api)  # 장면 ③ 준비: 약풍으로 되돌림
         assert cloud.state(device)["airFlow"]["windStrength"] == "LOW"

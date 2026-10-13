@@ -107,8 +107,8 @@ def test_card_offers_auto_with_exact_condition_and_action(api):
     card = _card(api)
     offer = card["auto_rule_offer"]
     # A5(10/14): CT 끝 판정은 취소·문 열림으로 가열이 끝난 것과 구분하지 못한다 — 조리 완료라고 말하지 않는다.
-    assert offer["condition_text"] == "전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)"
-    assert offer["action_text"] == "공기청정기(모의) 풍량을 강으로 변경"
+    assert offer["condition_text"] == "전자레인지가 멈추면"
+    assert offer["action_text"] == "공기청정기(모의) 풍량 강으로"
     assert len(offer["fingerprint"]) == 64
     assert MOCK_PURIFIER_ID not in str(card)  # 기기 ID 원문을 내보내지 않는다
 
@@ -123,8 +123,8 @@ def test_allow_runs_this_time_and_saves_the_rule(api):
     assert len(rules) == 1
     rule = rules[0]
     assert rule["status_label"] == "자동 실행 켜짐"
-    assert rule["condition_text"] == "전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)"
-    assert rule["action_text"] == "공기청정기(모의) 풍량을 강으로 변경"
+    assert rule["condition_text"] == "전자레인지가 멈추면"
+    assert rule["action_text"] == "공기청정기(모의) 풍량 강으로"
     assert _cards(api) == []  # 카드는 승인으로 내려갔다
 
 
@@ -312,7 +312,7 @@ def test_changed_value_needs_a_new_allowance(api):
     changed = api.put(f"/routines/auto-rules/{rule['id']}", json={"value": "MID"})
     assert changed.status_code == 200, changed.text
     changed = changed.json()
-    assert changed["enabled"] is False and changed["action_text"] == "공기청정기(모의) 풍량을 중으로 변경"
+    assert changed["enabled"] is False and changed["action_text"] == "공기청정기(모의) 풍량 중으로"
     _inject(api, inputs=("power",))
     time.sleep(0.3)
     assert len(_controls()) == sent  # 바뀐 값은 아직 허용 전 — 실행 안 함
@@ -497,3 +497,24 @@ def test_latched_outlet_estop_blocks_auto(api, monkeypatch):
     run = _wait_run(api, lambda r: r["outcome"] == "blocked")
     assert "비상정지" in run["reason"]
     assert len(_controls()) == sent
+
+
+def test_rule_texts_are_short_and_never_raw():
+    """2026-10-14 UX: 조건은 '○○가 멈추면', 대상 기능을 못 찾아도 원시 동작 이름을 내지 않는다."""
+    from rpi.routines.auto_rules import AutoRule, AutoRuleEngine
+
+    names = {"mw": "전자레인지", "air": "공기청정기"}
+
+    class Fake:
+        def _name(self, appliance_id):
+            return names[appliance_id]
+
+        def _appliance(self, _appliance_id):
+            return None  # 대상 가전을 지웠거나 바인딩을 잃었다
+
+    rule = AutoRule("r1", "s1", "mw", "done", "air", "k", "DEVICE_AIR_PURIFIER",
+                    "set_wind_strength", "windStrength", "HIGH")
+    assert AutoRuleEngine.condition_text(Fake(), rule) == "전자레인지가 멈추면"
+    action = AutoRuleEngine.action_text(Fake(), rule)
+    assert action == "공기청정기 바람 세기 변경(대상 가전을 다시 골라 주세요)"
+    assert "set_wind_strength" not in action and "HIGH" not in action

@@ -237,7 +237,7 @@ def test_restart_after_a_stop_whose_rule_write_never_finished_starts_with_the_ru
         api = TestClient(app)
         rule = api.get("/routines/auto-rules").json()[0]
         assert rule["enabled"] is False
-        assert "정상 종료되지 않아" in (rule["disabled_reason"] or "")
+        assert "갑자기 꺼져서" in (rule["disabled_reason"] or "")
         _set_low(api)
         before = len(cloud.controls())
         _inject(api, inputs=("power",))
@@ -279,7 +279,7 @@ def test_clean_shutdown_keeps_an_allowed_rule_and_a_stuck_final_write_does_not(m
         _restart_as_a_new_process(monkeypatch)
         api = TestClient(app)
         rule = api.get("/routines/auto-rules").json()[0]
-        assert rule["enabled"] is False and "정상 종료되지 않아" in rule["disabled_reason"]
+        assert rule["enabled"] is False and "갑자기 꺼져서" in rule["disabled_reason"]
     finally:
         release.set()
         _reset()

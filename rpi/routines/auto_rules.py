@@ -71,22 +71,19 @@ KIND_AUTO_RULE = "auto_rule"
 CONDITION_BASIS = "ct_power_end"
 MAX_SEEN_EVENTS = 500
 
-ESTOP_REASON = "비상정지로 자동 실행을 껐어요 — 다시 켜려면 조건·동작을 확인하고 허용해 주세요"
+ESTOP_REASON = "비상정지로 자동 실행을 껐어요."
 ESTOP_NOTICE = ("비상정지로 자동 실행을 껐어요 — 새 자동 실행과 아직 보내지 않은 명령은 보내지 않아요. "
                 "이미 ThinQ 클라우드로 보낸 명령은 취소되지 않아요(공기청정기를 되돌리거나 끄지 않아요)")
-USER_OFF_REASON = "사용자가 자동 실행을 껐어요"
-VALUE_CHANGED_REASON = "설정값을 바꿔 다시 허용이 필요해요"
+USER_OFF_REASON = "직접 자동 실행을 껐어요."
+VALUE_CHANGED_REASON = "세기를 바꿔서 다시 허용해야 켜져요."
 PHYSICAL_REFUSED = "버튼을 누르는 단계는 자동 실행할 수 없어요 — 매번 승인해 주세요"
 #: 허용 요청을 처리하는 사이 전체 정지가 들어왔다(3차 평가 H2) — 이번 허용은 저장하지 않는다.
-STOP_RACE_REASON = ("허용을 저장하는 사이 전체 정지가 들어와 다음부터 자동 실행은 켜지 않았어요 — "
-                    "다시 켜려면 조건·동작을 확인하고 허용해 주세요")
+STOP_RACE_REASON = "허용하는 사이 정지가 들어와서 자동 실행을 켜지 않았어요."
 #: 지난 프로세스가 깨끗이 닫히지 않았다(전원 끊김·강제 종료·규칙 저장 실패, 4차 평가 M-N3) — 정지의 규칙 끄기가 DB에
 #: 닿기 전에 끝났을 수 있어 켜진 규칙을 믿지 않는다.
-UNCLEAN_RESTART_REASON = ("허브가 정상 종료되지 않아(전원 끊김·강제 종료 등) 자동 실행을 멈췄어요 — "
-                          "다시 켜려면 조건·동작을 확인하고 허용해 주세요")
+UNCLEAN_RESTART_REASON = "허브가 갑자기 꺼져서 자동 실행을 껐어요."
 #: 재시작 뒤 불러온 허용인데 사건이 이 프로세스가 시작하기 전에 끝났다(4차 평가 M-N2) — 허용 전후를 단정하지 않는다.
-RESTART_BOUNDARY_REASON = ("허브가 다시 시작되기 전에 끝난 가열이라 허용 뒤의 사건인지 확인할 수 없어 "
-                           "자동 실행하지 않았어요")
+RESTART_BOUNDARY_REASON = "허브가 다시 켜지기 전에 끝난 가열이라 자동 실행하지 않았어요."
 #: 철회가 이미 전송을 시작한 자동 실행과 겹쳤다(4차 평가 H-N1) — 그 명령은 되돌리지 않는다.
 IN_FLIGHT_NOTICE = ("자동 실행 명령을 이미 보내기 시작했어요 — 그 명령은 취소되지 않아요(공기청정기를 되돌리거나 끄지 않아요). "
                     "다음부터는 보내지 않아요")
@@ -124,6 +121,18 @@ def _josa(word: str, with_final: str, without_final: str) -> str:
     if "가" <= last <= "힣":
         return with_final if (ord(last) - 0xAC00) % 28 else without_final
     return with_final
+
+
+def _josa_stem(word: str) -> str:
+    """조사 고를 낱말 — 끝의 괄호 표기("(모의)")는 건너뛴다."""
+    stem = word.strip()
+    while stem.endswith(")") and "(" in stem:
+        stem = stem[: stem.rindex("(")].rstrip()
+    return stem
+
+
+#: 대상 기능을 찾지 못했을 때 동작 이름 대신 보일 말(원시 이름을 화면에 내지 않는다).
+ACTION_LABELS = {"set_wind_strength": "바람 세기", "set_job_mode": "운전 모드", "set_power": "전원"}
 
 
 def _device_key(device_id: str) -> str:
@@ -462,7 +471,9 @@ class AutoRuleEngine:
 
     def condition_text(self, rule: AutoRule) -> str:
         # A5(2026-10-14): CT 끝 판정은 취소·문 열림 가열 종료와 구분하지 못한다 — 조리 완료라고 말하지 않는다.
-        return f"{self._name(rule.condition_appliance_id)} 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)"
+        # 그 단서('조리 완료가 아닐 수 있어요')는 허용 확인 시트(폰)에만 둔다 — 목록·카드 문장은 짧게(2026-10-14 UX).
+        name = self._name(rule.condition_appliance_id)
+        return f"{name}{_josa(_josa_stem(name), '이', '가')} 멈추면"
 
     def action_text(self, rule: AutoRule) -> str:
         name = self._name(rule.target_appliance_id)
@@ -473,11 +484,13 @@ class AutoRuleEngine:
         except Exception:  # noqa: BLE001 -- 대상이 바뀌었으면 동작 이름만
             cap = None
         if cap is None:
-            return f"{name} {rule.action} {rule.value}"
+            # 원시 동작 이름(set_wind_strength HIGH)을 화면에 내지 않는다(2026-10-14 UX).
+            label = ACTION_LABELS.get(rule.action, "설정")
+            return f"{name} {label} 변경(대상 가전을 다시 골라 주세요)"
         value = cap.value_label(str(rule.value))
         if rule.action == "set_power":
             return f"{name} 전원 {value}"
-        return f"{name} {cap.label}{_josa(cap.label, '을', '를')} {value}{_josa(value, '으로', '로')} 변경"
+        return f"{name} {cap.label} {value}{_josa(value, '으로', '로')}"
 
     # ── 카드의 허용 제안 ─────────────────────────────────────────────────────
     def offer_for(self, suggestion) -> AutoRule | None:

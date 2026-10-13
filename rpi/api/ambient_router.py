@@ -166,6 +166,17 @@ def _routine_tip(care_events) -> AttentionItem | None:
     return None
 
 
+def _subject_particle(name: str) -> str:
+    """이/가 — 끝의 괄호 표기("(모의)")는 건너뛰고 마지막 한글 글자의 받침으로 고른다."""
+    stem = name.strip()
+    while stem.endswith(")") and "(" in stem:
+        stem = stem[: stem.rindex("(")].rstrip()
+    last = stem[-1:]
+    if "가" <= last <= "힣":
+        return "이" if (ord(last) - 0xAC00) % 28 else "가"
+    return "이"
+
+
 def _attention(service, registry, alerts, care_events=None) -> list[AttentionItem]:
     """확인이 필요한 일 -- 위험 소리 경보, 마지막 실행이 끝까지 되지 않은 가전, 최근 루틴 안내(순서대로).
 
@@ -189,12 +200,13 @@ def _attention(service, registry, alerts, care_events=None) -> list[AttentionIte
                 registry.get(snap.last_appliance_id) if snap.last_appliance_id else None
             )
             name = appliance.name if appliance is not None else "가전"
-            items.append(
-                AttentionItem(
-                    "appliance",
-                    f"{name} 확인이 필요해요. 마지막 작업이 끝까지 되지 않았어요.",
-                )
-            )
+            # 보냈지만 확인 못 한 명령(ThinQ ``unconfirmed``)은 실패가 아니다(계약 §3) — 레거시 상태는
+            # FAILED로 접혀 있어 명령 경로 상태로 가른다. ``outcome_of``의 의미는 그대로 둔다.
+            if getattr(snap, "last_command_status", None) == "unconfirmed":
+                text = f"{name}{_subject_particle(name)} 바뀌었는지 확인하지 못했어요"
+            else:
+                text = f"{name} 작업이 멈췄어요 · 기계를 봐 주세요"
+            items.append(AttentionItem("appliance", text))
     except Exception:  # noqa: BLE001
         log.exception("service status unavailable for ambient tip")
     if care_events is not None:
