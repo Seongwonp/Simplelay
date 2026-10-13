@@ -260,24 +260,26 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
     );
   }
 
-  if (mock) {
-    return switch (kind) {
-      ResultKind.success => HistoryResult(
-          kind: kind,
-          sentence: thinq ? '모의 상태만 확인했어요' : '모의 버튼 조작을 마쳤어요',
-          mockNote: mockNote,
-        ),
-      _ => HistoryResult(
-          kind: kind,
-          sentence: kind == ResultKind.unconfirmed
-              ? '연습 결과를 확인하지 못했어요'
-              : '연습이 끝까지 되지 않았어요',
-          next: '연습 결과를 확인해 주세요',
-          mockNote: mockNote,
-        ),
-    };
-  }
+  final base = _liveResult(e, kind, thinq: thinq, target: target, checkTarget: checkTarget);
+  if (!mock) return base;
+  // 모의 기록: 성공 문장은 모의라고 말하고, 실제 가전 확인을 부탁하지 않는다.
+  return HistoryResult(
+    kind: kind,
+    sentence: kind == ResultKind.success
+        ? (thinq ? '모의 상태만 확인했어요' : '모의 버튼 조작을 마쳤어요')
+        : base.sentence,
+    next: kind == ResultKind.success ? null : '연습 결과를 확인해 주세요',
+    mockNote: mockNote,
+  );
+}
 
+HistoryResult _liveResult(
+  RpiHistoryEntry e,
+  ResultKind kind, {
+  required bool thinq,
+  required String target,
+  required String checkTarget,
+}) {
   if (thinq) {
     if (e.receipt == 'not_dispatched') {
       return HistoryResult(
@@ -285,11 +287,10 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
     }
     return switch (kind) {
       ResultKind.success => HistoryResult(kind: kind, sentence: '가전 상태를 확인했어요'),
+      // 접수 여부(받았는지 모름·접수됨)는 아래 보조 줄이 말한다. 다시 보내라고 권하지 않는다.
       ResultKind.unconfirmed => HistoryResult(
           kind: kind,
-          sentence: e.receipt == 'unknown'
-              ? '가전이 받았는지 확인하지 못했어요'
-              : '보냈지만 확인하지 못했어요',
+          sentence: '보냈지만 확인하지 못했어요',
           next: '다시 보내기 전에 $checkTarget',
         ),
       _ => HistoryResult(

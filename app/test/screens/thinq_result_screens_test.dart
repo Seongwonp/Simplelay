@@ -160,25 +160,12 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    String lineOf(String id) {
-      final row = find.ancestor(
-        of: find.text('목적 $id'),
-        matching: find.byType(Column),
-      ).first;
-      return tester
-          .widgetList<Text>(find.descendant(of: row, matching: find.byType(Text)))
-          .map((t) => t.data ?? '')
-          .firstWhere((s) => s.contains(' · 19:30 · '));
-    }
-
-    final mock = lineOf('m1');
+    // 2026-10-13: 결과는 한 문장으로, 모의 여부는 따로 한 줄로 말한다.
     // 모의 기록의 결과 문장이 실제 확인처럼 읽히면 안 된다.
-    expect(mock, contains('모의 상태만 확인했어요'));
-    expect(mock, isNot(contains('가전 상태를 확인했어요')));
-    // 실제 장치 기록은 종전 문장 그대로.
-    final real = lineOf('r1');
-    expect(real, contains('가전 상태를 확인했어요'));
-    expect(real, contains('실제 장치로 실행'));
-    expect(real, isNot(contains('실기기')));
+    expect(find.text('모의 상태만 확인했어요'), findsOneWidget);
+    expect(find.text('연습(모의) · 실제 가전에 명령하지 않았어요'), findsOneWidget);
+    // 실제 장치 기록은 실제 확인 문장 그대로, 모의 표시는 없다.
+    expect(find.text('가전 상태를 확인했어요'), findsOneWidget);
+    expect(find.textContaining('실기기'), findsNothing);
   });
 }

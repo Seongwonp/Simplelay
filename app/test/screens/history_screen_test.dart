@@ -65,10 +65,11 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // 목적 있는 실행은 목적으로, 없는 실행은 버튼 라벨로 표시
+    // 목적 있는 실행은 목적으로, 없는 실행은 버튼 라벨 + '버튼 조작'으로 표시
     expect(find.text('즉석밥 데워줘'), findsOneWidget);
-    // 끝이 안 좋았던 실행은 제목과 단계 목록 두 곳에 버튼이 나온다
-    expect(find.text('전원'), findsNWidgets(2));
+    expect(find.text('전원 버튼 조작'), findsOneWidget);
+    // 끝이 안 좋았던 실행은 단계 목록에 버튼이 나온다
+    expect(find.text('전원'), findsOneWidget);
     // 폐루프 회복 배지 — 이 화면의 존재 이유
     expect(find.text('재시도 2회 후 성공'), findsOneWidget);
     // 안전 정지 상태 표기
@@ -126,13 +127,15 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    final row = find.byWidgetPredicate((w) =>
-        w is Text && (w.data ?? '').startsWith('모의 실행 · '));
-    expect(row, findsOneWidget);
-    final text = tester.widget<Text>(row).data!;
-    expect(text, endsWith(' · 모의 버튼 조작을 마쳤어요(실제 조작 아님)'));
+    expect(find.text('모의 버튼 조작을 마쳤어요'), findsOneWidget);
+    // 모의 여부는 사람 말로 한 줄 — mock 기록에만.
+    expect(find.text('연습(모의) · 실제로 누르지 않았어요'), findsOneWidget);
     expect(find.textContaining('누름 장치'), findsNothing);
-    expect(find.text('물리 버튼 · 모의 실행기 응답'), findsOneWidget);
+    // 시스템 용어를 앞에 내지 않는다(2026-10-13).
+    expect(find.textContaining('모의 실행기 응답'), findsNothing);
+    expect(find.textContaining('물리 버튼'), findsNothing);
+    // 모의 성공에는 실제 가전 확인을 부탁하지 않는다.
+    expect(find.textContaining('직접 확인해 주세요'), findsNothing);
   });
 
   testWidgets('끝이 안 좋았던 실행만 어디서 멈췄는지와 다음 할 일을 보여준다',
@@ -223,8 +226,10 @@ void main() {
     expect(find.text('오늘'), findsOneWidget);
     expect(find.text('어제'), findsOneWidget);
     expect(find.text('9월 6일'), findsOneWidget);
-    // 결과는 문장으로. 시각은 구획 안에서 시:분만.
-    expect(find.text('실행 환경 미확인 · 08:10 · 버튼 조작을 마쳤어요'), findsOneWidget);
+    // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄.
+    expect(find.text('버튼 조작을 마쳤어요'), findsNWidgets(3));
+    expect(find.text('08:10'), findsOneWidget);
+    expect(find.textContaining('실행 환경 미확인'), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
   });
@@ -298,6 +303,109 @@ void main() {
     await tester.pump();
 
     expect(find.textContaining('· 전자레인지'), findsOneWidget);
+  });
+
+  // ── 2026-10-13 B안: 읽는 순서·제목·다음 행동 ─────────────────────────────
+
+  Future<void> pumpWith(WidgetTester tester, List<Map<String, dynamic>> entries) async {
+    tester.view.physicalSize = const Size(900, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        rpiApiServiceProvider.overrideWithValue(_apiWithHistory(entries)),
+        ...installedOverrides([kTestAppliance]),
+        nowProvider.overrideWithValue(() => DateTime(2026, 9, 9, 9)),
+      ],
+      child: const MaterialApp(home: HistoryScreen()),
+    ));
+    await tester.pump();
+    await tester.pump();
+  }
+
+  testWidgets('한 건은 날짜 → 제목 → 결과 → 시각 → 모의 여부 → 다음 행동 순서로 읽힌다',
+      (tester) async {
+    await pumpWith(tester, [
+      {
+        'job_id': 'job-o',
+        'finished_at': '2026-09-09T08:10:00+09:00',
+        'purpose': '아침 데우기',
+        'status': 'failed',
+        'outcome': 'failed',
+        'execution_mode': 'mock',
+        'route': 'physical',
+        'termination': 'retries_exhausted',
+        'retry_count': 3,
+        'appliance_id': 'microwave',
+        'buttons': [
+          {'button': '즉석밥', 'success': false, 'attempts': 3},
+        ],
+      },
+    ]);
+    double y(Finder f) => tester.getTopLeft(f).dy;
+    final order = [
+      find.text('오늘'),
+      find.text('아침 데우기'),
+      find.text('다시 눌러도 확인하지 못했어요'),
+      find.text('08:10 · 전자레인지'),
+      find.text('연습(모의) · 실제로 누르지 않았어요'),
+      find.text('연습 결과를 확인해 주세요'),
+      find.text('버튼으로 직접 조작'),
+    ];
+    for (final f in order) {
+      expect(f, findsOneWidget);
+    }
+    for (var i = 1; i < order.length; i++) {
+      expect(y(order[i]), greaterThan(y(order[i - 1])), reason: '순서 $i');
+    }
+  });
+
+  testWidgets('목적이 없으면 등록 이름 + 버튼 라벨, 빈 목적도 같다 — 목적을 지어내지 않는다',
+      (tester) async {
+    await pumpWith(tester, [
+      {
+        'job_id': 'job-e',
+        'finished_at': '2026-09-09T08:10:00+09:00',
+        'purpose': '',
+        'status': 'succeeded',
+        'outcome': 'success',
+        'execution_mode': 'real',
+        'route': 'physical',
+        'confirmation': 'reported',
+        'retry_count': 0,
+        'appliance_id': 'microwave',
+        'buttons': [
+          {'button': '즉석밥', 'success': true, 'attempts': 1},
+        ],
+      },
+      {
+        'job_id': 'job-n',
+        'finished_at': '2026-09-09T08:00:00+09:00',
+        'status': 'succeeded',
+        'retry_count': 0,
+        'buttons': [],
+      },
+    ]);
+    expect(find.text('전자레인지 · 즉석밥 버튼 조작'), findsOneWidget);
+    // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다.
+    expect(find.text('08:10'), findsOneWidget);
+    expect(find.text('전자레인지를 직접 확인해 주세요'), findsOneWidget);
+    expect(find.text('실행 기록'), findsOneWidget);
+  });
+
+  testWidgets('jobId가 다르면 같은 시각이라도 두 행이다', (tester) async {
+    Map<String, dynamic> e(String id) => {
+          'job_id': id,
+          'finished_at': '2026-09-09T08:10:00+09:00',
+          'purpose': '즉석밥 데워줘',
+          'status': 'succeeded',
+          'retry_count': 0,
+          'buttons': [],
+        };
+    await pumpWith(tester, [e('job-1'), e('job-2')]);
+    expect(find.text('즉석밥 데워줘'), findsNWidgets(2));
+    expect(find.byKey(const ValueKey('history-job-1')), findsOneWidget);
+    expect(find.byKey(const ValueKey('history-job-2')), findsOneWidget);
   });
 
   testWidgets('서버 오류 시 사용자 언어 안내를 보여준다', (tester) async {
