@@ -162,6 +162,12 @@ class RpiConnectionNotifier extends StateNotifier<RpiConnectionState> {
     _ref.listen(rpiUrlProvider, (_, next) {
       if (next != null) scheduleMicrotask(() => mounted ? check() : null);
     });
+    // 주소가 이 알림자보다 먼저 올라와 있으면 위 listen은 다시 불리지 않는다.
+    // 그러면 앱을 다시 열 때마다 '미설정'에 머문다(2026-10-13 에뮬레이터:
+    // 요청은 200인데 머리는 '허브 확인 중', 타일은 '허브 설정이 필요해요').
+    if (_ref.read(rpiUrlProvider) != null) {
+      scheduleMicrotask(() => mounted ? check() : null);
+    }
   }
 
   final Ref _ref;

@@ -53,7 +53,11 @@ void main() {
     addTearDown(c.dispose);
     await c.read(rpiUrlProvider.notifier).ensureLoaded();
     await c.read(rpiApiKeyProvider.notifier).ensureLoaded();
-    await c.read(rpiConnectionProvider.notifier).check();
+    // 주소가 이미 올라와 있으면 알림자가 만들어지자마자 스스로 확인한다.
+    c.read(rpiConnectionProvider);
+    for (var i = 0; i < 50 && c.read(rpiConnectionProvider) != RpiConnectionState.connected; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+    }
     expect(c.read(rpiConnectionProvider), RpiConnectionState.connected);
     firstAlive = false;
     await c.read(rpiConnectionProvider.notifier).check();
