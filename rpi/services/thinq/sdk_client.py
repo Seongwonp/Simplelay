@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import concurrent.futures
+import logging
 import threading
 import time
 from collections import deque
@@ -45,6 +46,10 @@ from .errors import error_from_api
 
 INSTALL_HINT = 'pip install -e ".[thinq]"  (공식 SDK thinqconnect==1.0.14)'
 _SDK_HOST_SUFFIX = ".lgthinq.com"
+
+# SDK는 요청마다 DEBUG 로그에 주소(기기 ID 포함)를 남긴다(``thinq_api.py`` async_request).
+# 기기 ID 원문을 로그에 남기지 않도록 SDK 로거는 INFO 위만 통과시킨다(2026-10-13).
+logging.getLogger("thinqconnect").setLevel(logging.INFO)
 
 
 class ThinqSdkMissing(RuntimeError):

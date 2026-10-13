@@ -1,6 +1,9 @@
 """ThinQ 경로·시나리오 API (U1-b·U1-c 모의). ``router.py``가 포함한다.
 
 - ``GET  /thinq/devices``            ThinQ 기기·등록 가전·동작 표(모드 off면 404)
+- ``GET  /thinq/discovered``         ThinQ 계정에서 찾은 가전·지원 여부·추가 여부(등록 안 함)
+- ``POST /thinq/added``              찾은 가전 하나를 추가(사용자 확인, 서버 DB에 남음)
+- ``DELETE /thinq/added/{key}``      추가한 가전 빼기(환경 변수로 넣은 가전은 409)
 - ``GET  /thinq/status/{id}``        가전 상태 다시 조회("보냈지만 확인 못 함" 뒤 재조회)
 - ``POST /thinq/command``            직접 명령 1건 → job_id (요청 자체가 승인)
 - ``GET  /readiness/{id}``           경로별 준비 상태(물리 4축 / ThinQ 모드·연결·기기)
@@ -98,6 +101,50 @@ async def thinq_devices(service: SimpleLayService = Depends(get_service),
         ],
         "appliances": appliances,
     }
+
+
+@router.get("/thinq/discovered")
+async def thinq_discovered(service: SimpleLayService = Depends(get_service),
+                           registry=Depends(get_appliance_registry)) -> dict:
+    """ThinQ 계정에서 찾은 가전(종류·별칭·지원 여부·추가 여부). **아무것도 등록하지 않는다.**
+
+    목록 조회가 실패하면 200에 ``reachable: false``와 사람 말 이유(``error``) -- '0대'와 섞지 않는다.
+    기기 ID 원문 대신 ``key``를 준다.
+    """
+    from .thinq_wiring import discover  # noqa: PLC0415
+
+    controller = _thinq_on(service)
+    return await asyncio.to_thread(discover, controller, registry)
+
+
+class ThinqAddRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    key: str = Field(min_length=1, max_length=64)
+
+
+@router.post("/thinq/added")
+async def thinq_add(body: ThinqAddRequest, service: SimpleLayService = Depends(get_service),
+                    registry=Depends(get_appliance_registry)) -> dict:
+    """사용자가 고른 가전 하나를 추가한다(사용자 확인). 추가해도 실행은 종전처럼 승인을 거친다."""
+    from .thinq_wiring import DiscoveryError, add_discovered  # noqa: PLC0415
+
+    controller = _thinq_on(service)
+    try:
+        return await asyncio.to_thread(add_discovered, controller, registry, body.key)
+    except DiscoveryError as exc:
+        raise HTTPException(exc.status, exc.reason) from None
+
+
+@router.delete("/thinq/added/{key}")
+async def thinq_remove(key: str, service: SimpleLayService = Depends(get_service),
+                       registry=Depends(get_appliance_registry)) -> dict:
+    from .thinq_wiring import DiscoveryError, remove_added  # noqa: PLC0415
+
+    _thinq_on(service)
+    try:
+        return await asyncio.to_thread(remove_added, registry, key)
+    except DiscoveryError as exc:
+        raise HTTPException(exc.status, exc.reason) from None
 
 
 @router.get("/thinq/status/{appliance_id}")
