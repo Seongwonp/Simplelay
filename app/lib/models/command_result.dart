@@ -160,6 +160,7 @@ String finishedMessage({
   String? receipt,
   String? stopLevel,
   int? stopAckMs,
+  String? abortReason,
 }) {
   final thinq = route == 'thinq';
   switch (kind) {
@@ -184,6 +185,9 @@ String finishedMessage({
           ? '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.'
           : '실행을 멈췄어요. $stop.';
     case ResultKind.safetyStop:
+      // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
+      final motion = motionAbortSentence(abortReason);
+      if (motion != null) return '$motion. 다시 누르지 않았어요. 장치를 확인해 주세요.';
       return '눌림을 확인하지 못해 안전하게 멈췄어요. 가전을 확인해 주세요.';
     case ResultKind.failed:
       // 실패라는 것만으로는 시작하지 않았는지 모른다 — 접수된 뒤 일부 버튼을 누르고 실패했을 수 있다(외부 평가
@@ -199,4 +203,21 @@ String finishedMessage({
           ? '가전이 명령을 실행하지 않았어요. 가전 상태를 확인해 주세요.'
           : '끝까지 실행하지 못했어요. 가전 상태를 확인해 주세요.';
   }
+}
+
+/// 모션 중단 원인(서버 `abort_reason`, 2026-10-14) → 한 문장(마침표 없음). 모르는 값·null이면 null.
+///
+/// 10/13 보드 날: 모터 걸림(stall) 알람이 '눌림을 확인하지 못해 안전 정지'로 보여 원인이 바뀌어 보였다.
+String? motionAbortSentence(String? reason) {
+  if (reason == null || !reason.startsWith('motion_')) return null;
+  if (reason == 'motion_alarm: stall') return '모터가 걸려 멈췄어요';
+  if (reason.startsWith('motion_alarm')) return '모터 보드가 이상을 알려 멈췄어요';
+  return switch (reason) {
+    'motion_reset' => '모터 보드가 다시 켜져 멈췄어요',
+    'motion_timeout' => '모터 보드가 제때 답하지 않아 멈췄어요',
+    'motion_not_ready' => '누름 장치가 준비되지 않아 멈췄어요',
+    'motion_position_mismatch' => '모터 위치가 맞지 않아 멈췄어요',
+    'motion_link_error' => '누름 장치 연결이 끊겨 멈췄어요',
+    _ => '누름 장치가 멈췄어요',
+  };
 }

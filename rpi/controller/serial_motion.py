@@ -99,6 +99,7 @@ import logging
 import math
 import os
 import queue
+import re
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -119,11 +120,18 @@ PROTOCOL_NOTE = "line-json/v0 (실물 미검증)"
 
 
 class MotionError(RuntimeError):
-    """모션 어댑터 오류의 공통 부모. 폐루프는 이것을 누름 실패로 센다."""
+    """모션 어댑터 오류의 공통 부모. 폐루프는 이것을 누름 실패로 센다.
+
+    ``motion_abort_reason``이 None이 아니면(알람·재시작·기한 초과·준비 안 됨, 2026-10-14) 폐루프는 **재시도하지 않고**
+    바로 멈추고 결과에 그 원인을 싣는다 — 다시 눌러도 움직이지 않고 '눌림 확인 실패'로 원인이 바뀌어 보인다."""
+
+    motion_abort_reason: str | None = None
 
 
 class MotionConfigError(MotionError):
     """필요한 모션 설정이 비어 있다. 채워지기 전에는 움직이지 않는다."""
+
+    motion_abort_reason = "motion_not_ready"
 
     def __init__(self, operation: str, missing: tuple[str, ...]) -> None:
         self.operation = operation
@@ -146,8 +154,16 @@ class MotionRefused(MotionError):
         self.retry_ms = retry_ms
 
 
+class MotionNotReady(MotionRefused):
+    """원점 복귀 전이거나 이번 실행 중 재시작·통신 오류가 있어 누를 수 없다(2026-10-14). 다시 시도해도 같다."""
+
+    motion_abort_reason = "motion_not_ready"
+
+
 class MotionTimeout(MotionError):
     """MCU가 기한 안에 응답하지 않았다. 위치를 믿을 수 없어 재홈 전까지 준비 안 됨."""
+
+    motion_abort_reason = "motion_timeout"
 
 
 class MotionStopped(MotionError):
@@ -155,18 +171,37 @@ class MotionStopped(MotionError):
 
 
 class MotionAlarm(MotionError):
-    """MCU가 오류·알람을 보고했다(리밋·스톨·원점 미검출 등)."""
+    """MCU가 오류·알람을 보고했다(리밋·스톨·원점 미검출 등). ``reason``은 MCU가 보낸 코드(예: ``stall``)."""
+
+    def __init__(self, message: str, *, reason: str | None = None) -> None:
+        super().__init__(message)
+        self.reason = reason
+
+    @property
+    def motion_abort_reason(self) -> str:  # type: ignore[override]
+        code = self.reason if isinstance(self.reason, str) and _ABORT_CODE.fullmatch(self.reason) else None
+        return f"motion_alarm: {code}" if code else "motion_alarm"
+
+
+#: 결과에 싣는 MCU 알람 코드 모양(그 밖의 값은 코드 없이 ``motion_alarm``).
+_ABORT_CODE = re.compile(r"[A-Za-z0-9_.\-]{1,40}")
 
 
 class MotionReset(MotionAlarm):
     """동작 중 MCU가 재시작했다(``ready`` 배너). 진행 중 명령은 사라졌고 원점 기준도 없다."""
 
+    @property
+    def motion_abort_reason(self) -> str:  # type: ignore[override]
+        return "motion_reset"
+
 
 class MotionPositionMismatch(MotionError):
     """이동은 ``ok``였지만 MCU가 보고한 엔코더 위치가 명령과 허용 오차 넘게 다르다(또는 보고 없음).
 
-    어디 있는지 믿을 수 없어 재홈 전까지 준비 안 됨으로 둔다. 폐루프는 누름 실패로 센다.
+    어디 있는지 믿을 수 없어 재홈 전까지 준비 안 됨으로 둔다. 폐루프는 재시도하지 않고 멈춘다(2026-10-14).
     """
+
+    motion_abort_reason = "motion_position_mismatch"
 
 
 # ── 전송 ─────────────────────────────────────────────────────────────────────
@@ -781,7 +816,7 @@ class SerialMotionClient(GrblClient):
 
         if not self.homed:
             if self._reset_mid_run:
-                raise MotionRefused(
+                raise MotionNotReady(
                     f"'{command.button}' 누름: 이번 실행 중 MCU 재시작 또는 통신 오류가 발생했습니다 — 자동 재홈·재누름 없이 멈춤"
                     "(사람이 확인한 뒤 새로 요청)"
                 )
@@ -1115,7 +1150,7 @@ class SerialMotionClient(GrblClient):
 
     def _require_homed(self, operation: str) -> None:
         if not self.homed:
-            raise MotionRefused(
+            raise MotionNotReady(
                 f"{operation}: 원점 복귀가 확인되지 않았습니다(상태 {self.state.value}) — 홈 먼저"
             )
 
@@ -1236,7 +1271,7 @@ class SerialMotionClient(GrblClient):
             if error in MCU_REFUSAL_ERRORS:
                 raise MotionRefused(f"MCU가 '{body['cmd']}'를 거절: {error}", code=error,
                                     retry_ms=_opt_int(doc.get("retry_ms")))
-            raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}")
+            raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}", reason=error)
 
     def _send_request(self, body: dict) -> int:
         with self._write_lock:
@@ -1301,7 +1336,7 @@ class SerialMotionClient(GrblClient):
         if name == "alarm":
             reason = doc.get("reason") if isinstance(doc.get("reason"), str) else "unknown"
             self._set_state(MotionState.ALARM)
-            raise MotionAlarm(f"MCU 알람: {reason}")
+            raise MotionAlarm(f"MCU 알람: {reason}", reason=reason)
 
     def _send_stop_after_timeout(self, cmd: str) -> None:
         log.error("motion '%s' timed out — sending stop", cmd)

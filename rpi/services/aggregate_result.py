@@ -92,6 +92,7 @@ def synthesize_execution_result(
     operation_detail: str | None = None,
     operation_source: str | None = None,
     execution_mode: str | None = None,
+    abort_reason: str | None = None,
 ) -> ExecutionResult:
     operation = None
     if operation_confirmed is not None:
@@ -144,6 +145,7 @@ def synthesize_execution_result(
         operation=operation,
         outcome=outcome,
         execution_mode=mode,
+        abort_reason=abort_reason,
     )
 
 
@@ -160,4 +162,5 @@ def synthesize_from_act_result(buttons: list[str], result: "ActResult") -> Execu
         operation_detail=result.operation_detail,
         operation_source=result.operation_source,
         execution_mode=result.execution_mode,
+        abort_reason=getattr(result, "abort_reason", None),
     )

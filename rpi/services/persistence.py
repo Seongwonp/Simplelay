@@ -139,6 +139,7 @@ class SimpleLayDb:
                 "calibration_profile_version",
                 "stop_requested_at",
                 "outcome",
+                "abort_reason",
             ):
                 if column not in job_columns:
                     self._conn.execute(
@@ -481,8 +482,8 @@ class SimpleLayDb:
                 "INSERT INTO job_history"
                 " (job_id, finished_at, purpose, status, buttons_json,"
                 "  appliance_id, execution_mode, started_at, termination,"
-                "  calibration_profile_version, stop_requested_at, outcome)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "  calibration_profile_version, stop_requested_at, outcome, abort_reason)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry.job_id,
                     entry.finished_at.isoformat(),
@@ -510,6 +511,7 @@ class SimpleLayDb:
                         else None
                     ),
                     entry.outcome,
+                    entry.abort_reason,
                 ),
             )
             self._conn.commit()
@@ -519,7 +521,7 @@ class SimpleLayDb:
             rows = self._conn.execute(
                 "SELECT job_id, finished_at, purpose, status, buttons_json,"
                 " appliance_id, execution_mode, started_at, termination,"
-                " calibration_profile_version, stop_requested_at, outcome"
+                " calibration_profile_version, stop_requested_at, outcome, abort_reason"
                 " FROM job_history ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -544,6 +546,7 @@ class SimpleLayDb:
                 ),
                 # 열이 생기기 전 기록은 NULL — effective_outcome이 유도한다.
                 outcome=row[11],
+                abort_reason=row[12],
             )
             for row in rows
         )

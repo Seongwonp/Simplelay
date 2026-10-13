@@ -695,6 +695,8 @@ class ActExecutor:
             "outcome": outcome,
             # 2026-09-29: 버튼별 시도 수·보정, L3 판정, 실행 환경. 옛 RPi5는 무시한다.
             **result_detail_fields(result, self._controller),
+            # 2026-10-14: 모션 걸림·재시작·기한 초과·준비 안 됨으로 재시도 없이 멈췄으면 그 원인. 없으면 필드 없음.
+            **({"abort_reason": result.abort_reason} if getattr(result, "abort_reason", None) else {}),
         })
         after_result = binding.after_result if binding is not None else self._after_result
         self._active_after_result = after_result

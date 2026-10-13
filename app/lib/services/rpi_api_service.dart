@@ -122,6 +122,7 @@ class RpiStatusResult {
     this.lastOperationConfirmed,
     this.lastOperationSource,
     this.lastOperationDetail,
+    this.lastAbortReason,
     this.estopLatched = false,
     this.estopDetail,
     this.lastStopLevel,
@@ -178,6 +179,10 @@ class RpiStatusResult {
   /// 판정 입력 real | mock. mock의 true는 실제 동작 근거가 아니다.
   final String? lastOperationSource;
   final String? lastOperationDetail;
+
+  /// 모션 걸림·재시작·기한 초과·준비 안 됨으로 재시도 없이 멈춘 원인(서버 2026-10-14, 예: `motion_alarm: stall`).
+  /// 눌림 확인 실패와 가르는 근거다. 옛 서버·그 밖의 결과는 null.
+  final String? lastAbortReason;
   final List<RpiButtonStep>? lastButtons;
   // 실행 중 실시간 진행 (running=true일 때만 값이 있을 수 있음)
   final String? currentButton;
@@ -546,6 +551,7 @@ class RpiHistoryEntry {
     this.receipt = 'unknown',
     this.confirmation = 'unknown',
     this.detail = '',
+    this.abortReason,
   });
   final String jobId;
   final DateTime finishedAt;
@@ -570,6 +576,9 @@ class RpiHistoryEntry {
   final String confirmation;
   final String detail;
 
+  /// 모션 중단 원인(서버 2026-10-14, 예: `motion_alarm: stall`). 옛 서버·그 밖은 null.
+  final String? abortReason;
+
   /// 목록 표시용 제목 — 목적이 없으면 누른 버튼 라벨을 나열
   String get displayTitle =>
       purpose ?? buttons.map((b) => b.button).join(' · ');
@@ -592,6 +601,7 @@ class RpiHistoryEntry {
         receipt: json['receipt'] as String? ?? 'unknown',
         confirmation: json['confirmation'] as String? ?? 'unknown',
         detail: json['detail'] as String? ?? '',
+        abortReason: json['abort_reason'] as String?,
       );
 }
 
@@ -929,6 +939,7 @@ class RpiApiService {
       lastOperationConfirmed: body['last_operation_confirmed'] as bool?,
       lastOperationSource: body['last_operation_source'] as String?,
       lastOperationDetail: body['last_operation_detail'] as String?,
+      lastAbortReason: body['last_abort_reason'] as String?,
       estopLatched: body['estop_latched'] == true,
       estopDetail: body['estop_latched'] == true && body['estop_detail'] is String
           ? body['estop_detail'] as String

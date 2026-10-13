@@ -190,6 +190,10 @@ class ExecutionResult:
     #: 컨트롤러가 밝힌 값을 쓴다. 원격 링크(UART)는 저쪽이 실물을 돌렸는지
     #: 스스로 알 수 없으므로 이 보고가 유일한 근거다.
     execution_mode: ExecutionMode | None = None
+    #: 모션 장치 쪽 이유로 재시도 없이 멈췄다면 그 원인(2026-10-14) — ``motion_alarm: stall``·``motion_reset``·
+    #: ``motion_timeout``·``motion_not_ready``·``motion_position_mismatch``·``motion_link_error``. 눌림(L1) 확인
+    #: 실패와 가르는 근거다. 그 밖의 결과는 None.
+    abort_reason: str | None = None
 
 
 def outcome_of(result: ExecutionResult) -> ExecutionOutcome:

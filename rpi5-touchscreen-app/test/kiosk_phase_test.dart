@@ -1440,6 +1440,33 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // 2026-10-14(보드 날 발견 2): 모션 걸림 알람은 '눌림을 확인하지 못해'가 아니다 — 원인 그대로, 다시 시도 없음.
+  testWidgets('모션 걸림(motion_alarm: stall)은 걸려 멈췄다고 말하고 다시 시도를 권하지 않는다', (tester) async {
+    useKioskViewport(tester);
+    final tts = FakeTts();
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api, tts: tts);
+    final done = await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'safety_stopped',
+          lastOutcome: 'safety_stop',
+          lastRetryCount: 0,
+          lastAbortReason: 'motion_alarm: stall'),
+    );
+    expect(done.reason, KioskFailureReason.safetyStop);
+    expect(done.abortReason, 'motion_alarm: stall');
+    expect(find.text('모터가 걸려 멈췄어요'), findsOneWidget);
+    expect(find.textContaining('눌림을 확인하지 못해'), findsNothing);
+    expect(find.text('다시 시도'), findsNothing);
+    expect(done.onRetry, isNull);
+    expect(tts.utterances.last, contains('모터가 걸려 멈췄어요. 다시 누르지 않았어요'));
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 외부 평가 2026-10-13 M1 — 실행 결과(stopped)가 먼저 오고 정지 확인 단계가 늦게 오는 순서.
   testWidgets('다른 단말에서 멈춘 실행: 정지 단계가 늦게 오면 짧은 후속 조회로 완료 화면 정지 줄을 고친다',
       (tester) async {

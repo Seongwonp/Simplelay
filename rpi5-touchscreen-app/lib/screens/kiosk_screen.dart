@@ -156,6 +156,9 @@ class _KioskScreenState extends State<KioskScreen> {
   bool? _doneOperationConfirmed;
   String? _doneOperationSource;
 
+  /// 모션 걸림 등으로 재시도 없이 멈춘 원인(2026-10-14, /status last_abort_reason).
+  String? _doneAbortReason;
+
   /// 정지로 멈춘 실행의 확인 단계(2026-10-13, /status last_stop_level).
   String? _doneStopLevel;
   int? _doneStopAckMs;
@@ -601,6 +604,7 @@ class _KioskScreenState extends State<KioskScreen> {
         _doneStopLevel = st.stopLevelOf(jobId);
         _doneStopAckMs = st.stopAckMsOf(jobId);
         _doneOperationDetail = st.lastOperationDetail;
+        _doneAbortReason = st.lastAbortReason;
         _finishExecuting(
           success: kind == ResultKind.success,
           buttons: st.lastButtons ?? const [],
@@ -1003,6 +1007,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneDetail = null;
     _doneOperationConfirmed = null;
     _doneOperationSource = null;
+    _doneAbortReason = null;
     _doneStopLevel = null;
     _doneStopAckMs = null;
     _stopFollowTimer?.cancel();
@@ -1067,7 +1072,7 @@ class _KioskScreenState extends State<KioskScreen> {
               KioskFailureReason.stopped =>
                 '실행을 멈췄어요. 장치가 완전히 멈췄는지 확인해 주세요.',
               KioskFailureReason.safetyStop =>
-                '$label, 눌림을 확인하지 못해 안전하게 멈췄어요. 가전을 확인해 주세요.',
+                '$label, ${finishedMessage(kind: ResultKind.safetyStop, abortReason: _doneAbortReason)}',
               KioskFailureReason.unconfirmed =>
                 '$label, ${unconfirmedSentence()}',
               KioskFailureReason.receiptUnknown =>
@@ -1465,12 +1470,16 @@ class _KioskScreenState extends State<KioskScreen> {
           runSteps: _doneRunSteps,
           stopLevel: _doneStopLevel,
           stopAckMs: _doneStopAckMs,
+          abortReason: _doneAbortReason,
           // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
           // 그때는 수동 조작(사람이 직접 누르기)을 앞세운다.
           // ThinQ 확인 못 함·접수 불명은 다시 보내면 중복 실행이 될 수 있어
           // '다시 시도'를 내걸지 않는다.
+          // 모션 걸림·재시작 등(2026-10-14)도 권하지 않는다 — 장치를 먼저 봐야 하고 되풀이하면 또 걸린다.
           onRetry: _doneReason == KioskFailureReason.serverLost ||
-                  (_doneReason?.isUnconfirmed ?? false)
+                  (_doneReason?.isUnconfirmed ?? false) ||
+                  (_doneReason == KioskFailureReason.safetyStop &&
+                      motionAbortSentence(_doneAbortReason) != null)
               ? null
               : _onRetryFailed,
           // ThinQ 명령에는 누를 조작판이 없다.

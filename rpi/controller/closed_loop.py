@@ -65,6 +65,32 @@ class _PressObservationFailed(Exception):
         self.result = result
 
 
+class _MotionAborted(Exception):
+    """모션 장치가 알람·재시작·기한 초과·준비 안 됨을 알렸다 — 다시 눌러도 움직이지 않으니 재시도하지 않는다(2026-10-14)."""
+
+    def __init__(self, result: ButtonResult, reason: str) -> None:
+        super().__init__(reason)
+        self.result = result
+        self.reason = reason
+
+
+def motion_abort_reason(exc: BaseException) -> str | None:
+    """재시도하면 안 되는 어댑터 오류면 결과에 실을 원인, 아니면 None.
+
+    모션 어댑터 오류는 스스로 ``motion_abort_reason``을 밝힌다(rpi.controller.serial_motion). 시리얼 쓰기·읽기의
+    ``OSError``(EIO·포트 사라짐)는 연결이 끊긴 것이라 ``motion_link_error``다. 그 밖(일시 오류·좌표 거절 등)은 종전대로
+    보정 재시도 상한 안에서 다시 누른다."""
+    try:
+        reason = getattr(exc, "motion_abort_reason", None)
+    except Exception:  # noqa: BLE001
+        reason = None
+    if isinstance(reason, str) and reason:
+        return reason
+    if isinstance(exc, OSError):
+        return "motion_link_error"
+    return None
+
+
 class ClosedLoopController:
     #: execute()가 ``targets``(버튼별 좌표)를 받는다. 서비스는 이 표시가 있는
     #: 대상에만 좌표를 넘긴다 -- 다른 ButtonSequenceController 구현은 모른다.
@@ -196,6 +222,16 @@ class ClosedLoopController:
             except _EmergencyStopRequested:
                 self._safety.stop("emergency stop requested")
                 return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, tuple(results))
+            except _MotionAborted as exc:
+                # 걸림·재시작·기한 초과·준비 안 됨 — 눌림(L1) 확인 실패가 아니다. 실제 시도 수와 원인을 싣는다.
+                results.append(exc.result)
+                self._safety.stop(f"motion abort for {button}: {exc.reason}")
+                self._alerts.notify_failure(button, exc.result.attempts)
+                return ExecutionResult(
+                    ExecutionStatus.SAFETY_STOPPED,
+                    tuple(results),
+                    abort_reason=exc.reason,
+                )
             except _OperationObservationFailed as exc:
                 return self._stop_for_unobservable_operation(
                     exc.__cause__ or exc, tuple(results)
@@ -351,6 +387,17 @@ class ClosedLoopController:
                     self._observe("press", button, completed_steps, presses, ok=False,
                                   error=str(exc)[:200], position=self._adapter_position())
                     self._report_progress(button, presses, completed_steps, None)
+                    abort = motion_abort_reason(exc)
+                    if abort is not None and not self._stop_requested.is_set():
+                        raise _MotionAborted(ButtonResult(
+                            button,
+                            ButtonStatus.FAILED,
+                            presses,
+                            last_verification,
+                            tuple(errors),
+                            reinputs=reinputs,
+                            corrections=tuple(corrections),
+                        ), abort) from exc
                     continue
                 self._observe("press", button, completed_steps, presses, ok=True,
                               position=self._adapter_position())

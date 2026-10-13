@@ -37,6 +37,8 @@ class Termination(str, Enum):
     COMPLETED = "completed"
     STOPPED_BY_USER = "stopped_by_user"
     RETRIES_EXHAUSTED = "retries_exhausted"
+    #: 모션 장치가 걸림·재시작·기한 초과·준비 안 됨을 알려 재시도 없이 멈췄다(2026-10-14). 재시도 소진이 아니다.
+    MOTION_ABORTED = "motion_aborted"
     UNKNOWN = "unknown"
 
 
@@ -95,6 +97,8 @@ class JobHistoryEntry:
     #: 합성 입력(모의 전력)의 판정이면 ``operation_detail``이 "모의 전력 센서"로 시작한다.
     operation_confirmed: bool | None = None
     operation_detail: str = ""
+    #: 모션 중단 원인(2026-10-14, 예: ``motion_alarm: stall``). 없으면 None.
+    abort_reason: str | None = None
 
     @property
     def effective_outcome(self) -> str:
@@ -110,7 +114,7 @@ class JobHistoryEntry:
         if self.status == "safety_stopped":
             if self.termination is Termination.STOPPED_BY_USER:
                 return "stopped"
-            if self.termination is Termination.RETRIES_EXHAUSTED:
+            if self.termination in (Termination.RETRIES_EXHAUSTED, Termination.MOTION_ABORTED):
                 return "safety_stop"
         return "failed"
 

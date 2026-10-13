@@ -318,6 +318,7 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 | `operation_detail` | 문자열 / `null` | 판정 사유 한 줄 |
 | `operation_source` | `real` / `mock` / `null` | 판정 입력이 실물 전력 센서인가, 합성 파형(모의)인가 |
 | `execution_mode` | `real` / `mock` / `unknown` | RPi4 모션 어댑터가 스스로 밝힌 실행 환경 |
+| `abort_reason` | `motion_alarm: <코드>` / `motion_reset` / `motion_timeout` / `motion_not_ready` / `motion_position_mismatch` / `motion_link_error` (없으면 필드 없음) | 2026-10-14. 모션 걸림·재시작·기한 초과·준비 안 됨·연결 끊김으로 **재시도 없이** 멈춘 원인. 눌림(L1) 확인 실패와 가른다. RPi5는 `motion_…` 모양만 받아 `/status` `last_abort_reason`·`/history` `abort_reason`으로 올린다 |
 
 - RPi5는 `button_results`를 **엄격하게** 읽는다: 버튼 이름이 요청 순서와 다르거나, 성공이라면서 전 버튼을
   덮지 않거나, 마지막이 아닌 칸이 실패면 **통째로 버리고** 종전처럼 집계 `retry`로 합성한다(성공이면 마지막

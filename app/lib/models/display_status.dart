@@ -298,6 +298,16 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
     );
   }
   if (kind == ResultKind.safetyStop) {
+    // 모션 걸림 등(2026-10-14) — 다시 눌러 본 것이 아니다. 원인 그대로.
+    final motion = motionAbortSentence(e.abortReason);
+    if (motion != null) {
+      return HistoryResult(
+        kind: kind,
+        sentence: motion,
+        next: '다시 누르지 않았어요 · 장치를 확인해 주세요',
+        mockNote: mockNote,
+      );
+    }
     return HistoryResult(
       kind: kind,
       sentence: e.termination == 'retries_exhausted'

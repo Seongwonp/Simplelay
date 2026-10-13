@@ -163,7 +163,11 @@ class JogSession:
 
     def refuse(self, exc: BaseException) -> None:
         # 메시지를 가공하지 않는다 — 어떤 환경 변수를 채워야 하는지가 그대로 보여야 한다.
-        text = f"거절 {type(exc).__name__}: {exc}"
+        # 준비 안 됨(MotionNotReady, 2026-10-14)도 운영자에게는 종전처럼 '거절 MotionRefused'로 보인다.
+        from rpi.controller.serial_motion import MotionRefused  # noqa: PLC0415
+
+        name = "MotionRefused" if isinstance(exc, MotionRefused) else type(exc).__name__
+        text = f"거절 {name}: {exc}"
         self.say(text)
         self._log.write("!!", text)
 

@@ -35,7 +35,11 @@ class KioskDoneView extends StatelessWidget {
     this.runSteps = const [],
     this.stopLevel,
     this.stopAckMs,
+    this.abortReason,
   });
+
+  /// 모션 걸림·재시작 등으로 재시도 없이 멈춘 원인(2026-10-14, /status last_abort_reason). 안전 정지에만 쓴다.
+  final String? abortReason;
 
   /// 정지로 멈춘 실행의 확인 단계(2026-10-13, /status last_stop_level): sent | mcu_ack | verified.
   /// null이면 정지 줄을 그리지 않는다(옛 서버·로컬 모의). 정지로 멈춘 실행(stopped)에만 쓴다.
@@ -128,6 +132,13 @@ class KioskDoneView extends StatelessWidget {
     final stopSentence = !success && r == KioskFailureReason.stopped
         ? stopLevelSentence(stopLevel, ackMs: stopAckMs)
         : null;
+    // 모션 걸림 등(2026-10-14) — '눌림을 확인하지 못해'로 원인을 바꿔 말하지 않는다.
+    final motion = !success && r == KioskFailureReason.safetyStop
+        ? motionAbortSentence(abortReason)
+        : null;
+    final headline = success ? successHeadline : (motion ?? r.headline);
+    final failureDetail =
+        motion != null ? '$label — 다시 누르지 않았어요.\n장치를 확인해 주세요.' : r.detail(label);
 
     return ColoredBox(
       color: KioskColors.bg,
@@ -137,7 +148,7 @@ class KioskDoneView extends StatelessWidget {
           child: Semantics(
             liveRegion: true,
             label: [
-              success ? '$label — $successHeadline' : r.detail(label),
+              success ? '$label — $successHeadline' : '$headline. $failureDetail',
               ...facts,
               if (operationSentence != null) operationSentence,
               if (stopSentence != null) stopSentence,
@@ -163,7 +174,7 @@ class KioskDoneView extends StatelessWidget {
                 Text(
                   // 연결 유실은 정지의 증거가 아니다. 서버가 정지 결과를
                   // 반환한 경우에만 실행을 멈췄다고 표시한다.
-                  success ? successHeadline : r.headline,
+                  headline,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 36,
@@ -224,7 +235,7 @@ class KioskDoneView extends StatelessWidget {
                   _AutoReturn(onDismiss: onDismiss),
                 ] else ...[
                   Text(
-                    r.detail(label),
+                    failureDetail,
                     textAlign: TextAlign.center,
                     style:
                         const TextStyle(fontSize: 22, color: KioskColors.muted),

@@ -43,6 +43,7 @@ class ExecutionStatus {
     this.operationConfirmed,
     this.operationSource,
     this.operationDetail,
+    this.abortReason,
   });
 
   final String? sequenceId;
@@ -101,6 +102,9 @@ class ExecutionStatus {
   /// 판정 입력 real | mock. mock의 true는 실제 동작 근거가 아니다.
   final String? operationSource;
   final String? operationDetail;
+
+  /// 모션 걸림 등으로 재시도 없이 멈춘 원인(서버 `last_abort_reason`). null이면 해당 없음.
+  final String? abortReason;
   final String executionMode;
   String get modeLabel => isDemo || executionMode == 'mock'
       ? '모의 실행 — 실제 조작이 아닙니다'
@@ -131,6 +135,7 @@ class ExecutionStatus {
     bool? operationConfirmed,
     String? operationSource,
     String? operationDetail,
+    String? abortReason,
   }) =>
       ExecutionStatus(
         executionMode: executionMode ?? this.executionMode,
@@ -156,6 +161,7 @@ class ExecutionStatus {
         operationConfirmed: operationConfirmed ?? this.operationConfirmed,
         operationSource: operationSource ?? this.operationSource,
         operationDetail: operationDetail ?? this.operationDetail,
+        abortReason: abortReason ?? this.abortReason,
         phase: phase ?? this.phase,
         message: message ?? this.message,
         // 실행 모드는 시작할 때 정해지고 그 job이 끝날 때까지 바뀌지

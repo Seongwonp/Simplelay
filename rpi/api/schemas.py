@@ -753,6 +753,8 @@ class StatusResponse(BaseModel):
     #: 판정 입력 real | mock(합성 전력). mock의 true는 실제 동작 근거가 아니다.
     last_operation_source: str | None = None
     last_operation_detail: str | None = None
+    #: 마지막 물리 실행이 모션 걸림·재시작·기한 초과·준비 안 됨으로 재시도 없이 멈췄다면 그 원인(2026-10-14).
+    last_abort_reason: str | None = None
     # ── 정지 확인 단계(2026-10-13) — 마지막 긴급 정지의 모션 확인. 새 실행이 시작되면 null. 옛 클라이언트는 무시 ──
     #: sent | mcu_ack | verified | None
     last_stop_level: str | None = None
@@ -813,7 +815,7 @@ class HistoryEntryResponse(BaseModel):
     appliance_id: str | None = None
     # real | mock | unknown. mock 실행이 실제 성공률에 섞이지 않게 가른다.
     execution_mode: str = "unknown"
-    # completed | stopped_by_user | retries_exhausted | unknown.
+    # completed | stopped_by_user | retries_exhausted | motion_aborted | unknown.
     # status만으로는 '사용자가 멈춤'과 '재시도 소진'이 뭉개진다.
     termination: str = "unknown"
     #: success | failed | stopped | safety_stop. 옛 기록은 status·termination에서
@@ -828,6 +830,8 @@ class HistoryEntryResponse(BaseModel):
     #: L3 판정(2026-09-29). 판정기 없음·미판정·옛 기록은 None.
     operation_confirmed: bool | None = None
     operation_detail: str = ""
+    #: 모션 장치 쪽 이유로 재시도 없이 멈춘 원인(2026-10-14, 예: ``motion_alarm: stall``). 그 밖은 None.
+    abort_reason: str | None = None
 
 
 class OkResponse(BaseModel):

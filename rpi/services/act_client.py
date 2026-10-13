@@ -62,6 +62,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable, Mapping, Sequence
@@ -158,6 +159,8 @@ class ActResult:
     operation_source: str | None = None
     #: RPi4가 밝힌 실행 환경 real | mock | unknown. 옛 프레임이면 None.
     execution_mode: str | None = None
+    #: 모션 장치 쪽 이유로 재시도 없이 멈춘 원인(2026-10-14, 예: ``motion_alarm: stall``). 없거나 형식이 틀리면 None.
+    abort_reason: str | None = None
 
 
 @dataclass(frozen=True)
@@ -227,6 +230,20 @@ def parse_operation(doc: dict) -> tuple[bool | None, str | None, str | None]:
     source = doc.get("operation_source")
     source = source if source in ("real", "mock") else None
     return confirmed, detail, source
+
+
+_ABORT_REASON = re.compile(r"motion_[a-z_]{1,40}(: [A-Za-z0-9_.\-]{1,40})?")
+
+
+def parse_abort_reason(doc: dict) -> str | None:
+    """result 프레임의 ``abort_reason``(2026-10-14). ``motion_…`` 모양만 받는다 — 화면 문장을 고르는 열쇠라 모르는 값은 버린다."""
+    reason = doc.get("abort_reason")
+    if reason is None:
+        return None
+    if isinstance(reason, str) and _ABORT_REASON.fullmatch(reason):
+        return reason
+    log.warning("ActClient: abort_reason %.80r ignored", reason)
+    return None
 
 
 def parse_execution_mode(doc: dict) -> str | None:
@@ -539,6 +556,7 @@ class ActClient:
             operation_detail=detail,
             operation_source=source,
             execution_mode=parse_execution_mode(doc),
+            abort_reason=None if success else parse_abort_reason(doc),
         )
 
     async def abort(self, scope: str | None = None, stop_id: str | None = None) -> None:

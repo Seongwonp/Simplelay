@@ -327,8 +327,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
   /// 다시 실행을 권해도 되는가. 실패는 **미전송 근거(not_dispatched)가 있을 때만** — 접수된 뒤 일부를 누르고
   /// 실패했을 수 있어 일괄 재시도 권고는 이미 한 조작을 되풀이하게 한다(외부 평가 2026-10-13 M4).
   /// 안전 정지는 종전대로(가전을 확인한 뒤).
+  /// 모션 걸림·재시작 등(abortReason)은 권하지 않는다 — 장치를 먼저 봐야 하고 같은 조작을 되풀이하면 또 걸린다(2026-10-14).
   bool _retryAdvised(ExecutionStatus status) => switch (_kindOf(status)) {
-        ResultKind.safetyStop => true,
+        ResultKind.safetyStop => status.abortReason == null,
         ResultKind.failed => status.receipt == 'not_dispatched',
         _ => false,
       };

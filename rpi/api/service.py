@@ -778,6 +778,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                     operation_detail=(
                         result.operation.detail if result.operation is not None else ""
                     ),
+                    abort_reason=getattr(result, "abort_reason", None),
                 )
             )
         except Exception:
@@ -794,11 +795,11 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         """
         if result.status is ExecutionStatus.SUCCEEDED:
             return Termination.COMPLETED
-        return (
-            Termination.STOPPED_BY_USER
-            if stopped_by_user
-            else Termination.RETRIES_EXHAUSTED
-        )
+        if stopped_by_user:
+            return Termination.STOPPED_BY_USER
+        if getattr(result, "abort_reason", None):
+            return Termination.MOTION_ABORTED  # 걸림 등 — 다시 눌러 본 것이 아니다(2026-10-14)
+        return Termination.RETRIES_EXHAUSTED
 
     def _record_care_outcome(
         self,

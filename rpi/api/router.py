@@ -133,7 +133,7 @@ def result_detail_fields(result: ExecutionResult | None) -> dict:
     """
     if result is None:
         return {"last_retry_count": None, "last_operation_confirmed": None,
-                "last_operation_source": None, "last_operation_detail": None}
+                "last_operation_source": None, "last_operation_detail": None, "last_abort_reason": None}
     operation = getattr(result, "operation", None)
     return {
         "last_retry_count": (
@@ -145,6 +145,8 @@ def result_detail_fields(result: ExecutionResult | None) -> dict:
             if operation is not None else None
         ),
         "last_operation_detail": (operation.detail or None) if operation is not None else None,
+        # 2026-10-14: 모션 걸림 등으로 재시도 없이 멈춘 원인 — 눌림 확인 실패와 가른다.
+        "last_abort_reason": getattr(result, "abort_reason", None),
     }
 
 
@@ -1245,6 +1247,7 @@ async def history(
             detail=e.detail,
             operation_confirmed=e.operation_confirmed,
             operation_detail=e.operation_detail,
+            abort_reason=e.abort_reason,
         )
         for e in store.recent(limit)
     ]

@@ -197,6 +197,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           // 이 job의 정지 단계만(평가 H1 — 다른 실행의 정지 보고를 싣지 않는다).
           stopLevel: status.stopLevelOf(jobId),
           stopAckMs: status.stopAckMsOf(jobId),
+          abortReason: status.lastAbortReason,
         );
         state = state.copyWith(
           executionMode: status.lastExecutionMode,
@@ -218,6 +219,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           operationConfirmed: status.lastOperationConfirmed,
           operationSource: status.lastOperationSource,
           operationDetail: status.lastOperationDetail,
+          abortReason: status.lastAbortReason,
         );
         _announce(message);
         _stopHttpTracking();
