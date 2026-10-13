@@ -353,3 +353,14 @@ final thinqOverviewProvider =
   if (service == null) return null;
   return service.thinqOverview();
 });
+
+/// GET /thinq/discovered — ThinQ 계정에서 찾은 가전(추가 전 목록). 허브 주소가
+/// 없으면 실패(이유 포함)로 돌려준다 — 화면이 '0대'로 말하지 않게.
+final thinqDiscoveryProvider =
+    FutureProvider.autoDispose<RpiThinqDiscovery>((ref) async {
+  final service = ref.watch(rpiApiServiceProvider);
+  if (service == null) {
+    return const RpiThinqDiscovery.failed('허브 주소를 먼저 설정해 주세요.');
+  }
+  return service.thinqDiscovery();
+});

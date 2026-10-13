@@ -370,6 +370,114 @@ class RpiThinqOverview {
       );
 }
 
+/// GET /thinq/discovered의 기기 하나 — ThinQ 계정에서 찾은 가전(2026-10-13).
+///
+/// 기기 ID 원문 대신 서버가 준 [key]로 추가·제거한다.
+class RpiThinqFound {
+  const RpiThinqFound({
+    required this.key,
+    required this.kindLabel,
+    this.alias = '',
+    this.modelName = '',
+    required this.support,
+    this.supportReason = '',
+    this.added = false,
+    this.source,
+    this.applianceId,
+    this.name,
+    this.canAdd = false,
+    this.reason,
+  });
+
+  final String key;
+  final String kindLabel;
+  final String alias;
+  final String modelName;
+
+  /// controllable | status_only | unsupported | unknown
+  final String support;
+  final String supportReason;
+  final bool added;
+
+  /// added(사용자가 추가) | config(서버 설정) — 추가됐을 때만.
+  final String? source;
+  final String? applianceId;
+  final String? name;
+  final bool canAdd;
+
+  /// 추가할 수 없는 이유(지원 안 함·상태만·같은 종류가 이미 있음).
+  final String? reason;
+
+  String get title => alias.isNotEmpty ? alias : kindLabel;
+
+  factory RpiThinqFound.fromJson(Map<String, dynamic> json) => RpiThinqFound(
+        key: json['key'] as String? ?? '',
+        kindLabel: json['kind_label'] as String? ?? '가전',
+        alias: json['alias'] as String? ?? '',
+        modelName: json['model_name'] as String? ?? '',
+        support: json['support'] as String? ?? 'unknown',
+        supportReason: json['support_reason'] as String? ?? '',
+        added: json['added'] as bool? ?? false,
+        source: json['source'] as String?,
+        applianceId: json['appliance_id'] as String?,
+        name: json['name'] as String?,
+        canAdd: json['can_add'] as bool? ?? false,
+        reason: json['reason'] as String?,
+      );
+}
+
+/// GET /thinq/discovered 결과. **조회 실패와 0대를 섞지 않는다** — 실패면
+/// [failure]에 사람 말 이유가 있고 [devices]는 의미가 없다.
+class RpiThinqDiscovery {
+  const RpiThinqDiscovery({
+    this.mode = 'unknown',
+    this.executionMode = 'unknown',
+    this.mockCloud = false,
+    this.devices = const [],
+    this.failure,
+    this.off = false,
+  });
+
+  const RpiThinqDiscovery.failed(String reason, {bool off = false})
+      : this(failure: reason, off: off);
+
+  final String mode;
+  final String executionMode;
+  final bool mockCloud;
+  final List<RpiThinqFound> devices;
+  final String? failure;
+
+  /// 허브에서 ThinQ 연동이 꺼져 있다(404).
+  final bool off;
+
+  bool get ok => failure == null;
+
+  factory RpiThinqDiscovery.fromJson(Map<String, dynamic> json) {
+    final mode = json['mode'] as String? ?? 'unknown';
+    final executionMode = json['execution_mode'] as String? ?? 'unknown';
+    final mockCloud = json['mock_cloud'] as bool? ?? false;
+    if (json['reachable'] == false) {
+      return RpiThinqDiscovery(
+        mode: mode,
+        executionMode: executionMode,
+        mockCloud: mockCloud,
+        failure: (json['error'] as String?)?.isNotEmpty == true
+            ? json['error'] as String
+            : 'ThinQ 계정 목록을 불러오지 못했어요.',
+      );
+    }
+    return RpiThinqDiscovery(
+      mode: mode,
+      executionMode: executionMode,
+      mockCloud: mockCloud,
+      devices: [
+        for (final d in (json['devices'] as List<dynamic>?) ?? const [])
+          if (d is Map<String, dynamic>) RpiThinqFound.fromJson(d),
+      ],
+    );
+  }
+}
+
 class RpiHistoryButton {
   const RpiHistoryButton({
     required this.button,
@@ -1092,6 +1200,80 @@ class RpiApiService {
     } catch (_) {
       return null;
     }
+  }
+
+  // 찾기·추가는 허브가 ThinQ 클라우드에 목록·기기 프로필을 묻고 답한다 — 일반 제한(8초)보다 길게.
+  static const _thinqTimeout = Duration(seconds: 20);
+
+  /// GET /thinq/discovered — ThinQ 계정에서 찾은 가전. 실패는 이유가 담긴
+  /// 결과로 돌려준다(null·빈 목록으로 '0대'처럼 보이지 않게).
+  Future<RpiThinqDiscovery> thinqDiscovery() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/thinq/discovered'), headers: _headers)
+          .timeout(_thinqTimeout);
+      if (res.statusCode == 404) {
+        return const RpiThinqDiscovery.failed(
+            '허브에서 ThinQ 연결이 꺼져 있어요 — 허브 설정에서 켜야 가전을 찾을 수 있어요.',
+            off: true);
+      }
+      if (res.statusCode == 401) {
+        return const RpiThinqDiscovery.failed('허브 키가 맞지 않아요 — 허브 설정에서 키를 확인해 주세요.');
+      }
+      if (res.statusCode != 200) {
+        return RpiThinqDiscovery.failed(
+            '허브가 ThinQ 목록을 주지 못했어요 (HTTP ${res.statusCode}).');
+      }
+      return RpiThinqDiscovery.fromJson(
+          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
+    } catch (_) {
+      return const RpiThinqDiscovery.failed('허브에 닿지 않아요 — 연결을 확인한 뒤 다시 찾아 주세요.');
+    }
+  }
+
+  /// POST /thinq/added — 찾은 가전 하나를 추가한다. 실패면 이유를 담아 던진다.
+  Future<String> addThinqDevice(String key) async {
+    final http.Response res;
+    try {
+      res = await _client
+          .post(_base.replace(path: '/thinq/added'),
+              headers: _jsonHeaders, body: jsonEncode({'key': key}))
+          .timeout(_thinqTimeout);
+    } catch (_) {
+      throw RpiApiException(0, '허브에 닿지 않아 추가하지 못했어요.');
+    }
+    if (res.statusCode != 200) {
+      throw RpiApiException(res.statusCode, _utf8Detail(res, '추가하지 못했어요'));
+    }
+    final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+    return body['name'] as String? ?? '';
+  }
+
+  /// DELETE /thinq/added/{key} — 사용자가 추가한 가전을 뺀다.
+  Future<void> removeThinqDevice(String key) async {
+    final http.Response res;
+    try {
+      res = await _client
+          .delete(_base.replace(path: '/thinq/added/$key'), headers: _headers)
+          .timeout(_timeout);
+    } catch (_) {
+      throw RpiApiException(0, '허브에 닿지 않아 빼지 못했어요.');
+    }
+    if (res.statusCode != 200) {
+      throw RpiApiException(res.statusCode, _utf8Detail(res, '빼지 못했어요'));
+    }
+  }
+
+  /// FastAPI 오류 문장(UTF-8). 못 읽으면 대체 문장.
+  String _utf8Detail(http.Response res, String fallback) {
+    try {
+      final detail =
+          (jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>)['detail'];
+      if (detail is String && detail.isNotEmpty) return detail;
+    } catch (_) {
+      // 아래 대체 문장
+    }
+    return '$fallback (HTTP ${res.statusCode}).';
   }
 
   // GET /nodes — 등록된 ESP32 노드 목록

@@ -89,10 +89,14 @@ class _ThinqScreen extends ConsumerWidget {
           Text(
             overview == null
                 ? '아직 ThinQ 계정이 허브에 연결되지 않았어요. 연결은 허브에서 설정해요.'
-                : '허브에 연결된 ThinQ 가전이에요. 누를 버튼이 없어 목적(말)과 루틴으로 맡겨요.',
+                : overview.appliances.isEmpty
+                    ? '아직 추가한 ThinQ 가전이 없어요. 아래에서 찾은 가전 중 쓸 것을 추가해 주세요.'
+                    : '허브에 연결된 ThinQ 가전이에요. 누를 버튼이 없어 목적(말)과 루틴으로 맡겨요.',
             style: TextStyle(fontSize: 16, color: context.appMuted),
           ),
           const _ThinqApplianceList(),
+          // 계정에서 찾은 가전 — 사용자가 '추가'를 눌러야 위 목록·홈에 들어온다(2026-10-13).
+          const ThinqDiscoveredSection(),
         ],
       ),
     );

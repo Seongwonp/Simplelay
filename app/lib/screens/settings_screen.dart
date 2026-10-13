@@ -26,6 +26,7 @@ import '../theme/app_text.dart';
 import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/learning_status_dialog.dart';
 import '../widgets/sync_status_line.dart';
+import '../widgets/thinq_discovered_section.dart';
 
 // 구획별 파일. `part`라서 private 이름·import·provider 읽는 시점이 이 파일에
 // 있을 때와 완전히 같다 -- 동작을 바꾸지 않는 이동만 했다. 개발자 도구는
