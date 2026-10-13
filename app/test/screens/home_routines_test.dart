@@ -1,0 +1,268 @@
+// 홈 B안(2026-10-13) — 제안이 없으면 서버가 준 루틴 순서의 첫 적격 루틴을 크게,
+// 나머지 적격 루틴은 간결한 행. 설정 안내는 가전 목록 아래, 타일은 상태를 말한다.
+// '추천/자주 쓰는' 같은 말을 붙이지 않고, 루틴 이름을 코드에 고정하지 않는다.
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/suggestion.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/screens/home_screen.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
+
+import '../helpers/test_helpers.dart';
+
+Map<String, dynamic> _appliance(String id, String name, {bool mapped = true}) => {
+      'id': id,
+      'name': name,
+      'category': 'microwave',
+      'rows': 1,
+      'cols': 1,
+      'is_custom': true,
+      'revision': 1,
+      'can_execute': true,
+      'readiness': 'operable',
+      'readiness_reasons': <String>[],
+      'buttons': [
+        {'id': '$id-1', 'label': '시작', 'x': 0, 'y': 0},
+      ],
+      if (mapped)
+        'panel_mapping': {
+          'photo': {'width': 100, 'height': 100},
+        },
+    };
+
+Map<String, dynamic> _routine(
+  String id,
+  String name, {
+  String mode = 'approve',
+  bool enabled = true,
+  List<Map<String, dynamic>>? steps,
+}) =>
+    {
+      'id': id,
+      'name': name,
+      'steps': steps ??
+          [
+            {'kind': 'press_sequence', 'appliance_id': 'mw', 'buttons': ['시작']},
+          ],
+      'trigger': {'kind': 'manual'},
+      'when': '직접 실행할 때',
+      'mode': mode,
+      'enabled': enabled,
+    };
+
+class _Hub {
+  _Hub({this.routines, this.appliances});
+  List<Map<String, dynamic>>? routines; // null이면 /routines 500
+  List<Map<String, dynamic>>? appliances;
+  List<Map<String, dynamic>> suggestions = const [];
+  final requests = <String>[];
+
+  http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
+        utf8.encode(jsonEncode(body)),
+        status,
+        headers: {'content-type': 'application/json'},
+      );
+
+  RpiApiService api() => RpiApiService(
+        'http://rpi5.local:8000',
+        client: MockClient((req) async {
+          final path = req.url.path;
+          requests.add('${req.method} $path');
+          if (path.startsWith('/execute') || path.endsWith('/approve')) {
+            fail('홈이 실행 경로를 불렀어요: ${req.method} $path');
+          }
+          if (req.method == 'GET' && path == '/appliances') {
+            return _json(appliances ?? [_appliance('mw', '주방 전자레인지')]);
+          }
+          if (req.method == 'GET' && path == '/routines') {
+            final list = routines;
+            return list == null ? _json({'detail': 'boom'}, 500) : _json(list);
+          }
+          if (req.method == 'POST' && path.endsWith('/trigger')) {
+            return _json({
+              'kind': 'suggestion',
+              'suggestion': {'id': 'card-1'},
+            });
+          }
+          if (path == '/suggestions') return _json(suggestions);
+          return _json({'detail': 'not found'}, 404);
+        }),
+      );
+}
+
+Widget _home(_Hub hub, {List<Suggestion> suggestions = const []}) {
+  final router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+      GoRoute(
+        path: '/suggestion/:id',
+        builder: (_, state) =>
+            Scaffold(body: Text('승인 화면 ${state.pathParameters['id']}')),
+      ),
+      GoRoute(
+        path: '/routine/edit',
+        builder: (_, __) => const Scaffold(body: Text('루틴 편집기')),
+      ),
+    ],
+  );
+  return buildWithProviderState(
+    overrides: [
+      ...connectedOverrides(),
+      ...installedOverrides(const []),
+      rpiServerOverride(RpiConnectionState.connected),
+      rpiApiServiceProvider.overrideWithValue(hub.api()),
+    ],
+    suggestions: suggestions,
+    // 이 노트북 Flutter의 잉크 셰이더 판 불일치를 피한다(동작과 무관).
+    child: MaterialApp.router(
+        theme: ThemeData.dark().copyWith(splashFactory: InkRipple.splashFactory),
+        routerConfig: router),
+  );
+}
+
+void _tall(WidgetTester tester) {
+  tester.view.physicalSize = const Size(400, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 16; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('제안이 없으면 서버 순서의 첫 적격 루틴이 큰 카드, 나머지 적격 루틴은 간결한 행',
+      (tester) async {
+    final hub = _Hub(routines: [
+      _routine('r-notify', '세탁 알림', mode: 'notify'),
+      _routine('r-off', '꺼둔 것', enabled: false),
+      _routine('r-announce', '말만 하기', steps: [
+        {'kind': 'announce', 'text': '안녕'},
+      ]),
+      _routine('r-b', '저녁 데우기'),
+      _routine('r-c', '해동하기'),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+
+    final hero = find.byKey(const Key('home-routine-hero'));
+    expect(hero, findsOneWidget);
+    expect(find.descendant(of: hero, matching: find.text('저녁 데우기')), findsOneWidget);
+    expect(find.byKey(const Key('home-routine-row-r-c')), findsOneWidget);
+    // 적격이 아닌 루틴은 홈 실행 후보가 아니다.
+    for (final name in ['세탁 알림', '꺼둔 것', '말만 하기']) {
+      expect(find.text(name), findsNothing, reason: name);
+    }
+    // 고르는 이유를 지어내지 않는다.
+    expect(find.textContaining('추천'), findsNothing);
+    expect(find.textContaining('자주'), findsNothing);
+    // 빈 제안 문장은 두지 않는다.
+    expect(find.text('지금 확인할 제안이 없어요.'), findsNothing);
+  });
+
+  testWidgets('제안이 있으면 제안이 큰 자리, 루틴은 큰 카드로 겹쳐 강조하지 않는다',
+      (tester) async {
+    final hub = _Hub(routines: [_routine('r-b', '저녁 데우기')])
+      ..suggestions = [
+        {
+          'id': 's1',
+          'purpose': '즉석밥 데우기',
+          'time_band': '아침',
+          'occurrences': 3,
+          'steps': ['즉석밥', '시작'],
+          'appliance_id': 'mw',
+        },
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_home(hub, suggestions: const [
+      Suggestion(sequenceId: 's1', label: '즉석밥 데우기', steps: ['BT-08']),
+    ]));
+    await _settle(tester);
+    expect(find.text('다음에'), findsOneWidget, reason: '제안 카드가 큰 자리에 있다');
+    expect(find.byKey(const Key('home-routine-hero')), findsNothing);
+    expect(find.byKey(const Key('home-routine-row-r-b')), findsOneWidget);
+  });
+
+  testWidgets('큰 카드의 실행하기는 승인 카드만 만들고 승인 화면으로 간다', (tester) async {
+    final hub = _Hub(routines: [_routine('r-b', '저녁 데우기')]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('home-routine-run-r-b')));
+    await _settle(tester);
+    expect(hub.requests.where((r) => r.endsWith('/trigger')).length, 1);
+    expect(find.text('승인 화면 card-1'), findsOneWidget);
+  });
+
+  testWidgets('루틴 조회 실패는 "루틴이 없다"로 말하지 않는다', (tester) async {
+    final hub = _Hub(routines: null);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    expect(find.text('루틴을 불러오지 못했어요.'), findsOneWidget);
+    expect(find.byKey(const Key('home-new-routine')), findsNothing);
+  });
+
+  testWidgets('루틴이 0개면 새 루틴 진입 하나만 둔다', (tester) async {
+    final hub = _Hub(routines: const []);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    expect(find.byKey(const Key('home-new-routine')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('home-new-routine')));
+    await _settle(tester);
+    expect(find.text('루틴 편집기'), findsOneWidget);
+  });
+
+  testWidgets('설정 안내는 가전 목록 아래 작게, 해당 타일은 "설정이 필요해요"', (tester) async {
+    final hub = _Hub(routines: const [], appliances: [
+      _appliance('mw', '주방 전자레인지'),
+      _appliance('w1', '세탁기', mapped: false),
+      _appliance('w2', '건조기', mapped: false),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+
+    final summary = find.byKey(const Key('setup-summary-card'));
+    expect(summary, findsOneWidget);
+    expect(find.text('설정 이어하기'), findsOneWidget);
+    final lastTile = find.byKey(const Key('appliance-card-w2'));
+    expect(tester.getTopLeft(summary).dy, greaterThan(tester.getTopLeft(lastTile).dy));
+    expect(find.descendant(of: lastTile, matching: find.text('설정이 필요해요')),
+        findsOneWidget);
+    // 준비된 가전은 '바로 쓸 수 있어요'가 아니라 요청 가능까지만.
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('appliance-card-mw')),
+            matching: find.text('실행을 요청할 수 있어요')),
+        findsOneWidget);
+    expect(find.textContaining('바로 쓸 수 있어요'), findsNothing);
+  });
+
+  testWidgets('타일 접근성 이름에 상태가 들어간다(excludeSemantics로 빠지지 않게)',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    final hub = _Hub(routines: [_routine('r-b', '저녁 데우기')], appliances: [
+      _appliance('w1', '세탁기', mapped: false),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    expect(find.bySemanticsLabel('세탁기, 설정이 필요해요'), findsOneWidget);
+    expect(find.bySemanticsLabel('저녁 데우기 실행하기'), findsOneWidget);
+    handle.dispose();
+  });
+}

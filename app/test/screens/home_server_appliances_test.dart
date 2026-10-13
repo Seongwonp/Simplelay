@@ -100,8 +100,9 @@ void main() {
           reason: '${a['name']} 카드가 홈에 있어야 한다');
     }
     expect(find.byKey(const Key('appliance-add-card')), findsOneWidget);
-    // 숨기지 않되, 준비가 안 됐다는 사실은 글자로 말한다.
-    expect(find.text('준비 필요'), findsWidgets);
+    // 숨기지 않되, 준비가 안 됐다는 사실은 글자로 말한다. 위치를 아직 맞추지
+    // 않은 사용자 가전은 '설정이 필요해요'(2026-10-13 타일 상태).
+    expect(find.text('설정이 필요해요'), findsNWidgets(5));
   });
 
   setupSummaryTests();

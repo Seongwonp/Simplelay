@@ -99,26 +99,28 @@ class _SetupSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    // 홈 가전 목록 **아래**의 작은 안내(2026-10-13). 카드로 감싸 맨 위를 차지하지
+    // 않는다 — 각 타일이 '설정이 필요해요'로 말하고, 이어 하는 길만 남긴다.
+    return Padding(
       key: const Key('setup-summary-card'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('설정이 남은 가전 ${appliances.length}개'),
-          const SizedBox(height: 4),
-          Text(
-            setupSummaryNames(appliances),
-            style: context.appCaption,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('설정이 남은 가전 ${appliances.length}개'),
+        Text(
+          setupSummaryNames(appliances),
+          style: context.appCaption,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+        ),
+        TextButton(
+          onPressed: () => _openList(context),
+          style: TextButton.styleFrom(
+            minimumSize: const Size(48, 48),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
           ),
-          const SizedBox(height: 8),
-          OutlinedButton(
-            onPressed: () => _openList(context),
-            child: const Text('설정 이어하기'),
-          ),
-        ]),
-      ),
+          child: const Text('설정 이어하기'),
+        ),
+      ]),
     );
   }
 

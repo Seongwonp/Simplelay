@@ -293,6 +293,7 @@ class _RoutineRow extends StatelessWidget {
       children: [
         Semantics(
           label: '${r.name} 편집',
+          container: true,
           button: true,
           excludeSemantics: true,
           child: OutlinedButton(
@@ -305,6 +306,7 @@ class _RoutineRow extends StatelessWidget {
         if (run != null)
           Semantics(
             label: '${r.name} 실행하기',
+            container: true,
             button: true,
             enabled: !busy,
             excludeSemantics: true,

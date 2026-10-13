@@ -130,8 +130,7 @@ TileStatus applianceTileStatus({
       return const TileStatus('확인하는 중이에요', TileTone.unknown);
     case ServerCatalogStatus.failed:
       return const TileStatus('연결을 확인해 주세요', TileTone.attention);
-    case ServerCatalogStatus.unconfigured:
-      return const TileStatus('허브 설정이 필요해요', TileTone.attention);
+    case ServerCatalogStatus.unconfigured: // 허브 상태가 이미 위에서 말했다 — 아래 판정(미확인)으로
     case ServerCatalogStatus.loaded:
       break;
   }

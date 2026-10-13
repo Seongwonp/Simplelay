@@ -4,9 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
-import '../models/execution_status.dart';
+import '../models/display_status.dart';
+import '../models/routine.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/routine_provider.dart';
+import '../widgets/routine_run.dart';
+import 'routines_screen.dart' show routineSubtitle;
 import '../providers/ble_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../widgets/demo_badge.dart';
@@ -66,6 +70,7 @@ class HomeScreen extends ConsumerWidget {
 
     // 제안은 **한 번에 하나만**(UI 확정 §1-2). 처리하면 다음 것이 올라온다.
     final suggestion = suggestions.firstOrNull;
+    final catalog = ref.watch(serverApplianceCatalogProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -95,7 +100,8 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: 16),
             ],
 
-            // ── 제안 카드 한 장 ─────────────────────────────────────────────
+            // ── 큰 자리 하나: 제안이 있으면 제안, 없으면 첫 적격 루틴 ─────────
+            // 빈 제안 문장("지금 확인할 제안이 없어요")은 두지 않는다(2026-10-13).
             if (suggestion != null)
               _SlidingCard(
                 key: ValueKey(suggestion.sequenceId),
@@ -108,35 +114,45 @@ class HomeScreen extends ConsumerWidget {
                       context.push('/suggestion/${suggestion.sequenceId}'),
                   onLater: () => _later(context, ref, suggestion),
                 ),
-              )
-            else
-              _EmptyLine(dndActive: dndActive),
+              ),
+            _HomeRoutines(
+              heroAllowed: suggestion == null,
+              hubConnected: rpiState == RpiConnectionState.connected,
+              hasAppliances: appliances.isNotEmpty,
+              applianceNames: {for (final a in appliances) a.id: a.name},
+            ),
 
             // ── 가전 ───────────────────────────────────────────────────────
             const SizedBox(height: 24),
-            // 설정이 남은 가전: 한 대면 그 카드, 여럿이면 요약 한 장.
-            ApplianceSetupSection(appliances: [
-              for (final a in appliances)
-                if (a.isCustom && !a.isDemo && !a.isThinq) a,
-            ]),
             Text('가전', style: AppText.title),
             const SizedBox(height: 10),
             if (appliances.isEmpty)
               _NoApplianceStage(
                 onAdd: () => context.push('/appliance/add'),
-                note: _serverCatalogNote(
-                    ref.watch(serverApplianceCatalogProvider)),
+                note: _serverCatalogNote(catalog),
               )
             else
               _ApplianceGrid(
                 appliances: appliances,
-                execution: execution,
+                statusOf: (a) => applianceTileStatus(
+                  appliance: a,
+                  readinessSource: _readinessSource(a, catalog),
+                  hub: rpiState,
+                  catalog: catalog.status,
+                  execution: execution,
+                ),
                 onOpen: (a) {
                   ref.read(selectedApplianceProvider.notifier).select(a);
                   context.push('/appliance/detail/${a.id}');
                 },
                 onAdd: () => context.push('/appliance/add'),
               ),
+            // 설정이 남은 가전: 독촉 카드를 맨 위에 두지 않고 목록 아래 작게.
+            // 타일이 '설정이 필요해요'로 말하고, '설정 이어하기'는 그대로 둔다.
+            ApplianceSetupSection(appliances: [
+              for (final a in appliances)
+                if (a.isCustom && !a.isDemo && !a.isThinq) a,
+            ]),
 
             // ── 온습도 ─────────────────────────────────────────────────────
             const SizedBox(height: 16),
@@ -207,6 +223,310 @@ class HomeScreen extends ConsumerWidget {
 
   static void _snack(BuildContext context, String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+
+  /// 타일 상태의 근거가 될 서버 판정. 이 폰의 저장분은 준비 상태를 들고 있지 않으므로
+  /// 같은 id의 서버 목록 항목을 본다(이름·사진은 덮어쓰지 않는다 — 판정만 읽는다).
+  static ApplianceMap? _readinessSource(
+      ApplianceMap a, ServerApplianceCatalog catalog) {
+    if (a.readinessKnown) return a;
+    for (final s in catalog.appliances) {
+      if (s.id == a.id) return s;
+    }
+    for (final s in catalog.customAppliances) {
+      if (s.id == a.id) return s;
+    }
+    return null;
+  }
+}
+
+// ── 루틴(큰 자리 하나 + 간결한 행) ─────────────────────────────────────────
+
+/// 홈의 루틴 자리(2026-10-13 B안).
+///
+/// 제안이 없으면 **서버가 준 루틴 목록 순서의 첫 적격 루틴**을 크게, 나머지 적격
+/// 루틴은 간결한 행으로 둔다(적격: `Routine.isRunCandidate`). 자동 순위·즐겨찾기가
+/// 아니고, "추천/자주 쓰는" 같은 이유를 붙이지 않는다. 제안이 있으면 큰 자리는 제안의
+/// 것이고 루틴은 행으로만 보인다. '실행하기'는 승인 카드만 만든다(루틴 탭과 같은 경로).
+class _HomeRoutines extends ConsumerStatefulWidget {
+  const _HomeRoutines({
+    required this.heroAllowed,
+    required this.hubConnected,
+    required this.hasAppliances,
+    required this.applianceNames,
+  });
+
+  final bool heroAllowed;
+  final bool hubConnected;
+  final bool hasAppliances;
+  final Map<String, String> applianceNames;
+
+  @override
+  ConsumerState<_HomeRoutines> createState() => _HomeRoutinesState();
+}
+
+class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
+  String? _runningId;
+  String? _error;
+  String? _errorFor;
+
+  static const _maxRows = 4;
+
+  Future<void> _run(String id) async {
+    if (_runningId != null) return;
+    setState(() {
+      _runningId = id;
+      _error = null;
+    });
+    try {
+      final error = await runRoutineNow(context, ref, id);
+      if (mounted && error != null) {
+        setState(() {
+          _error = error;
+          _errorFor = id;
+        });
+      }
+    } finally {
+      if (mounted) setState(() => _runningId = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final async = ref.watch(routinesProvider);
+    return async.when(
+      // 불러오는 중에는 자리를 비워 둔다 — '없음'으로 보이지 않게.
+      loading: () => const SizedBox.shrink(),
+      error: (e, _) {
+        // 허브 주소가 없거나 허브에 닿지 않으면 위의 허브 안내가 이미 말한다.
+        if (e is RoutinesUnavailable || !widget.hubConnected) {
+          return const SizedBox.shrink();
+        }
+        return Padding(
+          padding: const EdgeInsets.only(top: 12),
+          child: Text('루틴을 불러오지 못했어요.',
+              style: TextStyle(fontSize: 15, color: context.appMuted)),
+        );
+      },
+      data: (routines) {
+        final candidates = [
+          for (final r in routines)
+            if (r.isRunCandidate) r,
+        ];
+        if (routines.isEmpty) {
+          // 0대면 가전 추가가 첫 과업이다 — 루틴 입구를 겹쳐 두지 않는다.
+          if (!widget.hasAppliances) return const SizedBox.shrink();
+          return Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                key: const Key('home-new-routine'),
+                onPressed: () => context.push('/routine/edit'),
+                style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('새 루틴 만들기'),
+              ),
+            ),
+          );
+        }
+        if (candidates.isEmpty) return const SizedBox.shrink();
+        final hero = widget.heroAllowed ? candidates.first : null;
+        final rest = [
+          for (final r in candidates)
+            if (r != hero) r,
+        ];
+        final shown = rest.take(_maxRows).toList();
+        final busy = _runningId != null;
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (hero != null) ...[
+              _RoutineHeroCard(
+                routine: hero,
+                subtitle: routineSubtitle(hero, widget.applianceNames),
+                running: _runningId == hero.id,
+                busy: busy,
+                onRun: () => _run(hero.id!),
+              ),
+              if (_errorFor == hero.id && _error != null) _ErrorLine(_error!),
+            ],
+            if (shown.isNotEmpty) const SizedBox(height: 8),
+            for (final r in shown) ...[
+              _RoutineQuickRow(
+                routine: r,
+                subtitle: routineSubtitle(r, widget.applianceNames),
+                running: _runningId == r.id,
+                busy: busy,
+                onRun: () => _run(r.id!),
+              ),
+              if (_errorFor == r.id && _error != null) _ErrorLine(_error!),
+            ],
+            if (rest.length > shown.length)
+              Align(
+                alignment: Alignment.centerLeft,
+                child: TextButton(
+                  onPressed: () => context.go('/routines'),
+                  style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                  child: Text('루틴 ${rest.length - shown.length}개 더 보기'),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ErrorLine extends StatelessWidget {
+  const _ErrorLine(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 6),
+        child: Text(text,
+            style: TextStyle(fontSize: 15, color: context.appDanger)),
+      );
+}
+
+Widget _runButton({
+  required Key key,
+  required Routine routine,
+  required bool running,
+  required bool busy,
+  required VoidCallback onRun,
+  required bool primary,
+}) {
+  final child = running
+      ? const SizedBox(
+          width: 18,
+          height: 18,
+          child: CircularProgressIndicator(strokeWidth: 2),
+        )
+      : const Text('실행하기');
+  return Semantics(
+    // 화면 글자는 '실행하기'로 같아도 읽을 때는 어느 루틴인지 구별된다.
+    label: '${routine.name} 실행하기',
+    // 제 노드를 갖게 한다 — 아니면 카드 글자와 한 덩어리로 합쳐 읽힌다.
+    container: true,
+    button: true,
+    enabled: !busy,
+    excludeSemantics: true,
+    child: primary
+        ? FilledButton(
+            key: key,
+            onPressed: busy ? null : onRun,
+            style: FilledButton.styleFrom(minimumSize: const Size(140, 48)),
+            child: child,
+          )
+        : OutlinedButton(
+            key: key,
+            onPressed: busy ? null : onRun,
+            style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
+            child: child,
+          ),
+  );
+}
+
+/// 첫 적격 루틴 — 이름·조건·대상과 실행하기 하나.
+class _RoutineHeroCard extends StatelessWidget {
+  const _RoutineHeroCard({
+    required this.routine,
+    required this.subtitle,
+    required this.running,
+    required this.busy,
+    required this.onRun,
+  });
+
+  final Routine routine;
+  final String subtitle;
+  final bool running;
+  final bool busy;
+  final VoidCallback onRun;
+
+  @override
+  Widget build(BuildContext context) => Container(
+        key: const Key('home-routine-hero'),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: context.appSurfaceLow,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.appBorderSubtle),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(routine.name,
+                style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 4),
+            Text(subtitle,
+                style: TextStyle(fontSize: 15, color: context.appMuted)),
+            const SizedBox(height: 12),
+            _runButton(
+              key: Key('home-routine-run-${routine.id}'),
+              routine: routine,
+              running: running,
+              busy: busy,
+              onRun: onRun,
+              primary: true,
+            ),
+          ],
+        ),
+      );
+}
+
+/// 나머지 적격 루틴 — 이름과 실행하기만. 카드로 감싸지 않는다.
+class _RoutineQuickRow extends StatelessWidget {
+  const _RoutineQuickRow({
+    required this.routine,
+    required this.subtitle,
+    required this.running,
+    required this.busy,
+    required this.onRun,
+  });
+
+  final Routine routine;
+  final String subtitle;
+  final bool running;
+  final bool busy;
+  final VoidCallback onRun;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(routine.name,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+        Text(subtitle, style: TextStyle(fontSize: 14, color: context.appMuted)),
+      ],
+    );
+    final button = _runButton(
+      key: Key('home-routine-run-${routine.id}'),
+      routine: routine,
+      running: running,
+      busy: busy,
+      onRun: onRun,
+      primary: false,
+    );
+    return Padding(
+      key: Key('home-routine-row-${routine.id}'),
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      // 큰 글씨에서는 버튼을 아래 줄로 내린다 — 이름이 한 글자씩 꺾이지 않게.
+      child: MediaQuery.textScalerOf(context).scale(1) > 1.3
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [text, const SizedBox(height: 6), button],
+            )
+          : Row(
+              children: [
+                Expanded(child: text),
+                const SizedBox(width: 8),
+                button,
+              ],
+            ),
+    );
+  }
 }
 
 // ── 머리 ──────────────────────────────────────────────────────────────────
@@ -370,34 +690,20 @@ class _SuggestionCard extends StatelessWidget {
   }
 }
 
-/// 제안이 없을 때. 큰 빈 카드를 두지 않는다 -- 한 줄이면 충분하다.
-class _EmptyLine extends StatelessWidget {
-  const _EmptyLine({required this.dndActive});
-
-  final bool dndActive;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Text(
-          dndActive ? '방해 금지 중이라 제안을 쉬고 있어요.' : '지금 확인할 제안이 없어요.',
-          style: TextStyle(fontSize: 15, color: context.appMuted),
-        ),
-      );
-}
-
 // ── 가전 카드 2열 ─────────────────────────────────────────────────────────
 
 class _ApplianceGrid extends StatelessWidget {
   const _ApplianceGrid({
     required this.appliances,
-    required this.execution,
+    required this.statusOf,
     required this.onOpen,
     required this.onAdd,
   });
 
   final List<ApplianceMap> appliances;
-  final ExecutionStatus execution;
+
+  /// 타일 상태(`models/display_status.dart`의 순수 함수).
+  final TileStatus Function(ApplianceMap) statusOf;
   final void Function(ApplianceMap) onOpen;
   final VoidCallback onAdd;
 
@@ -407,7 +713,7 @@ class _ApplianceGrid extends StatelessWidget {
       for (final a in appliances)
         _ApplianceCard(
           appliance: a,
-          running: _runningOn(a) ? execution : null,
+          status: statusOf(a),
           onTap: () => onOpen(a),
         ),
       _AddCard(onTap: onAdd),
@@ -450,44 +756,44 @@ class _ApplianceGrid extends StatelessWidget {
     );
   }
 
-  /// 이 가전이 지금 실행 대상인가. 서버가 말해 준 대상 id로만 판단한다.
-  bool _runningOn(ApplianceMap a) {
-    final phase = execution.phase;
-    final active = phase == ExecutionPhase.running ||
-        phase == ExecutionPhase.retrying ||
-        phase == ExecutionPhase.waiting;
-    return active && execution.applianceId == a.id;
-  }
 }
 
-class _ApplianceCard extends StatelessWidget {
+class _ApplianceCard extends ConsumerWidget {
   const _ApplianceCard({
     required this.appliance,
-    required this.running,
+    required this.status,
     required this.onTap,
   });
 
   final ApplianceMap appliance;
 
-  /// 이 가전이 실행 대상이면 그 진행. 아니면 null(쉬는 중 -- 회색 아이콘).
-  final ExecutionStatus? running;
+  /// 타일 상태 한 줄. "돌아가는 중"은 없다 — 버튼 조작 진행·준비 여부까지만.
+  final TileStatus status;
   final VoidCallback onTap;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final a = appliance;
-    final run = running;
-    final notReady = a.readinessKnown && !a.canExecute;
-    final total = run?.totalSteps ?? run?.steps.length ?? 0;
-    final done = run?.completedSteps ?? 0;
+    final s = status;
+    final active = s.tone == TileTone.active;
+    final run = ref.watch(executionStatusProvider);
+    final total = run.totalSteps ?? run.steps.length;
+    final done = run.completedSteps;
+    final (Color color, IconData? icon) = switch (s.tone) {
+      TileTone.active => (context.appPrimary, null),
+      TileTone.attention => (context.appWarning, Icons.error_outline),
+      TileTone.unknown => (context.appMuted, Icons.help_outline),
+      TileTone.ready => (context.appMuted, null),
+    };
     return Semantics(
       button: true,
+      // excludeSemantics라 아래 글자가 따로 읽히지 않는다 — 상태를 이름에 함께 넣는다.
       label: [
         a.displayName,
         if (a.isThinq) 'ThinQ',
         if (a.isDemo) '데모',
-        if (run != null) '동작 중',
-        if (notReady) '준비 필요',
+        s.text,
+        if (s.detail case final d?) d,
       ].join(', '),
       excludeSemantics: true,
       child: Material(
@@ -502,9 +808,8 @@ class _ApplianceCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color:
-                    run != null ? context.appPrimary : context.appBorderSubtle,
-                width: run != null ? 2 : 1,
+                color: active ? context.appPrimary : context.appBorderSubtle,
+                width: active ? 2 : 1,
               ),
             ),
             child: Column(
@@ -512,12 +817,11 @@ class _ApplianceCard extends StatelessWidget {
               children: [
                 Row(
                   children: [
-                    // 회색은 쉬는 중, 강조색은 동작 중. 색만으로 말하지 않고
-                    // 아래에 '동작 중' 글자를 같이 둔다.
+                    // 회색은 쉬는 중, 강조색은 버튼 조작 중. 색만으로 말하지 않고
+                    // 아래에 상태 글자를 같이 둔다.
                     Icon(a.icon,
                         size: 28,
-                        color:
-                            run != null ? context.appPrimary : context.appMuted),
+                        color: active ? context.appPrimary : context.appMuted),
                     const Spacer(),
                     if (a.isThinq) const RouteBadge(label: 'ThinQ'),
                     if (a.isDemo) const DemoBadge(),
@@ -532,15 +836,37 @@ class _ApplianceCard extends StatelessWidget {
                 if ((a.location ?? '').isNotEmpty)
                   Text(a.location!,
                       style: TextStyle(fontSize: 14, color: context.appMuted)),
-                if (run != null) ...[
-                  const SizedBox(height: 6),
+                const SizedBox(height: 6),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    if (icon != null) ...[
+                      Padding(
+                        padding: const EdgeInsets.only(top: 1),
+                        child: Icon(icon, size: 16, color: color),
+                      ),
+                      const SizedBox(width: 4),
+                    ],
+                    Flexible(
+                      child: Text(
+                        s.text,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                if (s.detail case final d?)
                   Text(
-                    total > 0 ? '동작 중 · $done/$total' : '동작 중',
-                    style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
-                        color: context.appPrimary),
+                    d,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 13, color: context.appMuted),
                   ),
+                if (s.progress) ...[
                   const SizedBox(height: 6),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(3),
@@ -549,20 +875,6 @@ class _ApplianceCard extends StatelessWidget {
                       value:
                           total > 0 ? (done / total).clamp(0.0, 1.0) : null,
                     ),
-                  ),
-                ] else if (notReady) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Icon(Icons.error_outline,
-                          size: 16, color: context.appWarning),
-                      const SizedBox(width: 4),
-                      Flexible(
-                        child: Text('준비 필요',
-                            style: TextStyle(
-                                fontSize: 14, color: context.appWarning)),
-                      ),
-                    ],
                   ),
                 ],
               ],

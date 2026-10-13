@@ -100,7 +100,7 @@ void main() {
       expect(opened, kTestAppliance.id);
     });
 
-    testWidgets('실행 대상 가전 카드는 "동작 중"을 글자로도 말한다', (tester) async {
+    testWidgets('실행 대상 가전 카드는 "버튼 조작 중"을 글자로도 말한다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(
         connected: true,
@@ -108,13 +108,30 @@ void main() {
         executionStatus: ExecutionStatus(
           phase: ExecutionPhase.running,
           applianceId: kTestAppliance.id,
+          executionMode: 'real',
           steps: const ['BT-08', 'BT-05'],
           completedSteps: 1,
         ),
       ));
       await tester.pump();
-      // 색만으로 말하지 않는다(UI 확정 §1-4).
-      expect(find.text('동작 중 · 1/2'), findsOneWidget);
+      // 색만으로 말하지 않는다(UI 확정 §1-4). 가전이 '돌아가는 중'이라고는
+      // 하지 않는다 — 아는 것은 우리 누름 장치의 버튼 조작 진행뿐이다(2026-10-13).
+      expect(find.text('버튼 조작 중 · 1/2'), findsOneWidget);
+      expect(find.textContaining('동작 중'), findsNothing);
+    });
+
+    testWidgets('실행 모드를 모르면 실물·모의를 추정하지 않는다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildHome(
+        connected: true,
+        server: RpiConnectionState.connected,
+        executionStatus: ExecutionStatus(
+          phase: ExecutionPhase.running,
+          applianceId: kTestAppliance.id,
+        ),
+      ));
+      await tester.pump();
+      expect(find.text('실행을 확인하고 있어요'), findsOneWidget);
     });
   });
 
@@ -232,11 +249,11 @@ void main() {
       expect(find.text('주소 입력'), findsOneWidget);
     });
 
-    testWidgets('제안 없음 메시지 표시', (tester) async {
+    testWidgets('제안이 없다는 빈 문장을 두지 않는다(2026-10-13)', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome());
       await tester.pump();
-      expect(find.text('지금 확인할 제안이 없어요.'), findsOneWidget);
+      expect(find.text('지금 확인할 제안이 없어요.'), findsNothing);
     });
   });
 
