@@ -16,7 +16,8 @@ import '../theme/app_text.dart';
 final historyProvider =
     FutureProvider.autoDispose<List<RpiHistoryEntry>>((ref) async {
   final api = ref.watch(rpiApiServiceProvider);
-  if (api == null) return const [];
+  // 허브에 닿지 않으면 조회하지 못한 것이다 — '기록 없음'으로 말하지 않는다.
+  if (api == null) throw StateError('hub not connected');
   return api.history();
 });
 

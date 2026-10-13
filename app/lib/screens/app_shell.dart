@@ -10,6 +10,7 @@ import '../providers/navigation_provider.dart';
 import '../theme/app_colors.dart';
 import '../widgets/estop_banner.dart';
 import '../widgets/voice_stop_indicator.dart';
+import 'history_screen.dart' show historyProvider;
 
 /// 하단 탭 shell — **홈 · 루틴 · 기록 · 설정**(UI 확정 §2).
 ///
@@ -48,6 +49,16 @@ class AppShell extends ConsumerWidget {
       }
     });
 
+    // 기록 탭은 IndexedStack에 남아 처음 받은 목록을 계속 쓴다(2026-10-13
+    // 에뮬레이터: 실행이 끝났는데 "아직 실행 기록이 없어요"). 실행이 끝나면
+    // 다시 받는다. 다시 받는 동안은 이전 목록이 그대로 보인다.
+    ref.listen<ExecutionPhase>(
+      executionStatusProvider.select((s) => s.phase),
+      (prev, next) {
+        if (prev != next && _runEnded(next)) ref.invalidate(historyProvider);
+      },
+    );
+
     return Scaffold(
       body: navigationShell,
       bottomNavigationBar: Column(
@@ -61,13 +72,22 @@ class AppShell extends ConsumerWidget {
           _BottomBar(
             index: index,
             showDeveloper: showDev,
-            onTab: navigationShell.goBranch,
+            onTab: (i) {
+              // 다른 기기(키오스크 등)의 실행도 보이게, 기록 탭에 들어갈 때마다 다시 받는다.
+              if (i == historyTabIndex) ref.invalidate(historyProvider);
+              navigationShell.goBranch(i);
+            },
           ),
         ],
       ),
     );
   }
 }
+
+bool _runEnded(ExecutionPhase p) =>
+    p == ExecutionPhase.completed ||
+    p == ExecutionPhase.failed ||
+    p == ExecutionPhase.unconfirmed;
 
 /// 실행 중일 때 탭바 위에 붙는 한 줄 — 무엇이 도는지와 **정지**.
 ///
