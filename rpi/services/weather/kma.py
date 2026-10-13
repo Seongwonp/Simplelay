@@ -320,17 +320,31 @@ def fetch_forecast(
     timeout: float = 5.0,
     http_get: HttpGet = urllib_get,
 ) -> Forecast:
-    """한 번 받아 해석한다. 실패는 전부 ``KmaError``로 바꿔 올린다."""
-    url = build_url(service_key, nx, ny, now)
+    """받아 해석한다. 실패는 전부 ``KmaError``로 바꿔 올린다.
+
+    최신 발표가 아직 올라오지 않았으면(결과 코드 03 NO_DATA) 바로 앞 발표로 **한 번만** 다시 묻는다 —
+    10/14 실물: 00:03에 23:00 발표가 없었고 20:00 발표는 있었다(발표 뒤 10분 가정이 늘 맞지는 않다).
+    """
+    def _once(at: datetime) -> Forecast:
+        url = build_url(service_key, nx, ny, at)
+        try:
+            status, body = http_get(url, timeout)
+        except KmaError:
+            raise
+        except Exception as exc:  # noqa: BLE001 - 주입된 전송의 어떤 실패도 네트워크 실패로
+            raise KmaError("network", None, type(exc).__name__) from None
+        return parse_response(
+            status, body, source="kma", fetched_at=now.astimezone(timezone.utc)
+        )
+
     try:
-        status, body = http_get(url, timeout)
-    except KmaError:
-        raise
-    except Exception as exc:  # noqa: BLE001 - 주입된 전송의 어떤 실패도 네트워크 실패로
-        raise KmaError("network", None, type(exc).__name__) from None
-    return parse_response(
-        status, body, source="kma", fetched_at=now.astimezone(timezone.utc)
-    )
+        return _once(now)
+    except KmaError as exc:
+        if exc.kind != "api" or exc.code != "03":
+            raise
+    # 앞 발표 시각을 고르게 하는 '지금': 최신 발표 시각 바로 전(조회 지연을 더해 base_datetime이 앞 발표를 고른다).
+    previous = base_datetime(now) - timedelta(minutes=1) + AVAILABILITY_DELAY
+    return _once(previous)
 
 
 # ── 리허설용 고정 예보 ────────────────────────────────────────────────────────

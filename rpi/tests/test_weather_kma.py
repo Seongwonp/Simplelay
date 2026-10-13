@@ -218,6 +218,37 @@ def test_fetch_uses_injected_transport_and_hides_key_on_failure():
     assert "SECRETKEY" not in str(info.value)
 
 
+def test_fetch_falls_back_to_previous_issue_when_latest_is_not_published_yet():
+    """10/14 실물: 00:03 KST에 23:00 발표를 물었더니 기상청이 03(NO_DATA)을 돌려줬다(발표 뒤 10분이 넘어도 아직
+    없음). 20:00 발표는 있었다. 최신 발표가 아직 없으면 바로 앞 발표로 한 번만 다시 묻는다."""
+    asked = []
+    nodata = b'{"response":{"header":{"resultCode":"03","resultMsg":"NO_DATA"}}}'
+
+    def fake_get(url, timeout):
+        q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        asked.append((q["base_date"][0], q["base_time"][0]))
+        if q["base_time"][0] == "2300":
+            return 200, nodata
+        return 200, _read("vilage_fcst_ok.json")
+
+    now = datetime(2026, 10, 14, 0, 3, tzinfo=KST)
+    fc = kma.fetch_forecast("KEY", 60, 127, now, http_get=fake_get)
+    assert fc.source == "kma"
+    assert asked == [("20261013", "2300"), ("20261013", "2000")]
+
+
+def test_fetch_does_not_fall_back_on_other_errors():
+    asked = []
+
+    def fake_get(url, timeout):
+        asked.append(url)
+        return 200, b'{"response":{"header":{"resultCode":"30","resultMsg":"SERVICE_KEY_IS_NOT_REGISTERED_ERROR"}}}'
+
+    with pytest.raises(kma.KmaError) as info:
+        kma.fetch_forecast("KEY", 60, 127, datetime(2026, 10, 14, 0, 3, tzinfo=KST), http_get=fake_get)
+    assert info.value.code == "30" and len(asked) == 1
+
+
 def test_mock_forecast_rains_from_three_pm():
     now = datetime(2026, 9, 30, 9, 0, tzinfo=KST)
     fc = kma.mock_forecast(now)
