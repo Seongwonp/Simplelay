@@ -106,7 +106,8 @@ def _after_allow(api):
 def test_card_offers_auto_with_exact_condition_and_action(api):
     card = _card(api)
     offer = card["auto_rule_offer"]
-    assert offer["condition_text"] == "전자레인지 조리 완료가 확인됐을 때"
+    # A5(10/14): CT 끝 판정은 취소·문 열림으로 가열이 끝난 것과 구분하지 못한다 — 조리 완료라고 말하지 않는다.
+    assert offer["condition_text"] == "전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)"
     assert offer["action_text"] == "공기청정기(모의) 풍량을 강으로 변경"
     assert len(offer["fingerprint"]) == 64
     assert MOCK_PURIFIER_ID not in str(card)  # 기기 ID 원문을 내보내지 않는다
@@ -122,7 +123,7 @@ def test_allow_runs_this_time_and_saves_the_rule(api):
     assert len(rules) == 1
     rule = rules[0]
     assert rule["status_label"] == "자동 실행 켜짐"
-    assert rule["condition_text"] == "전자레인지 조리 완료가 확인됐을 때"
+    assert rule["condition_text"] == "전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)"
     assert rule["action_text"] == "공기청정기(모의) 풍량을 강으로 변경"
     assert _cards(api) == []  # 카드는 승인으로 내려갔다
 
@@ -162,7 +163,8 @@ def test_next_cook_done_runs_without_approval_and_reports_per_device(api):
     assert _controls()[-1][1] == {"airFlow": {"windStrength": "HIGH"}}
     assert run["status"] == "succeeded" and run["confirmation"] == "state_confirmed"
     notices = " / ".join(run["notices"])
-    assert "데우기가 끝났어요" in notices
+    assert "가열 종료를 감지했어요" in notices and "조리 완료가 아닐 수 있어요" in notices
+    assert "데우기가 끝났" not in notices and "조리 완료를 확인" not in notices
     assert "풍량을 바꿨어요 (상태 재조회로 확인)" in notices
     assert "깨끗" not in notices  # 설정 확인을 공기 상태로 말하지 않는다
     assert _cards(api) == []  # 허용한 조건이면 카드를 다시 띄우지 않는다

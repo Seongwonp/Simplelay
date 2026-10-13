@@ -77,6 +77,7 @@ def _wait_done(client, job_id, timeout=5.0):
 def test_default_catalog_is_the_v4_cook_done_scenario(api):
     scenarios = api.get("/scenarios").json()
     assert [s["scenario_id"] for s in scenarios] == ["cook_done_air"]
+    assert scenarios[0]["name"] == "가열 종료 → 공기청정기"
     trigger = scenarios[0]["trigger"]
     assert (trigger["kind"], trigger["appliance_id"], trigger["event"]) == (
         "appliance_done", "microwave", "heat_complete")
@@ -94,6 +95,9 @@ def test_ct_cook_done_offers_the_air_purifier_card(api):
     assert card["commands"][0]["summary"] == "공기청정기(모의) 풍량 강"
     assert card["is_demo"] is True  # 주입 사건 — 실제 CT 판정이 아니다
     assert "콘센트 전력" in card["reason"] and "(시연 주입)" in card["reason"]
+    # A5(10/14): 지금 판정은 취소·문 열림 가열 종료와 구분하지 못한다 — 조리 완료를 보장하지 않는다.
+    assert "가열 종료" in card["reason"] and "조리 완료가 아닐 수 있어요" in card["reason"]
+    assert "조리 완료를 콘센트 전력" not in card["reason"]
     # 카드는 제안일 뿐 — 아무것도 보내지 않았다.
     from rpi.api.thinq_wiring import get_thinq_client
 

@@ -16,7 +16,7 @@
    허용해야 한다. 대상 기기가 없어지거나 다른 기기로 바뀌면 그 자리에서 무효(꺼짐 + 이유)가 된다.
 5. **비상정지**: 세대를 올려(`halt`) 판단은 끝났지만 아직 보내지 않은 자동 실행을 실행 게이트 안에서 막고
    (`approval_guard`), 켜진 규칙을 모두 끈다. 이미 클라우드에 보낸 명령은 취소되지 않는다고 그대로 적는다.
-6. **조리 완료 근거**는 RPi4 ``appliance_done``(전자레인지 CT 채널 전력 끝, 입력에 ``power``)뿐이다. 실행
+6. **조리 완료 근거**(정확히는 가열 종료 감지 — 취소·문 열림과 구분 못 함, 실측 기록표 §6)는 RPi4 ``appliance_done``(전자레인지 CT 채널 전력 끝, 입력에 ``power``)뿐이다. 실행
    끝(버튼 누름 완료)은 이 모듈에 오지 않는다.
 
 **검증 수준: 모의 ThinQ·모의 클라우드 끝-끝까지. 실제 CT 판정·실가전 미검증.**
@@ -298,7 +298,8 @@ class AutoRuleEngine:
         return catalog.get(scenario_id) if catalog is not None and scenario_id else None
 
     def condition_text(self, rule: AutoRule) -> str:
-        return f"{self._name(rule.condition_appliance_id)} 조리 완료가 확인됐을 때"
+        # A5(2026-10-14): CT 끝 판정은 취소·문 열림 가열 종료와 구분하지 못한다 — 조리 완료라고 말하지 않는다.
+        return f"{self._name(rule.condition_appliance_id)} 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)"
 
     def action_text(self, rule: AutoRule) -> str:
         name = self._name(rule.target_appliance_id)
@@ -384,7 +385,7 @@ class AutoRuleEngine:
             matching = [r for r in self.store.list() if self._matches(r, record)]
             if matching:
                 return [self._record(rule, record, key, "duplicate",
-                                     "같은 조리 완료를 다시 받았어요 — 한 번만 실행해요") for rule in matching]
+                                     "같은 가열 종료 사건을 다시 받았어요 — 한 번만 실행해요") for rule in matching]
             return []
         received_at = self._clock.now()
         entries: list[dict] = []
@@ -416,19 +417,19 @@ class AutoRuleEngine:
         # ⑥ 조리 완료 근거 = CT 전력 끝.
         if "power" not in (record.get("inputs") or []):
             return self._record(rule, record, key, "blocked",
-                                "조리 완료가 콘센트 전력(CT)으로 확인되지 않아 자동 실행하지 않았어요")
+                                "가열 종료가 콘센트 전력(CT)으로 감지되지 않아 자동 실행하지 않았어요")
         # ③ 같은 사건·오래된 사건.
         age = event_age_s(record)
         if key is None or age is None:
             return self._record(rule, record, key, "blocked",
-                                "조리 완료 시각을 확인할 수 없어 자동 실행하지 않았어요")
+                                "가열 종료 시각을 확인할 수 없어 자동 실행하지 않았어요")
         if age > self._max_age:
             return self._record(rule, record, key, "blocked",
-                                f"오래된 조리 완료({age:.0f}초 전)라 자동 실행하지 않았어요")
+                                f"오래된 가열 종료({age:.0f}초 전)라 자동 실행하지 않았어요")
         allowed_at = _parse_time(rule.allowed_at)
         if allowed_at is None or received_at - timedelta(seconds=max(age, 0.0)) < allowed_at:
             return self._record(rule, record, key, "blocked",
-                                "허용하기 전에 끝난 조리라 자동 실행하지 않았어요")
+                                "허용하기 전에 끝난 가열이라 자동 실행하지 않았어요")
         # ④ 허용 지문·대상 기기.
         invalid = self._invalid_reason(rule)
         if invalid is not None:
@@ -523,11 +524,12 @@ class AutoRuleEngine:
                       else f"자동 실행을 시작하지 못했어요 — {text or type(exc).__name__}")
             return self._record(rule, record, key, "blocked", reason)
         return self._record(rule, record, key, "sent", "허용한 조건이라 승인 없이 보냈어요", job_id=job_id,
-                            notices=[self._cook_notice(record)])
+                            notices=[self._cook_notice(rule, record)])
 
-    @staticmethod
-    def _cook_notice(record: Mapping) -> str:
-        notice = "데우기가 끝났어요 (콘센트 전력으로 확인)"
+    def _cook_notice(self, rule: AutoRule, record: Mapping) -> str:
+        # A5(2026-10-14): 취소·문 열림으로 끝난 가열도 같은 사건으로 온다 — '데우기가 끝났어요'라고 하지 않는다.
+        notice = (f"{self._name(rule.condition_appliance_id)} 가열 종료를 감지했어요 "
+                  "(콘센트 전력 · 조리 완료가 아닐 수 있어요)")
         source = record.get("source")
         if source == "injected":
             notice += " (시연 주입)"

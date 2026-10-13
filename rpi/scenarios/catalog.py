@@ -97,14 +97,17 @@ COOK_THEN_AIR = ScenarioDefinition(
 
 COOK_DONE_AIR = ScenarioDefinition(
     scenario_id="cook_done_air",
-    name="조리 완료 → 공기청정기",
+    name="가열 종료 → 공기청정기",
     question="공기청정기 강풍으로 바꿀까요?",
     trigger=ScenarioTrigger("appliance_done", appliance_id="microwave", event="heat_complete"),
     steps=(
         ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
                      (("wind_strength", "HIGH"),)),
     ),
-    event_reason="전자레인지 조리 완료를 콘센트 전력(CT)으로 확인했어요. 식사 뒤 공기청정기를 켜 두시곤 해요",
+    # 2026-10-14(A5): CT 끝 판정은 취소·문 열림으로 가열이 끝난 것과 구분하지 못한다(실측 기록표 §6) —
+    # 구분 근거가 생기기 전까지 '조리 완료'라고 말하지 않는다.
+    event_reason=("전자레인지 가열 종료를 콘센트 전력(CT)으로 감지했어요(조리 완료가 아닐 수 있어요). "
+                  "식사 뒤 공기청정기를 켜 두시곤 해요"),
     auto_allowed=True,
 )
 
