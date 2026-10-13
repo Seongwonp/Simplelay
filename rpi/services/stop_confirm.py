@@ -35,7 +35,8 @@ def stop_level_confirmed(level: str | None) -> bool:
 def stop_sentence(level: str | None, ack_ms: int | None = None) -> str | None:
     """화면·응답 문장(해요체). 단계가 없으면 None — 호출자가 자기 문장을 쓴다."""
     if level == STOP_VERIFIED:
-        return "멈춘 것을 확인했어요" + (f" ({ack_ms} ms)" if ack_ms is not None else "")
+        # ack_ms는 보낸 뒤 모션 보드 응답까지다(멈춤 확인까지가 아님) — 폰·키오스크와 같은 문장(10/13).
+        return "멈춘 것을 확인했어요" + (f" (모션 보드 응답 {ack_ms} ms)" if ack_ms is not None else "")
     if level == STOP_MCU_ACK:
         return "모션 보드가 정지를 확인했어요" + (f" ({ack_ms} ms)" if ack_ms is not None else "")
     if level == STOP_SENT:

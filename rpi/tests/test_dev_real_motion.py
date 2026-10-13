@@ -338,6 +338,18 @@ def test_dev_stop_is_confirmed_only_from_the_mcu_ack_up(rig, level, ack_ms, phra
     assert phrase in body["message"]
 
 
+def test_dev_stop_verified_sentence_names_the_ms_as_the_board_reply(rig) -> None:
+    """10/13 실물: ack_ms(약 11 ms)는 보낸 뒤 모션 보드 응답까지, 멈춤 확인은 약 160 ms다. 서버 문장도
+    폰·키오스크처럼 'n ms 만에 멈춤'으로 읽히지 않게 쓴다."""
+    r = rig()
+    r.link.act_info["dev_motion_protocol"] = 2
+    r.link.replies["stop"] = {"ok": True, "op": "stop", "stop_level": "verified", "ack_ms": 11}
+    r.open_session()
+    body = r.client.post("/dev/stop", headers=r.headers()).json()
+    assert "멈춘 것을 확인했어요 (모션 보드 응답 11 ms)" in body["message"]
+    assert "확인했어요 (11 ms)" not in body["message"]
+
+
 @pytest.mark.parametrize("reply", [
     {"ok": True, "op": "stop"},                                          # 옛 RPi4(규약 1) — 단계 없음
     {"ok": True, "op": "stop", "stop_level": "sent", "ack_ms": None},     # MCU가 답하지 않음
