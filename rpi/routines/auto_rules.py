@@ -535,6 +535,10 @@ class AutoRuleEngine:
     def _submit(self, rule: AutoRule, record: Mapping, key: str, generation: int) -> dict:
         appliance = self._appliance(rule.target_appliance_id)
         command = appliance.thinq.command(rule.target_appliance_id, rule.action, {rule.arg: rule.value})
+        # 3차 평가 M2: 이 job이 보낼 대상·동작·설정값의 불변 사본 — 결과 기록·알림·키오스크 문구는 이것만 쓴다.
+        # 보낸 뒤 규칙을 바꾸거나 지우거나 대상 이름이 바뀌어도 결과를 현재 규칙으로 다시 읽어 덮지 않는다.
+        snapshot = {**self._target_words(rule), "action": rule.action, "value": rule.value,
+                    "action_text": self.action_text(rule)}
         now = self._clock.now()
         approved = ApprovedCommand(
             command=command, approval_id=f"auto-rule:{rule.rule_id}:{key}", approved_at=now,
@@ -584,15 +588,15 @@ class AutoRuleEngine:
                 scenario_id=f"{AUTO_SCENARIO_PREFIX}{rule.rule_id}", dispatch_guard=dispatch_guard,
             )
         except AutoRuleBlocked as exc:
-            return self._record(rule, record, key, "blocked", str(exc))
+            return self._record(rule, record, key, "blocked", str(exc), snapshot=snapshot)
         except Exception as exc:  # noqa: BLE001 -- 시작 못 함. 나중에 다시 보내지 않는다.
             text = str(exc)
             reason = ("다른 작업이 실행 중이라 자동 실행하지 않았어요 — 나중에 다시 보내지 않아요"
                       if "already in progress" in text
                       else f"자동 실행을 시작하지 못했어요 — {text or type(exc).__name__}")
-            return self._record(rule, record, key, "blocked", reason)
+            return self._record(rule, record, key, "blocked", reason, snapshot=snapshot)
         return self._record(rule, record, key, "sent", "허용한 조건이라 승인 없이 보냈어요", job_id=job_id,
-                            notices=[self._cook_notice(rule, record)])
+                            notices=[self._cook_notice(rule, record)], snapshot=snapshot)
 
     def _cook_notice(self, rule: AutoRule, record: Mapping) -> str:
         # A5(2026-10-14): 취소·문 열림으로 끝난 가열도 같은 사건으로 온다 — '데우기가 끝났어요'라고 하지 않는다.
@@ -620,14 +624,13 @@ class AutoRuleEngine:
         self._notify(entry)
 
     def _apply_result_locked(self, entry: dict, event) -> None:
-        rule = self.store.get(entry["rule_id"])
+        # 3차 평가 M2: 대상·설정 낱말은 job을 만들 때 entry에 넣은 사본 그대로 — 지금 규칙을 다시 읽지 않는다.
         blocked = self._dispatch_blocked.pop(f"{entry['rule_id']}:{entry.get('event_key')}", None)
         if blocked is not None and event.receipt.value == "not_dispatched":
             notice = blocked
             entry.update({"outcome": "blocked", "reason": blocked})
         else:
-            notice = self._result_notice(entry, rule, event)
-        entry.update(self._target_words(rule))
+            notice = self._result_notice(entry, event)
         entry.update({"status": event.status, "receipt": event.receipt.value,
                       "confirmation": event.confirmation.value,
                       "execution_mode": event.execution_mode.value,
@@ -667,15 +670,10 @@ class AutoRuleEngine:
         except Exception:  # noqa: BLE001
             log.exception("auto rule care notice failed")
 
-    def _result_notice(self, entry: dict, rule: AutoRule | None, event) -> str:
-        name = self._name(rule.target_appliance_id) if rule is not None else "공기청정기"
-        label = "설정"
-        if rule is not None:
-            appliance = self._appliance(rule.target_appliance_id)
-            try:
-                label = appliance.thinq.capability(rule.action).label
-            except Exception:  # noqa: BLE001
-                pass
+    def _result_notice(self, entry: dict, event) -> str:
+        # job을 만들 때의 사본(3차 평가 M2). 사본에 없으면 일반 낱말 — 지금 규칙으로 지어내지 않는다.
+        name = entry.get("target_name") or "공기청정기"
+        label = entry.get("setting_label") or "설정"
         mock = " — 모의 실행 · 실제 조작 아님" if event.execution_mode is ExecutionMode.MOCK else ""
         status, receipt = event.status, event.receipt.value
         if status == "succeeded" and event.confirmation.value == "state_confirmed":
@@ -813,13 +811,17 @@ class AutoRuleEngine:
         return list(reversed(self.runs_snapshot()))
 
     def _record(self, rule: AutoRule, record: Mapping, key: str | None, outcome: str, reason: str, *,
-                job_id: str | None = None, notices: list[str] | None = None, reoffer: bool = False) -> dict:
+                job_id: str | None = None, notices: list[str] | None = None, reoffer: bool = False,
+                snapshot: Mapping | None = None) -> dict:
         entry = {
             "at": self._clock.now().isoformat(), "rule_id": rule.rule_id, "outcome": outcome,
             "reason": reason, "event_key": key, "event_source": record.get("source"),
             "event_state": record.get("state"), "job_id": job_id, "notices": list(notices or []),
             "action_text": self.action_text(rule),
         }
+        if snapshot is not None:
+            # job을 만들 때 잡은 사본(대상 이름·설정 이름·값 이름·동작·값·동작 문장) — 결과가 와도 덮지 않는다.
+            entry.update(snapshot)
         early = None
         with self._lock:
             self._runs.append(entry)

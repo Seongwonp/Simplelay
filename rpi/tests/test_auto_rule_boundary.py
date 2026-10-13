@@ -450,3 +450,54 @@ def test_without_a_clock_reference_for_the_frame_auto_run_is_held(monkeypatch, t
         assert len(cloud.controls()) == before
     finally:
         _reset()
+
+
+# ── M2: 결과에는 job을 만들 때의 대상·동작·설정값 사본 ─────────────────────────────────────────
+
+
+@pytest.mark.parametrize("change", ["value_low", "delete", "rename_target"])
+def test_result_keeps_the_target_and_value_of_the_job_not_the_current_rule(monkeypatch, tmp_path, cloud, change):
+    """M2: 모의 클라우드에 강(HIGH)을 보낸 직후·결과 확인 전에 규칙을 약으로 바꾸거나 지우거나 대상 이름을 바꿨다 —
+    결과 기록·알림·/status last_auto_run(키오스크 문구 재료)은 보낸 그대로 '공기청정기(모의 클라우드) 풍량 강'이다."""
+    from rpi.api import deps
+    from rpi.api.thinq_wiring import appliance_for
+    from rpi.services.thinq import sdk_client
+
+    try:
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)
+        before = len(cloud.controls())
+        rule = _rule(api)
+        original_post = sdk_client.SdkThinqClient.post_control
+        changed = threading.Event()
+
+        def post_then_change(client, device_id, payload):
+            response = original_post(client, device_id, payload)
+            if not changed.is_set():
+                changed.set()
+                if change == "value_low":
+                    assert api.put(f"/routines/auto-rules/{rule['id']}", json={"value": "LOW"}).status_code == 200
+                elif change == "delete":
+                    assert api.delete(f"/routines/auto-rules/{rule['id']}").status_code == 200
+                else:
+                    registry = deps.get_appliance_registry()
+                    registry.unregister_system("air_purifier")
+                    registry.register_system(appliance_for("air_purifier", device_id, "안방 공기청정기"))
+            return response
+
+        monkeypatch.setattr(sdk_client.SdkThinqClient, "post_control", post_then_change)
+        _inject(api, inputs=("power",))
+        run = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+        assert changed.is_set()
+        assert cloud.controls()[before]["body"] == {"airFlow": {"windStrength": "HIGH"}}
+        assert run["status"] == "succeeded"
+        assert (run["target_name"], run["setting_label"], run["value_label"]) == (
+            "공기청정기(모의 클라우드)", "풍량", "강")
+        assert run["action_text"] == "공기청정기(모의 클라우드) 풍량을 강으로 변경"
+        notices = " / ".join(run["notices"])
+        assert "공기청정기(모의 클라우드) 풍량을 바꿨어요" in notices and "안방" not in notices
+        auto = api.get("/status").json()["last_auto_run"]
+        assert auto["job_id"] == run["job_id"]
+        assert (auto["target_name"], auto["setting_label"], auto["value_label"]) == (
+            "공기청정기(모의 클라우드)", "풍량", "강")  # 키오스크: '… 풍량을 강으로 바꿨어요'
+    finally:
+        _reset()
