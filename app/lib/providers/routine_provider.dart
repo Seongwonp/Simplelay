@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/auto_rule.dart';
 import '../models/routine.dart';
 import 'rpi_api_provider.dart';
 
@@ -22,6 +23,17 @@ final routineTemplatesProvider =
   final api = ref.watch(rpiApiServiceProvider);
   if (api == null) throw const RoutinesUnavailable();
   return api.routineTemplates();
+});
+
+/// 자동 실행 허용 규칙(2026-10-13). 조회 실패·옛 서버(404)는 빈 목록 — 루틴 목록을 막지 않는다.
+final autoRulesProvider = FutureProvider.autoDispose<List<AutoRule>>((ref) async {
+  final api = ref.watch(rpiApiServiceProvider);
+  if (api == null) return const [];
+  try {
+    return await api.autoRules();
+  } catch (_) {
+    return const [];
+  }
 });
 
 /// "다음 실행" — 켜진 시각 루틴의 가장 가까운 한 건. 없거나 실패면 null.

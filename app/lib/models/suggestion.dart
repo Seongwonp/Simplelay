@@ -1,3 +1,5 @@
+import 'auto_rule.dart';
+
 // 제안이 어느 경로로 왔는지 — 승인/거부 시 어느 채널로 응답을 보내야
 // 하는지 판단하는 데 쓴다(HTTP로 온 제안을 BLE로 응답하면 안 됨, 반대도 마찬가지).
 enum SuggestionSource { ble, http }
@@ -18,7 +20,12 @@ class Suggestion {
     this.commands = const [],
     this.routineId,
     this.routineName,
+    this.autoRuleOffer,
   });
+
+  /// '다음부터도 자동으로'를 고를 수 있으면 그 조건·동작(서버 2026-10-13). null이면 버튼을 두지 않는다
+  /// (물리 누름 카드·대상 아닌 카드).
+  final AutoRuleOffer? autoRuleOffer;
 
   /// 루틴이 만든 카드면 그 루틴 ID·이름(서버 2026-09-30). 없으면 null.
   final String? routineId;

@@ -2,11 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/auto_rule.dart';
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/routine_provider.dart';
+import '../providers/rpi_api_provider.dart';
+import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_run.dart';
 
 /// 루틴 탭 — 위에 "다음 실행"(예약이 있을 때만), 아래에 "내 루틴 / 추천"(UI 확정 §2).
@@ -63,6 +67,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
           ref.invalidate(routinesProvider);
           ref.invalidate(routineTemplatesProvider);
           ref.invalidate(nextRoutineProvider);
+          ref.invalidate(autoRulesProvider);
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -84,6 +89,10 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               onSelectionChanged: (v) => setState(() => _templates = v.first),
             ),
             const SizedBox(height: 12),
+            // 자동 실행 허용 규칙(2026-10-13) — 카드에서 허용한 것만 있다. 없으면(옛 서버 포함) 아무것도 안 보인다.
+            if (!_templates)
+              for (final rule in ref.watch(autoRulesProvider).valueOrNull ?? const <AutoRule>[])
+                _AutoRuleRow(rule: rule, onChanged: () => ref.invalidate(autoRulesProvider)),
             ...list.when(
               loading: () => const [
                 Padding(
@@ -346,6 +355,184 @@ class _RoutineRow extends StatelessWidget {
                   style: TextStyle(fontSize: 15, color: context.appDanger)),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+/// 자동 실행 허용 규칙 한 줄 — '자동 실행 켜짐/꺼짐', 끄기·다시 허용·설정값 바꾸기·삭제.
+///
+/// 켜는 일(다시 허용)은 늘 확인 시트를 거친다 — 서버가 준 조건·동작을 보여 주고 그 지문으로만 켠다.
+/// 설정값을 바꾸면 서버가 자동 실행을 끄므로, 바꾼 내용으로 다시 허용할지 이어서 묻는다.
+class _AutoRuleRow extends ConsumerStatefulWidget {
+  const _AutoRuleRow({required this.rule, required this.onChanged});
+
+  final AutoRule rule;
+  final VoidCallback onChanged;
+
+  @override
+  ConsumerState<_AutoRuleRow> createState() => _AutoRuleRowState();
+}
+
+class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
+  bool _busy = false;
+
+  Future<void> _run(Future<void> Function(RpiApiService api) action) async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null || _busy) return;
+    setState(() => _busy = true);
+    try {
+      await action(api);
+    } on RpiApiException catch (e) {
+      _say(e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 확인해 주세요.');
+    } catch (_) {
+      _say('바꾸지 못했어요. 연결을 확인해 주세요.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      widget.onChanged();
+    }
+  }
+
+  void _say(String text) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  Future<void> _reallow(RpiApiService api, AutoRule rule) async {
+    final fp = rule.fingerprint;
+    if (fp == null) {
+      _say('대상 가전을 찾지 못해 켤 수 없어요 — 가전 연결을 확인해 주세요');
+      return;
+    }
+    final ok = await showAutoRuleConfirmSheet(
+      context,
+      conditionText: rule.conditionText,
+      actionText: rule.actionText,
+      title: '다음부터 자동으로 실행할까요?',
+      confirmLabel: '허용',
+    );
+    if (!ok) return;
+    await api.setAutoRuleEnabled(rule.id, true, fingerprint: fp);
+  }
+
+  Future<void> _changeValue(RpiApiService api) async {
+    final rule = widget.rule;
+    final choices = rule.allowedValues.where((v) => v.$1 != rule.value).toList();
+    if (choices.isEmpty) return;
+    final value = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => SimpleDialog(
+        title: const Text('설정값 바꾸기 · 바꾸면 다시 허용해야 켜져요'),
+        children: [
+          for (final (v, label) in choices)
+            SimpleDialogOption(
+              onPressed: () => Navigator.pop(dialogContext, v),
+              child: Text(label, style: const TextStyle(fontSize: 18)),
+            ),
+        ],
+      ),
+    );
+    if (value == null || !mounted) return;
+    final changed = await api.updateAutoRuleValue(rule.id, value);
+    if (!mounted) return;
+    await _reallow(api, changed);
+  }
+
+  Future<void> _delete(RpiApiService api) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('자동 실행 규칙을 지울까요?'),
+        content: Text('${widget.rule.conditionText} → ${widget.rule.actionText}'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('지우기')),
+        ],
+      ),
+    );
+    if (ok == true) await api.deleteAutoRule(widget.rule.id);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final r = widget.rule;
+    final reason = r.disabledReason;
+    return Padding(
+      key: Key('auto-rule-${r.id}'),
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.autorenew_rounded, color: r.enabled ? context.appPrimary : context.appMuted),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 36, top: 2),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('조건: ${r.conditionText}', style: const TextStyle(fontSize: 15)),
+                Text('동작: ${r.actionText}', style: const TextStyle(fontSize: 15)),
+                const SizedBox(height: 4),
+                Text(
+                  r.statusLabel,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: r.enabled ? context.appPrimary : context.appMuted,
+                  ),
+                ),
+                if (!r.enabled && reason != null && reason.isNotEmpty)
+                  Text(reason, style: TextStyle(fontSize: 14, color: context.appMuted)),
+                // 마지막 자동 실행의 장치별 결과 — 서버 문장 그대로(확인된 것만 '바꿨어요').
+                for (final n in r.lastRunNotices)
+                  Text(n, style: TextStyle(fontSize: 14, color: context.appMuted)),
+                const SizedBox(height: 6),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    if (r.enabled)
+                      OutlinedButton(
+                        key: Key('auto-rule-off-${r.id}'),
+                        onPressed: _busy
+                            ? null
+                            : () => _run((api) => api.setAutoRuleEnabled(r.id, false)),
+                        style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
+                        child: const Text('자동 실행 끄기'),
+                      )
+                    else
+                      FilledButton(
+                        key: Key('auto-rule-on-${r.id}'),
+                        onPressed: _busy ? null : () => _run((api) => _reallow(api, r)),
+                        style: FilledButton.styleFrom(minimumSize: const Size(88, 48)),
+                        child: const Text('다시 허용'),
+                      ),
+                    if (r.allowedValues.length > 1)
+                      OutlinedButton(
+                        key: Key('auto-rule-edit-${r.id}'),
+                        onPressed: _busy ? null : () => _run(_changeValue),
+                        style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
+                        child: const Text('설정값 바꾸기'),
+                      ),
+                    TextButton(
+                      key: Key('auto-rule-delete-${r.id}'),
+                      onPressed: _busy ? null : () => _run(_delete),
+                      style: TextButton.styleFrom(minimumSize: const Size(64, 48)),
+                      child: const Text('지우기'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );

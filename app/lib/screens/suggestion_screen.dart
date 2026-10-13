@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../models/auto_rule.dart';
 import '../models/command_result.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -16,6 +17,7 @@ import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../widgets/appliance_portrait.dart';
+import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/button_map_grid.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/route_badge.dart';
@@ -155,14 +157,19 @@ class SuggestionScreen extends ConsumerWidget {
   static Future<void> _approve(
     BuildContext context,
     WidgetRef ref,
-    Suggestion suggestion,
-  ) async {
+    Suggestion suggestion, {
+    AutoRuleOffer? allow,
+  }) async {
     final rpiApi = ref.read(rpiApiServiceProvider);
     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
       try {
         // HTTP: RPi에 승인 전송 — 즉시 job_id 접수, 이후 상태 화면이
-        // /status 폴링으로 이 job의 진행·완료를 따라간다
-        final accepted = await rpiApi.approveSuggestion(suggestion.sequenceId);
+        // /status 폴링으로 이 job의 진행·완료를 따라간다. '다음부터 자동으로'(allow)면
+        // 같은 승인에 확인 화면이 보여 준 허용 내용의 지문을 실어 규칙도 함께 저장한다.
+        final accepted = allow == null
+            ? await rpiApi.approveSuggestion(suggestion.sequenceId)
+            : await rpiApi.approveAndAllowSuggestion(
+                suggestion.sequenceId, allow.fingerprint);
         ref.read(executionStatusProvider.notifier).beginHttpJob(
               api: rpiApi,
               jobId: accepted.jobId,
@@ -198,6 +205,8 @@ class SuggestionScreen extends ConsumerWidget {
                   ? error.message
                   : '이 가전은 아직 조작할 준비가 되지 않았어요. '
                       '설정에서 연결 상태를 확인해주세요.',
+              // 자동 실행으로 정할 수 없는 카드(물리 누름 등) — 서버 문장 그대로.
+              422 when allow != null && error.message.isNotEmpty => error.message,
               _ => '실행 요청을 전달하지 못했어요. 연결을 확인해주세요.',
             },
           );
@@ -265,6 +274,19 @@ class SuggestionScreen extends ConsumerWidget {
             ? () => _revise(context, ref, suggestion)
             : null,
         onRun: () => _approve(context, ref, suggestion),
+        // '다음부터도 자동으로' — 서버가 허용 내용을 준 카드(HTTP)만. 물리 누름 카드에는 없다.
+        onAllow: switch (suggestion.autoRuleOffer) {
+          final offer? when suggestion.source == SuggestionSource.http => () async {
+              final ok = await showAutoRuleConfirmSheet(
+                context,
+                conditionText: offer.conditionText,
+                actionText: offer.actionText,
+              );
+              if (!ok || !context.mounted) return;
+              await _approve(context, ref, suggestion, allow: offer);
+            },
+          _ => null,
+        },
       );
     }
 
@@ -693,6 +715,7 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
     required this.onRun,
     this.onSnooze,
     this.onRevise,
+    this.onAllow,
   });
 
   final Suggestion suggestion;
@@ -701,6 +724,9 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
   final VoidCallback onRun;
   final VoidCallback? onSnooze;
   final VoidCallback? onRevise;
+
+  /// '다음부터도 자동으로'(확인 시트 → 허용하고 이번에도 실행). null이면 버튼이 없다.
+  final VoidCallback? onAllow;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -768,6 +794,8 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
         onSnooze: onSnooze,
         onRevise: onRevise,
         onRun: blockedWhy == null ? onRun : null,
+        hasAllow: onAllow != null,
+        onAllow: blockedWhy == null ? onAllow : null,
       ),
     );
   }
@@ -854,6 +882,8 @@ class _ScenarioActionBar extends StatelessWidget {
     required this.onRun,
     this.onSnooze,
     this.onRevise,
+    this.hasAllow = false,
+    this.onAllow,
   });
 
   final int commandCount;
@@ -865,18 +895,24 @@ class _ScenarioActionBar extends StatelessWidget {
   final VoidCallback? onSnooze;
   final VoidCallback? onRevise;
 
+  /// 자동 실행을 고를 수 있는 카드(v4 조리 완료 → 공기청정기). 그러면 세 갈래:
+  /// [이번만 실행] [다음부터도 자동으로] [안 할래요]. [onAllow]가 null이면(준비 안 됨) 누를 수 없다.
+  final bool hasAllow;
+  final VoidCallback? onAllow;
+
   @override
   Widget build(BuildContext context) {
     final skip = OutlinedButton(
       onPressed: onSkip,
-      child: const Text('다음에'),
+      child: Text(hasAllow ? '안 할래요' : '다음에'),
     );
     final run = FilledButton.icon(
       onPressed: onRun,
       icon: const Icon(Icons.play_arrow_rounded),
-      label: const Text('지금 실행'),
+      label: Text(hasAllow ? '이번만 실행' : '지금 실행'),
     );
-    final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
+    // 세 갈래는 늘 세로로 — 위계: 이번만 실행(채움) > 다음부터도 자동으로(톤) > 안 할래요(외곽선).
+    final stacked = hasAllow || MediaQuery.textScalerOf(context).scale(1) >= 1.5;
     final why = blockedWhy;
     return Material(
       color: context.appBackground,
@@ -916,6 +952,15 @@ class _ScenarioActionBar extends StatelessWidget {
               ),
               if (stacked) ...[
                 run,
+                if (hasAllow) ...[
+                  const SizedBox(height: 8),
+                  FilledButton.tonalIcon(
+                    key: const Key('suggestion-allow-auto'),
+                    onPressed: onAllow,
+                    icon: const Icon(Icons.autorenew_rounded),
+                    label: const Text('다음부터도 자동으로'),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 skip,
               ] else

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 import '../models/appliance.dart';
+import '../models/auto_rule.dart';
 import '../models/estop.dart';
 import '../models/hub.dart';
 import '../models/learning_status.dart';
@@ -213,10 +214,14 @@ class RpiSuggestion {
     this.commands = const [],
     this.routineId,
     this.routineName,
+    this.autoRuleOffer,
   });
   final bool isDemo;
   final String id;
   final String purpose;
+
+  /// '다음부터도 자동으로'를 고를 수 있는 카드면 그 내용(서버 2026-10-13). 없으면 버튼이 없다.
+  final AutoRuleOffer? autoRuleOffer;
 
   /// 루틴이 만든 카드면 그 루틴(서버 2026-09-30). 있으면 화면은 `purpose`
   /// 대신 `routineName`을 제목으로 쓴다.
@@ -256,6 +261,7 @@ class RpiSuggestion {
         ],
         routineId: json['routine_id'] as String?,
         routineName: json['routine_name'] as String?,
+        autoRuleOffer: AutoRuleOffer.fromJson(json['auto_rule_offer']),
       );
 }
 
@@ -1634,6 +1640,66 @@ class RpiApiService {
   Future<void> deleteRoutine(String id) async {
     final res = await _client
         .delete(_base.replace(path: '/routines/$id'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+  }
+
+  // ── 자동 실행 허용 규칙(2026-10-13) — 규칙은 카드에서만 생긴다(빈 폼 없음) ──
+
+  /// '이번에 실행하고 다음부터 자동으로' — 이번 실행(job)과 규칙 저장을 한 번에. 확인 화면이 보여 준
+  /// 내용의 지문을 함께 보낸다(다르면 서버 409). 물리 누름 카드는 서버가 422로 거절한다.
+  Future<RpiJobAccepted> approveAndAllowSuggestion(String id, String offerFingerprint) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/suggestions/$id/approve-and-allow'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'offer_fingerprint': offerFingerprint}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return RpiJobAccepted.fromJson(_decodeMap(res));
+  }
+
+  Future<List<AutoRule>> autoRules() async {
+    final res = await _client
+        .get(_base.replace(path: '/routines/auto-rules'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return _decodeList(res).map(AutoRule.fromJson).toList();
+  }
+
+  /// 끄기(`fingerprint` 없음) · 다시 허용(확인 화면을 본 뒤 목록의 `fingerprint`).
+  Future<AutoRule> setAutoRuleEnabled(String id, bool enabled, {String? fingerprint}) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/routines/auto-rules/$id/enable'),
+          headers: _jsonHeaders,
+          body: jsonEncode({
+            'enabled': enabled,
+            if (fingerprint != null) 'fingerprint': fingerprint,
+          }),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return AutoRule.fromJson(_decodeMap(res));
+  }
+
+  /// 설정값만 바꾼다. 서버는 자동 실행을 끄고 다시 허용을 요구한다.
+  Future<AutoRule> updateAutoRuleValue(String id, String value) async {
+    final res = await _client
+        .put(
+          _base.replace(path: '/routines/auto-rules/$id'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'value': value}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return AutoRule.fromJson(_decodeMap(res));
+  }
+
+  Future<void> deleteAutoRule(String id) async {
+    final res = await _client
+        .delete(_base.replace(path: '/routines/auto-rules/$id'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
   }
