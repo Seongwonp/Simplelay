@@ -408,3 +408,20 @@ def test_device_ids_never_reach_logs(api, cloud, caplog):
     api.delete(f"/thinq/added/{key}")
     assert all(device_id not in caplog.text for device_id in default_devices())
     assert SECRET_PAT not in caplog.text
+
+
+def test_added_device_reaches_kiosk_in_the_same_shape_as_env_device(monkeypatch, tmp_path, cloud):
+    """키오스크는 바꾸지 않는다 -- 추가한 가전의 GET /appliances 항목이 환경 변수로 넣은 가전과
+    같은 모양(같은 키·경로·준비 판정)이어야 기존 키오스크 표시가 그대로 받는다."""
+    _env(monkeypatch, tmp_path, cloud, env_devices=("air_purifier",))
+    try:
+        api = _restart()
+        from_env = next(a for a in api.get("/appliances").json() if a["id"] == "air_purifier")
+        _env(monkeypatch, tmp_path, cloud)
+        api = _restart()
+        _add(api, "air_purifier")
+        added = next(a for a in api.get("/appliances").json() if a["id"] == "air_purifier")
+        assert added == from_env
+        assert added["control_path"] == "thinq" and added["is_custom"] is False
+    finally:
+        _reset()
