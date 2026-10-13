@@ -907,8 +907,9 @@ def _last_stop_fields(service: SimpleLayService) -> dict:
     reader = getattr(service, "last_motion_stop", None)
     stop = reader() if callable(reader) else None
     if not isinstance(stop, dict):
-        return {"last_stop_level": None, "last_stop_ack_ms": None}
-    return {"last_stop_level": stop.get("stop_level"), "last_stop_ack_ms": stop.get("ack_ms")}
+        return {"last_stop_level": None, "last_stop_ack_ms": None, "last_stop_job_id": None}
+    return {"last_stop_level": stop.get("stop_level"), "last_stop_ack_ms": stop.get("ack_ms"),
+            "last_stop_job_id": stop.get("job_id")}
 
 
 @router.post("/stop/ack", response_model=EstopAckResponse)
@@ -973,6 +974,7 @@ async def emergency_stop(
         stop_target=report.motion_stop_target,
         stop_confirmed=stop_level_confirmed(report.motion_stop_level),
         stop_detail=report.motion_stop_detail,
+        stop_job_id=report.job_id,
     )
 
 

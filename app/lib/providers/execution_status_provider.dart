@@ -186,8 +186,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           executionMode: status.lastExecutionMode,
           route: status.lastRoute,
           receipt: status.lastReceipt,
-          stopLevel: status.lastStopLevel,
-          stopAckMs: status.lastStopAckMs,
+          // 이 job의 정지 단계만(평가 H1 — 다른 실행의 정지 보고를 싣지 않는다).
+          stopLevel: status.stopLevelOf(jobId),
+          stopAckMs: status.stopAckMsOf(jobId),
         );
         state = state.copyWith(
           executionMode: status.lastExecutionMode,
@@ -374,14 +375,23 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     if (api != null) {
       // HTTP 추적 중 — 서버에 정지를 요청하고, 종료 판정은 폴링이
       // safety_stopped 결과를 받아서 처리한다(성급한 '정지됨' 표시 방지).
+      // 요청 때의 실행을 기억한다 — 응답을 기다리는 사이 새 실행이 시작되면 그 화면을 덮지 않는다(평가 H1).
+      final jobId = _httpJobId;
+      final sequenceId = state.sequenceId;
       try {
         final outcome = await api.stop();
+        if (!mounted || state.sequenceId != sequenceId) return true;
+        // 서버가 다른 실행을 멈췄다고 하면 그 단계는 이 화면의 것이 아니다.
+        final mine = outcome.jobId == null || outcome.jobId == jobId;
         // 서버가 알린 정지 확인 단계까지만 말한다(2026-10-13). 없으면 종전 문장.
         state = state.copyWith(
-            message: stopLevelSentence(outcome.stopLevel, ackMs: outcome.ackMs) ??
+            message: (mine
+                    ? stopLevelSentence(outcome.stopLevel, ackMs: outcome.ackMs)
+                    : null) ??
                 '정지 요청을 보냈어요.');
         return true;
       } catch (_) {
+        if (!mounted || state.sequenceId != sequenceId) return false;
         state = state.copyWith(message: '정지 요청을 보내지 못했어요. 다시 시도해주세요.');
         return false;
       }

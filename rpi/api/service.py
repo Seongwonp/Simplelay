@@ -76,6 +76,9 @@ class EmergencyStopReport:
     #: RPi4가 멈춘 대상: run | dev | hold | idle | None(모름).
     motion_stop_target: str | None = None
     motion_stop_detail: str | None = None
+    #: 이 정지가 멈춘 실행의 job_id(요청 시점에 실행 중이었을 때만). 클라이언트는 같은 실행일 때만 단계를 반영한다
+    #: (평가 2026-10-13 H1 — 이전 정지의 늦은 보고가 새 실행에 섞이지 않게).
+    job_id: str | None = None
 
 
 class ServiceNotReadyError(RuntimeError):
@@ -304,6 +307,9 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         self._stop_requested_at = None
         # 마지막 긴급 정지의 모션 확인 단계(2026-10-13) — RPi4 정지 보고. 새 실행이 시작되면 지운다. _lock으로 보호.
         self._last_motion_stop: dict | None = None
+        # 실행 세대(2026-10-13 H1) — _begin_run마다 1 오른다. 정지 보고가 늦게 와도 요청 때 세대와 다르면
+        # (그 사이 새 실행이 시작됐으면) /status에 남기지 않는다. _lock으로 보호.
+        self._run_generation = 0
         # 지금 실행의 시작 시각 — 소요시간을 재려면 필요하다. _lock으로 보호.
         self._current_started_at = None
         # 기계 제어권 중재자(ControlArbiter) — 개발자 세션과의 상호 배제.
@@ -682,6 +688,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             self._stop_requested_this_run = False
             self._stop_requested_at = None
             self._last_motion_stop = None
+            self._run_generation += 1
             self._stop_sticky = False
             self._current_route = ControlRoute.PHYSICAL
             job_id = uuid.uuid4().hex[:12]
@@ -1193,8 +1200,12 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                     self._stop_requested_at = self._clock.now()
             nodes = self._stoppable_nodes()
             local = self._controller
+            # 이 정지를 지금 실행(세대·job)에 묶는다 — 보고는 락 밖에서 늦게 온다(H1).
+            generation = self._run_generation
+            stop_job_id = self._current_job_id if was_running else None
+            stop_handle = None
             if hasattr(local, "request_stop"):
-                local.request_stop()
+                stop_handle = local.request_stop()
             if was_running:
                 # 시나리오의 남은 단계를 보내지 않게 단계 사이에도 남긴다.
                 self._stop_sticky = True
@@ -1202,7 +1213,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             cloud_cancelled, cloud_uncancellable = self._stop_command_paths()
 
         acknowledged, unconfirmed = self._broadcast_stop_to_nodes(nodes)
-        motion = self._motion_stop_report(local)
+        motion = self._motion_stop_report(local, generation, stop_job_id, was_running, stop_handle)
         return EmergencyStopReport(
             was_running=was_running,
             nodes_acknowledged=acknowledged,
@@ -1213,26 +1224,33 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             motion_stop_ack_ms=motion.get("ack_ms"),
             motion_stop_target=motion.get("target"),
             motion_stop_detail=motion.get("stop_detail"),
+            job_id=stop_job_id,
         )
 
-    def _motion_stop_report(self, local: object) -> dict:
+    def _motion_stop_report(self, local: object, generation: int, job_id: str | None,
+                            was_running: bool, handle: object = None) -> dict:
         """로컬 실행 대상(RPi4 링크)의 정지 확인 단계를 짧게 기다린다(락 밖, 2026-10-13). 정지는 이미 나갔다.
 
         보고 수단이 없는 대상(로컬 모의 폐루프)이면 빈 dict — 단계를 지어내지 않는다. 받은 보고는 RPi4가 무언가를
-        멈췄을 때(run·dev·hold)나 실행 중이었을 때 /status에 남긴다."""
+        멈췄을 때(run·dev·hold)나 실행 중이었을 때 /status에 남긴다.
+
+        평가 2026-10-13 H1: 보고를 기다리는 사이 새 실행이 시작됐으면(세대가 바뀜) 남기지 않는다 — 새 실행의 초기화를
+        옛 보고가 되돌리지 못하게. ``handle``(request_stop이 돌려준 그 정지)이 있으면 그 정지의 보고만 기다린다."""
         wait = getattr(local, "wait_stop_report", None)
         if not callable(wait):
             return {}
         try:
-            report = wait()
+            report = wait(handle=handle) if handle is not None else wait()
         except Exception:  # noqa: BLE001 - 정지 확인 실패가 정지 응답을 막지 않는다
             log.exception("emergency stop: waiting for the motion stop report failed")
             return {}
         if not isinstance(report, dict):
             return {}
         with self._lock:
-            if report.get("target") in ("run", "dev", "hold") or self._stop_requested_this_run:
-                self._last_motion_stop = dict(report)
+            if self._run_generation != generation:
+                log.info("emergency stop: a newer run started before the stop report came back; not kept")
+            elif report.get("target") in ("run", "dev", "hold") or was_running:
+                self._last_motion_stop = {**report, "job_id": job_id}
         return report
 
     def last_motion_stop(self) -> dict | None:

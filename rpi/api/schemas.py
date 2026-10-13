@@ -757,6 +757,8 @@ class StatusResponse(BaseModel):
     #: sent | mcu_ack | verified | None
     last_stop_level: str | None = None
     last_stop_ack_ms: int | None = None
+    #: 그 정지가 멈춘 실행의 job_id(실행 중이 아닐 때의 정지면 None). 클라이언트는 자기 job과 같을 때만 단계를 쓴다(H1).
+    last_stop_job_id: str | None = None
 
 
 class SuggestionResponse(BaseModel):
@@ -862,6 +864,8 @@ class StopResponse(BaseModel):
     #: mcu_ack 이상일 때만 true — sent는 '보냄'이지 확인이 아니다.
     stop_confirmed: bool = False
     stop_detail: str | None = None
+    #: 이 정지가 멈춘 실행의 job_id(요청 시점에 실행 중이었을 때만). 폰은 추적 중인 job과 같을 때만 단계를 반영한다(H1).
+    stop_job_id: str | None = None
 
 
 class DemoOutletEstopRequest(BaseModel):

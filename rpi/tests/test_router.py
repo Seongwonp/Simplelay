@@ -275,6 +275,7 @@ def test_emergency_stop_returns_ok(client):
         "stop_target": None,
         "stop_confirmed": False,
         "stop_detail": None,
+        "stop_job_id": None,
     }
 
 

@@ -281,3 +281,121 @@ def test_general_stop_reaches_the_mcu_and_comes_back_with_its_level() -> None:
     assert report["stop_level"] in ("mcu_ack", "verified")
     assert isinstance(report["ack_ms"], int)
     assert "stop" in mcu.cmds()
+
+
+# ── 정지 보고의 실행 결속(평가 2026-10-13 H1) ─────────────────────────────────────
+
+
+class _LateReportLink(_StubLink):
+    """정지 보고가 늦게 오는 RPi4 링크 대역 — ``release``가 열릴 때까지 보고를 붙잡는다."""
+
+    def __init__(self) -> None:
+        super().__init__({"stop_level": "verified", "ack_ms": 9, "target": "run"})
+        self.release = threading.Event()
+        self.waiting = threading.Event()
+
+    def wait_stop_report(self, timeout_s: float | None = None, handle=None) -> dict | None:
+        self.waiting.set()
+        self.release.wait(3.0)
+        return dict(self.report)
+
+
+def _wait_until(cond, timeout: float = 3.0) -> None:
+    deadline = time.monotonic() + timeout
+    while not cond():
+        assert time.monotonic() < deadline, "조건을 기다리다 기한이 지났다"
+        time.sleep(0.005)
+
+
+def test_a_late_stop_report_of_the_previous_run_does_not_land_on_the_next_run() -> None:
+    """J1 정지 → J1 종료 → J2 시작 → J1의 정지 보고가 늦게 도착: J2의 /status에 J1 단계가 되살아나지 않는다."""
+    link = _LateReportLink()
+    service = SimpleLayService(RuleBasedIntentResolver(), link)
+    j1 = service.submit_buttons(("시작",))
+    _wait_until(lambda: service.status().running)
+    stop_result: dict = {}
+    stopper = threading.Thread(target=lambda: stop_result.setdefault("r", service.emergency_stop_report()))
+    stopper.start()
+    _wait_until(link.waiting.is_set)
+    _wait_until(lambda: not service.status().running)  # J1은 정지로 끝났다
+    j2 = service.submit_buttons(("시작",))
+    _wait_until(lambda: service.status().running and service.status().job_id == j2)
+    link.release.set()  # 이제야 J1의 정지 보고가 돌아온다
+    stopper.join(3)
+    try:
+        assert service.last_motion_stop() is None
+        status = _with_service(service, "/status")
+        assert status["job_id"] == j2
+        assert status["last_stop_level"] is None and status["last_stop_ack_ms"] is None
+        # /stop 응답은 그 정지가 멈춘 실행(J1)을 밝힌다 — 폰이 같은 실행일 때만 반영하게.
+        assert stop_result["r"].job_id == j1
+    finally:
+        link.request_stop()
+
+
+def test_the_stop_report_of_the_same_run_is_kept_after_the_run_ends() -> None:
+    """정지 보고가 실행 종료 뒤에 와도 새 실행이 없으면 그 실행(J1)의 단계로 /status에 남는다."""
+    link = _LateReportLink()
+    service = SimpleLayService(RuleBasedIntentResolver(), link)
+    j1 = service.submit_buttons(("시작",))
+    _wait_until(lambda: service.status().running)
+    stopper = threading.Thread(target=service.emergency_stop_report)
+    stopper.start()
+    _wait_until(link.waiting.is_set)
+    _wait_until(lambda: not service.status().running)
+    link.release.set()
+    stopper.join(3)
+    status = _with_service(service, "/status")
+    assert status["last_job_id"] == j1
+    assert status["last_stop_level"] == "verified" and status["last_stop_ack_ms"] == 9
+    assert status["last_stop_job_id"] == j1
+
+
+def test_stop_endpoint_names_the_run_it_stopped() -> None:
+    link = _StubLink({"stop_level": "mcu_ack", "ack_ms": 7, "target": "run"})
+    service = SimpleLayService(RuleBasedIntentResolver(), link)
+    job = service.submit_buttons(("시작",))
+    _wait_until(lambda: service.status().running)
+    body = _with_service(service, "/stop")
+    assert body["stop_job_id"] == job
+    idle = _with_service(service, "/stop")  # 실행 중이 아니면 결속할 실행이 없다
+    assert idle["stop_job_id"] is None
+
+
+class _TwoStopClient:
+    """ActClient 대역 — abort_with_report 호출마다 따로 보고를 돌려준다(늦게 오는 첫 보고)."""
+
+    def __init__(self, loop) -> None:
+        self._loop = loop
+        self.gates: list[asyncio.Event] = []
+        self.calls = 0
+
+    async def abort_with_report(self):
+        index = self.calls
+        self.calls += 1
+        gate = asyncio.Event()
+        self.gates.append(gate)
+        await gate.wait()
+        return {"stop_id": f"s{index}", "stop_level": "verified" if index == 0 else "mcu_ack",
+                "ack_ms": 10 + index, "target": "run"}
+
+
+def test_each_stop_waits_for_its_own_report_not_the_latest_one() -> None:
+    """연속 정지: 첫 정지의 기다림이 두 번째 정지의 보고를 제 것으로 읽지 않는다(stop 결속)."""
+    loop, thread = start_background_loop()
+    client = _TwoStopClient(loop)
+    act = ActClientController(loop, client)
+    try:
+        first = act.request_stop()
+        _wait_until(lambda: client.calls == 1)
+        second = act.request_stop()
+        _wait_until(lambda: client.calls == 2)
+        loop.call_soon_threadsafe(client.gates[1].set)  # 두 번째 보고가 먼저 온다
+        got_second = act.wait_stop_report(1.0, handle=second)
+        loop.call_soon_threadsafe(client.gates[0].set)
+        got_first = act.wait_stop_report(1.0, handle=first)
+    finally:
+        loop.call_soon_threadsafe(loop.stop)
+        thread.join(2)
+    assert got_first["stop_id"] == "s0" and got_first["stop_level"] == "verified"
+    assert got_second["stop_id"] == "s1" and got_second["stop_level"] == "mcu_ack"

@@ -54,7 +54,8 @@ class RpiJobAccepted {
 
 /// POST /stop 응답의 정지 확인 단계(2026-10-13). 옛 서버·보고 수단이 없으면 [stopLevel]이 null.
 class StopOutcome {
-  const StopOutcome({this.stopLevel, this.ackMs, this.confirmed = false});
+  const StopOutcome(
+      {this.stopLevel, this.ackMs, this.confirmed = false, this.jobId});
 
   factory StopOutcome.fromJson(Map<String, dynamic> json) {
     final level = json['stop_level'];
@@ -62,8 +63,12 @@ class StopOutcome {
       stopLevel: level is String ? level : null,
       ackMs: (json['stop_ack_ms'] as num?)?.toInt(),
       confirmed: json['stop_confirmed'] == true,
+      jobId: json['stop_job_id'] is String ? json['stop_job_id'] as String : null,
     );
   }
+
+  /// 이 정지가 멈춘 실행의 job_id(평가 2026-10-13 H1). 옛 서버·실행 중이 아니었으면 null.
+  final String? jobId;
 
   /// sent | mcu_ack | verified | null
   final String? stopLevel;
@@ -106,12 +111,25 @@ class RpiStatusResult {
     this.estopDetail,
     this.lastStopLevel,
     this.lastStopAckMs,
+    this.lastStopJobId,
+    this.reportsStopJobId = false,
   });
   final bool running;
 
   /// 마지막 긴급 정지의 확인 단계(2026-10-13): sent | mcu_ack | verified. 옛 서버·보고 없음은 null.
   final String? lastStopLevel;
   final int? lastStopAckMs;
+
+  /// 그 정지가 멈춘 실행의 job_id(H1). [reportsStopJobId]가 거짓이면 이 필드를 모르는 옛 서버다.
+  final String? lastStopJobId;
+  final bool reportsStopJobId;
+
+  /// [jobId] 실행의 정지 확인 단계만(H1). 서버가 정지의 실행을 밝히면 같은 job일 때만, 옛 서버면 종전처럼.
+  String? stopLevelOf(String jobId) => !reportsStopJobId || lastStopJobId == jobId
+      ? lastStopLevel
+      : null;
+  int? stopAckMsOf(String jobId) =>
+      stopLevelOf(jobId) == null ? null : lastStopAckMs;
 
   /// 콘센트 모듈 비상정지 걸림(2026-10-05). 없거나 null이면 거짓.
   final bool estopLatched;
@@ -789,6 +807,8 @@ class RpiApiService {
           : null,
       lastStopLevel: body['last_stop_level'] as String?,
       lastStopAckMs: (body['last_stop_ack_ms'] as num?)?.toInt(),
+      lastStopJobId: body['last_stop_job_id'] as String?,
+      reportsStopJobId: body.containsKey('last_stop_job_id'),
     );
   }
 

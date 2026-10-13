@@ -113,12 +113,13 @@ class ActClientController:
         # 없으면(옛 RPi4) 집계 값만으로 합성한다.
         return synthesize_from_act_result(buttons, result)
 
-    def request_stop(self) -> None:
+    def request_stop(self) -> "concurrent.futures.Future[dict] | None":
         """긴급 정지 — RPi4에 abort를 보낸다. **기다리지 않는다**: 진행 중이던 execute()는 RPi4 쪽 중단
         결과(error/result)로 스스로 마무리된다. 전송 실패는 로그만 남긴다 — 정지 경로에서 예외로
         호출자를 죽이는 것보다 물리 E-STOP이 최종 권한이라는 설계를 따른다.
 
-        2026-10-13: abort에 ``stop_id``를 실어 RPi4의 정지 확인 보고를 받는다(`wait_stop_report`가 따로 기다린다)."""
+        2026-10-13: abort에 ``stop_id``를 실어 RPi4의 정지 확인 보고를 받는다(`wait_stop_report`가 따로 기다린다).
+        돌려주는 값은 이 정지의 보고 핸들 — ``wait_stop_report(handle=…)``로 넘기면 그 정지의 보고만 기다린다(H1)."""
 
         def _log_send_failure(future: "concurrent.futures.Future[dict]") -> None:
             exc = future.exception()
@@ -130,14 +131,17 @@ class ActClientController:
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         future.add_done_callback(_log_send_failure)
         self._stop_future = future if callable(with_report) else None
+        return self._stop_future
 
     _stop_future: "concurrent.futures.Future[dict] | None" = None
 
-    def wait_stop_report(self, timeout_s: float | None = None) -> dict | None:
-        """마지막 `request_stop`의 확인 단계 ``{"stop_level", "ack_ms", "target", …}``를 기다린다(블로킹, 짧은 기한).
+    def wait_stop_report(self, timeout_s: float | None = None,
+                         handle: "concurrent.futures.Future[dict] | None" = None) -> dict | None:
+        """`request_stop`의 확인 단계 ``{"stop_level", "ack_ms", "target", …}``를 기다린다(블로킹, 짧은 기한).
 
+        ``handle``이 있으면 그 정지의 보고, 없으면 마지막 정지의 보고(종전).
         정지를 보내지 않았으면 None. 보내지 못했으면 ``stop_level: None``과 이유. 기한이 지나면 ``sent``."""
-        future = self._stop_future
+        future = handle if handle is not None else self._stop_future
         if future is None:
             return None
         wait = (getattr(self._client, "STOP_REPORT_TIMEOUT_S", 1.5) + 0.5) if timeout_s is None else timeout_s
