@@ -14,6 +14,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
@@ -102,7 +103,8 @@ void main() {
     expect(find.byKey(const Key('appliance-add-card')), findsOneWidget);
     // 숨기지 않되, 준비가 안 됐다는 사실은 글자로 말한다. 위치를 아직 맞추지
     // 않은 사용자 가전은 '설정이 필요해요'(2026-10-13 타일 상태).
-    expect(find.text('설정이 필요해요'), findsNWidgets(5));
+    // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
+    expect(find.text(keepWordsTogether('설정이 필요해요')), findsNWidgets(5));
   });
 
   setupSummaryTests();

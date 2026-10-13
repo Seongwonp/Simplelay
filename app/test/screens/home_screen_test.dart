@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
@@ -116,7 +117,8 @@ void main() {
       await tester.pump();
       // 색만으로 말하지 않는다(UI 확정 §1-4). 가전이 '돌아가는 중'이라고는
       // 하지 않는다 — 아는 것은 우리 누름 장치의 버튼 조작 진행뿐이다(2026-10-13).
-      expect(find.text('버튼 조작 중 · 1/2'), findsOneWidget);
+      // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
+      expect(find.text(keepWordsTogether('버튼 조작 중 · 1/2')), findsOneWidget);
       expect(find.textContaining('동작 중'), findsNothing);
     });
 
@@ -131,7 +133,8 @@ void main() {
         ),
       ));
       await tester.pump();
-      expect(find.text('실행을 확인하고 있어요'), findsOneWidget);
+      // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
+      expect(find.text(keepWordsTogether('실행을 확인하고 있어요')), findsOneWidget);
     });
   });
 

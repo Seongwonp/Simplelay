@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/display_status.dart';
 import '../models/hub.dart' show VerifyPassLookup;
+import '../models/line_break.dart';
 import '../models/routine.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -494,7 +495,8 @@ class _RoutineHeroCard extends StatelessWidget {
                   Text(routine.name,
                       style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),
-                  Text(subtitle,
+                  // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
+                  Text(keepWordsTogether(subtitle),
                       style: TextStyle(fontSize: 15, color: context.appMuted)),
                 ],
               ),
@@ -539,7 +541,8 @@ class _RoutineQuickRow extends StatelessWidget {
         children: [
           Text(routine.name,
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
-          Text(subtitle,
+          // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
+          Text(keepWordsTogether(subtitle),
               style: TextStyle(fontSize: 14, color: context.appMuted)),
         ],
       ),
@@ -915,7 +918,8 @@ class _ApplianceCard extends ConsumerWidget {
                     ],
                     Flexible(
                       child: Text(
-                        s.text,
+                        // "연결을 확인해 주 / 세요"처럼 낱말 중간에서 꺾이지 않게(2026-10-14 발견 7).
+                        keepWordsTogether(s.text),
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: active ? FontWeight.w700 : FontWeight.w400,

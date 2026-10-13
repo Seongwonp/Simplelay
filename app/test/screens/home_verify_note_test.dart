@@ -114,7 +114,10 @@ void _tall(WidgetTester tester) {
 }
 
 Finder _inTile(String id, String text) => find.descendant(
-    of: find.byKey(Key('appliance-card-$id')), matching: find.text(text));
+    // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자(U+2060)를 넣어 그린다(2026-10-14) — 빼고 비교한다.
+    of: find.byKey(Key('appliance-card-$id')),
+    matching: find.byWidgetPredicate(
+        (w) => w is Text && (w.data ?? '').replaceAll('\u2060', '') == text));
 
 /// 화면 가운데를 눌렀을 때 [target]의 그림 객체에 닿는가(다른 것에 가리지 않음).
 bool _hits(WidgetTester tester, Finder target) {

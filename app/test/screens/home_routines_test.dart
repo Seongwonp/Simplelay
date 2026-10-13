@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
@@ -241,13 +242,13 @@ void main() {
     expect(find.text('설정 이어하기'), findsOneWidget);
     final lastTile = find.byKey(const Key('appliance-card-w2'));
     expect(tester.getTopLeft(summary).dy, greaterThan(tester.getTopLeft(lastTile).dy));
-    expect(find.descendant(of: lastTile, matching: find.text('설정이 필요해요')),
+    expect(find.descendant(of: lastTile, matching: find.text(keepWordsTogether('설정이 필요해요'))),
         findsOneWidget);
     // 준비된 가전은 '바로 쓸 수 있어요'가 아니라 요청 가능까지만.
     expect(
         find.descendant(
             of: find.byKey(const Key('appliance-card-mw')),
-            matching: find.text('실행을 요청할 수 있어요')),
+            matching: find.text(keepWordsTogether('실행을 요청할 수 있어요'))),
         findsOneWidget);
     expect(find.textContaining('바로 쓸 수 있어요'), findsNothing);
   });
@@ -320,5 +321,30 @@ void main() {
     expect(find.bySemanticsLabel('아침 데우기 다음에'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp(r'^실행하기$')), findsNothing);
     handle.dispose();
+  });
+
+  // ── 2026-10-14 보드 날 발견 7: 낱말 중간 줄바꿈 ─────────────────────────────────────
+  testWidgets('홈 루틴 줄과 가전 타일 상태는 낱말 중간에서 꺾이지 않게 그린다("1단 / 계"·"주 / 세요")',
+      (tester) async {
+    final hub = _Hub(routines: [
+      _routine('r-a', '아침 데우기'),
+      _routine('r-b', '빨래 시작'),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    bool shown(String fragment) => find
+        .byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(fragment))
+        .evaluate()
+        .isNotEmpty;
+    // 홈 루틴 줄(큰 카드·간결한 행)의 "1단계"는 단과 계 사이도 붙어 있다.
+    expect(shown('1\u2060단\u2060계'), isTrue);
+    expect(shown('1\u2060단계'), isFalse);
+    // 타일 상태 줄도 같은 규칙.
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('appliance-card-mw')),
+            matching: find.text(keepWordsTogether('실행을 요청할 수 있어요'))),
+        findsOneWidget);
   });
 }

@@ -125,7 +125,10 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 Finder _inTile(String text, [String id = 'a']) => find.descendant(
-    of: find.byKey(Key('appliance-card-$id')), matching: find.text(text));
+    // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자(U+2060)를 넣어 그린다(2026-10-14) — 빼고 비교한다.
+    of: find.byKey(Key('appliance-card-$id')),
+    matching: find.byWidgetPredicate(
+        (w) => w is Text && (w.data ?? '').replaceAll('\u2060', '') == text));
 
 Future<_Conn> _pumpHome(WidgetTester tester, _Server server) async {
   tester.view.physicalSize = const Size(400, 2400);
