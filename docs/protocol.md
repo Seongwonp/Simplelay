@@ -232,7 +232,7 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 |---|---|---|
 | `sent` | RPi4가 모션 MCU에 `stop` 줄을 썼다(모의 모션이면 컨트롤러에 넘겼다). MCU가 받았는지는 모름 | null |
 | `mcu_ack` | MCU가 같은 `id`로 `{"ok":true}`를 답했다 | 보낸 뒤 응답까지 ms |
-| `verified` | MCU 응답 뒤 `status` 두 번(약 100 ms 간격)의 엔코더 a·b가 같다(모터 축 기준 — 벨트 미끄럼은 안 보인다) | 위와 같다 |
+| `verified` | MCU 응답 뒤 `status` 두 번(약 100 ms 간격)의 엔코더 a·b가 같다(모터 축 기준 — 벨트 미끄럼은 안 보인다) | 위와 같다 — 보낸 뒤 **MCU 응답까지**이지 멈춤 확인(status 두 번)까지의 시간이 아니다 |
 | null | 멈출 것이 없었다(유휴) 또는 정지 줄을 쓰지 못했다 | null |
 
 - RPi4는 정지 줄을 **먼저** 쓰고(기다리지 않는다), 확인은 따로 기다린다 — MCU 응답 기한 0.3 s, 멈춤 확인 status 두 번
@@ -246,8 +246,10 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 - RPi5(`rpi/services/stop_confirm.py`): **확인(`confirmed`)은 `mcu_ack` 이상일 때만**이다. 단계가 없는 답(옛 RPi4 —
   개발자 조작 규약 1)·모르는 값·`abort drive` 대체 경로는 `sent`로 읽는다. `POST /stop`은 `abort`를 먼저 보내고(기다리지
   않음) 보고를 최대 약 1.5 s 기다린다 — RPi4가 `stop_report_protocol`을 알리지 않았으면 기다리지 않고 `sent`. 응답에
-  `stop_level`·`stop_ack_ms`·`stop_target`·`stop_confirmed`·`stop_detail`, `GET /status`에 `last_stop_level`·
-  `last_stop_ack_ms`(새 실행이 시작되면 null). `POST /dev/stop`·세션 끝(`/dev/sessions/{id}/end`)은 `stop_level`·
+  `stop_level`·`stop_ack_ms`·`stop_target`·`stop_confirmed`·`stop_detail`·`stop_job_id`, `GET /status`에 `last_stop_level`·
+  `last_stop_ack_ms`·`last_stop_job_id`(새 실행이 시작되면 null). `stop_job_id`·`last_stop_job_id`는 그 정지가 멈춘 실행(요청 때
+  실행 중이었을 때만, 아니면 null)이다 — 보고를 기다리는 사이 새 실행이 시작되면 RPi5는 그 보고를 `/status`에 남기지 않고,
+  폰·키오스크는 자기 job과 같을 때만 단계를 쓴다(외부 평가 2026-10-13 H1). `POST /dev/stop`·세션 끝(`/dev/sessions/{id}/end`)은 `stop_level`·
   `stop_ack_ms`를 싣고, 실물이면 `confirmed`를 단계로 정한다(`sent`면 false지만 잠그지 않는다 — 잠금은 RPi4에 닿지
   못했을 때). 모의 개발자 어댑터는 단계 없이 종전처럼 `confirmed:true`.
 
