@@ -1475,7 +1475,7 @@ void main() {
     await tester.pump();
     expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).stopLevel,
         'verified');
-    expect(find.text('멈춘 것을 확인했어요 (9 ms)'), findsOneWidget);
+    expect(find.text('멈춘 것을 확인했어요 (모션 보드 응답 9 ms)'), findsOneWidget);
     expect(tts.utterances.length, spoken); // 음성은 다시 말하지 않는다
     await tester.pumpWidget(const SizedBox.shrink());
   });

@@ -124,10 +124,15 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
 /// 정지 확인 단계(2026-10-13)의 한 문장. 서버가 올리는 단계는
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
 /// 모르는 값·단계 없음은 null — 화면은 종전대로 그린다(단계를 지어내지 않는다).
+///
+/// `ackMs`는 정지를 보낸 뒤 **모션 보드 응답까지**다(멈춤 확인까지가 아니다). 그래서 `verified`는
+/// 폰과 같이 "(모션 보드 응답 n ms)"로 밝힌다(1차 평가 L2 잔여, 2026-10-13).
 String? stopLevelSentence(String? level, {int? ackMs}) {
   final ms = ackMs == null ? '' : ' ($ackMs ms)';
   return switch (level) {
-    'verified' => '멈춘 것을 확인했어요$ms',
+    'verified' => ackMs == null
+        ? '멈춘 것을 확인했어요'
+        : '멈춘 것을 확인했어요 (모션 보드 응답 $ackMs ms)',
     'mcu_ack' => '모션 보드가 정지를 확인했어요$ms',
     'sent' => '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요',
     _ => null,

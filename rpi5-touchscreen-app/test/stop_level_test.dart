@@ -29,7 +29,9 @@ void main() {
   test('정지 단계 문장 — 보냄은 확인이라고 하지 않는다', () {
     expect(stopLevelSentence('sent'), '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요');
     expect(stopLevelSentence('mcu_ack', ackMs: 12), '모션 보드가 정지를 확인했어요 (12 ms)');
-    expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요 (9 ms)');
+    expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요 (모션 보드 응답 9 ms)');
+    // ms는 보낸 뒤 모션 보드 응답까지다 — 멈춤 확인까지 걸린 시간으로 읽히지 않게(1차 평가 L2, 폰과 같은 문장).
+    expect(stopLevelSentence('verified'), '멈춘 것을 확인했어요');
     expect(stopLevelSentence(null), isNull);
     expect(stopLevelSentence('stopped_for_sure'), isNull);
     expect(stopLevelConfirmed('sent'), isFalse);
@@ -64,7 +66,7 @@ void main() {
 
   testWidgets('멈춘 실행 화면 — 멈춤 확인', (tester) async {
     await tester.pumpWidget(_wrap(_stopped(level: 'verified', ackMs: 9)));
-    expect(find.text('멈춘 것을 확인했어요 (9 ms)'), findsOneWidget);
+    expect(find.text('멈춘 것을 확인했어요 (모션 보드 응답 9 ms)'), findsOneWidget);
   });
 
   testWidgets('단계가 없으면 정지 줄을 그리지 않는다(종전 화면)', (tester) async {
