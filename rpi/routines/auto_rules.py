@@ -34,6 +34,7 @@ import logging
 import math
 import os
 import threading
+import time
 from collections import deque
 from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, replace
@@ -77,6 +78,15 @@ PHYSICAL_REFUSED = "버튼을 누르는 단계는 자동 실행할 수 없어요
 #: 허용 요청을 처리하는 사이 전체 정지가 들어왔다(3차 평가 H2) — 이번 허용은 저장하지 않는다.
 STOP_RACE_REASON = ("허용을 저장하는 사이 전체 정지가 들어와 다음부터 자동 실행은 켜지 않았어요 — "
                     "다시 켜려면 조건·동작을 확인하고 허용해 주세요")
+#: 지난 프로세스가 깨끗이 닫히지 않았다(전원 끊김·강제 종료·규칙 저장 실패, 4차 평가 M-N3) — 정지의 규칙 끄기가 DB에
+#: 닿기 전에 끝났을 수 있어 켜진 규칙을 믿지 않는다.
+UNCLEAN_RESTART_REASON = ("허브가 정상 종료되지 않아(전원 끊김·강제 종료 등) 자동 실행을 멈췄어요 — "
+                          "다시 켜려면 조건·동작을 확인하고 허용해 주세요")
+#: 이 프로세스의 표시(세션). 규칙 DB의 세션 표시가 다른 프로세스 것이고 열려 있으면 지난 종료가 깨끗하지 않았다.
+PROCESS_SESSION = uuid4().hex
+#: 정지의 규칙 끄기를 뒤에서 DB에 쓸 때 다시 해 보는 횟수·간격(초).
+PERSIST_ATTEMPTS = 3
+PERSIST_RETRY_S = 1.0
 
 
 class AutoRuleError(Exception):
@@ -169,11 +179,15 @@ class AutoRuleStore:
     게이트(서비스 잠금 안)의 ``get``이 다른 요청의 DB 쓰기 대기에 묶이지 않는다 — 정지 경로가 서비스 잠금을 기다리지 않는다."""
 
     def __init__(self, load: Callable[[], str | None] | None = None,
-                 save: Callable[[str], None] | None = None) -> None:
+                 save: Callable[[str], None] | None = None, *,
+                 session_load: Callable[[], str | None] | None = None,
+                 session_save: Callable[[str], None] | None = None,
+                 now: Callable[[], str] | None = None) -> None:
         import json  # noqa: PLC0415
 
         self._json = json
         self._save_fn = save
+        self._session_save = session_save
         #: 메모리 사본 교체만(입출력 없음).
         self._mem_lock = threading.Lock()
         #: DB 쓰기 직렬화 — 이 잠금을 잡은 채 메모리 잠금을 기다리지 않는다(사본·판 번호만 짧게 읽는다).
@@ -191,6 +205,73 @@ class AutoRuleStore:
         self._rules: Mapping[str, AutoRule] = MappingProxyType(rules)
         self._version = 0
         self._persisted_version = 0
+        #: 지난 프로세스가 깨끗이 닫히지 않아 이번 기동에서 끈 규칙 수(4차 평가 M-N3 내구성 경계).
+        self.held_on_start = 0
+        if session_load is not None or session_save is not None:
+            self._open_session(session_load, now)
+
+    # ── 내구성 경계(4차 평가 M-N3) ─────────────────────────────────────────────
+    def _open_session(self, session_load, now) -> None:
+        """정지의 규칙 끄기는 메모리에서 바로 효력을 내고 DB 쓰기는 뒤에서 한다. 그 쓰기가 끝나기 전에 프로세스가 죽으면
+        DB에는 '켜짐'이 남는다 — 그래서 **깨끗이 닫히지 않은 지난 프로세스**(세션 표시가 열린 채, 다른 프로세스)의 켜진
+        규칙은 이번 기동에서 끈다(다시 허용 필요). 깨끗한 종료(:meth:`close`)는 남은 쓰기를 마친 뒤에만 표시를 닫는다."""
+        raw = None
+        try:
+            raw = session_load() if session_load is not None else None
+        except Exception:  # noqa: BLE001
+            log.exception("auto rule session marker unreadable — 지난 종료를 모르므로 켜진 규칙을 끈다")
+            raw = '{"open": true, "session": null}'
+        marker = None
+        if raw:
+            try:
+                marker = self._json.loads(raw)
+            except ValueError:
+                marker = {"open": True, "session": None}
+        unclean = isinstance(marker, dict) and marker.get("open") is not False \
+            and marker.get("session") != PROCESS_SESSION
+        if unclean:
+            stamp = now() if now is not None else None
+            held = [r for r in self._rules.values() if r.enabled]
+            for rule in held:
+                self.put(replace(rule, enabled=False, updated_at=stamp, disabled_reason=UNCLEAN_RESTART_REASON))
+            self.held_on_start = len(held)
+            if held:
+                log.warning("auto rules: previous process did not close cleanly — %d rule(s) held off", len(held))
+                try:
+                    self.flush()
+                except Exception:  # noqa: BLE001 -- 메모리는 꺼짐. 다음 깨끗한 종료 전까지 표시는 열려 있다
+                    log.exception("auto rules: could not persist the restart hold")
+        self._write_session(open_=True)
+
+    def _write_session(self, *, open_: bool) -> bool:
+        if self._session_save is None:
+            return True
+        try:
+            self._session_save(self._json.dumps({"open": open_, "session": PROCESS_SESSION}))
+            return True
+        except Exception:  # noqa: BLE001
+            log.exception("auto rule session marker write failed")
+            return False
+
+    def close(self, timeout_s: float = 5.0) -> bool:
+        """깨끗한 종료 — 남은 규칙 쓰기를 ``timeout_s`` 안에 마쳤을 때만 세션 표시를 닫는다(다음 기동이 규칙을 믿는다).
+        쓰기가 멈췄거나 실패하면 표시를 열어 둔다 → 다음 기동은 켜진 규칙을 끈다. 닫았으면 True."""
+        done = threading.Event()
+        ok: list[bool] = []
+
+        def flush() -> None:
+            try:
+                self.flush()
+                ok.append(not self.pending())
+            except Exception:  # noqa: BLE001
+                log.exception("auto rules: final flush failed — 다음 기동에서 켜진 규칙을 끈다")
+            finally:
+                done.set()
+
+        threading.Thread(target=flush, name="auto-rule-close", daemon=True).start()
+        if not done.wait(timeout_s) or not ok or not ok[0]:
+            return False
+        return self._write_session(open_=False)
 
     # ── 읽기: 잠금 없음(불변 사본) ─────────────────────────────────────────────
     def list(self) -> tuple[AutoRule, ...]:
@@ -742,24 +823,50 @@ class AutoRuleEngine:
             self._generation += 1
 
     def emergency_stop(self, reason: str = "비상정지") -> int:
-        """세대를 올리고 켜진 규칙을 모두 끈다. 끈 개수."""
+        """세대를 올리고 켜진 규칙을 모두 끈다. 끈 개수.
+
+        4차 평가 M-N3: 끄기는 **메모리에서 바로** 효력을 내고(판정·목록이 곧바로 '꺼짐'), DB 쓰기와 알림함 기록은 뒤에서
+        한다 — ``/stop`` 응답이 DB 쓰기를 기다리지 않는다. 쓰기가 끝나기 전에 프로세스가 죽으면 다음 기동이 세션 표시로
+        알아채고 켜진 규칙을 끈다(:class:`AutoRuleStore` 내구성 경계)."""
         self.halt()
         now = self._clock.now().isoformat()
         disabled = [r for r in self.store.list() if r.enabled]
         for rule in disabled:
-            self.store.save(replace(rule, enabled=False, updated_at=now, disabled_reason=ESTOP_REASON))
+            self.store.put(replace(rule, enabled=False, updated_at=now, disabled_reason=ESTOP_REASON))
         if disabled:
             entry = {"at": now, "rule_id": disabled[0].rule_id, "outcome": "estop", "reason": ESTOP_NOTICE,
                      "event_key": None, "event_source": None, "job_id": None, "notices": [ESTOP_NOTICE],
                      "trigger": reason}
             with self._lock:
                 self._runs.append(entry)
-            if self._care is not None:
+        self._persist_later(ESTOP_NOTICE if disabled else None)
+        return len(disabled)
+
+    def _persist_later(self, notice: str | None = None) -> threading.Thread:
+        """메모리 변경을 뒤에서 DB에 쓴다(몇 번 다시 해 본다). 끝까지 못 쓰면 메모리는 그대로 두고 기록만 남긴다 —
+        세션 표시가 열려 있어 다음 기동이 켜진 규칙을 끈다."""
+
+        def run() -> None:
+            for attempt in range(PERSIST_ATTEMPTS):
                 try:
-                    self._care.append(KIND_AUTO_RULE, ESTOP_NOTICE, purpose="자동 실행")
+                    self.store.flush()
+                    break
+                except Exception:  # noqa: BLE001
+                    log.exception("auto rules: background persist failed (attempt %d)", attempt + 1)
+                    time.sleep(PERSIST_RETRY_S)
+            if notice is not None and self._care is not None:
+                try:
+                    self._care.append(KIND_AUTO_RULE, notice, purpose="자동 실행")
                 except Exception:  # noqa: BLE001
                     log.exception("auto rule estop notice failed")
-        return len(disabled)
+
+        thread = threading.Thread(target=run, name="auto-rule-persist", daemon=True)
+        thread.start()
+        return thread
+
+    def close(self, timeout_s: float = 5.0) -> bool:
+        """서버 종료 — 남은 규칙 쓰기를 마치고 세션 표시를 닫는다(:meth:`AutoRuleStore.close`)."""
+        return self.store.close(timeout_s)
 
     # ── 목록에서 끄기·켜기·수정·삭제 ─────────────────────────────────────────
     def _require(self, rule_id: str) -> AutoRule:

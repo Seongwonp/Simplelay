@@ -438,7 +438,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   }
 
   /// 정지 요청. 화면 정지 버튼은 결과를 보지 않고(문구로 알린다), 음성 '멈춰'는
-  /// 반환값으로 보냈는지 안다 — **false면 보내지 못했다**(HTTP 실패). 예외로
+  /// 반환값으로 보냈는지 안다 — **false면 보냈다고 확인하지 못했다**(HTTP 실패, 응답 시간 초과면 전달 여부 모름 —
+  /// 다시 보내도 안전하다). 같은 실행의 결과가 이미 왔으면 늦은 실패가 그 문장을 덮지 않고 true(4차 평가 M-N3). 예외로
   /// 바꾸지 않은 것은 화면 버튼의 동작·문구를 그대로 두기 위해서다(10/8 인계 5차 §1).
   Future<bool> emergencyStop() async {
     final api = _httpApi;
@@ -466,9 +467,16 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
                     : null) ??
                 '정지 요청을 보냈어요.');
         return true;
-      } catch (_) {
+      } catch (error) {
         if (!mounted || state.sequenceId != sequenceId) return false;
-        state = state.copyWith(message: '정지 요청을 보내지 못했어요. 다시 시도해주세요.');
+        // 4차 평가 M-N3: 같은 job의 결과(정지 완료 등)를 이미 받았으면 그 문장을 덮지 않는다 — 늦게 실패한 것은
+        // /stop의 HTTP 응답이지, 이미 확인한 정지가 아니다. 끝난 실행에는 더 멈출 것이 없다.
+        if (_finished) return true;
+        // 응답 시간 초과는 '보내지 못함'이 아니라 '전달 여부 모름'이다(서버가 받았을 수 있다). 상태 조회가 계속 확인한다.
+        state = state.copyWith(
+            message: error is TimeoutException
+                ? '정지 요청의 응답을 받지 못했어요. 멈췄는지 확인하고 있어요 — 멈추지 않으면 다시 눌러 주세요.'
+                : '정지 요청을 보내지 못했어요. 다시 시도해주세요.');
         return false;
       }
     }

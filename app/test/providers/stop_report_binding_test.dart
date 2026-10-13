@@ -298,6 +298,45 @@ void main() {
           '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
     });
 
+    // 4차 평가 M-N3: /stop 응답이 서버 쪽 지연으로 늦어 폰 제한 시간을 넘겨도, 그사이 /status로 받은 같은 job의
+    // 정지 완료 문장을 '정지 요청을 보내지 못했어요'로 덮지 않는다.
+    test('정지 완료 status가 먼저, /stop HTTP 시간 초과가 나중: 확인한 정지 문장을 그대로 둔다', () async {
+      final c = container();
+      final notifier = c.read(executionStatusProvider.notifier);
+      final stopGate = Completer<Map<String, dynamic>>();
+      var status = _running('J1');
+      notifier.beginHttpJob(
+          api: _api(status: () => status, stop: () => stopGate.future),
+          jobId: 'J1',
+          label: '아침 데우기');
+      final stopFuture = notifier.emergencyStop();
+      status = _stopped('J1', level: 'verified', ackMs: 9, stopJob: 'J1');
+      await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
+      const confirmed = '실행을 멈췄어요. 멈춘 것을 확인했어요 (모션 보드 응답 9 ms).';
+      expect(c.read(executionStatusProvider).message, confirmed);
+      stopGate.completeError(TimeoutException('POST /stop'));
+      expect(await stopFuture, isTrue); // 끝난 실행 — 더 멈출 것이 없다
+      final s = c.read(executionStatusProvider);
+      expect(s.outcome, 'stopped');
+      expect(s.message, confirmed);
+      expect(s.message, isNot(contains('보내지 못했어요')));
+    });
+
+    test('결과가 아직 없을 때 /stop 시간 초과: 미전송으로 단정하지 않고 확인 중이라고 말한다', () async {
+      final c = container();
+      final notifier = c.read(executionStatusProvider.notifier);
+      notifier.beginHttpJob(
+          api: _api(
+              status: () => _running('J1'),
+              stop: () async => throw TimeoutException('POST /stop')),
+          jobId: 'J1',
+          label: '아침 데우기');
+      expect(await notifier.emergencyStop(), isFalse); // 확인 못 함 — 다시 보내도 안전
+      final message = c.read(executionStatusProvider).message ?? '';
+      expect(message, isNot(contains('보내지 못했어요')));
+      expect(message, contains('응답을 받지 못했어요'));
+    });
+
     test('후속 조회 중 새 실행이 시작되면 옛 단계를 새 화면에 싣지 않는다', () async {
       final c = container();
       final notifier = c.read(executionStatusProvider.notifier);

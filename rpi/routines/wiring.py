@@ -96,6 +96,8 @@ _auto_engine = None
 _auto_lock = threading.Lock()
 AUTO_RULES_SETTING = "auto_rules"
 AUTO_SEEN_SETTING = "auto_rule_seen_events"
+#: 규칙 저장 세션 표시(4차 평가 M-N3) — 열린 채 다른 프로세스면 지난 종료가 깨끗하지 않았다.
+AUTO_RULES_SESSION_SETTING = "auto_rules_session"
 
 
 def get_auto_rule_engine():
@@ -112,8 +114,13 @@ def get_auto_rule_engine():
         if engine is not None and engine.service is service:
             return engine
         db = deps.get_db()
+        clock = deps.get_clock()
+        # 4차 평가 M-N3: 세션 표시 — 지난 프로세스가 깨끗이 닫히지 않았으면 켜진 규칙을 끈 채 시작한다.
         store = AutoRuleStore(load=(lambda: db.load_setting(AUTO_RULES_SETTING)) if db else None,
-                              save=(lambda v: db.save_setting(AUTO_RULES_SETTING, v)) if db else None)
+                              save=(lambda v: db.save_setting(AUTO_RULES_SETTING, v)) if db else None,
+                              session_load=(lambda: db.load_setting(AUTO_RULES_SESSION_SETTING)) if db else None,
+                              session_save=(lambda v: db.save_setting(AUTO_RULES_SESSION_SETTING, v)) if db else None,
+                              now=lambda: clock.now().isoformat())
         seen = SeenEvents(load=(lambda: db.load_setting(AUTO_SEEN_SETTING)) if db else None,
                           save=(lambda v: db.save_setting(AUTO_SEEN_SETTING, v)) if db else None)
         engine = AutoRuleEngine(store, seen, service, deps.get_clock(), scenarios=get_scenario_engine,
@@ -152,6 +159,18 @@ def stop_auto_rules_if_any(reason: str = "비상정지") -> int:
     if engine is None:
         return 0
     return engine.emergency_stop(reason)
+
+
+def close_auto_rules_if_any(timeout_s: float = 5.0) -> bool:
+    """서버 종료 — 이미 만든 규칙 엔진이 있으면 남은 규칙 쓰기를 마치고 세션 표시를 닫는다(4차 평가 M-N3). 없으면 True."""
+    engine = _auto_engine
+    if engine is None:
+        return True
+    try:
+        return engine.close(timeout_s)
+    except Exception:  # noqa: BLE001 -- 종료 절차를 막지 않는다(표시는 열린 채 → 다음 기동이 켜진 규칙을 끈다)
+        log.exception("auto rule close failed")
+        return False
 
 
 def get_routine_engine() -> RoutineEngine:

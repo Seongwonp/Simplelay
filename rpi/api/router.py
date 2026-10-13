@@ -956,7 +956,8 @@ async def emergency_stop(
     from rpi.routines.wiring import halt_auto_rules_if_any, stop_auto_rules_if_any  # noqa: PLC0415
 
     # 자동 실행 허용 규칙(2026-10-13): 판단은 끝났지만 아직 실행 게이트를 지나지 않은 자동 실행을 먼저 막는다.
-    # 세대만 올려 입출력이 없다 — 모션 정지를 늦추지 않는다. 규칙 끄기(저장)는 아래에서 함께 한다.
+    # 세대만 올려 입출력이 없다 — 모션 정지를 늦추지 않는다. 규칙 끄기는 아래에서 함께 한다: 메모리에서 바로 꺼지고
+    # DB 쓰기·알림함 기록은 뒤에서 한다(4차 평가 M-N3) — 이 응답은 규칙 DB 쓰기를 기다리지 않는다.
     halt_auto_rules_if_any()
     # 정지 버튼 위 대기 중이면 이 정지는 정지 버튼 누름으로 전달된다(RPi4가 판단·수행).
     hold_before = service.hold_status() or {}

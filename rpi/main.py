@@ -109,6 +109,15 @@ async def _shutdown_cleanup() -> None:
             close()
     except Exception:
         log.exception("shutdown cleanup failed")
+    # 자동 실행 규칙: 남은 DB 쓰기(정지의 규칙 끄기 등)를 마친 뒤에만 세션 표시를 닫는다(4차 평가 M-N3).
+    # 못 마치면 표시가 열린 채 남아 다음 기동이 켜진 규칙을 끈 채 시작한다. DB를 닫기 전에.
+    try:
+        from rpi.routines.wiring import close_auto_rules_if_any  # noqa: PLC0415
+
+        if not await asyncio.to_thread(close_auto_rules_if_any):
+            log.warning("auto rules not closed cleanly — next start holds enabled rules off")
+    except Exception:
+        log.exception("auto rule close failed")
     try:
         db = get_db()
         if db is not None:
