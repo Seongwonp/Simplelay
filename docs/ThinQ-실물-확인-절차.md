@@ -8,7 +8,8 @@
 > **기기 프로필은 미확인**이다 — 운전 모드·풍량을 원격으로 바꿀 수 있는지, 값 이름이 무엇인지는 이날
 > 프로필을 읽어야 안다. 서버는 프로필이 허용하지 않는 동작·값을 **보내기 전에 거절**한다.
 
-순서: **기기 목록 → 프로필 → 상태 조회 → (승인) 제어 1회 → 상태 재조회 → 기록**.
+순서: **기기 목록 → 프로필 → 상태 조회 → (승인) 제어 1회 → 상태 재조회 → 기록**, 그 뒤 서버에서
+**발견 → 사용자 확인 후 추가**(§4-3).
 모든 원본 응답은 **저장소 밖**에만 둔다. 실제 기기 ID·PAT는 저장소·채팅·커밋·문서에 넣지 않는다.
 
 ## 0. 준비
@@ -78,16 +79,35 @@ $env:SIMPLELAY_THINQ_COUNTRY = "KR"
   (접수됨·접수 불명)면 **다시 보내지 말고** 앱·본체로 확인한 뒤 4-1을 다시 돌려 상태를 본다.
 - 결과와 재조회 상태는 `control.json`(저장소 밖)에 남는다.
 
-### 4-3. 서버 real 모드(선택, 4-2가 된 뒤)
+### 4-3. 서버 real 모드 — 발견 → 추가 (선택, 4-2가 된 뒤)
+
+기기 ID를 손으로 적지 않는다. 서버를 real 모드로 띄우고 **앱에서 찾은 가전을 사용자가 추가**한다
+(2026-10-13, 모의 클라우드까지만 검증 — 실제 클라우드로는 이날이 처음이다).
 
 ```powershell
 $env:SIMPLELAY_THINQ_MODE = "real"
-$env:SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER = "<env.txt의 값 — 저장소에 적지 않는다>"
+$env:SIMPLELAY_THINQ_PAT_FILE = "$env:USERPROFILE\.simplelay\thinq_pat"
+$env:SIMPLELAY_DB_PATH = "<저장소 밖 경로>\simplelay.db"   # 추가한 가전이 재시작 뒤에도 남는다
+# SIMPLELAY_THINQ_DEVICE_AIR_PURIFIER는 두지 않는다(둘 다 있으면 환경 변수가 먼저, 중복은 생기지 않는다)
 ```
 
-SDK·PAT가 없으면 서버가 **기동을 거절**한다. `GET /readiness/air_purifier`가 `can_execute: true`인지,
-`POST /thinq/command` 1회 뒤 `/status`가 `last_execution_mode: real`·`last_confirmation: state_confirmed`인지 본다.
-실제 클라우드 성공 판정은 이 모드에서만 나온다(모의 클라우드는 언제나 `mock`).
+1. **발견:** 앱 설정 → **LG ThinQ 연결** → **ThinQ에서 찾은 가전**. 공기청정기가 별칭·모델명과 함께 보이고
+   "제어할 수 있어요 — 전원 · 풍량 · …"(이 모델 프로필이 허용하는 동작만)인지 본다. 서버로 직접 보려면
+   `GET /thinq/discovered`(기기 ID 대신 `key`를 준다).
+   - "가전을 찾지 못했어요 — …"가 나오면 그 이유(토큰·약관·국가·연결)를 §6 표로 푼다. 이것은 '0대'가 아니다.
+   - "상태만 볼 수 있어요"·"지원하지 않아요"면 추가 버튼이 없다 — 이 모델 프로필로는 제어하지 않는다.
+2. **추가:** 공기청정기 줄의 **추가**를 누른다(서버로는 `POST /thinq/added {"key": …}`). 사용자가 누르기 전에는
+   아무것도 등록되지 않는다. 추가하면 홈에 'ThinQ' 배지 타일이 생기고 루틴 대상 목록에도 나온다.
+   기기 ID는 서버 DB에만 남는다(화면·로그·저장소에 없음).
+3. **확인:** `GET /readiness/air_purifier`가 `can_execute: true`인지, 승인 카드나 `POST /thinq/command` 1회 뒤
+   `/status`가 `last_execution_mode: real`·`last_confirmation: state_confirmed`인지 본다. 추가해도 실행은
+   언제나 승인(확인)을 거친다.
+4. 잘못 추가했으면 같은 줄의 **빼기**(`DELETE /thinq/added/{key}`). 환경 변수로 넣은 가전은 여기서 빼지 않는다.
+
+SDK·PAT가 없으면 서버가 **기동을 거절**한다. 실제 클라우드 성공 판정은 이 모드에서만 나온다(모의 클라우드는
+언제나 `mock`, 화면에 '(모의 클라우드)'). 가전 도착 전 연습은 §3의 모의 클라우드로 서버를
+`SIMPLELAY_THINQ_MODE=fake_cloud`·`SIMPLELAY_THINQ_FAKE_CLOUD_URL=http://127.0.0.1:8790`(기기 ID 환경 변수 없이)로
+띄워 같은 순서를 밟는다.
 
 ## 5. 합격 기준
 
@@ -97,7 +117,7 @@ SDK·PAT가 없으면 서버가 **기동을 거절**한다. `GET /readiness/air_
 | B | 공기청정기 프로필 조회 성공, 동작별 판정 표 확보 | `*_profile.json`, `summary.txt` |
 | C | 상태 조회 성공 | `*_state.json` |
 | D | 허용된 동작 1개를 승인 뒤 1회 보내고, 상태 재조회로 변경 확인(`state_confirmed`) | `control.json` |
-| E | (선택) 서버 real 모드에서 같은 동작이 `real`·`state_confirmed`로 기록 | `/status`·`/history` 화면 |
+| E | (선택) 서버 real 모드에서 **발견 목록에 공기청정기가 '제어할 수 있어요'로 보이고, 추가 뒤** 같은 동작이 `real`·`state_confirmed`로 기록 | 앱 'ThinQ에서 찾은 가전'·`/status`·`/history` 화면 |
 | F | `git status`에 PAT·원본·기기 ID가 없음 | `git status`, `git grep <ID 끝자리>` 결과 없음 |
 
 D가 `unconfirmed`면 실패가 아니라 "접수만 확인"이다 — 그대로 적고 재전송하지 않는다.
