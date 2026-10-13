@@ -755,6 +755,9 @@ class StatusResponse(BaseModel):
     last_operation_detail: str | None = None
     #: 마지막 물리 실행이 모션 걸림·재시작·기한 초과·준비 안 됨으로 재시도 없이 멈췄다면 그 원인(2026-10-14).
     last_abort_reason: str | None = None
+    #: 결과가 나온 마지막 자동 실행(허용 규칙, 2026-10-14) — 키오스크 짧은 알림용. {job_id, at, outcome, status,
+    #: receipt, confirmation, execution_mode, target_name, setting_label, value_label}. 없으면 None.
+    last_auto_run: dict | None = None
     # ── 정지 확인 단계(2026-10-13) — 마지막 긴급 정지의 모션 확인. 새 실행이 시작되면 null. 옛 클라이언트는 무시 ──
     #: sent | mcu_ack | verified | None
     last_stop_level: str | None = None

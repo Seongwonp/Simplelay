@@ -892,6 +892,7 @@ async def status(
         last_execution_mode=snapshot.last_execution_mode.value,
         **result_detail_fields(snapshot.last_result),
     )
+    from rpi.routines.wiring import last_auto_run_if_any  # noqa: PLC0415
     from rpi.services.stop_park import hold_status_fields  # noqa: PLC0415
 
     estop = service.estop_status() or {}
@@ -900,6 +901,7 @@ async def status(
                 "estop_latched": estop.get("latched"),
                 "estop_detail": estop.get("detail") if estop.get("latched") else None,
                 "actuator_link_up": service.actuator_link_up(),
+                "last_auto_run": last_auto_run_if_any(),
                 **_last_stop_fields(service)}
     )
 

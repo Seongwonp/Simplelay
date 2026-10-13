@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/models/auto_run.dart';
 import 'package:simplelay_touchscreen/models/estop.dart';
 import 'package:simplelay_touchscreen/models/learning_status.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
@@ -1440,6 +1441,186 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // ── 2026-10-14 보드 날 발견 3: 짧은 실행·정지를 놓치지 않는다 ─────────────────────────────
+  testWidgets('켜기 전에 끝난 실행의 결과는 띄우지 않는다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..statusResult = const KioskStatus(
+          running: false, lastJobId: 'job-old', lastStatus: 'safety_stopped', lastOutcome: 'safety_stop');
+    await _pumpKiosk(tester, api);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskIdleView), findsOneWidget);
+    expect(find.byType(KioskDoneView), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('폴링 사이에 시작해 끝난 짧은 실행(0.45 s)과 그 사용자 정지도 결과를 띄운다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..statusResult = const KioskStatus(
+          running: false, lastJobId: 'job-0', lastStatus: 'succeeded', lastOutcome: 'success');
+    await _pumpKiosk(tester, api);
+    expect(find.byType(KioskIdleView), findsOneWidget);
+    // 키오스크는 running=true를 한 번도 보지 못했다 — 결과만 남았다.
+    api.statusResult = const KioskStatus(
+        running: false,
+        lastJobId: 'job-2',
+        lastApplianceId: 'microwave',
+        lastStatus: 'safety_stopped',
+        lastOutcome: 'stopped',
+        lastRoute: 'physical',
+        lastExecutionMode: 'real',
+        lastStopLevel: 'mcu_ack',
+        lastStopAckMs: 14,
+        lastStopJobId: 'job-2',
+        reportsStopJobId: true);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    final done = tester.widget<KioskDoneView>(find.byType(KioskDoneView));
+    expect(done.reason, KioskFailureReason.stopped);
+    expect(done.stopLevel, 'mcu_ack');
+    expect(find.text('실행을 멈췄어요'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('실패 화면에 머무는 동안 폰이 시작한 다음 실행과 정지를 이어서 보인다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false, lastJobId: 'job-1', lastStatus: 'safety_stopped', lastOutcome: 'safety_stop'),
+    );
+    expect(find.text('안전하게 멈췄어요'), findsOneWidget);
+    // 실패 화면은 스스로 사라지지 않는다 — 그동안 폰이 다음 실행을 시작했다.
+    api.statusResult = const KioskStatus(
+        running: true, jobId: 'job-2', currentButton: '시작', lastJobId: 'job-1');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+    api.statusResult = const KioskStatus(
+        running: false, lastJobId: 'job-2', lastStatus: 'safety_stopped', lastOutcome: 'stopped');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).reason, KioskFailureReason.stopped);
+    expect(find.text('실행을 멈췄어요'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('실패 화면에 머무는 동안 폴링 사이에 끝난 다음 실행도 그 결과로 바꾼다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false, lastJobId: 'job-1', lastStatus: 'safety_stopped', lastOutcome: 'safety_stop'),
+    );
+    api.statusResult = const KioskStatus(
+        running: false, lastJobId: 'job-3', lastStatus: 'succeeded', lastOutcome: 'success',
+        lastExecutionMode: 'mock');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).success, isTrue);
+    await tester.pump(KioskTimings.doneReturn);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // ── 2026-10-14 C2: 자동 실행 결과 한 줄 ───────────────────────────────────────────────
+  test('자동 실행 알림 문장 — 실제 결과 그대로', () {
+    const ok = KioskAutoRun(jobId: 'a', outcome: 'sent', status: 'succeeded', receipt: 'accepted',
+        confirmation: 'state_confirmed', executionMode: 'real', targetName: '공기청정기',
+        settingLabel: '풍량', valueLabel: '강');
+    expect(autoRunNotice(ok), '공기청정기 풍량을 강으로 바꿨어요');
+    const unconfirmed = KioskAutoRun(jobId: 'b', outcome: 'sent', status: 'unconfirmed', receipt: 'accepted',
+        confirmation: 'none', executionMode: 'real', targetName: '공기청정기', settingLabel: '풍량', valueLabel: '강');
+    expect(autoRunNotice(unconfirmed), '공기청정기 설정이 바뀌었는지 확인하지 못했어요');
+    const mock = KioskAutoRun(jobId: 'c', outcome: 'sent', status: 'succeeded', receipt: 'accepted',
+        confirmation: 'state_confirmed', executionMode: 'mock', targetName: '공기청정기(모의)',
+        settingLabel: '풍량', valueLabel: '중');
+    expect(autoRunNotice(mock), '공기청정기(모의) 풍량을 중으로 바꿨어요 · 모의 실행(실제 조작 아님)');
+    const blocked = KioskAutoRun(jobId: 'd', outcome: 'blocked', status: 'failed', receipt: 'not_dispatched',
+        targetName: '공기청정기');
+    expect(autoRunNotice(blocked), '공기청정기 자동 실행을 보내지 않았어요');
+    expect(autoRunNotice(ok), isNot(contains('깨끗')));
+  });
+
+  testWidgets('자동 실행 결과는 완료 화면이 아니라 평소 화면 위 한 줄로 알리고 잠시 뒤 내린다', (tester) async {
+    useKioskViewport(tester);
+    final tts = FakeTts();
+    final api = FakeKioskApi();
+    await _pumpKiosk(tester, api, tts: tts);
+    const auto = KioskAutoRun(jobId: 'auto-1', outcome: 'sent', status: 'succeeded', receipt: 'accepted',
+        confirmation: 'state_confirmed', executionMode: 'real', targetName: '공기청정기',
+        settingLabel: '풍량', valueLabel: '강');
+    api.statusResult = const KioskStatus(
+        running: false, lastJobId: 'auto-1', lastStatus: 'succeeded', lastOutcome: 'success',
+        lastRoute: 'thinq', lastAutoRun: auto);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsNothing);
+    expect(find.byType(KioskIdleView), findsOneWidget);
+    expect(find.text('공기청정기 풍량을 강으로 바꿨어요'), findsOneWidget);
+    expect(tts.utterances.where((u) => u.contains('공기청정기 풍량을 강으로 바꿨어요')).length, 1);
+    // 같은 결과를 다시 받아도 다시 알리지 않는다.
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(tts.utterances.where((u) => u.contains('바꿨어요')).length, 1);
+    await tester.pump(KioskTimings.autoRunNotice);
+    await tester.pump();
+    expect(find.byKey(const ValueKey('auto-run-notice')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('자동 실행 job을 실행 화면에서 지켜보다 끝나면 완료 화면 대신 한 줄 알림, 실행 중에는 줄을 그리지 않는다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi();
+    await _pumpKiosk(tester, api);
+    api.statusResult = const KioskStatus(running: true, jobId: 'auto-2', currentButton: '실행');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(find.byType(KioskExecutingView), findsOneWidget);
+    expect(find.byKey(const ValueKey('auto-run-notice')), findsNothing);
+    const auto = KioskAutoRun(jobId: 'auto-2', outcome: 'sent', status: 'unconfirmed', receipt: 'accepted',
+        confirmation: 'none', executionMode: 'mock', targetName: '공기청정기(모의)',
+        settingLabel: '풍량', valueLabel: '강');
+    api.statusResult = const KioskStatus(
+        running: false, lastJobId: 'auto-2', lastStatus: 'unconfirmed', lastOutcome: 'unconfirmed',
+        lastRoute: 'thinq', lastAutoRun: auto);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsNothing);
+    expect(find.text('공기청정기(모의) 설정이 바뀌었는지 확인하지 못했어요 · 모의 실행(실제 조작 아님)'),
+        findsOneWidget);
+    await tester.pump(KioskTimings.autoRunNotice);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('켜기 전에 있던 자동 실행 결과는 다시 알리지 않는다', (tester) async {
+    useKioskViewport(tester);
+    const auto = KioskAutoRun(jobId: 'auto-0', outcome: 'sent', status: 'succeeded', receipt: 'accepted',
+        confirmation: 'state_confirmed', executionMode: 'real', targetName: '공기청정기',
+        settingLabel: '풍량', valueLabel: '강');
+    final api = FakeKioskApi()
+      ..statusResult = const KioskStatus(running: false, lastJobId: 'auto-0', lastAutoRun: auto);
+    await _pumpKiosk(tester, api);
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('auto-run-notice')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // 2026-10-14(보드 날 발견 2): 모션 걸림 알람은 '눌림을 확인하지 못해'가 아니다 — 원인 그대로, 다시 시도 없음.
   testWidgets('모션 걸림(motion_alarm: stall)은 걸려 멈췄다고 말하고 다시 시도를 권하지 않는다', (tester) async {
     useKioskViewport(tester);
@@ -1525,7 +1706,9 @@ void main() {
     for (var i = 0; i < 10; i++) {
       await tester.pump(const Duration(seconds: 1));
     }
-    expect(api.statusCalls - before, lessThanOrEqualTo(3));
+    // 후속 조회 3번 + 완료 화면의 평소 조회(2초마다, 2026-10-14 발견 3 — 다음 실행·정지를 놓치지 않게) 5번.
+    // 후속 조회가 1초마다 끝없이 돌면 이 상한을 넘는다.
+    expect(api.statusCalls - before, lessThanOrEqualTo(3 + 5));
     expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).stopLevel,
         isNull);
     expect(find.text('실행을 멈췄어요'), findsOneWidget);

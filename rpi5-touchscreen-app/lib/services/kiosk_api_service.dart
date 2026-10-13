@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../models/ambient.dart';
 import '../models/appliance.dart';
+import '../models/auto_run.dart';
 import '../models/estop.dart';
 import '../models/learning_status.dart';
 import '../models/scenario_run.dart';
@@ -278,6 +279,7 @@ class KioskStatus {
     this.lastOperationSource,
     this.lastOperationDetail,
     this.lastAbortReason,
+    this.lastAutoRun,
     this.developerMode = false,
     this.holdState,
     this.holdStopOutcome,
@@ -366,6 +368,9 @@ class KioskStatus {
 
   /// 모션 걸림·재시작·기한 초과·준비 안 됨으로 재시도 없이 멈춘 원인(서버 2026-10-14, 예: `motion_alarm: stall`).
   final String? lastAbortReason;
+
+  /// 결과가 나온 마지막 자동 실행(서버 2026-10-14 `last_auto_run`). 옛 서버·없으면 null.
+  final KioskAutoRun? lastAutoRun;
   final List<KioskButtonResult>? lastButtons;
 
   // 실행 중 진행 상황 — /status가 폴링될 때만 채워지고, 완료되면 서버가 비운다.
@@ -415,6 +420,7 @@ class KioskStatus {
         lastOperationSource: json['last_operation_source'] as String?,
         lastOperationDetail: json['last_operation_detail'] as String?,
         lastAbortReason: json['last_abort_reason'] as String?,
+        lastAutoRun: KioskAutoRun.fromJson(json['last_auto_run']),
         developerMode: json['developer_mode'] as bool? ?? false,
         holdState: json['hold_state'] as String?,
         holdStopOutcome: json['hold_stop_outcome'] as String?,

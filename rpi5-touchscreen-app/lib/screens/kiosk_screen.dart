@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../models/ambient.dart';
 import '../models/appliance.dart';
+import '../models/auto_run.dart';
 import '../models/command_result.dart';
 import '../models/estop.dart';
 import '../models/scenario_run.dart';
@@ -14,6 +15,7 @@ import '../services/kiosk_settings_store.dart';
 import '../services/kiosk_tts_service.dart';
 import '../theme/kiosk_colors.dart';
 import '../widgets/kiosk/appliance_select_view.dart';
+import '../widgets/kiosk/auto_run_notice.dart';
 import '../widgets/kiosk/danger_alert_overlay.dart';
 import '../widgets/kiosk/dnd_overlay.dart';
 import '../widgets/kiosk/estop_banner.dart';
@@ -159,6 +161,17 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 모션 걸림 등으로 재시도 없이 멈춘 원인(2026-10-14, /status last_abort_reason).
   String? _doneAbortReason;
 
+  /// 이미 화면에 반영한 마지막 job(서버 last_job_id, 2026-10-14 발견 3). 첫 조회에서 정한다 — 켜기 전 결과는
+  /// 띄우지 않는다. 폴링 사이에 시작해 끝난 짧은 실행(0.45 s)·다른 단말 정지를 이 값이 바뀐 것으로 잡는다.
+  String? _seenLastJobId;
+  bool _seenLastJobInit = false;
+
+  /// 자동 실행 결과 한 줄(2026-10-14, C2). 이미 알린 job과 첫 조회 때의 job은 다시 알리지 않는다.
+  String? _seenAutoJobId;
+  bool _seenAutoInit = false;
+  String? _autoNotice;
+  Timer? _autoNoticeTimer;
+
   /// 정지로 멈춘 실행의 확인 단계(2026-10-13, /status last_stop_level).
   String? _doneStopLevel;
   int? _doneStopAckMs;
@@ -293,6 +306,7 @@ class _KioskScreenState extends State<KioskScreen> {
   void dispose() {
     _holdReturnTimer?.cancel();
     _stopFollowTimer?.cancel();
+    _autoNoticeTimer?.cancel();
     _countdownTimer?.cancel();
     _pollTimer?.cancel();
     _healthTimer?.cancel();
@@ -506,6 +520,8 @@ class _KioskScreenState extends State<KioskScreen> {
         await _pollSuggestion();
       } else if (_phase == KioskPhase.hold) {
         await _pollHold();
+      } else if (_phase == KioskPhase.done) {
+        await _pollDone();
       }
     } finally {
       _pollInFlight = false;
@@ -531,6 +547,8 @@ class _KioskScreenState extends State<KioskScreen> {
         _toHold(st);
         return;
       }
+      _trackAutoRun(st);
+      if (_catchMissedResult(st)) return;
     } catch (_) {}
     try {
       final list = await _api.suggestions();
@@ -584,37 +602,14 @@ class _KioskScreenState extends State<KioskScreen> {
       // 시작되면 running=true여도 last_job_id는 내 job이다. running을 먼저
       // 처리하면 그 완료를 영영 놓친다(추월 레이스).
       if (st.lastJobId != null && st.lastJobId == _activeJobId) {
-        _executionMode = st.lastExecutionMode;
-        // last_outcome이 정지 요청(stopped)과 안전 정지·실패를 가른다. 옛 서버는
-        // last_status로 판정한다(종전 동작). ThinQ 확인 못 함은 실패가 아니다.
-        final kind =
-            resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
-        _doneRoute = st.lastRoute;
-        _doneConfirmation = confirmationLabel(
-          route: st.lastRoute,
-          receipt: st.lastReceipt,
-          confirmation: st.lastConfirmation,
-          kind: kind,
-          executionMode: st.lastExecutionMode,
-        );
-        _doneDetail = st.lastDetail;
-        _doneOperationConfirmed = st.lastOperationConfirmed;
-        _doneOperationSource = st.lastOperationSource;
-        // 이 job의 정지 단계만(평가 H1). 아직 없으면 아래에서 짧게 다시 묻는다(M1).
-        _doneStopLevel = st.stopLevelOf(jobId);
-        _doneStopAckMs = st.stopAckMsOf(jobId);
-        _doneOperationDetail = st.lastOperationDetail;
-        _doneAbortReason = st.lastAbortReason;
-        _finishExecuting(
-          success: kind == ResultKind.success,
-          buttons: st.lastButtons ?? const [],
-          reason: failureReasonOf(kind,
-              route: st.lastRoute, receipt: st.lastReceipt),
-        );
-        _loadRunSteps(jobId);
-        if (kind == ResultKind.stopped && _doneStopLevel == null) {
-          _followStopReport(jobId);
+        if (st.lastAutoRun?.jobId == jobId) {
+          // 자동 실행(허용 규칙)은 완료 화면 대신 위 한 줄로 실제 결과를 알린다(C2).
+          _seenLastJobId = jobId;
+          _toIdle();
+          _trackAutoRun(st);
+          return;
         }
+        _completeFromStatus(st, jobId);
         return;
       }
 
@@ -666,6 +661,99 @@ class _KioskScreenState extends State<KioskScreen> {
             reason: KioskFailureReason.serverLost);
       }
     }
+  }
+
+  /// 서버가 보고한 [jobId]의 끝을 완료 화면으로 옮긴다(내 job·이어받은 job·놓친 짧은 실행 공통).
+  void _completeFromStatus(KioskStatus st, String jobId) {
+    _seenLastJobId = jobId;
+    _executionMode = st.lastExecutionMode;
+    // last_outcome이 정지 요청(stopped)과 안전 정지·실패를 가른다. 옛 서버는
+    // last_status로 판정한다(종전 동작). ThinQ 확인 못 함은 실패가 아니다.
+    final kind =
+        resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
+    _doneRoute = st.lastRoute;
+    _doneConfirmation = confirmationLabel(
+      route: st.lastRoute,
+      receipt: st.lastReceipt,
+      confirmation: st.lastConfirmation,
+      kind: kind,
+      executionMode: st.lastExecutionMode,
+    );
+    _doneDetail = st.lastDetail;
+    _doneOperationConfirmed = st.lastOperationConfirmed;
+    _doneOperationSource = st.lastOperationSource;
+    // 이 job의 정지 단계만(평가 H1). 아직 없으면 아래에서 짧게 다시 묻는다(M1).
+    _doneStopLevel = st.stopLevelOf(jobId);
+    _doneStopAckMs = st.stopAckMsOf(jobId);
+    _doneOperationDetail = st.lastOperationDetail;
+    _doneAbortReason = st.lastAbortReason;
+    _finishExecuting(
+      success: kind == ResultKind.success,
+      buttons: st.lastButtons ?? const [],
+      reason: failureReasonOf(kind,
+          route: st.lastRoute, receipt: st.lastReceipt),
+    );
+    _loadRunSteps(jobId);
+    if (kind == ResultKind.stopped && _doneStopLevel == null) {
+      _followStopReport(jobId);
+    }
+  }
+
+  /// 폴링 사이에 시작해 끝난 실행(짧은 실행·다른 단말의 정지)을 놓치지 않는다(2026-10-14, 보드 날 발견 3).
+  /// 서버 last_job_id가 이미 반영한 값과 다르면 그 결과를 완료 화면으로 띄운다. 첫 조회는 기준만 잡는다.
+  /// 자동 실행 job은 완료 화면 대신 위 한 줄 알림(_trackAutoRun)으로만 알린다. 띄웠으면 true.
+  bool _catchMissedResult(KioskStatus st) {
+    final last = st.lastJobId;
+    if (!_seenLastJobInit) {
+      _seenLastJobInit = true;
+      _seenLastJobId = last;
+      return false;
+    }
+    if (st.running || last == null || last == _seenLastJobId ||
+        last == _activeJobId) {
+      return false;
+    }
+    _seenLastJobId = last;
+    if (st.lastAutoRun?.jobId == last) return false;
+    _toExecuting('실행', applianceId: st.lastApplianceId, jobId: last);
+    _completeFromStatus(st, last);
+    return true;
+  }
+
+  /// 완료 화면에서도 서버를 본다(2026-10-14, 발견 3) — 실패 화면은 스스로 사라지지 않아서, 그동안 폰이 시작한
+  /// 다음 실행과 그 정지를 놓쳤다. 새 실행이 돌면 실행 화면으로, 새 결과가 있으면 그 결과로 바꾼다.
+  Future<void> _pollDone() async {
+    try {
+      final st = await _api.status();
+      if (!mounted || _phase != KioskPhase.done) return;
+      _trackAutoRun(st);
+      if (st.running && st.jobId != null && st.jobId != _activeJobId) {
+        _toExecuting(st.currentButton ?? '실행',
+            applianceId: st.applianceId, jobId: st.jobId);
+        return;
+      }
+      _catchMissedResult(st);
+    } catch (_) {}
+  }
+
+  /// 자동 실행(허용 규칙) 결과 한 줄(2026-10-14, C2). 새 job일 때 한 번만 보이고 말한다. 첫 조회 때 이미 있던 결과는
+  /// 알리지 않는다. 평소·완료 화면 위에만 그린다 — 실행·동작 중 화면의 정지 버튼·상태를 가리지 않는다.
+  void _trackAutoRun(KioskStatus st) {
+    final run = st.lastAutoRun;
+    if (!_seenAutoInit) {
+      _seenAutoInit = true;
+      _seenAutoJobId = run?.jobId;
+      return;
+    }
+    if (run == null || run.jobId == _seenAutoJobId) return;
+    _seenAutoJobId = run.jobId;
+    final text = autoRunNotice(run);
+    _autoNoticeTimer?.cancel();
+    setState(() => _autoNotice = text);
+    _tts.speak('자동 실행, $text');
+    _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
+      if (mounted) setState(() => _autoNotice = null);
+    });
   }
 
   /// 정지로 끝난 job [jobId]의 정지 확인 단계가 결과보다 늦게 서버에 닿는 경우(평가 2026-10-13 M1) —
@@ -721,6 +809,8 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   void _toHold(KioskStatus st) {
+    // 동작 중 화면으로 가는 실행의 끝은 이미 본 것으로 둔다 — 돌아온 뒤 그 결과를 늦게 띄우지 않는다(발견 3).
+    if (st.lastJobId != null) _seenLastJobId = st.lastJobId;
     _holdReturnTimer?.cancel();
     _holdReturnTimer = null;
     _holdSpokenKey = null;
@@ -1275,9 +1365,20 @@ class _KioskScreenState extends State<KioskScreen> {
                         onCancel: () => setState(() => _estopConfirming = false),
                       )
                     : null,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 250),
-                  child: _buildScreen(),
+                // 자동 실행 결과 한 줄(C2)도 위에 줄을 더할 뿐 덮지 않는다. 평소·완료 화면에서만 —
+                // 실행·동작 중 화면의 정지 버튼과 실행 상태는 그대로 둔다.
+                child: KioskEstopLayout(
+                  banner: _autoNotice != null &&
+                          (_phase == KioskPhase.idle || _phase == KioskPhase.done)
+                      ? KioskAutoRunNotice(
+                          text: _autoNotice!,
+                          onClose: () => setState(() => _autoNotice = null),
+                        )
+                      : null,
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 250),
+                    child: _buildScreen(),
+                  ),
                 ),
               ),
             ),

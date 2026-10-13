@@ -193,6 +193,25 @@ def test_old_event_is_excluded(api):
     assert len(_controls()) == sent
 
 
+def test_status_carries_the_last_auto_run_result_for_the_kiosk(api):
+    """C2(10/14): 키오스크가 자동 실행 결과를 짧게 알리도록 /status에 마지막 자동 실행 결과(대상·설정·값·확인 수준)."""
+    assert api.get("/status").json()["last_auto_run"] is None
+    _after_allow(api)
+    assert api.get("/status").json()["last_auto_run"] is None  # 승인 실행은 자동 실행이 아니다
+    deps.receive_appliance_done(_frame())
+    run = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+    auto = api.get("/status").json()["last_auto_run"]
+    assert auto["job_id"] == run["job_id"]
+    assert (auto["status"], auto["confirmation"], auto["execution_mode"]) == ("succeeded", "state_confirmed", "mock")
+    assert (auto["target_name"], auto["setting_label"], auto["value_label"]) == ("공기청정기(모의)", "풍량", "강")
+    _client().set_fault(MOCK_PURIFIER_ID, "unconfirmed")
+    time.sleep(0.05)  # 사건 키는 RPi4 끝 시각(ms)이다 — 같은 시각이면 같은 사건으로 거른다
+    deps.receive_appliance_done(_frame())
+    _wait_run(api, lambda r: r.get("status") == "unconfirmed")
+    auto = api.get("/status").json()["last_auto_run"]
+    assert auto["status"] == "unconfirmed" and auto["job_id"] != run["job_id"]
+
+
 def test_event_from_before_the_allowance_is_excluded(api):
     sent = _after_allow(api)
     deps.receive_appliance_done(_frame(age_s=60))  # 기한 안이지만 허용하기 전에 끝난 조리

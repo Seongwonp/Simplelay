@@ -18,6 +18,9 @@ class KioskTimings {
   /// 완료 화면 → 대기 화면 자동 복귀
   static const Duration doneReturn = Duration(seconds: 10);
 
+  /// 자동 실행 결과 한 줄을 보이는 시간(2026-10-14) — 읽고 지나갈 만큼만.
+  static const Duration autoRunNotice = Duration(seconds: 12);
+
   /// 서버가 total_steps를 안 줄 때(UART 집계 모드)만 쓰는 폴백 채움 시간
   static const Duration execBarFill = Duration(seconds: 9);
 }

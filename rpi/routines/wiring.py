@@ -127,6 +127,18 @@ def get_auto_rule_engine():
     return engine
 
 
+def last_auto_run_if_any() -> dict | None:
+    """마지막 자동 실행 결과(키오스크 알림용). 규칙 엔진을 만들지 않는다 — 아직 없으면 None."""
+    engine = _auto_engine
+    if engine is None:
+        return None
+    try:
+        return engine.last_result_payload()
+    except Exception:  # noqa: BLE001 -- 상태 조회를 막지 않는다
+        log.exception("last auto run payload failed")
+        return None
+
+
 def halt_auto_rules_if_any() -> None:
     """정지 경로 맨 앞 — 아직 보내지 않은 자동 실행을 막는다(세대만 올림, 입출력 없음)."""
     engine = _auto_engine

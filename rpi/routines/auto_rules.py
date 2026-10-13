@@ -559,10 +559,36 @@ class AutoRuleEngine:
             entry.update({"outcome": "blocked", "reason": blocked})
         else:
             notice = self._result_notice(entry, rule, event)
+        entry.update(self._target_words(rule))
         entry.update({"status": event.status, "receipt": event.receipt.value,
                       "confirmation": event.confirmation.value,
                       "execution_mode": event.execution_mode.value,
                       "notices": [*entry.get("notices", []), notice]})
+
+    def _target_words(self, rule: AutoRule | None) -> dict:
+        """키오스크 알림용 낱말(대상 이름·설정 이름·값 이름). 모르면 None — 지어내지 않는다."""
+        if rule is None:
+            return {"target_name": None, "setting_label": None, "value_label": None}
+        words = {"target_name": self._name(rule.target_appliance_id), "setting_label": None, "value_label": None}
+        try:
+            cap = self._appliance(rule.target_appliance_id).thinq.capability(rule.action)
+            words["setting_label"] = cap.label
+            words["value_label"] = cap.value_label(str(rule.value))
+        except Exception:  # noqa: BLE001 -- 대상이 바뀌었으면 이름만
+            pass
+        return words
+
+    def last_result_payload(self) -> dict | None:
+        """결과가 나온 마지막 자동 실행(키오스크 짧은 알림, 2026-10-14). 없으면 None.
+
+        보낸 실행만(막힌 판단은 job이 없다). 키오스크는 ``job_id``가 바뀔 때 한 번 알린다."""
+        with self._lock:
+            entry = next((e for e in reversed(self._runs) if e.get("job_id") and e.get("status")), None)
+            if entry is None:
+                return None
+            return {key: entry.get(key) for key in (
+                "job_id", "at", "outcome", "status", "receipt", "confirmation", "execution_mode",
+                "target_name", "setting_label", "value_label")}
 
     def _notify(self, entry: dict) -> None:
         if self._care is None:
