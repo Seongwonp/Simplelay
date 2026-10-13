@@ -2,6 +2,9 @@
 
 H-N2: 자동 실행의 시작 게이트(서비스 잠금 안)가 규칙 저장소 잠금을 기다리고, 그 잠금을 다른 스레드의 규칙 저장이
       DB 쓰기 동안 잡고 있으면 ``/stop``이 서비스 잠금을 못 얻어 물리 정지(``request_stop``)가 DB 대기만큼 늦었다.
+M-N3: ``/stop`` 응답이 규칙 끄기의 DB 쓰기를 기다렸다 — 응답과 영속화를 떼고, 재시작 뒤 철회는 세션 표시로 지킨다.
+H-N1: 최종 재판정 반환과 실제 POST 사이의 철회 — 공통 전송권으로 직렬화.
+M-N1: 시각 기준점의 유효 기간·상대 드리프트. M-N2: 허용 전후를 벽시계가 아니라 같은 단조 시계 축에서.
 
 **실제 ThinQ 클라우드·실가전·실제 CT 판정·보드는 쓰지 않는다.** DB 대기는 시험이 저장 함수에 건 문으로 흉내 낸다.
 """
@@ -448,3 +451,88 @@ def test_a_long_held_link_without_a_fresh_reference_holds_until_it_reprobes(monk
         assert len(cloud.controls()) == before + 1
     finally:
         _reset()
+
+
+# ── M-N2: 허용 전후 판단은 같은 단조 시계 축에서 — 벽시계 보정·재시작 ─────────────────────────────────
+
+
+class _ShiftedWallClock:
+    """허브 벽시계만 ``offset_s``만큼 보정된 것처럼(NTP·수동 변경) — 단조 시계는 그대로."""
+
+    def __init__(self, base, offset_s: float) -> None:
+        from datetime import timedelta
+
+        self._base, self._offset = base, timedelta(seconds=offset_s)
+
+    def now(self):
+        return self._base.now() + self._offset
+
+
+@pytest.mark.parametrize(("wall_shift_s", "end_after_allow_s", "sent"), [
+    (+60.0, -30.0, False),  # 허용 뒤 벽시계 +60초 보정, 허용 30초 전에 끝난 가열 → 보내지 않는다(예전: 보냄)
+    (-60.0, +30.0, True),   # 허용 뒤 벽시계 −60초 보정, 허용 30초 뒤에 끝난 가열 → 보낸다(예전: '허용 전'으로 막음)
+])
+def test_allowance_boundary_uses_the_monotonic_axis_not_the_wall_clock(monkeypatch, tmp_path, cloud, hub_clock,
+                                                                       wall_shift_s, end_after_allow_s, sent):
+    from rpi.tests.test_auto_rule_e2e import _wait_run
+
+    try:
+        hub_clock.now = 10_100.0  # 허용하는 순간의 허브 단조 시각
+        api = _setup_allowed(monkeypatch, tmp_path, cloud)
+        before = len(cloud.controls())
+        clock = _engine()._clock  # 허브 벽시계(서비스·규칙 엔진이 함께 쓰는 것)
+        monkeypatch.setattr(clock, "now", _ShiftedWallClock(type(clock)(), wall_shift_s).now)
+        end_hub = 10_100.0 + end_after_allow_s
+        hub_clock.now = end_hub + 5
+        _deliver(_rpi4_frame(500 + (end_hub - 10_000)))
+        if sent:
+            run = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+            assert run["status"] == "succeeded"
+            assert len(cloud.controls()) == before + 1
+        else:
+            run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+            assert "허용하기 전" in run["reason"]
+            time.sleep(0.3)
+            assert len(cloud.controls()) == before
+    finally:
+        _reset()
+
+
+def test_after_a_restart_events_that_ended_before_the_restart_are_held(monkeypatch, tmp_path, cloud, hub_clock):
+    """M-N2 재시작: 저장된 허용은 재시작 뒤 '이 프로세스가 시작한 뒤에 끝난 가열'에만 쓴다 — 재시작 전에 끝난 가열이 늦게
+    도착하면 보류하고(벽시계로 허용 전후를 단정하지 않음), 재시작 뒤에 끝난 가열은 보낸다."""
+    from rpi.api import deps
+    from rpi.services.event_clock import reset_event_clock
+    from rpi.tests.test_auto_rule_e2e import _wait_run
+
+    _db_env(monkeypatch, tmp_path, cloud)
+    from rpi.main import app
+
+    try:
+        api = TestClient(app)
+        _allow(api)
+        _reset()  # 같은 DB로 다시 연다(세션 표시가 이 프로세스 것이라 규칙은 켜진 채)
+        deps.get_db.cache_clear()
+        hub_clock.now = 10_500.0  # 다시 시작한 허브 — 시계도 새로, RPi4와 새 기준점
+        events = reset_event_clock(lambda: hub_clock.now)
+        probe = events.new_probe()
+        assert events.on_clock_ref({"probe": probe, "clock_id": RPI4_CLOCK, "t_monotonic_ns": 1000 * 10**9})
+        api = TestClient(app)
+        assert api.get("/routines/auto-rules").json()[0]["enabled"] is True
+        _set_low(api)
+        before = len(cloud.controls())
+        hub_clock.now = 10_505.0
+        _deliver(_rpi4_frame(1000 - 10))  # 허브 10,490초(재시작 전)에 끝난 가열
+        run = _wait_run(api, lambda r: r["outcome"] == "blocked")
+        assert "다시 시작되기 전" in run["reason"]
+        time.sleep(0.3)
+        assert len(cloud.controls()) == before
+        hub_clock.now = 10_512.0
+        _deliver(_rpi4_frame(1000 + 10))  # 재시작 뒤(10,510초)에 끝난 가열
+        _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
+        assert len(cloud.controls()) == before + 1
+    finally:
+        _reset()
+        from rpi.api import deps as _deps
+
+        _deps.get_db.cache_clear()

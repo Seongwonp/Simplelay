@@ -94,6 +94,8 @@ class EventClock:
             DRIFT_PPM_ENV, DEFAULT_DRIFT_PPM, allow_zero=True)) * 1e-6
         self._max_uncertainty_s = max_uncertainty_s if max_uncertainty_s is not None else _env_float(
             MAX_UNCERTAINTY_ENV, DEFAULT_MAX_UNCERTAINTY_S, allow_zero=True)
+        #: 이 시계(이 프로세스)를 만든 순간의 단조 시각 — 재시작 전에 끝난 사건을 가르는 경계(4차 평가 M-N2).
+        self.started_s = monotonic()
         self._lock = threading.Lock()
         self._probes: OrderedDict[str, float] = OrderedDict()
         #: (RPi4 clock_id, RPi4 기준 시각 초, RPi5 기준 시각 초) — 지금 링크 세션의 기준점.

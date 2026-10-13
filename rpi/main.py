@@ -137,6 +137,9 @@ async def lifespan(app: FastAPI):
     # RPi5-RPi4 프레임 세션 기록 켜짐/꺼짐과 경로를 기동 로그에 남긴다(SIMPLELAY_SESSION_LOG_PATH)
     from rpi.services.link_tap import get_link_tap
     get_link_tap()
+    # 사건 신선도 시계를 기동 때 만든다 — 그 순간이 '재시작 전에 끝난 가열'을 가르는 경계다(4차 평가 M-N2).
+    from rpi.services.event_clock import get_event_clock
+    get_event_clock()
     # 블로킹 서브프로세스 호출이라 이벤트 루프를 막지 않게 스레드로 넘긴다
     await asyncio.to_thread(_seed_vectordb_if_enabled)
     refresh_task = asyncio.create_task(_suggestion_refresh_loop())

@@ -16,6 +16,8 @@
    프레임을 낸 뒤 링크에서 늦어진 시간까지 센다. 다른 장치의 monotonic을 그대로 비교하지 않는다). 옮길 근거가 없거나
    (옛 RPi4·연결 세션 바뀜) 사건이 오래됐거나(``SIMPLELAY_AUTO_RULE_MAX_EVENT_AGE_S``, 기본 120초, 측정 필요) 허용하기
    전에 끝난 가열이면 보내지 않는다(보류가 기본). 전송 직전에도 나이를 다시 본다(전송 대기 중 만료).
+   허용 전후도 같은 허브 단조 시계 축에서 가른다(4차 평가 M-N2) — 재시작 뒤 불러온 허용은 이 프로세스가 시작한 뒤에 끝난
+   가열에만 쓴다.
    결과가 미확인이어도 **다시 보내지 않는다**(재시도 코드 없음).
 4. **허용은 지문에 묶인다**(조건 가전·이벤트·대상 가전·대상 기기 키·종류·동작·속성·값). 값을 바꾸면 꺼지고 다시
    허용해야 한다. 대상 기기가 없어지거나 다른 기기로 바뀌면 그 자리에서 무효(꺼짐 + 이유)가 된다.
@@ -82,6 +84,9 @@ STOP_RACE_REASON = ("허용을 저장하는 사이 전체 정지가 들어와 �
 #: 닿기 전에 끝났을 수 있어 켜진 규칙을 믿지 않는다.
 UNCLEAN_RESTART_REASON = ("허브가 정상 종료되지 않아(전원 끊김·강제 종료 등) 자동 실행을 멈췄어요 — "
                           "다시 켜려면 조건·동작을 확인하고 허용해 주세요")
+#: 재시작 뒤 불러온 허용인데 사건이 이 프로세스가 시작하기 전에 끝났다(4차 평가 M-N2) — 허용 전후를 단정하지 않는다.
+RESTART_BOUNDARY_REASON = ("허브가 다시 시작되기 전에 끝난 가열이라 허용 뒤의 사건인지 확인할 수 없어 "
+                           "자동 실행하지 않았어요")
 #: 철회가 이미 전송을 시작한 자동 실행과 겹쳤다(4차 평가 H-N1) — 그 명령은 되돌리지 않는다.
 IN_FLIGHT_NOTICE = ("자동 실행 명령을 이미 보내기 시작했어요 — 그 명령은 취소되지 않아요(공기청정기를 되돌리거나 끄지 않아요). "
                     "다음부터는 보내지 않아요")
@@ -405,7 +410,8 @@ class AutoRuleEngine:
     def __init__(self, store: AutoRuleStore, seen: SeenEvents, service, clock, *,
                  scenarios: Callable[[], object] | None = None, care_events=None,
                  max_event_age_s: float = DEFAULT_MAX_EVENT_AGE_S,
-                 monotonic: Callable[[], float] | None = None) -> None:
+                 monotonic: Callable[[], float] | None = None,
+                 started: Callable[[], float] | None = None) -> None:
         self.store = store
         #: 이 허브의 단조 시계 — 사건 끝 시각을 옮긴 시계와 같아야 한다(기본: rpi/services/event_clock.py).
         self._monotonic = monotonic or _hub_monotonic
@@ -423,6 +429,10 @@ class AutoRuleEngine:
         #: 정지(세대 올림)가 규칙 끄기 저장보다 먼저 끝나거나, 정지 전에 시작한 허용 요청이 정지 뒤에 저장해도 켜지지 않는다.
         #: 재시작 직후 불러온 규칙은 세대 0(아직 정지 없음)으로 본다.
         self._allowed_generation: dict[str, int] = {}
+        #: 이 프로세스에서 규칙을 허용한 허브 단조 시각(4차 평가 M-N2, 메모리). 없으면 재시작 뒤 불러온 허용이다.
+        self._allowed_mono: dict[str, float] = {}
+        #: 이 프로세스가 시작한 허브 단조 시각 — 사건 끝 시각을 옮긴 시계와 같은 축.
+        self._started = started or (_hub_started if monotonic is None else (lambda value=self._monotonic(): value))
         self._runs: deque[dict] = deque(maxlen=50)
         #: 기록보다 먼저 끝난 자동 실행의 결과(job_id → 완료 이벤트).
         self._early_results: dict[str, object] = {}
@@ -524,6 +534,15 @@ class AutoRuleEngine:
         with self._gen_lock:
             return self._allowed_generation.get(rule.rule_id, 0) == self._generation
 
+    def _allowed_boundary(self, rule: AutoRule) -> tuple[float, bool]:
+        """허용 전후를 가르는 허브 단조 시각과 '재시작 뒤 불러온 허용인가'(4차 평가 M-N2). 이 프로세스에서 허용했으면 그
+        순간, 아니면(DB에서 불러옴) 이 프로세스가 시작한 순간 — 재시작 전에 끝난 가열은 허용 전후를 단정하지 않고 보류."""
+        with self._gen_lock:
+            allowed = self._allowed_mono.get(rule.rule_id)
+        if allowed is not None:
+            return allowed, False
+        return self._started(), True
+
     def usable(self, rule: AutoRule) -> bool:
         """저장된 허용(켜짐·지문 일치)이고 그 뒤로 정지가 없었다."""
         return rule.allowed and self._generation_ok(rule)
@@ -535,10 +554,12 @@ class AutoRuleEngine:
         세대를 **요청 시작 세대**로 적어 두므로, 저장 도중 정지가 들어와도 저장된 '켜짐'은 쓰이지 않고, 저장 뒤 다시 대조해
         꺼진 상태로 되돌린다."""
         generation = self.generation() if start_generation is None else start_generation
+        allowed_mono = self._monotonic()
         with self._gen_lock:
             if self._generation != generation:
                 raise AutoRuleError(409, STOP_RACE_REASON)
             self._allowed_generation[rule.rule_id] = generation
+            self._allowed_mono[rule.rule_id] = allowed_mono
         self.store.save(rule)
         if self.generation() != generation:
             self.store.save(replace(rule, enabled=False, updated_at=self._clock.now().isoformat(),
@@ -615,10 +636,13 @@ class AutoRuleEngine:
         if age > self._max_age:
             return self._record(rule, record, key, "blocked",
                                 f"오래된 가열 종료({age:.0f}초 전)라 자동 실행하지 않았어요")
-        allowed_at = _parse_time(rule.allowed_at)
-        if allowed_at is None or received_at - timedelta(seconds=max(age, 0.0)) < allowed_at:
+        # 4차 평가 M-N2: 허용 전후는 같은 허브 단조 시계 축에서만 가른다(벽시계 보정·NTP에 흔들리지 않게). 이 프로세스에서
+        # 허용했으면 그 순간, 재시작 뒤 불러온 허용이면 이 프로세스가 시작한 순간이 경계 — 그 전에 끝난 가열은 보류한다.
+        boundary, restarted = self._allowed_boundary(rule)
+        if float(record["event_end_mono_s"]) < boundary:
             return self._record(rule, record, key, "blocked",
-                                "허용하기 전에 끝난 가열이라 자동 실행하지 않았어요")
+                                RESTART_BOUNDARY_REASON if restarted
+                                else "허용하기 전에 끝난 가열이라 자동 실행하지 않았어요")
         # ④ 허용 지문·대상 기기.
         invalid = self._invalid_reason(rule)
         if invalid is not None:
@@ -1048,6 +1072,12 @@ def _hub_monotonic() -> float:
     from rpi.services.event_clock import get_event_clock  # noqa: PLC0415
 
     return get_event_clock().monotonic()
+
+
+def _hub_started() -> float:
+    from rpi.services.event_clock import get_event_clock  # noqa: PLC0415
+
+    return get_event_clock().started_s
 
 
 def _parse_time(value: str | None) -> datetime | None:

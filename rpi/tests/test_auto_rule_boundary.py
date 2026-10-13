@@ -371,10 +371,12 @@ def test_frame_delayed_after_sending_is_judged_by_its_age_on_arrival(monkeypatch
 def test_event_from_before_the_allowance_delivered_late_is_not_run(monkeypatch, tmp_path, cloud, hub_clock):
     """M1: 허용하기 60초 전에 끝난 가열의 프레임이 허용 뒤에 처음 도착 — 120초 안이어도 '허용 전 사건'으로 막는다."""
     try:
+        # 4차 평가 M-N2: 허용 전후는 허브 단조 시계 축에서 가른다 — 허용하는 순간도 그 시계로 정한다(허브 10,160초).
+        hub_clock.now = 10_100 + 60
         api = _setup_allowed(monkeypatch, tmp_path, cloud)  # 방금 허용
         before = len(cloud.controls())
         frame = _rpi4_frame(500 + 100)  # 허브 10,100초에 끝
-        hub_clock.now = 10_100 + 60  # 60초 뒤에 도착 — 허용(방금)보다 앞선 가열
+        hub_clock.now = 10_100 + 60  # 허용과 같은 때 처음 도착 — 허용보다 60초 앞선 가열
         _deliver(frame)
         run = _wait_run(api, lambda r: r["outcome"] == "blocked")
         assert "허용하기 전" in run["reason"]
