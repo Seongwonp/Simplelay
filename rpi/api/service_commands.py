@@ -299,9 +299,10 @@ class CommandExecutionMixin:
                         dispatch_guard=None) -> str:
         """승인한 명령(들)을 **그대로** 제출한다. 모든 단계를 먼저 재검사한다.
 
-        ``dispatch_guard``(선택, 2026-10-14): ThinQ 단계를 클라우드로 **보내기 직전**에 다시 부른다. 예외를 올리면
-        그 단계는 보내지 않고(``not_dispatched``) 예외 문장을 결과에 남긴다 — 시작 게이트와 실제 전송 사이에
-        자동 실행 규칙이 꺼지거나 바뀐 경우(자동 실행 허용 규칙)."""
+        ``dispatch_guard``(선택, 2026-10-14): ThinQ 단계를 실행기에 넘기기 전에 한 번, 그리고 실행기가 프로필·상태
+        조회를 마친 뒤 클라우드로 **보내기 직전**에 대상 바인딩과 함께 다시 부른다(3차 평가 H1). 예외를 올리면 그 단계는
+        보내지 않고(``not_dispatched``) 예외 문장을 결과에 남긴다 — 시작 게이트와 실제 전송 사이에 자동 실행 규칙이
+        꺼지거나 바뀌거나 지워진 경우(자동 실행 허용 규칙). 인자 없이 부를 수도, 바인딩 하나로 부를 수도 있어야 한다."""
         steps = [self._prepare(a.command, a) for a in approved]
         return self._start_plan(steps, purpose, usage_source, approval_guard, scenario_id, background=True,
                                 dispatch_guard=dispatch_guard)
@@ -421,6 +422,10 @@ class CommandExecutionMixin:
                     confirmation=Confirmation.NONE, execution_mode=_mode(self._thinq),
                     detail=blocked, observed_at=self._clock.now(),
                 )
+            elif dispatch_guard is not None and getattr(self._thinq, "supports_dispatch_guard", False):
+                # 3차 평가 H1: 위 확인은 실행기의 프로필·상태 조회(네트워크)보다 앞이다 -- 같은 확인을 조회를 마친 뒤
+                # 전송 직전에 실행기가 한 번 더 부른다(대상 바인딩과 함께).
+                result = self._thinq.execute_command(command, dispatch_guard=dispatch_guard)
             else:
                 result = self._thinq.execute_command(command)
         except Exception:  # noqa: BLE001 -- 실행기 예외는 '받았는지 모름'이다

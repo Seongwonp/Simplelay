@@ -500,10 +500,16 @@ class AutoRuleEngine:
             if current.fingerprint() != decided:
                 raise AutoRuleBlocked("자동 실행 설정이 바뀌어 이전 내용을 보내지 않았어요")
 
-        def dispatch_guard() -> None:
-            # 보내기 직전(실행 스레드) 재검사 — 시작 게이트 뒤에 꺼지거나 바뀌었으면 보내지 않는다.
+        def dispatch_guard(binding=None) -> None:
+            # 보내기 직전(실행 스레드) 재검사 — 시작 게이트 뒤에 꺼지거나 바뀌었으면 보내지 않는다. 실행기는 프로필·상태
+            # 조회를 마친 뒤 이번에 보낼 대상 바인딩을 넘겨 한 번 더 부른다(3차 평가 H1): 그 대상이 판단 때 결속한 기기
+            # (기기 키·종류)와 다르면 보내지 않는다. 메모리 판정만(입출력 없음).
             try:
                 guard()
+                if binding is not None and (
+                        getattr(binding, "device_type", None) != rule.target_device_type
+                        or _device_key(getattr(binding, "device_id", "")) != rule.target_device_key):
+                    raise AutoRuleBlocked("대상 공기청정기가 판단 때와 달라 보내지 않았어요")
             except AutoRuleBlocked as exc:
                 with self._lock:
                     self._dispatch_blocked[block_key] = str(exc)
