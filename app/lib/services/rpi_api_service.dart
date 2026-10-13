@@ -55,7 +55,11 @@ class RpiJobAccepted {
 /// POST /stop 응답의 정지 확인 단계(2026-10-13). 옛 서버·보고 수단이 없으면 [stopLevel]이 null.
 class StopOutcome {
   const StopOutcome(
-      {this.stopLevel, this.ackMs, this.confirmed = false, this.jobId});
+      {this.stopLevel,
+      this.ackMs,
+      this.confirmed = false,
+      this.jobId,
+      this.reportsJobId = false});
 
   factory StopOutcome.fromJson(Map<String, dynamic> json) {
     final level = json['stop_level'];
@@ -64,11 +68,21 @@ class StopOutcome {
       ackMs: (json['stop_ack_ms'] as num?)?.toInt(),
       confirmed: json['stop_confirmed'] == true,
       jobId: json['stop_job_id'] is String ? json['stop_job_id'] as String : null,
+      reportsJobId: json.containsKey('stop_job_id'),
     );
   }
 
   /// 이 정지가 멈춘 실행의 job_id(평가 2026-10-13 H1). 옛 서버·실행 중이 아니었으면 null.
   final String? jobId;
+
+  /// 응답에 `stop_job_id` 필드가 있었는지(2차 평가 M-N1). 거짓이면 이 필드를 모르는 옛 서버다 —
+  /// 새 서버의 명시적 null(실행 중이 아니던 정지)과 구별한다.
+  final bool reportsJobId;
+
+  /// 이 정지 단계를 [jobId] 실행의 것으로 볼 수 있는지. 새 서버는 같은 job을 멈췄다고 밝힐 때만,
+  /// 필드가 없는 옛 서버만 종전처럼(호환 — 출처를 증명하지는 못한다).
+  bool belongsTo(String? jobId) =>
+      !reportsJobId || (this.jobId != null && this.jobId == jobId);
 
   /// sent | mcu_ack | verified | null
   final String? stopLevel;

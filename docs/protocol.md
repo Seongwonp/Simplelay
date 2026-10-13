@@ -249,7 +249,10 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
   `stop_level`·`stop_ack_ms`·`stop_target`·`stop_confirmed`·`stop_detail`·`stop_job_id`, `GET /status`에 `last_stop_level`·
   `last_stop_ack_ms`·`last_stop_job_id`(새 실행이 시작되면 null). `stop_job_id`·`last_stop_job_id`는 그 정지가 멈춘 실행(요청 때
   실행 중이었을 때만, 아니면 null)이다 — 보고를 기다리는 사이 새 실행이 시작되면 RPi5는 그 보고를 `/status`에 남기지 않고,
-  폰·키오스크는 자기 job과 같을 때만 단계를 쓴다(외부 평가 2026-10-13 H1). `POST /dev/stop`·세션 끝(`/dev/sessions/{id}/end`)은 `stop_level`·
+  폰·키오스크는 자기 job과 같을 때만 단계를 쓴다(외부 평가 2026-10-13 H1). 두 필드는 새 서버면 **늘 있고**(실행 중이
+  아니었으면 명시적 null) — 폰(`/stop`·`/status`)·키오스크(`/status`)는 필드가 있으면 값이 자기 job과 같을 때만 싣고, null·다른
+  job은 버린다. 필드 자체가 없는 응답(옛 서버)에만 종전처럼 싣는 호환을 둔다 — 이때는 단계의 출처가 그 job인지 증명하지 못한다
+  (2차 평가 M-N1). 키오스크는 `/stop` 응답을 읽지 않는다(`/status`만). `POST /dev/stop`·세션 끝(`/dev/sessions/{id}/end`)은 `stop_level`·
   `stop_ack_ms`를 싣고, 실물이면 `confirmed`를 단계로 정한다(`sent`면 false지만 잠그지 않는다 — 잠금은 RPi4에 닿지
   못했을 때). 모의 개발자 어댑터는 단계 없이 종전처럼 `confirmed:true`.
 

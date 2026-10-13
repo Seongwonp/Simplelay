@@ -160,6 +160,78 @@ void main() {
     });
   });
 
+  // 2차 평가 M-N1: 새 서버는 실행 중이 아니던 정지에 stop_job_id를 **명시적 null**로 보낸다(개발자 조작·대기 구동부의
+  // 단계가 실릴 수 있다). 필드가 아예 없는 옛 서버만 호환으로 받고, 새 서버는 같은 job일 때만 싣는다.
+  group('M-N1 — /stop 응답의 stop_job_id: 없음·null·다른 job·같은 job', () {
+    const cases = <(String, bool, String?, bool)>[
+      ('필드 없음(옛 서버) → 호환으로 싣는다', false, null, true),
+      ('명시적 null(새 서버, 실행 중 아님) → 싣지 않는다', true, null, false),
+      ('다른 job → 싣지 않는다', true, 'JX', false),
+      ('같은 job → 싣는다', true, 'J1', true),
+    ];
+    for (final (name, present, stopJob, applied) in cases) {
+      test('실행 중 화면: $name', () async {
+        final c = container();
+        final notifier = c.read(executionStatusProvider.notifier);
+        notifier.beginHttpJob(
+          api: _api(
+              status: () => _running('J1'),
+              stop: () async => {
+                    'ok': true,
+                    'stop_level': 'verified',
+                    'stop_ack_ms': 7,
+                    'stop_confirmed': true,
+                    if (present) 'stop_job_id': stopJob,
+                  }),
+          jobId: 'J1',
+          label: '아침 데우기',
+        );
+        expect(await notifier.emergencyStop(), isTrue);
+        final message = c.read(executionStatusProvider).message;
+        if (applied) {
+          expect(message, contains('멈춘 것을 확인했어요 (모션 보드 응답 7 ms)'));
+        } else {
+          expect(message, '정지 요청을 보냈어요.');
+        }
+      });
+
+      test('결과(stopped)가 먼저 온 뒤 늦은 /stop 응답: $name', () async {
+        final c = container();
+        final notifier = c.read(executionStatusProvider.notifier);
+        final stopGate = Completer<Map<String, dynamic>>();
+        var status = _running('J1');
+        notifier.beginHttpJob(
+            api: _api(status: () => status, stop: () => stopGate.future),
+            jobId: 'J1',
+            label: '아침 데우기');
+        final stopFuture = notifier.emergencyStop();
+        status = _stopped('J1', newServer: present);
+        await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
+        stopGate.complete({
+          'ok': true,
+          'stop_level': 'verified',
+          'stop_ack_ms': 7,
+          'stop_confirmed': true,
+          if (present) 'stop_job_id': stopJob,
+        });
+        await stopFuture;
+        final message = c.read(executionStatusProvider).message;
+        if (applied) {
+          expect(message, '실행을 멈췄어요. 멈춘 것을 확인했어요 (모션 보드 응답 7 ms).');
+        } else {
+          expect(message, '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+        }
+      });
+    }
+
+    test('파서: 필드 존재 여부를 보존한다', () {
+      expect(StopOutcome.fromJson({'stop_level': 'sent'}).reportsJobId, isFalse);
+      expect(StopOutcome.fromJson({'stop_job_id': null}).reportsJobId, isTrue);
+      expect(StopOutcome.fromJson({'stop_job_id': 'J1'}).jobId, 'J1');
+      expect(const StopOutcome().reportsJobId, isFalse);
+    });
+  });
+
   group('M1 — 결과가 먼저, 정지 단계가 나중', () {
     test('내 정지: 결과(stopped)가 먼저 오고 정지 응답이 늦게 와도 같은 job이면 결과 문장을 고친다(음성 재낭독 없음)',
         () async {

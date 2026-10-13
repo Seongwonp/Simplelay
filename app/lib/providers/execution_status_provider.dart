@@ -449,8 +449,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       try {
         final outcome = await api.stop();
         if (!mounted || state.sequenceId != sequenceId) return true;
-        // 서버가 다른 실행을 멈췄다고 하면 그 단계는 이 화면의 것이 아니다.
-        final mine = outcome.jobId == null || outcome.jobId == jobId;
+        // 서버가 다른 실행을 멈췄다고 하거나(다른 job) 실행 중이 아니었다고 하면(명시적 null) 그 단계는
+        // 이 화면의 것이 아니다. 필드가 없는 옛 서버만 종전처럼 싣는다(2차 평가 M-N1).
+        final mine = outcome.belongsTo(jobId);
         if (_finished) {
           // 결과가 먼저 왔다(M1) — 결과 문장을 덮지 않고, 같은 job의 정지 결과면 단계만 싣는다.
           if (mine) _applyLateStopLevel(outcome.stopLevel, outcome.ackMs);
