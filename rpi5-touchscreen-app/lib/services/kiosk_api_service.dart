@@ -288,6 +288,8 @@ class KioskStatus {
     this.estopDetail,
     this.lastStopLevel,
     this.lastStopAckMs,
+    this.lastStopJobId,
+    this.reportsStopJobId = false,
   });
 
   final bool running;
@@ -295,6 +297,16 @@ class KioskStatus {
   /// 마지막 긴급 정지의 확인 단계(2026-10-13): sent | mcu_ack | verified. 옛 서버·보고 없음은 null.
   final String? lastStopLevel;
   final int? lastStopAckMs;
+
+  /// 그 정지가 멈춘 실행의 job_id(평가 2026-10-13 H1·M1). [reportsStopJobId]가 거짓이면 이 필드를 모르는 옛 서버다.
+  final String? lastStopJobId;
+  final bool reportsStopJobId;
+
+  /// [jobId] 실행의 정지 단계만. 서버가 정지의 실행을 밝히면 같은 job일 때만, 옛 서버면 종전처럼.
+  String? stopLevelOf(String jobId) =>
+      !reportsStopJobId || lastStopJobId == jobId ? lastStopLevel : null;
+  int? stopAckMsOf(String jobId) =>
+      stopLevelOf(jobId) == null ? null : lastStopAckMs;
 
   /// 콘센트 모듈 비상정지 걸림(2026-10-05). 옛 서버·보고 수단 없는 실행기(null)는
   /// 걸리지 않은 것으로 본다 — 실행 거절은 어차피 서버가 한다.
@@ -411,6 +423,8 @@ class KioskStatus {
             : null,
         lastStopLevel: json['last_stop_level'] as String?,
         lastStopAckMs: (json['last_stop_ack_ms'] as num?)?.toInt(),
+        lastStopJobId: json['last_stop_job_id'] as String?,
+        reportsStopJobId: json.containsKey('last_stop_job_id'),
       );
 }
 

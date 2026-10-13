@@ -97,8 +97,12 @@ class FakeKioskApi implements KioskApiService {
   @override
   Future<List<KioskSuggestion>> suggestions() async => suggestionList;
 
+  int statusCalls = 0;
   @override
-  Future<KioskStatus> status() async => statusResult;
+  Future<KioskStatus> status() async {
+    statusCalls++;
+    return statusResult;
+  }
 
   @override
   Future<KioskJobAccepted> executeButtons(
@@ -1433,6 +1437,98 @@ void main() {
     );
     expect(done.reason, KioskFailureReason.safetyStop);
     expect(find.text('안전하게 멈췄어요'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  // 외부 평가 2026-10-13 M1 — 실행 결과(stopped)가 먼저 오고 정지 확인 단계가 늦게 오는 순서.
+  testWidgets('다른 단말에서 멈춘 실행: 정지 단계가 늦게 오면 짧은 후속 조회로 완료 화면 정지 줄을 고친다',
+      (tester) async {
+    useKioskViewport(tester);
+    final tts = FakeTts();
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api, tts: tts);
+    final done = await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'safety_stopped',
+          lastOutcome: 'stopped'),
+    );
+    expect(done.reason, KioskFailureReason.stopped);
+    expect(done.stopLevel, isNull);
+    final spoken = tts.utterances.length;
+    // RPi4의 정지 보고가 이제야 서버에 닿았다(같은 job).
+    api.statusResult = const KioskStatus(
+        running: false,
+        lastJobId: 'job-1',
+        lastStatus: 'safety_stopped',
+        lastOutcome: 'stopped',
+        lastStopLevel: 'verified',
+        lastStopAckMs: 9,
+        lastStopJobId: 'job-1',
+        reportsStopJobId: true);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    await tester.pump();
+    expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).stopLevel,
+        'verified');
+    expect(find.text('멈춘 것을 확인했어요 (9 ms)'), findsOneWidget);
+    expect(tts.utterances.length, spoken); // 음성은 다시 말하지 않는다
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('옛 RPi4(정지 보고 없음): 후속 조회는 몇 번에서 멈추고 단계를 지어내지 않는다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'safety_stopped',
+          lastOutcome: 'stopped'),
+    );
+    final before = api.statusCalls;
+    for (var i = 0; i < 10; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(api.statusCalls - before, lessThanOrEqualTo(3));
+    expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).stopLevel,
+        isNull);
+    expect(find.text('실행을 멈췄어요'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('다른 실행의 정지 단계(last_stop_job_id 불일치)는 이 완료 화면에 싣지 않는다',
+      (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    final done = await finishWith(
+      tester,
+      api,
+      const KioskStatus(
+          running: false,
+          lastJobId: 'job-1',
+          lastStatus: 'safety_stopped',
+          lastOutcome: 'stopped',
+          lastStopLevel: 'verified',
+          lastStopAckMs: 4,
+          lastStopJobId: 'job-0',
+          reportsStopJobId: true),
+    );
+    expect(done.stopLevel, isNull);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).stopLevel,
+        isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

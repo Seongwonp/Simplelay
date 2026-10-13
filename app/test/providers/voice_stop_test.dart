@@ -449,6 +449,9 @@ void main() {
     await _settle(tester);
     expect(r.container.read(executionStatusProvider).phase,
         isNot(ExecutionPhase.running));
+    // 정지 단계 없이 멈춘 결과면 짧은 후속 조회(최대 3회, 평가 M1)가 돈다 — 끝날 때까지 흘려보낸다.
+    await _settle(tester);
+    await _settle(tester);
   });
 
   testWidgets('키오스크·루틴이 시작한 실행(서버 running)도 듣고, "멈춰"는 POST /stop',

@@ -159,6 +159,11 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 정지로 멈춘 실행의 확인 단계(2026-10-13, /status last_stop_level).
   String? _doneStopLevel;
   int? _doneStopAckMs;
+
+  /// 결과가 먼저 오고 정지 보고가 늦게 올 때의 짧은 후속 조회(평가 2026-10-13 M1). 화면 문구만 고친다.
+  Timer? _stopFollowTimer;
+  static const _stopFollowInterval = Duration(seconds: 1);
+  static const _stopFollowTries = 3;
   String? _doneOperationDetail;
   // 끝난 다단계 실행의 단계별 결과(G4). **이 job의 기록일 때만** 채운다.
   List<ScenarioRunStep> _doneRunSteps = const [];
@@ -284,6 +289,7 @@ class _KioskScreenState extends State<KioskScreen> {
   @override
   void dispose() {
     _holdReturnTimer?.cancel();
+    _stopFollowTimer?.cancel();
     _countdownTimer?.cancel();
     _pollTimer?.cancel();
     _healthTimer?.cancel();
@@ -591,8 +597,9 @@ class _KioskScreenState extends State<KioskScreen> {
         _doneDetail = st.lastDetail;
         _doneOperationConfirmed = st.lastOperationConfirmed;
         _doneOperationSource = st.lastOperationSource;
-        _doneStopLevel = st.lastStopLevel;
-        _doneStopAckMs = st.lastStopAckMs;
+        // 이 job의 정지 단계만(평가 H1). 아직 없으면 아래에서 짧게 다시 묻는다(M1).
+        _doneStopLevel = st.stopLevelOf(jobId);
+        _doneStopAckMs = st.stopAckMsOf(jobId);
         _doneOperationDetail = st.lastOperationDetail;
         _finishExecuting(
           success: kind == ResultKind.success,
@@ -601,6 +608,9 @@ class _KioskScreenState extends State<KioskScreen> {
               route: st.lastRoute, receipt: st.lastReceipt),
         );
         _loadRunSteps(jobId);
+        if (kind == ResultKind.stopped && _doneStopLevel == null) {
+          _followStopReport(jobId);
+        }
         return;
       }
 
@@ -652,6 +662,47 @@ class _KioskScreenState extends State<KioskScreen> {
             reason: KioskFailureReason.serverLost);
       }
     }
+  }
+
+  /// 정지로 끝난 job [jobId]의 정지 확인 단계가 결과보다 늦게 서버에 닿는 경우(평가 2026-10-13 M1) —
+  /// 짧은 횟수만 /status를 다시 물어 완료 화면의 정지 줄만 고친다. 음성은 다시 말하지 않는다.
+  /// 다른 단말이 멈춘 실행도 이 경로로 단계가 보인다. 옛 RPi4(보고 없음)는 몇 번 뒤 그만둔다.
+  /// 새 실행이 시작되면(_activeJobId가 바뀌면) 바로 그만둔다. 정지 전송과는 무관하다(이미 나갔다).
+  void _followStopReport(String jobId) {
+    _stopFollowTimer?.cancel();
+    var tries = 0;
+    var inFlight = false;
+    _stopFollowTimer = Timer.periodic(_stopFollowInterval, (timer) async {
+      if (inFlight) return;
+      if (!mounted || _activeJobId != jobId ||
+          (_phase != KioskPhase.executing && _phase != KioskPhase.done) ||
+          tries >= _stopFollowTries) {
+        timer.cancel();
+        return;
+      }
+      tries++;
+      inFlight = true;
+      try {
+        final st = await _api.status();
+        if (!mounted || _activeJobId != jobId || !timer.isActive) return;
+        if (st.lastJobId != jobId) {
+          timer.cancel(); // 그사이 다른 실행이 끝났다 — 이 job의 단계가 아니다
+          return;
+        }
+        final level = st.stopLevelOf(jobId);
+        if (level != null) {
+          timer.cancel();
+          setState(() {
+            _doneStopLevel = level;
+            _doneStopAckMs = st.stopAckMsOf(jobId);
+          });
+        }
+      } catch (_) {
+        // 통신 실패 — 남은 횟수 안에서 다시 묻는다.
+      } finally {
+        inFlight = false;
+      }
+    });
   }
 
   /// 끝난 job [jobId]의 단계별 결과를 받아 둔다(G4). last-run이 다른 job의
@@ -954,6 +1005,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneOperationSource = null;
     _doneStopLevel = null;
     _doneStopAckMs = null;
+    _stopFollowTimer?.cancel();
     _doneOperationDetail = null;
     _doneRunSteps = const [];
     _activeJobId = jobId;

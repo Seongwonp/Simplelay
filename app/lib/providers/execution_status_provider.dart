@@ -40,12 +40,19 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   int _missingPolls = 0;
 
   static const _pollInterval = Duration(seconds: 1);
+
+  // 결과가 먼저 오고 정지 확인 단계가 늦게 오는 경우의 짧은 후속 조회(평가 2026-10-13 M1).
+  // 화면 문장만 고치고 음성은 다시 말하지 않는다. 정지 전송과는 무관하다(이미 나갔다).
+  Timer? _stopFollowTimer;
+  static const _stopFollowInterval = Duration(seconds: 1);
+  static const _stopFollowTries = 3;
   // 이 시간 동안 /status가 한 번도 응답하지 않으면 서버 유실로 판정하고
   // "실행 중" 화면에 영원히 갇히는 대신 실패로 탈출한다.
   static const _unreachableAfter = Duration(seconds: 30);
 
   void begin(Suggestion suggestion) {
     _stopHttpTracking();
+    _stopFollowTimer?.cancel();
     state = ExecutionStatus(
       sequenceId: suggestion.sequenceId,
       // 승인 뒤의 이름 — 질문 문장(purpose)이 아니다(Suggestion.doneLabel).
@@ -75,6 +82,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     List<String> steps = const [],
   }) {
     _stopHttpTracking();
+    _stopFollowTimer?.cancel();
     _httpApi = api;
     _httpJobId = jobId;
     _lastPollSuccess = DateTime.now();
@@ -213,6 +221,9 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         );
         _announce(message);
         _stopHttpTracking();
+        if (kind == ResultKind.stopped && status.stopLevelOf(jobId) == null) {
+          _followStopReport(api, jobId);
+        }
         return;
       }
 
@@ -270,6 +281,63 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       _pollInFlight = false;
     }
   }
+
+  /// 정지로 끝난 [jobId]의 정지 확인 단계가 결과보다 늦게 서버에 닿을 때(M1) — 짧은 횟수만 /status를
+  /// 다시 물어, 같은 job의 단계가 오면 결과 문장만 고친다. 다른 단말이 멈춘 실행도 이 경로로 보인다.
+  /// 옛 RPi4(보고 없음)·로컬 모의는 몇 번 뒤 그만두고 종전 문장을 둔다. 새 실행이 시작되면 그만둔다.
+  void _followStopReport(RpiApiService api, String jobId) {
+    _stopFollowTimer?.cancel();
+    var tries = 0;
+    var inFlight = false;
+    _stopFollowTimer = Timer.periodic(_stopFollowInterval, (timer) async {
+      if (inFlight) return;
+      if (!mounted || state.sequenceId != jobId || tries >= _stopFollowTries) {
+        timer.cancel();
+        return;
+      }
+      tries++;
+      inFlight = true;
+      try {
+        final status = await api.status();
+        if (!mounted || !timer.isActive || state.sequenceId != jobId) return;
+        if (status.lastJobId != jobId) {
+          timer.cancel(); // 그사이 다른 실행이 끝났다
+          return;
+        }
+        final level = status.stopLevelOf(jobId);
+        if (level != null) {
+          timer.cancel();
+          _applyLateStopLevel(level, status.stopAckMsOf(jobId));
+        }
+      } catch (_) {
+        // 통신 실패 — 남은 횟수 안에서 다시 묻는다.
+      } finally {
+        inFlight = false;
+      }
+    });
+  }
+
+  /// 이미 끝난(정지로 멈춘) 실행의 결과 문장에 늦게 온 정지 단계를 싣는다. 음성은 다시 말하지 않는다.
+  void _applyLateStopLevel(String? level, int? ackMs) {
+    if (state.outcome != 'stopped') return;
+    if (stopLevelSentence(level, ackMs: ackMs) == null) return;
+    _stopFollowTimer?.cancel();
+    state = state.copyWith(
+      message: finishedMessage(
+        kind: ResultKind.stopped,
+        executionMode: state.executionMode,
+        route: state.route,
+        receipt: state.receipt,
+        stopLevel: level,
+        stopAckMs: ackMs,
+      ),
+    );
+  }
+
+  bool get _finished =>
+      state.phase == ExecutionPhase.completed ||
+      state.phase == ExecutionPhase.failed ||
+      state.phase == ExecutionPhase.unconfirmed;
 
   /// 폴링을 멈춘다.
   ///
@@ -383,6 +451,11 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         if (!mounted || state.sequenceId != sequenceId) return true;
         // 서버가 다른 실행을 멈췄다고 하면 그 단계는 이 화면의 것이 아니다.
         final mine = outcome.jobId == null || outcome.jobId == jobId;
+        if (_finished) {
+          // 결과가 먼저 왔다(M1) — 결과 문장을 덮지 않고, 같은 job의 정지 결과면 단계만 싣는다.
+          if (mine) _applyLateStopLevel(outcome.stopLevel, outcome.ackMs);
+          return true;
+        }
         // 서버가 알린 정지 확인 단계까지만 말한다(2026-10-13). 없으면 종전 문장.
         state = state.copyWith(
             message: (mine
@@ -410,6 +483,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
   void dispose() {
     _subscription?.cancel();
     _pollTimer?.cancel();
+    _stopFollowTimer?.cancel();
     _apiWait?.close();
     super.dispose();
   }

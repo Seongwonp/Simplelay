@@ -159,4 +159,86 @@ void main() {
       expect(c.read(executionStatusProvider).message, '정지 요청을 보냈어요.');
     });
   });
+
+  group('M1 — 결과가 먼저, 정지 단계가 나중', () {
+    test('내 정지: 결과(stopped)가 먼저 오고 정지 응답이 늦게 와도 같은 job이면 결과 문장을 고친다(음성 재낭독 없음)',
+        () async {
+      final c = container();
+      final notifier = c.read(executionStatusProvider.notifier);
+      final stopGate = Completer<Map<String, dynamic>>();
+      var status = _running('J1');
+      notifier.beginHttpJob(
+          api: _api(status: () => status, stop: () => stopGate.future),
+          jobId: 'J1',
+          label: '아침 데우기');
+      final stopFuture = notifier.emergencyStop();
+      status = _stopped('J1'); // 결과 먼저, 단계는 아직 없음
+      await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
+      expect(c.read(executionStatusProvider).message,
+          '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+      final spoken = tts.spoken.length;
+      stopGate.complete({
+        'ok': true,
+        'stop_level': 'verified',
+        'stop_ack_ms': 9,
+        'stop_confirmed': true,
+        'stop_job_id': 'J1',
+      });
+      await stopFuture;
+      final s = c.read(executionStatusProvider);
+      expect(s.sequenceId, 'J1');
+      expect(s.outcome, 'stopped');
+      expect(s.message, '실행을 멈췄어요. 멈춘 것을 확인했어요 (9 ms).');
+      expect(tts.spoken.length, spoken);
+    });
+
+    test('다른 단말에서 멈춘 실행: 정지 단계가 /status에 늦게 오면 짧은 후속 조회로 문장을 고친다', () async {
+      final c = container();
+      var status = _stopped('J1');
+      c.read(executionStatusProvider.notifier).beginHttpJob(
+          api: _api(status: () => status), jobId: 'J1', label: '아침 데우기');
+      await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
+      expect(c.read(executionStatusProvider).message,
+          '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+      final spoken = tts.spoken.length;
+      status = _stopped('J1', level: 'mcu_ack', ackMs: 12, stopJob: 'J1');
+      await _until(() => c.read(executionStatusProvider).message?.contains('모션 보드') ?? false);
+      expect(c.read(executionStatusProvider).message,
+          '실행을 멈췄어요. 모션 보드가 정지를 확인했어요 (12 ms).');
+      expect(tts.spoken.length, spoken);
+    });
+
+    test('옛 RPi4(정지 보고 없음): 후속 조회는 몇 번에서 멈추고 단계를 지어내지 않는다', () async {
+      final c = container();
+      var calls = 0;
+      c.read(executionStatusProvider.notifier).beginHttpJob(
+          api: _api(status: () {
+            calls++;
+            return _stopped('J1');
+          }),
+          jobId: 'J1',
+          label: '아침 데우기');
+      await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
+      final after = calls;
+      await Future<void>.delayed(const Duration(milliseconds: 5000));
+      expect(calls - after, lessThanOrEqualTo(3));
+      expect(c.read(executionStatusProvider).message,
+          '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+    });
+
+    test('후속 조회 중 새 실행이 시작되면 옛 단계를 새 화면에 싣지 않는다', () async {
+      final c = container();
+      final notifier = c.read(executionStatusProvider.notifier);
+      var j1 = _stopped('J1');
+      notifier.beginHttpJob(api: _api(status: () => j1), jobId: 'J1', label: '아침 데우기');
+      await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
+      notifier.beginHttpJob(
+          api: _api(status: () => _running('J2')), jobId: 'J2', label: '저녁 데우기');
+      j1 = _stopped('J1', level: 'verified', ackMs: 3, stopJob: 'J1');
+      await Future<void>.delayed(const Duration(milliseconds: 3500));
+      final s = c.read(executionStatusProvider);
+      expect(s.sequenceId, 'J2');
+      expect(s.message, isNot(contains('멈춘 것을 확인했어요')));
+    });
+  });
 }
