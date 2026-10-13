@@ -225,7 +225,11 @@ class SuggestionScreen extends ConsumerWidget {
         DemoService(ref.read(bleServiceProvider)).runExecutionFlow();
       }
     }
-    if (context.mounted) context.push('/status');
+    // 승인 화면을 실행 상태 화면으로 **바꿔 끼운다.** 승인된 카드는 목록에서
+    // 빠지므로, 그 위에 쌓으면 실행 상태 화면의 '확인'이 "제안을 찾을 수
+    // 없어요." 빈 화면으로 돌아간다(2026-10-13 에뮬레이터). 바꿔 끼우면
+    // '확인'·'닫기'는 실행을 시작한 곳(홈·루틴 목록·편집기)으로 간다.
+    if (context.mounted) context.pushReplacement('/status');
   }
 
   @override
