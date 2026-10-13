@@ -227,14 +227,27 @@ def test_fetch_falls_back_to_previous_issue_when_latest_is_not_published_yet():
     def fake_get(url, timeout):
         q = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
         asked.append((q["base_date"][0], q["base_time"][0]))
-        if q["base_time"][0] == "2300":
+        if q["base_time"][0] in ("2300", "2000"):
             return 200, nodata
         return 200, _read("vilage_fcst_ok.json")
 
     now = datetime(2026, 10, 14, 0, 3, tzinfo=KST)
     fc = kma.fetch_forecast("KEY", 60, 127, now, http_get=fake_get)
     assert fc.source == "kma"
-    assert asked == [("20261013", "2300"), ("20261013", "2000")]
+    # 00:10 실물: 20:00도 NO_DATA, 17:00은 있었다.
+    assert asked == [("20261013", "2300"), ("20261013", "2000"), ("20261013", "1700")]
+
+
+def test_fetch_nodata_fallback_is_bounded():
+    asked = []
+
+    def fake_get(url, timeout):
+        asked.append(url)
+        return 200, b'{"response":{"header":{"resultCode":"03","resultMsg":"NO_DATA"}}}'
+
+    with pytest.raises(kma.KmaError) as info:
+        kma.fetch_forecast("KEY", 60, 127, datetime(2026, 10, 14, 0, 3, tzinfo=KST), http_get=fake_get)
+    assert info.value.code == "03" and len(asked) == kma.NODATA_FALLBACKS + 1
 
 
 def test_fetch_does_not_fall_back_on_other_errors():

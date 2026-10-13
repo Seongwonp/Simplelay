@@ -35,6 +35,8 @@ ENDPOINT = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageF
 #: 단기예보 발표 시각(시). 발표 뒤 약 10분부터 조회된다.
 ISSUE_HOURS = (2, 5, 8, 11, 14, 17, 20, 23)
 AVAILABILITY_DELAY = timedelta(minutes=10)
+#: 최신 발표가 NO_DATA일 때 거슬러 묻는 앞 발표 수(3개 = 9시간 전까지).
+NODATA_FALLBACKS = 3
 
 #: 한 번 발표에 12개 항목 × 시간별(최대 약 3일) -- 1000줄이면 앞 80여 시간을 덮는다.
 NUM_OF_ROWS = 1000
@@ -322,8 +324,9 @@ def fetch_forecast(
 ) -> Forecast:
     """받아 해석한다. 실패는 전부 ``KmaError``로 바꿔 올린다.
 
-    최신 발표가 아직 올라오지 않았으면(결과 코드 03 NO_DATA) 바로 앞 발표로 **한 번만** 다시 묻는다 —
-    10/14 실물: 00:03에 23:00 발표가 없었고 20:00 발표는 있었다(발표 뒤 10분 가정이 늘 맞지는 않다).
+    최신 발표가 없으면(결과 코드 03 NO_DATA) 앞 발표로 **최대 ``NODATA_FALLBACKS``번** 거슬러 묻는다 —
+    10/14 실물: 00:03에 23:00 발표가 없고 20:00은 있었는데, 00:10에는 20:00도 없고 17:00만 있었다(자정 무렵
+    기상청 응답이 들쭉날쭉). 다른 오류는 다시 묻지 않는다.
     """
     def _once(at: datetime) -> Forecast:
         url = build_url(service_key, nx, ny, at)
@@ -337,14 +340,16 @@ def fetch_forecast(
             status, body, source="kma", fetched_at=now.astimezone(timezone.utc)
         )
 
-    try:
-        return _once(now)
-    except KmaError as exc:
-        if exc.kind != "api" or exc.code != "03":
-            raise
-    # 앞 발표 시각을 고르게 하는 '지금': 최신 발표 시각 바로 전(조회 지연을 더해 base_datetime이 앞 발표를 고른다).
-    previous = base_datetime(now) - timedelta(minutes=1) + AVAILABILITY_DELAY
-    return _once(previous)
+    at = now
+    for attempt in range(NODATA_FALLBACKS + 1):
+        try:
+            return _once(at)
+        except KmaError as exc:
+            if exc.kind != "api" or exc.code != "03" or attempt == NODATA_FALLBACKS:
+                raise
+        # 앞 발표를 고르게 하는 '지금': 이번 발표 시각 바로 전(조회 지연을 더해 base_datetime이 앞 발표를 고른다).
+        at = base_datetime(at) - timedelta(minutes=1) + AVAILABILITY_DELAY
+    raise AssertionError("unreachable")
 
 
 # ── 리허설용 고정 예보 ────────────────────────────────────────────────────────
