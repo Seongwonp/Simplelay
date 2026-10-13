@@ -4,13 +4,32 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/hub.dart';
 import '../providers/rpi_api_provider.dart';
+import '../services/rpi_api_service.dart';
 import '../theme/app_text.dart';
 
-final setupPassProvider = FutureProvider.autoDispose.family<VerifyPass?, String>((ref, id) async {
-  final api = ref.watch(rpiApiServiceProvider);
-  if (api == null) return null;
-  try { return await api.verifyPassStatus(id); } catch (_) { return null; }
-});
+/// 가전 하나의 확인 주행 조회. 실패를 '기록 없음'으로 뭉개지 않는다(2026-10-13).
+///
+/// - 200 → [VerifyPassLookup.found]
+/// - 404 + 서버의 기록 없음 문장 → [VerifyPassLookup.noRecord]
+/// - 그 밖(일반 404·다른 상태·응답 해석 실패·예외·허브 없음) → [VerifyPassLookup.unknown]
+Future<VerifyPassLookup> lookupVerifyPass(RpiApiService? api, String id) async {
+  if (api == null) return const VerifyPassLookup.unknown();
+  try {
+    return VerifyPassLookup.found(await api.verifyPassStatus(id));
+  } on RpiApiException catch (e) {
+    if (e.statusCode == 404 && e.message == VerifyPassLookup.noRecordDetail) {
+      return const VerifyPassLookup.noRecord();
+    }
+    return const VerifyPassLookup.unknown();
+  } catch (_) {
+    return const VerifyPassLookup.unknown();
+  }
+}
+
+/// 로딩 중에는 값이 없다 — 읽는 쪽은 `valueOrNull ?? VerifyPassLookup.unknown()`.
+final setupPassProvider = FutureProvider.autoDispose
+    .family<VerifyPassLookup, String>((ref, id) =>
+        lookupVerifyPass(ref.watch(rpiApiServiceProvider), id));
 
 /// 위치를 맞췄고 실제 확인 주행까지 끝났는가.
 bool _setupDone(ApplianceMap appliance, VerifyPass? pass) =>
@@ -31,7 +50,7 @@ class ApplianceSetupCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final pass = ref.watch(setupPassProvider(appliance.id)).valueOrNull;
+    final pass = ref.watch(setupPassProvider(appliance.id)).valueOrNull?.pass;
     final mapped = appliance.panelMapping != null;
     final verified = pass?.state == 'done' && pass?.executionMode == 'real';
     final remaining = (mapped ? 0 : 1) + (verified ? 0 : 1);
@@ -76,7 +95,7 @@ class ApplianceSetupSection extends ConsumerWidget {
     final pending = [
       for (final a in appliances)
         if (a.panelMapping == null ||
-            !_setupDone(a, ref.watch(setupPassProvider(a.id)).valueOrNull))
+            !_setupDone(a, ref.watch(setupPassProvider(a.id)).valueOrNull?.pass))
           a,
     ];
     if (pending.isEmpty) return const SizedBox.shrink();

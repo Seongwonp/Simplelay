@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../models/display_status.dart';
+import '../models/hub.dart' show VerifyPassLookup;
 import '../models/routine.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -71,6 +72,18 @@ class HomeScreen extends ConsumerWidget {
     // 제안은 **한 번에 하나만**(UI 확정 §1-2). 처리하면 다음 것이 올라온다.
     final suggestion = suggestions.firstOrNull;
     final catalog = ref.watch(serverApplianceCatalogProvider);
+
+    // 타일의 '확인 주행' 보조 줄(2026-10-13, 표시만). 보조 줄을 붙일 타일만
+    // 확인 주행을 묻는다 — 위치 미설정·허브 장애 타일은 묻지도 않는다.
+    String? verifyNoteOf(ApplianceMap a) {
+      String? note(VerifyPassLookup lookup) => verifyPassTileNote(
+          appliance: a, hub: rpiState, catalog: catalog.status, lookup: lookup);
+      if (note(const VerifyPassLookup.unknown()) == null) return null;
+      return note(ref.watch(setupPassProvider(a.id)).valueOrNull ??
+          const VerifyPassLookup.unknown());
+    }
+
+    final verifyNotes = {for (final a in appliances) a.id: verifyNoteOf(a)};
 
     return Scaffold(
       body: SafeArea(
@@ -141,6 +154,7 @@ class HomeScreen extends ConsumerWidget {
                   catalog: catalog.status,
                   execution: execution,
                 ),
+                verifyNoteOf: (a) => verifyNotes[a.id],
                 onOpen: (a) {
                   ref.read(selectedApplianceProvider.notifier).select(a);
                   context.push('/appliance/detail/${a.id}');
@@ -696,11 +710,15 @@ class _ApplianceGrid extends StatelessWidget {
   const _ApplianceGrid({
     required this.appliances,
     required this.statusOf,
+    required this.verifyNoteOf,
     required this.onOpen,
     required this.onAdd,
   });
 
   final List<ApplianceMap> appliances;
+
+  /// 상태 줄과 별개의 '확인 주행' 보조 줄([verifyPassTileNote]). 없으면 null.
+  final String? Function(ApplianceMap) verifyNoteOf;
 
   /// 타일 상태(`models/display_status.dart`의 순수 함수).
   final TileStatus Function(ApplianceMap) statusOf;
@@ -714,6 +732,7 @@ class _ApplianceGrid extends StatelessWidget {
         _ApplianceCard(
           appliance: a,
           status: statusOf(a),
+          verifyNote: verifyNoteOf(a),
           onTap: () => onOpen(a),
         ),
       _AddCard(onTap: onAdd),
@@ -763,9 +782,13 @@ class _ApplianceCard extends ConsumerWidget {
     required this.appliance,
     required this.status,
     required this.onTap,
+    this.verifyNote,
   });
 
   final ApplianceMap appliance;
+
+  /// '확인 주행' 보조 줄. 상태 줄과 따로 그리고, 접근성 이름에도 넣는다.
+  final String? verifyNote;
 
   /// 타일 상태 한 줄. "돌아가는 중"은 없다 — 버튼 조작 진행·준비 여부까지만.
   final TileStatus status;
@@ -794,6 +817,7 @@ class _ApplianceCard extends ConsumerWidget {
         if (a.isDemo) '데모',
         s.text,
         if (s.detail case final d?) d,
+        if (verifyNote case final v?) v,
       ].join(', '),
       excludeSemantics: true,
       child: Material(
@@ -865,6 +889,15 @@ class _ApplianceCard extends ConsumerWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(fontSize: 13, color: context.appMuted),
+                  ),
+                if (verifyNote case final v?)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      v,
+                      key: Key('appliance-verify-note-${a.id}'),
+                      style: TextStyle(fontSize: 13, color: context.appMuted),
+                    ),
                   ),
                 if (s.progress) ...[
                   const SizedBox(height: 6),

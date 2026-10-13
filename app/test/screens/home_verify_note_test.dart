@@ -1,0 +1,287 @@
+// 홈 가전 타일의 '확인 주행' 보조 줄(2026-10-13) — 화면·접근성 이름·큰 글씨.
+// 표시만 한다. 실행 경로를 부르지 않는다.
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/providers/rpi_api_provider.dart';
+import 'package:simplelay/screens/home_screen.dart';
+import 'package:simplelay/services/rpi_api_service.dart';
+
+import '../helpers/test_helpers.dart';
+
+Map<String, dynamic> _appliance(String id, String name, {bool mapped = true}) => {
+      'id': id,
+      'name': name,
+      'category': 'microwave',
+      'rows': 1,
+      'cols': 1,
+      'is_custom': true,
+      'revision': 1,
+      'can_execute': true,
+      'readiness': 'operable',
+      'readiness_reasons': <String>[],
+      'buttons': [
+        {'id': '$id-1', 'label': '시작', 'x': 0, 'y': 0},
+      ],
+      if (mapped)
+        'panel_mapping': {
+          'photo': {'width': 100, 'height': 100},
+        },
+    };
+
+http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
+      utf8.encode(jsonEncode(body)),
+      status,
+      headers: {'content-type': 'application/json'},
+    );
+
+/// [verify]: 가전 id → verify-pass 응답. 없으면 일반 404.
+RpiApiService _hub(
+  List<Map<String, dynamic>> appliances,
+  Map<String, http.Response> verify, {
+  List<Map<String, dynamic>> routines = const [],
+}) =>
+    RpiApiService(
+      'http://rpi5.local:8000',
+      client: MockClient((req) async {
+        final path = req.url.path;
+        if (path.startsWith('/execute') || path.endsWith('/approve')) {
+          fail('홈이 실행 경로를 불렀어요: ${req.method} $path');
+        }
+        if (req.method == 'GET' && path == '/appliances') return _json(appliances);
+        if (req.method == 'GET' && path == '/routines') return _json(routines);
+        if (path == '/suggestions') return _json(const []);
+        if (req.method == 'GET' && path.endsWith('/verify-pass')) {
+          final id = path.split('/')[2];
+          return verify[id] ?? _json({'detail': 'Not Found'}, 404);
+        }
+        return _json({'detail': 'not found'}, 404);
+      }),
+    );
+
+Widget _home(RpiApiService api,
+    {RpiConnectionState hub = RpiConnectionState.connected, double scale = 1}) {
+  final router = GoRouter(
+    initialLocation: '/',
+    routes: [
+      GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
+      GoRoute(
+          path: '/suggestion/:id',
+          builder: (_, __) => const Scaffold(body: Text('승인 화면'))),
+      GoRoute(
+          path: '/appliance/add',
+          builder: (_, __) => const Scaffold(body: Text('가전 추가 화면'))),
+    ],
+  );
+  return buildWithProviderState(
+    overrides: [
+      ...connectedOverrides(),
+      ...installedOverrides(const []),
+      rpiServerOverride(hub),
+      rpiApiServiceProvider.overrideWithValue(api),
+    ],
+    // 이 노트북 Flutter의 잉크 셰이더 판 불일치를 피한다(동작과 무관).
+    child: MaterialApp.router(
+      theme: ThemeData.dark().copyWith(splashFactory: InkRipple.splashFactory),
+      routerConfig: router,
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(scale)),
+        child: child!,
+      ),
+    ),
+  );
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 16; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
+void _tall(WidgetTester tester) {
+  tester.view.physicalSize = const Size(400, 2400);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+}
+
+Finder _inTile(String id, String text) => find.descendant(
+    of: find.byKey(Key('appliance-card-$id')), matching: find.text(text));
+
+/// 화면 가운데를 눌렀을 때 [target]의 그림 객체에 닿는가(다른 것에 가리지 않음).
+bool _hits(WidgetTester tester, Finder target) {
+  final box = tester.renderObject<RenderBox>(target);
+  final center = box.localToGlobal(box.size.center(Offset.zero));
+  final result = HitTestResult();
+  tester.binding.hitTestInView(result, center, tester.view.viewId);
+  return result.path.any((e) => e.target == box);
+}
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('근거별 보조 줄 — 모의 완료·실제 실패·명시적 기록 없음·실제 완료', (tester) async {
+    _tall(tester);
+    final api = _hub([
+      _appliance('a', '전자레인지'),
+      _appliance('b', '세탁기'),
+      _appliance('c', '인터폰'),
+      _appliance('d', '밥솥'),
+    ], {
+      'a': _json({'state': 'done', 'execution_mode': 'mock'}),
+      'b': _json({'state': 'failed', 'execution_mode': 'real'}),
+      'c': _json({'detail': '확인 주행 기록이 없어요'}, 404),
+      'd': _json({'state': 'done', 'execution_mode': 'real'}),
+    });
+    await tester.pumpWidget(_home(api));
+    await _settle(tester);
+
+    expect(_inTile('a', '모의 주행만 확인했어요'), findsOneWidget);
+    expect(_inTile('b', '확인 주행을 마치지 못했어요'), findsOneWidget);
+    expect(_inTile('c', '확인 주행 전이에요'), findsOneWidget);
+    for (final t in [
+      '모의 주행만 확인했어요',
+      '확인 주행을 마치지 못했어요',
+      '확인 주행 전이에요',
+      '확인 주행 여부를 확인하지 못했어요',
+    ]) {
+      expect(_inTile('d', t), findsNothing, reason: '실제 완료는 보조 줄 없음: $t');
+    }
+    // 기존 상태 줄은 그대로(별개의 줄).
+    expect(_inTile('a', '실행을 요청할 수 있어요'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('일반 404·해석 실패는 "확인 주행 전"이라 하지 않는다', (tester) async {
+    _tall(tester);
+    final api = _hub([
+      _appliance('a', '전자레인지'),
+      _appliance('b', '세탁기'),
+    ], {
+      'b': http.Response('<html>oops', 200),
+    });
+    await tester.pumpWidget(_home(api));
+    await _settle(tester);
+    expect(_inTile('a', '확인 주행 여부를 확인하지 못했어요'), findsOneWidget);
+    expect(_inTile('b', '확인 주행 여부를 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('확인 주행 전이에요'), findsNothing);
+  });
+
+  testWidgets('위치 미설정·허브 장애 타일에는 보조 줄을 붙이지 않는다', (tester) async {
+    _tall(tester);
+    final api = _hub([_appliance('w', '세탁기', mapped: false)], {
+      'w': _json({'state': 'done', 'execution_mode': 'mock'}),
+    });
+    await tester.pumpWidget(_home(api));
+    await _settle(tester);
+    expect(_inTile('w', '설정이 필요해요'), findsOneWidget);
+    expect(_inTile('w', '모의 주행만 확인했어요'), findsNothing);
+    expect(_inTile('w', '확인 주행 여부를 확인하지 못했어요'), findsNothing);
+  });
+
+  testWidgets('허브에 닿지 않으면 연결 문구만 — 보조 줄 없음', (tester) async {
+    _tall(tester);
+    final api = _hub([_appliance('a', '전자레인지')], const {});
+    // 이 폰에 저장된 가전으로 타일을 그린다(서버 목록은 못 받는다).
+    await tester.pumpWidget(buildWithProviderState(
+      overrides: [
+        ...connectedOverrides(),
+        ...installedOverrides(
+            [ApplianceMap.fromJson(_appliance('a', '전자레인지'))]),
+        rpiServerOverride(RpiConnectionState.unreachable),
+        rpiApiServiceProvider.overrideWithValue(api),
+      ],
+      child: MaterialApp(
+        theme: ThemeData.dark().copyWith(splashFactory: InkRipple.splashFactory),
+        home: const HomeScreen(),
+      ),
+    ));
+    await _settle(tester);
+    expect(_inTile('a', '연결을 확인해 주세요'), findsOneWidget);
+    expect(_inTile('a', '확인 주행 여부를 확인하지 못했어요'), findsNothing);
+  });
+
+  testWidgets('타일 접근성 이름에 보조 줄이 들어간다', (tester) async {
+    final handle = tester.ensureSemantics();
+    _tall(tester);
+    final api = _hub([
+      _appliance('a', '전자레인지'),
+      _appliance('b', '세탁기'),
+      _appliance('d', '밥솥'),
+    ], {
+      'a': _json({'state': 'done', 'execution_mode': 'mock'}),
+      'd': _json({'state': 'done', 'execution_mode': 'real'}),
+    });
+    await tester.pumpWidget(_home(api));
+    await _settle(tester);
+    expect(
+        find.bySemanticsLabel(
+            '전자레인지, 실행을 요청할 수 있어요, 모의 주행만 확인했어요'),
+        findsOneWidget);
+    expect(
+        find.bySemanticsLabel(
+            '세탁기, 실행을 요청할 수 있어요, 확인 주행 여부를 확인하지 못했어요'),
+        findsOneWidget);
+    expect(find.bySemanticsLabel('밥솥, 실행을 요청할 수 있어요'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('360×780·글씨 200%에서 보조 줄 타일이 넘치지 않고 다른 버튼을 가리지 않는다',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 780);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final api = _hub([
+      _appliance('a', '주방 전자레인지'),
+      _appliance('b', '세탁기'),
+    ], {
+      'a': _json({'state': 'done', 'execution_mode': 'mock'}),
+      'b': _json({'state': 'failed', 'execution_mode': 'real'}),
+    }, routines: [
+      {
+        'id': 'r-b',
+        'name': '저녁 데우기',
+        'steps': [
+          {'kind': 'press_sequence', 'appliance_id': 'a', 'buttons': ['시작']},
+        ],
+        'trigger': {'kind': 'manual'},
+        'when': '직접 실행할 때',
+        'mode': 'approve',
+        'enabled': true,
+      },
+    ]);
+    await tester.pumpWidget(_home(api, scale: 2.0));
+    await _settle(tester);
+    expect(tester.takeException(), isNull, reason: '넘침(overflow) 없음');
+
+    final tileA = find.byKey(const Key('appliance-card-a'));
+    final tileB = find.byKey(const Key('appliance-card-b'));
+    final add = find.byKey(const Key('appliance-add-card'));
+    final run = find.byKey(const Key('home-routine-run-r-b'));
+    expect(_inTile('a', '모의 주행만 확인했어요'), findsOneWidget);
+    expect(_inTile('b', '확인 주행을 마치지 못했어요'), findsOneWidget);
+
+    // 겹침 없음: 보조 줄 타일과 가전 추가·실행하기가 서로 겹치지 않는다.
+    for (final tile in [tileA, tileB]) {
+      for (final other in [add, run]) {
+        final overlap = tester.getRect(tile).intersect(tester.getRect(other));
+        expect(overlap.width <= 0 || overlap.height <= 0, isTrue,
+            reason: '$tile 과 $other 가 겹친다');
+      }
+    }
+    // 각 버튼을 화면에 올려 가운데를 누르면 그 버튼에 닿는다.
+    for (final target in [run, tileA, tileB, add]) {
+      await tester.ensureVisible(target);
+      await tester.pump();
+      expect(_hits(tester, target), isTrue, reason: '$target 이 가려졌다');
+    }
+    expect(tester.takeException(), isNull);
+  });
+}

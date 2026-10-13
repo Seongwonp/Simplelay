@@ -16,6 +16,7 @@ import '../services/rpi_api_service.dart' show RpiHistoryEntry;
 import 'appliance.dart';
 import 'command_result.dart';
 import 'execution_status.dart';
+import 'hub.dart' show VerifyPassLookup, VerifyPassLookupKind;
 
 // ── 가전 타일 ────────────────────────────────────────────────────────────────
 
@@ -163,6 +164,47 @@ TileStatus applianceTileStatus({
           : TileStatus('연결이 필요해요', TileTone.attention, detail: reason);
     default:
       return const TileStatus('준비 상태를 확인하지 못했어요', TileTone.unknown);
+  }
+}
+
+// ── 가전 타일: 확인 주행 보조 줄 (2026-10-13) ──────────────────────────────────
+
+/// 타일 상태 줄 아래에 붙는 '확인 주행' 보조 줄. **표시만** 한다 — 실행을 막지 않는다.
+///
+/// | 근거 | 보조 줄 |
+/// |---|---|
+/// | 실제(real) 확인 주행 완료 | 없음(null) |
+/// | 모의 확인 주행 완료 | 모의 주행만 확인했어요 |
+/// | 실제 확인 주행 실패 | 확인 주행을 마치지 못했어요 |
+/// | 서버가 기록 없음을 명시 | 확인 주행 전이에요 |
+/// | 조회 실패·로딩·근거 불명(진행 중·실행 모드 모름·모의 실패 포함) | 확인 주행 여부를 확인하지 못했어요 |
+///
+/// 붙이지 않는 타일(null): 확인 주행이 없는 가전(내장·ThinQ·데모), 위치를 아직
+/// 맞추지 않아 이미 "설정이 필요해요"인 타일, 허브가 연결되지 않았거나(확인 중 포함)
+/// 가전 목록 조회가 실패해 상태 줄이 연결 문제인 타일 — 같은 말을 겹치지 않는다.
+String? verifyPassTileNote({
+  required ApplianceMap appliance,
+  required RpiConnectionState hub,
+  required ServerCatalogStatus catalog,
+  required VerifyPassLookup lookup,
+}) {
+  if (!appliance.isCustom || appliance.isDemo || appliance.isThinq) return null;
+  if (needsPanelMapping(appliance)) return null;
+  if (hub != RpiConnectionState.connected) return null;
+  if (catalog == ServerCatalogStatus.failed) return null;
+  const unknown = '확인 주행 여부를 확인하지 못했어요';
+  switch (lookup.kind) {
+    case VerifyPassLookupKind.noRecord:
+      return '확인 주행 전이에요';
+    case VerifyPassLookupKind.unknown:
+      return unknown;
+    case VerifyPassLookupKind.found:
+      final p = lookup.pass!;
+      final mode = p.executionMode;
+      if (p.state == 'done' && mode == 'real') return null;
+      if (p.state == 'done' && mode == 'mock') return '모의 주행만 확인했어요';
+      if (p.state == 'failed' && mode == 'real') return '확인 주행을 마치지 못했어요';
+      return unknown;
   }
 }
 

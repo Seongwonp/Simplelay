@@ -317,3 +317,35 @@ class VerifyPass {
         executionMode: json['execution_mode'] as String?,
       );
 }
+
+/// 확인 주행 조회 결과의 종류(2026-10-13). '안 함'과 '모름'을 섞지 않는다.
+enum VerifyPassLookupKind {
+  /// 서버가 마지막 확인 주행을 돌려줬다([VerifyPassLookup.pass]).
+  found,
+
+  /// 서버가 **기록 없음을 명시**했다 — `404` + detail [VerifyPassLookup.noRecordDetail].
+  /// 서버는 확인 주행을 메모리에만 두므로 '이 서버가 켜진 뒤 기록 없음'이다.
+  noRecord,
+
+  /// 조회 실패·로딩·일반 404·응답 해석 실패. 했는지 안 했는지 모른다.
+  unknown,
+}
+
+/// 확인 주행 조회 결과 — `GET /appliances/{id}/verify-pass`.
+class VerifyPassLookup {
+  const VerifyPassLookup.found(VerifyPass this.pass)
+      : kind = VerifyPassLookupKind.found;
+  const VerifyPassLookup.noRecord()
+      : kind = VerifyPassLookupKind.noRecord,
+        pass = null;
+  const VerifyPassLookup.unknown()
+      : kind = VerifyPassLookupKind.unknown,
+        pass = null;
+
+  /// 서버(`rpi/api/mapping_router.py`)가 기록이 없을 때 보내는 detail 문장.
+  /// 같은 경로의 다른 404(옛 서버의 'Not Found' 등)와 가르는 유일한 표시다.
+  static const noRecordDetail = '확인 주행 기록이 없어요';
+
+  final VerifyPassLookupKind kind;
+  final VerifyPass? pass;
+}

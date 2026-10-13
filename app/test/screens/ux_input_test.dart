@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/hub.dart';
 import 'package:simplelay/screens/add_appliance_wizard_screen.dart';
 import 'package:simplelay/screens/appliance_editor_screen.dart';
 import 'package:simplelay/widgets/appliance_setup_card.dart';
@@ -41,7 +42,8 @@ void main() {
   testWidgets('등록 뒤 위치와 주행 두 가지를 홈 카드에서 이어가요', (tester) async {
     final appliance = ApplianceMap.fromJson({...kApplianceTemplates.first.toJson(), 'id': 'custom_test'});
     await tester.pumpWidget(ProviderScope(overrides: [
-      setupPassProvider(appliance.id).overrideWith((_) async => null),
+      setupPassProvider(appliance.id)
+          .overrideWith((_) async => const VerifyPassLookup.unknown()),
     ], child: MaterialApp(home: Scaffold(body: ApplianceSetupCard(appliance: appliance)))));
     await tester.pumpAndSettle();
     expect(find.text('전자레인지 · 설정이 2개 남았어요'), findsOneWidget);
