@@ -490,13 +490,25 @@ class _RunSteps extends ConsumerWidget {
 /// L3 판정 한 문장. 판정이 없으면 null — 말하지 않는다.
 /// 실행 환경을 판정보다 먼저 본다 — 모의 실행의 true는 모의 판정일 뿐이다
 /// (10/6 Copilot 리뷰 66990be).
+///
+/// 외부 평가 2026-10-13 M5: 실물 모션이어도 L3 판정의 입력은 따로 모의일 수 있다(RPi4 `L3_MODE=mock`).
+/// 그래서 **판정 출처가 real일 때만** 실제 동작을 확인했다고 말한다. mock이면 모의 판정, 출처를 모르면 단정하지 않는다.
 String? operationSentence(ExecutionStatus s) => switch (s.operationConfirmed) {
       true when s.isDemo || s.executionMode == 'mock' =>
         '모의 동작 판정 · 실제 가전 아님',
-      true => '가전 동작도 확인했어요',
+      true when s.operationSource == 'real' => '가전 동작도 확인했어요',
+      true when s.operationSource == 'mock' => '가전 동작은 모의로 판정했어요 · 실제 확인 아님',
+      true => '가전 동작 판정의 근거를 몰라요 · 가전을 확인해 주세요',
       false => '가전 동작은 확인하지 못했어요',
       null => null,
     };
+
+/// 실제 동작을 확인한 판정인가 — 확인 아이콘·색은 이때만(M5).
+bool operationVerifiedForReal(ExecutionStatus s) =>
+    s.operationConfirmed == true &&
+    !s.isDemo &&
+    s.executionMode != 'mock' &&
+    s.operationSource == 'real';
 
 class _OperationLine extends StatelessWidget {
   const _OperationLine({required this.status});
@@ -513,7 +525,8 @@ class _OperationLine extends StatelessWidget {
       if (status.operationSource == 'real') '실측 판정',
       if (status.operationDetail case final d? when d.isNotEmpty) d,
     ].join(' · ');
-    final color = confirmed ? context.appSuccess : context.appWarning;
+    final verified = operationVerifiedForReal(status);
+    final color = verified ? context.appSuccess : context.appWarning;
     return Padding(
       padding: const EdgeInsets.only(top: 8),
       child: Column(
@@ -524,7 +537,7 @@ class _OperationLine extends StatelessWidget {
             children: [
               // 색으로만 말하지 않는다 -- 모양이 같이 간다.
               Icon(
-                confirmed ? Icons.verified_outlined : Icons.help_outline,
+                verified ? Icons.verified_outlined : Icons.help_outline,
                 size: 18,
                 color: color,
               ),

@@ -112,12 +112,18 @@ class KioskDoneView extends StatelessWidget {
                 : '버튼 조작을 마쳤어요';
     // 실행 환경을 판정보다 먼저 본다 — 모의 실행의 true는 모의 판정일 뿐
     // 실제 가전이 움직였다는 말이 아니다(10/6 Copilot 리뷰 66990be).
+    // 외부 평가 2026-10-13 M5: 실물 모션이어도 L3 입력은 따로 모의일 수 있다(RPi4 L3_MODE=mock) —
+    // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
     final operationSentence = switch (operationConfirmed) {
       true when mock => '모의 동작 판정 · 실제 가전 아님',
-      true => '가전 동작도 확인했어요',
+      true when operationSource == 'real' => '가전 동작도 확인했어요',
+      true when operationSource == 'mock' => '가전 동작은 모의로 판정했어요 · 실제 확인 아님',
+      true => '가전 동작 판정의 근거를 몰라요 · 가전을 확인해 주세요',
       false => '가전 동작은 확인하지 못했어요',
       null => null,
     };
+    final operationVerified =
+        operationConfirmed == true && !mock && operationSource == 'real';
     // 정지 확인 단계 — 보냄(sent)은 확인이라고 하지 않는다(2026-10-13).
     final stopSentence = !success && r == KioskFailureReason.stopped
         ? stopLevelSentence(stopLevel, ackMs: stopAckMs)
@@ -210,7 +216,7 @@ class KioskDoneView extends StatelessWidget {
                   ),
                   _OperationLine(
                     sentence: operationSentence,
-                    confirmed: operationConfirmed == true,
+                    confirmed: operationVerified,
                     source: operationSource,
                     detail: operationDetail,
                   ),
@@ -239,7 +245,7 @@ class KioskDoneView extends StatelessWidget {
                   ),
                   _OperationLine(
                     sentence: operationSentence,
-                    confirmed: operationConfirmed == true,
+                    confirmed: operationVerified,
                     source: operationSource,
                     detail: operationDetail,
                   ),

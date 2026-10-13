@@ -1695,7 +1695,8 @@ void main() {
 
   // ── 2026-09-29 후속: L3(가전 동작) 판정 · 세탁 완료 카드 ────────────────
 
-  testWidgets('L3 확인됨이면 완료 화면이 가전 동작까지 확인했다고 말한다',
+  // 외부 평가 2026-10-13 M5: 실측(real) 판정만 실제 동작 확인이다 — 실물 모션+모의 L3는 done_view_test 교차 시험.
+  testWidgets('L3 실측 확인이면 완료 화면이 가전 동작까지 확인했다고 말한다',
       (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()..suggestionList = [_sug];
@@ -1712,13 +1713,12 @@ void main() {
           lastConfirmation: 'operation_confirmed',
           lastExecutionMode: 'real',
           lastOperationConfirmed: true,
-          lastOperationSource: 'mock',
+          lastOperationSource: 'real',
           lastOperationDetail: '전력 파형에서 가열 시작을 확인했어요'),
     );
     expect(done.operationConfirmed, isTrue);
     expect(find.text('가전 동작도 확인했어요'), findsOneWidget);
-    // 모의 판정의 true는 실제 동작 근거가 아니다 — 그 사실을 같이 말한다.
-    expect(find.textContaining('모의 판정'), findsOneWidget);
+    expect(find.textContaining('실측 판정'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });

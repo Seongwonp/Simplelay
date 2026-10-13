@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 
 Future<void> _pump(
   WidgetTester tester,
@@ -96,7 +97,7 @@ void main() {
     expect(find.text('모의 절차를 마쳤어요 · 실제 조작 아님'), findsOneWidget);
   });
 
-  testWidgets('L3 판정은 있을 때만 말하고, 모의 판정이면 그 사실을 밝힌다',
+  testWidgets('L3 판정은 있을 때만 말하고, 모의 판정이면(실물 모션이어도) 그 사실을 밝힌다',
       (tester) async {
     await _pump(
       tester,
@@ -112,8 +113,10 @@ void main() {
       ),
     );
 
-    expect(find.text('가전 동작도 확인했어요'), findsOneWidget);
-    expect(find.textContaining('모의 판정'), findsOneWidget);
+    // 외부 평가 2026-10-13 M5: 실물 모션 + 모의 L3는 실제 동작 확인이 아니다.
+    expect(find.text('가전 동작도 확인했어요'), findsNothing);
+    expect(find.text('가전 동작은 모의로 판정했어요 · 실제 확인 아님'), findsOneWidget);
+    expect(find.textContaining('모의 판정'), findsWidgets);
   });
 
   testWidgets('실패는 자동으로 돌아간다고 말하지 않고 다음 행동을 준다', (tester) async {
@@ -294,5 +297,71 @@ void main() {
 
     expect(find.text('가전 상태를 확인했어요'), findsNothing);
     expect(find.text('모의 상태를 확인했어요'), findsOneWidget);
+  });
+
+  group('L3 판정 출처 × 모션 실행 모드 (평가 M5)', () {
+    const realSentence = '가전 동작도 확인했어요';
+    const mockMotion = '모의 동작 판정 · 실제 가전 아님';
+    const mockL3 = '가전 동작은 모의로 판정했어요 · 실제 확인 아님';
+    const unknownL3 = '가전 동작 판정의 근거를 몰라요 · 가전을 확인해 주세요';
+    final cases = <(String, String?, String)>[
+      ('real', 'real', realSentence),
+      ('real', 'mock', mockL3),
+      ('real', null, unknownL3),
+      ('unknown', 'real', realSentence),
+      ('unknown', 'mock', mockL3),
+      ('unknown', null, unknownL3),
+      ('mock', 'real', mockMotion),
+      ('mock', 'mock', mockMotion),
+      ('mock', null, mockMotion),
+    ];
+    for (final (mode, source, expected) in cases) {
+      testWidgets('모션 $mode · L3 출처 ${source ?? '모름'} → $expected', (tester) async {
+        await _pump(
+          tester,
+          KioskDoneView(
+            success: true,
+            label: '즉석밥 데워줘',
+            executionMode: mode,
+            target: kMicrowaveAppliance,
+            operationConfirmed: true,
+            operationSource: source,
+            onDismiss: () {},
+          ),
+        );
+        expect(find.text(expected), findsOneWidget);
+        if (expected != realSentence) {
+          expect(find.text(realSentence), findsNothing);
+          expect(find.byIcon(Icons.verified_outlined), findsNothing);
+        }
+      });
+    }
+  });
+
+  group('동작 중 화면의 전력 판정 줄도 출처가 real일 때만 확인이라고 말한다 (평가 M5)', () {
+    for (final (mode, source, expected) in <(String, String?, String)>[
+      ('real', 'real', '전력으로 가전 동작을 확인했어요'),
+      ('real', 'mock', '연습용 전력 값이에요 · 실제 동작 확인 아님'),
+      ('real', null, '전력 판정의 근거를 몰라요 · 가전을 확인해 주세요'),
+      ('mock', 'real', '연습용 전력 값이에요 · 실제 동작 확인 아님'),
+    ]) {
+      testWidgets('모션 $mode · 출처 ${source ?? '모름'} → $expected', (tester) async {
+        await _pump(
+          tester,
+          KioskHoldView(
+            appliance: kMicrowaveAppliance,
+            holdState: 'hovering_stop',
+            stopButton: '취소',
+            executionMode: mode,
+            elapsed: const Duration(minutes: 1),
+            buttonsPressed: 3,
+            operationConfirmed: true,
+            operationSource: source,
+            onStop: () {},
+          ),
+        );
+        expect(find.text(expected), findsOneWidget);
+      });
+    }
   });
 }
