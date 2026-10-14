@@ -514,6 +514,40 @@ void main() {
       expect(find.byType(KioskSuggestionView), findsOneWidget);
     });
 
+    // 2026-10-14 4·5번 마감 확인 A1: 조용한 시간에도 사용자가 내 가전에서 직접 찾아 누른 루틴은 카드가 나온다
+    // (서버가 '지금 실행' 카드를 사용자 요청으로 만든다). 새 제안이 저절로 뜨는 것과 구분한다.
+    testWidgets('조용한 시간에도 내 가전에서 직접 누른 루틴은 카드로 간다', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..healthResult = HealthStatus.fromJson(const {
+          'ok': true,
+          'quiet': {'enabled': true, 'start': '22:00', 'end': '07:00', 'active': true, 'reason': 'schedule'},
+        })
+        ..routinesResult = const [
+          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], stepCount: 3),
+        ]
+        ..triggerResult = const RoutineTriggerResult(
+          suggestion: KioskSuggestion(
+            id: 'card-1',
+            purpose: '아침 데우기',
+            occurrences: 0,
+            applianceId: 'microwave',
+            steps: ['해동', '1분', '시작'],
+            routineId: 'morning',
+            routineName: '아침 데우기',
+          ),
+        );
+      await _pump(tester, api);
+      expect(find.byType(KioskSuggestionView), findsNothing); // 저절로 뜬 카드는 없다
+      await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const ValueKey('routine-morning')));
+      await _settle(tester);
+      expect(api.triggeredRoutineIds, ['morning']);
+      expect(find.byType(KioskSuggestionView), findsOneWidget);
+      expect(api.approvedIds, isEmpty);
+    });
+
     testWidgets('버튼판을 눌러도 확인 없이는 누르지 않는다', (tester) async {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);

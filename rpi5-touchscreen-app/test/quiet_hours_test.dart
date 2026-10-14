@@ -78,4 +78,24 @@ void main() {
     expect(find.textContaining('사용 습관 제안'), findsNothing);
     expect(tester.takeException(), isNull);
   });
+
+  // 2026-10-14 4·5번 마감 확인 A5: 잠시 쉬기가 켜져 있으면 '언제까지'(끝나는 시각)를 함께 적는다.
+  testWidgets('방해 금지 창: 켜져 있으면 끝나는 시각까지 쉰다고 적는다', (tester) async {
+    tester.view.physicalSize = const Size(800, 480);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(MaterialApp(
+      home: Scaffold(
+        body: DndOverlay(
+          dndUntil: DateTime(2026, 10, 14, 23, 30),
+          onSet: (_) {},
+          onClear: () {},
+          onDismiss: () {},
+        ),
+      ),
+    ));
+    expect(find.text('23:30까지 새 제안과 자동 실행을 쉬고 있어요'), findsOneWidget);
+    expect(find.text('방해 금지 해제'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 }

@@ -224,6 +224,39 @@ void main() {
       expect(c.read(suggestionProvider), isEmpty);
     });
 
+    // 2026-10-14 4·5번 마감 확인 A1: 조용한 시간 직전에 받아 둔 카드는, 시간이 시작돼 서버가 목록에서 내리면
+    // 다음 폴링에 폰에서도 사라진다 — 폰은 받아 둔 카드를 쌓아 두었다 나중에 다시 띄우지 않는다(팝업·소리 없음).
+    test('서버가 조용한 시간에 내린 카드는 다음 폴링에 폰 목록에서도 빠진다', () async {
+      var listed = <Map<String, dynamic>>[
+        {
+          'id': 'http-quiet',
+          'purpose': '즉석밥 데워줘',
+          'time_band': '저녁',
+          'occurrences': 3,
+          'steps': <String>[],
+        },
+      ];
+      final client = MockClient((request) async {
+        if (request.method == 'GET' && request.url.path == '/suggestions') {
+          return http.Response.bytes(utf8.encode(jsonEncode(listed)), 200,
+              headers: {'content-type': 'application/json; charset=utf-8'});
+        }
+        return http.Response('{}', 200);
+      });
+      final c = makeContainer(overrides: [
+        rpiApiServiceProvider.overrideWithValue(
+            RpiApiService('http://rpi5.local:8000', client: client)),
+      ]);
+
+      c.read(suggestionProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(c.read(suggestionProvider).map((s) => s.sequenceId), ['http-quiet']);
+
+      listed = []; // 조용한 시간 시작 — 서버가 떠 있던 카드를 내렸다
+      await c.read(suggestionProvider.notifier).refresh();
+      expect(c.read(suggestionProvider), isEmpty);
+    });
+
     test('BLE 제안과 HTTP 제안이 서로의 목록을 지우지 않고 공존한다', () async {
       final fake = _FakeSuggestionsSetup([
         {

@@ -29,7 +29,8 @@ class _DndTile extends ConsumerWidget {
         title: const Text('제안 잠시 쉬기'),
         subtitle: Text(
           // 잠시 쉬기도 조용한 시간과 같은 판정이다(2026-10-14) — 아직 시작하지 않은 자동 실행도 건너뛴다.
-          active ? '지금은 새 제안과 자동 실행을 쉬어요' : '몇 시간 동안 새 제안과 자동 실행을 쉬어요',
+          // 켜져 있으면 끝나는 시각을 함께(2026-10-14 마감 확인 A5).
+          active ? '${pauseEndClock(until)}까지 새 제안과 자동 실행을 쉬어요' : '몇 시간 동안 새 제안과 자동 실행을 쉬어요',
           style: TextStyle(color: context.appMuted, fontSize: 12),
         ),
         trailing: TextButton(

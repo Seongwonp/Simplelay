@@ -7,6 +7,7 @@ import '../models/appliance.dart';
 import '../models/display_status.dart';
 import '../models/hub.dart' show VerifyPassLookup;
 import '../models/line_break.dart';
+import '../models/quiet_hours.dart' show pauseEndClock;
 import '../models/routine.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -1230,7 +1231,8 @@ class _DndBanner extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Text(
-                '방해 금지 중 · $_remaining',
+                // 끝나는 시각을 함께 적는다(2026-10-14 마감 확인 A5) — 남은 시간만으로는 '언제까지'를 셈해야 한다.
+                '방해 금지 중 · ${pauseEndClock(until)}까지 · $_remaining',
                 style: TextStyle(color: context.appWarning, fontSize: 13),
               ),
             ),

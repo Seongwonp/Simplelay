@@ -247,6 +247,36 @@ def test_same_appliance_and_button_order_is_refused_as_duplicate(client, executi
     assert execution_calls == []
 
 
+def test_same_button_names_on_another_microwave_are_not_a_duplicate(client, execution_calls):
+    """마감 확인 A4(10/14): 중복 판단은 **대상 가전 ID까지** 본다 — 다른 전자레인지의 같은 버튼 이름 순서는 별개다."""
+    second = client.put("/appliances/microwave_b", json={
+        "name": "작은방 전자레인지", "category": "microwave", "rows": 1, "cols": 2,
+        "buttons": [{"id": "B-01", "label": "즉석밥", "x": 0, "y": 0},
+                    {"id": "B-02", "label": "시작", "x": 1, "y": 0}],
+        "functions": {"즉석밥 데워줘": ["즉석밥", "시작"]}})
+    assert second.status_code == 200, second.text
+    _use((1, 2, 3, 4))
+    _use((1, 2, 3, 4), appliance="microwave_b")
+    drafts = {d["appliance_id"]: d for d in _candidates(client)}
+    assert set(drafts) == {"microwave", "microwave_b"}
+    assert drafts["microwave"]["buttons"] == drafts["microwave_b"]["buttons"] == ["즉석밥", "시작"]
+    assert drafts["microwave"]["key"] != drafts["microwave_b"]["key"]
+    # 작은방 전자레인지에 같은 버튼 순서의 루틴이 이미 있어도, 부엌 전자레인지 초안은 그대로 보이고 저장된다.
+    made = client.post("/routines", json={
+        "name": "작은방 즉석밥", "trigger": {"kind": "manual"},
+        "steps": [{"kind": "press_sequence", "appliance_id": "microwave_b", "buttons": ["즉석밥", "시작"]}]})
+    assert made.status_code == 201, made.text
+    assert [d["appliance_id"] for d in _candidates(client)] == ["microwave"]
+    saved = client.post(f"/routines/candidates/{drafts['microwave']['key']}/save",
+                        json={"name": "부엌 즉석밥", "run": "manual"})
+    assert saved.status_code == 201, saved.text
+    refused = client.post(f"/routines/candidates/{drafts['microwave_b']['key']}/save",
+                          json={"name": "작은방 즉석밥 2", "run": "manual"})
+    assert refused.status_code == 409 and "작은방 즉석밥" in refused.json()["detail"]
+    assert sorted(r["name"] for r in client.get("/routines").json()) == ["부엌 즉석밥", "작은방 즉석밥"]
+    assert execution_calls == []
+
+
 def test_double_save_of_the_same_draft_saves_once(client):
     _use((1, 2, 3, 4))
     (draft,) = _candidates(client)

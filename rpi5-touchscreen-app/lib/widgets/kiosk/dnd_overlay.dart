@@ -58,8 +58,9 @@ class DndOverlay extends StatelessWidget {
                     const SizedBox(height: 6),
                     // 실제 범위만 말한다(2026-10-14) — 새 제안과 아직 시작하지 않은 자동 실행. 직접 실행·정지·경보는 그대로.
                     Text(
+                      // 켜져 있으면 끝나는 시각을 함께 적는다(2026-10-14 마감 확인 A5) — 위 줄 칩은 남은 시간.
                       dndUntil != null
-                          ? '새 제안과 자동 실행을 쉬고 있어요'
+                          ? '${_clockOf(dndUntil!)}까지 새 제안과 자동 실행을 쉬고 있어요'
                           : '새 제안과 자동 실행을 잠시 쉬어요',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
@@ -148,4 +149,10 @@ class _DndOption extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 잠시 쉬기가 끝나는 시각 "HH:MM"(키오스크 현지 시각).
+String _clockOf(DateTime until) {
+  final t = until.toLocal();
+  return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 }

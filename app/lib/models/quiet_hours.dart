@@ -42,3 +42,9 @@ class QuietHoursStatus {
     return reason == 'schedule' ? '$range · 지금 조용한 시간이에요' : range;
   }
 }
+
+/// 잠시 쉬기가 끝나는 시각 "HH:MM"(이 기기 현지 시각, 2026-10-14 마감 확인 A5). 남은 시간만으로는 '언제까지'를 셈해야 한다.
+String pauseEndClock(DateTime until) {
+  final t = until.toLocal();
+  return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+}

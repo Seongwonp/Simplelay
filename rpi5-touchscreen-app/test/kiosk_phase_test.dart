@@ -717,6 +717,37 @@ void main() {
     expect(tts.utterances.where((u) => u.contains('즉석밥 데워줘')), isEmpty);
   });
 
+  // 2026-10-14 4·5번 마감 확인 A1: 조용한 시간 직전에 떠 있던 카드 — 시간이 시작돼 서버가 내리면 키오스크도 내리고,
+  // 그 뒤로 같은 카드를 다시 띄우거나 소리로 알리지 않는다(시간이 끝난 뒤에도). 키오스크는 받아 둔 목록을 쌓아 두지 않는다.
+  testWidgets('조용한 시간 직전의 카드는 시간이 시작되면 내려가고 뒤늦게 다시 뜨거나 낭독되지 않는다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+    expect(find.byKey(_approveKey), findsOneWidget); // 시작 전 — 평소대로 보이고 알린다
+    final spokenBefore = tts.utterances.length;
+
+    api
+      ..healthResult = HealthStatus.fromJson(const {
+        'ok': true,
+        'quiet': {'enabled': true, 'start': '22:00', 'end': '07:00', 'active': true, 'reason': 'schedule'},
+      })
+      ..suggestionList = []; // 조용한 시간 시작 — 서버가 떠 있던 카드를 내렸다
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(seconds: 2));
+    }
+    expect(find.byKey(_approveKey), findsNothing);
+
+    api.healthResult = const HealthStatus(ok: true); // 시간이 끝났다 — 서버는 내린 카드를 다시 내지 않는다
+    for (var i = 0; i < 8; i++) {
+      await tester.pump(const Duration(seconds: 2));
+    }
+    expect(find.byKey(_approveKey), findsNothing);
+    expect(tts.utterances.length, spokenBefore);
+  });
+
   testWidgets('제안 도착·실행 완료를 음성으로 안내한다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()..suggestionList = [_sug];
