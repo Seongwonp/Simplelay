@@ -214,7 +214,8 @@ async def readiness(appliance_id: str, service: SimpleLayService = Depends(get_s
                     registry=Depends(get_appliance_registry),
                     readiness_registry=Depends(get_readiness_registry),
                     nodes=Depends(get_node_registry)) -> dict:
-    appliance = registry.get(appliance_id)
+    # 가전 목록 잠금은 등록·보정의 DB 쓰기 동안 잡힌다 — 이벤트 루프에서 기다리지 않는다(2026-10-14 HIGH 재확인 H-R2).
+    appliance = await asyncio.to_thread(registry.get, appliance_id)
     if appliance is None:
         raise HTTPException(404, "appliance not found")
     route = appliance.control_path.value

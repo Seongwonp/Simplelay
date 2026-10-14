@@ -806,6 +806,8 @@ def get_suggestion_service() -> ProactiveSuggestionService:
         ),
     )
     # 조용한 시간(매일 시간대) — 잠시 쉬기(DND)와 함께 is_quiet()로 판정한다(2026-10-14, 5번).
+    # 설정 읽기(DB)는 여기서 한 번 — 실행 게이트 안에서 처음 만들며 DB를 읽지 않게(HIGH 재확인 H-R1).
+    get_quiet_hours()
     svc.set_quiet_schedule(lambda: get_quiet_hours().schedule_active(get_clock().now()))
     # 잠시 쉬기 끝 시각·범위 영속(2026-10-14 마감 2번) — 재시작 뒤에도 표시한 끝 시각까지.
     svc.restore_pause(load=(lambda: db.load_setting(PAUSE_SETTING)) if db else None,

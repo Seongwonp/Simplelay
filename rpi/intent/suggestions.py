@@ -15,6 +15,7 @@ from .rules import RuleBasedIntentResolver, UnknownIntentError
 from .cooldowns import SuggestionCooldowns
 from .completed_actions import CompletedActions
 from .feedback import SuggestionFeedback
+from rpi.services.snapshot_setting import SnapshotSetting
 
 
 log = logging.getLogger(__name__)
@@ -84,12 +85,11 @@ class ProactiveSuggestionService:
         self._next_id = 1
         self._id_prefix = uuid4().hex
         self._cooldowns = cooldowns if cooldowns is not None else SuggestionCooldowns()
-        self._dnd_until: datetime | None = None
-        self._dnd_scope = PAUSE_SCOPE_ALL
-        #: 잠시 쉬기 저장(끝 시각·범위, DB 설정 키 하나) — None이면 메모리만. ``restore_pause``가 붙인다.
-        self._pause_save = None
-        #: 이미 검토한 이어받기 값(같은 값을 두 번 쓰지 않는다 — 컨테이너 재시작에 env가 남아도).
-        self._carryover_seen: str | None = None
+        #: 잠시 쉬기 — 불변 사본 ``(끝 시각|None, 범위, 이미 검토한 이어받기 값|None)``. 판정은 잠금 없이 읽고, 바꾸기는
+        #: 메모리에 먼저 적용한 뒤 저장은 따로(HIGH 재확인 H-R2·M-R1, ``SnapshotSetting``). 저장소는 ``restore_pause``가 붙인다
+        #: (없으면 메모리만). 이어받기 값은 같은 값을 두 번 쓰지 않으려고 남긴다(컨테이너 재시작에 env가 남아도).
+        self._pause = SnapshotSetting((None, PAUSE_SCOPE_ALL, None), encode=self._encode_pause,
+                                      name="pause")
         #: 조용한 시간(매일 시간대) 판정 — None이면 없음. 잠시 쉬기(DND)와 함께 ``is_quiet``가 본다(2026-10-14, 5번).
         self._quiet_schedule = None
         # 승인은 워커 스레드(asyncio.to_thread), 거부·생성은 이벤트 루프
@@ -142,22 +142,36 @@ class ProactiveSuggestionService:
         status["paused"] = self.is_dnd()
         return status
 
-    def set_dnd_for(self, minutes: int) -> datetime:
+    # ── 잠시 쉬기 — 메모리 적용과 저장을 나눈다(HIGH 재확인 H-R2·M-R1) ────────────────────────────
+    def apply_dnd_for(self, minutes: int) -> tuple[datetime, int]:
+        """메모리에 바로 켠다(입출력 없음 — 이벤트 루프에서 불러도 된다). (끝 시각, 판 번호)."""
         until = self._clock.now() + timedelta(minutes=minutes)
-        self._dnd_until = until
-        self._dnd_scope = PAUSE_SCOPE_ALL
-        self._persist_pause()
+        _, version = self._pause.change(lambda cur: (until, PAUSE_SCOPE_ALL, cur[2]))
+        return until, version
+
+    def apply_clear_dnd(self) -> int:
+        """메모리에서 바로 끈다(입출력 없음). 판 번호."""
+        _, version = self._pause.change(lambda cur: (None, PAUSE_SCOPE_ALL, cur[2]))
+        return version
+
+    def persist_pause(self, version: int | None = None) -> bool | None:
+        """잠시 쉬기 DB 저장 — True 저장됨 · False 실패(이번 세션만 적용, 재시작하면 마지막 저장값) · None 저장소 없음.
+        DB를 기다리므로 이벤트 루프 밖에서 부른다."""
+        return self._pause.persist(version)
+
+    def set_dnd_for(self, minutes: int) -> datetime:
+        """메모리 적용 + 저장(같은 스레드) — 호환용. API는 ``apply_dnd_for``·``persist_pause``를 나눈다."""
+        until, version = self.apply_dnd_for(minutes)
+        self.persist_pause(version)
         return until
 
     def clear_dnd(self) -> None:
-        self._dnd_until = None
-        self._dnd_scope = PAUSE_SCOPE_ALL
-        self._persist_pause()
+        self.persist_pause(self.apply_clear_dnd())
 
     # ── 잠시 쉬기 영속(2026-10-14 마감 2번) — 재시작 뒤에도 표시한 끝 시각까지 같은 범위 ──────────
     def restore_pause(self, load=None, save=None) -> None:
         """DB에 남긴 잠시 쉬기(끝 시각·범위)를 다시 읽는다. 읽지 못하거나 지난 값이면 쉬지 않는 상태로 시작."""
-        self._pause_save = save
+        self._pause.set_save(save)
         if load is None:
             return
         try:
@@ -169,13 +183,13 @@ class ProactiveSuggestionService:
         if not isinstance(data, dict):
             return
         seen = data.get("carryover_seen")
-        self._carryover_seen = seen if isinstance(seen, str) else None
+        seen = seen if isinstance(seen, str) else None
         until = _aware(data.get("until"))
         scope = data.get("scope")
         if until is None or scope not in _PAUSE_SCOPES or self._clock.now() >= until:
+            self._pause.load((None, PAUSE_SCOPE_ALL, seen))
             return
-        self._dnd_until = until
-        self._dnd_scope = scope
+        self._pause.load((until, scope, seen))
 
     def carry_over_pause(self, raw: str | None) -> bool:
         """업데이트 전 서버가 알린 잠시 쉬기 끝 시각을 옛 범위(새 제안만)로 이어받는다.
@@ -184,42 +198,48 @@ class ProactiveSuggestionService:
         켠 잠시 쉬기가 있으면 덮지 않는다. 같은 값은 한 번만 검토한다(쓰든 안 쓰든 기록).
         """
         raw = (raw or "").strip()
-        if not raw or raw == self._carryover_seen:
+        if not raw or raw == self._pause.value[2]:
             return False
-        self._carryover_seen = raw
         until = _aware(raw)
-        now = self._clock.now()
-        applied = (until is not None and now < until <= now + timedelta(hours=24) and not self.is_dnd())
-        if applied:
-            self._dnd_until = until
-            self._dnd_scope = PAUSE_SCOPE_SUGGESTIONS
+        result: list[bool] = []
+
+        def carry(cur):
+            now = self._clock.now()
+            active = cur[0] is not None and now < cur[0]
+            applied = until is not None and now < until <= now + timedelta(hours=24) and not active
+            result.append(applied)
+            return (until, PAUSE_SCOPE_SUGGESTIONS, raw) if applied else (cur[0], cur[1], raw)
+
+        _, version = self._pause.change(carry)
+        applied = result[-1]
         log.info("pause carryover %s: %s", "applied (suggestions only)" if applied else "ignored", raw)
-        self._persist_pause()
+        self.persist_pause(version)
         return applied
 
-    def _persist_pause(self) -> None:
-        if self._pause_save is None:
-            return
-        active = self.is_dnd()
-        data = {"until": self._dnd_until.isoformat() if active else None,
-                "scope": self._dnd_scope if active else None,
-                "carryover_seen": self._carryover_seen}
-        try:
-            self._pause_save(json.dumps(data, ensure_ascii=False))
-        except Exception:  # noqa: BLE001 -- 저장 실패는 메모리 판정만 남는다(재시작하면 풀림)
-            log.exception("pause setting save failed")
+    def _encode_pause(self, value) -> str:
+        until, scope, seen = value
+        active = until is not None and self._clock.now() < until
+        return json.dumps({"until": until.isoformat() if active else None,
+                           "scope": scope if active else None,
+                           "carryover_seen": seen}, ensure_ascii=False)
+
+    def _pause_now(self) -> tuple[datetime | None, str]:
+        """지금 켜진 잠시 쉬기 ``(끝 시각, 범위)`` — 사본을 한 번만 읽는다(잠금 없음). 꺼져 있으면 ``(None, 범위)``."""
+        until, scope, _ = self._pause.value
+        if until is None or self._clock.now() >= until:
+            return None, scope
+        return until, scope
 
     def dnd_scope(self) -> str | None:
         """켜진 잠시 쉬기의 범위 — ``suggestions_and_auto``(업데이트 뒤 켬)·``suggestions_only``(이어받음)·None(꺼짐)."""
-        return self._dnd_scope if self.is_dnd() else None
+        until, scope = self._pause_now()
+        return scope if until is not None else None
 
     def is_dnd(self) -> bool:
-        if self._dnd_until is None:
-            return False
-        return self._clock.now() < self._dnd_until
+        return self._pause_now()[0] is not None
 
     def dnd_until(self) -> datetime | None:
-        return self._dnd_until if self.is_dnd() else None
+        return self._pause_now()[0]
 
     def set_quiet_schedule(self, active) -> None:
         """active() -> bool: 지금 매일 조용한 시간대인가. 메모리 판정만(입출력 없음) — 실행 게이트 안에서도 부른다."""
@@ -233,7 +253,8 @@ class ProactiveSuggestionService:
 
     def is_auto_run_quiet(self) -> bool:
         """아직 시작하지 않은 자동 실행을 건너뛰나 — 매일 시간대, 또는 새 범위 잠시 쉬기. 이어받은 옛 범위는 막지 않는다."""
-        if self.is_dnd() and self._dnd_scope == PAUSE_SCOPE_ALL:
+        until, scope = self._pause_now()
+        if until is not None and scope == PAUSE_SCOPE_ALL:
             return True
         return self._schedule_active()
 

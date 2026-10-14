@@ -41,7 +41,10 @@ class NodeRegistry:
         store: NodeStore | None = None,
     ) -> None:
         self._controller_factory = controller_factory
+        # 메모리 잠금(``_lock``)은 DB를 기다리는 동안 잡지 않는다 — 정지 경로(``_stoppable_nodes``, 서비스 잠금 안)가
+        # 읽는다(2026-10-14 HIGH 재확인). DB 쓰기는 ``_persist_lock``으로 순서를 지킨다(메모리 바꾼 순서 = DB 쓴 순서).
         self._lock = threading.Lock()
+        self._persist_lock = threading.Lock()
         self._store = store
         # store가 있으면 서버 재시작 시 이전 등록을 복원한다 — 키오스크에서
         # 등록한 ESP32 IP가 재시작마다 증발하던 문제의 수리 지점.
@@ -54,16 +57,18 @@ class NodeRegistry:
         """Record (or replace) an appliance's node address. Replacing an
         address drops any cached controller for it, so the next lookup
         builds a fresh one against the new address."""
-        with self._lock:
-            self._base_urls[appliance_id] = base_url
-            self._controllers.pop(appliance_id, None)
+        with self._persist_lock:
+            with self._lock:
+                self._base_urls[appliance_id] = base_url
+                self._controllers.pop(appliance_id, None)
             if self._store is not None:
                 self._store.save_node(appliance_id, base_url)
 
     def unregister(self, appliance_id: str) -> None:
-        with self._lock:
-            self._base_urls.pop(appliance_id, None)
-            controller = self._controllers.pop(appliance_id, None)
+        with self._persist_lock:
+            with self._lock:
+                self._base_urls.pop(appliance_id, None)
+                controller = self._controllers.pop(appliance_id, None)
             if self._store is not None:
                 self._store.delete_node(appliance_id)
         if controller is not None:

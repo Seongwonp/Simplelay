@@ -97,6 +97,7 @@ from .schemas import (
     PresenceRequest,
     PresenceResponse,
     SensorResponse,
+    SettingSavedResponse,
     StatusResponse,
     StopResponse,
     EstopAckResponse,
@@ -117,6 +118,8 @@ from .thinq_router import router as thinq_router
 
 log = logging.getLogger(__name__)
 
+# 동기 DB·파일·네트워크 입출력을 하는 라우터는 ``def``(스레드풀)로 둔다 — ``async def`` 안에서 직접 부르면 단일 이벤트
+# 루프가 그동안 멈춰 ``/stop`` 요청 자체가 처리되지 않는다(2026-10-14 HIGH 재확인 H-R2). async로 두려면 ``asyncio.to_thread``.
 router = APIRouter()
 
 
@@ -290,7 +293,7 @@ def _appliance_response_base(
 
 
 @router.post("/demo/care-event", response_model=CareEventResponse)
-async def demo_care_event(
+def demo_care_event(
     body: DemoCareEventRequest,
     store=Depends(get_care_events),
 ) -> CareEventResponse:
@@ -317,7 +320,7 @@ async def demo_care_event(
 
 
 @router.get("/care-events", response_model=list[CareEventResponse])
-async def list_care_events(
+def list_care_events(
     limit: int = 50,
     store=Depends(get_care_events),
 ) -> list[CareEventResponse]:
@@ -336,7 +339,7 @@ async def list_care_events(
 
 
 @router.get("/appliances", response_model=list[ApplianceResponse])
-async def list_appliances(
+def list_appliances(
     registry=Depends(get_appliance_registry),
     service: SimpleLayService = Depends(get_service),
     nodes: NodeRegistry = Depends(get_node_registry),
@@ -390,7 +393,7 @@ async def wellness_pause_state(
 
 
 @router.post("/wellness-pause", response_model=WellnessPauseResponse)
-async def set_wellness_pause(
+def set_wellness_pause(
     body: WellnessPauseRequest,
     pause=Depends(get_wellness_pause),
     clock=Depends(get_clock),
@@ -409,7 +412,7 @@ async def set_wellness_pause(
 
 
 @router.delete("/wellness-pause", response_model=WellnessPauseResponse)
-async def clear_wellness_pause(
+def clear_wellness_pause(
     pause=Depends(get_wellness_pause),
 ) -> WellnessPauseResponse:
     pause.clear()
@@ -417,7 +420,7 @@ async def clear_wellness_pause(
 
 
 @router.post("/readiness/{appliance_id}", response_model=OkResponse)
-async def report_readiness(
+def report_readiness(
     appliance_id: str,
     body: ReadinessReportRequest,
     registry=Depends(get_appliance_registry),
@@ -454,7 +457,7 @@ async def report_readiness(
 
 
 @router.put("/appliances/{appliance_id}", response_model=ApplianceResponse)
-async def register_appliance(
+def register_appliance(
     appliance_id: str,
     body: ApplianceRegisterRequest,
     registry=Depends(get_appliance_registry),
@@ -531,7 +534,7 @@ async def register_appliance(
     "/appliances/{appliance_id}/calibration",
     response_model=ApplianceCalibrationResponse,
 )
-async def calibrate_appliance(
+def calibrate_appliance(
     appliance_id: str,
     body: ApplianceCalibrationRequest,
     registry=Depends(get_appliance_registry),
@@ -797,7 +800,7 @@ async def panel_scan(
 
 
 @router.delete("/appliances/{appliance_id}", response_model=OkResponse)
-async def delete_appliance(
+def delete_appliance(
     appliance_id: str,
     expected_revision: int | None = None,
     registry=Depends(get_appliance_registry),
@@ -1065,7 +1068,7 @@ async def approve_suggestion(
 
 
 @router.post("/suggestions/{suggestion_id}/reject", response_model=OkResponse)
-async def reject_suggestion(
+def reject_suggestion(
     suggestion_id: str,
     body: RejectSuggestionRequest | None = None,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
@@ -1078,7 +1081,7 @@ async def reject_suggestion(
 
 
 @router.post("/suggestions/{suggestion_id}/snooze", response_model=OkResponse)
-async def snooze_suggestion(
+def snooze_suggestion(
     suggestion_id: str,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> OkResponse:
@@ -1120,14 +1123,14 @@ async def revise_suggestion(
 
 
 @router.get("/suppressions", response_model=SuppressionListResponse)
-async def list_suppressions(
+def list_suppressions(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> SuppressionListResponse:
     return SuppressionListResponse(purposes=list(svc.muted_purposes()))
 
 
 @router.post("/suppressions/unmute", response_model=OkResponse)
-async def unmute_suppression(
+def unmute_suppression(
     body: UnmuteRequest,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
 ) -> OkResponse:
@@ -1136,7 +1139,7 @@ async def unmute_suppression(
 
 
 @router.post("/demo/suggest", response_model=SuggestionResponse)
-async def demo_suggest(
+def demo_suggest(
     body: DemoSuggestRequest,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
     registry=Depends(get_appliance_registry),
@@ -1215,7 +1218,7 @@ async def presence(
 
 
 @router.get("/history", response_model=list[HistoryEntryResponse])
-async def history(
+def history(
     limit: int = 50,
     store=Depends(get_job_history),
 ) -> list[HistoryEntryResponse]:
@@ -1310,7 +1313,7 @@ async def presence_state(
 
 
 @router.get("/history.csv")
-async def history_export(
+def history_export(
     limit: int = 500,
     store=Depends(get_job_history),
 ) -> PlainTextResponse:
@@ -1334,7 +1337,7 @@ async def history_export(
 
 
 @router.post("/demo/inject-failure", response_model=OkResponse)
-async def demo_inject_failure(
+def demo_inject_failure(
     body: DemoInjectFailureRequest,
     state=Depends(get_demo_failure_state),
     service: SimpleLayService = Depends(get_service),
@@ -1349,7 +1352,7 @@ async def demo_inject_failure(
 
 
 @router.delete("/demo/inject-failure", response_model=OkResponse)
-async def demo_clear_failure(
+def demo_clear_failure(
     state=Depends(get_demo_failure_state),
     service: SimpleLayService = Depends(get_service),
 ) -> OkResponse:
@@ -1358,21 +1361,22 @@ async def demo_clear_failure(
     return OkResponse()
 
 
-@router.post("/dnd", response_model=OkResponse)
+@router.post("/dnd", response_model=SettingSavedResponse)
 async def set_dnd(
     body: DndRequest,
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
-) -> OkResponse:
-    svc.set_dnd_for(body.duration_minutes)
-    return OkResponse()
+) -> SettingSavedResponse:
+    # HIGH 재확인 H-R2: 메모리 적용(입출력 없음)은 바로, DB 저장은 이벤트 루프 밖에서 — 저장이 멈춰도 /stop이 처리된다.
+    _, version = svc.apply_dnd_for(body.duration_minutes)
+    return SettingSavedResponse.of(await asyncio.to_thread(svc.persist_pause, version))
 
 
-@router.delete("/dnd", response_model=OkResponse)
+@router.delete("/dnd", response_model=SettingSavedResponse)
 async def clear_dnd(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
-) -> OkResponse:
-    svc.clear_dnd()
-    return OkResponse()
+) -> SettingSavedResponse:
+    version = svc.apply_clear_dnd()
+    return SettingSavedResponse.of(await asyncio.to_thread(svc.persist_pause, version))
 
 
 # ── 조용한 시간(2026-10-14, 5번 정책 b) — 매일 시간대 + 잠시 쉬기를 한 판정으로 ─────────────
@@ -1388,16 +1392,21 @@ async def get_quiet_hours_status() -> dict:
 
 @router.put("/quiet-hours")
 async def put_quiet_hours(body: dict = Body(...)) -> dict:
-    """``{"enabled": bool, "start": "HH:MM", "end": "HH:MM"}``(일부만 보내도 된다). 서버에 영속."""
+    """``{"enabled": bool, "start": "HH:MM", "end": "HH:MM"}``(일부만 보내도 된다). 서버에 영속.
+
+    HIGH 재확인 H-R1·M-R1: 메모리에 먼저 적용하고(판정은 바로 새 값) 저장은 이벤트 루프 밖에서. 응답에 저장 결과
+    ``persisted``·``session_only``(``POST /dnd``와 같은 뜻)를 함께 싣는다."""
     from rpi.services.quiet_hours import QuietHoursError  # noqa: PLC0415
 
     from .deps import get_quiet_hours, quiet_status  # noqa: PLC0415
 
+    quiet = get_quiet_hours()
     try:
-        await asyncio.to_thread(get_quiet_hours().update, body)
+        _, version = quiet.apply(body)
     except QuietHoursError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return quiet_status()
+    saved = SettingSavedResponse.of(await asyncio.to_thread(quiet.persist, version))
+    return {**quiet_status(), "persisted": saved.persisted, "session_only": saved.session_only}
 
 
 _MOCK_TEMP = 26.5
@@ -1441,7 +1450,7 @@ async def list_nodes(
 
 
 @router.post("/nodes/{appliance_id}", response_model=NodeResponse)
-async def register_node(
+def register_node(
     appliance_id: str,
     body: NodeRegisterRequest,
     registry: NodeRegistry = Depends(get_node_registry),
@@ -1469,7 +1478,7 @@ async def register_node(
 
 
 @router.delete("/nodes/{appliance_id}", response_model=OkResponse)
-async def unregister_node(
+def unregister_node(
     appliance_id: str,
     registry: NodeRegistry = Depends(get_node_registry),
     readiness: ReadinessRegistry = Depends(get_readiness_registry),

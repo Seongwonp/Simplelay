@@ -845,6 +845,22 @@ class OkResponse(BaseModel):
     ok: bool = True
 
 
+class SettingSavedResponse(OkResponse):
+    """설정을 바꾸는 응답(``POST``·``DELETE /dnd``) — 메모리 적용과 저장 결과를 나눈다(2026-10-14 HIGH 재확인 M-R1).
+
+    200이면 이번 세션에는 적용됐다. ``persisted``: true 저장됨(재시작 뒤 유지) · false 저장 실패 · null 저장소 없는 구성
+    (개발용 메모리 전용). ``session_only``: 재시작하면 유지되지 않음(``persisted``가 true가 아니면 true) — 재시작한 서버는
+    마지막으로 저장에 성공한 값으로 시작한다. 폰·키오스크는 ``persisted``가 false일 때 사람 말로 알린다.
+    """
+
+    persisted: bool | None = None
+    session_only: bool = False
+
+    @classmethod
+    def of(cls, persisted: bool | None) -> "SettingSavedResponse":
+        return cls(persisted=persisted, session_only=persisted is not True)
+
+
 class StopResponse(BaseModel):
     """POST /stop 응답 — **정지 요청을 접수하고 전달한 결과**다.
 

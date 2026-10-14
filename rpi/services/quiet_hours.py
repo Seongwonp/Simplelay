@@ -17,8 +17,10 @@ from __future__ import annotations
 import json
 import logging
 import re
-import threading
 from datetime import datetime, time as dtime
+from types import MappingProxyType
+
+from rpi.services.snapshot_setting import SnapshotSetting
 
 log = logging.getLogger(__name__)
 
@@ -52,18 +54,24 @@ def window_contains(start: str, end: str, now: datetime) -> bool:
 
 
 class QuietHours:
-    """설정은 서버에 영속(DB 설정 키 하나), 재시작 뒤 유지. DB가 없으면 메모리."""
+    """설정은 서버에 영속(DB 설정 키 하나), 재시작 뒤 유지. DB가 없으면 메모리.
+
+    HIGH 재확인 H-R1(2026-10-14): 판정용 메모리 사본(불변 교체)과 영속 쓰기를 나눴다 — ``settings``는 잠금 없이 읽고,
+    바꾸기는 메모리에 먼저 적용한 뒤 저장 잠금에서 DB에 쓴다(``SnapshotSetting``). 자동 실행의 시작 게이트(서비스 잠금
+    안)와 전송권 확인(실행기 잠금 안)이 다른 요청의 DB 저장을 기다리지 않는다. 저장 실패면 이번 세션에만 적용되고,
+    재시작하면 마지막으로 저장에 성공한 값으로 시작한다.
+    """
 
     def __init__(self, load=None, save=None) -> None:
-        self._save = save
-        self._lock = threading.Lock()
-        self._settings = dict(DEFAULT)
+        self._state = SnapshotSetting(MappingProxyType(dict(DEFAULT)), save=save,
+                                      encode=lambda s: json.dumps(dict(s), ensure_ascii=False),
+                                      name="quiet hours")
         if load is not None:
             try:
                 raw = load()
                 data = json.loads(raw) if raw else None
                 if isinstance(data, dict):
-                    self._settings = self._validated(data)
+                    self._state.load(MappingProxyType(self._validated(data)))
             except (ValueError, TypeError):
                 log.exception("quiet hours setting unreadable; using default (off)")
 
@@ -79,18 +87,26 @@ class QuietHours:
         return {"enabled": enabled, "start": start.strip(), "end": end.strip()}
 
     def settings(self) -> dict:
-        with self._lock:
-            return dict(self._settings)
+        """지금 설정 — 잠금 없음(불변 사본). 실행 게이트·전송권 확인 안에서도 부른다."""
+        return dict(self._state.value)
 
-    def update(self, body) -> dict:
+    def apply(self, body) -> tuple[dict, int]:
+        """메모리에 바로 적용한다(입출력 없음). 일부 값만 보내도 지금 사본과 합쳐 검사한다 — 합치기·검사·교체가 한 번의
+        메모리 잠금 안이라 동시에 온 두 변경이 서로를 잃지 않는다. (새 설정, 판 번호). 잘못된 값이면 바뀌지 않는다."""
         if not isinstance(body, dict):
             raise QuietHoursError("설정 형식이 맞지 않아요")
-        settings = self._validated({**self.settings(), **body})
-        with self._lock:
-            if self._save is not None:
-                self._save(json.dumps(settings, ensure_ascii=False))
-            self._settings = settings
-        return dict(settings)
+        new, version = self._state.change(lambda cur: MappingProxyType(self._validated({**cur, **body})))
+        return dict(new), version
+
+    def persist(self, version: int | None = None) -> bool | None:
+        """DB 저장 — True 저장됨 · False 실패(이번 세션만 적용) · None 저장소 없음. 이벤트 루프 밖에서 부른다."""
+        return self._state.persist(version)
+
+    def update(self, body) -> dict:
+        """메모리 적용 + 저장(같은 스레드) — 호환용. API는 ``apply``·``persist``를 나눠 저장 결과를 응답에 싣는다."""
+        settings, version = self.apply(body)
+        self.persist(version)
+        return settings
 
     def schedule_active(self, now: datetime) -> bool:
         s = self.settings()

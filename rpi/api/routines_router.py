@@ -25,6 +25,8 @@ from rpi.routines.wiring import get_routine_engine, get_routine_store
 from .deps import get_appliance_registry, get_clock, get_service
 from .thinq_router import suggestion_payload
 
+# 루틴 저장소를 읽고 쓰는 라우터는 ``def``(스레드풀) — 저장소 잠금이 DB 쓰기 동안 잡혀 있어 이벤트 루프에서 기다리면
+# ``/stop``까지 멈춘다(2026-10-14 HIGH 재확인 H-R2).
 router = APIRouter()
 
 
@@ -60,13 +62,13 @@ def _require(routine_id: str):
 
 
 @router.get("/routines")
-async def list_routines() -> list[dict]:
+def list_routines() -> list[dict]:
     names = _names()
     return [_payload(r, names) for r in get_routine_store().list()]
 
 
 @router.post("/routines", status_code=201)
-async def create_routine(body: dict = Body(...)) -> dict:
+def create_routine(body: dict = Body(...)) -> dict:
     store = get_routine_store()
     routine = _build(body, store.new_id())
     store.save(routine)
@@ -74,7 +76,7 @@ async def create_routine(body: dict = Body(...)) -> dict:
 
 
 @router.get("/routines/next")
-async def next_routines(limit: int = Query(3, ge=1, le=10)) -> list[dict]:
+def next_routines(limit: int = Query(3, ge=1, le=10)) -> list[dict]:
     """'다음 실행' 카드 — 켜진 시각 루틴의 가까운 순서."""
     return get_routine_engine().next_runs(limit=limit)
 
@@ -283,12 +285,12 @@ async def approve_and_allow(suggestion_id: str, body: dict = Body(...)) -> dict:
 
 
 @router.get("/routines/{routine_id}")
-async def get_routine(routine_id: str) -> dict:
+def get_routine(routine_id: str) -> dict:
     return _payload(_require(routine_id), _names())
 
 
 @router.put("/routines/{routine_id}")
-async def update_routine(routine_id: str, body: dict = Body(...)) -> dict:
+def update_routine(routine_id: str, body: dict = Body(...)) -> dict:
     """전체 교체. 단계·실행 방식이 바뀌면 이미 떠 있는 카드의 승인은 무효(재승인)."""
     current = _require(routine_id)
     routine = _build(body, routine_id, created_at=current.created_at)
@@ -297,7 +299,7 @@ async def update_routine(routine_id: str, body: dict = Body(...)) -> dict:
 
 
 @router.delete("/routines/{routine_id}")
-async def delete_routine(routine_id: str) -> dict:
+def delete_routine(routine_id: str) -> dict:
     try:
         get_routine_store().delete(routine_id)
     except RoutineNotFoundError as exc:
@@ -306,7 +308,7 @@ async def delete_routine(routine_id: str) -> dict:
 
 
 @router.post("/routines/{routine_id}/enable")
-async def enable_routine(routine_id: str, body: dict = Body(...)) -> dict:
+def enable_routine(routine_id: str, body: dict = Body(...)) -> dict:
     enabled = body.get("enabled")
     if not isinstance(enabled, bool):
         raise HTTPException(status_code=422, detail="켜기/끄기 값은 true 또는 false로 보내 주세요")

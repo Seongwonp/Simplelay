@@ -216,7 +216,8 @@ def mapping_save(appliance_id: str, body: MappingRequest, registry=Depends(get_a
 @router.post("/appliances/{appliance_id}/verify-pass", status_code=202)
 async def verify_pass_start(appliance_id: str, body: VerifyPassRequest | None = None,
                             registry=Depends(get_appliance_registry), service=Depends(get_service)) -> dict:
-    appliance = registry.get(appliance_id)
+    # 가전 목록 잠금은 등록·보정의 DB 쓰기 동안 잡힌다 — 이벤트 루프에서 기다리지 않는다(2026-10-14 HIGH 재확인 H-R2).
+    appliance = await asyncio.to_thread(registry.get, appliance_id)
     if appliance is None:
         raise HTTPException(status_code=404, detail="appliance not found")
     try:
