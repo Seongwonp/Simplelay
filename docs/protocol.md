@@ -743,6 +743,9 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
     다음 변경의 저장이 성공하면 그때의 가장 새 값을 쓴다(늦게 끝난 옛 쓰기가 새 값을 덮지 않는다).
   - 폰·키오스크는 `persisted: false`일 때 "저장하지 못해 지금만 적용돼요. 허브를 다시 켜면 이전 설정으로 돌아가요."를 띄운다. 필드가 없거나(옛 서버) `null`이면 알리지 않는다.
   - `GET /quiet-hours`·`/health/detail`에는 이 두 필드가 없다(바꾸는 응답에만).
+  - **값과 결과는 같은 판(2026-10-14 재확인 2차, [기록](devlog/devlog_2026-10-14-eval-recheck2-fix.md)).** `PUT /quiet-hours` 응답의 설정 값은
+    `persisted`가 가리키는 그 사본이다 — 저장을 기다리는 사이 다른 요청이 설정을 바꿨으면 응답 값이 지금 값과 다를 수 있다(지금 값은 `GET /quiet-hours`).
+    `/dnd` 응답은 값을 싣지 않으므로 `persisted`는 '이 요청의 변경이 저장된 판에 들어갔는가'만 말한다.
 
 ## 버튼 맵 JSON 포맷
 
