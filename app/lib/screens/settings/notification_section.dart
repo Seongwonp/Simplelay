@@ -20,6 +20,8 @@ class _DndTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final until = ref.watch(dndProvider);
     final active = until != null && until.isAfter(DateTime.now());
+    // 업데이트 전에 켠 잠시 쉬기를 이어받은 동안은 새 제안만 쉰다(2026-10-14 마감 2번).
+    final carried = ref.watch(dndScopeProvider) == 'suggestions_only';
     return _SettingCard(
       child: ListTile(
         contentPadding: EdgeInsets.zero,
@@ -30,7 +32,11 @@ class _DndTile extends ConsumerWidget {
         subtitle: Text(
           // 잠시 쉬기도 조용한 시간과 같은 판정이다(2026-10-14) — 아직 시작하지 않은 자동 실행도 건너뛴다.
           // 켜져 있으면 끝나는 시각을 함께(2026-10-14 마감 확인 A5).
-          active ? '${pauseEndClock(until)}까지 새 제안과 자동 실행을 쉬어요' : '몇 시간 동안 새 제안과 자동 실행을 쉬어요',
+          !active
+              ? '몇 시간 동안 새 제안과 자동 실행을 쉬어요'
+              : carried
+                  ? '${pauseEndClock(until)}까지 새 제안만 쉬어요 · 업데이트 전에 켠 설정이라 자동 실행은 그대로예요'
+                  : '${pauseEndClock(until)}까지 새 제안과 자동 실행을 쉬어요',
           style: TextStyle(color: context.appMuted, fontSize: 12),
         ),
         trailing: TextButton(

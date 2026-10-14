@@ -1,5 +1,6 @@
 """Proactive suggestion lifecycle with a mandatory one-time approval gate."""
 
+import json
 import logging
 import threading
 from dataclasses import replace
@@ -17,6 +18,12 @@ from .feedback import SuggestionFeedback
 
 
 log = logging.getLogger(__name__)
+
+#: 잠시 쉬기 적용 범위(2026-10-14 마감 2번). 업데이트 뒤 켠 잠시 쉬기는 새 제안 + 아직 시작하지 않은 자동 실행을 쉰다.
+PAUSE_SCOPE_ALL = "suggestions_and_auto"
+#: 업데이트 전 서버에서 켠 잠시 쉬기를 이어받은 것 — 남은 시간 동안 옛 범위(새 제안만 쉼) 그대로, 자동 실행은 막지 않는다.
+PAUSE_SCOPE_SUGGESTIONS = "suggestions_only"
+_PAUSE_SCOPES = (PAUSE_SCOPE_ALL, PAUSE_SCOPE_SUGGESTIONS)
 
 
 class UnknownSuggestionError(KeyError):
@@ -78,6 +85,11 @@ class ProactiveSuggestionService:
         self._id_prefix = uuid4().hex
         self._cooldowns = cooldowns if cooldowns is not None else SuggestionCooldowns()
         self._dnd_until: datetime | None = None
+        self._dnd_scope = PAUSE_SCOPE_ALL
+        #: 잠시 쉬기 저장(끝 시각·범위, DB 설정 키 하나) — None이면 메모리만. ``restore_pause``가 붙인다.
+        self._pause_save = None
+        #: 이미 검토한 이어받기 값(같은 값을 두 번 쓰지 않는다 — 컨테이너 재시작에 env가 남아도).
+        self._carryover_seen: str | None = None
         #: 조용한 시간(매일 시간대) 판정 — None이면 없음. 잠시 쉬기(DND)와 함께 ``is_quiet``가 본다(2026-10-14, 5번).
         self._quiet_schedule = None
         # 승인은 워커 스레드(asyncio.to_thread), 거부·생성은 이벤트 루프
@@ -133,10 +145,73 @@ class ProactiveSuggestionService:
     def set_dnd_for(self, minutes: int) -> datetime:
         until = self._clock.now() + timedelta(minutes=minutes)
         self._dnd_until = until
+        self._dnd_scope = PAUSE_SCOPE_ALL
+        self._persist_pause()
         return until
 
     def clear_dnd(self) -> None:
         self._dnd_until = None
+        self._dnd_scope = PAUSE_SCOPE_ALL
+        self._persist_pause()
+
+    # ── 잠시 쉬기 영속(2026-10-14 마감 2번) — 재시작 뒤에도 표시한 끝 시각까지 같은 범위 ──────────
+    def restore_pause(self, load=None, save=None) -> None:
+        """DB에 남긴 잠시 쉬기(끝 시각·범위)를 다시 읽는다. 읽지 못하거나 지난 값이면 쉬지 않는 상태로 시작."""
+        self._pause_save = save
+        if load is None:
+            return
+        try:
+            raw = load()
+            data = json.loads(raw) if raw else None
+        except (ValueError, TypeError):
+            log.exception("pause setting unreadable; starting without a pause")
+            return
+        if not isinstance(data, dict):
+            return
+        seen = data.get("carryover_seen")
+        self._carryover_seen = seen if isinstance(seen, str) else None
+        until = _aware(data.get("until"))
+        scope = data.get("scope")
+        if until is None or scope not in _PAUSE_SCOPES or self._clock.now() >= until:
+            return
+        self._dnd_until = until
+        self._dnd_scope = scope
+
+    def carry_over_pause(self, raw: str | None) -> bool:
+        """업데이트 전 서버가 알린 잠시 쉬기 끝 시각을 옛 범위(새 제안만)로 이어받는다.
+
+        **확인 가능한 값일 때만**: 오프셋 붙은 ISO 시각, 아직 지나지 않음, 최대 쉬기 길이(24시간) 안. 업데이트 뒤 이미
+        켠 잠시 쉬기가 있으면 덮지 않는다. 같은 값은 한 번만 검토한다(쓰든 안 쓰든 기록).
+        """
+        raw = (raw or "").strip()
+        if not raw or raw == self._carryover_seen:
+            return False
+        self._carryover_seen = raw
+        until = _aware(raw)
+        now = self._clock.now()
+        applied = (until is not None and now < until <= now + timedelta(hours=24) and not self.is_dnd())
+        if applied:
+            self._dnd_until = until
+            self._dnd_scope = PAUSE_SCOPE_SUGGESTIONS
+        log.info("pause carryover %s: %s", "applied (suggestions only)" if applied else "ignored", raw)
+        self._persist_pause()
+        return applied
+
+    def _persist_pause(self) -> None:
+        if self._pause_save is None:
+            return
+        active = self.is_dnd()
+        data = {"until": self._dnd_until.isoformat() if active else None,
+                "scope": self._dnd_scope if active else None,
+                "carryover_seen": self._carryover_seen}
+        try:
+            self._pause_save(json.dumps(data, ensure_ascii=False))
+        except Exception:  # noqa: BLE001 -- 저장 실패는 메모리 판정만 남는다(재시작하면 풀림)
+            log.exception("pause setting save failed")
+
+    def dnd_scope(self) -> str | None:
+        """켜진 잠시 쉬기의 범위 — ``suggestions_and_auto``(업데이트 뒤 켬)·``suggestions_only``(이어받음)·None(꺼짐)."""
+        return self._dnd_scope if self.is_dnd() else None
 
     def is_dnd(self) -> bool:
         if self._dnd_until is None:
@@ -151,9 +226,18 @@ class ProactiveSuggestionService:
         self._quiet_schedule = active
 
     def is_quiet(self) -> bool:
-        """조용한 시간(매일 시간대) 또는 잠시 쉬기. 새 제안을 만들지 않고, 떠 있던 카드는 내린다(정책 b)."""
+        """조용한 시간(매일 시간대) 또는 잠시 쉬기(범위 무관). 새 제안을 만들지 않고, 떠 있던 카드는 내린다(정책 b)."""
         if self.is_dnd():
             return True
+        return self._schedule_active()
+
+    def is_auto_run_quiet(self) -> bool:
+        """아직 시작하지 않은 자동 실행을 건너뛰나 — 매일 시간대, 또는 새 범위 잠시 쉬기. 이어받은 옛 범위는 막지 않는다."""
+        if self.is_dnd() and self._dnd_scope == PAUSE_SCOPE_ALL:
+            return True
+        return self._schedule_active()
+
+    def _schedule_active(self) -> bool:
         schedule = self._quiet_schedule
         if schedule is None:
             return False
@@ -903,3 +987,14 @@ class ProactiveSuggestionService:
                 raise UnknownSuggestionError(suggestion.suggestion_id, reason=reason)
 
         return {"approval_guard": guard}
+
+
+def _aware(value) -> datetime | None:
+    """오프셋이 붙은 ISO 시각만 받는다(어느 시각인지 확인할 수 없는 값은 None)."""
+    if not isinstance(value, str):
+        return None
+    try:
+        parsed = datetime.fromisoformat(value.strip())
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None and parsed.utcoffset() is not None else None

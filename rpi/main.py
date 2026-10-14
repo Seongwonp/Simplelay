@@ -301,6 +301,7 @@ async def health_detail(
         ok=True,
         actuator_ready=actuator_ready,
         dnd_until=svc.dnd_until(),
+        dnd_scope=svc.dnd_scope(),
         quiet=quiet_status(),
         act_mode=act_mode,
     )

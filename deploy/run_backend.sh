@@ -8,7 +8,8 @@
 #             sh run_backend.sh
 set -e
 
-DATA_DIR=/mnt/rawdata/simplelay   # 루트(2GB)가 좁아 rawdata(4.6GB)에 데이터를 둔다
+DATA_DIR=${DATA_DIR:-/mnt/rawdata/simplelay}   # 루트(2GB)가 좁아 rawdata(4.6GB)에 데이터를 둔다
+SETTLE_S=${SETTLE_S:-3}
 mkdir -p "$DATA_DIR"
 # 기기별 설정·비밀(SIMPLELAY_API_KEY, SIMPLELAY_ACT_MODE, SIMPLELAY_UART_PORT, 기상청 키 등)은
 # 저장소가 아니라 기기의 이 파일에 둔다(root 전용 600). 없으면 빈 파일로 시작한다.
@@ -26,6 +27,31 @@ if grep -Eiq '^[[:space:]]*SIMPLELAY_DEMO_PACING=(1|true|yes|on)[[:space:]]*$' "
   PACING=on
 fi
 
+# 잠시 쉬기 이어받기(2026-10-14 마감 2번) — 컨테이너를 지우기 **전에** 실행 중 서버에서 읽는다.
+# 업데이트 전 배포본(568f995)은 잠시 쉬기를 메모리에만 두고 공개 /health의 dnd_until로만 알린다. 그 값을 새 컨테이너에
+# 넘기면 새 서버가 남은 시간 동안 옛 범위(새 제안만 쉼)로 이어받는다(확인 가능한 값일 때만 — 서버가 다시 검사).
+# 이후 버전은 서버 DB에 끝 시각·범위를 남겨 이어받기가 필요 없다(공개 /health에 dnd_until이 없다).
+# RPi5 기기에는 curl이 없고 busybox wget만 있다(2026-10-14 확인) — curl이 없거나 실패하면 wget으로 읽는다.
+http_get() {
+  curl -s --max-time 3 "$1" 2>/dev/null || wget -q -T 3 -O - "$1" 2>/dev/null
+}
+CARRY=
+OLD_HEALTH=$(http_get http://localhost:8000/health) || OLD_HEALTH=
+if [ -z "$OLD_HEALTH" ]; then
+  echo "== 실행 중 서버에서 잠시 쉬기를 읽지 못함 — 켜 두었다면 업데이트 뒤 잠시 쉬기 재설정 필요 =="
+elif printf '%s' "$OLD_HEALTH" | grep -q '"dnd_until"'; then
+  CARRY=$(printf '%s' "$OLD_HEALTH" | sed -n 's/.*"dnd_until": *"\([0-9T:.+-]*\)".*/\1/p')
+  if [ -n "$CARRY" ]; then
+    echo "== 잠시 쉬기 이어받기: $CARRY 까지, 업데이트 전 범위(새 제안만 쉼 — 자동 실행은 그대로) =="
+  elif printf '%s' "$OLD_HEALTH" | grep -Eq '"dnd_until": *null'; then
+    echo "== 이어받을 잠시 쉬기 없음 =="
+  else
+    echo "== 잠시 쉬기 값을 확인하지 못함 — 켜 두었다면 업데이트 뒤 잠시 쉬기 재설정 필요 =="
+  fi
+else
+  echo "== 잠시 쉬기는 서버 DB에 남아 있음(이어받기 불필요) =="
+fi
+
 # 기존 컨테이너 정리(재실행 안전)
 docker rm -f simplelay-backend 2>/dev/null || true
 
@@ -40,13 +66,14 @@ docker run -d --name simplelay-backend \
   --network host \
   --env-file "$ENV_FILE" \
   -e SIMPLELAY_DB_PATH=/data/simplelay.db \
+  ${CARRY:+-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=$CARRY} \
   simplelay-backend
 
 echo "== 시연 페이싱: $PACING (env 파일 $ENV_FILE 의 SIMPLELAY_DEMO_PACING) =="
 
 echo "== 컨테이너 기동 =="
-sleep 3
+sleep "$SETTLE_S"
 docker ps --filter name=simplelay-backend --format '{{.Names}} {{.Status}}'
 echo "== /health =="
-sleep 2
-curl -s http://localhost:8000/health || echo "(아직 준비 중일 수 있음 — docker logs simplelay-backend 확인)"
+sleep "$SETTLE_S"
+http_get http://localhost:8000/health || echo "(아직 준비 중일 수 있음 — docker logs simplelay-backend 확인)"

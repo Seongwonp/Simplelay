@@ -301,6 +301,7 @@ class DndNotifier extends StateNotifier<DateTime?> {
     final health = await service.health();
     // 받지 못하면(401·끊김·옛 서버) 마지막으로 안 값을 둔다 — '꺼짐'으로 덮지 않는다(2026-10-14 보안 점검).
     if (health == null) return;
+    _ref.read(dndScopeProvider.notifier).state = health.dndScope;
     state = health.dndUntil;
   }
 
@@ -315,9 +316,14 @@ class DndNotifier extends StateNotifier<DateTime?> {
     final service = _ref.read(rpiApiServiceProvider);
     if (service == null) return;
     await service.clearDnd();
+    _ref.read(dndScopeProvider.notifier).state = null;
     state = null;
   }
 }
+
+/// 켜진 잠시 쉬기의 범위(서버 `dnd_scope`, 2026-10-14 마감 2번). `suggestions_only`면 업데이트 전에 켠 설정을
+/// 이어받은 것이라 새 제안만 쉰다(자동 실행은 그대로) — 화면 문구가 범위대로 말한다.
+final dndScopeProvider = StateProvider<String?>((ref) => null);
 
 final dndProvider = StateNotifierProvider<DndNotifier, DateTime?>(
   (ref) => DndNotifier(ref),

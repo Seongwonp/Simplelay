@@ -5,8 +5,8 @@ A1 조용한 시간 직전에 만든 제안이 시간이 시작된 뒤 뒤늦게
 A2 자동 실행 전송권 경계: 최종 재판정(``dispatch_guard``)이 통과로 돌아온 뒤, POST 전에 조용한 시간이 시작되거나 잠시
    쉬기를 켜면 아직 보내지 않은 명령은 보내지 않는다(모의 클라우드 POST 0건).
 A3 조용한 시간에 건너뛴 사건을 서버 재시작 뒤 다시 받으면, 시간이 끝났어도 재실행하지 않는다(처리 키 DB 영속).
-A5 잠시 쉬기는 서버 메모리에만 있다 — 업데이트(재시작) 전에 켜 둔 잠시 쉬기는 재시작 뒤 남지 않으므로, '자동 실행도
-   쉰다'는 새 의미는 업데이트 뒤 새로 켠 잠시 쉬기에만 적용된다.
+A5 업데이트 전 서버(메모리만)에서 켠 잠시 쉬기는 확인 가능한 값(배포 스크립트가 넘긴 끝 시각)이 없으면 재시작 뒤
+   복원하지 않는다. 업데이트 뒤 켠 잠시 쉬기의 영속은 test_pause_persist.py(2026-10-14 마감 2번).
 
 **실제 ThinQ 클라우드·실가전·실제 CT 판정은 쓰지 않는다**(모의 ThinQ·저장소 안 모의 클라우드·리허설 주입 사건).
 """
@@ -190,14 +190,15 @@ def test_event_skipped_in_quiet_is_not_rerun_after_a_restart_even_when_quiet_has
         deps.get_db.cache_clear()
 
 
-# ── A5 잠시 쉬기 적용 방식 — 업데이트(재시작) 전에 켠 잠시 쉬기는 남지 않는다 ───────────────────
+# ── A5 잠시 쉬기 적용 방식 — 메모리만 쓰던 서버의 잠시 쉬기는 넘긴 값 없이 복원하지 않는다 ───────────────────
 
 
-def test_pause_set_before_an_update_does_not_survive_the_restart(monkeypatch, tmp_path):
-    """잠시 쉬기는 서버 메모리에만 있다(DB 없음). 업데이트 배포는 서버를 다시 띄우므로 옛 의미('제안만 쉼')로 켠 잠시 쉬기가
-    새 의미('자동 실행도 쉼')로 조용히 이어지지 않는다 — 새 의미는 업데이트 뒤 새로 켤 때, 그 화면 문구와 함께 적용된다.
-    매일 조용한 시간 설정은 DB에 남는다(대조)."""
+def test_pause_from_a_memory_only_server_is_not_restored_without_a_carried_value(monkeypatch, tmp_path):
+    """업데이트 전 서버(메모리만)에서 켠 잠시 쉬기는 DB에 기록이 없다 — 배포 스크립트가 넘긴 확인 가능한 값이 없으면
+    재시작 뒤 '복원'하지 않는다(새 범위로 조용히 이어지지도 않는다). 매일 조용한 시간 설정은 DB에 남는다(대조).
+    2026-10-14 마감 2번부터 업데이트 뒤 켠 잠시 쉬기는 영속한다 — rpi/tests/test_pause_persist.py."""
     _mock_env(monkeypatch, "mock")
+    monkeypatch.delenv("SIMPLELAY_PAUSE_CARRYOVER_UNTIL", raising=False)
     monkeypatch.setenv("SIMPLELAY_DB_PATH", str(tmp_path / "simplelay.db"))
     deps.get_db.cache_clear()
     _clear()
@@ -209,6 +210,7 @@ def test_pause_set_before_an_update_does_not_survive_the_restart(monkeypatch, tm
         assert api.put("/quiet-hours", json={"enabled": True, "start": "01:00", "end": "01:30"}).status_code == 200
         quiet = api.get("/health/detail").json()["quiet"]
         assert quiet["reason"] == "pause" and quiet["pause_until"]
+        deps.get_db().save_setting(deps.PAUSE_SETTING, None)  # 옛 서버는 잠시 쉬기를 DB에 남기지 않았다
 
         _clear()  # 업데이트 배포 = 서버 재시작(같은 DB)
         deps.get_db.cache_clear()

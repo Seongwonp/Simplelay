@@ -126,7 +126,7 @@ def get_auto_rule_engine():
         engine = AutoRuleEngine(store, seen, service, deps.get_clock(), scenarios=get_scenario_engine,
                                 care_events=deps.get_care_events(),
                                 max_event_age_s=max_event_age_from_env(),
-                                is_quiet=lambda: deps.get_suggestion_service().is_quiet())
+                                is_quiet=lambda: deps.get_suggestion_service().is_auto_run_quiet())  # 이어받은 옛 범위 잠시 쉬기는 막지 않음
         _auto_engine = engine
     if not getattr(service, "_simplelay_auto_rule_listener", False):
         service.add_job_listener(lambda event: _auto_engine.on_job_finished(event)

@@ -26,6 +26,8 @@ SETTING_KEY = "quiet_hours"
 DEFAULT = {"enabled": False, "start": "22:00", "end": "07:00"}
 SKIP_REASON = "조용한 시간이라 자동 실행하지 않았어요"
 SCOPE_TEXT = "새 제안과 일반 안내 소리만 쉬어요. 아직 시작하지 않은 자동 실행은 건너뛰고 나중에 다시 하지 않아요."
+#: 업데이트 전에 켠 잠시 쉬기를 이어받은 동안(옛 범위) — 자동 실행은 막지 않는다(2026-10-14 마감 2번).
+CARRIED_PAUSE_SCOPE_TEXT = "업데이트 전에 켠 잠시 쉬기라 새 제안과 일반 안내 소리만 쉬어요. 자동 실행은 그대로예요."
 
 _HHMM = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 
@@ -94,12 +96,18 @@ class QuietHours:
         s = self.settings()
         return bool(s["enabled"]) and window_contains(s["start"], s["end"], now)
 
-    def status(self, now: datetime, pause_until: datetime | None) -> dict:
-        """폰·키오스크가 같은 상태를 보이도록 하나의 모양으로. ``reason``: schedule(매일 시간대)·pause(잠시 쉬기)·None."""
+    def status(self, now: datetime, pause_until: datetime | None, pause_scope: str | None = None) -> dict:
+        """폰·키오스크가 같은 상태를 보이도록 하나의 모양으로. ``reason``: schedule(매일 시간대)·pause(잠시 쉬기)·None.
+
+        ``pause_scope``: 잠시 쉬기 범위(``suggestions_and_auto``·``suggestions_only``). 이어받은 옛 범위 잠시 쉬기만
+        켜져 있으면 ``scope`` 문장도 그 범위(자동 실행은 그대로)로 말한다.
+        """
         s = self.settings()
         schedule = bool(s["enabled"]) and window_contains(s["start"], s["end"], now)
         paused = pause_until is not None and now < pause_until
+        carried_only = paused and not schedule and pause_scope == "suggestions_only"
         return {**s, "active": schedule or paused,
                 "reason": "schedule" if schedule else "pause" if paused else None,
                 "pause_until": pause_until.isoformat() if paused else None,
-                "scope": SCOPE_TEXT}
+                "pause_scope": pause_scope if paused else None,
+                "scope": CARRIED_PAUSE_SCOPE_TEXT if carried_only else SCOPE_TEXT}

@@ -16,6 +16,7 @@ class HealthStatus {
     required this.ok,
     this.actuatorReady = true,
     this.dndUntil,
+    this.dndScope,
     this.quietActive = false,
     this.quietScheduleActive = false,
     this.quietSchedule,
@@ -25,6 +26,9 @@ class HealthStatus {
   final bool ok;
   final bool actuatorReady;
   final DateTime? dndUntil;
+
+  /// 잠시 쉬기 범위(2026-10-14 마감 2번) — `suggestions_only`면 업데이트 전 설정을 이어받아 새 제안만 쉰다.
+  final String? dndScope;
 
   /// 조용한 시간(2026-10-14, 서버 /health/detail `quiet` — 폰 /quiet-hours와 같은 상태). 매일 시간대 또는 잠시 쉬기.
   /// 이때는 일반 안내 소리(제안 도착·자동 실행 결과 낭독)를 내지 않는다.
@@ -56,6 +60,7 @@ class HealthStatus {
       dndUntil: json['dnd_until'] == null
           ? null
           : DateTime.parse(json['dnd_until'] as String),
+      dndScope: json['dnd_scope'] as String?,
       quietActive: q['active'] == true,
       quietKnown: q['active'] is bool,
       quietScheduleActive: q['active'] == true && q['reason'] == 'schedule',

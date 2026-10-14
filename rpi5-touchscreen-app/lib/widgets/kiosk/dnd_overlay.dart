@@ -11,6 +11,7 @@ class DndOverlay extends StatelessWidget {
   const DndOverlay({
     super.key,
     required this.dndUntil,
+    this.dndScope,
     this.quietSchedule,
     required this.onSet,
     required this.onClear,
@@ -18,6 +19,9 @@ class DndOverlay extends StatelessWidget {
   });
 
   final DateTime? dndUntil;
+
+  /// 잠시 쉬기 범위(서버 `dnd_scope`) — `suggestions_only`(업데이트 전 설정을 이어받음)면 새 제안만 쉰다고 말한다.
+  final String? dndScope;
 
   /// 켜 둔 매일 조용한 시간대 (시작, 끝) — 보여 주기만 한다(바꾸기는 폰 설정, 2026-10-14).
   final (String, String)? quietSchedule;
@@ -59,9 +63,11 @@ class DndOverlay extends StatelessWidget {
                     // 실제 범위만 말한다(2026-10-14) — 새 제안과 아직 시작하지 않은 자동 실행. 직접 실행·정지·경보는 그대로.
                     Text(
                       // 켜져 있으면 끝나는 시각을 함께 적는다(2026-10-14 마감 확인 A5) — 위 줄 칩은 남은 시간.
-                      dndUntil != null
-                          ? '${_clockOf(dndUntil!)}까지 새 제안과 자동 실행을 쉬고 있어요'
-                          : '새 제안과 자동 실행을 잠시 쉬어요',
+                      dndUntil == null
+                          ? '새 제안과 자동 실행을 잠시 쉬어요'
+                          : dndScope == 'suggestions_only'
+                              ? '${_clockOf(dndUntil!)}까지 새 제안만 쉬고 있어요 · 자동 실행은 그대로예요'
+                              : '${_clockOf(dndUntil!)}까지 새 제안과 자동 실행을 쉬고 있어요',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 18,

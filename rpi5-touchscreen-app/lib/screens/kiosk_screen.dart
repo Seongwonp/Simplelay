@@ -1401,6 +1401,7 @@ class _KioskScreenState extends State<KioskScreen> {
             Positioned.fill(
               child: DndOverlay(
                 dndUntil: _health.dndUntil,
+                dndScope: _health.dndScope,
                 quietSchedule: _health.quietSchedule,
                 onSet: _onSetDnd,
                 onClear: _onClearDnd,

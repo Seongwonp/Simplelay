@@ -24,6 +24,8 @@ from rpi.intent.models import PatternConfig, TimeBand
 from rpi.intent.patterns import PatternDetector
 from rpi.intent.ports import UsageLog
 from rpi.intent.suggestions import ProactiveSuggestionService
+
+PAUSE_SETTING = "suggestion_pause"  # 잠시 쉬기 끝 시각·범위(2026-10-14 마감 2번)
 from rpi.intent.completed_actions import CompletedActions
 from rpi.intent.cooldowns import SuggestionCooldowns
 from rpi.intent.feedback import SuggestionFeedback
@@ -775,7 +777,7 @@ def get_quiet_hours():
 def quiet_status() -> dict:
     """폰(/quiet-hours)·키오스크(/health)가 같은 모양으로 보는 조용한 시간 상태."""
     svc = get_suggestion_service()
-    return get_quiet_hours().status(get_clock().now(), svc.dnd_until())
+    return get_quiet_hours().status(get_clock().now(), svc.dnd_until(), svc.dnd_scope())
 
 
 @lru_cache(maxsize=1)
@@ -805,6 +807,11 @@ def get_suggestion_service() -> ProactiveSuggestionService:
     )
     # 조용한 시간(매일 시간대) — 잠시 쉬기(DND)와 함께 is_quiet()로 판정한다(2026-10-14, 5번).
     svc.set_quiet_schedule(lambda: get_quiet_hours().schedule_active(get_clock().now()))
+    # 잠시 쉬기 끝 시각·범위 영속(2026-10-14 마감 2번) — 재시작 뒤에도 표시한 끝 시각까지.
+    svc.restore_pause(load=(lambda: db.load_setting(PAUSE_SETTING)) if db else None,
+                      save=(lambda value: db.save_setting(PAUSE_SETTING, value)) if db else None)
+    # 업데이트 전 서버(메모리만)의 잠시 쉬기 — 배포 스크립트가 실행 중 서버의 /health에서 읽어 넘긴 값만, 옛 범위로.
+    svc.carry_over_pause(os.environ.get("SIMPLELAY_PAUSE_CARRYOVER_UNTIL"))
     # 시나리오 트리거(실행 완료·ThinQ 이벤트) → 제안. 자동 실행은 없다.
     from .thinq_wiring import wire_scenarios  # noqa: PLC0415
 

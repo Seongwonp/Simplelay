@@ -991,6 +991,9 @@ class HealthResponse(BaseModel):
     # coreXY 홈 위치 확인 + SwitchBot 연결 상태 통합 — 실기기 연결 후 교체. 기본값 없음(모르면 준비됨으로 보지 않는다).
     actuator_ready: bool
     dnd_until: datetime | None = None
+    # 잠시 쉬기 범위(2026-10-14 마감 2번) — "suggestions_and_auto"(새 제안+자동 실행)·"suggestions_only"(업데이트 전 설정을
+    # 이어받음, 새 제안만)·None(꺼짐). 폰·키오스크가 문구를 범위대로 고른다.
+    dnd_scope: str | None = None
     # 조용한 시간(2026-10-14) — /quiet-hours와 같은 모양. 키오스크가 폰과 같은 상태를 보인다.
     quiet: dict | None = None
     # 현재 Act 경로 — "local"(mock 폐루프) | "uart"(RPi4 실연결).

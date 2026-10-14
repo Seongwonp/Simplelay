@@ -636,10 +636,15 @@ class RpiHealthData {
     required this.ok,
     required this.actuatorReady,
     this.dndUntil,
+    this.dndScope,
   });
   final bool ok;
   final bool actuatorReady;
   final DateTime? dndUntil;
+
+  /// 잠시 쉬기 범위(2026-10-14 마감 2번) — `suggestions_and_auto`(새 제안+자동 실행)·`suggestions_only`(업데이트 전
+  /// 설정을 이어받음, 새 제안만)·null.
+  final String? dndScope;
 
   factory RpiHealthData.fromJson(Map<String, dynamic> json) => RpiHealthData(
         ok: json['ok'] as bool? ?? false,
@@ -647,6 +652,7 @@ class RpiHealthData {
         dndUntil: json['dnd_until'] == null
             ? null
             : DateTime.tryParse(json['dnd_until'] as String),
+        dndScope: json['dnd_scope'] as String?,
       );
 }
 
