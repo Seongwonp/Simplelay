@@ -170,7 +170,7 @@ systemctl daemon-reload
 systemctl enable simplelay
 systemctl restart simplelay
 ok "simplelay.service 활성화 + 시작 (Restart=always)"
-ok "현재 Act 모드 확인: curl localhost:8000/health → act_mode"
+ok "현재 Act 모드 확인: curl localhost:8000/health/detail → act_mode (공개 /health는 ok·version만)"
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. 로그 로테이션 (24/7 운영 — 로그 무한 증식 방지)
@@ -236,6 +236,7 @@ fi
 echo ""
 echo "── mDNS 확인 (같은 WiFi 기기에서 실행하세요) ──────────────────────────"
 echo "  curl http://simplelay.local:8000/health"
-echo "  → 응답 오면 앱/키오스크 자동 연결 가능"
+echo "  → ok·version 응답이 오면 서버에 닿음(생존 확인만 — 준비 상태는 여기 없음)"
+echo "  준비 상태·Act 모드는 인증 경로: curl -H \"X-API-Key: <키>\" http://simplelay.local:8000/health/detail"
 echo ""
 ok "설치 완료!"
