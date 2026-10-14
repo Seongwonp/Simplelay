@@ -703,6 +703,22 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
 - 사용 기록(제안 집계)은 세 성공(`state_confirmed`·`state_confirmed_unknown_before`·`already_at_target`)을 성공으로 센다. 루틴 다음 단계의 '시작 확인'·`after_done` 깨우기는 종전대로 `state_confirmed`(실제 변경)만.
 - 옛 폰·키오스크는 모르는 `confirmation`을 확인 칩 없이 성공으로만 보인다(결과 문장은 서버 `last_detail`이 말한다).
 
+## 사용 기록 → 루틴 초안 — `/routines/candidates` (2026-10-14, 4번)
+
+가전 사용 기록 분석이 찾은 반복 순서를 **가전·버튼 순서가 채워진 루틴 초안**으로 준다. 이 묶음에는 실행 진입점이 없다 — 저장만 한다(카드·자동 실행 허용도 만들지 않는다). 기록: [devlog](devlog/devlog_2026-10-14-habit-routine.md).
+
+| 요청 | 응답 |
+|---|---|
+| `GET /routines/candidates` | 초안 목록(근거가 강한 순). 제안을 쉬는 동안(방해 금지)은 `[]` |
+| `POST /routines/candidates/{key}/save` `{"name": "...", "run": "manual" \| "ask_at_time"}` | 201 `{"routine": <루틴>, "executed": false, "notice": "저장만으로는 실행하지 않아요. …"}` · 422(이름·`run` 없음·잘못됨) · 404(없는 초안) · 409(이미 저장한 초안, 같은 가전·버튼 순서의 루틴이 이미 있음 — detail에 그 루틴 이름) |
+| `POST /routines/candidates/{key}/decline` | `{"ok": true, "quiet_until": ISO}` — 14일 동안 그 초안을 보이지 않는다. 404(없는 초안) |
+
+초안 필드: `key`(`hc-` + 가전·버튼 순서 해시 16자) · `appliance_id` · `appliance_name` · `buttons`(조작부 이름) · `steps`(`press_sequence` 한 단계) · `suggested_name` · `evidence`("최근 28일 중 아침에 4일 사용했어요" — 가전 사용 기록 문장, 사람을 단정하지 않는다) · `evidence_detail`(`window_days`·`distinct_days`·`occurrences`·`time_band`) · `ask_time`("HH:MM", 기록 시각 중앙값을 5분 단위로 내림) · `run_choices`(`manual` "직접 실행할 때만" · `ask_at_time` "매일 HH:MM에 물어보기") · `notice`.
+
+- 저장한 루틴은 `mode=approve`. `manual`은 `trigger.kind=manual`, `ask_at_time`은 매일 `ask_time`의 시각 트리거 — 그때 **카드만** 만든다(종전 루틴 규칙). 물리 버튼 단계라 자동 실행 규칙(`auto_rule_offer`)은 붙지 않는다.
+- 근거는 패턴 감지기와 같다: 성공·실제 실행(`real`)·직접 사용(`direct`) 기록만. 모의·시연·제안 승인으로 실행한 기록은 세지 않는다. 버튼 순서를 결정적으로 모르는 목적(등록 기능·내장 규칙에 없는 것)과 ThinQ 가전은 초안을 만들지 않는다.
+- 보이지 않는 경우: 저장한 초안(루틴을 지워도), 거절 뒤 14일, 같은 가전·같은 버튼 순서의 루틴이 이미 있음(장치 명령 열로 비교 — 버튼 ID로 적었어도 같다), '다시 받지 않기'로 내린 목적, 제안을 쉬는 동안. 판단(저장·거절)은 DB가 있으면 설정 `routine_candidate_decisions`에 남아 재시작 뒤에도 유지된다.
+
 ## 버튼 맵 JSON 포맷
 
 `docs/button-maps/<appliance>.json` 에 가전별 저장.

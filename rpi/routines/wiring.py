@@ -173,6 +173,45 @@ def close_auto_rules_if_any(timeout_s: float = 5.0) -> bool:
         return False
 
 
+# ── 사용 기록 → 루틴 초안(2026-10-14, 4번) ────────────────────────────────────
+
+
+@lru_cache(maxsize=1)
+def get_candidate_decisions():
+    """초안별 판단(저장·거절). DB가 있으면 재시작 뒤에도 남는다."""
+    from rpi.api import deps  # noqa: PLC0415
+
+    from .candidates import DECISIONS_SETTING, CandidateDecisions  # noqa: PLC0415
+
+    db = deps.get_db()
+    return CandidateDecisions(load=(lambda: db.load_setting(DECISIONS_SETTING)) if db else None,
+                              save=(lambda v: db.save_setting(DECISIONS_SETTING, v)) if db else None)
+
+
+def get_routine_candidates():
+    """요청마다 지금의 서비스·기록·제안 쉬기 상태로 만든다(판단만 위에서 공유)."""
+    from rpi.api import deps  # noqa: PLC0415
+    from rpi.intent.patterns import PatternDetector  # noqa: PLC0415
+    from rpi.intent.suggestions import ProactiveSuggestionService  # noqa: PLC0415
+
+    from .candidates import RoutineCandidates  # noqa: PLC0415
+
+    suggestions = deps.get_suggestion_service()
+    service = deps.get_service()
+    clock = deps.get_clock()
+    muted = suggestions.muted_purposes
+    return RoutineCandidates(
+        detector=PatternDetector(deps.get_usage_log(), clock, deps._PATTERN_CONFIG),
+        revision_options=service.revision_options,
+        registry=deps.get_appliance_registry(),
+        store=get_routine_store(),
+        decisions=get_candidate_decisions(),
+        clock=clock,
+        is_paused=suggestions.is_dnd,
+        is_muted=lambda purpose: ProactiveSuggestionService._is_muted(purpose, muted()),
+    )
+
+
 def get_routine_engine() -> RoutineEngine:
     from rpi.api.deps import get_suggestion_service  # noqa: PLC0415
 
@@ -186,6 +225,7 @@ def reset_routines() -> None:
     global _engine, _auto_engine
     _auto_engine = None
     get_routine_store.cache_clear()
+    get_candidate_decisions.cache_clear()
     from rpi.api import deps  # noqa: PLC0415
 
     deps.get_done_sensor_set.cache_clear()

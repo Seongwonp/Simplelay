@@ -12,8 +12,11 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/models/routine.dart';
+import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/routine_editor_screen.dart';
 import 'package:simplelay/screens/routines_screen.dart';
@@ -89,6 +92,13 @@ class _Server {
   /// true면 GET /routines/next가 실패한다(예약 조회 실패 ≠ 예약 없음).
   bool nextFails = false;
 
+  /// GET /routines/candidates 응답(사용 기록으로 만든 초안, 2026-10-14). 없으면 404(옛 서버).
+  List<Map<String, dynamic>>? candidates;
+
+  /// POST /routines/candidates/{key}/save 응답. null이면 201로 저장한다.
+  (int, Map<String, dynamic>)? candidateSaveReply;
+  Map<String, dynamic>? candidateBody;
+
   int get triggerCount =>
       requests.where((r) => r.startsWith('POST') && r.endsWith('/trigger')).length;
 
@@ -112,6 +122,32 @@ class _Server {
           if (req.method == 'GET' && path == '/appliances') {
             final list = appliances;
             if (list != null) return _json(list);
+          }
+          if (req.method == 'GET' && path == '/routines/candidates') {
+            final list = candidates;
+            if (list != null) return _json(list);
+          }
+          if (req.method == 'POST' && path.startsWith('/routines/candidates/')) {
+            if (path.endsWith('/decline')) {
+              candidates = [
+                for (final c in candidates ?? const <Map<String, dynamic>>[])
+                  if (!path.contains(c['key'] as String)) c,
+              ];
+              return _json({'ok': true, 'quiet_until': '2026-10-28T12:00:00+09:00'});
+            }
+            candidateBody = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
+            final reply = candidateSaveReply;
+            if (reply != null) return _json(reply.$2, reply.$1);
+            candidates = const [];
+            final saved = {
+              ..._routine(),
+              'id': 'rt-9',
+              'name': candidateBody!['name'],
+              'trigger': {'kind': 'manual'},
+              'when': '직접 실행할 때',
+            };
+            routines = [stored, saved];
+            return _json({'routine': saved, 'executed': false, 'notice': '저장만으로는 실행하지 않아요.'}, 201);
           }
           if (req.method == 'GET' && path == '/routines/templates') {
             return _json(templates ?? [_template]);
@@ -159,7 +195,7 @@ class _Server {
       );
 }
 
-Widget _build(_Server server, {List<ApplianceMap>? installed}) {
+Widget _build(_Server server, {List<ApplianceMap>? installed, List<Override> extra = const []}) {
   final router = GoRouter(
     initialLocation: '/routines',
     routes: [
@@ -181,6 +217,7 @@ Widget _build(_Server server, {List<ApplianceMap>? installed}) {
       ...connectedOverrides(),
       ...installedOverrides(installed ?? [kTestAppliance]),
       rpiApiServiceProvider.overrideWithValue(server.api()),
+      ...extra,
     ],
     child: MaterialApp.router(theme: ThemeData.dark(), routerConfig: router),
   );
@@ -543,4 +580,146 @@ void main() {
       expect(find.textContaining('추천'), findsNothing);
     });
   });
+
+  // 2026-10-14 4번: 사용 기록 → 루틴 초안 저장. 저장만 한다(실행 경로가 불리면 서버가 시험을 실패시킨다).
+  group('사용 기록으로 만든 루틴 초안', () {
+    Map<String, dynamic> candidate() => {
+          'key': 'hc-1',
+          'appliance_id': 'microwave',
+          'appliance_name': '전자레인지',
+          'buttons': ['즉석밥', '시작'],
+          'steps': [
+            {'kind': 'press_sequence', 'appliance_id': 'microwave', 'buttons': ['즉석밥', '시작']},
+          ],
+          'suggested_name': '아침 즉석밥 데워줘',
+          'evidence': '최근 28일 중 아침에 4일 사용했어요',
+          'ask_time': '07:30',
+          'run_choices': [
+            {'run': 'manual', 'label': '직접 실행할 때만'},
+            {'run': 'ask_at_time', 'label': '매일 07:30에 물어보기'},
+          ],
+          'notice': '저장만으로는 실행하지 않아요. 실행은 매번 승인을 받아요. 자동 실행은 켜지지 않아요.',
+        };
+
+    int saves(_Server s) => s.requests
+        .where((r) => r.startsWith('POST /routines/candidates/') && r.endsWith('/save'))
+        .length;
+
+    testWidgets('초안은 가전·버튼 순서와 실제 기록 숫자를 보이고, 추천·개인 단정 문장이 없다', (tester) async {
+      final server = _Server()..candidates = [candidate()];
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await _settle(tester);
+      expect(find.text('사용 기록으로 만든 루틴 초안'), findsOneWidget);
+      expect(find.text('전자레인지 · 즉석밥 → 시작'), findsOneWidget);
+      expect(find.text('최근 28일 중 아침에 4일 사용했어요'), findsOneWidget);
+      expect(find.textContaining('추천'), findsNothing);
+      expect(find.textContaining('하셨'), findsNothing);
+      expect(tester.getSize(find.byKey(const Key('candidate-save-hc-1'))).height,
+          greaterThanOrEqualTo(48));
+      // 예시 루틴 탭에는 보이지 않는다.
+      await tester.tap(find.text('예시 루틴'));
+      await _settle(tester);
+      expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
+    });
+
+    testWidgets('확인 시트에서 이름·언제만 고르고 저장 — 저장 요청 1회, 실행·카드 요청 0회', (tester) async {
+      final server = _Server()..candidates = [candidate()];
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('candidate-save-hc-1')));
+      await _settle(tester);
+
+      // 빈 폼이 아니다: 순서·이름이 채워져 있고 고를 것은 둘뿐.
+      expect(find.text('루틴으로 저장할까요?'), findsOneWidget);
+      expect(find.byKey(const Key('candidate-sheet-sequence')), findsOneWidget);
+      expect(find.widgetWithText(TextField, '아침 즉석밥 데워줘'), findsOneWidget);
+      expect(find.text('직접 실행할 때만'), findsOneWidget);
+      expect(find.text('매일 07:30에 물어보기'), findsOneWidget);
+      expect(find.textContaining('저장만으로는 실행하지 않아요'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const Key('candidate-name')), '아침 밥');
+      await tester.tap(find.byKey(const Key('candidate-run-ask_at_time')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('candidate-confirm')));
+      await _settle(tester);
+
+      expect(saves(server), 1);
+      expect(server.candidateBody, {'name': '아침 밥', 'run': 'ask_at_time'});
+      expect(server.triggerCount, 0);
+      expect(
+          server.requests.where((r) => r.contains('/execute') || r.endsWith('/approve')),
+          isEmpty);
+      expect(find.text('루틴으로 저장할까요?'), findsNothing);
+      expect(find.text("'아침 밥' 루틴을 저장했어요. 실행하지는 않았어요."), findsOneWidget);
+      // 저장한 초안은 사라지고 내 루틴에 들어간다.
+      expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
+      expect(find.text('아침 밥'), findsOneWidget);
+    });
+
+    testWidgets('기본 선택은 직접 실행할 때만, 취소하면 아무것도 저장하지 않는다', (tester) async {
+      final server = _Server()..candidates = [candidate()];
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('candidate-save-hc-1')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('candidate-cancel')));
+      await _settle(tester);
+      expect(saves(server), 0);
+      expect(find.text('사용 기록으로 만든 루틴 초안'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('candidate-save-hc-1')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('candidate-confirm')));
+      await _settle(tester);
+      expect(server.candidateBody, {'name': '아침 즉석밥 데워줘', 'run': 'manual'});
+    });
+
+    testWidgets('같은 순서의 루틴이 있으면(409) 그 문장을 시트에 남기고 머문다', (tester) async {
+      final server = _Server()
+        ..candidates = [candidate()]
+        ..candidateSaveReply =
+            (409, {'detail': "같은 가전·버튼 순서의 루틴이 이미 있어요: '아침 데우기'"});
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('candidate-save-hc-1')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('candidate-confirm')));
+      await _settle(tester);
+      expect(find.text("같은 가전·버튼 순서의 루틴이 이미 있어요: '아침 데우기'"), findsOneWidget);
+      expect(find.text('루틴으로 저장할까요?'), findsOneWidget);
+    });
+
+    testWidgets('괜찮아요는 거절만 보내고 초안을 내린다', (tester) async {
+      final server = _Server()..candidates = [candidate()];
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await _settle(tester);
+      await tester.tap(find.byKey(const Key('candidate-decline-hc-1')));
+      await _settle(tester);
+      expect(server.requests, contains('POST /routines/candidates/hc-1/decline'));
+      expect(saves(server), 0);
+      expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
+    });
+
+    testWidgets('실행 중에는 초안을 보이지 않는다(작업 도중 끼어들지 않는다)', (tester) async {
+      final server = _Server()..candidates = [candidate()];
+      _tall(tester);
+      await tester.pumpWidget(_build(server, extra: [
+        executionStatusProvider.overrideWith(_RunningNotifier.new),
+      ]));
+      await _settle(tester);
+      expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
+      expect(find.text('아침 데우기'), findsOneWidget);
+    });
+  });
+}
+
+class _RunningNotifier extends ExecutionStatusNotifier {
+  _RunningNotifier(super.ref) {
+    state = const ExecutionStatus(phase: ExecutionPhase.running);
+  }
 }

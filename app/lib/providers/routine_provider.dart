@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/auto_rule.dart';
 import '../models/routine.dart';
+import '../models/routine_candidate.dart';
 import 'rpi_api_provider.dart';
 
 /// 서버에 없는 상태(주소 미설정). 빈 목록과 구분한다 -- "루틴이 없어요"와
@@ -46,5 +47,18 @@ final nextRoutineProvider =
     return runs.firstOrNull;
   } catch (_) {
     return null;
+  }
+});
+
+/// 사용 기록으로 만든 루틴 초안(2026-10-14). 조회 실패·옛 서버(404)·연결 없음은 빈 목록 —
+/// 조용히 사라질 뿐 루틴 목록을 막지 않는다.
+final routineCandidatesProvider =
+    FutureProvider.autoDispose<List<RoutineCandidate>>((ref) async {
+  final api = ref.watch(rpiApiServiceProvider);
+  if (api == null) return const [];
+  try {
+    return await api.routineCandidates();
+  } catch (_) {
+    return const [];
   }
 });

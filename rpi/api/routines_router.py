@@ -85,6 +85,47 @@ async def routine_templates() -> list[dict]:
     return template_payloads()
 
 
+# ── 사용 기록 → 루틴 초안(2026-10-14, 4번) — 저장만 한다(실행·카드·자동 실행 허용 없음) ──
+
+
+def _candidate_error(exc) -> HTTPException:
+    return HTTPException(status_code=exc.status, detail=exc.message)
+
+
+@router.get("/routines/candidates")
+async def routine_candidates() -> list[dict]:
+    """가전 사용 기록으로 만든 루틴 초안(가전·버튼 순서가 채워짐). 제안을 쉬는 동안은 빈 목록."""
+    from rpi.routines.wiring import get_routine_candidates  # noqa: PLC0415
+
+    return await asyncio.to_thread(lambda: get_routine_candidates().list())
+
+
+@router.post("/routines/candidates/{key}/save", status_code=201)
+async def save_routine_candidate(key: str, body: dict = Body(...)) -> dict:
+    """``{"name": ..., "run": "manual" | "ask_at_time"}`` — 승인 루틴으로 **저장만** 한다."""
+    from rpi.routines.candidates import SAVE_NOTICE, CandidateError  # noqa: PLC0415
+    from rpi.routines.wiring import get_routine_candidates  # noqa: PLC0415
+
+    try:
+        routine = await asyncio.to_thread(lambda: get_routine_candidates().save(key, body))
+    except CandidateError as exc:
+        raise _candidate_error(exc) from exc
+    return {"routine": _payload(routine, _names()), "executed": False, "notice": SAVE_NOTICE}
+
+
+@router.post("/routines/candidates/{key}/decline")
+async def decline_routine_candidate(key: str) -> dict:
+    """'괜찮아요' — 저장하지 않고 일정 기간(14일) 이 초안을 다시 보이지 않는다."""
+    from rpi.routines.candidates import CandidateError  # noqa: PLC0415
+    from rpi.routines.wiring import get_routine_candidates  # noqa: PLC0415
+
+    try:
+        until = await asyncio.to_thread(lambda: get_routine_candidates().decline(key))
+    except CandidateError as exc:
+        raise _candidate_error(exc) from exc
+    return {"ok": True, "quiet_until": until.isoformat()}
+
+
 @router.get("/routines/runs")
 async def routine_runs() -> list[dict]:
     runner = get_routine_engine().runner

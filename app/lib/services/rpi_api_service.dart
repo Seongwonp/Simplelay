@@ -9,6 +9,7 @@ import '../models/estop.dart';
 import '../models/hub.dart';
 import '../models/learning_status.dart';
 import '../models/routine.dart';
+import '../models/routine_candidate.dart';
 import '../models/scenario_run.dart';
 
 class RpiApiException implements Exception {
@@ -1662,6 +1663,39 @@ class RpiApiService {
   Future<void> deleteRoutine(String id) async {
     final res = await _client
         .delete(_base.replace(path: '/routines/$id'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+  }
+
+  // ── 사용 기록 → 루틴 초안(2026-10-14) — 저장만 한다(실행·카드·자동 실행 허용 없음) ──
+
+  Future<List<RoutineCandidate>> routineCandidates() async {
+    final res = await _client
+        .get(_base.replace(path: '/routines/candidates'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return [
+      for (final item in _decodeList(res))
+        if (RoutineCandidate.fromJson(item) case final c?) c,
+    ];
+  }
+
+  /// [run]은 `manual`(직접 실행할 때만) 또는 `ask_at_time`(정해진 때 물어보기).
+  Future<Routine> saveRoutineCandidate(String key, {required String name, required String run}) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/routines/candidates/$key/save'),
+          headers: _jsonHeaders,
+          body: jsonEncode({'name': name, 'run': run}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return Routine.fromJson(_decodeMap(res)['routine'] as Map<String, dynamic>);
+  }
+
+  Future<void> declineRoutineCandidate(String key) async {
+    final res = await _client
+        .post(_base.replace(path: '/routines/candidates/$key/decline'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
   }

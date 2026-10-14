@@ -3,14 +3,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/auto_rule.dart';
+import '../models/execution_status.dart';
 import '../models/routine.dart';
+import '../models/routine_candidate.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/execution_status_provider.dart';
 import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
+import '../widgets/routine_candidate_sheet.dart';
 import '../widgets/routine_run.dart';
 
 /// 루틴 탭 — 위에 "다음 실행"(예약이 있을 때만), 아래에 "내 루틴 / 예시 루틴"(UI 확정 §2).
@@ -46,6 +50,10 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     final names = {
       for (final a in ref.watch(installedAppliancesProvider)) a.id: a.name,
     };
+    final executing = switch (ref.watch(executionStatusProvider).phase) {
+      ExecutionPhase.waiting || ExecutionPhase.running || ExecutionPhase.retrying => true,
+      _ => false,
+    };
 
     return Scaffold(
       appBar: AppBar(
@@ -69,6 +77,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
           ref.invalidate(routineTemplatesProvider);
           ref.invalidate(nextRoutineProvider);
           ref.invalidate(autoRulesProvider);
+          ref.invalidate(routineCandidatesProvider);
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
@@ -90,6 +99,14 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               onSelectionChanged: (v) => setState(() => _templates = v.first),
             ),
             const SizedBox(height: 12),
+            // 사용 기록으로 만든 루틴 초안(2026-10-14) — 조용히: 이 탭에만, 실행 중에는 감춘다(작업 도중 끼어들지 않는다).
+            if (!_templates && !executing)
+              for (final c in ref.watch(routineCandidatesProvider).valueOrNull ?? const <RoutineCandidate>[])
+                _CandidateCard(
+                  candidate: c,
+                  onSave: () => _saveCandidate(context, c),
+                  onDecline: () => _declineCandidate(c),
+                ),
             // 자동 실행 허용 규칙(2026-10-13) — 카드에서 허용한 것만 있다. 없으면(옛 서버 포함) 아무것도 안 보인다.
             if (!_templates)
               for (final rule in ref.watch(autoRulesProvider).valueOrNull ?? const <AutoRule>[])
@@ -149,6 +166,33 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     }
   }
 
+  /// 초안 저장 — 확인 시트에서 이름과 '직접 실행할 때만 / 정해진 때 물어보기'만 고른다. 저장만 한다.
+  Future<void> _saveCandidate(BuildContext context, RoutineCandidate c) async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final saved = await showRoutineCandidateSheet(context, candidate: c, api: api);
+    if (!mounted) return;
+    ref.invalidate(routineCandidatesProvider);
+    if (saved == null) return;
+    ref.invalidate(routinesProvider);
+    ref.invalidate(nextRoutineProvider);
+    messenger.showSnackBar(SnackBar(
+      content: Text("'${saved.name}' 루틴을 저장했어요. 실행하지는 않았어요."),
+    ));
+  }
+
+  Future<void> _declineCandidate(RoutineCandidate c) async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null) return;
+    try {
+      await api.declineRoutineCandidate(c.key);
+    } catch (_) {
+      // 실패해도 목록을 다시 받는다 — 남아 있으면 그대로 보인다.
+    }
+    if (mounted) ref.invalidate(routineCandidatesProvider);
+  }
+
   Future<void> _open(BuildContext context, Routine? routine) async {
     // 템플릿은 새 루틴 초안으로 연다 -- 템플릿 자체를 고치는 것이 아니다.
     final initial = routine == null
@@ -160,6 +204,62 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     if (!mounted) return;
     ref.invalidate(routinesProvider);
     ref.invalidate(nextRoutineProvider);
+  }
+}
+
+/// 사용 기록으로 만든 루틴 초안 한 장 — 가전·버튼 순서와 근거(가전 사용 기록 문장), [루틴으로 저장] [괜찮아요].
+///
+/// 개인 습관으로 단정하지 않는다(누가 썼는지 모른다). '추천'이라 부르지 않는다(예시 루틴과 구분).
+class _CandidateCard extends StatelessWidget {
+  const _CandidateCard({required this.candidate, required this.onSave, required this.onDecline});
+
+  final RoutineCandidate candidate;
+  final VoidCallback onSave;
+  final VoidCallback onDecline;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = candidate;
+    return Container(
+      key: Key('candidate-${c.key}'),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.appSurfaceLow,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.appBorderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('사용 기록으로 만든 루틴 초안',
+              style: TextStyle(fontSize: 14, color: context.appMuted)),
+          const SizedBox(height: 4),
+          Text('${c.applianceName} · ${c.sequenceText}',
+              style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+          Text(c.evidence, style: TextStyle(fontSize: 15, color: context.appMuted)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton(
+                key: Key('candidate-save-${c.key}'),
+                onPressed: onSave,
+                style: FilledButton.styleFrom(minimumSize: const Size(112, 48)),
+                child: const Text('루틴으로 저장'),
+              ),
+              TextButton(
+                key: Key('candidate-decline-${c.key}'),
+                onPressed: onDecline,
+                style: TextButton.styleFrom(minimumSize: const Size(88, 48)),
+                child: const Text('괜찮아요'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 
