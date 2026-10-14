@@ -675,12 +675,33 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   키오스크는 켠 뒤 첫 조회 값을 기준으로만 잡고(켜기 전 결과는 띄우지 않음), 그 뒤 값이 바뀌면 그 job의 결과를 완료 화면으로 띄운다 —
   `running`을 한 번도 보지 못한 짧은 실행·정지도 여기서 잡는다(10/14 C). 자동 실행 job은 완료 화면 대신 아래 한 줄로만 알린다.
 - `last_auto_run`: **결과가 나온 마지막 자동 실행 1건**(job이 있는 것만 — 보내기 전에 막힌 판단은 job이 없어 여기에 없다). 없으면 null.
-  - 필드: `job_id`·`at`·`outcome`(`sent`·`blocked`)·`status`·`receipt`·`confirmation`·`execution_mode`·`target_name`·`setting_label`·`value_label`.
+  - 필드: `job_id`·`at`·`outcome`(`sent`·`blocked`)·`status`·`receipt`·`confirmation`·`dispatch`·`execution_mode`·`target_name`·`setting_label`·`value_label`·`value_phrase`.
+    `dispatch`·`value_phrase`는 2026-10-14(아래 'ThinQ 결과의 네 경우') — 옛 RPi5에는 없다.
     대상·설정·값 이름은 **그 job을 만들 때의 사본**이다(3차 평가 M2 — 보낸 뒤 규칙 편집·삭제·대상 이름 변경에도 바뀌지 않는다).
   - **비영속:** 서버 메모리의 기록이라 RPi5 백엔드를 다시 켜면 null로 돌아간다.
   - **첫 조회 제외:** 키오스크는 켠 뒤 첫 조회에 이미 있던 값은 알리지 않는다(지난 결과를 다시 읽지 않음). 그 뒤 `job_id`가 바뀔 때 한 번 알린다.
   - 폴링 사이에 자동 실행 두 건이 끝나면 앞의 것은 키오스크가 알리지 않는다(마지막 1건만).
 - 옛 RPi5는 `last_auto_run`이 없다 — 키오스크는 필드 없음·null이면 알림을 만들지 않는다.
+
+## ThinQ 결과의 네 경우 — `confirmation`·`dispatch` (2026-10-14, 보드 날 발견 3)
+
+ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조회 값과 보낸 뒤 재조회 값으로 **확인한 사실만큼** 결과를 낸다.
+문장은 `rpi/services/thinq/wording.py`, 설정 이름은 `ThinqCapability.setting_phrase`(풍량은 "강풍"·"약풍", 그 밖은 "풍량 중"·"운전 모드 청정"처럼 속성 이름을 붙인다).
+
+| 경우 | status / receipt / confirmation | 제어 요청 | 문장(`last_detail`·`/history` `detail`) |
+|---|---|---|---|
+| 보내기 전부터 목표값 | `succeeded / not_dispatched / already_at_target` | 0회 | 이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요. |
+| 보내기 전 다른 값 → 보낸 뒤 목표값 | `succeeded / accepted / state_confirmed` | 1회 | 강풍으로 바꿨어요. |
+| 보내기 전 값 모름(조회 실패·값 없음) → 보낸 뒤 목표값 | `succeeded / accepted / state_confirmed_unknown_before` | 최대 1회 | 강풍으로 설정된 것을 확인했어요.('바꿨어요' 금지 — 원래 그 값이었을 수 있다) |
+| 보낸 뒤 상태 확인 실패 | `unconfirmed / accepted / none` | 1회, 추가 전송 0회 | 명령을 보냈어요 — 설정이 바뀌었는지 확인하지 못했어요. 자동으로 다시 보내지 않아요 |
+
+- `already_at_target`은 `succeeded`+`not_dispatched`와만 짝짓고(값 객체가 강제), 물리 경로는 쓸 수 없다. `state_confirmed_unknown_before`는 `succeeded`+`accepted`만.
+- **먼저 지나야 하는 검사:** '이미 목표값'도 정지(미전송 취소)·전송 직전 재판정(자동 실행 규칙 켜짐·지문·대상·사건 나이·비상정지 세대)·전송권 확인을 모두 지난 뒤에만 나온다. 걸리면 `failed / not_dispatched / none`(자동 실행은 `outcome: blocked`)이고 성공으로 기록하지 않는다. 보내지 않으므로 전송권은 '전송 개시'로 표시하지 않는다(철회가 '이미 보내는 중'으로 알리지 않는다).
+- 보내기 전 조회가 실패해도 원격 제어 허용을 먼저 봐야 하는 동작(세탁기 시작·일시정지)은 보내지 않는다(종전대로). 가전·클라우드 오프라인도 보내지 않는다.
+- 같은 사건 1회: 이미 목표값이라 보내지 않은 자동 실행도 그 사건을 처리한 것으로 남는다(다시 받으면 `duplicate`).
+- `dispatch`(기록 구분, `/history`·`/routines/auto-rules/runs`·`last_auto_run`): `sent`(명령을 보낸 실행, receipt `accepted`) · `state_only`(상태만 확인, `already_at_target`) · `not_sent`(보내지 않음) · `unknown`(보냈는지 모름·옛 기록). receipt·confirmation에서 유도한다.
+- 사용 기록(제안 집계)은 세 성공(`state_confirmed`·`state_confirmed_unknown_before`·`already_at_target`)을 성공으로 센다. 루틴 다음 단계의 '시작 확인'·`after_done` 깨우기는 종전대로 `state_confirmed`(실제 변경)만.
+- 옛 폰·키오스크는 모르는 `confirmation`을 확인 칩 없이 성공으로만 보인다(결과 문장은 서버 `last_detail`이 말한다).
 
 ## 버튼 맵 JSON 포맷
 

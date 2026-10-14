@@ -76,7 +76,9 @@ $env:SIMPLELAY_THINQ_COUNTRY = "KR"
 - 확인 질문에 `yes`라고 쳐야만 **한 번** 보낸다. 다른 답이면 보내지 않는다. 자동 재전송은 없다.
 - 4-1의 판정 표에서 허용된 값만 고른다(허용되지 않은 값은 스크립트가 보내기 전에 거절한다).
 - 결과는 `status / receipt / confirmation` 세 칸을 **함께** 읽는다(스크립트가 한 줄로 출력하고 `control.json`에 남긴다).
-  `succeeded / accepted / state_confirmed`면 상태 재조회로 변경을 본 것이다. `unconfirmed`는 둘로 나뉜다 —
+  `succeeded / accepted / state_confirmed`면 상태 재조회로 변경을 본 것이다. `succeeded / not_dispatched / already_at_target`은
+  이미 그 값이라 **보내지 않은 것**이고(§5-1), `succeeded / accepted / state_confirmed_unknown_before`는 보내기 전 값을 못 읽어
+  '바꿨다'고 말할 수 없는 확인이다 — D 판정에는 약풍에서 시작해 `state_confirmed`를 받는다. `unconfirmed`는 둘로 나뉜다 —
   `accepted / none`은 **접수 확인, 결과 미확인**, `unknown / none`은 **접수 여부 미확인**(보내는 중 끊김·응답 유실).
   어느 쪽이든 **다시 보내지 말고** 앱·본체로 확인한 뒤 4-1을 다시 돌려 상태를 본다.
 - 결과와 재조회 상태는 `control.json`(저장소 밖)에 남는다.
@@ -126,10 +128,25 @@ D가 `unconfirmed`면 실패도 합격도 아니다 — `status`만 적지 말�
 
 | status / receipt / confirmation | 기록 문장 |
 |---|---|
-| `unconfirmed / accepted / none` | 접수 확인, 결과 미확인(보내기 전에도 같은 값이었거나, 확인 상한 안에 상태가 안 바뀜, 또는 정지로 확인을 멈춤) |
+| `unconfirmed / accepted / none` | 접수 확인, 결과 미확인(확인 상한 안에 상태가 안 바뀜, 또는 정지로 확인을 멈춤). 보내기 전부터 같은 값이면 10/14부터는 보내지 않고 `already_at_target`(§5-1) |
 | `unconfirmed / unknown / none` | 접수 여부 미확인(전송 중 끊김·응답 유실 — 클라우드가 받았는지 모른다) |
 
 어느 쪽이든 재전송하지 않는다. `unknown`을 '접수됨'으로 적지 않는다.
+
+### 5-1. '이미 목표값' 확인 (2026-10-14 — 서버 real 모드, D·E가 된 뒤)
+
+반복 시연에서 흔한 경우다. 공기청정기가 **이미 강풍인 채로** 같은 강풍 명령(승인 카드 또는 자동 실행)을 한 번 더 낸다.
+
+| 확인 | 기대 |
+|---|---|
+| `/status` | `last_outcome: success`·`last_receipt: not_dispatched`·`last_confirmation: already_at_target`·`last_execution_mode: real` |
+| 문장 | "이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요." — '바꿨어요'·'확인하지 못했어요'가 아니다 |
+| 제어 요청 | **0회** — 서버 로그에 그 시각 ThinQ 제어 호출이 없다(상태 조회만). LG ThinQ 앱 기록에도 제어가 없다 |
+| `/history` | 맨 위 줄 `dispatch: state_only` |
+| 폰·키오스크 | 폰 실행 상태·기록: 성공, '이미 그 설정이라 보내지 않음'. 키오스크 자동 실행 한 줄: "공기청정기는 이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요" |
+
+이어서 앱·본체로 **약풍**으로 바꾼 뒤 같은 강풍 명령 → `state_confirmed`·"강풍으로 바꿨어요."·제어 1회인지 본다.
+모의 클라우드에서는 같은 순서가 시험으로 고정돼 있다(`rpi/tests/test_thinq_already_at_target.py`) — 실제 클라우드·실가전 결과는 이날 처음이다.
 
 ## 6. 막혔을 때 (오류 → 이유)
 
