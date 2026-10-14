@@ -66,9 +66,13 @@ _ALLOWED_ALWAYS = (
     ".gitignore",
     # .gitignore와 같은 이유 -- 도커 빌드 컨텍스트에서 뺄 로컬 전용 폴더 이름을 적는다
     ".dockerignore",
-    # 같은 로컬 전용 폴더와 빌드 구조를 가리키는 작업 규칙 문서
-    "CLAUDE.md",
+    # 작업 규칙 문서(루트 CLAUDE.md)는 2026-10-14부터 여기 두지 않는다. 허용 목록에 있던 동안
+    # 키오스크 구조 설명에 플랫폼 이름이 그대로 남았는데 가드가 잡지 못했다. 규칙 문서는
+    # 로컬 전용 폴더를 이름 대신 "비공개 자료 폴더"로 부르면 되므로 예외가 필요 없다.
 )
+
+# 허용 목록에 다시 들어오면 안 되는 문서 -- 이름을 부를 필요가 없는데 공개되는 문서다.
+_NEVER_ALLOWED = ("CLAUDE.md", "README.md")
 
 # 아직 정리되지 않은 파일을 한시적으로 담는 곳. **지금은 비어 있다** -- 정리가 끝났다.
 # 앞으로 대량 정리를 다시 하게 되면 여기에 경로를 넣어 단계적으로 줄여나가면 된다.
@@ -202,3 +206,13 @@ def test_pre_existing_document_list_has_no_stale_entries():
         "아래 파일은 이제 추적되지 않는다. _PRE_EXISTING_DOCUMENTS에서 지울 것:\n"
         + "\n".join(f"  {p}" for p in stale)
     )
+
+
+def test_rule_and_entry_documents_are_not_exempt():
+    """작업 규칙 문서·저장소 입구 문서는 허용 목록 밖이어야 한다(2026-10-14).
+
+    CLAUDE.md를 허용 목록에 둔 동안 금지어가 그대로 남아도 가드가 통과했다.
+    접두사 비교라 목록에 같은 이름이 다시 들어오면 이 시험이 실패한다.
+    """
+    exempt = [path for path in _NEVER_ALLOWED if _is_allowed_always(path)]
+    assert not exempt, f"허용 목록에서 빼야 할 문서: {exempt}"
