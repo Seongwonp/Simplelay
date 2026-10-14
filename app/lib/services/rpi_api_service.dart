@@ -808,7 +808,8 @@ class RpiApiService {
   Future<RpiHealthData?> health() async {
     try {
       final res = await _client
-          .get(_base.replace(path: '/health'), headers: _headers)
+          // 공개 /health는 생존·버전만(2026-10-14 보안 점검) — 준비 상태·잠시 쉬기는 인증 경로에서 받는다.
+          .get(_base.replace(path: '/health/detail'), headers: _headers)
           .timeout(_timeout);
       if (res.statusCode != 200) return null;
       return RpiHealthData.fromJson(

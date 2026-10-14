@@ -1,6 +1,10 @@
-// 조용한 시간(2026-10-14, 5번) — 키오스크가 폰과 같은 서버 상태(/health의 quiet)를 보이고, 실제 범위만 말한다.
+// 조용한 시간(2026-10-14, 5번) — 키오스크가 폰과 같은 서버 상태(/health/detail의 quiet)를 보이고, 실제 범위만 말한다.
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
@@ -22,14 +26,43 @@ const _quietJson = {
 };
 
 void main() {
-  test('/health의 quiet를 읽는다(옛 서버는 꺼짐)', () {
+  test('/health/detail의 quiet를 읽는다(받지 못하면 꺼짐·준비됨으로 보지 않는다)', () {
     final h = HealthStatus.fromJson(_quietJson);
     expect(h.quietActive, isTrue);
+    expect(h.quietKnown, isTrue);
+    expect(h.speakGeneral, isFalse);
     expect(h.quietSchedule, ('22:00', '07:00'));
     expect(h.quietScheduleActive, isTrue);
-    final old = HealthStatus.fromJson(const {'ok': true});
-    expect(old.quietActive, isFalse);
-    expect(old.quietSchedule, isNull);
+    // 2026-10-14 보안 점검: 공개 /health처럼 quiet·actuator_ready가 없는 응답은 '모름' — 일반 안내 소리를 쉬고 준비 안 됨.
+    final missing = HealthStatus.fromJson(const {'ok': true, 'version': '0.1.0'});
+    expect(missing.quietActive, isFalse);
+    expect(missing.quietKnown, isFalse);
+    expect(missing.speakGeneral, isFalse);
+    expect(missing.actuatorReady, isFalse);
+    expect(missing.quietSchedule, isNull);
+    expect(HealthStatus.disconnected.speakGeneral, isFalse);
+    final off = HealthStatus.fromJson(const {
+      'ok': true, 'actuator_ready': true,
+      'quiet': {'enabled': false, 'start': '22:00', 'end': '07:00', 'active': false, 'reason': null},
+    });
+    expect(off.speakGeneral, isTrue);
+    expect(off.actuatorReady, isTrue);
+  });
+
+  test('checkHealth는 인증 경로 /health/detail을 부른다(공개 /health는 생존·버전만)', () async {
+    final paths = <String>[];
+    final api = http.runWithClient(() => KioskApiService(baseUrl: 'http://hub.test'), () => MockClient((r) async {
+          paths.add(r.url.path);
+          if (r.url.path != '/health/detail') {
+            return http.Response(jsonEncode({'ok': true, 'version': '0.1.0'}), 200);
+          }
+          return http.Response.bytes(utf8.encode(jsonEncode(_quietJson)), 200,
+              headers: {'content-type': 'application/json'});
+        }));
+    final h = await api.checkHealth();
+    expect(paths, ['/health/detail']);
+    expect(h.quietActive, isTrue);
+    expect(h.quietKnown, isTrue);
   });
 
   testWidgets('평소 화면: 매일 조용한 시간이면 위 줄 칩이 "조용한 시간 · 07:00까지"', (tester) async {

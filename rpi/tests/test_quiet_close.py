@@ -63,7 +63,7 @@ def test_card_made_just_before_quiet_starts_does_not_surface_after_the_start(clo
     assert [s["id"] for s in api.get("/suggestions").json()] == [card["id"]]
 
     clock.value = datetime(2026, 10, 14, 22, 0, 5, tzinfo=KST)  # 시간대 시작 직후
-    assert api.get("/health").json()["quiet"]["active"] is True
+    assert api.get("/health/detail").json()["quiet"]["active"] is True
     assert api.get("/suggestions").json() == []  # 폰(5초 폴링)·키오스크(2초 폴링)가 받을 카드가 없다
     assert api.post(f"/suggestions/{card['id']}/approve").status_code in (404, 409)
 
@@ -207,13 +207,13 @@ def test_pause_set_before_an_update_does_not_survive_the_restart(monkeypatch, tm
         api = TestClient(app)
         assert api.post("/dnd", json={"duration_minutes": 120}).status_code == 200
         assert api.put("/quiet-hours", json={"enabled": True, "start": "01:00", "end": "01:30"}).status_code == 200
-        quiet = api.get("/health").json()["quiet"]
+        quiet = api.get("/health/detail").json()["quiet"]
         assert quiet["reason"] == "pause" and quiet["pause_until"]
 
         _clear()  # 업데이트 배포 = 서버 재시작(같은 DB)
         deps.get_db.cache_clear()
         api = TestClient(app)
-        health = api.get("/health").json()
+        health = api.get("/health/detail").json()
         assert health["dnd_until"] is None
         assert health["quiet"]["pause_until"] is None and health["quiet"]["reason"] != "pause"
         body = api.get("/quiet-hours").json()

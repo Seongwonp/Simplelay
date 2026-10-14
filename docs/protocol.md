@@ -80,7 +80,7 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
 
 - 받는 쪽은 서명 없음·MAC 틀림·`seq` 되돌림 프레임을 **버리고 답하지 않는다**(경고 로그는 10초에 한 번).
   `abort`·`estop_ack`도 같다 — 위조 정지도 공격 경로라 서명 없는 정지 예외를 두지 않는다.
-- RPi5는 서명된 hello 답을 받기 전까지 링크를 내려 둔다(`/health actuator_ready=false`, 실행 412).
+- RPi5는 서명된 hello 답을 받기 전까지 링크를 내려 둔다(`/health/detail actuator_ready=false`, 실행 412).
   3초 안에 답이 없거나 서명 없는 답이 오면 이유를 "RPi4 인증 실패 — 두 보드의 SIMPLELAY_LINK_KEY가 같은지
   확인"으로 두고(`/dev/state real_motion_reason`에도 보인다) 재연결과 같은 늘어나는 간격으로 hello를 다시 보낸다.
 - 재연결은 새 hello = 새 세션이다. RPi4는 세션 전에는 아무것도 보내지 않는다(켜질 때의 자발 알림도).
@@ -719,7 +719,7 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
 - 근거는 패턴 감지기와 같다: 성공·실제 실행(`real`)·직접 사용(`direct`) 기록만. 모의·시연·제안 승인으로 실행한 기록은 세지 않는다. 버튼 순서를 결정적으로 모르는 목적(등록 기능·내장 규칙에 없는 것)과 ThinQ 가전은 초안을 만들지 않는다.
 - 보이지 않는 경우: 저장한 초안(루틴을 지워도), 거절 뒤 14일, 같은 가전·같은 버튼 순서의 루틴이 이미 있음(장치 명령 열로 비교 — 버튼 ID로 적었어도 같다), '다시 받지 않기'로 내린 목적, 제안을 쉬는 동안. 판단(저장·거절)은 DB가 있으면 설정 `routine_candidate_decisions`에 남아 재시작 뒤에도 유지된다.
 
-## 조용한 시간 — `/quiet-hours`·`/health`의 `quiet` (2026-10-14, 5번 정책 b)
+## 조용한 시간 — `/quiet-hours`·`/health/detail`의 `quiet` (2026-10-14, 5번 정책 b)
 
 매일 시간대(사용자 설정)와 '제안 잠시 쉬기'(`/dnd`)를 서버가 한 판정으로 묶는다. 기록: [devlog](devlog/devlog_2026-10-14-quiet-hours.md).
 
@@ -727,7 +727,8 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
 |---|---|
 | `GET /quiet-hours` | `{"enabled", "start": "HH:MM", "end": "HH:MM", "active", "reason": "schedule" \| "pause" \| null, "pause_until": ISO \| null, "scope": "새 제안과 일반 안내 소리만 쉬어요. …"}` |
 | `PUT /quiet-hours` `{"enabled"?, "start"?, "end"?}` | 위와 같은 모양. 422(시각 형식·시작=끝·`enabled`가 bool 아님). DB 설정 `quiet_hours`에 영속 |
-| `GET /health` | 추가 필드 `quiet` — `GET /quiet-hours`와 같은 값(키오스크용). 옛 서버는 없음 → 키오스크는 조용하지 않은 것으로 본다 |
+| `GET /health/detail`(인증) | `ok`·`actuator_ready`·`dnd_until`·`quiet`·`act_mode` — `quiet`는 `GET /quiet-hours`와 같은 값(키오스크용). 받지 못하면 키오스크는 조용한 시간을 '모름'으로 두고 일반 안내 소리를 내지 않는다(꺼짐으로 보지 않는다) |
+| `GET /health`(공개) | `{"ok", "version"}`만 — 2026-10-14 보안 점검으로 준비 상태·잠시 쉬기·조용한 시간을 공개 응답에서 뺐다 |
 
 - 기본: 꺼짐, 22:00~07:00. 자정을 넘는 시간대를 지원한다. 판정은 서버 현지 시각.
 - `active`인 동안: 새 제안 카드를 만들지 않고 떠 있던 카드는 내린다(`/suggestions/events`에 `withdrawn`·`quiet_hours`, 끝나도 되살리지 않는다). 루틴 '지금 실행'(`POST /routines/{id}/trigger`)은 사용자가 직접 요청한 카드라 만든다. `/demo/suggest`는 409(종전 방해 금지와 같다).

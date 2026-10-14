@@ -119,7 +119,7 @@ def client():
 
 def test_health_reports_local_mode_by_default(client, monkeypatch):
     monkeypatch.delenv("SIMPLELAY_ACT_MODE", raising=False)
-    assert client.get("/health").json()["act_mode"] == "local"
+    assert client.get("/health/detail").json()["act_mode"] == "local"
 
 
 def test_health_reports_uart_mode(client, monkeypatch):
@@ -127,6 +127,6 @@ def test_health_reports_uart_mode(client, monkeypatch):
     # 서비스 싱글톤은 local 모드로 먼저 띄우고(pyserial 없는 개발 PC),
     # /health가 env를 매 요청 읽는다는 것만 검증한다.
     monkeypatch.delenv("SIMPLELAY_ACT_MODE", raising=False)
-    assert client.get("/health").json()["act_mode"] == "local"
+    assert client.get("/health/detail").json()["act_mode"] == "local"
     monkeypatch.setenv("SIMPLELAY_ACT_MODE", "UART")
-    assert client.get("/health").json()["act_mode"] == "uart"
+    assert client.get("/health/detail").json()["act_mode"] == "uart"

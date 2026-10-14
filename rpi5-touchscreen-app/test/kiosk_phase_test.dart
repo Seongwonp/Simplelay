@@ -717,6 +717,21 @@ void main() {
     expect(tts.utterances.where((u) => u.contains('즉석밥 데워줘')), isEmpty);
   });
 
+  // 2026-10-14 보안 점검: 조용한 시간 상태를 받지 못하면(공개 /health만 응답·인증 실패) '꺼짐'으로 보지 않는다 —
+  // 제안 카드는 보이되 일반 안내 소리는 쉰다.
+  testWidgets('조용한 시간 상태를 모르면 제안 도착을 소리로 알리지 않는다(꺼짐으로 보지 않음)', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..healthResult = HealthStatus.fromJson(const {'ok': true, 'version': '0.1.0'})
+      ..suggestionList = [_sug];
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+    expect(find.byKey(_approveKey), findsOneWidget);
+    expect(tts.utterances.where((u) => u.contains('즉석밥 데워줘')), isEmpty);
+  });
+
   // 2026-10-14 4·5번 마감 확인 A1: 조용한 시간 직전에 떠 있던 카드 — 시간이 시작돼 서버가 내리면 키오스크도 내리고,
   // 그 뒤로 같은 카드를 다시 띄우거나 소리로 알리지 않는다(시간이 끝난 뒤에도). 키오스크는 받아 둔 목록을 쌓아 두지 않는다.
   testWidgets('조용한 시간 직전의 카드는 시간이 시작되면 내려가고 뒤늦게 다시 뜨거나 낭독되지 않는다', (tester) async {

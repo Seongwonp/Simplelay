@@ -19,15 +19,23 @@ class HealthStatus {
     this.quietActive = false,
     this.quietScheduleActive = false,
     this.quietSchedule,
+    this.quietKnown = true,
   });
 
   final bool ok;
   final bool actuatorReady;
   final DateTime? dndUntil;
 
-  /// 조용한 시간(2026-10-14, 서버 /health `quiet` — 폰 /quiet-hours와 같은 상태). 매일 시간대 또는 잠시 쉬기.
-  /// 이때는 일반 안내 소리(제안 도착·자동 실행 결과 낭독)를 내지 않는다. 옛 서버는 false.
+  /// 조용한 시간(2026-10-14, 서버 /health/detail `quiet` — 폰 /quiet-hours와 같은 상태). 매일 시간대 또는 잠시 쉬기.
+  /// 이때는 일반 안내 소리(제안 도착·자동 실행 결과 낭독)를 내지 않는다.
   final bool quietActive;
+
+  /// 조용한 시간 상태를 받았나(2026-10-14 보안 점검). 받지 못하면(인증 실패·끊김·옛 서버) '꺼짐'으로 보지 않는다 —
+  /// [speakGeneral]이 거짓이 되어 일반 안내 소리를 쉰다.
+  final bool quietKnown;
+
+  /// 일반 안내 소리(제안 도착·자동 실행 결과 낭독)를 내도 되나 — 조용한 시간이 꺼져 있다고 **확인했을 때만**.
+  bool get speakGeneral => quietKnown && !quietActive;
 
   /// 지금이 매일 조용한 시간대인가(잠시 쉬기가 아니라).
   final bool quietScheduleActive;
@@ -35,7 +43,7 @@ class HealthStatus {
   /// 켜 둔 매일 시간대 (시작, 끝). 꺼져 있거나 옛 서버면 null.
   final (String, String)? quietSchedule;
 
-  static const disconnected = HealthStatus(ok: false, actuatorReady: false);
+  static const disconnected = HealthStatus(ok: false, actuatorReady: false, quietKnown: false);
 
   factory HealthStatus.fromJson(Map<String, dynamic> json) {
     final quiet = json['quiet'];
@@ -43,11 +51,13 @@ class HealthStatus {
     final start = q['start'], end = q['end'];
     return HealthStatus(
       ok: json['ok'] as bool? ?? false,
-      actuatorReady: json['actuator_ready'] as bool? ?? true,
+      // 빠지면 준비 안 됨(2026-10-14 보안 점검 — 모르는 것을 준비됨으로 보지 않는다).
+      actuatorReady: json['actuator_ready'] as bool? ?? false,
       dndUntil: json['dnd_until'] == null
           ? null
           : DateTime.parse(json['dnd_until'] as String),
       quietActive: q['active'] == true,
+      quietKnown: q['active'] is bool,
       quietScheduleActive: q['active'] == true && q['reason'] == 'schedule',
       quietSchedule: q['enabled'] == true && start is String && end is String
           ? (start, end)
@@ -545,7 +555,8 @@ class KioskApiService {
   Future<HealthStatus> checkHealth() async {
     try {
       final res =
-          await _client.get(_base.replace(path: '/health')).timeout(_timeout);
+          // 공개 /health는 생존·버전만(2026-10-14 보안 점검) — 같은 기기 루프백이라 키 없이 상세를 받는다.
+          await _client.get(_base.replace(path: '/health/detail')).timeout(_timeout);
       if (res.statusCode != 200) return HealthStatus.disconnected;
       return HealthStatus.fromJson(
           jsonDecode(res.body) as Map<String, dynamic>);

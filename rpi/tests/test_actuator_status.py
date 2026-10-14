@@ -165,7 +165,7 @@ def test_health_reports_unreadable_switch_as_not_ready(pins):
     status = _status()
     app.dependency_overrides[get_actuator_status] = lambda: status
     try:
-        body = TestClient(app).get("/health").json()
+        body = TestClient(app).get("/health/detail").json()
     finally:
         app.dependency_overrides.pop(get_actuator_status, None)
 

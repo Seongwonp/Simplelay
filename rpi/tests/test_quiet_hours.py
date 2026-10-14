@@ -65,13 +65,13 @@ def test_default_is_off_and_bad_values_are_refused(api):
 def test_phone_and_kiosk_see_the_same_state(api):
     status = _quiet_now(api)
     assert status["active"] is True and status["reason"] == "schedule"
-    health = api.get("/health").json()["quiet"]
+    health = api.get("/health/detail").json()["quiet"]
     assert health == api.get("/quiet-hours").json()
     _quiet_now(api, on=False)
-    assert api.get("/health").json()["quiet"]["active"] is False
+    assert api.get("/health/detail").json()["quiet"]["active"] is False
     # 잠시 쉬기(1·2시간)도 같은 판정으로 보인다.
     api.post("/dnd", json={"duration_minutes": 60})
-    quiet = api.get("/health").json()["quiet"]
+    quiet = api.get("/health/detail").json()["quiet"]
     assert quiet["active"] is True and quiet["reason"] == "pause" and quiet["pause_until"]
 
 

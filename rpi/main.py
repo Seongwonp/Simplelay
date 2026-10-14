@@ -21,7 +21,7 @@ from rpi.api.pairing import pairing_router
 from rpi.api.dev_router import dev_router
 from rpi.api.router import router
 from rpi.api.service import ApplianceNotReadyError, UnknownApplianceError
-from rpi.api.schemas import HealthResponse
+from rpi.api.schemas import HealthResponse, PublicHealthResponse
 from rpi.intent.suggestions import ProactiveSuggestionService
 
 log = logging.getLogger(__name__)
@@ -196,7 +196,7 @@ async def _unknown_appliance(_request: Request, exc: UnknownApplianceError):
     return JSONResponse(status_code=404, content={"detail": str(exc)})
 # LAN 요청은 SIMPLELAY_API_KEY(X-API-Key)가 필요하다. 키 미설정이면 루프백만
 # 허용하고, 명시적 SIMPLELAY_ALLOW_UNAUTHENTICATED=1일 때만 개방 (auth.py 참고).
-# /health(아래)와 /ui는 의도적으로 키 없이 개방.
+# /health(아래, 생존·버전만)와 /ui는 의도적으로 키 없이 개방. 상세(/health/detail)는 키 필요.
 app.include_router(router, dependencies=[Depends(require_api_key)])
 from rpi.api.simulator_router import router as simulator_router
 app.include_router(simulator_router, dependencies=[Depends(require_api_key)])
@@ -278,8 +278,14 @@ def mount_kiosk(target: FastAPI, directory: pathlib.Path | None = None) -> bool:
     return False
 
 
-@app.get("/health", response_model=HealthResponse)
-async def health(
+@app.get("/health", response_model=PublicHealthResponse)
+async def health() -> PublicHealthResponse:
+    """키 없이 열린 생존 확인 — 생존·버전만(2026-10-14 보안 점검: 조용한 시간 등 생활 정보를 공개 응답에서 뺐다)."""
+    return PublicHealthResponse(ok=True, version=app.version)
+
+
+@app.get("/health/detail", response_model=HealthResponse, dependencies=[Depends(require_api_key)])
+async def health_detail(
     svc: ProactiveSuggestionService = Depends(get_suggestion_service),
     actuator=Depends(get_actuator_status),
     service=Depends(get_service),

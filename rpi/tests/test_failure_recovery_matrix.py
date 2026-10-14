@@ -658,7 +658,7 @@ def test_different_link_keys_keep_the_link_down_with_the_auth_reason(rig, monkey
     r.start_rpi4()
     _wait(lambda: "인증 실패" in (r.controller.link_status()["reason"] or ""), what="auth failure reason")
     assert r.controller.link_status()["link_up"] is False
-    assert r.client.get("/health").json()["actuator_ready"] is False
+    assert r.client.get("/health/detail").json()["actuator_ready"] is False
     refused = r.post_execute()
     assert refused.status_code == 412, refused.text
     time.sleep(0.3)

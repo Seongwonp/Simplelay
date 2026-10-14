@@ -183,7 +183,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
         assert res.status_code == 412, res.text
         assert "누름 장치 연결 안 됨" in res.text
         assert c.get("/status").json()["actuator_link_up"] is False
-        assert c.get("/health").json()["actuator_ready"] is False
+        assert c.get("/health/detail").json()["actuator_ready"] is False
         monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)  # 내장 가전을 목록에 보이게
         mw = next(a for a in c.get("/appliances").json() if a["id"] == "microwave")
         assert mw["can_execute"] is False and mw["readiness_reasons"] == [ACT_LINK_DOWN_REASON]
@@ -201,7 +201,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
         reader, writer = streams[0]
         loop.call_soon_threadsafe(reader.feed_data, _line(ANNOUNCE_CLEAR))
         _wait(lambda: service.estop_block_reason() is None)
-        assert c.get("/health").json()["actuator_ready"] is True
+        assert c.get("/health/detail").json()["actuator_ready"] is True
 
         def _reply():
             deadline = time.monotonic() + 3.0

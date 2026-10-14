@@ -299,7 +299,9 @@ class DndNotifier extends StateNotifier<DateTime?> {
     final service = _ref.read(rpiApiServiceProvider);
     if (service == null) { state = null; return; }
     final health = await service.health();
-    state = health?.dndUntil;
+    // 받지 못하면(401·끊김·옛 서버) 마지막으로 안 값을 둔다 — '꺼짐'으로 덮지 않는다(2026-10-14 보안 점검).
+    if (health == null) return;
+    state = health.dndUntil;
   }
 
   Future<void> set(int minutes) async {

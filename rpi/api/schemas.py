@@ -976,10 +976,20 @@ class DemoCareEventRequest(BaseModel):
         return v
 
 
-class HealthResponse(BaseModel):
+class PublicHealthResponse(BaseModel):
+    """키 없이 열린 ``GET /health`` — 생존·버전만(2026-10-14 보안 점검). 생활 정보(조용한 시간·잠시 쉬기)와
+    준비 상태는 인증 경로 ``GET /health/detail``(`HealthResponse`)로만 준다."""
+
     ok: bool
-    # coreXY 홈 위치 확인 + SwitchBot 연결 상태 통합 — 실기기 연결 후 교체
-    actuator_ready: bool = True
+    version: str
+
+
+class HealthResponse(BaseModel):
+    """인증된 ``GET /health/detail`` — 폰·키오스크가 준비 상태·잠시 쉬기·조용한 시간을 본다."""
+
+    ok: bool
+    # coreXY 홈 위치 확인 + SwitchBot 연결 상태 통합 — 실기기 연결 후 교체. 기본값 없음(모르면 준비됨으로 보지 않는다).
+    actuator_ready: bool
     dnd_until: datetime | None = None
     # 조용한 시간(2026-10-14) — /quiet-hours와 같은 모양. 키오스크가 폰과 같은 상태를 보인다.
     quiet: dict | None = None
