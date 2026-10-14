@@ -150,9 +150,10 @@ def test_allow_runs_this_event_once_and_the_rule_applies_only_to_later_events(ap
     assert [r for r in _runs(api) if r["outcome"] == "sent"] == []
     assert any(r["outcome"] == "duplicate" for r in _runs(api))
     assert _cards(api) == []
+    _set_wind(api, "LOW")  # 이미 강이면 보내지 않는다(already_at_target, 10/14) — 약으로 되돌려 둔다
     deps.receive_appliance_done(_frame())  # 다음 사건부터 규칙이 적용된다
     _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
-    assert len(_controls()) == 2
+    assert len(_controls()) == 3
 
 
 def test_next_cook_done_runs_without_approval_and_reports_per_device(api):
@@ -165,7 +166,7 @@ def test_next_cook_done_runs_without_approval_and_reports_per_device(api):
     notices = " / ".join(run["notices"])
     assert "가열 종료를 감지했어요" in notices and "조리 완료가 아닐 수 있어요" in notices
     assert "데우기가 끝났" not in notices and "조리 완료를 확인" not in notices
-    assert "풍량을 바꿨어요 (상태 재조회로 확인)" in notices
+    assert "강풍으로 바꿨어요 (상태 재조회로 확인)" in notices
     assert "깨끗" not in notices  # 설정 확인을 공기 상태로 말하지 않는다
     assert _cards(api) == []  # 허용한 조건이면 카드를 다시 띄우지 않는다
     assert api.get("/history").json()[0]["confirmation"] == "state_confirmed"
@@ -204,6 +205,7 @@ def test_status_carries_the_last_auto_run_result_for_the_kiosk(api):
     assert auto["job_id"] == run["job_id"]
     assert (auto["status"], auto["confirmation"], auto["execution_mode"]) == ("succeeded", "state_confirmed", "mock")
     assert (auto["target_name"], auto["setting_label"], auto["value_label"]) == ("공기청정기(모의)", "풍량", "강")
+    _set_wind(api, "LOW")  # 이미 강이면 보내지 않아 미확인이 나올 수 없다(10/14)
     _client().set_fault(MOCK_PURIFIER_ID, "unconfirmed")
     time.sleep(0.05)  # 사건 키는 RPi4 끝 시각(ms)이다 — 같은 시각이면 같은 사건으로 거른다
     deps.receive_appliance_done(_frame())

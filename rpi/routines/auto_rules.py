@@ -47,6 +47,7 @@ from uuid import uuid4
 from rpi.commands import ApprovedCommand, ControlRoute, canonical_json
 from rpi.controller.models import ExecutionMode
 from rpi.intent.models import UsageSource
+from rpi.services.thinq.wording import direction, dispatch_of
 
 log = logging.getLogger(__name__)
 
@@ -87,6 +88,8 @@ RESTART_BOUNDARY_REASON = "허브가 다시 켜지기 전에 끝난 가열이라
 #: 철회가 이미 전송을 시작한 자동 실행과 겹쳤다(4차 평가 H-N1) — 그 명령은 되돌리지 않는다.
 IN_FLIGHT_NOTICE = ("자동 실행 명령을 이미 보내기 시작했어요 — 그 명령은 취소되지 않아요(공기청정기를 되돌리거나 끄지 않아요). "
                     "다음부터는 보내지 않아요")
+#: 보내기 전 조회에서 이미 목표값이라 보내지 않은 자동 실행(2026-10-14 발견 3) — 같은 사건은 처리 완료다.
+ALREADY_REASON = "이미 목표 설정이라 변경 명령을 보내지 않았어요 — 이 사건은 처리했어요"
 #: 이 프로세스의 표시(세션). 규칙 DB의 세션 표시가 다른 프로세스 것이고 열려 있으면 지난 종료가 깨끗하지 않았다.
 PROCESS_SESSION = uuid4().hex
 #: 정지의 규칙 끄기를 뒤에서 DB에 쓸 때 다시 해 보는 횟수·간격(초).
@@ -769,7 +772,7 @@ class AutoRuleEngine:
             with self._lock:
                 self._dispatch_blocked[block_key] = str(exc)
 
-        def commit() -> None:
+        def commit(will_send: bool = True) -> None:
             # 4차 평가 H-N1: 전송권 — 실행기가 정지 확인과 같은 잠금 안에서 POST 바로 앞에 부른다. 철회(끄기·값 바꾸기·
             # 삭제·비상정지의 규칙 끄기)와 같은 잠금(``_send_lock``, 메모리만)으로 직렬화한다: 철회가 먼저 끝났으면 여기서
             # 걸려 보내지 않고, 여기를 지났으면 '전송 개시'로 표시해 그 뒤의 철회는 '이미 보내는 중'임을 안다.
@@ -780,7 +783,8 @@ class AutoRuleEngine:
                 except AutoRuleBlocked as exc:
                     blocked(exc)
                     raise
-                self._sending[rule.rule_id] = block_key
+                if will_send:  # 이미 목표값이라 보내지 않는 결과(10/14)는 검사만 — '전송 개시'로 표시하지 않는다
+                    self._sending[rule.rule_id] = block_key
 
         def dispatch_guard(binding=None):
             # 보내기 직전(실행 스레드) 재검사 — 시작 게이트 뒤에 꺼지거나 바뀌었으면 보내지 않는다. 실행기는 프로필·상태
@@ -850,20 +854,27 @@ class AutoRuleEngine:
             entry.update({"outcome": "blocked", "reason": blocked})
         else:
             notice = self._result_notice(entry, event)
+            if event.confirmation.value == "already_at_target":
+                # 보낸 것이 아니다 — 제출 때 적은 '승인 없이 보냈어요'를 남기지 않는다(2026-10-14 발견 3).
+                entry["reason"] = ALREADY_REASON
         entry.update({"status": event.status, "receipt": event.receipt.value,
                       "confirmation": event.confirmation.value,
+                      # 명령을 보낸 실행인가, 상태만 확인한 결과인가(sent · state_only · not_sent · unknown).
+                      "dispatch": dispatch_of(event.receipt.value, event.confirmation.value),
                       "execution_mode": event.execution_mode.value,
                       "notices": [*entry.get("notices", []), notice]})
 
     def _target_words(self, rule: AutoRule | None) -> dict:
         """키오스크 알림용 낱말(대상 이름·설정 이름·값 이름). 모르면 None — 지어내지 않는다."""
         if rule is None:
-            return {"target_name": None, "setting_label": None, "value_label": None}
-        words = {"target_name": self._name(rule.target_appliance_id), "setting_label": None, "value_label": None}
+            return {"target_name": None, "setting_label": None, "value_label": None, "value_phrase": None}
+        words = {"target_name": self._name(rule.target_appliance_id), "setting_label": None, "value_label": None,
+                 "value_phrase": None}
         try:
             cap = self._appliance(rule.target_appliance_id).thinq.capability(rule.action)
             words["setting_label"] = cap.label
             words["value_label"] = cap.value_label(str(rule.value))
+            words["value_phrase"] = cap.setting_phrase(str(rule.value))
         except Exception:  # noqa: BLE001 -- 대상이 바뀌었으면 이름만
             pass
         return words
@@ -877,8 +888,8 @@ class AutoRuleEngine:
             if entry is None:
                 return None
             return {key: entry.get(key) for key in (
-                "job_id", "at", "outcome", "status", "receipt", "confirmation", "execution_mode",
-                "target_name", "setting_label", "value_label")}
+                "job_id", "at", "outcome", "status", "receipt", "confirmation", "dispatch", "execution_mode",
+                "target_name", "setting_label", "value_label", "value_phrase")}
 
     def _notify(self, entry: dict) -> None:
         if self._care is None:
@@ -895,10 +906,22 @@ class AutoRuleEngine:
         label = entry.get("setting_label") or "설정"
         mock = " — 모의 실행 · 실제 조작 아님" if event.execution_mode is ExecutionMode.MOCK else ""
         status, receipt = event.status, event.receipt.value
-        if status == "succeeded" and event.confirmation.value == "state_confirmed":
-            return f"{name} {label}{_josa(label, '을', '를')} 바꿨어요 (상태 재조회로 확인){mock}"
+        confirmation = event.confirmation.value
+        # 2026-10-14 발견 3: 확인한 사실만큼 — 이미 목표값(보내지 않음) · 바꿈 · 보낸 뒤 목표값(전 값 모름) · 미확인.
+        phrase = entry.get("value_phrase") or (
+            f"{label} {entry['value_label']}" if entry.get("value_label") else "목표 설정")
+        stem = _josa_stem(name)
+        to = direction(phrase)
+        if status == "succeeded" and confirmation == "already_at_target":
+            return (f"{name}{_josa(stem, '은', '는')} 이미 {phrase}{to} 설정돼 있어요. "
+                    f"변경 명령을 보내지 않았어요{mock}")
+        if status == "succeeded" and confirmation == "state_confirmed":
+            return f"{name}{_josa(stem, '을', '를')} {phrase}{to} 바꿨어요 (상태 재조회로 확인){mock}"
+        if status == "succeeded" and confirmation == "state_confirmed_unknown_before":
+            return (f"{name}{_josa(stem, '이', '가')} {phrase}{to} 설정된 것을 확인했어요 "
+                    f"(보내기 전 값은 읽지 못했어요){mock}")
         if status == "unconfirmed":
-            return (f"{name} 명령을 보냈지만 바뀐 것을 확인하지 못했어요 — 자동으로 다시 보내지 않아요. "
+            return (f"{name} 설정이 바뀌었는지 확인하지 못했어요 — 자동으로 다시 보내지 않아요. "
                     f"가전을 직접 확인해 주세요{mock}")
         if status == "stopped":
             if receipt == "not_dispatched":

@@ -740,8 +740,9 @@ class StatusResponse(BaseModel):
     last_route: str | None = None
     #: 상대가 받았나: accepted | unknown | not_dispatched.
     last_receipt: str | None = None
-    #: 확인 근거: none | reported | press_confirmed | state_confirmed | operation_confirmed.
+    #: 확인 근거: none | reported | press_confirmed | state_confirmed | operation_confirmed | already_at_target.
     #: ThinQ의 "접수됨"은 receipt=accepted·confirmation=none, "상태 확인됨"은 state_confirmed.
+    #: already_at_target(2026-10-14)은 보내기 전 조회에서 이미 목표값이라 보내지 않은 성공(receipt=not_dispatched).
     last_confirmation: str | None = None
     #: 사람이 읽을 한 줄(ThinQ 결과). ThinQ면 last_status가 unconfirmed일 수 있다(실패 아님).
     last_detail: str | None = None
@@ -829,6 +830,9 @@ class HistoryEntryResponse(BaseModel):
     route: str = "unknown"
     receipt: str = "unknown"
     confirmation: str = "unknown"
+    #: 명령을 보낸 실행인가, 상태만 확인한 결과인가(2026-10-14): sent | state_only(이미 목표값, 보내지 않음) |
+    #: not_sent | unknown. receipt·confirmation에서 유도한다.
+    dispatch: str = "unknown"
     detail: str = ""
     #: L3 판정(2026-09-29). 판정기 없음·미판정·옛 기록은 None.
     operation_confirmed: bool | None = None

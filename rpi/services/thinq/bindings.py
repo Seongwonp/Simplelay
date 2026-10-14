@@ -55,9 +55,16 @@ class ThinqCapability:
     confirm_values: tuple[tuple[str, tuple[str, ...]], ...] = ()
     #: 보내기 전에 True여야 하는 상태 칸(세탁기 원격 제어 허용).
     requires_remote: tuple[str, str] | None = None
+    #: 결과 문장에 쓸 설정 이름(예: HIGH → "강풍", 2026-10-14). 없으면 "속성 이름 값 이름"(예: "운전 모드 청정").
+    value_phrases: tuple[tuple[str, str], ...] = ()
 
     def value_label(self, value: str) -> str:
         return dict(self.value_labels).get(value, value)
+
+    def setting_phrase(self, value: str) -> str:
+        """결과 문장 속 설정 이름 — 어느 속성의 값인지 분명히("강풍으로 바꿨어요", "운전 모드 청정으로 …")."""
+        phrase = dict(self.value_phrases).get(value)
+        return phrase or f"{self.label} {self.value_label(value)}"
 
     @property
     def keys(self) -> tuple[str, ...]:
@@ -176,6 +183,7 @@ AIR_PURIFIER_CAPABILITIES = (
         allowed=("LOW", "MID", "HIGH", "AUTO"),
         label="풍량",
         value_labels=(("LOW", "약"), ("MID", "중"), ("HIGH", "강"), ("AUTO", "자동")),
+        value_phrases=(("LOW", "약풍"), ("HIGH", "강풍")),
     ),
     ThinqCapability(
         action="set_job_mode",

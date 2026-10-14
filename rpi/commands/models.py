@@ -70,10 +70,16 @@ class Confirmation(str, Enum):
     REPORTED = "reported"
     #: 물리 L1 -- 버튼이 눌린 것을 **이쪽 센서로** 확인했다. 가전 상태 확인이 아니다.
     PRESS_CONFIRMED = "press_confirmed"
-    #: 가전이 보고한 상태가 바뀐 것을 확인했다(클라우드 경로).
+    #: 가전이 보고한 상태가 바뀐 것을 확인했다(클라우드 경로) -- 보내기 전 다른 값을 봤고, 보낸 뒤 목표값을 봤다.
     STATE_CONFIRMED = "state_confirmed"
+    #: 보낸 뒤 목표값을 봤지만 보내기 전 값을 읽지 못했다(클라우드 경로, 2026-10-14) -- 원래 그 값이었을 수 있어
+    #: '바꿨어요'가 아니라 '설정된 것을 확인했어요'다.
+    STATE_CONFIRMED_UNKNOWN_BEFORE = "state_confirmed_unknown_before"
     #: 가전이 실제로 동작하는 것을 확인했다(물리 L3).
     OPERATION_CONFIRMED = "operation_confirmed"
+    #: 보내기 전 조회에서 가전이 **이미 목표값**이라 보내지 않았다(클라우드 경로, 2026-10-14). 상태를 바꾼 것을 본 것이
+    #: 아니다 -- ``succeeded`` + ``not_dispatched``와만 짝짓고, '바꿨어요'라고 말하지 않는다.
+    ALREADY_AT_TARGET = "already_at_target"
 
     @property
     def has_evidence(self) -> bool:
@@ -81,6 +87,7 @@ class Confirmation(str, Enum):
         return self in (
             Confirmation.PRESS_CONFIRMED,
             Confirmation.STATE_CONFIRMED,
+            Confirmation.STATE_CONFIRMED_UNKNOWN_BEFORE,
             Confirmation.OPERATION_CONFIRMED,
         )
 
@@ -88,6 +95,12 @@ class Confirmation(str, Enum):
     def confirms_appliance(self) -> bool:
         """**가전 쪽** 사실(상태 변경 또는 실제 동작)을 확인했나. L1 눌림은 아니다."""
         return self in (Confirmation.STATE_CONFIRMED, Confirmation.OPERATION_CONFIRMED)
+
+    @property
+    def reached_target(self) -> bool:
+        """가전이 지금 목표 상태임을 상태 조회로 봤나 -- 바꿔서든, 보낸 뒤 봤지만 전 값을 몰라서든, 이미 그 값이어서든."""
+        return self in (Confirmation.STATE_CONFIRMED, Confirmation.STATE_CONFIRMED_UNKNOWN_BEFORE,
+                        Confirmation.ALREADY_AT_TARGET)
 
 
 class CommandStatus(str, Enum):
@@ -246,7 +259,10 @@ class CommandResult:
 
         # 상태 ↔ 수신 ↔ 확인의 허용 조합. 어긋나면 "받았는지도 모르는데 성공"
         # 같은 결과가 만들어지므로 생성 시점에 막는다.
-        if status is CommandStatus.SUCCEEDED and (
+        already = confirmation is Confirmation.ALREADY_AT_TARGET
+        if already and (status is not CommandStatus.SUCCEEDED or receipt is not Receipt.NOT_DISPATCHED):
+            raise ValueError("already_at_target is only reportable as succeeded without dispatch")
+        if status is CommandStatus.SUCCEEDED and not already and (
             receipt is not Receipt.ACCEPTED or confirmation is Confirmation.NONE
         ):
             raise ValueError("succeeded requires an accepted receipt and a confirmation")
@@ -254,8 +270,8 @@ class CommandResult:
             raise ValueError("unknown receipt is only reportable as unconfirmed")
         if receipt is Receipt.NOT_DISPATCHED and status not in (
             CommandStatus.FAILED, CommandStatus.STOPPED,
-        ):
-            raise ValueError("not_dispatched is only reportable as failed or stopped")
+        ) and not already:
+            raise ValueError("not_dispatched is only reportable as failed or stopped (or already_at_target)")
         if (status is CommandStatus.UNCONFIRMED and receipt is Receipt.ACCEPTED
                 and confirmation is not Confirmation.NONE):
             raise ValueError("accepted and confirmed cannot be unconfirmed")
@@ -273,6 +289,9 @@ class CommandResult:
             Confirmation.PRESS_CONFIRMED, Confirmation.OPERATION_CONFIRMED,
         ):
             raise ValueError(f"{route.value} route cannot report {confirmation.value}")
+        if route is ControlRoute.PHYSICAL and confirmation in (
+                Confirmation.ALREADY_AT_TARGET, Confirmation.STATE_CONFIRMED_UNKNOWN_BEFORE):
+            raise ValueError(f"physical route cannot report {confirmation.value} -- it reads no appliance state")
 
     @property
     def route(self) -> ControlRoute:

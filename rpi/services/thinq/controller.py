@@ -12,12 +12,19 @@
 |---------------------------------------------------|-------------|----------------|------------------|
 | 보냈고 상한 안에 조회 상태가 요청 값이 됨          | succeeded   | accepted       | state_confirmed  |
 | 보냈고 접수 응답은 받았지만 상태를 못 봄           | unconfirmed | accepted       | none  (접수됨)   |
-| 명령 전부터 이미 그 값이었다(변경을 볼 수 없음)    | unconfirmed | accepted       | none             |
+| 보내기 전 조회에서 이미 그 값(보내지 않음)          | succeeded   | not_dispatched | already_at_target|
+| 보내기 전 값 모름(조회 실패·값 없음) → 보낸 뒤 목표값 | succeeded | accepted   | state_confirmed_unknown_before |
 | 보내는 중 끊김·응답 유실                           | unconfirmed | unknown        | none  (접수 불명)|
 | 클라우드가 거절 응답                               | failed      | accepted       | none             |
 | 보내기 전에 미연결 확인 / 정지로 전송 취소          | failed/stopped | not_dispatched | none          |
 
 ``unconfirmed``는 실패가 아니다. 자동으로 다시 보내지 않는다(중복 실행).
+
+이미 목표값(2026-10-14 보드 날 발견 3): 보내기 전 조회에서 확인할 속성이 이미 목표값이면 보내지 않고
+``already_at_target``("이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요.")로 끝낸다. 조회가 실패했거나 값이
+없으면(불확실) 보내고(최대 1회), 보낸 뒤 목표값이면 ``state_confirmed_unknown_before``("강풍으로 설정된 것을
+확인했어요." — '바꿨어요' 금지). 정지(미전송 취소)·전송 직전 재판정·전송권 확인을 모두 지난 뒤에만 이 결과를 낸다.
+문장은 :mod:`.wording`.
 
 정지(결정 5): ``request_stop()``은 **아직 보내지 않은** 명령만 취소한다. 이미 보낸
 명령은 취소할 수 없으므로 ``sent_uncancellable``로 보고하고, 확인 대기만 끊는다.
@@ -53,6 +60,7 @@ from .client import (
 )
 from .config import ThinqMode
 from .profile import DeviceProfile, read_state
+from .wording import UNCONFIRMED_SENTENCE, already_sentence, changed_sentence, target_seen_sentence
 
 REMOTE_OFF_REASON = "가전의 원격 제어(원격 시작)가 꺼져 있어요 — 가전 본체에서 원격 제어를 켜 주세요"
 REMOTE_UNKNOWN_REASON = "가전의 원격 제어(원격 시작)가 켜져 있는지 확인하지 못했어요"
@@ -335,17 +343,22 @@ class ThinqController:
             confirm_spec = profile.spec(confirm_resource, confirm_prop, location=cap.location)
             confirmable = confirm_spec is not None and confirm_spec.readable
 
-        # 2) 보내기 전 상태 -- 이미 목표 상태면 나중에 "바뀐 것을 봤다"고 말할 수 없다.
+        # 2) 보내기 전 상태 -- 이미 목표 상태면 보내지 않는다(아래 4). 값을 모르면(조회 실패·값 없음) 보내되(최대 1회),
+        #    보낸 뒤 목표값을 봐도 '바꿨어요'가 아니라 '설정된 것을 확인했어요'(state_confirmed_unknown_before)다.
+        #    원격 제어 허용을 먼저 봐야 하는 동작(세탁기)은 조회 없이 보내지 않는다.
         try:
             state = self._client.get_status(binding.device_id)
         except ThinqOfflineError as exc:
             return self._result(command, failed, not_sent, none,
                                 _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
         except ThinqClientError as exc:
-            return self._result(command, failed, not_sent, none,
-                                f"상태를 읽지 못해 보내지 않았어요 — {_reason(exc, type(exc).__name__)}",
-                                requested_at)
-        before = read_state(state, confirm_resource, confirm_prop, location=cap.location)
+            if cap.requires_remote is not None:
+                return self._result(command, failed, not_sent, none,
+                                    f"상태를 읽지 못해 보내지 않았어요 — {_reason(exc, type(exc).__name__)}",
+                                    requested_at)
+            state = None
+        before = (read_state(state, confirm_resource, confirm_prop, location=cap.location)
+                  if state is not None else None)
         if cap.requires_remote is not None:
             remote = read_state(state, *cap.requires_remote, location=cap.location)
             if remote is not True:
@@ -368,14 +381,23 @@ class ThinqController:
                 return self._result(command, CommandStatus.STOPPED, not_sent, none,
                                     "보내기 전에 정지 요청을 받아 보내지 않았어요", requested_at,
                                     stop_requested=True)
-            # 4차 평가 H-N1: 재판정이 돌려준 전송권 확인을 POST 바로 앞, 정지 확인과 같은 자리에서 부른다 — 재판정 반환
-            # 뒤에 끝난 철회는 여기서 걸린다. 메모리 판정뿐이라 짧고, 네트워크 응답까지 잠그지 않는다.
+            # 4) 이미 목표값(2026-10-14) -- 확인할 속성을 읽을 수 있고 조회 값이 목표와 같으면 보내지 않는다. 정지·재판정을
+            #    지난 뒤에만 이 결과를 낸다. 전송권 확인도 같은 자리에서 거친다(철회·꺼짐·정지 세대가 먼저면 '걸림') — 다만
+            #    보내지 않으므로 '전송 개시'로 표시하지 않는다(``will_send=False``, 철회가 '이미 보내는 중'으로 보지 않게).
+            already = confirmable and before is not None and cap.confirmed_by(target, before)
             if callable(commit):
                 try:
-                    commit()
+                    if already:
+                        commit(will_send=False)
+                    else:
+                        commit()
                 except Exception as exc:  # noqa: BLE001 -- 전송권 없음: 보내지 않는다
                     return self._result(command, failed, not_sent, none,
                                         str(exc) or "보내기 직전 확인에 걸려 보내지 않았어요", requested_at)
+            if already:
+                return self._result(command, CommandStatus.SUCCEEDED, not_sent, Confirmation.ALREADY_AT_TARGET,
+                                    already_sentence(cap.setting_phrase(str(target))),
+                                    requested_at, confirmed_at=self._now())
             self._phase = "dispatched"
         try:
             response = self._client.post_control(binding.device_id, cap.payload_for(target, key))
@@ -400,12 +422,6 @@ class ThinqController:
                                 "명령을 보냈어요 — 이 모델 프로필에는 결과를 읽을 상태 칸이 없어 확인할 수 없어요",
                                 requested_at, accepted_at=accepted_at, provider_ref=ref,
                                 stop_requested=self._stop_during_confirm)
-        if cap.confirmed_by(target, before):
-            return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                "명령을 보냈어요 — 보내기 전에도 같은 값이라 변경을 확인할 수 없어요",
-                                requested_at, accepted_at=accepted_at, provider_ref=ref,
-                                stop_requested=self._stop_during_confirm)
-
         deadline = self._monotonic() + self._confirm_seconds
         while True:
             with self._lock:
@@ -421,13 +437,17 @@ class ThinqController:
             except Exception:  # noqa: BLE001 -- 조회 실패는 확인 못 함일 뿐
                 now_value = None
             if now_value is not None and cap.confirmed_by(target, now_value):
+                # 보내기 전 다른 값을 봤을 때만 '바꿨어요'. 전 값을 몰랐으면 원래 그 값이었을 수 있다.
+                phrase = cap.setting_phrase(str(target))
+                changed = before is not None
                 return self._result(command, CommandStatus.SUCCEEDED, Receipt.ACCEPTED,
-                                    Confirmation.STATE_CONFIRMED,
-                                    "명령을 보냈고 상태가 바뀐 것을 확인했어요",
+                                    Confirmation.STATE_CONFIRMED if changed
+                                    else Confirmation.STATE_CONFIRMED_UNKNOWN_BEFORE,
+                                    changed_sentence(phrase) if changed else target_seen_sentence(phrase),
                                     requested_at, accepted_at=accepted_at,
                                     confirmed_at=self._now(), provider_ref=ref)
             if self._monotonic() >= deadline:
                 return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                    "명령을 보냈어요 — 아직 상태를 확인하지 못했어요",
+                                    f"명령을 보냈어요 — {UNCONFIRMED_SENTENCE} 자동으로 다시 보내지 않아요",
                                     requested_at, accepted_at=accepted_at, provider_ref=ref)
             self._sleep(self._poll_interval)

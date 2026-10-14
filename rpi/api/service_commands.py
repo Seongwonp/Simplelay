@@ -448,9 +448,10 @@ class CommandExecutionMixin:
         self._record_command_history(result, purpose, step, stop_requested_at if stopped_by_user else None)
         self._record_command_care(result, step.summary, purpose)
         if purpose is not None and self._usage_log is not None and scenario_id is None:
-            # 결정 #4: ThinQ 경로는 상태 확인(state_confirmed) 이상만 성공으로 센다.
+            # 결정 #4: ThinQ 경로는 상태 확인(state_confirmed) 이상만 성공으로 센다. 보내기 전 조회에서 이미 목표값
+            # (already_at_target, 2026-10-14)도 원하는 상태를 조회로 본 것이라 성공으로 센다(보내지는 않았다).
             ok = (result.status is CommandStatus.SUCCEEDED
-                  and result.confirmation.confirms_appliance and not stopped_by_user)
+                  and result.confirmation.reached_target and not stopped_by_user)
             try:
                 self._usage_log.append(UsageRecord(
                     self._clock.now(), purpose, UsageOutcome.SUCCEEDED if ok else UsageOutcome.FAILED,

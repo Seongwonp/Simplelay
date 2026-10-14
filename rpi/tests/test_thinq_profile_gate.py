@@ -143,12 +143,17 @@ def test_washer_start_and_pause_confirmed_by_run_state():
     assert client.get_status(MOCK_WASHER_ID)["runState"]["currentState"] == "PAUSE"
 
 
-def test_washer_start_while_already_running_cannot_be_confirmed():
+def test_washer_start_while_already_running_is_not_sent():
+    # 2026-10-14: 이미 진행 중이면 시작을 보내지 않는다(already_at_target) — 시작했다고 말하지 않는다.
     ctrl, client = _controller()
     client.set_remote_control(True)
     client.inject_event("wash_start")
+    sent = len(client.controls)
     result = ctrl.execute_command(_wash("START"))
-    assert result.status is CommandStatus.UNCONFIRMED and result.receipt is Receipt.ACCEPTED
+    assert result.status is CommandStatus.SUCCEEDED and result.receipt is Receipt.NOT_DISPATCHED
+    assert result.confirmation is Confirmation.ALREADY_AT_TARGET
+    assert result.detail == "이미 운전 시작으로 설정돼 있어요. 변경 명령을 보내지 않았어요."
+    assert len(client.controls) == sent
 
 
 def test_washer_value_not_in_profile_is_refused():

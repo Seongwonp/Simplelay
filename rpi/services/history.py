@@ -89,7 +89,8 @@ class JobHistoryEntry:
     #: 상대가 받았나 accepted | unknown | not_dispatched (옛 기록 unknown).
     receipt: str = "unknown"
     #: 무엇을 근거로 확인했나 none | reported | press_confirmed |
-    #: state_confirmed | operation_confirmed (옛 기록 unknown).
+    #: state_confirmed | operation_confirmed | already_at_target(이미 목표값이라 보내지 않음, 10/14)
+    #: (옛 기록 unknown).
     confirmation: str = "unknown"
     #: 사람이 읽을 한 줄(확인 못 한 이유 등). 토큰·주소는 넣지 않는다.
     detail: str = ""

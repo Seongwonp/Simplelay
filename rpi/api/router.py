@@ -16,6 +16,7 @@ from rpi.services import DangerAlertStore, NodeRegistry
 from rpi.services.act_client import AlertEvent
 from rpi.services.history import history_csv
 from rpi.services.stop_confirm import stop_level_confirmed
+from rpi.services.thinq.wording import dispatch_of
 from rpi.services.readiness import (
     ApplianceReadiness,
     ReadinessCheck,
@@ -1247,6 +1248,7 @@ async def history(
             route=e.route,
             receipt=e.receipt,
             confirmation=e.confirmation,
+            dispatch=dispatch_of(e.receipt, e.confirmation),
             detail=e.detail,
             operation_confirmed=e.operation_confirmed,
             operation_detail=e.operation_detail,

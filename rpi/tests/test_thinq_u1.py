@@ -168,13 +168,15 @@ def test_delayed_state_within_window_is_confirmed():
     assert result.confirmation is Confirmation.STATE_CONFIRMED
 
 
-def test_value_already_set_before_command_cannot_be_confirmed():
+def test_value_already_set_before_command_is_not_sent():
+    # 2026-10-14 발견 3: 보내기 전부터 그 값이면 보내지 않는다 — '바꿨어요'도 '확인 못 함'도 아니다.
     ctrl, client = _controller()
     ctrl.execute_command(HIGH)
     again = ctrl.execute_command(HIGH)
-    assert again.status is CommandStatus.UNCONFIRMED
-    assert again.confirmation is Confirmation.NONE
-    assert "같은 값" in again.detail
+    assert again.status is CommandStatus.SUCCEEDED
+    assert again.receipt is Receipt.NOT_DISPATCHED
+    assert again.confirmation is Confirmation.ALREADY_AT_TARGET
+    assert "이미 강" in again.detail and len(client.controls) == 1
 
 
 def test_lost_response_is_unknown_receipt():
