@@ -100,6 +100,24 @@ def test_lan_link_detects_a_dead_hub_with_tcp_keepalive():
         assert opt in line, line
 
 
+def test_link_port_can_be_limited_to_the_hub_address(tmp_path):
+    """보안 점검(2026-10-14): socat은 연결 하나만 받아 키 없는 기기가 먼저 붙으면 RPi5가 못 붙는다(선점).
+    SIMPLELAY_LINK_ALLOW_FROM=<RPi5 IPv4>면 그 주소만 받게(range=…/32) 넘기고, 비우면 종전과 같다. 실기기 미검증."""
+    text = SCRIPT.read_text(encoding="utf-8")
+    line = next(l for l in text.splitlines() if "TCP-LISTEN:7000" in l)
+    assert "${LINK_ALLOW_FROM:+,range=$LINK_ALLOW_FROM/32}" in line, line
+
+    code, out, run = _run(tmp_path, ["SIMPLELAY_LINK_ALLOW_FROM=192.168.0.5"])
+    assert code == 0, out
+    assert "-e LINK_ALLOW_FROM=192.168.0.5" in run[0], run[0]
+
+
+def test_link_allow_from_rejects_anything_but_an_ipv4_address(tmp_path):
+    code, out, run = _run(tmp_path, ["SIMPLELAY_LINK_ALLOW_FROM=0.0.0.0/0,fork"])
+    assert code != 0 and run == []
+    assert "SIMPLELAY_LINK_ALLOW_FROM" in out
+
+
 def test_by_id_port_is_hotplug_capable_not_frozen(tmp_path):
     """10/14 실물: USB 재열거(ttyACM0→1) 뒤 실행기가 by-id 경로를 다시 열려 해도 `--device`로 넘긴 장치는
     컨테이너를 띄운 순간의 장치 번호(166:0)에 고정돼 새 장치(166:1)를 열 수 없었다. by-id·by-path 경로면

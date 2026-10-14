@@ -22,6 +22,11 @@
 # 같은 값, 16자 이상)를 두면 서명된 프레임만 받는다(docs/protocol.md "링크 인증"). 키가 들어가므로 파일은 600.
 # 2026-10-14부터 키가 **필수**다 — 없으면 실행기가 시작을 거절하고 컨테이너가 재시작을 되풀이한다(docker logs에 이유).
 # SIMPLELAY_LINK_AUTH=off_for_mock은 모의 구성 전용이고, 모션 serial·실물 콘센트 등 실물 경로와 함께면 거절된다.
+#
+# 선점(2026-10-14 보안 점검): socat은 연결 **하나만** 받는다. 키 없는 기기가 RPi5보다 먼저 7000에 붙으면 실행은 못 하지만
+# (서명 없는 프레임은 버린다) 그 연결이 살아 있는 동안 RPi5가 붙지 못한다(keepalive는 살아 있는 상대를 끊지 않는다).
+# 완화: env 파일에 SIMPLELAY_LINK_ALLOW_FROM=<RPi5 IPv4>를 두면 socat이 그 주소의 연결만 받는다(range=…/32).
+# 비워 두면 종전과 같다. 실기기 미검증 — 도커 포트 공개(-p)에서 원래 출발 주소가 보이는지 배포 때 확인한다.
 set -e
 LINK=${LINK:-lan}
 DATA_DIR=${DATA_DIR:-/mnt/rawdata/simplelay-act}
@@ -61,6 +66,11 @@ if [ -n "$MISSING" ]; then
   echo "장치가 없어 실행기를 세우지 않았어요:$MISSING (USB 연결·$ENV_FILE 확인)" >&2
   exit 1
 fi
+ALLOW_FROM=$(env_value SIMPLELAY_LINK_ALLOW_FROM)
+case "$ALLOW_FROM" in
+  "") ;;
+  *[!0-9.]*) echo "SIMPLELAY_LINK_ALLOW_FROM은 IPv4 주소 하나여야 해요: $ALLOW_FROM" >&2; exit 1 ;;
+esac
 echo "넘기는 장치:${DEVICE_ARGS:- 없음}${HOTPLUG:+ (+ /dev 연결, USB 시리얼 ttyACM·ttyUSB만 허용 — 재열거 뒤 다시 열기)}"
 
 docker rm -f simplelay-act 2>/dev/null || true
@@ -76,9 +86,9 @@ else
   docker run -d --name simplelay-act --restart unless-stopped \
     --security-opt apparmor=unconfined \
     $DEVICE_ARGS ${HOTPLUG:+-v /dev:/dev --device-cgroup-rule "c 166:* rmw" --device-cgroup-rule "c 188:* rmw"} -p 7000:7000 -v "$DATA_DIR":/data --env-file "$ENV_FILE" \
-    -e SIMPLELAY_UART_PORT=/tmp/vserial \
+    -e SIMPLELAY_UART_PORT=/tmp/vserial -e LINK_ALLOW_FROM="$ALLOW_FROM" \
     simplelay-backend bash -c '
-      socat -d PTY,link=/tmp/vserial,raw,echo=0 TCP-LISTEN:7000,reuseaddr,keepalive,keepidle=5,keepintvl=2,keepcnt=3 &
+      socat -d PTY,link=/tmp/vserial,raw,echo=0 TCP-LISTEN:7000,reuseaddr,keepalive,keepidle=5,keepintvl=2,keepcnt=3${LINK_ALLOW_FROM:+,range=$LINK_ALLOW_FROM/32} &
       for i in $(seq 50); do [ -e /tmp/vserial ] && break; sleep 0.1; done
       python -m rpi4.act_main &
       wait -n; exit 1'
