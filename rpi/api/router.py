@@ -5,7 +5,7 @@ import os
 import time
 from collections import deque
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, Request
 from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from rpi.controller import ExecutionResult, outcome_of
@@ -1373,6 +1373,31 @@ async def clear_dnd(
 ) -> OkResponse:
     svc.clear_dnd()
     return OkResponse()
+
+
+# ── 조용한 시간(2026-10-14, 5번 정책 b) — 매일 시간대 + 잠시 쉬기를 한 판정으로 ─────────────
+
+
+@router.get("/quiet-hours")
+async def get_quiet_hours_status() -> dict:
+    """``{enabled, start, end, active, reason(schedule|pause|null), pause_until, scope}`` — 키오스크는 /health의 ``quiet``."""
+    from .deps import quiet_status  # noqa: PLC0415
+
+    return quiet_status()
+
+
+@router.put("/quiet-hours")
+async def put_quiet_hours(body: dict = Body(...)) -> dict:
+    """``{"enabled": bool, "start": "HH:MM", "end": "HH:MM"}``(일부만 보내도 된다). 서버에 영속."""
+    from rpi.services.quiet_hours import QuietHoursError  # noqa: PLC0415
+
+    from .deps import get_quiet_hours, quiet_status  # noqa: PLC0415
+
+    try:
+        await asyncio.to_thread(get_quiet_hours().update, body)
+    except QuietHoursError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return quiet_status()
 
 
 _MOCK_TEMP = 26.5

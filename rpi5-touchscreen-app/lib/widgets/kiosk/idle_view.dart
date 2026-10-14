@@ -28,6 +28,7 @@ class KioskIdleView extends StatelessWidget {
     this.running = const {},
     this.attention = const {},
     this.dndUntil,
+    this.quietUntil,
     this.temperature,
     this.humidity,
     required this.onSelectAppliance,
@@ -51,6 +52,9 @@ class KioskIdleView extends StatelessWidget {
   final Set<String> running;
   final Set<String> attention;
   final DateTime? dndUntil;
+
+  /// 매일 조용한 시간대 안이면 끝 시각("07:00", 2026-10-14). 잠시 쉬기(방해 금지)가 켜져 있으면 그쪽이 먼저 보인다.
+  final String? quietUntil;
   final double? temperature;
   final double? humidity;
   final ValueChanged<ApplianceMap> onSelectAppliance;
@@ -145,7 +149,10 @@ class KioskIdleView extends StatelessWidget {
                 iconSize: 30,
                 icon: const Icon(Icons.settings_outlined))),
             const SizedBox(width: 8),
-            _DndEntry(remaining: dnd == null ? null : _dndRemaining(dnd), onTap: onDndGesture),
+            _DndEntry(
+                remaining: dnd == null ? null : _dndRemaining(dnd),
+                quietUntil: dnd == null ? quietUntil : null,
+                onTap: onDndGesture),
             KioskConnectionIcons(items: connections, onOpen: onOpenConnection),
           ])),
           const SizedBox(height: 8),
@@ -271,18 +278,28 @@ double _textHeight(BuildContext context, String text, TextStyle style, double ma
 /// 켜진 것으로 읽혔다), 켜져 있으면 채운 칩에 아이콘·"방해 금지"·남은 시간을 적는다
 /// (색만으로 말하지 않는다). 둘 다 누르면 같은 방해 금지 선택이 열린다.
 class _DndEntry extends StatelessWidget {
-  const _DndEntry({required this.remaining, required this.onTap});
+  const _DndEntry({required this.remaining, required this.onTap, this.quietUntil});
 
   /// 남은 시간 문구. null이면 꺼져 있다.
   final String? remaining;
+
+  /// 매일 조용한 시간대의 끝 시각 — 있으면 "조용한 시간" / "07:00까지"(2026-10-14).
+  final String? quietUntil;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final on = remaining != null;
+    final quiet = remaining == null ? quietUntil : null;
+    final on = remaining != null || quiet != null;
+    final title = quiet != null ? '조용한 시간' : '방해 금지';
+    final sub = quiet != null ? '$quiet까지' : remaining;
     return Semantics(
       button: true,
-      label: on ? '방해 금지 중, 해제하려면 누르세요' : '방해 금지 켜기',
+      label: quiet != null
+          ? '조용한 시간, $quiet까지. 새 제안과 일반 안내 소리를 쉬어요'
+          : on
+              ? '방해 금지 중, 해제하려면 누르세요'
+              : '방해 금지 켜기',
       child: ExcludeSemantics(
         child: Material(
           color: on ? KioskColors.primary : Colors.transparent,
@@ -310,7 +327,7 @@ class _DndEntry extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('방해 금지',
+                          Text(title,
                               maxLines: 1,
                               softWrap: false,
                               textScaler: TextScaler.noScaling,
@@ -319,7 +336,7 @@ class _DndEntry extends StatelessWidget {
                                   height: 1.15,
                                   fontWeight: FontWeight.w700,
                                   color: KioskColors.onAccent)),
-                          Text(remaining!,
+                          Text(sub!,
                               maxLines: 1,
                               softWrap: false,
                               textScaler: TextScaler.noScaling,

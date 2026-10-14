@@ -28,7 +28,8 @@ class _DndTile extends ConsumerWidget {
             : Icons.do_not_disturb_on_outlined),
         title: const Text('제안 잠시 쉬기'),
         subtitle: Text(
-          active ? '지금은 제안을 보내지 않아요' : '몇 시간 동안 제안을 멈춰요',
+          // 잠시 쉬기도 조용한 시간과 같은 판정이다(2026-10-14) — 아직 시작하지 않은 자동 실행도 건너뛴다.
+          active ? '지금은 새 제안과 자동 실행을 쉬어요' : '몇 시간 동안 새 제안과 자동 실행을 쉬어요',
           style: TextStyle(color: context.appMuted, fontSize: 12),
         ),
         trailing: TextButton(
@@ -36,6 +37,94 @@ class _DndTile extends ConsumerWidget {
           style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
           onPressed: () => showDndSheet(context),
           child: Text(active ? '지금 받기' : '시간 고르기'),
+        ),
+      ),
+    );
+  }
+}
+
+/// 조용한 시간(2026-10-14, 사용자 승인 5번) — 매일 정해진 시간대. 서버에 저장되고 키오스크도 같은 상태를 보인다.
+///
+/// 실제 범위만 말한다: 서버 `scope` 문장(새 제안과 일반 안내 소리, 아직 시작하지 않은 자동 실행)과
+/// '직접 실행·정지는 그대로예요'. 비상정지·실패 경보 소리는 바꾸지 않았다(정책 미정 — 사용자 확인 필요)라서
+/// '모든 알림이 조용해진다'고 쓰지 않는다. 시간대는 줄을 누르면 시작·끝 시각을 차례로 고른다.
+class _QuietHoursTile extends ConsumerStatefulWidget {
+  @override
+  ConsumerState<_QuietHoursTile> createState() => _QuietHoursTileState();
+}
+
+class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
+  bool _busy = false;
+
+  Future<void> _save(Map<String, Object> change) async {
+    final api = ref.read(rpiApiServiceProvider);
+    if (api == null || _busy) return;
+    final messenger = ScaffoldMessenger.of(context);
+    setState(() => _busy = true);
+    try {
+      await api.setQuietHours(change);
+    } on RpiApiException catch (e) {
+      messenger.showSnackBar(SnackBar(
+          content: Text(e.message.isNotEmpty ? e.message : '설정을 전달하지 못했어요. 연결을 확인해 주세요.')));
+    } catch (_) {
+      messenger.showSnackBar(
+          const SnackBar(content: Text('설정을 전달하지 못했어요. 연결을 확인해 주세요.')));
+    } finally {
+      if (mounted) setState(() => _busy = false);
+      ref.invalidate(quietHoursProvider);
+    }
+  }
+
+  static TimeOfDay _parse(String hhmm) {
+    final parts = hhmm.split(':');
+    return TimeOfDay(hour: int.tryParse(parts.first) ?? 22, minute: int.tryParse(parts.last) ?? 0);
+  }
+
+  static String _fmt(TimeOfDay t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _pickRange(QuietHoursStatus s) async {
+    final start = await showTimePicker(
+        context: context, initialTime: _parse(s.start), helpText: '조용한 시간 시작');
+    if (start == null || !mounted) return;
+    final end = await showTimePicker(
+        context: context, initialTime: _parse(s.end), helpText: '조용한 시간 끝');
+    if (end == null || !mounted) return;
+    await _save({'start': _fmt(start), 'end': _fmt(end)});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final connected = ref.watch(rpiApiServiceProvider) != null;
+    final s = ref.watch(quietHoursProvider).valueOrNull;
+    final muted = TextStyle(color: context.appMuted, fontSize: 12);
+    return _SettingCard(
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(s?.active == true && s?.reason == 'schedule'
+            ? Icons.bedtime
+            : Icons.bedtime_outlined),
+        title: const Text('조용한 시간'),
+        subtitle: s == null
+            ? Text(connected ? '설정을 불러오지 못했어요.' : '허브와 연결되면 설정할 수 있어요.', style: muted)
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(s.summary, style: TextStyle(fontSize: 13, color: context.appMuted)),
+                  Text(
+                    '${s.scope ?? '새 제안과 일반 안내 소리만 쉬어요.'} 직접 실행·정지는 그대로예요.',
+                    style: muted,
+                  ),
+                ],
+              ),
+        onTap: s == null || _busy ? null : () => _pickRange(s),
+        trailing: SizedBox(
+          key: const Key('quiet-hours-switch'),
+          height: 48,
+          child: Switch(
+            value: s?.enabled ?? false,
+            onChanged: s == null || _busy ? null : (v) => _save({'enabled': v}),
+          ),
         ),
       ),
     );

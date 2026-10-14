@@ -125,7 +125,8 @@ def get_auto_rule_engine():
                           save=(lambda v: db.save_setting(AUTO_SEEN_SETTING, v)) if db else None)
         engine = AutoRuleEngine(store, seen, service, deps.get_clock(), scenarios=get_scenario_engine,
                                 care_events=deps.get_care_events(),
-                                max_event_age_s=max_event_age_from_env())
+                                max_event_age_s=max_event_age_from_env(),
+                                is_quiet=lambda: deps.get_suggestion_service().is_quiet())
         _auto_engine = engine
     if not getattr(service, "_simplelay_auto_rule_listener", False):
         service.add_job_listener(lambda event: _auto_engine.on_job_finished(event)
@@ -228,6 +229,7 @@ def reset_routines() -> None:
     get_candidate_decisions.cache_clear()
     from rpi.api import deps  # noqa: PLC0415
 
+    deps.get_quiet_hours.cache_clear()
     deps.get_done_sensor_set.cache_clear()
     _engine = None
 

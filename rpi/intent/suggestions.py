@@ -78,6 +78,8 @@ class ProactiveSuggestionService:
         self._id_prefix = uuid4().hex
         self._cooldowns = cooldowns if cooldowns is not None else SuggestionCooldowns()
         self._dnd_until: datetime | None = None
+        #: 조용한 시간(매일 시간대) 판정 — None이면 없음. 잠시 쉬기(DND)와 함께 ``is_quiet``가 본다(2026-10-14, 5번).
+        self._quiet_schedule = None
         # 승인은 워커 스레드(asyncio.to_thread), 거부·생성은 이벤트 루프
         # 스레드에서 온다 — 상태 확인+전이를 원자화하지 않으면 "폰에서
         # 거부했는데 키오스크 승인이 되살려 실행"되는 레이스가 가능하다.
@@ -144,11 +146,28 @@ class ProactiveSuggestionService:
     def dnd_until(self) -> datetime | None:
         return self._dnd_until if self.is_dnd() else None
 
+    def set_quiet_schedule(self, active) -> None:
+        """active() -> bool: 지금 매일 조용한 시간대인가. 메모리 판정만(입출력 없음) — 실행 게이트 안에서도 부른다."""
+        self._quiet_schedule = active
+
+    def is_quiet(self) -> bool:
+        """조용한 시간(매일 시간대) 또는 잠시 쉬기. 새 제안을 만들지 않고, 떠 있던 카드는 내린다(정책 b)."""
+        if self.is_dnd():
+            return True
+        schedule = self._quiet_schedule
+        if schedule is None:
+            return False
+        try:
+            return bool(schedule())
+        except Exception:  # noqa: BLE001 -- 판정 실패는 조용하지 않은 것으로(제안이 뜰 뿐 실행은 늘 승인 뒤)
+            log.exception("quiet schedule check failed")
+            return False
+
     def create_suggestions(self) -> tuple[ProactiveSuggestion, ...]:
         self._refresh_environment()
         with self._state_lock:
             self._expire_locked()
-        if self.is_dnd():
+        if self.is_quiet():
             return ()
         if self._presence_gate is not None and not self._presence_gate():
             return ()
@@ -307,7 +326,7 @@ class ProactiveSuggestionService:
         같은 purpose의 pending 제안이 이미 있으면 그것을 그대로 돌려준다 —
         데모 트리거를 연타해도 중복 카드가 쌓이지 않는다.
         """
-        if self.is_dnd():
+        if self.is_quiet():
             return None
         steps = self._preview_steps(purpose)
         commands, summaries = self._purpose_commands(purpose, appliance_id)
@@ -366,6 +385,7 @@ class ProactiveSuggestionService:
         routine_id: str | None = None,
         routine_name: str | None = None,
         time_band: str = "시나리오",
+        user_started: bool = False,
     ) -> ProactiveSuggestion | None:
         """시나리오 제안 — **확정 명령**을 들고 다니는 카드. 자동 실행하지 않는다.
 
@@ -375,7 +395,8 @@ class ProactiveSuggestionService:
         """
         if not commands or len(commands) != len(summaries):
             raise ValueError("scenario suggestion needs one summary per command")
-        if self.is_dnd():
+        # 사용자가 직접 요청한 카드(루틴 '지금 실행')는 조용한 시간에도 만든다 — 직접 요청한 실행은 그대로다.
+        if not user_started and self.is_quiet():
             return None
         muted = (self._suppression_store.muted()
                  if self._suppression_store is not None else frozenset())
@@ -409,10 +430,11 @@ class ProactiveSuggestionService:
                 scenario_id=scenario_id,
                 routine_id=routine_id,
                 routine_name=routine_name,
+                user_started=user_started,
             )
             self._next_id += 1
             self._suggestions[suggestion.suggestion_id] = suggestion
-            self._record(suggestion, "created", "scenario_trigger")
+            self._record(suggestion, "created", "user_request" if user_started else "scenario_trigger")
             return suggestion
 
     def _approved_commands(self, suggestion: ProactiveSuggestion) -> tuple:
@@ -624,9 +646,8 @@ class ProactiveSuggestionService:
     def pending(self) -> tuple[ProactiveSuggestion, ...]:
         self._refresh_environment()
         with self._state_lock:
+            # 조용한 동안 떠 있던 카드는 ``_expire_locked``가 내린다(사용자가 직접 요청한 카드만 남는다).
             self._expire_locked()
-            if self.is_dnd():
-                return ()
             return tuple(
                 suggestion
                 for suggestion in self._suggestions.values()
@@ -764,6 +785,9 @@ class ProactiveSuggestionService:
         now = self._clock.now()
         if suggestion.expires_at is not None and now >= suggestion.expires_at:
             return "validity_ended"
+        # 정책 b(2026-10-14): 조용한 동안 떠 있던 제안은 버린다 — 끝난 뒤 한꺼번에 다시 알리지 않는다.
+        if not suggestion.user_started and self.is_quiet():
+            return "quiet_hours"
         if suggestion.time_band != "데모":
             if self._presence_gate is not None and not self._presence_gate():
                 return "presence_absent"

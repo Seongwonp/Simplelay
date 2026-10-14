@@ -128,3 +128,5 @@ class ProactiveSuggestion:
     #: 빌려 쓸 때 채운다. 화면은 이름을 제목으로 쓴다. 실행 내용은 바뀌지 않는다.
     routine_id: str | None = None
     routine_name: str | None = None
+    #: 사용자가 직접 요청해 생긴 카드(루틴 '지금 실행', 2026-10-14). 조용한 시간에도 만들고 내리지 않는다.
+    user_started: bool = False

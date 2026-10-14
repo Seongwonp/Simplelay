@@ -47,6 +47,7 @@ from uuid import uuid4
 from rpi.commands import ApprovedCommand, ControlRoute, canonical_json
 from rpi.controller.models import ExecutionMode
 from rpi.intent.models import UsageSource
+from rpi.services.quiet_hours import SKIP_REASON as QUIET_SKIP_REASON
 from rpi.services.thinq.wording import direction, dispatch_of
 
 log = logging.getLogger(__name__)
@@ -448,8 +449,11 @@ class AutoRuleEngine:
                  scenarios: Callable[[], object] | None = None, care_events=None,
                  max_event_age_s: float = DEFAULT_MAX_EVENT_AGE_S,
                  monotonic: Callable[[], float] | None = None,
-                 started: Callable[[], float] | None = None) -> None:
+                 started: Callable[[], float] | None = None,
+                 is_quiet: Callable[[], bool] | None = None) -> None:
         self.store = store
+        #: 조용한 시간·잠시 쉬기(2026-10-14, 5번 정책 b) — 메모리 판정만. 그 사이 사건은 건너뛰고 다시 실행하지 않는다.
+        self._is_quiet = is_quiet or (lambda: False)
         #: 이 허브의 단조 시계 — 사건 끝 시각을 옮긴 시계와 같아야 한다(기본: rpi/services/event_clock.py).
         self._monotonic = monotonic or _hub_monotonic
         self._seen = seen
@@ -479,6 +483,13 @@ class AutoRuleEngine:
         self._send_lock = threading.Lock()
         #: 전송을 시작한 규칙(규칙 ID → 규칙:사건 키). job이 끝나면 지운다.
         self._sending: dict[str, str] = {}
+
+    def _quiet(self) -> bool:
+        try:
+            return bool(self._is_quiet())
+        except Exception:  # noqa: BLE001 -- 판정을 못 하면 보내지 않는 쪽(자동 실행은 건너뛰어도 사용자가 직접 할 수 있다)
+            log.exception("quiet hours check failed; skipping auto run")
+            return True
 
     # ── 등록부·문장 ─────────────────────────────────────────────────────────
     def _registry(self):
@@ -669,6 +680,10 @@ class AutoRuleEngine:
         with self._gen_lock:
             generation = self._generation
         source = record.get("source")
+        # 조용한 시간(정책 b): 그 시간에 온 사건은 건너뛴다. 사건은 이미 처리한 것으로 남아(SeenEvents) 끝난 뒤 다시 와도
+        # 'duplicate' — 재실행하지 않는다. 카드도 다시 띄우지 않는다(조용한 동안은 제안도 쉰다).
+        if self._quiet():
+            return self._record(rule, record, key, "blocked", QUIET_SKIP_REASON)
         # ⑥ 가열 종료 근거 = CT 전력 끝(취소·문 열림 종료도 같게 온다 — 정책상 허용, 문구로 밝힘).
         if "power" not in (record.get("inputs") or []):
             return self._record(rule, record, key, "blocked",
@@ -757,6 +772,9 @@ class AutoRuleEngine:
             with self._gen_lock:
                 if self._generation != generation:
                     raise AutoRuleBlocked("비상정지로 아직 보내지 않은 자동 실행을 보내지 않았어요")
+            # 판단 뒤 보내기 전에 조용한 시간이 시작됐으면 — 아직 시작하지 않은 자동 실행이라 보내지 않는다(메모리 판정).
+            if self._quiet():
+                raise AutoRuleBlocked(QUIET_SKIP_REASON)
             current = self.store.get(rule.rule_id)
             if current is None or not self.usable(current):
                 raise AutoRuleBlocked("자동 실행이 꺼져 보내지 않았어요")

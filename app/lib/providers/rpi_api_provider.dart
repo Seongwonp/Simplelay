@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/quiet_hours.dart';
 import '../models/scenario_run.dart';
 import '../services/mdns_resolver.dart';
 import '../services/rpi_api_service.dart';
@@ -319,6 +320,19 @@ class DndNotifier extends StateNotifier<DateTime?> {
 final dndProvider = StateNotifierProvider<DndNotifier, DateTime?>(
   (ref) => DndNotifier(ref),
 );
+
+/// 조용한 시간(2026-10-14, 서버 /quiet-hours). 허브가 없으면 null, 조회 실패·옛 서버(404)도 null.
+/// 바꾼 뒤에는 `ref.invalidate`로 다시 받는다.
+final quietHoursProvider =
+    FutureProvider.autoDispose<QuietHoursStatus?>((ref) async {
+  final api = ref.watch(rpiApiServiceProvider);
+  if (api == null) return null;
+  try {
+    return await api.quietHours();
+  } catch (_) {
+    return null;
+  }
+});
 
 // ── 노드 레지스트리 (ESP32 IP 등록 목록) ─────────────────────────────────
 

@@ -11,12 +11,16 @@ class DndOverlay extends StatelessWidget {
   const DndOverlay({
     super.key,
     required this.dndUntil,
+    this.quietSchedule,
     required this.onSet,
     required this.onClear,
     required this.onDismiss,
   });
 
   final DateTime? dndUntil;
+
+  /// 켜 둔 매일 조용한 시간대 (시작, 끝) — 보여 주기만 한다(바꾸기는 폰 설정, 2026-10-14).
+  final (String, String)? quietSchedule;
   final void Function(int minutes) onSet;
   final VoidCallback onClear;
   final VoidCallback onDismiss;
@@ -52,16 +56,25 @@ class DndOverlay extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 6),
+                    // 실제 범위만 말한다(2026-10-14) — 새 제안과 아직 시작하지 않은 자동 실행. 직접 실행·정지·경보는 그대로.
                     Text(
                       dndUntil != null
-                          ? '사용 습관 제안을 쉬고 있어요'
-                          : '사용 습관 제안을 잠시 멈춰요',
+                          ? '새 제안과 자동 실행을 쉬고 있어요'
+                          : '새 제안과 자동 실행을 잠시 쉬어요',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 18,
                         color: KioskColors.muted,
                       ),
                     ),
+                    if (quietSchedule case (final start, final end)) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        '매일 $start~$end 조용한 시간 · 바꾸기는 폰 설정에서',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 16, color: KioskColors.muted),
+                      ),
+                    ],
                     const SizedBox(height: 20),
                     if (dndUntil == null) ...[
                       _DndOption(label: '30분', onTap: () => onSet(30)),

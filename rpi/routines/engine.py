@@ -395,6 +395,8 @@ class RoutineEngine:
             scenario_id=routine.scenario_key(), purpose=f"'{routine.name}' 루틴을 실행할까요?",
             commands=commands, summaries=summaries, reason=reason, is_demo=is_demo,
             routine_id=routine.routine_id, routine_name=routine.name, time_band="루틴",
+            # '지금 실행'은 사용자가 직접 요청한 것 — 조용한 시간에도 카드를 만든다(실행은 여전히 승인 뒤, 2026-10-14).
+            user_started=source == "manual",
         )
         if suggestion is None:
             raise RoutineUnavailableError("지금은 제안을 쉬는 중이거나 이 제안을 그만 받기로 하셨어요")

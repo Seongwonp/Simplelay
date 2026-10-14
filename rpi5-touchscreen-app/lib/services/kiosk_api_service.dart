@@ -16,21 +16,44 @@ class HealthStatus {
     required this.ok,
     this.actuatorReady = true,
     this.dndUntil,
+    this.quietActive = false,
+    this.quietScheduleActive = false,
+    this.quietSchedule,
   });
 
   final bool ok;
   final bool actuatorReady;
   final DateTime? dndUntil;
 
+  /// 조용한 시간(2026-10-14, 서버 /health `quiet` — 폰 /quiet-hours와 같은 상태). 매일 시간대 또는 잠시 쉬기.
+  /// 이때는 일반 안내 소리(제안 도착·자동 실행 결과 낭독)를 내지 않는다. 옛 서버는 false.
+  final bool quietActive;
+
+  /// 지금이 매일 조용한 시간대인가(잠시 쉬기가 아니라).
+  final bool quietScheduleActive;
+
+  /// 켜 둔 매일 시간대 (시작, 끝). 꺼져 있거나 옛 서버면 null.
+  final (String, String)? quietSchedule;
+
   static const disconnected = HealthStatus(ok: false, actuatorReady: false);
 
-  factory HealthStatus.fromJson(Map<String, dynamic> json) => HealthStatus(
-        ok: json['ok'] as bool? ?? false,
-        actuatorReady: json['actuator_ready'] as bool? ?? true,
-        dndUntil: json['dnd_until'] == null
-            ? null
-            : DateTime.parse(json['dnd_until'] as String),
-      );
+  factory HealthStatus.fromJson(Map<String, dynamic> json) {
+    final quiet = json['quiet'];
+    final q = quiet is Map ? quiet : const {};
+    final start = q['start'], end = q['end'];
+    return HealthStatus(
+      ok: json['ok'] as bool? ?? false,
+      actuatorReady: json['actuator_ready'] as bool? ?? true,
+      dndUntil: json['dnd_until'] == null
+          ? null
+          : DateTime.parse(json['dnd_until'] as String),
+      quietActive: q['active'] == true,
+      quietScheduleActive: q['active'] == true && q['reason'] == 'schedule',
+      quietSchedule: q['enabled'] == true && start is String && end is String
+          ? (start, end)
+          : null,
+    );
+  }
 }
 
 class SensorData {

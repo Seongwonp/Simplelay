@@ -753,7 +753,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final text = autoRunNotice(run);
     _autoNoticeTimer?.cancel();
     setState(() => _autoNotice = text);
-    _tts.speak('자동 실행, $text');
+    if (!_health.quietActive) _tts.speak('자동 실행, $text'); // 조용한 시간에는 소리 없이 한 줄만
     _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
       if (mounted) setState(() => _autoNotice = null);
     });
@@ -1051,9 +1051,12 @@ class _KioskScreenState extends State<KioskScreen> {
     // 화면의 제목·버튼과 **같은 말**을 쓴다 -- 음성을 듣고 화면을 보는 사용자가
     // '승인'을 찾다가 '지금 실행'을 못 알아보면 그 순간 막힌다.
     // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다("…바꿀까요?").
-    _tts.speak(suggestion.isScenario
-        ? '${suggestion.purpose} 화면에서 시작을 눌러 주세요.'
-        : '${suggestion.purpose}, 지금 할까요? 화면에서 시작을 눌러 주세요.');
+    // 조용한 시간(2026-10-14)에는 일반 안내 소리를 내지 않는다 — 화면 카드는 그대로.
+    if (!_health.quietActive) {
+      _tts.speak(suggestion.isScenario
+          ? '${suggestion.purpose} 화면에서 시작을 눌러 주세요.'
+          : '${suggestion.purpose}, 지금 할까요? 화면에서 시작을 눌러 주세요.');
+    }
     setState(() {
       _phase = KioskPhase.suggestion;
       _currentSuggestion = suggestion;
@@ -1398,6 +1401,7 @@ class _KioskScreenState extends State<KioskScreen> {
             Positioned.fill(
               child: DndOverlay(
                 dndUntil: _health.dndUntil,
+                quietSchedule: _health.quietSchedule,
                 onSet: _onSetDnd,
                 onClear: _onClearDnd,
                 onDismiss: () => setState(() => _showDnd = false),
@@ -1472,6 +1476,7 @@ class _KioskScreenState extends State<KioskScreen> {
           running: _runningIds,
           attention: _attentionIds,
           dndUntil: _health.dndUntil,
+          quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
           temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
           humidity: _sensorData?.mocked == false ? _sensorData?.humidity : null,
           onSelectAppliance: _toMyAppliance,

@@ -719,6 +719,21 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
 - 근거는 패턴 감지기와 같다: 성공·실제 실행(`real`)·직접 사용(`direct`) 기록만. 모의·시연·제안 승인으로 실행한 기록은 세지 않는다. 버튼 순서를 결정적으로 모르는 목적(등록 기능·내장 규칙에 없는 것)과 ThinQ 가전은 초안을 만들지 않는다.
 - 보이지 않는 경우: 저장한 초안(루틴을 지워도), 거절 뒤 14일, 같은 가전·같은 버튼 순서의 루틴이 이미 있음(장치 명령 열로 비교 — 버튼 ID로 적었어도 같다), '다시 받지 않기'로 내린 목적, 제안을 쉬는 동안. 판단(저장·거절)은 DB가 있으면 설정 `routine_candidate_decisions`에 남아 재시작 뒤에도 유지된다.
 
+## 조용한 시간 — `/quiet-hours`·`/health`의 `quiet` (2026-10-14, 5번 정책 b)
+
+매일 시간대(사용자 설정)와 '제안 잠시 쉬기'(`/dnd`)를 서버가 한 판정으로 묶는다. 기록: [devlog](devlog/devlog_2026-10-14-quiet-hours.md).
+
+| 요청 | 응답 |
+|---|---|
+| `GET /quiet-hours` | `{"enabled", "start": "HH:MM", "end": "HH:MM", "active", "reason": "schedule" \| "pause" \| null, "pause_until": ISO \| null, "scope": "새 제안과 일반 안내 소리만 쉬어요. …"}` |
+| `PUT /quiet-hours` `{"enabled"?, "start"?, "end"?}` | 위와 같은 모양. 422(시각 형식·시작=끝·`enabled`가 bool 아님). DB 설정 `quiet_hours`에 영속 |
+| `GET /health` | 추가 필드 `quiet` — `GET /quiet-hours`와 같은 값(키오스크용). 옛 서버는 없음 → 키오스크는 조용하지 않은 것으로 본다 |
+
+- 기본: 꺼짐, 22:00~07:00. 자정을 넘는 시간대를 지원한다. 판정은 서버 현지 시각.
+- `active`인 동안: 새 제안 카드를 만들지 않고 떠 있던 카드는 내린다(`/suggestions/events`에 `withdrawn`·`quiet_hours`, 끝나도 되살리지 않는다). 루틴 '지금 실행'(`POST /routines/{id}/trigger`)은 사용자가 직접 요청한 카드라 만든다. `/demo/suggest`는 409(종전 방해 금지와 같다).
+- 자동 실행: 그 사이 온 사건은 `/routines/auto-rules/runs`에 `outcome: "blocked"`, `reason: "조용한 시간이라 자동 실행하지 않았어요"`. 사건은 처리한 것으로 남아 끝난 뒤 다시 와도 `duplicate`(재실행 없음). 판단 뒤 보내기 전에 조용한 시간이 시작돼도 같은 이유로 보내지 않는다.
+- 그대로: `/execute*`·`/thinq/command` 등 직접 실행, `/stop`, 진행 중인 job. 경보 소리 정책은 미정(기존 동작 유지, 사용자 확인 필요).
+
 ## 버튼 맵 JSON 포맷
 
 `docs/button-maps/<appliance>.json` 에 가전별 저장.

@@ -15,6 +15,7 @@ from rpi.api.deps import (
     get_service,
     get_suggestion_service,
     get_wellness_checker,
+    quiet_status,
 )
 from rpi.api.pairing import pairing_router
 from rpi.api.dev_router import dev_router
@@ -291,6 +292,7 @@ async def health(
         ok=True,
         actuator_ready=actuator_ready,
         dnd_until=svc.dnd_until(),
+        quiet=quiet_status(),
         act_mode=act_mode,
     )
 

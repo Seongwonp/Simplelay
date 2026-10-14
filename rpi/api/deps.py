@@ -763,6 +763,22 @@ def _build_environmental_suggester():
 
 
 @lru_cache(maxsize=1)
+def get_quiet_hours():
+    """조용한 시간 설정(2026-10-14, 5번) — DB가 있으면 재시작 뒤에도 유지."""
+    from rpi.services.quiet_hours import SETTING_KEY, QuietHours  # noqa: PLC0415
+
+    db = get_db()
+    return QuietHours(load=(lambda: db.load_setting(SETTING_KEY)) if db else None,
+                      save=(lambda value: db.save_setting(SETTING_KEY, value)) if db else None)
+
+
+def quiet_status() -> dict:
+    """폰(/quiet-hours)·키오스크(/health)가 같은 모양으로 보는 조용한 시간 상태."""
+    svc = get_suggestion_service()
+    return get_quiet_hours().status(get_clock().now(), svc.dnd_until())
+
+
+@lru_cache(maxsize=1)
 def get_suggestion_service() -> ProactiveSuggestionService:
     detector = PatternDetector(get_usage_log(), _clock, _PATTERN_CONFIG)
     db = get_db()
@@ -787,6 +803,8 @@ def get_suggestion_service() -> ProactiveSuggestionService:
             save=db.append_suggestion_event if db else None,
         ),
     )
+    # 조용한 시간(매일 시간대) — 잠시 쉬기(DND)와 함께 is_quiet()로 판정한다(2026-10-14, 5번).
+    svc.set_quiet_schedule(lambda: get_quiet_hours().schedule_active(get_clock().now()))
     # 시나리오 트리거(실행 완료·ThinQ 이벤트) → 제안. 자동 실행은 없다.
     from .thinq_wiring import wire_scenarios  # noqa: PLC0415
 

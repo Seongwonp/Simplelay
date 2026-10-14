@@ -981,6 +981,8 @@ class HealthResponse(BaseModel):
     # coreXY 홈 위치 확인 + SwitchBot 연결 상태 통합 — 실기기 연결 후 교체
     actuator_ready: bool = True
     dnd_until: datetime | None = None
+    # 조용한 시간(2026-10-14) — /quiet-hours와 같은 모양. 키오스크가 폰과 같은 상태를 보인다.
+    quiet: dict | None = None
     # 현재 Act 경로 — "local"(mock 폐루프) | "uart"(RPi4 실연결).
     # 화면엔 성공인데 실물이 안 움직이는 오설정(모드 미전환)을 즉시 탐지용.
     act_mode: str = "local"

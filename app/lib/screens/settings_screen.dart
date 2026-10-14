@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../providers/appliance_provider.dart';
 import '../models/execution_status.dart';
+import '../models/quiet_hours.dart';
 import '../providers/appliance_sync_provider.dart';
 import '../providers/care_events_provider.dart';
 import '../providers/hub_provider.dart';
@@ -122,6 +123,8 @@ class SettingsScreen extends ConsumerWidget {
           _SectionHeader(title: '알림'),
           const SizedBox(height: 4),
           _DndTile(),
+          // 조용한 시간(2026-10-14) — 새 탭 없이 이 구획 안. 잠시 쉬기와 서버가 한 판정으로 묶는다.
+          _QuietHoursTile(),
           _WellnessPauseTile(),
 
           const SizedBox(height: 28),

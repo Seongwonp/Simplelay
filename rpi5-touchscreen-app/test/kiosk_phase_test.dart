@@ -700,6 +700,23 @@ void main() {
 
   // ── 음성 안내 (TTS) ──────────────────────────────────────────────────────
 
+  // 2026-10-14 5번: 조용한 시간에는 일반 안내 소리(제안 도착 낭독)를 내지 않는다. 화면 카드는 그대로.
+  testWidgets('조용한 시간에는 제안 도착을 소리로 알리지 않는다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()
+      ..healthResult = HealthStatus.fromJson(const {
+        'ok': true,
+        'quiet': {'enabled': true, 'start': '22:00', 'end': '07:00', 'active': true, 'reason': 'schedule'},
+      })
+      ..suggestionList = [_sug];
+    final tts = FakeTts();
+    await _pumpKiosk(tester, api, tts: tts);
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump();
+    expect(find.byKey(_approveKey), findsOneWidget);
+    expect(tts.utterances.where((u) => u.contains('즉석밥 데워줘')), isEmpty);
+  });
+
   testWidgets('제안 도착·실행 완료를 음성으로 안내한다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()..suggestionList = [_sug];

@@ -8,6 +8,7 @@ import '../models/auto_rule.dart';
 import '../models/estop.dart';
 import '../models/hub.dart';
 import '../models/learning_status.dart';
+import '../models/quiet_hours.dart';
 import '../models/routine.dart';
 import '../models/routine_candidate.dart';
 import '../models/scenario_run.dart';
@@ -849,6 +850,25 @@ class RpiApiService {
         .delete(_base.replace(path: '/dnd'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
+  }
+
+  // GET/PUT /quiet-hours — 조용한 시간(2026-10-14). 서버에 영속, 키오스크와 같은 상태.
+  Future<QuietHoursStatus?> quietHours() async {
+    final res = await _client
+        .get(_base.replace(path: '/quiet-hours'), headers: _headers)
+        .timeout(_timeout);
+    _checkStatus(res);
+    return QuietHoursStatus.fromJson(_decodeMap(res));
+  }
+
+  /// 바꿀 값만 보낸다(`enabled`·`start`·`end`). 422 detail은 화면에 그대로 보여도 되는 문장.
+  Future<QuietHoursStatus?> setQuietHours(Map<String, Object> change) async {
+    final res = await _client
+        .put(_base.replace(path: '/quiet-hours'),
+            headers: _jsonHeaders, body: jsonEncode(change))
+        .timeout(_timeout);
+    _checkStatus(res);
+    return QuietHoursStatus.fromJson(_decodeMap(res));
   }
 
   // POST /execute — 즉시 job_id 접수 응답(비동기 job 모델)
