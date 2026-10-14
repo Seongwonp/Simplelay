@@ -223,3 +223,78 @@ def test_pause_from_a_memory_only_server_is_not_restored_without_a_carried_value
     finally:
         _clear()
         deps.get_db.cache_clear()
+
+
+# ── 결합(2026-10-14 노트북 인계 6번 재확인) — 인증 켜짐 + 조용한 시간 + 잠시 쉬기 ─────────────────────────
+
+
+def test_quiet_pause_and_auth_together_still_block_unsent_auto_runs_and_let_stop_through(monkeypatch, tmp_path,
+                                                                                          cloud):
+    """API 키를 켠 채(LAN은 키 필요·키오스크는 루프백 네이티브 헤더) 최종 재판정 뒤 조용한 시간과 잠시 쉬기를 둘 다
+    켜면 아직 보내지 않은 자동 실행은 POST 0건이다. 그 상태에서도 정지는 막히지 않는다 — LAN(키)·키오스크(루프백)
+    정지 모두 서비스 정지 진입에 1초 안에 닿고, 키 없는 LAN 정지는 401로 정지 진입 0회."""
+    from rpi.services.thinq.controller import ThinqController
+    from rpi.tests.test_cook_done_card import _inject
+
+    _env(monkeypatch, tmp_path, cloud)
+    key = "secret-for-tests-123"
+    monkeypatch.setenv("SIMPLELAY_API_KEY", key)
+    monkeypatch.delenv("SIMPLELAY_ALLOW_UNAUTHENTICATED", raising=False)
+    monkeypatch.delenv("SIMPLELAY_KIOSK_ORIGINS", raising=False)
+    _reset()
+    from rpi.main import app
+
+    try:
+        api = TestClient(app, headers={"X-API-Key": key})
+        no_key = TestClient(app)
+        kiosk = TestClient(app, base_url="http://localhost:8000", client=("127.0.0.1", 50000))
+        assert no_key.get("/status").status_code == 401  # 인증이 실제로 켜져 있다
+        _allow(api)
+        _set_low(api)
+        before = len(cloud.controls())
+        original_execute = ThinqController.execute_command
+        switched = []
+
+        def execute(controller, command, *, dispatch_guard=None):
+            if dispatch_guard is None:
+                return original_execute(controller, command)
+
+            def guard_then_quiet(binding=None):
+                out = dispatch_guard(binding)
+                if binding is not None and not switched:
+                    _quiet_on(api, "schedule")  # 최종 재판정 반환 뒤, POST 전 — 둘 다 켠다
+                    _quiet_on(api, "pause")
+                    switched.append(True)
+                return out
+
+            return original_execute(controller, command, dispatch_guard=guard_then_quiet)
+
+        monkeypatch.setattr(ThinqController, "execute_command", execute)
+        _inject(api, inputs=("power",))
+        run = _wait_run(api, lambda r: r.get("job_id") and r.get("status"))
+        time.sleep(0.3)
+        assert switched == [True]
+        assert len(cloud.controls()) == before, cloud.controls()[before:]
+        assert run["receipt"] == "not_dispatched" and run["outcome"] == "blocked", run
+        quiet = api.get("/health/detail").json()["quiet"]
+        assert quiet["active"] is True and api.get("/health/detail").json()["dnd_until"] is not None
+
+        svc = deps.get_service()
+        stops = []
+        original_stop = svc.emergency_stop_report
+
+        def counted(*a, **k):
+            stops.append(time.monotonic())
+            return original_stop(*a, **k)
+
+        monkeypatch.setattr(svc, "emergency_stop_report", counted)
+        assert no_key.post("/stop").status_code == 401
+        assert stops == []
+        for client, headers in ((api, {}), (kiosk, {"User-Agent": "Dart/3.5 (dart:io)"})):
+            started = time.monotonic()
+            res = client.post("/stop", headers=headers)
+            assert res.status_code == 200, res.text
+            assert stops and stops[-1] - started < 1.0
+        assert len(stops) == 2
+    finally:
+        _reset()

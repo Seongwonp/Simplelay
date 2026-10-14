@@ -1,5 +1,7 @@
 // 조용한 시간(2026-10-14, 5번) — 키오스크가 폰과 같은 서버 상태(/health/detail의 quiet)를 보이고, 실제 범위만 말한다.
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,6 +66,25 @@ void main() {
     expect(h.quietActive, isTrue);
     expect(h.quietKnown, isTrue);
   });
+
+  // 배포 전 확인(2026-10-14 인계 4번) — 실패 네 종류 모두 연결 끊김(준비 안 됨·조용한 시간 모름)이지 준비됨이 아니다.
+  // 타임아웃은 4초를 실제로 기다리지 않고 .timeout()이 던지는 TimeoutException을 그대로 흉내 낸다.
+  final failures = <String, Future<http.Response> Function()>{
+    '401': () async => http.Response('{"detail":"invalid or missing API key"}', 401),
+    '연결 실패': () async => throw const SocketException('connection refused'),
+    '타임아웃': () async => throw TimeoutException('health/detail'),
+    '해석 실패': () async => http.Response('<html>proxy error</html>', 200),
+  };
+  for (final entry in failures.entries) {
+    test('checkHealth: ${entry.key}면 준비됨으로 보지 않는다', () async {
+      final api = http.runWithClient(
+          () => KioskApiService(baseUrl: 'http://hub.test'), () => MockClient((_) => entry.value()));
+      final h = await api.checkHealth();
+      expect(h.ok, isFalse);
+      expect(h.actuatorReady, isFalse);
+      expect(h.quietKnown, isFalse);
+    });
+  }
 
   testWidgets('평소 화면: 매일 조용한 시간이면 위 줄 칩이 "조용한 시간 · 07:00까지"', (tester) async {
     final handle = tester.ensureSemantics();

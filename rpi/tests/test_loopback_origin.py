@@ -107,6 +107,25 @@ def test_kiosk_native_app_headers_pass_and_stop_is_not_delayed(calls):
     assert c.get("/status").status_code == 200
 
 
+@pytest.mark.parametrize("path", [
+    "/suggestions/no-such-card/approve",
+    "/suggestions/no-such-card/approve-and-allow",
+    "/suggestions/no-such-card/reject",
+])
+def test_kiosk_native_app_headers_reach_suggestions_and_approval(path):
+    """키오스크가 실제로 보내는 헤더(Dart HTTP, ``Content-Type: application/json``만 — kiosk_api_service의
+    ``_jsonHeaders``)로 제안 목록·승인·거절이 출처 검사에 막히지 않는다(2026-10-14 배포 전 확인).
+    없는 카드라 404여야 한다 — 403이면 출처 검사가 막은 것이다. 같은 요청에 다른 사이트 Origin이 붙으면 403."""
+    c = local()
+    native = {"User-Agent": "Dart/3.5 (dart:io)", "Content-Type": "application/json"}
+    assert c.get("/suggestions", headers=native).status_code == 200
+    assert c.get("/health/detail", headers=native).status_code == 200
+    res = c.post(path, headers=native, content=b"{}")
+    assert res.status_code == 404, res.text
+    foreign = c.post(path, headers={**native, "Origin": "https://evil.example"}, content=b"{}")
+    assert foreign.status_code == 403, foreign.text
+
+
 def test_kiosk_web_build_same_origin_headers_pass(calls):
     """/kiosk/ 웹 빌드(Chromium, 같은 출처): POST는 Origin을, GET·SSE는 Sec-Fetch-Site만 붙인다."""
     c = local()
