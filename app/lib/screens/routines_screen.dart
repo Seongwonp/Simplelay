@@ -13,9 +13,10 @@ import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_run.dart';
 
-/// 루틴 탭 — 위에 "다음 실행"(예약이 있을 때만), 아래에 "내 루틴 / 추천"(UI 확정 §2).
+/// 루틴 탭 — 위에 "다음 실행"(예약이 있을 때만), 아래에 "내 루틴 / 예시 루틴"(UI 확정 §2).
 ///
-/// 추천은 **템플릿**이다. 사용자 데이터가 아니고 실행되지도 않는다 -- 눌러서
+/// 예시 루틴은 미리 만든 **템플릿**이다(개인 습관 추천이 아니라 2026-10-14에 "추천"에서 이름을 바꿨다).
+/// 사용자 데이터가 아니고 실행되지도 않는다 -- 눌러서
 /// 자기 가전·버튼으로 고친 뒤 저장해야 루틴이 된다.
 ///
 /// 행마다 '편집'과 '실행하기'를 나눈다(2026-10-13). '실행하기'는 편집기의 '지금 실행'과
@@ -82,7 +83,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
             SegmentedButton<bool>(
               segments: const [
                 ButtonSegment(value: false, label: Text('내 루틴')),
-                ButtonSegment(value: true, label: Text('추천')),
+                ButtonSegment(value: true, label: Text('예시 루틴')),
               ],
               selected: {_templates},
               showSelectedIcon: false,
@@ -110,8 +111,8 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               data: (routines) => routines.isEmpty
                   ? [
                       _Note(_templates
-                          ? '지금 보여 드릴 추천이 없어요.'
-                          : '아직 만든 루틴이 없어요. 가전 상세에서 "루틴 녹화"로 만들거나 추천에서 골라 보세요.'),
+                          ? '지금 보여 드릴 예시 루틴이 없어요.'
+                          : '아직 만든 루틴이 없어요. 가전 상세에서 "루틴 녹화"로 만들거나 예시 루틴에서 골라 보세요.'),
                     ]
                   : [
                       for (final r in routines)
@@ -296,7 +297,18 @@ class _RoutineRow extends StatelessWidget {
         ),
       ),
     );
-    if (r.isTemplate) return info;
+    // 예시 루틴은 낭독에서도 예시라고 말하고, 누르면 무엇이 되는지 말한다(2026-10-14 UI 정리).
+    if (r.isTemplate) {
+      final about = (r.description ?? '').isNotEmpty ? '${r.description}. ' : '';
+      return Semantics(
+        label: '예시 루틴 · ${r.name}. $about고쳐서 저장하면 내 루틴이 돼요',
+        button: true,
+        container: true,
+        excludeSemantics: true,
+        onTap: onEdit,
+        child: info,
+      );
+    }
 
     final run = onRun;
     // 큰 글씨에서는 Wrap이 버튼을 다음 줄로 내린다 — 겹치거나 줄어들지 않는다.

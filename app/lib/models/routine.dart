@@ -275,7 +275,7 @@ class Routine {
   /// 서버가 쓴 '언제' 문장(예: "평일 07:30"). 초안에는 없다.
   final String? when;
 
-  /// 추천 템플릿이면 그 ID. 템플릿은 **사용자 데이터가 아니다.**
+  /// 예시 루틴(템플릿)이면 그 ID. 템플릿은 **사용자 데이터가 아니다.**
   final String? templateId;
   final String? description;
   final String? caution;

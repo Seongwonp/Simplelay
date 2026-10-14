@@ -17,7 +17,7 @@ final routinesProvider = FutureProvider.autoDispose<List<Routine>>((ref) async {
   return api.routines();
 });
 
-/// 추천 템플릿 — **사용자 데이터가 아니다.** 고쳐서 저장해야 루틴이 된다.
+/// 예시 루틴(미리 만든 템플릿) — **사용자 데이터가 아니다.** 고쳐서 저장해야 루틴이 된다.
 final routineTemplatesProvider =
     FutureProvider.autoDispose<List<Routine>>((ref) async {
   final api = ref.watch(rpiApiServiceProvider);

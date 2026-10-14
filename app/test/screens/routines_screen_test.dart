@@ -71,6 +71,9 @@ class _Server {
   /// 있으면 GET /routines가 이것을 돌려준다(저장 경로는 쓰지 않는 테스트용).
   List<Map<String, dynamic>>? routines;
 
+  /// 있으면 GET /routines/templates가 이것을 돌려준다(없으면 예시 하나).
+  List<Map<String, dynamic>>? templates;
+
   /// GET /appliances 응답. 없으면 404(가전 목록 조회 실패).
   List<Map<String, dynamic>>? appliances;
   final requests = <String>[];
@@ -111,7 +114,7 @@ class _Server {
             if (list != null) return _json(list);
           }
           if (req.method == 'GET' && path == '/routines/templates') {
-            return _json([_template]);
+            return _json(templates ?? [_template]);
           }
           if (req.method == 'POST' && path.endsWith('/trigger')) {
             final gate = triggerGate;
@@ -312,14 +315,14 @@ void main() {
     expect(find.textContaining('알림만'), findsOneWidget);
   });
 
-  testWidgets('추천을 골라 저장하면 새 루틴(POST)이 된다',
+  testWidgets('예시 루틴을 골라 저장하면 새 루틴(POST)이 된다',
       (tester) async {
     final server = _Server();
     _tall(tester);
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    await tester.tap(find.text('추천'));
+    await tester.tap(find.text('예시 루틴'));
     await _settle(tester);
     expect(find.text('방문자 문 열기'), findsOneWidget);
 
@@ -473,8 +476,8 @@ void main() {
     await _settle(tester);
     expect(find.textContaining('예약된 루틴이 없어요'), findsNothing);
     expect(find.textContaining('다음 실행'), findsNothing);
-    // 만들기 예시(추천) 진입은 그대로다.
-    expect(find.text('추천'), findsOneWidget);
+    // 만들기 예시(예시 루틴) 진입은 그대로다.
+    expect(find.text('예시 루틴'), findsOneWidget);
   });
 
   testWidgets('200% 글자에서도 편집·실행하기가 겹치지 않고 넘치지 않는다', (tester) async {
@@ -503,5 +506,41 @@ void main() {
     expect(find.bySemanticsLabel('아침 데우기 실행하기'), findsOneWidget);
     expect(find.bySemanticsLabel('아침 데우기 편집'), findsOneWidget);
     handle.dispose();
+  });
+
+  // 2026-10-14 UI 정리: 미리 만든 템플릿은 개인 습관 추천이 아니다 — '예시 루틴'으로 부른다.
+  group("'예시 루틴' — 추천이라 부르지 않는다", () {
+    testWidgets('탭 이름은 내 루틴 / 예시 루틴, 화면 어디에도 추천이 없다', (tester) async {
+      final handle = tester.ensureSemantics();
+      _tall(tester);
+      await tester.pumpWidget(_build(_Server()));
+      await _settle(tester);
+      expect(find.text('예시 루틴'), findsOneWidget);
+      expect(find.textContaining('추천'), findsNothing);
+
+      await tester.tap(find.text('예시 루틴'));
+      await _settle(tester);
+      expect(find.textContaining('추천'), findsNothing);
+      // 낭독도 예시라고 말하고, 누르면 무엇이 되는지 말한다.
+      expect(find.bySemanticsLabel(RegExp('^예시 루틴 · 방문자 문 열기')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('고쳐서 저장하면 내 루틴이 돼요')), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('빈 목록 문장도 예시 루틴이라고 말한다', (tester) async {
+      final server = _Server()
+        ..routines = const []
+        ..templates = const [];
+      _tall(tester);
+      await tester.pumpWidget(_build(server));
+      await _settle(tester);
+      expect(find.textContaining('예시 루틴에서 골라 보세요'), findsOneWidget);
+      expect(find.textContaining('추천'), findsNothing);
+
+      await tester.tap(find.text('예시 루틴'));
+      await _settle(tester);
+      expect(find.text('지금 보여 드릴 예시 루틴이 없어요.'), findsOneWidget);
+      expect(find.textContaining('추천'), findsNothing);
+    });
   });
 }

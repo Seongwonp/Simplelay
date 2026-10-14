@@ -646,7 +646,7 @@ class _TriggerSheetState extends State<_TriggerSheet> {
             : RoutineTrigger(
                 kind: RoutineTriggerKind.afterDone,
                 applianceId: _afterAppliance),
-        // 가전 알림(ThinQ 이벤트)은 추천에서 온 것만 그대로 둔다.
+        // 가전 알림(ThinQ 이벤트)은 예시 루틴에서 온 것만 그대로 둔다.
         RoutineTriggerKind.event => widget.initial,
         RoutineTriggerKind.manual => const RoutineTrigger.manual(),
       };
