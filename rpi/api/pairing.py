@@ -16,17 +16,14 @@ import qrcode
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
-from rpi.api.auth import is_loopback_host
+from rpi.api.auth import is_loopback_host, loopback_origin_problem
 
 
 def _local_screen(request: Request) -> None:
     if not request.client or not is_loopback_host(request.client.host):
         raise HTTPException(403, "허브 화면에서 연결을 승인해 주세요.")
-    origin = request.headers.get("origin")
-    if origin and (
-        origin != str(request.base_url).rstrip("/")
-        or not is_loopback_host(urlsplit(origin).hostname)
-    ):
+    # 출처는 요청 Host가 아니라 설정된 키오스크 주소로 본다(2026-10-14, auth.py 머리말). Origin: null·다른 사이트 거절.
+    if loopback_origin_problem(request) is not None:
         raise HTTPException(403, "허브 화면을 다시 열어 주세요.")
 
 

@@ -15,7 +15,23 @@
   (Chromium /kiosk/·/ui)가 키 배포 없이 동작해야 하고, 루프백에 도달했다는 것
   자체가 이미 보드 접근 권한이 있다는 뜻이다.
 
-/health는 라우터 밖(main.py)이라 키 없이도 응답한다 — 기동 진단용이다.
+**루프백 면제의 출처 확인(2026-10-14 보안 1차 점검 MEDIUM).** 루프백이라도 그 보드의 브라우저가 다른 사이트
+페이지의 요청(``fetch('http://localhost:8000/stop', {method:'POST'})``)을 보낼 수 있다. 그래서 면제는 다음일 때만 준다:
+
+- ``Origin`` 헤더가 있으면 **설정된 키오스크 출처**(``SIMPLELAY_KIOSK_ORIGINS``, 기본 ``http://localhost:8000``·
+  ``http://127.0.0.1:8000``·``http://[::1]:8000``)와 정확히 같아야 한다. 허용 출처를 요청의 ``Host``로 만들지 않는다
+  (DNS 재바인딩 페이지는 Host·Origin을 자기 이름으로 맞출 수 있다). ``Origin: null``은 헤더 없음과 다르게 **거절**한다.
+- ``Origin``이 없어도 ``Sec-Fetch-Site``가 ``same-origin``·``none``이 아니면(``cross-site``·``same-site``) 거절한다.
+  ``same-origin``이면 ``Host``가 설정된 키오스크 주소 중 하나여야 한다(재바인딩된 이름의 같은 출처 GET 막기).
+- 둘 다 없으면 브라우저가 아닌 로컬 프로세스(키오스크 네이티브 앱의 Dart HTTP, ``curl`` 진단)로 보고 면제한다.
+  **신뢰 경계:** 보드의 루프백에 직접 연결을 여는 프로세스는 이미 그 보드를 실행할 권한이 있다(백엔드 env·DB를 읽을
+  수 있는 위치). 최신 브라우저는 다른 출처 요청에 ``Origin``(POST)·``Sec-Fetch-Site``(모든 요청)를 붙이므로 이 경로로
+  들어오지 못한다. 이 헤더를 보내지 않는 옛 브라우저는 신뢰 경계 밖이다(키오스크 기기에 쓰지 않는다).
+
+거절은 403이고 컨트롤러에 닿지 않는다. 키오스크(같은 출처 웹 빌드·네이티브 앱)의 정지 요청은 그대로 통과한다.
+
+/health는 라우터 밖(main.py)이라 키 없이도 응답한다 — 생존·버전만(2026-10-14). 준비 상태·잠시 쉬기·조용한 시간은
+인증 경로 ``/health/detail``이다.
 폰의 조작 가능 연결 확인은 인증이 필요한 /status를 쓴다.
 /pair는 짧은 연결 창과 허브 화면 승인을 따로 검사한다.
 """
@@ -40,6 +56,13 @@ NO_KEY_CONFIGURED_DETAIL = (
     "(개발용으로 전부 열려면 SIMPLELAY_ALLOW_UNAUTHENTICATED=1)"
 )
 INVALID_KEY_DETAIL = "invalid or missing API key"
+FOREIGN_ORIGIN_DETAIL = "이 기기 화면이 아닌 곳에서 온 요청이라 받지 않았어요."
+
+#: 루프백 면제를 받는 키오스크 출처(쉼표 목록). 요청의 Host로 만들지 않는다.
+KIOSK_ORIGINS_ENV = "SIMPLELAY_KIOSK_ORIGINS"
+DEFAULT_KIOSK_ORIGINS = ("http://localhost:8000", "http://127.0.0.1:8000", "http://[::1]:8000")
+#: 브라우저가 출처를 보증한 값 중 루프백 면제를 받는 것. ``none``은 사용자가 주소창에 친 이동이다.
+_TRUSTED_FETCH_SITES = {"same-origin", "none"}
 
 
 def _configured_key() -> str:
@@ -75,9 +98,45 @@ def is_loopback_host(host: str | None) -> bool:
     return addr.is_loopback
 
 
+def kiosk_origins() -> frozenset[str]:
+    raw = os.environ.get(KIOSK_ORIGINS_ENV, "")
+    values = [v.strip().rstrip("/").lower() for v in raw.split(",") if v.strip()]
+    return frozenset(values or DEFAULT_KIOSK_ORIGINS)
+
+
+def _host_of(origin: str) -> str:
+    return origin.split("://", 1)[-1]
+
+
+def loopback_origin_problem(request: Request) -> str | None:
+    """루프백 요청이 다른 사이트에서 왔다는 표시가 있으면 그 이유, 아니면 None(면제해도 된다)."""
+    allowed = kiosk_origins()
+    origin = request.headers.get("origin")
+    if origin is not None:
+        value = origin.strip().rstrip("/").lower()
+        if value == "null" or not value:
+            return "origin_null"
+        if value not in allowed:
+            return "origin_not_kiosk"
+        return None
+    site = (request.headers.get("sec-fetch-site") or "").strip().lower()
+    if not site:
+        return None  # 브라우저가 아닌 로컬 프로세스(키오스크 네이티브 앱·진단 도구) — 신뢰 경계는 모듈 머리말
+    if site not in _TRUSTED_FETCH_SITES:
+        return f"fetch_site_{site}"
+    host = (request.headers.get("host") or "").strip().lower()
+    if site == "same-origin" and host not in {_host_of(o) for o in allowed}:
+        return "host_not_kiosk"
+    return None
+
+
 def require_api_key(request: Request) -> None:
     client = request.client
     if client is not None and is_loopback_host(client.host):
+        problem = loopback_origin_problem(request)
+        if problem is not None:
+            log.warning("루프백 요청 거절(%s): %s %s", problem, request.method, request.url.path)
+            raise HTTPException(status_code=403, detail=FOREIGN_ORIGIN_DETAIL)
         return
     expected = _configured_key()
     if not expected:
