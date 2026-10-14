@@ -229,7 +229,8 @@ async def verify_pass_start(appliance_id: str, body: VerifyPassRequest | None = 
     if not service.runs_locally(appliance_id):
         raise HTTPException(status_code=409, detail="이 가전은 이 허브의 갠트리에 연결되지 않았어요")
     try:
-        return await asyncio.to_thread(get_verify_runner().start, appliance_id, targets, service._controller)
+        # 실행기 최초 생성도 스레드 안에서(인자로 부르면 루프에서 만든다 — 지금은 메모리뿐이지만 같은 모양을 남기지 않는다)
+        return await asyncio.to_thread(lambda: get_verify_runner().start(appliance_id, targets, service._controller))
     except VerifyPassUnavailable as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except RuntimeError as exc:

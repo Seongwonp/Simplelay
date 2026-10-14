@@ -1,7 +1,10 @@
 """싱글톤 서비스 의존성 — 하드웨어 없이도 동작하는 mock 구현으로 초기화."""
+import asyncio
+import functools
 import logging
 import os
 import threading
+from collections import namedtuple
 from datetime import time
 from functools import lru_cache
 
@@ -123,7 +126,47 @@ def _build_llm_client() -> LlmClient | None:
     )
 
 
-@lru_cache(maxsize=1)
+_CacheInfo = namedtuple("_CacheInfo", ["hits", "misses", "maxsize", "currsize"])
+
+
+def _built_once(fn):
+    """``lru_cache(maxsize=1)``와 같은 모양(``cache_clear``·``cache_info().currsize``)의 싱글턴 — 처음 만드는 일은 **한 번만**.
+
+    재시작 직후 최초 생성은 이벤트 루프 밖의 여러 스레드(제안 갱신 루프·루틴 주기·첫 요청의 ``to_thread``·``def`` 의존성·
+    정지 전용 줄)에서 겹쳐 시작될 수 있다(외부 재확인 3차, 2026-10-14). ``lru_cache``는 겹친 첫 호출마다 따로 만들어
+    컨트롤러·DB 연결·시나리오/루틴 배선이 둘씩 생길 수 있으므로, 이 함수별 잠금 하나로 나중 호출은 먼저 시작한 생성을
+    기다린다. 이미 만들어졌으면 잠금 없이 바로 돌려준다(정지 경로의 메모리 읽기 그대로). 만들다 예외가 나면 남기지 않는다.
+    잠금은 함수마다 따로라 서로 다른 싱글턴의 생성이 서로를 기다리지 않는다(생성 의존은 한 방향이라 교착 없음).
+    """
+    lock = threading.RLock()
+    box: list = []
+
+    @functools.wraps(fn)
+    def get():
+        if box:
+            return box[0]
+        with lock:
+            if not box:
+                box.append(fn())
+            return box[0]
+
+    get.cache_clear = box.clear
+    get.cache_info = lambda: _CacheInfo(0, 0, 1, len(box))
+    return get
+
+
+async def build_off_loop(*getters) -> None:
+    """async 라우터용 — 아직 만들어지지 않은 싱글턴을 **이벤트 루프 밖**(기본 실행기)에서 만든다(외부 재확인 3차).
+
+    최초 생성(DB 읽기 포함)을 루프에서 하면 그동안 같은 서버의 ``/stop``도 들어오지 못한다. 이미 있으면 캐시 확인
+    (메모리)뿐이라 스레드를 쓰지 않는다 — 평소 요청은 종전과 같고, DB가 멈춘 동안에도 루프 경로가 공유 풀을 기다리지 않는다.
+    """
+    for getter in getters:
+        if not getter.cache_info().currsize:
+            await asyncio.to_thread(getter)
+
+
+@_built_once
 def get_db() -> SimpleLayDb | None:
     """SQLite 영속화 — SIMPLELAY_DB_PATH가 설정된 경우에만 켠다.
 
@@ -631,7 +674,7 @@ def get_demo_failure_state() -> DemoFailureState:
     return DemoFailureState()
 
 
-@lru_cache(maxsize=1)
+@_built_once
 def get_service() -> SimpleLayService:
     db = get_db()
     progress_tracker = ExecutionProgressTracker()
@@ -780,7 +823,7 @@ def quiet_status(settings: dict | None = None) -> dict:
     return get_quiet_hours().status(get_clock().now(), svc.dnd_until(), svc.dnd_scope(), settings=settings)
 
 
-@lru_cache(maxsize=1)
+@_built_once
 def get_suggestion_service() -> ProactiveSuggestionService:
     detector = PatternDetector(get_usage_log(), _clock, _PATTERN_CONFIG)
     db = get_db()

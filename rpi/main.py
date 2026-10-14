@@ -38,13 +38,15 @@ async def _suggestion_refresh_loop() -> None:
     while True:
         try:
             # 동기 집계(SQLite 포함 가능)를 이벤트 루프에서 떼어낸다 —
-            # 이력이 쌓이면 이 검사 동안 API·SSE 응답이 늦어진다(교차 리뷰 #11)
-            await asyncio.to_thread(get_suggestion_service().create_suggestions)
+            # 이력이 쌓이면 이 검사 동안 API·SSE 응답이 늦어진다(교차 리뷰 #11).
+            # 서비스 **최초 생성**(DB 읽기)도 스레드 안에서 — get_suggestion_service()를 to_thread 인자로 부르면
+            # 넘기기 전에 루프에서 만들어져, 기동 직후 그 DB 읽기 동안 연결 받기·/stop이 막혔다(외부 재확인 3차).
+            await asyncio.to_thread(lambda: get_suggestion_service().create_suggestions())
         except Exception:  # 제안 생성 실패가 서버를 죽여선 안 된다
             log.exception("suggestion refresh failed")
         try:
-            # 안부 신호 — 같은 주기로 "평소 시간대의 사용이 오늘 없었나" 확인
-            await asyncio.to_thread(get_wellness_checker().check)
+            # 안부 신호 — 같은 주기로 "평소 시간대의 사용이 오늘 없었나" 확인(최초 생성도 스레드 안에서)
+            await asyncio.to_thread(lambda: get_wellness_checker().check())
         except Exception:
             log.exception("wellness check failed")
         await asyncio.sleep(SUGGESTION_REFRESH_SECONDS)

@@ -245,8 +245,10 @@ async def readiness(appliance_id: str, service: SimpleLayService = Depends(get_s
 
 @router.get("/scenarios")
 async def scenarios() -> list[dict]:
+    from .deps import build_off_loop, get_suggestion_service  # noqa: PLC0415
     from .thinq_wiring import get_scenario_engine  # noqa: PLC0415
 
+    await build_off_loop(get_suggestion_service)  # 시나리오 엔진은 제안 서비스가 만든다 — 최초 생성은 루프 밖에서(외부 재확인 3차)
     engine = get_scenario_engine()
     return [
         {
@@ -292,8 +294,10 @@ def command_payloads(s) -> list[dict]:
 async def demo_scenario(scenario_id: str) -> dict:
     from rpi.scenarios import ScenarioUnavailableError  # noqa: PLC0415
 
+    from .deps import build_off_loop, get_suggestion_service  # noqa: PLC0415
     from .thinq_wiring import get_scenario_engine  # noqa: PLC0415
 
+    await build_off_loop(get_suggestion_service)  # 최초 생성은 루프 밖에서(외부 재확인 3차)
     engine = get_scenario_engine()
     try:
         suggestion = await asyncio.to_thread(engine.trigger_manual, scenario_id)

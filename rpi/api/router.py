@@ -1395,8 +1395,9 @@ async def clear_dnd(
 @router.get("/quiet-hours")
 async def get_quiet_hours_status() -> dict:
     """``{enabled, start, end, active, reason(schedule|pause|null), pause_until, scope}`` — 키오스크는 /health의 ``quiet``."""
-    from .deps import quiet_status  # noqa: PLC0415
+    from .deps import build_off_loop, get_quiet_hours, get_suggestion_service, quiet_status  # noqa: PLC0415
 
+    await build_off_loop(get_quiet_hours, get_suggestion_service)  # 최초 생성(DB 읽기)은 루프 밖에서(외부 재확인 3차)
     return quiet_status()
 
 
@@ -1412,8 +1413,9 @@ async def put_quiet_hours(body: dict = Body(...)) -> dict:
     말한다. 지금 값은 ``GET /quiet-hours``로 본다."""
     from rpi.services.quiet_hours import QuietHoursError  # noqa: PLC0415
 
-    from .deps import get_quiet_hours, quiet_status  # noqa: PLC0415
+    from .deps import build_off_loop, get_quiet_hours, get_suggestion_service, quiet_status  # noqa: PLC0415
 
+    await build_off_loop(get_quiet_hours, get_suggestion_service)  # 최초 생성(DB 읽기)은 루프 밖에서(외부 재확인 3차)
     quiet = get_quiet_hours()
     try:
         _, version = quiet.apply(body)

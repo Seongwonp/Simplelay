@@ -37,6 +37,15 @@ def _payload(routine, names=None) -> dict:
     return data
 
 
+async def _routine_engine():
+    """async 라우터용 루틴 엔진. 제안 서비스가 아직 없으면(재시작 직후 첫 요청) 그 최초 생성(DB 읽기)은 이벤트 루프 밖에서 —
+    루프에서 만들면 그동안 같은 서버의 ``/stop``이 들어오지 못했다(외부 재확인 3차). 이미 있으면 메모리 읽기뿐."""
+    from .deps import build_off_loop, get_suggestion_service  # noqa: PLC0415
+
+    await build_off_loop(get_suggestion_service)
+    return get_routine_engine()
+
+
 def _names() -> dict[str, str]:
     return {r.routine_id: r.name for r in get_routine_store().list()}
 
@@ -130,13 +139,13 @@ async def decline_routine_candidate(key: str) -> dict:
 
 @router.get("/routines/runs")
 async def routine_runs() -> list[dict]:
-    runner = get_routine_engine().runner
+    runner = (await _routine_engine()).runner
     return [run.as_dict() for run in runner.runs()] if runner is not None else []
 
 
 @router.get("/routines/runs/{run_id}")
 async def routine_run(run_id: str) -> dict:
-    runner = get_routine_engine().runner
+    runner = (await _routine_engine()).runner
     run = runner.get(run_id) if runner is not None else None
     if run is None:
         raise HTTPException(status_code=404, detail="루틴 실행 기록을 찾을 수 없어요")
@@ -146,7 +155,7 @@ async def routine_run(run_id: str) -> dict:
 @router.post("/routines/runs/{run_id}/stop")
 async def stop_routine_run(run_id: str) -> dict:
     """남은 단계를 보내지 않는다. 지금 누르는 중이면 긴급 정지도 보낸다."""
-    runner = get_routine_engine().runner
+    runner = (await _routine_engine()).runner
     stopped = await asyncio.to_thread(runner.stop, run_id) if runner is not None else False
     if not stopped:
         raise HTTPException(status_code=409, detail="진행 중인 루틴 실행이 아니에요")
@@ -156,7 +165,7 @@ async def stop_routine_run(run_id: str) -> dict:
 @router.get("/routines/log")
 async def routine_trigger_log() -> list[dict]:
     """트리거 기록(카드 만듦·알림·조건 불만족·지금 못 만듦). 최근 50건."""
-    return get_routine_engine().recent_log()
+    return (await _routine_engine()).recent_log()
 
 
 # ── 자동 실행 허용 규칙(2026-10-13, 시연 v4) ─────────────────────────────────
@@ -249,8 +258,9 @@ async def approve_and_allow(suggestion_id: str, body: dict = Body(...)) -> dict:
     from rpi.routines.auto_rules import PHYSICAL_REFUSED, AutoRuleError  # noqa: PLC0415
     from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
 
-    from .deps import get_suggestion_service  # noqa: PLC0415
+    from .deps import build_off_loop, get_suggestion_service  # noqa: PLC0415
 
+    await build_off_loop(get_suggestion_service)  # 최초 생성은 루프 밖에서(외부 재확인 3차)
     svc = get_suggestion_service()
     engine = await asyncio.to_thread(get_auto_rule_engine)
     start_generation = engine.generation()
@@ -341,7 +351,7 @@ def enable_routine(routine_id: str, body: dict = Body(...)) -> dict:
 @router.post("/routines/{routine_id}/trigger")
 async def trigger_routine(routine_id: str) -> dict:
     """'지금 실행' — 승인 루틴은 **카드를 만든다**(실행은 카드 승인 뒤), 알림 루틴은 알림만."""
-    engine = get_routine_engine()
+    engine = await _routine_engine()
     try:
         result = await asyncio.to_thread(engine.trigger_manual, routine_id)
     except KeyError as exc:
