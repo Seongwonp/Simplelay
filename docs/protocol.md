@@ -709,7 +709,7 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
 
 | 요청 | 응답 |
 |---|---|
-| `GET /routines/candidates` | 초안 목록(근거가 강한 순). 제안을 쉬는 동안(방해 금지)은 `[]` |
+| `GET /routines/candidates` | 초안 목록(근거가 강한 순). 쉬는 동안(잠시 쉬기·매일 조용한 시간 같게)은 이미 내놓은 초안만 — 새 초안은 끝난 뒤 나온다(2026-10-14 통일). 목록은 팝업·소리·화면 전환을 만들지 않는다 |
 | `POST /routines/candidates/{key}/save` `{"name": "...", "run": "manual" \| "ask_at_time"}` | 201 `{"routine": <루틴>, "executed": false, "notice": "저장만으로는 실행하지 않아요. …"}` · 422(이름·`run` 없음·잘못됨) · 404(없는 초안) · 409(이미 저장한 초안, 같은 가전·버튼 순서의 루틴이 이미 있음 — detail에 그 루틴 이름) |
 | `POST /routines/candidates/{key}/decline` | `{"ok": true, "quiet_until": ISO}` — 14일 동안 그 초안을 보이지 않는다. 404(없는 초안) |
 

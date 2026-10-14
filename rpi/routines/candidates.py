@@ -12,7 +12,11 @@
   누가 썼는지 모르므로 문장은 가전 사용 기록으로만 말한다("최근 28일 중 아침에 4일 사용했어요").
 - 같은 가전·같은 버튼 순서의 루틴이 이미 있으면 초안으로 보이지 않고 저장도 409.
 - 저장한 초안은 다시 보이지 않는다(루틴을 지워도). 거절한 초안은 ``DECLINE_DAYS``일 동안 보이지 않는다.
-- 제안을 쉬는 동안(방해 금지)·'다시 받지 않기'로 내린 목적은 보이지 않는다.
+- '다시 받지 않기'로 내린 목적은 보이지 않는다.
+- 쉬는 동안(잠시 쉬기·매일 조용한 시간 — 둘 다 같게, 2026-10-14 통일): **기존 초안은 사용자가 루틴 탭을 직접 열면
+  보이고 저장할 수 있다**(이 목록은 팝업·소리·화면 전환을 만들지 않는다). **새 초안은 쉬는 동안 만들지 않는다** —
+  '기존'은 쉬지 않을 때 이 목록에 한 번 내놓은 초안(``ISSUED_SETTING``에 영속)이고, 쉬는 동안 처음 성립한 반복은
+  끝난 뒤 목록에 나온다.
 """
 
 from __future__ import annotations
@@ -31,6 +35,7 @@ log = logging.getLogger(__name__)
 
 DECLINE_DAYS = 14
 DECISIONS_SETTING = "routine_candidate_decisions"
+ISSUED_SETTING = "routine_candidate_issued"
 RUN_CHOICES = ("manual", "ask_at_time")
 SAVE_NOTICE = "저장만으로는 실행하지 않아요. 실행은 매번 승인을 받아요. 자동 실행은 켜지지 않아요."
 
@@ -75,21 +80,27 @@ def candidate_key(appliance_id: str, buttons: tuple[str, ...]) -> str:
 
 class RoutineCandidates:
     def __init__(self, *, detector, revision_options, registry, store, decisions: CandidateDecisions,
-                 clock, is_paused=lambda: False, is_muted=lambda purpose: False) -> None:
+                 clock, is_quiet=lambda: False, is_muted=lambda purpose: False,
+                 issued: CandidateDecisions | None = None) -> None:
         self._detector = detector
         self._revision_options = revision_options
         self._registry = registry
         self._store = store
         self._decisions = decisions
         self._clock = clock
-        self._is_paused = is_paused
+        self._is_quiet = is_quiet
+        #: 쉬지 않을 때 한 번 내놓은 초안 키 → 처음 내놓은 시각. 쉬는 동안엔 여기 있는 초안만 보인다.
+        self._issued = issued if issued is not None else CandidateDecisions()
         self._is_muted = is_muted
 
     # ── 목록 ──────────────────────────────────────────────────────────────
     def list(self) -> list[dict]:
-        if self._is_paused():
-            return []
         now = self._clock.now()
+        try:
+            quiet = bool(self._is_quiet())
+        except Exception:  # noqa: BLE001 -- 판정 실패는 쉬는 쪽(새 초안을 내놓지 않음, 기존 초안은 보임)
+            log.exception("quiet check failed for routine candidates")
+            quiet = True
         drafts = []
         for draft in self._raw_drafts().values():
             if self._existing_same(draft) is not None:
@@ -97,6 +108,12 @@ class RoutineCandidates:
             decision = self._decisions.get(draft["key"])
             if decision is not None and not self._decision_expired(decision, now):
                 continue
+            if self._issued.get(draft["key"]) is None:
+                if quiet:
+                    continue  # 쉬는 동안 새 초안은 만들지 않는다
+                with self._issued.lock:
+                    if self._issued.get(draft["key"]) is None:
+                        self._issued.put(draft["key"], {"at": now.isoformat()})
             drafts.append(draft)
         return drafts
 

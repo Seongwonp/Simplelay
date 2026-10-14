@@ -189,6 +189,18 @@ def get_candidate_decisions():
                               save=(lambda v: db.save_setting(DECISIONS_SETTING, v)) if db else None)
 
 
+@lru_cache(maxsize=1)
+def get_candidate_issued():
+    """쉬지 않을 때 한 번 내놓은 초안(쉬는 동안 '기존 초안'으로 보이는 것). DB가 있으면 재시작 뒤에도 남는다."""
+    from rpi.api import deps  # noqa: PLC0415
+
+    from .candidates import ISSUED_SETTING, CandidateDecisions  # noqa: PLC0415
+
+    db = deps.get_db()
+    return CandidateDecisions(load=(lambda: db.load_setting(ISSUED_SETTING)) if db else None,
+                              save=(lambda v: db.save_setting(ISSUED_SETTING, v)) if db else None)
+
+
 def get_routine_candidates():
     """요청마다 지금의 서비스·기록·제안 쉬기 상태로 만든다(판단만 위에서 공유)."""
     from rpi.api import deps  # noqa: PLC0415
@@ -208,7 +220,8 @@ def get_routine_candidates():
         store=get_routine_store(),
         decisions=get_candidate_decisions(),
         clock=clock,
-        is_paused=suggestions.is_dnd,
+        is_quiet=suggestions.is_quiet,  # 잠시 쉬기·매일 조용한 시간 같게(새 초안만 쉼)
+        issued=get_candidate_issued(),
         is_muted=lambda purpose: ProactiveSuggestionService._is_muted(purpose, muted()),
     )
 
@@ -227,6 +240,7 @@ def reset_routines() -> None:
     _auto_engine = None
     get_routine_store.cache_clear()
     get_candidate_decisions.cache_clear()
+    get_candidate_issued.cache_clear()
     from rpi.api import deps  # noqa: PLC0415
 
     deps.get_quiet_hours.cache_clear()

@@ -310,13 +310,75 @@ def test_unknown_key_is_404(client):
 # ── 4. 조용히: 제안을 쉬는 동안·다시 받지 않기로 한 목적은 보이지 않는다 ────────────
 
 
-def test_drafts_are_hidden_while_suggestions_are_paused(client):
+def _enter_quiet(client, how):
+    """잠시 쉬기(``pause``) 또는 매일 조용한 시간(``schedule`` — 지금 12:00을 품는 시간대)."""
+    if how == "pause":
+        assert client.post("/dnd", json={"duration_minutes": 60}).status_code == 200
+    else:
+        res = client.put("/quiet-hours", json={"enabled": True, "start": "11:00", "end": "13:00"})
+        assert res.status_code == 200 and res.json()["active"] is True, res.text
+
+
+def _leave_quiet(client, how):
+    if how == "pause":
+        client.delete("/dnd")
+    else:
+        client.put("/quiet-hours", json={"enabled": False})
+
+
+@pytest.mark.parametrize("how", ["pause", "schedule"])
+def test_existing_draft_stays_viewable_and_savable_while_quiet(client, execution_calls, how):
+    """잠시 쉬기·매일 조용한 시간 모두 같게: 직접 연 루틴 탭에서 기존 초안은 보이고 저장된다(10/14 통일).
+
+    쉬는 동안 초안 때문에 제안 카드·실행이 생기지 않는다(팝업·소리·전환 없음 — 초안은 루틴 탭 목록뿐).
+    """
     _use((1, 2, 3, 4))
-    assert len(_candidates(client)) == 1
-    assert client.post("/dnd", json={"duration_minutes": 60}).status_code == 200
+    before = _candidates(client)
+    assert len(before) == 1
+    _enter_quiet(client, how)
+    during = _candidates(client)
+    assert [d["key"] for d in during] == [before[0]["key"]]
+    assert client.get("/suggestions").json() == []  # 카드(팝업·소리의 출처)는 없다
+    res = client.post(f"/routines/candidates/{during[0]['key']}/save",
+                      json={"name": "아침 즉석밥", "run": "manual"})
+    assert res.status_code == 201, res.text
+    assert execution_calls == [] and _nothing_ran(client)
+    assert client.get("/suggestions").json() == []
+
+
+@pytest.mark.parametrize("how", ["pause", "schedule"])
+def test_new_draft_is_not_created_while_quiet(client, how):
+    """쉬는 동안 처음 성립한 반복은 새 초안으로 내놓지 않는다 — 끝난 뒤 루틴 탭을 열면 보인다."""
+    _use((1, 2))
+    assert _candidates(client) == []  # 아직 성립 전(3일 미만)
+    _enter_quiet(client, how)
+    _use((3, 4))
     assert _candidates(client) == []
-    client.delete("/dnd")
+    _leave_quiet(client, how)
     assert len(_candidates(client)) == 1
+
+
+def test_existing_draft_stays_viewable_across_restart_while_paused(monkeypatch, tmp_path, clock):
+    """이미 내놓은 초안의 기록은 DB에 남는다 — 재시작 뒤 쉬는 중이어도 기존 초안은 보인다."""
+    monkeypatch.setenv("SIMPLELAY_THINQ_MODE", "mock")
+    monkeypatch.setenv("SIMPLELAY_THINQ_PAT", "pat-test-habit-routine")
+    monkeypatch.setenv("SIMPLELAY_DB_PATH", str(tmp_path / "simplelay.db"))
+    deps.get_db.cache_clear()
+    _reset()
+    from rpi.main import app
+
+    try:
+        client = TestClient(app)
+        _use((1, 2, 3, 4))
+        key = _candidates(client)[0]["key"]
+        _reset()
+        client = TestClient(app)
+        _use((1, 2, 3, 4))  # 사용 기록은 이 시험에서 메모리라 다시 넣는다
+        _enter_quiet(client, "pause")
+        assert [d["key"] for d in _candidates(client)] == [key]
+    finally:
+        _reset()
+        deps.get_db.cache_clear()
 
 
 def test_muted_purpose_is_not_offered_as_a_draft(client):
