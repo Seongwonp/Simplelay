@@ -153,6 +153,8 @@ class _KioskScreenState extends State<KioskScreen> {
   // 끝난 실행의 경로·확인 수준(서버 값, 옛 서버면 null).
   String? _doneRoute;
   String? _doneConfirmation;
+  /// 끝난 실행의 확인 근거 원값(2026-10-14, /status last_confirmation) — ThinQ 성공 문장을 확인한 사실만큼 고른다.
+  String? _doneRawConfirmation;
   String? _doneDetail;
   // L3(가전 동작) 판정. null은 '판정하지 않았다' — 화면이 말하지 않는다.
   bool? _doneOperationConfirmed;
@@ -672,6 +674,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final kind =
         resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
     _doneRoute = st.lastRoute;
+    _doneRawConfirmation = st.lastConfirmation;
     _doneConfirmation = confirmationLabel(
       route: st.lastRoute,
       receipt: st.lastReceipt,
@@ -1099,6 +1102,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _executionMode = 'unknown';
     _doneRoute = null;
     _doneConfirmation = null;
+    _doneRawConfirmation = null;
     _doneDetail = null;
     _doneOperationConfirmed = null;
     _doneOperationSource = null;
@@ -1162,7 +1166,7 @@ class _KioskScreenState extends State<KioskScreen> {
       // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
       // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
-          ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute)}'
+          ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute, confirmation: _doneRawConfirmation, detail: _doneDetail)}'
           : switch (reason) {
               KioskFailureReason.serverLost =>
                 '실행 상태를 확인할 수 없어요. 가전 상태를 직접 확인해 주세요.',
@@ -1571,6 +1575,7 @@ class _KioskScreenState extends State<KioskScreen> {
           reason: _doneReason,
           route: _doneRoute,
           confirmation: _doneConfirmation,
+          resultConfirmation: _doneRawConfirmation,
           detail: _doneDetail,
           operationConfirmed: _doneOperationConfirmed,
           operationSource: _doneOperationSource,

@@ -28,6 +28,7 @@ class KioskDoneView extends StatelessWidget {
     this.onDismiss,
     this.route,
     this.confirmation,
+    this.resultConfirmation,
     this.detail,
     this.operationConfirmed,
     this.operationSource,
@@ -68,6 +69,10 @@ class KioskDoneView extends StatelessWidget {
 
   /// 서버가 쓴 한 줄(ThinQ 결과).
   final String? detail;
+
+  /// 확인 근거 원값(/status last_confirmation, 2026-10-14). ThinQ 성공을 확인한 사실만큼 말한다 —
+  /// already_at_target(보내지 않음) · state_confirmed(바꿈) · state_confirmed_unknown_before(보낸 뒤 목표값, 전 값 모름).
+  final String? resultConfirmation;
 
   final String executionMode;
 
@@ -118,7 +123,12 @@ class KioskDoneView extends StatelessWidget {
     // 보고하지 않음) '버튼 조작을 마쳤어요'라고 단정하지 않는다 — 실행기가
     // 완료를 보고했다는 사실까지만 안다.
     final mock = executionMode == 'mock';
-    final successHeadline = thinq
+    final already = thinq && resultConfirmation == 'already_at_target';
+    // 실제 실행이면 작은 글자는 서버 문장(그 실행의 설정 이름)으로 확인한 사실만큼. 연습은 연습 문장을 지킨다.
+    final outcome = thinq ? thinqOutcomeSentence(resultConfirmation, detail) : null;
+    final successHeadline = already
+        ? (mock ? '연습 · 이미 그 설정이에요' : '이미 그 설정이에요')
+        : thinq
         // 모의 ThinQ는 모의 상태를 읽은 것이다(10/6 Copilot 리뷰 66990be).
         ? (mock ? '연습으로 상태를 확인했어요' : '가전 상태를 확인했어요')
         : executionMode == 'unknown'
@@ -238,7 +248,9 @@ class KioskDoneView extends StatelessWidget {
                     const SizedBox(height: 4),
                   ],
                   Text(
-                    thinq
+                    outcome != null && (!mock || already)
+                        ? outcome
+                        : thinq
                         ? (executionMode == 'mock'
                             ? '연습이라 실제 가전은 조작하지 않았어요'
                             : 'ThinQ로 보낸 뒤 가전 상태를 다시 읽어 확인했어요')

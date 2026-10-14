@@ -84,6 +84,14 @@ String? confirmationLabel({
   ResultKind? kind,
   String? executionMode,
 }) {
+  // 보내기 전 조회에서 이미 목표값이라 보내지 않았다(2026-10-14, 폰과 같은 규칙) — 실패·미확인도, 바꿨다는 말도 아니다.
+  if (confirmation == 'already_at_target') {
+    return executionMode == 'mock' ? '연습 · 이미 그 설정이라 보내지 않음' : '이미 그 설정이라 보내지 않음';
+  }
+  // 보낸 뒤 목표값을 봤지만 보내기 전 값은 몰랐다(2026-10-14) — '바뀐 것 확인'이 아니다.
+  if (confirmation == 'state_confirmed_unknown_before') {
+    return executionMode == 'mock' ? '연습 · 설정된 것 확인' : '설정된 것 확인됨';
+  }
   // 모의가 앞선다 — 모의 상태를 읽은 것을 실제 가전 상태 확인으로 말하지
   // 않는다(10/6 Copilot 리뷰 66990be).
   if (confirmation == 'state_confirmed') {
@@ -127,7 +135,7 @@ String? confirmationLabel({
 String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
     ? '명령을 보냈지만 가전이 받았는지 확인하지 못했어요. '
         '다시 보내기 전에 가전을 직접 확인해 주세요.'
-    : '명령을 보냈지만 확인하지 못했어요. 가전을 직접 확인해 주세요.';
+    : '명령을 보냈지만 설정이 바뀌었는지 확인하지 못했어요. 가전을 직접 확인해 주세요.';
 
 /// 정지 확인 단계(2026-10-13)의 한 문장. 서버가 올리는 단계는
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
@@ -152,16 +160,26 @@ bool stopLevelConfirmed(String? level) =>
 ///
 /// "실행 완료"는 조리가 끝난 뜻으로 읽힐 수 있다 — 물리 경로가 보장하는 것은
 /// 버튼 조작까지다. ThinQ 성공은 서버가 상태를 다시 읽어 확인한 경우뿐이다.
+/// ThinQ 성공은 [confirmation]으로 확인한 사실만큼 말한다(2026-10-14, [thinqOutcomeSentence], 폰과 같은 규칙).
 String finishedMessage({
   required ResultKind kind,
   String executionMode = 'unknown',
   String? route,
   String? receipt,
+  String? confirmation,
+  String? detail,
   String? abortReason,
 }) {
   final thinq = route == 'thinq';
   switch (kind) {
     case ResultKind.success:
+      final said = thinq ? thinqOutcomeSentence(confirmation, detail) : null;
+      if (said != null &&
+          (executionMode != 'mock' || confirmation != 'state_confirmed')) {
+        return executionMode == 'mock'
+            ? '연습 · $said 실제 가전은 조작하지 않았어요.'
+            : said;
+      }
       if (thinq) {
         return executionMode == 'mock'
             ? '연습으로 명령을 보내고 상태를 확인했어요. 실제 가전은 조작하지 않았어요.'
@@ -186,6 +204,27 @@ String finishedMessage({
     case ResultKind.failed:
       return thinq ? '가전이 명령을 실행하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.' : '실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.';
   }
+}
+
+/// ThinQ 성공 한 문장(마침표 포함, 2026-10-14, 폰과 같은 규칙) — 확인한 사실만큼:
+/// - `already_at_target`: "이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요."
+/// - `state_confirmed`: "강풍으로 바꿨어요."
+/// - `state_confirmed_unknown_before`: "강풍으로 설정된 것을 확인했어요." ('바꿨어요' 금지)
+///
+/// 설정 이름은 서버 문장([detail], 그 실행의 사본)에서만 온다. 아니면 일반 문장, `state_confirmed`는 null(종전 문장).
+String? thinqOutcomeSentence(String? confirmation, String? detail) {
+  final d = detail?.trim() ?? '';
+  String dot(String s) => s.endsWith('.') ? s : '$s.';
+  return switch (confirmation) {
+    'already_at_target' => d.contains('이미') && d.contains('보내지 않았어요')
+        ? dot(d)
+        : '이미 그 설정이에요. 변경 명령을 보내지 않았어요.',
+    'state_confirmed_unknown_before' => d.contains('설정된 것을 확인')
+        ? dot(d)
+        : '목표 설정인 것을 확인했어요.',
+    'state_confirmed' => d.contains('바꿨어요') ? dot(d) : null,
+    _ => null,
+  };
 }
 
 /// 모션 중단 원인(서버 `abort_reason`, 2026-10-14) → 한 문장(마침표 없음). 모르는 값·null이면 null. 폰과 같은 표.
