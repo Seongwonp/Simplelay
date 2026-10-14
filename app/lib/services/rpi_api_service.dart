@@ -839,8 +839,9 @@ class RpiApiService {
     }
   }
 
-  // POST /dnd — DND 설정 (minutes: 30, 60, 120)
-  Future<void> setDnd(int minutes) async {
+  // POST /dnd — DND 설정 (minutes: 30, 60, 120). 돌려주는 값은 서버 `persisted`(2026-10-14 HIGH 재확인 M-R1):
+  // true 저장됨 · false 저장 실패(이번 세션만 적용 — 화면이 알린다) · null 저장소 없는 구성·옛 서버.
+  Future<bool?> setDnd(int minutes) async {
     final res = await _client
         .post(
           _base.replace(path: '/dnd'),
@@ -849,14 +850,25 @@ class RpiApiService {
         )
         .timeout(_timeout);
     _checkStatus(res);
+    return _persisted(res);
   }
 
-  // DELETE /dnd — DND 해제
-  Future<void> clearDnd() async {
+  // DELETE /dnd — DND 해제. 돌려주는 값은 setDnd와 같다.
+  Future<bool?> clearDnd() async {
     final res = await _client
         .delete(_base.replace(path: '/dnd'), headers: _headers)
         .timeout(_timeout);
     _checkStatus(res);
+    return _persisted(res);
+  }
+
+  static bool? _persisted(http.Response res) {
+    try {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      return body is Map<String, dynamic> && body['persisted'] is bool ? body['persisted'] as bool : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   // GET/PUT /quiet-hours — 조용한 시간(2026-10-14). 서버에 영속, 키오스크와 같은 상태.

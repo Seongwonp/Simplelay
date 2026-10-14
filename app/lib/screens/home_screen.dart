@@ -7,7 +7,7 @@ import '../models/appliance.dart';
 import '../models/display_status.dart';
 import '../models/hub.dart' show VerifyPassLookup;
 import '../models/line_break.dart';
-import '../models/quiet_hours.dart' show pauseEndClock;
+import '../models/quiet_hours.dart' show kSettingNotSavedNotice, pauseEndClock;
 import '../models/routine.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
@@ -125,7 +125,12 @@ class HomeScreen extends ConsumerWidget {
             if (dndActive) ...[
               _DndBanner(
                 until: dndUntil,
-                onClear: () => ref.read(dndProvider.notifier).clear(),
+                onClear: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  if (await ref.read(dndProvider.notifier).clear() == false) {
+                    messenger.showSnackBar(const SnackBar(content: Text(kSettingNotSavedNotice)));
+                  }
+                },
               ),
               const SizedBox(height: 16),
             ],

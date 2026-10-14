@@ -134,11 +134,18 @@ class FakeKioskApi implements KioskApiService {
     stopCalls++;
   }
 
-  @override
-  Future<void> setDnd(int minutes) async {}
+  /// 잠시 쉬기 저장 결과(서버 `persisted`) — false면 키오스크가 '지금만 적용'을 알린다(2026-10-14 HIGH 재확인 M-R1).
+  bool? dndPersisted = true;
+  final dndSets = <int>[];
 
   @override
-  Future<void> clearDnd() async {}
+  Future<bool?> setDnd(int minutes) async {
+    dndSets.add(minutes);
+    return dndPersisted;
+  }
+
+  @override
+  Future<bool?> clearDnd() async => dndPersisted;
 
   @override
   Future<List<ApplianceMap>?> listAppliances() async => applianceList;
@@ -697,6 +704,22 @@ void main() {
     expect(find.byType(KioskDoneView), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn); // 복귀 타이머 소진
   });
+
+  // 2026-10-14 HIGH 재확인 M-R1: 잠시 쉬기 저장이 실패하면(서버 `persisted: false`) 이번 세션만 적용됐다고 사람 말로 알린다.
+  for (final persisted in [false, true]) {
+    testWidgets('잠시 쉬기 저장 결과 persisted=$persisted — 실패일 때만 지금만 적용된다고 알린다', (tester) async {
+      useKioskViewport(tester);
+      final api = FakeKioskApi()..dndPersisted = persisted;
+      await _pumpKiosk(tester, api);
+      await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+      await tester.pump();
+      await tester.tap(find.text('1시간'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(api.dndSets, [60]);
+      expect(find.text(kSettingNotSavedNotice), persisted ? findsNothing : findsOneWidget);
+    });
+  }
 
   // ── 음성 안내 (TTS) ──────────────────────────────────────────────────────
 

@@ -7,6 +7,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:simplelay/models/quiet_hours.dart';
 import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/settings_screen.dart';
@@ -26,6 +27,9 @@ class _Server {
   };
   final puts = <Map<String, dynamic>>[];
 
+  /// PUT 응답의 저장 결과(2026-10-14 HIGH 재확인 M-R1) — false면 이번 세션만 적용.
+  bool? persisted = true;
+
   RpiApiService api() => RpiApiService('http://rpi5.local:8000',
       client: MockClient((req) async {
         http.Response json(Object body, [int status = 200]) => http.Response.bytes(
@@ -36,6 +40,7 @@ class _Server {
             final body = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
             puts.add(body);
             state = {...state, ...body, 'active': false, 'reason': null};
+            return json({...state, 'persisted': persisted, 'session_only': persisted != true});
           }
           return json(state);
         }
@@ -91,6 +96,21 @@ void main() {
       {'enabled': false},
     ]);
     expect(find.text('매일 22:00~07:00 · 꺼져 있어요'), findsOneWidget);
+    expect(find.text(kSettingNotSavedNotice), findsNothing);
+  });
+
+  testWidgets('저장 실패(persisted=false)면 바뀐 값은 보이되 이번 세션만 적용이라고 알린다', (tester) async {
+    _tall(tester);
+    final server = _Server()..persisted = false;
+    await tester.pumpWidget(_build(server.api()));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('quiet-hours-switch')));
+    await _settle(tester);
+    expect(server.puts, [
+      {'enabled': false},
+    ]);
+    expect(find.text('매일 22:00~07:00 · 꺼져 있어요'), findsOneWidget);
+    expect(find.text(kSettingNotSavedNotice), findsOneWidget);
   });
 
   testWidgets('허브가 없으면 설정할 수 없다고 말하고 스위치를 잠근다', (tester) async {

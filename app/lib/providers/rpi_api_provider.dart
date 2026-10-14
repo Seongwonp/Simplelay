@@ -305,19 +305,22 @@ class DndNotifier extends StateNotifier<DateTime?> {
     state = health.dndUntil;
   }
 
-  Future<void> set(int minutes) async {
+  /// 서버 `persisted`를 돌려준다 — false면 이번 세션만 적용(화면이 [kSettingNotSavedNotice]로 알린다).
+  Future<bool?> set(int minutes) async {
     final service = _ref.read(rpiApiServiceProvider);
-    if (service == null) return;
-    await service.setDnd(minutes);
+    if (service == null) return null;
+    final persisted = await service.setDnd(minutes);
     await refresh();
+    return persisted;
   }
 
-  Future<void> clear() async {
+  Future<bool?> clear() async {
     final service = _ref.read(rpiApiServiceProvider);
-    if (service == null) return;
-    await service.clearDnd();
+    if (service == null) return null;
+    final persisted = await service.clearDnd();
     _ref.read(dndScopeProvider.notifier).state = null;
     state = null;
+    return persisted;
   }
 }
 

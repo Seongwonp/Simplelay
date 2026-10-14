@@ -69,7 +69,10 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
     final messenger = ScaffoldMessenger.of(context);
     setState(() => _busy = true);
     try {
-      await api.setQuietHours(change);
+      final saved = await api.setQuietHours(change);
+      if (saved?.persisted == false) {
+        messenger.showSnackBar(const SnackBar(content: Text(kSettingNotSavedNotice)));
+      }
     } on RpiApiException catch (e) {
       messenger.showSnackBar(SnackBar(
           content: Text(e.message.isNotEmpty ? e.message : '설정을 전달하지 못했어요. 연결을 확인해 주세요.')));

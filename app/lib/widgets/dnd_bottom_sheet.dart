@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/quiet_hours.dart';
 import '../providers/rpi_api_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -100,8 +101,9 @@ class _DndSheet extends ConsumerWidget {
                 label: opt.label,
                 subtitle: opt.subtitle,
                 onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
                   Navigator.of(context).pop();
-                  await ref.read(dndProvider.notifier).set(opt.minutes);
+                  _notSaved(messenger, await ref.read(dndProvider.notifier).set(opt.minutes));
                 },
               ),
             ),
@@ -116,8 +118,9 @@ class _DndSheet extends ConsumerWidget {
               enabled: isActive,
               onTap: isActive
                   ? () async {
+                      final messenger = ScaffoldMessenger.of(context);
                       Navigator.of(context).pop();
-                      await ref.read(dndProvider.notifier).clear();
+                      _notSaved(messenger, await ref.read(dndProvider.notifier).clear());
                     }
                   : null,
             ),
@@ -138,6 +141,13 @@ class _DndSheet extends ConsumerWidget {
       return m > 0 ? '$h시간 $m분 후 해제' : '$h시간 후 해제';
     }
     return '${diff.inMinutes + 1}분 후 해제';
+  }
+}
+
+/// 저장 실패(서버 `persisted: false`)면 이번 세션만 적용됐다고 알린다(2026-10-14 HIGH 재확인 M-R1).
+void _notSaved(ScaffoldMessengerState messenger, bool? persisted) {
+  if (persisted == false) {
+    messenger.showSnackBar(const SnackBar(content: Text(kSettingNotSavedNotice)));
   }
 }
 

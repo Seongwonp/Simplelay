@@ -32,6 +32,9 @@ import '../widgets/kiosk/suggestion_view.dart';
 import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
 
+/// 잠시 쉬기 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 폰과 같은 문장.
+const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. 허브를 다시 켜면 이전 설정으로 돌아가요.';
+
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
 
@@ -1311,19 +1314,30 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   Future<void> _onSetDnd(int minutes) async {
+    bool? persisted;
     try {
-      await _api.setDnd(minutes);
+      persisted = await _api.setDnd(minutes);
     } catch (_) {}
     await _checkHealth();
     if (mounted) setState(() => _showDnd = false);
+    _notSaved(persisted);
   }
 
   Future<void> _onClearDnd() async {
+    bool? persisted;
     try {
-      await _api.clearDnd();
+      persisted = await _api.clearDnd();
     } catch (_) {}
     await _checkHealth();
     if (mounted) setState(() => _showDnd = false);
+    _notSaved(persisted);
+  }
+
+  /// 저장 실패(서버 `persisted: false`)면 이번 세션만 적용됐다고 알린다(2026-10-14 HIGH 재확인 M-R1).
+  void _notSaved(bool? persisted) {
+    if (persisted != false || !mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text(kSettingNotSavedNotice)));
   }
 
   @override

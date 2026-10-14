@@ -592,18 +592,32 @@ class KioskApiService {
     }
   }
 
-  Future<void> setDnd(int minutes) async {
-    await _client
+  /// 돌려주는 값은 서버 `persisted`(2026-10-14 HIGH 재확인 M-R1): true 저장됨 · false 저장 실패(이번 세션만 적용 —
+  /// 화면이 알린다) · null 저장소 없는 구성·옛 서버·해석 불가.
+  Future<bool?> setDnd(int minutes) async {
+    final res = await _client
         .post(
           _base.replace(path: '/dnd'),
           body: jsonEncode({'duration_minutes': minutes}),
           headers: _jsonHeaders,
         )
         .timeout(_timeout);
+    return _persisted(res);
   }
 
-  Future<void> clearDnd() async {
-    await _client.delete(_base.replace(path: '/dnd')).timeout(_timeout);
+  Future<bool?> clearDnd() async {
+    final res = await _client.delete(_base.replace(path: '/dnd')).timeout(_timeout);
+    return _persisted(res);
+  }
+
+  static bool? _persisted(http.Response res) {
+    if (res.statusCode != 200) return null;
+    try {
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      return body is Map<String, dynamic> && body['persisted'] is bool ? body['persisted'] as bool : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<LearningStatus> learningStatus() async {
