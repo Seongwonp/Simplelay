@@ -124,7 +124,7 @@ class KioskSuggestionView extends StatelessWidget {
                         ),
                         // 근거는 실제로 셀 수 있을 때만 말한다 -- 어느
                         // 시간대였는지까지 밝힌다.
-                        if (suggestion.whyNow.isNotEmpty) ...[
+                        if (suggestion.whyNow.isNotEmpty && !suggestion.userStarted) ...[
                           const SizedBox(height: 10),
                           Text(
                             scenario
@@ -148,10 +148,13 @@ class KioskSuggestionView extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          '승인하면 할 일',
-                          style:
-                              TextStyle(fontSize: 20, color: KioskColors.muted),
+                        Text(
+                          // 버튼 누름만이면 '누를 버튼', ThinQ가 섞이면 '할 일'(폰과 같은 말, 2026-10-14).
+                          suggestion.commands.every((c) => c.route == 'physical')
+                              ? '누를 버튼'
+                              : '할 일',
+                          style: const TextStyle(
+                              fontSize: 20, color: KioskColors.muted),
                         ),
                         const SizedBox(height: 8),
                         Expanded(
@@ -378,7 +381,10 @@ class _CommandList extends StatelessWidget {
           final summary = c.summary.isNotEmpty
               ? c.summary
               : '가전과 동작을 폰에서 확인해 주세요';
-          final path = routeLabel(c.route) ?? '경로 확인 필요';
+          // 버튼 누름(physical)은 칩 없이 — routeLabel이 null을 주지만 '경로를 모름'이 아니다(10/14 회귀 수리).
+          final path = c.route == 'physical'
+              ? null
+              : (routeLabel(c.route) ?? '경로 확인 필요');
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -396,8 +402,10 @@ class _CommandList extends StatelessWidget {
                         color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    KioskRouteBadge(label: path),
+                    if (path != null) ...[
+                      const SizedBox(height: 4),
+                      KioskRouteBadge(label: path),
+                    ],
                   ],
                 ),
               ),

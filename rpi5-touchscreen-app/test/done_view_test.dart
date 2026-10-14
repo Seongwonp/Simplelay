@@ -52,7 +52,7 @@ void main() {
     expect(find.text('버튼 조작을 마쳤어요'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
     expect(find.text('즉석밥 데워줘'), findsOneWidget);
-    expect(find.text('실행기가 버튼 조작 완료를 보고했어요'), findsOneWidget);
+    expect(find.text('누름 장치가 다 눌렀다고 알려 왔어요'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     // 가전이 조리·세탁을 끝냈다고 말하지 않는다.
     expect(find.textContaining('완료되었'), findsNothing);
@@ -76,7 +76,7 @@ void main() {
     );
 
     expect(find.text('버튼 조작을 마쳤어요'), findsNothing);
-    expect(find.text('실행기가 완료를 보고했어요'), findsOneWidget);
+    expect(find.text('끝났다는 보고를 받았어요'), findsOneWidget);
     expect(find.text('실제 조작 여부는 확인하지 못했어요'), findsOneWidget);
   });
 

@@ -11,6 +11,8 @@ import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
+import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 Future<void> _pump(WidgetTester tester, Widget view) async {
   tester.view.physicalSize = const Size(800, 480);
@@ -244,6 +246,71 @@ void main() {
       expect(find.byKey(const ValueKey('conn-network')), findsOneWidget);
       expect(find.byKey(const ValueKey('conn-plug')), findsNothing);
       expect(find.byType(KioskConnectionIcons), findsOneWidget);
+    });
+  });
+
+  group('승인 카드(10/14 재평가)', () {
+    Future<void> pumpCard(WidgetTester tester, KioskSuggestion s) async {
+      tester.view.physicalSize = const Size(1920, 1080);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(
+          body: KioskSuggestionView(
+            suggestion: s,
+            target: kMicrowaveAppliance,
+            cdRemaining: 20,
+            cdTotal: 20,
+            onApprove: () {},
+            onReject: () {},
+          ),
+        ),
+      ));
+      await tester.pump();
+    }
+
+    const routineRun = KioskSuggestion(
+      id: 's1',
+      purpose: "'아침 데우기' 루틴을 실행할까요?",
+      occurrences: 0,
+      routineId: 'rt-1',
+      reason: "루틴 '아침 데우기' · 직접 실행을 눌렀어요",
+      commands: [
+        KioskSuggestionCommand(
+            targetId: 'home_mw', route: 'physical', buttons: ['즉석밥', '시작'], summary: '전자레인지 즉석밥 → 시작'),
+      ],
+    );
+
+    testWidgets('버튼 누름 단계에 "경로 확인 필요" 경고 칩을 붙이지 않는다', (tester) async {
+      await pumpCard(tester, routineRun);
+      expect(find.text('경로 확인 필요'), findsNothing);
+    });
+
+    testWidgets('내가 직접 시작한 루틴은 근거 줄이 없고 목록 제목은 "누를 버튼"', (tester) async {
+      await pumpCard(tester, routineRun);
+      expect(find.textContaining('직접 실행을 눌렀어요'), findsNothing);
+      expect(find.textContaining('근거:'), findsNothing);
+      expect(find.text('승인하면 할 일'), findsNothing);
+      expect(find.text('누를 버튼'), findsOneWidget);
+    });
+
+    testWidgets('자동 제안(사용자가 시작하지 않음)은 근거 줄을 그대로 보인다', (tester) async {
+      await pumpCard(tester, const KioskSuggestion(
+        id: 's3', purpose: '공기청정기 풍량을 강으로 바꿀까요?', occurrences: 0,
+        scenarioId: 'cook_done_air',
+        reason: '전자레인지 가열 종료를 콘센트 전력(CT)으로 감지했어요',
+        commands: [KioskSuggestionCommand(targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 풍량 강')],
+      ));
+      expect(find.textContaining('가열 종료를 콘센트 전력'), findsOneWidget);
+      expect(find.text('할 일'), findsOneWidget);
+    });
+
+    testWidgets('정말 모르는 경로는 여전히 확인 필요라고 말한다', (tester) async {
+      await pumpCard(tester, const KioskSuggestion(
+        id: 's2', purpose: '무언가', occurrences: 0,
+        commands: [KioskSuggestionCommand(targetId: 'x', route: 'mystery', summary: '알 수 없는 동작')],
+      ));
+      expect(find.text('경로 확인 필요'), findsOneWidget);
     });
   });
 }

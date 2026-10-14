@@ -122,7 +122,7 @@ class KioskDoneView extends StatelessWidget {
         // 모의 ThinQ는 모의 상태를 읽은 것이다(10/6 Copilot 리뷰 66990be).
         ? (mock ? '연습으로 상태를 확인했어요' : '가전 상태를 확인했어요')
         : executionMode == 'unknown'
-            ? '실행기가 완료를 보고했어요'
+            ? '끝났다는 보고를 받았어요'
             // 모의 실행은 가장 큰 글자부터 연습이라고 말한다(10/6 S11 실패널).
             : executionMode == 'mock'
                 ? '연습으로 버튼 조작을 마쳤어요'
@@ -245,7 +245,7 @@ class KioskDoneView extends StatelessWidget {
                         : executionMode == 'mock'
                             ? '연습이라 실제로 누르지는 않았어요'
                             : executionMode == 'real'
-                                ? '실행기가 버튼 조작 완료를 보고했어요'
+                                ? '누름 장치가 다 눌렀다고 알려 왔어요'
                                 : '실제 조작 여부는 확인하지 못했어요',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 22, color: KioskColors.muted),

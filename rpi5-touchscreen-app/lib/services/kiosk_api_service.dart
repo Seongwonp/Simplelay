@@ -99,6 +99,11 @@ class KioskSuggestion {
   final List<KioskSuggestionCommand> commands;
 
   bool get isScenario => commands.isNotEmpty;
+
+  /// 사용자가 루틴을 직접 실행해서 생긴 카드(폰 `Suggestion.userStarted`와 같은 기준, 2026-10-14).
+  /// 이때 근거 줄('직접 실행을 눌렀어요')은 사용자가 방금 한 일을 되풀이할 뿐이라 숨긴다.
+  bool get userStarted =>
+      routineId != null && reason.trimRight().endsWith('직접 실행을 눌렀어요');
   final String id;
   final String purpose;
   final int occurrences;
