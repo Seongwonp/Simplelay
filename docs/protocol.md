@@ -726,7 +726,8 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
 | 요청 | 응답 |
 |---|---|
 | `GET /quiet-hours` | `{"enabled", "start": "HH:MM", "end": "HH:MM", "active", "reason": "schedule" \| "pause" \| null, "pause_until": ISO \| null, "scope": "새 제안과 일반 안내 소리만 쉬어요. …"}` |
-| `PUT /quiet-hours` `{"enabled"?, "start"?, "end"?}` | 위와 같은 모양. 422(시각 형식·시작=끝·`enabled`가 bool 아님). DB 설정 `quiet_hours`에 영속 |
+| `PUT /quiet-hours` `{"enabled"?, "start"?, "end"?}` | 위와 같은 모양 + `persisted`·`session_only`(아래 '저장 결과'). 422(시각 형식·시작=끝·`enabled`가 bool 아님). DB 설정 `quiet_hours`에 영속 |
+| `POST /dnd` `{"duration_minutes"}` · `DELETE /dnd` | `{"ok": true, "persisted", "session_only"}`(2026-10-14 HIGH 재확인 전에는 `{"ok": true}`만). DB 설정 `suggestion_pause`에 영속 |
 | `GET /health/detail`(인증) | `ok`·`actuator_ready`·`dnd_until`·`quiet`·`act_mode` — `quiet`는 `GET /quiet-hours`와 같은 값(키오스크용). 받지 못하면 키오스크는 조용한 시간을 '모름'으로 두고 일반 안내 소리를 내지 않는다(꺼짐으로 보지 않는다) |
 | `GET /health`(공개) | `{"ok", "version"}`만 — 2026-10-14 보안 점검으로 준비 상태·잠시 쉬기·조용한 시간을 공개 응답에서 뺐다 |
 
@@ -734,6 +735,14 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
 - `active`인 동안: 새 제안 카드를 만들지 않고 떠 있던 카드는 내린다(`/suggestions/events`에 `withdrawn`·`quiet_hours`, 끝나도 되살리지 않는다). 루틴 '지금 실행'(`POST /routines/{id}/trigger`)은 사용자가 직접 요청한 카드라 만든다. `/demo/suggest`는 409(종전 방해 금지와 같다).
 - 자동 실행: 그 사이 온 사건은 `/routines/auto-rules/runs`에 `outcome: "blocked"`, `reason: "조용한 시간이라 자동 실행하지 않았어요"`. 사건은 처리한 것으로 남아 끝난 뒤 다시 와도 `duplicate`(재실행 없음). 판단 뒤 보내기 전에 조용한 시간이 시작돼도 같은 이유로 보내지 않는다.
 - 그대로: `/execute*`·`/thinq/command` 등 직접 실행, `/stop`, 진행 중인 job. 경보 소리 정책은 미정(기존 동작 유지, 사용자 확인 필요).
+- **저장 결과(2026-10-14 HIGH 재확인, [기록](devlog/devlog_2026-10-14-eval-recheck-fix.md))** — `PUT /quiet-hours`·`POST /dnd`·`DELETE /dnd`는 바꾼 값을
+  **메모리에 먼저 적용**하고(판정은 응답 전에 이미 새 값) 저장은 이벤트 루프 밖에서 한다. 200이면 이번 세션에는 적용됐다.
+  - `persisted`: `true` 저장됨(재시작 뒤 유지) · `false` 저장 실패 · `null` 저장소가 없는 구성(DB 경로 없음, 개발용).
+  - `session_only`: `persisted`가 `true`가 아니면 `true` — 재시작하면 유지되지 않는다.
+  - **재시작 정책:** 재시작한 서버는 마지막으로 저장에 성공한 값으로 시작한다(켜기 저장이 실패했으면 꺼진 채, 끄기 저장이 실패했으면 앞서 저장된 잠시 쉬기가 그 끝 시각까지 다시 켜진다).
+    다음 변경의 저장이 성공하면 그때의 가장 새 값을 쓴다(늦게 끝난 옛 쓰기가 새 값을 덮지 않는다).
+  - 폰·키오스크는 `persisted: false`일 때 "저장하지 못해 지금만 적용돼요. 허브를 다시 켜면 이전 설정으로 돌아가요."를 띄운다. 필드가 없거나(옛 서버) `null`이면 알리지 않는다.
+  - `GET /quiet-hours`·`/health/detail`에는 이 두 필드가 없다(바꾸는 응답에만).
 
 ## 버튼 맵 JSON 포맷
 
