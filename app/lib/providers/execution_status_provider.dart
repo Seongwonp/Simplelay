@@ -194,6 +194,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           executionMode: status.lastExecutionMode,
           route: status.lastRoute,
           receipt: status.lastReceipt,
+          confirmation: status.lastConfirmation,
+          detail: status.lastDetail,
           // 이 job의 정지 단계만(평가 H1 — 다른 실행의 정지 보고를 싣지 않는다).
           stopLevel: status.stopLevelOf(jobId),
           stopAckMs: status.stopAckMsOf(jobId),

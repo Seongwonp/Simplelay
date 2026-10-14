@@ -330,6 +330,16 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
     );
   }
 
+  // 이미 목표값(2026-10-14): 보내지 않은 성공 — '보내지 않았어요·연결 확인'이나 '바꿨어요'로 말하지 않는다.
+  if (thinq && kind == ResultKind.success && e.confirmation == 'already_at_target') {
+    return HistoryResult(
+      kind: kind,
+      sentence: mock
+          ? '연습 · 이미 그 설정이라 변경 명령을 보내지 않았어요'
+          : '이미 그 설정이라 변경 명령을 보내지 않았어요',
+      mockNote: unknownMode ? mockNote : null,
+    );
+  }
   final base = _liveResult(e, kind, thinq: thinq, target: target, checkTarget: checkTarget);
   if (unknownMode) {
     return HistoryResult(kind: base.kind, sentence: base.sentence, next: base.next, mockNote: mockNote);
@@ -342,6 +352,9 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
   }
   return HistoryResult(kind: kind, sentence: base.sentence, mockNote: mockNote);
 }
+
+String? _noDot(String? s) =>
+    s == null ? null : (s.endsWith('.') ? s.substring(0, s.length - 1) : s);
 
 /// "(모의)"·"(모의 클라우드)" 같은 괄호 표기를 뺀 이름(표시만). 모의 기록은 '연습' 줄이 이미 말한다.
 String withoutMockMark(String text) =>
@@ -378,11 +391,15 @@ HistoryResult _liveResult(
           kind: kind, sentence: '명령을 보내지 않았어요', next: '연결 상태를 확인해 주세요');
     }
     return switch (kind) {
-      ResultKind.success => HistoryResult(kind: kind, sentence: '가전 상태를 확인했어요'),
+      // 확인한 사실만큼(2026-10-14): 바꿈 · 보낸 뒤 목표값(전 값 모름). 서버 문장이 없으면 종전 문장.
+      ResultKind.success => HistoryResult(
+          kind: kind,
+          sentence: _noDot(thinqOutcomeSentence(e.confirmation, e.detail)) ??
+              '가전 상태를 확인했어요'),
       // 접수 여부(받았는지 모름·접수됨)는 아래 보조 줄이 말한다. 다시 보내라고 권하지 않는다.
       ResultKind.unconfirmed => HistoryResult(
           kind: kind,
-          sentence: '보냈지만 확인하지 못했어요',
+          sentence: '보냈지만 설정이 바뀌었는지 확인하지 못했어요',
           next: '다시 보내기 전에 $checkTarget',
         ),
       _ => HistoryResult(

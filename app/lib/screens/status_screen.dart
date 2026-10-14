@@ -397,7 +397,13 @@ class _ResultFacts extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final words = _resultFactWords(status);
-    final detail = status.detail;
+    // ThinQ 성공(2026-10-14)은 큰 문장이 서버 문장을 그대로 말한다 — 같은 줄을 두 번 쓰지 않는다.
+    final mockRun = status.isDemo || status.executionMode == 'mock';
+    final detail = status.route == 'thinq' &&
+            thinqOutcomeSentence(status.confirmation, status.detail) != null &&
+            !(mockRun && status.confirmation == 'state_confirmed')
+        ? null
+        : status.detail;
     if (words.isEmpty &&
         (detail == null || detail.isEmpty) &&
         status.operationConfirmed == null) {
@@ -659,6 +665,8 @@ class _NowState {
                 executionMode: s.isDemo ? 'mock' : s.executionMode,
                 route: s.route,
                 receipt: s.receipt,
+                confirmation: s.confirmation,
+                detail: s.detail,
               ),
           tone: _Tone.done,
         );

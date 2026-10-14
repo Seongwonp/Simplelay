@@ -88,7 +88,7 @@ void main() {
     await tester.pump();
 
     // ThinQ 확인 못 함은 실패로 말하지 않는다.
-    expect(find.textContaining('보냈지만 확인하지 못했어요'), findsNWidgets(2));
+    expect(find.textContaining('설정이 바뀌었는지 확인하지 못했어요'), findsNWidgets(2));
     // 경로 · 확인 수준은 '경로'·'확인' 꼬리표 없이 자연스러운 한 줄로 말한다.
     expect(find.text('ThinQ · 접수됨'), findsOneWidget);
     // t2는 모의 실행 — 결과 문장 한 줄이 연습이라고 말하고 수신 줄을 겹치지 않는다(2026-10-14).

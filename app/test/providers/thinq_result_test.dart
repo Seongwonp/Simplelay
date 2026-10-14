@@ -56,7 +56,7 @@ void main() {
       'last_detail': '상태를 확인하지 못했어요',
     });
     expect(s.phase, ExecutionPhase.unconfirmed);
-    expect(s.message, contains('보냈지만 확인하지 못했어요'));
+    expect(s.message, contains('보냈지만 설정이 바뀌었는지 확인하지 못했어요'));
     expect(s.route, 'thinq');
     expect(s.detail, '상태를 확인하지 못했어요');
   });
