@@ -125,6 +125,31 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // 2026-10-14 추가 확인 3: 체크를 써도 낭독 제목이 '바꿨어요'로 읽히지 않는다.
+  testWidgets('완료 화면 낭독: 이미 그 설정이라고, 바꿨다고 하지 않는다', (tester) async {
+    final handle = tester.ensureSemantics();
+    await pump(
+        tester,
+        const KioskDoneView(
+          success: true,
+          label: '공기청정기 강풍',
+          executionMode: 'real',
+          route: 'thinq',
+          confirmation: '이미 그 설정이라 보내지 않음',
+          resultConfirmation: 'already_at_target',
+          detail: _already,
+        ));
+    final live = find.byWidgetPredicate(
+        (w) => w is Semantics && w.properties.liveRegion == true);
+    final label = tester.widget<Semantics>(live.first).properties.label!;
+    expect(label, contains('이미 그 설정이에요'));
+    expect(label, contains('이미 그 설정이라 보내지 않음'));
+    expect(label, isNot(contains('바꿨')));
+    expect(label, isNot(contains('상태를 확인했어요')));
+    handle.dispose();
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('완료 화면: 전 값 모름은 설정된 것을 확인했다고만', (tester) async {
     await pump(
         tester,

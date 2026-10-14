@@ -192,6 +192,39 @@ void main() {
     expect(find.textContaining('정지'), findsNothing);
   });
 
+  // 2026-10-14 추가 확인 3: 이미 목표값(상태 확인됨·변경 명령 안 보냄) — 체크를 써도 제목·낭독이 '바꿨어요'로 읽히지 않는다.
+  for (final message in <String?>['이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요.', null]) {
+    testWidgets('실행 상태: 이미 목표값은 "이미 … 설정" 제목, 바꿨다고 읽히지 않는다(서버 문장 ${message == null ? '없음' : '있음'})',
+        (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(buildScreen(
+        const StatusScreen(),
+        executionStatus: ExecutionStatus(
+          label: '공기청정기 강풍',
+          phase: ExecutionPhase.completed,
+          message: message,
+          executionMode: 'real',
+          outcome: 'success',
+          route: 'thinq',
+          receipt: 'not_dispatched',
+          confirmation: 'already_at_target',
+          detail: '이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요.',
+        ),
+      ));
+      await tester.pump();
+      expect(find.text('이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요.'), findsOneWidget);
+      expect(find.text('이미 그 설정이라 보내지 않음'), findsOneWidget);
+      expect(find.textContaining('바꿨'), findsNothing);
+      expect(find.textContaining('보냈'), findsNothing);
+      final live = find.byWidgetPredicate(
+          (w) => w is Semantics && w.properties.liveRegion == true && (w.properties.label ?? '').isNotEmpty);
+      final label = tester.widget<Semantics>(live.first).properties.label!;
+      expect(label, contains('이미 강풍으로 설정돼 있어요'));
+      expect(label, isNot(contains('바꿨')));
+      handle.dispose();
+    });
+  }
+
   testWidgets('이력: 모의 ThinQ 상태 확인은 결과 문장 자체가 모의라고 말한다',
       (tester) async {
     tester.view.physicalSize = const Size(900, 1600);
