@@ -40,7 +40,7 @@ OLD_HEALTH=$(http_get http://localhost:8000/health) || OLD_HEALTH=
 if [ -z "$OLD_HEALTH" ]; then
   echo "== 실행 중 서버에서 잠시 쉬기를 읽지 못함 — 켜 두었다면 업데이트 뒤 잠시 쉬기 재설정 필요 =="
 elif printf '%s' "$OLD_HEALTH" | grep -q '"dnd_until"'; then
-  CARRY=$(printf '%s' "$OLD_HEALTH" | sed -n 's/.*"dnd_until": *"\([0-9T:.+-]*\)".*/\1/p')
+  CARRY=$(printf '%s' "$OLD_HEALTH" | sed -n 's/.*"dnd_until": *"\([0-9TZ:.+-]*\)".*/\1/p')
   if [ -n "$CARRY" ]; then
     echo "== 잠시 쉬기 이어받기: $CARRY 까지, 업데이트 전 범위(새 제안만 쉼 — 자동 실행은 그대로) =="
   elif printf '%s' "$OLD_HEALTH" | grep -Eq '"dnd_until": *null'; then

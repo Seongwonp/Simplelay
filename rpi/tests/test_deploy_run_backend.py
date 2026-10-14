@@ -118,3 +118,13 @@ def test_board_without_curl_reads_the_old_pause_with_wget(tmp_path):
     assert _index(lines, "wget ") < _index(lines, "rm -f simplelay-backend")
     run = lines[_index(lines, "run ")]
     assert "-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=2026-10-14T23:30:00+09:00" in run, run
+
+
+def test_old_server_utc_z_form_is_passed_on(tmp_path):
+    """보드의 업데이트 전 서버(568f995)는 dnd_until을 UTC 'Z' 꼴로 낸다(2026-10-14 RPi5에서 읽은 실제 모양).
+    그 꼴도 그대로 넘겨야 한다 — 빠지면 이어받기가 기기에서 늘 '확인하지 못함'이 된다."""
+    old = '{"ok":true,"actuator_ready":false,"dnd_until":"2026-10-14T11:13:36.620005Z","act_mode":"uart"}'
+    code, out, lines = _run(tmp_path, old, via_wget=True)
+    assert code == 0, out
+    run = lines[_index(lines, "run ")]
+    assert "-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=2026-10-14T11:13:36.620005Z" in run, run

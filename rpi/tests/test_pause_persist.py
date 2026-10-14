@@ -201,3 +201,14 @@ def test_restored_pause_is_released_at_its_end_time(db_env, monkeypatch):
     assert deps.get_suggestion_service().is_auto_run_quiet() is False
     api = _restart()  # 끝난 뒤 재시작해도 다시 켜지지 않는다
     assert _pause(api)[0] is None
+
+
+def test_old_server_utc_z_value_is_carried_over(db_env, monkeypatch):
+    """보드의 업데이트 전 서버(568f995)가 실제로 내는 꼴 — UTC 'Z'·마이크로초(2026-10-14 RPi5에서 읽음)."""
+    until = (datetime.now(timezone.utc) + timedelta(minutes=50)).replace(microsecond=620005)
+    raw = until.isoformat().replace("+00:00", "Z")
+    assert raw.endswith("Z")
+    monkeypatch.setenv(CARRY, raw)
+    api = _restart()
+    dnd_until, scope, _ = _pause(api)
+    assert datetime.fromisoformat(dnd_until) == until and scope == "suggestions_only"
