@@ -102,6 +102,12 @@ class QuietHours:
         """DB 저장 — True 저장됨 · False 실패(이번 세션만 적용) · None 저장소 없음. 이벤트 루프 밖에서 부른다."""
         return self._state.persist(version)
 
+    def persist_report(self, version: int | None = None) -> tuple[bool | None, dict]:
+        """``persist``와 같고, 그 결과가 가리키는 설정 사본을 함께 — (결과, 그 사본). 응답은 이 사본과 결과를 같이
+        싣는다(HIGH 재확인 2차 M-RR2: 저장을 기다리는 사이 다른 요청이 바꾼 지금 값에 이 결과를 붙이지 않는다)."""
+        outcome = self._state.persist_report(version)
+        return outcome.result, dict(outcome.value)
+
     def update(self, body) -> dict:
         """메모리 적용 + 저장(같은 스레드) — 호환용. API는 ``apply``·``persist``를 나눠 저장 결과를 응답에 싣는다."""
         settings, version = self.apply(body)
@@ -112,13 +118,15 @@ class QuietHours:
         s = self.settings()
         return bool(s["enabled"]) and window_contains(s["start"], s["end"], now)
 
-    def status(self, now: datetime, pause_until: datetime | None, pause_scope: str | None = None) -> dict:
+    def status(self, now: datetime, pause_until: datetime | None, pause_scope: str | None = None,
+               settings: dict | None = None) -> dict:
         """폰·키오스크가 같은 상태를 보이도록 하나의 모양으로. ``reason``: schedule(매일 시간대)·pause(잠시 쉬기)·None.
 
         ``pause_scope``: 잠시 쉬기 범위(``suggestions_and_auto``·``suggestions_only``). 이어받은 옛 범위 잠시 쉬기만
         켜져 있으면 ``scope`` 문장도 그 범위(자동 실행은 그대로)로 말한다.
+        ``settings``: 지금 값 대신 이 설정 사본으로 계산한다(``PUT`` 응답 — ``persist_report``가 돌려준 사본).
         """
-        s = self.settings()
+        s = dict(settings) if settings is not None else self.settings()
         schedule = bool(s["enabled"]) and window_contains(s["start"], s["end"], now)
         paused = pause_until is not None and now < pause_until
         carried_only = paused and not schedule and pause_scope == "suggestions_only"

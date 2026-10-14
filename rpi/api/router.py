@@ -113,6 +113,7 @@ from .service import (
     UnknownApplianceError,
 )
 from .readiness_view import readiness_view
+from .stop_lane import resolve_without_shared_pool, run_on_stop_lane
 from .thinq_router import command_payloads
 from .thinq_router import router as thinq_router
 
@@ -943,13 +944,22 @@ async def acknowledge_estop(
     return EstopAckResponse(ok=not latched, latched=latched, reason=reason, detail=detail)
 
 
+async def _stop_service(request: Request) -> SimpleLayService:
+    """정지 경로의 서비스 의존성 — 공유 스레드 풀을 쓰지 않는다(HIGH 재확인 2차 H-RR1, ``stop_lane``)."""
+    return await resolve_without_shared_pool(request, get_service)
+
+
 @router.post("/stop", response_model=StopResponse)
 async def emergency_stop(
-    service: SimpleLayService = Depends(get_service),
+    service: SimpleLayService = Depends(_stop_service),
 ) -> StopResponse:
     # 노드 정지 브로드캐스트는 응답 없는 노드를 전체 상한까지 기다리는 동기
     # 호출이다. 이벤트 루프에서 직접 부르면 그동안 /status·SSE·다른 API가
     # 전부 멈춘다 — 스레드로 넘긴다.
+    #
+    # HIGH 재확인 2차 H-RR1: 그 스레드는 **정지 전용 실행기**(``stop_lane``)다. ``asyncio.to_thread``(루프 기본 실행기)와
+    # FastAPI의 ``def`` 의존성(AnyIO 기본 토큰)은 일반 DB 요청과 같이 쓰는 풀이라, DB가 멈춘 동안 그 풀이 차면 정지가
+    # 줄을 섰다. 인증(``require_api_key``)과 서비스 의존성(``_stop_service``)도 async라 공유 풀을 쓰지 않는다.
     #
     # 개발자 세션도 같은 버튼으로 멈춘다 — 긴급 정지는 "누가 제어 중인가"를
     # 가리지 않는다. 모드가 꺼져 있으면 no-op이고, 개발자 쪽 정지 실패는
@@ -966,14 +976,14 @@ async def emergency_stop(
     # 정지 버튼 위 대기 중이면 이 정지는 정지 버튼 누름으로 전달된다(RPi4가 판단·수행).
     hold_before = service.hold_status() or {}
     report, _, _ = await asyncio.gather(
-        asyncio.to_thread(service.emergency_stop_report),
-        asyncio.to_thread(stop_developer_session_if_any, "emergency_stop"),
-        asyncio.to_thread(stop_auto_rules_if_any, "비상정지"),
+        run_on_stop_lane(service.emergency_stop_report),
+        run_on_stop_lane(stop_developer_session_if_any, "emergency_stop"),
+        run_on_stop_lane(stop_auto_rules_if_any, "비상정지"),
     )
     # 끝을 기다리던 루틴도 멈춘다 — 해제 뒤 다음 단계가 이어서 나가지 않게(평가 B5).
     from rpi.routines.wiring import stop_routines_if_any  # noqa: PLC0415
 
-    await asyncio.to_thread(stop_routines_if_any, "긴급 정지 요청")
+    await run_on_stop_lane(stop_routines_if_any, "긴급 정지 요청")
     return StopResponse(
         was_running=report.was_running,
         nodes_requested=len(report.nodes_acknowledged)
@@ -1395,7 +1405,11 @@ async def put_quiet_hours(body: dict = Body(...)) -> dict:
     """``{"enabled": bool, "start": "HH:MM", "end": "HH:MM"}``(일부만 보내도 된다). 서버에 영속.
 
     HIGH 재확인 H-R1·M-R1: 메모리에 먼저 적용하고(판정은 바로 새 값) 저장은 이벤트 루프 밖에서. 응답에 저장 결과
-    ``persisted``·``session_only``(``POST /dnd``와 같은 뜻)를 함께 싣는다."""
+    ``persisted``·``session_only``(``POST /dnd``와 같은 뜻)를 함께 싣는다.
+
+    HIGH 재확인 2차 M-RR2: 응답의 설정 값은 **저장 결과가 가리키는 그 사본**이다(``persist_report``). 저장을 기다리는 사이
+    다른 요청이 메모리를 바꿨으면, 그 지금 값에 이 요청의 저장 성공을 붙이지 않는다 — 값과 ``persisted``가 같은 판을
+    말한다. 지금 값은 ``GET /quiet-hours``로 본다."""
     from rpi.services.quiet_hours import QuietHoursError  # noqa: PLC0415
 
     from .deps import get_quiet_hours, quiet_status  # noqa: PLC0415
@@ -1405,8 +1419,9 @@ async def put_quiet_hours(body: dict = Body(...)) -> dict:
         _, version = quiet.apply(body)
     except QuietHoursError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    saved = SettingSavedResponse.of(await asyncio.to_thread(quiet.persist, version))
-    return {**quiet_status(), "persisted": saved.persisted, "session_only": saved.session_only}
+    result, settings = await asyncio.to_thread(quiet.persist_report, version)
+    saved = SettingSavedResponse.of(result)
+    return {**quiet_status(settings), "persisted": saved.persisted, "session_only": saved.session_only}
 
 
 _MOCK_TEMP = 26.5

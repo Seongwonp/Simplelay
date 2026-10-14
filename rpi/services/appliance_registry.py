@@ -455,11 +455,19 @@ class ApplianceRegistry:
 
     폰 편집기(등록)와 키오스크 폴링(조회)이 다른 스레드에서 오므로 락으로
     직렬화한다 — NodeRegistry와 같은 구조.
+
+    **잠금 둘(2026-10-14 HIGH 재확인 2차 H-RR2).** 쓰기(등록·보정·삭제)는 판 번호 검사와 DB 쓰기를 묶어야 해서 쓰기 잠금
+    (``_lock``)을 쥔 채 DB를 기다린다. 읽기(``get``·``list``·``list_all``·``system_appliances``)는 그 잠금을 잡지 않고
+    짧은 메모리 잠금(``_mem_lock``)만 잡는다 — async 라우터(ThinQ 상태·기기 목록)가 이벤트 루프에서 읽어도 DB 대기에
+    묶이지 않는다. 메모리는 DB가 성공한 **뒤에** 바꾸므로(DB 먼저 규칙) 저장 중의 읽기는 저장 전 값을 본다.
     """
 
     def __init__(self, store=None) -> None:
         self._store = store
+        #: 쓰기 잠금 — 판 번호 검사·DB 쓰기·메모리 교체를 한 덩어리로(DB를 기다리는 동안 쥔다). 읽기는 잡지 않는다.
         self._lock = threading.Lock()
+        #: 메모리 잠금 — 사전 읽기·교체 순간만(입출력 없음). 쓰기 잠금 안에서 잡을 수 있고 그 반대는 하지 않는다.
+        self._mem_lock = threading.Lock()
         self._custom: dict[str, ApplianceDef] = {}
         # 서버 구성이 등록하는 **시스템 가전**(ThinQ 가전·모의 시나리오 가전).
         # 저장하지 않고, 폰 편집기로 덮거나 지울 수 없다. ``list()``(GET
@@ -502,12 +510,12 @@ class ApplianceRegistry:
                         )
 
     def list(self) -> tuple[ApplianceDef, ...]:
-        with self._lock:
+        with self._mem_lock:
             builtins = tuple(self._with_overlay(b) for b in BUILTIN_APPLIANCES)
             return builtins + tuple(self._custom.values())
 
     def get(self, appliance_id: str) -> ApplianceDef | None:
-        with self._lock:
+        with self._mem_lock:
             for builtin in BUILTIN_APPLIANCES:
                 if builtin.appliance_id == appliance_id:
                     return self._with_overlay(builtin)
@@ -515,12 +523,12 @@ class ApplianceRegistry:
             return found if found is not None else self._system.get(appliance_id)
 
     def list_all(self) -> tuple[ApplianceDef, ...]:
-        with self._lock:
+        with self._mem_lock:
             system = tuple(self._system.values())
         return self.list() + system
 
     def system_appliances(self) -> tuple[ApplianceDef, ...]:
-        with self._lock:
+        with self._mem_lock:
             return tuple(self._system.values())
 
     def register_system(self, appliance: ApplianceDef) -> ApplianceDef:
@@ -530,18 +538,18 @@ class ApplianceRegistry:
             raise BuiltinApplianceError(f"'{aid}' is a built-in appliance")
         if appliance.control_path is ControlRoute.THINQ and appliance.thinq is None:
             raise ValueError(f"thinq appliance '{aid}' needs a thinq binding")
-        with self._lock:
+        with self._mem_lock:
             if aid in self._custom:
                 raise BuiltinApplianceError(f"'{aid}' is already a custom appliance")
             self._system[aid] = appliance
             return appliance
 
     def unregister_system(self, appliance_id: str) -> bool:
-        with self._lock:
+        with self._mem_lock:
             return self._system.pop(appliance_id, None) is not None
 
     def _require_not_system(self, appliance_id: str) -> None:
-        with self._lock:
+        with self._mem_lock:
             if appliance_id in self._system:
                 raise BuiltinApplianceError(
                     f"'{appliance_id}' is a system appliance (server configuration)"
@@ -588,10 +596,11 @@ class ApplianceRegistry:
                         _calibration_key(appliance_id),
                         _encode_overlay(version, mapped, revision),
                     )
-                if stop_park is not None:
-                    self._builtin_stop_park[appliance_id] = dict(stop_park)
-                self._builtin_calibration[appliance_id] = (version, mapped, revision)
-                return self._with_overlay(builtin)
+                with self._mem_lock:
+                    if stop_park is not None:
+                        self._builtin_stop_park[appliance_id] = dict(stop_park)
+                    self._builtin_calibration[appliance_id] = (version, mapped, revision)
+                    return self._with_overlay(builtin)
 
             existing = self._custom.get(appliance_id)
             if existing is None:
@@ -612,7 +621,8 @@ class ApplianceRegistry:
             )
             if self._store is not None:
                 self._store.save_appliance(updated)  # DB 먼저 — register와 같은 규칙
-            self._custom[appliance_id] = updated
+            with self._mem_lock:
+                self._custom[appliance_id] = updated
             return updated
 
     def _builtin_revision(self, appliance_id: str) -> int:
@@ -676,7 +686,8 @@ class ApplianceRegistry:
             # (교차 리뷰 #2). DB가 던지면 메모리는 그대로라 상태가 일치한다.
             if self._store is not None:
                 self._store.save_appliance(stamped)
-            self._custom[appliance.appliance_id] = stamped
+            with self._mem_lock:
+                self._custom[appliance.appliance_id] = stamped
             return stamped
 
     def delete(
@@ -710,5 +721,6 @@ class ApplianceRegistry:
                 )
             if existed and self._store is not None:
                 self._store.delete_appliance(appliance_id)  # DB 먼저 — #2와 동일
-            self._custom.pop(appliance_id, None)
+            with self._mem_lock:
+                self._custom.pop(appliance_id, None)
             return existed

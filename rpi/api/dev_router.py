@@ -164,7 +164,28 @@ def require_dev_access(
 ) -> DeveloperSessionManager:
     if not deps.developer_mode_enabled():
         raise _error(404, "dev_mode_disabled", "개발자 모드가 서버에서 꺼져 있습니다")
-    manager = deps.get_developer_session_manager()
+    return _check_dev_access(request, x_dev_token, deps.get_developer_session_manager())
+
+
+async def require_dev_stop_access(
+    request: Request,
+    x_dev_token: str | None = Header(default=None),
+) -> DeveloperSessionManager:
+    """``/dev/stop``의 접근 검사 — ``require_dev_access``와 같은 검사를 공유 스레드 풀 없이 한다(HIGH 재확인 2차 H-RR1).
+    검사 자체는 메모리 일(환경 변수·빈도 제한기)이고, 매니저가 아직 없을 때만 정지 전용 실행기에서 만든다."""
+    from .stop_lane import resolve_without_shared_pool  # noqa: PLC0415
+
+    overrides = getattr(request.app, "dependency_overrides", None) or {}
+    if require_dev_access in overrides:
+        return await resolve_without_shared_pool(request, require_dev_access)
+    if not deps.developer_mode_enabled():
+        raise _error(404, "dev_mode_disabled", "개발자 모드가 서버에서 꺼져 있습니다")
+    manager = await resolve_without_shared_pool(request, deps.get_developer_session_manager)
+    return _check_dev_access(request, x_dev_token, manager)
+
+
+def _check_dev_access(request: Request, x_dev_token: str | None,
+                      manager: DeveloperSessionManager | None) -> DeveloperSessionManager:
     if manager is None:
         raise _error(404, "dev_mode_disabled", "개발자 모드가 서버에서 꺼져 있습니다")
     expected = os.environ.get(DEV_TOKEN_ENV, "").strip()
@@ -524,11 +545,20 @@ def _stop_response(manager: DeveloperSessionManager, info: dict | None, *, mock_
 
 
 @dev_router.post("/stop", response_model=DevStopResponse)
-def dev_stop(
-    manager: DeveloperSessionManager = Depends(require_dev_access),
+async def dev_stop(
+    manager: DeveloperSessionManager = Depends(require_dev_stop_access),
 ) -> DevStopResponse:
     """개발자 긴급 정지 -- 세션 소유권·빈도 제한 없이 토큰만 본다.
-    토큰조차 없는 경우를 위해 일반 ``POST /stop``도 같은 정지를 보낸다."""
+    토큰조차 없는 경우를 위해 일반 ``POST /stop``도 같은 정지를 보낸다.
+
+    HIGH 재확인 2차 H-RR1: 접근 검사는 async, 정지는 정지 전용 실행기(``stop_lane``) — 일반 요청이 공유 스레드 풀을
+    채운 동안에도 줄을 서지 않는다."""
+    from .stop_lane import run_on_stop_lane  # noqa: PLC0415
+
+    return await run_on_stop_lane(_dev_stop, manager)
+
+
+def _dev_stop(manager: DeveloperSessionManager) -> DevStopResponse:
     try:
         info = manager.emergency_stop("emergency_stop")
     except Exception:

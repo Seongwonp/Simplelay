@@ -130,7 +130,10 @@ def loopback_origin_problem(request: Request) -> str | None:
     return None
 
 
-def require_api_key(request: Request) -> None:
+async def require_api_key(request: Request) -> None:
+    """``async``인 이유(2026-10-14 HIGH 재확인 2차 H-RR1): 이 검사는 헤더·환경 변수만 보는 메모리 일이다. ``def``면 FastAPI가
+    공유 스레드 풀(AnyIO 기본 토큰)에서 돌려, DB를 기다리는 요청이 그 풀을 채운 동안 ``/stop``의 인증부터 줄을 섰다.
+    여기에 입출력을 넣지 않는다."""
     client = request.client
     if client is not None and is_loopback_host(client.host):
         problem = loopback_origin_problem(request)

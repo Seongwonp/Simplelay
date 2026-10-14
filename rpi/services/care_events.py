@@ -64,7 +64,11 @@ class CareEventStore:
     def __init__(self, clock: Clock, db=None) -> None:
         self._clock = clock
         self._db = db
+        #: 메모리 링 잠금 — 읽기(``recent``)와 링 갱신 순간만(입출력 없음).
         self._lock = threading.Lock()
+        #: 쓰기 잠금 — DB 기록·번호 매기기를 줄 세운다(DB를 기다리는 동안 쥔다). 읽기는 잡지 않는다(2026-10-14 HIGH 재확인
+        #: 2차: 키오스크 ``/ambient``가 이벤트 루프에서 ``recent``를 읽는다 — DB 쓰기 대기가 루프와 ``/stop``을 막았다).
+        self._write_lock = threading.Lock()
         self._memory: deque[CareEvent] = deque(maxlen=self.MEMORY_LIMIT)
         self._next_id = 1
         if db is not None:
@@ -79,7 +83,7 @@ class CareEventStore:
         purpose: str | None = None,
         time_band: str | None = None,
     ) -> CareEvent:
-        with self._lock:
+        with self._write_lock:
             occurred_at = self._clock.now()
             if self._db is not None:
                 event_id = self._db.append_care_event(
@@ -96,7 +100,8 @@ class CareEventStore:
                 purpose=purpose,
                 time_band=time_band,
             )
-            self._memory.append(event)
+            with self._lock:  # DB가 성공한 뒤에만 링에 넣는다(쓰기 잠금이 순서를 지킨다)
+                self._memory.append(event)
             return event
 
     def recent(self, limit: int = 50) -> tuple[CareEvent, ...]:
@@ -118,11 +123,12 @@ class CareEventStore:
         DB가 있으면 DB에서 묻는다 (교차 리뷰 #10): 메모리 링(200건)만 보면
         하루에 이벤트가 많이 쌓인 날 오전 신호가 링에서 밀려나 같은 신호가
         또 만들어지고, 재시작 직후에도 같은 구멍이 생긴다."""
-        with self._lock:
-            if self._db is not None:
+        if self._db is not None:
+            with self._write_lock:
                 return self._db.care_event_exists_on(
                     kind, purpose, day, time_band
                 )
+        with self._lock:
             return any(
                 e.kind == kind
                 and e.purpose == purpose

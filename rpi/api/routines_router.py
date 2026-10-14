@@ -289,12 +289,26 @@ def get_routine(routine_id: str) -> dict:
     return _payload(_require(routine_id), _names())
 
 
+#: 읽은 뒤 다른 요청이 같은 루틴을 바꿨을 때(HIGH 재확인 2차 M-RR1) — 화면에 그대로 보여도 되는 문장.
+ROUTINE_CHANGED_DETAIL = "다른 곳에서 이 루틴이 바뀌었어요 — 목록을 새로 고친 뒤 다시 저장해 주세요"
+
+
 @router.put("/routines/{routine_id}")
 def update_routine(routine_id: str, body: dict = Body(...)) -> dict:
-    """전체 교체. 단계·실행 방식이 바뀌면 이미 떠 있는 카드의 승인은 무효(재승인)."""
+    """전체 교체. 단계·실행 방식이 바뀌면 이미 떠 있는 카드의 승인은 무효(재승인).
+
+    HIGH 재확인 2차 M-RR1: 읽은 루틴이 저장 순간에도 그대로일 때만 교체한다(저장소의 한 연산). 그 사이 지워졌으면 404
+    (되살리지 않음), 다른 요청이 바꿨으면 409(끝난 변경을 옛 판으로 덮지 않음)."""
+    from rpi.routines.store import RoutineConflictError  # noqa: PLC0415
+
     current = _require(routine_id)
     routine = _build(body, routine_id, created_at=current.created_at)
-    get_routine_store().save(routine)
+    try:
+        get_routine_store().replace(routine, expected=current)
+    except RoutineNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="루틴을 찾을 수 없어요") from exc
+    except RoutineConflictError as exc:
+        raise HTTPException(status_code=409, detail=ROUTINE_CHANGED_DETAIL) from exc
     return _payload(routine, _names())
 
 
@@ -314,8 +328,13 @@ def enable_routine(routine_id: str, body: dict = Body(...)) -> dict:
         raise HTTPException(status_code=422, detail="켜기/끄기 값은 true 또는 false로 보내 주세요")
     from dataclasses import replace  # noqa: PLC0415
 
-    routine = replace(_require(routine_id), enabled=enabled, updated_at=get_clock().now())
-    get_routine_store().save(routine)
+    # HIGH 재확인 2차 M-RR1: 최신 루틴의 enabled만 바꾼다 — 읽기·바꾸기·저장이 저장소의 한 연산이라, 그 사이 끝난 편집을
+    # 옛 객체로 되돌리지 않고, 지워졌으면 404(되살리지 않음).
+    now = get_clock().now()
+    try:
+        routine = get_routine_store().update(routine_id, lambda r: replace(r, enabled=enabled, updated_at=now))
+    except RoutineNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="루틴을 찾을 수 없어요") from exc
     return _payload(routine, _names())
 
 

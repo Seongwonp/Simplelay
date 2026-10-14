@@ -774,10 +774,10 @@ def get_quiet_hours():
                       save=(lambda value: db.save_setting(SETTING_KEY, value)) if db else None)
 
 
-def quiet_status() -> dict:
-    """폰(/quiet-hours)·키오스크(/health)가 같은 모양으로 보는 조용한 시간 상태."""
+def quiet_status(settings: dict | None = None) -> dict:
+    """폰(/quiet-hours)·키오스크(/health)가 같은 모양으로 보는 조용한 시간 상태. ``settings``가 있으면 그 설정 사본으로."""
     svc = get_suggestion_service()
-    return get_quiet_hours().status(get_clock().now(), svc.dnd_until(), svc.dnd_scope())
+    return get_quiet_hours().status(get_clock().now(), svc.dnd_until(), svc.dnd_scope(), settings=settings)
 
 
 @lru_cache(maxsize=1)

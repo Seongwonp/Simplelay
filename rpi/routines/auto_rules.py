@@ -81,6 +81,8 @@ VALUE_CHANGED_REASON = "세기를 바꿔서 다시 허용해야 켜져요."
 PHYSICAL_REFUSED = "버튼을 누르는 단계는 자동 실행할 수 없어요 — 매번 승인해 주세요"
 #: 허용 요청을 처리하는 사이 전체 정지가 들어왔다(3차 평가 H2) — 이번 허용은 저장하지 않는다.
 STOP_RACE_REASON = "허용하는 사이 정지가 들어와서 자동 실행을 켜지 않았어요."
+#: 다시 허용하는 사이 다른 요청이 그 규칙을 바꿨다(HIGH 재확인 2차) — 옛 내용으로 켜지 않는다.
+RULE_CHANGED_REASON = "허용하는 사이 다른 곳에서 이 규칙이 바뀌었어요 — 목록을 새로 고쳐 다시 확인해 주세요"
 #: 지난 프로세스가 깨끗이 닫히지 않았다(전원 끊김·강제 종료·규칙 저장 실패, 4차 평가 M-N3) — 정지의 규칙 끄기가 DB에
 #: 닿기 전에 끝났을 수 있어 켜진 규칙을 믿지 않는다.
 UNCLEAN_RESTART_REASON = "허브가 갑자기 꺼져서 자동 실행을 껐어요."
@@ -602,25 +604,43 @@ class AutoRuleEngine:
         """저장된 허용(켜짐·지문 일치)이고 그 뒤로 정지가 없었다."""
         return rule.allowed and self._generation_ok(rule)
 
-    def _save_allowed(self, rule: AutoRule, start_generation: int | None) -> AutoRule:
+    def _save_allowed(self, rule: AutoRule, start_generation: int | None,
+                      expected: AutoRule | None = None) -> AutoRule:
         """허용 저장 — 요청 시작 세대와 지금 세대를 저장 앞뒤로 대조한다. 정지가 끼면 켜지 않고 409.
 
         세대 판정은 메모리에서만 한다(정지 경로의 ``halt``는 이 저장의 DB 쓰기를 기다리지 않는다). 저장 전에 이 규칙의 허용
         세대를 **요청 시작 세대**로 적어 두므로, 저장 도중 정지가 들어와도 저장된 '켜짐'은 쓰이지 않고, 저장 뒤 다시 대조해
-        꺼진 상태로 되돌린다."""
+        꺼진 상태로 되돌린다.
+
+        ``expected``(다시 허용): 호출자가 읽은 그 규칙. 철회와 같은 전송권 잠금 안에서 아직 그대로인지 보고 바꾼다(HIGH
+        재확인 2차 — 읽은 뒤 끝난 삭제는 404로 남기고 되살리지 않으며, 끝난 값 바꾸기는 409로 남기고 되돌리지 않는다)."""
         generation = self.generation() if start_generation is None else start_generation
         allowed_mono = self._monotonic()
-        with self._gen_lock:
-            if self._generation != generation:
-                raise AutoRuleError(409, STOP_RACE_REASON)
-            self._allowed_generation[rule.rule_id] = generation
-            self._allowed_mono[rule.rule_id] = allowed_mono
-        self.store.save(rule)
+        if expected is not None:
+            with self._send_lock:  # 철회(_revoke)와 같은 잠금 — 메모리만
+                current = self.store.get(rule.rule_id)
+                if current is None:
+                    raise AutoRuleError(404, "자동 실행 규칙을 찾을 수 없어요")
+                if current is not expected:
+                    raise AutoRuleError(409, RULE_CHANGED_REASON)
+                self._mark_allowed(rule, generation, allowed_mono)
+                self.store.put(rule)
+            self.store.flush()
+        else:
+            self._mark_allowed(rule, generation, allowed_mono)
+            self.store.save(rule)
         if self.generation() != generation:
             self.store.save(replace(rule, enabled=False, updated_at=self._clock.now().isoformat(),
                                     disabled_reason=ESTOP_REASON))
             raise AutoRuleError(409, STOP_RACE_REASON)
         return rule
+
+    def _mark_allowed(self, rule: AutoRule, generation: int, allowed_mono: float) -> None:
+        with self._gen_lock:
+            if self._generation != generation:
+                raise AutoRuleError(409, STOP_RACE_REASON)
+            self._allowed_generation[rule.rule_id] = generation
+            self._allowed_mono[rule.rule_id] = allowed_mono
 
     def allow_from_offer(self, draft: AutoRule, start_generation: int | None = None) -> AutoRule:
         """확인 화면에서 허용한 내용을 규칙으로 저장한다. 같은 조건·대상·동작의 규칙이 있으면 바꾼다.
@@ -1053,7 +1073,8 @@ class AutoRuleEngine:
         if fingerprint != rebound.fingerprint():
             raise AutoRuleError(409, "허용할 내용이 바뀌었어요 — 조건과 동작을 다시 확인해 주세요")
         return self._save_allowed(replace(rebound, enabled=True, allowed_fingerprint=fingerprint,
-                                          allowed_at=now, updated_at=now, disabled_reason=None), start_generation)
+                                          allowed_at=now, updated_at=now, disabled_reason=None), start_generation,
+                                  expected=rule)
 
     def update(self, rule_id: str, body: Mapping, report: dict | None = None) -> AutoRule:
         """설정값만 바꿀 수 있다. 바꾸면 꺼지고 다시 허용해야 한다."""
