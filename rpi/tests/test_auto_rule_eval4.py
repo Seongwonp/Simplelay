@@ -524,7 +524,7 @@ def test_after_a_restart_events_that_ended_before_the_restart_are_held(monkeypat
         hub_clock.now = 10_505.0
         _deliver(_rpi4_frame(1000 - 10))  # 허브 10,490초(재시작 전)에 끝난 가열
         run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-        assert "다시 시작되기 전" in run["reason"]
+        assert "다시 켜지기 전" in run["reason"]  # 7828856에서 바뀐 문구(RESTART_BOUNDARY_REASON)
         time.sleep(0.3)
         assert len(cloud.controls()) == before
         hub_clock.now = 10_512.0
