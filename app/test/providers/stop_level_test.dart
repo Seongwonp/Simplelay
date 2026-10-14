@@ -43,10 +43,13 @@ void main() {
   group('stopLevelSentence', () {
     test('단계마다 다른 문장 — 보냄은 확인이라고 하지 않는다', () {
       expect(stopLevelSentence('sent'), '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요');
-      expect(stopLevelSentence('mcu_ack', ackMs: 12), '모션 보드가 정지를 확인했어요 (12 ms)');
-      expect(stopLevelSentence('mcu_ack'), '모션 보드가 정지를 확인했어요');
+      expect(stopLevelSentence('mcu_ack', ackMs: 12), '정지 신호가 전달됐어요');
+      // 개발자 도구만 ms를 함께 보인다(2026-10-14 UX — 사용자 화면은 숫자 없이).
+      expect(stopLevelSentence('mcu_ack', ackMs: 12, detail: true), '모션 보드가 정지를 확인했어요 (12 ms)');
+      expect(stopLevelSentence('mcu_ack'), '정지 신호가 전달됐어요');
       // ack_ms는 정지를 보낸 뒤 모션 보드 응답까지다 — 멈춤 확인(verified)까지의 시간이 아니다(외부 평가 L2).
-      expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요 (모션 보드 응답 9 ms)');
+      expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요');
+      expect(stopLevelSentence('verified', ackMs: 9, detail: true), '멈춘 것을 확인했어요 (모션 보드 응답 9 ms)');
       expect(stopLevelSentence(null), isNull);
       expect(stopLevelSentence('stopped_for_sure'), isNull);
       expect(stopLevelConfirmed('sent'), isFalse);
@@ -62,7 +65,7 @@ void main() {
       expect(
           finishedMessage(
               kind: ResultKind.stopped, stopLevel: 'mcu_ack', stopAckMs: 30),
-          '실행을 멈췄어요. 모션 보드가 정지를 확인했어요 (30 ms).');
+          '실행을 멈췄어요. 정지 신호가 전달됐어요.');
       expect(finishedMessage(kind: ResultKind.stopped, stopLevel: 'verified'),
           '실행을 멈췄어요. 멈춘 것을 확인했어요.');
     });
@@ -177,7 +180,7 @@ void main() {
           );
       await Future<void>.delayed(const Duration(milliseconds: 1500));
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 멈춘 것을 확인했어요 (모션 보드 응답 8 ms).');
+          '실행을 멈췄어요. 멈춘 것을 확인했어요.');
     });
   });
 }

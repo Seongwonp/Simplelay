@@ -224,11 +224,11 @@ void main() {
       expect(r.sentence, '연습 · 실제로 누르지 않았어요');
       expect(r.mockNote, isNull, reason: '같은 말을 두 줄로 되풀이하지 않는다');
       expect(r.next, isNull);
-      for (final mode in ['real', 'unknown']) {
-        expect(
-            historyResult(_entry({'outcome': 'success', 'execution_mode': mode})).mockNote,
-            isNull);
-      }
+      expect(historyResult(_entry({'outcome': 'success', 'execution_mode': 'real'})).mockNote,
+          isNull);
+      // 실제·연습을 모르면 실제 성공처럼 보이지 않게 한 줄 남긴다(F4, 2026-10-14 — 연습 표시와는 다른 말).
+      expect(historyResult(_entry({'outcome': 'success', 'execution_mode': 'unknown'})).mockNote,
+          '실제 기기 동작 여부를 확인하지 못했어요');
     });
 
     test('모의 실패는 실제 가전 확인을 지어내지 않는다', () {

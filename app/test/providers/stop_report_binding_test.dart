@@ -189,7 +189,7 @@ void main() {
         expect(await notifier.emergencyStop(), isTrue);
         final message = c.read(executionStatusProvider).message;
         if (applied) {
-          expect(message, contains('멈춘 것을 확인했어요 (모션 보드 응답 7 ms)'));
+          expect(message, contains('멈춘 것을 확인했어요'));
         } else {
           expect(message, '정지 요청을 보냈어요.');
         }
@@ -217,7 +217,7 @@ void main() {
         await stopFuture;
         final message = c.read(executionStatusProvider).message;
         if (applied) {
-          expect(message, '실행을 멈췄어요. 멈춘 것을 확인했어요 (모션 보드 응답 7 ms).');
+          expect(message, '실행을 멈췄어요. 멈춘 것을 확인했어요.');
         } else {
           expect(message, '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
         }
@@ -260,7 +260,7 @@ void main() {
       final s = c.read(executionStatusProvider);
       expect(s.sequenceId, 'J1');
       expect(s.outcome, 'stopped');
-      expect(s.message, '실행을 멈췄어요. 멈춘 것을 확인했어요 (모션 보드 응답 9 ms).');
+      expect(s.message, '실행을 멈췄어요. 멈춘 것을 확인했어요.');
       expect(tts.spoken.length, spoken);
     });
 
@@ -274,9 +274,9 @@ void main() {
           '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
       final spoken = tts.spoken.length;
       status = _stopped('J1', level: 'mcu_ack', ackMs: 12, stopJob: 'J1');
-      await _until(() => c.read(executionStatusProvider).message?.contains('모션 보드') ?? false);
+      await _until(() => c.read(executionStatusProvider).message?.contains('정지 신호가 전달됐어요') ?? false);
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 모션 보드가 정지를 확인했어요 (12 ms).');
+          '실행을 멈췄어요. 정지 신호가 전달됐어요.');
       expect(tts.spoken.length, spoken);
     });
 
@@ -312,7 +312,7 @@ void main() {
       final stopFuture = notifier.emergencyStop();
       status = _stopped('J1', level: 'verified', ackMs: 9, stopJob: 'J1');
       await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
-      const confirmed = '실행을 멈췄어요. 멈춘 것을 확인했어요 (모션 보드 응답 9 ms).';
+      const confirmed = '실행을 멈췄어요. 멈춘 것을 확인했어요.';
       expect(c.read(executionStatusProvider).message, confirmed);
       stopGate.completeError(TimeoutException('POST /stop'));
       expect(await stopFuture, isTrue); // 끝난 실행 — 더 멈출 것이 없다

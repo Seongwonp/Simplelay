@@ -291,11 +291,14 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
   final target = (name == null || name.isEmpty) ? '가전' : name;
   final checkTarget = '$target${objectParticle(target)} 직접 확인해 주세요';
   // 모의는 한 번만 말한다(2026-10-14 UX) — 이름의 "(모의)"·연습 줄·다음 행동에 세 번 나오던 것을 이 한 줄로.
-  final mockNote = !mock
-      ? null
-      : thinq
-          ? '연습 · $target에 보내지 않았어요'
-          : '연습 · 실제로 누르지 않았어요';
+  // 실제·연습을 모르는 기록(옛 RPi4·보고 없음)은 성공 문장만 두면 실제 성공처럼 보인다(F4 경계) —
+  // 일반 화면 띠는 생략해도 기록에는 한 줄 남긴다(2026-10-14).
+  final unknownMode = !mock && e.executionMode != 'real';
+  final mockNote = mock
+      ? (thinq ? '연습 · $target에 보내지 않았어요' : '연습 · 실제로 누르지 않았어요')
+      : unknownMode
+          ? '실제 기기 동작 여부를 확인하지 못했어요'
+          : null;
 
   // 정지·안전 정지 — 정지 확인 단계 작업의 계약을 건드리지 않는다.
   if (kind == ResultKind.stopped) {
@@ -328,6 +331,9 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
   }
 
   final base = _liveResult(e, kind, thinq: thinq, target: target, checkTarget: checkTarget);
+  if (unknownMode) {
+    return HistoryResult(kind: base.kind, sentence: base.sentence, next: base.next, mockNote: mockNote);
+  }
   if (!mock) return base;
   // 모의 기록: 실제 가전 확인을 부탁하지 않는다(다음 행동 없음). ThinQ 모의는 "보냈지만 확인 못 함"과
   // "보내지 않았다"가 한 카드에서 엇갈리지 않게 결과 문장 하나로 말한다. 물리 성공도 같은 말 한 줄.

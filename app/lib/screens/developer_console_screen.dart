@@ -62,7 +62,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
 
   /// 정리가 끝나 유휴가 된 뒤의 문장 — 실물이면 마지막 정지 단계까지만 말한다.
   String _settledSentence(DevState state) {
-    final sentence = stopLevelSentence(_lastStopLevel, ackMs: _lastStopAckMs);
+    final sentence = stopLevelSentence(_lastStopLevel, ackMs: _lastStopAckMs, detail: true);
     if (sentence != null) return sentence;
     // 모의는 종전 문장, 실물인데 단계를 모르면 '보냄'까지만.
     return state.isReal ? stopLevelSentence('sent')! : '정지를 확인했어요';
@@ -391,7 +391,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     _lastStopAckMs = result.ackMs;
     // 실물 정지의 확인 단계(2026-10-13): 보냄(sent)은 확인이라고 말하지 않는다.
     final stopSentence =
-        stopLevelSentence(result.stopLevel, ackMs: result.ackMs);
+        stopLevelSentence(result.stopLevel, ackMs: result.ackMs, detail: true);
     if (result.state.phase == 'fault') {
       _say('정지를 확인하지 못했어요 — 기기가 잠겼습니다. 다시 정지를 눌러 확인해 주세요.', problem: true);
     } else if (result.state.phase == 'stopping') {

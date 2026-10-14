@@ -132,6 +132,40 @@ void main() {
     expect(find.textContaining('명령을 보냈어요'), findsNothing);
   });
 
+  testWidgets('이력: 실제/연습을 모르는 기록은 성공 문장만 두지 않고 "실제 기기 동작 여부를 확인하지 못했어요"를 남긴다',
+      (tester) async {
+    // 10/14 Codex 의견: 일반 화면에서 '실행 환경 미확인'을 지워도 기록에서는 실제 성공처럼 보이면 안 된다(F4 경계).
+    tester.view.physicalSize = const Size(900, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.reset);
+    final api = _apiWithHistory([
+      _entry('u1', {
+        'status': 'succeeded',
+        'outcome': 'success',
+        'route': 'physical',
+        'receipt': 'accepted',
+        'confirmation': 'reported',
+        'execution_mode': 'unknown',
+      }),
+      _entry('m1', {
+        'status': 'succeeded',
+        'outcome': 'success',
+        'route': 'physical',
+        'execution_mode': 'mock',
+      }),
+    ]);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [rpiApiServiceProvider.overrideWithValue(api)],
+      child: const MaterialApp(home: HistoryScreen()),
+    ));
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('실제 기기 동작 여부를 확인하지 못했어요'), findsOneWidget);
+    // 연습 표시는 그대로 남는다.
+    expect(find.text('연습 · 실제로 누르지 않았어요'), findsOneWidget);
+    expect(find.textContaining('실행 환경 미확인'), findsNothing);
+  });
+
   testWidgets('실행 상태: ThinQ 확인 못 함은 주의로, 정지 버튼 없이 경로·확인 수준을 말한다',
       (tester) async {
     await tester.pumpWidget(buildScreen(

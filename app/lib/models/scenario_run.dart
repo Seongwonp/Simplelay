@@ -79,8 +79,9 @@ String runStepFacts(ScenarioRunStep step) {
     // 실제 실행은 따로 말하지 않는다(평소 상태). 연습은 한 번만, 모름은 그대로.
     if (step.executionMode == 'mock' && !saysMock)
       '연습'
+    // 단계 결과(실행 상태·기록 상세)에서는 모르면 모른다고 남긴다 — 실제 성공처럼 보이지 않게(F4, 2026-10-14).
     else if (step.executionMode != 'real' && step.executionMode != 'mock')
-      '실행 환경 미확인',
+      '실제 기기 동작 여부를 확인하지 못했어요',
     if (confirmation != null) confirmation,
     resultWord(kind),
   ].join(' · ');

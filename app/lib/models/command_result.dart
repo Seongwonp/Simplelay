@@ -141,7 +141,18 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
 ///
 /// [ackMs]는 정지를 보낸 뒤 **모션 보드가 응답하기까지**(sent→mcu_ack)다. 엔코더로 멈춤을 확인(verified)하기까지의
 /// 시간이 아니다 — verified 문장에서는 '모션 보드 응답'이라고 밝혀 혼동하지 않게 한다(외부 평가 2026-10-13 L2).
-String? stopLevelSentence(String? level, {int? ackMs}) {
+///
+/// 사용자 화면은 숫자 없이 말한다(2026-10-14 UX 평가 — 키오스크와 같은 문장). ms와 '모션 보드'는
+/// [detail]이 참일 때(개발자 도구)만.
+String? stopLevelSentence(String? level, {int? ackMs, bool detail = false}) {
+  if (!detail) {
+    return switch (level) {
+      'verified' => '멈춘 것을 확인했어요',
+      'mcu_ack' => '정지 신호가 전달됐어요',
+      'sent' => '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요',
+      _ => null,
+    };
+  }
   final ms = ackMs == null ? '' : ' ($ackMs ms)';
   return switch (level) {
     'verified' => ackMs == null
