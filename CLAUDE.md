@@ -56,7 +56,7 @@
   없으면 `py -m venv .venv` 후 `.\.venv\Scripts\python.exe -m pip install -e ".[test]"`
 - 테스트는 줄 단위로 실행하고 각 종료 코드를 확인한다(PowerShell 5.1에서는 `&&` 사용 불가).
 - 릴리즈 APK: `flutter build apk --release` (JDK17 + Android SDK 필요). 에뮬레이터 설치 APK는 `--split-per-abi`로 빌드해야 덮어쓰기된다.
-- **운영 주의:** API 키 없으면 LAN 401(`SIMPLELAY_ALLOW_UNAUTHENTICATED=1`은 개발용) · `SIMPLELAY_THINQ_MODE` 기본 off · `SIMPLELAY_L3_MODE=real`은 RPi4에 콘센트 모듈 연결이 있어야 하고 없으면 기동 거절 · RPi4 재부팅 뒤엔 `systemctl start docker` 필요 · 펌웨어 비밀값은 `firmware-node/secrets.ini`(untracked) · 인식 서비스 키 등 비밀은 환경 변수로만, 채팅·코드·커밋·로그에 넣지 않는다 · 데스크톱 앱(Docker Desktop 등)은 켜기 전에 사용자에게 말한다.
+- **운영 주의:** API 키 없으면 LAN 401(`SIMPLELAY_ALLOW_UNAUTHENTICATED=1`은 개발용) · **링크 키 `SIMPLELAY_LINK_KEY`가 없으면 RPi4 실행기·RPi5(`SIMPLELAY_ACT_MODE=uart`)가 시작 거절**(무인증은 `SIMPLELAY_LINK_AUTH=off_for_mock` + 모의 구성 전용, [보안 수리](docs/devlog/devlog_2026-10-14-security-fix.md)) · `SIMPLELAY_THINQ_MODE` 기본 off · `SIMPLELAY_L3_MODE=real`은 RPi4에 콘센트 모듈 연결이 있어야 하고 없으면 기동 거절 · RPi4 재부팅 뒤엔 `systemctl start docker` 필요 · 펌웨어 비밀값은 `firmware-node/secrets.ini`(untracked) · 인식 서비스 키 등 비밀은 환경 변수로만, 채팅·코드·커밋·로그에 넣지 않는다 · 데스크톱 앱(Docker Desktop 등)은 켜기 전에 사용자에게 말한다.
 
 ## 아키텍처 요점 (자세히는 docs/개발현황.md)
 
