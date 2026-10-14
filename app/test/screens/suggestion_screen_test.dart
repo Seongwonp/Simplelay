@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/screens/suggestion_screen.dart';
+import 'package:simplelay/widgets/button_map_grid.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -69,10 +70,116 @@ void main() {
     _useTallViewport(tester);
     await tester.pumpWidget(_buildSuggestion(_httpSug.sequenceId, suggestions: [_httpSug]));
     await tester.pump();
+    await tester.tap(find.byKey(const Key('suggestion-more')));
+    await tester.pumpAndSettle();
     expect(find.text('이 제안 30분 쉬기'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox()); // 열린 더 보기 목록을 새 화면에 남기지 않는다
     await tester.pumpWidget(_buildSuggestion(_sug.sequenceId, suggestions: [_sug]));
     await tester.pump();
+    // BLE 제안은 쉬기·동작 바꾸기·다시 받지 않기가 모두 없어 '더 보기'도 없다.
+    expect(find.byKey(const Key('suggestion-more')), findsNothing);
     expect(find.text('이 제안 30분 쉬기'), findsNothing);
+  });
+
+  // ── 2026-10-14 UI 정리: 아래 고정 영역은 실행·다음에만, 나머지는 '더 보기' ─────────────
+  group('SuggestionScreen — 동시 선택지 줄이기', () {
+    Finder barButtons() => find.descendant(
+          of: find.byKey(const Key('suggestion-action-bar')),
+          matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
+        );
+
+    testWidgets('아래 고정 영역의 선택지는 실행·다음에 둘뿐이다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSuggestion('test-003', suggestions: const [_httpSug]));
+      await tester.pumpAndSettle();
+
+      expect(barButtons(), findsNWidgets(2));
+      final bar = find.byKey(const Key('suggestion-action-bar'));
+      expect(find.descendant(of: bar, matching: find.text('지금 실행')), findsOneWidget);
+      expect(find.descendant(of: bar, matching: find.text('다음에')), findsOneWidget);
+      // 쉬기·동작 바꾸기·다시 받지 않기는 처음 화면에 없다.
+      for (final text in ['이 제안 30분 쉬기', '이번 동작 바꾸기', '이 제안 다시 받지 않기']) {
+        expect(find.text(text), findsNothing, reason: text);
+      }
+    });
+
+    testWidgets("'더 보기'를 누르면 쉬기·동작 바꾸기·다시 받지 않기가 나온다", (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSuggestion('test-003', suggestions: const [_httpSug]));
+      await tester.pumpAndSettle();
+
+      final more = find.byKey(const Key('suggestion-more'));
+      expect(more, findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('더 보기')), findsWidgets);
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      for (final text in ['이 제안 30분 쉬기', '이번 동작 바꾸기', '이 제안 다시 받지 않기']) {
+        expect(find.text(text), findsOneWidget, reason: text);
+      }
+    });
+
+    testWidgets('실행 대상·누를 버튼·모의 여부는 펼치지 않아도 보이고, 버튼 배치는 펼쳐야 보인다',
+        (tester) async {
+      _useTallViewport(tester);
+      final demoMicrowave = ApplianceMap(
+        id: 'microwave',
+        name: '전자레인지',
+        category: ApplianceCategory.microwave,
+        rows: kTestAppliance.rows,
+        cols: kTestAppliance.cols,
+        buttons: kTestAppliance.buttons,
+        isDemo: true,
+      );
+      await tester.pumpWidget(buildWithProviderState(
+        suggestions: const [
+          Suggestion(
+            sequenceId: 'demo-1',
+            label: '즉석밥 데우기',
+            steps: ['BT-08', 'BT-03', 'BT-05'],
+            applianceId: 'microwave',
+            source: SuggestionSource.http,
+            timeBand: '데모',
+            isDemo: true,
+          ),
+        ],
+        overrides: [
+          ...connectedOverrides(),
+          ...installedOverrides([demoMicrowave]),
+        ],
+        child: MaterialApp(
+          theme: ThemeData.dark(),
+          home: const SuggestionScreen(sequenceId: 'demo-1'),
+        ),
+      ));
+      await tester.pumpAndSettle();
+
+      expect(find.text('전자레인지'), findsWidgets); // 실행 대상
+      expect(find.text('즉석밥'), findsOneWidget); // 누를 버튼(순서 목록)
+      expect(find.text('누를 순서'), findsOneWidget);
+      expect(find.text('데모'), findsOneWidget); // 모의(표본) 가전
+      expect(find.text('시연 데이터로 만든 제안'), findsOneWidget);
+      // 버튼 배치(지도)는 접혀 있다 — 제목만 보이고 지도는 없다.
+      expect(find.text('전자레인지의 실제 버튼 배치'), findsOneWidget);
+      expect(find.byType(ButtonMapGrid), findsNothing);
+      await tester.tap(find.text('전자레인지의 실제 버튼 배치'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ButtonMapGrid), findsOneWidget);
+    });
+
+    testWidgets('글꼴 2.0에서도 고정 영역은 실행·다음에 둘, 더 보기는 위에서 닿는다', (tester) async {
+      tester.view.physicalSize = const Size(360, 780);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(_buildSuggestion('test-003', suggestions: const [_httpSug]));
+      await tester.pumpAndSettle();
+
+      expect(barButtons(), findsNWidgets(2));
+      expect(find.byKey(const Key('suggestion-more')).hitTestable(), findsOneWidget);
+      expect(find.text('이 제안 다시 받지 않기'), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('SuggestionScreen — 제안 없음', () {
@@ -100,6 +207,9 @@ void main() {
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
+      // 버튼 배치(지도)는 접혀 있다 — 펼쳐서 비교한다(2026-10-14 UI 정리).
+      await tester.tap(find.text('전자레인지의 실제 버튼 배치'));
+      await tester.pumpAndSettle();
       // 순서 목록과 버튼 지도가 **같은 단어**를 쓴다 -- 대상 가전에 등록된
       // 라벨 그대로. 예전에는 목록이 전역 표('1분 추가')를, 지도가 가전
       // 라벨('1분')을 써서 같은 버튼을 두 이름으로 불렀다.
@@ -241,6 +351,9 @@ void main() {
       router.push('/suggestion/test-003');
       await tester.pumpAndSettle();
 
+      // 다시 받지 않기는 '더 보기' 안에 있다(2026-10-14 UI 정리).
+      await tester.tap(find.byKey(const Key('suggestion-more')));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('이 제안 다시 받지 않기'));
       await tester.pumpAndSettle();
 

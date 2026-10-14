@@ -147,6 +147,9 @@ void main() {
 
       expect(find.text('제안 확인'), findsOneWidget);
       expect(find.textContaining('근거:'), findsOneWidget);
+      // 다시 받지 않기는 '더 보기' 안(2026-10-14 UI 정리).
+      await tester.tap(find.byKey(const Key('suggestion-more')));
+      await tester.pumpAndSettle();
       expect(find.text('이 제안 다시 받지 않기'), findsOneWidget);
       expect(find.textContaining('승인하면 위 내용 그대로만'), findsNothing);
       expect(find.text('버튼을 대신 눌러요'), findsNothing);

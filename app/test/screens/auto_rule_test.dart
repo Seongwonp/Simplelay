@@ -205,6 +205,29 @@ void main() {
       expect(find.text('지금 실행'), findsNothing);
     });
 
+    testWidgets('세 갈래는 아래 고정 영역에 그대로, 동작 바꾸기 등은 더 보기로 — 자동 허용은 더 보기에 없다',
+        (tester) async {
+      _tall(tester);
+      await tester.pumpWidget(_cardApp(_Server()));
+      await _settle(tester);
+
+      final bar = find.byKey(const Key('suggestion-action-bar'));
+      final barButtons = find.descendant(
+          of: bar, matching: find.byWidgetPredicate((w) => w is ButtonStyleButton));
+      expect(barButtons, findsNWidgets(3));
+      for (final text in ['이번만 실행', '다음부터도 자동으로', '안 할래요']) {
+        expect(find.descendant(of: bar, matching: find.text(text)), findsOneWidget, reason: text);
+      }
+      expect(find.text('이번 동작 바꾸기'), findsNothing);
+      await tester.tap(find.byKey(const Key('suggestion-more')));
+      await _settle(tester);
+      // 더 보기 안에는 관리 선택지만 — 자동 허용·실행은 고정 영역에만 있다.
+      final sheet = find.byType(BottomSheet);
+      expect(find.descendant(of: sheet, matching: find.text('이번 동작 바꾸기')), findsOneWidget);
+      expect(find.descendant(of: sheet, matching: find.textContaining('자동')), findsNothing);
+      expect(find.descendant(of: sheet, matching: find.textContaining('실행')), findsNothing);
+    });
+
     testWidgets('다음부터도 자동으로 → 조건·동작 확인 시트, 취소면 아무것도 보내지 않는다', (tester) async {
       _tall(tester);
       final server = _Server();

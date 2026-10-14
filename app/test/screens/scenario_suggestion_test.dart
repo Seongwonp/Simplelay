@@ -377,25 +377,41 @@ void main() {
     expect(find.descendant(of: bar, matching: find.text('지금 실행')).hitTestable(), findsOneWidget);
     expect(find.descendant(of: bar, matching: find.text('다음에')).hitTestable(), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('지금 실행')), findsWidgets);
-    // 보조 행동은 고정 영역에서 빠져 본문 끝으로 — 스크롤하면 닿는다.
+    // 보조 행동은 고정 영역에도 본문에도 없고 '더 보기'(위 앱바)에서 닿는다(2026-10-14 UI 정리).
     for (final text in ['이 제안 30분 쉬기', '이 제안 다시 받지 않기']) {
-      expect(find.descendant(of: bar, matching: find.text(text)), findsNothing, reason: text);
+      expect(find.text(text), findsNothing, reason: text);
     }
-    await tester.scrollUntilVisible(find.text('이 제안 다시 받지 않기'), 120,
-        scrollable: find.byType(Scrollable).first);
-    await tester.ensureVisible(find.text('이 제안 다시 받지 않기'));
-    await tester.pump();
+    await tester.tap(find.byKey(const Key('suggestion-more')));
+    await _settle(tester);
     expect(find.text('이 제안 다시 받지 않기').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
     handle.dispose();
   });
 
-  testWidgets('기본 글꼴에서는 보조 행동도 아래 고정 영역에 그대로', (tester) async {
+  testWidgets('기본 글꼴에서도 고정 영역은 실행·다음에 둘 — 보조 행동은 더 보기 안', (tester) async {
     _tall(tester);
     final server = _Server()..card = _routineCard;
     await tester.pumpWidget(_build(server));
     await _settle(tester);
     final bar = find.byKey(const Key('suggestion-action-bar'));
-    expect(find.descendant(of: bar, matching: find.text('이 제안 다시 받지 않기')), findsOneWidget);
+    expect(
+        find.descendant(of: bar, matching: find.byWidgetPredicate((w) => w is ButtonStyleButton)),
+        findsNWidgets(2));
+    expect(find.text('이 제안 다시 받지 않기'), findsNothing);
+    await tester.tap(find.byKey(const Key('suggestion-more')));
+    await _settle(tester);
+    expect(find.text('이 제안 다시 받지 않기'), findsOneWidget);
+    expect(find.text('이 제안 30분 쉬기'), findsOneWidget);
+  });
+
+  testWidgets('ThinQ 경로·모의 표시·할 일은 더 보기 없이 보인다', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server()));
+    await _settle(tester);
+    expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
+    expect(find.text('선풍기 전원 → 약풍'), findsOneWidget);
+    expect(find.text('할 일'), findsOneWidget);
+    expect(find.text('시연 데이터로 만든 제안'), findsOneWidget);
+    expect(find.textContaining('ThinQ'), findsWidgets);
   });
 }

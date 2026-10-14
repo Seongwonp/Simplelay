@@ -333,8 +333,22 @@ class SuggestionScreen extends ConsumerWidget {
                 ? '아직 연결되지 않았어요'
                 : '아직 준비가 끝나지 않았어요');
 
+    final more = _moreActions(
+      canMute: suggestion.canMute,
+      onMute: () => _dismissSuggestion(context, ref, suggestion, mute: true),
+      onRevise: suggestion.source == SuggestionSource.http && suggestion.timeBand != '환경'
+          ? () => _revise(context, ref, suggestion) : null,
+      onSnooze: suggestion.source == SuggestionSource.http && !suggestion.isDemo
+          && suggestion.timeBand != '데모'
+          ? () => _dismissSuggestion(context, ref, suggestion, mute: false, snooze: true)
+          : null,
+    );
+
     return Scaffold(
-      appBar: AppBar(title: const Text('제안 확인')),
+      appBar: AppBar(
+        title: const Text('제안 확인'),
+        actions: [if (more.isNotEmpty) _MoreButton(actions: more)],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
@@ -373,41 +387,17 @@ class SuggestionScreen extends ConsumerWidget {
 
           // ── 실제 배치에서 어디인가 ──────────────────────────────────────
           // 순서 목록이 주 정보고, 지도는 그것을 실제 버튼판 위에서 다시
-          // 확인하는 보조다. 그래서 아래에 둔다.
-          Text('${appliance.displayName}의 실제 버튼 배치',
-              style: AppText.title),
-          const SizedBox(height: 10),
-          ButtonMapGrid(appliance: appliance, steps: suggestion.steps),
-          // 큰 글씨: 보조 행동은 본문 끝에(고정 영역을 실행·다음에로 줄인다, 2026-10-14).
-          if (_largeText(context)) ...[
-            const SizedBox(height: 20),
-            _SecondaryActions(
-              canMute: suggestion.canMute,
-              onMute: () => _dismissSuggestion(context, ref, suggestion, mute: true),
-              onRevise: suggestion.source == SuggestionSource.http && suggestion.timeBand != '환경'
-                  ? () => _revise(context, ref, suggestion) : null,
-              onSnooze: suggestion.source == SuggestionSource.http && !suggestion.isDemo
-                  && suggestion.timeBand != '데모'
-                  ? () => _dismissSuggestion(context, ref, suggestion, mute: false, snooze: true)
-                  : null,
-            ),
-          ],
+          // 확인하는 보조다. 그래서 아래에 두고, 필요할 때 펼친다(2026-10-14 UI 정리).
+          _ButtonMapSection(appliance: appliance, steps: suggestion.steps),
         ],
       ),
-      // 주 행동은 스크롤과 무관하게 항상 손 닿는 자리에.
+      // 주 행동은 스크롤과 무관하게 항상 손 닿는 자리에 — 실행·다음에 둘만.
+      // 쉬기·동작 바꾸기·다시 받지 않기는 위의 '더 보기'에 둔다(2026-10-14 UI 정리).
       bottomNavigationBar: _ActionBar(
         appliance: appliance,
         stepCount: suggestion.steps.length,
         blockedWhy: blockedWhy,
-        canMute: suggestion.canMute,
         onSkip: () => _dismissSuggestion(context, ref, suggestion, mute: false),
-        onMute: () => _dismissSuggestion(context, ref, suggestion, mute: true),
-        onRevise: suggestion.source == SuggestionSource.http && suggestion.timeBand != '환경'
-            ? () => _revise(context, ref, suggestion) : null,
-        onSnooze: suggestion.source == SuggestionSource.http && !suggestion.isDemo
-            && suggestion.timeBand != '데모'
-            ? () => _dismissSuggestion(context, ref, suggestion, mute: false, snooze: true)
-            : null,
         onRun: blocked ? null : () => _approve(context, ref, suggestion),
       ),
     );
@@ -516,19 +506,15 @@ class _StepList extends StatelessWidget {
 
 // ── 하단 고정 행동 ────────────────────────────────────────────────────────
 
-/// 실행 직전 **대상과 단계 수를 한 번 더** 말하고, 행동 셋의 위계를 나눈다:
-/// 지금 실행(채움) > 이번만 넘기기(외곽선) > 다시 받지 않기(글자).
+/// 실행 직전 **대상과 단계 수를 한 번 더** 말하고, 선택지는 둘만 둔다:
+/// 지금 실행(채움) > 다음에(외곽선). 관리 선택지는 위의 '더 보기'(2026-10-14 UI 정리).
 class _ActionBar extends StatelessWidget {
   const _ActionBar({
     required this.appliance,
     required this.stepCount,
     required this.blockedWhy,
-    required this.canMute,
     required this.onSkip,
-    required this.onMute,
     required this.onRun,
-    this.onSnooze,
-    this.onRevise,
   });
 
   final ApplianceMap appliance;
@@ -536,12 +522,8 @@ class _ActionBar extends StatelessWidget {
 
   /// 실행할 수 없는 이유. null이면 실행할 수 있다.
   final String? blockedWhy;
-  final bool canMute;
   final VoidCallback onSkip;
-  final VoidCallback onMute;
   final VoidCallback? onRun;
-  final VoidCallback? onSnooze;
-  final VoidCallback? onRevise;
 
   @override
   Widget build(BuildContext context) {
@@ -557,7 +539,7 @@ class _ActionBar extends StatelessWidget {
       label: const Text('지금 실행'),
     );
     // 큰 글씨에서는 두 버튼을 나란히 두면 '다음에'가 단어 중간에서
-    // 줄바꿈된다. 세로로 쌓고 주 행동을 위에 둔다. 보조 행동과 안내 줄은 본문 끝으로 옮긴다(2026-10-14).
+    // 줄바꿈된다. 세로로 쌓고 주 행동을 위에 둔다. 안내 줄은 뺀다(위 머리가 같은 말을 한다).
     final stacked = _largeText(context);
 
     return Material(
@@ -617,13 +599,6 @@ class _ActionBar extends StatelessWidget {
                     Expanded(flex: 4, child: run),
                   ],
                 ),
-              if (!stacked)
-                _SecondaryActions(
-                  canMute: canMute,
-                  onMute: onMute,
-                  onSnooze: onSnooze,
-                  onRevise: onRevise,
-                ),
             ],
           ),
         ),
@@ -635,50 +610,90 @@ class _ActionBar extends StatelessWidget {
 /// 큰 글씨(1.5배 이상)인가 — 아래 고정 영역을 줄이는 기준(2026-10-14, 보드 날 발견 4).
 bool _largeText(BuildContext context) => MediaQuery.textScalerOf(context).scale(1) >= 1.5;
 
-/// 보조 행동(30분 쉬기·이번 동작 바꾸기·다시 받지 않기). 기본 글씨에서는 아래 고정 영역에, 큰 글씨에서는
-/// 본문 끝에 둔다 — 글꼴 2.0·360×780에서 고정 영역이 화면 절반을 차지해 '승인하면 할 일'이 첫 화면에서 밀렸다.
-/// 실행·다음에(정지 성격의 거절 포함)는 늘 고정 영역에 남는다.
-class _SecondaryActions extends StatelessWidget {
-  const _SecondaryActions({
-    required this.canMute,
-    required this.onMute,
-    this.onSnooze,
-    this.onRevise,
-  });
+/// '더 보기' 안의 관리 선택지 하나.
+typedef _MoreAction = ({String label, IconData icon, VoidCallback onTap});
 
-  final bool canMute;
-  final VoidCallback onMute;
-  final VoidCallback? onSnooze;
-  final VoidCallback? onRevise;
+/// 관리 선택지(30분 쉬기·이번 동작 바꾸기·다시 받지 않기). 실행·다음에와 한꺼번에 늘어놓으면 다섯 갈래가 되어
+/// 무엇이 주 행동인지 흐려졌다(2026-10-14 외부 UI 의견) — 아래 고정 영역에서 빼 '더 보기'에 둔다.
+/// 자동 실행 허용('다음부터도 자동으로')은 여기에 넣지 않는다 — 실행과 같은 무게의 결정이라 고정 영역에 남는다.
+List<_MoreAction> _moreActions({
+  required bool canMute,
+  required VoidCallback onMute,
+  VoidCallback? onSnooze,
+  VoidCallback? onRevise,
+}) =>
+    [
+      if (onSnooze != null)
+        (label: '이 제안 30분 쉬기', icon: Icons.snooze, onTap: onSnooze),
+      if (onRevise != null)
+        (label: '이번 동작 바꾸기', icon: Icons.edit_outlined, onTap: onRevise),
+      // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE 경로는 '다음에'와 같은 거절 메시지라
+      // 약속을 지킬 수 없다.
+      if (canMute)
+        (label: '이 제안 다시 받지 않기', icon: Icons.notifications_off_outlined, onTap: onMute),
+    ];
 
-  bool get isEmpty => !canMute && onSnooze == null && onRevise == null;
+/// 앱바의 '더 보기' — 누르면 아래에서 관리 선택지 목록이 올라온다. 고른 뒤 목록을 먼저 닫고 실행한다
+/// (거절은 이 화면을 닫으므로, 목록이 열린 채 실행하면 목록만 닫힌다).
+class _MoreButton extends StatelessWidget {
+  const _MoreButton({required this.actions});
+
+  final List<_MoreAction> actions;
+
+  Future<void> _open(BuildContext context) async {
+    final picked = await showModalBottomSheet<VoidCallback>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final a in actions)
+                ListTile(
+                  minTileHeight: 56,
+                  leading: Icon(a.icon),
+                  title: Text(a.label),
+                  onTap: () => Navigator.of(sheetContext).pop(a.onTap),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    picked?.call();
+  }
 
   @override
-  Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE 경로는 '다음에'와 같은 거절 메시지라
-          // 약속을 지킬 수 없다.
-          if (onSnooze != null)
-            TextButton.icon(
-              onPressed: onSnooze,
-              icon: const Icon(Icons.snooze, size: 18),
-              label: const Text('이 제안 30분 쉬기'),
-            ),
-          if (onRevise != null)
-            TextButton.icon(
-              onPressed: onRevise,
-              icon: const Icon(Icons.edit_outlined, size: 18),
-              label: const Text('이번 동작 바꾸기'),
-            ),
-          if (canMute)
-            TextButton.icon(
-              onPressed: onMute,
-              icon: const Icon(Icons.notifications_off_outlined, size: 18),
-              label: const Text('이 제안 다시 받지 않기'),
-            ),
-        ],
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(right: 4),
+        child: TextButton.icon(
+          key: const Key('suggestion-more'),
+          onPressed: () => _open(context),
+          icon: const Icon(Icons.more_horiz),
+          label: const Text('더 보기'),
+        ),
+      );
+}
+
+/// 실제 버튼 배치(지도) — 순서 목록을 버튼판 위에서 다시 확인하는 보조라 접어 둔다(2026-10-14 UI 정리).
+/// 제목은 늘 보여 무엇을 펼치는지 안다.
+class _ButtonMapSection extends StatelessWidget {
+  const _ButtonMapSection({required this.appliance, required this.steps});
+
+  final ApplianceMap appliance;
+  final List<String> steps;
+
+  @override
+  Widget build(BuildContext context) => ExpansionTile(
+        key: const Key('suggestion-button-map'),
+        tilePadding: EdgeInsets.zero,
+        childrenPadding: const EdgeInsets.only(top: 4, bottom: 8),
+        shape: const Border(),
+        collapsedShape: const Border(),
+        title: Text('${appliance.displayName}의 실제 버튼 배치', style: AppText.title),
+        children: [ButtonMapGrid(appliance: appliance, steps: steps)],
       );
 }
 
@@ -809,8 +824,18 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
       }
     }
 
+    final more = _moreActions(
+      canMute: canMute,
+      onMute: onMute,
+      onSnooze: onSnooze,
+      onRevise: onRevise,
+    );
+
     return Scaffold(
-      appBar: AppBar(title: Text(userStarted ? '실행 확인' : '제안 확인')),
+      appBar: AppBar(
+        title: Text(userStarted ? '실행 확인' : '제안 확인'),
+        actions: [if (more.isNotEmpty) _MoreButton(actions: more)],
+      ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
@@ -840,26 +865,13 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
               command: suggestion.commands[i],
               readiness: readiness[suggestion.commands[i].targetId],
             ),
-          // 큰 글씨: 보조 행동은 본문 끝에(고정 영역을 실행·다음에로 줄인다, 2026-10-14).
           // 안심 문장("승인하면 위 내용 그대로만…"·"누르지 않으면 실행하지 않아요")은 뺐다 — 버튼이 이미 말한다.
-          if (_largeText(context)) ...[
-            const SizedBox(height: 12),
-            _SecondaryActions(
-              canMute: canMute,
-              onMute: onMute,
-              onSnooze: onSnooze,
-              onRevise: onRevise,
-            ),
-          ],
+          // 쉬기·동작 바꾸기·다시 받지 않기는 위의 '더 보기'(2026-10-14 UI 정리).
         ],
       ),
       bottomNavigationBar: _ScenarioActionBar(
         blockedWhy: blockedWhy,
-        canMute: canMute,
         onSkip: onSkip,
-        onMute: onMute,
-        onSnooze: onSnooze,
-        onRevise: onRevise,
         onRun: blockedWhy == null ? onRun : null,
         hasAllow: onAllow != null,
         onAllow: blockedWhy == null ? onAllow : null,
@@ -945,23 +957,15 @@ class _CommandRow extends StatelessWidget {
 class _ScenarioActionBar extends StatelessWidget {
   const _ScenarioActionBar({
     required this.blockedWhy,
-    required this.canMute,
     required this.onSkip,
-    required this.onMute,
     required this.onRun,
-    this.onSnooze,
-    this.onRevise,
     this.hasAllow = false,
     this.onAllow,
   });
 
   final String? blockedWhy;
-  final bool canMute;
   final VoidCallback onSkip;
-  final VoidCallback onMute;
   final VoidCallback? onRun;
-  final VoidCallback? onSnooze;
-  final VoidCallback? onRevise;
 
   /// 자동 실행을 고를 수 있는 카드(v4 가열 종료 감지 → 공기청정기). 그러면 세 갈래:
   /// [이번만 실행] [다음부터도 자동으로] [안 할래요]. [onAllow]가 null이면(준비 안 됨) 누를 수 없다.
@@ -1035,13 +1039,6 @@ class _ScenarioActionBar extends StatelessWidget {
                     const SizedBox(width: 12),
                     Expanded(flex: 4, child: run),
                   ],
-                ),
-              if (!large)
-                _SecondaryActions(
-                  canMute: canMute,
-                  onMute: onMute,
-                  onSnooze: onSnooze,
-                  onRevise: onRevise,
                 ),
             ],
           ),
