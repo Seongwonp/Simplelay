@@ -57,6 +57,7 @@ from .client import (
     ThinqClientPort,
     ThinqCommandRejected,
     ThinqOfflineError,
+    ThinqTransportError,
 )
 from .config import ThinqMode
 from .profile import DeviceProfile, read_state
@@ -352,7 +353,9 @@ class ThinqController:
             return self._result(command, failed, not_sent, none,
                                 _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
         except ThinqClientError as exc:
-            if cap.requires_remote is not None:
+            # 값을 모른 채 보내는 것은 '읽는 중 끊김·응답 해석 실패'(ThinqTransportError)일 때뿐이다. 클라우드가
+            # 코드로 거절한 조회(인증·권한·약관·국가·호출 한도 등)는 보내도 같은 이유로 막히거나 막혀야 하므로 보내지 않는다.
+            if cap.requires_remote is not None or not isinstance(exc, ThinqTransportError):
                 return self._result(command, failed, not_sent, none,
                                     f"상태를 읽지 못해 보내지 않았어요 — {_reason(exc, type(exc).__name__)}",
                                     requested_at)

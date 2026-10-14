@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from rpi.commands import Command, CommandResult, CommandStatus, Confirmation, Receipt
 from rpi.controller.models import ExecutionMode
 from rpi.services.thinq import MOCK_PURIFIER_ID, MockThinqClient
-from rpi.services.thinq.client import ThinqClientError
+from rpi.services.thinq.client import ThinqClientError, ThinqCommandRejected, ThinqTransportError
 from rpi.services.thinq.wording import already_sentence, changed_sentence, dispatch_of
 from rpi.tests.test_thinq_u1 import HIGH, _controller
 
@@ -159,7 +159,7 @@ def test_pre_read_failure_sends_at_most_once_and_says_target_seen():
     def first_read_fails(device_id):
         reads.append(1)
         if len(reads) == 1:
-            raise ThinqClientError("boom")
+            raise ThinqTransportError("boom")
         return original(device_id)
 
     client.get_status = first_read_fails
@@ -173,13 +173,32 @@ def test_pre_read_and_reread_failure_is_unconfirmed_without_additional_control()
     ctrl, client = _controller()
 
     def broken(device_id):
-        raise ThinqClientError("boom")
+        raise ThinqTransportError("boom")
 
     client.get_status = broken
     result = ctrl.execute_command(HIGH)
     assert len(client.controls) == 1  # 최대 1회, 추가 전송 0회
     assert result.status is CommandStatus.UNCONFIRMED and result.confirmation is Confirmation.NONE
     assert UNCONFIRMED in result.detail
+
+
+@pytest.mark.parametrize("error", [
+    ThinqCommandRejected("1218", "invalid token", name="INVALID_TOKEN"),
+    ThinqCommandRejected("1314", "not allowed", name="NOT_ALLOWED_API_AGAIN"),
+    ThinqClientError("cloud said no", code="1306", name="EXCEEDED_API_CALLS"),
+])
+def test_cloud_refused_pre_read_does_not_send(error):
+    """사전 조회를 클라우드가 코드로 거절(인증·권한·한도)했으면 값을 몰라도 보내지 않는다 -- 보낼 근거가 없다."""
+    ctrl, client = _controller()
+
+    def refused(device_id):
+        raise error
+
+    client.get_status = refused
+    result = ctrl.execute_command(HIGH)
+    assert client.controls == []  # 제어 요청 0회
+    assert result.receipt is Receipt.NOT_DISPATCHED and result.status is CommandStatus.FAILED
+    assert "보내지 않았어요" in result.detail
 
 
 def test_pre_read_failure_on_remote_gated_washer_still_does_not_send():
