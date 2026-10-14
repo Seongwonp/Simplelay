@@ -84,7 +84,7 @@ Characteristic  : 0000FFE1-0000-1000-8000-00805F9B34FB
   3초 안에 답이 없거나 서명 없는 답이 오면 이유를 "RPi4 인증 실패 — 두 보드의 SIMPLELAY_LINK_KEY가 같은지
   확인"으로 두고(`/dev/state real_motion_reason`에도 보인다) 재연결과 같은 늘어나는 간격으로 hello를 다시 보낸다.
 - 재연결은 새 hello = 새 세션이다. RPi4는 세션 전에는 아무것도 보내지 않는다(켜질 때의 자발 알림도).
-- 한쪽만 키가 있으면 링크가 열리지 않는다(fail closed). 두 쪽 다 없으면 종전과 줄까지 같고 시작 때 경고 한 번.
+- 한쪽만 키가 있으면 링크가 열리지 않는다(fail closed). **키는 필수다(2026-10-14):** 없으면 RPi4 실행기·RPi5 백엔드(`SIMPLELAY_ACT_MODE=uart`)가 링크를 열기 전에 시작을 거절한다. 무인증 링크는 `SIMPLELAY_LINK_AUTH=off_for_mock`을 명시한 모의 구성에서만 열고(줄은 종전과 같다, 시작 때 경고 한 번), 실물 경로(RPi4 모션 serial·실물 콘센트 모듈·L3 real·실센서, RPi5 `SIMPLELAY_DEV_REAL_MOTION`)와 함께면 거절한다.
 - 키는 로그·응답·기록에 남기지 않는다. 기밀성(암호화)은 없다 — 프레임 내용은 망에서 보인다.
 
 ### RPi5 → RPi4

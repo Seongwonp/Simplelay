@@ -20,6 +20,8 @@
 #
 # 링크 인증(2026-10-12): TCP 7000은 같은 망 누구에게나 열려 있다. env 파일에 SIMPLELAY_LINK_KEY(RPi5 env와
 # 같은 값, 16자 이상)를 두면 서명된 프레임만 받는다(docs/protocol.md "링크 인증"). 키가 들어가므로 파일은 600.
+# 2026-10-14부터 키가 **필수**다 — 없으면 실행기가 시작을 거절하고 컨테이너가 재시작을 되풀이한다(docker logs에 이유).
+# SIMPLELAY_LINK_AUTH=off_for_mock은 모의 구성 전용이고, 모션 serial·실물 콘센트 등 실물 경로와 함께면 거절된다.
 set -e
 LINK=${LINK:-lan}
 DATA_DIR=${DATA_DIR:-/mnt/rawdata/simplelay-act}

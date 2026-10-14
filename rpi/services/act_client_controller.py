@@ -337,6 +337,25 @@ def start_background_loop() -> tuple[asyncio.AbstractEventLoop, threading.Thread
     return loop, thread
 
 
+def rpi5_link_real_paths() -> list[str]:
+    """RPi5에서 켜진 실물 경로 — 무인증 모의 설정(off_for_mock)과 함께 켜지면 시작을 거절한다(2026-10-14).
+
+    RPi5는 RPi4의 모션 구성을 시작 때 알 수 없다. 실물 모션·콘센트 쪽은 RPi4 실행기가 같은 규칙으로 막는다."""
+    from .dev_real_motion import DEV_REAL_MOTION_ENV, dev_real_motion_requested
+
+    return [DEV_REAL_MOTION_ENV] if dev_real_motion_requested() else []
+
+
+def check_link_auth_at_startup() -> None:
+    """``SIMPLELAY_ACT_MODE=uart``면 기동 때 짝 키 규칙을 확인한다 — 첫 요청이 아니라 띄울 때 거절한다."""
+    import os
+
+    from .link_auth import link_key_from_env
+
+    if os.environ.get("SIMPLELAY_ACT_MODE", "").strip().lower() == "uart":
+        link_key_from_env(real_paths=rpi5_link_real_paths())
+
+
 def open_uart_act_controller(
     port: str,
     baud: int,
@@ -355,8 +374,8 @@ def open_uart_act_controller(
 
     from .link_auth import link_key_from_env
 
-    # 짝 키(2026-10-12 무선 링크 인증). 짧으면 LinkKeyError로 링크를 열지 않는다. 없으면 경고 한 번(인증 없음).
-    link_key = link_key_from_env()
+    # 짝 키(2026-10-12 무선 링크 인증). 없거나 짧으면 LinkKeyError로 링크를 열지 않는다(2026-10-14 키 필수).
+    link_key = link_key_from_env(real_paths=rpi5_link_real_paths())
     loop, _thread = start_background_loop()
 
     config = ActClientConfig.from_env()  # 실기기 타이밍 캘리브레이션 반영

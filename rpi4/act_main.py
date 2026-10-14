@@ -11,7 +11,10 @@ Environment variables:
   SIMPLELAY_UART_BAUD             baud rate           (default: 115200)
   SIMPLELAY_LINK_KEY              RPi5↔RPi4 링크 짝 키(2026-10-12, 16자 이상 — 짧으면 시작 거절). RPi5와 같은 값.
                                   있으면 서명된 hello로 세션을 열고 프레임마다 HMAC·seq를 확인한다(docs/protocol.md
-                                  "링크 인증"). 없으면 종전처럼 인증 없이 돌고 시작 때 경고한다. 한쪽만 있으면 링크가 안 열린다
+                                  "링크 인증"). **없으면 시리얼을 열기 전에 시작을 거절한다**(2026-10-14 보안 점검). 한쪽만 있으면
+                                  링크가 안 열린다
+  SIMPLELAY_LINK_AUTH             "off_for_mock"이면 키 없이 연다 — 모의 구성 전용. 모션 serial·실물 콘센트 모듈·L3 real·
+                                  실센서 중 하나라도 켜져 있으면 시작을 거절한다(_link_real_paths)
   SIMPLELAY_SENSORS_ENABLED       "true" → SensorVerifier (ADS1115 전류 +
                                   마이크 음향 퓨전 검증). 기본 false = mock —
                                   센서 하드웨어 없이도 실행 경로가 살아있어야
@@ -1014,11 +1017,27 @@ def _maybe_start_danger_monitor(executor: ActExecutor, done_watches=None) -> "as
     return asyncio.create_task(monitor.run())
 
 
+def _link_real_paths() -> list[str]:
+    """이 실행기에서 켜진 실물 경로 — 하나라도 있으면 무인증 모의 설정(off_for_mock)으로 시작하지 않는다(2026-10-14)."""
+    real = []
+    motion = (os.getenv("SIMPLELAY_MOTION_MODE", "mock") or "mock").strip().lower() or "mock"
+    if motion != "mock":
+        real.append(f"SIMPLELAY_MOTION_MODE={motion}")
+    outlet = os.getenv("SIMPLELAY_OUTLET_PORT", "").strip()
+    if outlet and outlet.lower() != "fake":
+        real.append("SIMPLELAY_OUTLET_PORT")
+    if (os.getenv("SIMPLELAY_L3_MODE", "off") or "off").strip().lower() == "real":
+        real.append("SIMPLELAY_L3_MODE=real")
+    if _flag("SIMPLELAY_SENSORS_ENABLED"):
+        real.append("SIMPLELAY_SENSORS_ENABLED")
+    return real
+
+
 async def _run() -> None:
     from rpi.services.link_auth import link_key_from_env
 
-    # 짝 키를 먼저 확인한다 — 짧으면 시리얼을 열기 전에 LinkKeyError로 끝난다(2026-10-12).
-    link_key = link_key_from_env()
+    # 짝 키를 먼저 확인한다 — 없거나 짧으면 시리얼을 열기 전에 시작을 거절한다(2026-10-12, 10-14 키 필수).
+    link_key = link_key_from_env(real_paths=_link_real_paths())
     log.info("Opening %s at %d baud (link auth %s)", SERIAL_PORT, BAUD_RATE, "on" if link_key else "OFF")
     try:
         import serial_asyncio  # type: ignore[import-untyped]

@@ -270,6 +270,9 @@ def test_uart_factory_wires_a_reconnecting_connector(monkeypatch):
     fake.open_serial_connection = open_serial_connection  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "serial_asyncio", fake)
     monkeypatch.setattr(acc.ActClient, "RECONNECT_BACKOFF", (0.01, 0.05), raising=False)
+    # 링크 키는 필수다(2026-10-14) — 봉투 없는 hello를 보므로 명시적 모의 설정으로 연다.
+    monkeypatch.delenv("SIMPLELAY_LINK_KEY", raising=False)
+    monkeypatch.setenv("SIMPLELAY_LINK_AUTH", "off_for_mock")
 
     controller = acc.open_uart_act_controller("socket://rpi4:7000", 115200)
     try:

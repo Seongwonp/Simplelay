@@ -4,7 +4,8 @@
   - 같은 키: execute·정지·개발자 조작이 종전처럼 오가고, 모든 프레임에 봉투(cn·sn / seq·mac)가 붙는다.
   - 다른 키·한쪽만 키: 링크가 '인증 실패'로 내려가 있고 아무것도 누르지 않는다(fail closed).
   - 세션 중 끼워 넣은 서명 없는 프레임·재전송한 프레임·재전송한 hello는 버린다(답도 없다).
-  - 두 쪽 다 키 없음: 줄이 종전과 바이트까지 같다(시작 때 경고 한 번).
+  - 두 쪽 다 키 없음(클래스 수준 — 운영 진입점은 2026-10-14부터 키가 필수이고, 무인증은 명시적 모의 설정
+    ``SIMPLELAY_LINK_AUTH=off_for_mock``에서만 연다. test_link_key_required.py): 줄이 종전과 바이트까지 같다.
   - 짧은 키: 링크를 열지 않는다.
 """
 
@@ -332,10 +333,12 @@ def test_server_auth_rejects_replayed_hello_and_old_session_frames():
     assert restarted.open(dict(old.seal({"type": "abort"}))) is None  # 옛 세션 키로는 아무것도 못 한다
 
 
-# ── 키 없음·짧은 키 ─────────────────────────────────────────────────────────────
+# ── 키 없음(명시적 모의)·짧은 키 ───────────────────────────────────────────────────
 
 
-def test_no_key_on_both_sides_is_unchanged_on_the_wire():
+def test_mock_only_link_without_keys_is_unchanged_on_the_wire():
+    """명시적 모의 설정(off_for_mock)으로 연 무인증 링크 — 봉투 없이 종전 줄 그대로. 운영 진입점의 거절은
+    test_link_key_required.py."""
     async def _t():
         link = await _Link(None, None).start()
         await _ready(link)
@@ -349,9 +352,11 @@ def test_no_key_on_both_sides_is_unchanged_on_the_wire():
     asyncio.run(_t())
 
 
-def test_no_key_in_env_warns_once_that_the_link_is_unauthenticated(caplog):
+def test_no_key_in_env_is_refused_unless_explicitly_mock_only(caplog):
+    with pytest.raises(LinkKeyError):
+        link_key_from_env({})
     with caplog.at_level(logging.WARNING):
-        assert link_key_from_env({}) is None
+        assert link_key_from_env({"SIMPLELAY_LINK_AUTH": "off_for_mock"}) is None
     warnings = [r for r in caplog.records if "SIMPLELAY_LINK_KEY" in r.getMessage()]
     assert len(warnings) == 1
 

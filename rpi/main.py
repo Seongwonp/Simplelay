@@ -131,6 +131,9 @@ async def _shutdown_cleanup() -> None:
 async def lifespan(app: FastAPI):
     # 인증 방식을 기동 로그에 남긴다 — 키 없이 LAN을 연 상태면 경고
     log_auth_mode()
+    # RPi4 링크(SIMPLELAY_ACT_MODE=uart)는 짝 키가 없으면 기동을 거절한다(2026-10-14 보안 점검 — 무인증은 모의 명시 설정만).
+    from rpi.services.act_client_controller import check_link_auth_at_startup
+    check_link_auth_at_startup()
     # ThinQ SDK 모드(real·fake_cloud)는 SDK·PAT·주소가 안 맞으면 여기서 기동을 거절한다 --
     # 첫 요청 때가 아니라 띄울 때 알아야 한다(모르는 모드 값도 여기서 걸린다).
     from rpi.api.thinq_wiring import get_thinq_client

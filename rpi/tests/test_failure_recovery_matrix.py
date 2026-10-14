@@ -36,7 +36,12 @@ _ENV_TO_CLEAR = (
     "SIMPLELAY_MOTION_BAUD", "SIMPLELAY_DONE_WATCH", "SIMPLELAY_RECORDER_PATH", "SIMPLELAY_MOTION_LOG_PATH",
     "SIMPLELAY_DANGER_SOUND_ENABLED", "SIMPLELAY_UART_BASE_TIMEOUT", "SIMPLELAY_UART_PER_BUTTON_TIMEOUT",
     "SIMPLELAY_FAKE_OUTLET_RELAY_CH", "SIMPLELAY_FAKE_OUTLET_CHANNELS", "SIMPLELAY_DEMO_PACING",
+    "SIMPLELAY_LINK_KEY", "SIMPLELAY_LINK_AUTH", "SIMPLELAY_DEV_REAL_MOTION",
 )
+#: 링크 키는 필수다(2026-10-14). 모의 구성 결과표는 **명시적 모의 설정**으로 키 없이 돈다 — 줄을 그대로 세고 끼워 넣기 위해서다.
+#: 실물 경로(모션 serial 등)를 켜는 결과표는 키를 준다(mcu_rig). 키 있는 경로는 아래 8절.
+MOCK_LINK = {"SIMPLELAY_LINK_AUTH": "off_for_mock"}
+LINK_KEY = "pairing-key-for-tests-0123"
 
 
 def _wait(pred, timeout: float = 4.0, what: str = "condition") -> None:
@@ -240,6 +245,8 @@ def rig(monkeypatch):
     made: list[_Rig] = []
 
     def build(**env) -> _Rig:
+        if "SIMPLELAY_LINK_KEY" not in env:
+            env = {**MOCK_LINK, **env}
         for key, value in env.items():
             monkeypatch.setenv(key, value)
         r = _Rig(monkeypatch)
@@ -384,8 +391,9 @@ def mcu_rig(rig, monkeypatch):
         config = dataclasses.replace(REHEARSAL_CONFIG, auto_home=auto_home, press_timeout_s=3.0)
         monkeypatch.setattr(act_main, "_open_motion_transport", lambda port, baud: pipe.host)
         monkeypatch.setattr(MotionConfig, "from_env", classmethod(lambda cls, env=None: config))
+        # 실물 경로(모션 serial)라 무인증 모의 설정으로는 RPi4가 시작을 거절한다 — 짝 키로 돈다(2026-10-14).
         r = rig(SIMPLELAY_MOTION_MODE="serial", SIMPLELAY_MOTION_PORT="/dev/test-mcu",
-                SIMPLELAY_MOTION_BAUD="115200")
+                SIMPLELAY_MOTION_BAUD="115200", SIMPLELAY_LINK_KEY=LINK_KEY)
         r.start_rpi4()
         r.wait_ready()
         return r, mcu
@@ -617,9 +625,6 @@ def test_request_during_release_confirmation_is_refused_not_queued(rig, monkeypa
 # ── 8. 링크 인증(2026-10-12, 무선 전환 뒤) ─────────────────────────────────────────
 # 운영 공장 두 개(open_uart_act_controller·act_main._run)가 SIMPLELAY_LINK_KEY를 읽는다. RPi5는 공장을 만들 때,
 # RPi4는 _run이 시작할 때 읽으므로 그 사이에 env를 바꾸면 두 보드의 키가 다른 상황이 된다.
-
-LINK_KEY = "pairing-key-for-tests-0123"
-
 
 def test_matching_link_keys_execute_end_to_end_and_survive_a_reconnect(rig):
     r = rig(SIMPLELAY_LINK_KEY=LINK_KEY)
