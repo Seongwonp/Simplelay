@@ -100,16 +100,26 @@ class KioskDoneView extends StatelessWidget {
     final r = reason ?? KioskFailureReason.execution;
     // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 차분한 색과 손 모양(2026-10-14).
     final userStop = !success && r == KioskFailureReason.stopped;
+    final thinq = route == 'thinq';
+    final mock = executionMode == 'mock';
+    // 실행 환경을 판정보다 먼저 본다 — 모의 실행의 true는 모의 판정일 뿐(10/6 Copilot 리뷰 66990be),
+    // 실물 모션이어도 L3 입력은 따로 모의일 수 있다(외부 평가 2026-10-13 M5) — 출처가 real일 때만 확인.
+    final operationVerified =
+        operationConfirmed == true && !mock && operationSource == 'real';
+    // 큰 체크·성공색은 **확인한 성공**에만(2026-10-14 UI 정리): 실제 ThinQ 상태 재조회, 또는 실측 동작 확인.
+    // 누름 장치 보고만·실행 환경 모름·연습은 중립 아이콘 — 문장이 '확인하지 못했어요'인데 체크가 성공을 단정하지 않게.
+    final verifiedSuccess = success && !mock && (thinq || operationVerified);
     // 확인 못 함은 실패가 아니다 — 빨강이 아니라 주의색으로 말한다.
-    final color = success
+    final color = verifiedSuccess
         ? KioskColors.success
+        : success
+        ? Colors.white
         : userStop
             ? KioskColors.muted
             : r.isUnconfirmed
                 ? KioskColors.warning
                 : KioskColors.danger;
     final target = this.target;
-    final thinq = route == 'thinq';
     // 모션 걸림 등(2026-10-14) — '눌림을 확인하지 못해'로 원인을 바꿔 말하지 않는다.
     final motion = !success && r == KioskFailureReason.safetyStop
         ? motionAbortSentence(abortReason)
@@ -122,7 +132,6 @@ class KioskDoneView extends StatelessWidget {
     // 성공의 가장 큰 글자. 물리 경로에서 실행 환경을 모르면(옛 노드·UART가
     // 보고하지 않음) '버튼 조작을 마쳤어요'라고 단정하지 않는다 — 실행기가
     // 완료를 보고했다는 사실까지만 안다.
-    final mock = executionMode == 'mock';
     final already = thinq && resultConfirmation == 'already_at_target';
     // 실제 실행이면 작은 글자는 서버 문장(그 실행의 설정 이름)으로 확인한 사실만큼. 연습은 연습 문장을 지킨다.
     final outcome = thinq ? thinqOutcomeSentence(resultConfirmation, detail) : null;
@@ -137,9 +146,6 @@ class KioskDoneView extends StatelessWidget {
             : executionMode == 'mock'
                 ? '연습으로 버튼 조작을 마쳤어요'
                 : '버튼 조작을 마쳤어요';
-    // 실행 환경을 판정보다 먼저 본다 — 모의 실행의 true는 모의 판정일 뿐
-    // 실제 가전이 움직였다는 말이 아니다(10/6 Copilot 리뷰 66990be).
-    // 외부 평가 2026-10-13 M5: 실물 모션이어도 L3 입력은 따로 모의일 수 있다(RPi4 L3_MODE=mock) —
     // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
     // 모의 출처는 아래 작은 글씨("연습용 판정 값이에요")가 같이 밝힌다.
     final operationSentence = switch (operationConfirmed) {
@@ -149,8 +155,6 @@ class KioskDoneView extends StatelessWidget {
       false => '가전 동작은 확인하지 못했어요',
       null => null,
     };
-    final operationVerified =
-        operationConfirmed == true && !mock && operationSource == 'real';
     // 정지 확인 단계 — 보냄(sent)은 확인이라고 하지 않는다(2026-10-13).
     final stopSentence = userStop
         ? stopLevelSentence(stopLevel, ackMs: stopAckMs)
@@ -192,8 +196,10 @@ class KioskDoneView extends StatelessWidget {
                 if (modeLabel case final m?)
                   Text(m, style: const TextStyle(fontSize: 18, color: KioskColors.warning)),
                 _ResultRing(
-                  icon: success
+                  icon: verifiedSuccess
                       ? Icons.check
+                      : success
+                      ? Icons.info_outline
                       : userStop
                           ? Icons.pan_tool_outlined
                           : r.isUnconfirmed

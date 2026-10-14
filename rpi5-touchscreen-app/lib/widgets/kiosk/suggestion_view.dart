@@ -123,15 +123,18 @@ class KioskSuggestionView extends StatelessWidget {
                           ),
                         ),
                         // 근거는 실제로 셀 수 있을 때만 말한다 -- 어느
-                        // 시간대였는지까지 밝힌다.
+                        // 시간대였는지까지 밝힌다. 판단의 주인공은 질문과 버튼이라 근거는
+                        // 두 줄까지만(2026-10-14 UI 정리). 낭독에는 전문이 간다.
                         if (suggestion.whyNow.isNotEmpty && !suggestion.userStarted) ...[
                           const SizedBox(height: 10),
                           Text(
                             scenario
                                 ? '근거: ${suggestion.whyNow}'
                                 : suggestion.whyNow,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
-                              fontSize: 22,
+                              fontSize: 20,
                               color: KioskColors.muted,
                             ),
                           ),
@@ -194,14 +197,15 @@ class KioskSuggestionView extends StatelessWidget {
             children: [
               // 보조 동작이 왼쪽, 주요 실행이 오른쪽 — 폰 앱과 같은 규칙.
               // 높이를 고정하지 않고 **최소 높이**로 준다. 고정하면 큰 글씨
-              // 모드에서 글자가 버튼 안에서 잘린다.
+              // 모드에서 글자가 버튼 안에서 잘린다. 선택 버튼은 질문 다음으로 크게 — 순서·근거보다
+              // 먼저 눈에 들어와야 한다(2026-10-14 UI 정리).
               Expanded(
                 flex: 3,
                 child: OutlinedButton(
                   key: const ValueKey('suggestion-later'),
                   onPressed: onReject,
                   style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 64),
+                    minimumSize: const Size(0, 72),
                     foregroundColor: Colors.white,
                     side: const BorderSide(color: KioskColors.border),
                     shape: RoundedRectangleBorder(
@@ -211,7 +215,7 @@ class KioskSuggestionView extends StatelessWidget {
                   child: const Text(
                     '다음에',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -222,7 +226,7 @@ class KioskSuggestionView extends StatelessWidget {
                   key: const ValueKey('suggestion-approve'),
                   onPressed: canExecute ? onApprove : null,
                   style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 64),
+                    minimumSize: const Size(0, 72),
                     backgroundColor: KioskColors.primary,
                     foregroundColor: KioskColors.onAccent,
                     // 비활성이어도 글자는 읽혀야 한다 — 왜 못 누르는지는
@@ -237,7 +241,7 @@ class KioskSuggestionView extends StatelessWidget {
                   child: const Text(
                     '시작',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -291,8 +295,8 @@ class _StepList extends StatelessWidget {
   final List<String> steps;
 
   static Widget _number(int n) => Container(
-        width: 32,
-        height: 32,
+        width: 28,
+        height: 28,
         alignment: Alignment.center,
         // 순서 번호는 정보다. 강조색은 주 행동('지금 실행') 몫으로 남긴다.
         decoration: const BoxDecoration(
@@ -302,7 +306,7 @@ class _StepList extends StatelessWidget {
         child: Text(
           '$n',
           style: const TextStyle(
-            fontSize: 17,
+            fontSize: 15,
             fontWeight: FontWeight.w700,
             color: KioskColors.onAccent,
           ),
@@ -329,8 +333,8 @@ class _StepList extends StatelessWidget {
                   Text(
                     steps[i],
                     style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 20,
+                      fontWeight: FontWeight.w500,
                       color: Colors.white,
                     ),
                   ),
@@ -352,8 +356,8 @@ class _StepList extends StatelessWidget {
             child: Text(
               steps[i],
               style: const TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.w600,
+                fontSize: 20,
+                fontWeight: FontWeight.w500,
                 color: Colors.white,
               ),
             ),
@@ -397,8 +401,8 @@ class _CommandList extends StatelessWidget {
                     Text(
                       summary,
                       style: const TextStyle(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w500,
                         color: Colors.white,
                       ),
                     ),

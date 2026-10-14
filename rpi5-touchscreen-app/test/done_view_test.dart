@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 
@@ -368,6 +369,49 @@ void main() {
           ),
         );
         expect(find.text(expected), findsOneWidget);
+      });
+    }
+  });
+
+  // 2026-10-14 UI 정리: 큰 체크는 상태 재조회·동작 확인일 때만. 보고만 받았거나 미확인·연습이면 중립 아이콘.
+  group('성공 화면의 큰 아이콘·색은 확인 수준만큼', () {
+    final cases = <(String, KioskDoneView, bool)>[
+      ('물리 · 실행 환경 모름(미확인)',
+          const KioskDoneView(success: true, label: '즉석밥 데워줘', executionMode: 'unknown'), false),
+      ('물리 · 실제(누름 장치 보고만)',
+          const KioskDoneView(success: true, label: '즉석밥 데워줘', executionMode: 'real'), false),
+      ('물리 · 연습',
+          const KioskDoneView(success: true, label: '즉석밥 데워줘', executionMode: 'mock'), false),
+      ('물리 · 실제 + 모의 L3',
+          const KioskDoneView(
+              success: true, label: '즉석밥 데워줘', executionMode: 'real',
+              operationConfirmed: true, operationSource: 'mock'), false),
+      ('ThinQ · 연습',
+          const KioskDoneView(success: true, label: '에어컨 켜줘', executionMode: 'mock', route: 'thinq'),
+          false),
+      ('물리 · 실제 + 실측 L3 동작 확인',
+          const KioskDoneView(
+              success: true, label: '즉석밥 데워줘', executionMode: 'real',
+              operationConfirmed: true, operationSource: 'real'), true),
+      ('ThinQ · 실제 상태 재조회(바꿈)',
+          const KioskDoneView(
+              success: true, label: '공기청정기 강풍', executionMode: 'real', route: 'thinq',
+              resultConfirmation: 'state_confirmed'), true),
+      ('ThinQ · 실제 상태 재조회(이미 목표값)',
+          const KioskDoneView(
+              success: true, label: '공기청정기 강풍', executionMode: 'real', route: 'thinq',
+              resultConfirmation: 'already_at_target'), true),
+    ];
+    for (final (name, view, strong) in cases) {
+      testWidgets('$name → ${strong ? '체크·성공색' : '중립 아이콘·중립색'}', (tester) async {
+        await _pump(tester, view);
+        expect(find.byIcon(Icons.check), strong ? findsOneWidget : findsNothing);
+        expect(find.byIcon(Icons.info_outline), strong ? findsNothing : findsOneWidget);
+        // 가장 큰 글자(36)의 색도 같은 규칙 — 체크 없이 초록 글자로 성공을 암시하지 않는다.
+        final headline = tester
+            .widgetList<Text>(find.byType(Text))
+            .firstWhere((t) => t.style?.fontSize == 36);
+        expect(headline.style!.color == KioskColors.success, strong);
       });
     }
   });

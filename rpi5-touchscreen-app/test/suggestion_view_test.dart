@@ -118,6 +118,56 @@ void main() {
     expect(tester.getSize(find.byKey(_later)).height, greaterThanOrEqualTo(48));
   });
 
+  // 2026-10-14 UI 정리: '무엇을 할까요?'와 선택 버튼이 가장 크고, 근거는 짧게, 버튼 순서는 보조.
+  group('글자 위계', () {
+    double sizeOf(WidgetTester tester, Finder f) =>
+        tester.widget<Text>(f).style!.fontSize!;
+
+    testWidgets('질문이 가장 크고, 선택 버튼 글자가 순서·근거보다 크다', (tester) async {
+      await _pump(tester, target: kMicrowaveAppliance);
+      final question = sizeOf(tester, find.text('즉석밥 데워줘,\n지금 할까요?'));
+      final approve = sizeOf(tester,
+          find.descendant(of: find.byKey(_approve), matching: find.byType(Text)));
+      final later = sizeOf(tester,
+          find.descendant(of: find.byKey(_later), matching: find.byType(Text)));
+      final step = sizeOf(tester,
+          find.descendant(of: find.byType(ListView), matching: find.text('즉석밥')));
+      final why = sizeOf(tester, find.text('아침 시간에 3번 하셨어요.'));
+      final all = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.style?.fontSize ?? 0)
+          .toList();
+      expect(all.reduce((a, b) => a > b ? a : b), question);
+      for (final button in [approve, later]) {
+        expect(button, greaterThan(step));
+        expect(button, greaterThan(why));
+      }
+      expect(tester.getSize(find.byKey(_approve)).height, greaterThanOrEqualTo(72));
+    });
+
+    testWidgets('근거는 두 줄까지만', (tester) async {
+      await _pump(tester,
+          target: kMicrowaveAppliance,
+          suggestion: const KioskSuggestion(
+            id: 'sc',
+            purpose: '공기청정기 강풍으로 바꿀까요?',
+            occurrences: 0,
+            reason: '전자레인지 가열 종료를 콘센트 전력으로 감지했어요 — 조리 완료가 아닐 수 있어요. '
+                '냄새가 남을 수 있어 공기청정기를 강풍으로 바꾸면 좋아요. 실내 미세먼지도 조금 높아요.',
+            scenarioId: 'cook_done_air',
+            commands: [
+              KioskSuggestionCommand(
+                  targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 풍량 강'),
+            ],
+          ));
+      final why = tester.widget<Text>(find.textContaining('근거:'));
+      expect(why.maxLines, 2);
+      expect(why.overflow, TextOverflow.ellipsis);
+      // 할 일(대상·동작)과 경로는 그대로 보인다.
+      expect(find.text('공기청정기 풍량 강'), findsOneWidget);
+    });
+  });
+
   test('서버가 준 appliance_id를 받는다', () {
     final parsed = KioskSuggestion.fromJson({
       'id': 's1',
