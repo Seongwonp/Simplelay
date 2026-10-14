@@ -168,6 +168,56 @@ void main() {
     });
   });
 
+  // 2026-10-14 추가 확인 1: 근거를 두 줄로 잘라도 중요한 제한·모의 여부는 늘 보이는 줄에 있고,
+  // 긴 근거는 펼쳐 읽을 수 있으며, 낭독은 잘리지 않은 전체 근거다.
+  group('근거 두 줄 제한의 안전', () {
+    const longReason = '전자레인지 가열 종료를 콘센트 전력(CT)으로 감지했어요(조리 완료가 아닐 수 있어요) '
+        '(모의 입력) · 최근 기록에서 이 제안을 3번 승인했어요. 냄새가 남을 수 있어 공기청정기를 '
+        '강풍으로 바꾸면 좋아요. 실내 미세먼지도 조금 높아요. 문을 연 채 두었다면 닫아 주세요.';
+    const longCard = KioskSuggestion(
+      id: 'sc',
+      purpose: '공기청정기 강풍으로 바꿀까요?',
+      occurrences: 0,
+      isDemo: true,
+      reason: longReason,
+      scenarioId: 'cook_done_air',
+      commands: [
+        KioskSuggestionCommand(
+            targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 풍량 강'),
+      ],
+    );
+
+    testWidgets('모의 여부는 질문 줄, 조리 완료 단서는 근거 밖 줄에 늘 보인다', (tester) async {
+      await _pump(tester, suggestion: longCard);
+      expect(find.text('[시연 데이터] 공기청정기 강풍으로 바꿀까요?'), findsOneWidget);
+      final caveat = tester.widget<Text>(find.byKey(const ValueKey('suggestion-caveat')));
+      expect(caveat.data, '조리 완료가 아닐 수 있어요');
+      expect(caveat.maxLines, isNull);
+    });
+
+    testWidgets('낭독은 잘리지 않은 전체 근거', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pump(tester, suggestion: longCard);
+      expect(find.bySemanticsLabel('근거: $longReason'), findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('긴 근거는 펼쳐 읽을 수 있다(48 이상 버튼), 짧은 근거에는 펼치기가 없다', (tester) async {
+      await _pump(tester, suggestion: longCard);
+      final more = find.byKey(const ValueKey('suggestion-why-more'));
+      expect(more, findsOneWidget);
+      expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
+      expect(tester.widget<Text>(find.textContaining('근거:')).maxLines, 2);
+      await tester.tap(more);
+      await tester.pump();
+      expect(tester.widget<Text>(find.textContaining('근거:')).maxLines, isNull);
+      expect(tester.takeException(), isNull);
+
+      await _pump(tester, target: kMicrowaveAppliance);
+      expect(find.byKey(const ValueKey('suggestion-why-more')), findsNothing);
+    });
+  });
+
   test('서버가 준 appliance_id를 받는다', () {
     final parsed = KioskSuggestion.fromJson({
       'id': 's1',

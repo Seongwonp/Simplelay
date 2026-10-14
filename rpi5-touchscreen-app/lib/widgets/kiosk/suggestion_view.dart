@@ -122,21 +122,27 @@ class KioskSuggestionView extends StatelessWidget {
                             color: Colors.white,
                           ),
                         ),
+                        // 근거를 줄여도 잘리면 안 되는 제한(예: '조리 완료가 아닐 수 있어요')은 근거 밖
+                        // 늘 보이는 줄로 뺀다. 모의 여부는 질문 줄의 '[시연 데이터]'가 늘 말한다(2026-10-14 추가 확인).
+                        for (final caveat in kAlwaysShownCaveats)
+                          if (suggestion.whyNow.contains(caveat)) ...[
+                            const SizedBox(height: 8),
+                            Text(
+                              caveat,
+                              key: const ValueKey('suggestion-caveat'),
+                              style: const TextStyle(
+                                  fontSize: 20, color: KioskColors.warning),
+                            ),
+                          ],
                         // 근거는 실제로 셀 수 있을 때만 말한다 -- 어느
                         // 시간대였는지까지 밝힌다. 판단의 주인공은 질문과 버튼이라 근거는
-                        // 두 줄까지만(2026-10-14 UI 정리). 낭독에는 전문이 간다.
+                        // 두 줄까지만(2026-10-14 UI 정리). 넘치면 '근거 전체 보기'로 펼친다. 낭독에는 전문이 간다.
                         if (suggestion.whyNow.isNotEmpty && !suggestion.userStarted) ...[
                           const SizedBox(height: 10),
-                          Text(
+                          _WhyText(
                             scenario
                                 ? '근거: ${suggestion.whyNow}'
                                 : suggestion.whyNow,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 20,
-                              color: KioskColors.muted,
-                            ),
                           ),
                         ],
                       ],
@@ -284,6 +290,65 @@ class KioskSuggestionView extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// 근거 두 줄 제한을 해도 화면에서 빠지면 안 되는 제한 문장 — 근거 밖 줄에 따로 보인다.
+const kAlwaysShownCaveats = ['조리 완료가 아닐 수 있어요'];
+
+/// 근거 — 두 줄까지 보이고, 넘치면 '근거 전체 보기'(48 이상)로 펼친다. 낭독은 늘 전문이다.
+class _WhyText extends StatefulWidget {
+  const _WhyText(this.text);
+  final String text;
+
+  @override
+  State<_WhyText> createState() => _WhyTextState();
+}
+
+class _WhyTextState extends State<_WhyText> {
+  bool _expanded = false;
+
+  static const _style = TextStyle(fontSize: 20, color: KioskColors.muted);
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final painter = TextPainter(
+        text: TextSpan(text: widget.text, style: _style),
+        maxLines: 2,
+        textDirection: Directionality.of(context),
+        textScaler: MediaQuery.textScalerOf(context),
+      )..layout(maxWidth: constraints.maxWidth);
+      final overflows = painter.didExceedMaxLines;
+      painter.dispose();
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            label: widget.text,
+            excludeSemantics: true,
+            child: Text(
+              widget.text,
+              maxLines: _expanded ? null : 2,
+              overflow: _expanded ? null : TextOverflow.ellipsis,
+              style: _style,
+            ),
+          ),
+          if (overflows)
+            TextButton(
+              key: const ValueKey('suggestion-why-more'),
+              onPressed: () => setState(() => _expanded = !_expanded),
+              style: TextButton.styleFrom(
+                foregroundColor: KioskColors.muted,
+                minimumSize: const Size(0, 48),
+                padding: EdgeInsets.zero,
+              ),
+              child: Text(_expanded ? '근거 접기' : '근거 전체 보기',
+                  style: const TextStyle(fontSize: 18)),
+            ),
+        ],
+      );
+    });
   }
 }
 
