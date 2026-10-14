@@ -635,10 +635,28 @@ List<_MoreAction> _moreActions({
 
 /// 앱바의 '더 보기' — 누르면 아래에서 관리 선택지 목록이 올라온다. 고른 뒤 목록을 먼저 닫고 실행한다
 /// (거절은 이 화면을 닫으므로, 목록이 열린 채 실행하면 목록만 닫힌다).
-class _MoreButton extends StatelessWidget {
+///
+/// 낭독 이름은 무엇을 더 보는지 말한다('제안 옵션 더 보기', 화면 글자는 '더 보기'). 목록을 닫으면 초점을
+/// 이 버튼으로 되돌린다 — 스위치·키보드로 다루는 사용자가 화면 처음으로 튕기지 않게(2026-10-14 추가 확인).
+class _MoreButton extends StatefulWidget {
   const _MoreButton({required this.actions});
 
   final List<_MoreAction> actions;
+
+  @override
+  State<_MoreButton> createState() => _MoreButtonState();
+}
+
+class _MoreButtonState extends State<_MoreButton> {
+  final _focus = FocusNode(debugLabel: 'suggestion-more');
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  List<_MoreAction> get actions => widget.actions;
 
   Future<void> _open(BuildContext context) async {
     final picked = await showModalBottomSheet<VoidCallback>(
@@ -662,17 +680,30 @@ class _MoreButton extends StatelessWidget {
         ),
       ),
     );
-    picked?.call();
+    // 고르지 않고 닫았으면 초점을 이 버튼으로 되돌린다. 골랐으면 그 동작이 화면을 바꿀 수 있어 그대로 둔다.
+    if (picked == null) {
+      if (mounted) _focus.requestFocus();
+      return;
+    }
+    picked();
   }
 
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(right: 4),
-        child: TextButton.icon(
-          key: const Key('suggestion-more'),
-          onPressed: () => _open(context),
-          icon: const Icon(Icons.more_horiz),
-          label: const Text('더 보기'),
+        child: Semantics(
+          label: '제안 옵션 더 보기',
+          button: true,
+          container: true,
+          excludeSemantics: true,
+          onTap: () => _open(context),
+          child: TextButton.icon(
+            key: const Key('suggestion-more'),
+            focusNode: _focus,
+            onPressed: () => _open(context),
+            icon: const Icon(Icons.more_horiz),
+            label: const Text('더 보기'),
+          ),
         ),
       );
 }

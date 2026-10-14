@@ -118,6 +118,41 @@ void main() {
       }
     });
 
+    // 2026-10-14 추가 확인 2: 낭독 이름이 무엇을 더 보는지 말하고, 목록을 닫으면 초점이 그 버튼으로 돌아온다.
+    testWidgets("'더 보기' 낭독 이름은 '제안 옵션 더 보기'", (tester) async {
+      final handle = tester.ensureSemantics();
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSuggestion('test-003', suggestions: const [_httpSug]));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('제안 옵션 더 보기'), findsOneWidget);
+      // 화면 글자는 그대로 '더 보기'.
+      expect(find.descendant(
+              of: find.byKey(const Key('suggestion-more')), matching: find.text('더 보기')),
+          findsOneWidget);
+      handle.dispose();
+    });
+
+    testWidgets('목록을 고르지 않고 닫으면 초점이 더 보기 버튼으로 돌아온다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(_buildSuggestion('test-003', suggestions: const [_httpSug]));
+      await tester.pumpAndSettle();
+      final more = find.byKey(const Key('suggestion-more'));
+      await tester.tap(more);
+      await tester.pumpAndSettle();
+      expect(find.text('이 제안 30분 쉬기'), findsOneWidget);
+      // 바깥(가림막)을 눌러 닫는다 — 아무것도 고르지 않았다.
+      await tester.tapAt(const Offset(200, 20));
+      await tester.pumpAndSettle();
+      expect(find.text('이 제안 30분 쉬기'), findsNothing);
+      final focused = FocusManager.instance.primaryFocus?.context;
+      expect(focused, isNotNull);
+      expect(
+          find.descendant(of: more, matching: find.byElementPredicate((e) => e == focused)),
+          findsOneWidget);
+      // 닫기만 했으니 제안은 그대로다.
+      expect(find.text('지금 실행'), findsOneWidget);
+    });
+
     testWidgets('실행 대상·누를 버튼·모의 여부는 펼치지 않아도 보이고, 버튼 배치는 펼쳐야 보인다',
         (tester) async {
       _useTallViewport(tester);
