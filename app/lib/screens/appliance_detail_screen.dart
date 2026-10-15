@@ -17,6 +17,7 @@ import '../theme/app_text.dart';
 import '../widgets/appliance_panel.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/route_badge.dart';
+import '../widgets/thinq_state_card.dart';
 import 'history_screen.dart' show historyProvider;
 
 /// 가전 상세 — 등록 사진 위 버튼(UI 확정 §2).
@@ -68,12 +69,14 @@ class ApplianceDetailScreen extends ConsumerWidget {
         children: [
           _ReadinessLine(appliance: a),
           const SizedBox(height: 12),
-          if (a.isThinq)
+          if (a.isThinq) ...[
             Text(
-              '누를 버튼이 없는 ThinQ 가전이에요. 말로 맡기거나 루틴으로 만들어 주세요.',
+              '누를 버튼이 없는 ThinQ 가전이에요. 아래에서 바로 바꾸거나, 말로 맡기거나 루틴으로 만들어 주세요.',
               style: TextStyle(fontSize: 16, color: context.appMuted),
-            )
-          else ...[
+            ),
+            const SizedBox(height: 12),
+            ThinqStateCard(applianceId: a.id, applianceName: a.displayName),
+          ] else ...[
             Text(
               a.panelMapping != null
                   ? '사진 속 버튼을 누르면 허브가 대신 눌러요. 빨간 원은 정지, 점선은 쉬는 자리예요.'

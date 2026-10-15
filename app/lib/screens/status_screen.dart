@@ -206,7 +206,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 // (지웠거나 구버전 서버) 배치를 지어내지 않고 목록만 둔다.
                 // 스크린리더에는 위의 실시간 안내와 아래 목록이 같은 말을
                 // 이미 하므로, 그림은 읽지 않는다.
+                // ThinQ 가전은 누를 버튼판이 없다 — 그리지 않는다(2026-10-15).
                 if (target != null &&
+                    !target.isThinq &&
                     status.steps.isNotEmpty &&
                     status.phase != ExecutionPhase.idle) ...[
                   const SizedBox(height: 28),
@@ -226,7 +228,8 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 // ── 단계 목록 ─────────────────────────────────────────────
                 if (status.steps.isNotEmpty) ...[
                   const SizedBox(height: 28),
-                  Text('누르는 순서', style: AppText.title),
+                  Text(target?.isThinq == true ? '할 일' : '누르는 순서',
+                      style: AppText.title),
                   const SizedBox(height: 6),
                   for (var i = 0; i < status.steps.length; i++)
                     _StepRow(

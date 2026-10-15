@@ -4,10 +4,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/appliance_detail_screen.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
+import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/widgets/route_badge.dart';
 
 import '../helpers/test_helpers.dart';
@@ -103,6 +105,29 @@ void main() {
     expect(find.text('루틴 녹화'), findsNothing);
     expect(find.text('버튼판으로 하나씩 누르기'), findsNothing);
     expect(find.textContaining('누를 버튼이 없는 ThinQ 가전'), findsOneWidget);
+  });
+
+  testWidgets('실행 상태: ThinQ 가전은 버튼판을 그리지 않고 단계 제목은 \'할 일\'',
+      (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(buildScreen(
+      const StatusScreen(),
+      overrides: [
+        ...connectedOverrides(),
+        ...installedOverrides([_purifier]),
+      ],
+      executionStatus: const ExecutionStatus(
+        phase: ExecutionPhase.running,
+        applianceId: 'air_purifier',
+        label: '공기청정기 풍량 강풍',
+        steps: ['공기청정기 풍량 강풍'],
+      ),
+    ));
+    await tester.pump();
+
+    expect(find.textContaining('버튼판'), findsNothing);
+    expect(find.text('누르는 순서'), findsNothing);
+    expect(find.text('할 일'), findsOneWidget);
   });
 
   testWidgets('버튼 조작 화면: ThinQ 가전은 버튼판 없이 배지와 안내만 보인다',

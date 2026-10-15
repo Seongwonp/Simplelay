@@ -394,6 +394,29 @@ class RpiThinqOverview {
       );
 }
 
+/// GET /thinq/status/{id} — ThinQ가 지금 알려 준 가전 상태(2026-10-15).
+///
+/// **읽기 전용이다.** 실패면 [failure]에 이유가 있고 [state]는 비어 있다 —
+/// 못 읽은 것을 '꺼짐'이나 빈 값으로 보이지 않게 한다. [readAt]은 폰이 응답을 받은 시각이다.
+class RpiThinqStatus {
+  const RpiThinqStatus({
+    this.executionMode = 'unknown',
+    this.state = const {},
+    this.failure,
+    this.readAt,
+  });
+
+  const RpiThinqStatus.failed(String reason) : this(failure: reason);
+
+  /// mock | real | unknown — mock이면 화면이 '모의'로 표시한다.
+  final String executionMode;
+  final Map<String, dynamic> state;
+  final String? failure;
+  final DateTime? readAt;
+
+  bool get ok => failure == null;
+}
+
 /// GET /thinq/discovered의 기기 하나 — ThinQ 계정에서 찾은 가전(2026-10-13).
 ///
 /// 기기 ID 원문 대신 서버가 준 [key]로 추가·제거한다.
@@ -930,6 +953,25 @@ class RpiApiService {
     return RpiJobAccepted.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
   }
 
+  /// POST /thinq/command — ThinQ 가전 직접 조작(2026-10-15). 화면이 확인을 받은 뒤에만
+  /// 부른다. 허용되지 않는 값은 허브가 보내기 전에 거절한다(RpiApiException).
+  Future<RpiJobAccepted> thinqCommand(
+    String applianceId,
+    String action,
+    Map<String, String> args,
+  ) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/thinq/command'),
+          headers: _jsonHeaders,
+          body: jsonEncode(
+              {'appliance_id': applianceId, 'action': action, 'args': args}),
+        )
+        .timeout(_timeout);
+    _checkStatus(res);
+    return RpiJobAccepted.fromJson(jsonDecode(res.body) as Map<String, dynamic>);
+  }
+
   // POST /execute-for-appliance — 사용자 정의 가전용 음성 명령. 서버 고정 규칙이
   // 아니라 이 가전의 실제 버튼 라벨 어휘를 넘겨서 LLM이 그 안에서만 해석하게 한다.
   // LLM이 서버에 설정 안 돼 있으면 503(RpiApiException)으로 실패한다.
@@ -1296,6 +1338,36 @@ class RpiApiService {
           jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
     } catch (_) {
       return const RpiThinqDiscovery.failed('허브에 닿지 않아요 — 연결을 확인한 뒤 다시 찾아 주세요.');
+    }
+  }
+
+  /// GET /thinq/status/{id} — 지금 상태(읽기만). 실패는 이유가 담긴 결과로 돌려준다.
+  Future<RpiThinqStatus> thinqStatus(String applianceId, {DateTime Function()? now}) async {
+    try {
+      final res = await _client
+          .get(
+              _base.replace(
+                  path: '/thinq/status/${Uri.encodeComponent(applianceId)}'),
+              headers: _headers)
+          .timeout(_thinqTimeout);
+      if (res.statusCode == 401) {
+        return const RpiThinqStatus.failed('허브 키가 맞지 않아요 — 허브 설정에서 키를 확인해 주세요.');
+      }
+      if (res.statusCode != 200) {
+        return RpiThinqStatus.failed(_utf8Detail(res, '지금 상태를 읽지 못했어요'));
+      }
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      final state = body['state'];
+      if (state is! Map<String, dynamic>) {
+        return const RpiThinqStatus.failed('허브가 준 상태를 해석하지 못했어요.');
+      }
+      return RpiThinqStatus(
+        executionMode: body['execution_mode'] as String? ?? 'unknown',
+        state: state,
+        readAt: (now ?? DateTime.now)(),
+      );
+    } catch (_) {
+      return const RpiThinqStatus.failed('허브에 닿지 않아요 — 연결을 확인한 뒤 다시 읽어 주세요.');
     }
   }
 

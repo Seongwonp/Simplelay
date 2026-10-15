@@ -9,6 +9,7 @@ import '../models/scenario_run.dart';
 import '../services/mdns_resolver.dart';
 import '../services/rpi_api_service.dart';
 import '../services/simulated_execution_service.dart';
+import 'clock_provider.dart';
 import 'demo_provider.dart';
 
 // ── 기본 URL (mDNS — 라우터 없이도 simplelay.local로 자동 연결) ─────────────
@@ -377,6 +378,17 @@ final thinqOverviewProvider =
   final service = ref.watch(rpiApiServiceProvider);
   if (service == null) return null;
   return service.thinqOverview();
+});
+
+/// GET /thinq/status/{id} — ThinQ 가전의 지금 상태(읽기만, 2026-10-15). 화면에
+/// 들어올 때와 '다시 읽기'를 누를 때만 읽는다 — 클라우드 호출 상한을 쓰지 않게.
+final thinqStatusProvider = FutureProvider.autoDispose
+    .family<RpiThinqStatus, String>((ref, applianceId) async {
+  final service = ref.watch(rpiApiServiceProvider);
+  if (service == null) {
+    return const RpiThinqStatus.failed('허브에 연결되면 상태를 읽을 수 있어요.');
+  }
+  return service.thinqStatus(applianceId, now: ref.read(nowProvider));
 });
 
 /// GET /thinq/discovered — ThinQ 계정에서 찾은 가전(추가 전 목록). 허브 주소가
