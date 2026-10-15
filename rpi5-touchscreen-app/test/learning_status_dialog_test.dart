@@ -61,10 +61,11 @@ void main() {
       applianceNames: const {'mw': '주방 전자레인지'},
     ))));
     await tester.pumpAndSettle();
-    expect(find.text('2일 사용 · 5회'), findsOneWidget);
+    // 기간을 같이 말한다(2026-10-15) — '2일 사용 · 5회'는 어느 기간인지 몰랐다.
+    expect(find.text('최근 28일 중 2일, 모두 5번'), findsOneWidget);
     expect(find.text('주방 전자레인지 · 아침'), findsOneWidget);
-    expect(find.text('추천 숨김'), findsOneWidget);
-    expect(find.textContaining('방해 금지'), findsOneWidget);
+    expect(find.text('이 제안은 보이지 않게 해 뒀어요'), findsOneWidget);
+    expect(find.textContaining('제안 잠시 쉬기'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

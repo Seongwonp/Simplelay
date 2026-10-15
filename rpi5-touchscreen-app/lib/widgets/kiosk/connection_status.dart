@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 import '../../models/ambient.dart';
 import '../../theme/kiosk_colors.dart';
+import 'kiosk_scroll_area.dart';
 
-/// 평소 화면 오른쪽 위의 연결 아이콘 세 개(와이파이·누름 장치·플러그).
+/// 평소 화면 오른쪽 위의 연결 아이콘 세 개(와이파이·작은 팔 장치·가전 콘센트 장치).
 ///
 /// 정상이면 회색 아이콘뿐이다. 문제가 생기면 그 아이콘이 노란색이 되고 "!" 배지가
 /// 붙는다. 누르면 [KioskConnectionModal]이 무엇이 안 되는지와 해결 방법을 말한다.
@@ -48,8 +49,8 @@ IconData connectionIcon(ConnectionItem item) => switch (item.id) {
 
 String _name(String id) => switch (id) {
       'network' => '와이파이',
-      'press' => '누름 장치',
-      'plug' => '플러그',
+      'press' => '작은 팔 장치',
+      'plug' => '가전 콘센트 장치',
       _ => '연결',
     };
 
@@ -128,10 +129,15 @@ class _ConnectionIcon extends StatelessWidget {
   }
 }
 
-/// 연결 문제 모달 — 제목, 무엇이 안 되는지, 해결 방법, "다시 연결하기/닫기".
+/// 연결 문제 모달 — 제목, 무엇이 안 되는지, 해결 방법, "다시 확인하기/닫기".
 ///
-/// "다시 연결하기"는 허브에 연결 상태를 **다시 묻는다**. 서버에 재연결 명령은
-/// 없어서, 고쳐진 뒤 확인하는 단추다(해결 방법의 "잠시 뒤 다시 연결하기"와 같은 뜻).
+/// "다시 확인하기"는 SimpleLay 본체에 연결 상태를 **다시 묻는다**. 서버에 재연결 명령은
+/// 없어서, 고쳐진 뒤 확인하는 단추다(예전 이름 '다시 연결하기'는 다시 연결해 주는 줄 알았다, 2026-10-15).
+///
+/// 글이 길면 안에서 스크롤하고 막대가 보인다(B4 — 예전에는 잘린 채 끝나 보였다).
+/// 'SimpleLay 본체'를 처음 보는 사람에게 한 번 풀어 쓰는 말(2026-10-15 결정 — 화면 자체를 본체로 오해할 수 있다).
+const kHubExplain = 'SimpleLay 본체: 부엌에 둔, 이 화면이 달린 상자예요';
+
 class KioskConnectionModal extends StatelessWidget {
   const KioskConnectionModal({
     super.key,
@@ -149,12 +155,15 @@ class KioskConnectionModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final warn = item.needsAttention;
+    // 'SimpleLay 본체'가 처음 나오는 곳 — 무엇을 말하는지 한 번 풀어 쓴다(2026-10-15 결정).
+    final mentionsHub = [item.title, item.message, ...item.fixes]
+        .any((t) => t.contains('SimpleLay 본체'));
     return ColoredBox(
       color: Colors.black.withValues(alpha: 0.6),
       child: Center(
         child: Container(
-          width: 520,
-          constraints: const BoxConstraints(maxHeight: 420),
+          width: 560,
+          margin: const EdgeInsets.symmetric(vertical: 12),
           padding: const EdgeInsets.fromLTRB(28, 24, 28, 20),
           decoration: BoxDecoration(
             color: KioskColors.surface,
@@ -185,7 +194,8 @@ class KioskConnectionModal extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Flexible(
-                child: SingleChildScrollView(
+                child: KioskScrollArea(
+                  padding: const EdgeInsets.only(right: 12),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -193,8 +203,8 @@ class KioskConnectionModal extends StatelessWidget {
                         Text(
                           item.message,
                           style: const TextStyle(
-                            fontSize: 33,
-                            height: 1.45,
+                            fontSize: 24,
+                            height: 1.4,
                             color: KioskColors.muted,
                           ),
                         ),
@@ -213,7 +223,7 @@ class KioskConnectionModal extends StatelessWidget {
                                 child: Text(
                                   fix,
                                   style: const TextStyle(
-                                    fontSize: 33,
+                                    fontSize: 24,
                                     height: 1.4,
                                     color: Colors.white,
                                   ),
@@ -222,11 +232,20 @@ class KioskConnectionModal extends StatelessWidget {
                             ],
                           ),
                         ),
+                      if (mentionsHub)
+                        const Padding(
+                          padding: EdgeInsets.only(top: 12),
+                          child: Text(
+                            kHubExplain,
+                            key: ValueKey('hub-explain'),
+                            style: TextStyle(fontSize: 18, color: KioskColors.muted),
+                          ),
+                        ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 14),
               Row(
                 children: [
                   Expanded(
@@ -244,7 +263,7 @@ class KioskConnectionModal extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text(
-                        checking ? '확인하고 있어요' : '다시 연결하기',
+                        checking ? '확인하고 있어요' : '다시 확인하기',
                         style: const TextStyle(
                             fontSize: 20, fontWeight: FontWeight.w700),
                       ),

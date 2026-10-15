@@ -60,21 +60,29 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                         const Divider(height: 28),
                         if (status.routines.isEmpty)
                           const Text('아직 학습할 실제 사용 기록이 없어요. 평소처럼 사용해 주세요.'),
+                        // 기간을 같이 말하고, 숨김은 상태라고 분명히(2026-10-15 §4). 글자를 키웠다.
                         for (final routine in status.routines) ...[
                           Text(routine.purpose,
-                              style: Theme.of(context).textTheme.titleMedium),
+                              style: const TextStyle(
+                                  fontSize: 22, fontWeight: FontWeight.w700)),
                           Text(
-                              '${widget.applianceNames[routine.applianceId] ?? '대상 가전 확인 필요'} · ${routine.timeBand}'),
+                              '${widget.applianceNames[routine.applianceId] ?? '대상 가전 확인 필요'} · ${routine.timeBand}',
+                              style: const TextStyle(fontSize: 20)),
                           Text(
-                              '${routine.distinctDays}일 사용 · ${routine.occurrences}회'),
-                          Text(routine.muted
-                              ? '추천 숨김'
-                              : routine.established
-                                  ? '습관 확인'
-                                  : '습관을 알아가는 중'),
+                              '최근 ${status.windowDays}일 중 ${routine.distinctDays}일, 모두 ${routine.occurrences}번',
+                              style: const TextStyle(fontSize: 20)),
+                          Text(
+                              routine.muted
+                                  ? '이 제안은 보이지 않게 해 뒀어요'
+                                  : routine.established
+                                      ? '습관 확인'
+                                      : '습관을 알아가는 중',
+                              style: const TextStyle(fontSize: 20)),
                           const SizedBox(height: 16),
                         ],
-                        if (status.paused) const Text('방해 금지 중 · 제안을 쉬고 있어요.'),
+                        if (status.paused)
+                          const Text('제안 잠시 쉬기 중이에요 · 새 제안을 쉬고 있어요.',
+                              style: TextStyle(fontSize: 20)),
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
                           title: const Text('어떻게 기억하나요?'),
@@ -82,7 +90,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                             Text('같은 가전을 같은 시간대에 ${status.minimumDays}일 이상, '
                                 '${status.minimumOccurrences}회 이상 직접 사용하면 습관으로 기억해요.'),
                             const SizedBox(height: 8),
-                            const Text('모의 실행과 추천을 받아 실행한 기록은 습관 횟수에 더하지 않아요.'),
+                            const Text('연습 실행과 추천을 받아 실행한 기록은 습관 횟수에 더하지 않아요.'),
                             const SizedBox(height: 8),
                             const Text(
                                 '습관이 확인되어도 시간과 상황에 맞춰 제안하고, 확인을 받은 뒤 실행해요.'),

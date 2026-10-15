@@ -9,19 +9,25 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/command_result.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
+import 'package:simplelay_touchscreen/widgets/learning_status_dialog.dart';
 
 import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
+import 'learning_status_dialog_test.dart' as learning;
 
 const _fontPath = r'C:\Windows\Fonts\malgun.ttf';
 final _hasFont = File(_fontPath).existsSync();
@@ -600,6 +606,235 @@ void main() {
             route: 'physical', confirmation: c, executionMode: 'mock')!;
         expect(label, isNot(contains('확인')), reason: label);
         expect(label, contains('연습'));
+      }
+    });
+  });
+
+
+  // ── 3단계: 쉬운 말 + B3·B4·B5·B8·B10 ─────────────────────────────────────
+  group('3단계 · 쉬운 말', () {
+    testWidgets('제안 — 이번엔 안 할게요 · 작은 팔이 누를 순서 · N초 뒤 닫혀요', (tester) async {
+      await _pumpView(
+        tester,
+        KioskSuggestionView(
+          suggestion: const KioskSuggestion(
+              id: 's', purpose: '즉석밥 데워줘', occurrences: 3, timeBand: '아침',
+              applianceId: 'microwave', steps: ['즉석밥', '시작']),
+          target: kMicrowaveAppliance,
+          cdRemaining: 20,
+          cdTotal: 20,
+          onApprove: () {},
+          onReject: () {},
+        ),
+      );
+      expect(find.text('이번엔 안 할게요'), findsOneWidget);
+      expect(find.text('다음에'), findsNothing);
+      expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
+      expect(find.text('누르지 않으면 실행하지 않아요 · 20초 뒤 닫혀요'), findsOneWidget);
+      // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.
+      expect(find.text('아침에 자주 하셔서 여쭤봐요 · 3번 하신 기록이 있어요'), findsOneWidget);
+      expect(find.textContaining('최근'), findsNothing);
+    });
+
+    testWidgets('B3 — 루틴 카드는 단계가 아니라 버튼 수·가전 설정 수·알림만', (tester) async {
+      final routines = [
+        KioskRoutine.fromJson({
+          'id': 'a', 'name': '아침 데우기',
+          'steps': [
+            {'kind': 'press_sequence', 'appliance_id': 'microwave', 'buttons': ['즉석밥', '시작']},
+            {'kind': 'press_sequence', 'appliance_id': 'microwave', 'buttons': ['취소']},
+          ],
+        }),
+        KioskRoutine.fromJson({
+          'id': 'b', 'name': '공기 맑게',
+          'steps': [
+            {'kind': 'thinq_command', 'appliance_id': 'microwave', 'action': 'set_wind_strength', 'args': {}},
+          ],
+        }),
+        KioskRoutine.fromJson({
+          'id': 'c', 'name': '약 알림', 'mode': 'notify',
+          'steps': [
+            {'kind': 'announce', 'appliance_id': 'microwave', 'text': '약 드세요'},
+          ],
+        }),
+      ];
+      await _pumpView(
+        tester,
+        KioskManualView(
+          appliance: kMicrowaveAppliance,
+          onExecute: (_) {},
+          onCancel: () {},
+          routines: routines,
+          onRoutine: (_) {},
+        ),
+      );
+      expect(find.text('버튼 3번'), findsOneWidget);
+      expect(find.text('가전 설정 1번'), findsOneWidget);
+      expect(find.text('알림만'), findsOneWidget);
+      expect(find.textContaining('단계'), findsNothing);
+      expect(find.text('새 루틴은 휴대폰 SimpleLay 앱에서 만들어요'), findsOneWidget);
+      expect(find.textContaining('녹화'), findsNothing);
+    });
+
+    testWidgets('B10 — 수동 조작 설명은 작은 팔이 대신 누른다고, 잘리지 않게(2줄 허용)', (tester) async {
+      if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+      await _pumpView(
+        tester,
+        KioskManualView(appliance: kMicrowaveAppliance, onExecute: (_) {}, onCancel: () {}),
+        scale: 1.22,
+        malgun: true,
+      );
+      const explain = '화면의 버튼을 누르면 작은 팔이 전자레인지 버튼을 대신 눌러요';
+      expect(find.text(explain), findsOneWidget);
+      expect(tester.renderObject<RenderParagraph>(find.text(explain)).didExceedMaxLines, isFalse);
+      expect(tester.renderObject<RenderParagraph>(find.text('내 전자레인지')).didExceedMaxLines, isFalse);
+      expect(find.textContaining('허브'), findsNothing);
+    });
+
+    for (final (reason, readiness, todo) in [
+      ('버튼 자리를 아직 맞추지 않았어요', 'needs_setup', '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요'),
+      ('확인한 지 오래돼 다시 확인해야 해요', 'needs_setup', '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요'),
+      ('모터가 아직 준비되지 않았어요', 'needs_setup', '잠시 기다려 주세요. 계속되면 작은 팔 장치를 다시 켜 주세요'),
+      ('기기와 연결되지 않았어요', 'disconnected', '처음 화면 위쪽의 연결 표시를 눌러 확인해 주세요'),
+    ]) {
+      testWidgets('준비 안 됨 — "$reason"에는 할 일 한 줄', (tester) async {
+        await _pumpView(
+          tester,
+          KioskManualView(
+            appliance: ApplianceMap(
+              id: 'microwave', name: '전자레인지', category: 'microwave', rows: 1, cols: 1,
+              buttons: const [ApplianceButton(id: 'BT-05', label: '시작', x: 0, y: 0)],
+              canExecute: false, readiness: readiness, readinessReasons: [reason]),
+            onExecute: (_) {},
+            onCancel: () {},
+          ),
+        );
+        expect(find.text(reason), findsOneWidget);
+        expect(find.text(todo), findsOneWidget);
+      });
+    }
+
+    KioskIdleView idle({List<ApplianceMap>? appliances, DateTime? dnd}) => KioskIdleView(
+          now: DateTime(2026, 9, 30, 7, 8),
+          connected: true,
+          appliances: appliances,
+          dndUntil: dnd,
+          onSelectAppliance: (_) {},
+          onOpenConnection: (_) {},
+          onDndGesture: () {},
+        );
+
+    testWidgets('B5 — 빈 가전 줄 안내는 누를 수 없으니 + 아이콘이 아니다, SimpleLay 본체·휴대폰 앱', (tester) async {
+      await _pumpView(tester, idle(appliances: const []));
+      expect(find.text('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요'), findsOneWidget);
+      expect(find.byIcon(Icons.add_circle_outline), findsNothing);
+      await _pumpView(tester, idle(appliances: null));
+      expect(find.text('SimpleLay 본체와 연결되면 가전이 보여요'), findsOneWidget);
+      expect(find.textContaining('허브'), findsNothing);
+    });
+
+    testWidgets('가전 줄 넘김 단추는 "다음" 글자와 몇 번째 장', (tester) async {
+      await _pumpView(tester, idle(appliances: [
+        kMicrowaveAppliance,
+        kInductionAppliance,
+        for (var i = 0; i < 3; i++)
+          ApplianceMap(id: 'x$i', name: '가전$i', category: 'other', rows: 1, cols: 1, buttons: const []),
+      ]));
+      expect(find.text('다음 1/2'), findsOneWidget);
+    });
+
+    testWidgets('B8 — 제안 쉬는 중 칩은 큰 글씨에서 같이 커지고 남은 시간이라고 말한다', (tester) async {
+      final until = DateTime(2026, 9, 30, 8, 38);
+      await _pumpView(tester, idle(dnd: until));
+      expect(find.text('제안 쉬는 중'), findsOneWidget);
+      expect(find.text('1시간 30분 남음'), findsOneWidget);
+      final small = tester.getSize(find.text('1시간 30분 남음')).height;
+      await _pumpView(tester, idle(dnd: until), scale: 1.22);
+      expect(tester.takeException(), isNull);
+      final large = tester.getSize(find.text('1시간 30분 남음')).height;
+      expect(large, greaterThan(small));
+    });
+
+    testWidgets('제안 잠시 쉬기 창 — 이름과 쉬는 범위, 다시 제안 받기', (tester) async {
+      await _pumpView(tester, DndOverlay(dndUntil: null, onSet: (_) {}, onClear: () {}, onDismiss: () {}));
+      expect(find.text('제안 잠시 쉬기'), findsOneWidget);
+      expect(find.text('새 제안과 자동 실행을 잠시 쉬어요'), findsOneWidget);
+      expect(find.textContaining('방해 금지'), findsNothing);
+      await _pumpView(
+          tester,
+          DndOverlay(
+              dndUntil: DateTime(2026, 9, 30, 8, 38),
+              dndScope: 'suggestions_only',
+              onSet: (_) {},
+              onClear: () {},
+              onDismiss: () {}));
+      expect(find.text('다시 제안 받기'), findsOneWidget);
+      expect(find.textContaining('새 제안만 쉬고 있어요 · 자동 실행은 그대로예요'), findsOneWidget);
+    });
+
+    testWidgets('B4 — 연결 창: 다시 확인하기, SimpleLay 본체 풀이, 큰 글씨에서 잘리지 않고 막대가 보인다', (tester) async {
+      if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+      await _pumpView(
+        tester,
+        KioskConnectionModal(
+          item: const ConnectionItem(
+            id: 'network',
+            state: 'error',
+            title: '와이파이 연결이 끊겼어요',
+            message: 'SimpleLay 본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 SimpleLay 본체를 찾지 못하고, 날씨 안내도 볼 수 없어요.',
+            fixes: [
+              '공유기 전원이 켜져 있는지 확인해 주세요.',
+              'SimpleLay 본체에 랜선을 쓰고 있다면 선이 끝까지 꽂혀 있는지 확인해 주세요.',
+              '그래도 안 되면 SimpleLay 본체 전원을 껐다가 다시 켜 주세요.',
+            ],
+          ),
+          checking: false,
+          onRecheck: () {},
+          onClose: () {},
+        ),
+        scale: 1.22,
+        malgun: true,
+      );
+      expect(tester.takeException(), isNull);
+      expect(find.text('다시 확인하기'), findsOneWidget);
+      expect(find.text('다시 연결하기'), findsNothing);
+      expect(find.text('다시 확인하기').hitTestable(), findsOneWidget);
+      expect(find.text('닫기').hitTestable(), findsOneWidget);
+      final bar = find.ancestor(
+          of: find.textContaining('공유기 전원이'), matching: find.byType(RawScrollbar));
+      expect(bar, findsOneWidget);
+      expect(tester.widget<RawScrollbar>(bar).thumbVisibility, isTrue);
+      expect(find.textContaining('부엌에 둔, 이 화면이 달린 상자'), findsOneWidget);
+    });
+
+    testWidgets('생활 습관 — 기간을 같이 말하고, 숨김은 상태로, 글자를 키웠다', (tester) async {
+      await _pumpView(
+        tester,
+        LearningStatusDialog(load: () async => learning.status(), applianceNames: const {'mw': '주방 전자레인지'}),
+      );
+      await tester.pumpAndSettle();
+      const days = '최근 28일 중 2일, 모두 5번';
+      expect(find.text(days), findsOneWidget);
+      expect(find.text('이 제안은 보이지 않게 해 뒀어요'), findsOneWidget);
+      expect(find.text('추천 숨김'), findsNothing);
+      expect(tester.widget<Text>(find.text(days)).style?.fontSize, greaterThanOrEqualTo(20));
+      expect(find.textContaining('모의'), findsNothing);
+    });
+
+    test('사용자에게 보이는 문자열에 옛 말(허브·다시 연결하기·방해 금지·녹화·추천 숨김)이 없다', () {
+      final literal = RegExp(r"'[^'\n]*'");
+      final old = ['허브', '다시 연결하기', '방해 금지', '녹화', '추천 숨김', '누름 장치'];
+      for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
+        if (!f.path.endsWith('.dart')) continue;
+        for (final line in f.readAsLinesSync()) {
+          final code = line.trimLeft();
+          if (code.startsWith('//')) continue;
+          for (final m in literal.allMatches(line)) {
+            for (final w in old) {
+              expect(m.group(0)!.contains(w), isFalse, reason: '${f.path}: $line');
+            }
+          }
+        }
       }
     });
   });

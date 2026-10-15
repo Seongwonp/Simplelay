@@ -33,7 +33,7 @@ import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
 
 /// 잠시 쉬기 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 폰과 같은 문장.
-const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. 허브를 다시 켜면 이전 설정으로 돌아가요.';
+const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. SimpleLay 본체를 다시 켜면 이전 설정으로 돌아가요.';
 
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
@@ -374,13 +374,13 @@ class _KioskScreenState extends State<KioskScreen> {
       ConnectionItem(
           id: 'press',
           state: 'unreachable',
-          title: '누름 장치 상태를 볼 수 없어요',
-          message: '허브와 연결되면 확인할 수 있어요.'),
+          title: '작은 팔 장치 상태를 볼 수 없어요',
+          message: 'SimpleLay 본체와 연결되면 확인할 수 있어요.'),
       ConnectionItem(
           id: 'plug',
           state: 'unreachable',
-          title: '플러그 상태를 볼 수 없어요',
-          message: '허브와 연결되면 확인할 수 있어요.'),
+          title: '가전 콘센트 장치 상태를 볼 수 없어요',
+          message: 'SimpleLay 본체와 연결되면 확인할 수 있어요.'),
     ];
     if (!_connectionsLoaded) {
       return const [
@@ -1293,7 +1293,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (mounted && _phase == KioskPhase.suggestion &&
           _currentSuggestion?.id == suggestion.id) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('다음에 실행하겠다는 요청을 보내지 못했어요. 연결을 확인하고 다시 눌러주세요.'),
+          content: Text("'이번엔 안 할게요'를 보내지 못했어요. 연결을 확인하고 다시 눌러 주세요."),
         ));
       }
     } finally {

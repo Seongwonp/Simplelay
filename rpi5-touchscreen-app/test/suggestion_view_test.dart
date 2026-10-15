@@ -43,7 +43,7 @@ void main() {
     expect(find.byType(ElevatedButton), findsOneWidget);
     expect(find.byType(OutlinedButton), findsOneWidget);
     expect(find.byType(TextButton), findsNothing);
-    expect(find.text('다음에'), findsOneWidget);
+    expect(find.text('이번엔 안 할게요'), findsOneWidget);
     expect(find.descendant(of: find.byKey(_approve), matching: find.text('시작')),
         findsOneWidget);
   });
@@ -67,7 +67,7 @@ void main() {
 
     expect(find.text('전자레인지'), findsOneWidget);
     expect(find.text('즉석밥 데워줘,\n지금 할까요?'), findsOneWidget);
-    expect(find.text('누를 순서'), findsOneWidget);
+    expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
     for (final (i, label) in [(1, '즉석밥'), (2, '시작')]) {
       expect(find.text('$i'), findsOneWidget);
       expect(
@@ -132,7 +132,7 @@ void main() {
           find.descendant(of: find.byKey(_later), matching: find.byType(Text)));
       final step = sizeOf(tester,
           find.descendant(of: find.byType(ListView), matching: find.text('즉석밥')));
-      final why = sizeOf(tester, find.text('아침 시간에 3번 하셨어요.'));
+      final why = sizeOf(tester, find.text('아침에 자주 하셔서 여쭤봐요 · 3번 하신 기록이 있어요'));
       final all = tester
           .widgetList<Text>(find.byType(Text))
           .map((t) => t.style?.fontSize ?? 0)

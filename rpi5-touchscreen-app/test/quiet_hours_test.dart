@@ -149,7 +149,7 @@ void main() {
       ),
     ));
     expect(find.text('23:30까지 새 제안과 자동 실행을 쉬고 있어요'), findsOneWidget);
-    expect(find.text('방해 금지 해제'), findsOneWidget);
+    expect(find.text('다시 제안 받기'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../theme/kiosk_colors.dart';
 
-/// 방해 금지 — 사용 습관 제안을 잠시 멈춘다.
+/// 제안 잠시 쉬기(예전 이름 '방해 금지', 2026-10-15) — 새 제안과 아직 시작하지 않은 자동 실행을 잠시 쉰다.
+/// 이름만 보면 제안만 쉬는 줄 알아서, 쉬는 범위를 늘 바로 아래에 적는다.
 ///
 /// 선택지가 46px, '취소'는 13px 글자 하나라 고령 사용자 기준 터치 크기(48px)에
 /// 못 미쳤고, 스크린리더에는 버튼으로 읽히지도 않았다. 모든 선택지를 실제
@@ -52,7 +53,7 @@ class DndOverlay extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      '방해 금지',
+                      '제안 잠시 쉬기',
                       style: TextStyle(
                         fontSize: 24,
                         color: Color(0xFFFAF7F2),
@@ -91,7 +92,7 @@ class DndOverlay extends StatelessWidget {
                       _DndOption(label: '2시간', onTap: () => onSet(120)),
                     ] else ...[
                       _DndOption(
-                        label: '방해 금지 해제',
+                        label: '다시 제안 받기',
                         accent: true,
                         onTap: onClear,
                       ),

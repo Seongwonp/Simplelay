@@ -93,32 +93,44 @@ class _KioskManualViewState extends State<KioskManualView> {
                     const SizedBox(width: 8),
                     Icon(appliance.icon, color: KioskColors.muted, size: 30),
                     const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        '내 ${appliance.name}',
-                        style: const TextStyle(
-                          fontSize: 30,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        overflow: TextOverflow.ellipsis,
+                    // 이름과 설명은 위아래 두 줄로(2026-10-15 B10) — 한 줄에 같이 두면 둘 다 말줄임으로 잘렸다.
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  '내 ${appliance.name}',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 28,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                              if (appliance.isThinq) ...[
+                                const SizedBox(width: 12),
+                                const KioskRouteBadge(label: 'ThinQ'),
+                              ],
+                            ],
+                          ),
+                          if (!appliance.isThinq && appliance.canExecute)
+                            Text(
+                              '화면의 버튼을 누르면 작은 팔이 ${appliance.name} 버튼을 대신 눌러요',
+                              key: const ValueKey('manual-explain'),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  fontSize: 18, color: KioskColors.muted),
+                            ),
+                        ],
                       ),
                     ),
-                    if (appliance.isThinq) ...[
-                      const SizedBox(width: 12),
-                      const KioskRouteBadge(label: 'ThinQ'),
-                    ],
-                    if (!appliance.isThinq && appliance.canExecute) ...[
-                      const SizedBox(width: 16),
-                      const Flexible(
-                        child: Text(
-                          '버튼을 누르면 허브가 대신 눌러요',
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 17, color: KioskColors.muted),
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -251,9 +263,7 @@ class _RoutinePanel extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 8),
                                   Text(
-                                    r.mode == 'notify'
-                                        ? '알림만'
-                                        : '${r.stepCount}단계',
+                                    r.sizeLabel,
                                     style: const TextStyle(
                                         fontSize: 16, color: KioskColors.muted),
                                   ),
@@ -268,7 +278,7 @@ class _RoutinePanel extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            '새 루틴은 폰 앱에서 녹화해요',
+            '새 루틴은 휴대폰 SimpleLay 앱에서 만들어요',
             style: TextStyle(fontSize: 16, color: KioskColors.muted),
           ),
         ],
@@ -444,6 +454,15 @@ class _NotReadyNotice extends StatelessWidget {
                     ),
                   ),
                 ],
+                // 사유마다 할 일 한 줄(2026-10-15 §4) — '안 됩니다'로 끝내지 않는다.
+                if (readinessTodo(appliance) case final todo?) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    todo,
+                    key: const ValueKey('readiness-todo'),
+                    style: const TextStyle(fontSize: 20, color: Colors.white),
+                  ),
+                ],
               ],
             ),
           ),
@@ -451,6 +470,25 @@ class _NotReadyNotice extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 준비 안 됨 사유(서버 `readiness.py` 문장) → 사람이 할 일 한 줄. 모르는 사유면 null(지어내지 않는다).
+/// 서버 문장이 조금 바뀌어도 맞도록 핵심 낱말로 고른다(옛 '좌표'·새 '자리' 모두).
+String? readinessTodo(ApplianceMap appliance) {
+  final reasons = appliance.readinessReasons.join(' ');
+  if (appliance.readiness == 'disconnected' || reasons.contains('연결되지 않았')) {
+    return '처음 화면 위쪽의 연결 표시를 눌러 확인해 주세요';
+  }
+  if (reasons.contains('좌표') ||
+      reasons.contains('자리') ||
+      reasons.contains('보정') ||
+      reasons.contains('오래돼')) {
+    return '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요';
+  }
+  if (reasons.contains('모터') || reasons.contains('센서')) {
+    return '잠시 기다려 주세요. 계속되면 작은 팔 장치를 다시 켜 주세요';
+  }
+  return null;
 }
 
 /// 판이 차지할 수 있는 자리에서 칸 하나의 크기.

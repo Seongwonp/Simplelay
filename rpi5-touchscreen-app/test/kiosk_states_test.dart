@@ -59,9 +59,9 @@ const _ambient = AmbientInfo(
 const _plugWeak = ConnectionItem(
   id: 'plug',
   state: 'warn',
-  title: '플러그 연결이 약해요',
-  message: '가전이 끝났는지 알려 주는 플러그와 연결이 약해요.',
-  fixes: ['플러그가 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.', '플러그를 허브와 가까운 콘센트로 옮겨 주세요.'],
+  title: '가전 콘센트 장치 연결이 약해요',
+  message: '가전이 끝났는지 알려 주는 가전 콘센트 장치와 연결이 약해요. 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
+  fixes: ['가전 콘센트 장치가 벽 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.', '그래도 안 되면 가전 콘센트 장치를 뽑았다가 10초 뒤 다시 꽂아 주세요.'],
   source: 'real',
 );
 
@@ -210,19 +210,19 @@ void main() {
       final api = FakeKioskApi()..applianceList = const [];
       await _pump(tester, api);
 
-      expect(find.text('앱에서 가전을 추가해 주세요'), findsOneWidget);
+      expect(find.text('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요'), findsOneWidget);
     });
   });
 
   // ── "!" 모달 ──────────────────────────────────────────────────────────
   group('연결 문제 "!" 모달', () {
-    testWidgets('문제가 있는 연결에만 배지가 붙고, 누르면 설명·해결 방법·다시 연결하기가 뜬다',
+    testWidgets('문제가 있는 연결에만 배지가 붙고, 누르면 설명·해결 방법·다시 확인하기가 뜬다',
         (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..connectionsResult = [
           const ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-          const ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 준비됐어요', message: ''),
+          const ConnectionItem(id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: ''),
           _plugWeak,
         ];
       await _pump(tester, api);
@@ -235,22 +235,22 @@ void main() {
       await _settle(tester);
 
       expect(find.byType(KioskConnectionModal), findsOneWidget);
-      expect(find.text('플러그 연결이 약해요'), findsOneWidget);
-      expect(find.text('가전이 끝났는지 알려 주는 플러그와 연결이 약해요.'), findsOneWidget);
-      expect(find.text('플러그가 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.'), findsOneWidget);
+      expect(find.text('가전 콘센트 장치 연결이 약해요'), findsOneWidget);
+      expect(find.textContaining('가전 콘센트 장치와 연결이 약해요.'), findsOneWidget);
+      expect(find.text('가전 콘센트 장치가 벽 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.'), findsOneWidget);
 
       // 다시 연결하기 = 연결 상태를 다시 묻는다(서버에 재연결 명령은 없다)
       final before = api.connectionsCalls;
       api.connectionsResult = [
         const ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-        const ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 준비됐어요', message: ''),
-        const ConnectionItem(id: 'plug', state: 'ok', title: '플러그가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
+        const ConnectionItem(id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: ''),
+        const ConnectionItem(id: 'plug', state: 'ok', title: '가전 콘센트 장치가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
       ];
-      await tester.tap(find.text('다시 연결하기'));
+      await tester.tap(find.text('다시 확인하기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
       expect(find.byKey(const ValueKey('conn-badge-plug')), findsNothing);
-      expect(find.text('플러그가 연결돼 있어요'), findsOneWidget);
+      expect(find.text('가전 콘센트 장치가 연결돼 있어요'), findsOneWidget);
 
       await tester.tap(find.text('닫기'));
       await _settle(tester);
@@ -266,7 +266,7 @@ void main() {
       expect(find.byKey(const ValueKey('conn-badge-network')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('conn-network')));
       await _settle(tester);
-      expect(find.text('허브와 연결되지 않았어요'), findsOneWidget);
+      expect(find.text('SimpleLay 본체와 연결되지 않았어요'), findsOneWidget);
     });
   });
 
@@ -346,7 +346,7 @@ void main() {
 
   // ── 다가오면 ──────────────────────────────────────────────────────────
   group('다가오면', () {
-    testWidgets('제안 카드 한 장 — 루틴 이름·근거·누를 순서, 버튼은 시작과 다음에 뿐', (tester) async {
+    testWidgets('제안 카드 한 장 — 루틴 이름·근거·누를 순서, 버튼은 시작과 이번엔 안 할게요 뿐', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..suggestionList = const [
@@ -365,7 +365,7 @@ void main() {
 
       expect(find.byType(KioskSuggestionView), findsOneWidget);
       expect(find.textContaining('내 루틴 "아침 데우기"'), findsOneWidget);
-      expect(find.text('아침 시간에 5번 하셨어요.'), findsOneWidget);
+      expect(find.text('아침에 자주 하셔서 여쭤봐요 · 5번 하신 기록이 있어요'), findsOneWidget);
       expect(find.byKey(const ValueKey('suggestion-approve')), findsOneWidget);
       expect(find.byKey(const ValueKey('suggestion-later')), findsOneWidget);
       expect(find.text('이 제안 다시 받지 않기'), findsNothing);
@@ -484,12 +484,12 @@ void main() {
 
   // ── 내 가전 ───────────────────────────────────────────────────────────
   group('내 가전', () {
-    testWidgets('가전 아이콘 → 버튼판과 내 루틴, 새 루틴은 폰에서 녹화한다는 안내', (tester) async {
+    testWidgets('가전 아이콘 → 버튼판과 내 루틴, 새 루틴은 휴대폰 앱에서 만든다는 안내', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..routinesResult = const [
-          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], stepCount: 3),
-          KioskRoutine(id: 'laundry', name: '빨래 시작', applianceIds: ['washer'], stepCount: 2),
+          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], pressCount: 3),
+          KioskRoutine(id: 'laundry', name: '빨래 시작', applianceIds: ['washer'], pressCount: 2),
         ]
         ..triggerResult = const RoutineTriggerResult(
           suggestion: KioskSuggestion(
@@ -510,7 +510,7 @@ void main() {
       expect(find.text('내 전자레인지'), findsOneWidget);
       expect(find.text('아침 데우기'), findsOneWidget);
       expect(find.text('빨래 시작'), findsNothing); // 다른 가전의 루틴
-      expect(find.text('새 루틴은 폰 앱에서 녹화해요'), findsOneWidget);
+      expect(find.text('새 루틴은 휴대폰 SimpleLay 앱에서 만들어요'), findsOneWidget);
 
       // 루틴을 눌러도 바로 실행하지 않는다 — 카드(승인)로 간다
       await tester.tap(find.byKey(const ValueKey('routine-morning')));
@@ -530,7 +530,7 @@ void main() {
           'quiet': {'enabled': true, 'start': '22:00', 'end': '07:00', 'active': true, 'reason': 'schedule'},
         })
         ..routinesResult = const [
-          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], stepCount: 3),
+          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], pressCount: 3),
         ]
         ..triggerResult = const RoutineTriggerResult(
           suggestion: KioskSuggestion(
@@ -585,11 +585,11 @@ void main() {
         ..ambientResult = _ambient
         ..connectionsResult = [
           const ConnectionItem(id: 'network', state: 'ok', title: 'ok', message: ''),
-          const ConnectionItem(id: 'press', state: 'unknown', title: '누름 장치를 아직 확인하지 못했어요', message: ''),
+          const ConnectionItem(id: 'press', state: 'unknown', title: '작은 팔 장치를 아직 확인하지 못했어요', message: ''),
           _plugWeak,
         ]
         ..routinesResult = const [
-          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], stepCount: 3),
+          KioskRoutine(id: 'morning', name: '아침 데우기', applianceIds: ['microwave'], pressCount: 3),
         ];
       await _pump(tester, api);
 

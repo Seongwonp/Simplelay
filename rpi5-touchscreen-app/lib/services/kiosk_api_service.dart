@@ -169,9 +169,9 @@ class KioskSuggestion {
     if (reason.isNotEmpty) return reason;
     if (occurrences <= 0 || timeBand.isEmpty) return '';
     if (timeBand == '데모' || timeBand == '환경') return '';
-    // 폰과 같은 규칙 -- '최근'은 쓰지 않는다. 서버 집계에 기간 창이
-    // 없어서, 화면이 범위를 실제보다 좁게 말하게 된다.
-    return '$timeBand 시간에 $occurrences번 하셨어요.';
+    // '최근'은 쓰지 않는다 — 이 대체문은 기간을 모른다(서버 문장이 비었을 때만 쓴다).
+    // 왜 묻는지 먼저, 근거는 뒤에(2026-10-15 §4).
+    return '$timeBand에 자주 하셔서 여쭤봐요 · $occurrences번 하신 기록이 있어요';
   }
 
   /// 실행 중·완료 화면이 "무엇을 했는지" 부를 이름 — **평서형**이다.

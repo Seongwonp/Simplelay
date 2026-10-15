@@ -76,6 +76,9 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
 
   static const double _arrow = 56;
 
+  /// 화살표 칸 폭 — 아래 '다음 1/2' 글자까지 들어간다.
+  static const double _arrowBox = 76;
+
   @override
   void didUpdateWidget(KioskApplianceStrip old) {
     super.didUpdateWidget(old);
@@ -121,14 +124,17 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // 끝에 닿은 쪽 화살표는 숨기되 자리는 유지한다 — 줄이 흔들리지 않게.
+          // 화살표만으로는 넘기는 단추인 줄 몰랐다(2026-10-15) — '다음'·'이전' 글자와 몇 번째 장인지 함께.
           hasPrev
               ? _ArrowButton(
                   key: const ValueKey('strip-prev'),
                   icon: Icons.chevron_left,
                   label: '이전 가전',
+                  word: '이전',
+                  page: '${_page + 1}/${_lastPage + 1}',
                   onTap: () => _go(_page - 1),
                 )
-              : const SizedBox(width: _arrow, height: _arrow),
+              : const SizedBox(width: _arrowBox, height: _arrow),
           const SizedBox(width: 8),
           SizedBox(
             width: widget.itemWidth * widget.perPage,
@@ -157,9 +163,11 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                   key: const ValueKey('strip-next'),
                   icon: Icons.chevron_right,
                   label: '다음 가전',
+                  word: '다음',
+                  page: '${_page + 1}/${_lastPage + 1}',
                   onTap: () => _go(_page + 1),
                 )
-              : const SizedBox(width: _arrow, height: _arrow),
+              : const SizedBox(width: _arrowBox, height: _arrow),
         ],
       ),
     );
@@ -171,27 +179,48 @@ class _ArrowButton extends StatelessWidget {
     super.key,
     required this.icon,
     required this.label,
+    required this.word,
+    required this.page,
     required this.onTap,
   });
 
   final IconData icon;
   final String label;
+
+  /// 단추 아래 글자('다음'·'이전')와 지금 장(예: 1/2).
+  final String word;
+  final String page;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
-        label: label,
-        child: Material(
-          color: KioskColors.surface,
-          shape: const CircleBorder(side: BorderSide(color: KioskColors.border)),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: SizedBox(
-              width: _KioskApplianceStripState._arrow,
-              height: _KioskApplianceStripState._arrow,
-              child: Icon(icon, size: 34, color: Colors.white),
+        label: '$label, $page',
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: SizedBox(
+            width: _KioskApplianceStripState._arrowBox,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Material(
+                  color: KioskColors.surface,
+                  shape: const CircleBorder(
+                      side: BorderSide(color: KioskColors.border)),
+                  child: SizedBox(
+                    width: _KioskApplianceStripState._arrow,
+                    height: _KioskApplianceStripState._arrow,
+                    child: Icon(icon, size: 34, color: Colors.white),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text('$word $page',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: const TextStyle(fontSize: 16, color: Colors.white)),
+              ],
             ),
           ),
         ),

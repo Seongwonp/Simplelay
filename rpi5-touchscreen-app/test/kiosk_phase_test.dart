@@ -220,11 +220,11 @@ class FakeKioskApi implements KioskApiService {
 /// 세 연결이 모두 정상인 응답 — 배지가 없는 기본 상태.
 const kOkConnections = [
   ConnectionItem(
-      id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: '허브와 잘 연결돼 있어요.'),
+      id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: 'SimpleLay 본체가 집 와이파이에 잘 연결돼 있어요.'),
   ConnectionItem(
-      id: 'press', state: 'ok', title: '누름 장치가 준비됐어요', message: '지금은 연습용 누름 장치로 동작해요.'),
+      id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: '버튼을 대신 눌러 드릴 수 있어요.'),
   ConnectionItem(
-      id: 'plug', state: 'ok', title: '플러그가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
+      id: 'plug', state: 'ok', title: '가전 콘센트 장치가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요. 연습 중이라 실제로 잰 전력 값이 아니에요.'),
 ];
 
 // ── G4: 다단계 실행의 단계별 결과(2026-09-29) ─────────────────────────────
@@ -392,7 +392,7 @@ void main() {
     await tester.pump();
     expect(find.byType(KioskSuggestionView), findsOneWidget);
     // 문구 통일(3c064ec) 뒤에도 실패를 알리고 카드를 남긴다.
-    expect(find.textContaining('다음에 실행하겠다는 요청을 보내지 못했어요'), findsOneWidget);
+    expect(find.textContaining("'이번엔 안 할게요'를 보내지 못했어요"), findsOneWidget);
     api.rejectError = null;
     await tester.tap(find.byKey(_laterKey));
     await tester.pump();
@@ -1051,7 +1051,7 @@ void main() {
     await _pumpKiosk(tester, api);
 
     expect(KioskTimings.countdownSeconds, 20);
-    expect(find.text('누르지 않으면 실행하지 않아요 · 20초'), findsOneWidget);
+    expect(find.text('누르지 않으면 실행하지 않아요 · 20초 뒤 닫혀요'), findsOneWidget);
   });
 
   testWidgets('제안 화면은 지금 고른 가전이 아니라 제안 자신의 대상을 말한다',
@@ -1094,7 +1094,7 @@ void main() {
     final api = FakeKioskApi()..suggestionList = [_sug];
     await _pumpKiosk(tester, api, settings: KioskSettingsStore(path: path));
 
-    expect(find.text('누르지 않으면 실행하지 않아요 · 30초'), findsOneWidget);
+    expect(find.text('누르지 않으면 실행하지 않아요 · 30초 뒤 닫혀요'), findsOneWidget);
   });
 
   test('목록에 없는 카운트다운 값은 기본값으로 폴백한다', () {
@@ -1271,7 +1271,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('약풍'), findsNothing);
-    expect(find.text('앱에서 가전을 추가해 주세요'), findsOneWidget);
+    expect(find.text('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요'), findsOneWidget);
   });
 
   testWidgets('목록 조회 실패는 보고 있던 가전 목록을 지우지 않는다', (tester) async {

@@ -204,8 +204,8 @@ class KioskIdleView extends StatelessWidget {
           ])),
           const SizedBox(height: 8),
           SizedBox(height: large ? 156 : _Idle.strip, child: Center(child: SingleChildScrollView(child: list == null
-            ? const _StripNotice('허브와 연결되면 가전이 보여요')
-            : list.isEmpty ? const _StripNotice('앱에서 가전을 추가해 주세요')
+            ? const _StripNotice('SimpleLay 본체와 연결되면 가전이 보여요')
+            : list.isEmpty ? const _StripNotice('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요')
             : KioskApplianceStrip(appliances: list, running: running, attention: attention,
                 onSelect: onSelectAppliance,
                 perPage: large ? 2 : 3,
@@ -291,15 +291,16 @@ class _DndEntry extends StatelessWidget {
   Widget build(BuildContext context) {
     final quiet = remaining == null ? quietUntil : null;
     final on = remaining != null || quiet != null;
-    final title = quiet != null ? '조용한 시간' : '방해 금지';
-    final sub = quiet != null ? '$quiet까지' : remaining;
+    // '방해 금지'는 제안만 쉬는 줄 알았다(2026-10-15 검토) — '제안 쉬는 중' / 'N 남음'.
+    final title = quiet != null ? '조용한 시간' : '제안 쉬는 중';
+    final sub = quiet != null ? '$quiet까지' : '$remaining 남음';
     return Semantics(
       button: true,
       label: quiet != null
           ? '조용한 시간, $quiet까지. 새 제안과 일반 안내 소리를 쉬어요'
           : on
-              ? '방해 금지 중, 해제하려면 누르세요'
-              : '방해 금지 켜기',
+              ? '제안 쉬는 중, $remaining 남음. 다시 받으려면 누르세요'
+              : '제안 잠시 쉬기',
       child: ExcludeSemantics(
         child: Material(
           color: on ? KioskColors.primary : Colors.transparent,
@@ -322,7 +323,8 @@ class _DndEntry extends StatelessWidget {
                         color: on ? KioskColors.onAccent : KioskColors.muted),
                     if (on) ...[
                       const SizedBox(width: 6),
-                      // 좁은 위 줄에 들어가도록 두 줄로 — "방해 금지" / 남은 시간.
+                      // 좁은 위 줄에 들어가도록 두 줄로 — "제안 쉬는 중" / 남은 시간.
+                      // 큰 글씨에서도 같이 커진다(2026-10-15 B8 — 예전에는 배율을 막아 두었다). 위 줄 높이 안에 들도록 20.
                       Column(
                         mainAxisSize: MainAxisSize.min,
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -330,18 +332,16 @@ class _DndEntry extends StatelessWidget {
                           Text(title,
                               maxLines: 1,
                               softWrap: false,
-                              textScaler: TextScaler.noScaling,
-                              style: TextStyle(
-                                  fontSize: 22,
+                              style: const TextStyle(
+                                  fontSize: 20,
                                   height: 1.15,
                                   fontWeight: FontWeight.w700,
                                   color: KioskColors.onAccent)),
-                          Text(sub!,
+                          Text(sub,
                               maxLines: 1,
                               softWrap: false,
-                              textScaler: TextScaler.noScaling,
                               style: const TextStyle(
-                                  fontSize: 22,
+                                  fontSize: 20,
                                   height: 1.15,
                                   color: KioskColors.onAccent)),
                         ],
@@ -366,11 +366,15 @@ class _StripNotice extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(Icons.add_circle_outline,
+          // 누를 수 없는 안내다 — '+'는 단추로 읽혔다(2026-10-15 B5).
+          const Icon(Icons.info_outline,
               size: 26, color: KioskColors.muted),
           const SizedBox(width: 10),
-          Text(text,
-              style: const TextStyle(fontSize: _Idle.stripName, color: KioskColors.muted)),
+          // 큰 글씨에서는 줄을 바꾼다(넘치지 않게).
+          Flexible(
+            child: Text(text,
+                style: const TextStyle(fontSize: _Idle.stripName, color: KioskColors.muted)),
+          ),
         ],
       );
 }

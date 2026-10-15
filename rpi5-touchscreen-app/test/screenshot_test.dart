@@ -66,6 +66,8 @@ Future<void> _shoot(
     ),
   );
   await tester.pump(const Duration(milliseconds: 300));
+  // 스크롤 막대(늘 보임)는 첫 그림 뒤에 나타난다 — 한 번 더 그려 막대까지 찍는다(2026-10-15).
+  await tester.pump(const Duration(milliseconds: 400));
   await expectLater(
     find.byType(MaterialApp),
     matchesGoldenFile('goldens/$name.png'),
@@ -90,6 +92,8 @@ Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
     ),
   );
   await tester.pump(const Duration(milliseconds: 300));
+  // 스크롤 막대(늘 보임)는 첫 그림 뒤에 나타난다 — 한 번 더 그려 막대까지 찍는다(2026-10-15).
+  await tester.pump(const Duration(milliseconds: 400));
   await expectLater(
     find.byType(MaterialApp),
     matchesGoldenFile('goldens/$name.png'),
@@ -192,8 +196,8 @@ KioskManualView _mine() => KioskManualView(
       onExecute: (_) {},
       onCancel: () {},
       routines: const [
-        KioskRoutine(id: 'morning', name: '아침 데우기', stepCount: 3),
-        KioskRoutine(id: 'evening', name: '저녁 데우기', stepCount: 4),
+        KioskRoutine(id: 'morning', name: '아침 데우기', pressCount: 3),
+        KioskRoutine(id: 'evening', name: '저녁 데우기', pressCount: 4),
       ],
       onRoutine: (_) {},
     );
@@ -214,7 +218,7 @@ void main() {
     await _shoot(t, 'idle', _idle());
   });
 
-  testWidgets('평소 — 방해 금지 중(위 줄 칩)', (t) async {
+  testWidgets('평소 — 제안 쉬는 중(위 줄 칩)', (t) async {
     await _shoot(t, 'idle_dnd', _idle(dndUntil: DateTime(2026, 9, 30, 8, 38)));
   });
 
@@ -257,7 +261,7 @@ void main() {
     );
   });
 
-  testWidgets('평소 — 허브 연결 끊김', (t) async {
+  testWidgets('평소 — SimpleLay 본체 연결 끊김', (t) async {
     await _shoot(
       t,
       'idle_disconnected',
@@ -287,13 +291,14 @@ void main() {
             item: const ConnectionItem(
               id: 'plug',
               state: 'warn',
-              title: '플러그 연결이 약해요',
+              // 서버가 실제로 보내는 문장(rpi/services/connections.py, 서버 문구 정리 2bc87e5).
+              title: '가전 콘센트 장치 연결이 약해요',
               message:
-                  '가전이 끝났는지 알려 주는 플러그와 연결이 약해요. 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
+                  '가전이 끝났는지 알려 주는 가전 콘센트 장치와 연결이 약해요. 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
               fixes: [
-                '플러그가 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.',
-                '플러그를 허브와 가까운 콘센트로 옮겨 주세요.',
-                '그래도 안 되면 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.',
+                '가전 콘센트 장치가 벽 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.',
+                '가전 콘센트 장치와 작은 팔 장치를 잇는 선이 끝까지 꽂혀 있는지 확인해 주세요.',
+                '그래도 안 되면 가전 콘센트 장치를 뽑았다가 10초 뒤 다시 꽂아 주세요.',
               ],
             ),
             checking: false,
@@ -537,7 +542,7 @@ void main() {
           ],
           canExecute: false,
           readiness: 'needs_setup',
-          readinessReasons: ['버튼 위치 보정이 아직 안 됐어요'],
+          readinessReasons: ['버튼 자리를 아직 맞추지 않았어요'],
         ),
         onExecute: (_) {},
         onCancel: () {},
@@ -545,7 +550,7 @@ void main() {
     );
   });
 
-  testWidgets('방해 금지 — 큰 글씨', (t) async {
+  testWidgets('제안 잠시 쉬기 — 큰 글씨', (t) async {
     await _shoot(
       t,
       'dnd_large',
@@ -671,7 +676,7 @@ void main() {
     );
   });
 
-  testWidgets('15인치 미리보기 — 방해 금지', (t) async {
+  testWidgets('15인치 미리보기 — 제안 잠시 쉬기', (t) async {
     await _shoot15(
       t,
       'kiosk15_dnd',
@@ -846,5 +851,52 @@ void main() {
         onDismiss: () {},
       ),
     );
+  });
+
+  // ── 2026-10-15 문구 개선 3단계 — 연결 창(B4)·'SimpleLay 본체' 풀이 ─────────────
+  const networkDown = ConnectionItem(
+    id: 'network',
+    state: 'error',
+    title: '와이파이 연결이 끊겼어요',
+    message: 'SimpleLay 본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 SimpleLay 본체를 찾지 못하고, '
+        '날씨 안내도 볼 수 없어요.',
+    fixes: [
+      '공유기 전원이 켜져 있는지 확인해 주세요.',
+      'SimpleLay 본체에 랜선을 쓰고 있다면 선이 끝까지 꽂혀 있는지 확인해 주세요.',
+      '그래도 안 되면 SimpleLay 본체 전원을 껐다가 다시 켜 주세요.',
+    ],
+  );
+
+  testWidgets('연결 창 — 큰 글씨·SimpleLay 본체 풀이', (t) async {
+    await _shoot(
+      t,
+      'connection_modal_large',
+      Stack(children: [
+        Positioned.fill(child: _idle()),
+        Positioned.fill(
+          child: KioskConnectionModal(
+              item: networkDown, checking: false, onRecheck: () {}, onClose: () {}),
+        ),
+      ]),
+      textScale: 1.22,
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 연결 창', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_connection_modal',
+      Stack(children: [
+        Positioned.fill(child: _idle()),
+        Positioned.fill(
+          child: KioskConnectionModal(
+              item: networkDown, checking: false, onRecheck: () {}, onClose: () {}),
+        ),
+      ]),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 평소, 제안 쉬는 중', (t) async {
+    await _shoot15(t, 'kiosk15_idle_dnd', _idle(dndUntil: DateTime(2026, 9, 30, 8, 38)));
   });
 }

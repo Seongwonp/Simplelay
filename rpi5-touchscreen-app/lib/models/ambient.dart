@@ -121,30 +121,31 @@ class ConnectionItem {
         source: json['source'] as String? ?? 'none',
       );
 
-  /// 화면이 허브에 닿지 못할 때 대신 세우는 와이파이 항목. 서버 문구가 없으니
-  /// 여기서 같은 말투로 쓴다 -- 무엇을 못 하게 되는지까지.
+  /// 화면이 SimpleLay 본체(서버)에 닿지 못할 때 대신 세우는 와이파이 항목. 서버 문구가 없으니
+  /// 여기서 같은 말투로 쓴다 -- 무엇을 못 하게 되는지까지. '허브' 대신 'SimpleLay 본체'(2026-10-15 용어표).
   static const hubUnreachable = ConnectionItem(
     id: 'network',
     state: 'error',
-    title: '허브와 연결되지 않았어요',
-    message: '화면이 허브에 닿지 못하고 있어요. 지금은 가전을 대신 눌러 드릴 수 없고, '
+    title: 'SimpleLay 본체와 연결되지 않았어요',
+    message: '화면이 SimpleLay 본체에 닿지 못하고 있어요. 지금은 가전을 대신 눌러 드릴 수 없고, '
         '날씨 안내도 볼 수 없어요.',
     fixes: [
-      '허브 전원이 켜져 있는지 확인해 주세요.',
-      "잠시 뒤 '다시 연결하기'를 눌러 주세요.",
+      'SimpleLay 본체 전원이 켜져 있는지 확인해 주세요.',
+      "잠시 뒤 '다시 확인하기'를 눌러 주세요.",
     ],
     source: 'kiosk',
   );
 }
 
-/// `GET /routines` 한 항목 — 키오스크는 이름과 대상 가전, 단계 수만 쓴다.
-/// 편집·녹화는 폰 앱에서 한다(UI 확정 §3-4).
+/// `GET /routines` 한 항목 — 키오스크는 이름과 대상 가전, 누를 버튼 수만 쓴다.
+/// 만들기·고치기는 휴대폰 앱에서 한다(UI 확정 §3-4).
 class KioskRoutine {
   const KioskRoutine({
     required this.id,
     required this.name,
     this.applianceIds = const [],
-    this.stepCount = 0,
+    this.pressCount = 0,
+    this.settingCount = 0,
     this.mode = 'approve',
     this.enabled = true,
   });
@@ -155,8 +156,21 @@ class KioskRoutine {
   /// 단계들이 다루는 가전(순서대로, 중복 없음).
   final List<String> applianceIds;
 
-  /// 누를 버튼 수(버튼 누르기 단계의 합). 버튼이 없는 루틴은 단계 수.
-  final int stepCount;
+  /// 작은 팔이 누를 버튼 수(버튼 누르기 단계들의 버튼 합).
+  final int pressCount;
+
+  /// ThinQ로 바꾸는 가전 설정 단계 수(누르지 않는다).
+  final int settingCount;
+
+  /// 루틴 카드 오른쪽 한 마디(2026-10-15 B3) — 예전 'N단계'는 실제로 버튼 수 합계였다.
+  /// 알림만 루틴은 '알림만', 누를 버튼은 '버튼 N번', ThinQ 설정은 '가전 설정 N번'.
+  String get sizeLabel {
+    if (mode == 'notify') return '알림만';
+    return [
+      if (pressCount > 0) '버튼 $pressCount번',
+      if (settingCount > 0) '가전 설정 $settingCount번',
+    ].join(' · ');
+  }
 
   /// approve(승인 후 실행) | notify(알림만)
   final String mode;
@@ -167,20 +181,21 @@ class KioskRoutine {
   factory KioskRoutine.fromJson(Map<String, dynamic> json) {
     final ids = <String>[];
     var presses = 0;
-    var steps = 0;
+    var settings = 0;
     for (final s in (json['steps'] as List<dynamic>?) ?? const []) {
       if (s is! Map<String, dynamic>) continue;
-      steps++;
       final id = s['appliance_id'];
       if (id is String && !ids.contains(id)) ids.add(id);
       final buttons = s['buttons'];
       if (buttons is List) presses += buttons.length;
+      if (s['kind'] == 'thinq_command') settings++;
     }
     return KioskRoutine(
       id: json['id'] as String,
       name: json['name'] as String? ?? '',
       applianceIds: ids,
-      stepCount: presses > 0 ? presses : steps,
+      pressCount: presses,
+      settingCount: settings,
       mode: json['mode'] as String? ?? 'approve',
       enabled: json['enabled'] as bool? ?? true,
     );

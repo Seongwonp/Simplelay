@@ -87,7 +87,7 @@ void main() {
   testWidgets('서버 목록을 못 봤으면 가전을 세우지 않는다', (tester) async {
     await _pump(tester, appliances: null);
     expect(find.text('전자레인지'), findsNothing);
-    expect(find.text('허브와 연결되면 가전이 보여요'), findsOneWidget);
+    expect(find.text('SimpleLay 본체와 연결되면 가전이 보여요'), findsOneWidget);
   });
 
   testWidgets('방해 금지가 꺼져 있으면 글자 없이 달 아이콘 단추만 — 누르면 선택이 열린다',
@@ -98,7 +98,7 @@ void main() {
     await _pump(tester, onDnd: () => opened++);
     expect(find.text('방해 금지'), findsNothing);
     expect(find.textContaining('방해 금지 ·'), findsNothing);
-    expect(find.bySemanticsLabel('방해 금지 켜기'), findsOneWidget);
+    expect(find.bySemanticsLabel('제안 잠시 쉬기'), findsOneWidget);
     expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
     final size = tester.getSize(find.byKey(const ValueKey('dnd-entry')));
     expect(size.width, greaterThanOrEqualTo(48));
@@ -116,11 +116,12 @@ void main() {
     await _pump(tester,
         dndUntil: DateTime(2026, 9, 13, 10, 5), onDnd: () => opened++);
     // 색만으로 말하지 않는다 — 채운 칩 + 아이콘 + 글자.
-    expect(find.text('방해 금지'), findsOneWidget);
-    expect(find.text('1시간'), findsOneWidget);
+    // 2026-10-15: '방해 금지' → '제안 쉬는 중'(이름만 보면 제안만 쉬는 줄 알았다) · 남은 시간에 '남음'.
+    expect(find.text('제안 쉬는 중'), findsOneWidget);
+    expect(find.text('1시간 남음'), findsOneWidget);
     expect(find.byIcon(Icons.bedtime), findsOneWidget);
-    expect(find.bySemanticsLabel('방해 금지 중, 해제하려면 누르세요'), findsOneWidget);
-    expect(find.bySemanticsLabel('방해 금지 켜기'), findsNothing);
+    expect(find.bySemanticsLabel('제안 쉬는 중, 1시간 남음. 다시 받으려면 누르세요'), findsOneWidget);
+    expect(find.bySemanticsLabel('제안 잠시 쉬기'), findsNothing);
     // 위 줄(높이 80) 안, 시계 열이 아니다.
     final chip = tester.getRect(find.byKey(const ValueKey('dnd-entry')));
     expect(chip.bottom, lessThanOrEqualTo(10 + 80 + 0.5));
@@ -132,7 +133,7 @@ void main() {
 
   testWidgets('끝난 방해 금지 시각은 켜진 것으로 보이지 않는다', (tester) async {
     await _pump(tester, dndUntil: DateTime(2026, 9, 13, 9, 0));
-    expect(find.text('방해 금지'), findsNothing);
+    expect(find.text('제안 쉬는 중'), findsNothing);
     expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
   });
 

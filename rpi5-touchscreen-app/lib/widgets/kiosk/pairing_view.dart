@@ -54,7 +54,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
       if (mounted) setState(() => _error = e.detail);
     } catch (_) {
       if (mounted) {
-        setState(() => _error = '연결 코드를 받지 못했어요. 허브 연결을 확인하고 다시 눌러 주세요.');
+        setState(() => _error = '연결 코드를 받지 못했어요. SimpleLay 본체 연결을 확인하고 다시 눌러 주세요.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);

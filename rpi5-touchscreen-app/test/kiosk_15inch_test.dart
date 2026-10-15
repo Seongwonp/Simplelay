@@ -133,7 +133,7 @@ Map<String, Widget Function()> _screens() => {
             onExecute: (_) {},
             onCancel: () {},
             routines: const [
-              KioskRoutine(id: 'a', name: '저녁 국 데우기', stepCount: 4),
+              KioskRoutine(id: 'a', name: '저녁 국 데우기', pressCount: 4),
               KioskRoutine(id: 'b', name: '알림만 받는 긴 이름의 루틴입니다', mode: 'notify'),
             ],
             onRoutine: (_) {},

@@ -4,6 +4,7 @@ import '../../models/appliance.dart';
 import '../../models/command_result.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
+import 'kiosk_scroll_area.dart';
 import 'kiosk_target_line.dart';
 import 'route_badge.dart';
 
@@ -101,7 +102,8 @@ class KioskSuggestionView extends StatelessWidget {
                 // ── 왼쪽: 무엇을 ─────────────────────────────────────────
                 Expanded(
                   flex: 5,
-                  child: SingleChildScrollView(
+                  // 큰 글씨에서 근거 줄이 아래로 넘치면 스크롤 막대가 보인다(2026-10-15).
+                  child: KioskScrollArea(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -182,7 +184,7 @@ class KioskSuggestionView extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          '누를 순서',
+                          '작은 팔이 누를 순서',
                           style:
                               TextStyle(fontSize: 20, color: KioskColors.muted),
                         ),
@@ -218,8 +220,9 @@ class KioskSuggestionView extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  // 서버 동작은 이번만 거절(mute=false)이다 — 그 뜻 그대로(2026-10-15).
                   child: const Text(
-                    '다음에',
+                    '이번엔 안 할게요',
                     textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
                   ),
@@ -261,11 +264,12 @@ class KioskSuggestionView extends StatelessWidget {
               Expanded(
                 child: Text(
                   canExecute
-                      ? '누르지 않으면 실행하지 않아요 · $cdRemaining초'
+                      // 남은 초는 이 화면에서 닫히는 시간이다 — 거절·실행을 보내지 않는다(2026-10-15).
+                      ? '누르지 않으면 실행하지 않아요 · $cdRemaining초 뒤 닫혀요'
                       : scenario
-                          ? '$blockedWhy · $cdRemaining초'
+                          ? '$blockedWhy · $cdRemaining초 뒤 닫혀요'
                           : '이 제안의 가전을 찾을 수 없어 실행할 수 없어요 · '
-                              '$cdRemaining초',
+                              '$cdRemaining초 뒤 닫혀요',
                   style: TextStyle(
                       fontSize: 18,
                       color: canExecute || !scenario

@@ -196,7 +196,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                             TextButton.icon(
                               key: const ValueKey('settings-dnd'),
                               icon: const Icon(Icons.bedtime_outlined),
-                              label: const Text('방해 금지'),
+                              label: const Text('제안 잠시 쉬기'),
                               onPressed: widget.onOpenDnd,
                             ),
                           ],
