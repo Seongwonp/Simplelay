@@ -56,7 +56,7 @@
 
 | 폴더 | 무엇 | 어디서 돈다 |
 | --- | --- | --- |
-| [`rpi/`](rpi/README.md) | 허브 백엔드(FastAPI) — 의도 해석·승인·제안·실행 상태·폰/키오스크 API. 이름 `rpi/`는 보드 하나로 설계하던 시절에서 왔다 | RPi5 |
+| [`rpi/`](rpi/README.md) | 허브 백엔드(FastAPI) — 의도 해석·승인·제안·실행 상태·폰/키오스크 API. 이름 `rpi/`는 보드 하나로 설계하던 시절에서 왔다. `rpi/controller`·`rpi/verifier`는 RPi4도 쓰는 공용 라이브러리 | RPi5 (+공용) |
 | [`rpi4/`](rpi4/README.md) | 실행·검증기 — 버튼 순서를 모션 보드로 누르고 센서·CT로 결과 확인, 정지 보고 | RPi4 |
 | [`rpi5-touchscreen-app/`](rpi5-touchscreen-app/README.md) | 15.8형 터치 패널 키오스크(Flutter Linux) | RPi5 + 패널 |
 | [`app/`](app/README.md) | 폰 앱(Flutter, Android) — 승인·실행·정지·기록·가전 추가 | 폰 |
@@ -64,9 +64,9 @@
 | [`firmware-outlet/`](firmware-outlet/README.md) | ESP32 콘센트 모듈 — CT 전력 2채널(가전 동작 확인)·릴레이·비상정지 래치 | ESP32(콘센트) |
 | [`firmware-motion/`](firmware-motion/README.md) | 모션 규약 표 [`protocol_table.json`](firmware-motion/protocol_table.json) 기준(시험·현행 펌웨어가 따름). 펌웨어 자체는 미채택 참고 구현 | — |
 | [`firmware/`](firmware/README.md) · [`firmware-node/`](firmware-node/README.md) | 예비 경로(옛 설계: BLE 브리지·가전별 노드). 현행 구성의 경로 아님 | — |
-| [`packages/`](packages/) | 폰·키오스크가 함께 쓰는 Dart 패키지(루틴 리허설 모델) | — |
-| [`deploy/`](deploy/) | 보드 배포 스크립트·Dockerfile(RPi5 백엔드·RPi4 실행기·키오스크 감시) | RPi5·RPi4 |
-| [`scripts/`](scripts/) | 키오스크 배포·실측 그래프·점검 도구 | 개발 PC |
+| [`packages/`](packages/README.md) | 폰·키오스크가 함께 쓰는 Dart 패키지(루틴 리허설 모델) | — |
+| [`deploy/`](deploy/README.md) | 보드 배포 스크립트·Dockerfile(RPi5 백엔드·RPi4 실행기·키오스크 감시) | RPi5·RPi4 |
+| [`scripts/`](scripts/README.md) | 키오스크 웹 빌드·실측 그래프·점검 도구(옛 systemd 배포 파일 포함) | 개발 PC |
 | [`docs/`](docs/README.md) | 설계·시연·실측·제출 문서. 입구는 [docs/README.md](docs/README.md) | — |
 
 ```mermaid
@@ -123,7 +123,7 @@ flowchart LR
 | 확인 기능을 끈 비교 조건 실험, 팀 밖 초기 사용성 점검, 원가·설치 시간 | **제출 전 예정** | [제출 전 검증 과업](docs/제출전-검증-과업.md) |
 | 비상정지 전원 차단 회로, 공간 감지(레이더) | 미착수 | [하드웨어 연결 설계](docs/하드웨어-연결-설계.md) |
 
-자동 시험(골든 제외): 백엔드+RPi4 2,969(10/14) · 폰 844(10/15) · 키오스크 318(10/14) 통과 — 모의·합성 입력 중심이며 실물 동작을 대신하지 않는다.
+자동 시험(골든 제외, 10/15): 백엔드+RPi4 3,189 · 폰 886 · 키오스크 400 통과 — 모의·합성 입력 중심이며 실물 동작을 대신하지 않는다.
 
 ## 실행 방법
 
@@ -145,6 +145,7 @@ $env:SIMPLELAY_LOCAL_APPLIANCES = "home_mw,washer,intercom"                 # 2.
 ## 문서 입구
 
 - [docs/README.md](docs/README.md) — 처음 볼 문서, 시연·하드웨어·ThinQ·제출 문서, devlog·archive 안내.
+- [코드 구조](docs/코드-구조.md) — 보드별 모듈 지도, 안전 계약이 사는 코드와 시험, 요청 흐름 · [환경 변수](docs/환경변수.md) · [시험 지도](rpi/tests/README.md)
 - 시연 [v4](docs/본선-시연-계획-v4.md) · 제출 전 검증 [과업](docs/제출전-검증-과업.md) · 실측 [기록표](docs/실측-기록표.md) · 제출 [체크리스트](docs/submission/제출-체크리스트.md)
 - 일정: 결선 서류 제출 10/28(수) 14:00, 발표 11/6(금) — 공식 일정은 [본선 실행 계획 §0](docs/본선-실행계획-2026-09-30.md).
 - 작업 기록은 날짜별 [docs/devlog/](docs/devlog/), 지난 인계·폐기 문서는 [docs/archive/](docs/archive/)에 보관한다.
