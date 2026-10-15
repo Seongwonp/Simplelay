@@ -420,3 +420,6 @@ def reset_thinq_caches() -> None:
     get_thinq_client.cache_clear()
     get_added_store.cache_clear()
     _engine = None
+    from .air_quality_wiring import reset_air_quality  # noqa: PLC0415
+
+    reset_air_quality()

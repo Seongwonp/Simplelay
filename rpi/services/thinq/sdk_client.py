@@ -229,6 +229,11 @@ class SdkThinqClient:
             return hit[1]
         return self.get_status(device_id)
 
+    def forget_status(self, device_id: str) -> None:
+        """최근 조회 기억을 지운다 — 모의 클라우드에 값을 넣은 직후 다음 조회가 옛 값을 쓰지 않게(리허설 주입)."""
+        with self._lock:
+            self._status_cache.pop(device_id, None)
+
     def probe_online(self, device_id: str) -> bool:
         """목록에 온라인 여부가 없어 상태 조회로 본다. 연결 안 됨이면 False, 그 밖의 실패는 올린다."""
         try:

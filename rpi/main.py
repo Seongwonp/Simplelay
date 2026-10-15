@@ -152,9 +152,15 @@ async def lifespan(app: FastAPI):
     # 사용자 루틴의 시각·다가옴 트리거(카드·알림만 만든다, 실행 없음).
     from rpi.routines.wiring import routine_tick_loop
     routine_task = asyncio.create_task(routine_tick_loop())
+    # 공기청정기 센서 공기질 판독(2026-10-15) — ThinQ가 켜져 있을 때만 전용 데몬 스레드. 여기서는 스레드만 띄운다
+    # (환경 변수만 읽음 — 싱글턴 생성·ThinQ 조회는 그 스레드 안에서). 이벤트 루프·공유 풀을 쓰지 않는다.
+    from rpi.api.air_quality_wiring import start_air_quality_poller, stop_air_quality_poller
+    start_air_quality_poller()
     try:
         yield
     finally:
+        # 표시만 하고 기다리지 않는다 — 판독이 멈춰 있어도 종료가 늦지 않게.
+        stop_air_quality_poller()
         refresh_task.cancel()
         routine_task.cancel()
         with contextlib.suppress(asyncio.CancelledError):

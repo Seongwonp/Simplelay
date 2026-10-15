@@ -103,6 +103,20 @@ class ScenarioEngine:
                 offered.append(card)
         return offered
 
+    def on_air_quality(self, appliance_id: str, reason: str, is_demo: bool):
+        """공기청정기 센서 나쁨 판독(``rpi/services/air_quality.py``) → ``air_quality`` 트리거 카드(2026-10-15).
+
+        근거 문장은 판독이 만든 그대로(가전 등급·값). 판정·재알림은 판독 쪽이 하고, 여기서는 종전 시나리오 카드처럼
+        준비 상태를 보고 만든다 — 조용한 시간·잠시 쉬기·다시 받지 않기·부재는 제안 서비스가 막는다. 만든(또는 이미 떠
+        있던) 카드, 막혔으면 None."""
+        card = None
+        for definition in self._catalog.list():
+            trigger = definition.trigger
+            if trigger.kind != "air_quality" or trigger.appliance_id != appliance_id:
+                continue
+            card = self._offer(definition, reason, is_demo) or card
+        return card
+
     def _approval_count(self, definition: ScenarioDefinition) -> int:
         """같은 제안(질문 문장)을 승인한 횟수 — 제안 기록(``feedback_events``, 최근 200건)에서 센 그대로. 모르면 0."""
         reader = getattr(self._suggestions, "feedback_events", None)
@@ -121,6 +135,11 @@ class ScenarioEngine:
         definition = self._catalog.get(scenario_id)
         if definition is None:
             raise KeyError(scenario_id)
+        if definition.trigger.kind == "air_quality":
+            # 공기질 카드는 센서 판독으로만 만든다 — 값 없이 '공기가 나빠요'라고 하지 않는다(2026-10-15).
+            # 리허설은 모의 센서 값 주입(POST /demo/thinq/air-quality)으로 한다.
+            raise ScenarioUnavailableError(
+                "공기질 제안은 공기청정기 센서 값으로만 만들어요 — 리허설은 모의 센서 값 주입을 써 주세요")
         # 부재 중이면 만들지 않는다(G10). 만들어 두면 다음 조회에서 곧바로
         # 철회돼 이벤트에 created → withdrawn 두 줄이 남고, 그 사이 화면에
         # 잠깐 뜬다. 판정은 제안 서비스의 것을 그대로 쓴다 -- 게이트를 켜고

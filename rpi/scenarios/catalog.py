@@ -56,7 +56,7 @@ class ScenarioStep:
 
 @dataclass(frozen=True)
 class ScenarioTrigger:
-    #: job_completed | thinq_event | appliance_done | manual
+    #: job_completed | thinq_event | appliance_done | air_quality | manual
     kind: str
     appliance_id: str | None = None
     #: thinq_event 트리거의 이벤트 이름(예: wash_complete).
@@ -112,6 +112,22 @@ COOK_DONE_AIR = ScenarioDefinition(
     auto_allowed=True,
 )
 
+AIR_QUALITY_HIGH = ScenarioDefinition(
+    scenario_id="air_quality_high",
+    name="공기가 나빠요",
+    question="공기청정기를 강풍으로 바꿀까요?",
+    # 2026-10-15(사용자 요청): 근거는 공기청정기 자체 센서(ThinQ)의 가전 등급뿐 — 판독·재알림은
+    # rpi/services/air_quality.py, 판독 스레드는 rpi/api/air_quality_wiring.py. 센서 값이 없으면 만들지 않는다
+    # (시연 트리거로도 만들지 않는다 — 엔진 ``trigger_manual``). 근거 문장은 판독이 채운다(예: '공기청정기 센서: 초미세먼지 42 · 나쁨').
+    # '다음부터도 자동으로'는 두지 않는다(auto_allowed=False — 자동 실행 허용 규칙의 범위는 cook_done_air 그대로).
+    trigger=ScenarioTrigger("air_quality", appliance_id="air_purifier"),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
+                     (("wind_strength", "HIGH"),)),
+    ),
+    auto_allowed=False,
+)
+
 EVENING_REST = ScenarioDefinition(
     scenario_id="evening_rest",
     name="저녁 휴식",
@@ -137,8 +153,9 @@ WASH_THEN_DRY = ScenarioDefinition(
 
 #: v2 시연의 시나리오 — v3에서 뺐다. ``SIMPLELAY_V2_SCENARIOS``로만 싣는다.
 V2_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
-#: 기본 카탈로그(v4): 가열 종료 감지 → 공기청정기 하나. 그 밖의 카드는 사용자 루틴이 만든다.
-DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR,)
+#: 기본 카탈로그(v4): 가열 종료 감지 → 공기청정기, 그리고 공기청정기 센서 공기질 → 강풍(2026-10-15).
+#: 그 밖의 카드는 사용자 루틴이 만든다. v2 구성(opt-in)에는 공기질 카드를 싣지 않는다.
+DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR, AIR_QUALITY_HIGH)
 
 V2_SCENARIOS_ENV = "SIMPLELAY_V2_SCENARIOS"
 
@@ -175,6 +192,7 @@ class ScenarioCatalog:
 
 
 __all__ = [
+    "AIR_QUALITY_HIGH",
     "COOK_DONE_AIR",
     "COOK_THEN_AIR",
     "DEFAULT_SCENARIOS",

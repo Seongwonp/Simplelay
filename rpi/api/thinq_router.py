@@ -14,6 +14,7 @@
 - ``GET  /thinq/events``             최근 모의 이벤트
 - ``POST /demo/thinq/fault``         모의 ThinQ 지속 장애 주입(오프라인·접수됨·접수 불명·지연) — mock 모드만
 - ``GET  /demo/thinq/fault``         지금 걸린 모의 장애
+- ``POST /demo/thinq/air-quality``   모의 공기청정기 센서 값 주입 → 공기질 판독 1회(2026-10-15) — mock·fake_cloud만, real은 409
 
 ``/demo/*``는 다른 리허설 경로와 같은 보호(API 키)를 받고, ThinQ 이벤트 주입은
 추가로 **mock 모드에서만** 열린다 -- real 모드에서 가짜 이벤트가 실제처럼 섞이지 않게.
@@ -329,6 +330,34 @@ async def demo_thinq_event(body: ThinqEventRequest,
 
     await asyncio.to_thread(get_scenario_engine)
     return _public(await asyncio.to_thread(inject, body.event), registry)
+
+
+class AirQualityInjectRequest(BaseModel):
+    """리허설용 모의 센서 값(2026-10-15). ``NONE``은 센서 칸 없음(꺼짐·센서 준비 중 흉내)."""
+
+    model_config = ConfigDict(extra="forbid")
+    level: Literal["GOOD", "NORMAL", "BAD", "VERY_BAD", "NONE"]
+    pm2: int | None = Field(default=None, ge=0, le=999)
+    pm10: int | None = Field(default=None, ge=0, le=999)
+    #: 재알림 기억(다시 준비·카드 뒤 쉬는 시간)을 지우고 판독 — 리허설을 되풀이할 때만.
+    forget_recent: bool = False
+
+
+@router.post("/demo/thinq/air-quality")
+async def demo_thinq_air_quality(body: AirQualityInjectRequest,
+                                 service: SimpleLayService = Depends(get_service),
+                                 registry=Depends(get_appliance_registry)) -> dict:
+    """모의 공기청정기 센서 값을 넣고 공기질 판독을 한 번 바로 한다(주기를 기다리지 않는다). 결과는 ``check``
+    (``offered``·``no_data``·``ok``·``already_strong``·``waiting_rearm``·``card_quiet``·``not_offered`` 등)와 떠 있는
+    공기질 카드. **real 모드에서는 409** — 실제 공기청정기 값 자리에 모의 값을 섞지 않는다. 응답·카드는 모의로 표시한다."""
+    from .air_quality_wiring import AirInjectError, inject_mock_air  # noqa: PLC0415
+
+    controller = _thinq_on(service)
+    try:
+        return await asyncio.to_thread(inject_mock_air, controller, registry, body.level, body.pm2, body.pm10,
+                                       body.forget_recent)
+    except AirInjectError as exc:
+        raise HTTPException(exc.status, exc.reason) from None
 
 
 @router.get("/thinq/events")

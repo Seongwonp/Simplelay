@@ -20,6 +20,9 @@ ID가 UUID인지). 토큰·API 키 값은 기록하지 않는다.
 - ``freeze_state`` -- 제어를 접수(성공 응답)하지만 상태는 바꾸지 않는다(접수 후 상태 미확인).
 - ``reject_control`` -- 조회는 되지만 제어는 ``COMMAND_NOT_SUPPORTED_IN_MODE``로 거절(제어 실패).
 
+공기질(2026-10-15): ``set_air_quality``(또는 HTTP ``POST /__fake__/air`` ``{"device_id", "sensor"}``)로 공기청정기
+센서 칸(``airQualitySensor``)을 바꾸거나(``sensor: null``이면) 지운다 — 허브의 ``POST /demo/thinq/air-quality``가 쓴다.
+
 세탁기는 ``remoteControlEnable.remoteControlEnabled``가 꺼져 있으면(기본 꺼짐) 제어를
 ``COMMAND_NOT_SUPPORTED_IN_REMOTE_OFF``로 거절한다. 프로필에 없는 속성·값도 거절한다.
 
@@ -172,6 +175,19 @@ class FakeThinqCloud:
             state = self._devices[device_id]["state"]
             for entry in state if isinstance(state, list) else [state]:
                 entry.setdefault("remoteControlEnable", {})["remoteControlEnabled"] = bool(enabled)
+
+    def set_air_quality(self, device_id: str, sensor: dict | None) -> None:
+        """공기청정기 센서 칸을 바꾼다(모의). None이면 칸을 지운다(꺼짐·센서 준비 중 흉내)."""
+        with self._lock:
+            device = self._devices[device_id]
+            if device["kind"] != "air_purifier":
+                raise ValueError("air quality is for the air purifier only")
+            if sensor:
+                if not isinstance(sensor, dict):
+                    raise ValueError("sensor must be an object")
+                device["state"]["airQualitySensor"] = copy.deepcopy(sensor)
+            else:
+                device["state"].pop("airQualitySensor", None)
 
     def state(self, device_id: str):
         with self._lock:
@@ -341,6 +357,9 @@ class _Handler(BaseHTTPRequestHandler):
                 self._send(200, {"requests": self.fake.requests()})
             elif self.path == "/__fake__/fault" and method == "POST":
                 self.fake.set_fault((body or {}).get("kind"), device_id=(body or {}).get("device_id"))
+                self._send(200, {"ok": True})
+            elif self.path == "/__fake__/air" and method == "POST":
+                self.fake.set_air_quality(body["device_id"], body.get("sensor"))
                 self._send(200, {"ok": True})
             elif self.path == "/__fake__/remote" and method == "POST":
                 self.fake.set_remote_control(body["device_id"], bool(body["enabled"]))

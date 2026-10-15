@@ -2,7 +2,9 @@
 
 기기 세 대:
 
-- 공기청정기 ``mock-purifier-01`` -- 전원·풍량·운전 모드 쓰기 가능.
+- 공기청정기 ``mock-purifier-01`` -- 전원·풍량·운전 모드 쓰기 가능. 센서 칸(``airQualitySensor``, 기본 좋음)은 **전원이
+  켜져 있을 때만** 상태에 싣는다(2026-10-15 실물: 꺼져 있으면 칸이 없다). ``set_air_quality``로 모의 센서 값을 바꾼다
+  (리허설 ``POST /demo/thinq/air-quality``, mock 모드만). ``None``이면 칸을 지운다(켠 직후 센서 준비 중 흉내).
 - 세탁기 ``mock-washer-01`` -- 시작·일시정지(``operation.washerOperationMode``, 위치 ``MAIN``).
   **원격 제어는 기본 꺼짐**(``set_remote_control(True)``로 켠다) -- 꺼져 있으면 제어를 거절한다.
   ``inject_event("wash_complete")``로 세탁 완료를 흉내 낸다(상태 ``runState.currentState`` → ``END``).
@@ -59,7 +61,7 @@ from .client import (
 )
 from .errors import API_ERROR_CODES, error_from_api
 from .profile import DeviceProfile
-from .profiles_sample import air_purifier_profile, dehumidifier_profile, washer_profile
+from .profiles_sample import air_purifier_profile, air_sensor_sample, dehumidifier_profile, washer_profile
 
 #: 지속 장애 모드(G6).
 FAULT_MODES = ("normal", "offline", "unconfirmed", "lost")
@@ -132,6 +134,8 @@ class MockThinqClient:
             MOCK_WASHER_ID: washer_profile(),
             MOCK_DEHUMIDIFIER_ID: dehumidifier_profile(),
         }
+        #: 모의 공기청정기 센서 칸 — 전원이 켜져 있을 때만 조회에 싣는다. None이면 칸 없음.
+        self._air_sensor: dict | None = air_sensor_sample("GOOD")
         self._faults: dict[str, str] = {}
         self._device_latency: dict[str, float] = {}
         self.controls: list[tuple[str, dict]] = []
@@ -161,6 +165,12 @@ class MockThinqClient:
         with self._lock:
             self._state[MOCK_WASHER_ID].setdefault("remoteControlEnable", {})[
                 "remoteControlEnabled"] = bool(enabled)
+
+    def set_air_quality(self, sensor: dict | None) -> dict | None:
+        """모의 공기청정기 센서 칸을 바꾼다(모의). None이면 칸을 지운다. 전원이 꺼져 있으면 조회에 실리지 않는다."""
+        with self._lock:
+            self._air_sensor = copy.deepcopy(sensor) if sensor else None
+            return copy.deepcopy(self._air_sensor)
 
     def fail_next_control(self, kind: str | None) -> None:
         if kind not in (None, "reject", "timeout"):
@@ -253,7 +263,11 @@ class MockThinqClient:
             if not self._device_online[device_id]:
                 raise ThinqOfflineError("기기가 오프라인이에요(모의)")
             self._apply_due_locked(device_id)
-            return copy.deepcopy(self._state[device_id])
+            state = copy.deepcopy(self._state[device_id])
+            if (device_id == MOCK_PURIFIER_ID and self._air_sensor
+                    and state.get("operation", {}).get("airPurifierOperationMode") == "POWER_ON"):
+                state["airQualitySensor"] = copy.deepcopy(self._air_sensor)
+            return state
 
     def post_control(self, device_id: str, payload: dict) -> dict:
         self._delay()

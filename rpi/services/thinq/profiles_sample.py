@@ -80,6 +80,23 @@ def air_purifier_state() -> dict:
     }
 
 
+#: 모의 센서 등급별 기본값(예시 — 실제 모델의 등급 경계가 아니다). (PM2.5, PM10, 종합 지수)
+_AIR_SAMPLE = {"GOOD": (8, 10, 1), "NORMAL": (20, 40, 2), "BAD": (42, 90, 3), "VERY_BAD": (80, 160, 4)}
+
+
+def air_sensor_sample(level: str = "GOOD", *, pm2: int | None = None, pm10: int | None = None) -> dict:
+    """모의 공기청정기 센서 칸(``airQualitySensor``) — 2026-10-15 실물 상태와 같은 키 모양(PM1·PM2·PM10·각 등급·종합).
+
+    세 등급을 모두 ``level``로 둔다. 값은 예시이고, 판정은 값이 아니라 등급으로 한다(``rpi/services/air_quality.py``)."""
+    if level not in _AIR_SAMPLE:
+        raise ValueError(f"level must be one of {', '.join(_AIR_SAMPLE)}")
+    base_pm2, base_pm10, total = _AIR_SAMPLE[level]
+    pm2 = base_pm2 if pm2 is None else pm2
+    pm10 = base_pm10 if pm10 is None else pm10
+    return {"PM1": pm2, "PM2": pm2, "PM10": pm10, "PM1Level": level, "PM2Level": level, "PM10Level": level,
+            "totalPollution": total, "totalPollutionLevel": level}
+
+
 def dehumidifier_state() -> dict:
     return {
         "operation": {"dehumidifierOperationMode": "POWER_OFF"},
