@@ -504,6 +504,11 @@ class CommandExecutionMixin:
                 tuple(command.buttons), step.controller, None, command.target_id,
                 step.calibration, usage_source, None, targets=step.targets,
             )
+        except Exception:  # noqa: BLE001 -- 실행 대상 예외(링크 끊김 등)는 '눌렸는지 모름'이다(2026-10-15 G1)
+            # 예전에는 여기서 예외가 올라가 _run_plan_job이 로그만 남겼다 — 결과·이력·보호자 알림·완료 이벤트가 없고
+            # /status에는 이 job 번호에 직전 실행의 결과가 붙었다. 이제 이 job의 '확인 못 함'으로 남기고 다시 누르지 않는다.
+            log.exception("physical step raised — recording it as unconfirmed")
+            return self._unconfirmed_physical_step(step, usage_source, scenario_id)
         finally:
             self._scenario_context = None
         try:
@@ -518,6 +523,31 @@ class CommandExecutionMixin:
                 confirmation=Confirmation.NONE, execution_mode=_mode(step.controller),
                 detail="결과를 해석하지 못했어요", observed_at=self._clock.now(),
             )
+
+    def _unconfirmed_physical_step(self, step: _Step, usage_source, scenario_id) -> CommandResult:
+        """물리 단계가 실행 대상 예외로 끝났다 — 수신 unknown·확인 없음·``unconfirmed``(2026-10-15 G1).
+
+        이력·보호자 알림·/status는 서비스의 직접 경로와 같은 함수(`_record_unconfirmed_physical`)로 남기고, 시나리오
+        트리거가 듣는 완료 이벤트도 보낸다. 남은 단계는 ``_run_plan``이 보내지 않는다(앞 단계 미확인)."""
+        from .service import LINK_UNCONFIRMED_DETAIL  # noqa: PLC0415
+
+        command = step.command
+        stopped = self._record_unconfirmed_physical(
+            tuple(command.buttons), step.controller, None, command.target_id, step.calibration)
+        mode = _mode(step.controller)
+        result = CommandResult(
+            command=command, status=CommandStatus.UNCONFIRMED, receipt=Receipt.UNKNOWN,
+            confirmation=Confirmation.NONE, execution_mode=mode, detail=LINK_UNCONFIRMED_DETAIL,
+            observed_at=self._clock.now(), stop_requested=stopped or self._stop_sticky,
+        )
+        with self._lock:
+            self._last_command_result = result
+        self._emit_job_finished(JobFinishedEvent(
+            job_id=self._history_job_id(), appliance_id=command.target_id, route=ControlRoute.PHYSICAL,
+            status=result.status.value, receipt=result.receipt, confirmation=result.confirmation,
+            execution_mode=mode, usage_source=usage_source, purpose=None, scenario_id=scenario_id,
+        ))
+        return result
 
     # ── 물리 결과의 계약 필드(기존 경로에서 부른다) ────────────────────────
     def _physical_contract_fields(self, result: ExecutionResult, expected: int | None) -> dict:

@@ -30,7 +30,7 @@ from rpi.intent.models import UsageSource
 from rpi.intent.completed_actions import CompletedActions
 from rpi.intent.rules import UnknownIntentError, RuleBasedIntentResolver
 from rpi.services import NodeRegistry
-from rpi.commands import ApprovalMismatchError, ControlRoute
+from rpi.commands import ApprovalMismatchError, CommandStatus, Confirmation, ControlRoute, Receipt
 from rpi.services.appliance_registry import BUILTIN_APPLIANCES
 
 from .service_commands import CommandExecutionMixin, WrongRouteError
@@ -47,6 +47,10 @@ log = logging.getLogger(__name__)
 # 노드 정지 브로드캐스트 전체 상한 — 개별 요청 타임아웃(2초)보다 살짝 길게
 # 잡아, 살아 있는 노드는 확인하고 죽은 노드 하나가 호출자를 붙잡지는 않게.
 EMERGENCY_STOP_BROADCAST_SECONDS = 2.5
+
+#: 실행 도중 실행 대상과 연결이 끊겼을 때(응답 없음·링크 오류 — 예외로 끝남)의 결과 문장(2026-10-15 G1·G5).
+#: 저쪽이 이미 다 눌렀을 수도 있다 — '완료하지 못했어요'로 단정하지 않고, 다시 누르지 않는다.
+LINK_UNCONFIRMED_DETAIL = "연결이 끊겨 눌렸는지 확인하지 못했어요 — 가전을 직접 봐 주세요(자동으로 다시 누르지 않아요)"
 
 #: appliance_id 없는 옛 실행 요청의 대상 — 규칙 해석(즉석밥 등)이 쓰는 내장 갠트리 가전.
 #: RPi4 execute에는 이 값을 **명시해** 싣는다(2026-10-07, 평가 H3). RPi4가 대상을 가정하지 않는다.
@@ -620,45 +624,70 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             )
         except Exception:
             # 백그라운드 스레드라 HTTP 500으로 표면화할 곳이 없다 — 로그를
-            # 남기고 /status의 last_status="failed"로 실패를 노출한다.
+            # 남기고 /status에 이 job의 '확인 못 함'을 노출한다.
             log.exception("background job execution failed")
-            self._last_result = ExecutionResult(ExecutionStatus.FAILED, ())
-            # 컨트롤러는 알고 있으므로 모드도 함께 남긴다 — 예외로 끝난
-            # 실행이야말로 실기기 실험에서 놓치면 안 되는 표본이다.
-            #
-            # 정지 여부도 정상 경로와 똑같이 소진해 넘긴다. 안 그러면
-            # 사용자가 멈춘 뒤 컨트롤러가 예외로 끝난 실행이 '재시도 소진'
-            # 으로 기록돼, 실험에서 실패율 분모에 섞인다.
-            with self._lock:
-                stopped_by_user = self._stop_requested_this_run
-                stop_requested_at = self._stop_requested_at
-                self._stop_requested_this_run = False
-                self._stop_requested_at = None
-            self._record_history(
-                self._last_result,
-                purpose,
-                appliance_id,
-                stopped_by_user,
-                controller=controller,
-                calibration_version=calibration_version,
-                stop_requested_at=stop_requested_at,
-            )
-            # 보호자 알림도 남긴다 — 오히려 진짜 하드웨어 장애(UART 단절 등)
-            # 일수록 예외로 끝나는데, 그게 알림함에서 빠지면 안 된다
-            # (교차 리뷰 #7). 내부 예외 문구는 노출하지 않는다.
-            if self._care_events is not None:
-                label = purpose or ", ".join(buttons[:2])
-                try:
-                    self._care_events.append(
-                        "execution_failed",
-                        f"'{label}' 실행 중 가전과 연결이 끊겨 완료하지 "
-                        "못했어요. 가전을 확인해 주세요.",
-                        purpose=purpose,
-                    )
-                except Exception:
-                    log.exception("care event record failed")
+            self._record_unconfirmed_physical(buttons, controller, purpose, appliance_id, calibration_version)
         finally:
             self._end_run()
+
+    def _record_unconfirmed_physical(
+        self,
+        buttons: tuple[str, ...],
+        controller: ButtonSequenceController,
+        purpose: str | None,
+        appliance_id: str | None,
+        calibration_version: str | None,
+    ) -> bool:
+        """실행 대상이 예외로 끝난 물리 실행(링크 끊김·응답 없음 등)을 **눌렸는지 모름**으로 남긴다(2026-10-15 G1·G5).
+
+        RPi4가 이미 다 눌렀을 수도, 하나도 못 눌렀을 수도 있다 — '완료하지 못했어요'·재시도 소진으로 단정하지 않는다.
+        수신 ``unknown``·확인 없음·상태 ``unconfirmed``와 `LINK_UNCONFIRMED_DETAIL`을 ``/status``(이 job의 last_*)·이력·
+        보호자 알림에 남긴다. 다시 누르지 않는다. 돌려주는 값은 이번 실행 중 정지 요청이 있었는지(호출자가 결과에 싣는다).
+        """
+        self._last_result = ExecutionResult(ExecutionStatus.FAILED, ())
+        # 정지 여부도 정상 경로와 똑같이 소진해 넘긴다. 안 그러면
+        # 사용자가 멈춘 뒤 컨트롤러가 예외로 끝난 실행이 '재시도 소진'
+        # 으로 기록돼, 실험에서 실패율 분모에 섞인다.
+        with self._lock:
+            stopped_by_user = self._stop_requested_this_run
+            stop_requested_at = self._stop_requested_at
+            self._stop_requested_this_run = False
+            self._stop_requested_at = None
+            # /status의 last_*는 이 job의 것이어야 한다 — 직전 실행의 수신·확인이 남지 않게.
+            self._last_receipt = Receipt.UNKNOWN
+            self._last_confirmation = Confirmation.NONE
+            self._last_detail = LINK_UNCONFIRMED_DETAIL
+            self._last_command_status = CommandStatus.UNCONFIRMED
+            self._last_command_result = None
+        # 컨트롤러는 알고 있으므로 모드도 함께 남긴다 — 예외로 끝난
+        # 실행이야말로 실기기 실험에서 놓치면 안 되는 표본이다.
+        self._record_history(
+            self._last_result,
+            purpose,
+            appliance_id,
+            stopped_by_user,
+            controller=controller,
+            calibration_version=calibration_version,
+            stop_requested_at=stop_requested_at,
+            outcome=CommandStatus.UNCONFIRMED.value,
+            termination=Termination.STOPPED_BY_USER if stopped_by_user else Termination.UNKNOWN,
+            detail=LINK_UNCONFIRMED_DETAIL,
+        )
+        # 보호자 알림도 남긴다 — 오히려 진짜 하드웨어 장애(UART 단절 등)
+        # 일수록 예외로 끝나는데, 그게 알림함에서 빠지면 안 된다
+        # (교차 리뷰 #7). 내부 예외 문구는 노출하지 않는다.
+        if self._care_events is not None:
+            label = purpose or ", ".join(buttons[:2])
+            try:
+                self._care_events.append(
+                    "execution_failed",
+                    f"'{label}' 실행 중 가전과 연결이 끊겨 눌렸는지 확인하지 못했어요. "
+                    "가전을 직접 확인해 주세요(자동으로 다시 누르지 않아요).",
+                    purpose=purpose,
+                )
+            except Exception:
+                log.exception("care event record failed")
+        return stopped_by_user
 
     def _begin_run(
         self,
@@ -732,8 +761,15 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         controller: ButtonSequenceController | None = None,
         calibration_version: str | None = None,
         stop_requested_at: datetime | None = None,
+        *,
+        outcome: str | None = None,
+        termination: Termination | None = None,
+        detail: str = "",
     ) -> None:
         """실행 이력 기록 — 실패해도 실행 자체를 절대 막지 않는다.
+
+        ``outcome``·``termination``·``detail``(2026-10-15 G1)은 결과만으로 정할 수 없는 경우(예외로 끝나 눌렸는지 모름)에
+        호출자가 정한다. 없으면 종전처럼 결과에서 유도한다.
 
         실기기 실험의 근거가 여기서 나온다(F4). 그래서 가전·실제/모의·
         시작 시각·종료 사유까지 함께 남긴다: 없으면 성공률의 분모를 가를 수
@@ -765,14 +801,15 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                     # 실행 시작 시점의 스냅샷 -- 여기서 다시 조회하면
                     # 실행 중에 갱신된 값을 찍게 된다.
                     calibration_profile_version=calibration_version,
-                    termination=self._termination_of(result, stopped_by_user),
+                    termination=(termination if termination is not None
+                                 else self._termination_of(result, stopped_by_user)),
                     # 정지로 끝난 실행에만 남긴다. 정지를 요청했지만
                     # 실행이 이미 성공으로 끝났다면 지연을 잰 것이
                     # 아니므로 비운다.
                     stop_requested_at=(
                         stop_requested_at if stopped_by_user else None
                     ),
-                    outcome=outcome_of(result).value,
+                    outcome=outcome if outcome is not None else outcome_of(result).value,
                     operation_confirmed=(
                         result.operation.passed if result.operation is not None else None
                     ),
@@ -780,6 +817,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                         result.operation.detail if result.operation is not None else ""
                     ),
                     abort_reason=getattr(result, "abort_reason", None),
+                    detail=detail,
                 )
             )
         except Exception:

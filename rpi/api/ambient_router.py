@@ -203,7 +203,10 @@ def _attention(service, registry, alerts, care_events=None) -> list[AttentionIte
             # 보냈지만 확인 못 한 명령(ThinQ ``unconfirmed``)은 실패가 아니다(계약 §3) — 레거시 상태는
             # FAILED로 접혀 있어 명령 경로 상태로 가른다. ``outcome_of``의 의미는 그대로 둔다.
             if getattr(snap, "last_command_status", None) == "unconfirmed":
-                text = f"{name}{_subject_particle(name)} 바뀌었는지 확인하지 못했어요"
+                # 물리 실행이 연결 끊김으로 끝났으면(2026-10-15 G1) 바뀐 것이 아니라 눌렸는지를 모른다.
+                text = (f"{name} — 눌렸는지 확인하지 못했어요 · 가전을 봐 주세요"
+                        if getattr(snap, "last_route", None) == "physical"
+                        else f"{name}{_subject_particle(name)} 바뀌었는지 확인하지 못했어요")
             else:
                 text = f"{name} 작업이 멈췄어요 · 기계를 봐 주세요"
             items.append(AttentionItem("appliance", text))

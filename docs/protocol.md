@@ -710,6 +710,16 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   - 폴링 사이에 자동 실행 두 건이 끝나면 앞의 것은 키오스크가 알리지 않는다(마지막 1건만).
 - 옛 RPi5는 `last_auto_run`이 없다 — 키오스크는 필드 없음·null이면 알림을 만들지 않는다.
 
+**물리 실행이 연결 끊김으로 끝났을 때(2026-10-15, 안전 보고 G1·G5).** 실행 대상이 예외로 끝나면(RPi4 응답 없음·링크
+오류 등) 저쪽이 이미 다 눌렀을 수도, 못 눌렀을 수도 있다. 직접 실행·승인 카드·루틴·시나리오 모두 같은 결과를 **그 job의
+것으로** 남긴다 — `/status` `last_status`·`last_outcome`은 `unconfirmed`(물리 실행도 이 경우만 ThinQ와 같이 올린다),
+`last_receipt: unknown`·`last_confirmation: none`·`last_detail` "연결이 끊겨 눌렸는지 확인하지 못했어요 — 가전을 직접 봐
+주세요(자동으로 다시 누르지 않아요)". `/history`는 `outcome: unconfirmed`·`receipt: unknown`·`termination: unknown`(사용자 정지
+뒤면 `stopped_by_user`)·같은 `detail`, 보호자 알림은 `execution_failed` "…눌렸는지 확인하지 못했어요…". 승인·루틴·시나리오
+경로는 완료 이벤트(`status: unconfirmed`)도 보내고 남은 단계는 보내지 않는다. 어느 경로도 자동으로 다시 누르지 않는다.
+예전에는 승인 경로가 결과 없이 끝나 `last_job_id`에 직전 실행의 결과가 붙었고, 직접 경로는 '완료하지 못했어요'·재시도 소진으로
+적었다.
+
 ## ThinQ 결과의 네 경우 — `confirmation`·`dispatch` (2026-10-14, 보드 날 발견 3)
 
 ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조회 값과 보낸 뒤 재조회 값으로 **확인한 사실만큼** 결과를 낸다.

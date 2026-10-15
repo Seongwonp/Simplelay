@@ -1597,7 +1597,9 @@ def command_status_fields(snap) -> dict:
     """/status·SSE 공통 — 제어 경로와 확인 수준. ThinQ 결과면 상태 문자열도 계약 값으로.
 
     ThinQ의 ``unconfirmed``(보냈지만 확인 못 함)를 ``failed``로 적으면 사용자가 다시
-    보내 중복 실행이 된다(계약 §3). 물리 결과의 last_status는 종전 그대로 둔다.
+    보내 중복 실행이 된다(계약 §3). 물리 결과의 last_status는 종전 그대로 둔다 — 단, 물리 실행이 실행 대상 예외
+    (링크 끊김 등)로 끝나 눌렸는지 모르는 경우(``unconfirmed``, 2026-10-15 G1·G5)는 같은 이유로 ``unconfirmed``로 올린다.
+    ``failed``로 두면 폰·키오스크가 '끝까지 실행하지 못했어요'·'다시 시도'로 읽는다(이미 다 눌렀을 수 있다).
     """
     fields = {
         "route": snap.route,
@@ -1606,7 +1608,8 @@ def command_status_fields(snap) -> dict:
         "last_confirmation": snap.last_confirmation,
         "last_detail": snap.last_detail,
     }
-    if snap.last_route == "thinq" and snap.last_command_status is not None:
+    if snap.last_command_status is not None and (
+            snap.last_route == "thinq" or snap.last_command_status == "unconfirmed"):
         fields["last_status"] = snap.last_command_status
         fields["last_outcome"] = {
             "succeeded": "success", "stopped": "stopped",
