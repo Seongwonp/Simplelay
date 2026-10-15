@@ -72,7 +72,8 @@ void main() {
         await _pump(tester, _executing(mode));
         expect(find.text('실제 장치로 실행'), findsNothing);
         expect(find.textContaining('실행 환경'), findsNothing);
-        expect(find.text('연습 모드'), mode == 'mock' ? findsOneWidget : findsNothing);
+        expect(find.text(kPracticeBandText), mode == 'mock' ? findsOneWidget : findsNothing);
+        expect(find.text('연습 모드'), findsNothing);
       });
 
       testWidgets('동작 중 화면 · $mode', (tester) async {

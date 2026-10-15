@@ -115,8 +115,9 @@ String? confirmationLabel({
   // 대신 사람 말로 하되, 연습이라는 사실은 남긴다(2026-10-14, 폰 10/13과 같은 방향).
   if (executionMode == 'mock') {
     return switch (confirmation) {
-      'operation_confirmed' => '연습 동작 확인',
-      'press_confirmed' => '연습 눌림 확인',
+      // 연습에서 실물 동사('동작 확인'·'눌림 확인')를 쓰지 않는다(2026-10-15 §3-2).
+      'operation_confirmed' => '연습 결과',
+      'press_confirmed' => '연습 결과',
       'reported' => '연습 결과',
       'none' => '눌렸는지 확인 못 했어요',
       _ => null,

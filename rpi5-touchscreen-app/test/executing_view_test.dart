@@ -43,31 +43,36 @@ Future<void> _pump(
 }
 
 void main() {
-  testWidgets('버튼·누르는 중·총 N단계 중 K단계·대상 가전을 보여준다', (tester) async {
+  // 2026-10-15 B1: completed_steps는 끝낸 수 — 지금 누르는 번호는 끝낸 수 + 1.
+  testWidgets('버튼·누르는 중·누를 버튼 N개 중 K번째·대상 가전을 보여준다', (tester) async {
     await _pump(tester, total: 3, target: kMicrowaveAppliance);
 
     expect(find.text("'해동'"), findsOneWidget);
     expect(find.text('누르는 중'), findsOneWidget);
-    expect(find.text('총 3단계 중 1단계'), findsOneWidget);
+    expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
     // 시간으로 채우는 퍼센트가 아니다.
     expect(find.textContaining('%'), findsNothing);
   });
 
-  testWidgets('검증 근거가 오면 눌림 확인 중이고, 원시 수치는 작은 한 줄이다',
+  // 2026-10-15 §3-1: 숫자(mA·dB·%)는 화면에서 뺀다 — 무엇을 보고 있는지만 작은 한 줄로.
+  testWidgets('검증 근거가 오면 제대로 눌렸는지 확인하는 중이고, 숫자는 화면에 없다',
       (tester) async {
     await _pump(tester, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB');
 
-    expect(find.text('눌림 확인 중'), findsOneWidget);
-    final evidence =
-        tester.widget<Text>(find.text('전류 +14mA · 소리 +9dB · 센서 93%'));
+    expect(find.text('제대로 눌렸는지 확인하는 중'), findsOneWidget);
+    final evidence = tester.widget<Text>(find.text('버튼을 누른 뒤 가전 반응을 보고 있어요'));
     expect(evidence.style!.fontSize, lessThan(24));
+    expect(find.textContaining('mA'), findsNothing);
+    expect(find.textContaining('%'), findsNothing);
   });
 
   testWidgets('재시도는 실패가 아니라 보정으로 말하고 정지는 그대로 있다', (tester) async {
     await _pump(tester, attempt: 2);
 
-    expect(find.text('보정 후 다시 시도 중'), findsOneWidget);
+    expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
+    expect(find.text('눌렸는지 확인되지 않아 한 번 더 눌러요'), findsOneWidget);
+    expect(find.textContaining('보정'), findsNothing);
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
     expect(find.textContaining('2번째 시도'), findsOneWidget);
     expect(find.textContaining('실패'), findsNothing);
@@ -102,7 +107,7 @@ void main() {
   testWidgets('대상 가전의 버튼판에서 지금 누르는 버튼을 가리킨다', (tester) async {
     await _pump(tester, total: 3, target: kMicrowaveAppliance);
 
-    expect(find.text('지금 누르는 버튼'), findsOneWidget);
+    expect(find.text('작은 팔이 누르는 자리예요 · 화면은 누르지 않아도 돼요'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('panel-current')),
@@ -120,10 +125,10 @@ void main() {
   testWidgets('버튼판에서 자리를 찾을 수 없으면 그림을 지어내지 않는다', (tester) async {
     // 서버가 준 이름이 대상 가전에 없다(다른 이름·옛 버튼맵).
     await _pump(tester, button: '시간 90초', target: kMicrowaveAppliance);
-    expect(find.text('지금 누르는 버튼'), findsNothing);
+    expect(find.byKey(const ValueKey('exec-panel-caption')), findsNothing);
     // 대상 가전을 모를 때도.
     await _pump(tester, button: '해동');
-    expect(find.text('지금 누르는 버튼'), findsNothing);
+    expect(find.byKey(const ValueKey('exec-panel-caption')), findsNothing);
   });
 
   testWidgets('누를 수 없는 버튼판은 수동 조작 버튼처럼 칠하지 않는다', (tester) async {
@@ -155,7 +160,7 @@ void main() {
       ],
     );
     await _pump(tester, button: '시작', target: twin);
-    expect(find.text('지금 누르는 버튼'), findsNothing);
+    expect(find.byKey(const ValueKey('exec-panel-caption')), findsNothing);
     expect(find.byKey(const ValueKey('panel-current')), findsNothing);
   });
 
@@ -175,8 +180,8 @@ void main() {
   testWidgets('서버가 단계 수를 안 주면 진행을 지어내지 않는다', (tester) async {
     await _pump(tester, completed: 2);
 
-    expect(find.textContaining('단계 중'), findsNothing);
-    expect(find.text('2단계 완료'), findsOneWidget);
+    expect(find.textContaining('개 중'), findsNothing);
+    expect(find.text('버튼 2개를 눌렀어요'), findsOneWidget);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {

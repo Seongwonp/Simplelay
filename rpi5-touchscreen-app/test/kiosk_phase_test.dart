@@ -996,7 +996,7 @@ void main() {
 
   // ── 폐루프 재시도 연출 (디자인 리뷰) ─────────────────────────────────────
 
-  testWidgets('재시도 중에는 보정 후 다시 시도 중이 크게 표시된다', (tester) async {
+  testWidgets('재시도 중에는 자리를 맞춰 다시 누르는 중이 크게 표시된다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()
       ..statusResult = const KioskStatus(
@@ -1013,8 +1013,8 @@ void main() {
     await tester.pump();
 
     // 심사석에서 읽히는 크기인지 — 보조문구가 아니라 상태 구절 자체가 크다.
-    // 폰 실행 화면과 같은 말을 쓴다('자동 보정 중' → '보정 후 다시 시도 중').
-    final banner = tester.widget<Text>(find.text('보정 후 다시 시도 중'));
+    // '보정'은 처음 보는 사람이 몰랐다(2026-10-15) — 자리를 맞춰 다시 누른다고 쓴다.
+    final banner = tester.widget<Text>(find.text('자리를 맞춰 다시 누르는 중'));
     expect(banner.style!.fontSize, greaterThanOrEqualTo(30));
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
     // 재시도 중에도 긴급 정지는 그대로 있다.
@@ -1036,7 +1036,7 @@ void main() {
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
 
-    expect(find.text('보정 후 다시 시도 중'), findsNothing);
+    expect(find.text('자리를 맞춰 다시 누르는 중'), findsNothing);
     // 제목과 hero가 같은 라벨을 쓰므로 hero 쪽 상태 구절로 확인한다
     expect(find.text('누르는 중'), findsOneWidget);
   });
@@ -2023,8 +2023,8 @@ void main() {
     expect(find.text('가전 상태를 확인했어요'), findsNothing);
     expect(find.text('ThinQ · 연습 상태 확인'), findsOneWidget);
     expect(find.text('연습이라 실제 가전은 조작하지 않았어요'), findsOneWidget);
-    // 실행 화면이 사라지는 전환 중이라 둘 다 보일 수 있다.
-    expect(find.text('연습 모드'), findsWidgets);
+    // 실행 화면이 사라지는 전환 중이라 둘 다 보일 수 있다. 연습은 맨 위 띠로(2026-10-15).
+    expect(find.text('연습 중 · 실제 가전은 누르지 않아요'), findsWidgets);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });

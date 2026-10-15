@@ -3,13 +3,17 @@ import 'package:flutter/material.dart';
 import '../../models/appliance.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
+import 'hold_view.dart' show kPanelCaption;
+import 'kiosk_scroll_area.dart';
 import 'kiosk_target_line.dart';
+import 'practice_band.dart';
 
 /// 실행 화면 — 센서 대시보드가 아니라 **지금 무슨 버튼을 어떻게 하고 있는가**.
 ///
 /// 읽는 순서: 어느 가전 → 지금 누르는 버튼(가장 크게) → 지금 상태(누르는 중 /
-/// 눌림 확인 중 / 보정 후 다시 시도 중) → 총 N단계 중 K단계. 전류·소리 같은
-/// 원시 근거는 작은 한 줄로 내린다. 긴급 정지는 오른쪽에 떨어뜨려 두고, 색을
+/// 제대로 눌렸는지 확인하는 중 / 자리를 맞춰 다시 누르는 중) → 누를 버튼 N개 중 K번째.
+/// 전류·소리·센서 % 같은 숫자는 화면에 싣지 않는다(서버 기록에는 남는다, 2026-10-15 §3-1).
+/// 연습(mock)은 맨 위 고정 띠로 말하고, 실물 동사(누르는·눌렸는지) 대신 '짚는'으로 쓴다(§3-2). 긴급 정지는 오른쪽에 떨어뜨려 두고, 색을
 /// 빼도 알아보게 정지 기호·글자·두꺼운 외곽선을 같이 준다.
 ///
 /// 서버는 '이동 중'과 '누르는 중'을 나눠 주지 않는다. 그래서 화면도 나누지
@@ -32,8 +36,7 @@ class KioskExecutingView extends StatelessWidget {
 
   final String executionMode;
 
-  /// 연습(mock)일 때만 "연습 모드". 실제·모름은 머리 표시를 달지 않는다(2026-10-14 문구 정리).
-  String? get modeLabel => executionMode == 'mock' ? '연습 모드' : null;
+  bool get _mock => executionMode == 'mock';
 
   final String title;
 
@@ -69,29 +72,41 @@ class KioskExecutingView extends StatelessWidget {
       verificationConfidence != null ||
       (verificationDetail != null && verificationDetail!.isNotEmpty);
 
-  /// 지금 상태 구절과 그 모양. 폰 실행 화면과 같은 단어를 쓴다.
+  /// 지금 상태 구절과 그 모양(2026-10-15 §3-1). '보정'은 처음 보는 사람이 몰랐다 — 자리를 맞춰 다시 누른다고 쓴다.
   (String, IconData?, Color) _phrase() {
     if (currentButton == null) {
       return ('준비 중', null, KioskColors.muted);
     }
     if (_retrying) {
-      return ('보정 후 다시 시도 중', Icons.autorenew, KioskColors.warning);
+      return (
+        _mock ? '다시 짚는 중' : '자리를 맞춰 다시 누르는 중',
+        Icons.autorenew,
+        KioskColors.warning
+      );
     }
+    if (_mock) return ('짚는 중', null, Colors.white);
     return _hasVerification
-        ? ('눌림 확인 중', null, Colors.white)
+        ? ('제대로 눌렸는지 확인하는 중', null, Colors.white)
         : ('누르는 중', null, Colors.white);
   }
 
-  /// 눌림을 무엇으로 확인했는지. 수치를 지우지 않고 **근거로 내려둔다**.
+  /// 무엇을 보고 있는지 숫자 없이 한 줄(2026-10-15 — 'mA·dB·센서 %'는 뜻을 몰랐다). 몇 번째 시도인지는 남긴다.
   String? _evidence() {
     final parts = <String>[
-      if (verificationDetail != null && verificationDetail!.isNotEmpty)
-        verificationDetail!,
-      if (verificationConfidence != null)
-        '센서 ${(verificationConfidence! * 100).toStringAsFixed(0)}%',
+      if (_hasVerification && !_mock) '버튼을 누른 뒤 가전 반응을 보고 있어요',
       if (_retrying) '$currentAttempt번째 시도',
     ];
     return parts.isEmpty ? null : parts.join(' · ');
+  }
+
+  /// 진행 한 줄(2026-10-15 B1) — 서버의 completed_steps는 **끝낸** 수다. 지금 누르는 번호는 끝낸 수 + 1이고,
+  /// 다 끝났으면 '모두'라고 쓴다(예전에는 첫 버튼에서 '총 2단계 중 0단계'가 보였다).
+  String progressLine(int total, int completed) {
+    if (completed >= total) {
+      return _mock ? '$total개 모두 짚었어요' : '$total개 모두 눌렀어요';
+    }
+    final now = (completed + 1).clamp(1, total);
+    return _mock ? '짚을 버튼 $total개 중 $now번째' : '누를 버튼 $total개 중 $now번째';
   }
 
   @override
@@ -100,7 +115,7 @@ class KioskExecutingView extends StatelessWidget {
     final target = this.target;
     final onPanel = currentOnPanel;
 
-    return Row(
+    final row = Row(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         // ── 왼쪽: 지금 무엇을 ────────────────────────────────────────
@@ -110,8 +125,6 @@ class KioskExecutingView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (modeLabel case final m?)
-                  Text(m, style: const TextStyle(fontSize: 18, color: KioskColors.warning)),
                 if (target != null) ...[
                   KioskTargetLine(appliance: target),
                   const SizedBox(height: 6),
@@ -129,7 +142,8 @@ class KioskExecutingView extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                       color: KioskColors.muted,
                     ),
-                    maxLines: 1,
+                    // 2줄까지 보이고 그래도 넘치면 줄인다(2026-10-15 — 1줄 말줄임에서 무엇을 하는지 잘렸다).
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                 const SizedBox(height: 14),
@@ -173,6 +187,7 @@ class KioskExecutingView extends StatelessWidget {
                       appliance: target,
                       current: onPanel,
                       caution: _retrying,
+                      mock: _mock,
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -208,6 +223,12 @@ class KioskExecutingView extends StatelessWidget {
         ),
       ],
     );
+    // 연습은 맨 위 고정 띠(§3-2) — 작은 '연습 모드' 칩은 처음 보는 사람이 놓쳤다.
+    if (!_mock) return row;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [const KioskPracticeBand(), Expanded(child: row)],
+    );
   }
 }
 
@@ -222,10 +243,14 @@ class _PanelMap extends StatelessWidget {
     required this.appliance,
     required this.current,
     required this.caution,
+    this.mock = false,
   });
 
   final ApplianceMap appliance;
   final ApplianceButton current;
+
+  /// 연습이면 작은 팔이 실제로 누르지 않는다 — 그림 위 안내도 연습으로.
+  final bool mock;
 
   /// 보정 후 다시 누르는 중이면 주의색.
   final bool caution;
@@ -237,9 +262,13 @@ class _PanelMap extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '지금 누르는 버튼',
-            style: TextStyle(fontSize: 16, color: KioskColors.muted),
+          // 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §3-1) — 누르는 자리라고 말한다.
+          Text(
+            mock ? '연습으로 짚는 자리예요 · 화면은 누르지 않아도 돼요' : kPanelCaption,
+            key: const ValueKey('exec-panel-caption'),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 16, color: KioskColors.muted),
           ),
           const SizedBox(height: 8),
           Expanded(
@@ -324,10 +353,11 @@ class _NowBlock extends StatelessWidget {
         if (view.currentButton != null) '${view.currentButton} 버튼',
         phrase,
         if (evidence != null) evidence,
-        if (total != null && total > 0) '총 $total단계 중 $done단계',
+        if (total != null && total > 0) view.progressLine(total, done),
       ].join('. '),
       child: ExcludeSemantics(
-        child: SingleChildScrollView(
+        // 큰 글씨에서 아래(진행 막대)가 넘치면 스크롤 막대가 보인다(2026-10-15).
+        child: KioskScrollArea(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -363,11 +393,12 @@ class _NowBlock extends StatelessWidget {
               ),
               if (view._retrying) ...[
                 const SizedBox(height: 4),
-                // '재시도'는 실패로 읽힌다. 눌림이 확인되지 않아 자리를 다시
-                // 맞추고 누르는 것은 이 제품이 하기로 한 일이다.
-                const Text(
-                  '눌림이 확인되지 않아 자리를 맞추고 다시 눌러요',
-                  style: TextStyle(fontSize: 18, color: KioskColors.warning),
+                // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
+                Text(
+                  view._mock
+                      ? '연습이라 실제로 누르지는 않아요'
+                      : '눌렸는지 확인되지 않아 한 번 더 눌러요',
+                  style: const TextStyle(fontSize: 20, color: KioskColors.warning),
                 ),
               ],
               if (evidence != null) ...[
@@ -380,6 +411,7 @@ class _NowBlock extends StatelessWidget {
               const SizedBox(height: 18),
               if (total != null && total > 0)
                 _SegmentedProgress(
+                  label: view.progressLine(total, done),
                   total: total,
                   completed: done,
                   active: true,
@@ -387,7 +419,7 @@ class _NowBlock extends StatelessWidget {
                 )
               else if (view.completedSteps != null)
                 Text(
-                  '$done단계 완료',
+                  view._mock ? '버튼 $done개를 짚었어요' : '버튼 $done개를 눌렀어요',
                   style: const TextStyle(fontSize: 22, color: KioskColors.muted),
                 ),
             ],
@@ -402,12 +434,14 @@ class _NowBlock extends StatelessWidget {
 /// 척하지 않는다. 채움/테두리/비움 세 모양이라 색을 빼도 지금 칸이 보인다.
 class _SegmentedProgress extends StatelessWidget {
   const _SegmentedProgress({
+    required this.label,
     required this.total,
     required this.completed,
     required this.active,
     this.caution = false,
   });
 
+  final String label;
   final int total;
   final int completed;
   final bool active;
@@ -422,7 +456,7 @@ class _SegmentedProgress extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '총 $total단계 중 $completed단계',
+          label,
           style: const TextStyle(
             fontSize: 24,
             fontWeight: FontWeight.w600,

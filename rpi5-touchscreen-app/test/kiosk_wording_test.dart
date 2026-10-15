@@ -6,13 +6,16 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/models/command_result.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
@@ -486,6 +489,118 @@ void main() {
       expect(find.byKey(_ack).hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
+
+  // ── 2단계: 실행 화면·연습 + B1 + 실행 이름 2줄 ─────────────────────────────
+  group('2단계 · 실행 화면', () {
+    Widget exec({
+      String title = '즉석밥 데워줘',
+      String mode = 'real',
+      String? button = '즉석밥',
+      int attempt = 1,
+      int? completed = 0,
+      int? total = 2,
+      double? confidence,
+      String? detail,
+      ApplianceMap? target = kMicrowaveAppliance,
+    }) =>
+        KioskExecutingView(
+          executionMode: mode,
+          title: title,
+          target: target,
+          lastButtons: null,
+          currentButton: button,
+          currentAttempt: attempt,
+          completedSteps: completed,
+          totalSteps: total,
+          verificationConfidence: confidence,
+          verificationDetail: detail,
+          onStop: () {},
+        );
+
+    testWidgets('B1 — 첫 버튼을 누르는 중이면 0단계가 아니라 1번째', (tester) async {
+      await _pumpView(tester, exec(completed: 0, total: 2));
+      expect(find.text('누를 버튼 2개 중 1번째'), findsOneWidget);
+      expect(find.textContaining('0단계'), findsNothing);
+      expect(find.textContaining('단계'), findsNothing);
+    });
+
+    testWidgets('B1 — 다 끝났으면 모두 눌렀어요', (tester) async {
+      await _pumpView(tester, exec(completed: 2, total: 2));
+      expect(find.text('2개 모두 눌렀어요'), findsOneWidget);
+    });
+
+    testWidgets('B1 — 스크린리더도 같은 번호를 읽는다', (tester) async {
+      final handle = tester.ensureSemantics();
+      await _pumpView(tester, exec(completed: 0, total: 2));
+      expect(find.bySemanticsLabel(RegExp('누를 버튼 2개 중 1번째')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('0단계')), findsNothing);
+      handle.dispose();
+    });
+
+    testWidgets('숫자 근거(mA·dB·%) 없이 무엇을 보는지만 말한다', (tester) async {
+      await _pumpView(tester, exec(confidence: 0.93, detail: '전류 +14mA · 소리 +9dB'));
+      expect(find.text('제대로 눌렸는지 확인하는 중'), findsOneWidget);
+      expect(find.text('버튼을 누른 뒤 가전 반응을 보고 있어요'), findsOneWidget);
+      expect(find.textContaining('mA'), findsNothing);
+      expect(find.textContaining('dB'), findsNothing);
+      expect(find.textContaining('%'), findsNothing);
+    });
+
+    testWidgets('다시 누를 때 — 자리를 맞춰 다시 누르는 중, 한 번 더 눌러요(안전하다고는 하지 않는다)', (tester) async {
+      await _pumpView(tester, exec(attempt: 2, confidence: 0.4, detail: '전류 +2mA'));
+      expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
+      expect(find.text('눌렸는지 확인되지 않아 한 번 더 눌러요'), findsOneWidget);
+      expect(find.textContaining('2번째 시도'), findsOneWidget);
+      expect(find.textContaining('보정'), findsNothing);
+      expect(find.textContaining('두 번 누르지 않'), findsNothing);
+    });
+
+    testWidgets('버튼판 그림 위에 누르는 자리라고 말한다', (tester) async {
+      await _pumpView(tester, exec());
+      expect(find.text('작은 팔이 누르는 자리예요 · 화면은 누르지 않아도 돼요'), findsOneWidget);
+    });
+
+    testWidgets('긴 실행 이름은 2줄까지 줄이지 않고 보인다', (tester) async {
+      if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+      const long = '냉동 만두 데워서 라면이랑 같이 먹을 저녁 준비';
+      await _pumpView(tester, exec(title: long), malgun: true);
+      expect(find.text(long), findsOneWidget);
+      expect(tester.renderObject<RenderParagraph>(find.text(long)).didExceedMaxLines,
+          isFalse);
+    });
+
+    testWidgets('연습 — 맨 위 띠로 말하고 실물 동사(누르는 중·눌렸는지) 대신 짚는다', (tester) async {
+      await _pumpView(tester, exec(mode: 'mock', completed: 1, total: 2, confidence: 1, detail: '모의 검증'));
+      expect(find.text('연습 중 · 실제 가전은 누르지 않아요'), findsOneWidget);
+      expect(find.text('연습 모드'), findsNothing);
+      expect(find.text('짚는 중'), findsOneWidget);
+      expect(find.text('짚을 버튼 2개 중 2번째'), findsOneWidget);
+      expect(find.text('누르는 중'), findsNothing);
+      expect(find.textContaining('눌렸는지'), findsNothing);
+      expect(find.textContaining('모의'), findsNothing);
+      // 띠는 1.6배 글자에서도 줄지 않는다(말줄임 없음).
+    });
+
+    testWidgets('연습 띠는 1.6배 글자에서도 말줄임 없이 화면 맨 위에 있다', (tester) async {
+      if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+      await _pumpView(tester, exec(mode: 'mock'), scale: 1.6, malgun: true);
+      expect(tester.takeException(), isNull);
+      final band = find.text('연습 중 · 실제 가전은 누르지 않아요');
+      expect(band, findsOneWidget);
+      expect(tester.renderObject<RenderParagraph>(band).didExceedMaxLines, isFalse);
+      expect(tester.getRect(band).top, lessThan(40));
+    });
+
+    test('연습 확인 칩에도 실물 동사가 없다', () {
+      for (final c in ['operation_confirmed', 'press_confirmed', 'reported']) {
+        final label = confirmationLabel(
+            route: 'physical', confirmation: c, executionMode: 'mock')!;
+        expect(label, isNot(contains('확인')), reason: label);
+        expect(label, contains('연습'));
+      }
     });
   });
 
