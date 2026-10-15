@@ -935,7 +935,7 @@ async def acknowledge_estop(
     try:
         state = await asyncio.to_thread(service.acknowledge_estop)
     except ActLinkTimeoutError as exc:
-        raise HTTPException(status_code=504, detail="RPi4가 비상정지 해제 확인에 답하지 않았어요") from exc
+        raise HTTPException(status_code=504, detail="작은 팔 장치가 해제 확인에 답하지 않았어요") from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     latched = state.get("latched") is not False

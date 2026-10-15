@@ -132,13 +132,13 @@ SHUTDOWN_STOP_GRACE_SECONDS = 5.0
 
 #: 비상정지 걸림 해제 결과 사유(``estop_state.reason``) → 사람이 읽을 설명.
 ESTOP_REASON_DETAIL = {
-    "estop_button_pressed": "비상정지 버튼이 아직 눌려 있어요 — 버튼을 풀고 다시 확인해 주세요",
-    "outlet_unreachable": "콘센트 모듈이 답하지 않아 비상정지를 풀지 못했어요",
-    "estop_retriggered": "확인하는 사이 비상정지가 다시 걸렸어요",
+    "estop_button_pressed": "빨간 비상 버튼이 아직 눌려 있어요 — 돌려서 푼 뒤 다시 눌러 주세요",
+    "outlet_unreachable": "가전 콘센트 장치가 답하지 않아 비상 버튼 걸림을 풀지 못했어요",
+    "estop_retriggered": "해제하는 사이 비상 버튼이 다시 눌렸어요",
 }
-ESTOP_LATCHED_DETAIL = "비상정지가 걸려 있어요 — 버튼을 풀고 확인을 눌러야 다시 움직여요"
+ESTOP_LATCHED_DETAIL = "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요"
 #: 콘센트 모듈 재부팅으로 켜 두었던 릴레이가 꺼졌을 때(``source:"outlet_reboot"``). rpi.verifier.outlet과 같은 문장.
-POWER_LOST_LATCH_DETAIL = "콘센트 모듈이 다시 켜져 전원이 꺼져 있어요 — 확인 후 켜 주세요"
+POWER_LOST_LATCH_DETAIL = "가전 콘센트 장치가 다시 켜져 가전 전원이 꺼져 있어요 — 해제하면 전원을 다시 켜요"
 #: 리허설 주입을 거절하는 이유(실물 모듈·모터에 붙어 있음).
 REHEARSAL_REFUSED_DETAIL = "RPi4가 실물 콘센트 모듈이나 모션 MCU에 붙어 있어 리허설 주입을 받지 않아요"
 
@@ -539,7 +539,7 @@ class ActExecutor:
                 "type": "error",
                 "sequence_id": msg.sequence_id,
                 "reason": "hold_busy",
-                "detail": "정지 버튼을 누르거나 보관 위치로 이동하는 중이에요",
+                "detail": "작은 팔이 정지 버튼을 누르거나 제자리로 돌아가는 중이에요",
             })
             return
 
@@ -753,7 +753,7 @@ class ActExecutor:
         if not (confirmed or mock):
             emit({"hold_state": None, "stop_outcome": None, "appliance_id": plan.appliance_id,
                   "stop_button": plan.stop_button,
-                  "detail": "가전 동작이 확인되지 않아 정지 버튼 위 대기를 하지 않아요"})
+                  "detail": "가전 동작이 확인되지 않아 작은 팔이 정지 버튼 위에서 기다리지 않아요"})
             return
         last = msg.targets.get(msg.buttons[-1]) if msg.targets else None
         start = (last.x_mm, last.y_mm) if last is not None else None
@@ -787,7 +787,7 @@ class ActExecutor:
         elif self._busy:
             reason, detail = "busy", "다른 동작을 실행하는 중이에요"
         elif self.hold_session is not None and self.hold_session.active:
-            reason, detail = "hold_active", "가전이 동작 중이라 정지 버튼 위에서 기다리는 중이에요"
+            reason, detail = "hold_active", "가전이 동작 중이라 작은 팔이 정지 버튼 위에서 기다리는 중이에요"
         elif self._hold_hw is None:
             reason, detail = "verify_unavailable", "이 실행기에는 확인 주행용 모션이 연결되지 않았어요"
         if reason is not None:

@@ -65,13 +65,13 @@ def test_status_and_readiness_show_latch_and_execute_is_refused(sim):
     assert c.get("/status").json()["estop_latched"] in (None, False)
     _trip(controller)
     status = _until(c, lambda s: s["estop_latched"] is True)
-    assert "비상정지가 걸려 있어요" in status["estop_detail"]
+    assert "비상 버튼이 눌려 있어요" in status["estop_detail"]
     appliance = _microwave(c)
     assert appliance["can_execute"] is False
-    assert any("비상정지가 걸려 있어요" in r for r in appliance["readiness_reasons"])
+    assert any("비상 버튼이 눌려 있어요" in r for r in appliance["readiness_reasons"])
     res = c.post("/execute-buttons", json={"buttons": ["즉석밥", "시작"], "appliance_id": "microwave"})
     assert res.status_code == 412, res.text  # ApplianceNotReadyError — 준비 안 됨
-    assert "비상정지가 걸려 있어요" in res.text
+    assert "비상 버튼이 눌려 있어요" in res.text
     assert controller._motor.commands == []  # noqa: SLF001 - 아무것도 누르지 않았다
 
 

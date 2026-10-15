@@ -113,7 +113,7 @@ def test_appliance_that_ignores_stop_is_reported_unconfirmed(sim):
     _map_and_run(c)
     c.post("/stop")
     status = _until(c, lambda s: s["hold_stop_outcome"] == "requested_unconfirmed")
-    assert status["hold_state"] == "hovering_stop" and "정지 요청함·미확인" in status["hold_detail"]
+    assert status["hold_state"] == "hovering_stop" and "가전이 멈췄는지 확인하지 못했어요" in status["hold_detail"]
     assert controller.hold_hardware.motion.presses() == ["취소", "취소"]
 
 
@@ -123,7 +123,7 @@ def test_finished_appliance_parks_without_a_stop(sim):
     assert res.status_code == 200
     c.post("/execute-buttons", json={"buttons": ["즉석밥", "시작"], "appliance_id": "microwave"})
     status = _until(c, lambda s: s["hold_state"] == "parked")
-    assert status["hold_stop_outcome"] is None and "끝나" in status["hold_detail"]
+    assert status["hold_stop_outcome"] is None and "가전 전력이 떨어져" in status["hold_detail"]
     assert controller.hold_hardware.motion.presses() == []
 
 

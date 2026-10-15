@@ -151,7 +151,7 @@ def test_estop_during_wait_stops_the_routine_even_after_the_latch_is_acknowledge
     _later(trip_then_ack, delay=0.05)
     run = runner.execute_approved(approved, scenario_id=routine.scenario_key())
     assert run.status is RunStatus.STOPPED and len(service.calls) == 1
-    assert "비상정지" in run.detail
+    assert "비상 버튼이 눌려" in run.detail
 
 
 # ── B3: after_done 중복·자기 루틴 제외·RPi4 끝 관찰 목록 ─────────────────────────────

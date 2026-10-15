@@ -221,7 +221,7 @@ class OutletOffline(OutletError):
 
 
 #: 모듈이 다시 켜져(재부팅) 켜 두었던 릴레이가 꺼졌을 때 사람에게 보이는 이유(2026-10-06 평가 A4).
-POWER_LOST_DETAIL = "콘센트 모듈이 다시 켜져 전원이 꺼져 있어요 — 확인 후 켜 주세요"
+POWER_LOST_DETAIL = "가전 콘센트 장치가 다시 켜져 가전 전원이 꺼져 있어요 — 해제하면 전원을 다시 켜요"
 
 
 class OutletRefused(OutletError):
@@ -527,15 +527,15 @@ class OutletLink:
     def not_ready_reason(self) -> str | None:
         """모듈과 말이 통하지 않으면 사람이 읽을 이유, 아니면 None. RPi4 실행기가 execute 전에 본다."""
         if self._reopening:
-            return "콘센트 모듈 포트를 다시 여는 중이에요(USB 연결 확인)"
+            return "가전 콘센트 장치와 다시 연결하는 중이에요(USB 선 확인)"
         with self._cond:
             last = self._last_rx
         reference = last if last is not None else self.started_at_s
         silence = self._clock() - reference
         if silence > self.config.offline_s:
             if last is None:
-                return f"콘센트 모듈이 {silence:.1f}초째 한 번도 답하지 않았어요(연결 확인)"
-            return f"콘센트 모듈이 {silence:.1f}초째 답하지 않아요(한도 {self.config.offline_s:g}초)"
+                return f"가전 콘센트 장치가 {silence:.1f}초째 한 번도 답하지 않았어요(연결 확인)"
+            return f"가전 콘센트 장치가 {silence:.1f}초째 답하지 않아요(한도 {self.config.offline_s:g}초)"
         return None
 
     # ── 명령 ─────────────────────────────────────────────────────────────────

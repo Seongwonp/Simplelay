@@ -133,7 +133,7 @@ _DEFAULT_REASON = {
     ReadinessCheck.TRANSPORT: "기기와 연결되지 않았어요",
     ReadinessCheck.MOTION: "모터가 아직 준비되지 않았어요",
     ReadinessCheck.SENSOR: "눌림을 확인할 센서가 아직 준비되지 않았어요",
-    ReadinessCheck.CALIBRATION: "버튼 좌표를 아직 맞추지 않았어요",
+    ReadinessCheck.CALIBRATION: "버튼 자리를 아직 맞추지 않았어요",
 }
 
 

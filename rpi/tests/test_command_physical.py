@@ -163,7 +163,7 @@ def test_user_stop_after_all_presses_keeps_press_confirmed():
     out = convert(result, stopped_by_user=True)
     assert out.status is CommandStatus.STOPPED
     assert out.confirmation is Confirmation.PRESS_CONFIRMED
-    assert "실행을 멈췄어요" in out.detail and "정지 요청 있음" in out.detail
+    assert "작은 팔을 멈췄어요" in out.detail and "정지 요청 있음" in out.detail
     # 요청이 있었다는 사실만 적는다. 재시도 소진과 겹칠 수 있어 원인으로 단정하지 않는다.
     assert "사용자 정지로" not in out.detail
 
@@ -191,7 +191,7 @@ def test_late_stop_request_on_l3_confirmed_success():
     )
     out = convert(result, stopped_by_user=True)
     assert out.status is CommandStatus.SUCCEEDED
-    assert out.detail.startswith("버튼 눌림과 가전 동작을 확인했어요")
+    assert out.detail.startswith("버튼 눌림과 가전 전력 변화를 확인했어요")
     assert out.detail.endswith(" · 정지 요청 있음") and "이미 끝남" not in out.detail
 
 
@@ -270,7 +270,7 @@ def test_aggregate_success_is_reported_not_press_confirmed():
     assert out.receipt is Receipt.ACCEPTED
     assert out.confirmation is Confirmation.REPORTED
     assert not out.confirmation.has_evidence
-    assert "보고" in out.detail and "센서" not in out.detail.split("(")[0]
+    assert "작은 팔이 다 눌렀다고 알려 왔어요" in out.detail and "센서" not in out.detail.split("(")[0]
     assert "센서로 확인" not in out.detail
 
 
@@ -293,7 +293,7 @@ def test_aggregate_failure_does_not_claim_button_position_or_press_count():
     # synthesize가 채운 '즉석밥 성공, 시작 실패'는 추정이다 -- 문구에 쓰지 않는다.
     assert "'시작'에서" not in out.detail
     assert "눌림 확인" not in out.detail
-    assert "재시도 2회 보고" in out.detail and "보고되지 않음" in out.detail
+    assert "재시도 2회" in out.detail and "알려 오지 않았어요" in out.detail
     # 원본은 그대로 보존된다(추정임을 아는 쪽이 해석한다).
     assert out.buttons[-1].attempts == 3 and out.buttons[-1].verification is None
 
@@ -304,9 +304,9 @@ def test_aggregate_failure_with_user_stop_separates_request_from_confirmation():
     # 요청은 남기되 정지가 확인됐다고 말하지 않는다.
     assert out.stop_requested is True
     assert out.status is CommandStatus.FAILED
-    assert "실패를 보고" in out.detail and out.detail.endswith(" · 정지 요청 있음")
+    assert "실패를 알려 왔어요" in out.detail and out.detail.endswith(" · 정지 요청 있음")
     assert "멈췄어요" not in out.detail and "'시작'에서" not in out.detail
-    assert "정지 여부는 보고되지 않음" in out.detail
+    assert "멈췄는지는 알려 오지 않았어요" in out.detail
     # 집계 보고에는 종료·정지 근거가 없다 -- 어느 쪽도 단정하지 않는다.
     for forbidden in ("끝남", "완료", "사용자 정지로"):
         assert forbidden not in out.detail

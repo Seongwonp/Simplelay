@@ -187,7 +187,7 @@ def test_reported_stop_becomes_stopped_command():
         execution_mode=ExecutionMode.UNKNOWN,
     )
     assert out.status is CommandStatus.STOPPED
-    assert "정지 요청으로 멈췄다고 보고" in out.detail
+    assert "작은 팔이 정지 요청으로 멈췄다고 알려 왔어요" in out.detail
     # 멈춘 버튼은 여전히 모른다 — 추정 버튼을 문구에 쓰지 않는다
     assert "'시작'" not in out.detail and "눌림 확인" not in out.detail
 
@@ -199,7 +199,7 @@ def test_reported_safety_stop_stays_a_failure():
         Command.physical("microwave", ["시작"]), r, execution_mode=ExecutionMode.UNKNOWN
     )
     assert out.status is CommandStatus.FAILED
-    assert "안전 정지했다고 보고" in out.detail and "재시도 2회" in out.detail
+    assert "안전하게 멈췄다고 알려 왔어요" in out.detail and "재시도 2회" in out.detail
 
 
 def test_contradictory_success_outcome_on_failure_is_failed():

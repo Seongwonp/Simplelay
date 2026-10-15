@@ -112,11 +112,11 @@ def _run_mode(controller: object | None, result: object | None) -> ExecutionMode
 _BUILTIN_IDS = frozenset(a.appliance_id for a in BUILTIN_APPLIANCES)
 
 #: 콘센트 모듈 비상정지가 걸려 있을 때 화면에 그대로 보이는 사유(2026-10-05).
-ESTOP_LATCHED_REASON = "비상정지가 걸려 있어요 — 버튼을 풀고 정지 해제 확인을 눌러 주세요"
+ESTOP_LATCHED_REASON = "비상 버튼이 눌려 있어요 — 빨간 비상 버튼을 풀고 해제해 주세요"
 #: RPi5가 다시 켜진 뒤 RPi4의 걸림 상태를 아직 모를 때(2026-10-06 평가 C1). '풀림'으로 보지 않는다.
-ESTOP_UNKNOWN_REASON = "비상정지 상태를 확인하는 중이에요 — RPi4 응답을 기다려요"
+ESTOP_UNKNOWN_REASON = "비상 버튼 상태를 확인하는 중이에요 — 작은 팔 장치의 답을 기다려요"
 #: RPi4(누름 장치) 링크가 끊겼거나 첫 연결 전일 때(2026-10-06 인계 §6). 걸림 상태도 모름이라 실행하지 않는다.
-ACT_LINK_DOWN_REASON = "누름 장치 연결 안 됨 — 다시 연결하는 중이에요"
+ACT_LINK_DOWN_REASON = "작은 팔 장치와 연결되지 않았어요 — 다시 연결하는 중이에요"
 
 
 def _check_approved(buttons, approved_buttons) -> None:

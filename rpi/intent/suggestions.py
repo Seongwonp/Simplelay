@@ -324,9 +324,9 @@ class ProactiveSuggestionService:
                     appliance_id=candidate.appliance_id,
                     expires_at=until,
                     reason=((f"평소처럼 '{routine[1]}' 할까요? " if routine else "")
-                            + f"최근 {candidate.window_days}일 동안 "
-                            f"{candidate.time_band} 시간에 "
-                            f"{candidate.distinct_days}일 사용하셨어요."),
+                            + f"{candidate.time_band}에 자주 하셔서 여쭤봐요 · "
+                            f"최근 {candidate.window_days}일 중 "
+                            f"{candidate.distinct_days}일 사용"),
                     commands=commands,
                     command_summaries=summaries,
                     routine_id=routine[0] if routine else None,

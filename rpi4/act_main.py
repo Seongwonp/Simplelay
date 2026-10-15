@@ -74,7 +74,7 @@ Environment variables:
                                   릴레이 꺼짐(fail-safe)이라, 켜기는 사람이 정한 설정으로만. 모듈이 비상정지
                                   걸림을 보고하거나(ready·status estop) 상태를 확인하지 못하면 보내지 않는다.
                                   켜 둔 뒤 모듈이 재부팅해 꺼지면 **다시 켜지 않고** 걸림(source=outlet_reboot,
-                                  "콘센트 모듈이 다시 켜져 전원이 꺼져 있어요 — 확인 후 켜 주세요")으로 두며,
+                                  "가전 콘센트 장치가 다시 켜져 가전 전원이 꺼져 있어요 — 해제하면 전원을 다시 켜요")으로 두며,
                                   RPi5 POST /stop/ack(estop_ack) 뒤에만 켠다(2026-10-06 평가 A4)
   SIMPLELAY_OUTLET_STALE_MS       전력 샘플 끊김 판단(기본 1000). 넘으면 L3는 '센서를 읽지 못함'으로 안전 정지
   SIMPLELAY_OUTLET_HEARTBEAT_MS   모듈로 ping 간격(기본 1000, 0/off = 끔)

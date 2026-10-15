@@ -581,8 +581,11 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   (`SIMPLELAY_OUTLET_RELAY_ON_START=1`이면 RPi4가 시작 때 보낸다. 기본은 보내지 않는다).
 - **모듈 재부팅으로 꺼진 릴레이**(2026-10-06 평가 A4): RPi4가 켜 둔 뒤 모듈이 다시 켜지면(`ready` 배너, 또는 `status`가
   걸림 없이 `relay:"off"`) RPi4는 **다시 켜지 않는다**. 대신 걸린다(`estop_state {latched:true, source:"outlet_reboot",
-  detail:"콘센트 모듈이 다시 켜져 전원이 꺼져 있어요 — 확인 후 켜 주세요"}`) — 실행은 그 문장으로 거절되고, 사람이
-  `POST /stop/ack`(`estop_ack`)를 누르면 버튼을 확인한 뒤 `relay_on`을 보내고 풀린다. 비상정지로 꺼진 릴레이는 종전처럼 켜지 않는다.
+  detail:"가전 콘센트 장치가 다시 켜져 가전 전원이 꺼져 있어요 — 해제하면 전원을 다시 켜요"}`, 2026-10-15 문구) — 실행은 그 문장으로
+  거절되고, 사람이 `POST /stop/ack`(`estop_ack`)를 누르면 버튼을 확인한 뒤 `relay_on`을 보내고 풀린다. RPi5는 문장 속 '다시 켜져'로
+  이 걸림을 가른다(`estop_block_reason`). 비상정지로 꺼진 릴레이는 종전처럼 켜지 않는다. **재부팅 걸림 뒤 비상 버튼이 이어지면**
+  (`estop` 이벤트, 또는 `ready`·`status`가 걸림을 보고) 비상 버튼 규칙이 이긴다 — 다시 켜기 표시(`power_lost`)를 지우고 걸림 원인도
+  비상 버튼으로 바꿔, 해제 확인 뒤에도 릴레이는 꺼진 채다(2026-10-15 B11).
 - **채널 대응 확인**(2026-10-06 평가 A1·A2): 콘센트 전력을 읽는 가전(L3·기록기·실물 모션의 정지 확인 = 전자레인지,
   `SIMPLELAY_DONE_WATCH`의 outlet 가전)이 둘 이상인데 `SIMPLELAY_OUTLET_CHANNELS`가 비면 RPi4는 시작을 거절한다(모두 채널 0을
   읽어 전자레인지 끝이 세탁 끝으로 잡힌다). `ready`·`status`의 `relay_ch`가 전자레인지 채널과 다르거나 대응한 채널이 `channels`
@@ -605,7 +608,7 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
   `reason:"outlet_unreachable"`, 확인 중 다시 걸리면 `estop_retriggered`. 풀리면 `estop_state {latched:false}` — 가전 릴레이는
   꺼진 채다(켜기는 별도).
 - RPi5: `GET /status`의 `estop_latched`·`estop_detail`, 내장 가전 준비 상태(`GET /appliances`)의 `can_execute=false`와 사유
-  "비상정지가 걸려 있어요 — …", 실행 요청은 412(준비 안 됨). `POST /stop/ack`는 다른 제어 API와 같은 인증을 탄다
+  "비상 버튼이 눌려 있어요 — …"(2026-10-15 전 "비상정지가 걸려 있어요 — …"), 실행 요청은 412(준비 안 됨). `POST /stop/ack`는 다른 제어 API와 같은 인증을 탄다
   (응답 `{ok, latched, reason, detail}`; 걸림을 보고하지 않는 실행기면 409, RPi4 무응답이면 504).
 - 호스트 침묵: 모듈은 기본적으로 호스트가 조용해도 릴레이를 두고(`HOST_SILENCE_RELAY_OFF 0`), 1로 빌드하면 `HOST_SILENCE_MS`
   뒤 릴레이를 열고 `host_timeout`을 보낸다. RPi4는 `ping`을 `SIMPLELAY_OUTLET_HEARTBEAT_MS`(기본 1000)마다 보낸다.

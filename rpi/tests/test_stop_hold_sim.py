@@ -91,7 +91,7 @@ def test_stop_button_without_mm_holds_at_mock_position_then_parks_unconfirmed(si
     stop = c.post("/stop").json()
     assert stop["appliance_stop_requested"] is True and stop["hold_state_at_request"] == "hovering_stop"
     status = _until(c, lambda s: s["hold_stop_outcome"] == "requested_unconfirmed")
-    assert "정지 요청함·미확인" in status["hold_detail"]
+    assert "가전이 멈췄는지 확인하지 못했어요" in status["hold_detail"]
     assert controller.hold_hardware.motion.presses() == ["취소"]
     # 모의 가전 시간이 끝나면 보관 위치로 — 결과는 끝까지 '미확인'(정지됨을 지어내지 않는다).
     status = _until(c, lambda s: s["hold_state"] == "parked")

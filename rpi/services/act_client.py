@@ -959,7 +959,7 @@ class ActClient:
 
         event = _parse_alert(doc)
         if event is not None and event.kind == "outlet_estop" and event.raised:
-            self._note_estop(True, self.estop_detail or "비상정지가 걸려 있어요")
+            self._note_estop(True, self.estop_detail or "비상 버튼이 눌려 있어요")
         if event is not None and self._on_alert is not None:
             self._on_alert(event)
         # "ack" and unknown types: recorded by the tap only, otherwise ignored.

@@ -76,7 +76,7 @@ def test_hover_then_stop_presses_n_times_confirms_off_then_parks():
     assert motion.presses() == ["취소", "취소"]
     assert motion.moves() == [(120.0, 80.0), (10.0, 190.0)]
     assert rec.states() == ["hovering_stop", "stopping", "parking", "parked"]
-    assert "정지됨(모의)" in snap["detail"]
+    assert "연습 결과" in snap["detail"]
 
 
 def test_appliance_that_ignores_stop_is_requested_unconfirmed_and_never_repressed():
@@ -86,7 +86,7 @@ def test_appliance_that_ignores_stop_is_requested_unconfirmed_and_never_represse
     assert wait_for(lambda: s.snapshot()["stop_outcome"] == "requested_unconfirmed")
     snap = s.snapshot()
     assert snap["hold_state"] == "hovering_stop"  # 정지 버튼 위에서 계속 기다린다
-    assert "정지 요청함·미확인" in snap["detail"]
+    assert "가전이 멈췄는지 확인하지 못했어요" in snap["detail"]
     assert s.request_appliance_stop() == "duplicate"
     time.sleep(0.1)
     assert motion.presses() == ["취소", "취소"]
@@ -150,7 +150,7 @@ def test_no_power_reader_means_unconfirmed_and_timeout_parks():
     snap = s.snapshot()
     assert snap["stop_outcome"] == "requested_unconfirmed"
     assert snap["hold_state"] == "parked" and snap["park_reason"] == "hold_timeout"
-    assert "미확인" in snap["detail"]
+    assert "가전이 끝났는지는 확인하지 못했어요" in snap["detail"]
 
 
 def test_mm_points_and_free_park_edge_reuse_the_parking_model():

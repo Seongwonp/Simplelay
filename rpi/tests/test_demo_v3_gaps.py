@@ -219,7 +219,7 @@ def test_rehearsal_estop_latches_refuses_execute_and_ack_clears(sim):
     assert "시연" in res.json()["detail"]
     _until(c, lambda s: s["estop_latched"] is True)
     refused = c.post("/execute-buttons", json={"buttons": ["즉석밥", "시작"], "appliance_id": "microwave"})
-    assert refused.status_code == 412 and "비상정지가 걸려 있어요" in refused.text
+    assert refused.status_code == 412 and "비상 버튼이 눌려 있어요" in refused.text
     body = c.post("/stop/ack").json()
     assert body["ok"] is True and body["latched"] is False
     assert c.get("/status").json()["estop_latched"] is False

@@ -173,30 +173,30 @@ def _detail(
     note = " · 정지 요청 있음" if stop_requested else ""
 
     if receipt is Receipt.UNKNOWN:
-        return "실행기 응답이 없어 눌렸는지 알 수 없어요 -- 자동으로 다시 누르지 않아요" + note
+        return "작은 팔 장치의 응답이 없어 눌렸는지 알 수 없어요 -- 자동으로 다시 누르지 않아요" + note
     if confirmation is Confirmation.OPERATION_CONFIRMED:
         if is_aggregate_report(result):
-            return "실행기가 버튼 눌림과 가전 동작(L3 전력)을 확인했다고 보고했어요" + note
-        return "버튼 눌림과 가전 동작을 확인했어요" + note
+            return "작은 팔이 다 눌렀고, 가전 전력이 바뀐 것도 확인했다고 알려 왔어요" + note
+        return "버튼 눌림과 가전 전력 변화를 확인했어요" + note
     if confirmation is Confirmation.REPORTED:
         operation = result.operation
         if result.failed_layer is VerificationLayer.OPERATION:
             reason = operation.detail if operation is not None and operation.detail else "판정 불가"
             return (
-                "실행기가 버튼은 모두 눌렀다고 보고했지만 가전 동작을 확인하지 못했어요 "
-                f"(L3: {reason})"
+                "작은 팔이 다 눌렀다고 알려 왔지만 가전 동작은 확인하지 못했어요 "
+                f"(전력 확인: {reason})"
             ) + note
         if operation is not None and operation.passed and getattr(operation, "mock", False):
             return (
-                "실행기가 완료를 보고했어요 (모의 전력 판정은 통과 — 실제 가전 동작 근거 아님)"
+                "작은 팔이 다 눌렀다고 알려 왔어요(연습용 전력 값이라 실제 가전 동작은 확인하지 않았어요)"
             ) + note
-        return "실행기가 완료를 보고했어요 (이쪽 센서 근거 없음, 가전 동작은 확인하지 않음)" + note
+        return "작은 팔이 다 눌렀다고 알려 왔어요(가전 동작은 확인하지 않았어요)" + note
     if confirmation is Confirmation.PRESS_CONFIRMED:
         if result.failed_layer is VerificationLayer.OPERATION:
             reason = result.operation.detail if result.operation is not None else "판정 불가"
-            return f"버튼은 모두 눌렸지만 가전 동작을 확인하지 못했어요 (L3: {reason})" + note
+            return f"버튼은 모두 눌렸지만 가전 동작을 확인하지 못했어요 (전력 확인: {reason})" + note
         if stopped:
-            return "버튼은 모두 눌렸지만 실행을 멈췄어요 (가전 동작은 확인하지 않음)" + note
+            return "버튼은 모두 눌렸지만 작은 팔을 멈췄어요 (가전 동작은 확인하지 않았어요)" + note
         return "버튼 눌림을 센서로 확인했어요 (가전 동작은 확인하지 않음)" + note
 
     # confirmation NONE -- 시퀀스가 끝나지 않았다.
@@ -206,17 +206,17 @@ def _detail(
         retries = sum(max(0, b.attempts - 1) for b in result.buttons)
         if result.outcome is ExecutionOutcome.STOPPED:
             return (
-                "실행기가 정지 요청으로 멈췄다고 보고했어요 "
-                "(멈춘 버튼·눌림 개수는 보고되지 않음)"
+                "작은 팔이 정지 요청으로 멈췄다고 알려 왔어요 "
+                "(어느 버튼에서 멈췄는지·몇 개 눌렀는지는 알려 오지 않았어요)"
             ) + note
         if result.outcome is ExecutionOutcome.SAFETY_STOP:
             return (
-                f"실행기가 확인 실패로 안전 정지했다고 보고했어요 (재시도 {retries}회 보고, "
-                "멈춘 버튼·눌림 개수는 보고되지 않음)"
+                f"작은 팔이 눌림을 확인하지 못해 안전하게 멈췄다고 알려 왔어요 (재시도 {retries}회, "
+                "어느 버튼에서 멈췄는지·몇 개 눌렀는지는 알려 오지 않았어요)"
             ) + note
         return (
-            f"실행기가 실패를 보고했어요 (재시도 {retries}회 보고, "
-            "멈춘 버튼·눌림 개수·정지 여부는 보고되지 않음)"
+            f"작은 팔 장치가 실패를 알려 왔어요 (재시도 {retries}회, "
+            "어느 버튼에서 멈췄는지·몇 개 눌렀는지·멈췄는지는 알려 오지 않았어요)"
         ) + note
     pressed = sum(1 for b in result.buttons if _sensor_verified(b))
     counts = f"{total}개 중 {pressed}개 눌림 확인"

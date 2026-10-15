@@ -69,7 +69,7 @@ DEFAULT_DONE_TIMEOUT_S = 1200.0
 DEFAULT_DONE_TIMEOUTS_S: dict[str, float] = {"microwave": 900.0, "washer": 3 * 3600.0}
 START_ONLY_DETAIL = "시작만 확인 — 끝남 판정 센서 없음"
 PROBABLE_DETAIL = "끝난 것 같아요 — 확인해 주세요"
-ESTOP_STOP_DETAIL = "비상정지가 걸려 남은 단계를 보내지 않았어요(해제 확인 뒤에도 이어서 하지 않아요)"
+ESTOP_STOP_DETAIL = "비상 버튼이 눌려 남은 단계를 보내지 않았어요(해제한 뒤에도 이어서 하지 않아요)"
 _ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 

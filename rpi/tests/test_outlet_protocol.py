@@ -397,7 +397,7 @@ def test_link_reopens_port_after_usb_loss_and_reports_offline_meanwhile():
         deadline = time.monotonic() + 2.0
         while time.monotonic() < deadline and link.not_ready_reason() is None:
             time.sleep(0.01)
-        assert "다시 여는 중" in (link.not_ready_reason() or "")
+        assert "다시 연결하는 중" in (link.not_ready_reason() or "")
         assert first.closed
         plugged["ok"] = True
         deadline = time.monotonic() + 2.0

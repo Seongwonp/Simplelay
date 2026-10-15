@@ -22,7 +22,7 @@ def test_direct_command_is_refused_while_latched(api, monkeypatch):  # noqa: F81
     before = len(_controls())
     res = _command(api)
     assert res.status_code == 412, res.text
-    assert "비상정지" in res.text
+    assert "비상 버튼이 눌려" in res.text
     assert len(_controls()) == before
 
 
@@ -50,7 +50,7 @@ def test_latch_between_accept_and_dispatch_is_not_sent(api, monkeypatch):  # noq
     _wait_done(api, res.json()["job_id"])
     status = api.get("/status").json()
     assert status["last_receipt"] == "not_dispatched", status
-    assert "비상정지" in (status.get("last_detail") or ""), status
+    assert "비상 버튼이 눌려" in (status.get("last_detail") or ""), status
     assert len(_controls()) == before
 
 
@@ -60,7 +60,7 @@ def test_approved_card_is_not_sent_while_latched(api, monkeypatch):  # noqa: F81
     before = len(_controls())
     res = api.post(f"/suggestions/{card['id']}/approve", json={})
     assert res.status_code == 412, res.text
-    assert "비상정지" in res.text
+    assert "비상 버튼이 눌려" in res.text
     assert len(_controls()) == before
 
 
