@@ -180,6 +180,10 @@ void main() {
     expect(find.text('연결됨 · 허브 설정으로 넣은 가전이에요'), findsOneWidget);
     // 서버 설정으로 넣은 가전은 여기서 빼지 않는다.
     expect(find.byKey(const Key('thinq-remove-k4')), findsNothing);
+    // 사용자가 허용한 자동 실행이 있으므로 '언제나 확인'이라고 하지 않는다(외부 검토 M4, 10/15).
+    expect(find.textContaining('언제나 확인'), findsNothing);
+    expect(find.textContaining('직접 바꿀 때는 한 번 확인해요'), findsOneWidget);
+    expect(find.textContaining('허용한 자동 실행은 따로 켜고 끌 수 있어요'), findsOneWidget);
   });
 
   testWidgets('토큰 오류는 0대가 아니라 이유를 말한다', (tester) async {

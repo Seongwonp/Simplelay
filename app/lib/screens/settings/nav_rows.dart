@@ -80,18 +80,32 @@ class _ThinqScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final overview = ref.watch(thinqOverviewProvider).valueOrNull;
+    final api = ref.watch(rpiApiServiceProvider);
+    final async = ref.watch(thinqOverviewProvider);
+    final overview = async.valueOrNull;
+    // 확인 중·확인 실패를 '계정이 연결되지 않았다'로 말하지 않는다(외부 검토 M3, 10/15).
+    // 그 말은 허브가 ThinQ를 껐다고 답했을 때(404)만.
+    final String headline;
+    if (api == null || async.hasError) {
+      headline = 'ThinQ 연결 상태를 확인하지 못했어요 — 허브 연결을 확인해 주세요.';
+    } else if (!async.hasValue) {
+      headline = '연결 상태를 확인하는 중이에요.';
+    } else if (overview == null) {
+      headline = '허브에 ThinQ 계정이 아직 연결되지 않았어요(설치 때 설정해요).';
+    } else if (overview.appliances.isEmpty) {
+      headline = '아직 추가한 ThinQ 가전이 없어요. 아래에서 찾은 가전 중 쓸 것을 추가해 주세요.';
+    } else {
+      headline = '허브에 연결된 ThinQ 가전이에요. '
+          '가전 상세에서 지금 상태를 보고 바꿀 수 있어요. 루틴에도 넣을 수 있어요.';
+    }
     return Scaffold(
       appBar: AppBar(title: const Text('LG ThinQ 연결')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
           Text(
-            overview == null
-                ? '아직 ThinQ 계정이 허브에 연결되지 않았어요. 연결은 허브에서 설정해요.'
-                : overview.appliances.isEmpty
-                    ? '아직 추가한 ThinQ 가전이 없어요. 아래에서 찾은 가전 중 쓸 것을 추가해 주세요.'
-                    : '허브에 연결된 ThinQ 가전이에요. 누를 버튼이 없어 목적(말)과 루틴으로 맡겨요.',
+            headline,
+            key: const Key('thinq-link-headline'),
             style: TextStyle(fontSize: 16, color: context.appMuted),
           ),
           const _ThinqApplianceList(),

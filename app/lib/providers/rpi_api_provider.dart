@@ -372,7 +372,8 @@ final scenarioRunForJobProvider = FutureProvider.autoDispose
 
 // ── ThinQ 가전(서버 구성) ────────────────────────────────────────────────
 
-/// GET /thinq/devices. ThinQ가 꺼져 있거나(404) 연결이 없으면 null.
+/// GET /thinq/devices. 허브가 ThinQ를 껐거나(404) 허브 연결이 없으면 null,
+/// 조회 실패는 오류 상태(AsyncError) — 'LG ThinQ 연결' 화면이 셋을 가른다.
 final thinqOverviewProvider =
     FutureProvider.autoDispose<RpiThinqOverview?>((ref) async {
   final service = ref.watch(rpiApiServiceProvider);

@@ -47,7 +47,8 @@ class _ThinqDiscoveredSectionState
           ),
           const SizedBox(height: 4),
           Text(
-            '추가한 가전만 홈과 루틴에 나와요. 실행할 때는 언제나 확인을 거쳐요.',
+            '추가한 가전만 홈과 루틴에 나와요. 직접 바꿀 때는 한 번 확인해요. '
+            '사용자가 허용한 자동 실행은 따로 켜고 끌 수 있어요.',
             style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
           const SizedBox(height: 8),

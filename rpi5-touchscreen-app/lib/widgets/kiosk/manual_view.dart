@@ -357,7 +357,8 @@ class _PressConfirm extends StatelessWidget {
       );
 }
 
-/// ThinQ 가전 — 조작판 대신 경로와 맡기는 곳을 말한다.
+/// ThinQ 가전 — 조작판 대신 경로와 맡기는 곳을 말한다. 휴대폰 가전 화면에서 지금 상태를
+/// 보고 설정을 바꿀 수 있다(2026-10-15) — '말로만 맡긴다'고 하지 않는다.
 class _ThinqNotice extends StatelessWidget {
   const _ThinqNotice();
 
@@ -371,7 +372,7 @@ class _ThinqNotice extends StatelessWidget {
               Icon(Icons.cloud_outlined, size: 44, color: KioskColors.muted),
               SizedBox(height: 14),
               Text(
-                '이 가전은 ThinQ로 조작해요. 누를 버튼이 없어요.',
+                '이 가전은 ThinQ로 조작해요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: 24,
@@ -381,7 +382,8 @@ class _ThinqNotice extends StatelessWidget {
               ),
               SizedBox(height: 8),
               Text(
-                '제안이 오면 승인하거나 휴대폰에서 말로 맡겨 주세요.',
+                '휴대폰의 가전 화면에서 지금 상태를 보고 설정을 바꿀 수 있어요. '
+                '제안이 오면 여기서 승인해도 돼요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 18, color: KioskColors.muted),
               ),

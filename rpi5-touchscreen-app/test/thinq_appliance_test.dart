@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/route_badge.dart';
 
@@ -74,7 +75,12 @@ void main() {
 
     expect(find.text('내 공기청정기(모의)'), findsOneWidget);
     expect(find.widgetWithText(KioskRouteBadge, 'ThinQ'), findsOneWidget);
-    expect(find.textContaining('누를 버튼이 없어요'), findsOneWidget);
+    expect(find.textContaining('ThinQ로 조작해요'), findsOneWidget);
+    // 휴대폰 가전 화면에서 보고 바꿀 수 있다 — '누를 버튼이 없다'·'말로 맡겨'만 말하지 않는다(10/15).
+    expect(find.textContaining('휴대폰의 가전 화면에서 지금 상태를 보고 설정을 바꿀 수 있어요'),
+        findsOneWidget);
+    expect(find.textContaining('누를 버튼이 없어요'), findsNothing);
+    expect(find.textContaining('말로 맡겨'), findsNothing);
     expect(find.textContaining('버튼 누르기'), findsNothing);
   });
 
@@ -91,4 +97,57 @@ void main() {
     expect(find.byType(KioskRouteBadge), findsNothing);
     expect(find.text('즉석밥'), findsOneWidget);
   });
+
+  // ── 평소 화면 가전 줄(2026-10-15 외부 검토 L2) ─────────────────────────
+
+  Widget strip(Set<String> running, {double itemWidth = 128}) => KioskApplianceStrip(
+        appliances: [kMicrowaveAppliance, _purifier],
+        running: running,
+        attention: const {},
+        onSelect: (_) {},
+        itemWidth: itemWidth,
+      );
+
+  testWidgets('가전 줄: ThinQ 가전에만 ThinQ 배지가 붙고, 읽는 이름에 경로를 말한다', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, Center(child: strip(const {})));
+
+    expect(find.widgetWithText(KioskRouteBadge, 'ThinQ'), findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('strip-air_purifier')),
+            matching: find.byType(KioskRouteBadge)),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('strip-microwave')),
+            matching: find.byType(KioskRouteBadge)),
+        findsNothing);
+    expect(find.bySemanticsLabel(RegExp(r'공기청정기\(모의\)\. 경로 ThinQ')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    handle.dispose();
+  });
+
+  testWidgets('가전 줄: ThinQ 작업 중이면 "동작 중"이 아니라 허브가 "설정 변경 중"', (tester) async {
+    await _pump(tester, Center(child: strip({'air_purifier', 'microwave'})));
+
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('strip-air_purifier')),
+            matching: find.text('설정 변경 중')),
+        findsOneWidget);
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('strip-air_purifier')),
+            matching: find.text('동작 중')),
+        findsNothing);
+    // 물리 가전은 종전대로.
+    expect(
+        find.descendant(
+            of: find.byKey(const ValueKey('strip-microwave')),
+            matching: find.text('동작 중')),
+        findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
 }

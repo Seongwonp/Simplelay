@@ -51,7 +51,9 @@ class SettingsScreen extends ConsumerWidget {
     final rpi = ref.watch(rpiConnectionProvider);
     final care = ref.watch(careEventsProvider);
     final unread = care.unreadCount;
-    final thinq = ref.watch(thinqOverviewProvider).valueOrNull;
+    final thinqAsync = ref.watch(thinqOverviewProvider);
+    final thinq = thinqAsync.valueOrNull;
+    final thinqApi = ref.watch(rpiApiServiceProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('설정')),
       body: ListView(
@@ -76,11 +78,16 @@ class SettingsScreen extends ConsumerWidget {
             _NavRow(
               icon: Icons.link,
               title: 'LG ThinQ 연결',
-              subtitle: thinq == null
-                  ? '계정 연결 전'
-                  : thinq.executionMode == 'mock'
-                      ? '연습 연결 · ${thinq.appliances.length}대'
-                      : '연결됨 · ${thinq.appliances.length}대',
+              // 확인 중·확인 실패를 '계정 연결 전'으로 말하지 않는다(외부 검토 M3, 10/15).
+              subtitle: thinqApi == null || thinqAsync.hasError
+                  ? '연결 상태 확인 못 함'
+                  : !thinqAsync.hasValue
+                      ? '확인 중'
+                      : thinq == null
+                          ? '계정 연결 전'
+                          : thinq.executionMode == 'mock'
+                              ? '연습 연결 · ${thinq.appliances.length}대'
+                              : '연결됨 · ${thinq.appliances.length}대',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => const _ThinqScreen())),
             ),

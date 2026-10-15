@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
+import 'route_badge.dart';
 
 /// 평소 화면 아래의 가전 줄에 설 순서 — **확인 필요 → 동작 중 → 나머지**.
 ///
@@ -34,6 +35,10 @@ List<ApplianceMap> orderForStrip(
 /// 상태는 색만으로 말하지 않는다: 쉬는 가전은 회색 아이콘뿐이고(글자 "대기"는
 /// 쓰지 않는다), 동작 중은 강조색 테와 "동작 중", 확인 필요는 노란색과
 /// "확인 필요"에 느린 숨쉬기 3번(동작 줄이기 설정이면 멈춘 테)을 준다.
+///
+/// ThinQ 가전은 아이콘 옆에 'ThinQ' 경로 배지를 단다(상세 화면과 같은 배지). 실행 중이면
+/// 가전이 돈다는 뜻의 "동작 중" 대신 허브가 처리 중이라는 "설정 변경 중"으로 말한다
+/// (2026-10-15 외부 검토 L2) — 허브는 설정을 보냈을 뿐, 가전이 돌기 시작한 것을 본 게 아니다.
 class KioskApplianceStrip extends StatefulWidget {
   const KioskApplianceStrip({
     super.key,
@@ -264,14 +269,15 @@ class _StripItemState extends State<_StripItem>
       status = '확인 필요';
     } else if (widget.running) {
       iconColor = KioskColors.primary;
-      status = '동작 중';
+      status = a.isThinq ? '설정 변경 중' : '동작 중';
     } else {
       iconColor = KioskColors.muted;
       status = null;
     }
     return Semantics(
       button: true,
-      label: '${a.name}${status == null ? '' : ', $status'}. 자세히 보기',
+      label: '${a.name}${a.isThinq ? '. 경로 ThinQ' : ''}'
+          '${status == null ? '' : ', $status'}. 자세히 보기',
       child: ExcludeSemantics(
         child: InkWell(
           onTap: widget.onTap,
@@ -281,7 +287,7 @@ class _StripItemState extends State<_StripItem>
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                AnimatedBuilder(
+                _withRouteBadge(a, AnimatedBuilder(
                   animation: _breath,
                   builder: (context, child) {
                     final t = widget.attention && !reduceMotion
@@ -317,7 +323,7 @@ class _StripItemState extends State<_StripItem>
                       child: Icon(a.icon, size: widget.iconBox * 0.52, color: iconColor),
                     ),
                   ),
-                ),
+                )),
                 const SizedBox(height: 5),
                 Text(
                   a.name,
@@ -348,6 +354,25 @@ class _StripItemState extends State<_StripItem>
       ),
     );
   }
+}
+
+/// ThinQ 가전이면 아이콘 원 옆에 경로 배지 — 줄 높이는 그대로(원 높이 안에 들어간다),
+/// 칸이 좁으면 배지만 줄어든다.
+Widget _withRouteBadge(ApplianceMap a, Widget circle) {
+  if (!a.isThinq) return circle;
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      circle,
+      const SizedBox(width: 6),
+      const Flexible(
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: KioskRouteBadge(label: 'ThinQ'),
+        ),
+      ),
+    ],
+  );
 }
 
 class _RunningRing extends CustomPainter {

@@ -955,6 +955,10 @@ class RpiApiService {
 
   /// POST /thinq/command — ThinQ 가전 직접 조작(2026-10-15). 화면이 확인을 받은 뒤에만
   /// 부른다. 허용되지 않는 값은 허브가 보내기 전에 거절한다(RpiApiException).
+  ///
+  /// 시간 초과·연결 오류(그 밖의 예외)는 **보내지 못했다는 뜻이 아니다** — 요청이 이미
+  /// 허브에 닿았을 수 있다. 부르는 쪽은 '결과를 모른다'로 다루고 상태를 다시 읽는다
+  /// (package:http로는 '보내기 전 거부'와 '보낸 뒤 응답 없음'을 믿을 만하게 가르지 못한다).
   Future<RpiJobAccepted> thinqCommand(
     String applianceId,
     String action,
@@ -1298,18 +1302,19 @@ class RpiApiService {
     }
   }
 
-  /// GET /thinq/devices — ThinQ가 꺼져 있거나(404) 조회 실패면 null.
+  /// GET /thinq/devices — 허브가 ThinQ를 껐으면(404) null.
+  ///
+  /// **조회 실패는 null이 아니라 예외다**(외부 검토 M3, 2026-10-15) — 연결 실패를 'ThinQ
+  /// 계정이 연결되지 않았다'로 말하지 않게. 시간 초과·연결 오류는 그대로, 404가 아닌
+  /// 오류 응답은 [RpiApiException]으로 던진다. 목록만 쓰는 화면은 예전처럼 `valueOrNull`로 본다.
   Future<RpiThinqOverview?> thinqOverview() async {
-    try {
-      final res = await _client
-          .get(_base.replace(path: '/thinq/devices'), headers: _headers)
-          .timeout(_timeout);
-      if (res.statusCode != 200) return null;
-      return RpiThinqOverview.fromJson(
-          jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
-    } catch (_) {
-      return null;
-    }
+    final res = await _client
+        .get(_base.replace(path: '/thinq/devices'), headers: _headers)
+        .timeout(_timeout);
+    if (res.statusCode == 404) return null;
+    _checkStatus(res);
+    return RpiThinqOverview.fromJson(
+        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
   // 찾기·추가는 허브가 ThinQ 클라우드에 목록·기기 프로필을 묻고 답한다 — 일반 제한(8초)보다 길게.

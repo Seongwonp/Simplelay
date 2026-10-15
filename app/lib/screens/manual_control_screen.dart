@@ -156,7 +156,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              '말로 맡기거나 제안을 승인해 주세요.',
+              '가전 상세에서 지금 상태를 보고 바꿀 수 있어요. 말로 맡기거나 제안을 승인해도 돼요.',
               style: TextStyle(fontSize: 15, color: context.appMuted),
             ),
           ],

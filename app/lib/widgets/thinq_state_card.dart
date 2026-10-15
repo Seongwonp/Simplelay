@@ -11,14 +11,21 @@ import '../theme/app_text.dart';
 
 /// ThinQ 가전 상세의 '지금 상태' 카드(2026-10-15, 사용자 요청 동결 예외).
 ///
-/// 못 읽었으면 이유를 말하고 값을 지어내지 않는다. 읽은 시각을 같이 적는다 —
-/// ThinQ 값은 그 시각의 것이지 지금 이 순간의 보장이 아니다.
+/// 못 읽었으면 이유를 말하고 값을 지어내지 않는다. 읽은 시각을 'HH:MM 업데이트'로
+/// 같이 적는다 — ThinQ 값은 그 시각의 것이지 지금 이 순간의 보장이 아니다.
 ///
 /// 공기청정기는 전원·풍량·운전 모드를 여기서 바꾼다(같은 날 사용자 요청). **누르면
 /// 곧바로 보내지 않고 한 번 묻는다** — 승인하면 POST /thinq/command, 결과는 실행
 /// 상태 화면이 확인 단계와 함께 말하고, 돌아오면 상태를 다시 읽는다. 상태를 못 읽었을
 /// 때는 지금 값을 모르므로 조작 줄을 내걸지 않는다.
-class ThinqStateCard extends ConsumerWidget {
+///
+/// 외부 검토 반영(같은 날):
+/// - 전원이 꺼져 있으면 풍량·운전 모드 줄을 내걸지 않는다(켜야 바뀐다). 켜기만 남기고,
+///   스스로 켜지 않는다. 미세먼지 칸이 없으면 왜 없는지 한 줄로 말한다.
+/// - 요청 하나가 끝나기 전에는 다른 값을 보내지 않는다(칩을 잠근다).
+/// - 응답 없이 끝난 요청(시간 초과·연결 끊김)은 '보내지 못했다'고 단정하지 않는다 —
+///   허브가 이미 받았을 수 있다. 결과를 모른다고 말하고 상태를 다시 읽는다.
+class ThinqStateCard extends ConsumerStatefulWidget {
   const ThinqStateCard({
     super.key,
     required this.applianceId,
@@ -29,10 +36,28 @@ class ThinqStateCard extends ConsumerWidget {
   final String applianceName;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ThinqStateCard> createState() => _ThinqStateCardState();
+}
+
+/// 전원이 꺼져 있을 때 전원 줄 아래에 놓는 문장.
+const kThinqPowerOffNote = '전원이 꺼져 있어요. 켠 뒤 풍량·운전 모드를 바꿀 수 있어요.';
+
+/// 응답 없이 끝난 조작 요청(시간 초과·연결 끊김·응답 해석 실패).
+const kThinqUnknownOutcome = '요청 결과를 확인하지 못했어요. 상태를 다시 읽어 확인해 주세요.';
+
+class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
+  /// 묻기부터 응답(또는 실행 상태 화면에서 돌아옴)까지 — 이 동안 다른 조작을 받지 않는다.
+  bool _sending = false;
+
+  String get applianceId => widget.applianceId;
+  String get applianceName => widget.applianceName;
+
+  @override
+  Widget build(BuildContext context) {
     final async = ref.watch(thinqStatusProvider(applianceId));
     final status = async.valueOrNull;
     final loading = async.isLoading;
+    final locked = loading || _sending;
 
     Widget body;
     if (status == null) {
@@ -52,6 +77,9 @@ class ThinqStateCard extends ConsumerWidget {
       );
     } else {
       final rows = thinqStateRows(status.state);
+      final dustNote = thinqDustNote(status.state);
+      final powerOff = thinqPowerOff(status.state);
+      final mock = status.executionMode == 'mock';
       body = Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -79,39 +107,64 @@ class ThinqStateCard extends ConsumerWidget {
                   ],
                 ),
               ),
+          if (dustNote != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 3),
+              child: Text(dustNote,
+                  key: const Key('thinq-dust-note'),
+                  style: TextStyle(fontSize: 15, color: context.appMuted)),
+            ),
           if (status.readAt != null) ...[
             const SizedBox(height: 6),
-            Text(
-              'ThinQ에서 ${_hms(status.readAt!)}에 읽었어요'
-              '${status.executionMode == 'mock' ? ' (모의)' : ''}',
-              style: TextStyle(fontSize: 13, color: context.appMuted),
+            Semantics(
+              container: true,
+              label: 'ThinQ 상태 ${thinqReadTimeSpoken(status.readAt!)}에 조회'
+                  '${mock ? ', 모의' : ''}',
+              excludeSemantics: true,
+              child: Text(
+                thinqReadTimeLine(status.readAt!, mock: mock),
+                style: TextStyle(fontSize: 13, color: context.appMuted),
+              ),
             ),
           ],
-          for (final control in thinqControlsFor(status.state)) ...[
-            const SizedBox(height: 14),
-            Text(control.label,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final (value, word) in control.choices)
-                  ChoiceChip(
-                    key: Key('thinq-set-${control.action}-$value'),
-                    label: Text(word, style: const TextStyle(fontSize: 16)),
-                    selected: control.current == value,
-                    // 지금 값도 흐리게 만들지 않는다(꺼진 버튼처럼 보이지 않게) — 눌러도 아무것도 안 한다.
-                    onSelected: loading
-                        ? null
-                        : (_) {
-                            if (control.current == value) return;
-                            _change(context, ref, control, value, word);
-                          },
-                  ),
+          for (final control in thinqControlsFor(status.state))
+            // 꺼져 있으면 전원 줄만 — 풍량·운전 모드는 켜야 바뀐다(스스로 켜지 않는다).
+            if (!powerOff || control.action == 'set_power') ...[
+              const SizedBox(height: 14),
+              Text(control.label,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final (value, word) in control.choices)
+                    ChoiceChip(
+                      key: Key('thinq-set-${control.action}-$value'),
+                      // 읽는 이름에 줄 이름까지 — '자동'이 풍량인지 운전 모드인지 갈리게.
+                      label: Semantics(
+                        label: control.chipSemantics(word),
+                        excludeSemantics: true,
+                        child: Text(word, style: const TextStyle(fontSize: 16)),
+                      ),
+                      selected: control.current == value,
+                      // 지금 값도 흐리게 만들지 않는다(꺼진 버튼처럼 보이지 않게) — 눌러도 아무것도 안 한다.
+                      onSelected: locked
+                          ? null
+                          : (_) {
+                              if (control.current == value) return;
+                              _change(control, value, word);
+                            },
+                    ),
+                ],
+              ),
+              if (powerOff && control.action == 'set_power') ...[
+                const SizedBox(height: 8),
+                Text(kThinqPowerOffNote,
+                    key: const Key('thinq-power-off-note'),
+                    style: TextStyle(fontSize: 15, color: context.appMuted)),
               ],
-            ),
-          ],
+            ],
         ],
       );
     }
@@ -139,7 +192,7 @@ class ThinqStateCard extends ConsumerWidget {
                 TextButton.icon(
                   key: const Key('thinq-status-refresh'),
                   style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-                  onPressed: loading
+                  onPressed: locked
                       ? null
                       : () => ref.invalidate(thinqStatusProvider(applianceId)),
                   icon: const Icon(Icons.refresh, size: 18),
@@ -156,8 +209,18 @@ class ThinqStateCard extends ConsumerWidget {
   }
 
   /// 한 번 묻고, 승인하면 보낸다. 결과는 실행 상태 화면 — 여기서 '바꿨어요'라고 먼저 말하지 않는다.
-  Future<void> _change(BuildContext context, WidgetRef ref, ThinqControl control,
-      String value, String word) async {
+  /// 끝날 때까지([_sending]) 칩을 잠근다 — 두 번 눌러 명령이 겹치지 않게.
+  Future<void> _change(ThinqControl control, String value, String word) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      await _askAndSend(control, value, word);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  Future<void> _askAndSend(ThinqControl control, String value, String word) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -177,47 +240,75 @@ class ThinqStateCard extends ConsumerWidget {
         ],
       ),
     );
-    if (ok != true || !context.mounted) return;
+    if (ok != true || !mounted) return;
     final api = ref.read(rpiApiServiceProvider);
     if (api == null) {
-      _snack(context, '허브에 연결되면 바꿀 수 있어요.');
+      _snack('허브에 연결되면 바꿀 수 있어요.');
       return;
     }
+    final RpiJobAccepted accepted;
     try {
-      final accepted =
+      accepted =
           await api.thinqCommand(applianceId, control.action, {control.arg: value});
-      final label = '$applianceName ${control.label} $word';
-      ref.read(executionStatusProvider.notifier).beginHttpJob(
-            api: api,
-            jobId: accepted.jobId,
-            label: label,
-            steps: [label],
-          );
-      if (!context.mounted) return;
-      await context.push('/status');
-      // 돌아오면 바뀐 상태를 다시 읽는다.
-      ref.invalidate(thinqStatusProvider(applianceId));
     } on RpiApiException catch (e) {
-      if (!context.mounted) return;
-      _snack(
-        context,
-        switch (e.statusCode) {
-          409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.',
-          412 || 422 => e.message,
-          _ => '바꾸기를 보내지 못했어요. 연결을 확인해 주세요.',
-        },
-      );
+      if (!mounted) return;
+      final refusal = thinqCommandRefusal(e);
+      _snack(refusal ?? kThinqUnknownOutcome);
+      if (refusal == null) ref.invalidate(thinqStatusProvider(applianceId));
+      return;
     } catch (_) {
-      if (context.mounted) _snack(context, '바꾸기를 보내지 못했어요. 연결을 확인해 주세요.');
+      // 시간 초과·연결 끊김·응답 해석 실패 — 허브가 이미 받았을 수 있다. package:http로는
+      // '보내기 전에 닿지 못함'과 '보낸 뒤 응답 없음'을 믿을 만하게 가를 수 없어 둘 다 이 문장이다.
+      if (!mounted) return;
+      _snack(kThinqUnknownOutcome);
+      ref.invalidate(thinqStatusProvider(applianceId));
+      return;
     }
+    final label = '$applianceName ${control.label} $word';
+    ref.read(executionStatusProvider.notifier).beginHttpJob(
+          api: api,
+          jobId: accepted.jobId,
+          label: label,
+          steps: [label],
+        );
+    if (!mounted) return;
+    await context.push('/status');
+    // 돌아오면 바뀐 상태를 다시 읽는다.
+    if (mounted) ref.invalidate(thinqStatusProvider(applianceId));
   }
 
-  static void _snack(BuildContext context, String text) =>
+  void _snack(String text) =>
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
-
-  static String _hms(DateTime t) => '${t.hour.toString().padLeft(2, '0')}:'
-      '${t.minute.toString().padLeft(2, '0')}:${t.second.toString().padLeft(2, '0')}';
 }
+
+/// 허브가 응답으로 거절한 ThinQ 조작의 문장. null이면 '결과를 모른다'로 다룬다.
+///
+/// 409·412·422·423은 허브가 보내기 전에 막은 것이다 — 허브가 준 이유를 그대로 보인다
+/// (비상 정지 잠금·프로필에 없는 값·다른 작업 실행 중 등). 영어 '실행 중' 문장과 빈 이유만
+/// 우리말로 바꾼다. 그 밖의 오류(5xx 등)는 허브가 어디까지 했는지 모르므로 null.
+String? thinqCommandRefusal(RpiApiException e) {
+  const busy = '다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.';
+  switch (e.statusCode) {
+    case 401:
+      return '허브 키가 맞지 않아요 — 허브 설정에서 키를 확인해 주세요.';
+    case 409 || 412 || 422 || 423:
+      final message = e.message.trim();
+      if (message.contains('already in progress')) return busy;
+      if (message.isNotEmpty) return message;
+      return e.statusCode == 409 ? busy : '허브가 이 조작을 지금 받지 않았어요.';
+    default:
+      return null;
+  }
+}
+
+/// 'HH:MM 업데이트' — 읽은 시각(모의면 ' (모의)').
+String thinqReadTimeLine(DateTime t, {bool mock = false}) =>
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 업데이트'
+    '${mock ? ' (모의)' : ''}';
+
+/// 화면 낭독용 시각 — 'HH시 MM분'.
+String thinqReadTimeSpoken(DateTime t) =>
+    '${t.hour.toString().padLeft(2, '0')}시 ${t.minute.toString().padLeft(2, '0')}분';
 
 const _power = {'POWER_ON': '켜짐', 'POWER_OFF': '꺼짐'};
 const _jobMode = {
@@ -279,6 +370,9 @@ class ThinqControl {
         'set_job_mode' => '운전 모드를 $word으로 바꿀까요?',
         _ => '$label을 $word으로 바꿀까요?',
       };
+
+  /// 칩의 읽는 이름 — 줄 이름을 붙인다('풍량 자동'·'운전 모드 자동'·'전원 켜기').
+  String chipSemantics(String word) => '$label $word';
 
   /// 루틴 단계 문장(2026-10-15). '전원 켜기', '풍량 강풍으로 바꾸기'.
   String stepPhrase(String word) =>
@@ -343,6 +437,28 @@ List<ThinqControl> thinqControlsFor(Map<String, dynamic> state) {
   return [
     for (final c in kAirPurifierControls) c.withCurrent(current[c.action]),
   ];
+}
+
+/// 공기청정기 전원이 꺼져 있다고 읽혔는가. 전원 칸이 없으면(모름) false.
+bool thinqPowerOff(Map<String, dynamic> state) {
+  final op = state['operation'];
+  return op is Map && op['airPurifierOperationMode']?.toString() == 'POWER_OFF';
+}
+
+/// 공기청정기인데 미세먼지 값이 없을 때 이유 한 줄. 값이 있거나 공기청정기가 아니면 null.
+///
+/// 실가전(10/15): 꺼져 있으면 airQualitySensor가 아예 없고, 켠 직후에도 잠시 비어 있다 —
+/// 줄을 조용히 빼면 고장처럼 보인다.
+String? thinqDustNote(Map<String, dynamic> state) {
+  final op = state['operation'];
+  if (op is! Map || op['airPurifierOperationMode'] == null) return null;
+  final sensor = state['airQualitySensor'];
+  final hasDust =
+      sensor is Map && (sensor['PM2'] != null || sensor['PM10'] != null);
+  if (hasDust) return null;
+  return thinqPowerOff(state)
+      ? '전원이 꺼져 있어 미세먼지 값을 받을 수 없어요'
+      : '미세먼지 값을 아직 받지 못했어요(켠 직후에는 잠시 걸려요)';
 }
 
 /// ThinQ 루틴 단계(동작 + 인자) → 사람 말. 동작 이름(set_wind_strength 같은 것)은

@@ -141,6 +141,8 @@ void main() {
 
     expect(find.widgetWithText(RouteBadge, 'ThinQ'), findsOneWidget);
     expect(find.textContaining('누를 버튼이 없어요'), findsOneWidget);
+    // 말로만 맡기는 게 아니다 — 가전 상세에서 보고 바꿀 수 있다(10/15).
+    expect(find.textContaining('가전 상세에서 지금 상태를 보고 바꿀 수 있어요'), findsOneWidget);
     expect(find.textContaining('누르면 실제 가전 버튼이 눌려요'), findsNothing);
     // 서버 주소가 없다는 안내(버튼 실행용)로 가리지 않는다.
     expect(find.textContaining('설정'), findsNothing);

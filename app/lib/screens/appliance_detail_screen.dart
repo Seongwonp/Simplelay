@@ -129,7 +129,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
 
           // ── 오늘 사용 ─────────────────────────────────────────────────────
-          _TodayUse(applianceId: a.id),
+          _TodayUse(applianceId: a.id, thinq: a.isThinq),
 
           if (!a.isThinq) ...[
             const SizedBox(height: 8),
@@ -260,8 +260,11 @@ class _ReadinessLine extends StatelessWidget {
 
 /// 오늘 이 가전으로 한 일. 서버 기록에서 온다 -- 기록이 없으면 지어내지 않는다.
 class _TodayUse extends ConsumerWidget {
-  const _TodayUse({required this.applianceId});
+  const _TodayUse({required this.applianceId, this.thinq = false});
   final String applianceId;
+
+  /// ThinQ 가전이면 목적 없는 기록을 '버튼 직접 누름'이라 하지 않는다(누를 버튼이 없다).
+  final bool thinq;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -288,12 +291,25 @@ class _TodayUse extends ConsumerWidget {
           else
             for (final e in today)
               Text(
-                '${_hm(e.finishedAt)} ${e.purpose ?? '버튼 직접 누름'} · ${_result(e)}',
+                '${_hm(e.finishedAt)} ${_what(e)} · ${_result(e)}',
                 style: TextStyle(fontSize: 14, color: context.appMuted),
               ),
         ],
       ),
     );
+  }
+
+  /// 무엇을 했는가. 목적(말·제안·루틴)이 있으면 그것. 없으면 ThinQ 기록은 허브가 남긴
+  /// 결과 문장('강풍으로 바꿨어요' 같은 것)을, 그것도 없으면 'ThinQ 직접 조작'.
+  String _what(RpiHistoryEntry e) {
+    final purpose = e.purpose;
+    if (purpose != null && purpose.isNotEmpty) return purpose;
+    if (thinq || e.route == 'thinq') {
+      final detail = e.detail.trim();
+      if (detail.isEmpty) return 'ThinQ 직접 조작';
+      return detail.endsWith('.') ? detail.substring(0, detail.length - 1) : detail;
+    }
+    return '버튼 직접 누름';
   }
 
   static String _hm(DateTime t) =>
