@@ -67,6 +67,15 @@ class ExecuteMsg:
     targets: dict[str, ButtonTarget] = field(default_factory=dict)
     #: 선택 — 정지 대기·보관 계획. 없으면 종전처럼 실행만 한다.
     hold: HoldPlan | None = None
+    #: 선택 — RPi5가 정한 실행 표지(2026-10-15 G2). 같은 표지의 abort를 실행 시작 전에 받았으면 누르지 않는다.
+    #: 없거나 모양이 틀리면 None(종전과 같다).
+    run_ref: str | None = None
+
+
+def _run_ref(doc: dict) -> str | None:
+    """실행 표지(2026-10-15 G2) — 1~64자 문자열만. 모양이 틀리면 없는 것으로 본다(실행·정지는 그대로 한다)."""
+    value = doc.get("run_ref")
+    return value if isinstance(value, str) and 0 < len(value) <= 64 else None
 
 
 #: execute 프레임 규약 판(2026-10-07). 2 = ``appliance_id`` 필수. ``act_info.execute_protocol``로 알린다.
@@ -103,6 +112,9 @@ class AbortMsg:
     #: 정지 보고 짝(2026-10-13, 정지 보고 규약 1). 있으면 RPi4가 ``stop_report {stop_id, target, stop_level, ack_ms}``로
     #: 답한다. 없으면(옛 RPi5) 종전처럼 답하지 않는다. 모양이 틀려도 정지는 그대로 하고 보고만 하지 않는다.
     stop_id: str | None = None
+    #: 실행 표지(2026-10-15 G2). 쉬는 중에 받으면 RPi4가 기억했다가 같은 표지의 execute를 누르지 않는다.
+    #: 없으면(옛 RPi5) 종전처럼 쉬는 중 abort는 버린다.
+    run_ref: str | None = None
 
 
 @dataclass(frozen=True)
@@ -260,7 +272,7 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
                     seq_id.strip(), HOLD_TARGET_MISMATCH,
                     f"정지 대기 대상({hold.appliance_id})이 실행 대상({target})과 달라 누르지 않았어요")
         return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), appliance_id=target,
-                          targets=targets, hold=hold)
+                          targets=targets, hold=hold, run_ref=_run_ref(doc))
 
     if msg_type == "abort":
         scope = doc.get("scope", "appliance")
@@ -269,7 +281,7 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
         stop_id = doc.get("stop_id")
         if not (isinstance(stop_id, str) and 0 < len(stop_id) <= 64):
             stop_id = None
-        return AbortMsg(scope=scope, stop_id=stop_id)
+        return AbortMsg(scope=scope, stop_id=stop_id, run_ref=_run_ref(doc))
 
     if msg_type == "verify_pass":
         seq_id = doc.get("sequence_id", "")

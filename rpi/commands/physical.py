@@ -14,10 +14,11 @@
 | SAFETY_STOPPED, 원격 집계 + outcome=stopped 보고    | stopped     | accepted | none                |
 | FAILED, 버튼 결과 있음                             | failed      | accepted | none                |
 | FAILED, 버튼 결과 없음(예외 종료)                   | unconfirmed | unknown  | none                |
+| SAFETY_STOPPED, 정지 요청으로 보내지 않음(G2)        | stopped     | not_dispatched | none          |
 
 두 줄이 요점이다.
 
-- 마지막 줄: 컨트롤러가 예외로 죽으면(UART 타임아웃 등) 저쪽 보드가 받았는지,
+- '예외 종료' 줄: 컨트롤러가 예외로 죽으면(UART 타임아웃 등) 저쪽 보드가 받았는지,
   눌렀는지 모른다. ``failed``로 적으면 "안 눌렸다"는 거짓 사실이 되고 사용자는
   다시 누르게 된다(중복 실행). 확인 불가는 실패가 아니다.
 - ``reported`` 줄: 원격 실행기(RPi4 UART·ESP 노드)는 {성공, 재시도}만 집계해
@@ -100,7 +101,12 @@ def receipt_of(result: ExecutionResult) -> Receipt:
 
     버튼별 결과가 하나라도 있거나 정지로 끝났으면 받은 것이다. 근거 없이
     예외로 끝난 FAILED만 모른다 -- 저쪽 보드가 받았을 수도 있다.
+
+    정지 요청이 보내기 전에 와서 실행 대상에 넘기지 않은 실행(``not_dispatched``, 2026-10-15 G2)은 보내지 않은
+    것을 이쪽이 안다.
     """
+    if getattr(result, "not_dispatched", False):
+        return Receipt.NOT_DISPATCHED
     if result.status is ExecutionStatus.FAILED and not result.buttons:
         return Receipt.UNKNOWN
     return Receipt.ACCEPTED
@@ -172,6 +178,9 @@ def _detail(
     )
     note = " · 정지 요청 있음" if stop_requested else ""
 
+    if receipt is Receipt.NOT_DISPATCHED:
+        # 보내기 전 정지(G2) — 정지 요청이 원인인 것이 확실한 유일한 경우라 note를 덧붙이지 않는다.
+        return "정지 요청으로 누름 장치에 보내지 않았어요 — 누른 버튼은 없어요"
     if receipt is Receipt.UNKNOWN:
         return "작은 팔 장치의 응답이 없어 눌렸는지 알 수 없어요 -- 자동으로 다시 누르지 않아요" + note
     if confirmation is Confirmation.OPERATION_CONFIRMED:

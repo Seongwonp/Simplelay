@@ -14,6 +14,7 @@ from rpi.controller import (
     ExecutionStatus,
     outcome_of,
 )
+from rpi.controller.models import stopped_before_dispatch
 from rpi.intent import (
     Clock,
     IntentResolver,
@@ -863,7 +864,15 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             from rpi.services.stop_park import hold_plan_for  # noqa: PLC0415
 
             arm_hold(hold_plan_for(self._appliance_registry, appliance_id))
-        if targets:
+        # 보내기 직전 정지 확인(2026-10-15 G2): 접수 뒤·보내기 전에 온 정지는 실행 대상에 넘기지 않는다. 예전에는
+        # abort만 나가고 이 기록을 보지 않아, 쉬는 중이던 RPi4가 abort를 버린 뒤 뒤이어 온 시퀀스를 전부 눌렀다.
+        # 이 확인 뒤·줄을 쓰기 전에 온 정지는 RPi4 링크(ActClientController.execute)가 이벤트 루프 안에서 다시 본다.
+        with self._lock:
+            stop_before_dispatch = self._stop_requested_this_run or self._stop_sticky
+        if stop_before_dispatch:
+            log.warning("stop requested before dispatch — not sending %d button(s)", len(buttons))
+            self._last_result = stopped_before_dispatch()
+        elif targets:
             self._last_result = controller.execute(buttons, targets)
         else:
             # 좌표가 없으면 종전 호출 그대로 — targets를 모르는 구현도 받는다.

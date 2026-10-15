@@ -194,6 +194,17 @@ class ExecutionResult:
     #: ``motion_timeout``·``motion_not_ready``·``motion_position_mismatch``·``motion_link_error``. 눌림(L1) 확인
     #: 실패와 가르는 근거다. 그 밖의 결과는 None.
     abort_reason: str | None = None
+    #: 정지 요청으로 **실행 대상에 보내지 않았다**(2026-10-15 G2) — 누른 버튼이 없다는 것을 이쪽이 안다.
+    #: 수신 ``not_dispatched``의 근거다(`rpi.commands.physical.receipt_of`). `stopped_before_dispatch`로만 만든다.
+    not_dispatched: bool = False
+
+
+def stopped_before_dispatch() -> ExecutionResult:
+    """정지 요청이 접수 뒤·보내기 전에 와서 실행 대상(RPi4 링크·노드)에 넘기지 않은 실행(2026-10-15 G2).
+
+    정지로 끝났고(``stopped``) 누른 버튼은 없다. '성공'도 '실패'도 아니다."""
+    return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, (), outcome=ExecutionOutcome.STOPPED,
+                           not_dispatched=True)
 
 
 def outcome_of(result: ExecutionResult) -> ExecutionOutcome:

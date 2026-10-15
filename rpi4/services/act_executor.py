@@ -21,6 +21,8 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
                                  →  stop_report {stop_id, target, stop_level, ack_ms, stop_detail?}
                                     (stop_id가 있을 때만, 정지 보고 규약 1 — 2026-10-13. target run·dev·hold·idle,
                                     stop_level sent·mcu_ack·verified, 아무것도 멈추지 않았으면 null)
+  abort {run_ref} (쉬는 중)       →  (기억) 같은 run_ref의 execute → result {success:false, outcome:"stopped",
+                                    button_results:[]} — 누르지 않는다(2026-10-15 G2, run_ref 없는 옛 RPi5는 종전대로 버림)
   verify_pass {sequence_id,      →  progress {phase:"verify", ...} + verify_result
                targets}                     {sequence_id, ok, targets:[{button,status,...}]}
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
@@ -303,6 +305,9 @@ class ActExecutor:
         self._motion_stop = motion_stop
         #: 정지 확인을 기다렸다 답하는 task(dev_motion stop 답·stop_report) — 읽기 루프를 막지 않게 따로 돈다.
         self._stop_tasks: set[asyncio.Task[None]] = set()
+        #: 쉬는 중에 받은 abort의 실행 표지(``run_ref``, 2026-10-15 G2). 같은 표지의 execute는 누르지 않고 정지 결과로
+        #: 답한다(한 번 쓰면 지운다). 다른 표지의 execute가 오면 그 실행은 이미 끝난 것이라 지운다.
+        self._aborted_run_ref: str | None = None
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -511,6 +516,24 @@ class ActExecutor:
                 "type": "error",
                 "sequence_id": msg.sequence_id,
                 "reason": "busy",
+            })
+            return
+
+        # 실행 시작 전에 온 정지(2026-10-15 G2, 이중 방어): RPi5가 이 실행의 abort를 먼저 보냈다면(쉬는 중에 받음)
+        # 이 시퀀스는 누르지 않는다. 표지가 없는 옛 RPi5 프레임은 종전 그대로다.
+        aborted, self._aborted_run_ref = self._aborted_run_ref, None
+        if msg.run_ref is not None and msg.run_ref == aborted:
+            log.warning("execute %r not started — its run was aborted before it arrived", msg.sequence_id)
+            await self._send({
+                "type": "result",
+                "sequence_id": msg.sequence_id,
+                "appliance_id": msg.appliance_id,
+                "success": False,
+                "retry": 0,
+                "outcome": "stopped",
+                # 누른 버튼이 없다는 것을 RPi4가 안다 — 빈 목록(RPi5는 '0개 눌림'으로 읽는다).
+                "button_results": [],
+                "execution_mode": self._mode_value(),
             })
             return
 
@@ -1042,6 +1065,11 @@ class ActExecutor:
         scope = msg.scope if msg is not None else "appliance"
         stop_id = msg.stop_id if msg is not None else None
         target, probe = self._abort(scope)
+        run_ref = msg.run_ref if msg is not None else None
+        if target == "idle" and run_ref is not None:
+            # 실행 시작 전에 온 정지(2026-10-15 G2) — 그 실행의 execute가 뒤이어 와도 누르지 않게 기억한다.
+            log.warning("abort for run %s received before its execute — remembering it", run_ref)
+            self._aborted_run_ref = run_ref
         if stop_id is not None:
             # 정지는 위에서 이미 나갔다 — 확인 단계만 따로 기다렸다 보고한다(읽기 루프를 막지 않는다).
             self._spawn_stop_task(self._report_stop(stop_id, target, probe))

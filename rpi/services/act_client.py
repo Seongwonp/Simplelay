@@ -13,6 +13,8 @@ RPi4 side of this same link.
                                        phase, ...}  (optional, never a result)
   abort {scope?}                  ←  (no reply expected)
   abort {scope?, stop_id}         ←  stop_report {stop_id, target, stop_level, ack_ms, stop_detail?}
+  execute·abort {…, run_ref?}         (실행 표지, 2026-10-15 G2 — 쉬는 중 RPi4가 받은 abort를 같은 표지의 execute에 묶는다.
+                                       그 execute는 누르지 않고 result {success:false, outcome:"stopped", button_results:[]})
                                       (정지 보고 규약 1, 2026-10-13 — act_info.stop_report_protocol을 알린 RPi4만 답한다.
                                        ``abort_with_report()``. 옛 RPi4면 기다리지 않고 ``sent``)
   verify_pass {sequence_id,       ←  verify_result {sequence_id, ok, targets}
@@ -470,8 +472,12 @@ class ActClient:
         hold: "Mapping[str, object] | None" = None,
         *,
         appliance_id: str | None = None,
+        run_ref: str | None = None,
     ) -> ActResult:
         """Send one button sequence and await RPi4's result.
+
+        ``run_ref``(선택, 2026-10-15 G2): RPi5가 정한 이번 실행의 표지 — 같은 실행의 abort에도 싣는다. RPi4는 실행 시작
+        전에 같은 표지의 abort를 받았으면 이 시퀀스를 누르지 않고 정지 결과로 답한다. 없으면 키를 넣지 않는다(종전 줄).
 
         ``appliance_id``: 실행 대상 가전 — **필수**(2026-10-07, 평가 H3, execute 규약 2). RPi4는 이 대상의
         CT 채널로 L3·정지 확인을 고르고, 대상 없는 프레임은 ``target_required``로 거절한다. 없으면
@@ -511,6 +517,9 @@ class ActClient:
             if hold:
                 # 정지 대기·보관 계획(선택). 옛 RPi4는 모르는 키를 무시한다.
                 message["hold"] = dict(hold)
+            if run_ref is not None:
+                # 실행 표지(선택). 옛 RPi4는 모르는 키를 무시한다.
+                message["run_ref"] = run_ref
             self.last_hold = None
             self.last_power_tail = None
             await self._send(message)
@@ -565,24 +574,29 @@ class ActClient:
             abort_reason=None if success else parse_abort_reason(doc),
         )
 
-    async def abort(self, scope: str | None = None, stop_id: str | None = None) -> None:
+    async def abort(self, scope: str | None = None, stop_id: str | None = None,
+                    run_ref: str | None = None) -> None:
         """Request RPi4 abort — best-effort, no reply is awaited (see protocol.md).
 
         ``scope="drive"``면 구동부만 멈추라는 뜻이다(정지 대기 중에도 정지 버튼을 누르지 않음).
         ``stop_id``를 주면 RPi4가 ``stop_report``로 확인 단계를 알린다(`abort_with_report`).
-        둘 다 생략하면 종전 줄과 바이트까지 같다."""
+        ``run_ref``(2026-10-15 G2)를 주면 RPi4가 쉬는 중일 때 그 실행의 execute를 누르지 않게 기억한다.
+        모두 생략하면 종전 줄과 바이트까지 같다."""
         doc: dict = {"type": "abort"}
         if scope is not None:
             doc["scope"] = scope
         if stop_id is not None:
             doc["stop_id"] = stop_id
+        if run_ref is not None:
+            doc["run_ref"] = run_ref
         await self._send(doc)
 
     #: 정지 보고를 기다리는 기본 기한(초) — RPi4의 MCU 응답 기한(0.3 s)+멈춤 확인(status 두 번)보다 넉넉하게.
     #: 호스트 박자, 측정 필요.
     STOP_REPORT_TIMEOUT_S = 1.5
 
-    async def abort_with_report(self, scope: str | None = None, timeout_s: float | None = None) -> dict:
+    async def abort_with_report(self, scope: str | None = None, timeout_s: float | None = None,
+                                run_ref: str | None = None) -> dict:
         """정지를 **먼저 보내고**, RPi4의 ``stop_report``를 기다려 ``{"stop_level", "ack_ms", "target", …}``로 돌려준다.
 
         RPi4가 정지 보고 규약(``act_info.stop_report_protocol``)을 알리지 않았으면(옛 판·구성 받기 전) 기다리지 않고
@@ -595,7 +609,7 @@ class ActClient:
             future = asyncio.get_running_loop().create_future()
             self._stop_waiters[stop_id] = future
         try:
-            await self.abort(scope, stop_id=stop_id)
+            await self.abort(scope, stop_id=stop_id, run_ref=run_ref)
             if future is None:
                 return {"stop_id": stop_id, "stop_level": "sent", "ack_ms": None, "target": None,
                         "stop_detail": "RPi4가 정지 확인 단계를 알리지 않는 판이에요"}

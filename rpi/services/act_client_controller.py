@@ -22,9 +22,11 @@ import concurrent.futures
 import contextlib
 import logging
 import threading
+import uuid
 from collections.abc import Callable, Mapping
 
 from rpi.controller import ButtonTarget, ExecutionMode, ExecutionResult
+from rpi.controller.models import stopped_before_dispatch
 
 from .act_client import ActClient, ActClientConfig, ActLinkError, ActLinkTimeoutError, AlertEvent
 from .aggregate_result import synthesize_from_act_result
@@ -71,6 +73,19 @@ class ActClientController:
         self._next_hold: dict | None = None
         #: 다음 execute의 대상 가전(``arm_execute_target``). 한 번 쓰면 비운다. 없으면 보내지 않는다.
         self._next_target: str | None = None
+        #: 이번 실행에 정지가 요청됐나(2026-10-15 G2). ``reset_stop``(실행 시작)이 지우고 ``request_stop``이 세운다.
+        #: execute가 이벤트 루프 안에서 줄을 쓰기 직전에 본다.
+        self._stop_requested = False
+        #: 이번 실행의 표지(``run_ref``, 2026-10-15 G2) — abort와 execute 양쪽에 실어 RPi4가 '실행 시작 전에 온 abort'를
+        #: 그 실행에 묶게 한다(docs/protocol.md). ``reset_stop``마다 새로 정한다. 실행을 시작한 적 없으면 None.
+        self._run_ref: str | None = None
+
+    def reset_stop(self) -> None:
+        """새 실행 시작 — 서비스 ``_begin_run``이 서비스 잠금 안에서 부른다(정지 요청과 직렬화된다).
+
+        쉬는 중에 온 정지(이전 실행·실행 없음)의 표시를 지우고, 이번 실행의 표지(``run_ref``)를 새로 정한다."""
+        self._stop_requested = False
+        self._run_ref = "r" + uuid.uuid4().hex[:15]
 
     @property
     def frame_tap(self):
@@ -94,13 +109,25 @@ class ActClientController:
         if target is None:
             # RPi4는 대상 없는 execute를 거절한다(평가 H3) — 전자레인지로 가정해 보내지 않는다.
             raise ActLinkError("execute target (appliance_id) was not armed — not sent to RPi4")
+        kwargs: dict = {"appliance_id": target}
         if hold:
-            coro = self._client.execute(buttons, targets=targets or None, hold=hold, appliance_id=target)
+            kwargs.update(targets=targets or None, hold=hold)
         elif targets:
-            coro = self._client.execute(buttons, targets=targets, appliance_id=target)
-        else:
-            coro = self._client.execute(buttons, appliance_id=target)
-        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+            kwargs["targets"] = targets
+        if self._run_ref is not None:
+            # 실행 시작(reset_stop)을 거친 실행만 — 표지 없는 호출(시험 대역 등)은 종전 줄 그대로다.
+            kwargs["run_ref"] = self._run_ref
+
+        async def dispatch():
+            # 보내기 직전 정지 확인(2026-10-15 G2) — **이벤트 루프 안에서**. request_stop은 표시를 세운 뒤에 abort를
+            # 이 루프에 올린다. 여기서 표시가 없으면 이 실행의 abort는 아직 줄에 쓰이지 않았고, 아래 execute 줄을
+            # 쓰기까지 await가 없으므로(ActClient.execute → _write) abort는 반드시 execute 뒤에 나가 RPi4가 실행
+            # 중에 받는다. 표시가 있으면 보내지 않는다.
+            if self._stop_requested:
+                return None
+            return await self._client.execute(buttons, **kwargs)
+
+        future = asyncio.run_coroutine_threadsafe(dispatch(), self._loop)
         try:
             result = future.result(timeout=call_timeout)
         except TimeoutError as exc:
@@ -108,6 +135,9 @@ class ActClientController:
             raise ActLinkTimeoutError(
                 f"ActClientController.execute() timed out after {call_timeout}s"
             ) from exc
+        if result is None:
+            log.warning("stop requested before the execute frame was written — %d button(s) not sent", len(buttons))
+            return stopped_before_dispatch()
 
         # RPi4가 보고한 것(종료 방식·버튼별 시도·L3·실행 환경)을 그대로 싣는다 --
         # 없으면(옛 RPi4) 집계 값만으로 합성한다.
@@ -126,8 +156,12 @@ class ActClientController:
             if exc is not None:
                 log.error("emergency abort send failed: %s", exc)
 
+        # 표시를 **먼저** 세운다(2026-10-15 G2) — abort를 루프에 올리기 전에. execute가 루프 안에서 이 표시를 본다.
+        self._stop_requested = True
+        # 이번 실행의 표지를 abort에 싣는다 — 쉬는 중 RPi4가 받으면 같은 표지의 execute를 누르지 않는다(이중 방어).
+        extra = {"run_ref": self._run_ref} if self._run_ref is not None else {}
         with_report = getattr(self._client, "abort_with_report", None)
-        coro = with_report() if callable(with_report) else self._client.abort()
+        coro = with_report(**extra) if callable(with_report) else self._client.abort(**extra)
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         future.add_done_callback(_log_send_failure)
         self._stop_future = future if callable(with_report) else None

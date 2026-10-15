@@ -273,6 +273,30 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 { "type": "stop_report", "stop_id": "s7c1d2e3f4a5", "target": "run", "stop_level": "verified", "ack_ms": 9 }
 ```
 
+**실행 표지 `run_ref` — 접수 뒤·보내기 전 정지(2026-10-15, 안전 보고 G2, 하위 호환).** 정지가 실행 접수 뒤·`execute`를
+보내기 전에 오면, 예전에는 RPi4가 쉬는 중이라 `abort`를 버리고 뒤이어 온 `execute`를 **전부 실행**했다.
+
+- **1차(RPi5만으로 닫힘):** RPi5 실행 스레드가 실행 대상에 넘기기 직전에 이번 실행의 정지 기록을 본다
+  (`rpi/api/service.py` `_run_buttons`). 그 뒤에 온 정지는 `ActClientController.execute`가 **이벤트 루프 안에서** 줄을 쓰기
+  직전에 다시 본다 — `request_stop`은 표시를 세운 뒤에 `abort`를 같은 루프에 올리고, 확인과 `execute` 줄 쓰기 사이에는
+  await가 없으므로 `abort`는 반드시 `execute` 뒤에 나간다(RPi4가 실행 중에 받는다). 정지 표시가 있으면 보내지 않고 결과는
+  `stopped`·수신 `not_dispatched`("정지 요청으로 누름 장치에 보내지 않았어요 — 누른 버튼은 없어요")다.
+- **2차(RPi4 이중 방어):** RPi5는 실행마다 표지 `run_ref`(1~64자)를 정해 그 실행의 `abort`와 `execute`에 함께 싣는다.
+  RPi4는 **쉬는 중에** `run_ref` 달린 `abort`를 받으면 그 값을 하나 기억하고, 같은 `run_ref`의 `execute`가 오면 누르지 않고
+  아래 결과로 답한다(한 번 쓰면 지운다. 다른 `run_ref`의 `execute`가 오면 지운다). 실행 중·정지 버튼 대기 중·개발자 조작
+  중의 `abort`는 종전 그대로다.
+- **호환:** `run_ref`가 없는 프레임(옛 RPi5)은 종전 그대로(쉬는 중 `abort`는 버림). 옛 RPi4는 모르는 키를 무시한다 —
+  그때는 1차 방어만 남는다. `act_info`에 새 값은 없다.
+
+```json
+{ "type": "abort", "stop_id": "s0c1d2e3f4a5b6c7", "run_ref": "r5d6e7f8a9b0c1d2" }
+{ "type": "execute", "sequence_id": "seq_010", "buttons": ["즉석밥", "시작"], "appliance_id": "microwave", "run_ref": "r5d6e7f8a9b0c1d2" }
+{ "type": "result", "sequence_id": "seq_010", "appliance_id": "microwave", "success": false, "retry": 0,
+  "outcome": "stopped", "button_results": [], "execution_mode": "real" }
+```
+
+RPi5는 이 결과를 '정지, 0개 눌림'으로 읽는다(수신 `accepted` — RPi4가 받았고 누르지 않았다고 알렸다).
+
 ### RPi4 → RPi5
 
 ```json
