@@ -33,7 +33,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.',
+        message: '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -46,9 +46,9 @@ void main() {
     );
 
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
-    expect(find.text('가전 동작은 모의로 판정했어요 · 실제 확인 아님'), findsOneWidget);
+    expect(find.text('가전 동작은 연습 값으로 판정했어요 · 실제 확인 아님'), findsOneWidget);
     // 모의 판정의 true는 실제 동작 근거가 아니다 — 그 사실을 같이 말한다.
-    expect(find.textContaining('모의 판정'), findsOneWidget);
+    expect(find.textContaining('연습 판정'), findsOneWidget);
     expect(find.textContaining('전력 파형에서 가열 시작을 확인했어요'), findsOneWidget);
   });
 
@@ -59,7 +59,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.',
+        message: '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -80,7 +80,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.',
+        message: '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -104,9 +104,9 @@ void main() {
       ),
     );
 
-    expect(find.text('누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.'), findsNothing);
+    expect(find.text('버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.'), findsNothing);
     // 실행 환경을 모르면 실제로 눌렀는지 사람에게 확인을 맡긴다.
-    expect(find.textContaining('실제로 눌렀는지 가전을 확인해 주세요'), findsOneWidget);
+    expect(find.textContaining('가전이 실제로 움직이는지는 직접 봐 주세요'), findsOneWidget);
     expect(find.textContaining('마쳤어요'), findsNothing);
   });
 
@@ -127,13 +127,13 @@ void main() {
     );
 
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
-    expect(find.text('모의 동작 판정 · 실제 가전 아님'), findsOneWidget);
+    expect(find.text('연습 동작 판정 · 실제 가전 아님'), findsOneWidget);
   });
 
   group('L3 판정 출처 × 모션 실행 모드 (평가 M5)', () {
     const realSentence = '가전 동작도 확인했어요';
-    const mockMotion = '모의 동작 판정 · 실제 가전 아님';
-    const mockL3 = '가전 동작은 모의로 판정했어요 · 실제 확인 아님';
+    const mockMotion = '연습 동작 판정 · 실제 가전 아님';
+    const mockL3 = '가전 동작은 연습 값으로 판정했어요 · 실제 확인 아님';
     const unknownL3 = '가전 동작 판정의 근거를 몰라요 · 가전을 확인해 주세요';
     final cases = <(String, String?, String)>[
       ('real', 'real', realSentence),

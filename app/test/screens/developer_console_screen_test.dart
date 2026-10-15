@@ -683,7 +683,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '정지'));
     await tester.pump();
     await tester.pump();
-    expect(find.text('정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요'), findsOneWidget);
+    expect(find.text('멈추라고 보냈어요 — 멈췄는지 아직 몰라요'), findsOneWidget);
     expect(find.textContaining('확인했어요'), findsNothing);
     // '보냄'은 잠금이 아니다 — 잠겼다고 겁주지 않는다.
     expect(find.textContaining('잠겼'), findsNothing);
@@ -723,7 +723,7 @@ void main() {
     await tester.tap(find.widgetWithText(OutlinedButton, '세션 끝내기'));
     await tester.pump();
     await tester.pump();
-    expect(find.text('정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요'), findsOneWidget);
+    expect(find.text('멈추라고 보냈어요 — 멈췄는지 아직 몰라요'), findsOneWidget);
     expect(find.text('정지를 확인했어요'), findsNothing);
     await _close(tester);
   });

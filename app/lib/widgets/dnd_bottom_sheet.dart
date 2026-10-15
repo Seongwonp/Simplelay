@@ -54,7 +54,7 @@ class _DndSheet extends ConsumerWidget {
                   Icon(Icons.do_not_disturb_on_outlined,
                       color: context.appWarning, size: 22),
                   const SizedBox(width: 10),
-                  Text('방해 금지 모드', style: AppText.title),
+                  Flexible(child: Text('방해 금지 모드', style: AppText.title)),
                   const Spacer(),
                   if (isActive)
                     Container(
@@ -75,6 +75,19 @@ class _DndSheet extends ConsumerWidget {
                       ),
                     ),
                 ],
+              ),
+            ),
+
+            // 같은 기능을 키오스크는 다른 이름으로 부른다 — 처음 한 번 이어 준다(2026-10-15 안 A).
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  "키오스크의 '제안 잠시 쉬기'와 같아요",
+                  key: const ValueKey('dnd-kiosk-name'),
+                  style: TextStyle(color: context.appMuted, fontSize: 14),
+                ),
               ),
             ),
 

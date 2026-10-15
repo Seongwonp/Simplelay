@@ -136,7 +136,7 @@ void main() {
           );
       await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+          '정지 요청으로 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 직접 봐 주세요.');
     });
 
     test('정지 응답이 다른 실행(stop_job_id)을 멈췄다고 하면 단계를 내 화면에 쓰지 않는다', () async {
@@ -189,7 +189,7 @@ void main() {
         expect(await notifier.emergencyStop(), isTrue);
         final message = c.read(executionStatusProvider).message;
         if (applied) {
-          expect(message, contains('멈춘 것을 확인했어요'));
+          expect(message, contains('누름 장치가 멈췄어요'));
         } else {
           expect(message, '정지 요청을 보냈어요.');
         }
@@ -217,9 +217,9 @@ void main() {
         await stopFuture;
         final message = c.read(executionStatusProvider).message;
         if (applied) {
-          expect(message, '실행을 멈췄어요. 멈춘 것을 확인했어요.');
+          expect(message, '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 가전의 정지·취소 버튼을 직접 눌러 주세요.');
         } else {
-          expect(message, '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+          expect(message, '정지 요청으로 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 직접 봐 주세요.');
         }
       });
     }
@@ -247,7 +247,7 @@ void main() {
       status = _stopped('J1'); // 결과 먼저, 단계는 아직 없음
       await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+          '정지 요청으로 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 직접 봐 주세요.');
       final spoken = tts.spoken.length;
       stopGate.complete({
         'ok': true,
@@ -260,7 +260,7 @@ void main() {
       final s = c.read(executionStatusProvider);
       expect(s.sequenceId, 'J1');
       expect(s.outcome, 'stopped');
-      expect(s.message, '실행을 멈췄어요. 멈춘 것을 확인했어요.');
+      expect(s.message, '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 가전의 정지·취소 버튼을 직접 눌러 주세요.');
       expect(tts.spoken.length, spoken);
     });
 
@@ -271,12 +271,12 @@ void main() {
           api: _api(status: () => status), jobId: 'J1', label: '아침 데우기');
       await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+          '정지 요청으로 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 직접 봐 주세요.');
       final spoken = tts.spoken.length;
       status = _stopped('J1', level: 'mcu_ack', ackMs: 12, stopJob: 'J1');
-      await _until(() => c.read(executionStatusProvider).message?.contains('정지 신호가 전달됐어요') ?? false);
+      await _until(() => c.read(executionStatusProvider).message?.contains('정지 신호를 받았어요') ?? false);
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 정지 신호가 전달됐어요.');
+          '누름 장치가 정지 신호를 받았어요. 멈췄는지는 확인 못 했어요. 가전을 직접 봐 주세요.');
       expect(tts.spoken.length, spoken);
     });
 
@@ -295,7 +295,7 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 5000));
       expect(calls - after, lessThanOrEqualTo(3));
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+          '정지 요청으로 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 직접 봐 주세요.');
     });
 
     // 4차 평가 M-N3: /stop 응답이 서버 쪽 지연으로 늦어 폰 제한 시간을 넘겨도, 그사이 /status로 받은 같은 job의
@@ -312,7 +312,7 @@ void main() {
       final stopFuture = notifier.emergencyStop();
       status = _stopped('J1', level: 'verified', ackMs: 9, stopJob: 'J1');
       await _until(() => c.read(executionStatusProvider).phase != ExecutionPhase.running);
-      const confirmed = '실행을 멈췄어요. 멈춘 것을 확인했어요.';
+      const confirmed = '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 가전의 정지·취소 버튼을 직접 눌러 주세요.';
       expect(c.read(executionStatusProvider).message, confirmed);
       stopGate.completeError(TimeoutException('POST /stop'));
       expect(await stopFuture, isTrue); // 끝난 실행 — 더 멈출 것이 없다

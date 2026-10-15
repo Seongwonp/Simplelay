@@ -58,7 +58,7 @@ void main() {
     // 1초 주기 폴링이 완료를 집을 때까지 실제 시간 대기
     await Future<void>.delayed(const Duration(milliseconds: 1500));
 
-    expect(tts.utterances, contains('누름 장치가 응답했어요. 실제로 눌렀는지 가전을 확인해 주세요.'));
+    expect(tts.utterances, contains('누름 장치가 다 눌렀다고 알려 왔어요. 가전이 실제로 움직이는지는 직접 봐 주세요.'));
   });
 
   test('음성 안내를 끄면 발화하지 않는다', () async {

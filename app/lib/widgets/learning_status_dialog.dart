@@ -82,7 +82,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                             Text('같은 가전을 같은 시간대에 ${status.minimumDays}일 이상, '
                                 '${status.minimumOccurrences}회 이상 직접 사용하면 습관으로 기억해요.'),
                             const SizedBox(height: 8),
-                            const Text('모의 실행과 추천을 받아 실행한 기록은 습관 횟수에 더하지 않아요.'),
+                            const Text('연습 실행과 추천을 받아 실행한 기록은 습관 횟수에 더하지 않아요.'),
                             const SizedBox(height: 8),
                             const Text(
                                 '습관이 확인되어도 시간과 상황에 맞춰 제안하고, 확인을 받은 뒤 실행해요.'),

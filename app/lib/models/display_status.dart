@@ -97,7 +97,7 @@ TileStatus applianceTileStatus({
         final mock = execution.isDemo || execution.executionMode == 'mock';
         if (mock) {
           return TileStatus(
-              thinq ? '모의 명령 처리 중' : '모의 버튼 조작 중$count', TileTone.active,
+              thinq ? '연습 명령 처리 중' : '연습 버튼 조작 중$count', TileTone.active,
               progress: true);
         }
         if (execution.executionMode == 'real') {
@@ -209,7 +209,7 @@ String? verifyPassLookupNote(VerifyPassLookup lookup) {
       final p = lookup.pass!;
       final mode = p.executionMode;
       if (p.state == 'done' && mode == 'real') return null;
-      if (p.state == 'done' && mode == 'mock') return '모의 주행만 확인했어요';
+      if (p.state == 'done' && mode == 'mock') return '연습 주행만 확인했어요';
       if (p.state == 'failed' && mode == 'real') return '확인 주행을 마치지 못했어요';
       return unknown;
   }
@@ -358,7 +358,7 @@ String? _noDot(String? s) =>
 
 /// "(모의)"·"(모의 클라우드)" 같은 괄호 표기를 뺀 이름(표시만). 모의 기록은 '연습' 줄이 이미 말한다.
 String withoutMockMark(String text) =>
-    text.replaceAll(RegExp(r'\s*\(모의[^)]*\)'), '').trim();
+    text.replaceAll(RegExp(r'\s*\((?:모의|연습)[^)]*\)'), '').trim();
 
 /// 기록 제목은 묻지 않는다 — 끝난 일이다. 서버 목적이 질문("공기청정기 풍량을 강으로 바꿀까요?")이면
 /// 서술형("공기청정기 풍량 강으로")으로 줄인다. 질문이 아니면 그대로.

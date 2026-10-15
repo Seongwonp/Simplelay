@@ -147,11 +147,11 @@ void main() {
     await tester.pumpWidget(_home(api));
     await _settle(tester);
 
-    expect(_inTile('a', '모의 주행만 확인했어요'), findsOneWidget);
+    expect(_inTile('a', '연습 주행만 확인했어요'), findsOneWidget);
     expect(_inTile('b', '확인 주행을 마치지 못했어요'), findsOneWidget);
     expect(_inTile('c', '확인 주행 기록이 없어요'), findsOneWidget);
     for (final t in [
-      '모의 주행만 확인했어요',
+      '연습 주행만 확인했어요',
       '확인 주행을 마치지 못했어요',
       '확인 주행 기록이 없어요',
       '확인 주행 여부를 확인하지 못했어요',
@@ -186,7 +186,7 @@ void main() {
     await tester.pumpWidget(_home(api));
     await _settle(tester);
     expect(_inTile('w', '설정이 필요해요'), findsOneWidget);
-    expect(_inTile('w', '모의 주행만 확인했어요'), findsNothing);
+    expect(_inTile('w', '연습 주행만 확인했어요'), findsNothing);
     expect(_inTile('w', '확인 주행 여부를 확인하지 못했어요'), findsNothing);
   });
 
@@ -227,7 +227,7 @@ void main() {
     await _settle(tester);
     expect(
         find.bySemanticsLabel(
-            '전자레인지, 모의 주행만 확인했어요'),
+            '전자레인지, 연습 주행만 확인했어요'),
         findsOneWidget);
     expect(
         find.bySemanticsLabel(
@@ -238,7 +238,7 @@ void main() {
   });
 
   // 검토 M4(2026-10-13): 같은 홈의 타일과 설정 카드가 같은 근거 수준으로 말한다.
-  // '모의 주행을 확인했어요'는 모의 확인 주행을 **마친** 경우(done/mock)에만.
+  // '연습 주행을 확인했어요'는 모의 확인 주행을 **마친** 경우(done/mock)에만.
   for (final c in [
     (state: 'failed', label: '모의 실패'),
     (state: 'running', label: '모의 진행 중'),
@@ -270,11 +270,11 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
-    expect(_inTile('a', '모의 주행만 확인했어요'), findsOneWidget);
+    expect(_inTile('a', '연습 주행만 확인했어요'), findsOneWidget);
     expect(
         find.descendant(
             of: find.byType(ApplianceSetupCard),
-            matching: find.text('모의 주행을 확인했어요. 실제 위치는 확인이 필요해요.')),
+            matching: find.text('연습 주행을 확인했어요. 실제 위치는 확인이 필요해요.')),
         findsOneWidget);
   });
 
@@ -310,7 +310,7 @@ void main() {
     final tileB = find.byKey(const Key('appliance-card-b'));
     final add = find.byKey(const Key('appliance-add-card'));
     final run = find.byKey(const Key('home-routine-run-r-b'));
-    expect(_inTile('a', '모의 주행만 확인했어요'), findsOneWidget);
+    expect(_inTile('a', '연습 주행만 확인했어요'), findsOneWidget);
     expect(_inTile('b', '확인 주행을 마치지 못했어요'), findsOneWidget);
 
     // 겹침 없음: 보조 줄 타일과 가전 추가·실행하기가 서로 겹치지 않는다.

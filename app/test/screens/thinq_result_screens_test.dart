@@ -92,7 +92,7 @@ void main() {
     // 경로 · 확인 수준은 '경로'·'확인' 꼬리표 없이 자연스러운 한 줄로 말한다.
     expect(find.text('ThinQ · 접수됨'), findsOneWidget);
     // t2는 모의 실행 — 결과 문장 한 줄이 연습이라고 말하고 수신 줄을 겹치지 않는다(2026-10-14).
-    expect(find.text('ThinQ · 모의 상태 확인'), findsNothing);
+    expect(find.text('ThinQ · 연습 상태 확인'), findsNothing);
     expect(find.text('연습 · 가전에 보내지 않았어요'), findsOneWidget);
     // 접수 불명은 받았는지 모른다고만 말한다(접수됨·확인됨으로 올리지 않는다,
     // 실패로도 말하지 않는다).

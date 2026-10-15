@@ -16,11 +16,9 @@
 @Tags(['screenshot'])
 library;
 
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -51,6 +49,7 @@ import 'package:simplelay/services/voice_service.dart';
 import 'package:simplelay/theme/app_theme.dart';
 
 import 'helpers/test_helpers.dart';
+import 'support/golden_fonts.dart';
 
 const _phoneSize = Size(390, 844);
 
@@ -138,18 +137,7 @@ Future<void> _shoot(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  setUpAll(() async {
-    final bytes = File(r'C:\Windows\Fonts\malgun.ttf').readAsBytesSync();
-    final loader = FontLoader('Malgun')
-      ..addFont(Future.value(ByteData.view(bytes.buffer)));
-    await loader.load();
-    final iconBytes = File(
-      r'C:\flutter\flutter\bin\cache\artifacts\material_fonts\materialicons-regular.otf',
-    ).readAsBytesSync();
-    final iconLoader = FontLoader('MaterialIcons')
-      ..addFont(Future.value(ByteData.view(iconBytes.buffer)));
-    await iconLoader.load();
-  });
+  setUpAll(loadGoldenFonts);
 
   // 서버에서 온 패턴 제안 — 실기기에서 실제로 오는 모양이다. 근거 문장과
   // '다시 받지 않기'가 이 경로에서만 나오므로, 골든도 이 경로를 찍어야
@@ -279,7 +267,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 2,
     applianceId: 'microwave',
-    message: '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.',
+    message: '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.',
   );
   const failed = ExecutionStatus(
     phase: ExecutionPhase.failed,

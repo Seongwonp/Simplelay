@@ -80,7 +80,7 @@ void main() {
     });
     expect(s.phase, ExecutionPhase.failed);
     expect(s.abortReason, 'motion_alarm: stall');
-    expect(s.message, '모터가 걸려 멈췄어요. 다시 누르지 않았어요. 장치를 확인해 주세요.');
+    expect(s.message, '모터가 걸려 멈췄어요. 다시 누르지 않았어요. 가전과 누름 장치를 직접 봐 주세요.');
     expect(s.message, isNot(contains('눌림을 확인하지 못해')));
     expect(spoken.single, s.message);
   });
@@ -92,7 +92,7 @@ void main() {
       'last_route': 'physical',
       'last_execution_mode': 'real',
     });
-    expect(s.message, '눌림을 확인하지 못해 안전하게 멈췄어요. 가전을 확인해 주세요.');
+    expect(s.message, '눌림을 확인하지 못해 멈췄어요. 가전을 먼저 봐 주세요. 이미 켜졌다면 다시 시도하지 마세요(한 번 더 눌려 꺼질 수 있어요).');
   });
 
   test('기록: 걸림 원인이 있으면 "다시 눌러도 확인하지 못해"라고 하지 않는다', () {

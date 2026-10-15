@@ -74,7 +74,7 @@ class _Hub {
   Map<String, dynamic> get _purifier => _found(
         purifierKey,
         '공기청정기',
-        '공기청정기(모의 클라우드)',
+        '공기청정기(연습용 클라우드)',
         added: added,
         source: added ? 'added' : null,
         canAdd: !added,
@@ -91,7 +91,7 @@ class _Hub {
             added = true;
             return _json({
               'appliance_id': 'air_purifier',
-              'name': '공기청정기(모의 클라우드)',
+              'name': '공기청정기(연습용 클라우드)',
               'added': true,
               'source': 'added',
             });
@@ -101,7 +101,7 @@ class _Hub {
               if (added)
                 {
                   'id': 'air_purifier',
-                  'name': '공기청정기(모의 클라우드)',
+                  'name': '공기청정기(연습용 클라우드)',
                   'category': 'air_purifier',
                   'rows': 0,
                   'cols': 0,
@@ -164,12 +164,12 @@ void main() {
               support: 'unsupported',
               supportReason: '지원하지 않아요 — SimpleLay가 아직 다루지 않는 가전 종류예요',
               reason: '지원하지 않아요 — SimpleLay가 아직 다루지 않는 가전 종류예요'),
-          _found('k4', '제습기', '제습기(모의 클라우드)',
+          _found('k4', '제습기', '제습기(연습용 클라우드)',
               added: true, source: 'config'),
         ])))));
     await _settle(tester);
 
-    expect(find.text('ThinQ에서 찾은 가전 (모의 클라우드)'), findsOneWidget);
+    expect(find.text('ThinQ에서 찾은 가전 (연습용 클라우드)'), findsOneWidget);
     expect(find.byKey(const Key('thinq-add-k1')), findsOneWidget);
     expect(find.text('제어할 수 있어요 — 전원 · 풍량 · 운전 모드'), findsOneWidget);
     expect(find.byKey(const Key('thinq-add-k2')), findsNothing);
@@ -198,7 +198,7 @@ void main() {
     expect(find.textContaining('0대'), findsNothing);
     expect(find.text('다시 찾기'), findsOneWidget);
     // 실패해도 모의 클라우드 표시는 남는다.
-    expect(find.text('ThinQ에서 찾은 가전 (모의 클라우드)'), findsOneWidget);
+    expect(find.text('ThinQ에서 찾은 가전 (연습용 클라우드)'), findsOneWidget);
   });
 
   testWidgets('허브에 닿지 않으면 0대가 아니라 이유', (tester) async {

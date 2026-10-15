@@ -90,7 +90,7 @@ class ApplianceSetupCard extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${appliance.name} · 설정이 $remaining개 남았어요'),
-        if (mockDone) const Text('모의 주행을 확인했어요. 실제 위치는 확인이 필요해요.'),
+        if (mockDone) const Text('연습 주행을 확인했어요. 실제 위치는 확인이 필요해요.'),
         if (passNote != null) Text(passNote),
         Wrap(spacing: 12, children: [
           OutlinedButton(onPressed: () => open('/appliance/setup'),

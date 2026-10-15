@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../models/command_result.dart' show manualPressSentence;
 import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/rpi_api_provider.dart';
@@ -40,6 +41,9 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   String? _resultButtonId;
   String? _resultLabel;
   bool? _resultSuccess;
+
+  /// 방금 누른 결과 한 줄 — 확인한 만큼만(2026-10-15).
+  String? _resultSentence;
   Timer? _resultClearTimer;
 
   @override
@@ -64,6 +68,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     });
 
     bool success;
+    String? confirmation;
+    var mode = 'unknown';
     try {
       // job 모델: 접수 즉시 job_id가 오고, 완료는 /status 폴링으로 판정한다.
       final accepted = await api.executeButtons(
@@ -80,7 +86,10 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
         label: button.label,
         steps: [button.label],
       );
-      success = await _waitJobDone(api, accepted.jobId);
+      final done = await _waitJobDone(api, accepted.jobId);
+      success = done?.lastStatus == 'succeeded';
+      confirmation = done?.lastConfirmation;
+      mode = done?.lastExecutionMode ?? 'unknown';
     } catch (_) {
       success = false;
     }
@@ -92,6 +101,8 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       _resultButtonId = button.id;
       _resultLabel = button.label;
       _resultSuccess = success;
+      _resultSentence = manualPressSentence(button.label,
+          success: success, confirmation: confirmation, executionMode: mode);
     });
     // 셀의 색은 2초 뒤 거둔다. 문장은 다음 버튼을 누를 때까지 남긴다 --
     // 실패를 2초 만에 지우면 한눈판 사람은 무슨 일이 있었는지 모른다.
@@ -103,22 +114,21 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
   // 내 job이 끝날 때까지 /status를 폴링한다. 버튼 1개 실행은 재시도를
   // 포함해도 수십 초 안에 끝나므로 45초를 상한으로 두고, 그 안에 판정이
   // 안 나면(서버 유실 등) 실패로 처리해 pending 잠금에서 탈출한다.
-  Future<bool> _waitJobDone(RpiApiService api, String jobId) async {
+  /// 내 job이 끝난 /status(확인 근거·실행 환경까지). 시간 안에 판정이 안 나면 null.
+  Future<RpiStatusResult?> _waitJobDone(RpiApiService api, String jobId) async {
     final deadline = DateTime.now().add(const Duration(seconds: 45));
     while (mounted && DateTime.now().isBefore(deadline)) {
       try {
         final status = await api.status();
         // running 여부와 무관하게 lastJobId로 판정 — 완료 직후 다른
         // 클라이언트의 새 실행이 시작돼도(running=true) 내 결과를 놓치지 않는다
-        if (status.lastJobId == jobId) {
-          return status.lastStatus == 'succeeded';
-        }
+        if (status.lastJobId == jobId) return status;
       } catch (_) {
         // 일시적 통신 오류는 다음 폴링에서 재시도
       }
       await Future.delayed(const Duration(milliseconds: 500));
     }
-    return false;
+    return null;
   }
 
   @override
@@ -197,6 +207,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               pendingLabel: _pendingLabel,
               resultLabel: _resultLabel,
               resultSuccess: _resultSuccess,
+              resultSentence: _resultSentence,
               onSeeStatus: () => context.push('/status'),
             ),
 
@@ -288,12 +299,14 @@ class _FeedbackLine extends StatelessWidget {
     required this.pendingLabel,
     required this.resultLabel,
     required this.resultSuccess,
+    this.resultSentence,
     required this.onSeeStatus,
   });
 
   final String? pendingLabel;
   final String? resultLabel;
   final bool? resultSuccess;
+  final String? resultSentence;
   final VoidCallback onSeeStatus;
 
   @override
@@ -327,7 +340,8 @@ class _FeedbackLine extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              ok ? "'$resultLabel' 눌림을 확인했어요" : "'$resultLabel' 눌림을 확인하지 못했어요",
+              resultSentence ??
+                  manualPressSentence(resultLabel!, success: ok),
               style: TextStyle(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,

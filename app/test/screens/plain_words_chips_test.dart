@@ -38,7 +38,7 @@ void main() {
               confirmation: 'press_confirmed',
               kind: ResultKind.success,
               executionMode: 'mock'),
-          '모의 눌림 확인');
+          '연습 결과');
     });
 
     test('근거 없음은 시스템 말 대신 "확인하지 못했어요", 모의면 연습이라고', () {
@@ -77,7 +77,7 @@ void main() {
       // 경로 칩은 결과 문장("모의 버튼 조작을 마쳤어요")과 겹치므로 두지 않는다.
       expect(find.text('버튼을 대신 눌러요'), findsNothing);
       expect(find.text('연습 결과'), findsOneWidget);
-      expect(find.textContaining('모의 버튼 조작을 마쳤어요'), findsWidgets);
+      expect(find.textContaining('연습을 마쳤어요'), findsWidgets);
     });
 
     testWidgets('실제 물리 실행: 확인 수준 칩은 그대로 남는다', (tester) async {

@@ -89,11 +89,11 @@ String? confirmationLabel({
 }) {
   // 보내기 전 조회에서 이미 목표값이라 보내지 않았다(2026-10-14) — 실패·미확인도, 바꿨다는 말도 아니다.
   if (confirmation == 'already_at_target') {
-    return executionMode == 'mock' ? '모의 · 이미 그 설정이라 보내지 않음' : '이미 그 설정이라 보내지 않음';
+    return executionMode == 'mock' ? '연습 · 이미 그 설정이라 보내지 않음' : '이미 그 설정이라 보내지 않음';
   }
   // 보낸 뒤 목표값을 봤지만 보내기 전 값은 몰랐다(2026-10-14) — '바뀐 것 확인'이 아니다.
   if (confirmation == 'state_confirmed_unknown_before') {
-    return executionMode == 'mock' ? '모의 · 설정된 것 확인' : '설정된 것 확인됨';
+    return executionMode == 'mock' ? '연습 · 설정된 것 확인' : '설정된 것 확인됨';
   }
   // 누름 장치에 보내기 전에 끝났다 — 확인 못 함이 아니라 누르지 않았다.
   if (route != 'thinq' && receipt == 'not_dispatched') return '누르지 않음';
@@ -106,7 +106,7 @@ String? confirmationLabel({
   // 모의가 앞선다 — 모의 상태를 읽은 것을 실제 가전 상태 확인으로 말하지
   // 않는다(10/6 Copilot 리뷰 66990be).
   if (confirmation == 'state_confirmed') {
-    return executionMode == 'mock' ? '모의 상태 확인' : '상태 확인됨';
+    return executionMode == 'mock' ? '연습 상태 확인' : '상태 확인됨';
   }
   if (route == 'thinq') {
     if (receipt == 'not_dispatched') return '보내지 않음';
@@ -121,15 +121,17 @@ String? confirmationLabel({
   // 응답"·"확인 근거 없음") 대신 사람 말로 — 모의라는 사실은 남긴다(2026-10-13).
   if (executionMode == 'mock') {
     return switch (confirmation) {
-      'operation_confirmed' => '모의 동작 확인',
-      'press_confirmed' => '모의 눌림 확인',
+      // 같은 상태를 '연습'과 '모의'로 섞어 쓰지 않는다(2026-10-15 키오스크 문구 개선 안 A — '연습'으로 통일).
+      'operation_confirmed' => '연습 결과',
+      'press_confirmed' => '연습 결과',
       'reported' => '연습 결과',
       'none' => '연습 · 눌렸는지 확인하지 못했어요',
       _ => null,
     };
   }
   return switch (confirmation) {
-    'operation_confirmed' => '켜진 것을 확인했어요',
+    // 확인한 것은 콘센트 전력이 늘어난 것이다 — 켜졌다·조리를 시작했다고 말하지 않는다(2026-10-15, 키오스크와 같은 말).
+    'operation_confirmed' => '전력 사용이 늘었어요',
     'press_confirmed' => '버튼을 눌렀어요',
     'reported' => '누름 장치의 응답을 받았어요',
     'none' => '눌렸는지 확인하지 못했어요',
@@ -152,12 +154,15 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
 ///
 /// 사용자 화면은 숫자 없이 말한다(2026-10-14 UX 평가 — 키오스크와 같은 문장). ms와 '모션 보드'는
 /// [detail]이 참일 때(개발자 도구)만.
+///
+/// 2026-10-15 키오스크 문구 개선 안 A(원칙 0-1~3): 주어는 누름 장치이고(가전이 멈췄다는 뜻이 아니다), 확인하지 못한
+/// 단계는 문장 첫머리부터 모른다고 말한다. 폰은 이름 바꾸기를 하지 않아 '누름 장치'로 둔다(키오스크는 '작은 팔').
 String? stopLevelSentence(String? level, {int? ackMs, bool detail = false}) {
   if (!detail) {
     return switch (level) {
-      'verified' => '멈춘 것을 확인했어요',
-      'mcu_ack' => '정지 신호가 전달됐어요',
-      'sent' => '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요',
+      'verified' => '누름 장치가 멈췄어요',
+      'mcu_ack' => '누름 장치가 정지 신호를 받았어요 — 멈췄는지는 확인 못 했어요',
+      'sent' => '멈추라고 보냈어요 — 멈췄는지 아직 몰라요',
       _ => null,
     };
   }
@@ -167,9 +172,32 @@ String? stopLevelSentence(String? level, {int? ackMs, bool detail = false}) {
         ? '멈춘 것을 확인했어요'
         : '멈춘 것을 확인했어요 (모션 보드 응답 $ackMs ms)',
     'mcu_ack' => '모션 보드가 정지를 확인했어요$ms',
-    'sent' => '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요',
+    'sent' => '멈추라고 보냈어요 — 멈췄는지 아직 몰라요',
     _ => null,
   };
+}
+
+/// 정지 문장 뒤 할 일 한 가지(원칙 0-3). 누름 장치가 멈췄어도 가전은 이미 켜졌을 수 있다.
+String stopLevelNextStep(String? level) => switch (level) {
+      'verified' => '가전이 이미 켜졌다면 가전의 정지·취소 버튼을 직접 눌러 주세요',
+      'mcu_ack' || 'sent' => '가전을 직접 봐 주세요',
+      _ => '누름 장치와 가전이 멈췄는지 직접 봐 주세요',
+    };
+
+/// 다시 시도 위험(열린 문제 R1) — 자동 재시도·다시 시도는 가전 상태를 보지 않고 같은 버튼을 다시 누른다.
+const kDontRetryIfOn = '이미 켜졌다면 다시 시도하지 마세요(한 번 더 눌려 꺼질 수 있어요)';
+
+/// 수동 조작에서 방금 누른 버튼 한 줄(2026-10-15) — 확인한 만큼만. 예전에는 실행이 성공으로 끝나기만 하면
+/// "눌림을 확인했어요"라고 했다(연습·누름 장치 보고만인 경우에도).
+String manualPressSentence(String label,
+    {required bool success, String? confirmation, String executionMode = 'unknown'}) {
+  if (!success) return "'$label' 눌림을 확인하지 못했어요 — 가전을 먼저 봐 주세요";
+  if (executionMode == 'mock') return "'$label' 연습으로 눌렀어요 · 실제 가전은 누르지 않았어요";
+  if (executionMode == 'real' &&
+      (confirmation == 'press_confirmed' || confirmation == 'operation_confirmed')) {
+    return "'$label' 눌림을 확인했어요";
+  }
+  return "'$label' 누름 장치가 눌렀다고 알려 왔어요 · 가전은 직접 봐 주세요";
 }
 
 /// '확인'은 모션 보드가 받았을 때(mcu_ack)부터다. 보냄(sent)은 확인이 아니다.
@@ -201,33 +229,35 @@ String finishedMessage({
       if (said != null &&
           (executionMode != 'mock' || confirmation != 'state_confirmed')) {
         return executionMode == 'mock'
-            ? '모의 · $said 실제 가전은 조작하지 않았어요.'
+            ? '연습 · $said 실제 가전은 조작하지 않았어요.'
             : said;
       }
       if (thinq) {
         return executionMode == 'mock'
-            ? '모의 ThinQ 명령을 보내고 모의 상태를 확인했어요. 실제 가전은 조작하지 않았어요.'
+            ? '연습으로 ThinQ 명령을 보내고 연습 상태를 확인했어요. 실제 가전은 조작하지 않았어요.'
             : '명령을 보냈고 가전 상태를 확인했어요.';
       }
+      // 확인한 만큼만(2026-10-15, 키오스크와 같은 규칙) — 끝낸 것은 버튼 누르기, 가전은 사람이 본다.
       return executionMode == 'mock'
-          ? '모의 버튼 조작을 마쳤어요. 실제 조작은 하지 않았어요.'
+          ? '연습을 마쳤어요. 실제 가전은 누르지 않았어요.'
           : executionMode == 'real'
-              ? '누름 장치가 응답했어요. 켜졌는지 가전을 확인해 주세요.'
-              : '누름 장치가 응답했어요. 실제로 눌렀는지 가전을 확인해 주세요.';
+              ? '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.'
+              : '누름 장치가 다 눌렀다고 알려 왔어요. 가전이 실제로 움직이는지는 직접 봐 주세요.';
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
     case ResultKind.stopped:
       // 서버가 확인한 것은 실행 루프 종료까지다. 정지 확인 단계가 오면 그만큼만
       // 말하고(2026-10-13), 없으면 가전 쪽 장치가 멈췄는지는 사람이 본다.
+      // '실행을 멈췄어요'를 앞에 붙이지 않는다(2026-10-15) — 보냄(sent)에서도 멈춘 것처럼 읽혔다.
       final stop = stopLevelSentence(stopLevel, ackMs: stopAckMs);
       return stop == null
-          ? '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.'
-          : '실행을 멈췄어요. $stop.';
+          ? '정지 요청으로 실행이 끝났어요. ${stopLevelNextStep(null)}.'
+          : '${stop.replaceAll(' — ', '. ')}. ${stopLevelNextStep(stopLevel)}.';
     case ResultKind.safetyStop:
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
       final motion = motionAbortSentence(abortReason);
-      if (motion != null) return '$motion. 다시 누르지 않았어요. 장치를 확인해 주세요.';
-      return '눌림을 확인하지 못해 안전하게 멈췄어요. 가전을 확인해 주세요.';
+      if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 누름 장치를 직접 봐 주세요.';
+      return '눌림을 확인하지 못해 멈췄어요. 가전을 먼저 봐 주세요. $kDontRetryIfOn.';
     case ResultKind.failed:
       // 실패라는 것만으로는 시작하지 않았는지 모른다 — 접수된 뒤 일부 버튼을 누르고 실패했을 수 있다(외부 평가
       // 2026-10-13 M4). 미전송 근거(not_dispatched)가 있을 때만 보내지 못했다고 하고 다시 시도를 권한다.

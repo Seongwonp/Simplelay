@@ -319,7 +319,7 @@ class _TodayUse extends ConsumerWidget {
   /// 모의 성공을 실제 성공처럼 말하지 않는다.
   static String _result(RpiHistoryEntry e) {
     final word = resultWord(resultKindOf(outcome: e.outcome, status: e.status));
-    return e.executionMode == 'mock' ? '$word(모의)' : word;
+    return e.executionMode == 'mock' ? '$word(연습)' : word;
   }
 }
 

@@ -153,14 +153,14 @@ class _ThinqApplianceList extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(mock ? 'ThinQ 가전 · 모의 연결(실제 가전 아님)' : 'ThinQ 가전'),
+          Text(mock ? 'ThinQ 가전 · 연습 연결(실제 가전 아님)' : 'ThinQ 가전'),
           const SizedBox(height: 6),
           for (final a in overview.appliances)
             Semantics(
               label: [
                 a.name,
                 '경로 ThinQ',
-                if (mock) '모의',
+                if (mock) '연습',
                 a.canExecute ? '조작 가능' : '조작 불가',
                 ...a.reasons,
               ].join('. '),
@@ -185,7 +185,7 @@ class _ThinqApplianceList extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${a.name} · ThinQ${mock ? ' · 모의' : ''}',
+                              '${a.name} · ThinQ${mock ? ' · 연습' : ''}',
                               style: const TextStyle(
                                   fontSize: 15, fontWeight: FontWeight.w600),
                             ),

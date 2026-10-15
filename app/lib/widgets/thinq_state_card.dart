@@ -119,7 +119,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
             Semantics(
               container: true,
               label: 'ThinQ 상태 ${thinqReadTimeSpoken(status.readAt!)}에 조회'
-                  '${mock ? ', 모의' : ''}',
+                  '${mock ? ', 연습' : ''}',
               excludeSemantics: true,
               child: Text(
                 thinqReadTimeLine(status.readAt!, mock: mock),
@@ -185,7 +185,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
               children: [
                 Expanded(
                   child: Text(
-                    status?.executionMode == 'mock' ? '지금 상태 (모의)' : '지금 상태',
+                    status?.executionMode == 'mock' ? '지금 상태 (연습)' : '지금 상태',
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                   ),
                 ),
@@ -304,7 +304,7 @@ String? thinqCommandRefusal(RpiApiException e) {
 /// 'HH:MM 업데이트' — 읽은 시각(모의면 ' (모의)').
 String thinqReadTimeLine(DateTime t, {bool mock = false}) =>
     '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 업데이트'
-    '${mock ? ' (모의)' : ''}';
+    '${mock ? ' (연습)' : ''}';
 
 /// 화면 낭독용 시각 — 'HH시 MM분'.
 String thinqReadTimeSpoken(DateTime t) =>

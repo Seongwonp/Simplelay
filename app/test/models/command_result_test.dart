@@ -102,7 +102,7 @@ void main() {
   // 10/6 Copilot 리뷰(66990be): state_confirmed가 모의 판정보다 먼저 처리돼
   // 모의 실행에도 "상태 확인됨"이 나왔다.
   group('모의 실행의 상태 확인', () {
-    test('모의 실행의 state_confirmed는 모의 상태 확인이다', () {
+    test('모의 실행의 state_confirmed는 연습 상태 확인이다', () {
       expect(
           confirmationLabel(
               route: 'thinq',
@@ -110,7 +110,7 @@ void main() {
               confirmation: 'state_confirmed',
               kind: ResultKind.success,
               executionMode: 'mock'),
-          '모의 상태 확인');
+          '연습 상태 확인');
     });
     test('실제·미확인 실행은 상태 확인됨 그대로', () {
       for (final mode in ['real', 'uart', 'unknown', null]) {

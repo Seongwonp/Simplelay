@@ -513,9 +513,9 @@ class _RunSteps extends ConsumerWidget {
 /// 그래서 **판정 출처가 real일 때만** 실제 동작을 확인했다고 말한다. mock이면 모의 판정, 출처를 모르면 단정하지 않는다.
 String? operationSentence(ExecutionStatus s) => switch (s.operationConfirmed) {
       true when s.isDemo || s.executionMode == 'mock' =>
-        '모의 동작 판정 · 실제 가전 아님',
+        '연습 동작 판정 · 실제 가전 아님',
       true when s.operationSource == 'real' => '가전 동작도 확인했어요',
-      true when s.operationSource == 'mock' => '가전 동작은 모의로 판정했어요 · 실제 확인 아님',
+      true when s.operationSource == 'mock' => '가전 동작은 연습 값으로 판정했어요 · 실제 확인 아님',
       true => '가전 동작 판정의 근거를 몰라요 · 가전을 확인해 주세요',
       false => '가전 동작은 확인하지 못했어요',
       null => null,
@@ -539,7 +539,7 @@ class _OperationLine extends StatelessWidget {
     if (confirmed == null) return const SizedBox.shrink();
     final caption = [
       // 모의 판정의 true는 실제 동작 근거가 아니다 -- 출처를 같이 말한다.
-      if (status.operationSource == 'mock') '모의 판정 — 실제 동작 근거는 아니에요',
+      if (status.operationSource == 'mock') '연습 판정 — 실제 동작 근거는 아니에요',
       if (status.operationSource == 'real') '실측 판정',
       if (status.operationDetail case final d? when d.isNotEmpty) d,
     ].join(' · ');

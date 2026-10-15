@@ -84,7 +84,7 @@ void main() {
       'last_route': 'physical',
     });
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, contains('안전하게 멈췄어요'));
+    expect(s.message, contains('눌림을 확인하지 못해 멈췄어요'));
   });
 
   test('원격 실패(failed)는 정지 문구를 쓰지 않는다', () async {
@@ -101,7 +101,7 @@ void main() {
   test('옛 서버(last_outcome 없음)의 safety_stopped는 종전 문구', () async {
     final s = await _finish({'last_status': 'safety_stopped'});
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+    expect(s.message, '정지 요청으로 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 직접 봐 주세요.');
     expect(s.outcome, isNull);
   });
 

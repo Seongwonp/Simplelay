@@ -178,8 +178,8 @@ void main() {
       'appliance_id': 'custom_test',
     });
     expect(find.byIcon(Icons.check), findsOneWidget);
-    // 셀 색만이 아니라 문장으로도 말한다.
-    expect(find.text("'켜기' 눌림을 확인했어요"), findsOneWidget);
+    // 셀 색만이 아니라 문장으로도 말한다. 확인 근거가 없으면(실행 환경·확인 수준 모름) 눌림을 확인했다고 하지 않는다(2026-10-15).
+    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요 · 가전은 직접 봐 주세요"), findsOneWidget);
 
     // 2초 뒤 결과 표시가 사라진다.
     await tester.pump(const Duration(seconds: 3));
@@ -222,4 +222,42 @@ void main() {
 
     expect(executeCallCount, 1);
   });
+
+  // 2026-10-15 키오스크 문구 개선 안 A: 눌림을 확인했다고는 실제 실행에서 눌림·동작을 확인했을 때만 말한다.
+  for (final (mode, confirmation, sentence) in [
+    ('real', 'press_confirmed', "'켜기' 눌림을 확인했어요"),
+    ('mock', 'press_confirmed', "'켜기' 연습으로 눌렀어요 · 실제 가전은 누르지 않았어요"),
+    ('real', 'reported', "'켜기' 누름 장치가 눌렀다고 알려 왔어요 · 가전은 직접 봐 주세요"),
+  ]) {
+    testWidgets('결과 한 줄은 확인한 만큼 — $mode · $confirmation', (tester) async {
+      final client = MockClient((request) async {
+        if (request.url.path == '/execute-buttons') {
+          return jsonRes({'job_id': 'job-w1', 'status': 'accepted'});
+        }
+        return jsonRes({
+          'running': false,
+          'last_status': 'succeeded',
+          'last_execution_mode': mode,
+          'last_confirmation': confirmation,
+          'last_buttons': [
+            {'button': '켜기', 'success': true},
+          ],
+          'last_job_id': 'job-w1',
+        });
+      });
+      final api = RpiApiService('http://rpi5.local:8000', client: client);
+      final container = await _makeContainerWithAppliance(
+        tester,
+        extra: [rpiApiServiceProvider.overrideWithValue(api)],
+      );
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+      await tester.tap(find.text('켜기'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump();
+      expect(find.text(sentence), findsOneWidget);
+      await tester.pump(const Duration(seconds: 3));
+    });
+  }
 }

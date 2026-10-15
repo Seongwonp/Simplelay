@@ -92,7 +92,7 @@ void main() {
       expect(status.completedSteps, 3);
       // BLE 경로는 실행 환경(real/mock)을 말해주지 않는다 -- 모르는 것을
       // 아는 척하지 않고 HTTP 경로와 같은 규칙(finishedMessage)으로 말한다.
-      expect(status.message, contains('실제로 눌렀는지 가전을 확인해 주세요'));
+      expect(status.message, contains('가전이 실제로 움직이는지는 직접 봐 주세요'));
       expect(status.message, isNot(contains('마쳤어요')));
       expect(status.message, isNot(contains('켜졌는지')));
     });

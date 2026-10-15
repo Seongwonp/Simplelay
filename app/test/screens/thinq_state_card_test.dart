@@ -199,8 +199,8 @@ void main() {
     await tester.pumpWidget(_detail(hub.service()));
     await _settle(tester);
 
-    expect(find.text('지금 상태 (모의)'), findsOneWidget);
-    expect(find.text('09:12 업데이트 (모의)'), findsOneWidget);
+    expect(find.text('지금 상태 (연습)'), findsOneWidget);
+    expect(find.text('09:12 업데이트 (연습)'), findsOneWidget);
   });
 
   testWidgets("풍량 '강풍' → 한 번 묻고, '바꾸기'를 눌러야 한 번 보내고 실행 상태로 간다",
@@ -436,7 +436,7 @@ void main() {
   test('읽은 시각은 HH:MM 업데이트, 낭독은 HH시 MM분', () {
     final t = DateTime(2026, 10, 15, 7, 5, 59);
     expect(thinqReadTimeLine(t), '07:05 업데이트');
-    expect(thinqReadTimeLine(t, mock: true), '07:05 업데이트 (모의)');
+    expect(thinqReadTimeLine(t, mock: true), '07:05 업데이트 (연습)');
     expect(thinqReadTimeSpoken(t), '07시 05분');
   });
 

@@ -99,8 +99,8 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 1500));
 
     final message = container.read(executionStatusProvider).message ?? '';
-    expect(message, contains('실행을 멈췄어요'));
-    expect(message, contains('멈췄는지 확인'));
+    expect(message, contains('정지 요청으로 실행이 끝났어요'));
+    expect(message, contains('멈췄는지 직접 봐 주세요'));
   });
 
   test('내 job의 흔적이 계속 없으면 고착 대신 확인 불가로 탈출한다', () async {

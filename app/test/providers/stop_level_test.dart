@@ -42,13 +42,13 @@ void main() {
 
   group('stopLevelSentence', () {
     test('단계마다 다른 문장 — 보냄은 확인이라고 하지 않는다', () {
-      expect(stopLevelSentence('sent'), '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요');
-      expect(stopLevelSentence('mcu_ack', ackMs: 12), '정지 신호가 전달됐어요');
+      expect(stopLevelSentence('sent'), '멈추라고 보냈어요 — 멈췄는지 아직 몰라요');
+      expect(stopLevelSentence('mcu_ack', ackMs: 12), '누름 장치가 정지 신호를 받았어요 — 멈췄는지는 확인 못 했어요');
       // 개발자 도구만 ms를 함께 보인다(2026-10-14 UX — 사용자 화면은 숫자 없이).
       expect(stopLevelSentence('mcu_ack', ackMs: 12, detail: true), '모션 보드가 정지를 확인했어요 (12 ms)');
-      expect(stopLevelSentence('mcu_ack'), '정지 신호가 전달됐어요');
+      expect(stopLevelSentence('mcu_ack'), '누름 장치가 정지 신호를 받았어요 — 멈췄는지는 확인 못 했어요');
       // ack_ms는 정지를 보낸 뒤 모션 보드 응답까지다 — 멈춤 확인(verified)까지의 시간이 아니다(외부 평가 L2).
-      expect(stopLevelSentence('verified', ackMs: 9), '멈춘 것을 확인했어요');
+      expect(stopLevelSentence('verified', ackMs: 9), '누름 장치가 멈췄어요');
       expect(stopLevelSentence('verified', ackMs: 9, detail: true), '멈춘 것을 확인했어요 (모션 보드 응답 9 ms)');
       expect(stopLevelSentence(null), isNull);
       expect(stopLevelSentence('stopped_for_sure'), isNull);
@@ -59,15 +59,15 @@ void main() {
 
     test('멈춘 실행의 끝 문장은 정지 단계를 따른다', () {
       expect(finishedMessage(kind: ResultKind.stopped),
-          '실행을 멈췄어요. 장치가 멈췄는지 확인해 주세요.');
+          '정지 요청으로 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 직접 봐 주세요.');
       expect(finishedMessage(kind: ResultKind.stopped, stopLevel: 'sent'),
-          '실행을 멈췄어요. 정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요.');
+          '멈추라고 보냈어요. 멈췄는지 아직 몰라요. 가전을 직접 봐 주세요.');
       expect(
           finishedMessage(
               kind: ResultKind.stopped, stopLevel: 'mcu_ack', stopAckMs: 30),
-          '실행을 멈췄어요. 정지 신호가 전달됐어요.');
+          '누름 장치가 정지 신호를 받았어요. 멈췄는지는 확인 못 했어요. 가전을 직접 봐 주세요.');
       expect(finishedMessage(kind: ResultKind.stopped, stopLevel: 'verified'),
-          '실행을 멈췄어요. 멈춘 것을 확인했어요.');
+          '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 가전의 정지·취소 버튼을 직접 눌러 주세요.');
     });
   });
 
@@ -143,7 +143,7 @@ void main() {
       final sent = await c.read(executionStatusProvider.notifier).emergencyStop();
       expect(sent, isTrue);
       expect(c.read(executionStatusProvider).message,
-          '정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요');
+          '멈추라고 보냈어요 — 멈췄는지 아직 몰라요');
     });
 
     test('단계가 없는 서버면 종전처럼 요청을 보냈다고만 한다', () async {
@@ -180,7 +180,7 @@ void main() {
           );
       await Future<void>.delayed(const Duration(milliseconds: 1500));
       expect(c.read(executionStatusProvider).message,
-          '실행을 멈췄어요. 멈춘 것을 확인했어요.');
+          '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 가전의 정지·취소 버튼을 직접 눌러 주세요.');
     });
   });
 }

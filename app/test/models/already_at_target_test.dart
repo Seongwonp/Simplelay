@@ -75,9 +75,9 @@ void main() {
         kind: ResultKind.success,
         executionMode: mode);
     expect(label('already_at_target', 'real'), '이미 그 설정이라 보내지 않음');
-    expect(label('already_at_target', 'mock'), '모의 · 이미 그 설정이라 보내지 않음');
+    expect(label('already_at_target', 'mock'), '연습 · 이미 그 설정이라 보내지 않음');
     expect(label('state_confirmed_unknown_before', 'real'), '설정된 것 확인됨');
-    expect(label('state_confirmed_unknown_before', 'mock'), '모의 · 설정된 것 확인');
+    expect(label('state_confirmed_unknown_before', 'mock'), '연습 · 설정된 것 확인');
     expect(label('state_confirmed', 'real'), '상태 확인됨');
   });
 
@@ -100,13 +100,13 @@ void main() {
 
   test('모의 결과는 모의 표시를 유지한다', () {
     final already = _finished('already_at_target', 'mock', detail: _already, receipt: 'not_dispatched');
-    expect(already, '모의 · $_already 실제 가전은 조작하지 않았어요.');
+    expect(already, '연습 · $_already 실제 가전은 조작하지 않았어요.');
     _notChangedOrFailed(already);
     final seen = _finished('state_confirmed_unknown_before', 'mock', detail: _seen);
-    expect(seen, startsWith('모의 · '));
+    expect(seen, startsWith('연습 · '));
     expect(seen, contains('실제 가전은 조작하지 않았어요'));
     expect(_finished('state_confirmed', 'mock', detail: _changed),
-        '모의 ThinQ 명령을 보내고 모의 상태를 확인했어요. 실제 가전은 조작하지 않았어요.');
+        '연습으로 ThinQ 명령을 보내고 연습 상태를 확인했어요. 실제 가전은 조작하지 않았어요.');
   });
 
   test('기록: 이미 목표값은 성공으로, 변경 명령을 보내지 않았다고(연결 확인을 권하지 않는다)', () {

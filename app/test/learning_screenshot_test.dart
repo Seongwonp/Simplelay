@@ -1,28 +1,15 @@
 @Tags(['screenshot'])
 library;
 
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/widgets/learning_status_dialog.dart';
 import 'package:simplelay/theme/app_theme.dart';
 import 'learning_status_dialog_test.dart' as fixtures;
+import 'support/golden_fonts.dart';
 
 void main() {
-  setUpAll(() async {
-    final sdk = Platform.environment['FLUTTER_ROOT'] ?? '../.venv/flutter';
-    final icons = File(
-            '$sdk/bin/cache/artifacts/material_fonts/materialicons-regular.otf')
-        .readAsBytesSync();
-    await (FontLoader('MaterialIcons')
-          ..addFont(Future.value(ByteData.view(icons.buffer))))
-        .load();
-    final bytes = File(r'C:\Windows\Fonts\malgun.ttf').readAsBytesSync();
-    await (FontLoader('Malgun')
-          ..addFont(Future.value(ByteData.view(bytes.buffer))))
-        .load();
-  });
+  setUpAll(loadGoldenFonts);
   for (final scale in [1.0, 1.6]) {
     testWidgets('learning preview $scale', (tester) async {
       tester.view.physicalSize = const Size(390, 844);

@@ -66,11 +66,11 @@ void main() {
       expect(s.progress, isTrue);
     });
 
-    test('mock·데모 실행은 모의 버튼 조작 중', () {
+    test('mock·데모 실행은 연습 버튼 조작 중', () {
       expect(_tile(execution: run(ExecutionPhase.retrying, mode: 'mock')).text,
-          '모의 버튼 조작 중');
+          '연습 버튼 조작 중');
       expect(_tile(execution: run(ExecutionPhase.running, demo: true)).text,
-          '모의 버튼 조작 중');
+          '연습 버튼 조작 중');
     });
 
     test('모드를 모르면 real·mock을 추정하지 않는다', () {

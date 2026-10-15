@@ -60,9 +60,9 @@ class SettingsScreen extends ConsumerWidget {
         padding: const EdgeInsets.all(20),
         children: [
           if (ref.watch(demoModeProvider))
-            ListTile(title: const Text('모의 사용 중이에요'),
+            ListTile(title: const Text('연습으로 쓰는 중이에요'),
               trailing: TextButton(onPressed: () => ref.read(demoModeProvider.notifier).set(false),
-                child: const Text('모의 사용 끝내기'))),
+                child: const Text('연습 끝내기'))),
           // 위 두 묶음이 UI 확정 §2의 설정 탭이다: 가전 추가 · 허브 · LG ThinQ
           // 연결 / 음성으로 멈추기 · 보호자 알림 · 글자 크기. 그 아래는 예전
           // 설정의 세부(가전 관리·알림·제안·화면)를 그대로 둔다 -- 기능을 잃지
@@ -72,7 +72,8 @@ class SettingsScreen extends ConsumerWidget {
             _NavRow(
               icon: Icons.hub_outlined,
               title: '허브',
-              subtitle: _hubLine(rpi),
+              // 같은 물건을 키오스크는 다른 이름으로 부른다 — 처음 한 번 이어 준다(2026-10-15 안 A).
+              subtitle: "${_hubLine(rpi)} · 키오스크에서는 'SimpleLay 본체'라고 불러요",
               onTap: () => context.push('/settings/hub'),
             ),
             _NavRow(

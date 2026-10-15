@@ -865,7 +865,7 @@ class _AddApplianceWizardScreenState
         )
       else ...[
         if (pass.isMock)
-          Text('모의 주행이에요 — 실제로 움직이지 않았어요.',
+          Text('연습 주행이에요 — 실제로 움직이지 않았어요.',
               key: const Key('wizard-pass-mock'),
               style: TextStyle(fontSize: 15, color: context.appWarning)),
         for (final s in pass.steps)

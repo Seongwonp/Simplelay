@@ -32,9 +32,9 @@ class _ThinqDiscoveredSectionState
     final marker = data == null
         ? ''
         : data.mockCloud
-            ? ' (모의 클라우드)'
+            ? ' (연습용 클라우드)'
             : data.executionMode == 'mock'
-                ? ' (모의)'
+                ? ' (연습)'
                 : '';
     return Padding(
       padding: const EdgeInsets.only(top: 24),
