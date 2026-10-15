@@ -29,7 +29,9 @@ import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 
 import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
 
-const _detail = '콘센트 모듈의 비상정지 버튼이 눌렸어요';
+// RPi4가 실제로 보내는 문장(2bc87e5). 띠는 제목과 겹치는 머리를 떼고 나머지만 보인다.
+const _detail = "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요";
+const _detailShown = "풀고 '해제하기'를 눌러야 다시 쓸 수 있어요";
 const _banner = ValueKey('estop-banner');
 const _ack = ValueKey('estop-ack');
 const _confirm = ValueKey('estop-confirm');
@@ -150,7 +152,7 @@ void main() {
       await _pump(tester, api);
       expect(find.byKey(_banner), findsOneWidget);
       expect(find.text(kEstopTitle), findsOneWidget);
-      expect(find.text(_detail), findsOneWidget);
+      expect(find.text(_detailShown), findsOneWidget);
 
       api.statusResult = const KioskStatus(running: false);
       await _nextPoll(tester);
@@ -375,13 +377,13 @@ void main() {
           expect(tester.takeException(), isNull);
           visible(tester, find.text(kEstopTitle));
           visible(tester, find.text('정지'));
-          visible(tester, find.text('정지 요청을 보냈어요'));
+          visible(tester, find.text('멈추라고 보냈어요'));
           if (name == '확인 중') {
             visible(tester, find.text(kEstopConfirmQuestion));
             visible(tester, find.byKey(_confirm), isText: false);
             visible(tester, find.byKey(_cancel), isText: false);
           } else {
-            visible(tester, find.text(_detail));
+            visible(tester, find.text(_detailShown));
             visible(tester, find.byKey(_ack), isText: false);
           }
           if (name == '실패 이유') {

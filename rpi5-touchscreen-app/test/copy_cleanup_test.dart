@@ -11,6 +11,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
@@ -48,7 +49,8 @@ Finder _inButton<T>(String text) => find.ancestor(
     );
 
 void main() {
-  group('실행 환경 표시 — 연습일 때만 "연습 모드", 실제·모름은 아무것도', () {
+  // 2026-10-15: 완료·동작 중 화면은 작은 칩 대신 맨 위 띠("연습 중 · 실제 가전은 누르지 않아요").
+  group('실행 환경 표시 — 연습일 때만 연습 표시, 실제·모름은 아무것도', () {
     for (final mode in ['real', 'unknown', 'mock']) {
       testWidgets('완료 화면 · $mode', (tester) async {
         await _pump(
@@ -62,7 +64,8 @@ void main() {
         );
         expect(find.text('실제 장치로 실행'), findsNothing);
         expect(find.textContaining('실행 환경'), findsNothing);
-        expect(find.text('연습 모드'), mode == 'mock' ? findsOneWidget : findsNothing);
+        expect(find.text(kPracticeBandText), mode == 'mock' ? findsOneWidget : findsNothing);
+        expect(find.text('연습 모드'), findsNothing);
       });
 
       testWidgets('실행 화면 · $mode', (tester) async {
@@ -75,7 +78,8 @@ void main() {
       testWidgets('동작 중 화면 · $mode', (tester) async {
         await _pump(tester, _hold(mode));
         expect(find.textContaining('실행 환경'), findsNothing);
-        expect(find.text('연습 모드'), mode == 'mock' ? findsOneWidget : findsNothing);
+        expect(find.text(kPracticeBandText), mode == 'mock' ? findsOneWidget : findsNothing);
+        expect(find.text('연습 모드'), findsNothing);
       });
     }
   });
@@ -108,7 +112,7 @@ void main() {
           onDismiss: () {},
         ),
       );
-      expect(find.text('모터가 걸려 멈췄어요'), findsOneWidget);
+      expect(find.text('작은 팔이 걸려 멈췄어요'), findsOneWidget);
       expect(find.textContaining('확인 못 했어요'), findsNothing);
       expect(find.text('다시 시도'), findsNothing);
     });
@@ -138,7 +142,8 @@ void main() {
     });
   });
 
-  testWidgets('사용자 정지는 차분하게 — 손 아이콘, 닫기가 먼저, 같은 말 되풀이 없음', (tester) async {
+  // 2026-10-15: 정지 단계를 모르면 멈췄는지 모른다 — 물음표·주의색. '처음 화면으로'가 먼저, '다시 시도'는 테두리.
+  testWidgets('사용자 정지 — 빨간 X 없이, 처음 화면으로가 먼저, 같은 말 되풀이 없음', (tester) async {
     await _pump(
       tester,
       KioskDoneView(
@@ -151,22 +156,17 @@ void main() {
       ),
     );
     expect(find.byIcon(Icons.close), findsNothing);
-    expect(find.byIcon(Icons.pan_tool_outlined), findsOneWidget);
-    expect(find.text('실행을 멈췄어요'), findsOneWidget);
-    expect(find.textContaining('— 실행을 멈췄어요'), findsNothing);
-    expect(find.text('기계가 멈췄는지 한 번 봐 주세요.'), findsOneWidget);
-    expect(_inButton<ElevatedButton>('닫기'), findsOneWidget);
+    expect(find.byIcon(Icons.question_mark), findsOneWidget);
+    expect(find.text('정지 요청으로 실행이 끝났어요'), findsOneWidget);
+    expect(find.textContaining('— 정지 요청으로'), findsNothing);
+    expect(find.text('작은 팔과 가전이 멈췄는지 직접 봐 주세요'), findsOneWidget);
+    expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
     expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
     expect(_inButton<ElevatedButton>('다시 시도'), findsNothing);
   });
 
-  group('사용자 정지 — 정지 단계 줄과 같은 당부를 겹쳐 쓰지 않는다', () {
-    for (final (level, bodyShown) in [
-      ('sent', false),
-      ('mcu_ack', true),
-      ('verified', false),
-      (null, true),
-    ]) {
+  group('사용자 정지 — 제목은 정지 단계, 할 일은 한 줄만', () {
+    for (final level in ['sent', 'mcu_ack', 'verified', null]) {
       testWidgets('단계 ${level ?? '없음'}', (tester) async {
         await _pump(
           tester,
@@ -179,12 +179,11 @@ void main() {
             onDismiss: () {},
           ),
         );
-        expect(find.text('기계가 멈췄는지 한 번 봐 주세요.'),
-            bodyShown ? findsOneWidget : findsNothing);
+        expect(find.text(stopLevelHeadline(level)), findsOneWidget);
+        expect(find.text(stopLevelNextStep(level)), findsOneWidget);
+        // 예전 말('기계')·응답 시간은 쓰지 않는다.
+        expect(find.textContaining('기계'), findsNothing);
         expect(find.textContaining('ms'), findsNothing);
-        if (level != null) {
-          expect(find.text(stopLevelSentence(level)!), findsOneWidget);
-        }
       });
     }
   });
@@ -200,8 +199,8 @@ void main() {
       ),
     );
     expect(find.textContaining(' — '), findsNothing);
-    expect(find.text('눌림을 확인하지 못해 안전하게 멈췄어요.\n가전을 살펴본 뒤 다시 시도해 주세요.'),
-        findsOneWidget);
+    // 다시 시도 단추가 없으면 그 단추 이야기(이미 켜졌다면 다시 시도하지 마세요)도 하지 않는다.
+    expect(find.text('가전을 먼저 봐 주세요.'), findsOneWidget);
   });
 
   group('평소 화면 위 줄', () {

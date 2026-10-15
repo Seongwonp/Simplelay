@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
 
 import 'support/golden_fonts.dart';
 
@@ -23,7 +24,8 @@ void main() {
           home: MediaQuery(data: MediaQueryData(textScaler: TextScaler.linear(scale)), child: Scaffold(body: view))));
         await tester.pump(const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull);
-        expect(find.text('연습 모드'), findsOneWidget);
+        // 완료 화면은 맨 위 띠로 연습을 말한다(2026-10-15 1단계).
+        expect(find.text(done ? kPracticeBandText : '연습 모드'), findsOneWidget);
         await expectLater(find.byType(MaterialApp), matchesGoldenFile('goldens/provenance_${done ? "done" : "running"}_$scale.png'));
       });
     }

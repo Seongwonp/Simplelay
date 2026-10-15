@@ -38,6 +38,9 @@ import 'support/golden_fonts.dart';
 
 const _kioskSize = Size(800, 480);
 
+/// 비상 버튼 걸림의 서버 문장 — RPi4가 실제로 보내는 문장(서버 문구 정리 2bc87e5). 띠는 제목과 겹치는 머리를 뗀다.
+const _estopDetail = "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요";
+
 /// 실기기 해상도 그대로. 큰 글씨 모드는 kiosk_screen이 textScaler로 얹으므로
 /// 여기서도 같은 방식으로 흉내 낸다.
 Future<void> _shoot(
@@ -313,7 +316,7 @@ void main() {
         'hold_estop',
         KioskEstopLayout(
           banner: KioskEstopBanner(
-              detail: '콘센트 모듈의 비상정지 버튼이 눌렸어요', onRequest: () {}),
+              detail: _estopDetail, onRequest: () {}),
           child: _hold(),
         ));
   });
@@ -568,7 +571,7 @@ void main() {
         'kiosk15_idle_estop',
         KioskEstopLayout(
           banner: KioskEstopBanner(
-              detail: '콘센트 모듈의 비상정지 버튼이 눌렸어요', onRequest: () {}),
+              detail: _estopDetail, onRequest: () {}),
           child: _idle(
             ambient: const AmbientInfo(
               greeting: '좋은 아침이에요.',
@@ -765,6 +768,83 @@ void main() {
         onDismiss: () {},
       ),
       textScale: 1.22,
+    );
+  });
+
+  // ── 2026-10-15 문구 개선 1단계 — 처음 쓰는 사람 검토용으로 늘린 장면 ──────────────
+  testWidgets('완료 — 버튼을 다 눌렀어요·전력 사용이 늘었어요', (t) async {
+    await _shoot(
+      t,
+      'done_power',
+      KioskDoneView(
+        success: true,
+        label: '즉석밥 데워줘',
+        executionMode: 'real',
+        target: kMicrowaveAppliance,
+        operationConfirmed: true,
+        operationSource: 'real',
+        onDismiss: () {},
+      ),
+    );
+  });
+
+  testWidgets('동작 중 — 비상 버튼 풀기 안내', (t) async {
+    await _shoot(
+        t,
+        'hold_estop_confirm',
+        KioskEstopLayout(
+          banner: KioskEstopBanner(
+              detail: _estopDetail, confirming: true, onRequest: () {}),
+          child: _hold(),
+        ));
+  });
+
+  testWidgets('15인치 미리보기 — 실패(가전을 먼저 봐 주세요)', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_done_failed',
+      KioskDoneView(
+        success: false,
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 정지 확인 못 함', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_hold_unconfirmed',
+      const KioskHoldView(
+        appliance: kMicrowaveAppliance,
+        holdState: 'parked',
+        stopOutcome: 'requested_unconfirmed',
+        stopButton: '취소',
+        executionMode: 'real',
+        elapsed: Duration(minutes: 1, seconds: 40),
+        onStop: _noop,
+        onClose: _noop,
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 사용자 정지(멈추라고 보냄)', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_done_user_stop',
+      KioskDoneView(
+        success: false,
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        reason: KioskFailureReason.stopped,
+        stopLevel: 'sent',
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
     );
   });
 }

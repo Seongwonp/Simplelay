@@ -277,7 +277,7 @@ void main() {
       handle.dispose();
     });
 
-    testWidgets('완료 — 처음으로', (tester) async {
+    testWidgets('완료 — 처음 화면으로', (tester) async {
       var dismissed = 0;
       await _pump15(
         tester,
@@ -289,7 +289,7 @@ void main() {
         ),
       );
 
-      await _tapAt(tester, find.text('처음으로'));
+      await _tapAt(tester, find.text('처음 화면으로'));
 
       expect(dismissed, 1);
     });

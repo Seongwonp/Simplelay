@@ -3,12 +3,12 @@ import 'package:flutter/material.dart';
 import '../../models/estop.dart';
 import '../../theme/kiosk_colors.dart';
 
-/// 비상정지 걸림 전폭 경고(2026-10-05) — 평소·실행·동작 중 화면 **위쪽에** 붙는다.
+/// 비상 버튼 걸림 전폭 경고(2026-10-05) — **모든 화면** 위쪽에 붙는다(2026-10-15, 예전에는 평소·실행·동작 중만).
 ///
 /// 모달이 아니다: 화면을 덮지 않고 그 위에 한 줄을 차지할 뿐이라 정지 버튼은 그대로
-/// 닿는다. "확인하고 해제"를 누르면 같은 자리에서 확인 문장과 '취소'·'해제'로 바뀐다
+/// 닿는다. '풀기 안내'를 누르면 같은 자리에서 안내 문장과 '취소'·'해제하기'로 바뀐다
 /// — 대화창을 띄우지 않으므로 확인하는 동안에도 정지 버튼이 가려지지 않는다.
-/// 해제 요청은 '해제'를 눌렀을 때만 나간다(자동 해제 없음).
+/// 해제 요청은 '해제하기'를 눌렀을 때만 나간다(자동 해제 없음).
 class KioskEstopBanner extends StatelessWidget {
   const KioskEstopBanner({
     super.key,
@@ -21,7 +21,7 @@ class KioskEstopBanner extends StatelessWidget {
     this.onCancel,
   });
 
-  /// 걸린 사유(서버 문장). 없으면 제목만.
+  /// 걸린 사유(서버 문장). 없으면 제목만. '다시 켜져'가 있으면 전원 꺼짐 걸림으로 말한다.
   final String? detail;
 
   /// 확인 문장을 보이는 중.
@@ -60,20 +60,20 @@ class KioskEstopBanner extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      kEstopTitle,
-                      style: TextStyle(
-                          color: _white, fontSize: 18, fontWeight: FontWeight.w800),
+                    Text(
+                      estopTitleFor(detail),
+                      style: const TextStyle(
+                          color: _white, fontSize: 20, fontWeight: FontWeight.w800),
                     ),
                     if (confirming)
-                      const Text(
-                        kEstopConfirmQuestion,
-                        style: TextStyle(
+                      Text(
+                        estopConfirmFor(detail),
+                        style: const TextStyle(
                             color: _white, fontSize: 16, fontWeight: FontWeight.w700),
                       )
                     else ...[
-                      if (detail != null && detail.isNotEmpty)
-                        Text(detail,
+                      if (estopDetailLine(detail) case final line?)
+                        Text(line,
                             style: const TextStyle(color: _white, fontSize: 14)),
                       if (message != null)
                         Text(
@@ -110,7 +110,7 @@ class KioskEstopBanner extends StatelessWidget {
                   key: const ValueKey('estop-confirm'),
                   onPressed: onConfirm,
                   style: _filled,
-                  child: const Text('해제',
+                  child: const Text(kEstopConfirmLabel,
                       style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
                 ),
               ),

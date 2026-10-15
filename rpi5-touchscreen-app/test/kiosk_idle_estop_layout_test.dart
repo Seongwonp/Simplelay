@@ -80,7 +80,7 @@ Future<void> _pump(WidgetTester tester,
               padding: const EdgeInsets.only(top: 3),
               child: KioskEstopLayout(
                 banner: band
-                    ? const KioskEstopBanner(detail: '콘센트 모듈이 비상정지를 보냈어요.')
+                    ? const KioskEstopBanner(detail: "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요")
                     : null,
                 child: _idle(),
               ),

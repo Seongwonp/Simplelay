@@ -23,6 +23,7 @@ import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
 
 const _fontPath = r'C:\Windows\Fonts\malgun.ttf';
 final _hasFont = File(_fontPath).existsSync();
@@ -207,11 +208,11 @@ void main() {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       await _pump(tester, _hold(), scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
-      _expectFullyVisible(tester, find.text('연습 모드'));
-      _expectFullyVisible(tester, find.text('연습용 전력 값이에요'));
+      _expectFullyVisible(tester, find.text(kPracticeBandText));
+      _expectFullyVisible(tester, find.text('연습용 값이에요 — 실제로 잰 값이 아니에요'));
       _expectFullyVisible(tester, find.text('정지'));
       // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리).
-      _expectFullyVisible(tester, find.text('정지 요청을 보냈어요'));
+      _expectFullyVisible(tester, find.text('멈추라고 보냈어요'));
     });
 
     testWidgets('$where 큰 글씨 동작 중 — 정지를 못 보냈다는 줄도 스크롤 없이 보여요',
@@ -225,9 +226,10 @@ void main() {
       _expectFullyVisible(tester, find.text('정지'));
     });
 
-    for (final (outcome, line) in [
-      ('stopped', '가전이 멈췄어요'),
-      ('requested_unconfirmed', '가전을 직접 확인해 주세요'),
+    for (final (outcome, line, stopLabel) in [
+      ('stopped', '전자레인지가 멈춘 것을 전력으로 확인했어요', '정지'),
+      // 멈췄는지 모르면 가장 큰 글자가 할 일이고, 정지 단추 이름이 '다시 정지 시도'(자리·크기 그대로).
+      ('requested_unconfirmed', "지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요", '다시 정지 시도'),
     ]) {
       testWidgets('$where 큰 글씨 정지 결과($outcome) — 결과 줄이 스크롤 없이 보여요',
           (tester) async {
@@ -239,7 +241,7 @@ void main() {
             panel15: panel15);
         expect(tester.takeException(), isNull);
         _expectFullyVisible(tester, find.text(line));
-        _expectFullyVisible(tester, find.text('정지'));
+        _expectFullyVisible(tester, find.text(stopLabel));
       });
     }
 

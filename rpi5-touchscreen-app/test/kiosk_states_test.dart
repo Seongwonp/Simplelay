@@ -16,6 +16,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_timings.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
@@ -326,7 +327,7 @@ void main() {
           lastApplianceId: 'intercom');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      await tester.tap(find.text('닫기'));
+      await tester.tap(find.text('처음 화면으로'));
       await _settle(tester);
       expect(find.byType(KioskIdleView), findsOneWidget);
       final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
@@ -392,36 +393,37 @@ void main() {
 
   // ── 동작 중(정지 버튼 대기·보관) ─────────────────────────────────────────
   group('동작 중', () {
-    testWidgets('정지 버튼 위 대기 — 근거 세 줄과 큰 정지 버튼, 연습 모드 표시', (tester) async {
+    testWidgets('정지 버튼 위 대기 — 근거 세 줄과 큰 정지 버튼, 연습 띠', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..statusResult = _hovering();
       await _pump(tester, api);
 
       expect(find.byType(KioskHoldView), findsOneWidget);
-      expect(find.text('전자레인지 동작 중'), findsOneWidget);
-      expect(find.text('버튼 3개를 눌렀어요'), findsOneWidget);
-      expect(find.text('정지 버튼(취소) 위에서 기다리고 있어요'), findsOneWidget);
+      // 연습이면 제목이 가전이 돈다고 말하지 않는다 — 연습은 맨 위 띠로(2026-10-15).
+      expect(find.text('전자레인지 연습 중'), findsOneWidget);
+      expect(find.text('연습으로 3개를 짚었어요'), findsOneWidget);
+      expect(find.text("정지를 누르면 '취소' 버튼을 짚는 연습을 해요"), findsOneWidget);
       // 전력 판정이 없으면 없다고 말한다 — 남은 시간을 지어내지 않는다
       expect(find.text('가전이 움직이는지는 확인하지 못했어요'), findsOneWidget);
       // 남은 시간은 모른다고만 말하고 숫자를 만들지 않는다(d965888).
       expect(find.text('남은 시간을 아직 알 수 없어요'), findsOneWidget);
       expect(find.textContaining(RegExp(r'\d+:\d\d')), findsNothing);
       // 모의를 실물처럼 보이지 않는다
-      expect(find.text('연습 모드'), findsOneWidget);
+      expect(find.text(kPracticeBandText), findsOneWidget);
 
       await tester.tap(find.byKey(const ValueKey('hold-stop')));
       await tester.pump();
       expect(api.stopCalls, 1);
-      expect(find.text('정지 요청을 보냈어요'), findsOneWidget);
+      expect(find.text('멈추라고 보냈어요'), findsOneWidget);
 
       api.statusResult = _hovering(state: 'stopping');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      expect(find.text('정지 버튼을 누르고 있어요'), findsOneWidget);
+      expect(find.text('정지 버튼을 짚고 있어요'), findsOneWidget);
     });
 
-    testWidgets('정지됨 → 보관 위치로 이동했어요를 짧게 보이고 평소 화면으로', (tester) async {
+    testWidgets('정지됨 → 작은 팔이 제자리로 돌아갔어요를 짧게 보이고 평소 화면으로', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..statusResult = _hovering();
@@ -429,8 +431,9 @@ void main() {
       api.statusResult = _hovering(state: 'parked', outcome: 'stopped');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      expect(find.text('보관 위치로 이동했어요'), findsOneWidget);
-      expect(find.text('가전이 멈췄어요'), findsOneWidget);
+      expect(find.text('작은 팔이 제자리로 돌아갔어요'), findsOneWidget);
+      // 가전이 멈췄다는 말은 전력 하강으로 확인한 때(stopped)만 — 무엇으로 확인했는지까지.
+      expect(find.text('전자레인지가 멈춘 것을 전력으로 확인했어요'), findsOneWidget);
 
       // 보관 표시는 완료 화면과 같은 복귀 시간(KioskTimings.doneReturn)을 쓴다.
       await tester.pump(KioskTimings.doneReturn + const Duration(seconds: 1));
@@ -447,12 +450,15 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
 
-      expect(find.text('가전이 멈췄어요'), findsNothing);
-      expect(find.text('정지 버튼을 눌렀지만 멈췄는지 확인하지 못했어요'), findsOneWidget);
+      expect(find.textContaining('멈춘 것을'), findsNothing);
+      expect(find.text('작은 팔이 대신 눌렀지만 멈췄는지 확인하지 못했어요'), findsOneWidget);
+      // 가장 큰 글자는 할 일 한 가지 — 정지 버튼은 자리·크기·색 그대로 이름만 바뀐다(2026-10-15).
+      expect(find.text("지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요"), findsOneWidget);
+      expect(find.text('다시 정지 시도'), findsOneWidget);
       await tester.pump(const Duration(seconds: 10));
       await _settle(tester);
       expect(find.byType(KioskHoldView), findsOneWidget);
-      await tester.tap(find.text('닫기'));
+      await tester.tap(find.text('처음 화면으로'));
       await _settle(tester);
       expect(find.byType(KioskIdleView), findsOneWidget);
     });
@@ -468,7 +474,7 @@ void main() {
           detail: '구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      expect(find.text('누름 장치에 문제가 생겼어요'), findsOneWidget);
+      expect(find.text('작은 팔 장치에 문제가 생겼어요'), findsOneWidget);
       expect(find.text('구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요'),
           findsOneWidget);
       // 정지 버튼은 여전히 닿는다
@@ -644,7 +650,7 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await _settle(tester);
       _expectEdgeSafe(tester, '실패');
-      await tester.tap(find.text('닫기'));
+      await tester.tap(find.text('처음 화면으로'));
       await _settle(tester);
 
       // 동작 중

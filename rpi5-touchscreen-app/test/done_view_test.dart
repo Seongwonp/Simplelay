@@ -7,6 +7,7 @@ import 'package:simplelay_touchscreen/models/scenario_run.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
 
 Future<void> _pump(
   WidgetTester tester,
@@ -35,7 +36,8 @@ void main() {
     expect(find.textContaining('직접 확인'), findsOneWidget);
   });
 
-  testWidgets('성공: 버튼 조작을 마쳤어요·대상·한 일·확인 방법·자동 복귀·처음으로',
+  // 2026-10-15 문구 개선: 끝낸 것은 버튼 누르기 — 가전이 움직이는지는 사람이 본다(제목 바로 아래 한 줄).
+  testWidgets('성공: 버튼을 다 눌렀어요·가전은 직접·대상·한 일·자동 복귀·처음 화면으로',
       (tester) async {
     var dismissed = 0;
     await _pump(
@@ -43,24 +45,25 @@ void main() {
       KioskDoneView(
         success: true,
         label: '즉석밥 데워줘',
-        // 실행 환경을 아는 실행만 '버튼 조작을 마쳤어요'라고 말한다.
+        // 실행 환경을 아는 실행만 '버튼을 다 눌렀어요'라고 말한다.
         executionMode: 'real',
         target: kMicrowaveAppliance,
         onDismiss: () => dismissed++,
       ),
     );
 
-    expect(find.text('버튼 조작을 마쳤어요'), findsOneWidget);
+    expect(find.text('버튼을 다 눌렀어요'), findsOneWidget);
+    expect(find.text('가전이 움직이는지는 직접 봐 주세요'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
     expect(find.text('즉석밥 데워줘'), findsOneWidget);
-    expect(find.text('누름 장치가 다 눌렀다고 알려 왔어요'), findsOneWidget);
+    expect(find.textContaining('누름 장치'), findsNothing);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     // 가전이 조리·세탁을 끝냈다고 말하지 않는다.
     expect(find.textContaining('완료되었'), findsNothing);
 
     await tester.pump(const Duration(seconds: 4));
     expect(find.text('6초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
-    await tester.tap(find.text('처음으로'));
+    await tester.tap(find.text('처음 화면으로'));
     expect(dismissed, 1);
   });
 
@@ -76,9 +79,9 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼 조작을 마쳤어요'), findsNothing);
-    expect(find.text('끝났다는 보고를 받았어요'), findsOneWidget);
-    expect(find.text('실제 조작 여부는 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('버튼을 다 눌렀어요'), findsNothing);
+    expect(find.text('작은 팔이 다 눌렀다고 알려 왔어요'), findsOneWidget);
+    expect(find.text('가전이 실제로 움직이는지는 직접 봐 주세요'), findsOneWidget);
   });
 
   testWidgets('모의 실행은 가장 큰 글자부터 연습이라고 말한다', (tester) async {
@@ -93,10 +96,11 @@ void main() {
       ),
     );
 
-    expect(find.text('연습 모드'), findsOneWidget);
-    expect(find.text('연습으로 버튼 조작을 마쳤어요'), findsOneWidget);
-    expect(find.text('버튼 조작을 마쳤어요'), findsNothing);
-    expect(find.text('연습이라 실제로 누르지는 않았어요'), findsOneWidget);
+    // 맨 위 고정 띠 + 제목 + 제목 바로 아래 한 줄(2026-10-15).
+    expect(find.text(kPracticeBandText), findsOneWidget);
+    expect(find.text('연습을 마쳤어요'), findsOneWidget);
+    expect(find.text('버튼을 다 눌렀어요'), findsNothing);
+    expect(find.text('실제 가전은 누르지 않았어요'), findsOneWidget);
   });
 
   testWidgets('L3 판정은 있을 때만 말하고, 모의 판정이면(실물 모션이어도) 그 사실을 밝힌다',
@@ -133,9 +137,11 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼 조작을 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('가전을 먼저 봐 주세요'), findsOneWidget);
+    expect(find.textContaining('이미 켜졌다면 다시 시도하지 마세요'), findsOneWidget);
+    expect(find.text('처음 화면으로'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
-    expect(find.text('버튼으로 조작'), findsOneWidget);
+    expect(find.text('화면으로 조작하기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
   });
 
@@ -155,7 +161,7 @@ void main() {
     );
 
     expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
-    expect(find.textContaining('멈췄는지 한 번 봐'), findsOneWidget);
+    expect(find.text('작은 팔과 가전이 멈췄는지 직접 봐 주세요'), findsOneWidget);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {
@@ -171,7 +177,7 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
-    expect(find.text('처음으로'), findsOneWidget);
+    expect(find.text('처음 화면으로'), findsOneWidget);
   });
 
   testWidgets('단계별 결과: 확인 못 한 ThinQ 단계를 확인됨으로 올리지 않는다',
@@ -304,7 +310,8 @@ void main() {
   });
 
   group('L3 판정 출처 × 모션 실행 모드 (평가 M5)', () {
-    const realSentence = '가전 동작도 확인했어요';
+    // 확인한 것은 전력 변화다 — 물리 성공은 제목 바로 아래 한 줄이 말한다(2026-10-15).
+    const realSentence = '전자레인지의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요';
     const mockMotion = '연습이라 가전 동작은 보지 않았어요';
     // 모의 L3와 출처 모름은 같은 말(직접 봐 달라) — 모의 출처는 아래 작은 글씨가 밝힌다.
     const mockL3 = '가전이 켜졌는지는 직접 봐 주세요';
@@ -349,9 +356,9 @@ void main() {
   group('동작 중 화면의 전력 판정 줄도 출처가 real일 때만 확인이라고 말한다 (평가 M5)', () {
     for (final (mode, source, expected) in <(String, String?, String)>[
       ('real', 'real', '전력으로 가전 동작을 확인했어요'),
-      ('real', 'mock', '연습용 전력 값이에요'),
+      ('real', 'mock', '연습용 값이에요 — 실제로 잰 값이 아니에요'),
       ('real', null, '가전이 켜졌는지는 직접 봐 주세요'),
-      ('mock', 'real', '연습용 전력 값이에요'),
+      ('mock', 'real', '연습용 값이에요 — 실제로 잰 값이 아니에요'),
     ]) {
       testWidgets('모션 $mode · 출처 ${source ?? '모름'} → $expected', (tester) async {
         await _pump(

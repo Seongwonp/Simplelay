@@ -1,0 +1,509 @@
+// 키오스크 문구·화면 개선(2026-10-15, docs/키오스크-문구-개선-계획-2026-10-15.md) — 단계별 회귀 시험.
+//
+// 원칙: 확인한 것만 말한다 · 주어를 밝힌다(작은 팔/가전) · 다음 행동 한 가지 · 정지 버튼은 그대로.
+// 이 파일의 시험은 수정 전 코드에서 실패하는 것을 확인한 뒤 넣었다(CLAUDE.md 게이트) — 그래서 새 상수 대신
+// 화면에 보이는 글자로 찾는다. 실사용자 시험이 아니다(골든·위젯 시험 수준).
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
+import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
+
+import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
+
+const _fontPath = r'C:\Windows\Fonts\malgun.ttf';
+final _hasFont = File(_fontPath).existsSync();
+
+const _approveKey = ValueKey('suggestion-approve');
+const _banner = ValueKey('estop-banner');
+const _ack = ValueKey('estop-ack');
+const _confirm = ValueKey('estop-confirm');
+
+const _sug = KioskSuggestion(
+  id: 's1',
+  purpose: '즉석밥 데워줘',
+  occurrences: 3,
+  applianceId: 'microwave',
+);
+
+// RPi4가 실제로 보내는 문장(서버 문구 정리 2bc87e5).
+const _buttonDetail = "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요";
+const _rebootDetail = '가전 콘센트 장치가 다시 켜져 가전 전원이 꺼져 있어요 — 해제하면 전원을 다시 켜요';
+
+Future<void> _pumpKiosk(WidgetTester tester, FakeKioskApi api,
+    {FakeTts? tts, Size size = const Size(800, 480)}) async {
+  tester.view.physicalSize = size;
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(MaterialApp(
+    home: KioskScreen(api: api, tts: tts ?? FakeTts(), events: FakeEventStream()),
+  ));
+  await tester.pump();
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+Future<void> _settle(WidgetTester tester) async {
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+Future<void> _nextPoll(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 2));
+  await _settle(tester);
+}
+
+/// 제안을 승인하고 [status]로 끝낸다 — 키오스크가 시작한 실행(다시 보낼 요청이 있다).
+Future<void> _finishOwn(
+    WidgetTester tester, FakeKioskApi api, KioskStatus status) async {
+  api.suggestionList = [];
+  await tester.tap(find.byKey(_approveKey));
+  await tester.pump();
+  api.statusResult = status;
+  await tester.pump(const Duration(seconds: 2));
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 900));
+}
+
+Finder _inButton<T>(String text) => find.ancestor(
+    of: find.text(text), matching: find.byWidgetPredicate((w) => w is T));
+
+Future<void> _pumpView(WidgetTester tester, Widget view,
+    {double scale = 1.0, bool malgun = false}) async {
+  tester.view.physicalSize = const Size(800, 480);
+  tester.view.devicePixelRatio = 1.0;
+  addTearDown(tester.view.reset);
+  await tester.pumpWidget(MaterialApp(
+    theme: malgun
+        ? ThemeData(fontFamily: 'Malgun', brightness: Brightness.dark)
+        : null,
+    home: MediaQuery(
+      data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+      child: Scaffold(backgroundColor: KioskColors.bg, body: view),
+    ),
+  ));
+  await tester.pump(const Duration(milliseconds: 300));
+}
+
+void _expectOnScreen(WidgetTester tester, Finder f) {
+  expect(f, findsOneWidget, reason: '$f');
+  final rect = tester.getRect(f);
+  final screen = Offset.zero & tester.view.physicalSize;
+  expect(
+      screen.contains(rect.topLeft) &&
+          screen.contains(rect.bottomRight - const Offset(.01, .01)),
+      isTrue,
+      reason: '$f 화면 밖 $rect');
+  for (final s in find.ancestor(of: f, matching: find.byType(Scrollable)).evaluate()) {
+    final view = tester.getRect(find.byWidget(s.widget));
+    expect(rect.top >= view.top - .5 && rect.bottom <= view.bottom + .5, isTrue,
+        reason: '$f 스크롤해야 보인다');
+  }
+}
+
+void main() {
+  setUpAll(() async {
+    if (!_hasFont) return;
+    final bytes = File(_fontPath).readAsBytesSync();
+    await (FontLoader('Malgun')..addFont(Future.value(ByteData.view(bytes.buffer))))
+        .load();
+  });
+
+  // ── 1단계: 완료·정지 대기·비상 버튼 + B2 + 잘림 B7·B9 ───────────────────────
+  group('1단계 · 완료 화면', () {
+    testWidgets('실패 — 가장 큰 글자는 할 일, 처음 화면으로(채움)가 먼저, 다시 시도는 테두리', (tester) async {
+      await _pumpView(
+        tester,
+        KioskDoneView(
+          success: false,
+          label: '즉석밥 데워줘',
+          target: kMicrowaveAppliance,
+          onRetry: () {},
+          onManual: () {},
+          onDismiss: () {},
+        ),
+      );
+      expect(find.text('가전을 먼저 봐 주세요'), findsOneWidget);
+      final sizes = tester
+          .widgetList<Text>(find.byType(Text))
+          .map((t) => t.style?.fontSize ?? 0)
+          .toList();
+      final head = tester.widget<Text>(find.text('가전을 먼저 봐 주세요'));
+      expect(head.style!.fontSize, sizes.reduce((a, b) => a > b ? a : b));
+      // 다시 시도 위험(열린 문제 R1) — 이미 켜졌다면 다시 시도하지 말라고 한다. 두 번 누르지 않는다고는 하지 않는다.
+      expect(find.textContaining('이미 켜졌다면 다시 시도하지 마세요'), findsOneWidget);
+      expect(find.textContaining('두 번 누르지 않'), findsNothing);
+      expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
+      expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
+      expect(_inButton<TextButton>('화면으로 조작하기'), findsOneWidget);
+      expect(find.text('닫기'), findsNothing);
+      expect(find.text('버튼으로 조작'), findsNothing);
+      final home = tester.getRect(find.text('처음 화면으로'));
+      final retry = tester.getRect(find.text('다시 시도'));
+      expect(home.left, lessThan(retry.left), reason: '처음 화면으로가 먼저');
+    });
+
+    testWidgets('B2 — 다시 보낼 요청이 없으면(놓친 결과·폰이 시작한 실행) 다시 시도도, 그 당부도 없다',
+        (tester) async {
+      final api = FakeKioskApi()
+        ..statusResult = const KioskStatus(
+            running: false, lastJobId: 'job-0', lastStatus: 'succeeded', lastOutcome: 'success');
+      await _pumpKiosk(tester, api);
+      // 폰이 시작해 폴링 사이에 끝난 실행 — 키오스크가 다시 보낼 요청이 없다.
+      api.statusResult = const KioskStatus(
+          running: false,
+          lastJobId: 'job-phone',
+          lastApplianceId: 'microwave',
+          lastStatus: 'failed',
+          lastOutcome: 'failed',
+          lastRoute: 'physical');
+      await _nextPoll(tester);
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(find.byType(KioskDoneView), findsOneWidget);
+      expect(find.text('다시 시도'), findsNothing);
+      expect(find.textContaining('다시 시도하지 마세요'), findsNothing);
+      expect(find.text('처음 화면으로'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('B2 — 이 화면이 시작한 실행이면 다시 시도가 있고 같은 요청을 다시 보낸다', (tester) async {
+      final api = FakeKioskApi()..suggestionList = [_sug];
+      await _pumpKiosk(tester, api);
+      await _finishOwn(
+          tester,
+          api,
+          const KioskStatus(
+              running: false, lastJobId: 'job-1', lastStatus: 'failed', lastOutcome: 'failed'));
+      expect(find.text('다시 시도'), findsOneWidget);
+      expect(find.textContaining('이미 켜졌다면 다시 시도하지 마세요'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('성공·전력 확인 — 버튼을 다 눌렀어요 + 전력 사용이 늘었어요(켜졌다고 하지 않는다)', (tester) async {
+      await _pumpView(
+        tester,
+        KioskDoneView(
+          success: true,
+          label: '즉석밥 데워줘',
+          executionMode: 'real',
+          target: kMicrowaveAppliance,
+          operationConfirmed: true,
+          operationSource: 'real',
+          onDismiss: () {},
+        ),
+      );
+      expect(find.text('버튼을 다 눌렀어요'), findsOneWidget);
+      expect(find.text('전자레인지의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'),
+          findsOneWidget);
+      expect(find.textContaining('켜진 것'), findsNothing);
+      expect(find.textContaining('동작도 확인'), findsNothing);
+    });
+
+    testWidgets('사용자 정지 — mcu_ack에는 확인(✓) 표시가 없다', (tester) async {
+      await _pumpView(
+        tester,
+        const KioskDoneView(
+          success: false,
+          label: '즉석밥 데워줘',
+          reason: KioskFailureReason.stopped,
+          executionMode: 'real',
+          stopLevel: 'mcu_ack',
+          stopAckMs: 12,
+        ),
+      );
+      expect(find.byIcon(Icons.verified_outlined), findsNothing);
+      expect(find.byIcon(Icons.check), findsNothing);
+      expect(find.textContaining('멈췄는지는 확인 못 했어요'), findsOneWidget);
+      // 주어는 작은 팔 — 실행·기계가 멈췄다고 하지 않는다.
+      expect(find.text('실행을 멈췄어요'), findsNothing);
+      expect(find.textContaining('기계'), findsNothing);
+    });
+
+    for (final success in [true, false]) {
+      testWidgets('B7 — 1.6배 글자에서도 ${success ? '성공' : '실패'} 화면의 처음 화면으로가 화면 안에 있다',
+          (tester) async {
+        if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+        await _pumpView(
+          tester,
+          KioskDoneView(
+            success: success,
+            label: '냉동 만두 데워서 라면이랑 같이 먹을 준비',
+            executionMode: 'mock',
+            target: kMicrowaveAppliance,
+            onRetry: () {},
+            onManual: () {},
+            onDismiss: () {},
+          ),
+          scale: 1.6,
+          malgun: true,
+        );
+        expect(tester.takeException(), isNull);
+        _expectOnScreen(tester, find.text('처음 화면으로'));
+        expect(find.text('처음 화면으로').hitTestable(), findsOneWidget);
+      });
+    }
+  });
+
+  group('1단계 · 동작 중 화면', () {
+    KioskStatus hover({String mode = 'real', bool? op, String? source,
+            bool latched = false, String? detail}) =>
+        KioskStatus(
+          running: false,
+          holdState: 'hovering_stop',
+          holdApplianceId: 'microwave',
+          holdStopButton: '취소',
+          holdExecutionMode: mode,
+          lastOperationConfirmed: op,
+          lastOperationSource: source,
+          estopLatched: latched,
+          estopDetail: latched ? detail : null,
+        );
+
+    testWidgets('가전 동작을 전력으로 확인하지 못했으면 가전이 돈다고 하지 않는다 — 작은 팔이 기다린다', (tester) async {
+      final api = FakeKioskApi()..statusResult = hover();
+      await _pumpKiosk(tester, api);
+      await _nextPoll(tester);
+      expect(find.byType(KioskHoldView), findsOneWidget);
+      expect(find.text('작은 팔이 전자레인지 옆에서 기다리고 있어요'), findsOneWidget);
+      expect(find.textContaining('동작 중'), findsNothing);
+      expect(find.text("정지를 누르면 작은 팔이 '취소' 버튼을 대신 눌러요"), findsOneWidget);
+      // 정지 대기 안내는 흰색 — 주의색은 확인 못 함에만.
+      final guide = tester.widget<Text>(find.text("정지를 누르면 작은 팔이 '취소' 버튼을 대신 눌러요"));
+      expect(guide.style?.color, isNot(KioskColors.primary));
+      expect(guide.style?.color, isNot(KioskColors.warning));
+      // 버튼판 그림은 누르는 자리라고 말한다.
+      expect(find.text('작은 팔이 누르는 자리예요 · 화면은 누르지 않아도 돼요'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('전력으로 확인했으면 가전이 돌아가고 있다고 한다', (tester) async {
+      final api = FakeKioskApi()..statusResult = hover(op: true, source: 'real');
+      await _pumpKiosk(tester, api);
+      await _nextPoll(tester);
+      expect(find.text('전자레인지가 돌아가고 있어요'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('비상 버튼이 눌려 있으면 제목이 위 띠와 같은 말 — 돌아간다고 하지 않는다', (tester) async {
+      final api = FakeKioskApi()
+        ..statusResult = hover(op: true, source: 'real', latched: true, detail: _buttonDetail);
+      await _pumpKiosk(tester, api);
+      await _nextPoll(tester);
+      expect(find.byType(KioskHoldView), findsOneWidget);
+      expect(find.text('비상 버튼이 눌려 있어요 · 가전이 멈췄는지는 직접 봐 주세요'), findsOneWidget);
+      expect(find.textContaining('돌아가고 있어요'), findsNothing);
+      // 정지 버튼은 그대로 닿는다.
+      final stop = find.descendant(of: find.byType(KioskHoldView), matching: find.text('정지'));
+      expect(stop.hitTestable(), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('정지 확인 못 함 — 가장 큰 글자는 직접 누르라는 할 일, 단추는 다시 정지 시도(크기 그대로)', (tester) async {
+      await _pumpView(
+        tester,
+        const KioskHoldView(
+          appliance: kMicrowaveAppliance,
+          holdState: 'parked',
+          stopOutcome: 'requested_unconfirmed',
+          stopButton: '취소',
+          executionMode: 'real',
+          elapsed: Duration(minutes: 1),
+          onStop: _noop,
+          onClose: _noop,
+        ),
+      );
+      const todo = "지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요";
+      expect(find.text(todo), findsOneWidget);
+      // 정지 단추 이름(단추 크기는 원칙 0-4로 고정)을 뺀 안내 글자 중에서 가장 크다.
+      final inStop = find
+          .descendant(
+              of: find.byKey(const ValueKey('hold-stop')),
+              matching: find.byType(Text))
+          .evaluate()
+          .map((e) => e.widget)
+          .toSet();
+      final sizes = tester
+          .widgetList<Text>(find.byType(Text))
+          .where((t) => !inStop.contains(t))
+          .map((t) => t.style?.fontSize ?? 0);
+      expect(tester.widget<Text>(find.text(todo)).style!.fontSize,
+          sizes.reduce((a, b) => a > b ? a : b));
+      expect(find.text('다시 정지 시도'), findsOneWidget);
+      final button = tester.getSize(find.byKey(const ValueKey('hold-stop')));
+      expect(button.height, 96);
+    });
+
+    // B9: 큰 글씨에서 왼쪽 안내가 넘치면 잘린 채 끝나 보였다 — 스크롤 막대가 늘 보인다.
+    for (final panel15 in [false, true]) {
+      testWidgets('B9 — ${panel15 ? '1920x1080' : '800x480'} 큰 글씨에서 넘치는 안내에는 스크롤 막대가 보인다',
+          (tester) async {
+        if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+        tester.view.physicalSize =
+            panel15 ? const Size(1920, 1080) : const Size(800, 480);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(tester.view.reset);
+        final hold = KioskHoldView(
+          appliance: kMicrowaveAppliance,
+          holdState: 'hovering_stop',
+          stopButton: '취소',
+          executionMode: 'mock',
+          elapsed: const Duration(minutes: 1, seconds: 2),
+          buttonsPressed: 3,
+          operationConfirmed: true,
+          operationSource: 'mock',
+          stopRequested: true,
+          onStop: () {},
+        );
+        await tester.pumpWidget(MaterialApp(
+          theme: ThemeData(fontFamily: 'Malgun', brightness: Brightness.dark),
+          home: Builder(builder: (context) {
+            final scaled = MediaQuery(
+              data: MediaQuery.of(context)
+                  .copyWith(textScaler: const TextScaler.linear(1.22)),
+              child: Scaffold(backgroundColor: KioskColors.bg, body: hold),
+            );
+            return panel15 ? KioskCanvas(child: scaled) : scaled;
+          }),
+        ));
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(tester.takeException(), isNull);
+        final left = find.ancestor(
+            of: find.text('남은 시간을 아직 알 수 없어요'),
+            matching: find.byType(RawScrollbar));
+        expect(left, findsOneWidget);
+        expect(tester.widget<RawScrollbar>(left).thumbVisibility, isTrue);
+        final pos = tester
+            .state<ScrollableState>(
+                find.descendant(of: left, matching: find.byType(Scrollable)))
+            .position;
+        expect(pos.maxScrollExtent, greaterThan(0),
+            reason: '이 시험은 넘치는 경우를 본다 — 넘치지 않으면 시험 조건을 바꿔야 한다');
+      });
+    }
+  });
+
+  group('1단계 · 비상 버튼 띠', () {
+    testWidgets('제목·풀기 안내·해제하기 — 해제해도 멈췄던 작업은 다시 시작하지 않는다', (tester) async {
+      final api = FakeKioskApi()
+        ..statusResult = const KioskStatus(
+            running: false, estopLatched: true, estopDetail: _buttonDetail);
+      await _pumpKiosk(tester, api);
+      expect(find.text('비상 버튼이 눌려 있어요'), findsOneWidget);
+      // 서버 문장이 제목을 되풀이하면 머리를 떼고 나머지만 — 같은 말이 두 번 보이지 않는다.
+      expect(find.textContaining('비상 버튼이 눌려 있어요'), findsOneWidget);
+      expect(find.text("풀고 '해제하기'를 눌러야 다시 쓸 수 있어요"), findsOneWidget);
+      expect(find.text('풀기 안내'), findsOneWidget);
+      await tester.tap(find.byKey(_ack));
+      await _settle(tester);
+      expect(find.textContaining('빨간 비상 버튼을 돌려서 풀어 주세요'), findsOneWidget);
+      expect(find.textContaining('해제해도 멈췄던 작업은 다시 시작하지 않아요'), findsOneWidget);
+      // 자동 실행 허용 규칙은 꺼지지 않는다 — 꺼진다고 말하지 않는다.
+      expect(find.textContaining('자동 실행'), findsNothing);
+      expect(find.text('해제하기'), findsOneWidget);
+      expect(api.estopAckCalls, 0);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('가전 콘센트 장치가 다시 켜져 꺼진 걸림은 비상 버튼이라고 하지 않고, 해제하면 전원이 켜진다고 한다',
+        (tester) async {
+      final api = FakeKioskApi()
+        ..statusResult = const KioskStatus(
+            running: false, estopLatched: true, estopDetail: _rebootDetail)
+        ..statusAfterAck = const KioskStatus(running: false);
+      await _pumpKiosk(tester, api);
+      expect(find.text('비상 버튼이 눌려 있어요'), findsNothing);
+      expect(find.text('가전 콘센트 전원이 꺼져 있어요'), findsOneWidget);
+      await tester.tap(find.byKey(_ack));
+      await _settle(tester);
+      expect(find.textContaining('해제하면 가전 콘센트 전원이 다시 켜져요'), findsOneWidget);
+      expect(find.textContaining('빨간 비상 버튼'), findsNothing);
+      await tester.tap(find.byKey(_confirm));
+      await _settle(tester);
+      expect(find.text('해제했어요. 가전 콘센트 전원을 다시 켰어요.'), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('제안 화면에서도 띠가 보이고, 그 화면에 있는 동안 새로 걸린 것도 보인다', (tester) async {
+      final api = FakeKioskApi()..suggestionList = [_sug];
+      await _pumpKiosk(tester, api);
+      expect(find.byType(KioskSuggestionView), findsOneWidget);
+      expect(find.byKey(_banner), findsNothing);
+      api.statusResult = const KioskStatus(
+          running: false, estopLatched: true, estopDetail: _buttonDetail);
+      await _nextPoll(tester);
+      expect(find.byType(KioskSuggestionView), findsOneWidget);
+      expect(find.byKey(_banner), findsOneWidget);
+      // 띠는 승인 단추를 가리지 않는다.
+      expect(find.byKey(_approveKey).hitTestable(), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('수동 조작·완료 화면에서도 띠가 보인다', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = const [kMicrowaveAppliance]
+        ..statusResult = const KioskStatus(
+            running: false, estopLatched: true, estopDetail: _buttonDetail);
+      await _pumpKiosk(tester, api);
+      await _nextPoll(tester);
+      await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await _settle(tester);
+      expect(find.byType(KioskManualView), findsOneWidget);
+      expect(find.byKey(_banner), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('manual-back')));
+      await _settle(tester);
+      // 완료 화면(놓친 결과)
+      api.statusResult = const KioskStatus(
+          running: false,
+          lastJobId: 'job-9',
+          lastApplianceId: 'microwave',
+          lastStatus: 'failed',
+          lastOutcome: 'failed',
+          estopLatched: true,
+          estopDetail: _buttonDetail);
+      await _nextPoll(tester);
+      await tester.pump(const Duration(milliseconds: 900));
+      expect(find.byType(KioskDoneView), findsOneWidget);
+      expect(find.byKey(_banner), findsOneWidget);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('잠시 쉬기 창을 열어도 띠는 가려지지 않는다', (tester) async {
+      final api = FakeKioskApi()
+        ..statusResult = const KioskStatus(
+            running: false, estopLatched: true, estopDetail: _buttonDetail);
+      await _pumpKiosk(tester, api);
+      await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+      await _settle(tester);
+      expect(find.byKey(_ack).hitTestable(), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
+  test('문구 금지어 — 거짓이 될 문장은 키오스크 코드에 없다', () {
+    final banned = [
+      '두 번 누르지 않아요', // 자동 재시도는 L1만 보고 다시 누른다(R1)
+      '자동 실행도 꺼져요', // 비상 버튼 해제로 자동 실행 규칙이 꺼지지 않는다
+      '버튼 조작을 마쳤어요',
+      '확인하고 해제',
+    ];
+    for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
+      if (!f.path.endsWith('.dart')) continue;
+      final text = f.readAsStringSync();
+      for (final b in banned) {
+        expect(text.contains(b), isFalse, reason: '${f.path}: $b');
+      }
+    }
+  });
+}
+
+void _noop() {}

@@ -4,8 +4,10 @@ import '../../models/appliance.dart';
 import '../../models/command_result.dart';
 import '../../models/scenario_run.dart';
 import '../../theme/kiosk_colors.dart';
+import 'kiosk_scroll_area.dart';
 import 'kiosk_target_line.dart';
 import 'kiosk_timings.dart';
+import 'practice_band.dart';
 
 /// 실행 결과 화면.
 ///
@@ -14,7 +16,7 @@ import 'kiosk_timings.dart';
 /// 하므로 자동으로 사라지지 않고 다음 행동 버튼을 제공한다 — 이전에는 둘 다
 /// 3초 뒤 사라져서, 고령 사용자는 이유도 대처법도 모른 채 화면만 놓쳤다.
 ///
-/// 이 시스템이 끝낸 것은 **버튼 조작**이다. 조리·세탁이 끝났다고 말하지 않는다.
+/// 이 시스템이 끝낸 것은 **버튼 누르기**다. 조리·세탁이 끝났다고 말하지 않는다.
 class KioskDoneView extends StatelessWidget {
   const KioskDoneView({
     this.executionMode = 'unknown',
@@ -76,10 +78,6 @@ class KioskDoneView extends StatelessWidget {
 
   final String executionMode;
 
-  /// 연습(mock)일 때만 "연습 모드". 실제·모름은 머리 표시를 달지 않는다(2026-10-14 문구 정리) —
-  /// 실제 실행은 평소 상태라 따로 말할 것이 없고, 모름은 아래 문장이 단정하지 않는 것으로 충분하다.
-  String? get modeLabel => executionMode == 'mock' ? '연습 모드' : null;
-
   final bool success;
 
   /// 실행 이름(가전·루틴·버튼). 모르면 빈 문자열이고, 그때는 "이름 — " 머리를 붙이지 않는다.
@@ -91,6 +89,7 @@ class KioskDoneView extends StatelessWidget {
   /// 실패 원인 — 문구와 권하는 행동이 달라진다. null이면 일반 실행 실패.
   final KioskFailureReason? reason;
 
+  /// 다시 보낼 요청이 있을 때만 있다(2026-10-15 B2) — 없으면 '다시 시도'를 그리지 않는다.
   final VoidCallback? onRetry;
   final VoidCallback? onManual;
   final VoidCallback? onDismiss;
@@ -98,7 +97,7 @@ class KioskDoneView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = reason ?? KioskFailureReason.execution;
-    // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 차분한 색과 손 모양(2026-10-14).
+    // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 정지 단계만큼의 표시(2026-10-14, 10-15).
     final userStop = !success && r == KioskFailureReason.stopped;
     final thinq = route == 'thinq';
     final mock = executionMode == 'mock';
@@ -107,215 +106,233 @@ class KioskDoneView extends StatelessWidget {
     final operationVerified =
         operationConfirmed == true && !mock && operationSource == 'real';
     // 큰 체크·성공색은 **확인한 성공**에만(2026-10-14 UI 정리): 실제 ThinQ 상태 재조회, 또는 실측 동작 확인.
-    // 누름 장치 보고만·실행 환경 모름·연습은 중립 아이콘 — 문장이 '확인하지 못했어요'인데 체크가 성공을 단정하지 않게.
+    // 작은 팔 보고만·실행 환경 모름·연습은 중립 아이콘 — 문장이 '직접 봐 주세요'인데 체크가 성공을 단정하지 않게.
     final verifiedSuccess = success && !mock && (thinq || operationVerified);
+    // 작은 팔이 멈춘 것을 확인한 정지(verified)만 흰색·체크(2026-10-15). 그 밖의 정지는 멈췄는지 모른다 — 주의색·물음표.
+    final stopVerified = userStop && stopLevelConfirmed(stopLevel);
     // 확인 못 함은 실패가 아니다 — 빨강이 아니라 주의색으로 말한다.
     final color = verifiedSuccess
         ? KioskColors.success
         : success
-        ? Colors.white
-        : userStop
-            ? KioskColors.muted
-            : r.isUnconfirmed
-                ? KioskColors.warning
-                : KioskColors.danger;
+            ? Colors.white
+            : userStop
+                ? (stopVerified ? Colors.white : KioskColors.warning)
+                : r.isUnconfirmed
+                    ? KioskColors.warning
+                    : KioskColors.danger;
     final target = this.target;
     // 모션 걸림 등(2026-10-14) — '눌림을 확인하지 못해'로 원인을 바꿔 말하지 않는다.
     final motion = !success && r == KioskFailureReason.safetyStop
         ? motionAbortSentence(abortReason)
         : null;
     // 정지·모터 걸림은 원인을 이미 말했다 — "눌렸는지 확인 못 했어요" 같은 확인 칩을 덧붙이지 않는다.
+    // 물리 성공도 제목과 아래 한 줄이 확인 수준을 말한다(2026-10-15) — 눌림을 확인하지 못한 경우(none)만 칩으로 남긴다.
+    final physicalSuccessSaid =
+        success && !thinq && resultConfirmation != 'none';
     final facts = [
       if (routeLabel(route) case final path?) path,
-      if (confirmation case final c? when !userStop && motion == null) c,
+      if (confirmation case final c?
+          when !userStop && motion == null && !physicalSuccessSaid)
+        c,
     ];
-    // 성공의 가장 큰 글자. 물리 경로에서 실행 환경을 모르면(옛 노드·UART가
-    // 보고하지 않음) '버튼 조작을 마쳤어요'라고 단정하지 않는다 — 실행기가
-    // 완료를 보고했다는 사실까지만 안다.
     final already = thinq && resultConfirmation == 'already_at_target';
     // 실제 실행이면 작은 글자는 서버 문장(그 실행의 설정 이름)으로 확인한 사실만큼. 연습은 연습 문장을 지킨다.
     final outcome = thinq ? thinqOutcomeSentence(resultConfirmation, detail) : null;
+    // 성공의 가장 큰 글자(2026-10-15 문구 개선 §2-1) — 확인한 것만큼. 물리 경로가 끝낸 것은 버튼 누르기이고,
+    // 실행 환경을 모르면(옛 노드·UART가 보고하지 않음) 작은 팔이 보고한 사실까지만 말한다.
     final successHeadline = already
         ? (mock ? '연습 · 이미 그 설정이에요' : '이미 그 설정이에요')
         : thinq
-        // 모의 ThinQ는 모의 상태를 읽은 것이다(10/6 Copilot 리뷰 66990be).
-        ? (mock ? '연습으로 상태를 확인했어요' : '가전 상태를 확인했어요')
-        : executionMode == 'unknown'
-            ? '끝났다는 보고를 받았어요'
-            // 모의 실행은 가장 큰 글자부터 연습이라고 말한다(10/6 S11 실패널).
-            : executionMode == 'mock'
-                ? '연습으로 버튼 조작을 마쳤어요'
-                : '버튼 조작을 마쳤어요';
+            // 모의 ThinQ는 모의 상태를 읽은 것이다(10/6 Copilot 리뷰 66990be).
+            ? (mock ? '연습으로 상태를 확인했어요' : '가전 상태를 확인했어요')
+            : mock
+                ? '연습을 마쳤어요'
+                : executionMode == 'real'
+                    ? '버튼을 다 눌렀어요'
+                    : '작은 팔이 다 눌렀다고 알려 왔어요';
+    // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
+    final String? successSub = thinq
+        ? null
+        : mock
+            ? '실제 가전은 누르지 않았어요'
+            : operationVerified
+                ? '${target?.name ?? '가전'}의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'
+                : executionMode == 'real'
+                    ? '가전이 움직이는지는 직접 봐 주세요'
+                    : '가전이 실제로 움직이는지는 직접 봐 주세요';
     // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
-    // 모의 출처는 아래 작은 글씨("연습용 판정 값이에요")가 같이 밝힌다.
+    // 모의 출처는 아래 작은 글씨("연습용 판정 값이에요")가 같이 밝힌다. 물리 성공의 확인은 위 한 줄이 이미 말했다.
     final operationSentence = switch (operationConfirmed) {
       true when mock => '연습이라 가전 동작은 보지 않았어요',
-      true when operationSource == 'real' => '가전 동작도 확인했어요',
+      true when operationSource == 'real' =>
+        success && !thinq ? null : '가전 전력 사용이 늘었어요',
       true => '가전이 켜졌는지는 직접 봐 주세요',
       false => '가전 동작은 확인하지 못했어요',
       null => null,
     };
-    // 정지 확인 단계 — 보냄(sent)은 확인이라고 하지 않는다(2026-10-13).
-    final stopSentence = userStop
-        ? stopLevelSentence(stopLevel, ackMs: stopAckMs)
-        : null;
-    final headline = success ? successHeadline : (motion ?? r.headline);
-    // 정지 확인 단계 줄이 이미 다 말하면(보냄: "기계를 봐 주세요" · 멈춤 확인) 같은 당부를 겹쳐 쓰지 않는다.
-    // 모션 보드가 받음(mcu_ack)은 멈춤 확인이 아니라 기계를 보라는 한 줄을 남긴다.
-    final String? failureDetail = motion != null
-        ? '${_lead(label)}다시 누르지 않았어요.\n장치를 확인해 주세요.'
-        : (userStop && (stopLevel == 'sent' || stopLevel == 'verified'))
-            ? null
-            : r.detail(label);
+    final headline = success
+        ? successHeadline
+        : userStop
+            ? stopLevelHeadline(stopLevel, ackMs: stopAckMs)
+            : (motion ?? r.headline);
+    final String failureDetail = motion != null
+        ? '${_lead(label)}다시 누르지 않았어요.\n가전과 작은 팔을 직접 봐 주세요.'
+        : userStop
+            ? stopLevelNextStep(stopLevel)
+            : r.detail(label, canRetry: onRetry != null);
     // 이름이 대상 가전 이름과 같으면(이어받은 실행 등) 같은 말을 두 번 쓰지 않는다.
     final showLabel = label.isNotEmpty && label != target?.name;
 
-    return ColoredBox(
-      color: KioskColors.bg,
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 16),
-          child: Semantics(
-            liveRegion: true,
-            label: [
-              success
-                  ? '${_lead(label)}$successHeadline'
-                  : failureDetail == null
-                      ? headline
-                      : '$headline. $failureDetail',
-              ...facts,
-              if (operationSentence != null) operationSentence,
-              if (stopSentence != null) stopSentence,
-              if (runSteps.length > 1)
-                for (var i = 0; i < runSteps.length; i++)
-                  '${_stepTitle(i, runSteps[i])}. ${runStepFacts(runSteps[i])}',
-            ].join('. '),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (modeLabel case final m?)
-                  Text(m, style: const TextStyle(fontSize: 18, color: KioskColors.warning)),
-                _ResultRing(
-                  icon: verifiedSuccess
-                      ? Icons.check
-                      : success
-                      ? Icons.info_outline
-                      : userStop
-                          ? Icons.pan_tool_outlined
-                          : r.isUnconfirmed
-                              ? Icons.question_mark
-                              : Icons.close,
-                  color: color,
-                ),
-                const SizedBox(height: 14),
-                // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
-                // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 조작**이다.
-                Text(
-                  // 연결 유실은 정지의 증거가 아니다. 서버가 정지 결과를
-                  // 반환한 경우에만 실행을 멈췄다고 표시한다.
-                  headline,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.w800,
-                    height: 1.2,
-                    color: color,
-                  ),
-                ),
-                if (target != null) ...[
-                  const SizedBox(height: 8),
-                  KioskTargetLine(appliance: target),
-                ],
-                // 경로(ThinQ)와 확인 수준. 서버가 준 값만 말한다(물리 경로는 배지 없음).
-                if (facts.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    facts.join(' · '),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 22, color: Colors.white),
-                  ),
-                ],
-                // 위 한 줄은 /status의 **마지막 단계** 기준이다. 두 가전을
-                // 잇는 실행이면 단계마다 경로·확인 수준을 따로 말한다.
-                if (runSteps.length > 1) _RunSteps(steps: runSteps),
-                const SizedBox(height: 6),
-                if (success) ...[
-                  // 무엇을 했는지 한 줄로 재확인하고, 어떻게 확인했는지를 말한다.
-                  if (showLabel) ...[
-                    Text(
-                      label,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.white,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Text(
-                    outcome != null && (!mock || already)
-                        ? outcome
-                        : thinq
-                        ? (executionMode == 'mock'
-                            ? '연습이라 실제 가전은 조작하지 않았어요'
-                            : 'ThinQ로 보낸 뒤 가전 상태를 다시 읽어 확인했어요')
-                        : executionMode == 'mock'
-                            ? '연습이라 실제로 누르지는 않았어요'
-                            : executionMode == 'real'
-                                ? '누름 장치가 다 눌렀다고 알려 왔어요'
-                                : '실제 조작 여부는 확인하지 못했어요',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 22, color: KioskColors.muted),
-                  ),
-                  _OperationLine(
-                    sentence: operationSentence,
-                    confirmed: operationVerified,
-                    source: mock ? null : operationSource,
-                    detail: operationDetail,
-                  ),
-                  const SizedBox(height: 18),
-                  _AutoReturn(onDismiss: onDismiss),
-                ] else ...[
-                  if (failureDetail != null)
-                    Text(
-                      failureDetail,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 22, color: KioskColors.muted),
-                    ),
-                  if (detail case final d? when d.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      d,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                          fontSize: 18, color: KioskColors.muted),
-                    ),
-                  ],
-                  // 정지 줄은 판정 줄과 같은 모양(아이콘+글자) — 확인이면 확인색, 보냄이면 주의색.
-                  _OperationLine(
-                    sentence: stopSentence,
-                    confirmed: stopLevelConfirmed(stopLevel),
-                  ),
-                  _OperationLine(
-                    sentence: operationSentence,
-                    confirmed: operationVerified,
-                    source: mock ? null : operationSource,
-                    detail: operationDetail,
-                  ),
-                  const SizedBox(height: 20),
-                  _FailureActions(
-                    onRetry: onRetry,
-                    onManual: onManual,
-                    onDismiss: onDismiss,
-                    closeFirst: userStop,
-                  ),
-                ],
-              ],
+    final content = Semantics(
+      liveRegion: true,
+      label: [
+        if (mock) kPracticeBandText,
+        if (success) ...[
+          '${_lead(label)}$successHeadline',
+          if (successSub != null) successSub,
+        ] else
+          '$headline. $failureDetail',
+        ...facts,
+        if (operationSentence != null) operationSentence,
+        if (runSteps.length > 1)
+          for (var i = 0; i < runSteps.length; i++)
+            '${_stepTitle(i, runSteps[i])}. ${runStepFacts(runSteps[i])}',
+      ].join('. '),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _ResultRing(
+            icon: verifiedSuccess
+                ? Icons.check
+                : success
+                    ? Icons.info_outline
+                    : userStop
+                        ? (stopVerified ? Icons.check : Icons.question_mark)
+                        : r.isUnconfirmed
+                            ? Icons.question_mark
+                            : Icons.close,
+            color: color,
+          ),
+          const SizedBox(height: 14),
+          // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
+          // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 누르기**다.
+          Text(
+            headline,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 36,
+              fontWeight: FontWeight.w800,
+              height: 1.2,
+              color: color,
             ),
           ),
-        ),
+          if (success && successSub != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              successSub,
+              key: const ValueKey('done-sub'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: 26, fontWeight: FontWeight.w600, color: Colors.white),
+            ),
+          ],
+          if (target != null) ...[
+            const SizedBox(height: 8),
+            KioskTargetLine(appliance: target),
+          ],
+          // 경로(ThinQ)와 확인 수준. 서버가 준 값만 말한다(물리 경로는 배지 없음).
+          if (facts.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              facts.join(' · '),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 22, color: Colors.white),
+            ),
+          ],
+          // 위 한 줄은 /status의 **마지막 단계** 기준이다. 두 가전을
+          // 잇는 실행이면 단계마다 경로·확인 수준을 따로 말한다.
+          if (runSteps.length > 1) _RunSteps(steps: runSteps),
+          const SizedBox(height: 6),
+          if (success) ...[
+            // 무엇을 했는지 한 줄로 재확인한다.
+            if (showLabel) ...[
+              Text(
+                label,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
+            if (thinq)
+              Text(
+                outcome != null && (!mock || already)
+                    ? outcome
+                    : mock
+                        ? '연습이라 실제 가전은 조작하지 않았어요'
+                        : 'ThinQ로 보낸 뒤 가전 상태를 다시 읽어 확인했어요',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 22, color: KioskColors.muted),
+              ),
+          ] else ...[
+            // 할 일 한 가지(원칙 0-3) — 흐린 글자로 두지 않는다.
+            Text(
+              failureDetail,
+              key: const ValueKey('done-next-step'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 24, color: Colors.white, height: 1.3),
+            ),
+            if (detail case final d? when d.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(
+                d,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18, color: KioskColors.muted),
+              ),
+            ],
+          ],
+          _OperationLine(
+            sentence: operationSentence,
+            confirmed: operationVerified,
+            source: mock ? null : operationSource,
+            detail: operationDetail,
+          ),
+        ],
+      ),
+    );
+
+    // 행동 단추는 스크롤 밖 아래에 고정한다(2026-10-15 B7) — 큰 글씨에서 '처음으로'가 화면 밖으로 밀렸다.
+    return ColoredBox(
+      color: KioskColors.bg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // 연습 표시는 맨 위 고정 띠(§3-2) — 스크롤해도 사라지지 않는다.
+          if (mock) const KioskPracticeBand(),
+          Expanded(
+            child: KioskScrollArea(
+              center: true,
+              padding: const EdgeInsets.fromLTRB(40, 12, 40, 8),
+              child: content,
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+            child: Center(
+              child: success
+                  ? _AutoReturn(onDismiss: onDismiss)
+                  : _FailureActions(
+                      onRetry: onRetry,
+                      onManual: onManual,
+                      onDismiss: onDismiss,
+                      calm: userStop,
+                    ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -458,27 +475,30 @@ enum KioskFailureReason {
       this == KioskFailureReason.unconfirmed ||
       this == KioskFailureReason.receiptUnknown;
 
-  /// 가장 큰 글자.
+  /// 가장 큰 글자(2026-10-15 문구 개선 §2-1) — 실패 화면의 주인공은 단추가 아니라 할 일이다.
   String get headline => switch (this) {
-        KioskFailureReason.execution => '버튼 조작을 확인하지 못했어요',
+        KioskFailureReason.execution => '가전을 먼저 봐 주세요',
         KioskFailureReason.serverLost => '실행 상태를 확인할 수 없어요',
-        KioskFailureReason.stopped => '실행을 멈췄어요',
-        KioskFailureReason.safetyStop => '안전하게 멈췄어요',
+        KioskFailureReason.stopped => stopLevelHeadline(null),
+        KioskFailureReason.safetyStop => '눌림을 확인하지 못해 멈췄어요',
         KioskFailureReason.unconfirmed => '보냈지만 확인하지 못했어요',
-        KioskFailureReason.receiptUnknown => '받았는지 확인이 필요해요',
+        KioskFailureReason.receiptUnknown => '명령이 닿았는지 몰라요 — 가전을 먼저 봐 주세요',
         KioskFailureReason.notExecuted => '명령이 실행되지 않았어요',
       };
 
-  /// 큰 글자 아래 한 줄. 이름을 모르면([label]이 빈 문자열) "이름 — " 머리 없이 쓴다.
-  /// 정지는 제목("실행을 멈췄어요")을 되풀이하지 않고 할 일만 말한다(2026-10-14).
-  String detail(String label) => switch (this) {
-        KioskFailureReason.execution =>
-          '${_lead(label)}버튼이 눌렸는지 확인하지 못했어요.\n가전을 살펴본 뒤 다시 시도해 주세요.',
+  /// 큰 글자 아래 할 일. 이름을 모르면([label]이 빈 문자열) "이름 — " 머리 없이 쓴다.
+  /// [canRetry]일 때만 '다시 시도' 당부를 붙인다 — 자동 재시도와 '다시 시도'는 가전 상태를 보지 않고
+  /// 같은 버튼을 다시 누른다(열린 문제 R1). 단추가 없으면 그 단추 이야기를 하지 않는다.
+  String detail(String label, {bool canRetry = true}) => switch (this) {
+        KioskFailureReason.execution => canRetry
+            ? '${_lead(label)}버튼이 눌렸는지 확인하지 못했어요.\n$kDontRetryIfOn.'
+            : '${_lead(label)}버튼이 눌렸는지 확인하지 못했어요.',
         KioskFailureReason.serverLost =>
           'SimpleLay 본체의 실행 결과를 확인하지 못했어요.\n가전 상태를 직접 확인해 주세요.',
-        KioskFailureReason.stopped => '기계가 멈췄는지 한 번 봐 주세요.',
-        KioskFailureReason.safetyStop =>
-          '${_lead(label)}눌림을 확인하지 못해 안전하게 멈췄어요.\n가전을 살펴본 뒤 다시 시도해 주세요.',
+        KioskFailureReason.stopped => stopLevelNextStep(null),
+        KioskFailureReason.safetyStop => canRetry
+            ? '${_lead(label)}가전을 먼저 봐 주세요.\n$kDontRetryIfOn.'
+            : '${_lead(label)}가전을 먼저 봐 주세요.',
         KioskFailureReason.unconfirmed =>
           '${_lead(label)}명령을 보냈지만 확인하지 못했어요.\n가전을 직접 확인해 주세요.',
         KioskFailureReason.receiptUnknown =>
@@ -591,7 +611,7 @@ class _AutoReturn extends StatelessWidget {
                   ),
                 ),
                 child: const Text(
-                  '처음으로',
+                  '처음 화면으로',
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
                 ),
               ),
@@ -601,110 +621,79 @@ class _AutoReturn extends StatelessWidget {
       );
 }
 
+/// 실패·정지 화면의 단추(2026-10-15 문구 개선 §2-1).
+///
+/// 화면의 주인공은 단추가 아니라 할 일 문장이다. 단추는 어디로 가는지 말하는 **`처음 화면으로`**(채움)가 먼저,
+/// `다시 시도`는 덜 강조한 테두리 단추 — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문이다(열린 문제 R1).
+/// 다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) `다시 시도`는 그리지 않는다.
+/// `화면으로 조작하기`는 글자 단추지만 흐리게 두지 않는다(크기·대비를 키움).
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
     required this.onRetry,
     required this.onManual,
     required this.onDismiss,
-    this.closeFirst = false,
+    this.calm = false,
   });
 
   final VoidCallback? onRetry;
   final VoidCallback? onManual;
   final VoidCallback? onDismiss;
 
-  /// 사용자가 멈춘 실행(2026-10-14): 멈추려고 누른 사람에게 '다시 시도'를 앞세우지 않는다.
-  /// 닫기가 먼저(차분한 채운 단추), 다시 시도는 옆의 테두리 단추, 버튼으로 조작은 아래 글자 단추.
-  final bool closeFirst;
+  /// 사용자가 멈춘 실행 — 채운 단추를 금색 대신 차분한 면색으로.
+  final bool calm;
 
   @override
-  Widget build(BuildContext context) {
-    if (closeFirst && onDismiss != null) {
-      return Column(
+  Widget build(BuildContext context) => Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 12,
+            runSpacing: 8,
             children: [
-              _ActionButton(
-                label: '닫기',
-                icon: Icons.home_outlined,
-                primary: true,
-                neutral: true,
-                onTap: onDismiss!,
-              ),
-              if (onRetry != null) ...[
-                const SizedBox(width: 12),
+              if (onDismiss != null)
                 _ActionButton(
+                  key: const ValueKey('done-home'),
+                  label: '처음 화면으로',
+                  icon: Icons.home_outlined,
+                  primary: true,
+                  neutral: calm,
+                  onTap: onDismiss!,
+                ),
+              if (onRetry != null)
+                _ActionButton(
+                  key: const ValueKey('done-retry'),
                   label: '다시 시도',
                   icon: Icons.refresh,
                   primary: false,
                   onTap: onRetry!,
                 ),
-              ],
             ],
           ),
           if (onManual != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
             SizedBox(
-              height: 48,
-              child: TextButton(
+              height: 52,
+              child: TextButton.icon(
+                key: const ValueKey('done-manual'),
                 onPressed: onManual,
+                icon: const Icon(Icons.grid_view_rounded, size: 22),
+                label: const Text('화면으로 조작하기',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
                 style: TextButton.styleFrom(
-                  foregroundColor: KioskColors.muted,
-                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  foregroundColor: const Color(0xFFFAF7F2),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                 ),
-                child: const Text('버튼으로 조작', style: TextStyle(fontSize: 16)),
               ),
             ),
           ],
         ],
       );
-    }
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (onRetry != null)
-              _ActionButton(
-                label: '다시 시도',
-                icon: Icons.refresh,
-                primary: true,
-                onTap: onRetry!,
-              ),
-            if (onRetry != null && onManual != null) const SizedBox(width: 12),
-            if (onManual != null)
-              _ActionButton(
-                label: '버튼으로 조작',
-                icon: Icons.grid_view_rounded,
-                primary: false,
-                onTap: onManual!,
-              ),
-          ],
-        ),
-        if (onDismiss != null) ...[
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 48,
-            child: TextButton(
-              onPressed: onDismiss,
-              style: TextButton.styleFrom(
-                foregroundColor: KioskColors.muted,
-                padding: const EdgeInsets.symmetric(horizontal: 28),
-              ),
-              child: const Text('닫기', style: TextStyle(fontSize: 16)),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
 }
 
 class _ActionButton extends StatelessWidget {
   const _ActionButton({
+    super.key,
     required this.label,
     required this.icon,
     required this.primary,

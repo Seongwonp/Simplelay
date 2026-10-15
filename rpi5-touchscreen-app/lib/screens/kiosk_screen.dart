@@ -435,7 +435,7 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 새로 걸리는 순간에만 한 번 말한다(풀렸다 다시 걸리면 다시 말한다).
   void _trackEstop(KioskStatus st) {
     final latched = st.estopLatched;
-    if (latched && !_estopLatched) _tts.speak(kEstopSpoken);
+    if (latched && !_estopLatched) _tts.speak(estopSpokenFor(st.estopDetail));
     final detail = latched ? st.estopDetail : null;
     if (latched == _estopLatched && detail == _estopDetail) return;
     setState(() {
@@ -451,6 +451,8 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 경고의 '해제' — 사람이 확인 문장을 본 뒤에만 불린다.
   Future<void> _onEstopConfirm() async {
     if (_estopAcking) return;
+    // 전원 꺼짐 걸림(가전 콘센트 장치가 다시 켜짐)이면 해제 뒤 서버가 콘센트 전원을 다시 켠다 — 결과 문장이 다르다.
+    final powerRestore = estopIsPowerLoss(_estopDetail);
     setState(() {
       _estopAcking = true;
       _estopConfirming = false;
@@ -464,12 +466,12 @@ class _KioskScreenState extends State<KioskScreen> {
         _estopLatched = false;
         _estopDetail = null;
       } else {
-        _estopMessage = result.message;
+        _estopMessage = result.messageFor(powerRestore: powerRestore);
       }
     });
     if (!result.cleared) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(result.message)));
+    ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result.messageFor(powerRestore: powerRestore))));
     // 해제 응답만 믿지 않고 상태를 다시 읽는다 — 그사이 다시 걸렸을 수 있다.
     try {
       final st = await _api.status();
@@ -477,12 +479,10 @@ class _KioskScreenState extends State<KioskScreen> {
     } catch (_) {}
   }
 
-  /// 경고를 보이는 화면 — 평소·실행·동작 중(이 셋이 /status를 읽는다).
-  bool get _showEstop =>
-      _estopLatched &&
-      (_phase == KioskPhase.idle ||
-          _phase == KioskPhase.executing ||
-          _phase == KioskPhase.hold);
+  /// 경고는 **모든 화면**에 보인다(2026-10-15 문구 개선 §2-3) — 예전에는 제안·수동 조작·완료 화면에서 사라져,
+  /// 걸린 채로 제안을 승인하거나 버튼을 고르게 됐다. 화면을 덮지 않고 위에 줄을 더할 뿐이다.
+  /// 걸림 값은 평소·실행·동작 중 화면의 /status 조회가 옮긴다(다른 화면에서는 마지막 값을 유지한다).
+  bool get _showEstop => _estopLatched;
 
   static bool _sameSet(Set<String> a, Set<String> b) =>
       a.length == b.length && a.containsAll(b);
@@ -527,6 +527,8 @@ class _KioskScreenState extends State<KioskScreen> {
         await _pollHold();
       } else if (_phase == KioskPhase.done) {
         await _pollDone();
+      } else if (_phase == KioskPhase.manual) {
+        await _pollEstopOnly();
       }
     } finally {
       _pollInFlight = false;
@@ -567,7 +569,20 @@ class _KioskScreenState extends State<KioskScreen> {
     } catch (_) {}
   }
 
+  /// 제안·수동 조작 화면에서도 비상 멈춤 걸림을 따라간다(2026-10-15) — 경고 띠가 모든 화면에 보이려면
+  /// 그 화면에 있는 동안 새로 걸린 것도 알아야 한다. 걸림만 읽고 다른 상태는 건드리지 않는다.
+  Future<void> _pollEstopOnly() async {
+    try {
+      final st = await _api.status();
+      if (!mounted) return;
+      _trackEstop(st);
+    } catch (_) {
+      // 통신 실패는 걸림이 풀렸다는 증거가 아니다 — 마지막 값을 유지한다.
+    }
+  }
+
   Future<void> _pollSuggestion() async {
+    await _pollEstopOnly();
     final id = _currentSuggestion?.id;
     try {
       final list = await _api.suggestions();
@@ -732,6 +747,7 @@ class _KioskScreenState extends State<KioskScreen> {
     try {
       final st = await _api.status();
       if (!mounted || _phase != KioskPhase.done) return;
+      _trackEstop(st);
       _trackAutoRun(st);
       if (st.running && st.jobId != null && st.jobId != _activeJobId) {
         _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
@@ -869,8 +885,8 @@ class _KioskScreenState extends State<KioskScreen> {
       if (_holdSpokenKey != key) {
         _holdSpokenKey = key;
         _tts.speak(st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
-            ? '누름 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
-            : '정지 버튼을 눌렀지만 가전이 멈췄는지 확인하지 못했어요. 가전을 직접 확인해 주세요.');
+            ? '작은 팔 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
+            : '작은 팔이 정지 버튼을 대신 눌렀지만 멈췄는지 확인하지 못했어요. 지금 가전의 정지 버튼을 직접 눌러 주세요.');
       }
       return;
     }
@@ -1035,7 +1051,7 @@ class _KioskScreenState extends State<KioskScreen> {
     retry();
   }
 
-  /// 실패 화면의 '버튼으로 조작' — 자동 실행을 포기하고 사람이 직접 누르는
+  /// 실패 화면의 '화면으로 조작하기' — 자동 실행을 포기하고 사람이 직접 고르는
   /// 화면으로 보낸다. _toManual은 idle에서만 동작하므로 phase를 먼저 되돌린다.
   void _onManualFromFailure() {
     _countdownTimer?.cancel();
@@ -1172,12 +1188,13 @@ class _KioskScreenState extends State<KioskScreen> {
       // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
       // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
-          ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute, confirmation: _doneRawConfirmation, detail: _doneDetail)}'
+          ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute, confirmation: _doneRawConfirmation, detail: _doneDetail, operationVerified: _doneOperationConfirmed == true && _doneOperationSource == 'real' && _executionMode != 'mock')}'
           : switch (reason) {
               KioskFailureReason.serverLost =>
                 '실행 상태를 확인할 수 없어요. 가전 상태를 직접 확인해 주세요.',
+              // 정지 단계만큼(2026-10-15) — 단계 보고가 늦으면 모르는 단계로 말한다(화면은 뒤에 고쳐진다).
               KioskFailureReason.stopped =>
-                '실행을 멈췄어요. 기계가 멈췄는지 한 번 봐 주세요.',
+                finishedMessage(kind: ResultKind.stopped, stopLevel: _doneStopLevel),
               KioskFailureReason.safetyStop =>
                 '$lead${finishedMessage(kind: ResultKind.safetyStop, abortReason: _doneAbortReason)}',
               KioskFailureReason.unconfirmed =>
@@ -1187,7 +1204,7 @@ class _KioskScreenState extends State<KioskScreen> {
               KioskFailureReason.notExecuted =>
                 '$lead명령이 실행되지 않았어요. 화면을 확인해 주세요.',
               KioskFailureReason.execution =>
-                '$lead실행하지 못했어요. 화면을 확인해 주세요.',
+                '$lead가전을 먼저 봐 주세요. 버튼이 눌렸는지 확인하지 못했어요.${_retryAction != null ? ' $kDontRetryIfOn.' : ''}',
             },
     );
     setState(() {
@@ -1380,7 +1397,8 @@ class _KioskScreenState extends State<KioskScreen> {
             child: Padding(
               padding: const EdgeInsets.only(top: 3),
               // 비상정지 경고는 화면 **위에 한 줄**을 차지한다 — 덮지 않으므로
-              // 실행·동작 중 화면의 정지 버튼이 그대로 닿는다.
+              // 실행·동작 중 화면의 정지 버튼이 그대로 닿는다. 겹쳐 뜨는 창(잠시 쉬기·위험 신호음·
+              // 연결·설정)도 경고 **아래** 자리에 뜬다 — 경고는 어느 화면에서도 가려지지 않는다(2026-10-15).
               child: KioskEstopLayout(
                 banner: _showEstop
                     ? KioskEstopBanner(
@@ -1393,72 +1411,78 @@ class _KioskScreenState extends State<KioskScreen> {
                         onCancel: () => setState(() => _estopConfirming = false),
                       )
                     : null,
-                // 자동 실행 결과 한 줄(C2)도 위에 줄을 더할 뿐 덮지 않는다. 평소·완료 화면에서만 —
-                // 실행·동작 중 화면의 정지 버튼과 실행 상태는 그대로 둔다.
-                child: KioskEstopLayout(
-                  banner: _autoNotice != null &&
-                          (_phase == KioskPhase.idle || _phase == KioskPhase.done)
-                      ? KioskAutoRunNotice(
-                          text: _autoNotice!,
-                          onClose: () => setState(() => _autoNotice = null),
-                        )
-                      : null,
-                  child: AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: _buildScreen(),
-                  ),
+                child: Stack(
+                  children: [
+                    // 자동 실행 결과 한 줄(C2)도 위에 줄을 더할 뿐 덮지 않는다. 평소·완료 화면에서만 —
+                    // 실행·동작 중 화면의 정지 버튼과 실행 상태는 그대로 둔다.
+                    Positioned.fill(
+                      child: KioskEstopLayout(
+                        banner: _autoNotice != null &&
+                                (_phase == KioskPhase.idle || _phase == KioskPhase.done)
+                            ? KioskAutoRunNotice(
+                                text: _autoNotice!,
+                                onClose: () => setState(() => _autoNotice = null),
+                              )
+                            : null,
+                        child: AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 250),
+                          child: _buildScreen(),
+                        ),
+                      ),
+                    ),
+                    if (_showDnd)
+                      Positioned.fill(
+                        child: DndOverlay(
+                          dndUntil: _health.dndUntil,
+                          dndScope: _health.dndScope,
+                          quietSchedule: _health.quietSchedule,
+                          onSet: _onSetDnd,
+                          onClear: _onClearDnd,
+                          onDismiss: () => setState(() => _showDnd = false),
+                        ),
+                      ),
+                    if (_alert.active && !_alertAcknowledged)
+                      Positioned.fill(
+                        child: DangerAlertOverlay(
+                          onAcknowledge: () => setState(() => _alertAcknowledged = true),
+                        ),
+                      ),
+                    if (_openConnectionId != null && _phase == KioskPhase.idle)
+                      Positioned.fill(child: _buildConnectionModal()),
+                    if (_showSettings)
+                      Positioned.fill(
+                        child: KioskSettingsOverlay(
+                          currentAppliance: _currentAppliance,
+                          appliances: _appliances,
+                          api: _api,
+                          ttsEnabled: _tts.enabled,
+                          onTtsChanged: (enabled) {
+                            setState(() => _tts.enabled = enabled);
+                            _persistSettings();
+                          },
+                          largeTextEnabled: _largeText,
+                          onLargeTextChanged: (enabled) {
+                            setState(() => _largeText = enabled);
+                            _persistSettings();
+                          },
+                          countdownSeconds: _countdownSeconds,
+                          onCountdownChanged: (seconds) {
+                            setState(() => _countdownSeconds = seconds);
+                            _persistSettings();
+                          },
+                          onDismiss: () => setState(() => _showSettings = false),
+                          // 설정을 닫고 평소 화면 위 줄과 같은 방해 금지 선택을 연다.
+                          onOpenDnd: () => setState(() {
+                            _showSettings = false;
+                            _showDnd = true;
+                          }),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ),
           ),
-          if (_showDnd)
-            Positioned.fill(
-              child: DndOverlay(
-                dndUntil: _health.dndUntil,
-                dndScope: _health.dndScope,
-                quietSchedule: _health.quietSchedule,
-                onSet: _onSetDnd,
-                onClear: _onClearDnd,
-                onDismiss: () => setState(() => _showDnd = false),
-              ),
-            ),
-          if (_alert.active && !_alertAcknowledged)
-            Positioned.fill(
-              child: DangerAlertOverlay(
-                onAcknowledge: () => setState(() => _alertAcknowledged = true),
-              ),
-            ),
-          if (_openConnectionId != null && _phase == KioskPhase.idle)
-            Positioned.fill(child: _buildConnectionModal()),
-          if (_showSettings)
-            Positioned.fill(
-              child: KioskSettingsOverlay(
-                currentAppliance: _currentAppliance,
-                appliances: _appliances,
-                api: _api,
-                ttsEnabled: _tts.enabled,
-                onTtsChanged: (enabled) {
-                  setState(() => _tts.enabled = enabled);
-                  _persistSettings();
-                },
-                largeTextEnabled: _largeText,
-                onLargeTextChanged: (enabled) {
-                  setState(() => _largeText = enabled);
-                  _persistSettings();
-                },
-                countdownSeconds: _countdownSeconds,
-                onCountdownChanged: (seconds) {
-                  setState(() => _countdownSeconds = seconds);
-                  _persistSettings();
-                },
-                onDismiss: () => setState(() => _showSettings = false),
-                // 설정을 닫고 평소 화면 위 줄과 같은 방해 금지 선택을 연다.
-                onOpenDnd: () => setState(() {
-                  _showSettings = false;
-                  _showDnd = true;
-                }),
-              ),
-            ),
         ],
       ),
     );
@@ -1528,6 +1552,8 @@ class _KioskScreenState extends State<KioskScreen> {
           stopFailed: _holdStopFailed,
           onStop: _onHoldStop,
           onClose: _holdNeedsPerson(st) ? _toIdle : null,
+          // 비상 멈춤이 걸려 있으면 제목이 위 띠와 같은 말을 한다(돌아가고 있다고 말하지 않는다).
+          estopTitle: _estopLatched ? estopTitleFor(_estopDetail) : null,
         );
       case KioskPhase.manual:
         final manualAppliance = _manualAppliance;
@@ -1604,12 +1630,15 @@ class _KioskScreenState extends State<KioskScreen> {
           stopLevel: _doneStopLevel,
           stopAckMs: _doneStopAckMs,
           abortReason: _doneAbortReason,
+          // 다시 보낼 요청이 없으면(폰이 시작한 실행·이어받은 실행·놓친 결과, 2026-10-15 B2) '다시 시도'를
+          // 그리지 않는다 — 예전에는 보였지만 누르면 처음 화면으로만 갔다.
           // 서버 연결이 끊긴 경우엔 '다시 시도'가 또 실패할 가능성이 높다 —
-          // 그때는 수동 조작(사람이 직접 누르기)을 앞세운다.
+          // 그때는 수동 조작(사람이 직접 고르기)을 앞세운다.
           // ThinQ 확인 못 함·접수 불명은 다시 보내면 중복 실행이 될 수 있어
           // '다시 시도'를 내걸지 않는다.
           // 모션 걸림·재시작 등(2026-10-14)도 권하지 않는다 — 장치를 먼저 봐야 하고 되풀이하면 또 걸린다.
-          onRetry: _doneReason == KioskFailureReason.serverLost ||
+          onRetry: _retryAction == null ||
+                  _doneReason == KioskFailureReason.serverLost ||
                   (_doneReason?.isUnconfirmed ?? false) ||
                   (_doneReason == KioskFailureReason.safetyStop &&
                       motionAbortSentence(_doneAbortReason) != null)
