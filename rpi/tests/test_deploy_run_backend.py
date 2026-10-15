@@ -28,7 +28,7 @@ def _posix(path: Path) -> str:
     return text
 
 
-def _run(tmp_path: Path, health: str | None, *, via_wget: bool = False):
+def _run(tmp_path: Path, health: str | None, *, via_wget: bool = False, prepare=None):
     sh = shutil.which("sh")
     if sh is None:
         pytest.skip("sh 없음")
@@ -57,6 +57,8 @@ def _run(tmp_path: Path, health: str | None, *, via_wget: bool = False):
     curl.chmod(0o755)
     data = tmp_path / "data"
     data.mkdir()
+    if prepare is not None:
+        prepare(data)
     env = {**os.environ, "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}", "CALLS": str(calls),
            "HEALTH": str(tmp_path / "health.json"), "DATA_DIR": _posix(data), "SETTLE_S": "0"}
     proc = subprocess.run([sh, str(SCRIPT).replace("\\", "/")], env=env, capture_output=True, text=True,
@@ -118,6 +120,59 @@ def test_board_without_curl_reads_the_old_pause_with_wget(tmp_path):
     assert _index(lines, "wget ") < _index(lines, "rm -f simplelay-backend")
     run = lines[_index(lines, "run ")]
     assert "-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=2026-10-14T23:30:00+09:00" in run, run
+
+
+_NEW_HEALTH = '{"ok":true,"version":"0.1.0"}'
+
+
+def test_thinq_client_id_persists_in_data_dir_and_no_pat_is_reported(tmp_path):
+    """ThinQ(2026-10-15 검토 H2): 클라이언트 ID는 데이터 폴더(/data/thinq)에 남겨 컨테이너를 다시 만들어도 같다.
+    PAT 파일이 없으면 PAT 경로를 넘기지 않고 '없음'을 알린다."""
+    code, out, lines = _run(tmp_path, _NEW_HEALTH)
+    assert code == 0, out
+    run = lines[_index(lines, "run ")]
+    assert "-e SIMPLELAY_THINQ_CLIENT_ID_FILE=/data/thinq/thinq_client_id" in run, run
+    assert "SIMPLELAY_THINQ_PAT_FILE" not in run, run
+    assert (tmp_path / "data" / "thinq").is_dir()
+    assert "ThinQ PAT: 없음" in out, out
+
+
+def test_thinq_pat_file_in_data_dir_is_mounted_path_without_printing_it(tmp_path):
+    secret = "pat-value-must-not-be-printed"
+
+    def prepare(data: Path) -> None:
+        (data / "thinq").mkdir()
+        (data / "thinq" / "thinq_pat").write_text(secret, encoding="utf-8")
+
+    code, out, lines = _run(tmp_path, _NEW_HEALTH, prepare=prepare)
+    assert code == 0, out
+    run = lines[_index(lines, "run ")]
+    assert "-e SIMPLELAY_THINQ_PAT_FILE=/data/thinq/thinq_pat" in run, run
+    assert "ThinQ PAT: 파일 있음" in out, out
+    assert secret not in out and all(secret not in line for line in lines)
+
+
+def test_thinq_settings_in_env_file_are_not_overridden(tmp_path):
+    def prepare(data: Path) -> None:
+        (data / "env").write_text("SIMPLELAY_THINQ_PAT_FILE=/data/other_pat\n"
+                                  "SIMPLELAY_THINQ_CLIENT_ID_FILE=/data/other_id\n",
+                                  encoding="utf-8", newline="\n")
+        (data / "thinq").mkdir()
+        (data / "thinq" / "thinq_pat").write_text("x", encoding="utf-8")
+
+    code, out, lines = _run(tmp_path, _NEW_HEALTH, prepare=prepare)
+    assert code == 0, out
+    run = lines[_index(lines, "run ")]
+    assert "SIMPLELAY_THINQ_PAT_FILE" not in run and "SIMPLELAY_THINQ_CLIENT_ID_FILE" not in run, run
+    assert "ThinQ PAT: env 파일 설정" in out, out
+
+
+def test_backend_image_installs_the_pinned_thinq_sdk():
+    """이미지에 SDK가 없으면 real·fake_cloud 모드에서 RPi5 서버가 기동을 거절한다(2026-10-15 검토 H2)."""
+    dockerfile = (ROOT / "deploy" / "backend.Dockerfile").read_text(encoding="utf-8")
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    assert '"thinqconnect==1.0.14"' in pyproject
+    assert '"thinqconnect==1.0.14"' in dockerfile
 
 
 def test_old_server_utc_z_form_is_passed_on(tmp_path):

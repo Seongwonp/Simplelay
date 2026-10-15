@@ -30,7 +30,10 @@ RUN pip install --no-cache-dir \
     "qrcode[pil]>=8,<9" \
     "sounddevice>=0.4,<1" \
     "adafruit-circuitpython-ads1x15>=2,<3" \
-    "adafruit-blinka>=8,<9"
+    "adafruit-blinka>=8,<9" \
+    "thinqconnect==1.0.14"
+# thinqconnect: ThinQ 공식 SDK(pyproject [thinq]와 같은 고정 버전, 2026-10-15). 없으면 SIMPLELAY_THINQ_MODE=real·
+# fake_cloud에서 서버가 기동을 거절한다. 꺼짐·mock 모드에서는 불러오지 않는다.
 
 # socat: 하드웨어 선 대신 LAN으로 두 보드를 이을 때 RPi4 쪽에서 TCP를 가상 시리얼로
 # 바꾼다(시험용, deploy/run_act.sh). 백엔드만 돌릴 때는 쓰지 않는다.

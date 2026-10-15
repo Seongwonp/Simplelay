@@ -129,6 +129,9 @@ class _Step:
     targets: dict | None = None
 
 
+#: 비상정지가 걸려 있을 때 ThinQ 명령을 받지·보내지 않는 사유(2026-10-15 검토 H1).
+THINQ_ESTOP_REASON = "비상정지가 걸려 있어 보내지 않았어요 — 버튼을 풀고 정지 해제 확인을 누른 뒤 다시 해 주세요"
+
 _LEGACY_STATUS = {
     CommandStatus.SUCCEEDED: ExecutionStatus.SUCCEEDED,
     CommandStatus.STOPPED: ExecutionStatus.SAFETY_STOPPED,
@@ -262,6 +265,12 @@ class CommandExecutionMixin:
                 from .service import ApplianceNotReadyError  # noqa: PLC0415
 
                 raise ApplianceNotReadyError(target, readiness.reasons or ("ThinQ 가전이 준비되지 않았어요",))
+            # 비상정지 걸림(2026-10-15 검토 H1): 자동 실행만이 아니라 직접·승인 ThinQ 명령도 새로 받지 않는다.
+            # 전원 끄기도 예외로 두지 않는다 — 풀고 정지 해제를 확인한 뒤 보낸다. 보내기 직전에도 다시 본다.
+            if self._thinq_estop_latched():
+                from .service import ApplianceNotReadyError  # noqa: PLC0415
+
+                raise ApplianceNotReadyError(target, (THINQ_ESTOP_REASON,))
             return _Step(command, summary, self._thinq)
         # physical -- 버튼이 지금 이 가전의 조작부에 있어야 한다.
         appliance = self._appliance_registry.get(target) if self._appliance_registry else None
@@ -406,10 +415,27 @@ class CommandExecutionMixin:
         base = self._current_job_id or ""
         return f"{base}-{self._step_suffix}" if self._step_suffix else base
 
+    def _thinq_estop_latched(self) -> bool:
+        latched = getattr(self, "estop_latched", None)
+        return bool(callable(latched) and latched())
+
+    def _with_estop_guard(self, inner):
+        """ThinQ 단계의 보내기 직전 확인에 비상정지 걸림을 더한다(2026-10-15 검토 H1).
+
+        실행기에 넘기기 전과, 실행기가 프로필·상태 조회를 마친 뒤 **보내기 직전**에 불린다(``dispatch_guard``와 같은
+        자리). 걸려 있으면 보내지 않고(``not_dispatched``) 사유를 남긴다. 인자 없이도, 바인딩 하나로도 불린다.
+        안쪽 확인의 반환값(자동 실행 규칙의 전송권 등)은 그대로 돌려준다."""
+        def guard(*args):
+            if self._thinq_estop_latched():
+                raise RuntimeError(THINQ_ESTOP_REASON)
+            return inner(*args) if inner is not None else None
+        return guard
+
     def _run_thinq_step(self, job_id, step: _Step, purpose, usage_source, scenario_id,
                         dispatch_guard=None) -> CommandResult:
         command = step.command
         blocked = None
+        dispatch_guard = self._with_estop_guard(dispatch_guard)
         if dispatch_guard is not None:
             try:
                 dispatch_guard()

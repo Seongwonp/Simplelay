@@ -32,8 +32,9 @@
 
 | 무엇 | 위치(예) | 설정 |
 |---|---|---|
-| PAT | Windows `%USERPROFILE%\.simplelay\thinq_pat` · RPi `~/.simplelay/thinq_pat`(`chmod 600`) | `SIMPLELAY_THINQ_PAT_FILE=<그 경로>` |
-| 클라이언트 ID | `~/.simplelay/thinq_client_id` — 처음 실행 때 UUID4를 **한 번** 만들어 계속 쓴다 | 기본값 그대로(설치마다 하나, 지우지 않는다) |
+| PAT | Windows `%USERPROFILE%\.simplelay\thinq_pat` · RPi5 허브 `/mnt/rawdata/simplelay/thinq/thinq_pat`(데이터 폴더, `chmod 600`) | Windows: `SIMPLELAY_THINQ_PAT_FILE=<그 경로>` · RPi5: `deploy/run_backend.sh`가 파일이 있으면 컨테이너 `/data/thinq/thinq_pat`로 넘긴다(10/15) |
+| 클라이언트 ID | Windows `~/.simplelay/thinq_client_id` · RPi5 `/mnt/rawdata/simplelay/thinq/thinq_client_id` — 처음 실행 때 UUID4를 **한 번** 만들어 계속 쓴다 | RPi5는 `run_backend.sh`가 데이터 폴더 경로를 넘겨 컨테이너를 다시 만들어도 남는다(설치마다 하나, 지우지 않는다) |
+| SDK | RPi5 백엔드 이미지에 `thinqconnect==1.0.14` 포함(`deploy/backend.Dockerfile`, 10/15) — 이 날짜 전 이미지는 다시 빌드해야 한다 | RPi5 env 파일에 `SIMPLELAY_THINQ_MODE=real`, `SIMPLELAY_THINQ_COUNTRY=KR` |
 | 국가 | 계정 국가 | `SIMPLELAY_THINQ_COUNTRY=KR` |
 | 원본 응답 | `~/.simplelay/thinq_probe/<시각>/` (스크립트 기본) | `--out`으로 바꿀 수 있지만 저장소 안은 거절 |
 

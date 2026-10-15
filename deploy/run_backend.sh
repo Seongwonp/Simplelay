@@ -27,6 +27,25 @@ if grep -Eiq '^[[:space:]]*SIMPLELAY_DEMO_PACING=(1|true|yes|on)[[:space:]]*$' "
   PACING=on
 fi
 
+# ThinQ(2026-10-15): PAT·클라이언트 ID는 데이터 폴더의 thinq/에 둔다(컨테이너 /data/thinq) — 컨테이너를 다시
+# 만들어도 남는다. PAT는 사용자가 직접 "$DATA_DIR/thinq/thinq_pat"에 넣는다(값은 출력하지 않는다).
+# env 파일에 같은 설정을 적었으면 그 값을 쓰고 여기서 덮어쓰지 않는다. 켜기는 env 파일의 SIMPLELAY_THINQ_MODE.
+THINQ_DIR="$DATA_DIR/thinq"
+mkdir -p "$THINQ_DIR"
+chmod 700 "$THINQ_DIR"
+THINQ_ARGS=
+if ! grep -Eq '^[[:space:]]*SIMPLELAY_THINQ_CLIENT_ID(_FILE)?=' "$ENV_FILE"; then
+  THINQ_ARGS="-e SIMPLELAY_THINQ_CLIENT_ID_FILE=/data/thinq/thinq_client_id"
+fi
+THINQ_PAT=없음
+if grep -Eq '^[[:space:]]*SIMPLELAY_THINQ_PAT(_FILE)?=' "$ENV_FILE"; then
+  THINQ_PAT="env 파일 설정"
+elif [ -f "$THINQ_DIR/thinq_pat" ]; then
+  chmod 600 "$THINQ_DIR/thinq_pat"
+  THINQ_ARGS="$THINQ_ARGS -e SIMPLELAY_THINQ_PAT_FILE=/data/thinq/thinq_pat"
+  THINQ_PAT="파일 있음"
+fi
+
 # 잠시 쉬기 이어받기(2026-10-14 마감 2번) — 컨테이너를 지우기 **전에** 실행 중 서버에서 읽는다.
 # 업데이트 전 배포본(568f995)은 잠시 쉬기를 메모리에만 두고 공개 /health의 dnd_until로만 알린다. 그 값을 새 컨테이너에
 # 넘기면 새 서버가 남은 시간 동안 옛 범위(새 제안만 쉼)로 이어받는다(확인 가능한 값일 때만 — 서버가 다시 검사).
@@ -67,9 +86,11 @@ docker run -d --name simplelay-backend \
   --env-file "$ENV_FILE" \
   -e SIMPLELAY_DB_PATH=/data/simplelay.db \
   ${CARRY:+-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=$CARRY} \
+  $THINQ_ARGS \
   simplelay-backend
 
 echo "== 시연 페이싱: $PACING (env 파일 $ENV_FILE 의 SIMPLELAY_DEMO_PACING) =="
+echo "== ThinQ PAT: $THINQ_PAT ($THINQ_DIR/thinq_pat) =="
 
 echo "== 컨테이너 기동 =="
 sleep "$SETTLE_S"
