@@ -171,8 +171,11 @@ def test_backend_image_installs_the_pinned_thinq_sdk():
     """이미지에 SDK가 없으면 real·fake_cloud 모드에서 RPi5 서버가 기동을 거절한다(2026-10-15 검토 H2)."""
     dockerfile = (ROOT / "deploy" / "backend.Dockerfile").read_text(encoding="utf-8")
     pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    on_device = (ROOT / "deploy" / "build_on_device.sh").read_text(encoding="utf-8")
     assert '"thinqconnect==1.0.14"' in pyproject
     assert '"thinqconnect==1.0.14"' in dockerfile
+    # 보드에서는 docker build 대신 이 스크립트로 이미지를 만든다(AppArmor) — 여기에도 있어야 실제 이미지에 들어간다.
+    assert '"thinqconnect==1.0.14"' in on_device
 
 
 def test_old_server_utc_z_form_is_passed_on(tmp_path):
