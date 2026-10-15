@@ -1,87 +1,81 @@
-# SimpleLay — 작업 규칙 (Claude Code용)
+# SimpleLay ???묒뾽 洹쒖튃 (Claude Code??
 
-제24회 임베디드SW경진대회 결선 프로젝트. 팀 자비스(박성원 SW / 서예솔 HW).
-이 파일은 **지금 작업할 때 필요한 지침과 현재 상태**만 둔다. 날짜별 지난 기록(옛 인계 요약·외부 평가 점수·과거 시험 수·9/13~9/17 동결 문단)은
-지우지 않고 [작업 규칙 지난 기록](docs/archive/작업규칙-지난-기록-2026-10-14.md)으로 옮겼다(2026-10-14, [정리 devlog](docs/devlog/devlog_2026-10-14-public-docs.md)).
+??4???꾨쿋?붾뱶SW寃쎌쭊???寃곗꽑 ?꾨줈?앺듃. ? ?먮퉬??諛뺤꽦??SW / ?쒖삁??HW).
+???뚯씪? **吏湲??묒뾽?????꾩슂??吏移④낵 ?꾩옱 ?곹깭**留??붾떎. ?좎쭨蹂?吏??湲곕줉(???멸퀎 ?붿빟쨌?몃? ?됯? ?먯닔쨌怨쇨굅 ?쒗뿕 ?샕?/13~9/17 ?숆껐 臾몃떒)?
+吏?곗? ?딄퀬 [?묒뾽 洹쒖튃 吏??湲곕줉](docs/archive/?묒뾽洹쒖튃-吏??湲곕줉-2026-10-14.md)?쇰줈 ??꼈??2026-10-14, [?뺣━ devlog](docs/devlog/devlog_2026-10-14-public-docs.md)).
 
-## 현재 상태 (2026-10-15 — 새 세션은 여기부터)
+## ?꾩옱 ?곹깭 (2026-10-15 ?????몄뀡? ?ш린遺??
 
-- **작업 장소·네트워크(10/15~):** 하드웨어는 학교에 두고 **노트북**에서 다룬다(데스크톱 인계 없음). 학교망(유선·802.1X Wi-Fi)은 기기끼리 서로 보이지 않아 **RPi5·RPi4는 팀 폰 핫스팟**에 붙인다(두 보드 모두 등록돼 핫스팟을 켜면 자동 접속, 인터넷 됨). 핫스팟은 주소 예약이 안 되므로 주소가 바뀌면 RPi4 env `SIMPLELAY_LINK_ALLOW_FROM`(RPi5 주소)과 RPi5 env `SIMPLELAY_UART_PORT=socket://<RPi4 주소>:7000`을 고친다(바꾸기 전 env는 `env.bak-날짜-이유`로 백업). 랜선을 노트북↔보드에 직결하면 IPv6 링크 로컬로 비상 접속할 수 있다. RPi5는 RTC 배터리가 없어 인터넷 없이 켜면 시각이 멈춰 있다 — 핫스팟에 붙으면 맞고, 아니면 노트북 시각으로 맞춘다. 결선은 여행용 공유기(주소 예약) 권장.
-- **배포(보드에서 빌드):** RPi5에서 `git archive HEAD rpi rpi4 deploy .dockerignore`를 `/mnt/rawdata/simplelay-build/`에 풀고 `sh deploy/build_on_device.sh`(AppArmor 때문에 `docker build` 불가) → `deploy/run_backend.sh`(보드에 상주하지 않음 — 매번 복사해 실행). 같은 이미지를 RPi4로 `docker save | gzip` → `gunzip | docker load`로 옮긴다(Windows에서는 **Windows OpenSSH**로 파이프 — PowerShell 5.1 파이프는 바이너리를 깨뜨린다) → RPi4 `sh /mnt/rawdata/run_act.sh`. 되돌리기용으로 직전 이미지에 날짜 태그(`simplelay-backend:1014`). 키오스크 ipk는 **저장소 밖 로컬 전용 플랫폼 빌드 환경**이 필요하다(커밋·외부 전송 금지).
-- **보드 배포 상태(10/15):** RPi5·RPi4 백엔드·실행기 = 커밋 `ea5f21a`(이미지 `07ef8696aa2b`) — ThinQ 상태 카드 서버·공기질 제안·비상정지 ThinQ 차단·B11·서버 문구 포함. **키오스크 ipk·폰 APK는 아직 이전 판**(키오스크 문구 개선 `fd77a17`은 미설치). RPi5 ThinQ는 PAT 파일(`/mnt/rawdata/simplelay/thinq/thinq_pat`, 사용자가 직접 넣음) 전이라 꺼져 있다. **⚠ ESP32 모션 보드에는 10/15 HW 시험용 예전 펌웨어가 올라가 있다 — 다음 작업 전에 RPi4에서 esptool로 `firmware-motion-corexy`를 다시 올린다**(10/14 기록과 같은 방식, USB는 RPi4에 꽂은 채).
-- **최신 인계:** [인계 2026-10-13 데스크톱](docs/인계-2026-10-13-데스크톱.md)(§8 다음 보드 날). 문서 입구는 [docs/README.md](docs/README.md), 심사위원용 입구는 [README](README.md).
-- **결선 일정(사무국 2026-09-30):** 서류 제출 **10/28(수) 14:00** 구글폼 — 개발완료보고서(PDF)·작품소개서(한글/워드)·시연 영상 URL·공개 GitHub URL, 책자로 사전 배포·수정 불가. 발표 **11/6(금)** DMC타워, 자비스 B조 설치 14:50~15:20·**평가 15:40~16:00**(시연·발표 10분+질의 10분, 시연 중심). 책상 150×55cm ×2.
-- **시연 기준:** [본선 시연 계획 v4](docs/본선-시연-계획-v4.md) — 제안 거절 → 첫 조리 승인(CoreXY 실제 누름·CT 가열 시작 확인·가열 종료 감지) → 공기청정기 강풍 + '다음부터도 자동으로' 허용 → 같은 조건 재실행 → 기록·자동 실행 끄기 → 일부 실패. CT 끝은 '가열 종료 감지(조리 완료가 아닐 수 있음)'로만 말한다. **장면 단위 실물 성공은 아직 없다.**
-- **하드웨어 구성:** RPi5 허브(백엔드·15.8형 터치 키오스크) · RPi4 실행기(Wi-Fi, 페어링 키 `SIMPLELAY_LINK_KEY`) · **ESP32 모션**(CoreXY 엔코더 모터 2개, Z는 **솔레노이드**, [`firmware-motion-corexy/`](firmware-motion-corexy/README.md)) · **ESP32 콘센트 모듈**(CT 전력 L3·릴레이·비상정지 래치). 갠트리·모터·드라이버·엔코더는 같은 팀 HW 담당이 한이음 **Touch Bridge**(2026, 10월 말까지 진행)용으로 만든 **같은 기계 1대**를 함께 쓰고, **ESP32 모션 보드만 프로젝트별로 따로**다(사용자 확인 10/15). 펌웨어 제어 핵심은 Touch Bridge 원작 기반에 SimpleLay가 규약·안전 계층을 더했다 — [재사용 경계](docs/reuse-boundary.md)(문장 정정 제안은 [안전 계약 적용 보고](docs/안전계약-적용-보고-2026-10-15.md) §4, 미적용).
-- **검증 수준(10/14):** 실물로 확인한 것은 **모터 축 구동·엔코더 계수, 정지 확인 단계(보냄 → 모션 보드 응답 → 멈춤 확인), 걸림(스톨) 알람 뒤 재시도 없이 멈춤, 모션 USB 재열거 뒤 다시 열기, 누름 제어 신호**(벨트·솔레노이드 없이, 10/12~14), 폰(에뮬레이터)→RPi5→RPi4(Wi-Fi)→ESP32 경로, 15.8형 실패널 키오스크·부팅 자동 실행, 기상청 날씨 실호출,
-  **ThinQ 실제 공기청정기**(10/15 — 실제 클라우드 기기 찾기·추가·상태·풍량 변경 `state_confirmed`, 허브는 노트북, [devlog](docs/devlog/devlog_2026-10-15-thinq-real.md)).
-  ThinQ 이미 목표값(제어 0회)·꺼진 상태 풍량 변경은 클라우드가 거절(2304)도 실물 확인(10/15).
-  **미검증:** 캐리지 이동·원점, **실제 버튼 누름**, **CT 가열 판정**(콘센트 모듈 회로 미제작), ThinQ를 **RPi5 허브에서**·음성 경로, 공기질 제안의 실제 '나쁨' 등급, 키오스크 새 문구의 실패널 표시, 실폰. 화면·문서에서 모의·컴파일·설계 수준을 "완료"로 쓰지 않는다. 기준 표는 [README](README.md) 검증 수준 표.
-- **동결:** 신규 기능은 사용자 요청 건만. **UI 동결은 10/15 사용자 결정으로 해제** — 사용자 편의를 위한 화면·문구 수정은 연다(처음 쓰는 사람이 오해하는 문구·잘림·다음 행동 안내 우선). 10/15에 연 기능: 폰 ThinQ '지금 상태' 카드·직접 조작, 공기질(공기청정기 센서) 제안, 루틴의 ThinQ 단계.
-- **ThinQ 연결 방식:** 계정 연결은 설치 때 허브에 PAT 한 번(`SIMPLELAY_THINQ_PAT_FILE`, 저장소 밖). 앱에 토큰 입력 화면은 두지 않는다(사용자 결정 10/15). 공기청정기가 꺼져 있으면 미세먼지 값이 오지 않는다(켠 직후도 잠시 비어 있음).
-- **다음 보드 날:** 10/14 저녁 실물(모터 축·누름 신호까지): 루틴 실제 경로 `success`·이동 중 정지 `verified` 18 ms·실패 화면 '닫기' 뒤 대기 승인 카드 전환 확인([devlog 10/14 데스크톱 마감](docs/devlog/devlog_2026-10-14-desktop-close.md) '보드' 절). 남은 것: 벨트·솔레노이드 장착 뒤 캐리지 이동·실제 버튼 누름·mm 환산(기어비) 실측, 모터 배선 고정(10/14 B 드라이버 전원·엔코더 A 단자가 빠졌었다). **평가 전에 끌 것:** RPi5 env의 개발자 실물 조작(`SIMPLELAY_DEV_MODE`·`SIMPLELAY_DEV_REAL_MOTION`), **FastAPI 기본 API 문서 페이지**(`/docs`·`/openapi.json`·`/redoc` — 키 없이 열려 API 목록이 보인다. 개발 중에는 열어 두고 결선 전에 닫기로 결정 10/15, `rpi/tests/test_route_auth_coverage.py`의 `FRAMEWORK_DOC_PATHS`), 공유기에서 RPi5 주소 예약(7000 제한이 RPi5 주소에 묶임).
-- **배포:** RPi4·RPi5(·폰·키오스크)는 **같은 커밋**으로 배포한다 — 옛 RPi4면 자동 실행이 늘 보류되고 정지 보고가 '보냄'에 머문다. 비정상 종료 뒤 자동 실행은 다시 허용해야 한다.
-- **현재 시험 수(10/15, 골든 제외):** 백엔드+rpi4 **약 3,189**(타이밍 시험 1건이 동시 실행 때 가끔 실패 — 재실행 통과) · 폰 **886** · 키오스크 **400**(골든 폰 55·키오스크 52 — 골든 아이콘 글꼴은 `FLUTTER_ROOT` 기준, 키오스크 `test/support/golden_fonts.dart`).
-- **열린 안전 문제(10/15, 수리 전):** [안전 계약 적용 보고](docs/안전계약-적용-보고-2026-10-15.md) §2 — **G2** 승인 직후·보내기 전 정지가 사라져 전 시퀀스 실행(재현), **G1** 승인·루틴 경로 링크 끊김이 결과 없이 끝남(재현), **G3** 루틴 구간 사이 정지, **G7** 텍스트 "멈춰"가 '취소' 버튼 누름, **G11** 엔코더가 죽어도 '멈춤 확인'. **R1** 같은 버튼을 두 번 누를 수 있음(재시도) — [키오스크 계획](docs/키오스크-문구-개선-계획-2026-10-15.md) §5-1. 공통 실물 정지 시험 PS-1은 보고 §3.
-- **git 주의(10/15 사고):** 여러 worktree·에이전트가 동시에 일할 때 `git stash`를 쓰지 않는다(stash는 worktree끼리 공유돼 서로 뒤바뀐다). 수정 전 실패 확인은 파일을 저장소 밖에 복사해 두고 되돌린다.
-- **최근 작업 기록(10/10~10/15):** [키오스크 문구·화면 개선](docs/devlog/devlog_2026-10-15-kiosk-wording.md)([계획](docs/키오스크-문구-개선-계획-2026-10-15.md)) · [서버·RPi4 문구 통일·B11](docs/devlog/devlog_2026-10-15-server-wording.md) · [ThinQ 실물 첫 연동·폰 상태 카드](docs/devlog/devlog_2026-10-15-thinq-real.md) · [공기질 제안](docs/devlog/devlog_2026-10-15-air-suggestion.md) · [루틴 ThinQ 단계](docs/devlog/devlog_2026-10-15-routine-thinq-step.md) · [검토 반영 서버·배포](docs/devlog/devlog_2026-10-15-thinq-review-server.md) · [검토 반영 폰·키오스크](docs/devlog/devlog_2026-10-15-thinq-review-fix.md) · [모션 펌웨어 수령](docs/devlog/devlog_2026-10-10-motion-firmware-merge.md) · [모션 실물 첫 시험](docs/devlog/devlog_2026-10-12-motion-bringup.md) · [정지 확인 단계](docs/devlog/devlog_2026-10-13-stop-confirm.md) · [폰 UI B안](docs/devlog/devlog_2026-10-13-phone-ui.md) · [10/13 보드 날](docs/devlog/devlog_2026-10-13-desktop-board.md) · [ThinQ 공식 SDK](docs/devlog/devlog_2026-10-13-thinq-sdk.md) · [ThinQ 발견·추가](docs/devlog/devlog_2026-10-13-thinq-discovery.md) · [자동 실행 허용 규칙](docs/devlog/devlog_2026-10-13-auto-rule.md) · [보드 날 발견 수리](docs/devlog/devlog_2026-10-14-fixes.md) · [10/14 보드 날](docs/devlog/devlog_2026-10-14-desktop-board.md) · [외부 평가 3차 수리](docs/devlog/devlog_2026-10-14-eval3-fix.md) · [4차 수리](docs/devlog/devlog_2026-10-14-eval4-fix.md) · [재평가 수리 마무리](docs/devlog/devlog_2026-10-14-codex-fix.md) · [ThinQ 이미 목표값](docs/devlog/devlog_2026-10-14-already-at-target.md) · [공개 문서 정리](docs/devlog/devlog_2026-10-14-public-docs.md) · [노트북 인계 1~6·보드 실물](docs/devlog/devlog_2026-10-14-desktop-close.md) · [HIGH 재확인 수리](docs/devlog/devlog_2026-10-14-eval-recheck-fix.md)(설정 저장 대기·이벤트 루프 동기 입출력이 정지를 막던 것, `/dnd`·`PUT /quiet-hours` 응답 `persisted`·`session_only` — 다음 배포에 포함) · [재확인 2차 수리](docs/devlog/devlog_2026-10-14-eval-recheck2-fix.md)(정지 전용 줄 — 공유 스레드 풀 고갈과 분리, 저장소 읽기의 DB 대기 분리, 루틴 변경 원자화, 설정 응답 판 결속 — 시험 조건에서만 확인, 다음 배포에 포함) · [재시작 직후 초기화](docs/devlog/devlog_2026-10-14-startup-init.md)(제안 서비스 최초 생성을 이벤트 루프 밖으로 — 그동안에도 `/stop` 진입, 시험 조건에서만 확인. 시연 전 점검: 허브 재시작 → `/health/detail` 준비 확인 → 실행·정지 확인, 준비 전에는 실행하지 않는다 — 런북 §5-2). 그 전 기록은 [docs/devlog/](docs/devlog/)와 [지난 기록](docs/archive/작업규칙-지난-기록-2026-10-14.md).
-- **참고 문서:** [하드웨어 연결 설계](docs/하드웨어-연결-설계.md) · [실측 기록표](docs/실측-기록표.md) · [결선 운영 런북](docs/결선-운영-런북.md) · [ThinQ 실물 확인 절차](docs/ThinQ-실물-확인-절차.md) · [전문가 의견 대응표](docs/전문가의견-대응-2026-09-29.md)(본문은 9/29 기록, 머리의 현재 기준 표를 따른다) · [UI 확정](docs/UI-확정-2026-09-30.md) · [개발현황](docs/개발현황.md) · [제출 서류 초안](docs/submission/제출-체크리스트.md).
+- **?묒뾽 ?μ냼쨌?ㅽ듃?뚰겕(10/15~):** ?섎뱶?⑥뼱???숆탳???먭퀬 **?명듃遺?*?먯꽌 ?ㅻ，???곗뒪?ы넲 ?멸퀎 ?놁쓬). ?숆탳留??좎꽑쨌802.1X Wi-Fi)? 湲곌린?쇰━ ?쒕줈 蹂댁씠吏 ?딆븘 **RPi5쨌RPi4??? ???レ뒪??*??遺숈씤????蹂대뱶 紐⑤몢 ?깅줉???レ뒪?잛쓣 耳쒕㈃ ?먮룞 ?묒냽, ?명꽣????. ?レ뒪?잛? 二쇱냼 ?덉빟?????섎?濡?二쇱냼媛 諛붾뚮㈃ RPi4 env `SIMPLELAY_LINK_ALLOW_FROM`(RPi5 二쇱냼)怨?RPi5 env `SIMPLELAY_UART_PORT=socket://<RPi4 二쇱냼>:7000`??怨좎튇??諛붽씀湲???env??`env.bak-?좎쭨-?댁쑀`濡?諛깆뾽). ?쒖꽑???명듃遺곣넄蹂대뱶??吏곴껐?섎㈃ IPv6 留곹겕 濡쒖뺄濡?鍮꾩긽 ?묒냽?????덈떎. RPi5??RTC 諛고꽣由ш? ?놁뼱 ?명꽣???놁씠 耳쒕㈃ ?쒓컖??硫덉떠 ?덈떎 ???レ뒪?잛뿉 遺숈쑝硫?留욊퀬, ?꾨땲硫??명듃遺??쒓컖?쇰줈 留욎텣?? 寃곗꽑? ?ы뻾??怨듭쑀湲?二쇱냼 ?덉빟) 沅뚯옣.
+- **諛고룷(蹂대뱶?먯꽌 鍮뚮뱶):** RPi5?먯꽌 `git archive HEAD rpi rpi4 deploy .dockerignore`瑜?`/mnt/rawdata/simplelay-build/`???怨?`sh deploy/build_on_device.sh`(AppArmor ?뚮Ц??`docker build` 遺덇?) ??`deploy/run_backend.sh`(蹂대뱶???곸＜?섏? ?딆쓬 ??留ㅻ쾲 蹂듭궗???ㅽ뻾). 媛숈? ?대?吏瑜?RPi4濡?`docker save | gzip` ??`gunzip | docker load`濡???릿??Windows?먯꽌??**Windows OpenSSH**濡??뚯씠????PowerShell 5.1 ?뚯씠?꾨뒗 諛붿씠?덈━瑜?源⑤쑉由곕떎) ??RPi4 `sh /mnt/rawdata/run_act.sh`. ?섎룎由ш린?⑹쑝濡?吏곸쟾 ?대?吏???좎쭨 ?쒓렇(`simplelay-backend:1014`). ?ㅼ삤?ㅽ겕 ipk??**??μ냼 諛?濡쒖뺄 ?꾩슜 ?뚮옯??鍮뚮뱶 ?섍꼍**???꾩슂?섎떎(而ㅻ컠쨌?몃? ?꾩넚 湲덉?).
+- **蹂대뱶 諛고룷 ?곹깭(10/15):** RPi5쨌RPi4 諛깆뿏?쑣룹떎?됯린 = 而ㅻ컠 `ea5f21a`(?대?吏 `07ef8696aa2b`) ??ThinQ ?곹깭 移대뱶 ?쒕쾭쨌怨듦린吏??쒖븞쨌鍮꾩긽?뺤? ThinQ 李⑤떒쨌B11쨌?쒕쾭 臾멸뎄 ?ы븿. **?ㅼ삤?ㅽ겕 ipk쨌??APK???꾩쭅 ?댁쟾 ??*(?ㅼ삤?ㅽ겕 臾멸뎄 媛쒖꽑 `fd77a17`? 誘몄꽕移?. RPi5 ThinQ??PAT ?뚯씪(`/mnt/rawdata/simplelay/thinq/thinq_pat`, ?ъ슜?먭? 吏곸젒 ?ｌ쓬) ?꾩씠??爰쇱졇 ?덈떎. **??ESP32 紐⑥뀡 蹂대뱶?먮뒗 10/15 HW ?쒗뿕???덉쟾 ?뚯썾?닿? ?щ씪媛 ?덈떎 ???ㅼ쓬 ?묒뾽 ?꾩뿉 RPi4?먯꽌 esptool濡?`firmware-motion-corexy`瑜??ㅼ떆 ?щ┛??*(10/14 湲곕줉怨?媛숈? 諛⑹떇, USB??RPi4??苑귥? 梨?.
+- **理쒖떊 ?멸퀎:** [?멸퀎 2026-10-13 ?곗뒪?ы넲](docs/?멸퀎-2026-10-13-?곗뒪?ы넲.md)(짠8 ?ㅼ쓬 蹂대뱶 ??. 臾몄꽌 ?낃뎄??[docs/README.md](docs/README.md), ?ъ궗?꾩썝???낃뎄??[README](README.md).
+- **寃곗꽑 ?쇱젙(?щТ援?2026-09-30):** ?쒕쪟 ?쒖텧 **10/28(?? 14:00** 援ш?????媛쒕컻?꾨즺蹂닿퀬??PDF)쨌?묓뭹?뚭컻???쒓?/?뚮뱶)쨌?쒖뿰 ?곸긽 URL쨌怨듦컻 GitHub URL, 梨낆옄濡??ъ쟾 諛고룷쨌?섏젙 遺덇?. 諛쒗몴 **11/6(湲?** DMC??? ?먮퉬??B議??ㅼ튂 14:50~15:20쨌**?됯? 15:40~16:00**(?쒖뿰쨌諛쒗몴 10遺?吏덉쓽 10遺? ?쒖뿰 以묒떖). 梨낆긽 150횞55cm 횞2.
+- **?쒖뿰 湲곗?:** [蹂몄꽑 ?쒖뿰 怨꾪쉷 v4](docs/蹂몄꽑-?쒖뿰-怨꾪쉷-v4.md) ???쒖븞 嫄곗젅 ??泥?議곕━ ?뱀씤(CoreXY ?ㅼ젣 ?꾨쫫쨌CT 媛???쒖옉 ?뺤씤쨌媛??醫낅즺 媛먯?) ??怨듦린泥?젙湲?媛뺥뭾 + '?ㅼ쓬遺?곕룄 ?먮룞?쇰줈' ?덉슜 ??媛숈? 議곌굔 ?ъ떎????湲곕줉쨌?먮룞 ?ㅽ뻾 ?꾧린 ???쇰? ?ㅽ뙣. CT ?앹? '媛??醫낅즺 媛먯?(議곕━ ?꾨즺媛 ?꾨땺 ???덉쓬)'濡쒕쭔 留먰븳?? **?λ㈃ ?⑥쐞 ?ㅻЪ ?깃났? ?꾩쭅 ?녿떎.**
+- **?섎뱶?⑥뼱 援ъ꽦:** RPi5 ?덈툕(諛깆뿏?쑣?5.8???곗튂 ?ㅼ삤?ㅽ겕) 쨌 RPi4 ?ㅽ뻾湲?Wi-Fi, ?섏뼱留???`SIMPLELAY_LINK_KEY`) 쨌 **ESP32 紐⑥뀡**(CoreXY ?붿퐫??紐⑦꽣 2媛? Z??**?붾젅?몄씠??*, [`firmware-motion-corexy/`](firmware-motion-corexy/README.md)) 쨌 **ESP32 肄섏꽱??紐⑤뱢**(CT ?꾨젰 L3쨌由대젅?는룸퉬?곸젙吏 ?섏튂). 媛좏듃由?룸え?걔룸뱶?쇱씠踰꽷룹뿏肄붾뜑??媛숈? ? HW ?대떦???쒖씠??**Touch Bridge**(2026, 10??留먭퉴吏 吏꾪뻾)?⑹쑝濡?留뚮뱺 **媛숈? 湲곌퀎 1?**瑜??④퍡 ?곌퀬, **ESP32 紐⑥뀡 蹂대뱶留??꾨줈?앺듃蹂꾨줈 ?곕줈**???ъ슜???뺤씤 10/15). ?뚯썾???쒖뼱 ?듭떖? Touch Bridge ?먯옉 湲곕컲??SimpleLay媛 洹쒖빟쨌?덉쟾 怨꾩링???뷀뻽????[?ъ궗??寃쎄퀎](docs/reuse-boundary.md)(臾몄옣 ?뺤젙 ?쒖븞? [?덉쟾 怨꾩빟 ?곸슜 蹂닿퀬](docs/?덉쟾怨꾩빟-?곸슜-蹂닿퀬-2026-10-15.md) 짠4, 誘몄쟻??.
+- **寃利??섏?(10/14):** ?ㅻЪ濡??뺤씤??寃껋? **紐⑦꽣 異?援щ룞쨌?붿퐫??怨꾩닔, ?뺤? ?뺤씤 ?④퀎(蹂대깂 ??紐⑥뀡 蹂대뱶 ?묐떟 ??硫덉땄 ?뺤씤), 嫄몃┝(?ㅽ넧) ?뚮엺 ???ъ떆???놁씠 硫덉땄, 紐⑥뀡 USB ?ъ뿴嫄????ㅼ떆 ?닿린, ?꾨쫫 ?쒖뼱 ?좏샇**(踰⑦듃쨌?붾젅?몄씠???놁씠, 10/12~14), ???먮??덉씠???뭃Pi5?뭃Pi4(Wi-Fi)?묮SP32 寃쎈줈, 15.8???ㅽ뙣???ㅼ삤?ㅽ겕쨌遺???먮룞 ?ㅽ뻾, 湲곗긽泥??좎뵪 ?ㅽ샇異?
+  **ThinQ ?ㅼ젣 怨듦린泥?젙湲?*(10/15 ???ㅼ젣 ?대씪?곕뱶 湲곌린 李얘린쨌異붽?쨌?곹깭쨌?띾웾 蹂寃?`state_confirmed`, ?덈툕???명듃遺? [devlog](docs/devlog/devlog_2026-10-15-thinq-real.md)).
+  ThinQ ?대? 紐⑺몴媛??쒖뼱 0??쨌爰쇱쭊 ?곹깭 ?띾웾 蹂寃쎌? ?대씪?곕뱶媛 嫄곗젅(2304)???ㅻЪ ?뺤씤(10/15).
+  **誘멸?利?** 罹먮━吏 ?대룞쨌?먯젏, **?ㅼ젣 踰꾪듉 ?꾨쫫**, **CT 媛???먯젙**(肄섏꽱??紐⑤뱢 ?뚮줈 誘몄젣??, ThinQ瑜?**RPi5 ?덈툕?먯꽌**쨌?뚯꽦 寃쎈줈, 怨듦린吏??쒖븞???ㅼ젣 '?섏겏' ?깃툒, ?ㅼ삤?ㅽ겕 ??臾멸뎄???ㅽ뙣???쒖떆, ?ㅽ룿. ?붾㈃쨌臾몄꽌?먯꽌 紐⑥쓽쨌而댄뙆?셋룹꽕怨??섏???"?꾨즺"濡??곗? ?딅뒗?? 湲곗? ?쒕뒗 [README](README.md) 寃利??섏? ??
+- **?숆껐:** ?좉퇋 湲곕뒫? ?ъ슜???붿껌 嫄대쭔. **UI ?숆껐? 10/15 ?ъ슜??寃곗젙?쇰줈 ?댁젣** ???ъ슜???몄쓽瑜??꾪븳 ?붾㈃쨌臾멸뎄 ?섏젙? ?곕떎(泥섏쓬 ?곕뒗 ?щ엺???ㅽ빐?섎뒗 臾멸뎄쨌?섎┝쨌?ㅼ쓬 ?됰룞 ?덈궡 ?곗꽑). 10/15????湲곕뒫: ??ThinQ '吏湲??곹깭' 移대뱶쨌吏곸젒 議곗옉, 怨듦린吏?怨듦린泥?젙湲??쇱꽌) ?쒖븞, 猷⑦떞??ThinQ ?④퀎.
+- **ThinQ ?곌껐 諛⑹떇:** 怨꾩젙 ?곌껐? ?ㅼ튂 ???덈툕??PAT ??踰?`SIMPLELAY_THINQ_PAT_FILE`, ??μ냼 諛?. ?깆뿉 ?좏겙 ?낅젰 ?붾㈃? ?먯? ?딅뒗???ъ슜??寃곗젙 10/15). 怨듦린泥?젙湲곌? 爰쇱졇 ?덉쑝硫?誘몄꽭癒쇱? 媛믪씠 ?ㅼ? ?딅뒗??耳?吏곹썑???좎떆 鍮꾩뼱 ?덉쓬).
+- **?ㅼ쓬 蹂대뱶 ??** 10/14 ????ㅻЪ(紐⑦꽣 異빧룸늻由??좏샇源뚯?): 猷⑦떞 ?ㅼ젣 寃쎈줈 `success`쨌?대룞 以??뺤? `verified` 18 ms쨌?ㅽ뙣 ?붾㈃ '?リ린' ???湲??뱀씤 移대뱶 ?꾪솚 ?뺤씤([devlog 10/14 ?곗뒪?ы넲 留덇컧](docs/devlog/devlog_2026-10-14-desktop-close.md) '蹂대뱶' ??. ?⑥? 寃? 踰⑦듃쨌?붾젅?몄씠???μ갑 ??罹먮━吏 ?대룞쨌?ㅼ젣 踰꾪듉 ?꾨쫫쨌mm ?섏궛(湲곗뼱鍮? ?ㅼ륫, 紐⑦꽣 諛곗꽑 怨좎젙(10/14 B ?쒕씪?대쾭 ?꾩썝쨌?붿퐫??A ?⑥옄媛 鍮좎죱?덈떎). **?됯? ?꾩뿉 ??寃?** RPi5 env??媛쒕컻???ㅻЪ 議곗옉(`SIMPLELAY_DEV_MODE`쨌`SIMPLELAY_DEV_REAL_MOTION`), **FastAPI 湲곕낯 API 臾몄꽌 ?섏씠吏**(`/docs`쨌`/openapi.json`쨌`/redoc` ?????놁씠 ?대젮 API 紐⑸줉??蹂댁씤?? 媛쒕컻 以묒뿉???댁뼱 ?먭퀬 寃곗꽑 ?꾩뿉 ?リ린濡?寃곗젙 10/15, `rpi/tests/test_route_auth_coverage.py`??`FRAMEWORK_DOC_PATHS`), 怨듭쑀湲곗뿉??RPi5 二쇱냼 ?덉빟(7000 ?쒗븳??RPi5 二쇱냼??臾띠엫).
+- **諛고룷:** RPi4쨌RPi5(쨌?걔룻궎?ㅼ뒪????**媛숈? 而ㅻ컠**?쇰줈 諛고룷?쒕떎 ????RPi4硫??먮룞 ?ㅽ뻾????蹂대쪟?섍퀬 ?뺤? 蹂닿퀬媛 '蹂대깂'??癒몃Ц?? 鍮꾩젙??醫낅즺 ???먮룞 ?ㅽ뻾? ?ㅼ떆 ?덉슜?댁빞 ?쒕떎.
+- **?꾩옱 ?쒗뿕 ??10/15, 怨⑤뱺 ?쒖쇅):** 諛깆뿏??rpi4 **??3,189**(??대컢 ?쒗뿕 1嫄댁씠 ?숈떆 ?ㅽ뻾 ??媛???ㅽ뙣 ???ъ떎???듦낵) 쨌 ??**886** 쨌 ?ㅼ삤?ㅽ겕 **400**(怨⑤뱺 ??55쨌?ㅼ삤?ㅽ겕 52 ??怨⑤뱺 ?꾩씠肄?湲瑗댁? `FLUTTER_ROOT` 湲곗?, ?ㅼ삤?ㅽ겕 `test/support/golden_fonts.dart`).
+- **?덉쟾 鍮덉뭏(10/15):** [?덉쟾 怨꾩빟 ?곸슜 蹂닿퀬](docs/?덉쟾怨꾩빟-?곸슜-蹂닿퀬-2026-10-15.md) 짠2. **?섎━(?쒗뿕 議곌굔留? 蹂대뱶 誘몃같??:** G2 蹂대궡湲????뺤?(RPi5 吏곸쟾 ?뺤씤 + 留곹겕 吏곸쟾 ?뺤씤 + RPi4 `run_ref` 嫄곗젅), G1 ?뱀씤쨌猷⑦떞 留곹겕 ?딄? ??'?뚮졇?붿? 紐⑤쫫' 湲곕줉, G11 ?붿퐫???吏곸엫??蹂??ㅽ뻾?먯꽌留?`verified`(?щ뒗 以??뺤???`mcu_ack`) ??[devlog](docs/devlog/devlog_2026-10-15-safety-g2-g1-g11.md). **洹쒖빟???좏깮 ?꾨뱶 `run_ref` 異붽? ??RPi4쨌RPi5 媛숈? 而ㅻ컠 諛고룷 ?꾩닔.** **?⑥쓬:** G3 猷⑦떞 援ш컙 ?ъ씠 ?뺤?, G7 ?띿뒪??"硫덉떠"媛 '痍⑥냼' 踰꾪듉 ?꾨쫫, G5 議곗슜??Wi-Fi ?딄?(?앹〈 ?좏샇), **R1** 媛숈? 踰꾪듉 ??踰??꾨쫫(?ъ떆?? ??[?ㅼ삤?ㅽ겕 怨꾪쉷](docs/?ㅼ삤?ㅽ겕-臾멸뎄-媛쒖꽑-怨꾪쉷-2026-10-15.md) 짠5-1. ?ㅻЪ ?뺤씤? PS-1(蹂닿퀬 짠3) S4쨌S5쨌?붿퐫??戮묎린.
+- **git 二쇱쓽(10/15 ?ш퀬):** ?щ윭 worktree쨌?먯씠?꾪듃媛 ?숈떆???쇳븷 ??`git stash`瑜??곗? ?딅뒗??stash??worktree?쇰━ 怨듭쑀???쒕줈 ?ㅻ컮?먮떎). ?섏젙 ???ㅽ뙣 ?뺤씤? ?뚯씪????μ냼 諛뽰뿉 蹂듭궗???먭퀬 ?섎룎由곕떎.
+- **理쒓렐 ?묒뾽 湲곕줉(10/10~10/15):** [?ㅼ삤?ㅽ겕 臾멸뎄쨌?붾㈃ 媛쒖꽑](docs/devlog/devlog_2026-10-15-kiosk-wording.md)([怨꾪쉷](docs/?ㅼ삤?ㅽ겕-臾멸뎄-媛쒖꽑-怨꾪쉷-2026-10-15.md)) 쨌 [?쒕쾭쨌RPi4 臾멸뎄 ?듭씪쨌B11](docs/devlog/devlog_2026-10-15-server-wording.md) 쨌 [ThinQ ?ㅻЪ 泥??곕룞쨌???곹깭 移대뱶](docs/devlog/devlog_2026-10-15-thinq-real.md) 쨌 [怨듦린吏??쒖븞](docs/devlog/devlog_2026-10-15-air-suggestion.md) 쨌 [猷⑦떞 ThinQ ?④퀎](docs/devlog/devlog_2026-10-15-routine-thinq-step.md) 쨌 [寃??諛섏쁺 ?쒕쾭쨌諛고룷](docs/devlog/devlog_2026-10-15-thinq-review-server.md) 쨌 [寃??諛섏쁺 ?걔룻궎?ㅼ뒪??(docs/devlog/devlog_2026-10-15-thinq-review-fix.md) 쨌 [紐⑥뀡 ?뚯썾???섎졊](docs/devlog/devlog_2026-10-10-motion-firmware-merge.md) 쨌 [紐⑥뀡 ?ㅻЪ 泥??쒗뿕](docs/devlog/devlog_2026-10-12-motion-bringup.md) 쨌 [?뺤? ?뺤씤 ?④퀎](docs/devlog/devlog_2026-10-13-stop-confirm.md) 쨌 [??UI B??(docs/devlog/devlog_2026-10-13-phone-ui.md) 쨌 [10/13 蹂대뱶 ??(docs/devlog/devlog_2026-10-13-desktop-board.md) 쨌 [ThinQ 怨듭떇 SDK](docs/devlog/devlog_2026-10-13-thinq-sdk.md) 쨌 [ThinQ 諛쒓껄쨌異붽?](docs/devlog/devlog_2026-10-13-thinq-discovery.md) 쨌 [?먮룞 ?ㅽ뻾 ?덉슜 洹쒖튃](docs/devlog/devlog_2026-10-13-auto-rule.md) 쨌 [蹂대뱶 ??諛쒓껄 ?섎━](docs/devlog/devlog_2026-10-14-fixes.md) 쨌 [10/14 蹂대뱶 ??(docs/devlog/devlog_2026-10-14-desktop-board.md) 쨌 [?몃? ?됯? 3李??섎━](docs/devlog/devlog_2026-10-14-eval3-fix.md) 쨌 [4李??섎━](docs/devlog/devlog_2026-10-14-eval4-fix.md) 쨌 [?ы룊媛 ?섎━ 留덈Т由?(docs/devlog/devlog_2026-10-14-codex-fix.md) 쨌 [ThinQ ?대? 紐⑺몴媛?(docs/devlog/devlog_2026-10-14-already-at-target.md) 쨌 [怨듦컻 臾몄꽌 ?뺣━](docs/devlog/devlog_2026-10-14-public-docs.md) 쨌 [?명듃遺??멸퀎 1~6쨌蹂대뱶 ?ㅻЪ](docs/devlog/devlog_2026-10-14-desktop-close.md) 쨌 [HIGH ?ы솗???섎━](docs/devlog/devlog_2026-10-14-eval-recheck-fix.md)(?ㅼ젙 ????湲걔룹씠踰ㅽ듃 猷⑦봽 ?숆린 ?낆텧?μ씠 ?뺤?瑜?留됰뜕 寃? `/dnd`쨌`PUT /quiet-hours` ?묐떟 `persisted`쨌`session_only` ???ㅼ쓬 諛고룷???ы븿) 쨌 [?ы솗??2李??섎━](docs/devlog/devlog_2026-10-14-eval-recheck2-fix.md)(?뺤? ?꾩슜 以???怨듭쑀 ?ㅻ젅??? 怨좉컝怨?遺꾨━, ??μ냼 ?쎄린??DB ?湲?遺꾨━, 猷⑦떞 蹂寃??먯옄?? ?ㅼ젙 ?묐떟 ??寃곗냽 ???쒗뿕 議곌굔?먯꽌留??뺤씤, ?ㅼ쓬 諛고룷???ы븿) 쨌 [?ъ떆??吏곹썑 珥덇린??(docs/devlog/devlog_2026-10-14-startup-init.md)(?쒖븞 ?쒕퉬??理쒖큹 ?앹꽦???대깽??猷⑦봽 諛뽰쑝濡???洹몃룞?덉뿉??`/stop` 吏꾩엯, ?쒗뿕 議곌굔?먯꽌留??뺤씤. ?쒖뿰 ???먭?: ?덈툕 ?ъ떆????`/health/detail` 以鍮??뺤씤 ???ㅽ뻾쨌?뺤? ?뺤씤, 以鍮??꾩뿉???ㅽ뻾?섏? ?딅뒗?????곕턿 짠5-2). 洹???湲곕줉? [docs/devlog/](docs/devlog/)? [吏??湲곕줉](docs/archive/?묒뾽洹쒖튃-吏??湲곕줉-2026-10-14.md).
+- **李멸퀬 臾몄꽌:** [?섎뱶?⑥뼱 ?곌껐 ?ㅺ퀎](docs/?섎뱶?⑥뼱-?곌껐-?ㅺ퀎.md) 쨌 [?ㅼ륫 湲곕줉??(docs/?ㅼ륫-湲곕줉??md) 쨌 [寃곗꽑 ?댁쁺 ?곕턿](docs/寃곗꽑-?댁쁺-?곕턿.md) 쨌 [ThinQ ?ㅻЪ ?뺤씤 ?덉감](docs/ThinQ-?ㅻЪ-?뺤씤-?덉감.md) 쨌 [?꾨Ц媛 ?섍껄 ??묓몴](docs/?꾨Ц媛?섍껄-???2026-09-29.md)(蹂몃Ц? 9/29 湲곕줉, 癒몃━???꾩옱 湲곗? ?쒕? ?곕Ⅸ?? 쨌 [UI ?뺤젙](docs/UI-?뺤젙-2026-09-30.md) 쨌 [媛쒕컻?꾪솴](docs/媛쒕컻?꾪솴.md) 쨌 [?쒖텧 ?쒕쪟 珥덉븞](docs/submission/?쒖텧-泥댄겕由ъ뒪??md).
 
-## 🔴 최우선 규칙 — 비공개 자료 보호
+## ?뵶 理쒖슦??洹쒖튃 ??鍮꾧났媛??먮즺 蹂댄샇
 
-- **비공개 제공 자료·코드·문서·실행 출력은 git에 커밋하거나 외부에 전송하지 않는다.** 공개 작업을 이유로 해당 자료를 자동 탐색하지 않는다.
-- 로컬 전용 경로와 접근 범위는 사용자가 별도로 지정한다. 지정받지 않았으면 열지 말고 확인한다. PDF·PPTX·HWP·DOCX 및 비공개 자료는 공개 작업 범위 밖이다.
-- 별도 허가된 기술 작업도 로컬에서만 수행한다. `.gitignore`는 보조 장치이며 이미 추적되는 파일과 커밋 이력까지 보호하지 않는다.
-- 커밋 전 파일 목록과 실제 diff를 확인한다. 공개 문서·로그·주석·커밋 메시지에는 비공개 경로, 플랫폼 고유 명칭, 내부 API, 원문 출력과 연동 세부, **개인 PC의 로컬 경로**를 넣지 않는다(저장소 밖 자료는 "저장소 밖 로컬 작업 기록 폴더"처럼 일반 표현으로).
-- `rpi/tests/test_repo_guard.py`가 **추적 중인 파일**(이 CLAUDE.md 포함, 2026-10-14부터 예외 아님)의 플랫폼 고유 명칭(내용·파일 이름)과 문서·비밀 파일(`.pptx`·`.pdf`·`.env`·키 등)을 막는다. 가드는 새로 늘어나는 것만 막고 이미 커밋된 이력은 되돌리지 못한다.
-- **이력:** 10/7 발표 자료(pptx)를 git 이력에서 지우고 강제 푸시했다. 남은 이력(옛 커밋 속 플랫폼 명칭·로컬 경로, PR 참조, 로컬 백업 브랜치) 점검 결과는 [공개 문서 정리 devlog](docs/devlog/devlog_2026-10-14-public-docs.md) §2. **이력 재작성·강제 푸시는 사용자 승인 없이 하지 않는다.**
+- **鍮꾧났媛??쒓났 ?먮즺쨌肄붾뱶쨌臾몄꽌쨌?ㅽ뻾 異쒕젰? git??而ㅻ컠?섍굅???몃????꾩넚?섏? ?딅뒗??** 怨듦컻 ?묒뾽???댁쑀濡??대떦 ?먮즺瑜??먮룞 ?먯깋?섏? ?딅뒗??
+- 濡쒖뺄 ?꾩슜 寃쎈줈? ?묎렐 踰붿쐞???ъ슜?먭? 蹂꾨룄濡?吏?뺥븳?? 吏?뺣컺吏 ?딆븯?쇰㈃ ?댁? 留먭퀬 ?뺤씤?쒕떎. PDF쨌PPTX쨌HWP쨌DOCX 諛?鍮꾧났媛??먮즺??怨듦컻 ?묒뾽 踰붿쐞 諛뽰씠??
+- 蹂꾨룄 ?덇???湲곗닠 ?묒뾽??濡쒖뺄?먯꽌留??섑뻾?쒕떎. `.gitignore`??蹂댁“ ?μ튂?대ŉ ?대? 異붿쟻?섎뒗 ?뚯씪怨?而ㅻ컠 ?대젰源뚯? 蹂댄샇?섏? ?딅뒗??
+- 而ㅻ컠 ???뚯씪 紐⑸줉怨??ㅼ젣 diff瑜??뺤씤?쒕떎. 怨듦컻 臾몄꽌쨌濡쒓렇쨌二쇱꽍쨌而ㅻ컠 硫붿떆吏?먮뒗 鍮꾧났媛?寃쎈줈, ?뚮옯??怨좎쑀 紐낆묶, ?대? API, ?먮Ц 異쒕젰怨??곕룞 ?몃?, **媛쒖씤 PC??濡쒖뺄 寃쎈줈**瑜??ｌ? ?딅뒗????μ냼 諛??먮즺??"??μ냼 諛?濡쒖뺄 ?묒뾽 湲곕줉 ?대뜑"泥섎읆 ?쇰컲 ?쒗쁽?쇰줈).
+- `rpi/tests/test_repo_guard.py`媛 **異붿쟻 以묒씤 ?뚯씪**(??CLAUDE.md ?ы븿, 2026-10-14遺???덉쇅 ?꾨떂)???뚮옯??怨좎쑀 紐낆묶(?댁슜쨌?뚯씪 ?대쫫)怨?臾몄꽌쨌鍮꾨? ?뚯씪(`.pptx`쨌`.pdf`쨌`.env`쨌??????留됰뒗?? 媛?쒕뒗 ?덈줈 ?섏뼱?섎뒗 寃껊쭔 留됯퀬 ?대? 而ㅻ컠???대젰? ?섎룎由ъ? 紐삵븳??
+- **?대젰:** 10/7 諛쒗몴 ?먮즺(pptx)瑜?git ?대젰?먯꽌 吏?곌퀬 媛뺤젣 ?몄떆?덈떎. ?⑥? ?대젰(??而ㅻ컠 ???뚮옯??紐낆묶쨌濡쒖뺄 寃쎈줈, PR 李몄“, 濡쒖뺄 諛깆뾽 釉뚮옖移? ?먭? 寃곌낵??[怨듦컻 臾몄꽌 ?뺣━ devlog](docs/devlog/devlog_2026-10-14-public-docs.md) 짠2. **?대젰 ?ъ옉?굿룰컯???몄떆???ъ슜???뱀씤 ?놁씠 ?섏? ?딅뒗??**
 
-## 커밋 규칙
+## 而ㅻ컠 洹쒖튃
 
-- 작업 단계마다 1커밋, 한국어 conventional commit (`fix(app): …`, `feat(rpi): …`). 다른 작업과 겹칠 때는 `git commit -- <경로>`로 내 파일만 커밋한다.
-- **커밋 표기 정책:** 커밋 메시지에 도구 이름·공동 작성자(Co-Authored-By) 줄을 넣지 않는다. 이것은 **커밋 메시지 표기 방식만** 정한 규칙이다 — 대회 개발 도구(AI) 사용 고지와는 별개이며, 사용 사실은 [개발 도구 사용 고지 초안](docs/submission/개발도구-사용-고지-초안.md)에 따라 서류·README에 사실대로 적는다.
-- push 전 `git pull --rebase`, 그다음 `git push origin main`. 강제 푸시 금지(사용자 승인 건 제외). 작업 세션마다 devlog(`docs/devlog/devlog_YYYY-MM-DD*.md`)에 기록.
+- ?묒뾽 ?④퀎留덈떎 1而ㅻ컠, ?쒓뎅??conventional commit (`fix(app): ??, `feat(rpi): ??). ?ㅻⅨ ?묒뾽怨?寃뱀튌 ?뚮뒗 `git commit -- <寃쎈줈>`濡????뚯씪留?而ㅻ컠?쒕떎.
+- **而ㅻ컠 ?쒓린 ?뺤콉:** 而ㅻ컠 硫붿떆吏???꾧뎄 ?대쫫쨌怨듬룞 ?묒꽦??Co-Authored-By) 以꾩쓣 ?ｌ? ?딅뒗?? ?닿쾬? **而ㅻ컠 硫붿떆吏 ?쒓린 諛⑹떇留?* ?뺥븳 洹쒖튃?대떎 ?????媛쒕컻 ?꾧뎄(AI) ?ъ슜 怨좎????蹂꾧컻?대ŉ, ?ъ슜 ?ъ떎? [媛쒕컻 ?꾧뎄 ?ъ슜 怨좎? 珥덉븞](docs/submission/媛쒕컻?꾧뎄-?ъ슜-怨좎?-珥덉븞.md)???곕씪 ?쒕쪟쨌README???ъ떎?濡??곷뒗??
+- push ??`git pull --rebase`, 洹몃떎??`git push origin main`. 媛뺤젣 ?몄떆 湲덉?(?ъ슜???뱀씤 嫄??쒖쇅). ?묒뾽 ?몄뀡留덈떎 devlog(`docs/devlog/devlog_YYYY-MM-DD*.md`)??湲곕줉.
 
-## 시험·커밋 게이트
+## ?쒗뿕쨌而ㅻ컠 寃뚯씠??
+- **?먯＜ ?곕뒗 紐낅졊:** 諛깆뿏??`.\.venv\Scripts\python.exe -m pytest -q` (Windows??`$env:PYTHONUTF8=1`, `--basetemp <ASCII 怨좎쑀 寃쎈줈>`) 쨌
+  ??`cd app; flutter test --exclude-tags screenshot` 쨌 ?ㅼ삤?ㅽ겕 `cd rpi5-touchscreen-app; flutter test --exclude-tags screenshot` 쨌
+  怨⑤뱺? `--tags screenshot`(媛깆떊 ?놁씠 鍮꾧탳). 而ㅻ컠 ??`rpi/tests/test_repo_guard.py`쨌`rpi/tests/test_doc_links.py`.
+- **?ㅽ뙣 ?뺤씤??寃뚯씠??議곌굔?대떎.** ?뚭? ?뚯뒪?몃뒗 ?섏젙 ??肄붾뱶(?먮뒗 寃고븿???섏궡由?蹂???먯꽌 ?ㅽ뙣?섎뒗 寃껋쓣 ?뺤씤???ㅼ뿉留?而ㅻ컠?쒕떎.
+- **analyze 寃뚯씠??** `flutter analyze | tail -1`泥섎읆 異쒕젰???먮Ⅴ硫??ㅻ쪟媛 ?덉뼱??泥댁씤???듦낵?쒕떎. analyze error쨌warning 0?닿퀬 ?뚯뒪??異쒕젰??`All tests passed`媛 ?덉쓣 ?뚮쭔 而ㅻ컠?쒕떎.
+- ?뚯뒪??媛쒖닔瑜??곸쓣 ?뚮뒗 **怨⑤뱺 ?ы븿 ?щ?瑜?紐낆떆**?쒕떎. 怨⑤뱺? ?앹꽦 ?섍꼍?먯꽌 蹂꾨룄濡?寃利앺븳??
+- ?먯젙 ?쒓컖??怨좎젙???뚯뒪?몃뒗 ?덉??ㅽ듃由?룹꽌鍮꾩뒪???쒓퀎??怨좎젙?쒕떎(?좎쭨媛 ?섏뼱媛硫?源⑥쭊??.
+- ?꾩젽 ?뚯뒪?몄뿉??湲곌린 ??μ냼 媛숈? **吏꾩쭨 鍮꾨룞湲?*??`tester.runAsync`濡?媛먯떬??媛吏??쒓퀎 ?꾩뿉???곸썝??硫덉텣??.
+- 怨⑤뱺 ?대?吏???ㅻえ ?꾩씠肄섏? ?뚯뒪???고듃 濡쒕뵫 ?쒗븳?대떎. `docs/archive/screenshots-2026-08/`??媛쒗렪 ???붾㈃?대씪 理쒖떊 ?붿옄??洹쇨굅濡??곗? ?딅뒗??
+- 留곹겕??`rpi/tests/test_doc_links.py`媛 吏?⑤떎(異붿쟻 md???곷? 留곹겕, ?덉슜 紐⑸줉 ?놁쓬). 臾몄꽌瑜???만 ?뚮뒗 `git mv`濡??대젰???뉖뒗??
 
-- **자주 쓰는 명령:** 백엔드 `.\.venv\Scripts\python.exe -m pytest -q` (Windows는 `$env:PYTHONUTF8=1`, `--basetemp <ASCII 고유 경로>`) ·
-  폰 `cd app; flutter test --exclude-tags screenshot` · 키오스크 `cd rpi5-touchscreen-app; flutter test --exclude-tags screenshot` ·
-  골든은 `--tags screenshot`(갱신 없이 비교). 커밋 전 `rpi/tests/test_repo_guard.py`·`rpi/tests/test_doc_links.py`.
-- **실패 확인도 게이트 조건이다.** 회귀 테스트는 수정 전 코드(또는 결함을 되살린 변형)에서 실패하는 것을 확인한 뒤에만 커밋한다.
-- **analyze 게이트:** `flutter analyze | tail -1`처럼 출력을 자르면 오류가 있어도 체인이 통과한다. analyze error·warning 0이고 테스트 출력에 `All tests passed`가 있을 때만 커밋한다.
-- 테스트 개수를 적을 때는 **골든 포함 여부를 명시**한다. 골든은 생성 환경에서 별도로 검증한다.
-- 판정 시각을 고정한 테스트는 레지스트리·서비스의 시계도 고정한다(날짜가 넘어가면 깨진다).
-- 위젯 테스트에서 기기 저장소 같은 **진짜 비동기**는 `tester.runAsync`로 감싼다(가짜 시계 위에서 영원히 멈춘다).
-- 골든 이미지의 네모 아이콘은 테스트 폰트 로딩 제한이다. `docs/archive/screenshots-2026-08/`는 개편 전 화면이라 최신 디자인 근거로 쓰지 않는다.
-- 링크는 `rpi/tests/test_doc_links.py`가 지킨다(추적 md의 상대 링크, 허용 목록 없음). 문서를 옮길 때는 `git mv`로 이력을 잇는다.
+## 媛쒕컻 ?섍꼍 (Windows 湲곗? ????湲곌린???좎궗?섍쾶 援ъ꽦)
 
-## 개발 환경 (Windows 기준 — 새 기기는 유사하게 구성)
+- ?쒓? 寃쎈줈?먯꽌 Dart analysis server 臾몄젣媛 諛쒖깮???대젰???덉뼱 ASCII ?뺤뀡 寃쎌쑀瑜?沅뚯옣:
+  癒쇱? `C:\dev-simplelay`????곸씠 ?꾩옱 ??μ냼?몄? ?뺤씤?쒕떎. ?놁쑝硫?`New-Item -ItemType Junction -Path C:\dev-simplelay -Target <由ы룷寃쎈줈>` ??洹?寃쎈줈?먯꽌 flutter ?ㅽ뻾. 湲곗〈 ?뺤뀡??臾댁옉????뼱?곗? ?딅뒗??
+- ?먯씠?꾪듃 ?몄뿉 `flutter`媛 PATH???놁쓣 ???덈떎 ??湲곌린留덈떎 ?ㅼ튂 ?꾩튂瑜?癒쇱? ?뺤씤?섍퀬 ?꾩껜 寃쎈줈(`<Flutter ?ㅼ튂 ?대뜑>\bin\flutter.bat`)濡??ㅽ뻾?쒕떎.
+- 諛깆뿏?? 由ы룷 猷⑦듃 `.venv` (fastapi쨌uvicorn쨌pydantic쨌numpy쨌pytest쨌httpx쨌dbus-fast)
+  ?놁쑝硫?`py -m venv .venv` ??`.\.venv\Scripts\python.exe -m pip install -e ".[test]"`
+- ?뚯뒪?몃뒗 以??⑥쐞濡??ㅽ뻾?섍퀬 媛?醫낅즺 肄붾뱶瑜??뺤씤?쒕떎(PowerShell 5.1?먯꽌??`&&` ?ъ슜 遺덇?).
+- 由대━利?APK: `flutter build apk --release` (JDK17 + Android SDK ?꾩슂). ?먮??덉씠???ㅼ튂 APK??`--split-per-abi`濡?鍮뚮뱶?댁빞 ??뼱?곌린?쒕떎.
+- **?댁쁺 二쇱쓽:** API ???놁쑝硫?LAN 401(`SIMPLELAY_ALLOW_UNAUTHENTICATED=1`? 媛쒕컻?? 쨌 **留곹겕 ??`SIMPLELAY_LINK_KEY`媛 ?놁쑝硫?RPi4 ?ㅽ뻾湲걔톀Pi5(`SIMPLELAY_ACT_MODE=uart`)媛 ?쒖옉 嫄곗젅**(臾댁씤利앹? `SIMPLELAY_LINK_AUTH=off_for_mock` + 紐⑥쓽 援ъ꽦 ?꾩슜, [蹂댁븞 ?섎━](docs/devlog/devlog_2026-10-14-security-fix.md)) 쨌 `SIMPLELAY_THINQ_MODE` 湲곕낯 off 쨌 `SIMPLELAY_L3_MODE=real`? RPi4??肄섏꽱??紐⑤뱢 ?곌껐???덉뼱???섍퀬 ?놁쑝硫?湲곕룞 嫄곗젅 쨌 RPi4 ?щ????ㅼ뿏 `systemctl start docker` ?꾩슂 쨌 ?뚯썾??鍮꾨?媛믪? `firmware-node/secrets.ini`(untracked) 쨌 ?몄떇 ?쒕퉬??????鍮꾨?? ?섍꼍 蹂?섎줈留? 梨꾪똿쨌肄붾뱶쨌而ㅻ컠쨌濡쒓렇???ｌ? ?딅뒗??쨌 ?곗뒪?ы넲 ??Docker Desktop ??? 耳쒓린 ?꾩뿉 ?ъ슜?먯뿉寃?留먰븳??
 
-- 한글 경로에서 Dart analysis server 문제가 발생한 이력이 있어 ASCII 정션 경유를 권장:
-  먼저 `C:\dev-simplelay`의 대상이 현재 저장소인지 확인한다. 없으면 `New-Item -ItemType Junction -Path C:\dev-simplelay -Target <리포경로>` 후 그 경로에서 flutter 실행. 기존 정션을 무작정 덮어쓰지 않는다.
-- 에이전트 셸에 `flutter`가 PATH에 없을 수 있다 — 기기마다 설치 위치를 먼저 확인하고 전체 경로(`<Flutter 설치 폴더>\bin\flutter.bat`)로 실행한다.
-- 백엔드: 리포 루트 `.venv` (fastapi·uvicorn·pydantic·numpy·pytest·httpx·dbus-fast)
-  없으면 `py -m venv .venv` 후 `.\.venv\Scripts\python.exe -m pip install -e ".[test]"`
-- 테스트는 줄 단위로 실행하고 각 종료 코드를 확인한다(PowerShell 5.1에서는 `&&` 사용 불가).
-- 릴리즈 APK: `flutter build apk --release` (JDK17 + Android SDK 필요). 에뮬레이터 설치 APK는 `--split-per-abi`로 빌드해야 덮어쓰기된다.
-- **운영 주의:** API 키 없으면 LAN 401(`SIMPLELAY_ALLOW_UNAUTHENTICATED=1`은 개발용) · **링크 키 `SIMPLELAY_LINK_KEY`가 없으면 RPi4 실행기·RPi5(`SIMPLELAY_ACT_MODE=uart`)가 시작 거절**(무인증은 `SIMPLELAY_LINK_AUTH=off_for_mock` + 모의 구성 전용, [보안 수리](docs/devlog/devlog_2026-10-14-security-fix.md)) · `SIMPLELAY_THINQ_MODE` 기본 off · `SIMPLELAY_L3_MODE=real`은 RPi4에 콘센트 모듈 연결이 있어야 하고 없으면 기동 거절 · RPi4 재부팅 뒤엔 `systemctl start docker` 필요 · 펌웨어 비밀값은 `firmware-node/secrets.ini`(untracked) · 인식 서비스 키 등 비밀은 환경 변수로만, 채팅·코드·커밋·로그에 넣지 않는다 · 데스크톱 앱(Docker Desktop 등)은 켜기 전에 사용자에게 말한다.
+## ?꾪궎?띿쿂 ?붿젏 (?먯꽭?덈뒗 docs/媛쒕컻?꾪솴.md)
 
-## 아키텍처 요점 (자세히는 docs/개발현황.md)
+- ?ㅽ뻾? **鍮꾨룞湲?job 紐⑤뜽**: POST /execute ??利됱떆 job_id, ?꾨즺??/status??last_job_id ?議?- ?ㅽ봽?쇱씤 ?곗꽑: 紐⑤뱺 ?ㅺ린湲??섏〈? env 寃뚯씠??`SIMPLELAY_*`), 湲곕낯? mock ??媛쒕컻 PC?먯꽌 ??湲곕뒫 ?숈옉
+- ?대씪?댁뼵?? ??app/), ?ㅼ삤?ㅽ겕(rpi5-touchscreen-app/, ?꾨쿋?붾뱶 由щ늼?ㅼ슜 Flutter ?щ줈?ㅻ퉴??援ъ“) ???쒕퉬?ㅻ뒗 ?앹꽦??二쇱엯?쇰줈 ?뚯뒪??- 由ы뿀??API: `POST /demo/suggest`(?쒖븞 媛뺤젣 ?앹꽦), `POST /demo/inject-failure`(寃利??ㅽ뙣 二쇱엯)
+- 媛쒕컻??API(`/dev/*`): `SIMPLELAY_DEV_MODE` + `SIMPLELAY_DEV_TOKEN`(?쇰컲 API ?ㅼ? 蹂꾧컻), **湲곕낯 紐⑥쓽, ?ㅻЪ? env ??媛?`SIMPLELAY_DEV_MODE`쨌`SIMPLELAY_DEV_REAL_MOTION`) + RPi4 ?ㅻЪ 留곹겕(`act_info.motion=serial`쨌`dev_motion_protocol`)???뚮쭔**(?먯젏 ?꾩닔쨌?대룞???곹븳쨌?뺤? ?곗꽑 ??[devlog](docs/devlog/devlog_2026-10-10-dev-real-motion.md)). 怨꾩빟? `rpi/api/dev_router.py` 癒몃━留? ?쒖뼱沅?諛섑솚 洹쒖튃? `rpi/services/developer_session.py`??`_maybe_release_locked`媛 ?좎씪??諛섑솚 吏??- 媛쒕컻??API ?좎? 洹쒖튃: ?쒖옉?믪냼?좉텒 寃뚯떆??吏곷젹?뷀븯???뺤???湲곕떎由ъ? ?딅뒗??
+  ?붿껌 ID???몄뀡 ?섎챸 ?숈븞 蹂댁〈(4096嫄??곹븳?먯꽌 嫄곗젅). ?곗쓽 ?뺤?/?댄깉/?곌껐 蹂寃쎌?
+  ?묐떟 ?몃?瑜?臾댄슚?뷀븳?? `confirmed=true`?쇰룄 `phase=stopping`?대㈃ ?꾨즺媛 ?꾨땲??
+  heartbeat 泥??뺤씤 ?ㅽ뙣 ???몄뀡???ル뒗 蹂댁닔???뺤콉?대ŉ ?ㅼ륫 ?놁씠 湲고븳???섎━吏 ?딅뒗??
+- ?ㅼ륫 ???쇱꽌 ?≪쓬쨌?꾧퀎媛믪? ?ъ떎濡??곗? ?딄퀬 `異붿륫/痢≪젙 ?꾩슂`濡??쒖떆?쒕떎.
 
-- 실행은 **비동기 job 모델**: POST /execute → 즉시 job_id, 완료는 /status의 last_job_id 대조
-- 오프라인 우선: 모든 실기기 의존은 env 게이트(`SIMPLELAY_*`), 기본은 mock — 개발 PC에서 전 기능 동작
-- 클라이언트: 폰(app/), 키오스크(rpi5-touchscreen-app/, 임베디드 리눅스용 Flutter 크로스빌드 구조) — 서비스는 생성자 주입으로 테스트
-- 리허설 API: `POST /demo/suggest`(제안 강제 생성), `POST /demo/inject-failure`(검증 실패 주입)
-- 개발자 API(`/dev/*`): `SIMPLELAY_DEV_MODE` + `SIMPLELAY_DEV_TOKEN`(일반 API 키와 별개), **기본 모의, 실물은 env 두 개(`SIMPLELAY_DEV_MODE`·`SIMPLELAY_DEV_REAL_MOTION`) + RPi4 실물 링크(`act_info.motion=serial`·`dev_motion_protocol`)일 때만**(원점 필수·이동량 상한·정지 우선 — [devlog](docs/devlog/devlog_2026-10-10-dev-real-motion.md)). 계약은 `rpi/api/dev_router.py` 머리말, 제어권 반환 규칙은 `rpi/services/developer_session.py`의 `_maybe_release_locked`가 유일한 반환 지점
-- 개발자 API 유지 규칙: 시작→소유권 게시는 직렬화하되 정지는 기다리지 않는다.
-  요청 ID는 세션 수명 동안 보존(4096건 상한에서 거절). 폰의 정지/이탈/연결 변경은
-  응답 세대를 무효화한다. `confirmed=true`라도 `phase=stopping`이면 완료가 아니다.
-  heartbeat 첫 확인 실패 시 세션을 닫는 보수적 정책이며 실측 없이 기한을 늘리지 않는다.
-- 실측 전 센서 잡음·임계값은 사실로 쓰지 않고 `추측/측정 필요`로 표시한다.
+## 諛⑺뼢 ?먯튃
 
-## 방향 원칙
-
-- AI 고도화 금지(지도교수 방침) — 기존 모듈을 배선만. HW 완성도가 차별점
-- 심사 키워드: 공감지능(패턴) · 공간 이해/초개인화 · 온디바이스/클라우드 추론 경계(docs/inference-boundary.md가 답)
-- 접근성: docs/사용자편의-가이드-체크리스트.md 기준(국가표준 매핑) 준수
-- 상용 제품과는 **설계 차이**로만 비교하고 성능 우위를 주장하지 않는다(상용품 기능은 공개 사양·출처·확인 날짜로만).
+- AI 怨좊룄??湲덉?(吏?꾧탳??諛⑹묠) ??湲곗〈 紐⑤뱢??諛곗꽑留? HW ?꾩꽦?꾧? 李⑤퀎??- ?ъ궗 ?ㅼ썙?? 怨듦컧吏???⑦꽩) 쨌 怨듦컙 ?댄빐/珥덇컻?명솕 쨌 ?⑤뵒諛붿씠???대씪?곕뱶 異붾줎 寃쎄퀎(docs/inference-boundary.md媛 ??
+- ?묎렐?? docs/?ъ슜?먰렪??媛?대뱶-泥댄겕由ъ뒪??md 湲곗?(援???쒖? 留ㅽ븨) 以??- ?곸슜 ?쒗뭹怨쇰뒗 **?ㅺ퀎 李⑥씠**濡쒕쭔 鍮꾧탳?섍퀬 ?깅뒫 ?곗쐞瑜?二쇱옣?섏? ?딅뒗???곸슜??湲곕뒫? 怨듦컻 ?ъ뼇쨌異쒖쿂쨌?뺤씤 ?좎쭨濡쒕쭔).
