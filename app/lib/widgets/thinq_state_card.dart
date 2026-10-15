@@ -256,17 +256,75 @@ class ThinqControl {
   final List<(String, String)> choices;
   final String? current;
 
+  /// 같은 조작 줄에 지금 값만 채운 것.
+  ThinqControl withCurrent(String? current) => ThinqControl(
+        label: label,
+        action: action,
+        arg: arg,
+        choices: choices,
+        current: current,
+      );
+
+  /// 값 → 고를 때 보이는 말(켜기·강풍·수면). 표에 없으면 null.
+  String? wordFor(String value) {
+    for (final (v, word) in choices) {
+      if (v == value) return word;
+    }
+    return null;
+  }
+
   /// 확인 질문. 값 이름(약풍·강풍·자동·청정·수면)은 모두 받침이 있어 '으로'를 붙인다.
   String question(String value, String word) => switch (action) {
         'set_power' => value == 'POWER_OFF' ? '전원을 끌까요?' : '전원을 켤까요?',
         'set_job_mode' => '운전 모드를 $word으로 바꿀까요?',
         _ => '$label을 $word으로 바꿀까요?',
       };
+
+  /// 루틴 단계 문장(2026-10-15). '전원 켜기', '풍량 강풍으로 바꾸기'.
+  String stepPhrase(String word) =>
+      action == 'set_power' ? '$label $word' : '$label $word${_ro(word)} 바꾸기';
 }
 
-/// 공기청정기 상태일 때만 조작 줄을 만든다. 값 목록은 허브 대응표
+/// '으로'/'로' — 끝 글자 받침을 본다(없거나 ㄹ이면 '로'). 한글이 아니면 '(으)로'.
+String _ro(String word) {
+  if (word.isEmpty) return '(으)로';
+  final code = word.codeUnitAt(word.length - 1);
+  if (code < 0xAC00 || code > 0xD7A3) return '(으)로';
+  final jong = (code - 0xAC00) % 28;
+  return jong == 0 || jong == 8 ? '로' : '으로';
+}
+
+/// 공기청정기 조작 줄 — 지금 값 없이 고를 수 있는 것만. 가전 상세의 조작 줄과
+/// 루틴 편집기의 'ThinQ 가전 조작' 단계가 같은 표를 쓴다. 값 목록은 허브 대응표
 /// (`rpi/services/thinq/bindings.py`)와 같고, 이 모델 프로필이 허용하지 않는 값은
-/// 허브가 보내기 전에 거절한다.
+/// 허브가 보내기 전(루틴은 저장할 때) 거절한다.
+const kAirPurifierControls = <ThinqControl>[
+  ThinqControl(
+    label: '전원',
+    action: 'set_power',
+    arg: 'power',
+    choices: [('POWER_ON', '켜기'), ('POWER_OFF', '끄기')],
+  ),
+  ThinqControl(
+    label: '풍량',
+    action: 'set_wind_strength',
+    arg: 'wind_strength',
+    choices: [
+      ('LOW', '약풍'),
+      ('MID', '중풍'),
+      ('HIGH', '강풍'),
+      ('AUTO', '자동'),
+    ],
+  ),
+  ThinqControl(
+    label: '운전 모드',
+    action: 'set_job_mode',
+    arg: 'job_mode',
+    choices: [('CLEAN', '청정'), ('SLEEP', '수면'), ('AUTO', '자동')],
+  ),
+];
+
+/// 공기청정기 상태일 때만 조작 줄을 만든다(표는 [kAirPurifierControls]).
 List<ThinqControl> thinqControlsFor(Map<String, dynamic> state) {
   final op = state['operation'];
   final power = op is Map ? op['airPurifierOperationMode']?.toString() : null;
@@ -277,34 +335,33 @@ List<ThinqControl> thinqControlsFor(Map<String, dynamic> state) {
       : null;
   final jobMap = state['airPurifierJobMode'];
   final job = jobMap is Map ? jobMap['currentJobMode']?.toString() : null;
+  final current = {
+    'set_power': power,
+    'set_wind_strength': wind,
+    'set_job_mode': job,
+  };
   return [
-    ThinqControl(
-      label: '전원',
-      action: 'set_power',
-      arg: 'power',
-      choices: const [('POWER_ON', '켜기'), ('POWER_OFF', '끄기')],
-      current: power,
-    ),
-    ThinqControl(
-      label: '풍량',
-      action: 'set_wind_strength',
-      arg: 'wind_strength',
-      choices: const [
-        ('LOW', '약풍'),
-        ('MID', '중풍'),
-        ('HIGH', '강풍'),
-        ('AUTO', '자동'),
-      ],
-      current: wind,
-    ),
-    ThinqControl(
-      label: '운전 모드',
-      action: 'set_job_mode',
-      arg: 'job_mode',
-      choices: const [('CLEAN', '청정'), ('SLEEP', '수면'), ('AUTO', '자동')],
-      current: job,
-    ),
+    for (final c in kAirPurifierControls) c.withCurrent(current[c.action]),
   ];
+}
+
+/// ThinQ 루틴 단계(동작 + 인자) → 사람 말. 동작 이름(set_wind_strength 같은 것)은
+/// 화면에 내지 않는다. 표에 없는 값은 상태 표의 말로, 그래도 모르면 원래 값 그대로
+/// 보인다(지어내지 않는다). 모르는 동작이면 'ThinQ 명령(이 앱이 모르는 조작)'.
+String thinqStepPhrase(String? action, Map<String, dynamic> args) {
+  final control =
+      kAirPurifierControls.where((c) => c.action == action).firstOrNull;
+  if (control == null) return 'ThinQ 명령(이 앱이 모르는 조작)';
+  final raw = args[control.arg]?.toString();
+  if (raw == null) return '${control.label} 바꾸기';
+  final word = control.wordFor(raw) ??
+      switch (action) {
+        'set_wind_strength' => _wind[raw],
+        'set_job_mode' => _jobMode[raw],
+        _ => _power[raw],
+      } ??
+      raw;
+  return control.stepPhrase(word);
 }
 
 /// ThinQ 상태 → (이름, 값) 줄. 아는 칸만 사람 말로 바꾸고, 없는 칸은 줄을 만들지 않는다.

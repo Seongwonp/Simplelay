@@ -47,6 +47,17 @@ class RoutineStep {
   const RoutineStep.wait(String applianceId)
       : this(kind: RoutineStepKind.waitUntilDone, applianceId: applianceId);
 
+  /// ThinQ 가전 조작(2026-10-15) — 서버 `thinq_command` 단계. 동작·인자는 허브
+  /// 대응표 이름 그대로(예: `set_wind_strength` · `{wind_strength: HIGH}`).
+  const RoutineStep.thinq(
+      String applianceId, String action, Map<String, dynamic> args)
+      : this(
+          kind: RoutineStepKind.thinqCommand,
+          applianceId: applianceId,
+          action: action,
+          args: args,
+        );
+
   const RoutineStep.announce(String text)
       : this(kind: RoutineStepKind.announce, text: text);
 

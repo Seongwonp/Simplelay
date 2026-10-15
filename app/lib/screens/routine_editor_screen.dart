@@ -13,6 +13,8 @@ import 'history_screen.dart' show historyProvider;
 import '../theme/app_colors.dart';
 import '../widgets/input_guard.dart';
 import '../widgets/routine_run.dart';
+import '../widgets/thinq_state_card.dart'
+    show ThinqControl, kAirPurifierControls, thinqStepPhrase;
 
 /// 루틴 편집 — 문장형 카드 세 줄(언제 · 무엇을 · 그다음)과 '단계 추가'(UI 확정 §2).
 ///
@@ -267,11 +269,14 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           ],
         );
       case RoutineStepKind.thinqCommand:
+        // 동작 이름(set_wind_strength)은 내지 않는다 — '[공기청정기] 풍량 강풍으로 바꾸기'.
         return Wrap(
           spacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _Token(text: who, icon: a?.icon),
-            Text('ThinQ 명령 ${s.action ?? ''}'),
+            Text(thinqStepPhrase(s.action, s.args),
+                key: Key('routine-step-$index')),
           ],
         );
       case RoutineStepKind.announce:
@@ -309,6 +314,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
   }
 
   Future<void> _addStep(List<ApplianceMap> appliances) async {
+    final thinqAppliances = appliances.where((a) => a.isThinq).toList();
     final kind = await showModalBottomSheet<RoutineStepKind>(
       context: context,
       builder: (sheet) => SafeArea(
@@ -321,6 +327,16 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
               subtitle: const Text('가전을 골라 사진 속 버튼을 순서대로 짚어요'),
               onTap: () => Navigator.pop(sheet, RoutineStepKind.pressSequence),
             ),
+            // ThinQ 가전이 한 대라도 있을 때만(2026-10-15). 실행은 다른 단계와 같이
+            // 승인 카드를 거친다 — 여기서 고르는 것은 저장할 단계뿐이다.
+            if (thinqAppliances.isNotEmpty)
+              ListTile(
+                key: const Key('routine-add-thinq'),
+                leading: const Icon(Icons.cloud_outlined),
+                title: const Text('ThinQ 가전 조작'),
+                subtitle: const Text('공기청정기 전원·풍량·운전 모드를 바꿔요'),
+                onTap: () => Navigator.pop(sheet, RoutineStepKind.thinqCommand),
+              ),
             ListTile(
               leading: const Icon(Icons.hourglass_bottom),
               title: const Text('끝날 때까지 기다리기'),
@@ -358,8 +374,55 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
         _update(_draft.copyWith(
             steps: [..._draft.steps, RoutineStep.announce(text)]));
       case RoutineStepKind.thinqCommand:
-        return;
+        final a = await _pickAppliance(thinqAppliances);
+        if (a == null || !mounted) return;
+        final picked = await _pickThinqChoice(a);
+        if (picked == null || !mounted) return;
+        final (control, value) = picked;
+        _update(_draft.copyWith(steps: [
+          ..._draft.steps,
+          RoutineStep.thinq(a.id, control.action, {control.arg: value}),
+        ]));
     }
+  }
+
+  /// 무엇을 어떤 값으로 바꿀지 — 가전 상세의 조작 줄과 같은 표([kAirPurifierControls]).
+  /// 고르기만 하고 보내지 않는다.
+  Future<(ThinqControl, String)?> _pickThinqChoice(ApplianceMap a) {
+    return showModalBottomSheet<(ThinqControl, String)>(
+      context: context,
+      isScrollControlled: true,
+      builder: (sheet) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              child: Text('${a.displayName}에서 무엇을 바꿀까요?',
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.w700)),
+            ),
+            for (final control in kAirPurifierControls) ...[
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                child: Text(control.label,
+                    style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: sheet.appMuted)),
+              ),
+              for (final (value, word) in control.choices)
+                ListTile(
+                  key: Key('routine-thinq-${control.action}-$value'),
+                  title: Text(control.stepPhrase(word)),
+                  onTap: () => Navigator.pop(sheet, (control, value)),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _editAnnounce(int index) async {
