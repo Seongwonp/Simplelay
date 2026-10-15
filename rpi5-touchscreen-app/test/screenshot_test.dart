@@ -15,10 +15,7 @@
 @Tags(['screenshot'])
 library;
 
-import 'dart:io';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
@@ -36,6 +33,8 @@ import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
+
+import 'support/golden_fonts.dart';
 
 const _kioskSize = Size(800, 480);
 
@@ -197,16 +196,7 @@ KioskManualView _mine() => KioskManualView(
     );
 
 void main() {
-  setUpAll(() async {
-    final iconBytes = File(r'C:\flutter\flutter\bin\cache\artifacts\material_fonts\materialicons-regular.otf').readAsBytesSync();
-    await (FontLoader('MaterialIcons')
-          ..addFont(Future.value(ByteData.view(iconBytes.buffer))))
-        .load();
-    final bytes = File(r'C:\Windows\Fonts\malgun.ttf').readAsBytesSync();
-    final loader = FontLoader('Malgun')
-      ..addFont(Future.value(ByteData.view(bytes.buffer)));
-    await loader.load();
-  });
+  setUpAll(loadGoldenFonts);
 
   // 서버가 실제로 주는 모양 -- 시간대가 있어야 '왜 지금'을 문장으로 만든다.
   const suggestion = KioskSuggestion(

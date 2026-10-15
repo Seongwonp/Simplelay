@@ -1,24 +1,14 @@
 @Tags(['screenshot'])
 library;
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 
+import 'support/golden_fonts.dart';
+
 void main() {
-  setUpAll(() async {
-    final iconFile = File('../.venv/flutter/bin/cache/artifacts/material_fonts/materialicons-regular.otf');
-    if (await iconFile.exists()) {
-      await (FontLoader('MaterialIcons')..addFont(iconFile.readAsBytes().then((b) => ByteData.view(b.buffer)))).load();
-    }
-    final file = File('C:/Windows/Fonts/malgun.ttf');
-    if (await file.exists()) {
-      final loader = FontLoader('Malgun')..addFont(file.readAsBytes().then((b) => ByteData.view(b.buffer)));
-      await loader.load();
-    }
-  });
+  setUpAll(loadGoldenFonts);
   for (final scale in [1.0, 1.6]) {
     for (final done in [false, true]) {
       testWidgets('mock provenance ${done ? "done" : "running"} $scale', (tester) async {
