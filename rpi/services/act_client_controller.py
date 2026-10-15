@@ -73,18 +73,19 @@ class ActClientController:
         self._next_hold: dict | None = None
         #: 다음 execute의 대상 가전(``arm_execute_target``). 한 번 쓰면 비운다. 없으면 보내지 않는다.
         self._next_target: str | None = None
-        #: 이번 실행에 정지가 요청됐나(2026-10-15 G2). ``reset_stop``(실행 시작)이 지우고 ``request_stop``이 세운다.
-        #: execute가 이벤트 루프 안에서 줄을 쓰기 직전에 본다.
-        self._stop_requested = False
         #: 이번 실행의 표지(``run_ref``, 2026-10-15 G2) — abort와 execute 양쪽에 실어 RPi4가 '실행 시작 전에 온 abort'를
-        #: 그 실행에 묶게 한다(docs/protocol.md). ``reset_stop``마다 새로 정한다. 실행을 시작한 적 없으면 None.
+        #: 그 실행에 묶게 한다(docs/protocol.md). ``reset_stop``(실행 시작)마다 새로 정한다. 실행을 시작한 적 없으면 None.
         self._run_ref: str | None = None
+        #: 정지가 요청된 실행의 표지(2026-10-15 G2). ``request_stop``이 세우고, execute가 이벤트 루프 안에서 줄을 쓰기
+        #: 직전에 자기 표지와 대조한다. 표지에 묶으므로 쉬는 중 정지가 다음 실행(새 표지)을 막지 않고, 실행 시작을
+        #: 거치지 않는 호출(표지 None — 서비스 밖의 직접 호출)은 종전 그대로다.
+        self._stopped_run_ref: str | None = None
 
     def reset_stop(self) -> None:
         """새 실행 시작 — 서비스 ``_begin_run``이 서비스 잠금 안에서 부른다(정지 요청과 직렬화된다).
 
-        쉬는 중에 온 정지(이전 실행·실행 없음)의 표시를 지우고, 이번 실행의 표지(``run_ref``)를 새로 정한다."""
-        self._stop_requested = False
+        이번 실행의 표지(``run_ref``)를 새로 정한다 — 쉬는 중에 온 정지(이전 실행·실행 없음)는 옛 표지에 묶여 있어
+        이 실행을 막지 않는다."""
         self._run_ref = "r" + uuid.uuid4().hex[:15]
 
     @property
@@ -114,16 +115,17 @@ class ActClientController:
             kwargs.update(targets=targets or None, hold=hold)
         elif targets:
             kwargs["targets"] = targets
-        if self._run_ref is not None:
+        run_ref = self._run_ref
+        if run_ref is not None:
             # 실행 시작(reset_stop)을 거친 실행만 — 표지 없는 호출(시험 대역 등)은 종전 줄 그대로다.
-            kwargs["run_ref"] = self._run_ref
+            kwargs["run_ref"] = run_ref
 
         async def dispatch():
             # 보내기 직전 정지 확인(2026-10-15 G2) — **이벤트 루프 안에서**. request_stop은 표시를 세운 뒤에 abort를
             # 이 루프에 올린다. 여기서 표시가 없으면 이 실행의 abort는 아직 줄에 쓰이지 않았고, 아래 execute 줄을
             # 쓰기까지 await가 없으므로(ActClient.execute → _write) abort는 반드시 execute 뒤에 나가 RPi4가 실행
-            # 중에 받는다. 표시가 있으면 보내지 않는다.
-            if self._stop_requested:
+            # 중에 받는다. 이 실행에 정지 표시가 있으면 보내지 않는다.
+            if run_ref is not None and self._stopped_run_ref == run_ref:
                 return None
             return await self._client.execute(buttons, **kwargs)
 
@@ -157,7 +159,7 @@ class ActClientController:
                 log.error("emergency abort send failed: %s", exc)
 
         # 표시를 **먼저** 세운다(2026-10-15 G2) — abort를 루프에 올리기 전에. execute가 루프 안에서 이 표시를 본다.
-        self._stop_requested = True
+        self._stopped_run_ref = self._run_ref
         # 이번 실행의 표지를 abort에 싣는다 — 쉬는 중 RPi4가 받으면 같은 표지의 execute를 누르지 않는다(이중 방어).
         extra = {"run_ref": self._run_ref} if self._run_ref is not None else {}
         with_report = getattr(self._client, "abort_with_report", None)
