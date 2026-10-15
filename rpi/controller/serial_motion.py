@@ -665,8 +665,11 @@ EventHook = Callable[[str, dict], None]
 STOP_SENT = "sent"
 #: MCU가 같은 id로 ``ok:true``를 답했다.
 STOP_MCU_ACK = "mcu_ack"
-#: 정지 뒤 status 두 번의 엔코더 a·b가 같았다(모터 축 기준 — 벨트 미끄럼은 보이지 않는다).
+#: 정지 뒤 status 두 번의 엔코더 a·b가 같았다(모터 축 기준 — 벨트 미끄럼은 보이지 않는다). 2026-10-15 G11부터는 **이번
+#: 실행에 이동을 명령한 축마다 엔코더 값이 실제로 바뀐 것을 본 경우**에만 — 죽은 엔코더(늘 같은 값)는 멈춤과 구별되지 않는다.
 STOP_VERIFIED = "verified"
+#: 엔코더가 살아 있다는 근거가 없어 ``verified``로 올리지 않을 때의 이유(2026-10-15 G11, ``mcu_ack``에 머문다).
+ENCODER_UNPROVEN_DETAIL = "엔코더 움직임을 확인할 수 없어 멈춤은 확인하지 못했어요"
 STOP_LEVELS = (STOP_SENT, STOP_MCU_ACK, STOP_VERIFIED)
 #: 대기 중 정지에서 MCU 응답을 기다리는 기본 기한(초)과 멈춤 확인 status 간격(초). 10/13 실물(ESP32 USB, n=10):
 #: 정지→MCU 응답 중앙 10.6 ms·최대 11.0 ms라 0.3 s는 여유를 둔 값이다.
@@ -760,6 +763,11 @@ class SerialMotionClient(GrblClient):
         self._stops: dict[int, _StopRecord] = {}
         #: 전송 계층이 포트를 잃은 뒤 연결 확인(connect)을 아직 못 했으면 True(2026-10-14).
         self._link_dropped = False
+        # 엔코더 생존 근거(2026-10-15 G11) — ``_state_lock``으로 보호. 이번 실행(``reset_stop`` 뒤)에 이동을 명령한 축
+        # (``_enc_need``)과, 기준값(``_enc_ref``)에서 실제로 값이 바뀐 것을 본 축(``_enc_moved``). 축 순서는 (a, b).
+        self._enc_ref: tuple[int, int] | None = None
+        self._enc_need = [False, False]
+        self._enc_moved = [False, False]
 
     @property
     def last_position(self) -> dict | None:
@@ -784,6 +792,39 @@ class SerialMotionClient(GrblClient):
         with self._state_lock:
             self._last_position = position
             self._position_seq += 1
+            # 엔코더 생존 근거(G11): 기준값과 다른 값을 본 축은 살아 있다(값이 바뀌었다). 기준이 없으면 이 값이 기준이다.
+            if self._enc_ref is None:
+                self._enc_ref = (a, b)
+            else:
+                self._enc_moved[0] = self._enc_moved[0] or a != self._enc_ref[0]
+                self._enc_moved[1] = self._enc_moved[1] or b != self._enc_ref[1]
+
+    def _reset_encoder_evidence(self, *, keep_reference: bool) -> None:
+        """엔코더 생존 근거를 비운다(G11). ``keep_reference``면 마지막으로 본 값을 새 기준으로 둔다(새 실행 — 쉬는 사이
+        카운트는 그대로다). 아니면 기준도 버린다(원점 복귀·MCU 재시작·포트 잃음 — 카운트가 0으로 돌아가는 것은 엔코더가
+        살아 있다는 근거가 아니다)."""
+        with self._state_lock:
+            last = self._last_position
+            self._enc_ref = ((last["a_counts"], last["b_counts"])
+                             if keep_reference and last is not None else None)
+            self._enc_need = [False, False]
+            self._enc_moved = [False, False]
+
+    def _note_commanded_move(self, body: dict) -> None:
+        """이동 명령을 보낸다(G11) — 목표 카운트가 마지막으로 본 값과 다른 축은 이번 실행에서 엔코더가 바뀌어야 한다.
+        마지막 값을 모르면 두 축 모두로 본다(보수적)."""
+        with self._state_lock:
+            last = self._last_position
+            for i, (key, axis) in enumerate((("a_counts", "a"), ("b_counts", "b"))):
+                target = body.get(axis)
+                if isinstance(target, int) and (last is None or last.get(key) != target):
+                    self._enc_need[i] = True
+
+    def _encoders_proven(self) -> bool:
+        """이번 실행에 이동을 명령한 축이 있고, 그 축마다 엔코더 값이 바뀐 것을 봤나(G11)."""
+        with self._state_lock:
+            need, moved = tuple(self._enc_need), tuple(self._enc_moved)
+        return any(need) and all(m for n, m in zip(need, moved) if n)
 
     @property
     def z_mode(self) -> str | None:
@@ -880,6 +921,7 @@ class SerialMotionClient(GrblClient):
         self._connect_error = f"모션 포트 연결 끊김 — 다시 여는 중({reason})"
         self._reset_mid_run = True
         self._link_dropped = True
+        self._reset_encoder_evidence(keep_reference=False)
         self._emit("link_down", {"detail": reason})
 
     @property
@@ -940,6 +982,8 @@ class SerialMotionClient(GrblClient):
                 raise
             self._set_state(MotionState.READY)
             self._reset_mid_run = False
+        # 원점 복귀가 카운트를 0으로 되돌린 것은 엔코더 생존 근거가 아니다(G11) — 기준부터 다시 잡는다.
+        self._reset_encoder_evidence(keep_reference=False)
 
     def move_to(self, x_mm: float, y_mm: float) -> None:
         """절대 좌표(mm)로 이동. 소프트 리밋·기구 값·홈 확인을 **보내기 전에** 한다."""
@@ -1104,7 +1148,12 @@ class SerialMotionClient(GrblClient):
     def _verify_still(self, stop_id: int | None, interval_s: float, status_timeout: float,
                       deadline_s: float = STOP_VERIFY_DEADLINE_S) -> str | None:
         """status를 ``interval_s``마다 물어 a·b가 **두 번 연속 같으면** 기록을 ``verified``로 올리고 None,
-        ``deadline_s`` 안에 못 보면 사람이 읽을 이유. 이동 중 정지는 정지 응답 뒤에도 잠깐 관성으로 돈다(10/13 실물)."""
+        ``deadline_s`` 안에 못 보면 사람이 읽을 이유. 이동 중 정지는 정지 응답 뒤에도 잠깐 관성으로 돈다(10/13 실물).
+
+        같은 값 두 번은 **죽은 엔코더**(선 빠짐 — 늘 같은 값)와 구별되지 않는다(10/13 발견, 2026-10-15 G11). 그래서 이번
+        실행에 이동을 명령한 축마다 엔코더 값이 바뀐 것을 본 경우에만 ``verified``로 올리고(정지 뒤 관성으로 바뀐 것도
+        근거다), 아니면 `ENCODER_UNPROVEN_DETAIL`을 돌려준다(``mcu_ack``에 머문다). 이번 실행에 이동 명령이 없었던
+        쉬는 중 정지는 확인할 움직임이 없어 ``verified``가 아니다."""
         if not self._op_lock.acquire(timeout=status_timeout):
             return "다른 명령이 끝나지 않아 멈춤을 확인하지 못했어요"
         try:
@@ -1130,6 +1179,8 @@ class SerialMotionClient(GrblClient):
         if not settled:
             return (f"정지 뒤 {deadline_s:g}s 동안 엔코더가 움직였어요(a {first.a_counts}→{second.a_counts}, "
                     f"b {first.b_counts}→{second.b_counts})")
+        if not self._encoders_proven():
+            return ENCODER_UNPROVEN_DETAIL
         with self._state_lock:
             record = self._stops.get(stop_id) if stop_id is not None else None
             if record is not None:
@@ -1211,9 +1262,12 @@ class SerialMotionClient(GrblClient):
             self._note_stop_ack(doc)  # 다른 id는 시간 초과로 버린 요청의 늦은 응답·heartbeat 응답 — 버린다
 
     def reset_stop(self) -> None:
-        """다음 실행을 위해 정지 요청 표시를 지운다. STOPPED 상태(재홈 필요)는 남는다."""
+        """다음 실행을 위해 정지 요청 표시를 지운다. STOPPED 상태(재홈 필요)는 남는다.
+
+        엔코더 생존 근거도 새 실행 것으로 비운다(G11) — 지난 실행 뒤 엔코더 선이 빠졌을 수 있다."""
         self._stop.clear()
         self._reset_mid_run = False
+        self._reset_encoder_evidence(keep_reference=True)
 
     # ── 내부 ─────────────────────────────────────────────────────────────────
 
@@ -1427,6 +1481,8 @@ class SerialMotionClient(GrblClient):
             raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}", reason=error)
 
     def _send_request(self, body: dict) -> int:
+        if body.get("cmd") == "move":
+            self._note_commanded_move(body)
         with self._write_lock:
             self._next_id += 1
             request_id = self._next_id
@@ -1446,6 +1502,8 @@ class SerialMotionClient(GrblClient):
         with self._state_lock:
             if self._state is not MotionState.STOPPED:
                 self._state = MotionState.UNHOMED
+        # MCU가 다시 켜져 카운트가 처음부터다 — 그 변화는 엔코더 생존 근거가 아니다(G11).
+        self._reset_encoder_evidence(keep_reference=False)
 
     def _drain_until_ready(self, wait_s: float) -> bool:
         """연결 재시도 사이에 줄을 읽어 버린다. ``ready`` 배너를 받으면 True로 바로 돌아온다."""

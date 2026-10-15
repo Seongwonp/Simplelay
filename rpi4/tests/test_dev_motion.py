@@ -328,13 +328,28 @@ def test_stop_is_answered_even_while_idle(rig) -> None:
 
 
 def test_dev_stop_reply_carries_the_confirmed_stop_level(rig) -> None:
-    """대기 중 정지: MCU 응답(지연 ms)과 status 두 번의 같은 엔코더로 ``verified``까지 싣는다."""
+    """조그 뒤 대기 중 정지: MCU 응답(지연 ms)과, 조그에서 엔코더가 바뀌는 것을 본 뒤 status 두 번의 같은 값으로
+    ``verified``까지 싣는다(2026-10-15 G11 — 가짜 MCU는 이동마다 위치를 한 번만 알려 조그를 두 번 한다)."""
+    async def _t():
+        r = rig(homed=True)
+        assert (await r.op("jog", request_id="j1", axis="x", delta_mm=1.0))["ok"] is True
+        assert (await r.op("jog", request_id="j2", axis="x", delta_mm=1.0))["ok"] is True
+        reply = await r.op("stop", request_id="s1", reason="emergency_stop")
+        assert reply["ok"] is True
+        assert reply["stop_level"] == "verified"
+        assert isinstance(reply["ack_ms"], int) and reply["ack_ms"] >= 0
+
+    run(_t())
+
+
+def test_dev_stop_with_no_motion_stays_at_mcu_ack(rig) -> None:
+    """아무것도 움직이지 않은 대기 중 정지: 같은 값 두 번은 죽은 엔코더와 구별되지 않는다 — ``mcu_ack``와 이유(G11)."""
     async def _t():
         r = rig(homed=True)
         reply = await r.op("stop", reason="emergency_stop")
         assert reply["ok"] is True
-        assert reply["stop_level"] == "verified"
-        assert isinstance(reply["ack_ms"], int) and reply["ack_ms"] >= 0
+        assert reply["stop_level"] == "mcu_ack"
+        assert reply["stop_detail"] == "엔코더 움직임을 확인할 수 없어 멈춤은 확인하지 못했어요"
 
     run(_t())
 

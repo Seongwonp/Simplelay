@@ -38,6 +38,15 @@ def _client(pipe, config: MotionConfig = REHEARSAL_CONFIG, **kwargs) -> SerialMo
     return SerialMotionClient(pipe.host, config, poll_s=0.01, **kwargs)
 
 
+def _move_twice(client: SerialMotionClient) -> None:
+    """이번 실행에 두 축 엔코더가 바뀌는 것을 보게 한다(2026-10-15 G11 — 근거 없는 '같은 값 두 번'은 verified가 아니다).
+
+    가짜 MCU는 이동마다 위치를 한 번만 알리므로(실물은 이동 중 주기적으로 알린다) 두 번 움직인다."""
+    client.reset_stop()
+    client.move_to(30.0, 10.0)
+    client.move_to(60.0, 20.0)
+
+
 def _stop_ids(mcu: FakeMcu) -> list[int]:
     return [d["id"] for d in mcu.received if d.get("cmd") == "stop"]
 
@@ -148,6 +157,7 @@ def test_confirm_with_a_stop_id_returns_only_that_stops_record(link):
     pipe, mcu = link
     client = _client(pipe)
     client.home()
+    _move_twice(client)  # 엔코더가 바뀌는 것을 본 실행이어야 verified다(G11)
     answered: list[int] = []
 
     def first_only(doc: dict):
@@ -196,6 +206,7 @@ def test_confirm_stop_verifies_with_two_equal_encoder_reads(link):
     pipe, mcu = link
     client = _client(pipe)
     client.home()
+    _move_twice(client)  # 2026-10-15 G11: 이번 실행에 엔코더가 바뀌는 것을 봐야 같은 값 두 번이 '멈춤'이다
     client.request_stop()
     report = client.confirm_stop(ack_timeout_s=0.5, verify_interval_s=0.02)
     assert report.level == STOP_VERIFIED
@@ -226,6 +237,7 @@ def test_confirm_stop_verifies_after_the_axis_coasts_to_rest(link):
     pipe, mcu = link
     client = _client(pipe)
     client.home()
+    _move_twice(client)
     original = mcu.handlers["status"]
     coasting = {"left": 2}
 

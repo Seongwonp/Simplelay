@@ -4,6 +4,10 @@ RPi4가 올리는 단계(`rpi.controller.serial_motion.STOP_LEVELS`):
 ``sent``(정지 줄을 썼다) < ``mcu_ack``(모션 MCU가 받았다) < ``verified``(엔코더로 멈춤 확인).
 **확인(confirmed)은 ``mcu_ack`` 이상일 때만**이다. 단계가 없는 답(옛 RPi4)·모르는 값은 ``sent``로 낮춰 읽는다 —
 보낸 것은 확실하지만 그 이상은 모른다. 물리 E-STOP이 최종 권한이다. 기한·지연 값은 실물로 재야 한다.
+
+``verified``는 '정지 뒤 엔코더 값이 같다'만으로 내지 않는다(2026-10-15 G11): 이번 실행에 이동을 명령한 축마다 엔코더
+값이 바뀐 것을 RPi4 어댑터가 봤을 때만이다. 죽은 엔코더(늘 같은 값)·이동 없는 쉬는 중 정지는 ``mcu_ack``에 머문다
+(`rpi.controller.serial_motion.ENCODER_UNPROVEN_DETAIL`).
 """
 
 from __future__ import annotations
