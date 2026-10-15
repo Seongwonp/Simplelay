@@ -849,12 +849,15 @@ class ActExecutor:
         - 정지 버튼 대기 중이면 **구동부 정지**(``drive_stop``) — 전원이 이미 끊겼으니 정지 버튼을 누르지
           않는다.
         - ``{"type":"alert","kind":"outlet_estop","source":…}``와 ``estop_state``를 보낸다.
-        이미 걸린 상태에서 온 ready·status 보고는 같은 걸림의 재확인이라 다시 알리지 않는다.
+        이미 걸린 상태에서 온 ready·status 보고는 같은 걸림의 재확인이라 다시 알리지 않는다(재부팅 걸림 위의
+        보고는 예외 — 새 비상 버튼 걸림이다, B11).
         """
         already = self.estop_latched
         self.estop_latched = True
-        if already and source != "button":
+        if already and source != "button" and self.estop_source != "outlet_reboot":
             return  # 같은 걸림의 재확인 — 해제 확인 중이어도 '다시 걸림'으로 세지 않는다
+        # 재부팅 걸림(outlet_reboot) 위에 온 모듈 보고는 새 비상 버튼 걸림이다 — 원인을 바꿔 '다시 켜져'(해제하면
+        # 전원을 다시 켬) 문장이 남지 않게 한다(B11, 2026-10-15). 콘센트 링크도 같은 때 power_lost를 지운다.
         self._estop_gen += 1
         self.estop_source = source
         self.outlet_estops += 1

@@ -150,6 +150,102 @@ def test_module_reboot_without_relay_expected_on_is_not_a_latch(fake_env):
     asyncio.run(_t())
 
 
+# ── B11(10/15 계획 §5): 재부팅 걸림 뒤 비상 버튼이 이어져도 해제 확인이 릴레이를 켜지 않는다 ──────────
+
+async def _ack(reader: asyncio.StreamReader, executor: ActExecutor) -> None:
+    _feed(reader, {"type": "estop_ack"})
+    await executor.run_once()
+    await executor.wait_ack()
+
+
+def test_button_estop_after_reboot_latch_keeps_relay_off_after_ack(fake_env):
+    """재부팅 걸림(``power_lost``) 위에 비상 버튼(estop 이벤트)이 눌리면 비상 버튼 규칙이 이긴다 —
+    풀고 해제해도 콘센트 전원은 꺼진 채다(비상 버튼으로 꺼진 전원은 다시 켜지 않는다)."""
+    fake_env.setenv("SIMPLELAY_OUTLET_RELAY_ON_START", "1")
+
+    async def _t():
+        link = act_main._build_outlet()
+        fake = act_main._fake_outlet  # noqa: SLF001
+        try:
+            reader, writer = asyncio.StreamReader(), FakeWriter()
+            executor = ActExecutor(reader, writer, _controller())
+            act_main._wire_outlet_estop(link, executor)
+            fake.reboot()
+            await _wait_for(lambda: executor.estop_latched)
+            assert executor.estop_source == "outlet_reboot" and link.power_lost is True
+
+            fake.press_estop()
+            await _wait_for(lambda: executor.estop_source == "button")
+            fake.release_estop_button()
+            await _ack(reader, executor)
+            assert executor.estop_latched is False
+            await asyncio.sleep(0.2)
+            assert fake.relay_on is False  # 비상 버튼으로 꺼진 전원 — 해제 확인이 켜지 않는다
+            assert link.power_lost is False
+        finally:
+            link.close()
+
+    asyncio.run(_t())
+
+
+def test_status_reported_estop_after_reboot_latch_keeps_relay_off_after_ack(fake_env):
+    """estop 이벤트 줄을 잃고 주기 status로만 걸림을 안 경우도 같다 — 화면 문장도 '다시 켜져'(재부팅)로
+    남지 않고 비상 버튼 걸림으로 바뀐다."""
+    fake_env.setenv("SIMPLELAY_OUTLET_RELAY_ON_START", "1")
+
+    async def _t():
+        link = act_main._build_outlet()
+        fake = act_main._fake_outlet  # noqa: SLF001
+        try:
+            reader, writer = asyncio.StreamReader(), FakeWriter()
+            executor = ActExecutor(reader, writer, _controller())
+            act_main._wire_outlet_estop(link, executor)
+            fake.reboot()
+            await _wait_for(lambda: executor.estop_latched)
+            assert link.power_lost is True
+
+            fake.latch_silently()
+            await asyncio.to_thread(link.status)  # 주기 조회 한 번(시험에서는 주기 조회를 껐다)
+            await _wait_for(lambda: executor.estop_source == "status")
+            states = [m for m in writer.messages() if m.get("type") == "estop_state"]
+            assert states and "다시 켜져" not in states[-1]["detail"]
+
+            await _ack(reader, executor)
+            assert executor.estop_latched is False
+            await asyncio.sleep(0.2)
+            assert fake.relay_on is False
+            assert link.power_lost is False
+        finally:
+            link.close()
+
+    asyncio.run(_t())
+
+
+def test_reboot_latch_alone_still_restores_power_after_ack(fake_env):
+    """B11 수리가 재부팅 걸림만 있는 경우(A4)를 바꾸지 않는다 — 해제 확인 뒤 다시 켠다."""
+    fake_env.setenv("SIMPLELAY_OUTLET_RELAY_ON_START", "1")
+
+    async def _t():
+        link = act_main._build_outlet()
+        fake = act_main._fake_outlet  # noqa: SLF001
+        try:
+            reader, writer = asyncio.StreamReader(), FakeWriter()
+            executor = ActExecutor(reader, writer, _controller())
+            act_main._wire_outlet_estop(link, executor)
+            fake.reboot()
+            await _wait_for(lambda: executor.estop_latched)
+            await asyncio.to_thread(link.status)  # 걸림 없는 status — 재부팅 걸림을 덮지 않는다
+            await asyncio.sleep(0.1)
+            assert executor.estop_source == "outlet_reboot"
+            await _ack(reader, executor)
+            assert executor.estop_latched is False
+            assert fake.relay_on is True
+        finally:
+            link.close()
+
+    asyncio.run(_t())
+
+
 # ── C2: 해제 확인이 모듈 응답을 기다리는 동안에도 abort를 처리한다 ─────────────────
 
 class _HoldStub:

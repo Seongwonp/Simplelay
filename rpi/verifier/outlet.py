@@ -744,6 +744,10 @@ class OutletLink:
         with self._cond:
             newly = value and self.module_estop is not True
             self.module_estop = value
+            if value:
+                # 모듈이 비상 버튼 걸림을 보고했다 — estop 이벤트와 같다: 해제해도 꺼진 채(B11, 2026-10-15).
+                self.relay_expected_on = False
+                self.power_lost = False
         if newly:
             log.warning("outlet module reports a latched E-STOP (via %s)", source)
             self._notify({"event": "estop", "source": source, "reported": True})
@@ -770,6 +774,8 @@ class OutletLink:
                 with self._cond:
                     self.module_estop = True
                     self.relay_expected_on = False  # 모듈이 릴레이를 열었다 — 해제해도 꺼진 채(종전 규칙)
+                    # 앞선 재부팅 걸림의 '확인 뒤 다시 켜기'도 버린다 — 비상 버튼 규칙이 이긴다(B11, 2026-10-15).
+                    self.power_lost = False
                 log.warning("outlet module E-STOP (source=%s) — appliance relay opened by the module",
                             doc.get("source"))
             self._notify(doc)
