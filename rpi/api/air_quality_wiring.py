@@ -1,6 +1,7 @@
 """공기청정기 센서 공기질 제안 — 판독 스레드·시나리오 카드·리허설 주입을 붙인다(2026-10-15).
 
-판정 규칙은 :mod:`rpi.services.air_quality`, 카드 정의는 ``rpi/scenarios/catalog.py``의 ``air_quality_high``.
+판정 규칙은 :mod:`rpi.services.air_quality`, 카드 정의는 ``rpi/scenarios/catalog.py``의 ``air_quality_high``(켜져 있을 때
+강풍)·``air_quality_power_on``(꺼져 있을 때 켜기 — ThinQ 앱 공기질 센서 '항상' 설정일 때만 꺼진 채 값이 온다).
 
 - 판독 스레드는 ``SIMPLELAY_THINQ_MODE``가 mock·fake_cloud·real일 때만 띄운다(off면 스레드 없음). 스레드는 판독마다
   ThinQ 공기청정기(가전 ID ``air_purifier``)가 등록·추가돼 있는지 먼저 보고, **없으면 ThinQ를 부르지 않는다**.
@@ -26,8 +27,8 @@ from rpi.commands import ControlRoute
 
 log = logging.getLogger(__name__)
 
-#: 카드 정의(``rpi.scenarios.AIR_QUALITY_HIGH``)의 시나리오 ID.
-AIR_SCENARIO_ID = "air_quality_high"
+#: 카드 정의(``rpi.scenarios.AIR_QUALITY_HIGH``·``AIR_QUALITY_POWER_ON``)의 시나리오 ID.
+AIR_SCENARIO_IDS = ("air_quality_high", "air_quality_power_on")
 #: 모의 카드 근거 끝말 — 다른 모의 경로('(시연: 모의 이벤트예요)')와 같은 모양.
 MOCK_SUFFIX = " (시연: 모의 센서 값이에요)"
 #: 기동 직후 첫 판독까지(초). 시험이 바꾼다.
@@ -83,8 +84,8 @@ def _read_purifier_state():
     return cached(device_id) if callable(cached) else client.get_status(device_id)
 
 
-def _offer(reason: str):
-    """나쁨 판정 → 시나리오 카드. 막혔으면 None(조용한 시간·잠시 쉬기·다시 받지 않기·부재·준비 안 됨)."""
+def _offer(reason: str, *, power_off: bool = False):
+    """나쁨 판정 → 시나리오 카드(꺼져 있으면 켜기, 아니면 강풍). 막혔으면 None(조용한 시간·잠시 쉬기·다시 받지 않기·부재·준비 안 됨)."""
     from rpi.controller.models import ExecutionMode  # noqa: PLC0415
 
     from . import deps  # noqa: PLC0415
@@ -97,7 +98,8 @@ def _offer(reason: str):
     engine = get_scenario_engine()
     if engine is None:
         return None
-    return engine.on_air_quality(AIR_PURIFIER_ID, reason + (MOCK_SUFFIX if is_demo else ""), is_demo)
+    return engine.on_air_quality(AIR_PURIFIER_ID, reason + (MOCK_SUFFIX if is_demo else ""), is_demo,
+                                 power_off=power_off)
 
 
 def get_air_monitor():
@@ -202,7 +204,7 @@ def inject_mock_air(controller, registry, level: str, pm2: int | None = None, pm
     if forget_recent:
         monitor.forget_recent()
     outcome = monitor.check_once()
-    card = next((s for s in deps.get_suggestion_service().pending() if s.scenario_id == AIR_SCENARIO_ID), None)
+    card = next((s for s in deps.get_suggestion_service().pending() if s.scenario_id in AIR_SCENARIO_IDS), None)
     from .thinq_router import suggestion_payload  # noqa: PLC0415
 
     return {

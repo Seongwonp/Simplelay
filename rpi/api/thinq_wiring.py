@@ -122,7 +122,9 @@ def get_thinq_client():
 
     config = get_thinq_config()
     if config.mode is ThinqMode.MOCK:
-        return MockThinqClient()
+        from rpi.services.thinq.mock_client import air_sensor_always_from_env  # noqa: PLC0415
+
+        return MockThinqClient(air_sensor_always=air_sensor_always_from_env())
     if not config.mode.uses_sdk:
         return None
     from rpi.services.thinq.sdk_client import SdkThinqClient  # noqa: PLC0415

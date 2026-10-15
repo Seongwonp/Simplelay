@@ -2,6 +2,7 @@
 
 from .catalog import (
     AIR_QUALITY_HIGH,
+    AIR_QUALITY_POWER_ON,
     COOK_DONE_AIR,
     COOK_THEN_AIR,
     DEFAULT_SCENARIOS,
@@ -18,6 +19,7 @@ from .engine import ScenarioEngine, ScenarioUnavailableError
 
 __all__ = [
     "AIR_QUALITY_HIGH",
+    "AIR_QUALITY_POWER_ON",
     "COOK_DONE_AIR",
     "COOK_THEN_AIR",
     "DEFAULT_SCENARIOS",

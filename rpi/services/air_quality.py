@@ -3,15 +3,21 @@
 근거는 **공기청정기 자체 센서를 ThinQ로 읽은 값뿐**이다. 우리 임계값을 두지 않고 가전이 매긴 등급을 그대로 쓴다:
 ``PM2Level``(초미세먼지, PM2.5) · ``PM10Level``(미세먼지) · ``totalPollutionLevel``(종합) 중 하나라도 ``BAD``·``VERY_BAD``면
 나쁨이다. 센서 칸(``airQualitySensor``)이 없거나 비었으면(공기청정기 꺼짐 · 켠 직후 센서 준비 중) **값이 없는 것**이다 —
-지어내지 않고 제안하지 않는다. 전원이 ``POWER_OFF``로 보이면 센서 칸이 남아 있어도 값이 없는 것으로 친다(옛 값일 수 있다).
+지어내지 않고 제안하지 않는다.
 
-카드는 제안일 뿐이다. 승인하면 ThinQ 한 단계(``set_wind_strength HIGH``)가 종전 승인·실행 경로로 나가고, 결과는 기존 확인
-수준(``state_confirmed`` 등)으로만 말한다. **'공기가 좋아졌어요' 같은 결과 문장은 만들지 않는다.** 자동 실행(다음부터 자동으로)은
-이 카드에 두지 않는다(시나리오 정의 ``auto_allowed=False``).
+전원이 꺼져 있어도 센서 칸이 오면 값이다(2026-10-15 저녁, 사용자 결정): ThinQ 앱의 공기질 센서 설정이 '항상'이면 꺼진
+공기청정기도 센서 값을 보낸다(같은 날 실물 읽기 전용 조회로 확인). '운전 중에만'이면 꺼져 있을 때 칸이 비어 온다 → 값 없음.
+
+카드는 제안일 뿐이다. 켜져 있으면 강풍 카드(``air_quality_high``, ``set_wind_strength HIGH``), 꺼져 있으면 켜기 카드
+(``air_quality_power_on``, ``set_power POWER_ON`` 한 단계 — 꺼진 공기청정기는 전원 밖의 명령을 클라우드가 거절(2304)하므로
+풍량은 바꾸지 않는다). 승인하면 종전 승인·실행 경로로 나가고, 결과는 기존 확인 수준(``state_confirmed`` 등)으로만 말한다.
+**'공기가 좋아졌어요' 같은 결과 문장은 만들지 않는다.** 자동 실행(다음부터 자동으로)은 두 카드 모두 두지 않는다(``auto_allowed=False``).
 
 중복·재알림(:class:`AirQualityMonitor`):
 
 - 떠 있는 공기질 카드는 하나뿐이다(같은 시나리오의 대기 카드가 있으면 제안 서비스가 그것을 돌려준다).
+- 강풍·켜기 두 카드는 **재알림 기억을 함께 쓴다** — 나쁜 공기 한 번에 카드 하나. 켜기를 승인해 켜졌는데 여전히 나쁘면 강풍
+  카드는 곧바로 뒤따르지 않고 아래 다시 준비·쉬는 시간 규칙을 똑같이 기다린다(연달아 두 번 묻지 않는다).
 - 카드를 한 번 만들면 **공기가 좋음·보통으로 돌아온 것을 한 번 본 뒤에만**(다시 준비) 다시 제안한다.
 - 그와 별도로 카드를 만든 뒤 ``card_quiet_s``(기본 45분 = 카드 유효 15분 + 30분) 동안은 다시 만들지 않는다 — 카드가 언제
   내려갔든(거절·실행·만료) 내려간 뒤 적어도 30분이다.
@@ -78,11 +84,13 @@ def poll_seconds_from_env(env: Mapping[str, str] | None = None) -> float:
 
 @dataclass(frozen=True)
 class AirReading:
-    """센서 한 번 읽은 것. ``bad``는 나쁜 칸들 ``(이름, 값|None, 등급)``(우선순서), ``wind``는 지금 풍량(모르면 None)."""
+    """센서 한 번 읽은 것. ``bad``는 나쁜 칸들 ``(이름, 값|None, 등급)``(우선순서), ``wind``는 지금 풍량(모르면 None),
+    ``power_off``는 전원이 ``POWER_OFF``로 읽혔는지(센서 '항상' 설정일 때만 꺼진 채 값이 온다)."""
 
     bad: tuple[tuple[str, object, str], ...]
     known: int
     wind: str | None
+    power_off: bool = False
 
     @property
     def is_bad(self) -> bool:
@@ -90,7 +98,8 @@ class AirReading:
 
     @property
     def wind_is_strong(self) -> bool:
-        return self.wind in STRONG_WIND
+        """켜져 있고 강풍 이상. 꺼져 있으면 풍량 칸은 마지막 설정일 뿐이라 '이미 강풍'의 근거가 아니다."""
+        return not self.power_off and self.wind in STRONG_WIND
 
     def reason(self) -> str:
         """근거 한 줄 — 나쁜 칸 중 맨 앞 하나. 예: '공기청정기 센서: 초미세먼지 42 · 나쁨'."""
@@ -107,13 +116,12 @@ def _section(state, key: str) -> dict | None:
 
 
 def read_air(state) -> AirReading | None:
-    """ThinQ 상태 → 판독. **값이 없으면 None**(센서 칸 없음·빔·전원 꺼짐·아는 등급이 하나도 없음)."""
+    """ThinQ 상태 → 판독. **값이 없으면 None**(센서 칸 없음·빔·아는 등급이 하나도 없음). 꺼져 있어도 칸이 오면 판독이다."""
     sensor = _section(state, "airQualitySensor")
     if not sensor:
         return None
     operation = _section(state, "operation") or {}
-    if operation.get("airPurifierOperationMode") == "POWER_OFF":
-        return None
+    power_off = operation.get("airPurifierOperationMode") == "POWER_OFF"
     bad = []
     known = 0
     for value_key, level_key, name in SENSOR_FIELDS:
@@ -130,7 +138,7 @@ def read_air(state) -> AirReading | None:
         return None
     flow = _section(state, "airFlow") or {}
     wind = flow.get("windStrengthDetail") or flow.get("windStrength")
-    return AirReading(bad=tuple(bad), known=known, wind=wind if isinstance(wind, str) else None)
+    return AirReading(bad=tuple(bad), known=known, wind=wind if isinstance(wind, str) else None, power_off=power_off)
 
 
 class AirReadSkipped(Exception):
@@ -145,7 +153,8 @@ class AirQualityMonitor:
     """판독 한 번(:meth:`check_once`)마다 제안 여부를 정한다. 입출력은 넘겨받은 함수가 한다(이 클래스는 상태만).
 
     - ``read()`` → ThinQ 상태(dict). 판독을 하지 않을 때는 :class:`AirReadSkipped`, 실패는 아무 예외.
-    - ``offer(reason)`` → 만든(또는 이미 떠 있던) 카드, 막혔으면 None(조용한 시간·잠시 쉬기·다시 받지 않기·준비 안 됨).
+    - ``offer(reason, power_off=...)`` → 만든(또는 이미 떠 있던) 카드, 막혔으면 None(조용한 시간·잠시 쉬기·다시 받지
+      않기·준비 안 됨). ``power_off``가 참이면 켜기 카드, 아니면 강풍 카드다. 재알림 기억은 둘이 함께 쓴다.
     """
 
     def __init__(self, read: Callable[[], object], offer: Callable[[str], object | None], *,
@@ -206,7 +215,7 @@ class AirQualityMonitor:
         now = self._monotonic()
         if self._last_card_at is not None and now - self._last_card_at < self._card_quiet_s:
             return "card_quiet"
-        card = self._offer(reading.reason())
+        card = self._offer(reading.reason(), power_off=reading.power_off)
         if card is None:
             return "not_offered"
         self._armed = False

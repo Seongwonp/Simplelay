@@ -2,9 +2,11 @@
 
 기기 세 대:
 
-- 공기청정기 ``mock-purifier-01`` -- 전원·풍량·운전 모드 쓰기 가능. 센서 칸(``airQualitySensor``, 기본 좋음)은 **전원이
-  켜져 있을 때만** 상태에 싣는다(2026-10-15 실물: 꺼져 있으면 칸이 없다). ``set_air_quality``로 모의 센서 값을 바꾼다
-  (리허설 ``POST /demo/thinq/air-quality``, mock 모드만). ``None``이면 칸을 지운다(켠 직후 센서 준비 중 흉내).
+- 공기청정기 ``mock-purifier-01`` -- 전원·풍량·운전 모드 쓰기 가능. 센서 칸(``airQualitySensor``, 기본 좋음)은 기본으로
+  **전원이 켜져 있을 때만** 상태에 싣는다(ThinQ 앱 공기질 센서 설정 '운전 중에만' — 꺼져 있으면 칸이 없다). ``air_sensor_always``
+  (허브는 ``SIMPLELAY_THINQ_MOCK_AIR_SENSOR_ALWAYS``)를 켜면 꺼져 있어도 싣는다(설정 '항상' — 2026-10-15 저녁 실물 조회와 같다).
+  ``set_air_quality``로 모의 센서 값을 바꾼다(리허설 ``POST /demo/thinq/air-quality``, mock 모드만). ``None``이면 칸을 지운다
+  (켠 직후 센서 준비 중 흉내).
 - 세탁기 ``mock-washer-01`` -- 시작·일시정지(``operation.washerOperationMode``, 위치 ``MAIN``).
   **원격 제어는 기본 꺼짐**(``set_remote_control(True)``로 켠다) -- 꺼져 있으면 제어를 거절한다.
   ``inject_event("wash_complete")``로 세탁 완료를 흉내 낸다(상태 ``runState.currentState`` → ``END``).
@@ -40,10 +42,11 @@ from __future__ import annotations
 
 import copy
 import itertools
+import os
 import threading
 import time
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import datetime, timezone
 
 from rpi.controller.models import ExecutionMode
@@ -71,6 +74,16 @@ MOCK_WASHER_ID = "mock-washer-01"
 #: 모의 제습기(2026-09-29, G3 세탁 완료 → 제습 시나리오의 대상).
 MOCK_DEHUMIDIFIER_ID = "mock-dehumidifier-01"
 
+#: 모의 공기청정기 센서를 꺼져 있을 때도 싣는가(ThinQ 앱 공기질 센서 '항상' 흉내). 기본 꺼짐('운전 중에만').
+AIR_SENSOR_ALWAYS_ENV = "SIMPLELAY_THINQ_MOCK_AIR_SENSOR_ALWAYS"
+
+
+def air_sensor_always_from_env(env: Mapping[str, str] | None = None) -> bool:
+    """``1``·``true``·``yes``·``on``이면 참. 그 밖(비움 포함)은 거짓(예전 설정 '운전 중에만')."""
+    env = os.environ if env is None else env
+    return (env.get(AIR_SENSOR_ALWAYS_ENV) or "").strip().lower() in {"1", "true", "yes", "on"}
+
+
 #: 주입 가능한 이벤트 → (기기, 상태 변경). 세탁기만 둔다.
 EVENTS = {
     "wash_complete": (MOCK_WASHER_ID, ("runState", "currentState", "END")),
@@ -95,8 +108,11 @@ class MockThinqClient:
         latency_seconds: float = 0.0,
         sleep: Callable[[float], None] | None = None,
         now: Callable[[], datetime] | None = None,
+        air_sensor_always: bool = False,
     ) -> None:
         self._lock = threading.Lock()
+        #: 참이면 센서 칸을 전원과 상관없이 싣는다(설정 '항상'). 거짓이면 켜져 있을 때만('운전 중에만').
+        self.air_sensor_always = bool(air_sensor_always)
         self._sleep = sleep or time.sleep
         self._now = now or (lambda: datetime.now(timezone.utc))
         self.latency_seconds = latency_seconds
@@ -134,7 +150,7 @@ class MockThinqClient:
             MOCK_WASHER_ID: washer_profile(),
             MOCK_DEHUMIDIFIER_ID: dehumidifier_profile(),
         }
-        #: 모의 공기청정기 센서 칸 — 전원이 켜져 있을 때만 조회에 싣는다. None이면 칸 없음.
+        #: 모의 공기청정기 센서 칸 — 전원이 켜져 있을 때만(``air_sensor_always``면 늘) 조회에 싣는다. None이면 칸 없음.
         self._air_sensor: dict | None = air_sensor_sample("GOOD")
         self._faults: dict[str, str] = {}
         self._device_latency: dict[str, float] = {}
@@ -167,7 +183,7 @@ class MockThinqClient:
                 "remoteControlEnabled"] = bool(enabled)
 
     def set_air_quality(self, sensor: dict | None) -> dict | None:
-        """모의 공기청정기 센서 칸을 바꾼다(모의). None이면 칸을 지운다. 전원이 꺼져 있으면 조회에 실리지 않는다."""
+        """모의 공기청정기 센서 칸을 바꾼다(모의). None이면 칸을 지운다. 전원이 꺼져 있으면 ``air_sensor_always``일 때만 실린다."""
         with self._lock:
             self._air_sensor = copy.deepcopy(sensor) if sensor else None
             return copy.deepcopy(self._air_sensor)
@@ -265,7 +281,8 @@ class MockThinqClient:
             self._apply_due_locked(device_id)
             state = copy.deepcopy(self._state[device_id])
             if (device_id == MOCK_PURIFIER_ID and self._air_sensor
-                    and state.get("operation", {}).get("airPurifierOperationMode") == "POWER_ON"):
+                    and (self.air_sensor_always
+                         or state.get("operation", {}).get("airPurifierOperationMode") == "POWER_ON")):
                 state["airQualitySensor"] = copy.deepcopy(self._air_sensor)
             return state
 

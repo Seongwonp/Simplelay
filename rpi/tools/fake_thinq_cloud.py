@@ -22,6 +22,8 @@ ID가 UUID인지). 토큰·API 키 값은 기록하지 않는다.
 
 공기질(2026-10-15): ``set_air_quality``(또는 HTTP ``POST /__fake__/air`` ``{"device_id", "sensor"}``)로 공기청정기
 센서 칸(``airQualitySensor``)을 바꾸거나(``sensor: null``이면) 지운다 — 허브의 ``POST /demo/thinq/air-quality``가 쓴다.
+센서 칸은 기본으로 **전원이 켜져 있을 때만** 상태 조회에 싣는다(ThinQ 앱 공기질 센서 설정 '운전 중에만'). ``air_sensor_always``
+(실행 때 ``--air-sensor-always``)면 꺼져 있어도 싣는다(설정 '항상' — 2026-10-15 저녁 실물 조회와 같다).
 
 세탁기는 ``remoteControlEnable.remoteControlEnabled``가 꺼져 있으면(기본 꺼짐) 제어를
 ``COMMAND_NOT_SUPPORTED_IN_REMOTE_OFF``로 거절한다. 프로필에 없는 속성·값도 거절한다.
@@ -94,8 +96,11 @@ def default_devices() -> dict[str, dict]:
 
 
 class FakeThinqCloud:
-    def __init__(self, *, token: str = FAKE_CLOUD_TOKEN, devices: dict[str, dict] | None = None) -> None:
+    def __init__(self, *, token: str = FAKE_CLOUD_TOKEN, devices: dict[str, dict] | None = None,
+                 air_sensor_always: bool = False) -> None:
         self._token = token
+        #: 참이면 공기청정기 센서 칸을 전원과 상관없이 싣는다(설정 '항상'). 거짓이면 켜져 있을 때만('운전 중에만').
+        self.air_sensor_always = bool(air_sensor_always)
         self._lock = threading.Lock()
         self._devices = devices or default_devices()
         self._requests: list[dict] = []
@@ -253,7 +258,11 @@ class FakeThinqCloud:
             return 400, _error("NOT_CONNECTED_DEVICE", "device offline")
         if what == "state" and method == "GET":
             with self._lock:
-                return 200, _ok(copy.deepcopy(device["state"]))
+                state = copy.deepcopy(device["state"])
+            if (device["kind"] == "air_purifier" and not self.air_sensor_always
+                    and (state.get("operation") or {}).get("airPurifierOperationMode") != "POWER_ON"):
+                state.pop("airQualitySensor", None)  # '운전 중에만': 꺼져 있으면 센서 칸이 없다
+            return 200, _ok(state)
         if what == "control" and method == "POST":
             if device_fault == "reject_control":
                 return 400, _error("COMMAND_NOT_SUPPORTED_IN_MODE", "fake cloud: reject_control")
@@ -406,8 +415,10 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="모의 ThinQ 클라우드(로컬 전용, 실제 클라우드 아님)")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8790)
+    parser.add_argument("--air-sensor-always", action="store_true",
+                        help="공기청정기가 꺼져 있어도 센서 값을 싣는다(ThinQ 앱 공기질 센서 '항상' 흉내)")
     args = parser.parse_args(argv)
-    cloud = FakeThinqCloud()
+    cloud = FakeThinqCloud(air_sensor_always=args.air_sensor_always)
     url = cloud.start(args.host, args.port)
     print(f"모의 ThinQ 클라우드: {url} (실제 클라우드 아님)")
     for device_id, info in cloud._devices.items():

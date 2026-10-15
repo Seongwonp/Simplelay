@@ -447,8 +447,10 @@ bool thinqPowerOff(Map<String, dynamic> state) {
 
 /// 공기청정기인데 미세먼지 값이 없을 때 이유 한 줄. 값이 있거나 공기청정기가 아니면 null.
 ///
-/// 실가전(10/15): 꺼져 있으면 airQualitySensor가 아예 없고, 켠 직후에도 잠시 비어 있다 —
-/// 줄을 조용히 빼면 고장처럼 보인다.
+/// 실가전(10/15): 켠 직후에는 airQualitySensor가 잠시 비어 있다 — 줄을 조용히 빼면 고장처럼 보인다.
+/// 꺼져 있을 때는 ThinQ 앱의 공기질 센서 설정에 달렸다(10/15 저녁 확인): '운전 중에만'이면 칸이 없고,
+/// '항상'이면 꺼진 채로도 값이 온다 — 값이 오면 전원과 상관없이 값 줄을 보이고 이 줄은 없다.
+/// 꺼져 있는데 값이 없으면 꺼져 있을 때도 보는 방법을 함께 말한다.
 String? thinqDustNote(Map<String, dynamic> state) {
   final op = state['operation'];
   if (op is! Map || op['airPurifierOperationMode'] == null) return null;
@@ -457,9 +459,13 @@ String? thinqDustNote(Map<String, dynamic> state) {
       sensor is Map && (sensor['PM2'] != null || sensor['PM10'] != null);
   if (hasDust) return null;
   return thinqPowerOff(state)
-      ? '전원이 꺼져 있어 미세먼지 값을 받을 수 없어요'
+      ? kThinqDustOffNote
       : '미세먼지 값을 아직 받지 못했어요(켠 직후에는 잠시 걸려요)';
 }
+
+/// 꺼져 있고 미세먼지 값이 없을 때 — 이유와, 꺼져 있을 때도 보는 방법.
+const kThinqDustOffNote = '전원이 꺼져 있어 미세먼지 값이 오지 않아요. '
+    "꺼져 있을 때도 보려면 ThinQ 앱에서 공기질 센서를 '항상'으로 바꿔 주세요.";
 
 /// ThinQ 루틴 단계(동작 + 인자) → 사람 말. 동작 이름(set_wind_strength 같은 것)은
 /// 화면에 내지 않는다. 표에 없는 값은 상태 표의 말로, 그래도 모르면 원래 값 그대로

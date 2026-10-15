@@ -103,16 +103,19 @@ class ScenarioEngine:
                 offered.append(card)
         return offered
 
-    def on_air_quality(self, appliance_id: str, reason: str, is_demo: bool):
+    def on_air_quality(self, appliance_id: str, reason: str, is_demo: bool, *, power_off: bool = False):
         """공기청정기 센서 나쁨 판독(``rpi/services/air_quality.py``) → ``air_quality`` 트리거 카드(2026-10-15).
 
         근거 문장은 판독이 만든 그대로(가전 등급·값). 판정·재알림은 판독 쪽이 하고, 여기서는 종전 시나리오 카드처럼
-        준비 상태를 보고 만든다 — 조용한 시간·잠시 쉬기·다시 받지 않기·부재는 제안 서비스가 막는다. 만든(또는 이미 떠
-        있던) 카드, 막혔으면 None."""
+        준비 상태를 보고 만든다 — 조용한 시간·잠시 쉬기·다시 받지 않기·부재는 제안 서비스가 막는다. 판독 때 전원 상태로
+        카드를 고른다: 켜져 있으면 트리거 이벤트 ``purifier_on``(강풍), 꺼져 있으면 ``purifier_off``(켜기). 만든(또는
+        이미 떠 있던) 카드, 막혔으면 None."""
+        event = "purifier_off" if power_off else "purifier_on"
         card = None
         for definition in self._catalog.list():
             trigger = definition.trigger
-            if trigger.kind != "air_quality" or trigger.appliance_id != appliance_id:
+            if (trigger.kind != "air_quality" or trigger.appliance_id != appliance_id
+                    or trigger.event != event):
                 continue
             card = self._offer(definition, reason, is_demo) or card
         return card

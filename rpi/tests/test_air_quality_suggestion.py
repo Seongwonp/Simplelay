@@ -144,11 +144,11 @@ def test_good_or_normal_is_not_bad(level):
 @pytest.mark.parametrize("state", [
     {"operation": {"airPurifierOperationMode": "POWER_OFF"}, "airFlow": {"windStrength": "LOW"}},
     {"operation": {"airPurifierOperationMode": "POWER_ON"}, "airQualitySensor": {}},
-    _bad_state(power="POWER_OFF"),  # 꺼짐으로 보이면 남은 센서 칸도 쓰지 않는다
+    # 꺼짐 + 센서 값은 10/15 저녁부터 값이다(공기질 센서 '항상' 설정) — test_air_quality_power_on.py.
     {"operation": {"airPurifierOperationMode": "POWER_ON"}, "airQualitySensor": {"PM2": 42}},  # 등급 없음
     {"airQualitySensor": {"PM2Level": "UNKNOWN"}},
     None, [], "x",
-], ids=["no_sensor_block", "empty_sensor", "power_off_with_stale_block", "value_without_grade",
+], ids=["no_sensor_block", "empty_sensor", "value_without_grade",
         "unknown_grade", "none", "list", "str"])
 def test_missing_sensor_block_is_no_data(state):
     assert read_air(state) is None
@@ -186,7 +186,7 @@ def _monitor(states, offers, clock):
             raise state
         return state
 
-    def offer(reason):
+    def offer(reason, **_):
         offers.append(reason)
         return object()
 
@@ -232,7 +232,7 @@ def test_blocked_offer_keeps_the_monitor_armed():
     allowed = [False]
     offers = []
     monitor = AirQualityMonitor(lambda: states[0],
-                                lambda reason: offers.append(reason) or (object() if allowed[0] else None),
+                                lambda reason, **_: offers.append(reason) or (object() if allowed[0] else None),
                                 monotonic=clock)
     assert monitor.check_once() == "not_offered"
     assert monitor.armed

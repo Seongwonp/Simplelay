@@ -72,8 +72,9 @@ def _routine_body(template):
 
 def test_default_catalog_has_no_v2_scenarios(thinq_mock):
     # v4(2026-10-13): 기본 카탈로그는 조리 완료 → 공기청정기(cook_done_air), 2026-10-15부터 공기청정기 센서 공기질
-    # (air_quality_high)도. v2 셋은 여전히 없다.
-    assert [s["scenario_id"] for s in thinq_mock.get("/scenarios").json()] == ["cook_done_air", "air_quality_high"]
+    # (air_quality_high, 꺼져 있을 때 air_quality_power_on)도. v2 셋은 여전히 없다.
+    assert [s["scenario_id"] for s in thinq_mock.get("/scenarios").json()] == [
+        "cook_done_air", "air_quality_high", "air_quality_power_on"]
 
 
 def test_wash_complete_makes_the_routine_notice_and_no_dehumidifier_card(thinq_mock):

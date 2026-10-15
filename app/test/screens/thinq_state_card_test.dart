@@ -307,8 +307,43 @@ void main() {
     expect(find.byKey(const Key('thinq-set-set_wind_strength-HIGH')), findsNothing);
     expect(find.byKey(const Key('thinq-set-set_job_mode-SLEEP')), findsNothing);
     expect(find.text(kThinqPowerOffNote), findsOneWidget);
-    expect(find.text('전원이 꺼져 있어 미세먼지 값을 받을 수 없어요'), findsOneWidget);
+    // 10/15 저녁: 꺼져 있어도 값을 보는 길(ThinQ 앱 공기질 센서 '항상')을 함께 알려 준다.
+    expect(
+        find.text('전원이 꺼져 있어 미세먼지 값이 오지 않아요. '
+            "꺼져 있을 때도 보려면 ThinQ 앱에서 공기질 센서를 '항상'으로 바꿔 주세요."),
+        findsOneWidget);
+    expect(find.textContaining('받을 수 없어요'), findsNothing);
     // 스스로 켜지 않는다.
+    expect(hub.commands, isEmpty);
+  });
+
+  testWidgets('꺼져 있어도 미세먼지 값이 오면(센서 "항상") 값 줄을 보이고 이유 줄은 없다', (tester) async {
+    _tall(tester);
+    // 실가전 10/15 저녁: 공기질 센서 '항상'이면 꺼진 채로 PM 값·등급이 온다.
+    final hub = _Hub((_) => _ok({
+          'airPurifierJobMode': {'currentJobMode': 'CLEAN'},
+          'operation': {'airPurifierOperationMode': 'POWER_OFF'},
+          'airFlow': {'windStrength': 'AUTO', 'windStrengthDetail': 'AUTO'},
+          'airQualitySensor': {
+            'PM1': 6,
+            'PM2': 8,
+            'PM10': 10,
+            'PM2Level': 'GOOD',
+            'PM10Level': 'BAD',
+          },
+        }));
+    await tester.pumpWidget(_detail(hub.service()));
+    await _settle(tester);
+
+    expect(find.text('꺼짐'), findsOneWidget);
+    expect(find.text('초미세먼지(PM2.5)'), findsOneWidget);
+    expect(find.text('8 · 좋음'), findsOneWidget);
+    expect(find.text('미세먼지(PM10)'), findsOneWidget);
+    expect(find.text('10 · 나쁨'), findsOneWidget);
+    expect(find.byKey(const Key('thinq-dust-note')), findsNothing);
+    // 조작 줄은 꺼짐 규칙 그대로 — 켜기만, 풍량·운전 모드 없음.
+    expect(find.text(kThinqPowerOffNote), findsOneWidget);
+    expect(find.byKey(const Key('thinq-set-set_wind_strength-HIGH')), findsNothing);
     expect(hub.commands, isEmpty);
   });
 

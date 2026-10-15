@@ -120,10 +120,26 @@ AIR_QUALITY_HIGH = ScenarioDefinition(
     # rpi/services/air_quality.py, 판독 스레드는 rpi/api/air_quality_wiring.py. 센서 값이 없으면 만들지 않는다
     # (시연 트리거로도 만들지 않는다 — 엔진 ``trigger_manual``). 근거 문장은 판독이 채운다(예: '공기청정기 센서: 초미세먼지 42 · 나쁨').
     # '다음부터도 자동으로'는 두지 않는다(auto_allowed=False — 자동 실행 허용 규칙의 범위는 cook_done_air 그대로).
-    trigger=ScenarioTrigger("air_quality", appliance_id="air_purifier"),
+    # 트리거 이벤트는 판독 때 전원 상태: 켜져 있을 때(purifier_on)만 이 카드, 꺼져 있으면 아래 켜기 카드.
+    trigger=ScenarioTrigger("air_quality", appliance_id="air_purifier", event="purifier_on"),
     steps=(
         ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
                      (("wind_strength", "HIGH"),)),
+    ),
+    auto_allowed=False,
+)
+
+AIR_QUALITY_POWER_ON = ScenarioDefinition(
+    scenario_id="air_quality_power_on",
+    name="공기가 나빠요",
+    question="공기청정기를 켤까요?",
+    # 2026-10-15 저녁(사용자 결정): ThinQ 앱 공기질 센서 설정 '항상'이면 꺼진 공기청정기도 센서 값을 보낸다. 꺼져 있을 때
+    # 나쁨이면 전원 켜기 **한 단계만** 묻는다 — 꺼진 공기청정기는 전원 밖의 명령을 클라우드가 거절(2304)하므로 풍량은 넣지 않는다.
+    # 강풍 카드와 시나리오 ID를 나눠 기록·다시 받지 않기(질문 문장)가 섞이지 않게 했다. 재알림 기억은 판독 쪽에서 함께 쓴다
+    # (rpi/services/air_quality.py — 켜기 승인 뒤 여전히 나쁘면 강풍 카드는 다시 준비·쉬는 시간 뒤에야).
+    trigger=ScenarioTrigger("air_quality", appliance_id="air_purifier", event="purifier_off"),
+    steps=(
+        ScenarioStep("air_purifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
     ),
     auto_allowed=False,
 )
@@ -153,9 +169,9 @@ WASH_THEN_DRY = ScenarioDefinition(
 
 #: v2 시연의 시나리오 — v3에서 뺐다. ``SIMPLELAY_V2_SCENARIOS``로만 싣는다.
 V2_SCENARIOS = (COOK_THEN_AIR, EVENING_REST, WASH_THEN_DRY)
-#: 기본 카탈로그(v4): 가열 종료 감지 → 공기청정기, 그리고 공기청정기 센서 공기질 → 강풍(2026-10-15).
-#: 그 밖의 카드는 사용자 루틴이 만든다. v2 구성(opt-in)에는 공기질 카드를 싣지 않는다.
-DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR, AIR_QUALITY_HIGH)
+#: 기본 카탈로그(v4): 가열 종료 감지 → 공기청정기, 그리고 공기청정기 센서 공기질 → 강풍(켜져 있을 때)·켜기(꺼져 있을 때)
+#: (2026-10-15). 그 밖의 카드는 사용자 루틴이 만든다. v2 구성(opt-in)에는 공기질 카드를 싣지 않는다.
+DEFAULT_SCENARIOS: tuple[ScenarioDefinition, ...] = (COOK_DONE_AIR, AIR_QUALITY_HIGH, AIR_QUALITY_POWER_ON)
 
 V2_SCENARIOS_ENV = "SIMPLELAY_V2_SCENARIOS"
 
@@ -193,6 +209,7 @@ class ScenarioCatalog:
 
 __all__ = [
     "AIR_QUALITY_HIGH",
+    "AIR_QUALITY_POWER_ON",
     "COOK_DONE_AIR",
     "COOK_THEN_AIR",
     "DEFAULT_SCENARIOS",
