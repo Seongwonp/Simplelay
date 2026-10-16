@@ -54,6 +54,8 @@ def wire_routines(suggestions, service, scenario_engine=None) -> RoutineEngine:
         environment_reader=deps._read_environment,
         runner=runner,
         done_sensors=done_sensors,
+        # 시각 규칙(2026-10-16): 정해진 시각에 켜진 '다음부터도 자동으로'가 있으면 카드 대신 자동 실행 경로로.
+        auto_rules=get_auto_rule_engine,
     )
     scenarios = scenario_engine.catalog.current_commands if scenario_engine is not None else None
 
@@ -138,7 +140,9 @@ def get_auto_rule_engine():
         engine = AutoRuleEngine(store, seen, service, deps.get_clock(), scenarios=get_scenario_engine,
                                 care_events=deps.get_care_events(),
                                 max_event_age_s=max_event_age_from_env(),
-                                is_quiet=lambda: deps.get_suggestion_service().is_auto_run_quiet())  # 이어받은 옛 범위 잠시 쉬기는 막지 않음
+                                is_quiet=lambda: deps.get_suggestion_service().is_auto_run_quiet(),  # 이어받은 옛 범위 잠시 쉬기는 막지 않음
+                                routines=get_routine_store,
+                                quiet_settings=lambda: deps.get_quiet_hours().settings())
         _auto_engine = engine
     if not getattr(service, "_simplelay_auto_rule_listener", False):
         service.add_job_listener(lambda event: _auto_engine.on_job_finished(event)

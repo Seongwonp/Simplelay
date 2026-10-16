@@ -150,6 +150,16 @@ class ThinqBinding:
                 return self.command(target_id, fn.action, dict(fn.args))
         return None
 
+    def purpose_for(self, command: Command) -> str | None:
+        """명령과 동작·인자가 똑같은 목적 문장(예: "공기청정기 켜줘"). 대응표에 없으면 None(2026-10-16).
+
+        직접 명령(``POST /thinq/command``)을 사용 기록에 남길 때 쓴다 — 목적 문장이 없으면 기록하지 않는다."""
+        args = command.args_dict()
+        for fn in self.functions:
+            if fn.action == command.action and dict(fn.args) == args:
+                return fn.purpose
+        return None
+
     def summary(self, name: str, command: Command) -> str:
         """사용자가 볼 한 줄(승인에 묶이는 문장)."""
         cap = self.capability(command.action)

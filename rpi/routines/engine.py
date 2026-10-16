@@ -61,8 +61,10 @@ class RoutineUnavailableError(RuntimeError):
 class RoutineEngine:
     def __init__(self, store, suggestions, service, clock, *, care_events=None,
                  presence_machine=None, environment_reader=None, runner=None,
-                 done_sensors: frozenset = frozenset()) -> None:
+                 done_sensors: frozenset = frozenset(), auto_rules=None) -> None:
         self._store = store
+        #: 자동 실행 허용 규칙 엔진을 돌려주는 함수(2026-10-16 시각 규칙). 없으면 시각 트리거는 늘 카드다.
+        self._auto_rules = auto_rules
         #: 끝 센서(RPi4 사이클 끝)가 있는 가전 — 그 가전의 after_done은 시작 확인이 아니라 appliance_done에서 깬다(M2).
         self._done_sensors = done_sensors if not isinstance(done_sensors, (set, frozenset, list, tuple)) \
             else frozenset(done_sensors)
@@ -135,6 +137,8 @@ class RoutineEngine:
                 if self._fired.get(routine.routine_id) == key:
                     continue
                 self._fired[routine.routine_id] = key
+            if self._auto_time(routine, scheduled, now):
+                continue  # 허용한 시각 규칙이 맡았다(보냄·막힘·중복) — 카드를 만들지 않는다
             fired.append(self._fire(routine, f"{trigger.describe()} 시각이에요", False, "time"))
         for zone in self._approach_edges():
             for routine in self._store.list():
@@ -143,6 +147,26 @@ class RoutineEngine:
                     fired.append(self._fire(routine, trigger.describe() + " (공간 인식 — 레이더 실측 전)",
                                             False, "approach"))
         return [f for f in fired if f is not None]
+
+    def _auto_time(self, routine: Routine, scheduled: datetime, now: datetime) -> bool:
+        """정해진 시각 — 켜진 시각 규칙이 맡았으면 True(카드 없음). 규칙이 없거나 늦음·허용 전·재시작 전·무효로 카드로
+        물어야 하면 False. 규칙 엔진 오류는 기록하고 카드로(승인 필요) 돌아간다. 자리 비움 확인은 하지 않는다(사용자가
+        허용한 시각 동작)."""
+        if self._auto_rules is None:
+            return False
+        try:
+            engine = self._auto_rules()
+            entries = engine.on_time_due(routine, scheduled, now) if engine is not None else []
+        except Exception:  # noqa: BLE001
+            log.exception("time auto rule failed; falling back to the card")
+            return False
+        handled = [e for e in entries if not e.get("reoffer")]
+        if not handled:
+            return False
+        first = handled[0]
+        self._record(routine, "time", "auto", first.get("reason") or "",
+                     auto_outcome=first.get("outcome"), job_id=first.get("job_id"))
+        return True
 
     def on_job_finished(self, event) -> None:
         if event.status != CommandStatus.SUCCEEDED.value or event.appliance_id is None:

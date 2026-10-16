@@ -26,6 +26,13 @@
 6. **가열 종료 근거**(취소·문 열림과 구분 못 함 — 위 정책, 실측 기록표 §6)는 RPi4 ``appliance_done``(전자레인지 CT 채널 전력 끝, 입력에 ``power``)뿐이다. 실행
    끝(버튼 누름 완료)은 이 모듈에 오지 않는다.
 
+**시각 규칙(2026-10-16, 사용자 승인)** — 두 번째 조건 종류(``condition_kind="time"``). 시각 루틴(켜짐·승인 루틴·조건 없음·
+**낮은 위험 ThinQ 명령 한 단계**)의 카드에서만 허용이 생기고, 다음 정해진 시각에 루틴 엔진 ``tick``이 :meth:`AutoRuleEngine.on_time_due`
+를 부르면 위와 **같은** ``_try_run``·``_submit`` 경로(조용한 시간·비상정지·정지 세대·지문·전송권·사건 나이·허용 전후 경계)로 보낸다.
+사건 키는 루틴·날짜·시각(재시작 뒤에도 한 번), 사건 나이는 정해진 시각보다 늦게 확인한 시간(허브 시계). 늦음·허용 전·재시작 전은
+보내지 않고 카드(승인)로 돌아간다. 루틴이 바뀌거나 지워지면 규칙이 꺼진다(라우터 철회 + 실행 직전 재검사). 물리 단계는 대상이 아니다.
+가열 종료 규칙의 지문 내용은 바뀌지 않았다(저장된 허용 유지).
+
 **검증 수준: 모의 ThinQ·모의 클라우드 끝-끝까지. 실제 CT 판정·실가전 미검증.**
 """
 
@@ -49,6 +56,8 @@ from rpi.controller.models import ExecutionMode
 from rpi.intent.models import UsageSource
 from rpi.services.quiet_hours import SKIP_REASON as QUIET_SKIP_REASON
 from rpi.services.thinq.wording import direction, dispatch_of
+
+from .model import parse_scenario_key
 
 log = logging.getLogger(__name__)
 
@@ -98,6 +107,26 @@ PROCESS_SESSION = uuid4().hex
 #: 정지의 규칙 끄기를 뒤에서 DB에 쓸 때 다시 해 보는 횟수·간격(초).
 PERSIST_ATTEMPTS = 3
 PERSIST_RETRY_S = 1.0
+
+# ── 시각 규칙(2026-10-16, 사용자 승인) — 시각 루틴(ThinQ 낮은 위험 동작 하나)의 '다음부터도 자동으로' ──────────
+CONDITION_KIND_APPLIANCE_DONE = "appliance_done"
+CONDITION_KIND_TIME = "time"
+#: 시각 규칙의 판단 근거 — 이 허브의 시계(벽시계로 정한 시각, 늦음은 허브 단조 시계 축으로 잰다).
+TIME_CONDITION_BASIS = "hub_clock"
+TIME_EVENT = "time"
+#: 확인 화면의 단서(``offer.caveat``·규칙 목록 ``caveat``). 폰은 이 문장을 그대로 보인다.
+COOK_CAVEAT = "멈춤은 전력이 줄어든 것으로 판단해요. 조리 완료가 아닐 수 있어요."
+TIME_CAVEAT = ("정해진 시각에 허브 시계로 판단해요. 그 시각에 허브가 꺼져 있었거나 조용한 시간이면 하지 않아요. "
+               "늦게 확인하면 승인 카드로 물어봐요.")
+TIME_QUIET_CAVEAT = "이 시각은 조용한 시간이라 자동으로 하지 않아요."
+TIME_RESTART_REASON = "허브가 다시 켜지기 전 시각이라 자동 실행하지 않았어요 — 카드로 물어봐요"
+TIME_BEFORE_ALLOW_REASON = "허용하기 전 시각이라 자동 실행하지 않았어요 — 카드로 물어봐요"
+TIME_NO_CLOCK_REASON = "허브 시계로 시각을 확인할 수 없어 자동 실행하지 않았어요 — 카드로 물어봐요"
+ROUTINE_CHANGED_REASON = "루틴이 바뀌어 자동 실행을 껐어요 — 다시 허용이 필요해요"
+ROUTINE_DELETED_REASON = "루틴을 지워서 자동 실행을 껐어요"
+ROUTINE_OFF_REASON = "루틴이 꺼져 있어 자동 실행을 껐어요 — 다시 허용이 필요해요"
+TIME_REENABLE_REFUSED = "루틴이 바뀌었거나 없어서 켤 수 없어요 — 다음 루틴 카드에서 다시 허용해 주세요"
+TIME_VALUE_REFUSED ="시각 루틴의 자동 실행은 루틴에서 동작을 바꾼 뒤 카드에서 다시 허용해 주세요"
 
 #: 대상 가전 ID → 화면 이름(대상이 지금 없을 때만 쓴다).
 _TARGET_KIND_NAMES = {"air_purifier": "공기청정기", "thinq_washer": "세탁기", "dehumidifier": "제습기"}
@@ -191,13 +220,31 @@ class AutoRule:
     allowed_at: str | None = None
     updated_at: str | None = None
     disabled_reason: str | None = None
+    #: 조건 종류(2026-10-16) — ``appliance_done``(가열 종료, 종전) · ``time``(시각 루틴의 정해진 시각). 옛 저장값엔 없다.
+    condition_kind: str = CONDITION_KIND_APPLIANCE_DONE
+    #: 시각 규칙 — 루틴 ID·요일(0=월)·"HH:MM". 가열 종료 규칙은 None.
+    condition_routine_id: str | None = None
+    condition_days: tuple[int, ...] | None = None
+    condition_time: str | None = None
+
+    @property
+    def is_time(self) -> bool:
+        return self.condition_kind == CONDITION_KIND_TIME
 
     def fingerprint(self) -> str:
-        """허용이 묶이는 내용 — 조건(가전·이벤트·근거)·대상(가전·기기 키·종류)·동작·속성·값."""
+        """허용이 묶이는 내용 — 조건(가전·이벤트·근거 / 시각 규칙은 루틴·요일·시각·근거)·대상(가전·기기 키·종류)·동작·속성·값.
+
+        가열 종료 규칙의 지문 내용은 시각 규칙을 넣기 전과 바이트까지 같다(저장된 허용이 꺼지지 않게)."""
+        if self.is_time:
+            condition = {"kind": CONDITION_KIND_TIME, "routine_id": self.condition_routine_id,
+                         "days": list(self.condition_days or ()), "time": self.condition_time,
+                         "basis": TIME_CONDITION_BASIS}
+        else:
+            condition = {"appliance_id": self.condition_appliance_id, "event": self.condition_event,
+                         "basis": CONDITION_BASIS}
         payload = {
             "scenario": self.scenario_id,
-            "condition": {"appliance_id": self.condition_appliance_id, "event": self.condition_event,
-                          "basis": CONDITION_BASIS},
+            "condition": condition,
             "target": {"appliance_id": self.target_appliance_id, "device_key": self.target_device_key,
                        "device_type": self.target_device_type},
             "action": self.action, "arg": self.arg, "value": self.value,
@@ -215,6 +262,10 @@ class AutoRule:
     def from_dict(cls, data: Mapping) -> "AutoRule":
         fields = {name: data.get(name) for name in cls.__dataclass_fields__}
         fields["enabled"] = data.get("enabled") is True
+        # 시각 규칙 전에 저장된 규칙(새 칸 없음)은 가열 종료 규칙이다.
+        fields["condition_kind"] = data.get("condition_kind") or CONDITION_KIND_APPLIANCE_DONE
+        days = data.get("condition_days")
+        fields["condition_days"] = tuple(int(d) for d in days) if days is not None else None
         return cls(**fields)
 
 
@@ -414,6 +465,12 @@ def event_key(record: Mapping) -> str | None:
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
 
+def time_event_key(routine_id: str, scheduled: datetime) -> str:
+    """시각 사건 키 — 루틴·날짜·정해진 시각. 같은 날 같은 시각은 재시작 뒤에도 한 번(``SeenEvents``에 영속)."""
+    raw = f"time|{routine_id}|{scheduled.date().isoformat()}|{scheduled.strftime('%H:%M')}"
+    return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
+
+
 #: 신선도 근거가 없을 때(3차 평가 M1) — 보류가 기본이다.
 NO_FRESHNESS_REASON = ("가열 종료 시각을 이 허브 시계로 확인할 근거가 없어(연결이 바뀌었거나 옛 RPi4) "
                        "자동 실행하지 않았어요")
@@ -452,8 +509,14 @@ class AutoRuleEngine:
                  max_event_age_s: float = DEFAULT_MAX_EVENT_AGE_S,
                  monotonic: Callable[[], float] | None = None,
                  started: Callable[[], float] | None = None,
-                 is_quiet: Callable[[], bool] | None = None) -> None:
+                 is_quiet: Callable[[], bool] | None = None,
+                 routines: Callable[[], object] | None = None,
+                 quiet_settings: Callable[[], Mapping] | None = None) -> None:
         self.store = store
+        #: 시각 규칙의 루틴 저장소(2026-10-16). 없으면 시각 규칙을 만들지도 쓰지도 않는다.
+        self._routines = routines or (lambda: None)
+        #: 확인 화면 단서용 조용한 시간 설정(enabled·start·end). 없으면 단서에 넣지 않는다.
+        self._quiet_settings = quiet_settings
         #: 조용한 시간·잠시 쉬기(2026-10-14, 5번 정책 b) — 메모리 판정만. 그 사이 사건은 건너뛰고 다시 실행하지 않는다.
         self._is_quiet = is_quiet or (lambda: False)
         #: 이 허브의 단조 시계 — 사건 끝 시각을 옮긴 시계와 같아야 한다(기본: rpi/services/event_clock.py).
@@ -514,6 +577,8 @@ class AutoRuleEngine:
         return catalog.get(scenario_id) if catalog is not None and scenario_id else None
 
     def condition_text(self, rule: AutoRule) -> str:
+        if rule.is_time:
+            return f"{self._time_words(rule)}{_time_josa(rule.condition_time)} 되면"
         # A5(2026-10-14): CT 끝 판정은 취소·문 열림 가열 종료와 구분하지 못한다 — 조리 완료라고 말하지 않는다.
         # 그 단서('조리 완료가 아닐 수 있어요')는 허용 확인 시트(폰)에만 둔다 — 목록·카드 문장은 짧게(2026-10-14 UX).
         name = self._name(rule.condition_appliance_id)
@@ -545,6 +610,8 @@ class AutoRuleEngine:
         commands = tuple(getattr(suggestion, "commands", ()) or ())
         if any(c.route is not ControlRoute.THINQ for c in commands) or len(commands) != 1:
             return None
+        if parse_scenario_key(getattr(suggestion, "scenario_id", None)) is not None:
+            return self._time_offer(suggestion.scenario_id, commands[0])
         definition = self._definition(getattr(suggestion, "scenario_id", None))
         if definition is None or not definition.auto_allowed or definition.trigger.kind != "appliance_done":
             return None
@@ -573,12 +640,81 @@ class AutoRuleEngine:
             action=action, arg=cap.arg, value=str(value),
         )
 
+    # ── 시각 루틴(2026-10-16) ─────────────────────────────────────────────────
+    def _routine(self, routine_id: str | None):
+        store = self._routines()
+        if store is None or not routine_id:
+            return None
+        try:
+            return store.get(routine_id)
+        except Exception:  # noqa: BLE001 -- 저장소를 읽지 못하면 없는 것으로(자동 실행은 보류)
+            log.exception("routine lookup for auto rule failed")
+            return None
+
+    @staticmethod
+    def _routine_shape_issue(routine) -> str | None:
+        """시각 규칙이 될 수 있는 루틴인가 — 켜짐·승인 루틴·시각 트리거·조건 없음·ThinQ 명령 한 단계(안내·기다리기 없음)."""
+        if routine is None:
+            return ROUTINE_DELETED_REASON
+        if not routine.enabled:
+            return ROUTINE_OFF_REASON
+        if (routine.mode != "approve" or routine.trigger.kind != "time" or routine.conditions
+                or len(routine.steps) != 1 or routine.steps[0].kind != "thinq_command"):
+            return ROUTINE_CHANGED_REASON
+        return None
+
+    def _time_offer(self, scenario_id: str, command) -> AutoRule | None:
+        """시각 루틴 카드의 허용 내용. 카드 명령이 지금 루틴의 그 한 단계와 같을 때만."""
+        key = parse_scenario_key(scenario_id)
+        routine = self._routine(key[0]) if key else None
+        if self._routine_shape_issue(routine) is not None or routine.scenario_key() != scenario_id:
+            return None
+        step = routine.steps[0]
+        if (command.target_id, command.action, command.args_dict()) != (step.appliance_id, step.action,
+                                                                        dict(step.args)):
+            return None
+        draft = self._draft(scenario_id, "", TIME_EVENT, step.appliance_id, step.action, dict(step.args))
+        if draft is None:
+            return None
+        return replace(draft, condition_kind=CONDITION_KIND_TIME, condition_routine_id=routine.routine_id,
+                       condition_days=tuple(routine.trigger.days), condition_time=routine.trigger.time)
+
+    def _time_words(self, rule: AutoRule) -> str:
+        from .model import RoutineTrigger  # noqa: PLC0415
+
+        return RoutineTrigger("time", days=tuple(rule.condition_days or ()), time=rule.condition_time).describe()
+
+    def caveat(self, rule: AutoRule) -> str:
+        """확인 화면·목록의 단서 — 이 조건을 무엇으로 판단하는지와 하지 않는 경우."""
+        if not rule.is_time:
+            return COOK_CAVEAT
+        if self._time_in_quiet(rule.condition_time):
+            return f"{TIME_CAVEAT} {TIME_QUIET_CAVEAT}"
+        return TIME_CAVEAT
+
+    def _time_in_quiet(self, hhmm: str | None) -> bool:
+        if self._quiet_settings is None or not hhmm:
+            return False
+        try:
+            from rpi.services.quiet_hours import window_contains  # noqa: PLC0415
+
+            from .model import parse_hhmm  # noqa: PLC0415
+
+            settings = self._quiet_settings()
+            if not settings.get("enabled"):
+                return False
+            at = datetime.combine(self._clock.now().date(), parse_hhmm(hhmm))
+            return window_contains(settings["start"], settings["end"], at)
+        except Exception:  # noqa: BLE001 -- 단서 문장만 — 판정 실패는 덧붙이지 않는다
+            log.exception("quiet window check for caveat failed")
+            return False
+
     def offer_payload(self, suggestion) -> dict | None:
         draft = self.offer_for(suggestion)
         if draft is None:
             return None
         return {"condition_text": self.condition_text(draft), "action_text": self.action_text(draft),
-                "fingerprint": draft.fingerprint()}
+                "caveat": self.caveat(draft), "fingerprint": draft.fingerprint()}
 
     # ── 정지 세대 ───────────────────────────────────────────────────────────
     def generation(self) -> int:
@@ -648,11 +784,18 @@ class AutoRuleEngine:
         ``start_generation``: 허용 요청을 시작할 때의 정지 세대(:meth:`generation`). 그 뒤 전체 정지가 들어왔으면
         저장하지 않고(또는 꺼진 상태로 되돌리고) ``AutoRuleError(409)`` — 이번 실행과는 따로 알린다(3차 평가 H2)."""
         now = self._clock.now().isoformat()
-        existing = next((r for r in self.store.list()
-                         if (r.scenario_id, r.condition_appliance_id, r.condition_event,
-                             r.target_appliance_id, r.action)
-                         == (draft.scenario_id, draft.condition_appliance_id, draft.condition_event,
-                             draft.target_appliance_id, draft.action)), None)
+        if draft.is_time:
+            # 시각 규칙: 같은 루틴·대상·동작이면 그 규칙을 바꾼다(루틴 단계 지문·시각이 바뀌어도 하나로).
+            same = (draft.condition_kind, draft.condition_routine_id, draft.target_appliance_id, draft.action)
+            existing = next((r for r in self.store.list()
+                             if (r.condition_kind, r.condition_routine_id, r.target_appliance_id, r.action) == same),
+                            None)
+        else:
+            existing = next((r for r in self.store.list()
+                             if (r.scenario_id, r.condition_appliance_id, r.condition_event,
+                                 r.target_appliance_id, r.action)
+                             == (draft.scenario_id, draft.condition_appliance_id, draft.condition_event,
+                                 draft.target_appliance_id, draft.action)), None)
         rule = replace(draft, rule_id=existing.rule_id if existing else f"ar-{uuid4().hex[:10]}",
                        enabled=True, allowed_fingerprint=draft.fingerprint(),
                        created_at=existing.created_at if existing else now,
@@ -691,8 +834,32 @@ class AutoRuleEngine:
                 log.exception("scenario card for appliance_done failed")
         return entries
 
+    def on_time_due(self, routine, scheduled: datetime, now: datetime) -> list[dict]:
+        """시각 루틴의 정해진 시각(루틴 엔진 ``tick``). 켜진 시각 규칙이 맡으면 카드 없이 자동 실행을 시도한다.
+
+        돌려준 기록 중 ``reoffer``가 아닌 것이 있으면 맡은 것이다(호출자는 카드를 만들지 않는다). 빈 목록이거나 모두
+        ``reoffer``(늦음·허용 전·재시작 전·규칙 무효)면 호출자가 종전처럼 카드를 만든다(승인 필요). 같은 날 같은 시각은
+        ``SeenEvents``로 한 번만(재시작 뒤에도) — 두 번째는 'duplicate'(맡은 것, 카드 없음)."""
+        rules = [r for r in self.store.list()
+                 if r.is_time and r.condition_routine_id == routine.routine_id
+                 and r.enabled and self._generation_ok(r)]
+        if not rules:
+            return []
+        key = time_event_key(routine.routine_id, scheduled)
+        lateness = (now - scheduled).total_seconds()
+        # 가열 종료 사건과 같은 모양 — 끝 시각을 이 허브 단조 시계 축으로 옮긴다(정해진 시각 = 지금 - 늦음).
+        record = {"appliance_id": None, "event": TIME_EVENT, "source": "schedule", "state": None,
+                  "event_end_mono_s": self._monotonic() - lateness,
+                  "routine_id": routine.routine_id, "scheduled_at": scheduled.isoformat()}
+        if not self._seen.add(key):
+            return [self._record(rule, record, key, "duplicate", "같은 시각을 다시 확인했어요 — 한 번만 실행해요")
+                    for rule in rules]
+        return [self._try_run(rule, record, key, now) for rule in rules]
+
     @staticmethod
     def _matches(rule: AutoRule, record: Mapping) -> bool:
+        if rule.is_time:
+            return False
         return (rule.condition_appliance_id == record.get("appliance_id")
                 and rule.condition_event == record.get("event"))
 
@@ -702,26 +869,33 @@ class AutoRuleEngine:
         source = record.get("source")
         # 조용한 시간(정책 b): 그 시간에 온 사건은 건너뛴다. 사건은 이미 처리한 것으로 남아(SeenEvents) 끝난 뒤 다시 와도
         # 'duplicate' — 재실행하지 않는다. 카드도 다시 띄우지 않는다(조용한 동안은 제안도 쉰다).
+        timed = rule.is_time
         if self._quiet():
             return self._record(rule, record, key, "blocked", QUIET_SKIP_REASON)
-        # ⑥ 가열 종료 근거 = CT 전력 끝(취소·문 열림 종료도 같게 온다 — 정책상 허용, 문구로 밝힘).
-        if "power" not in (record.get("inputs") or []):
+        # ⑥ 가열 종료 근거 = CT 전력 끝(취소·문 열림 종료도 같게 온다 — 정책상 허용, 문구로 밝힘). 시각 규칙은 허브 시계가 근거.
+        if not timed and "power" not in (record.get("inputs") or []):
             return self._record(rule, record, key, "blocked",
                                 "가열 종료가 콘센트 전력(CT)으로 감지되지 않아 자동 실행하지 않았어요")
         # ③ 같은 사건·오래된 사건 — 나이는 이 허브 시계로 옮긴 끝 시각부터 지금까지(링크 지연 포함, 3차 평가 M1).
+        # 시각 규칙: 나이 = 정해진 시각보다 늦게 확인한 시간. 늦음·허용 전·재시작 전은 보내지 않고 카드로 묻는다(reoffer).
         age = event_age_s(record, self._monotonic())
         if key is None or age is None:
-            return self._record(rule, record, key, "blocked", NO_FRESHNESS_REASON)
+            return self._record(rule, record, key, "blocked",
+                                TIME_NO_CLOCK_REASON if timed else NO_FRESHNESS_REASON, reoffer=timed)
         if age > self._max_age:
             return self._record(rule, record, key, "blocked",
-                                f"오래된 가열 종료({age:.0f}초 전)라 자동 실행하지 않았어요")
+                                f"정해진 시각보다 {age:.0f}초 늦게 확인해서 자동 실행하지 않았어요 — 카드로 물어봐요"
+                                if timed else f"오래된 가열 종료({age:.0f}초 전)라 자동 실행하지 않았어요",
+                                reoffer=timed)
         # 4차 평가 M-N2: 허용 전후는 같은 허브 단조 시계 축에서만 가른다(벽시계 보정·NTP에 흔들리지 않게). 이 프로세스에서
         # 허용했으면 그 순간, 재시작 뒤 불러온 허용이면 이 프로세스가 시작한 순간이 경계 — 그 전에 끝난 가열은 보류한다.
         boundary, restarted = self._allowed_boundary(rule)
         if float(record["event_end_mono_s"]) < boundary:
-            return self._record(rule, record, key, "blocked",
-                                RESTART_BOUNDARY_REASON if restarted
-                                else "허용하기 전에 끝난 가열이라 자동 실행하지 않았어요")
+            if timed:
+                reason = TIME_RESTART_REASON if restarted else TIME_BEFORE_ALLOW_REASON
+            else:
+                reason = RESTART_BOUNDARY_REASON if restarted else "허용하기 전에 끝난 가열이라 자동 실행하지 않았어요"
+            return self._record(rule, record, key, "blocked", reason, reoffer=timed)
         # ④ 허용 지문·대상 기기.
         invalid = self._invalid_reason(rule)
         if invalid is not None:
@@ -738,7 +912,8 @@ class AutoRuleEngine:
         if thinq is None:
             return self._record(rule, record, key, "blocked", "ThinQ 연동이 꺼져 있어 자동 실행하지 않았어요")
         mode = getattr(thinq, "execution_mode", ExecutionMode.UNKNOWN)
-        if mode is ExecutionMode.REAL and source != "real":
+        # 시각 규칙은 사건 출처가 없다(허브 시계) — 사용자가 허용한 명령을 그 시각에 보낸다.
+        if mode is ExecutionMode.REAL and not timed and source != "real":
             return self._record(rule, record, key, "blocked",
                                 "모의·주입 사건으로는 실제 공기청정기를 움직이지 않아요 — 자동 실행하지 않았어요")
         if mode not in (ExecutionMode.REAL, ExecutionMode.MOCK):
@@ -746,8 +921,27 @@ class AutoRuleEngine:
                                 "ThinQ 실행 환경을 확인할 수 없어 자동 실행하지 않았어요")
         return self._submit(rule, record, key, generation)
 
+    def _time_rule_issue(self, rule: AutoRule) -> str | None:
+        """시각 규칙이 지금 루틴과 맞는가 — 루틴이 없거나 꺼졌거나, 시각·요일·단계(대상·동작·값)가 바뀌었으면 그 이유."""
+        routine = self._routine(rule.condition_routine_id)
+        issue = self._routine_shape_issue(routine)
+        if issue is not None:
+            return issue
+        step = routine.steps[0]
+        if (tuple(routine.trigger.days) != tuple(rule.condition_days or ())
+                or routine.trigger.time != rule.condition_time
+                or routine.scenario_key() != rule.scenario_id
+                or (step.appliance_id, step.action, dict(step.args))
+                != (rule.target_appliance_id, rule.action, {rule.arg: rule.value})):
+            return ROUTINE_CHANGED_REASON
+        return None
+
     def _invalid_reason(self, rule: AutoRule) -> str | None:
-        if self._appliance(rule.condition_appliance_id) is None:
+        if rule.is_time:
+            issue = self._time_rule_issue(rule)
+            if issue is not None:
+                return issue
+        elif self._appliance(rule.condition_appliance_id) is None:
             return "조건 가전이 없어져 자동 실행을 껐어요 — 다시 허용이 필요해요"
         appliance = self._appliance(rule.target_appliance_id)
         binding = getattr(appliance, "thinq", None)
@@ -803,6 +997,9 @@ class AutoRuleEngine:
             # 전송 대기 중 만료(3차 평가 M1) — 판단 뒤 조회·대기로 상한을 넘겼으면 보내지 않는다.
             age = event_age_s(record, self._monotonic())
             if age is None or age > self._max_age:
+                if rule.is_time:
+                    raise AutoRuleBlocked(f"정해진 시각 뒤 {age:.0f}초가 지나 보내지 않았어요"
+                                          if age is not None else TIME_NO_CLOCK_REASON)
                 raise AutoRuleBlocked(
                     f"가열 종료 뒤 {age:.0f}초가 지나 보내지 않았어요" if age is not None else NO_FRESHNESS_REASON)
 
@@ -855,7 +1052,13 @@ class AutoRuleEngine:
                       else f"자동 실행을 시작하지 못했어요 — {text or type(exc).__name__}")
             return self._record(rule, record, key, "blocked", reason, snapshot=snapshot)
         return self._record(rule, record, key, "sent", "허용한 조건이라 승인 없이 보냈어요", job_id=job_id,
-                            notices=[self._cook_notice(rule, record)], snapshot=snapshot)
+                            notices=[self._time_notice(rule) if rule.is_time else self._cook_notice(rule, record)],
+                            snapshot=snapshot)
+
+    def _time_notice(self, rule: AutoRule) -> str:
+        routine = self._routine(rule.condition_routine_id)
+        name = routine.name if routine is not None else "시각"
+        return f"루틴 '{name}' 시각({rule.condition_time})이라 승인 없이 보냈어요"
 
     def _cook_notice(self, rule: AutoRule, record: Mapping) -> str:
         # A5(2026-10-14): 취소·문 열림으로 끝난 가열도 같은 사건으로 온다 — '데우기가 끝났어요'라고 하지 않는다.
@@ -1067,8 +1270,13 @@ class AutoRuleEngine:
         if not enabled:
             return self._revoke(rule_id, lambda r: replace(r, enabled=False, updated_at=now,
                                                            disabled_reason=USER_OFF_REASON), report)
+        if rule.is_time:
+            issue = self._time_rule_issue(rule)
+            if issue is not None:
+                # 루틴이 바뀌었거나 없다 — 목록에서 옛 내용으로 켜지 않는다(다음 시각 카드에서 새로 허용).
+                raise AutoRuleError(409, TIME_REENABLE_REFUSED)
         rebound = self._rebound(rule)
-        if rebound is None or self._appliance(rule.condition_appliance_id) is None:
+        if rebound is None or (not rule.is_time and self._appliance(rule.condition_appliance_id) is None):
             raise AutoRuleError(409, "대상 가전을 찾지 못해 켤 수 없어요 — 가전 연결을 확인해 주세요")
         if fingerprint != rebound.fingerprint():
             raise AutoRuleError(409, "허용할 내용이 바뀌었어요 — 조건과 동작을 다시 확인해 주세요")
@@ -1083,6 +1291,9 @@ class AutoRuleEngine:
             raise AutoRuleError(422, "형식이 맞지 않아요")
         if body.get("kind") == "press_sequence" or "buttons" in body:
             raise AutoRuleError(422, PHYSICAL_REFUSED)
+        if rule.is_time:
+            # 값은 루틴 단계에 묶여 있다 — 규칙만 바꾸면 루틴과 어긋난다.
+            raise AutoRuleError(422, TIME_VALUE_REFUSED)
         extra = set(body) - {"value"}
         if extra:
             raise AutoRuleError(422, "자동 실행 규칙은 설정값만 바꿀 수 있어요 — 다른 조건·동작은 카드에서 새로 허용해 주세요")
@@ -1104,23 +1315,45 @@ class AutoRuleEngine:
     def delete(self, rule_id: str, report: dict | None = None) -> None:
         self._revoke(rule_id, lambda _r: None, report)
 
+    def revoke_for_routine(self, routine_id: str, reason: str = ROUTINE_CHANGED_REASON) -> int:
+        """루틴을 바꾸거나 지웠다 — 그 루틴의 켜진 시각 규칙을 끈다(전송권 잠금 안, 다시 허용 필요). 끈 개수."""
+        now = self._clock.now().isoformat()
+        count = 0
+        for rule in self.store.list():
+            if not (rule.is_time and rule.condition_routine_id == routine_id and rule.enabled):
+                continue
+            try:
+                self._revoke(rule.rule_id, lambda r: replace(r, enabled=False, allowed_fingerprint=None,
+                                                             updated_at=now, disabled_reason=reason), None)
+                count += 1
+            except AutoRuleError:
+                continue  # 그 사이 지워졌다
+        return count
+
     # ── 조회 ─────────────────────────────────────────────────────────────────
     def payload(self, rule: AutoRule) -> dict:
-        definition = self._definition(rule.scenario_id)
+        if rule.is_time:
+            routine = self._routine(rule.condition_routine_id)
+            name = routine.name if routine is not None else "자동 실행"
+        else:
+            definition = self._definition(rule.scenario_id)
+            name = definition.name if definition is not None else "자동 실행"
         rebound = self._rebound(rule)
         values = []
         appliance = self._appliance(rule.target_appliance_id)
         try:
             cap = appliance.thinq.capability(rule.action)
-            values = [{"value": v, "label": cap.value_label(v)} for v in cap.allowed
-                      if is_low_risk(rule.target_device_type, rule.action, v)]
+            # 시각 규칙의 값은 루틴 단계에 묶여 목록에서 바꾸지 않는다(빈 목록).
+            values = [] if rule.is_time else [{"value": v, "label": cap.value_label(v)} for v in cap.allowed
+                                              if is_low_risk(rule.target_device_type, rule.action, v)]
         except Exception:  # noqa: BLE001
             pass
         last = next((dict(e) for e in reversed(self.runs_snapshot()) if e.get("rule_id") == rule.rule_id), None)
         return {
             "id": rule.rule_id, "scenario_id": rule.scenario_id,
-            "name": definition.name if definition is not None else "자동 실행",
+            "name": name, "condition_kind": rule.condition_kind,
             "condition_text": self.condition_text(rule), "action_text": self.action_text(rule),
+            "caveat": self.caveat(rule),
             "target_appliance_id": rule.target_appliance_id, "action": rule.action, "value": rule.value,
             "allowed_values": values,
             "enabled": self.usable(rule),
@@ -1171,6 +1404,12 @@ class AutoRuleEngine:
         return result
 
 
+def _time_josa(hhmm: str | None) -> str:
+    """'23:00이' · '07:05가' — 끝 숫자를 읽은 소리의 받침으로 고른다(2·4·5·9는 받침 없음)."""
+    last = (hhmm or "")[-1:]
+    return "가" if last and last in "2459" else "이"
+
+
 def _hub_monotonic() -> float:
     from rpi.services.event_clock import get_event_clock  # noqa: PLC0415
 
@@ -1204,4 +1443,5 @@ __all__ = [
     "event_key",
     "is_low_risk",
     "max_event_age_from_env",
+    "time_event_key",
 ]

@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 from fastapi import APIRouter, Body, HTTPException, Query
 
@@ -27,6 +28,8 @@ from .thinq_router import suggestion_payload
 
 # 루틴 저장소를 읽고 쓰는 라우터는 ``def``(스레드풀) — 저장소 잠금이 DB 쓰기 동안 잡혀 있어 이벤트 루프에서 기다리면
 # ``/stop``까지 멈춘다(2026-10-14 HIGH 재확인 H-R2).
+log = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -319,7 +322,27 @@ def update_routine(routine_id: str, body: dict = Body(...)) -> dict:
         raise HTTPException(status_code=404, detail="루틴을 찾을 수 없어요") from exc
     except RoutineConflictError as exc:
         raise HTTPException(status_code=409, detail=ROUTINE_CHANGED_DETAIL) from exc
+    if _definition(current) != _definition(routine):
+        _revoke_time_rules(routine_id)
     return _payload(routine, _names())
+
+
+def _definition(routine) -> tuple:
+    """시각 규칙이 묶이는 루틴 내용 — 이름·아이콘만 바뀌면 허용을 그대로 둔다."""
+    return (routine.steps, routine.trigger, routine.conditions, routine.mode, routine.enabled)
+
+
+def _revoke_time_rules(routine_id: str, deleted: bool = False) -> None:
+    """루틴을 바꾸거나 지웠다 — 그 루틴의 '다음부터도 자동으로'(시각 규칙)를 끈다(2026-10-16). 실패는 기록만 — 남은
+    규칙은 실행 직전 재검사(루틴과 다르면 꺼짐)에 걸린다."""
+    from rpi.routines.auto_rules import ROUTINE_CHANGED_REASON, ROUTINE_DELETED_REASON  # noqa: PLC0415
+    from rpi.routines.wiring import get_auto_rule_engine  # noqa: PLC0415
+
+    try:
+        get_auto_rule_engine().revoke_for_routine(
+            routine_id, ROUTINE_DELETED_REASON if deleted else ROUTINE_CHANGED_REASON)
+    except Exception:  # noqa: BLE001
+        log.exception("revoking time auto rules for routine %s failed", routine_id)
 
 
 @router.delete("/routines/{routine_id}")
@@ -328,6 +351,7 @@ def delete_routine(routine_id: str) -> dict:
         get_routine_store().delete(routine_id)
     except RoutineNotFoundError as exc:
         raise HTTPException(status_code=404, detail="루틴을 찾을 수 없어요") from exc
+    _revoke_time_rules(routine_id, deleted=True)
     return {"ok": True}
 
 

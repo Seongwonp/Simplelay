@@ -27,6 +27,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -38,6 +39,8 @@ from rpi.intent.rules import UnknownIntentError
 from .deps import get_appliance_registry, get_node_registry, get_readiness_registry, get_service
 from .readiness_view import readiness_view
 from .service import SimpleLayService
+
+log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -193,6 +196,17 @@ class ThinqCommandRequest(BaseModel):
     args: dict[str, str | int | float | bool] = Field(default_factory=dict, max_length=16)
 
 
+def _purpose_of(command: Command) -> str | None:
+    """직접 명령의 목적 문장(대응표). 등록되지 않았거나 대응표에 없으면 None."""
+    try:
+        appliance = get_appliance_registry().get(command.target_id)
+        binding = getattr(appliance, "thinq", None)
+        return binding.purpose_for(command) if binding is not None else None
+    except Exception:  # noqa: BLE001 -- 기록용 이름 찾기 실패가 명령을 막지 않는다
+        log.exception("thinq purpose lookup failed")
+        return None
+
+
 @router.post("/thinq/command")
 async def thinq_command(body: ThinqCommandRequest,
                         service: SimpleLayService = Depends(get_service)) -> dict:
@@ -201,8 +215,11 @@ async def thinq_command(body: ThinqCommandRequest,
         command = Command.thinq(body.appliance_id, body.action, body.args)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
+    # 2026-10-16: 대응표에 같은 동작·인자의 목적 문장이 있으면 그 문장으로 사용 기록에 남긴다(직접 사용 → 루틴 초안 근거).
+    # 목적 문장이 없으면 종전처럼 기록하지 않는다. 등록부 조회는 잠금을 잡을 수 있어 루프 밖에서.
+    purpose = await asyncio.to_thread(_purpose_of, command)
     try:
-        job_id = await asyncio.to_thread(service.submit_command, command)
+        job_id = await asyncio.to_thread(service.submit_command, command, purpose=purpose)
     except UnknownIntentError as exc:
         raise HTTPException(422, str(exc)) from exc
     except RuntimeError as exc:

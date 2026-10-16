@@ -808,14 +808,28 @@ ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조�
 | 요청 | 응답 |
 |---|---|
 | `GET /routines/candidates` | 초안 목록(근거가 강한 순). 쉬는 동안(잠시 쉬기·매일 조용한 시간 같게)은 이미 내놓은 초안만 — 새 초안은 끝난 뒤 나온다(2026-10-14 통일). 목록은 팝업·소리·화면 전환을 만들지 않는다 |
-| `POST /routines/candidates/{key}/save` `{"name": "...", "run": "manual" \| "ask_at_time"}` | 201 `{"routine": <루틴>, "executed": false, "notice": "저장만으로는 실행하지 않아요. …"}` · 422(이름·`run` 없음·잘못됨) · 404(없는 초안) · 409(이미 저장한 초안, 같은 가전·버튼 순서의 루틴이 이미 있음 — detail에 그 루틴 이름) |
+| `POST /routines/candidates/{key}/save` `{"name": "...", "run": "manual" \| "ask_at_time"}` | 201 `{"routine": <루틴>, "executed": false, "notice": "저장만으로는 실행하지 않아요. …"}` · 422(이름·`run` 없음·잘못됨) · 404(없는 초안) · 409(이미 저장한 초안, 같은 가전·버튼 순서(ThinQ는 같은 동작·인자)의 루틴이 이미 있음 — detail에 그 루틴 이름) |
 | `POST /routines/candidates/{key}/decline` | `{"ok": true, "quiet_until": ISO}` — 14일 동안 그 초안을 보이지 않는다. 404(없는 초안) |
 
-초안 필드: `key`(`hc-` + 가전·버튼 순서 해시 16자) · `appliance_id` · `appliance_name` · `buttons`(조작부 이름) · `steps`(`press_sequence` 한 단계) · `suggested_name` · `evidence`("최근 28일 중 아침에 4일 사용했어요" — 가전 사용 기록 문장, 사람을 단정하지 않는다) · `evidence_detail`(`window_days`·`distinct_days`·`occurrences`·`time_band`) · `ask_time`("HH:MM", 기록 시각 중앙값을 5분 단위로 내림) · `run_choices`(`manual` "직접 실행할 때만" · `ask_at_time` "매일 HH:MM에 물어보기") · `notice`.
+초안 필드: `key`(`hc-` + 가전·버튼 순서 해시 16자, ThinQ 초안은 `tc-` + 가전·동작·인자 해시 16자) · `appliance_id` · `appliance_name` · `buttons`(조작부 이름 — ThinQ 초안은 동작 한 줄, 예: "전원 켜기") · `steps`(`press_sequence` 한 단계, ThinQ 초안은 `thinq_command` 한 단계) · `suggested_name` · `evidence`("최근 28일 중 아침에 4일 사용했어요" — 가전 사용 기록 문장, 사람을 단정하지 않는다) · `evidence_detail`(`window_days`·`distinct_days`·`occurrences`·`time_band`) · `ask_time`("HH:MM", 기록 시각 중앙값을 5분 단위로 내림) · `run_choices`(`manual` "직접 실행할 때만" · `ask_at_time` "매일 HH:MM에 물어보기") · `notice`.
 
-- 저장한 루틴은 `mode=approve`. `manual`은 `trigger.kind=manual`, `ask_at_time`은 매일 `ask_time`의 시각 트리거 — 그때 **카드만** 만든다(종전 루틴 규칙). 물리 버튼 단계라 자동 실행 규칙(`auto_rule_offer`)은 붙지 않는다.
-- 근거는 패턴 감지기와 같다: 성공·실제 실행(`real`)·직접 사용(`direct`) 기록만. 모의·시연·제안 승인으로 실행한 기록은 세지 않는다. 버튼 순서를 결정적으로 모르는 목적(등록 기능·내장 규칙에 없는 것)과 ThinQ 가전은 초안을 만들지 않는다.
+- 저장한 루틴은 `mode=approve`. `manual`은 `trigger.kind=manual`, `ask_at_time`은 매일 `ask_time`의 시각 트리거 — 그때 **카드만** 만든다(종전 루틴 규칙). 물리 버튼 초안에는 자동 실행 규칙(`auto_rule_offer`)이 붙지 않는다.
+- **ThinQ 초안(2026-10-16):** 직접 쓴 낮은 위험 ThinQ 목적 문장(공기청정기 켜기·풍량·운전 모드 — 자동 실행 허용과 같은 표)만 초안이 된다. 끄기·세탁 시작 같은 동작은 초안이 없다. `run_choices`는 `ask_at_time`이 먼저, `evidence`는 "최근 28일 중 23시쯤 4일 공기청정기를 켰어요"처럼 시각·날 수로만 말한다. 저장해도 자동 실행은 켜지지 않는다 — 저장한 시각 루틴의 카드에서 사용자가 따로 '다음부터도 자동으로'를 골라야 한다(아래 '시각 규칙').
+- `POST /thinq/command`(직접 명령)는 대응표에 같은 동작·인자의 목적 문장이 있으면(예: `set_power POWER_ON` → "공기청정기 켜줘") 그 문장으로 사용 기록에 남는다(`direct`). 대응표에 없는 명령은 종전처럼 기록하지 않는다. 그래서 이 기록이 습관 제안 카드의 근거가 될 수도 있다(종전 습관 규칙 그대로 — 실제 실행 기록만).
+- 근거는 패턴 감지기와 같다: 성공·실제 실행(`real`)·직접 사용(`direct`) 기록만. 모의·시연·제안 승인으로 실행한 기록은 세지 않는다. 버튼 순서를 결정적으로 모르는 목적(등록 기능·내장 규칙에 없는 것)은 초안을 만들지 않는다.
 - 보이지 않는 경우: 저장한 초안(루틴을 지워도), 거절 뒤 14일, 같은 가전·같은 버튼 순서의 루틴이 이미 있음(장치 명령 열로 비교 — 버튼 ID로 적었어도 같다), '다시 받지 않기'로 내린 목적, 제안을 쉬는 동안. 판단(저장·거절)은 DB가 있으면 설정 `routine_candidate_decisions`에 남아 재시작 뒤에도 유지된다.
+
+### 시각 규칙 — 시각 루틴의 '다음부터도 자동으로' (2026-10-16)
+
+- 루틴 카드(`scenario_id`가 `routine:`)에 `auto_rule_offer`가 붙는 경우: 루틴이 켜짐·`mode=approve`·`trigger.kind=time`·조건 없음·**단계가 ThinQ 명령 하나**(안내·기다리기 없음)이고, 그 명령이 낮은 위험 동작일 때만. 버튼 누름 단계가 있으면 붙지 않고 `approve-and-allow`는 422("버튼을 누르는 단계는 자동 실행할 수 없어요 — 매번 승인해 주세요").
+- `auto_rule_offer`: `condition_text`("매일 23:00이 되면") · `action_text` · `caveat` · `fingerprint`. 허용하면 이번 실행은 종전처럼 루틴 순서기로 가고, 규칙(`condition_kind: "time"`)이 저장된다.
+- 다음 정해진 시각(루틴 `tick`)에는 **카드 없이** 가열 종료 규칙과 같은 자동 실행 경로로 보낸다: 조용한 시간·비상정지·정지 세대·지문·전송권·같은 날 같은 시각 한 번(재시작 뒤에도, `auto_rule_seen_events`)·나이 상한(정해진 시각보다 늦게 확인한 시간, `SIMPLELAY_AUTO_RULE_MAX_EVENT_AGE_S` 기본 120초)·허용 전후 경계(허브 단조 시계). 늦음·허용 전 시각·재시작 전 시각이면 보내지 않고 **카드로 묻는다**(승인 필요). 조용한 시간·비상정지·다른 작업 실행 중이면 보내지 않고 카드도 없다. 루틴 기록(`/routines/log`)에는 `outcome: "auto"`.
+- 루틴을 지우거나 단계·시각·요일·조건·실행 방식을 바꾸면 규칙이 꺼진다(이유 포함, 다시 허용 필요). 이름만 바꾸면 그대로다. 실행 직전에도 루틴과 다시 대조한다. 시각 규칙의 값은 목록에서 바꾸지 않는다(`PUT` 422, `allowed_values` 빈 목록).
+- 규칙 목록(`/routines/auto-rules`) 항목에 `condition_kind`(`appliance_done` · `time`)와 `caveat`가 더해졌다. 시각 규칙의 `name`은 루틴 이름.
+- `caveat` 문장(폰은 그대로 보인다):
+  - 가열 종료 규칙: "멈춤은 전력이 줄어든 것으로 판단해요. 조리 완료가 아닐 수 있어요."
+  - 시각 규칙: "정해진 시각에 허브 시계로 판단해요. 그 시각에 허브가 꺼져 있었거나 조용한 시간이면 하지 않아요. 늦게 확인하면 승인 카드로 물어봐요." — 루틴 시각이 지금 설정된 조용한 시간 안이면 뒤에 " 이 시각은 조용한 시간이라 자동으로 하지 않아요."를 붙인다.
+- 옛 가열 종료 규칙의 허용 지문은 그대로다(새 칸이 없는 저장값은 `appliance_done`). **검증 수준: 모의 ThinQ·모의 클라우드까지. 실가전 미검증.**
 
 ## 조용한 시간 — `/quiet-hours`·`/health/detail`의 `quiet` (2026-10-14, 5번 정책 b)
 
