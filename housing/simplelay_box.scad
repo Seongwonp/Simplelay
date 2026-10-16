@@ -178,6 +178,14 @@ else if (part == "cutaway") {
         translate([sensor_x0 + 25, -10, -10]) cube([W, depth + 20, H + 20]);
     }
 }
+else if (part == "fit_test") {
+    // 맞춤 시험 조각(약 1시간) — 앞판 왼쪽 아래 모서리: 화면 창 모서리·패널 받침 턱·센서 통풍구·플러그 여유.
+    // 실제 패널을 대 보고 창 위치·걸침·받침 턱을 확인한 뒤 큰 조각을 뽑는다.
+    intersection() {
+        shell_solid();
+        translate([-1, -1, -1]) cube([panel_x0 + 45, 70, lip_h + 70]);
+    }
+}
 else if (part == "shell_LB") quad(0, 0) shell_solid();
 else if (part == "shell_RB") quad(1, 0) shell_solid();
 else if (part == "shell_LT") translate([0, 0, -split_z]) quad(0, 1) shell_solid();
