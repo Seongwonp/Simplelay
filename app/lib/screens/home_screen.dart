@@ -379,16 +379,30 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
           );
         }
         if (candidates.isEmpty) return const SizedBox.shrink();
+        bool needsSetup(Routine r) => r.applianceIds.any(widget.needsSetupIds.contains);
         final ready = [
           for (final r in candidates)
-            if (!r.applianceIds.any(widget.needsSetupIds.contains)) r,
+            if (!needsSetup(r)) r,
+        ];
+        // 큰 카드는 직접 실행하는 루틴을 먼저 — 시각 루틴은 정해진 때 저절로 돈다(외부 평가 10/16 4차:
+        // 이미 켜진 공기청정기의 '켜기'를 권했다). 없으면 준비된 첫 루틴, 그것도 없으면 첫 루틴.
+        final manualReady = [
+          for (final r in ready)
+            if (r.trigger.kind != RoutineTriggerKind.time) r,
         ];
         final hero = widget.heroAllowed
-            ? (ready.isNotEmpty ? ready.first : candidates.first)
+            ? (manualReady.isNotEmpty
+                ? manualReady.first
+                : ready.isNotEmpty
+                    ? ready.first
+                    : candidates.first)
             : null;
+        // 설정이 필요한 루틴 행은 맨 아래로(실행 버튼이 꺼진 행이 준비된 루틴보다 위에 있었다).
         final rest = [
           for (final r in candidates)
-            if (r != hero) r,
+            if (r != hero && !needsSetup(r)) r,
+          for (final r in candidates)
+            if (r != hero && needsSetup(r)) r,
         ];
         final shown = rest.take(_maxRows).toList();
         final busy = _runningId != null;

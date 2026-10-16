@@ -44,6 +44,7 @@ Map<String, dynamic> _routine(
   String mode = 'approve',
   bool enabled = true,
   List<Map<String, dynamic>>? steps,
+  Map<String, dynamic> trigger = const {'kind': 'manual'},
 }) =>
     {
       'id': id,
@@ -52,8 +53,8 @@ Map<String, dynamic> _routine(
           [
             {'kind': 'press_sequence', 'appliance_id': 'mw', 'buttons': ['시작']},
           ],
-      'trigger': {'kind': 'manual'},
-      'when': '직접 실행할 때',
+      'trigger': trigger,
+      'when': trigger['kind'] == 'manual' ? '직접 실행할 때' : '매일 22:00',
       'mode': mode,
       'enabled': enabled,
     };
@@ -145,6 +146,30 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  // 외부 평가 10/16 4차: 큰 카드가 이미 저절로 도는 시각 루틴이었고, 설정 필요 행이 준비된 루틴보다 위에 있었다.
+  testWidgets('큰 카드는 직접 실행 루틴을 먼저, 설정이 필요한 루틴 행은 맨 아래로', (tester) async {
+    final washer = _appliance('washer', '세탁기', mapped: false);
+    final mw = _appliance('mw', '주방 전자레인지');
+    final hub = _Hub(appliances: [washer, mw], routines: [
+      _routine('r-w', '빨래 시작', steps: [
+        {'kind': 'press_sequence', 'appliance_id': 'washer', 'buttons': ['시작']},
+      ]),
+      _routine('r-t', '저녁 데우기 예약',
+          trigger: {'kind': 'time', 'days': [0, 1, 2, 3, 4, 5, 6], 'time': '22:00'}),
+      _routine('r-b', '30초 데우기'),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub,
+        installed: [ApplianceMap.fromJson(washer), ApplianceMap.fromJson(mw)]));
+    await _settle(tester);
+
+    final hero = find.byKey(const Key('home-routine-hero'));
+    expect(find.descendant(of: hero, matching: find.text('30초 데우기')), findsOneWidget);
+    final timeRow = tester.getTopLeft(find.byKey(const Key('home-routine-row-r-t'))).dy;
+    final setupRow = tester.getTopLeft(find.byKey(const Key('home-routine-row-r-w'))).dy;
+    expect(timeRow, lessThan(setupRow), reason: '설정 필요 행은 맨 아래');
+  });
 
   // 외부 평가 10/16 2차: 첫 화면 맨 위 카드가 '설정이 필요해요'인 세탁기의 '빨래 시작'이었다.
   testWidgets('큰 카드는 설정이 필요한 가전의 루틴을 건너뛴다(그 루틴은 아래 행으로)', (tester) async {
