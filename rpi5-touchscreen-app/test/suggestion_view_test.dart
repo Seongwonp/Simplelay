@@ -185,13 +185,22 @@ void main() {
       scenarioId: 'cook_done_air',
       commands: [
         KioskSuggestionCommand(
-            targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 풍량 강'),
+            targetId: 'air_purifier', route: 'thinq', summary: '공기청정기(모의) 풍량 강'),
       ],
     );
 
-    testWidgets('모의 여부는 질문 줄, 조리 완료 단서는 근거 밖 줄에 늘 보인다', (tester) async {
+    testWidgets('시연 데이터 카드의 할 일에는 "(모의)"를 되풀이하지 않는다(위 띠가 말한다)', (tester) async {
+      await _pump(tester, suggestion: longCard, size: const Size(1920, 1080));
+      expect(find.text('공기청정기 풍량 강'), findsOneWidget);
+      expect(find.textContaining('(모의)'), findsNothing);
+    });
+
+    testWidgets('시연 데이터 여부는 위 띠, 조리 완료 단서는 근거 밖 줄에 늘 보인다', (tester) async {
       await _pump(tester, suggestion: longCard);
-      expect(find.text('[시연 데이터] 공기청정기 강풍으로 바꿀까요?'), findsOneWidget);
+      // 외부 평가 10/16 2차: 가장 큰 글자(질문)에 '[시연 데이터]'가 박혀 있었다 — 위 상태 띠로 옮긴다.
+      expect(find.text('공기청정기 강풍으로 바꿀까요?'), findsOneWidget);
+      expect(find.textContaining('[시연 데이터]'), findsNothing);
+      expect(find.text('제안 · 시연 데이터'), findsOneWidget);
       final caveat = tester.widget<Text>(find.byKey(const ValueKey('suggestion-caveat')));
       expect(caveat.data, '조리 완료가 아닐 수 있어요');
       expect(caveat.maxLines, isNull);

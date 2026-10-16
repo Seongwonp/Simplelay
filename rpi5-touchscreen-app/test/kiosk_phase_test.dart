@@ -2104,7 +2104,7 @@ void main() {
           lastOperationDetail: '전력 파형에서 가열 시작을 확인했어요'),
     );
     expect(done.operationConfirmed, isTrue);
-    expect(find.text('버튼 누름 완료'), findsOneWidget);
+    expect(find.text('전력 변화 확인'), findsOneWidget);
     expect(find.text('전자레인지의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'),
         findsOneWidget);
     expect(find.text('가전 동작도 확인했어요'), findsNothing);

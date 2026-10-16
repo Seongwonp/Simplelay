@@ -202,7 +202,13 @@ class KioskDoneView extends StatelessWidget {
             : mock
                 ? '연습을 마쳤어요'
                 : executionMode == 'real'
-                    ? (pressCompleted ? '버튼 누름 완료' : '눌렸는지 확인하지 못했어요')
+                    // 전력 변화(L3)를 확인했으면 띠('가전 상태 확인')·본문과 같은 수준으로 말한다(외부 평가 10/16 2차 k06).
+                    // '동작을 확인'·'켜졌어요'로 넘겨 말하지 않는다 — 확인한 것은 전력 사용 증가다.
+                    ? (operationVerified
+                        ? '전력 변화 확인'
+                        : pressCompleted
+                            ? '버튼 누름 완료'
+                            : '눌렸는지 확인하지 못했어요')
                     : '작은 팔이 다 눌렀다고 알려 왔어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
     final String? successSub = thinq

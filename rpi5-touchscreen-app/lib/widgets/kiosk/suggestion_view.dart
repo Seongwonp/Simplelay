@@ -74,10 +74,11 @@ class KioskSuggestionView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const KioskStatusBand(
+        // 시연 데이터로 만든 제안이면 위 띠가 말한다 — 가장 큰 글자(질문)에 표식을 넣지 않는다(외부 평가 10/16 2차).
+        KioskStatusBand(
           tone: KioskBandTone.neutral,
           icon: Icons.lightbulb_outline,
-          label: '제안',
+          label: suggestion.isDemo ? '제안 · 시연 데이터' : '제안',
         ),
         Expanded(child: _body(context, target, scenario, canExecute)),
       ],
@@ -97,9 +98,7 @@ class KioskSuggestionView extends StatelessWidget {
         // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다. 그래서 어절 단위로 그린다(2026-10-16 §1-3).
         KioskText(
           // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다.
-          scenario
-              ? '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose}'
-              : '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose},\n지금 할까요?',
+          scenario ? suggestion.purpose : '${suggestion.purpose},\n지금 할까요?',
           textKey: const ValueKey('suggestion-question'),
           style: const TextStyle(
             fontSize: KioskType.key,
@@ -109,7 +108,7 @@ class KioskSuggestionView extends StatelessWidget {
           ),
         ),
         // 근거를 줄여도 잘리면 안 되는 제한(예: '조리 완료가 아닐 수 있어요')은 근거 밖
-        // 늘 보이는 줄로 뺀다. 모의 여부는 질문 줄의 '[시연 데이터]'가 늘 말한다(2026-10-14 추가 확인).
+        // 늘 보이는 줄로 뺀다. 시연 데이터 여부는 위 상태 띠('제안 · 시연 데이터')가 늘 말한다(2026-10-16).
         for (final caveat in kAlwaysShownCaveats)
           if (suggestion.whyNow.contains(caveat)) ...[
             const SizedBox(height: 8),
@@ -163,7 +162,9 @@ class KioskSuggestionView extends StatelessWidget {
                         if (hasSteps)
                           scenario
                               ? _CommandList(
-                                  commands: suggestion.commands, inline: true)
+                                  commands: suggestion.commands,
+                                  inline: true,
+                                  stripMockMark: suggestion.isDemo)
                               : _StepList(
                                   steps: suggestion.steps, inline: true),
                         if (suggestion.whyNow.isNotEmpty &&
@@ -255,7 +256,9 @@ class KioskSuggestionView extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 _CommandList(
-                                    commands: suggestion.commands, inline: true),
+                                    commands: suggestion.commands,
+                                  inline: true,
+                                  stripMockMark: suggestion.isDemo),
                                 if (scenarioWhy) ...[
                                   const SizedBox(height: 16),
                                   _WhyText('근거: ${suggestion.whyNow}'),
@@ -545,7 +548,11 @@ class _StepList extends StatelessWidget {
 
 /// 시나리오의 확정 명령 — 번호 · 서버가 쓴 문장(가전·동작) · 경로 배지.
 class _CommandList extends StatelessWidget {
-  const _CommandList({required this.commands, this.inline = false});
+  const _CommandList(
+      {required this.commands, this.inline = false, this.stripMockMark = false});
+
+  /// 시연 데이터 카드 — 위 띠가 이미 말하니 가전 이름의 '(모의)'를 되풀이하지 않는다.
+  final bool stripMockMark;
 
   final List<KioskSuggestionCommand> commands;
 
@@ -561,8 +568,11 @@ class _CommandList extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
           final c = commands[i];
-          final summary =
+          final raw =
               c.summary.isNotEmpty ? c.summary : '가전과 동작을 폰에서 확인해 주세요';
+          final summary = stripMockMark
+              ? raw.replaceAll(RegExp(r'\(모의( 클라우드)?\)'), '')
+              : raw;
           // 버튼 누름(physical)은 칩 없이 — routeLabel이 null을 주지만 '경로를 모름'이 아니다(10/14 회귀 수리).
           final path = c.route == 'physical'
               ? null
