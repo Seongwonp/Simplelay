@@ -4,12 +4,20 @@
 // 서버가 낮은 위험 동작·모의/실물 출처·같은 사건 1회·비상정지를 강제한다. 폰은 서버가 준 문장을
 // 그대로 보여 주고, 허용할 때 그 내용의 지문(`fingerprint`)을 함께 보낸다 — 화면과 다르면 서버가 거절한다.
 
+/// 조건 판단의 한계 문장 — 서버가 `caveat` 칸을 보내지 않던 옛 서버(가열 종료 규칙뿐)의 문장(2026-10-16).
+const kCookCaveat = '멈춤은 전력이 줄어든 것으로 판단해요. 조리 완료가 아닐 수 있어요.';
+
+/// 서버 `caveat` 칸 읽기 — 칸이 없으면(옛 서버) 가열 종료 문장, null이면 보이지 않음, 문자열이면 그대로.
+String? caveatFrom(Map<String, dynamic> json) =>
+    json.containsKey('caveat') ? json['caveat'] as String? : kCookCaveat;
+
 /// 카드의 '다음부터도 자동으로' 내용(서버 `auto_rule_offer`). 없으면 그 카드는 자동으로 정할 수 없다.
 class AutoRuleOffer {
   const AutoRuleOffer({
     required this.conditionText,
     required this.actionText,
     required this.fingerprint,
+    this.caveat = kCookCaveat,
   });
 
   /// 예: "전자레인지 가열 종료가 감지됐을 때(조리 완료가 아닐 수 있어요)"
@@ -19,13 +27,17 @@ class AutoRuleOffer {
   final String actionText;
   final String fingerprint;
 
+  /// 조건 판단의 한계(서버 문장, 2026-10-16 시각 규칙). null이면 보이지 않는다.
+  final String? caveat;
+
   static AutoRuleOffer? fromJson(Object? json) {
     if (json is! Map<String, dynamic>) return null;
     final condition = json['condition_text'];
     final action = json['action_text'];
     final fp = json['fingerprint'];
     if (condition is! String || action is! String || fp is! String) return null;
-    return AutoRuleOffer(conditionText: condition, actionText: action, fingerprint: fp);
+    return AutoRuleOffer(
+        conditionText: condition, actionText: action, fingerprint: fp, caveat: caveatFrom(json));
   }
 }
 
@@ -35,6 +47,7 @@ class AutoRule {
     required this.id,
     required this.name,
     required this.conditionText,
+    this.caveat = kCookCaveat,
     required this.actionText,
     required this.enabled,
     required this.statusLabel,
@@ -49,6 +62,9 @@ class AutoRule {
   final String name;
   final String conditionText;
   final String actionText;
+
+  /// 조건 판단의 한계(서버 문장). null이면 보이지 않는다.
+  final String? caveat;
 
   /// 서버가 허용 지문까지 맞다고 본 켜짐. 거짓이면 다시 허용해야 켜진다.
   final bool enabled;
@@ -74,6 +90,7 @@ class AutoRule {
       name: json['name'] as String? ?? '자동 실행',
       conditionText: json['condition_text'] as String? ?? '',
       actionText: json['action_text'] as String? ?? '',
+      caveat: caveatFrom(json),
       enabled: json['enabled'] == true,
       statusLabel: json['status_label'] as String? ??
           (json['enabled'] == true ? '자동 실행 켜짐' : '자동 실행 꺼짐'),

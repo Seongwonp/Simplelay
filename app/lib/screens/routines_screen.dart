@@ -523,6 +523,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
       context,
       conditionText: rule.conditionText,
       actionText: rule.actionText,
+      caveat: rule.caveat,
       title: '다음부터 자동으로 실행할까요?',
       confirmLabel: '허용',
     );

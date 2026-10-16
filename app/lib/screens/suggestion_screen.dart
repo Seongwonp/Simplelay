@@ -285,6 +285,7 @@ class SuggestionScreen extends ConsumerWidget {
                 context,
                 conditionText: offer.conditionText,
                 actionText: offer.actionText,
+                caveat: offer.caveat,
               );
               if (!ok || !context.mounted) return;
               await _approve(context, ref, suggestion, allow: offer);

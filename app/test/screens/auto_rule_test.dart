@@ -21,7 +21,7 @@ const _offer = {
   'fingerprint': 'fp-offer-1',
 };
 
-Map<String, dynamic> _card({bool offer = true}) => {
+Map<String, dynamic> _card({bool offer = true, Map<String, dynamic>? offerJson}) => {
       'id': 'sug-1',
       'purpose': '공기청정기 강풍으로 바꿀까요?',
       'time_band': '시나리오',
@@ -41,7 +41,7 @@ Map<String, dynamic> _card({bool offer = true}) => {
           'summary': '거실 공기청정기 풍량 강',
         },
       ],
-      if (offer) 'auto_rule_offer': _offer,
+      if (offer) 'auto_rule_offer': offerJson ?? _offer,
     };
 
 Map<String, dynamic> _rule({
@@ -73,9 +73,10 @@ Map<String, dynamic> _rule({
     };
 
 class _Server {
-  _Server({this.offer = true, this.allowReply});
+  _Server({this.offer = true, this.allowReply, this.offerJson});
 
   final bool offer;
+  final Map<String, dynamic>? offerJson;
   final (int, Map<String, dynamic>)? allowReply;
   final requests = <String>[];
   final bodies = <String, Map<String, dynamic>>{};
@@ -96,7 +97,7 @@ class _Server {
             bodies['${req.method} $path'] =
                 jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
           }
-          if (path == '/suggestions') return _json([_card(offer: offer)]);
+          if (path == '/suggestions') return _json([_card(offer: offer, offerJson: offerJson)]);
           if (path == '/scenarios') {
             return _json([
               {'scenario_id': 'cook_done_air', 'name': '조리 완료 → 공기청정기'},
@@ -226,6 +227,37 @@ void main() {
       expect(find.descendant(of: sheet, matching: find.text('이번 동작 바꾸기')), findsOneWidget);
       expect(find.descendant(of: sheet, matching: find.textContaining('자동')), findsNothing);
       expect(find.descendant(of: sheet, matching: find.textContaining('실행')), findsNothing);
+    });
+
+    testWidgets('시각 규칙(2026-10-16): 서버 caveat 문장을 그대로 보이고 조리 문장은 보이지 않는다', (tester) async {
+      _tall(tester);
+      const timeCaveat = '정해진 시각에 허브 시계로 판단해요. 그 시각에 허브가 꺼져 있었거나 조용한 시간이면 하지 않아요.';
+      await tester.pumpWidget(_cardApp(_Server(offerJson: {
+        'condition_text': '매일 23:00이 되면',
+        'action_text': '공기청정기 전원 켜기',
+        'fingerprint': 'fp-time-1',
+        'caveat': timeCaveat,
+      })));
+      await _settle(tester);
+      await tester.tap(find.text('다음부터도 자동으로'));
+      await _settle(tester);
+      expect(find.text('조건: 매일 23:00이 되면'), findsOneWidget);
+      expect(find.text(timeCaveat), findsOneWidget);
+      expect(find.textContaining('조리 완료가 아닐 수 있어요'), findsNothing);
+    });
+
+    testWidgets('caveat가 null이면 한계 문장 줄을 보이지 않는다(옛 서버처럼 칸이 없으면 지금 문장)', (tester) async {
+      _tall(tester);
+      await tester.pumpWidget(_cardApp(_Server(offerJson: {
+        'condition_text': '매일 07:00이 되면',
+        'action_text': '공기청정기 전원 켜기',
+        'fingerprint': 'fp-time-2',
+        'caveat': null,
+      })));
+      await _settle(tester);
+      await tester.tap(find.text('다음부터도 자동으로'));
+      await _settle(tester);
+      expect(find.byKey(const Key('auto-rule-caveat')), findsNothing);
     });
 
     testWidgets('다음부터도 자동으로 → 조건·동작 확인 시트, 취소면 아무것도 보내지 않는다', (tester) async {
