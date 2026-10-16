@@ -74,6 +74,18 @@ fi
 # 기존 컨테이너 정리(재실행 안전)
 docker rm -f simplelay-backend 2>/dev/null || true
 
+# 시간대(2026-10-16) — 컨테이너 기본은 UTC라 루틴 시각(예: 19:35)·조용한 시간(22:00~07:00)이 한국 시각보다 9시간 늦게
+# 맞았다. 호스트 시간대를 넘긴다(못 읽으면 Asia/Seoul). env 파일에 TZ= 줄이 있으면 그 값을 따른다(덮지 않는다).
+TZ_ARGS=
+if ! grep -Eq '^[[:space:]]*TZ=' "$ENV_FILE"; then
+  HOST_TZ=$(readlink -f /etc/localtime 2>/dev/null | sed -n 's|.*/zoneinfo/||p')
+  case "$HOST_TZ" in
+    */*) ;;
+    *) HOST_TZ=Asia/Seoul ;;
+  esac
+  TZ_ARGS="-e TZ=$HOST_TZ"
+fi
+
 # --network host: 같은 기기의 키오스크 앱이 localhost로 부르면 백엔드에도 루프백(127.0.0.1)으로
 # 보인다. 브리지 네트워크(-p 8000:8000)면 172.17.0.1로 보여 API 키 루프백 면제가 안 되고
 # 키오스크 요청이 전부 401이 된다(2026-09-30 확인).
@@ -87,10 +99,12 @@ docker run -d --name simplelay-backend \
   -e SIMPLELAY_DB_PATH=/data/simplelay.db \
   ${CARRY:+-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=$CARRY} \
   $THINQ_ARGS \
+  $TZ_ARGS \
   simplelay-backend
 
 echo "== 시연 페이싱: $PACING (env 파일 $ENV_FILE 의 SIMPLELAY_DEMO_PACING) =="
 echo "== ThinQ PAT: $THINQ_PAT ($THINQ_DIR/thinq_pat) =="
+echo "== 시간대: ${TZ_ARGS:+${TZ_ARGS#-e TZ=}}${TZ_ARGS:-env 파일의 TZ} =="
 
 echo "== 컨테이너 기동 =="
 sleep "$SETTLE_S"

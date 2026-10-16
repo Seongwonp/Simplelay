@@ -186,3 +186,25 @@ def test_old_server_utc_z_form_is_passed_on(tmp_path):
     assert code == 0, out
     run = lines[_index(lines, "run ")]
     assert "-e SIMPLELAY_PAUSE_CARRYOVER_UNTIL=2026-10-14T11:13:36.620005Z" in run, run
+
+
+def test_container_gets_the_host_time_zone(tmp_path):
+    """컨테이너 기본 시간대는 UTC다 — 루틴 시각(예: 19:35)·조용한 시간(22:00~07:00)이 한국 시각보다 9시간 늦게 맞았다
+    (2026-10-16 보드에서 19:35 루틴이 뜨지 않음을 확인). 호스트 시간대를 넘긴다(못 읽으면 Asia/Seoul)."""
+    code, out, lines = _run(tmp_path, '{"ok":true,"version":"0.1.0"}')
+    assert code == 0, out
+    run = lines[_index(lines, "run ")]
+    assert "-e TZ=" in run, run
+    tz = run.split("-e TZ=", 1)[1].split()[0]
+    assert tz and "/" in tz, run  # 지역/도시 꼴(예: Asia/Seoul)
+
+
+def test_env_file_time_zone_wins(tmp_path):
+    """env 파일에 TZ= 줄이 있으면 스크립트가 덮지 않는다(--env-file 값이 그대로 간다)."""
+    def prepare(data):
+        (data / "env").write_text("TZ=Europe/London\n", encoding="utf-8", newline="\n")
+
+    code, out, lines = _run(tmp_path, '{"ok":true,"version":"0.1.0"}', prepare=prepare)
+    assert code == 0, out
+    run = lines[_index(lines, "run ")]
+    assert "-e TZ=" not in run, run
