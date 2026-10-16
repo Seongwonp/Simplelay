@@ -382,6 +382,9 @@ void main() {
       expect(find.textContaining('깨끗'), findsNothing);
       // '지우기'는 테두리 있는 버튼이다(외부 평가 10/16 p02 — 글자 버튼은 누를 곳으로 안 보인다).
       expect(tester.widget(find.byKey(const Key('auto-rule-delete-ar-1'))), isA<OutlinedButton>());
+      // 자동 실행 규칙과 루틴 목록을 머리말로 나눈다 — 같은 이름이 두 번 나와 헷갈렸다(외부 평가 10/16 3차).
+      expect(find.text('자동 실행 규칙'), findsOneWidget);
+      expect(find.text('내 루틴 목록'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('auto-rule-off-ar-1')));
       await _settle(tester);

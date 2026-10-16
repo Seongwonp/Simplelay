@@ -164,6 +164,14 @@ void main() {
     final hero = find.byKey(const Key('home-routine-hero'));
     expect(find.descendant(of: hero, matching: find.text('저녁 데우기')), findsOneWidget);
     expect(find.byKey(const Key('home-routine-row-r-w')), findsOneWidget);
+    // 외부 평가 10/16 3차: 아래 행도 설정이 필요한 가전이면 실행 버튼을 끄고 이유를 말한다.
+    final run = tester.widget<OutlinedButton>(find.byKey(const Key('home-routine-run-r-w')));
+    expect(run.onPressed, isNull);
+    expect(
+        find.descendant(
+            of: find.byKey(const Key('home-routine-row-r-w')),
+            matching: find.textContaining('가전 설정이 필요해요')),
+        findsOneWidget);
   });
 
   testWidgets('제안이 없으면 서버 순서의 첫 적격 루틴이 큰 카드, 나머지 적격 루틴은 간결한 행',

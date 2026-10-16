@@ -12,6 +12,7 @@ import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../models/display_status.dart';
 import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_candidate_sheet.dart';
@@ -44,6 +45,11 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
   @override
   Widget build(BuildContext context) {
     final next = ref.watch(nextRoutineProvider).valueOrNull;
+    final rules = ref.watch(autoRulesProvider).valueOrNull ?? const <AutoRule>[];
+    final needsSetup = {
+      for (final a in ref.watch(installedAppliancesProvider))
+        if (needsPanelMapping(a)) a.id,
+    };
     final list = _templates
         ? ref.watch(routineTemplatesProvider)
         : ref.watch(routinesProvider);
@@ -108,9 +114,14 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                   onDecline: () => _declineCandidate(c),
                 ),
             // 자동 실행 허용 규칙(2026-10-13) — 카드에서 허용한 것만 있다. 없으면(옛 서버 포함) 아무것도 안 보인다.
-            if (!_templates)
-              for (final rule in ref.watch(autoRulesProvider).valueOrNull ?? const <AutoRule>[])
+            // 규칙이 있으면 머리말로 루틴 목록과 나눈다 — 같은 이름(시각 루틴과 그 규칙)이 두 번 나와 헷갈렸다(외부 평가 10/16 3차).
+            if (!_templates && rules.isNotEmpty) ...[
+              const _SectionLabel('자동 실행 규칙'),
+              for (final rule in rules)
                 _AutoRuleRow(rule: rule, onChanged: () => ref.invalidate(autoRulesProvider)),
+              const SizedBox(height: 8),
+              const _SectionLabel('내 루틴 목록'),
+            ],
             ...list.when(
               loading: () => const [
                 Padding(
@@ -137,12 +148,15 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                           routine: r,
                           applianceNames: names,
                           onEdit: () => _open(context, r),
-                          onRun: r.isRunCandidate
+                          // 버튼 자리를 맞추지 않은 가전의 루틴은 실행하기 대신 이유(외부 평가 10/16 3차).
+                          onRun: r.isRunCandidate && !r.applianceIds.any(needsSetup.contains)
                               ? () => _run(context, r.id!)
                               : null,
                           running: r.id != null && _runningId == r.id,
                           busy: _runningId != null,
-                          error: r.id == null ? null : _errors[r.id],
+                          error: r.applianceIds.any(needsSetup.contains)
+                              ? '가전 설정이 필요해요 — 홈의 가전을 눌러 버튼 자리를 맞춰 주세요'
+                              : (r.id == null ? null : _errors[r.id]),
                         ),
                     ],
             ),
@@ -677,5 +691,20 @@ class _Note extends StatelessWidget {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Text(text, style: TextStyle(fontSize: 15, color: context.appMuted)),
+      );
+}
+
+/// 루틴 탭 구획 머리말(2026-10-16).
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 4, bottom: 4),
+        child: Semantics(
+          header: true,
+          child: Text(text, style: AppText.title),
+        ),
       );
 }

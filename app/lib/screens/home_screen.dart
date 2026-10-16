@@ -412,6 +412,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
                 subtitle: routineSubtitle(r, widget.applianceNames),
                 running: _runningId == r.id,
                 busy: busy,
+                needsSetup: r.applianceIds.any(widget.needsSetupIds.contains),
                 onRun: () => _run(r.id!),
               ),
               if (_errorFor == r.id && _error != null) _ErrorLine(_error!),
@@ -548,6 +549,7 @@ class _RoutineQuickRow extends StatelessWidget {
     required this.running,
     required this.busy,
     required this.onRun,
+    this.needsSetup = false,
   });
 
   final Routine routine;
@@ -555,6 +557,9 @@ class _RoutineQuickRow extends StatelessWidget {
   final bool running;
   final bool busy;
   final VoidCallback onRun;
+
+  /// 대상 가전의 버튼 자리를 아직 맞추지 않았다 — 실행 버튼을 끄고 이유를 말한다(외부 평가 10/16 3차).
+  final bool needsSetup;
 
   @override
   Widget build(BuildContext context) {
@@ -569,6 +574,9 @@ class _RoutineQuickRow extends StatelessWidget {
           // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
           Text(keepWordsTogether(subtitle),
               style: TextStyle(fontSize: 14, color: context.appMuted)),
+          if (needsSetup)
+            Text('가전 설정이 필요해요 — 아래 가전을 눌러 버튼 자리를 맞춰 주세요',
+                style: TextStyle(fontSize: 14, color: context.appWarning)),
         ],
       ),
     );
@@ -576,7 +584,7 @@ class _RoutineQuickRow extends StatelessWidget {
       key: Key('home-routine-run-${routine.id}'),
       routine: routine,
       running: running,
-      busy: busy,
+      busy: busy || needsSetup,
       onRun: onRun,
       primary: false,
     );

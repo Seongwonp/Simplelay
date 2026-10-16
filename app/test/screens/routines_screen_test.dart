@@ -419,6 +419,28 @@ void main() {
   Finder editButton(String routineId) =>
       find.byKey(Key('routine-edit-$routineId'));
 
+  // 외부 평가 10/16 3차 p02b: 버튼 자리를 아직 맞추지 않은 가전의 루틴도 '실행하기'가 살아 있었다.
+  testWidgets('설정이 필요한 가전의 루틴은 실행하기 대신 이유를 말한다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    final unmapped = ApplianceMap.fromJson({
+      'id': 'microwave',
+      'name': '전자레인지',
+      'rows': 1,
+      'cols': 1,
+      'is_custom': true,
+      'buttons': [
+        {'id': 'BT-07', 'label': '즉석밥', 'x': 0, 'y': 0},
+      ],
+    });
+    await tester.pumpWidget(_build(server, installed: [unmapped]));
+    await _settle(tester);
+
+    expect(runButton('rt-1'), findsNothing);
+    expect(find.textContaining('가전 설정이 필요해요'), findsOneWidget);
+    expect(editButton('rt-1'), findsOneWidget);
+  });
+
   testWidgets('실행하기는 편집을 열지 않고 카드만 만들어 승인 화면으로 간다', (tester) async {
     final server = _Server();
     _tall(tester);
