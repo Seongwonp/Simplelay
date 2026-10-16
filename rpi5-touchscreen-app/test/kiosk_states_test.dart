@@ -415,7 +415,9 @@ void main() {
       await _pump(tester, api);
 
       expect(find.byType(KioskSuggestionView), findsOneWidget);
-      expect(find.textContaining('내 루틴 "아침 데우기"'), findsOneWidget);
+      // 질문이 이미 루틴 이름을 말하면 위 이름 줄은 되풀이하지 않는다(실패널 10/17).
+      expect(find.textContaining('아침 데우기,'), findsOneWidget);
+      expect(find.textContaining('내 루틴 "아침 데우기"'), findsNothing);
       expect(find.text('아침에 자주 하셔서 여쭤봐요 · 5번 하신 기록이 있어요'), findsOneWidget);
       expect(find.byKey(const ValueKey('suggestion-approve')), findsOneWidget);
       expect(find.byKey(const ValueKey('suggestion-later')), findsOneWidget);

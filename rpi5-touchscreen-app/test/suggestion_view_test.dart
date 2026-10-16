@@ -57,13 +57,28 @@ void main() {
         target: kMicrowaveAppliance,
         suggestion: const KioskSuggestion(
           id: 'r1',
-          purpose: '아침 데우기',
+          purpose: '즉석밥 데워줘',
           occurrences: 0,
           applianceId: 'microwave',
           routineId: 'morning',
           routineName: '아침 데우기',
         ));
     expect(find.text('내 루틴 "아침 데우기"'), findsOneWidget);
+  });
+
+  // 실패널(10/17): 질문이 이미 루틴 이름을 말하면("'30초 데우기' 루틴을 실행할까요?") 위 줄에서 되풀이하지 않는다.
+  testWidgets('질문에 루틴 이름이 있으면 위 루틴 이름 줄을 되풀이하지 않는다', (tester) async {
+    await _pump(tester,
+        target: kMicrowaveAppliance,
+        suggestion: const KioskSuggestion(
+          id: 'r2',
+          purpose: "'30초 데우기' 루틴을 실행할까요?",
+          occurrences: 0,
+          applianceId: 'microwave',
+          routineId: 'warm30',
+          routineName: '30초 데우기',
+        ));
+    expect(find.text('내 루틴 "30초 데우기"'), findsNothing);
   });
 
   testWidgets('대상 가전·질문·번호 붙은 순서·두 행동을 보여준다', (tester) async {

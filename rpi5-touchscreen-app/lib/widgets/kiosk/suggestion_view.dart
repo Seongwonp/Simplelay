@@ -209,8 +209,10 @@ class KioskSuggestionView extends StatelessWidget {
             const SizedBox(height: 10),
           ],
           // 사용자가 붙인 루틴 이름 — 메뉴는 사용자가 만든다(§1-1).
+          // 질문이 이미 루틴 이름을 말하면 되풀이하지 않는다(실패널 10/17 — "'30초 데우기' 루틴을 실행할까요?").
           if (suggestion.routineName != null &&
-              suggestion.routineName!.isNotEmpty) ...[
+              suggestion.routineName!.isNotEmpty &&
+              !suggestion.purpose.contains(suggestion.routineName!)) ...[
             Text(
               '내 루틴 "${suggestion.routineName}"',
               style: const TextStyle(
