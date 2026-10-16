@@ -66,8 +66,14 @@ LOW_RISK_ACTIONS: dict[str, dict[str, tuple[str, ...] | None]] = {
     "DEVICE_AIR_PURIFIER": {
         "set_wind_strength": None,
         "set_job_mode": None,
-        "set_power": ("POWER_ON",),  # 켜기만. 끄기는 자동 실행 대상이 아니다.
+        "set_power": ("POWER_ON",),  # 사건 규칙은 켜기만. 끄기는 아래 시각 규칙에서만.
     },
+}
+
+#: 시각 규칙에만 더 허용하는 동작(2026-10-16 사용자 요청 — '밤에 켜고 아침 07:00에 끄기'). 공기청정기 끄기는 위험이
+#: 낮지만 가열 종료 같은 사건에 묶을 이유가 없어 사건 규칙에는 넣지 않는다.
+TIME_RULE_EXTRA_ACTIONS: dict[str, dict[str, tuple[str, ...]]] = {
+    "DEVICE_AIR_PURIFIER": {"set_power": ("POWER_OFF",)},
 }
 
 MAX_EVENT_AGE_ENV = "SIMPLELAY_AUTO_RULE_MAX_EVENT_AGE_S"
@@ -167,7 +173,9 @@ class AutoRuleBlocked(RuntimeError):
     """실행 게이트 안에서 막혔다(비상정지·규칙 꺼짐). 실행을 시작하지 않는다."""
 
 
-def is_low_risk(device_type: str | None, action: str | None, value) -> bool:
+def is_low_risk(device_type: str | None, action: str | None, value, *, time_rule: bool = False) -> bool:
+    if time_rule and value in TIME_RULE_EXTRA_ACTIONS.get(device_type or "", {}).get(action or "", ()):
+        return True
     allowed = LOW_RISK_ACTIONS.get(device_type or "", {})
     if action not in allowed:
         return False
@@ -631,7 +639,7 @@ class AutoRuleEngine:
             cap.validate({cap.arg: value})
         except Exception:  # noqa: BLE001
             return None
-        if not is_low_risk(binding.device_type, action, value):
+        if not is_low_risk(binding.device_type, action, value, time_rule=condition_event == TIME_EVENT):
             return None
         return AutoRule(
             rule_id="", scenario_id=scenario_id, condition_appliance_id=condition_appliance,
@@ -950,7 +958,7 @@ class AutoRuleEngine:
         if (binding.device_type != rule.target_device_type
                 or _device_key(binding.device_id) != rule.target_device_key):
             return "대상 공기청정기가 다른 기기로 바뀌어 자동 실행을 껐어요 — 다시 허용이 필요해요"
-        if not is_low_risk(rule.target_device_type, rule.action, rule.value):
+        if not is_low_risk(rule.target_device_type, rule.action, rule.value, time_rule=rule.is_time):
             return "자동 실행할 수 없는 동작이라 껐어요"
         try:
             binding.validate_command(binding.command(rule.target_appliance_id, rule.action,

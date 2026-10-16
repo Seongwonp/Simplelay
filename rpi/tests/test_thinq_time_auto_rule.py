@@ -315,7 +315,7 @@ def test_time_routine_card_offers_auto_for_a_single_low_risk_thinq_step(api):
     assert len(offer["fingerprint"]) == 64
 
 
-@pytest.mark.parametrize("variant", ["physical", "extra_note", "conditions", "power_off", "manual_trigger"])
+@pytest.mark.parametrize("variant", ["physical", "extra_note", "conditions", "manual_trigger"])
 def test_time_routine_card_has_no_offer_unless_single_low_risk_thinq(api, variant):
     kwargs = {}
     if variant == "physical":
@@ -324,8 +324,6 @@ def test_time_routine_card_has_no_offer_unless_single_low_risk_thinq(api, varian
         kwargs["steps"] = [_thinq_step(), {"kind": "announce", "text": "공기청정기를 켰어요"}]
     elif variant == "conditions":
         kwargs["conditions"] = [{"kind": "environment", "humidity_at_least": 10}]
-    elif variant == "power_off":
-        kwargs["steps"] = [_thinq_step(args={"power": "POWER_OFF"})]
     else:
         kwargs["trigger"] = {"kind": "manual"}
     routine = _routine(api, **kwargs)
@@ -672,3 +670,23 @@ def test_next_run_says_auto_and_which_day_when_the_time_rule_is_on(api, clock, h
     assert first["auto"] is True and first["mode_label"] == "자동 실행"
     _move(clock, hub, AT_2300 + timedelta(minutes=30))  # 23:30 — 오늘 회차는 지났다
     assert api.get("/routines/next").json()[0]["day_label"] == "내일"
+
+
+def test_time_routine_to_power_off_the_purifier_can_be_allowed(api, submits):
+    """2026-10-16 사용자 요청 — '밤 22:00 켜고 아침 07:00 끄기'. 시각 규칙에서만 공기청정기 전원 끄기를 자동 실행할 수
+    있다(끄기는 위험이 낮다). 가열 종료 같은 사건 규칙은 여전히 켜기만이다(아래 시험)."""
+    routine = _routine(api, steps=[_thinq_step(args={"power": "POWER_OFF"})], name="아침 공기청정기 끄기",
+                       trigger={"kind": "time", "days": list(range(7)), "time": "07:00"})
+    card = _manual_card(api, routine["id"])
+    assert card["auto_rule_offer"] is not None
+    _allow(api, card)
+    rule = api.get("/routines/auto-rules").json()[0]
+    assert rule["enabled"] is True and rule["condition_kind"] == "time"
+
+
+def test_event_rules_still_cannot_power_off():
+    from rpi.routines.auto_rules import is_low_risk
+
+    assert not is_low_risk("DEVICE_AIR_PURIFIER", "set_power", "POWER_OFF")
+    assert is_low_risk("DEVICE_AIR_PURIFIER", "set_power", "POWER_OFF", time_rule=True)
+    assert not is_low_risk("DEVICE_WASHER", "set_power", "POWER_OFF", time_rule=True)
