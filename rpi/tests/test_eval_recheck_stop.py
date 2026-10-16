@@ -348,12 +348,19 @@ class _Server:
         self.sock.close()
 
 
-def _send(root: str, results: dict, name: str, method: str, path: str, body=None) -> None:
+def _client():
     import httpx
 
+    return httpx.Client(timeout=15, trust_env=False)  # 클라이언트마다 따로(연결 공유 없음)
+
+
+def _send(root: str, results: dict, name: str, method: str, path: str, body=None, client=None) -> None:
+    """``client``를 주면 그것으로 보낸다 — 정지 시험은 시간을 재기 **전에** 만들어 둔다(2026-10-16). Windows에서는
+    ``httpx.Client()`` 하나에 약 230 ms(인증서 묶음 로딩)가 걸려, 측정 뒤에 만들면 서버 정지 경로가 아니라 시험
+    클라이언트 준비 시간을 재게 된다."""
     try:
-        with httpx.Client(timeout=15, trust_env=False) as client:  # 클라이언트마다 따로(연결 공유 없음)
-            results[name] = client.request(method, root + path, json=body, headers={"X-API-Key": KEY})
+        with client if client is not None else _client() as c:
+            results[name] = c.request(method, root + path, json=body, headers={"X-API-Key": KEY})
     except Exception as exc:  # noqa: BLE001
         results[name + "_error"] = repr(exc)
 
@@ -388,8 +395,9 @@ def test_stop_reaches_request_stop_on_one_uvicorn_loop_while_a_pause_save_waits(
         _start(threads, lambda: _send(server.root, results, "dnd", method, "/dnd", body))
         assert entered.wait(10), "잠시 쉬기 저장이 DB 쓰기까지 오지 않았다"
 
+        stop_client = _client()  # 측정 전에 준비(시험 클라이언트 생성 시간을 정지 지연에 넣지 않는다)
         started = time.perf_counter()
-        stopper = _start(threads, lambda: _send(server.root, results, "stop", "POST", "/stop"))
+        stopper = _start(threads, lambda: _send(server.root, results, "stop", "POST", "/stop", client=stop_client))
         reached = called.wait(3)
         stopper.join(STOP_RESPONSE_BOUND_S)
         delay = stamp["at"] - started if reached else None
@@ -477,8 +485,9 @@ def test_stop_reaches_request_stop_on_one_uvicorn_loop_while_a_node_or_routine_s
                            "args": {"wind_strength": "HIGH"}}]})
         _start(threads, lambda: _send(server.root, results, "write", *request))
         assert entered.wait(10), results
+        stop_client = _client()  # 측정 전에 준비(시험 클라이언트 생성 시간을 정지 지연에 넣지 않는다)
         started = time.perf_counter()
-        _start(threads, lambda: _send(server.root, results, "stop", "POST", "/stop"))
+        _start(threads, lambda: _send(server.root, results, "stop", "POST", "/stop", client=stop_client))
         reached = called.wait(3)
         delay = stamp["at"] - started if reached else None
         print(f"\n[H-R2 {what}] request_stop 진입 {'없음' if delay is None else f'{delay * 1000:.2f} ms'} (DB 쓰기는 멈춘 채)")
@@ -674,3 +683,40 @@ def test_a_failed_save_is_retried_with_the_newest_value_by_the_next_change():
     assert quiet.persist(v2) is True
     assert '"enabled": true' in calls[-1] and '"21:00"' in calls[-1]
     assert quiet.persist(v1) is True  # 더 새 값이 이미 저장됐다
+
+
+def test_motion_stop_does_not_wait_for_building_a_registered_nodes_controller(monkeypatch, tmp_path):
+    """노드를 등록만 하고 아직 쓰지 않았으면 레지스트리가 정지 때 처음으로 노드 컨트롤러를 만든다(HTTP 클라이언트 생성 —
+    Windows 데스크톱에서 약 230 ms, 2026-10-16 측정). 그 생성이 서비스 잠금 안에서 모터 ``request_stop``보다 **먼저** 돌아
+    정지가 그만큼 늦었다. 모터 정지는 노드 목록을 모으기 전에 부른다 — 노드에도 정지는 그대로 간다."""
+    from rpi.api import deps
+
+    _mock_env(monkeypatch, "mock")
+    monkeypatch.setenv("SIMPLELAY_DB_PATH", str(tmp_path / "node-build.db"))
+    deps.get_db.cache_clear()
+    _reset()
+    try:
+        registry = deps.get_node_registry()
+        service = deps.get_service()
+        original_factory = registry._controller_factory
+        built: list[float] = []
+
+        def slow_factory(base_url):
+            time.sleep(0.4)  # 느린 클라이언트 생성을 흉내 낸다
+            built.append(time.perf_counter())
+            return original_factory(base_url)
+
+        monkeypatch.setattr(registry, "_controller_factory", slow_factory)
+        registry.register("fan", "http://127.0.0.1:9")
+        called, stamp = _timed(monkeypatch, service._controller)
+        started = time.perf_counter()
+        report = service.emergency_stop_report()
+        assert called.is_set()
+        delay = stamp["at"] - started
+        print(f"\n[node build] request_stop 진입 {delay * 1000:.2f} ms (노드 컨트롤러 생성 0.4 s)")
+        assert delay < 0.1, f"모터 정지가 노드 컨트롤러 생성을 기다렸다: {delay:.3f} s"
+        assert built and stamp["at"] < built[0]  # 모터 정지가 노드 생성보다 먼저
+        assert "fan" in list(report.nodes_acknowledged) + list(report.nodes_unconfirmed)  # 노드에도 정지는 갔다
+    finally:
+        _reset()
+        deps.get_db.cache_clear()

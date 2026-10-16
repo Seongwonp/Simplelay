@@ -574,6 +574,7 @@ def test_stop_is_not_delayed_by_a_stalled_air_quality_read(monkeypatch, tmp_path
     서버 종료도 그 판독을 기다리지 않는다. 계측은 개발 PC의 HTTP 요청 시작부터 Python 진입까지(모터 정지 시간이 아니다)."""
     from rpi.api import air_quality_wiring
     from rpi.tests.test_eval_recheck2_stop import _cleanup, _db_app, _req
+    from rpi.tests.test_eval_recheck2_stop import _client as _stop_client
     from rpi.tests.test_eval_recheck_stop import KEY, STOP_CALL_BOUND_S, STOP_RESPONSE_BOUND_S, _start, _timed
     from rpi.tests.test_startup_init_stop import _LifespanServer
 
@@ -598,9 +599,10 @@ def test_stop_is_not_delayed_by_a_stalled_air_quality_read(monkeypatch, tmp_path
     results: dict = {}
     try:
         assert entered.wait(10), "판독 스레드가 ThinQ 조회에 닿지 않았다"
+        stop_client = _stop_client()  # 측정 전에 준비(시험 클라이언트 생성 시간을 정지 지연에 넣지 않는다)
         started = time.perf_counter()
         stopper = _start(threads, lambda: _req(server.root, results, "stop", "POST", "/stop",
-                                               headers={"X-API-Key": KEY}))
+                                               headers={"X-API-Key": KEY}, client=stop_client))
         reached = called.wait(STOP_CALL_BOUND_S * 3)
         stopper.join(STOP_RESPONSE_BOUND_S)
         delay = stamp["at"] - started if reached else None

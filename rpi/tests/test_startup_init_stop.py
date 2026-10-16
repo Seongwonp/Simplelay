@@ -21,6 +21,7 @@ import time
 import pytest
 
 from rpi.tests.test_eval_recheck2_stop import _cleanup, _db_app, _req, _wait
+from rpi.tests.test_eval_recheck2_stop import _client as _stop_client
 from rpi.tests.test_eval_recheck_stop import KEY, STOP_CALL_BOUND_S, STOP_RESPONSE_BOUND_S, _Server, _start, _timed
 
 #: 최초 생성이 처음 읽는 DB 설정 — 제안 서비스의 쿨다운(외부 재확인 3차 부록 C와 같은 경계).
@@ -95,9 +96,10 @@ def test_first_request_that_builds_the_suggestion_service_does_not_block_stop(mo
         _start(threads, lambda: _req(server.root, results, "first", method, path,
                                      headers={"X-API-Key": KEY}, body=body))
         assert entered.wait(10), "첫 요청이 제안 서비스의 최초 DB 읽기에 닿지 않았다"
+        stop_client = _stop_client()  # 측정 전에 준비(시험 클라이언트 생성 시간을 정지 지연에 넣지 않는다)
         started = time.perf_counter()
         stopper = _start(threads, lambda: _req(server.root, results, "stop", "POST", "/stop",
-                                               headers={"X-API-Key": KEY}))
+                                               headers={"X-API-Key": KEY}, client=stop_client))
         reached = called.wait(STOP_CALL_BOUND_S * 3)
         stopper.join(STOP_RESPONSE_BOUND_S)
         delay = stamp["at"] - started if reached else None
@@ -160,9 +162,10 @@ def test_stop_right_after_a_lifespan_start_while_the_suggestion_service_is_still
     try:
         assert entered.wait(10), "기동 절차가 제안 서비스의 최초 DB 읽기에 닿지 않았다"
         started_listening = _wait(lambda: server.server.started, 3)
+        stop_client = _stop_client()  # 측정 전에 준비(시험 클라이언트 생성 시간을 정지 지연에 넣지 않는다)
         started = time.perf_counter()
         stopper = _start(threads, lambda: _req(server.root, results, "stop", "POST", "/stop",
-                                               headers={"X-API-Key": KEY}))
+                                               headers={"X-API-Key": KEY}, client=stop_client))
         reached = called.wait(STOP_CALL_BOUND_S * 3)
         stopper.join(STOP_RESPONSE_BOUND_S)
         delay = stamp["at"] - started if reached else None

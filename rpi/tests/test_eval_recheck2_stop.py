@@ -41,14 +41,24 @@ DEV_TOKEN = "recheck2-dev-token-0123456789"
 LAN = {"X-Forwarded-For": "192.168.0.50"}
 
 
-def _req(root: str, results: dict, name: str, method: str, path: str, *, headers=None, body=None) -> None:
+def _client():
     import httpx
 
+    return httpx.Client(timeout=20, trust_env=False)  # 요청마다 따로(연결 공유 없음)
+
+
+def _req(root: str, results: dict, name: str, method: str, path: str, *, headers=None, body=None,
+         client=None) -> None:
+    """``client``를 주면 그것으로 보낸다 — 정지 시험은 시간을 재기 **전에** 만들어 둔다(2026-10-16, Windows에서
+    ``httpx.Client()`` 하나에 약 230 ms가 걸려 측정 뒤에 만들면 서버 정지 경로가 아니라 시험 준비 시간을 잰다)."""
     try:
-        with httpx.Client(timeout=20, trust_env=False) as client:  # 요청마다 따로(연결 공유 없음)
-            results[name] = client.request(method, root + path, json=body, headers=headers or {})
+        with client if client is not None else _client() as c:
+            results[name] = c.request(method, root + path, json=body, headers=headers or {})
     except Exception as exc:  # noqa: BLE001
         results[name + "_error"] = repr(exc)
+
+
+_stop_client = _client
 
 
 class _Observed:
@@ -190,8 +200,9 @@ def test_stop_reaches_request_stop_while_the_shared_thread_pools_are_exhausted(m
             stop = ("POST", "/stop", {})
         else:
             stop = ("POST", "/dev/stop", {"X-Dev-Token": DEV_TOKEN})
+        stop_client = _stop_client()  # 측정 전에 준비(시험 클라이언트 생성 시간을 정지 지연에 넣지 않는다)
         started = time.perf_counter()
-        stopper = _start(threads, lambda: _req(server.root, results, "stop", stop[0], stop[1], headers=stop[2]))
+        stopper = _start(threads, lambda: _req(server.root, results, "stop", stop[0], stop[1], headers=stop[2], client=stop_client))
         reached = called.wait(3)
         stopper.join(STOP_RESPONSE_BOUND_S)
         delay = stamp["at"] - started if reached else None
@@ -245,9 +256,10 @@ def _watch(monkeypatch, owner, name: str, frame: str) -> threading.Event:
 
 
 def _stop_while_a_read_waits(server, threads, results, called, stamp, label: str) -> float | None:
+    stop_client = _stop_client()  # 측정 전에 준비(시험 클라이언트 생성 시간을 정지 지연에 넣지 않는다)
     started = time.perf_counter()
     stopper = _start(threads, lambda: _req(server.root, results, "stop", "POST", "/stop",
-                                           headers={"X-API-Key": KEY, **LAN}))
+                                           headers={"X-API-Key": KEY, **LAN}, client=stop_client))
     reached = called.wait(3)
     stopper.join(STOP_RESPONSE_BOUND_S)
     delay = stamp["at"] - started if reached else None
