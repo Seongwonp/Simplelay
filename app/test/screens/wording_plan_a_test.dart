@@ -87,7 +87,12 @@ void main() {
       ...installedOverrides([kTestAppliance]),
     ]));
     await tester.pump();
-    expect(find.textContaining("키오스크에서는 'SimpleLay 본체'라고 불러요"), findsOneWidget);
+    expect(findPlainText("키오스크에서는 'SimpleLay 본체'라고 불러요", contains: true), findsOneWidget);
+    // 설정 행 부제도 어절 단위 줄바꿈('키오스크에서/는' 방지, UI 평가 10/17).
+    expect(tester.widget<Text>(findPlainText("키오스크에서는 'SimpleLay 본체'라고 불러요", contains: true)).data,
+        contains(kWordJoiner));
+    // '시간 고르기'는 테두리 버튼(글자만 있으면 누를 곳으로 안 보인다).
+    expect(find.ancestor(of: find.text('시간 고르기'), matching: find.byType(OutlinedButton)), findsOneWidget);
   });
 
   testWidgets('방해 금지 창 — 키오스크의 제안 잠시 쉬기와 같다고 이어 준다', (tester) async {

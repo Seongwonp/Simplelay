@@ -45,7 +45,9 @@ class _NavRow extends StatelessWidget {
         minVerticalPadding: 12,
         leading: Icon(icon, color: context.appPrimary),
         title: Text(title),
-        subtitle: Text(subtitle,
+        // 어절 단위 줄바꿈('키오스크에서/는' 방지, UI 평가 10/17). 낭독은 원문.
+        subtitle: Text(keepWordsTogether(subtitle),
+            semanticsLabel: subtitle,
             style: TextStyle(color: context.appMuted, fontSize: 14)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

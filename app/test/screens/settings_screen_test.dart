@@ -216,7 +216,7 @@ void main() {
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
 
-      final size = tester.getSize(find.widgetWithText(TextButton, '쉬기'));
+      final size = tester.getSize(find.widgetWithText(OutlinedButton, '쉬기'));
       expect(size.height, greaterThanOrEqualTo(48));
     });
   });

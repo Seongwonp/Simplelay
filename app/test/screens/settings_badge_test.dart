@@ -102,13 +102,13 @@ void main() {
   testWidgets('설정 안 보호자 알림은 건수를 그대로 말한다', (tester) async {
     await pumpSettings(
         tester, CareEventsState(events: _events(3), status: CareInboxStatus.ready));
-    expect(find.text('읽지 않은 알림 3건'), findsOneWidget);
+    expect(findPlainText('읽지 않은 알림 3건'), findsOneWidget);
   });
 
   testWidgets('설정 안에서도 조회 실패를 "아무 일 없음"처럼 말하지 않는다', (tester) async {
     await pumpSettings(
         tester, const CareEventsState(events: [], status: CareInboxStatus.failed));
-    expect(find.text('알림을 불러오지 못했어요'), findsOneWidget);
+    expect(findPlainText('알림을 불러오지 못했어요'), findsOneWidget);
     expect(find.text('확인이 없으면 알림을 보내요'), findsNothing);
   });
 }

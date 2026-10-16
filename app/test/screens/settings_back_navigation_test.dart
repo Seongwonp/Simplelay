@@ -59,7 +59,7 @@ Future<void> _pumpSettings(WidgetTester tester) async {
 /// 설정 화면이 맨 앞에 보이는가 -- AppBar 제목 '설정'과 '앱 정보' 줄.
 void _expectSettingsVisible() {
   expect(find.widgetWithText(AppBar, '설정'), findsOneWidget);
-  expect(find.text('날씨 출처와 이용 허락'), findsOneWidget);
+  expect(findPlainText('날씨 출처와 이용 허락'), findsOneWidget);
 }
 
 void main() {

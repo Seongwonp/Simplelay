@@ -39,9 +39,9 @@ class _DndTile extends ConsumerWidget {
                   : '${pauseEndClock(until)}까지 새 제안과 자동 실행을 쉬어요',
           style: TextStyle(color: context.appMuted, fontSize: 12),
         ),
-        trailing: TextButton(
-          // 고령 사용자 기준 최소 터치 대상.
-          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+        // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
+        trailing: OutlinedButton(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
           onPressed: () => showDndSheet(context),
           child: Text(active ? '지금 받기' : '시간 고르기'),
         ),
@@ -203,9 +203,9 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
               : '여행처럼 집을 비우는 날 켜세요. 조용한 게 정상인 날 알림이 오지 않아요.',
           style: TextStyle(color: context.appMuted, fontSize: 12),
         ),
-        trailing: TextButton(
-          // 고령 사용자 기준 최소 터치 대상.
-          style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+        // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
+        trailing: OutlinedButton(
+          style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
           onPressed: paused ? _clear : _pick,
           child: Text(paused ? '지금 켜기' : '쉬기'),
         ),

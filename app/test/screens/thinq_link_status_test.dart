@@ -66,7 +66,7 @@ void main() {
     final never = Completer<RpiThinqOverview?>();
     await tester.pumpWidget(_settings(() => never.future));
     await _settle(tester);
-    expect(find.text('확인 중'), findsOneWidget);
+    expect(findPlainText('확인 중'), findsOneWidget);
     expect(find.text('계정 연결 전'), findsNothing);
 
     await _openThinq(tester);
@@ -79,7 +79,7 @@ void main() {
     await tester.pumpWidget(
         _settings(() => throw http.ClientException('hub unreachable')));
     await _settle(tester);
-    expect(find.text('연결 상태 확인 못 함'), findsOneWidget);
+    expect(findPlainText('연결 상태 확인 못 함'), findsOneWidget);
     expect(find.text('계정 연결 전'), findsNothing);
 
     await _openThinq(tester);
@@ -91,7 +91,7 @@ void main() {
     tall(tester);
     await tester.pumpWidget(_settings(() => null));
     await _settle(tester);
-    expect(find.text('계정 연결 전'), findsOneWidget);
+    expect(findPlainText('계정 연결 전'), findsOneWidget);
 
     await _openThinq(tester);
     expect(_headline(tester), _off);
