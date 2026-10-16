@@ -15,6 +15,7 @@ import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
+import 'package:simplelay/theme/app_colors.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -61,6 +62,9 @@ void main() {
 
       expect(find.text('우리 집'), findsOneWidget);
       expect(find.text('허브 연결됨'), findsOneWidget);
+      // 연결됨 점은 초록 — 주행동 갈색과 섞이면 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
+      final dot = tester.widget<Container>(find.byKey(const Key('hub-status-dot')));
+      expect((dot.decoration as BoxDecoration).color, anyOf(AppColors.success, AppColors.successLight));
       expect(find.byKey(Key('appliance-card-${kTestAppliance.id}')),
           findsOneWidget);
       expect(find.byKey(const Key('appliance-add-card')), findsOneWidget);

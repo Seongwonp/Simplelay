@@ -437,10 +437,12 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
             if (rest.length > shown.length)
               Align(
                 alignment: Alignment.centerLeft,
-                child: TextButton(
+                // 테두리 버튼 + 화살표 — 글자만 있으면 버튼으로 안 보였다(UI 평가 10/17).
+                child: OutlinedButton.icon(
                   onPressed: () => context.go('/routines'),
-                  style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-                  child: Text('루틴 ${rest.length - shown.length}개 더 보기'),
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
+                  icon: const Icon(Icons.chevron_right, size: 20),
+                  label: Text('루틴 ${rest.length - shown.length}개 더 보기'),
                 ),
               ),
           ],
@@ -665,7 +667,8 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (String text, Color dot) = switch (rpiState) {
-      RpiConnectionState.connected => ('허브 연결됨', context.appPrimary),
+      // 정상은 색을 쓰지 않는다(성공 중립 규칙) — 갈색은 주행동 색이라 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
+      RpiConnectionState.connected => ('허브 연결됨', context.appSuccess),
       RpiConnectionState.keyRequired => ('허브 키가 필요해요', context.appWarning),
       RpiConnectionState.checking ||
       RpiConnectionState.unconfigured =>
@@ -683,6 +686,7 @@ class _Header extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Container(
+            key: const Key('hub-status-dot'),
             width: 8,
             height: 8,
             decoration: BoxDecoration(color: dot, shape: BoxShape.circle),

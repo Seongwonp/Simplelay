@@ -147,6 +147,19 @@ Future<void> _settle(WidgetTester tester) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
+  // UI 평가 10/17: '루틴 N개 더 보기'가 글자만 있어 버튼으로 안 보였다.
+  testWidgets('목록에 다 못 보인 루틴은 테두리 버튼 "루틴 N개 더 보기"로', (tester) async {
+    final hub = _Hub(routines: [
+      for (var i = 0; i < 8; i++) _routine('r-$i', '루틴 $i'),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    final more = find.ancestor(of: find.textContaining('개 더 보기'), matching: find.byType(OutlinedButton));
+    expect(more, findsOneWidget);
+    expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
+  });
+
   // 외부 평가 10/16 4차: 큰 카드가 이미 저절로 도는 시각 루틴이었고, 설정 필요 행이 준비된 루틴보다 위에 있었다.
   testWidgets('큰 카드는 직접 실행 루틴을 먼저, 설정이 필요한 루틴 행은 맨 아래로', (tester) async {
     final washer = _appliance('washer', '세탁기', mapped: false);
