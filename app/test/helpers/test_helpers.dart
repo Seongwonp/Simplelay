@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:simplelay/models/appliance.dart';
@@ -232,3 +233,14 @@ Widget buildWithRouter(
     ),
   );
 }
+
+/// 화면 글자를 어절 결합 문자(U+2060) 없이 찾는다(2026-10-17) — 큰 문장은 낱말 가운데서 끊기지 않게 결합 문자를 넣어
+/// 그린다(`keepWordsTogether`). [contains]면 일부만 같아도 찾는다. Text 위젯만 본다(안의 RichText와 겹쳐 세지 않게).
+const kWordJoiner = '\u2060';
+
+Finder findPlainText(String text, {bool contains = false}) => find.byWidgetPredicate((w) {
+      if (w is! Text) return false;
+      final data = (w.data ?? w.textSpan?.toPlainText())?.replaceAll(kWordJoiner, '');
+      if (data == null) return false;
+      return contains ? data.contains(text) : data == text;
+    }, description: 'plain text "$text"');

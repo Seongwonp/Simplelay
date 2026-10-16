@@ -116,7 +116,7 @@ void main() {
           abortReason: 'motion_alarm: stall',
           message: finishedMessage(kind: ResultKind.safetyStop, abortReason: 'motion_alarm: stall'),
         )));
-    expect(find.textContaining('모터가 걸려 멈췄어요'), findsWidgets);
+    expect(findPlainText('모터가 걸려 멈췄어요', contains: true), findsWidgets);
     expect(find.text('다시 시도'), findsNothing);
     expect(find.textContaining('다시 실행해 주세요'), findsNothing);
     expect(find.widgetWithText(FilledButton, '확인'), findsOneWidget);

@@ -183,7 +183,7 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.textContaining('보냈지만 확인하지 못했어요'), findsOneWidget);
+    expect(findPlainText('보냈지만 확인하지 못했어요', contains: true), findsOneWidget);
     expect(find.text('확인 못 함'), findsOneWidget);
     expect(find.text('ThinQ'), findsOneWidget);
     expect(find.text('접수됨'), findsOneWidget);
@@ -212,7 +212,7 @@ void main() {
         ),
       ));
       await tester.pump();
-      expect(find.text('이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요.'), findsOneWidget);
+      expect(findPlainText('이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요.'), findsOneWidget);
       expect(find.text('이미 그 설정이라 보내지 않음'), findsOneWidget);
       expect(find.textContaining('바꿨'), findsNothing);
       expect(find.textContaining('보냈'), findsNothing);

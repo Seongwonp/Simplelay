@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/line_break.dart';
 import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/execution_status.dart';
@@ -737,8 +738,10 @@ class _NowBlock extends StatelessWidget {
               const SizedBox(width: 8),
             ],
             Expanded(
+              // 어절 단위로 줄을 바꾼다 — 큰 글씨에서 '동/작을'처럼 낱말 가운데서 끊겼다(UI 평가 10/17).
               child: Text(
-                now.headline,
+                keepWordsTogether(now.headline),
+                semanticsLabel: now.headline,
                 style: now.button != null
                     ? TextStyle(
                         fontSize: 22, fontWeight: FontWeight.w600, color: color)

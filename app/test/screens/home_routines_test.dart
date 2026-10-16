@@ -195,8 +195,11 @@ void main() {
     expect(
         find.descendant(
             of: find.byKey(const Key('home-routine-row-r-w')),
-            matching: find.textContaining('가전 설정이 필요해요')),
+            matching: findPlainText('가전 설정이 필요해요', contains: true)),
         findsOneWidget);
+    // 어절 단위 줄바꿈('버/튼' 방지, UI 평가 10/17).
+    expect(tester.widget<Text>(findPlainText('가전 설정이 필요해요', contains: true)).data,
+        contains(kWordJoiner));
   });
 
   testWidgets('제안이 없으면 서버 순서의 첫 적격 루틴이 큰 카드, 나머지 적격 루틴은 간결한 행',

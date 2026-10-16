@@ -29,7 +29,7 @@ void main() {
     testWidgets('기본 안내 텍스트 표시', (tester) async {
       await _pumpStatus(tester, const ExecutionStatus());
       expect(find.text('실행 중인 작업 없음'), findsOneWidget);
-      expect(find.text('실행을 시작하면 진행 상황이 여기에 표시돼요.'), findsOneWidget);
+      expect(findPlainText('실행을 시작하면 진행 상황이 여기에 표시돼요.'), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 없음 (idle)', (tester) async {
@@ -81,7 +81,7 @@ void main() {
 
       // 버튼 이름이 가장 크고, 그 아래 지금 상태가 온다.
       expect(find.text("'1분 추가'"), findsOneWidget);
-      expect(find.text('눌림 확인 중'), findsOneWidget);
+      expect(findPlainText('눌림 확인 중'), findsOneWidget);
       expect(find.textContaining('센서로 눌림 확인'), findsOneWidget);
       expect(find.textContaining('센서 93%'), findsOneWidget);
       // steps 미리보기가 없어도 total_steps로 진행이 보인다(음성 실행 경로).
@@ -105,7 +105,11 @@ void main() {
 
       expect(find.text('정지'), findsOneWidget);
       expect(find.text('다시 확인'), findsOneWidget);
-      expect(find.textContaining('가전을 직접 확인'), findsOneWidget);
+      expect(findPlainText('가전을 직접 확인', contains: true), findsOneWidget);
+      // 큰 문장은 어절 단위로 줄을 바꾼다('동/작을' 방지, UI 평가 10/17).
+      final headline = tester.widget<Text>(findPlainText('가전을 직접 확인', contains: true));
+      expect(headline.data, contains(kWordJoiner));
+      expect(headline.semanticsLabel, '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.');
     });
 
     testWidgets('검증 결과가 아직 없으면 확인 중임을 알린다', (tester) async {
@@ -117,7 +121,7 @@ void main() {
           totalSteps: 2,
         ),
       );
-      expect(find.text('누르는 중'), findsOneWidget);
+      expect(findPlainText('누르는 중'), findsOneWidget);
       expect(find.text('버튼 눌림을 확인하고 있어요.'), findsOneWidget);
     });
 
@@ -255,7 +259,7 @@ void main() {
 
     testWidgets('재시도는 실패가 아니라 보정으로 말한다', (tester) async {
       await _pumpStatus(tester, retryingStatus);
-      expect(find.text('보정 후 다시 시도 중'), findsOneWidget);
+      expect(findPlainText('보정 후 다시 시도 중'), findsOneWidget);
       expect(find.text('눌림이 확인되지 않아 자리를 맞추고 다시 눌러요.'),
           findsOneWidget);
       expect(find.textContaining('실패'), findsNothing);
@@ -279,7 +283,7 @@ void main() {
 
     testWidgets('완료 메시지 표시', (tester) async {
       await _pumpStatus(tester, completedStatus);
-      expect(find.text('실행이 완료되었습니다.'), findsOneWidget);
+      expect(findPlainText('실행이 완료되었습니다.'), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 없음 (완료)', (tester) async {
@@ -305,7 +309,7 @@ void main() {
 
     testWidgets('실패 메시지 표시', (tester) async {
       await _pumpStatus(tester, failedStatus);
-      expect(find.text('실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.'), findsOneWidget);
+      expect(findPlainText('실행을 시작하지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.'), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 없음 (실패)', (tester) async {

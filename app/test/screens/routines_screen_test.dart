@@ -437,7 +437,9 @@ void main() {
     await _settle(tester);
 
     expect(runButton('rt-1'), findsNothing);
-    expect(find.textContaining('가전 설정이 필요해요'), findsOneWidget);
+    expect(findPlainText('가전 설정이 필요해요', contains: true), findsOneWidget);
+    expect(tester.widget<Text>(findPlainText('가전 설정이 필요해요', contains: true)).data,
+        contains(kWordJoiner));
     expect(editButton('rt-1'), findsOneWidget);
   });
 
@@ -497,14 +499,14 @@ void main() {
     await _settle(tester);
     await tester.tap(runButton('rt-1'));
     await _settle(tester);
-    expect(find.text('지금은 루틴 카드를 만들 수 없어요: 이미 떠 있는 카드가 있어요'),
+    expect(findPlainText('지금은 루틴 카드를 만들 수 없어요: 이미 떠 있는 카드가 있어요'),
         findsOneWidget);
     expect(find.textContaining('승인 화면'), findsNothing);
 
     server.triggerReply = (404, {'detail': '루틴을 찾을 수 없어요'});
     await tester.tap(runButton('rt-1'));
     await _settle(tester);
-    expect(find.text('이 루틴을 찾지 못했어요. 목록을 새로 고쳐 주세요.'), findsOneWidget);
+    expect(findPlainText('이 루틴을 찾지 못했어요. 목록을 새로 고쳐 주세요.'), findsOneWidget);
   });
 
   testWidgets('알림만·꺼진 루틴에는 실행하기를 두지 않고 꺼짐을 말한다', (tester) async {

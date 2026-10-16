@@ -106,7 +106,7 @@ void main() {
 
     expect(find.text('버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.'), findsNothing);
     // 실행 환경을 모르면 실제로 눌렀는지 사람에게 확인을 맡긴다.
-    expect(find.textContaining('가전이 실제로 움직이는지는 직접 봐 주세요'), findsOneWidget);
+    expect(findPlainText('가전이 실제로 움직이는지는 직접 봐 주세요', contains: true), findsOneWidget);
     expect(find.textContaining('마쳤어요'), findsNothing);
   });
 

@@ -13,6 +13,7 @@ import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../models/display_status.dart';
+import '../models/line_break.dart';
 import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_candidate_sheet.dart';
@@ -485,7 +486,8 @@ class _RoutineRow extends StatelessWidget {
             const SizedBox(height: 6),
             Padding(
               padding: const EdgeInsets.only(left: 36),
-              child: Text(message,
+              // 어절 단위로 줄을 바꾼다('자리/를' 방지, UI 평가 10/17).
+              child: Text(keepWordsTogether(message),
                   style: TextStyle(fontSize: 15, color: context.appDanger)),
             ),
           ],

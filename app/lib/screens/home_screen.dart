@@ -589,7 +589,8 @@ class _RoutineQuickRow extends StatelessWidget {
           Text(keepWordsTogether(subtitle),
               style: TextStyle(fontSize: 14, color: context.appMuted)),
           if (needsSetup)
-            Text('가전 설정이 필요해요 — 아래 가전을 눌러 버튼 자리를 맞춰 주세요',
+            // 어절 단위로 줄을 바꾼다('버/튼' 방지, UI 평가 10/17).
+            Text(keepWordsTogether('가전 설정이 필요해요 — 아래 가전을 눌러 버튼 자리를 맞춰 주세요'),
                 style: TextStyle(fontSize: 14, color: context.appWarning)),
         ],
       ),
