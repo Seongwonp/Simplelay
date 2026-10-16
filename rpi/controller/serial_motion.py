@@ -1481,9 +1481,14 @@ class SerialMotionClient(GrblClient):
             raise MotionAlarm(f"MCU가 '{body['cmd']}'를 거절/실패 보고: {error}", reason=error)
 
     def _send_request(self, body: dict) -> int:
-        if body.get("cmd") == "move":
-            self._note_commanded_move(body)
         with self._write_lock:
+            # G4: 동작 잠금/쓰기 잠금을 기다리는 동안 도착한 정지도 실제 쓰기 직전에 본다.
+            # stop과 같은 쓰기 잠금 안이므로 정지 줄 뒤에 옛 동작 줄이 붙지 않는다.
+            # status/limits는 정지 확인에 필요하므로 계속 허용한다.
+            if body.get("cmd") in {"home", "move", "press"} and self._stop.is_set():
+                raise MotionStopped(f"'{body['cmd']}' 전송 전 정지 요청으로 중단됨")
+            if body.get("cmd") == "move":
+                self._note_commanded_move(body)
             self._next_id += 1
             request_id = self._next_id
             self._transport.write_line(json.dumps({"id": request_id, **body}, ensure_ascii=False))

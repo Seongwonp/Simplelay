@@ -288,6 +288,7 @@ class ActExecutor:
         # 실행은 별도 task — 읽기 루프가 실행 중에도 abort를 수신할 수 있어야
         # 긴급 정지가 성립한다 (여기서 await하면 루프가 통째로 멈춘다)
         self._execute_task: asyncio.Task[None] | None = None
+        self._preparing_execute = False  # 이전 hold 해제 대기 중에도 수신 루프는 abort를 읽는다.
         self._progress = progress_enabled_from_env() if progress is None else progress
         self._job_observer = job_observer
         self._readiness = readiness
@@ -591,20 +592,19 @@ class ActExecutor:
                                   "detail": f"실행 대상 결속 실패로 누르지 않았어요: {exc}"})
                 return
 
-        if not await self._release_hold_for_new_run():
-            await self._send({
-                "type": "error",
-                "sequence_id": msg.sequence_id,
-                "reason": "hold_busy",
-                "detail": "작은 팔이 정지 버튼을 누르거나 제자리로 돌아가는 중이에요",
-            })
+        if self.hold_session is not None and self.hold_session.active:
+            # G9: hold join을 수신 루프에서 기다리면 뒤따르는 abort도 3초까지 기다린다.
+            # 준비 중부터 실행 자리를 예약하고, 정지 표시는 준비가 끝나도 지우지 않는다.
+            self._busy = True
+            self._verify_stop = False
+            self._preparing_execute = True
+            self._execute_task = asyncio.create_task(self._prepare_and_execute(msg, binding))
             return
 
-        # 대기 해제를 기다리는(await) 사이에는 _busy가 False라 비상정지가 '쉬는 중'으로 처리됐을 수 있다.
-        # 여기서 다시 확인하고, 이 뒤로는 await 없이 _busy를 세운다(이벤트 루프 한 턴 안).
-        if await self._refuse_if_unsafe("execute", msg.sequence_id):
-            return
+        self._begin_execute(msg, binding)
+        self._execute_task = asyncio.create_task(self._execute_and_report(msg, binding))
 
+    def _begin_execute(self, msg: ExecuteMsg, binding: "TargetBinding | None") -> None:
         self._busy = True
         self._stop_after_result()  # 지난 실행의 꼬리 관찰은 새 실행에서 끊는다(status=stopped)
         # 이전 run의 stale stop 제거 — 토큰 리셋 책임은 실행을 시작시키는 쪽
@@ -615,10 +615,36 @@ class ActExecutor:
             # 이번 실행의 L3는 대상 CT 채널(또는 없음) — 전자레인지 채널로 다른 가전을 확인하지 않는다.
             self._controller.use_operation(binding.operation)
         self._arm_link_watch(msg)
-        # 실행을 별도 task로 띄우고 즉시 반환한다. 여기서 await하면 읽기
-        # 루프가 실행 완료까지 멈춰서, 실행 중 도착한 abort(긴급 정지)를
-        # 읽을 수 없었다 — "실행 중 정지 불가"였던 진짜 원인.
-        self._execute_task = asyncio.create_task(self._execute_and_report(msg, binding))
+
+    async def _prepare_and_execute(self, msg: ExecuteMsg, binding: "TargetBinding | None") -> None:
+        try:
+            released = await self._release_hold_for_new_run()
+            if self.estop_latched and await self._refuse_if_unsafe("execute", msg.sequence_id):
+                # 비상정지의 기존 거절 원인·응답을 유지한다. 일반 정지와 혼합하지 않는다.
+                return
+            if self._verify_stop:
+                # 실행을 시작하지 않았다. controller.reset_stop()으로 대기 중 정지를 지우지 않는다.
+                await self._send({"type": "result", "sequence_id": msg.sequence_id,
+                                  "appliance_id": msg.appliance_id, "success": False, "retry": 0,
+                                  "outcome": "stopped", "button_results": [],
+                                  "execution_mode": self._mode_value()})
+                return
+            if not released:
+                await self._send({"type": "error", "sequence_id": msg.sequence_id,
+                                  "reason": "hold_busy",
+                                  "detail": "작은 팔이 정지 버튼을 누르거나 제자리로 돌아가는 중이에요"})
+                return
+            if await self._refuse_if_unsafe("execute", msg.sequence_id):
+                return
+            # 여기서 실행 시작까지 await가 없다. 준비와 실행은 같은 task라 wait_idle/shutdown도 끝까지 기다린다.
+            self._preparing_execute = False
+            self._begin_execute(msg, binding)
+            await self._execute_and_report(msg, binding)
+        finally:
+            if self._execute_task is asyncio.current_task():
+                self._preparing_execute = False
+                self._busy = False
+                self._execute_task = None
 
     def _not_ready_reason(self) -> str | None:
         return self._check(self._readiness, "readiness")
@@ -1199,6 +1225,9 @@ class ActExecutor:
             return "hold", None
         if self._busy:
             self._verify_stop = True
+            if self._preparing_execute and session is not None and session.active:
+                # 새 실행은 아직 시작 전이다. 이전 hold의 가전 취소 누름/보관 이동도 시작하지 않는다.
+                session.drive_stop()
             request_stop = getattr(self._controller, "request_stop", None)
             if request_stop is not None:
                 log.warning("abort received mid-execution — requesting cooperative stop")
