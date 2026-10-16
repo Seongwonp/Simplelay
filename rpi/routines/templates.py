@@ -31,7 +31,7 @@ TEMPLATES: tuple[dict, ...] = (
             {"kind": "press_sequence", "appliance_id": "microwave", "buttons": ["즉석밥", "시작"],
              "note": "사진 속 버튼으로 바꿔 주세요"},
             {"kind": "wait_until_done", "appliance_id": "microwave"},
-            {"kind": "announce", "text": "약 드실 시간이에요. 드셨으면 화면에서 확인을 눌러 주세요"},
+            {"kind": "announce", "text": "약 드실 시간이에요. 아직 안 드셨으면 지금 챙겨 드세요"},
         ],
     },
     {
