@@ -424,4 +424,26 @@ void main() {
       });
     }
   });
+
+  // 외부 평가 10/16 2차 k04: 연습 실패 화면에 왜 실패했는지가 없었다('실제 가전은 누르지 않았어요'만).
+  testWidgets('연습 실패도 이유 한 줄을 말한다 — 실제 가전은 누르지 않았다는 말과 함께', (tester) async {
+    for (final (reason, why) in [
+      (KioskFailureReason.safetyStop, '연습에서 눌림을 확인하지 못해 멈췄어요'),
+      (KioskFailureReason.execution, '연습에서 눌림을 확인하지 못했어요'),
+      (KioskFailureReason.serverLost, '연습 결과를 받지 못했어요'),
+    ]) {
+      await _pump(
+        tester,
+        KioskDoneView(
+          success: false,
+          label: '즉석밥 데워줘',
+          executionMode: 'mock',
+          reason: reason,
+          target: kMicrowaveAppliance,
+        ),
+      );
+      expect(find.textContaining(why), findsOneWidget, reason: '$reason');
+      expect(find.textContaining('실제 가전은 누르지 않았어요'), findsOneWidget, reason: '$reason');
+    }
+  });
 }

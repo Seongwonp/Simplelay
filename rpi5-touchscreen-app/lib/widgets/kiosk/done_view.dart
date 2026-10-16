@@ -237,8 +237,9 @@ class KioskDoneView extends StatelessWidget {
             : mock && !r.isUnconfirmed && motion == null
                 ? '연습을 마치지 못했어요'
                 : (motion ?? r.headline);
+    // 연습 실패도 이유 한 줄(외부 평가 10/16 2차 k04) — 실제 가전은 누르지 않았다는 말과 함께.
     final String failureDetail = mock && !userStop
-        ? '실제 가전은 누르지 않았어요.'
+        ? '${r.practiceWhy}\n실제 가전은 누르지 않았어요.'
         : motion != null
             ? '${_lead(label)}다시 누르지 않았어요.\n가전과 작은 팔을 직접 봐 주세요.'
             : userStop
@@ -605,6 +606,17 @@ enum KioskFailureReason {
 
   /// ThinQ — 거절되거나 보내지 않아 실행되지 않음.
   notExecuted;
+
+  /// 연습(모의) 실패의 이유 한 줄 — 실제로 누른 것이 아니라 연습 안에서 일어난 일이다.
+  String get practiceWhy => switch (this) {
+        KioskFailureReason.execution => '연습에서 눌림을 확인하지 못했어요.',
+        KioskFailureReason.safetyStop => '연습에서 눌림을 확인하지 못해 멈췄어요.',
+        KioskFailureReason.serverLost => '연습 결과를 받지 못했어요.',
+        KioskFailureReason.stopped => '연습을 멈췄어요.',
+        KioskFailureReason.unconfirmed => '연습 명령의 결과를 확인하지 못했어요.',
+        KioskFailureReason.receiptUnknown => '연습 명령이 닿았는지 몰라요.',
+        KioskFailureReason.notExecuted => '연습 명령이 실행되지 않았어요.',
+      };
 
   /// 실패가 아니라 '확인 못 함'. 다시 보내면 중복 실행이 될 수 있다.
   bool get isUnconfirmed =>
