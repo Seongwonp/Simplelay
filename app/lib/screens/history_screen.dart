@@ -266,7 +266,10 @@ class _HistoryRow extends StatelessWidget {
     final expand = !succeeded &&
         kind != ResultKind.unconfirmed &&
         entry.route != 'thinq';
-    final look = _look(context, kind);
+    // 연습(모의) 성공은 중립 아이콘 — 성공 체크는 실제로 한 일에만 붙인다(외부 평가 10/16 p03).
+    final look = succeeded && entry.executionMode == 'mock'
+        ? (icon: Icons.science_outlined, color: context.appMuted)
+        : _look(context, kind);
     final title = historyTitle(entry, applianceName: applianceName);
     final rawName = applianceName;
     // 모의 기록은 '연습' 한 줄이 말한다 — 이름의 "(모의)"를 되풀이하지 않는다(표시만).

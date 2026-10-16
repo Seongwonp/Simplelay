@@ -223,7 +223,8 @@ void main() {
 
   // 실제 StatusScreen(L1). 버튼마다·뒤로가기마다 출발한 곳으로 돌아가는지.
   for (final (initial, name) in [('/', '홈'), ('/routines', '루틴 목록')]) {
-    for (final how in ['확인', '닫기', '뒤로가기']) {
+    // 성공 뒤에는 '확인' 하나만 둔다('닫기'는 다시 시도할 때만, 외부 평가 10/16 p08).
+    for (final how in ['확인', '뒤로가기']) {
       testWidgets('실제 실행 상태 화면: $name 출발 → 완료 뒤 $how → $name', (tester) async {
         _tall(tester);
         final hub = _Hub();

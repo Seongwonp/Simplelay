@@ -88,7 +88,9 @@ class _ThinqDiscoveredSectionState
 
   Widget _row(BuildContext context, RpiThinqFound d) {
     final busy = _busy.contains(d.key);
-    final kind = [d.kindLabel, if (d.modelName.isNotEmpty) d.modelName].join(' · ');
+    // 모델 코드(예: 영문 제품 코드)는 사용자에게 뜻이 없어 보이지 않는다. 종류가 이름과 같으면 줄을 생략한다
+    // (외부 평가 10/16 p09).
+    final kind = d.kindLabel == d.title ? '' : d.kindLabel;
     final String note;
     Color? noteColor;
     if (d.added) {
@@ -105,10 +107,11 @@ class _ThinqDiscoveredSectionState
     }
     Widget? action;
     if (d.added && d.source == 'added') {
-      action = TextButton(
+      // 테두리 있는 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(외부 평가 10/16 p09).
+      action = OutlinedButton(
         key: Key('thinq-remove-${d.key}'),
         onPressed: busy ? null : () => _remove(d),
-        style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+        style: OutlinedButton.styleFrom(minimumSize: const Size(64, 48)),
         child: const Text('빼기'),
       );
     } else if (!d.added && d.canAdd) {
@@ -131,8 +134,9 @@ class _ThinqDiscoveredSectionState
                 Text(d.title,
                     style: const TextStyle(
                         fontSize: 15, fontWeight: FontWeight.w600)),
-                Text(kind,
-                    style: TextStyle(fontSize: 13, color: context.appMuted)),
+                if (kind.isNotEmpty)
+                  Text(kind,
+                      style: TextStyle(fontSize: 13, color: context.appMuted)),
                 Text(note,
                     key: Key('thinq-note-${d.key}'),
                     style: TextStyle(fontSize: 14, color: noteColor)),

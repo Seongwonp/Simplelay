@@ -178,6 +178,8 @@ void main() {
     expect(find.textContaining('상태만 볼 수 있어요'), findsOneWidget);
     expect(find.textContaining('다루지 않는 가전 종류'), findsOneWidget);
     expect(find.text('연결됨 · 허브 설정으로 넣은 가전이에요'), findsOneWidget);
+    // 모델 코드는 보이지 않는다(외부 평가 10/16 p09).
+    expect(find.textContaining('FAKE'), findsNothing);
     // 서버 설정으로 넣은 가전은 여기서 빼지 않는다.
     expect(find.byKey(const Key('thinq-remove-k4')), findsNothing);
     // 사용자가 허용한 자동 실행이 있으므로 '언제나 확인'이라고 하지 않는다(외부 검토 M4, 10/15).
@@ -249,6 +251,10 @@ void main() {
     expect(find.textContaining('추가했어요'), findsOneWidget);
     expect(find.text('추가됨 · 홈과 루틴에 나와요'), findsOneWidget);
     expect(find.byKey(const Key('thinq-add-${_Hub.purifierKey}')), findsNothing);
+    // '빼기'는 테두리 있는 버튼이다(외부 평가 10/16 p09).
+    expect(
+        tester.widget(find.byKey(const Key('thinq-remove-${_Hub.purifierKey}'))),
+        isA<OutlinedButton>());
 
     // 루틴 대상(설치 가전 목록)에 ThinQ 가전으로 들어왔다.
     final installed = container.read(installedAppliancesProvider);

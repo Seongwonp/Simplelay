@@ -127,6 +127,28 @@ void main() {
 
     expect(find.textContaining('버튼판'), findsNothing);
     expect(find.text('누르는 순서'), findsNothing);
+    // 한 단계면 제목과 같은 말 — 목록·진행 막대를 되풀이하지 않는다(외부 평가 10/16 p08).
+    expect(find.text('할 일'), findsNothing);
+    expect(find.textContaining('조작 1'), findsNothing);
+  });
+
+  testWidgets('실행 상태: ThinQ 여러 단계는 할 일 목록을 보인다', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(buildScreen(
+      const StatusScreen(),
+      overrides: [
+        ...connectedOverrides(),
+        ...installedOverrides([_purifier]),
+      ],
+      executionStatus: const ExecutionStatus(
+        phase: ExecutionPhase.running,
+        applianceId: 'air_purifier',
+        label: '공기청정기 켜고 강풍',
+        steps: ['공기청정기 전원 켜기', '공기청정기 풍량 강풍'],
+      ),
+    ));
+    await tester.pump();
+
     expect(find.text('할 일'), findsOneWidget);
   });
 

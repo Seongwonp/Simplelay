@@ -136,6 +136,9 @@ void main() {
     expect(find.textContaining('물리 버튼'), findsNothing);
     // 모의 성공에는 실제 가전 확인을 부탁하지 않는다.
     expect(find.textContaining('직접 확인해 주세요'), findsNothing);
+    // 연습 성공에 성공 체크를 붙이지 않는다 — 실제로 한 일이 아니다(외부 평가 10/16 p03).
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    expect(find.byIcon(Icons.science_outlined), findsOneWidget);
   });
 
   testWidgets('끝이 안 좋았던 실행만 어디서 멈췄는지와 다음 할 일을 보여준다',

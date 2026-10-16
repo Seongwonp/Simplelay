@@ -143,7 +143,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     if (_finished(status.phase)) ..._resultFactWords(status),
                     if (_finished(status.phase))
                       if (operationSentence(status) case final o?) o,
-                    if (totalSteps > 0 && status.phase != ExecutionPhase.idle)
+                    if (totalSteps > 1 && status.phase != ExecutionPhase.idle)
                       '조작 $totalSteps개 중 ${status.completedSteps}개 마침',
                   ].join('. '),
                   child: ExcludeSemantics(
@@ -190,7 +190,8 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 // 연속 퍼센트가 아니다. 버튼 5개 중 2개를 눌렀다는 사실은
                 // 40%가 아니라 '5개 중 2개'다. 퍼센트는 마치 남은 시간을
                 // 아는 것처럼 보이게 하는데, 우리는 모른다.
-                if (status.phase != ExecutionPhase.idle && totalSteps > 0) ...[
+                // 조작이 하나뿐이면 진행 막대를 그리지 않는다 — 위 결과 문장이 다 말한다(외부 평가 10/16 p08).
+                if (status.phase != ExecutionPhase.idle && totalSteps > 1) ...[
                   const SizedBox(height: 24),
                   _SegmentedProgress(
                     total: totalSteps,
@@ -226,7 +227,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 ],
 
                 // ── 단계 목록 ─────────────────────────────────────────────
-                if (status.steps.isNotEmpty) ...[
+                // ThinQ 한 단계는 제목과 같은 말이라 목록을 되풀이하지 않는다(외부 평가 10/16 p08).
+                if (status.steps.length > 1 ||
+                    (status.steps.isNotEmpty && target?.isThinq != true)) ...[
                   const SizedBox(height: 28),
                   Text(target?.isThinq == true ? '할 일' : '누르는 순서',
                       style: AppText.title),
@@ -307,7 +310,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       onPressed: _returnToOrigin,
                       child: Text(_retryAdvised(status) ? '다시 시도' : '확인'),
                     ),
-                    TextButton(onPressed: _returnToOrigin, child: const Text('닫기')),
+                    // '확인'과 같은 일을 하는 '닫기'는 다시 시도할 때만 둔다(외부 평가 10/16 p08 — 중복 버튼).
+                    if (_retryAdvised(status))
+                      TextButton(onPressed: _returnToOrigin, child: const Text('닫기')),
                   ],
                 ),
               ),

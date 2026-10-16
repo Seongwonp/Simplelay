@@ -22,7 +22,8 @@ void main() {
       ));
       await tester.tap(find.text('가전 상세'));
       await tester.pumpAndSettle();
-      expect(find.text('닫기'), findsOneWidget);
+      // 성공은 '확인' 하나, 실패는 '다시 시도'와 '닫기'(외부 평가 10/16 p08).
+      expect(find.text('닫기'), failed ? findsOneWidget : findsNothing);
       expect(find.text('정지'), findsNothing);
       await tester.tap(find.text(failed ? '다시 시도' : '확인'));
       await tester.pumpAndSettle();
