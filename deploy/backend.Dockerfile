@@ -55,4 +55,4 @@ VOLUME ["/data"]
 EXPOSE 8000
 
 # 0.0.0.0로 열어야 키오스크(같은 기기 localhost)와 폰이 붙는다.
-CMD ["python", "-m", "uvicorn", "rpi.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "uvicorn", "rpi.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "5"]

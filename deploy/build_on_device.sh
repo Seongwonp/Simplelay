@@ -36,7 +36,7 @@ docker commit \
   --change 'ENV PYTHONPATH=/app' \
   --change 'ENV SIMPLELAY_DB_PATH=/data/simplelay.db' \
   --change 'EXPOSE 8000' \
-  --change 'CMD ["python", "-m", "uvicorn", "rpi.main:app", "--host", "0.0.0.0", "--port", "8000"]' \
+  --change 'CMD ["python", "-m", "uvicorn", "rpi.main:app", "--host", "0.0.0.0", "--port", "8000", "--timeout-graceful-shutdown", "5"]' \
   simplelay-build "$TAG"
 docker rm simplelay-build
 echo "== built $TAG"

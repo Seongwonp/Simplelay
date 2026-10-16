@@ -220,3 +220,12 @@ def test_old_container_is_stopped_gracefully_before_removal(tmp_path):
     assert stop is not None, lines
     assert "--time" in lines[stop] or "-t" in lines[stop].split(), lines[stop]
     assert stop < _index(lines, "rm -f simplelay-backend")
+
+
+@pytest.mark.parametrize("path", ["deploy/build_on_device.sh", "deploy/backend.Dockerfile"])
+def test_uvicorn_does_not_wait_forever_for_open_connections_on_stop(path):
+    """uvicorn은 기본적으로 열린 연결이 닫힐 때까지 기다린다 — 키오스크·폰의 연결 유지 때문에 정상 종료 처리(정상 종료 표시)에
+    닿기 전에 docker stop 기한(15초)에 강제로 죽었다(2026-10-16 보드 로그: 'Waiting for connections to close' 뒤 끝).
+    그러면 다음 기동에서 허용한 자동 실행이 '갑자기 꺼짐'으로 모두 꺼진다. 정상 종료 기한을 둔다."""
+    text = (Path(__file__).resolve().parents[2] / path).read_text(encoding="utf-8")
+    assert "--timeout-graceful-shutdown" in text, path
