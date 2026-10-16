@@ -169,10 +169,10 @@ class KioskNextRun {
     );
   }
 
-  String get line => [
-        '다음 루틴 · ${[if (dayLabel.isNotEmpty) dayLabel, hhmm].join(' ')} $name',
-        if (modeLabel.isNotEmpty) modeLabel,
-      ].join(' · ');
+  /// 첫 줄은 언제, 둘째 줄은 무엇 — 이어 쓰면 '22:00 저녁 / 공기청정기 켜기'처럼 루틴 이름 첫 낱말이 시간대로
+  /// 읽혔다(UI 평가 10/17).
+  String get line => '다음 루틴 · ${[if (dayLabel.isNotEmpty) dayLabel, hhmm].join(' ')}\n'
+      '${[name, if (modeLabel.isNotEmpty) modeLabel].join(' · ')}';
 
   /// 큰 글씨용 짧은 문장 — '오늘'·'루틴'을 빼고 실행 방식은 한 낱말로('다음 22:00 저녁 공기청정기 켜기 · 자동').
   String get shortLine => [

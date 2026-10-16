@@ -500,14 +500,17 @@ void main() {
         KioskColors.practice);
   });
 
-  testWidgets('상세: 큰 글씨는 한 줄로 쌓고(상태 위·조작 아래) 잘리지 않는다', (tester) async {
+  // UI 평가 10/17: 큰 글씨에서 켜기·끄기가 화면 아래(스크롤 밖)에 있었다 — 조작을 먼저, 상태는 그 아래.
+  testWidgets('상세: 큰 글씨는 한 줄로 쌓고(조작 위·상태 아래) 첫 화면에 켜기·끄기가 보인다', (tester) async {
     for (final size in [const Size(800, 480), const Size(1920, 1080)]) {
       await pumpPanel(tester, read: () async => _ok(_state()), size: size, scale: 1.22);
       expect(tester.takeException(), isNull);
       expect(find.byKey(const ValueKey('thinq-panel-scroll')), findsOneWidget);
       final state = tester.getRect(find.byKey(const ValueKey('thinq-row-전원')));
       final power = tester.getRect(find.byKey(const ValueKey('thinq-set-set_power-POWER_ON')));
-      expect(power.top, greaterThan(state.bottom), reason: '$size');
+      expect(power.bottom, lessThan(state.top), reason: '$size 조작이 상태보다 위');
+      expect(find.byKey(const ValueKey('thinq-set-set_power-POWER_ON')).hitTestable(), findsOneWidget,
+          reason: '$size 스크롤 없이 켜기를 누를 수 있다');
       // 단추 글자가 단추 안에 있다.
       final word = tester.getRect(find.descendant(
           of: find.byKey(const ValueKey('thinq-set-set_wind_strength-AUTO')), matching: find.text('자동')));

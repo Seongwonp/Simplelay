@@ -121,6 +121,11 @@ void _expectOnScreen(WidgetTester tester, Finder f) {
 }
 
 void main() {
+  test('다시 시도 경고는 어느 가전에나 맞는 말 — 토글 전용 "꺼질 수 있어요"를 쓰지 않는다(UI 평가 10/17)', () {
+    expect(kDontRetryIfOn, isNot(contains('꺼질')));
+    expect(kDontRetryIfOn, contains('다시 시도하지 마세요'));
+  });
+
   test('연습 띠는 경로를 가리지 않는 말이다 — ThinQ 연습 중에 "누르지"라 하지 않는다(2026-10-16 결함 ⑤)', () {
     expect(kPracticeBandText, isNot(contains('누르')));
     expect(kPracticeBandText, startsWith('연습 중'));
@@ -155,7 +160,7 @@ void main() {
       final head = tester.widget<Text>(find.text('가전을 먼저 봐 주세요'));
       expect(head.style!.fontSize, sizes.reduce((a, b) => a > b ? a : b));
       // 다시 시도 위험(열린 문제 R1) — 이미 켜졌다면 다시 시도하지 말라고 한다. 두 번 누르지 않는다고는 하지 않는다.
-      expect(find.textContaining('이미 켜졌다면 다시 시도하지 마세요'), findsOneWidget);
+      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsOneWidget);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
       expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
@@ -200,7 +205,7 @@ void main() {
           const KioskStatus(
               running: false, lastJobId: 'job-1', lastStatus: 'failed', lastOutcome: 'failed'));
       expect(find.text('다시 시도'), findsOneWidget);
-      expect(find.textContaining('이미 켜졌다면 다시 시도하지 마세요'), findsOneWidget);
+      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -821,6 +826,42 @@ void main() {
       expect(bar, findsOneWidget);
       expect(tester.widget<RawScrollbar>(bar).thumbVisibility, isTrue);
       expect(find.textContaining('부엌에 둔, 이 화면이 달린 상자'), findsOneWidget);
+    });
+
+    // UI 평가 10/17: 연결 창이 글자 단위로 끊기고('주세/요.'·'선/이') 셋째 항목은 스크롤해야 보였다.
+    testWidgets('연결 창(보통 글씨): 어절 단위 줄바꿈, 스크롤 없이 마지막 항목까지 보인다', (tester) async {
+      if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+      await _pumpView(
+        tester,
+        KioskConnectionModal(
+          item: const ConnectionItem(
+            id: 'network',
+            state: 'error',
+            title: '와이파이 연결이 끊겼어요',
+            message: 'SimpleLay 본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 SimpleLay 본체를 찾지 못하고, 날씨 안내도 볼 수 없어요.',
+            fixes: [
+              '공유기 전원이 켜져 있는지 확인해 주세요.',
+              'SimpleLay 본체에 랜선을 쓰고 있다면 선이 끝까지 꽂혀 있는지 확인해 주세요.',
+              '그래도 안 되면 SimpleLay 본체 전원을 껐다가 다시 켜 주세요.',
+            ],
+          ),
+          checking: false,
+          onRecheck: () {},
+          onClose: () {},
+        ),
+        malgun: true,
+      );
+      expect(tester.takeException(), isNull);
+      final last = find.textContaining('껐다가');
+      expect(last.hitTestable(), findsOneWidget, reason: '스크롤 없이 셋째 항목이 보인다');
+      final lastRect = tester.getRect(last);
+      final closeTop = tester.getRect(find.text('닫기')).top;
+      expect(lastRect.bottom, lessThanOrEqualTo(closeTop), reason: '버튼 줄 위에서 끝난다');
+      final scroll = tester.widget<SingleChildScrollView>(find.byType(SingleChildScrollView).first);
+      expect(scroll.controller?.position.maxScrollExtent ?? 0, lessThanOrEqualTo(1), reason: '스크롤할 거리가 없다');
+      expect(tester.widget<RichText>(find.descendant(of: find.textContaining('공유기 전원이').first,
+              matching: find.byType(RichText)).first).text.toPlainText(includeSemanticsLabels: false),
+          contains('⁠'), reason: '어절 단위 줄바꿈(단어 결합 문자)');
     });
 
     testWidgets('생활 습관 — 기간을 같이 말하고, 숨김은 상태로, 글자를 키웠다', (tester) async {

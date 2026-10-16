@@ -42,7 +42,8 @@ void main() {
       'auto': true,
       'mode_label': '자동 실행',
     })!;
-    expect(auto.line, '다음 루틴 · 내일 07:00 아침 공기청정기 끄기 · 자동 실행');
+    // 시각과 루틴 이름을 다른 줄로 — '22:00 저녁'이 시간대처럼 읽혔다(UI 평가 10/17).
+    expect(auto.line, '다음 루틴 · 내일 07:00\n아침 공기청정기 끄기 · 자동 실행');
     final ask = KioskNextRun.fromJson({
       'routine_id': 'rt-2',
       'name': '저녁 데우기',
@@ -51,7 +52,7 @@ void main() {
       'auto': false,
       'mode_label': '승인 후 실행',
     })!;
-    expect(ask.line, '다음 루틴 · 오늘 19:00 저녁 데우기 · 승인 후 실행');
+    expect(ask.line, '다음 루틴 · 오늘 19:00\n저녁 데우기 · 승인 후 실행');
     expect(KioskNextRun.fromJson({'name': ''}), isNull);
   });
 
@@ -77,7 +78,7 @@ void main() {
         tester,
         const KioskNextRun(
             name: '아침 공기청정기 끄기', dayLabel: '내일', hhmm: '07:00', modeLabel: '자동 실행'));
-    const line = '다음 루틴 · 내일 07:00 아침 공기청정기 끄기 · 자동 실행';
+    const line = '다음 루틴 · 내일 07:00\n아침 공기청정기 끄기 · 자동 실행';
     // 어절 단위로 줄을 바꾼다 — 실패널에서 '공기청/정기'처럼 낱말 가운데서 끊겼다(10/16 밤).
     expect(find.text(keepWords(line)), findsOneWidget);
     expect(tester.takeException(), isNull);

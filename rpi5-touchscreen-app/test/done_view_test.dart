@@ -139,7 +139,7 @@ void main() {
     );
 
     expect(find.text('가전을 먼저 봐 주세요'), findsOneWidget);
-    expect(find.textContaining('이미 켜졌다면 다시 시도하지 마세요'), findsOneWidget);
+    expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsOneWidget);
     expect(find.text('처음 화면으로'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
     expect(find.text('화면으로 조작하기'), findsOneWidget);

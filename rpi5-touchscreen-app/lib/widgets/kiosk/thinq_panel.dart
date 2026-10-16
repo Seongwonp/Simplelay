@@ -169,7 +169,8 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
                   padding: const EdgeInsets.fromLTRB(24, 6, 24, 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [left, const SizedBox(height: 16), right],
+                    // 조작을 먼저 — 큰 글씨에서 켜기·끄기가 스크롤 아래로 밀렸다(UI 평가 10/17). 상태는 그 아래.
+                    children: [right, const SizedBox(height: 16), left],
                   ),
                 )
               : Padding(

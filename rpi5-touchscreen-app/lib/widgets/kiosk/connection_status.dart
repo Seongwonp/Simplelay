@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/ambient.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_scroll_area.dart';
+import 'kiosk_text.dart';
 
 /// 평소 화면 오른쪽 위의 연결 아이콘 세 개(와이파이·작은 팔 장치·가전 콘센트 장치).
 ///
@@ -162,9 +163,10 @@ class KioskConnectionModal extends StatelessWidget {
       color: Colors.black.withValues(alpha: 0.6),
       child: Center(
         child: Container(
-          width: 560,
+          // 넓혀서 스크롤 없이 다 보이게(UI 평가 10/17 — 셋째 항목이 스크롤 아래였다). 캔버스 800 안 양옆 40.
+          width: 720,
           margin: const EdgeInsets.symmetric(vertical: 12),
-          padding: const EdgeInsets.fromLTRB(28, 24, 28, 20),
+          padding: const EdgeInsets.fromLTRB(28, 20, 28, 16),
           decoration: BoxDecoration(
             color: KioskColors.surface,
             borderRadius: BorderRadius.circular(20),
@@ -199,18 +201,19 @@ class KioskConnectionModal extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // 어절 단위 줄바꿈('주세/요.' 방지, UI 평가 10/17).
                       if (item.message.isNotEmpty)
-                        Text(
+                        KioskText(
                           item.message,
                           style: const TextStyle(
-                            fontSize: 24,
-                            height: 1.4,
+                            fontSize: 22,
+                            height: 1.35,
                             color: KioskColors.muted,
                           ),
                         ),
                       for (final fix in item.fixes)
                         Padding(
-                          padding: const EdgeInsets.only(top: 8),
+                          padding: const EdgeInsets.only(top: 6),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -220,11 +223,11 @@ class KioskConnectionModal extends StatelessWidget {
                                     size: 7, color: Colors.white),
                               ),
                               Expanded(
-                                child: Text(
+                                child: KioskText(
                                   fix,
                                   style: const TextStyle(
-                                    fontSize: 24,
-                                    height: 1.4,
+                                    fontSize: 22,
+                                    height: 1.35,
                                     color: Colors.white,
                                   ),
                                 ),
