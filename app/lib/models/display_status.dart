@@ -243,10 +243,26 @@ String objectParticle(String word) {
 ///
 /// [applianceName]: 지금 등록 목록에서 찾은 이름. 지웠거나 모르면 null —
 /// 알 수 없는 id를 이름처럼 내놓지 않는다.
+const _autoPrefix = '자동 실행 · ';
+final _routineTitle = RegExp(r"^'(.+)' 루틴$");
+
+/// 기록의 출처 — 제목 아래 시각 줄에 붙인다(외부 평가 10/16 2차 p03). 서버 목적 문장으로 **확실히 아는**
+/// 출처(자동 실행·루틴)만. 직접 명령과 제안 승인은 목적 문장만으로 가를 수 없어 null(지어내지 않는다).
+String? historySource(RpiHistoryEntry e) {
+  final purpose = e.purpose?.trim() ?? '';
+  if (purpose.startsWith(_autoPrefix)) return '자동 실행';
+  if (_routineTitle.hasMatch(historyStatement(purpose))) return '루틴';
+  return null;
+}
+
 String historyTitle(RpiHistoryEntry e, {String? applianceName}) {
   final purpose = e.purpose?.trim();
   if (purpose != null && purpose.isNotEmpty) {
-    final title = historyStatement(purpose);
+    // 제목은 무엇을 했는지만 — 출처('자동 실행 · '·''…' 루틴')는 [historySource]가 시각 줄에서 말한다.
+    var title = historyStatement(purpose);
+    if (title.startsWith(_autoPrefix)) title = title.substring(_autoPrefix.length);
+    final routine = _routineTitle.firstMatch(title);
+    if (routine != null) title = routine.group(1)!;
     // 모의 기록은 아래 '연습' 한 줄이 말한다 — 제목의 "(모의)"를 되풀이하지 않는다.
     return e.executionMode == 'mock' ? withoutMockMark(title) : title;
   }

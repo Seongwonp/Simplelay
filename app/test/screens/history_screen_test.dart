@@ -338,6 +338,29 @@ void main() {
     expect(find.textContaining('· 전자레인지'), findsNothing);
   });
 
+  testWidgets('제목은 한 일, 출처(자동 실행·루틴)는 시각 줄에(외부 평가 10/16 2차 p03)', (tester) async {
+    final api = _apiWithHistory([
+      {
+        'job_id': 'job-auto',
+        'finished_at': '2026-09-09T22:00:00+09:00',
+        'purpose': '자동 실행 · 공기청정기 전원 켜기',
+        'status': 'succeeded',
+        'retry_count': 0,
+        'appliance_id': 'air_purifier',
+        'appliance_name': '공기청정기',
+        'route': 'thinq',
+        'buttons': [],
+      },
+    ]);
+    await tester.pumpWidget(_build(api));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
+    expect(find.textContaining('22:00 · 자동 실행'), findsOneWidget);
+    expect(find.textContaining('자동 실행 · 공기청정기'), findsNothing);
+  });
+
   // ── 2026-10-13 B안: 읽는 순서·제목·다음 행동 ─────────────────────────────
 
   Future<void> pumpWith(WidgetTester tester, List<Map<String, dynamic>> entries) async {

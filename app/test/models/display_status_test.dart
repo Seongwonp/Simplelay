@@ -231,6 +231,20 @@ void main() {
       expect(historyTitle(_entry(const {'purpose': ''})), '실행 기록');
     });
 
+    // 외부 평가 10/16 2차 p03: 제목이 발화문 / ''…' 루틴' / '자동 실행 · …' 세 형식으로 섞였다.
+    // 제목은 무엇을 했는지, 출처(루틴·자동 실행)는 아래 시각 줄로 — 확실히 아는 출처만.
+    test('제목은 한 일만, 출처는 따로(자동 실행·루틴만 — 모르면 붙이지 않는다)', () {
+      final auto = _entry({'purpose': '자동 실행 · 공기청정기 전원 켜기'});
+      expect(historyTitle(auto), '공기청정기 전원 켜기');
+      expect(historySource(auto), '자동 실행');
+      final routine = _entry({'purpose': "'아침 공기청정기 끄기' 루틴을 실행할까요?"});
+      expect(historyTitle(routine), '아침 공기청정기 끄기');
+      expect(historySource(routine), '루틴');
+      final direct = _entry({'purpose': '공기청정기 켜줘'});
+      expect(historyTitle(direct), '공기청정기 켜줘');
+      expect(historySource(direct), isNull);
+    });
+
     test('이름을 모르면 버튼 라벨만', () {
       expect(historyTitle(_entry({'buttons': _buttons(['즉석밥', '시작'])})),
           '즉석밥, 시작 버튼 조작');

@@ -279,6 +279,7 @@ class _HistoryRow extends StatelessWidget {
     // 제목이 이미 가전 이름을 말하면 시각 줄에서 되풀이하지 않는다.
     final timeLine = [
       _hm(entry.finishedAt),
+      if (historySource(entry) case final source?) source,
       if (name != null && !title.contains(name)) name,
     ].join(' · ');
     final receipt = _thinqReceiptLine(entry, kind);
