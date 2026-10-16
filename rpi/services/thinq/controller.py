@@ -136,8 +136,11 @@ class ThinqController:
         sleep: Callable[[float], None] | None = None,
         monotonic: Callable[[], float] | None = None,
         now: Callable[[], datetime] | None = None,
+        observe_state: Callable[[str, ThinqBinding, object], None] | None = None,
     ) -> None:
         self._client = client
+        #: 상태 조회 결과를 넘겨받는 곳(전원 기억, :mod:`.power`). 상태 ``None``은 '지금은 모름'. 실패해도 실행을 막지 않는다.
+        self._observe_state = observe_state
         self._binding_of = binding_of
         self.mode = mode
         self._confirm_seconds = confirm_seconds
@@ -150,6 +153,14 @@ class ThinqController:
         self._phase = "idle"
         self._cancel = False
         self._stop_during_confirm = False
+
+    def _observe(self, appliance_id: str, binding: ThinqBinding, state) -> None:
+        if self._observe_state is None:
+            return
+        try:
+            self._observe_state(appliance_id, binding, state)
+        except Exception:  # noqa: BLE001 -- 표시용 기억이 실행을 막지 않는다
+            pass
 
     @property
     def client(self) -> ThinqClientPort:
@@ -350,6 +361,7 @@ class ThinqController:
         try:
             state = self._client.get_status(binding.device_id)
         except ThinqOfflineError as exc:
+            self._observe(command.target_id, binding, None)
             return self._result(command, failed, not_sent, none,
                                 _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
         except ThinqClientError as exc:
@@ -360,6 +372,7 @@ class ThinqController:
                                     f"상태를 읽지 못해 보내지 않았어요 — {_reason(exc, type(exc).__name__)}",
                                     requested_at)
             state = None
+        self._observe(command.target_id, binding, state)
         before = (read_state(state, confirm_resource, confirm_prop, location=cap.location)
                   if state is not None else None)
         if cap.requires_remote is not None:
@@ -402,6 +415,8 @@ class ThinqController:
                                     already_sentence(cap.setting_phrase(str(target))),
                                     requested_at, confirmed_at=self._now())
             self._phase = "dispatched"
+        # 보낸 뒤에는 이전 조회의 전원 값이 맞는지 모른다 — 확인 조회가 다시 적을 때까지 지운다.
+        self._observe(command.target_id, binding, None)
         try:
             response = self._client.post_control(binding.device_id, cap.payload_for(target, key))
         except ThinqCommandRejected as exc:
@@ -435,8 +450,9 @@ class ThinqController:
                                     requested_at, accepted_at=accepted_at, provider_ref=ref,
                                     stop_requested=True)
             try:
-                now_value = read_state(self._client.get_status(binding.device_id),
-                                       confirm_resource, confirm_prop, location=cap.location)
+                seen = self._client.get_status(binding.device_id)
+                self._observe(command.target_id, binding, seen)
+                now_value = read_state(seen, confirm_resource, confirm_prop, location=cap.location)
             except Exception:  # noqa: BLE001 -- 조회 실패는 확인 못 함일 뿐
                 now_value = None
             if now_value is not None and cap.confirmed_by(target, now_value):

@@ -6,20 +6,25 @@ import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import 'route_badge.dart';
 
-/// 평소 화면 아래의 가전 줄에 설 순서 — **확인 필요 → 동작 중 → 나머지**.
+/// 평소 화면 아래의 가전 줄에 설 순서 — **확인 필요 → 동작 중 → 켜짐(ThinQ) → 나머지**.
 ///
 /// 같은 무리 안에서는 등록 순서를 지킨다. 뒤쪽 가전이 동작을 시작하면 맨 앞으로
 /// 올라온다(UI 확정 §3-1). 끝에서 처음으로 돌아가는 반복은 쓰지 않는다.
+/// [on]은 서버가 최근 조회로 **켜져 있다고 본** ThinQ 가전뿐이다(GET /thinq/power, 2026-10-16) —
+/// 모르거나 오래된 상태는 들어오지 않는다.
 List<ApplianceMap> orderForStrip(
   List<ApplianceMap> appliances, {
   required Set<String> running,
   required Set<String> attention,
+  Set<String> on = const {},
 }) {
   int rank(ApplianceMap a) => attention.contains(a.id)
       ? 0
       : running.contains(a.id)
           ? 1
-          : 2;
+          : on.contains(a.id)
+              ? 2
+              : 3;
   final indexed = [
     for (var i = 0; i < appliances.length; i++) (i, appliances[i]),
   ];
@@ -39,12 +44,16 @@ List<ApplianceMap> orderForStrip(
 /// ThinQ 가전은 아이콘 옆에 'ThinQ' 경로 배지를 단다(상세 화면과 같은 배지). 실행 중이면
 /// 가전이 돈다는 뜻의 "동작 중" 대신 허브가 처리 중이라는 "설정 변경 중"으로 말한다
 /// (2026-10-15 외부 검토 L2) — 허브는 설정을 보냈을 뿐, 가전이 돌기 시작한 것을 본 게 아니다.
+///
+/// 켜짐(2026-10-16): 서버가 최근 ThinQ 조회로 전원이 켜진 것을 본 가전은 초록 "켜짐"(확인 완료 색)을 달고
+/// 쉬는 가전보다 앞에 선다. 상태를 모르면 아무 글자도 달지 않는다(지어내지 않는다).
 class KioskApplianceStrip extends StatefulWidget {
   const KioskApplianceStrip({
     super.key,
     required this.appliances,
     required this.running,
     required this.attention,
+    this.on = const {},
     required this.onSelect,
     this.perPage = 4,
     this.itemWidth = 128,
@@ -56,6 +65,9 @@ class KioskApplianceStrip extends StatefulWidget {
   final List<ApplianceMap> appliances;
   final Set<String> running;
   final Set<String> attention;
+
+  /// 켜져 있다고 확인된 ThinQ 가전(GET /thinq/power). 모르면 넣지 않는다.
+  final Set<String> on;
   final ValueChanged<ApplianceMap> onSelect;
   final int perPage;
 
@@ -84,8 +96,8 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
     super.didUpdateWidget(old);
     // 앞에 설 가전이 바뀌면(새로 동작 시작·확인 필요) 첫 장으로 — 방금 올라온
     // 가전이 보이지 않는 장에 머물면 "맨 앞으로 올라온다"가 눈에 안 보인다.
-    final front = {...widget.attention, ...widget.running};
-    final oldFront = {...old.attention, ...old.running};
+    final front = {...widget.attention, ...widget.running, ...widget.on};
+    final oldFront = {...old.attention, ...old.running, ...old.on};
     if (front.length != oldFront.length || !front.containsAll(oldFront)) {
       _page = 0;
     }
@@ -105,7 +117,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
   @override
   Widget build(BuildContext context) {
     final ordered = orderForStrip(widget.appliances,
-        running: widget.running, attention: widget.attention);
+        running: widget.running, attention: widget.attention, on: widget.on);
     final start = _page * widget.perPage;
     final visible =
         ordered.skip(start).take(widget.perPage).toList(growable: false);
@@ -148,6 +160,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                       appliance: a,
                       running: widget.running.contains(a.id),
                       attention: widget.attention.contains(a.id),
+                      on: widget.on.contains(a.id),
                       labelSize: widget.labelSize,
                       statusSize: widget.statusSize,
                       iconBox: widget.iconBox,
@@ -233,6 +246,7 @@ class _StripItem extends StatefulWidget {
     required this.appliance,
     required this.running,
     required this.attention,
+    this.on = false,
     required this.onTap,
     this.labelSize = 33,
     this.statusSize = 33,
@@ -242,6 +256,7 @@ class _StripItem extends StatefulWidget {
   final ApplianceMap appliance;
   final bool running;
   final bool attention;
+  final bool on;
   final VoidCallback onTap;
   final double labelSize;
   final double statusSize;
@@ -293,6 +308,7 @@ class _StripItemState extends State<_StripItem>
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     final Color iconColor;
     final String? status;
+    Color? statusColor;
     if (widget.attention) {
       iconColor = KioskColors.warning;
       status = '확인 필요';
@@ -300,6 +316,11 @@ class _StripItemState extends State<_StripItem>
       // 동작 중은 일상 상태 — 중립(흰 아이콘·회색 면·멈춘 호), 앰버는 확인 필요에만(2026-10-16 디자인 규격 §1-4).
       iconColor = Colors.white;
       status = a.isThinq ? '설정 변경 중' : '동작 중';
+    } else if (widget.on) {
+      // 켜짐 — 서버가 ThinQ 조회로 본 전원 상태(2026-10-16). 아이콘은 흰색(쉬는 회색과 구분), 글자는 확인 완료 초록.
+      iconColor = Colors.white;
+      status = '켜짐';
+      statusColor = KioskColors.confirmed;
     } else {
       iconColor = KioskColors.muted;
       status = null;
@@ -371,7 +392,7 @@ class _StripItemState extends State<_StripItem>
                             fontSize: widget.statusSize,
                             height: 1.15,
                             fontWeight: FontWeight.w700,
-                            color: iconColor,
+                            color: statusColor ?? iconColor,
                           ),
                         ),
                 ),

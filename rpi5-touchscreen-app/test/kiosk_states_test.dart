@@ -8,6 +8,7 @@ import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
@@ -341,6 +342,56 @@ void main() {
       await _pump(tester, api);
       final ordered = orderForStrip(_six, running: {'aircon'}, attention: {});
       expect(ordered.first.id, 'aircon');
+    });
+
+    // 2026-10-16: ThinQ로 켜져 있다고 확인된 가전은 쉬는 가전보다 앞, 동작 중·확인 필요보다는 뒤.
+    test('확인 필요 → 동작 중 → 켜짐 → 나머지', () {
+      final ordered = orderForStrip(_six,
+          running: {'aircon'}, attention: {'rice'}, on: {'intercom', 'rice'});
+      expect(ordered.map((a) => a.id).toList(),
+          ['rice', 'aircon', 'intercom', 'microwave', 'washer', 'fan']);
+    });
+
+    testWidgets('켜져 있다고 확인된 가전은 첫 장 맨 앞에 초록 "켜짐"으로 선다', (tester) async {
+      final api = FakeKioskApi()
+        ..applianceList = _six
+        ..powerOn = {'intercom'};
+      await _pump(tester, api);
+
+      expect(api.powerCalls, greaterThan(0));
+      final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
+      final second = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
+      expect(first.left, lessThan(second.left));
+      final label = find.descendant(
+          of: find.byKey(const ValueKey('strip-intercom')),
+          matching: find.text('켜짐'));
+      expect(label, findsOneWidget);
+      expect(tester.widget<Text>(label).style?.color, KioskColors.confirmed);
+      expect(find.text('켜짐'), findsOneWidget);
+    });
+
+    testWidgets('전원 상태를 모르면 "켜짐"을 달지 않고 순서도 등록 순서 그대로', (tester) async {
+      final api = FakeKioskApi()..applianceList = _six;
+      await _pump(tester, api);
+      expect(find.text('켜짐'), findsNothing);
+      expect(find.byKey(const ValueKey('strip-intercom')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-microwave')), findsOneWidget);
+    });
+
+    testWidgets('켜짐이 늦게 확인되면 다음 조회(10초)에서 앞으로 올라온다', (tester) async {
+      final api = FakeKioskApi()..applianceList = _six;
+      await _pump(tester, api);
+      expect(find.byKey(const ValueKey('strip-intercom')), findsNothing);
+      api.powerOn = {'intercom'};
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('strip-intercom')), findsOneWidget);
+      expect(find.text('켜짐'), findsOneWidget);
+      // 다시 모르게 되면 표시를 내린다(지어내지 않는다).
+      api.powerOn = {};
+      await tester.pump(const Duration(seconds: 10));
+      await tester.pump();
+      expect(find.text('켜짐'), findsNothing);
     });
   });
 

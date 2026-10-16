@@ -29,6 +29,7 @@ class KioskIdleView extends StatelessWidget {
     this.appliances,
     this.running = const {},
     this.attention = const {},
+    this.on = const {},
     this.dndUntil,
     this.quietUntil,
     this.temperature,
@@ -53,6 +54,9 @@ class KioskIdleView extends StatelessWidget {
   final List<ApplianceMap>? appliances;
   final Set<String> running;
   final Set<String> attention;
+
+  /// 켜져 있다고 확인된 ThinQ 가전(GET /thinq/power, 2026-10-16). 비상 멈춤이 보이는 동안은 달지 않는다.
+  final Set<String> on;
   final DateTime? dndUntil;
 
   /// 매일 조용한 시간대 안이면 끝 시각("07:00", 2026-10-14). 잠시 쉬기(방해 금지)가 켜져 있으면 그쪽이 먼저 보인다.
@@ -209,6 +213,7 @@ class KioskIdleView extends StatelessWidget {
             ? const _StripNotice('SimpleLay 본체와 연결되면 가전이 보여요')
             : list.isEmpty ? const _StripNotice('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요')
             : KioskApplianceStrip(appliances: list, running: KioskEstopScope.shownOf(context) ? const {} : running, attention: KioskEstopScope.shownOf(context) ? {...attention, ...running} : attention,
+                on: KioskEstopScope.shownOf(context) ? const {} : on,
                 onSelect: onSelectAppliance,
                 perPage: large ? 2 : 3,
                 itemWidth: large ? 230 : 170,

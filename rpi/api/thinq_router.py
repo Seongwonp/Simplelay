@@ -5,6 +5,7 @@
 - ``POST /thinq/added``              찾은 가전 하나를 추가(사용자 확인, 서버 DB에 남음)
 - ``DELETE /thinq/added/{key}``      추가한 가전 빼기(환경 변수로 넣은 가전은 409)
 - ``GET  /thinq/status/{id}``        가전 상태 다시 조회("보냈지만 확인 못 함" 뒤 재조회)
+- ``GET  /thinq/power``              최근 조회로 아는 ThinQ 가전 전원(켜짐·꺼짐) — 키오스크 가전 줄용, **클라우드를 부르지 않는다**
 - ``POST /thinq/command``            직접 명령 1건 → job_id (요청 자체가 승인)
 - ``GET  /readiness/{id}``           경로별 준비 상태(물리 4축 / ThinQ 모드·연결·기기)
 - ``GET  /scenarios``                시나리오 정의
@@ -181,12 +182,37 @@ async def thinq_status(appliance_id: str, service: SimpleLayService = Depends(ge
     appliance = registry.get(appliance_id)
     if appliance is None or appliance.thinq is None:
         raise HTTPException(404, "ThinQ 가전이 아니에요")
+    from .thinq_wiring import get_power_cache  # noqa: PLC0415
+
     try:
         state = await asyncio.to_thread(controller.client.get_status, appliance.thinq.device_id)
     except Exception as exc:  # noqa: BLE001
+        get_power_cache().forget(appliance_id)
         raise HTTPException(503, _reason(exc, "상태를 읽지 못했어요 — 가전·인터넷 연결을 확인해 주세요")) from None
+    get_power_cache().observe(appliance_id, appliance.thinq, state)
     return {"appliance_id": appliance_id, "execution_mode": controller.execution_mode.value,
             "state": state}
+
+
+@router.get("/thinq/power")
+async def thinq_power(service: SimpleLayService = Depends(get_service),
+                      registry=Depends(get_appliance_registry)) -> dict:
+    """최근 조회(공기질 판독·상태 재조회·명령 확인)로 아는 전원만 — 새로 조회하지 않는다(호출 한도).
+
+    오래된 기억(600초 초과)·모르는 값·지금 등록되지 않은 가전은 싣지 않는다. ThinQ가 꺼져 있으면 빈 목록.
+    """
+    from .thinq_wiring import get_power_cache  # noqa: PLC0415
+
+    controller = service.thinq_controller
+    if controller is None:
+        return {"execution_mode": None, "appliances": []}
+    entries = get_power_cache().snapshot()
+    known = []
+    for entry in entries:
+        appliance = await asyncio.to_thread(registry.get, entry["appliance_id"])
+        if appliance is not None and appliance.thinq is not None:
+            known.append(entry)
+    return {"execution_mode": controller.execution_mode.value, "appliances": known}
 
 
 class ThinqCommandRequest(BaseModel):

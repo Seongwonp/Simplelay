@@ -108,6 +108,35 @@ void main() {
         itemWidth: itemWidth,
       );
 
+  testWidgets('가전 줄: 켜져 있다고 확인된 ThinQ 가전은 앞에 서고 "켜짐"을 말한다(큰 글씨 칸도)', (tester) async {
+    final handle = tester.ensureSemantics();
+    for (final width in [128.0, 230.0]) {
+      await _pump(
+          tester,
+          Center(
+              child: KioskApplianceStrip(
+            appliances: [kMicrowaveAppliance, _purifier],
+            running: const {},
+            attention: const {},
+            on: const {'air_purifier'},
+            onSelect: (_) {},
+            itemWidth: width,
+            perPage: 2,
+          )));
+      final purifier = tester.getRect(find.byKey(const ValueKey('strip-air_purifier')));
+      final microwave = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
+      expect(purifier.left, lessThan(microwave.left));
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('strip-air_purifier')),
+              matching: find.text('켜짐')),
+          findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'경로 ThinQ, 켜짐\. 자세히 보기')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    }
+    handle.dispose();
+  });
+
   testWidgets('가전 줄: ThinQ 가전에만 ThinQ 배지가 붙고, 읽는 이름에 경로를 말한다', (tester) async {
     final handle = tester.ensureSemantics();
     await _pump(tester, Center(child: strip(const {})));

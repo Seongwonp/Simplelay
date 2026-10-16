@@ -170,6 +170,16 @@ class FakeKioskApi implements KioskApiService {
   @override
   Future<Map<String, String>> scenarioNames() async => scenarioNameMap;
 
+  /// GET /thinq/power의 켜짐 가전(2026-10-16). 기본은 빈 집합(모름 — 표시 없음).
+  Set<String> powerOn = {};
+  int powerCalls = 0;
+
+  @override
+  Future<Set<String>> thinqPowerOn() async {
+    powerCalls++;
+    return powerOn;
+  }
+
   /// GET /scenarios/last-run. null이면 기록 없음.
   ScenarioRun? lastRun;
   int lastRunCalls = 0;

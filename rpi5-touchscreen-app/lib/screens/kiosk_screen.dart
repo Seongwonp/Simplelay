@@ -42,6 +42,8 @@ const _healthInterval = Duration(seconds: 10);
 const _ambientStaleAfter = Duration(minutes: 10);
 const _sensorInterval = Duration(seconds: 60);
 const _alertInterval = Duration(seconds: 3);
+// 가전 줄 '켜짐' — 서버 기억만 읽으므로(ThinQ 호출 없음) 짧아도 된다(2026-10-16).
+const _powerInterval = Duration(seconds: 10);
 // 타이밍 상수는 KioskTimings(위젯과 공유) 참조 — 여기 별도 정의 금지
 // 카운트다운 길이는 설정(KioskSettings.countdownSeconds)에서 온다 —
 // 여기 상수는 설정이 없을 때의 기본값 경로로만 쓰인다.
@@ -209,6 +211,8 @@ class _KioskScreenState extends State<KioskScreen> {
   // 가전 줄의 순서 근거 — /status에서 읽는다.
   Set<String> _runningIds = const {};
   Set<String> _attentionIds = const {};
+  // 켜져 있다고 확인된 ThinQ 가전 — GET /thinq/power(서버 기억, 클라우드 호출 없음). 실패·모름은 빈 집합.
+  Set<String> _onIds = const {};
 
   // ── 동작 중: 정지 버튼 대기·보관(2026-09-30) ─────────────────────────
   KioskStatus? _hold;
@@ -234,6 +238,7 @@ class _KioskScreenState extends State<KioskScreen> {
   Timer? _clockTimer;
   Timer? _sensorTimer;
   Timer? _alertTimer;
+  Timer? _powerTimer;
 
   // 토글·가전 변경 시 현재 상태를 파일로 저장 (settings 미주입이면 no-op)
   void _persistSettings() {
@@ -291,6 +296,8 @@ class _KioskScreenState extends State<KioskScreen> {
       _fetchRoutines();
     });
     _alertTimer = Timer.periodic(_alertInterval, (_) => _fetchAlert());
+    _fetchPower();
+    _powerTimer = Timer.periodic(_powerInterval, (_) => _fetchPower());
     _clockTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => setState(() => _now = DateTime.now()),
@@ -318,6 +325,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _clockTimer?.cancel();
     _sensorTimer?.cancel();
     _alertTimer?.cancel();
+    _powerTimer?.cancel();
     _events.stop();
     if (_ownsApi) _api.dispose();
     super.dispose();
@@ -429,6 +437,14 @@ class _KioskScreenState extends State<KioskScreen> {
         _attentionIds = attention;
       });
     }
+  }
+
+  /// 가전 줄의 '켜짐'(2026-10-16) — 서버가 최근 ThinQ 조회로 본 전원만. 평소 화면일 때만 묻는다.
+  Future<void> _fetchPower() async {
+    if (_phase != KioskPhase.idle) return;
+    final on = await _api.thinqPowerOn();
+    if (!mounted || _sameSet(on, _onIds)) return;
+    setState(() => _onIds = on);
   }
 
   /// /status의 비상정지 걸림을 화면에 옮긴다. **해제 요청은 여기서 보내지 않는다.**
@@ -1514,6 +1530,7 @@ class _KioskScreenState extends State<KioskScreen> {
           appliances: _appliancesFromServer ? _appliances : null,
           running: _runningIds,
           attention: _attentionIds,
+          on: _onIds,
           dndUntil: _health.dndUntil,
           quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
           temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,

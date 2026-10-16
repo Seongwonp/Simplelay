@@ -61,7 +61,7 @@ def _read_purifier_state():
     from rpi.services.thinq import ThinqMode  # noqa: PLC0415
 
     from . import deps  # noqa: PLC0415
-    from .thinq_wiring import get_thinq_config  # noqa: PLC0415
+    from .thinq_wiring import AIR_PURIFIER_ID, get_power_cache, get_thinq_config  # noqa: PLC0415
 
     config = get_thinq_config()
     if config.mode is ThinqMode.OFF:
@@ -81,7 +81,13 @@ def _read_purifier_state():
         raise AirReadSkipped("rate_reserve")
     cached = getattr(client, "cached_status", None)
     device_id = appliance.thinq.device_id
-    return cached(device_id) if callable(cached) else client.get_status(device_id)
+    try:
+        state = cached(device_id) if callable(cached) else client.get_status(device_id)
+    except Exception:
+        get_power_cache().forget(AIR_PURIFIER_ID)  # 읽지 못했으면 전원도 모른다(키오스크 '켜짐'을 내린다)
+        raise
+    get_power_cache().observe(AIR_PURIFIER_ID, appliance.thinq, state)
+    return state
 
 
 def _offer(reason: str, *, power_off: bool = False):

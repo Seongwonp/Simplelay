@@ -176,8 +176,26 @@ def build_command_paths(registry):
     # SDK 모드는 조회 한 번이 클라우드 호출 한 번이다 -- 확인 조회 간격을 넓혀 호출 한도를 아낀다.
     poll = 0.5 if config.mode.uses_sdk else 0.25
     controller = ThinqController(client, binding_of, mode=config.mode,
-                                 confirm_seconds=config.confirm_seconds, poll_interval=poll)
+                                 confirm_seconds=config.confirm_seconds, poll_interval=poll,
+                                 observe_state=get_power_cache().observe)
     return controller, system
+
+
+# ── 전원 기억(2026-10-16) — 키오스크 가전 줄의 '켜짐'. 이미 하는 조회 결과만 적는다(새 호출 없음) ──
+
+_power_cache = None
+_power_lock = threading.Lock()
+
+
+def get_power_cache():
+    """ThinQ 가전 전원 기억(:mod:`rpi.services.thinq.power`) 하나. 입출력 없음."""
+    global _power_cache
+    from rpi.services.thinq.power import ThinqPowerCache  # noqa: PLC0415
+
+    with _power_lock:
+        if _power_cache is None:
+            _power_cache = ThinqPowerCache()
+        return _power_cache
 
 
 # ── 발견 → 사용자 확인 후 추가 (2026-10-13) ──────────────────────────────
@@ -422,6 +440,8 @@ def reset_thinq_caches() -> None:
     get_thinq_client.cache_clear()
     get_added_store.cache_clear()
     _engine = None
+    if _power_cache is not None:
+        _power_cache.clear()
     from .air_quality_wiring import reset_air_quality  # noqa: PLC0415
 
     reset_air_quality()

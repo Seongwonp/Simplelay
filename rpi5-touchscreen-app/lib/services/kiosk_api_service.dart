@@ -741,6 +741,26 @@ class KioskApiService {
     }
   }
 
+  /// GET /thinq/power — 서버가 최근 조회로 **켜져 있다고 본** ThinQ 가전 ID(2026-10-16, 가전 줄 '켜짐').
+  /// 서버는 기억만 돌려준다(ThinQ 클라우드를 새로 부르지 않는다). 실패·옛 서버·꺼짐·모름은 빈 집합.
+  Future<Set<String>> thinqPowerOn() async {
+    try {
+      final res =
+          await _client.get(_base.replace(path: '/thinq/power')).timeout(_timeout);
+      if (res.statusCode != 200) return const {};
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      final list = body is Map<String, dynamic> ? body['appliances'] : null;
+      if (list is! List) return const {};
+      return {
+        for (final e in list.whereType<Map<String, dynamic>>())
+          if (e['appliance_id'] is String && e['power'] == 'on')
+            e['appliance_id'] as String,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
   Future<void> rejectSuggestion(String id, {bool mute = false}) async {
     final res = await _client
         .post(
