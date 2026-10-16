@@ -127,7 +127,9 @@ def test_habit_sentence_only_with_counted_history(api):
     _inject(api, inputs=("power",))
     second = _cards(api)[0]
     assert second["id"] != first["id"]
-    assert "이 제안을 1번 승인하셨어요" in second["reason"]
+    assert "최근 기록: 이 제안 승인 1번" in second["reason"]
+    # 2026-10-16 결함 ④: 누가 눌렀는지 모른다 — '하셨어요'로 사람을 단정하지 않는다.
+    assert "하셨어요" not in second["reason"]
     assert "식사" not in second["reason"] and "두시곤" not in second["reason"]
 
 

@@ -97,7 +97,8 @@ class ScenarioEngine:
             # 3차 평가 M4: 사용자의 습관은 실제 기록을 센 근거가 있을 때만 말한다. 없으면 제안·감지 근거만.
             approvals = self._approval_count(definition)
             if approvals:
-                reason += f" · 최근 기록에서 이 제안을 {approvals}번 승인하셨어요"
+                # 누가 눌렀는지는 모른다(가족·시연자) — 사람을 단정하지 않고 기록 숫자만 말한다(2026-10-16 결함 ④).
+                reason += f" · 최근 기록: 이 제안 승인 {approvals}번"
             card = self._offer(definition, reason, source != "real")
             if card is not None:
                 offered.append(card)
