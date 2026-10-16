@@ -49,7 +49,8 @@ void main() {
 
     expect(find.text("'해동'"), findsOneWidget);
     // 큰 버튼 이름이 무엇인지 이름표가 붙는다(외부 평가 10/16 2차 k05).
-    expect(find.text('지금 누르는 버튼'), findsOneWidget);
+    // 시제를 가리지 않는 이름표 — 확인 중에도 맞는 말(외부 평가 10/16 3차).
+    expect(find.text('이번 버튼'), findsOneWidget);
     expect(find.text('누르는 중'), findsOneWidget);
     expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);

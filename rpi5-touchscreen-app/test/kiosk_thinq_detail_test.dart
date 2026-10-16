@@ -92,7 +92,8 @@ void main() {
         'pm25': 8, 'pm25_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
       })!;
       expect(r.details, ['초미세먼지 8 좋음', '공기청정기 켜짐']);
-      expect(r.headline, '실내 공기 보통');
+      // 가전의 종합 등급임을 밝힌다 — '보통' 밑 '초미세먼지 좋음'이 모순처럼 읽혔다(외부 평가 10/16 3차).
+      expect(r.headline, '실내 공기 종합 보통');
       // 모르는 등급 값은 붙이지 않는다.
       final odd = KioskAirReading.fromJson({
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'pm25': 8, 'pm25_level': 'WEIRD', 'age_s': 3.0,

@@ -438,7 +438,9 @@ class _AirLine extends StatelessWidget {
               children: [
                 Text.rich(
                   TextSpan(children: [
-                    TextSpan(text: keepWords(compact ? '공기 ' : '실내 공기 '),
+                    TextSpan(
+                        text: keepWords(
+                            '${compact ? '공기 ' : '실내 공기 '}${air.isTotal ? '종합 ' : ''}'),
                         style: const TextStyle(color: Colors.white)),
                     TextSpan(text: keepWords(air.gradeWord),
                         style: TextStyle(color: color, fontWeight: FontWeight.w800)),

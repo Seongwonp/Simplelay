@@ -220,6 +220,9 @@ void main() {
       // 띠('가전 상태 확인')·제목·본문이 같은 확인 수준(전력 변화)을 말한다(외부 평가 10/16 2차 k06).
       expect(find.text('전력 변화 확인'), findsOneWidget);
       expect(find.text('버튼 누름 완료'), findsNothing);
+      // 띠도 같은 수준 — '가전 상태 확인'은 한 단계 강했다(외부 평가 10/16 3차).
+      expect(find.text('전력 확인'), findsOneWidget);
+      expect(find.text('가전 상태 확인'), findsNothing);
       expect(find.text('전자레인지의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'),
           findsOneWidget);
       expect(find.textContaining('켜진 것'), findsNothing);

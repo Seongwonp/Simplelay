@@ -265,8 +265,12 @@ class KioskDoneView extends StatelessWidget {
     } else if (mock) {
       band = const KioskStatusBand.practice();
     } else if (verifiedSuccess) {
-      band = const KioskStatusBand(
-          tone: KioskBandTone.confirmed, icon: Icons.check, label: '가전 상태 확인');
+      // 전력(L3)으로 확인했으면 띠도 제목('전력 변화 확인')과 같은 수준으로 — ThinQ 상태 재조회만 '가전 상태 확인'
+      // (외부 평가 10/16 3차).
+      band = KioskStatusBand(
+          tone: KioskBandTone.confirmed,
+          icon: Icons.check,
+          label: operationVerified && !thinq ? '전력 확인' : '가전 상태 확인');
     } else if (success && executionMode == 'real') {
       band = KioskStatusBand(
           tone: KioskBandTone.attention,
