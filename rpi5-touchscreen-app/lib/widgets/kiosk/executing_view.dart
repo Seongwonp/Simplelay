@@ -233,6 +233,12 @@ class _NowBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // 큰 버튼 이름이 무엇인지 이름표(외부 평가 10/16 2차 k05). 연습은 실제로 누르지 않으니 '차례'라고 한다.
+          if (view.currentButton != null)
+            Text(
+              view._mock ? '지금 차례인 버튼' : '지금 누르는 버튼',
+              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+            ),
           if (view.currentButton != null)
             Text(
               "'${view.currentButton}'",

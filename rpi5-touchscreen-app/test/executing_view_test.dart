@@ -48,6 +48,8 @@ void main() {
     await _pump(tester, total: 3, target: kMicrowaveAppliance);
 
     expect(find.text("'해동'"), findsOneWidget);
+    // 큰 버튼 이름이 무엇인지 이름표가 붙는다(외부 평가 10/16 2차 k05).
+    expect(find.text('지금 누르는 버튼'), findsOneWidget);
     expect(find.text('누르는 중'), findsOneWidget);
     expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
