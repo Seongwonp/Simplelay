@@ -138,12 +138,15 @@ void main() {
         .ancestor(of: find.text('10초'), matching: find.byType(DecoratedBox))
         .first);
     final box = other.decoration as BoxDecoration;
-    expect(box.color, Colors.transparent);
-    // 지금 누르는 칸만 면을 채운다.
+    // 설명 그림 스타일(2026-10-16 디자인 규격 §1-6): 칸 테두리 없음 · 어두운 평면(수동 조작 칸의 면색과 다름) ·
+    // 글자 50% 회색. 수동 조작 칸은 면(surface) + 선명한 경계 + 밝은 글자다.
+    expect(box.border, isNull);
+    expect(box.color, isNot(KioskColors.surface));
+    expect(tester.widget<Text>(find.text('10초')).style!.color, KioskColors.panelText);
+    // 지금 누르는 칸만 앰버로 채운다.
     final current = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey('panel-current')));
-    expect((current.decoration as BoxDecoration).color,
-        isNot(Colors.transparent));
+    expect((current.decoration as BoxDecoration).color, KioskColors.primary);
   });
 
   testWidgets('같은 이름의 버튼이 둘이면 어느 쪽인지 지어내지 않는다', (tester) async {

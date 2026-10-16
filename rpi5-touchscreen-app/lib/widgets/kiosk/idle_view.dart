@@ -5,6 +5,7 @@ import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import 'appliance_strip.dart';
 import 'connection_status.dart';
+import 'kiosk_text.dart';
 
 /// 평소 화면(UI 확정 2026-09-30 §3-1) — 집에 붙은 시계처럼.
 ///
@@ -303,7 +304,8 @@ class _DndEntry extends StatelessWidget {
               : '제안 잠시 쉬기',
       child: ExcludeSemantics(
         child: Material(
-          color: on ? KioskColors.primary : Colors.transparent,
+          // 쉬는 중은 일상 상태 — 중립 회색 면(2026-10-16 디자인 규격 §1-4). 앰버 채움은 주요 행동 몫이다.
+          color: on ? KioskColors.surface2 : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             key: const ValueKey('dnd-entry'),
@@ -320,7 +322,7 @@ class _DndEntry extends StatelessWidget {
                   children: [
                     Icon(on ? Icons.bedtime : Icons.bedtime_outlined,
                         size: 30,
-                        color: on ? KioskColors.onAccent : KioskColors.muted),
+                        color: on ? Colors.white : KioskColors.muted),
                     if (on) ...[
                       const SizedBox(width: 6),
                       // 좁은 위 줄에 들어가도록 두 줄로 — "제안 쉬는 중" / 남은 시간.
@@ -336,14 +338,14 @@ class _DndEntry extends StatelessWidget {
                                   fontSize: 20,
                                   height: 1.15,
                                   fontWeight: FontWeight.w700,
-                                  color: KioskColors.onAccent)),
+                                  color: Colors.white)),
                           Text(sub,
                               maxLines: 1,
                               softWrap: false,
                               style: const TextStyle(
                                   fontSize: 20,
                                   height: 1.15,
-                                  color: KioskColors.onAccent)),
+                                  color: Colors.white)),
                         ],
                       ),
                     ],
@@ -430,11 +432,12 @@ class _TipCard extends StatelessWidget {
         children: [
           Icon(_tipIcon(tip.icon),
               size: _Idle.tipIcon,
-              color: attention ? KioskColors.warning : KioskColors.primary),
+              // 일상 안내(날씨·루틴)는 중립 — 앰버는 확인 필요에만(2026-10-16 §1-4).
+              color: attention ? KioskColors.warning : Colors.white),
           SizedBox(width: _gap(compact)),
           Expanded(
-            // 서버 문장이 아주 길 때만 마지막 수단으로 말줄임한다.
-            child: Text(
+            // 서버 문장이 아주 길 때만 마지막 수단으로 말줄임한다. 어절 단위로 줄을 바꾼다("주/세요" 방지, 2026-10-16 §1-3).
+            child: KioskText(
               tip.text,
               maxLines: _maxLines,
               overflow: TextOverflow.ellipsis,
@@ -520,7 +523,8 @@ class _Hours extends StatelessWidget {
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(_hourIcon(h.icon),
                             size: _Idle.hourIcon,
-                            color: h.precip ? KioskColors.primary : KioskColors.muted),
+                            // 비 오는 칸은 아이콘 모양과 밝기로 — 앰버는 쓰지 않는다(§1-4).
+                            color: h.precip ? Colors.white : KioskColors.muted),
                         const SizedBox(width: 2),
                         _ValueText(h: h, text: _valueOf(h), height: 1.2),
                       ]),
@@ -529,7 +533,7 @@ class _Hours extends StatelessWidget {
                     const SizedBox(height: 4),
                     Icon(_hourIcon(h.icon),
                         size: _Idle.hourIcon,
-                        color: h.precip ? KioskColors.primary : KioskColors.muted),
+                        color: h.precip ? Colors.white : KioskColors.muted),
                     const SizedBox(height: 4),
                     _ValueText(h: h, text: _valueOf(h)),
                   ],

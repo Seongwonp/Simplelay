@@ -3,8 +3,11 @@ import 'package:flutter/material.dart';
 import '../../models/appliance.dart';
 import '../../models/josa.dart';
 import '../../theme/kiosk_colors.dart';
+import '../../theme/kiosk_tokens.dart';
 import 'kiosk_scroll_area.dart';
-import 'practice_band.dart';
+import 'kiosk_text.dart';
+import 'run_frame.dart';
+import 'status_band.dart';
 
 /// 동작 중 화면(UI 확정 2026-09-30 §3-3) — 버튼을 다 누른 뒤 가전이 돌아가는 동안.
 ///
@@ -15,7 +18,11 @@ import 'practice_band.dart';
 /// - "가전이 멈췄어요"는 `hold_stop_outcome = stopped`(전력 하강 확인)일 때만.
 /// - 남은 시간은 서버가 주지 않는다(전력 추정 미구현). 대신 시작한 뒤 흐른 시간을
 ///   값을 만들지 않고 남은 시간을 모른다고 안내한다.
-/// - 연습용(mock) 대기는 맨 위 띠로 연습이라고 적는다(2026-10-15).
+/// - 연습용(mock) 대기는 위 청록 띠로 연습이라고 적는다(2026-10-15, 2026-10-16 §4).
+///
+/// 배치(2026-10-16 디자인 규격 §1-1·§1-2): 실행 화면과 같은 틀([KioskRunFrame]) — 위 상태 띠, 왼쪽 위 상태
+/// 영역, 그 바로 아래 **할 일**(정지 미확인이면 "지금 …버튼을 직접 눌러 주세요"가 첫 블록), 설명은 그 아래 작게.
+/// 정지 단추는 세 화면에서 같은 자리·크기·모양이다.
 class KioskHoldView extends StatelessWidget {
   const KioskHoldView({
     super.key,
@@ -76,6 +83,8 @@ class KioskHoldView extends StatelessWidget {
 
   bool get _mock => executionMode == 'mock';
 
+  bool get _unconfirmed => stopOutcome == 'requested_unconfirmed';
+
   String get _name => appliance?.name ?? '가전';
 
   /// 가전 동작을 실제 전력으로 확인했나(출처 real, 연습 아님).
@@ -83,28 +92,59 @@ class KioskHoldView extends StatelessWidget {
       operationConfirmed == true && operationSource == 'real' && !_mock;
 
   // 주어를 밝힌다(2026-10-15 문구 개선 §2-2) — 정지 대기·이동은 **작은 팔**, 돌아가는 것은 **가전**.
-  // 가전이 돈다고는 전력으로 확인했을 때만 말한다.
-  (String, Color) get _headline {
+  // 가전이 돈다고는 전력으로 확인했을 때만 말한다. 아이콘이 상태를 함께 말한다(2026-10-16 §1-2).
+  (String, IconData, Color) get _headline {
     if (estopTitle case final t?) {
-      return ('$t · 가전이 멈췄는지는 직접 봐 주세요', KioskColors.warning);
+      return ('$t · 가전이 멈췄는지는 직접 봐 주세요', Icons.report, KioskColors.danger);
     }
-    if (_fault) return ('작은 팔 장치에 문제가 생겼어요', KioskColors.danger);
-    if (stopOutcome == 'requested_unconfirmed') {
-      return ('작은 팔이 대신 눌렀지만 멈췄는지 확인하지 못했어요', KioskColors.warning);
+    if (_fault) {
+      return ('작은 팔 장치에 문제가 생겼어요', Icons.error_outline, KioskColors.danger);
+    }
+    // 정지 미확인 — 상태 영역은 짧게, 바로 아래 첫 블록이 할 일, 무엇을 했는지는 그 아래 작게(2026-10-16 §1-2).
+    if (_unconfirmed) {
+      return ('멈췄는지 확인하지 못했어요', Icons.help_outline, KioskColors.warning);
     }
     return switch (holdState) {
       'stopping' => (
           _mock ? '정지 버튼을 짚고 있어요' : '작은 팔이 정지 버튼을 누르고 있어요',
+          Icons.touch_app_outlined,
           Colors.white
         ),
-      'parking' => ('작은 팔이 제자리로 돌아가고 있어요', Colors.white),
-      'parked' => ('작은 팔이 제자리로 돌아갔어요', Colors.white),
+      'parking' => ('작은 팔이 제자리로 돌아가고 있어요', Icons.keyboard_return, Colors.white),
+      'parked' => ('작은 팔이 제자리로 돌아갔어요', Icons.home_outlined, Colors.white),
       _ => _mock
-          ? ('$_name 연습 중', Colors.white)
+          ? ('$_name 연습 중', Icons.hourglass_top, Colors.white)
           : _operationReal
-              ? ('${withSubject(_name)} 돌아가고 있어요', Colors.white)
-              : ('작은 팔이 $_name 옆에서 기다리고 있어요', Colors.white),
+              ? ('${withSubject(_name)} 돌아가고 있어요', appliance?.icon ?? Icons.widgets_outlined, Colors.white)
+              : ('작은 팔이 $_name 옆에서 기다리고 있어요', Icons.hourglass_top, Colors.white),
     };
+  }
+
+  /// 위 상태 띠 — 일반 = 중립, 확인 필요 = 앰버, 실패·비상 = 빨강, 연습 = 청록(2026-10-16 §4).
+  KioskStatusBand get _band {
+    // 비상 버튼 걸림 — 위 비상 버튼 띠와 아래 제목이 이미 '비상 버튼'을 말한다. 상태 띠는 단계 이름만 빨강으로.
+    if (estopTitle != null) {
+      return KioskStatusBand(
+          tone: KioskBandTone.danger, icon: Icons.report, label: '정지 대기', practice: _mock);
+    }
+    if (_fault || stopFailed) {
+      return KioskStatusBand(
+          tone: KioskBandTone.danger,
+          icon: Icons.error_outline,
+          label: _fault ? '장치 문제' : '정지 요청 실패',
+          practice: _mock);
+    }
+    if (_unconfirmed) {
+      return KioskStatusBand(
+          tone: KioskBandTone.attention, icon: Icons.help_outline, label: '확인 필요', practice: _mock);
+    }
+    if (_mock) return const KioskStatusBand.practice();
+    final waiting = holdState == 'hovering_stop' || holdState == 'stopping';
+    return KioskStatusBand(
+      tone: KioskBandTone.neutral,
+      icon: Icons.pan_tool_outlined,
+      label: waiting ? '정지 대기' : '정지 대기 끝',
+    );
   }
 
   String get _operationLine {
@@ -123,10 +163,35 @@ class KioskHoldView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (headline, headColor) = _headline;
+    final (headline, headIcon, headColor) = _headline;
     final waiting = holdState == 'hovering_stop' || holdState == 'stopping';
-    final unconfirmed = stopOutcome == 'requested_unconfirmed';
     final cancel = stopButton;
+
+    // 할 일·정지 결과 — 상태 영역 바로 아래 첫 블록(§1-2). 정지 미확인이면 가장 큰 글자가 할 일 한 가지다(원칙 0-3).
+    final first = <(IconData, String, Color)>[
+      if (_unconfirmed)
+        (
+          Icons.touch_app_outlined,
+          cancel == null
+              ? '지금 $_name의 정지·취소 버튼을 직접 눌러 주세요'
+              : "지금 $_name의 '$cancel' 버튼을 직접 눌러 주세요",
+          KioskColors.warning
+        ),
+      // 가전이 멈췄다는 말은 RPi4가 전력 하강으로 확인한 때만(hold_stop_outcome == stopped).
+      if (stopOutcome == 'stopped')
+        (Icons.check, '${withSubject(_name)} 멈춘 것을 전력으로 확인했어요', Colors.white),
+      // 마지막 시도가 실패했으면 앞선 "보냈어요"는 지운다 — 지금 할 일은 다시 누르기다.
+      if (stopRequested && !stopFailed && holdState == 'hovering_stop')
+        (Icons.send, '멈추라고 보냈어요', Colors.white),
+      if (stopFailed)
+        (
+          Icons.error_outline,
+          '정지 요청을 보내지 못했어요. 다시 누르거나 가전 전원을 직접 꺼 주세요.',
+          KioskColors.danger
+        ),
+    ];
+
+    // 설명 — 할 일 아래 본문 크기로.
     final lines = <(IconData, String, Color)>[
       if (waiting && buttonsPressed != null && buttonsPressed! > 0)
         (
@@ -147,7 +212,13 @@ class KioskHoldView extends StatelessWidget {
                   : "정지를 누르면 작은 팔이 '$cancel' 버튼을 대신 눌러요"),
           KioskColors.muted
         ),
-      if (unconfirmed && holdState == 'parked')
+      if (_unconfirmed)
+        (
+          Icons.info_outline,
+          _mock ? '연습으로 정지 버튼을 짚었어요' : '작은 팔이 정지 버튼을 대신 눌렀어요',
+          KioskColors.muted
+        ),
+      if (_unconfirmed && holdState == 'parked')
         (Icons.check, '작은 팔이 제자리로 돌아갔어요', KioskColors.muted),
       if (detail != null && detail!.isNotEmpty && stopOutcome != 'stopped')
         (
@@ -157,35 +228,8 @@ class KioskHoldView extends StatelessWidget {
         ),
     ];
 
-    // 정지가 어떻게 됐는지(보냄·못 보냄·멈춤·확인 필요)는 정지 버튼과 한 묶음이다 —
-    // 큰 글씨에서도 스크롤 없이 보이도록 오른쪽 정지 버튼 바로 위에 고정한다(10/5 수리).
-    // 나머지 안내 줄은 왼쪽에서 스크롤돼도 된다.
-    final stopLines = <(IconData, String, Color)>[
-      // 가전이 멈췄다는 말은 RPi4가 전력 하강으로 확인한 때만(hold_stop_outcome == stopped).
-      if (stopOutcome == 'stopped')
-        (Icons.check, '${withSubject(_name)} 멈춘 것을 전력으로 확인했어요', Colors.white),
-      // 멈췄는지 모르면 가장 큰 글자가 할 일 한 가지다(원칙 0-3).
-      if (unconfirmed)
-        (
-          Icons.touch_app_outlined,
-          cancel == null
-              ? '지금 $_name의 정지·취소 버튼을 직접 눌러 주세요'
-              : "지금 $_name의 '$cancel' 버튼을 직접 눌러 주세요",
-          KioskColors.warning
-        ),
-      // 마지막 시도가 실패했으면 앞선 "보냈어요"는 지운다 — 지금 할 일은 다시 누르기다.
-      if (stopRequested && !stopFailed && holdState == 'hovering_stop')
-        (Icons.send, '멈추라고 보냈어요', Colors.white),
-      if (stopFailed)
-        (
-          Icons.error_outline,
-          '정지 요청을 보내지 못했어요. 다시 누르거나 가전 전원을 직접 꺼 주세요.',
-          KioskColors.danger
-        ),
-    ];
-
     // 실행 근거(연습용 값인지·실제 확인인지)는 안전 문장이다 — 스크롤 없이 늘
-    // 보이도록 스크롤 영역 밖, 제목 바로 아래에 고정한다(10/5 수리).
+    // 보이도록 스크롤 영역 밖, 상태 영역 바로 아래에 고정한다(10/5 수리).
     final provenance = <(IconData, String, Color)>[
       if (waiting)
         (
@@ -198,183 +242,96 @@ class KioskHoldView extends StatelessWidget {
     ];
 
     // 확인 못 함이면 단추 이름이 할 일을 말한다 — 자리·크기·색은 그대로(원칙 0-4).
-    final stopLabel = unconfirmed ? '다시 정지 시도' : '정지';
+    final stopLabel = _unconfirmed ? '다시 정지 시도' : '정지';
 
-    final body = Padding(
-      padding: const EdgeInsets.fromLTRB(36, 18, 28, 20),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // ── 왼쪽: 무엇이 · 얼마나 · 무엇을 근거로 ───────────────────
-          Expanded(
-            flex: 11,
+    final body = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (provenance.isNotEmpty) ...[
+          _Lines(lines: provenance),
+          const SizedBox(height: 2),
+        ],
+        // 넘치면 스크롤 막대가 보인다(2026-10-15 B9). 할 일·정지 결과가 맨 위라 스크롤 없이 먼저 보인다.
+        Expanded(
+          child: KioskScrollArea(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(appliance?.icon ?? Icons.widgets_outlined,
-                        size: 30, color: KioskColors.primary),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(
-                        headline,
-                        style: TextStyle(
-                          fontSize: 26,
-                          fontWeight: FontWeight.w700,
-                          color: headColor,
-                          height: 1.2,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                if (provenance.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  _Lines(lines: provenance),
-                ] else
-                  const SizedBox(height: 18),
-                // 넘치면 스크롤 막대가 보인다(2026-10-15 B9) — 큰 글씨에서 안내가 잘린 채 끝나 보였다.
-                Expanded(
-                  child: KioskScrollArea(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (waiting) ...[
-                          const Text('남은 시간을 아직 알 수 없어요',
-                              style: TextStyle(
-                                  fontSize: 26,
-                                  height: 1.25,
-                                  color: KioskColors.muted)),
-                          const SizedBox(height: 10),
-                        ],
-                        _Lines(lines: lines),
-                        if (onClose != null) ...[
-                          const SizedBox(height: 8),
-                          OutlinedButton(
-                            onPressed: onClose,
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size(160, 56),
-                              foregroundColor: Colors.white,
-                              side: const BorderSide(color: KioskColors.border),
-                              shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12)),
-                            ),
-                            child: const Text('처음 화면으로',
-                                style: TextStyle(
-                                    fontSize: 20, fontWeight: FontWeight.w600)),
-                          ),
-                        ],
-                      ],
-                    ),
+                if (first.isNotEmpty) ...[
+                  _Lines(
+                    key: const ValueKey('hold-stop-status'),
+                    lines: first,
+                    fontSize: KioskType.status,
+                    weight: FontWeight.w800,
                   ),
-                ),
+                  const SizedBox(height: 6),
+                ],
+                if (waiting) ...[
+                  const Text('남은 시간을 아직 알 수 없어요',
+                      style: TextStyle(
+                          fontSize: KioskType.body, height: 1.25, color: KioskColors.muted)),
+                  const SizedBox(height: 10),
+                ],
+                _Lines(lines: lines),
+                if (onClose != null) ...[
+                  const SizedBox(height: 8),
+                  // 보조 단추(테두리) — 정지 단추·할 일과 주인공을 다투지 않게(§1-5).
+                  OutlinedButton(
+                    onPressed: onClose,
+                    style: KioskButtons.secondary(
+                        foreground: Colors.white, border: KioskColors.muted),
+                    child: const Text('처음 화면으로',
+                        style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+                  ),
+                ],
               ],
             ),
           ),
-          const SizedBox(width: 24),
-          // ── 오른쪽: 조작판의 대기 자리 + 큰 정지 ────────────────────
-          Expanded(
-            flex: 10,
-            child: LayoutBuilder(builder: (context, box) => Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(
-                  child: _PanelMarker(
-                    appliance: appliance,
-                    stopButton: stopButton,
-                    hovering: holdState == 'hovering_stop' ||
-                        holdState == 'stopping',
-                  ),
-                ),
-                const SizedBox(height: 14),
-                if (stopLines.isNotEmpty) ...[
-                  // 조작판 그림이 먼저 줄어든다. 정지 줄이 정지 버튼 몫까지 넘볼
-                  // 만큼 길어질 때만(여러 결과가 겹친 드문 경우) 이 자리 안에서
-                  // 스크롤한다 — 넘쳐서 버튼을 밀어내지 않는다. 막대가 보인다(B9).
-                  ConstrainedBox(
-                    key: const ValueKey('hold-stop-status'),
-                    constraints: BoxConstraints(
-                        maxHeight: (box.maxHeight - _stopButtonHeight - 16)
-                            .clamp(0, double.infinity)),
-                    child: KioskScrollArea(
-                        child: _Lines(lines: stopLines, fontSize: 33)),
-                  ),
-                  const SizedBox(height: 2),
-                ],
-                // 정지는 어느 대기 상태에서든 닿는다 — 보내기만 하고 판정은 서버.
-                Semantics(
-                  button: true,
-                  label: '$stopLabel. 작은 팔이 가전의 정지 버튼을 대신 눌러요',
-                  child: ExcludeSemantics(
-                    child: Material(
-                      color: KioskColors.stop,
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        key: const ValueKey('hold-stop'),
-                        onTap: onStop,
-                        borderRadius: BorderRadius.circular(16),
-                        child: SizedBox(
-                          height: _stopButtonHeight,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
-                            // 이름이 길어져도('다시 정지 시도') 단추 크기는 그대로 — 글자가 줄어든다.
-                            child: FittedBox(
-                              fit: BoxFit.scaleDown,
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.stop_circle_outlined,
-                                      size: 44, color: Colors.white),
-                                  const SizedBox(width: 12),
-                                  Text(
-                                    stopLabel,
-                                    style: const TextStyle(
-                                      fontSize: 38,
-                                      fontWeight: FontWeight.w800,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            )),
-          ),
-        ],
-      ),
+        ),
+      ],
     );
 
-    return ColoredBox(
-      color: KioskColors.bg,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // 연습은 맨 위 고정 띠로 말한다(§3-2) — 작은 칩은 처음 보는 사람이 놓쳤다.
-          if (_mock) const KioskPracticeBand(),
-          Expanded(child: body),
-        ],
+    // 작은 팔이 기다리는 정지 버튼 칸 — 대기 중일 때만 앰버로 채운다(§1-6). 빨강은 쓰지 않는다
+    // (화면의 빨간 정지 단추와 한 묶음처럼 보이지 않게, §1-1).
+    final a = appliance;
+    final hovering = holdState == 'hovering_stop' || holdState == 'stopping';
+    final waitCell = a == null || !hovering
+        ? null
+        : a.buttons.where((b) => b.label == stopButton).firstOrNull;
+
+    return KioskRunFrame(
+      band: _band,
+      header: KioskStatusHeader(icon: headIcon, title: headline, iconColor: headColor),
+      body: body,
+      picture: KioskPanelPicture(
+        appliance: a,
+        current: waitCell,
+        caption: kPanelCaption,
+        captionKey: const ValueKey('panel-caption'),
+      ),
+      // 정지는 어느 대기 상태에서든 닿는다 — 보내기만 하고 판정은 서버.
+      stop: KioskStopButton(
+        label: stopLabel,
+        onPressed: onStop,
+        buttonKey: const ValueKey('hold-stop'),
+        semanticsLabel: '$stopLabel. 작은 팔이 가전의 정지 버튼을 대신 눌러요',
       ),
     );
   }
 }
 
-/// 큰 정지 버튼 높이 — 정지 상태 줄이 차지할 수 있는 높이의 상한을 이 값으로 뺀다.
-const double _stopButtonHeight = 96;
-
 class _Lines extends StatelessWidget {
-  const _Lines({required this.lines, this.fontSize = 28});
+  const _Lines({
+    super.key,
+    required this.lines,
+    this.fontSize = KioskType.body,
+    this.weight = FontWeight.w400,
+  });
   final List<(IconData, String, Color)> lines;
 
-  /// 왼쪽 안내는 28, 정지 결과(정지 버튼 위 — 이 화면에서 가장 중요한 글자)는 33(2026-10-15 B9: 큰 글씨에서
-  /// 왼쪽 안내가 33으로 거의 한 단어씩 줄바꿈돼 잘려 보였다).
+  /// 설명은 본문, 할 일·정지 결과(상태 영역 바로 아래 첫 블록)는 상태 크기(2026-10-16 §1-3).
   final double fontSize;
+  final FontWeight weight;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -386,15 +343,20 @@ class _Lines extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(icon, size: 22, color: color),
+                  Padding(
+                    padding: EdgeInsets.only(top: fontSize * 0.15),
+                    child: Icon(icon, size: fontSize * 1.05, color: color),
+                  ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
+                    child: KioskText(
                       text,
                       style: TextStyle(
                         fontSize: fontSize,
+                        fontWeight: weight,
                         height: 1.3,
-                        color: color == KioskColors.muted ? Colors.white : color,
+                        // 글자는 흰색 — 주의·실패는 아이콘 색이 말한다(앰버 지시문이 정지 단추와 다투지 않게, §0-3).
+                        color: color == KioskColors.danger ? KioskColors.danger : Colors.white,
                       ),
                     ),
                   ),
@@ -405,134 +367,5 @@ class _Lines extends StatelessWidget {
       );
 }
 
-/// 조작판 그림 위 대기 자리. 키오스크에는 등록 사진이 없어서(사진 파일은 서버에
-/// 올리지 않는다) 등록된 버튼 배치로 그린다 — 정지 버튼은 빨간 테, 대기 중이면
-/// 그 위에 누름 장치 표시.
 /// 그림 위 안내 — 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §2-2).
 const kPanelCaption = '작은 팔이 누르는 자리예요 · 화면은 누르지 않아도 돼요';
-
-/// 조작판 그림 위 대기 자리. 키오스크에는 등록 사진이 없어서(사진 파일은 서버에
-/// 올리지 않는다) 등록된 버튼 배치로 그린다 — 정지 버튼은 빨간 테, 대기 중이면
-/// 그 위에 작은 팔 표시. 칸은 면 없이 선만 그린 납작한 그림이다(누를 수 있는 단추로 보이지 않게).
-class _PanelMarker extends StatelessWidget {
-  const _PanelMarker({
-    required this.appliance,
-    required this.stopButton,
-    required this.hovering,
-  });
-
-  final ApplianceMap? appliance;
-  final String? stopButton;
-  final bool hovering;
-
-  @override
-  Widget build(BuildContext context) {
-    final a = appliance;
-    return ExcludeSemantics(
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: KioskColors.border),
-        ),
-        padding: const EdgeInsets.fromLTRB(10, 6, 10, 10),
-        child: a == null || a.isThinq || a.buttons.isEmpty
-            ? const Center(
-                child: Text(
-                  '조작판 그림이 없어요',
-                  style: TextStyle(fontSize: 22, color: KioskColors.muted),
-                ),
-              )
-            // 정지 줄이 길어 그림 자리가 좁아지면(큰 글씨·확인 못 함) 안내 글부터, 더 좁으면 그림도 접는다 —
-            // 정지 줄과 정지 버튼이 먼저다.
-            : LayoutBuilder(builder: (context, outer) {
-                if (outer.maxHeight < 48) return const SizedBox.expand();
-                return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (outer.maxHeight >= 110) ...[
-                    const Text(
-                      kPanelCaption,
-                      key: ValueKey('panel-caption'),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 15, color: KioskColors.muted),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                  Expanded(
-                    child: LayoutBuilder(builder: (context, box) {
-                      final cw = box.maxWidth / a.cols;
-                      final ch = box.maxHeight / a.rows;
-                      return Stack(
-                        children: [
-                          for (final b in a.buttons)
-                            Positioned(
-                              left: b.x * cw + 3,
-                              top: b.y * ch + 3,
-                              width: cw - 6,
-                              height: ch - 6,
-                              child: _Cell(
-                                label: b.label,
-                                stop: b.label == stopButton,
-                                carriage: hovering && b.label == stopButton,
-                              ),
-                            ),
-                        ],
-                      );
-                    }),
-                  ),
-                ],
-              );
-              }),
-      ),
-    );
-  }
-}
-
-class _Cell extends StatelessWidget {
-  const _Cell({required this.label, required this.stop, required this.carriage});
-  final String label;
-  final bool stop;
-  final bool carriage;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(6),
-          border: stop
-              ? Border.all(color: KioskColors.danger, width: 3)
-              : Border.all(color: Colors.white.withValues(alpha: 0.14)),
-        ),
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (carriage)
-              FractionallySizedBox(
-                widthFactor: 0.62,
-                heightFactor: 0.62,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: KioskColors.warning, width: 2.5),
-                  ),
-                ),
-              ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 2),
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontSize: 15,
-                    fontWeight: stop ? FontWeight.w700 : FontWeight.w500,
-                    color: stop ? Colors.white : KioskColors.muted,
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
-      );
-}

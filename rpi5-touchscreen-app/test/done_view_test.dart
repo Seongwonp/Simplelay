@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_tokens.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
@@ -414,10 +415,10 @@ void main() {
         await _pump(tester, view);
         expect(find.byIcon(Icons.check), strong ? findsOneWidget : findsNothing);
         expect(find.byIcon(Icons.info_outline), strong ? findsNothing : findsOneWidget);
-        // 가장 큰 글자(36)의 색도 같은 규칙 — 체크 없이 초록 글자로 성공을 암시하지 않는다.
+        // 가장 큰 글자(핵심 단계, 2026-10-16 디자인 규격)의 색도 같은 규칙 — 체크 없이 초록 글자로 성공을 암시하지 않는다.
         final headline = tester
             .widgetList<Text>(find.byType(Text))
-            .firstWhere((t) => t.style?.fontSize == 36);
+            .firstWhere((t) => t.style?.fontSize == KioskType.key);
         expect(headline.style!.color == KioskColors.success, strong);
       });
     }

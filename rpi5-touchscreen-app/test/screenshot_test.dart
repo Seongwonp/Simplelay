@@ -899,4 +899,62 @@ void main() {
   testWidgets('15인치 미리보기 — 평소, 제안 쉬는 중', (t) async {
     await _shoot15(t, 'kiosk15_idle_dnd', _idle(dndUntil: DateTime(2026, 9, 30, 8, 38)));
   });
+
+  // ── 2026-10-16 디자인 규격 — 연습(청록 띠)·비상 버튼 띠 + 정지 영역 ────────────────────
+  testWidgets('15인치 미리보기 — 연습 실행(청록 띠)', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_executing_practice',
+      KioskExecutingView(
+        executionMode: 'mock',
+        title: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        lastButtons: null,
+        currentButton: '시작',
+        currentAttempt: 1,
+        completedSteps: 1,
+        totalSteps: 2,
+        verificationConfidence: null,
+        verificationDetail: null,
+        onStop: () {},
+      ),
+    );
+  });
+
+  testWidgets('15인치 미리보기 — 정지 대기, 비상 버튼 띠', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_hold_estop',
+        KioskEstopLayout(
+          banner: KioskEstopBanner(detail: _estopDetail, onRequest: () {}),
+          child: const KioskHoldView(
+            appliance: kMicrowaveAppliance,
+            holdState: 'hovering_stop',
+            stopButton: '취소',
+            executionMode: 'real',
+            elapsed: Duration(minutes: 1, seconds: 2),
+            buttonsPressed: 2,
+            operationConfirmed: true,
+            operationSource: 'real',
+            onStop: _noop,
+            estopTitle: '비상 버튼이 눌려 있어요',
+          ),
+        ));
+  });
+
+  testWidgets('15인치 미리보기 — 연습 결과 실패(청록 연습 칸 + 빨강 띠)', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_done_failed_practice',
+      KioskDoneView(
+        success: false,
+        executionMode: 'mock',
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
+    );
+  });
 }

@@ -4,10 +4,13 @@ import '../../models/appliance.dart';
 import '../../models/command_result.dart';
 import '../../models/scenario_run.dart';
 import '../../theme/kiosk_colors.dart';
+import '../../theme/kiosk_tokens.dart';
 import 'kiosk_scroll_area.dart';
 import 'kiosk_target_line.dart';
+import 'kiosk_text.dart';
 import 'kiosk_timings.dart';
 import 'practice_band.dart';
+import 'status_band.dart';
 
 /// 실행 결과 화면.
 ///
@@ -182,6 +185,24 @@ class KioskDoneView extends StatelessWidget {
             : r.detail(label, canRetry: onRetry != null);
     // 이름이 대상 가전 이름과 같으면(이어받은 실행 등) 같은 말을 두 번 쓰지 않는다.
     final showLabel = label.isNotEmpty && label != target?.name;
+    // 위 상태 띠(2026-10-16 디자인 규격 §4) — 결과 아이콘·제목 색과 같은 규칙: 확인 필요 = 앰버, 실패 = 빨강,
+    // 그 밖 = 중립, 연습이면 청록(실패·확인 필요와 겹쳐도 청록 연습 칸이 함께 남는다).
+    final KioskStatusBand band;
+    if (color == KioskColors.warning) {
+      band = KioskStatusBand(
+          tone: KioskBandTone.attention, icon: Icons.help_outline, label: '확인 필요', practice: mock);
+    } else if (color == KioskColors.danger) {
+      band = KioskStatusBand(
+          tone: KioskBandTone.danger,
+          icon: Icons.error_outline,
+          label: r == KioskFailureReason.serverLost ? '확인 불가' : '실패',
+          practice: mock);
+    } else if (mock) {
+      band = const KioskStatusBand.practice();
+    } else {
+      band = const KioskStatusBand(
+          tone: KioskBandTone.neutral, icon: Icons.flag_outlined, label: '결과');
+    }
 
     final content = Semantics(
       liveRegion: true,
@@ -213,31 +234,33 @@ class KioskDoneView extends StatelessWidget {
                             : Icons.close,
             color: color,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
           // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 누르기**다.
-          Text(
+          // 제목은 2줄까지 자연스럽게 넘어간다(폭은 [KioskSizes.resultMaxWidth], 2026-10-16 §1-7).
+          KioskText(
             headline,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 36,
+              fontSize: KioskType.key,
               fontWeight: FontWeight.w800,
               height: 1.2,
               color: color,
             ),
           ),
           if (success && successSub != null) ...[
-            const SizedBox(height: 6),
-            Text(
+            const SizedBox(height: 8),
+            // 할 일 한 줄 — 상태 크기(§1-3).
+            KioskText(
               successSub,
-              key: const ValueKey('done-sub'),
+              textKey: const ValueKey('done-sub'),
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  fontSize: 26, fontWeight: FontWeight.w600, color: Colors.white),
+                  fontSize: KioskType.status, fontWeight: FontWeight.w700, color: Colors.white),
             ),
           ],
           if (target != null) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             KioskTargetLine(appliance: target),
           ],
           // 경로(ThinQ)와 확인 수준. 서버가 준 값만 말한다(물리 경로는 배지 없음).
@@ -246,7 +269,7 @@ class KioskDoneView extends StatelessWidget {
             Text(
               facts.join(' · '),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, color: Colors.white),
+              style: const TextStyle(fontSize: KioskType.body, color: Colors.white),
             ),
           ],
           // 위 한 줄은 /status의 **마지막 단계** 기준이다. 두 가전을
@@ -260,7 +283,7 @@ class KioskDoneView extends StatelessWidget {
                 label,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontSize: 26,
+                  fontSize: KioskType.body,
                   fontWeight: FontWeight.w600,
                   color: Colors.white,
                 ),
@@ -275,22 +298,23 @@ class KioskDoneView extends StatelessWidget {
                         ? '연습이라 실제 가전은 조작하지 않았어요'
                         : 'ThinQ로 보낸 뒤 가전 상태를 다시 읽어 확인했어요',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 22, color: KioskColors.muted),
+                style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
               ),
           ] else ...[
-            // 할 일 한 가지(원칙 0-3) — 흐린 글자로 두지 않는다.
-            Text(
+            // 할 일 한 가지(원칙 0-3) — 흐린 글자로 두지 않는다. 제목 아래 설명(본문 크기, §1-3).
+            KioskText(
               failureDetail,
-              key: const ValueKey('done-next-step'),
+              textKey: const ValueKey('done-next-step'),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 24, color: Colors.white, height: 1.3),
+              style: const TextStyle(
+                  fontSize: KioskType.body, fontWeight: FontWeight.w600, color: Colors.white, height: 1.35),
             ),
             if (detail case final d? when d.isNotEmpty) ...[
               const SizedBox(height: 4),
               Text(
                 d,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, color: KioskColors.muted),
+                style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
               ),
             ],
           ],
@@ -310,25 +334,27 @@ class KioskDoneView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // 연습 표시는 맨 위 고정 띠(§3-2) — 스크롤해도 사라지지 않는다.
-          if (mock) const KioskPracticeBand(),
+          // 상태 띠(연습이면 청록) — 스크롤해도 사라지지 않는다(§3-2, 2026-10-16 §4).
+          band,
           Expanded(
             child: KioskScrollArea(
               center: true,
               padding: const EdgeInsets.fromLTRB(40, 12, 40, 8),
-              child: content,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
+                child: content,
+              ),
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+            padding: const EdgeInsets.fromLTRB(24, 4, 24, KioskSizes.actionsBottom),
             child: Center(
               child: success
-                  ? _AutoReturn(onDismiss: onDismiss)
+                  ? _SuccessActions(onDismiss: onDismiss)
                   : _FailureActions(
                       onRetry: onRetry,
                       onManual: onManual,
                       onDismiss: onDismiss,
-                      calm: userStop,
                     ),
             ),
           ),
@@ -365,7 +391,7 @@ class _RunSteps extends StatelessWidget {
                         _stepTitle(i, steps[i]),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                          fontSize: 20,
+                          fontSize: KioskType.body,
                           fontWeight: FontWeight.w600,
                           color: Colors.white,
                         ),
@@ -374,7 +400,7 @@ class _RunSteps extends StatelessWidget {
                         runStepFacts(steps[i]),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                            fontSize: 18, color: KioskColors.muted),
+                            fontSize: KioskType.caption, color: KioskColors.muted),
                       ),
                     ],
                   ),
@@ -420,14 +446,14 @@ class _OperationLine extends StatelessWidget {
             children: [
               // 색으로만 말하지 않는다 — 모양이 같이 간다.
               Icon(confirmed ? Icons.verified_outlined : Icons.help_outline,
-                  size: 24, color: color),
+                  size: KioskType.body + 4, color: color),
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
                   sentence,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontSize: 22, fontWeight: FontWeight.w600, color: color),
+                      fontSize: KioskType.body, fontWeight: FontWeight.w600, color: color),
                 ),
               ),
             ],
@@ -437,7 +463,7 @@ class _OperationLine extends StatelessWidget {
             Text(
               caption,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 18, color: KioskColors.muted),
+              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
             ),
           ],
         ],
@@ -542,8 +568,8 @@ class _ResultRing extends StatelessWidget {
   @override
   // 뜻을 전하는 것은 아이콘이 아니라 글자다 -- 원은 결과를 알리는 정도로만 둔다
   Widget build(BuildContext context) => Container(
-        width: 72,
-        height: 72,
+        width: KioskSizes.resultIcon,
+        height: KioskSizes.resultIcon,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -552,17 +578,15 @@ class _ResultRing extends StatelessWidget {
         ),
         child: Icon(
           icon,
-          size: 38,
+          size: KioskSizes.resultIcon * 0.55,
           color: color,
         ),
       );
 }
 
-/// 성공 후 자동 복귀를 **글자로도** 말하고, 기다리기 싫은 사람의 길을 둔다.
+/// 성공 후 자동 복귀를 **글자로도** 말한다. 기다리기 싫은 사람의 길은 옆의 '처음 화면으로'.
 class _AutoReturn extends StatelessWidget {
-  const _AutoReturn({required this.onDismiss});
-
-  final VoidCallback? onDismiss;
+  const _AutoReturn();
 
   @override
   Widget build(BuildContext context) => Column(
@@ -573,7 +597,7 @@ class _AutoReturn extends StatelessWidget {
             duration: KioskTimings.doneReturn,
             builder: (_, seconds, __) => Text(
               '${seconds.ceil()}초 뒤 처음 화면으로 돌아가요',
-              style: const TextStyle(fontSize: 18, color: KioskColors.muted),
+              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
             ),
           ),
           const SizedBox(height: 8),
@@ -596,160 +620,103 @@ class _AutoReturn extends StatelessWidget {
               ),
             ),
           ),
-          if (onDismiss != null) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 56,
-              child: OutlinedButton(
-                onPressed: onDismiss,
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  side: const BorderSide(color: KioskColors.border),
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                child: const Text(
-                  '처음 화면으로',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-                ),
-              ),
-            ),
-          ],
         ],
       );
 }
+
+/// 성공 화면 아래 줄 — 자동 복귀 안내(왼쪽) + '처음 화면으로'(실패 화면과 같은 앰버 채움 단추, 2026-10-16 §1-5).
+class _SuccessActions extends StatelessWidget {
+  const _SuccessActions({required this.onDismiss});
+
+  final VoidCallback? onDismiss;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 28,
+        runSpacing: 8,
+        children: [
+          const _AutoReturn(),
+          if (onDismiss != null) _homeButton(onDismiss!),
+        ],
+      );
+}
+
+/// '처음 화면으로' — 결과 종류와 무관하게 **한 모양**: 앰버 채움 주 단추(화면당 채움 단추는 이것 하나, §1-5).
+Widget _homeButton(VoidCallback onTap) => ElevatedButton.icon(
+      key: const ValueKey('done-home'),
+      onPressed: onTap,
+      icon: const Icon(Icons.home_outlined, size: KioskType.status),
+      label: const Text('처음 화면으로',
+          style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+      style: KioskButtons.primary(
+          background: KioskColors.primary, foreground: KioskColors.onAccent),
+    );
 
 /// 실패·정지 화면의 단추(2026-10-15 문구 개선 §2-1).
 ///
 /// 화면의 주인공은 단추가 아니라 할 일 문장이다. 단추는 어디로 가는지 말하는 **`처음 화면으로`**(채움)가 먼저,
 /// `다시 시도`는 덜 강조한 테두리 단추 — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문이다(열린 문제 R1).
 /// 다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) `다시 시도`는 그리지 않는다.
-/// `화면으로 조작하기`는 글자 단추지만 흐리게 두지 않는다(크기·대비를 키움).
+/// `화면으로 조작하기`도 글자만 있는 조작이 아니라 테두리 보조 단추다(2026-10-16 디자인 규격 §1-5).
+/// '처음 화면으로'는 성공·실패·사용자 정지 모두 같은 앰버 채움 단추다(예전에는 사용자 정지만 회색 채움이었다).
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
     required this.onRetry,
     required this.onManual,
     required this.onDismiss,
-    this.calm = false,
   });
 
   final VoidCallback? onRetry;
   final VoidCallback? onManual;
   final VoidCallback? onDismiss;
 
-  /// 사용자가 멈춘 실행 — 채운 단추를 금색 대신 차분한 면색으로.
-  final bool calm;
-
   @override
-  Widget build(BuildContext context) => Column(
-        mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context) => Wrap(
+        alignment: WrapAlignment.center,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 8,
         children: [
-          Wrap(
-            alignment: WrapAlignment.center,
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              if (onDismiss != null)
-                _ActionButton(
-                  key: const ValueKey('done-home'),
-                  label: '처음 화면으로',
-                  icon: Icons.home_outlined,
-                  primary: true,
-                  neutral: calm,
-                  onTap: onDismiss!,
-                ),
-              if (onRetry != null)
-                _ActionButton(
-                  key: const ValueKey('done-retry'),
-                  label: '다시 시도',
-                  icon: Icons.refresh,
-                  primary: false,
-                  onTap: onRetry!,
-                ),
-            ],
-          ),
-          if (onManual != null) ...[
-            const SizedBox(height: 4),
-            SizedBox(
-              height: 52,
-              child: TextButton.icon(
-                key: const ValueKey('done-manual'),
-                onPressed: onManual,
-                icon: const Icon(Icons.grid_view_rounded, size: 22),
-                label: const Text('화면으로 조작하기',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
-                style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFFFAF7F2),
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                ),
-              ),
+          if (onDismiss != null) _homeButton(onDismiss!),
+          if (onRetry != null)
+            _SecondaryButton(
+              key: const ValueKey('done-retry'),
+              label: '다시 시도',
+              icon: Icons.refresh,
+              onTap: onRetry!,
             ),
-          ],
+          if (onManual != null)
+            _SecondaryButton(
+              key: const ValueKey('done-manual'),
+              label: '화면으로 조작하기',
+              icon: Icons.grid_view_rounded,
+              onTap: onManual!,
+            ),
         ],
       );
 }
 
-class _ActionButton extends StatelessWidget {
-  const _ActionButton({
+/// 보조 단추 — 테두리, 높이 [KioskSizes.secondaryButton], 본문 크기 글자(§1-5).
+class _SecondaryButton extends StatelessWidget {
+  const _SecondaryButton({
     super.key,
     required this.label,
     required this.icon,
-    required this.primary,
     required this.onTap,
-    this.neutral = false,
   });
 
   final String label;
   final IconData icon;
-  final bool primary;
   final VoidCallback onTap;
 
-  /// 채운 단추를 금색 대신 차분한 면색으로(사용자 정지의 '닫기').
-  final bool neutral;
-
   @override
-  Widget build(BuildContext context) {
-    // 고령 사용자 기준 터치 타깃 — 높이 60px에 넉넉한 좌우 여백
-    final labelText = Text(
-      label,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-    );
-    return SizedBox(
-      height: 60,
-      child: primary
-          ? ElevatedButton.icon(
-              onPressed: onTap,
-              icon: Icon(icon, size: 22),
-              label: labelText,
-              style: ElevatedButton.styleFrom(
-                backgroundColor:
-                    neutral ? KioskColors.surface2 : KioskColors.primary,
-                foregroundColor: neutral ? Colors.white : Colors.black,
-                side: neutral
-                    ? const BorderSide(color: KioskColors.border)
-                    : null,
-                elevation: 0,
-                padding: const EdgeInsets.symmetric(horizontal: 26),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            )
-          : OutlinedButton.icon(
-              onPressed: onTap,
-              icon: Icon(icon, size: 22),
-              label: labelText,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: const Color(0xFFFAF7F2),
-                side: const BorderSide(color: KioskColors.border),
-                padding: const EdgeInsets.symmetric(horizontal: 22),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
-            ),
-    );
-  }
+  Widget build(BuildContext context) => OutlinedButton.icon(
+        onPressed: onTap,
+        icon: Icon(icon, size: KioskType.body + 2),
+        label: Text(label,
+            style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+        style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.muted),
+      );
 }

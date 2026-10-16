@@ -4,8 +4,11 @@ import '../../models/appliance.dart';
 import '../../models/command_result.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
+import '../../theme/kiosk_tokens.dart';
 import 'kiosk_scroll_area.dart';
 import 'kiosk_target_line.dart';
+import 'kiosk_text.dart';
+import 'status_band.dart';
 import 'route_badge.dart';
 
 /// 승인 재검사 실패(409) 안내. 폰 앱과 같은 문장.
@@ -67,8 +70,23 @@ class KioskSuggestionView extends StatelessWidget {
     // 없다). 막는 것은 준비 안 된 대상뿐이다.
     final scenario = suggestion.isScenario;
     final canExecute = scenario ? blockedWhy == null : target != null;
+    // 위 상태 띠(2026-10-16 디자인 규격 §4) — 제안 → 실행 → 정지 대기 → 결과가 같은 자리·같은 높이의 띠로 이어진다.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const KioskStatusBand(
+          tone: KioskBandTone.neutral,
+          icon: Icons.lightbulb_outline,
+          label: '제안',
+        ),
+        Expanded(child: _body(context, target, scenario, canExecute)),
+      ],
+    );
+  }
+
+  Widget _body(BuildContext context, ApplianceMap? target, bool scenario, bool canExecute) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(40, 24, 40, 14),
+      padding: const EdgeInsets.fromLTRB(40, 14, 40, KioskSizes.actionsBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -84,14 +102,14 @@ class KioskSuggestionView extends StatelessWidget {
               suggestion.routineName!.isNotEmpty) ...[
             Text(
               '내 루틴 "${suggestion.routineName}"',
-              style: const TextStyle(fontSize: 22, color: KioskColors.muted),
+              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
             ),
             const SizedBox(height: 6),
           ],
           if (scenario && scenarioName != null) ...[
             Text(
               '시나리오 · $scenarioName',
-              style: const TextStyle(fontSize: 22, color: KioskColors.muted),
+              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
             ),
             const SizedBox(height: 6),
           ],
@@ -111,14 +129,14 @@ class KioskSuggestionView extends StatelessWidget {
                         // 지어낸 문구가 아니라 본인의 표현이라 그대로 되물어보는
                         // 편이 알아듣기 쉽다.
                         // 질문은 따로 한 줄. 이어 쓰면 폭에 따라 '할까 / 요?'처럼
-                        // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다.
-                        Text(
+                        // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다. 그래서 어절 단위로 그린다(2026-10-16 §1-3).
+                        KioskText(
                           // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다.
                           scenario
                               ? '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose}'
                               : '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose},\n지금 할까요?',
                           style: const TextStyle(
-                            fontSize: 36,
+                            fontSize: KioskType.key,
                             fontWeight: FontWeight.w700,
                             height: 1.25,
                             color: Colors.white,
@@ -133,7 +151,7 @@ class KioskSuggestionView extends StatelessWidget {
                               caveat,
                               key: const ValueKey('suggestion-caveat'),
                               style: const TextStyle(
-                                  fontSize: 20, color: KioskColors.warning),
+                                  fontSize: KioskType.body, color: KioskColors.warning),
                             ),
                           ],
                         // 근거는 실제로 셀 수 있을 때만 말한다 -- 어느
@@ -165,7 +183,7 @@ class KioskSuggestionView extends StatelessWidget {
                               ? '누를 버튼'
                               : '할 일',
                           style: const TextStyle(
-                              fontSize: 20, color: KioskColors.muted),
+                              fontSize: KioskType.caption, color: KioskColors.muted),
                         ),
                         const SizedBox(height: 8),
                         Expanded(
@@ -186,7 +204,7 @@ class KioskSuggestionView extends StatelessWidget {
                         const Text(
                           '작은 팔이 누를 순서',
                           style:
-                              TextStyle(fontSize: 20, color: KioskColors.muted),
+                              TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                         ),
                         const SizedBox(height: 8),
                         Expanded(
@@ -212,19 +230,20 @@ class KioskSuggestionView extends StatelessWidget {
                 child: OutlinedButton(
                   key: const ValueKey('suggestion-later'),
                   onPressed: onReject,
-                  style: OutlinedButton.styleFrom(
-                    minimumSize: const Size(0, 72),
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: KioskColors.border),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                  // 보조 단추 모양(테두리) — 둘 중 하나를 고르는 자리라 높이만 주 단추와 같다(§1-5).
+                  style: KioskButtons.secondary(
+                          foreground: Colors.white, border: KioskColors.muted)
+                      .copyWith(
+                    minimumSize: const WidgetStatePropertyAll(
+                        Size(0, KioskSizes.primaryButton)),
+                    padding: const WidgetStatePropertyAll(
+                        EdgeInsets.symmetric(horizontal: 12)),
                   ),
                   // 서버 동작은 이번만 거절(mute=false)이다 — 그 뜻 그대로(2026-10-15).
-                  child: const Text(
+                  child: const KioskText(
                     '이번엔 안 할게요',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w600),
+                    style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -235,7 +254,7 @@ class KioskSuggestionView extends StatelessWidget {
                   key: const ValueKey('suggestion-approve'),
                   onPressed: canExecute ? onApprove : null,
                   style: ElevatedButton.styleFrom(
-                    minimumSize: const Size(0, 72),
+                    minimumSize: const Size(0, KioskSizes.primaryButton),
                     backgroundColor: KioskColors.primary,
                     foregroundColor: KioskColors.onAccent,
                     // 비활성이어도 글자는 읽혀야 한다 — 왜 못 누르는지는
@@ -250,7 +269,7 @@ class KioskSuggestionView extends StatelessWidget {
                   child: const Text(
                     '시작',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
+                    style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -271,7 +290,7 @@ class KioskSuggestionView extends StatelessWidget {
                           : '이 제안의 가전을 찾을 수 없어 실행할 수 없어요 · '
                               '$cdRemaining초 뒤 닫혀요',
                   style: TextStyle(
-                      fontSize: 18,
+                      fontSize: KioskType.caption,
                       color: canExecute || !scenario
                           ? KioskColors.muted
                           : KioskColors.danger),
@@ -312,13 +331,14 @@ class _WhyText extends StatefulWidget {
 class _WhyTextState extends State<_WhyText> {
   bool _expanded = false;
 
-  static const _style = TextStyle(fontSize: 20, color: KioskColors.muted);
+  static const _style = TextStyle(fontSize: KioskType.body, color: KioskColors.muted);
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
+      // 그리는 글(어절 단위 줄바꿈)과 같은 글로 넘침을 잰다.
       final painter = TextPainter(
-        text: TextSpan(text: widget.text, style: _style),
+        text: TextSpan(text: keepWords(widget.text), style: _style),
         maxLines: 2,
         textDirection: Directionality.of(context),
         textScaler: MediaQuery.textScalerOf(context),
@@ -331,7 +351,7 @@ class _WhyTextState extends State<_WhyText> {
           Semantics(
             label: widget.text,
             excludeSemantics: true,
-            child: Text(
+            child: KioskText(
               widget.text,
               maxLines: _expanded ? null : 2,
               overflow: _expanded ? null : TextOverflow.ellipsis,
@@ -339,16 +359,22 @@ class _WhyTextState extends State<_WhyText> {
             ),
           ),
           if (overflows)
-            TextButton(
-              key: const ValueKey('suggestion-why-more'),
-              onPressed: () => setState(() => _expanded = !_expanded),
-              style: TextButton.styleFrom(
-                foregroundColor: KioskColors.muted,
-                minimumSize: const Size(0, 48),
-                padding: EdgeInsets.zero,
+            // 글자만 있는 조작은 두지 않는다 — 작은 보조 단추(테두리, 48 이상, 2026-10-16 §1-5).
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: OutlinedButton(
+                key: const ValueKey('suggestion-why-more'),
+                onPressed: () => setState(() => _expanded = !_expanded),
+                style: KioskButtons.secondary(
+                        foreground: Colors.white, border: KioskColors.border)
+                    .copyWith(
+                  minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
+                  padding: const WidgetStatePropertyAll(
+                      EdgeInsets.symmetric(horizontal: 16)),
+                ),
+                child: Text(_expanded ? '근거 접기' : '근거 전체 보기',
+                    style: const TextStyle(fontSize: KioskType.caption)),
               ),
-              child: Text(_expanded ? '근거 접기' : '근거 전체 보기',
-                  style: const TextStyle(fontSize: 18)),
             ),
         ],
       );
@@ -364,8 +390,8 @@ class _StepList extends StatelessWidget {
   final List<String> steps;
 
   static Widget _number(int n) => Container(
-        width: 28,
-        height: 28,
+        width: 30,
+        height: 30,
         alignment: Alignment.center,
         // 순서 번호는 정보다. 강조색은 주 행동('지금 실행') 몫으로 남긴다.
         decoration: const BoxDecoration(
@@ -375,7 +401,7 @@ class _StepList extends StatelessWidget {
         child: Text(
           '$n',
           style: const TextStyle(
-            fontSize: 15,
+            fontSize: KioskType.caption,
             fontWeight: FontWeight.w700,
             color: KioskColors.onAccent,
           ),
@@ -402,7 +428,7 @@ class _StepList extends StatelessWidget {
                   Text(
                     steps[i],
                     style: const TextStyle(
-                      fontSize: 20,
+                      fontSize: KioskType.body,
                       fontWeight: FontWeight.w500,
                       color: Colors.white,
                     ),
@@ -425,7 +451,7 @@ class _StepList extends StatelessWidget {
             child: Text(
               steps[i],
               style: const TextStyle(
-                fontSize: 20,
+                fontSize: KioskType.body,
                 fontWeight: FontWeight.w500,
                 color: Colors.white,
               ),
@@ -470,7 +496,7 @@ class _CommandList extends StatelessWidget {
                     Text(
                       summary,
                       style: const TextStyle(
-                        fontSize: 20,
+                        fontSize: KioskType.body,
                         fontWeight: FontWeight.w500,
                         color: Colors.white,
                       ),

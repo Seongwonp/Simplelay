@@ -3,18 +3,21 @@ import 'package:flutter/material.dart';
 import '../../models/appliance.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
+import '../../theme/kiosk_tokens.dart';
 import 'hold_view.dart' show kPanelCaption;
 import 'kiosk_scroll_area.dart';
 import 'kiosk_target_line.dart';
-import 'practice_band.dart';
+import 'kiosk_text.dart';
+import 'run_frame.dart';
+import 'status_band.dart';
 
 /// 실행 화면 — 센서 대시보드가 아니라 **지금 무슨 버튼을 어떻게 하고 있는가**.
 ///
-/// 읽는 순서: 어느 가전 → 지금 누르는 버튼(가장 크게) → 지금 상태(누르는 중 /
-/// 제대로 눌렸는지 확인하는 중 / 자리를 맞춰 다시 누르는 중) → 누를 버튼 N개 중 K번째.
+/// 읽는 순서: 위 상태 띠(실행 중·연습 중) → 왼쪽 위 상태(누르는 중 / 제대로 눌렸는지 확인하는 중 /
+/// 자리를 맞춰 다시 누르는 중) → 어느 가전·무엇을 → 지금 누르는 버튼(크게) → 누를 버튼 N개 중 K번째.
 /// 전류·소리·센서 % 같은 숫자는 화면에 싣지 않는다(서버 기록에는 남는다, 2026-10-15 §3-1).
-/// 연습(mock)은 맨 위 고정 띠로 말하고, 실물 동사(누르는·눌렸는지) 대신 '짚는'으로 쓴다(§3-2). 긴급 정지는 오른쪽에 떨어뜨려 두고, 색을
-/// 빼도 알아보게 정지 기호·글자·두꺼운 외곽선을 같이 준다.
+/// 연습(mock)은 위 청록 띠로 말하고, 실물 동사(누르는·눌렸는지) 대신 '짚는'으로 쓴다(§3-2).
+/// 정지는 정지 대기·정지 미확인 화면과 **같은 자리·같은 크기·같은 모양**이다(2026-10-16 디자인 규격 §1-1).
 ///
 /// 서버는 '이동 중'과 '누르는 중'을 나눠 주지 않는다. 그래서 화면도 나누지
 /// 않는다 -- 축이 멈춰 있는데 '이동 중'이라고 쓰게 된다. 폰과 같은 규칙이다.
@@ -73,9 +76,10 @@ class KioskExecutingView extends StatelessWidget {
       (verificationDetail != null && verificationDetail!.isNotEmpty);
 
   /// 지금 상태 구절과 그 모양(2026-10-15 §3-1). '보정'은 처음 보는 사람이 몰랐다 — 자리를 맞춰 다시 누른다고 쓴다.
-  (String, IconData?, Color) _phrase() {
+  /// 상태 영역의 아이콘도 함께 정한다(2026-10-16 §1-2) — 색만으로 말하지 않는다.
+  (String, IconData, Color) _phrase() {
     if (currentButton == null) {
-      return ('준비 중', null, KioskColors.muted);
+      return ('준비 중', Icons.hourglass_empty, KioskColors.muted);
     }
     if (_retrying) {
       return (
@@ -84,10 +88,10 @@ class KioskExecutingView extends StatelessWidget {
         KioskColors.warning
       );
     }
-    if (_mock) return ('짚는 중', null, Colors.white);
+    if (_mock) return ('짚는 중', Icons.touch_app_outlined, Colors.white);
     return _hasVerification
-        ? ('제대로 눌렸는지 확인하는 중', null, Colors.white)
-        : ('누르는 중', null, Colors.white);
+        ? ('제대로 눌렸는지 확인하는 중', Icons.manage_search, Colors.white)
+        : ('누르는 중', Icons.touch_app_outlined, Colors.white);
   }
 
   /// 무엇을 보고 있는지 숫자 없이 한 줄(2026-10-15 — 'mA·dB·센서 %'는 뜻을 몰랐다). 몇 번째 시도인지는 남긴다.
@@ -114,226 +118,87 @@ class KioskExecutingView extends StatelessWidget {
     final isDone = lastButtons != null;
     final target = this.target;
     final onPanel = currentOnPanel;
+    final (phrase, icon, color) = _phrase();
 
-    final row = Row(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        // ── 왼쪽: 지금 무엇을 ────────────────────────────────────────
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(36, 24, 20, 24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (target != null) ...[
-                  KioskTargetLine(appliance: target),
-                  const SizedBox(height: 6),
-                ],
-                // 목적(무엇을 하려고)은 보조로. 버튼 하나를 누르는 실행이면
-                // 제목과 버튼이 같으니 되풀이하지 않는다.
-                // 이어받은 실행은 제목이 가전 이름일 수 있다 — 위 대상 줄과 같은 말이면 쓰지 않는다.
-                if (title.isNotEmpty &&
-                    title != currentButton &&
-                    title != target?.name)
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.w600,
-                      color: KioskColors.muted,
-                    ),
-                    // 2줄까지 보이고 그래도 넘치면 줄인다(2026-10-15 — 1줄 말줄임에서 무엇을 하는지 잘렸다).
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                const SizedBox(height: 14),
-                if (!isDone)
-                  Expanded(child: _NowBlock(view: this))
-                else
-                  Expanded(
-                    child: ListView(
-                      children: lastButtons!
-                          .map(
-                            (b) => _StepRow(
-                              label: b.button,
-                              state: b.success
-                                  ? _StepState.done
-                                  : _StepState.failed,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-        ),
-
-        // ── 오른쪽: 실제 버튼판(읽기 전용) + 긴급 정지 ─────────────────
-        // 예전에는 정지 하나만 있어 칸 대부분이 비었다(9/16 화면 평가). 위에는
-        // 가전의 버튼판을 그려 **지금 누르는 자리**를 보여준다 -- 이 제품이 하는
-        // 일은 실제 버튼을 누르는 것이다. 버튼판은 누를 수 없는 그림이라 정지
-        // 옆에 있어도 급한 순간에 잘못 누를 행동이 늘지 않는다.
-        SizedBox(
-          width: 300,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(8, 24, 24, 24),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (target != null && onPanel != null) ...[
-                  Expanded(
-                    child: _PanelMap(
-                      appliance: target,
-                      current: onPanel,
-                      caution: _retrying,
-                      mock: _mock,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                ],
-                SizedBox(
-                  width: double.infinity,
-                  height: 96,
-                  child: ElevatedButton.icon(
-                    onPressed: onStop,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: KioskColors.stop,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        // 색을 빼도 다른 버튼과 구분되게 -- 두꺼운 외곽선.
-                        side: const BorderSide(color: Colors.white, width: 3),
-                      ),
-                    ),
-                    icon: const Icon(Icons.stop, size: 36),
-                    label: const Text(
-                      '정지',
-                      textAlign: TextAlign.center,
-                      style:
-                          TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-    // 연습은 맨 위 고정 띠(§3-2) — 작은 '연습 모드' 칩은 처음 보는 사람이 놓쳤다.
-    if (!_mock) return row;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [const KioskPracticeBand(), Expanded(child: row)],
-    );
-  }
-}
-
-// ── 버튼판 ─────────────────────────────────────────────────────────────────
-
-/// 대상 가전의 버튼판. 지금 누르는 버튼 하나만 채운 면·두꺼운 테두리로 칠하고,
-/// 나머지는 자리만 보여준다. 색을 빼도 채움과 테두리로 구분된다.
-///
-/// 스크린리더에는 왼쪽의 실시간 안내가 같은 말을 이미 하므로 읽지 않는다.
-class _PanelMap extends StatelessWidget {
-  const _PanelMap({
-    required this.appliance,
-    required this.current,
-    required this.caution,
-    this.mock = false,
-  });
-
-  final ApplianceMap appliance;
-  final ApplianceButton current;
-
-  /// 연습이면 작은 팔이 실제로 누르지 않는다 — 그림 위 안내도 연습으로.
-  final bool mock;
-
-  /// 보정 후 다시 누르는 중이면 주의색.
-  final bool caution;
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = caution ? KioskColors.warning : KioskColors.primary;
-    return ExcludeSemantics(
+    final body = KioskScrollArea(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §3-1) — 누르는 자리라고 말한다.
-          Text(
-            mock ? '연습으로 짚는 자리예요 · 화면은 누르지 않아도 돼요' : kPanelCaption,
-            key: const ValueKey('exec-panel-caption'),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 16, color: KioskColors.muted),
-          ),
-          const SizedBox(height: 8),
-          Expanded(
-            child: Column(
-              children: [
-                for (var y = 0; y < appliance.rows; y++)
-                  Expanded(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        for (var x = 0; x < appliance.cols; x++)
-                          Expanded(
-                            child: Padding(
-                              padding: const EdgeInsets.all(3),
-                              child: _cell(appliance.buttonAt(x, y), accent),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-              ],
+          if (target != null) ...[
+            KioskTargetLine(appliance: target),
+            const SizedBox(height: 4),
+          ],
+          // 목적(무엇을 하려고)은 보조로. 버튼 하나를 누르는 실행이면
+          // 제목과 버튼이 같으니 되풀이하지 않는다.
+          // 이어받은 실행은 제목이 가전 이름일 수 있다 — 위 대상 줄과 같은 말이면 쓰지 않는다.
+          if (title.isNotEmpty && title != currentButton && title != target?.name)
+            KioskText(
+              title,
+              style: const TextStyle(
+                fontSize: KioskType.body,
+                fontWeight: FontWeight.w600,
+                color: KioskColors.muted,
+              ),
+              // 2줄까지 보이고 그래도 넘치면 줄인다(2026-10-15 — 1줄 말줄임에서 무엇을 하는지 잘렸다).
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-          ),
+          const SizedBox(height: 10),
+          if (!isDone)
+            _NowBlock(view: this)
+          else
+            for (final b in lastButtons!)
+              _StepRow(
+                label: b.button,
+                state: b.success ? _StepState.done : _StepState.failed,
+              ),
         ],
       ),
     );
-  }
 
-  Widget _cell(ApplianceButton? button, Color accent) {
-    if (button == null) return const SizedBox.shrink();
-    final on = button.id == current.id;
-    return DecoratedBox(
-      key: on ? const ValueKey('panel-current') : null,
-      // 지금 칸만 면을 채운다. 나머지는 면 없이 옅은 윤곽만 -- 수동 조작 칸과
-      // 같은 면색·테두리면 누를 수 있는 버튼으로 보였다(로그 ac 리뷰 지적).
-      decoration: BoxDecoration(
-        color: on ? accent : Colors.transparent,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: on ? Colors.white : Colors.white.withValues(alpha: 0.12),
-          width: on ? 3 : 1,
-        ),
-      ),
-      child: Center(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 4),
-          // 칸이 작다. 긴 이름은 잘리지 않게 줄여서 한 줄에 넣는다.
-          child: FittedBox(
-            fit: BoxFit.scaleDown,
-            child: Text(
-              button.label,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: on ? FontWeight.w800 : FontWeight.w500,
-                color: on ? KioskColors.onAccent : KioskColors.muted,
+    return KioskRunFrame(
+      // 연습은 위 청록 띠(§3-2·2026-10-16 §4) — 작은 '연습 모드' 칩은 처음 보는 사람이 놓쳤다.
+      band: _mock
+          ? const KioskStatusBand.practice()
+          : const KioskStatusBand(
+              tone: KioskBandTone.neutral,
+              icon: Icons.play_circle_outline,
+              label: '실행 중',
+            ),
+      // 다 누른 뒤 결과 화면으로 넘어가기 전 잠깐(0.9초)은 상태를 새로 지어내지 않고 목록 제목만 둔다.
+      header: isDone
+          ? const KioskStatusHeader(
+              icon: Icons.checklist, title: '누른 버튼', iconColor: KioskColors.muted)
+          : Semantics(
+              liveRegion: true,
+              label: [
+                if (currentButton != null) '$currentButton 버튼',
+                phrase,
+                if (_evidence() case final e?) e,
+                if (totalSteps case final t? when t > 0)
+                  progressLine(t, completedSteps ?? 0),
+              ].join('. '),
+              child: ExcludeSemantics(
+                child: KioskStatusHeader(icon: icon, title: phrase, iconColor: color),
               ),
             ),
-          ),
-        ),
-      ),
+      body: body,
+      // 버튼판은 누를 수 없는 설명 그림이다 — 지금 누르는 자리만 채운다(§1-6).
+      picture: target != null && onPanel != null
+          ? KioskPanelPicture(
+              appliance: target,
+              current: onPanel,
+              caution: _retrying,
+              caption: _mock ? '연습으로 짚는 자리예요 · 화면은 누르지 않아도 돼요' : kPanelCaption,
+              captionKey: const ValueKey('exec-panel-caption'),
+            )
+          : null,
+      stop: KioskStopButton(label: '정지', onPressed: onStop),
     );
   }
 }
 
-// ── 지금 누르는 버튼 · 상태 · 단계 ──────────────────────────────────────────
+// ── 지금 누르는 버튼 · 단계 ─────────────────────────────────────────────────
 
 class _NowBlock extends StatelessWidget {
   const _NowBlock({required this.view});
@@ -342,89 +207,55 @@ class _NowBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (phrase, icon, color) = view._phrase();
     final evidence = view._evidence();
     final total = view.totalSteps;
     final done = view.completedSteps ?? 0;
 
-    return Semantics(
-      liveRegion: true,
-      label: [
-        if (view.currentButton != null) '${view.currentButton} 버튼',
-        phrase,
-        if (evidence != null) evidence,
-        if (total != null && total > 0) view.progressLine(total, done),
-      ].join('. '),
-      child: ExcludeSemantics(
-        // 큰 글씨에서 아래(진행 막대)가 넘치면 스크롤 막대가 보인다(2026-10-15).
-        child: KioskScrollArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (view.currentButton != null)
-                Text(
-                  "'${view.currentButton}'",
-                  style: const TextStyle(
-                    fontSize: 52,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    height: 1.1,
-                  ),
-                ),
-              const SizedBox(height: 4),
-              // 상태를 색으로만 말하지 않는다 -- 재시도에는 모양이 같이 간다.
-              Row(
-                children: [
-                  if (icon != null) ...[
-                    Icon(icon, size: 34, color: color),
-                    const SizedBox(width: 10),
-                  ],
-                  Flexible(
-                    child: Text(
-                      phrase,
-                      style: TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.w700,
-                        color: color,
-                      ),
-                    ),
-                  ),
-                ],
+    // 스크린리더는 위 상태 영역이 한 번에 읽는다.
+    return ExcludeSemantics(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (view.currentButton != null)
+            Text(
+              "'${view.currentButton}'",
+              style: const TextStyle(
+                fontSize: KioskType.key,
+                fontWeight: FontWeight.w800,
+                color: Colors.white,
+                height: 1.15,
               ),
-              if (view._retrying) ...[
-                const SizedBox(height: 4),
-                // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
-                Text(
-                  view._mock
-                      ? '연습이라 실제로 누르지는 않아요'
-                      : '눌렸는지 확인되지 않아 한 번 더 눌러요',
-                  style: const TextStyle(fontSize: 20, color: KioskColors.warning),
-                ),
-              ],
-              if (evidence != null) ...[
-                const SizedBox(height: 6),
-                Text(
-                  evidence,
-                  style: const TextStyle(fontSize: 18, color: KioskColors.muted),
-                ),
-              ],
-              const SizedBox(height: 18),
-              if (total != null && total > 0)
-                _SegmentedProgress(
-                  label: view.progressLine(total, done),
-                  total: total,
-                  completed: done,
-                  active: true,
-                  caution: view._retrying,
-                )
-              else if (view.completedSteps != null)
-                Text(
-                  view._mock ? '버튼 $done개를 짚었어요' : '버튼 $done개를 눌렀어요',
-                  style: const TextStyle(fontSize: 22, color: KioskColors.muted),
-                ),
-            ],
-          ),
-        ),
+            ),
+          if (view._retrying) ...[
+            const SizedBox(height: 4),
+            // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
+            Text(
+              view._mock ? '연습이라 실제로 누르지는 않아요' : '눌렸는지 확인되지 않아 한 번 더 눌러요',
+              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.warning),
+            ),
+          ],
+          if (evidence != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              evidence,
+              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+            ),
+          ],
+          const SizedBox(height: 16),
+          if (total != null && total > 0)
+            _SegmentedProgress(
+              label: view.progressLine(total, done),
+              total: total,
+              completed: done,
+              active: true,
+              caution: view._retrying,
+            )
+          else if (view.completedSteps != null)
+            Text(
+              view._mock ? '버튼 $done개를 짚었어요' : '버튼 $done개를 눌렀어요',
+              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
+            ),
+        ],
       ),
     );
   }
@@ -458,7 +289,7 @@ class _SegmentedProgress extends StatelessWidget {
         Text(
           label,
           style: const TextStyle(
-            fontSize: 24,
+            fontSize: KioskType.body,
             fontWeight: FontWeight.w600,
             color: Colors.white,
           ),
@@ -528,7 +359,7 @@ class _StepRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: 22, color: Colors.white),
+              style: const TextStyle(fontSize: KioskType.body, color: Colors.white),
             ),
           ),
         ],

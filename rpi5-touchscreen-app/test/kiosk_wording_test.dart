@@ -153,7 +153,8 @@ void main() {
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
       expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
-      expect(_inButton<TextButton>('화면으로 조작하기'), findsOneWidget);
+      // 글자만 있는 조작은 없앤다 — 보조 단추(테두리, 2026-10-16 디자인 규격 §1-5).
+      expect(_inButton<OutlinedButton>('화면으로 조작하기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       final home = tester.getRect(find.text('처음 화면으로'));
@@ -370,6 +371,10 @@ void main() {
           operationConfirmed: true,
           operationSource: 'mock',
           stopRequested: true,
+          // 2026-10-16 글자 4단계(설명은 본문 크기)로 이 조건만으로는 넘치지 않게 됐다 — 서버 상세 한 줄을 더해
+          // 넘치는 경우를 계속 본다(시험의 뜻: 넘치면 막대가 보인다).
+          detail: '연습용 대기예요. 정지를 누르면 작은 팔이 정지 버튼 자리를 짚고, 다 짚으면 제자리로 돌아가요. '
+              '연습이라 실제 가전 전원과 전력은 바뀌지 않아요.',
           onStop: () {},
         );
         await tester.pumpWidget(MaterialApp(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
+import '../../theme/kiosk_tokens.dart';
 
 /// "어느 가전에 대한 이야기인가"를 한 줄로.
 ///
@@ -9,7 +10,7 @@ import '../../theme/kiosk_colors.dart';
 /// 엉뚱한 가전에 대고 맡긴 뒤에 알면 늦다. 대상을 모르면 이 줄을 그리지
 /// 않는다 -- 지금 고른 가전으로 메우지 않는다.
 class KioskTargetLine extends StatelessWidget {
-  const KioskTargetLine({super.key, required this.appliance, this.size = 22});
+  const KioskTargetLine({super.key, required this.appliance, this.size = KioskType.body});
 
   final ApplianceMap appliance;
   final double size;

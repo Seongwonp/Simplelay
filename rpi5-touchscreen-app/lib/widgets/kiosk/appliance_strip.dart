@@ -297,7 +297,8 @@ class _StripItemState extends State<_StripItem>
       iconColor = KioskColors.warning;
       status = '확인 필요';
     } else if (widget.running) {
-      iconColor = KioskColors.primary;
+      // 동작 중은 일상 상태 — 중립(흰 아이콘·회색 면·멈춘 호), 앰버는 확인 필요에만(2026-10-16 디자인 규격 §1-4).
+      iconColor = Colors.white;
       status = a.isThinq ? '설정 변경 중' : '동작 중';
     } else {
       iconColor = KioskColors.muted;
@@ -328,9 +329,7 @@ class _StripItemState extends State<_StripItem>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: widget.running
-                            ? Color.alphaBlend(
-                                KioskColors.primary.withValues(alpha: 0.14),
-                                KioskColors.surface)
+                            ? KioskColors.surface2
                             : KioskColors.surface,
                         boxShadow: widget.attention
                             ? [
@@ -417,7 +416,7 @@ class _RunningRing extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3
         ..strokeCap = StrokeCap.round
-        ..color = KioskColors.primary,
+        ..color = Colors.white70,
     );
   }
 

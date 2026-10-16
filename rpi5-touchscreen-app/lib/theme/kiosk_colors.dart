@@ -13,11 +13,18 @@ class KioskColors {
   // 버튼으로 읽히지 않았다(9/16 화면 평가). 짙은 빨강에 흰 글자 7.3:1.
   static const stop    = Color(0xFFA8201A);
 
+  // 연습(모의) 표시 전용 청록(2026-10-16 디자인 규격 §1-4·§4 결정). 앰버는 주요 행동·주의에만 쓰고
+  // 연습에는 쓰지 않는다. 바탕(bg) 위 약 7.3:1 — 아이콘·띠 줄무늬에 쓰고 글자는 흰색으로 둔다.
+  static const practice = Color(0xFF2BB3A6);
+
   static const bg      = Color(0xFF0F1117); // 앱 background와 동일
   static const surface = Color(0xFF191C24); // 앱 surfaceLow와 동일
   static const surface2 = Color(0xFF232734); // 앱 surfaceHigh와 동일
   static const muted   = Color(0xFFAEB3C0); // 앱 onSurfaceMuted와 동일
   static const border  = Color(0x33FFFFFF); // 앱 borderSubtle와 동일
+
+  // 설명 그림(버튼판) 칸 글자 — 50% 회색(2026-10-16 규격 §1-6). 실제 조작 단추(수동 조작)의 밝은 글자와 구분한다.
+  static const panelText = Color(0x80FFFFFF);
 
   // 채도 있는 색을 **면으로** 쓸 때 얹는 글자색 (앱 AppColors.onAccent와 동일).
   // 초록 위 흰 글자는 2.25:1로 큰 글씨여도 미달이었다 — 검정이면 9.34:1이다.

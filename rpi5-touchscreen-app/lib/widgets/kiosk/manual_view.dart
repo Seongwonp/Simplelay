@@ -81,10 +81,11 @@ class _KioskManualViewState extends State<KioskManualView> {
                           child: const SizedBox(
                             width: 52,
                             height: 52,
+                            // 뒤로 가기 아이콘은 한 가지(←, 가전 선택 화면과 같게 — 2026-10-16 디자인 규격 §1-5).
                             child: Icon(
-                              Icons.arrow_back_ios_new,
+                              Icons.arrow_back,
                               color: KioskColors.muted,
-                              size: 22,
+                              size: 26,
                             ),
                           ),
                         ),

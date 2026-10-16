@@ -451,7 +451,8 @@ void main() {
       await _settle(tester);
 
       expect(find.textContaining('멈춘 것을'), findsNothing);
-      expect(find.text('작은 팔이 대신 눌렀지만 멈췄는지 확인하지 못했어요'), findsOneWidget);
+      // 상태 영역은 짧게(2026-10-16 디자인 규격 §1-2) — 무엇을 했는지는 할 일 아래 작은 줄이 말한다.
+      expect(find.text('멈췄는지 확인하지 못했어요'), findsOneWidget);
       // 가장 큰 글자는 할 일 한 가지 — 정지 버튼은 자리·크기·색 그대로 이름만 바뀐다(2026-10-15).
       expect(find.text("지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요"), findsOneWidget);
       expect(find.text('다시 정지 시도'), findsOneWidget);

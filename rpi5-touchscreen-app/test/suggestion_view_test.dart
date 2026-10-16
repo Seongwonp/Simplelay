@@ -208,6 +208,9 @@ void main() {
       expect(more, findsOneWidget);
       expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
       expect(tester.widget<Text>(find.textContaining('근거:')).maxLines, 2);
+      // 위 상태 띠가 생긴 뒤(2026-10-16) 800x480·시험 글꼴에서는 펼치기 단추가 왼쪽 칸 스크롤 아래에 있다 — 스크롤해 누른다.
+      await tester.ensureVisible(more);
+      await tester.pump();
       await tester.tap(more);
       await tester.pump();
       expect(tester.widget<Text>(find.textContaining('근거:')).maxLines, isNull);
