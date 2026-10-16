@@ -188,9 +188,9 @@ String? thinqDustNote(Map<String, dynamic> state) {
       : '미세먼지 값을 아직 받지 못했어요(켠 직후에는 잠시 걸려요)';
 }
 
-/// 'HH:MM 업데이트' — 읽은 시각(연습이면 ' (연습)').
+/// 'HH:MM에 읽음' — 읽은 시각(연습이면 ' (연습)').
 String thinqReadTimeLine(DateTime t, {bool mock = false}) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 업데이트'
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}에 읽음'
     '${mock ? ' (연습)' : ''}';
 
 /// 조작 줄 하나 — 허브 동작 이름·인자와 고를 값들, 지금 값.

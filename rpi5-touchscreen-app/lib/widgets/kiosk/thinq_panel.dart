@@ -31,7 +31,7 @@ const kThinqPracticeText = '연습 중 · 실제 가전에는 보내지 않아�
 /// ThinQ 가전 상세(2026-10-16, 사용자 요청) — 왼쪽 지금 상태, 오른쪽 큰 조작 단추.
 ///
 /// - 상태는 **열 때 한 번**과 '다시 읽기'에서만 읽는다(GET /thinq/status — 클라우드 호출). 못 읽으면 이유만 말하고
-///   값·조작을 내걸지 않는다(지금 값을 모른다). 읽은 시각을 'HH:MM 업데이트'로 적는다.
+///   값·조작을 내걸지 않는다(지금 값을 모른다). 읽은 시각을 'HH:MM에 읽음'로 적는다.
 /// - 조작은 공기청정기의 전원·풍량만(서버 대응표 값). 누르면 곧바로 보내지 않고 한 번 묻는다 — '바꾸기'를 눌러야
 ///   POST /thinq/command. 접수되면 [onAccepted]가 실행 화면으로 넘긴다(결과 문장은 실행·결과 화면이 서버 확인 수준대로).
 /// - 전원이 꺼져 있으면 풍량 단추를 잠그고 '전원을 켠 뒤 바꿀 수 있어요'. 비상 멈춤 띠가 보이면 모든 조작을 잠근다.
@@ -269,10 +269,12 @@ class _StateCard extends StatelessWidget {
           Row(
             children: [
               Expanded(
-                child: Text(s?.mock == true ? '지금 상태 (연습)' : '지금 상태',
+                // '(연습)'은 아래 읽은 시각 줄과 위 연습 칸이 말한다 — 제목에 붙이면 '다시 읽기'에 닿았다(UI 평가 3차 10/17).
+                child: Text('지금 상태',
                     style: const TextStyle(
                         fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
+              const SizedBox(width: 12),
               OutlinedButton.icon(
                 key: const ValueKey('thinq-reread'),
                 onPressed: onReread,

@@ -95,9 +95,11 @@ class KioskExecutingView extends StatelessWidget {
   }
 
   /// 무엇을 보고 있는지 숫자 없이 한 줄(2026-10-15 — 'mA·dB·센서 %'는 뜻을 몰랐다). 몇 번째 시도인지는 남긴다.
-  String? _evidence() {
+  /// 큰 글씨에서는 확인 문장을 뺀다 — 위 상태('제대로 눌렸는지 확인하는 중')가 같은 말을 하고, 남기면 마지막 줄이
+  /// 스크롤 아래에서 잘렸다(UI 평가 3차 10/17).
+  String? _evidence({bool large = false}) {
     final parts = <String>[
-      if (_hasVerification && !_mock) '버튼을 누른 뒤 가전 반응을 보고 있어요',
+      if (_hasVerification && !_mock && !large) '버튼을 누른 뒤 가전 반응을 보고 있어요',
       if (_retrying) '$currentAttempt번째 시도',
     ];
     return parts.isEmpty ? null : parts.join(' · ');
@@ -119,6 +121,7 @@ class KioskExecutingView extends StatelessWidget {
     final target = this.target;
     final onPanel = currentOnPanel;
     final (phrase, icon, color) = _phrase();
+    final large = KioskLayout.isLarge(context);
 
     final body = KioskScrollArea(
       child: Column(
@@ -142,7 +145,8 @@ class KioskExecutingView extends StatelessWidget {
                 color: KioskColors.muted,
               ),
               // 2줄까지 보이고 그래도 넘치면 줄인다(2026-10-15 — 1줄 말줄임에서 무엇을 하는지 잘렸다).
-              maxLines: 2,
+              // 큰 글씨는 1줄 — 지금 누르는 버튼이 스크롤 아래로 밀리지 않게(UI 평가 3차 10/17).
+              maxLines: large ? 1 : 2,
               overflow: TextOverflow.ellipsis,
             ),
           const SizedBox(height: 10),
@@ -224,7 +228,7 @@ class _NowBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final evidence = view._evidence();
+    final evidence = view._evidence(large: KioskLayout.isLarge(context));
     final total = view.totalSteps;
     final done = view.completedSteps ?? 0;
 

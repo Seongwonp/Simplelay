@@ -157,18 +157,21 @@ class KioskIdleView extends StatelessWidget {
             // 설정은 자주 쓰지 않는다 — 금색 글자 알약이 화면에서 가장 밝아 시선을 빼앗았다(2026-10-14).
             // 회색 톱니 아이콘 단추로 두되, 누르는 자리는 48px 이상·읽는 이름은 '설정'.
             Semantics(button: true, label: '설정', excludeSemantics: true, onTap: onSettingsGesture,
-              child: IconButton(key: const ValueKey('settings-entry'),
-                onPressed: onSettingsGesture,
-                tooltip: '설정',
-                constraints: const BoxConstraints(minWidth: 56, minHeight: 56),
-                color: KioskColors.muted,
-                iconSize: 30,
-                icon: const Icon(Icons.settings_outlined))),
+              // 아이콘 아래 이름(UI 평가 3차 10/17) — 연결 아이콘과 같은 모양.
+              child: InkWell(key: const ValueKey('settings-entry'),
+                onTap: onSettingsGesture,
+                borderRadius: BorderRadius.circular(12),
+                child: const SizedBox(width: 60, height: 64,
+                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                    Icon(Icons.settings_outlined, size: 28, color: KioskColors.muted),
+                    KioskTopIconLabel('설정'),
+                  ])))),
             const SizedBox(width: 8),
             _DndEntry(
                 remaining: dnd == null ? null : _dndRemaining(dnd),
                 quietUntil: dnd == null ? quietUntil : null,
                 onTap: onDndGesture),
+            const SizedBox(width: 8), // 아래 이름끼리 붙지 않게('제안 쉬기'·'와이파이').
             KioskConnectionIcons(items: connections, onOpen: onOpenConnection),
           ])),
           const SizedBox(height: 8),
@@ -385,9 +388,14 @@ class _DndEntry extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(on ? Icons.bedtime : Icons.bedtime_outlined,
-                        size: 30,
-                        color: on ? Colors.white : KioskColors.muted),
+                    if (!on)
+                      // 꺼져 있으면 아이콘 아래 이름(UI 평가 3차 10/17) — 켜지면 오른쪽 두 줄이 같은 말을 한다.
+                      const Column(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.bedtime_outlined, size: 28, color: KioskColors.muted),
+                        KioskTopIconLabel('제안 쉬기'),
+                      ])
+                    else
+                      const Icon(Icons.bedtime, size: 30, color: Colors.white),
                     if (on) ...[
                       const SizedBox(width: 6),
                       // 좁은 위 줄에 들어가도록 두 줄로 — "제안 쉬는 중" / 남은 시간.

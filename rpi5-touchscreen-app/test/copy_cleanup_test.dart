@@ -6,6 +6,7 @@ import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/command_result.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
+import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
@@ -229,8 +230,11 @@ void main() {
       final semantics = tester.ensureSemantics();
       await pumpIdle(tester, const []);
       final entry = find.byKey(const ValueKey('settings-entry'));
-      expect(tester.widget(entry), isA<IconButton>());
-      expect(find.text('설정'), findsNothing);
+      // 금색 알약이 아니라 회색 아이콘 + 아래 작은 이름(UI 평가 3차 10/17 — 아이콘만으로는 뜻을 몰랐다).
+      expect(find.descendant(of: entry, matching: find.byType(Material)), findsNothing);
+      final label = tester.widget<Text>(find.descendant(of: entry, matching: find.text('설정')));
+      expect(label.style?.fontSize, lessThanOrEqualTo(14));
+      expect(label.style?.color, KioskColors.muted);
       expect(find.bySemanticsLabel('설정'), findsOneWidget);
       final size = tester.getSize(entry);
       expect(size.width, greaterThanOrEqualTo(48));

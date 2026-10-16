@@ -381,7 +381,7 @@ void main() {
     expect(tester.widget<Text>(find.text('42 · 나쁨')).style!.color, KioskColors.warning);
     expect(tester.widget<Text>(find.text('90 · 매우 나쁨')).style!.color, KioskColors.danger);
     expect(find.text('87%'), findsOneWidget);
-    expect(find.text('09:07 업데이트'), findsOneWidget);
+    expect(find.text('09:07에 읽음'), findsOneWidget);
     for (final v in ['POWER_ON', 'POWER_OFF']) {
       expect(find.byKey(ValueKey('thinq-set-set_power-$v')), findsOneWidget);
     }
@@ -492,8 +492,9 @@ void main() {
 
   testWidgets('상세: 모의면 연습 표시 — 제목·읽은 시각·연습 칸', (tester) async {
     await pumpPanel(tester, read: () async => _ok(_state(), mode: 'mock'));
-    expect(find.text('지금 상태 (연습)'), findsOneWidget);
-    expect(find.text('09:07 업데이트 (연습)'), findsOneWidget);
+    expect(find.text('지금 상태'), findsOneWidget);
+    expect(find.text('지금 상태 (연습)'), findsNothing);
+    expect(find.text('09:07에 읽음 (연습)'), findsOneWidget);
     expect(find.byKey(const ValueKey('thinq-practice')), findsOneWidget);
     expect(tester.widget<Icon>(find.descendant(
             of: find.byKey(const ValueKey('thinq-practice')), matching: find.byType(Icon))).color,
@@ -546,7 +547,7 @@ void main() {
     await tester.pump();
     expect(api.thinqStatusReads, ['air_purifier']);
     expect(find.byKey(const ValueKey('thinq-panel-air_purifier')), findsOneWidget);
-    expect(find.text('지금 상태 (연습)'), findsOneWidget);
+    expect(find.text('09:07에 읽음 (연습)'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('thinq-set-set_wind_strength-HIGH')));
     await tester.pump();

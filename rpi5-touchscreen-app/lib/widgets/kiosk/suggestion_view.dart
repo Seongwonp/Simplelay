@@ -297,14 +297,18 @@ class KioskSuggestionView extends StatelessWidget {
           ),
 
           const SizedBox(height: 12),
-          Row(
+          // 두 단추는 늘 같은 높이(UI 평가 3차 10/17 — 큰 글씨에서 거절이 두 줄로 접혀 높이가 달랐다).
+          IntrinsicHeight(
+            child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               // 보조 동작이 왼쪽, 주요 실행이 오른쪽 — 폰 앱과 같은 규칙.
               // 높이를 고정하지 않고 **최소 높이**로 준다. 고정하면 큰 글씨
               // 모드에서 글자가 버튼 안에서 잘린다. 선택 버튼은 질문 다음으로 크게 — 순서·근거보다
               // 먼저 눈에 들어와야 한다(2026-10-14 UI 정리).
+              // 큰 글씨는 반반 — 3:4에서 '이번엔 안 할게요'가 두 줄로 접혔다.
               Expanded(
-                flex: 3,
+                flex: large ? 1 : 3,
                 child: OutlinedButton(
                   key: const ValueKey('suggestion-later'),
                   onPressed: onReject,
@@ -329,7 +333,7 @@ class KioskSuggestionView extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Expanded(
-                flex: 4,
+                flex: large ? 1 : 4,
                 child: ElevatedButton(
                   key: const ValueKey('suggestion-approve'),
                   onPressed: canExecute ? onApprove : null,
@@ -357,6 +361,7 @@ class KioskSuggestionView extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
           const SizedBox(height: 10),
           Row(

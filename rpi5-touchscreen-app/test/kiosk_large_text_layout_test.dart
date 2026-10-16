@@ -209,7 +209,7 @@ void main() {
       await _pump(tester, _hold(), scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
       _expectFullyVisible(tester, find.text(kPracticeBandText));
-      _expectFullyVisible(tester, find.text('연습용 값이에요 — 실제로 잰 값이 아니에요'));
+      _expectFullyVisible(tester, find.text('연습이라 실제 전력은 재지 않아요'));
       _expectFullyVisible(tester, find.text('정지'));
       // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리).
       _expectFullyVisible(tester, find.text('멈추라고 보냈어요'));

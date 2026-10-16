@@ -653,7 +653,7 @@ void main() {
       expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
       expect(find.text('누르지 않으면 실행하지 않아요 · 20초 뒤 닫혀요'), findsOneWidget);
       // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.
-      expect(find.text('아침에 자주 하셔서 여쭤봐요 · 3번 하신 기록이 있어요'), findsOneWidget);
+      expect(find.text('아침에 자주 하셔서 여쭤봐요 · 기록 3번'), findsOneWidget);
       expect(find.textContaining('최근'), findsNothing);
     });
 

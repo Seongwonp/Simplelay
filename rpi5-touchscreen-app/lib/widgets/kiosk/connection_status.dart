@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/ambient.dart';
 import '../../theme/kiosk_colors.dart';
+import '../../theme/kiosk_tokens.dart';
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 
@@ -48,6 +49,28 @@ IconData connectionIcon(ConnectionItem item) => switch (item.id) {
       _ => Icons.link,
     };
 
+/// 위쪽 아이콘 아래 짧은 이름(UI 평가 3차 10/17 — 1~2 m에서 로봇·플러그 아이콘만으로는 뜻을 몰랐다).
+/// 66px 칸 안에 한 줄로 들어가는 말만 쓴다. 평소 화면의 설정·제안 쉬기 단추도 같은 모양을 쓴다.
+class KioskTopIconLabel extends StatelessWidget {
+  const KioskTopIconLabel(this.text, {super.key, this.color = KioskColors.muted});
+
+  final String text;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Text(text,
+      maxLines: 1,
+      softWrap: false,
+      style: TextStyle(fontSize: 14, height: 1.15, color: color));
+}
+
+String _shortName(String id) => switch (id) {
+      'network' => '와이파이',
+      'press' => '작은 팔',
+      'plug' => '콘센트',
+      _ => '연결',
+    };
+
 String _name(String id) => switch (id) {
       'network' => '와이파이',
       'press' => '작은 팔 장치',
@@ -80,7 +103,7 @@ class _ConnectionIcon extends StatelessWidget {
           onTap: onTap,
           borderRadius: BorderRadius.circular(12),
           child: SizedBox(
-            width: 66,
+            width: 74, // 큰 글씨 이름('와이파이' 17px)이 옆과 붙지 않게(UI 평가 3차 10/17)
             height: 64,
             child: Stack(
               clipBehavior: Clip.none,
@@ -89,8 +112,10 @@ class _ConnectionIcon extends StatelessWidget {
                 Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   Icon(connectionIcon(item), size: 28, color: color),
                   // 66x64 칸(평소 화면 위 줄 64, 10/7) 안에 아이콘과 한 줄로 들어가야 한다 — 33px이면 두 줄로
-                  // 꺾여 아래로 넘친다(d965888 회귀).
-                  if (item.state == 'unknown')
+                  // 꺾여 아래로 넘친다(d965888 회귀). 모르면 이름 자리에 '모름'.
+                  if (item.state != 'unknown')
+                    KioskTopIconLabel(_shortName(item.id), color: color)
+                  else
                     const Text('모름',
                         maxLines: 1,
                         softWrap: false,
@@ -159,14 +184,19 @@ class KioskConnectionModal extends StatelessWidget {
     // 'SimpleLay 본체'가 처음 나오는 곳 — 무엇을 말하는지 한 번 풀어 쓴다(2026-10-15 결정).
     final mentionsHub = [item.title, item.message, ...item.fixes]
         .any((t) => t.contains('SimpleLay 본체'));
+    // 큰 글씨는 캔버스를 거의 다 쓰고 줄 간격·여백을 줄인다 — 셋째 할 일이 스크롤 아래였다(UI 평가 3차 10/17).
+    final large = KioskLayout.isLarge(context);
+    final bodyHeight = large ? 1.22 : 1.35;
     return ColoredBox(
       color: Colors.black.withValues(alpha: 0.6),
       child: Center(
         child: Container(
           // 넓혀서 스크롤 없이 다 보이게(UI 평가 10/17 — 셋째 항목이 스크롤 아래였다). 캔버스 800 안 양옆 40.
-          width: 720,
-          margin: const EdgeInsets.symmetric(vertical: 12),
-          padding: const EdgeInsets.fromLTRB(28, 20, 28, 16),
+          width: large ? 784 : 720,
+          margin: EdgeInsets.symmetric(vertical: large ? 4 : 12),
+          padding: large
+              ? const EdgeInsets.fromLTRB(20, 12, 16, 10)
+              : const EdgeInsets.fromLTRB(28, 20, 28, 16),
           decoration: BoxDecoration(
             color: KioskColors.surface,
             borderRadius: BorderRadius.circular(20),
@@ -194,7 +224,7 @@ class KioskConnectionModal extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              SizedBox(height: large ? 6 : 12),
               Flexible(
                 child: KioskScrollArea(
                   padding: const EdgeInsets.only(right: 12),
@@ -205,15 +235,15 @@ class KioskConnectionModal extends StatelessWidget {
                       if (item.message.isNotEmpty)
                         KioskText(
                           item.message,
-                          style: const TextStyle(
-                            fontSize: 22,
-                            height: 1.35,
+                          style: TextStyle(
+                            fontSize: large ? 20 : 22,
+                            height: bodyHeight,
                             color: KioskColors.muted,
                           ),
                         ),
                       for (final fix in item.fixes)
                         Padding(
-                          padding: const EdgeInsets.only(top: 6),
+                          padding: EdgeInsets.only(top: large ? 4 : 6),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
@@ -225,9 +255,9 @@ class KioskConnectionModal extends StatelessWidget {
                               Expanded(
                                 child: KioskText(
                                   fix,
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 22,
-                                    height: 1.35,
+                                    height: bodyHeight,
                                     color: Colors.white,
                                   ),
                                 ),
@@ -236,9 +266,9 @@ class KioskConnectionModal extends StatelessWidget {
                           ),
                         ),
                       if (mentionsHub)
-                        const Padding(
-                          padding: EdgeInsets.only(top: 12),
-                          child: Text(
+                        Padding(
+                          padding: EdgeInsets.only(top: large ? 6 : 12),
+                          child: const Text(
                             kHubExplain,
                             key: ValueKey('hub-explain'),
                             style: TextStyle(fontSize: 18, color: KioskColors.muted),
@@ -248,7 +278,7 @@ class KioskConnectionModal extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 14),
+              SizedBox(height: large ? 8 : 14),
               Row(
                 children: [
                   Expanded(

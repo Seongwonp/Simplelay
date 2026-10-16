@@ -170,7 +170,7 @@ class KioskHoldView extends StatelessWidget {
     // 외부 평가 2026-10-13 M5: 출처가 real일 때만 확인이라고 말한다. 모의 실행·모의 입력은 연습 값,
     // 출처를 모르면 단정하지 않는다.
     if (_mock || operationSource == 'mock') {
-      return '연습용 값이에요 — 실제로 잰 값이 아니에요';
+      return '연습이라 실제 전력은 재지 않아요';
     }
     return operationSource == 'real'
         ? '전력으로 가전 동작을 확인했어요'

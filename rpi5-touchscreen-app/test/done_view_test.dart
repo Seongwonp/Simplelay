@@ -362,9 +362,9 @@ void main() {
   group('동작 중 화면의 전력 판정 줄도 출처가 real일 때만 확인이라고 말한다 (평가 M5)', () {
     for (final (mode, source, expected) in <(String, String?, String)>[
       ('real', 'real', '전력으로 가전 동작을 확인했어요'),
-      ('real', 'mock', '연습용 값이에요 — 실제로 잰 값이 아니에요'),
+      ('real', 'mock', '연습이라 실제 전력은 재지 않아요'),
       ('real', null, '가전이 켜졌는지는 직접 봐 주세요'),
-      ('mock', 'real', '연습용 값이에요 — 실제로 잰 값이 아니에요'),
+      ('mock', 'real', '연습이라 실제 전력은 재지 않아요'),
     ]) {
       testWidgets('모션 $mode · 출처 ${source ?? '모름'} → $expected', (tester) async {
         await _pump(
