@@ -208,3 +208,15 @@ def test_env_file_time_zone_wins(tmp_path):
     assert code == 0, out
     run = lines[_index(lines, "run ")]
     assert "-e TZ=" not in run, run
+
+
+def test_old_container_is_stopped_gracefully_before_removal(tmp_path):
+    """배포가 옛 컨테이너를 `docker rm -f`로 바로 죽이면 서버가 '갑자기 꺼짐'으로 보고 허용한 자동 실행을 모두 끈다
+    (2026-10-16 보드: 리허설 전환 배포 뒤 '저녁 공기청정기 켜기'가 '허브가 갑자기 꺼져서 자동 실행을 껐어요'). 먼저
+    `docker stop`(종료 신호 → 정상 종료 표시)으로 세운 뒤 지운다."""
+    code, out, lines = _run(tmp_path, '{"ok":true,"version":"0.1.0"}')
+    assert code == 0, out
+    stop = next((i for i, line in enumerate(lines) if line.startswith("stop ") and "simplelay-backend" in line), None)
+    assert stop is not None, lines
+    assert "--time" in lines[stop] or "-t" in lines[stop].split(), lines[stop]
+    assert stop < _index(lines, "rm -f simplelay-backend")
