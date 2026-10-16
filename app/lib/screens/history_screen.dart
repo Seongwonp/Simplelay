@@ -37,7 +37,8 @@ class HistoryScreen extends ConsumerWidget {
     final installed = ref.watch(installedAppliancesProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('기록')),
+      // 탭 제목은 홈('우리 집')과 같은 굵은 큰 제목(UI 평가 10/17).
+      appBar: AppBar(title: Text('기록', style: AppText.heading)),
       body: RefreshIndicator(
         onRefresh: () => ref.refresh(historyProvider.future),
         child: historyAsync.when(
@@ -234,6 +235,8 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   if (e.route != 'thinq') return null;
   // 모의는 결과 문장("연습 · ○○에 보내지 않았어요")이 이미 다 말한다 — 접수 줄을 겹치지 않는다.
   if (e.executionMode == 'mock') return null;
+  // 이미 목표값이면 위 결과 문장이 다 말한다 — 같은 뜻을 두 줄로 쓰지 않는다(UI 평가 10/17).
+  if (e.confirmation == 'already_at_target') return 'ThinQ';
   final label = confirmationLabel(
     route: e.route,
     receipt: e.receipt,
@@ -267,9 +270,12 @@ class _HistoryRow extends StatelessWidget {
         kind != ResultKind.unconfirmed &&
         entry.route != 'thinq';
     // 연습(모의) 성공은 중립 아이콘 — 성공 체크는 실제로 한 일에만 붙인다(외부 평가 10/16 p03).
+    // 이미 목표값(보내지 않음)도 중립 — 성공 체크는 실제로 바꾼 일에만(UI 평가 10/17).
     final look = succeeded && entry.executionMode == 'mock'
         ? (icon: Icons.science_outlined, color: context.appMuted)
-        : _look(context, kind);
+        : succeeded && entry.confirmation == 'already_at_target'
+            ? (icon: Icons.info_outline, color: context.appMuted)
+            : _look(context, kind);
     final title = historyTitle(entry, applianceName: applianceName);
     final rawName = applianceName;
     // 모의 기록은 '연습' 한 줄이 말한다 — 이름의 "(모의)"를 되풀이하지 않는다(표시만).

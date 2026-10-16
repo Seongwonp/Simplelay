@@ -190,8 +190,12 @@ void main() {
     expect(find.descendant(of: hero, matching: find.text('저녁 데우기')), findsOneWidget);
     expect(find.byKey(const Key('home-routine-row-r-w')), findsOneWidget);
     // 외부 평가 10/16 3차: 아래 행도 설정이 필요한 가전이면 실행 버튼을 끄고 이유를 말한다.
-    final run = tester.widget<OutlinedButton>(find.byKey(const Key('home-routine-run-r-w')));
-    expect(run.onPressed, isNull);
+    // 꺼진 '실행하기' 대신 바로 갈 수 있는 '설정하기'(UI 평가 10/17 — 회색 버튼은 대비도 낮고 다음 행동이 없었다).
+    expect(find.byKey(const Key('home-routine-run-r-w')), findsNothing);
+    final setup = tester.widget<OutlinedButton>(find.byKey(const Key('home-routine-setup-r-w')));
+    expect(setup.onPressed, isNotNull);
+    expect(find.descendant(of: find.byKey(const Key('home-routine-setup-r-w')), matching: find.text('설정하기')),
+        findsOneWidget);
     expect(
         find.descendant(
             of: find.byKey(const Key('home-routine-row-r-w')),

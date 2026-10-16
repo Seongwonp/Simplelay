@@ -21,6 +21,7 @@ import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/routine_editor_screen.dart';
 import 'package:simplelay/screens/routines_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+import 'package:simplelay/theme/app_colors.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -438,8 +439,11 @@ void main() {
 
     expect(runButton('rt-1'), findsNothing);
     expect(findPlainText('가전 설정이 필요해요', contains: true), findsOneWidget);
-    expect(tester.widget<Text>(findPlainText('가전 설정이 필요해요', contains: true)).data,
-        contains(kWordJoiner));
+    final note = tester.widget<Text>(findPlainText('가전 설정이 필요해요', contains: true));
+    expect(note.data, contains(kWordJoiner));
+    // 설정 안내는 앰버(홈과 같은 색) — 빨강은 실패·정지 전용(UI 평가 10/17).
+    expect(note.style?.color, isNot(anyOf(AppColors.danger, AppColors.dangerLight)));
+    expect(note.style?.color, anyOf(AppColors.warning, AppColors.warningLight));
     expect(editButton('rt-1'), findsOneWidget);
   });
 

@@ -361,6 +361,40 @@ void main() {
     expect(find.textContaining('자동 실행 · 공기청정기'), findsNothing);
   });
 
+  testWidgets('탭 제목은 홈(우리 집)과 같은 굵은 큰 제목(UI 평가 10/17)', (tester) async {
+    await tester.pumpWidget(_build(_apiWithHistory(const [])));
+    await tester.pump();
+    final title = tester.widget<Text>(find.text('기록'));
+    expect(title.style?.fontWeight, FontWeight.w700);
+    expect(title.style?.fontSize, 26);
+  });
+
+  testWidgets('이미 목표값 기록은 한 번만 말하고 중립 아이콘(UI 평가 10/17 — 같은 뜻 두 줄·성공 체크)', (tester) async {
+    final api = _apiWithHistory([
+      {
+        'job_id': 'job-same',
+        'finished_at': '2026-09-09T21:51:00+09:00',
+        'purpose': "'저녁 공기청정기 켜기' 루틴을 실행할까요?",
+        'status': 'succeeded',
+        'retry_count': 0,
+        'appliance_id': 'air_purifier',
+        'route': 'thinq',
+        'execution_mode': 'real',
+        'receipt': 'not_dispatched',
+        'confirmation': 'already_at_target',
+        'dispatch': 'state_only',
+        'buttons': [],
+      },
+    ]);
+    await tester.pumpWidget(_build(api));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('이미 그 설정이라'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    expect(find.byIcon(Icons.info_outline), findsOneWidget);
+  });
+
   // ── 2026-10-13 B안: 읽는 순서·제목·다음 행동 ─────────────────────────────
 
   Future<void> pumpWith(WidgetTester tester, List<Map<String, dynamic>> entries) async {

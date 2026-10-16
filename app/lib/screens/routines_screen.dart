@@ -64,7 +64,8 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('루틴'),
+        // 탭 제목은 홈('우리 집')과 같은 굵은 큰 제목(UI 평가 10/17).
+        title: Text('루틴', style: AppText.heading),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -155,9 +156,11 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                               : null,
                           running: r.id != null && _runningId == r.id,
                           busy: _runningId != null,
-                          error: r.applianceIds.any(needsSetup.contains)
+                          error: r.id == null ? null : _errors[r.id],
+                          // 설정 안내는 오류가 아니다 — 앰버(홈과 같은 색, UI 평가 10/17).
+                          note: r.applianceIds.any(needsSetup.contains)
                               ? '가전 설정이 필요해요 — 홈의 가전을 눌러 버튼 자리를 맞춰 주세요'
-                              : (r.id == null ? null : _errors[r.id]),
+                              : null,
                         ),
                     ],
             ),
@@ -362,6 +365,7 @@ class _RoutineRow extends StatelessWidget {
     required this.running,
     required this.busy,
     required this.error,
+    this.note,
   });
 
   final Routine routine;
@@ -377,6 +381,9 @@ class _RoutineRow extends StatelessWidget {
   /// 어느 행이든 카드 요청 중(다른 행 실행도 잠근다).
   final bool busy;
   final String? error;
+
+  /// 오류가 아닌 안내(앰버) — 설정이 필요한 가전 등.
+  final String? note;
 
   @override
   Widget build(BuildContext context) {
@@ -482,6 +489,14 @@ class _RoutineRow extends StatelessWidget {
             padding: const EdgeInsets.only(left: 36),
             child: actions,
           ),
+          if (note case final message?) ...[
+            const SizedBox(height: 6),
+            Padding(
+              padding: const EdgeInsets.only(left: 36),
+              child: Text(keepWordsTogether(message),
+                  style: TextStyle(fontSize: 15, color: context.appWarning)),
+            ),
+          ],
           if (error case final message?) ...[
             const SizedBox(height: 6),
             Padding(

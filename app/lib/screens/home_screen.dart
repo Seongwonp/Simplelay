@@ -427,6 +427,9 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
                 running: _runningId == r.id,
                 busy: busy,
                 needsSetup: r.applianceIds.any(widget.needsSetupIds.contains),
+                // 설정이 필요한 가전으로 바로 간다(UI 평가 10/17).
+                onSetup: () => context.push('/appliance/detail/'
+                    '${r.applianceIds.firstWhere(widget.needsSetupIds.contains, orElse: () => r.applianceIds.first)}'),
                 onRun: () => _run(r.id!),
               ),
               if (_errorFor == r.id && _error != null) _ErrorLine(_error!),
@@ -564,7 +567,11 @@ class _RoutineQuickRow extends StatelessWidget {
     required this.busy,
     required this.onRun,
     this.needsSetup = false,
+    this.onSetup,
   });
+
+  /// 설정이 필요한 가전의 상세로 — 있으면 꺼진 '실행하기' 대신 '설정하기'를 둔다.
+  final VoidCallback? onSetup;
 
   final Routine routine;
   final String subtitle;
@@ -595,7 +602,23 @@ class _RoutineQuickRow extends StatelessWidget {
         ],
       ),
     );
-    final button = _runButton(
+    final setup = onSetup;
+    final button = needsSetup && setup != null
+        ? Semantics(
+            label: '${routine.name} 가전 설정하기',
+            container: true,
+            button: true,
+            excludeSemantics: true,
+            child: OutlinedButton(
+              key: Key('home-routine-setup-${routine.id}'),
+              onPressed: setup,
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(120, 48),
+                  foregroundColor: context.appWarning),
+              child: const Text('설정하기'),
+            ),
+          )
+        : _runButton(
       key: Key('home-routine-run-${routine.id}'),
       routine: routine,
       running: running,

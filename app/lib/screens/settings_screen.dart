@@ -55,7 +55,8 @@ class SettingsScreen extends ConsumerWidget {
     final thinq = thinqAsync.valueOrNull;
     final thinqApi = ref.watch(rpiApiServiceProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('설정')),
+      // 탭 제목은 홈('우리 집')과 같은 굵은 큰 제목(UI 평가 10/17).
+      appBar: AppBar(title: Text('설정', style: AppText.heading)),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
