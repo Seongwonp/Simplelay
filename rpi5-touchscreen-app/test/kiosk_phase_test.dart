@@ -185,6 +185,12 @@ class FakeKioskApi implements KioskApiService {
   KioskAirReading? air;
   int airCalls = 0;
 
+  /// GET /routines/next(2026-10-16). 기본은 없음.
+  KioskNextRun? nextRun;
+
+  @override
+  Future<KioskNextRun?> nextRoutine() async => nextRun;
+
   @override
   Future<KioskAirReading?> thinqAir() async {
     airCalls++;

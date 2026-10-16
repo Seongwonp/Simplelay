@@ -137,6 +137,44 @@ class ConnectionItem {
   );
 }
 
+/// `GET /routines/next` 첫 항목 — 평소 화면 '다음 루틴' 한 줄(외부 평가 10/16 2차 k01).
+/// 서버가 정한 말(오늘·내일·요일, 실행 방식)을 그대로 쓴다. 시각은 서버 시각 문자열의 HH:MM이다.
+class KioskNextRun {
+  const KioskNextRun({
+    required this.name,
+    required this.dayLabel,
+    required this.hhmm,
+    required this.modeLabel,
+  });
+
+  final String name;
+  final String dayLabel;
+  final String hhmm;
+  final String modeLabel;
+
+  /// 이름이나 시각을 모르면 null(줄을 두지 않는다).
+  static KioskNextRun? fromJson(Map<String, dynamic> json) {
+    final name = json['name'];
+    final at = json['at'];
+    if (name is! String || name.isEmpty || at is! String || at.length < 16) return null;
+    final hhmm = at.substring(11, 16);
+    if (!RegExp(r'^\d\d:\d\d$').hasMatch(hhmm)) return null;
+    final day = json['day_label'];
+    final mode = json['mode_label'];
+    return KioskNextRun(
+      name: name,
+      dayLabel: day is String ? day : '',
+      hhmm: hhmm,
+      modeLabel: mode is String ? mode : '',
+    );
+  }
+
+  String get line => [
+        '다음 루틴 · ${[if (dayLabel.isNotEmpty) dayLabel, hhmm].join(' ')} $name',
+        if (modeLabel.isNotEmpty) modeLabel,
+      ].join(' · ');
+}
+
 /// `GET /routines` 한 항목 — 키오스크는 이름과 대상 가전, 누를 버튼 수만 쓴다.
 /// 만들기·고치기는 휴대폰 앱에서 한다(UI 확정 §3-4).
 class KioskRoutine {

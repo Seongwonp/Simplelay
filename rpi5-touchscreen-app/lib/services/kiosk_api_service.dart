@@ -764,6 +764,21 @@ class KioskApiService {
     }
   }
 
+  /// GET /routines/next — 가장 가까운 시각 루틴 하나(평소 화면 '다음 루틴'). 없거나 실패·옛 서버면 null.
+  Future<KioskNextRun?> nextRoutine() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/routines/next', queryParameters: {'limit': '1'}))
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is! List || body.isEmpty || body.first is! Map<String, dynamic>) return null;
+      return KioskNextRun.fromJson(body.first as Map<String, dynamic>);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// GET /thinq/air — 서버가 최근 조회로 아는 공기청정기 센서 공기질(2026-10-16, 평소 화면 '실내 공기' 한 줄).
   /// 서버는 기억만 돌려준다(ThinQ 클라우드를 새로 부르지 않는다). 등급을 모르거나 오래됐거나 실패·옛 서버면 null.
   Future<KioskAirReading?> thinqAir() async {

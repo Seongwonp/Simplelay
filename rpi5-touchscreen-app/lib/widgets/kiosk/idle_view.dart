@@ -37,6 +37,7 @@ class KioskIdleView extends StatelessWidget {
     this.temperature,
     this.humidity,
     this.air,
+    this.nextRun,
     required this.onSelectAppliance,
     required this.onOpenConnection,
     required this.onDndGesture,
@@ -69,6 +70,9 @@ class KioskIdleView extends StatelessWidget {
 
   /// 공기청정기 센서 공기질(GET /thinq/air, 2026-10-16 — 서버 기억, 클라우드 호출 없음). null이면(모름·오래됨·없음) 줄을 두지 않는다.
   final KioskAirReading? air;
+
+  /// 다음 시각 루틴(GET /routines/next, 외부 평가 10/16 2차 k01). null이면 줄을 두지 않는다.
+  final KioskNextRun? nextRun;
   final ValueChanged<ApplianceMap> onSelectAppliance;
   final ValueChanged<ConnectionItem> onOpenConnection;
 
@@ -214,6 +218,26 @@ class KioskIdleView extends StatelessWidget {
                     SizedBox(height: tip != null ? _Idle.hoursGapTip : _Idle.hoursGap),
                     _Hours(key: const ValueKey('ambient-hours'),
                         hours: hourly, compact: tip != null),
+                  ],
+                  // 다음 루틴 — 예보 아래 빈 자리(외부 평가 10/16 2차 k01). 모르면 없다.
+                  if (nextRun != null) ...[
+                    const SizedBox(height: 18),
+                    Row(
+                      key: const ValueKey('idle-next-run'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Padding(
+                          padding: EdgeInsets.only(top: 2),
+                          child: Icon(Icons.schedule, size: 22, color: KioskColors.muted),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(nextRun!.line,
+                              style: const TextStyle(
+                                  fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
+                        ),
+                      ],
+                    ),
                   ],
                 ],
               ));
@@ -422,14 +446,18 @@ class _AirLine extends StatelessWidget {
                   style: TextStyle(fontSize: size, height: 1.2, fontWeight: FontWeight.w600),
                 ),
                 if (details.isNotEmpty)
-                  // 항목('초미세먼지 8'·'공기청정기 켜짐') 안에서는 줄을 바꾸지 않는다 — 좁으면 항목 사이에서 바뀐다.
-                  Text.rich(
-                    TextSpan(
-                      text: keepWords(details.map((d) => d.replaceAll(' ', '\u00A0')).join(' · ')),
-                      semanticsLabel: details.join(' · '),
-                    ),
+                  // 항목마다 따로 놓는다 — 좁으면 항목 사이에서 줄이 바뀌고, '·'가 줄 끝에 매달리지 않는다
+                  // (외부 평가 10/16 2차 k01). 항목 안에서는 줄을 바꾸지 않는다.
+                  Wrap(
                     key: const ValueKey('idle-air-detail'),
-                    style: const TextStyle(fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted),
+                    spacing: 22,
+                    children: [
+                      for (final d in details)
+                        Text(d,
+                            softWrap: false,
+                            style: const TextStyle(
+                                fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
+                    ],
                   ),
               ],
             ),

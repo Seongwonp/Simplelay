@@ -85,6 +85,21 @@ void main() {
   // ── 순수 함수 ─────────────────────────────────────────────────────────────
 
   group('공기질 읽기', () {
+    // 외부 평가 10/16 2차 k01: 종합 '보통'과 '초미세먼지 8'(국내 기준 좋음)이 함께 보여 모순처럼 읽혔다.
+    test('초미세먼지 등급이 오면 값 옆에 그 등급 말을 붙인다(종합 등급과 따로)', () {
+      final r = KioskAirReading.fromJson({
+        'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
+        'pm25': 8, 'pm25_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
+      })!;
+      expect(r.details, ['초미세먼지 8 좋음', '공기청정기 켜짐']);
+      expect(r.headline, '실내 공기 보통');
+      // 모르는 등급 값은 붙이지 않는다.
+      final odd = KioskAirReading.fromJson({
+        'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'pm25': 8, 'pm25_level': 'WEIRD', 'age_s': 3.0,
+      })!;
+      expect(odd.details, ['초미세먼지 8']);
+    });
+
     test('서버 항목 → 한 줄(등급·초미세먼지·전원)', () {
       final r = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'GOOD', 'pm25': 8, 'pm10': 10, 'power': 'on', 'age_s': 30.0})!;
@@ -267,7 +282,11 @@ void main() {
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(air.top, greaterThanOrEqualTo(clock.bottom), reason: '$size');
       expect(air.bottom, lessThanOrEqualTo(strip.top), reason: '$size');
-      expect(find.text('초미세먼지 8 · 공기청정기 켜짐'), findsOneWidget);
+      // 항목마다 따로 — 줄이 바뀌어도 '·'가 줄 끝에 매달리지 않는다(외부 평가 10/16 2차 k01).
+      expect(find.text('초미세먼지 8'), findsOneWidget);
+      expect(find.text('공기청정기 켜짐'), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const ValueKey('idle-air')), matching: find.textContaining('·')),
+          findsNothing);
     }
   });
 

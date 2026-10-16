@@ -23,6 +23,7 @@ class KioskAirReading {
     required this.applianceId,
     required this.grade,
     this.pm25,
+    this.pm25Level,
     this.pm10,
     this.power,
     this.ageSeconds = 0,
@@ -34,6 +35,9 @@ class KioskAirReading {
   /// 가전이 매긴 등급(GOOD·NORMAL·BAD·VERY_BAD).
   final String grade;
   final num? pm25;
+
+  /// 가전이 매긴 초미세먼지 등급(GOOD·NORMAL·BAD·VERY_BAD) — 종합 등급([grade])과 다를 수 있다.
+  final String? pm25Level;
   final num? pm10;
 
   /// on · off · null(모름).
@@ -59,6 +63,7 @@ class KioskAirReading {
       applianceId: id,
       grade: grade,
       pm25: n(json['pm25']),
+      pm25Level: kAirGradeWords.containsKey(json['pm25_level']) ? json['pm25_level'] as String : null,
       pm10: n(json['pm10']),
       power: power == 'on' || power == 'off' ? power as String : null,
       ageSeconds: ageSeconds,
@@ -71,9 +76,11 @@ class KioskAirReading {
   /// 앞 글 — '실내 공기 좋음'.
   String get headline => '실내 공기 $gradeWord';
 
-  /// 뒤 글 — '초미세먼지 8 · 공기청정기 켜짐'. 아는 것만.
+  /// 뒤 글 — '초미세먼지 8 좋음 · 공기청정기 켜짐'. 아는 것만. 초미세먼지 등급을 붙여 종합 등급과 헷갈리지 않게 한다
+  /// (외부 평가 10/16 2차 — 종합 '보통'과 초미세먼지 8이 모순처럼 읽혔다).
   List<String> get details => [
-        if (pm25 != null) '초미세먼지 ${_num(pm25!)}',
+        if (pm25 != null)
+          '초미세먼지 ${_num(pm25!)}${pm25Level != null ? ' ${kAirGradeWords[pm25Level]}' : ''}',
         if (power == 'on') '공기청정기 켜짐',
         if (power == 'off') '공기청정기 꺼짐',
         if (mock) '연습 값',

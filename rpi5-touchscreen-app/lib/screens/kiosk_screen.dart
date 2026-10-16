@@ -216,6 +216,7 @@ class _KioskScreenState extends State<KioskScreen> {
   Set<String> _onIds = const {};
   // 공기청정기 센서 공기질 — GET /thinq/air(서버 기억, 클라우드 호출 없음, 2026-10-16). 모름·오래됨·실패는 null(줄 없음).
   KioskAirReading? _air;
+  KioskNextRun? _nextRun;
 
   // ── 동작 중: 정지 버튼 대기·보관(2026-09-30) ─────────────────────────
   KioskStatus? _hold;
@@ -460,8 +461,12 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_phase != KioskPhase.idle) return;
     final air = await _api.thinqAir();
     if (!mounted) return;
-    if (air == null && _air == null) return;
-    setState(() => _air = air);
+    final next = await _api.nextRoutine();
+    if (!mounted) return;
+    setState(() {
+      _air = air;
+      _nextRun = next;
+    });
   }
 
   /// ThinQ 가전 상세에서 확인을 거쳐 접수된 조작 — 다른 실행처럼 실행 화면이 job_id로 따라간다.
@@ -1557,6 +1562,7 @@ class _KioskScreenState extends State<KioskScreen> {
           attention: _attentionIds,
           on: _onIds,
           air: _air,
+          nextRun: _nextRun,
           dndUntil: _health.dndUntil,
           quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
           temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
