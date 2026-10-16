@@ -123,16 +123,21 @@ class KioskSuggestionView extends StatelessWidget {
         // 근거는 실제로 셀 수 있을 때만 말한다 -- 어느
         // 시간대였는지까지 밝힌다. 판단의 주인공은 질문과 버튼이라 근거는
         // 두 줄까지만(2026-10-14 UI 정리). 넘치면 '근거 전체 보기'로 펼친다. 낭독에는 전문이 간다.
+        // 시나리오 카드는 근거를 오른쪽 칸('할 일' 아래)에 둔다 — 왼쪽은 질문·단서로 차서 근거 둘째 줄이
+        // 칸 아래에서 잘렸다(2026-10-16 결함 ③, 15.8형 실패널).
         if (!large &&
+            !scenario &&
             suggestion.whyNow.isNotEmpty &&
             !suggestion.userStarted) ...[
           const SizedBox(height: 10),
-          _WhyText(
-            scenario ? '근거: ${suggestion.whyNow}' : suggestion.whyNow,
-          ),
+          _WhyText(suggestion.whyNow),
         ],
       ],
     );
+    final scenarioWhy = scenario &&
+        !large &&
+        suggestion.whyNow.isNotEmpty &&
+        !suggestion.userStarted;
     // 오른쪽 칸 제목 — 버튼 누름만이면 '누를 버튼', ThinQ가 섞이면 '할 일'(폰과 같은 말, 2026-10-14).
     final stepsHeading = scenario
         ? (suggestion.commands.every((c) => c.route == 'physical')
@@ -237,21 +242,26 @@ class KioskSuggestionView extends StatelessWidget {
                         const SizedBox(width: 28),
                         Expanded(
                           flex: 5,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                stepsHeading,
-                                style: const TextStyle(
-                                    fontSize: KioskType.caption,
-                                    color: KioskColors.muted),
-                              ),
-                              const SizedBox(height: 8),
-                              Expanded(
-                                child:
-                                    _CommandList(commands: suggestion.commands),
-                              ),
-                            ],
+                          // 할 일과 근거를 한 스크롤 칸에 — 넘치면 스크롤 막대가 보인다.
+                          child: KioskScrollArea(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  stepsHeading,
+                                  style: const TextStyle(
+                                      fontSize: KioskType.caption,
+                                      color: KioskColors.muted),
+                                ),
+                                const SizedBox(height: 8),
+                                _CommandList(
+                                    commands: suggestion.commands, inline: true),
+                                if (scenarioWhy) ...[
+                                  const SizedBox(height: 16),
+                                  _WhyText('근거: ${suggestion.whyNow}'),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                       ]

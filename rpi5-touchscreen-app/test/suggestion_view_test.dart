@@ -18,8 +18,10 @@ const _approve = ValueKey('suggestion-approve');
 const _later = ValueKey('suggestion-later');
 
 Future<void> _pump(WidgetTester tester,
-    {ApplianceMap? target, KioskSuggestion suggestion = _sug}) async {
-  tester.view.physicalSize = const Size(800, 480);
+    {ApplianceMap? target,
+    KioskSuggestion suggestion = _sug,
+    Size size = const Size(800, 480)}) async {
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(
@@ -194,6 +196,22 @@ void main() {
       expect(caveat.data, '조리 완료가 아닐 수 있어요');
       expect(caveat.maxLines, isNull);
     });
+
+    // 2026-10-16 결함 ③(15.8형 실패널): 왼쪽 칸이 질문·단서로 차서 근거 둘째 줄이 칸 아래에서 잘렸다.
+    // 시나리오 카드의 근거는 비어 있는 오른쪽 칸('할 일' 아래)에 둔다.
+    for (final size in const [Size(1920, 1080), Size(800, 480)]) {
+      testWidgets('시나리오 근거는 오른쪽 칸에 잘리지 않고 보인다(${size.width.toInt()}×${size.height.toInt()})',
+          (tester) async {
+        await _pump(tester, suggestion: longCard, size: size);
+        final why = find.textContaining('근거:');
+        expect(why, findsOneWidget);
+        final rect = tester.getRect(why);
+        expect(rect.left, greaterThan(size.width / 2), reason: '오른쪽 칸');
+        final buttonsTop = tester.getRect(find.byType(ElevatedButton)).top;
+        expect(rect.bottom, lessThanOrEqualTo(buttonsTop), reason: '버튼 위에서 다 보인다');
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('낭독은 잘리지 않은 전체 근거', (tester) async {
       final handle = tester.ensureSemantics();
