@@ -145,7 +145,11 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                           : '아직 만든 루틴이 없어요. 가전 상세에서 "루틴 녹화"로 만들거나 예시 루틴에서 골라 보세요.'),
                     ]
                   : [
-                      for (final r in routines)
+                      // 설정이 필요한 가전의 루틴은 아래로 — 홈과 같은 순서(UI 평가 10/17).
+                      for (final r in [
+                        ...routines.where((r) => !r.applianceIds.any(needsSetup.contains)),
+                        ...routines.where((r) => r.applianceIds.any(needsSetup.contains)),
+                      ])
                         _RoutineRow(
                           routine: r,
                           applianceNames: names,
@@ -157,6 +161,10 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                           running: r.id != null && _runningId == r.id,
                           busy: _runningId != null,
                           error: r.id == null ? null : _errors[r.id],
+                          onSetup: r.applianceIds.any(needsSetup.contains)
+                              ? () => context.push('/appliance/detail/'
+                                  '${r.applianceIds.firstWhere(needsSetup.contains)}')
+                              : null,
                           // 설정 안내는 오류가 아니다 — 앰버(홈과 같은 색, UI 평가 10/17).
                           note: r.applianceIds.any(needsSetup.contains)
                               ? '가전 설정이 필요해요 — 홈의 가전을 눌러 버튼 자리를 맞춰 주세요'
@@ -366,7 +374,11 @@ class _RoutineRow extends StatelessWidget {
     required this.busy,
     required this.error,
     this.note,
+    this.onSetup,
   });
+
+  /// 설정이 필요한 가전의 상세로 — 있으면 '설정하기' 단추(홈과 같다).
+  final VoidCallback? onSetup;
 
   final Routine routine;
   final Map<String, String> applianceNames;
@@ -456,6 +468,20 @@ class _RoutineRow extends StatelessWidget {
             child: const Text('편집'),
           ),
         ),
+        if (onSetup case final setup?)
+          Semantics(
+            label: '${r.name} 가전 설정하기',
+            container: true,
+            button: true,
+            excludeSemantics: true,
+            child: OutlinedButton(
+              key: Key('routine-setup-$key'),
+              onPressed: setup,
+              style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(112, 48), foregroundColor: context.appWarning),
+              child: const Text('설정하기'),
+            ),
+          ),
         if (run != null)
           Semantics(
             label: '${r.name} 실행하기',

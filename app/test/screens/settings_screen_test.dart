@@ -9,6 +9,7 @@ import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/demo_provider.dart';
 import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/providers/wellness_pause_provider.dart';
+import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 
 import '../helpers/test_helpers.dart';
@@ -121,6 +122,32 @@ void main() {
       expect(find.text('음성으로 멈추기'), findsNothing);
       expect(find.text('가전 추가'), findsNothing);
       expect(find.widgetWithText(ListTile, '전자레인지'), findsWidgets);
+    });
+
+    // UI 평가 10/17: 홈은 5대인데 설정 '내 가전'은 ThinQ 가전을 빼 4대였고, 지우기가 없는 줄은 이유도 화살표도 없었다.
+    testWidgets('내 가전: ThinQ 가전도 보이고, 지울 수 없는 줄은 이유와 화살표', (tester) async {
+      _useTallViewport(tester);
+      final purifier = ApplianceMap.fromJson({
+        'id': 'air_purifier',
+        'name': '공기청정기',
+        'rows': 1,
+        'cols': 1,
+        'buttons': const [],
+        'control_path': 'thinq',
+      });
+      await tester.pumpWidget(buildScreen(
+        const SettingsScreen(),
+        overrides: [
+          ..._scanOverrides(),
+          ...installedOverrides([kTestAppliance, purifier]),
+        ],
+      ));
+      await tester.pump();
+      expect(find.widgetWithText(ListTile, '공기청정기'), findsOneWidget);
+      expect(find.text('ThinQ 가전 · 빼기는 LG ThinQ 연결에서'), findsOneWidget);
+      expect(find.text('기본 가전'), findsOneWidget);
+      expect(find.descendant(of: find.widgetWithText(ListTile, '공기청정기'), matching: find.byIcon(Icons.chevron_right)),
+          findsOneWidget);
     });
 
     testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {

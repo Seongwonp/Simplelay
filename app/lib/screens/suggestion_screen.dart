@@ -530,7 +530,8 @@ class _ActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final skip = OutlinedButton(
       onPressed: onSkip,
-      child: const Text('다음에'),
+      // 키오스크와 같은 말(UI 평가 10/17) — '이번만 넘긴다'는 뜻이 버튼에 드러난다.
+      child: const Text('이번엔 안 할게요'),
     );
     final run = FilledButton.icon(
       onPressed: onRun,
@@ -541,7 +542,6 @@ class _ActionBar extends StatelessWidget {
     );
     // 큰 글씨에서는 두 버튼을 나란히 두면 '다음에'가 단어 중간에서
     // 줄바꿈된다. 세로로 쌓고 주 행동을 위에 둔다. 안내 줄은 뺀다(위 머리가 같은 말을 한다).
-    final stacked = _largeText(context);
 
     return Material(
       key: const Key('suggestion-action-bar'),
@@ -577,8 +577,8 @@ class _ActionBar extends StatelessWidget {
                     ],
                   ),
                 )
-              else if (!stacked)
-                // 큰 글씨에서는 빼도 된다 — 위 머리(대상·버튼 수)가 같은 말을 한다.
+              else
+                // 실행 직전에 대상과 버튼 수를 한 번 더 말한다.
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
@@ -586,20 +586,10 @@ class _ActionBar extends StatelessWidget {
                     style: TextStyle(fontSize: 14, color: context.appMuted),
                   ),
                 ),
-              if (stacked) ...[
-                run,
-                const SizedBox(height: 8),
-                skip,
-              ] else
-                Row(
-                  children: [
-                    // 폭 비율은 키오스크와 같게(3:4) -- 1:2로 두면 '이번만
-                    // 넘기기'가 기본 글씨에서도 단어 중간에서 줄바꿈된다.
-                    Expanded(flex: 3, child: skip),
-                    const SizedBox(width: 12),
-                    Expanded(flex: 4, child: run),
-                  ],
-                ),
+              // 늘 세로로, 주 행동이 위 — 나란히 두면 좁은 폰에서 '이번엔 안 할게 / 요'로 끊겼다(UI 평가 10/17).
+              run,
+              const SizedBox(height: 8),
+              skip,
             ],
           ),
         ),
@@ -608,8 +598,6 @@ class _ActionBar extends StatelessWidget {
   }
 }
 
-/// 큰 글씨(1.5배 이상)인가 — 아래 고정 영역을 줄이는 기준(2026-10-14, 보드 날 발견 4).
-bool _largeText(BuildContext context) => MediaQuery.textScalerOf(context).scale(1) >= 1.5;
 
 /// '더 보기' 안의 관리 선택지 하나.
 typedef _MoreAction = ({String label, IconData icon, VoidCallback onTap});
@@ -1008,7 +996,8 @@ class _ScenarioActionBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final skip = OutlinedButton(
       onPressed: onSkip,
-      child: Text(hasAllow ? '안 할래요' : '다음에'),
+      // 키오스크와 같은 말(UI 평가 10/17).
+      child: const Text('이번엔 안 할게요'),
     );
     final run = FilledButton.icon(
       onPressed: onRun,
@@ -1017,8 +1006,6 @@ class _ScenarioActionBar extends StatelessWidget {
     );
     // 세 갈래는 늘 세로로 — 위계: 이번만 실행(채움) > 다음부터도 자동으로(외곽선·아이콘) > 안 할래요(외곽선).
     // 자동 허용은 채움·톤으로 두지 않는다 — 실행과 같은 무게면 떠미는 버튼으로 읽힌다(외부 평가 10/16 p05).
-    final large = _largeText(context);
-    final stacked = hasAllow || large;
     final why = blockedWhy;
     return Material(
       key: const Key('suggestion-action-bar'),
@@ -1052,27 +1039,19 @@ class _ScenarioActionBar extends StatelessWidget {
                     ],
                   ),
                 ),
-              if (stacked) ...[
-                run,
-                if (hasAllow) ...[
-                  const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    key: const Key('suggestion-allow-auto'),
-                    onPressed: onAllow,
-                    icon: const Icon(Icons.autorenew_rounded),
-                    label: const Text('다음부터도 자동으로'),
-                  ),
-                ],
+              // 늘 세로로(위와 같은 이유, UI 평가 10/17).
+              run,
+              if (hasAllow) ...[
                 const SizedBox(height: 8),
-                skip,
-              ] else
-                Row(
-                  children: [
-                    Expanded(flex: 3, child: skip),
-                    const SizedBox(width: 12),
-                    Expanded(flex: 4, child: run),
-                  ],
+                OutlinedButton.icon(
+                  key: const Key('suggestion-allow-auto'),
+                  onPressed: onAllow,
+                  icon: const Icon(Icons.autorenew_rounded),
+                  label: const Text('다음부터도 자동으로'),
                 ),
+              ],
+              const SizedBox(height: 8),
+              skip,
             ],
           ),
         ),

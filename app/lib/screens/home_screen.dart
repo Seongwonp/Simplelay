@@ -238,7 +238,7 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  /// '다음에' — 이번만 넘긴다(다시 받지 않기가 아니다). 실패하면 카드를 그대로
+  /// '이번엔 안 할게요'(10/17까지 '다음에') — 이번만 넘긴다(다시 받지 않기가 아니다). 실패하면 카드를 그대로
   /// 두고 말한다 -- 조용히 지우면 서버에는 카드가 살아 있다.
   static Future<void> _later(
     BuildContext context,
@@ -813,7 +813,7 @@ class _SuggestionCard extends StatelessWidget {
                 child: OutlinedButton(
                   onPressed: onLater,
                   style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
-                  child: const Text('다음에'),
+                  child: const Text('이번엔 안 할게요'),
                 ),
               ),
             ],

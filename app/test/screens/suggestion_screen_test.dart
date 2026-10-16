@@ -96,7 +96,11 @@ void main() {
       expect(barButtons(), findsNWidgets(2));
       final bar = find.byKey(const Key('suggestion-action-bar'));
       expect(find.descendant(of: bar, matching: find.text('지금 실행')), findsOneWidget);
-      expect(find.descendant(of: bar, matching: find.text('다음에')), findsOneWidget);
+      expect(find.descendant(of: bar, matching: find.text('이번엔 안 할게요')), findsOneWidget);
+      // 두 단추는 위아래로 — 나란히 두면 좁은 폰에서 '이번엔 안 할게 / 요'로 끊겼다(UI 평가 10/17).
+      final run = tester.getRect(find.descendant(of: bar, matching: find.text('지금 실행')));
+      final skip = tester.getRect(find.descendant(of: bar, matching: find.text('이번엔 안 할게요')));
+      expect(skip.top, greaterThan(run.bottom));
       // 쉬기·동작 바꾸기·다시 받지 않기는 처음 화면에 없다.
       for (final text in ['이 제안 30분 쉬기', '이번 동작 바꾸기', '이 제안 다시 받지 않기']) {
         expect(find.text(text), findsNothing, reason: text);
@@ -316,7 +320,7 @@ void main() {
       router.push('/suggestion/test-001');
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('다음에'));
+      await tester.tap(find.text('이번엔 안 할게요'));
       await tester.pumpAndSettle();
 
       // pop 후 홈으로 돌아감
@@ -463,7 +467,7 @@ void main() {
       expect(run.onPressed, isNull);
       expect(find.textContaining('노드가 응답하지 않아요'), findsOneWidget);
       // 넘기는 길은 그대로 열려 있다.
-      expect(find.text('다음에'), findsOneWidget);
+      expect(find.text('이번엔 안 할게요'), findsOneWidget);
     });
 
     testWidgets('실행 직전에 대상과 단계 수를 한 번 더 말한다', (tester) async {
@@ -486,7 +490,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('다음에'), findsOneWidget);
+      expect(find.text('이번엔 안 할게요'), findsOneWidget);
       expect(find.text('이 제안 다시 받지 않기'), findsNothing);
     });
 

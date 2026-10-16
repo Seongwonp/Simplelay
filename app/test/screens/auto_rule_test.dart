@@ -202,7 +202,7 @@ void main() {
 
       expect(find.text('이번만 실행'), findsOneWidget);
       expect(find.text('다음부터도 자동으로'), findsOneWidget);
-      expect(find.text('안 할래요'), findsOneWidget);
+      expect(find.text('이번엔 안 할게요'), findsOneWidget);
       expect(find.text('지금 실행'), findsNothing);
       // 자동 허용은 보조 버튼(외곽선)이다 — 이번만 실행(채움)과 같은 무게로 떠밀지 않는다(외부 평가 10/16 p05).
       expect(
@@ -222,7 +222,7 @@ void main() {
       final barButtons = find.descendant(
           of: bar, matching: find.byWidgetPredicate((w) => w is ButtonStyleButton));
       expect(barButtons, findsNWidgets(3));
-      for (final text in ['이번만 실행', '다음부터도 자동으로', '안 할래요']) {
+      for (final text in ['이번만 실행', '다음부터도 자동으로', '이번엔 안 할게요']) {
         expect(find.descendant(of: bar, matching: find.text(text)), findsOneWidget, reason: text);
       }
       expect(find.text('이번 동작 바꾸기'), findsNothing);

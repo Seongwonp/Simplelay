@@ -375,7 +375,7 @@ void main() {
     expect(row.hitTestable(), findsOneWidget);
     // 실행·다음에는 고정 영역에 남아 언제든 닿는다.
     expect(find.descendant(of: bar, matching: find.text('지금 실행')).hitTestable(), findsOneWidget);
-    expect(find.descendant(of: bar, matching: find.text('다음에')).hitTestable(), findsOneWidget);
+    expect(find.descendant(of: bar, matching: find.text('이번엔 안 할게요')).hitTestable(), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('지금 실행')), findsWidgets);
     // 보조 행동은 고정 영역에도 본문에도 없고 '더 보기'(위 앱바)에서 닿는다(2026-10-14 UI 정리).
     for (final text in ['이 제안 30분 쉬기', '이 제안 다시 받지 않기']) {

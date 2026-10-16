@@ -57,6 +57,8 @@ class AppTheme {
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
+        // 하위 화면 제목도 굵게 — 가는 글씨라 위계가 약했다(UI 평가 10/17). 탭 제목은 26(AppText.heading).
+        titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: ink),
       ),
 
       // 라이트는 **그림자**로, 다크는 **테두리**로 카드를 나눈다.

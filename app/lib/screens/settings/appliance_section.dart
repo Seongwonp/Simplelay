@@ -1,5 +1,8 @@
 part of '../settings_screen.dart';
 
+/// 키오스크에 못 보낸 가전 변경을 다시 보내는 단추 — 쉬운 말('동기화' 대신, UI 평가 10/17).
+const kResyncLabel = '키오스크에 다시 보내기';
+
 // ── 가전 선택 ─────────────────────────────────────────────────────────────
 
 class _ApplianceSection extends ConsumerWidget {
@@ -10,19 +13,29 @@ class _ApplianceSection extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (appliances.where((a) => !a.isThinq).isEmpty)
+        if (appliances.isEmpty)
           const Text('홈에서 가전을 추가해 주세요.'),
-        for (final appliance in appliances.where((a) => !a.isThinq))
+        // 홈과 같은 목록 — ThinQ 가전도 보인다(UI 평가 10/17: 홈 5대·설정 4대였다). 지울 수 없는 줄은 이유를
+        // 부제로, 눌러서 들어간다는 것은 화살표로 말한다.
+        for (final appliance in appliances)
           ListTile(
             leading: Icon(appliance.icon),
             title: Text(appliance.displayName),
+            subtitle: appliance.isCustom && !appliance.isThinq
+                ? null
+                : Text(
+                    appliance.isThinq ? 'ThinQ 가전 · 빼기는 LG ThinQ 연결에서' : '기본 가전',
+                    style: TextStyle(fontSize: 13, color: context.appMuted),
+                  ),
             onTap: () => context.push('/appliance/detail/${appliance.id}'),
-            trailing: appliance.isCustom ? IconButton(
-              constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-              tooltip: '${appliance.name} 지우기',
-              icon: const Icon(Icons.delete_outline),
-              onPressed: () => _confirmRemoveAppliance(context, ref, appliance),
-            ) : null,
+            trailing: appliance.isCustom && !appliance.isThinq
+                ? IconButton(
+                    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                    tooltip: '${appliance.name} 지우기',
+                    icon: const Icon(Icons.delete_outline),
+                    onPressed: () => _confirmRemoveAppliance(context, ref, appliance),
+                  )
+                : Icon(Icons.chevron_right, color: context.appMuted),
           ),
         // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
         // 평상시에는 아무것도 띄우지 않는다 -- 늘 떠 있는 상태 표시는
@@ -38,7 +51,7 @@ class _ApplianceSection extends ConsumerWidget {
             ),
             icon: Icon(Icons.sync, size: 18, color: context.appMuted),
             label: Text(
-              '키오스크와 다시 동기화',
+              kResyncLabel,
               style: TextStyle(fontSize: 13, color: context.appMuted),
             ),
           ),

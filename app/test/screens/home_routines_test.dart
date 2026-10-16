@@ -267,7 +267,7 @@ void main() {
       Suggestion(sequenceId: 's1', label: '즉석밥 데우기', steps: ['BT-08']),
     ]));
     await _settle(tester);
-    expect(find.text('다음에'), findsOneWidget, reason: '제안 카드가 큰 자리에 있다');
+    expect(find.text('이번엔 안 할게요'), findsOneWidget, reason: '제안 카드가 큰 자리에 있다');
     expect(find.byKey(const Key('home-routine-hero')), findsNothing);
     expect(find.byKey(const Key('home-routine-row-r-b')), findsOneWidget);
   });

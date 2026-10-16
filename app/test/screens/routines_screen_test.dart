@@ -438,6 +438,10 @@ void main() {
     await _settle(tester);
 
     expect(runButton('rt-1'), findsNothing);
+    // 홈과 같은 '설정하기' 바로가기(UI 평가 10/17).
+    expect(find.byKey(const Key('routine-setup-rt-1')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('routine-setup-rt-1')), matching: find.text('설정하기')),
+        findsOneWidget);
     expect(findPlainText('가전 설정이 필요해요', contains: true), findsOneWidget);
     final note = tester.widget<Text>(findPlainText('가전 설정이 필요해요', contains: true));
     expect(note.data, contains(kWordJoiner));

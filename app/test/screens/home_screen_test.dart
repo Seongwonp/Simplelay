@@ -296,7 +296,7 @@ void main() {
       await tester.pump();
       expect(find.text('즉석밥 데우기'), findsOneWidget);
       expect(find.text('실행하기'), findsOneWidget);
-      expect(find.text('다음에'), findsOneWidget);
+      expect(find.text('이번엔 안 할게요'), findsOneWidget);
       expect(find.text('지금 확인할 제안이 없어요.'), findsNothing);
     });
 

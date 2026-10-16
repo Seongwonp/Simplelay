@@ -15,6 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/appliance_sync_provider.dart';
 import 'package:simplelay/widgets/sync_status_line.dart';
+import 'package:simplelay/screens/settings_screen.dart' show kResyncLabel;
 
 /// 대기열을 기기에 심어 둔 채 화면만 띄운다 — 네트워크를 타지 않는다.
 ///
@@ -73,6 +74,11 @@ Future<void> _pump(WidgetTester tester, ProviderContainer container) async {
 }
 
 void main() {
+  test('다시 보내기 단추는 쉬운 말 — "동기화"를 쓰지 않는다(UI 평가 10/17)', () {
+    expect(kResyncLabel, '키오스크에 다시 보내기');
+    expect(kResyncLabel, isNot(contains('동기화')));
+  });
+
   testWidgets('평상시에는 아무것도 띄우지 않는다', (tester) async {
     final container = await _phoneWithQueue(tester, const []);
     await _pump(tester, container);
