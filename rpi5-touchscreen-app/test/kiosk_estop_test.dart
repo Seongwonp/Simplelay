@@ -31,7 +31,7 @@ import 'kiosk_phase_test.dart' show FakeEventStream, FakeKioskApi, FakeTts;
 
 // RPi4가 실제로 보내는 문장(2bc87e5). 띠는 제목과 겹치는 머리를 떼고 나머지만 보인다.
 const _detail = "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요";
-const _detailShown = "풀고 '해제하기'를 눌러야 다시 쓸 수 있어요";
+const _detailShown = '비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요';
 const _banner = ValueKey('estop-banner');
 const _ack = ValueKey('estop-ack');
 const _confirm = ValueKey('estop-confirm');
@@ -226,7 +226,7 @@ void main() {
       });
     }
 
-    testWidgets('동작 중 화면 — 경고와 정지 버튼이 함께 닿는다', (tester) async {
+    testWidgets('동작 중 비상 걸림 — 정지 영역은 남고 누름 요청은 나가지 않는다', (tester) async {
       final api = FakeKioskApi()..statusResult = _hover();
       await _pump(tester, api);
       await _nextPoll(tester);
@@ -237,7 +237,8 @@ void main() {
       expect(stop.hitTestable(), findsOneWidget);
       await tester.tap(stop);
       await _settle(tester);
-      expect(api.stopCalls, 1);
+      expect(api.stopCalls, 0);
+      expect(tester.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop'))).onPressed, isNull);
       expect(api.estopAckCalls, 0);
     });
 
@@ -377,7 +378,8 @@ void main() {
           expect(tester.takeException(), isNull);
           visible(tester, find.text(kEstopTitle));
           visible(tester, find.text('정지'));
-          visible(tester, find.text('멈추라고 보냈어요'));
+          visible(tester, find.text('작은 팔로 조작할 수 없어요'));
+          expect(find.text('멈추라고 보냈어요'), findsNothing);
           if (name == '확인 중') {
             visible(tester, find.text(kEstopConfirmQuestion));
             visible(tester, find.byKey(_confirm), isText: false);

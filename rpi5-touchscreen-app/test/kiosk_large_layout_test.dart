@@ -147,6 +147,30 @@ void main() {
     await (FontLoader('Malgun')..addFont(Future.value(ByteData.view(bytes.buffer)))).load();
   });
 
+  testWidgets('긴 제안 설명은 반 줄 대신 세부 보기로 열고 전문을 읽는다', (tester) async {
+    if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+    await _pump(tester, _longSuggestion(), scale: 1.22);
+    _expectVisible(tester, find.text('순서·근거 보기'), '세부 보기');
+    await tester.tap(find.text('순서·근거 보기'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('냉동식품'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('풀기 안내 전문은 단추 옆 좁은 칸 대신 전폭을 쓴다', (tester) async {
+    if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+    await _pump(tester, KioskEstopLayout(
+      banner: KioskEstopBanner(detail: _estopDetail, confirming: true, onRequest: _noop),
+      child: _hold(estopTitle: '비상 버튼이 눌려 있어요'),
+    ));
+    final detail = find.textContaining('① 빨간 비상 버튼');
+    expect(tester.getRect(detail).width, greaterThan(650));
+    _expectVisible(tester, detail, '풀기 안내 전문');
+    _expectVisible(tester, find.byKey(_stopArea), '정지 영역');
+    expect(tester.takeException(), isNull);
+  });
+
   final runScreens = <(String, Widget Function())>[
     ('실행', _exec),
     ('정지 대기', _hold),
@@ -214,7 +238,9 @@ void main() {
         _expectVisible(tester, find.textContaining('지금 할까요?'), '질문');
         _expectVisible(tester, find.byKey(const ValueKey('suggestion-approve')), '시작');
         _expectVisible(tester, find.byKey(const ValueKey('suggestion-later')), '이번엔 안 할게요');
-        // 순서는 같은 화면 안(스크롤해서라도) 그대로 있다.
+        // 순서는 세부 보기에서 전문을 읽는다.
+        await tester.tap(find.text('순서·근거 보기'));
+        await tester.pumpAndSettle();
         for (final step in ['해동', '냉동식품', '30초']) {
           expect(find.text(step), findsOneWidget, reason: step);
         }
@@ -232,48 +258,21 @@ void main() {
     }
   });
 
-  group('비상 버튼 띠가 있으면 상태 띠는 얇게 — 두 뜻은 그대로', () {
+  group('비상 버튼 띠는 한 번만, 팔 조작 불가와 직접 취소 안내', () {
     for (final panel15 in [false, true]) {
-      final where = panel15 ? '1920x1080' : '800x480';
-      testWidgets('$where 정지 대기 + 비상 버튼 띠', (tester) async {
-        if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
-        await _pump(tester, _hold(estopTitle: '비상 버튼이 눌려 있어요'), panel15: panel15);
-        final normal = tester.getRect(find.byKey(_band)).height;
-        await _pump(
-            tester,
-            KioskEstopLayout(
-              banner: KioskEstopBanner(detail: _estopDetail, onRequest: _noop),
-              child: _hold(estopTitle: '비상 버튼이 눌려 있어요'),
-            ),
-            panel15: panel15);
+      testWidgets('$panel15 정지 대기 + 비상 버튼 띠', (tester) async {
+        await _pump(tester, KioskEstopLayout(
+          banner: KioskEstopBanner(detail: _estopDetail, onRequest: _noop),
+          child: _hold(estopTitle: '비상 버튼이 눌려 있어요'),
+        ), panel15: panel15);
         expect(tester.takeException(), isNull);
-        final estop = tester.getRect(find.byKey(const ValueKey('estop-banner')));
-        final band = tester.getRect(find.byKey(_band));
-        expect(band.height, lessThan(normal * 0.8), reason: '띠 $band (보통 $normal)');
-        // 비상 띠 바로 아래, 비상 띠는 그대로 보이고 닿는다.
-        expect(band.top, closeTo(estop.bottom, 0.5));
+        expect(find.byKey(_band), findsNothing);
         expect(find.byKey(const ValueKey('estop-banner')).hitTestable(), findsOneWidget);
-        // 상태 띠의 뜻(아이콘·글자)은 남는다.
-        expect(find.descendant(of: find.byKey(_band), matching: find.text('정지 대기')), findsOneWidget);
-        expect(find.descendant(
-                of: find.byKey(_band), matching: find.byKey(const ValueKey('status-band-icon'))),
-            findsOneWidget);
+        expect(find.text('작은 팔로 조작할 수 없어요'), findsOneWidget);
+        final stop = tester.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop')));
+        expect(stop.onPressed, isNull);
       });
     }
-
-    testWidgets('800x480 풀기 안내 중 — 버튼판 칸이 너무 작아지지 않는다', (tester) async {
-      if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
-      await _pump(
-          tester,
-          KioskEstopLayout(
-            banner: KioskEstopBanner(detail: _estopDetail, confirming: true, onRequest: _noop),
-            child: _hold(mode: 'mock'),
-          ));
-      expect(tester.takeException(), isNull);
-      final cell = tester.getRect(find.byKey(const ValueKey('panel-current')));
-      // 골든 hold_estop_confirm에서 칸 높이가 약 20이었다 — 글자(17) 하나 들어갈 자리도 빠듯했다.
-      expect(cell.height, greaterThanOrEqualTo(28), reason: '지금 칸 $cell');
-    });
   });
 
   group("'다시 정지 시도' — 정지 단추 안에서 줄지 않고 테두리에서 떨어진다", () {
@@ -290,7 +289,7 @@ void main() {
         // 같은 아이콘 크기 — 예전에는 한 줄로 줄여 넣어 '다시 정지 시도' 쪽만 아이콘·글자가 작아졌다.
         expect(retryIcon.width, closeTo(normalIcon.width, 0.5), reason: '정지 $normalIcon · 다시 $retryIcon');
         final label = tester.getRect(find.descendant(
-            of: find.byKey(_stopArea), matching: find.text('다시 정지 시도')));
+            of: find.byKey(_stopArea), matching: find.text('다시\n정지 시도')));
         // 흰 테두리(3)에서 떨어져 있다 — 1920x1080에서 좌우 32px 이상.
         expect(label.left - area.left, greaterThanOrEqualTo(32), reason: '글 $label · 단추 $area');
         expect(area.right - label.right, greaterThanOrEqualTo(32), reason: '글 $label · 단추 $area');

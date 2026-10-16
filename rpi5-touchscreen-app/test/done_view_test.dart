@@ -53,8 +53,8 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼을 다 눌렀어요'), findsOneWidget);
-    expect(find.text('가전이 움직이는지는 직접 봐 주세요'), findsOneWidget);
+    expect(find.text('버튼 누름 완료'), findsOneWidget);
+    expect(find.text('가전 반응은 직접 확인해 주세요'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
     expect(find.text('즉석밥 데워줘'), findsOneWidget);
     expect(find.textContaining('누름 장치'), findsNothing);
@@ -80,7 +80,7 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼을 다 눌렀어요'), findsNothing);
+    expect(find.text('버튼 누름 완료'), findsNothing);
     expect(find.text('작은 팔이 다 눌렀다고 알려 왔어요'), findsOneWidget);
     expect(find.text('가전이 실제로 움직이는지는 직접 봐 주세요'), findsOneWidget);
   });
@@ -100,7 +100,7 @@ void main() {
     // 맨 위 고정 띠 + 제목 + 제목 바로 아래 한 줄(2026-10-15).
     expect(find.text(kPracticeBandText), findsOneWidget);
     expect(find.text('연습을 마쳤어요'), findsOneWidget);
-    expect(find.text('버튼을 다 눌렀어요'), findsNothing);
+    expect(find.text('버튼 누름 완료'), findsNothing);
     expect(find.text('실제 가전은 누르지 않았어요'), findsOneWidget);
   });
 
@@ -381,7 +381,7 @@ void main() {
     }
   });
 
-  // 2026-10-14 UI 정리: 큰 체크는 상태 재조회·동작 확인일 때만. 보고만 받았거나 미확인·연습이면 중립 아이콘.
+  // 2026-10-14 UI 정리: 누름 완료는 파랑 체크, 가전 상태 확인은 초록 체크. 연습·근거 미상은 중립이다.
   group('성공 화면의 큰 아이콘·색은 확인 수준만큼', () {
     final cases = <(String, KioskDoneView, bool)>[
       ('물리 · 실행 환경 모름(미확인)',
@@ -411,15 +411,16 @@ void main() {
               resultConfirmation: 'already_at_target'), true),
     ];
     for (final (name, view, strong) in cases) {
-      testWidgets('$name → ${strong ? '체크·성공색' : '중립 아이콘·중립색'}', (tester) async {
+      testWidgets('$name → ${strong ? '가전 확인 초록' : '누름 완료 또는 미확인 구분'}', (tester) async {
         await _pump(tester, view);
-        expect(find.byIcon(Icons.check), strong ? findsOneWidget : findsNothing);
-        expect(find.byIcon(Icons.info_outline), strong ? findsNothing : findsOneWidget);
+        final press = view.executionMode == 'real' && view.route != 'thinq';
+        expect(find.byIcon(Icons.check), strong || press ? findsWidgets : findsNothing);
+        expect(find.byIcon(Icons.info_outline), strong || press ? findsNothing : findsOneWidget);
         // 가장 큰 글자(핵심 단계, 2026-10-16 디자인 규격)의 색도 같은 규칙 — 체크 없이 초록 글자로 성공을 암시하지 않는다.
         final headline = tester
             .widgetList<Text>(find.byType(Text))
             .firstWhere((t) => t.style?.fontSize == KioskType.key);
-        expect(headline.style!.color == KioskColors.success, strong);
+        expect(headline.style!.color, strong ? KioskColors.confirmed : press ? KioskColors.running : view.executionMode == 'mock' ? Colors.white : KioskColors.warning);
       });
     }
   });

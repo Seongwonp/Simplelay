@@ -167,17 +167,14 @@ void main() {
     expect(find.byKey(const ValueKey('panel-current')), findsNothing);
   });
 
-  testWidgets('재시도 중에는 진행 막대의 지금 칸도 주의색이다', (tester) async {
-    Color currentBorder() {
-      final box = tester.widget<Container>(
-          find.byKey(const ValueKey('segment-current')));
-      return ((box.decoration! as BoxDecoration).border! as Border).top.color;
-    }
-
+  testWidgets('재시도도 같은 단계 번호를 고정 표시하고 시도 횟수는 따로 알린다', (tester) async {
     await _pump(tester, attempt: 2, completed: 1, total: 3);
-    expect(currentBorder(), KioskColors.warning);
+    expect(find.byKey(const ValueKey('execution-step')), findsOneWidget);
+    expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);
+    expect(find.textContaining('2번째 시도'), findsOneWidget);
+    expect(find.byKey(const ValueKey('segment-current')), findsNothing);
     await _pump(tester, attempt: 1, completed: 1, total: 3);
-    expect(currentBorder(), KioskColors.primary);
+    expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);
   });
 
   testWidgets('서버가 단계 수를 안 주면 진행을 지어내지 않는다', (tester) async {

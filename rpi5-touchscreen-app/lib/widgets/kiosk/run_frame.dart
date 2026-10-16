@@ -44,8 +44,8 @@ class KioskRunFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const padding = EdgeInsets.fromLTRB(
-        KioskSizes.runLeft, KioskSizes.runTop, KioskSizes.stopRight, KioskSizes.stopBottom);
+    const padding = EdgeInsets.fromLTRB(KioskSizes.runLeft, KioskSizes.runTop,
+        KioskSizes.stopRight, KioskSizes.stopBottom);
     // 큰 글자(§1-8): 가로 2열 → 세로 1열. 상태 영역·할 일이 화면 폭을 다 쓰고(글은 여러 줄로), 버튼판 그림은
     // 정지 단추 왼쪽 한 줄로 줄인다(상태가 먼저). 정지 단추는 오른쪽·아래에 붙여 재므로 보통 글씨와 같은 자리·크기.
     if (KioskLayout.isLarge(context)) {
@@ -91,46 +91,46 @@ class KioskRunFrame extends StatelessWidget {
       );
     }
     return ColoredBox(
-        color: KioskColors.bg,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            band,
-            Expanded(
-              child: Padding(
-                padding: padding,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          header,
-                          const SizedBox(height: 10),
-                          Expanded(child: body),
-                        ],
-                      ),
+      color: KioskColors.bg,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          band,
+          Expanded(
+            child: Padding(
+              padding: padding,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        header,
+                        const SizedBox(height: 10),
+                        Expanded(child: body),
+                      ],
                     ),
-                    const SizedBox(width: KioskSizes.stopGap),
-                    SizedBox(
-                      width: KioskSizes.stopWidth,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(child: picture ?? const SizedBox.shrink()),
-                          const SizedBox(height: 12),
-                          stop,
-                        ],
-                      ),
+                  ),
+                  const SizedBox(width: KioskSizes.stopGap),
+                  SizedBox(
+                    width: KioskSizes.stopWidth,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Expanded(child: picture ?? const SizedBox.shrink()),
+                        const SizedBox(height: 12),
+                        stop,
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-      );
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -187,7 +187,7 @@ class KioskStopButton extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   /// 화면별 단추 키(기존 시험이 쓰는 'hold-stop' 등).
   final Key? buttonKey;
@@ -206,6 +206,7 @@ class KioskStopButton extends StatelessWidget {
         height: KioskSizes.stopHeight,
         child: Semantics(
           button: true,
+          enabled: onPressed != null,
           label: semanticsLabel ?? label,
           excludeSemantics: true,
           child: ElevatedButton(
@@ -214,6 +215,8 @@ class KioskStopButton extends StatelessWidget {
             style: ElevatedButton.styleFrom(
               backgroundColor: KioskColors.stop,
               foregroundColor: Colors.white,
+              disabledBackgroundColor: KioskColors.surface2,
+              disabledForegroundColor: KioskColors.muted,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: _labelInset),
               shape: RoundedRectangleBorder(
@@ -237,7 +240,7 @@ class KioskStopButton extends StatelessWidget {
                     const SizedBox(width: 12),
                     Flexible(
                       child: KioskText(
-                        label,
+                        label == '다시 정지 시도' ? '다시\n정지 시도' : label,
                         textAlign: TextAlign.center,
                         textWidthBasis: TextWidthBasis.longestLine,
                         style: const TextStyle(
@@ -271,7 +274,7 @@ class KioskPanelPicture extends StatelessWidget {
     this.compact = false,
   });
 
-  /// 큰 글자 1열 배치(§1-8)에서 정지 단추 왼쪽 한 줄(정지 단추 높이)로 줄인 모양 — 작은 칸 그림 + 옆 안내 글.
+  /// 큰 글자 1열 배치(§1-8)에서 정지 단추 왼쪽 한 줄(정지 단추 높이)로 줄인 모양 — 현재 버튼 이름만 크게 표시.
   final bool compact;
 
   /// 같은 그림을 줄인 모양으로([KioskRunFrame]이 큰 글자에서 쓴다).
@@ -311,82 +314,81 @@ class KioskPanelPicture extends StatelessWidget {
             ? const Center(
                 child: Text(
                   '조작판 그림이 없어요',
-                  style: TextStyle(fontSize: KioskType.body, color: KioskColors.panelText),
+                  style: TextStyle(
+                      fontSize: KioskType.body, color: KioskColors.panelText),
                 ),
               )
             : compact
                 ? _compact(a)
-            // 자리가 낮아지면(위 비상 버튼 띠가 길 때) 안내 글부터, 더 낮으면 그림도 접는다 — 정지 단추가 먼저다.
-            : LayoutBuilder(builder: (context, outer) {
-                if (outer.maxHeight < 48) return const SizedBox.expand();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (outer.maxHeight >= KioskSizes.panelCaptionMinHeight) ...[
-                      KioskText(
-                        caption,
-                        textKey: captionKey,
-                        // 큰 글씨에서 두 줄로는 잘렸다(2026-10-16 골든) — 세 줄까지.
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                            fontSize: KioskType.caption, color: KioskColors.muted),
-                      ),
-                      const SizedBox(height: 6),
-                    ],
-                    Expanded(child: _grid(a)),
-                  ],
-                );
-              }),
+                // 자리가 낮아지면(위 비상 버튼 띠가 길 때) 안내 글부터, 더 낮으면 그림도 접는다 — 정지 단추가 먼저다.
+                : LayoutBuilder(builder: (context, outer) {
+                    if (outer.maxHeight < 48) return const SizedBox.expand();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (outer.maxHeight >=
+                            KioskSizes.panelCaptionMinHeight) ...[
+                          KioskText(
+                            caption,
+                            textKey: captionKey,
+                            // 큰 글씨에서 두 줄로는 잘렸다(2026-10-16 골든) — 세 줄까지.
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                fontSize: KioskType.caption,
+                                color: KioskColors.muted),
+                          ),
+                          const SizedBox(height: 6),
+                        ],
+                        Expanded(child: _grid(a)),
+                      ],
+                    );
+                  }),
       ),
     );
   }
 
-  /// 큰 글자 한 줄 모양 — 왼쪽에 칸 그림(가전 버튼판 비율), 오른쪽에 안내 글. 칸 이름은 작아도 지금 칸의
-  /// 앰버 채움으로 자리를 보인다(할 일 문장이 같은 버튼 이름을 큰 글자로 말한다).
-  Widget _compact(ApplianceMap a) => Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          AspectRatio(
-            aspectRatio: (a.cols * 1.6) / a.rows,
-            child: _grid(a),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: KioskText(
-                caption,
+  /// 큰 글자에서는 전체 버튼판을 생략하고 현재 버튼 이름만 읽을 수 있는 크기로 둔다.
+  Widget _compact(ApplianceMap a) => Center(
+        child: current == null
+            ? KioskText(caption,
                 textKey: captionKey,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontSize: KioskType.caption, color: KioskColors.muted, height: 1.15),
-              ),
-            ),
-          ),
-        ],
+                    fontSize: KioskType.body, color: KioskColors.muted))
+            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                const Text('작은 팔 위치',
+                    style: TextStyle(
+                        fontSize: KioskType.caption, color: KioskColors.muted)),
+                const SizedBox(width: 12),
+                Flexible(
+                    child: Text(current!.label,
+                        key: const ValueKey('panel-current'),
+                        style: const TextStyle(
+                            fontSize: KioskType.status,
+                            color: KioskColors.primary,
+                            fontWeight: FontWeight.w800))),
+              ]),
       );
 
   Widget _grid(ApplianceMap a) => Column(
-                        children: [
-                          for (var y = 0; y < a.rows; y++)
-                            Expanded(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  for (var x = 0; x < a.cols; x++)
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(3),
-                                        child: _cell(a.buttonAt(x, y)),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                        ],
-                      );
+        children: [
+          for (var y = 0; y < a.rows; y++)
+            Expanded(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (var x = 0; x < a.cols; x++)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.all(3),
+                        child: _cell(a.buttonAt(x, y)),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+        ],
+      );
 
   Widget _cell(ApplianceButton? button) {
     if (button == null) return const SizedBox.shrink();

@@ -7,6 +7,7 @@ import '../../theme/kiosk_tokens.dart';
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 import 'run_frame.dart';
+import 'estop_banner.dart';
 import 'status_band.dart';
 
 /// 동작 중 화면(UI 확정 2026-09-30 §3-3) — 버튼을 다 누른 뒤 가전이 돌아가는 동안.
@@ -115,8 +116,16 @@ class KioskHoldView extends StatelessWidget {
       _ => _mock
           ? ('$_name 연습 중', Icons.hourglass_top, Colors.white)
           : _operationReal
-              ? ('${withSubject(_name)} 돌아가고 있어요', appliance?.icon ?? Icons.widgets_outlined, Colors.white)
-              : ('작은 팔이 $_name 옆에서 기다리고 있어요', Icons.hourglass_top, Colors.white),
+              ? (
+                  '${withSubject(_name)} 돌아가고 있어요',
+                  appliance?.icon ?? Icons.widgets_outlined,
+                  Colors.white
+                )
+              : (
+                  '작은 팔이 $_name 옆에서 기다리고 있어요',
+                  Icons.hourglass_top,
+                  Colors.white
+                ),
     };
   }
 
@@ -125,7 +134,11 @@ class KioskHoldView extends StatelessWidget {
     // 비상 버튼 걸림 — 위 비상 버튼 띠와 아래 제목이 이미 '비상 버튼'을 말한다. 상태 띠는 단계 이름만 빨강으로.
     if (estopTitle != null) {
       return KioskStatusBand(
-          tone: KioskBandTone.danger, icon: Icons.report, label: '정지 대기', practice: _mock);
+          tone: KioskBandTone.danger,
+          icon: Icons.report,
+          label: '정지 대기',
+          practice: _mock,
+          suppressUnderEstop: true);
     }
     if (_fault || stopFailed) {
       return KioskStatusBand(
@@ -136,7 +149,10 @@ class KioskHoldView extends StatelessWidget {
     }
     if (_unconfirmed) {
       return KioskStatusBand(
-          tone: KioskBandTone.attention, icon: Icons.help_outline, label: '확인 필요', practice: _mock);
+          tone: KioskBandTone.attention,
+          icon: Icons.help_outline,
+          label: '확인 필요',
+          practice: _mock);
     }
     if (_mock) return const KioskStatusBand.practice();
     final waiting = holdState == 'hovering_stop' || holdState == 'stopping';
@@ -163,6 +179,39 @@ class KioskHoldView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (estopTitle != null || KioskEstopScope.shownOf(context)) {
+      final cancel = stopButton;
+      return KioskRunFrame(
+        band: _band,
+        header: const KioskStatusHeader(
+            icon: Icons.pan_tool_outlined,
+            title: '작은 팔로 조작할 수 없어요',
+            iconColor: KioskColors.danger),
+        body: KioskScrollArea(
+            child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            KioskText(
+                cancel == null
+                    ? '가전의 정지·취소 버튼을 직접 눌러 주세요'
+                    : "$_name의 '$cancel' 버튼을 직접 눌러 주세요",
+                style: const TextStyle(
+                    fontSize: KioskType.status,
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            const KioskText('가전이 멈췄는지는 직접 확인해 주세요',
+                style:
+                    TextStyle(fontSize: KioskType.body, color: Colors.white)),
+          ],
+        )),
+        stop: const KioskStopButton(
+            label: '정지',
+            onPressed: null,
+            buttonKey: ValueKey('hold-stop'),
+            semanticsLabel: '정지 조작 불가. 가전의 취소 버튼을 직접 눌러 주세요'),
+      );
+    }
     final (headline, headIcon, headColor) = _headline;
     final waiting = holdState == 'hovering_stop' || holdState == 'stopping';
     final cancel = stopButton;
@@ -269,7 +318,9 @@ class KioskHoldView extends StatelessWidget {
                 if (waiting) ...[
                   const Text('남은 시간을 아직 알 수 없어요',
                       style: TextStyle(
-                          fontSize: KioskType.body, height: 1.25, color: KioskColors.muted)),
+                          fontSize: KioskType.body,
+                          height: 1.25,
+                          color: KioskColors.muted)),
                   const SizedBox(height: 10),
                 ],
                 _Lines(lines: lines),
@@ -281,7 +332,9 @@ class KioskHoldView extends StatelessWidget {
                     style: KioskButtons.secondary(
                         foreground: Colors.white, border: KioskColors.muted),
                     child: const Text('처음 화면으로',
-                        style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+                        style: TextStyle(
+                            fontSize: KioskType.body,
+                            fontWeight: FontWeight.w700)),
                   ),
                 ],
               ],
@@ -301,7 +354,8 @@ class KioskHoldView extends StatelessWidget {
 
     return KioskRunFrame(
       band: _band,
-      header: KioskStatusHeader(icon: headIcon, title: headline, iconColor: headColor),
+      header: KioskStatusHeader(
+          icon: headIcon, title: headline, iconColor: headColor),
       body: body,
       picture: KioskPanelPicture(
         appliance: a,
@@ -356,7 +410,9 @@ class _Lines extends StatelessWidget {
                         fontWeight: weight,
                         height: 1.3,
                         // 글자는 흰색 — 주의·실패는 아이콘 색이 말한다(앰버 지시문이 정지 단추와 다투지 않게, §0-3).
-                        color: color == KioskColors.danger ? KioskColors.danger : Colors.white,
+                        color: color == KioskColors.danger
+                            ? KioskColors.danger
+                            : Colors.white,
                       ),
                     ),
                   ),

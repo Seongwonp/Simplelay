@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'estop_banner.dart';
 
 import '../../models/ambient.dart';
 import '../../models/appliance.dart';
@@ -207,7 +208,7 @@ class KioskIdleView extends StatelessWidget {
           SizedBox(height: large ? 156 : _Idle.strip, child: Center(child: SingleChildScrollView(child: list == null
             ? const _StripNotice('SimpleLay 본체와 연결되면 가전이 보여요')
             : list.isEmpty ? const _StripNotice('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요')
-            : KioskApplianceStrip(appliances: list, running: running, attention: attention,
+            : KioskApplianceStrip(appliances: list, running: KioskEstopScope.shownOf(context) ? const {} : running, attention: KioskEstopScope.shownOf(context) ? {...attention, ...running} : attention,
                 onSelect: onSelectAppliance,
                 perPage: large ? 2 : 3,
                 itemWidth: large ? 230 : 170,

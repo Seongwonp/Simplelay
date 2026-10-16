@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../theme/kiosk_colors.dart';
+import '../../theme/kiosk_tokens.dart';
+import 'kiosk_scroll_area.dart';
 
 /// RPi4가 UART로 즉시 밀어주는 alert(승인 절차 없음, docs/protocol.md) — 어느
 /// 화면이 떠 있든 최상단에 덮어써서 지금 뭘 하고 있었는지와 무관하게 즉시
@@ -24,20 +26,22 @@ class DangerAlertOverlay extends StatelessWidget {
       container: true,
       child: ColoredBox(
         color: const Color(0xFF200A09),
-        child: Center(
+        child: KioskScrollArea(
+          center: true,
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               const Icon(
                 Icons.warning_rounded,
-                size: 88,
+                size: 64,
                 color: KioskColors.danger,
               ),
               const SizedBox(height: 24),
               const Text(
                 '위험 신호음 감지',
                 style: TextStyle(
-                  fontSize: 32,
+                  fontSize: KioskType.status,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                 ),
@@ -45,38 +49,39 @@ class DangerAlertOverlay extends StatelessWidget {
               const SizedBox(height: 10),
               const Text(
                 '화재·가스 경보음으로 보이는 소리를 감지했어요',
-                style: TextStyle(fontSize: 15, color: Color(0xFFE8B4B1)),
+                style: TextStyle(fontSize: KioskType.body, color: Colors.white),
               ),
               const SizedBox(height: 4),
               const Text(
                 '안전한 곳으로 이동한 뒤 주변에 도움을 요청하세요',
                 // 안전이 먼저다 — 이전 문구("실제 상황인지 직접 확인해주세요")는
                 // 화재·가스 상황에서 고령 사용자를 위험 쪽으로 보낼 수 있었다.
-                style: TextStyle(fontSize: 16, color: Color(0xFFE8B4B1)),
+                style: TextStyle(fontSize: KioskType.body, color: Colors.white),
               ),
               const SizedBox(height: 6),
               const Text(
                 '잘못 감지했을 수도 있어요. 안전을 확보한 뒤에 확인해 주세요',
-                style: TextStyle(fontSize: 14, color: KioskColors.muted),
+                style:
+                    TextStyle(fontSize: KioskType.caption, color: Colors.white),
               ),
               const SizedBox(height: 32),
               SizedBox(
                 // 큰 글씨 모드(1.22배)에서도 문구가 잘리지 않는 폭
-                width: 260,
-                height: 56,
-                child: OutlinedButton(
+                width: 320,
+                height: KioskSizes.primaryButton,
+                child: FilledButton(
                   onPressed: onAcknowledge,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.white,
-                    side: const BorderSide(color: Colors.white38),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: KioskColors.stop,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   child: const Text(
                     '안내를 확인했어요',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        fontSize: KioskType.body, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),

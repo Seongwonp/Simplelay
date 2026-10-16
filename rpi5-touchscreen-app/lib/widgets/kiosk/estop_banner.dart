@@ -43,6 +43,53 @@ class KioskEstopBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final detail = this.detail;
     final message = this.message;
+    if (confirming) {
+      return Material(
+        key: const ValueKey('estop-banner'),
+        color: KioskColors.stop,
+        child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 6),
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Semantics(
+                      liveRegion: true,
+                      child: Text(estopConfirmFor(detail),
+                          style: const TextStyle(
+                              color: _white,
+                              fontSize: 21,
+                              fontWeight: FontWeight.w700))),
+                  Row(children: [
+                    Expanded(
+                        child: Text(estopTitleFor(detail),
+                            style: const TextStyle(
+                                color: _white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.w800))),
+                    SizedBox(
+                        height: 48,
+                        child: OutlinedButton(
+                            key: const ValueKey('estop-cancel'),
+                            onPressed: onCancel,
+                            style: OutlinedButton.styleFrom(
+                                foregroundColor: _white,
+                                side:
+                                    const BorderSide(color: _white, width: 2)),
+                            child: const Text('취소',
+                                style: TextStyle(fontSize: 21)))),
+                    const SizedBox(width: 12),
+                    SizedBox(
+                        height: 48,
+                        child: FilledButton(
+                            key: const ValueKey('estop-confirm'),
+                            onPressed: onConfirm,
+                            style: _filled,
+                            child: const Text(kEstopConfirmLabel,
+                                style: TextStyle(fontSize: 21)))),
+                  ]),
+                ])),
+      );
+    }
     return Material(
       key: const ValueKey('estop-banner'),
       // 짙은 빨강 면에 흰 글자(7.3:1) — 긴급 정지 버튼과 같은 색으로 읽힌다.
@@ -63,69 +110,40 @@ class KioskEstopBanner extends StatelessWidget {
                     Text(
                       estopTitleFor(detail),
                       style: const TextStyle(
-                          color: _white, fontSize: 20, fontWeight: FontWeight.w800),
+                          color: _white,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w800),
                     ),
-                    if (confirming)
+                    Text(
+                        estopIsPowerLoss(detail)
+                            ? '주변을 확인한 뒤 풀기 안내를 눌러 주세요'
+                            : '비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요',
+                        style: const TextStyle(color: _white, fontSize: 17)),
+                    if (message != null)
                       Text(
-                        estopConfirmFor(detail),
+                        message,
+                        key: const ValueKey('estop-message'),
                         style: const TextStyle(
-                            color: _white, fontSize: 16, fontWeight: FontWeight.w700),
-                      )
-                    else ...[
-                      if (estopDetailLine(detail) case final line?)
-                        Text(line,
-                            style: const TextStyle(color: _white, fontSize: 14)),
-                      if (message != null)
-                        Text(
-                          message,
-                          key: const ValueKey('estop-message'),
-                          style: const TextStyle(
-                              color: _white, fontSize: 14, fontWeight: FontWeight.w700),
-                        ),
-                    ],
+                            color: _white,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700),
+                      ),
                   ],
                 ),
               ),
             ),
             const SizedBox(width: 10),
-            if (confirming) ...[
-              SizedBox(
-                height: 48,
-                child: OutlinedButton(
-                  key: const ValueKey('estop-cancel'),
-                  onPressed: onCancel,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: _white,
-                    side: const BorderSide(color: _white, width: 2),
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                  ),
-                  child: const Text('취소',
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-                ),
+            SizedBox(
+              height: 48,
+              child: FilledButton(
+                key: const ValueKey('estop-ack'),
+                onPressed: acking ? null : onRequest,
+                style: _filled,
+                child: Text(acking ? '해제하는 중…' : kEstopAckLabel,
+                    style: const TextStyle(
+                        fontSize: 17, fontWeight: FontWeight.w800)),
               ),
-              const SizedBox(width: 8),
-              SizedBox(
-                height: 48,
-                child: FilledButton(
-                  key: const ValueKey('estop-confirm'),
-                  onPressed: onConfirm,
-                  style: _filled,
-                  child: const Text(kEstopConfirmLabel,
-                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                ),
-              ),
-            ] else
-              SizedBox(
-                height: 48,
-                child: FilledButton(
-                  key: const ValueKey('estop-ack'),
-                  onPressed: acking ? null : onRequest,
-                  style: _filled,
-                  child: Text(acking ? '해제하는 중…' : kEstopAckLabel,
-                      style: const TextStyle(
-                          fontSize: 17, fontWeight: FontWeight.w800)),
-                ),
-              ),
+            ),
           ],
         ),
       ),
@@ -155,7 +173,8 @@ class KioskEstopLayout extends StatelessWidget {
           if (banner != null) banner!,
           Expanded(
             child: KioskEstopScope(
-              shown: banner is KioskEstopBanner || KioskEstopScope.shownOf(context),
+              shown: banner is KioskEstopBanner ||
+                  KioskEstopScope.shownOf(context),
               child: child,
             ),
           ),
@@ -171,8 +190,10 @@ class KioskEstopScope extends InheritedWidget {
   final bool shown;
 
   static bool shownOf(BuildContext context) =>
-      context.dependOnInheritedWidgetOfExactType<KioskEstopScope>()?.shown ?? false;
+      context.dependOnInheritedWidgetOfExactType<KioskEstopScope>()?.shown ??
+      false;
 
   @override
-  bool updateShouldNotify(KioskEstopScope oldWidget) => shown != oldWidget.shown;
+  bool updateShouldNotify(KioskEstopScope oldWidget) =>
+      shown != oldWidget.shown;
 }

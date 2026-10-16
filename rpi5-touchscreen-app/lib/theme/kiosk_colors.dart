@@ -5,7 +5,7 @@ class KioskColors {
   const KioskColors._();
 
   static const primary = Color(0xFFD9A356); // 앱 primary와 동일 — 골드(2026-10-01), 검정 글자 9.32:1
-  static const success = Color(0xFFF2F3F7); // 성공은 색을 쓰지 않는다
+  static const success = Color(0xFFF2F3F7); // 기존 중립 결과용
   static const danger  = Color(0xFFEF6E64); // 레드 — 면 위 검정 7.08:1
   static const warning = Color(0xFFE8B339); // 앰버
 
@@ -16,6 +16,10 @@ class KioskColors {
   // 연습(모의) 표시 전용 청록(2026-10-16 디자인 규격 §1-4·§4 결정). 앰버는 주요 행동·주의에만 쓰고
   // 연습에는 쓰지 않는다. 바탕(bg) 위 약 7.3:1 — 아이콘·띠 줄무늬에 쓰고 글자는 흰색으로 둔다.
   static const practice = Color(0xFF2BB3A6);
+
+  // 실행 진행과 실제 확인 완료 전용 — 연습 청록·주의 앰버와 구분한다.
+  static const running = Color(0xFF77A7FF);
+  static const confirmed = Color(0xFF8DD49A);
 
   static const bg      = Color(0xFF0F1117); // 앱 background와 동일
   static const surface = Color(0xFF191C24); // 앱 surfaceLow와 동일

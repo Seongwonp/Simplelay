@@ -84,7 +84,9 @@ class KioskSuggestionView extends StatelessWidget {
     );
   }
 
-  Widget _body(BuildContext context, ApplianceMap? target, bool scenario, bool canExecute) {
+  Widget _body(BuildContext context, ApplianceMap? target, bool scenario,
+      bool canExecute) {
+    final large = KioskLayout.isLarge(context);
     final question = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -114,13 +116,16 @@ class KioskSuggestionView extends StatelessWidget {
             Text(
               caveat,
               key: const ValueKey('suggestion-caveat'),
-              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.warning),
+              style: const TextStyle(
+                  fontSize: KioskType.body, color: KioskColors.warning),
             ),
           ],
         // 근거는 실제로 셀 수 있을 때만 말한다 -- 어느
         // 시간대였는지까지 밝힌다. 판단의 주인공은 질문과 버튼이라 근거는
         // 두 줄까지만(2026-10-14 UI 정리). 넘치면 '근거 전체 보기'로 펼친다. 낭독에는 전문이 간다.
-        if (suggestion.whyNow.isNotEmpty && !suggestion.userStarted) ...[
+        if (!large &&
+            suggestion.whyNow.isNotEmpty &&
+            !suggestion.userStarted) ...[
           const SizedBox(height: 10),
           _WhyText(
             scenario ? '근거: ${suggestion.whyNow}' : suggestion.whyNow,
@@ -130,43 +135,71 @@ class KioskSuggestionView extends StatelessWidget {
     );
     // 오른쪽 칸 제목 — 버튼 누름만이면 '누를 버튼', ThinQ가 섞이면 '할 일'(폰과 같은 말, 2026-10-14).
     final stepsHeading = scenario
-        ? (suggestion.commands.every((c) => c.route == 'physical') ? '누를 버튼' : '할 일')
+        ? (suggestion.commands.every((c) => c.route == 'physical')
+            ? '누를 버튼'
+            : '할 일')
         : '작은 팔이 누를 순서';
     final hasSteps = scenario || suggestion.steps.isNotEmpty;
-    // 큰 글자(§1-8): 가로 2열(질문 | 순서) → 세로 1열. 질문이 화면 폭을 다 쓰고(여러 줄로), 순서는 그 아래
-    // 같은 스크롤에 이어진다 — 좁은 왼쪽 칸에서 질문이 스크롤 아래로 넘쳤다(2026-10-16 골든 `suggestion_long_large`).
-    final large = KioskLayout.isLarge(context);
-    final Widget oneColumn = !large
-        ? const SizedBox.shrink()
-        : KioskScrollArea(
-            key: const ValueKey('suggestion-one-column'),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                question,
-                if (hasSteps) ...[
-                  const SizedBox(height: 16),
-                  Text(stepsHeading,
-                      style: const TextStyle(
-                          fontSize: KioskType.caption, color: KioskColors.muted)),
-                  const SizedBox(height: 8),
-                  scenario
-                      ? _CommandList(commands: suggestion.commands, inline: true)
-                      : _StepList(steps: suggestion.steps, inline: true),
+    // 큰 글씨에서는 질문·제한을 먼저 읽고, 긴 순서와 근거는 별도 창에서 전문을 읽는다.
+    final oneColumn = KioskScrollArea(
+        key: const ValueKey('suggestion-one-column'), child: question);
+    final details = OutlinedButton(
+      onPressed: () => showDialog<void>(
+          context: context,
+          builder: (context) => AlertDialog(
+                title: Text(stepsHeading),
+                content: SizedBox(
+                    width: 640,
+                    child: SingleChildScrollView(
+                        child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (hasSteps)
+                          scenario
+                              ? _CommandList(
+                                  commands: suggestion.commands, inline: true)
+                              : _StepList(
+                                  steps: suggestion.steps, inline: true),
+                        if (suggestion.whyNow.isNotEmpty &&
+                            !suggestion.userStarted) ...[
+                          const SizedBox(height: 12),
+                          Text(suggestion.whyNow,
+                              style: const TextStyle(fontSize: KioskType.body)),
+                        ],
+                      ],
+                    ))),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                          minimumSize: const Size(120, 48)),
+                      child: const Text('닫기',
+                          style: TextStyle(fontSize: KioskType.body)))
                 ],
-              ],
-            ),
-          );
+              )),
+      style: OutlinedButton.styleFrom(
+          minimumSize: const Size(0, 48), foregroundColor: Colors.white),
+      child: const Text('순서·근거 보기', style: TextStyle(fontSize: KioskType.body)),
+    );
     return Padding(
       padding: const EdgeInsets.fromLTRB(40, 14, 40, KioskSizes.actionsBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (target != null && !scenario) ...[
+          if (large) ...[
+            Row(children: [
+              Expanded(
+                  child: target != null && !scenario
+                      ? KioskTargetLine(appliance: target)
+                      : const SizedBox.shrink()),
+              details,
+            ]),
+            const SizedBox(height: 6),
+          ] else if (target != null && !scenario) ...[
             Align(
-              alignment: Alignment.centerLeft,
-              child: KioskTargetLine(appliance: target),
-            ),
+                alignment: Alignment.centerLeft,
+                child: KioskTargetLine(appliance: target)),
             const SizedBox(height: 10),
           ],
           // 사용자가 붙인 루틴 이름 — 메뉴는 사용자가 만든다(§1-1).
@@ -174,71 +207,78 @@ class KioskSuggestionView extends StatelessWidget {
               suggestion.routineName!.isNotEmpty) ...[
             Text(
               '내 루틴 "${suggestion.routineName}"',
-              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
+              style: const TextStyle(
+                  fontSize: KioskType.body, color: KioskColors.muted),
             ),
             const SizedBox(height: 6),
           ],
           if (scenario && scenarioName != null) ...[
             Text(
               '시나리오 · $scenarioName',
-              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
+              style: const TextStyle(
+                  fontSize: KioskType.body, color: KioskColors.muted),
             ),
             const SizedBox(height: 6),
           ],
           Expanded(
-            child: large ? oneColumn : Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── 왼쪽: 무엇을 ─────────────────────────────────────────
-                Expanded(
-                  flex: 5,
-                  // 큰 글씨에서 근거 줄이 아래로 넘치면 스크롤 막대가 보인다(2026-10-15).
-                  child: KioskScrollArea(child: question),
-                ),
-                // ── 오른쪽(시나리오): 어느 가전을 어느 경로로 무엇을 ─────────
-                if (scenario) ...[
-                  const SizedBox(width: 28),
-                  Expanded(
-                    flex: 5,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          stepsHeading,
-                          style: const TextStyle(
-                              fontSize: KioskType.caption, color: KioskColors.muted),
-                        ),
-                        const SizedBox(height: 8),
+            child: large
+                ? oneColumn
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── 왼쪽: 무엇을 ─────────────────────────────────────────
+                      Expanded(
+                        flex: 5,
+                        // 큰 글씨에서 근거 줄이 아래로 넘치면 스크롤 막대가 보인다(2026-10-15).
+                        child: KioskScrollArea(child: question),
+                      ),
+                      // ── 오른쪽(시나리오): 어느 가전을 어느 경로로 무엇을 ─────────
+                      if (scenario) ...[
+                        const SizedBox(width: 28),
                         Expanded(
-                          child: _CommandList(commands: suggestion.commands),
+                          flex: 5,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                stepsHeading,
+                                style: const TextStyle(
+                                    fontSize: KioskType.caption,
+                                    color: KioskColors.muted),
+                              ),
+                              const SizedBox(height: 8),
+                              Expanded(
+                                child:
+                                    _CommandList(commands: suggestion.commands),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ]
+                      // ── 오른쪽: 어떤 순서로 ─────────────────────────────────
+                      else if (suggestion.steps.isNotEmpty) ...[
+                        const SizedBox(width: 28),
+                        Expanded(
+                          flex: 4,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                '작은 팔이 누를 순서',
+                                style: TextStyle(
+                                    fontSize: KioskType.caption,
+                                    color: KioskColors.muted),
+                              ),
+                              const SizedBox(height: 8),
+                              Expanded(
+                                child: _StepList(steps: suggestion.steps),
+                              ),
+                            ],
+                          ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                ]
-                // ── 오른쪽: 어떤 순서로 ─────────────────────────────────
-                else if (suggestion.steps.isNotEmpty) ...[
-                  const SizedBox(width: 28),
-                  Expanded(
-                    flex: 4,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          '작은 팔이 누를 순서',
-                          style:
-                              TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: _StepList(steps: suggestion.steps),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ],
-            ),
           ),
 
           const SizedBox(height: 12),
@@ -266,7 +306,9 @@ class KioskSuggestionView extends StatelessWidget {
                   child: const KioskText(
                     '이번엔 안 할게요',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                        fontSize: KioskType.status,
+                        fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -292,7 +334,9 @@ class KioskSuggestionView extends StatelessWidget {
                   child: const Text(
                     '시작',
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800),
+                    style: TextStyle(
+                        fontSize: KioskType.status,
+                        fontWeight: FontWeight.w800),
                   ),
                 ),
               ),
@@ -354,7 +398,8 @@ class _WhyText extends StatefulWidget {
 class _WhyTextState extends State<_WhyText> {
   bool _expanded = false;
 
-  static const _style = TextStyle(fontSize: KioskType.body, color: KioskColors.muted);
+  static const _style =
+      TextStyle(fontSize: KioskType.body, color: KioskColors.muted);
 
   @override
   Widget build(BuildContext context) {
@@ -441,26 +486,26 @@ class _StepList extends StatelessWidget {
     // 순서가 거기서 끝난 줄 안다. 그때는 번호를 붙인 채 옆으로 흘려 전부 보인다.
     if (steps.length > 4 || inline) {
       final flow = Wrap(
-          spacing: 14,
-          runSpacing: 10,
-          children: [
-            for (var i = 0; i < steps.length; i++)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _number(i + 1),
-                  const SizedBox(width: 8),
-                  Text(
-                    steps[i],
-                    style: const TextStyle(
-                      fontSize: KioskType.body,
-                      fontWeight: FontWeight.w500,
-                      color: Colors.white,
-                    ),
+        spacing: 14,
+        runSpacing: 10,
+        children: [
+          for (var i = 0; i < steps.length; i++)
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _number(i + 1),
+                const SizedBox(width: 8),
+                Text(
+                  steps[i],
+                  style: const TextStyle(
+                    fontSize: KioskType.body,
+                    fontWeight: FontWeight.w500,
+                    color: Colors.white,
                   ),
-                ],
-              ),
-          ],
+                ),
+              ],
+            ),
+        ],
       );
       return inline ? flow : SingleChildScrollView(child: flow);
     }
@@ -488,7 +533,6 @@ class _StepList extends StatelessWidget {
   }
 }
 
-
 /// 시나리오의 확정 명령 — 번호 · 서버가 쓴 문장(가전·동작) · 경로 배지.
 class _CommandList extends StatelessWidget {
   const _CommandList({required this.commands, this.inline = false});
@@ -507,9 +551,8 @@ class _CommandList extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(height: 12),
         itemBuilder: (context, i) {
           final c = commands[i];
-          final summary = c.summary.isNotEmpty
-              ? c.summary
-              : '가전과 동작을 폰에서 확인해 주세요';
+          final summary =
+              c.summary.isNotEmpty ? c.summary : '가전과 동작을 폰에서 확인해 주세요';
           // 버튼 누름(physical)은 칩 없이 — routeLabel이 null을 주지만 '경로를 모름'이 아니다(10/14 회귀 수리).
           final path = c.route == 'physical'
               ? null

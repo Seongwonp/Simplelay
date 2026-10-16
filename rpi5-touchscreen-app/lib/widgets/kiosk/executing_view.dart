@@ -131,7 +131,9 @@ class KioskExecutingView extends StatelessWidget {
           // 목적(무엇을 하려고)은 보조로. 버튼 하나를 누르는 실행이면
           // 제목과 버튼이 같으니 되풀이하지 않는다.
           // 이어받은 실행은 제목이 가전 이름일 수 있다 — 위 대상 줄과 같은 말이면 쓰지 않는다.
-          if (title.isNotEmpty && title != currentButton && title != target?.name)
+          if (title.isNotEmpty &&
+              title != currentButton &&
+              title != target?.name)
             KioskText(
               title,
               style: const TextStyle(
@@ -161,14 +163,16 @@ class KioskExecutingView extends StatelessWidget {
       band: _mock
           ? const KioskStatusBand.practice()
           : const KioskStatusBand(
-              tone: KioskBandTone.neutral,
+              tone: KioskBandTone.running,
               icon: Icons.play_circle_outline,
               label: '실행 중',
             ),
       // 다 누른 뒤 결과 화면으로 넘어가기 전 잠깐(0.9초)은 상태를 새로 지어내지 않고 목록 제목만 둔다.
       header: isDone
           ? const KioskStatusHeader(
-              icon: Icons.checklist, title: '누른 버튼', iconColor: KioskColors.muted)
+              icon: Icons.checklist,
+              title: '누른 버튼',
+              iconColor: KioskColors.muted)
           : Semantics(
               liveRegion: true,
               label: [
@@ -179,10 +183,23 @@ class KioskExecutingView extends StatelessWidget {
                   progressLine(t, completedSteps ?? 0),
               ].join('. '),
               child: ExcludeSemantics(
-                child: KioskStatusHeader(icon: icon, title: phrase, iconColor: color),
+                child: KioskStatusHeader(
+                    icon: icon, title: phrase, iconColor: color),
               ),
             ),
-      body: body,
+      body: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (!isDone && totalSteps != null && totalSteps! > 0) ...[
+          ExcludeSemantics(
+              child: Text(progressLine(totalSteps!, completedSteps ?? 0),
+                  key: const ValueKey('execution-step'),
+                  style: const TextStyle(
+                      fontSize: KioskType.body,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700))),
+          const SizedBox(height: 8),
+        ],
+        Expanded(child: body),
+      ]),
       // 버튼판은 누를 수 없는 설명 그림이다 — 지금 누르는 자리만 채운다(§1-6).
       picture: target != null && onPanel != null
           ? KioskPanelPicture(
@@ -231,105 +248,24 @@ class _NowBlock extends StatelessWidget {
             // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
             Text(
               view._mock ? '연습이라 실제로 누르지는 않아요' : '눌렸는지 확인되지 않아 한 번 더 눌러요',
-              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.warning),
+              style: const TextStyle(
+                  fontSize: KioskType.body, color: KioskColors.warning),
             ),
           ],
           if (evidence != null) ...[
             const SizedBox(height: 6),
             Text(
               evidence,
-              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+              style: const TextStyle(
+                  fontSize: KioskType.caption, color: KioskColors.muted),
             ),
           ],
-          const SizedBox(height: 16),
-          if (total != null && total > 0)
-            _SegmentedProgress(
-              label: view.progressLine(total, done),
-              total: total,
-              completed: done,
-              active: true,
-              caution: view._retrying,
-            )
-          else if (view.completedSteps != null)
-            Text(
-              view._mock ? '버튼 $done개를 짚었어요' : '버튼 $done개를 눌렀어요',
-              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
-            ),
+          if (total == null && view.completedSteps != null)
+            Text(view._mock ? '버튼 $done개를 짚었어요' : '버튼 $done개를 눌렀어요',
+                style: const TextStyle(
+                    fontSize: KioskType.body, color: KioskColors.muted)),
         ],
       ),
-    );
-  }
-}
-
-/// N칸 중 K칸. 퍼센트나 시간으로 채우는 바가 아니다 -- 남은 시간을 아는
-/// 척하지 않는다. 채움/테두리/비움 세 모양이라 색을 빼도 지금 칸이 보인다.
-class _SegmentedProgress extends StatelessWidget {
-  const _SegmentedProgress({
-    required this.label,
-    required this.total,
-    required this.completed,
-    required this.active,
-    this.caution = false,
-  });
-
-  final String label;
-  final int total;
-  final int completed;
-  final bool active;
-
-  /// 보정 후 다시 누르는 중. 지금 칸 테두리를 주의색으로 -- 위의 상태 구절·
-  /// 버튼판과 같은 색이어야 한다(폰 실행 화면과 같은 규칙).
-  final bool caution;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: KioskType.body,
-            fontWeight: FontWeight.w600,
-            color: Colors.white,
-          ),
-        ),
-        // 단계가 너무 많으면 칸이 얇아진다 -- 12칸까지만 그리고, 그 이상은
-        // 글자가 대신 말한다.
-        if (total <= 12) ...[
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              for (var i = 0; i < total; i++) ...[
-                Expanded(
-                  child: Container(
-                    key: i == completed && active
-                        ? const ValueKey('segment-current')
-                        : null,
-                    height: 12,
-                    decoration: BoxDecoration(
-                      // 끝난 칸은 무채색, 지금 칸의 테두리만 강조색.
-                      color: i < completed
-                          ? KioskColors.success
-                          : KioskColors.surface2,
-                      borderRadius: BorderRadius.circular(3),
-                      border: (i == completed && active)
-                          ? Border.all(
-                              color: caution
-                                  ? KioskColors.warning
-                                  : KioskColors.primary,
-                              width: 2,
-                            )
-                          : null,
-                    ),
-                  ),
-                ),
-                if (i < total - 1) const SizedBox(width: 5),
-              ],
-            ],
-          ),
-        ],
-      ],
     );
   }
 }
@@ -359,7 +295,8 @@ class _StepRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: const TextStyle(fontSize: KioskType.body, color: Colors.white),
+              style: const TextStyle(
+                  fontSize: KioskType.body, color: Colors.white),
             ),
           ),
         ],

@@ -152,13 +152,14 @@ KioskApplianceSelectView _select() => KioskApplianceSelectView(
 
 // ── 색 판정(색상 hue) ─────────────────────────────────────────────────────
 
-enum _Tone { neutral, practice, attention, danger }
+enum _Tone { neutral, practice, attention, danger, running }
 
 /// 띠 아이콘 색으로 띠의 뜻을 가른다 — 새 상수가 아니라 색상으로 잰다(수정 전 코드에서도 컴파일된다).
 _Tone _toneOf(Color c) {
   final hsv = HSVColor.fromColor(c);
   if (hsv.saturation < 0.2) return _Tone.neutral;
   final h = hsv.hue;
+  if (h >= 205 && h <= 255) return _Tone.running;
   if (h >= 160 && h <= 200) return _Tone.practice; // 청록
   if (h >= 25 && h <= 55) return _Tone.attention; // 앰버
   if (h <= 15 || h >= 345) return _Tone.danger; // 빨강
@@ -340,7 +341,7 @@ void main() {
           of: find.byKey(_stopArea), matching: find.text('정지')));
       await _pump15(tester, _holdUnconfirmed());
       final retry = tester.widget<Text>(find.descendant(
-          of: find.byKey(_stopArea), matching: find.text('다시 정지 시도')));
+          of: find.byKey(_stopArea), matching: find.text('다시\n정지 시도')));
       expect(retry.style!.fontSize, normal.style!.fontSize);
     });
 
@@ -401,10 +402,10 @@ void main() {
   group('상태 띠 — 제안 → 실행 → 정지 대기 → 결과에 같은 위치·높이, 상태별 색', () {
     final cases = <(String, Widget, _Tone)>[
       ('제안', _suggestion(), _Tone.neutral),
-      ('실행', _exec(), _Tone.neutral),
-      ('실행 — 다시 누르는 중', _exec(attempt: 2), _Tone.neutral),
+      ('실행', _exec(), _Tone.running),
+      ('실행 — 다시 누르는 중', _exec(attempt: 2), _Tone.running),
       ('정지 대기', _hold(), _Tone.neutral),
-      ('결과 성공', _done(), _Tone.neutral),
+      ('결과 성공', _done(), _Tone.attention),
       ('연습 실행', _exec(mode: 'mock'), _Tone.practice),
       ('연습 정지 대기', _hold(mode: 'mock'), _Tone.practice),
       ('연습 결과', _done(mode: 'mock'), _Tone.practice),

@@ -967,6 +967,9 @@ void main() {
     api.nextJobId = 'job-2';
     api.statusResult = const KioskStatus(running: false);
     await tester.tap(find.text('다시 시도'));
+    await tester.pumpAndSettle();
+    expect(api.approvedIds, ['s1']);
+    await tester.tap(find.text('확인 후 다시 시도'));
     await tester.pump();
 
     expect(api.approvedIds, ['s1', 's1']); // 같은 제안을 한 번 더
@@ -2057,12 +2060,12 @@ void main() {
           lastOperationDetail: '전력 파형에서 가열 시작을 확인했어요'),
     );
     expect(done.operationConfirmed, isTrue);
-    expect(find.text('버튼을 다 눌렀어요'), findsOneWidget);
+    expect(find.text('버튼 누름 완료'), findsOneWidget);
     expect(find.text('전자레인지의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'),
         findsOneWidget);
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
     expect(find.textContaining('켜진 것을 확인'), findsNothing);
-    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(find.byIcon(Icons.check), findsNWidgets(2));
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -2126,7 +2129,7 @@ void main() {
           lastRoute: 'physical',
           lastConfirmation: 'none'),
     );
-    expect(find.text('버튼을 다 눌렀어요'), findsNothing);
+    expect(find.text('버튼 누름 완료'), findsNothing);
     expect(find.text('작은 팔이 다 눌렀다고 알려 왔어요'), findsOneWidget);
     expect(find.text('가전이 실제로 움직이는지는 직접 봐 주세요'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
@@ -2215,7 +2218,7 @@ void main() {
 
     expect(find.text('연습을 마쳤어요'), findsOneWidget);
     expect(find.text('실제 가전은 누르지 않았어요'), findsOneWidget);
-    expect(find.text('버튼을 다 눌렀어요'), findsNothing);
+    expect(find.text('버튼 누름 완료'), findsNothing);
     expect(find.textContaining('누름 장치'), findsNothing);
     // 물리 성공은 제목과 아래 한 줄이 확인 수준을 이미 말한다 — 같은 말의 칩('연습 결과')을 덧붙이지 않는다(2026-10-15).
     expect(find.text('연습 결과'), findsNothing);

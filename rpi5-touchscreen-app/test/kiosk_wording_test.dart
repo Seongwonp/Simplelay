@@ -211,7 +211,7 @@ void main() {
           onDismiss: () {},
         ),
       );
-      expect(find.text('버튼을 다 눌렀어요'), findsOneWidget);
+      expect(find.text('버튼 누름 완료'), findsOneWidget);
       expect(find.text('전자레인지의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'),
           findsOneWidget);
       expect(find.textContaining('켜진 것'), findsNothing);
@@ -309,7 +309,7 @@ void main() {
       await _pumpKiosk(tester, api);
       await _nextPoll(tester);
       expect(find.byType(KioskHoldView), findsOneWidget);
-      expect(find.text('비상 버튼이 눌려 있어요 · 가전이 멈췄는지는 직접 봐 주세요'), findsOneWidget);
+      expect(find.text('작은 팔로 조작할 수 없어요'), findsOneWidget);
       expect(find.textContaining('돌아가고 있어요'), findsNothing);
       // 정지 버튼은 그대로 닿는다.
       final stop = find.descendant(of: find.byType(KioskHoldView), matching: find.text('정지'));
@@ -347,7 +347,7 @@ void main() {
           .map((t) => t.style?.fontSize ?? 0);
       expect(tester.widget<Text>(find.text(todo)).style!.fontSize,
           sizes.reduce((a, b) => a > b ? a : b));
-      expect(find.text('다시 정지 시도'), findsOneWidget);
+      expect(find.text('다시\n정지 시도'), findsOneWidget);
       final button = tester.getSize(find.byKey(const ValueKey('hold-stop')));
       expect(button.height, 96);
     });
@@ -414,7 +414,7 @@ void main() {
       expect(find.text('비상 버튼이 눌려 있어요'), findsOneWidget);
       // 서버 문장이 제목을 되풀이하면 머리를 떼고 나머지만 — 같은 말이 두 번 보이지 않는다.
       expect(find.textContaining('비상 버튼이 눌려 있어요'), findsOneWidget);
-      expect(find.text("풀고 '해제하기'를 눌러야 다시 쓸 수 있어요"), findsOneWidget);
+      expect(find.text('비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요'), findsOneWidget);
       expect(find.text('풀기 안내'), findsOneWidget);
       await tester.tap(find.byKey(_ack));
       await _settle(tester);

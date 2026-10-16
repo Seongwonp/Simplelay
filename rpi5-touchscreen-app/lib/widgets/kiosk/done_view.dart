@@ -52,6 +52,35 @@ class KioskDoneView extends StatelessWidget {
   final String? stopLevel;
   final int? stopAckMs;
 
+  Future<void> _confirmRetry(BuildContext context, bool mock) async {
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+              title: Text(mock ? '연습을 다시 할까요?' : '가전 상태를 확인했나요?',
+                  style: const TextStyle(fontSize: KioskType.status)),
+              content: Text(
+                  mock
+                      ? '실제 가전은 누르지 않아요.'
+                      : '이미 켜졌다면 다시 시도하지 마세요. 같은 버튼을 다시 누르게 돼요.',
+                  style: const TextStyle(fontSize: KioskType.body)),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    style:
+                        TextButton.styleFrom(minimumSize: const Size(120, 48)),
+                    child: const Text('취소',
+                        style: TextStyle(fontSize: KioskType.body))),
+                FilledButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    style: FilledButton.styleFrom(
+                        minimumSize: const Size(180, 48)),
+                    child: const Text('확인 후 다시 시도',
+                        style: TextStyle(fontSize: KioskType.body))),
+              ],
+            ));
+    if (confirmed == true && context.mounted) onRetry?.call();
+  }
+
   /// 끝난 다단계 실행의 단계별 결과(G4, GET /scenarios/last-run). **이 job의
   /// 기록일 때만** 화면이 넘긴다. 두 단계 이상일 때만 그린다 — 한 단계는 위
   /// 한 줄이 이미 같은 말을 한다.
@@ -112,20 +141,34 @@ class KioskDoneView extends StatelessWidget {
     final operationVerified =
         operationConfirmed == true && !mock && operationSource == 'real';
     // 큰 체크·성공색은 **확인한 성공**에만(2026-10-14 UI 정리): 실제 ThinQ 상태 재조회, 또는 실측 동작 확인.
-    // 작은 팔 보고만·실행 환경 모름·연습은 중립 아이콘 — 문장이 '직접 봐 주세요'인데 체크가 성공을 단정하지 않게.
-    final verifiedSuccess = success && !mock && (thinq || operationVerified);
+    // 누름 완료(파랑)와 가전 상태 확인(초록)을 구분한다. 환경 미상은 앰버, 연습은 중립이다.
+    final thinqVerified = thinq &&
+        const {
+          'state_confirmed',
+          'state_confirmed_unknown_before',
+          'already_at_target'
+        }.contains(resultConfirmation);
+    final verifiedSuccess = success &&
+        executionMode == 'real' &&
+        (thinqVerified || operationVerified);
+    final pressCompleted = success &&
+        !thinq &&
+        executionMode == 'real' &&
+        resultConfirmation != 'none';
     // 작은 팔이 멈춘 것을 확인한 정지(verified)만 흰색·체크(2026-10-15). 그 밖의 정지는 멈췄는지 모른다 — 주의색·물음표.
     final stopVerified = userStop && stopLevelConfirmed(stopLevel);
     // 확인 못 함은 실패가 아니다 — 빨강이 아니라 주의색으로 말한다.
     final color = verifiedSuccess
-        ? KioskColors.success
-        : success
-            ? Colors.white
-            : userStop
-                ? (stopVerified ? Colors.white : KioskColors.warning)
-                : r.isUnconfirmed
-                    ? KioskColors.warning
-                    : KioskColors.danger;
+        ? KioskColors.confirmed
+        : pressCompleted
+            ? KioskColors.running
+            : success
+                ? (mock ? Colors.white : KioskColors.warning)
+                : userStop
+                    ? (stopVerified ? Colors.white : KioskColors.warning)
+                    : r.isUnconfirmed
+                        ? KioskColors.warning
+                        : KioskColors.danger;
     final target = this.target;
     // 모션 걸림 등(2026-10-14) — '눌림을 확인하지 못해'로 원인을 바꿔 말하지 않는다.
     final motion = !success && r == KioskFailureReason.safetyStop
@@ -143,18 +186,23 @@ class KioskDoneView extends StatelessWidget {
     ];
     final already = thinq && resultConfirmation == 'already_at_target';
     // 실제 실행이면 작은 글자는 서버 문장(그 실행의 설정 이름)으로 확인한 사실만큼. 연습은 연습 문장을 지킨다.
-    final outcome = thinq ? thinqOutcomeSentence(resultConfirmation, detail) : null;
+    final outcome =
+        thinq ? thinqOutcomeSentence(resultConfirmation, detail) : null;
     // 성공의 가장 큰 글자(2026-10-15 문구 개선 §2-1) — 확인한 것만큼. 물리 경로가 끝낸 것은 버튼 누르기이고,
     // 실행 환경을 모르면(옛 노드·UART가 보고하지 않음) 작은 팔이 보고한 사실까지만 말한다.
     final successHeadline = already
         ? (mock ? '연습 · 이미 그 설정이에요' : '이미 그 설정이에요')
         : thinq
             // 모의 ThinQ는 모의 상태를 읽은 것이다(10/6 Copilot 리뷰 66990be).
-            ? (mock ? '연습으로 상태를 확인했어요' : '가전 상태를 확인했어요')
+            ? (mock
+                ? '연습으로 상태를 확인했어요'
+                : thinqVerified
+                    ? '가전 상태를 확인했어요'
+                    : '가전 반응을 확인해 주세요')
             : mock
                 ? '연습을 마쳤어요'
                 : executionMode == 'real'
-                    ? '버튼을 다 눌렀어요'
+                    ? (pressCompleted ? '버튼 누름 완료' : '눌렸는지 확인하지 못했어요')
                     : '작은 팔이 다 눌렀다고 알려 왔어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
     final String? successSub = thinq
@@ -164,7 +212,7 @@ class KioskDoneView extends StatelessWidget {
             : operationVerified
                 ? '${target?.name ?? '가전'}의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'
                 : executionMode == 'real'
-                    ? '가전이 움직이는지는 직접 봐 주세요'
+                    ? '가전 반응은 직접 확인해 주세요'
                     : '가전이 실제로 움직이는지는 직접 봐 주세요';
     // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
     // 모의 출처는 아래 작은 글씨("연습용 판정 값이에요")가 같이 밝힌다. 물리 성공의 확인은 위 한 줄이 이미 말했다.
@@ -180,12 +228,16 @@ class KioskDoneView extends StatelessWidget {
         ? successHeadline
         : userStop
             ? stopLevelHeadline(stopLevel, ackMs: stopAckMs)
-            : (motion ?? r.headline);
-    final String failureDetail = motion != null
-        ? '${_lead(label)}다시 누르지 않았어요.\n가전과 작은 팔을 직접 봐 주세요.'
-        : userStop
-            ? stopLevelNextStep(stopLevel)
-            : r.detail(label, canRetry: onRetry != null);
+            : mock && !r.isUnconfirmed && motion == null
+                ? '연습을 마치지 못했어요'
+                : (motion ?? r.headline);
+    final String failureDetail = mock && !userStop
+        ? '실제 가전은 누르지 않았어요.'
+        : motion != null
+            ? '${_lead(label)}다시 누르지 않았어요.\n가전과 작은 팔을 직접 봐 주세요.'
+            : userStop
+                ? stopLevelNextStep(stopLevel)
+                : r.detail(label, canRetry: onRetry != null);
     // 이름이 대상 가전 이름과 같으면(이어받은 실행 등) 같은 말을 두 번 쓰지 않는다.
     final showLabel = label.isNotEmpty && label != target?.name;
     // 위 상태 띠(2026-10-16 디자인 규격 §4) — 결과 아이콘·제목 색과 같은 규칙: 확인 필요 = 앰버, 실패 = 빨강,
@@ -193,7 +245,10 @@ class KioskDoneView extends StatelessWidget {
     final KioskStatusBand band;
     if (color == KioskColors.warning) {
       band = KioskStatusBand(
-          tone: KioskBandTone.attention, icon: Icons.help_outline, label: '확인 필요', practice: mock);
+          tone: KioskBandTone.attention,
+          icon: Icons.help_outline,
+          label: '확인 필요',
+          practice: mock);
     } else if (color == KioskColors.danger) {
       band = KioskStatusBand(
           tone: KioskBandTone.danger,
@@ -202,6 +257,14 @@ class KioskDoneView extends StatelessWidget {
           practice: mock);
     } else if (mock) {
       band = const KioskStatusBand.practice();
+    } else if (verifiedSuccess) {
+      band = const KioskStatusBand(
+          tone: KioskBandTone.confirmed, icon: Icons.check, label: '가전 상태 확인');
+    } else if (success && executionMode == 'real') {
+      band = KioskStatusBand(
+          tone: KioskBandTone.attention,
+          icon: Icons.help_outline,
+          label: pressCompleted ? '버튼 누름 완료 · 가전 반응 확인 필요' : '가전 반응 확인 필요');
     } else {
       band = const KioskStatusBand(
           tone: KioskBandTone.neutral, icon: Icons.flag_outlined, label: '결과');
@@ -226,7 +289,7 @@ class KioskDoneView extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _ResultRing(
-            icon: verifiedSuccess
+            icon: verifiedSuccess || pressCompleted
                 ? Icons.check
                 : success
                     ? Icons.info_outline
@@ -260,7 +323,9 @@ class KioskDoneView extends StatelessWidget {
               textKey: const ValueKey('done-sub'),
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  fontSize: KioskType.status, fontWeight: FontWeight.w700, color: Colors.white),
+                  fontSize: KioskType.status,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white),
             ),
           ],
           if (target != null) ...[
@@ -273,7 +338,8 @@ class KioskDoneView extends StatelessWidget {
             Text(
               facts.join(' · '),
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: KioskType.body, color: Colors.white),
+              style: const TextStyle(
+                  fontSize: KioskType.body, color: Colors.white),
             ),
           ],
           // 위 한 줄은 /status의 **마지막 단계** 기준이다. 두 가전을
@@ -300,9 +366,12 @@ class KioskDoneView extends StatelessWidget {
                     ? outcome
                     : mock
                         ? '연습이라 실제 가전은 조작하지 않았어요'
-                        : 'ThinQ로 보낸 뒤 가전 상태를 다시 읽어 확인했어요',
+                        : thinqVerified
+                            ? 'ThinQ에서 가전 상태를 읽어 확인했어요'
+                            : '확인 결과가 없어 가전 상태를 직접 봐 주세요',
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted),
+                style: const TextStyle(
+                    fontSize: KioskType.body, color: KioskColors.muted),
               ),
           ] else ...[
             // 할 일 한 가지(원칙 0-3) — 흐린 글자로 두지 않는다. 제목 아래 설명(본문 크기, §1-3).
@@ -311,14 +380,18 @@ class KioskDoneView extends StatelessWidget {
               textKey: const ValueKey('done-next-step'),
               textAlign: TextAlign.center,
               style: const TextStyle(
-                  fontSize: KioskType.body, fontWeight: FontWeight.w600, color: Colors.white, height: 1.35),
+                  fontSize: KioskType.body,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                  height: 1.35),
             ),
-            if (detail case final d? when d.isNotEmpty) ...[
+            if (detail case final d? when d.isNotEmpty && !mock) ...[
               const SizedBox(height: 4),
               Text(
                 d,
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+                style: const TextStyle(
+                    fontSize: KioskType.caption, color: KioskColors.muted),
               ),
             ],
           ],
@@ -334,7 +407,8 @@ class KioskDoneView extends StatelessWidget {
 
     // 행동 단추는 스크롤 밖 아래에 고정한다(2026-10-15 B7) — 큰 글씨에서 '처음으로'가 화면 밖으로 밀렸다.
     // 큰 글자에서는 '처음 화면으로'만 고정하고 보조 단추는 할 일 아래로(§1-8 세로 1열).
-    final secondaryInFlow = large && !success && (onRetry != null || onManual != null);
+    final secondaryInFlow =
+        large && !success && (onRetry != null || onManual != null);
     return ColoredBox(
       color: KioskColors.bg,
       child: Column(
@@ -347,7 +421,8 @@ class KioskDoneView extends StatelessWidget {
               center: true,
               padding: const EdgeInsets.fromLTRB(40, 12, 40, 8),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
+                constraints:
+                    const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
                 child: secondaryInFlow
                     ? Column(
                         mainAxisSize: MainAxisSize.min,
@@ -356,7 +431,9 @@ class KioskDoneView extends StatelessWidget {
                           const SizedBox(height: 14),
                           _FailureActions(
                             key: const ValueKey('done-secondary-in-flow'),
-                            onRetry: onRetry,
+                            onRetry: onRetry == null
+                                ? null
+                                : () => _confirmRetry(context, mock),
                             onManual: onManual,
                             onDismiss: null,
                           ),
@@ -367,12 +444,15 @@ class KioskDoneView extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 4, 24, KioskSizes.actionsBottom),
+            padding:
+                const EdgeInsets.fromLTRB(24, 4, 24, KioskSizes.actionsBottom),
             child: Center(
               child: success
                   ? _SuccessActions(onDismiss: onDismiss)
                   : _FailureActions(
-                      onRetry: secondaryInFlow ? null : onRetry,
+                      onRetry: secondaryInFlow || onRetry == null
+                          ? null
+                          : () => _confirmRetry(context, mock),
                       onManual: secondaryInFlow ? null : onManual,
                       onDismiss: onDismiss,
                     ),
@@ -420,7 +500,8 @@ class _RunSteps extends StatelessWidget {
                         runStepFacts(steps[i]),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
-                            fontSize: KioskType.caption, color: KioskColors.muted),
+                            fontSize: KioskType.caption,
+                            color: KioskColors.muted),
                       ),
                     ],
                   ),
@@ -473,7 +554,9 @@ class _OperationLine extends StatelessWidget {
                   sentence,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                      fontSize: KioskType.body, fontWeight: FontWeight.w600, color: color),
+                      fontSize: KioskType.body,
+                      fontWeight: FontWeight.w600,
+                      color: color),
                 ),
               ),
             ],
@@ -483,7 +566,8 @@ class _OperationLine extends StatelessWidget {
             Text(
               caption,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+              style: const TextStyle(
+                  fontSize: KioskType.caption, color: KioskColors.muted),
             ),
           ],
         ],
@@ -580,7 +664,8 @@ KioskFailureReason failureReasonOf(
     };
 
 class _ResultRing extends StatelessWidget {
-  const _ResultRing({required this.icon, required this.color, required this.size});
+  const _ResultRing(
+      {required this.icon, required this.color, required this.size});
 
   final IconData icon;
   final Color color;
@@ -615,11 +700,13 @@ class _AutoReturn extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           TweenAnimationBuilder<double>(
-            tween: Tween(begin: KioskTimings.doneReturn.inSeconds.toDouble(), end: 0),
+            tween: Tween(
+                begin: KioskTimings.doneReturn.inSeconds.toDouble(), end: 0),
             duration: KioskTimings.doneReturn,
             builder: (_, seconds, __) => Text(
               '${seconds.ceil()}초 뒤 처음 화면으로 돌아가요',
-              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+              style: const TextStyle(
+                  fontSize: KioskType.caption, color: KioskColors.muted),
             ),
           ),
           const SizedBox(height: 8),
@@ -671,7 +758,8 @@ Widget _homeButton(VoidCallback onTap) => ElevatedButton.icon(
       onPressed: onTap,
       icon: const Icon(Icons.home_outlined, size: KioskType.status),
       label: const Text('처음 화면으로',
-          style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+          style: TextStyle(
+              fontSize: KioskType.status, fontWeight: FontWeight.w800)),
       style: KioskButtons.primary(
           background: KioskColors.primary, foreground: KioskColors.onAccent),
     );
@@ -739,7 +827,9 @@ class _SecondaryButton extends StatelessWidget {
         onPressed: onTap,
         icon: Icon(icon, size: KioskType.body + 2),
         label: Text(label,
-            style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700)),
-        style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.muted),
+            style: const TextStyle(
+                fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+        style: KioskButtons.secondary(
+            foreground: Colors.white, border: KioskColors.muted),
       );
 }

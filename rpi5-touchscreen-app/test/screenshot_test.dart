@@ -651,6 +651,16 @@ void main() {
     );
   });
 
+  for (final verified in [false, true]) {
+    testWidgets('15인치 완료 — ${verified ? '전력 확인' : '누름 보고만'}', (t) async {
+      await _shoot15(t, verified ? 'kiosk15_done_verified' : 'kiosk15_done_reported',
+        KioskDoneView(success: true, label: '즉석밥 데워줘', target: kMicrowaveAppliance,
+          executionMode: 'real', resultConfirmation: 'reported',
+          operationConfirmed: verified ? true : null, operationSource: verified ? 'real' : null,
+          onDismiss: _noop));
+    });
+  }
+
   testWidgets('15인치 미리보기 — 완료', (t) async {
     await _shoot15(
       t,

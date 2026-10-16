@@ -137,10 +137,11 @@ void main() {
         }
         _expectFullyVisible(tester, find.text('23:41'));
         _expectFullyVisible(tester, find.text(_tipText));
-        for (final name in ['세탁기', '동작 중', '전자레인지']) {
+        for (final name in ['세탁기', if (!band) '동작 중', '전자레인지']) {
           _expectFullyVisible(tester, find.text(name));
         }
 
+        if (band) expect(find.text('동작 중'), findsNothing);
         // 예보는 다 보이거나 일부러 숨긴다 — 반쯤 걸린 채로 두지 않는다.
         final hours = find.byKey(const ValueKey('ambient-hours'));
         if (hours.evaluate().isNotEmpty) {
