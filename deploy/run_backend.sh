@@ -104,7 +104,11 @@ docker run -d --name simplelay-backend \
 
 echo "== 시연 페이싱: $PACING (env 파일 $ENV_FILE 의 SIMPLELAY_DEMO_PACING) =="
 echo "== ThinQ PAT: $THINQ_PAT ($THINQ_DIR/thinq_pat) =="
-echo "== 시간대: ${TZ_ARGS:+${TZ_ARGS#-e TZ=}}${TZ_ARGS:-env 파일의 TZ} =="
+if [ -n "$TZ_ARGS" ]; then
+  echo "== 시간대: ${TZ_ARGS#-e TZ=} =="
+else
+  echo "== 시간대: env 파일의 TZ =="
+fi
 
 echo "== 컨테이너 기동 =="
 sleep "$SETTLE_S"
