@@ -10,6 +10,7 @@ import '../models/auto_run.dart';
 import '../models/estop.dart';
 import '../models/learning_status.dart';
 import '../models/scenario_run.dart';
+import '../models/thinq.dart';
 
 class HealthStatus {
   const HealthStatus({
@@ -523,6 +524,8 @@ class KioskApiService {
   final Uri _base;
   final _client = http.Client();
   static const _timeout = Duration(seconds: 4);
+  // ThinQ 상태 조회·명령 접수는 클라우드를 거칠 수 있어 더 기다린다.
+  static const _thinqTimeout = Duration(seconds: 12);
 
   static const _jsonHeaders = {'Content-Type': 'application/json'};
 
@@ -759,6 +762,73 @@ class KioskApiService {
     } catch (_) {
       return const {};
     }
+  }
+
+  /// GET /thinq/air — 서버가 최근 조회로 아는 공기청정기 센서 공기질(2026-10-16, 평소 화면 '실내 공기' 한 줄).
+  /// 서버는 기억만 돌려준다(ThinQ 클라우드를 새로 부르지 않는다). 등급을 모르거나 오래됐거나 실패·옛 서버면 null.
+  Future<KioskAirReading?> thinqAir() async {
+    try {
+      final res =
+          await _client.get(_base.replace(path: '/thinq/air')).timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      if (body is! Map<String, dynamic>) return null;
+      final list = body['appliances'];
+      if (list is! List) return null;
+      final mock = body['execution_mode'] == 'mock';
+      for (final e in list.whereType<Map<String, dynamic>>()) {
+        final reading = KioskAirReading.fromJson(e, mock: mock);
+        if (reading != null) return reading;
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GET /thinq/status/{id} — **ThinQ를 실제로 한 번 부른다**(가전 상세를 열 때·'다시 읽기'에서만).
+  /// 실패해도 던지지 않고 이유를 담는다(값을 지어내지 않는다).
+  Future<KioskThinqStatus> thinqStatus(String applianceId) async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/thinq/status/$applianceId'))
+          .timeout(_thinqTimeout);
+      if (res.statusCode != 200) {
+        String detail = '';
+        try {
+          final d = (jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>)['detail'];
+          if (d is String) detail = d;
+        } catch (_) {}
+        return KioskThinqStatus(
+            failure: detail.isNotEmpty ? detail : '상태를 읽지 못했어요 (응답 ${res.statusCode})');
+      }
+      final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
+      return KioskThinqStatus(
+        state: body['state'],
+        executionMode: body['execution_mode'] as String?,
+        readAt: DateTime.now(),
+      );
+    } on TimeoutException {
+      return const KioskThinqStatus(failure: '응답이 늦어요 — 가전·인터넷 연결을 확인해 주세요');
+    } catch (_) {
+      return const KioskThinqStatus(failure: 'SimpleLay 본체에 연결되지 않았어요');
+    }
+  }
+
+  /// POST /thinq/command — 키오스크에서 확인을 거친 ThinQ 조작 1건 → job_id(폰과 같은 경로).
+  /// 거절(4xx·5xx)은 [KioskApiException], 시간 초과·끊김은 그 예외 그대로 던진다.
+  Future<KioskJobAccepted> thinqCommand(
+      String applianceId, String action, Map<String, Object> args) async {
+    final res = await _client
+        .post(
+          _base.replace(path: '/thinq/command'),
+          body: jsonEncode({'appliance_id': applianceId, 'action': action, 'args': args}),
+          headers: _jsonHeaders,
+        )
+        .timeout(_thinqTimeout);
+    _ensureOk(res);
+    return KioskJobAccepted.fromJson(
+        jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
   Future<void> rejectSuggestion(String id, {bool mute = false}) async {

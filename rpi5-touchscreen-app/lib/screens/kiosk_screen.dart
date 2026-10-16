@@ -8,6 +8,7 @@ import '../models/appliance.dart';
 import '../models/auto_run.dart';
 import '../models/command_result.dart';
 import '../models/estop.dart';
+import '../models/thinq.dart';
 import '../models/scenario_run.dart';
 import '../services/kiosk_api_service.dart';
 import '../services/kiosk_event_stream.dart';
@@ -213,6 +214,8 @@ class _KioskScreenState extends State<KioskScreen> {
   Set<String> _attentionIds = const {};
   // 켜져 있다고 확인된 ThinQ 가전 — GET /thinq/power(서버 기억, 클라우드 호출 없음). 실패·모름은 빈 집합.
   Set<String> _onIds = const {};
+  // 공기청정기 센서 공기질 — GET /thinq/air(서버 기억, 클라우드 호출 없음, 2026-10-16). 모름·오래됨·실패는 null(줄 없음).
+  KioskAirReading? _air;
 
   // ── 동작 중: 정지 버튼 대기·보관(2026-09-30) ─────────────────────────
   KioskStatus? _hold;
@@ -297,7 +300,11 @@ class _KioskScreenState extends State<KioskScreen> {
     });
     _alertTimer = Timer.periodic(_alertInterval, (_) => _fetchAlert());
     _fetchPower();
-    _powerTimer = Timer.periodic(_powerInterval, (_) => _fetchPower());
+    _fetchAir();
+    _powerTimer = Timer.periodic(_powerInterval, (_) {
+      _fetchPower();
+      _fetchAir();
+    });
     _clockTimer = Timer.periodic(
       const Duration(seconds: 1),
       (_) => setState(() => _now = DateTime.now()),
@@ -445,6 +452,24 @@ class _KioskScreenState extends State<KioskScreen> {
     final on = await _api.thinqPowerOn();
     if (!mounted || _sameSet(on, _onIds)) return;
     setState(() => _onIds = on);
+  }
+
+  /// 평소 화면의 '실내 공기' 한 줄(2026-10-16) — 서버가 최근 ThinQ 조회로 본 센서 값만. 평소 화면일 때만 묻는다.
+  /// 실패·모름이면 줄을 내린다(묵은 값을 붙들지 않는다 — 서버도 600초 넘은 값은 주지 않는다).
+  Future<void> _fetchAir() async {
+    if (_phase != KioskPhase.idle) return;
+    final air = await _api.thinqAir();
+    if (!mounted) return;
+    if (air == null && _air == null) return;
+    setState(() => _air = air);
+  }
+
+  /// ThinQ 가전 상세에서 확인을 거쳐 접수된 조작 — 다른 실행처럼 실행 화면이 job_id로 따라간다.
+  /// 다시 시도는 두지 않는다(설정 변경은 상태를 다시 읽고 사람이 다시 고른다).
+  void _onThinqAccepted(String jobId, String label) {
+    if (!mounted || _phase != KioskPhase.manual) return;
+    _toExecuting(label, applianceId: _manualAppliance?.id, jobId: jobId);
+    _poll();
   }
 
   /// /status의 비상정지 걸림을 화면에 옮긴다. **해제 요청은 여기서 보내지 않는다.**
@@ -1531,6 +1556,7 @@ class _KioskScreenState extends State<KioskScreen> {
           running: _runningIds,
           attention: _attentionIds,
           on: _onIds,
+          air: _air,
           dndUntil: _health.dndUntil,
           quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
           temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
@@ -1592,6 +1618,9 @@ class _KioskScreenState extends State<KioskScreen> {
               ?.where((r) => r.involves(manualAppliance.id))
               .toList(),
           onRoutine: _onRoutine,
+          thinqRead: () => _api.thinqStatus(manualAppliance.id),
+          thinqSend: (action, args) => _api.thinqCommand(manualAppliance.id, action, args),
+          onThinqAccepted: _onThinqAccepted,
         );
       case KioskPhase.suggestion:
         final suggestion = _currentSuggestion!;

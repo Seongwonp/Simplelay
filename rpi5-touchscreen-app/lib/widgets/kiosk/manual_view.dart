@@ -2,8 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../models/ambient.dart';
 import '../../models/appliance.dart';
+import '../../models/thinq.dart';
+import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import 'route_badge.dart';
+import 'thinq_panel.dart';
 
 /// 내 가전(UI 확정 2026-09-30 §3-4) — 조작판 위 버튼과 내 루틴.
 ///
@@ -22,6 +25,9 @@ class KioskManualView extends StatefulWidget {
     required this.onCancel,
     this.routines,
     this.onRoutine,
+    this.thinqRead,
+    this.thinqSend,
+    this.onThinqAccepted,
   });
 
   final ApplianceMap appliance;
@@ -32,6 +38,12 @@ class KioskManualView extends StatefulWidget {
   /// '버튼으로 조작'으로 왔을 때처럼 판만 필요한 경우).
   final List<KioskRoutine>? routines;
   final ValueChanged<KioskRoutine>? onRoutine;
+
+  /// ThinQ 가전 상세(2026-10-16) — 지금 상태 읽기(GET /thinq/status)·조작 보내기(POST /thinq/command)·접수됨.
+  /// 읽기가 없으면(허브 없음) 상태 칸이 '연결되지 않았어요'를 말하고 조작을 내걸지 않는다.
+  final Future<KioskThinqStatus> Function()? thinqRead;
+  final Future<KioskJobAccepted> Function(String action, Map<String, Object> args)? thinqSend;
+  final void Function(String jobId, String label)? onThinqAccepted;
 
   @override
   State<KioskManualView> createState() => _KioskManualViewState();
@@ -140,7 +152,8 @@ class _KioskManualViewState extends State<KioskManualView> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(child: _board(appliance)),
-                    if (routines != null)
+                    // ThinQ 가전은 상태·조작 두 칸이 자리를 쓴다 — 루틴 칸은 두지 않는다(2026-10-16).
+                    if (routines != null && !appliance.isThinq)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 4, 20, 16),
                         child: SizedBox(
@@ -173,9 +186,16 @@ class _KioskManualViewState extends State<KioskManualView> {
   }
 
   Widget _board(ApplianceMap appliance) {
-    // ThinQ 가전에는 누를 버튼이 없다(G5). 빈 판을 그리면 고장으로
-    // 읽힌다 -- 경로를 밝히고 어디서 맡기는지만 말한다.
-    if (appliance.isThinq) return const _ThinqNotice();
+    // ThinQ 가전에는 누를 버튼이 없다(G5). 대신 지금 상태와 큰 조작 단추(2026-10-16, 사용자 요청).
+    if (appliance.isThinq) {
+      return KioskThinqPanel(
+        key: ValueKey('thinq-panel-${appliance.id}'),
+        appliance: appliance,
+        readStatus: widget.thinqRead,
+        sendCommand: widget.thinqSend,
+        onAccepted: (jobId, label) => widget.onThinqAccepted?.call(jobId, label),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -363,42 +383,6 @@ class _PressConfirm extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      );
-}
-
-/// ThinQ 가전 — 조작판 대신 경로와 맡기는 곳을 말한다. 휴대폰 가전 화면에서 지금 상태를
-/// 보고 설정을 바꿀 수 있다(2026-10-15) — '말로만 맡긴다'고 하지 않는다.
-class _ThinqNotice extends StatelessWidget {
-  const _ThinqNotice();
-
-  @override
-  Widget build(BuildContext context) => const Center(
-        child: Padding(
-          padding: EdgeInsets.symmetric(horizontal: 32),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.cloud_outlined, size: 44, color: KioskColors.muted),
-              SizedBox(height: 14),
-              Text(
-                '이 가전은 ThinQ로 조작해요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              SizedBox(height: 8),
-              Text(
-                '휴대폰의 가전 화면에서 지금 상태를 보고 설정을 바꿀 수 있어요. '
-                '제안이 오면 여기서 승인해도 돼요.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 18, color: KioskColors.muted),
-              ),
-            ],
           ),
         ),
       );

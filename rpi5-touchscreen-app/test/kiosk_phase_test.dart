@@ -12,6 +12,7 @@ import 'package:simplelay_touchscreen/models/auto_run.dart';
 import 'package:simplelay_touchscreen/models/estop.dart';
 import 'package:simplelay_touchscreen/models/learning_status.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
+import 'package:simplelay_touchscreen/models/thinq.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/services/kiosk_event_stream.dart';
@@ -178,6 +179,39 @@ class FakeKioskApi implements KioskApiService {
   Future<Set<String>> thinqPowerOn() async {
     powerCalls++;
     return powerOn;
+  }
+
+  /// GET /thinq/air(2026-10-16). 기본 null(모름 — 줄 없음).
+  KioskAirReading? air;
+  int airCalls = 0;
+
+  @override
+  Future<KioskAirReading?> thinqAir() async {
+    airCalls++;
+    return air;
+  }
+
+  /// GET /thinq/status/{id}(2026-10-16). 기본은 읽지 못함.
+  KioskThinqStatus thinqStatusResult = const KioskThinqStatus(failure: '모의 실패');
+  final thinqStatusReads = <String>[];
+
+  @override
+  Future<KioskThinqStatus> thinqStatus(String applianceId) async {
+    thinqStatusReads.add(applianceId);
+    return thinqStatusResult;
+  }
+
+  /// POST /thinq/command(2026-10-16) — 보낸 (가전, 동작, 인자).
+  final thinqCommands = <(String, String, Map<String, Object>)>[];
+  Object? thinqCommandError;
+
+  @override
+  Future<KioskJobAccepted> thinqCommand(
+      String applianceId, String action, Map<String, Object> args) async {
+    thinqCommands.add((applianceId, action, args));
+    final error = thinqCommandError;
+    if (error != null) throw error;
+    return KioskJobAccepted(jobId: nextJobId);
   }
 
   /// GET /scenarios/last-run. null이면 기록 없음.

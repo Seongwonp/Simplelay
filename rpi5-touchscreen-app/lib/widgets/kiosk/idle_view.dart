@@ -3,10 +3,12 @@ import 'estop_banner.dart';
 
 import '../../models/ambient.dart';
 import '../../models/appliance.dart';
+import '../../models/thinq.dart';
 import '../../theme/kiosk_colors.dart';
 import 'appliance_strip.dart';
 import 'connection_status.dart';
 import 'kiosk_text.dart';
+import 'thinq_panel.dart' show airGradeColor;
 
 /// 평소 화면(UI 확정 2026-09-30 §3-1) — 집에 붙은 시계처럼.
 ///
@@ -34,6 +36,7 @@ class KioskIdleView extends StatelessWidget {
     this.quietUntil,
     this.temperature,
     this.humidity,
+    this.air,
     required this.onSelectAppliance,
     required this.onOpenConnection,
     required this.onDndGesture,
@@ -63,6 +66,9 @@ class KioskIdleView extends StatelessWidget {
   final String? quietUntil;
   final double? temperature;
   final double? humidity;
+
+  /// 공기청정기 센서 공기질(GET /thinq/air, 2026-10-16 — 서버 기억, 클라우드 호출 없음). null이면(모름·오래됨·없음) 줄을 두지 않는다.
+  final KioskAirReading? air;
   final ValueChanged<ApplianceMap> onSelectAppliance;
   final ValueChanged<ConnectionItem> onOpenConnection;
 
@@ -175,6 +181,11 @@ class KioskIdleView extends StatelessWidget {
                   Text(envText,
                     style: const TextStyle(fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
                 ],
+                // 실내 공기(2026-10-16) — 시계 아래 빈 자리에. 모르면 줄이 없다(지어내지 않는다).
+                if (air != null) ...[
+                  const SizedBox(height: 14),
+                  _AirLine(key: const ValueKey('idle-air'), air: air!, compact: large),
+                ],
               ],
             ))),
             const SizedBox(width: _Idle.columnGap),
@@ -253,6 +264,7 @@ abstract final class _Idle {
   static const double topRow = 64; // 위 줄(전 80)
   static const double topText = 24; // 날짜·설정(전 33)
   static const double envText = 22; // 실내 온습도(전 33)
+  static const double airIcon = 28; // 실내 공기 아이콘(2026-10-16)
   static const double columnGap = 40; // 시계 칸과 안내 칸 사이(전 20)
   static const double greeting = 28; // 인사말(전 33)
   static const double tipText = 24; // 안내 카드 글자(전 33)
@@ -361,6 +373,68 @@ class _DndEntry extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 실내 공기 한 줄 — 앞은 등급(색 + 말), 뒤는 초미세먼지 값·공기청정기 전원. 1~2 m에서 읽히게 앞 글은 굵게.
+/// 칸이 좁으면 뒤 글이 다음 줄로 내려간다(자르지 않는다). 색만으로 말하지 않는다 — 등급 말이 늘 함께 있다.
+class _AirLine extends StatelessWidget {
+  const _AirLine({super.key, required this.air, this.compact = false});
+  final KioskAirReading air;
+
+  /// 큰 글씨 — 온도 줄처럼 '실내'를 빼고, 뒤 글은 초미세먼지 값만(공기청정기 '켜짐'은 아래 가전 줄에도 있다).
+  /// 시계 칸 높이 안에 들게 한다(자르거나 스크롤 아래로 숨기지 않게).
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = airGradeColor(air.grade);
+    final details = compact
+        ? air.details.where((d) => d.startsWith('초미세먼지') || d == '연습 값').toList()
+        : air.details;
+    final size = compact ? _Idle.envText + 2 : _Idle.greeting;
+    return Semantics(
+      container: true,
+      label: air.line,
+      excludeSemantics: true,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Icon(Icons.air, size: _Idle.airIcon, color: color),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  TextSpan(children: [
+                    TextSpan(text: keepWords(compact ? '공기 ' : '실내 공기 '),
+                        style: const TextStyle(color: Colors.white)),
+                    TextSpan(text: keepWords(air.gradeWord),
+                        style: TextStyle(color: color, fontWeight: FontWeight.w800)),
+                  ]),
+                  key: const ValueKey('idle-air-headline'),
+                  style: TextStyle(fontSize: size, height: 1.2, fontWeight: FontWeight.w600),
+                ),
+                if (details.isNotEmpty)
+                  // 항목('초미세먼지 8'·'공기청정기 켜짐') 안에서는 줄을 바꾸지 않는다 — 좁으면 항목 사이에서 바뀐다.
+                  Text.rich(
+                    TextSpan(
+                      text: keepWords(details.map((d) => d.replaceAll(' ', '\u00A0')).join(' · ')),
+                      semanticsLabel: details.join(' · '),
+                    ),
+                    key: const ValueKey('idle-air-detail'),
+                    style: const TextStyle(fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

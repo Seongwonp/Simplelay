@@ -1,5 +1,5 @@
 // G5(화면) — /appliances의 control_path로 ThinQ 가전을 가른다(2026-09-29).
-// 가전 선택 화면은 ThinQ 배지를 달고, ThinQ 가전에는 버튼판을 그리지 않는다.
+// 가전 선택 화면은 ThinQ 배지를 달고, ThinQ 가전에는 버튼판 대신 상태·조작 상세를 그린다(2026-10-16).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
@@ -7,6 +7,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_strip.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/manual_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/route_badge.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/thinq_panel.dart';
 
 final _purifier = applianceFromServerJson({
   'id': 'air_purifier',
@@ -63,7 +64,9 @@ void main() {
     expect(picked?.id, 'air_purifier');
   });
 
-  testWidgets('ThinQ 가전은 버튼판 없이 경로와 안내만 보인다', (tester) async {
+  // 2026-10-16(사용자 요청): 예전에는 '휴대폰에서 바꿀 수 있어요' 안내만 있었다. 이제 ThinQ 가전은 버튼판 대신
+  // 지금 상태 + 큰 조작 단추 상세(KioskThinqPanel)다 — 자세한 규칙은 kiosk_thinq_detail_test.dart.
+  testWidgets('ThinQ 가전은 버튼판 없이 경로와 상태·조작 상세를 보인다(허브 없으면 이유만)', (tester) async {
     await _pump(
       tester,
       KioskManualView(
@@ -72,16 +75,18 @@ void main() {
         onCancel: () {},
       ),
     );
+    await tester.pump();
 
     expect(find.text('내 공기청정기(모의)'), findsOneWidget);
     expect(find.widgetWithText(KioskRouteBadge, 'ThinQ'), findsOneWidget);
-    expect(find.textContaining('ThinQ로 조작해요'), findsOneWidget);
-    // 휴대폰 가전 화면에서 보고 바꿀 수 있다 — '누를 버튼이 없다'·'말로 맡겨'만 말하지 않는다(10/15).
-    expect(find.textContaining('휴대폰의 가전 화면에서 지금 상태를 보고 설정을 바꿀 수 있어요'),
-        findsOneWidget);
+    expect(find.byType(KioskThinqPanel), findsOneWidget);
+    // 상태를 읽을 길이 없으면 값·조작을 지어내지 않고 이유를 말한다.
+    expect(find.textContaining('지금 상태를 읽지 못했어요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('thinq-set-set_power-POWER_ON')), findsNothing);
     expect(find.textContaining('누를 버튼이 없어요'), findsNothing);
     expect(find.textContaining('말로 맡겨'), findsNothing);
     expect(find.textContaining('버튼 누르기'), findsNothing);
+    expect(tester.takeException(), isNull);
   });
 
   testWidgets('물리 가전의 조작판은 종전대로 배지 없이 버튼을 그린다', (tester) async {

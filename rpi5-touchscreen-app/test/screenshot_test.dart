@@ -21,6 +21,7 @@ import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/models/thinq.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/appliance_select_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/danger_alert_overlay.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
@@ -155,6 +156,7 @@ KioskIdleView _idle({
   Set<String> attention = const {},
   AmbientInfo ambient = _ambient,
   DateTime? dndUntil,
+  KioskAirReading? air,
 }) =>
     KioskIdleView(
       now: DateTime(2026, 9, 30, 7, 8),
@@ -173,9 +175,43 @@ KioskIdleView _idle({
       temperature: 23,
       humidity: 58,
       dndUntil: dndUntil,
+      air: air,
       onSelectAppliance: (_) {},
       onOpenConnection: (_) {},
       onDndGesture: () {},
+    );
+
+/// ThinQ 공기청정기 상세(2026-10-16) — 상태는 모의 값(연습 표시).
+final _purifierAppliance = applianceFromServerJson({
+  'id': 'air_purifier',
+  'name': '공기청정기',
+  'category': 'other',
+  'rows': 0,
+  'cols': 0,
+  'buttons': <dynamic>[],
+  'control_path': 'thinq',
+  'can_execute': true,
+  'readiness': 'operable',
+});
+
+KioskManualView _thinqDetail({String power = 'POWER_ON', bool sensor = true}) => KioskManualView(
+      appliance: _purifierAppliance,
+      onExecute: (_) {},
+      onCancel: () {},
+      thinqRead: () async => KioskThinqStatus(
+        executionMode: 'mock',
+        readAt: DateTime(2026, 10, 16, 9, 7),
+        state: {
+          'operation': {'airPurifierOperationMode': power},
+          'airPurifierJobMode': {'currentJobMode': 'CLEAN'},
+          'airFlow': {'windStrength': 'LOW'},
+          if (sensor)
+            'airQualitySensor': {'PM2': 42, 'PM10': 90, 'PM2Level': 'BAD', 'PM10Level': 'NORMAL'},
+          'filterInfo': {'filterRemainPercent': 87},
+        },
+      ),
+      thinqSend: (_, __) async => const KioskJobAccepted(jobId: 'j'),
+      onThinqAccepted: (_, __) {},
     );
 
 KioskHoldView _hold({bool stopRequested = false}) => KioskHoldView(
@@ -566,6 +602,35 @@ void main() {
 
   testWidgets('15인치 미리보기 — 평소', (t) async {
     await _shoot15(t, 'kiosk15_idle', _idle());
+  });
+
+  // 2026-10-16 — 실내 공기 한 줄(시계 아래 빈 자리), ThinQ 공기청정기 상세(지금 상태 + 큰 조작 단추).
+  testWidgets('15인치 미리보기 — 평소, 실내 공기 한 줄', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_air',
+        _idle(
+            air: const KioskAirReading(
+                applianceId: 'air_purifier', grade: 'GOOD', pm25: 8, pm10: 10, power: 'on')));
+  });
+
+  testWidgets('평소 — 큰 글씨, 실내 공기 매우 나쁨', (t) async {
+    await _shoot(
+        t,
+        'idle_air_large',
+        _idle(
+            air: const KioskAirReading(
+                applianceId: 'air_purifier', grade: 'VERY_BAD', pm25: 120, power: 'on')),
+        textScale: 1.22);
+  });
+
+  testWidgets('15인치 미리보기 — ThinQ 공기청정기 상세(연습)', (t) async {
+    await _shoot15(t, 'kiosk15_thinq_detail', _thinqDetail());
+  });
+
+  testWidgets('ThinQ 공기청정기 상세 — 큰 글씨, 전원 꺼짐', (t) async {
+    await _shoot(t, 'thinq_detail_large', _thinqDetail(power: 'POWER_OFF', sensor: false),
+        textScale: 1.22);
   });
 
   // 2026-10-06 실패널 결함 — 비상정지 띠 + 루틴 안내 + 예보 + 가전 줄이 함께 있어도
