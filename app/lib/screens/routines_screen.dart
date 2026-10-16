@@ -299,7 +299,13 @@ class _NextRunCard extends StatelessWidget {
                 Text('다음 실행 · ${n.name}',
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w700)),
-                Text('${n.when} · ${n.modeLabel}',
+                // 오늘·내일이 먼저, 실행 방식은 끝 — 아래 '자동 실행 켜짐' 줄과 같은 말(외부 평가 10/16 p02).
+                Text(
+                    [
+                      if (n.dayLabel.isNotEmpty) n.dayLabel,
+                      if (n.when.isNotEmpty) n.when,
+                      n.modeLabel,
+                    ].join(' · '),
                     style: TextStyle(fontSize: 14, color: context.appMuted)),
               ],
             ),
@@ -524,7 +530,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
       conditionText: rule.conditionText,
       actionText: rule.actionText,
       caveat: rule.caveat,
-      title: '다음부터 자동으로 실행할까요?',
+      title: '다음부터 자동으로 할까요?',
       confirmLabel: '허용',
     );
     if (!ok) return;
@@ -643,10 +649,13 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                         style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
                         child: const Text('세기 바꾸기'),
                       ),
-                    TextButton(
+                    // 테두리 있는 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(외부 평가 10/16 p02).
+                    OutlinedButton(
                       key: Key('auto-rule-delete-${r.id}'),
                       onPressed: _busy ? null : () => _run(_delete),
-                      style: TextButton.styleFrom(minimumSize: const Size(64, 48)),
+                      style: OutlinedButton.styleFrom(
+                          minimumSize: const Size(64, 48),
+                          foregroundColor: context.appDanger),
                       child: const Text('지우기'),
                     ),
                   ],

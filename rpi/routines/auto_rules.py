@@ -116,8 +116,8 @@ TIME_CONDITION_BASIS = "hub_clock"
 TIME_EVENT = "time"
 #: 확인 화면의 단서(``offer.caveat``·규칙 목록 ``caveat``). 폰은 이 문장을 그대로 보인다.
 COOK_CAVEAT = "멈춤은 전력이 줄어든 것으로 판단해요. 조리 완료가 아닐 수 있어요."
-TIME_CAVEAT = ("정해진 시각에 허브 시계로 판단해요. 그 시각에 허브가 꺼져 있었거나 조용한 시간이면 하지 않아요. "
-               "늦게 확인하면 승인 카드로 물어봐요.")
+# 내부 설명('허브 시계로 판단')은 빼고 한 문장으로(외부 평가 10/16 p06).
+TIME_CAVEAT = "그 시각에 허브가 꺼져 있었거나 조용한 시간이면 하지 않고, 늦게 알아차리면 카드로 물어봐요."
 TIME_QUIET_CAVEAT = "이 시각은 조용한 시간이라 자동으로 하지 않아요."
 TIME_RESTART_REASON = "허브가 다시 켜지기 전 시각이라 자동 실행하지 않았어요 — 카드로 물어봐요"
 TIME_BEFORE_ALLOW_REASON = "허용하기 전 시각이라 자동 실행하지 않았어요 — 카드로 물어봐요"
@@ -1329,6 +1329,12 @@ class AutoRuleEngine:
             except AutoRuleError:
                 continue  # 그 사이 지워졌다
         return count
+
+    def time_rule_on(self, routine_id: str) -> bool:
+        """이 시각 루틴의 다음 회차를 카드 없이 자동 실행할 규칙이 켜져 있고 지금 루틴과 맞는가('다음 실행' 표시용)."""
+        return any(r.is_time and r.condition_routine_id == routine_id and r.enabled
+                   and self._generation_ok(r) and self._time_rule_issue(r) is None
+                   for r in self.store.list())
 
     # ── 조회 ─────────────────────────────────────────────────────────────────
     def payload(self, rule: AutoRule) -> dict:

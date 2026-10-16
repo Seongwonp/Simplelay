@@ -311,7 +311,7 @@ def test_time_routine_card_offers_auto_for_a_single_low_risk_thinq_step(api):
     assert offer["condition_text"] == "매일 23:00이 되면"
     assert offer["action_text"] == "공기청정기(모의) 전원 켜기"
     assert offer["caveat"] and offer["caveat"] != COOK_CAVEAT
-    assert "허브 시계" in offer["caveat"]
+    assert "허브가 꺼져 있었거나 조용한 시간이면 하지 않고" in offer["caveat"] and "허브 시계" not in offer["caveat"]
     assert len(offer["fingerprint"]) == 64
 
 
@@ -342,7 +342,7 @@ def test_approve_and_allow_saves_a_time_rule_and_this_run_goes_through_the_routi
     assert rule["name"] == "밤 공기청정기"
     assert rule["enabled"] is True
     assert rule["condition_text"] == "매일 23:00이 되면"
-    assert rule["caveat"] and "허브 시계" in rule["caveat"]
+    assert rule["caveat"] and "늦게 알아차리면 카드로 물어봐요" in rule["caveat"]
 
 
 # ── 8~13. 다음 시각: 카드 없이 같은 자동 실행 경로 ────────────────────────────────
@@ -657,3 +657,18 @@ def test_history_keeps_the_appliance_name_at_run_time_across_a_restart(monkeypat
     api = _restart(monkeypatch, clean=True)
     entry = api.get("/history").json()[0]
     assert entry["appliance_id"] == "air_purifier" and entry["appliance_name"] == name
+
+
+def test_next_run_says_auto_and_which_day_when_the_time_rule_is_on(api, clock, hub):
+    """외부 평가 10/16 p02 — '다음 실행'이 자동 실행이 켜진 루틴도 '승인 후 실행'이라 했고(아래 줄은 '자동 실행 켜짐'),
+    오늘인지 내일인지 없었다."""
+    routine = _routine(api)
+    first = api.get("/routines/next").json()[0]
+    assert first["routine_id"] == routine["id"]
+    assert first["auto"] is False and first["mode_label"] == "승인 후 실행"
+    assert first["day_label"] == "오늘"
+    _allow(api, _manual_card(api, routine["id"]))
+    first = api.get("/routines/next").json()[0]
+    assert first["auto"] is True and first["mode_label"] == "자동 실행"
+    _move(clock, hub, AT_2300 + timedelta(minutes=30))  # 23:30 — 오늘 회차는 지났다
+    assert api.get("/routines/next").json()[0]["day_label"] == "내일"

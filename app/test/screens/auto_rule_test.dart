@@ -204,6 +204,12 @@ void main() {
       expect(find.text('다음부터도 자동으로'), findsOneWidget);
       expect(find.text('안 할래요'), findsOneWidget);
       expect(find.text('지금 실행'), findsNothing);
+      // 자동 허용은 보조 버튼(외곽선)이다 — 이번만 실행(채움)과 같은 무게로 떠밀지 않는다(외부 평가 10/16 p05).
+      expect(
+          find.ancestor(
+              of: find.text('다음부터도 자동으로'),
+              matching: find.byWidgetPredicate((w) => w is OutlinedButton)),
+          findsOneWidget);
     });
 
     testWidgets('세 갈래는 아래 고정 영역에 그대로, 동작 바꾸기 등은 더 보기로 — 자동 허용은 더 보기에 없다',
@@ -231,7 +237,7 @@ void main() {
 
     testWidgets('시각 규칙(2026-10-16): 서버 caveat 문장을 그대로 보이고 조리 문장은 보이지 않는다', (tester) async {
       _tall(tester);
-      const timeCaveat = '정해진 시각에 허브 시계로 판단해요. 그 시각에 허브가 꺼져 있었거나 조용한 시간이면 하지 않아요.';
+      const timeCaveat = '그 시각에 허브가 꺼져 있었거나 조용한 시간이면 하지 않고, 늦게 알아차리면 카드로 물어봐요.';
       await tester.pumpWidget(_cardApp(_Server(offerJson: {
         'condition_text': '매일 23:00이 되면',
         'action_text': '공기청정기 전원 켜기',
@@ -268,7 +274,7 @@ void main() {
 
       await tester.tap(find.text('다음부터도 자동으로'));
       await _settle(tester);
-      expect(find.text('이번에 실행하고, 다음부터 자동으로 실행할까요?'), findsOneWidget);
+      expect(find.text('이번에 실행하고\n다음부터 자동으로 할까요?'), findsOneWidget);
       expect(find.text('조건: 전자레인지가 멈추면'), findsOneWidget);
       expect(find.text('동작: 거실 공기청정기 풍량 강으로'), findsOneWidget);
       // 짧아진 조건 문장의 한계(조리 완료가 아닐 수 있음)는 허용하는 이 시트에서 말한다(2026-10-14).
@@ -374,6 +380,8 @@ void main() {
       expect(find.text('자동 실행 켜짐'), findsOneWidget);
       expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
       expect(find.textContaining('깨끗'), findsNothing);
+      // '지우기'는 테두리 있는 버튼이다(외부 평가 10/16 p02 — 글자 버튼은 누를 곳으로 안 보인다).
+      expect(tester.widget(find.byKey(const Key('auto-rule-delete-ar-1'))), isA<OutlinedButton>());
 
       await tester.tap(find.byKey(const Key('auto-rule-off-ar-1')));
       await _settle(tester);
@@ -390,7 +398,7 @@ void main() {
 
       await tester.tap(find.byKey(const Key('auto-rule-on-ar-1')));
       await _settle(tester);
-      expect(find.text('다음부터 자동으로 실행할까요?'), findsOneWidget);
+      expect(find.text('다음부터 자동으로 할까요?'), findsOneWidget);
       await tester.tap(find.byKey(const Key('auto-rule-allow')));
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'],

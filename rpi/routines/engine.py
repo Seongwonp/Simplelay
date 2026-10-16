@@ -61,6 +61,18 @@ class RoutineUnavailableError(RuntimeError):
     """지금은 이 루틴의 카드를 만들 수 없다(가전 미등록·준비 안 됨·부재·쉬는 중)."""
 
 
+_WEEKDAYS = "월화수목금토일"
+
+
+def _day_label(when: datetime, now: datetime) -> str:
+    days = (when.date() - now.date()).days
+    if days == 0:
+        return "오늘"
+    if days == 1:
+        return "내일"
+    return f"{_WEEKDAYS[when.weekday()]}요일"
+
+
 class RoutineEngine:
     def __init__(self, store, suggestions, service, clock, *, care_events=None,
                  presence_machine=None, environment_reader=None, runner=None,
@@ -299,8 +311,14 @@ class RoutineEngine:
 
     # ── 다음 실행 ────────────────────────────────────────────────────────────
     def next_runs(self, now: datetime | None = None, limit: int = 3) -> list[dict]:
+        """켜진 시각 루틴의 가까운 회차. ``auto``: 허용한 시각 규칙이 켜져 카드 없이 실행한다(외부 평가 10/16 p02 —
+        아래 줄의 '자동 실행 켜짐'과 같은 말). ``day_label``: 오늘·내일·요일."""
         now = now or self._clock.now()
         upcoming = []
+        try:
+            rules = self._auto_rules() if self._auto_rules is not None else None
+        except Exception:  # noqa: BLE001 — 표시용이다. 모르면 승인으로 보인다(더 보수적)
+            rules = None
         for routine in self._store.list():
             trigger = routine.trigger
             if not routine.enabled or trigger.kind != "time":
@@ -313,10 +331,16 @@ class RoutineEngine:
                 when = day.replace(hour=at.hour, minute=at.minute, second=0, microsecond=0)
                 if when <= now:
                     continue
+                try:
+                    auto = bool(rules is not None and routine.mode == "approve"
+                                and rules.time_rule_on(routine.routine_id))
+                except Exception:  # noqa: BLE001
+                    auto = False
                 upcoming.append({"routine_id": routine.routine_id, "name": routine.name,
                                  "icon": routine.icon, "at": when.isoformat(),
                                  "when": trigger.describe(), "mode": routine.mode,
-                                 "mode_label": MODE_LABELS[routine.mode]})
+                                 "mode_label": "자동 실행" if auto else MODE_LABELS[routine.mode],
+                                 "auto": auto, "day_label": _day_label(when, now)})
                 break
         upcoming.sort(key=lambda item: item["at"])
         return upcoming[:limit]

@@ -1015,7 +1015,8 @@ class _ScenarioActionBar extends StatelessWidget {
       icon: const Icon(Icons.play_arrow_rounded),
       label: Text(hasAllow ? '이번만 실행' : '지금 실행'),
     );
-    // 세 갈래는 늘 세로로 — 위계: 이번만 실행(채움) > 다음부터도 자동으로(톤) > 안 할래요(외곽선).
+    // 세 갈래는 늘 세로로 — 위계: 이번만 실행(채움) > 다음부터도 자동으로(외곽선·아이콘) > 안 할래요(외곽선).
+    // 자동 허용은 채움·톤으로 두지 않는다 — 실행과 같은 무게면 떠미는 버튼으로 읽힌다(외부 평가 10/16 p05).
     final large = _largeText(context);
     final stacked = hasAllow || large;
     final why = blockedWhy;
@@ -1055,7 +1056,7 @@ class _ScenarioActionBar extends StatelessWidget {
                 run,
                 if (hasAllow) ...[
                   const SizedBox(height: 8),
-                  FilledButton.tonalIcon(
+                  OutlinedButton.icon(
                     key: const Key('suggestion-allow-auto'),
                     onPressed: onAllow,
                     icon: const Icon(Icons.autorenew_rounded),

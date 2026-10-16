@@ -91,6 +91,7 @@ class _Server {
 
   /// true면 GET /routines/next가 실패한다(예약 조회 실패 ≠ 예약 없음).
   bool nextFails = false;
+  Map<String, dynamic> nextExtra = const {};
 
   /// GET /routines/candidates 응답(사용 기록으로 만든 초안, 2026-10-14). 없으면 404(옛 서버).
   List<Map<String, dynamic>>? candidates;
@@ -173,6 +174,7 @@ class _Server {
                 'when': '평일 07:30',
                 'mode': 'approve',
                 'mode_label': '승인 후 실행',
+                ...nextExtra,
               },
             ]);
           }
@@ -237,6 +239,18 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('다음 실행은 오늘·내일과 서버의 실행 방식을 말한다 — 자동 실행이 켜졌으면 "자동 실행"(외부 평가 10/16 p02)',
+      (tester) async {
+    _tall(tester);
+    final server = _Server()
+      ..nextExtra = {'auto': true, 'mode_label': '자동 실행', 'day_label': '내일'};
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    expect(find.text('내일 · 평일 07:30 · 자동 실행'), findsOneWidget);
+    expect(find.textContaining('승인 후 실행'), findsNothing);
+  });
 
   testWidgets('다음 실행과 내 루틴 목록을 보여 준다', (tester) async {
     _tall(tester);

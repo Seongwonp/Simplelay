@@ -393,6 +393,8 @@ class RoutineNextRun {
     required this.at,
     required this.when,
     required this.modeLabel,
+    this.auto = false,
+    this.dayLabel = '',
   });
 
   final String routineId;
@@ -401,12 +403,20 @@ class RoutineNextRun {
   final String when;
   final String modeLabel;
 
+  /// 허용한 시각 규칙이 켜져 카드 없이 실행한다(2026-10-16). 옛 서버는 false.
+  final bool auto;
+
+  /// 오늘·내일·요일(2026-10-16). 옛 서버는 빈 문자열.
+  final String dayLabel;
+
   factory RoutineNextRun.fromJson(Map<String, dynamic> json) => RoutineNextRun(
         routineId: json['routine_id'] as String? ?? '',
         name: json['name'] as String? ?? '',
         at: DateTime.tryParse(json['at'] as String? ?? '')?.toLocal(),
         when: json['when'] as String? ?? '',
         modeLabel: json['mode_label'] as String? ?? '',
+        auto: json['auto'] as bool? ?? false,
+        dayLabel: json['day_label'] as String? ?? '',
       );
 }
 
