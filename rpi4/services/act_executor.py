@@ -23,6 +23,10 @@ Message routing table (protocol.md, "UART 프로토콜 (RPi5 <-> RPi4)"):
                                     stop_level sent·mcu_ack·verified, 아무것도 멈추지 않았으면 null)
   abort {run_ref} (쉬는 중)       →  (기억) 같은 run_ref의 execute → result {success:false, outcome:"stopped",
                                     button_results:[]} — 누르지 않는다(2026-10-15 G2, run_ref 없는 옛 RPi5는 종전대로 버림)
+  execute {…, heartbeat_s} + heartbeat (실행 중 생존 신호, 2026-10-16 G5 — 답 없음)
+                                 →  인증된 줄이 max(제한 시간, 주기×3) 넘게 없으면 스스로 정지(받은 abort와 같은 길) →
+                                    result {success:false, outcome:"safety_stop", abort_reason:"motion_link_lost"}
+                                    + 다음 act_info에 last_link_stop 한 번(heartbeat_s 없는 옛 RPi5·쉬는 중은 감시 안 함)
   verify_pass {sequence_id,      →  progress {phase:"verify", ...} + verify_result
                targets}                     {sequence_id, ok, targets:[{button,status,...}]}
   (none — self-initiated)        →  alert {kind, band_energy_ratio,
@@ -84,6 +88,12 @@ from rpi.controller import (
 )
 from rpi.services.demo_failure import DemoFailureState
 from rpi.services.link_auth import ServerAuth
+from rpi.services.link_heartbeat import (
+    HEARTBEAT_PROTOCOL,
+    LINK_LOST_ABORT_REASON,
+    effective_timeout,
+    timeout_from_env,
+)
 from rpi.verifier import DangerSoundResult
 from rpi.verifier.done_fusion import CLOCK_ID, rehearsal_done_event
 
@@ -97,6 +107,7 @@ from ..models.act_messages import (
     EXECUTE_PROTOCOL,
     ExecuteMsg,
     ExecuteRefusedMsg,
+    HeartbeatMsg,
     HelloMsg,
     InboundActMsg,
     InjectFailureMsg,
@@ -226,6 +237,8 @@ class ActExecutor:
         dev_motion: "DevMotionService | None" = None,
         link_key: "str | bytes | None" = None,
         motion_stop: object | None = None,
+        heartbeat_timeout_s: float | None = None,
+        clock: "Callable[[], float] | None" = None,
     ) -> None:
         """failure_state: 데모 실패 주입 상태(선택). controller의 verifier가
         FailureInjectionVerifier로 같은 인스턴스를 감싸고 있어야 실제로
@@ -257,6 +270,9 @@ class ActExecutor:
         세션 전에는 아무것도 보내지 않는다(켜질 때의 자발 알림도). None이면 종전 그대로.
         motion_stop: 실행 중 정지의 확인 단계를 읽을 실제 모션 어댑터(``confirm_stop()``을 가진 것, 2026-10-13).
         act_main이 serial 모드면 `SerialMotionClient`를 꽂는다. None(모의 모션)이면 실행 중 정지는 ``sent``로 보고한다.
+        heartbeat_timeout_s: 실행 중 링크 침묵 제한 시간(초, 2026-10-16 G5). None이면 ``SIMPLELAY_LINK_HEARTBEAT_TIMEOUT_S``
+        (기본 3 s — 추측값, 측정 필요). 실제 제한 시간은 실행이 알린 주기의 3배보다 짧지 않다.
+        clock: 링크 침묵을 재는 단조 시계(초). None이면 ``time.monotonic`` — 시험은 가짜 시계를 넣는다.
 
         비상정지 걸림(2026-10-05): 콘센트 모듈의 비상정지(이벤트·ready·status 보고)를 받으면
         ``estop_latched``가 켜지고, RPi5가 ``estop_ack``로 해제를 확인할 때까지 execute·verify_pass를
@@ -308,6 +324,20 @@ class ActExecutor:
         #: 쉬는 중에 받은 abort의 실행 표지(``run_ref``, 2026-10-15 G2). 같은 표지의 execute는 누르지 않고 정지 결과로
         #: 답한다(한 번 쓰면 지운다). 다른 표지의 execute가 오면 그 실행은 이미 끝난 것이라 지운다.
         self._aborted_run_ref: str | None = None
+        #: 실행 중 생존 신호 감시(2026-10-16 G5). 인증된 줄을 받을 때마다 시각을 적고, ``heartbeat_s``가 실린 실행 동안
+        #: 그 시각에서 제한 시간이 지나면 스스로 멈춘다.
+        self._clock = clock or time.monotonic
+        self._heartbeat_timeout = timeout_from_env() if heartbeat_timeout_s is None else heartbeat_timeout_s
+        self._last_rx = self._clock()
+        #: 감시 중인 실행 (sequence_id, run_ref, 제한 시간). 감시하지 않으면 None.
+        self._watch: tuple[str, str | None, float] | None = None
+        #: 이번 실행에서 감시가 정지를 일으켰으면 그 침묵 길이(ms). 아니면 None.
+        self._link_lost_ms: int | None = None
+        self._watch_task: asyncio.Task[None] | None = None
+        #: 마지막으로 링크를 잃고 스스로 멈춘 실행(상태 확인용, 남아 있음).
+        self.last_link_stop: dict | None = None
+        #: 아직 RPi5에 알리지 못한 것 — 다음 ``act_info``에 한 번 싣고 비운다.
+        self._unreported_link_stop: dict | None = None
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -401,6 +431,8 @@ class ActExecutor:
             log.warning("ignored unrecognised line: %.120s", raw)
             return
 
+        # 인증된(키가 있으면) 올바른 줄은 어떤 종류든 링크가 살아 있다는 근거다(2026-10-16 G5 생존 신호 감시).
+        self._last_rx = self._clock()
         await self._dispatch(msg)
 
     async def report_danger_sound(self, result: DangerSoundResult) -> None:
@@ -477,6 +509,8 @@ class ActExecutor:
                               "detail": msg.detail})
         elif isinstance(msg, EstopAckMsg):
             self._start_estop_ack()
+        elif isinstance(msg, HeartbeatMsg):
+            pass  # 받은 시각은 run_once가 이미 적었다 — 답하지 않는다
         elif isinstance(msg, HelloMsg):
             self._announce()
         elif isinstance(msg, ClockProbeMsg):
@@ -580,6 +614,7 @@ class ActExecutor:
         if binding is not None:
             # 이번 실행의 L3는 대상 CT 채널(또는 없음) — 전자레인지 채널로 다른 가전을 확인하지 않는다.
             self._controller.use_operation(binding.operation)
+        self._arm_link_watch(msg)
         # 실행을 별도 task로 띄우고 즉시 반환한다. 여기서 await하면 읽기
         # 루프가 실행 완료까지 멈춰서, 실행 중 도착한 abort(긴급 정지)를
         # 읽을 수 없었다 — "실행 중 정지 불가"였던 진짜 원인.
@@ -653,16 +688,16 @@ class ActExecutor:
         if callable(setter):
             setter(None)
 
-    def _write_now(self, doc: dict) -> None:
-        """이벤트 루프 스레드에서 한 줄을 즉시 쓰고 drain은 뒤로 미룬다."""
+    def _write_now(self, doc: dict) -> bool:
+        """이벤트 루프 스레드에서 한 줄을 즉시 쓰고 drain은 뒤로 미룬다. 썼으면 True(세션 전·쓰기 실패면 False)."""
         try:
             payload = self._encode(doc)
             if payload is None:
-                return
+                return False
             self._writer.write(payload)
         except Exception:  # noqa: BLE001 - 진행 보고 실패가 실행을 막지 않는다
             log.exception("progress frame write failed")
-            return
+            return False
 
         async def _drain() -> None:
             with contextlib.suppress(Exception):
@@ -671,6 +706,7 @@ class ActExecutor:
         task = asyncio.ensure_future(_drain())
         self._drain_tasks.add(task)
         task.add_done_callback(self._drain_tasks.discard)
+        return True
 
     async def _execute_and_report(self, msg: ExecuteMsg, binding: "TargetBinding | None" = None) -> None:
         progress_on = self._attach_progress(msg.sequence_id)
@@ -699,6 +735,7 @@ class ActExecutor:
             })
             return
         finally:
+            link_lost_ms = self._disarm_link_watch()
             if progress_on:
                 self._detach_progress()
             self._busy = False
@@ -710,6 +747,15 @@ class ActExecutor:
         # 구별되지 않았다. 종료 방식을 함께 보낸다(docs/protocol.md outcome).
         # success는 옛 RPi5와의 호환을 위해 그대로 둔다.
         outcome = outcome_of(result).value
+        abort_reason = getattr(result, "abort_reason", None)
+        if link_lost_ms is not None and not success:
+            # 링크를 잃고 스스로 멈췄다(2026-10-16 G5) — 사용자 정지(stopped)가 아니라 RPi4의 안전 정지다.
+            outcome, abort_reason = "safety_stop", LINK_LOST_ABORT_REASON
+            self.last_link_stop = self._unreported_link_stop = {
+                "sequence_id": msg.sequence_id, "run_ref": msg.run_ref, "outcome": outcome,
+                "pressed": sum(1 for b in result.buttons if b.status.value == "succeeded"),
+                "total": len(msg.buttons), "silent_ms": link_lost_ms,
+                "timeout_s": effective_timeout(msg.heartbeat_s or 0.0, self._heartbeat_timeout)}
         self._notify_job("job_end", {"sequence_id": msg.sequence_id, "outcome": outcome, "retry": retry})
         # 결과를 보내기 전에 대기를 연다 — 결과를 본 RPi5가 바로 보낸 정지(abort)가 대기를
         # 놓치지 않게 한다(대기 보고 프레임은 배경 스레드에서 결과 뒤에 나간다).
@@ -726,7 +772,8 @@ class ActExecutor:
             # 2026-09-29: 버튼별 시도 수·보정, L3 판정, 실행 환경. 옛 RPi5는 무시한다.
             **result_detail_fields(result, self._controller),
             # 2026-10-14: 모션 걸림·재시작·기한 초과·준비 안 됨으로 재시도 없이 멈췄으면 그 원인. 없으면 필드 없음.
-            **({"abort_reason": result.abort_reason} if getattr(result, "abort_reason", None) else {}),
+            # 2026-10-16 G5: 생존 신호를 잃고 스스로 멈췄으면 motion_link_lost.
+            **({"abort_reason": abort_reason} if abort_reason else {}),
         })
         after_result = binding.after_result if binding is not None else self._after_result
         self._active_after_result = after_result
@@ -740,6 +787,53 @@ class ActExecutor:
             "sequence %r finished — %s (retry=%d)",
             msg.sequence_id, outcome, retry,
         )
+
+    # ── 실행 중 생존 신호 감시(2026-10-16, 안전 보고 G5) ──────────────────────────
+
+    def _arm_link_watch(self, msg: ExecuteMsg) -> None:
+        """``heartbeat_s``가 실린 실행만 감시한다(옛 RPi5는 생존 신호를 보내지 않는다). 시작 시각을 마지막 수신으로 둔다.
+
+        감시는 이 이벤트 루프의 작업이다 — 실행 스레드·공용 스레드 풀(``asyncio.to_thread``)·정지 확인 대기와 무관하게 돈다."""
+        self._link_lost_ms = None
+        if msg.heartbeat_s is None:
+            self._watch = None
+            return
+        timeout = effective_timeout(msg.heartbeat_s, self._heartbeat_timeout)
+        self._watch = (msg.sequence_id, msg.run_ref, timeout)
+        self._last_rx = self._clock()
+        self._watch_task = asyncio.create_task(self._watch_link(msg.sequence_id, min(0.25, timeout / 4)))
+
+    def _disarm_link_watch(self) -> int | None:
+        """실행이 끝났다 — 감시를 멈추고, 감시가 정지를 일으켰으면 그 침묵 길이(ms)를 돌려준다."""
+        self._watch = None
+        task, self._watch_task = self._watch_task, None
+        if task is not None and not task.done() and task is not asyncio.current_task():
+            task.cancel()
+        lost, self._link_lost_ms = self._link_lost_ms, None
+        return lost
+
+    async def _watch_link(self, sequence_id: str, poll_s: float) -> None:
+        while self._watch is not None and self._watch[0] == sequence_id and self._link_lost_ms is None:
+            await asyncio.sleep(poll_s)
+            self.check_link_watchdog()
+
+    def check_link_watchdog(self) -> bool:
+        """감시 중인 실행에서 마지막 인증된 줄 뒤 제한 시간이 지났으면 **받은 정지와 같은 길**로 멈추고 True.
+
+        같은 길 = ``_abort("drive")``: 실행 중이면 컨트롤러 ``request_stop``(모션 어댑터가 MCU에 정지를 써 큐를 비운다 —
+        재홈·재누름 없음). 정지 버튼 위 대기 중이 아니므로 정지 버튼을 누르지 않는다. 한 실행에 한 번만."""
+        watch = self._watch
+        if watch is None or not self._busy or self._link_lost_ms is not None:
+            return False
+        sequence_id, run_ref, timeout = watch
+        silent = self._clock() - self._last_rx
+        if silent <= timeout:
+            return False
+        self._link_lost_ms = int(silent * 1000)
+        log.error("no frame from RPi5 for %.1fs during %r (limit %.1fs) — stopping by myself (link lost?)",
+                  silent, sequence_id, timeout)
+        self._abort("drive")
+        return True
 
     # ── 정지 대기·보관·확인 주행(2026-09-30) ───────────────────────────────────
 
@@ -1013,7 +1107,14 @@ class ActExecutor:
         if self._dev_motion is not None:
             # 실제 모션 어댑터가 물렸을 때만 — RPi5는 이 값이 없으면 개발자 조작을 보내지 않는다(2026-10-10).
             info["dev_motion_protocol"] = DEV_MOTION_PROTOCOL
-        self._write_now(info)
+        # 실행 중 생존 신호(2026-10-16 G5): RPi5는 이 값을 본 뒤에만 heartbeat_s·heartbeat를 보낸다.
+        info["heartbeat_protocol"] = HEARTBEAT_PROTOCOL
+        info["heartbeat_timeout_s"] = self._heartbeat_timeout
+        pending = self._unreported_link_stop
+        if pending is not None:
+            info["last_link_stop"] = dict(pending)
+        if self._write_now(info) and pending is not None and self._unreported_link_stop is pending:
+            self._unreported_link_stop = None  # 한 번 알렸다(다시 이은 RPi5가 보호자 알림으로 남긴다)
         # announce: 해제 확인(estop_ack)의 답이 아니라 상태 알림이다 — RPi5가 대기 중인 확인으로 착각하지 않게.
         self._write_now({**self._estop_state_doc(), "announce": True})
 

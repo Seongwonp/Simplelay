@@ -13,6 +13,10 @@ RPi4 side of this same link.
                                        phase, ...}  (optional, never a result)
   abort {scope?}                  ←  (no reply expected)
   abort {scope?, stop_id}         ←  stop_report {stop_id, target, stop_level, ack_ms, stop_detail?}
+  execute {…, heartbeat_s?} + heartbeat {sequence_id}
+                                      (실행 중 생존 신호, 2026-10-16 G5 — act_info.heartbeat_protocol을 알린 RPi4에만. 결과까지
+                                       heartbeat_s 주기로, 링크 이벤트 루프의 작업. 답 없음. RPi4가 침묵에 스스로 멈추면 결과
+                                       abort_reason "motion_link_lost", 다시 이은 뒤 act_info.last_link_stop → ``last_link_stop``)
   execute·abort {…, run_ref?}         (실행 표지, 2026-10-15 G2 — 쉬는 중 RPi4가 받은 abort를 같은 표지의 execute에 묶는다.
                                        그 execute는 누르지 않고 result {success:false, outcome:"stopped", button_results:[]})
                                       (정지 보고 규약 1, 2026-10-13 — act_info.stop_report_protocol을 알린 RPi4만 답한다.
@@ -76,6 +80,9 @@ from typing import TYPE_CHECKING, Protocol
 
 from . import link_auth
 from .appliance_done import parse_appliance_done
+from .link_heartbeat import DEFAULT_PERIOD_S as DEFAULT_HEARTBEAT_PERIOD_S
+from .link_heartbeat import parse_link_stop, supports_heartbeat
+from .link_heartbeat import period_from_env as heartbeat_period_from_env
 
 if TYPE_CHECKING:
     from rpi.controller.models import ButtonTarget
@@ -109,6 +116,9 @@ class ActClientConfig:
     # 센서 판정 창 + 재시도 3회)의 p95를 재서 SIMPLELAY_UART_PER_BUTTON_TIMEOUT
     # 으로 조정한다 — 코드 수정 없이 현장에서 맞출 수 있어야 한다.
     per_button_timeout_seconds: float = 6.0
+    # 실행 중 생존 신호 주기(2026-10-16 G5) — RPi4가 act_info.heartbeat_protocol을 알렸을 때만 보낸다.
+    # 기본 1 s는 추측값(측정 필요). SIMPLELAY_LINK_HEARTBEAT_S(0.2~5).
+    heartbeat_seconds: float = DEFAULT_HEARTBEAT_PERIOD_S
 
     def timeout_for(self, button_count: int) -> float:
         return self.response_timeout_seconds + (
@@ -140,6 +150,7 @@ class ActClientConfig:
             per_button_timeout_seconds=_positive(
                 "SIMPLELAY_UART_PER_BUTTON_TIMEOUT", cls.per_button_timeout_seconds
             ),
+            heartbeat_seconds=heartbeat_period_from_env(),
         )
 
 
@@ -375,6 +386,8 @@ class ActClient:
         self.last_stop_report: dict | None = None
         #: RPi4가 보낸 마지막 가전 완료 기록(검증한 것만). 2026-10-06.
         self.last_appliance_done: dict | None = None
+        #: RPi4가 링크를 잃고 스스로 멈춘 마지막 실행(``act_info.last_link_stop``, 2026-10-16 G5). 끊겨도 남는다.
+        self.last_link_stop: dict | None = None
         # (sequence_id, future) — 수신한 result/error를 반드시 현재 요청의
         # sequence_id와 대조해서 완료시킨다. 대조 없이 완료시키면, timeout으로
         # 버려진 이전 요청의 늦은 응답이 다음 요청의 결과로 오인된다.
@@ -504,6 +517,7 @@ class ActClient:
         loop = asyncio.get_running_loop()
         future: asyncio.Future[dict] = loop.create_future()
         self._pending = (seq_id, future)
+        heartbeat_task: asyncio.Task[None] | None = None
 
         # _send()도 반드시 이 try 안에 있어야 한다. 밖에 두면 UART 단선으로
         # drain()이 실패했을 때 _pending이 영원히 남아(future는 끝내 완료되지
@@ -520,9 +534,16 @@ class ActClient:
             if run_ref is not None:
                 # 실행 표지(선택). 옛 RPi4는 모르는 키를 무시한다.
                 message["run_ref"] = run_ref
+            period = self._cfg.heartbeat_seconds
+            beat = supports_heartbeat(self.act_info)
+            if beat:
+                # 실행 중 생존 신호(2026-10-16 G5) — 알린 RPi4에만. 옛 RPi4에는 종전 줄 그대로.
+                message["heartbeat_s"] = period
             self.last_hold = None
             self.last_power_tail = None
             await self._send(message)
+            if beat:
+                heartbeat_task = asyncio.create_task(self._send_heartbeats(seq_id, future, period))
             doc = await asyncio.wait_for(future, timeout)
         except asyncio.TimeoutError as exc:
             # 이 sequence의 응답이 늦게라도 오면 폐기 대상으로 기록
@@ -538,6 +559,8 @@ class ActClient:
                 f"no response for sequence_id={seq_id!r} within {timeout}s"
             ) from exc
         finally:
+            if heartbeat_task is not None:
+                heartbeat_task.cancel()
             # 내 요청일 때만 비운다 — 이 execute()가 늦게 정리되는 사이
             # 다음 요청이 _pending을 차지했다면 그것을 지워선 안 된다.
             if self._pending is not None and self._pending[0] == seq_id:
@@ -573,6 +596,23 @@ class ActClient:
             execution_mode=parse_execution_mode(doc),
             abort_reason=None if success else parse_abort_reason(doc),
         )
+
+    async def _send_heartbeats(self, seq_id: str, future: "asyncio.Future[dict]", period: float) -> None:
+        """이 실행의 결과가 올 때까지 ``heartbeat``를 ``period``마다 보낸다(2026-10-16 G5).
+
+        링크 이벤트 루프의 작업이다 — 서비스 스레드·공용 스레드 풀을 거치지 않고, 정지(abort)·정지 보고 대기와 따로 돈다.
+        못 보내면(링크 끊김) 그만둔다 — RPi4는 침묵으로 알아채고 스스로 멈춘다."""
+        while not future.done():
+            await asyncio.sleep(period)
+            if future.done():
+                return
+            try:
+                await self._send({"type": "heartbeat", "sequence_id": seq_id})
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:  # noqa: BLE001 - 끊김은 읽기 루프·기한이 처리한다
+                log.info("ActClient: heartbeat not sent (%s)", exc)
+                return
 
     async def abort(self, scope: str | None = None, stop_id: str | None = None,
                     run_ref: str | None = None) -> None:
@@ -891,6 +931,12 @@ class ActClient:
             return
         if msg_type == "act_info":
             self.act_info = {k: v for k, v in doc.items() if k != "type"}
+            link_stop = parse_link_stop(doc.get("last_link_stop"))
+            if link_stop is not None:
+                # RPi4가 링크를 잃고 스스로 멈췄던 실행(2026-10-16 G5) — 다시 이은 뒤 한 번 온다. 끊겨도 남겨 둔다.
+                log.warning("ActClient: RPi4 reports it stopped %r by itself after losing the link",
+                            link_stop["sequence_id"])
+                self.last_link_stop = link_stop
             self._request_clock_ref()
             if self._on_act_info is not None:
                 try:

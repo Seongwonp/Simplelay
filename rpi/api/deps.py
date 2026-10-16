@@ -41,6 +41,7 @@ from rpi.services import (
 )
 from rpi.services.demo_failure import DemoFailureState
 from rpi.services.history import InMemoryJobHistory, JobHistoryStore
+from rpi.services.link_heartbeat import LinkStopNotices
 from rpi.services.persistence import (
     SimpleLayDb,
     SqliteJobHistory,
@@ -309,11 +310,25 @@ def get_done_sensor_set():
     return DoneSensorSet(configured)
 
 
+def _care_events_or_none():
+    try:
+        return get_care_events()
+    except Exception:  # noqa: BLE001 - 알림 저장소를 못 열면 로그만(링크 읽기는 계속)
+        logging.getLogger(__name__).exception("care events unavailable for link stop notice")
+        return None
+
+
+_link_stop_notices = LinkStopNotices(_care_events_or_none)
+
+
 def receive_act_info(info: dict) -> None:
     """RPi4 ``act_info``(연결 알림) → 끝 관찰 가전 목록을 RPi5 설정·가전 목록과 대조한다(평가 B3).
 
     ActClient 읽기 루프에서 불린다. 어긋남은 log.error와 `DoneSensorSet.problems`로 남고, 루틴은 RPi4 목록을 따른다.
+
+    2026-10-16 G5: RPi4가 링크를 잃고 스스로 멈췄던 실행(``last_link_stop``)을 알리면 보호자 알림 한 건으로 남긴다.
     """
+    _link_stop_notices.receive(info)
     done_watch = info.get("done_watch") if isinstance(info, dict) else None
     if not isinstance(done_watch, list):
         return

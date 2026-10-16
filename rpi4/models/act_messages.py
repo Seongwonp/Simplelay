@@ -25,6 +25,9 @@ Inbound (RPi5 → RPi4):
   dev_motion     — 개발자 조작(2026-10-10, 개발자 조작 규약 1): ``op`` home·jog·press·status·stop 한 번.
                    답은 ``dev_motion_result {request_id, ok, …}`` 하나. 실제 모션 어댑터가 물린 RPi4만
                    받는다(``act_info.dev_motion_protocol``) — rpi4/services/dev_motion.py
+  heartbeat      — 실행 중 생존 신호(2026-10-16, 안전 보고 G5, 링크 생존 신호 규약 1). 답하지 않는다. ``execute``에
+                   ``heartbeat_s``가 실린 실행에서 인증된 줄이 제한 시간 넘게 없으면 RPi4가 스스로 멈춘다
+                   (rpi/services/link_heartbeat.py)
 
 Outbound (RPi4 → RPi5): plain dicts serialised by ActExecutor._send().
 """
@@ -37,6 +40,7 @@ import re
 from dataclasses import dataclass, field, replace
 
 from rpi.controller.models import ButtonTarget
+from rpi.services.link_heartbeat import parse_declared_period
 
 
 @dataclass(frozen=True)
@@ -70,6 +74,9 @@ class ExecuteMsg:
     #: 선택 — RPi5가 정한 실행 표지(2026-10-15 G2). 같은 표지의 abort를 실행 시작 전에 받았으면 누르지 않는다.
     #: 없거나 모양이 틀리면 None(종전과 같다).
     run_ref: str | None = None
+    #: 선택 — RPi5가 이 실행 동안 ``heartbeat``를 보내는 주기(초, 2026-10-16 G5). 있으면 RPi4가 링크 침묵을 감시해 스스로
+    #: 멈춘다. 없거나 모양이 틀리면 None — 감시하지 않는다(옛 RPi5와 같다).
+    heartbeat_s: float | None = None
 
 
 def _run_ref(doc: dict) -> str | None:
@@ -160,6 +167,11 @@ class HelloMsg:
 
 
 @dataclass(frozen=True)
+class HeartbeatMsg:
+    """실행 중 생존 신호(2026-10-16 G5). 답하지 않는다 — 받은 것 자체가 링크가 살아 있다는 근거다."""
+
+
+@dataclass(frozen=True)
 class ClockProbeMsg:
     """사건 신선도 기준점 탐침(3차 평가 M1). RPi4는 ``clock_ref {probe, clock_id, t_monotonic_ns}``로 곧바로 답한다."""
 
@@ -215,7 +227,7 @@ class DevMotionRefusedMsg:
 
 InboundActMsg = (
     ExecuteMsg | ExecuteRefusedMsg | AbortMsg | InjectFailureMsg | ClearFailureMsg | VerifyPassMsg | EstopAckMsg
-    | HelloMsg | ClockProbeMsg | RehearsalMsg | DevMotionMsg | DevMotionRefusedMsg
+    | HelloMsg | ClockProbeMsg | RehearsalMsg | DevMotionMsg | DevMotionRefusedMsg | HeartbeatMsg
 )
 
 #: 정지 버튼 누름 횟수 상한(전자레인지: 1회 일시정지·2회 취소 등). 레지스트리와 같다.
@@ -272,7 +284,8 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
                     seq_id.strip(), HOLD_TARGET_MISMATCH,
                     f"정지 대기 대상({hold.appliance_id})이 실행 대상({target})과 달라 누르지 않았어요")
         return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), appliance_id=target,
-                          targets=targets, hold=hold, run_ref=_run_ref(doc))
+                          targets=targets, hold=hold, run_ref=_run_ref(doc),
+                          heartbeat_s=parse_declared_period(doc.get("heartbeat_s")))
 
     if msg_type == "abort":
         scope = doc.get("scope", "appliance")
@@ -324,6 +337,9 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
 
     if msg_type == "hello":
         return HelloMsg()
+
+    if msg_type == "heartbeat":
+        return HeartbeatMsg()
 
     if msg_type == "clock_probe":
         probe = doc.get("probe")

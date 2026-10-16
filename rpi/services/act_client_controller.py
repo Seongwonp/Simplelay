@@ -30,6 +30,7 @@ from rpi.controller.models import stopped_before_dispatch
 
 from .act_client import ActClient, ActClientConfig, ActLinkError, ActLinkTimeoutError, AlertEvent
 from .aggregate_result import synthesize_from_act_result
+from .link_heartbeat import LINK_LOST_ABORT_REASON
 
 log = logging.getLogger(__name__)
 
@@ -140,6 +141,11 @@ class ActClientController:
         if result is None:
             log.warning("stop requested before the execute frame was written — %d button(s) not sent", len(buttons))
             return stopped_before_dispatch()
+        if not result.success and result.abort_reason == LINK_LOST_ABORT_REASON:
+            # RPi4가 생존 신호를 잃고 스스로 멈췄다(2026-10-16 G5) — 그 사이 마지막 누름이 됐는지 모른다. 링크 끊김과 같은
+            # '눌렸는지 모름'(서비스의 G1 경로: 수신 unknown·unconfirmed, 다시 누르지 않음)으로 넘긴다. '안전 정지·완료되지
+            # 못했어요'로 단정하지 않는다.
+            raise ActLinkError(f"RPi4 stopped {result.sequence_id!r} by itself after losing the link heartbeat")
 
         # RPi4가 보고한 것(종료 방식·버튼별 시도·L3·실행 환경)을 그대로 싣는다 --
         # 없으면(옛 RPi4) 집계 값만으로 합성한다.
@@ -229,7 +235,9 @@ class ActClientController:
         """RPi4 링크 ``{"link_up": bool, "ever_connected": bool, "reason": str|None}``(2026-10-06 인계 §6)."""
         return {"link_up": bool(getattr(self._client, "link_up", True)),
                 "ever_connected": bool(getattr(self._client, "ever_connected", True)),
-                "reason": getattr(self._client, "link_down_reason", None)}
+                "reason": getattr(self._client, "link_down_reason", None),
+                # RPi4가 링크를 잃고 스스로 멈춘 마지막 실행(2026-10-16 G5, 다시 이은 뒤 알림). 없으면 None.
+                "last_link_stop": getattr(self._client, "last_link_stop", None)}
 
     def _maybe_hello(self) -> None:
         import time  # noqa: PLC0415
@@ -356,7 +364,11 @@ def enable_tcp_keepalive(writer: object) -> bool:
         return False
     idle, interval, count = TCP_KEEPALIVE
     sock.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
-    for name, value in (("TCP_KEEPIDLE", idle), ("TCP_KEEPINTVL", interval), ("TCP_KEEPCNT", count)):
+    # TCP_USER_TIMEOUT(2026-10-16 G5): Linux keepalive는 보낸 줄이 확인(ACK)되지 않고 쌓여 있으면 돌지 않는다. 실행 중
+    # 생존 신호를 쓰는 링크가 조용히 끊기면 재전송 한도(수 분)까지 끊김을 몰랐을 것이다 — keepalive와 같은 시간에 끊는다.
+    user_timeout_ms = (idle + interval * count) * 1000
+    for name, value in (("TCP_KEEPIDLE", idle), ("TCP_KEEPINTVL", interval), ("TCP_KEEPCNT", count),
+                        ("TCP_USER_TIMEOUT", user_timeout_ms)):
         opt = getattr(socket, name, None)
         if opt is not None:
             with contextlib.suppress(OSError):

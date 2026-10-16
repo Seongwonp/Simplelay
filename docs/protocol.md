@@ -297,11 +297,48 @@ UART 전달판 — 검증이 RPi4에서 일어나는 실기기 구성에서도 "
 
 RPi5는 이 결과를 '정지, 0개 눌림'으로 읽는다(수신 `accepted` — RPi4가 받았고 누르지 않았다고 알렸다).
 
+**실행 중 생존 신호 `heartbeat` — 조용한 Wi-Fi 끊김(2026-10-16, 안전 보고 G5, 링크 생존 신호 규약 1, 하위 호환).** Wi-Fi가 FIN 없이
+끊기면 두 보드 모두 TCP keepalive(약 11 s 추정)가 알아챌 때까지 모르고, 그동안 RPi4는 RPi5의 정지를 받을 길이 없는데도 남은 버튼을
+눌렀다. 규약(`rpi/services/link_heartbeat.py`):
+
+- RPi4는 `act_info`에 `"heartbeat_protocol": 1`과 자기 제한 시간 `"heartbeat_timeout_s"`를 알린다.
+- 그것을 본 RPi5만 `execute`에 `heartbeat_s`(보내는 주기, `SIMPLELAY_LINK_HEARTBEAT_S` 기본 1 s, 0.2~5)를 싣고, **그 실행의 결과를 받을
+  때까지** `heartbeat {sequence_id}`를 그 주기로 보낸다. 답은 없다. 보내는 쪽은 링크 이벤트 루프의 작업이다 — 서비스 스레드·공용
+  스레드 풀(`to_thread`)을 거치지 않고, `abort`·정지 보고 대기와 따로 돈다(정지 경로가 생존 신호를 굶기지 않는다). 옛 RPi4(알림 없음)에는
+  `heartbeat_s`·`heartbeat`를 보내지 않는다(종전 줄 그대로).
+- RPi4는 `heartbeat_s`가 실린 실행 동안만 감시한다. **인증된 올바른 줄은 종류와 상관없이**(`heartbeat`·`abort`·`clock_probe` …) 링크가
+  살아 있다는 근거다. 마지막 줄 뒤 `max(SIMPLELAY_LINK_HEARTBEAT_TIMEOUT_S(기본 3 s, 1~30), heartbeat_s × 3)`이 지나면 **받은 정지와 같은
+  길**로 멈춘다(`abort {scope:"drive"}`와 같다 — 컨트롤러 `request_stop` → 모션 어댑터가 MCU에 `stop`을 써 큐를 비움, 재홈·재누름 없음,
+  정지 버튼 누름 없음). 감시는 RPi4 이벤트 루프의 작업이다. `heartbeat_s`가 없거나 모양이 틀린 실행(옛 RPi5)·쉬는 중·정지 버튼 대기 중·
+  개발자 조작·확인 주행은 감시하지 않는다.
+- 스스로 멈춘 실행의 결과는 `success:false`·`outcome:"safety_stop"`·`abort_reason:"motion_link_lost"`(버튼 결과는 실제로 돈 것만).
+  링크가 살아나 결과가 닿아도 RPi5는 링크 끊김과 같이 **'눌렸는지 모름'**(수신 `unknown`·`unconfirmed`, "연결이 끊겨 눌렸는지 확인하지
+  못했어요 — …") — 멈출 때 누르던 버튼은 눌렸는지 모른다. 자동으로 다시 누르지 않는다.
+- RPi4는 다음 `act_info`(다시 이은 뒤의 hello 답)에 `last_link_stop`을 **한 번** 싣는다. RPi5는 보호자 알림 한 건("실행 중 가전과 연결이
+  끊겨 누름 장치가 스스로 멈췄어요 — 확인된 누름은 버튼 N개 중 K개예요 …")으로 남기고(같은 `sequence_id`는 한 번), 링크 상태
+  (`link_status().last_link_stop`)에 둔다. RPi4 실행기가 다시 시작되면(socat이 끝나 컨테이너 재시작) 이 기록은 사라지고 실행기 로그에만 남는다.
+- RPi5 링크 소켓에 `TCP_USER_TIMEOUT`(keepalive와 같은 11 s)을 켠다 — Linux keepalive는 보낸 줄이 확인되지 않고 쌓여 있으면 돌지 않아,
+  생존 신호를 쓰는 링크가 조용히 끊기면 재전송 한도(수 분)까지 끊김을 몰랐을 것이다.
+- **주기 1 s·제한 시간 3 s는 추측값이다(측정 필요)** — 핫스팟 Wi-Fi 지연 분포를 재지 않았다. 짧으면 멀쩡한 실행이 '연결 끊김으로 멈춤'
+  (안전 쪽 실패), 길면 끊긴 뒤 더 누른다. RPi4 읽기 루프가 막혀도(예: 결과 쓰기 대기) 침묵으로 보인다 — 그때도 멈추는 쪽이다.
+- **호환:** 새 키·새 프레임은 알린 쪽끼리만 쓴다. 그래도 RPi4·RPi5는 같은 커밋으로 배포한다(`run_ref`와 같은 규칙).
+
+```json
+{ "type": "execute", "sequence_id": "seq_011", "buttons": ["즉석밥", "시작"], "appliance_id": "microwave",
+  "run_ref": "r5d6e7f8a9b0c1d3", "heartbeat_s": 1.0 }
+{ "type": "heartbeat", "sequence_id": "seq_011" }
+{ "type": "result", "sequence_id": "seq_011", "appliance_id": "microwave", "success": false, "retry": 0,
+  "outcome": "safety_stop", "abort_reason": "motion_link_lost", "button_results": [ … ], "execution_mode": "real" }
+{ "type": "act_info", …, "heartbeat_protocol": 1, "heartbeat_timeout_s": 3.0,
+  "last_link_stop": { "sequence_id": "seq_011", "run_ref": "r5d6e7f8a9b0c1d3", "outcome": "safety_stop",
+                      "pressed": 1, "total": 2, "silent_ms": 3120, "timeout_s": 3.0 } }
+```
+
 ### RPi4 → RPi5
 
 ```json
 { "type": "act_info", "done_watch": ["washer", "microwave"], "outlet": "fake", "motion": "mock", "rehearsal": true }
-{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 2, "stop_report_protocol": 1, "clock_protocol": 1 }
+{ "type": "act_info", "done_watch": [], "outlet": "real", "motion": "serial", "rehearsal": false, "execute_protocol": 2, "dev_motion_protocol": 2, "stop_report_protocol": 1, "clock_protocol": 1, "heartbeat_protocol": 1, "heartbeat_timeout_s": 3.0 }
 { "type": "dev_motion_result", "request_id": "d3f1a9c0b2e4d5f6", "op": "home", "ok": true, "homed": true, "x_mm": 0.0, "y_mm": 0.0 }
 { "type": "rehearsal_result", "request_id": "a1b2c3", "ok": true, "action": "appliance_done", "source": "injected", "frame": { "…": "…" } }
 { "type": "ack", "sequence_id": "seq_001", "step": "BT-08", "status": "done" }
@@ -354,7 +391,7 @@ RPi5는 이 결과를 '정지, 0개 눌림'으로 읽는다(수신 `accepted` �
 | `operation_detail` | 문자열 / `null` | 판정 사유 한 줄 |
 | `operation_source` | `real` / `mock` / `null` | 판정 입력이 실물 전력 센서인가, 합성 파형(모의)인가 |
 | `execution_mode` | `real` / `mock` / `unknown` | RPi4 모션 어댑터가 스스로 밝힌 실행 환경 |
-| `abort_reason` | `motion_alarm: <코드>` / `motion_reset` / `motion_timeout` / `motion_not_ready` / `motion_position_mismatch` / `motion_link_error` (없으면 필드 없음) | 2026-10-14. 모션 걸림·재시작·기한 초과·준비 안 됨·연결 끊김으로 **재시도 없이** 멈춘 원인. 눌림(L1) 확인 실패와 가른다. RPi5는 `motion_…` 모양만 받아 `/status` `last_abort_reason`·`/history` `abort_reason`으로 올린다 |
+| `abort_reason` | `motion_alarm: <코드>` / `motion_reset` / `motion_timeout` / `motion_not_ready` / `motion_position_mismatch` / `motion_link_error` / `motion_link_lost` (없으면 필드 없음) | 2026-10-14. 모션 걸림·재시작·기한 초과·준비 안 됨·연결 끊김으로 **재시도 없이** 멈춘 원인. 눌림(L1) 확인 실패와 가른다. RPi5는 `motion_…` 모양만 받아 `/status` `last_abort_reason`·`/history` `abort_reason`으로 올린다. `motion_link_lost`(2026-10-16 G5)는 RPi5→RPi4 생존 신호를 잃고 RPi4가 스스로 멈춘 것 — RPi5는 이것만은 '눌렸는지 모름'으로 바꿔 남긴다(위 '실행 중 생존 신호') |
 
 - RPi5는 `button_results`를 **엄격하게** 읽는다: 버튼 이름이 요청 순서와 다르거나, 성공이라면서 전 버튼을
   덮지 않거나, 마지막이 아닌 칸이 실패면 **통째로 버리고** 종전처럼 집계 `retry`로 합성한다(성공이면 마지막
