@@ -232,7 +232,8 @@ class KioskIdleView extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(nextRun!.line,
+                          // 어절 단위로 줄을 바꾼다(실패널에서 '공기청/정기'처럼 끊겼다).
+                          child: Text(keepWords(nextRun!.line),
                               style: const TextStyle(
                                   fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
                         ),
