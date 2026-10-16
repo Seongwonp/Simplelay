@@ -202,6 +202,15 @@ class CommandExecutionMixin:
         appliance = self._appliance_registry.get(appliance_id) if self._appliance_registry else None
         return appliance.thinq if appliance is not None else None
 
+    def _history_name(self, appliance_id: str | None) -> str | None:
+        """기록에 남길 그때의 가전 이름 — 등록에 없으면 None(ID를 이름으로 지어내지 않는다)."""
+        try:
+            appliance = (self._appliance_registry.get(appliance_id)
+                         if self._appliance_registry and appliance_id else None)
+        except Exception:  # noqa: BLE001 — 이름 때문에 기록을 잃지 않는다
+            return None
+        return appliance.name if appliance is not None else None
+
     def _appliance_name(self, appliance_id: str) -> str:
         appliance = self._appliance_registry.get(appliance_id) if self._appliance_registry else None
         return appliance.name if appliance is not None else appliance_id
@@ -614,6 +623,7 @@ class CommandExecutionMixin:
                 status=result.status.value,
                 buttons=(),
                 appliance_id=result.command.target_id,
+                appliance_name=self._history_name(result.command.target_id),
                 execution_mode=result.execution_mode,
                 started_at=self._current_started_at,
                 termination=termination,

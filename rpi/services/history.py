@@ -100,6 +100,9 @@ class JobHistoryEntry:
     operation_detail: str = ""
     #: 모션 중단 원인(2026-10-14, 예: ``motion_alarm: stall``). 없으면 None.
     abort_reason: str | None = None
+    #: 실행할 때의 가전 이름(2026-10-16 결함 ②) — 나중에 이름·모드가 바뀌어도 기록은 그때 이름을 보인다.
+    #: 열이 생기기 전 기록은 None(클라이언트가 지금 목록에서 찾는다).
+    appliance_name: str | None = None
 
     @property
     def effective_outcome(self) -> str:

@@ -28,6 +28,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from collections import deque
@@ -48,6 +49,8 @@ from .model import (
 log = logging.getLogger(__name__)
 
 TIME_WINDOW_MINUTES = 10
+#: 시각 루틴이 이미 띄운 회차(루틴 ID → [날짜, 시각]) — 서버 DB 설정 한 칸(2026-10-16 결함 ①).
+FIRED_SETTING = "routine_time_fired"
 KIND_ROUTINE_NOTICE = "routine_notice"
 
 _ZONE_LEVEL = {"idle": 0, "room_present": 1, "approaching": 2, "at_device": 2}
@@ -79,6 +82,9 @@ class RoutineEngine:
         self.runner = runner
         self._lock = threading.Lock()
         self._fired: dict[str, tuple] = {}
+        #: '이 회차는 이미 띄웠다'를 남기는 저장소(2026-10-16 결함 ①) — 없으면 메모리만(재시작하면 10분 창 안에서
+        #: 같은 카드가 다시 떴다). restore_fired로 연결한다.
+        self._save_fired = None
         self._seen_transitions = 0
         self._last_transition_key = None
         self._log: deque[dict] = deque(maxlen=50)
@@ -119,6 +125,30 @@ class RoutineEngine:
                 return routine.routine_id, routine.name
         return None
 
+    def restore_fired(self, load, save) -> None:
+        """재시작 뒤에도 같은 날 같은 시각 회차를 다시 띄우지 않게 저장값을 읽고 저장 함수를 건다. 깨진 값은 버린다."""
+        try:
+            raw = json.loads(load(FIRED_SETTING) or "{}")
+            restored = {str(k): (str(v[0]), str(v[1])) for k, v in raw.items()
+                        if isinstance(v, list) and len(v) == 2}
+        except (ValueError, TypeError, AttributeError):
+            restored = {}
+        with self._lock:
+            restored.update(self._fired)
+            self._fired = restored
+            self._save_fired = save
+
+    def _persist_fired(self) -> None:
+        save = self._save_fired
+        if save is None:
+            return
+        with self._lock:
+            snapshot = json.dumps({k: list(v) for k, v in self._fired.items()})
+        try:
+            save(FIRED_SETTING, snapshot)
+        except Exception:  # noqa: BLE001 — 저장 실패로 카드를 막지 않는다(메모리 기억은 남는다)
+            log.exception("routine fired occurrence save failed")
+
     # ── 트리거 ──────────────────────────────────────────────────────────────
     def tick(self, now: datetime | None = None) -> list:
         """주기 호출(main.py). 시각 트리거와 다가옴 트리거를 본다."""
@@ -137,6 +167,7 @@ class RoutineEngine:
                 if self._fired.get(routine.routine_id) == key:
                     continue
                 self._fired[routine.routine_id] = key
+            self._persist_fired()
             if self._auto_time(routine, scheduled, now):
                 continue  # 허용한 시각 규칙이 맡았다(보냄·막힘·중복) — 카드를 만들지 않는다
             fired.append(self._fire(routine, f"{trigger.describe()} 시각이에요", False, "time"))

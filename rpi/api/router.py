@@ -1302,6 +1302,7 @@ def history(
             operation_confirmed=e.operation_confirmed,
             operation_detail=e.operation_detail,
             abort_reason=None if e.abort_reason == "press_unconfirmed" else e.abort_reason,
+            appliance_name=e.appliance_name,
         )
         for e in store.recent(limit)
     ]

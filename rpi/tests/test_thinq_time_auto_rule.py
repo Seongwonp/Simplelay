@@ -630,3 +630,30 @@ def test_unclean_restart_holds_time_rules_off(monkeypatch, db_api, clock, hub):
     time.sleep(0.2)
     assert [r for r in _runs(api) if r["outcome"] == "sent"] == []
     assert len(_routine_cards(api)) == 1
+
+
+def test_time_card_is_not_shown_again_after_a_restart_in_the_same_window(monkeypatch, db_api, clock, hub):
+    """2026-10-16 결함 ① — '이 회차는 이미 띄웠다'가 메모리에만 있어 10분 창 안에서 재시작하면 같은 카드가 또 떴다."""
+    api = db_api
+    routine = _routine(api)
+    _move(clock, hub, AT_2300 + timedelta(seconds=5))
+    assert len(_tick(clock.value)) == 1
+    assert len(_routine_cards(api)) == 1
+    api = _restart(monkeypatch, clean=True)
+    _move(clock, hub, AT_2300 + timedelta(minutes=3))
+    assert _tick(clock.value) == []  # 같은 날 같은 시각 회차 — 다시 띄우지 않는다
+    assert len([s for s in _routine_cards(api) if s["scenario_id"].startswith(f"routine:{routine['id']}")]) <= 1
+    _move(clock, hub, AT_2300 + timedelta(days=1, seconds=5))
+    assert len(_tick(clock.value)) == 1  # 다음 날 회차는 그대로 뜬다
+
+
+def test_history_keeps_the_appliance_name_at_run_time_across_a_restart(monkeypatch, db_api, clock, hub):
+    """2026-10-16 결함 ② — 기록이 가전 ID만 남겨 클라이언트가 **지금** 이름을 붙였다(모의로 바꾸자 실제 실행이
+    '공기청정기(모의)'로 보였다). 실행할 때의 이름을 기록에 남기고 DB에서도 그대로 읽는다."""
+    api = db_api
+    name = next(a["name"] for a in api.get("/appliances").json() if a["id"] == "air_purifier")
+    _power_off(api)
+    assert api.get("/history").json()[0]["appliance_name"] == name
+    api = _restart(monkeypatch, clean=True)
+    entry = api.get("/history").json()[0]
+    assert entry["appliance_id"] == "air_purifier" and entry["appliance_name"] == name

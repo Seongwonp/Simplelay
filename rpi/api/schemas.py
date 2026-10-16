@@ -854,6 +854,8 @@ class HistoryEntryResponse(BaseModel):
     operation_detail: str = ""
     #: 모션 장치 쪽 이유로 재시도 없이 멈춘 원인(2026-10-14, 예: ``motion_alarm: stall``). 그 밖은 None.
     abort_reason: str | None = None
+    #: 실행할 때의 가전 이름(2026-10-16) — 옛 기록은 None(클라이언트가 지금 목록에서 찾는다).
+    appliance_name: str | None = None
 
 
 class OkResponse(BaseModel):

@@ -810,6 +810,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
                         for b in result.buttons
                     ),
                     appliance_id=appliance_id,
+                    appliance_name=self._history_name(appliance_id),
                     execution_mode=_run_mode(controller, result),
                     started_at=self._current_started_at,
                     # 실행 시작 시점의 스냅샷 -- 여기서 다시 조회하면

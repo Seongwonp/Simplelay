@@ -140,6 +140,7 @@ class SimpleLayDb:
                 "stop_requested_at",
                 "outcome",
                 "abort_reason",
+                "appliance_name",
             ):
                 if column not in job_columns:
                     self._conn.execute(
@@ -483,8 +484,9 @@ class SimpleLayDb:
                 "INSERT INTO job_history"
                 " (job_id, finished_at, purpose, status, buttons_json,"
                 "  appliance_id, execution_mode, started_at, termination,"
-                "  calibration_profile_version, stop_requested_at, outcome, abort_reason)"
-                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "  calibration_profile_version, stop_requested_at, outcome, abort_reason,"
+                "  appliance_name)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     entry.job_id,
                     entry.finished_at.isoformat(),
@@ -513,6 +515,7 @@ class SimpleLayDb:
                     ),
                     entry.outcome,
                     entry.abort_reason,
+                    entry.appliance_name,
                 ),
             )
             self._conn.commit()
@@ -522,7 +525,8 @@ class SimpleLayDb:
             rows = self._conn.execute(
                 "SELECT job_id, finished_at, purpose, status, buttons_json,"
                 " appliance_id, execution_mode, started_at, termination,"
-                " calibration_profile_version, stop_requested_at, outcome, abort_reason"
+                " calibration_profile_version, stop_requested_at, outcome, abort_reason,"
+                " appliance_name"
                 " FROM job_history ORDER BY id DESC LIMIT ?",
                 (limit,),
             ).fetchall()
@@ -548,6 +552,7 @@ class SimpleLayDb:
                 # 열이 생기기 전 기록은 NULL — effective_outcome이 유도한다.
                 outcome=row[11],
                 abort_reason=row[12],
+                appliance_name=row[13],
             )
             for row in rows
         )

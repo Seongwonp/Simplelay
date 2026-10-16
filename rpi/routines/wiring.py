@@ -57,6 +57,9 @@ def wire_routines(suggestions, service, scenario_engine=None) -> RoutineEngine:
         # 시각 규칙(2026-10-16): 정해진 시각에 켜진 '다음부터도 자동으로'가 있으면 카드 대신 자동 실행 경로로.
         auto_rules=get_auto_rule_engine,
     )
+    db = deps.get_db()
+    if db is not None:  # 재시작해도 같은 시각 회차 카드를 다시 띄우지 않는다(2026-10-16 결함 ①)
+        engine.restore_fired(db.load_setting, db.save_setting)
     scenarios = scenario_engine.catalog.current_commands if scenario_engine is not None else None
 
     def resolve(scenario_id):
