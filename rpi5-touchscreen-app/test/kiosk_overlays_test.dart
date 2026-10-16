@@ -47,6 +47,9 @@ void main() {
             reason: label);
       }
 
+      // '취소'는 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17).
+      expect(find.ancestor(of: find.text('취소'), matching: find.byType(OutlinedButton)), findsOneWidget);
+
       await tester.tap(find.text('1시간'));
       await tester.tap(find.text('취소'));
       expect(minutes, [60]);

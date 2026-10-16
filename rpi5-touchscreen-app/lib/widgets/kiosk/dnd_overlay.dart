@@ -98,11 +98,14 @@ class DndOverlay extends StatelessWidget {
                       ),
                     ],
                     const SizedBox(height: 8),
-                    TextButton(
+                    // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17).
+                    OutlinedButton(
                       onPressed: onDismiss,
-                      style: TextButton.styleFrom(
-                        foregroundColor: KioskColors.muted,
-                        minimumSize: const Size(120, 48),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: KioskColors.border, width: 2),
+                        minimumSize: const Size(160, 52),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
                       child: const Text('취소', style: TextStyle(fontSize: 18)),
                     ),
