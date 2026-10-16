@@ -458,6 +458,8 @@ void main() {
     await _settle(tester);
 
     expect(runButton('rt-1'), findsOneWidget);
+    // 홈 목록과 같은 테두리 버튼 — 줄마다 채운 버튼이면 위계가 흐려졌다(UI 평가 3차 10/17).
+    expect(tester.widget(runButton('rt-1')), isA<OutlinedButton>());
     expect(editButton('rt-1'), findsOneWidget);
     // 둘 다 48 이상 터치 영역.
     expect(tester.getSize(runButton('rt-1')).height, greaterThanOrEqualTo(48));

@@ -74,13 +74,13 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(_Server().api()));
     await _settle(tester);
-    expect(find.text('조용한 시간'), findsOneWidget);
-    expect(find.text('매일 22:00~07:00 · 지금 조용한 시간이에요'), findsOneWidget);
-    expect(find.textContaining('새 제안과 일반 안내 소리만 쉬어요'), findsOneWidget);
-    expect(find.textContaining('직접 실행·정지는 그대로예요'), findsOneWidget);
-    expect(find.textContaining('모든 알림'), findsNothing);
+    expect(findPlainText('조용한 시간'), findsOneWidget);
+    expect(findPlainText('매일 22:00~07:00 · 지금 조용한 시간이에요'), findsOneWidget);
+    expect(findPlainText('새 제안과 일반 안내 소리만 쉬어요', contains: true), findsOneWidget);
+    expect(findPlainText('직접 실행·정지는 그대로예요', contains: true), findsOneWidget);
+    expect(findPlainText('모든 알림', contains: true), findsNothing);
     // 잠시 쉬기도 같은 범위로 말한다(자동 실행도 건너뛴다).
-    expect(find.text('몇 시간 동안 새 제안과 자동 실행을 쉬어요'), findsOneWidget);
+    expect(findPlainText('몇 시간 동안 새 제안과 자동 실행을 쉬어요'), findsOneWidget);
   });
 
   testWidgets('켜기/끄기는 서버에 저장한다(PUT)', (tester) async {
@@ -95,8 +95,8 @@ void main() {
     expect(server.puts, [
       {'enabled': false},
     ]);
-    expect(find.text('매일 22:00~07:00 · 꺼져 있어요'), findsOneWidget);
-    expect(find.text(kSettingNotSavedNotice), findsNothing);
+    expect(findPlainText('매일 22:00~07:00 · 꺼져 있어요'), findsOneWidget);
+    expect(findPlainText(kSettingNotSavedNotice), findsNothing);
   });
 
   testWidgets('저장 실패(persisted=false)면 바뀐 값은 보이되 이번 세션만 적용이라고 알린다', (tester) async {
@@ -109,15 +109,15 @@ void main() {
     expect(server.puts, [
       {'enabled': false},
     ]);
-    expect(find.text('매일 22:00~07:00 · 꺼져 있어요'), findsOneWidget);
-    expect(find.text(kSettingNotSavedNotice), findsOneWidget);
+    expect(findPlainText('매일 22:00~07:00 · 꺼져 있어요'), findsOneWidget);
+    expect(findPlainText(kSettingNotSavedNotice), findsOneWidget);
   });
 
   testWidgets('허브가 없으면 설정할 수 없다고 말하고 스위치를 잠근다', (tester) async {
     _tall(tester);
     await tester.pumpWidget(_build(null));
     await _settle(tester);
-    expect(find.text('허브와 연결되면 설정할 수 있어요.'), findsOneWidget);
+    expect(findPlainText('허브와 연결되면 설정할 수 있어요.'), findsOneWidget);
     final sw = tester.widget<Switch>(find.descendant(
         of: find.byKey(const Key('quiet-hours-switch')), matching: find.byType(Switch)));
     expect(sw.onChanged, isNull);

@@ -11,7 +11,7 @@ import '../theme/app_text.dart';
 
 /// ThinQ 가전 상세의 '지금 상태' 카드(2026-10-15, 사용자 요청 동결 예외).
 ///
-/// 못 읽었으면 이유를 말하고 값을 지어내지 않는다. 읽은 시각을 'HH:MM 업데이트'로
+/// 못 읽었으면 이유를 말하고 값을 지어내지 않는다. 읽은 시각을 'HH:MM에 읽음'로
 /// 같이 적는다 — ThinQ 값은 그 시각의 것이지 지금 이 순간의 보장이 아니다.
 ///
 /// 공기청정기는 전원·풍량·운전 모드를 여기서 바꾼다(같은 날 사용자 요청). **누르면
@@ -301,9 +301,9 @@ String? thinqCommandRefusal(RpiApiException e) {
   }
 }
 
-/// 'HH:MM 업데이트' — 읽은 시각(모의면 ' (모의)').
+/// 'HH:MM에 읽음' — 읽은 시각(모의면 ' (모의)').
 String thinqReadTimeLine(DateTime t, {bool mock = false}) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 업데이트'
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}에 읽음'
     '${mock ? ' (연습)' : ''}';
 
 /// 화면 낭독용 시각 — 'HH시 MM분'.

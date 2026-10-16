@@ -43,8 +43,8 @@ void main() {
       ],
     ));
     await tester.pump();
-    expect(find.textContaining('방해 금지 중 · ${_hhmm(until)}까지 · '), findsOneWidget);
-    expect(find.textContaining('남음'), findsOneWidget);
+    expect(findPlainText('방해 금지 중 · ${_hhmm(until)}까지 · ', contains: true), findsOneWidget);
+    expect(findPlainText('남음', contains: true), findsOneWidget);
   });
 
   testWidgets('설정 줄: 켜져 있으면 "HH:MM까지 새 제안과 자동 실행을 쉬어요"', (tester) async {
@@ -59,7 +59,7 @@ void main() {
       ],
     ));
     await tester.pump();
-    expect(find.text('${_hhmm(until)}까지 새 제안과 자동 실행을 쉬어요'), findsOneWidget);
-    expect(find.text('지금 받기'), findsOneWidget);
+    expect(findPlainText('${_hhmm(until)}까지 새 제안과 자동 실행을 쉬어요'), findsOneWidget);
+    expect(findPlainText('지금 받기'), findsOneWidget);
   });
 }

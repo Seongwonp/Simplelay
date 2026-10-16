@@ -191,7 +191,7 @@ class _OptionTile extends StatelessWidget {
         subtitle: Text(
           subtitle,
           style: TextStyle(
-              color: context.appMuted, fontSize: 12),
+              color: context.appMuted, fontSize: 14),
         ),
         trailing: Icon(
           Icons.chevron_right,

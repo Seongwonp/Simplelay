@@ -1069,7 +1069,8 @@ class _SensorRecordState extends State<_SensorRecord> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      '센서 기록 보기',
+                      // 무엇의 기록인지(UI 평가 3차 10/17 — '센서'는 기술 말이었다).
+                      '전류·소리 기록 보기',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,

@@ -219,9 +219,9 @@ void main() {
       // 논지가 숫자 뒤로 밀린다. 근거가 필요한 사람은 펼쳐서 본다.
       await _pumpStatus(tester, runningStatus);
       expect(find.text('320 mA'), findsNothing);
-      expect(find.text('센서 기록 보기'), findsOneWidget);
+      expect(find.text('전류·소리 기록 보기'), findsOneWidget);
 
-      await tester.tap(find.text('센서 기록 보기'));
+      await tester.tap(find.text('전류·소리 기록 보기'));
       // 실행 화면은 진행 표시가 계속 돌아서 pumpAndSettle이 끝나지 않는다.
       await tester.pump();
 

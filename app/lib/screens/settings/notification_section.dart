@@ -29,15 +29,16 @@ class _DndTile extends ConsumerWidget {
             ? Icons.do_not_disturb_on
             : Icons.do_not_disturb_on_outlined),
         title: const Text('제안 잠시 쉬기'),
-        subtitle: Text(
+        // 어절 단위 줄바꿈·14pt(UI 평가 3차 10/17 — '쉬 / 어요'로 끊기고 12pt는 작았다).
+        subtitle: _WordsText(
           // 잠시 쉬기도 조용한 시간과 같은 판정이다(2026-10-14) — 아직 시작하지 않은 자동 실행도 건너뛴다.
           // 켜져 있으면 끝나는 시각을 함께(2026-10-14 마감 확인 A5).
           !active
               ? '몇 시간 동안 새 제안과 자동 실행을 쉬어요'
               : carried
-                  ? '${pauseEndClock(until)}까지 새 제안만 쉬어요 · 업데이트 전에 켠 설정이라 자동 실행은 그대로예요'
+                  ? '${pauseEndClock(until)}까지 새 제안만 쉬어요 · 예전에 켠 설정이라 자동 실행은 그대로예요'
                   : '${pauseEndClock(until)}까지 새 제안과 자동 실행을 쉬어요',
-          style: TextStyle(color: context.appMuted, fontSize: 12),
+          style: TextStyle(color: context.appMuted, fontSize: 14),
         ),
         // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
         trailing: OutlinedButton(
@@ -107,7 +108,7 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
   Widget build(BuildContext context) {
     final connected = ref.watch(rpiApiServiceProvider) != null;
     final s = ref.watch(quietHoursProvider).valueOrNull;
-    final muted = TextStyle(color: context.appMuted, fontSize: 12);
+    final muted = TextStyle(color: context.appMuted, fontSize: 14);
     return _SettingCard(
       child: ListTile(
         contentPadding: EdgeInsets.zero,
@@ -120,8 +121,8 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(s.summary, style: TextStyle(fontSize: 13, color: context.appMuted)),
-                  Text(
+                  _WordsText(s.summary, style: TextStyle(fontSize: 14, color: context.appMuted)),
+                  _WordsText(
                     '${s.scope ?? '새 제안과 일반 안내 소리만 쉬어요.'} 직접 실행·정지는 그대로예요.',
                     style: muted,
                   ),
@@ -197,11 +198,11 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
           paused ? Icons.notifications_paused : Icons.favorite_outline,
         ),
         title: const Text('안부 확인 쉬기'),
-        subtitle: Text(
+        subtitle: _WordsText(
           paused
               ? '${_ymd(until)}까지 쉬어요. 실행 실패·위험 신호음은 그대로 알려드려요.'
               : '여행처럼 집을 비우는 날 켜세요. 조용한 게 정상인 날 알림이 오지 않아요.',
-          style: TextStyle(color: context.appMuted, fontSize: 12),
+          style: TextStyle(color: context.appMuted, fontSize: 14),
         ),
         // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
         trailing: OutlinedButton(
@@ -337,4 +338,16 @@ class _SuppressionNote extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 설정 부제 — 어절 단위로만 줄을 바꾸고(낱말 안 결합 문자), 화면 읽기에는 원문을 준다(UI 평가 3차 10/17).
+class _WordsText extends StatelessWidget {
+  const _WordsText(this.text, {this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) =>
+      Text(keepWordsTogether(text), semanticsLabel: text, style: style);
 }

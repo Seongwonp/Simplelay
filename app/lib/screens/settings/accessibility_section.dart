@@ -12,7 +12,7 @@ class _VoiceGuideTile extends ConsumerWidget {
         secondary: const Icon(Icons.record_voice_over),
         title: const Text('음성 안내'),
         subtitle: Text('실행 결과를 소리로 알려 줘요',
-            style: TextStyle(color: context.appMuted, fontSize: 12)),
+            style: TextStyle(color: context.appMuted, fontSize: 14)),
         value: enabled,
         onChanged: (v) => ref.read(voiceGuideProvider.notifier).set(v),
       ),

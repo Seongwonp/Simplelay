@@ -2,7 +2,7 @@
 //
 // - 화면에 들어오면 GET /thinq/status/{id}를 한 번 읽어 사람 말로 보인다.
 // - 못 읽으면 이유를 말하고 값을 지어내지 않는다('꺼짐'처럼 보이지 않는다). 조작 줄도 없다.
-// - '다시 읽기'를 눌러야 다시 읽는다. 읽은 시각('HH:MM 업데이트')과 모의 여부를 같이 적는다.
+// - '다시 읽기'를 눌러야 다시 읽는다. 읽은 시각('HH:MM에 읽음')과 모의 여부를 같이 적는다.
 // - 공기청정기 조작: 누르면 한 번 묻고, '바꾸기'를 눌러야 POST /thinq/command를
 //   한 번 보낸 뒤 실행 상태 화면으로 간다. 취소·지금 값이면 보내지 않는다.
 // - 외부 검토 반영(10/15): 전원 꺼짐이면 켜기만(풍량·운전 모드 줄 없음, 스스로 켜지 않음),
@@ -136,7 +136,7 @@ void main() {
     expect(find.text('11 · 좋음'), findsOneWidget);
     expect(find.text('20 · 보통'), findsOneWidget);
     expect(find.text('100%'), findsOneWidget);
-    expect(find.text('09:12 업데이트'), findsOneWidget);
+    expect(find.text('09:12에 읽음'), findsOneWidget);
     expect(find.textContaining('에 읽었어요'), findsNothing);
     expect(find.textContaining('모의'), findsNothing);
     // 미세먼지 값이 있으면 이유 줄은 없다.
@@ -161,7 +161,7 @@ void main() {
         findsOneWidget);
     expect(find.text('켜짐'), findsNothing);
     expect(find.text('꺼짐'), findsNothing);
-    expect(find.textContaining('업데이트'), findsNothing);
+    expect(find.textContaining('에 읽음'), findsNothing);
     expect(find.byType(ChoiceChip), findsNothing);
   });
 
@@ -200,7 +200,7 @@ void main() {
     await _settle(tester);
 
     expect(find.text('지금 상태 (연습)'), findsOneWidget);
-    expect(find.text('09:12 업데이트 (연습)'), findsOneWidget);
+    expect(find.text('09:12에 읽음 (연습)'), findsOneWidget);
   });
 
   testWidgets("풍량 '강풍' → 한 번 묻고, '바꾸기'를 눌러야 한 번 보내고 실행 상태로 간다",
@@ -468,10 +468,10 @@ void main() {
     expect(thinqCommandRefusal(RpiApiException(503, '준비 중')), isNull);
   });
 
-  test('읽은 시각은 HH:MM 업데이트, 낭독은 HH시 MM분', () {
+  test('읽은 시각은 HH:MM에 읽음, 낭독은 HH시 MM분', () {
     final t = DateTime(2026, 10, 15, 7, 5, 59);
-    expect(thinqReadTimeLine(t), '07:05 업데이트');
-    expect(thinqReadTimeLine(t, mock: true), '07:05 업데이트 (연습)');
+    expect(thinqReadTimeLine(t), '07:05에 읽음');
+    expect(thinqReadTimeLine(t, mock: true), '07:05에 읽음 (연습)');
     expect(thinqReadTimeSpoken(t), '07시 05분');
   });
 

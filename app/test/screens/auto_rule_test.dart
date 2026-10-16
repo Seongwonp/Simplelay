@@ -376,7 +376,8 @@ void main() {
       // 규칙은 한 문장(2026-10-14 UX) — "조건:/동작:" 표가 아니다.
       expect(find.text('전자레인지가 멈추면 → 거실 공기청정기 풍량 강으로'), findsOneWidget);
       expect(find.textContaining('조건:'), findsNothing);
-      expect(find.text('세기 바꾸기'), findsOneWidget);
+      expect(find.text('풍량 바꾸기'), findsOneWidget);
+      expect(find.text('세기 바꾸기'), findsNothing);
       expect(find.text('자동 실행 켜짐'), findsOneWidget);
       expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
       expect(find.textContaining('깨끗'), findsNothing);

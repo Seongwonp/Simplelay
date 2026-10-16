@@ -272,7 +272,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
                   '플러그 주소를 입력해 주세요',
-                  style: TextStyle(fontSize: 12, color: context.appMuted),
+                  style: TextStyle(fontSize: 14, color: context.appMuted),
                 ),
               ),
 
@@ -307,7 +307,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Text(
                     _error!,
-                    style: TextStyle(fontSize: 12, color: context.appDanger),
+                    style: TextStyle(fontSize: 14, color: context.appDanger),
                   ),
                 ),
               ],

@@ -90,7 +90,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
-      expect(find.text('설정'), findsOneWidget);
+      expect(findPlainText('설정'), findsOneWidget);
     });
 
     testWidgets('UI 확정 §2의 여섯 항목이 그 순서로 맨 위에 있다', (tester) async {
@@ -117,10 +117,10 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
-      expect(find.text('제어 가전'), findsNothing);
-      expect(find.text('새 가전'), findsNothing);
-      expect(find.text('음성으로 멈추기'), findsNothing);
-      expect(find.text('가전 추가'), findsNothing);
+      expect(findPlainText('제어 가전'), findsNothing);
+      expect(findPlainText('새 가전'), findsNothing);
+      expect(findPlainText('음성으로 멈추기'), findsNothing);
+      expect(findPlainText('가전 추가'), findsNothing);
       expect(find.widgetWithText(ListTile, '전자레인지'), findsWidgets);
     });
 
@@ -144,8 +144,8 @@ void main() {
       ));
       await tester.pump();
       expect(find.widgetWithText(ListTile, '공기청정기'), findsOneWidget);
-      expect(find.text('ThinQ 가전 · 빼기는 LG ThinQ 연결에서'), findsOneWidget);
-      expect(find.text('기본 가전'), findsOneWidget);
+      expect(findPlainText('ThinQ 가전 · 빼기는 LG ThinQ 연결에서'), findsOneWidget);
+      expect(findPlainText('기본 가전'), findsOneWidget);
       expect(find.descendant(of: find.widgetWithText(ListTile, '공기청정기'), matching: find.byIcon(Icons.chevron_right)),
           findsOneWidget);
     });
@@ -173,7 +173,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHub());
       await tester.pump();
-      expect(find.text('주변 BLE 기기'), findsOneWidget);
+      expect(findPlainText('주변 BLE 기기'), findsOneWidget);
     });
 
     testWidgets('허브 화면에 검색된 기기 없음 문구가 보인다 (빈 목록)', (tester) async {
@@ -182,7 +182,7 @@ void main() {
       await tester.pump();
       // 스트림의 첫 데이터 이벤트가 반영되려면 pump 한 번 더 필요.
       await tester.pump();
-      expect(find.text('찾은 기기가 없어요.'), findsOneWidget);
+      expect(findPlainText('찾은 기기가 없어요.'), findsOneWidget);
     });
   });
 
@@ -213,9 +213,14 @@ void main() {
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
 
-      expect(find.text('안부 확인 쉬기'), findsOneWidget);
-      expect(find.text('쉬기'), findsOneWidget);
-      expect(find.textContaining('여행처럼 집을 비우는 날'), findsOneWidget);
+      expect(findPlainText('안부 확인 쉬기'), findsOneWidget);
+      expect(findPlainText('쉬기'), findsOneWidget);
+      expect(findPlainText('여행처럼 집을 비우는 날', contains: true), findsOneWidget);
+      // 부제는 어절 단위로만 줄바꿈('정상 / 인' 방지)·14pt 이상, 화면 읽기는 원문(UI 평가 3차 10/17).
+      final sub = tester.widget<Text>(findPlainText('여행처럼 집을 비우는 날', contains: true));
+      expect(sub.data, contains(kWordJoiner));
+      expect(sub.style?.fontSize, greaterThanOrEqualTo(14));
+      expect(sub.semanticsLabel, '여행처럼 집을 비우는 날 켜세요. 조용한 게 정상인 날 알림이 오지 않아요.');
     });
 
     testWidgets('쉬는 동안에도 실패·위험 알림은 간다고 말한다', (tester) async {
@@ -233,9 +238,9 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.textContaining('7월 30일까지 쉬어요'), findsOneWidget);
-      expect(find.textContaining('실행 실패·위험 신호음은 그대로'), findsOneWidget);
-      expect(find.text('지금 켜기'), findsOneWidget);
+      expect(findPlainText('7월 30일까지 쉬어요', contains: true), findsOneWidget);
+      expect(findPlainText('실행 실패·위험 신호음은 그대로', contains: true), findsOneWidget);
+      expect(findPlainText('지금 켜기'), findsOneWidget);
     });
 
     testWidgets('버튼이 48px 이상이다', (tester) async {
@@ -255,19 +260,19 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
-      expect(find.text('데모 모드'), findsNothing);
-      expect(find.text('제안 시뮬레이션'), findsNothing);
-      expect(find.text('개발자 도구'), findsNothing);
-      expect(find.text('고급 설정'), findsNothing);
+      expect(findPlainText('데모 모드'), findsNothing);
+      expect(findPlainText('제안 시뮬레이션'), findsNothing);
+      expect(findPlainText('개발자 도구'), findsNothing);
+      expect(findPlainText('고급 설정'), findsNothing);
     });
 
     testWidgets('개발자 탭에 데모 모드 토글과 시뮬레이션이 보인다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildDev());
       await tester.pump();
-      expect(find.text('데모 모드'), findsOneWidget);
-      expect(find.text('제안 시뮬레이션'), findsOneWidget);
-      expect(find.text('연결 해제'), findsOneWidget);
+      expect(findPlainText('데모 모드'), findsOneWidget);
+      expect(findPlainText('제안 시뮬레이션'), findsOneWidget);
+      expect(findPlainText('연결 해제'), findsOneWidget);
     });
 
     testWidgets('데모 모드는 기본이 꺼짐이다', (tester) async {
@@ -317,7 +322,7 @@ void main() {
         find.widgetWithText(SwitchListTile, '데모 모드'),
       );
       expect(toggle.onChanged, isNull);
-      expect(find.text('실행이 끝난 뒤에 바꿀 수 있어요'), findsOneWidget);
+      expect(findPlainText('실행이 끝난 뒤에 바꿀 수 있어요'), findsOneWidget);
     });
 
     testWidgets('개발자 도구 진입은 개발자 탭에만 있고 모의·실제 장치를 단정하지 않는다',
@@ -325,28 +330,28 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildDev());
       await tester.pump();
-      expect(find.text('개발자 도구'), findsOneWidget);
+      expect(findPlainText('개발자 도구'), findsOneWidget);
       // 서버가 실제 장치일 수 있어 '실제로 움직이지 않는다'고 단정하지 않는다(10/12).
-      expect(find.textContaining('실제로 움직이지 않'), findsNothing);
-      expect(find.textContaining('들어가면 어느 쪽인지 표시돼요'), findsOneWidget);
+      expect(findPlainText('실제로 움직이지 않', contains: true), findsNothing);
+      expect(findPlainText('들어가면 어느 쪽인지 표시돼요', contains: true), findsOneWidget);
     });
 
     testWidgets('제안 시뮬레이션 탭 시 SnackBar 표시', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildDev());
       await tester.pump();
-      await tester.tap(find.text('제안 시뮬레이션'));
+      await tester.tap(findPlainText('제안 시뮬레이션'));
       await tester.pump();
-      expect(find.text('데모 제안 주입 완료'), findsOneWidget);
+      expect(findPlainText('데모 제안 주입 완료'), findsOneWidget);
     });
 
     testWidgets('연결 해제 탭 시 SnackBar 표시', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildDev());
       await tester.pump();
-      await tester.tap(find.text('연결 해제'));
+      await tester.tap(findPlainText('연결 해제'));
       await tester.pump();
-      expect(find.text('연결 해제 시뮬레이션'), findsOneWidget);
+      expect(findPlainText('연결 해제 시뮬레이션'), findsOneWidget);
     });
   });
 
@@ -355,9 +360,9 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildDev(developerMode: false));
       await tester.pump();
-      expect(find.text('허브의 개발자 모드가 꺼져 있어요.'), findsOneWidget);
-      expect(find.text('개발자 도구'), findsNothing);
-      expect(find.text('데모 모드'), findsNothing);
+      expect(findPlainText('허브의 개발자 모드가 꺼져 있어요.'), findsOneWidget);
+      expect(findPlainText('개발자 도구'), findsNothing);
+      expect(findPlainText('데모 모드'), findsNothing);
     });
   });
 

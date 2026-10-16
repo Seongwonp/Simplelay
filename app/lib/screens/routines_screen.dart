@@ -489,10 +489,11 @@ class _RoutineRow extends StatelessWidget {
             button: true,
             enabled: !busy,
             excludeSemantics: true,
-            child: FilledButton(
+            // 홈 목록과 같은 테두리 버튼 — 줄마다 채운 버튼이면 주 행동이 너무 많아 위계가 흐려졌다(UI 평가 3차 10/17).
+            child: OutlinedButton(
               key: Key('routine-run-$key'),
               onPressed: busy ? null : run,
-              style: FilledButton.styleFrom(minimumSize: const Size(112, 48)),
+              style: OutlinedButton.styleFrom(minimumSize: const Size(112, 48)),
               child: running
                   ? const SizedBox(
                       width: 18,
@@ -601,7 +602,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     final value = await showDialog<String>(
       context: context,
       builder: (dialogContext) => SimpleDialog(
-        title: const Text('세기 바꾸기'),
+        title: Text(autoRuleValueLabel(rule)),
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
@@ -704,7 +705,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                         key: Key('auto-rule-edit-${r.id}'),
                         onPressed: _busy ? null : () => _run(_changeValue),
                         style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
-                        child: const Text('세기 바꾸기'),
+                        child: Text(autoRuleValueLabel(r)),
                       ),
                     // 테두리 있는 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(외부 평가 10/16 p02).
                     OutlinedButton(
@@ -751,3 +752,7 @@ class _SectionLabel extends StatelessWidget {
         ),
       );
 }
+
+/// 규칙 값 바꾸기 단추 이름 — 무엇의 값인지 말한다(UI 평가 3차 10/17: '세기'는 무엇의 세기인지 몰랐다).
+String autoRuleValueLabel(AutoRule rule) =>
+    rule.actionText.contains('풍량') ? '풍량 바꾸기' : '설정값 바꾸기';

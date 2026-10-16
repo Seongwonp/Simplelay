@@ -162,7 +162,7 @@ class _SavedDeviceSection extends ConsumerWidget {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: const Size(48, 48),
                 ),
-                child: const Text('재연결', style: TextStyle(fontSize: 12)),
+                child: const Text('재연결', style: TextStyle(fontSize: 14)),
               ),
             IconButton(
               onPressed: () => ref.read(savedDeviceProvider.notifier).clear(),
@@ -264,7 +264,7 @@ class _AdvancedSection extends ConsumerWidget {
               minimumSize: const Size(48, 48),
             ),
             child: Text('기본값으로 초기화',
-                style: TextStyle(color: context.appMuted, fontSize: 12)),
+                style: TextStyle(color: context.appMuted, fontSize: 14)),
           ),
         ],
       );
@@ -312,14 +312,14 @@ class _BleSection extends ConsumerWidget {
             child: Center(child: CircularProgressIndicator()),
           ),
           error: (e, _) => Text('스캔 실패: $e',
-              style: TextStyle(color: context.appMuted, fontSize: 12)),
+              style: TextStyle(color: context.appMuted, fontSize: 14)),
           data: (items) {
             final unique = <DeviceIdentifier, ScanResult>{
               for (final item in items) item.device.remoteId: item,
             }.values;
             if (unique.isEmpty) {
               return Text('찾은 기기가 없어요.',
-                  style: TextStyle(color: context.appMuted, fontSize: 12));
+                  style: TextStyle(color: context.appMuted, fontSize: 14));
             }
             return Column(
               children: unique.map((result) {
@@ -363,7 +363,7 @@ class _BleSection extends ConsumerWidget {
                             horizontal: 14, vertical: 8),
                         minimumSize: const Size(48, 48),
                       ),
-                      child: const Text('연결', style: TextStyle(fontSize: 12)),
+                      child: const Text('연결', style: TextStyle(fontSize: 14)),
                     ),
                   ),
                 );
