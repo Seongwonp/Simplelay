@@ -26,6 +26,10 @@
 - 끝 센서가 없으면 L3·상태 확인으로 통과하되 단계에 **"시작만 확인 — 끝남 판정 센서 없음"**(``basis: start_only``).
 - 정지: 루틴 정지·전체 정지(``POST /stop`` → `stop_all`)·비상정지 걸림(실행 중 한 번이라도 걸렸으면 해제 확인 뒤에도)은
   기다림을 끊고 남은 단계를 보내지 않는다(평가 B5).
+- 구간 사이 정지(2026-10-16 안전 보고 G3): 정지는 (1) 각 단계 앞, (2) 다른 명령이 끝나기를 기다린 **뒤**, (3) 다음 구간의
+  실행 시작 게이트 안(``approval_guard`` — 실행 서비스가 정지 기록을 지우는 바로 그 잠금 안)에서 본다. (3)이 없으면
+  마지막 확인과 실행 시작 사이에 온 정지는 쉬는 서비스에 기록되지 않고(``was_running`` 거짓) 실행 시작이 실행 대상의 정지
+  표시까지 지워 다음 구간이 그대로 나갔다. 구간 결과에 정지 표시가 있으면(버튼은 다 눌렸어도) 루틴은 ``stopped``다.
 - 기다리는 동안 실행 서비스는 쉬는 중이다 — 새 사용자 명령은 막히지 않는다. 다음 장치 단계는 그 명령이 끝나기를
   ``idle_timeout``만큼 기다렸다가, 안 끝나면 루틴을 멈춘다(Copilot#5).
 - 모의 실행(``mock``)의 성공은 센서가 있어도 기다리지 않고 **시연 통과**로 적는다(``basis: mock``).
@@ -169,6 +173,10 @@ def routine_done_settings_from_env(env=None) -> tuple[frozenset, float]:
     return frozenset(names), timeout
 
 
+class RoutineHaltedError(RuntimeError):
+    """다음 구간의 실행 시작 게이트에서 루틴 정지 표시를 봤다(G3) — 실행은 시작되지 않았다."""
+
+
 class RunStatus(str, Enum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
@@ -306,9 +314,11 @@ class RoutineRunner:
             self._service.emergency_stop_report()
         return True
 
-    def stop_all(self, reason: str = "전체 정지 요청") -> int:
-        """진행 중인 루틴을 모두 멈춘다(평가 B5) — ``POST /stop``이 부른다. 장치 정지는 부른 쪽이 이미 했다.
-        끝을 기다리는 루틴도 기다림을 끊고 남은 단계를 보내지 않는다. 멈춘 수를 돌려준다."""
+    def halt_all(self, reason: str = "전체 정지 요청") -> int:
+        """진행 중인 루틴 모두에 정지 표시만 세운다 — 입출력·로그 없음(이벤트 루프에서 바로 불러도 된다).
+
+        ``POST /stop``이 **맨 앞에서** 부른다(2026-10-16 G3): 실행 정지가 RPi4 정지 보고를 기다리는 동안 루틴이 다음 구간을
+        보내지 않게. 사유를 표시보다 먼저 적는다(표시를 본 루틴이 사유를 읽는다). 표시를 세운 수를 돌려준다."""
         stopped = 0
         with self._lock:
             runs = [r for r in self._runs if r.status is RunStatus.RUNNING]
@@ -316,6 +326,12 @@ class RoutineRunner:
             run.stop_reason = reason
             run.cancel.set()
             stopped += 1
+        return stopped
+
+    def stop_all(self, reason: str = "전체 정지 요청") -> int:
+        """진행 중인 루틴을 모두 멈춘다(평가 B5) — ``POST /stop``이 부른다. 장치 정지는 부른 쪽이 이미 했다.
+        끝을 기다리는 루틴도 기다림을 끊고 남은 단계를 보내지 않는다. 멈춘 수를 돌려준다."""
+        stopped = self.halt_all(reason)
         if stopped:
             log.warning("stopped %d routine run(s): %s", stopped, reason)
         return stopped
@@ -420,7 +436,7 @@ class RoutineRunner:
             self._finish(run, routine, RunStatus.UNCONFIRMED, "첫 단계의 결과를 확인하지 못했어요", notify=True)
             return
         if not self._absorb(run, record):
-            self._finish(run, routine, _FROM_COMMAND[record.status], "앞 단계가 확인되지 않아 멈췄어요")
+            self._finish_unabsorbed(run, routine, record)
             return
         for kind, payload in rest:
             if self._halted(run):
@@ -447,27 +463,66 @@ class RoutineRunner:
                 self._finish(run, routine, RunStatus.FAILED,
                              "다른 작업이 끝나지 않아 다음 단계를 보내지 않았어요", notify=True)
                 return
+            # G3: 기다린 사이에 온 정지 — 다시 본다(기다림 앞의 확인만으로는 그 사이 정지를 놓친다).
+            if self._halted(run):
+                self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
+                return
             approved = tuple(replace(a, expires_at=None) for a in payload)
             run.done_mark = self._done_mark()
             run.active = True
             try:
-                record = self._service.execute_approved(approved, approval_guard=None,
+                # G3: 실행 시작 게이트(서비스 잠금 안)에서 루틴 정지를 한 번 더 본다 — 위 확인과 실행 시작 사이에 온 정지를
+                # 실행 시작의 정지 기록 초기화가 덮지 못하게.
+                record = self._service.execute_approved(approved, approval_guard=self._start_guard(run),
                                                         scenario_id=scenario_id, **kwargs)
+            except RoutineHaltedError:
+                run.active = False
+                self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
+                return
             except Exception as exc:  # noqa: BLE001 -- 재검사 거절(바뀜·준비 안 됨·바쁨)
                 run.active = False
+                if self._halted(run):
+                    self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
+                    return
                 self._finish(run, routine, RunStatus.FAILED,
                              f"다음 단계를 시작하지 못했어요: {exc}", notify=True)
                 return
             run.active = False
             run.job_ids.append(record.job_id)
             if not self._absorb(run, record):
-                self._finish(run, routine, _FROM_COMMAND[record.status], "앞 단계가 확인되지 않아 멈췄어요")
+                self._finish_unabsorbed(run, routine, record)
                 return
         if self._halted(run):
             self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
             return
         self._finish(run, routine, RunStatus.SUCCEEDED,
                      "모든 단계를 마쳤어요" + (" (시연: 모의 실행 포함)" if run.is_demo else ""))
+
+    @staticmethod
+    def _start_guard(run: RoutineRun):
+        """다음 구간의 실행 시작 게이트(``approval_guard``) — 실행 서비스가 **자기 잠금 안**에서 부른다.
+
+        루틴 정지 표시만 본다(메모리 읽기 하나 — 서비스 잠금 안이라 서비스 조회·비상정지 조회는 부르지 않는다. 비상정지
+        걸림은 실행 서비스의 시작 게이트가 따로 막는다). 표시가 있으면 `RoutineHaltedError` — 실행은 시작되지 않는다."""
+        def guard() -> None:
+            if run.cancel.is_set():
+                raise RoutineHaltedError("정지 요청으로 다음 단계를 시작하지 않았어요")
+        return guard
+
+    def _finish_unabsorbed(self, run: RoutineRun, routine: Routine, record) -> None:
+        """구간이 성공으로 끝나지 않았거나 정지 표시가 있다 — 루틴을 멈춘다.
+
+        정지(구간 ``stopped``, 결과의 정지 표시, 루틴 정지 표시)면 ``stopped``와 정지 문장이다(G3 — 버튼은 다 눌렸어도 정지
+        요청이 있었으면 '성공'으로 적지 않는다). 실패·미확인은 그 상태 그대로 둔다 — 정지 뒤 링크가 끊긴 구간이라도
+        '눌렸는지 모름'(G1)을 정지로 덮지 않는다."""
+        status = _FROM_COMMAND[record.status]
+        stopped = (status is RunStatus.STOPPED
+                   or (status is RunStatus.SUCCEEDED
+                       and (any(r.stop_requested for r in record.results) or self._halted(run))))
+        if stopped:
+            self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
+            return
+        self._finish(run, routine, status, "앞 단계가 확인되지 않아 멈췄어요")
 
     def _absorb(self, run: RoutineRun, record) -> bool:
         for i, result in enumerate(record.results):

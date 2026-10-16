@@ -667,10 +667,16 @@ class JobAcceptedResponse(BaseModel):
     """실행 접수 응답(비동기 job 모델). 실기기에서 버튼 시퀀스는 수 초~수십 초
     걸리므로 실행 완료를 기다리지 않고 즉시 job_id를 돌려준다. 클라이언트는
     GET /status를 폴링하다가 running=false && last_job_id == 이 job_id가 되면
-    last_status/last_buttons를 자기 실행의 결과로 읽는다."""
+    last_status/last_buttons를 자기 실행의 결과로 읽는다.
+
+    정지어(2026-10-16 안전 보고 G7): ``POST /execute``·``/execute-for-appliance``의 발화 전체가 정지어("멈춰"·"그만" 등,
+    ``rpi/intent/stop_words.py``)면 버튼을 누르지 않고 ``POST /stop``과 같은 일을 한 뒤 ``status: "stopped"``와
+    ``stop``(``POST /stop`` 응답과 같은 모양)을 돌려준다. 이때 ``job_id``는 **멈춘 실행의 job**(실행 중이었을 때)이고, 멈출
+    실행이 없었으면 빈 문자열이다 — 새 job은 만들지 않는다."""
 
     job_id: str
     status: str = "accepted"
+    stop: "StopResponse | None" = None
 
 
 class StatusResponse(BaseModel):

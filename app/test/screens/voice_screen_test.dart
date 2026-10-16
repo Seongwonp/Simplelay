@@ -9,7 +9,9 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../helpers/test_helpers.dart';
 import 'package:simplelay/models/appliance.dart';
+import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/providers/appliance_provider.dart';
+import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/navigation_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/providers/voice_provider.dart';
@@ -651,6 +653,126 @@ void main() {
       await tester.pump(const Duration(milliseconds: 200));
 
       expect(await centerBarHeight(tester), minHeight);
+    });
+  });
+
+  // 안전 보고 G7(2026-10-16): 홈 '말로 조작하기'의 "멈춰"·"그만"은 정지다. 서버는 /execute의 정지어를 /stop의 뜻으로
+  // 받고 `status: "stopped"`·`job_id: ""`를 돌려준다 — 폰이 그 빈 job을 따라가면 '실행 중'으로 머물다
+  // "연결이 끊겨 동작을 확인할 수 없어요"를 띄웠다. 이제 폰은 정지어면 /execute 대신 정지 버튼과 같은 정지를 보내고,
+  // 서버가 `stopped`로 답하면(두 번째 방어) 정지 문구만 보이고 따라가지 않는다.
+  group('G7 — 정지어', () {
+    http.Response json(Object body) => http.Response.bytes(
+          utf8.encode(jsonEncode(body)),
+          200,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        );
+
+    const idleStop = <String, Object?>{
+      'ok': true,
+      'was_running': false,
+      'stop_level': null,
+      'stop_job_id': null,
+    };
+
+    /// 새 서버처럼 답한다: /execute → stopped(정지어로 받음), /stop → 정지 결과, /status → 이 job의 정지 결과.
+    RpiApiService stopServer(List<String> paths,
+            {Map<String, Object?> stop = idleStop, String executeJobId = ''}) =>
+        RpiApiService('http://rpi5.local:8000',
+            client: MockClient((request) async {
+          paths.add(request.url.path);
+          return switch (request.url.path) {
+            '/execute' =>
+              json({'job_id': executeJobId, 'status': 'stopped', 'stop': stop}),
+            '/stop' => json(stop),
+            '/status' => json({
+                'running': false,
+                'last_status': 'safety_stopped',
+                'last_outcome': 'stopped',
+                'last_buttons': [],
+                'last_job_id': executeJobId.isEmpty ? null : executeJobId,
+              }),
+            _ => http.Response('[]', 200),
+          };
+        }));
+
+    testWidgets('쉬는 중 "멈춰"는 /execute가 아니라 정지 요청이고 실행을 따라가지 않는다',
+        (tester) async {
+      final paths = <String>[];
+      final container = await _makeContainer(
+          extra: [rpiApiServiceProvider.overrideWithValue(stopServer(paths))]);
+      container.read(voiceTextProvider.notifier).state = '멈춰';
+
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+      await tester.tap(find.text('이대로 실행'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(paths.where((p) => p == '/execute'), isEmpty);
+      expect(paths.where((p) => p == '/stop').length, 1);
+      expect(find.text('정지를 요청했어요 — 실행 중인 작업은 없었어요.'), findsOneWidget);
+      // 빈 job을 따라가 '실행 중'·'연결이 끊겨…'로 가지 않는다.
+      expect(find.text('status-screen-stub'), findsNothing);
+      expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle);
+      expect(container.read(voiceTextProvider), isEmpty);
+      await tester.pump(const Duration(seconds: 5)); // 스낵바·타이머 소진
+    });
+
+    testWidgets('실행을 따라가는 중 "그만"은 화면 정지 버튼과 같은 정지다', (tester) async {
+      final paths = <String>[];
+      final api = stopServer(paths,
+          stop: const {
+            'ok': true,
+            'was_running': true,
+            'stop_level': 'verified',
+            'stop_ack_ms': 12,
+            'stop_confirmed': true,
+            'stop_job_id': 'job-7',
+          },
+          executeJobId: 'job-7');
+      final container = await _makeContainer(
+          extra: [rpiApiServiceProvider.overrideWithValue(api)]);
+      container
+          .read(executionStatusProvider.notifier)
+          .beginHttpJob(api: api, jobId: 'job-7', label: '즉석밥 데워줘');
+      container.read(voiceTextProvider.notifier).state = '그만';
+
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+      await tester.tap(find.text('이대로 실행'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(paths.where((p) => p == '/execute'), isEmpty);
+      expect(paths.where((p) => p == '/stop').length, 1);
+      // 정지 버튼(emergencyStop)과 같은 문장 — 이 job의 정지 단계까지만.
+      expect(container.read(executionStatusProvider).message, '누름 장치가 멈췄어요');
+      await tester.pumpAndSettle();
+      expect(find.text('status-screen-stub'), findsOneWidget);
+      // 상태 폴링이 이 job의 정지 결과를 받고 타이머를 정리할 시간을 준다.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 5));
+    });
+
+    testWidgets('서버가 stopped로 답하면 정지 문구만 보이고 따라가지 않는다', (tester) async {
+      // 두 번째 방어 — 폰 목록에 없는 말을 서버가 정지어로 받은 경우(서버 목록이 앞선 판 등).
+      final paths = <String>[];
+      final container = await _makeContainer(
+          extra: [rpiApiServiceProvider.overrideWithValue(stopServer(paths))]);
+      container.read(voiceTextProvider.notifier).state = '즉석밥 데워줘';
+
+      await tester.pumpWidget(_buildScreen(container));
+      await tester.pump();
+      await tester.tap(find.text('이대로 실행'));
+      await tester.pump();
+      await tester.pump();
+
+      expect(paths.where((p) => p == '/execute').length, 1);
+      expect(find.text('정지를 요청했어요 — 실행 중인 작업은 없었어요.'), findsOneWidget);
+      expect(find.text('status-screen-stub'), findsNothing);
+      expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle);
+      await tester.pump(const Duration(seconds: 5));
     });
   });
 }

@@ -34,12 +34,19 @@ def test_whitespace_and_punctuation_variants_resolve(resolver, utterance):
         ("즉석밥 좀 데워줘", ("즉석밥", "시작")),
         ("밥 데워줘", ("즉석밥", "시작")),
         ("일분 돌려줘", ("1분", "시작")),
-        ("멈춰줘", ("취소",)),
-        ("정지해줘", ("취소",)),
+        ("취소", ("취소",)),
     ],
 )
 def test_default_aliases_resolve_to_canonical_sequence(resolver, alias, expected):
     assert resolver.resolve(alias) == expected
+
+
+@pytest.mark.parametrize("stop_word", ["멈춰줘", "멈춰", "그만해줘", "그만", "정지해줘"])
+def test_stop_words_are_not_cancel_button_aliases(resolver, stop_word):
+    # 2026-10-16 안전 보고 G7: 예전 이 표는 "멈춰줘"·"정지해줘"가 '취소' 버튼 누름이 되는 것을 **고정**했다.
+    # 정지어는 서버 해석 맨 앞에서 POST /stop의 뜻으로 가고(rpi/intent/stop_words.py), 규칙은 버튼으로 풀지 않는다.
+    with pytest.raises(UnknownIntentError):
+        resolver.resolve(stop_word)
 
 
 def test_unknown_purpose_raises(resolver):

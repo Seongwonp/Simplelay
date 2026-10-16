@@ -48,12 +48,22 @@ class RpiExecuteResult {
 // 실행 접수 응답(비동기 job 모델). 서버는 물리 실행을 기다리지 않고 즉시
 // job_id를 돌려주며, 진행·완료는 status() 폴링에서 lastJobId와 대조해 판정한다.
 class RpiJobAccepted {
-  const RpiJobAccepted({required this.jobId, this.autoAllowFailure});
+  const RpiJobAccepted(
+      {required this.jobId, this.autoAllowFailure, this.status = 'accepted', this.stop});
   final String jobId;
 
   /// '다음부터 자동으로'(approve-and-allow)에서 이번 실행은 제출됐지만 자동 허용은 저장되지 않았을 때 서버 문장
   /// (`auto_allow: {ok: false, reason}`, 3차 평가 H2 — 허용 저장 사이 전체 정지). 그 밖에는 null.
   final String? autoAllowFailure;
+
+  /// 서버가 알린 접수 상태. `stopped`면 서버가 발화를 정지어로 받아 실행 대신 정지를 했다(안전 보고 G7, 2026-10-16) —
+  /// 이때 [jobId]는 멈춘 실행의 job이거나 빈 문자열이라 **따라갈 새 실행이 없다**. 옛 서버는 늘 `accepted`.
+  final String status;
+
+  /// `stopped`일 때 서버의 정지 결과(`POST /stop` 응답과 같은 모양). 그 밖에는 null.
+  final StopOutcome? stop;
+
+  bool get stopped => status == 'stopped';
 
   factory RpiJobAccepted.fromJson(Map<String, dynamic> json) {
     final allow = json['auto_allow'];
@@ -62,7 +72,14 @@ class RpiJobAccepted {
       final reason = allow['reason'];
       failure = reason is String && reason.isNotEmpty ? reason : '다음부터 자동 실행은 켜지 않았어요';
     }
-    return RpiJobAccepted(jobId: json['job_id'] as String, autoAllowFailure: failure);
+    final status = json['status'];
+    final stop = json['stop'];
+    return RpiJobAccepted(
+      jobId: json['job_id'] as String,
+      autoAllowFailure: failure,
+      status: status is String ? status : 'accepted',
+      stop: stop is Map<String, dynamic> ? StopOutcome.fromJson(stop) : null,
+    );
   }
 }
 
@@ -73,7 +90,8 @@ class StopOutcome {
       this.ackMs,
       this.confirmed = false,
       this.jobId,
-      this.reportsJobId = false});
+      this.reportsJobId = false,
+      this.wasRunning = false});
 
   factory StopOutcome.fromJson(Map<String, dynamic> json) {
     final level = json['stop_level'];
@@ -83,8 +101,12 @@ class StopOutcome {
       confirmed: json['stop_confirmed'] == true,
       jobId: json['stop_job_id'] is String ? json['stop_job_id'] as String : null,
       reportsJobId: json.containsKey('stop_job_id'),
+      wasRunning: json['was_running'] == true,
     );
   }
+
+  /// 요청 순간 서버에 실행 중인 작업이 있었나(`was_running`). 모르면(옛 응답) 거짓.
+  final bool wasRunning;
 
   /// 이 정지가 멈춘 실행의 job_id(평가 2026-10-13 H1). 옛 서버·실행 중이 아니었으면 null.
   final String? jobId;

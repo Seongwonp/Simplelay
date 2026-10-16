@@ -80,6 +80,18 @@ def wire_routines(suggestions, service, scenario_engine=None) -> RoutineEngine:
     return engine
 
 
+def halt_routines_if_any(reason: str = "전체 정지 요청") -> int:
+    """정지 경로 **맨 앞** — 진행 중인 루틴에 정지 표시만 세운다(메모리, 입출력·로그 없음, 2026-10-16 G3).
+
+    ``POST /stop``의 실행 정지는 RPi4 정지 보고를 기다리느라 수 초 걸릴 수 있다. 루틴 취소가 그 뒤에 오면 그 사이 루틴이
+    다음 구간을 보낸다. 엔진이 없으면 아무것도 만들지 않는다. 로그는 뒤이은 `stop_routines_if_any`가 남긴다."""
+    engine = _engine
+    runner = getattr(engine, "runner", None) if engine is not None else None
+    if runner is None:
+        return 0
+    return runner.halt_all(reason)
+
+
 def stop_routines_if_any(reason: str = "전체 정지 요청") -> int:
     """``POST /stop``·비상정지 — 이미 만들어진 루틴 러너가 있으면 진행 중인 루틴을 모두 멈춘다(평가 B5).
     엔진이 아직 없으면 아무것도 만들지 않는다(정지 경로에서 새 객체를 띄우지 않는다)."""

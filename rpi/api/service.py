@@ -29,6 +29,7 @@ from rpi.intent import (
 from rpi.intent.models import UsageSource
 from rpi.intent.completed_actions import CompletedActions
 from rpi.intent.rules import UnknownIntentError, RuleBasedIntentResolver
+from rpi.intent.stop_words import refuse_stop_phrase
 from rpi.services import NodeRegistry
 from rpi.commands import ApprovalMismatchError, CommandStatus, Confirmation, ControlRoute, Receipt
 from rpi.services.appliance_registry import BUILTIN_APPLIANCES
@@ -339,6 +340,9 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         approved_buttons: tuple[str, ...] | None = None,
         approved_command=None,
     ) -> ExecutionResult:
+        # G7(2026-10-16): 정지어는 버튼 시퀀스로 풀지 않는다 — 규칙·벡터·LLM·가전 기능 어느 계층보다 먼저(두 번째 방어,
+        # 라우터는 그 전에 POST /stop의 뜻으로 보낸다). 제안 승인 등 라우터를 거치지 않는 호출자도 여기서 막힌다.
+        refuse_stop_phrase(purpose)
         if self.route_of(appliance_id) is ControlRoute.THINQ:
             return self._submit_thinq_purpose(
                 purpose, appliance_id, usage_source, approval_guard, background=False,
@@ -362,6 +366,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         the usage log like execute_purpose does -- unlike execute_buttons,
         this has a real repeatable purpose string worth learning from.
         """
+        refuse_stop_phrase(purpose)  # G7 — LLM이 정지어를 '취소' 같은 버튼으로 풀지 않게
         if self._llm_client is None:
             raise LlmNotConfiguredError(
                 "no LLM client configured -- appliance-aware voice commands "
@@ -507,6 +512,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         approved_buttons: tuple[str, ...] | None = None,
         approved_command=None,
     ) -> str:
+        refuse_stop_phrase(purpose)  # G7 — execute_purpose와 같다
         if self.route_of(appliance_id) is ControlRoute.THINQ:
             return self._submit_thinq_purpose(
                 purpose, appliance_id, usage_source, approval_guard, background=True,
@@ -563,6 +569,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         known_buttons: frozenset[str],
         appliance_id: str | None = None,
     ) -> str:
+        refuse_stop_phrase(purpose)  # G7 — execute_purpose_for_appliance와 같다
         if self._llm_client is None:
             raise LlmNotConfiguredError(
                 "no LLM client configured -- appliance-aware voice commands "

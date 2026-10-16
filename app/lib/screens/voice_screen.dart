@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/command_result.dart';
+import '../models/execution_status.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/demo_provider.dart';
 import '../providers/ble_provider.dart';
@@ -13,6 +15,7 @@ import '../providers/execution_status_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/voice_provider.dart';
+import '../providers/voice_stop_provider.dart' show isStopPhrase;
 import '../services/ble_service.dart';
 import '../services/rpi_api_service.dart';
 import '../services/voice_service.dart';
@@ -172,6 +175,17 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     if (trimmed.isEmpty || _sending) return;
     setState(() => _sending = true);
     final rpiApi = ref.read(rpiApiServiceProvider);
+    if (isStopPhrase(trimmed)) {
+      // 안전 보고 G7(2026-10-16): "멈춰"·"그만" 같은 정지어는 실행 명령이 아니다. 예전에는 /execute로 보내
+      // 서버가 '취소' 버튼을 눌렀고, 서버를 고친 뒤에는 빈 job(`job_id: ""`)을 따라가 '실행 중'으로 머물다
+      // '연결이 끊겨…'를 띄웠다. 정지 버튼과 같은 정지를 보낸다(판정은 실행 중 음성 정지와 같은 `isStopPhrase`).
+      try {
+        await _sendStop(rpiApi);
+      } finally {
+        if (mounted) setState(() => _sending = false);
+      }
+      return;
+    }
     final appliance = ref.read(selectedApplianceProvider);
     if (appliance == null) {
       // 여기까지 오면 안 되지만(마이크가 막혀 있다), 상태가 그 사이 바뀔
@@ -195,7 +209,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           appliance.buttons.map((b) => b.label).toList(),
           applianceId: appliance.id,
         );
-        _trackJob(rpiApi, accepted.jobId, trimmed);
+        _trackOrShowStop(rpiApi, accepted, trimmed);
       } else if (rpiApi != null) {
         // RPi HTTP 직통 — 즉시 접수(job_id) 후 상태 화면에서 진행 확인
         final accepted = await rpiApi.execute(
@@ -203,7 +217,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           source: 'voice',
           applianceId: appliance.id,
         );
-        _trackJob(rpiApi, accepted.jobId, trimmed);
+        _trackOrShowStop(rpiApi, accepted, trimmed);
       } else if (appliance.isThinq) {
         // ThinQ 가전은 서버를 거쳐야 한다 -- BLE 릴레이(ESP32)는 누를 버튼이
         // 없는 가전을 조작할 수 없다.
@@ -265,6 +279,66 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     } finally {
       if (mounted) setState(() => _sending = false);
     }
+  }
+
+  /// 정지어를 정지로 보낸다(G7). 폰이 따라가는 실행이 있으면 화면 정지 버튼과 **같은 호출**(`emergencyStop`) —
+  /// 그 실행의 정지 단계 문장이 상태 화면에 남는다. 따라가는 실행이 없으면 허브에 바로 `POST /stop`(실행 중 음성
+  /// 정지와 같은 분기). 어느 쪽도 새 실행을 따라가지 않는다.
+  Future<void> _sendStop(RpiApiService? rpiApi) async {
+    _cancelPending();
+    final phase = ref.read(executionStatusProvider).phase;
+    final tracking = phase == ExecutionPhase.waiting ||
+        phase == ExecutionPhase.running ||
+        phase == ExecutionPhase.retrying ||
+        phase == ExecutionPhase.unknown;
+    if (tracking) {
+      await ref.read(executionStatusProvider.notifier).emergencyStop();
+      if (!mounted) return;
+      final message = ref.read(executionStatusProvider).message;
+      if (message != null && message.isNotEmpty) _notice(message);
+      context.push('/status');
+      return;
+    }
+    if (rpiApi == null) {
+      // 허브 없이 BLE만 — 정지 버튼의 대체 경로와 같은 정지 프레임.
+      final sent = await ref.read(bleServiceProvider).emergencyStop();
+      if (mounted) {
+        _notice(sent ? '정지를 요청했어요.' : '정지 요청을 보내지 못했어요. 다시 시도해 주세요.');
+      }
+      return;
+    }
+    try {
+      final outcome = await rpiApi.stop();
+      if (mounted) _notice(_stopNotice(outcome));
+    } on TimeoutException {
+      // 응답 시간 초과는 '보내지 못함'이 아니라 '전달 여부 모름'이다. 정지는 다시 보내도 안전하다.
+      if (mounted) {
+        _notice('정지 요청의 응답을 받지 못했어요. 가전을 직접 확인하고, 멈추지 않았으면 다시 말해 주세요.');
+      }
+    } catch (_) {
+      if (mounted) _notice('정지 요청을 보내지 못했어요. 다시 시도해 주세요.');
+    }
+  }
+
+  /// 정지 결과 한 줄 — 서버가 알린 정지 단계까지만 말한다(정지 버튼과 같은 문장). 단계가 없으면 실행 중이었는지로 가른다.
+  static String _stopNotice(StopOutcome? outcome) {
+    if (outcome == null) return '정지 요청을 보냈어요.';
+    return stopLevelSentence(outcome.stopLevel, ackMs: outcome.ackMs) ??
+        (outcome.wasRunning
+            ? '정지 요청을 보냈어요.'
+            : '정지를 요청했어요 — 실행 중인 작업은 없었어요.');
+  }
+
+  /// 접수 응답 처리. 서버가 발화를 정지어로 받아 정지했으면(`status: stopped`, G7 두 번째 방어) 정지 문구만 보이고
+  /// 따라가지 않는다 — 그 응답의 `job_id`는 새 실행이 아니다(멈춘 실행이거나 빈 문자열). 멈춘 실행을 폰이 따라가고
+  /// 있었다면 그 추적이 결과를 받는다.
+  void _trackOrShowStop(RpiApiService api, RpiJobAccepted accepted, String label) {
+    if (accepted.stopped) {
+      _cancelPending();
+      if (mounted) _notice(_stopNotice(accepted.stop));
+      return;
+    }
+    _trackJob(api, accepted.jobId, label);
   }
 
   // 접수된 job을 상태 화면에서 실시간으로 따라가게 하고 그 화면으로 이동한다.

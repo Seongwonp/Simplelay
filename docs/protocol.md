@@ -720,6 +720,15 @@ RPi4 쪽에서 화재/가스 경보음을 감지했을 때 즉시 푸시된다(�
 예전에는 승인 경로가 결과 없이 끝나 `last_job_id`에 직전 실행의 결과가 붙었고, 직접 경로는 '완료하지 못했어요'·재시도 소진으로
 적었다.
 
+## RPi5 HTTP `POST /execute`의 정지어 — `status: "stopped"` (2026-10-16, 안전 보고 G7)
+
+`POST /execute`·`POST /execute-for-appliance`는 해석(규칙·벡터·LLM·가전 기능) **전에** 발화 전체가 정지어인지 본다
+(`rpi/intent/stop_words.py` — 공백·문장부호를 뺀 발화가 "멈춰"·"그만"·"정지해줘"·"스톱" 같은 말로만 이루어지고 16자 이하,
+폰 실행 중 음성 정지와 같은 목록). 정지어면 버튼을 누르지 않고 `POST /stop`과 같은 일(실행·개발자 세션·자동 실행·루틴 정지)을 한 뒤
+`200 {"job_id": <멈춘 실행의 job 또는 "">, "status": "stopped", "stop": <POST /stop 응답과 같은 모양>}`을 돌려준다. 새 job은 없다.
+그 밖의 발화는 종전 그대로 `status: "accepted"`(`stop`은 null). '취소'·'취소해줘'는 정지어가 아니다 — 전자레인지 '취소' 버튼이다.
+옛 클라이언트는 `status`·`stop`을 읽지 않는다(폰 홈 음성 화면의 쉬는 중 정지어 문구는 [G3·G7 devlog](devlog/devlog_2026-10-16-safety-g3-g7.md) §3).
+
 ## ThinQ 결과의 네 경우 — `confirmation`·`dispatch` (2026-10-14, 보드 날 발견 3)
 
 ThinQ 실행기(`rpi/services/thinq/controller.py`)는 보내기 전 상태 조회 값과 보낸 뒤 재조회 값으로 **확인한 사실만큼** 결과를 낸다.

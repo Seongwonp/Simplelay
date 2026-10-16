@@ -10,6 +10,7 @@ from fastapi.responses import PlainTextResponse, StreamingResponse
 
 from rpi.controller import ExecutionResult, outcome_of
 from rpi.intent.rules import UnknownIntentError
+from rpi.intent.stop_words import is_stop_phrase
 from rpi.intent.suggestions import ProactiveSuggestionService, UnknownSuggestionError
 
 from rpi.services import DangerAlertStore, NodeRegistry
@@ -168,11 +169,24 @@ def result_detail_fields(result: ExecutionResult | None) -> dict:
 # UnknownApplianceError를 HTTP 404로 옮기기만 한다.
 
 
+async def _stop_phrase_response(service: SimpleLayService) -> JobAcceptedResponse:
+    """정지어(G7) — ``POST /stop``과 같은 일을 하고 그 결과를 싣는다. 버튼은 누르지 않고 새 job도 만들지 않는다.
+
+    ``job_id``는 멈춘 실행의 job(실행 중이었을 때 — 폰은 그 job의 정지 결과를 따라간다), 없으면 빈 문자열이다."""
+    stop = await stop_everything(service)
+    return JobAcceptedResponse(job_id=stop.stop_job_id or "", status="stopped", stop=stop)
+
+
 @router.post("/execute", response_model=JobAcceptedResponse)
 async def execute(
     body: ExecuteRequest,
     service: SimpleLayService = Depends(get_service),
 ) -> JobAcceptedResponse:
+    # 안전 보고 G7(2026-10-16): 해석 **맨 앞**에서 정지어를 본다. 발화 전체가 "멈춰"·"그만"·"정지해줘" 같은 정지어면
+    # POST /stop의 뜻이다 — 예전에는 규칙 별칭이 전자레인지 '취소' 버튼 누름으로 풀어 쉬는 중이면 실제로 눌렀다.
+    # 판정 규칙(전체 일치·폰과 같은 목록·'취소'는 버튼 그대로)은 rpi/intent/stop_words.py 머리말.
+    if is_stop_phrase(body.text):
+        return await _stop_phrase_response(service)
     try:
         job_id = await asyncio.to_thread(
             service.submit_purpose, body.text, body.appliance_id
@@ -206,6 +220,9 @@ async def execute_for_appliance(
 ) -> JobAcceptedResponse:
     # 사용자 정의 가전용 음성 명령 — 요청에 실린 버튼 어휘를 기준으로 LLM이
     # 자유발화를 해석한다. LLM이 서버에 설정 안 돼 있으면 503.
+    # 정지어는 LLM보다 먼저 — POST /stop의 뜻(G7, /execute와 같다). LLM이 없어도 정지는 된다.
+    if is_stop_phrase(body.text):
+        return await _stop_phrase_response(service)
     try:
         job_id = await asyncio.to_thread(
             service.submit_purpose_for_appliance,
@@ -949,10 +966,19 @@ async def _stop_service(request: Request) -> SimpleLayService:
     return await resolve_without_shared_pool(request, get_service)
 
 
+#: ``POST /stop``이 루틴에 붙이는 정지 사유 — 루틴 문장은 "{사유}으로 남은 단계를 보내지 않았어요".
+ROUTINE_STOP_REASON = "긴급 정지 요청"
+
+
 @router.post("/stop", response_model=StopResponse)
 async def emergency_stop(
     service: SimpleLayService = Depends(_stop_service),
 ) -> StopResponse:
+    return await stop_everything(service)
+
+
+async def stop_everything(service: SimpleLayService) -> StopResponse:
+    """``POST /stop``의 뜻 그대로 — 실행·개발자 세션·자동 실행·루틴을 멈춘다. 텍스트·홈 음성의 정지어(G7)도 여기로 온다."""
     # 노드 정지 브로드캐스트는 응답 없는 노드를 전체 상한까지 기다리는 동기
     # 호출이다. 이벤트 루프에서 직접 부르면 그동안 /status·SSE·다른 API가
     # 전부 멈춘다 — 스레드로 넘긴다.
@@ -967,8 +993,17 @@ async def emergency_stop(
     # 기다렸다 보내지 않고 동시에 보낸다: 두 경로는 서로의 락을 잡지 않는다.
     from rpi.api.deps import stop_developer_session_if_any  # noqa: PLC0415
 
-    from rpi.routines.wiring import halt_auto_rules_if_any, stop_auto_rules_if_any  # noqa: PLC0415
+    from rpi.routines.wiring import (  # noqa: PLC0415
+        halt_auto_rules_if_any,
+        halt_routines_if_any,
+        stop_auto_rules_if_any,
+        stop_routines_if_any,
+    )
 
+    # 진행 중인 루틴에 정지 표시를 **맨 앞에서** 세운다(2026-10-16 안전 보고 G3). 메모리 표시뿐이라 입출력이 없다 —
+    # 모션 정지를 늦추지 않는다. 예전에는 루틴 취소가 아래 실행 정지(RPi4 정지 보고를 최대 수 초 기다림) **뒤**라, 구간 사이에
+    # 온 정지를 루틴이 못 보고 다음 구간을 보냈다. 루틴은 다음 구간의 실행 시작 게이트에서도 이 표시를 본다(runner.py).
+    halt_routines_if_any(ROUTINE_STOP_REASON)
     # 자동 실행 허용 규칙(2026-10-13): 판단은 끝났지만 아직 실행 게이트를 지나지 않은 자동 실행을 먼저 막는다.
     # 세대만 올려 입출력이 없다 — 모션 정지를 늦추지 않는다. 규칙 끄기는 아래에서 함께 한다: 메모리에서 바로 꺼지고
     # DB 쓰기·알림함 기록은 뒤에서 한다(4차 평가 M-N3) — 이 응답은 규칙 DB 쓰기를 기다리지 않는다.
@@ -980,10 +1015,9 @@ async def emergency_stop(
         run_on_stop_lane(stop_developer_session_if_any, "emergency_stop"),
         run_on_stop_lane(stop_auto_rules_if_any, "비상정지"),
     )
-    # 끝을 기다리던 루틴도 멈춘다 — 해제 뒤 다음 단계가 이어서 나가지 않게(평가 B5).
-    from rpi.routines.wiring import stop_routines_if_any  # noqa: PLC0415
-
-    await run_on_stop_lane(stop_routines_if_any, "긴급 정지 요청")
+    # 끝을 기다리던 루틴도 멈춘다 — 해제 뒤 다음 단계가 이어서 나가지 않게(평가 B5). 표시는 맨 앞에서 이미 세웠다 —
+    # 여기서는 로그를 남기고, 그 사이 새로 시작한 루틴(카드 승인과 겹침)도 멈춘다.
+    await run_on_stop_lane(stop_routines_if_any, ROUTINE_STOP_REASON)
     return StopResponse(
         was_running=report.was_running,
         nodes_requested=len(report.nodes_acknowledged)
