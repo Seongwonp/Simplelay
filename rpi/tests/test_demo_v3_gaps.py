@@ -272,6 +272,24 @@ def test_recent_routine_notice_is_the_kiosk_tip(plain):
     assert "세탁이 끝났어요" in tip["text"]
 
 
+def test_kiosk_tip_shows_only_the_announcement_not_the_log_line(plain):
+    """UI 평가 10/17(실패널): 안내 카드가 "루틴 '세탁 끝 알림' · 직접 실행을 눌렀어요 — 세탁이…" 기록 형식 그대로였다.
+    키오스크에는 안내 문장만. 폰 알림함(care-events)에는 전체 문장이 그대로 남는다."""
+    full = "루틴 '세탁 끝 알림' · 직접 실행을 눌렀어요 — 세탁이 끝났어요. 빨래를 꺼내 널어 주세요"
+    deps.get_care_events().append("routine_notice", full, purpose="세탁 끝 알림")
+    tip = plain.get("/ambient").json()["tip"]
+    assert tip["text"] == "세탁이 끝났어요. 빨래를 꺼내 널어 주세요"
+    assert any(e["message"] == full for e in plain.get("/care-events").json())
+
+
+def test_kiosk_tip_without_announcement_keeps_the_reason_without_the_log_prefix(plain):
+    deps.get_care_events().append("routine_notice", "루틴 '세탁 끝 알림' · 세탁기가 끝난 것 같아요 — 확인해 주세요",
+                                  purpose="세탁 끝 알림")
+    assert plain.get("/ambient").json()["tip"]["text"] == "확인해 주세요"
+    deps.get_care_events().append("routine_notice", "루틴 '세탁 끝 알림' · 세탁기가 끝난 것 같아요", purpose="세탁 끝 알림")
+    assert plain.get("/ambient").json()["tip"]["text"] == "세탁 끝 알림 · 세탁기가 끝난 것 같아요"
+
+
 def test_routine_announce_is_also_a_tip(plain):
     deps.get_care_events().append("routine_announce", "약 드실 시간이에요", purpose="아침 데우기")
     tip = plain.get("/ambient").json()["tip"]

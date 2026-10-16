@@ -8,6 +8,8 @@
 
 from __future__ import annotations
 
+import re
+
 import asyncio
 import json
 import logging
@@ -162,8 +164,25 @@ def _routine_tip(care_events) -> AttentionItem | None:
             continue
         if now - event.occurred_at > timedelta(minutes=ROUTINE_TIP_MINUTES):
             return None  # 최신순이라 더 볼 것이 없다
-        return AttentionItem("routine", event.message, icon="notice")
+        return AttentionItem("routine", _kiosk_tip_text(event.message), icon="notice")
     return None
+
+
+_ROUTINE_LINE = re.compile(r"^루틴 '(?P<name>.+?)' · (?P<reason>.+?)(?: — (?P<notice>.+))?$", re.S)
+
+
+def _kiosk_tip_text(message: str) -> str:
+    """키오스크 안내 카드에는 사람에게 할 말만(UI 평가 10/17 — 실패널에 기록 형식 그대로 떴다).
+
+    알림 루틴 기록 ``루틴 '이름' · 이유 — 안내`` 에서 안내가 있으면 안내만, 없으면 ``이름 · 이유``.
+    그 밖의 문장(복약 안내 등)은 그대로. 폰 알림함에는 전체 문장이 그대로 남는다.
+    """
+    match = _ROUTINE_LINE.match(message.strip())
+    if match is None:
+        return message
+    if match.group("notice"):
+        return match.group("notice").strip()
+    return f"{match.group('name')} · {match.group('reason').strip()}"
 
 
 def _subject_particle(name: str) -> str:
