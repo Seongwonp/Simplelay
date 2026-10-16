@@ -610,6 +610,7 @@ class RpiHistoryEntry {
     this.confirmation = 'unknown',
     this.detail = '',
     this.abortReason,
+    this.applianceName,
   });
   final String jobId;
   final DateTime finishedAt;
@@ -637,6 +638,9 @@ class RpiHistoryEntry {
   /// 모션 중단 원인(서버 2026-10-14, 예: `motion_alarm: stall`). 옛 서버·그 밖은 null.
   final String? abortReason;
 
+  /// 실행할 때의 가전 이름(2026-10-16) — 옛 기록·옛 서버는 null(지금 목록에서 찾는다).
+  final String? applianceName;
+
   /// 목록 표시용 제목 — 목적이 없으면 누른 버튼 라벨을 나열
   String get displayTitle =>
       purpose ?? buttons.map((b) => b.button).join(' · ');
@@ -660,6 +664,7 @@ class RpiHistoryEntry {
         confirmation: json['confirmation'] as String? ?? 'unknown',
         detail: json['detail'] as String? ?? '',
         abortReason: json['abort_reason'] as String?,
+        applianceName: json['appliance_name'] as String?,
       );
 }
 

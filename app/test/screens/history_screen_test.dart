@@ -305,6 +305,36 @@ void main() {
     expect(find.textContaining('· 전자레인지'), findsOneWidget);
   });
 
+  testWidgets('기록은 실행할 때의 가전 이름을 쓴다 — 지금 이름·모드로 바꾸지 않는다(2026-10-16 결함 ②)',
+      (tester) async {
+    final api = _apiWithHistory([
+      {
+        'job_id': 'job-then',
+        'finished_at': '2026-09-09T08:10:00+09:00',
+        'purpose': '데워줘',
+        'status': 'succeeded',
+        'retry_count': 0,
+        'appliance_id': 'microwave',
+        'appliance_name': '주방 전자레인지',
+        'buttons': [
+          {'button': '시작', 'success': true, 'attempts': 1},
+        ],
+      },
+    ]);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        rpiApiServiceProvider.overrideWithValue(api),
+        ...installedOverrides([kTestAppliance]),
+      ],
+      child: const MaterialApp(home: HistoryScreen()),
+    ));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('· 주방 전자레인지'), findsOneWidget);
+    expect(find.textContaining('· 전자레인지'), findsNothing);
+  });
+
   // ── 2026-10-13 B안: 읽는 순서·제목·다음 행동 ─────────────────────────────
 
   Future<void> pumpWith(WidgetTester tester, List<Map<String, dynamic>> entries) async {

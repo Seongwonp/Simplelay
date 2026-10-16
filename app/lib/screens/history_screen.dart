@@ -64,8 +64,10 @@ class HistoryScreen extends ConsumerWidget {
                         _HistoryRow(
                           key: ValueKey('history-${section.entries[i].jobId}'),
                           entry: section.entries[i],
-                          applianceName: _applianceName(
-                              installed, section.entries[i].applianceId),
+                          // 실행할 때의 이름이 먼저다 — 나중에 이름·모드가 바뀌어도 그때 이름(결함 ②).
+                          applianceName: section.entries[i].applianceName ??
+                              _applianceName(
+                                  installed, section.entries[i].applianceId),
                         ),
                         if (i < section.entries.length - 1)
                           Divider(height: 1, color: context.appBorderFaint),
