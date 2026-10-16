@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/models/suggestion.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
@@ -97,7 +98,9 @@ class _Hub {
       );
 }
 
-Widget _home(_Hub hub, {List<Suggestion> suggestions = const []}) {
+Widget _home(_Hub hub,
+    {List<Suggestion> suggestions = const [],
+    List<ApplianceMap> installed = const []}) {
   final router = GoRouter(
     initialLocation: '/',
     routes: [
@@ -116,7 +119,7 @@ Widget _home(_Hub hub, {List<Suggestion> suggestions = const []}) {
   return buildWithProviderState(
     overrides: [
       ...connectedOverrides(),
-      ...installedOverrides(const []),
+      ...installedOverrides(installed),
       rpiServerOverride(RpiConnectionState.connected),
       rpiApiServiceProvider.overrideWithValue(hub.api()),
     ],
@@ -142,6 +145,26 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  // 외부 평가 10/16 2차: 첫 화면 맨 위 카드가 '설정이 필요해요'인 세탁기의 '빨래 시작'이었다.
+  testWidgets('큰 카드는 설정이 필요한 가전의 루틴을 건너뛴다(그 루틴은 아래 행으로)', (tester) async {
+    final washer = _appliance('washer', '세탁기', mapped: false);
+    final mw = _appliance('mw', '주방 전자레인지');
+    final hub = _Hub(appliances: [washer, mw], routines: [
+      _routine('r-w', '빨래 시작', steps: [
+        {'kind': 'press_sequence', 'appliance_id': 'washer', 'buttons': ['시작']},
+      ]),
+      _routine('r-b', '저녁 데우기'),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub,
+        installed: [ApplianceMap.fromJson(washer), ApplianceMap.fromJson(mw)]));
+    await _settle(tester);
+
+    final hero = find.byKey(const Key('home-routine-hero'));
+    expect(find.descendant(of: hero, matching: find.text('저녁 데우기')), findsOneWidget);
+    expect(find.byKey(const Key('home-routine-row-r-w')), findsOneWidget);
+  });
 
   testWidgets('제안이 없으면 서버 순서의 첫 적격 루틴이 큰 카드, 나머지 적격 루틴은 간결한 행',
       (tester) async {

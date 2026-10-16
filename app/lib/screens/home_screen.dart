@@ -157,6 +157,12 @@ class HomeScreen extends ConsumerWidget {
               hubConnected: rpiState == RpiConnectionState.connected,
               hasAppliances: appliances.isNotEmpty,
               applianceNames: {for (final a in appliances) a.id: a.name},
+              // 큰 카드는 설정이 필요한 가전의 루틴을 건너뛴다 — 첫 화면 첫 버튼이 실행할 수 없는 루틴이면 안 된다
+              // (외부 평가 10/16 2차). 그 루틴은 아래 행에 그대로 남는다.
+              needsSetupIds: {
+                for (final a in appliances)
+                  if (needsPanelMapping(a)) a.id,
+              },
             ),
 
             // ── 가전 ───────────────────────────────────────────────────────
@@ -282,7 +288,7 @@ class HomeScreen extends ConsumerWidget {
 
 /// 홈의 루틴 자리(2026-10-13 B안).
 ///
-/// 제안이 없으면 **서버가 준 루틴 목록 순서의 첫 적격 루틴**을 크게, 나머지 적격
+/// 제안이 없으면 **서버가 준 루틴 목록 순서의 첫 적격 루틴**(설정이 필요한 가전의 루틴은 건너뜀, 10/16)을 크게, 나머지 적격
 /// 루틴은 간결한 행으로 둔다(적격: `Routine.isRunCandidate`). 자동 순위·즐겨찾기가
 /// 아니고, "추천/자주 쓰는" 같은 이유를 붙이지 않는다. 제안이 있으면 큰 자리는 제안의
 /// 것이고 루틴은 행으로만 보인다. '실행하기'는 승인 카드만 만든다(루틴 탭과 같은 경로).
@@ -292,7 +298,11 @@ class _HomeRoutines extends ConsumerStatefulWidget {
     required this.hubConnected,
     required this.hasAppliances,
     required this.applianceNames,
+    this.needsSetupIds = const {},
   });
+
+  /// 위치(버튼 자리)를 아직 맞추지 않은 가전 — 이 가전을 쓰는 루틴은 큰 카드로 고르지 않는다.
+  final Set<String> needsSetupIds;
 
   final bool heroAllowed;
   final bool hubConnected;
@@ -369,7 +379,13 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
           );
         }
         if (candidates.isEmpty) return const SizedBox.shrink();
-        final hero = widget.heroAllowed ? candidates.first : null;
+        final ready = [
+          for (final r in candidates)
+            if (!r.applianceIds.any(widget.needsSetupIds.contains)) r,
+        ];
+        final hero = widget.heroAllowed
+            ? (ready.isNotEmpty ? ready.first : candidates.first)
+            : null;
         final rest = [
           for (final r in candidates)
             if (r != hero) r,
