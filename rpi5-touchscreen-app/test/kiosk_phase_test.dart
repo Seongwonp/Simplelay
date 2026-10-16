@@ -1305,6 +1305,9 @@ void main() {
     await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     await tester.pump();
+    // 큰 글씨에서는 보조 단추가 할 일 아래 같은 스크롤 흐름에 있다(2026-10-16 §1-8) — 보이게 굴린 뒤 누른다.
+    await tester.ensureVisible(find.text('화면으로 조작하기'));
+    await tester.pump();
     await tester.tap(find.text('화면으로 조작하기'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));

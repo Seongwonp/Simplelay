@@ -42,6 +42,7 @@ class KioskText extends StatelessWidget {
     this.textAlign,
     this.maxLines,
     this.overflow,
+    this.textWidthBasis,
   });
 
   final String data;
@@ -51,6 +52,9 @@ class KioskText extends StatelessWidget {
   final TextOverflow? overflow;
   final Key? textKey;
 
+  /// 여러 줄일 때 글 상자 폭을 가장 긴 줄에 맞출지(정지 단추처럼 아이콘 옆에 붙여 가운데 둘 때).
+  final TextWidthBasis? textWidthBasis;
+
   @override
   Widget build(BuildContext context) => Text.rich(
         TextSpan(text: keepWords(data), semanticsLabel: data),
@@ -59,5 +63,6 @@ class KioskText extends StatelessWidget {
         textAlign: textAlign,
         maxLines: maxLines,
         overflow: overflow,
+        textWidthBasis: textWidthBasis,
       );
 }

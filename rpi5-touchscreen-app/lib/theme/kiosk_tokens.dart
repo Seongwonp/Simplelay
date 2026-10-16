@@ -57,6 +57,15 @@ class KioskSizes {
   /// 띠 면의 옅기 — 채운 단추(주요 행동)처럼 보이지 않게 색은 줄·아이콘으로 싣는다.
   static const double bandTint = 0.22;
 
+  /// 비상 버튼 띠가 위에 있을 때의 얇은 상태 띠(2026-10-16 큰 글자 단계) — 진한 빨강 비상 띠 + 상태 띠 +
+  /// 상태 제목이 쌓여 위가 무거웠다. 두 뜻(비상 · 지금 단계)은 그대로 보이고 상태 띠만 낮게(1920x1080에서 약 53px).
+  static const double bandSlimHeight = 26;
+  static const double bandSlimIcon = 18;
+
+  /// 설명 그림(버튼판)이 이보다 낮으면 위 안내 글을 접고 칸에 자리를 준다(비상 버튼 풀기 안내처럼 위 띠가
+  /// 길어질 때 그림이 아주 작아졌다, 2026-10-16 골든 `hold_estop_confirm`).
+  static const double panelCaptionMinHeight = 200;
+
   // ── 상태 영역(§1-2) — 실행 계열 화면 왼쪽 위 같은 기준선 ─────────────────────────────
   /// 상태 아이콘(규격 96~120px → 48 = 98px).
   static const double statusIcon = 48;
@@ -78,11 +87,24 @@ class KioskSizes {
   /// 결과 아이콘 원(규격 200px → 88 = 180px, 세로 자리가 모자라 출발값보다 조금 작게).
   static const double resultIcon = 88;
 
+  /// 큰 글자에서 결과 아이콘 원 — 제목·할 일이 먼저 보이도록 줄인다(§1-8, 1920x1080에서 약 115px).
+  static const double resultIconLarge = 56;
+
   /// 결과 제목 최대 폭(규격 1,100~1,400px → 660 = 1,353px).
   static const double resultMaxWidth = 660;
 
   /// 하단 단추 영역 아래 여백(가장자리 여백 48px과 더해 약 73px — 규격 64).
   static const double actionsBottom = 12;
+}
+
+/// 큰 글자 배치(§1-8) — 설정의 큰 글씨(kiosk_screen이 1.22배 textScaler를 얹는다)일 때 가로 2열 배치를
+/// 세로 1열로 바꾼다. 문장을 한 줄에 억지로 넣지 않고 글은 자연스럽게 여러 줄로 둔다. 정지 단추는 같은 자리·크기.
+class KioskLayout {
+  const KioskLayout._();
+
+  /// 큰 글씨인가(평소 화면 `idle_view`와 같은 기준).
+  static bool isLarge(BuildContext context) =>
+      MediaQuery.textScalerOf(context).scale(10) > 10.5;
 }
 
 /// 단추 모양 두 가지(§1-5) — 주 단추(앰버 채움, 화면당 하나)와 보조 단추(테두리). 글자만 있는 조작은 두지 않는다.

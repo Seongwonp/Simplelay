@@ -85,6 +85,78 @@ class KioskSuggestionView extends StatelessWidget {
   }
 
   Widget _body(BuildContext context, ApplianceMap? target, bool scenario, bool canExecute) {
+    final question = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 사용자가 예전에 했던 말 그대로가 purpose다 — 제품이
+        // 지어낸 문구가 아니라 본인의 표현이라 그대로 되물어보는
+        // 편이 알아듣기 쉽다.
+        // 질문은 따로 한 줄. 이어 쓰면 폭에 따라 '할까 / 요?'처럼
+        // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다. 그래서 어절 단위로 그린다(2026-10-16 §1-3).
+        KioskText(
+          // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다.
+          scenario
+              ? '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose}'
+              : '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose},\n지금 할까요?',
+          textKey: const ValueKey('suggestion-question'),
+          style: const TextStyle(
+            fontSize: KioskType.key,
+            fontWeight: FontWeight.w700,
+            height: 1.25,
+            color: Colors.white,
+          ),
+        ),
+        // 근거를 줄여도 잘리면 안 되는 제한(예: '조리 완료가 아닐 수 있어요')은 근거 밖
+        // 늘 보이는 줄로 뺀다. 모의 여부는 질문 줄의 '[시연 데이터]'가 늘 말한다(2026-10-14 추가 확인).
+        for (final caveat in kAlwaysShownCaveats)
+          if (suggestion.whyNow.contains(caveat)) ...[
+            const SizedBox(height: 8),
+            Text(
+              caveat,
+              key: const ValueKey('suggestion-caveat'),
+              style: const TextStyle(fontSize: KioskType.body, color: KioskColors.warning),
+            ),
+          ],
+        // 근거는 실제로 셀 수 있을 때만 말한다 -- 어느
+        // 시간대였는지까지 밝힌다. 판단의 주인공은 질문과 버튼이라 근거는
+        // 두 줄까지만(2026-10-14 UI 정리). 넘치면 '근거 전체 보기'로 펼친다. 낭독에는 전문이 간다.
+        if (suggestion.whyNow.isNotEmpty && !suggestion.userStarted) ...[
+          const SizedBox(height: 10),
+          _WhyText(
+            scenario ? '근거: ${suggestion.whyNow}' : suggestion.whyNow,
+          ),
+        ],
+      ],
+    );
+    // 오른쪽 칸 제목 — 버튼 누름만이면 '누를 버튼', ThinQ가 섞이면 '할 일'(폰과 같은 말, 2026-10-14).
+    final stepsHeading = scenario
+        ? (suggestion.commands.every((c) => c.route == 'physical') ? '누를 버튼' : '할 일')
+        : '작은 팔이 누를 순서';
+    final hasSteps = scenario || suggestion.steps.isNotEmpty;
+    // 큰 글자(§1-8): 가로 2열(질문 | 순서) → 세로 1열. 질문이 화면 폭을 다 쓰고(여러 줄로), 순서는 그 아래
+    // 같은 스크롤에 이어진다 — 좁은 왼쪽 칸에서 질문이 스크롤 아래로 넘쳤다(2026-10-16 골든 `suggestion_long_large`).
+    final large = KioskLayout.isLarge(context);
+    final Widget oneColumn = !large
+        ? const SizedBox.shrink()
+        : KioskScrollArea(
+            key: const ValueKey('suggestion-one-column'),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                question,
+                if (hasSteps) ...[
+                  const SizedBox(height: 16),
+                  Text(stepsHeading,
+                      style: const TextStyle(
+                          fontSize: KioskType.caption, color: KioskColors.muted)),
+                  const SizedBox(height: 8),
+                  scenario
+                      ? _CommandList(commands: suggestion.commands, inline: true)
+                      : _StepList(steps: suggestion.steps, inline: true),
+                ],
+              ],
+            ),
+          );
     return Padding(
       padding: const EdgeInsets.fromLTRB(40, 14, 40, KioskSizes.actionsBottom),
       child: Column(
@@ -114,60 +186,14 @@ class KioskSuggestionView extends StatelessWidget {
             const SizedBox(height: 6),
           ],
           Expanded(
-            child: Row(
+            child: large ? oneColumn : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // ── 왼쪽: 무엇을 ─────────────────────────────────────────
                 Expanded(
                   flex: 5,
                   // 큰 글씨에서 근거 줄이 아래로 넘치면 스크롤 막대가 보인다(2026-10-15).
-                  child: KioskScrollArea(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 사용자가 예전에 했던 말 그대로가 purpose다 — 제품이
-                        // 지어낸 문구가 아니라 본인의 표현이라 그대로 되물어보는
-                        // 편이 알아듣기 쉽다.
-                        // 질문은 따로 한 줄. 이어 쓰면 폭에 따라 '할까 / 요?'처럼
-                        // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다. 그래서 어절 단위로 그린다(2026-10-16 §1-3).
-                        KioskText(
-                          // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다.
-                          scenario
-                              ? '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose}'
-                              : '${suggestion.isDemo ? '[시연 데이터] ' : ''}${suggestion.purpose},\n지금 할까요?',
-                          style: const TextStyle(
-                            fontSize: KioskType.key,
-                            fontWeight: FontWeight.w700,
-                            height: 1.25,
-                            color: Colors.white,
-                          ),
-                        ),
-                        // 근거를 줄여도 잘리면 안 되는 제한(예: '조리 완료가 아닐 수 있어요')은 근거 밖
-                        // 늘 보이는 줄로 뺀다. 모의 여부는 질문 줄의 '[시연 데이터]'가 늘 말한다(2026-10-14 추가 확인).
-                        for (final caveat in kAlwaysShownCaveats)
-                          if (suggestion.whyNow.contains(caveat)) ...[
-                            const SizedBox(height: 8),
-                            Text(
-                              caveat,
-                              key: const ValueKey('suggestion-caveat'),
-                              style: const TextStyle(
-                                  fontSize: KioskType.body, color: KioskColors.warning),
-                            ),
-                          ],
-                        // 근거는 실제로 셀 수 있을 때만 말한다 -- 어느
-                        // 시간대였는지까지 밝힌다. 판단의 주인공은 질문과 버튼이라 근거는
-                        // 두 줄까지만(2026-10-14 UI 정리). 넘치면 '근거 전체 보기'로 펼친다. 낭독에는 전문이 간다.
-                        if (suggestion.whyNow.isNotEmpty && !suggestion.userStarted) ...[
-                          const SizedBox(height: 10),
-                          _WhyText(
-                            scenario
-                                ? '근거: ${suggestion.whyNow}'
-                                : suggestion.whyNow,
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
+                  child: KioskScrollArea(child: question),
                 ),
                 // ── 오른쪽(시나리오): 어느 가전을 어느 경로로 무엇을 ─────────
                 if (scenario) ...[
@@ -178,10 +204,7 @@ class KioskSuggestionView extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          // 버튼 누름만이면 '누를 버튼', ThinQ가 섞이면 '할 일'(폰과 같은 말, 2026-10-14).
-                          suggestion.commands.every((c) => c.route == 'physical')
-                              ? '누를 버튼'
-                              : '할 일',
+                          stepsHeading,
                           style: const TextStyle(
                               fontSize: KioskType.caption, color: KioskColors.muted),
                         ),
@@ -385,9 +408,12 @@ class _WhyTextState extends State<_WhyText> {
 /// 눌릴 버튼을 번호와 라벨로. 서버가 준 **실제 버튼 라벨**만 쓴다 --
 /// 버튼 id 같은 내부 값은 화면에 나오지 않는다.
 class _StepList extends StatelessWidget {
-  const _StepList({required this.steps});
+  const _StepList({required this.steps, this.inline = false});
 
   final List<String> steps;
+
+  /// 큰 글자 1열 배치 — 바깥 스크롤 안에 이어 그린다(자기 스크롤 없이, 번호를 붙여 옆으로 흘린다).
+  final bool inline;
 
   static Widget _number(int n) => Container(
         width: 30,
@@ -413,9 +439,8 @@ class _StepList extends StatelessWidget {
     // 네 단계까지는 세로로 한 줄씩 -- 가장 읽기 쉽다. 그보다 길면 세로
     // 목록이 칸을 넘어 뒤쪽 단계가 잘리는데, 잘렸다는 표시도 없어 사용자는
     // 순서가 거기서 끝난 줄 안다. 그때는 번호를 붙인 채 옆으로 흘려 전부 보인다.
-    if (steps.length > 4) {
-      return SingleChildScrollView(
-        child: Wrap(
+    if (steps.length > 4 || inline) {
+      final flow = Wrap(
           spacing: 14,
           runSpacing: 10,
           children: [
@@ -436,8 +461,8 @@ class _StepList extends StatelessWidget {
                 ],
               ),
           ],
-        ),
       );
+      return inline ? flow : SingleChildScrollView(child: flow);
     }
     return ListView.separated(
       padding: EdgeInsets.zero,
@@ -466,12 +491,17 @@ class _StepList extends StatelessWidget {
 
 /// 시나리오의 확정 명령 — 번호 · 서버가 쓴 문장(가전·동작) · 경로 배지.
 class _CommandList extends StatelessWidget {
-  const _CommandList({required this.commands});
+  const _CommandList({required this.commands, this.inline = false});
 
   final List<KioskSuggestionCommand> commands;
 
+  /// 큰 글자 1열 배치 — 바깥 스크롤 안에 이어 그린다(자기 스크롤 없음).
+  final bool inline;
+
   @override
   Widget build(BuildContext context) => ListView.separated(
+        shrinkWrap: inline,
+        physics: inline ? const NeverScrollableScrollPhysics() : null,
         padding: EdgeInsets.zero,
         itemCount: commands.length,
         separatorBuilder: (_, __) => const SizedBox(height: 12),

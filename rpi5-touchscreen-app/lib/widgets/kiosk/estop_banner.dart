@@ -153,7 +153,26 @@ class KioskEstopLayout extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (banner != null) banner!,
-          Expanded(child: child),
+          Expanded(
+            child: KioskEstopScope(
+              shown: banner is KioskEstopBanner || KioskEstopScope.shownOf(context),
+              child: child,
+            ),
+          ),
         ],
       );
+}
+
+/// 아래 화면에 '위에 비상 버튼 띠가 있다'를 알린다 — 상태 띠가 얇아진다(`status_band.dart`, 2026-10-16).
+/// 비상 띠는 그대로 두고(가리지 않는다) 그 아래 상태 띠만 낮춰 위쪽이 겹겹이 무거워지지 않게 한다.
+class KioskEstopScope extends InheritedWidget {
+  const KioskEstopScope({super.key, required this.shown, required super.child});
+
+  final bool shown;
+
+  static bool shownOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<KioskEstopScope>()?.shown ?? false;
+
+  @override
+  bool updateShouldNotify(KioskEstopScope oldWidget) => shown != oldWidget.shown;
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
+import 'estop_banner.dart';
 import 'practice_band.dart';
 
 /// 상태 띠의 뜻(2026-10-16 디자인 규격 §1-2·§4 결정) — 색만이 아니라 아이콘·글자가 함께 간다.
@@ -62,22 +63,35 @@ class KioskStatusBand extends StatelessWidget {
     height: 1.25,
   );
 
+  /// 비상 버튼 띠 아래의 얇은 띠 글자(보조 크기).
+  static const _slimText = TextStyle(
+    fontSize: KioskType.caption,
+    fontWeight: FontWeight.w700,
+    color: Colors.white,
+    height: 1.2,
+  );
+
   @override
   Widget build(BuildContext context) {
     final color = colorOf(tone);
+    // 위에 비상 버튼 띠가 있으면 얇게 — 뜻(아이콘·색·글자)은 그대로, 높이만 낮춘다(2026-10-16).
+    final slim = KioskEstopScope.shownOf(context);
+    final text = slim ? _slimText : _text;
+    final iconSize = slim ? KioskSizes.bandSlimIcon : KioskSizes.bandIcon;
     final Widget content;
     if (tone == KioskBandTone.practice) {
-      content = _PracticeMark(iconKey: const ValueKey('status-band-icon'));
+      content = _PracticeMark(
+          iconKey: const ValueKey('status-band-icon'), style: text, iconSize: iconSize);
     } else {
       final main = Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon,
               key: const ValueKey('status-band-icon'),
-              size: KioskSizes.bandIcon,
+              size: iconSize,
               color: color),
           const SizedBox(width: 10),
-          Flexible(child: Text(label, style: _text)),
+          Flexible(child: Text(label, style: text)),
         ],
       );
       content = practice
@@ -95,7 +109,7 @@ class KioskStatusBand extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(color: KioskColors.practice, width: 1.5),
                   ),
-                  child: const _PracticeMark(),
+                  child: _PracticeMark(style: text, iconSize: iconSize),
                 ),
               ],
             )
@@ -106,9 +120,10 @@ class KioskStatusBand extends StatelessWidget {
       child: Container(
         key: const ValueKey('status-band'),
         width: double.infinity,
-        constraints: const BoxConstraints(minHeight: KioskSizes.bandHeight),
+        constraints: BoxConstraints(
+            minHeight: slim ? KioskSizes.bandSlimHeight : KioskSizes.bandHeight),
         alignment: Alignment.centerLeft,
-        padding: const EdgeInsets.fromLTRB(14, 4, 14, 4),
+        padding: EdgeInsets.fromLTRB(14, slim ? 2 : 4, 14, slim ? 2 : 4),
         decoration: BoxDecoration(
           color: color.withValues(alpha: KioskSizes.bandTint),
           border: Border(
@@ -123,9 +138,15 @@ class KioskStatusBand extends StatelessWidget {
 
 /// 청록 연습 표시 — 연습 아이콘 + '연습 중 · 실제 가전은 누르지 않아요'.
 class _PracticeMark extends StatelessWidget {
-  const _PracticeMark({this.iconKey});
+  const _PracticeMark({
+    this.iconKey,
+    this.style = KioskStatusBand._text,
+    this.iconSize = KioskSizes.bandIcon,
+  });
 
   final Key? iconKey;
+  final TextStyle style;
+  final double iconSize;
 
   @override
   Widget build(BuildContext context) => Row(
@@ -134,11 +155,11 @@ class _PracticeMark extends StatelessWidget {
         children: [
           Icon(Icons.school_outlined,
               key: iconKey,
-              size: KioskSizes.bandIcon,
+              size: iconSize,
               color: KioskColors.practice),
           const SizedBox(width: 10),
-          const Flexible(
-            child: Text(kPracticeBandText, style: KioskStatusBand._text),
+          Flexible(
+            child: Text(kPracticeBandText, style: style),
           ),
         ],
       );

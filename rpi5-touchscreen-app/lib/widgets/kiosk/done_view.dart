@@ -99,6 +99,9 @@ class KioskDoneView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 큰 글자(§1-8): 결과 원을 줄이고, 보조 단추(다시 시도·화면으로 조작하기)는 할 일 문장 아래 같은 세로 흐름으로
+    // 옮긴다 — 가로 단추 줄이 두 줄로 접혀 할 일 줄을 스크롤 아래로 밀었다(2026-10-16 골든). '처음 화면으로'는 아래 고정.
+    final large = KioskLayout.isLarge(context);
     final r = reason ?? KioskFailureReason.execution;
     // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 정지 단계만큼의 표시(2026-10-14, 10-15).
     final userStop = !success && r == KioskFailureReason.stopped;
@@ -233,8 +236,9 @@ class KioskDoneView extends StatelessWidget {
                             ? Icons.question_mark
                             : Icons.close,
             color: color,
+            size: large ? KioskSizes.resultIconLarge : KioskSizes.resultIcon,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: large ? 8 : 12),
           // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
           // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 누르기**다.
           // 제목은 2줄까지 자연스럽게 넘어간다(폭은 [KioskSizes.resultMaxWidth], 2026-10-16 §1-7).
@@ -329,6 +333,8 @@ class KioskDoneView extends StatelessWidget {
     );
 
     // 행동 단추는 스크롤 밖 아래에 고정한다(2026-10-15 B7) — 큰 글씨에서 '처음으로'가 화면 밖으로 밀렸다.
+    // 큰 글자에서는 '처음 화면으로'만 고정하고 보조 단추는 할 일 아래로(§1-8 세로 1열).
+    final secondaryInFlow = large && !success && (onRetry != null || onManual != null);
     return ColoredBox(
       color: KioskColors.bg,
       child: Column(
@@ -342,7 +348,21 @@ class KioskDoneView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(40, 12, 40, 8),
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
-                child: content,
+                child: secondaryInFlow
+                    ? Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          content,
+                          const SizedBox(height: 14),
+                          _FailureActions(
+                            key: const ValueKey('done-secondary-in-flow'),
+                            onRetry: onRetry,
+                            onManual: onManual,
+                            onDismiss: null,
+                          ),
+                        ],
+                      )
+                    : content,
               ),
             ),
           ),
@@ -352,8 +372,8 @@ class KioskDoneView extends StatelessWidget {
               child: success
                   ? _SuccessActions(onDismiss: onDismiss)
                   : _FailureActions(
-                      onRetry: onRetry,
-                      onManual: onManual,
+                      onRetry: secondaryInFlow ? null : onRetry,
+                      onManual: secondaryInFlow ? null : onManual,
                       onDismiss: onDismiss,
                     ),
             ),
@@ -560,16 +580,18 @@ KioskFailureReason failureReasonOf(
     };
 
 class _ResultRing extends StatelessWidget {
-  const _ResultRing({required this.icon, required this.color});
+  const _ResultRing({required this.icon, required this.color, required this.size});
 
   final IconData icon;
   final Color color;
+  final double size;
 
   @override
   // 뜻을 전하는 것은 아이콘이 아니라 글자다 -- 원은 결과를 알리는 정도로만 둔다
   Widget build(BuildContext context) => Container(
-        width: KioskSizes.resultIcon,
-        height: KioskSizes.resultIcon,
+        key: const ValueKey('done-ring'),
+        width: size,
+        height: size,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -578,7 +600,7 @@ class _ResultRing extends StatelessWidget {
         ),
         child: Icon(
           icon,
-          size: KioskSizes.resultIcon * 0.55,
+          size: size * 0.55,
           color: color,
         ),
       );
@@ -663,6 +685,7 @@ Widget _homeButton(VoidCallback onTap) => ElevatedButton.icon(
 /// '처음 화면으로'는 성공·실패·사용자 정지 모두 같은 앰버 채움 단추다(예전에는 사용자 정지만 회색 채움이었다).
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
+    super.key,
     required this.onRetry,
     required this.onManual,
     required this.onDismiss,
