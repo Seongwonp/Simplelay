@@ -9,6 +9,10 @@
   (지어내지 않는다 — 모르면 표시하지 않는다).
 - 명령을 보내기 직전에도 지운다 — 보낸 뒤에는 이전 조회 값이 맞는지 모른다(확인 조회가 다시 적는다).
 - 오래된 기억(기본 600초)은 내보내지 않는다.
+
+공기질(2026-10-16, 키오스크 평소 화면 '실내 공기' 한 줄)도 같은 조회에서 옮겨 적는다(:func:`rpi.services.air_quality.air_summary`
+— 가전이 매긴 등급만). 센서 칸이 없거나 등급을 모르면 그 가전의 공기질 기억을 지운다. 전원과 같은 규칙으로 지우고 같은
+나이 상한으로 내보낸다(``GET /thinq/air``).
 """
 
 from __future__ import annotations
@@ -17,6 +21,8 @@ import threading
 import time
 from collections.abc import Callable
 from typing import Any
+
+from rpi.services.air_quality import air_summary
 
 from .profile import read_state
 
@@ -41,29 +47,38 @@ def power_of(binding: Any, state: Any) -> str | None:
 
 
 class ThinqPowerCache:
-    """가전 ID → (전원, 조회 시각). 스레드 안전. 입출력 없음."""
+    """가전 ID → (전원, 조회 시각)과 (공기질 요약, 전원, 조회 시각). 스레드 안전. 입출력 없음."""
 
     def __init__(self, monotonic: Callable[[], float] | None = None) -> None:
         self._monotonic = monotonic or time.monotonic
         self._lock = threading.Lock()
         self._entries: dict[str, tuple[str, float]] = {}
+        self._air: dict[str, tuple[dict, str | None, float]] = {}
 
     def observe(self, appliance_id: str, binding: Any, state: Any) -> None:
-        """조회 한 번의 결과를 적는다. 전원을 모르면 그 가전의 기억을 지운다."""
+        """조회 한 번의 결과를 적는다. 전원·공기질을 모르면 그 가전의 그 기억을 지운다."""
         power = power_of(binding, state)
+        air = air_summary(state) if state is not None else None
         with self._lock:
+            now = self._monotonic()
             if power is None:
                 self._entries.pop(appliance_id, None)
             else:
-                self._entries[appliance_id] = (power, self._monotonic())
+                self._entries[appliance_id] = (power, now)
+            if air is None:
+                self._air.pop(appliance_id, None)
+            else:
+                self._air[appliance_id] = (air, power, now)
 
     def forget(self, appliance_id: str) -> None:
         with self._lock:
             self._entries.pop(appliance_id, None)
+            self._air.pop(appliance_id, None)
 
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+            self._air.clear()
 
     def snapshot(self, max_age: float = POWER_STALE_SECONDS) -> list[dict]:
         """오래되지 않은 기억만 — ``[{"appliance_id", "power", "age_s"}]``(가전 ID 순)."""
@@ -75,4 +90,17 @@ class ThinqPowerCache:
             age = now - read_at
             if 0 <= age <= max_age:
                 out.append({"appliance_id": appliance_id, "power": power, "age_s": round(age, 1)})
+        return out
+
+    def air_snapshot(self, max_age: float = POWER_STALE_SECONDS) -> list[dict]:
+        """오래되지 않은 공기질 기억만 — ``[{"appliance_id", "grade", "grade_source", "pm25", "pm25_level", "pm10",
+        "pm10_level", "power", "age_s"}]``(가전 ID 순). ``power``는 같은 조회의 전원(``on``·``off``, 모르면 None)."""
+        now = self._monotonic()
+        with self._lock:
+            items = sorted(self._air.items())
+        out = []
+        for appliance_id, (air, power, read_at) in items:
+            age = now - read_at
+            if 0 <= age <= max_age:
+                out.append({"appliance_id": appliance_id, **air, "power": power, "age_s": round(age, 1)})
         return out

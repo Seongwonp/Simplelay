@@ -141,6 +141,38 @@ def read_air(state) -> AirReading | None:
     return AirReading(bad=tuple(bad), known=known, wind=wind if isinstance(wind, str) else None, power_off=power_off)
 
 
+def _number(value) -> int | float | None:
+    return None if isinstance(value, bool) or not isinstance(value, (int, float)) else value
+
+
+def _known_level(value) -> str | None:
+    return value if isinstance(value, str) and value in KNOWN_LEVELS else None
+
+
+def air_summary(state) -> dict | None:
+    """키오스크 평소 화면 '실내 공기' 한 줄용 요약(2026-10-16). **가전이 매긴 등급만** 쓴다 — 우리 임계값으로 만들지 않는다.
+
+    등급은 종합(``totalPollutionLevel``)이 있으면 그것, 없으면 초미세먼지(``PM2Level``). 둘 다 모르는 값이면 None(표시하지
+    않는다). 값(``PM2``·``PM10``)은 숫자일 때만 싣는다. 키 이름은 :data:`SENSOR_FIELDS`와 같다.
+    """
+    sensor = _section(state, "airQualitySensor")
+    if not sensor:
+        return None
+    total = _known_level(sensor.get("totalPollutionLevel"))
+    pm25_level = _known_level(sensor.get("PM2Level"))
+    grade, source = (total, "total") if total is not None else (pm25_level, "pm2")
+    if grade is None:
+        return None
+    return {
+        "grade": grade,
+        "grade_source": source,
+        "pm25": _number(sensor.get("PM2")),
+        "pm25_level": pm25_level,
+        "pm10": _number(sensor.get("PM10")),
+        "pm10_level": _known_level(sensor.get("PM10Level")),
+    }
+
+
 class AirReadSkipped(Exception):
     """이번 판독을 하지 않았다(가전 없음·실행 중·호출 상한 여유 없음 등). 실패가 아니다."""
 
