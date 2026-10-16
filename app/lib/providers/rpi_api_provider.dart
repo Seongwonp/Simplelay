@@ -289,6 +289,31 @@ final sensorProvider = StreamProvider.autoDispose<SensorReading?>((ref) {
   return controller.stream;
 });
 
+// ── 켜진 ThinQ 가전 (15초마다, 서버 전원 기억 — 2026-10-16) ─────────────────
+
+final thinqPowerOnProvider = StreamProvider.autoDispose<Set<String>>((ref) {
+  final service = ref.watch(rpiApiServiceProvider);
+  if (service == null) return Stream.value(const <String>{});
+
+  final controller = StreamController<Set<String>>();
+
+  Future<void> fetch() async {
+    if (controller.isClosed) return;
+    final on = await service.thinqPowerOn();
+    if (!controller.isClosed) controller.add(on);
+  }
+
+  fetch();
+  final timer = Timer.periodic(const Duration(seconds: 15), (_) => fetch());
+
+  ref.onDispose(() {
+    timer.cancel();
+    controller.close();
+  });
+
+  return controller.stream;
+});
+
 // ── DND 상태 (health 엔드포인트 기반) ────────────────────────────────────
 
 class DndNotifier extends StateNotifier<DateTime?> {

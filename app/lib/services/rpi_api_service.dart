@@ -1344,6 +1344,27 @@ class RpiApiService {
         jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
   }
 
+  /// GET /thinq/power — 서버가 최근(10분 안) 읽은 전원이 켜짐인 ThinQ 가전 ID. 클라우드를 부르지 않는다.
+  /// ThinQ 꺼짐(404)·조회 실패·형식 오류는 빈 집합 — '켜짐'을 지어내지 않는다(꺼짐이라 말하지도 않는다).
+  Future<Set<String>> thinqPowerOn() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/thinq/power'), headers: _headers)
+          .timeout(_timeout);
+      if (res.statusCode != 200) return const {};
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      final list = body is Map ? body['appliances'] : null;
+      if (list is! List) return const {};
+      return {
+        for (final a in list)
+          if (a is Map && a['power'] == 'on' && a['appliance_id'] is String)
+            a['appliance_id'] as String,
+      };
+    } catch (_) {
+      return const {};
+    }
+  }
+
   // 찾기·추가는 허브가 ThinQ 클라우드에 목록·기기 프로필을 묻고 답한다 — 일반 제한(8초)보다 길게.
   static const _thinqTimeout = Duration(seconds: 20);
 

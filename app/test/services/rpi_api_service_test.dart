@@ -12,6 +12,33 @@ http.Response _jsonResponse(Object body, int status) => http.Response.bytes(
     );
 
 void main() {
+  group('thinqPowerOn — 켜진 ThinQ 가전(2026-10-16)', () {
+    RpiApiService api(int status, Object body) => RpiApiService('http://hub:8000',
+        client: MockClient((req) async {
+          expect(req.url.path, '/thinq/power');
+          return http.Response.bytes(utf8.encode(jsonEncode(body)), status,
+              headers: {'content-type': 'application/json; charset=utf-8'});
+        }));
+
+    test('power가 on인 가전만', () async {
+      final on = await api(200, {
+        'execution_mode': 'real',
+        'appliances': [
+          {'appliance_id': 'air_purifier', 'power': 'on', 'age_s': 3},
+          {'appliance_id': 'dehumidifier', 'power': 'off', 'age_s': 3},
+          {'appliance_id': 'x', 'power': null},
+        ],
+      }).thinqPowerOn();
+      expect(on, {'air_purifier'});
+    });
+
+    test('ThinQ 꺼짐(404)·형식 오류는 빈 집합 — 켜짐을 지어내지 않는다', () async {
+      expect(await api(404, {'detail': 'off'}).thinqPowerOn(), isEmpty);
+      expect(await api(200, ['bad']).thinqPowerOn(), isEmpty);
+      expect(await api(500, {'detail': 'boom'}).thinqPowerOn(), isEmpty);
+    });
+  });
+
   test('routine uses simulator paths, carries auth and never retries rejected approval', () async {
     final requests = <http.Request>[];
     final api = RpiApiService('http://localhost:8768', apiKey: 'test-key', client: MockClient((r) async {

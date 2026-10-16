@@ -27,6 +27,7 @@ TileStatus _tile({
   RpiConnectionState hub = RpiConnectionState.connected,
   ServerCatalogStatus catalog = ServerCatalogStatus.loaded,
   ExecutionStatus execution = const ExecutionStatus(),
+  bool thinqOn = false,
 }) =>
     applianceTileStatus(
       appliance: appliance ?? _plain,
@@ -34,6 +35,7 @@ TileStatus _tile({
       hub: hub,
       catalog: catalog,
       execution: execution,
+      thinqOn: thinqOn,
     );
 
 RpiHistoryEntry _entry(Map<String, dynamic> extra) => RpiHistoryEntry.fromJson({
@@ -120,6 +122,28 @@ void main() {
       final s = _tile(source: _server(const {'can_execute': true, 'readiness': 'operable'}));
       expect(s.text, '');
       expect(s.tone, TileTone.ready);
+    });
+
+    // 외부 평가 10/16: 가전 타일에 상태가 없다(키오스크는 켜진 ThinQ 가전에 초록 '켜짐').
+    test('켜진 ThinQ 가전은 준비된 타일에 "켜짐"(초록) — 서버 전원 기억이 켜짐일 때만', () {
+      final thinq = _server(const {
+        'id': 'air_purifier',
+        'name': '공기청정기',
+        'control_path': 'thinq',
+        'can_execute': true,
+        'readiness': 'operable',
+      });
+      final on = _tile(appliance: thinq, source: thinq, thinqOn: true);
+      expect(on.text, '켜짐');
+      expect(on.tone, TileTone.on);
+      expect(_tile(appliance: thinq, source: thinq).text, '', reason: '모르면 말하지 않는다');
+      // 물리 가전에는 붙이지 않는다(전원 기억은 ThinQ 클라우드 상태다).
+      final physical = _server(const {'can_execute': true, 'readiness': 'operable'});
+      expect(_tile(source: physical, thinqOn: true).text, '');
+      // 허브 장애·준비 문제가 '켜짐'보다 앞선다.
+      expect(_tile(appliance: thinq, source: thinq, thinqOn: true,
+              hub: RpiConnectionState.unreachable).text,
+          '연결을 확인해 주세요');
     });
 
     test('상충하는 응답은 긍정으로 정규화하지 않는다', () {

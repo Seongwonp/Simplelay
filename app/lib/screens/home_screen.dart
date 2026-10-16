@@ -89,6 +89,8 @@ class HomeScreen extends ConsumerWidget {
     // 제안은 **한 번에 하나만**(UI 확정 §1-2). 처리하면 다음 것이 올라온다.
     final suggestion = suggestions.firstOrNull;
     final catalog = ref.watch(serverApplianceCatalogProvider);
+    // 켜진 ThinQ 가전(서버 전원 기억 — 클라우드를 부르지 않는다). 모르면 빈 집합.
+    final thinqOn = ref.watch(thinqPowerOnProvider).valueOrNull ?? const <String>{};
 
     // 타일의 '확인 주행' 보조 줄(2026-10-13, 표시만). 보조 줄을 붙일 타일만
     // 확인 주행을 묻는다 — 위치 미설정·허브 장애 타일은 묻지도 않는다.
@@ -175,6 +177,7 @@ class HomeScreen extends ConsumerWidget {
                   hub: rpiState,
                   catalog: catalog.status,
                   execution: execution,
+                  thinqOn: thinqOn.contains(a.id),
                 ),
                 verifyNoteOf: (a) => verifyNotes[a.id],
                 onOpen: (a) {
@@ -864,6 +867,7 @@ class _ApplianceCard extends ConsumerWidget {
       TileTone.attention => (context.appWarning, Icons.error_outline),
       TileTone.unknown => (context.appMuted, Icons.help_outline),
       TileTone.ready => (context.appMuted, null),
+      TileTone.on => (context.appSuccess, Icons.power_settings_new),
     };
     return Semantics(
       button: true,
