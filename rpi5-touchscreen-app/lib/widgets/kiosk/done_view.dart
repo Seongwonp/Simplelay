@@ -42,7 +42,15 @@ class KioskDoneView extends StatelessWidget {
     this.stopLevel,
     this.stopAckMs,
     this.abortReason,
+    this.autoReturnHeld = false,
+    this.onHold,
   });
+
+  /// 사용자가 화면을 만져 자동 복귀를 멈췄다(UI 평가 10/17) — 남은 초 대신 '자동으로 닫지 않아요'.
+  final bool autoReturnHeld;
+
+  /// 화면을 만지면 부른다(성공 화면의 자동 복귀 멈춤). 단추를 누를 때도 불리지만 단추 동작은 그대로다.
+  final VoidCallback? onHold;
 
   /// 모션 걸림·재시작 등으로 재시도 없이 멈춘 원인(2026-10-14, /status last_abort_reason). 안전 정지에만 쓴다.
   final String? abortReason;
@@ -421,7 +429,11 @@ class KioskDoneView extends StatelessWidget {
     // 큰 글자에서는 '처음 화면으로'만 고정하고 보조 단추는 할 일 아래로(§1-8 세로 1열).
     final secondaryInFlow =
         large && !success && (onRetry != null || onManual != null);
-    return ColoredBox(
+    // 화면을 만지면 자동 복귀를 멈춘다(UI 평가 10/17) — 단추 동작은 그대로 지나간다(translucent).
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => onHold?.call(),
+      child: ColoredBox(
       color: KioskColors.bg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -460,7 +472,7 @@ class KioskDoneView extends StatelessWidget {
                 const EdgeInsets.fromLTRB(24, 4, 24, KioskSizes.actionsBottom),
             child: Center(
               child: success
-                  ? _SuccessActions(onDismiss: onDismiss)
+                  ? _SuccessActions(onDismiss: onDismiss, held: autoReturnHeld)
                   : _FailureActions(
                       onRetry: secondaryInFlow || onRetry == null
                           ? null
@@ -472,6 +484,7 @@ class KioskDoneView extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }
@@ -758,9 +771,10 @@ class _AutoReturn extends StatelessWidget {
 
 /// 성공 화면 아래 줄 — 자동 복귀 안내(왼쪽) + '처음 화면으로'(실패 화면과 같은 앰버 채움 단추, 2026-10-16 §1-5).
 class _SuccessActions extends StatelessWidget {
-  const _SuccessActions({required this.onDismiss});
+  const _SuccessActions({required this.onDismiss, this.held = false});
 
   final VoidCallback? onDismiss;
+  final bool held;
 
   @override
   Widget build(BuildContext context) => Wrap(
@@ -769,7 +783,10 @@ class _SuccessActions extends StatelessWidget {
         spacing: 28,
         runSpacing: 8,
         children: [
-          const _AutoReturn(),
+          held
+              ? const Text('자동으로 닫지 않아요',
+                  style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted))
+              : const _AutoReturn(),
           if (onDismiss != null) _homeButton(onDismiss!),
         ],
       );

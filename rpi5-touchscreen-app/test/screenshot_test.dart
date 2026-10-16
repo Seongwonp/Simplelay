@@ -647,7 +647,7 @@ void main() {
               greeting: '좋은 아침이에요.',
               tip: AmbientTip(
                   kind: 'routine',
-                  text: '약 드실 시간이에요. 드셨으면 화면에서 확인을 눌러 주세요',
+                  text: '약 드실 시간이에요. 아직 안 드셨으면 지금 챙겨 드세요',
                   icon: 'notice'),
               hourly: [
                 AmbientHour(label: '9시', icon: 'partly', temp: 16, precip: false),

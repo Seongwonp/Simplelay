@@ -16,7 +16,7 @@ const kApprovalChangedMessage = '제안 내용이 바뀌어 다시 확인이 필
 
 /// 제안 확인 화면.
 ///
-/// 다가오면(UI 확정 2026-09-30 §3-2) — 제안 카드 **한 장**, 버튼은 "시작"과
+/// 다가오면(UI 확정 2026-09-30 §3-2) — 제안 카드 **한 장**, 버튼은 "지금 실행"(10/17까지 "시작")과
 /// "다음에" 두 개뿐이다. 억제·미루기·동작 바꾸기 같은 관리는 폰 앱의 루틴 탭에 둔다.
 ///
 /// 여기서 사용자가 판단해야 하는 것은 "AI가 뭘 제안했나"가 아니라 **"내 가전의 어떤
@@ -344,8 +344,9 @@ class KioskSuggestionView extends StatelessWidget {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
+                  // 폰과 같은 '지금 실행' — 가전 버튼 이름 '시작'과 겹치면 가전 버튼을 바로 누르는 것으로 읽혔다(UI 평가 10/17).
                   child: const Text(
-                    '시작',
+                    '지금 실행',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: KioskType.status,

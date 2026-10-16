@@ -46,8 +46,10 @@ void main() {
     expect(find.byType(OutlinedButton), findsOneWidget);
     expect(find.byType(TextButton), findsNothing);
     expect(find.text('이번엔 안 할게요'), findsOneWidget);
-    expect(find.descendant(of: find.byKey(_approve), matching: find.text('시작')),
+    // 승인 버튼은 폰과 같은 '지금 실행' — 가전 버튼 이름 '시작'과 겹치지 않게(UI 평가 10/17).
+    expect(find.descendant(of: find.byKey(_approve), matching: find.text('지금 실행')),
         findsOneWidget);
+    expect(find.descendant(of: find.byKey(_approve), matching: find.text('시작')), findsNothing);
   });
 
   testWidgets('루틴 카드는 사용자가 붙인 루틴 이름을 보인다', (tester) async {

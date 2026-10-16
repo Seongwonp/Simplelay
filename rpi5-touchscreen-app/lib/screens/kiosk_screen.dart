@@ -224,6 +224,8 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _holdStopRequested = false;
   bool _holdStopFailed = false;
   // 짧게 보여 주고 평소 화면으로 돌아가는 타이머(보관 완료).
+  Timer? _doneReturnTimer;
+  bool _doneHeld = false;
   Timer? _holdReturnTimer;
   // 사람이 확인해야 하는 결과(미확인·이상)를 한 번만 말하기 위한 기록.
   String? _holdSpokenKey;
@@ -324,6 +326,7 @@ class _KioskScreenState extends State<KioskScreen> {
 
   @override
   void dispose() {
+    _doneReturnTimer?.cancel();
     _holdReturnTimer?.cancel();
     _stopFollowTimer?.cancel();
     _autoNoticeTimer?.cancel();
@@ -1045,7 +1048,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _fetchRoutines();
   }
 
-  /// 내 가전의 루틴 → 카드(다가오면). 실행은 카드의 "시작"(승인) 뒤에만.
+  /// 내 가전의 루틴 → 카드(다가오면). 실행은 카드의 "지금 실행"(승인) 뒤에만.
   Future<void> _onRoutine(KioskRoutine routine) async {
     try {
       final result = await _api.triggerRoutine(routine.id);
@@ -1253,18 +1256,32 @@ class _KioskScreenState extends State<KioskScreen> {
                 '$lead가전을 먼저 봐 주세요. 버튼이 눌렸는지 확인하지 못했어요.${_retryAction != null ? ' $kDontRetryIfOn.' : ''}',
             },
     );
+    _doneReturnTimer?.cancel();
+    _doneReturnTimer = null;
     setState(() {
       _phase = KioskPhase.done;
       _doneSuccess = success;
       _doneLabel = label;
       _doneReason = success ? null : reason;
+      _doneHeld = false;
     });
     // 실패는 자동으로 사라지지 않는다 — 사용자가 다음 행동을 고를 때까지
     // 화면에 남아야 한다(고령 사용자가 이유도 모른 채 놓치는 것을 막는다).
     if (!success) return;
-    Future.delayed(_doneReturnDuration, () {
+    // 취소할 수 있는 타이머 — 화면을 만지면 멈춘다(UI 평가 10/17). 예전 Future.delayed는 다음 결과 화면까지 닫을 수 있었다.
+    _doneReturnTimer = Timer(_doneReturnDuration, () {
+      _doneReturnTimer = null;
       if (mounted && _phase == KioskPhase.done) _toIdle();
     });
+  }
+
+  /// 결과 화면을 만졌다 — 자동 복귀를 멈춘다(천천히 읽는 사람, 시간 제한 조절). '처음 화면으로'는 그대로 된다.
+  void _holdDone() {
+    final timer = _doneReturnTimer;
+    if (timer == null || !mounted || _phase != KioskPhase.done) return;
+    timer.cancel();
+    _doneReturnTimer = null;
+    setState(() => _doneHeld = true);
   }
 
   Future<void> _onApprove({KioskSuggestion? suggestion}) async {
@@ -1667,6 +1684,8 @@ class _KioskScreenState extends State<KioskScreen> {
           key: const ValueKey('done'),
           success: _doneSuccess,
           label: _doneLabel,
+          autoReturnHeld: _doneHeld,
+          onHold: _holdDone,
           target: _execApplianceId == null
               ? null
               : _findIn(_appliances, _execApplianceId!),

@@ -23,6 +23,9 @@ class KioskScrollArea extends StatefulWidget {
 class _KioskScrollAreaState extends State<KioskScrollArea> {
   final _controller = ScrollController();
 
+  /// 막대(6) + 간격 — 막대가 글자 오른쪽 끝을 가리지 않게 늘 비워 둔다(UI 평가 2026-10-17).
+  static const _barGutter = 14.0;
+
   @override
   void dispose() {
     _controller.dispose();
@@ -40,7 +43,7 @@ class _KioskScrollAreaState extends State<KioskScrollArea> {
           radius: const Radius.circular(3),
           child: SingleChildScrollView(
             controller: _controller,
-            padding: widget.padding,
+            padding: widget.padding.add(const EdgeInsets.only(right: _barGutter)),
             child: widget.center && box.maxHeight.isFinite
                 ? ConstrainedBox(
                     constraints: BoxConstraints(

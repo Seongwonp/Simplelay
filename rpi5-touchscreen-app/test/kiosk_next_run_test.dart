@@ -85,4 +85,58 @@ void main() {
     await _pumpIdle(tester, null);
     expect(find.textContaining('다음 루틴'), findsNothing);
   });
+
+  // 사용자 질문(10/17): 날씨 안내('우산 챙기세요')가 뜨면 오른쪽 칸이 밀려 다음 루틴 줄이 잘리지 않나?
+  // → 다음 루틴 줄은 늘 화면 안에 다 보이고, 자리가 모자라면 예보(가장 덜 중요)를 접는다.
+  for (final (size, scale) in [(const Size(1920, 1080), 1.0), (const Size(800, 480), 1.0), (const Size(800, 480), 1.22)]) {
+    testWidgets('날씨 안내 + 예보 + 다음 루틴 — 다음 루틴 줄이 잘리지 않는다(${size.width.toInt()}, 배율 $scale)', (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        home: MediaQuery(
+          data: MediaQueryData(size: size, textScaler: TextScaler.linear(scale)),
+          child: Scaffold(
+            body: KioskIdleView(
+              now: DateTime(2026, 10, 17, 7, 30),
+              connected: true,
+              appliances: [kMicrowaveAppliance],
+              ambient: const AmbientInfo(
+                greeting: '좋은 아침이에요.',
+                weatherSource: 'kma',
+                tip: AmbientTip(kind: 'rain', text: '오후 3시부터 비 예보가 있어요. 우산 챙기세요.', icon: 'rain'),
+                hourly: [
+                  AmbientHour(label: '9시', icon: 'cloudy', temp: 16),
+                  AmbientHour(label: '12시', icon: 'cloudy', temp: 18),
+                  AmbientHour(label: '15시', icon: 'rain', pop: 70, precip: true),
+                  AmbientHour(label: '18시', icon: 'rain', pop: 60, precip: true),
+                ],
+              ),
+              nextRun: const KioskNextRun(
+                  name: '저녁 공기청정기 켜기', dayLabel: '오늘', hhmm: '22:00', modeLabel: '자동 실행'),
+              onSelectAppliance: (_) {},
+              onOpenConnection: (_) {},
+              onDndGesture: () {},
+            ),
+          ),
+        ),
+      ));
+      expect(tester.takeException(), isNull);
+      final next = find.byKey(const ValueKey('idle-next-run'));
+      if (scale > 1) {
+        // 큰 글씨: 자리가 있으면 짧은 문장으로 다 보이고, 없으면 숨는다 — 잘린 채로는 두지 않는다.
+        if (next.evaluate().isEmpty) {
+          expect(find.byKey(const ValueKey('ambient-tip')), findsOneWidget, reason: '날씨 안내는 남는다');
+          return;
+        }
+      }
+      expect(next, findsOneWidget);
+      final rect = tester.getRect(next);
+      final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
+      expect(rect.bottom, lessThanOrEqualTo(strip.top), reason: '가전 줄 위에서 끝난다');
+      // 스크롤 안 보이는 곳이 아니라 실제 화면 안에 있다.
+      expect(rect.bottom, lessThanOrEqualTo(size.height));
+      expect(tester.getRect(find.byKey(const ValueKey('ambient-tip'))).top, greaterThanOrEqualTo(0));
+    });
+  }
 }

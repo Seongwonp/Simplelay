@@ -612,6 +612,34 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // UI 평가 10/17: 결과 화면이 10초 뒤 저절로 닫혀 천천히 읽는 사람이 놓쳤다(시간 제한 조절 — WCAG 2.2.1 취지).
+  testWidgets('성공 결과 화면을 만지면 자동 복귀가 멈추고, 처음 화면으로는 그대로 된다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    api.suggestionList = [];
+    await tester.tap(find.byKey(_approveKey));
+    await tester.pump();
+    api.statusResult = const KioskStatus(running: false,
+        lastJobId: 'job-1', lastStatus: 'succeeded');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsOneWidget);
+
+    await tester.tapAt(tester.getCenter(find.byType(KioskDoneView)));
+    await tester.pump();
+    await tester.pump(KioskTimings.doneReturn * 2);
+    expect(find.byType(KioskDoneView), findsOneWidget, reason: '만진 뒤에는 저절로 닫히지 않는다');
+    expect(find.textContaining('초 뒤 처음 화면으로'), findsNothing);
+    expect(find.text('자동으로 닫지 않아요'), findsOneWidget);
+
+    await tester.tap(find.text('처음 화면으로'));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(KioskDoneView), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   testWidgets('두 번째 접수를 기다리는 동안 이전 완료를 재사용하지 않는다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()..suggestionList = [_sug];

@@ -236,7 +236,7 @@ void main() {
         await _pump(tester, _longSuggestion(), scale: 1.22, panel15: panel15);
         expect(tester.takeException(), isNull);
         _expectVisible(tester, find.textContaining('지금 할까요?'), '질문');
-        _expectVisible(tester, find.byKey(const ValueKey('suggestion-approve')), '시작');
+        _expectVisible(tester, find.byKey(const ValueKey('suggestion-approve')), '지금 실행');
         _expectVisible(tester, find.byKey(const ValueKey('suggestion-later')), '이번엔 안 할게요');
         // 순서는 세부 보기에서 전문을 읽는다.
         await tester.tap(find.text('순서·근거 보기'));

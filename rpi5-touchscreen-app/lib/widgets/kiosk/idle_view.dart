@@ -198,12 +198,30 @@ class KioskIdleView extends StatelessWidget {
               // (비상정지 띠가 위 한 줄을 차지할 때 등) 반쯤 걸치게 두지 않고 접는다
               // (2026-10-06 실패널: 띠가 생기자 예보 위쪽이 가전 줄에 걸려 잘렸다).
               final hourly = showHours ? amb.hourly.take(4).toList() : const <AmbientHour>[];
+              // 다음 루틴 줄은 예보보다 중요하다 — 자리를 먼저 잡고, 모자라면 예보를 접는다(사용자 질문 10/17:
+              // 날씨 안내가 뜨면 다음 루틴 줄이 아래로 밀려 잘렸다).
+              final next = nextRun;
+              final nextText = next == null ? null : keepWords(large ? next.shortLine : next.line);
+              final nextHeight = nextText == null
+                  ? 0.0
+                  : _nextRunGap +
+                      _textHeight(context, nextText, _nextRunStyle, box.maxWidth - _nextRunIndent);
+              // 예보를 접어도 안 들어가면(큰 글씨 + 날씨 안내) 잘린 채 두지 않고 숨긴다 — 날씨 안내가 더 급하다.
+              final nextFits = nextText != null &&
+                  _rightColumnHeight(context, box.maxWidth,
+                              greeting: showGreeting ? greeting : null,
+                              tip: tip,
+                              hours: const [],
+                              large: large) +
+                          nextHeight <=
+                      box.maxHeight;
               final hoursFit = showHours &&
                   _rightColumnHeight(context, box.maxWidth,
-                          greeting: showGreeting ? greeting : null,
-                          tip: tip,
-                          hours: hourly,
-                          large: large) <=
+                              greeting: showGreeting ? greeting : null,
+                              tip: tip,
+                              hours: hourly,
+                              large: large) +
+                          nextHeight <=
                       box.maxHeight;
               return SingleChildScrollView(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -220,8 +238,8 @@ class KioskIdleView extends StatelessWidget {
                         hours: hourly, compact: tip != null),
                   ],
                   // 다음 루틴 — 예보 아래 빈 자리(외부 평가 10/16 2차 k01). 모르면 없다.
-                  if (nextRun != null) ...[
-                    const SizedBox(height: 18),
+                  if (nextFits) ...[
+                    const SizedBox(height: _nextRunGap),
                     Row(
                       key: const ValueKey('idle-next-run'),
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -233,9 +251,7 @@ class KioskIdleView extends StatelessWidget {
                         const SizedBox(width: 8),
                         Expanded(
                           // 어절 단위로 줄을 바꾼다(실패널에서 '공기청/정기'처럼 끊겼다).
-                          child: Text(keepWords(nextRun!.line),
-                              style: const TextStyle(
-                                  fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
+                          child: Text(nextText, style: _nextRunStyle),
                         ),
                       ],
                     ),
@@ -305,6 +321,12 @@ abstract final class _Idle {
 }
 
 /// 한 덩어리 글의 높이 — [Text]와 같은 기본 글꼴·배율로 잰다.
+/// 다음 루틴 줄(10/16) — 예보 아래 간격·글자·아이콘 들여쓰기(아이콘 22 + 간격 8).
+const double _nextRunGap = 18;
+const double _nextRunIndent = 30;
+const TextStyle _nextRunStyle =
+    TextStyle(fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted);
+
 double _textHeight(BuildContext context, String text, TextStyle style, double maxWidth,
     {int? maxLines}) {
   final tp = TextPainter(

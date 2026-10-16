@@ -26,7 +26,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/kiosk_canvas.dart';
 const _fontPath = r'C:\Windows\Fonts\malgun.ttf';
 final _hasFont = File(_fontPath).existsSync();
 
-const _tipText = '약 드실 시간이에요. 드셨으면 화면에서 확인을 눌러 주세요';
+const _tipText = '약 드실 시간이에요. 아직 안 드셨으면 지금 챙겨 드세요';
 
 const _hourly = [
   AmbientHour(label: '0시', icon: 'clear', temp: 14, precip: false),

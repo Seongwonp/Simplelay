@@ -173,6 +173,12 @@ class KioskNextRun {
         '다음 루틴 · ${[if (dayLabel.isNotEmpty) dayLabel, hhmm].join(' ')} $name',
         if (modeLabel.isNotEmpty) modeLabel,
       ].join(' · ');
+
+  /// 큰 글씨용 짧은 문장 — '오늘'·'루틴'을 빼고 실행 방식은 한 낱말로('다음 22:00 저녁 공기청정기 켜기 · 자동').
+  String get shortLine => [
+        '다음 ${[if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, hhmm].join(' ')} $name',
+        if (modeLabel == '자동 실행') '자동' else if (modeLabel.isNotEmpty) modeLabel,
+      ].join(' · ');
 }
 
 /// `GET /routines` 한 항목 — 키오스크는 이름과 대상 가전, 누를 버튼 수만 쓴다.
