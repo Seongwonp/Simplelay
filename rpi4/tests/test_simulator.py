@@ -26,7 +26,7 @@ def test_lost_response_does_not_claim_success_or_resend():
 
 def test_stop_consumed_before_second_button_but_not_proven_by_wire():
     report = asyncio.run(run_scenario("stop"))
-    assert report["act_local"]["presses"] == ["즉석밥"]
+    assert report["act_local"]["presses"] == ["10초"]
     assert report["act_local"]["status"] == "safety_stopped"
     assert report["hub"]["result"]["success"] is False
     assert "status" not in report["wire"]["act_to_hub"][0]

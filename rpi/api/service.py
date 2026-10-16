@@ -5,6 +5,7 @@ from concurrent.futures import ThreadPoolExecutor, wait
 from dataclasses import dataclass
 from datetime import datetime
 
+from rpi.controller.models import RETRY_UNCONFIRMED, PRESS_UNCONFIRMED_DETAIL, button_behavior
 from rpi.controller import (
     ButtonSequenceController,
     ButtonTarget,
@@ -460,12 +461,13 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
         targets = self._targets_snapshot(appliance_id, tuple(buttons), controller)
+        behaviors = self._button_behaviors_snapshot(appliance_id, buttons)
         self._begin_run(len(buttons), controller, appliance_id, approval_guard)
         try:
             return self._run_buttons(
                 tuple(buttons), controller, purpose, appliance_id, calibration, usage_source,
                 self._learning_purpose(purpose, buttons, resolver, appliance_id, defined),
-                targets=targets,
+                targets=targets, button_behaviors=behaviors,
             )
         finally:
             self._end_run()
@@ -487,13 +489,14 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         controller = self._controller_for(appliance_id)
         calibration = self._calibration_snapshot(appliance_id)
         targets = self._targets_snapshot(appliance_id, buttons, controller)
+        behaviors = self._button_behaviors_snapshot(appliance_id, buttons)
         self._begin_run(len(buttons), controller, appliance_id)
         try:
             # 목적은 없지만 대상 가전은 있다. 넘기지 않으면 수동 버튼
             # 실행의 이력이 '어느 가전에서'를 잃는다 — 커스텀 가전은
             # 대부분 이 경로로 조작되므로 실험 표본이 통째로 빈다.
             return self._run_buttons(
-                buttons, controller, None, appliance_id, calibration, targets=targets
+                buttons, controller, None, appliance_id, calibration, targets=targets, button_behaviors=behaviors
             )
         finally:
             self._end_run()
@@ -602,11 +605,12 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         calibration = self._calibration_snapshot(appliance_id)
         # 좌표도 같은 순간에 잡는다 -- 보정 버전과 실제로 쓴 좌표가 어긋나지 않게.
         targets = self._targets_snapshot(appliance_id, buttons, controller)
+        behaviors = self._button_behaviors_snapshot(appliance_id, buttons)
         job_id = self._begin_run(len(buttons), controller, appliance_id, approval_guard)
         thread = threading.Thread(
             target=self._run_job,
             args=(buttons, controller, purpose, appliance_id, calibration, usage_source, learning_purpose),
-            kwargs={"targets": targets},
+            kwargs={"targets": targets, "button_behaviors": behaviors},
             daemon=True,
             name=f"simplelay-exec-{job_id}",
         )
@@ -623,11 +627,12 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         usage_source: UsageSource = UsageSource.DIRECT,
         learning_purpose: str | None = None,
         targets: "dict[str, ButtonTarget] | None" = None,
+        button_behaviors: dict[str, str] | None = None,
     ) -> None:
         try:
             self._run_buttons(
                 buttons, controller, purpose, appliance_id, calibration_version, usage_source, learning_purpose,
-                targets=targets,
+                targets=targets, button_behaviors=button_behaviors,
             )
         except Exception:
             # 백그라운드 스레드라 HTTP 500으로 표면화할 곳이 없다 — 로그를
@@ -784,6 +789,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         """
         if self._history_store is None:
             return
+        if result.abort_reason == RETRY_UNCONFIRMED:
+            outcome, termination, detail = "unconfirmed", Termination.UNKNOWN, PRESS_UNCONFIRMED_DETAIL
         try:
             self._history_store.append(
                 JobHistoryEntry(
@@ -843,6 +850,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             return Termination.COMPLETED
         if stopped_by_user:
             return Termination.STOPPED_BY_USER
+        if result.abort_reason == RETRY_UNCONFIRMED:
+            return Termination.UNKNOWN
         if getattr(result, "abort_reason", None):
             return Termination.MOTION_ABORTED  # 걸림 등 — 다시 눌러 본 것이 아니다(2026-10-14)
         return Termination.RETRIES_EXHAUSTED
@@ -867,7 +876,9 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
             f" 외 {len(buttons) - 2}개" if len(buttons) > 2 else ""
         )
         try:
-            if stopped_by_user:
+            if result.abort_reason == RETRY_UNCONFIRMED:
+                self._care_events.append("execution_failed", f"'{label}' {PRESS_UNCONFIRMED_DETAIL}", purpose=purpose)
+            elif stopped_by_user:
                 self._care_events.append(
                     "emergency_stop",
                     f"'{label}' 실행을 긴급 정지로 멈췄어요.",
@@ -892,6 +903,7 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         usage_source: UsageSource = UsageSource.DIRECT,
         learning_purpose: str | None = None,
         targets: "dict[str, ButtonTarget] | None" = None,
+        button_behaviors: dict[str, str] | None = None,
     ) -> ExecutionResult:
         self._physical_expected = len(buttons)
         # 실행 대상 가전(2026-10-07, 평가 H3): RPi4 링크는 대상 없는 execute를 보내지 않는다. RPi4가 그 대상의
@@ -917,6 +929,8 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         if stop_before_dispatch:
             log.warning("stop requested before dispatch — not sending %d button(s)", len(buttons))
             self._last_result = stopped_before_dispatch()
+        elif getattr(controller, "supports_button_behaviors", False) is True:
+            self._last_result = controller.execute(buttons, targets, button_behaviors=button_behaviors)
         elif targets:
             self._last_result = controller.execute(buttons, targets)
         else:
@@ -1024,6 +1038,12 @@ class SimpleLayService(CommandExecutionMixin, PurposeExecutor):
         return self._readiness_registry.get(
             appliance_id
         ).calibration_profile_version
+
+    def _button_behaviors_snapshot(self, appliance_id, buttons) -> dict[str, str]:
+        target = appliance_id if appliance_id is not None else BUILTIN_GANTRY_APPLIANCE
+        appliance = self._appliance_registry.get(target) if self._appliance_registry else None
+        by_label = {b.label: b.behavior for b in appliance.buttons} if appliance else {}
+        return {b: button_behavior(by_label.get(b)) for b in buttons}
 
     def _targets_snapshot(
         self,

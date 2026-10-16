@@ -37,7 +37,7 @@ def test_succeeds_on_first_attempt():
 def test_recovers_on_third_attempt_with_corrections():
     controller, grbl, _, alerts, safety, waiter = build_controller([False, False, True])
 
-    result = controller.execute(["시작"])
+    result = controller.execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
 
     assert result.status is ExecutionStatus.SUCCEEDED
     assert result.buttons[0].attempts == 3
@@ -53,7 +53,7 @@ def test_recovers_on_third_attempt_with_corrections():
 def test_stops_and_alerts_after_all_attempts_fail():
     controller, grbl, verifier, alerts, safety, waiter = build_controller([False, False, False])
 
-    result = controller.execute(["시작", "취소"])
+    result = controller.execute(["시작", "취소"], button_behaviors={b: "idempotent" for b in ["시작", "취소"]})
 
     assert result.status is ExecutionStatus.SAFETY_STOPPED
     assert result.buttons[0].status is ButtonStatus.FAILED
@@ -73,7 +73,7 @@ def test_retries_after_mock_grbl_error_without_verifying_failed_command():
         grbl, verifier, MockAlertSink(), MockSafetyController()
     )
 
-    result = controller.execute(["시작"])
+    result = controller.execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
 
     assert result.status is ExecutionStatus.SUCCEEDED
     assert result.buttons[0].attempts == 2
@@ -97,7 +97,7 @@ def test_on_progress_reports_each_verification_attempt():
         on_progress=reported.append,
     )
 
-    controller.execute(["시작"])
+    controller.execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
 
     assert [p.attempt for p in reported] == [1, 2, 3]
     assert [p.button for p in reported] == ["시작", "시작", "시작"]
@@ -128,7 +128,7 @@ def test_on_progress_reports_none_verification_on_grbl_error():
         grbl, verifier, MockAlertSink(), MockSafetyController(), on_progress=reported.append
     )
 
-    controller.execute(["시작"])
+    controller.execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
 
     assert reported[0].verification is None  # GRBL 에러 — 검증 시도조차 못 함
     assert reported[1].verification is not None
@@ -193,7 +193,7 @@ def test_emergency_stop_between_retries():
         grbl, verifier, alerts, safety, retry_waiter=MockRetryWaiter()
     )
 
-    result = controller.execute(["시작"])
+    result = controller.execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
 
     assert result.status is ExecutionStatus.SAFETY_STOPPED
     # 재시도 누름은 발생하지 않았다 — 정지는 재시도 경계에서 반영된다

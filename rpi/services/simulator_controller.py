@@ -124,12 +124,12 @@ class SimulatorController(ActClientController):
             motor = MockGrblClient()
 
             class RecordedController(ClosedLoopController):
-                def execute(inner, buttons, targets=None):
+                def execute(inner, buttons, targets=None, *, button_behaviors=None):
                     # 보정된 가전은 좌표(targets)가 함께 온다 — 받지 않으면 TypeError로
                     # actuator_fail이 됐다(2026-09-30 수리).
                     motor.commands.clear()
                     owner._local_result = None
-                    result = super().execute(buttons, targets) if targets else super().execute(buttons)
+                    result = super().execute(buttons, targets, button_behaviors=button_behaviors)
                     owner._local_result = result
                     return result
 
@@ -180,13 +180,13 @@ class SimulatorController(ActClientController):
             raise
         super().__init__(self._loop, client)
 
-    def execute(self, buttons, targets=None):
+    def execute(self, buttons, targets=None, *, button_behaviors=None):
         with self._state_lock:
             if self._closed or self._busy:
                 raise RuntimeError("simulator closed or busy")
             self._busy = True
         try:
-            return super().execute(buttons, targets)
+            return super().execute(buttons, targets, button_behaviors=button_behaviors)
         finally:
             with self._state_lock:
                 self._busy = False

@@ -6,6 +6,7 @@ against real buttons instead of trusting it blindly.
 """
 
 import json
+from rpi.controller.models import button_behavior
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,6 +22,7 @@ class ButtonSpec:
     label: str
     x: int
     y: int
+    behavior: str = "unknown"
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,6 @@ def load_button_map(path: Path | str) -> ApplianceManifest:
         if button_id in seen_ids:
             raise ApplianceManifestError(f"{path}: duplicate button id {button_id!r}")
         seen_ids.add(button_id)
-        buttons.append(ButtonSpec(button_id, label, x, y))
+        buttons.append(ButtonSpec(button_id, label, x, y, button_behavior(entry.get("behavior"))))
 
     return ApplianceManifest(appliance, model, tuple(buttons))

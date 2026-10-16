@@ -159,7 +159,7 @@ def test_execute_with_retries_reports_success_with_retry_count():
         # Fails twice, then succeeds — 3 attempts, 2 retries.
         executor = _make_executor(reader, writer, verifier_outcomes=[False, False, True])
 
-        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-2", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-2", "buttons": ["시작"], "button_behaviors": {"시작": "idempotent"}})
         await executor.run_once()
         await executor.wait_idle()
 
@@ -631,7 +631,7 @@ def test_inject_failure_forces_retry_on_next_uart_execution():
         feed(reader, {"type": "inject_failure", "button_index": 0, "attempts": 1})
         await executor.run_once()
 
-        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f1", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f1", "buttons": ["시작"], "button_behaviors": {"시작": "idempotent"}})
         await executor.run_once()
         await executor.wait_idle()
 
@@ -641,7 +641,7 @@ def test_inject_failure_forces_retry_on_next_uart_execution():
 
         # 1회용 — 다음 실행은 정상
         writer.clear()
-        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f2", "buttons": ["시작"]})
+        feed(reader, {"type": "execute", "appliance_id": "microwave", "sequence_id": "seq-f2", "buttons": ["시작"], "button_behaviors": {"시작": "idempotent"}})
         await executor.run_once()
         await executor.wait_idle()
         assert writer.messages()[0]["retry"] == 0

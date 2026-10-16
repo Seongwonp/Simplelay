@@ -127,6 +127,7 @@ class _Step:
     controller: object
     calibration: str | None = None
     targets: dict | None = None
+    button_behaviors: dict | None = None
 
 
 #: 비상정지가 걸려 있을 때 ThinQ 명령을 받지·보내지 않는 사유(2026-10-15 검토 H1).
@@ -286,6 +287,7 @@ class CommandExecutionMixin:
             command, summary, controller,
             calibration=self._calibration_snapshot(target),
             targets=self._targets_snapshot(target, buttons, controller),
+            button_behaviors=self._button_behaviors_snapshot(target, buttons),
         )
 
     # ── 진입점 ────────────────────────────────────────────────────────────
@@ -502,7 +504,7 @@ class CommandExecutionMixin:
         try:
             execution = self._run_buttons(
                 tuple(command.buttons), step.controller, None, command.target_id,
-                step.calibration, usage_source, None, targets=step.targets,
+                step.calibration, usage_source, None, targets=step.targets, button_behaviors=step.button_behaviors,
             )
         except Exception:  # noqa: BLE001 -- 실행 대상 예외(링크 끊김 등)는 '눌렸는지 모름'이다(2026-10-15 G1)
             # 예전에는 여기서 예외가 올라가 _run_plan_job이 로그만 남겼다 — 결과·이력·보호자 알림·완료 이벤트가 없고
@@ -568,15 +570,20 @@ class CommandExecutionMixin:
             confirmation = confirmation_of(result, len(buttons))
         except Exception:  # noqa: BLE001
             receipt, confirmation = Receipt.UNKNOWN, Confirmation.NONE
+        from rpi.controller.models import RETRY_UNCONFIRMED, PRESS_UNCONFIRMED_DETAIL
         with self._lock:
             self._last_receipt = receipt
             self._last_confirmation = confirmation
             self._last_detail = None
             self._last_command_status = None
             self._last_command_result = None
+            if result.abort_reason == RETRY_UNCONFIRMED:
+                self._last_detail = PRESS_UNCONFIRMED_DETAIL
+                self._last_command_status = CommandStatus.UNCONFIRMED
         self._emit_job_finished(JobFinishedEvent(
             job_id=self._history_job_id(), appliance_id=appliance_id, route=ControlRoute.PHYSICAL,
-            status=result.status.value, receipt=receipt, confirmation=confirmation,
+            status=(CommandStatus.UNCONFIRMED.value if result.abort_reason == RETRY_UNCONFIRMED
+                    else result.status.value), receipt=receipt, confirmation=confirmation,
             execution_mode=_mode(controller, result), usage_source=usage_source, purpose=purpose,
             scenario_id=getattr(self, "_scenario_context", None),
         ))

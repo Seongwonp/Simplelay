@@ -285,7 +285,7 @@ def test_retry_of_the_final_button_counts_from_its_first_press() -> None:
         factory, press_s=0.5, outcomes=(True, False, True), retry_wait_s=1.0
     )
 
-    result = controller.execute(["30초", "시작"])
+    result = controller.execute(["30초", "시작"], button_behaviors={b: "idempotent" for b in ["30초", "시작"]})
 
     assert len(grbl.commands) == 3  # 시작을 한 번 더 눌렀다
     assert result.status is ExecutionStatus.SUCCEEDED, (

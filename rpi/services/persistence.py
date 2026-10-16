@@ -349,7 +349,7 @@ class SimpleLayDb:
             data = {"id": b.id, "label": b.label, "x": b.x, "y": b.y}
             if b.kind.value != "button":
                 data["kind"] = b.kind.value
-            for key in ("detents", "press_ms", "x_mm", "y_mm"):
+            for key in ("detents", "press_ms", "x_mm", "y_mm", "behavior"):
                 value = getattr(b, key)
                 if value is not None:
                     data[key] = value
@@ -445,6 +445,7 @@ class SimpleLayDb:
                                 # 확장 필드가 없는 예전 행은 기본값(누름 버튼,
                                 # 보정 전)으로 살아난다.
                                 kind=ButtonKind.parse(b.get("kind")),
+                                behavior=b.get("behavior", "unknown"),
                                 detents=opt_int(b.get("detents")),
                                 press_ms=opt_int(b.get("press_ms")),
                                 x_mm=opt_float(b.get("x_mm")),

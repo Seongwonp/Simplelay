@@ -146,6 +146,21 @@ RPi4는 이 대상의 CT 채널(`SIMPLELAY_OUTLET_CHANNELS`, 대응이 비면 �
   (`microwave`)을 **명시해** 싣는다(`rpi/api/service.py` `BUILTIN_GANTRY_APPLIANCE`).
 - L2(수용 판정)는 대상과 무관하게 운영 경로(RPi4 `act_main`)에 판정기가 없다 — 결과에 L2 판정이 없다.
 
+**버튼별 자동 재누름 정책(R1, 2026-10-16).** `execute.button_behaviors`는 선택 객체다.
+
+```json
+{"type":"execute","sequence_id":"retry-policy-1","appliance_id":"microwave","buttons":["10초","시작"],"button_behaviors":{"10초":"idempotent","시작":"toggle"}}
+```
+
+- 키는 이번 `buttons`의 이름이다. 값은 `toggle` / `idempotent` / `unknown`. 필드·키 누락, 알 수 없는 값·형식은 **unknown**이며 이름으로 추측하지 않는다.
+- RPi5는 대상 가전 버튼 정의의 `behavior`를 실행 접수 때 복사해 보낸다. RPi4는 이번 실행에만 적용하며 다음 실행에 물려주지 않는다.
+- `toggle`·`unknown`은 L1 눌림 미확인·L2 입력 수용 미확인 뒤 자동 보정 재누름·재입력 없이 끝난다. 뒤 버튼도 보내지 않는다.
+- 결과는 `success:false`, `outcome:"safety_stop"`, `abort_reason:"press_unconfirmed"`, 실제 버튼별 시도 수를 싣는다. 새 RPi5는 이를 `/status`·기록·명령 결과·완료 이벤트에서 **unconfirmed**와 "눌렸는지 확인하지 못했어요"로 전달한다. 가전이 안 켜졌다고 단정하지 않는다.
+- 공개 API의 `last_abort_reason`·이력 `abort_reason`은 기존 화면이 누름 전 모션 중단으로 해석하므로 이 원인에는 null을 반환한다. 링크·내부 이력의 `press_unconfirmed`는 유지하고 공개 결과의 `unconfirmed`·상세 문구로 미확인을 전달한다.
+- `idempotent`는 여기서 **자동 재누름 허용 분류명**이다. 사용자 결정에 따라 내장 시간 버튼을 포함하지만, 시간을 더하는 버튼은 수학적 멱등 동작이 아니며 첫 누름을 놓치면 시간이 더해질 수 있다. 실측으로 허용 여부를 재확인한다. L1 상한·보정, L2 재입력 상한, L3 재누름 없음은 종전대로다.
+- 통신 형식은 선택 필드라 옛 송신자를 읽을 수 있지만 **안전 동작은 하위 호환이 아니다. RPi4·RPi5 같은 커밋 배포 필수.** 새 RPi4+옛 RPi5는 모두 unknown으로 재누름을 막는다. 옛 RPi4는 필드를 무시해 재누를 수 있고, 옛 RPi5는 새 원인을 버려 안전 정지로만 표시할 수 있다. 혼합 배포로 R1 검증을 주장하지 않는다.
+- 사람의 새 실행 요청, 명시적으로 등록한 취소 누름 횟수(`hold.stop_presses`), MCU가 **실행 전 거절한** 냉각 대기 명령의 재전송은 이 정책의 불확실한 누름 재시도와 다르다. 변경하지 않는다.
+
 `execute`의 `targets`는 **선택** 필드다(2026-09-28). 보정(`PUT /appliances/{id}/calibration`)으로
 갠트리 좌표가 기록된 버튼만 싣는다. 좌표가 하나도 없으면 키 자체를 넣지 않는다 —
 종전 `execute` 줄과 바이트까지 같다.

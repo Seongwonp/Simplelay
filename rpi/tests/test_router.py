@@ -523,7 +523,7 @@ def test_inject_failure_forces_retry_on_next_execution(client):
     armed = client.post("/demo/inject-failure", json={"button_index": 0, "attempts": 1})
     assert armed.status_code == 200
 
-    accepted = client.post("/execute-buttons", json={"buttons": ["해동", "시작"]}).json()
+    accepted = client.post("/execute-buttons", json={"buttons": ["10초", "시작"]}).json()
     status = _wait_job_done(client, accepted["job_id"])
 
     # 최종 결과는 성공(재시도로 회복) — 내부 결과로 재시도가 실제 있었는지 확인
@@ -536,7 +536,7 @@ def test_inject_failure_forces_retry_on_next_execution(client):
 def test_inject_failure_with_high_attempts_causes_safety_stop(client):
     client.post("/demo/inject-failure", json={"attempts": 3})
 
-    accepted = client.post("/execute-buttons", json={"buttons": ["해동", "시작"]}).json()
+    accepted = client.post("/execute-buttons", json={"buttons": ["10초", "시작"]}).json()
     status = _wait_job_done(client, accepted["job_id"])
 
     assert status["last_status"] == "safety_stopped"
@@ -598,7 +598,7 @@ def test_history_records_executions_newest_first(client):
 def test_history_captures_injected_retry(client):
     # 실패 주입 → 폐루프 재시도 회복이 이력의 retry_count로 남는다
     client.post("/demo/inject-failure", json={"button_index": 0, "attempts": 1})
-    accepted = client.post("/execute-buttons", json={"buttons": ["전원", "시작"]}).json()
+    accepted = client.post("/execute-buttons", json={"buttons": ["10초", "시작"]}).json()
     _wait_job_done(client, accepted["job_id"])
 
     (entry,) = client.get("/history").json()

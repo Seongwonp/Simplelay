@@ -1,5 +1,6 @@
 """실모드 디지털 트윈(GET /twin) — 통신 프레임 탭 + progress + 결과 프레임, 그리고 기록 재생."""
 from __future__ import annotations
+from rpi.services.appliance_registry import ApplianceRegistry
 
 import json
 import time
@@ -114,7 +115,7 @@ def sim_app(tmp_path, monkeypatch):
 
     tap = LinkFrameTap(tmp_path / "logs" / "session.jsonl", transport="in_memory")
     controller = SimulatorController(step_seconds=0, tap=tap)
-    service = SimpleLayService(RuleBasedIntentResolver(), controller)
+    service = SimpleLayService(RuleBasedIntentResolver(), controller, appliance_registry=ApplianceRegistry())
     app.dependency_overrides[get_service] = lambda: service
     monkeypatch.setenv("SIMPLELAY_TWIN_REPLAY_DIR", str(tmp_path / "logs"))
     try:
@@ -142,14 +143,14 @@ def test_twin_routes_follow_a_real_execution_and_write_the_session_log(sim_app, 
     script = c.get("/twin-motion.js")
     assert script.status_code == 200 and "carriageView" in script.text
     controller.inject_failure(0, 2)
-    job_id = c.post("/execute-buttons", json={"buttons": ["즉석밥", "시작"], "appliance_id": "microwave"}).json()["job_id"]
+    job_id = c.post("/execute-buttons", json={"buttons": ["10초", "시작"], "appliance_id": "microwave"}).json()["job_id"]
     _wait_done(c, job_id)
     twin = c.get("/twin/state").json()
     assert twin["source"] == "link_tap" and twin["transport"] == "in_memory"
     assert twin["execution_mode"] == "mock"  # 시뮬레이터가 스스로 밝힌 모의
     job = twin["job"]
-    assert job["buttons"] == ["즉석밥", "시작"] and job["press_source"] == "progress"
-    assert job["presses"] == ["즉석밥", "즉석밥", "즉석밥", "시작"]
+    assert job["buttons"] == ["10초", "시작"] and job["press_source"] == "progress"
+    assert job["presses"] == ["10초", "10초", "10초", "시작"]
     assert [s["attempts"] for s in job["steps"]] == [3, 1]
     assert (job["result"]["success"], job["result"]["retry"]) == (True, 2)
     assert job["carriage"]["label"] == "명령 기준 추정"  # 모의 어댑터는 위치를 보고하지 않는다

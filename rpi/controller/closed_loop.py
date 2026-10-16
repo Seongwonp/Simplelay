@@ -13,6 +13,7 @@ from .layered import (
     OperationVerifier,
 )
 from .models import (
+    button_behavior, RETRY_UNCONFIRMED, PRESS_UNCONFIRMED_DETAIL,
     ButtonResult,
     ButtonStatus,
     ButtonTarget,
@@ -65,6 +66,10 @@ class _PressObservationFailed(Exception):
         self.result = result
 
 
+class _RetryUnconfirmed(_PressObservationFailed):
+    """재누름 금지 버튼: 확인 부족을 미확인으로 남긴다."""
+
+
 class _MotionAborted(Exception):
     """모션 장치가 알람·재시작·기한 초과·준비 안 됨을 알렸다 — 다시 눌러도 움직이지 않으니 재시도하지 않는다(2026-10-14)."""
 
@@ -95,6 +100,7 @@ class ClosedLoopController:
     #: execute()가 ``targets``(버튼별 좌표)를 받는다. 서비스는 이 표시가 있는
     #: 대상에만 좌표를 넘긴다 -- 다른 ButtonSequenceController 구현은 모른다.
     supports_button_targets = True
+    supports_button_behaviors = True
 
     def __init__(
         self,
@@ -200,6 +206,7 @@ class ClosedLoopController:
         self,
         buttons: list[str] | tuple[str, ...],
         targets: Mapping[str, ButtonTarget] | None = None,
+        *, button_behaviors: Mapping[str, str] | None = None,
     ) -> ExecutionResult:
         """``targets``: 버튼 → 갠트리 좌표(mm). 없으면 좌표 없는 종전 명령을 보낸다.
 
@@ -212,6 +219,7 @@ class ClosedLoopController:
             if missing:
                 raise MissingButtonCoordinates(missing)
         self._targets = targets
+        self._button_behaviors = dict(button_behaviors or {})
         results: list[ButtonResult] = []
         completed_steps = 0
         self._operation_observing = False
@@ -222,6 +230,12 @@ class ClosedLoopController:
             except _EmergencyStopRequested:
                 self._safety.stop("emergency stop requested")
                 return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, tuple(results))
+            except _RetryUnconfirmed as exc:
+                results.append(exc.result)
+                self._safety.stop(PRESS_UNCONFIRMED_DETAIL)
+                self._alerts.notify_operation_unconfirmed(PRESS_UNCONFIRMED_DETAIL)
+                return ExecutionResult(ExecutionStatus.SAFETY_STOPPED, tuple(results),
+                                       failed_layer=exc.result.failed_layer, abort_reason=RETRY_UNCONFIRMED)
             except _MotionAborted as exc:
                 # 걸림·재시작·기한 초과·준비 안 됨 — 눌림(L1) 확인 실패가 아니다. 실제 시도 수와 원인을 싣는다.
                 results.append(exc.result)
@@ -325,6 +339,15 @@ class ClosedLoopController:
         presses = 0
         reinputs = 0
         corrections: list = []
+        may_retry = button_behavior(self._button_behaviors.get(button)) == "idempotent"
+
+        def unconfirmed(layer):
+            self._cancel_press_observation()
+            self._check_stop()
+            return _RetryUnconfirmed(ButtonResult(
+                button, ButtonStatus.FAILED, presses, last_verification, tuple(errors),
+                failed_layer=layer, reinputs=reinputs, corrections=tuple(corrections)))
+
         while True:
             pressed = False
             for attempt in range(1, self._retry_policy.max_attempts + 1):
@@ -398,13 +421,21 @@ class ClosedLoopController:
                             reinputs=reinputs,
                             corrections=tuple(corrections),
                         ), abort) from exc
+                    if not may_retry:
+                        self._check_stop()
+                        raise unconfirmed(VerificationLayer.PRESS) from exc
                     continue
                 self._observe("press", button, completed_steps, presses, ok=True,
                               position=self._adapter_position())
 
                 try:
                     last_verification = self._verifier.verify(button)
-                except SensorUnavailable as exc:
+                except Exception as exc:
+                    if not may_retry:
+                        errors.append(str(exc))
+                        raise unconfirmed(VerificationLayer.PRESS) from exc
+                    if not isinstance(exc, SensorUnavailable):
+                        raise
                     raise self._press_sensor_failure(
                         button, presses, errors, last_verification, reinputs,
                         corrections, f"press sensor unavailable: {exc}",
@@ -415,6 +446,8 @@ class ClosedLoopController:
                 if last_verification.pressed:
                     pressed = True
                     break
+                if not may_retry:
+                    raise unconfirmed(VerificationLayer.PRESS)
 
             if not pressed:
                 return ButtonResult(
@@ -440,7 +473,13 @@ class ClosedLoopController:
                     corrections=tuple(corrections),
                 )
 
-            accepted = self._acceptance.verify_acceptance(button)
+            try:
+                accepted = self._acceptance.verify_acceptance(button)
+            except Exception as exc:
+                if may_retry:
+                    raise
+                errors.append(str(exc))
+                raise unconfirmed(VerificationLayer.ACCEPTANCE) from exc
             self._observe("accept", button, completed_steps, presses, passed=bool(accepted.passed))
             if accepted.passed:
                 self._pace(button, completed_steps)
@@ -454,6 +493,8 @@ class ClosedLoopController:
                     corrections=tuple(corrections),
                 )
             errors.append(f"L2: {accepted.detail}" if accepted.detail else "L2: not accepted")
+            if not may_retry:
+                raise unconfirmed(VerificationLayer.ACCEPTANCE)
             if reinputs >= self._acceptance_reinputs:
                 return ButtonResult(
                     button,

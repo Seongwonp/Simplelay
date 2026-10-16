@@ -91,7 +91,7 @@ def test_client_execute_reports_real_retries_from_the_executor():
         await client.start()
         executor_task = asyncio.create_task(executor.run_once())
 
-        result = await client.execute(["시작"], sequence_id="link-2", appliance_id="microwave")
+        result = await client.execute(["시작"], sequence_id="link-2", appliance_id="microwave", button_behaviors={b: "idempotent" for b in ["시작"]})
 
         await executor_task
         assert result.success is True
@@ -247,7 +247,7 @@ def test_retry_exhaustion_arrives_as_safety_stop():
         await client.start()
         executor_task = asyncio.create_task(executor.run_once())
 
-        result = await client.execute(["시작"], sequence_id="link-fail", appliance_id="microwave")
+        result = await client.execute(["시작"], sequence_id="link-fail", appliance_id="microwave", button_behaviors={b: "idempotent" for b in ["시작"]})
 
         await executor_task
         await executor.wait_idle()

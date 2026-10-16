@@ -38,6 +38,7 @@ log = logging.getLogger(__name__)
 class ActClientController:
     #: execute()가 ``targets``(버튼별 좌표)를 받아 RPi4로 전달한다.
     supports_button_targets = True
+    supports_button_behaviors = True
 
     #: UART 너머 RPi4가 실제 모터를 돌리는지, 자기 안에서 mock을 돌리는지
     #: 이쪽에서는 알 수 없다. 'UART니까 real'은 추측이다 -- 실기기 통합
@@ -103,6 +104,7 @@ class ActClientController:
         self,
         buttons: list[str] | tuple[str, ...],
         targets: "Mapping[str, ButtonTarget] | None" = None,
+        *, button_behaviors: Mapping[str, str] | None = None,
     ) -> ExecutionResult:
         buttons = list(buttons)
         call_timeout = self._timeout_for(len(buttons))
@@ -112,6 +114,8 @@ class ActClientController:
             # RPi4는 대상 없는 execute를 거절한다(평가 H3) — 전자레인지로 가정해 보내지 않는다.
             raise ActLinkError("execute target (appliance_id) was not armed — not sent to RPi4")
         kwargs: dict = {"appliance_id": target}
+        if button_behaviors is not None:
+            kwargs["button_behaviors"] = dict(button_behaviors)
         if hold:
             kwargs.update(targets=targets or None, hold=hold)
         elif targets:

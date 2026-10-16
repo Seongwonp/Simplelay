@@ -77,7 +77,7 @@ def _roundtrip(controller, *, progress=None, tap=None, on_progress=None, job_obs
         await client.start()
         run = asyncio.create_task(executor.run())
         try:
-            return await asyncio.wait_for(client.execute(BUTTONS, sequence_id="seq-p", targets=TARGETS, appliance_id="microwave"), 5)
+            return await asyncio.wait_for(client.execute(BUTTONS, button_behaviors={b: "idempotent" for b in BUTTONS}, sequence_id="seq-p", targets=TARGETS, appliance_id="microwave"), 5)
         finally:
             rpi4_reader.feed_eof()
             await run

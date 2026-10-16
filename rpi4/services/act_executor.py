@@ -741,7 +741,11 @@ class ActExecutor:
         try:
             # Run the synchronous controller in a thread so the event loop
             # stays responsive to incoming UART data during execution.
-            if msg.targets:
+            if getattr(self._controller, "supports_button_behaviors", False) is True:
+                result = await asyncio.to_thread(
+                    self._controller.execute, list(msg.buttons), msg.targets or None,
+                    button_behaviors=msg.button_behaviors)
+            elif msg.targets:
                 # 좌표가 실린 실행만 targets를 넘긴다 — 좌표 없는 종전 실행은
                 # 호출 모양까지 그대로 둔다.
                 result = await asyncio.to_thread(

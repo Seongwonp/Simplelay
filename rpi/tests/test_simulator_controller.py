@@ -32,14 +32,14 @@ def test_failure_injection_travels_over_link_and_can_be_cleared():
     try:
         controller.inject_failure(0, 2)
         controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
-        assert controller.execute(['start']).status.value == 'succeeded'
+        assert controller.execute(['start'], button_behaviors={b: "idempotent" for b in ['start']}).status.value == 'succeeded'
         assert len(controller.snapshot()['act_local']['presses']) == 3
         controller.inject_failure(0, 3)
         controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
-        assert controller.execute(['start']).status.value == 'safety_stopped'
+        assert controller.execute(['start'], button_behaviors={b: "idempotent" for b in ['start']}).status.value == 'safety_stopped'
         controller.clear_failure()
         controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
-        assert controller.execute(['start']).status.value == 'succeeded'
+        assert controller.execute(['start'], button_behaviors={b: "idempotent" for b in ['start']}).status.value == 'succeeded'
         assert controller.snapshot()['act_local']['presses'] == ['start']
     finally:
         controller.close()

@@ -14,6 +14,8 @@
 기록해도 새어 나가면 안 되는 것이 있다: 주소·키·가정 식별정보·원문 음성.
 내보내기는 **허용 목록**으로만 나간다.
 """
+from rpi.services.appliance_registry import ApplianceRegistry
+
 
 from datetime import datetime, timedelta, timezone
 
@@ -97,7 +99,7 @@ def _service(history, *, clock=None, outcomes=None, mode=ExecutionMode.MOCK):
             retry_waiter=MockRetryWaiter(),
         ),
         clock=clock or FixedClock(_NOW),
-        history_store=history,
+        history_store=history, appliance_registry=ApplianceRegistry(),
     )
 
 
@@ -147,7 +149,7 @@ def test_retry_exhaustion_and_user_stop_are_different_endings():
     history = InMemoryJobHistory()
     service = _service(history, outcomes=[False] * 30)
 
-    service.execute_purpose("즉석밥 데워줘")
+    service.execute_buttons(("10초",), appliance_id="microwave")
 
     (entry,) = history.recent()
     assert entry.termination is Termination.RETRIES_EXHAUSTED

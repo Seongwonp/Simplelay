@@ -1,17 +1,80 @@
 {
   "appliance": "microwave",
   "model": "generic",
-  "grid": { "rows": 4, "cols": 3 },
+  "grid": {
+    "rows": 4,
+    "cols": 3
+  },
   "buttons": [
-    { "id": "BT-01", "label": "10초",   "x": 0, "y": 0 },
-    { "id": "BT-02", "label": "30초",   "x": 1, "y": 0 },
-    { "id": "BT-03", "label": "1분",    "x": 2, "y": 0 },
-    { "id": "BT-04", "label": "5분",    "x": 0, "y": 1 },
-    { "id": "BT-05", "label": "시작",   "x": 2, "y": 3 },
-    { "id": "BT-06", "label": "취소",   "x": 1, "y": 3 },
-    { "id": "BT-07", "label": "해동",   "x": 0, "y": 2 },
-    { "id": "BT-08", "label": "즉석밥",   "x": 1, "y": 2 },
-    { "id": "BT-09", "label": "냉동식품", "x": 2, "y": 2 },
-    { "id": "BT-10", "label": "라면", "x": 1, "y": 1 }
+    {
+      "id": "BT-01",
+      "label": "10초",
+      "x": 0,
+      "y": 0,
+      "behavior": "idempotent"
+    },
+    {
+      "id": "BT-02",
+      "label": "30초",
+      "x": 1,
+      "y": 0,
+      "behavior": "idempotent"
+    },
+    {
+      "id": "BT-03",
+      "label": "1분",
+      "x": 2,
+      "y": 0,
+      "behavior": "idempotent"
+    },
+    {
+      "id": "BT-04",
+      "label": "5분",
+      "x": 0,
+      "y": 1,
+      "behavior": "idempotent"
+    },
+    {
+      "id": "BT-05",
+      "label": "시작",
+      "x": 2,
+      "y": 3,
+      "behavior": "toggle"
+    },
+    {
+      "id": "BT-06",
+      "label": "취소",
+      "x": 1,
+      "y": 3,
+      "behavior": "toggle"
+    },
+    {
+      "id": "BT-07",
+      "label": "해동",
+      "x": 0,
+      "y": 2,
+      "behavior": "unknown"
+    },
+    {
+      "id": "BT-08",
+      "label": "즉석밥",
+      "x": 1,
+      "y": 2,
+      "behavior": "unknown"
+    },
+    {
+      "id": "BT-09",
+      "label": "냉동식품",
+      "x": 2,
+      "y": 2,
+      "behavior": "unknown"
+    },
+    {
+      "id": "BT-10",
+      "label": "라면",
+      "x": 1,
+      "y": 1,
+      "behavior": "unknown"
+    }
   ]
 }

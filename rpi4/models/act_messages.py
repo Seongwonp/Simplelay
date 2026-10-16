@@ -39,7 +39,7 @@ import math
 import re
 from dataclasses import dataclass, field, replace
 
-from rpi.controller.models import ButtonTarget
+from rpi.controller.models import ButtonTarget, button_behavior
 from rpi.services.link_heartbeat import parse_declared_period
 
 
@@ -77,6 +77,7 @@ class ExecuteMsg:
     #: 선택 — RPi5가 이 실행 동안 ``heartbeat``를 보내는 주기(초, 2026-10-16 G5). 있으면 RPi4가 링크 침묵을 감시해 스스로
     #: 멈춘다. 없거나 모양이 틀리면 None — 감시하지 않는다(옛 RPi5와 같다).
     heartbeat_s: float | None = None
+    button_behaviors: dict[str, str] = field(default_factory=dict)
 
 
 def _run_ref(doc: dict) -> str | None:
@@ -285,7 +286,9 @@ def parse_act_message(raw: str) -> InboundActMsg | None:
                     f"정지 대기 대상({hold.appliance_id})이 실행 대상({target})과 달라 누르지 않았어요")
         return ExecuteMsg(sequence_id=seq_id.strip(), buttons=tuple(buttons), appliance_id=target,
                           targets=targets, hold=hold, run_ref=_run_ref(doc),
-                          heartbeat_s=parse_declared_period(doc.get("heartbeat_s")))
+                          heartbeat_s=parse_declared_period(doc.get("heartbeat_s")),
+                          button_behaviors={b: button_behavior(doc["button_behaviors"].get(b)) for b in buttons}
+                          if isinstance(doc.get("button_behaviors"), dict) else {})
 
     if msg_type == "abort":
         scope = doc.get("scope", "appliance")

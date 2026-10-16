@@ -1,4 +1,6 @@
 """실행 이력 — 저장소 계약·재시작 복원·서비스 기록 검증."""
+from rpi.services.appliance_registry import ApplianceRegistry
+
 
 from datetime import datetime, timezone
 
@@ -76,9 +78,9 @@ def test_service_records_history_with_retry_counts():
     )
     store = InMemoryJobHistory()
     service = SimpleLayService(
-        RuleBasedIntentResolver({"테스트": ("전원", "시작")}),
+        RuleBasedIntentResolver({"테스트": ("시작", "10초")}),
         controller,
-        history_store=store,
+        history_store=store, appliance_registry=ApplianceRegistry(),
     )
 
     service.execute_purpose("테스트")

@@ -181,6 +181,7 @@ class ApplianceButtonDef:
     #: 격자 칸에서 계산하지 않는다(부착 위치마다 다르다).
     x_mm: float | None = None
     y_mm: float | None = None
+    behavior: str = "unknown"
 
     @property
     def calibrated(self) -> bool:
@@ -288,16 +289,16 @@ BUILTIN_MICROWAVE = ApplianceDef(
     rows=4,
     cols=3,
     buttons=(
-        ApplianceButtonDef("BT-01", "10초", 0, 0),
-        ApplianceButtonDef("BT-02", "30초", 1, 0),
-        ApplianceButtonDef("BT-03", "1분", 2, 0),
-        ApplianceButtonDef("BT-04", "5분", 0, 1),
-        ApplianceButtonDef("BT-10", "라면", 1, 1),
-        ApplianceButtonDef("BT-07", "해동", 0, 2),
-        ApplianceButtonDef("BT-08", "즉석밥", 1, 2),
-        ApplianceButtonDef("BT-09", "냉동식품", 2, 2),
-        ApplianceButtonDef("BT-06", "취소", 1, 3),
-        ApplianceButtonDef("BT-05", "시작", 2, 3),
+        ApplianceButtonDef("BT-01", "10초", 0, 0, behavior="idempotent"),
+        ApplianceButtonDef("BT-02", "30초", 1, 0, behavior="idempotent"),
+        ApplianceButtonDef("BT-03", "1분", 2, 0, behavior="idempotent"),
+        ApplianceButtonDef("BT-04", "5분", 0, 1, behavior="idempotent"),
+        ApplianceButtonDef("BT-10", "라면", 1, 1, behavior="unknown"),
+        ApplianceButtonDef("BT-07", "해동", 0, 2, behavior="unknown"),
+        ApplianceButtonDef("BT-08", "즉석밥", 1, 2, behavior="unknown"),
+        ApplianceButtonDef("BT-09", "냉동식품", 2, 2, behavior="unknown"),
+        ApplianceButtonDef("BT-06", "취소", 1, 3, behavior="toggle"),
+        ApplianceButtonDef("BT-05", "시작", 2, 3, behavior="toggle"),
     ),
 )
 
@@ -308,16 +309,16 @@ BUILTIN_INDUCTION = ApplianceDef(
     rows=3,
     cols=4,
     buttons=(
-        ApplianceButtonDef("IN-01", "전원", 0, 0),
-        ApplianceButtonDef("IN-02", "화력+", 1, 0),
-        ApplianceButtonDef("IN-03", "화력-", 2, 0),
-        ApplianceButtonDef("IN-04", "타이머", 3, 0),
-        ApplianceButtonDef("IN-05", "1단", 0, 1),
-        ApplianceButtonDef("IN-06", "3단", 1, 1),
-        ApplianceButtonDef("IN-07", "5단", 2, 1),
-        ApplianceButtonDef("IN-08", "보온", 3, 1),
-        ApplianceButtonDef("IN-09", "시작", 2, 2),
-        ApplianceButtonDef("IN-10", "취소", 3, 2),
+        ApplianceButtonDef("IN-01", "전원", 0, 0, behavior="toggle"),
+        ApplianceButtonDef("IN-02", "화력+", 1, 0, behavior="unknown"),
+        ApplianceButtonDef("IN-03", "화력-", 2, 0, behavior="unknown"),
+        ApplianceButtonDef("IN-04", "타이머", 3, 0, behavior="unknown"),
+        ApplianceButtonDef("IN-05", "1단", 0, 1, behavior="unknown"),
+        ApplianceButtonDef("IN-06", "3단", 1, 1, behavior="unknown"),
+        ApplianceButtonDef("IN-07", "5단", 2, 1, behavior="unknown"),
+        ApplianceButtonDef("IN-08", "보온", 3, 1, behavior="unknown"),
+        ApplianceButtonDef("IN-09", "시작", 2, 2, behavior="toggle"),
+        ApplianceButtonDef("IN-10", "취소", 3, 2, behavior="toggle"),
     ),
 )
 

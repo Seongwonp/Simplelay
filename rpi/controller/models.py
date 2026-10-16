@@ -7,6 +7,16 @@ from enum import Enum
 from rpi.verifier import VerificationResult
 
 
+# R1: 명시적으로 재누름을 허용한 버튼만 폐루프 재시도한다.
+BUTTON_BEHAVIORS = frozenset({"toggle", "idempotent", "unknown"})
+RETRY_UNCONFIRMED = "press_unconfirmed"
+PRESS_UNCONFIRMED_DETAIL = "눌렸는지 확인하지 못했어요 — 가전을 직접 봐 주세요(자동으로 다시 누르지 않아요)"
+
+
+def button_behavior(value: object) -> str:
+    return value if isinstance(value, str) and value in BUTTON_BEHAVIORS else "unknown"
+
+
 @dataclass(frozen=True)
 class Correction:
     """Qualitative correction request; hardware profiles choose safe distances."""

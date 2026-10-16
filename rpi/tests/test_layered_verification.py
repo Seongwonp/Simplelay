@@ -44,10 +44,10 @@ def _controller(press, acceptance=None, operation=None, reinputs=1, grbl=None):
     return controller, grbl, alerts, safety, waiter
 
 
-def test_without_layer_verifiers_behaviour_is_unchanged() -> None:
+def test_retry_safe_button_without_layer_verifiers_keeps_retries() -> None:
     controller, grbl, _, safety, _ = _controller([False, True, True])
 
-    result = controller.execute(["해동", "시작"])
+    result = controller.execute(["해동", "시작"], button_behaviors={b: "idempotent" for b in ["해동", "시작"]})
 
     assert result.status is ExecutionStatus.SUCCEEDED
     assert [b.attempts for b in result.buttons] == [2, 1]
@@ -60,7 +60,7 @@ def test_without_layer_verifiers_behaviour_is_unchanged() -> None:
 def test_l1_retries_with_correction_then_fails_at_l1() -> None:
     controller, grbl, alerts, safety, _ = _controller([False, False, False])
 
-    result = controller.execute(["시작"])
+    result = controller.execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
 
     assert result.status is ExecutionStatus.SAFETY_STOPPED
     assert result.failed_layer is VerificationLayer.PRESS
@@ -87,7 +87,7 @@ def test_l2_rejection_reinputs_the_same_button_once_then_succeeds() -> None:
         [True, True], acceptance=acceptance
     )
 
-    result = controller.execute(["30초"])
+    result = controller.execute(["30초"], button_behaviors={b: "idempotent" for b in ["30초"]})
 
     assert result.status is ExecutionStatus.SUCCEEDED
     [button] = result.buttons
@@ -109,7 +109,7 @@ def test_l2_rejected_again_after_reinput_safety_stops_without_more_presses() -> 
         [True, True, True], acceptance=acceptance
     )
 
-    result = controller.execute(["30초", "시작"])
+    result = controller.execute(["30초", "시작"], button_behaviors={b: "idempotent" for b in ["30초", "시작"]})
 
     assert result.status is ExecutionStatus.SAFETY_STOPPED
     assert result.failed_layer is VerificationLayer.ACCEPTANCE
@@ -180,7 +180,7 @@ def test_stop_request_is_honoured_at_the_reinput_boundary() -> None:
     controller, grbl, _, safety, _ = _controller([True, True], acceptance=acceptance)
     ref.append(controller)
 
-    result = controller.execute(["시작"])
+    result = controller.execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
 
     assert result.status is ExecutionStatus.SAFETY_STOPPED
     assert result.failed_layer is None  # 사용자 정지는 층 실패가 아니다
@@ -219,7 +219,7 @@ def test_presses_per_button_are_bounded_by_attempts_times_rounds() -> None:
         [False, True] * 3, acceptance=acceptance, reinputs=2
     )
 
-    result = controller.execute(["시작"])
+    result = controller.execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
 
     assert result.failed_layer is VerificationLayer.ACCEPTANCE
     assert len(grbl.commands) == 6  # 라운드(1+2) × 라운드당 2회

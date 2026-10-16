@@ -96,7 +96,7 @@ def test_closed_loop_attaches_targets_including_on_retries():
     controller.execute(
         ["해동", "시작"],
         {"해동": ButtonTarget(12.5, 30.0, press_ms=120)},
-    )
+     button_behaviors={b: "idempotent" for b in ["해동", "시작"]})
     first, retry, start = grbl.commands
     assert (first.x_mm, first.y_mm, first.press_ms) == (12.5, 30.0, 120)
     assert retry.correction == Correction(1, True, True)

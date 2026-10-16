@@ -27,7 +27,7 @@ def test_attempts_1_forces_one_retry_then_succeeds():
     state = DemoFailureState()
     state.arm(button_index=0, attempts=1)
 
-    result = _controller(state).execute(["해동", "시작"])
+    result = _controller(state).execute(["해동", "시작"], button_behaviors={b: "idempotent" for b in ["해동", "시작"]})
 
     # 첫 버튼: 1차 실패(주입) → 보정 재시도 성공. 두 번째 버튼은 정상.
     assert result.status is ExecutionStatus.SUCCEEDED
@@ -39,7 +39,7 @@ def test_second_button_can_be_targeted():
     state = DemoFailureState()
     state.arm(button_index=1, attempts=1)
 
-    result = _controller(state).execute(["해동", "시작"])
+    result = _controller(state).execute(["해동", "시작"], button_behaviors={b: "idempotent" for b in ["해동", "시작"]})
 
     assert result.status is ExecutionStatus.SUCCEEDED
     assert result.buttons[0].attempts == 1
@@ -63,8 +63,8 @@ def test_injection_is_one_shot():
     controller = _controller(state)
     state.arm(button_index=0, attempts=1)
 
-    first = controller.execute(["해동"])
-    second = controller.execute(["해동"])
+    first = controller.execute(["해동"], button_behaviors={b: "idempotent" for b in ["해동"]})
+    second = controller.execute(["해동"], button_behaviors={b: "idempotent" for b in ["해동"]})
 
     assert first.buttons[0].attempts == 2
     # 소진 후 다음 실행은 완전히 정상 — 데모 뒤 실사용에 영향 없음

@@ -92,8 +92,8 @@ class _ObservedController(ClosedLoopController):
         super().request_stop()
         self.stop_received.set()
 
-    def execute(self, buttons):
-        self.result = super().execute(buttons)
+    def execute(self, buttons, targets=None, *, button_behaviors=None):
+        self.result = super().execute(buttons, targets, button_behaviors=button_behaviors)
         return self.result
 
 
@@ -141,7 +141,8 @@ async def run_scenario(name: str) -> dict:
             hub_reader.feed_data(b'not-json\n{"type":"result",'
                                  b'"sequence_id":"unrelated","success":true,"retry":99}\n')
         pending = asyncio.create_task(client.execute(
-            ["즉석밥", "시작"], sequence_id=f"sim-{name}", appliance_id="microwave",
+            ["10초", "시작"], sequence_id=f"sim-{name}", appliance_id="microwave",
+            button_behaviors={"10초": "idempotent", "시작": "toggle"},
         ))
         if name == "stop":
             if not await asyncio.to_thread(entered.wait, 3):

@@ -70,7 +70,7 @@ def test_motion_abort_is_not_retried_and_reports_cause_and_real_attempts(exc, re
 
 def test_ordinary_adapter_error_still_retries_with_correction():
     grbl = _RaisingGrbl(RuntimeError("일시 오류"))
-    result = _controller(grbl).execute(["시작"])
+    result = _controller(grbl).execute(["시작"], button_behaviors={b: "idempotent" for b in ["시작"]})
     assert grbl.presses == 3
     assert result.abort_reason is None
 

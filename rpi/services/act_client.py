@@ -252,11 +252,11 @@ _ABORT_REASON = re.compile(r"motion_[a-z_]{1,40}(: [A-Za-z0-9_.\-]{1,40})?")
 
 
 def parse_abort_reason(doc: dict) -> str | None:
-    """result 프레임의 ``abort_reason``(2026-10-14). ``motion_…`` 모양만 받는다 — 화면 문장을 고르는 열쇠라 모르는 값은 버린다."""
+    """화면 판정용 원인: 알려진 미확인 표지 또는 ``motion_…``만 받는다."""
     reason = doc.get("abort_reason")
     if reason is None:
         return None
-    if isinstance(reason, str) and _ABORT_REASON.fullmatch(reason):
+    if isinstance(reason, str) and (reason == "press_unconfirmed" or _ABORT_REASON.fullmatch(reason)):
         return reason
     log.warning("ActClient: abort_reason %.80r ignored", reason)
     return None
@@ -486,6 +486,7 @@ class ActClient:
         *,
         appliance_id: str | None = None,
         run_ref: str | None = None,
+        button_behaviors: Mapping[str, str] | None = None,
     ) -> ActResult:
         """Send one button sequence and await RPi4's result.
 
@@ -526,6 +527,8 @@ class ActClient:
         try:
             message: dict = {"type": "execute", "sequence_id": seq_id, "buttons": list(buttons),
                              "appliance_id": appliance_id}
+            if button_behaviors is not None:
+                message["button_behaviors"] = dict(button_behaviors)
             if targets:
                 message["targets"] = targets_payload(targets)
             if hold:

@@ -75,9 +75,9 @@ class _StopAt(ActClientController):
         super().arm_execute_target(appliance_id)
         self._fire("arm")
 
-    def execute(self, buttons, targets=None):
+    def execute(self, buttons, targets=None, *, button_behaviors=None):
         self._fire("execute")
-        return super().execute(buttons, targets)
+        return super().execute(buttons, targets, button_behaviors=button_behaviors)
 
 
 @pytest.fixture

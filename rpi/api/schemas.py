@@ -162,6 +162,14 @@ class ApplianceButtonModel(BaseModel):
     y: int
     # ── 버튼맵 확장 — 모두 선택. 구버전 폰·키오스크는 보내지도 읽지도 않는다 ──
     #: button | dial. 모르는 값은 거절한다(누르기·돌리기는 다른 물리 동작).
+    behavior: str = "unknown"
+
+    @field_validator("behavior", mode="before")
+    @classmethod
+    def normalize_behavior(cls, value):
+        from rpi.controller.models import button_behavior
+        return button_behavior(value)
+
     kind: str = "button"
     #: 다이얼 전용 딸깍 수.
     detents: int | None = None
@@ -420,6 +428,7 @@ class ApplianceRegisterRequest(BaseModel):
                 x=b.x,
                 y=b.y,
                 kind=ButtonKind.parse(b.kind),
+                behavior=b.behavior,
                 detents=b.detents,
                 press_ms=b.press_ms,
                 x_mm=b.x_mm,

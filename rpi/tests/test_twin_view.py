@@ -1,4 +1,6 @@
 """디지털 트윈(개념 모션) 화면 라우트와 읽기 전용 상태 요약."""
+from rpi.services.appliance_registry import ApplianceRegistry
+
 import time
 from concurrent.futures import ThreadPoolExecutor
 from types import SimpleNamespace
@@ -110,13 +112,13 @@ def test_twin_state_follows_real_simulator_execution_retry_and_stop():
     from rpi.main import app
     from rpi.services.simulator_controller import SimulatorController
     controller = SimulatorController(step_seconds=0)
-    service = SimpleLayService(RuleBasedIntentResolver(), controller)
+    service = SimpleLayService(RuleBasedIntentResolver(), controller, appliance_registry=ApplianceRegistry())
     app.dependency_overrides[get_service] = lambda: service
     try:
         c = TestClient(app)
         assert c.get('/simulator/twin').status_code == 200
         controller.inject_failure(0, 2)
-        job = c.post('/execute-buttons', json={'buttons': ['즉석밥', '시작'], 'appliance_id': 'microwave'}).json()['job_id']
+        job = c.post('/execute-buttons', json={'buttons': ['10초', '시작'], 'appliance_id': 'microwave'}).json()['job_id']
         deadline = time.monotonic() + 3
         while True:
             status = c.get('/status').json()
@@ -126,7 +128,7 @@ def test_twin_state_follows_real_simulator_execution_retry_and_stop():
             time.sleep(0.005)
         twin = c.get('/simulator/twin/state').json()
         assert twin['execution_mode'] == 'mock'
-        assert twin['job']['buttons'] == ['즉석밥', '시작']
+        assert twin['job']['buttons'] == ['10초', '시작']
         result = twin['job']['result']
         assert (result['success'], result['retry']) == (True, 2)
         # 결과 프레임의 버튼별 보고(G1)가 트윈의 누름 대응과 같은 시도 수를 말한다.
@@ -144,7 +146,7 @@ def test_twin_state_follows_real_simulator_execution_retry_and_stop():
     try:
         with ThreadPoolExecutor() as pool:
             slow.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
-            future = pool.submit(slow.execute, ['즉석밥', '시작'])
+            future = pool.submit(slow.execute, ['10초', '시작'])
             deadline = time.monotonic() + 3
             while not build_twin_state(slow.snapshot())['job'] or not build_twin_state(slow.snapshot())['job']['presses']:
                 assert time.monotonic() < deadline
@@ -154,7 +156,7 @@ def test_twin_state_follows_real_simulator_execution_retry_and_stop():
         job = build_twin_state(slow.snapshot())['job']
         assert job['abort_requested'] is True
         assert job['result']['success'] is False
-        assert job['presses'] == ['즉석밥']
+        assert job['presses'] == ['10초']
     finally:
         slow.close()
 
@@ -227,7 +229,7 @@ def test_real_simulator_records_retry_corrections_and_pins_execute():
     try:
         controller.inject_failure(0, 2)
         controller.arm_execute_target("microwave")  # 2026-10-07: 대상 필수(평가 H3)
-        result = controller.execute(['즉석밥', '시작'])
+        result = controller.execute(['10초', '시작'], button_behaviors={'10초': 'idempotent', '시작': 'toggle'})
         assert result is not None
         snap = controller.snapshot()
         assert snap["last_execute_frame"]["message"]["type"] == "execute"

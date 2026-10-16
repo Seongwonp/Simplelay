@@ -45,6 +45,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from rpi.controller.models import (
+    RETRY_UNCONFIRMED, PRESS_UNCONFIRMED_DETAIL,
     ButtonResult,
     ButtonStatus,
     ExecutionMode,
@@ -133,6 +134,8 @@ def confirmation_of(
 
 
 def status_of(result: ExecutionResult) -> CommandStatus:
+    if result.abort_reason == RETRY_UNCONFIRMED:
+        return CommandStatus.UNCONFIRMED
     if result.status is ExecutionStatus.SUCCEEDED:
         return CommandStatus.SUCCEEDED
     if result.status is ExecutionStatus.SAFETY_STOPPED:
@@ -178,6 +181,8 @@ def _detail(
     )
     note = " · 정지 요청 있음" if stop_requested else ""
 
+    if result.abort_reason == RETRY_UNCONFIRMED:
+        return PRESS_UNCONFIRMED_DETAIL + note
     if receipt is Receipt.NOT_DISPATCHED:
         # 보내기 전 정지(G2) — 정지 요청이 원인인 것이 확실한 유일한 경우라 note를 덧붙이지 않는다.
         return "정지 요청으로 누름 장치에 보내지 않았어요 — 누른 버튼은 없어요"

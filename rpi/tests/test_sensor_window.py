@@ -280,7 +280,7 @@ def test_load_step_before_press_without_press_response_is_not_a_press(monkeypatc
 
     controller, grbl, safety, _alerts = _entry_point_controller(monkeypatch, world, press_sound_only)
     try:
-        result = controller.execute(["BT-05"])
+        result = controller.execute(["BT-05"], button_behaviors={b: "idempotent" for b in ["BT-05"]})
     finally:
         _close(controller)
     assert result.status is ExecutionStatus.SAFETY_STOPPED
@@ -332,7 +332,7 @@ def test_adc_failure_during_the_press_stops_without_retrying(monkeypatch, world)
 
     controller, grbl, safety, alerts = _entry_point_controller(monkeypatch, world, press_then_adc_dies)
     try:
-        result = controller.execute(["BT-05"])
+        result = controller.execute(["BT-05"], button_behaviors={b: "idempotent" for b in ["BT-05"]})
     finally:
         _close(controller)
     assert result.status is ExecutionStatus.SAFETY_STOPPED
@@ -362,7 +362,7 @@ def test_microphone_with_no_frames_is_disconnected_not_silence(monkeypatch, worl
 
     controller, grbl, safety, _alerts = _entry_point_controller(monkeypatch, world, press_mic_dead)
     try:
-        result = controller.execute(["BT-05"])
+        result = controller.execute(["BT-05"], button_behaviors={b: "idempotent" for b in ["BT-05"]})
     finally:
         _close(controller)
     assert result.status is ExecutionStatus.SAFETY_STOPPED
@@ -381,7 +381,7 @@ def test_microphone_stream_stopped_is_disconnected(monkeypatch, world):
 
     controller, grbl, safety, _alerts = _entry_point_controller(monkeypatch, world, press_stream_stops)
     try:
-        result = controller.execute(["BT-05"])
+        result = controller.execute(["BT-05"], button_behaviors={b: "idempotent" for b in ["BT-05"]})
     finally:
         _close(controller)
     assert result.status is ExecutionStatus.SAFETY_STOPPED
@@ -395,7 +395,7 @@ def test_zero_current_and_silence_are_normal_negatives_not_disconnect(monkeypatc
 
     controller, grbl, safety, _alerts = _entry_point_controller(monkeypatch, world, press_nothing_happens)
     try:
-        result = controller.execute(["BT-05"])
+        result = controller.execute(["BT-05"], button_behaviors={b: "idempotent" for b in ["BT-05"]})
     finally:
         _close(controller)
     assert result.status is ExecutionStatus.SAFETY_STOPPED
