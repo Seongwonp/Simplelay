@@ -2074,7 +2074,7 @@ void main() {
     expect(find.text('ThinQ · 연습 상태 확인'), findsOneWidget);
     expect(find.text('연습이라 실제 가전은 조작하지 않았어요'), findsOneWidget);
     // 실행 화면이 사라지는 전환 중이라 둘 다 보일 수 있다. 연습은 맨 위 띠로(2026-10-15).
-    expect(find.text('연습 중 · 실제 가전은 누르지 않아요'), findsWidgets);
+    expect(find.text('연습 중 · 실제 가전에는 보내지 않아요'), findsWidgets);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });

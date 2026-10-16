@@ -150,7 +150,7 @@ class KioskStatusBand extends StatelessWidget {
   }
 }
 
-/// 청록 연습 표시 — 연습 아이콘 + '연습 중 · 실제 가전은 누르지 않아요'.
+/// 청록 연습 표시 — 연습 아이콘 + '연습 중 · 실제 가전에는 보내지 않아요'.
 class _PracticeMark extends StatelessWidget {
   const _PracticeMark({
     this.iconKey,

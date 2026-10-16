@@ -60,7 +60,7 @@ class KioskDoneView extends StatelessWidget {
                   style: const TextStyle(fontSize: KioskType.status)),
               content: Text(
                   mock
-                      ? '실제 가전은 누르지 않아요.'
+                      ? '실제 가전에는 보내지 않아요.'
                       : '이미 켜졌다면 다시 시도하지 마세요. 같은 버튼을 다시 누르게 돼요.',
                   style: const TextStyle(fontSize: KioskType.body)),
               actions: [

@@ -49,7 +49,7 @@ Finder _inButton<T>(String text) => find.ancestor(
     );
 
 void main() {
-  // 2026-10-15: 완료·동작 중 화면은 작은 칩 대신 맨 위 띠("연습 중 · 실제 가전은 누르지 않아요").
+  // 2026-10-15: 완료·동작 중 화면은 작은 칩 대신 맨 위 띠("연습 중 · 실제 가전에는 보내지 않아요").
   group('실행 환경 표시 — 연습일 때만 연습 표시, 실제·모름은 아무것도', () {
     for (final mode in ['real', 'unknown', 'mock']) {
       testWidgets('완료 화면 · $mode', (tester) async {
