@@ -561,7 +561,18 @@ class _TipCard extends StatelessWidget {
   }
 }
 
-IconData _hourIcon(String icon) => switch (icon) {
+/// 밤 시간(19~5시) 예보인가 — 칸 이름("0시")의 시각으로 가른다. 모르면 낮으로 본다.
+bool _nightLabel(String label) {
+  final m = RegExp(r'^(\d{1,2})시').firstMatch(label.trim());
+  if (m == null) return false;
+  final h = int.parse(m.group(1)!);
+  return h >= 19 || h < 6;
+}
+
+/// 예보 아이콘 — 밤의 맑음·구름 조금은 해가 아니라 달(외부 평가 10/16 4차, 실패널 0시·3시에 해가 찍혔다).
+IconData _hourIcon(String icon, {String label = ''}) => switch (icon) {
+      'clear' when _nightLabel(label) => Icons.nightlight_outlined,
+      'partly' when _nightLabel(label) => Icons.nights_stay_outlined,
       'clear' => Icons.wb_sunny_outlined,
       'partly' => Icons.wb_cloudy_outlined,
       'cloudy' => Icons.cloud_outlined,
@@ -632,7 +643,7 @@ class _Hours extends StatelessWidget {
                     FittedBox(
                       fit: BoxFit.scaleDown,
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(_hourIcon(h.icon),
+                        Icon(_hourIcon(h.icon, label: h.label),
                             size: _Idle.hourIcon,
                             // 비 오는 칸은 아이콘 모양과 밝기로 — 앰버는 쓰지 않는다(§1-4).
                             color: h.precip ? Colors.white : KioskColors.muted),
@@ -642,7 +653,7 @@ class _Hours extends StatelessWidget {
                     )
                   else ...[
                     const SizedBox(height: 4),
-                    Icon(_hourIcon(h.icon),
+                    Icon(_hourIcon(h.icon, label: h.label),
                         size: _Idle.hourIcon,
                         color: h.precip ? Colors.white : KioskColors.muted),
                     const SizedBox(height: 4),

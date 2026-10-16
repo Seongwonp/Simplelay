@@ -264,7 +264,10 @@ class KioskHoldView extends StatelessWidget {
       if (_unconfirmed)
         (
           Icons.info_outline,
-          _mock ? '연습으로 정지 버튼을 짚었어요' : '작은 팔이 정지 버튼을 대신 눌렀어요',
+          // 위 줄('…' 버튼을 직접 눌러 주세요)과 같은 이름으로(외부 평가 10/16 4차).
+          _mock
+              ? (cancel == null ? '연습으로 정지 버튼을 짚었어요' : "연습으로 '$cancel' 버튼을 짚었어요")
+              : (cancel == null ? '작은 팔이 정지 버튼을 대신 눌렀어요' : "작은 팔이 '$cancel' 버튼을 대신 눌렀어요"),
           KioskColors.muted
         ),
       if (_unconfirmed && holdState == 'parked')

@@ -413,7 +413,9 @@ void main() {
       ('사용자 정지 — 보냄(멈췄는지 모름)', _done(success: false, reason: KioskFailureReason.stopped, stopLevel: 'sent'),
           _Tone.attention),
       ('ThinQ 확인 못 함', _done(success: false, reason: KioskFailureReason.unconfirmed), _Tone.attention),
-      ('결과 실패', _done(success: false), _Tone.danger),
+      // 눌렸는지 모름(execution)은 실패가 아니라 확인 필요(외부 평가 10/16 4차). 실행되지 않음은 실패(빨강).
+      ('결과 — 눌렸는지 모름', _done(success: false), _Tone.attention),
+      ('결과 실패 — 실행되지 않음', _done(success: false, reason: KioskFailureReason.notExecuted), _Tone.danger),
       ('정지 대기 — 장치 문제', _hold(holdState: 'fault'), _Tone.danger),
       ('정지 대기 — 비상 버튼', _hold(estopTitle: '비상 버튼이 눌려 있어요'), _Tone.danger),
     ];

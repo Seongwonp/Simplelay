@@ -166,7 +166,8 @@ class KioskDoneView extends StatelessWidget {
                 ? (mock ? Colors.white : KioskColors.warning)
                 : userStop
                     ? (stopVerified ? Colors.white : KioskColors.warning)
-                    : r.isUnconfirmed
+                    // 눌렸는지 모르는 것(execution)도 실패가 아니다 — 확인 필요(외부 평가 10/16 4차).
+                    : r.isUnconfirmed || r == KioskFailureReason.execution
                         ? KioskColors.warning
                         : KioskColors.danger;
     final target = this.target;
@@ -306,7 +307,7 @@ class KioskDoneView extends StatelessWidget {
                     ? Icons.info_outline
                     : userStop
                         ? (stopVerified ? Icons.check : Icons.question_mark)
-                        : r.isUnconfirmed
+                        : r.isUnconfirmed || r == KioskFailureReason.execution
                             ? Icons.question_mark
                             : Icons.close,
             color: color,

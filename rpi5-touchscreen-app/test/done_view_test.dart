@@ -144,6 +144,11 @@ void main() {
     expect(find.text('다시 시도'), findsOneWidget);
     expect(find.text('화면으로 조작하기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
+    // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 '확인 필요'와 물음표(외부 평가 10/16 4차).
+    expect(find.text('확인 필요'), findsOneWidget);
+    expect(find.text('실패'), findsNothing);
+    expect(find.byIcon(Icons.question_mark), findsOneWidget);
+    expect(find.byIcon(Icons.close), findsNothing);
   });
 
   testWidgets('긴급 정지 뒤에도 장치가 멈췄다고 단정하지 않는다', (tester) async {
@@ -445,5 +450,24 @@ void main() {
       expect(find.textContaining(why), findsOneWidget, reason: '$reason');
       expect(find.textContaining('실제 가전은 누르지 않았어요'), findsOneWidget, reason: '$reason');
     }
+  });
+
+  // 외부 평가 10/16 4차: 위 줄은 '취소' 버튼을 직접 누르라는데 아래 줄은 '정지 버튼'이라 했다 — 같은 이름으로.
+  testWidgets('정지 확인 못 함: 작은 팔이 대신 누른 버튼을 실제 이름으로 말한다', (tester) async {
+    await _pump(
+      tester,
+      KioskHoldView(
+        appliance: kMicrowaveAppliance,
+        holdState: 'hovering_stop',
+        stopButton: '취소',
+        stopOutcome: 'requested_unconfirmed',
+        executionMode: 'real',
+        elapsed: const Duration(minutes: 1),
+        buttonsPressed: 1,
+        onStop: () {},
+      ),
+    );
+    expect(find.text("작은 팔이 '취소' 버튼을 대신 눌렀어요"), findsOneWidget);
+    expect(find.text('작은 팔이 정지 버튼을 대신 눌렀어요'), findsNothing);
   });
 }
