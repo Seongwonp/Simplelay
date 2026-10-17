@@ -69,7 +69,7 @@ class ScenarioEngine:
             if trigger.kind == "thinq_event" and trigger.event == record.get("event"):
                 is_demo = record.get("execution_mode") != "real"
                 # 이벤트 ID는 화면에 내지 않는다(10/17 쉬운 말).
-                base = definition.event_reason or "LG 가전이 알림을 보냈어요."
+                base = definition.event_reason or "LG 가전이 알려 왔어요."
                 reason = base + (" 연습 알림이에요." if is_demo else "")
                 self._offer(definition, reason, is_demo)
 

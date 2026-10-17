@@ -177,7 +177,7 @@ def test_client_side_call_limit_stops_before_sending(sdk, cloud):
             c.get_status(cloud.device_id("air_purifier"))
         with pytest.raises(ThinqRateLimited) as info:
             c.post_control(cloud.device_id("air_purifier"), {"airFlow": {"windStrength": "HIGH"}})
-        assert "상한" in info.value.reason
+        assert info.value.reason == "LG 가전에 너무 자주 요청했어요. 잠시 뒤 다시 해 주세요."
         assert len(cloud.requests()) == 3  # 넷째는 보내지 않았다
     finally:
         c.close()

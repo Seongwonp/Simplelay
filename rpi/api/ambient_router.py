@@ -227,8 +227,11 @@ def _attention(service, registry, alerts, care_events=None) -> list[AttentionIte
                 text = (f"{name} 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."
                         if getattr(snap, "last_route", None) == "physical"
                         else f"{name}{_subject_particle(name)} 바뀌었는지 몰라요. 가전을 봐 주세요.")
+            elif getattr(snap, "last_route", None) == "thinq":
+                # 10/18 쉬운 말 4차: '작업' 대신 한 일(설정 바꾸기·버튼 누르기).
+                text = f"{name} 설정을 바꾸지 못했어요. 가전을 봐 주세요."
             else:
-                text = f"{name} 작업이 멈췄어요. 가전을 봐 주세요."
+                text = f"{name} 버튼 누르기가 중간에 멈췄어요. 가전을 봐 주세요."
             items.append(AttentionItem("appliance", text))
     except Exception:  # noqa: BLE001
         log.exception("service status unavailable for ambient tip")

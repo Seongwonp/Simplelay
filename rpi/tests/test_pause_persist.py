@@ -101,7 +101,7 @@ def test_carried_over_old_pause_keeps_the_old_scope_and_does_not_block_auto_run(
     assert datetime.fromisoformat(dnd_until) == until
     assert scope == "suggestions_only"
     assert quiet["reason"] == "pause" and quiet["pause_scope"] == "suggestions_only"
-    assert "자동 실행은 그대로" in quiet["scope"]
+    assert "자동으로 할 일은 그대로" in quiet["scope"]
     assert api.get("/suggestions").json() == []  # 새 제안은 쉰다(옛 범위)
 
     run, posted = _event_then_run(api, cloud)

@@ -193,7 +193,7 @@ def _detail(
         return PRESS_UNCONFIRMED_DETAIL + note
     if receipt is Receipt.NOT_DISPATCHED:
         # 보내기 전 정지(G2) — 정지 요청이 원인인 것이 확실한 유일한 경우라 note를 덧붙이지 않는다.
-        return "멈추기를 눌러서 작은 팔에 보내지 않았어요. 누른 버튼은 없어요."
+        return "멈추기를 눌러서 버튼을 누르지 않았어요."
     if receipt is Receipt.UNKNOWN:
         return "작은 팔의 답이 없어 눌렸는지 몰라요. 다시 누르지 않았으니 가전을 직접 봐 주세요." + note
     if confirmation is Confirmation.OPERATION_CONFIRMED:

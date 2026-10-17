@@ -121,9 +121,14 @@ def _with_result(reason: str, result: str) -> str:
     return f"{head}. {result} {tail}"
 
 
+#: 가전에 전하지 않았다는 결과 한 줄(10/18 쉬운 말 4차 — '보내지 않았어요'는 이미 목표값일 때만 쓴다. 폰·키오스크가
+#: '이미'+'보내지 않았어요'로 already_at_target 문장을 가른다).
+NOT_SENT_RESULT = "그래서 하지 않았어요."
+
+
 def _not_sent(exc: Exception, fallback: str) -> str:
-    """보내지 않은 이유 한 줄 + '그래서 보내지 않았어요'. 예외 클래스 이름은 내지 않는다(10/17 쉬운 말)."""
-    return _with_result(_reason(exc, fallback), "그래서 보내지 않았어요.")
+    """보내지 않은 이유 한 줄 + '그래서 하지 않았어요'. 예외 클래스 이름은 내지 않는다(10/17 쉬운 말)."""
+    return _with_result(_reason(exc, fallback), NOT_SENT_RESULT)
 
 
 def _rejected_sentence(exc: Exception) -> str:
@@ -278,11 +283,11 @@ class ThinqController:
             return cap.property, None, None
         key = profile.resolve_key(cap.resource, cap.keys, location=cap.location)
         if key is None:
-            return None, None, (f"이 모델 프로필에 '{cap.label}' 속성이 없어 보내지 않았어요 "
-                                f"({cap.resource}.{'/'.join(cap.keys)})")
+            log.info("thinq profile lacks %s.%s", cap.resource, "/".join(cap.keys))
+            return None, None, f"이 가전에는 {cap.label} 설정이 없어요. {NOT_SENT_RESULT}"
         spec = profile.spec(cap.resource, key, location=cap.location)
         if spec is None or not spec.writable:
-            return None, spec, f"이 모델 프로필에서 '{cap.label}'은(는) 쓸 수 없는 속성이라 보내지 않았어요"
+            return None, spec, f"이 가전에서는 {cap.label} 설정을 쓸 수 없어요. {NOT_SENT_RESULT}"
         return key, spec, None
 
     def profile_support(self, appliance_id: str) -> dict[str, dict]:
@@ -354,11 +359,13 @@ class ThinqController:
         binding = self._binding_of(command.target_id)
         if binding is None:
             return self._result(command, failed, not_sent, none,
-                                "LG 가전이 등록되지 않아 보내지 않았어요.", requested_at)
+                                f"LG 가전이 등록되지 않았어요. {NOT_SENT_RESULT}", requested_at)
         try:
             cap = binding.validate_command(command)
         except CapabilityError as exc:
-            return self._result(command, failed, not_sent, none, f"보내지 않았어요: {exc}", requested_at)
+            log.info("thinq capability refused: %s", exc)
+            return self._result(command, failed, not_sent, none,
+                                f"이 가전에서 쓸 수 없는 설정이에요. {NOT_SENT_RESULT}", requested_at)
         target = command.args_dict()[cap.arg]
 
         # 1) 기기 프로필 -- 그 속성이 있고, 쓰기 모드이고, 그 값을 쓸 수 있을 때만 보낸다.
@@ -380,7 +387,7 @@ class ThinqController:
                 command, failed, not_sent, none,
                 # 10/18 쉬운 말: 프로필 허용값 목록은 기록(로그)에만.
                 f"이 가전은 {cap.setting_phrase(str(target))}{_josa_eul(cap.setting_phrase(str(target)))} 쓸 수 없어요. "
-                "그래서 보내지 않았어요.", requested_at)
+                f"{NOT_SENT_RESULT}", requested_at)
         confirm_resource, confirm_prop = cap.confirm or (cap.resource, key)
         confirmable = True
         if profile is not None:
@@ -412,7 +419,7 @@ class ThinqController:
             if remote is not True:
                 reason = REMOTE_OFF_REASON if remote is False else REMOTE_UNKNOWN_REASON
                 return self._result(command, failed, not_sent, none,
-                                    f"{reason} 그래서 보내지 않았어요.", requested_at)
+                                    f"{reason} {NOT_SENT_RESULT}", requested_at)
 
         # 3) 전송 직전 재판정(3차 평가 H1) -- 위 조회를 기다리는 동안 자동 실행 규칙이 꺼지거나 바뀌거나 지워졌으면,
         #    또는 대상 바인딩이 판단 때와 다르면 보내지 않는다. 메모리 판정만(입출력 없음), 이 실행기 잠금 밖.
@@ -422,12 +429,12 @@ class ThinqController:
                 commit = dispatch_guard(binding)
             except Exception as exc:  # noqa: BLE001 -- 재판정에 걸림: 보내지 않는다
                 return self._result(command, failed, not_sent, none,
-                                    str(exc) or "보내기 직전 확인에 걸려 보내지 않았어요", requested_at)
+                                    str(exc) or "하기 직전에 다시 확인했더니 할 수 없었어요. 그래서 하지 않았어요.", requested_at)
 
         with self._lock:
             if self._cancel:
                 return self._result(command, CommandStatus.STOPPED, not_sent, none,
-                                    "정지를 눌러서 보내지 않았어요.", requested_at,
+                                    "멈추기를 눌러서 하지 않았어요.", requested_at,
                                     stop_requested=True)
             # 4) 이미 목표값(2026-10-14) -- 확인할 속성을 읽을 수 있고 조회 값이 목표와 같으면 보내지 않는다. 정지·재판정을
             #    지난 뒤에만 이 결과를 낸다. 전송권 확인도 같은 자리에서 거친다(철회·꺼짐·정지 세대가 먼저면 '걸림') — 다만
@@ -441,7 +448,7 @@ class ThinqController:
                         commit()
                 except Exception as exc:  # noqa: BLE001 -- 전송권 없음: 보내지 않는다
                     return self._result(command, failed, not_sent, none,
-                                        str(exc) or "보내기 직전 확인에 걸려 보내지 않았어요", requested_at)
+                                        str(exc) or "하기 직전에 다시 확인했더니 할 수 없었어요. 그래서 하지 않았어요.", requested_at)
             if already:
                 return self._result(command, CommandStatus.SUCCEEDED, not_sent, Confirmation.ALREADY_AT_TARGET,
                                     already_sentence(cap.setting_phrase(str(target))),
@@ -460,7 +467,7 @@ class ThinqController:
                                 _not_sent(exc, "가전에 연결되지 않았어요."), requested_at)
         except Exception:  # noqa: BLE001 -- 전송 중 끊김·응답 유실·모르는 오류
             return self._result(command, CommandStatus.UNCONFIRMED, Receipt.UNKNOWN, none,
-                                "보냈는지 몰라요. 가전을 봐 주세요.", requested_at,
+                                "가전에 전해졌는지 몰라요. 가전을 봐 주세요.", requested_at,
                                 stop_requested=self._stop_during_confirm)
         accepted_at = self._now()
         ref = response.get("messageId") if isinstance(response, dict) else None
@@ -468,7 +475,7 @@ class ThinqController:
 
         if not confirmable:
             return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                "보냈지만 이 가전은 결과를 알려 주지 않아요. 가전을 봐 주세요.",
+                                "가전에 전했지만 이 가전은 결과를 알려 주지 않아요. 가전을 봐 주세요.",
                                 requested_at, accepted_at=accepted_at, provider_ref=ref,
                                 stop_requested=self._stop_during_confirm)
         deadline = self._monotonic() + self._confirm_seconds
@@ -477,7 +484,7 @@ class ThinqController:
                 stop = self._stop_during_confirm
             if stop:
                 return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                    "명령은 이미 보냈어요. 정지를 눌러서 확인은 멈췄어요.",
+                                    "가전에는 이미 전했어요. 멈추기를 눌러서 확인은 그만뒀어요.",
                                     requested_at, accepted_at=accepted_at, provider_ref=ref,
                                     stop_requested=True)
             try:
@@ -498,6 +505,6 @@ class ThinqController:
                                     confirmed_at=self._now(), provider_ref=ref)
             if self._monotonic() >= deadline:
                 return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                    f"보냈지만 {UNCONFIRMED_SENTENCE} 가전을 봐 주세요.",
+                                    f"가전에 전했지만 {UNCONFIRMED_SENTENCE} 가전을 봐 주세요.",
                                     requested_at, accepted_at=accepted_at, provider_ref=ref)
             self._sleep(self._poll_interval)

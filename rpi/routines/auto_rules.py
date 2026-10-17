@@ -42,6 +42,7 @@ import hashlib
 import logging
 import math
 import os
+import re
 import threading
 import time
 from collections import deque
@@ -90,23 +91,24 @@ KIND_AUTO_RULE = "auto_rule"
 CONDITION_BASIS = "ct_power_end"
 MAX_SEEN_EVENTS = 500
 
-ESTOP_REASON = "비상정지로 자동 실행을 껐어요."
+ESTOP_REASON = "비상정지로 자동으로 하기를 껐어요."
 # 10/17 쉬운 말: 결과 한 줄 + 되돌리지 않는다는 사실 한 줄(새 자동 실행·보내지 않은 명령은 보내지 않는다는 뜻 유지).
-ESTOP_NOTICE = "비상정지로 자동 실행을 껐어요. 이미 보낸 명령은 되돌리지 않아요."
-USER_OFF_REASON = "자동 실행을 꺼 두셨어요."
+# 10/18 쉬운 말 4차: '자동 실행'·'명령' 대신 '자동으로 하기'·'가전에 전한 것'.
+ESTOP_NOTICE = "비상정지로 자동으로 하기를 껐어요. 가전에 이미 전한 것은 되돌리지 않아요."
+USER_OFF_REASON = "자동으로 하기를 꺼 두셨어요."
 VALUE_CHANGED_REASON = "세기를 바꿔서 다시 허락해야 켜져요."
 PHYSICAL_REFUSED = "버튼을 누르는 일은 자동으로 할 수 없어요. 매번 허락해 주세요."
 #: 허용 요청을 처리하는 사이 전체 정지가 들어왔다(3차 평가 H2) — 이번 허용은 저장하지 않는다.
-STOP_RACE_REASON = "허락하는 사이 정지를 눌러서 자동 실행을 켜지 않았어요."
+STOP_RACE_REASON = "허락하는 사이 멈추기를 눌러서 자동으로 하기를 켜지 않았어요."
 #: 다시 허용하는 사이 다른 요청이 그 규칙을 바꿨다(HIGH 재확인 2차) — 옛 내용으로 켜지 않는다.
 RULE_CHANGED_REASON = "그사이 다른 곳에서 이 규칙이 바뀌었어요. 목록을 새로 고쳐 주세요."
 #: 지난 프로세스가 깨끗이 닫히지 않았다(전원 끊김·강제 종료·규칙 저장 실패, 4차 평가 M-N3) — 정지의 규칙 끄기가 DB에
 #: 닿기 전에 끝났을 수 있어 켜진 규칙을 믿지 않는다.
-UNCLEAN_RESTART_REASON = "본체가 갑자기 꺼져서 자동 실행을 껐어요."
+UNCLEAN_RESTART_REASON = "본체가 갑자기 꺼져서 자동으로 하기를 껐어요."
 #: 재시작 뒤 불러온 허용인데 사건이 이 프로세스가 시작하기 전에 끝났다(4차 평가 M-N2) — 허용 전후를 단정하지 않는다.
 RESTART_BOUNDARY_REASON = "본체가 다시 켜지기 전에 끝난 가열이라 자동으로 하지 않았어요."
 #: 철회가 이미 전송을 시작한 자동 실행과 겹쳤다(4차 평가 H-N1) — 그 명령은 되돌리지 않는다.
-IN_FLIGHT_NOTICE = "이번 명령은 이미 보내는 중이라 되돌리지 않아요. 다음부터는 보내지 않아요."
+IN_FLIGHT_NOTICE = "이번 것은 이미 가전에 전하는 중이라 되돌리지 않아요. 다음부터는 자동으로 하지 않아요."
 #: 보내기 전 조회에서 이미 목표값이라 보내지 않은 자동 실행(2026-10-14 발견 3) — 같은 사건은 처리 완료다.
 ALREADY_REASON = "이미 그 설정이라 보내지 않았어요."
 #: 이 프로세스의 표시(세션). 규칙 DB의 세션 표시가 다른 프로세스 것이고 열려 있으면 지난 종료가 깨끗하지 않았다.
@@ -131,9 +133,9 @@ TIME_QUIET_CAVEAT = "이 시각은 조용한 시간이라 자동으로 하지 �
 TIME_RESTART_REASON = "본체가 다시 켜지기 전 시각이라 자동으로 하지 않았어요. 먼저 물어볼게요."
 TIME_BEFORE_ALLOW_REASON = "허락하기 전 시각이라 자동으로 하지 않았어요. 먼저 물어볼게요."
 TIME_NO_CLOCK_REASON = "본체 시계로 시각을 알 수 없어 자동으로 하지 않았어요. 먼저 물어볼게요."
-ROUTINE_CHANGED_REASON = "루틴이 바뀌어 자동 실행을 껐어요. 다시 허락해 주세요."
-ROUTINE_DELETED_REASON = "루틴을 지워서 자동 실행을 껐어요."
-ROUTINE_OFF_REASON = "루틴이 꺼져 있어 자동 실행을 껐어요. 다시 허락해 주세요."
+ROUTINE_CHANGED_REASON = "루틴이 바뀌어 자동으로 하기를 껐어요. 다시 허락해 주세요."
+ROUTINE_DELETED_REASON = "루틴을 지워서 자동으로 하기를 껐어요."
+ROUTINE_OFF_REASON = "루틴이 꺼져 있어 자동으로 하기를 껐어요. 다시 허락해 주세요."
 TIME_REENABLE_REFUSED = "루틴이 바뀌었거나 없어서 켤 수 없어요. 다음 루틴 카드에서 다시 허락해 주세요."
 TIME_VALUE_REFUSED = "루틴에서 할 일을 바꾼 뒤 카드에서 다시 허락해 주세요."
 
@@ -163,6 +165,9 @@ _LEGACY_REASON_EXACT = {
 }
 #: 그 밖의 옛 꺼짐 사유 끝말 → 지금 끝말(가전이 없어짐·바뀜 등 문장 앞부분은 그대로 둔다).
 _LEGACY_REASON_TAIL = (" — 다시 허용이 필요해요", ". 다시 허락해 주세요.")
+#: 10/18 쉬운 말 4차 전 사유 속 기능 이름 → 지금 이름. 저장값은 그대로, 보여 줄 때만.
+_LEGACY_AUTO_NAME = (("자동 실행을 ", "자동으로 하기를 "), ("자동 실행이 ", "자동으로 하기가 "),
+                     ("정지를 눌러서", "멈추기를 눌러서"))
 
 
 def display_reason(reason: str | None) -> str | None:
@@ -180,7 +185,10 @@ def display_reason(reason: str | None) -> str | None:
         return current[_LEGACY_REASON_EXACT[reason]]
     old_tail, new_tail = _LEGACY_REASON_TAIL
     if reason.endswith(old_tail):
-        return reason[: -len(old_tail)] + new_tail
+        reason = reason[: -len(old_tail)] + new_tail
+    # 10/18 쉬운 말 4차 전에 저장된 사유('…자동 실행을 껐어요')는 지금 이름('자동으로 하기')으로.
+    for old, new in _LEGACY_AUTO_NAME:
+        reason = reason.replace(old, new)
     return reason
 
 
@@ -289,13 +297,41 @@ def _legacy_auto_action(text: str) -> str | None:
     return None
 
 
+#: 옛 바람 세기 말('강풍으로 바꿔줘'·'풍량을 강으로 바꿀까요?'·'바람 세기를 약으로 바꿔요') → 지금 말('바람을 세게 해줘').
+#: 끝(줘·까요·요)은 그대로 두고 동사만 '바꾸다' → '하다'로 — 폰이 끝을 떼어 '~하기'로 만든다(display_status.dart).
+_LEGACY_WIND = re.compile(
+    r"^(?P<head>.*?)\s*(?:(?:풍량|바람\s?세기)\s?(?:을|를)?\s+(?P<a>강|중|약)|(?P<b>강|중|약)풍)\s?(?:으로|로)\s+"
+    r"(?P<verb>바꿔|바꿀|바꾸)(?P<tail>\s?(?:줘|주세요|줄래요?|요|까요|기)?[.!?]?)$")
+_LEGACY_WIND_ADVERB = {"강": "세게", "중": "중간으로", "약": "약하게"}
+_LEGACY_WIND_VERB = {"바꿔": "해", "바꿀": "할", "바꾸": "하"}
+#: 루틴 기록의 목적 문장(``'이름' 루틴``) — 이름은 사용자가 지은 것이라 고치지 않는다.
+_ROUTINE_PURPOSE = re.compile(r"^'.+' 루틴$")
+
+
+def _legacy_wind(text: str) -> str | None:
+    """옛 바람 세기 문장 하나 → 지금 문장. 모양이 맞지 않으면 None."""
+    m = _LEGACY_WIND.match(text)
+    if m is None:
+        return None
+    head = m.group("head").strip()
+    words = head.split()
+    # '공기청정기를 강풍으로' → '공기청정기 바람을 세게'. 한 글자 낱말의 '을/를'은 조사로 보지 않는다.
+    if words and len(words[-1]) > 1 and words[-1][-1] in "을를":
+        words[-1] = words[-1][:-1]
+    adverb = _LEGACY_WIND_ADVERB[m.group("a") or m.group("b")]
+    body = f"바람을 {adverb} {_LEGACY_WIND_VERB[m.group('verb')]}{m.group('tail')}"
+    return " ".join([*words, body])
+
+
 def display_purpose(purpose: str | None) -> str | None:
-    """기록에 저장된 목적 문장을 지금 문체로(10/18 쉬운 말 3차). 저장값은 고치지 않는다 — 보여 줄 때만.
+    """기록에 저장된 목적 문장을 지금 문체로(10/18 쉬운 말 3차·4차). 저장값은 고치지 않는다 — 보여 줄 때만.
 
     - 옛 시나리오 질문('공기청정기 풍량을 강으로 바꿀까요?') → 지금 질문(시나리오 카탈로그의 ``former_questions``).
     - 옛 자동 실행 동작 문장('자동 실행 · 공기청정기 전원 끄기') → '자동 실행 · 공기청정기를 꺼요'. 앞의 ``자동 실행 · ``는
       그대로 둔다(폰이 이 글자로 출처 '자동'을 가른다).
-    그 밖(말로 한 명령·루틴·지금 형식)은 받은 그대로."""
+    - 옛 바람 세기 말(4차): '강풍으로 바꿔줘' → '바람을 세게 해줘', '공기청정기를 약풍으로 바꿀까요?' → '공기청정기 바람을
+      약하게 할까요?', 남은 '풍량' → '바람 세기'. 사람 명령문의 끝('~줘')은 그대로(폰이 '~하기'로 바꾼다).
+    그 밖(말로 한 명령·루틴 이름·지금 형식)은 받은 그대로."""
     if not purpose:
         return purpose
     from rpi.scenarios.catalog import current_question  # noqa: PLC0415
@@ -303,12 +339,16 @@ def display_purpose(purpose: str | None) -> str | None:
     current = current_question(purpose)
     if current != purpose:
         return current
-    prefix = AUTO_PURPOSE_PREFIX
-    if purpose.startswith(prefix):
-        fixed = _legacy_auto_action(purpose[len(prefix):].strip())
-        if fixed is not None:
-            return prefix + fixed
-    return purpose
+    prefix = AUTO_PURPOSE_PREFIX if purpose.startswith(AUTO_PURPOSE_PREFIX) else ""
+    body = purpose[len(prefix):].strip() if prefix else purpose
+    if _ROUTINE_PURPOSE.match(body):
+        return purpose
+    fixed = _legacy_auto_action(body) if prefix else None
+    if fixed is None:
+        fixed = _legacy_wind(body)
+    if fixed is None and "풍량" in body:
+        fixed = body.replace("풍량", "바람 세기")
+    return prefix + fixed if fixed is not None else purpose
 
 
 #: 시작 시각 → 때 이름. 0시는 '밤 12시', 12시는 '낮 12시'.
@@ -895,7 +935,7 @@ class AutoRuleEngine:
             with self._send_lock:  # 철회(_revoke)와 같은 잠금 — 메모리만
                 current = self.store.get(rule.rule_id)
                 if current is None:
-                    raise AutoRuleError(404, "자동 실행 규칙을 찾을 수 없어요")
+                    raise AutoRuleError(404, "이 자동으로 하기를 찾을 수 없어요")
                 if current is not expected:
                     raise AutoRuleError(409, RULE_CHANGED_REASON)
                 self._mark_allowed(rule, generation, allowed_mono)
@@ -1014,7 +1054,7 @@ class AutoRuleEngine:
         # ⑥ 가열 종료 근거 = CT 전력 끝(취소·문 열림 종료도 같게 온다 — 정책상 허용, 문구로 밝힘). 시각 규칙은 허브 시계가 근거.
         if not timed and "power" not in (record.get("inputs") or []):
             return self._record(rule, record, key, "blocked",
-                                "콘센트로 가열이 끝난 것을 보지 못해 자동으로 하지 않았어요.")
+                                "전기 플러그로 가열이 끝난 것을 보지 못해 자동으로 하지 않았어요.")
         # ③ 같은 사건·오래된 사건 — 나이는 이 허브 시계로 옮긴 끝 시각부터 지금까지(링크 지연 포함, 3차 평가 M1).
         # 시각 규칙: 나이 = 정해진 시각보다 늦게 확인한 시간. 늦음·허용 전·재시작 전은 보내지 않고 카드로 묻는다(reoffer).
         age = event_age_s(record, self._monotonic())
@@ -1081,23 +1121,23 @@ class AutoRuleEngine:
             if issue is not None:
                 return issue
         elif self._appliance(rule.condition_appliance_id) is None:
-            return "살펴보던 가전이 없어져 자동 실행을 껐어요. 다시 허락해 주세요."
+            return "살펴보던 가전이 없어져 자동으로 하기를 껐어요. 다시 허락해 주세요."
         appliance = self._appliance(rule.target_appliance_id)
         binding = getattr(appliance, "thinq", None)
         if appliance is None or appliance.control_path is not ControlRoute.THINQ or binding is None:
-            return "공기청정기를 찾을 수 없어 자동 실행을 껐어요. 다시 허락해 주세요."
+            return "공기청정기를 찾을 수 없어 자동으로 하기를 껐어요. 다시 허락해 주세요."
         if (binding.device_type != rule.target_device_type
                 or _device_key(binding.device_id) != rule.target_device_key):
-            return "공기청정기가 다른 기기로 바뀌어 자동 실행을 껐어요. 다시 허락해 주세요."
+            return "공기청정기가 다른 기기로 바뀌어 자동으로 하기를 껐어요. 다시 허락해 주세요."
         if not is_low_risk(rule.target_device_type, rule.action, rule.value, time_rule=rule.is_time):
-            return "자동으로 할 수 없는 일이라 자동 실행을 껐어요."
+            return "자동으로 할 수 없는 일이라 자동으로 하기를 껐어요."
         try:
             binding.validate_command(binding.command(rule.target_appliance_id, rule.action,
                                                      {rule.arg: rule.value}))
         except Exception:  # noqa: BLE001
-            return "이 가전에서 쓸 수 없는 설정이라 자동 실행을 껐어요. 다시 허락해 주세요."
+            return "이 가전에서 쓸 수 없는 설정이라 자동으로 하기를 껐어요. 다시 허락해 주세요."
         if rule.allowed_fingerprint != rule.fingerprint():
-            return "허락한 뒤 내용이 바뀌어 자동 실행을 껐어요. 다시 허락해 주세요."
+            return "허락한 뒤 내용이 바뀌어 자동으로 하기를 껐어요. 다시 허락해 주세요."
         return None
 
     def _submit(self, rule: AutoRule, record: Mapping, key: str, generation: int) -> dict:
@@ -1124,23 +1164,23 @@ class AutoRuleEngine:
             # 이 게이트를 품은 서비스 잠금도, 그 잠금을 잡아야 하는 정지(``request_stop``)도 DB에 묶이지 않는다.
             with self._gen_lock:
                 if self._generation != generation:
-                    raise AutoRuleBlocked("비상정지가 들어와서 보내지 않았어요.")
+                    raise AutoRuleBlocked("비상정지가 들어와서 하지 않았어요.")
             # 판단 뒤 보내기 전에 조용한 시간이 시작됐으면 — 아직 시작하지 않은 자동 실행이라 보내지 않는다(메모리 판정).
             if self._quiet():
                 raise AutoRuleBlocked(QUIET_SKIP_REASON)
             current = self.store.get(rule.rule_id)
             if current is None or not self.usable(current):
-                raise AutoRuleBlocked("자동 실행이 꺼져서 보내지 않았어요.")
+                raise AutoRuleBlocked("자동으로 하기가 꺼져서 하지 않았어요.")
             if current.fingerprint() != decided:
-                raise AutoRuleBlocked("설정이 바뀌어서 이전 내용은 보내지 않았어요.")
+                raise AutoRuleBlocked("설정이 바뀌어서 이전 내용으로는 하지 않았어요.")
             # 전송 대기 중 만료(3차 평가 M1) — 판단 뒤 조회·대기로 상한을 넘겼으면 보내지 않는다.
             age = event_age_s(record, self._monotonic())
             if age is None or age > self._max_age:
                 if rule.is_time:
-                    raise AutoRuleBlocked("정해진 시각이 너무 지나서 보내지 않았어요."
+                    raise AutoRuleBlocked("정해진 시각이 너무 지나서 하지 않았어요."
                                           if age is not None else TIME_NO_CLOCK_REASON)
                 raise AutoRuleBlocked(
-                    "가열이 끝난 지 너무 오래돼서 보내지 않았어요." if age is not None else NO_FRESHNESS_REASON)
+                    "가열이 끝난 지 너무 오래돼서 하지 않았어요." if age is not None else NO_FRESHNESS_REASON)
 
         def blocked(exc: AutoRuleBlocked) -> None:
             with self._lock:
@@ -1170,7 +1210,7 @@ class AutoRuleEngine:
                 if binding is not None and (
                         getattr(binding, "device_type", None) != rule.target_device_type
                         or _device_key(getattr(binding, "device_id", "")) != rule.target_device_key):
-                    raise AutoRuleBlocked("공기청정기가 바뀌어서 보내지 않았어요.")
+                    raise AutoRuleBlocked("공기청정기가 바뀌어서 하지 않았어요.")
             except AutoRuleBlocked as exc:
                 blocked(exc)
                 raise
@@ -1190,9 +1230,9 @@ class AutoRuleEngine:
             log.warning("auto rule %s submit failed: %s", rule.rule_id, text or type(exc).__name__)
             reason = ("다른 일을 하는 중이라 이번에는 하지 않았어요. 나중에 다시 하지도 않아요."
                       if "already in progress" in text
-                      else "자동 실행을 시작하지 못했어요.")
+                      else "자동으로 하지 못했어요.")
             return self._record(rule, record, key, "blocked", reason, snapshot=snapshot)
-        return self._record(rule, record, key, "sent", "허락해 둔 일이라 묻지 않고 보냈어요.", job_id=job_id,
+        return self._record(rule, record, key, "sent", "허락해 둔 일이라 묻지 않고 가전에 전했어요.", job_id=job_id,
                             notices=[self._time_notice(rule) if rule.is_time else self._cook_notice(rule, record)],
                             snapshot=snapshot)
 
@@ -1211,8 +1251,8 @@ class AutoRuleEngine:
         when = spoken_time(rule.condition_time)
         when = f"{when}{_josa(when, '이', '가')}"
         if routine is None:
-            return f"{when} 되어 묻지 않고 보냈어요."
-        return f"{when} 되어 '{routine.name}' 루틴을 묻지 않고 보냈어요."
+            return f"{when} 되어 묻지 않고 가전에 전했어요."
+        return f"{when} 되어 '{routine.name}' 루틴을 묻지 않고 시작했어요."
 
     def _cook_notice(self, rule: AutoRule, record: Mapping) -> str:
         # A5(2026-10-14): 취소·문 열림으로 끝난 가열도 같은 사건으로 온다 — '데우기가 끝났어요'라고 하지 않는다.
@@ -1317,13 +1357,13 @@ class AutoRuleEngine:
             return f"{name}{_josa(stem, '이', '가')} {phrase}{to} 설정된 것을 확인했어요.{mock}"
         if status == "unconfirmed":
             # 확인 못 한 것은 됐다고 하지 않는다. 자동으로 다시 보내지 않는다는 사실은 남긴다.
-            return f"{name} 설정이 바뀌었는지 몰라요. 다시 보내지 않으니 가전을 봐 주세요.{mock}"
+            return f"{name} 설정이 바뀌었는지 몰라요. 저절로 다시 하지 않으니 가전을 봐 주세요.{mock}"
         if status == "stopped":
             if receipt == "not_dispatched":
-                return f"정지를 눌러서 {name} 명령을 보내지 않았어요.{mock}"
-            return f"{name} 명령은 이미 보냈어요. 정지해도 되돌리지 않아요.{mock}"
+                return f"멈추기를 눌러서 {name}{_josa(stem, '을', '를')} 바꾸지 않았어요.{mock}"
+            return f"{name}에 이미 전했어요. 멈춰도 되돌리지 않아요.{mock}"
         if receipt == "not_dispatched":
-            return f"{name} 명령을 보내지 못했어요.{mock}"
+            return f"{name}에 전하지 못했어요. 바뀌지 않았어요.{mock}"
         return f"{name} {label}{_josa(label, '을', '를')} 바꾸지 못했어요.{mock}"
 
     # ── 비상정지 ─────────────────────────────────────────────────────────────
@@ -1383,7 +1423,7 @@ class AutoRuleEngine:
     def _require(self, rule_id: str) -> AutoRule:
         rule = self.store.get(rule_id)
         if rule is None:
-            raise AutoRuleError(404, "자동 실행 규칙을 찾을 수 없어요")
+            raise AutoRuleError(404, "이 자동으로 하기를 찾을 수 없어요")
         return rule
 
     def _rebound(self, rule: AutoRule) -> AutoRule | None:
@@ -1402,7 +1442,7 @@ class AutoRuleEngine:
         with self._send_lock:
             current = self.store.get(rule_id)
             if current is None:
-                raise AutoRuleError(404, "자동 실행 규칙을 찾을 수 없어요")
+                raise AutoRuleError(404, "이 자동으로 하기를 찾을 수 없어요")
             in_flight = rule_id in self._sending
             changed = change(current)
             if changed is None:
@@ -1456,7 +1496,7 @@ class AutoRuleEngine:
             raise AutoRuleError(422, "바꿀 설정값을 골라 주세요")
         if self._draft(rule.scenario_id, rule.condition_appliance_id, rule.condition_event,
                        rule.target_appliance_id, rule.action, {rule.arg: value}) is None:
-            raise AutoRuleError(422, "이 가전에서 자동 실행할 수 없는 설정값이에요")
+            raise AutoRuleError(422, "이 가전에서 자동으로 할 수 없는 설정이에요")
         if value == rule.value:
             if report is not None:
                 report.update(in_flight=False, in_flight_notice=None)

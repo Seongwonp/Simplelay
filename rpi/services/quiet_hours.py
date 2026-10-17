@@ -26,10 +26,10 @@ log = logging.getLogger(__name__)
 
 SETTING_KEY = "quiet_hours"
 DEFAULT = {"enabled": False, "start": "22:00", "end": "07:00"}
-SKIP_REASON = "조용한 시간이라 자동 실행하지 않았어요"
-SCOPE_TEXT = "새 제안과 일반 안내 소리만 쉬어요. 아직 시작하지 않은 자동 실행은 건너뛰고 나중에 다시 하지 않아요."
+SKIP_REASON = "조용한 시간이라 자동으로 하지 않았어요"
+SCOPE_TEXT = "새 제안과 일반 안내 소리만 쉬어요. 자동으로 할 일도 아직 시작하지 않았으면 건너뛰고 나중에 다시 하지 않아요."
 #: 업데이트 전에 켠 잠시 쉬기를 이어받은 동안(옛 범위) — 자동 실행은 막지 않는다(2026-10-14 마감 2번).
-CARRIED_PAUSE_SCOPE_TEXT = "업데이트 전에 켠 잠시 쉬기라 새 제안과 일반 안내 소리만 쉬어요. 자동 실행은 그대로예요."
+CARRIED_PAUSE_SCOPE_TEXT = "업데이트 전에 켠 잠시 쉬기라 새 제안과 일반 안내 소리만 쉬어요. 자동으로 할 일은 그대로 해요."
 
 _HHMM = re.compile(r"^([01]\d|2[0-3]):([0-5]\d)$")
 

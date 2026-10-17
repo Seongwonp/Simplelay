@@ -362,7 +362,7 @@ def test_dev_stop_that_was_only_sent_is_not_reported_as_confirmed(rig, reply) ->
     body = r.client.post("/dev/stop", headers=r.headers()).json()
     assert body["confirmed"] is False
     assert body["stop_level"] == "sent" and body["stop_ack_ms"] is None
-    assert "정지 명령을 보냈어요" in body["message"] and "확인했" not in body["message"]
+    assert "멈추는 중이에요" in body["message"] and "확인했" not in body["message"]
     # 보낸 것은 확실하다 — 잠그지는 않는다(잠금은 RPi4에 닿지 못했을 때).
     assert body["state"]["phase"] == "idle"
 
@@ -388,7 +388,7 @@ def test_session_end_says_what_the_stop_reached(rig) -> None:
     sid, secret = r.open_session()
     body = r.client.post(f"/dev/sessions/{sid}/end", headers=r.headers(secret)).json()
     assert body["confirmed"] is False and body["stop_level"] == "sent"
-    assert "정지 명령을 보냈어요" in body["message"]
+    assert "멈추는 중이에요" in body["message"]
 
 
 def test_link_down_stop_has_no_level(rig) -> None:

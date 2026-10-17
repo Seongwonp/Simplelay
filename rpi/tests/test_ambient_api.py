@@ -107,7 +107,7 @@ def test_ambient_failed_appliance_takes_priority(client, monkeypatch):
     app.dependency_overrides[deps.get_service] = lambda: FakeService()
     body = client.get("/ambient").json()
     assert body["tip"]["kind"] == "appliance"
-    assert body["tip"]["text"] == "전자레인지 작업이 멈췄어요. 가전을 봐 주세요."
+    assert body["tip"]["text"] == "전자레인지 버튼 누르기가 중간에 멈췄어요. 가전을 봐 주세요."
 
 
 @pytest.mark.parametrize("outcome_name", ["FAILED", "SAFETY_STOP"])

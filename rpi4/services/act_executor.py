@@ -146,16 +146,16 @@ SHUTDOWN_STOP_GRACE_SECONDS = 5.0
 #: 비상정지 걸림 해제 결과 사유(``estop_state.reason``) → 사람이 읽을 설명.
 ESTOP_REASON_DETAIL = {
     "estop_button_pressed": "빨간 비상 버튼이 아직 눌려 있어요. 돌려서 푼 뒤 다시 눌러 주세요.",
-    "outlet_unreachable": "콘센트가 답하지 않아 비상 버튼을 풀지 못했어요.",
+    "outlet_unreachable": "전기 플러그가 답하지 않아 비상 버튼을 풀지 못했어요.",
     "estop_retriggered": "해제하는 사이 비상 버튼이 다시 눌렸어요",
 }
 # 10/17 쉬운 말: 폰·키오스크가 제목('비상 버튼이 눌려 있어요')을 따로 보이므로 할 일만 한 줄.
 ESTOP_LATCHED_DETAIL = "빨간 버튼을 돌려서 풀고 '해제하기'를 눌러 주세요."
 #: 콘센트 모듈 재부팅으로 켜 두었던 릴레이가 꺼졌을 때(``source:"outlet_reboot"``). rpi.verifier.outlet과 같은 문장.
 # 키오스크·서버가 '다시 켜져'로 이 걸림을 가른다(estop.dart·service.estop_block_reason) — 그 말은 그대로 둔다.
-POWER_LOST_LATCH_DETAIL = "콘센트가 다시 켜져서 가전 전원이 꺼졌어요. 해제하면 전원을 다시 켜요."
+POWER_LOST_LATCH_DETAIL = "전기 플러그가 다시 켜져서 가전 전원이 꺼졌어요. 해제하면 전원을 다시 켜요."
 #: 리허설 주입을 거절하는 이유(실물 모듈·모터에 붙어 있음).
-REHEARSAL_REFUSED_DETAIL = "실제 콘센트나 작은 팔이 연결돼 있어 연습 신호를 받지 않아요."
+REHEARSAL_REFUSED_DETAIL = "실제 전기 플러그나 작은 팔이 연결돼 있어 연습 신호를 받지 않아요."
 
 
 def result_detail_fields(result: ExecutionResult, controller: object) -> dict:
@@ -193,7 +193,7 @@ def result_detail_fields(result: ExecutionResult, controller: object) -> dict:
     else:
         confirmed, source = None, None
         detail = (
-            "가전이 켜졌는지 몰라요. 콘센트 값을 읽지 못했어요."
+            "가전이 켜졌는지 몰라요. 전기 플러그에서 값을 읽지 못했어요."
             if result.failed_layer is VerificationLayer.OPERATION
             else None
         )
@@ -1282,7 +1282,7 @@ class ActExecutor:
             report = await asyncio.to_thread(probe)
         except Exception as exc:  # noqa: BLE001 - 확인 실패는 '보냄'까지만으로 낮춘다
             log.exception("stop confirmation failed")
-            return {"stop_level": "sent", "ack_ms": None, "stop_detail": "정지를 보냈지만 멈췄는지 확인하지 못했어요."}
+            return {"stop_level": "sent", "ack_ms": None, "stop_detail": "멈추는 중이에요. 멈췄는지는 아직 몰라요. 가전을 봐 주세요."}
         return report.fields()
 
     async def _report_stop(self, stop_id: str, target: str, probe) -> None:

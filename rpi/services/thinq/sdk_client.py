@@ -153,8 +153,9 @@ class SdkThinqClient:
             while self._calls and now - self._calls[0] >= 60.0:
                 self._calls.popleft()
             if len(self._calls) >= self._max_calls:
-                reason = (f"ThinQ 호출 상한(분당 {self._max_calls}회)에 걸려 보내지 않았어요 — "
-                          "잠시 뒤 다시 시도해 주세요")
+                # 10/18 쉬운 말 4차: 상한 숫자·내부 이름은 기록에만. 결과('그래서 하지 않았어요')는 컨트롤러가 붙인다.
+                logging.getLogger(__name__).info("thinq rate limit hit (%d/min)", self._max_calls)
+                reason = "LG 가전에 너무 자주 요청했어요. 잠시 뒤 다시 해 주세요."
                 raise ThinqRateLimited(reason, reason=reason)
             self._calls.append(now)
 
@@ -178,11 +179,11 @@ class SdkThinqClient:
         except aiohttp.ClientConnectorError:
             failure = ThinqOfflineError(
                 "ThinQ 클라우드에 연결하지 못했어요",
-                reason="ThinQ 클라우드에 연결하지 못했어요 — 인터넷 연결을 확인해 주세요(보내지 않았어요)")
+                reason="LG 서버에 연결하지 못했어요. 인터넷 연결을 봐 주세요.")
         except (asyncio.TimeoutError, concurrent.futures.TimeoutError, aiohttp.ClientError,
                 ValueError, AttributeError, TypeError):
-            reason = ("응답을 받지 못했어요 — 가전이 받았는지 몰라요. 자동으로 다시 보내지 않아요"
-                      if control else "ThinQ 클라우드 연결이 끊겼거나 응답을 읽지 못했어요")
+            reason = ("LG 가전의 답을 받지 못했어요. 바뀌었는지 몰라요. 저절로 다시 하지 않아요."
+                      if control else "LG 서버와 연결이 끊겼거나 답을 읽지 못했어요.")
             failure = ThinqTransportError(reason, reason=reason)
         raise failure
 

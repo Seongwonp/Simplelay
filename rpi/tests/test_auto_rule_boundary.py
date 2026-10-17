@@ -182,7 +182,8 @@ def test_stop_completed_before_the_late_allow_save_keeps_the_rule_off(monkeypatc
         body = res.json()
         assert body["job_id"]  # 이번 실행은 따로 — 결과는 job으로 본다
         assert body["auto_allow"]["ok"] is False
-        assert "비상정지" in body["auto_allow"]["reason"] or "정지" in body["auto_allow"]["reason"]
+        # 10/18 쉬운 말 4차: 정지 버튼은 '멈추기'로 말한다.
+        assert "정지" in body["auto_allow"]["reason"] or "멈추기" in body["auto_allow"]["reason"]
         assert body["rule"] is None or body["rule"]["enabled"] is False
         assert all(r["enabled"] is False for r in api.get("/routines/auto-rules").json())
         _set_low(api)
@@ -213,7 +214,7 @@ def test_stop_during_reallow_of_an_existing_rule_keeps_it_off(monkeypatch, tmp_p
         res = api.post(f"/routines/auto-rules/{rule['id']}/enable",
                        json={"enabled": True, "fingerprint": rule["fingerprint"]})
         assert res.status_code == 409, res.text
-        assert "정지" in res.json()["detail"]
+        assert "멈추기" in res.json()["detail"]
         monkeypatch.setattr(engine, "_rebound", original)
         assert api.get("/routines/auto-rules").json()[0]["enabled"] is False
         _set_low(api)

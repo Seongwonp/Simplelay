@@ -1753,7 +1753,7 @@ async def demo_alert(
 
 
 # 10/18 쉬운 말: 연습 장치 문장도 결과 한 줄 + 사실 한 줄('시연'·'모의'·'모듈'·'릴레이'·괄호를 쓰지 않는다).
-_REHEARSAL_ESTOP_DETAIL = "연습용 비상 버튼을 눌렀어요. 실제 콘센트는 그대로예요."
+_REHEARSAL_ESTOP_DETAIL = "연습용 비상 버튼을 눌렀어요. 실제 전기 플러그는 그대로예요."
 
 
 def _require_rehearsal_mode() -> None:

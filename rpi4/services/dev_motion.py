@@ -131,7 +131,7 @@ class DevMotionService:
         except MotionAlarm as exc:
             if self._stop_seen.is_set():
                 return {"ok": False, "reason": "stopped", "detail": f"정지 요청으로 멈췄어요: {exc}", "moved": None}
-            return {"ok": False, "reason": "motion_alarm", "detail": f"모션 보드가 알람을 보냈어요: {exc}",
+            return {"ok": False, "reason": "motion_alarm", "detail": f"모션 보드에서 알람이 왔어요: {exc}",
                     "moved": None}
         except (MotionError, OSError, RuntimeError, ValueError) as exc:
             log.exception("dev motion %s failed", msg.op)

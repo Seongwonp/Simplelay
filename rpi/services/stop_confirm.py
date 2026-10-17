@@ -44,5 +44,6 @@ def stop_sentence(level: str | None, ack_ms: int | None = None) -> str | None:
     if level == STOP_MCU_ACK:
         return "모션 보드가 정지를 확인했어요" + (f" ({ack_ms} ms)" if ack_ms is not None else "")
     if level == STOP_SENT:
-        return "정지 명령을 보냈어요 — 멈췄는지 기계를 봐 주세요"
+        # 10/18 쉬운 말 4차: '정지 명령을 보냈어요' 대신 — 보낸 것까지만 알고 멈춤은 확인하지 않았다(확인 수준 유지).
+        return "멈추는 중이에요. 멈췄는지 기계를 봐 주세요"
     return None

@@ -179,7 +179,7 @@ def test_approved_card_stop_before_dispatch_is_stopped_not_dispatched(link):
     assert result.status is CommandStatus.STOPPED
     assert result.receipt is Receipt.NOT_DISPATCHED
     assert result.stop_requested is True
-    assert "보내지 않았어요" in result.detail
+    assert result.detail == "멈추기를 눌러서 버튼을 누르지 않았어요."
     assert history.recent()[0].receipt == "not_dispatched"
     assert [e.kind for e in care.recent()] == ["emergency_stop"]
     assert events and events[-1].receipt is Receipt.NOT_DISPATCHED

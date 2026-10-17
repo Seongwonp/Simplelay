@@ -134,7 +134,7 @@ class _Step:
 
 
 #: 비상정지가 걸려 있을 때 ThinQ 명령을 받지·보내지 않는 사유(2026-10-15 검토 H1).
-THINQ_ESTOP_REASON = "비상 버튼이 눌려 있어 보내지 않았어요. 버튼을 풀고 해제한 뒤 다시 해 주세요."
+THINQ_ESTOP_REASON = "비상 버튼이 눌려 있어 하지 않았어요. 버튼을 풀고 해제한 뒤 다시 해 주세요."
 
 _LEGACY_STATUS = {
     CommandStatus.SUCCEEDED: ExecutionStatus.SUCCEEDED,
@@ -426,8 +426,8 @@ class CommandExecutionMixin:
                     command=command, status=CommandStatus.STOPPED if stop else CommandStatus.FAILED,
                     receipt=Receipt.NOT_DISPATCHED, confirmation=Confirmation.NONE,
                     execution_mode=_mode(step.controller),
-                    detail=("정지 요청으로 보내지 않았어요" if stop
-                            else "앞 단계가 확인되지 않아 보내지 않았어요"),
+                    detail=("멈추기를 눌러서 하지 않았어요." if stop
+                            else "앞의 일이 됐는지 몰라서 하지 않았어요."),
                     observed_at=self._clock.now(), stop_requested=stop,
                 ))
                 continue
@@ -473,7 +473,7 @@ class CommandExecutionMixin:
             try:
                 dispatch_guard()
             except Exception as exc:  # noqa: BLE001 -- 보내기 직전 재검사에 걸림: 보내지 않는다
-                blocked = str(exc) or "보내기 직전 확인에 걸려 보내지 않았어요"
+                blocked = str(exc) or "하기 직전에 다시 확인했더니 할 수 없었어요. 그래서 하지 않았어요."
         try:
             if blocked is not None:
                 result = CommandResult(
@@ -668,13 +668,13 @@ class CommandExecutionMixin:
             if result.status is CommandStatus.UNCONFIRMED:
                 self._care_events.append(
                     "execution_failed",
-                    f"'{summary}' 명령을 보냈지만 확인하지 못했어요. 가전을 직접 확인해 주세요.",
+                    f"'{summary}' 가전에 전했지만 됐는지 확인하지 못했어요. 가전을 직접 봐 주세요.",
                     purpose=purpose,
                 )
             elif result.status is CommandStatus.FAILED:
                 self._care_events.append(
                     "execution_failed",
-                    f"'{summary}' 명령이 실행되지 않았어요. 가전을 확인해 주세요.",
+                    f"'{summary}' 하지 못했어요. 가전을 봐 주세요.",
                     purpose=purpose,
                 )
         except Exception:

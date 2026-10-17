@@ -52,7 +52,7 @@ def test_value_missing_from_profile_write_list_is_refused_before_sending():
     client.set_profile(MOCK_PURIFIER_ID, air_purifier_profile(job_modes_w=("CLEAN", "SLEEP")))
     result = ctrl.execute_command(_job("SILENT"))
     assert _not_sent(result)
-    assert result.detail == "이 가전은 운전 모드 저소음을 쓸 수 없어요. 그래서 보내지 않았어요."
+    assert result.detail == "이 가전은 운전 모드 저소음을 쓸 수 없어요. 그래서 하지 않았어요."
     assert client.controls == []
     # 프로필이 허용하는 값은 보낸다.
     assert ctrl.execute_command(_job("SLEEP")).status is CommandStatus.SUCCEEDED

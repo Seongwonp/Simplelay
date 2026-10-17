@@ -539,7 +539,7 @@ def _stop_response(manager: DeveloperSessionManager, info: dict | None, *, mock_
     level = info.get("stop_level") if isinstance(info, dict) else None
     ack_ms = info.get("ack_ms") if isinstance(info, dict) else None
     level = level if isinstance(level, str) else "sent"  # 실물인데 단계를 모르면 '보냄'까지만
-    sentence = stop_sentence(level, ack_ms) or "정지 명령을 보냈어요"
+    sentence = stop_sentence(level, ack_ms) or "멈추는 중이에요"
     return DevStopResponse(confirmed=stop_level_confirmed(level), message=prefix + sentence,
                            state=_state_view(manager), stop_level=level, stop_ack_ms=ack_ms)
 

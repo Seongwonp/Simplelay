@@ -1,7 +1,8 @@
-"""키오스크 오른쪽 위 연결 상태 세 가지(와이파이·작은 팔·콘센트) — 사용자 말로.
+"""키오스크 오른쪽 위 연결 상태 세 가지(와이파이·작은 팔·전기 플러그) — 사용자 말로.
 
 이름은 쉬운 말 사전(docs/UI-개편안-2026-10-17.md §3)을 따른다: 허브 → 본체,
-누름 장치(RPi4) → 작은 팔, 플러그(콘센트 모듈) → 콘센트. 문장은 결과 한 줄 + 할 일 한 줄.
+누름 장치(RPi4) → 작은 팔, 플러그(콘센트 모듈) → 전기 플러그(10/18 사전 변경: 가족은 '콘센트'를 벽 콘센트로 읽는다).
+문장은 결과 한 줄 + 할 일 한 줄.
 
 UI 확정 §1-5: 부품 이름 대신 사용자가 아는 이름을 쓰고, 무엇을 못 하게
 되는지와 해결 방법을 함께 적는다. 이 모듈의 ``title``·``message``·``fixes``는
@@ -181,7 +182,7 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
             "press",
             "error",
             "작은 팔이 답하지 않아요",
-            "보낸 명령에 답이 없었어요. 지금은 버튼을 누를 수 없어요.",
+            "누르라고 했는데 답이 없었어요. 지금은 버튼을 누를 수 없어요.",
             _PRESS_FIXES,
             "real",
         )
@@ -190,7 +191,7 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
             "press",
             "warn",
             "작은 팔에 문제가 생겼어요",
-            "마지막 명령을 끝내지 못했어요. 다음 누르기가 실패할 수 있어요.",
+            "마지막 누르기를 끝내지 못했어요. 다음 누르기가 실패할 수 있어요.",
             _PRESS_FIXES,
             "real",
         )
@@ -211,9 +212,9 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
 # ── 플러그(콘센트 모듈 · L3 전력) ─────────────────────────────────────────────
 
 _PLUG_FIXES = (
-    "콘센트가 벽에 끝까지 꽂혀 있는지 봐 주세요.",
-    "콘센트와 작은 팔을 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.",
-    "그래도 안 되면 콘센트를 뽑았다가 10초 뒤 다시 꽂아 주세요.",
+    "전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.",
+    "전기 플러그와 작은 팔을 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.",
+    "그래도 안 되면 전기 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.",
 )
 
 
@@ -226,7 +227,7 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "warn",
-            "콘센트 연결이 약해요",
+            "전기 플러그 연결이 약해요",
             "가전이 끝났다는 알림이 늦거나 오지 않을 수 있어요.",
             _PLUG_FIXES,
             "real",
@@ -235,7 +236,7 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "error",
-            "콘센트와 연결이 끊겼어요",
+            "전기 플러그와 연결이 끊겼어요",
             "가전이 끝났다는 알림을 드릴 수 없어요.",
             _PLUG_FIXES,
             "real",
@@ -244,7 +245,7 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "ok",
-            "콘센트가 연결돼 있어요",
+            "전기 플러그가 연결돼 있어요",
             "가전이 끝나면 알려 드릴게요. 지금은 연습이라 실제로 재지 않아요.",
             (),
             "mock",
@@ -254,7 +255,7 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "unknown",
-            "콘센트 상태를 알 수 없어요",
+            "전기 플러그 상태를 알 수 없어요",
             "가전이 끝났다는 알림이 오지 않을 수 있어요.",
             _PLUG_FIXES[:1],
             "real",
@@ -262,8 +263,8 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
     return ConnectionItem(
         "plug",
         "not_installed",
-        "콘센트가 아직 없어요",
+        "전기 플러그가 아직 없어요",
         "버튼은 눌러 드리지만, 가전이 끝났다는 알림은 드릴 수 없어요.",
-        ("쓰려면 가전 전원선을 콘센트에 꽂고, 콘센트를 벽에 꽂아 주세요.",),
+        ("쓰려면 가전 전원선을 전기 플러그에 꽂고, 전기 플러그를 벽에 꽂아 주세요.",),
         "none",
     )

@@ -238,7 +238,7 @@ def test_unconfirmed_result_is_never_resent(api):
     run = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
     assert run["status"] == "unconfirmed"
     notices = " / ".join(run["notices"])
-    assert "바뀌었는지 몰라요" in notices and "다시 보내지 않으니" in notices
+    assert "바뀌었는지 몰라요" in notices and "저절로 다시 하지 않으니" in notices
     assert "바꿨어요" not in notices
     deps.receive_appliance_done(dict(frame))
     time.sleep(0.5)
@@ -485,11 +485,11 @@ def test_rule_turned_off_after_the_start_gate_is_rechecked_right_before_sending(
     monkeypatch.setattr(service, "_begin_run", off_after_gate)
     _inject(api, inputs=("power",))
     run = _wait_run(api, lambda r: r["outcome"] == "blocked" and r.get("status"))
-    assert "보내지 않았어요" in run["reason"]
+    assert run["reason"] == "자동으로 하기가 꺼져서 하지 않았어요."
     assert run["receipt"] == "not_dispatched"
     assert len(_controls()) == sent
     notices = " / ".join(run["notices"])
-    assert "바꿨어요" not in notices and "보내지 않았어요" in notices
+    assert "바꿨어요" not in notices and "하지 않았어요" in notices
 
 
 def test_latched_outlet_estop_blocks_auto(api, monkeypatch):

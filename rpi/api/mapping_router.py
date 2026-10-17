@@ -225,7 +225,7 @@ async def verify_pass_start(appliance_id: str, body: VerifyPassRequest | None = 
     except MappingRejected as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     if service.status().running:
-        raise HTTPException(status_code=409, detail="다른 작업이 실행 중이에요 — 끝난 뒤 다시 해 주세요")
+        raise HTTPException(status_code=409, detail="다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.")
     if not service.runs_locally(appliance_id):
         raise HTTPException(status_code=409, detail="이 가전은 이 허브의 갠트리에 연결되지 않았어요")
     try:
