@@ -179,8 +179,8 @@ void main() {
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
       // 평가 7차(10/18): 한 번 더 하기는 글자 단추(가장 약하게).
       expect(_inButton<TextButton>('한 번 더 하기'), findsOneWidget);
-      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 화면에서 직접 누르기는 글자 단추(48 이상, 평가 4차 이름).
-      expect(_inButton<OutlinedButton>('화면에서 직접 누르기'), findsOneWidget);
+      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 작은 팔로 누를 버튼 고르기는 글자 단추(48 이상, 평가 4차 이름).
+      expect(_inButton<OutlinedButton>('작은 팔로 누를 버튼 고르기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       final home = tester.getRect(find.text('처음 화면으로'));
@@ -269,7 +269,7 @@ void main() {
       expect(find.byIcon(Icons.verified_outlined), findsNothing);
       expect(find.byIcon(Icons.check), findsNothing);
       // 받음은 '멈추는 중'까지 — 멈췄다고 하지 않는다(평가 4차 10/18: 기계 말 대신 사람이 볼 상태).
-      expect(find.text('작은 팔이 멈추는 중이에요'), findsOneWidget);
+      expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
       expect(find.textContaining('멈췄어요'), findsNothing);
       // 주어는 작은 팔 — 실행·기계가 멈췄다고 하지 않는다.
       expect(find.text('실행을 멈췄어요'), findsNothing);

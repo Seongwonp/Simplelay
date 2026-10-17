@@ -289,7 +289,9 @@ void main() {
               onDismiss: () {}));
       final all = _allTexts(tester).join('\n');
       expect(all, isNot(contains('보냈어요')));
-      expect(all, contains('멈추는 중이에요'));
+      // 끝난 결과 화면에서는 진행 말('멈추는 중이에요') 대신 확인하지 못했다고(평가 8차 10/18).
+      expect(all, contains('작은 팔이 멈췄는지 몰라요'));
+      expect(all, isNot(contains('중이에요')));
       expect(all, isNot(contains('멈췄어요')));
       expect(stopLevelConfirmed('sent'), isFalse);
     });
@@ -342,7 +344,7 @@ void main() {
       expect(connectionShortName('plug'), '전기 플러그');
     });
 
-    testWidgets('실패 화면 글자 단추는 화면에서 직접 누르기', (tester) async {
+    testWidgets('실패 화면 글자 단추는 작은 팔로 누를 버튼 고르기', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -354,7 +356,7 @@ void main() {
               onManual: () {},
               onDismiss: () {}));
       expect(find.text('화면으로 조작하기'), findsNothing);
-      expect(find.text('화면에서 직접 누르기'), findsOneWidget);
+      expect(find.text('작은 팔로 누를 버튼 고르기'), findsOneWidget);
     });
 
     testWidgets("큰 글씨 버튼판 한 줄은 '작은 팔 위치' 대신 작은 팔이 어디 위에 있는지", (tester) async {

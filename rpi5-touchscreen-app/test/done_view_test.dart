@@ -148,7 +148,7 @@ void main() {
     expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
     expect(find.text('처음 화면으로'), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsOneWidget);
-    expect(find.text('화면에서 직접 누르기'), findsOneWidget);
+    expect(find.text('작은 팔로 누를 버튼 고르기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
     // '확인해 주세요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
@@ -175,11 +175,12 @@ void main() {
     );
 
     expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
-    expect(find.text('작은 팔과 가전이 멈췄는지 봐 주세요'), findsOneWidget);
+    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('가전을 봐 주세요'), findsOneWidget);
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
-    // 다시 하려면 처음 화면에서 고른다. '화면에서 직접 누르기'는 남는다.
+    // 다시 하려면 처음 화면에서 고른다. '작은 팔로 누를 버튼 고르기'는 남는다.
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('화면에서 직접 누르기'), findsOneWidget);
+    expect(find.text('작은 팔로 누를 버튼 고르기'), findsOneWidget);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {
@@ -475,7 +476,8 @@ void main() {
   });
 
   // 외부 평가 10/16 4차: 위 줄은 '취소' 버튼을 직접 누르라는데 아래 줄은 '정지 버튼'이라 했다 — 같은 이름으로.
-  testWidgets('정지 몰라요: 작은 팔이 대신 누른 버튼을 실제 이름으로 말한다', (tester) async {
+  // 평가 8차(10/18): '대신 눌렀어요'는 '직접 눌러 주세요'와 엇갈렸다 — 작은 팔도 눌렀지만 확인이 안 됐다고.
+  testWidgets('정지 몰라요: 작은 팔도 누른 버튼을 실제 이름으로, 확인이 안 됐다고 말한다', (tester) async {
     await _pump(
       tester,
       KioskHoldView(
@@ -489,7 +491,8 @@ void main() {
         onStop: () {},
       ),
     );
-    expect(find.text('작은 팔이 취소 버튼을 대신 눌렀어요'), findsOneWidget);
-    expect(find.text('작은 팔이 정지 버튼을 대신 눌렀어요'), findsNothing);
+    expect(find.text('작은 팔도 취소 버튼을 눌렀지만 눌렸는지 확인이 안 됐어요'), findsOneWidget);
+    expect(find.textContaining('정지 버튼을 눌렀지만'), findsNothing);
+    expect(find.textContaining('대신 눌렀어요'), findsNothing);
   });
 }

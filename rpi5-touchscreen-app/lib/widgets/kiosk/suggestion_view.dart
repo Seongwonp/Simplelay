@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/action_name.dart';
 import '../../models/appliance.dart';
 import '../../models/command_result.dart';
 import '../../services/kiosk_api_service.dart';
@@ -92,14 +93,14 @@ class KioskSuggestionView extends StatelessWidget {
     final question = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 사용자가 예전에 했던 말 그대로가 purpose다 — 제품이
-        // 지어낸 문구가 아니라 본인의 표현이라 그대로 되물어보는
-        // 편이 알아듣기 쉽다.
+        // purpose는 사용자가 예전에 했던 말이다. 질문에는 그 말의 할 일 이름(actionName)을 쓴다(평가 8차 10/18).
         // 질문은 따로 한 줄. 이어 쓰면 폭에 따라 '할까 / 요?'처럼
         // 끊긴다 -- 한글은 글자 단위로 줄이 바뀐다. 그래서 어절 단위로 그린다(2026-10-16 §1-3).
         KioskText(
           // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다.
-          scenario ? suggestion.purpose : '${suggestion.purpose},\n지금 할까요?',
+          // 사람 명령문('즉석밥 데워줘')을 그대로 붙이지 않고 할 일 이름('즉석밥 데우기')으로 — 실행·결과 화면과 같은
+          // 규칙(평가 8차 10/18). 서버에 표시용 이름 칸은 없다. 끝 동사를 모르면 actionName이 문장을 그대로 둔다.
+          scenario ? suggestion.purpose : '${actionName(suggestion.purpose)},\n지금 할까요?',
           textKey: const ValueKey('suggestion-question'),
           // '같이 / 먹을 준비,'처럼 어구 가운데에서 끊지 않는다(평가 5차 10/18).
           phrases: true,

@@ -27,19 +27,21 @@ KioskDoneView _stopped({String? level, int? ackMs}) => KioskDoneView(
 
 void main() {
   // 2026-10-15 문구 개선 §2-1: 주어는 작은 팔. 확인하지 못한 단계는 제목부터 모른다고 말한다.
-  // 평가 4차(10/18): '멈추라고 보냈어요'는 기계가 한 일 — 사람이 볼 상태('멈추는 중이에요'). 확인 수준은 그대로:
+  // 평가 4차(10/18): '멈추라고 보냈어요'는 기계가 한 일 — 사람이 볼 상태로. 확인 수준은 그대로:
   // 멈췄다는 말은 엔코더로 본 verified뿐이다.
+  // 평가 8차(10/18): 이 제목은 끝난 결과 화면의 말 — '멈추는 중이에요'(진행 말) 대신 멈췄어요/멈췄는지 몰라요 둘뿐.
   test('정지 단계 제목 — 주어는 작은 팔, 보냄·받음은 멈췄다고 하지 않는다', () {
-    expect(stopLevelHeadline('sent'), '멈추는 중이에요');
-    expect(stopLevelHeadline('mcu_ack', ackMs: 12), '작은 팔이 멈추는 중이에요');
+    expect(stopLevelHeadline('sent'), '작은 팔이 멈췄는지 몰라요');
+    expect(stopLevelHeadline('mcu_ack', ackMs: 12), '작은 팔이 멈췄는지 몰라요');
     for (final level in ['sent', 'mcu_ack']) {
-      expect(stopLevelHeadline(level), isNot(contains('멈췄')));
+      expect(stopLevelHeadline(level), isNot(contains('멈췄어요')));
+      expect(stopLevelHeadline(level), isNot(contains('중이에요')));
       expect(stopLevelHeadline(level), isNot(contains('보냈')));
     }
     expect(stopLevelHeadline('verified', ackMs: 9), '작은 팔이 멈췄어요');
-    // 단계를 모르면 서버가 말한 사실(정지 요청으로 실행이 끝남)까지만.
-    expect(stopLevelHeadline(null), '정지를 눌러 끝났어요');
-    expect(stopLevelHeadline('stopped_for_sure'), '정지를 눌러 끝났어요');
+    // 단계를 모르면(옛 서버·모르는 값) 확인하지 못한 정지다.
+    expect(stopLevelHeadline(null), '작은 팔이 멈췄는지 몰라요');
+    expect(stopLevelHeadline('stopped_for_sure'), '작은 팔이 멈췄는지 몰라요');
     for (final level in ['sent', 'mcu_ack', 'verified', null]) {
       // 가전이 멈췄다고는 어느 단계에서도 말하지 않는다(그건 전력 하강 확인 때만).
       expect(stopLevelHeadline(level), isNot(contains('가전이 멈췄')));
@@ -69,7 +71,8 @@ void main() {
 
   testWidgets('멈춘 실행 화면 — 보냄이면 제목부터 모른다고, 가전을 보라고', (tester) async {
     await tester.pumpWidget(_wrap(_stopped(level: 'sent')));
-    expect(find.text('멈추는 중이에요'), findsOneWidget);
+    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('멈추는 중이에요'), findsNothing);
     expect(find.text('가전을 봐 주세요'), findsOneWidget);
     expect(find.textContaining('확인했어요'), findsNothing);
     expect(find.text('실행을 멈췄어요'), findsNothing);
@@ -79,7 +82,7 @@ void main() {
 
   testWidgets('멈춘 실행 화면 — 모션 보드 받음은 ✓ 없이 물음표, ms 없음', (tester) async {
     await tester.pumpWidget(_wrap(_stopped(level: 'mcu_ack', ackMs: 12)));
-    expect(find.text('작은 팔이 멈추는 중이에요'), findsOneWidget);
+    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
     expect(find.text('가전을 봐 주세요'), findsOneWidget);
     expect(find.textContaining('ms'), findsNothing);
     expect(find.byIcon(Icons.verified_outlined), findsNothing);
@@ -95,10 +98,10 @@ void main() {
     expect(find.byIcon(Icons.check), findsOneWidget);
   });
 
-  testWidgets('단계가 없으면 정지 요청으로 실행이 끝났다고만 한다', (tester) async {
+  testWidgets('단계가 없으면 확인하지 못한 정지 — 멈췄는지 몰라요', (tester) async {
     await tester.pumpWidget(_wrap(_stopped()));
-    expect(find.text('정지를 눌러 끝났어요'), findsOneWidget);
-    expect(find.text('작은 팔과 가전이 멈췄는지 봐 주세요'), findsOneWidget);
+    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('가전을 봐 주세요'), findsOneWidget);
     expect(find.text('실행을 멈췄어요'), findsNothing);
   });
 

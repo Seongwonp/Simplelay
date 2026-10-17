@@ -972,6 +972,25 @@ void main() {
     );
   });
 
+  // 평가 8차(10/18) — 정지 확인 보고를 기다리는 동안은 끝난 결과가 아니다: 진행 말·처음 화면 단추 없음.
+  testWidgets('15인치 미리보기 — 사용자 정지, 확인 기다리는 중', (t) async {
+    await _shoot15(
+      t,
+      'kiosk15_done_stop_pending',
+      KioskDoneView(
+        success: false,
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        executionMode: 'real',
+        reason: KioskFailureReason.stopped,
+        stopPending: true,
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
+    );
+  });
+
   // ── 2026-10-15 문구 개선 3단계 — 연결 창(B4)·본체 풀이 ─────────────
   const networkDown = ConnectionItem(
     id: 'network',
@@ -1033,6 +1052,8 @@ void main() {
         currentButton: '시작',
         currentAttempt: 1,
         completedSteps: 1,
+        // 화면이 본 끝낸 버튼(실제 흐름은 kiosk_screen이 모은다) — 누를 순서 첫 칸 이름(평가 8차 10/18).
+        doneButtons: const ['즉석밥'],
         totalSteps: 2,
         verificationConfidence: null,
         verificationDetail: null,

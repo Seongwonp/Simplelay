@@ -86,7 +86,7 @@ void main() {
     await _pump(tester, target: kMicrowaveAppliance);
 
     expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('즉석밥 데워줘,\n지금 할까요?'), findsOneWidget);
+    expect(find.text('즉석밥 데우기,\n지금 할까요?'), findsOneWidget);
     expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
     for (final (i, label) in [(1, '즉석밥'), (2, '시작')]) {
       expect(find.text('$i'), findsOneWidget);
@@ -145,7 +145,7 @@ void main() {
 
     testWidgets('질문이 가장 크고, 선택 버튼 글자가 순서·근거보다 크다', (tester) async {
       await _pump(tester, target: kMicrowaveAppliance);
-      final question = sizeOf(tester, find.text('즉석밥 데워줘,\n지금 할까요?'));
+      final question = sizeOf(tester, find.text('즉석밥 데우기,\n지금 할까요?'));
       final approve = sizeOf(tester,
           find.descendant(of: find.byKey(_approve), matching: find.byType(Text)));
       final later = sizeOf(tester,

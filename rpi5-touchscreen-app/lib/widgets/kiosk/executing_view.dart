@@ -105,7 +105,8 @@ class KioskExecutingView extends StatelessWidget {
     return [
       for (var i = 0; i < total; i++)
         i < done
-            ? (label: i < doneButtons.length ? doneButtons[i] : null, state: KioskStepState.done)
+            // 끝낸 칸 이름을 화면이 못 봤으면(이어받은 실행·폴링 사이) 빈칸 대신 순서(평가 8차 10/18) — 이름은 지어내지 않는다.
+            ? (label: i < doneButtons.length ? doneButtons[i] : '${i + 1}번째', state: KioskStepState.done)
             : i == done && currentButton != null
                 ? (label: currentButton, state: KioskStepState.current)
                 : (label: null, state: KioskStepState.todo),
@@ -192,8 +193,12 @@ class KioskExecutingView extends StatelessWidget {
             children: [
               Expanded(child: scroll),
               const SizedBox(height: KioskSpace.sm),
+              // 머리말은 결과 화면('누른 순서')과 같은 모양(평가 8차 10/18).
               KioskStepTrail(
-                  key: const ValueKey('exec-step-trail'), steps: trail, caution: _retrying),
+                  key: const ValueKey('exec-step-trail'),
+                  title: _mock ? '연습으로 누를 순서' : '누를 순서',
+                  steps: trail,
+                  caution: _retrying),
             ],
           );
 

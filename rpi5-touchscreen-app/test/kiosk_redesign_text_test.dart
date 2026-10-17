@@ -156,7 +156,7 @@ void main() {
       expect(find.byType(ElevatedButton), findsOneWidget);
       // 평가 7차(10/18): 한 번 더 하기는 글자 단추(가장 약하게).
       expect(tester.widget(find.byKey(const ValueKey('done-retry'))), isA<TextButton>());
-      // 화면에서 직접 누르기는 밑줄 글자가 아니라 테두리 버튼(평가 5차 10/18).
+      // 작은 팔로 누를 버튼 고르기는 밑줄 글자가 아니라 테두리 버튼(평가 5차 10/18).
       expect(tester.widget(find.byKey(const ValueKey('done-manual'))), isA<OutlinedButton>());
       // 손가락 크기(48 이상).
       expect(tester.getSize(find.byKey(const ValueKey('done-manual'))).height,

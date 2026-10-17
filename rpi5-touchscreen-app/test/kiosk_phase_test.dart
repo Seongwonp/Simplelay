@@ -901,7 +901,8 @@ void main() {
     await _pumpKiosk(tester, api, tts: tts);
 
     // 제안 도착 발화 — 목적이 포함된 문장
-    expect(tts.utterances.single, contains('즉석밥 데워줘'));
+    // 화면 질문과 같은 할 일 이름(평가 8차 10/18).
+    expect(tts.utterances.single, contains('즉석밥 데우기'));
     expect(tts.utterances.single, contains('시작을 눌러'));
 
     api.suggestionList = [];
@@ -1046,7 +1047,7 @@ void main() {
 
     expect(find.byType(KioskDoneView), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsOneWidget);
-    expect(find.text('화면에서 직접 누르기'), findsOneWidget);
+    expect(find.text('작은 팔로 누를 버튼 고르기'), findsOneWidget);
 
     // 성공과 달리 자동 복귀 타이머가 없다 — 사용자가 고를 때까지 남는다
     await tester.pump(KioskTimings.doneReturn);
@@ -1102,7 +1103,7 @@ void main() {
     // 서버 연결 실패는 '다시 시도'가 또 실패할 가능성이 높아 숨긴다
     expect(find.text('한 번 더 하기'), findsNothing);
 
-    await tester.tap(find.text('화면에서 직접 누르기'));
+    await tester.tap(find.text('작은 팔로 누를 버튼 고르기'));
     await tester.pump();
     expect(find.text('전자레인지'), findsOneWidget);
   });
@@ -1419,9 +1420,9 @@ void main() {
     await tester.pump();
     await tester.pump();
     // 큰 글씨에서는 보조 단추가 할 일 아래 같은 스크롤 흐름에 있다(2026-10-16 §1-8) — 보이게 굴린 뒤 누른다.
-    await tester.ensureVisible(find.text('화면에서 직접 누르기'));
+    await tester.ensureVisible(find.text('작은 팔로 누를 버튼 고르기'));
     await tester.pump();
-    await tester.tap(find.text('화면에서 직접 누르기'));
+    await tester.tap(find.text('작은 팔로 누를 버튼 고르기'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
   }
@@ -1685,7 +1686,7 @@ void main() {
     final done = tester.widget<KioskDoneView>(find.byType(KioskDoneView));
     expect(done.reason, KioskFailureReason.stopped);
     expect(done.stopLevel, 'mcu_ack');
-    expect(find.text('작은 팔이 멈추는 중이에요'), findsOneWidget);
+    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1709,7 +1710,7 @@ void main() {
     expect(find.byType(KioskDoneView), findsOneWidget);
     expect(find.textContaining('실행 — '), findsNothing);
     // 이름은 문장 머리('이름 — ')가 아니라 대상 가전 줄이 말한다(쉬운 말 10/17).
-    expect(find.text('가전을 봐 주세요.'), findsOneWidget);
+    expect(find.text('가전을 봐 주세요'), findsOneWidget);
     expect(find.textContaining('전자레인지'), findsWidgets);
     expect(tts.utterances.last, startsWith('전자레인지, '));
 
@@ -1721,7 +1722,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.textContaining(' — '), findsNothing);
     // 놓친 결과에는 다시 보낼 요청이 없다 — '다시 시도' 단추도, 그 당부도 없다(B2).
-    expect(find.text('가전을 봐 주세요.'), findsOneWidget);
+    expect(find.text('가전을 봐 주세요'), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsNothing);
     expect(tts.utterances.last, isNot(startsWith('실행, ')));
     expect(tts.utterances.last, isNot(startsWith(', ')));
@@ -1751,7 +1752,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 900));
     expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).reason, KioskFailureReason.stopped);
-    expect(find.text('정지를 눌러 끝났어요'), findsOneWidget);
+    // 정지 보고를 기다리는 동안은 진행 상태, 오지 않으면 확인하지 못한 정지(평가 8차 10/18).
+    expect(find.text('멈추는 중이에요'), findsOneWidget);
+    for (var i = 0; i < 4; i++) {
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1908,6 +1914,11 @@ void main() {
     );
     expect(done.reason, KioskFailureReason.stopped);
     expect(done.stopLevel, isNull);
+    // 보고를 기다리는 동안은 끝난 결과가 아니다 — 진행 말, 처음 화면 단추 없음, 음성도 같은 말(평가 8차 10/18).
+    expect(done.stopPending, isTrue);
+    expect(find.text('멈추는 중이에요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-home')), findsNothing);
+    expect(tts.utterances.last, '멈추는 중이에요.');
     final spoken = tts.utterances.length;
     // RPi4의 정지 보고가 이제야 서버에 닿았다(같은 job).
     api.statusResult = const KioskStatus(
@@ -1926,7 +1937,10 @@ void main() {
     expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).stopLevel,
         'verified');
     expect(find.text('작은 팔이 멈췄어요'), findsOneWidget);
-    expect(tts.utterances.length, spoken); // 음성은 다시 말하지 않는다
+    expect(find.byKey(const ValueKey('done-home')), findsOneWidget);
+    // 결과는 보고가 온 때 한 번 말한다 — 화면이 처음엔 '멈추는 중이에요'만 말했다(평가 8차 10/18).
+    expect(tts.utterances.length, spoken + 1);
+    expect(tts.utterances.last, startsWith('작은 팔이 멈췄어요.'));
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -1953,7 +1967,10 @@ void main() {
     expect(api.statusCalls - before, lessThanOrEqualTo(3 + 5));
     expect(tester.widget<KioskDoneView>(find.byType(KioskDoneView)).stopLevel,
         isNull);
-    expect(find.text('정지를 눌러 끝났어요'), findsOneWidget);
+    // 기다리기를 그만두면 확인하지 못한 정지로 끝낸다 — 진행 말이 남지 않는다(평가 8차 10/18).
+    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('멈추는 중이에요'), findsNothing);
+    expect(find.byKey(const ValueKey('done-home')), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -2088,7 +2105,7 @@ void main() {
     expect(find.text('보냈지만 됐는지 몰라요'), findsOneWidget);
     expect(find.text('LG 가전 · 받았어요'), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('화면에서 직접 누르기'), findsNothing);
+    expect(find.text('작은 팔로 누를 버튼 고르기'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 

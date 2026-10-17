@@ -160,9 +160,10 @@ void main() {
     );
     expect(find.byIcon(Icons.close), findsNothing);
     expect(find.byIcon(Icons.question_mark), findsOneWidget);
-    expect(find.text('정지를 눌러 끝났어요'), findsOneWidget);
+    // 단계를 모르면 확인하지 못한 정지다 — 결과 화면은 멈췄어요/멈췄는지 몰라요 둘뿐(평가 8차 10/18).
+    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
     expect(find.textContaining('— 정지 요청으로'), findsNothing);
-    expect(find.text('작은 팔과 가전이 멈췄는지 봐 주세요'), findsOneWidget);
+    expect(find.text('가전을 봐 주세요'), findsOneWidget);
     expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
     // 직접 멈춘 결과에는 '다시 시도'가 없다(UI 평가 5차 10/17 — 다시 누를 위험).
     expect(find.text('한 번 더 하기'), findsNothing);
@@ -203,7 +204,7 @@ void main() {
     );
     expect(find.textContaining(' — '), findsNothing);
     // 다시 시도 단추가 없으면 그 단추 이야기(이미 켜졌다면 다시 시도하지 마세요)도 하지 않는다.
-    expect(find.text('가전을 봐 주세요.'), findsOneWidget);
+    expect(find.text('가전을 봐 주세요'), findsOneWidget);
   });
 
   group('평소 화면 위 줄', () {

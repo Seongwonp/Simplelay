@@ -278,9 +278,13 @@ class KioskHoldView extends StatelessWidget {
         (
           Icons.info_outline,
           // 위 줄('…' 버튼을 직접 눌러 주세요)과 같은 이름으로(외부 평가 10/16 4차).
+          // '대신 눌렀어요'는 바로 위 '직접 눌러 주세요'와 엇갈렸다(평가 8차 10/18) — 작은 팔도 눌렀지만 눌린 것은
+          // 확인하지 못했다고 정직하게(가전 전력이 떨어지는 것을 보지 못한 상태다).
           _mock
               ? (cancel == null ? '연습으로 정지 버튼을 눌렀어요' : '연습으로 $cancel 버튼을 눌렀어요')
-              : (cancel == null ? '작은 팔이 정지 버튼을 대신 눌렀어요' : '작은 팔이 $cancel 버튼을 대신 눌렀어요'),
+              : (cancel == null
+                  ? '작은 팔도 정지 버튼을 눌렀지만 눌렸는지 확인이 안 됐어요'
+                  : '작은 팔도 $cancel 버튼을 눌렀지만 눌렸는지 확인이 안 됐어요'),
           KioskColors.muted
         ),
       if (_unconfirmed && holdState == 'parked')
@@ -371,17 +375,29 @@ class KioskHoldView extends StatelessWidget {
         ? null
         : a.buttons.where((b) => b.label == stopButton).firstOrNull;
 
+    // 정지 미확인 — 사람이 직접 누를 칸을 주의색으로(평가 8차 10/18, 비상 버튼 대기와 같은 모양). '작은 팔이 누르는
+    // 자리예요. 화면은 누르지 않아도 돼요'는 바로 옆 '직접 눌러 주세요'와 엇갈렸다. 자리를 못 찾으면 칸 없이 같은 제목.
+    final pressCell = _unconfirmed && cancel != null ? KioskPanelPicture.uniqueButton(a, cancel) : null;
+
     return KioskRunFrame(
       band: _band,
       header: KioskStatusHeader(
           icon: headIcon, title: headline, iconColor: headColor),
       body: body,
-      picture: KioskPanelPicture(
-        appliance: a,
-        current: waitCell,
-        caption: kPanelCaption,
-        captionKey: const ValueKey('panel-caption'),
-      ),
+      picture: _unconfirmed
+          ? KioskPanelPicture(
+              appliance: a,
+              current: pressCell,
+              caution: true,
+              caption: '직접 누를 버튼이에요',
+              captionKey: const ValueKey('panel-caption'),
+            )
+          : KioskPanelPicture(
+              appliance: a,
+              current: waitCell,
+              caption: kPanelCaption,
+              captionKey: const ValueKey('panel-caption'),
+            ),
       // 정지는 어느 대기 상태에서든 닿는다 — 보내기만 하고 판정은 서버.
       stop: KioskStopButton(
         label: stopLabel,

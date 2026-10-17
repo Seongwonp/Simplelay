@@ -284,6 +284,18 @@ class _RoutinePanel extends StatelessWidget {
                                       style: const TextStyle(
                                           fontSize: KioskType.caption, color: KioskColors.muted),
                                     ),
+                                  // 누르면 한다는 표시(평가 8차 10/18) — 폰 루틴 줄과 같은 말. 누르면 바로 하지 않고 확인 카드가 먼저 뜬다.
+                                  if (onRoutine != null)
+                                    const Align(
+                                      alignment: Alignment.centerRight,
+                                      child: Text('지금 하기 ›',
+                                          maxLines: 1,
+                                          softWrap: false,
+                                          style: TextStyle(
+                                              fontSize: KioskType.caption,
+                                              fontWeight: FontWeight.w700,
+                                              color: KioskColors.primary)),
+                                    ),
                                 ],
                               ),
                             ),

@@ -192,6 +192,10 @@ class _KioskScreenState extends State<KioskScreen> {
 
   /// 결과가 먼저 오고 정지 보고가 늦게 올 때의 짧은 후속 조회(평가 2026-10-13 M1). 화면 문구만 고친다.
   Timer? _stopFollowTimer;
+
+  /// 정지로 끝난 job의 확인 보고(stop_level)를 아직 기다리는 중(평가 8차 10/18) — 결과 화면은 그동안 진행 상태
+  /// ('멈추는 중이에요', 처음 화면 단추 없음)로 보이고, 보고가 오거나 기다리기를 그만두면 결과(멈췄어요/몰라요)로 바뀐다.
+  bool _stopPending = false;
   static const _stopFollowInterval = Duration(seconds: 1);
   static const _stopFollowTries = 3;
   String? _doneOperationDetail;
@@ -846,12 +850,38 @@ class _KioskScreenState extends State<KioskScreen> {
     _stopFollowTimer?.cancel();
     var tries = 0;
     var inFlight = false;
+    _stopPending = true;
+    // 기다리기를 끝낸다. 이 job의 결과 화면이 떠 있으면 바뀐 결과(멈췄어요/몰라요)를 그때 한 번 말한다 —
+    // 결과 화면이 뜰 때는 '멈추는 중이에요'만 말했다(평가 8차 10/18).
+    void end(Timer timer, {bool result = true}) {
+      timer.cancel();
+      if (!_stopPending) return;
+      if (!mounted) {
+        _stopPending = false;
+        return;
+      }
+      setState(() => _stopPending = false);
+      if (result && _phase == KioskPhase.done && _activeJobId == jobId) {
+        _tts.speak(finishedMessage(
+            kind: ResultKind.stopped, stopLevel: _doneStopLevel, executionMode: _executionMode));
+      }
+    }
+
+    var ticks = 0;
     _stopFollowTimer = Timer.periodic(_stopFollowInterval, (timer) async {
+      // 조회가 응답 없이 걸려 있어도 기다림(처음 화면 단추 숨김)이 길어지지 않게 시각으로도 끊는다(평가 8차 10/18).
+      if (++ticks > _stopFollowTries + 2) {
+        end(timer);
+        return;
+      }
       if (inFlight) return;
       if (!mounted || _activeJobId != jobId ||
-          (_phase != KioskPhase.executing && _phase != KioskPhase.done) ||
-          tries >= _stopFollowTries) {
-        timer.cancel();
+          (_phase != KioskPhase.executing && _phase != KioskPhase.done)) {
+        end(timer, result: false);
+        return;
+      }
+      if (tries >= _stopFollowTries) {
+        end(timer); // 옛 RPi4(보고 없음)·늦은 보고 — 확인하지 못한 정지로 끝낸다
         return;
       }
       tries++;
@@ -860,16 +890,16 @@ class _KioskScreenState extends State<KioskScreen> {
         final st = await _api.status();
         if (!mounted || _activeJobId != jobId || !timer.isActive) return;
         if (st.lastJobId != jobId) {
-          timer.cancel(); // 그사이 다른 실행이 끝났다 — 이 job의 단계가 아니다
+          end(timer); // 그사이 다른 실행이 끝났다 — 이 job의 단계가 아니다
           return;
         }
         final level = st.stopLevelOf(jobId);
         if (level != null) {
-          timer.cancel();
           setState(() {
             _doneStopLevel = level;
             _doneStopAckMs = st.stopAckMsOf(jobId);
           });
+          end(timer);
         }
       } catch (_) {
         // 통신 실패 — 남은 횟수 안에서 다시 묻는다.
@@ -1134,7 +1164,7 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_health.speakGeneral) {
       _tts.speak(suggestion.isScenario
           ? '${suggestion.purpose} 화면에서 시작을 눌러 주세요.'
-          : '${suggestion.purpose}, 지금 할까요? 화면에서 시작을 눌러 주세요.');
+          : '${actionName(suggestion.purpose)}, 지금 할까요? 화면에서 시작을 눌러 주세요.');
     }
     setState(() {
       _phase = KioskPhase.suggestion;
@@ -1192,6 +1222,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneStopLevel = null;
     _doneStopAckMs = null;
     _stopFollowTimer?.cancel();
+    _stopPending = false;
     _doneOperationDetail = null;
     _doneRunSteps = const [];
     _activeJobId = jobId;
@@ -1254,9 +1285,12 @@ class _KioskScreenState extends State<KioskScreen> {
           : switch (reason) {
               KioskFailureReason.serverLost =>
                 '어떻게 됐는지 몰라요. 가전을 봐 주세요.',
-              // 정지 단계만큼(2026-10-15) — 단계 보고가 늦으면 모르는 단계로 말한다(화면은 뒤에 고쳐진다).
-              KioskFailureReason.stopped =>
-                finishedMessage(kind: ResultKind.stopped, stopLevel: _doneStopLevel),
+              // 정지 단계만큼(2026-10-15). 단계 보고를 아직 기다리면 화면과 같은 진행 말만 하고, 결과는 보고가 오거나
+              // 기다리기를 그만둘 때 말한다(평가 8차 10/18).
+              KioskFailureReason.stopped => _stopPending && _doneStopLevel == null
+                  ? '$kStopPendingHeadline.'
+                  : finishedMessage(
+                      kind: ResultKind.stopped, stopLevel: _doneStopLevel, executionMode: _executionMode),
               KioskFailureReason.safetyStop =>
                 '$lead${finishedMessage(kind: ResultKind.safetyStop, abortReason: _doneAbortReason)}',
               KioskFailureReason.unconfirmed =>
@@ -1723,6 +1757,7 @@ class _KioskScreenState extends State<KioskScreen> {
           runSteps: _doneRunSteps,
           stopLevel: _doneStopLevel,
           stopAckMs: _doneStopAckMs,
+          stopPending: _stopPending && _doneStopLevel == null,
           abortReason: _doneAbortReason,
           // 다시 보낼 요청이 없으면(폰이 시작한 실행·이어받은 실행·놓친 결과, 2026-10-15 B2) '다시 시도'를
           // 그리지 않는다 — 예전에는 보였지만 누르면 처음 화면으로만 갔다.

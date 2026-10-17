@@ -49,7 +49,13 @@ class KioskDoneView extends StatelessWidget {
     this.autoReturnHeld = false,
     this.onHold,
     this.pressed,
+    this.stopPending = false,
   });
+
+  /// 정지로 끝난 실행의 확인 보고(stop_level)를 아직 기다리는 중(평가 8차 10/18) — 결과가 아니라 진행 상태로 보인다:
+  /// '멈추는 중이에요', 처음 화면·보조 단추 없이 기다림 표시. 보고가 오거나 기다리기를 그만두면 화면이 false로 바꾼다.
+  /// 정지(stopped)에만 쓴다.
+  final bool stopPending;
 
   /// 사용자가 화면을 만져 자동 복귀를 멈췄다(UI 평가 10/17) — 남은 초 대신 '자동으로 닫지 않아요'.
   final bool autoReturnHeld;
@@ -161,6 +167,10 @@ class KioskDoneView extends StatelessWidget {
     final r = reason ?? KioskFailureReason.execution;
     // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 정지 단계만큼의 표시(2026-10-14, 10-15).
     final userStop = !success && r == KioskFailureReason.stopped;
+    // 정지 확인 보고를 기다리는 중 — 끝난 결과가 아니다(평가 8차 10/18).
+    final pending = userStop && stopPending;
+    // 연습 정지는 실제로 움직인 것이 없다 — 작은 팔이 멈췄는지 묻지 않는다(평가 8차 10/18).
+    final practiceStop = userStop && !pending && executionMode == 'mock';
     final thinq = route == 'thinq';
     final mock = executionMode == 'mock';
     // 실행 환경을 판정보다 먼저 본다 — 모의 실행의 true는 모의 판정일 뿐(10/6 Copilot 리뷰 66990be),
@@ -192,7 +202,7 @@ class KioskDoneView extends StatelessWidget {
             : success
                 ? (mock ? Colors.white : KioskColors.warning)
                 : userStop
-                    ? (stopVerified ? Colors.white : KioskColors.warning)
+                    ? (stopVerified || pending || practiceStop ? Colors.white : KioskColors.warning)
                     // 눌렸는지 모르는 것(execution)도 실패가 아니다 — 확인 필요(외부 평가 10/16 4차).
                     : r.isUnconfirmed || r == KioskFailureReason.execution
                         ? KioskColors.warning
@@ -262,7 +272,11 @@ class KioskDoneView extends StatelessWidget {
     };
     final headline = success
         ? successHeadline
-        : userStop
+        : pending
+            ? kStopPendingHeadline
+            : practiceStop
+            ? kPracticeStopHeadline
+            : userStop
             ? stopLevelHeadline(stopLevel, ackMs: stopAckMs)
             : mock && !r.isUnconfirmed && motion == null
                 ? kPracticeStoppedHeadline
@@ -270,12 +284,15 @@ class KioskDoneView extends StatelessWidget {
     // 연습 실패도 이유 한 줄(외부 평가 10/16 2차 k04). 실제 가전을 움직이지 않았다는 말은 위 띠가 한다(10/18).
     // 제목이 '연습이 중간에 멈췄어요'면 아래 줄을 두지 않는다 — '연습 누르기를 끝내지 못했어요'가 같은 말을 되풀이했다(평가 5차 10/18).
     final practiceStopped = headline == kPracticeStoppedHeadline;
-    final String failureDetail = practiceStopped
+    final String failureDetail = practiceStopped || practiceStop
         ? ''
+        : pending
+        ? '잠시 기다려 주세요'
         : mock && !userStop
         ? r.practiceWhy
         : motion != null
-            ? '다시 누르지 않았어요.\n가전과 작은 팔을 봐 주세요.'
+            // 큰 글자 줄은 마침표 없이(평가 8차 10/18).
+            ? '다시 누르지 않았어요\n가전과 작은 팔을 봐 주세요'
             : userStop
                 ? stopLevelNextStep(stopLevel)
                 : r.detail(label, canRetry: onRetry != null);
@@ -294,7 +311,14 @@ class KioskDoneView extends StatelessWidget {
     // 다섯 말로 했다. 색은 뜻을 지킨다 — 실패·안전 정지는 빨강, 모름은 앰버, 연습은 청록(연습 칸은 늘 남는다).
     // 같은 말 두 번 금지는 제목을 바꿔 지킨다(띠 '확인해 주세요' / 제목 '눌렸는지 몰라요'). 확인 수준은 높이지 않는다.
     final KioskStatusBand band;
-    if (verifiedSuccess) {
+    if (pending) {
+      // 아직 끝나지 않았다 — 결과 띠('확인해 주세요')가 아니라 진행 띠(평가 8차 10/18).
+      band = KioskStatusBand(
+          tone: KioskBandTone.neutral,
+          icon: Icons.pan_tool_outlined,
+          label: '멈추는 중',
+          practice: mock);
+    } else if (verifiedSuccess) {
       band = const KioskStatusBand(
           tone: KioskBandTone.confirmed, icon: Icons.check, label: kBandDone);
     } else if (mock &&
@@ -345,7 +369,11 @@ class KioskDoneView extends StatelessWidget {
                     ? Icons.touch_app_outlined
                     : success
                         ? Icons.info_outline
-                        : userStop
+                        : pending
+                            ? Icons.hourglass_top
+                            : practiceStop
+                            ? Icons.pan_tool_outlined
+                            : userStop
                             ? (stopVerified ? Icons.check : Icons.question_mark)
                             : r.isUnconfirmed ||
                                     r == KioskFailureReason.execution
@@ -480,7 +508,7 @@ class KioskDoneView extends StatelessWidget {
     // 키웠다(UI 평가 5차 10/17). 다시 하려면 처음 화면에서 고른다.
     final retry = userStop ? null : onRetry;
     final secondaryInFlow =
-        large && !success && (retry != null || onManual != null);
+        !pending && large && !success && (retry != null || onManual != null);
     // 화면을 만지면 자동 복귀를 멈춘다(UI 평가 10/17) — 단추 동작은 그대로 지나간다(translucent).
     return Listener(
       behavior: HitTestBehavior.translucent,
@@ -572,7 +600,20 @@ class KioskDoneView extends StatelessWidget {
             padding:
                 const EdgeInsets.fromLTRB(24, 4, 24, KioskSizes.actionsBottom),
             child: Center(
-              child: success
+              child: pending
+                  // 처음 화면·보조 단추 없이 기다림 표시만(평가 8차 10/18) — 정지 확인 보고는 몇 초 안에 오거나 끊긴다.
+                  ? const SizedBox(
+                      key: ValueKey('done-pending'),
+                      height: KioskSizes.primaryButton,
+                      child: Center(
+                        child: SizedBox(
+                            width: 40,
+                            height: 40,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 4, color: KioskColors.muted)),
+                      ),
+                    )
+                  : success
                   ? _SuccessActions(
                       onDismiss: onDismiss, held: autoReturnHeld, calm: calmHome)
                   : _FailureActions(
@@ -734,13 +775,13 @@ enum KioskFailureReason {
   /// 연습(모의) 실패의 이유 한 줄 — 실제로 누른 것이 아니라 연습 안에서 일어난 일이다.
   String get practiceWhy => switch (this) {
         // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 몰라요'는 연습 띠와 부딪혔다(평가 4차 10/18).
-        KioskFailureReason.execution => '연습 누르기를 끝내지 못했어요.',
-        KioskFailureReason.safetyStop => '연습에서 다시 누르지 않고 멈췄어요.',
-        KioskFailureReason.serverLost => '연습 결과를 받지 못했어요.',
-        KioskFailureReason.stopped => '연습을 멈췄어요.',
-        KioskFailureReason.unconfirmed => '연습 결과를 몰라요.',
-        KioskFailureReason.receiptUnknown => '연습 명령이 닿았는지 몰라요.',
-        KioskFailureReason.notExecuted => '연습을 하지 못했어요.',
+        KioskFailureReason.execution => '연습 누르기를 끝내지 못했어요',
+        KioskFailureReason.safetyStop => '연습에서 다시 누르지 않고 멈췄어요',
+        KioskFailureReason.serverLost => '연습 결과를 받지 못했어요',
+        KioskFailureReason.stopped => kPracticeStopHeadline,
+        KioskFailureReason.unconfirmed => '연습 결과를 몰라요',
+        KioskFailureReason.receiptUnknown => '연습 명령이 닿았는지 몰라요',
+        KioskFailureReason.notExecuted => '연습을 하지 못했어요',
       };
 
   /// 실패가 아니라 '확인 못 함'. 다시 보내면 중복 실행이 될 수 있다.
@@ -762,14 +803,15 @@ enum KioskFailureReason {
   /// 큰 글자 아래 할 일 한 줄(쉬운 말 10/17 — 결과 한 줄 + 할 일 한 줄). 이름은 화면이 따로 한 줄로 보인다.
   /// '다시 시도하지 마세요' 당부는 여기 두지 않는다 — 같은 경고는 화면에 한 번, '다시 시도' 확인 창에만 있다
   /// (열린 문제 R1). [label]·[canRetry]는 옛 호출을 위해 남긴다.
+  /// 큰 글자 줄이라 끝에 마침표를 두지 않는다(평가 8차 10/18 — 한 화면 안에서 이 줄만 마침표였다). 두 문장이면 가운데만.
   String detail(String label, {bool canRetry = true}) => switch (this) {
-        KioskFailureReason.execution => '가전을 봐 주세요.',
-        KioskFailureReason.serverLost => '본체와 연결이 끊겼어요. 가전을 봐 주세요.',
+        KioskFailureReason.execution => '가전을 봐 주세요',
+        KioskFailureReason.serverLost => '본체와 연결이 끊겼어요. 가전을 봐 주세요',
         KioskFailureReason.stopped => stopLevelNextStep(null),
-        KioskFailureReason.safetyStop => '가전을 봐 주세요.',
-        KioskFailureReason.unconfirmed => '가전을 봐 주세요.',
-        KioskFailureReason.receiptUnknown => '다시 보내기 전에 가전을 봐 주세요.',
-        KioskFailureReason.notExecuted => '가전 연결을 봐 주세요.',
+        KioskFailureReason.safetyStop => '가전을 봐 주세요',
+        KioskFailureReason.unconfirmed => '가전을 봐 주세요',
+        KioskFailureReason.receiptUnknown => '다시 보내기 전에 가전을 봐 주세요',
+        KioskFailureReason.notExecuted => '가전 연결을 봐 주세요',
       };
 }
 
@@ -921,7 +963,8 @@ Widget _homeButton(VoidCallback onTap, {bool calm = false}) => ElevatedButton.ic
 /// - 가장 약하게: `한 번 더 하기`(글자 단추, 맨 아래, 평가 7차 10/18) — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문에
 ///   덜 강조하고(열린 문제 R1), 바로 위에 '가전을 보고 안 됐을 때만 다시 하세요' 한 줄.
 ///   누르면 확인 창이 먼저 뜬다. 다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) 그리지 않는다.
-/// - 보조: `화면에서 직접 누르기`(테두리 + 아이콘) — 밑줄 글자는 링크로 읽혔다(평가 5차 10/18). 누르는 자리는 48 이상.
+/// - 보조: `작은 팔로 누를 버튼 고르기`(테두리 + 아이콘) — 밑줄 글자는 링크로 읽혔다(평가 5차 10/18). 누르는 자리는 48 이상.
+///   '화면에서 직접 누르기'는 같은 화면의 '가전 버튼을 직접 눌러 주세요'(손으로)와 헷갈렸다(평가 8차 10/18) — 작은 팔이 누른다고.
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
     super.key,
@@ -955,8 +998,8 @@ class _FailureActions extends StatelessWidget {
               key: const ValueKey('done-manual'),
               onPressed: onManual,
               icon: const Icon(Icons.touch_app_outlined, size: KioskType.body),
-              // '조작하기'는 기계 말(평가 4차 10/18) — 사람이 할 일로.
-              label: const Text('화면에서 직접 누르기',
+              // '조작하기'는 기계 말(평가 4차 10/18). 누르는 것은 작은 팔이다(평가 8차 10/18).
+              label: const Text(kManualEntryLabel,
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
@@ -1005,6 +1048,9 @@ class _FailureActions extends StatelessWidget {
     );
   }
 }
+
+/// 결과 화면에서 버튼판(작은 팔이 누를 버튼을 고르는 화면)으로 가는 단추 이름(평가 8차 10/18).
+const kManualEntryLabel = '작은 팔로 누를 버튼 고르기';
 
 /// '한 번 더 하기' 바로 위 한 줄(평가 7차 10/18).
 const kRetryOnlyIfNot = '가전을 보고 안 됐을 때만 다시 하세요';

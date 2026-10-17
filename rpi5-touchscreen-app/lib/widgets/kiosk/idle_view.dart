@@ -1034,7 +1034,8 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
         ? '쉬는 중이에요. ${v._dndRemaining(dnd)} 남음'
         : v.quietUntil != null
             ? '조용한 시간이에요. ${spokenHhmm(v.quietUntil!)}까지'
-            : '새 제안을 잠시 쉬어요';
+            // 잠시 쉬기 창과 같은 말(평가 8차 10/18) — 새로 켜는 잠시 쉬기는 새 제안과 자동으로 하는 일을 함께 쉰다.
+            : '새 제안과 자동으로 하는 일을 잠시 쉬어요';
     return Stack(children: [
       body,
       Positioned.fill(

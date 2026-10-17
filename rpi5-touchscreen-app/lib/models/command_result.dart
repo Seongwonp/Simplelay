@@ -144,24 +144,26 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
 ///
 /// 주어는 **작은 팔(누름 장치)**이다(2026-10-15 문구 개선 원칙 0-2) — 세 단계 모두 가전이 멈췄다는 뜻이 아니다.
-/// 확인하지 못한 단계는 제목부터 그렇게 말한다(원칙 0-1). 단계를 모르면(옛 서버·로컬 모의) 서버가 말한
-/// 사실(정지 요청으로 실행이 끝남)까지만 말한다. [ackMs]는 사용자 화면에 싣지 않는다(2026-10-14 문구 정리).
+/// 확인하지 못한 단계는 제목부터 그렇게 말한다(원칙 0-1). 단계를 모르면(옛 서버·로컬 모의)도 확인하지 못한 것이다.
+/// [ackMs]는 사용자 화면에 싣지 않는다(2026-10-14 문구 정리).
 ///
-/// 평가 4차(10/18): '멈추라고 보냈어요'는 기계가 한 일을 말했다 — 사람이 볼 상태로('멈추는 중이에요'). 확인 수준은
-/// 그대로다: 멈췄다고 단정하는 말은 엔코더로 본 verified뿐이고, sent·mcu_ack는 '멈추는 중'까지만 말한다.
-String stopLevelHeadline(String? level, {int? ackMs}) => switch (level) {
-      'verified' => '작은 팔이 멈췄어요',
-      'mcu_ack' => '작은 팔이 멈추는 중이에요',
-      'sent' => '멈추는 중이에요',
-      _ => '정지를 눌러 끝났어요',
-    };
+/// 평가 4차(10/18): '멈추라고 보냈어요'는 기계가 한 일을 말했다 — 사람이 볼 상태로.
+/// 평가 8차(10/18): 이 제목은 **끝난 결과 화면**의 말이다 — '멈추는 중이에요'(진행 중 말)는 끝난 화면과 엇갈렸다.
+/// 결과는 둘뿐이다: 엔코더로 본 verified만 '작은 팔이 멈췄어요', 그 밖(sent·mcu_ack·모름)은 '작은 팔이 멈췄는지 몰라요'.
+/// 정지 확인 보고를 아직 기다리는 동안의 말은 [kStopPendingHeadline](결과 화면의 진행 상태)이다.
+String stopLevelHeadline(String? level, {int? ackMs}) =>
+    stopLevelConfirmed(level) ? '작은 팔이 멈췄어요' : '작은 팔이 멈췄는지 몰라요';
+
+/// 정지 확인 보고를 아직 기다리는 동안(결과 화면이 처음 화면 단추 없이 잠깐 보이는 진행 상태, 평가 8차 10/18).
+const kStopPendingHeadline = '멈추는 중이에요';
+
+/// 연습(모의) 실행을 정지로 끝낸 결과 — 실제로 움직인 것이 없어 작은 팔이 멈췄는지 묻지 않는다(평가 8차 10/18).
+const kPracticeStopHeadline = '연습을 멈췄어요';
 
 /// 정지 제목 아래 할 일 한 가지(원칙 0-3). 작은 팔이 멈춘 것을 확인했어도 가전은 이미 켜졌을 수 있다.
-String stopLevelNextStep(String? level) => switch (level) {
-      'verified' => '가전이 켜져 있으면 가전의 정지 버튼을 직접 눌러 주세요',
-      'mcu_ack' || 'sent' => '가전을 봐 주세요',
-      _ => '작은 팔과 가전이 멈췄는지 봐 주세요',
-    };
+String stopLevelNextStep(String? level) => stopLevelConfirmed(level)
+    ? '가전이 켜져 있으면 가전의 정지 버튼을 직접 눌러 주세요'
+    : '가전을 봐 주세요';
 
 /// 작은 팔이 멈춘 것을 **확인한** 단계는 엔코더 확인(verified)뿐이다. 모션 보드가 받음(mcu_ack)은 확인이 아니다
 /// (2026-10-15 — 예전에는 mcu_ack에도 확인 표시를 달았다).
@@ -215,6 +217,8 @@ String finishedMessage({
       return unconfirmedSentence(receipt: receipt);
     case ResultKind.stopped:
       // 정지 단계만큼만 말한다(2026-10-15) — 작은 팔이 멈췄는지와 가전이 멈췄는지는 다른 사실이다.
+      // 연습은 실제로 움직인 것이 없다 — 결과 화면과 같은 말(평가 8차 10/18).
+      if (executionMode == 'mock') return '$kPracticeStopHeadline.';
       return '${stopLevelHeadline(stopLevel).replaceAll(' — ', '. ')}. ${stopLevelNextStep(stopLevel)}.';
     case ResultKind.safetyStop:
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
