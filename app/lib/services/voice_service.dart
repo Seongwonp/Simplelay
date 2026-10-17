@@ -14,7 +14,7 @@ String voiceErrorGuide(String errorId) => switch (errorId) {
       'error_audio_error' ||
       'error_client' =>
         '마이크를 사용할 수 없어요. 다른 앱이 사용 중인지 확인해 주세요.',
-      'error_insufficient_permissions' => '마이크 권한이 필요해요. 설정에서 허용해 주세요.',
+      'error_insufficient_permissions' => '마이크 권한이 필요해요. 휴대폰 설정에서 켜 주세요.',
       'error_busy' => '음성 인식이 아직 준비 중이에요. 잠시 후 다시 시도해 주세요.',
       _ => '음성 인식이 중단됐어요. 다시 시도해 주세요.',
     };

@@ -174,7 +174,7 @@ void main() {
 
   // 홈에서 200% 확대가 무너졌던 원인(Row에 버튼이 끼어 텍스트가 압축되는 구조)이
   // 다른 화면에도 있는지 본다 -- 한 곳만 고치고 넘어가면 같은 결함이 남는다.
-  testWidgets('제안 확인', (t) async {
+  testWidgets('할까요?', (t) async {
     await _shoot(t, 'suggestion', const SuggestionScreen(sequenceId: 'a'),
         suggestions: suggestions);
   });
@@ -235,7 +235,7 @@ void main() {
     phase: ExecutionPhase.running,
     label: '즉석밥 데워줘',
     sequenceId: 's2',
-    message: '실행 중',
+    message: '하는 중이에요',
     currentButton: '시작',
     totalSteps: 2,
     completedSteps: 1,
@@ -258,7 +258,7 @@ void main() {
     currentButton: '시작',
     currentAttempt: 2,
     applianceId: 'microwave',
-    message: '응답이 없어 다시 시도하고 있어요.',
+    message: '답이 없어 다시 해 보는 중이에요.',
   );
   const completed = ExecutionStatus(
     phase: ExecutionPhase.completed,
@@ -267,7 +267,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 2,
     applianceId: 'microwave',
-    message: '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.',
+    message: '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.',
   );
   const failed = ExecutionStatus(
     phase: ExecutionPhase.failed,
@@ -276,7 +276,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '끝까지 실행하지 못했어요. 가전 상태를 확인해 주세요.',
+    message: '끝까지 하지 못했어요. 가전을 봐 주세요.',
   );
   const unknownState = ExecutionStatus(
     phase: ExecutionPhase.unknown,
@@ -285,7 +285,7 @@ void main() {
     steps: ['BT-08', 'BT-05'],
     completedSteps: 1,
     applianceId: 'microwave',
-    message: '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.',
+    message: '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.',
   );
   for (final (name, st) in [
     ('status_retrying', retrying),
@@ -444,7 +444,7 @@ void main() {
   });
 
   testWidgets('홈 — 데모 표본', (t) async {
-    // 표본에는 '데모'라고 적혀 있어야 한다. 심사 자리에서 우리가 실제로
+    // 표본에는 '연습'라고 적혀 있어야 한다. 심사 자리에서 우리가 실제로
     // 만든 것과 보여주기 위해 세운 것이 구분되지 않으면 안 된다.
     await _shoot(t, 'home_demo', const HomeScreen(),
         installed: kDemoAppliances, light: true);

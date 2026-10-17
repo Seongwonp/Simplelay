@@ -48,7 +48,7 @@ class Suggestion {
     final isQuestion = label.trimRight().endsWith('?');
     if (!isQuestion) return label;
     if (scenarioName != null && scenarioName.isNotEmpty) return scenarioName;
-    return '제안한 실행';
+    return '물어본 일';
   }
 
   /// 사용자가 루틴 '실행'을 눌러 만든 카드인가(제안이 아니다). 서버에 따로 필드가 없어

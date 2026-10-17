@@ -237,18 +237,18 @@ void main() {
     await tester.pumpWidget(_build(_Server()));
     await _settle(tester);
 
-    expect(find.text('시나리오 · 저녁 휴식'), findsOneWidget);
-    expect(find.textContaining('근거: 시연'), findsOneWidget);
+    expect(find.text('저녁 휴식'), findsOneWidget);
+    expect(find.textContaining('이유: 시연'), findsOneWidget);
     expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
     expect(find.text('선풍기 전원 → 약풍'), findsOneWidget);
-    expect(find.text('ThinQ'), findsOneWidget);
+    expect(find.text('LG 가전'), findsOneWidget);
     // 물리 경로 칩은 두지 않는다(2026-10-14 UX). 섞인 카드라 목록 제목은 '할 일'.
     expect(find.text('버튼을 대신 눌러요'), findsNothing);
     expect(find.text('할 일'), findsOneWidget);
     // ThinQ 가전은 폰 가전 목록에 없어도 '대상을 찾지 못함'이 아니다.
-    expect(find.text('대상 가전 정보를 확인해 주세요.'), findsNothing);
+    expect(find.text('어느 가전인지 몰라요.'), findsNothing);
     final run = tester.widget<FilledButton>(
-        find.ancestor(of: find.text('지금 실행'), matching: find.byWidgetPredicate((w) => w is FilledButton)));
+        find.ancestor(of: find.text('지금 하기'), matching: find.byWidgetPredicate((w) => w is FilledButton)));
     expect(run.onPressed, isNotNull);
   });
 
@@ -259,14 +259,14 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.text('지금 하기'));
     await _settle(tester);
 
     expect(server.approveCalls, 1);
-    expect(find.text('제안 내용이 바뀌어 다시 확인이 필요해요'), findsOneWidget);
+    expect(find.text('내용이 바뀌었어요. 다시 보고 허락해 주세요'), findsOneWidget);
     expect(find.text('상태 화면'), findsNothing);
     // 서버가 내린 카드는 목록에서도 사라졌다(재조회).
-    expect(find.text('제안을 찾을 수 없어요.'), findsOneWidget);
+    expect(find.text('이 알림을 찾을 수 없어요.'), findsOneWidget);
   });
 
   testWidgets('다른 작업 실행 중(409, 승인 문장 아님)은 종전 안내', (tester) async {
@@ -276,11 +276,11 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.text('지금 하기'));
     await _settle(tester);
 
-    expect(find.textContaining('다른 작업이 실행 중이에요'), findsOneWidget);
-    expect(find.text('제안 내용이 바뀌어 다시 확인이 필요해요'), findsNothing);
+    expect(find.textContaining('다른 일을 하는 중이에요'), findsOneWidget);
+    expect(find.text('내용이 바뀌었어요. 다시 보고 허락해 주세요'), findsNothing);
   });
 
   testWidgets('세탁 완료 → 제습기(wash_then_dry) 카드도 그대로 보여 준다',
@@ -291,13 +291,13 @@ void main() {
     await tester.pumpWidget(_build(_Server.washThenDry()));
     await _settle(tester);
 
-    expect(find.text('시나리오 · 세탁 후 건조'), findsOneWidget);
+    expect(find.text('세탁 후 건조'), findsOneWidget);
     expect(find.textContaining('세탁이 끝났어요'), findsOneWidget);
     expect(find.text('제습기 전원 켜기'), findsOneWidget);
-    expect(find.text('ThinQ'), findsOneWidget);
-    expect(find.text('대상 가전 정보를 확인해 주세요.'), findsNothing);
+    expect(find.text('LG 가전'), findsOneWidget);
+    expect(find.text('어느 가전인지 몰라요.'), findsNothing);
     final run = tester.widget<FilledButton>(find.ancestor(
-        of: find.text('지금 실행'),
+        of: find.text('지금 하기'),
         matching: find.byWidgetPredicate((w) => w is FilledButton)));
     expect(run.onPressed, isNotNull);
   });
@@ -312,7 +312,7 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.text('지금 하기'));
     await _settle(tester);
 
     expect(server.approveCalls, 1);
@@ -330,7 +330,7 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    await tester.tap(find.text('지금 실행'));
+    await tester.tap(find.text('지금 하기'));
     await _settle(tester);
 
     expect(find.text('라벨: 저녁 휴식'), findsOneWidget);
@@ -345,7 +345,7 @@ void main() {
 
     expect(find.textContaining('가전이 오프라인이에요'), findsWidgets);
     final run = tester.widget<FilledButton>(
-        find.ancestor(of: find.text('지금 실행'), matching: find.byWidgetPredicate((w) => w is FilledButton)));
+        find.ancestor(of: find.text('지금 하기'), matching: find.byWidgetPredicate((w) => w is FilledButton)));
     expect(run.onPressed, isNull);
   });
 
@@ -374,16 +374,16 @@ void main() {
     expect(tester.getBottomLeft(row).dy, lessThanOrEqualTo(barTop));
     expect(row.hitTestable(), findsOneWidget);
     // 실행·다음에는 고정 영역에 남아 언제든 닿는다.
-    expect(find.descendant(of: bar, matching: find.text('지금 실행')).hitTestable(), findsOneWidget);
+    expect(find.descendant(of: bar, matching: find.text('지금 하기')).hitTestable(), findsOneWidget);
     expect(find.descendant(of: bar, matching: find.text('이번엔 안 할게요')).hitTestable(), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('지금 실행')), findsWidgets);
+    expect(find.bySemanticsLabel(RegExp('지금 하기')), findsWidgets);
     // 보조 행동은 고정 영역에도 본문에도 없고 '더 보기'(위 앱바)에서 닿는다(2026-10-14 UI 정리).
-    for (final text in ['이 제안 30분 쉬기', '이 제안 다시 받지 않기']) {
+    for (final text in ['30분 동안 묻지 않기', '이 일은 다시 묻지 않기']) {
       expect(find.text(text), findsNothing, reason: text);
     }
     await tester.tap(find.byKey(const Key('suggestion-more')));
     await _settle(tester);
-    expect(find.text('이 제안 다시 받지 않기').hitTestable(), findsOneWidget);
+    expect(find.text('이 일은 다시 묻지 않기').hitTestable(), findsOneWidget);
     expect(tester.takeException(), isNull);
     handle.dispose();
   });
@@ -397,11 +397,11 @@ void main() {
     expect(
         find.descendant(of: bar, matching: find.byWidgetPredicate((w) => w is ButtonStyleButton)),
         findsNWidgets(2));
-    expect(find.text('이 제안 다시 받지 않기'), findsNothing);
+    expect(find.text('이 일은 다시 묻지 않기'), findsNothing);
     await tester.tap(find.byKey(const Key('suggestion-more')));
     await _settle(tester);
-    expect(find.text('이 제안 다시 받지 않기'), findsOneWidget);
-    expect(find.text('이 제안 30분 쉬기'), findsOneWidget);
+    expect(find.text('이 일은 다시 묻지 않기'), findsOneWidget);
+    expect(find.text('30분 동안 묻지 않기'), findsOneWidget);
   });
 
   testWidgets('ThinQ 경로·모의 표시·할 일은 더 보기 없이 보인다', (tester) async {
@@ -411,7 +411,7 @@ void main() {
     expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
     expect(find.text('선풍기 전원 → 약풍'), findsOneWidget);
     expect(find.text('할 일'), findsOneWidget);
-    expect(find.text('시연 데이터로 만든 제안'), findsOneWidget);
-    expect(find.textContaining('ThinQ'), findsWidgets);
+    expect(find.text('연습용으로 만든 알림이에요'), findsOneWidget);
+    expect(find.textContaining('LG 가전'), findsWidgets);
   });
 }

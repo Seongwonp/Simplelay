@@ -77,7 +77,7 @@ void main() {
       await tester.pumpAndSettle();
       expect((await SharedPreferences.getInstance()).getString('rpi_api_key'),
           'new-test-key');
-      expect(find.text('허브와 연결했어요.'), findsOneWidget);
+      expect(find.text('본체와 연결했어요.'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
   }

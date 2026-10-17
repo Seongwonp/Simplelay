@@ -1,6 +1,6 @@
-// 루틴에 'ThinQ 가전 조작' 단계 넣기 (2026-10-15).
+// 루틴에 'LG 가전 바꾸기' 단계 넣기 (2026-10-15).
 //
-// - '단계 추가'에 ThinQ 가전이 한 대라도 있을 때만 'ThinQ 가전 조작'이 보인다.
+// - '할 일 추가'에 ThinQ 가전이 한 대라도 있을 때만 'LG 가전 바꾸기'이 보인다.
 // - 가전 → 무엇을·어떤 값으로를 고르면 서버 `thinq_command` 모양의 단계가 생긴다
 //   (`appliance_id` · `action` · `args`). 고르기만 하고 보내지 않는다 — 저장도 루틴 저장
 //   (POST /routines)뿐이고 실행 경로(/execute·/thinq/command·/approve)는 부르지 않는다.
@@ -97,15 +97,15 @@ Future<void> _open(WidgetTester tester, _Hub hub, List<ApplianceMap> installed) 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets("ThinQ 가전이 있으면 '풍량 강풍'을 골라 thinq_command 단계로 저장한다",
+  testWidgets("ThinQ 가전이 있으면 '바람 세기 강풍'을 골라 thinq_command 단계로 저장한다",
       (tester) async {
     final hub = _Hub();
     await _open(tester, hub, [kTestAppliance, _purifier]);
 
     await tester.tap(find.byKey(const Key('routine-add-step')));
     await tester.pumpAndSettle();
-    expect(find.text('ThinQ 가전 조작'), findsOneWidget);
-    expect(find.text('공기청정기 전원·풍량·운전 모드를 바꿔요'), findsOneWidget);
+    expect(find.text('LG 가전 바꾸기'), findsOneWidget);
+    expect(find.text('공기청정기 전원, 바람 세기, 모드를 바꿔요'), findsOneWidget);
     await tester.tap(find.byKey(const Key('routine-add-thinq')));
     await tester.pumpAndSettle();
 
@@ -113,8 +113,8 @@ void main() {
     expect(find.text('공기청정기에서 무엇을 바꿀까요?'), findsOneWidget);
     for (final phrase in [
       '전원 켜기', '전원 끄기',
-      '풍량 약풍으로 바꾸기', '풍량 중풍으로 바꾸기', '풍량 강풍으로 바꾸기', '풍량 자동으로 바꾸기',
-      '운전 모드 청정으로 바꾸기', '운전 모드 수면으로 바꾸기', '운전 모드 자동으로 바꾸기',
+      '바람 세기 약풍으로 바꾸기', '바람 세기 중풍으로 바꾸기', '바람 세기 강풍으로 바꾸기', '바람 세기 자동으로 바꾸기',
+      '모드 청정으로 바꾸기', '모드 수면으로 바꾸기', '모드 자동으로 바꾸기',
     ]) {
       expect(find.text(phrase), findsOneWidget, reason: phrase);
     }
@@ -123,7 +123,7 @@ void main() {
 
     // 편집기 문장: [공기청정기] 풍량 강풍으로 바꾸기 — 동작 이름은 보이지 않는다.
     expect(find.text('공기청정기'), findsOneWidget);
-    expect(find.text('풍량 강풍으로 바꾸기'), findsOneWidget);
+    expect(find.text('바람 세기 강풍으로 바꾸기'), findsOneWidget);
     expect(find.textContaining('set_wind_strength'), findsNothing);
     expect(find.textContaining('ThinQ 명령'), findsNothing);
     // 고르기만 했다 — 아무것도 보내지 않았다.
@@ -182,12 +182,12 @@ void main() {
     ]);
   });
 
-  testWidgets("ThinQ 가전이 없으면 'ThinQ 가전 조작'을 내걸지 않는다", (tester) async {
+  testWidgets("ThinQ 가전이 없으면 'LG 가전 바꾸기'을 내걸지 않는다", (tester) async {
     await _open(tester, _Hub(), [kTestAppliance]);
     await tester.tap(find.byKey(const Key('routine-add-step')));
     await tester.pumpAndSettle();
     expect(find.text('버튼 누르기'), findsOneWidget);
-    expect(find.text('ThinQ 가전 조작'), findsNothing);
+    expect(find.text('LG 가전 바꾸기'), findsNothing);
     expect(find.byKey(const Key('routine-add-thinq')), findsNothing);
   });
 
@@ -206,7 +206,7 @@ void main() {
     await tester.pumpWidget(buildScreen(const RoutineEditorScreen(initial: routine),
         overrides: installedOverrides([_purifier])));
     await tester.pumpAndSettle();
-    expect(find.text('운전 모드 수면으로 바꾸기'), findsOneWidget);
+    expect(find.text('모드 수면으로 바꾸기'), findsOneWidget);
     expect(find.text('전원 끄기'), findsOneWidget);
     expect(find.textContaining('set_'), findsNothing);
   });
@@ -215,28 +215,28 @@ void main() {
     expect(thinqStepPhrase('set_power', {'power': 'POWER_ON'}), '전원 켜기');
     expect(thinqStepPhrase('set_power', {'power': 'POWER_OFF'}), '전원 끄기');
     expect(thinqStepPhrase('set_wind_strength', {'wind_strength': 'LOW'}),
-        '풍량 약풍으로 바꾸기');
+        '바람 세기 약풍으로 바꾸기');
     expect(thinqStepPhrase('set_wind_strength', {'wind_strength': 'MID'}),
-        '풍량 중풍으로 바꾸기');
+        '바람 세기 중풍으로 바꾸기');
     expect(thinqStepPhrase('set_wind_strength', {'wind_strength': 'AUTO'}),
-        '풍량 자동으로 바꾸기');
+        '바람 세기 자동으로 바꾸기');
     expect(thinqStepPhrase('set_job_mode', {'job_mode': 'CLEAN'}),
-        '운전 모드 청정으로 바꾸기');
+        '모드 청정으로 바꾸기');
     expect(thinqStepPhrase('set_job_mode', {'job_mode': 'AUTO'}),
-        '운전 모드 자동으로 바꾸기');
+        '모드 자동으로 바꾸기');
     // 고르는 표에는 없지만 상태 표에 있는 값은 그 말로.
     // 받침 없는 말은 '로'.
     expect(thinqStepPhrase('set_wind_strength', {'wind_strength': 'POWER'}),
-        '풍량 파워로 바꾸기');
+        '바람 세기 파워로 바꾸기');
     expect(thinqStepPhrase('set_job_mode', {'job_mode': 'SILENT'}),
-        '운전 모드 조용으로 바꾸기');
+        '모드 조용으로 바꾸기');
     // 아무 표에도 없는 값은 지어내지 않고 그대로.
     expect(thinqStepPhrase('set_job_mode', {'job_mode': 'TURBO'}),
-        '운전 모드 TURBO(으)로 바꾸기');
+        '모드 TURBO(으)로 바꾸기');
     // 모르는 동작은 동작 이름을 내지 않는다.
     final unknown = thinqStepPhrase('set_operation', {'operation': 'START'});
     expect(unknown, isNot(contains('set_operation')));
-    expect(unknown, contains('ThinQ'));
+    expect(unknown, 'LG 가전 조작');
   });
 
   test('공기청정기 조작 표는 지금 값 없이도 고를 수 있고, 상태 카드와 같은 표다', () {

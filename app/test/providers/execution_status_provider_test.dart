@@ -92,7 +92,7 @@ void main() {
       expect(status.completedSteps, 3);
       // BLE 경로는 실행 환경(real/mock)을 말해주지 않는다 -- 모르는 것을
       // 아는 척하지 않고 HTTP 경로와 같은 규칙(finishedMessage)으로 말한다.
-      expect(status.message, contains('가전이 실제로 움직이는지는 직접 봐 주세요'));
+      expect(status.message, contains('가전이 움직이는지 봐 주세요'));
       expect(status.message, isNot(contains('마쳤어요')));
       expect(status.message, isNot(contains('켜졌는지')));
     });
@@ -129,7 +129,7 @@ void main() {
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
 
       // 정지·완료 뒤 다른 작업의 센서 메시지가 늦게 도착하는 상황.
-      // 이걸로 '실행 중'이 되살아나면 사용자는 끝난 일을 진행 중으로 본다.
+      // 이걸로 '하는 중이에요'이 되살아나면 사용자는 끝난 일을 진행 중으로 본다.
       c.read(bleServiceProvider).injectMessage({
         'type': 'sensor',
         'status': 'running',
@@ -153,7 +153,7 @@ void main() {
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
       // BLE 결과는 접수·전송 여부를 말하지 않는다 — 시작 못 함으로 단정하지 않는다(평가 M4).
-      expect(c.read(executionStatusProvider).message, '끝까지 실행하지 못했어요. 가전 상태를 확인해 주세요.');
+      expect(c.read(executionStatusProvider).message, '끝까지 하지 못했어요. 가전을 봐 주세요.');
     });
 
     test('result for different sequenceId is ignored', () async {
@@ -178,7 +178,7 @@ void main() {
       await c.read(executionStatusProvider.notifier).emergencyStop();
 
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
-      expect(c.read(executionStatusProvider).message, contains('정지'));
+      expect(c.read(executionStatusProvider).message, contains('멈추라고'));
     });
 
     // 10/8 리뷰 LOW: 모의 BLE는 아무것도 보내지 않는다 — 음성 '멈춰'가 이것을
@@ -193,7 +193,7 @@ void main() {
 
       expect(sent, isFalse);
       expect(c.read(executionStatusProvider).phase, ExecutionPhase.failed);
-      expect(c.read(executionStatusProvider).message, '정지를 요청했어요.');
+      expect(c.read(executionStatusProvider).message, '멈추라고 했어요.');
     });
   });
 }

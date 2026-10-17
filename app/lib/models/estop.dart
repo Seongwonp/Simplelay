@@ -70,25 +70,25 @@ class EstopAckResult {
 
   /// 사람에게 보일 한 줄(해요체). 실패는 무엇을 하면 되는지까지 말한다.
   String get message => switch (outcome) {
-        EstopAckOutcome.cleared => '비상정지를 해제했어요. 가전 전원은 따로 켜야 해요.',
+        EstopAckOutcome.cleared => '비상정지를 풀었어요. 가전 전원은 따로 켜야 해요.',
         EstopAckOutcome.buttonPressed =>
-          '비상정지 버튼이 아직 눌려 있어요. 버튼을 돌려 푼 뒤 다시 해제해 주세요.',
+          '비상정지 버튼이 아직 눌려 있어요. 버튼을 돌려 푼 뒤 다시 해 주세요.',
         EstopAckOutcome.outletUnreachable =>
-          '콘센트 모듈이 답하지 않아 해제하지 못했어요. 연결을 확인하고 다시 해 주세요.',
+          '콘센트가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.retriggered =>
-          '비상정지가 다시 걸렸어요. 주변을 확인하고 다시 해제해 주세요.',
+          '비상정지가 다시 걸렸어요. 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.stillLatched =>
-          '아직 풀리지 않았어요. 비상정지 버튼과 주변을 확인하고 다시 해제해 주세요.',
+          '아직 풀리지 않았어요. 비상정지 버튼과 주변을 보고 다시 해 주세요.',
         EstopAckOutcome.notLatched =>
-          '허브가 비상정지 걸림을 확인하지 못해 해제하지 않았어요. 상태를 다시 확인해 주세요.',
+          '본체가 비상정지를 찾지 못해 풀지 않았어요. 새로 보고 다시 해 주세요.',
         EstopAckOutcome.noAnswer =>
-          '구동 장치가 답하지 않아 해제하지 못했어요. 연결을 확인하고 다시 해 주세요.',
+          '작은 팔이 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.failed =>
-          '해제 요청을 보내지 못했어요. 연결을 확인하고 다시 해 주세요.',
+          '풀어 달라고 보내지 못했어요. 연결을 보고 다시 해 주세요.',
       };
 }
 
 /// 해제 확인 대화 문장 — 폰·키오스크가 같은 말을 쓴다.
-const kEstopConfirmQuestion = '가전 주변을 확인했나요? 비상정지 버튼이 풀려 있어야 해제돼요.';
+const kEstopConfirmQuestion = '가전 주변을 봤나요? 비상정지 버튼이 풀려 있어야 풀려요.';
 const kEstopTitle = '비상정지가 걸려 있어요';
-const kEstopAckLabel = '확인하고 해제';
+const kEstopAckLabel = '봤어요, 풀기';

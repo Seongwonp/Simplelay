@@ -110,7 +110,7 @@ class _FakeRecognizer implements SpeechRecognizer {
     _onError?.call(errorId);
   }
 
-  /// 다른 화면(홈 '말로 조작하기')이 엔진을 가져갔다.
+  /// 다른 화면(홈 '말로 하기')이 엔진을 가져갔다.
   void interruptByOther() {
     final cb = _onInterrupted;
     _onInterrupted = null;
@@ -272,7 +272,7 @@ void main() {
 
   // 외부 평가 2026-10-13 M3: 첫 실행 중 OS 마이크 권한 창이 실행·정지 화면을 가렸다. 실행 중에는 권한 창을
   // 띄우지 않는다 — 권한이 이미 있을 때만 듣고, 없으면 조용히 건너뛴다(화면 정지 버튼은 그대로).
-  // 권한 요청은 기존 '말로 조작하기' 화면의 마이크 버튼이 한다.
+  // 권한 요청은 기존 '말로 하기' 화면의 마이크 버튼이 한다.
   group('마이크 권한(평가 M3)', () {
     testWidgets('아직 허용하지 않았으면 실행 중에 권한을 묻지 않고(엔진 초기화 없음) 듣지 않는다',
         (tester) async {
@@ -312,7 +312,7 @@ void main() {
       r.exec.seed(ExecutionPhase.completed, sequenceId: 'j1');
       await _settle(tester);
 
-      r.recognizer.permitted = true; // '말로 조작하기' 마이크 버튼에서 허용했다
+      r.recognizer.permitted = true; // '말로 하기' 마이크 버튼에서 허용했다
       r.exec.seed(ExecutionPhase.running, sequenceId: 'j2');
       await _settle(tester);
       expect(r.recognizer.initializeCalls, 1);

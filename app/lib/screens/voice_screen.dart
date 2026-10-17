@@ -166,7 +166,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     } catch (_) {
       if (!mounted) return;
       ref.read(voiceListeningProvider.notifier).state = false;
-      _fail('음성 인식을 시작하지 못했어요. 다시 시도해 주세요.');
+      _fail('듣기를 시작하지 못했어요. 다시 해 주세요.');
     }
   }
 
@@ -201,7 +201,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         // BLE 릴레이(ESP32)는 의도 해석을 못 하므로 RPi5 HTTP 직통만 지원한다
         // (버튼 직접 실행 — manual_control_screen과 같은 제약).
         if (rpiApi == null) {
-          _notice('음성으로 실행하려면 허브에 연결해 주세요. 설정에서 허브 주소를 확인해 주세요.');
+          _notice('말로 하려면 본체와 연결해야 해요. 설정에서 본체 연결을 봐 주세요.');
           return;
         }
         final accepted = await rpiApi.executeForAppliance(
@@ -221,25 +221,25 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       } else if (appliance.isThinq) {
         // ThinQ 가전은 서버를 거쳐야 한다 -- BLE 릴레이(ESP32)는 누를 버튼이
         // 없는 가전을 조작할 수 없다.
-        _notice('ThinQ 가전은 기기 연결이 필요해요. 설정에서 연결을 확인하세요.');
+        _notice('LG 가전은 본체와 연결돼야 쓸 수 있어요. 설정에서 연결을 봐 주세요.');
       } else {
         // BLE 폴백
         await ref
             .read(bleServiceProvider)
             .sendCommand(trimmed, source: 'voice');
-        if (mounted) _notice('명령을 보냈어요.');
+        if (mounted) _notice('보냈어요.');
       }
     } on RpiApiException catch (error) {
       if (mounted) {
         _notice(switch (error.statusCode) {
-          422 => '이해하지 못한 명령이에요. 다시 말해 주세요.',
-          409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해 주세요.',
-          503 => '음성 해석 기능이 서버에 설정되어 있지 않아요.',
+          422 => '무슨 말인지 몰랐어요. 다시 말해 주세요.',
+          409 => '다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.',
+          503 => '본체에서 말 알아듣기가 꺼져 있어요. 버튼으로 해 주세요.',
           // 412: 가전이 아직 조작할 준비가 안 됐다. 서버가 무엇이
           // 남았는지 말해주므로 일반 문구로 덮지 않는다 -- 덮으면
           // 사용자가 원인을 가전 고장 쪽에서 찾게 된다.
           412 => _readinessMessage(error),
-          _ => '명령을 전달하지 못했어요. 연결을 확인해 주세요.',
+          _ => '본체에 보내지 못했어요. 연결을 봐 주세요.',
         });
       }
     } on TimeoutException {
@@ -247,7 +247,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       // 단정하고 BLE로 다시 보내면 같은 명령이 두 번 실행된다 -- 채널 간
       // 중복을 걸러낼 요청 ID가 아직 없으므로 자동 재전송하지 않는다.
       if (mounted) {
-        _notice('요청이 접수됐는지 확인 중이에요. 실행 상태를 확인해 주세요.');
+        _notice('본체가 받았는지 몰라요. 다시 보내기 전에 가전을 봐 주세요.');
       }
     } catch (_) {
       // 연결 자체가 성립하지 않은 실패(서버에 닿지도 못함). 서버가 살아서
@@ -269,13 +269,13 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           await ref
               .read(bleServiceProvider)
               .sendCommand(trimmed, source: 'voice');
-          if (mounted) _notice('서버 응답이 없어 BLE로 전송했어요.');
+          if (mounted) _notice('본체가 답하지 않아 블루투스로 보냈어요.');
           return;
         } catch (_) {
           // BLE마저 실패 — 아래 공통 안내로
         }
       }
-      if (mounted) _notice('명령을 전달하지 못했어요. 연결을 확인해 주세요.');
+      if (mounted) _notice('본체에 보내지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -303,7 +303,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       // 허브 없이 BLE만 — 정지 버튼의 대체 경로와 같은 정지 프레임.
       final sent = await ref.read(bleServiceProvider).emergencyStop();
       if (mounted) {
-        _notice(sent ? '정지를 요청했어요.' : '정지 요청을 보내지 못했어요. 다시 시도해 주세요.');
+        _notice(sent ? '멈추라고 보냈어요.' : '멈추라고 보내지 못했어요. 다시 말해 주세요.');
       }
       return;
     }
@@ -313,20 +313,20 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     } on TimeoutException {
       // 응답 시간 초과는 '보내지 못함'이 아니라 '전달 여부 모름'이다. 정지는 다시 보내도 안전하다.
       if (mounted) {
-        _notice('정지 요청의 응답을 받지 못했어요. 가전을 직접 확인하고, 멈추지 않았으면 다시 말해 주세요.');
+        _notice('멈추라고 보냈는데 답이 없어요. 멈추지 않았으면 다시 말해 주세요.');
       }
     } catch (_) {
-      if (mounted) _notice('정지 요청을 보내지 못했어요. 다시 시도해 주세요.');
+      if (mounted) _notice('멈추라고 보내지 못했어요. 다시 말해 주세요.');
     }
   }
 
   /// 정지 결과 한 줄 — 서버가 알린 정지 단계까지만 말한다(정지 버튼과 같은 문장). 단계가 없으면 실행 중이었는지로 가른다.
   static String _stopNotice(StopOutcome? outcome) {
-    if (outcome == null) return '정지 요청을 보냈어요.';
+    if (outcome == null) return '멈추라고 보냈어요.';
     return stopLevelSentence(outcome.stopLevel, ackMs: outcome.ackMs) ??
         (outcome.wasRunning
-            ? '정지 요청을 보냈어요.'
-            : '정지를 요청했어요 — 실행 중인 작업은 없었어요.');
+            ? '멈추라고 보냈어요.'
+            : '멈추라고 보냈어요. 하던 일은 없었어요.');
   }
 
   /// 접수 응답 처리. 서버가 발화를 정지어로 받아 정지했으면(`status: stopped`, G7 두 번째 방어) 정지 문구만 보이고
@@ -357,8 +357,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
   static String _readinessMessage(RpiApiException error) {
     final detail = error.message.trim();
     return detail.isEmpty
-        ? '이 가전은 아직 조작할 준비가 되지 않았어요.'
-        : '아직 조작할 준비가 되지 않았어요 — $detail';
+        ? '이 가전은 아직 준비가 안 됐어요.'
+        : '아직 준비가 안 됐어요. $detail';
   }
 
   void _notice(String message) => ScaffoldMessenger.of(context)
@@ -395,7 +395,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         appBar: AppBar(title: const Text('음성 명령')),
         body: NoApplianceNotice(
           title: '사용할 가전을 먼저 추가해 주세요',
-          body: '조작할 가전이 있어야 말로 시킬 수 있어요.\n가전을 추가하면 바로 여기서 쓸 수 있어요.',
+          body: '가전을 추가하면 여기서 말로 시킬 수 있어요.',
           onAdd: () => context.go('/'),
         ),
       );
@@ -510,8 +510,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                     // 조용히 끝나 버리면, 사용자는 마이크가 고장 났다고 여긴다.
                     Text(
                       listening
-                          ? '${VoiceService.silenceTimeout.inSeconds}초 동안 조용하면 듣기를 멈추고 확인을 물어요.'
-                          : '말이 끝나면 내용을 확인한 뒤 실행해요.',
+                          ? '${VoiceService.silenceTimeout.inSeconds}초 동안 조용하면 듣기를 멈추고 물어봐요.'
+                          : '말이 끝나면 한 번 물어본 뒤 해요.',
                       style: TextStyle(color: context.appMuted, fontSize: 14),
                       textAlign: TextAlign.center,
                     ),
@@ -547,7 +547,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                   onPressed:
                       _sending ? null : () => context.go('/manual-control'),
                   icon: const Icon(Icons.grid_view_rounded, size: 20),
-                  label: const Text('버튼으로 조작'),
+                  label: const Text('버튼으로 하기'),
                 ),
               ),
             ] else if (text.trim().isNotEmpty) ...[
@@ -663,8 +663,8 @@ class _VoiceUnavailableNotice extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '마이크 권한이 꺼져 있거나 음성 인식 기능이 없어요.\n'
-                '${appliance.displayName}은 버튼으로 그대로 조작할 수 있어요.',
+                '마이크 권한이 꺼져 있거나 말 알아듣기 기능이 없어요.\n'
+                '${appliance.displayName}은 버튼으로 그대로 쓸 수 있어요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15, color: context.appMuted),
               ),
@@ -672,13 +672,13 @@ class _VoiceUnavailableNotice extends StatelessWidget {
               FilledButton.icon(
                 onPressed: onManual,
                 icon: const Icon(Icons.touch_app, size: 20),
-                label: const Text('버튼으로 조작'),
+                label: const Text('버튼으로 하기'),
               ),
               const SizedBox(height: 8),
               OutlinedButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh, size: 20),
-                label: const Text('권한을 고쳤어요 — 다시 확인'),
+                label: const Text('권한을 켰어요. 다시 보기'),
               ),
             ],
           ),

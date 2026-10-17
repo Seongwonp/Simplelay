@@ -412,7 +412,7 @@ final thinqStatusProvider = FutureProvider.autoDispose
     .family<RpiThinqStatus, String>((ref, applianceId) async {
   final service = ref.watch(rpiApiServiceProvider);
   if (service == null) {
-    return const RpiThinqStatus.failed('허브에 연결되면 상태를 읽을 수 있어요.');
+    return const RpiThinqStatus.failed('본체와 연결되면 상태를 볼 수 있어요.');
   }
   return service.thinqStatus(applianceId, now: ref.read(nowProvider));
 });
@@ -423,7 +423,7 @@ final thinqDiscoveryProvider =
     FutureProvider.autoDispose<RpiThinqDiscovery>((ref) async {
   final service = ref.watch(rpiApiServiceProvider);
   if (service == null) {
-    return const RpiThinqDiscovery.failed('허브 주소를 먼저 설정해 주세요.');
+    return const RpiThinqDiscovery.failed('본체 주소를 먼저 넣어 주세요.');
   }
   return service.thinqDiscovery();
 });

@@ -63,38 +63,38 @@ void main() {
 
     test('"돌아가는 중"이라고 말하지 않는다 — real은 버튼 조작 중', () {
       final s = _tile(execution: run(ExecutionPhase.running, mode: 'real'));
-      expect(s.text, '버튼 조작 중');
+      expect(s.text, '버튼 누르는 중');
       expect(s.text.contains('돌아가'), isFalse);
       expect(s.progress, isTrue);
     });
 
     test('mock·데모 실행은 연습 버튼 조작 중', () {
       expect(_tile(execution: run(ExecutionPhase.retrying, mode: 'mock')).text,
-          '연습 버튼 조작 중');
+          '연습으로 누르는 중');
       expect(_tile(execution: run(ExecutionPhase.running, demo: true)).text,
-          '연습 버튼 조작 중');
+          '연습으로 누르는 중');
     });
 
     test('모드를 모르면 real·mock을 추정하지 않는다', () {
-      expect(_tile(execution: run(ExecutionPhase.running)).text, '실행을 확인하고 있어요');
+      expect(_tile(execution: run(ExecutionPhase.running)).text, '하는 중이에요');
     });
 
     test('waiting은 누르는 중이 아니다', () {
       expect(_tile(execution: run(ExecutionPhase.waiting, mode: 'real')).text,
-          '실행을 기다리고 있어요');
+          '차례를 기다려요');
     });
 
     test('연결이 끊겨 모르면 준비됨으로 덮지 않는다', () {
       final ready = _server(const {'can_execute': true, 'readiness': 'operable'});
       expect(
           _tile(source: ready, execution: run(ExecutionPhase.unknown)).text,
-          '동작을 확인할 수 없어요');
+          '지금 상태를 몰라요');
     });
 
     test('다른 가전의 실행·끝난 실행은 이 타일의 상태가 아니다', () {
       const other = ExecutionStatus(
           phase: ExecutionPhase.running, applianceId: 'washer', executionMode: 'real');
-      expect(_tile(execution: other).text, '준비 상태를 확인하지 못했어요');
+      expect(_tile(execution: other).text, '준비됐는지 몰라요');
       const done = ExecutionStatus(
         phase: ExecutionPhase.completed,
         applianceId: 'mw',
@@ -104,7 +104,7 @@ void main() {
       );
       // 과거의 CT 판정(operationConfirmed)을 지금의 운전으로 옮기지 않는다.
       final s = _tile(execution: done);
-      expect(s.text, '준비 상태를 확인하지 못했어요');
+      expect(s.text, '준비됐는지 몰라요');
       expect(s.tone, isNot(TileTone.active));
     });
   });
@@ -113,9 +113,9 @@ void main() {
     test('서버 판정이 없으면 canExecute 기본 true로 긍정하지 않는다', () {
       expect(_plain.canExecute, isTrue, reason: '모델 기본값이 true다');
       final s = _tile(source: _plain);
-      expect(s.text, '준비 상태를 확인하지 못했어요');
+      expect(s.text, '준비됐는지 몰라요');
       expect(s.tone, TileTone.unknown);
-      expect(_tile(source: null).text, '준비 상태를 확인하지 못했어요');
+      expect(_tile(source: null).text, '준비됐는지 몰라요');
     });
 
     test('operable + canExecute는 상태 줄을 비운다(평소 상태는 말하지 않는다, 2026-10-14)', () {
@@ -143,17 +143,17 @@ void main() {
       // 허브 장애·준비 문제가 '켜짐'보다 앞선다.
       expect(_tile(appliance: thinq, source: thinq, thinqOn: true,
               hub: RpiConnectionState.unreachable).text,
-          '연결을 확인해 주세요');
+          '본체 연결을 봐 주세요');
     });
 
     test('상충하는 응답은 긍정으로 정규화하지 않는다', () {
       for (final r in ['disconnected', 'needs_setup']) {
         expect(_tile(source: _server({'can_execute': true, 'readiness': r})).text,
-            '실행 가능 여부를 확인해 주세요');
+            '지금 할 수 있는지 봐 주세요');
       }
       expect(
           _tile(source: _server(const {'can_execute': false, 'readiness': 'operable'})).text,
-          '실행 가능 여부를 확인해 주세요');
+          '지금 할 수 있는지 봐 주세요');
     });
 
     test('needs_setup은 "준비가 필요해요" + 서버의 실제 이유(비상정지 포함)', () {
@@ -176,7 +176,7 @@ void main() {
 
     test('모르는 state는 미확인', () {
       expect(_tile(source: _server(const {'can_execute': true, 'readiness': 'weird'})).text,
-          '준비 상태를 확인하지 못했어요');
+          '준비됐는지 몰라요');
     });
 
     test('위치를 맞추지 않은 사용자 가전은 "설정이 필요해요"', () {
@@ -195,14 +195,14 @@ void main() {
     test('허브 장애가 서버 판정보다 앞선다', () {
       final ready = _server(const {'can_execute': true, 'readiness': 'operable'});
       expect(_tile(source: ready, hub: RpiConnectionState.unreachable).text,
-          '연결을 확인해 주세요');
+          '본체 연결을 봐 주세요');
       expect(_tile(source: ready, hub: RpiConnectionState.keyRequired).text,
-          '허브 설정이 필요해요');
+          '본체 연결 설정이 필요해요');
       expect(_tile(source: ready, hub: RpiConnectionState.checking).text, '확인하는 중이에요');
       expect(_tile(source: ready, catalog: ServerCatalogStatus.loading).text,
           '확인하는 중이에요');
       expect(_tile(source: ready, catalog: ServerCatalogStatus.failed).text,
-          '연결을 확인해 주세요');
+          '본체 연결을 봐 주세요');
     });
   });
 
@@ -213,18 +213,18 @@ void main() {
 
     test('purpose 없음 → 등록 이름 + 버튼 라벨', () {
       final e = _entry({'buttons': _buttons(['문열림'])});
-      expect(historyTitle(e, applianceName: '인터폰'), '인터폰 · 문열림 버튼 조작');
+      expect(historyTitle(e, applianceName: '인터폰'), '인터폰 문열림 버튼 누르기');
     });
 
     test('빈 문자열 purpose도 없음으로 본다', () {
       final e = _entry({'purpose': '  ', 'buttons': _buttons(['문열림'])});
-      expect(historyTitle(e, applianceName: '인터폰'), '인터폰 · 문열림 버튼 조작');
+      expect(historyTitle(e, applianceName: '인터폰'), '인터폰 문열림 버튼 누르기');
     });
 
     test('버튼이 없으면 이름 + 버튼 조작(ThinQ는 명령)', () {
-      expect(historyTitle(_entry(const {}), applianceName: '인터폰'), '인터폰 버튼 조작');
+      expect(historyTitle(_entry(const {}), applianceName: '인터폰'), '인터폰 버튼 누르기');
       expect(historyTitle(_entry(const {'route': 'thinq'}), applianceName: '세탁기'),
-          '세탁기 명령');
+          '세탁기 조작');
     });
 
     test('모두 없으면 "실행 기록" — 목적을 지어내지 않는다', () {
@@ -237,24 +237,24 @@ void main() {
     test('제목은 한 일만, 출처는 따로(자동 실행·루틴·그 밖은 직접 실행)', () {
       final auto = _entry({'purpose': '자동 실행 · 공기청정기 전원 켜기'});
       expect(historyTitle(auto), '공기청정기 전원 켜기');
-      expect(historySource(auto), '자동 실행');
+      expect(historySource(auto), '자동');
       final routine = _entry({'purpose': "'아침 공기청정기 끄기' 루틴을 실행할까요?"});
       expect(historyTitle(routine), '아침 공기청정기 끄기');
       expect(historySource(routine), '루틴');
       final direct = _entry({'purpose': '공기청정기 켜줘'});
       expect(historyTitle(direct), '공기청정기 켜줘');
-      // 말로 한 명령·제안 승인·화면 조작은 모두 사람이 시작했다 — 어느 쪽인지는 지어내지 않고 '직접 실행'.
-      expect(historySource(direct), '직접 실행');
-      expect(historySource(_entry(const {})), '직접 실행');
+      // 말로 한 명령·제안 승인·화면 조작은 모두 사람이 시작했다 — 어느 쪽인지는 지어내지 않고 '직접'.
+      expect(historySource(direct), '직접');
+      expect(historySource(_entry(const {})), '직접');
       // 시각 규칙 자동 실행은 서버가 루틴 이름으로 적는다 — 제목은 루틴 탭과 같은 이름, 출처는 자동 실행(UI 평가 5차 10/17).
       final timed = _entry({'purpose': "자동 실행 · '아침 공기청정기 끄기' 루틴"});
       expect(historyTitle(timed), '아침 공기청정기 끄기');
-      expect(historySource(timed), '자동 실행');
+      expect(historySource(timed), '자동');
     });
 
     test('이름을 모르면 버튼 라벨만', () {
       expect(historyTitle(_entry({'buttons': _buttons(['즉석밥', '시작'])})),
-          '즉석밥, 시작 버튼 조작');
+          '즉석밥, 시작 버튼 누르기');
     });
   });
 
@@ -266,14 +266,14 @@ void main() {
         'route': 'physical',
         'confirmation': 'reported',
       }));
-      expect(r.sentence, '연습 · 실제로 누르지 않았어요');
+      expect(r.sentence, '연습이라 실제로 누르지 않았어요');
       expect(r.mockNote, isNull, reason: '같은 말을 두 줄로 되풀이하지 않는다');
       expect(r.next, isNull);
       expect(historyResult(_entry({'outcome': 'success', 'execution_mode': 'real'})).mockNote,
           isNull);
       // 실제·연습을 모르면 실제 성공처럼 보이지 않게 한 줄 남긴다(F4, 2026-10-14 — 연습 표시와는 다른 말).
       expect(historyResult(_entry({'outcome': 'success', 'execution_mode': 'unknown'})).mockNote,
-          '실제 기기 동작 여부를 확인하지 못했어요');
+          '실제 가전이 움직였는지 몰라요');
     });
 
     test('모의 실패는 실제 가전 확인을 지어내지 않는다', () {
@@ -284,7 +284,7 @@ void main() {
       }), applianceName: '인터폰');
       // 다음 행동 줄을 두지 않는다 — 모의는 '연습' 한 줄로만 말한다(2026-10-14 UX).
       expect(r.next, isNull);
-      expect(r.mockNote, '연습 · 실제로 누르지 않았어요');
+      expect(r.mockNote, '연습이라 실제로 누르지 않았어요');
     });
 
     test('모의 ThinQ — "(모의)" 이름·보냈지만 확인 못 함을 겹치지 않고 한 줄', () {
@@ -295,7 +295,7 @@ void main() {
         'route': 'thinq',
         'receipt': 'unknown',
       }), applianceName: '공기청정기(모의)');
-      expect(r.sentence, '연습 · 공기청정기에 보내지 않았어요');
+      expect(r.sentence, '연습이라 공기청정기에 보내지 않았어요');
       expect(r.mockNote, isNull);
       expect(r.next, isNull);
     });
@@ -313,7 +313,7 @@ void main() {
         'route': 'physical',
         'confirmation': 'operation_confirmed',
       }));
-      expect(r.sentence, '가전이 켜진 것을 확인했어요');
+      expect(r.sentence, '가전이 전기를 쓰기 시작했어요');
       expect(r.next, isNull);
     });
 
@@ -326,7 +326,7 @@ void main() {
           }),
           applianceName: '세탁기');
       expect(r.sentence, '버튼을 눌렀어요');
-      expect(r.next, '세탁기 동작을 확인해 주세요');
+      expect(r.next, '세탁기 동작을 봐 주세요');
     });
 
     test('응답만 받은 성공은 대상을 직접 확인하라고 한다(받침 따라 을/를)', () {
@@ -335,9 +335,9 @@ void main() {
         'execution_mode': 'real',
         'confirmation': 'reported',
       });
-      expect(historyResult(e, applianceName: '인터폰').next, '인터폰을 직접 확인해 주세요');
-      expect(historyResult(e, applianceName: '세탁기').next, '세탁기를 직접 확인해 주세요');
-      expect(historyResult(e).next, '가전을 직접 확인해 주세요');
+      expect(historyResult(e, applianceName: '인터폰').next, '인터폰을 봐 주세요');
+      expect(historyResult(e, applianceName: '세탁기').next, '세탁기를 봐 주세요');
+      expect(historyResult(e).next, '가전을 봐 주세요');
     });
 
     test('재시도 소진은 눌렸는지 확인 못 함', () {
@@ -347,8 +347,8 @@ void main() {
         'execution_mode': 'real',
         'termination': 'retries_exhausted',
       }));
-      expect(r.sentence, '다시 눌러도 확인하지 못했어요');
-      expect(r.next, '가전을 직접 확인해 주세요');
+      expect(r.sentence, '다시 눌러도 눌렸는지 몰라요');
+      expect(r.next, '가전을 봐 주세요');
     });
 
     test('ThinQ 미전송은 눌림 실패로 말하지 않는다', () {
@@ -359,8 +359,8 @@ void main() {
         'receipt': 'not_dispatched',
         'execution_mode': 'real',
       }));
-      expect(r.sentence, '명령을 보내지 않았어요');
-      expect(r.next, '연결 상태를 확인해 주세요');
+      expect(r.sentence, '가전에 보내지 않았어요');
+      expect(r.next, '본체 연결을 봐 주세요');
       expect(r.sentence.contains('눌'), isFalse);
     });
 
@@ -374,13 +374,13 @@ void main() {
             'execution_mode': 'real',
           }),
           applianceName: '세탁기');
-      expect(r.next, '다시 보내기 전에 세탁기를 직접 확인해 주세요');
+      expect(r.next, '다시 보내기 전에 세탁기를 봐 주세요');
     });
 
     test('원인 불명 실패는 원인을 추정하지 않는다', () {
       final r = historyResult(_entry(const {'status': 'failed'}));
-      expect(r.sentence, '끝까지 실행하지 못했어요');
-      expect(r.next, '가전 상태를 확인해 주세요');
+      expect(r.sentence, '끝까지 하지 못했어요');
+      expect(r.next, '가전 상태를 봐 주세요');
     });
 
     test('정지 문구는 기존 그대로', () {
@@ -388,9 +388,9 @@ void main() {
           historyResult(_entry(const {'status': 'safety_stopped', 'termination': 'stopped_by_user'}))
               .sentence,
           '직접 멈췄어요');
-      expect(historyResult(_entry(const {'status': 'safety_stopped'})).sentence, '안전 정지');
+      expect(historyResult(_entry(const {'status': 'safety_stopped'})).sentence, '스스로 멈췄어요');
       expect(historyResult(_entry(const {'outcome': 'stopped', 'status': 'stopped'})).sentence,
-          '정지됨');
+          '멈췄어요');
     });
   });
 }

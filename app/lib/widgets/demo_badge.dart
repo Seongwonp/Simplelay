@@ -18,7 +18,7 @@ class DemoBadge extends StatelessWidget {
           border: Border.all(color: context.appBorderSubtle, width: 0.5),
         ),
         child: Text(
-          '데모',
+          '연습',
           style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,

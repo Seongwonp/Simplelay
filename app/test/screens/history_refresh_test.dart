@@ -121,7 +121,7 @@ void main() {
   testWidgets('실행이 끝나면 기록을 다시 받는다(당겨서 새로 고침 없이)', (tester) async {
     final hub = _Hub();
     final c = await _pump(tester, hub.api, '/history');
-    expect(find.textContaining('아직 실행 기록이 없어요'), findsOneWidget);
+    expect(find.textContaining('아직 기록이 없어요'), findsOneWidget);
 
     _seed(c, ExecutionPhase.running);
     await _settle(tester);
@@ -130,14 +130,14 @@ void main() {
     await _settle(tester);
 
     expect(find.text('아침 데우기'), findsOneWidget);
-    expect(find.textContaining('아직 실행 기록이 없어요'), findsNothing);
+    expect(find.textContaining('아직 기록이 없어요'), findsNothing);
     await _end(tester, c);
   });
 
   testWidgets('기록 탭에 다시 들어가면 기록을 다시 받는다', (tester) async {
     final hub = _Hub();
     final c = await _pump(tester, hub.api, '/history');
-    expect(find.textContaining('아직 실행 기록이 없어요'), findsOneWidget);
+    expect(find.textContaining('아직 기록이 없어요'), findsOneWidget);
 
     await tester.tap(find.text('홈'));
     await _settle(tester);
@@ -151,7 +151,7 @@ void main() {
 
   testWidgets('허브 연결이 없어 조회하지 못하면 "기록 없음"으로 말하지 않는다', (tester) async {
     final c = await _pump(tester, null, '/history');
-    expect(find.textContaining('아직 실행 기록이 없어요'), findsNothing);
+    expect(find.textContaining('아직 기록이 없어요'), findsNothing);
     expect(find.textContaining('기록을 불러오지 못했어요'), findsOneWidget);
     await _end(tester, c);
   });

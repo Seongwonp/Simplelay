@@ -45,7 +45,7 @@ void main() {
           maxGrid: 6,
         ),
         throwsA(isA<PanelScanFillException>()
-            .having((e) => e.message, 'message', contains('최대 6 × 6'))),
+            .having((e) => e.message, 'message', contains('6줄 6칸까지'))),
       );
     }
   });

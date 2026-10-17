@@ -25,7 +25,7 @@ void main() {
       );
       expect(
         voiceErrorGuide('error_insufficient_permissions'),
-        '마이크 권한이 필요해요. 설정에서 허용해 주세요.',
+        '마이크 권한이 필요해요. 휴대폰 설정에서 켜 주세요.',
       );
     });
 

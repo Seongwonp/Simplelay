@@ -328,7 +328,7 @@ final kDemoAppliances = <ApplianceMap>[
 
 ApplianceMap _demo(ApplianceMap template) => ApplianceMap(
       id: 'demo_${template.id}',
-      name: '데모 ${template.name}',
+      name: '연습 ${template.name}',
       category: template.category,
       rows: template.rows,
       cols: template.cols,

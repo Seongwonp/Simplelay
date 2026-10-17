@@ -98,8 +98,8 @@ void main() {
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
       const rows = [
-        '허브',
-        'LG ThinQ 연결',
+        '본체',
+        'LG 가전 연결',
         '보호자 알림',
         '글자 크기',
       ];
@@ -144,7 +144,7 @@ void main() {
       ));
       await tester.pump();
       expect(find.widgetWithText(ListTile, '공기청정기'), findsOneWidget);
-      expect(findPlainText('ThinQ 가전 · 빼기는 LG ThinQ 연결에서'), findsOneWidget);
+      expect(findPlainText('LG 가전이에요. 빼기는 LG 가전 연결에서 해요'), findsOneWidget);
       expect(findPlainText('기본 가전'), findsOneWidget);
       expect(find.descendant(of: find.widgetWithText(ListTile, '공기청정기'), matching: find.byIcon(Icons.chevron_right)),
           findsOneWidget);
@@ -176,7 +176,7 @@ void main() {
       // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17 10:13), 화면 읽기는 원문.
       final sub = tester.widget<Text>(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)));
       expect(sub.data, contains(kWordJoiner));
-      expect(sub.semanticsLabel, '설정이 필요해요 · 눌러서 버튼 자리 맞추기');
+      expect(sub.semanticsLabel, '설정이 필요해요. 눌러서 버튼 자리를 맞춰 주세요');
       // 지우기와 화살표 사이를 띄운다(잘못 누름 방지).
       final trash = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)));
       final chevron = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)));
@@ -206,7 +206,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHub());
       await tester.pump();
-      expect(findPlainText('주변 BLE 기기'), findsOneWidget);
+      expect(findPlainText('주변 블루투스 기기'), findsOneWidget);
     });
 
     testWidgets('허브 화면에 검색된 기기 없음 문구가 보인다 (빈 목록)', (tester) async {
@@ -220,7 +220,7 @@ void main() {
   });
 
   group('SettingsScreen — 스캔 로딩', () {
-    // 이 로딩 표시는 '가전마다 버튼을 눌러 줄 장치'(노드 목록) 구획의 것이었다. 그 구획을 개발자 탭으로
+    // 이 로딩 표시는 '가전마다 버튼을 눌러 줄 작은 팔'(노드 목록) 구획의 것이었다. 그 구획을 개발자 탭으로
     // 옮겨(2026-10-14 UX) 설정 첫 화면에는 로딩 표시가 남지 않는다.
     testWidgets('누름 장치 구획을 옮겨 설정 첫 화면엔 로딩 표시가 없다', (tester) async {
       _useTallViewport(tester);
@@ -272,7 +272,7 @@ void main() {
       await tester.pump();
 
       expect(findPlainText('7월 30일까지 쉬어요', contains: true), findsOneWidget);
-      expect(findPlainText('실행 실패·위험 신호음은 그대로', contains: true), findsOneWidget);
+      expect(findPlainText('실패나 위험 신호음은 그대로', contains: true), findsOneWidget);
       expect(findPlainText('지금 켜기'), findsOneWidget);
     });
 

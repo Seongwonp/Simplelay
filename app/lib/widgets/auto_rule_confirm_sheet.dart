@@ -15,7 +15,7 @@ Future<bool> showAutoRuleConfirmSheet(
   String? caveat = kCookCaveat,
   // 줄을 직접 나눈다 — 한글은 글자 단위로 끊겨 '자동으/로'처럼 갈렸다(외부 평가 10/16 p06).
   String title = '이번에 실행하고\n다음부터 자동으로 할까요?',
-  String confirmLabel = '허용하고 이번에도 실행',
+  String confirmLabel = '허락하고 이번에도 하기',
 }) async {
   final allowed = await showModalBottomSheet<bool>(
     context: context,
@@ -30,9 +30,9 @@ Future<bool> showAutoRuleConfirmSheet(
           children: [
             Text(title, style: AppText.heading),
             const SizedBox(height: 16),
-            _Line(label: '조건', text: conditionText),
+            _Line(label: '언제', text: conditionText),
             const SizedBox(height: 8),
-            _Line(label: '동작', text: actionText),
+            _Line(label: '무엇을', text: actionText),
             const SizedBox(height: 12),
             // 근거의 한계는 허용하는 이 자리에서 말한다 — 문장은 서버가 조건 종류에 맞게 준다(2026-10-16: 가열 종료는
             // 전력 하강 판정, 시각 규칙은 허브 시계). 옛 서버는 칸이 없어 가열 종료 문장을 쓴다.
@@ -45,7 +45,7 @@ Future<bool> showAutoRuleConfirmSheet(
               const SizedBox(height: 8),
             ],
             Text(
-              '버튼 누름은 매번 승인받아요. 조건·동작이 바뀌면 다시 묻고, 루틴 탭에서 언제든 끌 수 있어요.',
+              '버튼 누르기는 매번 허락을 받아요. 루틴 탭에서 언제든 끌 수 있어요.',
               style: TextStyle(fontSize: 15, color: sheetContext.appMuted),
             ),
             const SizedBox(height: 16),

@@ -32,11 +32,11 @@ void main() {
     ], onContainerReady: (c) => (container = c).read(rpiConnectionProvider)));
     await tester.pumpAndSettle();
     expect(container.read(rpiConnectionProvider), RpiConnectionState.keyRequired);
-    expect(find.text('허브 키가 필요해요'), findsWidgets);
+    expect(find.text('연결 비밀번호가 필요해요'), findsWidgets);
     expect(find.text('API 키 (선택)'), findsNothing);
     final field = find.byType(TextField).at(1);
     expect(tester.widget<TextField>(field).obscureText, isTrue);
-    await tester.tap(find.byTooltip('키 보기'));
+    await tester.tap(find.byTooltip('비밀번호 보기'));
     await tester.pump();
     expect(tester.widget<TextField>(field).obscureText, isFalse);
   });

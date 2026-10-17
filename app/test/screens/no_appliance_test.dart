@@ -83,7 +83,7 @@ void main() {
       await tester.pumpWidget(_screen(const HomeScreen()));
       await tester.pump();
 
-      expect(find.text('버튼으로 조작'), findsNothing);
+      expect(find.text('버튼으로 하기'), findsNothing);
     });
   });
 
@@ -120,7 +120,7 @@ void main() {
       await tester.pumpWidget(_screen(const ManualControlScreen()));
       await tester.pump();
 
-      expect(find.text('조작할 가전이 아직 없어요'), findsOneWidget);
+      expect(find.text('아직 가전이 없어요'), findsOneWidget);
       expect(find.text('버튼을 탭하면 실제 가전 버튼이 눌립니다.'), findsNothing);
     });
 
@@ -129,7 +129,7 @@ void main() {
       await tester.pumpWidget(_screen(const ManualControlScreen()));
       await tester.pump();
 
-      expect(find.text('버튼 조작'), findsOneWidget);
+      expect(find.text('버튼 누르기'), findsOneWidget);
       expect(find.textContaining('전자레인지'), findsNothing);
     });
   });

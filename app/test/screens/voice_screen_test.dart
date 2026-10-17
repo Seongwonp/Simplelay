@@ -187,14 +187,14 @@ void main() {
     // 스낵바가 사라져도 화면에 이유가 남는다
     expect(find.byType(SnackBar), findsOneWidget);
     expect(find.text('다시 말하기'), findsOneWidget);
-    expect(find.text('버튼으로 조작'), findsOneWidget);
+    expect(find.text('버튼으로 하기'), findsOneWidget);
 
     // 다시 말하기를 누르면 실패 안내가 걷히고 듣기가 다시 시작된다
     await tester.tap(find.text('다시 말하기'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 200));
     expect(container.read(voiceListeningProvider), true);
-    expect(find.text('버튼으로 조작'), findsNothing);
+    expect(find.text('버튼으로 하기'), findsNothing);
   });
 
   testWidgets('침묵으로 듣기가 끝나도 자동 전송하지 않고 확인을 묻는다', (tester) async {
@@ -352,7 +352,7 @@ void main() {
       await tester.tap(find.byIcon(Icons.mic_rounded));
       await tester.pump();
 
-      expect(find.text('5초 동안 조용하면 듣기를 멈추고 확인을 물어요.'),
+      expect(find.text('5초 동안 조용하면 듣기를 멈추고 물어봐요.'),
           findsOneWidget);
     });
 
@@ -375,7 +375,7 @@ void main() {
       // 마이크를 그려 두고 눌러도 안 되게 하지 않는다.
       expect(find.byIcon(Icons.mic_rounded), findsNothing);
 
-      await tester.tap(find.text('버튼으로 조작'));
+      await tester.tap(find.text('버튼으로 하기'));
       await tester.pumpAndSettle();
       expect(find.text('manual-screen-stub'), findsOneWidget);
     });
@@ -391,7 +391,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(voice.initializeCalls, 1);
 
-      await tester.tap(find.text('권한을 고쳤어요 — 다시 확인'));
+      await tester.tap(find.text('권한을 켰어요. 다시 보기'));
       await tester.pumpAndSettle();
 
       // 다시 초기화를 시도했고, 여전히 안 되면 같은 안내가 남는다.
@@ -498,7 +498,7 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('음성으로 실행하려면 허브에 연결해 주세요. 설정에서 허브 주소를 확인해 주세요.'),
+        find.text('말로 하려면 본체와 연결해야 해요. 설정에서 본체 연결을 봐 주세요.'),
         findsOneWidget,
       );
       // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
@@ -575,7 +575,7 @@ void main() {
 
       // raw 예외 문자열 대신 사용자 언어로 안내한다
       expect(
-        find.text('음성 해석 기능이 서버에 설정되어 있지 않아요.'),
+        find.text('본체에서 말 알아듣기가 꺼져 있어요. 버튼으로 해 주세요.'),
         findsOneWidget,
       );
       // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
@@ -656,8 +656,8 @@ void main() {
     });
   });
 
-  // 안전 보고 G7(2026-10-16): 홈 '말로 조작하기'의 "멈춰"·"그만"은 정지다. 서버는 /execute의 정지어를 /stop의 뜻으로
-  // 받고 `status: "stopped"`·`job_id: ""`를 돌려준다 — 폰이 그 빈 job을 따라가면 '실행 중'으로 머물다
+  // 안전 보고 G7(2026-10-16): 홈 '말로 하기'의 "멈춰"·"그만"은 정지다. 서버는 /execute의 정지어를 /stop의 뜻으로
+  // 받고 `status: "stopped"`·`job_id: ""`를 돌려준다 — 폰이 그 빈 job을 따라가면 '하는 중이에요'으로 머물다
   // "연결이 끊겨 동작을 확인할 수 없어요"를 띄웠다. 이제 폰은 정지어면 /execute 대신 정지 버튼과 같은 정지를 보내고,
   // 서버가 `stopped`로 답하면(두 번째 방어) 정지 문구만 보이고 따라가지 않는다.
   group('G7 — 정지어', () {
@@ -710,8 +710,8 @@ void main() {
 
       expect(paths.where((p) => p == '/execute'), isEmpty);
       expect(paths.where((p) => p == '/stop').length, 1);
-      expect(find.text('정지를 요청했어요 — 실행 중인 작업은 없었어요.'), findsOneWidget);
-      // 빈 job을 따라가 '실행 중'·'연결이 끊겨…'로 가지 않는다.
+      expect(find.text('멈추라고 보냈어요. 하던 일은 없었어요.'), findsOneWidget);
+      // 빈 job을 따라가 '하는 중이에요'·'연결이 끊겨…'로 가지 않는다.
       expect(find.text('status-screen-stub'), findsNothing);
       expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle);
       expect(container.read(voiceTextProvider), isEmpty);
@@ -746,7 +746,7 @@ void main() {
       expect(paths.where((p) => p == '/execute'), isEmpty);
       expect(paths.where((p) => p == '/stop').length, 1);
       // 정지 버튼(emergencyStop)과 같은 문장 — 이 job의 정지 단계까지만.
-      expect(container.read(executionStatusProvider).message, '누름 장치가 멈췄어요');
+      expect(container.read(executionStatusProvider).message, '작은 팔이 멈췄어요');
       await tester.pumpAndSettle();
       expect(find.text('status-screen-stub'), findsOneWidget);
       // 상태 폴링이 이 job의 정지 결과를 받고 타이머를 정리할 시간을 준다.
@@ -769,7 +769,7 @@ void main() {
       await tester.pump();
 
       expect(paths.where((p) => p == '/execute').length, 1);
-      expect(find.text('정지를 요청했어요 — 실행 중인 작업은 없었어요.'), findsOneWidget);
+      expect(find.text('멈추라고 보냈어요. 하던 일은 없었어요.'), findsOneWidget);
       expect(find.text('status-screen-stub'), findsNothing);
       expect(container.read(executionStatusProvider).phase, ExecutionPhase.idle);
       await tester.pump(const Duration(seconds: 5));

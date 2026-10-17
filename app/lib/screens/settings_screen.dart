@@ -76,24 +76,24 @@ class SettingsScreen extends ConsumerWidget {
           _NavGroup(children: [
             _NavRow(
               icon: Icons.hub_outlined,
-              title: '허브',
-              // 같은 물건을 키오스크는 다른 이름으로 부른다 — 처음 한 번 이어 준다(2026-10-15 안 A).
-              subtitle: "${_hubLine(rpi)} · 키오스크에서는 'SimpleLay 본체'라고 불러요",
+              title: '본체',
+              // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '본체' — 이름 해명 문장은 뺐다.
+              subtitle: _hubLine(rpi),
               onTap: () => context.push('/settings/hub'),
             ),
             _NavRow(
               icon: Icons.link,
-              title: 'LG ThinQ 연결',
+              title: 'LG 가전 연결',
               // 확인 중·확인 실패를 '계정 연결 전'으로 말하지 않는다(외부 검토 M3, 10/15).
               subtitle: thinqApi == null || thinqAsync.hasError
-                  ? '연결 상태 확인 못 함'
+                  ? '연결됐는지 몰라요'
                   : !thinqAsync.hasValue
-                      ? '확인 중'
+                      ? '알아보는 중'
                       : thinq == null
-                          ? '계정 연결 전'
+                          ? '아직 연결 전이에요'
                           : thinq.executionMode == 'mock'
-                              ? '연습 연결 · ${thinq.appliances.length}대'
-                              : '연결됨 · ${thinq.appliances.length}대',
+                              ? '연습으로 연결됨, ${thinq.appliances.length}대'
+                              : '연결됨, ${thinq.appliances.length}대',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => const _ThinqScreen())),
             ),
@@ -143,13 +143,13 @@ class SettingsScreen extends ConsumerWidget {
           const SizedBox(height: 28),
 
           // ── 제안 ──────────────────────────────────────────
-          _SectionHeader(title: '제안'),
+          _SectionHeader(title: '물어보기'),
           const SizedBox(height: 8),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.history),
             title: const Text('생활 습관 알아가기'),
-            subtitle: const Text('기억한 습관과 추천 근거 확인'),
+            subtitle: const Text('기억한 습관과 묻는 이유 보기'),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               final api = ref.read(rpiApiServiceProvider);
@@ -187,9 +187,9 @@ class SettingsScreen extends ConsumerWidget {
 
   static String _hubLine(RpiConnectionState state) => switch (state) {
         RpiConnectionState.connected => '연결됨',
-        RpiConnectionState.keyRequired => '허브 키가 필요해요',
+        RpiConnectionState.keyRequired => '연결 비밀번호가 필요해요',
         RpiConnectionState.checking => '확인하는 중이에요',
-        RpiConnectionState.unreachable => '지금은 닿지 않아요',
+        RpiConnectionState.unreachable => '연결이 끊겼어요',
         RpiConnectionState.unconfigured => '아직 주소가 없어요',
       };
 }

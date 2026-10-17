@@ -102,7 +102,7 @@ class SimulatedExecutionService extends RpiApiService {
       currentAttempt: 1,
       // 센서 신뢰도는 만들지 않는다. 없는 측정값을 지어내면 리뷰가 안티패턴
       // 으로 지목한 "앱에서 못 받는 데이터를 데모 값으로 보충"이 된다.
-      verificationDetail: '연습 실행 — 실제로 누르지 않았어요',
+      verificationDetail: '연습이라 실제로 누르지 않았어요',
     );
   }
 

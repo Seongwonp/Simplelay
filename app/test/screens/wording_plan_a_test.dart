@@ -23,33 +23,33 @@ void main() {
       final m = finishedMessage(kind: ResultKind.stopped, stopLevel: 'sent');
       expect(m, isNot(contains('실행을 멈췄어요')));
       expect(m, contains('멈추라고 보냈어요'));
-      expect(m, contains('멈췄는지 아직 몰라요'));
+      expect(m, contains('멈췄는지는 아직 몰라요'));
       expect(m, contains('가전을 직접 봐 주세요'));
     });
 
     test('모션 보드 받음(mcu_ack)은 멈췄다고 하지 않는다', () {
       final m = finishedMessage(kind: ResultKind.stopped, stopLevel: 'mcu_ack');
       expect(m, isNot(contains('실행을 멈췄어요')));
-      expect(m, contains('멈췄는지는 확인 못 했어요'));
+      expect(m, contains('멈췄는지는 몰라요'));
     });
 
     test('멈춤 확인(verified)은 누름 장치가 멈췄다고 — 가전은 직접', () {
       final m = finishedMessage(kind: ResultKind.stopped, stopLevel: 'verified');
-      expect(m, startsWith('누름 장치가 멈췄어요'));
-      expect(m, contains('가전의 정지·취소 버튼을 직접 눌러 주세요'));
+      expect(m, startsWith('작은 팔이 멈췄어요'));
+      expect(m, contains('가전의 정지 버튼을 직접 눌러 주세요'));
     });
 
     test('단계를 모르면 정지 요청으로 실행이 끝났다고까지만', () {
       final m = finishedMessage(kind: ResultKind.stopped);
       expect(m, isNot(contains('실행을 멈췄어요')));
-      expect(m, contains('멈췄는지 직접 봐 주세요'));
+      expect(m, contains('멈췄는지 봐 주세요'));
     });
   });
 
   group('성공·안전 정지 문장', () {
     test('실제 실행 성공은 버튼을 다 눌렀다고, 가전은 직접', () {
       final m = finishedMessage(kind: ResultKind.success, executionMode: 'real');
-      expect(m, '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.');
+      expect(m, '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.');
     });
 
     test('연습 성공은 연습이라고 — 모의라고 섞어 쓰지 않는다', () {
@@ -74,11 +74,12 @@ void main() {
         expect(label, isNot(contains('모의')), reason: label);
       }
       expect(confirmationLabel(confirmation: 'operation_confirmed', executionMode: 'real'),
-          '전력 사용이 늘었어요');
+          '가전이 전기를 쓰기 시작했어요');
     });
   });
 
-  testWidgets('설정 허브 줄 — 키오스크에서 부르는 이름을 이어 준다', (tester) async {
+  // 2026-10-17 쉬운 말 사전: 폰도 '본체'로 부른다 — "키오스크에서는 'SimpleLay 본체'라고 불러요" 해명 문장은 뺐다.
+  testWidgets('설정 본체 줄 — 본체라고 부르고 이름 해명 문장이 없다', (tester) async {
     tester.view.physicalSize = const Size(400, 4000);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -87,15 +88,14 @@ void main() {
       ...installedOverrides([kTestAppliance]),
     ]));
     await tester.pump();
-    expect(findPlainText("키오스크에서는 'SimpleLay 본체'라고 불러요", contains: true), findsOneWidget);
-    // 설정 행 부제도 어절 단위 줄바꿈('키오스크에서/는' 방지, UI 평가 10/17).
-    expect(tester.widget<Text>(findPlainText("키오스크에서는 'SimpleLay 본체'라고 불러요", contains: true)).data,
-        contains(kWordJoiner));
+    expect(findPlainText('본체'), findsOneWidget);
+    expect(findPlainText('키오스크', contains: true), findsNothing);
+    expect(findPlainText('허브', contains: true), findsNothing);
     // '시간 고르기'는 테두리 버튼(글자만 있으면 누를 곳으로 안 보인다).
     expect(find.ancestor(of: find.text('시간 고르기'), matching: find.byType(OutlinedButton)), findsOneWidget);
   });
 
-  testWidgets('방해 금지 창 — 키오스크의 제안 잠시 쉬기와 같다고 이어 준다', (tester) async {
+  testWidgets('잠시 쉬기 창 — 이름은 잠시 쉬기 하나다(방해 금지·키오스크 해명 없음)', (tester) async {
     await tester.pumpWidget(ProviderScope(
       child: MaterialApp(
         home: Scaffold(
@@ -110,7 +110,9 @@ void main() {
     ));
     await tester.tap(find.text('열기'));
     await tester.pumpAndSettle();
-    expect(find.text("키오스크의 '제안 잠시 쉬기'와 같아요"), findsOneWidget);
+    expect(find.text('잠시 쉬기'), findsOneWidget);
+    expect(find.textContaining('키오스크'), findsNothing);
+    expect(find.textContaining('방해 금지'), findsNothing);
   });
 
   test("사용자에게 보이는 폰 문자열에 '모의'가 없다(개발자 도구 제외)", () {

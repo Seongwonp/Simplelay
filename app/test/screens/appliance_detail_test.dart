@@ -127,7 +127,7 @@ void main() {
 
     expect(find.bySemanticsLabel('해동'), findsOneWidget);
     expect(find.bySemanticsLabel('정지 버튼 취소'), findsOneWidget);
-    expect(find.bySemanticsLabel('쉬는 자리'), findsOneWidget);
+    expect(find.bySemanticsLabel('기다리는 자리'), findsOneWidget);
 
     // 누르면 먼저 묻는다 -- 취소하면 아무것도 보내지 않는다.
     await tester.tap(find.byKey(const Key('mark-B02')));

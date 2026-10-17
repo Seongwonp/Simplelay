@@ -12,7 +12,7 @@ class DemoService {
   static const _suggestion = {
     'type': 'suggestion',
     'sequence_id': 'demo-001',
-    'label': '무더위 감지 — 냉방 시작',
+    'label': '에어컨 켜기',
     'steps': ['AC-01', 'AC-02', 'AC-04'],
   };
 

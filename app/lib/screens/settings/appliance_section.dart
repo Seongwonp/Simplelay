@@ -1,7 +1,7 @@
 part of '../settings_screen.dart';
 
 /// 키오스크에 못 보낸 가전 변경을 다시 보내는 단추 — 쉬운 말('동기화' 대신, UI 평가 10/17).
-const kResyncLabel = '키오스크에 다시 보내기';
+const kResyncLabel = '본체에 다시 보내기';
 
 // ── 가전 선택 ─────────────────────────────────────────────────────────────
 
@@ -25,11 +25,11 @@ class _ApplianceSection extends ConsumerWidget {
             subtitle: appliance.isCustom && !appliance.isThinq
                 ? (needsPanelMapping(appliance)
                     // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17).
-                    ? _WordsText('설정이 필요해요 · 눌러서 버튼 자리 맞추기',
+                    ? _WordsText('설정이 필요해요. 눌러서 버튼 자리를 맞춰 주세요',
                         style: TextStyle(fontSize: 14, color: context.appWarning))
                     : null)
                 : _WordsText(
-                    appliance.isThinq ? 'ThinQ 가전 · 빼기는 LG ThinQ 연결에서' : '기본 가전',
+                    appliance.isThinq ? 'LG 가전이에요. 빼기는 LG 가전 연결에서 해요' : '기본 가전',
                     style: TextStyle(fontSize: 13, color: context.appMuted),
                   ),
             onTap: () => context.push('/appliance/detail/${appliance.id}'),
@@ -81,7 +81,7 @@ class _ApplianceSection extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     if (ref.read(rpiApiServiceProvider) == null) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('서버 주소를 먼저 설정해 주세요.')),
+        const SnackBar(content: Text('본체 주소를 먼저 넣어 주세요.')),
       );
       return;
     }
@@ -95,21 +95,21 @@ class _ApplianceSection extends ConsumerWidget {
   static String _syncMessage(ApplianceSyncResult r) {
     if (r.conflicts > 0) {
       // 자동으로 덮어쓰지 않았다는 것을 분명히 말한다.
-      return '다른 기기에서 변경되어 서버 내용을 가져왔어요.';
+      return '다른 폰에서 바꾼 것이 있어 본체 내용으로 맞췄어요.';
     }
     if (r.allDone) {
       final parts = [
-        if (r.sent > 0) '보냄 ${r.sent}건',
-        if (r.adopted > 0) '새로 받음 ${r.adopted}개',
+        if (r.sent > 0) '${r.sent}건 보냈어요',
+        if (r.adopted > 0) '${r.adopted}개 새로 받았어요',
       ];
       return parts.isEmpty
-          ? '이미 키오스크와 같은 상태예요.'
-          : '동기화했어요 — ${parts.join(' · ')}.';
+          ? '이미 본체와 같아요.'
+          : '본체와 맞췄어요. ${parts.join(', ')}.';
     }
     if (r.failed > 0) {
-      return '변경 ${r.failed}건을 보내지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
+      return '바꾼 것 ${r.failed}건을 보내지 못했어요. 연결을 보고 다시 해 주세요.';
     }
-    return '키오스크 목록을 불러오지 못했어요. 연결을 확인한 뒤 다시 시도해 주세요.';
+    return '본체 목록을 불러오지 못했어요. 연결을 보고 다시 해 주세요.';
   }
 
   Future<void> _confirmRemoveAppliance(
@@ -152,7 +152,7 @@ class _ApplianceSection extends ConsumerWidget {
       if (result.failed > 0) {
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('폰에서는 삭제했어요. 키오스크 반영은 다음 동기화 때 '
+            content: Text('폰에서는 지웠어요. 본체에는 다음에 맞출 때 '
                 '다시 시도할게요.'),
           ),
         );
@@ -177,15 +177,15 @@ class _ThinqApplianceList extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(mock ? 'ThinQ 가전 · 연습 연결(실제 가전 아님)' : 'ThinQ 가전'),
+          Text(mock ? 'LG 가전. 연습으로 연결돼 있어요' : 'LG 가전'),
           const SizedBox(height: 6),
           for (final a in overview.appliances)
             Semantics(
               label: [
                 a.name,
-                '경로 ThinQ',
+                'LG 가전',
                 if (mock) '연습',
-                a.canExecute ? '조작 가능' : '조작 불가',
+                a.canExecute ? '쓸 수 있어요' : '지금은 못 써요',
                 ...a.reasons,
               ].join('. '),
               child: ExcludeSemantics(
@@ -209,16 +209,16 @@ class _ThinqApplianceList extends ConsumerWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              '${a.name} · ThinQ${mock ? ' · 연습' : ''}',
+                              '${a.name}${mock ? ', 연습' : ''}',
                               style: const TextStyle(
                                   fontSize: 15, fontWeight: FontWeight.w600),
                             ),
                             Text(
                               a.canExecute
-                                  ? '조작할 수 있어요'
+                                  ? '쓸 수 있어요'
                                   : (a.reasons.isNotEmpty
-                                      ? a.reasons.join(' · ')
-                                      : '아직 조작할 준비가 되지 않았어요'),
+                                      ? a.reasons.join(', ')
+                                      : '아직 준비가 안 됐어요'),
                               style: TextStyle(
                                 fontSize: 14,
                                 color: a.canExecute

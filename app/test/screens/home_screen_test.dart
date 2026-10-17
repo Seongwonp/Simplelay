@@ -1,6 +1,6 @@
 // 홈 — "우리 집"(UI 확정 §2, 2026-09-30 개편).
 //
-// 예전 홈은 가전 한 대를 크게 세우고 '버튼으로 조작'을 걸었다. 이제는 허브 칩 →
+// 예전 홈은 가전 한 대를 크게 세우고 '버튼으로 하기'을 걸었다. 이제는 허브 칩 →
 // 제안 카드 한 장 → 가전 카드 2열 → 가전 추가다. 연결 문제의 **정도와 자리**
 // 규칙(닿지 않으면 맨 위 경고, 예비 연결만 꺼지면 아래 조용한 안내, 확인 중은
 // 끊김이 아님)은 그대로 지킨다 -- 아래 테스트가 예전 규칙을 새 배치에서 다시 본다.
@@ -61,16 +61,16 @@ void main() {
       await tester.pump();
 
       expect(find.text('우리 집'), findsOneWidget);
-      expect(find.text('허브 연결됨'), findsOneWidget);
+      expect(find.text('본체 연결됨'), findsOneWidget);
       // 연결됨 점은 초록 — 주행동 갈색과 섞이면 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
       final dot = tester.widget<Container>(find.byKey(const Key('hub-status-dot')));
       expect((dot.decoration as BoxDecoration).color, anyOf(AppColors.success, AppColors.successLight));
       expect(find.byKey(Key('appliance-card-${kTestAppliance.id}')),
           findsOneWidget);
       expect(find.byKey(const Key('appliance-add-card')), findsOneWidget);
-      // 고정 명령 버튼("즉석밥")도, 예전 '버튼으로 조작' 경로도 홈에 없다 --
+      // 고정 명령 버튼("즉석밥")도, 예전 '버튼으로 하기' 경로도 홈에 없다 --
       // 누르는 일은 가전 상세에서 확인을 거친다.
-      expect(find.text('버튼으로 조작'), findsNothing);
+      expect(find.text('버튼으로 하기'), findsNothing);
       expect(find.text('즉석밥'), findsNothing);
     });
 
@@ -122,7 +122,7 @@ void main() {
       // 색만으로 말하지 않는다(UI 확정 §1-4). 가전이 '돌아가는 중'이라고는
       // 하지 않는다 — 아는 것은 우리 누름 장치의 버튼 조작 진행뿐이다(2026-10-13).
       // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
-      expect(find.text(keepWordsTogether('버튼 조작 중 · 1/2')), findsOneWidget);
+      expect(find.text(keepWordsTogether('버튼 누르는 중 1/2')), findsOneWidget);
       expect(find.textContaining('동작 중'), findsNothing);
     });
 
@@ -138,7 +138,7 @@ void main() {
       ));
       await tester.pump();
       // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
-      expect(find.text(keepWordsTogether('실행을 확인하고 있어요')), findsOneWidget);
+      expect(find.text(keepWordsTogether('하는 중이에요')), findsOneWidget);
     });
   });
 
@@ -149,10 +149,10 @@ void main() {
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
 
-      expect(find.text('예비 연결만 돼요'), findsOneWidget);
-      expect(find.text('허브 연결됨'), findsNothing);
-      expect(find.text('제안·기록이 멈췄어요'), findsOneWidget);
-      expect(find.text('연결 설정이 필요해요'), findsNothing);
+      expect(find.text('블루투스로만 연결돼요'), findsOneWidget);
+      expect(find.text('본체 연결됨'), findsNothing);
+      expect(findPlainText('알림과 기록이 멈췄어요'), findsOneWidget);
+      expect(findPlainText('연결 설정이 필요해요'), findsNothing);
     });
 
     testWidgets('기기에 닿지 않으면 연결 경고가 가전보다 먼저 나온다', (tester) async {
@@ -160,8 +160,8 @@ void main() {
       await tester.pumpWidget(_buildHome());
       await tester.pump();
 
-      expect(find.text('허브에 닿지 않아요'), findsOneWidget);
-      final warning = tester.getTopLeft(find.text('연결 설정이 필요해요')).dy;
+      expect(find.text('본체와 연결이 끊겼어요'), findsOneWidget);
+      final warning = tester.getTopLeft(findPlainText('연결 설정이 필요해요')).dy;
       final name = tester.getTopLeft(_cardName()).dy;
       expect(warning, lessThan(name));
     });
@@ -171,9 +171,9 @@ void main() {
       await tester.pumpWidget(_buildHome(server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(find.text('허브 연결됨'), findsOneWidget);
-      expect(find.text('연결 설정이 필요해요'), findsNothing);
-      expect(find.text('제안·기록이 멈췄어요'), findsNothing);
+      expect(find.text('본체 연결됨'), findsOneWidget);
+      expect(findPlainText('연결 설정이 필요해요'), findsNothing);
+      expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
       // 조작은 되고 사용자가 할 판단이 없다 — 허브 문제일 때만 연결 줄을 둔다.
       expect(find.text('예비 연결 꺼짐'), findsNothing);
       expect(find.text('확인하기'), findsNothing);
@@ -185,7 +185,7 @@ void main() {
           _buildHome(connected: true, server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(find.text('허브 연결됨'), findsOneWidget);
+      expect(find.text('본체 연결됨'), findsOneWidget);
       expect(find.text('확인하기'), findsNothing);
     });
   });
@@ -202,10 +202,10 @@ void main() {
         await tester.pumpWidget(_buildHome(server: state));
         await tester.pump();
 
-        expect(find.text('연결 설정이 필요해요'), findsNothing);
-        expect(find.text('제안·기록이 멈췄어요'), findsNothing);
-        expect(find.text('허브 확인 중'), findsOneWidget);
-        expect(find.text('허브에 닿지 않아요'), findsNothing);
+        expect(findPlainText('연결 설정이 필요해요'), findsNothing);
+        expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
+        expect(find.text('본체 찾는 중'), findsOneWidget);
+        expect(find.text('본체와 연결이 끊겼어요'), findsNothing);
         // 확인 중에는 예비 연결이 꺼져도 연결 줄을 두지 않는다 — 허브 문제가 확인될 때만(2026-10-14 UX).
         expect(find.text('예비 연결 꺼짐'), findsNothing);
       });
@@ -217,8 +217,8 @@ void main() {
           _buildHome(connected: true, server: RpiConnectionState.checking));
       await tester.pump();
 
-      expect(find.text('허브 확인 중'), findsOneWidget);
-      expect(find.text('제안·기록이 멈췄어요'), findsNothing);
+      expect(find.text('본체 찾는 중'), findsOneWidget);
+      expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
     });
   });
 
@@ -228,14 +228,14 @@ void main() {
       await tester.pumpWidget(_buildHome());
       await tester.pump();
 
-      expect(find.text('연결 설정이 필요해요'), findsOneWidget);
-      expect(find.text('예비 연결이 꺼져 있어요'), findsNothing);
+      expect(findPlainText('연결 설정이 필요해요'), findsOneWidget);
+      expect(find.text('블루투스 연결이 꺼져 있어요'), findsNothing);
 
       await tester.tap(find.text('확인하기'));
       await tester.pump();
 
-      expect(find.text('예비 연결이 꺼져 있어요'), findsOneWidget);
-      expect(find.text('연결해 두면 서버가 안 될 때도 조작할 수 있어요.'), findsOneWidget);
+      expect(find.text('블루투스 연결이 꺼져 있어요'), findsOneWidget);
+      expect(find.text('켜 두면 Wi-Fi가 끊겨도 가전을 쓸 수 있어요.'), findsOneWidget);
     });
 
     testWidgets('상세를 펼치면 복구 동선이 나온다', (tester) async {
@@ -261,7 +261,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.text('예비 연결이 꺼져 있어요'), findsNothing);
+      expect(find.text('블루투스 연결이 꺼져 있어요'), findsNothing);
     });
 
     testWidgets('"연결" 버튼 사라짐', (tester) async {
@@ -277,7 +277,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHome(connected: true));
       await tester.pump();
-      expect(find.byTooltip('말로 조작하기'), findsOneWidget);
+      expect(find.byTooltip('말로 하기'), findsOneWidget);
     });
   });
 

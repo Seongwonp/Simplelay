@@ -121,11 +121,11 @@ void main() {
         ],
       ),
     ),
-    '루틴 녹화': const RoutineRecordScreen(applianceId: 'custom_1'),
+    '누르는 순서 저장': const RoutineRecordScreen(applianceId: 'custom_1'),
     '가전 상세': const ApplianceDetailScreen(applianceId: 'custom_1'),
     '가전 추가': const AddApplianceWizardScreen(),
     '설정': const SettingsScreen(),
-    '허브': const HubSettingsScreen(),
+    '본체': const HubSettingsScreen(),
     '개발자 탭': const DeveloperTabScreen(),
     '앱 정보': const AppInfoScreen(),
   };

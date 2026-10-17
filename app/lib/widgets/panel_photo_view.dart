@@ -187,7 +187,7 @@ class PanelPhotoView extends StatelessWidget {
 
   static String _semantic(PanelMark m) => switch (m.kind) {
         PanelMarkKind.stop => '정지 버튼 ${m.label ?? ''}'.trim(),
-        PanelMarkKind.park => '쉬는 자리',
+        PanelMarkKind.park => '기다리는 자리',
         PanelMarkKind.corner => '모서리 ${m.number ?? ''}',
         PanelMarkKind.pin => '${m.number}번째 ${m.label ?? ''}'.trim(),
         _ => m.label ?? '버튼',

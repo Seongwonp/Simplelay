@@ -108,7 +108,7 @@ class ExecutionStatus {
   final String executionMode;
   /// 실행 상태 화면 위 띠. 실제 실행이면 빈 문자열 — 평소 상태라 띠를 두지 않는다(2026-10-14 UX).
   String get modeLabel => isDemo || executionMode == 'mock'
-      ? (route == 'thinq' ? '연습 모드 · 실제 가전에 보내지 않아요' : '연습 모드 · 실제로 누르지 않아요')
+      ? (route == 'thinq' ? '연습이에요. 실제 가전에 보내지 않아요' : '연습이에요. 실제로 누르지 않아요')
       // 실제·모름은 띠 없이(키오스크와 같다, 2026-10-14 재평가) — 모름을 '미확인'이라는 시스템어로 말하지 않는다.
       : '';
 

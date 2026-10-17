@@ -204,10 +204,10 @@ void main() {
       await tester.pumpWidget(_cardApp(_Server()));
       await _settle(tester);
 
-      expect(find.text('이번만 실행'), findsOneWidget);
+      expect(find.text('이번만 하기'), findsOneWidget);
       expect(find.text('다음부터도 자동으로'), findsOneWidget);
       expect(find.text('이번엔 안 할게요'), findsOneWidget);
-      expect(find.text('지금 실행'), findsNothing);
+      expect(find.text('지금 하기'), findsNothing);
       // 자동 허용은 보조 버튼(외곽선)이다 — 이번만 실행(채움)과 같은 무게로 떠밀지 않는다(외부 평가 10/16 p05).
       expect(
           find.ancestor(
@@ -226,7 +226,7 @@ void main() {
       final barButtons = find.descendant(
           of: bar, matching: find.byWidgetPredicate((w) => w is ButtonStyleButton));
       expect(barButtons, findsNWidgets(3));
-      for (final text in ['이번만 실행', '다음부터도 자동으로', '이번엔 안 할게요']) {
+      for (final text in ['이번만 하기', '다음부터도 자동으로', '이번엔 안 할게요']) {
         expect(find.descendant(of: bar, matching: find.text(text)), findsOneWidget, reason: text);
       }
       expect(find.text('이번 동작 바꾸기'), findsNothing);
@@ -251,9 +251,9 @@ void main() {
       await _settle(tester);
       await tester.tap(find.text('다음부터도 자동으로'));
       await _settle(tester);
-      expect(find.text('조건: 매일 23:00이 되면'), findsOneWidget);
+      expect(find.text('언제: 매일 23:00이 되면'), findsOneWidget);
       expect(find.text(timeCaveat), findsOneWidget);
-      expect(find.textContaining('조리 완료가 아닐 수 있어요'), findsNothing);
+      expect(find.textContaining('요리가 다 된 건 아닐 수 있어요'), findsNothing);
     });
 
     testWidgets('caveat가 null이면 한계 문장 줄을 보이지 않는다(옛 서버처럼 칸이 없으면 지금 문장)', (tester) async {
@@ -279,12 +279,12 @@ void main() {
       await tester.tap(find.text('다음부터도 자동으로'));
       await _settle(tester);
       expect(find.text('이번에 실행하고\n다음부터 자동으로 할까요?'), findsOneWidget);
-      expect(find.text('조건: 전자레인지가 멈추면'), findsOneWidget);
-      expect(find.text('동작: 거실 공기청정기 풍량 강으로'), findsOneWidget);
+      expect(find.text('언제: 전자레인지가 멈추면'), findsOneWidget);
+      expect(find.text('무엇을: 거실 공기청정기 풍량 강으로'), findsOneWidget);
       // 짧아진 조건 문장의 한계(조리 완료가 아닐 수 있음)는 허용하는 이 시트에서 말한다(2026-10-14).
       expect(find.byKey(const Key('auto-rule-caveat')), findsOneWidget);
-      expect(find.textContaining('조리 완료가 아닐 수 있어요'), findsOneWidget);
-      expect(find.text('허용하고 이번에도 실행'), findsOneWidget);
+      expect(find.textContaining('요리가 다 된 건 아닐 수 있어요'), findsOneWidget);
+      expect(find.text('허락하고 이번에도 하기'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('auto-rule-cancel')));
       await _settle(tester);
@@ -338,7 +338,7 @@ void main() {
       await tester.pumpWidget(_cardApp(server));
       await _settle(tester);
 
-      await tester.tap(find.text('이번만 실행'));
+      await tester.tap(find.text('이번만 하기'));
       await _settle(tester);
       expect(server.requests, contains('POST /suggestions/sug-1/approve'));
       expect(server.requests.where((r) => r.contains('approve-and-allow')), isEmpty);
@@ -365,7 +365,7 @@ void main() {
       await _settle(tester);
 
       expect(find.text('다음부터도 자동으로'), findsNothing);
-      expect(find.text('지금 실행'), findsOneWidget);
+      expect(find.text('지금 하기'), findsOneWidget);
     });
   });
 
@@ -406,7 +406,7 @@ void main() {
       // 규칙은 한 문장(2026-10-14 UX) — "조건:/동작:" 표가 아니다.
       expect(find.text('전자레인지가 멈추면 → 거실 공기청정기 풍량 강으로'), findsOneWidget);
       expect(find.textContaining('조건:'), findsNothing);
-      expect(find.text('풍량 바꾸기'), findsOneWidget);
+      expect(find.text('바람 세기 바꾸기'), findsOneWidget);
       expect(find.text('세기 바꾸기'), findsNothing);
       expect(find.text('자동 실행 켜짐'), findsOneWidget);
       expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
@@ -414,7 +414,7 @@ void main() {
       // '지우기'는 테두리 있는 버튼이다(외부 평가 10/16 p02 — 글자 버튼은 누를 곳으로 안 보인다).
       expect(tester.widget(find.byKey(const Key('auto-rule-delete-ar-1'))), isA<OutlinedButton>());
       // 자동 실행 규칙과 루틴 목록을 머리말로 나눈다 — 같은 이름이 두 번 나와 헷갈렸다(외부 평가 10/16 3차).
-      expect(find.text('자동 실행 규칙'), findsOneWidget);
+      expect(find.text('자동으로 하기'), findsOneWidget);
       expect(find.text('내 루틴 목록'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('auto-rule-off-ar-1')));
@@ -451,7 +451,7 @@ void main() {
       await tester.tap(find.text('중'));
       await _settle(tester);
       expect(server.bodies['PUT /routines/auto-rules/ar-1'], {'value': 'MID'});
-      expect(find.text('동작: 거실 공기청정기 풍량 중으로'), findsWidgets);
+      expect(find.text('무엇을: 거실 공기청정기 풍량 중으로'), findsWidgets);
       await tester.tap(find.byKey(const Key('auto-rule-allow')));
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'],

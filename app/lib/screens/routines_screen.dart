@@ -119,7 +119,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
             // 자동 실행 허용 규칙(2026-10-13) — 카드에서 허용한 것만 있다. 없으면(옛 서버 포함) 아무것도 안 보인다.
             // 규칙이 있으면 머리말로 루틴 목록과 나눈다 — 같은 이름(시각 루틴과 그 규칙)이 두 번 나와 헷갈렸다(외부 평가 10/16 3차).
             if (!_templates && rules.isNotEmpty) ...[
-              const _SectionLabel('자동 실행 규칙'),
+              const _SectionLabel('자동으로 하기'),
               for (final rule in rules)
                 _AutoRuleRow(rule: rule, onChanged: () => ref.invalidate(autoRulesProvider)),
               const SizedBox(height: 8),
@@ -135,15 +135,15 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               error: (e, _) => [
                 _Note(
                   e is RoutinesUnavailable
-                      ? '허브 주소를 정하면 루틴을 볼 수 있어요.'
-                      : '루틴을 불러오지 못했어요. 연결을 확인하고 아래로 당겨 새로고침해 주세요.',
+                      ? '본체와 연결하면 루틴을 볼 수 있어요.'
+                      : '루틴을 불러오지 못했어요. 연결을 보고 아래로 당겨 새로 봐 주세요.',
                 ),
               ],
               data: (routines) => routines.isEmpty
                   ? [
                       _Note(_templates
                           ? '지금 보여 드릴 예시 루틴이 없어요.'
-                          : '아직 만든 루틴이 없어요. 가전 상세에서 "루틴 녹화"로 만들거나 예시 루틴에서 골라 보세요.'),
+                          : '아직 만든 루틴이 없어요. 가전 화면의 "누르는 순서 저장"이나 예시 루틴으로 만들어 보세요.'),
                     ]
                   : [
                       // 설정이 필요한 가전의 루틴은 아래로 — 홈과 같은 순서(UI 평가 10/17).
@@ -168,7 +168,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                               : null,
                           // 설정 안내는 오류가 아니다 — 앰버(홈과 같은 색, UI 평가 10/17).
                           note: r.applianceIds.any(needsSetup.contains)
-                              ? '가전 설정이 필요해요 — 홈의 가전을 눌러 버튼 자리를 맞춰 주세요'
+                              ? '가전 설정이 필요해요. 홈의 가전을 눌러 버튼 자리를 맞춰 주세요'
                               : null,
                         ),
                     ],
@@ -205,7 +205,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     ref.invalidate(routinesProvider);
     ref.invalidate(nextRoutineProvider);
     messenger.showSnackBar(SnackBar(
-      content: Text("'${saved.name}' 루틴을 저장했어요. 실행하지는 않았어요."),
+      content: Text("'${saved.name}' 루틴을 저장했어요. 아직 하지는 않았어요."),
     ));
   }
 
@@ -262,7 +262,7 @@ class _CandidateCard extends StatelessWidget {
           Text('사용 기록으로 만든 루틴 초안',
               style: TextStyle(fontSize: 14, color: context.appMuted)),
           const SizedBox(height: 4),
-          Text('${c.applianceName} · ${c.sequenceText}',
+          Text('${c.applianceName}: ${c.sequenceText}',
               style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
           Text(c.evidence, style: TextStyle(fontSize: 15, color: context.appMuted)),
           const SizedBox(height: 8),
@@ -323,7 +323,7 @@ class _NextRunCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('다음 실행 · ${n.name}',
+                Text('다음: ${n.name}',
                     style: const TextStyle(
                         fontSize: 16, fontWeight: FontWeight.w700)),
                 // 오늘·내일이 먼저, 실행 방식은 끝 — 아래 '자동 실행 켜짐' 줄과 같은 말(외부 평가 10/16 p02).
@@ -359,7 +359,7 @@ String routineSubtitle(Routine r, Map<String, String> applianceNames) {
     if (when != const RoutineTrigger.manual().describe()) when,
     // 루틴 단계 수(실행 화면의 조작 진행과 다른 축). 숫자와 '단계'가 큰 글씨에서 다른 줄로
     // 떨어지지 않게 단어 결합 문자(U+2060)로 붙인다(외부 평가 2026-10-13 L3).
-    if (targets.isNotEmpty) '${targets.join('·')} ${r.steps.length}\u2060단계',
+    if (targets.isNotEmpty) '${targets.join(', ')} 할 일 ${r.steps.length}\u2060개',
     if (r.mode == RoutineMode.notify) r.mode.label,
     if (!r.enabled) '꺼짐',
   ].join(' · ');
@@ -442,7 +442,7 @@ class _RoutineRow extends StatelessWidget {
     if (r.isTemplate) {
       final about = (r.description ?? '').isNotEmpty ? '${r.description}. ' : '';
       return Semantics(
-        label: '예시 루틴 · ${r.name}. $about고쳐서 저장하면 내 루틴이 돼요',
+        label: '예시 루틴 ${r.name}. $about고쳐서 저장하면 내 루틴이 돼요',
         button: true,
         container: true,
         excludeSemantics: true,
@@ -564,9 +564,9 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     try {
       await action(api);
     } on RpiApiException catch (e) {
-      _say(e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 확인해 주세요.');
+      _say(e.message.isNotEmpty ? e.message : '바꾸지 못했어요. 연결을 봐 주세요.');
     } catch (_) {
-      _say('바꾸지 못했어요. 연결을 확인해 주세요.');
+      _say('바꾸지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
       widget.onChanged();
@@ -581,7 +581,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
   Future<void> _reallow(RpiApiService api, AutoRule rule) async {
     final fp = rule.fingerprint;
     if (fp == null) {
-      _say('대상 가전을 찾지 못해 켤 수 없어요 — 가전 연결을 확인해 주세요');
+      _say('어느 가전인지 몰라서 켤 수 없어요. 가전 연결을 봐 주세요');
       return;
     }
     final ok = await showAutoRuleConfirmSheet(
@@ -590,7 +590,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
       actionText: rule.actionText,
       caveat: rule.caveat,
       title: '다음부터 자동으로 할까요?',
-      confirmLabel: '허용',
+      confirmLabel: '허락',
     );
     if (!ok) return;
     await api.setAutoRuleEnabled(rule.id, true, fingerprint: fp);
@@ -607,7 +607,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
         children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: Text('바꾸면 다시 허용해야 자동 실행이 켜져요.',
+            child: Text('바꾸면 다시 허락해야 자동으로 해요.',
                 style: TextStyle(fontSize: 15, color: dialogContext.appMuted)),
           ),
           for (final (v, label) in choices)
@@ -628,7 +628,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('자동 실행 규칙을 지울까요?'),
+        title: const Text('이 자동으로 하기를 지울까요?'),
         content: Text('${widget.rule.conditionText} → ${widget.rule.actionText}'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('취소')),
@@ -703,14 +703,14 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                             ? null
                             : () => _run((api) => api.setAutoRuleEnabled(r.id, false)),
                         style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
-                        child: const Text('자동 실행 끄기'),
+                        child: const Text('자동으로 하지 않기'),
                       )
                     else
                       FilledButton(
                         key: Key('auto-rule-on-${r.id}'),
                         onPressed: _busy ? null : () => _run((api) => _reallow(api, r)),
                         style: FilledButton.styleFrom(minimumSize: const Size(88, 48)),
-                        child: const Text('다시 허용'),
+                        child: const Text('다시 허락'),
                       ),
                     if (r.allowedValues.length > 1)
                       OutlinedButton(
@@ -767,4 +767,4 @@ class _SectionLabel extends StatelessWidget {
 
 /// 규칙 값 바꾸기 단추 이름 — 무엇의 값인지 말한다(UI 평가 3차 10/17: '세기'는 무엇의 세기인지 몰랐다).
 String autoRuleValueLabel(AutoRule rule) =>
-    rule.actionText.contains('풍량') ? '풍량 바꾸기' : '설정값 바꾸기';
+    rule.actionText.contains('풍량') ? '바람 세기 바꾸기' : '설정 바꾸기';

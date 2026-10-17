@@ -20,7 +20,7 @@ void main() {
   group('경로·확인 수준 문구', () {
     test('물리 경로는 칩이 없다(2026-10-14), ThinQ는 그대로', () {
       expect(routeLabel('physical'), isNull);
-      expect(routeLabel('thinq'), 'ThinQ');
+      expect(routeLabel('thinq'), 'LG 가전');
     });
 
     test('모의 실행기 보고는 "연습(모의) 결과" — 모의임은 남긴다', () {
@@ -52,8 +52,8 @@ void main() {
           confirmation: 'none',
           kind: ResultKind.failed,
           executionMode: 'mock');
-      expect(real, '눌렸는지 확인하지 못했어요');
-      expect(mock, '연습 · 눌렸는지 확인하지 못했어요');
+      expect(real, '눌렸는지 몰라요');
+      expect(mock, '연습이에요. 눌렸는지 몰라요');
     });
   });
 
@@ -97,7 +97,7 @@ void main() {
       expect(find.text('버튼을 눌렀어요'), findsOneWidget);
     });
 
-    testWidgets('ThinQ 실행은 경로 칩 "ThinQ"를 남긴다', (tester) async {
+    testWidgets('ThinQ 실행은 경로 칩 "LG 가전"를 남긴다', (tester) async {
       _tall(tester);
       await tester.pumpWidget(buildScreen(const StatusScreen(),
           executionStatus: const ExecutionStatus(
@@ -111,8 +111,8 @@ void main() {
           )));
       await tester.pump();
 
-      expect(find.text('ThinQ'), findsOneWidget);
-      expect(find.text('상태 확인됨'), findsOneWidget);
+      expect(find.text('LG 가전'), findsOneWidget);
+      expect(find.text('상태를 확인했어요'), findsOneWidget);
     });
   });
 }

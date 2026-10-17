@@ -83,7 +83,7 @@ void main() {
     await _pumpShell(
         tester, const CareEventsState(events: [], status: CareInboxStatus.failed));
     expect(find.byKey(const Key('settings-unread-dot')), findsNothing);
-    expect(find.bySemanticsLabel('설정, 알림을 확인하지 못했어요'), findsOneWidget);
+    expect(find.bySemanticsLabel('설정, 알림을 불러오지 못했어요'), findsOneWidget);
     handle.dispose();
   });
 

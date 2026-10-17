@@ -71,7 +71,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       const SizedBox(height: 12),
                       Text(
-                        '가전을 등록하고 실행을 승인하면\n허브가 버튼을 대신 눌러 줘요.',
+                        '가전을 등록하고 허락하면\n작은 팔이 버튼을 대신 눌러 줘요.',
                         textAlign: TextAlign.center,
                         style: AppText.body.copyWith(color: context.appMuted),
                       ),
@@ -81,14 +81,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       // ── 특징 3가지 ──────────────────────────────────────────────
                       _FeatureRow(
                         icon: Icons.wifi_rounded,
-                        title: '허브 연결',
-                        body: '허브와 같은 와이파이에 연결한 뒤\n설정에서 연결을 확인해 주세요.',
+                        title: '본체 연결',
+                        body: '폰을 본체와 같은 와이파이에 연결해 주세요.',
                       ),
                       const SizedBox(height: 20),
                       _FeatureRow(
                         icon: Icons.lightbulb_outline_rounded,
-                        title: '사용 습관 제안',
-                        body: '상황을 감지하면 가전 조작 제안이\n화면에 나타나요.',
+                        title: '때맞춰 물어보기',
+                        body: '자주 하는 일을 때맞춰\n할까요? 하고 물어봐요.',
                       ),
                       const SizedBox(height: 20),
                       _FeatureRow(

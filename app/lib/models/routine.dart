@@ -244,7 +244,7 @@ String? knownEventLabel(String? event) => switch (event) {
 
 /// 실행 방식. **알림만(notify)은 어떤 경우에도 실행하지 않는다**(서버 규칙).
 enum RoutineMode {
-  approve('approve', '승인 후 실행'),
+  approve('approve', '물어보고 하기'),
   notify('notify', '알림만');
 
   const RoutineMode(this.value, this.label);

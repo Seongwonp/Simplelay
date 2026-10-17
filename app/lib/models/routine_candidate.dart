@@ -54,7 +54,7 @@ class RoutineCandidate {
       askTime: json['ask_time'] as String?,
       runChoices: choices.isEmpty ? const [('manual', '직접 실행할 때만')] : choices,
       notice: json['notice'] as String? ??
-          '저장만으로는 실행하지 않아요. 실행은 매번 승인을 받아요. 자동 실행은 켜지지 않아요.',
+          '저장해도 바로 하지 않아요. 할 때마다 허락을 받아요.',
     );
   }
 }

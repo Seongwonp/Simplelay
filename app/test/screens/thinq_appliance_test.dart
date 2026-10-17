@@ -68,8 +68,8 @@ void main() {
     await tester.pump();
 
     expect(find.text(_purifier.name), findsOneWidget);
-    expect(find.widgetWithText(RouteBadge, 'ThinQ'), findsOneWidget);
-    expect(find.text('버튼으로 조작'), findsNothing);
+    expect(find.widgetWithText(RouteBadge, 'LG 가전'), findsOneWidget);
+    expect(find.text('버튼으로 하기'), findsNothing);
     expect(find.text('가전 사진 추가'), findsNothing);
   });
 
@@ -101,10 +101,10 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.widgetWithText(RouteBadge, 'ThinQ'), findsOneWidget);
-    expect(find.text('루틴 녹화'), findsNothing);
+    expect(find.widgetWithText(RouteBadge, 'LG 가전'), findsOneWidget);
+    expect(find.text('누르는 순서 저장'), findsNothing);
     expect(find.text('버튼판으로 하나씩 누르기'), findsNothing);
-    expect(find.textContaining('누를 버튼이 없는 ThinQ 가전'), findsOneWidget);
+    expect(find.textContaining('LG 가전이라 누를 버튼이 없어요'), findsOneWidget);
   });
 
   testWidgets('실행 상태: ThinQ 가전은 버튼판을 그리지 않고 단계 제목은 \'할 일\'',
@@ -161,10 +161,10 @@ void main() {
     ));
     await tester.pump();
 
-    expect(find.widgetWithText(RouteBadge, 'ThinQ'), findsOneWidget);
+    expect(find.widgetWithText(RouteBadge, 'LG 가전'), findsOneWidget);
     expect(find.textContaining('누를 버튼이 없어요'), findsOneWidget);
     // 말로만 맡기는 게 아니다 — 가전 상세에서 보고 바꿀 수 있다(10/15).
-    expect(find.textContaining('가전 상세에서 지금 상태를 보고 바꿀 수 있어요'), findsOneWidget);
+    expect(find.textContaining('가전 화면에서 지금 상태를 보고 바꿀 수 있어요'), findsOneWidget);
     expect(find.textContaining('누르면 실제 가전 버튼이 눌려요'), findsNothing);
     // 서버 주소가 없다는 안내(버튼 실행용)로 가리지 않는다.
     expect(find.textContaining('설정'), findsNothing);

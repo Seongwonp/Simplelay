@@ -4,7 +4,7 @@
 // 드러나므로, 여기서는 "띄워보는 것" 자체가 검증이다.
 //
 // 골든이 있는 화면(홈·제안·상태·설정·수동)은 그쪽에서 이미 200%로 찍히지만,
-// 첫 실행 안내·음성 화면과 '재시도' 같은 특정 상태는 비어 있었다.
+// 첫 실행 안내·음성 화면과 '다시 찾기' 같은 특정 상태는 비어 있었다.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';

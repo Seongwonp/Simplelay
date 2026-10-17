@@ -183,7 +183,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '저장'));
     await tester.pump();
 
-    expect(find.text('가전 이름을 입력하세요.'), findsOneWidget);
+    expect(find.text('가전 이름을 적어 주세요.'), findsOneWidget);
     expect(find.text('새 가전 추가'), findsOneWidget); // 화면 안 넘어감
   });
 
@@ -195,7 +195,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '저장'));
     await tester.pump();
 
-    expect(find.text('버튼을 하나 이상 추가하세요.'), findsOneWidget);
+    expect(find.text('버튼을 하나 이상 넣어 주세요.'), findsOneWidget);
   });
 
   testWidgets('이름+버튼 있으면 저장 후 목록에 추가되고 선택되고 화면이 닫힌다',
@@ -218,7 +218,7 @@ void main() {
     // 않았어요'를 만나 원인을 자기 가전에서 찾는다.
     expect(find.text("'식기세척기'을 등록했어요"), findsOneWidget);
     expect(find.text('위치 맞추기'), findsNWidgets(2));
-    expect(find.text('확인 주행'), findsOneWidget);
+    expect(find.text('시험 이동'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, '다음에'));
     await tester.pumpAndSettle();
@@ -279,7 +279,7 @@ void main() {
         ],
       );
 
-      expect(find.text('버튼 패널 사진 찍기'), findsOneWidget);
+      expect(find.text('버튼판 사진 찍기'), findsOneWidget);
       expect(find.text('다시 찍기'), findsNothing);
     });
 
@@ -295,7 +295,7 @@ void main() {
         ],
       );
 
-      await tester.tap(find.text('버튼 패널 사진 찍기'));
+      await tester.tap(find.text('버튼판 사진 찍기'));
       await _pumpAFew(tester);
 
       expect(find.text('다시 찍기'), findsOneWidget);
@@ -315,7 +315,7 @@ void main() {
         ],
       );
 
-      await tester.tap(find.text('버튼 패널 사진 찍기'));
+      await tester.tap(find.text('버튼판 사진 찍기'));
       await _pumpAFew(tester);
 
       // 빈 칸(격자 (0,0) 셀)을 탭 — translucent 모드라 아이콘이 없어서 키로 찾는다.
@@ -336,14 +336,14 @@ void main() {
         ],
       );
 
-      await tester.tap(find.text('버튼 패널 사진 찍기'));
+      await tester.tap(find.text('버튼판 사진 찍기'));
       await _pumpAFew(tester);
       expect(find.text('다시 찍기'), findsOneWidget);
 
       await tester.tap(find.byIcon(Icons.close));
       await _pumpAFew(tester);
 
-      expect(find.text('버튼 패널 사진 찍기'), findsOneWidget);
+      expect(find.text('버튼판 사진 찍기'), findsOneWidget);
       expect(find.byType(Image), findsNothing);
     });
   });
@@ -360,7 +360,7 @@ void main() {
           rpiApiServiceProvider.overrideWithValue(api),
         ],
       );
-      await tester.tap(find.text('버튼 패널 사진 찍기'));
+      await tester.tap(find.text('버튼판 사진 찍기'));
       await _pumpAFew(tester);
     }
 
@@ -388,12 +388,12 @@ void main() {
       );
       expect(find.byKey(scanButton), findsNothing);
 
-      await tester.tap(find.text('버튼 패널 사진 찍기'));
+      await tester.tap(find.text('버튼판 사진 찍기'));
       await _pumpAFew(tester);
 
       expect(find.byKey(scanButton), findsOneWidget);
       // 사진이 기기 밖으로 나가는 경로라 누르기 전에 알린다.
-      expect(find.textContaining('인식 서비스로 보내져요'), findsOneWidget);
+      expect(find.textContaining('외부 인식 서비스로 보내져요. 결과를 보고'), findsOneWidget);
     });
 
     testWidgets('초안으로 격자를 채우고, 다이얼·이름 못 읽은 버튼을 알린다', (tester) async {
@@ -406,7 +406,7 @@ void main() {
       expect(api.sentBytes, _fakePhotoBytes);
       // 다이얼(출력)은 누르는 버튼으로 저장되면 안 되므로 넣지 않는다.
       expect(find.text('버튼 4개를 채웠어요'), findsOneWidget);
-      expect(find.textContaining('버튼 3 — 칸을 눌러 이름을 고쳐 주세요'), findsOneWidget);
+      expect(find.textContaining('버튼 3. 칸을 눌러 이름을 고쳐 주세요'), findsOneWidget);
       expect(find.textContaining('다이얼이라 넣지 않았어요'), findsOneWidget);
       expect(find.textContaining('lever'), findsOneWidget);
 
@@ -435,8 +435,8 @@ void main() {
       await tester.tap(find.byKey(scanButton));
       await _pumpAFew(tester);
       expect(find.text('사진을 외부 인식 서비스로 보낼까요?'), findsOneWidget);
-      expect(find.textContaining('인터넷의 외부 인식 서비스로 전송'), findsOneWidget);
-      expect(find.textContaining('버튼 1개가 인식 결과로 바뀌어요'), findsOneWidget);
+      expect(find.textContaining('인터넷의 외부 인식 서비스로 가요'), findsOneWidget);
+      expect(find.textContaining('버튼 1개가 읽은 결과로 바뀌어요'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(TextButton, '취소'));
       await _pumpAFew(tester);
@@ -475,7 +475,7 @@ void main() {
       await _pumpAFew(tester);
 
       expect(find.text('사진을 외부 인식 서비스로 보낼까요?'), findsOneWidget);
-      expect(find.textContaining('인터넷의 외부 인식 서비스로 전송'), findsOneWidget);
+      expect(find.textContaining('인터넷의 외부 인식 서비스로 가요'), findsOneWidget);
 
       await tester.tap(find.widgetWithText(TextButton, '취소'));
       await _pumpAFew(tester);
@@ -489,7 +489,7 @@ void main() {
 
       await sendPhoto(tester);
 
-      expect(find.textContaining('최대 6 × 6'), findsOneWidget);
+      expect(find.textContaining('6줄 6칸까지'), findsOneWidget);
       await tester.tap(find.widgetWithText(FilledButton, '확인'));
       await _pumpAFew(tester);
       expect(find.byKey(const ValueKey('grid_cell_2_2')), findsOneWidget);

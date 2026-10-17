@@ -235,7 +235,7 @@ void main() {
       findsOneWidget,
     );
     // 쉬어도 꺼지지 않는 것을 같이 말한다.
-    expect(find.textContaining('실행 실패·위험 신호음은 그대로'), findsOneWidget);
+    expect(find.textContaining('실패나 위험 신호음은 그대로'), findsOneWidget);
     dispose();
   });
 

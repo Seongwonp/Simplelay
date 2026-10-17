@@ -59,7 +59,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       label: suggestion.doneLabel(),
       steps: suggestion.steps,
       phase: ExecutionPhase.waiting,
-      message: '실행 요청을 보냈어요',
+      message: '실행하라고 보냈어요',
       isDemo: _demoNow(),
     );
   }
@@ -92,7 +92,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       label: label,
       steps: steps,
       phase: ExecutionPhase.running,
-      message: '실행 중',
+      message: '하는 중이에요',
       isDemo: _demoNow(),
     );
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
@@ -163,7 +163,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       sequenceId: jobId,
       label: label.isEmpty ? null : label,
       phase: ExecutionPhase.running,
-      message: '아까 맡긴 작업을 다시 확인하고 있어요…',
+      message: '아까 맡긴 일을 다시 보는 중이에요…',
       // 재시작 복원은 실제 서버의 job만 대상으로 한다 -- 모의 실행은
       // 앱 안에서만 살아 있어 남길 것도 이어붙일 것도 없다.
     );
@@ -247,7 +247,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           verificationConfidence: status.verificationConfidence,
           verificationDetail: status.verificationDetail,
           phase: retrying ? ExecutionPhase.retrying : ExecutionPhase.running,
-          message: retrying ? '응답이 없어 다시 시도하고 있어요.' : '실행 중',
+          message: retrying ? '답이 없어 다시 해 보는 중이에요.' : '하는 중이에요',
         );
         return;
       }
@@ -258,7 +258,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (_missingPolls >= 10) {
         // 실패가 아니라 '모름'이다. 가전은 계속 움직이고 있을 수 있으므로
         // 정지·재확인 수단을 남긴 채 사용자에게 직접 확인을 청한다.
-        const notice = '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.';
+        const notice = '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.';
         state = state.copyWith(
           phase: ExecutionPhase.unknown,
           message: notice,
@@ -272,7 +272,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
       if (since != null &&
           DateTime.now().difference(since) > _unreachableAfter) {
         if (mounted) {
-          const notice = '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.';
+          const notice = '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.';
           state = state.copyWith(
             phase: ExecutionPhase.unknown,
             message: notice,
@@ -364,7 +364,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     if (_httpApi == null || _httpJobId == null) return;
     _missingPolls = 0;
     _lastPollSuccess = DateTime.now();
-    state = state.copyWith(message: '상태를 다시 확인하고 있어요…');
+    state = state.copyWith(message: '새로 보는 중이에요…');
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(_pollInterval, (_) => _pollHttp());
   }
@@ -410,7 +410,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
           soundDb: (message['sound_db'] as num?)?.toDouble(),
           completedSteps: (message['completed_steps'] as num?)?.toInt(),
           phase: nextPhase,
-          message: rawStatus == 'retrying' ? '응답이 없어 다시 시도하고 있어요.' : '실행 중',
+          message: rawStatus == 'retrying' ? '답이 없어 다시 해 보는 중이에요.' : '하는 중이에요',
         );
         return;
       case 'result':
@@ -467,7 +467,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
             message: (mine
                     ? stopLevelSentence(outcome.stopLevel, ackMs: outcome.ackMs)
                     : null) ??
-                '정지 요청을 보냈어요.');
+                '멈추라고 보냈어요.');
         return true;
       } catch (error) {
         if (!mounted || state.sequenceId != sequenceId) return false;
@@ -477,8 +477,8 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
         // 응답 시간 초과는 '보내지 못함'이 아니라 '전달 여부 모름'이다(서버가 받았을 수 있다). 상태 조회가 계속 확인한다.
         state = state.copyWith(
             message: error is TimeoutException
-                ? '정지 요청의 응답을 받지 못했어요. 멈췄는지 확인하고 있어요 — 멈추지 않으면 다시 눌러 주세요.'
-                : '정지 요청을 보내지 못했어요. 다시 시도해 주세요.');
+                ? '멈추라고 보냈는데 답이 없어요. 멈추지 않으면 정지를 다시 눌러 주세요.'
+                : '멈추라고 보내지 못했어요. 정지를 다시 눌러 주세요.');
         return false;
       }
     }
@@ -487,7 +487,7 @@ class ExecutionStatusNotifier extends StateNotifier<ExecutionStatus> {
     final sent = await ref.read(bleServiceProvider).emergencyStop();
     state = state.copyWith(
       phase: ExecutionPhase.failed,
-      message: '정지를 요청했어요.',
+      message: '멈추라고 했어요.',
     );
     return sent;
   }

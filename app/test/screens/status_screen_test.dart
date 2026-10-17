@@ -28,8 +28,8 @@ void main() {
   group('StatusScreen — idle 상태', () {
     testWidgets('기본 안내 텍스트 표시', (tester) async {
       await _pumpStatus(tester, const ExecutionStatus());
-      expect(find.text('실행 중인 작업 없음'), findsOneWidget);
-      expect(findPlainText('실행을 시작하면 진행 상황이 여기에 표시돼요.'), findsOneWidget);
+      expect(find.text('지금 하는 일이 없어요'), findsOneWidget);
+      expect(findPlainText('실행하면 여기서 진행을 볼 수 있어요.'), findsOneWidget);
     });
 
     testWidgets('긴급 정지 버튼 없음 (idle)', (tester) async {
@@ -81,14 +81,15 @@ void main() {
 
       // 버튼 이름이 가장 크고, 그 아래 지금 상태가 온다.
       expect(find.text("'1분 추가'"), findsOneWidget);
-      expect(findPlainText('눌림 확인 중'), findsOneWidget);
+      expect(findPlainText('눌렸는지 보는 중'), findsOneWidget);
       expect(find.textContaining('센서로 눌림 확인'), findsOneWidget);
-      expect(find.textContaining('센서 93%'), findsOneWidget);
+      // 센서 %는 일반 화면에 내지 않는다(2026-10-17 쉬운 말 규칙 6).
+      expect(find.textContaining('93%'), findsNothing);
       // steps 미리보기가 없어도 total_steps로 진행이 보인다(음성 실행 경로).
       // 퍼센트가 아니라 '조작 N개 중 K개'다 -- 남은 시간을 아는 척하지 않는다.
       // 루틴의 'N단계'와 다른 축이라 다른 말(외부 평가 L3).
-      expect(find.text('조작 3\u2060개 중 1\u2060개'), findsOneWidget);
-      expect(find.textContaining('%'), findsOneWidget); // 센서 93%뿐
+      expect(find.text('3\u2060개 중 1\u2060개 했어요'), findsOneWidget);
+      expect(find.textContaining('%'), findsNothing);
     });
 
     testWidgets('확인 불가에서는 정지와 다시 확인을 함께 제공한다', (tester) async {
@@ -99,17 +100,17 @@ void main() {
         const ExecutionStatus(
           phase: ExecutionPhase.unknown,
           label: '즉석밥 데워줘',
-          message: '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.',
+          message: '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.',
         ),
       );
 
       expect(find.text('정지'), findsOneWidget);
-      expect(find.text('다시 확인'), findsOneWidget);
-      expect(findPlainText('가전을 직접 확인', contains: true), findsOneWidget);
+      expect(find.text('새로 보기'), findsOneWidget);
+      expect(findPlainText('가전을 봐 주세요', contains: true), findsOneWidget);
       // 큰 문장은 어절 단위로 줄을 바꾼다('동/작을' 방지, UI 평가 10/17).
-      final headline = tester.widget<Text>(findPlainText('가전을 직접 확인', contains: true));
+      final headline = tester.widget<Text>(findPlainText('가전을 봐 주세요', contains: true));
       expect(headline.data, contains(kWordJoiner));
-      expect(headline.semanticsLabel, '연결이 끊겨 동작을 확인할 수 없어요. 가전을 직접 확인해 주세요.');
+      expect(headline.semanticsLabel, '연결이 끊겨 어떻게 됐는지 몰라요. 가전을 봐 주세요.');
     });
 
     testWidgets('검증 결과가 아직 없으면 확인 중임을 알린다', (tester) async {
@@ -122,14 +123,14 @@ void main() {
         ),
       );
       expect(findPlainText('누르는 중'), findsOneWidget);
-      expect(find.text('버튼 눌림을 확인하고 있어요.'), findsOneWidget);
+      expect(find.text('버튼이 눌렸는지 보고 있어요.'), findsOneWidget);
     });
 
     testWidgets('실행 중에는 idle 안내 문구를 쓰지 않는다', (tester) async {
       // 골든에서 잡혔던 결함: BLE 경로는 message가 비어 있어서, 실행 중인데
-      // 부제가 '실행을 시작하면 진행 상황이 여기에 표시돼요.'였다.
+      // 부제가 '실행하면 여기서 진행을 볼 수 있어요.'였다.
       await _pumpStatus(tester, runningStatus);
-      expect(find.text('실행을 시작하면 진행 상황이 여기에 표시돼요.'), findsNothing);
+      expect(find.text('실행하면 여기서 진행을 볼 수 있어요.'), findsNothing);
     });
 
     testWidgets('실행 대상 가전을 위에 말한다', (tester) async {
@@ -219,9 +220,9 @@ void main() {
       // 논지가 숫자 뒤로 밀린다. 근거가 필요한 사람은 펼쳐서 본다.
       await _pumpStatus(tester, runningStatus);
       expect(find.text('320 mA'), findsNothing);
-      expect(find.text('전류·소리 기록 보기'), findsOneWidget);
+      expect(findPlainText('전기와 소리 기록'), findsOneWidget);
 
-      await tester.tap(find.text('전류·소리 기록 보기'));
+      await tester.tap(findPlainText('전기와 소리 기록'));
       // 실행 화면은 진행 표시가 계속 돌아서 pumpAndSettle이 끝나지 않는다.
       await tester.pump();
 
@@ -259,10 +260,10 @@ void main() {
 
     testWidgets('재시도는 실패가 아니라 보정으로 말한다', (tester) async {
       await _pumpStatus(tester, retryingStatus);
-      expect(findPlainText('보정 후 다시 시도 중'), findsOneWidget);
-      expect(find.text('눌림이 확인되지 않아 자리를 맞추고 다시 눌러요.'),
+      expect(findPlainText('자리를 맞춰 다시 누르는 중'), findsOneWidget);
+      expect(find.text('눌렸는지 몰라서 자리를 맞추고 다시 눌러요.'),
           findsOneWidget);
-      expect(find.textContaining('실패'), findsNothing);
+      expect(find.textContaining('못 했어요'), findsNothing);
     });
 
     testWidgets('긴급 정지 버튼 표시', (tester) async {

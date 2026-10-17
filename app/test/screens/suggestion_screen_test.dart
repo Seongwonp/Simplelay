@@ -72,13 +72,13 @@ void main() {
     await tester.pump();
     await tester.tap(find.byKey(const Key('suggestion-more')));
     await tester.pumpAndSettle();
-    expect(find.text('이 제안 30분 쉬기'), findsOneWidget);
+    expect(find.text('30분 동안 묻지 않기'), findsOneWidget);
     await tester.pumpWidget(const SizedBox()); // 열린 더 보기 목록을 새 화면에 남기지 않는다
     await tester.pumpWidget(_buildSuggestion(_sug.sequenceId, suggestions: [_sug]));
     await tester.pump();
     // BLE 제안은 쉬기·동작 바꾸기·다시 받지 않기가 모두 없어 '더 보기'도 없다.
     expect(find.byKey(const Key('suggestion-more')), findsNothing);
-    expect(find.text('이 제안 30분 쉬기'), findsNothing);
+    expect(find.text('30분 동안 묻지 않기'), findsNothing);
   });
 
   // ── 2026-10-14 UI 정리: 아래 고정 영역은 실행·다음에만, 나머지는 '더 보기' ─────────────
@@ -95,14 +95,14 @@ void main() {
 
       expect(barButtons(), findsNWidgets(2));
       final bar = find.byKey(const Key('suggestion-action-bar'));
-      expect(find.descendant(of: bar, matching: find.text('지금 실행')), findsOneWidget);
+      expect(find.descendant(of: bar, matching: find.text('지금 하기')), findsOneWidget);
       expect(find.descendant(of: bar, matching: find.text('이번엔 안 할게요')), findsOneWidget);
       // 두 단추는 위아래로 — 나란히 두면 좁은 폰에서 '이번엔 안 할게 / 요'로 끊겼다(UI 평가 10/17).
-      final run = tester.getRect(find.descendant(of: bar, matching: find.text('지금 실행')));
+      final run = tester.getRect(find.descendant(of: bar, matching: find.text('지금 하기')));
       final skip = tester.getRect(find.descendant(of: bar, matching: find.text('이번엔 안 할게요')));
       expect(skip.top, greaterThan(run.bottom));
       // 쉬기·동작 바꾸기·다시 받지 않기는 처음 화면에 없다.
-      for (final text in ['이 제안 30분 쉬기', '이번 동작 바꾸기', '이 제안 다시 받지 않기']) {
+      for (final text in ['30분 동안 묻지 않기', '이번 동작 바꾸기', '이 일은 다시 묻지 않기']) {
         expect(find.text(text), findsNothing, reason: text);
       }
     });
@@ -117,18 +117,18 @@ void main() {
       expect(find.bySemanticsLabel(RegExp('더 보기')), findsWidgets);
       await tester.tap(more);
       await tester.pumpAndSettle();
-      for (final text in ['이 제안 30분 쉬기', '이번 동작 바꾸기', '이 제안 다시 받지 않기']) {
+      for (final text in ['30분 동안 묻지 않기', '이번 동작 바꾸기', '이 일은 다시 묻지 않기']) {
         expect(find.text(text), findsOneWidget, reason: text);
       }
     });
 
     // 2026-10-14 추가 확인 2: 낭독 이름이 무엇을 더 보는지 말하고, 목록을 닫으면 초점이 그 버튼으로 돌아온다.
-    testWidgets("'더 보기' 낭독 이름은 '제안 옵션 더 보기'", (tester) async {
+    testWidgets("'더 보기' 낭독 이름은 '더 보기'", (tester) async {
       final handle = tester.ensureSemantics();
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSuggestion('test-003', suggestions: const [_httpSug]));
       await tester.pumpAndSettle();
-      expect(find.bySemanticsLabel('제안 옵션 더 보기'), findsOneWidget);
+      expect(find.bySemanticsLabel('더 보기'), findsOneWidget);
       // 화면 글자는 그대로 '더 보기'.
       expect(find.descendant(
               of: find.byKey(const Key('suggestion-more')), matching: find.text('더 보기')),
@@ -143,18 +143,18 @@ void main() {
       final more = find.byKey(const Key('suggestion-more'));
       await tester.tap(more);
       await tester.pumpAndSettle();
-      expect(find.text('이 제안 30분 쉬기'), findsOneWidget);
+      expect(find.text('30분 동안 묻지 않기'), findsOneWidget);
       // 바깥(가림막)을 눌러 닫는다 — 아무것도 고르지 않았다.
       await tester.tapAt(const Offset(200, 20));
       await tester.pumpAndSettle();
-      expect(find.text('이 제안 30분 쉬기'), findsNothing);
+      expect(find.text('30분 동안 묻지 않기'), findsNothing);
       final focused = FocusManager.instance.primaryFocus?.context;
       expect(focused, isNotNull);
       expect(
           find.descendant(of: more, matching: find.byElementPredicate((e) => e == focused)),
           findsOneWidget);
       // 닫기만 했으니 제안은 그대로다.
-      expect(find.text('지금 실행'), findsOneWidget);
+      expect(find.text('지금 하기'), findsOneWidget);
     });
 
     testWidgets('실행 대상·누를 버튼·모의 여부는 펼치지 않아도 보이고, 버튼 배치는 펼쳐야 보인다',
@@ -195,8 +195,8 @@ void main() {
       expect(find.text('전자레인지'), findsWidgets); // 실행 대상
       expect(find.text('즉석밥'), findsOneWidget); // 누를 버튼(순서 목록)
       expect(find.text('누를 순서'), findsOneWidget);
-      expect(find.text('데모'), findsOneWidget); // 모의(표본) 가전
-      expect(find.text('시연 데이터로 만든 제안'), findsOneWidget);
+      expect(find.text('연습'), findsOneWidget); // 모의(표본) 가전
+      expect(find.text('연습용으로 만든 알림이에요'), findsOneWidget);
       // 버튼 배치(지도)는 접혀 있다 — 제목만 보이고 지도는 없다.
       expect(find.text('전자레인지의 실제 버튼 배치'), findsOneWidget);
       expect(find.byType(ButtonMapGrid), findsNothing);
@@ -216,7 +216,7 @@ void main() {
 
       expect(barButtons(), findsNWidgets(2));
       expect(find.byKey(const Key('suggestion-more')).hitTestable(), findsOneWidget);
-      expect(find.text('이 제안 다시 받지 않기'), findsNothing);
+      expect(find.text('이 일은 다시 묻지 않기'), findsNothing);
       expect(tester.takeException(), isNull);
     });
   });
@@ -226,7 +226,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSuggestion('nonexistent', suggestions: []));
       await tester.pump();
-      expect(find.text('제안을 찾을 수 없어요.'), findsOneWidget);
+      expect(find.text('이 알림을 찾을 수 없어요.'), findsOneWidget);
     });
   });
 
@@ -281,7 +281,7 @@ void main() {
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
-      expect(find.text('지금 실행'), findsOneWidget);
+      expect(find.text('지금 하기'), findsOneWidget);
     });
 
     testWidgets('거부 버튼 탭 시 화면 pop', (tester) async {
@@ -354,7 +354,7 @@ void main() {
       expect(find.text('지금 31°C · 습도 72% — 더워요'), findsOneWidget);
     });
 
-    testWidgets('"이 제안 다시 받지 않기" 탭 시 화면 pop', (tester) async {
+    testWidgets('"이 일은 다시 묻지 않기" 탭 시 화면 pop', (tester) async {
       _useTallViewport(tester);
       final router = GoRouter(
         initialLocation: '/',
@@ -393,7 +393,7 @@ void main() {
       // 다시 받지 않기는 '더 보기' 안에 있다(2026-10-14 UI 정리).
       await tester.tap(find.byKey(const Key('suggestion-more')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('이 제안 다시 받지 않기'));
+      await tester.tap(find.text('이 일은 다시 묻지 않기'));
       await tester.pumpAndSettle();
 
       expect(find.text('홈'), findsOneWidget);
@@ -421,8 +421,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('대상 가전 정보를 확인해 주세요.'), findsOneWidget);
-      expect(find.text('지금 실행'), findsNothing);
+      expect(find.text('어느 가전인지 몰라요.'), findsOneWidget);
+      expect(find.text('지금 하기'), findsNothing);
       // 기본 선택 가전으로 바꿔 그리지 않는다
       expect(find.text('전자레인지의 실제 버튼 배치'), findsNothing);
     });
@@ -460,7 +460,7 @@ void main() {
 
       final run = tester.widget<FilledButton>(
         find.ancestor(
-          of: find.text('지금 실행'),
+          of: find.text('지금 하기'),
           matching: find.byType(FilledButton),
         ),
       );
@@ -477,7 +477,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('전자레인지 · 버튼 3개'), findsOneWidget);
+      expect(find.text('전자레인지, 버튼 3개'), findsOneWidget);
     });
 
     testWidgets('BLE 제안에는 "다시 받지 않기"를 내걸지 않는다', (tester) async {
@@ -491,7 +491,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('이번엔 안 할게요'), findsOneWidget);
-      expect(find.text('이 제안 다시 받지 않기'), findsNothing);
+      expect(find.text('이 일은 다시 묻지 않기'), findsNothing);
     });
 
     testWidgets('패턴 제안은 시간대·횟수로 왜 지금인지 말한다', (tester) async {
@@ -570,7 +570,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('지금 실행'));
+      await tester.tap(find.text('지금 하기'));
       await tester.pumpAndSettle();
 
       expect(find.text('상태 화면'), findsOneWidget);

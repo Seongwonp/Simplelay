@@ -32,7 +32,7 @@ class _ThinqDiscoveredSectionState
     final marker = data == null
         ? ''
         : data.mockCloud
-            ? ' (연습용 클라우드)'
+            ? ' (연습)'
             : data.executionMode == 'mock'
                 ? ' (연습)'
                 : '';
@@ -42,24 +42,23 @@ class _ThinqDiscoveredSectionState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'ThinQ에서 찾은 가전$marker',
+            'LG 앱에서 찾은 가전$marker',
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
           Text(
-            '추가한 가전만 홈과 루틴에 나와요. 직접 바꿀 때는 한 번 확인해요. '
-            '사용자가 허용한 자동 실행은 따로 켜고 끌 수 있어요.',
+            '추가한 가전만 홈과 루틴에 나와요. 바꿀 때마다 한 번 물어봐요.',
             style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
           const SizedBox(height: 8),
           if (async.isLoading && data == null)
-            const Text('ThinQ 계정에서 가전을 찾는 중이에요…',
+            const Text('LG 앱에서 가전을 찾는 중이에요…',
                 key: Key('thinq-found-loading'))
           else if (data == null || !data.ok)
-            _failure(context, data?.failure ?? 'ThinQ 계정 목록을 불러오지 못했어요.')
+            _failure(context, data?.failure ?? 'LG 가전 목록을 불러오지 못했어요.')
           else if (data.devices.isEmpty)
             const Text(
-              'ThinQ 계정에 등록된 가전이 없어요 (0대). ThinQ 앱에서 가전을 먼저 등록해 주세요.',
+              'LG 앱에 등록된 가전이 없어요. LG 앱에서 가전을 먼저 등록해 주세요.',
               key: Key('thinq-found-empty'),
             )
           else
@@ -73,7 +72,7 @@ class _ThinqDiscoveredSectionState
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '가전을 찾지 못했어요 — $reason',
+            '가전을 찾지 못했어요. $reason',
             key: const Key('thinq-found-failure'),
             style: TextStyle(fontSize: 14, color: context.appDanger),
           ),
@@ -95,8 +94,8 @@ class _ThinqDiscoveredSectionState
     Color? noteColor;
     if (d.added) {
       note = d.source == 'config'
-          ? '연결됨 · 허브 설정으로 넣은 가전이에요'
-          : '추가됨 · 홈과 루틴에 나와요';
+          ? '설치할 때 넣은 가전이에요'
+          : '추가한 가전이에요. 홈과 루틴에 나와요';
       noteColor = context.appSuccess;
     } else if (d.canAdd) {
       note = d.supportReason;
@@ -157,8 +156,8 @@ class _ThinqDiscoveredSectionState
     try {
       final name = await api.addThinqDevice(d.key);
       messenger.showSnackBar(SnackBar(
-          content: Text("'${name.isEmpty ? d.title : name}' 추가했어요 — 홈에 나와요. "
-              '실행할 때는 확인을 거쳐요.')));
+          content: Text("'${name.isEmpty ? d.title : name}' 추가했어요. 홈에 나와요. "
+              '바꿀 때는 한 번 물어봐요.')));
     } on RpiApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } finally {
@@ -175,7 +174,7 @@ class _ThinqDiscoveredSectionState
     try {
       await api.removeThinqDevice(d.key);
       messenger.showSnackBar(
-          SnackBar(content: Text("'${d.name ?? d.title}' 뺐어요 — 홈에서 사라져요.")));
+          SnackBar(content: Text("'${d.name ?? d.title}' 뺐어요. 홈에서 사라져요.")));
     } on RpiApiException catch (e) {
       messenger.showSnackBar(SnackBar(content: Text(e.message)));
     } finally {

@@ -102,15 +102,15 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(server, location));
     await _settle(tester);
-    expect(find.text('아직 위치가 없어요 — 날씨 안내를 하지 않아요'), findsOneWidget);
+    expect(find.text('아직 위치가 없어요. 날씨 안내를 하지 않아요'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('hub-location-set')));
     await _settle(tester);
 
     expect(location.calls, 1);
     expect(server.putBody, {'lat': 37.5665, 'lon': 126.9780});
-    expect(find.text('허브 위치를 저장했어요. 약 1km 단위로만 저장해요.'), findsOneWidget);
-    expect(find.text('폰에서 정한 위치 (위도 37.57, 경도 126.98)'), findsOneWidget);
+    expect(find.text('본체 위치를 저장했어요. 약 1km 단위로만 저장해요.'), findsOneWidget);
+    expect(find.text('폰에서 정한 위치예요'), findsOneWidget);
   });
 
   testWidgets('권한을 거절하면 보내지 않고, 빠지는 것과 다시 하는 길을 말한다',
@@ -125,8 +125,8 @@ void main() {
     await _settle(tester);
 
     expect(server.putBody, isNull);
-    expect(find.textContaining('위치 권한을 허용하지 않아서 설정하지 않았어요'), findsOneWidget);
-    expect(find.textContaining('날씨 안내만 빠져요'), findsOneWidget);
+    expect(find.textContaining('위치 권한을 주지 않아서 정하지 않았어요'), findsOneWidget);
+    expect(find.textContaining('날씨 안내만 빠지고'), findsOneWidget);
     // 다시 누를 수 있다.
     final button = tester.widget<FilledButton>(find.ancestor(
       of: find.text('현재 위치로 설정'),

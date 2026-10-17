@@ -1,8 +1,8 @@
 // 설정 → 허브에서 서버 주소를 저장한 뒤 연결 표시(2026-09-30 에뮬레이터 결함).
 //
 // 새 주소를 저장하면 이후 요청(/suggestions·/appliances·/status)은 200으로
-// 성공하는데, 홈 머리와 허브 화면은 계속 "허브에 닿지 않아요"였다. '재시도'를
-// 눌러야만 "허브 연결됨"으로 바뀌었다.
+// 성공하는데, 홈 머리와 허브 화면은 계속 "본체와 연결이 끊겼어요"였다. '다시 찾기'를
+// 눌러야만 "본체 연결됨"으로 바뀌었다.
 //
 // 원인: 주소가 바뀌면 연결 알림자의 listen이 곧바로 확인을 시작하는데, Riverpod는
 // listen을 **의존 provider를 무효화하기 전에** 부른다. 그래서 그 확인은 아직 캐시된
@@ -77,7 +77,7 @@ void main() {
     expect(container.read(rpiConnectionProvider),
         RpiConnectionState.connected,
         reason: '저장한 새 주소는 닿는다 -- 재시도 없이 연결됨이어야 한다');
-    expect(find.text('연결됐어요 — 버튼을 대신 눌러 줄 수 있어요'), findsOneWidget);
+    expect(find.text('연결됐어요'), findsOneWidget);
   });
 }
 

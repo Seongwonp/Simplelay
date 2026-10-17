@@ -137,7 +137,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   liveRegion: true,
                   label: [
                     if (target != null) target.displayName,
-                    status.label ?? '실행 중인 작업 없음',
+                    status.label ?? '지금 하는 일이 없어요',
                     if (now.button != null) "${now.button} 버튼",
                     now.headline,
                     if (now.detail != null) now.detail!,
@@ -145,7 +145,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     if (_finished(status.phase))
                       if (operationSentence(status) case final o?) o,
                     if (totalSteps > 1 && status.phase != ExecutionPhase.idle)
-                      '조작 $totalSteps개 중 ${status.completedSteps}개 마침',
+                      '$totalSteps개 중 ${status.completedSteps}개 했어요',
                   ].join('. '),
                   child: ExcludeSemantics(
                     child: Column(
@@ -156,7 +156,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                           const SizedBox(height: 6),
                         ],
                         Text(
-                          status.label ?? '실행 중인 작업 없음',
+                          status.label ?? '지금 하는 일이 없어요',
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w600,
@@ -264,7 +264,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     children: [
                       Expanded(
                         child: _SensorChart(
-                          label: '전류 (mA)',
+                          label: '전기 사용',
                           icon: Icons.electric_bolt,
                           history: _maHistory,
                           maxY: 2000,
@@ -276,7 +276,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: _SensorChart(
-                          label: '음향 (dB)',
+                          label: '소리',
                           icon: Icons.graphic_eq,
                           history: _dbHistory,
                           maxY: 100,
@@ -306,10 +306,10 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     if (_retryAdvised(status))
-                      const Text('가전을 확인한 뒤 시작한 화면에서 다시 실행해 주세요.'),
+                      const Text('가전을 본 뒤 처음 화면에서 다시 해 주세요.'),
                     FilledButton(
                       onPressed: _returnToOrigin,
-                      child: Text(_retryAdvised(status) ? '다시 시도' : '확인'),
+                      child: Text(_retryAdvised(status) ? '다시 하기' : '확인'),
                     ),
                     // '확인'과 같은 일을 하는 '닫기'는 다시 시도할 때만 둔다(외부 평가 10/16 p08 — 중복 버튼).
                     if (_retryAdvised(status))
@@ -384,7 +384,7 @@ List<String> _resultFactWords(ExecutionStatus s) {
   return [
     // 옛 서버에서 outcome이 없으면 phase로만 안다 -- 정지·안전 정지를 지어내지 않는다.
     if (s.outcome != null) resultWord(kind),
-    if (s.route == 'thinq') 'ThinQ',
+    if (s.route == 'thinq') 'LG 가전',
     if (confirmationLabel(
       route: s.route,
       receipt: s.receipt,
@@ -469,7 +469,7 @@ class _RunSteps extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('단계별 결과', style: AppText.title),
+          Text('할 일별 결과', style: AppText.title),
           const SizedBox(height: 6),
           for (var i = 0; i < run.steps.length; i++)
             Builder(builder: (context) {
@@ -519,11 +519,11 @@ class _RunSteps extends ConsumerWidget {
 /// 그래서 **판정 출처가 real일 때만** 실제 동작을 확인했다고 말한다. mock이면 모의 판정, 출처를 모르면 단정하지 않는다.
 String? operationSentence(ExecutionStatus s) => switch (s.operationConfirmed) {
       true when s.isDemo || s.executionMode == 'mock' =>
-        '연습 동작 판정 · 실제 가전 아님',
-      true when s.operationSource == 'real' => '가전 동작도 확인했어요',
-      true when s.operationSource == 'mock' => '가전 동작은 연습 값으로 판정했어요 · 실제 확인 아님',
-      true => '가전 동작 판정의 근거를 몰라요 · 가전을 확인해 주세요',
-      false => '가전 동작은 확인하지 못했어요',
+        '연습이라 실제 가전은 보지 않았어요',
+      true when s.operationSource == 'real' => '가전이 전기를 쓰기 시작한 것도 확인했어요',
+      true when s.operationSource == 'mock' => '가전 동작은 연습 값으로 봤어요. 실제로 확인한 건 아니에요',
+      true => '가전이 움직였는지 몰라요. 가전을 봐 주세요',
+      false => '가전이 움직였는지 몰라요',
       null => null,
     };
 
@@ -544,11 +544,9 @@ class _OperationLine extends StatelessWidget {
     final confirmed = status.operationConfirmed;
     if (confirmed == null) return const SizedBox.shrink();
     final caption = [
-      // 모의 판정의 true는 실제 동작 근거가 아니다 -- 출처를 같이 말한다.
-      if (status.operationSource == 'mock') '연습 판정 — 실제 동작 근거는 아니에요',
-      if (status.operationSource == 'real') '실측 판정',
+      // 출처(연습·실제)는 위 문장이 이미 말한다(2026-10-17 같은 말 한 번) — 서버 설명만 붙인다.
       if (status.operationDetail case final d? when d.isNotEmpty) d,
-    ].join(' · ');
+    ].join('. ');
     final verified = operationVerifiedForReal(status);
     final color = verified ? context.appSuccess : context.appWarning;
     return Padding(
@@ -629,38 +627,38 @@ class _NowState {
     final attempt = s.currentAttempt ?? 1;
     final evidence = [
       if (vDetail != null && vDetail.isNotEmpty) vDetail,
-      if (vConf != null) '센서 ${(vConf * 100).toStringAsFixed(0)}%',
+      // 센서 %는 일반 화면에 내지 않는다(2026-10-17 쉬운 말 규칙 6).
       if (attempt > 1) '$attempt번째 시도',
-    ].join(' · ');
+    ].join('. ');
 
     switch (s.phase) {
       case ExecutionPhase.idle:
         return const _NowState(
-          headline: '실행을 시작하면 진행 상황이 여기에 표시돼요.',
+          headline: '실행하면 여기서 진행을 볼 수 있어요.',
           idle: true,
         );
       case ExecutionPhase.waiting:
-        return _NowState(headline: s.message ?? '실행 요청을 보냈어요');
+        return _NowState(headline: s.message ?? '실행하라고 보냈어요');
       case ExecutionPhase.running:
         if (s.currentButton == null) {
-          return const _NowState(headline: '실행 중');
+          return const _NowState(headline: '하는 중이에요');
         }
         return _NowState(
           button: s.currentButton,
-          headline: hasVerification ? '눌림 확인 중' : '누르는 중',
+          headline: hasVerification ? '눌렸는지 보는 중' : '누르는 중',
           // 근거가 아직 없어도 확인하고 있다는 사실은 말한다 -- 숫자보다
           // '눌림을 확인한다'는 것이 사용자에게 중요하다.
-          detail: hasVerification ? evidence : '버튼 눌림을 확인하고 있어요.',
+          detail: hasVerification ? evidence : '버튼이 눌렸는지 보고 있어요.',
         );
       case ExecutionPhase.retrying:
         return _NowState(
           button: s.currentButton,
-          headline: '보정 후 다시 시도 중',
+          headline: '자리를 맞춰 다시 누르는 중',
           detail: evidence.isEmpty ? null : evidence,
           tone: _Tone.caution,
           // '재시도'는 실패로 읽힌다. 눌림이 확인되지 않아 자리를 다시
           // 맞추고 누르는 것은 이 제품이 하기로 한 일이다.
-          retryNote: '눌림이 확인되지 않아 자리를 맞추고 다시 눌러요.',
+          retryNote: '눌렸는지 몰라서 자리를 맞추고 다시 눌러요.',
         );
       case ExecutionPhase.completed:
         // 서버 문장이 없을 때 기본값이 "버튼 조작을 마쳤어요"면, 실행 환경도
@@ -693,7 +691,7 @@ class _NowState {
         );
       case ExecutionPhase.unknown:
         return _NowState(
-          headline: s.message ?? '동작을 확인할 수 없어요.',
+          headline: s.message ?? '지금 상태를 몰라요. 가전을 봐 주세요.',
           tone: _Tone.caution,
         );
       case ExecutionPhase.unconfirmed:
@@ -834,7 +832,7 @@ class _SegmentedProgress extends StatelessWidget {
         // 이 실행의 조작 진행(서버 total_steps — 버튼 하나 또는 명령 한 묶음). 루틴 목록의
         // "N단계"(루틴 단계 수)와 다른 축이라 다른 말로 부른다. 숫자와 단위는 붙어 다닌다
         // (단어 결합 문자 U+2060, 외부 평가 2026-10-13 L3).
-        Text('조작 $total\u2060개 중 $completed\u2060개', style: AppText.title),
+        Text('$total\u2060개 중 $completed\u2060개 했어요', style: AppText.title),
         if (drawSegments) ...[
           const SizedBox(height: 10),
           Row(
@@ -972,7 +970,7 @@ class _StopArea extends StatelessWidget {
                     child: OutlinedButton.icon(
                       onPressed: onRecheck,
                       icon: const Icon(Icons.refresh),
-                      label: const Text('다시 확인'),
+                      label: const Text('새로 보기'),
                     ),
                   ),
                   // 정지와 재확인 사이를 띄운다 -- 붙여 두면 급할 때
@@ -1070,7 +1068,7 @@ class _SensorRecordState extends State<_SensorRecord> {
                   Expanded(
                     child: Text(
                       // 무엇의 기록인지(UI 평가 3차 10/17 — '센서'는 기술 말이었다).
-                      '전류·소리 기록 보기',
+                      keepWordsTogether('전기와 소리 기록'),
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,

@@ -1,4 +1,4 @@
-// 'LG ThinQ 연결' 안의 'ThinQ에서 찾은 가전' 구획 (2026-10-13).
+// 'LG 가전 연결' 안의 'LG 앱에서 찾은 가전' 구획 (2026-10-13).
 //
 // - 찾은 가전마다 지원 여부: 추가할 수 있으면 '추가' 버튼, 지원 안 함·상태만이면 이유 한 줄.
 // - 추가는 사용자가 누를 때만. 누르기 전에는 허브에 아무것도 보내지 않는다.
@@ -169,7 +169,7 @@ void main() {
         ])))));
     await _settle(tester);
 
-    expect(find.text('ThinQ에서 찾은 가전 (연습용 클라우드)'), findsOneWidget);
+    expect(find.text('LG 앱에서 찾은 가전 (연습)'), findsOneWidget);
     expect(find.byKey(const Key('thinq-add-k1')), findsOneWidget);
     expect(find.text('제어할 수 있어요 — 전원 · 풍량 · 운전 모드'), findsOneWidget);
     expect(find.byKey(const Key('thinq-add-k2')), findsNothing);
@@ -177,15 +177,15 @@ void main() {
     expect(find.byKey(const Key('thinq-add-k4')), findsNothing);
     expect(find.textContaining('상태만 볼 수 있어요'), findsOneWidget);
     expect(find.textContaining('다루지 않는 가전 종류'), findsOneWidget);
-    expect(find.text('연결됨 · 허브 설정으로 넣은 가전이에요'), findsOneWidget);
+    expect(find.text('설치할 때 넣은 가전이에요'), findsOneWidget);
     // 모델 코드는 보이지 않는다(외부 평가 10/16 p09).
     expect(find.textContaining('FAKE'), findsNothing);
     // 서버 설정으로 넣은 가전은 여기서 빼지 않는다.
     expect(find.byKey(const Key('thinq-remove-k4')), findsNothing);
     // 사용자가 허용한 자동 실행이 있으므로 '언제나 확인'이라고 하지 않는다(외부 검토 M4, 10/15).
     expect(find.textContaining('언제나 확인'), findsNothing);
-    expect(find.textContaining('직접 바꿀 때는 한 번 확인해요'), findsOneWidget);
-    expect(find.textContaining('허용한 자동 실행은 따로 켜고 끌 수 있어요'), findsOneWidget);
+    expect(find.textContaining('바꿀 때마다 한 번 물어봐요'), findsOneWidget);
+    expect(find.textContaining('추가한 가전만 홈과 루틴에 나와요'), findsOneWidget);
   });
 
   testWidgets('토큰 오류는 0대가 아니라 이유를 말한다', (tester) async {
@@ -200,7 +200,7 @@ void main() {
     expect(find.textContaining('0대'), findsNothing);
     expect(find.text('다시 찾기'), findsOneWidget);
     // 실패해도 모의 클라우드 표시는 남는다.
-    expect(find.text('ThinQ에서 찾은 가전 (연습용 클라우드)'), findsOneWidget);
+    expect(find.text('LG 앱에서 찾은 가전 (연습)'), findsOneWidget);
   });
 
   testWidgets('허브에 닿지 않으면 0대가 아니라 이유', (tester) async {
@@ -208,7 +208,7 @@ void main() {
     await tester.pumpWidget(_section(RpiApiService('http://rpi5.local:8000',
         client: MockClient((req) async => throw http.ClientException('down')))));
     await _settle(tester);
-    expect(find.textContaining('허브에 닿지 않아요'), findsOneWidget);
+    expect(find.textContaining('본체와 연결이 끊겼어요'), findsOneWidget);
     expect(find.textContaining('0대'), findsNothing);
   });
 
@@ -217,7 +217,7 @@ void main() {
     await tester.pumpWidget(_section(
         _serving(() => http.Response('{"detail":"off"}', 404))));
     await _settle(tester);
-    expect(find.textContaining('ThinQ 연결이 꺼져 있어요'), findsOneWidget);
+    expect(find.textContaining('LG 가전 연결이 꺼져 있어요'), findsOneWidget);
     expect(find.textContaining('0대'), findsNothing);
   });
 
@@ -249,7 +249,7 @@ void main() {
       {'key': _Hub.purifierKey}
     ]);
     expect(find.textContaining('추가했어요'), findsOneWidget);
-    expect(find.text('추가됨 · 홈과 루틴에 나와요'), findsOneWidget);
+    expect(find.text('추가한 가전이에요. 홈과 루틴에 나와요'), findsOneWidget);
     expect(find.byKey(const Key('thinq-add-${_Hub.purifierKey}')), findsNothing);
     // '빼기'는 테두리 있는 버튼이다(외부 평가 10/16 p09).
     expect(
@@ -266,6 +266,6 @@ void main() {
         MaterialPageRoute<void>(builder: (_) => const HomeScreen()));
     await _settle(tester);
     expect(find.byKey(const Key('appliance-card-air_purifier')), findsOneWidget);
-    expect(find.widgetWithText(RouteBadge, 'ThinQ'), findsOneWidget);
+    expect(find.widgetWithText(RouteBadge, 'LG 가전'), findsOneWidget);
   });
 }

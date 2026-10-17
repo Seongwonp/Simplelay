@@ -213,8 +213,8 @@ void setupSummaryTests() {
     await tester.tap(find.text('설정할 가전 2개'));
     await tester.pumpAndSettle();
 
-    expect(find.text('시험용 전자레인지 · 설정이 2개 남았어요'), findsOneWidget);
-    expect(find.text('Phone-MW · 설정이 2개 남았어요'), findsOneWidget);
+    expect(find.text('시험용 전자레인지, 설정이 2개 남았어요'), findsOneWidget);
+    expect(find.text('Phone-MW, 설정이 2개 남았어요'), findsOneWidget);
     expect(find.text('위치 맞추기'), findsNWidgets(2));
   });
 
@@ -224,7 +224,7 @@ void setupSummaryTests() {
     await _pumpHome(tester, [kServerFive[3]], <Uri>[]);
 
     expect(find.byKey(const Key('setup-summary-card')), findsNothing);
-    expect(find.text('세탁기 · 설정이 2개 남았어요'), findsOneWidget);
+    expect(find.text('세탁기, 설정이 2개 남았어요'), findsOneWidget);
     expect(find.text('위치 맞추기'), findsOneWidget);
   });
 }

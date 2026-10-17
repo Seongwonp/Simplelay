@@ -34,8 +34,8 @@ void _notChangedOrFailed(String text) {
   expect(text, isNot(contains('바꿨')));
   expect(text, isNot(contains('보냈')));
   expect(text, isNot(contains('확인하지 못했')));
-  expect(text, isNot(contains('실패')));
-  expect(text, isNot(contains('다시 시도')));
+  expect(text, isNot(contains('못 했어요')));
+  expect(text, isNot(matches('다시 (해|시도|하기)')));
 }
 
 RpiHistoryEntry _entry(String mode, {String confirmation = 'already_at_target',
@@ -74,11 +74,11 @@ void main() {
         confirmation: c,
         kind: ResultKind.success,
         executionMode: mode);
-    expect(label('already_at_target', 'real'), '이미 그 설정이라 보내지 않음');
-    expect(label('already_at_target', 'mock'), '연습 · 이미 그 설정이라 보내지 않음');
-    expect(label('state_confirmed_unknown_before', 'real'), '설정된 것 확인됨');
-    expect(label('state_confirmed_unknown_before', 'mock'), '연습 · 설정된 것 확인');
-    expect(label('state_confirmed', 'real'), '상태 확인됨');
+    expect(label('already_at_target', 'real'), '이미 그 설정이라 보내지 않았어요');
+    expect(label('already_at_target', 'mock'), '연습이에요. 이미 그 설정이었어요');
+    expect(label('state_confirmed_unknown_before', 'real'), '그 설정인 것을 확인했어요');
+    expect(label('state_confirmed_unknown_before', 'mock'), '연습이에요. 그 설정인 것을 봤어요');
+    expect(label('state_confirmed', 'real'), '상태를 확인했어요');
   });
 
   test('결과 문장 네 경우: 서버 문장(그 실행의 설정 이름) 그대로', () {
@@ -91,32 +91,32 @@ void main() {
     expect(seen, isNot(contains('바꿨')));
     expect(
         finishedMessage(kind: ResultKind.unconfirmed, route: 'thinq', receipt: 'accepted'),
-        '명령을 보냈지만 설정이 바뀌었는지 확인하지 못했어요. 가전을 직접 확인해 주세요.');
+        '보냈지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.');
     // 서버 문장이 없으면(옛 서버) 일반 문장 — 바꿨다고 지어내지 않는다.
     expect(_finished('already_at_target', 'real', receipt: 'not_dispatched'),
-        '이미 그 설정이에요. 변경 명령을 보내지 않았어요.');
-    expect(_finished('state_confirmed_unknown_before', 'real'), '목표 설정인 것을 확인했어요.');
+        '이미 그 설정이라 보내지 않았어요.');
+    expect(_finished('state_confirmed_unknown_before', 'real'), '원하는 설정인 것을 확인했어요.');
   });
 
   test('모의 결과는 모의 표시를 유지한다', () {
     final already = _finished('already_at_target', 'mock', detail: _already, receipt: 'not_dispatched');
-    expect(already, '연습 · $_already 실제 가전은 조작하지 않았어요.');
+    expect(already, '연습이에요. $_already 실제 가전은 그대로예요.');
     _notChangedOrFailed(already);
     final seen = _finished('state_confirmed_unknown_before', 'mock', detail: _seen);
-    expect(seen, startsWith('연습 · '));
-    expect(seen, contains('실제 가전은 조작하지 않았어요'));
+    expect(seen, startsWith('연습이에요. '));
+    expect(seen, contains('실제 가전은 그대로예요'));
     expect(_finished('state_confirmed', 'mock', detail: _changed),
-        '연습으로 ThinQ 명령을 보내고 연습 상태를 확인했어요. 실제 가전은 조작하지 않았어요.');
+        '연습으로 보내고 연습 상태를 봤어요. 실제 가전은 그대로예요.');
   });
 
   test('기록: 이미 목표값은 성공으로, 변경 명령을 보내지 않았다고(연결 확인을 권하지 않는다)', () {
     final real = historyResult(_entry('real'), applianceName: '공기청정기');
     expect(real.kind, ResultKind.success);
-    expect(real.sentence, '이미 그 설정이라 변경 명령을 보내지 않았어요');
+    expect(real.sentence, '이미 그 설정이라 보내지 않았어요');
     expect(real.next, isNull);
     final mock = historyResult(_entry('mock'), applianceName: '공기청정기(모의)');
     expect(mock.kind, ResultKind.success);
-    expect(mock.sentence, '연습 · 이미 그 설정이라 변경 명령을 보내지 않았어요');
+    expect(mock.sentence, '연습이에요. 이미 그 설정이라 보내지 않았어요');
     final changed = historyResult(
         _entry('real', confirmation: 'state_confirmed', receipt: 'accepted', detail: _changed),
         applianceName: '공기청정기');
@@ -136,7 +136,7 @@ void main() {
         confirmation: 'already_at_target',
         executionMode: 'real');
     final facts = runStepFacts(step);
-    expect(facts, 'ThinQ · 이미 그 설정이라 보내지 않음 · 성공');
+    expect(facts, 'LG 가전, 이미 그 설정이라 보내지 않았어요, 됐어요');
   });
 
   test('실행 상태 화면(실제 배선): 완료로, 서버의 이미-목표값 문장 그대로', () async {

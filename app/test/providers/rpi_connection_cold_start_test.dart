@@ -1,6 +1,6 @@
 // 앱을 다시 열 때 저장된 주소가 연결 알림자보다 먼저 올라와 있으면
 // 연결 확인이 한 번도 돌지 않아 '미설정'에 머물렀다(2026-10-13 에뮬레이터).
-// 요청은 200으로 오가는데 홈 머리는 '허브 확인 중', 타일은 '허브 설정이 필요해요'.
+// 요청은 200으로 오가는데 홈 머리는 '본체 찾는 중', 타일은 '본체 연결 설정이 필요해요'.
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;

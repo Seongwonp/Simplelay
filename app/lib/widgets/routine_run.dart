@@ -19,7 +19,7 @@ Future<String?> runRoutineNow(
   String routineId,
 ) async {
   final api = ref.read(rpiApiServiceProvider);
-  if (api == null) return '허브에 연결되면 실행할 수 있어요.';
+  if (api == null) return '본체와 연결되면 할 수 있어요.';
   try {
     final result = await api.triggerRoutine(routineId);
     if (!context.mounted) return null;
@@ -29,13 +29,13 @@ Future<String?> runRoutineNow(
       if (context.mounted) context.push('/suggestion/$cardId');
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('알림만 보냈어요. 가전은 누르지 않아요.')));
+          const SnackBar(content: Text('알림만 보냈어요. 가전은 그대로예요.')));
     }
     return null;
   } on RpiApiException catch (e) {
     return routineRunErrorText(e);
   } catch (_) {
-    return '카드를 만들지 못했어요. 연결을 확인해 주세요.';
+    return '카드를 만들지 못했어요. 연결을 봐 주세요.';
   }
 }
 
@@ -46,8 +46,8 @@ String routineRunErrorText(RpiApiException e) {
   final message = e.message.trim();
   if (message.isNotEmpty) return message;
   return switch (e.statusCode) {
-    409 => '지금은 실행할 수 없어요. 진행 중인 실행이 끝난 뒤 다시 눌러 주세요.',
+    409 => '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.',
     412 => '가전이 아직 준비되지 않았어요.',
-    _ => '카드를 만들지 못했어요. 연결을 확인해 주세요.',
+    _ => '카드를 만들지 못했어요. 연결을 봐 주세요.',
   };
 }

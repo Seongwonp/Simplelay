@@ -1,5 +1,5 @@
 // 모션 걸림(stall) 알람을 '눌림 확인 실패'로 보이지 않는다(2026-10-14, 보드 날 발견 2).
-// 서버 /status `last_abort_reason`·/history `abort_reason` → "모터가 걸려 멈췄어요" 계열 문장, 다시 시도 권하지 않음.
+// 서버 /status `last_abort_reason`·/history `abort_reason` → "작은 팔이 움직이지 못해 멈췄어요" 계열 문장, 다시 시도 권하지 않음.
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -58,13 +58,13 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test('원인 코드 → 문장', () {
-    expect(motionAbortSentence('motion_alarm: stall'), '모터가 걸려 멈췄어요');
-    expect(motionAbortSentence('motion_alarm: limit'), '모터 보드가 이상을 알려 멈췄어요');
-    expect(motionAbortSentence('motion_reset'), '모터 보드가 다시 켜져 멈췄어요');
-    expect(motionAbortSentence('motion_timeout'), '모터 보드가 제때 답하지 않아 멈췄어요');
-    expect(motionAbortSentence('motion_not_ready'), '누름 장치가 준비되지 않아 멈췄어요');
-    expect(motionAbortSentence('motion_link_error'), '누름 장치 연결이 끊겨 멈췄어요');
-    expect(motionAbortSentence('motion_future_thing'), '누름 장치가 멈췄어요');
+    expect(motionAbortSentence('motion_alarm: stall'), '작은 팔이 움직이지 못해 멈췄어요');
+    expect(motionAbortSentence('motion_alarm: limit'), '작은 팔이 이상을 알려 멈췄어요');
+    expect(motionAbortSentence('motion_reset'), '작은 팔이 다시 켜져 멈췄어요');
+    expect(motionAbortSentence('motion_timeout'), '작은 팔이 제때 답하지 않아 멈췄어요');
+    expect(motionAbortSentence('motion_not_ready'), '작은 팔이 준비되지 않아 멈췄어요');
+    expect(motionAbortSentence('motion_link_error'), '작은 팔 연결이 끊겨 멈췄어요');
+    expect(motionAbortSentence('motion_future_thing'), '작은 팔이 멈췄어요');
     expect(motionAbortSentence(null), isNull);
     expect(motionAbortSentence('stall'), isNull);
   });
@@ -80,7 +80,7 @@ void main() {
     });
     expect(s.phase, ExecutionPhase.failed);
     expect(s.abortReason, 'motion_alarm: stall');
-    expect(s.message, '모터가 걸려 멈췄어요. 다시 누르지 않았어요. 가전과 누름 장치를 직접 봐 주세요.');
+    expect(s.message, '작은 팔이 움직이지 못해 멈췄어요. 다시 누르지 않았어요. 가전과 작은 팔을 봐 주세요.');
     expect(s.message, isNot(contains('눌림을 확인하지 못해')));
     expect(spoken.single, s.message);
   });
@@ -92,7 +92,7 @@ void main() {
       'last_route': 'physical',
       'last_execution_mode': 'real',
     });
-    expect(s.message, '눌림을 확인하지 못해 멈췄어요. 가전을 먼저 봐 주세요. 가전이 이미 움직이고 있으면 다시 시도하지 마세요. 같은 버튼을 또 누르게 돼요.');
+    expect(s.message, '눌렸는지 몰라서 멈췄어요. 가전을 먼저 봐 주세요. 가전이 이미 움직이고 있으면 다시 시도하지 마세요. 같은 버튼을 또 누르게 돼요.');
   });
 
   test('기록: 걸림 원인이 있으면 "다시 눌러도 확인하지 못해"라고 하지 않는다', () {
@@ -101,10 +101,10 @@ void main() {
       'termination': 'motion_aborted',
       'abort_reason': 'motion_alarm: stall',
     }));
-    expect(r.sentence, '모터가 걸려 멈췄어요');
-    expect(r.next, '다시 누르지 않았어요 · 장치를 확인해 주세요');
+    expect(r.sentence, '작은 팔이 움직이지 못해 멈췄어요');
+    expect(r.next, '다시 누르지 않았어요. 작은 팔을 봐 주세요');
     final old = historyResult(_entry(const {'outcome': 'safety_stop', 'termination': 'retries_exhausted'}));
-    expect(old.sentence, '다시 눌러도 확인하지 못해 안전 정지');
+    expect(old.sentence, '다시 눌러도 몰라서 스스로 멈췄어요');
   });
 
   testWidgets('결과 화면: 걸림이면 다시 시도를 권하지 않는다(자동 재누름·재시도 버튼 없음)', (tester) async {
@@ -116,8 +116,8 @@ void main() {
           abortReason: 'motion_alarm: stall',
           message: finishedMessage(kind: ResultKind.safetyStop, abortReason: 'motion_alarm: stall'),
         )));
-    expect(findPlainText('모터가 걸려 멈췄어요', contains: true), findsWidgets);
-    expect(find.text('다시 시도'), findsNothing);
+    expect(findPlainText('작은 팔이 움직이지 못해 멈췄어요', contains: true), findsWidgets);
+    expect(find.text('다시 하기'), findsNothing);
     expect(find.textContaining('다시 실행해 주세요'), findsNothing);
     expect(find.widgetWithText(FilledButton, '확인'), findsOneWidget);
   });
@@ -125,6 +125,6 @@ void main() {
   testWidgets('결과 화면: 원인 없는 안전 정지는 종전대로 다시 시도', (tester) async {
     await tester.pumpWidget(buildScreen(const StatusScreen(),
         executionStatus: const ExecutionStatus(phase: ExecutionPhase.failed, outcome: 'safety_stop')));
-    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.text('다시 하기'), findsOneWidget);
   });
 }

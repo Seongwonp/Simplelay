@@ -62,7 +62,7 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('허브')),
+        appBar: AppBar(title: const Text('본체')),
         body: ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -70,11 +70,11 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
             FilledButton.icon(onPressed: () => context.push('/pair'),
               icon: const Icon(Icons.qr_code), label: const Text('코드로 폰 연결하기')),
             const SizedBox(height: 24),
-            _SectionHeader(title: '허브 위치'),
+            _SectionHeader(title: '본체 위치'),
             const SizedBox(height: 8),
             const _HubLocationSection(),
             const SizedBox(height: 28),
-            _SectionHeader(title: '연결 주소'),
+            _SectionHeader(title: '연결 주소 (설치하는 분용)'),
             const SizedBox(height: 8),
             _AdvancedSection(
               controller: _urlController,
@@ -83,7 +83,7 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
               apiKeyEdited: () => _keyEdited,
             ),
             const SizedBox(height: 24),
-            _SectionHeader(title: '예비 연결'),
+            _SectionHeader(title: '블루투스 연결 (설치하는 분용)'),
             const SizedBox(height: 4),
             _SavedDeviceSection(),
             const SizedBox(height: 12),
@@ -125,7 +125,7 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
   Future<void> _setFromPhone() async {
     final api = ref.read(rpiApiServiceProvider);
     if (api == null) {
-      _say('허브 주소를 먼저 정해 주세요.', warn: true);
+      _say('본체 주소를 먼저 넣어 주세요.', warn: true);
       return;
     }
     setState(() {
@@ -140,16 +140,16 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
           try {
             await api.setHubLocation(lat, lon);
             ref.invalidate(hubLocationProvider);
-            _say('허브 위치를 저장했어요. 약 1km 단위로만 저장해요.');
+            _say('본체 위치를 저장했어요. 약 1km 단위로만 저장해요.');
           } on RpiApiException catch (e) {
-            _say(e.statusCode == 422 ? e.message : '저장하지 못했어요. 연결을 확인해 주세요.',
+            _say(e.statusCode == 422 ? e.message : '저장하지 못했어요. 연결을 봐 주세요.',
                 warn: true);
           } catch (_) {
-            _say('저장하지 못했어요. 연결을 확인해 주세요.', warn: true);
+            _say('저장하지 못했어요. 연결을 봐 주세요.', warn: true);
           }
         case LocationDenied():
-          _say('위치 권한을 허용하지 않아서 설정하지 않았어요. 다시 누르면 다시 물어봐요. '
-              '위치 없이도 다른 기능은 그대로 쓸 수 있어요(날씨 안내만 빠져요).',
+          _say('위치 권한을 주지 않아서 정하지 않았어요. 다시 누르면 다시 물어봐요. '
+              '위치가 없으면 날씨 안내만 빠지고 나머지는 그대로예요.',
               warn: true);
         case LocationDeniedForever():
           _say('위치 권한이 꺼져 있어요. 휴대폰 설정에서 이 앱의 위치 권한을 켜 주세요.',
@@ -157,7 +157,7 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
         case LocationServiceOff():
           _say('휴대폰의 위치 기능이 꺼져 있어요. 켠 뒤 다시 눌러 주세요.', warn: true);
         case LocationFailed():
-          _say('위치를 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.', warn: true);
+          _say('위치를 읽지 못했어요. 잠시 뒤 다시 해 주세요.', warn: true);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -169,12 +169,12 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
     final location = ref.watch(hubLocationProvider);
     final line = location.when(
       loading: () => '확인하는 중이에요',
-      error: (_, __) => '허브에 닿으면 볼 수 있어요',
+      error: (_, __) => '본체와 연결되면 볼 수 있어요',
       data: (l) => switch (l?.source) {
-        'app' => '폰에서 정한 위치 (위도 ${l!.lat?.toStringAsFixed(2)}, 경도 ${l.lon?.toStringAsFixed(2)})',
-        'env' => '허브 설정 파일에 적힌 위치',
-        'none' => '아직 위치가 없어요 — 날씨 안내를 하지 않아요',
-        _ => '허브에 닿으면 볼 수 있어요',
+        'app' => '폰에서 정한 위치예요',
+        'env' => '설치할 때 정한 위치예요',
+        'none' => '아직 위치가 없어요. 날씨 안내를 하지 않아요',
+        _ => '본체와 연결되면 볼 수 있어요',
       },
     );
     return Column(
@@ -183,7 +183,7 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
         Text(line, key: const Key('hub-location-line'),
             style: const TextStyle(fontSize: 16)),
         const SizedBox(height: 4),
-        Text('날씨 예보를 받을 동네를 정해요. 허브에는 GPS가 없어 폰 위치를 빌려요.',
+        Text('날씨를 받을 동네를 정해요. 본체는 위치를 몰라 폰 위치를 빌려요.',
             style: TextStyle(fontSize: 14, color: context.appMuted)),
         const SizedBox(height: 10),
         FilledButton.icon(

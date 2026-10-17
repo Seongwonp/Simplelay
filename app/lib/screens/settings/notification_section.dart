@@ -28,23 +28,23 @@ class _DndTile extends ConsumerWidget {
         leading: Icon(active
             ? Icons.do_not_disturb_on
             : Icons.do_not_disturb_on_outlined),
-        title: const Text('제안 잠시 쉬기'),
+        title: const Text('잠시 쉬기'),
         // 어절 단위 줄바꿈·14pt(UI 평가 3차 10/17 — '쉬 / 어요'로 끊기고 12pt는 작았다).
         subtitle: _WordsText(
           // 잠시 쉬기도 조용한 시간과 같은 판정이다(2026-10-14) — 아직 시작하지 않은 자동 실행도 건너뛴다.
           // 켜져 있으면 끝나는 시각을 함께(2026-10-14 마감 확인 A5).
           !active
-              ? '몇 시간 동안 새 제안과 자동 실행을 쉬어요'
+              ? '몇 시간 동안 묻지도, 자동으로 하지도 않아요'
               : carried
-                  ? '${pauseEndClock(until)}까지 새 제안만 쉬어요 · 예전에 켠 설정이라 자동 실행은 그대로예요'
-                  : '${pauseEndClock(until)}까지 새 제안과 자동 실행을 쉬어요',
+                  ? '${pauseEndClock(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하기는 그대로예요'
+                  : '${pauseEndClock(until)}까지 묻지도, 자동으로 하지도 않아요',
           style: TextStyle(color: context.appMuted, fontSize: 14),
         ),
         // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
         trailing: OutlinedButton(
           style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
           onPressed: () => showDndSheet(context),
-          child: Text(active ? '지금 받기' : '시간 고르기'),
+          child: Text(active ? '그만 쉬기' : '시간 고르기'),
         ),
       ),
     );
@@ -76,10 +76,10 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
       }
     } on RpiApiException catch (e) {
       messenger.showSnackBar(SnackBar(
-          content: Text(e.message.isNotEmpty ? e.message : '설정을 전달하지 못했어요. 연결을 확인해 주세요.')));
+          content: Text(e.message.isNotEmpty ? e.message : '설정을 본체에 보내지 못했어요. 연결을 봐 주세요.')));
     } catch (_) {
       messenger.showSnackBar(
-          const SnackBar(content: Text('설정을 전달하지 못했어요. 연결을 확인해 주세요.')));
+          const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 연결을 봐 주세요.')));
     } finally {
       if (mounted) setState(() => _busy = false);
       ref.invalidate(quietHoursProvider);
@@ -119,7 +119,7 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
             : Icons.bedtime_outlined),
         title: const Text('조용한 시간'),
         subtitle: s == null
-            ? Text(connected ? '설정을 불러오지 못했어요.' : '허브와 연결되면 설정할 수 있어요.', style: muted)
+            ? Text(connected ? '설정을 불러오지 못했어요.' : '본체와 연결되면 설정할 수 있어요.', style: muted)
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -138,7 +138,7 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
                               fontWeight: FontWeight.w600)),
                     ),
                   _WordsText(
-                    '${s.scope ?? '새 제안과 일반 안내 소리만 쉬어요.'} 직접 실행·정지는 그대로예요.',
+                    '${s.scope ?? '묻는 알림과 안내 소리만 쉬어요.'} 직접 하기와 정지는 그대로예요.',
                     style: muted,
                   ),
                 ],
@@ -188,7 +188,7 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
         await ref.read(wellnessPauseProvider.notifier).pauseUntil(picked);
     if (!ok) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('설정을 전달하지 못했어요. 연결을 확인해 주세요.')),
+        const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 연결을 봐 주세요.')),
       );
     }
   }
@@ -197,7 +197,7 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
     final messenger = ScaffoldMessenger.of(context);
     if (!await ref.read(wellnessPauseProvider.notifier).clear()) {
       messenger.showSnackBar(
-        const SnackBar(content: Text('설정을 전달하지 못했어요. 연결을 확인해 주세요.')),
+        const SnackBar(content: Text('설정을 본체에 보내지 못했어요. 연결을 봐 주세요.')),
       );
     }
   }
@@ -215,7 +215,7 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
         title: const Text('안부 확인 쉬기'),
         subtitle: _WordsText(
           paused
-              ? '${_ymd(until)}까지 쉬어요. 실행 실패·위험 신호음은 그대로 알려드려요.'
+              ? '${_ymd(until)}까지 쉬어요. 실패나 위험 신호음은 그대로 알려 드려요.'
               : '여행처럼 집을 비우는 날 켜세요. 조용한 게 정상인 날 알림이 오지 않아요.',
           style: TextStyle(color: context.appMuted, fontSize: 14),
         ),
@@ -301,7 +301,7 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
         if (items.isEmpty) {
           // 비었으면 아무것도 두지 않는다(2026-10-14 UX) — 연결 전 안내만 남긴다.
           if (!_noServer) return const SizedBox.shrink();
-          return const _SuppressionNote(text: '기기와 연결되면 여기에 표시돼요.');
+          return const _SuppressionNote(text: '본체와 연결되면 여기에 나와요.');
         }
         return Column(
           children: [

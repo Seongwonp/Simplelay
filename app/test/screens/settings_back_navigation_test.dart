@@ -68,8 +68,8 @@ void main() {
   // 줄 제목 → 열린 화면의 AppBar 제목.
   const subScreens = <String, String>{
     '앱 정보': '앱 정보',
-    '허브': '허브',
-    'LG ThinQ 연결': 'LG ThinQ 연결',
+    '본체': '본체',
+    'LG 가전 연결': 'LG 가전 연결',
     '보호자 알림': '알림',
     '글자 크기': '글자 크기',
   };

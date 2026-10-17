@@ -103,7 +103,7 @@ void main() {
     expect(find.text('개발자'), findsNothing);
     // 예전 탭(상태·말로 조작·알림)은 없다.
     expect(find.text('상태'), findsNothing);
-    expect(find.bySemanticsLabel('말로 조작하기'), findsNothing);
+    expect(find.bySemanticsLabel('말로 하기'), findsNothing);
   });
 
   testWidgets('서버 개발자 모드면 설정 옆에 다섯 번째 탭 "개발자"가 생긴다',
@@ -157,7 +157,7 @@ void main() {
         label: '아침 데우기',
       ),
     );
-    expect(find.text('아침 데우기 실행 중'), findsOneWidget);
+    expect(find.text('아침 데우기 하는 중'), findsOneWidget);
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
 
     await tester.tap(find.text('루틴'));
@@ -170,7 +170,7 @@ void main() {
       tester,
       status: const ExecutionStatus(phase: ExecutionPhase.unknown),
     );
-    expect(find.text('동작을 확인할 수 없어요'), findsOneWidget);
+    expect(find.text('지금 상태를 몰라요'), findsOneWidget);
     expect(find.byKey(const Key('shell-stop')), findsOneWidget);
   });
 }

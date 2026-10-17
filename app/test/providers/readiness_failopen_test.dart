@@ -66,7 +66,7 @@ void main() {
       expect(fan.canExecute, isTrue);
     });
 
-    test('하지만 "확인됨"이라고 말하지도 않는다', () {
+    test('하지만 "눌렸어요"이라고 말하지도 않는다', () {
       // 이 구분이 없으면 BLE처럼 서버를 안 거치는 경로에서 "확인된 operable"과
       // "그냥 모름"을 같은 값으로 보게 된다.
       final fan = _fromServer(_payload());

@@ -45,12 +45,12 @@ class HistoryScreen extends ConsumerWidget {
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (_, __) => _Message(
             icon: Icons.wifi_off,
-            text: '기록을 불러오지 못했어요.\n연결을 확인하고 아래로 당겨 새로고침해 주세요.',
+            text: '기록을 불러오지 못했어요.\n연결을 보고 아래로 당겨 새로 봐 주세요.',
           ),
           data: (entries) => entries.isEmpty
               ? _Message(
                   icon: Icons.history,
-                  text: '아직 실행 기록이 없어요.\n가전을 조작하면 여기에 기록돼요.',
+                  text: '아직 기록이 없어요.\n가전을 쓰면 여기에 남아요.',
                 )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
@@ -203,10 +203,10 @@ class _StepBreakdown extends StatelessWidget {
                   // '눌렀지만 확인 못 함'과 '아예 못 누름'을 화면이
                   // 구분할 재료는 없다 -- 확인 여부까지만 말한다.
                   b.success
-                      ? (b.attempts > 1 ? '${b.attempts}번 만에 확인' : '확인됨')
+                      ? (b.attempts > 1 ? '${b.attempts}번 만에 눌렸어요' : '눌렸어요')
                       : notPressed
-                          ? '누르지 않음'
-                          : '확인 못 함',
+                          ? '누르지 않았어요'
+                          : '눌렸는지 몰라요',
                   style: TextStyle(fontSize: 14, color: context.appMuted),
                 ),
               ],
@@ -236,7 +236,7 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   // 모의는 결과 문장("연습 · ○○에 보내지 않았어요")이 이미 다 말한다 — 접수 줄을 겹치지 않는다.
   if (e.executionMode == 'mock') return null;
   // 이미 목표값이면 위 결과 문장이 다 말한다 — 같은 뜻을 두 줄로 쓰지 않는다(UI 평가 10/17).
-  if (e.confirmation == 'already_at_target') return 'ThinQ';
+  if (e.confirmation == 'already_at_target') return 'LG 가전';
   final label = confirmationLabel(
     route: e.route,
     receipt: e.receipt,
@@ -244,7 +244,7 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
     kind: kind,
     executionMode: e.executionMode,
   );
-  return label == null ? 'ThinQ' : 'ThinQ · $label';
+  return label ?? 'LG 가전';
 }
 
 class _HistoryRow extends StatelessWidget {
@@ -383,7 +383,7 @@ class _HistoryRow extends StatelessWidget {
               child: TextButton.icon(
                 onPressed: () => context.go('/manual-control'),
                 icon: const Icon(Icons.grid_view_rounded, size: 18),
-                label: const Text('버튼으로 직접 조작'),
+                label: const Text('버튼판에서 직접 누르기'),
               ),
             ),
           ],

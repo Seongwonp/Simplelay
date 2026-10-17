@@ -252,13 +252,13 @@ class HomeScreen extends ConsumerWidget {
       } on RpiApiException catch (e) {
         if (e.statusCode != 404) {
           if (context.mounted) {
-            _snack(context, '선택을 전달하지 못했어요. 연결을 확인해 주세요.');
+            _snack(context, '고른 것을 본체에 알리지 못했어요. 연결을 봐 주세요.');
           }
           return;
         }
       } catch (_) {
         if (context.mounted) {
-          _snack(context, '선택을 전달하지 못했어요. 연결을 확인해 주세요.');
+          _snack(context, '고른 것을 본체에 알리지 못했어요. 연결을 봐 주세요.');
         }
         return;
       }
@@ -606,7 +606,7 @@ class _RoutineQuickRow extends StatelessWidget {
               style: TextStyle(fontSize: 14, color: context.appMuted)),
           if (needsSetup)
             // 어절 단위로 줄을 바꾼다('버/튼' 방지, UI 평가 10/17).
-            Text(keepWordsTogether('가전 설정이 필요해요 — 아래 가전을 눌러 버튼 자리를 맞춰 주세요'),
+            Text(keepWordsTogether('가전 설정이 필요해요. 아래 가전을 눌러 버튼 자리를 맞춰 주세요'),
                 style: TextStyle(fontSize: 14, color: context.appWarning)),
         ],
       ),
@@ -675,13 +675,13 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final (String text, Color dot) = switch (rpiState) {
       // 정상은 색을 쓰지 않는다(성공 중립 규칙) — 갈색은 주행동 색이라 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
-      RpiConnectionState.connected => ('허브 연결됨', context.appSuccess),
-      RpiConnectionState.keyRequired => ('허브 키가 필요해요', context.appWarning),
+      RpiConnectionState.connected => ('본체 연결됨', context.appSuccess),
+      RpiConnectionState.keyRequired => ('연결 비밀번호가 필요해요', context.appWarning),
       RpiConnectionState.checking ||
       RpiConnectionState.unconfigured =>
-        ('허브 확인 중', context.appMuted),
+        ('본체 찾는 중', context.appMuted),
       RpiConnectionState.unreachable =>
-        (backupOnly ? '예비 연결만 돼요' : '허브에 닿지 않아요', context.appWarning),
+        (backupOnly ? '블루투스로만 연결돼요' : '본체와 연결이 끊겼어요', context.appWarning),
     };
     final chip = Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -706,7 +706,7 @@ class _Header extends StatelessWidget {
     // 말로 하는 길 -- 누르기 어려운 사용자에게 길이 하나뿐이면 안 된다.
     final voice = IconButton(
       onPressed: onVoice,
-      tooltip: '말로 조작하기',
+      tooltip: '말로 하기',
       icon: Icon(Icons.mic_none_rounded, color: context.appPrimary),
     );
     // 큰 글씨에서는 칩을 제목 아래 줄로 내린다. 한 줄에 두면 제목과 칩이 서로
@@ -779,7 +779,7 @@ class _SuggestionCard extends StatelessWidget {
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  a == null ? '제안' : a.displayName,
+                  a == null ? '알림' : a.displayName,
                   style: TextStyle(fontSize: 14, color: context.appMuted),
                 ),
               ),
@@ -947,8 +947,8 @@ class _ApplianceCard extends ConsumerWidget {
       // excludeSemantics라 아래 글자가 따로 읽히지 않는다 — 상태를 이름에 함께 넣는다.
       label: [
         if ((a.location ?? '').isNotEmpty) '${a.location} $name' else name,
-        if (a.isThinq) 'ThinQ',
-        if (a.isDemo) '데모',
+        if (a.isThinq) 'LG 가전',
+        if (a.isDemo) '연습',
         if (s.text.isNotEmpty) s.text,
         if (s.detail case final d?) d,
         if (verifyNote case final v?) v,
@@ -981,7 +981,7 @@ class _ApplianceCard extends ConsumerWidget {
                         size: 28,
                         color: active ? context.appPrimary : context.appMuted),
                     const Spacer(),
-                    if (a.isThinq) const RouteBadge(label: 'ThinQ'),
+                    if (a.isThinq) const RouteBadge(label: 'LG 가전'),
                     if (a.isDemo) const DemoBadge(),
                   ],
                 ),
@@ -1096,8 +1096,8 @@ class _AddCard extends StatelessWidget {
 /// 조회 실패와 '서버에 정말 없음'을 같은 빈 화면으로 두지 않는다.
 String? _serverCatalogNote(ServerApplianceCatalog catalog) =>
     switch (catalog.status) {
-      ServerCatalogStatus.loading => '기기의 가전 목록을 확인하는 중이에요.',
-      ServerCatalogStatus.failed => '기기의 가전 목록을 가져오지 못했어요. 연결을 확인해 주세요.',
+      ServerCatalogStatus.loading => '본체의 가전 목록을 불러오는 중이에요.',
+      ServerCatalogStatus.failed => '본체의 가전 목록을 못 불러왔어요. 연결을 봐 주세요.',
       ServerCatalogStatus.loaded || ServerCatalogStatus.unconfigured => null,
     };
 
@@ -1116,7 +1116,7 @@ class _NoApplianceStage extends StatelessWidget {
           Text('아직 등록한 가전이 없어요', style: AppText.title),
           const SizedBox(height: 6),
           Text(
-            '조작부 사진을 찍고 버튼을 짚어 등록하면\n여기서 상태를 보고 조작할 수 있어요.',
+            '조작부 사진을 찍고 버튼 자리를 알려 주면\n여기서 가전을 쓸 수 있어요.',
             style: TextStyle(fontSize: 16, color: context.appMuted),
           ),
           if (note case final note?) ...[
@@ -1172,7 +1172,7 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
     // 둘 다 끊긴 것과 예비 연결로 버티는 것은 문장을 나눈다 -- 조작은 되는데
     // "연결 설정이 필요해요"라고만 하면 무엇이 안 되는지 알 수 없다.
     final (String label, Color color, IconData icon) = widget.bleConnected
-            ? ('제안·기록이 멈췄어요', context.appWarning,
+            ? ('알림과 기록이 멈췄어요', context.appWarning,
                 Icons.wifi_tethering_error)
             : ('연결 설정이 필요해요', context.appDanger,
                 Icons.wifi_tethering_error);
@@ -1197,7 +1197,7 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
                     child: Text(
                       // 기술 용어를 여기 쓰지 않는다. `RPi 서버`·주소 입력·
                       // 재시도는 눌렀을 때만 나온다.
-                      label,
+                      keepWordsTogether(label),
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.w600,
@@ -1290,7 +1290,7 @@ class _DndBanner extends StatelessWidget {
 
   String get _remaining {
     final diff = until.difference(DateTime.now());
-    if (diff.isNegative) return '해제됨';
+    if (diff.isNegative) return '끝났어요';
     if (diff.inMinutes >= 60) {
       final h = diff.inHours;
       final m = diff.inMinutes.remainder(60);
@@ -1314,7 +1314,7 @@ class _DndBanner extends StatelessWidget {
             Expanded(
               child: Text(
                 // 끝나는 시각을 함께 적는다(2026-10-14 마감 확인 A5) — 남은 시간만으로는 '언제까지'를 셈해야 한다.
-                '방해 금지 중 · ${pauseEndClock(until)}까지 · $_remaining',
+                '잠시 쉬는 중. ${pauseEndClock(until)}까지, $_remaining',
                 style: TextStyle(color: context.appWarning, fontSize: 13),
               ),
             ),
@@ -1325,7 +1325,7 @@ class _DndBanner extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 minimumSize: const Size(48, 48),
               ),
-              child: const Text('해제', style: TextStyle(fontSize: 13)),
+              child: const Text('그만 쉬기', style: TextStyle(fontSize: 13)),
             ),
           ],
         ),
@@ -1346,14 +1346,14 @@ class _RpiStatusCard extends ConsumerWidget {
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('허브 주소'),
+        title: const Text('본체 주소'),
         content: TextField(
           controller: controller,
           autofocus: true,
           keyboardType: TextInputType.url,
           decoration: const InputDecoration(
             hintText: '예: 192.168.0.10',
-            helperText: '공유기 관리 화면에서 허브 주소를 확인해 주세요.',
+            helperText: '설치하는 분용이에요. 공유기 관리 화면에서 본체 주소를 찾아 주세요.',
             helperMaxLines: 2,
           ),
           onSubmitted: (v) => Navigator.pop(dialogContext, v),
@@ -1383,31 +1383,31 @@ class _RpiStatusCard extends ConsumerWidget {
       // 있는지는 이 신호로 알 수 없다 -- 확인한 만큼만 말한다.
       // (온디바이스 추론 경계는 docs/inference-boundary.md)
       RpiConnectionState.keyRequired => (
-          context.appWarning, Icons.key, '허브 키가 필요해요', '설정에서 허브 키를 입력해 주세요.'
+          context.appWarning, Icons.key, '연결 비밀번호가 필요해요', '설정에서 연결 비밀번호를 넣어 주세요.'
         ),
       RpiConnectionState.connected => (
           context.appSuccess,
           Icons.wifi,
-          '기기와 연결됐어요',
-          '말이나 버튼으로 조작할 수 있어요',
+          '본체와 연결됐어요',
+          '말이나 버튼으로 가전을 쓸 수 있어요',
         ),
       RpiConnectionState.checking => (
           context.appWarning,
           Icons.sync,
-          '연결 확인 중…',
-          'simplelay.local에 접속하고 있어요',
+          '본체 찾는 중…',
+          '잠시만 기다려 주세요',
         ),
       RpiConnectionState.unreachable => (
           context.appDanger,
           Icons.wifi_off,
-          '허브에 닿지 않아요',
-          '같은 Wi-Fi인지 확인하거나 주소를 직접 입력하세요',
+          '본체와 연결이 끊겼어요',
+          '폰과 본체가 같은 Wi-Fi인지 봐 주세요',
         ),
       RpiConnectionState.unconfigured => (
           context.appMuted,
           Icons.wifi_off,
-          '허브 주소를 입력해 주세요',
-          '설정에서 서버 주소를 입력하세요',
+          '본체 주소를 넣어 주세요',
+          '설치하는 분이 설정에서 넣어 주세요',
         ),
     };
 
@@ -1446,7 +1446,7 @@ class _RpiStatusCard extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   minimumSize: const Size(48, 48),
                 ),
-                child: const Text('재시도', style: TextStyle(fontSize: 13)),
+                child: const Text('다시 찾기', style: TextStyle(fontSize: 13)),
               ),
             ],
           ],
@@ -1477,8 +1477,8 @@ class _BleStatusCard extends StatelessWidget {
             icon: Icons.bluetooth_disabled,
             color: context.appMuted,
             iconBackground: Theme.of(context).colorScheme.surfaceContainerHigh,
-            title: '예비 연결이 꺼져 있어요',
-            subtitle: '연결해 두면 서버가 안 될 때도 조작할 수 있어요.',
+            title: '블루투스 연결이 꺼져 있어요',
+            subtitle: '켜 두면 Wi-Fi가 끊겨도 가전을 쓸 수 있어요.',
             actions: [
               Consumer(
                 builder: (_, ref, __) => TextButton(

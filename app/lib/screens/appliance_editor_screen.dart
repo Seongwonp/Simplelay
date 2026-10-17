@@ -111,7 +111,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     if (photo == null || _scanning) return;
     final api = ref.read(rpiApiServiceProvider);
     if (api == null) {
-      await _showScanProblem('서버 주소가 설정되지 않았어요. 설정에서 서버를 먼저 연결해 주세요.');
+      await _showScanProblem('본체와 아직 연결되지 않았어요. 설정에서 본체를 먼저 연결해 주세요.');
       return;
     }
     // 사진은 기기 밖으로, 그것도 인터넷 너머로 나간다. 버튼을 하나도 적지
@@ -123,9 +123,9 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
         title: const Text('사진을 외부 인식 서비스로 보낼까요?'),
         content: Text(
           _buttonCount > 0
-              ? '사진이 서버를 거쳐 인터넷의 외부 인식 서비스로 전송돼요.\n'
-                  '적어 둔 버튼 $_buttonCount개가 인식 결과로 바뀌어요.'
-              : '사진이 서버를 거쳐 인터넷의 외부 인식 서비스로 전송돼요.',
+              ? '사진이 본체를 거쳐 인터넷의 외부 인식 서비스로 가요.\n'
+                  '적어 둔 버튼 $_buttonCount개가 읽은 결과로 바뀌어요.'
+              : '사진이 본체를 거쳐 인터넷의 외부 인식 서비스로 가요.',
         ),
         actions: [
           TextButton(
@@ -164,7 +164,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     } on FileSystemException {
       problem = '사진 파일을 읽지 못했어요. 다시 찍어 주세요.';
     } on Exception {
-      problem = '사진으로 채우지 못했어요. 잠시 후 다시 시도해 주세요.';
+      problem = '사진으로 채우지 못했어요. 잠시 뒤 다시 해 주세요.';
     }
     if (!mounted) return;
 
@@ -258,7 +258,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('가전 이름을 입력하세요.')));
+          .showSnackBar(const SnackBar(content: Text('가전 이름을 적어 주세요.')));
       return;
     }
 
@@ -277,7 +277,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
     }
     if (buttons.isEmpty) {
       ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('버튼을 하나 이상 추가하세요.')));
+          .showSnackBar(const SnackBar(content: Text('버튼을 하나 이상 넣어 주세요.')));
       return;
     }
 
@@ -366,7 +366,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
           Text(
-            '우리 집 가전의 버튼 배치를 그대로 등록하면 어떤 가전이든 앱에서 바로 조작할 수 있어요.',
+            '가전의 버튼 자리를 그대로 등록하면 작은 팔이 그 버튼을 대신 눌러요.',
             style: TextStyle(fontSize: 15, color: context.appMuted),
           ),
           const SizedBox(height: 24),
@@ -473,7 +473,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           const _StepTitle(number: 3, title: '사진', optional: true),
           const SizedBox(height: 4),
           Text(
-            '버튼 패널이 화면에 꽉 차게 찍어주세요. 격자가 사진 전체에 균등하게 겹쳐져요. 사진 없이도 그대로 진행할 수 있어요.',
+            '버튼판이 화면에 꽉 차게 찍어 주세요. 사진 없이도 넘어갈 수 있어요.',
             style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
           const SizedBox(height: 12),
@@ -481,7 +481,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
               ? OutlinedButton.icon(
                   onPressed: _takePhoto,
                   icon: const Icon(Icons.camera_alt_outlined),
-                  label: const Text('버튼 패널 사진 찍기'),
+                  label: const Text('버튼판 사진 찍기'),
                 )
               : Row(
                   children: [
@@ -518,7 +518,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             const SizedBox(height: 6),
             // 사진이 기기 밖으로 나가는 유일한 경로라, 누르기 전에 말한다.
             Text(
-              '누르면 사진이 서버를 거쳐 인터넷의 외부 인식 서비스로 보내져요. 결과는 초안이라 확인한 뒤 저장해요.',
+              '누르면 사진이 본체를 거쳐 인터넷의 외부 인식 서비스로 보내져요. 결과를 보고 고친 뒤 저장해요.',
               style: TextStyle(fontSize: 13, color: context.appMuted),
             ),
           ],
@@ -529,7 +529,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           const _StepTitle(number: 4, title: '버튼 배치'),
           const SizedBox(height: 4),
           Text(
-            '실제 버튼이 있는 자리를 눌러 이름을 적어요. 행과 열은 가전의 버튼판에 맞춰요.',
+            '실제 버튼이 있는 자리를 눌러 이름을 적어요. 줄과 칸 수는 가전 버튼판에 맞춰요.',
             style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
           const SizedBox(height: 12),
@@ -537,7 +537,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             children: [
               Expanded(
                 child: _StepperField(
-                  label: '행',
+                  label: '줄',
                   value: _rows,
                   min: _minGridSize,
                   max: _maxGridSize,
@@ -547,7 +547,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
               const SizedBox(width: 12),
               Expanded(
                 child: _StepperField(
-                  label: '열',
+                  label: '칸',
                   value: _cols,
                   min: _minGridSize,
                   max: _maxGridSize,
@@ -576,7 +576,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            '음성 명령은 아직 지원되지 않아요. 저장하면 화면에서 버튼을 직접 눌러 실행할 수 있어요.',
+            '말로 시키기는 아직 안 돼요. 저장하면 화면에서 버튼을 직접 누를 수 있어요.',
             style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
         ],
@@ -607,7 +607,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '저장한 뒤에 위치 맞추기와 확인 주행을 이어가요.',
+                  '저장한 뒤에 위치 맞추기와 시험 이동을 이어 해요.',
                   style: TextStyle(fontSize: 13, color: context.appMuted),
                 ),
                 const SizedBox(height: 10),
@@ -649,7 +649,7 @@ class _ScanResultDialog extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '인식 결과는 초안이에요. 이름과 위치가 실제 버튼판과 같은지 확인한 뒤 저장해 주세요.',
+              '읽은 결과는 틀릴 수 있어요. 이름과 자리가 실제 버튼판과 같은지 보고 저장해 주세요.',
               style: TextStyle(color: context.appMuted),
             ),
             if (fill.unnamed.isNotEmpty) ...[
@@ -658,7 +658,7 @@ class _ScanResultDialog extends StatelessWidget {
                   style: TextStyle(fontWeight: FontWeight.w600)),
               const SizedBox(height: 2),
               Text(
-                '${fill.unnamed.join(', ')} — 칸을 눌러 이름을 고쳐 주세요.',
+                '${fill.unnamed.join(', ')}. 칸을 눌러 이름을 고쳐 주세요.',
                 style: context.appCaption,
               ),
             ],
@@ -753,7 +753,7 @@ class _SavedNextStepsDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('아직 조작할 수는 없어요. 두 가지가 남았어요.',
+            Text('아직 쓸 수는 없어요. 두 가지가 남았어요.',
                 style: TextStyle(color: context.appMuted)),
             const SizedBox(height: 14),
             const _NextStep(
@@ -764,13 +764,13 @@ class _SavedNextStepsDialog extends StatelessWidget {
             const SizedBox(height: 10),
             const _NextStep(
               icon: Icons.center_focus_strong_outlined,
-              title: '확인 주행',
-              body: '버튼 위를 지나가는 위치를 눈으로 확인해 주세요.',
+              title: '시험 이동',
+              body: '작은 팔이 버튼 위를 지나가는지 눈으로 봐 주세요.',
             ),
             if (syncPending) ...[
               const SizedBox(height: 14),
               Text(
-                '지금은 서버에 닿지 않아서, 연결되면 자동으로 다시 보낼게요.',
+                '지금은 본체와 연결이 끊겨 있어요. 연결되면 다시 보낼게요.',
                 style: context.appCaption,
               ),
             ],

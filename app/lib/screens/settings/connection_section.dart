@@ -11,7 +11,7 @@ class _RpiConnectionTile extends ConsumerWidget {
     final (Color color, String label, IconData icon) = switch (connState) {
       RpiConnectionState.unconfigured => (
           context.appMuted,
-          '아직 주소가 없어요 — 고급 설정에서 입력',
+          '아직 주소가 없어요. 아래 설치하는 분용에서 넣어요',
           Icons.wifi_off
         ),
       RpiConnectionState.checking => (
@@ -19,15 +19,15 @@ class _RpiConnectionTile extends ConsumerWidget {
           '확인하는 중이에요…',
           Icons.sync
         ),
-      RpiConnectionState.keyRequired => (context.appWarning, '허브 키가 필요해요', Icons.key),
+      RpiConnectionState.keyRequired => (context.appWarning, '연결 비밀번호가 필요해요', Icons.key),
       RpiConnectionState.connected => (
           context.appSuccess,
-          '연결됐어요 — 버튼을 대신 눌러 줄 수 있어요',
+          '연결됐어요',
           Icons.wifi
         ),
       RpiConnectionState.unreachable => (
           context.appDanger,
-          '지금은 닿지 않아요',
+          '연결이 끊겼어요',
           Icons.wifi_off
         ),
     };
@@ -46,7 +46,7 @@ class _RpiConnectionTile extends ConsumerWidget {
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Text('다시 확인', style: TextStyle(fontSize: 14)),
+          : const Text('다시 찾기', style: TextStyle(fontSize: 14)),
     );
     // 큰 글씨에서는 오른쪽 버튼이 제목을 세 줄로 꺾는다. 버튼을 아래로.
     final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
@@ -59,7 +59,7 @@ class _RpiConnectionTile extends ConsumerWidget {
             contentPadding: EdgeInsets.zero,
             leading: Icon(icon, color: color, size: 22),
             // 200%에서 폭에 들어가는 길이로. 무엇인지는 아래 문장이 말한다.
-            title: const Text('허브'),
+            title: const Text('본체'),
             subtitle: Text(
               label,
               style: TextStyle(color: color, fontSize: 14),
@@ -94,8 +94,8 @@ class _SavedDeviceSection extends ConsumerWidget {
           leading:
               Icon(Icons.bluetooth_disabled, color: context.appMuted, size: 22),
           // 서버가 안 될 때 쓰는 두 번째 길. 이름부터 그렇게 부른다.
-          title: const Text('예비 연결 (블루투스)'),
-          subtitle: Text('저장된 기기가 없어요 — 고급 설정에서 찾기',
+          title: const Text('블루투스 연결'),
+          subtitle: Text('저장된 기기가 없어요. 아래 설치하는 분용에서 찾아요',
               style: TextStyle(color: context.appMuted, fontSize: 14)),
         ),
       );
@@ -109,7 +109,7 @@ class _SavedDeviceSection extends ConsumerWidget {
           color: isConnected ? context.appInk : context.appMuted,
           size: 22,
         ),
-        title: Text('예비 연결 · ${saved.name}'),
+        title: Text('블루투스 연결: ${saved.name}'),
         subtitle: Text(
           isConnected ? '연결됐어요' : '지금은 끊겨 있어요',
           style: TextStyle(
@@ -145,7 +145,7 @@ class _SavedDeviceSection extends ConsumerWidget {
                   await ble.stopScan();
                   if (match == null) {
                     messenger.showSnackBar(const SnackBar(
-                      content: Text('저장된 기기를 찾지 못했어요. 기기 전원을 확인해 주세요.'),
+                      content: Text('저장된 기기를 찾지 못했어요. 기기 전원을 봐 주세요.'),
                     ));
                     return;
                   }
@@ -153,7 +153,7 @@ class _SavedDeviceSection extends ConsumerWidget {
                     await ble.connect(match.device);
                   } catch (_) {
                     messenger.showSnackBar(const SnackBar(
-                      content: Text('연결에 실패했어요. 다시 시도해 주세요.'),
+                      content: Text('연결하지 못했어요. 다시 해 주세요.'),
                     ));
                   }
                 },
@@ -162,13 +162,13 @@ class _SavedDeviceSection extends ConsumerWidget {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   minimumSize: const Size(48, 48),
                 ),
-                child: const Text('재연결', style: TextStyle(fontSize: 14)),
+                child: const Text('다시 연결', style: TextStyle(fontSize: 14)),
               ),
             IconButton(
               onPressed: () => ref.read(savedDeviceProvider.notifier).clear(),
               icon: const Icon(Icons.delete_outline, size: 16),
               color: context.appMuted,
-              tooltip: '삭제',
+              tooltip: '지우기',
               padding: const EdgeInsets.all(4),
             ),
           ],
@@ -200,13 +200,13 @@ class _AdvancedSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '허브 주소',
+            '본체 주소 (설치하는 분용)',
             style: TextStyle(color: context.appMuted, fontSize: 13),
           ),
           const SizedBox(height: 4),
           Text(
             '기본값: http://simplelay.local:8000\n'
-            '같은 와이파이에서 허브를 찾아요.',
+            '같은 와이파이에서 본체를 찾아요.',
             style: TextStyle(color: context.appMuted, fontSize: 11),
           ),
           const SizedBox(height: 10),
@@ -242,12 +242,12 @@ class _AdvancedSection extends ConsumerWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            '허브 키',
+            '연결 비밀번호 (설치하는 분용)',
             style: TextStyle(color: context.appMuted, fontSize: 13),
           ),
           const SizedBox(height: 4),
           Text(
-            '허브에 설정한 키를 입력해 주세요.',
+            '본체를 설치할 때 정한 비밀번호를 넣어 주세요.',
             style: TextStyle(color: context.appMuted, fontSize: 11),
           ),
           const SizedBox(height: 8),
@@ -293,13 +293,13 @@ class _BleSection extends ConsumerWidget {
       children: [
         Row(
           children: [
-            Text('주변 BLE 기기',
+            Text('주변 블루투스 기기',
                 style: TextStyle(color: context.appMuted, fontSize: 13)),
             const Spacer(),
             IconButton(
               onPressed: () => ref.invalidate(scanResultsProvider),
               icon: Icon(Icons.refresh, color: context.appMuted, size: 18),
-              tooltip: '다시 스캔',
+              tooltip: '다시 찾기',
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             ),
@@ -311,7 +311,7 @@ class _BleSection extends ConsumerWidget {
             padding: EdgeInsets.all(24),
             child: Center(child: CircularProgressIndicator()),
           ),
-          error: (e, _) => Text('스캔 실패: $e',
+          error: (e, _) => Text('찾지 못했어요. 블루투스가 켜져 있는지 봐 주세요.',
               style: TextStyle(color: context.appMuted, fontSize: 14)),
           data: (items) {
             final unique = <DeviceIdentifier, ScanResult>{
@@ -347,13 +347,13 @@ class _BleSection extends ConsumerWidget {
                               );
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('$name 연결 완료')),
+                              SnackBar(content: Text('$name 연결했어요')),
                             );
                           }
                         } catch (e) {
                           if (context.mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('연결 실패: $e')),
+                              SnackBar(content: Text('연결하지 못했어요. 다시 해 주세요.')),
                             );
                           }
                         }
@@ -394,9 +394,9 @@ class _HubKeyFieldState extends State<_HubKeyField> {
     enableSuggestions: false,
     decoration: InputDecoration(
       border: const OutlineInputBorder(),
-      hintText: '허브 키를 입력해 주세요',
+      hintText: '연결 비밀번호를 넣어 주세요',
       suffixIcon: IconButton(
-        tooltip: _visible ? '키 숨기기' : '키 보기',
+        tooltip: _visible ? '비밀번호 숨기기' : '비밀번호 보기',
         icon: Icon(_visible ? Icons.visibility_off : Icons.visibility),
         onPressed: () => setState(() => _visible = !_visible),
       ),

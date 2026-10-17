@@ -167,7 +167,7 @@ void main() {
       expect(installed, isNotEmpty);
       expect(installed.map((a) => a.isDemo), everyElement(isTrue));
       // 뱃지를 못 그리는 자리도 있으므로 이름에도 적는다.
-      expect(installed.map((a) => a.name), everyElement(startsWith('데모')));
+      expect(installed.map((a) => a.name), everyElement(startsWith('연습')));
     });
 
     test('내가 등록한 가전이 있으면 데모라도 표본을 섞지 않는다', () async {

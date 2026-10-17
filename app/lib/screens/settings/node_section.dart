@@ -16,7 +16,7 @@ class _NodeSection extends ConsumerWidget {
               Icon(Icons.add_home_outlined, color: context.appMuted, size: 20),
           title: const Text('등록할 가전이 아직 없어요'),
           subtitle: Text(
-            '가전을 추가하면 여기서 버튼을 눌러 줄 장치를 연결해요.',
+            '가전을 추가하면 여기서 작은 팔을 연결해요.',
             style: TextStyle(color: context.appMuted, fontSize: 14),
           ),
         ),
@@ -52,7 +52,7 @@ class _NodeSection extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: 4),
             child: Text(
-              '가전마다 버튼을 눌러 줄 장치',
+              '가전마다 버튼을 눌러 줄 작은 팔',
               style: TextStyle(fontSize: 15, color: context.appMuted),
             ),
           ),
@@ -67,7 +67,7 @@ class _NodeSection extends ConsumerWidget {
                 title: Text(appliance.displayName),
                 // 주소는 편집 시트에서만. 목록에서는 이어졌는지만 말한다.
                 subtitle: Text(
-                  url != null ? '장치가 이어져 있어요' : '아직 장치가 없어요',
+                  url != null ? '작은 팔이 이어져 있어요' : '아직 작은 팔이 없어요',
                   style: TextStyle(
                     color: url != null ? context.appSuccess : context.appMuted,
                     fontSize: 14,
@@ -179,7 +179,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
     } else {
       setState(() {
         _saving = false;
-        _error = '저장하지 못했어요. 허브 연결을 확인하고 다시 저장해 주세요.';
+        _error = '저장하지 못했어요. 본체 연결을 보고 다시 저장해 주세요.';
       });
     }
   }
@@ -196,7 +196,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
     } else {
       setState(() {
         _saving = false;
-        _error = '해제 실패';
+        _error = '연결을 풀지 못했어요';
       });
     }
   }
@@ -240,7 +240,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                         color: context.appMuted, size: 20),
                     const SizedBox(width: 10),
                     Text(
-                      '${widget.appliance.name} 노드 등록',
+                      '${widget.appliance.name} 작은 팔 연결',
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
@@ -258,7 +258,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                               color: context.appSuccess.withValues(alpha: 0.4)),
                         ),
                         child: Text(
-                          '등록됨',
+                          '연결됨',
                           style: TextStyle(
                               fontSize: 14, color: context.appSuccess),
                         ),
@@ -271,7 +271,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Text(
-                  '플러그 주소를 입력해 주세요',
+                  '설치하는 분용이에요. 작은 팔 주소를 넣어 주세요',
                   style: TextStyle(fontSize: 14, color: context.appMuted),
                 ),
               ),
@@ -329,7 +329,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                                 color:
                                     context.appDanger.withValues(alpha: 0.5)),
                           ),
-                          child: const Text('해제'),
+                          child: const Text('연결 풀기'),
                         ),
                       ),
                     if (isRegistered) const SizedBox(width: 10),

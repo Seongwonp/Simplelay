@@ -62,13 +62,13 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
                 icon: Icons.cloud_off,
                 text: events.isEmpty
                     ? '알림을 불러오지 못했어요.'
-                    : '새 알림을 확인하지 못했어요.',
+                    : '새 알림을 불러오지 못했어요.',
                 onRetry: _reload,
               ),
             if (state.status == CareInboxStatus.unconfigured)
               const _InboxNotice(
                 icon: Icons.wifi_off,
-                text: '기기와 연결되면 여기에 표시돼요.',
+                text: '본체와 연결되면 여기에 나와요.',
               ),
             // 안부 확인을 쉬는 중이면 그 사실을 말한다. 말하지 않으면
             // 조용한 알림함이 "정말 아무 일 없었다"로 읽히는데, 사실은
@@ -78,7 +78,7 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
               _InboxNotice(
                 icon: Icons.notifications_paused,
                 text: '${_ymd(pausedUntil)}까지 안부 확인을 쉬고 있어요.'
-                    ' 실행 실패·위험 신호음은 그대로 알려드려요.',
+                    ' 실패나 위험 신호음은 그대로 알려 드려요.',
               ),
             Expanded(
               child: events.isEmpty
@@ -121,7 +121,7 @@ class _EmptyState extends StatelessWidget {
             Text('아직 알림이 없어요', style: AppText.title),
             const SizedBox(height: 6),
             Text(
-              '실행 실패·위험 신호음·안부 신호가 생기면\n여기에 모아 보여드려요.',
+              '실패, 위험 신호음, 안부 신호가 생기면\n여기에 모아 보여 드려요.',
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appMuted, fontSize: 14),
             ),

@@ -76,7 +76,7 @@ Widget _home({
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('2 — 멈춘 실행에 "눌렸는지 확인하지 못했어요"를 붙이지 않는다', () {
+  group('2 — 멈춘 실행에 "눌렸는지 몰라요"를 붙이지 않는다', () {
     for (final (outcome, abort) in [
       ('stopped', null),
       ('safety_stop', 'motion_alarm: stall'),
@@ -94,11 +94,11 @@ void main() {
               label: '아침 데우기',
             )));
         await tester.pump();
-        expect(find.text('눌렸는지 확인하지 못했어요'), findsNothing);
+        expect(find.text('눌렸는지 몰라요'), findsNothing);
       });
     }
 
-    test('누르기 전에 멈춘 단계는 "누르지 않음" — "확인하지 못했어요"가 아니다', () {
+    test('누르기 전에 멈춘 단계는 "누르지 않았어요" — "확인하지 못했어요"가 아니다', () {
       const step = ScenarioRunStep(
         targetId: 'microwave',
         route: 'physical',
@@ -108,13 +108,13 @@ void main() {
         executionMode: 'real',
       );
       final facts = runStepFacts(step);
-      expect(facts, contains('누르지 않음'));
+      expect(facts, contains('누르지 않았어요'));
       expect(facts, isNot(contains('확인하지 못했어요')));
     });
   });
 
-  group('3 — 직접 실행한 루틴은 "실행 확인", 제안 전용 문구를 빼고 안심 문장을 줄인다', () {
-    testWidgets('직접 실행', (tester) async {
+  group('3 — 직접 실행한 루틴은 "이대로 할까요?", 제안 전용 문구를 빼고 안심 문장을 줄인다', () {
+    testWidgets('직접', (tester) async {
       _tall(tester);
       await tester.pumpWidget(buildScreen(
         const SuggestionScreen(sequenceId: 'sug-1'),
@@ -123,17 +123,17 @@ void main() {
       ));
       await tester.pump();
 
-      expect(find.text('실행 확인'), findsOneWidget);
-      expect(find.text('제안 확인'), findsNothing);
-      expect(find.textContaining('근거:'), findsNothing);
-      expect(find.text('이 제안 30분 쉬기'), findsNothing);
-      expect(find.text('이 제안 다시 받지 않기'), findsNothing);
+      expect(find.text('이대로 할까요?'), findsOneWidget);
+      expect(find.text('할까요?'), findsNothing);
+      expect(find.textContaining('이유:'), findsNothing);
+      expect(find.text('30분 동안 묻지 않기'), findsNothing);
+      expect(find.text('이 일은 다시 묻지 않기'), findsNothing);
       expect(find.text('누를 버튼'), findsOneWidget);
       expect(find.text('승인하면 할 일'), findsNothing);
       expect(find.textContaining('승인하면 위 내용 그대로만'), findsNothing);
       expect(find.textContaining('누르지 않으면 실행하지 않아요'), findsNothing);
       expect(find.text('버튼을 대신 눌러요'), findsNothing);
-      expect(find.text('지금 실행'), findsOneWidget);
+      expect(find.text('지금 하기'), findsOneWidget);
     });
 
     testWidgets('시각 루틴이 만든 카드는 제안이다 — 근거·다시 받지 않기를 남긴다', (tester) async {
@@ -145,12 +145,12 @@ void main() {
       ));
       await tester.pump();
 
-      expect(find.text('제안 확인'), findsOneWidget);
-      expect(find.textContaining('근거:'), findsOneWidget);
+      expect(find.text('할까요?'), findsOneWidget);
+      expect(find.textContaining('이유:'), findsOneWidget);
       // 다시 받지 않기는 '더 보기' 안(2026-10-14 UI 정리).
       await tester.tap(find.byKey(const Key('suggestion-more')));
       await tester.pumpAndSettle();
-      expect(find.text('이 제안 다시 받지 않기'), findsOneWidget);
+      expect(find.text('이 일은 다시 묻지 않기'), findsOneWidget);
       expect(find.textContaining('승인하면 위 내용 그대로만'), findsNothing);
       expect(find.text('버튼을 대신 눌러요'), findsNothing);
     });
@@ -179,7 +179,7 @@ void main() {
         when: '직접 실행할 때',
       );
       expect(routineSubtitle(r, const {'mw': '전자레인지'}),
-          '전자레인지 1⁠단계');
+          '전자레인지 할 일 1⁠개');
     });
 
     testWidgets('허브가 닿으면 예비 연결이 꺼져도 연결 줄을 두지 않는다', (tester) async {

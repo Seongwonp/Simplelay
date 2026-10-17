@@ -31,7 +31,7 @@ void main() {
   // 서버는 UTC 오프셋이 붙은 ISO 시각을 준다 — 화면은 이 기기 현지 시각으로 적는다.
   final until = DateTime.now().add(const Duration(minutes: 90)).toUtc();
 
-  testWidgets('홈 배너: 방해 금지 중 · 끝나는 시각까지 · 남은 시간', (tester) async {
+  testWidgets('홈 배너: 잠시 쉬는 중. 끝나는 시각까지, 남은 시간', (tester) async {
     _tall(tester);
     await tester.pumpWidget(buildScreen(
       const HomeScreen(),
@@ -43,11 +43,11 @@ void main() {
       ],
     ));
     await tester.pump();
-    expect(findPlainText('방해 금지 중 · ${_hhmm(until)}까지 · ', contains: true), findsOneWidget);
+    expect(findPlainText('잠시 쉬는 중. ${_hhmm(until)}까지, ', contains: true), findsOneWidget);
     expect(findPlainText('남음', contains: true), findsOneWidget);
   });
 
-  testWidgets('설정 줄: 켜져 있으면 "HH:MM까지 새 제안과 자동 실행을 쉬어요"', (tester) async {
+  testWidgets('설정 줄: 켜져 있으면 "HH:MM까지 묻지도, 자동으로 하지도 않아요"', (tester) async {
     _tall(tester);
     await tester.pumpWidget(buildScreen(
       const SettingsScreen(),
@@ -59,7 +59,7 @@ void main() {
       ],
     ));
     await tester.pump();
-    expect(findPlainText('${_hhmm(until)}까지 새 제안과 자동 실행을 쉬어요'), findsOneWidget);
-    expect(findPlainText('지금 받기'), findsOneWidget);
+    expect(findPlainText('${_hhmm(until)}까지 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
+    expect(findPlainText('그만 쉬기'), findsOneWidget);
   });
 }

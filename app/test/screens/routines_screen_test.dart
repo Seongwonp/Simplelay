@@ -1,6 +1,6 @@
 // 루틴 탭·편집기(UI 확정 §2, 2026-09-30) — 가짜 서버로 목록 → 편집 → 저장까지.
 //
-// 이 화면들은 **실행하지 않는다.** 저장은 POST/PUT /routines, '지금 실행'도
+// 이 화면들은 **실행하지 않는다.** 저장은 POST/PUT /routines, '지금 하기'도
 // 카드를 만들 뿐이다 -- 아래 서버는 실행 경로(/execute*, approve)가 불리면
 // 테스트를 실패시킨다.
 import 'dart:async';
@@ -241,7 +241,7 @@ Future<void> _settle(WidgetTester tester) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('다음 실행은 오늘·내일과 서버의 실행 방식을 말한다 — 자동 실행이 켜졌으면 "자동 실행"(외부 평가 10/16 p02)',
+  testWidgets('다음 실행은 오늘·내일과 서버의 실행 방식을 말한다 — 자동 실행이 켜졌으면 "자동"(외부 평가 10/16 p02)',
       (tester) async {
     _tall(tester);
     final server = _Server()
@@ -250,7 +250,7 @@ void main() {
     await _settle(tester);
 
     expect(find.text('내일 · 평일 07:30 · 자동 실행'), findsOneWidget);
-    expect(find.textContaining('승인 후 실행'), findsNothing);
+    expect(find.textContaining('물어보고 하기'), findsNothing);
   });
 
   testWidgets('다음 실행과 내 루틴 목록을 보여 준다', (tester) async {
@@ -258,11 +258,11 @@ void main() {
     await tester.pumpWidget(_build(_Server()));
     await _settle(tester);
 
-    expect(find.text('다음 실행 · 아침 데우기'), findsOneWidget);
+    expect(find.text('다음: 아침 데우기'), findsOneWidget);
     expect(find.text('07:30'), findsOneWidget);
     expect(find.text('아침 데우기'), findsOneWidget);
-    // 언제 · 대상을 한 줄로. 승인 반복 설명('승인 후 실행')은 줄마다 되풀이하지 않는다.
-    expect(find.text('평일 07:30 · 전자레인지 1\u2060단계'), findsOneWidget);
+    // 언제 · 대상을 한 줄로. 승인 반복 설명('물어보고 하기')은 줄마다 되풀이하지 않는다.
+    expect(find.text('평일 07:30 · 전자레인지 할 일 1\u2060개'), findsOneWidget);
     expect(find.textContaining('승인 후 실행 ·'), findsNothing);
     expect(find.text('새 루틴'), findsOneWidget);
   });
@@ -314,12 +314,12 @@ void main() {
     await tester.pumpWidget(_build(server, installed: const []));
     await _settle(tester);
 
-    expect(find.text('전자레인지 2\u2060단계'), findsOneWidget);
-    expect(find.text('세탁기 1\u2060단계'), findsOneWidget);
+    expect(find.text('전자레인지 할 일 2\u2060개'), findsOneWidget);
+    expect(find.text('세탁기 할 일 1\u2060개'), findsOneWidget);
     expect(find.textContaining('home_mw'), findsNothing);
     expect(find.textContaining('washer'), findsNothing);
     // 이름을 모르는 가전만 ID로 남는다.
-    expect(find.text('ghost 1\u2060단계'), findsOneWidget);
+    expect(find.text('ghost 할 일 1\u2060개'), findsOneWidget);
   });
 
   testWidgets('루틴을 열어 알림만으로 바꿔 저장하면 PUT하고 목록이 다시 읽힌다',
@@ -337,14 +337,14 @@ void main() {
     expect(find.text('무엇을'), findsOneWidget);
     expect(find.text('평일 07:30'), findsOneWidget);
     expect(find.text('해동 → 1분 → 시작'), findsOneWidget);
-    // 저장한 루틴은 '지금 실행'을 낼 수 있다(카드만 만든다).
-    expect(find.text('지금 실행'), findsOneWidget);
+    // 저장한 루틴은 '지금 하기'를 낼 수 있다(카드만 만든다).
+    expect(find.text('지금 하기'), findsOneWidget);
 
     await tester.tap(find.text('알림만'));
     await tester.pump();
-    expect(find.text('알림만 보내요. 가전은 누르지 않아요.'), findsOneWidget);
-    // 고치는 중에는 '지금 실행'을 내리지 않는다 -- 저장 전 내용으로 카드가 뜬다.
-    expect(find.text('지금 실행'), findsNothing);
+    expect(find.text('알림만 보내요. 가전은 그대로예요.'), findsOneWidget);
+    // 고치는 중에는 '지금 하기'를 내리지 않는다 -- 저장 전 내용으로 카드가 뜬다.
+    expect(find.text('지금 하기'), findsNothing);
 
     server.requests.clear();
     await tester.tap(find.byKey(const Key('routine-save')));
@@ -380,9 +380,9 @@ void main() {
 
     await tester.tap(find.text('방문자 문 열기'));
     await _settle(tester);
-    // 새 초안이라 '지금 실행'은 없고 주의 문장이 보인다.
+    // 새 초안이라 '지금 하기'은 없고 주의 문장이 보인다.
     expect(find.text('새 루틴'), findsOneWidget);
-    expect(find.text('지금 실행'), findsNothing);
+    expect(find.text('지금 하기'), findsNothing);
     expect(find.textContaining('인터폰 호출 감지는 아직 없어요'), findsOneWidget);
 
     await tester.tap(find.text('직접 실행으로 정하기'));
@@ -531,8 +531,8 @@ void main() {
     expect(runButton('rt-n'), findsNothing);
     expect(runButton('rt-off'), findsNothing);
     expect(editButton('rt-n'), findsOneWidget);
-    expect(find.text('평일 07:30 · 전자레인지 1\u2060단계 · 알림만'), findsOneWidget);
-    expect(find.text('평일 07:30 · 전자레인지 1\u2060단계 · 꺼짐'), findsOneWidget);
+    expect(find.text('평일 07:30 · 전자레인지 할 일 1\u2060개 · 알림만'), findsOneWidget);
+    expect(find.text('평일 07:30 · 전자레인지 할 일 1\u2060개 · 꺼짐'), findsOneWidget);
   });
 
   testWidgets('알려진 가전 알림은 "세탁이 끝나면"으로, 이름은 사용자 것 그대로', (tester) async {
@@ -607,7 +607,7 @@ void main() {
       await _settle(tester);
       expect(find.textContaining('추천'), findsNothing);
       // 낭독도 예시라고 말하고, 누르면 무엇이 되는지 말한다.
-      expect(find.bySemanticsLabel(RegExp('^예시 루틴 · 방문자 문 열기')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('^예시 루틴 방문자 문 열기')), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('고쳐서 저장하면 내 루틴이 돼요')), findsOneWidget);
       handle.dispose();
     });
@@ -619,7 +619,7 @@ void main() {
       _tall(tester);
       await tester.pumpWidget(_build(server));
       await _settle(tester);
-      expect(find.textContaining('예시 루틴에서 골라 보세요'), findsOneWidget);
+      expect(find.textContaining('예시 루틴으로 만들어 보세요'), findsOneWidget);
       expect(find.textContaining('추천'), findsNothing);
 
       await tester.tap(find.text('예시 루틴'));
@@ -659,7 +659,7 @@ void main() {
       await tester.pumpWidget(_build(server));
       await _settle(tester);
       expect(find.text('사용 기록으로 만든 루틴 초안'), findsOneWidget);
-      expect(find.text('전자레인지 · 즉석밥 → 시작'), findsOneWidget);
+      expect(find.text('전자레인지: 즉석밥 → 시작'), findsOneWidget);
       expect(find.text('최근 28일 중 아침에 4일 사용했어요'), findsOneWidget);
       expect(find.textContaining('추천'), findsNothing);
       expect(find.textContaining('하셨'), findsNothing);
@@ -700,7 +700,7 @@ void main() {
           server.requests.where((r) => r.contains('/execute') || r.endsWith('/approve')),
           isEmpty);
       expect(find.text('루틴으로 저장할까요?'), findsNothing);
-      expect(find.text("'아침 밥' 루틴을 저장했어요. 실행하지는 않았어요."), findsOneWidget);
+      expect(find.text("'아침 밥' 루틴을 저장했어요. 아직 하지는 않았어요."), findsOneWidget);
       // 저장한 초안은 사라지고 내 루틴에 들어간다.
       expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
       expect(find.text('아침 밥'), findsOneWidget);

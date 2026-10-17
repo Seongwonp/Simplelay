@@ -45,8 +45,8 @@ class QuietHoursStatus {
   /// 설정 줄 — "매일 22:00~07:00 · 지금 조용한 시간이에요" / "· 꺼져 있어요".
   String get summary {
     final range = '매일 $start~$end';
-    if (!enabled) return '$range · 꺼져 있어요';
-    return reason == 'schedule' ? '$range · 지금 조용한 시간이에요' : range;
+    if (!enabled) return '$range, 꺼져 있어요';
+    return reason == 'schedule' ? '$range, 지금 조용한 시간이에요' : range;
   }
 }
 
@@ -104,7 +104,7 @@ List<String> pauseSkippedRules(DateTime now, int minutes, List<AutoRule> rules) 
 
 /// 설정 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 잠시 쉬기·
 /// 조용한 시간 공통. 허브를 다시 켜면 마지막으로 저장된 설정으로 시작한다.
-const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. 허브를 다시 켜면 이전 설정으로 돌아가요.';
+const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. 본체를 다시 켜면 전 설정으로 돌아가요.';
 
 /// 잠시 쉬기가 끝나는 시각 "HH:MM"(이 기기 현지 시각, 2026-10-14 마감 확인 A5). 남은 시간만으로는 '언제까지'를 셈해야 한다.
 String pauseEndClock(DateTime until) {

@@ -87,7 +87,7 @@ Future<_CountingBle> _approve(WidgetTester tester, {required bool demo}) async {
   await tester.pump();
 
   ble.injected = 0; // 화면을 세우는 동안의 메시지는 세지 않는다
-  await tester.tap(find.text('지금 실행'));
+  await tester.tap(find.text('지금 하기'));
   await tester.pump();
   // DemoService는 500ms부터 센서 프레임을 밀어 넣는다.
   await tester.pump(const Duration(milliseconds: 800));

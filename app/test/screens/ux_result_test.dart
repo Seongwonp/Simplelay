@@ -22,10 +22,10 @@ void main() {
       ));
       await tester.tap(find.text('가전 상세'));
       await tester.pumpAndSettle();
-      // 성공은 '확인' 하나, 실패는 '다시 시도'와 '닫기'(외부 평가 10/16 p08).
+      // 성공은 '확인' 하나, 실패는 '다시 하기'와 '닫기'(외부 평가 10/16 p08).
       expect(find.text('닫기'), failed ? findsOneWidget : findsNothing);
       expect(find.text('정지'), findsNothing);
-      await tester.tap(find.text(failed ? '다시 시도' : '확인'));
+      await tester.tap(find.text(failed ? '다시 하기' : '확인'));
       await tester.pumpAndSettle();
       expect(find.text('가전 상세'), findsOneWidget);
       expect(find.byType(StatusScreen), findsNothing);
@@ -35,7 +35,7 @@ void main() {
   testWidgets('미확인 결과는 재실행을 권하지 않아요', (tester) async {
     await tester.pumpWidget(buildScreen(const StatusScreen(),
       executionStatus: const ExecutionStatus(phase: ExecutionPhase.unconfirmed)));
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('다시 하기'), findsNothing);
     expect(find.text('확인'), findsOneWidget);
   });
 
@@ -55,10 +55,10 @@ void main() {
             route: 'physical',
             receipt: receipt,
           )));
-      expect(find.text('다시 시도'), retry ? findsOneWidget : findsNothing);
-      expect(find.textContaining('다시 실행해 주세요'),
+      expect(find.text('다시 하기'), retry ? findsOneWidget : findsNothing);
+      expect(find.textContaining('다시 해 주세요'),
           retry ? findsOneWidget : findsNothing);
-      expect(find.text(retry ? '다시 시도' : '확인'), findsOneWidget);
+      expect(find.text(retry ? '다시 하기' : '확인'), findsOneWidget);
     });
   }
 }

@@ -49,7 +49,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                     }
                     if (snapshot.hasError || !snapshot.hasData) {
                       return const Text(
-                          '학습 상태를 불러오지 못했어요. 연결 상태와 서버 업데이트를 확인해 주세요.');
+                          '생활 습관을 불러오지 못했어요. 본체 연결을 봐 주세요.');
                     }
                     final status = snapshot.requireData;
                     return Column(
@@ -64,17 +64,17 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                           Text(routine.purpose,
                               style: Theme.of(context).textTheme.titleMedium),
                           Text(
-                              '${widget.applianceNames[routine.applianceId] ?? '대상 가전 확인 필요'} · ${routine.timeBand}'),
+                              '${widget.applianceNames[routine.applianceId] ?? '어느 가전인지 몰라요'}, ${routine.timeBand}'),
                           Text(
-                              '${routine.distinctDays}일 사용 · ${routine.occurrences}회'),
+                              '${routine.distinctDays}일 동안 ${routine.occurrences}번 썼어요'),
                           Text(routine.muted
-                              ? '추천 숨김'
+                              ? '묻지 않기로 했어요'
                               : routine.established
-                                  ? '습관 확인'
+                                  ? '습관이에요'
                                   : '습관을 알아가는 중'),
                           const SizedBox(height: 16),
                         ],
-                        if (status.paused) const Text('방해 금지 중 · 제안을 쉬고 있어요.'),
+                        if (status.paused) const Text('잠시 쉬는 중이라 묻지 않아요.'),
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
                           title: const Text('어떻게 기억하나요?'),
@@ -82,10 +82,10 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                             Text('같은 가전을 같은 시간대에 ${status.minimumDays}일 이상, '
                                 '${status.minimumOccurrences}회 이상 직접 사용하면 습관으로 기억해요.'),
                             const SizedBox(height: 8),
-                            const Text('연습 실행과 추천을 받아 실행한 기록은 습관 횟수에 더하지 않아요.'),
+                            const Text('연습과 알림으로 한 일은 습관 횟수에 넣지 않아요.'),
                             const SizedBox(height: 8),
                             const Text(
-                                '습관이 확인되어도 시간과 상황에 맞춰 제안하고, 확인을 받은 뒤 실행해요.'),
+                                '습관이 생겨도 때가 맞을 때 묻고, 허락을 받은 뒤 해요.'),
                           ],
                         ),
                       ],

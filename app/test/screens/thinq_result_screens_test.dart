@@ -88,27 +88,27 @@ void main() {
     await tester.pump();
 
     // ThinQ 확인 못 함은 실패로 말하지 않는다.
-    expect(find.textContaining('설정이 바뀌었는지 확인하지 못했어요'), findsNWidgets(2));
+    expect(find.textContaining('설정이 바뀌었는지 몰라요'), findsNWidgets(2));
     // 경로 · 확인 수준은 '경로'·'확인' 꼬리표 없이 자연스러운 한 줄로 말한다.
-    expect(find.text('ThinQ · 접수됨'), findsOneWidget);
+    expect(find.text('가전이 받았어요'), findsOneWidget);
     // t2는 모의 실행 — 결과 문장 한 줄이 연습이라고 말하고 수신 줄을 겹치지 않는다(2026-10-14).
     expect(find.text('ThinQ · 연습 상태 확인'), findsNothing);
-    expect(find.text('연습 · 가전에 보내지 않았어요'), findsOneWidget);
+    expect(find.text('연습이라 가전에 보내지 않았어요'), findsOneWidget);
     // 접수 불명은 받았는지 모른다고만 말한다(접수됨·확인됨으로 올리지 않는다,
     // 실패로도 말하지 않는다).
-    expect(find.text('ThinQ · 가전이 받았는지 확인이 필요해요'), findsOneWidget);
+    expect(find.text('가전이 받았는지 몰라요'), findsOneWidget);
     expect(find.textContaining('확인 받았는지'), findsNothing);
     expect(find.textContaining('확인 확인'), findsNothing);
     // t2는 모의 실행이다 — 실제 가전 확인 문장을 쓰지 않는다.
     expect(find.textContaining('가전 상태를 확인했어요'), findsNothing);
-    expect(find.textContaining('안전 정지'), findsOneWidget);
-    expect(find.textContaining('정지됨'), findsOneWidget);
-    // ThinQ 기록에는 '버튼으로 직접 조작'을 내걸지 않는다(물리 실패 2건만).
-    expect(find.text('버튼으로 직접 조작'), findsNWidgets(2));
+    expect(find.textContaining('스스로 멈췄어요'), findsOneWidget);
+    expect(find.text('멈췄어요'), findsOneWidget);
+    // ThinQ 기록에는 '버튼판에서 직접 누르기'을 내걸지 않는다(물리 실패 2건만).
+    expect(find.text('버튼판에서 직접 누르기'), findsNWidgets(2));
   });
 
   testWidgets('이력: 연습(모의) 기록에는 서버 설명 줄("명령을 보냈어요 …")을 겹치지 않는다', (tester) async {
-    // 10/14 실물 캡처: '연습 · 가전에 보내지 않았어요' 아래에 '명령을 보냈어요 — …'가 함께 나와 서로 어긋났다.
+    // 10/14 실물 캡처: '연습이라 가전에 보내지 않았어요' 아래에 '명령을 보냈어요 — …'가 함께 나와 서로 어긋났다.
     tester.view.physicalSize = const Size(900, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -128,11 +128,11 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
-    expect(find.text('연습 · 가전에 보내지 않았어요'), findsOneWidget);
+    expect(find.text('연습이라 가전에 보내지 않았어요'), findsOneWidget);
     expect(find.textContaining('명령을 보냈어요'), findsNothing);
   });
 
-  testWidgets('이력: 실제/연습을 모르는 기록은 성공 문장만 두지 않고 "실제 기기 동작 여부를 확인하지 못했어요"를 남긴다',
+  testWidgets('이력: 실제/연습을 모르는 기록은 성공 문장만 두지 않고 "실제 가전이 움직였는지 몰라요"를 남긴다',
       (tester) async {
     // 10/14 Codex 의견: 일반 화면에서 '실행 환경 미확인'을 지워도 기록에서는 실제 성공처럼 보이면 안 된다(F4 경계).
     tester.view.physicalSize = const Size(900, 2400);
@@ -160,9 +160,9 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
-    expect(find.text('실제 기기 동작 여부를 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('실제 가전이 움직였는지 몰라요'), findsOneWidget);
     // 연습 표시는 그대로 남는다.
-    expect(find.text('연습 · 실제로 누르지 않았어요'), findsOneWidget);
+    expect(find.text('연습이라 실제로 누르지 않았어요'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);
   });
 
@@ -184,11 +184,11 @@ void main() {
     await tester.pump();
 
     expect(findPlainText('보냈지만 확인하지 못했어요', contains: true), findsOneWidget);
-    expect(find.text('확인 못 함'), findsOneWidget);
-    expect(find.text('ThinQ'), findsOneWidget);
-    expect(find.text('접수됨'), findsOneWidget);
-    expect(find.text('연습 모드 · 실제 가전에 보내지 않아요'), findsOneWidget);
-    expect(find.textContaining('실패'), findsNothing);
+    expect(find.text('몰라요'), findsOneWidget);
+    expect(find.text('LG 가전'), findsOneWidget);
+    expect(find.text('가전이 받았어요'), findsOneWidget);
+    expect(find.text('연습이에요. 실제 가전에 보내지 않아요'), findsOneWidget);
+    expect(find.textContaining('못 했어요'), findsNothing);
     expect(find.textContaining('정지'), findsNothing);
   });
 
@@ -213,7 +213,7 @@ void main() {
       ));
       await tester.pump();
       expect(findPlainText('이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요.'), findsOneWidget);
-      expect(find.text('이미 그 설정이라 보내지 않음'), findsOneWidget);
+      expect(find.text('이미 그 설정이라 보내지 않았어요'), findsOneWidget);
       expect(find.textContaining('바꿨'), findsNothing);
       expect(find.textContaining('보냈'), findsNothing);
       final live = find.byWidgetPredicate(
@@ -258,7 +258,7 @@ void main() {
     // 2026-10-13: 결과는 한 문장으로, 모의 여부는 따로 한 줄로 말한다.
     // 모의 기록의 결과 문장이 실제 확인처럼 읽히면 안 된다.
     // 2026-10-14: 모의는 한 줄로만 — 결과 문장이 곧 연습 표시다.
-    expect(find.text('연습 · 가전에 보내지 않았어요'), findsOneWidget);
+    expect(find.text('연습이라 가전에 보내지 않았어요'), findsOneWidget);
     expect(find.textContaining('모의 상태만'), findsNothing);
     // 실제 장치 기록은 실제 확인 문장 그대로, 모의 표시는 없다.
     expect(find.text('가전 상태를 확인했어요'), findsOneWidget);

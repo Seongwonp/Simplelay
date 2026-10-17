@@ -1,4 +1,4 @@
-// 'LG ThinQ 연결' 화면 첫 문장과 설정 줄 부제 (2026-10-15 외부 검토 M3).
+// 'LG 가전 연결' 화면 첫 문장과 설정 줄 부제 (2026-10-15 외부 검토 M3).
 //
 // 확인 중·확인 실패를 'ThinQ 계정이 연결되지 않았어요'로 말하지 않는다. 그 말은 허브가
 // ThinQ를 껐다고 답했을 때(GET /thinq/devices 404)만 한다. 조회 실패는 null이 아니라
@@ -18,9 +18,9 @@ import 'package:simplelay/services/rpi_api_service.dart';
 
 import '../helpers/test_helpers.dart';
 
-const _off = '허브에 ThinQ 계정이 아직 연결되지 않았어요(설치 때 설정해요).';
-const _failed = 'ThinQ 연결 상태를 확인하지 못했어요 — 허브 연결을 확인해 주세요.';
-const _loading = '연결 상태를 확인하는 중이에요.';
+const _off = '본체에 LG 계정이 아직 연결되지 않았어요. 설치하는 분이 연결해요.';
+const _failed = 'LG 가전이 연결됐는지 몰라요. 본체 연결을 봐 주세요.';
+const _loading = '연결을 알아보는 중이에요.';
 
 RpiApiService _api() => RpiApiService('http://rpi5.local:8000',
     client: MockClient((_) async => http.Response('{"detail":"not found"}', 404)));
@@ -45,7 +45,7 @@ Future<void> _settle(WidgetTester tester) async {
 }
 
 Future<void> _openThinq(WidgetTester tester) async {
-  await tester.tap(find.widgetWithText(ListTile, 'LG ThinQ 연결'));
+  await tester.tap(find.widgetWithText(ListTile, 'LG 가전 연결'));
   await _settle(tester);
 }
 
@@ -66,8 +66,8 @@ void main() {
     final never = Completer<RpiThinqOverview?>();
     await tester.pumpWidget(_settings(() => never.future));
     await _settle(tester);
-    expect(findPlainText('확인 중'), findsOneWidget);
-    expect(find.text('계정 연결 전'), findsNothing);
+    expect(findPlainText('알아보는 중'), findsOneWidget);
+    expect(find.text('아직 연결 전이에요'), findsNothing);
 
     await _openThinq(tester);
     expect(_headline(tester), _loading);
@@ -79,8 +79,8 @@ void main() {
     await tester.pumpWidget(
         _settings(() => throw http.ClientException('hub unreachable')));
     await _settle(tester);
-    expect(findPlainText('연결 상태 확인 못 함'), findsOneWidget);
-    expect(find.text('계정 연결 전'), findsNothing);
+    expect(findPlainText('연결됐는지 몰라요'), findsOneWidget);
+    expect(find.text('아직 연결 전이에요'), findsNothing);
 
     await _openThinq(tester);
     expect(_headline(tester), _failed);
@@ -91,7 +91,7 @@ void main() {
     tall(tester);
     await tester.pumpWidget(_settings(() => null));
     await _settle(tester);
-    expect(findPlainText('계정 연결 전'), findsOneWidget);
+    expect(findPlainText('아직 연결 전이에요'), findsOneWidget);
 
     await _openThinq(tester);
     expect(_headline(tester), _off);
@@ -110,7 +110,7 @@ void main() {
         )));
     await _settle(tester);
     await _openThinq(tester);
-    expect(_headline(tester), contains('가전 상세에서 지금 상태를 보고 바꿀 수 있어요'));
+    expect(_headline(tester), contains('가전 화면에서 지금 상태를 보고 바꿀 수 있어요'));
     expect(_headline(tester), contains('루틴에도 넣을 수 있어요'));
     expect(find.textContaining('목적(말)과 루틴으로 맡겨요'), findsNothing);
   });

@@ -1,4 +1,4 @@
-// UI 평가 7차 10/17: '제안 잠시 쉬기'는 새 제안과 아직 시작하지 않은 자동 실행을 쉬는데, 고르는 창에서 어느 자동 실행이
+// UI 평가 7차 10/17: '잠시 쉬기'는 새 제안과 아직 시작하지 않은 자동 실행을 쉬는데, 고르는 창에서 어느 자동 실행이
 // 겹치는지 말하지 않았다 — 길이마다 그 안에 시각이 드는 켜진 시각 규칙을 이름·시각으로.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/auto_rule.dart';

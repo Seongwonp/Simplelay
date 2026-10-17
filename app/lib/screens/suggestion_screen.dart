@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/auto_rule.dart';
 import '../models/command_result.dart';
+import '../models/line_break.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/demo_provider.dart';
@@ -41,11 +42,11 @@ class SuggestionScreen extends ConsumerWidget {
       final options = await api.revisionOptions(suggestion.sequenceId);
       if (!context.mounted) return;
       if (options.isEmpty) {
-        _notifyError(context, '이 가전에는 바꿀 수 있는 등록 동작이 없어요.');
+        _notifyError(context, '이 가전에는 바꿀 수 있는 다른 동작이 없어요.');
         return;
       }
       final purpose = await showDialog<String>(context: context, builder: (dialogContext) => SimpleDialog(
-        title: const Text('이번 동작 바꾸기 · 아직 실행하지 않아요'),
+        title: const Text('이번 동작 바꾸기. 고르기만 하고 아직 하지 않아요'),
         children: options.entries.map((e) => SimpleDialogOption(
           onPressed: () => Navigator.pop(dialogContext, e.key),
           child: Text('${e.key}\n${e.value.join(' → ')}'),
@@ -57,7 +58,7 @@ class SuggestionScreen extends ConsumerWidget {
       ref.read(suggestionProvider.notifier).replaceHttp(suggestion.sequenceId, revised);
       context.replace('/suggestion/${revised.id}');
     } catch (_) {
-      if (context.mounted) _notifyError(context, '동작을 바꾸지 못했어요. 최신 제안을 확인해 주세요.');
+      if (context.mounted) _notifyError(context, '동작을 바꾸지 못했어요. 홈에서 다시 열어 주세요.');
     }
   }
 
@@ -80,7 +81,7 @@ class SuggestionScreen extends ConsumerWidget {
     final rpiApi = ref.read(rpiApiServiceProvider);
     var paused = false;
     if (snooze && rpiApi == null) {
-      _notifyError(context, '쉬기를 전달하지 못했어요. 연결을 확인해 주세요.');
+      _notifyError(context, '쉬기를 본체에 알리지 못했어요. 연결을 봐 주세요.');
       return;
     }
     if (suggestion.source == SuggestionSource.http && rpiApi != null) {
@@ -94,13 +95,13 @@ class SuggestionScreen extends ConsumerWidget {
       } on RpiApiException catch (error) {
         if (error.statusCode != 404) {
           if (context.mounted) {
-            _notifyError(context, '선택을 전달하지 못했어요. 연결을 확인해 주세요.');
+            _notifyError(context, '고른 것을 본체에 알리지 못했어요. 연결을 봐 주세요.');
           }
           return;
         }
       } catch (_) {
         if (context.mounted) {
-          _notifyError(context, '선택을 전달하지 못했어요. 연결을 확인해 주세요.');
+          _notifyError(context, '고른 것을 본체에 알리지 못했어요. 연결을 봐 주세요.');
         }
         return;
       }
@@ -108,7 +109,7 @@ class SuggestionScreen extends ConsumerWidget {
     await ref.read(suggestionProvider.notifier).respond(suggestion, false);
     if (!context.mounted) return;
     if (paused) {
-      _notifyError(context, '30분간 이 제안을 쉬어요. 이후에도 상황이 맞을 때만 다시 물어요.');
+      _notifyError(context, '30분 동안 이 일은 묻지 않을게요. 그 뒤에도 때가 맞을 때만 물어요.');
     }
     if (mute) {
       // 무엇이 바뀌었는지 말하고 물릴 길을 같이 준다 -- 설정 화면까지
@@ -128,7 +129,7 @@ class SuggestionScreen extends ConsumerWidget {
     final messenger = ScaffoldMessenger.of(context);
     messenger.showSnackBar(
       SnackBar(
-        content: const Text('이 제안은 앞으로 표시하지 않아요.'),
+        content: const Text('이 일은 앞으로 묻지 않을게요.'),
         duration: const Duration(seconds: 6),
         action: api == null
             ? null
@@ -138,12 +139,12 @@ class SuggestionScreen extends ConsumerWidget {
                   try {
                     await api.unmuteSuppression(purpose);
                     messenger.showSnackBar(
-                      const SnackBar(content: Text('다시 표시할게요.')),
+                      const SnackBar(content: Text('다시 물어볼게요.')),
                     );
                   } catch (_) {
                     messenger.showSnackBar(
                       const SnackBar(
-                        content: Text('되돌리지 못했어요. 설정에서 해제할 수 있어요.'),
+                        content: Text('되돌리지 못했어요. 설정에서 다시 풀 수 있어요.'),
                       ),
                     );
                   }
@@ -202,23 +203,23 @@ class SuggestionScreen extends ConsumerWidget {
           _notifyError(
             context,
             switch (error.statusCode) {
-              409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 시도해 주세요.',
+              409 => '다른 일을 하는 중이에요. 끝난 뒤 다시 해 주세요.',
               // 412: 준비 안 된 가전. 기다린다고 되는 일이 아니므로
               // '잠시 후'라고 하지 않는다. 서버 문장(경로별 이유)이 있으면 그대로.
               412 => error.message.isNotEmpty && suggestion.isScenario
                   ? error.message
-                  : '이 가전은 아직 조작할 준비가 되지 않았어요. '
-                      '설정에서 연결 상태를 확인해 주세요.',
+                  : '이 가전은 아직 준비가 안 됐어요. '
+                      '설정에서 연결을 봐 주세요.',
               // 자동 실행으로 정할 수 없는 카드(물리 누름 등) — 서버 문장 그대로.
               422 when allow != null && error.message.isNotEmpty => error.message,
-              _ => '실행 요청을 전달하지 못했어요. 연결을 확인해 주세요.',
+              _ => '본체에 보내지 못했어요. 연결을 봐 주세요.',
             },
           );
         }
         return;
       } catch (_) {
         if (context.mounted) {
-          _notifyError(context, '실행 요청을 전달하지 못했어요. 연결을 확인해 주세요.');
+          _notifyError(context, '본체에 보내지 못했어요. 연결을 봐 주세요.');
         }
         return;
       }
@@ -253,8 +254,8 @@ class SuggestionScreen extends ConsumerWidget {
 
     if (suggestion == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('제안 확인')),
-        body: const Center(child: Text('제안을 찾을 수 없어요.')),
+        appBar: AppBar(title: const Text('할까요?')),
+        body: const Center(child: Text('이 알림을 찾을 수 없어요.')),
       );
     }
 
@@ -332,7 +333,7 @@ class SuggestionScreen extends ConsumerWidget {
         : appliance.readinessReasons.firstOrNull ??
             (appliance.readiness == 'disconnected'
                 ? '아직 연결되지 않았어요'
-                : '아직 준비가 끝나지 않았어요');
+                : '아직 준비가 안 됐어요');
 
     final more = _moreActions(
       canMute: suggestion.canMute,
@@ -347,7 +348,7 @@ class SuggestionScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('제안 확인'),
+        title: const Text('할까요?'),
         actions: [if (more.isNotEmpty) _MoreButton(actions: more)],
       ),
       body: ListView(
@@ -363,7 +364,7 @@ class SuggestionScreen extends ConsumerWidget {
           // ── 무엇을 ──────────────────────────────────────────────────────
           // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
           // 잘라내지 않는다. 긴 말은 줄바꿈해서 다 보여준다.
-          if (suggestion.isDemo) const Text('시연 데이터로 만든 제안', style: AppText.body),
+          if (suggestion.isDemo) const Text('연습용으로 만든 알림이에요', style: AppText.body),
           Text('${suggestion.label}, 지금 할까요?', style: AppText.heading),
           // 왜 지금 이게 떴는지. 환경 제안은 서버가 준 근거, 패턴 제안은
           // 시간대·횟수로 만든 한 문장이다(데모는 비어 있다).
@@ -436,7 +437,7 @@ class _TargetHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  '이 가전의 버튼 $stepCount개를 순서대로 눌러요',
+                  keepWordsTogether('작은 팔이 버튼 $stepCount개를 차례로 눌러요'),
                   style: TextStyle(fontSize: 15, color: context.appMuted),
                 ),
               ],
@@ -538,7 +539,7 @@ class _ActionBar extends StatelessWidget {
       icon: const Icon(Icons.play_arrow_rounded),
       // '승인'은 결재 용어다. 사용자가 하는 일은 결재가 아니라 "지금
       // 시킬지" 정하는 것 -- 키오스크와 같은 문구를 쓴다.
-      label: const Text('지금 실행'),
+      label: const Text('지금 하기'),
     );
     // 큰 글씨에서는 두 버튼을 나란히 두면 '다음에'가 단어 중간에서
     // 줄바꿈된다. 세로로 쌓고 주 행동을 위에 둔다. 안내 줄은 뺀다(위 머리가 같은 말을 한다).
@@ -569,7 +570,7 @@ class _ActionBar extends StatelessWidget {
                       const SizedBox(width: 6),
                       Expanded(
                         child: Text(
-                          '$blockedWhy — 설정에서 연결을 확인해 주세요',
+                          '$blockedWhy. 설정에서 연결을 봐 주세요',
                           style: TextStyle(
                               fontSize: 15, color: context.appDanger),
                         ),
@@ -582,7 +583,7 @@ class _ActionBar extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(bottom: 8),
                   child: Text(
-                    '${appliance.displayName} · 버튼 $stepCount개',
+                    '${appliance.displayName}, 버튼 $stepCount개',
                     style: TextStyle(fontSize: 14, color: context.appMuted),
                   ),
                 ),
@@ -613,13 +614,13 @@ List<_MoreAction> _moreActions({
 }) =>
     [
       if (onSnooze != null)
-        (label: '이 제안 30분 쉬기', icon: Icons.snooze, onTap: onSnooze),
+        (label: '30분 동안 묻지 않기', icon: Icons.snooze, onTap: onSnooze),
       if (onRevise != null)
         (label: '이번 동작 바꾸기', icon: Icons.edit_outlined, onTap: onRevise),
       // 영구 억제를 실제로 지킬 수 있는 제안에만 내건다 -- BLE 경로는 '다음에'와 같은 거절 메시지라
       // 약속을 지킬 수 없다.
       if (canMute)
-        (label: '이 제안 다시 받지 않기', icon: Icons.notifications_off_outlined, onTap: onMute),
+        (label: '이 일은 다시 묻지 않기', icon: Icons.notifications_off_outlined, onTap: onMute),
     ];
 
 /// 앱바의 '더 보기' — 누르면 아래에서 관리 선택지 목록이 올라온다. 고른 뒤 목록을 먼저 닫고 실행한다
@@ -681,7 +682,7 @@ class _MoreButtonState extends State<_MoreButton> {
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(right: 4),
         child: Semantics(
-          label: '제안 옵션 더 보기',
+          label: '더 보기',
           button: true,
           container: true,
           excludeSemantics: true,
@@ -736,7 +737,7 @@ class _UnknownTargetScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('제안 확인')),
+      appBar: AppBar(title: const Text('할까요?')),
       body: Padding(
         padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
         child: Column(
@@ -745,27 +746,27 @@ class _UnknownTargetScreen extends StatelessWidget {
             Icon(Icons.help_outline, size: 40, color: context.appWarning),
             const SizedBox(height: 12),
             Text(
-              '대상 가전 정보를 확인해 주세요.',
+              '어느 가전인지 몰라요.',
               textAlign: TextAlign.center,
               style: AppText.heading,
             ),
             const SizedBox(height: 8),
             Text(
-              "'${suggestion.label}' 제안이 가리키는 가전을 찾지 못했어요. "
-              '다른 기기에서 지웠거나 아직 목록을 받지 못했을 수 있어요.',
+              "'${suggestion.label}'의 가전을 찾지 못했어요. "
+              '다른 폰에서 지웠거나 목록을 아직 못 받았을 수 있어요.',
               textAlign: TextAlign.center,
               style: TextStyle(color: context.appMuted),
             ),
             const Spacer(),
             OutlinedButton(
               onPressed: onDismiss,
-              child: const Text('이 제안 지우기'),
+              child: const Text('이 알림 지우기'),
             ),
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: () => context.go('/settings'),
               icon: const Icon(Icons.settings),
-              label: const Text('가전 목록 확인'),
+              label: const Text('가전 목록 보기'),
             ),
           ],
         ),
@@ -777,7 +778,7 @@ class _UnknownTargetScreen extends StatelessWidget {
 // ── 시나리오 카드 ─────────────────────────────────────────────────────────
 
 /// 승인 재검사 실패(409) 안내. 키오스크와 같은 문장.
-const approvalChangedMessage = '제안 내용이 바뀌어 다시 확인이 필요해요';
+const approvalChangedMessage = '내용이 바뀌었어요. 다시 보고 허락해 주세요';
 
 /// GET /scenarios의 이름 표. 실패·옛 서버는 빈 맵 -- 이름 없이 질문만 보인다.
 final scenarioNamesProvider =
@@ -839,8 +840,8 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
       if (blockedWhy == null && r != null && !r.canExecute) {
         final who = c.summary.isNotEmpty ? c.summary : c.targetId;
         blockedWhy = r.reasons.isNotEmpty
-            ? '$who — ${r.reasons.first}'
-            : '$who — 아직 조작할 준비가 되지 않았어요';
+            ? '$who. ${r.reasons.first}'
+            : '$who. 아직 준비가 안 됐어요';
       }
     }
 
@@ -853,17 +854,17 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(userStarted ? '실행 확인' : '제안 확인'),
+        title: Text(userStarted ? '이대로 할까요?' : '할까요?'),
         actions: [if (more.isNotEmpty) _MoreButton(actions: more)],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
           if (suggestion.isDemo)
-            const Text('시연 데이터로 만든 제안', style: AppText.body),
+            const Text('연습용으로 만든 알림이에요', style: AppText.body),
           if (name != null)
             Text(
-              '시나리오 · $name',
+              name,
               style: TextStyle(fontSize: 16, color: context.appMuted),
             ),
           const SizedBox(height: 4),
@@ -872,7 +873,7 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
           if (suggestion.whyNow.isNotEmpty && !userStarted) ...[
             const SizedBox(height: 6),
             Text(
-              '근거: ${suggestion.whyNow}',
+              '이유: ${suggestion.whyNow}',
               style: TextStyle(fontSize: 16, color: context.appMuted),
             ),
           ],
@@ -957,8 +958,8 @@ class _CommandRow extends StatelessWidget {
                       const SizedBox(height: 4),
                       Text(
                         r.reasons.isNotEmpty
-                            ? r.reasons.join(' · ')
-                            : '아직 조작할 준비가 되지 않았어요',
+                            ? r.reasons.join(', ')
+                            : '아직 준비가 안 됐어요',
                         style:
                             TextStyle(fontSize: 15, color: context.appDanger),
                       ),
@@ -1002,7 +1003,7 @@ class _ScenarioActionBar extends StatelessWidget {
     final run = FilledButton.icon(
       onPressed: onRun,
       icon: const Icon(Icons.play_arrow_rounded),
-      label: Text(hasAllow ? '이번만 실행' : '지금 실행'),
+      label: Text(hasAllow ? '이번만 하기' : '지금 하기'),
     );
     // 세 갈래는 늘 세로로 — 위계: 이번만 실행(채움) > 다음부터도 자동으로(외곽선·아이콘) > 안 할래요(외곽선).
     // 자동 허용은 채움·톤으로 두지 않는다 — 실행과 같은 무게면 떠미는 버튼으로 읽힌다(외부 평가 10/16 p05).

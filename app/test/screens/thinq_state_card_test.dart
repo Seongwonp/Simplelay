@@ -2,7 +2,7 @@
 //
 // - 화면에 들어오면 GET /thinq/status/{id}를 한 번 읽어 사람 말로 보인다.
 // - 못 읽으면 이유를 말하고 값을 지어내지 않는다('꺼짐'처럼 보이지 않는다). 조작 줄도 없다.
-// - '다시 읽기'를 눌러야 다시 읽는다. 읽은 시각('HH:MM에 읽음')과 모의 여부를 같이 적는다.
+// - '새로 보기'를 눌러야 다시 읽는다. 읽은 시각('HH:MM에 읽음')과 모의 여부를 같이 적는다.
 // - 공기청정기 조작: 누르면 한 번 묻고, '바꾸기'를 눌러야 POST /thinq/command를
 //   한 번 보낸 뒤 실행 상태 화면으로 간다. 취소·지금 값이면 보내지 않는다.
 // - 외부 검토 반영(10/15): 전원 꺼짐이면 켜기만(풍량·운전 모드 줄 없음, 스스로 켜지 않음),
@@ -133,10 +133,10 @@ void main() {
     expect(find.byType(ThinqStateCard), findsOneWidget);
     expect(find.text('지금 상태'), findsOneWidget);
     expect(find.text('켜짐'), findsOneWidget);
-    expect(find.text('11 · 좋음'), findsOneWidget);
-    expect(find.text('20 · 보통'), findsOneWidget);
+    expect(find.text('좋음, 11'), findsOneWidget);
+    expect(find.text('보통, 20'), findsOneWidget);
     expect(find.text('100%'), findsOneWidget);
-    expect(find.text('09:12에 읽음'), findsOneWidget);
+    expect(find.text('09:12 기준'), findsOneWidget);
     expect(find.textContaining('에 읽었어요'), findsNothing);
     expect(find.textContaining('모의'), findsNothing);
     // 미세먼지 값이 있으면 이유 줄은 없다.
@@ -157,11 +157,11 @@ void main() {
     await _settle(tester);
 
     expect(
-        find.text('지금 상태를 읽지 못했어요 — 상태를 읽지 못했어요 — 가전·인터넷 연결을 확인해 주세요'),
+        find.text('지금 상태를 못 불러왔어요. 상태를 읽지 못했어요 — 가전·인터넷 연결을 확인해 주세요'),
         findsOneWidget);
     expect(find.text('켜짐'), findsNothing);
     expect(find.text('꺼짐'), findsNothing);
-    expect(find.textContaining('에 읽음'), findsNothing);
+    expect(find.textContaining(' 기준'), findsNothing);
     expect(find.byType(ChoiceChip), findsNothing);
   });
 
@@ -172,12 +172,12 @@ void main() {
     await tester.pumpWidget(_detail(api));
     await _settle(tester);
 
-    expect(find.textContaining('허브에 닿지 않아요'), findsOneWidget);
+    expect(find.textContaining('본체와 연결이 끊겼어요'), findsOneWidget);
     expect(find.text('켜짐'), findsNothing);
     expect(find.byType(ChoiceChip), findsNothing);
   });
 
-  testWidgets("'다시 읽기'를 눌러야 다시 읽고, 바뀐 값을 보인다", (tester) async {
+  testWidgets("'새로 보기'를 눌러야 다시 읽고, 바뀐 값을 보인다", (tester) async {
     _tall(tester);
     final hub = _Hub((call) => _ok(_state(wind: call == 1 ? 'AUTO' : 'HIGH')));
     await tester.pumpWidget(_detail(hub.service()));
@@ -200,7 +200,7 @@ void main() {
     await _settle(tester);
 
     expect(find.text('지금 상태 (연습)'), findsOneWidget);
-    expect(find.text('09:12에 읽음 (연습)'), findsOneWidget);
+    expect(find.text('09:12 기준 (연습)'), findsOneWidget);
   });
 
   testWidgets("풍량 '강풍' → 한 번 묻고, '바꾸기'를 눌러야 한 번 보내고 실행 상태로 간다",
@@ -212,7 +212,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('thinq-set-set_wind_strength-HIGH')));
     await _settle(tester);
-    expect(find.text('풍량을 강풍으로 바꿀까요?'), findsOneWidget);
+    expect(find.text('바람 세기를 강풍으로 바꿀까요?'), findsOneWidget);
     expect(hub.commands, isEmpty); // 묻는 동안에는 보내지 않는다.
 
     await tester.tap(find.byKey(const Key('thinq-set-confirm')));
@@ -279,7 +279,7 @@ void main() {
       thinqStateRows({
         'airFlow': {'windStrengthDetail': 'TURBO_X'},
       }),
-      [('풍량', 'TURBO_X')],
+      [('바람 세기', 'TURBO_X')],
     );
     expect(thinqStateRows(const {}), isEmpty);
     // 공기청정기 전원 칸이 없으면 조작 줄도 없다.
@@ -310,7 +310,7 @@ void main() {
     // 10/15 저녁: 꺼져 있어도 값을 보는 길(ThinQ 앱 공기질 센서 '항상')을 함께 알려 준다.
     expect(
         find.text('전원이 꺼져 있어 미세먼지 값이 오지 않아요. '
-            "꺼져 있을 때도 보려면 ThinQ 앱에서 공기질 센서를 '항상'으로 바꿔 주세요."),
+            "꺼져 있을 때도 보려면 LG 앱에서 공기질 센서를 '항상'으로 바꿔 주세요."),
         findsOneWidget);
     expect(find.textContaining('받을 수 없어요'), findsNothing);
     // 스스로 켜지 않는다.
@@ -336,10 +336,10 @@ void main() {
     await _settle(tester);
 
     expect(find.text('꺼짐'), findsOneWidget);
-    expect(find.text('초미세먼지(PM2.5)'), findsOneWidget);
-    expect(find.text('8 · 좋음'), findsOneWidget);
-    expect(find.text('미세먼지(PM10)'), findsOneWidget);
-    expect(find.text('10 · 나쁨'), findsOneWidget);
+    expect(find.text('초미세먼지'), findsOneWidget);
+    expect(find.text('좋음, 8'), findsOneWidget);
+    expect(find.text('미세먼지'), findsOneWidget);
+    expect(find.text('나쁨, 10'), findsOneWidget);
     expect(find.byKey(const Key('thinq-dust-note')), findsNothing);
     // 조작 줄은 꺼짐 규칙 그대로 — 켜기만, 풍량·운전 모드 없음.
     expect(find.text(kThinqPowerOffNote), findsOneWidget);
@@ -357,7 +357,7 @@ void main() {
     await tester.pumpWidget(_detail(hub.service()));
     await _settle(tester);
 
-    expect(find.text('미세먼지 값을 아직 받지 못했어요(켠 직후에는 잠시 걸려요)'),
+    expect(find.text('미세먼지 값이 아직 없어요. 켠 직후에는 잠시 걸려요'),
         findsOneWidget);
     expect(find.text(kThinqPowerOffNote), findsNothing);
     expect(find.byKey(const Key('thinq-set-set_wind_strength-HIGH')), findsOneWidget);
@@ -424,7 +424,7 @@ void main() {
     // 허브가 거절로 답하면 잠금이 풀린다.
     pending.complete(_json({'detail': 'an execution is already in progress'}, 409));
     await _settle(tester);
-    expect(find.text('다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.'), findsOneWidget);
+    expect(find.text('다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.'), findsOneWidget);
     expect(_chip(tester, 'set_job_mode', 'SLEEP').onSelected, isNotNull);
   });
 
@@ -460,18 +460,18 @@ void main() {
     expect(thinqCommandRefusal(RpiApiException(412, '프로필을 확인하지 못했어요')),
         '프로필을 확인하지 못했어요');
     expect(thinqCommandRefusal(RpiApiException(409, 'an execution is already in progress')),
-        '다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.');
+        '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.');
     expect(thinqCommandRefusal(RpiApiException(409, '')),
-        '다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.');
-    expect(thinqCommandRefusal(RpiApiException(422, ' ')), '허브가 이 조작을 지금 받지 않았어요.');
+        '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.');
+    expect(thinqCommandRefusal(RpiApiException(422, ' ')), '지금은 이걸 바꿀 수 없어요.');
     expect(thinqCommandRefusal(RpiApiException(500, 'boom')), isNull);
     expect(thinqCommandRefusal(RpiApiException(503, '준비 중')), isNull);
   });
 
   test('읽은 시각은 HH:MM에 읽음, 낭독은 HH시 MM분', () {
     final t = DateTime(2026, 10, 15, 7, 5, 59);
-    expect(thinqReadTimeLine(t), '07:05에 읽음');
-    expect(thinqReadTimeLine(t, mock: true), '07:05에 읽음 (연습)');
+    expect(thinqReadTimeLine(t), '07:05 기준');
+    expect(thinqReadTimeLine(t, mock: true), '07:05 기준 (연습)');
     expect(thinqReadTimeSpoken(t), '07시 05분');
   });
 
@@ -485,14 +485,14 @@ void main() {
     SemanticsNode node(String action, String value) =>
         tester.getSemantics(find.byKey(Key('thinq-set-$action-$value')));
     expect(node('set_wind_strength', 'AUTO'),
-        isSemantics(label: '풍량 자동', isSelected: true, isButton: true));
+        isSemantics(label: '바람 세기 자동', isSelected: true, isButton: true));
     expect(node('set_job_mode', 'AUTO'),
-        isSemantics(label: '운전 모드 자동', isSelected: false));
+        isSemantics(label: '모드 자동', isSelected: false));
     expect(node('set_power', 'POWER_ON'),
         isSemantics(label: '전원 켜기', isSelected: true));
     expect(node('set_power', 'POWER_OFF'),
         isSemantics(label: '전원 끄기', isSelected: false));
-    expect(find.bySemanticsLabel('ThinQ 상태 09시 12분에 조회'), findsOneWidget);
+    expect(find.bySemanticsLabel('지금 상태, 09시 12분 기준'), findsOneWidget);
     handle.dispose();
   });
 
@@ -535,7 +535,7 @@ void main() {
     });
   }
 
-  testWidgets('L1: 오늘 사용 — ThinQ 직접 조작은 "버튼 직접 누름"이 아니라 허브 문장', (tester) async {
+  testWidgets('L1: 오늘 사용 — ThinQ 직접 조작은 "직접 누름"이 아니라 허브 문장', (tester) async {
     _tall(tester);
     final hub = _Hub((_) => _ok(_state()));
     RpiHistoryEntry entry(String jobId, int minute, String detail) => RpiHistoryEntry(
@@ -558,9 +558,9 @@ void main() {
     ]));
     await _settle(tester);
 
-    expect(find.textContaining('버튼 직접 누름'), findsNothing);
-    expect(find.textContaining('09:05 강풍으로 바꿨어요 · '), findsOneWidget);
-    expect(find.textContaining('09:01 ThinQ 직접 조작 · '), findsOneWidget);
+    expect(find.textContaining('직접 누름'), findsNothing);
+    expect(find.textContaining('09:05 강풍으로 바꿨어요, '), findsOneWidget);
+    expect(find.textContaining('09:01 직접 바꿈, '), findsOneWidget);
   });
 
 }

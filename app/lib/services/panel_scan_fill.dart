@@ -48,8 +48,8 @@ PanelScanFill fillFromPanelScan(PanelScanDraft draft, {required int maxGrid}) {
       draft.rows > maxGrid ||
       draft.cols > maxGrid) {
     throw PanelScanFillException(
-      '사진 속 버튼 배치가 ${draft.rows}행 × ${draft.cols}열이라 앱 격자'
-      '(최대 $maxGrid × $maxGrid)에 담을 수 없어요. 직접 배치해 주세요.',
+      '사진 속 버튼이 ${draft.rows}줄 ${draft.cols}칸이에요. 앱 버튼판은 '
+      '$maxGrid줄 $maxGrid칸까지라 직접 놓아 주세요.',
     );
   }
   final grid = List.generate(
@@ -61,12 +61,12 @@ PanelScanFill fillFromPanelScan(PanelScanDraft draft, {required int maxGrid}) {
   var filled = 0;
   for (final b in draft.buttons) {
     if (b.kind != 'button') {
-      skipped.add("'${b.label}'은(는) 다이얼이라 넣지 않았어요 — 앱은 아직 누르는 버튼만 등록해요");
+      skipped.add("'${b.label}'은(는) 다이얼이라 넣지 않았어요. 앱은 아직 누르는 버튼만 넣어요");
       continue;
     }
     final inside = b.x >= 0 && b.x < draft.cols && b.y >= 0 && b.y < draft.rows;
     if (!inside || grid[b.y][b.x] != null) {
-      skipped.add("'${b.label}'은(는) 위치가 격자와 맞지 않아 넣지 않았어요");
+      skipped.add("'${b.label}'은(는) 자리가 버튼판과 맞지 않아 넣지 않았어요");
       continue;
     }
     grid[b.y][b.x] = b.label;

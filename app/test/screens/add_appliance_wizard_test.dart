@@ -194,7 +194,7 @@ void main() {
     await _settle(tester);
 
     // ② 모서리 4점 — 허브 프레임 치수를 읽는다.
-    expect(_title(tester), '2. 기계 틀 네 귀퉁이 짚기');
+    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
     expect(server.requests, contains('GET /mapping/frame'));
     expect(find.textContaining('가로 300mm'), findsOneWidget);
     expect(next().onPressed, isNull);
@@ -211,13 +211,13 @@ void main() {
     expect(_title(tester), '1. 조작부 사진');
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
-    expect(_title(tester), '2. 기계 틀 네 귀퉁이 짚기');
+    expect(_title(tester), '2. 버튼판 네 귀퉁이 고르기');
     expect(next().onPressed, isNotNull);
     await tester.tap(find.byKey(const Key('wizard-next')));
     await tester.pump();
 
     // ③ 버튼 — 짚고 이름을 붙인다.
-    expect(_title(tester), '3. 버튼 짚고 이름 붙이기');
+    expect(_title(tester), '3. 버튼 고르고 이름 붙이기');
     expect(next().onPressed, isNull);
     await _tapPhoto(tester, 0.3, 0.4);
     await _settle(tester);
@@ -235,7 +235,7 @@ void main() {
     await tester.pump();
 
     // ④ 정지 버튼과 쉬는 자리.
-    expect(_title(tester), '4. 정지 버튼과 쉬는 자리');
+    expect(_title(tester), '4. 정지 버튼과 기다리는 자리');
     expect(tester.widget<ChoiceChip>(find.widgetWithText(ChoiceChip, '취소')).selected, isTrue);
     await tester.pump();
     await tester.tap(find.text('2번'));
@@ -268,7 +268,7 @@ void main() {
     expect(saved.panelMapping!.buttons.length, 2);
 
     // ⑤ 확인 주행 — 모의면 모의라고 말한다.
-    expect(_title(tester), '5. 확인 주행');
+    expect(_title(tester), '5. 시험 이동');
     expect(find.textContaining('소프트 리밋이 없어'), findsOneWidget);
     await tester.tap(find.byKey(const Key('wizard-start-pass')));
     await _settle(tester);
@@ -276,7 +276,7 @@ void main() {
     await _settle(tester);
     expect(server.requests, contains(matches(r'^POST /appliances/custom_\d+/verify-pass$')));
     expect(find.byKey(const Key('wizard-pass-mock')), findsOneWidget);
-    expect(find.text('도착했다고 응답'), findsOneWidget);
+    expect(find.text('도착했다고 알려 왔어요'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('wizard-finish')));
     await _settle(tester);
@@ -304,7 +304,7 @@ void main() {
     }
     FilledButton next() =>
         tester.widget<FilledButton>(find.byKey(const Key('wizard-next')));
-    expect(find.textContaining('기계 틀 크기를 아직 몰라요'), findsOneWidget);
+    expect(find.textContaining('버튼판 크기를 아직 몰라요'), findsOneWidget);
     expect(next().onPressed, isNull);
     await tester.enterText(find.byKey(const Key('wizard-frame-w')), '300');
     await tester.enterText(find.byKey(const Key('wizard-frame-h')), '200');

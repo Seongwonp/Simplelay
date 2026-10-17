@@ -109,7 +109,7 @@ void main() {
           client: MockClient((_) async => throw http.ClientException('down')));
       final r = await api.ackEstop();
       expect(r.outcome, EstopAckOutcome.failed);
-      expect(r.message, contains('연결을 확인'));
+      expect(r.message, contains('연결을 보고'));
     });
 
     test('실패 문장은 모두 해요체 한 줄이고 서로 다르다', () {

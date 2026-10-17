@@ -37,8 +37,8 @@ class SyncStatusLine extends ConsumerWidget {
           Expanded(
             child: Text(
               failed
-                  ? '변경 ${sync.pendingCount}건을 보내지 못했어요'
-                  : '키오스크에 반영할 변경 ${sync.pendingCount}건',
+                  ? '바꾼 것 ${sync.pendingCount}건을 보내지 못했어요'
+                  : '본체에 보낼 것 ${sync.pendingCount}건',
               style: TextStyle(
                 fontSize: 13,
                 color: failed ? context.appWarning : context.appMuted,
@@ -50,7 +50,7 @@ class SyncStatusLine extends ConsumerWidget {
               onPressed: onRetry,
               // 고령 사용자 기준 최소 터치 대상.
               style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
-              child: const Text('다시 시도'),
+              child: const Text('다시 하기'),
             ),
         ],
       ),

@@ -1,4 +1,4 @@
-// 하위 화면 제목('제안 확인'·'실행 상태' 등)도 탭 제목처럼 굵게(UI 평가 2026-10-17 — 가는 글씨라 위계가 약했다).
+// 하위 화면 제목('할까요?'·'실행 상태' 등)도 탭 제목처럼 굵게(UI 평가 2026-10-17 — 가는 글씨라 위계가 약했다).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/theme/app_theme.dart';

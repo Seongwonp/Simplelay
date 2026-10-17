@@ -75,7 +75,7 @@ Future<void> _pump(WidgetTester tester, ProviderContainer container) async {
 
 void main() {
   test('다시 보내기 단추는 쉬운 말 — "동기화"를 쓰지 않는다(UI 평가 10/17)', () {
-    expect(kResyncLabel, '키오스크에 다시 보내기');
+    expect(kResyncLabel, '본체에 다시 보내기');
     expect(kResyncLabel, isNot(contains('동기화')));
   });
 
@@ -90,9 +90,9 @@ void main() {
     final container = await _phoneWithQueue(tester, [_op('fan', 'upsert')]);
     await _pump(tester, container);
 
-    expect(find.text('키오스크에 반영할 변경 1건'), findsOneWidget);
-    // 아직 시도해 보지도 않았는데 '다시 시도'를 내걸지 않는다.
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('본체에 보낼 것 1건'), findsOneWidget);
+    // 아직 시도해 보지도 않았는데 '다시 하기'를 내걸지 않는다.
+    expect(find.text('다시 하기'), findsNothing);
   });
 
   testWidgets('여러 건이면 건수를 센다', (tester) async {
@@ -102,16 +102,16 @@ void main() {
     ]);
     await _pump(tester, container);
 
-    expect(find.text('키오스크에 반영할 변경 2건'), findsOneWidget);
+    expect(find.text('본체에 보낼 것 2건'), findsOneWidget);
   });
 
   testWidgets('실패한 뒤에는 다시 시도할 수 있다', (tester) async {
     final container = await _phoneWithQueue(tester, [_op('fan', 'upsert')], trySync: true);
     await _pump(tester, container);
 
-    expect(find.text('변경 1건을 보내지 못했어요'), findsOneWidget);
+    expect(find.text('바꾼 것 1건을 보내지 못했어요'), findsOneWidget);
     final button = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, '다시 시도'),
+      find.widgetWithText(TextButton, '다시 하기'),
     );
     expect(button.onPressed, isNotNull);
   });
@@ -120,7 +120,7 @@ void main() {
     final container = await _phoneWithQueue(tester, [_op('fan', 'upsert')], trySync: true);
     await _pump(tester, container);
 
-    final size = tester.getSize(find.widgetWithText(TextButton, '다시 시도'));
+    final size = tester.getSize(find.widgetWithText(TextButton, '다시 하기'));
     expect(size.height, greaterThanOrEqualTo(48));
   });
 

@@ -24,7 +24,7 @@ Future<void> _pump(WidgetTester tester, ExecutionStatus status) async {
 }
 
 void main() {
-  // 외부 평가 2026-10-13 M5: 실물 모션 + 모의 L3(L3_MODE=mock)를 "가전 동작도 확인했어요"로 말하던 기대를
+  // 외부 평가 2026-10-13 M5: 실물 모션 + 모의 L3(L3_MODE=mock)를 "가전이 전기를 쓰기 시작한 것도 확인했어요"로 말하던 기대를
   // 정직한 규칙으로 고쳤다 — 실측(real) 판정만 실제 동작 확인이다.
   testWidgets('실물 모션이라도 L3가 모의 판정이면 실제 동작 확인이라고 말하지 않고 판정 입력을 밝힌다',
       (tester) async {
@@ -33,7 +33,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.',
+        message: '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -45,10 +45,10 @@ void main() {
       ),
     );
 
-    expect(find.text('가전 동작도 확인했어요'), findsNothing);
-    expect(find.text('가전 동작은 연습 값으로 판정했어요 · 실제 확인 아님'), findsOneWidget);
-    // 모의 판정의 true는 실제 동작 근거가 아니다 — 그 사실을 같이 말한다.
-    expect(find.textContaining('연습 판정'), findsOneWidget);
+    expect(find.text('가전이 전기를 쓰기 시작한 것도 확인했어요'), findsNothing);
+    expect(find.text('가전 동작은 연습 값으로 봤어요. 실제로 확인한 건 아니에요'), findsOneWidget);
+    // 모의 판정의 true는 실제 동작 근거가 아니다 — 위 문장이 한 번 말한다(같은 말 두 번 금지, 2026-10-17).
+    expect(find.textContaining('연습 판정'), findsNothing);
     expect(find.textContaining('전력 파형에서 가열 시작을 확인했어요'), findsOneWidget);
   });
 
@@ -59,7 +59,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.',
+        message: '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -70,8 +70,8 @@ void main() {
       ),
     );
 
-    expect(find.text('가전 동작은 확인하지 못했어요'), findsOneWidget);
-    expect(find.text('가전 동작도 확인했어요'), findsNothing);
+    expect(find.text('가전이 움직였는지 몰라요'), findsOneWidget);
+    expect(find.text('가전이 전기를 쓰기 시작한 것도 확인했어요'), findsNothing);
   });
 
   testWidgets('L3 판정이 없으면(null) 동작 이야기를 새로 하지 않는다', (tester) async {
@@ -80,7 +80,7 @@ void main() {
       const ExecutionStatus(
         label: '즉석밥 데워줘',
         phase: ExecutionPhase.completed,
-        message: '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.',
+        message: '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.',
         executionMode: 'real',
         outcome: 'success',
         route: 'physical',
@@ -104,9 +104,9 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.'), findsNothing);
+    expect(find.text('버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.'), findsNothing);
     // 실행 환경을 모르면 실제로 눌렀는지 사람에게 확인을 맡긴다.
-    expect(findPlainText('가전이 실제로 움직이는지는 직접 봐 주세요', contains: true), findsOneWidget);
+    expect(findPlainText('가전이 움직이는지 봐 주세요', contains: true), findsOneWidget);
     expect(find.textContaining('마쳤어요'), findsNothing);
   });
 
@@ -126,15 +126,15 @@ void main() {
       ),
     );
 
-    expect(find.text('가전 동작도 확인했어요'), findsNothing);
-    expect(find.text('연습 동작 판정 · 실제 가전 아님'), findsOneWidget);
+    expect(find.text('가전이 전기를 쓰기 시작한 것도 확인했어요'), findsNothing);
+    expect(find.text('연습이라 실제 가전은 보지 않았어요'), findsOneWidget);
   });
 
   group('L3 판정 출처 × 모션 실행 모드 (평가 M5)', () {
-    const realSentence = '가전 동작도 확인했어요';
-    const mockMotion = '연습 동작 판정 · 실제 가전 아님';
-    const mockL3 = '가전 동작은 연습 값으로 판정했어요 · 실제 확인 아님';
-    const unknownL3 = '가전 동작 판정의 근거를 몰라요 · 가전을 확인해 주세요';
+    const realSentence = '가전이 전기를 쓰기 시작한 것도 확인했어요';
+    const mockMotion = '연습이라 실제 가전은 보지 않았어요';
+    const mockL3 = '가전 동작은 연습 값으로 봤어요. 실제로 확인한 건 아니에요';
+    const unknownL3 = '가전이 움직였는지 몰라요. 가전을 봐 주세요';
     final cases = <(String, String?, String)>[
       ('real', 'real', realSentence),
       ('real', 'mock', mockL3),

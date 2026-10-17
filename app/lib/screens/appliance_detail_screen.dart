@@ -59,7 +59,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
             if (a.isDemo) ...[const SizedBox(width: 8), const DemoBadge()],
             if (a.isThinq) ...[
               const SizedBox(width: 8),
-              const RouteBadge(label: 'ThinQ'),
+              const RouteBadge(label: 'LG 가전'),
             ],
           ],
         ),
@@ -71,7 +71,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
           const SizedBox(height: 12),
           if (a.isThinq) ...[
             Text(
-              '누를 버튼이 없는 ThinQ 가전이에요. 아래에서 바로 바꾸거나, 말로 맡기거나 루틴으로 만들어 주세요.',
+              'LG 가전이라 누를 버튼이 없어요. 아래에서 바로 바꾸거나 말이나 루틴으로 맡겨 주세요.',
               style: TextStyle(fontSize: 16, color: context.appMuted),
             ),
             const SizedBox(height: 12),
@@ -79,8 +79,8 @@ class ApplianceDetailScreen extends ConsumerWidget {
           ] else ...[
             Text(
               a.panelMapping != null
-                  ? '사진 속 버튼을 누르면 허브가 대신 눌러요. 빨간 원은 정지, 점선은 쉬는 자리예요.'
-                  : '버튼을 누르면 허브가 대신 눌러요.',
+                  ? '사진 속 버튼을 누르면 작은 팔이 대신 눌러요. 빨간 원은 정지, 점선은 기다리는 자리예요.'
+                  : '버튼을 누르면 작은 팔이 대신 눌러요.',
               style: TextStyle(fontSize: 15, color: context.appMuted),
             ),
             const SizedBox(height: 10),
@@ -107,7 +107,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
                       if (mine.isNotEmpty) ...[
                         const SizedBox(height: 2),
                         Text(
-                          mine.map((r) => r.name).join(' · '),
+                          mine.map((r) => r.name).join(', '),
                           style: TextStyle(fontSize: 14, color: context.appMuted),
                         ),
                       ],
@@ -121,7 +121,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
                     style: OutlinedButton.styleFrom(minimumSize: const Size(0, 48)),
                     onPressed: () => _record(context, ref, a),
                     icon: const Icon(Icons.radio_button_checked, size: 18),
-                    label: const Text('루틴 녹화'),
+                    label: const Text('누르는 순서 저장'),
                   ),
               ],
             ),
@@ -174,7 +174,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
     if (a.readinessKnown && !a.canExecute) {
       _snack(
         context,
-        a.readinessReasons.firstOrNull ?? '아직 이 가전을 맡길 수 없어요.',
+        a.readinessReasons.firstOrNull ?? '아직 이 가전은 준비가 안 됐어요.',
       );
       return;
     }
@@ -183,8 +183,8 @@ class ApplianceDetailScreen extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         title: Text("'${b.label}' 버튼을 누를까요?"),
         content: Text(
-          "허브가 ${a.displayName}의 '${b.label}' 버튼을 대신 눌러요. "
-          '누른 뒤 결과는 실행 상태 화면에서 확인해요.',
+          "작은 팔이 ${a.displayName}의 '${b.label}' 버튼을 대신 눌러요. "
+          '누른 뒤 결과를 보여 드려요.',
         ),
         actions: [
           TextButton(
@@ -201,7 +201,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
     if (ok != true || !context.mounted) return;
     final api = ref.read(rpiApiServiceProvider);
     if (api == null) {
-      _snack(context, '허브에 연결되면 누를 수 있어요.');
+      _snack(context, '본체와 연결되면 누를 수 있어요.');
       return;
     }
     try {
@@ -219,13 +219,13 @@ class ApplianceDetailScreen extends ConsumerWidget {
       _snack(
         context,
         switch (e.statusCode) {
-          409 => '다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.',
+          409 => '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.',
           412 => e.message,
-          _ => '누르기를 보내지 못했어요. 연결을 확인해 주세요.',
+          _ => '누르라고 보내지 못했어요. 연결을 봐 주세요.',
         },
       );
     } catch (_) {
-      if (context.mounted) _snack(context, '누르기를 보내지 못했어요. 연결을 확인해 주세요.');
+      if (context.mounted) _snack(context, '누르라고 보내지 못했어요. 연결을 봐 주세요.');
     }
   }
 
@@ -244,7 +244,7 @@ class _ReadinessLine extends StatelessWidget {
     final a = appliance;
     if (!(a.readinessKnown && !a.canExecute)) return const SizedBox.shrink();
     final why = a.readinessReasons.firstOrNull ??
-        (a.readiness == 'disconnected' ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요');
+        (a.readiness == 'disconnected' ? '아직 연결되지 않았어요' : '아직 준비가 안 됐어요');
     return Row(
       children: [
         Icon(Icons.error_outline, size: 18, color: context.appWarning),
@@ -291,7 +291,7 @@ class _TodayUse extends ConsumerWidget {
           else
             for (final e in today)
               Text(
-                '${_hm(e.finishedAt)} ${_what(e)} · ${_result(e)}',
+                '${_hm(e.finishedAt)} ${_what(e)}, ${_result(e)}',
                 style: TextStyle(fontSize: 14, color: context.appMuted),
               ),
         ],
@@ -306,10 +306,10 @@ class _TodayUse extends ConsumerWidget {
     if (purpose != null && purpose.isNotEmpty) return purpose;
     if (thinq || e.route == 'thinq') {
       final detail = e.detail.trim();
-      if (detail.isEmpty) return 'ThinQ 직접 조작';
+      if (detail.isEmpty) return '직접 바꿈';
       return detail.endsWith('.') ? detail.substring(0, detail.length - 1) : detail;
     }
-    return '버튼 직접 누름';
+    return '직접 누름';
   }
 
   static String _hm(DateTime t) =>
@@ -319,7 +319,7 @@ class _TodayUse extends ConsumerWidget {
   /// 모의 성공을 실제 성공처럼 말하지 않는다.
   static String _result(RpiHistoryEntry e) {
     final word = resultWord(resultKindOf(outcome: e.outcome, status: e.status));
-    return e.executionMode == 'mock' ? '$word(연습)' : word;
+    return e.executionMode == 'mock' ? '연습, $word' : word;
   }
 }
 

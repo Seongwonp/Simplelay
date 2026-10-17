@@ -108,8 +108,8 @@ class RunningStopStrip extends ConsumerWidget {
 
     final label = status.label;
     final line = unknown
-        ? '동작을 확인할 수 없어요'
-        : (label == null || label.isEmpty ? '실행 중이에요' : '$label 실행 중');
+        ? '지금 상태를 몰라요'
+        : (label == null || label.isEmpty ? '하는 중이에요' : '$label 하는 중');
     return Material(
       color: Theme.of(context).colorScheme.surfaceContainerHigh,
       child: SafeArea(
@@ -193,7 +193,7 @@ class _BottomBar extends ConsumerWidget {
     final settingsLabel = unread > 0
         ? '설정, 읽지 않은 알림 $unread건'
         : care.status == CareInboxStatus.failed
-            ? '설정, 알림을 확인하지 못했어요'
+            ? '설정, 알림을 불러오지 못했어요'
             : '설정';
     // 글씨를 키우면 라벨이 커진다. 바 높이를 같이 늘려 잘리지 않게 한다.
     final scale = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);

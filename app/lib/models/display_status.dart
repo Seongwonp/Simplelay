@@ -89,26 +89,26 @@ TileStatus applianceTileStatus({
   // 1. 이 가전이 지금 추적 중인 실행의 대상인가(서버가 말한 대상 id로만).
   if (execution.applianceId == appliance.id) {
     final total = execution.totalSteps ?? execution.steps.length;
-    final count = total > 0 ? ' · ${execution.completedSteps}/$total' : '';
+    final count = total > 0 ? ' ${execution.completedSteps}/$total' : '';
     final thinq = appliance.isThinq;
     switch (execution.phase) {
       case ExecutionPhase.unknown:
-        return const TileStatus('동작을 확인할 수 없어요', TileTone.attention);
+        return const TileStatus('지금 상태를 몰라요', TileTone.attention);
       case ExecutionPhase.waiting:
-        return const TileStatus('실행을 기다리고 있어요', TileTone.active);
+        return const TileStatus('차례를 기다려요', TileTone.active);
       case ExecutionPhase.running:
       case ExecutionPhase.retrying:
         final mock = execution.isDemo || execution.executionMode == 'mock';
         if (mock) {
           return TileStatus(
-              thinq ? '연습 명령 처리 중' : '연습 버튼 조작 중$count', TileTone.active,
+              thinq ? '연습으로 보내는 중' : '연습으로 누르는 중$count', TileTone.active,
               progress: true);
         }
         if (execution.executionMode == 'real') {
-          return TileStatus(thinq ? '명령 처리 중' : '버튼 조작 중$count', TileTone.active,
+          return TileStatus(thinq ? '가전에 보내는 중' : '버튼 누르는 중$count', TileTone.active,
               progress: true);
         }
-        return const TileStatus('실행을 확인하고 있어요', TileTone.active,
+        return const TileStatus('하는 중이에요', TileTone.active,
             progress: true);
       case ExecutionPhase.idle:
       case ExecutionPhase.completed:
@@ -121,10 +121,10 @@ TileStatus applianceTileStatus({
   // 2. 허브 장애가 가전 판정보다 앞선다 — 옛 '준비됨'을 지금의 사실로 쓰지 않는다.
   switch (hub) {
     case RpiConnectionState.unreachable:
-      return const TileStatus('연결을 확인해 주세요', TileTone.attention);
+      return const TileStatus('본체 연결을 봐 주세요', TileTone.attention);
     case RpiConnectionState.keyRequired:
     case RpiConnectionState.unconfigured:
-      return const TileStatus('허브 설정이 필요해요', TileTone.attention);
+      return const TileStatus('본체 연결 설정이 필요해요', TileTone.attention);
     case RpiConnectionState.checking:
       return const TileStatus('확인하는 중이에요', TileTone.unknown);
     case RpiConnectionState.connected:
@@ -134,7 +134,7 @@ TileStatus applianceTileStatus({
     case ServerCatalogStatus.loading:
       return const TileStatus('확인하는 중이에요', TileTone.unknown);
     case ServerCatalogStatus.failed:
-      return const TileStatus('연결을 확인해 주세요', TileTone.attention);
+      return const TileStatus('본체 연결을 봐 주세요', TileTone.attention);
     case ServerCatalogStatus.unconfigured: // 허브 상태가 이미 위에서 말했다 — 아래 판정(미확인)으로
     case ServerCatalogStatus.loaded:
       break;
@@ -148,14 +148,14 @@ TileStatus applianceTileStatus({
   // 4. 서버 판정. 들은 적이 없으면 canExecute 기본값(true)으로 긍정하지 않는다.
   final r = readinessSource;
   if (r == null || !r.readinessKnown) {
-    return const TileStatus('준비 상태를 확인하지 못했어요', TileTone.unknown);
+    return const TileStatus('준비됐는지 몰라요', TileTone.unknown);
   }
   final reason = r.readinessReasons.isEmpty ? null : r.readinessReasons.first;
   switch (r.readiness) {
     case 'operable':
       // 평소(실행 가능)는 말하지 않는다 — 빈 상태 줄(2026-10-14 UX). 문제 상태만 적는다.
       if (!r.canExecute) {
-        return const TileStatus('실행 가능 여부를 확인해 주세요', TileTone.unknown);
+        return const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown);
       }
       // 켜진 ThinQ 가전만 말한다(서버가 최근 10분 안에 읽은 전원). 모르면 비운다 — 꺼짐이라 단정하지 않는다.
       return appliance.isThinq && thinqOn
@@ -165,14 +165,14 @@ TileStatus applianceTileStatus({
       // 서버는 비상정지 걸림·링크 확인 대기도 needs_setup으로 보낸다 —
       // '설정'이라 단정하지 않고 서버의 이유를 그대로 붙인다.
       return r.canExecute
-          ? const TileStatus('실행 가능 여부를 확인해 주세요', TileTone.unknown)
+          ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown)
           : TileStatus('준비가 필요해요', TileTone.attention, detail: reason);
     case 'disconnected':
       return r.canExecute
-          ? const TileStatus('실행 가능 여부를 확인해 주세요', TileTone.unknown)
+          ? const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown)
           : TileStatus('연결이 필요해요', TileTone.attention, detail: reason);
     default:
-      return const TileStatus('준비 상태를 확인하지 못했어요', TileTone.unknown);
+      return const TileStatus('준비됐는지 몰라요', TileTone.unknown);
   }
 }
 
@@ -207,18 +207,18 @@ String? verifyPassTileNote({
 /// 확인 주행 조회 결과 하나를 말로 — 타일 보조 줄과 설정 카드가 **같은 근거 수준**으로
 /// 쓴다(검토 M4, 2026-10-13). 실제 완료면 null. 진행 중·모의 실패·모드 모름은 모름.
 String? verifyPassLookupNote(VerifyPassLookup lookup) {
-  const unknown = '확인 주행 여부를 확인하지 못했어요';
+  const unknown = '시험 이동을 했는지 몰라요';
   switch (lookup.kind) {
     case VerifyPassLookupKind.noRecord:
-      return '확인 주행 기록이 없어요';
+      return '아직 시험 이동을 안 했어요';
     case VerifyPassLookupKind.unknown:
       return unknown;
     case VerifyPassLookupKind.found:
       final p = lookup.pass!;
       final mode = p.executionMode;
       if (p.state == 'done' && mode == 'real') return null;
-      if (p.state == 'done' && mode == 'mock') return '연습 주행만 확인했어요';
-      if (p.state == 'failed' && mode == 'real') return '확인 주행을 마치지 못했어요';
+      if (p.state == 'done' && mode == 'mock') return '연습으로만 시험 이동했어요';
+      if (p.state == 'failed' && mode == 'real') return '시험 이동을 마치지 못했어요';
       return unknown;
   }
 }
@@ -251,9 +251,9 @@ final _routineTitle = RegExp(r"^'(.+)' 루틴$");
 /// 가를 수 없어 나누지 않는다). 시각만 있는 줄은 누가 실행했는지 몰랐다(UI 평가 4차 10/17).
 String historySource(RpiHistoryEntry e) {
   final purpose = e.purpose?.trim() ?? '';
-  if (purpose.startsWith(_autoPrefix)) return '자동 실행';
+  if (purpose.startsWith(_autoPrefix)) return '자동';
   if (_routineTitle.hasMatch(historyStatement(purpose))) return '루틴';
-  return '직접 실행';
+  return '직접';
 }
 
 String historyTitle(RpiHistoryEntry e, {String? applianceName}) {
@@ -277,10 +277,10 @@ String historyTitle(RpiHistoryEntry e, {String? applianceName}) {
       : rawName;
   final hasName = name != null && name.isNotEmpty;
   if (labels.isNotEmpty) {
-    final pressed = '${labels.join(', ')} 버튼 조작';
-    return hasName ? '$name · $pressed' : pressed;
+    final pressed = '${labels.join(', ')} 버튼 누르기';
+    return hasName ? '$name $pressed' : pressed;
   }
-  if (hasName) return e.route == 'thinq' ? '$name 명령' : '$name 버튼 조작';
+  if (hasName) return e.route == 'thinq' ? '$name 조작' : '$name 버튼 누르기';
   return '실행 기록';
 }
 
@@ -314,15 +314,15 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
   final rawName = applianceName?.trim();
   final name = rawName != null && mock ? withoutMockMark(rawName) : rawName;
   final target = (name == null || name.isEmpty) ? '가전' : name;
-  final checkTarget = '$target${objectParticle(target)} 직접 확인해 주세요';
+  final checkTarget = '$target${objectParticle(target)} 봐 주세요';
   // 모의는 한 번만 말한다(2026-10-14 UX) — 이름의 "(모의)"·연습 줄·다음 행동에 세 번 나오던 것을 이 한 줄로.
   // 실제·연습을 모르는 기록(옛 RPi4·보고 없음)은 성공 문장만 두면 실제 성공처럼 보인다(F4 경계) —
   // 일반 화면 띠는 생략해도 기록에는 한 줄 남긴다(2026-10-14).
   final unknownMode = !mock && e.executionMode != 'real';
   final mockNote = mock
-      ? (thinq ? '연습 · $target에 보내지 않았어요' : '연습 · 실제로 누르지 않았어요')
+      ? (thinq ? '연습이라 $target에 보내지 않았어요' : '연습이라 실제로 누르지 않았어요')
       : unknownMode
-          ? '실제 기기 동작 여부를 확인하지 못했어요'
+          ? '실제 가전이 움직였는지 몰라요'
           : null;
 
   // 정지·안전 정지 — 정지 확인 단계 작업의 계약을 건드리지 않는다.
@@ -331,7 +331,7 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
     final safety = e.outcome == null && e.status == 'safety_stopped' && !byUser;
     return HistoryResult(
       kind: kind,
-      sentence: byUser ? '직접 멈췄어요' : safety ? '안전 정지' : '정지됨',
+      sentence: byUser ? '직접 멈췄어요' : safety ? '스스로 멈췄어요' : '멈췄어요',
       mockNote: mockNote,
     );
   }
@@ -342,15 +342,15 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
       return HistoryResult(
         kind: kind,
         sentence: motion,
-        next: '다시 누르지 않았어요 · 장치를 확인해 주세요',
+        next: '다시 누르지 않았어요. 작은 팔을 봐 주세요',
         mockNote: mockNote,
       );
     }
     return HistoryResult(
       kind: kind,
       sentence: e.termination == 'retries_exhausted'
-          ? '다시 눌러도 확인하지 못해 안전 정지'
-          : '안전 정지',
+          ? '다시 눌러도 몰라서 스스로 멈췄어요'
+          : '스스로 멈췄어요',
       mockNote: mockNote,
     );
   }
@@ -360,8 +360,8 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
     return HistoryResult(
       kind: kind,
       sentence: mock
-          ? '연습 · 이미 그 설정이라 변경 명령을 보내지 않았어요'
-          : '이미 그 설정이라 변경 명령을 보내지 않았어요',
+          ? '연습이에요. 이미 그 설정이라 보내지 않았어요'
+          : '이미 그 설정이라 보내지 않았어요',
       mockNote: unknownMode ? mockNote : null,
     );
   }
@@ -413,7 +413,7 @@ HistoryResult _liveResult(
   if (thinq) {
     if (e.receipt == 'not_dispatched') {
       return HistoryResult(
-          kind: kind, sentence: '명령을 보내지 않았어요', next: '연결 상태를 확인해 주세요');
+          kind: kind, sentence: '가전에 보내지 않았어요', next: '본체 연결을 봐 주세요');
     }
     return switch (kind) {
       // 확인한 사실만큼(2026-10-14): 바꿈 · 보낸 뒤 목표값(전 값 모름). 서버 문장이 없으면 종전 문장.
@@ -424,11 +424,11 @@ HistoryResult _liveResult(
       // 접수 여부(받았는지 모름·접수됨)는 아래 보조 줄이 말한다. 다시 보내라고 권하지 않는다.
       ResultKind.unconfirmed => HistoryResult(
           kind: kind,
-          sentence: '보냈지만 설정이 바뀌었는지 확인하지 못했어요',
+          sentence: '보냈지만 설정이 바뀌었는지 몰라요',
           next: '다시 보내기 전에 $checkTarget',
         ),
       _ => HistoryResult(
-          kind: kind, sentence: '가전이 명령을 실행하지 않았어요', next: checkTarget),
+          kind: kind, sentence: '가전이 하지 않았어요', next: checkTarget),
     };
   }
 
@@ -436,32 +436,32 @@ HistoryResult _liveResult(
   switch (kind) {
     case ResultKind.success:
       if (e.confirmation == 'operation_confirmed' && e.executionMode == 'real') {
-        return HistoryResult(kind: kind, sentence: '가전이 켜진 것을 확인했어요');
+        return HistoryResult(kind: kind, sentence: '가전이 전기를 쓰기 시작했어요');
       }
       if (e.confirmation == 'press_confirmed') {
         return HistoryResult(
             kind: kind,
             sentence: '버튼을 눌렀어요',
-            next: '$target 동작을 확인해 주세요');
+            next: '$target 동작을 봐 주세요');
       }
       return HistoryResult(
-          kind: kind, sentence: '버튼 조작을 마쳤어요', next: checkTarget);
+          kind: kind, sentence: '다 눌렀다고 알려 왔어요', next: checkTarget);
     case ResultKind.unconfirmed:
       return HistoryResult(
-          kind: kind, sentence: '눌렸는지 확인하지 못했어요', next: checkTarget);
+          kind: kind, sentence: '눌렸는지 몰라요', next: checkTarget);
     case ResultKind.failed:
       if (e.receipt == 'not_dispatched') {
         return HistoryResult(
-            kind: kind, sentence: '누름 장치에 보내지 못했어요', next: '연결 상태를 확인해 주세요');
+            kind: kind, sentence: '작은 팔에 보내지 못했어요', next: '본체 연결을 봐 주세요');
       }
       if (e.termination == 'retries_exhausted') {
         return HistoryResult(
-            kind: kind, sentence: '다시 눌러도 확인하지 못했어요', next: checkTarget);
+            kind: kind, sentence: '다시 눌러도 눌렸는지 몰라요', next: checkTarget);
       }
       return HistoryResult(
           kind: kind,
-          sentence: '끝까지 실행하지 못했어요',
-          next: '$target 상태를 확인해 주세요');
+          sentence: '끝까지 하지 못했어요',
+          next: '$target 상태를 봐 주세요');
     case ResultKind.stopped:
     case ResultKind.safetyStop:
       throw StateError('handled above');

@@ -87,7 +87,7 @@ void main() {
       await tester.pumpWidget(_buildScreen(container));
       await tester.pump();
 
-      expect(find.text('아직 준비가 끝나지 않았어요'), findsOneWidget);
+      expect(find.text('아직 준비가 안 됐어요'), findsOneWidget);
       expect(
         find.text('눌림을 확인할 센서가 아직 준비되지 않았어요'),
         findsOneWidget,
@@ -110,7 +110,7 @@ void main() {
     await tester.pump();
 
     // 내부 이름(RPi·URL)을 사용자에게 말하지 않는다.
-    expect(find.text('버튼을 대신 눌러 줄 기기와 아직 연결되지 않았어요'),
+    expect(find.text('본체와 아직 연결되지 않았어요'),
         findsOneWidget);
     expect(find.textContaining('RPi'), findsNothing);
     expect(find.textContaining('URL'), findsNothing);
@@ -129,7 +129,7 @@ void main() {
 
     // 어느 가전인지가 본문 머리에 온다(사진/실루엣 + 이름).
     expect(find.text('테스트가전'), findsOneWidget);
-    expect(find.text('버튼 2개 · 누르면 실제 가전 버튼이 눌려요'), findsOneWidget);
+    expect(find.text('버튼 2개. 누르면 작은 팔이 실제 가전 버튼을 눌러요'), findsOneWidget);
     expect(find.text('켜기'), findsOneWidget);
     expect(find.text('끄기'), findsOneWidget);
     // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
@@ -179,7 +179,7 @@ void main() {
     });
     expect(find.byIcon(Icons.check), findsOneWidget);
     // 셀 색만이 아니라 문장으로도 말한다. 확인 근거가 없으면(실행 환경·확인 수준 모름) 눌림을 확인했다고 하지 않는다(2026-10-15).
-    expect(find.text("'켜기' 누름 장치가 눌렀다고 알려 왔어요 · 가전은 직접 봐 주세요"), findsOneWidget);
+    expect(find.text("'켜기' 작은 팔이 눌렀다고 알려 왔어요. 가전은 직접 봐 주세요"), findsOneWidget);
 
     // 2초 뒤 결과 표시가 사라진다.
     await tester.pump(const Duration(seconds: 3));
@@ -225,9 +225,9 @@ void main() {
 
   // 2026-10-15 키오스크 문구 개선 안 A: 눌림을 확인했다고는 실제 실행에서 눌림·동작을 확인했을 때만 말한다.
   for (final (mode, confirmation, sentence) in [
-    ('real', 'press_confirmed', "'켜기' 눌림을 확인했어요"),
-    ('mock', 'press_confirmed', "'켜기' 연습으로 눌렀어요 · 실제 가전은 누르지 않았어요"),
-    ('real', 'reported', "'켜기' 누름 장치가 눌렀다고 알려 왔어요 · 가전은 직접 봐 주세요"),
+    ('real', 'press_confirmed', "'켜기' 눌린 것을 확인했어요"),
+    ('mock', 'press_confirmed', "'켜기' 연습으로 눌렀어요. 실제 가전은 누르지 않았어요"),
+    ('real', 'reported', "'켜기' 작은 팔이 눌렀다고 알려 왔어요. 가전은 직접 봐 주세요"),
   ]) {
     testWidgets('결과 한 줄은 확인한 만큼 — $mode · $confirmation', (tester) async {
       final client = MockClient((request) async {

@@ -42,7 +42,7 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
         .where((a) => a.id == widget.applianceId)
         .firstOrNull;
     return InputGuard(dirty: !_accepted && _order.join("|") != widget.initial.join("|"), child: Scaffold(
-      appBar: AppBar(title: const Text('루틴 녹화')),
+      appBar: AppBar(title: const Text('누르는 순서 저장')),
       body: appliance == null
           ? Padding(
               padding: const EdgeInsets.all(20),
@@ -53,7 +53,7 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
               children: [
                 Text(
-                  '평소 누르는 순서대로 버튼을 짚어 주세요. 지금은 저장만 하고 누르지는 않아요.',
+                  '평소 누르는 순서대로 버튼을 골라 주세요. 저장만 하고 누르지는 않아요.',
                   style: TextStyle(fontSize: 15, color: context.appMuted),
                 ),
                 const SizedBox(height: 12),
@@ -68,7 +68,7 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
                 ),
                 const SizedBox(height: 14),
                 if (_order.isEmpty)
-                  Text('아직 짚은 버튼이 없어요',
+                  Text('아직 고른 버튼이 없어요',
                       style: TextStyle(fontSize: 15, color: context.appMuted))
                 else
                   Wrap(

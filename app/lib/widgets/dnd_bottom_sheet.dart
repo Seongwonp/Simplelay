@@ -58,7 +58,7 @@ class _DndSheet extends ConsumerWidget {
                   Icon(Icons.do_not_disturb_on_outlined,
                       color: context.appWarning, size: 22),
                   const SizedBox(width: 10),
-                  Flexible(child: Text('방해 금지 모드', style: AppText.title)),
+                  Flexible(child: Text('잠시 쉬기', style: AppText.title)),
                   const Spacer(),
                   if (isActive)
                     Container(
@@ -71,7 +71,7 @@ class _DndSheet extends ConsumerWidget {
                             color: context.appWarning.withValues(alpha: 0.4)),
                       ),
                       child: Text(
-                        '활성',
+                        '쉬는 중',
                         style: TextStyle(
                             color: context.appWarning,
                             fontSize: 12,
@@ -82,18 +82,7 @@ class _DndSheet extends ConsumerWidget {
               ),
             ),
 
-            // 같은 기능을 키오스크는 다른 이름으로 부른다 — 처음 한 번 이어 준다(2026-10-15 안 A).
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  "키오스크의 '제안 잠시 쉬기'와 같아요",
-                  key: const ValueKey('dnd-kiosk-name'),
-                  style: TextStyle(color: context.appMuted, fontSize: 14),
-                ),
-              ),
-            ),
+            // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '잠시 쉬기' — 이름 해명 문장은 뺐다.
 
             // 현재 DND 남은 시간
             if (isActive) ...[
@@ -119,7 +108,7 @@ class _DndSheet extends ConsumerWidget {
                 // 그 시간 안에 드는 자동 실행을 이름으로(UI 평가 7차 10/17) — 쉬는 동안 소리 없이 건너뛰지 않게.
                 subtitle: switch (pauseSkippedRules(now, opt.minutes, rules)) {
                   final skipped when skipped.isNotEmpty =>
-                    '${opt.subtitle} · 건너뛰는 자동 실행: ${skipped.join(', ')}',
+                    '${opt.subtitle}. 이때 건너뛰는 일: ${skipped.join(', ')}',
                   _ => opt.subtitle,
                 },
                 onTap: () async {
@@ -134,8 +123,8 @@ class _DndSheet extends ConsumerWidget {
 
             // 해제
             _OptionTile(
-              label: '방해 금지 해제',
-              subtitle: isActive ? '사용 습관 제안을 다시 받아요' : '현재 비활성 상태',
+              label: '그만 쉬기',
+              subtitle: isActive ? '다시 물어보고 자동으로 해요' : '지금은 쉬고 있지 않아요',
               iconColor: isActive ? context.appDanger : context.appMuted,
               enabled: isActive,
               onTap: isActive
@@ -156,13 +145,13 @@ class _DndSheet extends ConsumerWidget {
 
   String _remaining(DateTime until) {
     final diff = until.difference(DateTime.now());
-    if (diff.isNegative) return '곧 해제돼요';
+    if (diff.isNegative) return '곧 끝나요';
     if (diff.inMinutes >= 60) {
       final h = diff.inHours;
       final m = diff.inMinutes.remainder(60);
-      return m > 0 ? '$h시간 $m분 후 해제' : '$h시간 후 해제';
+      return m > 0 ? '$h시간 $m분 뒤 끝나요' : '$h시간 뒤 끝나요';
     }
-    return '${diff.inMinutes + 1}분 후 해제';
+    return '${diff.inMinutes + 1}분 뒤 끝나요';
   }
 }
 
@@ -221,7 +210,7 @@ class _DndOption {
 
 const _kOptions = [
   // 실제 범위만(2026-10-14 마감 2번) — 새로 켜는 잠시 쉬기는 새 제안과 아직 시작하지 않은 자동 실행을 쉰다.
-  _DndOption('30분', '새 제안과 자동 실행을 30분 쉬어요', 30),
-  _DndOption('1시간', '새 제안과 자동 실행을 1시간 쉬어요', 60),
-  _DndOption('2시간', '새 제안과 자동 실행을 2시간 쉬어요', 120),
+  _DndOption('30분', '30분 동안 묻지도, 자동으로 하지도 않아요', 30),
+  _DndOption('1시간', '1시간 동안 묻지도, 자동으로 하지도 않아요', 60),
+  _DndOption('2시간', '2시간 동안 묻지도, 자동으로 하지도 않아요', 120),
 ];

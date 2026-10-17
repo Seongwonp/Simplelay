@@ -57,23 +57,23 @@ void main() {
 
   testWidgets('이어받은 잠시 쉬기(옛 범위): "HH:MM까지 새 제안만 쉬어요" — 자동 실행은 그대로라고 말한다', (tester) async {
     await _settings(tester, until, 'suggestions_only');
-    expect(findPlainText('${_hhmm(until)}까지 새 제안만 쉬어요 · 예전에 켠 설정이라 자동 실행은 그대로예요'),
+    expect(findPlainText('${_hhmm(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하기는 그대로예요'),
         findsOneWidget);
-    expect(findPlainText('새 제안과 자동 실행을 쉬어요', contains: true), findsNothing);
+    expect(findPlainText('묻지도, 자동으로 하지도 않아요', contains: true), findsNothing);
   });
 
-  testWidgets('업데이트 뒤 켠 잠시 쉬기(새 범위): "HH:MM까지 새 제안과 자동 실행을 쉬어요"', (tester) async {
+  testWidgets('업데이트 뒤 켠 잠시 쉬기(새 범위): "HH:MM까지 묻지도, 자동으로 하지도 않아요"', (tester) async {
     await _settings(tester, until, 'suggestions_and_auto');
-    expect(findPlainText('${_hhmm(until)}까지 새 제안과 자동 실행을 쉬어요'), findsOneWidget);
+    expect(findPlainText('${_hhmm(until)}까지 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
   });
 
   testWidgets('시간 고르기 창의 선택지도 새 범위를 말한다(제안만 숨긴다고 하지 않음)', (tester) async {
     await _settings(tester, null, null);
     await tester.tap(findPlainText('시간 고르기'));
     await tester.pumpAndSettle();
-    expect(findPlainText('새 제안과 자동 실행을 30분 쉬어요'), findsOneWidget);
-    expect(findPlainText('새 제안과 자동 실행을 1시간 쉬어요'), findsOneWidget);
-    expect(findPlainText('새 제안과 자동 실행을 2시간 쉬어요'), findsOneWidget);
+    expect(findPlainText('30분 동안 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
+    expect(findPlainText('1시간 동안 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
+    expect(findPlainText('2시간 동안 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
     expect(findPlainText('사용 습관 제안을', contains: true), findsNothing);
   });
 }

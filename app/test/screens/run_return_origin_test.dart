@@ -1,9 +1,9 @@
-// 2026-10-13 에뮬레이터: 홈 큰 루틴 카드 '실행하기' → 승인 화면 '지금 실행' →
+// 2026-10-13 에뮬레이터: 홈 큰 루틴 카드 '실행하기' → 승인 화면 '지금 하기' →
 // 실행 상태 화면 '확인'을 누르면 이미 처리된 승인 화면으로 돌아가
-// "제안을 찾을 수 없어요."만 있는 빈 화면에 갇혔다. 실행을 시작한 뒤의
+// "이 알림을 찾을 수 없어요."만 있는 빈 화면에 갇혔다. 실행을 시작한 뒤의
 // 확인·닫기는 실행을 시작한 곳(홈·루틴 목록·편집기)으로 돌아가야 한다.
 //
-// 세 진입점(홈·루틴 목록·편집기 '지금 실행')은 모두 `runRoutineNow`로 승인
+// 세 진입점(홈·루틴 목록·편집기 '지금 하기')은 모두 `runRoutineNow`로 승인
 // 화면을 연다. 그래서 출발 화면 하나가 `runRoutineNow`를 부르게 두고, 승인
 // 화면은 진짜 SuggestionScreen이다.
 //
@@ -190,9 +190,9 @@ Future<void> _settle(WidgetTester tester) async {
 Future<void> _runAndConfirm(WidgetTester tester, _Hub hub) async {
   await tester.tap(find.text('실행하기'));
   await _settle(tester);
-  expect(find.text('지금 실행'), findsOneWidget, reason: '승인 화면이 열린다');
+  expect(find.text('지금 하기'), findsOneWidget, reason: '승인 화면이 열린다');
 
-  await tester.tap(find.text('지금 실행'));
+  await tester.tap(find.text('지금 하기'));
   await _settle(tester);
   expect(hub.approved, isTrue);
   expect(find.text('상태 화면'), findsOneWidget);
@@ -214,7 +214,7 @@ void main() {
 
       await _runAndConfirm(tester, hub);
 
-      expect(find.text('제안을 찾을 수 없어요.'), findsNothing);
+      expect(find.text('이 알림을 찾을 수 없어요.'), findsNothing);
       expect(find.text('출발 $name'), findsOneWidget);
       // 폴링 타이머를 정리한다.
       await tester.pumpWidget(const SizedBox());
@@ -233,7 +233,7 @@ void main() {
 
         await tester.tap(find.text('실행하기'));
         await _settle(tester);
-        await tester.tap(find.text('지금 실행'));
+        await tester.tap(find.text('지금 하기'));
         await _settle(tester);
         expect(hub.approved, isTrue);
         expect(find.byType(StatusScreen), findsOneWidget);
@@ -251,7 +251,7 @@ void main() {
         await tester.pump(const Duration(seconds: 1)); // 화면 전환이 끝나도록
 
         expect(find.byType(StatusScreen), findsNothing);
-        expect(find.text('제안을 찾을 수 없어요.'), findsNothing);
+        expect(find.text('이 알림을 찾을 수 없어요.'), findsNothing);
         expect(find.text('출발 $name'), findsOneWidget);
         await tester.pumpWidget(const SizedBox());
       });

@@ -8,7 +8,7 @@ import '../theme/app_text.dart';
 const kWeatherSourceLine = '기상청 단기예보 조회서비스(공공데이터포털)';
 
 /// 이용 허락 유형.
-const kWeatherLicenseLine = '공공누리 제1유형(출처표시) — 이용허락 제1유형';
+const kWeatherLicenseLine = '공공누리 제1유형(출처표시), 이용허락 제1유형';
 
 /// 설정 → 앱 정보. 외부 자료의 출처와 이용 허락을 적는다.
 class AppInfoScreen extends StatelessWidget {
@@ -22,7 +22,7 @@ class AppInfoScreen extends StatelessWidget {
           children: [
             Text('SimpleLay', style: AppText.heading),
             const SizedBox(height: 4),
-            Text('버튼식 가전을 대신 눌러 주는 허브의 폰 앱이에요.',
+            Text('SimpleLay 본체와 함께 쓰는 폰 앱이에요. 본체의 작은 팔이 버튼식 가전을 대신 눌러요.',
                 style: TextStyle(fontSize: 16, color: context.appMuted)),
             const SizedBox(height: 28),
             Text('날씨 출처', style: AppText.title),
@@ -33,7 +33,7 @@ class AppInfoScreen extends StatelessWidget {
                 style: TextStyle(fontSize: 15, color: context.appMuted)),
             const SizedBox(height: 8),
             Text(
-              '날씨는 허브가 받아 키오스크 안내에만 써요. 허브 위치는 약 1km 단위로만 저장해요.',
+              '날씨는 본체가 받아 본체 화면 안내에만 써요. 본체 위치는 약 1km 단위로만 저장해요.',
               style: TextStyle(fontSize: 14, color: context.appMuted),
             ),
           ],

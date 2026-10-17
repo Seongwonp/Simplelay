@@ -57,11 +57,11 @@ ResultKind resultKindOf({String? outcome, String? status}) {
 
 /// 한 단어 결과(이력 열·배지).
 String resultWord(ResultKind kind) => switch (kind) {
-      ResultKind.success => '성공',
-      ResultKind.failed => '실패',
-      ResultKind.stopped => '정지됨',
-      ResultKind.safetyStop => '안전 정지',
-      ResultKind.unconfirmed => '확인 못 함',
+      ResultKind.success => '됐어요',
+      ResultKind.failed => '못 했어요',
+      ResultKind.stopped => '멈췄어요',
+      ResultKind.safetyStop => '스스로 멈췄어요',
+      ResultKind.unconfirmed => '몰라요',
     };
 
 /// 제어 경로 배지. 모르면 null(말하지 않는다).
@@ -70,7 +70,7 @@ String resultWord(ResultKind kind) => switch (kind) {
 /// 대신 눌러요"를 줄마다 되풀이하면 잡음이다. ThinQ만 결과 문장으로 경로가 드러나지
 /// 않아 남긴다.
 String? routeLabel(String? route) => switch (route) {
-      'thinq' => 'ThinQ',
+      'thinq' => 'LG 가전',
       _ => null,
     };
 
@@ -89,14 +89,14 @@ String? confirmationLabel({
 }) {
   // 보내기 전 조회에서 이미 목표값이라 보내지 않았다(2026-10-14) — 실패·미확인도, 바꿨다는 말도 아니다.
   if (confirmation == 'already_at_target') {
-    return executionMode == 'mock' ? '연습 · 이미 그 설정이라 보내지 않음' : '이미 그 설정이라 보내지 않음';
+    return executionMode == 'mock' ? '연습이에요. 이미 그 설정이었어요' : '이미 그 설정이라 보내지 않았어요';
   }
   // 보낸 뒤 목표값을 봤지만 보내기 전 값은 몰랐다(2026-10-14) — '바뀐 것 확인'이 아니다.
   if (confirmation == 'state_confirmed_unknown_before') {
-    return executionMode == 'mock' ? '연습 · 설정된 것 확인' : '설정된 것 확인됨';
+    return executionMode == 'mock' ? '연습이에요. 그 설정인 것을 봤어요' : '그 설정인 것을 확인했어요';
   }
   // 누름 장치에 보내기 전에 끝났다 — 확인 못 함이 아니라 누르지 않았다.
-  if (route != 'thinq' && receipt == 'not_dispatched') return '누르지 않음';
+  if (route != 'thinq' && receipt == 'not_dispatched') return '누르지 않았어요';
   // 사용자가 멈췄거나 모션 장치가 걸려 멈췄으면(aborted) 눌림 확인을 묻지 않는다 —
   // 멈춘 사실이 이미 결과 문장이고, "눌렸는지 확인하지 못했어요"는 고장처럼 읽힌다(2026-10-14 UX).
   if (confirmation == 'none' &&
@@ -106,13 +106,13 @@ String? confirmationLabel({
   // 모의가 앞선다 — 모의 상태를 읽은 것을 실제 가전 상태 확인으로 말하지
   // 않는다(10/6 Copilot 리뷰 66990be).
   if (confirmation == 'state_confirmed') {
-    return executionMode == 'mock' ? '연습 상태 확인' : '상태 확인됨';
+    return executionMode == 'mock' ? '연습 상태를 봤어요' : '상태를 확인했어요';
   }
   if (route == 'thinq') {
-    if (receipt == 'not_dispatched') return '보내지 않음';
-    if (receipt == 'unknown') return '가전이 받았는지 확인이 필요해요';
+    if (receipt == 'not_dispatched') return '보내지 않았어요';
+    if (receipt == 'unknown') return '가전이 받았는지 몰라요';
     if (receipt == 'accepted') {
-      return kind == ResultKind.unconfirmed ? '접수됨' : '실행 안 됨';
+      return kind == ResultKind.unconfirmed ? '가전이 받았어요' : '가전이 하지 않았어요';
     }
     return null;
   }
@@ -125,25 +125,24 @@ String? confirmationLabel({
       'operation_confirmed' => '연습 결과',
       'press_confirmed' => '연습 결과',
       'reported' => '연습 결과',
-      'none' => '연습 · 눌렸는지 확인하지 못했어요',
+      'none' => '연습이에요. 눌렸는지 몰라요',
       _ => null,
     };
   }
   return switch (confirmation) {
     // 확인한 것은 콘센트 전력이 늘어난 것이다 — 켜졌다·조리를 시작했다고 말하지 않는다(2026-10-15, 키오스크와 같은 말).
-    'operation_confirmed' => '전력 사용이 늘었어요',
+    'operation_confirmed' => '가전이 전기를 쓰기 시작했어요',
     'press_confirmed' => '버튼을 눌렀어요',
-    'reported' => '누름 장치의 응답을 받았어요',
-    'none' => '눌렸는지 확인하지 못했어요',
+    'reported' => '작은 팔이 눌렀다고 알려 왔어요',
+    'none' => '눌렸는지 몰라요',
     _ => null,
   };
 }
 
 /// ThinQ 확인 못 함의 한 문장. 접수 불명이면 다시 보내기 전에 확인하라고 한다.
 String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
-    ? '명령을 보냈지만 가전이 받았는지 확인하지 못했어요. '
-        '다시 보내기 전에 가전을 직접 확인해 주세요.'
-    : '명령을 보냈지만 설정이 바뀌었는지 확인하지 못했어요. 가전을 직접 확인해 주세요.';
+    ? '보냈지만 가전이 받았는지 몰라요. 다시 보내기 전에 가전을 봐 주세요.'
+    : '보냈지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.';
 
 /// 정지 확인 단계(2026-10-13)의 한 문장. 서버가 올리는 단계는
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
@@ -156,13 +155,13 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
 /// [detail]이 참일 때(개발자 도구)만.
 ///
 /// 2026-10-15 키오스크 문구 개선 안 A(원칙 0-1~3): 주어는 누름 장치이고(가전이 멈췄다는 뜻이 아니다), 확인하지 못한
-/// 단계는 문장 첫머리부터 모른다고 말한다. 폰은 이름 바꾸기를 하지 않아 '누름 장치'로 둔다(키오스크는 '작은 팔').
+/// 단계는 문장 첫머리부터 모른다고 말한다. 2026-10-17 쉬운 말 사전: 폰도 '작은 팔'. mcu_ack는 '받았어요'까지만(확인 아님).
 String? stopLevelSentence(String? level, {int? ackMs, bool detail = false}) {
   if (!detail) {
     return switch (level) {
-      'verified' => '누름 장치가 멈췄어요',
-      'mcu_ack' => '누름 장치가 정지 신호를 받았어요 — 멈췄는지는 확인 못 했어요',
-      'sent' => '멈추라고 보냈어요 — 멈췄는지 아직 몰라요',
+      'verified' => '작은 팔이 멈췄어요',
+      'mcu_ack' => '작은 팔이 멈추라는 신호를 받았어요. 멈췄는지는 몰라요',
+      'sent' => '멈추라고 보냈어요. 멈췄는지는 아직 몰라요',
       _ => null,
     };
   }
@@ -170,18 +169,18 @@ String? stopLevelSentence(String? level, {int? ackMs, bool detail = false}) {
   return switch (level) {
     'verified' => ackMs == null
         ? '멈춘 것을 확인했어요'
-        : '멈춘 것을 확인했어요 (모션 보드 응답 $ackMs ms)',
-    'mcu_ack' => '모션 보드가 정지를 확인했어요$ms',
-    'sent' => '멈추라고 보냈어요 — 멈췄는지 아직 몰라요',
+        : '멈춘 것을 확인했어요 (작은 팔 응답 $ackMs ms)',
+    'mcu_ack' => '작은 팔이 정지 신호를 받았어요$ms',
+    'sent' => '멈추라고 보냈어요. 멈췄는지는 아직 몰라요',
     _ => null,
   };
 }
 
 /// 정지 문장 뒤 할 일 한 가지(원칙 0-3). 누름 장치가 멈췄어도 가전은 이미 켜졌을 수 있다.
 String stopLevelNextStep(String? level) => switch (level) {
-      'verified' => '가전이 이미 켜졌다면 가전의 정지·취소 버튼을 직접 눌러 주세요',
+      'verified' => '가전이 이미 켜졌다면 가전의 정지 버튼을 직접 눌러 주세요',
       'mcu_ack' || 'sent' => '가전을 직접 봐 주세요',
-      _ => '누름 장치와 가전이 멈췄는지 직접 봐 주세요',
+      _ => '작은 팔과 가전이 멈췄는지 봐 주세요',
     };
 
 /// 다시 시도 위험(열린 문제 R1) — 자동 재시도·다시 시도는 가전 상태를 보지 않고 같은 버튼을 다시 누른다.
@@ -192,13 +191,13 @@ const kDontRetryIfOn = '가전이 이미 움직이고 있으면 다시 시도하
 /// "눌림을 확인했어요"라고 했다(연습·누름 장치 보고만인 경우에도).
 String manualPressSentence(String label,
     {required bool success, String? confirmation, String executionMode = 'unknown'}) {
-  if (!success) return "'$label' 눌림을 확인하지 못했어요 — 가전을 먼저 봐 주세요";
-  if (executionMode == 'mock') return "'$label' 연습으로 눌렀어요 · 실제 가전은 누르지 않았어요";
+  if (!success) return "'$label' 눌렸는지 몰라요. 가전을 먼저 봐 주세요";
+  if (executionMode == 'mock') return "'$label' 연습으로 눌렀어요. 실제 가전은 누르지 않았어요";
   if (executionMode == 'real' &&
       (confirmation == 'press_confirmed' || confirmation == 'operation_confirmed')) {
-    return "'$label' 눌림을 확인했어요";
+    return "'$label' 눌린 것을 확인했어요";
   }
-  return "'$label' 누름 장치가 눌렀다고 알려 왔어요 · 가전은 직접 봐 주세요";
+  return "'$label' 작은 팔이 눌렀다고 알려 왔어요. 가전은 직접 봐 주세요";
 }
 
 /// '확인'은 모션 보드가 받았을 때(mcu_ack)부터다. 보냄(sent)은 확인이 아니다.
@@ -230,20 +229,20 @@ String finishedMessage({
       if (said != null &&
           (executionMode != 'mock' || confirmation != 'state_confirmed')) {
         return executionMode == 'mock'
-            ? '연습 · $said 실제 가전은 조작하지 않았어요.'
+            ? '연습이에요. $said 실제 가전은 그대로예요.'
             : said;
       }
       if (thinq) {
         return executionMode == 'mock'
-            ? '연습으로 ThinQ 명령을 보내고 연습 상태를 확인했어요. 실제 가전은 조작하지 않았어요.'
-            : '명령을 보냈고 가전 상태를 확인했어요.';
+            ? '연습으로 보내고 연습 상태를 봤어요. 실제 가전은 그대로예요.'
+            : '가전 상태를 확인했어요.';
       }
       // 확인한 만큼만(2026-10-15, 키오스크와 같은 규칙) — 끝낸 것은 버튼 누르기, 가전은 사람이 본다.
       return executionMode == 'mock'
           ? '연습을 마쳤어요. 실제 가전은 누르지 않았어요.'
           : executionMode == 'real'
-              ? '버튼을 다 눌렀어요. 가전이 움직이는지는 직접 봐 주세요.'
-              : '누름 장치가 다 눌렀다고 알려 왔어요. 가전이 실제로 움직이는지는 직접 봐 주세요.';
+              ? '버튼을 다 눌렀어요. 가전이 움직이는지 봐 주세요.'
+              : '작은 팔이 다 눌렀다고 알려 왔어요. 가전이 움직이는지 봐 주세요.';
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
     case ResultKind.stopped:
@@ -252,13 +251,13 @@ String finishedMessage({
       // '실행을 멈췄어요'를 앞에 붙이지 않는다(2026-10-15) — 보냄(sent)에서도 멈춘 것처럼 읽혔다.
       final stop = stopLevelSentence(stopLevel, ackMs: stopAckMs);
       return stop == null
-          ? '정지 요청으로 실행이 끝났어요. ${stopLevelNextStep(null)}.'
-          : '${stop.replaceAll(' — ', '. ')}. ${stopLevelNextStep(stopLevel)}.';
+          ? '멈추라고 해서 실행이 끝났어요. ${stopLevelNextStep(null)}.'
+          : '$stop. ${stopLevelNextStep(stopLevel)}.';
     case ResultKind.safetyStop:
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
       final motion = motionAbortSentence(abortReason);
-      if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 누름 장치를 직접 봐 주세요.';
-      return '눌림을 확인하지 못해 멈췄어요. 가전을 먼저 봐 주세요. $kDontRetryIfOn.';
+      if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 작은 팔을 봐 주세요.';
+      return '눌렸는지 몰라서 멈췄어요. 가전을 먼저 봐 주세요. $kDontRetryIfOn.';
     case ResultKind.failed:
       // 실패라는 것만으로는 시작하지 않았는지 모른다 — 접수된 뒤 일부 버튼을 누르고 실패했을 수 있다(외부 평가
       // 2026-10-13 M4). 미전송 근거(not_dispatched)가 있을 때만 보내지 못했다고 하고 다시 시도를 권한다.
@@ -266,12 +265,12 @@ String finishedMessage({
       // 되풀이하지 않게 다시 시도를 권하지 않는다.
       if (receipt == 'not_dispatched') {
         return thinq
-            ? '명령을 보내지 않았어요. 연결 상태를 확인하고 다시 시도해 주세요.'
-            : '누름 장치에 보내지 못했어요. 연결 상태를 확인하고 다시 시도해 주세요.';
+            ? '가전에 보내지 못했어요. 연결을 보고 다시 해 주세요.'
+            : '작은 팔에 보내지 못했어요. 연결을 보고 다시 해 주세요.';
       }
       return thinq
-          ? '가전이 명령을 실행하지 않았어요. 가전 상태를 확인해 주세요.'
-          : '끝까지 실행하지 못했어요. 가전 상태를 확인해 주세요.';
+          ? '가전이 하지 않았어요. 가전을 봐 주세요.'
+          : '끝까지 하지 못했어요. 가전을 봐 주세요.';
   }
 }
 
@@ -288,10 +287,10 @@ String? thinqOutcomeSentence(String? confirmation, String? detail) {
   return switch (confirmation) {
     'already_at_target' => d.contains('이미') && d.contains('보내지 않았어요')
         ? dot(d)
-        : '이미 그 설정이에요. 변경 명령을 보내지 않았어요.',
+        : '이미 그 설정이라 보내지 않았어요.',
     'state_confirmed_unknown_before' => d.contains('설정된 것을 확인')
         ? dot(d)
-        : '목표 설정인 것을 확인했어요.',
+        : '원하는 설정인 것을 확인했어요.',
     'state_confirmed' => d.contains('바꿨어요') ? dot(d) : null,
     _ => null,
   };
@@ -302,14 +301,14 @@ String? thinqOutcomeSentence(String? confirmation, String? detail) {
 /// 10/13 보드 날: 모터 걸림(stall) 알람이 '눌림을 확인하지 못해 안전 정지'로 보여 원인이 바뀌어 보였다.
 String? motionAbortSentence(String? reason) {
   if (reason == null || !reason.startsWith('motion_')) return null;
-  if (reason == 'motion_alarm: stall') return '모터가 걸려 멈췄어요';
-  if (reason.startsWith('motion_alarm')) return '모터 보드가 이상을 알려 멈췄어요';
+  if (reason == 'motion_alarm: stall') return '작은 팔이 움직이지 못해 멈췄어요';
+  if (reason.startsWith('motion_alarm')) return '작은 팔이 이상을 알려 멈췄어요';
   return switch (reason) {
-    'motion_reset' => '모터 보드가 다시 켜져 멈췄어요',
-    'motion_timeout' => '모터 보드가 제때 답하지 않아 멈췄어요',
-    'motion_not_ready' => '누름 장치가 준비되지 않아 멈췄어요',
-    'motion_position_mismatch' => '모터 위치가 맞지 않아 멈췄어요',
-    'motion_link_error' => '누름 장치 연결이 끊겨 멈췄어요',
-    _ => '누름 장치가 멈췄어요',
+    'motion_reset' => '작은 팔이 다시 켜져 멈췄어요',
+    'motion_timeout' => '작은 팔이 제때 답하지 않아 멈췄어요',
+    'motion_not_ready' => '작은 팔이 준비되지 않아 멈췄어요',
+    'motion_position_mismatch' => '작은 팔 위치가 맞지 않아 멈췄어요',
+    'motion_link_error' => '작은 팔 연결이 끊겨 멈췄어요',
+    _ => '작은 팔이 멈췄어요',
   };
 }

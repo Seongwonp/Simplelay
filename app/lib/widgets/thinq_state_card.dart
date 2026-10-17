@@ -40,10 +40,10 @@ class ThinqStateCard extends ConsumerStatefulWidget {
 }
 
 /// 전원이 꺼져 있을 때 전원 줄 아래에 놓는 문장.
-const kThinqPowerOffNote = '전원이 꺼져 있어요. 켠 뒤 풍량·운전 모드를 바꿀 수 있어요.';
+const kThinqPowerOffNote = '전원이 꺼져 있어요. 켜야 바람 세기와 모드를 바꿀 수 있어요.';
 
 /// 응답 없이 끝난 조작 요청(시간 초과·연결 끊김·응답 해석 실패).
-const kThinqUnknownOutcome = '요청 결과를 확인하지 못했어요. 상태를 다시 읽어 확인해 주세요.';
+const kThinqUnknownOutcome = '바뀌었는지 몰라요. 새로 보기를 눌러 봐 주세요.';
 
 class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
   /// 묻기부터 응답(또는 실행 상태 화면에서 돌아옴)까지 — 이 동안 다른 조작을 받지 않는다.
@@ -61,7 +61,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
 
     Widget body;
     if (status == null) {
-      body = Text('ThinQ에서 읽는 중…',
+      body = Text('LG 앱에서 불러오는 중…',
           style: TextStyle(fontSize: 15, color: context.appMuted));
     } else if (!status.ok) {
       body = Row(
@@ -70,7 +70,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
           Icon(Icons.error_outline, size: 18, color: context.appWarning),
           const SizedBox(width: 6),
           Expanded(
-            child: Text('지금 상태를 읽지 못했어요 — ${status.failure}',
+            child: Text('지금 상태를 못 불러왔어요. ${status.failure}',
                 style: TextStyle(fontSize: 15, color: context.appWarning)),
           ),
         ],
@@ -84,7 +84,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (rows.isEmpty)
-            Text('표시할 수 있는 상태 값이 없어요',
+            Text('보여 줄 상태가 없어요',
                 style: TextStyle(fontSize: 15, color: context.appMuted))
           else
             for (final (label, value) in rows)
@@ -118,7 +118,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
             const SizedBox(height: 6),
             Semantics(
               container: true,
-              label: 'ThinQ 상태 ${thinqReadTimeSpoken(status.readAt!)}에 조회'
+              label: '지금 상태, ${thinqReadTimeSpoken(status.readAt!)} 기준'
                   '${mock ? ', 연습' : ''}',
               excludeSemantics: true,
               child: Text(
@@ -196,7 +196,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
                       ? null
                       : () => ref.invalidate(thinqStatusProvider(applianceId)),
                   icon: const Icon(Icons.refresh, size: 18),
-                  label: const Text('다시 읽기'),
+                  label: const Text('새로 보기'),
                 ),
               ],
             ),
@@ -225,8 +225,8 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: Text(control.question(value, word)),
-        content: Text('허브가 ThinQ로 $applianceName에 보내요. '
-            '바뀌었는지는 상태를 다시 읽어 확인해요.'),
+        content: Text('$applianceName 설정을 바꿔요. '
+            '바꾼 뒤 새로 보고 바뀌었는지 알려 드려요.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -243,7 +243,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
     if (ok != true || !mounted) return;
     final api = ref.read(rpiApiServiceProvider);
     if (api == null) {
-      _snack('허브에 연결되면 바꿀 수 있어요.');
+      _snack('본체와 연결되면 바꿀 수 있어요.');
       return;
     }
     final RpiJobAccepted accepted;
@@ -287,15 +287,15 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
 /// (비상 정지 잠금·프로필에 없는 값·다른 작업 실행 중 등). 영어 '실행 중' 문장과 빈 이유만
 /// 우리말로 바꾼다. 그 밖의 오류(5xx 등)는 허브가 어디까지 했는지 모르므로 null.
 String? thinqCommandRefusal(RpiApiException e) {
-  const busy = '다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.';
+  const busy = '다른 일을 하는 중이에요. 끝난 뒤 다시 눌러 주세요.';
   switch (e.statusCode) {
     case 401:
-      return '허브 키가 맞지 않아요 — 허브 설정에서 키를 확인해 주세요.';
+      return '연결 비밀번호가 맞지 않아요. 설정에서 봐 주세요.';
     case 409 || 412 || 422 || 423:
       final message = e.message.trim();
       if (message.contains('already in progress')) return busy;
       if (message.isNotEmpty) return message;
-      return e.statusCode == 409 ? busy : '허브가 이 조작을 지금 받지 않았어요.';
+      return e.statusCode == 409 ? busy : '지금은 이걸 바꿀 수 없어요.';
     default:
       return null;
   }
@@ -303,7 +303,7 @@ String? thinqCommandRefusal(RpiApiException e) {
 
 /// 'HH:MM에 읽음' — 읽은 시각(모의면 ' (모의)').
 String thinqReadTimeLine(DateTime t, {bool mock = false}) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}에 읽음'
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 기준'
     '${mock ? ' (연습)' : ''}';
 
 /// 화면 낭독용 시각 — 'HH시 MM분'.
@@ -367,8 +367,8 @@ class ThinqControl {
   /// 확인 질문. 값 이름(약풍·강풍·자동·청정·수면)은 모두 받침이 있어 '으로'를 붙인다.
   String question(String value, String word) => switch (action) {
         'set_power' => value == 'POWER_OFF' ? '전원을 끌까요?' : '전원을 켤까요?',
-        'set_job_mode' => '운전 모드를 $word으로 바꿀까요?',
-        _ => '$label을 $word으로 바꿀까요?',
+        'set_job_mode' => '모드를 $word${_ro(word)} 바꿀까요?',
+        _ => '$label${_eul(label)} $word${_ro(word)} 바꿀까요?',
       };
 
   /// 칩의 읽는 이름 — 줄 이름을 붙인다('풍량 자동'·'운전 모드 자동'·'전원 켜기').
@@ -377,6 +377,14 @@ class ThinqControl {
   /// 루틴 단계 문장(2026-10-15). '전원 켜기', '풍량 강풍으로 바꾸기'.
   String stepPhrase(String word) =>
       action == 'set_power' ? '$label $word' : '$label $word${_ro(word)} 바꾸기';
+}
+
+/// '을'/'를' — 끝 글자 받침을 본다('바람 세기를'). 한글이 아니면 '을'.
+String _eul(String word) {
+  if (word.isEmpty) return '을';
+  final code = word.codeUnitAt(word.length - 1);
+  if (code < 0xAC00 || code > 0xD7A3) return '을';
+  return (code - 0xAC00) % 28 == 0 ? '를' : '을';
 }
 
 /// '으로'/'로' — 끝 글자 받침을 본다(없거나 ㄹ이면 '로'). 한글이 아니면 '(으)로'.
@@ -400,7 +408,7 @@ const kAirPurifierControls = <ThinqControl>[
     choices: [('POWER_ON', '켜기'), ('POWER_OFF', '끄기')],
   ),
   ThinqControl(
-    label: '풍량',
+    label: '바람 세기',
     action: 'set_wind_strength',
     arg: 'wind_strength',
     choices: [
@@ -411,7 +419,7 @@ const kAirPurifierControls = <ThinqControl>[
     ],
   ),
   ThinqControl(
-    label: '운전 모드',
+    label: '모드',
     action: 'set_job_mode',
     arg: 'job_mode',
     choices: [('CLEAN', '청정'), ('SLEEP', '수면'), ('AUTO', '자동')],
@@ -460,12 +468,12 @@ String? thinqDustNote(Map<String, dynamic> state) {
   if (hasDust) return null;
   return thinqPowerOff(state)
       ? kThinqDustOffNote
-      : '미세먼지 값을 아직 받지 못했어요(켠 직후에는 잠시 걸려요)';
+      : '미세먼지 값이 아직 없어요. 켠 직후에는 잠시 걸려요';
 }
 
 /// 꺼져 있고 미세먼지 값이 없을 때 — 이유와, 꺼져 있을 때도 보는 방법.
 const kThinqDustOffNote = '전원이 꺼져 있어 미세먼지 값이 오지 않아요. '
-    "꺼져 있을 때도 보려면 ThinQ 앱에서 공기질 센서를 '항상'으로 바꿔 주세요.";
+    "꺼져 있을 때도 보려면 LG 앱에서 공기질 센서를 '항상'으로 바꿔 주세요.";
 
 /// ThinQ 루틴 단계(동작 + 인자) → 사람 말. 동작 이름(set_wind_strength 같은 것)은
 /// 화면에 내지 않는다. 표에 없는 값은 상태 표의 말로, 그래도 모르면 원래 값 그대로
@@ -473,7 +481,7 @@ const kThinqDustOffNote = '전원이 꺼져 있어 미세먼지 값이 오지 �
 String thinqStepPhrase(String? action, Map<String, dynamic> args) {
   final control =
       kAirPurifierControls.where((c) => c.action == action).firstOrNull;
-  if (control == null) return 'ThinQ 명령(이 앱이 모르는 조작)';
+  if (control == null) return 'LG 가전 조작';
   final raw = args[control.arg]?.toString();
   if (raw == null) return '${control.label} 바꾸기';
   final word = control.wordFor(raw) ??
@@ -510,22 +518,22 @@ List<(String, String)> thinqStateRows(Map<String, dynamic> state) {
   }
 
   final job = at('airPurifierJobMode', 'currentJobMode');
-  if (job != null) rows.add(('운전 모드', word(_jobMode, job)));
+  if (job != null) rows.add(('모드', word(_jobMode, job)));
 
   final wind = at('airFlow', 'windStrengthDetail') ?? at('airFlow', 'windStrength');
-  if (wind != null) rows.add(('풍량', word(_wind, wind)));
+  if (wind != null) rows.add(('바람 세기', word(_wind, wind)));
 
   String dust(String value, String level) {
     final v = at('airQualitySensor', value);
     final l = at('airQualitySensor', level);
     if (v == null) return '';
-    return l == null ? '$v' : '$v · ${word(_level, l)}';
+    return l == null ? '$v' : '${word(_level, l)}, $v';
   }
 
   final pm25 = dust('PM2', 'PM2Level');
-  if (pm25.isNotEmpty) rows.add(('초미세먼지(PM2.5)', pm25));
+  if (pm25.isNotEmpty) rows.add(('초미세먼지', pm25));
   final pm10 = dust('PM10', 'PM10Level');
-  if (pm10.isNotEmpty) rows.add(('미세먼지(PM10)', pm10));
+  if (pm10.isNotEmpty) rows.add(('미세먼지', pm10));
 
   final filter = at('filterInfo', 'filterRemainPercent');
   if (filter != null) rows.add(('필터 남은 양', '$filter%'));

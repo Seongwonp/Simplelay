@@ -64,7 +64,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
     if (code.startsWith('simplelay://')) {
       final qr = Uri.tryParse(code);
       if (qr == null || qr.host != 'pair') {
-        setState(() => _message = '허브 화면의 QR 연결 주소를 확인해 주세요.');
+        setState(() => _message = '본체 화면의 QR 연결 주소를 봐 주세요.');
         return;
       }
       code = qr.queryParameters['code'] ?? '';
@@ -80,7 +80,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
         uri.hasQuery ||
         uri.hasFragment ||
         (uri.path.isNotEmpty && uri.path != '/')) {
-      setState(() => _message = '허브 주소와 여섯 자리 코드를 확인해 주세요.');
+      setState(() => _message = '본체 주소와 여섯 자리 코드를 봐 주세요.');
       return;
     }
     setState(() {
@@ -117,7 +117,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
       _token = token;
       _requestId = requestId;
       _deadline = DateTime.now().add(Duration(seconds: expires.toInt()));
-      setState(() => _message = '허브 화면에서 이 폰의 연결을 승인해 주세요.');
+      setState(() => _message = '본체 화면에서 이 폰 연결을 허락해 주세요.');
       _timer = Timer.periodic(const Duration(seconds: 1), (_) => _poll());
     } on RpiApiException catch (e) {
       if (mounted) {
@@ -130,7 +130,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
       if (mounted) {
         setState(() {
           _busy = false;
-          _message = '허브에 닿지 않아요. 같은 와이파이와 화면의 주소를 확인해 주세요.';
+          _message = '본체와 연결되지 않아요. 같은 와이파이인지, 주소가 맞는지 봐 주세요.';
         });
       }
     }
@@ -150,7 +150,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   Future<void> _poll() async {
     if (_polling || _token == null || !mounted) return;
     if (!DateTime.now().isBefore(_deadline!)) {
-      _stopWaiting('연결 시간이 지났어요. 허브에서 새 코드를 받아 주세요.');
+      _stopWaiting('연결 시간이 지났어요. 본체 화면에서 새 코드를 받아 주세요.');
       return;
     }
     setState(() {});
@@ -179,10 +179,10 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
         final connected =
             ref.read(rpiConnectionProvider) == RpiConnectionState.connected;
         _stopWaiting(
-            connected ? '허브와 연결했어요.' : '연결 승인을 저장했어요. 허브 연결을 다시 확인해 주세요.');
+            connected ? '본체와 연결했어요.' : '연결 허락은 저장했어요. 본체 연결을 다시 봐 주세요.');
         setState(() => _connected = true);
       } else if (result['state'] == 'denied') {
-        _stopWaiting('허브에서 연결을 닫았어요. 새 코드를 받아 다시 연결해 주세요.');
+        _stopWaiting('본체에서 연결을 닫았어요. 새 코드를 받아 다시 연결해 주세요.');
       }
     } on RpiApiException catch (e) {
       if ([404, 410, 429].contains(e.statusCode)) _stopWaiting(e.message);
@@ -198,12 +198,12 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
         appBar: AppBar(title: const Text('폰 연결하기')),
         body: ListView(padding: const EdgeInsets.all(20), children: [
           const Text(
-              '허브에서 설정 → 폰 연결하기를 열어 주세요. 휴대폰 카메라로 QR을 열거나 아래에 코드를 입력해요.'),
+              '본체 화면에서 설정, 폰 연결하기를 열어 주세요. 휴대폰 카메라로 QR을 찍거나 아래에 코드를 넣어요.'),
           const SizedBox(height: 16),
           TextField(
               controller: _host,
               enabled: !_busy && !_connected,
-              decoration: const InputDecoration(labelText: '허브 주소'),
+              decoration: const InputDecoration(labelText: '본체 주소'),
               keyboardType: TextInputType.url),
           TextField(
               controller: _code,
@@ -215,10 +215,10 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
               controller: _phone,
               enabled: !_busy && !_connected,
               maxLength: 40,
-              decoration: const InputDecoration(labelText: '허브에 표시할 폰 이름')),
+              decoration: const InputDecoration(labelText: '본체 화면에 보일 폰 이름')),
           if (_message != null) Text(_message!, key: const Key('pair-message')),
           if (_token != null) ...[
-            Text('두 화면의 표시가 같은지 확인해 주세요 · ${_requestId!.substring(0, 6)}'),
+            Text('두 화면의 글자가 같은지 봐 주세요: ${_requestId!.substring(0, 6)}'),
             Text(
                 '${_deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300)}초 남았어요'),
           ],

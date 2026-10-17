@@ -413,9 +413,8 @@ void main() {
         .byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(fragment))
         .evaluate()
         .isNotEmpty;
-    // 홈 루틴 줄(큰 카드·간결한 행)의 "1단계"는 단과 계 사이도 붙어 있다.
-    expect(shown('1\u2060단\u2060계'), isTrue);
-    expect(shown('1\u2060단계'), isFalse);
+    // 홈 루틴 줄(큰 카드·간결한 행)의 "할 일 1개"는 숫자와 단위가 붙어 있다(2026-10-17 단계 → 할 일).
+    expect(shown('1\u2060개'), isTrue);
     // 타일 상태 줄도 같은 규칙('설정이 필요해요'는 위 배치 테스트가 본다). 평소 상태는 줄이 없다.
     expect(find.byKey(const Key('appliance-status-mw')), findsNothing);
   });

@@ -89,19 +89,19 @@ class _ThinqScreen extends ConsumerWidget {
     // 그 말은 허브가 ThinQ를 껐다고 답했을 때(404)만.
     final String headline;
     if (api == null || async.hasError) {
-      headline = 'ThinQ 연결 상태를 확인하지 못했어요 — 허브 연결을 확인해 주세요.';
+      headline = 'LG 가전이 연결됐는지 몰라요. 본체 연결을 봐 주세요.';
     } else if (!async.hasValue) {
-      headline = '연결 상태를 확인하는 중이에요.';
+      headline = '연결을 알아보는 중이에요.';
     } else if (overview == null) {
-      headline = '허브에 ThinQ 계정이 아직 연결되지 않았어요(설치 때 설정해요).';
+      headline = '본체에 LG 계정이 아직 연결되지 않았어요. 설치하는 분이 연결해요.';
     } else if (overview.appliances.isEmpty) {
-      headline = '아직 추가한 ThinQ 가전이 없어요. 아래에서 찾은 가전 중 쓸 것을 추가해 주세요.';
+      headline = '아직 추가한 LG 가전이 없어요. 아래에서 쓸 가전을 추가해 주세요.';
     } else {
-      headline = '허브에 연결된 ThinQ 가전이에요. '
-          '가전 상세에서 지금 상태를 보고 바꿀 수 있어요. 루틴에도 넣을 수 있어요.';
+      headline = '본체에 연결된 LG 가전이에요. '
+          '가전 화면에서 지금 상태를 보고 바꿀 수 있어요. 루틴에도 넣을 수 있어요.';
     }
     return Scaffold(
-      appBar: AppBar(title: const Text('LG ThinQ 연결')),
+      appBar: AppBar(title: const Text('LG 가전 연결')),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [

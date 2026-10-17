@@ -36,7 +36,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ApplianceEditorScreen), findsOneWidget);
     expect(find.text('내 세탁기'), findsWidgets);
-    expect(find.text('버튼 패널 사진 찍기'), findsNothing);
+    expect(find.text('버튼판 사진 찍기'), findsNothing);
   });
 
   testWidgets('등록 뒤 위치와 주행 두 가지를 홈 카드에서 이어가요', (tester) async {
@@ -46,7 +46,7 @@ void main() {
           .overrideWith((_) async => const VerifyPassLookup.unknown()),
     ], child: MaterialApp(home: Scaffold(body: ApplianceSetupCard(appliance: appliance)))));
     await tester.pumpAndSettle();
-    expect(find.text('전자레인지 · 설정이 2개 남았어요'), findsOneWidget);
+    expect(find.text('전자레인지, 설정이 2개 남았어요'), findsOneWidget);
     expect(find.text('위치 맞추기'), findsOneWidget);
   });
 }

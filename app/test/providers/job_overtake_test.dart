@@ -99,8 +99,8 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 1500));
 
     final message = container.read(executionStatusProvider).message ?? '';
-    expect(message, contains('정지 요청으로 실행이 끝났어요'));
-    expect(message, contains('멈췄는지 직접 봐 주세요'));
+    expect(message, contains('멈추라고 해서 실행이 끝났어요'));
+    expect(message, contains('멈췄는지 봐 주세요'));
   });
 
   test('내 job의 흔적이 계속 없으면 고착 대신 확인 불가로 탈출한다', () async {
@@ -128,7 +128,7 @@ void main() {
     // 정지·재확인 수단을 남긴 채 사용자에게 직접 확인을 청해야 한다.
     final state = container.read(executionStatusProvider);
     expect(state.phase, ExecutionPhase.unknown);
-    expect(state.message, contains('확인할 수 없어요'));
+    expect(state.message, contains('어떻게 됐는지 몰라요'));
 
     // 그리고 정지 수단이 남아 있어야 한다. 추적 대상을 지워버리면
     // emergencyStop이 HTTP 경로를 잃고 BLE로 빠져 실제로 멈추지 못한다.

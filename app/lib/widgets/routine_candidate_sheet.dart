@@ -67,10 +67,10 @@ class _CandidateSheetState extends State<_CandidateSheet> {
     } on RpiApiException catch (e) {
       if (mounted) {
         setState(() => _error =
-            e.message.isNotEmpty ? e.message : '저장하지 못했어요. 연결을 확인해 주세요.');
+            e.message.isNotEmpty ? e.message : '저장하지 못했어요. 연결을 봐 주세요.');
       }
     } catch (_) {
-      if (mounted) setState(() => _error = '저장하지 못했어요. 연결을 확인해 주세요.');
+      if (mounted) setState(() => _error = '저장하지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -87,7 +87,7 @@ class _CandidateSheetState extends State<_CandidateSheet> {
         children: [
           Text('루틴으로 저장할까요?', style: AppText.heading),
           const SizedBox(height: 12),
-          Text('${c.applianceName} · ${c.sequenceText}',
+          Text('${c.applianceName}: ${c.sequenceText}',
               key: const Key('candidate-sheet-sequence'),
               style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
           Text(c.evidence, style: TextStyle(fontSize: 15, color: context.appMuted)),

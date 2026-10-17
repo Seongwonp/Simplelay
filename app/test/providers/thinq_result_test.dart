@@ -56,7 +56,7 @@ void main() {
       'last_detail': '상태를 확인하지 못했어요',
     });
     expect(s.phase, ExecutionPhase.unconfirmed);
-    expect(s.message, contains('보냈지만 설정이 바뀌었는지 확인하지 못했어요'));
+    expect(s.message, contains('보냈지만 설정이 바뀌었는지 몰라요'));
     expect(s.route, 'thinq');
     expect(s.detail, '상태를 확인하지 못했어요');
   });
@@ -70,10 +70,10 @@ void main() {
       'last_confirmation': 'none',
     });
     expect(s.phase, ExecutionPhase.unconfirmed);
-    expect(s.message, contains('받았는지 확인하지 못했어요'));
+    expect(s.message, contains('받았는지 몰라요'));
     expect(s.message, contains('다시 보내기 전에'));
     // 실패도 성공도 말하지 않는다.
-    expect(s.message, isNot(contains('실패')));
+    expect(s.message, isNot(contains('못 했어요')));
     expect(s.message, isNot(contains('확인했어요')));
   });
 
@@ -84,7 +84,7 @@ void main() {
       'last_route': 'physical',
     });
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, contains('눌림을 확인하지 못해 멈췄어요'));
+    expect(s.message, contains('눌렸는지 몰라서 멈췄어요'));
   });
 
   test('원격 실패(failed)는 정지 문구를 쓰지 않는다', () async {
@@ -95,13 +95,13 @@ void main() {
     });
     expect(s.phase, ExecutionPhase.failed);
     // 접수 여부를 모르는 실패는 시작 못 함으로 단정하지 않는다(평가 M4).
-    expect(s.message, '끝까지 실행하지 못했어요. 가전 상태를 확인해 주세요.');
+    expect(s.message, '끝까지 하지 못했어요. 가전을 봐 주세요.');
   });
 
   test('옛 서버(last_outcome 없음)의 safety_stopped는 종전 문구', () async {
     final s = await _finish({'last_status': 'safety_stopped'});
     expect(s.phase, ExecutionPhase.failed);
-    expect(s.message, '정지 요청으로 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 직접 봐 주세요.');
+    expect(s.message, '멈추라고 해서 실행이 끝났어요. 작은 팔과 가전이 멈췄는지 봐 주세요.');
     expect(s.outcome, isNull);
   });
 
@@ -115,7 +115,7 @@ void main() {
       'last_execution_mode': 'mock',
     });
     expect(s.phase, ExecutionPhase.completed);
-    expect(s.message, contains('실제 가전은 조작하지 않았어요'));
+    expect(s.message, contains('실제 가전은 그대로예요'));
     expect(s.confirmation, 'state_confirmed');
   });
 }

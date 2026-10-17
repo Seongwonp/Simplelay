@@ -145,7 +145,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                     keyWord: i == 0 ? '무엇을' : '그다음',
                     trailing: _draft.steps.length > 1
                         ? IconButton(
-                            tooltip: '이 단계 빼기',
+                            tooltip: '이 할 일 빼기',
                             onPressed: () => _update(_draft.copyWith(
                                 steps: [..._draft.steps]..removeAt(i))),
                             icon: const Icon(Icons.close, size: 18),
@@ -156,7 +156,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                 if (_draft.steps.isEmpty)
                   _Line(
                     keyWord: '무엇을',
-                    child: Text('아래 "단계 추가"로 누를 버튼을 정해 주세요',
+                    child: Text('아래 "할 일 추가"로 누를 버튼을 정해 주세요',
                         style: TextStyle(fontSize: 15, color: context.appMuted)),
                   ),
                 const SizedBox(height: 4),
@@ -168,7 +168,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                         ? null
                         : () => _addStep(appliances),
                     icon: const Icon(Icons.add),
-                    label: const Text('단계 추가'),
+                    label: const Text('할 일 추가'),
                   ),
                 ),
               ],
@@ -182,7 +182,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           const SizedBox(height: 8),
           SegmentedButton<RoutineMode>(
             segments: const [
-              ButtonSegment(value: RoutineMode.approve, label: Text('승인 후 실행')),
+              ButtonSegment(value: RoutineMode.approve, label: Text('물어보고 하기')),
               ButtonSegment(value: RoutineMode.notify, label: Text('알림만')),
             ],
             selected: {_draft.mode},
@@ -192,8 +192,8 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           const SizedBox(height: 6),
           Text(
             _draft.mode == RoutineMode.approve
-                ? '때가 되면 카드로 물어봐요. 승인 없이 가전을 누르지 않아요.'
-                : '알림만 보내요. 가전은 누르지 않아요.',
+                ? '때가 되면 카드로 물어봐요. 허락해야 가전을 눌러요.'
+                : '알림만 보내요. 가전은 그대로예요.',
             style: TextStyle(fontSize: 14, color: context.appMuted),
           ),
           SwitchListTile(
@@ -205,7 +205,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           ),
           if (!_isNew)
             Text(
-              '단계나 실행 방식을 바꾸면 이미 떠 있는 카드는 다시 확인해야 해요.',
+              '할 일이나 실행 방식을 바꾸면 떠 있는 카드는 다시 허락해야 해요.',
               style: TextStyle(fontSize: 13, color: context.appMuted),
             ),
           if (_error != null) ...[
@@ -225,7 +225,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _busy ? null : _runNow,
-                    child: const Text('지금 실행'),
+                    child: const Text('지금 하기'),
                   ),
                 ),
                 const SizedBox(width: 10),
@@ -324,7 +324,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
             ListTile(
               leading: const Icon(Icons.touch_app_outlined),
               title: const Text('버튼 누르기'),
-              subtitle: const Text('가전을 골라 사진 속 버튼을 순서대로 짚어요'),
+              subtitle: const Text('가전을 골라 사진 속 버튼을 순서대로 골라요'),
               onTap: () => Navigator.pop(sheet, RoutineStepKind.pressSequence),
             ),
             // ThinQ 가전이 한 대라도 있을 때만(2026-10-15). 실행은 다른 단계와 같이
@@ -333,8 +333,8 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
               ListTile(
                 key: const Key('routine-add-thinq'),
                 leading: const Icon(Icons.cloud_outlined),
-                title: const Text('ThinQ 가전 조작'),
-                subtitle: const Text('공기청정기 전원·풍량·운전 모드를 바꿔요'),
+                title: const Text('LG 가전 바꾸기'),
+                subtitle: const Text('공기청정기 전원, 바람 세기, 모드를 바꿔요'),
                 onTap: () => Navigator.pop(sheet, RoutineStepKind.thinqCommand),
               ),
             ListTile(
@@ -345,7 +345,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
             ListTile(
               leading: const Icon(Icons.campaign_outlined),
               title: const Text('안내하기'),
-              subtitle: const Text('알림함에 한 줄을 남겨요(음성 안내는 준비 중이에요)'),
+              subtitle: const Text('알림함에 한 줄을 남겨요'),
               onTap: () => Navigator.pop(sheet, RoutineStepKind.announce),
             ),
           ],
@@ -510,7 +510,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
       return;
     }
     if (api == null) {
-      setState(() => _error = '허브에 연결되면 저장할 수 있어요.');
+      setState(() => _error = '본체와 연결되면 저장할 수 있어요.');
       return;
     }
     setState(() => _busy = true);
@@ -527,7 +527,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
       // 서버 검증 문장(422)은 화면에 그대로 보여도 되는 한국어다.
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = '저장하지 못했어요. 연결을 확인해 주세요.');
+      if (mounted) setState(() => _error = '저장하지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -565,7 +565,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
     } on RpiApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = '지우지 못했어요. 연결을 확인해 주세요.');
+      if (mounted) setState(() => _error = '지우지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }

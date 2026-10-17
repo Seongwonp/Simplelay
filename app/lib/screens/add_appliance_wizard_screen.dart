@@ -45,10 +45,10 @@ class _Tapped {
 
 const _stepTitles = [
   '조작부 사진',
-  '기계 틀 네 귀퉁이 짚기',
-  '버튼 짚고 이름 붙이기',
-  '정지 버튼과 쉬는 자리',
-  '확인 주행',
+  '버튼판 네 귀퉁이 고르기',
+  '버튼 고르고 이름 붙이기',
+  '정지 버튼과 기다리는 자리',
+  '시험 이동',
 ];
 
 const _cornerNames = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽 아래'];
@@ -301,7 +301,7 @@ class _AddApplianceWizardScreenState
     final api = ref.read(rpiApiServiceProvider);
     final size = _photoSize;
     if (api == null || size == null) {
-      setState(() => _error = '허브에 연결되면 저장할 수 있어요.');
+      setState(() => _error = '본체와 연결되면 저장할 수 있어요.');
       return;
     }
     setState(() {
@@ -350,11 +350,11 @@ class _AddApplianceWizardScreenState
     } on RpiApiException catch (e) {
       if (mounted) {
         setState(() => _error = e.statusCode == 0 || e.message.isEmpty
-            ? '저장하지 못했어요. 연결을 확인해 주세요.'
+            ? '저장하지 못했어요. 연결을 봐 주세요.'
             : e.message);
       }
     } catch (_) {
-      if (mounted) setState(() => _error = '저장하지 못했어요. 연결을 확인해 주세요.');
+      if (mounted) setState(() => _error = '저장하지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -437,7 +437,7 @@ class _AddApplianceWizardScreenState
         // 2분이 넘으면 더 기다리지 않는다 -- 상태를 모른다고 말한다.
         if (ticks > 150) {
           t.cancel();
-          if (mounted) setState(() => _error = '확인 주행 결과를 받지 못했어요. 허브 화면을 확인해 주세요.');
+          if (mounted) setState(() => _error = '시험 이동이 어떻게 됐는지 몰라요. 본체 화면을 봐 주세요.');
           return;
         }
         try {
@@ -452,7 +452,7 @@ class _AddApplianceWizardScreenState
     } on RpiApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = '확인 주행을 시작하지 못했어요. 연결을 확인해 주세요.');
+      if (mounted) setState(() => _error = '시험 이동을 시작하지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -517,7 +517,7 @@ class _AddApplianceWizardScreenState
               ? FilledButton(
                   key: const Key('wizard-finish'),
                   onPressed: (_pass?.running ?? false) ? null : _finish,
-                  child: Text(_pass == null ? '확인 주행 없이 끝내기' : '끝내기'),
+                  child: Text(_pass == null ? '시험 이동 없이 끝내기' : '끝내기'),
                 )
               : Row(
                   children: [
@@ -568,11 +568,11 @@ class _AddApplianceWizardScreenState
       ];
 
   List<Widget> _photoStep() => [
-        ..._hint('기계 틀이 다 보이게 찍어 주세요.'),
+        ..._hint('버튼판이 다 보이게 찍어 주세요.'),
         // 개인정보 안내는 작은 글씨 한 줄로(2026-10-14 UX).
         Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: Text('사진은 이 폰에만 남고 허브에는 짚은 자리만 보내요.',
+          child: Text('사진은 이 폰에만 남고 본체에는 고른 자리만 보내요.',
               style: TextStyle(fontSize: 13, color: context.appMuted)),
         ),
         if (_photo == null || _photoSize == null)
@@ -655,10 +655,10 @@ class _AddApplianceWizardScreenState
     final nextCorner = _corners.length < 4 ? _cornerNames[_corners.length] : null;
     return [
       ..._hint(nextCorner == null
-          ? '네 귀퉁이를 모두 짚었어요. 틀렸으면 "다시 짚기"를 눌러 주세요.'
-          : '사진에서 기계 틀 귀퉁이를 왼쪽 위부터 차례로 눌러 주세요. 지금: $nextCorner'),
+          ? '네 귀퉁이를 모두 골랐어요. 틀렸으면 "다시 고르기"를 눌러 주세요.'
+          : '사진에서 버튼판 귀퉁이를 왼쪽 위부터 차례로 눌러 주세요. 지금: $nextCorner'),
       _photoPanel(
-        label: '기계 틀 귀퉁이를 짚는 사진',
+        label: '버튼판 귀퉁이를 고르는 사진',
         marks: [
           for (var i = 0; i < _corners.length; i++)
             PanelMark(
@@ -677,18 +677,18 @@ class _AddApplianceWizardScreenState
         child: TextButton.icon(
           onPressed: _corners.isEmpty ? null : () => setState(_corners.clear),
           icon: const Icon(Icons.undo),
-          label: const Text('다시 짚기'),
+          label: const Text('다시 고르기'),
         ),
       ),
       if (!_frameLoaded)
         const LinearProgressIndicator()
       else if (_frame?.known ?? false)
         Text(
-          '기계 틀 크기: 가로 ${_frame!.widthMm!.toStringAsFixed(0)}mm · 세로 ${_frame!.heightMm!.toStringAsFixed(0)}mm',
+          '버튼판 크기: 가로 ${_frame!.widthMm!.toStringAsFixed(0)}mm, 세로 ${_frame!.heightMm!.toStringAsFixed(0)}mm',
           style: TextStyle(fontSize: 14, color: context.appMuted),
         )
       else ...[
-        Text('기계 틀 크기를 아직 몰라요. 자로 잰 안쪽 크기를 적어 주세요.',
+        Text('버튼판 크기를 아직 몰라요. 자로 잰 안쪽 크기를 적어 주세요.',
             style: TextStyle(fontSize: 14, color: context.appWarning)),
         Row(
           children: [
@@ -720,7 +720,7 @@ class _AddApplianceWizardScreenState
   List<Widget> _buttonStep() => [
         ..._hint('사진 속 버튼을 누르고 이름을 붙여요.'),
         _photoPanel(
-          label: '버튼을 짚는 사진, ${_buttons.length}개 지정',
+          label: '버튼을 고르는 사진, ${_buttons.length}개 골랐어요',
           marks: [
             for (final b in _buttons)
               PanelMark(
@@ -734,7 +734,7 @@ class _AddApplianceWizardScreenState
         ),
         const SizedBox(height: 10),
         if (_buttons.isEmpty)
-          Text('아직 짚은 버튼이 없어요',
+          Text('아직 고른 버튼이 없어요',
               style: TextStyle(fontSize: 15, color: context.appMuted))
         else
           Wrap(
@@ -755,15 +755,15 @@ class _AddApplianceWizardScreenState
             ],
           ),
         const SizedBox(height: 8),
-        Text('다음: 4. 정지 버튼과 쉬는 자리 · 5. 확인 주행(허브가 버튼 위를 한 번씩 지나가요)',
+        Text('다음은 정지 버튼과 기다리는 자리, 그다음은 시험 이동이에요. 작은 팔이 버튼 위를 한 번씩 지나가요.',
             style: TextStyle(fontSize: 13, color: context.appMuted)),
       ];
 
   List<Widget> _stopStep() => [
-        ..._hint('동작 중에 허브가 정지 버튼 위에서 기다려요. 쉬는 자리는 버튼과 표시창을 '
+        ..._hint('가전이 움직이는 동안 작은 팔이 정지 버튼 위에서 기다려요. 기다리는 자리는 버튼과 표시창을 '
             '가리지 않는 모서리로 골라 주세요.'),
         _photoPanel(
-          label: '정지 버튼과 쉬는 자리를 고르는 사진',
+          label: '정지 버튼과 기다리는 자리를 고르는 사진',
           marks: [
             for (final b in _buttons)
               PanelMark(
@@ -783,7 +783,7 @@ class _AddApplianceWizardScreenState
               : null,
         ),
         const SizedBox(height: 12),
-        const Text('정지(취소) 버튼',
+        const Text('정지 버튼',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
         const SizedBox(height: 6),
         Wrap(
@@ -821,14 +821,14 @@ class _AddApplianceWizardScreenState
           onPressed: () => setState(() => _placingPark = !_placingPark),
           icon: const Icon(Icons.local_parking),
           label: Text(_placingPark
-              ? '사진에서 쉬는 자리를 짚어 주세요'
-              : (_park == null ? '쉬는 자리 짚기' : '쉬는 자리 다시 짚기')),
+              ? '사진에서 기다리는 자리를 골라 주세요'
+              : (_park == null ? '기다리는 자리 고르기' : '기다리는 자리 다시 고르기')),
         ),
         if (_stopId == null || _park == null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
             child: Text(
-              '정지 버튼과 쉬는 자리를 둘 다 정해야 동작 중에 정지 버튼 위에서 기다려요. '
+              '정지 버튼과 기다리는 자리를 둘 다 정해야 작은 팔이 정지 버튼 위에서 기다려요. '
               '나중에 정해도 돼요.',
               style: TextStyle(fontSize: 13, color: context.appWarning),
             ),
@@ -839,7 +839,7 @@ class _AddApplianceWizardScreenState
     final pass = _pass;
     final mapping = _mapping;
     return [
-      ..._hint('허브가 누르지 않고 버튼 위를 한 번씩 지나가요. 버튼 위에 멈추는지 눈으로 확인해 주세요.'),
+      ..._hint('작은 팔이 누르지 않고 버튼 위를 한 번씩 지나가요. 버튼 위에 멈추는지 눈으로 봐 주세요.'),
       Row(
         children: [
           Icon(Icons.check_circle_outline, color: context.appPrimary),
@@ -861,11 +861,11 @@ class _AddApplianceWizardScreenState
           key: const Key('wizard-start-pass'),
           onPressed: _busy ? null : _startPass,
           icon: const Icon(Icons.route),
-          label: const Text('확인 주행 시작'),
+          label: const Text('시험 이동 시작'),
         )
       else ...[
         if (pass.isMock)
-          Text('연습 주행이에요 — 실제로 움직이지 않았어요.',
+          Text('연습이라 작은 팔은 실제로 움직이지 않았어요.',
               key: const Key('wizard-pass-mock'),
               style: TextStyle(fontSize: 15, color: context.appWarning)),
         for (final s in pass.steps)
@@ -891,7 +891,7 @@ class _AddApplianceWizardScreenState
       if (pass == null)
         Padding(
           padding: const EdgeInsets.only(top: 8),
-          child: Text('확인 주행 없이 끝내면, 처음 누를 때 자리가 맞는지 꼭 지켜봐 주세요.',
+          child: Text('시험 이동 없이 끝내면 처음 누를 때 자리가 맞는지 꼭 지켜봐 주세요.',
               style: TextStyle(fontSize: 13, color: context.appMuted)),
         ),
     ];
@@ -899,9 +899,9 @@ class _AddApplianceWizardScreenState
 
   static String _passWord(String status) => switch (status) {
         'moving' => '가는 중',
-        'reached' => '도착했다고 응답',
-        'failed' => '가지 못함',
-        'skipped' => '건너뜀',
+        'reached' => '도착했다고 알려 왔어요',
+        'failed' => '가지 못했어요',
+        'skipped' => '건너뛰었어요',
         _ => '기다리는 중',
       };
 
@@ -926,7 +926,7 @@ class _Stepper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Semantics(
-        label: '5단계 중 ${step + 1}단계',
+        label: '5개 중 ${step + 1}번째',
         excludeSemantics: true,
         child: Row(
           children: [

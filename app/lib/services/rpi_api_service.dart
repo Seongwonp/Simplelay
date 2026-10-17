@@ -532,7 +532,7 @@ class RpiThinqDiscovery {
         mockCloud: mockCloud,
         failure: (json['error'] as String?)?.isNotEmpty == true
             ? json['error'] as String
-            : 'ThinQ 계정 목록을 불러오지 못했어요.',
+            : 'LG 가전 목록을 불러오지 못했어요.',
       );
     }
     return RpiThinqDiscovery(
@@ -643,7 +643,7 @@ class RpiHistoryEntry {
 
   /// 목록 표시용 제목 — 목적이 없으면 누른 버튼 라벨을 나열
   String get displayTitle =>
-      purpose ?? buttons.map((b) => b.button).join(' · ');
+      purpose ?? buttons.map((b) => b.button).join(', ');
 
   factory RpiHistoryEntry.fromJson(Map<String, dynamic> json) =>
       RpiHistoryEntry(
@@ -851,7 +851,7 @@ class RpiApiService {
           .get(_base.replace(path: '/status'), headers: _headers)
           .timeout(_timeout);
       if (res.statusCode == 401) {
-        throw RpiApiException(401, '허브 키가 필요해요');
+        throw RpiApiException(401, '연결 비밀번호가 필요해요');
       }
       return res.statusCode == 200;
     } on RpiApiException {
@@ -1377,20 +1377,20 @@ class RpiApiService {
           .timeout(_thinqTimeout);
       if (res.statusCode == 404) {
         return const RpiThinqDiscovery.failed(
-            '허브에서 ThinQ 연결이 꺼져 있어요 — 허브 설정에서 켜야 가전을 찾을 수 있어요.',
+            '본체에서 LG 가전 연결이 꺼져 있어요. 설치하는 분이 켜야 찾을 수 있어요.',
             off: true);
       }
       if (res.statusCode == 401) {
-        return const RpiThinqDiscovery.failed('허브 키가 맞지 않아요 — 허브 설정에서 키를 확인해 주세요.');
+        return const RpiThinqDiscovery.failed('연결 비밀번호가 맞지 않아요. 설정에서 봐 주세요.');
       }
       if (res.statusCode != 200) {
         return RpiThinqDiscovery.failed(
-            '허브가 ThinQ 목록을 주지 못했어요 (HTTP ${res.statusCode}).');
+            '본체가 LG 가전 목록을 주지 못했어요. 잠시 뒤 다시 찾아 주세요.');
       }
       return RpiThinqDiscovery.fromJson(
           jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>);
     } catch (_) {
-      return const RpiThinqDiscovery.failed('허브에 닿지 않아요 — 연결을 확인한 뒤 다시 찾아 주세요.');
+      return const RpiThinqDiscovery.failed('본체와 연결이 끊겼어요. 연결을 보고 다시 찾아 주세요.');
     }
   }
 
@@ -1404,7 +1404,7 @@ class RpiApiService {
               headers: _headers)
           .timeout(_thinqTimeout);
       if (res.statusCode == 401) {
-        return const RpiThinqStatus.failed('허브 키가 맞지 않아요 — 허브 설정에서 키를 확인해 주세요.');
+        return const RpiThinqStatus.failed('연결 비밀번호가 맞지 않아요. 설정에서 봐 주세요.');
       }
       if (res.statusCode != 200) {
         return RpiThinqStatus.failed(_utf8Detail(res, '지금 상태를 읽지 못했어요'));
@@ -1412,7 +1412,7 @@ class RpiApiService {
       final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       final state = body['state'];
       if (state is! Map<String, dynamic>) {
-        return const RpiThinqStatus.failed('허브가 준 상태를 해석하지 못했어요.');
+        return const RpiThinqStatus.failed('가전 상태를 읽지 못했어요.');
       }
       return RpiThinqStatus(
         executionMode: body['execution_mode'] as String? ?? 'unknown',
@@ -1420,7 +1420,7 @@ class RpiApiService {
         readAt: (now ?? DateTime.now)(),
       );
     } catch (_) {
-      return const RpiThinqStatus.failed('허브에 닿지 않아요 — 연결을 확인한 뒤 다시 읽어 주세요.');
+      return const RpiThinqStatus.failed('본체와 연결이 끊겼어요. 연결을 보고 새로 봐 주세요.');
     }
   }
 
@@ -1433,7 +1433,7 @@ class RpiApiService {
               headers: _jsonHeaders, body: jsonEncode({'key': key}))
           .timeout(_thinqTimeout);
     } catch (_) {
-      throw RpiApiException(0, '허브에 닿지 않아 추가하지 못했어요.');
+      throw RpiApiException(0, '본체와 연결이 끊겨 추가하지 못했어요.');
     }
     if (res.statusCode != 200) {
       throw RpiApiException(res.statusCode, _utf8Detail(res, '추가하지 못했어요'));
@@ -1450,7 +1450,7 @@ class RpiApiService {
           .delete(_base.replace(path: '/thinq/added/$key'), headers: _headers)
           .timeout(_timeout);
     } catch (_) {
-      throw RpiApiException(0, '허브에 닿지 않아 빼지 못했어요.');
+      throw RpiApiException(0, '본체와 연결이 끊겨 빼지 못했어요.');
     }
     if (res.statusCode != 200) {
       throw RpiApiException(res.statusCode, _utf8Detail(res, '빼지 못했어요'));
@@ -1466,7 +1466,7 @@ class RpiApiService {
     } catch (_) {
       // 아래 대체 문장
     }
-    return '$fallback (HTTP ${res.statusCode}).';
+    return '$fallback. 잠시 뒤 다시 해 주세요.';
   }
 
   // GET /nodes — 등록된 ESP32 노드 목록
@@ -1635,12 +1635,12 @@ class RpiApiService {
           )
           .timeout(_panelScanTimeout);
     } on TimeoutException {
-      throw RpiApiException(0, '사진을 읽는 데 너무 오래 걸려요. 잠시 후 다시 시도해 주세요.');
+      throw RpiApiException(0, '사진을 읽는 데 너무 오래 걸려요. 잠시 뒤 다시 해 주세요.');
     } catch (_) {
-      throw RpiApiException(0, '서버에 연결하지 못했어요. 연결 상태를 확인해 주세요.');
+      throw RpiApiException(0, '본체와 연결하지 못했어요. 연결을 봐 주세요.');
     }
     if (res.statusCode == 404) {
-      throw RpiApiException(404, '서버가 사진 인식을 지원하지 않아요. 서버를 업데이트해 주세요.');
+      throw RpiApiException(404, '본체가 사진 읽기를 아직 못 해요. 설치하는 분께 본체 업데이트를 부탁해 주세요.');
     }
     if (res.statusCode != 200) {
       throw RpiApiException(res.statusCode, _panelScanDetail(res));
@@ -1650,7 +1650,7 @@ class RpiApiService {
         jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>,
       );
     } catch (_) {
-      throw RpiApiException(res.statusCode, '서버 응답을 읽을 수 없어요.');
+      throw RpiApiException(res.statusCode, '본체 답을 읽지 못했어요.');
     }
   }
 
@@ -1670,7 +1670,7 @@ class RpiApiService {
     } catch (_) {
       // 아래 기본 문장
     }
-    return '사진 인식에 실패했어요 (HTTP ${res.statusCode}).';
+    return '사진을 읽지 못했어요. 다시 찍어 주세요.';
   }
 
   // DELETE /appliances/{id} — 서버 목록에서도 제거

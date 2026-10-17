@@ -141,10 +141,10 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     // 가전이 없어서라는 사실과, 그걸 어디서 해결하는지를 대신 말한다.
     if (appliance == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('버튼 조작')),
+        appBar: AppBar(title: const Text('버튼 누르기')),
         body: NoApplianceNotice(
-          title: '조작할 가전이 아직 없어요',
-          body: '가전을 추가하면 버튼 배치를 그대로 눌러 볼 수 있어요.',
+          title: '아직 가전이 없어요',
+          body: '가전을 추가하면 여기서 버튼을 눌러 볼 수 있어요.',
           onAdd: () => context.go('/'),
         ),
       );
@@ -154,19 +154,19 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     // 읽힌다 -- 경로를 밝히고 말(목적) 경로로 보낸다.
     if (appliance.isThinq) {
       return Scaffold(
-        appBar: AppBar(title: const Text('버튼 조작')),
+        appBar: AppBar(title: const Text('버튼 누르기')),
         body: ListView(
           padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
           children: [
             _TargetHeader(appliance: appliance),
             const SizedBox(height: 20),
             Text(
-              '이 가전은 ThinQ로 조작해요. 누를 버튼이 없어요.',
+              'LG 가전이라 누를 버튼이 없어요.',
               style: AppText.title,
             ),
             const SizedBox(height: 6),
             Text(
-              '가전 상세에서 지금 상태를 보고 바꿀 수 있어요. 말로 맡기거나 제안을 승인해도 돼요.',
+              '가전 화면에서 지금 상태를 보고 바꿀 수 있어요. 말로 맡겨도 돼요.',
               style: TextStyle(fontSize: 15, color: context.appMuted),
             ),
           ],
@@ -177,7 +177,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     final api = ref.watch(rpiApiServiceProvider);
     if (api == null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('버튼 조작')),
+        appBar: AppBar(title: const Text('버튼 누르기')),
         body: _NotConnected(onGoToSettings: () => context.push('/settings')),
       );
     }
@@ -187,7 +187,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     final busy = _pendingButtonId != null;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('버튼 조작')),
+      appBar: AppBar(title: const Text('버튼 누르기')),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
         children: [
@@ -272,14 +272,14 @@ class _TargetHeader extends StatelessWidget {
                     ],
                     if (appliance.isThinq) ...[
                       const SizedBox(width: 8),
-                      const RouteBadge(label: 'ThinQ'),
+                      const RouteBadge(label: 'LG 가전'),
                     ],
                   ],
                 ),
                 if (!appliance.isThinq) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '버튼 ${appliance.buttons.length}개 · 누르면 실제 가전 버튼이 눌려요',
+                    '버튼 ${appliance.buttons.length}개. 누르면 작은 팔이 실제 가전 버튼을 눌러요',
                     style: TextStyle(fontSize: 15, color: context.appMuted),
                   ),
                 ],
@@ -363,7 +363,7 @@ class _FeedbackLine extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: Text(
-            '누를 버튼을 고르세요. 한 번에 하나씩 눌러요.',
+            '누를 버튼을 골라 주세요. 한 번에 하나씩 눌러요.',
             style: TextStyle(fontSize: 15, color: context.appMuted),
           ),
         ),
@@ -390,13 +390,13 @@ class _NotConnected extends StatelessWidget {
               Icon(Icons.link_off, color: context.appMuted, size: 52),
               const SizedBox(height: 18),
               Text(
-                '버튼을 대신 눌러 줄 기기와 아직 연결되지 않았어요',
+                '본체와 아직 연결되지 않았어요',
                 textAlign: TextAlign.center,
                 style: AppText.title,
               ),
               const SizedBox(height: 8),
               Text(
-                '설정에서 연결 주소를 입력하면 여기서 바로 누를 수 있어요.',
+                '설정에서 본체와 연결하면 여기서 바로 누를 수 있어요.',
                 textAlign: TextAlign.center,
                 style: TextStyle(fontSize: 15, color: context.appMuted),
               ),
@@ -438,7 +438,7 @@ class _NotReadyNotice extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                disconnected ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요',
+                disconnected ? '아직 연결되지 않았어요' : '아직 준비가 안 됐어요',
                 style: TextStyle(
                   fontSize: 17,
                   fontWeight: FontWeight.w600,
@@ -448,7 +448,7 @@ class _NotReadyNotice extends StatelessWidget {
               if (appliance.readinessReasons.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(
-                  appliance.readinessReasons.join(' · '),
+                  appliance.readinessReasons.join(', '),
                   style: TextStyle(color: context.appMuted, fontSize: 15),
                 ),
               ],
@@ -626,8 +626,8 @@ class _ButtonCell extends StatelessWidget {
       label: switch (state) {
         _CellState.idle => '${button.label} 버튼 누르기',
         _CellState.pending => '${button.label} 누르는 중',
-        _CellState.success => '${button.label} 눌림 확인됨',
-        _CellState.failure => '${button.label} 실패',
+        _CellState.success => '${button.label} 끝났어요',
+        _CellState.failure => '${button.label} 못 했어요',
       },
       child: Material(
         type: MaterialType.transparency,
