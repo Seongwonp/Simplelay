@@ -30,6 +30,7 @@ class KioskExecutingView extends StatelessWidget {
     required this.currentButton,
     required this.currentAttempt,
     required this.completedSteps,
+    this.doneButtons = const [],
     this.totalSteps,
     required this.verificationConfidence,
     required this.verificationDetail,
@@ -48,6 +49,10 @@ class KioskExecutingView extends StatelessWidget {
   final String? currentButton;
   final int? currentAttempt;
   final int? completedSteps;
+
+  /// 이 실행에서 이미 누른 버튼 이름(화면이 본 차례대로, 평가 3차 10/18). 버튼판에서 그 칸에 ✓를 단다 —
+  /// 작은 팔이 누른 것이지 가전이 켜졌다는 뜻이 아니다. 지금 누르는 칸에는 달지 않는다.
+  final List<String> doneButtons;
 
   /// 서버가 준 전체 단계 수. 없으면 진행을 비율로 지어내지 않는다.
   final int? totalSteps;
@@ -78,6 +83,14 @@ class KioskExecutingView extends StatelessWidget {
     return hits.length == 1 ? hits.first : null;
   }
 
+  /// 이미 누른 칸(버튼판에서 이름이 한 번만 나오는 것만) → ✓. 지금 누르는 칸은 빼고 채움만 둔다.
+  Map<String, bool> _donePressed(ApplianceMap target, ApplianceButton current) => {
+        for (final label in doneButtons)
+          if (KioskPanelPicture.uniqueButton(target, label) case final b?
+              when b.id != current.id)
+            b.id: true,
+      };
+
   bool get _hasVerification =>
       verificationConfidence != null ||
       (verificationDetail != null && verificationDetail!.isNotEmpty);
@@ -97,7 +110,8 @@ class KioskExecutingView extends StatelessWidget {
     }
     if (_mock) return ('누르는 연습 중', Icons.touch_app_outlined, Colors.white);
     return _hasVerification
-        ? ('제대로 눌렸는지 보는 중', Icons.manage_search, Colors.white)
+        // 보는 중은 눈 아이콘 하나(평가 3차 10/18 — 목록+돋보기 모양은 뜻이 둘로 읽혔다).
+        ? ('제대로 눌렸는지 보는 중', Icons.visibility_outlined, Colors.white)
         : ('누르는 중', Icons.touch_app_outlined, Colors.white);
   }
 
@@ -188,6 +202,7 @@ class KioskExecutingView extends StatelessWidget {
           ? KioskPanelPicture(
               appliance: target,
               current: onPanel,
+              pressed: _donePressed(target, onPanel),
               caution: _retrying,
               caption: _mock ? '연습으로 누르는 자리예요. 화면은 누르지 않아도 돼요' : kPanelCaption,
               captionKey: const ValueKey('exec-panel-caption'),

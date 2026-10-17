@@ -704,7 +704,7 @@ void main() {
         ),
       );
       expect(find.text('버튼 3번'), findsOneWidget);
-      expect(find.text('가전 설정 1번'), findsOneWidget);
+      expect(find.text('LG 가전 설정 1번'), findsOneWidget);
       expect(find.text('알림만'), findsOneWidget);
       expect(find.textContaining('단계'), findsNothing);
       expect(find.text('새 루틴은 휴대폰 SimpleLay 앱에서 만들어요'), findsOneWidget);
@@ -775,7 +775,11 @@ void main() {
         for (var i = 0; i < 3; i++)
           ApplianceMap(id: 'x$i', name: '가전$i', category: 'other', rows: 1, cols: 1, buttons: const []),
       ]));
-      expect(find.text('다음 1/2'), findsOneWidget);
+      // '다음 1/2'을 한 줄에 두면 큰 글씨에서 잘렸다(평가 3차 10/18) — 단추 아래 '다음', 두 화살표 사이에 쪽 번호.
+      expect(find.descendant(of: find.byKey(const ValueKey('strip-next')), matching: find.text('다음')),
+          findsOneWidget);
+      expect(find.byKey(const ValueKey('strip-page')), findsOneWidget);
+      expect(find.text('1/2'), findsOneWidget);
     });
 
     testWidgets('B8 — 제안 쉬는 중 칩은 큰 글씨에서 같이 커지고 남은 시간이라고 말한다', (tester) async {

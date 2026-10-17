@@ -214,12 +214,12 @@ class KioskRoutine {
   final int settingCount;
 
   /// 루틴 카드 오른쪽 한 마디(2026-10-15 B3) — 예전 'N단계'는 실제로 버튼 수 합계였다.
-  /// 알림만 루틴은 '알림만', 누를 버튼은 '버튼 N번', ThinQ 설정은 '가전 설정 N번'.
+  /// 알림만 루틴은 '알림만', 누를 버튼은 '버튼 N번', ThinQ 설정은 'LG 가전 설정 N번'(폰과 같은 말, 평가 3차 10/18).
   String get sizeLabel {
     if (mode == 'notify') return '알림만';
     return [
       if (pressCount > 0) '버튼 $pressCount번',
-      if (settingCount > 0) '가전 설정 $settingCount번',
+      if (settingCount > 0) 'LG 가전 설정 $settingCount번',
     ].join(' · ');
   }
 

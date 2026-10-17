@@ -51,7 +51,7 @@ void main() {
     await show(t, hold(estop: '비상 버튼이 눌려 있어요'));
     expect(t.getRect(find.byKey(const ValueKey('kiosk-stop-area'))), before);
   });
-  testWidgets('실물 누름 성공은 체크와 별도 가전 확인 안내로 구분한다', (t) async {
+  testWidgets('실물 누름 성공은 체크 없이 누른 손 표시와 가전 확인 안내로 구분한다', (t) async {
     await show(
         t,
         const KioskDoneView(
@@ -60,8 +60,10 @@ void main() {
             executionMode: 'real',
             route: 'physical',
             resultConfirmation: 'reported'));
-    expect(find.text('다 눌렀어요'), findsOneWidget);
-    expect(find.byIcon(Icons.check), findsWidgets);
+    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
+    // 누름 보고만은 체크(확인)가 아니다 — 누른 손 아이콘(평가 3차 10/18, 확인 수준을 높여 보이지 않는다).
+    expect(find.byIcon(Icons.check), findsNothing);
+    expect(find.byIcon(Icons.touch_app_outlined), findsOneWidget);
     expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
   });
   testWidgets('근거 없는 ThinQ 성공에 가전 상태 확인을 만들지 않는다', (t) async {
@@ -131,7 +133,7 @@ void main() {
   });
   testWidgets('환경 미상 성공은 회색 완료가 아니라 앰버 확인 필요다', (t) async {
     await show(t, const KioskDoneView(success: true, label: '데우기'));
-    expect(find.text('몰라요'), findsOneWidget); // 아래 할 일이 '봐 주세요'라 띠는 '몰라요'(10/18 같은 말 두 번 금지)
+    expect(find.text('확인해 주세요'), findsOneWidget); // 결과 띠 말은 됐어요·확인해 주세요 두 가지(평가 3차 10/18)
     final c =
         t.widget<Icon>(find.byKey(const ValueKey('status-band-icon'))).color!;
     expect(HSVColor.fromColor(c).hue, inInclusiveRange(25, 55));
@@ -148,7 +150,7 @@ void main() {
   });
   testWidgets('위험 안내는 본문 21 이상 흰 글자와 채운 확인 단추다', (t) async {
     await show(t, DangerAlertOverlay(onAcknowledge: noop));
-    final line = t.widget<Text>(find.text('안전한 곳으로 이동한 뒤 주변에 도움을 요청하세요'));
+    final line = t.widget<Text>(find.text('연기나 냄새가 나면 먼저 밖으로 나가 도움을 요청하세요'));
     expect(line.style!.fontSize, greaterThanOrEqualTo(21));
     expect(line.style!.color, Colors.white);
     expect(find.byType(FilledButton), findsOneWidget);

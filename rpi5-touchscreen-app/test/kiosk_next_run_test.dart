@@ -86,14 +86,18 @@ void main() {
     expect(await read(500, {'detail': 'x'}), isNull);
   });
 
-  testWidgets('평소 화면에 다음 루틴 한 줄이 보이고, 모르면 없다', (tester) async {
+  testWidgets('평소 화면에 다음 루틴 카드(언제 · 무엇을)가 보이고, 모르면 없다', (tester) async {
     await _pumpIdle(
         tester,
         const KioskNextRun(
             name: '아침 공기청정기 끄기', dayLabel: '내일', hhmm: '07:00', modeLabel: '자동 실행'));
-    const line = '다음 루틴 · 내일 07:00\n아침 공기청정기 끄기 · 자동 실행';
+    // 큰 카드(평가 3차 10/18): 첫 줄은 언제(크게) + '다음 루틴 · 자동 실행', 둘째 줄은 무엇을.
+    expect(find.text('내일 07:00'), findsOneWidget);
+    expect(find.text('다음 루틴 · 자동 실행'), findsOneWidget);
     // 어절 단위로 줄을 바꾼다 — 실패널에서 '공기청/정기'처럼 낱말 가운데서 끊겼다(10/16 밤).
-    expect(find.text(keepWords(line)), findsOneWidget);
+    expect(find.text('아침 공기청정기 끄기'), findsOneWidget);
+    final what = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-what')));
+    expect(what.textSpan!.toPlainText(includeSemanticsLabels: false), keepWords('아침 공기청정기 끄기'));
     expect(tester.takeException(), isNull);
 
     await _pumpIdle(tester, null);

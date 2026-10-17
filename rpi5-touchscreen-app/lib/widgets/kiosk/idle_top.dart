@@ -9,10 +9,10 @@ import 'kiosk_text.dart';
 /// 평소 화면 위쪽(화면 구조 개편 10/18) — 아이콘 4~5개(쉬기·설정·와이파이·작은 팔·콘센트) 대신
 /// **상태 칩 하나**와 **메뉴** 하나.
 ///
-/// - 상태 칩: 모두 괜찮으면 '모두 정상'(중립), 문제가 있을 때만 앰버로 무엇이 문제인지('작은 팔 연결 끊김').
+/// - 상태 칩: 모두 괜찮으면 '모두 정상'(중립), 문제가 있을 때만 앰버로 무엇이 문제인지('작은 팔 연결이 끊겼어요').
 ///   문제가 하나면 누르면 그 연결 창이 바로 열리고, 그 밖에는 연결 목록 창이 열린다(항목을 누르면 그 연결 창).
 /// - 메뉴: 화면 가운데 큰 창에 '잠시 쉬기'·'설정' — 설정은 구석에 두지 않는다(누르는 자리 48 이상).
-/// 모름(unknown)은 정상처럼 두지 않고 '연결 확인 중'(중립·물음표)으로 말한다.
+/// 모름(unknown)은 정상처럼 두지 않고 '연결을 확인하고 있어요'(중립·물음표)로 말한다.
 
 /// 연결 항목 짧은 이름.
 String connectionShortName(String id) => switch (id) {
@@ -34,11 +34,15 @@ List<ConnectionItem> _shown(List<ConnectionItem> items) => [
   final problems = shown.where((i) => i.needsAttention).toList();
   if (problems.length == 1) {
     final p = problems.single;
-    final what = p.state == 'error' ? '연결 끊김' : '봐 주세요';
-    return ('${connectionShortName(p.id)} $what', true, p);
+    // 명사형('연결 끊김') 대신 쉬운 서술(평가 3차 10/18).
+    final name = connectionShortName(p.id);
+    final text = p.state == 'error'
+        ? '$name 연결이 끊겼어요'
+        : '$name${p.id == 'press' ? '을' : '를'} 봐 주세요';
+    return (text, true, p);
   }
-  if (problems.length > 1) return ('연결 문제 ${problems.length}개', true, null);
-  if (shown.any((i) => i.state == 'unknown')) return ('연결 확인 중', false, null);
+  if (problems.length > 1) return ('연결 ${problems.length}곳을 봐 주세요', true, null);
+  if (shown.any((i) => i.state == 'unknown')) return ('연결을 확인하고 있어요', false, null);
   return ('모두 정상', false, null);
 }
 

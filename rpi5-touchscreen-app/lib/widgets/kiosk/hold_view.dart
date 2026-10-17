@@ -151,7 +151,7 @@ class KioskHoldView extends StatelessWidget {
       return KioskStatusBand(
           tone: KioskBandTone.attention,
           icon: Icons.help_outline,
-          label: '봐 주세요',
+          label: kBandCheck,
           practice: _mock);
     }
     if (_mock) return const KioskStatusBand.practice();

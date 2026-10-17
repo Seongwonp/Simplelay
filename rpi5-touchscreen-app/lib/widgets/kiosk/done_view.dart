@@ -164,7 +164,7 @@ class KioskDoneView extends StatelessWidget {
     final operationVerified =
         operationConfirmed == true && !mock && operationSource == 'real';
     // 큰 체크·성공색은 **확인한 성공**에만(2026-10-14 UI 정리): 실제 ThinQ 상태 재조회, 또는 실측 동작 확인.
-    // 누름 완료(파랑)와 가전 상태 확인(초록)을 구분한다. 환경 미상은 앰버, 연습은 중립이다.
+    // 누름 완료(중립)와 가전 상태 확인(초록)을 구분한다. 환경 미상은 앰버, 연습은 중립이다.
     final thinqVerified = thinq &&
         const {
           'state_confirmed',
@@ -184,7 +184,7 @@ class KioskDoneView extends StatelessWidget {
     final color = verifiedSuccess
         ? KioskColors.confirmed
         : pressCompleted
-            ? KioskColors.running
+            ? Colors.white // 누름 보고만은 중립색 — 진행색(파랑)은 확인처럼 읽혔다(평가 3차 10/18)
             : success
                 ? (mock ? Colors.white : KioskColors.warning)
                 : userStop
@@ -221,7 +221,8 @@ class KioskDoneView extends StatelessWidget {
             ? (mock
                 ? '연습을 마쳤어요'
                 : thinqVerified
-                    ? '설정이 됐어요'
+                    // 띠가 '됐어요'라 제목은 본 사실로(같은 말 두 번 금지, 평가 3차 10/18).
+                    ? '가전 설정을 확인했어요'
                     : '됐는지 몰라요')
             : mock
                 ? '연습을 마쳤어요'
@@ -231,7 +232,8 @@ class KioskDoneView extends StatelessWidget {
                     ? (operationVerified
                         ? '가전이 켜졌어요'
                         : pressCompleted
-                            ? '다 눌렀어요'
+                            // 누름 보고만 — 버튼까지만 말한다. 가전은 사람이 본다(평가 3차 10/18).
+                            ? '버튼은 다 눌렀어요'
                             : '눌렸는지 몰라요')
                     : '작은 팔이 다 눌렀다고 알려 왔어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
@@ -276,54 +278,25 @@ class KioskDoneView extends StatelessWidget {
             : thinqVerified
                 ? '가전에서 바뀐 설정을 봤어요'
                 : '가전을 봐 주세요';
-    // 위 상태 띠(2026-10-16 디자인 규격 §4) — 결과 아이콘·제목 색과 같은 규칙: 확인 필요 = 앰버, 실패 = 빨강,
-    // 그 밖 = 중립, 연습이면 청록(실패·확인 필요와 겹쳐도 청록 연습 칸이 함께 남는다).
-    // 띠 = 확인 수준, 제목 = 본 사실(화면 구조 개편 10/18) — 띠 말이 아래 제목·할 일에 또 나오면 다음 후보를 쓴다
-    // (예: 제목 '설정이 됐어요'면 띠는 '됐어요' 대신 '확인했어요'). 확인 수준을 높여 말하는 후보는 두지 않는다.
-    final visible = [
-      headline,
-      if (success && successSub != null) successSub,
-      if (!success) failureDetail,
-      if (showLabel) label,
-      if (success && thinq) thinqLine,
-      ...facts,
-      if (operationSentence != null) operationSentence,
-    ].map(_flat).join('|');
-    String pick(List<String> words) => words.firstWhere(
-        (w) => !visible.contains(_flat(w)),
-        orElse: () => words.last);
+    // 위 상태 띠(평가 3차 10/18) — 결과 띠 말은 **두 가지뿐**: '됐어요'(초록, 실제로 확인한 성공)와
+    // '확인해 주세요'(그 밖의 모름·주의·실패 전부). 예전에는 봐 주세요·몰라요·주의·못 했어요·결과가 섞여 같은 뜻을
+    // 다섯 말로 했다. 색은 뜻을 지킨다 — 실패·안전 정지는 빨강, 모름은 앰버, 연습은 청록(연습 칸은 늘 남는다).
+    // 같은 말 두 번 금지는 제목을 바꿔 지킨다(띠 '확인해 주세요' / 제목 '눌렸는지 몰라요'). 확인 수준은 높이지 않는다.
     final KioskStatusBand band;
-    if (color == KioskColors.warning) {
-      band = KioskStatusBand(
-          tone: KioskBandTone.attention,
-          icon: Icons.help_outline,
-          label: pick(const ['봐 주세요', '몰라요', '주의']),
-          practice: mock);
-    } else if (color == KioskColors.danger) {
-      band = KioskStatusBand(
-          tone: KioskBandTone.danger,
-          icon: Icons.error_outline,
-          label: pick(r == KioskFailureReason.serverLost
-              ? const ['몰라요', '연결 끊김']
-              : const ['못 했어요', '실패']),
-          practice: mock);
-    } else if (mock) {
-      band = const KioskStatusBand.practice();
-    } else if (verifiedSuccess) {
-      // 전력(L3)으로 확인했으면 띠도 제목('전력 변화 확인')과 같은 수준으로 — ThinQ 상태 재조회만 '가전 상태 확인'
-      // (외부 평가 10/16 3차).
-      band = KioskStatusBand(
-          tone: KioskBandTone.confirmed,
-          icon: Icons.check,
-          label: pick(const ['됐어요', '확인했어요']));
-    } else if (success && executionMode == 'real') {
-      band = KioskStatusBand(
-          tone: KioskBandTone.attention,
-          icon: Icons.help_outline,
-          label: pick(const ['봐 주세요', '몰라요', '주의']));
-    } else {
+    if (verifiedSuccess) {
       band = const KioskStatusBand(
-          tone: KioskBandTone.neutral, icon: Icons.flag_outlined, label: '결과');
+          tone: KioskBandTone.confirmed, icon: Icons.check, label: kBandDone);
+    } else if (mock &&
+        color != KioskColors.warning &&
+        color != KioskColors.danger) {
+      band = const KioskStatusBand.practice();
+    } else {
+      final danger = color == KioskColors.danger;
+      band = KioskStatusBand(
+          tone: danger ? KioskBandTone.danger : KioskBandTone.attention,
+          icon: danger ? Icons.error_outline : Icons.help_outline,
+          label: kBandCheck,
+          practice: mock);
     }
     // 확인 필요·실패(앰버·빨강 띠)에서는 주 단추를 골드가 아닌 중립 채움으로(10/18) — 골드 면은 '잘 됐으니 다음으로'처럼 읽혔다.
     final calmHome = band.tone == KioskBandTone.attention ||
@@ -355,15 +328,18 @@ class KioskDoneView extends StatelessWidget {
           // 큰 글씨에서는 결과 원을 뺀다 — 위 상태 띠가 같은 아이콘·색으로 말하고, 남기면 이름 줄이 스크롤 아래로
           // 밀렸다(UI 평가 5차 10/17).
           if (!large && !side) _ResultRing(
-            icon: verifiedSuccess || pressCompleted
+            icon: verifiedSuccess
                 ? Icons.check
-                : success
-                    ? Icons.info_outline
-                    : userStop
-                        ? (stopVerified ? Icons.check : Icons.question_mark)
-                        : r.isUnconfirmed || r == KioskFailureReason.execution
-                            ? Icons.question_mark
-                            : Icons.close,
+                : pressCompleted
+                    ? Icons.touch_app_outlined
+                    : success
+                        ? Icons.info_outline
+                        : userStop
+                            ? (stopVerified ? Icons.check : Icons.question_mark)
+                            : r.isUnconfirmed ||
+                                    r == KioskFailureReason.execution
+                                ? Icons.question_mark
+                                : Icons.close,
             color: color,
             size: KioskSizes.resultIcon,
           ),
@@ -949,5 +925,5 @@ class _FailureActions extends StatelessWidget {
       );
 }
 
-/// 같은 말 비교용 — 빈칸·줄바꿈 묶음 문자를 빼고 본다.
-String _flat(String s) => s.replaceAll(RegExp(r'[\s ⁠]'), '');
+
+

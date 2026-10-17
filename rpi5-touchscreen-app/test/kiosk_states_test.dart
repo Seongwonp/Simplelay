@@ -230,9 +230,9 @@ void main() {
       await _pump(tester, api);
 
       // 문제가 있을 때만 앰버 칩에 무엇이 문제인지(10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
-      expect(find.text('콘센트 봐 주세요'), findsOneWidget);
-      expect(find.text('와이파이 연결 끊김'), findsNothing);
-      expect(find.text('작은 팔 연결 끊김'), findsNothing);
+      expect(find.text('콘센트를 봐 주세요'), findsOneWidget);
+      expect(find.text('와이파이 연결이 끊겼어요'), findsNothing);
+      expect(find.text('작은 팔 연결이 끊겼어요'), findsNothing);
 
       await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await _settle(tester);
@@ -266,7 +266,7 @@ void main() {
         ..healthResult = HealthStatus.disconnected;
       await _pump(tester, api);
 
-      expect(find.text('와이파이 연결 끊김'), findsOneWidget);
+      expect(find.text('와이파이 연결이 끊겼어요'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await _settle(tester);
       expect(find.text('본체와 연결되지 않았어요'), findsOneWidget);
@@ -336,7 +336,7 @@ void main() {
       final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
       final second = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(first.left, lessThan(second.left));
-      expect(find.text('봐 주세요'), findsOneWidget);
+      expect(find.text('확인해 주세요'), findsOneWidget);
     });
 
     testWidgets('정지 버튼 대기 중인 가전은 "동작 중"으로 맨 앞에 선다', (tester) async {
@@ -354,7 +354,7 @@ void main() {
           ['rice', 'aircon', 'intercom', 'microwave', 'washer', 'fan']);
     });
 
-    testWidgets('켜져 있다고 확인된 가전은 첫 장 맨 앞에 초록 "켜짐"으로 선다', (tester) async {
+    testWidgets('켜져 있다고 확인된 가전은 첫 장 맨 앞에 초록 "켜져 있어요"으로 선다', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..powerOn = {'intercom'};
@@ -366,16 +366,16 @@ void main() {
       expect(first.left, lessThan(second.left));
       final label = find.descendant(
           of: find.byKey(const ValueKey('strip-intercom')),
-          matching: find.text('켜짐'));
+          matching: find.text('켜져 있어요'));
       expect(label, findsOneWidget);
       expect(tester.widget<Text>(label).style?.color, KioskColors.confirmed);
-      expect(find.text('켜짐'), findsOneWidget);
+      expect(find.text('켜져 있어요'), findsOneWidget);
     });
 
-    testWidgets('전원 상태를 모르면 "켜짐"을 달지 않고 순서도 등록 순서 그대로', (tester) async {
+    testWidgets('전원 상태를 모르면 "켜져 있어요"을 달지 않고 순서도 등록 순서 그대로', (tester) async {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);
-      expect(find.text('켜짐'), findsNothing);
+      expect(find.text('켜져 있어요'), findsNothing);
       expect(find.byKey(const ValueKey('strip-intercom')), findsNothing);
       expect(find.byKey(const ValueKey('strip-microwave')), findsOneWidget);
     });
@@ -388,12 +388,12 @@ void main() {
       await tester.pump(const Duration(seconds: 10));
       await tester.pump();
       expect(find.byKey(const ValueKey('strip-intercom')), findsOneWidget);
-      expect(find.text('켜짐'), findsOneWidget);
+      expect(find.text('켜져 있어요'), findsOneWidget);
       // 다시 모르게 되면 표시를 내린다(지어내지 않는다).
       api.powerOn = {};
       await tester.pump(const Duration(seconds: 10));
       await tester.pump();
-      expect(find.text('켜짐'), findsNothing);
+      expect(find.text('켜져 있어요'), findsNothing);
     });
   });
 

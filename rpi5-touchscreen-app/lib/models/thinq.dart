@@ -105,11 +105,11 @@ class KioskAirReading {
   /// LG 상세의 '자세히' 안에만 둔다. 말은 가전이 매긴 등급 그대로다(우리 임계값 없음).
   String get sentence => airSentence(grade);
 
-  /// 공기 한 줄 아래 작은 줄 — 공기청정기 전원·연습 값(아는 것만). 없으면 빈 목록.
+  /// 공기 한 줄 아래 작은 줄 — 공기청정기 전원·연습 값(아는 것만). 없으면 빈 목록. 명사형 대신 쉬운 서술(평가 3차 10/18).
   List<String> get sub => [
-        if (power == 'on') '공기청정기 켜짐',
-        if (power == 'off') '공기청정기 꺼짐',
-        if (mock) '연습 값',
+        if (power == 'on') '공기청정기가 켜져 있어요',
+        if (power == 'off') '공기청정기가 꺼져 있어요',
+        if (mock) kPracticeNumbers,
       ];
 
   /// 뒤 글 — '초미세먼지 8 좋음 · 공기청정기 켜짐'. 아는 것만. 초미세먼지 등급을 붙여 종합 등급과 헷갈리지 않게 한다
@@ -127,9 +127,9 @@ class KioskAirReading {
         ],
         // 종합이 보이는 먼지 등급보다 나쁘면 그 이유를 지어내지 않고 출처만 밝힌다(실패널 10/17 — 모두 '좋음'인데 종합 '보통').
         if (_totalWorseThanShown) '종합은 가전이 매긴 등급',
-        if (power == 'on') '공기청정기 켜짐',
-        if (power == 'off') '공기청정기 꺼짐',
-        if (mock) '연습 값',
+        if (power == 'on') '공기청정기가 켜져 있어요',
+        if (power == 'off') '공기청정기가 꺼져 있어요',
+        if (mock) kPracticeNumbers,
       ];
 
   static const _gradeRank = {'GOOD': 0, 'NORMAL': 1, 'BAD': 2, 'VERY_BAD': 3};
@@ -236,11 +236,19 @@ String? thinqDustNote(Map<String, dynamic> state) {
       ? '전원이 꺼져 있어 미세먼지 값이 오지 않아요'
       : '미세먼지 값을 아직 받지 못했어요. 켠 직후에는 잠시 걸려요';
 }
+/// 연습 값 표시(평가 3차 10/18 — '연습 값'은 뜻을 몰랐다).
+const kPracticeNumbers = '연습용 숫자예요';
 
-/// 'HH:MM에 읽음' — 읽은 시각(연습이면 ' (연습)').
-String thinqReadTimeLine(DateTime t, {bool mock = false}) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 기준'
-    '${mock ? ' 연습 값' : ''}';
+
+/// 읽은 시각 줄 — 실제 값은 'HH:MM 기준', 연습 값은 '연습용 숫자예요 (9시 7분)'(평가 3차 10/18 — '09:07 기준 연습 값'은
+/// 무슨 뜻인지 몰랐다).
+String thinqReadTimeLine(DateTime t, {bool mock = false}) {
+  if (mock) {
+    final at = t.minute == 0 ? '${t.hour}시' : '${t.hour}시 ${t.minute}분';
+    return '$kPracticeNumbers ($at)';
+  }
+  return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 기준';
+}
 
 /// 조작 줄 하나 — 허브 동작 이름·인자와 고를 값들, 지금 값.
 class ThinqControl {

@@ -174,9 +174,9 @@ void main() {
       expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
       // 첫 장 맨 앞: 확인 필요(인덕션) → 동작 중(세탁기)
       _expectFullyVisible(tester, find.text('인덕션'));
-      _expectFullyVisible(tester, find.text('봐 주세요'));
+      _expectFullyVisible(tester, find.text('확인해 주세요'));
       _expectFullyVisible(tester, find.text('세탁기'));
-      _expectFullyVisible(tester, find.text('동작 중'));
+      _expectFullyVisible(tester, find.text('작동하고 있어요'));
       // 다음 장으로 넘기는 수단은 남는다.
       expect(find.byKey(const ValueKey('strip-next')), findsOneWidget);
     });
@@ -187,7 +187,7 @@ void main() {
       await _pump(tester, _idle(), scale: 1.0, panel15: panel15);
       expect(tester.takeException(), isNull);
       _expectFullyVisible(tester, find.text('세탁기'));
-      _expectFullyVisible(tester, find.text('동작 중'));
+      _expectFullyVisible(tester, find.text('작동하고 있어요'));
       _expectFullyVisible(tester, find.text('전자레인지'));
       _expectFullyVisible(tester, find.text(_tipText));
       _expectFullyVisible(tester, find.textContaining('습도 58%'));

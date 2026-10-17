@@ -91,7 +91,7 @@ void main() {
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
       })!;
-      expect(r.details, ['초미세먼지 8 좋음', '종합은 가전이 매긴 등급', '공기청정기 켜짐']);
+      expect(r.details, ['초미세먼지 8 좋음', '종합은 가전이 매긴 등급', '공기청정기가 켜져 있어요']);
       // 가전의 종합 등급임을 밝힌다 — '보통' 밑 '초미세먼지 좋음'이 모순처럼 읽혔다(외부 평가 10/16 3차).
       expect(r.headline, '실내 공기 종합 보통');
       // 모르는 등급 값은 붙이지 않는다.
@@ -107,7 +107,7 @@ void main() {
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 35, 'pm10_level': 'NORMAL', 'power': 'off', 'age_s': 3.0,
       })!;
-      expect(r.details, ['미세먼지 35 보통', '초미세먼지 8 좋음', '공기청정기 꺼짐']);
+      expect(r.details, ['미세먼지 35 보통', '초미세먼지 8 좋음', '공기청정기가 꺼져 있어요']);
       // 등급을 모르면 미세먼지 값은 싣지 않는다(종합 등급 설명이 안 된다).
       final noLevel = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'GOOD', 'pm25': 8, 'pm10': 10, 'age_s': 3.0})!;
@@ -121,7 +121,7 @@ void main() {
         'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'off', 'age_s': 3.0,
       })!;
       // 두 먼지 등급이 같으면 한 줄로 — 줄이 넷이면 실패널에서 마지막 줄이 잘렸다(10/17 09:33).
-      expect(r.details, ['미세·초미세먼지 모두 좋음', '종합은 가전이 매긴 등급', '공기청정기 꺼짐']);
+      expect(r.details, ['미세·초미세먼지 모두 좋음', '종합은 가전이 매긴 등급', '공기청정기가 꺼져 있어요']);
       // 같으면 붙이지 않는다.
       final same = KioskAirReading.fromJson({
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
@@ -133,14 +133,14 @@ void main() {
     test('서버 항목 → 한 줄(등급·초미세먼지·전원)', () {
       final r = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'GOOD', 'pm25': 8, 'pm10': 10, 'power': 'on', 'age_s': 30.0})!;
-      expect(r.line, '실내 공기 좋음 · 초미세먼지 8 · 공기청정기 켜짐');
+      expect(r.line, '실내 공기 좋음 · 초미세먼지 8 · 공기청정기가 켜져 있어요');
       final off = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'VERY_BAD', 'pm25': null, 'power': 'off', 'age_s': 0})!;
-      expect(off.line, '실내 공기 매우 나쁨 · 공기청정기 꺼짐');
+      expect(off.line, '실내 공기 매우 나쁨 · 공기청정기가 꺼져 있어요');
       final mock = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'pm25': 20, 'age_s': 0},
           mock: true)!;
-      expect(mock.line, '실내 공기 보통 · 초미세먼지 20 · 연습 값');
+      expect(mock.line, '실내 공기 보통 · 초미세먼지 20 · 연습용 숫자예요');
     });
 
     test('모르는 등급·등급 없음·오래된 값은 null(보이지 않는다)', () {
@@ -292,7 +292,7 @@ void main() {
     await pumpIdle(tester, _air);
     expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
     // 공기는 한 줄 + 색(2차 평가 10/18) — 숫자는 LG 상세 '자세히' 안.
-    expect(find.bySemanticsLabel('공기 좋아요. 공기청정기 켜짐'), findsOneWidget);
+    expect(find.bySemanticsLabel('공기 좋아요. 공기청정기가 켜져 있어요'), findsOneWidget);
     final grade = _gradeSpan(tester);
     expect(grade.text!.replaceAll('⁠', ''), '좋아요');
     expect(grade.style!.color, KioskColors.confirmed);
@@ -315,7 +315,7 @@ void main() {
       expect(air.bottom, lessThanOrEqualTo(strip.top), reason: '$size');
       // 항목마다 따로 — 줄이 바뀌어도 '·'가 줄 끝에 매달리지 않는다(외부 평가 10/16 2차 k01).
       expect(find.text('초미세먼지 8'), findsNothing);
-      expect(find.text('공기청정기 켜짐'), findsOneWidget);
+      expect(find.text('공기청정기가 켜져 있어요'), findsOneWidget);
       expect(find.descendant(of: find.byKey(const ValueKey('idle-air')), matching: find.textContaining('·')),
           findsNothing);
     }
@@ -351,7 +351,7 @@ void main() {
       // 큰 글씨에서는 아래 작은 줄도 뺀다(공기청정기 켜짐은 가전 타일에 있다).
       expect(find.bySemanticsLabel(RegExp('공기 아주 나빠요')), findsOneWidget);
       expect(find.text('초미세먼지 120'), findsNothing);
-      expect(find.textContaining('공기청정기 켜짐'), findsNothing);
+      expect(find.textContaining('공기청정기가 켜져 있어요'), findsNothing);
     }
     handle.dispose();
   });
@@ -530,7 +530,7 @@ void main() {
     await pumpPanel(tester, read: () async => _ok(_state(), mode: 'mock'));
     expect(find.text('지금 상태'), findsOneWidget);
     expect(find.text('지금 상태 (연습)'), findsNothing);
-    expect(find.text('09:07 기준 연습 값'), findsOneWidget);
+    expect(find.text('연습용 숫자예요 (9시 7분)'), findsOneWidget);
     expect(find.byKey(const ValueKey('thinq-practice')), findsOneWidget);
     expect(tester.widget<Icon>(find.descendant(
             of: find.byKey(const ValueKey('thinq-practice')), matching: find.byType(Icon))).color,
@@ -583,7 +583,7 @@ void main() {
     await tester.pump();
     expect(api.thinqStatusReads, ['air_purifier']);
     expect(find.byKey(const ValueKey('thinq-panel-air_purifier')), findsOneWidget);
-    expect(find.text('09:07 기준 연습 값'), findsOneWidget);
+    expect(find.text('연습용 숫자예요 (9시 7분)'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('thinq-set-set_wind_strength-HIGH')));
     await tester.pump();

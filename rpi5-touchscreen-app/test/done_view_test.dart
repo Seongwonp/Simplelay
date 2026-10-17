@@ -53,7 +53,7 @@ void main() {
       ),
     );
 
-    expect(find.text('다 눌렀어요'), findsOneWidget);
+    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
     expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
     expect(find.text('즉석밥 데워줘'), findsOneWidget);
@@ -146,9 +146,10 @@ void main() {
     expect(find.text('다시 시도'), findsOneWidget);
     expect(find.text('화면으로 조작하기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
-    // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 띠 말은 아래 할 일('가전을 봐 주세요')과
-    // 겹치지 않게 '주의'(10/18 같은 말 두 번 금지).
-    expect(find.text('주의'), findsOneWidget);
+    // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
+    // '확인해 주세요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
+    expect(find.text('확인해 주세요'), findsOneWidget);
+    expect(find.text('주의'), findsNothing);
     expect(find.text('실패'), findsNothing);
     expect(find.byIcon(Icons.question_mark), findsOneWidget);
     expect(find.byIcon(Icons.close), findsNothing);
@@ -426,13 +427,15 @@ void main() {
       testWidgets('$name → ${strong ? '가전 확인 초록' : '누름 완료 또는 미확인 구분'}', (tester) async {
         await _pump(tester, view);
         final press = view.executionMode == 'real' && view.route != 'thinq';
-        expect(find.byIcon(Icons.check), strong || press ? findsWidgets : findsNothing);
+        // 누름 보고만은 체크가 아니라 누른 손 아이콘(확인 수준을 높여 보이지 않는다, 평가 3차 10/18).
+        expect(find.byIcon(Icons.check), strong ? findsWidgets : findsNothing);
+        if (press && !strong) expect(find.byIcon(Icons.touch_app_outlined), findsOneWidget);
         expect(find.byIcon(Icons.info_outline), strong || press ? findsNothing : findsOneWidget);
         // 가장 큰 글자(핵심 단계, 2026-10-16 디자인 규격)의 색도 같은 규칙 — 체크 없이 초록 글자로 성공을 암시하지 않는다.
         final headline = tester
             .widgetList<Text>(find.byType(Text))
             .firstWhere((t) => t.style?.fontSize == KioskType.key);
-        expect(headline.style!.color, strong ? KioskColors.confirmed : press ? KioskColors.running : view.executionMode == 'mock' ? Colors.white : KioskColors.warning);
+        expect(headline.style!.color, strong ? KioskColors.confirmed : press ? Colors.white : view.executionMode == 'mock' ? Colors.white : KioskColors.warning);
       });
     }
   });

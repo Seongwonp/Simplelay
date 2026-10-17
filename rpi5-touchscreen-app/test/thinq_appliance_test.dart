@@ -113,7 +113,7 @@ void main() {
         itemWidth: itemWidth,
       );
 
-  testWidgets('가전 줄: 켜져 있다고 확인된 ThinQ 가전은 앞에 서고 "켜짐"을 말한다(큰 글씨 칸도)', (tester) async {
+  testWidgets('가전 줄: 켜져 있다고 확인된 ThinQ 가전은 앞에 서고 "켜져 있어요"을 말한다(큰 글씨 칸도)', (tester) async {
     final handle = tester.ensureSemantics();
     for (final width in [128.0, 230.0]) {
       await _pump(
@@ -134,9 +134,9 @@ void main() {
       expect(
           find.descendant(
               of: find.byKey(const ValueKey('strip-air_purifier')),
-              matching: find.text('켜짐')),
+              matching: find.text('켜져 있어요')),
           findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp(r'LG 가전, 켜짐\. 자세히 보기')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'LG 가전, 켜져 있어요\. 자세히 보기')), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
     handle.dispose();
@@ -162,24 +162,24 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('가전 줄: ThinQ 작업 중이면 "동작 중"이 아니라 허브가 "설정 변경 중"', (tester) async {
+  testWidgets('가전 줄: ThinQ 작업 중이면 "작동하고 있어요"가 아니라 "설정을 바꾸고 있어요"', (tester) async {
     await _pump(tester, Center(child: strip({'air_purifier', 'microwave'})));
 
     expect(
         find.descendant(
             of: find.byKey(const ValueKey('strip-air_purifier')),
-            matching: find.text('설정 변경 중')),
+            matching: find.text('설정을 바꾸고 있어요')),
         findsOneWidget);
     expect(
         find.descendant(
             of: find.byKey(const ValueKey('strip-air_purifier')),
-            matching: find.text('동작 중')),
+            matching: find.text('작동하고 있어요')),
         findsNothing);
     // 물리 가전은 종전대로.
     expect(
         find.descendant(
             of: find.byKey(const ValueKey('strip-microwave')),
-            matching: find.text('동작 중')),
+            matching: find.text('작동하고 있어요')),
         findsOneWidget);
     expect(tester.takeException(), isNull);
   });

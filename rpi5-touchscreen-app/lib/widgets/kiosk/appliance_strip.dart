@@ -55,6 +55,7 @@ class KioskApplianceStrip extends StatefulWidget {
     required this.running,
     required this.attention,
     this.on = const {},
+    this.unavailable = const {},
     required this.onSelect,
     this.perPage = 4,
     this.itemWidth = 128,
@@ -84,6 +85,16 @@ class KioskApplianceStrip extends StatefulWidget {
   /// 가전 타일 높이(화면 구조 개편 10/18 — 큰 사각 타일).
   final double tileHeight;
 
+  /// 지금 쓸 수 없는 가전(평가 3차 10/18) — 작은 팔 연결이 끊기면 작은 팔이 누르는 가전. 타일을 흐리게 하고
+  /// '지금 못 써요'라고 말한다. 누르면 무엇을 할지는 평소 화면이 정한다(연결 창). LG 가전은 넣지 않는다.
+  final Set<String> unavailable;
+
+  /// 오른쪽 장 넘김 칸 폭(이전 · 쪽 번호 · 다음). 평소 화면이 타일 폭을 잴 때 뺀다.
+  static const double pagerWidth = 60 + 48 + 60;
+
+  /// 타일 사이 간격(타일 오른쪽에 둔다 — 첫 타일 왼쪽 선이 줄의 왼쪽 선과 같게).
+  static const double tileGap = 12;
+
   @override
   State<KioskApplianceStrip> createState() => _KioskApplianceStripState();
 }
@@ -91,10 +102,13 @@ class KioskApplianceStrip extends StatefulWidget {
 class _KioskApplianceStripState extends State<KioskApplianceStrip> {
   int _page = 0;
 
-  static const double _arrow = 56;
+  static const double _arrow = 52;
 
-  /// 화살표 칸 폭 — 아래 '다음 1/2' 글자까지 들어간다.
-  static const double _arrowBox = 76;
+  /// 화살표 칸 폭 — 아래 '이전'·'다음' 한 낱말이 큰 글씨에서도 들어간다.
+  static const double _arrowBox = 60;
+
+  /// 두 화살표 사이 쪽 번호 칸.
+  static const double _pageBox = 48;
 
   @override
   void didUpdateWidget(KioskApplianceStrip old) {
@@ -128,6 +142,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
         ordered.skip(start).take(widget.perPage).toList(growable: false);
     final hasPrev = _page > 0;
     final hasNext = _page < _lastPage;
+    final page = '${_page + 1}/${_lastPage + 1}';
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
@@ -137,22 +152,12 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
         if (v < -150) _go(_page + 1);
         if (v > 150) _go(_page - 1);
       },
+      // 타일은 왼쪽 선(시계·날짜와 같은 선)에서 시작하고, 장 넘김은 오른쪽 끝에 이전·쪽 번호·다음으로 모은다
+      // (평가 3차 10/18 — 가운데 정렬 + 왼쪽 화살표 자리 때문에 타일이 시계보다 한참 오른쪽에서 시작했다).
       child: Row(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          // 끝에 닿은 쪽 화살표는 숨기되 자리는 유지한다 — 줄이 흔들리지 않게.
-          // 화살표만으로는 넘기는 단추인 줄 몰랐다(2026-10-15) — '다음'·'이전' 글자와 몇 번째 장인지 함께.
-          hasPrev
-              ? _ArrowButton(
-                  key: const ValueKey('strip-prev'),
-                  icon: Icons.chevron_left,
-                  label: '이전 가전',
-                  word: '이전',
-                  page: '${_page + 1}/${_lastPage + 1}',
-                  onTap: () => _go(_page - 1),
-                )
-              : const SizedBox(width: _arrowBox, height: _arrow),
-          const SizedBox(width: 8),
           SizedBox(
             width: widget.itemWidth * widget.perPage,
             child: Row(
@@ -166,6 +171,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                       running: widget.running.contains(a.id),
                       attention: widget.attention.contains(a.id),
                       on: widget.on.contains(a.id),
+                      unavailable: widget.unavailable.contains(a.id),
                       labelSize: widget.labelSize,
                       statusSize: widget.statusSize,
                       iconBox: widget.iconBox,
@@ -176,17 +182,56 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
               ],
             ),
           ),
-          const SizedBox(width: 8),
-          hasNext
-              ? _ArrowButton(
-                  key: const ValueKey('strip-next'),
-                  icon: Icons.chevron_right,
-                  label: '다음 가전',
-                  word: '다음',
-                  page: '${_page + 1}/${_lastPage + 1}',
-                  onTap: () => _go(_page + 1),
-                )
-              : const SizedBox(width: _arrowBox, height: _arrow),
+          // 한 장뿐이면 장 넘김을 그리지 않는다(자리는 지켜 타일 크기가 바뀌지 않게).
+          if (_lastPage == 0)
+            const SizedBox(width: KioskApplianceStrip.pagerWidth)
+          else
+            SizedBox(
+              width: KioskApplianceStrip.pagerWidth,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 끝에 닿은 쪽 화살표는 숨기되 자리는 유지한다 — 줄이 흔들리지 않게.
+                  hasPrev
+                      ? _ArrowButton(
+                          key: const ValueKey('strip-prev'),
+                          icon: Icons.chevron_left,
+                          label: '이전 가전',
+                          word: '이전',
+                          page: page,
+                          onTap: () => _go(_page - 1),
+                        )
+                      : const SizedBox(width: _arrowBox),
+                  // 쪽 번호 — 화살표 가운데 높이. 글자 배율이 커져도 자르지 않고 칸 안에서 줄인다.
+                  SizedBox(
+                    width: _pageBox,
+                    height: _arrow,
+                    child: Center(
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Text(page,
+                            key: const ValueKey('strip-page'),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: const TextStyle(
+                                fontSize: KioskType.caption,
+                                color: Colors.white)),
+                      ),
+                    ),
+                  ),
+                  hasNext
+                      ? _ArrowButton(
+                          key: const ValueKey('strip-next'),
+                          icon: Icons.chevron_right,
+                          label: '다음 가전',
+                          word: '다음',
+                          page: page,
+                          onTap: () => _go(_page + 1),
+                        )
+                      : const SizedBox(width: _arrowBox),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -206,7 +251,8 @@ class _ArrowButton extends StatelessWidget {
   final IconData icon;
   final String label;
 
-  /// 단추 아래 글자('다음'·'이전')와 지금 장(예: 1/2).
+  /// 단추 아래 글자('다음'·'이전'). 쪽 번호는 두 화살표 사이에 따로 둔다 — '다음 1/3'을 한 줄에 넣으면
+  /// 큰 글씨에서 잘렸다(평가 3차 10/18).
   final String word;
   final String page;
   final VoidCallback onTap;
@@ -235,7 +281,7 @@ class _ArrowButton extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 2),
-                Text('$word $page',
+                Text(word,
                     maxLines: 1,
                     softWrap: false,
                     style: const TextStyle(fontSize: KioskType.caption, color: Colors.white)),
@@ -246,6 +292,7 @@ class _ArrowButton extends StatelessWidget {
       );
 }
 
+
 class _StripItem extends StatefulWidget {
   const _StripItem({
     super.key,
@@ -253,6 +300,7 @@ class _StripItem extends StatefulWidget {
     required this.running,
     required this.attention,
     this.on = false,
+    this.unavailable = false,
     required this.onTap,
     this.labelSize = KioskType.body,
     this.statusSize = KioskType.caption,
@@ -264,6 +312,7 @@ class _StripItem extends StatefulWidget {
   final bool running;
   final bool attention;
   final bool on;
+  final bool unavailable;
   final VoidCallback onTap;
   final double labelSize;
   final double statusSize;
@@ -315,31 +364,36 @@ class _StripItemState extends State<_StripItem>
     final a = widget.appliance;
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
     // 큰 사각 타일(화면 구조 개편 10/18) — 아이콘 · 이름 · 상태 줄. 상태 줄은 늘 있다(지어내지 않는다):
-    // 확인 필요 → 동작 중 → 켜짐(LG 가전 조회로 본 것) → 준비 상태(서버 판정) → 어떻게 조작하는지.
+    // 확인 필요 → 지금 못 씀(작은 팔 연결 끊김) → 작동 중 → 켜짐(LG 가전 조회로 본 것) → 준비 상태 → 어떻게 조작하는지.
     final Color iconColor;
     final String status;
     final Color statusColor;
     if (widget.attention) {
       iconColor = KioskColors.warning;
-      status = '봐 주세요';
+      status = '확인해 주세요';
+      statusColor = KioskColors.warning;
+    } else if (widget.unavailable) {
+      // 작은 팔 연결이 끊겨 지금은 누를 수 없다(평가 3차 10/18) — 타일은 흐리게, 이유는 누르면 연결 창이 말한다.
+      iconColor = KioskColors.muted;
+      status = '지금 못 써요';
       statusColor = KioskColors.warning;
     } else if (widget.running) {
       // 동작 중은 일상 상태 — 중립(흰 테), 앰버는 확인 필요에만(2026-10-16 디자인 규격 §1-4).
       iconColor = Colors.white;
-      status = a.isThinq ? '설정 변경 중' : '동작 중';
+      status = a.isThinq ? '설정을 바꾸고 있어요' : '작동하고 있어요';
       statusColor = Colors.white;
     } else if (widget.on) {
       // 켜짐 — 서버가 ThinQ 조회로 본 전원 상태(2026-10-16). 확인한 값이라 초록.
       iconColor = Colors.white;
-      status = '켜짐';
+      status = '켜져 있어요';
       statusColor = KioskColors.confirmed;
     } else {
       iconColor = Colors.white;
       (status, statusColor) = switch (a.readiness) {
-        'disconnected' => ('연결 안 됨', KioskColors.warning),
+        'disconnected' => ('연결이 안 돼요', KioskColors.warning),
         'needs_setup' => ('설정이 필요해요', KioskColors.warning),
         // 상태를 모르면 지어내지 않고 어떻게 조작하는지만(칸이 좁아 짧게).
-        _ => (a.isThinq ? '상태 보기' : '작은 팔 조작', KioskColors.muted),
+        _ => (a.isThinq ? '상태 보기' : '눌러 드려요', KioskColors.muted),
       };
     }
     final edge = widget.attention
@@ -352,7 +406,8 @@ class _StripItemState extends State<_StripItem>
       label: '${a.name}${a.isThinq ? '. LG 가전' : ''}, $status. 자세히 보기',
       child: ExcludeSemantics(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 6),
+          // 간격은 오른쪽에만 — 첫 타일 왼쪽 선이 시계·날짜 왼쪽 선과 같다(평가 3차 10/18).
+          padding: const EdgeInsets.only(right: KioskApplianceStrip.tileGap),
           child: AnimatedBuilder(
             animation: _breath,
             builder: (context, child) {
@@ -376,7 +431,12 @@ class _StripItemState extends State<_StripItem>
               );
             },
             child: Material(
-              color: widget.running ? KioskColors.surface2 : KioskColors.surface,
+              // 지금 못 쓰면 바탕을 꺼진 것처럼 어둡게 — 글은 흐리게, 상태 줄만 또렷하게(무엇 때문인지는 누르면).
+              color: widget.unavailable
+                  ? KioskColors.bg
+                  : widget.running
+                      ? KioskColors.surface2
+                      : KioskColors.surface,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 side: BorderSide(
@@ -395,7 +455,10 @@ class _StripItemState extends State<_StripItem>
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Row(children: [
+                        Opacity(
+                          key: widget.unavailable ? ValueKey('tile-unavailable-${a.id}') : null,
+                          opacity: widget.unavailable ? 0.5 : 1,
+                          child: Row(children: [
                           Icon(a.icon, size: widget.iconBox * 0.58, color: iconColor),
                           const Spacer(),
                           if (a.isThinq)
@@ -405,7 +468,7 @@ class _StripItemState extends State<_StripItem>
                                 child: KioskRouteBadge(label: 'LG 가전'),
                               ),
                             ),
-                        ]),
+                        ])),
                         const Spacer(),
                         Text(
                           a.name,
@@ -415,7 +478,7 @@ class _StripItemState extends State<_StripItem>
                               fontSize: widget.labelSize,
                               height: 1.15,
                               fontWeight: FontWeight.w700,
-                              color: Colors.white),
+                              color: widget.unavailable ? KioskColors.muted : Colors.white),
                         ),
                         Text(
                           status,

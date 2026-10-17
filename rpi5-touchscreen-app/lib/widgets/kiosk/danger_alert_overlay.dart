@@ -39,7 +39,7 @@ class DangerAlertOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               const Text(
-                '위험 신호음 감지',
+                '경보 소리가 들려요',
                 style: TextStyle(
                   fontSize: KioskType.status,
                   fontWeight: FontWeight.w700,
@@ -48,19 +48,19 @@ class DangerAlertOverlay extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               const Text(
-                '화재·가스 경보음으로 보이는 소리를 감지했어요',
+                '불이 났는지, 가스가 새는지 살펴 주세요',
                 style: TextStyle(fontSize: KioskType.body, color: Colors.white),
               ),
               const SizedBox(height: 4),
               const Text(
-                '안전한 곳으로 이동한 뒤 주변에 도움을 요청하세요',
+                '연기나 냄새가 나면 먼저 밖으로 나가 도움을 요청하세요',
                 // 안전이 먼저다 — 이전 문구("실제 상황인지 직접 확인해주세요")는
                 // 화재·가스 상황에서 고령 사용자를 위험 쪽으로 보낼 수 있었다.
                 style: TextStyle(fontSize: KioskType.body, color: Colors.white),
               ),
               const SizedBox(height: 6),
               const Text(
-                '잘못 감지했을 수도 있어요. 안전을 확보한 뒤에 확인해 주세요',
+                '경보가 아닌 다른 소리일 수도 있어요',
                 style:
                     TextStyle(fontSize: KioskType.caption, color: Colors.white),
               ),

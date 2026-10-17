@@ -1,6 +1,6 @@
 // 화면 구조 개편 3단계(2026-10-18) — 대기 화면 위쪽 정리·가전 타일·공기 한 줄, LG 상세 공기 '자세히', 연결 창 문구.
 //
-// - 위쪽 아이콘 4~5개 → 상태 칩 하나('모두 정상' / 문제가 있을 때만 앰버 '작은 팔 연결 끊김') + 메뉴(잠시 쉬기·설정).
+// - 위쪽 아이콘 4~5개 → 상태 칩 하나('모두 정상' / 문제가 있을 때만 앰버 '작은 팔 연결이 끊겼어요') + 메뉴(잠시 쉬기·설정).
 //   설정은 구석이 아니다(메뉴는 화면 가운데 큰 창으로 열린다). 누르는 자리는 48 이상.
 // - 가전 줄은 큰 사각 타일(아이콘·이름·상태 줄).
 // - 공기는 '공기 좋아요/보통이에요/나빠요' 한 줄 + 색. 숫자·'종합은 가전이 매긴 등급'은 LG 상세의 '자세히' 안.
@@ -66,11 +66,11 @@ void main() {
       expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
     });
 
-    testWidgets('문제가 있을 때만 앰버 — 작은 팔 연결 끊김, 누르면 그 연결 창', (tester) async {
+    testWidgets('문제가 있을 때만 앰버 — 작은 팔 연결이 끊겼어요, 누르면 그 연결 창', (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('작은 팔 연결 끊김')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('작은 팔 연결이 끊겼어요')), findsOneWidget);
       final icon = tester.widget<Icon>(find.descendant(of: chip, matching: find.byType(Icon)).first);
       expect(icon.color, KioskColors.warning);
       await tester.tap(chip);

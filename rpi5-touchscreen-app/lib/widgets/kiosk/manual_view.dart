@@ -255,6 +255,7 @@ class _RoutinePanel extends StatelessWidget {
                               child: Row(
                                 children: [
                                   Expanded(
+                                    flex: 2,
                                     child: Text(
                                       r.name,
                                       maxLines: 2,
@@ -267,11 +268,13 @@ class _RoutinePanel extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  Text(
+                                  // 'LG 가전 설정 N번'처럼 길어지면 줄을 바꾼다(넘치지 않게, 평가 3차 10/18).
+                                  Flexible(child: Text(
                                     r.sizeLabel,
+                                    textAlign: TextAlign.end,
                                     style: const TextStyle(
                                         fontSize: KioskType.caption, color: KioskColors.muted),
-                                  ),
+                                  )),
                                 ],
                               ),
                             ),

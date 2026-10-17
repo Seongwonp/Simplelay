@@ -936,12 +936,12 @@ void main() {
     api.alertState = const AlertState(active: true, kind: 'fire_alarm');
     await tester.pump(const Duration(seconds: 3)); // alert 폴링 주기
     await tester.pump();
-    expect(tts.utterances.where((u) => u.contains('위험')).length, 1);
+    expect(tts.utterances.where((u) => u.contains('경보 소리')).length, 1);
 
     // 경보가 이어지는 동안 반복 발화하지 않는다
     await tester.pump(const Duration(seconds: 3));
     await tester.pump();
-    expect(tts.utterances.where((u) => u.contains('위험')).length, 1);
+    expect(tts.utterances.where((u) => u.contains('경보 소리')).length, 1);
   });
 
   testWidgets('음성 안내를 끄면 발화하지 않는다', (tester) async {
@@ -969,7 +969,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(tts.utterances.single, contains('위험'));
+    expect(tts.utterances.single, contains('경보 소리'));
 
     // 이어서 폴링이 같은 경보를 또 가져와도(중복 공급) 재발화하지 않는다
     api.alertState = const AlertState(active: true, kind: 'fire_alarm');

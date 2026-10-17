@@ -159,6 +159,7 @@ KioskIdleView _idle({
   AmbientInfo ambient = _ambient,
   DateTime? dndUntil,
   KioskAirReading? air,
+  KioskNextRun? nextRun,
 }) =>
     KioskIdleView(
       now: DateTime(2026, 9, 30, 7, 8),
@@ -178,6 +179,7 @@ KioskIdleView _idle({
       humidity: 58,
       dndUntil: dndUntil,
       air: air,
+      nextRun: nextRun,
       onSelectAppliance: (_) {},
       onOpenConnection: (_) {},
       onDndGesture: () {},
@@ -634,6 +636,18 @@ void main() {
                 applianceId: 'air_purifier', grade: 'GOOD', pm25: 8, pm10: 10, power: 'on')));
   });
 
+  // 평가 3차(10/18) — 다음 루틴은 오른쪽 칸 아래 끝(가전 줄 바로 위) 큰 카드. 실패널 k01과 같은 조건(안내·예보·공기).
+  testWidgets('15인치 미리보기 — 평소, 다음 루틴 카드', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_next',
+        _idle(
+            air: const KioskAirReading(
+                applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
+            nextRun: const KioskNextRun(
+                name: '아침 공기청정기 끄기', dayLabel: '오늘', hhmm: '07:00', modeLabel: '자동 실행')));
+  });
+
   testWidgets('평소 — 큰 글씨, 실내 공기 매우 나쁨', (t) async {
     await _shoot(
         t,
@@ -728,6 +742,7 @@ void main() {
         currentButton: '시작',
         currentAttempt: 1,
         completedSteps: 1,
+        doneButtons: const ['즉석밥'],
         totalSteps: 2,
         verificationConfidence: 0.93,
         verificationDetail: '전류 +14mA · 소리 +9dB',

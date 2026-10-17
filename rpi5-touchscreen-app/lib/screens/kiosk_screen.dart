@@ -144,6 +144,10 @@ class _KioskScreenState extends State<KioskScreen> {
   int _foreignPolls = 0;
 
   String? _currentButton;
+
+  // 이 실행에서 이미 누른 버튼(화면이 본 차례대로, 평가 3차 10/18) — 실행 화면 버튼판의 끝난 칸 ✓.
+  // 서버는 지금 버튼만 준다. 지금 버튼이 다른 버튼으로 바뀌면 앞 버튼은 누른 것이다(사이를 놓친 버튼은 표시하지 않는다).
+  List<String> _execDoneButtons = const [];
   int? _currentAttempt;
   int? _completedSteps;
   double? _verificationConfidence;
@@ -552,7 +556,7 @@ class _KioskScreenState extends State<KioskScreen> {
     // 새로 켜지는 엣지에서만 음성 경보 — 반복 발화하지 않는다.
     // DND 중에도 발화한다: 안전 경보는 방해 금지보다 우선한다.
     if (alert.active && !_alert.active) {
-      _tts.speak('위험 신호음을 감지했어요. 안전한 곳으로 이동한 뒤 주변에 도움을 요청해 주세요.');
+      _tts.speak('경보 소리가 들려요. 불이 났는지, 가스가 새는지 살펴 주세요. 연기나 냄새가 나면 먼저 밖으로 나가 도움을 요청해 주세요.');
     }
     setState(() {
       // 새로 켜지는 순간(엣지)엔 "확인" 눌렀던 기록을 리셋 — 계속 같은
@@ -688,7 +692,12 @@ class _KioskScreenState extends State<KioskScreen> {
           _foreignPolls = 0;
           setState(() {
             _executionMode = st.executionMode;
-            _currentButton = st.currentButton ?? _currentButton;
+            final prevButton = _currentButton;
+            final nowButton = st.currentButton;
+            if (prevButton != null && nowButton != null && nowButton != prevButton) {
+              _execDoneButtons = [..._execDoneButtons, prevButton];
+            }
+            _currentButton = nowButton ?? _currentButton;
             _currentAttempt = st.currentAttempt ?? _currentAttempt;
             _completedSteps = st.completedSteps ?? _completedSteps;
             _verificationConfidence =
@@ -1195,6 +1204,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _execBarValue = 0;
       _totalSteps = null;
       _currentButton = null;
+      _execDoneButtons = const [];
       _currentAttempt = null;
       _completedSteps = null;
       _verificationConfidence = null;
@@ -1672,6 +1682,7 @@ class _KioskScreenState extends State<KioskScreen> {
               : _findIn(_appliances, _execApplianceId!),
           lastButtons: _lastButtons,
           currentButton: _currentButton,
+          doneButtons: _execDoneButtons,
           currentAttempt: _currentAttempt,
           completedSteps: _completedSteps,
           totalSteps: _totalSteps,
