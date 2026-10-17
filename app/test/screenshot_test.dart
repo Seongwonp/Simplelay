@@ -920,7 +920,7 @@ final _homeInstalled = <ApplianceMap>[
   ApplianceMap.fromJson(const {
     'id': 'washer',
     'name': '세탁기',
-    'category': 'washer',
+    'category': 'washing_machine',
     'rows': 1,
     'cols': 1,
     'is_custom': true,
@@ -982,13 +982,27 @@ RpiApiService _demoHub() {
           routine('r-1', '30초 데우기', 'mine_microwave', 2),
           routine('r-2', '아침 데우기', 'mine_microwave', 3),
           routine('r-3', '빨래 시작', 'washer', 1),
-          routine('r-4', '저녁 공기청정기 켜기', 'air_purifier', 1,
-              trigger: {
-                'kind': 'time',
-                'days': [0, 1, 2, 3, 4, 5, 6],
-                'time': '22:00',
+          // LG 가전 루틴은 누를 버튼이 아니라 LG 가전 단계(실화면과 같은 꼴, 평가 5차 10/18).
+          {
+            'id': 'r-4',
+            'name': '저녁 공기청정기 켜기',
+            'steps': [
+              {
+                'kind': 'thinq_command',
+                'appliance_id': 'air_purifier',
+                'action': 'set_power',
+                'args': {'power': 'POWER_ON'},
               },
-              when: '매일 22:00'),
+            ],
+            'trigger': {
+              'kind': 'time',
+              'days': [0, 1, 2, 3, 4, 5, 6],
+              'time': '22:00',
+            },
+            'when': '매일 22:00',
+            'mode': 'approve',
+            'enabled': true,
+          },
           // 실화면과 같은 꼴(평가 4차 10/18) — 알림만 루틴, LG 가전 설정 단계.
           {
             'id': 'r-5',
@@ -1007,7 +1021,7 @@ RpiApiService _demoHub() {
                 'kind': 'thinq_command',
                 'appliance_id': 'air_purifier',
                 'action': 'set_power',
-                'args': {'power': 'off'},
+                'args': {'power': 'POWER_OFF'},
               },
             ],
             'trigger': {
@@ -1040,19 +1054,19 @@ RpiApiService _demoHub() {
             'name': '저녁 공기청정기 켜기',
             'condition_kind': 'time',
             'condition_time': '22:00',
-            'condition_text': '매일 22:00이 되면',
-            'action_text': '공기청정기 전원 켜기',
+            'condition_text': '매일 밤 10시에',
+            'action_text': '공기청정기를 켜요',
             'enabled': true,
             'fingerprint': 'fp-1',
             'allowed_values': [],
           },
           {
             'id': 'ar-2',
-            'name': '가열 종료 → 공기청정기',
-            'condition_text': '전자레인지가 멈추면',
-            'action_text': '공기청정기 바람 세기 강으로',
+            'name': '데우기 멈추면 공기청정기',
+            'condition_text': '전자레인지가 데우기를 멈추면',
+            'action_text': '공기청정기 바람을 세게 해요',
             'enabled': false,
-            'disabled_reason': '직접 자동 실행을 껐어요.',
+            'disabled_reason': '자동으로 하기를 꺼 두셨어요.',
             'fingerprint': 'fp-2',
             'value': 'HIGH',
             'allowed_values': [
