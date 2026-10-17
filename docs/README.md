@@ -12,6 +12,7 @@ SimpleLay 설계·시연·실측·제출 문서. 검증 수준(실물 확인 / �
 | [결선 전 SW 보완 피드백](결선전-SW-보완-피드백.md) | 결선 전 예외 처리·실물 통합 기록·자동 실행 상태·복구 UX 우선순위 |
 | [UI 참고 자료와 적용 기준](UI-참고자료와-적용기준.md) | Material 3·Flutter·W3C·Apple 공식 UI 원칙과 SimpleLay 적용 체크리스트 |
 | [UI 제품 앱·공개 레퍼런스](ui-product-app-references.md) | ThinQ·SmartThings·Toss·My Hyundai와 공개 UI·GitHub·Figma·Dribbble 참고 |
+| [UI 개편안 2026-10-17](UI-개편안-2026-10-17.md) | 교수 의견(AI 느낌·엔지니어 말투) 대응 — 쉬운 말 사전·말투 규칙·화면 구조·디자인 기준·진행 순서 |
 | [하드웨어 방향 확정](하드웨어-방향-확정-2026-09-30.md) | 보드 역할·CoreXY·Z 누름·콘센트 모듈 결정과 이후 변경 |
 | [재사용 경계](reuse-boundary.md) | 팀원 Touch Bridge에서 가져온 것(갠트리·모션 펌웨어)과 SimpleLay 신규의 경계 |
 | [제출 전 검증 과업](제출전-검증-과업.md) | 10/28 전에 실제로 할 비교 조건 실험·초기 사용성 점검·원가·설치 시간(하드웨어 전제·담당) |
