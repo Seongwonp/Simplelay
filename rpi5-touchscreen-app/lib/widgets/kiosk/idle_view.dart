@@ -363,6 +363,8 @@ class KioskIdleView extends StatelessWidget {
                   : KioskApplianceStrip(appliances: list, running: estop ? const {} : running, attention: estop ? {...attention, ...running} : attention,
                       on: estop ? const {} : on,
                       unavailable: unavailable,
+                      // 비상 버튼이면 띠가 빨강, 작은 팔 끊김이면 회색(평가 6차 10/18).
+                      unavailableByEstop: estop,
                       // 못 쓰는 가전은 조작판 대신 이유를 연다 — 비상 버튼이면 풀기 안내, 작은 팔 끊김이면 그 연결 창.
                       onSelect: (a) {
                         if (unavailable.contains(a.id)) {

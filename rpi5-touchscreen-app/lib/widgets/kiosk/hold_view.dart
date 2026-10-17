@@ -113,12 +113,14 @@ class KioskHoldView extends StatelessWidget {
         ),
       'parking' => ('작은 팔이 제자리로 돌아가고 있어요', Icons.keyboard_return, Colors.white),
       'parked' => ('작은 팔이 제자리로 돌아갔어요', Icons.home_outlined, Colors.white),
+      // 연습은 누르기를 다 마친 뒤 정지를 기다린다 — 제목이 그 상태를 말한다(평가 6차 10/18: '…연습 중' 제목 아래
+      // '…연습을 마쳤어요'가 서로 다른 말이었다). 무엇을 했는지는 제목, 할 일은 아래 한 줄.
       _ => _mock
-          ? ('$_name 연습 중', Icons.hourglass_top, Colors.white)
+          ? ('누르기 연습을 마쳤어요', Icons.check_circle_outline, Colors.white)
           : _operationReal
               ? (
                   '${withSubject(_name)} 돌아가고 있어요',
-                  appliance?.icon ?? Icons.widgets_outlined,
+                  appliance?.icon ?? Icons.power_outlined,
                   Colors.white
                 )
               : (
@@ -241,26 +243,24 @@ class KioskHoldView extends StatelessWidget {
           '정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.',
           KioskColors.danger
         ),
+      // 연습의 할 일 한 가지(평가 6차 10/18) — 정지를 아직 보내지 않았을 때만. 조준경 아이콘 대신 누르는 손.
+      if (_mock && holdState == 'hovering_stop' && !stopRequested && !stopFailed && !_unconfirmed)
+        (Icons.touch_app_outlined, '빨간 정지를 눌러 보세요', Colors.white),
     ];
 
     // 설명 — 할 일 아래 본문 크기로.
     final lines = <(IconData, String, Color)>[
-      if (waiting && buttonsPressed != null && buttonsPressed! > 0)
+      // 연습은 제목이 이미 '누르기 연습을 마쳤어요'라고 말한다 — 같은 말을 한 번 더 두지 않는다(평가 6차 10/18).
+      if (!_mock && waiting && buttonsPressed != null && buttonsPressed! > 0)
+        (Icons.check_circle_outline, '버튼 $buttonsPressed개를 눌렀어요', KioskColors.muted),
+      // 정지 대기 안내는 흰색 — 주의색은 확인 못 함에만 쓴다(2026-10-15). 연습의 할 일은 위 첫 블록 한 줄뿐이다.
+      // 조준경 아이콘은 뜻이 없었다(평가 6차 10/18) — 정보 아이콘.
+      if (!_mock && holdState == 'hovering_stop')
         (
-          Icons.check_circle_outline,
-          _mock ? '버튼 $buttonsPressed개 누르기 연습을 마쳤어요' : '버튼 $buttonsPressed개를 눌렀어요',
-          KioskColors.muted
-        ),
-      // 정지 대기 안내는 흰색 — 주의색은 확인 못 함에만 쓴다(2026-10-15).
-      if (holdState == 'hovering_stop')
-        (
-          Icons.my_location,
-          _mock
-              // 연습은 내부 동작(어느 버튼을 누르는지) 대신 할 일 한 줄(평가 5차 10/18).
-              ? '정지를 눌러 보세요'
-              : (cancel == null
-                  ? '정지를 누르면 작은 팔이 가전의 정지 버튼을 대신 눌러요'
-                  : "정지를 누르면 작은 팔이 '$cancel' 버튼을 대신 눌러요"),
+          Icons.info_outline,
+          cancel == null
+              ? '정지를 누르면 작은 팔이 가전의 정지 버튼을 대신 눌러요'
+              : "정지를 누르면 작은 팔이 '$cancel' 버튼을 대신 눌러요",
           KioskColors.muted
         ),
       if (_unconfirmed)

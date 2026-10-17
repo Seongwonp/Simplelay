@@ -125,32 +125,32 @@ const _ambient = AmbientInfo(
   weatherSource: 'mock',
 );
 
-const _washer = ApplianceMap(
-  id: 'washer',
-  name: '세탁기',
-  category: 'washing_machine',
-  rows: 1,
-  cols: 1,
-  buttons: [],
-);
+/// 서버 `/appliances` 꼴 — 평가 6차(10/18): 상태 띠는 서버 판정(readiness·is_custom·panel_mapping)을 따르므로 골든도
+/// 서버가 실제로 주는 값으로 그린다(판정 없는 하드코딩 가전은 '확인 전이에요').
+ApplianceMap _served(String id, String name, String category,
+        {bool custom = false, List<ApplianceButton> buttons = const [], String control = 'physical'}) =>
+    ApplianceMap(
+      id: id,
+      name: name,
+      category: category,
+      rows: 1,
+      cols: 1,
+      buttons: buttons,
+      readiness: 'operable',
+      controlPath: control,
+      isCustom: custom,
+    );
 
-const _fanAppliance = ApplianceMap(
-  id: 'custom_fan',
-  name: '거실 선풍기',
-  category: 'other',
-  rows: 1,
-  cols: 1,
-  buttons: [],
-);
+final _mw = _served('microwave', '전자레인지', 'microwave', buttons: kMicrowaveAppliance.buttons);
+final _ind = _served('induction', '인덕션', 'induction', buttons: kInductionAppliance.buttons);
+final _washer = _served('washer', '세탁기', 'washing_machine');
 
-const _rice = ApplianceMap(
-  id: 'rice',
-  name: '밥솥',
-  category: 'rice_cooker',
-  rows: 1,
-  cols: 1,
-  buttons: [],
-);
+/// 휴대폰 앱에서 등록하고 사진 위 버튼 자리를 아직 맞추지 않은 가전 — 폰과 같이 '설정이 필요해요'.
+final _washerSetup = _served('washer', '세탁기', 'washing_machine', custom: true);
+final _intercom = _served('intercom', '인터폰', 'intercom', custom: true);
+
+/// 서버가 세우는 모의 선풍기(id 'fan', 종류 other) — 바람 계열 그림.
+final _fanAppliance = _served('fan', '선풍기', 'other');
 
 /// 평소 화면 — 가전 다섯(4개씩 넘기기), 세탁기 동작 중.
 KioskIdleView _idle({
@@ -160,21 +160,19 @@ KioskIdleView _idle({
   DateTime? dndUntil,
   KioskAirReading? air,
   KioskNextRun? nextRun,
-  List<ApplianceMap> appliances = const [
-    kMicrowaveAppliance,
-    _washer,
-    kInductionAppliance,
-    _fanAppliance,
-    _rice,
-  ],
+  List<ApplianceMap>? appliances,
+  Set<String> running = const {'washer'},
+  Set<String> on = const {},
 }) =>
     KioskIdleView(
       now: DateTime(2026, 9, 30, 7, 8),
       connected: true,
       ambient: ambient,
       connections: connections,
-      appliances: appliances,
-      running: const {'washer'},
+      // 다섯(4개씩 넘기기): 세탁기 작동 중 · 전자레인지 준비 · 인터폰 설정 필요 · 선풍기 준비 · 인덕션.
+      appliances: appliances ?? [_mw, _washer, _intercom, _fanAppliance, _ind],
+      running: running,
+      on: on,
       attention: attention,
       temperature: 23,
       humidity: 58,
@@ -190,7 +188,7 @@ KioskIdleView _idle({
 final _purifierAppliance = applianceFromServerJson({
   'id': 'air_purifier',
   'name': '공기청정기',
-  'category': 'other',
+  'category': 'air_purifier',
   'rows': 0,
   'cols': 0,
   'buttons': <dynamic>[],
@@ -643,7 +641,10 @@ void main() {
         t,
         'kiosk15_idle_next',
         _idle(
-            appliances: [_purifierAppliance, kMicrowaveAppliance, kInductionAppliance, _washer],
+            // 실패널 k01과 같은 넷 — 공기청정기 켜짐(읽은 값) · 전자레인지 · 인덕션 · 세탁기(사진 자리 미설정).
+            appliances: [_purifierAppliance, _mw, _ind, _washerSetup],
+            running: const {},
+            on: const {'air_purifier'},
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
             nextRun: const KioskNextRun(

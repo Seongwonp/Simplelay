@@ -541,7 +541,7 @@ void main() {
   });
 
   group('B. 숫자와 단위', () {
-    testWidgets('루틴 카드의 버튼 3번은 한 덩어리로 그린다', (tester) async {
+    testWidgets('루틴 카드의 누를 버튼 3개는 한 덩어리로 그린다', (tester) async {
       await _pump(
           tester,
           KioskManualView(
@@ -555,7 +555,7 @@ void main() {
         for (final p in tester.renderObjectList<RenderParagraph>(find.byType(RichText)))
           p.text.toPlainText(includeSemanticsLabels: false),
       ];
-      expect(shown.any((s) => s.contains('3⁠번')), isTrue, reason: '$shown');
+      expect(shown.any((s) => s.contains('3⁠개')), isTrue, reason: '$shown');
     });
   });
 

@@ -26,9 +26,23 @@ class ApplianceMap {
     this.readiness = 'unknown',
     this.readinessReasons = const [],
     this.controlPath = 'physical',
+    this.isCustom = false,
+    this.hasPanelMapping = false,
   });
 
   final String id;
+
+  /// 사용자가 휴대폰 앱에서 등록한 가전인가(서버 `/appliances`의 `is_custom`). 서버가 말하지 않으면 false —
+  /// 그때는 '설정이 필요해요'라고 단정하지 않는다(평가 6차 10/18).
+  final bool isCustom;
+
+  /// 서버가 사진 위 버튼 자리 기록(`panel_mapping`)을 보냈나 — 폰의 `PanelMapping.fromJson`과 같은 기준
+  /// (사진 크기가 있는 기록만).
+  final bool hasPanelMapping;
+
+  /// 위치(사진 위 버튼 자리)를 아직 맞추지 않은 가전 — 폰 `needsPanelMapping`과 같은 판정(데모 표본은 서버에 없다).
+  /// 폰은 이런 가전을 '설정이 필요해요'라고 한다. 키오스크도 같은 말을 쓴다(평가 6차 10/18 — 키오스크는 '눌러 드려요'였다).
+  bool get needsPanelMapping => isCustom && !isThinq && !hasPanelMapping;
   final String name;
 
   /// 이 가전을 무엇으로 조작하는가 -- `physical`(갠트리가 버튼을 누름) 또는
@@ -46,8 +60,11 @@ class ApplianceMap {
   /// 등록한 종류가 키오스크까지 이어졌는지 확인할 방법이 사라진다.
   final String category;
 
-  /// 그림은 종류에서 나온다 -- 따로 들고 있지 않는다.
-  IconData get icon => applianceIconFor(category);
+  /// 그림은 종류에서 나온다 -- 따로 들고 있지 않는다. 단 하나의 예외는 서버가 세운 **모의 선풍기**(id `fan`,
+  /// 종류 목록에 선풍기가 없어 `other`)다 — 서버의 고정 id로만 고르고 이름으로 추측하지 않는다(평가 6차 10/18).
+  IconData get icon => id == kServerFanId && category == 'other'
+      ? applianceIconFor('fan')
+      : applianceIconFor(category);
 
   final int rows;
   final int cols;
@@ -153,6 +170,9 @@ String categoryFromServer(String? category, String? legacyIcon) {
   };
 }
 
+/// 서버가 세우는 모의 선풍기의 가전 id(`rpi/api/thinq_wiring.py`의 `FAN_ID`).
+const kServerFanId = 'fan';
+
 const _known = {
   'microwave',
   'air_conditioner',
@@ -160,6 +180,8 @@ const _known = {
   'induction',
   'rice_cooker',
   'intercom', // 시연 v3 갭 S6(2026-10-06) — 서버·폰과 같은 값
+  // 서버 `ApplianceCategory.AIR_PURIFIER` — 없으면 other로 떨어져 앱 모음 격자가 보였다(실패널 k01, 평가 6차 10/18).
+  'air_purifier',
   'other',
 };
 
@@ -170,7 +192,12 @@ IconData applianceIconFor(String category) => switch (category) {
       'washing_machine' => Icons.local_laundry_service,
       'rice_cooker' => Icons.rice_bowl,
       'intercom' => Icons.doorbell,
-      _ => Icons.widgets_outlined,
+      // 폰과 같은 바람 그림(평가 6차 10/18).
+      'air_purifier' => Icons.air,
+      // 선풍기는 종류 목록에 없다 — 서버 모의 선풍기만 [ApplianceMap.icon]이 이 값으로 부른다. 바람 계열.
+      'fan' => Icons.wind_power,
+      // 모르는 종류는 전기 플러그 — 앱 모음 격자는 '앱 목록'으로 읽혔다(평가 6차 10/18).
+      _ => Icons.power_outlined,
     };
 
 /// GET /appliances 한 항목 → ApplianceMap. 폰에서 등록한 커스텀 가전이
@@ -195,6 +222,9 @@ ApplianceMap applianceFromServerJson(Map<String, dynamic> json) => ApplianceMap(
               const [],
       // G5 — 없으면(옛 서버) 물리 경로.
       controlPath: json['control_path'] as String? ?? 'physical',
+      // 평가 6차(10/18) — 폰과 같은 '설정이 필요해요' 판정의 근거. 없으면(옛 서버) 사용자 가전이라 단정하지 않는다.
+      isCustom: json['is_custom'] as bool? ?? false,
+      hasPanelMapping: _validPanelMapping(json['panel_mapping']),
       buttons: [
         for (final b in json['buttons'] as List<dynamic>)
           ApplianceButton(
@@ -205,3 +235,13 @@ ApplianceMap applianceFromServerJson(Map<String, dynamic> json) => ApplianceMap(
           ),
       ],
     );
+
+/// 폰 `PanelMapping.fromJson`이 기록으로 받아 주는 꼴인가 — 사진 크기(가로·세로 > 0)가 있어야 한다.
+bool _validPanelMapping(Object? raw) {
+  if (raw is! Map<String, dynamic>) return false;
+  final photo = raw['photo'];
+  if (photo is! Map<String, dynamic>) return false;
+  final w = (photo['width'] as num?)?.toDouble();
+  final h = (photo['height'] as num?)?.toDouble();
+  return w != null && h != null && w > 0 && h > 0;
+}

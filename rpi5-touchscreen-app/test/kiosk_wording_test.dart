@@ -416,8 +416,12 @@ void main() {
           stopRequested: true,
           // 2026-10-16 글자 4단계(설명은 본문 크기)로 이 조건만으로는 넘치지 않게 됐다 — 서버 상세 한 줄을 더해
           // 넘치는 경우를 계속 본다(시험의 뜻: 넘치면 막대가 보인다).
+          // 평가 6차(10/18)로 연습 대기 본문이 한 줄 줄었다 — 넘치는 경우를 계속 보려고 상세를 한 문장 더 길게.
           detail: '연습용 대기예요. 정지를 누르면 작은 팔이 정지 버튼 자리를 짚고, 다 짚으면 제자리로 돌아가요. '
-              '연습이라 실제 가전 전원과 전력은 바뀌지 않아요.',
+              '연습이라 실제 가전 전원과 전력은 바뀌지 않아요. '
+              '연습을 마치면 처음 화면으로 돌아가고, 기록에는 연습이라고 남아요. '
+              '실제로 쓸 때는 작은 팔이 가전 앞에서 기다리다가 정지를 누르면 바로 정지 버튼을 눌러요. '
+              '그동안 화면은 누르지 않아도 되고, 가전을 직접 멈추고 싶으면 가전의 버튼을 눌러도 돼요.',
           onStop: () {},
         );
         await tester.pumpWidget(MaterialApp(
@@ -735,8 +739,9 @@ void main() {
           onRoutine: (_) {},
         ),
       );
-      expect(find.text('버튼 3번'), findsOneWidget);
-      expect(find.text('LG 가전 설정 1번'), findsOneWidget);
+      // 평가 6차(10/18): '누를 버튼 N개', LG 가전 단계는 결과 말(값이 없으면 지어내지 않고 '바람 세기 바꾸기').
+      expect(find.text('누를 버튼 3개'), findsOneWidget);
+      expect(find.text('전자레인지 바람 세기 바꾸기'), findsOneWidget);
       expect(find.text('알림만'), findsOneWidget);
       expect(find.textContaining('단계'), findsNothing);
       expect(find.text('새 루틴은 휴대폰 앱에서 만들어요'), findsOneWidget);

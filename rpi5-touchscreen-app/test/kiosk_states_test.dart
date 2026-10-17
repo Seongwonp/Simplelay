@@ -462,9 +462,10 @@ void main() {
 
       expect(find.byType(KioskHoldView), findsOneWidget);
       // 연습이면 제목이 가전이 돈다고 말하지 않는다 — 연습은 맨 위 띠로(2026-10-15).
-      expect(find.text('전자레인지 연습 중'), findsOneWidget);
-      expect(find.text('버튼 3개 누르기 연습을 마쳤어요'), findsOneWidget);
-      expect(find.text('정지를 눌러 보세요'), findsOneWidget);
+      // 평가 6차(10/18): 제목이 상태('누르기 연습을 마쳤어요'), 할 일은 한 줄 — '…연습 중' 제목과 '…마쳤어요' 본문이 부딪혔다.
+      expect(find.text('누르기 연습을 마쳤어요'), findsOneWidget);
+      expect(find.text('전자레인지 연습 중'), findsNothing);
+      expect(find.text('빨간 정지를 눌러 보세요'), findsOneWidget);
       // 연습에는 가전 판정·끝나는 시간 줄을 두지 않는다 — 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
       expect(find.text('가전이 켜졌는지는 몰라요'), findsNothing);
       expect(find.text('끝나는 시간은 몰라요'), findsNothing);

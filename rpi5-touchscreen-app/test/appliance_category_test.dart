@@ -51,7 +51,8 @@ void main() {
       final a = applianceFromServerJson(_json(category: '아직_없는_종류'));
 
       expect(a.category, 'other');
-      expect(a.icon, Icons.widgets_outlined);
+      // 앱 모음 격자는 '앱 목록'으로 읽혔다 — 모르는 종류는 전기 플러그(평가 6차 10/18).
+      expect(a.icon, Icons.power_outlined);
       // 나머지 정보는 그대로 살아 있다.
       expect(a.name, '거실 에어컨');
       expect(a.buttons.single.label, '전원');

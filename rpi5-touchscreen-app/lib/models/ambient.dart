@@ -210,6 +210,7 @@ class KioskRoutine {
     this.applianceIds = const [],
     this.pressCount = 0,
     this.settingCount = 0,
+    this.thinqSteps = const [],
     this.mode = 'approve',
     this.enabled = true,
   });
@@ -226,15 +227,28 @@ class KioskRoutine {
   /// ThinQ로 바꾸는 가전 설정 단계 수(누르지 않는다).
   final int settingCount;
 
-  /// 루틴 카드 오른쪽 한 마디(2026-10-15 B3) — 예전 'N단계'는 실제로 버튼 수 합계였다.
-  /// 알림만 루틴은 '알림만', 누를 버튼은 '버튼 N번', ThinQ 설정은 'LG 가전 설정 N번'(폰과 같은 말, 평가 3차 10/18).
-  String get sizeLabel {
+  /// LG 가전 단계들(순서대로) — 결과 말('공기청정기 켜기')을 만드는 데 쓴다.
+  final List<KioskThinqStep> thinqSteps;
+
+  /// 루틴 카드 아래 한 마디(2026-10-15 B3) — 예전 'N단계'는 실제로 버튼 수 합계였다.
+  /// 평가 6차(10/18, 폰 평가 5차와 같은 말): '버튼 2번'은 한 버튼을 두 번 누르는 것으로 읽혔다 → '누를 버튼 N개',
+  /// 'LG 가전 설정 1번'은 무엇이 되는지 말하지 않았다 → 결과 말('공기청정기 켜기'). 알림만 루틴은 '알림만'.
+  /// [names]는 가전 id → 이름(모르면 'LG 가전').
+  String sizeLabelWith(Map<String, String> names) {
     if (mode == 'notify') return '알림만';
+    final results = [
+      for (final s in thinqSteps) thinqResultPhrase(names[s.applianceId] ?? 'LG 가전', s.action, s.args),
+    ];
+    // 단계 내용 없이 수만 받은 경우(옛 생성 경로) — 지어내지 않고 '바꾸기'.
+    final unnamed = settingCount - thinqSteps.length;
     return [
-      if (pressCount > 0) '버튼 $pressCount번',
-      if (settingCount > 0) 'LG 가전 설정 $settingCount번',
+      if (pressCount > 0) '누를 버튼 $pressCount개',
+      ...results,
+      for (var i = 0; i < unnamed; i++) 'LG 가전 바꾸기',
     ].join(' · ');
   }
+
+  String get sizeLabel => sizeLabelWith(const {});
 
   /// approve(승인 후 실행) | notify(알림만)
   final String mode;
@@ -246,13 +260,22 @@ class KioskRoutine {
     final ids = <String>[];
     var presses = 0;
     var settings = 0;
+    final thinq = <KioskThinqStep>[];
     for (final s in (json['steps'] as List<dynamic>?) ?? const []) {
       if (s is! Map<String, dynamic>) continue;
       final id = s['appliance_id'];
       if (id is String && !ids.contains(id)) ids.add(id);
       final buttons = s['buttons'];
       if (buttons is List) presses += buttons.length;
-      if (s['kind'] == 'thinq_command') settings++;
+      if (s['kind'] == 'thinq_command') {
+        settings++;
+        final args = s['args'];
+        thinq.add(KioskThinqStep(
+          applianceId: id is String ? id : null,
+          action: s['action'] as String?,
+          args: args is Map<String, dynamic> ? args : const {},
+        ));
+      }
     }
     return KioskRoutine(
       id: json['id'] as String,
@@ -260,8 +283,42 @@ class KioskRoutine {
       applianceIds: ids,
       pressCount: presses,
       settingCount: settings,
+      thinqSteps: thinq,
       mode: json['mode'] as String? ?? 'approve',
       enabled: json['enabled'] as bool? ?? true,
     );
   }
+}
+
+/// 루틴의 LG 가전 단계 하나(서버 `thinq_command` 단계의 가전·동작·값).
+class KioskThinqStep {
+  const KioskThinqStep({this.applianceId, this.action, this.args = const {}});
+
+  final String? applianceId;
+  final String? action;
+  final Map<String, dynamic> args;
+}
+
+/// LG 가전 단계 하나 → 결과 말('공기청정기 켜기'·'공기청정기 바람 세게') — 폰 `thinqResultPhrase`와 같은 말.
+/// 모르는 동작·값은 지어내지 않고 '바꾸기'.
+String thinqResultPhrase(String name, String? action, Map<String, dynamic> args) {
+  switch (action) {
+    case 'set_power':
+      final v = '${args['power'] ?? ''}'.toUpperCase();
+      if (v == 'POWER_ON' || v == 'ON') return '$name 켜기';
+      if (v == 'POWER_OFF' || v == 'OFF') return '$name 끄기';
+      return '$name 전원 바꾸기';
+    case 'set_wind_strength':
+      final word = switch ('${args['wind_strength'] ?? ''}'.toUpperCase()) {
+        'HIGH' => '세게',
+        'MID' => '중간으로',
+        'LOW' => '약하게',
+        'AUTO' => '자동으로',
+        _ => null,
+      };
+      return word == null ? '$name 바람 세기 바꾸기' : '$name 바람 $word';
+    case 'set_job_mode':
+      return '$name 모드 바꾸기';
+  }
+  return '$name 바꾸기';
 }

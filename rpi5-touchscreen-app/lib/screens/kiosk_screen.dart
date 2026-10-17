@@ -1656,6 +1656,7 @@ class _KioskScreenState extends State<KioskScreen> {
               ?.where((r) => r.involves(manualAppliance.id))
               .toList(),
           onRoutine: _onRoutine,
+          applianceNames: {for (final a in _appliances) a.id: a.name},
           thinqRead: () => _api.thinqStatus(manualAppliance.id),
           thinqSend: (action, args) => _api.thinqCommand(manualAppliance.id, action, args),
           onThinqAccepted: _onThinqAccepted,

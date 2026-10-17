@@ -330,7 +330,8 @@ void main() {
       expect(thinqReadTimeLine(DateTime(2026, 10, 18, 21, 0)), '오후 9시 기준');
     });
 
-    testWidgets("타일 부제 — 작은 팔 가전은 '눌러 드려요', 작동 중은 '작동하고 있어요'", (tester) async {
+    // 평가 6차(10/18): 타일 아래 상태 띠 — 회색 '눌러 드려요' 반복 대신 상태 말. 서버 판정이 없는 내장 가전은 단정하지 않는다.
+    testWidgets("타일 띠 — '눌러 드려요' 반복 없음, 작동 중은 '작동 중'", (tester) async {
       await _pump(
           tester,
           KioskApplianceStrip(
@@ -340,20 +341,22 @@ void main() {
               onSelect: (_) {},
               perPage: 3,
               itemWidth: 180));
-      expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-microwave'))).data, '눌러 드려요');
+      expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-microwave'))).data, '확인 전이에요');
+      expect(find.text('눌러 드려요'), findsNothing);
       expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-induction'))).data,
-          '작동하고 있어요');
+          '작동 중');
       // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18).
       expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-air'))).data,
-          '바꾸고 있어요');
+          '바꾸는 중');
       expect(find.text('작은 팔 조작'), findsNothing);
       expect(find.text('동작 중'), findsNothing);
     });
 
-    test("루틴 단위 — '버튼 N번' · 'LG 가전 설정 N번'(폰과 같게)", () {
+    // 평가 6차(10/18, 폰 평가 5차와 같은 말): '누를 버튼 N개', LG 가전 단계는 결과 말 — 단계 내용이 없으면 '바꾸기'.
+    test("루틴 단위 — '누를 버튼 N개' · LG 가전은 결과 말(폰과 같게)", () {
       const r = KioskRoutine(id: 'r', name: '저녁', pressCount: 2, settingCount: 1);
-      expect(r.sizeLabel, contains('버튼 2번'));
-      expect(r.sizeLabel, contains('LG 가전 설정 1번'));
+      expect(r.sizeLabel, contains('누를 버튼 2개'));
+      expect(r.sizeLabel, contains('LG 가전 바꾸기'));
     });
   });
 

@@ -56,6 +56,7 @@ class KioskApplianceStrip extends StatefulWidget {
     required this.attention,
     this.on = const {},
     this.unavailable = const {},
+    this.unavailableByEstop = false,
     required this.onSelect,
     this.perPage = 4,
     this.reservePager = true,
@@ -99,6 +100,9 @@ class KioskApplianceStrip extends StatefulWidget {
   /// 지금 쓸 수 없는 가전(평가 3차 10/18) — 작은 팔 연결이 끊기면 작은 팔이 누르는 가전. 타일을 흐리게 하고
   /// '지금 못 써요'라고 말한다. 누르면 무엇을 할지는 평소 화면이 정한다(연결 창). LG 가전은 넣지 않는다.
   final Set<String> unavailable;
+
+  /// [unavailable]이 비상 버튼 때문인가 — 띠를 빨강으로(평가 6차 10/18). 아니면(작은 팔 끊김) 회색.
+  final bool unavailableByEstop;
 
   /// 오른쪽 장 넘김 칸 폭(이전 · 쪽 번호 · 다음). 평소 화면이 타일 폭을 잴 때 뺀다.
   static const double pagerWidth = 60 + 48 + 60;
@@ -186,6 +190,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                       attention: widget.attention.contains(a.id),
                       on: widget.on.contains(a.id),
                       unavailable: widget.unavailable.contains(a.id),
+                      unavailableByEstop: widget.unavailableByEstop,
                       labelSize: widget.labelSize,
                       statusSize: widget.statusSize,
                       iconBox: widget.iconBox,
@@ -352,6 +357,7 @@ class _StripItem extends StatefulWidget {
     required this.attention,
     this.on = false,
     this.unavailable = false,
+    this.unavailableByEstop = false,
     required this.onTap,
     this.labelSize = KioskType.body,
     this.statusSize = KioskType.caption,
@@ -364,6 +370,7 @@ class _StripItem extends StatefulWidget {
   final bool attention;
   final bool on;
   final bool unavailable;
+  final bool unavailableByEstop;
   final VoidCallback onTap;
   final double labelSize;
   final double statusSize;
@@ -414,40 +421,19 @@ class _StripItemState extends State<_StripItem>
   Widget build(BuildContext context) {
     final a = widget.appliance;
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    // 큰 사각 타일(화면 구조 개편 10/18) — 아이콘 · 이름 · 상태 줄. 상태 줄은 늘 있다(지어내지 않는다):
-    // 확인 필요 → 지금 못 씀(작은 팔 연결 끊김) → 작동 중 → 켜짐(LG 가전 조회로 본 것) → 준비 상태 → 어떻게 조작하는지.
-    final Color iconColor;
-    final String status;
-    final Color statusColor;
-    if (widget.attention) {
-      iconColor = KioskColors.warning;
-      status = '확인해 주세요';
-      statusColor = KioskColors.warning;
-    } else if (widget.unavailable) {
-      // 작은 팔 연결이 끊겨 지금은 누를 수 없다(평가 3차 10/18) — 타일은 흐리게, 이유는 누르면 연결 창이 말한다.
-      iconColor = KioskColors.muted;
-      status = '지금 못 써요';
-      statusColor = KioskColors.warning;
-    } else if (widget.running) {
-      // 동작 중은 일상 상태 — 중립(흰 테), 앰버는 확인 필요에만(2026-10-16 디자인 규격 §1-4).
-      iconColor = Colors.white;
-      // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18).
-      status = a.isThinq ? '바꾸고 있어요' : '작동하고 있어요';
-      statusColor = Colors.white;
-    } else if (widget.on) {
-      // 켜짐 — 서버가 ThinQ 조회로 본 전원 상태(2026-10-16). 확인한 값이라 초록.
-      iconColor = Colors.white;
-      status = '켜져 있어요';
-      statusColor = KioskColors.confirmed;
-    } else {
-      iconColor = Colors.white;
-      (status, statusColor) = switch (a.readiness) {
-        'disconnected' => ('연결이 안 돼요', KioskColors.warning),
-        'needs_setup' => ('설정이 필요해요', KioskColors.warning),
-        // 상태를 모르면 지어내지 않고 어떻게 조작하는지만(칸이 좁아 짧게).
-        _ => (a.isThinq ? '상태 보기' : '눌러 드려요', KioskColors.muted),
-      };
-    }
+    // 큰 사각 타일(화면 구조 개편 10/18) — 위는 가전(아이콘 · 이름), 아래는 **상태 띠**(색 면 + 아이콘 + 짧은 말).
+    // 평가 6차(10/18, 폰 평가 5차와 같은 구조): 모든 타일 아래 회색 '눌러 드려요'가 되풀이돼 1~2 m에서 상태가 갈리지
+    // 않았다. 띠 색은 넷뿐이다 — 초록(본체가 **읽은** 켜짐만) · 파랑(작동 중) · 주황(사람이 할 일) · 빨강(비상 버튼),
+    // 그 밖은 회색. 색만으로 말하지 않는다 — 띠마다 아이콘과 글이 같이 있다. 상태를 지어내지 않는다.
+    final band = kioskTileBand(
+      a,
+      attention: widget.attention,
+      unavailable: widget.unavailable,
+      unavailableByEstop: widget.unavailableByEstop,
+      running: widget.running,
+      on: widget.on,
+    );
+    final status = band.text;
     final edge = widget.attention
         ? KioskColors.warning
         : widget.running
@@ -483,6 +469,8 @@ class _StripItemState extends State<_StripItem>
               );
             },
             child: Material(
+              // 아래 상태 띠가 둥근 모서리를 따르게 자른다.
+              clipBehavior: Clip.antiAlias,
               // 지금 못 쓰면 바탕을 꺼진 것처럼 어둡게 — 글은 흐리게, 상태 줄만 또렷하게(무엇 때문인지는 누르면).
               color: widget.unavailable
                   ? KioskColors.bg
@@ -501,9 +489,13 @@ class _StripItemState extends State<_StripItem>
                     borderRadius: BorderRadius.circular(16)),
                 child: SizedBox(
                   height: widget.tileHeight,
-                  child: Padding(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(
+                        child: Padding(
                     padding: const EdgeInsets.fromLTRB(
-                        KioskSpace.sm, KioskSpace.sm, KioskSpace.sm, KioskSpace.xs),
+                        KioskSpace.sm, KioskSpace.sm, KioskSpace.sm, 4),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -516,7 +508,7 @@ class _StripItemState extends State<_StripItem>
                               size: (widget.iconBox * 0.58 + (widget.tileHeight - 112) * 0.3)
                                   .clamp(widget.iconBox * 0.58, 44)
                                   .toDouble(),
-                              color: iconColor),
+                              color: widget.unavailable ? KioskColors.muted : Colors.white),
                           const Spacer(),
                           if (a.isThinq)
                             const Flexible(
@@ -537,34 +529,124 @@ class _StripItemState extends State<_StripItem>
                               fontWeight: FontWeight.w700,
                               color: widget.unavailable ? KioskColors.muted : Colors.white),
                         ),
-                        // 상태 줄은 말줄임 대신 칸에 맞춰 살짝 줄인다 — 한 장에 4개일 때 '작동하고 있어요'가 '작동하고 있…'로
-                        // 잘리면 뜻이 사라진다(평가 5차 10/18).
-                        FittedBox(
-                          fit: BoxFit.scaleDown,
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            status,
-                            key: ValueKey('tile-status-${a.id}'),
-                            maxLines: 1,
-                            softWrap: false,
-                            style: TextStyle(
-                              fontSize: widget.statusSize,
-                              height: 1.2,
-                              fontWeight: statusColor == KioskColors.muted
-                                  ? FontWeight.w500
-                                  : FontWeight.w700,
-                              color: statusColor,
-                            ),
-                          ),
-                        ),
                       ],
                     ),
+                        ),
+                      ),
+                      _TileBand(
+                        boxKey: ValueKey('tile-band-${a.id}'),
+                        band: band,
+                        textKey: ValueKey('tile-status-${a.id}'),
+                        fontSize: widget.statusSize,
+                      ),
+                    ],
                   ),
                 ),
               ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 가전 타일 아래 상태 띠 한 줄의 말·아이콘·색.
+class KioskTileBand {
+  const KioskTileBand(this.text, this.icon, this.tone, {this.fill});
+
+  final String text;
+  final IconData icon;
+
+  /// 아이콘·글자 색.
+  final Color tone;
+
+  /// 띠 면 색. null이면 [tone]을 띠 농도([KioskSizes.bandTint])로 깐다.
+  final Color? fill;
+
+  Color get face => fill ?? tone.withValues(alpha: KioskSizes.bandTint);
+}
+
+/// 회색 띠 면 — 준비됨·모름·작은 팔 끊김. 색 있는 띠보다 옅다.
+const Color kTileBandGrey = Color(0x1FAEB3C0);
+
+/// 가전 타일의 상태 띠(평가 6차 10/18). 우선순위: 확인 필요 → 지금 못 씀(비상 버튼 빨강 · 작은 팔 끊김 회색) →
+/// 작동 중 → 켜짐(LG 가전 조회로 본 것만 초록) → 설정이 필요해요(사진 위치를 맞추지 않은 사용자 가전, 폰과 같은 판정) →
+/// 서버 준비 판정(연결·설정) → 준비됐어요(서버가 실행을 받아 준다고 말한 때만) → 모르면 '확인 전이에요'.
+KioskTileBand kioskTileBand(
+  ApplianceMap a, {
+  bool attention = false,
+  bool unavailable = false,
+  bool unavailableByEstop = false,
+  bool running = false,
+  bool on = false,
+}) {
+  if (attention) return const KioskTileBand('확인해 주세요', Icons.error_outline, KioskColors.warning);
+  if (unavailable) {
+    // 이유는 누르면 연다(비상 버튼 풀기 안내·작은 팔 연결 창).
+    return unavailableByEstop
+        ? const KioskTileBand('지금 못 써요', Icons.report, KioskColors.danger)
+        : const KioskTileBand('지금 못 써요', Icons.link_off, KioskColors.muted, fill: kTileBandGrey);
+  }
+  if (running) {
+    // ThinQ는 허브가 설정을 보냈을 뿐 가전이 도는 것을 본 게 아니다(2026-10-15 외부 검토 L2) — '바꾸는 중'.
+    return KioskTileBand(a.isThinq ? '바꾸는 중' : '작동 중', Icons.autorenew, KioskColors.running);
+  }
+  if (on) return const KioskTileBand('켜져 있어요', Icons.power_settings_new, KioskColors.confirmed);
+  if (a.needsPanelMapping) {
+    return const KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning);
+  }
+  return switch (a.readiness) {
+    'disconnected' => const KioskTileBand('연결이 안 돼요', Icons.link_off, KioskColors.warning),
+    'needs_setup' => const KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning),
+    // 체크는 '됐어요'로 읽힌다 — 준비는 누를 수 있다는 손가락(폰과 같은 그림). 눌림을 확인했다는 뜻이 아니라 회색.
+    'operable' when a.canExecute =>
+      const KioskTileBand('준비됐어요', Icons.touch_app_outlined, KioskColors.muted, fill: kTileBandGrey),
+    _ => const KioskTileBand('확인 전이에요', Icons.help_outline, KioskColors.muted, fill: kTileBandGrey),
+  };
+}
+
+class _TileBand extends StatelessWidget {
+  const _TileBand({required this.boxKey, required this.band, required this.textKey, required this.fontSize});
+
+  /// 띠 면(DecoratedBox)의 열쇠 — 시험이 면 색을 본다.
+  final Key boxKey;
+  final KioskTileBand band;
+  final Key textKey;
+  final double fontSize;
+
+  @override
+  Widget build(BuildContext context) {
+    final grey = band.fill != null;
+    return DecoratedBox(
+      key: boxKey,
+      decoration: BoxDecoration(color: band.face),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm, vertical: 5),
+        child: Row(children: [
+          Icon(band.icon, size: fontSize * 1.15, color: band.tone),
+          const SizedBox(width: 6),
+          // 말줄임 대신 칸에 맞춰 살짝 줄인다 — 잘리면 뜻이 사라진다(평가 5차 10/18).
+          Flexible(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Text(
+                band.text,
+                key: textKey,
+                maxLines: 1,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: fontSize,
+                  height: 1.2,
+                  fontWeight: grey ? FontWeight.w600 : FontWeight.w700,
+                  // 작동 중은 흰 글자(파랑은 아이콘·면) — 색 있는 상태는 그 색 글자.
+                  color: band.tone == KioskColors.running ? Colors.white : band.tone,
+                ),
+              ),
+            ),
+          ),
+        ]),
       ),
     );
   }

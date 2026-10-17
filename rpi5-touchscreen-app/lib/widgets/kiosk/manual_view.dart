@@ -29,6 +29,7 @@ class KioskManualView extends StatefulWidget {
     required this.onCancel,
     this.routines,
     this.onRoutine,
+    this.applianceNames = const {},
     this.thinqRead,
     this.thinqSend,
     this.onThinqAccepted,
@@ -42,6 +43,9 @@ class KioskManualView extends StatefulWidget {
   /// '버튼으로 조작'으로 왔을 때처럼 판만 필요한 경우).
   final List<KioskRoutine>? routines;
   final ValueChanged<KioskRoutine>? onRoutine;
+
+  /// 가전 id → 이름 — 루틴 칸의 LG 가전 결과 말('공기청정기 켜기')에 쓴다. 이 가전의 이름은 따로 넣지 않아도 된다.
+  final Map<String, String> applianceNames;
 
   /// ThinQ 가전 상세(2026-10-16) — 지금 상태 읽기(GET /thinq/status)·조작 보내기(POST /thinq/command)·접수됨.
   /// 읽기가 없으면(허브 없음) 상태 칸이 '연결되지 않았어요'를 말하고 조작을 내걸지 않는다.
@@ -145,6 +149,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                           width: 220,
                           child: _RoutinePanel(
                             routines: routines,
+                            names: {...widget.applianceNames, appliance.id: appliance.name},
                             onRoutine: widget.onRoutine,
                           ),
                         ),
@@ -217,9 +222,10 @@ class _KioskManualViewState extends State<KioskManualView> {
 
 /// 내 루틴 칸 — 이 가전을 다루는 루틴. 누르면 카드(승인)로 간다.
 class _RoutinePanel extends StatelessWidget {
-  const _RoutinePanel({required this.routines, required this.onRoutine});
+  const _RoutinePanel({required this.routines, required this.names, required this.onRoutine});
 
   final List<KioskRoutine> routines;
+  final Map<String, String> names;
   final ValueChanged<KioskRoutine>? onRoutine;
 
   @override
@@ -243,6 +249,7 @@ class _RoutinePanel extends StatelessWidget {
                     separatorBuilder: (_, __) => const SizedBox(height: 8),
                     itemBuilder: (context, i) {
                       final r = routines[i];
+                      final size = r.sizeLabelWith(names);
                       return Material(
                         color: KioskColors.surface2,
                         borderRadius: BorderRadius.circular(12),
@@ -255,7 +262,7 @@ class _RoutinePanel extends StatelessWidget {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 14, vertical: 10),
-                              // 이름 위, 크기('버튼 3번') 아래 — 옆에 붙이면 좁은 칸에서 '버튼 3|번'처럼 숫자와 단위가
+                              // 이름 위, 크기('누를 버튼 3개') 아래 — 옆에 붙이면 좁은 칸에서 '버튼 3|번'처럼 숫자와 단위가
                               // 갈라졌다(평가 4차 10/18). 둘 다 어절 단위로 줄을 바꾼다.
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -271,9 +278,9 @@ class _RoutinePanel extends StatelessWidget {
                                       color: Colors.white,
                                     ),
                                   ),
-                                  if (r.sizeLabel.isNotEmpty)
+                                  if (size.isNotEmpty)
                                     KioskText(
-                                      r.sizeLabel,
+                                      size,
                                       style: const TextStyle(
                                           fontSize: KioskType.caption, color: KioskColors.muted),
                                     ),
