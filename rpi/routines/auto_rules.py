@@ -1376,6 +1376,8 @@ class AutoRuleEngine:
         return {
             "id": rule.rule_id, "scenario_id": rule.scenario_id,
             "name": name, "condition_kind": rule.condition_kind,
+            # 시각 규칙의 'HH:MM'(그 밖은 null) — 폰이 조용한 시간과 겹치는 자동 실행을 미리 말한다(UI 평가 6차 10/17).
+            "condition_time": rule.condition_time if rule.is_time else None,
             "condition_text": self.condition_text(rule), "action_text": self.action_text(rule),
             "caveat": self.caveat(rule),
             "target_appliance_id": rule.target_appliance_id, "action": rule.action, "value": rule.value,

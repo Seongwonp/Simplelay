@@ -340,6 +340,8 @@ def test_approve_and_allow_saves_a_time_rule_and_this_run_goes_through_the_routi
     assert rule["name"] == "밤 공기청정기"
     assert rule["enabled"] is True
     assert rule["condition_text"] == "매일 23:00이 되면"
+    # 폰이 조용한 시간과 겹치는 자동 실행을 미리 말할 수 있게 시각을 따로 준다(UI 평가 6차 10/17).
+    assert rule["condition_time"] == "23:00"
     assert rule["caveat"] and "늦게 알아차리면 카드로 물어봐요" in rule["caveat"]
 
 
