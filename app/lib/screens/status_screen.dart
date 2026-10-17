@@ -11,6 +11,7 @@ import '../models/scenario_run.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
+import '../providers/hub_provider.dart' show developerModeProvider;
 import '../providers/rpi_api_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -83,10 +84,12 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
 
     // HTTP 경로엔 원시 mA/dB가 없다. 값이 없는데 차트를 띄우면 '--'만 남아
     // 개발 도구처럼 보인다 -- 실제 측정값이 있을 때만 센서 카드를 보여준다.
-    final hasRawSensor = status.currentMa != null ||
-        status.soundDb != null ||
-        _maHistory.any((v) => v > 0) ||
-        _dbHistory.any((v) => v > 0);
+    // 전기·소리 수치는 개발자 모드(본체가 켠 개발자 조건)일 때만 — 일반 화면에 mA·dB를 내지 않는다(평가 5차 10/18).
+    final hasRawSensor = ref.watch(developerModeProvider) &&
+        (status.currentMa != null ||
+            status.soundDb != null ||
+            _maHistory.any((v) => v > 0) ||
+            _dbHistory.any((v) => v > 0));
 
     return Scaffold(
       appBar: AppBar(title: const Text('실행 상태')),

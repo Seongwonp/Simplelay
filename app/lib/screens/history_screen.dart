@@ -257,11 +257,14 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   return label ?? 'LG 가전';
 }
 
-/// 결과 배지 — 됐어요(실제로 확인함)·몰라요·못 했어요·멈췄어요 등(UI 개편안 §4 공통 배지).
+/// 결과 배지는 **넷만** — 됐어요 · 봐 주세요 · 못 했어요 · 연습(평가 5차 10/18).
 ///
-/// **초록 '됐어요'는 상태를 다시 읽거나 누름을 확인했을 때만**이다. 보고만 받은 것은 '받았어요'(중립),
-/// 연습은 '연습', 이미 그 설정이라 보내지 않은 것은 '이미 그래요' — 확인 수준을 높여 보이지 않는다.
+/// **초록 '됐어요'는 상태를 다시 읽거나 누름을 확인했을 때만**이다. 보고·접수만 받은 것, 멈춘 것, 됐는지 모르는 것은
+/// 모두 '봐 주세요'(가전을 직접 보라는 뜻) — 예전 '받았어요'는 됐다는 말로 읽혀 확인 수준을 높여 보였다.
+/// 멈춘 것은 아이콘(손)으로 갈라 보이고, 자세한 사정은 펼친 결과 문장이 말한다.
+/// 이미 그 설정이라 보내지 않은 것(already_at_target)은 본체가 **상태를 읽어** 본 것이라 실제 실행에서만 '됐어요'.
 ({String label, IconData icon, BadgeTone tone}) historyBadgeOf(RpiHistoryEntry e) {
+  const check = (label: '봐 주세요', icon: Icons.help_outline, tone: BadgeTone.attention);
   final kind = resultKindOf(outcome: e.outcome, status: e.status);
   if (e.executionMode == 'mock') {
     return (label: '연습', icon: Icons.science_outlined, tone: BadgeTone.neutral);
@@ -269,26 +272,30 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   switch (kind) {
     case ResultKind.stopped:
     case ResultKind.safetyStop:
-      return (label: '멈췄어요', icon: Icons.front_hand_outlined, tone: BadgeTone.attention);
+      return (label: check.label, icon: Icons.front_hand_outlined, tone: check.tone);
     case ResultKind.failed:
       return (label: '못 했어요', icon: Icons.cancel_outlined, tone: BadgeTone.danger);
     case ResultKind.unconfirmed:
-      return (label: '몰라요', icon: Icons.help_outline, tone: BadgeTone.attention);
+      return check;
     case ResultKind.success:
       break;
   }
-  if (e.confirmation == 'already_at_target') {
-    return (label: '이미 그래요', icon: Icons.info_outline, tone: BadgeTone.neutral);
-  }
   final real = e.executionMode == 'real';
   final confirmed = e.route == 'thinq'
-      ? (e.confirmation == 'state_confirmed' || e.confirmation == 'state_confirmed_unknown_before')
+      ? (e.confirmation == 'state_confirmed' ||
+          e.confirmation == 'state_confirmed_unknown_before' ||
+          e.confirmation == 'already_at_target')
       : (e.confirmation == 'operation_confirmed' || e.confirmation == 'press_confirmed');
   if (real && confirmed) {
+    // 이미 그 설정이라 보내지 않은 것은 체크 대신 안내 아이콘 — '보내지 않았어요' 문장 옆에 성공 체크가 서면
+    // 신호가 섞였다(UI 평가 10/17). 결과(원하던 상태)는 읽어서 본 것이라 '됐어요'.
+    if (e.confirmation == 'already_at_target') {
+      return (label: '됐어요', icon: Icons.info_outline, tone: BadgeTone.confirmed);
+    }
     return (label: '됐어요', icon: Icons.check_circle, tone: BadgeTone.confirmed);
   }
   // 보고·접수만 받았다 — 됐는지는 확인하지 못했다.
-  return (label: '받았어요', icon: Icons.task_alt, tone: BadgeTone.neutral);
+  return check;
 }
 
 /// 날짜 구획 안에서 눌렸는지 모르는 버튼 기록 수(2차 평가 10/18 — 행마다 말하지 않고 머리에 한 번).

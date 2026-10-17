@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/providers/hub_provider.dart';
 import 'package:simplelay/screens/status_screen.dart';
 import 'package:simplelay/theme/app_colors.dart';
 import 'package:simplelay/widgets/button_map_grid.dart';
@@ -214,11 +215,17 @@ void main() {
       expect(grid.stateOf('BT-03'), ButtonMapStepState.pending);
     });
 
-    testWidgets('센서 수치는 펼쳐야 보인다', (tester) async {
+    testWidgets('센서 수치는 개발자 모드에서 펼쳐야 보인다', (tester) async {
       // 실행 중에 판단해야 하는 것은 mA·dB 값이 아니라 **눌림을 확인했는가**다.
       // 수치를 위에 크게 두면 화면이 기술 데모 대시보드가 되고, 이 제품의
       // 논지가 숫자 뒤로 밀린다. 근거가 필요한 사람은 펼쳐서 본다.
-      await _pumpStatus(tester, runningStatus);
+      // 평가 5차(10/18): 전기·소리 기록은 개발자 모드일 때만(일반 화면은 eval5_phone_test가 본다).
+      tester.view.physicalSize = const Size(400, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(buildScreen(const StatusScreen(),
+          executionStatus: runningStatus, overrides: [developerModeProvider.overrideWithValue(true)]));
+      await tester.pump();
       expect(find.text('320 mA'), findsNothing);
       expect(findPlainText('전기와 소리 기록'), findsOneWidget);
 

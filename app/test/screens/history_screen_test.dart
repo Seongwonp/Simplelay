@@ -252,13 +252,13 @@ void main() {
     // 동작을 확인하지 못한 물리 기록은 성공 체크가 아니라 중립 아이콘(UI 평가 5차 10/17 — 체크 바로 아래
     // '확인하지 못했어요'가 와서 신호가 섞였다).
     expect(find.byIcon(Icons.check_circle), findsNothing);
-    expect(find.byIcon(Icons.task_alt), findsNWidgets(3));
+    expect(find.byIcon(Icons.help_outline), findsNWidgets(3));
     expect(findPlainText('08:10 · 직접'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
-    // 보고만 받은 버튼 기록은 '받았어요' — 초록 '됐어요'가 아니다(확인 수준을 높여 보이지 않는다).
-    expect(find.text('받았어요'), findsNWidgets(3));
+    // 보고만 받은 버튼 기록은 '봐 주세요' — 초록 '됐어요'가 아니다(확인 수준을 높여 보이지 않는다, 평가 5차 10/18 배지 넷).
+    expect(find.text('봐 주세요'), findsNWidgets(3));
     expect(find.text('됐어요'), findsNothing);
   });
 
@@ -620,7 +620,7 @@ void main() {
     // 상태를 다시 읽어 확인한 것만 초록 '됐어요'.
     expect(find.text('됐어요'), findsOneWidget);
     expect(find.text('못 했어요'), findsOneWidget);
-    expect(find.text('받았어요'), findsOneWidget);
+    expect(find.text('봐 주세요'), findsOneWidget);
     // 배지는 행 오른쪽.
     expect(tester.getCenter(find.text('됐어요')).dx,
         greaterThan(tester.getCenter(find.text('공기청정기 켜기')).dx));
@@ -682,7 +682,7 @@ void main() {
     ], expand: false);
     expect(find.text('눌렸는지 모르는 일 2건. 가전을 봐 주세요'), findsOneWidget);
     expect(find.text('눌렸는지 모르는 일 1건. 가전을 봐 주세요'), findsOneWidget);
-    expect(find.text('몰라요'), findsNWidgets(3));
+    expect(find.text('봐 주세요'), findsNWidgets(3));
     // 머리는 그 날짜 제목 바로 아래.
     expect(tester.getTopLeft(find.text('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
         greaterThan(tester.getTopLeft(find.text('오늘')).dy));
