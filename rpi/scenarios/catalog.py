@@ -101,7 +101,7 @@ COOK_THEN_AIR = ScenarioDefinition(
 
 COOK_DONE_AIR = ScenarioDefinition(
     scenario_id="cook_done_air",
-    name="데우기 멈추면 공기청정기",
+    name="데우기가 끝나면 공기청정기 세게",
     # 10/18 쉬운 말 3차: '풍량'을 쓰지 않는다 — 자동 실행 규칙 조각('공기청정기 바람을 세게 해요')과 같은 말.
     question="공기청정기 바람을 세게 할까요?",
     former_questions=("공기청정기 풍량을 강으로 바꿀까요?",),
