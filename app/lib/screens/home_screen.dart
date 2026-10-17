@@ -318,7 +318,8 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
   String? _error;
   String? _errorFor;
 
-  static const _maxRows = 4;
+  // 큰 카드 아래 줄은 셋까지 — 넷이면 홈이 길어 가전 칸이 첫 화면에 나오지 않았다(UI 평가 5차 10/17).
+  static const _maxRows = 3;
 
   Future<void> _run(String id) async {
     if (_runningId != null) return;

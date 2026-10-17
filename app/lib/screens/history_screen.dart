@@ -271,11 +271,18 @@ class _HistoryRow extends StatelessWidget {
         entry.route != 'thinq';
     // 연습(모의) 성공은 중립 아이콘 — 성공 체크는 실제로 한 일에만 붙인다(외부 평가 10/16 p03).
     // 이미 목표값(보내지 않음)도 중립 — 성공 체크는 실제로 바꾼 일에만(UI 평가 10/17).
+    // 동작을 확인하지 못한 물리 '마침'도 중립 — 체크 바로 아래 '확인하지 못했어요'가 와서 신호가 섞였다(UI 평가 5차 10/17).
+    final unverifiedPhysical = succeeded &&
+        entry.route != 'thinq' &&
+        entry.confirmation != 'operation_confirmed' &&
+        entry.confirmation != 'press_confirmed';
     final look = succeeded && entry.executionMode == 'mock'
         ? (icon: Icons.science_outlined, color: context.appMuted)
         : succeeded && entry.confirmation == 'already_at_target'
             ? (icon: Icons.info_outline, color: context.appMuted)
-            : _look(context, kind);
+            : unverifiedPhysical
+                ? (icon: Icons.task_alt, color: context.appInk)
+                : _look(context, kind);
     final title = historyTitle(entry, applianceName: applianceName);
     final rawName = applianceName;
     // 모의 기록은 '연습' 한 줄이 말한다 — 이름의 "(모의)"를 되풀이하지 않는다(표시만).
@@ -348,14 +355,15 @@ class _HistoryRow extends StatelessWidget {
             // 폐루프의 핵심 증거 — 실패를 스스로 재시도로 회복했다.
             Row(
               children: [
-                Icon(Icons.refresh, size: 16, color: context.appSuccess),
+                Icon(Icons.refresh, size: 16, color: context.appMuted),
                 const SizedBox(width: 6),
+                // '성공'이라 하지 않는다 — 다시 누른 사실만(UI 평가 5차 10/17: 동작 확인 못 함과 모순처럼 읽혔다).
                 Text(
-                  '재시도 ${entry.retryCount}회 후 성공',
+                  '${entry.retryCount}번 더 눌러 마쳤어요',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: context.appSuccess,
+                    color: context.appMuted,
                   ),
                 ),
               ],

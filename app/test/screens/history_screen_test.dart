@@ -71,7 +71,9 @@ void main() {
     // 끝이 안 좋았던 실행은 단계 목록에 버튼이 나온다
     expect(find.text('전원'), findsOneWidget);
     // 폐루프 회복 배지 — 이 화면의 존재 이유
-    expect(find.text('재시도 2회 후 성공'), findsOneWidget);
+    // '성공'이라 말하지 않는다 — 다시 누른 사실만(UI 평가 5차 10/17: '확인 못 함'과 모순처럼 읽혔다).
+    expect(find.text('2번 더 눌러 마쳤어요'), findsOneWidget);
+    expect(find.textContaining('후 성공'), findsNothing);
     // 안전 정지 상태 표기
     expect(find.textContaining('안전 정지'), findsOneWidget);
   });
@@ -100,7 +102,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('재시도 1회 후 성공'), findsOneWidget);
+    expect(find.text('1번 더 눌러 마쳤어요'), findsOneWidget);
   });
 
   testWidgets('모의 실행 기록은 버튼 조작을 마쳤다·누름 장치가 응답했다고 말하지 않는다',
@@ -231,6 +233,10 @@ void main() {
     expect(find.text('9월 6일'), findsOneWidget);
     // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄.
     expect(find.text('버튼 조작을 마쳤어요'), findsNWidgets(3));
+    // 동작을 확인하지 못한 물리 기록은 성공 체크가 아니라 중립 아이콘(UI 평가 5차 10/17 — 체크 바로 아래
+    // '확인하지 못했어요'가 와서 신호가 섞였다).
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+    expect(find.byIcon(Icons.task_alt), findsNWidgets(3));
     expect(find.text('08:10 · 직접 실행'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);
     // 카드로 감싸지 않는다.

@@ -246,6 +246,10 @@ void main() {
       // 말로 한 명령·제안 승인·화면 조작은 모두 사람이 시작했다 — 어느 쪽인지는 지어내지 않고 '직접 실행'.
       expect(historySource(direct), '직접 실행');
       expect(historySource(_entry(const {})), '직접 실행');
+      // 시각 규칙 자동 실행은 서버가 루틴 이름으로 적는다 — 제목은 루틴 탭과 같은 이름, 출처는 자동 실행(UI 평가 5차 10/17).
+      final timed = _entry({'purpose': "자동 실행 · '아침 공기청정기 끄기' 루틴"});
+      expect(historyTitle(timed), '아침 공기청정기 끄기');
+      expect(historySource(timed), '자동 실행');
     });
 
     test('이름을 모르면 버튼 라벨만', () {

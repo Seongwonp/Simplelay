@@ -157,6 +157,8 @@ void main() {
     await _settle(tester);
     final more = find.ancestor(of: find.textContaining('개 더 보기'), matching: find.byType(OutlinedButton));
     expect(more, findsOneWidget);
+    // 큰 카드 1 + 줄 3 — 홈이 길어 가전이 첫 화면에 나오지 않았다(UI 평가 5차 10/17). 8개면 4개가 더 보기로.
+    expect(find.text('루틴 4개 더 보기'), findsOneWidget);
     expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
   });
 
