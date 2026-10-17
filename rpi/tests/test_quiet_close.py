@@ -207,7 +207,10 @@ def test_pause_from_a_memory_only_server_is_not_restored_without_a_carried_value
     try:
         api = TestClient(app)
         assert api.post("/dnd", json={"duration_minutes": 120}).status_code == 200
-        assert api.put("/quiet-hours", json={"enabled": True, "start": "01:00", "end": "01:30"}).status_code == 200
+        # 시험을 돌리는 시각과 겹치지 않는 시간대(12시간 뒤) — 01:00~01:30 고정이면 그 시각에 돌릴 때 깨졌다(10/18 새벽).
+        far = deps.get_clock().now() + timedelta(hours=12)
+        start, end = far.strftime("%H:%M"), (far + timedelta(minutes=30)).strftime("%H:%M")
+        assert api.put("/quiet-hours", json={"enabled": True, "start": start, "end": end}).status_code == 200
         quiet = api.get("/health/detail").json()["quiet"]
         assert quiet["reason"] == "pause" and quiet["pause_until"]
         deps.get_db().save_setting(deps.PAUSE_SETTING, None)  # 옛 서버는 잠시 쉬기를 DB에 남기지 않았다
@@ -219,7 +222,7 @@ def test_pause_from_a_memory_only_server_is_not_restored_without_a_carried_value
         assert health["dnd_until"] is None
         assert health["quiet"]["pause_until"] is None and health["quiet"]["reason"] != "pause"
         body = api.get("/quiet-hours").json()
-        assert (body["enabled"], body["start"], body["end"]) == (True, "01:00", "01:30")
+        assert (body["enabled"], body["start"], body["end"]) == (True, start, end)
     finally:
         _clear()
         deps.get_db.cache_clear()
