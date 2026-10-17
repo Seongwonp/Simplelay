@@ -692,3 +692,20 @@ def test_event_rules_still_cannot_power_off():
     assert not is_low_risk("DEVICE_AIR_PURIFIER", "set_power", "POWER_OFF")
     assert is_low_risk("DEVICE_AIR_PURIFIER", "set_power", "POWER_OFF", time_rule=True)
     assert not is_low_risk("DEVICE_WASHER", "set_power", "POWER_OFF", time_rule=True)
+
+
+# UI 평가 8차 10/17: 조용한 시간을 켜면 그 시간대의 시각 루틴은 건너뛰는데 '다음 실행'(폰 루틴 탭·키오스크 홈)은
+# 여전히 '오늘 23:00 실행'이라고 말했다 — 같은 화면의 규칙 카드와 반대로.
+def test_next_run_says_quiet_hours_skip(api, clock, hub):
+    _routine(api)  # 매일 23:00
+    (before,) = api.get("/routines/next").json()
+    assert before.get("quiet_skip") is not True
+    assert api.put("/quiet-hours", json={"enabled": True, "start": "22:00", "end": "07:00"}).status_code == 200
+    (item,) = api.get("/routines/next").json()
+    assert item["quiet_skip"] is True
+    assert item["mode_label"] == "조용한 시간이라 건너뜀"
+    # 끝 시각은 포함하지 않는다(서버 판정과 같게) — 23:00이 끝이면 그대로 실행.
+    assert api.put("/quiet-hours", json={"enabled": True, "start": "21:00", "end": "23:00"}).status_code == 200
+    (edge,) = api.get("/routines/next").json()
+    assert edge.get("quiet_skip") is not True and edge["mode_label"] != "조용한 시간이라 건너뜀"
+

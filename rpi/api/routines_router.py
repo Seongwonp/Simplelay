@@ -89,8 +89,33 @@ def create_routine(body: dict = Body(...)) -> dict:
 
 @router.get("/routines/next")
 def next_routines(limit: int = Query(3, ge=1, le=10)) -> list[dict]:
-    """'다음 실행' 카드 — 켜진 시각 루틴의 가까운 순서."""
-    return get_routine_engine().next_runs(limit=limit)
+    """'다음 실행' 카드 — 켜진 시각 루틴의 가까운 순서.
+
+    조용한 시간이 켜져 있고 그 회차가 시간대 안이면(시작 포함·끝 제외 — 실행 판정과 같다) ``quiet_skip``과
+    표시 말 '조용한 시간이라 건너뜀'을 붙인다(UI 평가 8차 10/17: 규칙 카드는 '건너뛰어요'인데 이 카드는 '실행'이라 했다).
+    폰·키오스크는 ``mode_label``을 그대로 보인다."""
+    from datetime import datetime  # noqa: PLC0415
+
+    from rpi.services.quiet_hours import window_contains  # noqa: PLC0415
+
+    from .deps import get_quiet_hours  # noqa: PLC0415
+
+    items = get_routine_engine().next_runs(limit=limit)
+    try:
+        quiet = get_quiet_hours().settings()
+    except Exception:  # noqa: BLE001 — 표시용이다. 모르면 붙이지 않는다
+        return items
+    if not quiet.get("enabled"):
+        return items
+    for item in items:
+        try:
+            at = datetime.fromisoformat(item["at"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if window_contains(quiet["start"], quiet["end"], at):
+            item["quiet_skip"] = True
+            item["mode_label"] = "조용한 시간이라 건너뜀"
+    return items
 
 
 @router.get("/routines/templates")
