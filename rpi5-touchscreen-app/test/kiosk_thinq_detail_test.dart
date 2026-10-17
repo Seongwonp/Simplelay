@@ -121,7 +121,7 @@ void main() {
         'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'off', 'age_s': 3.0,
       })!;
       // 두 먼지 등급이 같으면 한 줄로 — 줄이 넷이면 실패널에서 마지막 줄이 잘렸다(10/17 09:33).
-      expect(r.details, ['미세먼지 8 · 초미세먼지 8 좋음', '종합은 가전이 매긴 등급', '공기청정기 꺼짐']);
+      expect(r.details, ['미세·초미세먼지 모두 좋음', '종합은 가전이 매긴 등급', '공기청정기 꺼짐']);
       // 같으면 붙이지 않는다.
       final same = KioskAirReading.fromJson({
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',

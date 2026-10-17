@@ -93,9 +93,10 @@ class KioskAirReading {
   /// (외부 평가 10/16 2차 — 종합 '보통'과 초미세먼지 8이 모순처럼 읽혔다).
   List<String> get details => [
         // 미세먼지는 등급을 알 때만 — 종합 '보통'이 어디서 왔는지 보인다(UI 평가 4차 10/17).
-        // 두 먼지 등급이 같으면 한 줄로(실패널 10/17 — 줄이 넷이면 마지막 줄이 잘렸다).
+        // 두 먼지 등급이 같으면 짧은 한 줄로(실패널 10/17 — 줄이 넷이면 마지막 줄이, 값까지 넣으면 끝 글자가 잘렸다).
+        // 값은 ThinQ 상세가 보인다.
         if (pm10 != null && pm10Level != null && pm25 != null && pm25Level == pm10Level)
-          '미세먼지 ${_num(pm10!)} · 초미세먼지 ${_num(pm25!)} ${kAirGradeWords[pm10Level]}'
+          '미세·초미세먼지 모두 ${kAirGradeWords[pm10Level]}'
         else ...[
           if (pm10 != null && pm10Level != null) '미세먼지 ${_num(pm10!)} ${kAirGradeWords[pm10Level]}',
           if (pm25 != null)
