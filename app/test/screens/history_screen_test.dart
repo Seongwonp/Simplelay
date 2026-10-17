@@ -231,7 +231,7 @@ void main() {
     expect(find.text('9월 6일'), findsOneWidget);
     // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄.
     expect(find.text('버튼 조작을 마쳤어요'), findsNWidgets(3));
-    expect(find.text('08:10'), findsOneWidget);
+    expect(find.text('08:10 · 직접 실행'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
@@ -437,7 +437,7 @@ void main() {
       find.text('오늘'),
       find.text('아침 데우기'),
       find.text('다시 눌러도 확인하지 못했어요'),
-      find.text('08:10 · 전자레인지'),
+      find.text('08:10 · 직접 실행 · 전자레인지'),
       find.text('연습 · 실제로 누르지 않았어요'),
       find.text('버튼으로 직접 조작'),
     ];
@@ -479,7 +479,7 @@ void main() {
     ]);
     expect(find.text('전자레인지 · 즉석밥 버튼 조작'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다.
-    expect(find.text('08:10'), findsOneWidget);
+    expect(find.text('08:10 · 직접 실행'), findsOneWidget);
     expect(find.text('전자레인지를 직접 확인해 주세요'), findsOneWidget);
     expect(find.text('실행 기록'), findsOneWidget);
   });

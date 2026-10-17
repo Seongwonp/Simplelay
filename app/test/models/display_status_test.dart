@@ -233,7 +233,8 @@ void main() {
 
     // 외부 평가 10/16 2차 p03: 제목이 발화문 / ''…' 루틴' / '자동 실행 · …' 세 형식으로 섞였다.
     // 제목은 무엇을 했는지, 출처(루틴·자동 실행)는 아래 시각 줄로 — 확실히 아는 출처만.
-    test('제목은 한 일만, 출처는 따로(자동 실행·루틴만 — 모르면 붙이지 않는다)', () {
+    // UI 평가 4차 10/17: 시각만 있는 줄은 누가 실행했는지 몰랐다 — 자동 실행·루틴이 아니면 사람이 시작한 실행이다.
+    test('제목은 한 일만, 출처는 따로(자동 실행·루틴·그 밖은 직접 실행)', () {
       final auto = _entry({'purpose': '자동 실행 · 공기청정기 전원 켜기'});
       expect(historyTitle(auto), '공기청정기 전원 켜기');
       expect(historySource(auto), '자동 실행');
@@ -242,7 +243,9 @@ void main() {
       expect(historySource(routine), '루틴');
       final direct = _entry({'purpose': '공기청정기 켜줘'});
       expect(historyTitle(direct), '공기청정기 켜줘');
-      expect(historySource(direct), isNull);
+      // 말로 한 명령·제안 승인·화면 조작은 모두 사람이 시작했다 — 어느 쪽인지는 지어내지 않고 '직접 실행'.
+      expect(historySource(direct), '직접 실행');
+      expect(historySource(_entry(const {})), '직접 실행');
     });
 
     test('이름을 모르면 버튼 라벨만', () {

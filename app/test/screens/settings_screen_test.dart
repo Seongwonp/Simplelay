@@ -171,6 +171,12 @@ void main() {
       final row = find.widgetWithText(ListTile, '세탁기');
       expect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)), findsOneWidget);
       expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
+      // 홈과 같은 안내 — 버튼 자리를 맞추지 않은 가전은 '설정이 필요해요'(UI 평가 4차 10/17).
+      expect(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)), findsOneWidget);
+      // 지우기와 화살표 사이를 띄운다(잘못 누름 방지).
+      final trash = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)));
+      final chevron = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)));
+      expect(chevron.left - trash.right, greaterThanOrEqualTo(16));
     });
 
     testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {

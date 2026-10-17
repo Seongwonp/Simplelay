@@ -246,13 +246,14 @@ String objectParticle(String word) {
 const _autoPrefix = '자동 실행 · ';
 final _routineTitle = RegExp(r"^'(.+)' 루틴$");
 
-/// 기록의 출처 — 제목 아래 시각 줄에 붙인다(외부 평가 10/16 2차 p03). 서버 목적 문장으로 **확실히 아는**
-/// 출처(자동 실행·루틴)만. 직접 명령과 제안 승인은 목적 문장만으로 가를 수 없어 null(지어내지 않는다).
-String? historySource(RpiHistoryEntry e) {
+/// 기록의 출처 — 제목 아래 시각 줄에 붙인다(외부 평가 10/16 2차 p03). 서버 목적 문장으로 아는 자동 실행·루틴,
+/// 그 밖은 '직접 실행'(말로 한 명령·제안 승인·화면 조작 — 모두 사람이 시작했다. 어느 쪽인지는 목적 문장만으로
+/// 가를 수 없어 나누지 않는다). 시각만 있는 줄은 누가 실행했는지 몰랐다(UI 평가 4차 10/17).
+String historySource(RpiHistoryEntry e) {
   final purpose = e.purpose?.trim() ?? '';
   if (purpose.startsWith(_autoPrefix)) return '자동 실행';
   if (_routineTitle.hasMatch(historyStatement(purpose))) return '루틴';
-  return null;
+  return '직접 실행';
 }
 
 String historyTitle(RpiHistoryEntry e, {String? applianceName}) {

@@ -21,8 +21,12 @@ class _ApplianceSection extends ConsumerWidget {
           ListTile(
             leading: Icon(appliance.icon),
             title: Text(appliance.displayName),
+            // 버튼 자리를 맞추지 않은 가전은 홈과 같은 안내(UI 평가 4차 10/17 — 홈에만 '설정이 필요해요'가 있었다).
             subtitle: appliance.isCustom && !appliance.isThinq
-                ? null
+                ? (needsPanelMapping(appliance)
+                    ? Text('설정이 필요해요 · 눌러서 버튼 자리 맞추기',
+                        style: TextStyle(fontSize: 14, color: context.appWarning))
+                    : null)
                 : Text(
                     appliance.isThinq ? 'ThinQ 가전 · 빼기는 LG ThinQ 연결에서' : '기본 가전',
                     style: TextStyle(fontSize: 13, color: context.appMuted),
@@ -37,6 +41,8 @@ class _ApplianceSection extends ConsumerWidget {
                       icon: const Icon(Icons.delete_outline),
                       onPressed: () => _confirmRemoveAppliance(context, ref, appliance),
                     ),
+                    // 지우기와 화살표를 떼어 둔다(잘못 누름 방지, UI 평가 4차 10/17).
+                    const SizedBox(width: 16),
                     Icon(Icons.chevron_right, color: context.appMuted),
                   ])
                 : Icon(Icons.chevron_right, color: context.appMuted),
