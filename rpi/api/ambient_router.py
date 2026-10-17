@@ -174,7 +174,7 @@ _ROUTINE_LINE = re.compile(r"^루틴 '(?P<name>.+?)' · (?P<reason>.+?)(?: — (
 def _kiosk_tip_text(message: str) -> str:
     """키오스크 안내 카드에는 사람에게 할 말만(UI 평가 10/17 — 실패널에 기록 형식 그대로 떴다).
 
-    알림 루틴 기록 ``루틴 '이름' · 이유 — 안내`` 에서 안내가 있으면 안내만, 없으면 ``이름 · 이유``.
+    알림 루틴 기록 ``루틴 '이름' · 이유 — 안내`` 에서 안내가 있으면 안내만, 없으면 ``이름: 이유``(10/17 쉬운 말 — '·'로 잇지 않는다).
     그 밖의 문장(복약 안내 등)은 그대로. 폰 알림함에는 전체 문장이 그대로 남는다.
     """
     match = _ROUTINE_LINE.match(message.strip())
@@ -182,7 +182,7 @@ def _kiosk_tip_text(message: str) -> str:
         return message
     if match.group("notice"):
         return match.group("notice").strip()
-    return f"{match.group('name')} · {match.group('reason').strip()}"
+    return f"{match.group('name')}: {match.group('reason').strip()}"
 
 
 def _subject_particle(name: str) -> str:
@@ -223,11 +223,12 @@ def _attention(service, registry, alerts, care_events=None) -> list[AttentionIte
             # FAILED로 접혀 있어 명령 경로 상태로 가른다. ``outcome_of``의 의미는 그대로 둔다.
             if getattr(snap, "last_command_status", None) == "unconfirmed":
                 # 물리 실행이 연결 끊김으로 끝났으면(2026-10-15 G1) 바뀐 것이 아니라 눌렸는지를 모른다.
-                text = (f"{name} — 눌렸는지 확인하지 못했어요 · 가전을 봐 주세요"
+                # 10/17 쉬운 말: 결과 한 줄('몰라요') + 할 일 한 줄('봐 주세요'). '—'·'·'로 잇지 않는다.
+                text = (f"{name} 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."
                         if getattr(snap, "last_route", None) == "physical"
-                        else f"{name}{_subject_particle(name)} 바뀌었는지 확인하지 못했어요")
+                        else f"{name}{_subject_particle(name)} 바뀌었는지 몰라요. 가전을 봐 주세요.")
             else:
-                text = f"{name} 작업이 멈췄어요 · 기계를 봐 주세요"
+                text = f"{name} 작업이 멈췄어요. 가전을 봐 주세요."
             items.append(AttentionItem("appliance", text))
     except Exception:  # noqa: BLE001
         log.exception("service status unavailable for ambient tip")

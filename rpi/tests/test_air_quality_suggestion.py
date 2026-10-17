@@ -124,15 +124,15 @@ def _bad_state(level="BAD", *, pm2=42, wind="LOW", power="POWER_ON", **levels):
 def test_read_air_uses_the_device_grade(level):
     reading = read_air(_bad_state(level))
     assert reading is not None and reading.is_bad
-    word = "나쁨" if level == "BAD" else "매우 나쁨"
-    assert reading.reason() == f"공기청정기 센서: 초미세먼지 42 · {word}"
+    word = "나빠요." if level == "BAD" else "매우 나빠요."
+    assert reading.reason() == f"공기청정기가 재 보니 초미세먼지가 {word}"
 
 
 @pytest.mark.parametrize("field", ["PM10Level", "totalPollutionLevel"])
 def test_pm10_or_total_grade_alone_is_enough(field):
     reading = read_air(_bad_state("GOOD", **{field: "BAD"}))
     assert reading is not None and reading.is_bad
-    assert reading.reason() in ("공기청정기 센서: 미세먼지 30 · 나쁨", "공기청정기 센서: 종합 공기질 · 나쁨")
+    assert reading.reason() in ("공기청정기가 재 보니 미세먼지가 나빠요.", "공기청정기가 재 보니 종합 공기질이 나빠요.")
 
 
 @pytest.mark.parametrize("level", ["GOOD", "NORMAL"])
@@ -279,8 +279,8 @@ def test_bad_air_offers_one_air_card(api, level):
     assert len(cards) == 1
     card = cards[0]
     assert card["purpose"] == QUESTION
-    word = "나쁨" if level == "BAD" else "매우 나쁨"
-    assert card["reason"] == f"공기청정기 센서: 초미세먼지 42 · {word} (시연: 모의 센서 값이에요)"
+    word = "나빠요." if level == "BAD" else "매우 나빠요."
+    assert card["reason"] == f"공기청정기가 재 보니 초미세먼지가 {word} 연습용 센서 값이에요."
     assert card["is_demo"] is True
     assert [(c["target_id"], c["route"], c["action"], c["args"]) for c in card["commands"]] == [
         ("air_purifier", "thinq", "set_wind_strength", {"wind_strength": "HIGH"})]
@@ -554,7 +554,7 @@ def test_fake_cloud_bad_air_offers_a_mock_labelled_card(monkeypatch, tmp_path):
         body = _inject(api, "BAD")
         assert body["check"] == "offered"
         card = _cards(api)[0]
-        assert card["is_demo"] is True and card["reason"].endswith("(시연: 모의 센서 값이에요)")
+        assert card["is_demo"] is True and card["reason"].endswith("연습용 센서 값이에요.")
         assert card["commands"][0]["summary"] == "공기청정기(모의 클라우드) 풍량 강"
         res = api.post(f"/suggestions/{card['id']}/approve")
         assert _wait_done(api, res.json()["job_id"], timeout=10)["last_status"] == "succeeded"

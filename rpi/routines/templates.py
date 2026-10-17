@@ -54,8 +54,8 @@ TEMPLATES: tuple[dict, ...] = (
         "scene": "낮",
         "name": "방문자 문 열기",
         "icon": "door",
-        "description": "인터폰으로 방문자를 확인하고, 승인하면 문 열림 버튼을 눌러요",
-        "caution": "인터폰 호출 감지는 아직 없어요. 지금은 직접 실행해서 승인 카드를 띄워요",
+        "description": "인터폰으로 방문자를 확인하고, 허락하면 문 열림 버튼을 눌러요",
+        "caution": "인터폰이 울리는 건 아직 몰라요. 직접 실행하면 물어봐요",
         "trigger": {"kind": "manual"},
         "conditions": [],
         "mode": "approve",
@@ -70,8 +70,8 @@ TEMPLATES: tuple[dict, ...] = (
         "name": "세탁 끝 알림",
         "icon": "laundry",
         "description": "세탁기가 끝났다고 알리면 빨래를 꺼내 널라고 알려 드려요",
-        "caution": ("버튼식 세탁기는 콘센트 전력 하강과 종료음이 같이 확인될 때만 '끝났어요', 하나만이면 "
-                    "'끝난 것 같아요, 확인해 주세요'로 알려요. 기준값은 아직 실측 전이에요"),
+        # 10/17 쉬운 말: 판정 근거(전력 하강)·실측 전 기준값 설명은 빼고 사용자가 보는 결과 말만.
+        "caution": "전기 사용과 종료음이 둘 다 맞아야 '끝났어요'라고 해요. 하나만 맞으면 '끝난 것 같아요'라고 해요",
         "trigger": {"kind": "event", "event": "wash_complete"},
         "conditions": [],
         "mode": "notify",

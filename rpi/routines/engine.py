@@ -224,7 +224,7 @@ class RoutineEngine:
                 return  # 끝 센서가 있으면 시작 확인으로 깨우지 않는다 — 사이클 끝(on_appliance_done)에서 한 번
             reason, is_demo = "동작을 확인했어요", False
         elif event.execution_mode is ExecutionMode.MOCK:
-            reason, is_demo = "시연: 모의 실행이 끝났어요 — 실제 완료를 확인한 것은 아니에요", True
+            reason, is_demo = "연습 실행이 끝났어요. 실제로 끝났는지는 몰라요.", True
         else:
             return
         fired_any = False
@@ -245,7 +245,7 @@ class RoutineEngine:
         for routine in self._store.list():
             trigger = routine.trigger
             if routine.enabled and trigger.kind == "after_done" and trigger.routine_id == run.routine_id:
-                reason = f"'{run.routine_name}' 루틴이 끝났어요" + (" (시연: 모의 실행 포함)" if run.is_demo else "")
+                reason = f"'{run.routine_name}' 루틴이 끝났어요." + (" 연습 실행이 들어 있어요." if run.is_demo else "")
                 self._fire(routine, reason, run.is_demo, "after_done")
 
     def on_thinq_event(self, record: dict) -> None:
@@ -254,7 +254,7 @@ class RoutineEngine:
         for routine in self._store.list():
             trigger = routine.trigger
             if routine.enabled and trigger.kind == "event" and trigger.event == name:
-                reason = f"가전 알림 '{name}'이 왔어요" + (" (시연: 모의 이벤트예요)" if is_demo else "")
+                reason = f"가전 알림 '{name}'이 왔어요." + (" 연습 알림이에요." if is_demo else "")
                 self._fire(routine, reason, is_demo, "event")
 
     def on_appliance_done(self, record: dict) -> list:

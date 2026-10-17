@@ -68,8 +68,8 @@ def _power(api):
 def test_off_with_sensor_values_is_a_reading(level):
     reading = read_air(_bad_state(level, power="POWER_OFF"))
     assert reading is not None and reading.is_bad and reading.power_off
-    word = "나쁨" if level == "BAD" else "매우 나쁨"
-    assert reading.reason() == f"공기청정기 센서: 초미세먼지 42 · {word}"  # 강풍 카드와 같은 근거 모양
+    word = "나빠요." if level == "BAD" else "매우 나빠요."
+    assert reading.reason() == f"공기청정기가 재 보니 초미세먼지가 {word}"  # 강풍 카드와 같은 이유 모양
 
 
 def test_off_without_sensor_block_is_still_no_data():
@@ -96,7 +96,7 @@ def test_off_bad_offers_power_on_even_if_the_stored_wind_is_high():
     states = [_bad_state(power="POWER_OFF", wind="HIGH")]
     monitor, offers = _recording_monitor(states, _Clock())
     assert monitor.check_once() == "offered"
-    assert offers == [("공기청정기 센서: 초미세먼지 42 · 나쁨", True)]
+    assert offers == [("공기청정기가 재 보니 초미세먼지가 나빠요.", True)]
 
 
 def test_off_good_rearms_like_on_good():
@@ -203,8 +203,8 @@ def test_off_bad_offers_one_power_on_card(api, level):
     card = cards[0]
     assert card["scenario_id"] == POWER_SCENARIO
     assert card["purpose"] == POWER_QUESTION
-    word = "나쁨" if level == "BAD" else "매우 나쁨"
-    assert card["reason"] == f"공기청정기 센서: 초미세먼지 42 · {word} (시연: 모의 센서 값이에요)"
+    word = "나빠요." if level == "BAD" else "매우 나빠요."
+    assert card["reason"] == f"공기청정기가 재 보니 초미세먼지가 {word} 연습용 센서 값이에요."
     assert card["is_demo"] is True
     # 정확히 한 단계 — 전원 켜기만(풍량은 바꾸지 않는다).
     assert _commands(card) == [("air_purifier", "thinq", "set_power", {"power": "POWER_ON"})]

@@ -387,7 +387,7 @@ def test_cook_then_air_end_to_end_with_mock(client):
     card = cards[0]
     assert card["purpose"] == "공기청정기 강풍으로 바꿀까요?"
     assert card["is_demo"] is True  # 모의 실행 성공 근거 → 시연 제안
-    assert "모의" in card["reason"]
+    assert "연습" in card["reason"]
     assert card["commands"] == [{
         "target_id": "air_purifier", "route": "thinq", "action": "set_wind_strength",
         "args": {"wind_strength": "HIGH"}, "buttons": [], "summary": "공기청정기(모의) 풍량 강"}]

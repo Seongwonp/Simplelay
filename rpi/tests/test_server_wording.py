@@ -62,23 +62,25 @@ def test_user_sentences_use_the_kiosk_glossary(texts):
 
 
 def test_connection_items_name_the_parts_by_the_glossary():
-    assert plug_item("off", "weak").title == "가전 콘센트 장치 연결이 약해요"
-    assert press_item("uart", "no_reply").title == "작은 팔 장치가 답하지 않아요"
-    assert "SimpleLay 본체" in network_item("down").message
+    # 10/17 쉬운 말 사전: 본체 · 작은 팔 · 콘센트('장치'·'SimpleLay' 빼기).
+    assert plug_item("off", "weak").title == "콘센트 연결이 약해요"
+    assert press_item("uart", "no_reply").title == "작은 팔이 답하지 않아요"
+    assert network_item("down").message.startswith("본체가")
     assert "'다시 확인하기'" in network_item("up", "failed").fixes[-1]
 
 
 def test_estop_sentences_say_the_red_button_is_pressed():
     assert ESTOP_LATCHED_REASON.startswith("비상 버튼이 눌려 있어요")
-    assert ESTOP_LATCHED_DETAIL.startswith("비상 버튼이 눌려 있어요")
+    # 폰·키오스크가 제목('비상 버튼이 눌려 있어요')을 따로 보인다 — RPi4 문장은 할 일만(제목 되풀이 금지).
+    assert not ESTOP_LATCHED_DETAIL.startswith("비상 버튼이 눌려 있어요") and "해제하기" in ESTOP_LATCHED_DETAIL
     assert ESTOP_REASON_DETAIL["estop_button_pressed"].startswith("빨간 비상 버튼이 아직 눌려 있어요")
-    assert "가전 콘센트 장치" in ESTOP_REASON_DETAIL["outlet_unreachable"]
+    assert ESTOP_REASON_DETAIL["outlet_unreachable"].startswith("콘센트가")
 
 
 def test_reboot_latch_sentence_is_shared_and_keeps_the_marker_the_server_reads():
     """RPi5 ``estop_block_reason``·키오스크가 '다시 켜져'로 재부팅 걸림을 가른다 — 두 보드의 문장이 같아야 한다."""
     assert POWER_LOST_DETAIL == POWER_LOST_LATCH_DETAIL
-    assert "다시 켜져" in POWER_LOST_DETAIL and "가전 콘센트 장치" in POWER_LOST_DETAIL
+    assert "다시 켜져" in POWER_LOST_DETAIL and POWER_LOST_DETAIL.startswith("콘센트가")
 
 
 def test_hold_sentences_name_who_moved_and_say_home_position():

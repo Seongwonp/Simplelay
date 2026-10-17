@@ -52,7 +52,8 @@ EMERGENCY_STOP_BROADCAST_SECONDS = 2.5
 
 #: 실행 도중 실행 대상과 연결이 끊겼을 때(응답 없음·링크 오류 — 예외로 끝남)의 결과 문장(2026-10-15 G1·G5).
 #: 저쪽이 이미 다 눌렀을 수도 있다 — '완료하지 못했어요'로 단정하지 않고, 다시 누르지 않는다.
-LINK_UNCONFIRMED_DETAIL = "연결이 끊겨 눌렸는지 확인하지 못했어요 — 가전을 직접 봐 주세요(자동으로 다시 누르지 않아요)"
+# 10/17 쉬운 말: 결과('몰라요') + 할 일. 다시 누르지 않는 동작은 그대로(화면이 따로 말한다).
+LINK_UNCONFIRMED_DETAIL = "연결이 끊겨 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."
 
 #: appliance_id 없는 옛 실행 요청의 대상 — 규칙 해석(즉석밥 등)이 쓰는 내장 갠트리 가전.
 #: RPi4 execute에는 이 값을 **명시해** 싣는다(2026-10-07, 평가 H3). RPi4가 대상을 가정하지 않는다.
@@ -119,11 +120,11 @@ def _run_mode(controller: object | None, result: object | None) -> ExecutionMode
 _BUILTIN_IDS = frozenset(a.appliance_id for a in BUILTIN_APPLIANCES)
 
 #: 콘센트 모듈 비상정지가 걸려 있을 때 화면에 그대로 보이는 사유(2026-10-05).
-ESTOP_LATCHED_REASON = "비상 버튼이 눌려 있어요 — 빨간 비상 버튼을 풀고 해제해 주세요"
+ESTOP_LATCHED_REASON = "비상 버튼이 눌려 있어요. 버튼을 돌려 풀고 해제해 주세요."
 #: RPi5가 다시 켜진 뒤 RPi4의 걸림 상태를 아직 모를 때(2026-10-06 평가 C1). '풀림'으로 보지 않는다.
-ESTOP_UNKNOWN_REASON = "비상 버튼 상태를 확인하는 중이에요 — 작은 팔 장치의 답을 기다려요"
+ESTOP_UNKNOWN_REASON = "비상 버튼 상태를 확인하는 중이에요. 잠시 기다려 주세요."
 #: RPi4(누름 장치) 링크가 끊겼거나 첫 연결 전일 때(2026-10-06 인계 §6). 걸림 상태도 모름이라 실행하지 않는다.
-ACT_LINK_DOWN_REASON = "작은 팔 장치와 연결되지 않았어요 — 다시 연결하는 중이에요"
+ACT_LINK_DOWN_REASON = "작은 팔과 연결되지 않았어요. 다시 연결하는 중이에요."
 
 
 def _check_approved(buttons, approved_buttons) -> None:

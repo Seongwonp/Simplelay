@@ -290,7 +290,7 @@ def test_clean_shutdown_keeps_an_allowed_rule_and_a_stuck_final_write_does_not(m
 
 # ── H-N1: 최종 재판정 반환과 실제 POST 사이의 철회 — 공통 전송권 ─────────────────────────────────────
 
-IN_FLIGHT_WORDS = "취소되지 않아요"
+IN_FLIGHT_WORDS = "되돌리지 않아요"
 
 
 def _revoke(api, rule_id: str, change: str):
@@ -418,7 +418,7 @@ def test_drifting_rpi4_clock_cannot_pull_a_120_second_old_event_inside_the_limit
         hub_clock.now = true_end_hub + 120.05
         _deliver(frame)
         run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-        assert "오래된" in run["reason"]
+        assert "오래돼서" in run["reason"]
         time.sleep(0.3)
         assert len(cloud.controls()) == before
     finally:
@@ -438,7 +438,7 @@ def test_a_long_held_link_without_a_fresh_reference_holds_until_it_reprobes(monk
         hub_clock.now = 10_700 + 5
         _deliver(_rpi4_frame(500 + 700))
         run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-        assert "근거가 없어" in run["reason"]
+        assert "언제 끝났는지 알 수 없어" in run["reason"]
         time.sleep(0.3)
         assert len(cloud.controls()) == before
         events = get_event_clock()
@@ -491,7 +491,7 @@ def test_allowance_boundary_uses_the_monotonic_axis_not_the_wall_clock(monkeypat
             assert len(cloud.controls()) == before + 1
         else:
             run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-            assert "허용하기 전" in run["reason"]
+            assert "허락하기 전" in run["reason"]
             time.sleep(0.3)
             assert len(cloud.controls()) == before
     finally:

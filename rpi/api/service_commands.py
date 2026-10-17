@@ -131,7 +131,7 @@ class _Step:
 
 
 #: 비상정지가 걸려 있을 때 ThinQ 명령을 받지·보내지 않는 사유(2026-10-15 검토 H1).
-THINQ_ESTOP_REASON = "비상 버튼이 눌려 있어 보내지 않았어요 — 빨간 비상 버튼을 풀고 해제한 뒤 다시 해 주세요"
+THINQ_ESTOP_REASON = "비상 버튼이 눌려 있어 보내지 않았어요. 버튼을 풀고 해제한 뒤 다시 해 주세요."
 
 _LEGACY_STATUS = {
     CommandStatus.SUCCEEDED: ExecutionStatus.SUCCEEDED,

@@ -65,7 +65,7 @@ def test_status_and_readiness_show_latch_and_execute_is_refused(sim):
     assert c.get("/status").json()["estop_latched"] in (None, False)
     _trip(controller)
     status = _until(c, lambda s: s["estop_latched"] is True)
-    assert "비상 버튼이 눌려 있어요" in status["estop_detail"]
+    assert "해제하기" in status["estop_detail"]  # 제목은 화면이 따로 — 문장은 할 일만(10/17)
     appliance = _microwave(c)
     assert appliance["can_execute"] is False
     assert any("비상 버튼이 눌려 있어요" in r for r in appliance["readiness_reasons"])

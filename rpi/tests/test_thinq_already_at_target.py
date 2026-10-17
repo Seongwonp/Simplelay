@@ -28,10 +28,10 @@ from rpi.services.thinq.client import ThinqClientError, ThinqCommandRejected, Th
 from rpi.services.thinq.wording import already_sentence, changed_sentence, dispatch_of
 from rpi.tests.test_thinq_u1 import HIGH, _controller
 
-ALREADY = "이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요."
+ALREADY = "이미 강풍으로 설정돼 있어요. 그래서 보내지 않았어요."
 CHANGED = "강풍으로 바꿨어요."
 TARGET_SEEN = "강풍으로 설정된 것을 확인했어요."
-UNCONFIRMED = "설정이 바뀌었는지 확인하지 못했어요."
+UNCONFIRMED = "설정이 바뀌었는지 몰라요."
 
 # ── 값 객체 ─────────────────────────────────────────────────────────────
 
@@ -307,8 +307,8 @@ def test_auto_rule_on_already_high_purifier_sends_no_control(monkeypatch, tmp_pa
         assert (run["status"], run["receipt"], run["confirmation"], run["dispatch"], run["execution_mode"]) == (
             "succeeded", "not_dispatched", "already_at_target", "state_only", "mock")
         notices = " / ".join(run["notices"])
-        assert ("공기청정기(모의 클라우드)는 이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요"
-                " — 모의 실행 · 실제 조작 아님") in notices  # 모의 표시 유지
+        assert ("공기청정기(모의 클라우드)는 이미 강풍으로 설정돼 있어요. 그래서 보내지 않았어요."
+                " 연습이라 실제 가전은 그대로예요.") in notices  # 연습 표시 유지
         assert "바꿨어요" not in notices and "확인하지 못했어요" not in notices
         assert "보내지 못했어요" not in notices
         assert "보냈어요" not in run["reason"]
@@ -332,7 +332,7 @@ def test_auto_rule_on_already_high_purifier_sends_no_control(monkeypatch, tmp_pa
         _set_low(api)
         deps.receive_appliance_done(_frame())
         changed = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("confirmation") == "state_confirmed")
-        assert "공기청정기(모의 클라우드)를 강풍으로 바꿨어요 (상태 재조회로 확인)" in " / ".join(changed["notices"])
+        assert "공기청정기(모의 클라우드)를 강풍으로 바꿨어요." in " / ".join(changed["notices"])
         assert changed["dispatch"] == "sent"
         assert len(cloud.controls()) == before + 2  # 약풍 되돌리기 1 + 자동 실행 1
         assert cloud.state(device)["airFlow"]["windStrength"] == "HIGH"

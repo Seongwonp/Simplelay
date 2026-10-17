@@ -33,6 +33,7 @@
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable
@@ -63,8 +64,10 @@ from .config import ThinqMode
 from .profile import DeviceProfile, read_state
 from .wording import UNCONFIRMED_SENTENCE, already_sentence, changed_sentence, target_seen_sentence
 
-REMOTE_OFF_REASON = "가전의 원격 제어(원격 시작)가 꺼져 있어요 — 가전 본체에서 원격 제어를 켜 주세요"
-REMOTE_UNKNOWN_REASON = "가전의 원격 제어(원격 시작)가 켜져 있는지 확인하지 못했어요"
+log = logging.getLogger(__name__)
+
+REMOTE_OFF_REASON = "가전의 원격 제어가 꺼져 있어요. 가전에서 원격 제어를 켜 주세요."
+REMOTE_UNKNOWN_REASON = "가전의 원격 제어가 켜져 있는지 몰라요. 가전을 봐 주세요."
 
 
 class CommandController(Protocol):
@@ -107,6 +110,18 @@ class ThinqReadiness:
         if not self.client_reachable or not self.device_present or not self.device_online:
             return "disconnected"
         return "operable" if self.can_execute else "needs_setup"
+
+
+def _not_sent(exc: Exception, fallback: str) -> str:
+    """보내지 않은 이유 한 줄 + '그래서 보내지 않았어요'. 예외 클래스 이름은 내지 않는다(10/17 쉬운 말)."""
+    return f"{_reason(exc, fallback).rstrip('.')}. 그래서 보내지 않았어요."
+
+
+def _rejected_sentence(exc: Exception) -> str:
+    """클라우드 거절 — 이유 한 줄 + 실행되지 않았다는 결과. 코드 번호는 기록에만 남긴다."""
+    log.info("thinq command rejected: code=%s", getattr(exc, "code", None))
+    reason = _reason(exc, "")
+    return f"{reason.rstrip('.')}. 그래서 바뀌지 않았어요." if reason else "가전이 명령을 받지 않았어요. 바뀌지 않았어요."
 
 
 def _reason(exc: Exception, fallback: str) -> str:
@@ -175,19 +190,19 @@ class ThinqController:
         binding = self._binding_of(appliance_id)
         if binding is None:
             return ThinqReadiness(appliance_id, self.mode.value, False, False, False,
-                                  ("ThinQ 기기가 등록되지 않았어요",))
+                                  ("LG 가전이 등록되지 않았어요.",))
         try:
             devices = self._client.list_devices()
         except ThinqClientError as exc:
             return ThinqReadiness(appliance_id, self.mode.value, False, False, False,
-                                  (_reason(exc, "ThinQ 클라우드에 연결되지 않았어요"),))
+                                  (_reason(exc, "LG 가전에 연결되지 않았어요."),))
         except Exception:  # noqa: BLE001 -- 모르는 실패도 준비 안 됨이다
             return ThinqReadiness(appliance_id, self.mode.value, False, False, False,
-                                  ("ThinQ 상태를 확인하지 못했어요",))
+                                  ("LG 가전 상태를 알 수 없어요.",))
         device = next((d for d in devices if d.device_id == binding.device_id), None)
         if device is None:
             return ThinqReadiness(appliance_id, self.mode.value, True, False, False,
-                                  ("ThinQ 계정에서 이 기기를 찾지 못했어요",))
+                                  ("LG 계정에서 이 가전을 찾지 못했어요.",))
         online = device.online
         probe = getattr(self._client, "probe_online", None)
         if online and probe is not None:
@@ -196,10 +211,10 @@ class ThinqController:
                 online = probe(binding.device_id)
             except ThinqClientError as exc:
                 return ThinqReadiness(appliance_id, self.mode.value, False, True, False,
-                                      (_reason(exc, "ThinQ 상태를 확인하지 못했어요"),))
+                                      (_reason(exc, "LG 가전 상태를 알 수 없어요."),))
         if not online:
             return ThinqReadiness(appliance_id, self.mode.value, True, True, False,
-                                  ("가전이 오프라인이에요 — 전원·Wi-Fi를 확인해 주세요",))
+                                  ("가전이 연결되지 않았어요. 가전 전원과 와이파이를 봐 주세요.",))
         if binding.read_only:
             return ThinqReadiness(appliance_id, self.mode.value, True, True, True,
                                   ("상태만 읽을 수 있는 가전이에요",), read_only=True)
@@ -323,7 +338,7 @@ class ThinqController:
         binding = self._binding_of(command.target_id)
         if binding is None:
             return self._result(command, failed, not_sent, none,
-                                "ThinQ 기기가 등록되지 않아 보내지 않았어요", requested_at)
+                                "LG 가전이 등록되지 않아 보내지 않았어요.", requested_at)
         try:
             cap = binding.validate_command(command)
         except CapabilityError as exc:
@@ -338,7 +353,7 @@ class ThinqController:
                                 _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
         except ThinqClientError as exc:
             return self._result(command, failed, not_sent, none,
-                                f"기기 프로필을 읽지 못해 보내지 않았어요 — {_reason(exc, type(exc).__name__)}",
+                                _not_sent(exc, "가전 정보를 읽지 못했어요."),
                                 requested_at)
         key, spec, refusal = self._resolve(profile, cap)
         if refusal is not None:
@@ -369,7 +384,7 @@ class ThinqController:
             # 코드로 거절한 조회(인증·권한·약관·국가·호출 한도 등)는 보내도 같은 이유로 막히거나 막혀야 하므로 보내지 않는다.
             if cap.requires_remote is not None or not isinstance(exc, ThinqTransportError):
                 return self._result(command, failed, not_sent, none,
-                                    f"상태를 읽지 못해 보내지 않았어요 — {_reason(exc, type(exc).__name__)}",
+                                    _not_sent(exc, "가전 상태를 읽지 못했어요."),
                                     requested_at)
             state = None
         self._observe(command.target_id, binding, state)
@@ -380,7 +395,7 @@ class ThinqController:
             if remote is not True:
                 reason = REMOTE_OFF_REASON if remote is False else REMOTE_UNKNOWN_REASON
                 return self._result(command, failed, not_sent, none,
-                                    f"{reason} (보내지 않았어요)", requested_at)
+                                    f"{reason} 그래서 보내지 않았어요.", requested_at)
 
         # 3) 전송 직전 재판정(3차 평가 H1) -- 위 조회를 기다리는 동안 자동 실행 규칙이 꺼지거나 바뀌거나 지워졌으면,
         #    또는 대상 바인딩이 판단 때와 다르면 보내지 않는다. 메모리 판정만(입출력 없음), 이 실행기 잠금 밖.
@@ -395,7 +410,7 @@ class ThinqController:
         with self._lock:
             if self._cancel:
                 return self._result(command, CommandStatus.STOPPED, not_sent, none,
-                                    "보내기 전에 정지 요청을 받아 보내지 않았어요", requested_at,
+                                    "정지를 눌러서 보내지 않았어요.", requested_at,
                                     stop_requested=True)
             # 4) 이미 목표값(2026-10-14) -- 확인할 속성을 읽을 수 있고 조회 값이 목표와 같으면 보내지 않는다. 정지·재판정을
             #    지난 뒤에만 이 결과를 낸다. 전송권 확인도 같은 자리에서 거친다(철회·꺼짐·정지 세대가 먼저면 '걸림') — 다만
@@ -421,15 +436,14 @@ class ThinqController:
             response = self._client.post_control(binding.device_id, cap.payload_for(target, key))
         except ThinqCommandRejected as exc:
             return self._result(command, failed, Receipt.ACCEPTED, none,
-                                f"클라우드가 명령을 거절했어요 — {_reason(exc, '거절')} "
-                                f"(코드 {exc.code}) — 실행되지 않았어요", requested_at)
+                                # 거절 코드는 화면에 내지 않는다(10/17 쉬운 말) — 기록에만.
+                                _rejected_sentence(exc), requested_at)
         except ThinqOfflineError as exc:
             return self._result(command, failed, not_sent, none,
                                 _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
         except Exception:  # noqa: BLE001 -- 전송 중 끊김·응답 유실·모르는 오류
             return self._result(command, CommandStatus.UNCONFIRMED, Receipt.UNKNOWN, none,
-                                "보냈는지 확인하지 못했어요 — 자동으로 다시 보내지 않아요. "
-                                "가전을 직접 확인하거나 다시 조회해 주세요", requested_at,
+                                "보냈는지 몰라요. 가전을 봐 주세요.", requested_at,
                                 stop_requested=self._stop_during_confirm)
         accepted_at = self._now()
         ref = response.get("messageId") if isinstance(response, dict) else None
@@ -437,7 +451,7 @@ class ThinqController:
 
         if not confirmable:
             return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                "명령을 보냈어요 — 이 모델 프로필에는 결과를 읽을 상태 칸이 없어 확인할 수 없어요",
+                                "보냈지만 이 가전은 결과를 알려 주지 않아요. 가전을 봐 주세요.",
                                 requested_at, accepted_at=accepted_at, provider_ref=ref,
                                 stop_requested=self._stop_during_confirm)
         deadline = self._monotonic() + self._confirm_seconds
@@ -446,7 +460,7 @@ class ThinqController:
                 stop = self._stop_during_confirm
             if stop:
                 return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                    "명령은 이미 보내 취소할 수 없어요 — 정지 요청으로 확인을 멈췄어요",
+                                    "명령은 이미 보냈어요. 정지를 눌러서 확인은 멈췄어요.",
                                     requested_at, accepted_at=accepted_at, provider_ref=ref,
                                     stop_requested=True)
             try:
@@ -467,6 +481,6 @@ class ThinqController:
                                     confirmed_at=self._now(), provider_ref=ref)
             if self._monotonic() >= deadline:
                 return self._result(command, CommandStatus.UNCONFIRMED, Receipt.ACCEPTED, none,
-                                    f"명령을 보냈어요 — {UNCONFIRMED_SENTENCE} 자동으로 다시 보내지 않아요",
+                                    f"보냈지만 {UNCONFIRMED_SENTENCE} 가전을 봐 주세요.",
                                     requested_at, accepted_at=accepted_at, provider_ref=ref)
             self._sleep(self._poll_interval)

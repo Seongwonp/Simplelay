@@ -145,15 +145,17 @@ SHUTDOWN_STOP_GRACE_SECONDS = 5.0
 
 #: 비상정지 걸림 해제 결과 사유(``estop_state.reason``) → 사람이 읽을 설명.
 ESTOP_REASON_DETAIL = {
-    "estop_button_pressed": "빨간 비상 버튼이 아직 눌려 있어요 — 돌려서 푼 뒤 다시 눌러 주세요",
-    "outlet_unreachable": "가전 콘센트 장치가 답하지 않아 비상 버튼 걸림을 풀지 못했어요",
+    "estop_button_pressed": "빨간 비상 버튼이 아직 눌려 있어요. 돌려서 푼 뒤 다시 눌러 주세요.",
+    "outlet_unreachable": "콘센트가 답하지 않아 비상 버튼을 풀지 못했어요.",
     "estop_retriggered": "해제하는 사이 비상 버튼이 다시 눌렸어요",
 }
-ESTOP_LATCHED_DETAIL = "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요"
+# 10/17 쉬운 말: 폰·키오스크가 제목('비상 버튼이 눌려 있어요')을 따로 보이므로 할 일만 한 줄.
+ESTOP_LATCHED_DETAIL = "빨간 버튼을 돌려서 풀고 '해제하기'를 눌러 주세요."
 #: 콘센트 모듈 재부팅으로 켜 두었던 릴레이가 꺼졌을 때(``source:"outlet_reboot"``). rpi.verifier.outlet과 같은 문장.
-POWER_LOST_LATCH_DETAIL = "가전 콘센트 장치가 다시 켜져 가전 전원이 꺼져 있어요 — 해제하면 전원을 다시 켜요"
+# 키오스크·서버가 '다시 켜져'로 이 걸림을 가른다(estop.dart·service.estop_block_reason) — 그 말은 그대로 둔다.
+POWER_LOST_LATCH_DETAIL = "콘센트가 다시 켜져서 가전 전원이 꺼졌어요. 해제하면 전원을 다시 켜요."
 #: 리허설 주입을 거절하는 이유(실물 모듈·모터에 붙어 있음).
-REHEARSAL_REFUSED_DETAIL = "RPi4가 실물 콘센트 모듈이나 모션 MCU에 붙어 있어 리허설 주입을 받지 않아요"
+REHEARSAL_REFUSED_DETAIL = "실제 콘센트나 작은 팔이 연결돼 있어 연습 신호를 받지 않아요."
 
 
 def result_detail_fields(result: ExecutionResult, controller: object) -> dict:
@@ -191,7 +193,7 @@ def result_detail_fields(result: ExecutionResult, controller: object) -> dict:
     else:
         confirmed, source = None, None
         detail = (
-            "L3 판정 불가 — 전력 센서를 읽지 못했거나 판정 전에 멈춤"
+            "가전이 켜졌는지 몰라요. 콘센트 값을 읽지 못했어요."
             if result.failed_layer is VerificationLayer.OPERATION
             else None
         )
@@ -589,7 +591,7 @@ class ActExecutor:
                 log.exception("execute %r — target bind failed", msg.sequence_id)
                 await self._send({"type": "error", "sequence_id": msg.sequence_id,
                                   "reason": "target_bind_failed",
-                                  "detail": f"실행 대상 결속 실패로 누르지 않았어요: {exc}"})
+                                  "detail": "누를 가전이 맞는지 확인하지 못해 누르지 않았어요."})
                 return
 
         if self.hold_session is not None and self.hold_session.active:
@@ -657,7 +659,7 @@ class ActExecutor:
             return fn()
         except Exception as exc:  # noqa: BLE001 - 확인 고장은 준비 안 됨으로 본다
             log.exception("%s check failed", name)
-            return f"준비 확인 실패: {exc}"
+            return "작은 팔 준비 상태를 확인하지 못했어요."
 
     def _unsafe_reason(self) -> tuple[str, str] | None:
         """움직이면 안 되는 이유 (reason, detail). 비상정지 → 콘센트 무응답 → 모션 준비 순."""
@@ -936,7 +938,7 @@ class ActExecutor:
         elif self.hold_session is not None and self.hold_session.active:
             reason, detail = "hold_active", "가전이 동작 중이라 작은 팔이 정지 버튼 위에서 기다리는 중이에요"
         elif self._hold_hw is None:
-            reason, detail = "verify_unavailable", "이 실행기에는 확인 주행용 모션이 연결되지 않았어요"
+            reason, detail = "verify_unavailable", "이 작은 팔은 시험 이동을 할 수 없어요"
         if reason is not None:
             await self._send({"type": "error", "sequence_id": msg.sequence_id, "reason": reason,
                               "detail": detail})
@@ -1280,7 +1282,7 @@ class ActExecutor:
             report = await asyncio.to_thread(probe)
         except Exception as exc:  # noqa: BLE001 - 확인 실패는 '보냄'까지만으로 낮춘다
             log.exception("stop confirmation failed")
-            return {"stop_level": "sent", "ack_ms": None, "stop_detail": f"정지 확인 중 오류: {exc}"}
+            return {"stop_level": "sent", "ack_ms": None, "stop_detail": "정지를 보냈지만 멈췄는지 확인하지 못했어요."}
         return report.fields()
 
     async def _report_stop(self, stop_id: str, target: str, probe) -> None:
@@ -1328,7 +1330,7 @@ class ActExecutor:
         if self._busy:
             return "execution_busy", "일반 실행이나 확인 주행이 진행 중이에요"
         if self.hold_session is not None and self.hold_session.active:
-            return "execution_busy", "가전 정지 버튼 위에서 기다리는 중이에요 — 정지 뒤에 조작해 주세요"
+            return "execution_busy", "가전 정지 버튼 위에서 기다리는 중이에요. 정지한 뒤에 조작해 주세요."
         if self._dev_running():
             return "dev_busy", "이전 개발자 조작이 아직 끝나지 않았어요"
         return None
@@ -1346,7 +1348,7 @@ class ActExecutor:
             reply = {**base, "ok": bool(sent)}
             if not sent:
                 reply.update(reason="stop_send_failed",
-                             detail="모션 보드에 정지를 보내지 못했어요 — 물리 비상정지를 눌러 주세요",
+                             detail="작은 팔에 정지를 보내지 못했어요. 빨간 비상 버튼을 눌러 주세요.",
                              stop_level=None, ack_ms=None)
                 await self._send(reply)
                 return

@@ -167,7 +167,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
     # 의존성(제안 서비스 등)이 두 번째 UART 컨트롤러를 만들어 같은 가짜 포트를 잡는다.
     monkeypatch.delenv("SIMPLELAY_ACT_MODE", raising=False)
     allow, opened, streams = unreachable_rpi4
-    assert "작은 팔 장치와 연결되지 않았어요" in ACT_LINK_DOWN_REASON
+    assert "작은 팔과 연결되지 않았어요" in ACT_LINK_DOWN_REASON
 
     controller = acc.open_uart_act_controller("socket://rpi4:7000", 115200)
     loop = controller._loop  # noqa: SLF001
@@ -181,7 +181,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
         _wait(lambda: len(opened) >= 2)
         res = c.post("/execute-buttons", json={"buttons": ["즉석밥", "시작"], "appliance_id": "microwave"})
         assert res.status_code == 412, res.text
-        assert "작은 팔 장치와 연결되지 않았어요" in res.text
+        assert "작은 팔과 연결되지 않았어요" in res.text
         assert c.get("/status").json()["actuator_link_up"] is False
         assert c.get("/health/detail").json()["actuator_ready"] is False
         monkeypatch.setattr("rpi.api.router.builtin_appliances_visible", lambda: True)  # 내장 가전을 목록에 보이게
@@ -190,7 +190,7 @@ def test_backend_refuses_with_link_down_reason_until_connected_then_executes(unr
         monkeypatch.setenv("SIMPLELAY_ACT_MODE", "uart")
         press = c.get("/connections").json()["items"][1]
         monkeypatch.delenv("SIMPLELAY_ACT_MODE")
-        assert (press["state"], press["title"]) == ("error", "작은 팔 장치와 연결 안 됨")
+        assert (press["state"], press["title"]) == ("error", "작은 팔과 연결이 끊겼어요")
 
         allow.set()
         _wait(lambda: streams and {"type": "hello"} in streams[0][1].messages())

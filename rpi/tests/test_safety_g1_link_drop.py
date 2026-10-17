@@ -29,7 +29,7 @@ from rpi.services.care_events import CareEventStore
 from rpi.services.history import InMemoryJobHistory, Termination
 
 NOW = datetime(2026, 10, 15, 19, tzinfo=timezone(timedelta(hours=9)))
-DETAIL = "연결이 끊겨 눌렸는지 확인하지 못했어요 — 가전을 직접 봐 주세요(자동으로 다시 누르지 않아요)"
+DETAIL = "연결이 끊겨 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."
 HEAT = {"kind": "press_sequence", "appliance_id": "microwave", "buttons": ["BT-08", "시작"]}
 INDUCTION = {"kind": "press_sequence", "appliance_id": "induction", "buttons": ["전원"]}
 
@@ -137,7 +137,7 @@ def test_routine_link_drop_stops_without_sending_the_rest():
     assert run.steps[1]["status"] == "failed"
     _assert_unconfirmed_status(service.status(), run.job_ids[0])
     assert history.recent()[0].outcome == "unconfirmed"
-    assert any(e.kind == "execution_failed" and "눌렸는지 확인하지 못했어요" in e.message for e in care.recent())
+    assert any(e.kind == "execution_failed" and "눌렸는지" in e.message for e in care.recent())
 
 
 def test_direct_path_link_drop_says_unconfirmed_not_failed():
@@ -168,4 +168,4 @@ def test_ambient_tip_says_press_unknown_for_a_physical_link_drop():
     _wait_done(service, job_id)
 
     items = _attention(service, ApplianceRegistry(), DangerAlertStore(FixedClock(NOW)))
-    assert [i.text for i in items if i.kind == "appliance"] == ["가전 — 눌렸는지 확인하지 못했어요 · 가전을 봐 주세요"]
+    assert [i.text for i in items if i.kind == "appliance"] == ["가전 버튼이 눌렸는지 몰라요. 가전을 봐 주세요."]

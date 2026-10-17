@@ -267,7 +267,7 @@ def test_cook_then_air_real_trigger_only_on_real_confirmed_l3():
     engine.on_job_finished(_finished(confirmed))
     assert len(offered) == 1
     assert offered[0]["scenario_id"] == "cook_then_air" and offered[0]["is_demo"] is False
-    assert "L3" in offered[0]["reason"]
+    assert "돌아가는 것을 확인했어요" in offered[0]["reason"]
 
 
 @pytest.mark.parametrize("case", ["no_l3", "mock_l3", "l3_false"])
@@ -287,7 +287,7 @@ def test_cook_then_air_mock_run_keeps_demo_card():
     assert result.execution_mode is ExecutionMode.MOCK
     engine.on_job_finished(_finished(result))
     assert len(offered) == 1 and offered[0]["is_demo"] is True
-    assert "모의" in offered[0]["reason"]
+    assert "연습" in offered[0]["reason"]
 
 
 # ── G2: SIMPLELAY_L3_MODE ─────────────────────────────────────────────────

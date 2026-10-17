@@ -271,7 +271,7 @@ def test_rpi4_started_late_refuses_and_never_sends_the_refused_request(rig):
     refused = r.post_execute()
     # 막힘: 412 '누름 장치 연결 안 됨', 아무것도 보내지 않는다
     assert refused.status_code == 412, refused.text
-    assert "작은 팔 장치와 연결되지 않았어요" in refused.text
+    assert "작은 팔과 연결되지 않았어요" in refused.text
     assert r.broker.executes() == []
 
     r.start_rpi4()
@@ -311,7 +311,7 @@ def test_link_drop_mid_execution_fails_the_job_stops_rpi4_and_nothing_is_resent(
         assert _presses(r, 0) == ["즉석밥"]
         # 막힘: 끊긴 동안 실행 거절
         refused = r.post_execute()
-        assert refused.status_code == 412 and "작은 팔 장치와 연결되지 않았어요" in refused.text
+        assert refused.status_code == 412 and "작은 팔과 연결되지 않았어요" in refused.text
 
         # RPi4 실행기가 다시 뜬다(컨테이너 재시작) — RPi5가 다시 잇고 걸림 상태를 받는다
         executes_before = len(r.broker.executes())

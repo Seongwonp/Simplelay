@@ -44,6 +44,8 @@ BAD_LEVELS = ("BAD", "VERY_BAD")
 OK_LEVELS = ("GOOD", "NORMAL")
 KNOWN_LEVELS = OK_LEVELS + BAD_LEVELS
 LEVEL_WORDS = {"GOOD": "좋음", "NORMAL": "보통", "BAD": "나쁨", "VERY_BAD": "매우 나쁨"}
+#: 제안 이유 문장의 끝말(나쁜 등급만 쓰인다).
+_LEVEL_SENTENCE = {"BAD": "나빠요.", "VERY_BAD": "매우 나빠요."}
 
 #: (값 칸, 등급 칸, 사람 말 이름) — 앞이 우선(근거 문장에는 나쁜 것 중 맨 앞 하나만 적는다).
 #: ``totalPollution``은 농도가 아니라 지수라 숫자를 적지 않는다.
@@ -102,12 +104,14 @@ class AirReading:
         return not self.power_off and self.wind in STRONG_WIND
 
     def reason(self) -> str:
-        """근거 한 줄 — 나쁜 칸 중 맨 앞 하나. 예: '공기청정기 센서: 초미세먼지 42 · 나쁨'."""
-        name, value, level = self.bad[0]
-        word = LEVEL_WORDS.get(level, level)
-        if value is None:
-            return f"공기청정기 센서: {name} · {word}"
-        return f"공기청정기 센서: {name} {value} · {word}"
+        """이유 한 줄 — 나쁜 칸 중 맨 앞 하나. 예: '공기청정기가 재 보니 초미세먼지가 나빠요.'
+
+        10/17 쉬운 말: 숫자·'센서:'·'·'를 화면에 내지 않는다. 등급은 가전이 매긴 그대로(우리 임계값 아님)."""
+        name, _value, level = self.bad[0]
+        state = _LEVEL_SENTENCE.get(level, LEVEL_WORDS.get(level, level))
+        last = name[-1:]
+        subject = "이" if "가" <= last <= "힣" and (ord(last) - 0xAC00) % 28 else "가"
+        return f"공기청정기가 재 보니 {name}{subject} {state}"
 
 
 def _section(state, key: str) -> dict | None:

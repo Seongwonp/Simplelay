@@ -164,9 +164,9 @@ def test_next_cook_done_runs_without_approval_and_reports_per_device(api):
     assert _controls()[-1][1] == {"airFlow": {"windStrength": "HIGH"}}
     assert run["status"] == "succeeded" and run["confirmation"] == "state_confirmed"
     notices = " / ".join(run["notices"])
-    assert "가열 종료를 감지했어요" in notices and "조리 완료가 아닐 수 있어요" in notices
+    assert "멈춘 것 같아요" in notices and "다 익었는지는 봐 주세요" in notices
     assert "데우기가 끝났" not in notices and "조리 완료를 확인" not in notices
-    assert "강풍으로 바꿨어요 (상태 재조회로 확인)" in notices
+    assert "강풍으로 바꿨어요." in notices
     assert "깨끗" not in notices  # 설정 확인을 공기 상태로 말하지 않는다
     assert _cards(api) == []  # 허용한 조건이면 카드를 다시 띄우지 않는다
     assert api.get("/history").json()[0]["confirmation"] == "state_confirmed"
@@ -190,7 +190,7 @@ def test_old_event_is_excluded(api):
     sent = _after_allow(api)
     deps.receive_appliance_done(_frame(age_s=1000))
     run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-    assert "오래된" in run["reason"]
+    assert "오래돼서" in run["reason"]
     assert len(_controls()) == sent
 
 
@@ -218,7 +218,7 @@ def test_event_from_before_the_allowance_is_excluded(api):
     sent = _after_allow(api)
     deps.receive_appliance_done(_frame(age_s=60))  # 기한 안이지만 허용하기 전에 끝난 조리
     run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-    assert "허용하기 전" in run["reason"]
+    assert "허락하기 전" in run["reason"]
     assert len(_controls()) == sent
 
 
@@ -226,7 +226,7 @@ def test_event_without_rpi4_time_is_not_run(api):
     sent = _after_allow(api)
     deps.receive_appliance_done(_frame(sent=False))
     run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-    assert "시각" in run["reason"]
+    assert "언제 끝났는지 알 수 없어" in run["reason"]
     assert len(_controls()) == sent
 
 
@@ -238,7 +238,7 @@ def test_unconfirmed_result_is_never_resent(api):
     run = _wait_run(api, lambda r: r["outcome"] == "sent" and r.get("status"))
     assert run["status"] == "unconfirmed"
     notices = " / ".join(run["notices"])
-    assert "확인하지 못했어요" in notices and "다시 보내지 않아요" in notices
+    assert "바뀌었는지 몰라요" in notices and "다시 보내지 않으니" in notices
     assert "바꿨어요" not in notices
     deps.receive_appliance_done(dict(frame))
     time.sleep(0.5)
@@ -305,7 +305,7 @@ def test_replaced_target_device_voids_the_allowance(api):
     assert len(_controls()) == sent
     rule = _rules(api)[0]
     assert rule["enabled"] is False and rule["status_label"] == "자동 실행 꺼짐"
-    assert "다시 허용" in rule["disabled_reason"]
+    assert "다시 허락" in rule["disabled_reason"]
 
 
 def test_changed_value_needs_a_new_allowance(api):
@@ -397,7 +397,7 @@ def test_emergency_stop_turns_auto_off_and_never_claims_a_cloud_cancel(api):
     rule = _rules(api)[0]
     assert rule["enabled"] is False and "비상정지" in rule["disabled_reason"]
     stop = next(r for r in _runs(api) if r["outcome"] == "estop")
-    assert "취소되지 않아요" in stop["reason"]
+    assert "되돌리지 않아요" in stop["reason"]
     assert "취소했" not in stop["reason"] and "꺼졌" not in stop["reason"]
     _inject(api, inputs=("power",))
     time.sleep(0.3)
@@ -518,7 +518,7 @@ def test_rule_texts_are_short_and_never_raw():
                     "set_wind_strength", "windStrength", "HIGH")
     assert AutoRuleEngine.condition_text(Fake(), rule) == "전자레인지가 멈추면"
     action = AutoRuleEngine.action_text(Fake(), rule)
-    assert action == "공기청정기 바람 세기 변경(대상 가전을 다시 골라 주세요)"
+    assert action == "공기청정기 바람 세기 바꾸기"
     assert "set_wind_strength" not in action and "HIGH" not in action
 
 

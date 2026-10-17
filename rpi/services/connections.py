@@ -1,7 +1,7 @@
-"""키오스크 오른쪽 위 연결 상태 세 가지(와이파이·작은 팔 장치·가전 콘센트 장치) — 사용자 말로.
+"""키오스크 오른쪽 위 연결 상태 세 가지(와이파이·작은 팔·콘센트) — 사용자 말로.
 
-이름은 키오스크 용어표(docs/키오스크-문구-개선-계획-2026-10-15.md §1)를 따른다: 허브 → SimpleLay 본체,
-누름 장치(RPi4) → 작은 팔 장치, 플러그(콘센트 모듈) → 가전 콘센트 장치.
+이름은 쉬운 말 사전(docs/UI-개편안-2026-10-17.md §3)을 따른다: 허브 → 본체,
+누름 장치(RPi4) → 작은 팔, 플러그(콘센트 모듈) → 콘센트. 문장은 결과 한 줄 + 할 일 한 줄.
 
 UI 확정 §1-5: 부품 이름 대신 사용자가 아는 이름을 쓰고, 무엇을 못 하게
 되는지와 해결 방법을 함께 적는다. 이 모듈의 ``title``·``message``·``fixes``는
@@ -72,12 +72,12 @@ def read_interface_state(root: str | os.PathLike = "/sys/class/net") -> str:
 
 
 _NET_FIXES_DOWN = (
-    "공유기 전원이 켜져 있는지 확인해 주세요.",
-    "SimpleLay 본체에 랜선을 쓰고 있다면 선이 끝까지 꽂혀 있는지 확인해 주세요.",
-    "그래도 안 되면 SimpleLay 본체 전원을 껐다가 다시 켜 주세요.",
+    "공유기 전원이 켜져 있는지 봐 주세요.",
+    "랜선을 쓰면 선이 끝까지 꽂혀 있는지 봐 주세요.",
+    "그래도 안 되면 본체를 껐다가 다시 켜 주세요.",
 )
 _NET_FIXES_INTERNET = (
-    "공유기의 인터넷 표시등이 켜져 있는지 확인해 주세요.",
+    "공유기의 인터넷 표시등이 켜져 있는지 봐 주세요.",
     "잠시 뒤 '다시 확인하기'를 눌러 주세요.",
 )
 
@@ -85,7 +85,7 @@ _NET_FIXES_INTERNET = (
 def network_item(interface: str, internet: str = "unknown") -> ConnectionItem:
     """``interface``: up | down | unknown. ``internet``: ok | failed | unknown(날씨 받기 결과).
 
-    이 응답을 받았다는 것 자체가 화면과 허브가 이어져 있다는 뜻이라, 인터페이스를
+    이 응답을 받았다는 것 자체가 화면과 본체가 이어져 있다는 뜻이라, 인터페이스를
     읽을 수 없으면(윈도우 개발 PC 등) 정상으로 본다.
     """
     source = "sysfs" if interface in ("up", "down") else "server"
@@ -94,8 +94,7 @@ def network_item(interface: str, internet: str = "unknown") -> ConnectionItem:
             "network",
             "error",
             "와이파이 연결이 끊겼어요",
-            "SimpleLay 본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 SimpleLay 본체를 찾지 못하고, "
-            "날씨 안내도 볼 수 없어요.",
+            "본체가 와이파이에 연결되지 않았어요. 폰 앱과 날씨 안내를 쓸 수 없어요.",
             _NET_FIXES_DOWN,
             source,
         )
@@ -104,13 +103,12 @@ def network_item(interface: str, internet: str = "unknown") -> ConnectionItem:
             "network",
             "warn",
             "인터넷 연결이 불안정해요",
-            "SimpleLay 본체가 인터넷에 닿지 못하고 있어요. 날씨 안내가 보이지 않을 수 있어요. "
-            "집 안에서 가전을 누르는 일은 그대로 할 수 있어요.",
+            "날씨 안내가 보이지 않을 수 있어요. 가전 버튼 누르기는 그대로 돼요.",
             _NET_FIXES_INTERNET,
             source,
         )
     return ConnectionItem(
-        "network", "ok", "와이파이에 연결돼 있어요", "SimpleLay 본체가 집 와이파이에 잘 연결돼 있어요.", (),
+        "network", "ok", "와이파이에 연결돼 있어요", "본체가 집 와이파이에 잘 연결돼 있어요.", (),
         source
     )
 
@@ -151,21 +149,21 @@ def press_link_from_frames(
 
 
 _PRESS_FIXES = (
-    "작은 팔 장치의 전원이 켜져 있는지 확인해 주세요.",
-    "작은 팔 장치에 꽂힌 선(전원·연결)이 끝까지 꽂혀 있는지 확인해 주세요.",
-    "그래도 안 되면 작은 팔 장치 전원을 껐다가 다시 켜 주세요.",
+    "작은 팔 전원이 켜져 있는지 봐 주세요.",
+    "작은 팔에 꽂힌 선이 끝까지 꽂혀 있는지 봐 주세요.",
+    "그래도 안 되면 작은 팔 전원을 껐다가 다시 켜 주세요.",
 )
 
 
 def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
-    """``act_mode``: SIMPLELAY_ACT_MODE. uart만 실제 누름 장치이고 나머지는 연습용이다."""
+    """``act_mode``: SIMPLELAY_ACT_MODE. uart만 실제 작은 팔이고 나머지는 연습용이다."""
     mode = (act_mode or "").strip().lower()
     if mode != "uart":
         return ConnectionItem(
             "press",
             "ok",
-            "작은 팔 장치가 준비됐어요",
-            "연습 중이에요 · 실제 가전은 누르지 않아요.",
+            "작은 팔이 준비됐어요",
+            "연습 중이에요. 실제 가전은 누르지 않아요.",
             (),
             "mock",
         )
@@ -173,8 +171,8 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "error",
-            "작은 팔 장치와 연결 안 됨",
-            "SimpleLay 본체가 작은 팔 장치에 다시 연결하는 중이에요. 연결되기 전에는 버튼을 대신 눌러 드릴 수 없어요.",
+            "작은 팔과 연결이 끊겼어요",
+            "본체가 다시 연결하는 중이에요. 그동안은 버튼을 누를 수 없어요.",
             _PRESS_FIXES,
             "real",
         )
@@ -182,8 +180,8 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "error",
-            "작은 팔 장치가 답하지 않아요",
-            "SimpleLay 본체가 보낸 명령에 작은 팔 장치가 답하지 않았어요. 지금은 버튼을 대신 눌러 드릴 수 없어요.",
+            "작은 팔이 답하지 않아요",
+            "보낸 명령에 답이 없었어요. 지금은 버튼을 누를 수 없어요.",
             _PRESS_FIXES,
             "real",
         )
@@ -191,8 +189,8 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "warn",
-            "작은 팔 장치에 문제가 생겼어요",
-            "작은 팔 장치가 마지막 명령을 끝내지 못했어요. 다음에 버튼을 누를 때 실패할 수 있어요.",
+            "작은 팔에 문제가 생겼어요",
+            "마지막 명령을 끝내지 못했어요. 다음 누르기가 실패할 수 있어요.",
             _PRESS_FIXES,
             "real",
         )
@@ -200,22 +198,22 @@ def press_item(act_mode: str, link: str = "ok") -> ConnectionItem:
         return ConnectionItem(
             "press",
             "unknown",
-            "작은 팔 장치를 아직 확인하지 못했어요",
-            "SimpleLay 본체를 켠 뒤 작은 팔 장치와 아직 주고받은 적이 없어요. 한 번 실행해 보면 연결을 확인할 수 있어요.",
+            "작은 팔을 아직 확인하지 못했어요",
+            "본체를 켠 뒤 아직 주고받은 적이 없어요. 한 번 실행하면 확인돼요.",
             _PRESS_FIXES[:2],
             "real",
         )
     return ConnectionItem(
-        "press", "ok", "작은 팔 장치가 연결돼 있어요", "버튼을 대신 눌러 드릴 수 있어요.", (), "real"
+        "press", "ok", "작은 팔이 연결돼 있어요", "버튼을 대신 눌러 드릴 수 있어요.", (), "real"
     )
 
 
 # ── 플러그(콘센트 모듈 · L3 전력) ─────────────────────────────────────────────
 
 _PLUG_FIXES = (
-    "가전 콘센트 장치가 벽 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.",
-    "가전 콘센트 장치와 작은 팔 장치를 잇는 선이 끝까지 꽂혀 있는지 확인해 주세요.",
-    "그래도 안 되면 가전 콘센트 장치를 뽑았다가 10초 뒤 다시 꽂아 주세요.",
+    "콘센트가 벽에 끝까지 꽂혀 있는지 봐 주세요.",
+    "콘센트와 작은 팔을 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.",
+    "그래도 안 되면 콘센트를 뽑았다가 10초 뒤 다시 꽂아 주세요.",
 )
 
 
@@ -228,8 +226,8 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "warn",
-            "가전 콘센트 장치 연결이 약해요",
-            "가전이 끝났는지 알려 주는 가전 콘센트 장치와 연결이 약해요. 끝났다는 알림이 늦거나 오지 않을 수 있어요.",
+            "콘센트 연결이 약해요",
+            "가전이 끝났다는 알림이 늦거나 오지 않을 수 있어요.",
             _PLUG_FIXES,
             "real",
         )
@@ -237,8 +235,8 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "error",
-            "가전 콘센트 장치와 연결이 끊겼어요",
-            "가전이 끝났는지 알려 주는 가전 콘센트 장치와 연결이 끊겼어요. 끝났다는 알림을 드릴 수 없어요.",
+            "콘센트와 연결이 끊겼어요",
+            "가전이 끝났다는 알림을 드릴 수 없어요.",
             _PLUG_FIXES,
             "real",
         )
@@ -246,8 +244,8 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "ok",
-            "가전 콘센트 장치가 연결돼 있어요",
-            "가전이 끝나면 알려 드릴게요. 연습 중이라 실제로 잰 전력 값이 아니에요.",
+            "콘센트가 연결돼 있어요",
+            "가전이 끝나면 알려 드릴게요. 지금은 연습이라 실제로 재지 않아요.",
             (),
             "mock",
         )
@@ -256,17 +254,16 @@ def plug_item(l3_mode: str, link: str | None = None) -> ConnectionItem:
         return ConnectionItem(
             "plug",
             "unknown",
-            "가전 콘센트 장치 상태를 확인할 수 없어요",
-            "가전이 끝났는지 알려 주는 가전 콘센트 장치 상태를 아직 읽지 못했어요. 끝났다는 알림이 오지 않을 수 있어요.",
+            "콘센트 상태를 알 수 없어요",
+            "가전이 끝났다는 알림이 오지 않을 수 있어요.",
             _PLUG_FIXES[:1],
             "real",
         )
     return ConnectionItem(
         "plug",
         "not_installed",
-        "가전 콘센트 장치가 아직 없어요",
-        "가전이 끝났는지 알려 주는 가전 콘센트 장치를 연결하지 않았어요. 버튼은 눌러 드리지만, "
-        "끝났다는 알림은 드릴 수 없어요.",
-        ("가전 콘센트 장치를 쓰려면 가전의 전원선을 이 장치에 꽂고, 이 장치를 벽 콘센트에 꽂아 주세요.",),
+        "콘센트가 아직 없어요",
+        "버튼은 눌러 드리지만, 가전이 끝났다는 알림은 드릴 수 없어요.",
+        ("쓰려면 가전 전원선을 콘센트에 꽂고, 콘센트를 벽에 꽂아 주세요.",),
         "none",
     )

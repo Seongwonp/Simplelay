@@ -361,7 +361,7 @@ def test_frame_delayed_after_sending_is_judged_by_its_age_on_arrival(monkeypatch
         hub_clock.now = 10_020 + 301
         _deliver(frame)
         run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-        assert "오래된" in run["reason"]
+        assert "오래돼서" in run["reason"]
         time.sleep(0.3)
         assert len(cloud.controls()) == before
     finally:
@@ -379,7 +379,7 @@ def test_event_from_before_the_allowance_delivered_late_is_not_run(monkeypatch, 
         hub_clock.now = 10_100 + 60  # 허용과 같은 때 처음 도착 — 허용보다 60초 앞선 가열
         _deliver(frame)
         run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-        assert "허용하기 전" in run["reason"]
+        assert "허락하기 전" in run["reason"]
         time.sleep(0.3)
         assert len(cloud.controls()) == before
     finally:
@@ -401,7 +401,7 @@ def test_120_second_boundary_uses_the_age_on_this_hub(monkeypatch, tmp_path, clo
             assert len(cloud.controls()) == before + 1
         else:
             run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-            assert "오래된" in run["reason"]
+            assert "오래돼서" in run["reason"]
             time.sleep(0.3)
             assert len(cloud.controls()) == before
     finally:
@@ -425,7 +425,7 @@ def test_event_expiring_while_waiting_to_send_is_not_sent(monkeypatch, tmp_path,
         time.sleep(0.3)
         assert len(cloud.controls()) == before
         assert run["outcome"] == "blocked" and run["receipt"] == "not_dispatched"
-        assert "지나" in run["reason"]
+        assert "너무" in run["reason"]
     finally:
         _reset()
 
@@ -447,7 +447,7 @@ def test_without_a_clock_reference_for_the_frame_auto_run_is_held(monkeypatch, t
             get_event_clock().link_down()
         _deliver(frame)
         run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-        assert "근거가 없어" in run["reason"]
+        assert "언제 끝났는지 알 수 없어" in run["reason"]
         time.sleep(0.3)
         assert len(cloud.controls()) == before
     finally:

@@ -221,7 +221,8 @@ class OutletOffline(OutletError):
 
 
 #: 모듈이 다시 켜져(재부팅) 켜 두었던 릴레이가 꺼졌을 때 사람에게 보이는 이유(2026-10-06 평가 A4).
-POWER_LOST_DETAIL = "가전 콘센트 장치가 다시 켜져 가전 전원이 꺼져 있어요 — 해제하면 전원을 다시 켜요"
+# 키오스크·서버가 '다시 켜져'로 이 걸림을 가른다 — 그 말은 그대로 둔다(10/17 쉬운 말).
+POWER_LOST_DETAIL = "콘센트가 다시 켜져서 가전 전원이 꺼졌어요. 해제하면 전원을 다시 켜요."
 
 
 class OutletRefused(OutletError):

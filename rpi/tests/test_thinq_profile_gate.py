@@ -101,7 +101,7 @@ def test_cloud_rejection_detail_is_human_reason():
     client.fail_next_control("reject")
     result = ctrl.execute_command(_job("SLEEP"))
     assert result.status is CommandStatus.FAILED and result.receipt is Receipt.ACCEPTED
-    assert "모드" in result.detail and "2305" in result.detail
+    assert "모드" in result.detail and "2305" not in result.detail  # 코드는 화면에 내지 않는다(10/17)
 
 
 def test_profile_support_lists_what_the_model_allows():
@@ -152,7 +152,7 @@ def test_washer_start_while_already_running_is_not_sent():
     result = ctrl.execute_command(_wash("START"))
     assert result.status is CommandStatus.SUCCEEDED and result.receipt is Receipt.NOT_DISPATCHED
     assert result.confirmation is Confirmation.ALREADY_AT_TARGET
-    assert result.detail == "이미 운전 시작으로 설정돼 있어요. 변경 명령을 보내지 않았어요."
+    assert result.detail == "이미 운전 시작으로 설정돼 있어요. 그래서 보내지 않았어요."
     assert len(client.controls) == sent
 
 

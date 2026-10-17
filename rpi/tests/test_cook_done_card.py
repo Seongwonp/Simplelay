@@ -96,9 +96,9 @@ def test_ct_cook_done_offers_the_air_purifier_card(api):
     assert card["purpose"] == "공기청정기 풍량을 강으로 바꿀까요?"
     assert card["commands"][0]["summary"] == "공기청정기(모의) 풍량 강"
     assert card["is_demo"] is True  # 주입 사건 — 실제 CT 판정이 아니다
-    assert "콘센트 전력" in card["reason"] and "(시연 주입)" in card["reason"]
+    assert "멈춘 것 같아요" in card["reason"] and "연습으로 넣은 신호예요" in card["reason"]
     # A5(10/14): 지금 판정은 취소·문 열림 가열 종료와 구분하지 못한다 — 조리 완료를 보장하지 않는다.
-    assert "가열 종료" in card["reason"] and "조리 완료가 아닐 수 있어요" in card["reason"]
+    assert "멈춘 것 같아요" in card["reason"] and "조리 완료가 아닐 수 있어요" in card["reason"]
     assert "조리 완료를 콘센트 전력" not in card["reason"]
     # 카드는 제안일 뿐 — 아무것도 보내지 않았다.
     from rpi.api.thinq_wiring import get_thinq_client
@@ -114,7 +114,7 @@ def test_first_event_with_no_history_states_no_habit(api):
     assert card["purpose"] == "공기청정기 풍량을 강으로 바꿀까요?"
     for claim in ("식사", "두시곤", "습관", "자주", "승인하셨어요"):
         assert claim not in card["reason"], claim
-    assert "가열 종료" in card["reason"]
+    assert "조리 완료가 아닐 수 있어요" in card["reason"]
 
 
 def test_habit_sentence_only_with_counted_history(api):
@@ -127,7 +127,7 @@ def test_habit_sentence_only_with_counted_history(api):
     _inject(api, inputs=("power",))
     second = _cards(api)[0]
     assert second["id"] != first["id"]
-    assert "최근 기록: 이 제안 승인 1번" in second["reason"]
+    assert "지금까지 1번 허락받은 제안이에요" in second["reason"]
     # 2026-10-16 결함 ④: 누가 눌렀는지 모른다 — '하셨어요'로 사람을 단정하지 않는다.
     assert "하셨어요" not in second["reason"]
     assert "식사" not in second["reason"] and "두시곤" not in second["reason"]

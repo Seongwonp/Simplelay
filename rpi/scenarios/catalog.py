@@ -108,7 +108,9 @@ COOK_DONE_AIR = ScenarioDefinition(
     # 2026-10-14(A5): CT 끝 판정은 취소·문 열림으로 가열이 끝난 것과 구분하지 못한다(실측 기록표 §6) —
     # 구분 근거가 생기기 전까지 '조리 완료'라고 말하지 않는다. 3차 평가 M4: 이력을 보지 않은 습관 단정
     # ('식사 뒤 공기청정기를 켜 두시곤 해요')은 뺐다 — 집계 근거는 엔진이 있을 때만 붙인다.
-    event_reason="전자레인지 가열 종료를 콘센트 전력(CT)으로 감지했어요(조리 완료가 아닐 수 있어요)",
+    # 10/17 쉬운 말: 근거(콘센트 전력) 대신 결과만. 키오스크가 '조리 완료가 아닐 수 있어요'를 늘 보이는 줄로 빼므로
+    # (kAlwaysShownCaveats) 그 말은 글자 그대로 둔다.
+    event_reason="전자레인지가 멈춘 것 같아요. 조리 완료가 아닐 수 있어요.",
     auto_allowed=True,
 )
 
@@ -153,7 +155,7 @@ EVENING_REST = ScenarioDefinition(
         ScenarioStep("air_purifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
         ScenarioStep("fan", ControlRoute.PHYSICAL, buttons=("전원", "약풍")),
     ),
-    manual_reason="시연: 합성 이력(저녁에 공기청정기와 선풍기를 함께 사용한 예시) — 실제 사용 기록이 아니에요",
+    manual_reason="연습용 예시예요. 실제 사용 기록이 아니에요.",
 )
 
 WASH_THEN_DRY = ScenarioDefinition(
@@ -164,7 +166,7 @@ WASH_THEN_DRY = ScenarioDefinition(
     steps=(
         ScenarioStep("dehumidifier", ControlRoute.THINQ, "set_power", (("power", "POWER_ON"),)),
     ),
-    event_reason="세탁기가 세탁 완료를 알렸어요 — 빨래를 실내에 널면 습도가 올라가요",
+    event_reason="세탁기가 끝났다고 알려 왔어요. 빨래를 안에 널면 습해져요.",
 )
 
 #: v2 시연의 시나리오 — v3에서 뺐다. ``SIMPLELAY_V2_SCENARIOS``로만 싣는다.

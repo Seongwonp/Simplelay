@@ -311,7 +311,7 @@ def test_time_routine_card_offers_auto_for_a_single_low_risk_thinq_step(api):
     assert offer["condition_text"] == "매일 23:00이 되면"
     assert offer["action_text"] == "공기청정기(모의) 전원 켜기"
     assert offer["caveat"] and offer["caveat"] != COOK_CAVEAT
-    assert "허브가 꺼져 있었거나 조용한 시간이면 하지 않고" in offer["caveat"] and "허브 시계" not in offer["caveat"]
+    assert "본체가 꺼져 있었거나 조용한 시간이면 하지 않아요" in offer["caveat"] and "허브" not in offer["caveat"]
     assert len(offer["fingerprint"]) == 64
 
 
@@ -342,7 +342,7 @@ def test_approve_and_allow_saves_a_time_rule_and_this_run_goes_through_the_routi
     assert rule["condition_text"] == "매일 23:00이 되면"
     # 폰이 조용한 시간과 겹치는 자동 실행을 미리 말할 수 있게 시각을 따로 준다(UI 평가 6차 10/17).
     assert rule["condition_time"] == "23:00"
-    assert rule["caveat"] and "늦게 알아차리면 카드로 물어봐요" in rule["caveat"]
+    assert rule["caveat"] and "늦게 알면 먼저 물어봐요" in rule["caveat"]
 
 
 # ── 8~13. 다음 시각: 카드 없이 같은 자동 실행 경로 ────────────────────────────────
@@ -394,7 +394,7 @@ def test_occurrence_before_allowance_is_held_and_shown_as_a_card(api, clock, hub
     _move(clock, hub, AT_2300 + timedelta(seconds=40))
     _tick(clock.value)
     run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-    assert "허용하기 전" in run["reason"]
+    assert "허락하기 전" in run["reason"]
     assert len(_routine_cards(api)) == 1  # 그 대신 카드(승인 필요)
     assert len(_controls()) == sent
 
@@ -418,7 +418,7 @@ def test_late_tick_beyond_the_age_limit_shows_a_card_instead(api, clock, hub):
     _move(clock, hub, AT_2300 + timedelta(seconds=150))
     _tick(clock.value)
     run = _wait_run(api, lambda r: r["outcome"] == "blocked")
-    assert "150초" in run["reason"]
+    assert "늦게 알아서" in run["reason"] and "150초" not in run["reason"]  # 숫자는 화면에 내지 않는다(10/17)
     assert len(_routine_cards(api)) == 1
     assert len(_controls()) == sent
 

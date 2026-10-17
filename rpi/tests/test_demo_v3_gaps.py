@@ -90,7 +90,7 @@ def test_wash_complete_makes_the_routine_notice_and_no_dehumidifier_card(thinq_m
         assert time.monotonic() < deadline, events
         time.sleep(0.02)
     assert "빨래를 꺼내" in events[0]["message"]
-    assert "(시연: 모의 이벤트예요)" in events[0]["message"]
+    assert "연습 알림이에요" in events[0]["message"]
     # 옛 v2 시나리오(wash_then_dry)의 제습기 카드가 끼어들지 않는다.
     assert c.get("/suggestions").json() == []
 
@@ -287,7 +287,7 @@ def test_kiosk_tip_without_announcement_keeps_the_reason_without_the_log_prefix(
                                   purpose="세탁 끝 알림")
     assert plain.get("/ambient").json()["tip"]["text"] == "확인해 주세요"
     deps.get_care_events().append("routine_notice", "루틴 '세탁 끝 알림' · 세탁기가 끝난 것 같아요", purpose="세탁 끝 알림")
-    assert plain.get("/ambient").json()["tip"]["text"] == "세탁 끝 알림 · 세탁기가 끝난 것 같아요"
+    assert plain.get("/ambient").json()["tip"]["text"] == "세탁 끝 알림: 세탁기가 끝난 것 같아요"
 
 
 def test_routine_announce_is_also_a_tip(plain):

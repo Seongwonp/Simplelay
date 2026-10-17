@@ -49,7 +49,7 @@ def test_wash_complete_offers_dehumidifier_card_and_approval_sends_thinq(client)
     card = cards[0]
     assert card["purpose"] == "세탁이 끝났어요. 실내 건조를 위해 제습기를 켤까요?"
     assert card["is_demo"] is True
-    assert "세탁 완료" in card["reason"] and "모의" in card["reason"]
+    assert "세탁기가 끝났다고" in card["reason"] and "연습" in card["reason"]
     assert card["commands"] == [{
         "target_id": "dehumidifier", "route": "thinq", "action": "set_power",
         "args": {"power": "POWER_ON"}, "buttons": [], "summary": "제습기(모의) 전원 켜기"}]

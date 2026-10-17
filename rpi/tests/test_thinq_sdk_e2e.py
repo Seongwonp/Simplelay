@@ -215,7 +215,7 @@ def test_cloud_rejecting_the_control_is_failed_not_success(api, cloud):
     status = _command(api, "air_purifier", "set_wind_strength", {"wind_strength": "HIGH"})
     assert (status["last_status"], status["last_receipt"], status["last_confirmation"]) == (
         "failed", "accepted", "none")
-    assert "모드" in status["last_detail"] and "실행되지 않았어요" in status["last_detail"]
+    assert "모드" in status["last_detail"] and "바뀌지 않았어요" in status["last_detail"]
     assert cloud.state(device)["airFlow"]["windStrength"] == "LOW"
     assert len(cloud.controls()) == 1
 

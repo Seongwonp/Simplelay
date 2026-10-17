@@ -160,7 +160,7 @@ def test_without_hold_hardware_hold_is_ignored_and_verify_unavailable():
         assert result.success
         await asyncio.sleep(0.05)
         assert client.last_hold is None
-        with pytest.raises(ActLinkError, match="확인 주행용 모션"):
+        with pytest.raises(ActLinkError, match="시험 이동"):
             await client.verify_pass([{"button": "시작", "x_mm": 90.0, "y_mm": 60.0}])
         await _close(executor, client, task)
 

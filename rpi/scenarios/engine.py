@@ -54,11 +54,10 @@ class ScenarioEngine:
                 continue
             if (event.execution_mode is ExecutionMode.REAL
                     and event.confirmation is Confirmation.OPERATION_CONFIRMED):
-                reason = "전자레인지 가열을 전류로 확인했어요(L3). 조리 냄새를 빨리 빼 볼까요?"
+                reason = "전자레인지가 돌아가는 것을 확인했어요. 냄새를 빨리 빼 볼까요?"
                 is_demo = False
             elif event.execution_mode is ExecutionMode.MOCK and trigger.allow_mock_success:
-                reason = ("시연: 모의 실행이 성공으로 끝났어요 — 실제 가열을 확인한 것은 "
-                          "아니에요")
+                reason = "연습 실행이 끝났어요. 실제로 데운 것은 아니에요."
                 is_demo = True
             else:
                 continue
@@ -69,8 +68,9 @@ class ScenarioEngine:
             trigger = definition.trigger
             if trigger.kind == "thinq_event" and trigger.event == record.get("event"):
                 is_demo = record.get("execution_mode") != "real"
-                base = definition.event_reason or f"ThinQ 이벤트 '{record.get('event')}'"
-                reason = base + (" (시연: 모의 이벤트예요)" if is_demo else "")
+                # 이벤트 ID는 화면에 내지 않는다(10/17 쉬운 말).
+                base = definition.event_reason or "LG 가전이 알림을 보냈어요."
+                reason = base + (" 연습 알림이에요." if is_demo else "")
                 self._offer(definition, reason, is_demo)
 
     def on_appliance_done(self, record: dict, *, skip: frozenset = frozenset()) -> list:
@@ -89,16 +89,17 @@ class ScenarioEngine:
                     or trigger.appliance_id != record.get("appliance_id")
                     or trigger.event != record.get("event")):
                 continue
-            reason = definition.event_reason or f"'{trigger.appliance_id}' 끝을 확인했어요"
+            # 가전 ID는 화면에 내지 않는다. 출처 표시는 괄호 대신 짧은 한 문장(10/17 쉬운 말).
+            reason = definition.event_reason or "가전이 멈춘 것 같아요."
             if source == "injected":
-                reason += " (시연 주입)"
+                reason += " 연습으로 넣은 신호예요."
             elif source != "real":
-                reason += " (모의 입력)"
+                reason += " 연습 신호예요."
             # 3차 평가 M4: 사용자의 습관은 실제 기록을 센 근거가 있을 때만 말한다. 없으면 제안·감지 근거만.
             approvals = self._approval_count(definition)
             if approvals:
                 # 누가 눌렀는지는 모른다(가족·시연자) — 사람을 단정하지 않고 기록 숫자만 말한다(2026-10-16 결함 ④).
-                reason += f" · 최근 기록: 이 제안 승인 {approvals}번"
+                reason += f" 지금까지 {approvals}번 허락받은 제안이에요."
             card = self._offer(definition, reason, source != "real")
             if card is not None:
                 offered.append(card)
@@ -143,7 +144,7 @@ class ScenarioEngine:
             # 공기질 카드는 센서 판독으로만 만든다 — 값 없이 '공기가 나빠요'라고 하지 않는다(2026-10-15).
             # 리허설은 모의 센서 값 주입(POST /demo/thinq/air-quality)으로 한다.
             raise ScenarioUnavailableError(
-                "공기질 제안은 공기청정기 센서 값으로만 만들어요 — 리허설은 모의 센서 값 주입을 써 주세요")
+                "공기질 제안은 공기청정기 센서 값으로만 만들어요. 연습은 센서 값 넣기로 해 주세요.")
         # 부재 중이면 만들지 않는다(G10). 만들어 두면 다음 조회에서 곧바로
         # 철회돼 이벤트에 created → withdrawn 두 줄이 남고, 그 사이 화면에
         # 잠깐 뜬다. 판정은 제안 서비스의 것을 그대로 쓴다 -- 게이트를 켜고
@@ -153,7 +154,7 @@ class ScenarioEngine:
             raise ScenarioUnavailableError(
                 "지금은 자리에 안 계셔서 제안을 만들지 않았어요"
             )
-        return self._offer(definition, definition.manual_reason or "시연 트리거", True,
+        return self._offer(definition, definition.manual_reason or "연습으로 띄운 제안이에요.", True,
                            raise_unavailable=True)
 
     # ── 제안 만들기 ───────────────────────────────────────────────────────
@@ -164,7 +165,7 @@ class ScenarioEngine:
             problems = self._unavailable(commands)
             if problems:
                 if raise_unavailable:
-                    raise ScenarioUnavailableError(" · ".join(problems))
+                    raise ScenarioUnavailableError(" ".join(problems))
                 log.info("scenario %s not offered: %s", definition.scenario_id, problems)
                 return None
             summaries = tuple(self._service.summary_of(c) for c in commands)
@@ -187,13 +188,14 @@ class ScenarioEngine:
         for command in commands:
             appliance = registry.get(command.target_id) if registry is not None else None
             if appliance is None:
-                problems.append(f"'{command.target_id}' 가전이 등록되지 않았어요")
+                # 가전 ID는 화면에 내지 않는다(10/17 쉬운 말).
+                problems.append("필요한 가전이 아직 등록되지 않았어요.")
                 continue
             if appliance.control_path is not command.route:
-                problems.append(f"'{appliance.name}'의 제어 경로가 달라요")
+                problems.append(f"'{appliance.name}'은 이 방법으로 움직일 수 없어요.")
                 continue
             if command.route is ControlRoute.THINQ:
                 readiness = self._service.thinq_readiness(command.target_id)
                 if not readiness.can_execute:
-                    problems.extend(readiness.reasons or ("ThinQ 가전이 준비되지 않았어요",))
+                    problems.extend(readiness.reasons or ("LG 가전이 준비되지 않았어요.",))
         return problems

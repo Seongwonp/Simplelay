@@ -372,7 +372,7 @@ def test_after_done_appliance_needs_confirmed_evidence():
     engine.on_job_finished(_event(ExecutionMode.REAL, Confirmation.OPERATION_CONFIRMED))
     assert suggestions.cards[-1]["is_demo"] is False
     engine.on_job_finished(_event(ExecutionMode.MOCK, Confirmation.PRESS_CONFIRMED))
-    assert suggestions.cards[-1]["is_demo"] is True and "모의" in suggestions.cards[-1]["reason"]
+    assert suggestions.cards[-1]["is_demo"] is True and "연습" in suggestions.cards[-1]["reason"]
     # 자기 루틴의 단계가 끝난 이벤트로는 다시 만들지 않는다.
     engine.on_job_finished(_event(ExecutionMode.REAL, Confirmation.OPERATION_CONFIRMED,
                                   scenario_id=routine.scenario_key()))

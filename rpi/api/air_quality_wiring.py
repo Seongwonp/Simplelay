@@ -30,7 +30,7 @@ log = logging.getLogger(__name__)
 #: 카드 정의(``rpi.scenarios.AIR_QUALITY_HIGH``·``AIR_QUALITY_POWER_ON``)의 시나리오 ID.
 AIR_SCENARIO_IDS = ("air_quality_high", "air_quality_power_on")
 #: 모의 카드 근거 끝말 — 다른 모의 경로('(시연: 모의 이벤트예요)')와 같은 모양.
-MOCK_SUFFIX = " (시연: 모의 센서 값이에요)"
+MOCK_SUFFIX = " 연습용 센서 값이에요."
 #: 기동 직후 첫 판독까지(초). 시험이 바꾼다.
 FIRST_DELAY_SECONDS = 30.0
 

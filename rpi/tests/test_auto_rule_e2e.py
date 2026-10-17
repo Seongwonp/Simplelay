@@ -91,8 +91,8 @@ def test_mock_cook_done_drives_the_mock_cloud_purifier_end_to_end(monkeypatch, t
             "succeeded", "accepted", "state_confirmed", "mock")
         assert run["event_source"] == "injected"
         notices = " / ".join(run["notices"])
-        assert "가열 종료를 감지했어요" in notices and "(시연 주입)" in notices
-        assert "강풍으로 바꿨어요 (상태 재조회로 확인)" in notices and "모의 실행" in notices
+        assert "멈춘 것 같아요" in notices and "연습으로 넣은 신호예요" in notices
+        assert "강풍으로 바꿨어요." in notices and "연습이라 실제 가전은 그대로예요" in notices
 
         controls = cloud.controls()
         assert [c["body"] for c in controls] == [{"airFlow": {"windStrength": "HIGH"}},

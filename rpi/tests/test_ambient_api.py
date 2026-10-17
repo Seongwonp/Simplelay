@@ -107,7 +107,7 @@ def test_ambient_failed_appliance_takes_priority(client, monkeypatch):
     app.dependency_overrides[deps.get_service] = lambda: FakeService()
     body = client.get("/ambient").json()
     assert body["tip"]["kind"] == "appliance"
-    assert body["tip"]["text"] == "전자레인지 작업이 멈췄어요 · 기계를 봐 주세요"
+    assert body["tip"]["text"] == "전자레인지 작업이 멈췄어요. 가전을 봐 주세요."
 
 
 @pytest.mark.parametrize("outcome_name", ["FAILED", "SAFETY_STOP"])
@@ -137,7 +137,7 @@ def test_ambient_unconfirmed_command_is_not_failure(client, monkeypatch, outcome
     app.dependency_overrides[deps.get_appliance_registry] = lambda: Registry()
     tip = client.get("/ambient").json()["tip"]
     assert tip["kind"] == "appliance"
-    assert tip["text"] == "공기청정기(모의)가 바뀌었는지 확인하지 못했어요"
+    assert tip["text"] == "공기청정기(모의)가 바뀌었는지 몰라요. 가전을 봐 주세요."
 
 
 def test_ambient_success_is_not_attention(client, monkeypatch):
@@ -202,7 +202,7 @@ def test_connections_press_uart_reads_frame_tap(client, monkeypatch):
     monkeypatch.setenv("SIMPLELAY_ACT_MODE", "uart")
     app.dependency_overrides[deps.get_service] = lambda: FakeService()
     press = client.get("/connections").json()["items"][1]
-    assert (press["state"], press["title"]) == ("error", "작은 팔 장치가 답하지 않아요")
+    assert (press["state"], press["title"]) == ("error", "작은 팔이 답하지 않아요")
 
 
 def test_routes_require_key_on_lan(client, monkeypatch):
