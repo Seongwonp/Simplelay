@@ -565,6 +565,18 @@ class RpiHistoryButton {
       );
 }
 
+/// 서버 시각 문자열 → **본체 벽시계**(오프셋을 뗀 그 시각, 이 기기 현지 DateTime으로 담는다).
+///
+/// 기록·보호자 알림은 '본체에서 몇 시에 있었던 일'이다. `toLocal()`로 폰 시간대로 바꾸면 UTC 에뮬레이터에서 07:00 끄기가
+/// 전날 22:00으로 보여 '22:00 켜기' 규칙과 반대로 읽혔다(10/18). 다음 실행 카드의 `RoutineNextRun.clock`과 같은 규칙이다.
+/// 오프셋이 없으면 그대로(벽시계), 'Z'(UTC)는 본체 벽시계를 모르니 이 기기 현지 시각으로 바꾼다.
+DateTime hubWallClock(String iso) {
+  final m = RegExp(r'^(.+T[0-9:.]+)([+-]\d{2}:?\d{2})$').firstMatch(iso.trim());
+  if (m != null) return DateTime.parse(m.group(1)!);
+  final t = DateTime.parse(iso);
+  return t.isUtc ? t.toLocal() : t;
+}
+
 // 실행 이력 1건 — retryCount > 0이면 폐루프가 실제로 재시도로 회복했다는
 // 기록(타임라인에서 배지로 강조하는 핵심 데이터).
 /// 보호자 알림 한 건 — 실패·위험소리·긴급정지·안부 신호.
@@ -588,7 +600,7 @@ class RpiCareEvent {
         kind: json['kind'] as String,
         message: json['message'] as String,
         purpose: json['purpose'] as String?,
-        occurredAt: DateTime.parse(json['occurred_at'] as String).toLocal(),
+        occurredAt: hubWallClock(json['occurred_at'] as String),
       );
 }
 
@@ -648,7 +660,7 @@ class RpiHistoryEntry {
   factory RpiHistoryEntry.fromJson(Map<String, dynamic> json) =>
       RpiHistoryEntry(
         executionMode: json['execution_mode'] as String? ?? 'unknown',        jobId: json['job_id'] as String,
-        finishedAt: DateTime.parse(json['finished_at'] as String).toLocal(),
+        finishedAt: hubWallClock(json['finished_at'] as String),
         purpose: json['purpose'] as String?,
         status: json['status'] as String,
         retryCount: (json['retry_count'] as num).toInt(),

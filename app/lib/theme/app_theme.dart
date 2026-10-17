@@ -71,7 +71,7 @@ class AppTheme {
       // 그림자에 강조색 기를 섞으면 회색 그림자보다 부드럽게 앉는다.
       cardTheme: CardThemeData(
         color: surfaceLow,
-        elevation: isDark ? 0 : 3,
+        elevation: isDark ? 0 : AppElevation.card,
         shadowColor:
             isDark ? null : primary.withValues(alpha: 0.10),
         margin: EdgeInsets.zero,

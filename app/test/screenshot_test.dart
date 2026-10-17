@@ -931,7 +931,7 @@ final _homeInstalled = <ApplianceMap>[
 ];
 
 /// 골든용 가짜 본체 — 실행 경로는 없다(찍기만 한다).
-RpiApiService _demoHub({List<Map<String, dynamic>>? history}) {
+RpiApiService _demoHub() {
   http.Response json(Object body, [int status = 200]) => http.Response.bytes(
       utf8.encode(jsonEncode(body)), status,
       headers: {'content-type': 'application/json'});

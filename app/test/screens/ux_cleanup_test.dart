@@ -178,8 +178,8 @@ void main() {
         steps: [RoutineStep.press('mw', ['즉석밥', '시작'])],
         when: '직접 실행할 때',
       );
-      expect(routineSubtitle(r, const {'mw': '전자레인지'}),
-          '전자레인지 할 일 1⁠개');
+      expect(routineSubtitle(r, const {'mw': '전자레인지'}).replaceAll(kWordJoiner, ''),
+          '전자레인지 · 버튼 2번');
     });
 
     testWidgets('허브가 닿으면 예비 연결이 꺼져도 연결 줄을 두지 않는다', (tester) async {
@@ -191,7 +191,7 @@ void main() {
       expect(find.text('확인하기'), findsNothing);
     });
 
-    testWidgets('설정이 남은 가전 여럿은 한 줄 "설정할 가전 N개"', (tester) async {
+    testWidgets('설정이 남은 가전 여럿은 한 줄 — 이름과 "설정이 남았어요"', (tester) async {
       _tall(tester);
       final a = ApplianceMap(
         id: 'w1', name: '세탁기', category: kTestAppliance.category,
@@ -201,7 +201,7 @@ void main() {
         rows: 1, cols: 1, buttons: const [], isCustom: true);
       await tester.pumpWidget(_home(installed: [a, b]));
       await tester.pump();
-      expect(find.text('설정할 가전 2개'), findsOneWidget);
+      expect(find.text('세탁기, 건조기 설정이 남았어요'), findsOneWidget);
       expect(find.text('설정 이어하기'), findsNothing);
       expect(find.textContaining('설정이 남은 가전'), findsNothing);
     });

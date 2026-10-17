@@ -52,10 +52,11 @@ void _expectNeverSplit(String text, String unit) {
 }
 
 void main() {
-  test('루틴 부제의 "N단계"는 루틴 단계 수이고 숫자와 단위가 붙어 다닌다', () {
+  // 평가 3차 10/18: 단위는 키오스크와 같은 '버튼 N번'(누를 버튼 합).
+  test('루틴 부제의 "버튼 N번"은 누를 버튼 수이고 숫자와 단위가 붙어 다닌다', () {
     final s = routineSubtitle(_routine, const {'microwave': '전자레인지'});
-    expect(s, '평일 07:30 · 전자레인지 할 일 3⁠개');
-    _expectNeverSplit(s, '개');
+    expect(s, '평일 07:30 · 전자레인지 · 버튼 2⁠번');
+    _expectNeverSplit(s, '번');
   });
 
   testWidgets('실행 상태 화면의 진행은 "조작 N개 중 K개" — 루틴의 "단계"와 다른 말', (tester) async {

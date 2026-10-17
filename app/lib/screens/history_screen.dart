@@ -340,11 +340,14 @@ class _HistoryRowState extends State<_HistoryRow> {
         ? withoutMockMark(rawName)
         : rawName;
     final source = historySource(entry);
-    // 제목이 이미 가전 이름을 말하면 시각 줄에서 되풀이하지 않는다.
+    // 루틴·자동 규칙 이름은 부제로(평가 3차 10/18) — 제목은 한 일(행동 이름) 하나의 규칙.
+    final origin = historyOrigin(entry, applianceName: applianceName);
+    // 제목·루틴 이름이 이미 가전 이름을 말하면 시각 줄에서 되풀이하지 않는다.
     final timeLine = [
       _hm(entry.finishedAt),
       source,
-      if (name != null && !title.contains(name)) name,
+      if (origin != null) origin,
+      if (name != null && !title.contains(name) && !(origin ?? '').contains(name)) name,
     ].join(' · ');
     final receipt = _thinqReceiptLine(entry, kind);
     final muted = context.appCaption;

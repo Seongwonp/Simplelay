@@ -203,7 +203,7 @@ void main() {
       await tester.pump();
       expect(find.widgetWithText(ListTile, '공기청정기'), findsOneWidget);
       expect(findPlainText('LG 가전이에요. 빼기는 LG 가전 연결에서 해요'), findsOneWidget);
-      expect(findPlainText('기본 가전'), findsOneWidget);
+      expect(findPlainText('처음부터 들어 있는 가전이에요'), findsOneWidget);
       expect(find.descendant(of: find.widgetWithText(ListTile, '공기청정기'), matching: find.byIcon(Icons.chevron_right)),
           findsOneWidget);
     });
@@ -305,21 +305,22 @@ void main() {
     });
   });
 
-  group('안부 확인 쉬기 (F5)', () {
+  // 평가 3차 10/18: 이름을 하는 일 그대로 '집 비우는 날'로(예전 '안부 확인 쉬기').
+  group('집 비우는 날 (F5)', () {
     testWidgets('평소에는 쉬고 있지 않다고 말한다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
       await openSettingRow(tester, 'wellness');
 
-      expect(findPlainText('안부 확인 쉬기'), findsWidgets);
-      expect(findPlainText('쉬기'), findsOneWidget);
+      expect(findPlainText('집 비우는 날'), findsWidgets);
+      expect(findPlainText('날짜 정하기'), findsOneWidget);
       expect(findPlainText('여행처럼 집을 비우는 날', contains: true), findsOneWidget);
       // 부제는 어절 단위로만 줄바꿈('정상 / 인' 방지)·14pt 이상, 화면 읽기는 원문(UI 평가 3차 10/17).
       final sub = tester.widget<Text>(findPlainText('여행처럼 집을 비우는 날', contains: true));
       expect(sub.data, contains(kWordJoiner));
       expect(sub.style?.fontSize, greaterThanOrEqualTo(14));
-      expect(sub.semanticsLabel, '여행처럼 집을 비우는 날 켜세요. 조용한 게 정상인 날 알림이 오지 않아요.');
+      expect(sub.semanticsLabel, '여행처럼 집을 비우는 날 켜세요. 집이 조용해도 안부 알림이 오지 않아요.');
     });
 
     testWidgets('쉬는 동안에도 실패·위험 알림은 간다고 말한다', (tester) async {
@@ -341,9 +342,9 @@ void main() {
           findsOneWidget);
       await openSettingRow(tester, 'wellness');
 
-      expect(findPlainText('7월 30일까지 쉬어요', contains: true), findsOneWidget);
+      expect(findPlainText('7월 30일까지 집을 비워요', contains: true), findsOneWidget);
       expect(findPlainText('실패나 위험 신호음은 그대로', contains: true), findsOneWidget);
-      expect(findPlainText('지금 켜기'), findsOneWidget);
+      expect(findPlainText('지금 끝내기'), findsOneWidget);
     });
 
     testWidgets('버튼이 48px 이상이다', (tester) async {
@@ -352,7 +353,7 @@ void main() {
       await tester.pump();
       await openSettingRow(tester, 'wellness');
 
-      final size = tester.getSize(find.widgetWithText(OutlinedButton, '쉬기'));
+      final size = tester.getSize(find.widgetWithText(OutlinedButton, '날짜 정하기'));
       expect(size.height, greaterThanOrEqualTo(48));
     });
   });

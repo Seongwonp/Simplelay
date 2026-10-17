@@ -61,7 +61,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('우리 집'), findsOneWidget);
-      expect(find.text('본체 연결됨'), findsOneWidget);
+      expect(find.text('본체와 연결됐어요'), findsOneWidget);
       // 연결됨 점은 초록 — 주행동 갈색과 섞이면 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
       final dot = tester.widget<Container>(find.byKey(const Key('hub-status-dot')));
       expect((dot.decoration as BoxDecoration).color, anyOf(AppColors.success, AppColors.successLight));
@@ -150,7 +150,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('블루투스로만 연결돼요'), findsOneWidget);
-      expect(find.text('본체 연결됨'), findsNothing);
+      expect(find.text('본체와 연결됐어요'), findsNothing);
       expect(findPlainText('알림과 기록이 멈췄어요'), findsOneWidget);
       expect(findPlainText('연결 설정이 필요해요'), findsNothing);
     });
@@ -171,7 +171,7 @@ void main() {
       await tester.pumpWidget(_buildHome(server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(find.text('본체 연결됨'), findsOneWidget);
+      expect(find.text('본체와 연결됐어요'), findsOneWidget);
       expect(findPlainText('연결 설정이 필요해요'), findsNothing);
       expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
       // 조작은 되고 사용자가 할 판단이 없다 — 허브 문제일 때만 연결 줄을 둔다.
@@ -185,7 +185,7 @@ void main() {
           _buildHome(connected: true, server: RpiConnectionState.connected));
       await tester.pump();
 
-      expect(find.text('본체 연결됨'), findsOneWidget);
+      expect(find.text('본체와 연결됐어요'), findsOneWidget);
       expect(find.text('확인하기'), findsNothing);
     });
   });
@@ -204,7 +204,7 @@ void main() {
 
         expect(findPlainText('연결 설정이 필요해요'), findsNothing);
         expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
-        expect(find.text('본체 찾는 중'), findsOneWidget);
+        expect(find.text('본체를 찾고 있어요'), findsOneWidget);
         expect(find.text('본체와 연결이 끊겼어요'), findsNothing);
         // 확인 중에는 예비 연결이 꺼져도 연결 줄을 두지 않는다 — 허브 문제가 확인될 때만(2026-10-14 UX).
         expect(find.text('예비 연결 꺼짐'), findsNothing);
@@ -217,7 +217,7 @@ void main() {
           _buildHome(connected: true, server: RpiConnectionState.checking));
       await tester.pump();
 
-      expect(find.text('본체 찾는 중'), findsOneWidget);
+      expect(find.text('본체를 찾고 있어요'), findsOneWidget);
       expect(findPlainText('알림과 기록이 멈췄어요'), findsNothing);
     });
   });

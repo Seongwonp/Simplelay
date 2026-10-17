@@ -78,7 +78,7 @@ void main() {
     await _expandAll(tester);
 
     // 목적 있는 실행은 목적으로, 없는 실행은 버튼 라벨 + '버튼 누르기'으로 표시
-    expect(find.text('즉석밥 데워줘'), findsOneWidget);
+    expect(find.text('즉석밥 데우기'), findsOneWidget);
     expect(find.text('전원 버튼 누르기'), findsOneWidget);
     // 끝이 안 좋았던 실행은 단계 목록에 버튼이 나온다
     expect(find.text('전원'), findsOneWidget);
@@ -382,7 +382,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
+    expect(find.text('공기청정기 켜기'), findsOneWidget);
     expect(findPlainText('22:00 · 자동', contains: true), findsOneWidget);
     expect(find.textContaining('자동 실행 · 공기청정기'), findsNothing);
   });
@@ -510,7 +510,7 @@ void main() {
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다.
     expect(findPlainText('08:10 · 직접'), findsOneWidget);
     expect(find.text('전자레인지를 봐 주세요'), findsOneWidget);
-    expect(find.text('실행 기록'), findsOneWidget);
+    expect(find.text('버튼 누르기'), findsOneWidget);
   });
 
   testWidgets('jobId가 다르면 같은 시각이라도 두 행이다', (tester) async {
@@ -523,7 +523,7 @@ void main() {
           'buttons': [],
         };
     await pumpWith(tester, [e('job-1'), e('job-2')]);
-    expect(find.text('즉석밥 데워줘'), findsNWidgets(2));
+    expect(find.text('즉석밥 데우기'), findsNWidgets(2));
     expect(find.byKey(const ValueKey('history-job-1')), findsOneWidget);
     expect(find.byKey(const ValueKey('history-job-2')), findsOneWidget);
   });
@@ -623,7 +623,7 @@ void main() {
     expect(find.text('받았어요'), findsOneWidget);
     // 배지는 행 오른쪽.
     expect(tester.getCenter(find.text('됐어요')).dx,
-        greaterThan(tester.getCenter(find.text('공기청정기 전원 켜기')).dx));
+        greaterThan(tester.getCenter(find.text('공기청정기 켜기')).dx));
     // 결과 문장·버튼판 길은 접혀 있다.
     expect(find.text('버튼판에서 직접 누르기'), findsNothing);
     await tester.tap(find.byKey(const Key('history-tap-j-routine')));

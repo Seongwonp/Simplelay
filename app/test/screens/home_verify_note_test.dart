@@ -158,8 +158,8 @@ void main() {
     ]) {
       expect(_inTile('d', t), findsNothing, reason: '실제 완료는 보조 줄 없음: $t');
     }
-    // 평소 상태 줄은 비어 있다(2026-10-14 UX) — 보조 줄은 별개로 남는다.
-    expect(find.byKey(const Key('appliance-status-a')), findsNothing);
+    // 평소 상태 줄은 할 일만(평가 3차 10/18) — 보조 줄은 별개로 남는다.
+    expect(_inTile('a', '눌러서 조작하기'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -185,7 +185,9 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
-    expect(_inTile('w', '설정이 필요해요'), findsOneWidget);
+    // 설정이 남았다는 말은 확인 카드 한 곳 — 타일은 아이콘 점과 할 일(평가 3차 10/18).
+    expect(find.byKey(const Key('appliance-setup-dot-w')), findsOneWidget);
+    expect(_inTile('w', '눌러서 설정하기'), findsOneWidget);
     expect(_inTile('w', '연습으로만 시험 이동했어요'), findsNothing);
     expect(_inTile('w', '시험 이동을 했는지 몰라요'), findsNothing);
   });

@@ -19,6 +19,7 @@ import '../models/quiet_hours.dart';
 import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_candidate_sheet.dart';
+import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
 import '../widgets/row_menu.dart';
 import '../widgets/status_badge.dart';
@@ -60,9 +61,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         if (needsPanelMapping(a)) a.id,
     };
     final list = ref.watch(routinesProvider);
-    final names = {
-      for (final a in ref.watch(installedAppliancesProvider)) a.id: a.name,
-    };
+    final installed = ref.watch(installedAppliancesProvider);
+    final names = {for (final a in installed) a.id: a.name};
+    final icons = {for (final a in installed) a.id: a.icon};
     final executing = switch (ref.watch(executionStatusProvider).phase) {
       ExecutionPhase.waiting || ExecutionPhase.running || ExecutionPhase.retrying => true,
       _ => false,
@@ -159,6 +160,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                           _RoutineRow(
                             routine: r,
                             applianceNames: names,
+                            applianceIcons: icons,
                             onEdit: () => _open(context, r),
                             onDelete: r.isTemplate || r.id == null ? null : () => _delete(context, r),
                             // 버튼 자리를 맞추지 않은 가전의 루틴은 실행 대신 이유(외부 평가 10/16 3차).
@@ -172,10 +174,8 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                                 ? () => context.push('/appliance/detail/'
                                     '${r.applianceIds.firstWhere(needsSetup.contains)}')
                                 : null,
-                            // 설정 안내는 오류가 아니다 — 앰버(홈과 같은 색, UI 평가 10/17).
-                            note: r.applianceIds.any(needsSetup.contains)
-                                ? '가전 설정이 필요해요. 홈의 가전을 눌러 버튼 자리를 맞춰 주세요'
-                                : null,
+                            // 이유 문장은 두지 않는다 — '설정하기' 단추가 말하고, 무엇이 남았는지는 홈의
+                            // '확인이 필요해요' 한 곳에서 말한다(평가 3차 10/18: 행마다 두 줄 경고).
                           ),
                       ],
               ),
@@ -331,6 +331,7 @@ class _CandidateCard extends StatelessWidget {
   }
 }
 
+/// 다음 실행 — 작은 한 줄(평가 3차 10/18). 큰 시각은 홈 '지금 우리 집'에만 둔다 — 두 탭에 같은 크기로 겹쳐 있었다.
 class _NextRunCard extends StatelessWidget {
   const _NextRunCard({required this.next});
   final RoutineNextRun next;
@@ -339,47 +340,28 @@ class _NextRunCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final n = next;
     // 본체 벽시계 그대로 — 폰 시간대로 바꾸면 '매일 07:00' 옆에 22:00이 나왔다(2차 평가 10/18).
-    final hm = n.clock;
-    final clock = Text(
-      hm,
-      style: TextStyle(
-        fontSize: AppFont.number,
-        fontWeight: FontWeight.w700,
-        height: 1.1,
-        color: context.appInk,
-      ),
-    );
-    final info = Column(
+    // 오늘·내일과 시각이 먼저, 실행 방식은 끝(외부 평가 10/16 p02).
+    final line = [
+      '다음: ${n.name}',
+      if (n.dayLabel.isNotEmpty) n.dayLabel,
+      if (n.when.isNotEmpty) n.when else n.clock,
+      n.modeLabel,
+    ].join(' · ');
+    return Row(
+      key: const Key('routines-next'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('다음: ${n.name}',
-            style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
-        // 오늘·내일이 먼저, 실행 방식은 끝(외부 평가 10/16 p02).
-        Text(
-            [
-              if (n.dayLabel.isNotEmpty) n.dayLabel,
-              if (n.when.isNotEmpty) n.when,
-              n.modeLabel,
-            ].join(' · '),
-            style: context.appCaption),
+        Padding(
+          padding: const EdgeInsets.only(top: AppSpace.xs),
+          child: Icon(AppIcons.schedule, size: 20, color: context.appMuted),
+        ),
+        const SizedBox(width: AppSpace.sm),
+        Expanded(
+          child: Text(keepWordsTogether(line),
+              semanticsLabel: line,
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+        ),
       ],
-    );
-    // 큰 글씨에서는 시각을 위, 설명을 아래로 — 한 줄에 두면 넘친다.
-    final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(AppSpace.xl),
-        child: big
-            ? Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [clock, const SizedBox(height: AppSpace.xs), info],
-              )
-            : Row(children: [
-                clock,
-                const SizedBox(width: AppSpace.lg),
-                Expanded(child: info),
-              ]),
-      ),
     );
   }
 }
@@ -398,12 +380,28 @@ String routineSubtitle(Routine r, Map<String, String> applianceNames) {
     // 직접 실행 루틴은 '언제'를 적지 않는다 — "직접 실행할 때"는 모든 루틴이 그렇다(2026-10-14 UX).
     // 서버 `when` 문장으로 가른다(목록의 루틴은 trigger 없이 when만 올 수 있다).
     if (when != const RoutineTrigger.manual().describe()) when,
-    // 루틴 단계 수(실행 화면의 조작 진행과 다른 축). 숫자와 '단계'가 큰 글씨에서 다른 줄로
-    // 떨어지지 않게 단어 결합 문자(U+2060)로 붙인다(외부 평가 2026-10-13 L3).
-    if (targets.isNotEmpty) '${targets.join(', ')} 할 일 ${r.steps.length}\u2060개',
+    // 대상 가전과 크기 — 키오스크와 같은 단위 '버튼 N번'(작은 팔이 누르는 수)·'LG 가전 설정 N번'
+    // (평가 3차 10/18: '할 일 1개'는 무엇을 몇 번 하는지 말하지 않았다).
+    if (targets.isNotEmpty) targets.join(', '),
+    ...routineSizeParts(r),
     if (r.mode == RoutineMode.notify) r.mode.label,
     if (!r.enabled) '꺼짐',
   ].join(' · ');
+}
+
+/// 루틴 크기 — '버튼 N번'(누를 버튼 합) · 'LG 가전 설정 N번'(LG 가전 설정 단계 수). 키오스크 루틴 카드와 같은 말.
+List<String> routineSizeParts(Routine r) {
+  var presses = 0;
+  var settings = 0;
+  for (final s in r.steps) {
+    if (s.kind == RoutineStepKind.pressSequence) presses += s.buttons.length;
+    if (s.kind == RoutineStepKind.thinqCommand) settings += 1;
+  }
+  return [
+    // 숫자와 '번'이 다른 줄로 떨어지지 않게 단어 결합 문자(U+2060)로 붙인다(외부 평가 2026-10-13 L3).
+    if (presses > 0) '버튼 $presses\u2060번',
+    if (settings > 0) 'LG 가전 설정 $settings\u2060번',
+  ];
 }
 
 class _RoutineRow extends StatelessWidget {
@@ -415,10 +413,13 @@ class _RoutineRow extends StatelessWidget {
     required this.running,
     required this.busy,
     required this.error,
+    this.applianceIcons = const {},
     this.onDelete,
-    this.note,
     this.onSetup,
   });
+
+  /// 가전 id → 아이콘. 줄 아이콘을 대상 가전 아이콘으로(평가 3차 10/18).
+  final Map<String, IconData> applianceIcons;
 
   /// 설정이 필요한 가전의 상세로 — 있으면 '실행' 대신 '설정하기' 단추(홈과 같다).
   final VoidCallback? onSetup;
@@ -442,9 +443,6 @@ class _RoutineRow extends StatelessWidget {
   final bool busy;
   final String? error;
 
-  /// 오류가 아닌 안내(앰버) — 설정이 필요한 가전 등.
-  final String? note;
-
   @override
   Widget build(BuildContext context) {
     final r = routine;
@@ -461,7 +459,9 @@ class _RoutineRow extends StatelessWidget {
         ),
       ],
     );
-    final icon = Icon(AppIcons.routine,
+    final icon = RoutineIcon(
+        routine: r,
+        iconOf: applianceIcons,
         color: r.enabled ? context.appPrimary : context.appMuted);
 
     // 예시 루틴은 낭독에서도 예시라고 말하고, 누르면 무엇이 되는지 말한다(2026-10-14 UI 정리).
@@ -586,12 +586,6 @@ class _RoutineRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: indent, bottom: AppSpace.xs),
               child: action,
-            ),
-          if (note case final message?)
-            Padding(
-              padding: const EdgeInsets.only(left: indent, bottom: AppSpace.xs),
-              child: Text(keepWordsTogether(message),
-                  style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
             ),
           if (error case final message?)
             Padding(
@@ -850,9 +844,9 @@ class _NewRoutineSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final templates = ref.watch(routineTemplatesProvider);
-    final names = {
-      for (final a in ref.watch(installedAppliancesProvider)) a.id: a.name,
-    };
+    final installed = ref.watch(installedAppliancesProvider);
+    final names = {for (final a in installed) a.id: a.name};
+    final icons = {for (final a in installed) a.id: a.icon};
     return ConstrainedBox(
       constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
       child: ListView(
@@ -886,6 +880,7 @@ class _NewRoutineSheet extends ConsumerWidget {
                       _RoutineRow(
                         routine: t,
                         applianceNames: names,
+                        applianceIcons: icons,
                         onEdit: () => Navigator.pop(context, _NewChoice(t)),
                         onRun: null,
                         running: false,

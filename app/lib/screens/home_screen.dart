@@ -12,6 +12,7 @@ import '../models/routine.dart';
 import '../models/suggestion.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/routine_provider.dart';
+import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
 import 'routines_screen.dart' show routineSubtitle;
 import '../providers/ble_provider.dart';
@@ -200,6 +201,7 @@ class HomeScreen extends ConsumerWidget {
               hubConnected: rpiState == RpiConnectionState.connected,
               hasAppliances: appliances.isNotEmpty,
               applianceNames: {for (final a in appliances) a.id: a.name},
+              applianceIcons: {for (final a in appliances) a.id: a.icon},
               needsSetupIds: {
                 for (final a in appliances)
                   if (needsPanelMapping(a)) a.id,
@@ -572,8 +574,12 @@ class _HomeRoutines extends ConsumerStatefulWidget {
     required this.hubConnected,
     required this.hasAppliances,
     required this.applianceNames,
+    this.applianceIcons = const {},
     this.needsSetupIds = const {},
   });
+
+  /// 가전 id → 아이콘. 루틴 타일 아이콘을 대상 가전 아이콘으로(평가 3차 10/18).
+  final Map<String, IconData> applianceIcons;
 
   /// 위치(버튼 자리)를 아직 맞추지 않은 가전 — 이 가전을 쓰는 루틴 타일은 설정으로 보낸다.
   final Set<String> needsSetupIds;
@@ -666,6 +672,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
             _RoutineTile(
               routine: r,
               subtitle: routineSubtitle(r, widget.applianceNames),
+              iconOf: widget.applianceIcons,
               running: _runningId == r.id,
               busy: busy,
               needsSetup: needsSetup(r),
@@ -776,10 +783,12 @@ class _RoutineTile extends StatelessWidget {
     required this.busy,
     required this.needsSetup,
     required this.onTap,
+    this.iconOf = const {},
   });
 
   final Routine routine;
   final String subtitle;
+  final Map<String, IconData> iconOf;
   final bool running;
   final bool busy;
   final bool needsSetup;
@@ -808,8 +817,10 @@ class _RoutineTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(AppIcons.routine,
-                        size: 24, color: needsSetup ? context.appMuted : context.appPrimary),
+                    RoutineIcon(
+                        routine: r,
+                        iconOf: iconOf,
+                        color: needsSetup ? context.appMuted : context.appPrimary),
                     const Spacer(),
                     if (running)
                       const SizedBox(
@@ -822,12 +833,10 @@ class _RoutineTile extends StatelessWidget {
                   Text(r.name,
                       style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
                   const SizedBox(height: AppSpace.xs),
-                  if (needsSetup)
-                    Text(keepWordsTogether('설정이 필요해요'),
-                        style: TextStyle(fontSize: AppFont.caption, color: context.appWarning))
-                  else
-                    // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
-                    Text(keepWordsTogether(subtitle),
+                  // 설정이 남았다는 말은 '확인이 필요해요' 한 곳에서만(평가 3차 10/18) — 타일은 무엇을 하는지만.
+                  // 누르면 그 가전 설정으로 가고, 낭독 이름이 '가전 설정하기'라고 말한다.
+                  // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
+                  Text(keepWordsTogether(subtitle),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: context.appCaption),
@@ -861,11 +870,11 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final (String text, Color dot) = switch (rpiState) {
       // 정상은 색을 쓰지 않는다(성공 중립 규칙) — 갈색은 주행동 색이라 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
-      RpiConnectionState.connected => ('본체 연결됨', context.appSuccess),
+      RpiConnectionState.connected => ('본체와 연결됐어요', context.appSuccess),
       RpiConnectionState.keyRequired => ('연결 비밀번호가 필요해요', context.appWarning),
       RpiConnectionState.checking ||
       RpiConnectionState.unconfigured =>
-        ('본체 찾는 중', context.appMuted),
+        ('본체를 찾고 있어요', context.appMuted),
       RpiConnectionState.unreachable =>
         (backupOnly ? '블루투스로만 연결돼요' : '본체와 연결이 끊겼어요', context.appWarning),
     };
@@ -1118,7 +1127,19 @@ class _ApplianceCard extends ConsumerWidget {
     final run = ref.watch(executionStatusProvider);
     final total = run.totalSteps ?? run.steps.length;
     final done = run.completedSteps;
-    final (Color color, IconData? icon) = switch (s.tone) {
+    // 위치를 맞추지 않은 가전 — 타일은 글자 대신 아이콘 점(+ 낭독 이름)만. '설정이 필요해요'라는 말은
+    // 홈 '확인이 필요해요' 카드 한 곳에서만 한다(평가 3차 10/18: 타일·루틴 타일·확인 카드에 세 번 나왔다).
+    final setup = s.text == kSetupNeededText;
+    // 상태 줄은 늘 한 줄 — 모르면(평소 실행 가능·LG 가전 전원 모름) 할 일을 적는다. 빈 타일 아래 빈칸이
+    // 흰 카드만 줄지어 선 인상을 만들었다(평가 3차 10/18). 이 말은 상태를 단정하지 않는다.
+    final line = setup
+        ? '눌러서 설정하기'
+        : s.text.isEmpty
+            ? '눌러서 조작하기'
+            : s.text;
+    final (Color color, IconData? icon) = setup
+        ? (context.appMuted, null)
+        : switch (s.tone) {
       TileTone.active => (context.appPrimary, null),
       TileTone.attention => (context.appWarning, Icons.error_outline),
       TileTone.unknown => (context.appMuted, Icons.help_outline),
@@ -1149,8 +1170,9 @@ class _ApplianceCard extends ConsumerWidget {
         child: InkWell(
           key: Key('appliance-card-${a.id}'),
           onTap: onTap,
+          // 높이는 내용대로 — 최소 높이를 두면 상태 줄 아래가 비었다(평가 3차 10/18). 같은 줄 두 칸은
+          // _ApplianceGrid의 IntrinsicHeight가 맞춘다.
           child: Container(
-            constraints: const BoxConstraints(minHeight: 112),
             padding: const EdgeInsets.all(AppSpace.lg),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1165,6 +1187,19 @@ class _ApplianceCard extends ConsumerWidget {
                     const Spacer(),
                     if (a.isThinq) const RouteBadge(label: 'LG 가전'),
                     if (a.isDemo) const DemoBadge(),
+                    if (setup)
+                      // 색만이 아니라 아이콘(느낌표) 점. 뜻은 낭독 이름이 말한다(위 Semantics).
+                      Container(
+                        key: Key('appliance-setup-dot-${a.id}'),
+                        width: AppSpace.xxl,
+                        height: AppSpace.xxl,
+                        decoration: BoxDecoration(
+                          color: context.appWarning.withValues(alpha: 0.14),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(Icons.priority_high_rounded,
+                            size: AppFont.caption, color: context.appWarning),
+                      ),
                   ],
                 ),
                 const SizedBox(height: AppSpace.md),
@@ -1176,8 +1211,6 @@ class _ApplianceCard extends ConsumerWidget {
                 if ((a.location ?? '').isNotEmpty)
                   Text(a.location!,
                       style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-                // 평소(실행 가능)는 상태 줄을 두지 않는다(빈 문자열, 2026-10-14 UX).
-                if (s.text.isNotEmpty) ...[
                 const SizedBox(height: AppSpace.sm),
                 Row(
                   key: Key('appliance-status-${a.id}'),
@@ -1193,7 +1226,7 @@ class _ApplianceCard extends ConsumerWidget {
                     Flexible(
                       child: Text(
                         // "연결을 확인해 주 / 세요"처럼 낱말 중간에서 꺾이지 않게(2026-10-14 발견 7).
-                        keepWordsTogether(s.text),
+                        keepWordsTogether(line),
                         style: TextStyle(
                           fontSize: AppFont.caption,
                           fontWeight: active ? FontWeight.w700 : FontWeight.w400,
@@ -1203,7 +1236,6 @@ class _ApplianceCard extends ConsumerWidget {
                     ),
                   ],
                 ),
-                ],
                 if (s.detail case final d?)
                   Text(
                     d,
@@ -1215,7 +1247,8 @@ class _ApplianceCard extends ConsumerWidget {
                   Padding(
                     padding: const EdgeInsets.only(top: AppSpace.xs),
                     child: Text(
-                      v,
+                      // 낱말 중간에서 꺾이지 않게("했는 / 지", 평가 3차 골든 10/18).
+                      keepWordsTogether(v),
                       key: Key('appliance-verify-note-${a.id}'),
                       style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                     ),

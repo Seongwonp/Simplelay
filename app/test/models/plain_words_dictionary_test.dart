@@ -160,7 +160,7 @@ void main() {
   });
 
   // 화면 문구 전체(개발자 도구 제외): 사전에서 뺀 이름이 문자열로 다시 들어오지 않는다.
-  // 서버 문장과 비교하는 값(`.contains(`·서버 404 문장 상수)과 내부 예외 문장은 사용자 문장이 아니다.
+  // 서버 문장과 비교하는 값(`.contains(`·서버 404 문장 상수)·서버 말을 쉬운 말로 바꾸는 자리(`.replaceAll(`)와 내부 예외 문장은 사용자 문장이 아니다.
   test('폰 화면 문자열에 허브·키오스크·누름 장치·확인 주행·방해 금지·ThinQ·쉬는 자리·풍량·대시가 없다', () {
     const skipFiles = ['developer_', 'dev_api_service.dart'];
     final literal = RegExp(r"'[^'\n]*(허브|키오스크|누름 장치|확인 주행|방해 금지|ThinQ|쉬는 자리|풍량| — )[^'\n]*'");
@@ -171,6 +171,7 @@ void main() {
       for (final line in f.readAsLinesSync()) {
         if (line.trimLeft().startsWith('//')) continue;
         if (line.contains('.contains(') ||
+            line.contains('.replaceAll(') ||
             line.contains('noRecordDetail') ||
             line.contains('FormatException(')) {
           continue;

@@ -69,6 +69,10 @@ class TileStatus {
   String toString() => 'TileStatus($text, $tone, detail: $detail)';
 }
 
+/// 위치를 맞추지 않은 가전의 상태 말. 홈 타일은 이 글자를 그리지 않고 아이콘 점 + 접근성 이름으로만 쓴다 —
+/// 화면 글자로는 '확인이 필요해요' 카드 한 곳에서만 말한다(평가 3차 10/18).
+const kSetupNeededText = '설정이 필요해요';
+
 /// 위치(사진 위 버튼 자리)를 맞춰야 하는 가전인가 — 홈 설정 안내와 같은 조건.
 bool needsPanelMapping(ApplianceMap a) =>
     a.isCustom && !a.isDemo && !a.isThinq && a.panelMapping == null;
@@ -146,7 +150,7 @@ TileStatus applianceTileStatus({
 
   // 3. 위치를 아직 맞추지 않은 가전 — 설치 근거가 있는 '설정'.
   if (needsPanelMapping(appliance)) {
-    return const TileStatus('설정이 필요해요', TileTone.attention);
+    return const TileStatus(kSetupNeededText, TileTone.attention);
   }
 
   // 4. 서버 판정. 들은 적이 없으면 canExecute 기본값(true)으로 긍정하지 않는다.
@@ -237,13 +241,20 @@ String objectParticle(String word) {
   return (code - 0xAC00) % 28 == 0 ? '를' : '을';
 }
 
-/// 기록 한 건의 제목. **목적을 추정하지 않는다**(검토 §5).
+/// 기록 한 건의 제목 — **규칙 하나: '무엇을 하기'(행동 이름)**(평가 3차 10/18).
 ///
-/// 1. 비어 있지 않은 purpose 그대로
-/// 2. 대상 이름 + 버튼 라벨 — "인터폰 · 문열림 버튼 조작"
-/// 3. 대상 이름만 — "인터폰 버튼 조작"(ThinQ면 "인터폰 명령")
-/// 4. 버튼 라벨만 — "문열림 버튼 조작"
-/// 5. 아무것도 없으면 "실행 기록"
+/// 왜 과거형('공기청정기를 켰어요')이 아닌가: 오른쪽 배지가 결과(됐어요·몰라요·못 했어요)를 말한다. 제목이
+/// '켰어요'면 배지가 '몰라요'일 때 둘이 엇갈린다 — 확인 수준을 높여 보이게 된다(안전 계약). '켜려고 했어요'는
+/// 결과를 피하지만 말이 어색하고 길다. 그래서 제목은 할 일 목록처럼 **행동 이름**('공기청정기 켜기')으로 두고,
+/// 배지와 이어 읽으면 '공기청정기 켜기 — 됐어요/몰라요'가 되게 한다. 말로 한 명령('켜줘')·질문('바꿀까요?')·
+/// 해요체('켜요')·설정표 말('전원 켜기'·'풍량')이 섞이던 것을 이 한 꼴로 맞춘다.
+///
+/// 1. 목적 문장이 있으면 그 행동을 행동 이름으로. 출처('자동 실행 · '·''…' 루틴')는 [historySource]·
+///    [historyOrigin]이 부제에서 말한다.
+/// 2. 루틴 기록은 목적 문장이 루틴 이름뿐이다 — 누른 버튼이 있으면 '가전 버튼 N번 누르기'가 제목이고
+///    루틴 이름은 부제, 기록이 한 일을 말하지 않으면(LG 가전 루틴) 루틴 이름이 곧 행동 이름이다.
+/// 3. 목적이 없으면 가전 + 버튼 — '인터폰 문열림 버튼 누르기', 여럿이면 '전자레인지 버튼 2번 누르기'.
+/// 4. 그것도 없으면 '버튼 누르기'(LG 가전은 '가전 설정 바꾸기'). 목적을 지어내지 않는다.
 ///
 /// [applianceName]: 지금 등록 목록에서 찾은 이름. 지웠거나 모르면 null —
 /// 알 수 없는 id를 이름처럼 내놓지 않는다.
@@ -260,32 +271,129 @@ String historySource(RpiHistoryEntry e) {
   return '직접';
 }
 
-String historyTitle(RpiHistoryEntry e, {String? applianceName}) {
-  final purpose = e.purpose?.trim();
-  if (purpose != null && purpose.isNotEmpty) {
-    // 제목은 무엇을 했는지만 — 출처('자동 실행 · '·''…' 루틴')는 [historySource]가 시각 줄에서 말한다.
-    var title = historyStatement(purpose);
-    if (title.startsWith(_autoPrefix)) title = title.substring(_autoPrefix.length);
-    final routine = _routineTitle.firstMatch(title);
-    if (routine != null) title = routine.group(1)!;
-    // 모의 기록은 아래 '연습' 한 줄이 말한다 — 제목의 "(모의)"를 되풀이하지 않는다.
-    return e.executionMode == 'mock' ? withoutMockMark(title) : title;
-  }
+/// 목적 문장에서 출처 머리('자동 실행 · ')를 떼고, 루틴이면 그 이름을 돌려준다.
+({String body, String? routine}) _purposeParts(String purpose) {
+  var body = purpose.trim();
+  if (body.startsWith(_autoPrefix)) body = body.substring(_autoPrefix.length).trim();
+  final routine = _routineTitle.firstMatch(historyStatement(body));
+  return (body: body, routine: routine?.group(1));
+}
+
+/// 누른 버튼으로 만든 행동 이름. 버튼을 모르면 null.
+String? _pressTitle(RpiHistoryEntry e, String? name) {
   final labels = [
     for (final b in e.buttons)
       if (b.button.trim().isNotEmpty) b.button.trim(),
   ];
-  final rawName = applianceName?.trim();
-  final name = rawName != null && e.executionMode == 'mock'
-      ? withoutMockMark(rawName)
-      : rawName;
+  if (labels.isEmpty) return null;
   final hasName = name != null && name.isNotEmpty;
-  if (labels.isNotEmpty) {
-    final pressed = '${labels.join(', ')} 버튼 누르기';
-    return hasName ? '$name $pressed' : pressed;
+  // 하나면 버튼 이름까지, 여럿이면 키오스크와 같은 단위 '버튼 N번'.
+  final pressed =
+      labels.length == 1 ? '${labels.single} 버튼 누르기' : '버튼 ${labels.length}번 누르기';
+  return hasName ? '$name $pressed' : pressed;
+}
+
+String? _cleanName(RpiHistoryEntry e, String? applianceName) {
+  final raw = applianceName?.trim();
+  return raw != null && e.executionMode == 'mock' ? withoutMockMark(raw) : raw;
+}
+
+String historyTitle(RpiHistoryEntry e, {String? applianceName}) {
+  final name = _cleanName(e, applianceName);
+  final purpose = e.purpose?.trim();
+  if (purpose != null && purpose.isNotEmpty) {
+    final parts = _purposeParts(purpose);
+    final routine = parts.routine;
+    if (routine != null) {
+      return _pressTitle(e, name) ??
+          (e.executionMode == 'mock' ? withoutMockMark(routine) : routine);
+    }
+    // 모의 기록은 '연습' 배지가 말한다 — 제목의 "(모의)"를 되풀이하지 않는다.
+    final body = e.executionMode == 'mock' ? withoutMockMark(parts.body) : parts.body;
+    return actionName(body);
   }
-  if (hasName) return e.route == 'thinq' ? '$name 조작' : '$name 버튼 누르기';
-  return '실행 기록';
+  final pressed = _pressTitle(e, name);
+  if (pressed != null) return pressed;
+  final hasName = name != null && name.isNotEmpty;
+  if (e.route == 'thinq') return hasName ? '$name 설정 바꾸기' : '가전 설정 바꾸기';
+  return hasName ? '$name 버튼 누르기' : '버튼 누르기';
+}
+
+/// 부제에 붙일 루틴 이름 — 제목이 루틴 이름이 아닐 때만(같은 말을 두 번 쓰지 않는다). 루틴이 아니면 null.
+/// 자동 규칙의 이름은 서버가 목적 문장에 루틴 이름으로만 적는다(시각 규칙) — 그 밖의 규칙은 '자동'까지만.
+String? historyOrigin(RpiHistoryEntry e, {String? applianceName}) {
+  final purpose = e.purpose?.trim();
+  if (purpose == null || purpose.isEmpty) return null;
+  final routine = _purposeParts(purpose).routine;
+  if (routine == null) return null;
+  final shown = e.executionMode == 'mock' ? withoutMockMark(routine) : routine;
+  return historyTitle(e, applianceName: applianceName) == shown ? null : shown;
+}
+
+// 끝 동사 → 행동 이름. '줘'·'주세요'·'요'·'까요'를 뗀 줄기로 찾는다. 모르는 줄기는 그대로 둔다(지어내지 않는다).
+const _verbStems = {
+  '켜': '켜기', '켤': '켜기',
+  '꺼': '끄기', '끌': '끄기',
+  '데워': '데우기', '데울': '데우기',
+  '끓여': '끓이기', '끓일': '끓이기',
+  '잠가': '잠그기', '잠글': '잠그기',
+  '바꿔': '바꾸기', '바꿀': '바꾸기',
+  '눌러': '누르기', '누를': '누르기',
+  '돌려': '돌리기', '돌릴': '돌리기',
+  '열어': '열기', '열': '열기',
+  '틀어': '틀기', '틀': '틀기',
+  '멈춰': '멈추기', '멈출': '멈추기',
+  '줄여': '줄이기', '줄일': '줄이기',
+  '올려': '올리기', '올릴': '올리기',
+  '낮춰': '낮추기', '낮출': '낮추기',
+  '높여': '높이기', '높일': '높이기',
+  '해': '하기', '할': '하기',
+};
+
+/// 명령·질문·해요체 문장을 행동 이름('공기청정기 켜기')으로. 설정표 말('풍량'·'전원 켜기')도 쉬운 말로.
+/// 끝 동사를 모르면 문장을 그대로 둔다.
+String actionName(String text) {
+  var t = text.trim();
+  while (t.isNotEmpty && '.!?'.contains(t[t.length - 1])) {
+    t = t.substring(0, t.length - 1).trimRight();
+  }
+  final words = t.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  if (words.isEmpty) return text.trim();
+  // '꺼 줘'처럼 띄어 쓴 도움말을 붙인다.
+  if (words.length > 1 && const {'줘', '주세요', '줄래', '줄래요'}.contains(words.last)) {
+    final aux = words.removeLast();
+    words[words.length - 1] = words.last + aux;
+  }
+  final last = words.last;
+  String? stem;
+  for (final end in const ['주세요', '줄래요', '줄래', '까요', '줘', '요']) {
+    if (last.length > end.length && last.endsWith(end)) {
+      stem = last.substring(0, last.length - end.length);
+      break;
+    }
+  }
+  if (stem != null) {
+    final mapped = _verbStems[stem] ??
+        // '실행해'·'시작할' → '실행하기'·'시작하기'
+        ((stem.endsWith('해') || stem.endsWith('할')) && stem.length > 1
+            ? '${stem.substring(0, stem.length - 1)}하기'
+            : null);
+    if (mapped != null) {
+      words[words.length - 1] = mapped;
+      // 목적격 조사(을/를)를 뗀다 — '풍량을 강으로' → '풍량 강으로'. 따옴표로 끝난 이름은 건드리지 않는다.
+      for (var i = 0; i < words.length - 1; i++) {
+        final w = words[i];
+        if (w.length > 1 && (w.endsWith('을') || w.endsWith('를'))) {
+          words[i] = w.substring(0, w.length - 1);
+        }
+      }
+    }
+  }
+  return words
+      .join(' ')
+      .replaceAll('풍량', '바람 세기')
+      .replaceAll('전원 켜기', '켜기')
+      .replaceAll('전원 끄기', '끄기');
 }
 
 /// 기록 한 건의 결과 문장과 다음 행동.

@@ -45,6 +45,9 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _color(context);
+    // 회색 배지의 **글자**는 본문 잉크색 — 회색 글자에 회색 면이면 보조 글씨 목표(7:1)에 못 미쳤다
+    // (평가 3차 10/18 '연습' 배지, 6.7:1). 아이콘과 면은 회색 그대로라 다른 갈래와 섞이지 않는다.
+    final ink = tone == BadgeTone.neutral ? context.appInk : color;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
       decoration: BoxDecoration(
@@ -60,7 +63,7 @@ class StatusBadge extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                  fontSize: AppFont.caption, fontWeight: FontWeight.w600, color: color),
+                  fontSize: AppFont.caption, fontWeight: FontWeight.w600, color: ink),
             ),
           ),
         ],

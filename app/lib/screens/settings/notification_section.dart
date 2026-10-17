@@ -181,7 +181,7 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
       // 무기한을 두지 않는 것과 같은 이유로 상한도 둔다 — 꺼둔 것을 잊으면
       // 안부 기능이 있는 채로 없는 것과 같아진다.
       lastDate: today.add(const Duration(days: 90)),
-      helpText: '언제까지 쉴까요?',
+      helpText: '언제까지 집을 비우나요?',
     );
     if (picked == null) return;
     final ok =
@@ -212,18 +212,19 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
         leading: Icon(
           paused ? Icons.notifications_paused : Icons.favorite_outline,
         ),
-        title: const Text('안부 확인 쉬기'),
+        // 이름은 하는 일 그대로 '집 비우는 날'(평가 3차 10/18 — '안부 확인 쉬기'는 무엇을 쉬는지 어려웠다).
+        title: const Text(kAwayTitle),
         subtitle: _WordsText(
           paused
-              ? '${_ymd(until)}까지 쉬어요. 실패나 위험 신호음은 그대로 알려 드려요.'
-              : '여행처럼 집을 비우는 날 켜세요. 조용한 게 정상인 날 알림이 오지 않아요.',
+              ? '${_ymd(until)}까지 집을 비워요. 안부 알림만 쉬고, 실패나 위험 신호음은 그대로 알려 드려요.'
+              : '여행처럼 집을 비우는 날 켜세요. 집이 조용해도 안부 알림이 오지 않아요.',
           style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
         ),
         // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
         trailing: OutlinedButton(
           style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
           onPressed: paused ? _clear : _pick,
-          child: Text(paused ? '지금 켜기' : '쉬기'),
+          child: Text(paused ? '지금 끝내기' : '날짜 정하기'),
         ),
       ),
     );

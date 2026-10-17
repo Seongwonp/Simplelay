@@ -229,8 +229,9 @@ void main() {
   });
 
   group('기록 제목', () {
-    test('비어 있지 않은 purpose는 그대로(이름을 바꾸지 않는다)', () {
-      expect(historyTitle(_entry({'purpose': '즉석밥 데워줘'})), '즉석밥 데워줘');
+    // 평가 3차 10/18: 제목 규칙은 하나 — 행동 이름('즉석밥 데우기'). 무엇을 데웠는지는 바꾸지 않는다.
+    test('비어 있지 않은 purpose는 그 행동의 이름으로(대상은 바꾸지 않는다)', () {
+      expect(historyTitle(_entry({'purpose': '즉석밥 데워줘'})), '즉석밥 데우기');
     });
 
     test('purpose 없음 → 등록 이름 + 버튼 라벨', () {
@@ -243,14 +244,14 @@ void main() {
       expect(historyTitle(e, applianceName: '인터폰'), '인터폰 문열림 버튼 누르기');
     });
 
-    test('버튼이 없으면 이름 + 버튼 조작(ThinQ는 명령)', () {
+    test('버튼이 없으면 이름 + 버튼 누르기(LG 가전은 설정 바꾸기)', () {
       expect(historyTitle(_entry(const {}), applianceName: '인터폰'), '인터폰 버튼 누르기');
       expect(historyTitle(_entry(const {'route': 'thinq'}), applianceName: '세탁기'),
-          '세탁기 조작');
+          '세탁기 설정 바꾸기');
     });
 
-    test('모두 없으면 "실행 기록" — 목적을 지어내지 않는다', () {
-      expect(historyTitle(_entry(const {'purpose': ''})), '실행 기록');
+    test('모두 없으면 "버튼 누르기" — 목적을 지어내지 않는다', () {
+      expect(historyTitle(_entry(const {'purpose': ''})), '버튼 누르기');
     });
 
     // 외부 평가 10/16 2차 p03: 제목이 발화문 / ''…' 루틴' / '자동 실행 · …' 세 형식으로 섞였다.
@@ -258,13 +259,13 @@ void main() {
     // UI 평가 4차 10/17: 시각만 있는 줄은 누가 실행했는지 몰랐다 — 자동 실행·루틴이 아니면 사람이 시작한 실행이다.
     test('제목은 한 일만, 출처는 따로(자동 실행·루틴·그 밖은 직접 실행)', () {
       final auto = _entry({'purpose': '자동 실행 · 공기청정기 전원 켜기'});
-      expect(historyTitle(auto), '공기청정기 전원 켜기');
+      expect(historyTitle(auto), '공기청정기 켜기');
       expect(historySource(auto), '자동');
       final routine = _entry({'purpose': "'아침 공기청정기 끄기' 루틴을 실행할까요?"});
       expect(historyTitle(routine), '아침 공기청정기 끄기');
       expect(historySource(routine), '루틴');
       final direct = _entry({'purpose': '공기청정기 켜줘'});
-      expect(historyTitle(direct), '공기청정기 켜줘');
+      expect(historyTitle(direct), '공기청정기 켜기');
       // 말로 한 명령·제안 승인·화면 조작은 모두 사람이 시작했다 — 어느 쪽인지는 지어내지 않고 '직접'.
       expect(historySource(direct), '직접');
       expect(historySource(_entry(const {})), '직접');
@@ -274,9 +275,10 @@ void main() {
       expect(historySource(timed), '자동');
     });
 
-    test('이름을 모르면 버튼 라벨만', () {
+    test('이름을 모르면 버튼만 — 여럿이면 키오스크와 같은 단위 "버튼 N번"', () {
       expect(historyTitle(_entry({'buttons': _buttons(['즉석밥', '시작'])})),
-          '즉석밥, 시작 버튼 누르기');
+          '버튼 2번 누르기');
+      expect(historyTitle(_entry({'buttons': _buttons(['즉석밥'])})), '즉석밥 버튼 누르기');
     });
   });
 

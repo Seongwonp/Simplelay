@@ -21,7 +21,6 @@ import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/routine_editor_screen.dart';
 import 'package:simplelay/screens/routines_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
-import 'package:simplelay/theme/app_colors.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -262,17 +261,18 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    expect(find.text('내일 · 평일 07:30 · 자동 실행'), findsOneWidget);
+    // 큰 시각은 홈에만 — 루틴 탭은 작은 한 줄(평가 3차 10/18).
+    expect(findPlainText('다음: 아침 데우기 · 내일 · 평일 07:30 · 자동 실행'), findsOneWidget);
     expect(find.textContaining('물어보고 하기'), findsNothing);
   });
 
   // 2차 평가 10/18: 큰 22:00 옆에 '… · 매일 07:00' — 폰 시간대로 바꿔 그려 시각과 내용이 어긋났다.
-  testWidgets('다음 실행의 큰 시각은 본체 시각 그대로 — 폰 시간대와 달라도 내용과 같은 07:30', (tester) async {
+  testWidgets('다음 실행 시각은 본체 시각 그대로 — 폰 시간대와 달라도 내용과 같은 07:30', (tester) async {
     _tall(tester);
-    final server = _Server()..nextExtra = {'at': '2026-10-01T07:30:00-03:00'};
+    final server = _Server()..nextExtra = {'at': '2026-10-01T07:30:00-03:00', 'when': ''};
     await tester.pumpWidget(_build(server));
     await _settle(tester);
-    expect(find.text('07:30'), findsOneWidget);
+    expect(findPlainText('다음: 아침 데우기 · 07:30 · 승인 후 실행'), findsOneWidget);
   });
 
   testWidgets('다음 실행과 내 루틴 목록을 보여 준다', (tester) async {
@@ -280,11 +280,10 @@ void main() {
     await tester.pumpWidget(_build(_Server()));
     await _settle(tester);
 
-    expect(find.text('다음: 아침 데우기'), findsOneWidget);
-    expect(find.text('07:30'), findsOneWidget);
+    expect(findPlainText('다음: 아침 데우기 · 평일 07:30 · 승인 후 실행'), findsOneWidget);
     expect(find.text('아침 데우기'), findsOneWidget);
-    // 언제 · 대상을 한 줄로. 승인 반복 설명('물어보고 하기')은 줄마다 되풀이하지 않는다.
-    expect(find.text('평일 07:30 · 전자레인지 할 일 1\u2060개'), findsOneWidget);
+    // 언제 · 대상 · 크기('버튼 N번', 키오스크와 같은 단위)를 한 줄로. 승인 반복 설명은 줄마다 되풀이하지 않는다.
+    expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번'), findsOneWidget);
     expect(find.textContaining('승인 후 실행 ·'), findsNothing);
     expect(find.text('새 루틴'), findsOneWidget);
   });
@@ -336,12 +335,12 @@ void main() {
     await tester.pumpWidget(_build(server, installed: const []));
     await _settle(tester);
 
-    expect(find.text('전자레인지 할 일 2\u2060개'), findsOneWidget);
-    expect(find.text('세탁기 할 일 1\u2060개'), findsOneWidget);
+    expect(findPlainText('전자레인지 · 버튼 1번'), findsOneWidget);
+    expect(findPlainText('세탁기 · 버튼 1번'), findsOneWidget);
     expect(find.textContaining('home_mw'), findsNothing);
     expect(find.textContaining('washer'), findsNothing);
     // 이름을 모르는 가전만 ID로 남는다.
-    expect(find.text('ghost 할 일 1\u2060개'), findsOneWidget);
+    expect(findPlainText('ghost · 버튼 1번'), findsOneWidget);
   });
 
   testWidgets('루틴을 열어 알림만으로 바꿔 저장하면 PUT하고 목록이 다시 읽힌다',
@@ -503,7 +502,7 @@ void main() {
   });
 
   // 외부 평가 10/16 3차 p02b: 버튼 자리를 아직 맞추지 않은 가전의 루틴도 '실행하기'가 살아 있었다.
-  testWidgets('설정이 필요한 가전의 루틴은 실행하기 대신 이유를 말한다', (tester) async {
+  testWidgets('설정이 필요한 가전의 루틴은 실행하기 대신 설정하기 단추 하나', (tester) async {
     final server = _Server();
     _tall(tester);
     final unmapped = ApplianceMap.fromJson({
@@ -524,12 +523,8 @@ void main() {
     expect(find.byKey(const Key('routine-setup-rt-1')), findsOneWidget);
     expect(find.descendant(of: find.byKey(const Key('routine-setup-rt-1')), matching: find.text('설정하기')),
         findsOneWidget);
-    expect(findPlainText('가전 설정이 필요해요', contains: true), findsOneWidget);
-    final note = tester.widget<Text>(findPlainText('가전 설정이 필요해요', contains: true));
-    expect(note.data, contains(kWordJoiner));
-    // 설정 안내는 앰버(홈과 같은 색) — 빨강은 실패·정지 전용(UI 평가 10/17).
-    expect(note.style?.color, isNot(anyOf(AppColors.danger, AppColors.dangerLight)));
-    expect(note.style?.color, anyOf(AppColors.warning, AppColors.warningLight));
+    // 이유 문장은 두지 않는다 — '설정하기' 단추만, 무엇이 남았는지는 홈 확인 카드 한 곳(평가 3차 10/18).
+    expect(findPlainText('설정이 필요해요', contains: true), findsNothing);
     expect(menuButton('rt-1'), findsOneWidget);
   });
 
@@ -615,8 +610,8 @@ void main() {
     expect(runButton('rt-n'), findsNothing);
     expect(runButton('rt-off'), findsNothing);
     expect(menuButton('rt-n'), findsOneWidget);
-    expect(find.text('평일 07:30 · 전자레인지 할 일 1\u2060개 · 알림만'), findsOneWidget);
-    expect(find.text('평일 07:30 · 전자레인지 할 일 1\u2060개 · 꺼짐'), findsOneWidget);
+    expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번 · 알림만'), findsOneWidget);
+    expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번 · 꺼짐'), findsOneWidget);
   });
 
   testWidgets('알려진 가전 알림은 "세탁이 끝나면"으로, 이름은 사용자 것 그대로', (tester) async {

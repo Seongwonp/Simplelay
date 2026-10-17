@@ -1,7 +1,11 @@
 part of '../settings_screen.dart';
 
 /// 키오스크에 못 보낸 가전 변경을 다시 보내는 단추 — 쉬운 말('동기화' 대신, UI 평가 10/17).
-const kResyncLabel = '본체에 다시 보내기';
+/// 보내기만 하지 않고 본체 쪽 변경도 받아 온다 — '보내기'가 아니라 '맞추기'(평가 3차 10/18).
+const kResyncLabel = '본체와 다시 맞추기';
+
+/// 안부 알림을 며칠 쉬는 설정의 이름 — 하는 일 그대로(평가 3차 10/18, 예전 '안부 확인 쉬기').
+const kAwayTitle = '집 비우는 날';
 
 // ── 가전 선택 ─────────────────────────────────────────────────────────────
 
@@ -29,7 +33,8 @@ class _ApplianceSection extends ConsumerWidget {
                         style: TextStyle(fontSize: AppFont.caption, color: context.appWarning))
                     : null)
                 : _WordsText(
-                    appliance.isThinq ? 'LG 가전이에요. 빼기는 LG 가전 연결에서 해요' : '기본 가전',
+                    // '기본 가전'은 무엇의 기본인지 몰랐다(평가 3차 10/18) — 앱에 처음부터 들어 있는 가전이다.
+                    appliance.isThinq ? 'LG 가전이에요. 빼기는 LG 가전 연결에서 해요' : '처음부터 들어 있는 가전이에요',
                     style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                   ),
             onTap: () => context.push('/appliance/detail/${appliance.id}'),

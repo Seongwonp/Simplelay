@@ -49,6 +49,14 @@ part 'settings/nav_rows.dart';
 part 'settings/hub_screen.dart';
 part 'settings/developer_tab.dart';
 
+/// 설정 줄 '조용한 시간'의 지금 값 — '22:00~07:00 · 켜짐'. 못 읽었으면 그렇다고 하고 할 일을 붙인다
+/// (꺼짐으로 단정하지 않는다). 예전 '몰라요' 한마디는 무엇을 모르는지·어떻게 하는지 말하지 않았다(평가 3차 10/18).
+/// 줄을 누르면 상세가 다시 읽는다.
+String quietRowValue(QuietHoursStatus? s, {required bool hasApi}) {
+  if (s == null) return hasApi ? '확인 못 했어요 · 새로 보기' : '연결 전이에요';
+  return '${s.start}~${s.end} · ${s.enabled ? '켜짐' : '꺼짐'}';
+}
+
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
 
@@ -90,12 +98,12 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: thinqApi == null || thinqAsync.hasError
                   ? '연결됐는지 몰라요'
                   : !thinqAsync.hasValue
-                      ? '알아보는 중'
+                      ? '알아보고 있어요'
                       : thinq == null
                           ? '아직 연결 전이에요'
                           : thinq.executionMode == 'mock'
-                              ? '연습으로 연결됨, ${thinq.appliances.length}대'
-                              : '연결됨, ${thinq.appliances.length}대',
+                              ? '연습으로 ${thinq.appliances.length}대 연결됐어요'
+                              : '${thinq.appliances.length}대 연결됐어요',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => const _ThinqScreen())),
             ),
@@ -110,7 +118,7 @@ class SettingsScreen extends ConsumerWidget {
                   ? '읽지 않은 알림 $unread건'
                   : care.status == CareInboxStatus.failed
                       ? '알림을 불러오지 못했어요'
-                      : '새 알림 없음',
+                      : '새 알림이 없어요',
               badge: unread,
               onTap: () => context.push('/care'),
             ),
@@ -152,12 +160,14 @@ class SettingsScreen extends ConsumerWidget {
               icon: Icons.bedtime_outlined,
               title: '조용한 시간',
               value: _quietValue(ref),
+              // 못 읽었으면 '새로 보기' — 줄을 누르면 다시 읽는다.
+              onOpen: () => ref.invalidate(quietHoursProvider),
               detail: _QuietHoursTile(),
             ),
             _ValueRow(
               id: 'wellness',
               icon: Icons.favorite_outline,
-              title: '안부 확인 쉬기',
+              title: kAwayTitle,
               value: _wellnessValue(ref),
               detail: _WellnessPauseTile(),
             ),
@@ -223,21 +233,19 @@ class SettingsScreen extends ConsumerWidget {
     return until != null && until.isAfter(DateTime.now()) ? '${pauseEndClock(until)}까지' : '꺼짐';
   }
 
-  /// 조용한 시간의 지금 값 — '22:00~07:00 · 켜짐'. 모르면 그렇다고(꺼짐으로 단정하지 않는다).
-  static String _quietValue(WidgetRef ref) {
-    final s = ref.watch(quietHoursProvider).valueOrNull;
-    if (s == null) return ref.watch(rpiApiServiceProvider) == null ? '연결 전' : '몰라요';
-    return '${s.start}~${s.end} · ${s.enabled ? '켜짐' : '꺼짐'}';
-  }
+  /// 조용한 시간의 지금 값 — [quietRowValue].
+  static String _quietValue(WidgetRef ref) => quietRowValue(
+      ref.watch(quietHoursProvider).valueOrNull,
+      hasApi: ref.watch(rpiApiServiceProvider) != null);
 
-  /// 안부 확인 쉬기의 지금 값 — 꺼짐 / 'M월 D일까지'.
+  /// 집 비우는 날의 지금 값 — 꺼짐 / 'M월 D일까지'.
   static String _wellnessValue(WidgetRef ref) {
     final until = ref.watch(wellnessPauseProvider);
     return until == null ? '꺼짐' : '${until.month}월 ${until.day}일까지';
   }
 
   static String _hubLine(RpiConnectionState state) => switch (state) {
-        RpiConnectionState.connected => '연결됨',
+        RpiConnectionState.connected => '연결됐어요',
         RpiConnectionState.keyRequired => '연결 비밀번호가 필요해요',
         RpiConnectionState.checking => '확인하는 중이에요',
         RpiConnectionState.unreachable => '연결이 끊겼어요',

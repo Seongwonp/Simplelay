@@ -310,8 +310,9 @@ void main() {
 
     // 준비된 루틴이 먼저, 설정이 필요한 루틴은 뒤.
     expect(tester.getTopLeft(_tile('r-b')).dx, lessThan(tester.getTopLeft(_tile('r-w')).dx));
+    // 타일은 설정 경고를 말하지 않는다(확인 카드 한 곳, 평가 3차 10/18) — 누르면 그 가전 설정으로 간다.
     expect(find.descendant(of: _tile('r-w'), matching: findPlainText('설정이 필요해요', contains: true)),
-        findsOneWidget);
+        findsNothing);
     await tester.tap(_tile('r-w'));
     await _settle(tester);
     expect(find.text('가전 상세 washer'), findsOneWidget);
@@ -362,7 +363,7 @@ void main() {
     expect(find.textContaining('공기 '), findsNothing);
   });
 
-  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 "꺼짐", 모르면 상태 줄이 없다', (tester) async {
+  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 "꺼짐", 모르면 전원을 말하지 않고 할 일만', (tester) async {
     final hub = _Hub(appliances: [_thinq('air', '공기청정기'), _thinq('dh', '제습기')], routines: const [])
       ..power = [
         {'appliance_id': 'air', 'power': 'off', 'age_s': 3},
@@ -372,7 +373,10 @@ void main() {
     await _settle(tester);
     expect(find.descendant(of: find.byKey(const Key('appliance-status-air')), matching: findPlainText('꺼짐')),
         findsOneWidget);
-    expect(find.byKey(const Key('appliance-status-dh')), findsNothing);
+    expect(find.descendant(of: find.byKey(const Key('appliance-status-dh')), matching: findPlainText('눌러서 조작하기')),
+        findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('appliance-card-dh')), matching: findPlainText('꺼짐')),
+        findsNothing);
   });
 
   testWidgets('확인이 필요해요: 설정이 남은 가전이 있을 때만, 가전 목록 위에', (tester) async {
@@ -391,10 +395,13 @@ void main() {
     expect(find.descendant(of: attention, matching: find.byKey(const Key('setup-summary-card'))), findsOneWidget);
     final lastTile = find.byKey(const Key('appliance-card-w2'));
     expect(tester.getTopLeft(attention).dy, lessThan(tester.getTopLeft(lastTile).dy));
+    // 타일은 아이콘 점 — '설정이 필요해요' 글자는 확인 카드 한 곳(평가 3차 10/18).
+    expect(find.byKey(const Key('appliance-setup-dot-w2')), findsOneWidget);
     expect(find.descendant(of: lastTile, matching: find.text(keepWordsTogether('설정이 필요해요'))),
+        findsNothing);
+    // 준비된 가전은 할 일만 — '바로 쓸 수 있어요'로 단정하지 않는다.
+    expect(find.descendant(of: find.byKey(const Key('appliance-status-mw')), matching: findPlainText('눌러서 조작하기')),
         findsOneWidget);
-    // 준비된 가전은 상태 줄을 두지 않는다(2026-10-14 UX) — '바로 쓸 수 있어요'로 단정하지도 않는다.
-    expect(find.byKey(const Key('appliance-status-mw')), findsNothing);
     expect(find.textContaining('바로 쓸 수 있어요'), findsNothing);
   });
 
@@ -501,7 +508,7 @@ void main() {
         .byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(fragment))
         .evaluate()
         .isNotEmpty;
-    expect(shown('1⁠개'), isTrue);
-    expect(find.byKey(const Key('appliance-status-mw')), findsNothing);
+    expect(shown(keepWordsTogether('주방 전자레인지 · 버튼 1번')), isTrue);
+    expect(shown(keepWordsTogether('눌러서 조작하기')), isTrue);
   });
 }

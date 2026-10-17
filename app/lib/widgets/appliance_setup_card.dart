@@ -129,12 +129,13 @@ String setupSummaryNames(List<ApplianceMap> appliances) {
   const shown = 3;
   final names = appliances.take(shown).map((a) => a.name).join(', ');
   final rest = appliances.length - shown;
-  return rest > 0 ? '$names 외 $rest개' : names;
+  return rest > 0 ? '$names 외 $rest대' : names;
 }
 
-/// '확인이 필요해요' 안의 한 줄 — '설정할 가전 N개', 누르면 가전별 설정 카드 목록(시트).
+/// '확인이 필요해요' 안의 한 줄 — '세탁기, 인터폰 설정이 남았어요', 누르면 가전별 설정 카드 목록(시트).
 ///
-/// 각 타일이 이미 '설정이 필요해요'로 말하므로 이름 목록·안내 문장을 되풀이하지 않는다.
+/// 설정이 남았다는 말은 홈에서 **이 한 줄만** 한다(평가 3차 10/18) — 가전 타일은 아이콘 점, 루틴 타일은
+/// 말하지 않는다. 그래서 어느 가전인지 이름을 여기서 적는다(세 대 넘으면 '외 N대').
 class SetupSummaryRow extends StatelessWidget {
   const SetupSummaryRow({super.key, required this.appliances});
   final List<ApplianceMap> appliances;
@@ -143,11 +144,11 @@ class SetupSummaryRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = appliances.length == 1
         ? '${appliances.single.name}, 설정이 남았어요'
-        : '설정할 가전 ${appliances.length}개';
+        : '${setupSummaryNames(appliances)} 설정이 남았어요';
     return Semantics(
       key: const Key('setup-summary-card'),
       button: true,
-      label: '설정할 가전 ${appliances.length}개, ${setupSummaryNames(appliances)}',
+      label: '가전 ${appliances.length}대 설정이 남았어요, ${setupSummaryNames(appliances)}',
       excludeSemantics: true,
       child: InkWell(
         onTap: () => _openList(context),

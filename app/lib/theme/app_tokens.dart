@@ -40,3 +40,11 @@ class AppSpace {
 
   static const List<double> all = [xs, sm, md, lg, xl, xxl, xxxl];
 }
+
+/// 카드 그림자 한 단계(라이트). 화면마다 높이를 따로 주지 않는다 — 흰 카드가 줄지어 뜬 인상이
+/// 그림자가 짙을수록 커졌다(평가 3차 10/18). 다크는 그림자 대신 테두리(테마).
+class AppElevation {
+  AppElevation._();
+
+  static const double card = 1;
+}

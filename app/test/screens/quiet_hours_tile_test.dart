@@ -191,7 +191,7 @@ void main() {
     expect(find.byKey(const Key('quiet-hours-switch')), findsOneWidget);
   });
 
-  testWidgets('잠시 쉬기·안부 확인 쉬기도 한 줄 — 꺼져 있으면 오른쪽에 꺼짐', (tester) async {
+  testWidgets('잠시 쉬기·집 비우는 날도 한 줄 — 꺼져 있으면 오른쪽에 꺼짐', (tester) async {
     _tall(tester);
     await tester.pumpWidget(_build(_Server().api()));
     await _settle(tester);

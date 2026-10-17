@@ -101,10 +101,13 @@ void main() {
           reason: '${a['name']} 카드가 홈에 있어야 한다');
     }
     expect(find.byKey(const Key('appliance-add-card')), findsOneWidget);
-    // 숨기지 않되, 준비가 안 됐다는 사실은 글자로 말한다. 위치를 아직 맞추지
-    // 않은 사용자 가전은 '설정이 필요해요'(2026-10-13 타일 상태).
+    // 숨기지 않되, 준비가 안 됐다는 사실은 말한다. 위치를 아직 맞추지 않은 사용자 가전은
+    // 타일에 아이콘 점 + 할 일 '눌러서 설정하기' — '설정이 필요해요' 글자는 확인 카드 한 곳(평가 3차 10/18).
     // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
-    expect(find.text(keepWordsTogether('설정이 필요해요')), findsNWidgets(5));
+    expect(find.text(keepWordsTogether('눌러서 설정하기')), findsNWidgets(5));
+    for (final a in kServerFive) {
+      expect(find.byKey(Key('appliance-setup-dot-${a['id']}')), findsOneWidget);
+    }
   });
 
   setupSummaryTests();
@@ -180,9 +183,9 @@ void setupSummaryTests() {
     await _pumpHome(tester, kServerFive, verifyCalls);
 
     expect(find.byKey(const Key('setup-summary-card')), findsOneWidget);
-    // 한 줄(2026-10-14 UX) — 타일이 이미 '설정이 필요해요'라 이름 목록을 되풀이하지 않는다(낭독 이름에만 둔다).
-    expect(find.text('설정할 가전 5개'), findsOneWidget);
-    expect(find.bySemanticsLabel('설정할 가전 5개, 시험용 전자레인지, Phone-MW, 전자레인지 외 2개'),
+    // 한 줄 — 설정이 남았다는 말은 홈에서 여기 한 곳이라 이름을 적는다(평가 3차 10/18).
+    expect(find.text('시험용 전자레인지, Phone-MW, 전자레인지 외 2대 설정이 남았어요'), findsOneWidget);
+    expect(find.bySemanticsLabel('가전 5대 설정이 남았어요, 시험용 전자레인지, Phone-MW, 전자레인지 외 2대'),
         findsOneWidget);
     expect(find.text('설정 이어하기'), findsNothing);
     expect(find.textContaining('설정이 2개 남았어요'), findsNothing,
@@ -209,8 +212,8 @@ void setupSummaryTests() {
     _phoneViewport(tester);
     await _pumpHome(tester, kServerFive.take(2).toList(), <Uri>[]);
 
-    expect(find.text('설정할 가전 2개'), findsOneWidget);
-    await tester.tap(find.text('설정할 가전 2개'));
+    expect(find.text('시험용 전자레인지, Phone-MW 설정이 남았어요'), findsOneWidget);
+    await tester.tap(find.text('시험용 전자레인지, Phone-MW 설정이 남았어요'));
     await tester.pumpAndSettle();
 
     expect(find.text('시험용 전자레인지, 설정이 2개 남았어요'), findsOneWidget);

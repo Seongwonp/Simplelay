@@ -66,7 +66,7 @@ void main() {
     final never = Completer<RpiThinqOverview?>();
     await tester.pumpWidget(_settings(() => never.future));
     await _settle(tester);
-    expect(findPlainText('알아보는 중'), findsOneWidget);
+    expect(findPlainText('알아보고 있어요'), findsOneWidget);
     expect(find.text('아직 연결 전이에요'), findsNothing);
 
     await _openThinq(tester);

@@ -86,7 +86,11 @@ class _ValueRow extends StatelessWidget {
     required this.title,
     required this.value,
     required this.detail,
+    this.onOpen,
   });
+
+  /// 상세를 열기 전에 — 값을 못 읽은 줄은 여기서 다시 읽게 한다('새로 보기').
+  final VoidCallback? onOpen;
 
   final String id;
   final IconData icon;
@@ -101,8 +105,11 @@ class _ValueRow extends StatelessWidget {
         excludeSemantics: true,
         child: InkWell(
           key: Key('settings-row-$id'),
-          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
-              builder: (_) => _SettingDetailScreen(title: title, child: detail))),
+          onTap: () {
+            onOpen?.call();
+            Navigator.of(context).push(MaterialPageRoute<void>(
+                builder: (_) => _SettingDetailScreen(title: title, child: detail)));
+          },
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 56),
             child: Padding(
