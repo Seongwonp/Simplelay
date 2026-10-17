@@ -32,9 +32,9 @@ void main() {
       success: false, label: '실행 확인 불가',
       reason: KioskFailureReason.serverLost,
     ));
-    expect(find.text('실행 상태를 확인할 수 없어요'), findsOneWidget);
+    expect(find.text('어떻게 됐는지 몰라요'), findsOneWidget);
     expect(find.text('실행을 멈췄어요'), findsNothing);
-    expect(find.textContaining('직접 확인'), findsOneWidget);
+    expect(find.textContaining('가전을 봐 주세요'), findsOneWidget);
   });
 
   // 2026-10-15 문구 개선: 끝낸 것은 버튼 누르기 — 가전이 움직이는지는 사람이 본다(제목 바로 아래 한 줄).
@@ -53,8 +53,8 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼 누름 완료'), findsOneWidget);
-    expect(find.text('가전 반응은 직접 확인해 주세요'), findsOneWidget);
+    expect(find.text('다 눌렀어요'), findsOneWidget);
+    expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
     expect(find.text('즉석밥 데워줘'), findsOneWidget);
     expect(find.textContaining('누름 장치'), findsNothing);
@@ -80,9 +80,9 @@ void main() {
       ),
     );
 
-    expect(find.text('버튼 누름 완료'), findsNothing);
+    expect(find.text('다 눌렀어요'), findsNothing);
     expect(find.text('작은 팔이 다 눌렀다고 알려 왔어요'), findsOneWidget);
-    expect(find.text('가전이 실제로 움직이는지는 직접 봐 주세요'), findsOneWidget);
+    expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
   });
 
   testWidgets('모의 실행은 가장 큰 글자부터 연습이라고 말한다', (tester) async {
@@ -100,7 +100,7 @@ void main() {
     // 맨 위 고정 띠 + 제목 + 제목 바로 아래 한 줄(2026-10-15).
     expect(find.text(kPracticeBandText), findsOneWidget);
     expect(find.text('연습을 마쳤어요'), findsOneWidget);
-    expect(find.text('버튼 누름 완료'), findsNothing);
+    expect(find.text('다 눌렀어요'), findsNothing);
     expect(find.text('실제 가전은 누르지 않았어요'), findsOneWidget);
   });
 
@@ -122,8 +122,8 @@ void main() {
 
     // 외부 평가 2026-10-13 M5: 실물 모션 + 모의 L3는 실제 동작 확인이 아니다.
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
-    expect(find.text('가전이 켜졌는지는 직접 봐 주세요'), findsOneWidget);
-    expect(find.text('연습용 판정 값이에요 · 전력 파형에서 가열 시작을 확인했어요'), findsOneWidget);
+    expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
+    expect(find.text('연습 값이에요 · 전력 파형에서 가열 시작을 확인했어요'), findsOneWidget);
   });
 
   testWidgets('실패는 자동으로 돌아간다고 말하지 않고 다음 행동을 준다', (tester) async {
@@ -138,14 +138,15 @@ void main() {
       ),
     );
 
-    expect(find.text('가전을 먼저 봐 주세요'), findsOneWidget);
-    expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsOneWidget);
+    expect(find.text('눌렸는지 몰라요'), findsOneWidget);
+    // 같은 경고는 화면에 한 번 — '다시 시도' 확인 창에만 있다(쉬운 말 10/17).
+    expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
     expect(find.text('처음 화면으로'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
     expect(find.text('화면으로 조작하기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
-    // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 '확인 필요'와 물음표(외부 평가 10/16 4차).
-    expect(find.text('확인 필요'), findsOneWidget);
+    // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 '봐 주세요'와 물음표(외부 평가 10/16 4차).
+    expect(find.text('봐 주세요'), findsOneWidget);
     expect(find.text('실패'), findsNothing);
     expect(find.byIcon(Icons.question_mark), findsOneWidget);
     expect(find.byIcon(Icons.close), findsNothing);
@@ -167,7 +168,7 @@ void main() {
     );
 
     expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
-    expect(find.text('작은 팔과 가전이 멈췄는지 직접 봐 주세요'), findsOneWidget);
+    expect(find.text('작은 팔과 가전이 멈췄는지 봐 주세요'), findsOneWidget);
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
     // 다시 하려면 처음 화면에서 고른다. '화면으로 조작하기'는 남는다.
     expect(find.text('다시 시도'), findsNothing);
@@ -223,12 +224,12 @@ void main() {
       ),
     );
 
-    expect(find.text('ThinQ · 연습 모드 · 받았는지 확인이 필요해요 · 확인 못 함'),
+    expect(find.text('LG 가전 · 연습 · 받았는지 몰라요 · 몰라요'),
         findsOneWidget);
-    // 보내지 않은 단계는 '확인 못 함'이 아니라 '누르지 않음'. 물리 경로 배지는 달지 않는다(2026-10-14).
-    expect(find.text('연습 모드 · 누르지 않음 · 실패'),
+    // 보내지 않은 단계는 '몰라요'이 아니라 '누르지 않았어요'. 물리 경로 배지는 달지 않는다(2026-10-14).
+    expect(find.text('연습 · 누르지 않았어요 · 실패'),
         findsOneWidget);
-    expect(find.textContaining('상태 확인됨'), findsNothing);
+    expect(find.textContaining('바뀐 것을 봤어요'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
@@ -296,7 +297,7 @@ void main() {
     );
 
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
-    expect(find.text('연습이라 가전 동작은 보지 않았어요'), findsOneWidget);
+    expect(find.text('연습이라 가전은 보지 않았어요'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('가전 동작도 확인했어요')), findsNothing);
     handle.dispose();
   });
@@ -310,22 +311,22 @@ void main() {
         label: '에어컨 켜줘',
         executionMode: 'mock',
         route: 'thinq',
-        confirmation: '연습 상태 확인',
+        confirmation: '연습 결과',
         onDismiss: () {},
       ),
     );
 
     expect(find.text('가전 상태를 확인했어요'), findsNothing);
-    expect(find.text('연습으로 상태를 확인했어요'), findsOneWidget);
+    expect(find.text('연습을 마쳤어요'), findsOneWidget);
   });
 
   group('L3 판정 출처 × 모션 실행 모드 (평가 M5)', () {
     // 확인한 것은 전력 변화다 — 물리 성공은 제목 바로 아래 한 줄이 말한다(2026-10-15).
-    const realSentence = '전자레인지의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요';
-    const mockMotion = '연습이라 가전 동작은 보지 않았어요';
+    const realSentence = '원하는 대로 됐는지 봐 주세요';
+    const mockMotion = '연습이라 가전은 보지 않았어요';
     // 모의 L3와 출처 모름은 같은 말(직접 봐 달라) — 모의 출처는 아래 작은 글씨가 밝힌다.
-    const mockL3 = '가전이 켜졌는지는 직접 봐 주세요';
-    const unknownL3 = '가전이 켜졌는지는 직접 봐 주세요';
+    const mockL3 = '가전이 켜졌는지 봐 주세요';
+    const unknownL3 = '가전이 켜졌는지 봐 주세요';
     final cases = <(String, String?, String)>[
       ('real', 'real', realSentence),
       ('real', 'mock', mockL3),
@@ -353,7 +354,7 @@ void main() {
         );
         expect(find.text(expected), findsOneWidget);
         // 실물 모션 + 모의 L3만 '연습용 판정 값'이라고 밝힌다(모의 모션은 큰 줄이 이미 연습이라고 말한다).
-        expect(find.text('연습용 판정 값이에요'),
+        expect(find.text('연습 값이에요'),
             mode != 'mock' && source == 'mock' ? findsOneWidget : findsNothing);
         if (expected != realSentence) {
           expect(find.text(realSentence), findsNothing);
@@ -365,10 +366,10 @@ void main() {
 
   group('동작 중 화면의 전력 판정 줄도 출처가 real일 때만 확인이라고 말한다 (평가 M5)', () {
     for (final (mode, source, expected) in <(String, String?, String)>[
-      ('real', 'real', '전력으로 가전 동작을 확인했어요'),
-      ('real', 'mock', '연습이라 실제 전력은 재지 않아요'),
-      ('real', null, '가전이 켜졌는지는 직접 봐 주세요'),
-      ('mock', 'real', '연습이라 실제 전력은 재지 않아요'),
+      ('real', 'real', '가전이 켜졌어요'),
+      ('real', 'mock', '연습이라 가전은 보지 않아요'),
+      ('real', null, '가전이 켜졌는지 봐 주세요'),
+      ('mock', 'real', '연습이라 가전은 보지 않아요'),
     ]) {
       testWidgets('모션 $mode · 출처 ${source ?? '모름'} → $expected', (tester) async {
         await _pump(
@@ -403,18 +404,18 @@ void main() {
           const KioskDoneView(
               success: true, label: '즉석밥 데워줘', executionMode: 'real',
               operationConfirmed: true, operationSource: 'mock'), false),
-      ('ThinQ · 연습',
+      ('LG 가전 · 연습',
           const KioskDoneView(success: true, label: '에어컨 켜줘', executionMode: 'mock', route: 'thinq'),
           false),
       ('물리 · 실제 + 실측 L3 동작 확인',
           const KioskDoneView(
               success: true, label: '즉석밥 데워줘', executionMode: 'real',
               operationConfirmed: true, operationSource: 'real'), true),
-      ('ThinQ · 실제 상태 재조회(바꿈)',
+      ('LG 가전 · 실제 상태 재조회(바꿈)',
           const KioskDoneView(
               success: true, label: '공기청정기 강풍', executionMode: 'real', route: 'thinq',
               resultConfirmation: 'state_confirmed'), true),
-      ('ThinQ · 실제 상태 재조회(이미 목표값)',
+      ('LG 가전 · 실제 상태 재조회(이미 목표값)',
           const KioskDoneView(
               success: true, label: '공기청정기 강풍', executionMode: 'real', route: 'thinq',
               resultConfirmation: 'already_at_target'), true),
@@ -437,8 +438,8 @@ void main() {
   // 외부 평가 10/16 2차 k04: 연습 실패 화면에 왜 실패했는지가 없었다('실제 가전은 누르지 않았어요'만).
   testWidgets('연습 실패도 이유 한 줄을 말한다 — 실제 가전은 누르지 않았다는 말과 함께', (tester) async {
     for (final (reason, why) in [
-      (KioskFailureReason.safetyStop, '연습에서 눌림을 확인하지 못해 멈췄어요'),
-      (KioskFailureReason.execution, '연습에서 눌림을 확인하지 못했어요'),
+      (KioskFailureReason.safetyStop, '연습에서 눌렸는지 몰라서 멈췄어요'),
+      (KioskFailureReason.execution, '연습에서 눌렸는지 몰라요'),
       (KioskFailureReason.serverLost, '연습 결과를 받지 못했어요'),
     ]) {
       await _pump(
@@ -457,7 +458,7 @@ void main() {
   });
 
   // 외부 평가 10/16 4차: 위 줄은 '취소' 버튼을 직접 누르라는데 아래 줄은 '정지 버튼'이라 했다 — 같은 이름으로.
-  testWidgets('정지 확인 못 함: 작은 팔이 대신 누른 버튼을 실제 이름으로 말한다', (tester) async {
+  testWidgets('정지 몰라요: 작은 팔이 대신 누른 버튼을 실제 이름으로 말한다', (tester) async {
     await _pump(
       tester,
       KioskHoldView(

@@ -152,15 +152,15 @@ void main() {
           onDismiss: () {},
         ),
       );
-      expect(find.text('가전을 먼저 봐 주세요'), findsOneWidget);
+      expect(find.text('눌렸는지 몰라요'), findsOneWidget);
       final sizes = tester
           .widgetList<Text>(find.byType(Text))
           .map((t) => t.style?.fontSize ?? 0)
           .toList();
-      final head = tester.widget<Text>(find.text('가전을 먼저 봐 주세요'));
+      final head = tester.widget<Text>(find.text('눌렸는지 몰라요'));
       expect(head.style!.fontSize, sizes.reduce((a, b) => a > b ? a : b));
-      // 다시 시도 위험(열린 문제 R1) — 이미 켜졌다면 다시 시도하지 말라고 한다. 두 번 누르지 않는다고는 하지 않는다.
-      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsOneWidget);
+      // 다시 시도 위험(열린 문제 R1) — 당부는 화면에 한 번, '다시 시도' 확인 창에만 있다(쉬운 말 10/17).
+      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
       expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
@@ -171,6 +171,10 @@ void main() {
       final home = tester.getRect(find.text('처음 화면으로'));
       final retry = tester.getRect(find.text('다시 시도'));
       expect(home.left, lessThan(retry.left), reason: '처음 화면으로가 먼저');
+      // 다시 시도를 누르면 확인 창이 당부를 한 번 말한다.
+      await tester.tap(find.text('다시 시도'));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsOneWidget);
     });
 
     testWidgets('B2 — 다시 보낼 요청이 없으면(놓친 결과·폰이 시작한 실행) 다시 시도도, 그 당부도 없다',
@@ -205,11 +209,12 @@ void main() {
           const KioskStatus(
               running: false, lastJobId: 'job-1', lastStatus: 'failed', lastOutcome: 'failed'));
       expect(find.text('다시 시도'), findsOneWidget);
-      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsOneWidget);
+      // 당부는 확인 창에만(쉬운 말 10/17).
+      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('성공·전력 확인 — 버튼을 다 눌렀어요 + 전력 사용이 늘었어요(켜졌다고 하지 않는다)', (tester) async {
+    testWidgets('성공·전력 확인 — 전력 변화를 본 것만 가전이 켜졌어요, 할 일은 원하는 대로 됐는지 보기', (tester) async {
       await _pumpView(
         tester,
         KioskDoneView(
@@ -223,12 +228,12 @@ void main() {
         ),
       );
       // 띠('가전 상태 확인')·제목·본문이 같은 확인 수준(전력 변화)을 말한다(외부 평가 10/16 2차 k06).
-      expect(find.text('전력 변화 확인'), findsOneWidget);
-      expect(find.text('버튼 누름 완료'), findsNothing);
+      expect(find.text('가전이 켜졌어요'), findsOneWidget);
+      expect(find.text('다 눌렀어요'), findsNothing);
       // 띠도 같은 수준 — '가전 상태 확인'은 한 단계 강했다(외부 평가 10/16 3차).
-      expect(find.text('전력 확인'), findsOneWidget);
+      expect(find.text('됐어요'), findsOneWidget);
       expect(find.text('가전 상태 확인'), findsNothing);
-      expect(find.text('전자레인지의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'),
+      expect(find.text('원하는 대로 됐는지 봐 주세요'),
           findsOneWidget);
       expect(find.textContaining('켜진 것'), findsNothing);
       expect(find.textContaining('동작도 확인'), findsNothing);
@@ -248,7 +253,7 @@ void main() {
       );
       expect(find.byIcon(Icons.verified_outlined), findsNothing);
       expect(find.byIcon(Icons.check), findsNothing);
-      expect(find.textContaining('멈췄는지는 확인 못 했어요'), findsOneWidget);
+      expect(find.textContaining('멈췄는지는 몰라요'), findsOneWidget);
       // 주어는 작은 팔 — 실행·기계가 멈췄다고 하지 않는다.
       expect(find.text('실행을 멈췄어요'), findsNothing);
       expect(find.textContaining('기계'), findsNothing);
@@ -302,12 +307,12 @@ void main() {
       expect(find.text('작은 팔이 전자레인지 옆에서 기다리고 있어요'), findsOneWidget);
       expect(find.textContaining('동작 중'), findsNothing);
       expect(find.text("정지를 누르면 작은 팔이 '취소' 버튼을 대신 눌러요"), findsOneWidget);
-      // 정지 대기 안내는 흰색 — 주의색은 확인 못 함에만.
+      // 정지 대기 안내는 흰색 — 주의색은 몰라요에만.
       final guide = tester.widget<Text>(find.text("정지를 누르면 작은 팔이 '취소' 버튼을 대신 눌러요"));
       expect(guide.style?.color, isNot(KioskColors.primary));
       expect(guide.style?.color, isNot(KioskColors.warning));
       // 버튼판 그림은 누르는 자리라고 말한다.
-      expect(find.text('작은 팔이 누르는 자리예요 · 화면은 누르지 않아도 돼요'), findsOneWidget);
+      expect(find.text('작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -325,7 +330,7 @@ void main() {
       await _pumpKiosk(tester, api);
       await _nextPoll(tester);
       expect(find.byType(KioskHoldView), findsOneWidget);
-      expect(find.text('작은 팔로 조작할 수 없어요'), findsOneWidget);
+      expect(find.text('작은 팔을 쓸 수 없어요'), findsOneWidget);
       expect(find.textContaining('돌아가고 있어요'), findsNothing);
       // 정지 단추 자리는 그대로(같은 자리·크기), 지금은 못 누른다는 것을 글자와 흐린 테두리로 말한다
       // (UI 평가 4차 10/17 — 회색이어도 흰 테두리가 남아 누를 수 있는 것처럼 보였다).
@@ -335,11 +340,11 @@ void main() {
       expect(button.onPressed, isNull);
       final shape = button.style!.shape!.resolve({WidgetState.disabled}) as RoundedRectangleBorder;
       expect(shape.side.color, isNot(Colors.white));
-      expect(find.text('비상 버튼을 풀기 전에는 정지 단추를 쓸 수 없어요'), findsOneWidget);
+      expect(find.text('비상 버튼을 풀면 정지 단추를 다시 쓸 수 있어요'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('정지 확인 못 함 — 가장 큰 글자는 직접 누르라는 할 일, 단추는 다시 정지 시도(크기 그대로)', (tester) async {
+    testWidgets('정지 몰라요 — 가장 큰 글자는 직접 누르라는 할 일, 단추는 다시 정지 시도(크기 그대로)', (tester) async {
       await _pumpView(
         tester,
         const KioskHoldView(
@@ -413,7 +418,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull);
         final left = find.ancestor(
-            of: find.text('남은 시간을 아직 알 수 없어요'),
+            of: find.text('끝나는 시간은 몰라요'),
             matching: find.byType(RawScrollbar));
         expect(left, findsOneWidget);
         expect(tester.widget<RawScrollbar>(left).thumbVisibility, isTrue);
@@ -428,7 +433,7 @@ void main() {
   });
 
   group('1단계 · 비상 버튼 띠', () {
-    testWidgets('제목·풀기 안내·해제하기 — 해제해도 멈췄던 작업은 다시 시작하지 않는다', (tester) async {
+    testWidgets('제목·풀기 안내·풀기 — 풀어도 멈췄던 일은 이어서 하지 않는다', (tester) async {
       final api = FakeKioskApi()
         ..statusResult = const KioskStatus(
             running: false, estopLatched: true, estopDetail: _buttonDetail);
@@ -441,10 +446,10 @@ void main() {
       await tester.tap(find.byKey(_ack));
       await _settle(tester);
       expect(find.textContaining('빨간 비상 버튼을 돌려서 풀어 주세요'), findsOneWidget);
-      expect(find.textContaining('해제해도 멈췄던 작업은 다시 시작하지 않아요'), findsOneWidget);
+      expect(find.textContaining('풀어도 멈췄던 일은 이어서 하지 않아요'), findsOneWidget);
       // 자동 실행 허용 규칙은 꺼지지 않는다 — 꺼진다고 말하지 않는다.
       expect(find.textContaining('자동 실행'), findsNothing);
-      expect(find.text('해제하기'), findsOneWidget);
+      expect(find.text('풀기'), findsOneWidget);
       expect(api.estopAckCalls, 0);
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -457,14 +462,14 @@ void main() {
         ..statusAfterAck = const KioskStatus(running: false);
       await _pumpKiosk(tester, api);
       expect(find.text('비상 버튼이 눌려 있어요'), findsNothing);
-      expect(find.text('가전 콘센트 전원이 꺼져 있어요'), findsOneWidget);
+      expect(find.text('콘센트 전원이 꺼져 있어요'), findsOneWidget);
       await tester.tap(find.byKey(_ack));
       await _settle(tester);
-      expect(find.textContaining('해제하면 가전 콘센트 전원이 다시 켜져요'), findsOneWidget);
+      expect(find.textContaining('풀면 콘센트 전원이 다시 켜져요'), findsOneWidget);
       expect(find.textContaining('빨간 비상 버튼'), findsNothing);
       await tester.tap(find.byKey(_confirm));
       await _settle(tester);
-      expect(find.text('해제했어요. 가전 콘센트 전원을 다시 켰어요.'), findsOneWidget);
+      expect(find.text('풀었어요. 콘센트 전원을 다시 켰어요.'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -575,8 +580,8 @@ void main() {
 
     testWidgets('숫자 근거(mA·dB·%) 없이 무엇을 보는지만 말한다', (tester) async {
       await _pumpView(tester, exec(confidence: 0.93, detail: '전류 +14mA · 소리 +9dB'));
-      expect(find.text('제대로 눌렸는지 확인하는 중'), findsOneWidget);
-      expect(find.text('버튼을 누른 뒤 가전 반응을 보고 있어요'), findsOneWidget);
+      expect(find.text('제대로 눌렸는지 보는 중'), findsOneWidget);
+      expect(find.text('가전이 켜지는지 보고 있어요'), findsOneWidget);
       expect(find.textContaining('mA'), findsNothing);
       expect(find.textContaining('dB'), findsNothing);
       expect(find.textContaining('%'), findsNothing);
@@ -585,7 +590,7 @@ void main() {
     testWidgets('다시 누를 때 — 자리를 맞춰 다시 누르는 중, 한 번 더 눌러요(안전하다고는 하지 않는다)', (tester) async {
       await _pumpView(tester, exec(attempt: 2, confidence: 0.4, detail: '전류 +2mA'));
       expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
-      expect(find.text('눌렸는지 확인되지 않아 한 번 더 눌러요'), findsOneWidget);
+      expect(find.text('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
       expect(find.textContaining('2번째 시도'), findsOneWidget);
       expect(find.textContaining('보정'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
@@ -593,7 +598,7 @@ void main() {
 
     testWidgets('버튼판 그림 위에 누르는 자리라고 말한다', (tester) async {
       await _pumpView(tester, exec());
-      expect(find.text('작은 팔이 누르는 자리예요 · 화면은 누르지 않아도 돼요'), findsOneWidget);
+      expect(find.text('작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
     });
 
     testWidgets('긴 실행 이름은 2줄까지 줄이지 않고 보인다', (tester) async {
@@ -607,10 +612,10 @@ void main() {
 
     testWidgets('연습 — 맨 위 띠로 말하고 실물 동사(누르는 중·눌렸는지) 대신 짚는다', (tester) async {
       await _pumpView(tester, exec(mode: 'mock', completed: 1, total: 2, confidence: 1, detail: '모의 검증'));
-      expect(find.text('연습 중 · 실제 가전에는 보내지 않아요'), findsOneWidget);
+      expect(find.text('연습 중이에요. 실제 가전에는 보내지 않아요'), findsOneWidget);
       expect(find.text('연습 모드'), findsNothing);
-      expect(find.text('짚는 중'), findsOneWidget);
-      expect(find.text('짚을 버튼 2개 중 2번째'), findsOneWidget);
+      expect(find.text('누르는 연습 중'), findsOneWidget);
+      expect(find.text('누를 버튼 2개 중 2번째'), findsOneWidget);
       expect(find.text('누르는 중'), findsNothing);
       expect(find.textContaining('눌렸는지'), findsNothing);
       expect(find.textContaining('모의'), findsNothing);
@@ -621,7 +626,7 @@ void main() {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       await _pumpView(tester, exec(mode: 'mock'), scale: 1.6, malgun: true);
       expect(tester.takeException(), isNull);
-      final band = find.text('연습 중 · 실제 가전에는 보내지 않아요');
+      final band = find.text('연습 중이에요. 실제 가전에는 보내지 않아요');
       expect(band, findsOneWidget);
       expect(tester.renderObject<RenderParagraph>(band).didExceedMaxLines, isFalse);
       expect(tester.getRect(band).top, lessThan(40));
@@ -657,7 +662,7 @@ void main() {
       expect(find.text('이번엔 안 할게요'), findsOneWidget);
       expect(find.text('다음에'), findsNothing);
       expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
-      expect(find.text('누르지 않으면 실행하지 않아요 · 20초 뒤 닫혀요'), findsOneWidget);
+      expect(find.text('누르지 않으면 하지 않아요. 20초 뒤 닫혀요'), findsOneWidget);
       // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.
       expect(find.text('아침에 3번 하셔서 여쭤봐요'), findsOneWidget);
       expect(find.textContaining('최근'), findsNothing);
@@ -721,8 +726,8 @@ void main() {
     for (final (reason, readiness, todo) in [
       ('버튼 자리를 아직 맞추지 않았어요', 'needs_setup', '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요'),
       ('확인한 지 오래돼 다시 확인해야 해요', 'needs_setup', '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요'),
-      ('모터가 아직 준비되지 않았어요', 'needs_setup', '잠시 기다려 주세요. 계속되면 작은 팔 장치를 다시 켜 주세요'),
-      ('기기와 연결되지 않았어요', 'disconnected', '처음 화면 위쪽의 연결 표시를 눌러 확인해 주세요'),
+      ('모터가 아직 준비되지 않았어요', 'needs_setup', '잠시 기다려 주세요. 계속되면 작은 팔을 다시 켜 주세요'),
+      ('기기와 연결되지 않았어요', 'disconnected', '처음 화면 위쪽의 연결 표시를 눌러 봐 주세요'),
     ]) {
       testWidgets('준비 안 됨 — "$reason"에는 할 일 한 줄', (tester) async {
         await _pumpView(
@@ -756,7 +761,7 @@ void main() {
       expect(find.text('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요'), findsOneWidget);
       expect(find.byIcon(Icons.add_circle_outline), findsNothing);
       await _pumpView(tester, idle(appliances: null));
-      expect(find.text('SimpleLay 본체와 연결되면 가전이 보여요'), findsOneWidget);
+      expect(find.text('본체와 연결되면 가전이 보여요'), findsOneWidget);
       expect(find.textContaining('허브'), findsNothing);
     });
 
@@ -773,7 +778,7 @@ void main() {
     testWidgets('B8 — 제안 쉬는 중 칩은 큰 글씨에서 같이 커지고 남은 시간이라고 말한다', (tester) async {
       final until = DateTime(2026, 9, 30, 8, 38);
       await _pumpView(tester, idle(dnd: until));
-      expect(find.text('제안 쉬는 중'), findsOneWidget);
+      expect(find.text('쉬는 중'), findsOneWidget);
       expect(find.text('1시간 30분 남음'), findsOneWidget);
       final small = tester.getSize(find.text('1시간 30분 남음')).height;
       await _pumpView(tester, idle(dnd: until), scale: 1.22);
@@ -782,10 +787,10 @@ void main() {
       expect(large, greaterThan(small));
     });
 
-    testWidgets('제안 잠시 쉬기 창 — 이름과 쉬는 범위, 다시 제안 받기', (tester) async {
+    testWidgets('잠시 쉬기 창 — 이름과 쉬는 범위, 쉬기 끝내기', (tester) async {
       await _pumpView(tester, DndOverlay(dndUntil: null, onSet: (_) {}, onClear: () {}, onDismiss: () {}));
-      expect(find.text('제안 잠시 쉬기'), findsOneWidget);
-      expect(find.text('새 제안과 자동 실행을 잠시 쉬어요'), findsOneWidget);
+      expect(find.text('잠시 쉬기'), findsOneWidget);
+      expect(find.text('새 제안과 자동으로 하기를 잠시 쉬어요'), findsOneWidget);
       expect(find.textContaining('방해 금지'), findsNothing);
       await _pumpView(
           tester,
@@ -795,11 +800,11 @@ void main() {
               onSet: (_) {},
               onClear: () {},
               onDismiss: () {}));
-      expect(find.text('다시 제안 받기'), findsOneWidget);
-      expect(find.textContaining('새 제안만 쉬고 있어요 · 자동 실행은 그대로예요'), findsOneWidget);
+      expect(find.text('쉬기 끝내기'), findsOneWidget);
+      expect(find.textContaining('새 제안만 쉬어요. 자동으로 하기는 그대로예요'), findsOneWidget);
     });
 
-    testWidgets('B4 — 연결 창: 다시 확인하기, SimpleLay 본체 풀이, 큰 글씨에서 잘리지 않고 막대가 보인다', (tester) async {
+    testWidgets('B4 — 연결 창: 새로 보기, 본체 풀이 줄 없음, 큰 글씨에서 잘리지 않고 막대가 보인다', (tester) async {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       await _pumpView(
         tester,
@@ -823,15 +828,16 @@ void main() {
         malgun: true,
       );
       expect(tester.takeException(), isNull);
-      expect(find.text('다시 확인하기'), findsOneWidget);
+      expect(find.text('새로 보기'), findsOneWidget);
       expect(find.text('다시 연결하기'), findsNothing);
-      expect(find.text('다시 확인하기').hitTestable(), findsOneWidget);
+      expect(find.text('새로 보기').hitTestable(), findsOneWidget);
       expect(find.text('닫기').hitTestable(), findsOneWidget);
       final bar = find.ancestor(
           of: find.textContaining('공유기 전원이'), matching: find.byType(RawScrollbar));
       expect(bar, findsOneWidget);
       expect(tester.widget<RawScrollbar>(bar).thumbVisibility, isTrue);
-      expect(find.textContaining('부엌에 둔, 이 화면이 달린 상자'), findsOneWidget);
+      // 이름이 '본체'로 짧아져 풀이 줄은 뺐다(쉬운 말 10/17).
+      expect(find.textContaining('이 화면이 달린 상자'), findsNothing);
     });
 
     // UI 평가 10/17: 연결 창이 글자 단위로 끊기고('주세/요.'·'선/이') 셋째 항목은 스크롤해야 보였다.

@@ -172,7 +172,7 @@ void main() {
       expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
       // 첫 장 맨 앞: 확인 필요(인덕션) → 동작 중(세탁기)
       _expectFullyVisible(tester, find.text('인덕션'));
-      _expectFullyVisible(tester, find.text('확인 필요'));
+      _expectFullyVisible(tester, find.text('봐 주세요'));
       _expectFullyVisible(tester, find.text('세탁기'));
       _expectFullyVisible(tester, find.text('동작 중'));
       // 다음 장으로 넘기는 수단은 남는다.
@@ -209,7 +209,7 @@ void main() {
       await _pump(tester, _hold(), scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
       _expectFullyVisible(tester, find.text(kPracticeBandText));
-      _expectFullyVisible(tester, find.text('연습이라 실제 전력은 재지 않아요'));
+      _expectFullyVisible(tester, find.text('연습이라 가전은 보지 않아요'));
       _expectFullyVisible(tester, find.text('정지'));
       // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리).
       _expectFullyVisible(tester, find.text('멈추라고 보냈어요'));
@@ -222,12 +222,12 @@ void main() {
           scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
       _expectFullyVisible(tester,
-          find.text('정지 요청을 보내지 못했어요. 다시 누르거나 가전 전원을 직접 꺼 주세요.'));
+          find.text('멈추라고 보내지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.'));
       _expectFullyVisible(tester, find.text('정지'));
     });
 
     for (final (outcome, line, stopLabel) in [
-      ('stopped', '전자레인지가 멈춘 것을 전력으로 확인했어요', '정지'),
+      ('stopped', '전자레인지가 멈췄어요', '정지'),
       // 멈췄는지 모르면 가장 큰 글자가 할 일이고, 정지 단추 이름이 '다시 정지 시도'(자리·크기 그대로).
       ('requested_unconfirmed', "지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요", '다시\n정지 시도'),
     ]) {
@@ -251,7 +251,7 @@ void main() {
         await _pump(tester, _idle(dndUntil: DateTime(2026, 9, 30, 8, 38)),
             scale: scale, panel15: panel15);
         expect(tester.takeException(), isNull);
-        _expectFullyVisible(tester, find.text('제안 쉬는 중'));
+        _expectFullyVisible(tester, find.text('쉬는 중'));
         _expectFullyVisible(tester, find.text('1시간 30분 남음'));
         _expectFullyVisible(tester, find.text('9월 30일 수요일'));
       }

@@ -162,7 +162,7 @@ Map<String, Widget Function()> _screens() => {
             target: kMicrowaveAppliance,
             onDismiss: () {},
           ),
-      '완료 — 확인 못 함': () => KioskDoneView(
+      '완료 — 몰라요': () => KioskDoneView(
             success: false,
             label: '즉석밥 데워줘',
             target: kMicrowaveAppliance,

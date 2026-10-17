@@ -26,7 +26,7 @@ const kThinqEstopNote = '비상 버튼이 눌려 있어 지금은 바꿀 수 없
 const kThinqPowerOffNote = '전원을 켠 뒤 바꿀 수 있어요';
 
 /// 연습(모의) ThinQ 표시.
-const kThinqPracticeText = '연습 중 · 실제 가전에는 보내지 않아요';
+const kThinqPracticeText = '연습 중이에요. 실제 가전에는 보내지 않아요';
 
 /// ThinQ 가전 상세(2026-10-16, 사용자 요청) — 왼쪽 지금 상태, 오른쪽 큰 조작 단추.
 ///
@@ -85,7 +85,7 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
     final reader = widget.readStatus;
     final seq = ++_readSeq;
     if (reader == null) {
-      setState(() => _status = const KioskThinqStatus(failure: 'SimpleLay 본체에 연결되지 않았어요'));
+      setState(() => _status = const KioskThinqStatus(failure: '본체에 연결되지 않았어요'));
       return;
     }
     setState(() => _loading = true);
@@ -93,7 +93,7 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
     try {
       status = await reader();
     } catch (_) {
-      status = const KioskThinqStatus(failure: 'SimpleLay 본체에 연결되지 않았어요');
+      status = const KioskThinqStatus(failure: '본체에 연결되지 않았어요');
     }
     if (!mounted || seq != _readSeq) return;
     setState(() {
@@ -109,7 +109,7 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
       _message = null;
     });
     if (send == null) {
-      setState(() => _message = 'SimpleLay 본체에 연결되면 바꿀 수 있어요.');
+      setState(() => _message = '본체에 연결되면 바꿀 수 있어요.');
       return;
     }
     setState(() => _sending = true);
@@ -213,7 +213,7 @@ class _StateCard extends StatelessWidget {
     final List<Widget> body;
     if (loading || s == null) {
       body = const [
-        Text('ThinQ에서 지금 상태를 읽는 중…',
+        Text('지금 상태를 보는 중…',
             key: ValueKey('thinq-reading'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
       ];
@@ -225,7 +225,7 @@ class _StateCard extends StatelessWidget {
             const Icon(Icons.error_outline, color: KioskColors.warning, size: 28),
             const SizedBox(width: 10),
             Expanded(
-              child: KioskText('지금 상태를 읽지 못했어요 — ${s.failure}',
+              child: KioskText('지금 상태를 못 봤어요. ${s.failure}',
                   textKey: const ValueKey('thinq-read-failed'),
                   style: const TextStyle(fontSize: KioskType.body, color: Colors.white, height: 1.3)),
             ),
@@ -238,7 +238,7 @@ class _StateCard extends StatelessWidget {
       final dustNote = thinqDustNote(map);
       body = [
         if (rows.isEmpty)
-          const Text('표시할 수 있는 상태 값이 없어요',
+          const Text('보여 줄 상태가 없어요',
               style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted))
         else
           for (final row in rows) _StateRowView(row: row),
@@ -281,7 +281,7 @@ class _StateCard extends StatelessWidget {
                 style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border)
                     .copyWith(padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 14))),
                 icon: const Icon(Icons.refresh, size: 22),
-                label: const Text('다시 읽기', style: TextStyle(fontSize: KioskType.caption)),
+                label: const Text('새로 보기', style: TextStyle(fontSize: KioskType.caption)),
               ),
             ],
           ),
@@ -371,7 +371,7 @@ class _Controls extends StatelessWidget {
     if (s == null) {
       // 읽는 중 — 조작 칸은 아직 그리지 않는다.
     } else if (!s.ok) {
-      children.add(const Text('지금 상태를 읽은 뒤 바꿀 수 있어요. 왼쪽의 다시 읽기를 눌러 주세요.',
+      children.add(const Text('지금 상태를 본 뒤 바꿀 수 있어요. 왼쪽의 새로 보기를 눌러 주세요.',
           key: ValueKey('thinq-controls-unknown'),
           style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
     } else {
@@ -383,7 +383,7 @@ class _Controls extends StatelessWidget {
         children.add(const Padding(padding: EdgeInsets.only(bottom: 10), child: _PracticeChip()));
       }
       if (controls.isEmpty) {
-        children.add(const Text('이 가전의 설정은 휴대폰 SimpleLay 앱의 가전 화면에서 바꿀 수 있어요.',
+        children.add(const Text('이 가전은 휴대폰 SimpleLay 앱에서 바꿀 수 있어요.',
             key: ValueKey('thinq-controls-phone'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
       }
@@ -574,7 +574,7 @@ class _ChangeConfirm extends StatelessWidget {
                       style: const TextStyle(
                           fontSize: KioskType.status, fontWeight: FontWeight.w700, color: Colors.white, height: 1.25)),
                   const SizedBox(height: 10),
-                  const KioskText('SimpleLay 본체가 ThinQ로 보내요. 바뀌었는지는 상태를 다시 읽어 확인해요.',
+                  const KioskText('LG 가전으로 보내요. 바뀌었는지는 보낸 뒤 다시 봐요.',
                       style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted, height: 1.3)),
                   const SizedBox(height: 20),
                   Row(

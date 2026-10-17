@@ -35,7 +35,7 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: Scaffold(body: KioskHoldView(
       appliance: null, holdState: 'hovering_stop', elapsed: const Duration(minutes: 3), onStop: () {},
     ))));
-    expect(find.text('남은 시간을 아직 알 수 없어요'), findsOneWidget);
+    expect(find.text('끝나는 시간은 몰라요'), findsOneWidget);
     expect(find.text('시작한 지'), findsNothing);
     expect(find.text('3:00'), findsNothing);
     expect(find.text('정지'), findsOneWidget);

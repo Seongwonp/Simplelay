@@ -54,7 +54,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
       if (mounted) setState(() => _error = e.detail);
     } catch (_) {
       if (mounted) {
-        setState(() => _error = '연결 코드를 받지 못했어요. SimpleLay 본체 연결을 확인하고 다시 눌러 주세요.');
+        setState(() => _error = '연결 코드를 받지 못했어요. 본체 연결을 보고 다시 눌러 주세요.');
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -113,7 +113,7 @@ class _KioskPairingViewState extends State<KioskPairingView> {
             });
       }
     } catch (_) {
-      if (mounted) setState(() => _error = '연결 승인을 보내지 못했어요. 화면을 다시 확인해 주세요.');
+      if (mounted) setState(() => _error = '연결 허락을 보내지 못했어요. 다시 눌러 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -162,11 +162,11 @@ class _KioskPairingViewState extends State<KioskPairingView> {
                 Text('${session!['phone']}',
                     style: const TextStyle(fontSize: 33)),
                 Text(
-                    '폰에도 같은 표시가 있는지 확인해 주세요 · ${(session['request_id'] as String).substring(0, 6)}',
+                    '폰에도 ${(session['request_id'] as String).substring(0, 6)} 표시가 있는지 봐 주세요',
                     style: const TextStyle(fontSize: 26)),
               ],
               if (state == 'approved')
-                const Text('승인했어요. 폰에서 연결을 확인해 주세요.',
+                const Text('허락했어요. 폰에서 연결을 봐 주세요.',
                     style: TextStyle(fontSize: 33)),
               if (state == 'consumed')
                 const Text('폰에 연결 정보를 보냈어요.', style: TextStyle(fontSize: 33)),

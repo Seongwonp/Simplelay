@@ -247,7 +247,7 @@ void main() {
         const ConnectionItem(id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: ''),
         const ConnectionItem(id: 'plug', state: 'ok', title: '가전 콘센트 장치가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
       ];
-      await tester.tap(find.text('다시 확인하기'));
+      await tester.tap(find.text('새로 보기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
       expect(find.byKey(const ValueKey('conn-badge-plug')), findsNothing);
@@ -267,7 +267,7 @@ void main() {
       expect(find.byKey(const ValueKey('conn-badge-network')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('conn-network')));
       await _settle(tester);
-      expect(find.text('SimpleLay 본체와 연결되지 않았어요'), findsOneWidget);
+      expect(find.text('본체와 연결되지 않았어요'), findsOneWidget);
     });
   });
 
@@ -334,7 +334,7 @@ void main() {
       final first = tester.getRect(find.byKey(const ValueKey('strip-intercom')));
       final second = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(first.left, lessThan(second.left));
-      expect(find.text('확인 필요'), findsOneWidget);
+      expect(find.text('봐 주세요'), findsOneWidget);
     });
 
     testWidgets('정지 버튼 대기 중인 가전은 "동작 중"으로 맨 앞에 선다', (tester) async {
@@ -455,12 +455,12 @@ void main() {
       expect(find.byType(KioskHoldView), findsOneWidget);
       // 연습이면 제목이 가전이 돈다고 말하지 않는다 — 연습은 맨 위 띠로(2026-10-15).
       expect(find.text('전자레인지 연습 중'), findsOneWidget);
-      expect(find.text('연습으로 3개를 짚었어요'), findsOneWidget);
-      expect(find.text("정지를 누르면 '취소' 버튼을 짚는 연습을 해요"), findsOneWidget);
+      expect(find.text('연습으로 버튼 3개를 눌렀어요'), findsOneWidget);
+      expect(find.text("정지를 누르면 '취소' 버튼을 누르는 연습을 해요"), findsOneWidget);
       // 전력 판정이 없으면 없다고 말한다 — 남은 시간을 지어내지 않는다
-      expect(find.text('가전이 움직이는지는 확인하지 못했어요'), findsOneWidget);
+      expect(find.text('가전이 켜졌는지는 몰라요'), findsOneWidget);
       // 남은 시간은 모른다고만 말하고 숫자를 만들지 않는다(d965888).
-      expect(find.text('남은 시간을 아직 알 수 없어요'), findsOneWidget);
+      expect(find.text('끝나는 시간은 몰라요'), findsOneWidget);
       expect(find.textContaining(RegExp(r'\d+:\d\d')), findsNothing);
       // 모의를 실물처럼 보이지 않는다
       expect(find.text(kPracticeBandText), findsOneWidget);
@@ -473,7 +473,7 @@ void main() {
       api.statusResult = _hovering(state: 'stopping');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      expect(find.text('정지 버튼을 짚고 있어요'), findsOneWidget);
+      expect(find.text('정지 버튼을 누르는 연습 중이에요'), findsOneWidget);
     });
 
     testWidgets('정지됨 → 작은 팔이 제자리로 돌아갔어요를 짧게 보이고 평소 화면으로', (tester) async {
@@ -486,7 +486,7 @@ void main() {
       await _settle(tester);
       expect(find.text('작은 팔이 제자리로 돌아갔어요'), findsOneWidget);
       // 가전이 멈췄다는 말은 전력 하강으로 확인한 때(stopped)만 — 무엇으로 확인했는지까지.
-      expect(find.text('전자레인지가 멈춘 것을 전력으로 확인했어요'), findsOneWidget);
+      expect(find.text('전자레인지가 멈췄어요'), findsOneWidget);
 
       // 보관 표시는 완료 화면과 같은 복귀 시간(KioskTimings.doneReturn)을 쓴다.
       await tester.pump(KioskTimings.doneReturn + const Duration(seconds: 1));
@@ -505,7 +505,7 @@ void main() {
 
       expect(find.textContaining('멈춘 것을'), findsNothing);
       // 상태 영역은 짧게(2026-10-16 디자인 규격 §1-2) — 무엇을 했는지는 할 일 아래 작은 줄이 말한다.
-      expect(find.text('멈췄는지 확인하지 못했어요'), findsOneWidget);
+      expect(find.text('가전이 멈췄는지 몰라요'), findsOneWidget);
       // 가장 큰 글자는 할 일 한 가지 — 정지 버튼은 자리·크기·색 그대로 이름만 바뀐다(2026-10-15).
       expect(find.text("지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요"), findsOneWidget);
       expect(find.text('다시\n정지 시도'), findsOneWidget);
@@ -528,7 +528,7 @@ void main() {
           detail: '구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      expect(find.text('작은 팔 장치에 문제가 생겼어요'), findsOneWidget);
+      expect(find.text('작은 팔에 문제가 생겼어요'), findsOneWidget);
       expect(find.text('구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요'),
           findsOneWidget);
       // 정지 버튼은 여전히 닿는다

@@ -83,14 +83,14 @@ class KioskExecutingView extends StatelessWidget {
     }
     if (_retrying) {
       return (
-        _mock ? '다시 짚는 중' : '자리를 맞춰 다시 누르는 중',
+        _mock ? '다시 누르는 연습 중' : '자리를 맞춰 다시 누르는 중',
         Icons.autorenew,
         KioskColors.warning
       );
     }
-    if (_mock) return ('짚는 중', Icons.touch_app_outlined, Colors.white);
+    if (_mock) return ('누르는 연습 중', Icons.touch_app_outlined, Colors.white);
     return _hasVerification
-        ? ('제대로 눌렸는지 확인하는 중', Icons.manage_search, Colors.white)
+        ? ('제대로 눌렸는지 보는 중', Icons.manage_search, Colors.white)
         : ('누르는 중', Icons.touch_app_outlined, Colors.white);
   }
 
@@ -99,7 +99,7 @@ class KioskExecutingView extends StatelessWidget {
   /// 스크롤 아래에서 잘렸다(UI 평가 3차 10/17).
   String? _evidence({bool large = false}) {
     final parts = <String>[
-      if (_hasVerification && !_mock && !large) '버튼을 누른 뒤 가전 반응을 보고 있어요',
+      if (_hasVerification && !_mock && !large) '가전이 켜지는지 보고 있어요',
       if (_retrying) '$currentAttempt번째 시도',
     ];
     return parts.isEmpty ? null : parts.join(' · ');
@@ -109,10 +109,10 @@ class KioskExecutingView extends StatelessWidget {
   /// 다 끝났으면 '모두'라고 쓴다(예전에는 첫 버튼에서 '총 2단계 중 0단계'가 보였다).
   String progressLine(int total, int completed) {
     if (completed >= total) {
-      return _mock ? '$total개 모두 짚었어요' : '$total개 모두 눌렀어요';
+      return '$total개 모두 눌렀어요';
     }
     final now = (completed + 1).clamp(1, total);
-    return _mock ? '짚을 버튼 $total개 중 $now번째' : '누를 버튼 $total개 중 $now번째';
+    return '누를 버튼 $total개 중 $now번째';
   }
 
   @override
@@ -210,7 +210,7 @@ class KioskExecutingView extends StatelessWidget {
               appliance: target,
               current: onPanel,
               caution: _retrying,
-              caption: _mock ? '연습으로 짚는 자리예요 · 화면은 누르지 않아도 돼요' : kPanelCaption,
+              caption: _mock ? '연습으로 누르는 자리예요. 화면은 누르지 않아도 돼요' : kPanelCaption,
               captionKey: const ValueKey('exec-panel-caption'),
             )
           : null,
@@ -258,7 +258,7 @@ class _NowBlock extends StatelessWidget {
             const SizedBox(height: 4),
             // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
             Text(
-              view._mock ? '연습이라 실제로 누르지는 않아요' : '눌렸는지 확인되지 않아 한 번 더 눌러요',
+              view._mock ? '연습이라 실제로 누르지는 않아요' : '눌렸는지 몰라서 한 번 더 눌러요',
               style: const TextStyle(
                   fontSize: KioskType.body, color: KioskColors.warning),
             ),
@@ -272,7 +272,7 @@ class _NowBlock extends StatelessWidget {
             ),
           ],
           if (total == null && view.completedSteps != null)
-            Text(view._mock ? '버튼 $done개를 짚었어요' : '버튼 $done개를 눌렀어요',
+            Text('버튼 $done개를 눌렀어요',
                 style: const TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted)),
         ],

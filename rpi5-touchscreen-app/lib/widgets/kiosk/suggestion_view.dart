@@ -12,7 +12,7 @@ import 'status_band.dart';
 import 'route_badge.dart';
 
 /// 승인 재검사 실패(409) 안내. 폰 앱과 같은 문장.
-const kApprovalChangedMessage = '제안 내용이 바뀌어 다시 확인이 필요해요';
+const kApprovalChangedMessage = '내용이 바뀌었어요. 다시 봐 주세요';
 
 /// 제안 확인 화면.
 ///
@@ -78,7 +78,7 @@ class KioskSuggestionView extends StatelessWidget {
         KioskStatusBand(
           tone: KioskBandTone.neutral,
           icon: Icons.lightbulb_outline,
-          label: suggestion.isDemo ? '제안 · 시연 데이터' : '제안',
+          label: suggestion.isDemo ? '제안 연습' : '제안',
         ),
         Expanded(child: _body(context, target, scenario, canExecute)),
       ],
@@ -186,7 +186,7 @@ class KioskSuggestionView extends StatelessWidget {
               )),
       style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 48), foregroundColor: Colors.white),
-      child: const Text('순서·근거 보기', style: TextStyle(fontSize: KioskType.body)),
+      child: const Text('자세히 보기', style: TextStyle(fontSize: KioskType.body)),
     );
     return Padding(
       padding: const EdgeInsets.fromLTRB(40, 14, 40, KioskSizes.actionsBottom),
@@ -222,7 +222,7 @@ class KioskSuggestionView extends StatelessWidget {
           ],
           if (scenario && scenarioName != null) ...[
             Text(
-              '시나리오 · $scenarioName',
+              '루틴 $scenarioName',
               style: const TextStyle(
                   fontSize: KioskType.body, color: KioskColors.muted),
             ),
@@ -263,7 +263,7 @@ class KioskSuggestionView extends StatelessWidget {
                                   stripMockMark: suggestion.isDemo),
                                 if (scenarioWhy) ...[
                                   const SizedBox(height: 16),
-                                  _WhyText('근거: ${suggestion.whyNow}'),
+                                  _WhyText('이유: ${suggestion.whyNow}'),
                                 ],
                               ],
                             ),
@@ -372,10 +372,10 @@ class KioskSuggestionView extends StatelessWidget {
                 child: Text(
                   canExecute
                       // 남은 초는 이 화면에서 닫히는 시간이다 — 거절·실행을 보내지 않는다(2026-10-15).
-                      ? '누르지 않으면 실행하지 않아요 · $cdRemaining초 뒤 닫혀요'
+                      ? '누르지 않으면 하지 않아요. $cdRemaining초 뒤 닫혀요'
                       : scenario
-                          ? '$blockedWhy · $cdRemaining초 뒤 닫혀요'
-                          : '이 제안의 가전을 찾을 수 없어 실행할 수 없어요 · '
+                          ? '$blockedWhy. $cdRemaining초 뒤 닫혀요'
+                          : '이 가전을 찾지 못해 할 수 없어요. '
                               '$cdRemaining초 뒤 닫혀요',
                   style: TextStyle(
                       fontSize: KioskType.caption,
@@ -461,7 +461,7 @@ class _WhyTextState extends State<_WhyText> {
                   padding: const WidgetStatePropertyAll(
                       EdgeInsets.symmetric(horizontal: 16)),
                 ),
-                child: Text(_expanded ? '근거 접기' : '근거 전체 보기',
+                child: Text(_expanded ? '접기' : '이유 더 보기',
                     style: const TextStyle(fontSize: KioskType.caption)),
               ),
             ),
@@ -577,14 +577,14 @@ class _CommandList extends StatelessWidget {
         itemBuilder: (context, i) {
           final c = commands[i];
           final raw =
-              c.summary.isNotEmpty ? c.summary : '가전과 동작을 폰에서 확인해 주세요';
+              c.summary.isNotEmpty ? c.summary : '폰에서 가전과 할 일을 봐 주세요';
           final summary = stripMockMark
               ? raw.replaceAll(RegExp(r'\(모의( 클라우드)?\)'), '')
               : raw;
           // 버튼 누름(physical)은 칩 없이 — routeLabel이 null을 주지만 '경로를 모름'이 아니다(10/14 회귀 수리).
           final path = c.route == 'physical'
               ? null
-              : (routeLabel(c.route) ?? '경로 확인 필요');
+              : (routeLabel(c.route) ?? '경로 모름');
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

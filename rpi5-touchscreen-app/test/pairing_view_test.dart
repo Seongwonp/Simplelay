@@ -46,7 +46,7 @@ void main() {
     await tester.tap(find.text('이 폰 연결하기'));
     await tester.pump();
     expect(api.approvals, 1);
-    expect(find.text('승인했어요. 폰에서 연결을 확인해 주세요.'), findsOneWidget);
+    expect(find.text('허락했어요. 폰에서 연결을 봐 주세요.'), findsOneWidget);
     await tester.tap(find.text('닫기'));
     await tester.pump();
     expect(api.closed, 1);

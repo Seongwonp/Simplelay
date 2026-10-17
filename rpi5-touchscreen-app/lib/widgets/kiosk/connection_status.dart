@@ -6,7 +6,7 @@ import '../../theme/kiosk_tokens.dart';
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 
-/// 평소 화면 오른쪽 위의 연결 아이콘 세 개(와이파이·작은 팔 장치·가전 콘센트 장치).
+/// 평소 화면 오른쪽 위의 연결 아이콘 세 개(와이파이·작은 팔·콘센트).
 ///
 /// 정상이면 회색 아이콘뿐이다. 문제가 생기면 그 아이콘이 노란색이 되고 "!" 배지가
 /// 붙는다. 누르면 [KioskConnectionModal]이 무엇이 안 되는지와 해결 방법을 말한다.
@@ -73,8 +73,8 @@ String _shortName(String id) => switch (id) {
 
 String _name(String id) => switch (id) {
       'network' => '와이파이',
-      'press' => '작은 팔 장치',
-      'plug' => '가전 콘센트 장치',
+      'press' => '작은 팔',
+      'plug' => '콘센트',
       _ => '연결',
     };
 
@@ -95,7 +95,7 @@ class _ConnectionIcon extends StatelessWidget {
     return Semantics(
       button: true,
       label: warn
-          ? '${_name(item.id)} 확인이 필요해요. ${item.title}. 자세히 보기'
+          ? '${_name(item.id)}. ${item.title}. 자세히 보기'
           : '${_name(item.id)}: ${item.title}',
       child: ExcludeSemantics(
         child: InkWell(
@@ -157,12 +157,11 @@ class _ConnectionIcon extends StatelessWidget {
 
 /// 연결 문제 모달 — 제목, 무엇이 안 되는지, 해결 방법, "다시 확인하기/닫기".
 ///
-/// "다시 확인하기"는 SimpleLay 본체에 연결 상태를 **다시 묻는다**. 서버에 재연결 명령은
+/// "새로 보기"는 본체에 연결 상태를 **다시 묻는다**. 서버에 재연결 명령은
 /// 없어서, 고쳐진 뒤 확인하는 단추다(예전 이름 '다시 연결하기'는 다시 연결해 주는 줄 알았다, 2026-10-15).
 ///
 /// 글이 길면 안에서 스크롤하고 막대가 보인다(B4 — 예전에는 잘린 채 끝나 보였다).
-/// 'SimpleLay 본체'를 처음 보는 사람에게 한 번 풀어 쓰는 말(2026-10-15 결정 — 화면 자체를 본체로 오해할 수 있다).
-const kHubExplain = 'SimpleLay 본체: 부엌에 둔, 이 화면이 달린 상자예요';
+/// 예전의 'SimpleLay 본체: …' 풀이 줄은 뺐다(쉬운 말 10/17) — 이름이 '본체'·'본체 화면'으로 짧아져 풀어 쓸 말이 없다.
 
 class KioskConnectionModal extends StatelessWidget {
   const KioskConnectionModal({
@@ -181,9 +180,6 @@ class KioskConnectionModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final warn = item.needsAttention;
-    // 'SimpleLay 본체'가 처음 나오는 곳 — 무엇을 말하는지 한 번 풀어 쓴다(2026-10-15 결정).
-    final mentionsHub = [item.title, item.message, ...item.fixes]
-        .any((t) => t.contains('SimpleLay 본체'));
     // 큰 글씨는 캔버스를 거의 다 쓰고 줄 간격·여백을 줄인다 — 셋째 할 일이 스크롤 아래였다(UI 평가 3차 10/17).
     final large = KioskLayout.isLarge(context);
     final bodyHeight = large ? 1.22 : 1.35;
@@ -265,15 +261,6 @@ class KioskConnectionModal extends StatelessWidget {
                             ],
                           ),
                         ),
-                      if (mentionsHub)
-                        Padding(
-                          padding: EdgeInsets.only(top: large ? 6 : 12),
-                          child: const Text(
-                            kHubExplain,
-                            key: ValueKey('hub-explain'),
-                            style: TextStyle(fontSize: 18, color: KioskColors.muted),
-                          ),
-                        ),
                     ],
                   ),
                 ),
@@ -296,7 +283,7 @@ class KioskConnectionModal extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text(
-                        checking ? '확인하고 있어요' : '다시 확인하기',
+                        checking ? '보고 있어요' : '새로 보기',
                         style: const TextStyle(
                             fontSize: 20, fontWeight: FontWeight.w700),
                       ),

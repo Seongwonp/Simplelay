@@ -315,7 +315,7 @@ class KioskPanelPicture extends StatelessWidget {
         child: a == null || a.isThinq || a.buttons.isEmpty
             ? const Center(
                 child: Text(
-                  '조작판 그림이 없어요',
+                  '버튼판 그림이 없어요',
                   style: TextStyle(
                       fontSize: KioskType.body, color: KioskColors.panelText),
                 ),

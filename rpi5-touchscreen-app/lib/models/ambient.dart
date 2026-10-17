@@ -126,12 +126,11 @@ class ConnectionItem {
   static const hubUnreachable = ConnectionItem(
     id: 'network',
     state: 'error',
-    title: 'SimpleLay 본체와 연결되지 않았어요',
-    message: '화면이 SimpleLay 본체에 닿지 못하고 있어요. 지금은 가전을 대신 눌러 드릴 수 없고, '
-        '날씨 안내도 볼 수 없어요.',
+    title: '본체와 연결되지 않았어요',
+    message: '지금은 가전을 눌러 드릴 수 없어요.',
     fixes: [
-      'SimpleLay 본체 전원이 켜져 있는지 확인해 주세요.',
-      "잠시 뒤 '다시 확인하기'를 눌러 주세요.",
+      '본체 전원이 켜져 있는지 봐 주세요.',
+      "잠시 뒤 '새로 보기'를 눌러 주세요.",
     ],
     source: 'kiosk',
   );

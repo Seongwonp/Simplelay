@@ -77,22 +77,22 @@ class EstopAckResult {
   /// 자동 실행 허용 규칙은 꺼지지 않으므로 그렇다고 말하지 않는다(2026-10-15 문구 개선 원칙 0-6).
   String messageFor({bool powerRestore = false}) => switch (outcome) {
         EstopAckOutcome.cleared => powerRestore
-            ? '해제했어요. 가전 콘센트 전원을 다시 켰어요.'
-            : '해제했어요. 멈췄던 작업은 다시 시작하지 않아요. 가전 전원은 따로 켜야 해요.',
+            ? '풀었어요. 콘센트 전원을 다시 켰어요.'
+            : '풀었어요. 멈췄던 일은 이어서 하지 않아요. 가전 전원은 직접 켜 주세요.',
         EstopAckOutcome.buttonPressed =>
-          '빨간 비상 버튼이 아직 눌려 있어요. 돌려서 푼 뒤 다시 해제해 주세요.',
+          '빨간 비상 버튼이 아직 눌려 있어요. 돌려서 푼 뒤 다시 풀어 주세요.',
         EstopAckOutcome.outletUnreachable =>
-          '가전 콘센트 장치가 답하지 않아 해제하지 못했어요. 연결을 확인하고 다시 해 주세요.',
+          '콘센트가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.retriggered =>
-          '해제하는 사이 다시 걸렸어요. 주변을 확인하고 다시 해제해 주세요.',
+          '푸는 사이 다시 걸렸어요. 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.stillLatched =>
-          '아직 풀리지 않았어요. 빨간 비상 버튼과 주변을 확인하고 다시 해제해 주세요.',
+          '아직 풀리지 않았어요. 빨간 비상 버튼과 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.notLatched =>
-          'SimpleLay 본체가 걸림을 확인하지 못해 해제하지 않았어요. 상태를 다시 확인해 주세요.',
+          '본체에서 걸린 것을 찾지 못해 풀지 않았어요. 잠시 뒤 다시 봐 주세요.',
         EstopAckOutcome.noAnswer =>
-          '작은 팔 장치가 답하지 않아 해제하지 못했어요. 연결을 확인하고 다시 해 주세요.',
+          '작은 팔이 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.failed =>
-          '해제 요청을 보내지 못했어요. 연결을 확인하고 다시 해 주세요.',
+          '풀기를 보내지 못했어요. 연결을 보고 다시 해 주세요.',
       };
 }
 
@@ -115,7 +115,7 @@ String? estopDetailLine(String? detail) {
 
 /// 걸림 띠 제목(2026-10-15 문구 개선 §2-3) — '비상정지' 대신 손에 보이는 물건 이름으로.
 const kEstopTitle = '비상 버튼이 눌려 있어요';
-const kEstopPowerTitle = '가전 콘센트 전원이 꺼져 있어요';
+const kEstopPowerTitle = '콘센트 전원이 꺼져 있어요';
 String estopTitleFor(String? detail) =>
     estopIsPowerLoss(detail) ? kEstopPowerTitle : kEstopTitle;
 
@@ -123,20 +123,20 @@ String estopTitleFor(String? detail) =>
 const kEstopConfirmQuestion =
     '① 빨간 비상 버튼을 돌려서 풀어 주세요\n'
     '② 가전 주변이 안전한지 봐 주세요\n'
-    '해제해도 멈췄던 작업은 다시 시작하지 않아요.\n'
-    '가전 전원은 따로 켜야 해요.';
+    '풀어도 멈췄던 일은 이어서 하지 않아요.\n'
+    '가전 전원은 직접 켜 주세요.';
 const kEstopPowerConfirmQuestion =
-    '가전 주변이 안전한지 봐 주세요.\n해제하면 가전 콘센트 전원이 다시 켜져요.';
+    '가전 주변이 안전한지 봐 주세요.\n풀면 콘센트 전원이 다시 켜져요.';
 String estopConfirmFor(String? detail) => estopIsPowerLoss(detail)
     ? kEstopPowerConfirmQuestion
     : kEstopConfirmQuestion;
 
 /// 띠의 단추 — 바로 해제가 아니라 안내를 먼저 연다. 해제는 안내 안의 '해제하기'로만.
 const kEstopAckLabel = '풀기 안내';
-const kEstopConfirmLabel = '해제하기';
+const kEstopConfirmLabel = '풀기';
 
 /// 걸림이 새로 생길 때 한 번 말하는 안내(키오스크 음성).
-const kEstopSpoken = '비상 버튼이 눌렸어요. 주변을 확인한 뒤 화면에서 해제해 주세요.';
-const kEstopPowerSpoken = '가전 콘센트 전원이 꺼졌어요. 주변을 확인한 뒤 화면에서 해제해 주세요.';
+const kEstopSpoken = '비상 버튼이 눌렸어요. 주변을 본 뒤 화면에서 풀어 주세요.';
+const kEstopPowerSpoken = '콘센트 전원이 꺼졌어요. 주변을 본 뒤 화면에서 풀어 주세요.';
 String estopSpokenFor(String? detail) =>
     estopIsPowerLoss(detail) ? kEstopPowerSpoken : kEstopSpoken;

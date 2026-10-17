@@ -50,7 +50,7 @@ Finder _inButton<T>(String text) => find.ancestor(
     );
 
 void main() {
-  // 2026-10-15: 완료·동작 중 화면은 작은 칩 대신 맨 위 띠("연습 중 · 실제 가전에는 보내지 않아요").
+  // 2026-10-15: 완료·동작 중 화면은 작은 칩 대신 맨 위 띠("연습 중이에요. 실제 가전에는 보내지 않아요").
   group('실행 환경 표시 — 연습일 때만 연습 표시, 실제·모름은 아무것도', () {
     for (final mode in ['real', 'unknown', 'mock']) {
       testWidgets('완료 화면 · $mode', (tester) async {
@@ -86,7 +86,7 @@ void main() {
     }
   });
 
-  group('정지·모터 걸림 뒤에는 "확인 못 함" 칩을 덧붙이지 않는다', () {
+  group('정지·모터 걸림 뒤에는 "몰라요" 칩을 덧붙이지 않는다', () {
     testWidgets('사용자 정지', (tester) async {
       await _pump(
         tester,
@@ -126,7 +126,7 @@ void main() {
             receipt: 'not_dispatched',
             confirmation: 'none',
             executionMode: 'real'),
-        '누르지 않음',
+        '누르지 않았어요',
       );
       final facts = runStepFacts(const ScenarioRunStep(
         targetId: 'microwave',
@@ -137,7 +137,7 @@ void main() {
         confirmation: 'none',
         executionMode: 'real',
       ));
-      expect(facts, contains('누르지 않음'));
+      expect(facts, contains('누르지 않았어요'));
       expect(facts, isNot(contains('확인 못')));
       expect(facts, isNot(contains('physical')));
       expect(facts, isNot(contains('물리 버튼')));
@@ -159,9 +159,9 @@ void main() {
     );
     expect(find.byIcon(Icons.close), findsNothing);
     expect(find.byIcon(Icons.question_mark), findsOneWidget);
-    expect(find.text('정지 요청으로 실행이 끝났어요'), findsOneWidget);
+    expect(find.text('정지를 눌러 끝났어요'), findsOneWidget);
     expect(find.textContaining('— 정지 요청으로'), findsNothing);
-    expect(find.text('작은 팔과 가전이 멈췄는지 직접 봐 주세요'), findsOneWidget);
+    expect(find.text('작은 팔과 가전이 멈췄는지 봐 주세요'), findsOneWidget);
     expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
     // 직접 멈춘 결과에는 '다시 시도'가 없다(UI 평가 5차 10/17 — 다시 누를 위험).
     expect(find.text('다시 시도'), findsNothing);
@@ -202,7 +202,7 @@ void main() {
     );
     expect(find.textContaining(' — '), findsNothing);
     // 다시 시도 단추가 없으면 그 단추 이야기(이미 켜졌다면 다시 시도하지 마세요)도 하지 않는다.
-    expect(find.text('가전을 먼저 봐 주세요.'), findsOneWidget);
+    expect(find.text('가전을 봐 주세요.'), findsOneWidget);
   });
 
   group('평소 화면 위 줄', () {
@@ -285,9 +285,9 @@ void main() {
       ],
     );
 
-    testWidgets('버튼 누름 단계에 "경로 확인 필요" 경고 칩을 붙이지 않는다', (tester) async {
+    testWidgets('버튼 누름 단계에 "경로 모름" 경고 칩을 붙이지 않는다', (tester) async {
       await pumpCard(tester, routineRun);
-      expect(find.text('경로 확인 필요'), findsNothing);
+      expect(find.text('경로 모름'), findsNothing);
     });
 
     testWidgets('내가 직접 시작한 루틴은 근거 줄이 없고 목록 제목은 "누를 버튼"', (tester) async {
@@ -300,7 +300,7 @@ void main() {
 
     testWidgets('자동 제안(사용자가 시작하지 않음)은 근거 줄을 그대로 보인다', (tester) async {
       await pumpCard(tester, const KioskSuggestion(
-        id: 's3', purpose: '공기청정기 풍량을 강으로 바꿀까요?', occurrences: 0,
+        id: 's3', purpose: '공기청정기 바람 세기를 강으로 바꿀까요?', occurrences: 0,
         scenarioId: 'cook_done_air',
         reason: '전자레인지 가열 종료를 콘센트 전력(CT)으로 감지했어요',
         commands: [KioskSuggestionCommand(targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 풍량 강')],
@@ -314,7 +314,7 @@ void main() {
         id: 's2', purpose: '무언가', occurrences: 0,
         commands: [KioskSuggestionCommand(targetId: 'x', route: 'mystery', summary: '알 수 없는 동작')],
       ));
-      expect(find.text('경로 확인 필요'), findsOneWidget);
+      expect(find.text('경로 모름'), findsOneWidget);
     });
   });
 }

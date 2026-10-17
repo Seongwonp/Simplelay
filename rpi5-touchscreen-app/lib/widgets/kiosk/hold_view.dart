@@ -96,18 +96,18 @@ class KioskHoldView extends StatelessWidget {
   // 가전이 돈다고는 전력으로 확인했을 때만 말한다. 아이콘이 상태를 함께 말한다(2026-10-16 §1-2).
   (String, IconData, Color) get _headline {
     if (estopTitle case final t?) {
-      return ('$t · 가전이 멈췄는지는 직접 봐 주세요', Icons.report, KioskColors.danger);
+      return ('$t. 가전을 봐 주세요', Icons.report, KioskColors.danger);
     }
     if (_fault) {
-      return ('작은 팔 장치에 문제가 생겼어요', Icons.error_outline, KioskColors.danger);
+      return ('작은 팔에 문제가 생겼어요', Icons.error_outline, KioskColors.danger);
     }
     // 정지 미확인 — 상태 영역은 짧게, 바로 아래 첫 블록이 할 일, 무엇을 했는지는 그 아래 작게(2026-10-16 §1-2).
     if (_unconfirmed) {
-      return ('멈췄는지 확인하지 못했어요', Icons.help_outline, KioskColors.warning);
+      return ('가전이 멈췄는지 몰라요', Icons.help_outline, KioskColors.warning);
     }
     return switch (holdState) {
       'stopping' => (
-          _mock ? '정지 버튼을 짚고 있어요' : '작은 팔이 정지 버튼을 누르고 있어요',
+          _mock ? '정지 버튼을 누르는 연습 중이에요' : '작은 팔이 정지 버튼을 누르고 있어요',
           Icons.touch_app_outlined,
           Colors.white
         ),
@@ -136,7 +136,7 @@ class KioskHoldView extends StatelessWidget {
       return KioskStatusBand(
           tone: KioskBandTone.danger,
           icon: Icons.report,
-          label: '정지 대기',
+          label: '작동 중',
           practice: _mock,
           suppressUnderEstop: true);
     }
@@ -144,14 +144,14 @@ class KioskHoldView extends StatelessWidget {
       return KioskStatusBand(
           tone: KioskBandTone.danger,
           icon: Icons.error_outline,
-          label: _fault ? '장치 문제' : '정지 요청 실패',
+          label: _fault ? '작은 팔 문제' : '멈추기 실패',
           practice: _mock);
     }
     if (_unconfirmed) {
       return KioskStatusBand(
           tone: KioskBandTone.attention,
           icon: Icons.help_outline,
-          label: '확인 필요',
+          label: '봐 주세요',
           practice: _mock);
     }
     if (_mock) return const KioskStatusBand.practice();
@@ -159,22 +159,22 @@ class KioskHoldView extends StatelessWidget {
     return KioskStatusBand(
       tone: KioskBandTone.neutral,
       icon: Icons.pan_tool_outlined,
-      label: waiting ? '정지 대기' : '정지 대기 끝',
+      label: waiting ? '작동 중' : '작동 끝',
     );
   }
 
   String get _operationLine {
     final ok = operationConfirmed;
-    if (ok == null) return '가전이 움직이는지는 확인하지 못했어요';
-    if (!ok) return '전력으로 가전 동작을 확인하지 못했어요';
+    if (ok == null) return '가전이 켜졌는지는 몰라요';
+    if (!ok) return '가전이 켜진 것은 못 봤어요';
     // 외부 평가 2026-10-13 M5: 출처가 real일 때만 확인이라고 말한다. 모의 실행·모의 입력은 연습 값,
     // 출처를 모르면 단정하지 않는다.
     if (_mock || operationSource == 'mock') {
-      return '연습이라 실제 전력은 재지 않아요';
+      return '연습이라 가전은 보지 않아요';
     }
     return operationSource == 'real'
-        ? '전력으로 가전 동작을 확인했어요'
-        : '가전이 켜졌는지는 직접 봐 주세요';
+        ? '가전이 켜졌어요'
+        : '가전이 켜졌는지 봐 주세요';
   }
 
   @override
@@ -185,7 +185,7 @@ class KioskHoldView extends StatelessWidget {
         band: _band,
         header: const KioskStatusHeader(
             icon: Icons.pan_tool_outlined,
-            title: '작은 팔로 조작할 수 없어요',
+            title: '작은 팔을 쓸 수 없어요',
             iconColor: KioskColors.danger),
         body: KioskScrollArea(
             child: Column(
@@ -193,19 +193,15 @@ class KioskHoldView extends StatelessWidget {
           children: [
             KioskText(
                 cancel == null
-                    ? '가전의 정지·취소 버튼을 직접 눌러 주세요'
+                    ? '가전의 정지 버튼을 직접 눌러 주세요'
                     : "$_name의 '$cancel' 버튼을 직접 눌러 주세요",
                 style: const TextStyle(
                     fontSize: KioskType.status,
                     color: Colors.white,
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
-            const KioskText('가전이 멈췄는지는 직접 확인해 주세요',
-                style:
-                    TextStyle(fontSize: KioskType.body, color: Colors.white)),
-            const SizedBox(height: 8),
             // 회색 정지 단추가 왜 안 눌리는지(UI 평가 4차 10/17).
-            const KioskText('비상 버튼을 풀기 전에는 정지 단추를 쓸 수 없어요',
+            const KioskText('비상 버튼을 풀면 정지 단추를 다시 쓸 수 있어요',
                 textKey: ValueKey('hold-estop-stop-note'),
                 style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           ],
@@ -215,7 +211,7 @@ class KioskHoldView extends StatelessWidget {
             label: '정지',
             onPressed: null,
             buttonKey: ValueKey('hold-stop'),
-            semanticsLabel: '정지 조작 불가. 가전의 취소 버튼을 직접 눌러 주세요'),
+            semanticsLabel: '정지 단추를 쓸 수 없어요. 가전의 정지 버튼을 직접 눌러 주세요'),
       );
     }
     final (headline, headIcon, headColor) = _headline;
@@ -228,20 +224,20 @@ class KioskHoldView extends StatelessWidget {
         (
           Icons.touch_app_outlined,
           cancel == null
-              ? '지금 $_name의 정지·취소 버튼을 직접 눌러 주세요'
+              ? '지금 $_name의 정지 버튼을 직접 눌러 주세요'
               : "지금 $_name의 '$cancel' 버튼을 직접 눌러 주세요",
           KioskColors.warning
         ),
       // 가전이 멈췄다는 말은 RPi4가 전력 하강으로 확인한 때만(hold_stop_outcome == stopped).
       if (stopOutcome == 'stopped')
-        (Icons.check, '${withSubject(_name)} 멈춘 것을 전력으로 확인했어요', Colors.white),
+        (Icons.check, '${withSubject(_name)} 멈췄어요', Colors.white),
       // 마지막 시도가 실패했으면 앞선 "보냈어요"는 지운다 — 지금 할 일은 다시 누르기다.
       if (stopRequested && !stopFailed && holdState == 'hovering_stop')
         (Icons.send, '멈추라고 보냈어요', Colors.white),
       if (stopFailed)
         (
           Icons.error_outline,
-          '정지 요청을 보내지 못했어요. 다시 누르거나 가전 전원을 직접 꺼 주세요.',
+          '멈추라고 보내지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.',
           KioskColors.danger
         ),
     ];
@@ -251,7 +247,7 @@ class KioskHoldView extends StatelessWidget {
       if (waiting && buttonsPressed != null && buttonsPressed! > 0)
         (
           Icons.check_circle_outline,
-          _mock ? '연습으로 $buttonsPressed개를 짚었어요' : '버튼 $buttonsPressed개를 눌렀어요',
+          _mock ? '연습으로 버튼 $buttonsPressed개를 눌렀어요' : '버튼 $buttonsPressed개를 눌렀어요',
           KioskColors.muted
         ),
       // 정지 대기 안내는 흰색 — 주의색은 확인 못 함에만 쓴다(2026-10-15).
@@ -260,8 +256,8 @@ class KioskHoldView extends StatelessWidget {
           Icons.my_location,
           _mock
               ? (cancel == null
-                  ? '정지를 누르면 정지 버튼을 짚는 연습을 해요'
-                  : "정지를 누르면 '$cancel' 버튼을 짚는 연습을 해요")
+                  ? '정지를 누르면 정지 버튼을 누르는 연습을 해요'
+                  : "정지를 누르면 '$cancel' 버튼을 누르는 연습을 해요")
               : (cancel == null
                   ? '정지를 누르면 작은 팔이 가전의 정지 버튼을 대신 눌러요'
                   : "정지를 누르면 작은 팔이 '$cancel' 버튼을 대신 눌러요"),
@@ -272,7 +268,7 @@ class KioskHoldView extends StatelessWidget {
           Icons.info_outline,
           // 위 줄('…' 버튼을 직접 눌러 주세요)과 같은 이름으로(외부 평가 10/16 4차).
           _mock
-              ? (cancel == null ? '연습으로 정지 버튼을 짚었어요' : "연습으로 '$cancel' 버튼을 짚었어요")
+              ? (cancel == null ? '연습으로 정지 버튼을 눌렀어요' : "연습으로 '$cancel' 버튼을 눌렀어요")
               : (cancel == null ? '작은 팔이 정지 버튼을 대신 눌렀어요' : "작은 팔이 '$cancel' 버튼을 대신 눌렀어요"),
           KioskColors.muted
         ),
@@ -325,7 +321,7 @@ class KioskHoldView extends StatelessWidget {
                   const SizedBox(height: 6),
                 ],
                 if (waiting) ...[
-                  const Text('남은 시간을 아직 알 수 없어요',
+                  const Text('끝나는 시간은 몰라요',
                       style: TextStyle(
                           fontSize: KioskType.body,
                           height: 1.25,
@@ -433,4 +429,4 @@ class _Lines extends StatelessWidget {
 }
 
 /// 그림 위 안내 — 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §2-2).
-const kPanelCaption = '작은 팔이 누르는 자리예요 · 화면은 누르지 않아도 돼요';
+const kPanelCaption = '작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요';

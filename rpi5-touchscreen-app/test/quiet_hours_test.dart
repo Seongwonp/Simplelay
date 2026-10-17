@@ -126,8 +126,8 @@ void main() {
         ),
       ),
     ));
-    expect(find.text('새 제안과 자동 실행을 잠시 쉬어요'), findsOneWidget);
-    expect(find.text('매일 22:00~07:00 조용한 시간 · 바꾸기는 폰 설정에서'), findsOneWidget);
+    expect(find.text('새 제안과 자동으로 하기를 잠시 쉬어요'), findsOneWidget);
+    expect(find.text('매일 22:00~07:00 조용한 시간이에요. 폰 설정에서 바꿔요'), findsOneWidget);
     expect(find.textContaining('모든'), findsNothing);
     expect(find.textContaining('사용 습관 제안'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -148,8 +148,8 @@ void main() {
         ),
       ),
     ));
-    expect(find.text('23:30까지 새 제안과 자동 실행을 쉬고 있어요'), findsOneWidget);
-    expect(find.text('다시 제안 받기'), findsOneWidget);
+    expect(find.text('23:30까지 새 제안과 자동으로 하기를 쉬어요'), findsOneWidget);
+    expect(find.text('쉬기 끝내기'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

@@ -14,7 +14,7 @@ class KioskAutoRunNotice extends StatelessWidget {
   Widget build(BuildContext context) => Semantics(
         liveRegion: true,
         container: true,
-        label: '자동 실행: $text',
+        label: '자동으로 하기. $text',
         child: ExcludeSemantics(
           child: Container(
             key: const ValueKey('auto-run-notice'),
@@ -24,7 +24,7 @@ class KioskAutoRunNotice extends StatelessWidget {
               children: [
                 const Icon(Icons.autorenew, size: 22, color: KioskColors.muted),
                 const SizedBox(width: 8),
-                const Text('자동 실행',
+                const Text('자동으로 하기',
                     style: TextStyle(fontSize: 16, color: KioskColors.muted)),
                 const SizedBox(width: 12),
                 Expanded(

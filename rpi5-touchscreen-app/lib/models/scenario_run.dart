@@ -79,7 +79,7 @@ String runStepFacts(ScenarioRunStep step) {
   );
   return [
     if (routeLabel(step.route) case final r?) r,
-    if (step.executionMode == 'mock') '연습 모드',
+    if (step.executionMode == 'mock') '연습',
     if (confirmation != null &&
         !(halted && step.confirmation == 'none' && step.receipt != 'not_dispatched'))
       confirmation,

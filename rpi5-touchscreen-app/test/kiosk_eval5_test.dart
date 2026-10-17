@@ -41,7 +41,7 @@ void main() {
         t.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop')));
     expect(button.onPressed, isNull);
     expect(find.textContaining('정지를 누르면'), findsNothing);
-    expect(find.text('전력으로 가전 동작을 확인했어요'), findsNothing);
+    expect(find.text('가전이 켜졌어요'), findsNothing);
     expect(find.textContaining("'취소' 버튼을 직접 눌러 주세요"), findsOneWidget);
     expect(calls, 0);
   });
@@ -60,9 +60,9 @@ void main() {
             executionMode: 'real',
             route: 'physical',
             resultConfirmation: 'reported'));
-    expect(find.text('버튼 누름 완료'), findsOneWidget);
+    expect(find.text('다 눌렀어요'), findsOneWidget);
     expect(find.byIcon(Icons.check), findsWidgets);
-    expect(find.text('가전 반응은 직접 확인해 주세요'), findsOneWidget);
+    expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
   });
   testWidgets('근거 없는 ThinQ 성공에 가전 상태 확인을 만들지 않는다', (t) async {
     await show(
@@ -112,7 +112,7 @@ void main() {
     expect(calls, 0);
     await t.tap(find.text('다시 시도'));
     await t.pumpAndSettle();
-    await t.tap(find.text('확인 후 다시 시도'));
+    await t.tap(find.text('네, 다시 시도'));
     await t.pumpAndSettle();
     expect(calls, 1);
   });
@@ -125,13 +125,13 @@ void main() {
             executionMode: 'mock',
             onRetry: noop,
             onDismiss: noop));
-    expect(find.text('가전을 먼저 봐 주세요'), findsNothing);
+    expect(find.text('눌렸는지 몰라요'), findsNothing);
     expect(find.textContaining('이미 켜졌다면'), findsNothing);
     expect(find.textContaining('실제 가전은 누르지 않았어요'), findsWidgets);
   });
   testWidgets('환경 미상 성공은 회색 완료가 아니라 앰버 확인 필요다', (t) async {
     await show(t, const KioskDoneView(success: true, label: '데우기'));
-    expect(find.text('확인 필요'), findsOneWidget);
+    expect(find.text('봐 주세요'), findsOneWidget);
     final c =
         t.widget<Icon>(find.byKey(const ValueKey('status-band-icon'))).color!;
     expect(HSVColor.fromColor(c).hue, inInclusiveRange(25, 55));

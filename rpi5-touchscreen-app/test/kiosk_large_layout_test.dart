@@ -150,8 +150,8 @@ void main() {
   testWidgets('긴 제안 설명은 반 줄 대신 세부 보기로 열고 전문을 읽는다', (tester) async {
     if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
     await _pump(tester, _longSuggestion(), scale: 1.22);
-    _expectVisible(tester, find.text('순서·근거 보기'), '세부 보기');
-    await tester.tap(find.text('순서·근거 보기'));
+    _expectVisible(tester, find.text('자세히 보기'), '세부 보기');
+    await tester.tap(find.text('자세히 보기'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(find.text('냉동식품'), findsOneWidget);
@@ -239,7 +239,7 @@ void main() {
         _expectVisible(tester, find.byKey(const ValueKey('suggestion-approve')), '지금 실행');
         _expectVisible(tester, find.byKey(const ValueKey('suggestion-later')), '이번엔 안 할게요');
         // 순서는 세부 보기에서 전문을 읽는다.
-        await tester.tap(find.text('순서·근거 보기'));
+        await tester.tap(find.text('자세히 보기'));
         await tester.pumpAndSettle();
         for (final step in ['해동', '냉동식품', '30초']) {
           expect(find.text(step), findsOneWidget, reason: step);
@@ -269,7 +269,7 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.byKey(_band), findsNothing);
         expect(find.byKey(const ValueKey('estop-banner')).hitTestable(), findsOneWidget);
-        expect(find.text('작은 팔로 조작할 수 없어요'), findsOneWidget);
+        expect(find.text('작은 팔을 쓸 수 없어요'), findsOneWidget);
         final stop = tester.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop')));
         expect(stop.onPressed, isNull);
       });

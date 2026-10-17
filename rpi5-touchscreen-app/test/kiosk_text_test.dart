@@ -23,10 +23,10 @@ void main() {
   testWidgets('찾기·화면 읽기는 원문, 그리는 글자만 바뀐다', (tester) async {
     final handle = tester.ensureSemantics();
     await tester.pumpWidget(const MaterialApp(
-      home: Scaffold(body: KioskText('멈췄는지 확인하지 못했어요', textKey: ValueKey('t'))),
+      home: Scaffold(body: KioskText('가전이 멈췄는지 몰라요', textKey: ValueKey('t'))),
     ));
-    expect(find.text('멈췄는지 확인하지 못했어요'), findsOneWidget);
-    expect(find.bySemanticsLabel('멈췄는지 확인하지 못했어요'), findsOneWidget);
+    expect(find.text('가전이 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.bySemanticsLabel('가전이 멈췄는지 몰라요'), findsOneWidget);
     expect(find.byKey(const ValueKey('t')), findsOneWidget);
     handle.dispose();
   });

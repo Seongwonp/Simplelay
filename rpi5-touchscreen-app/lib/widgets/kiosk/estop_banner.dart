@@ -116,7 +116,7 @@ class KioskEstopBanner extends StatelessWidget {
                     ),
                     Text(
                         estopIsPowerLoss(detail)
-                            ? '주변을 확인한 뒤 풀기 안내를 눌러 주세요'
+                            ? '주변을 본 뒤 풀기 안내를 눌러 주세요'
                             : '비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요',
                         style: const TextStyle(color: _white, fontSize: 17)),
                     if (message != null)
@@ -139,7 +139,7 @@ class KioskEstopBanner extends StatelessWidget {
                 key: const ValueKey('estop-ack'),
                 onPressed: acking ? null : onRequest,
                 style: _filled,
-                child: Text(acking ? '해제하는 중…' : kEstopAckLabel,
+                child: Text(acking ? '푸는 중…' : kEstopAckLabel,
                     style: const TextStyle(
                         fontSize: 17, fontWeight: FontWeight.w800)),
               ),

@@ -799,7 +799,7 @@ void main() {
     );
   });
 
-  testWidgets('완료 — 확인 못 함', (t) async {
+  testWidgets('완료 — 몰라요', (t) async {
     await _shoot(
       t,
       'done_failed',
@@ -894,7 +894,7 @@ void main() {
     );
   });
 
-  testWidgets('15인치 미리보기 — 정지 확인 못 함', (t) async {
+  testWidgets('15인치 미리보기 — 정지 몰라요', (t) async {
     await _shoot15(
       t,
       'kiosk15_hold_unconfirmed',

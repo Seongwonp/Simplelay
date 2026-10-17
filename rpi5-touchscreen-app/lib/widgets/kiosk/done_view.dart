@@ -64,12 +64,12 @@ class KioskDoneView extends StatelessWidget {
     final confirmed = await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
-              title: Text(mock ? '연습을 다시 할까요?' : '가전 상태를 확인했나요?',
+              title: Text(mock ? '연습을 다시 할까요?' : '가전을 봐 주셨나요?',
                   style: const TextStyle(fontSize: KioskType.status)),
               content: Text(
                   mock
                       ? '실제 가전에는 보내지 않아요.'
-                      : '이미 켜졌다면 다시 시도하지 마세요. 같은 버튼을 다시 누르게 돼요.',
+                      : '$kDontRetryIfOn.',
                   style: const TextStyle(fontSize: KioskType.body)),
               actions: [
                 TextButton(
@@ -82,7 +82,7 @@ class KioskDoneView extends StatelessWidget {
                     onPressed: () => Navigator.pop(ctx, true),
                     style: FilledButton.styleFrom(
                         minimumSize: const Size(180, 48)),
-                    child: const Text('확인 후 다시 시도',
+                    child: const Text('네, 다시 시도',
                         style: TextStyle(fontSize: KioskType.body))),
               ],
             ));
@@ -200,24 +200,24 @@ class KioskDoneView extends StatelessWidget {
     // 성공의 가장 큰 글자(2026-10-15 문구 개선 §2-1) — 확인한 것만큼. 물리 경로가 끝낸 것은 버튼 누르기이고,
     // 실행 환경을 모르면(옛 노드·UART가 보고하지 않음) 작은 팔이 보고한 사실까지만 말한다.
     final successHeadline = already
-        ? (mock ? '연습 · 이미 그 설정이에요' : '이미 그 설정이에요')
+        ? '이미 그 설정이에요'
         : thinq
             // 모의 ThinQ는 모의 상태를 읽은 것이다(10/6 Copilot 리뷰 66990be).
             ? (mock
-                ? '연습으로 상태를 확인했어요'
+                ? '연습을 마쳤어요'
                 : thinqVerified
-                    ? '가전 상태를 확인했어요'
-                    : '가전 반응을 확인해 주세요')
+                    ? '설정이 됐어요'
+                    : '됐는지 몰라요')
             : mock
                 ? '연습을 마쳤어요'
                 : executionMode == 'real'
-                    // 전력 변화(L3)를 확인했으면 띠('가전 상태 확인')·본문과 같은 수준으로 말한다(외부 평가 10/16 2차 k06).
-                    // '동작을 확인'·'켜졌어요'로 넘겨 말하지 않는다 — 확인한 것은 전력 사용 증가다.
+                    // 전력 변화(L3)를 본 것만 '가전이 켜졌어요'(쉬운 말 사전 10/17 — 전력 변화 확인 → 켜졌어요).
+                    // 누름 보고만이면 '다 눌렀어요', 원하는 동작인지는 사람이 본다(아래 한 줄).
                     ? (operationVerified
-                        ? '전력 변화 확인'
+                        ? '가전이 켜졌어요'
                         : pressCompleted
-                            ? '버튼 누름 완료'
-                            : '눌렸는지 확인하지 못했어요')
+                            ? '다 눌렀어요'
+                            : '눌렸는지 몰라요')
                     : '작은 팔이 다 눌렀다고 알려 왔어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
     final String? successSub = thinq
@@ -225,18 +225,16 @@ class KioskDoneView extends StatelessWidget {
         : mock
             ? '실제 가전은 누르지 않았어요'
             : operationVerified
-                ? '${target?.name ?? '가전'}의 전력 사용이 늘었어요. 원하는 동작인지는 직접 봐 주세요'
-                : executionMode == 'real'
-                    ? '가전 반응은 직접 확인해 주세요'
-                    : '가전이 실제로 움직이는지는 직접 봐 주세요';
+                ? '원하는 대로 됐는지 봐 주세요'
+                : '가전이 켜졌는지 봐 주세요';
     // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
-    // 모의 출처는 아래 작은 글씨("연습용 판정 값이에요")가 같이 밝힌다. 물리 성공의 확인은 위 한 줄이 이미 말했다.
+    // 모의 출처는 아래 작은 글씨("연습 값이에요")가 같이 밝힌다. 물리 성공의 확인은 위 한 줄이 이미 말했다.
     final operationSentence = switch (operationConfirmed) {
-      true when mock => '연습이라 가전 동작은 보지 않았어요',
+      true when mock => '연습이라 가전은 보지 않았어요',
       true when operationSource == 'real' =>
-        success && !thinq ? null : '가전 전력 사용이 늘었어요',
-      true => '가전이 켜졌는지는 직접 봐 주세요',
-      false => '가전 동작은 확인하지 못했어요',
+        success && !thinq ? null : '가전이 켜졌어요',
+      true => '켜졌는지 몰라요',
+      false => '가전이 켜진 것은 못 봤어요',
       null => null,
     };
     final headline = success
@@ -250,7 +248,7 @@ class KioskDoneView extends StatelessWidget {
     final String failureDetail = mock && !userStop
         ? '${r.practiceWhy}\n실제 가전은 누르지 않았어요.'
         : motion != null
-            ? '${_lead(label)}다시 누르지 않았어요.\n가전과 작은 팔을 직접 봐 주세요.'
+            ? '다시 누르지 않았어요.\n가전과 작은 팔을 봐 주세요.'
             : userStop
                 ? stopLevelNextStep(stopLevel)
                 : r.detail(label, canRetry: onRetry != null);
@@ -263,13 +261,13 @@ class KioskDoneView extends StatelessWidget {
       band = KioskStatusBand(
           tone: KioskBandTone.attention,
           icon: Icons.help_outline,
-          label: '확인 필요',
+          label: '봐 주세요',
           practice: mock);
     } else if (color == KioskColors.danger) {
       band = KioskStatusBand(
           tone: KioskBandTone.danger,
           icon: Icons.error_outline,
-          label: r == KioskFailureReason.serverLost ? '확인 불가' : '실패',
+          label: r == KioskFailureReason.serverLost ? '몰라요' : '못 했어요',
           practice: mock);
     } else if (mock) {
       band = const KioskStatusBand.practice();
@@ -279,12 +277,12 @@ class KioskDoneView extends StatelessWidget {
       band = KioskStatusBand(
           tone: KioskBandTone.confirmed,
           icon: Icons.check,
-          label: operationVerified && !thinq ? '전력 확인' : '가전 상태 확인');
+          label: '됐어요');
     } else if (success && executionMode == 'real') {
       band = KioskStatusBand(
           tone: KioskBandTone.attention,
           icon: Icons.help_outline,
-          label: pressCompleted ? '버튼 누름 완료 · 가전 반응 확인 필요' : '가전 반응 확인 필요');
+          label: '봐 주세요');
     } else {
       band = const KioskStatusBand(
           tone: KioskBandTone.neutral, icon: Icons.flag_outlined, label: '결과');
@@ -295,10 +293,13 @@ class KioskDoneView extends StatelessWidget {
       label: [
         if (mock) kPracticeBandText,
         if (success) ...[
-          '${_lead(label)}$successHeadline',
+          if (showLabel) label,
+          successHeadline,
           if (successSub != null) successSub,
-        ] else
+        ] else ...[
+          if (showLabel) label,
           '$headline. $failureDetail',
+        ],
         ...facts,
         if (operationSentence != null) operationSentence,
         if (runSteps.length > 1)
@@ -387,15 +388,29 @@ class KioskDoneView extends StatelessWidget {
                 outcome != null && (!mock || already)
                     ? outcome
                     : mock
-                        ? '연습이라 실제 가전은 조작하지 않았어요'
+                        ? '실제 가전은 바꾸지 않았어요'
                         : thinqVerified
-                            ? 'ThinQ에서 가전 상태를 읽어 확인했어요'
-                            : '확인 결과가 없어 가전 상태를 직접 봐 주세요',
+                            ? '가전에서 바뀐 설정을 봤어요'
+                            : '가전을 봐 주세요',
                 textAlign: TextAlign.center,
                 style: const TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted),
               ),
           ] else ...[
+            // 무엇이었는지 이름 한 줄(문장 앞에 '이름 — '를 붙이지 않는다, 쉬운 말 10/17).
+            if (showLabel) ...[
+              Text(
+                label,
+                key: const ValueKey('done-label'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: KioskType.body,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
             // 할 일 한 가지(원칙 0-3) — 흐린 글자로 두지 않는다. 제목 아래 설명(본문 크기, §1-3).
             KioskText(
               failureDetail,
@@ -495,7 +510,7 @@ class KioskDoneView extends StatelessWidget {
 }
 
 String _stepTitle(int i, ScenarioRunStep step) =>
-    '${i + 1}. ${step.summary.isNotEmpty ? step.summary : '가전 확인 필요'}';
+    '${i + 1}. ${step.summary.isNotEmpty ? step.summary : '가전을 봐 주세요'}';
 
 /// 단계별 결과 — 번호·서버가 쓴 문장, 그 아래 경로·실행 환경·확인 수준·결과.
 /// 확인 수준은 한 줄 요약과 같은 규칙(`confirmationLabel`)이다.
@@ -562,8 +577,7 @@ class _OperationLine extends StatelessWidget {
     if (sentence == null) return const SizedBox.shrink();
     final caption = [
       // 모의 판정의 true는 실제 동작 근거가 아니다 — 출처를 같이 말한다.
-      if (source == 'mock') '연습용 판정 값이에요',
-      if (source == 'real') '실측 판정',
+      if (source == 'mock') '연습 값이에요',
       if (detail case final d? when d.isNotEmpty) d,
     ].join(' · ');
     final color = confirmed ? KioskColors.success : KioskColors.warning;
@@ -632,13 +646,13 @@ enum KioskFailureReason {
 
   /// 연습(모의) 실패의 이유 한 줄 — 실제로 누른 것이 아니라 연습 안에서 일어난 일이다.
   String get practiceWhy => switch (this) {
-        KioskFailureReason.execution => '연습에서 눌림을 확인하지 못했어요.',
-        KioskFailureReason.safetyStop => '연습에서 눌림을 확인하지 못해 멈췄어요.',
+        KioskFailureReason.execution => '연습에서 눌렸는지 몰라요.',
+        KioskFailureReason.safetyStop => '연습에서 눌렸는지 몰라서 멈췄어요.',
         KioskFailureReason.serverLost => '연습 결과를 받지 못했어요.',
         KioskFailureReason.stopped => '연습을 멈췄어요.',
-        KioskFailureReason.unconfirmed => '연습 명령의 결과를 확인하지 못했어요.',
+        KioskFailureReason.unconfirmed => '연습 결과를 몰라요.',
         KioskFailureReason.receiptUnknown => '연습 명령이 닿았는지 몰라요.',
-        KioskFailureReason.notExecuted => '연습 명령이 실행되지 않았어요.',
+        KioskFailureReason.notExecuted => '연습을 하지 못했어요.',
       };
 
   /// 실패가 아니라 '확인 못 함'. 다시 보내면 중복 실행이 될 수 있다.
@@ -648,39 +662,28 @@ enum KioskFailureReason {
 
   /// 가장 큰 글자(2026-10-15 문구 개선 §2-1) — 실패 화면의 주인공은 단추가 아니라 할 일이다.
   String get headline => switch (this) {
-        KioskFailureReason.execution => '가전을 먼저 봐 주세요',
-        KioskFailureReason.serverLost => '실행 상태를 확인할 수 없어요',
+        KioskFailureReason.execution => '눌렸는지 몰라요',
+        KioskFailureReason.serverLost => '어떻게 됐는지 몰라요',
         KioskFailureReason.stopped => stopLevelHeadline(null),
-        KioskFailureReason.safetyStop => '눌림을 확인하지 못해 멈췄어요',
-        KioskFailureReason.unconfirmed => '보냈지만 확인하지 못했어요',
-        KioskFailureReason.receiptUnknown => '명령이 닿았는지 몰라요 — 가전을 먼저 봐 주세요',
-        KioskFailureReason.notExecuted => '명령이 실행되지 않았어요',
+        KioskFailureReason.safetyStop => '눌렸는지 몰라서 멈췄어요',
+        KioskFailureReason.unconfirmed => '보냈지만 됐는지 몰라요',
+        KioskFailureReason.receiptUnknown => '가전이 받았는지 몰라요',
+        KioskFailureReason.notExecuted => '가전을 바꾸지 못했어요',
       };
 
-  /// 큰 글자 아래 할 일. 이름을 모르면([label]이 빈 문자열) "이름 — " 머리 없이 쓴다.
-  /// [canRetry]일 때만 '다시 시도' 당부를 붙인다 — 자동 재시도와 '다시 시도'는 가전 상태를 보지 않고
-  /// 같은 버튼을 다시 누른다(열린 문제 R1). 단추가 없으면 그 단추 이야기를 하지 않는다.
+  /// 큰 글자 아래 할 일 한 줄(쉬운 말 10/17 — 결과 한 줄 + 할 일 한 줄). 이름은 화면이 따로 한 줄로 보인다.
+  /// '다시 시도하지 마세요' 당부는 여기 두지 않는다 — 같은 경고는 화면에 한 번, '다시 시도' 확인 창에만 있다
+  /// (열린 문제 R1). [label]·[canRetry]는 옛 호출을 위해 남긴다.
   String detail(String label, {bool canRetry = true}) => switch (this) {
-        KioskFailureReason.execution => canRetry
-            ? '${_lead(label)}버튼이 눌렸는지 확인하지 못했어요.\n$kDontRetryIfOn.'
-            : '${_lead(label)}버튼이 눌렸는지 확인하지 못했어요.',
-        KioskFailureReason.serverLost =>
-          'SimpleLay 본체의 실행 결과를 확인하지 못했어요.\n가전 상태를 직접 확인해 주세요.',
+        KioskFailureReason.execution => '가전을 봐 주세요.',
+        KioskFailureReason.serverLost => '본체와 연결이 끊겼어요. 가전을 봐 주세요.',
         KioskFailureReason.stopped => stopLevelNextStep(null),
-        KioskFailureReason.safetyStop => canRetry
-            ? '${_lead(label)}가전을 먼저 봐 주세요.\n$kDontRetryIfOn.'
-            : '${_lead(label)}가전을 먼저 봐 주세요.',
-        KioskFailureReason.unconfirmed =>
-          '${_lead(label)}명령을 보냈지만 확인하지 못했어요.\n가전을 직접 확인해 주세요.',
-        KioskFailureReason.receiptUnknown =>
-          '${_lead(label)}가전이 명령을 받았는지 알 수 없어요.\n다시 보내기 전에 가전을 직접 확인해 주세요.',
-        KioskFailureReason.notExecuted =>
-          '${_lead(label)}명령이 실행되지 않았어요.\n가전 연결을 확인해 주세요.',
+        KioskFailureReason.safetyStop => '가전을 봐 주세요.',
+        KioskFailureReason.unconfirmed => '가전을 봐 주세요.',
+        KioskFailureReason.receiptUnknown => '다시 보내기 전에 가전을 봐 주세요.',
+        KioskFailureReason.notExecuted => '가전 연결을 봐 주세요.',
       };
 }
-
-/// "이름 — " 머리. 이름을 모르면 아무것도 붙이지 않는다("실행 — …"를 만들지 않는다).
-String _lead(String label) => label.isEmpty ? '' : '$label — ';
 
 /// 서버 결과 → 실패 화면의 이유. 성공이면 쓰지 않는다.
 ///

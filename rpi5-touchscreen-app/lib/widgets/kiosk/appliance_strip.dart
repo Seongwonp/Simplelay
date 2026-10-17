@@ -311,7 +311,7 @@ class _StripItemState extends State<_StripItem>
     Color? statusColor;
     if (widget.attention) {
       iconColor = KioskColors.warning;
-      status = '확인 필요';
+      status = '봐 주세요';
     } else if (widget.running) {
       // 동작 중은 일상 상태 — 중립(흰 아이콘·회색 면·멈춘 호), 앰버는 확인 필요에만(2026-10-16 디자인 규격 §1-4).
       iconColor = Colors.white;
@@ -327,7 +327,7 @@ class _StripItemState extends State<_StripItem>
     }
     return Semantics(
       button: true,
-      label: '${a.name}${a.isThinq ? '. 경로 ThinQ' : ''}'
+      label: '${a.name}${a.isThinq ? '. LG 가전' : ''}'
           '${status == null ? '' : ', $status'}. 자세히 보기',
       child: ExcludeSemantics(
         child: InkWell(
@@ -417,7 +417,7 @@ Widget _withRouteBadge(ApplianceMap a, Widget circle) {
       const Flexible(
         child: FittedBox(
           fit: BoxFit.scaleDown,
-          child: KioskRouteBadge(label: 'ThinQ'),
+          child: KioskRouteBadge(label: 'LG 가전'),
         ),
       ),
     ],

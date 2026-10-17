@@ -114,7 +114,7 @@ void main() {
     final button = tester.widget<ElevatedButton>(find.byKey(_approve));
     expect(button.onPressed, isNull);
     expect(
-      find.textContaining('가전을 찾을 수 없어 실행할 수 없어요'),
+      find.textContaining('이 가전을 찾지 못해 할 수 없어요'),
       findsOneWidget,
     );
     // 넘기기는 그대로 된다 — 카드에서 벗어날 길은 항상 있어야 한다.
@@ -127,7 +127,7 @@ void main() {
 
     final button = tester.widget<ElevatedButton>(find.byKey(_approve));
     expect(button.onPressed, isNotNull);
-    expect(find.textContaining('누르지 않으면 실행하지 않아요'), findsOneWidget);
+    expect(find.textContaining('누르지 않으면 하지 않아요'), findsOneWidget);
   });
 
   testWidgets('두 버튼 모두 최소 터치 크기를 지킨다', (tester) async {
@@ -179,7 +179,7 @@ void main() {
                   targetId: 'air_purifier', route: 'thinq', summary: '공기청정기 풍량 강'),
             ],
           ));
-      final why = tester.widget<Text>(find.textContaining('근거:'));
+      final why = tester.widget<Text>(find.textContaining('이유:'));
       expect(why.maxLines, 2);
       expect(why.overflow, TextOverflow.ellipsis);
       // 할 일(대상·동작)과 경로는 그대로 보인다.
@@ -217,7 +217,7 @@ void main() {
       // 외부 평가 10/16 2차: 가장 큰 글자(질문)에 '[시연 데이터]'가 박혀 있었다 — 위 상태 띠로 옮긴다.
       expect(find.text('공기청정기 강풍으로 바꿀까요?'), findsOneWidget);
       expect(find.textContaining('[시연 데이터]'), findsNothing);
-      expect(find.text('제안 · 시연 데이터'), findsOneWidget);
+      expect(find.text('제안 연습'), findsOneWidget);
       final caveat = tester.widget<Text>(find.byKey(const ValueKey('suggestion-caveat')));
       expect(caveat.data, '조리 완료가 아닐 수 있어요');
       expect(caveat.maxLines, isNull);
@@ -229,7 +229,7 @@ void main() {
       testWidgets('시나리오 근거는 오른쪽 칸에 잘리지 않고 보인다(${size.width.toInt()}×${size.height.toInt()})',
           (tester) async {
         await _pump(tester, suggestion: longCard, size: size);
-        final why = find.textContaining('근거:');
+        final why = find.textContaining('이유:');
         expect(why, findsOneWidget);
         final rect = tester.getRect(why);
         expect(rect.left, greaterThan(size.width / 2), reason: '오른쪽 칸');
@@ -242,7 +242,7 @@ void main() {
     testWidgets('낭독은 잘리지 않은 전체 근거', (tester) async {
       final handle = tester.ensureSemantics();
       await _pump(tester, suggestion: longCard);
-      expect(find.bySemanticsLabel('근거: $longReason'), findsOneWidget);
+      expect(find.bySemanticsLabel('이유: $longReason'), findsOneWidget);
       handle.dispose();
     });
 
@@ -251,13 +251,13 @@ void main() {
       final more = find.byKey(const ValueKey('suggestion-why-more'));
       expect(more, findsOneWidget);
       expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
-      expect(tester.widget<Text>(find.textContaining('근거:')).maxLines, 2);
+      expect(tester.widget<Text>(find.textContaining('이유:')).maxLines, 2);
       // 위 상태 띠가 생긴 뒤(2026-10-16) 800x480·시험 글꼴에서는 펼치기 단추가 왼쪽 칸 스크롤 아래에 있다 — 스크롤해 누른다.
       await tester.ensureVisible(more);
       await tester.pump();
       await tester.tap(more);
       await tester.pump();
-      expect(tester.widget<Text>(find.textContaining('근거:')).maxLines, isNull);
+      expect(tester.widget<Text>(find.textContaining('이유:')).maxLines, isNull);
       expect(tester.takeException(), isNull);
 
       await _pump(tester, target: kMicrowaveAppliance);

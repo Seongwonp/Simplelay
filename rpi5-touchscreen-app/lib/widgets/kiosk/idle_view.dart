@@ -267,7 +267,7 @@ class KioskIdleView extends StatelessWidget {
           ])),
           const SizedBox(height: 8),
           SizedBox(height: large ? 156 : _Idle.strip, child: Center(child: SingleChildScrollView(child: list == null
-            ? const _StripNotice('SimpleLay 본체와 연결되면 가전이 보여요')
+            ? const _StripNotice('본체와 연결되면 가전이 보여요')
             : list.isEmpty ? const _StripNotice('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요')
             : KioskApplianceStrip(appliances: list, running: KioskEstopScope.shownOf(context) ? const {} : running, attention: KioskEstopScope.shownOf(context) ? {...attention, ...running} : attention,
                 on: KioskEstopScope.shownOf(context) ? const {} : on,
@@ -363,15 +363,15 @@ class _DndEntry extends StatelessWidget {
     final quiet = remaining == null ? quietUntil : null;
     final on = remaining != null || quiet != null;
     // '방해 금지'는 제안만 쉬는 줄 알았다(2026-10-15 검토) — '제안 쉬는 중' / 'N 남음'.
-    final title = quiet != null ? '조용한 시간' : '제안 쉬는 중';
+    final title = quiet != null ? '조용한 시간' : '쉬는 중';
     final sub = quiet != null ? '$quiet까지' : '$remaining 남음';
     return Semantics(
       button: true,
       label: quiet != null
           ? '조용한 시간, $quiet까지. 새 제안과 일반 안내 소리를 쉬어요'
           : on
-              ? '제안 쉬는 중, $remaining 남음. 다시 받으려면 누르세요'
-              : '제안 잠시 쉬기',
+              ? '잠시 쉬는 중, $remaining 남음. 끝내려면 누르세요'
+              : '잠시 쉬기',
       child: ExcludeSemantics(
         child: Material(
           // 쉬는 중은 일상 상태 — 중립 회색 면(2026-10-16 디자인 규격 §1-4). 앰버 채움은 주요 행동 몫이다.
@@ -394,7 +394,7 @@ class _DndEntry extends StatelessWidget {
                       // 꺼져 있으면 아이콘 아래 이름(UI 평가 3차 10/17) — 켜지면 오른쪽 두 줄이 같은 말을 한다.
                       const Column(mainAxisSize: MainAxisSize.min, children: [
                         Icon(Icons.bedtime_outlined, size: 28, color: KioskColors.muted),
-                        KioskTopIconLabel('제안 쉬기'),
+                        KioskTopIconLabel('쉬기'),
                       ])
                     else
                       const Icon(Icons.bedtime, size: 30, color: Colors.white),

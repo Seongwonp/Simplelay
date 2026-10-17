@@ -121,7 +121,7 @@ class _ApplianceCard extends StatelessWidget {
     return Semantics(
       button: true,
       label: '${appliance.name} 조작하기'
-          '${appliance.isThinq ? '. 경로 ThinQ' : ''}'
+          '${appliance.isThinq ? '. LG 가전' : ''}'
           '${isLastUsed ? '. 지난번에 썼어요' : ''}',
       child: Material(
         color: KioskColors.surface,
@@ -156,7 +156,7 @@ class _ApplianceCard extends StatelessWidget {
                 // ThinQ 가전은 버튼판이 없다 -- 고르기 전에 경로를 글자로 말한다.
                 if (appliance.isThinq) ...[
                   const SizedBox(height: 6),
-                  const KioskRouteBadge(label: 'ThinQ'),
+                  const KioskRouteBadge(label: 'LG 가전'),
                 ],
                 if (isLastUsed) ...[
                   const SizedBox(height: 6),

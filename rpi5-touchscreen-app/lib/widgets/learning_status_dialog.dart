@@ -49,7 +49,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                     }
                     if (snapshot.hasError || !snapshot.hasData) {
                       return const Text(
-                          '학습 상태를 불러오지 못했어요. 연결 상태와 서버 업데이트를 확인해 주세요.');
+                          '불러오지 못했어요. 본체 연결을 봐 주세요.');
                     }
                     final status = snapshot.requireData;
                     return Column(
@@ -66,7 +66,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                               style: const TextStyle(
                                   fontSize: 22, fontWeight: FontWeight.w700)),
                           Text(
-                              '${widget.applianceNames[routine.applianceId] ?? '대상 가전 확인 필요'} · ${routine.timeBand}',
+                              '${widget.applianceNames[routine.applianceId] ?? '가전 모름'} · ${routine.timeBand}',
                               style: const TextStyle(fontSize: 20)),
                           Text(
                               '최근 ${status.windowDays}일 중 ${routine.distinctDays}일, 모두 ${routine.occurrences}번',
@@ -81,7 +81,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                           const SizedBox(height: 16),
                         ],
                         if (status.paused)
-                          const Text('제안 잠시 쉬기 중이에요 · 새 제안을 쉬고 있어요.',
+                          const Text('잠시 쉬는 중이에요. 새 제안을 쉬고 있어요.',
                               style: TextStyle(fontSize: 20)),
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
@@ -90,10 +90,10 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                             Text('같은 가전을 같은 시간대에 ${status.minimumDays}일 이상, '
                                 '${status.minimumOccurrences}회 이상 직접 사용하면 습관으로 기억해요.'),
                             const SizedBox(height: 8),
-                            const Text('연습 실행과 추천을 받아 실행한 기록은 습관 횟수에 더하지 않아요.'),
+                            const Text('연습과 제안으로 한 기록은 습관에 넣지 않아요.'),
                             const SizedBox(height: 8),
                             const Text(
-                                '습관이 확인되어도 시간과 상황에 맞춰 제안하고, 확인을 받은 뒤 실행해요.'),
+                                '습관이 생겨도 먼저 물어보고 해요.'),
                           ],
                         ),
                       ],

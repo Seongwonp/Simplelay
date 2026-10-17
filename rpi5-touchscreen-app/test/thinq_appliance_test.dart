@@ -58,7 +58,7 @@ void main() {
     );
 
     expect(find.text('공기청정기(모의)'), findsOneWidget);
-    expect(find.widgetWithText(KioskRouteBadge, 'ThinQ'), findsOneWidget);
+    expect(find.widgetWithText(KioskRouteBadge, 'LG 가전'), findsOneWidget);
     expect(find.byType(KioskRouteBadge), findsOneWidget);
     await tester.tap(find.text('공기청정기(모의)'));
     expect(picked?.id, 'air_purifier');
@@ -78,10 +78,10 @@ void main() {
     await tester.pump();
 
     expect(find.text('내 공기청정기(모의)'), findsOneWidget);
-    expect(find.widgetWithText(KioskRouteBadge, 'ThinQ'), findsOneWidget);
+    expect(find.widgetWithText(KioskRouteBadge, 'LG 가전'), findsOneWidget);
     expect(find.byType(KioskThinqPanel), findsOneWidget);
     // 상태를 읽을 길이 없으면 값·조작을 지어내지 않고 이유를 말한다.
-    expect(find.textContaining('지금 상태를 읽지 못했어요'), findsOneWidget);
+    expect(find.textContaining('지금 상태를 못 봤어요'), findsOneWidget);
     expect(find.byKey(const ValueKey('thinq-set-set_power-POWER_ON')), findsNothing);
     expect(find.textContaining('누를 버튼이 없어요'), findsNothing);
     expect(find.textContaining('말로 맡겨'), findsNothing);
@@ -136,7 +136,7 @@ void main() {
               of: find.byKey(const ValueKey('strip-air_purifier')),
               matching: find.text('켜짐')),
           findsOneWidget);
-      expect(find.bySemanticsLabel(RegExp(r'경로 ThinQ, 켜짐\. 자세히 보기')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp(r'LG 가전, 켜짐\. 자세히 보기')), findsOneWidget);
       expect(tester.takeException(), isNull);
     }
     handle.dispose();
@@ -146,7 +146,7 @@ void main() {
     final handle = tester.ensureSemantics();
     await _pump(tester, Center(child: strip(const {})));
 
-    expect(find.widgetWithText(KioskRouteBadge, 'ThinQ'), findsOneWidget);
+    expect(find.widgetWithText(KioskRouteBadge, 'LG 가전'), findsOneWidget);
     expect(
         find.descendant(
             of: find.byKey(const ValueKey('strip-air_purifier')),
@@ -157,7 +157,7 @@ void main() {
             of: find.byKey(const ValueKey('strip-microwave')),
             matching: find.byType(KioskRouteBadge)),
         findsNothing);
-    expect(find.bySemanticsLabel(RegExp(r'공기청정기\(모의\)\. 경로 ThinQ')), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp(r'공기청정기\(모의\)\. LG 가전')), findsOneWidget);
     expect(tester.takeException(), isNull);
     handle.dispose();
   });

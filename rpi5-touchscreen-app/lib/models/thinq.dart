@@ -175,9 +175,9 @@ List<ThinqStateRow> thinqStateRows(Map<String, dynamic> state) {
     if (key != null && op[key] != null) rows.add(ThinqStateRow('전원', word(_power, op[key])));
   }
   final job = at('airPurifierJobMode', 'currentJobMode');
-  if (job != null) rows.add(ThinqStateRow('운전 모드', word(_jobMode, job)));
+  if (job != null) rows.add(ThinqStateRow('모드', word(_jobMode, job)));
   final wind = at('airFlow', 'windStrengthDetail') ?? at('airFlow', 'windStrength');
-  if (wind != null) rows.add(ThinqStateRow('풍량', word(_wind, wind)));
+  if (wind != null) rows.add(ThinqStateRow('바람 세기', word(_wind, wind)));
 
   void dust(String label, String value, String level) {
     final v = at('airQualitySensor', value);
@@ -210,13 +210,13 @@ String? thinqDustNote(Map<String, dynamic> state) {
   if (hasDust) return null;
   return thinqPowerOff(state)
       ? '전원이 꺼져 있어 미세먼지 값이 오지 않아요'
-      : '미세먼지 값을 아직 받지 못했어요(켠 직후에는 잠시 걸려요)';
+      : '미세먼지 값을 아직 받지 못했어요. 켠 직후에는 잠시 걸려요';
 }
 
 /// 'HH:MM에 읽음' — 읽은 시각(연습이면 ' (연습)').
 String thinqReadTimeLine(DateTime t, {bool mock = false}) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}에 읽음'
-    '${mock ? ' (연습)' : ''}';
+    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 기준'
+    '${mock ? ' 연습 값' : ''}';
 
 /// 조작 줄 하나 — 허브 동작 이름·인자와 고를 값들, 지금 값.
 class ThinqControl {
@@ -276,7 +276,7 @@ const kKioskAirPurifierControls = <ThinqControl>[
     choices: [('POWER_ON', '켜기'), ('POWER_OFF', '끄기')],
   ),
   ThinqControl(
-    label: '풍량',
+    label: '바람 세기',
     action: 'set_wind_strength',
     arg: 'wind_strength',
     choices: [('LOW', '약'), ('MID', '중'), ('HIGH', '강'), ('AUTO', '자동')],
@@ -299,16 +299,16 @@ String? thinqCommandRefusal(int statusCode, String detail) {
   const busy = '다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.';
   switch (statusCode) {
     case 401:
-      return 'SimpleLay 본체가 이 화면을 받지 않았어요 — 본체 설정을 확인해 주세요.';
+      return '본체가 이 화면을 받지 않았어요. 본체 설정을 봐 주세요.';
     case 409 || 412 || 422 || 423:
       final message = detail.trim();
       if (message.contains('already in progress')) return busy;
       if (message.isNotEmpty) return message;
-      return statusCode == 409 ? busy : 'SimpleLay 본체가 이 조작을 지금 받지 않았어요.';
+      return statusCode == 409 ? busy : '본체가 지금은 이 조작을 받지 않았어요.';
     default:
       return null;
   }
 }
 
 /// 응답 없이 끝난 조작 요청(시간 초과·연결 끊김) — 허브가 이미 받았을 수 있다.
-const kThinqUnknownOutcome = '요청 결과를 확인하지 못했어요. 상태를 다시 읽어 확인해 주세요.';
+const kThinqUnknownOutcome = '됐는지 몰라요. 새로 보기를 눌러 봐 주세요.';

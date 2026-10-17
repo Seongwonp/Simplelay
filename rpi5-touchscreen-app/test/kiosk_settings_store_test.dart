@@ -1,4 +1,4 @@
-// 키오스크 설정 영속화(KioskSettingsStore) — 라운드트립·손상 폴백 계약.
+// 본체 화면 설정 영속화(KioskSettingsStore) — 라운드트립·손상 폴백 계약.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

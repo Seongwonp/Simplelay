@@ -2,7 +2,7 @@
 // - 이미 목표값(보내지 않음, already_at_target): "이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요."
 // - 바꿈(state_confirmed): "강풍으로 바꿨어요."
 // - 보낸 뒤 목표값·전 값 모름(state_confirmed_unknown_before): "강풍으로 설정된 것을 확인했어요." ('바꿨어요' 금지)
-// - 미확인(unconfirmed): "설정이 바뀌었는지 확인하지 못했어요"
+// - 미확인(unconfirmed): "설정이 바뀌었는지 몰라요"
 //
 // 자동 실행 한 줄·완료 화면·확인 칩·단계 줄이 이미 목표값을 실패·미확인으로도, 바꿨다고도 말하지 않고, 연습은 연습이라고 밝힌다.
 import 'package:flutter/material.dart';
@@ -41,23 +41,23 @@ KioskAutoRun _run(String confirmation,
 void main() {
   test('자동 실행 한 줄 네 경우(실행 당시 설정 이름)', () {
     final already = autoRunNotice(_run('already_at_target'));
-    expect(already, '공기청정기는 이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요');
+    expect(already, '공기청정기는 이미 강풍으로 돼 있어 보내지 않았어요');
     _notChangedOrFailed(already);
     expect(autoRunNotice(_run('state_confirmed')), '공기청정기를 강풍으로 바꿨어요');
     final seen = autoRunNotice(_run('state_confirmed_unknown_before'));
-    expect(seen, '공기청정기가 강풍으로 설정된 것을 확인했어요');
+    expect(seen, '공기청정기가 강풍으로 된 것을 봤어요');
     expect(seen, isNot(contains('바꿨')));
-    expect(autoRunNotice(_run('none', status: 'unconfirmed')), '공기청정기 설정이 바뀌었는지 확인하지 못했어요');
+    expect(autoRunNotice(_run('none', status: 'unconfirmed')), '공기청정기 설정이 바뀌었는지 몰라요');
     // 옛 서버(설정 이름 없음)는 속성 이름을 붙인다.
     expect(autoRunNotice(_run('already_at_target', phrase: null)),
-        '공기청정기는 이미 풍량 강으로 설정돼 있어요. 변경 명령을 보내지 않았어요');
+        '공기청정기는 이미 풍량 강으로 돼 있어 보내지 않았어요');
   });
 
   test('자동 실행 한 줄: 연습은 연습 표시 유지', () {
     expect(autoRunNotice(_run('already_at_target', mode: 'mock', target: '공기청정기(모의)')),
-        '공기청정기(모의)는 이미 강풍으로 설정돼 있어요. 변경 명령을 보내지 않았어요 · 연습 모드');
+        '공기청정기(모의)는 이미 강풍으로 돼 있어 보내지 않았어요. 연습이에요');
     expect(autoRunNotice(_run('state_confirmed_unknown_before', mode: 'mock', target: '공기청정기(모의)')),
-        endsWith(' · 연습 모드'));
+        endsWith('. 연습이에요'));
   });
 
   test('확인 칩·결과 문장·단계 줄', () {
@@ -67,9 +67,9 @@ void main() {
         confirmation: c,
         kind: ResultKind.success,
         executionMode: mode);
-    expect(label('already_at_target', 'real'), '이미 그 설정이라 보내지 않음');
-    expect(label('already_at_target', 'mock'), '연습 · 이미 그 설정이라 보내지 않음');
-    expect(label('state_confirmed_unknown_before', 'real'), '설정된 것 확인됨');
+    expect(label('already_at_target', 'real'), '이미 그 설정이라 보내지 않았어요');
+    expect(label('already_at_target', 'mock'), '이미 그 설정이라 보내지 않았어요');
+    expect(label('state_confirmed_unknown_before', 'real'), '그 설정인 것을 봤어요');
     final spoken = finishedMessage(
         kind: ResultKind.success,
         executionMode: 'real',
@@ -87,7 +87,7 @@ void main() {
             receipt: 'not_dispatched',
             confirmation: 'already_at_target',
             detail: _already),
-        '연습 · $_already 실제 가전은 조작하지 않았어요.');
+        '연습이에요. $_already');
     final facts = runStepFacts(const ScenarioRunStep(
         targetId: 'air_purifier',
         route: 'thinq',
@@ -95,7 +95,7 @@ void main() {
         receipt: 'not_dispatched',
         confirmation: 'already_at_target',
         executionMode: 'real'));
-    expect(facts, 'ThinQ · 이미 그 설정이라 보내지 않음 · 성공');
+    expect(facts, 'LG 가전 · 이미 그 설정이라 보내지 않았어요 · 성공');
   });
 
   Future<void> pump(WidgetTester tester, KioskDoneView view) async {
@@ -113,7 +113,7 @@ void main() {
           label: '공기청정기 강풍',
           executionMode: 'real',
           route: 'thinq',
-          confirmation: '이미 그 설정이라 보내지 않음',
+          confirmation: '이미 그 설정이라 보내지 않았어요',
           resultConfirmation: 'already_at_target',
           detail: _already,
         ));
@@ -135,7 +135,7 @@ void main() {
           label: '공기청정기 강풍',
           executionMode: 'real',
           route: 'thinq',
-          confirmation: '이미 그 설정이라 보내지 않음',
+          confirmation: '이미 그 설정이라 보내지 않았어요',
           resultConfirmation: 'already_at_target',
           detail: _already,
         ));
@@ -143,7 +143,7 @@ void main() {
         (w) => w is Semantics && w.properties.liveRegion == true);
     final label = tester.widget<Semantics>(live.first).properties.label!;
     expect(label, contains('이미 그 설정이에요'));
-    expect(label, contains('이미 그 설정이라 보내지 않음'));
+    expect(label, contains('이미 그 설정이라 보내지 않았어요'));
     expect(label, isNot(contains('바꿨')));
     expect(label, isNot(contains('상태를 확인했어요')));
     handle.dispose();
@@ -175,11 +175,11 @@ void main() {
           label: '공기청정기 강풍',
           executionMode: 'mock',
           route: 'thinq',
-          confirmation: '연습 · 이미 그 설정이라 보내지 않음',
+          confirmation: '연습 · 이미 그 설정이라 보내지 않았어요',
           resultConfirmation: 'already_at_target',
           detail: _already,
         ));
-    expect(find.text('연습 · 이미 그 설정이에요'), findsOneWidget);
+    expect(find.text('이미 그 설정이에요'), findsOneWidget);
     expect(find.text(_already), findsOneWidget);
     expect(find.textContaining('바꿨'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());

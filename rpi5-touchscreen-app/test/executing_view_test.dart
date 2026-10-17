@@ -59,12 +59,12 @@ void main() {
   });
 
   // 2026-10-15 §3-1: 숫자(mA·dB·%)는 화면에서 뺀다 — 무엇을 보고 있는지만 작은 한 줄로.
-  testWidgets('검증 근거가 오면 제대로 눌렸는지 확인하는 중이고, 숫자는 화면에 없다',
+  testWidgets('검증 근거가 오면 제대로 눌렸는지 보는 중이고, 숫자는 화면에 없다',
       (tester) async {
     await _pump(tester, confidence: 0.93, detail: '전류 +14mA · 소리 +9dB');
 
-    expect(find.text('제대로 눌렸는지 확인하는 중'), findsOneWidget);
-    final evidence = tester.widget<Text>(find.text('버튼을 누른 뒤 가전 반응을 보고 있어요'));
+    expect(find.text('제대로 눌렸는지 보는 중'), findsOneWidget);
+    final evidence = tester.widget<Text>(find.text('가전이 켜지는지 보고 있어요'));
     expect(evidence.style!.fontSize, lessThan(24));
     expect(find.textContaining('mA'), findsNothing);
     expect(find.textContaining('%'), findsNothing);
@@ -74,7 +74,7 @@ void main() {
     await _pump(tester, attempt: 2);
 
     expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
-    expect(find.text('눌렸는지 확인되지 않아 한 번 더 눌러요'), findsOneWidget);
+    expect(find.text('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
     expect(find.textContaining('보정'), findsNothing);
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
     expect(find.textContaining('2번째 시도'), findsOneWidget);
@@ -110,7 +110,7 @@ void main() {
   testWidgets('대상 가전의 버튼판에서 지금 누르는 버튼을 가리킨다', (tester) async {
     await _pump(tester, total: 3, target: kMicrowaveAppliance);
 
-    expect(find.text('작은 팔이 누르는 자리예요 · 화면은 누르지 않아도 돼요'), findsOneWidget);
+    expect(find.text('작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
     expect(
       find.descendant(
         of: find.byKey(const ValueKey('panel-current')),

@@ -53,7 +53,7 @@ class DndOverlay extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      '제안 잠시 쉬기',
+                      '잠시 쉬기',
                       style: TextStyle(
                         fontSize: 24,
                         color: Color(0xFFFAF7F2),
@@ -65,10 +65,10 @@ class DndOverlay extends StatelessWidget {
                     Text(
                       // 켜져 있으면 끝나는 시각을 함께 적는다(2026-10-14 마감 확인 A5) — 위 줄 칩은 남은 시간.
                       dndUntil == null
-                          ? '새 제안과 자동 실행을 잠시 쉬어요'
+                          ? '새 제안과 자동으로 하기를 잠시 쉬어요'
                           : dndScope == 'suggestions_only'
-                              ? '${_clockOf(dndUntil!)}까지 새 제안만 쉬고 있어요 · 자동 실행은 그대로예요'
-                              : '${_clockOf(dndUntil!)}까지 새 제안과 자동 실행을 쉬고 있어요',
+                              ? '${_clockOf(dndUntil!)}까지 새 제안만 쉬어요. 자동으로 하기는 그대로예요'
+                              : '${_clockOf(dndUntil!)}까지 새 제안과 자동으로 하기를 쉬어요',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: 18,
@@ -78,7 +78,7 @@ class DndOverlay extends StatelessWidget {
                     if (quietSchedule case (final start, final end)) ...[
                       const SizedBox(height: 6),
                       Text(
-                        '매일 $start~$end 조용한 시간 · 바꾸기는 폰 설정에서',
+                        '매일 $start~$end 조용한 시간이에요. 폰 설정에서 바꿔요',
                         textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: 16, color: KioskColors.muted),
                       ),
@@ -92,7 +92,7 @@ class DndOverlay extends StatelessWidget {
                       _DndOption(label: '2시간', onTap: () => onSet(120)),
                     ] else ...[
                       _DndOption(
-                        label: '다시 제안 받기',
+                        label: '쉬기 끝내기',
                         accent: true,
                         onTap: onClear,
                       ),

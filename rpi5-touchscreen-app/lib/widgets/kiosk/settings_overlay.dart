@@ -126,7 +126,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
     if (!mounted) return;
     setState(() {
       _saving = false;
-      _saveError = ok ? null : '저장 실패 — 서버에 연결되어 있는지 확인하세요';
+      _saveError = ok ? null : '저장하지 못했어요. 본체 연결을 봐 주세요';
     });
   }
 
@@ -196,7 +196,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                             TextButton.icon(
                               key: const ValueKey('settings-dnd'),
                               icon: const Icon(Icons.bedtime_outlined),
-                              label: const Text('제안 잠시 쉬기'),
+                              label: const Text('잠시 쉬기'),
                               onPressed: widget.onOpenDnd,
                             ),
                           ],
@@ -226,7 +226,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   Widget _buildHeader() => Row(
         children: [
           const Text(
-            '키오스크 설정',
+            '본체 화면 설정',
             style: TextStyle(
               fontSize: 16,
               color: Color(0xFFFAF7F2),
@@ -247,7 +247,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           _toggleRow(
             icon: Icons.record_voice_over,
             title: '음성 안내',
-            subtitle: '제안·실행 결과·위험 경보를 소리로 읽어 줘요',
+            subtitle: '제안과 결과, 위험 경보를 소리로 읽어 줘요',
             value: widget.ttsEnabled,
             onChanged: widget.onTtsChanged,
           ),
@@ -369,7 +369,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   Widget _buildApplianceSection() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionLabel('노드를 등록할 가전'),
+          const _SectionLabel('콘센트를 연결할 가전'),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -433,7 +433,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
       children: [
         Row(
           children: [
-            _SectionLabel('플러그 — ${_selected.name}'),
+            _SectionLabel('${_selected.name} 콘센트'),
             const Spacer(),
             if (registered != null)
               Container(
@@ -523,7 +523,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                                 strokeWidth: 2, color: KioskColors.muted),
                           )
                         : Text(
-                            textEmpty && registered != null ? '해제' : '저장',
+                            textEmpty && registered != null ? '지우기' : '저장',
                             style: TextStyle(
                               fontSize: 13,
                               color: _saving

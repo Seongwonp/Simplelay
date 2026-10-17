@@ -815,7 +815,7 @@ class KioskApiService {
           if (d is String) detail = d;
         } catch (_) {}
         return KioskThinqStatus(
-            failure: detail.isNotEmpty ? detail : '상태를 읽지 못했어요 (응답 ${res.statusCode})');
+            failure: detail.isNotEmpty ? detail : '잠시 뒤 다시 봐 주세요.');
       }
       final body = jsonDecode(utf8.decode(res.bodyBytes)) as Map<String, dynamic>;
       return KioskThinqStatus(
@@ -824,9 +824,9 @@ class KioskApiService {
         readAt: DateTime.now(),
       );
     } on TimeoutException {
-      return const KioskThinqStatus(failure: '응답이 늦어요 — 가전·인터넷 연결을 확인해 주세요');
+      return const KioskThinqStatus(failure: '답이 늦어요. 가전과 인터넷 연결을 봐 주세요');
     } catch (_) {
-      return const KioskThinqStatus(failure: 'SimpleLay 본체에 연결되지 않았어요');
+      return const KioskThinqStatus(failure: '본체에 연결되지 않았어요');
     }
   }
 

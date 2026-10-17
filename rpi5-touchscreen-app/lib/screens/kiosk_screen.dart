@@ -34,7 +34,7 @@ import '../widgets/kiosk/settings_overlay.dart';
 import '../widgets/kiosk/top_progress_bar.dart';
 
 /// 잠시 쉬기 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 폰과 같은 문장.
-const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. SimpleLay 본체를 다시 켜면 이전 설정으로 돌아가요.';
+const kSettingNotSavedNotice = '저장하지 못해 지금만 바뀌어요. 본체를 다시 켜면 예전 설정으로 돌아가요.';
 
 const _pollInterval = Duration(milliseconds: 2000);
 const _healthInterval = Duration(seconds: 10);
@@ -393,20 +393,20 @@ class _KioskScreenState extends State<KioskScreen> {
       ConnectionItem(
           id: 'press',
           state: 'unreachable',
-          title: '작은 팔 장치 상태를 볼 수 없어요',
-          message: 'SimpleLay 본체와 연결되면 확인할 수 있어요.'),
+          title: '작은 팔 상태를 볼 수 없어요',
+          message: '본체와 연결되면 볼 수 있어요.'),
       ConnectionItem(
           id: 'plug',
           state: 'unreachable',
-          title: '가전 콘센트 장치 상태를 볼 수 없어요',
-          message: 'SimpleLay 본체와 연결되면 확인할 수 있어요.'),
+          title: '콘센트 상태를 볼 수 없어요',
+          message: '본체와 연결되면 볼 수 있어요.'),
     ];
     if (!_connectionsLoaded) {
       return const [
         ConnectionItem(
             id: 'network',
             state: 'unreachable',
-            title: '연결을 확인하고 있어요',
+            title: '연결을 보고 있어요',
             message: '잠시만 기다려 주세요.'),
         ...unreachable,
       ];
@@ -713,7 +713,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (_activeJobId != null) {
         _foreignPolls++;
         if (_foreignPolls >= 5) {
-          _toDone(false, '실행 확인 불가',
+          _toDone(false, _execTitle,
               reason: KioskFailureReason.serverLost);
         }
       }
@@ -726,7 +726,7 @@ class _KioskScreenState extends State<KioskScreen> {
       final since = _lastStatusOk;
       if (since != null &&
           DateTime.now().difference(since) > _statusLostTimeout) {
-        _toDone(false, '서버 응답 없음',
+        _toDone(false, _execTitle,
             reason: KioskFailureReason.serverLost);
       }
     }
@@ -821,7 +821,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final text = autoRunNotice(run);
     _autoNoticeTimer?.cancel();
     setState(() => _autoNotice = text);
-    if (_health.speakGeneral) _tts.speak('자동 실행, $text'); // 조용한 시간·모름에는 소리 없이 한 줄만
+    if (_health.speakGeneral) _tts.speak('자동으로 하기, $text'); // 조용한 시간·모름에는 소리 없이 한 줄만
     _autoNoticeTimer = Timer(KioskTimings.autoRunNotice, () {
       if (mounted) setState(() => _autoNotice = null);
     });
@@ -934,8 +934,8 @@ class _KioskScreenState extends State<KioskScreen> {
       if (_holdSpokenKey != key) {
         _holdSpokenKey = key;
         _tts.speak(st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
-            ? '작은 팔 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
-            : '작은 팔이 정지 버튼을 대신 눌렀지만 멈췄는지 확인하지 못했어요. 지금 가전의 정지 버튼을 직접 눌러 주세요.');
+            ? '작은 팔에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
+            : '가전이 멈췄는지 몰라요. 지금 가전의 정지 버튼을 직접 눌러 주세요.');
       }
       return;
     }
@@ -1072,7 +1072,7 @@ class _KioskScreenState extends State<KioskScreen> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('루틴 카드를 만들지 못했어요. 연결을 확인해 주세요.'),
+        content: Text('루틴 카드를 만들지 못했어요. 연결을 봐 주세요.'),
       ));
     }
   }
@@ -1153,8 +1153,8 @@ class _KioskScreenState extends State<KioskScreen> {
       if (r != null && !r.canExecute) {
         final who = c.summary.isNotEmpty ? c.summary : '가전';
         blocked = r.reasons.isNotEmpty
-            ? '$who — ${r.reasons.first}'
-            : '$who — 아직 조작할 준비가 되지 않았어요';
+            ? '$who. ${r.reasons.first}'
+            : '$who. 아직 준비가 안 됐어요';
         break;
       }
     }
@@ -1240,7 +1240,7 @@ class _KioskScreenState extends State<KioskScreen> {
           ? '$lead${finishedMessage(kind: ResultKind.success, executionMode: _executionMode, route: _doneRoute, confirmation: _doneRawConfirmation, detail: _doneDetail, operationVerified: _doneOperationConfirmed == true && _doneOperationSource == 'real' && _executionMode != 'mock')}'
           : switch (reason) {
               KioskFailureReason.serverLost =>
-                '실행 상태를 확인할 수 없어요. 가전 상태를 직접 확인해 주세요.',
+                '어떻게 됐는지 몰라요. 가전을 봐 주세요.',
               // 정지 단계만큼(2026-10-15) — 단계 보고가 늦으면 모르는 단계로 말한다(화면은 뒤에 고쳐진다).
               KioskFailureReason.stopped =>
                 finishedMessage(kind: ResultKind.stopped, stopLevel: _doneStopLevel),
@@ -1251,9 +1251,9 @@ class _KioskScreenState extends State<KioskScreen> {
               KioskFailureReason.receiptUnknown =>
                 '$lead${unconfirmedSentence(receipt: 'unknown')}',
               KioskFailureReason.notExecuted =>
-                '$lead명령이 실행되지 않았어요. 화면을 확인해 주세요.',
+                '$lead가전을 바꾸지 못했어요. 화면을 봐 주세요.',
               KioskFailureReason.execution =>
-                '$lead가전을 먼저 봐 주세요. 버튼이 눌렸는지 확인하지 못했어요.${_retryAction != null ? ' $kDontRetryIfOn.' : ''}',
+                '$lead눌렸는지 몰라요. 가전을 봐 주세요.',
             },
     );
     _doneReturnTimer?.cancel();
@@ -1445,7 +1445,7 @@ class _KioskScreenState extends State<KioskScreen> {
               onPressed: () => Navigator.of(context).push(MaterialPageRoute<void>(
                 builder: (_) => RoutineRehearsalScreen(request: _api.routineRequest),
               )),
-              label: const Text('다가전 모의'), icon: const Icon(Icons.science_outlined),
+              label: const Text('여러 가전 연습'), icon: const Icon(Icons.science_outlined),
             ) : null,
       backgroundColor: KioskColors.bg,
       body: Stack(

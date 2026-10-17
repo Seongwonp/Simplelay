@@ -63,23 +63,22 @@ String autoRunNotice(KioskAutoRun run) {
   final target = (run.targetName == null || run.targetName!.trim().isEmpty)
       ? '가전'
       : run.targetName!.trim();
-  final mock = run.executionMode == 'mock' ? ' · 연습 모드' : '';
+  final mock = run.executionMode == 'mock' ? '. 연습이에요' : '';
   if (run.outcome == 'blocked') {
-    return '$target 자동 실행을 보내지 않았어요$mock';
+    return '$target 자동으로 하지 않았어요$mock';
   }
   // 설정 이름은 job을 만들 때의 사본(서버 last_auto_run). 없으면 "풍량 강"처럼 속성 이름을 붙인다.
   final phrase = _phraseOf(run);
   final stem = _stem(target);
   if (run.status == 'succeeded' && run.confirmation == 'already_at_target') {
     // 보내지 않았다 — 바꿨다고도, 확인 못 했다고도 하지 않는다.
-    if (phrase == null) return '$target 설정은 이미 그 값이에요. 변경 명령을 보내지 않았어요$mock';
-    return '$target${_topicParticle(stem)} 이미 $phrase${_directionParticle(phrase)} 설정돼 있어요. '
-        '변경 명령을 보내지 않았어요$mock';
+    if (phrase == null) return '$target 설정은 이미 그 값이라 보내지 않았어요$mock';
+    return '$target${_topicParticle(stem)} 이미 $phrase${_directionParticle(phrase)} 돼 있어 보내지 않았어요$mock';
   }
   if (run.status == 'succeeded' &&
       run.confirmation == 'state_confirmed_unknown_before') {
-    if (phrase == null) return '$target 설정을 확인했어요$mock';
-    return '$target${_subjectParticle(stem)} $phrase${_directionParticle(phrase)} 설정된 것을 확인했어요$mock';
+    if (phrase == null) return '$target 설정이 됐어요$mock';
+    return '$target${_subjectParticle(stem)} $phrase${_directionParticle(phrase)} 된 것을 봤어요$mock';
   }
   if (run.status == 'succeeded' &&
       run.confirmation == 'state_confirmed' &&
@@ -94,7 +93,7 @@ String autoRunNotice(KioskAutoRun run) {
     return '$target 설정을 바꿨어요$mock';
   }
   if (run.status == 'unconfirmed' || run.status == 'succeeded') {
-    return '$target 설정이 바뀌었는지 확인하지 못했어요$mock';
+    return '$target 설정이 바뀌었는지 몰라요$mock';
   }
   if (run.receipt == 'not_dispatched') {
     return '$target 설정 명령을 보내지 못했어요$mock';

@@ -110,7 +110,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                               ),
                               if (appliance.isThinq) ...[
                                 const SizedBox(width: 12),
-                                const KioskRouteBadge(label: 'ThinQ'),
+                                const KioskRouteBadge(label: 'LG 가전'),
                               ],
                             ],
                           ),
@@ -444,7 +444,7 @@ class _NotReadyNotice extends StatelessWidget {
 String? readinessTodo(ApplianceMap appliance) {
   final reasons = appliance.readinessReasons.join(' ');
   if (appliance.readiness == 'disconnected' || reasons.contains('연결되지 않았')) {
-    return '처음 화면 위쪽의 연결 표시를 눌러 확인해 주세요';
+    return '처음 화면 위쪽의 연결 표시를 눌러 봐 주세요';
   }
   if (reasons.contains('좌표') ||
       reasons.contains('자리') ||
@@ -453,7 +453,7 @@ String? readinessTodo(ApplianceMap appliance) {
     return '휴대폰 앱에서 이 가전의 버튼 자리 맞추기를 해 주세요';
   }
   if (reasons.contains('모터') || reasons.contains('센서')) {
-    return '잠시 기다려 주세요. 계속되면 작은 팔 장치를 다시 켜 주세요';
+    return '잠시 기다려 주세요. 계속되면 작은 팔을 다시 켜 주세요';
   }
   return null;
 }
