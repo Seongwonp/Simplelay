@@ -162,6 +162,7 @@ class _SilhouettePainter extends CustomPainter {
         _riceCooker(canvas, s, p);
       case ApplianceCategory.intercom:
         _intercom(canvas, s, p);
+      case ApplianceCategory.airPurifier:
       case ApplianceCategory.other:
         _generic(canvas, s, p);
     }

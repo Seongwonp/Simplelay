@@ -282,8 +282,8 @@ void main() {
 
     expect(findPlainText('다음: 아침 데우기 · 평일 07:30 · 물어보고 해요'), findsOneWidget);
     expect(findPlainText('아침 데우기'), findsOneWidget);
-    // 언제 · 대상 · 크기('버튼 N번', 키오스크와 같은 단위)를 한 줄로. 승인 반복 설명은 줄마다 되풀이하지 않는다.
-    expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번'), findsOneWidget);
+    // 언제 · 대상 · 크기('누를 버튼 N개')를 한 줄로. 시각은 줄 왼쪽 큰 시각이 말한다(시간축, 평가 5차 10/18).
+    expect(findPlainText('평일 · 전자레인지 · 누를 버튼 3개'), findsOneWidget);
     expect(find.textContaining('승인 후 실행 ·'), findsNothing);
     expect(find.text('새 루틴'), findsOneWidget);
   });
@@ -335,12 +335,12 @@ void main() {
     await tester.pumpWidget(_build(server, installed: const []));
     await _settle(tester);
 
-    expect(findPlainText('전자레인지 · 버튼 1번'), findsOneWidget);
-    expect(findPlainText('세탁기 · 버튼 1번'), findsOneWidget);
+    expect(findPlainText('전자레인지 · 누를 버튼 1개'), findsOneWidget);
+    expect(findPlainText('세탁기 · 누를 버튼 1개'), findsOneWidget);
     expect(find.textContaining('home_mw'), findsNothing);
     expect(find.textContaining('washer'), findsNothing);
     // 이름을 모르는 가전만 ID로 남는다.
-    expect(findPlainText('ghost · 버튼 1번'), findsOneWidget);
+    expect(findPlainText('ghost · 누를 버튼 1개'), findsOneWidget);
   });
 
   testWidgets('루틴을 열어 알림만으로 바꿔 저장하면 PUT하고 목록이 다시 읽힌다',
@@ -451,8 +451,8 @@ void main() {
 
     final row = find.byKey(const Key('routine-row-rt-1'));
     expect(row, findsOneWidget);
-    // 행 안의 버튼은 '실행' 하나 — 편집 버튼은 행에 늘어놓지 않는다.
-    expect(find.descendant(of: row, matching: find.byType(OutlinedButton)), findsOneWidget);
+    // 행 안의 버튼은 '지금 하기' 하나 — 편집 버튼은 행에 늘어놓지 않는다.
+    expect(find.descendant(of: row, matching: find.byWidgetPredicate((w) => w is TextButton || w is OutlinedButton)), findsOneWidget);
     expect(find.descendant(of: row, matching: find.byType(FilledButton)), findsNothing);
     expect(editButton('rt-1'), findsNothing);
     expect(menuButton('rt-1'), findsOneWidget);
@@ -520,11 +520,11 @@ void main() {
     await _settle(tester);
 
     expect(runButton('rt-1'), findsNothing);
-    // 홈과 같은 '설정하기' 바로가기(UI 평가 10/17).
+    // 회색 '설정 필요' 배지 — 누르면 그 가전 설정(평가 5차 10/18: 테두리 버튼과 섞이지 않게).
     expect(find.byKey(const Key('routine-setup-rt-1')), findsOneWidget);
-    expect(find.descendant(of: find.byKey(const Key('routine-setup-rt-1')), matching: find.text('설정하기')),
+    expect(find.descendant(of: find.byKey(const Key('routine-setup-rt-1')), matching: findPlainText('설정 필요')),
         findsOneWidget);
-    // 이유 문장은 두지 않는다 — '설정하기' 단추만, 무엇이 남았는지는 홈 확인 카드 한 곳(평가 3차 10/18).
+    // 이유 문장은 두지 않는다 — '설정 필요' 배지만, 무엇이 남았는지는 홈 확인 카드 한 곳(평가 3차 10/18).
     expect(findPlainText('설정이 필요해요', contains: true), findsNothing);
     expect(menuButton('rt-1'), findsOneWidget);
   });
@@ -536,9 +536,9 @@ void main() {
     await _settle(tester);
 
     expect(runButton('rt-1'), findsOneWidget);
-    // 홈 목록과 같은 테두리 버튼 — 줄마다 채운 버튼이면 위계가 흐려졌다(UI 평가 3차 10/17).
-    expect(tester.widget(runButton('rt-1')), isA<OutlinedButton>());
-    expect(find.descendant(of: runButton('rt-1'), matching: find.text('실행')), findsOneWidget);
+    // 글자 버튼 — 줄마다 채운 버튼·테두리 버튼이면 위계가 흐려졌다(UI 평가 3차 10/17, 평가 5차 10/18).
+    expect(tester.widget(runButton('rt-1')), isA<TextButton>());
+    expect(find.descendant(of: runButton('rt-1'), matching: findPlainText('지금 하기')), findsOneWidget);
     // 둘 다 48 이상 터치 영역.
     expect(tester.getSize(runButton('rt-1')).height, greaterThanOrEqualTo(48));
     expect(tester.getSize(menuButton('rt-1')).height, greaterThanOrEqualTo(48));
@@ -612,9 +612,9 @@ void main() {
     expect(runButton('rt-off'), findsNothing);
     expect(menuButton('rt-n'), findsOneWidget);
     // 알림만은 부제에 적지 않고 '알려 드려요' 배지가 말한다(평가 4차 10/18).
-    expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번'), findsOneWidget);
+    expect(findPlainText('평일 · 전자레인지 · 누를 버튼 3개'), findsOneWidget);
     expect(findPlainText('알려 드려요'), findsOneWidget);
-    expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번 · 꺼짐'), findsOneWidget);
+    expect(findPlainText('평일 · 전자레인지 · 누를 버튼 3개 · 꺼짐'), findsOneWidget);
   });
 
   testWidgets('알려진 가전 알림은 "세탁이 끝나면"으로, 이름은 사용자 것 그대로', (tester) async {

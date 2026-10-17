@@ -229,19 +229,19 @@ void main() {
 
       testWidgets('루틴 탭 — 단위 묶음이 갈리지 않는다 ($width, $scale)', (tester) async {
         await _pump(tester, const RoutinesScreen(), width: width, scale: scale);
-        expect(findPlainText('LG 가전 설정 1번', contains: true), findsWidgets);
+        expect(findPlainText('공기청정기 켜기', contains: true), findsWidgets);
         expect(
             brokenLines(tester,
                 keepTogether: big
-                    ? ['LG 가전', '설정 1번', '매일 22:00']
-                    : ['LG 가전 설정 1번', '버튼 1번', '매일 22:00', '자동으로 해요']),
+                    ? ['버튼 1개']
+                    : ['누를 버튼 1개', '자동으로 해요']),
             isEmpty);
       }, skip: _noKoreanFont != null);
 
       testWidgets('홈 — 확인 카드·타일에 낱말 중간 줄바꿈 없음 ($width, $scale)', (tester) async {
         await _pump(tester, const HomeScreen(), width: width, scale: scale);
         expect(find.byKey(const Key('home-attention')), findsOneWidget);
-        expect(brokenLines(tester, keepTogether: big ? ['버튼 1번'] : ['LG 가전 설정 1번', '버튼 1번']), isEmpty);
+        expect(brokenLines(tester, keepTogether: big ? ['버튼 1개'] : ['누를 버튼 1개', '설정 필요']), isEmpty);
       }, skip: _noKoreanFont != null);
     }
   });

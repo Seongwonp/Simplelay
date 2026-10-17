@@ -85,7 +85,8 @@ class SettingsScreen extends ConsumerWidget {
           // 도구는 개발자 탭으로 옮겼다.
           _NavGroup(children: [
             _NavRow(
-              icon: Icons.hub_outlined,
+              // 본체는 집에 놓인 화면 달린 기기 — 네트워크 허브 그림은 쓰지 않는다(평가 5차 10/18).
+              icon: Icons.tablet_outlined,
               title: '본체',
               // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '본체' — 이름 해명 문장은 뺐다.
               subtitle: _hubLine(rpi),

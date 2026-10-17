@@ -149,6 +149,7 @@ class SetupSummaryRow extends StatelessWidget {
         : '${setupSummaryNames(appliances)} 설정이 남았어요';
     return Semantics(
       key: const Key('setup-summary-card'),
+      container: true,
       button: true,
       label: '가전 ${appliances.length}대 설정이 남았어요, ${setupSummaryNames(appliances)}',
       excludeSemantics: true,

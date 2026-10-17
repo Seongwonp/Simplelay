@@ -6,6 +6,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay/models/execution_status.dart';
+import 'package:simplelay/models/line_break.dart';
 import 'package:simplelay/models/routine.dart';
 import 'package:simplelay/screens/routines_screen.dart';
 import 'package:simplelay/screens/status_screen.dart';
@@ -52,11 +53,11 @@ void _expectNeverSplit(String text, String unit) {
 }
 
 void main() {
-  // 평가 3차 10/18: 단위는 키오스크와 같은 '버튼 N번'(누를 버튼 합).
-  test('루틴 부제의 "버튼 N번"은 누를 버튼 수이고 숫자와 단위가 붙어 다닌다', () {
+  // 평가 5차 10/18: 단위는 '누를 버튼 N개'(누를 버튼 합 — '버튼 N번'은 한 버튼을 N번 누르는 말로 읽혔다).
+  test('루틴 부제의 "누를 버튼 N개"는 누를 버튼 수이고 화면에서 숫자와 단위가 붙어 다닌다', () {
     final s = routineSubtitle(_routine, const {'microwave': '전자레인지'});
-    expect(s, '평일 07:30 · 전자레인지 · 버튼 2⁠번');
-    _expectNeverSplit(s, '번');
+    expect(s, '평일 07:30 · 전자레인지 · 누를 버튼 2개');
+    _expectNeverSplit(keepWordsTogether(s), '개');
   });
 
   testWidgets('실행 상태 화면의 진행은 "조작 N개 중 K개" — 루틴의 "단계"와 다른 말', (tester) async {

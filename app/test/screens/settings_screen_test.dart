@@ -209,7 +209,7 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('내 가전: 지울 수 있는 줄은 ⋮ 메뉴 안에 지우기, 화살표로 눌러 들어간다', (tester) async {
+    testWidgets('내 가전: 지울 수 있는 줄은 ⋮ 메뉴 안에 지우기, 줄 끝 표시는 ⋮ 하나', (tester) async {
       _useTallViewport(tester);
       final washer = ApplianceMap.fromJson({
         'id': 'custom_washer',
@@ -232,7 +232,8 @@ void main() {
       expect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)), findsNothing);
       final menu = find.byKey(const Key('appliance-menu-custom_washer'));
       expect(find.descendant(of: row, matching: menu), findsOneWidget);
-      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
+      // 줄 끝 표시는 하나 — ⋮ 가 있으면 > 를 함께 두지 않는다(평가 5차 10/18). 줄을 누르면 그대로 상세로 간다.
+      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsNothing);
       // 홈과 같은 안내 — 버튼 자리를 맞추지 않은 가전은 '설정이 필요해요'(UI 평가 4차 10/17).
       expect(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)), findsOneWidget);
       // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17 10:13), 화면 읽기는 원문.

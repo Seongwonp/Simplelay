@@ -130,12 +130,12 @@ Finder _inTile(String text, [String id = 'a']) => find.descendant(
     matching: find.byWidgetPredicate(
         (w) => w is Text && (w.data ?? '').replaceAll('\u2060', '') == text));
 
-/// 타일 상태 줄이 **무언가를 말하는가**. 평소(실행 가능)에는 할 일 '눌러서 조작하기'만 적는다(평가 3차 10/18 —
+/// 타일 상태 줄이 **무언가를 말하는가**. 평소(실행 가능)에는 할 일 '준비됐어요'만 적는다(평가 3차 10/18 —
 /// 그 전에는 줄이 없었다). 그 말이면 긍정 상태로 보고 찾지 않는다 — 없으면 긍정, 있으면 무언가를 말한다.
 Finder _statusLine([String id = 'a']) => find.descendant(
     of: find.byKey(Key('appliance-status-$id')),
     matching: find.byWidgetPredicate(
-        (w) => w is Text && (w.data ?? '').replaceAll('⁠', '') != '눌러서 조작하기'));
+        (w) => w is Text && (w.data ?? '').replaceAll('⁠', '') != '준비됐어요'));
 
 Future<_Conn> _pumpHome(WidgetTester tester, _Server server) async {
   tester.view.physicalSize = const Size(400, 2400);

@@ -43,6 +43,8 @@ enum ApplianceCategory {
   riceCooker('rice_cooker', '밥솥', Icons.rice_bowl),
   // 시연 v3 ③ 방문자 문 열기(2026-10-06 갭 S6). 서버·키오스크와 같은 값.
   intercom('intercom', '인터폰', Icons.doorbell),
+  // 서버 `ApplianceCategory.AIR_PURIFIER`와 같은 값. 없으면 `other`로 떨어져 기호 그림이 보였다(평가 5차 10/18).
+  airPurifier('air_purifier', '공기청정기', Icons.air),
   other('other', '기타', Icons.widgets_outlined);
 
   const ApplianceCategory(this.value, this.label, this.icon);

@@ -179,7 +179,7 @@ void main() {
         when: '직접 실행할 때',
       );
       expect(routineSubtitle(r, const {'mw': '전자레인지'}).replaceAll(kWordJoiner, ''),
-          '전자레인지 · 버튼 2번');
+          '전자레인지 · 누를 버튼 2개');
     });
 
     testWidgets('허브가 닿으면 예비 연결이 꺼져도 연결 줄을 두지 않는다', (tester) async {

@@ -244,7 +244,7 @@ void main() {
     expect(find.text('실행하기'), findsNothing, reason: '같은 모양 실행하기 버튼을 줄줄이 두지 않는다');
   });
 
-  testWidgets('자주 쓰는 루틴은 2열 타일 — 직접 실행하는 적격 루틴만, 넷까지, 나머지는 루틴 탭으로', (tester) async {
+  testWidgets('홈 루틴은 줄 목록 — 직접 실행하는 적격 루틴만, 넷까지, 나머지는 루틴 탭으로', (tester) async {
     final hub = _Hub(routines: [
       _routine('r-notify', '세탁 알림', mode: 'notify'),
       _routine('r-off', '꺼둔 것', enabled: false),
@@ -263,9 +263,9 @@ void main() {
       expect(_tile('r-$i'), findsOneWidget, reason: 'r-$i');
     }
     expect(_tile('r-4'), findsNothing);
-    // 두 칸씩 — 첫 두 타일은 같은 줄, 다른 칸.
-    expect(tester.getTopLeft(_tile('r-0')).dy, tester.getTopLeft(_tile('r-1')).dy);
-    expect(tester.getTopLeft(_tile('r-0')).dx, lessThan(tester.getTopLeft(_tile('r-1')).dx));
+    // 줄 목록(평가 5차 10/18: 가전 타일과 다른 모양) — 위아래로 선다.
+    expect(tester.getTopLeft(_tile('r-0')).dx, tester.getTopLeft(_tile('r-1')).dx);
+    expect(tester.getTopLeft(_tile('r-0')).dy, lessThan(tester.getTopLeft(_tile('r-1')).dy));
     // 시각 루틴은 정해진 때 저절로 돈다 — 타일로 겹쳐 두지 않는다(같은 루틴 여러 번 노출 금지).
     expect(_tile('r-t'), findsNothing);
     for (final name in ['세탁 알림', '꺼둔 것', '말만 하기']) {
@@ -309,7 +309,7 @@ void main() {
     await _settle(tester);
 
     // 준비된 루틴이 먼저, 설정이 필요한 루틴은 뒤.
-    expect(tester.getTopLeft(_tile('r-b')).dx, lessThan(tester.getTopLeft(_tile('r-w')).dx));
+    expect(tester.getTopLeft(_tile('r-b')).dy, lessThan(tester.getTopLeft(_tile('r-w')).dy));
     // 타일은 설정 경고를 말하지 않는다(확인 카드 한 곳, 평가 3차 10/18) — 누르면 그 가전 설정으로 간다.
     expect(find.descendant(of: _tile('r-w'), matching: findPlainText('설정이 필요해요', contains: true)),
         findsNothing);
@@ -344,8 +344,8 @@ void main() {
     await _settle(tester);
 
     final now = find.byKey(const Key('home-now'));
-    expect(find.descendant(of: now, matching: find.text('공기 나쁨')), findsOneWidget);
-    expect(find.descendant(of: now, matching: find.text('공기청정기 켜짐')), findsOneWidget);
+    expect(find.descendant(of: now, matching: findPlainText('공기 나쁨')), findsOneWidget);
+    expect(find.descendant(of: now, matching: findPlainText('공기청정기 켜짐')), findsOneWidget);
     expect(find.descendant(of: now, matching: find.text('22:00')), findsOneWidget);
     expect(find.descendant(of: now, matching: findPlainText('저녁 공기청정기 켜기')), findsOneWidget);
     expect(find.descendant(of: now, matching: findPlainText('자동으로 해요')), findsOneWidget);
@@ -373,7 +373,7 @@ void main() {
     await _settle(tester);
     expect(find.descendant(of: find.byKey(const Key('appliance-status-air')), matching: findPlainText('꺼짐')),
         findsOneWidget);
-    expect(find.descendant(of: find.byKey(const Key('appliance-status-dh')), matching: findPlainText('눌러서 조작하기')),
+    expect(find.descendant(of: find.byKey(const Key('appliance-status-dh')), matching: findPlainText('준비됐어요')),
         findsOneWidget);
     expect(find.descendant(of: find.byKey(const Key('appliance-card-dh')), matching: findPlainText('꺼짐')),
         findsNothing);
@@ -400,7 +400,7 @@ void main() {
     expect(find.descendant(of: lastTile, matching: find.text(keepWordsTogether('설정이 필요해요'))),
         findsNothing);
     // 준비된 가전은 할 일만 — '바로 쓸 수 있어요'로 단정하지 않는다.
-    expect(find.descendant(of: find.byKey(const Key('appliance-status-mw')), matching: findPlainText('눌러서 조작하기')),
+    expect(find.descendant(of: find.byKey(const Key('appliance-status-mw')), matching: findPlainText('준비됐어요')),
         findsOneWidget);
     expect(find.textContaining('바로 쓸 수 있어요'), findsNothing);
   });
@@ -508,7 +508,7 @@ void main() {
         .byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(fragment))
         .evaluate()
         .isNotEmpty;
-    expect(shown(keepPhrasesTogether('주방 전자레인지 · 버튼 1번', wholeParts: true)), isTrue);
-    expect(shown(keepWordsTogether('눌러서 조작하기')), isTrue);
+    expect(shown(keepPhrasesTogether('주방 전자레인지 · 누를 버튼 1개', wholeParts: true)), isTrue);
+    expect(shown(keepWordsTogether('준비됐어요')), isTrue);
   });
 }

@@ -200,12 +200,12 @@ void main() {
       expect(findPlainText('설정이 필요해요', contains: true), findsNothing);
       final dot = find.byKey(const Key('appliance-setup-dot-washer'));
       expect(dot, findsOneWidget);
-      expect(find.descendant(of: dot, matching: find.byType(Icon)), findsOneWidget,
+      expect(find.descendant(of: dot, matching: find.byType(Icon), matchRoot: true), findsOneWidget,
           reason: '색만이 아니라 아이콘 점');
       expect(find.bySemanticsLabel(RegExp('^세탁기, .*설정이 필요해요')), findsOneWidget);
-      // 루틴 타일은 경고 문장 대신 무엇을 하는지(단위는 키오스크와 같은 '버튼 N번').
+      // 루틴 타일은 경고 문장 대신 무엇을 하는지(평가 5차 10/18: '누를 버튼 N개').
       final tile = find.byKey(const Key('home-routine-tile-r-w'));
-      expect(find.descendant(of: tile, matching: findPlainText('세탁기 · 버튼 1번')), findsOneWidget);
+      expect(find.descendant(of: tile, matching: findPlainText('세탁기 · 누를 버튼 1개')), findsOneWidget);
       handle.dispose();
     });
 
@@ -214,7 +214,7 @@ void main() {
       await tester.pumpWidget(_app(_hub(), const HomeScreen(), installed: _installed));
       await _settle(tester);
 
-      for (final (id, text) in [('mw', '눌러서 조작하기'), ('mw2', '눌러서 조작하기'), ('washer', '눌러서 설정하기')]) {
+      for (final (id, text) in [('mw', '준비됐어요'), ('mw2', '준비됐어요'), ('washer', '설정 필요')]) {
         final line = find.byKey(Key('appliance-status-$id'));
         expect(line, findsOneWidget, reason: id);
         expect(find.descendant(of: line, matching: findPlainText(text)), findsOneWidget, reason: id);
@@ -240,20 +240,20 @@ void main() {
       final multi = find.byKey(const Key('home-routine-tile-r-m'));
       expect(_iconIn(multi, mwIcon), findsOneWidget);
       expect(find.descendant(of: multi, matching: find.byKey(const Key('routine-icon-more'))), findsOneWidget);
-      expect(find.descendant(of: multi, matching: findPlainText('전자레인지, 공기청정기 · 버튼 2번 · LG 가전 설정 1번')),
+      expect(find.descendant(of: multi, matching: findPlainText('전자레인지 · 누를 버튼 2개 · 공기청정기 켜기')),
           findsOneWidget);
     });
   });
 
   group('루틴 탭', () {
-    testWidgets('설정이 필요한 루틴은 "설정하기" 단추만 — 경고 두 줄 없음, 단위는 버튼 N번', (tester) async {
+    testWidgets('설정이 필요한 루틴은 "설정 필요" 배지만 — 경고 두 줄 없음, 단위는 누를 버튼 N개', (tester) async {
       _tall(tester);
       await tester.pumpWidget(_app(_hub(), const RoutinesScreen(), installed: _installed));
       await _settle(tester);
       expect(find.byKey(const Key('routine-setup-r-w')), findsOneWidget);
       expect(findPlainText('설정이 필요해요', contains: true), findsNothing);
       expect(findPlainText('할 일', contains: true), findsNothing);
-      expect(findPlainText('전자레인지 · 버튼 1번'), findsOneWidget);
+      expect(findPlainText('전자레인지 · 누를 버튼 1개'), findsOneWidget);
     });
 
     testWidgets('다음 실행 큰 시각은 홈에만 — 루틴 탭은 작은 한 줄', (tester) async {
@@ -278,13 +278,13 @@ void main() {
   });
 
   group('루틴 부제 단위', () {
-    test('버튼 N번 · LG 가전 설정 N번(키오스크와 같은 말)', () {
+    test('누를 버튼 N개 · LG 가전은 결과 말(평가 5차 10/18)', () {
       final r = Routine.fromJson(_routine('r', '저녁', steps: [
         {'kind': 'press_sequence', 'appliance_id': 'mw', 'buttons': ['a', 'b', 'c']},
         {'kind': 'thinq_command', 'appliance_id': 'air', 'action': 'set_power', 'args': {'power': 'on'}},
       ]));
       expect(routineSubtitle(r, const {'mw': '전자레인지', 'air': '공기청정기'}).replaceAll(kWordJoiner, ''),
-          '전자레인지, 공기청정기 · 버튼 3번 · LG 가전 설정 1번');
+          '전자레인지 · 누를 버튼 3개 · 공기청정기 켜기');
     });
   });
 

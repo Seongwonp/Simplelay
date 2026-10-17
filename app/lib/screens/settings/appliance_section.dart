@@ -41,23 +41,22 @@ class _ApplianceSection extends ConsumerWidget {
             onTap: () => context.push('/appliance/detail/${appliance.id}'),
             // 지울 수 있는 줄도 눌러 들어간다는 것은 화살표로(UI 평가 3차 10/17 — 휴지통만 있으면 눌러지는 줄과 섞였다).
             // 지우기는 행에 늘어놓지 않고 ⋮ 안(2026-10-18 버튼 위계). 확인 대화는 그대로.
+            // 줄 끝 표시는 하나만(평가 5차 10/18: ⋮와 > 가 한 줄에 같이 있었다). 지울 수 있는 줄은 ⋮(줄을 누르면
+            // 그대로 상세로 간다), 지울 수 없는 줄은 >.
             trailing: appliance.isCustom && !appliance.isThinq
-                ? Row(mainAxisSize: MainAxisSize.min, children: [
-                    RowMenu(
-                      menuKey: Key('appliance-menu-${appliance.id}'),
-                      semanticLabel: '${appliance.name} 더 보기',
-                      items: [
-                        RowMenuItem(
-                          key: Key('appliance-delete-${appliance.id}'),
-                          label: '지우기',
-                          icon: Icons.delete_outline,
-                          danger: true,
-                          onSelected: () => _confirmRemoveAppliance(context, ref, appliance),
-                        ),
-                      ],
-                    ),
-                    Icon(Icons.chevron_right, color: context.appMuted),
-                  ])
+                ? RowMenu(
+                    menuKey: Key('appliance-menu-${appliance.id}'),
+                    semanticLabel: '${appliance.name} 더 보기',
+                    items: [
+                      RowMenuItem(
+                        key: Key('appliance-delete-${appliance.id}'),
+                        label: '지우기',
+                        icon: Icons.delete_outline,
+                        danger: true,
+                        onSelected: () => _confirmRemoveAppliance(context, ref, appliance),
+                      ),
+                    ],
+                  )
                 : Icon(Icons.chevron_right, color: context.appMuted),
           ),
         // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
