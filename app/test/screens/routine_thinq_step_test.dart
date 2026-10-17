@@ -97,7 +97,7 @@ Future<void> _open(WidgetTester tester, _Hub hub, List<ApplianceMap> installed) 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets("ThinQ 가전이 있으면 '바람 세기 강풍'을 골라 thinq_command 단계로 저장한다",
+  testWidgets("ThinQ 가전이 있으면 '바람 세기 강'을 골라 thinq_command 단계로 저장한다",
       (tester) async {
     final hub = _Hub();
     await _open(tester, hub, [kTestAppliance, _purifier]);
@@ -113,7 +113,7 @@ void main() {
     expect(find.text('공기청정기에서 무엇을 바꿀까요?'), findsOneWidget);
     for (final phrase in [
       '전원 켜기', '전원 끄기',
-      '바람 세기 약풍으로 바꾸기', '바람 세기 중풍으로 바꾸기', '바람 세기 강풍으로 바꾸기', '바람 세기 자동으로 바꾸기',
+      '바람 세기 약으로 바꾸기', '바람 세기 중으로 바꾸기', '바람 세기 강으로 바꾸기', '바람 세기 자동으로 바꾸기',
       '모드 청정으로 바꾸기', '모드 수면으로 바꾸기', '모드 자동으로 바꾸기',
     ]) {
       expect(find.text(phrase), findsOneWidget, reason: phrase);
@@ -121,9 +121,9 @@ void main() {
     await tester.tap(find.byKey(const Key('routine-thinq-set_wind_strength-HIGH')));
     await tester.pumpAndSettle();
 
-    // 편집기 문장: [공기청정기] 풍량 강풍으로 바꾸기 — 동작 이름은 보이지 않는다.
+    // 편집기 문장: [공기청정기] 바람 세기 강으로 바꾸기 — 동작 이름은 보이지 않는다.
     expect(find.text('공기청정기'), findsOneWidget);
-    expect(find.text('바람 세기 강풍으로 바꾸기'), findsOneWidget);
+    expect(find.text('바람 세기 강으로 바꾸기'), findsOneWidget);
     expect(find.textContaining('set_wind_strength'), findsNothing);
     expect(find.textContaining('ThinQ 명령'), findsNothing);
     // 고르기만 했다 — 아무것도 보내지 않았다.
@@ -215,9 +215,9 @@ void main() {
     expect(thinqStepPhrase('set_power', {'power': 'POWER_ON'}), '전원 켜기');
     expect(thinqStepPhrase('set_power', {'power': 'POWER_OFF'}), '전원 끄기');
     expect(thinqStepPhrase('set_wind_strength', {'wind_strength': 'LOW'}),
-        '바람 세기 약풍으로 바꾸기');
+        '바람 세기 약으로 바꾸기');
     expect(thinqStepPhrase('set_wind_strength', {'wind_strength': 'MID'}),
-        '바람 세기 중풍으로 바꾸기');
+        '바람 세기 중으로 바꾸기');
     expect(thinqStepPhrase('set_wind_strength', {'wind_strength': 'AUTO'}),
         '바람 세기 자동으로 바꾸기');
     expect(thinqStepPhrase('set_job_mode', {'job_mode': 'CLEAN'}),

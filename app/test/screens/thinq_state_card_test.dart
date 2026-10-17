@@ -203,16 +203,21 @@ void main() {
     expect(find.text('09:12 기준 (연습)'), findsOneWidget);
   });
 
-  testWidgets("풍량 '강풍' → 한 번 묻고, '바꾸기'를 눌러야 한 번 보내고 실행 상태로 간다",
+  testWidgets("바람 세기 '강' → 한 번 묻고, '바꾸기'를 눌러야 한 번 보내고 실행 상태로 간다",
       (tester) async {
     _tall(tester);
     final hub = _Hub((_) => _ok(_state()));
     await tester.pumpWidget(_detail(hub.service()));
     await _settle(tester);
 
+    // 상태 이름과 버튼 이름을 같게(2차 평가 10/18) — '약·중·강', '약풍·강풍'을 섞지 않는다.
+    expect(find.descendant(
+            of: find.byKey(const Key('thinq-set-set_wind_strength-HIGH')), matching: find.text('강')),
+        findsOneWidget);
+    expect(find.textContaining('풍'), findsNothing);
     await tester.tap(find.byKey(const Key('thinq-set-set_wind_strength-HIGH')));
     await _settle(tester);
-    expect(find.text('바람 세기를 강풍으로 바꿀까요?'), findsOneWidget);
+    expect(find.text('바람 세기를 강으로 바꿀까요?'), findsOneWidget);
     expect(hub.commands, isEmpty); // 묻는 동안에는 보내지 않는다.
 
     await tester.tap(find.byKey(const Key('thinq-set-confirm')));

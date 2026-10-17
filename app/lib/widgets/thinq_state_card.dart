@@ -318,10 +318,11 @@ const _jobMode = {
   'AUTO': '자동',
   'SILENT': '조용',
 };
+// 바람 세기 이름은 고르는 버튼·본체 문장과 같게 '약·중·강'(2차 평가 10/18 — 상태는 약풍, 버튼은 약이었다).
 const _wind = {
-  'LOW': '약풍',
-  'MID': '중풍',
-  'HIGH': '강풍',
+  'LOW': '약',
+  'MID': '중',
+  'HIGH': '강',
   'AUTO': '자동',
   'POWER': '파워',
 };
@@ -357,7 +358,7 @@ class ThinqControl {
         current: current,
       );
 
-  /// 값 → 고를 때 보이는 말(켜기·강풍·수면). 표에 없으면 null.
+  /// 값 → 고를 때 보이는 말(켜기·강·수면). 표에 없으면 null.
   String? wordFor(String value) {
     for (final (v, word) in choices) {
       if (v == value) return word;
@@ -365,7 +366,7 @@ class ThinqControl {
     return null;
   }
 
-  /// 확인 질문. 값 이름(약풍·강풍·자동·청정·수면)은 모두 받침이 있어 '으로'를 붙인다.
+  /// 확인 질문. 값 이름(약·중·강·자동·청정·수면)은 모두 받침이 있어 '으로'를 붙인다.
   String question(String value, String word) => switch (action) {
         'set_power' => value == 'POWER_OFF' ? '전원을 끌까요?' : '전원을 켤까요?',
         'set_job_mode' => '모드를 $word${_ro(word)} 바꿀까요?',
@@ -375,7 +376,7 @@ class ThinqControl {
   /// 칩의 읽는 이름 — 줄 이름을 붙인다('풍량 자동'·'운전 모드 자동'·'전원 켜기').
   String chipSemantics(String word) => '$label $word';
 
-  /// 루틴 단계 문장(2026-10-15). '전원 켜기', '풍량 강풍으로 바꾸기'.
+  /// 루틴 단계 문장(2026-10-15). '전원 켜기', '바람 세기 강으로 바꾸기'.
   String stepPhrase(String word) =>
       action == 'set_power' ? '$label $word' : '$label $word${_ro(word)} 바꾸기';
 }
@@ -413,9 +414,9 @@ const kAirPurifierControls = <ThinqControl>[
     action: 'set_wind_strength',
     arg: 'wind_strength',
     choices: [
-      ('LOW', '약풍'),
-      ('MID', '중풍'),
-      ('HIGH', '강풍'),
+      ('LOW', '약'),
+      ('MID', '중'),
+      ('HIGH', '강'),
       ('AUTO', '자동'),
     ],
   ),
