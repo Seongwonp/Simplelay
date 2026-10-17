@@ -2,7 +2,7 @@
 
 끝 판정은 RPi4가 그 가전의 CT 채널 전력 하강(`rpi/verifier/cycle_end.py`)으로 보내는 ``appliance_done``이다.
 RPi5는 끝 센서가 있는 가전(``SIMPLELAY_ROUTINE_DONE_SENSORS``)이면 정해 둔 시간까지 기다리고, 없거나 모의 실행이면
-지금처럼 넘어가되 단계에 "시작만 확인 — 끝남 판정 센서 없음"이라고 적는다. 실물 미검증(합성 기록만).
+지금처럼 넘어가되 단계에 "시작한 것만 확인했어요. 끝났는지는 몰라요."라고 적는다. 실물 미검증(합성 기록만).
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ def test_waits_for_cycle_end_before_the_next_step():
     wait = run.steps[1]
     assert wait["kind"] == "wait_until_done" and wait["status"] == "passed"
     assert wait["basis"] == "cycle_end"
-    assert "끝" in wait["detail"] and "전력" in wait["detail"]
+    assert wait["detail"] == "끝난 것을 확인했어요."
 
 
 def test_cycle_end_timeout_stops_the_routine_unconfirmed():
@@ -115,7 +115,7 @@ def test_injected_or_mock_done_marks_the_run_as_demo():
     _later(lambda: log.append(_done(source="injected", inputs=("power", "beep"))))
     run = runner.execute_approved(approved, scenario_id=routine.scenario_key())
     assert run.status is RunStatus.SUCCEEDED and run.is_demo
-    assert "시연 주입" in run.steps[1]["detail"]
+    assert "연습으로 넣은 신호예요." in run.steps[1]["detail"]
 
 
 def test_without_an_end_sensor_start_confirmation_passes_but_says_so():
@@ -124,7 +124,7 @@ def test_without_an_end_sensor_start_confirmation_passes_but_says_so():
     run = runner.execute_approved(approved, scenario_id=routine.scenario_key())
     assert run.status is RunStatus.SUCCEEDED and len(service.calls) == 2
     assert run.steps[1]["basis"] == "start_only"
-    assert run.steps[1]["detail"] == "시작만 확인 — 끝남 판정 센서 없음"
+    assert run.steps[1]["detail"] == "시작한 것만 확인했어요. 끝났는지는 몰라요."
 
 
 def test_mock_run_passes_immediately_even_with_a_sensor_and_says_so():
@@ -138,7 +138,7 @@ def test_mock_run_passes_immediately_even_with_a_sensor_and_says_so():
     assert time.monotonic() - started < 1.0
     assert run.status is RunStatus.SUCCEEDED and run.is_demo
     assert run.steps[1]["basis"] == "mock"
-    assert run.steps[1]["detail"].startswith("시연:") and "시작만 확인 — 끝남 판정 센서 없음" in run.steps[1]["detail"]
+    assert run.steps[1]["detail"] == "연습이라 실제로 끝났는지는 확인하지 않았어요."
 
 
 def test_settings_from_env():

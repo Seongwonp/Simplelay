@@ -217,7 +217,7 @@ def test_rehearsal_estop_latches_refuses_execute_and_ack_clears(sim):
     c = sim
     res = c.post("/demo/outlet-estop", json={})
     assert res.status_code == 200, res.text
-    assert "시연" in res.json()["detail"]
+    assert res.json()["detail"].startswith("연습용 비상 버튼")
     _until(c, lambda s: s["estop_latched"] is True)
     refused = c.post("/execute-buttons", json={"buttons": ["즉석밥", "시작"], "appliance_id": "microwave"})
     assert refused.status_code == 412 and "비상 버튼이 눌려 있어요" in refused.text

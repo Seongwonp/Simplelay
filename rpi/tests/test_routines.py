@@ -526,7 +526,7 @@ def test_multi_step_routine_runs_in_order_with_announce(client):
     job = client.post(f"/suggestions/{card['id']}/approve").json()["job_id"]
     run = _wait_run(client, job)
     assert [s["kind"] for s in run["steps"]] == ["command", "wait_until_done", "announce", "command"]
-    assert run["steps"][1]["detail"].startswith("시연:")  # 모의 실행은 완료 확인이 아니다
+    assert run["steps"][1]["detail"].startswith("연습이라")  # 모의 실행은 완료 확인이 아니다
     assert run["steps"][3]["confirmation"] == "state_confirmed"
     assert len(run["job_ids"]) == 2
     notices = [e for e in deps.get_care_events().recent(20) if e.kind == "routine_announce"]
@@ -616,7 +616,7 @@ def test_wait_until_done_passes_on_operation_confirmed_and_expiry_does_not_cut_t
         [HEAT, {"kind": "wait_until_done", "appliance_id": "microwave"}, INDUCTION])
     run = runner.execute_approved(approved, scenario_id=routine.scenario_key())
     assert run.status is RunStatus.SUCCEEDED and len(service.calls) == 2
-    assert run.steps[1]["detail"] == "시작만 확인 — 끝남 판정 센서 없음"  # 끝 센서 없음(M2)
+    assert run.steps[1]["detail"] == "시작한 것만 확인했어요. 끝났는지는 몰라요."  # 끝 센서 없음(M2)
 
 
 def _halted(command, status):

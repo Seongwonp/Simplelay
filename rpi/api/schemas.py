@@ -936,7 +936,7 @@ class DemoApplianceDoneRequest(BaseModel):
     """POST /demo/appliance-done — 리허설용 '버튼식 가전 끝' 주입(2026-10-06, 시연 v3 갭 S8).
 
     **측정이 아니다.** 실물 세탁기·CT·마이크 없이, RPi4가 융합해 보내는 ``appliance_done``과 같은 규칙
-    (`rpi/verifier/done_fusion.py`)에 주입 입력을 넣는다. 결과와 루틴 안내에는 "(시연 주입)"이 붙는다."""
+    (`rpi/verifier/done_fusion.py`)에 주입 입력을 넣는다. 결과와 루틴 안내에는 "연습으로 넣은 신호예요."가 붙는다."""
 
     model_config = {"extra": "forbid"}
     appliance_id: str = Field(default="washer", pattern=r"^[A-Za-z0-9_-]{1,64}$")

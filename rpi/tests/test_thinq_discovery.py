@@ -377,9 +377,9 @@ def test_token_error_is_a_reason_not_zero_devices(api, cloud):
     cloud.set_fault("invalid_token")
     body = api.get("/thinq/discovered").json()
     assert body["reachable"] is False and body["devices"] == []
-    assert "PAT" in body["error"]
+    assert "LG 계정 연결" in body["error"]
     refused = api.post("/thinq/added", json={"key": device_key(cloud.device_id("air_purifier"))})
-    assert refused.status_code == 503 and "PAT" in refused.json()["detail"]
+    assert refused.status_code == 503 and "LG 계정 연결" in refused.json()["detail"]
     assert SECRET_PAT not in str(body) and SECRET_PAT not in refused.text
 
 

@@ -308,8 +308,8 @@ def test_time_routine_card_offers_auto_for_a_single_low_risk_thinq_step(api):
     routine = _routine(api)
     offer = _manual_card(api, routine["id"])["auto_rule_offer"]
     assert offer is not None
-    assert offer["condition_text"] == "매일 23:00이 되면"
-    assert offer["action_text"] == "공기청정기(모의) 전원 켜기"
+    assert offer["condition_text"] == "매일 밤 11시에"
+    assert offer["action_text"] == "공기청정기(모의)를 켜요"
     assert offer["caveat"] and offer["caveat"] != COOK_CAVEAT
     assert "본체가 꺼져 있었거나 조용한 시간이면 하지 않아요" in offer["caveat"] and "허브" not in offer["caveat"]
     assert len(offer["fingerprint"]) == 64
@@ -339,7 +339,7 @@ def test_approve_and_allow_saves_a_time_rule_and_this_run_goes_through_the_routi
     (rule,) = api.get("/routines/auto-rules").json()
     assert rule["name"] == "밤 공기청정기"
     assert rule["enabled"] is True
-    assert rule["condition_text"] == "매일 23:00이 되면"
+    assert rule["condition_text"] == "매일 밤 11시에"
     # 폰이 조용한 시간과 겹치는 자동 실행을 미리 말할 수 있게 시각을 따로 준다(UI 평가 6차 10/17).
     assert rule["condition_time"] == "23:00"
     assert rule["caveat"] and "늦게 알면 먼저 물어봐요" in rule["caveat"]
@@ -361,7 +361,7 @@ def test_next_scheduled_time_runs_without_a_card(api, clock, hub, submits):
     service_calls = [s for s in submits if s[0] == "service"]
     assert len(service_calls) == 1 and service_calls[0][1].startswith("auto:")
     assert len(_controls()) == sent_before + 1
-    assert "23:00" in " / ".join(run["notices"])
+    assert "밤 11시가 되어" in " / ".join(run["notices"])
     log = api.get("/routines/log").json()
     assert log[0]["routine_id"] == routine["id"] and log[0]["outcome"] == "auto"
 

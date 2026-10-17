@@ -107,8 +107,8 @@ def test_card_offers_auto_with_exact_condition_and_action(api):
     card = _card(api)
     offer = card["auto_rule_offer"]
     # A5(10/14): CT 끝 판정은 취소·문 열림으로 가열이 끝난 것과 구분하지 못한다 — 조리 완료라고 말하지 않는다.
-    assert offer["condition_text"] == "전자레인지가 멈추면"
-    assert offer["action_text"] == "공기청정기(모의) 풍량 강으로"
+    assert offer["condition_text"] == "전자레인지가 데우기를 멈추면"
+    assert offer["action_text"] == "공기청정기(모의) 바람을 세게 해요"
     assert len(offer["fingerprint"]) == 64
     assert MOCK_PURIFIER_ID not in str(card)  # 기기 ID 원문을 내보내지 않는다
 
@@ -123,8 +123,8 @@ def test_allow_runs_this_time_and_saves_the_rule(api):
     assert len(rules) == 1
     rule = rules[0]
     assert rule["status_label"] == "자동 실행 켜짐"
-    assert rule["condition_text"] == "전자레인지가 멈추면"
-    assert rule["action_text"] == "공기청정기(모의) 풍량 강으로"
+    assert rule["condition_text"] == "전자레인지가 데우기를 멈추면"
+    assert rule["action_text"] == "공기청정기(모의) 바람을 세게 해요"
     assert _cards(api) == []  # 카드는 승인으로 내려갔다
 
 
@@ -314,7 +314,7 @@ def test_changed_value_needs_a_new_allowance(api):
     changed = api.put(f"/routines/auto-rules/{rule['id']}", json={"value": "MID"})
     assert changed.status_code == 200, changed.text
     changed = changed.json()
-    assert changed["enabled"] is False and changed["action_text"] == "공기청정기(모의) 풍량 중으로"
+    assert changed["enabled"] is False and changed["action_text"] == "공기청정기(모의) 바람을 중간으로 해요"
     _inject(api, inputs=("power",))
     time.sleep(0.3)
     assert len(_controls()) == sent  # 바뀐 값은 아직 허용 전 — 실행 안 함
@@ -518,7 +518,7 @@ def test_rule_texts_are_short_and_never_raw():
                     "set_wind_strength", "windStrength", "HIGH")
     assert AutoRuleEngine.condition_text(Fake(), rule) == "전자레인지가 멈추면"
     action = AutoRuleEngine.action_text(Fake(), rule)
-    assert action == "공기청정기 바람 세기 바꾸기"
+    assert action == "공기청정기 바람 세기를 바꿔요"
     assert "set_wind_strength" not in action and "HIGH" not in action
 
 

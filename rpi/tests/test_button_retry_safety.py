@@ -81,7 +81,7 @@ def test_service_to_real_link_executor_and_history(label, safe, layer):
             assert entry.retry_count == (1 if safe else 0)
             if not safe:
                 assert entry.outcome == "unconfirmed"
-                assert "눌렸는지 확인하지 못했어요" in entry.detail
+                assert "눌렸는지 몰라요" in entry.detail
         finally:
             r4.feed_eof()
             await receive
@@ -120,14 +120,14 @@ def test_api_unconfirmed_status_and_history(entrypoint):
         body = _wait_done(client, response.json()["job_id"])
         assert len(motion.commands) == 1
         assert body["last_outcome"] == "unconfirmed"
-        assert "눌렸는지 확인하지 못했어요" in body["last_detail"]
+        assert "눌렸는지 몰라요" in body["last_detail"]
         # 기존 폰은 abort_reason이 있으면 '누르지 못함'으로 표시한다.
         # 관측 미확인은 모션 중단을 뜻하는 공개 필드에 넣지 않는다.
         assert body["last_abort_reason"] is None
         entry, = client.get("/history").json()
         assert entry["outcome"] == "unconfirmed" and entry["abort_reason"] is None
         assert entry["buttons"][0]["attempts"] == 1
-        assert "눌렸는지 확인하지 못했어요" in entry["detail"]
+        assert "눌렸는지 몰라요" in entry["detail"]
 
 
 def test_grid_registry_and_persistence_preserve_behavior(tmp_path):
@@ -218,7 +218,7 @@ def test_approved_plan_stops_after_unknown_and_keeps_unconfirmed_event():
     record = service.execute_approved(approved)
     assert len(motion.commands) == 1
     assert record.results[0].status.value == "unconfirmed"
-    assert "눌렸는지 확인하지 못했어요" in record.results[0].detail
+    assert "눌렸는지 몰라요" in record.results[0].detail
     assert history.recent()[0].outcome == "unconfirmed"
     assert len(events) == 1 and events[0].status == "unconfirmed"
 

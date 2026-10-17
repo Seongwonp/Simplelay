@@ -52,7 +52,7 @@ def test_value_missing_from_profile_write_list_is_refused_before_sending():
     client.set_profile(MOCK_PURIFIER_ID, air_purifier_profile(job_modes_w=("CLEAN", "SLEEP")))
     result = ctrl.execute_command(_job("SILENT"))
     assert _not_sent(result)
-    assert "프로필" in result.detail and "저소음" in result.detail
+    assert result.detail == "이 가전은 운전 모드 저소음을 쓸 수 없어요. 그래서 보내지 않았어요."
     assert client.controls == []
     # 프로필이 허용하는 값은 보낸다.
     assert ctrl.execute_command(_job("SLEEP")).status is CommandStatus.SUCCEEDED
@@ -161,5 +161,5 @@ def test_washer_value_not_in_profile_is_refused():
     client.set_remote_control(True)
     client.set_profile(MOCK_WASHER_ID, washer_profile(operation_w=("STOP", "POWER_OFF")))
     result = ctrl.execute_command(_wash("START"))
-    assert _not_sent(result) and "프로필" in result.detail
+    assert _not_sent(result) and "쓸 수 없어요" in result.detail
     assert client.controls == []

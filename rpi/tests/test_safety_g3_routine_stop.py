@@ -14,7 +14,7 @@
 '구간'은 한 번의 실행(``execute_approved``)이다 — 안내·기다림 없이 이어진 장치 단계는 한 구간으로 묶이므로(그 안의 단계 사이
 정지는 G2·실행 서비스가 막는다) 구간 사이 시험은 안내 단계를 끼운다.
 
-수리 뒤: 정지 뒤에는 다음 구간·단계를 보내지 않고, 루틴은 ``stopped``·기존 정지 문장("…으로 남은 단계를 보내지 않았어요")으로 끝난다.
+수리 뒤: 정지 뒤에는 다음 구간·단계를 보내지 않고, 루틴은 ``stopped``·정지 문장(``STOP_DETAIL``)으로 끝난다.
 실행 대상은 가짜 — **실물 미검증**(PS-1 S6은 보드에서 다시 본다).
 """
 
@@ -42,11 +42,11 @@ NOW = datetime(2026, 10, 16, 19, tzinfo=timezone(timedelta(hours=9)))
 HEAT = {"kind": "press_sequence", "appliance_id": "microwave", "buttons": ["BT-08", "시작"]}
 INDUCTION = {"kind": "press_sequence", "appliance_id": "induction", "buttons": ["전원"]}
 ANNOUNCE = {"kind": "announce", "text": "인덕션도 켤게요"}
-#: ``POST /stop``이 루틴에 붙이는 사유 — 루틴 문장은 "{사유}으로 남은 단계를 보내지 않았어요"(기존 문장).
-STOP_DETAIL = "긴급 정지 요청으로 남은 단계를 보내지 않았어요"
+#: ``POST /stop``으로 멈춘 루틴 문장(10/18 쉬운 말 — 사유는 ``stop_reason``에 남고 문장은 사람 말로).
+STOP_DETAIL = "멈추기를 눌러서 남은 할 일을 하지 않았어요."
 #: 루틴 취소 표시 없이 구간 결과로만 정지를 안 경우의 기존 기본 문장. 첫 구간 중에는 루틴이 아직 목록에 없어(첫 구간을
 #: 접수한 뒤 등록) ``POST /stop``의 루틴 취소가 닿지 않는다 — 그 정지는 구간 결과(``stop_requested``)로 안다.
-DEFAULT_STOP_DETAIL = "정지 요청으로 남은 단계를 보내지 않았어요"
+DEFAULT_STOP_DETAIL = "루틴을 멈춰서 남은 할 일을 하지 않았어요."
 
 
 class _Recorder:

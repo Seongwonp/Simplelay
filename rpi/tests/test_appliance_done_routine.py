@@ -67,7 +67,7 @@ def test_confirmed_says_it_is_done_and_reads_the_announce():
     engine.on_appliance_done(parse_appliance_done(_frame()))
     kind, message, _ = care.events[-1]
     assert kind == "routine_notice"
-    assert "세탁이 끝났어요" in message and "전력·종료음" in message
+    assert "세탁이 끝났어요." in message and "같아요" not in message
     assert ANNOUNCE in message
     assert "시연" not in message and "모의" not in message
 
@@ -80,8 +80,8 @@ def test_single_input_does_not_claim_completion(state, inputs, which):
     engine, _, care = _engine_with()
     engine.on_appliance_done(parse_appliance_done(_frame(state=state, inputs=inputs)))
     message = care.events[-1][1]
-    assert "끝난 것 같아요" in message and "확인해 주세요" in message
-    assert which in message
+    assert "끝난 것 같아요. 다 됐는지 봐 주세요." in message
+    assert engine.recent_log()[0]["inputs"] == inputs  # 어느 입력인지는 기록에(문장에는 내지 않는다)
     assert "세탁이 끝났어요" not in message  # 루틴의 '끝났어요' 안내를 읽지 않는다
     log = engine.recent_log()[0]
     assert log["confidence"] == "probable" and log["inputs"] == inputs
@@ -90,10 +90,10 @@ def test_single_input_does_not_claim_completion(state, inputs, which):
 def test_injected_and_mock_are_labelled():
     engine, _, care = _engine_with()
     engine.on_appliance_done(parse_appliance_done(_frame(source="injected")))
-    assert "(시연 주입)" in care.events[-1][1]
+    assert "연습으로 넣은 신호예요." in care.events[-1][1]
     engine2, _, care2 = _engine_with()
     engine2.on_appliance_done(parse_appliance_done(_frame(source="mock")))
-    assert "(모의 입력)" in care2.events[-1][1]
+    assert "연습 신호예요." in care2.events[-1][1]
 
 
 def test_after_done_trigger_on_the_washer_fires_with_confidence():
@@ -192,9 +192,9 @@ def test_injection_in_mock_mode_drives_the_routine_and_is_labelled(plain):
     assert res.status_code == 200, res.text
     body = res.json()
     assert body["state"] == "done_confirmed" and body["source"] == "injected"
-    assert "시연 주입" in body["detail"]
+    assert body["detail"] == "연습으로 넣은 끝 신호예요. 실제로 잰 값이 아니에요."
     message = _notice(plain)
-    assert "세탁이 끝났어요" in message and "(시연 주입)" in message
+    assert "세탁이 끝났어요" in message and "연습으로 넣은 신호예요." in message
     assert deps.get_appliance_done_log().recent()[0]["source"] == "injected"
 
 
@@ -203,7 +203,7 @@ def test_injection_with_one_input_is_probable(plain):
     body = plain.post("/demo/appliance-done", json={"appliance_id": "washer", "inputs": ["power"]}).json()
     assert body["state"] == "done_power_only"
     message = _notice(plain)
-    assert "끝난 것 같아요" in message and "(시연 주입)" in message
+    assert "끝난 것 같아요" in message and "연습으로 넣은 신호예요." in message
 
 
 def test_injection_validates_inputs(plain):
@@ -256,7 +256,7 @@ def test_injection_in_simulator_goes_through_the_rpi4_frame_path(sim):
     assert res.status_code == 200, res.text
     assert res.json()["state"] == "done_beep_only"
     message = _notice(c)
-    assert "끝난 것 같아요" in message and "(시연 주입)" in message
+    assert "끝난 것 같아요" in message and "연습으로 넣은 신호예요." in message
     frames = [f["message"] for f in controller.snapshot()["frames"]
               if f["message"].get("type") == "appliance_done"]
     assert frames and frames[-1]["source"] == "injected"

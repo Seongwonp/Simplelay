@@ -19,7 +19,7 @@ from rpi.commands import (
     confirmation_of,
     status_of,
 )
-from rpi.commands.physical import is_aggregate_report, receipt_of
+from rpi.commands.physical import STOP_REQUESTED_NOTE, is_aggregate_report, receipt_of
 from rpi.controller.models import (
     ButtonResult,
     ButtonStatus,
@@ -62,7 +62,7 @@ def test_l1_success_without_l3_is_press_confirmed_not_state():
     assert out.receipt is Receipt.ACCEPTED
     assert out.confirmation is Confirmation.PRESS_CONFIRMED
     assert out.confirmation.has_evidence and not out.confirmation.confirms_appliance
-    assert "센서로 확인" in out.detail and "가전 동작은 확인하지 않음" in out.detail
+    assert out.detail == "버튼이 눌린 것을 센서로 확인했어요. 가전이 움직이는지 봐 주세요."
 
 
 def test_l3_pass_is_operation_confirmed():
@@ -85,7 +85,9 @@ def test_l3_failure_keeps_press_confirmed_and_stops():
     out = convert(result)
     assert out.status is CommandStatus.STOPPED
     assert out.confirmation is Confirmation.PRESS_CONFIRMED
-    assert "전력 변화 없음" in out.detail
+    # 10/18 쉬운 말: 판정 사유는 문장에 내지 않고 근거(operation.detail)로 남긴다.
+    assert out.detail == "버튼은 다 눌렸지만 가전 반응은 확인하지 못했어요. 가전이 움직이는지 봐 주세요."
+    assert out.physical.operation.detail == "전력 변화 없음"
     # 근거 보존: L3 판정과 실패 층이 그대로 남는다.
     assert out.physical is result
     assert out.physical.operation is outcome
@@ -99,7 +101,7 @@ def test_l3_unobservable_is_press_confirmed_with_reason():
     )
     out = convert(result)
     assert out.confirmation is Confirmation.PRESS_CONFIRMED
-    assert "판정 불가" in out.detail
+    assert "가전 반응은 확인하지 못했어요" in out.detail and "판정 불가" not in out.detail
 
 
 def test_partial_press_has_no_confirmation_but_counts_sensor_presses():
@@ -111,7 +113,7 @@ def test_partial_press_has_no_confirmation_but_counts_sensor_presses():
     assert out.status is CommandStatus.STOPPED
     assert out.receipt is Receipt.ACCEPTED
     assert out.confirmation is Confirmation.NONE
-    assert "'시작'에서 멈췄어요" in out.detail and "L1" in out.detail and "2개 중 1개" in out.detail
+    assert out.detail == "'시작'에서 멈췄어요. 눌린 것을 확인한 버튼은 2개 중 1개예요."
     # 버튼별 L1·재시도 근거 보존
     assert [b.attempts for b in out.buttons] == [1, 3]
 
@@ -122,7 +124,9 @@ def test_l2_failure_layer_is_reported():
         (ok("즉석밥"), fail("시작", layer=VerificationLayer.ACCEPTANCE)),
         failed_layer=VerificationLayer.ACCEPTANCE,
     )
-    assert "L2" in convert(result).detail
+    # 10/18 쉬운 말: 검증 층(L1·L2)은 문장에 내지 않고 근거로 남긴다.
+    out = convert(result)
+    assert "L2" not in out.detail and out.physical.failed_layer is VerificationLayer.ACCEPTANCE
 
 
 def test_stop_before_first_press_is_accepted_with_zero_presses():
@@ -132,8 +136,8 @@ def test_stop_before_first_press_is_accepted_with_zero_presses():
     assert out.receipt is Receipt.ACCEPTED
     assert out.confirmation is Confirmation.NONE
     assert out.stop_requested is True
-    assert "실행 시작 전에 멈췄어요" in out.detail and "2개 중 0개" in out.detail
-    assert "정지 요청 있음" in out.detail and "사용자 정지로" not in out.detail
+    assert out.detail == "시작하기 전에 멈췄어요. 눌린 것을 확인한 버튼은 2개 중 0개예요. 멈추기 요청도 받았어요."
+    assert "사용자 정지로" not in out.detail
 
 
 def test_stop_after_first_button_is_not_press_confirmed():
@@ -145,14 +149,14 @@ def test_stop_after_first_button_is_not_press_confirmed():
     assert "2개 중 1개" in out.detail
     # 일부 실행 후 중단은 '시작 전'이 아니다.
     assert "시작 전" not in out.detail
-    assert "'즉석밥' 뒤에서 멈췄어요" in out.detail and "정지 요청 있음" in out.detail
+    assert "'즉석밥' 다음에서 멈췄어요" in out.detail and out.detail.endswith(STOP_REQUESTED_NOTE)
 
 
 def test_partial_stop_without_user_request_is_attributed_to_executor():
     partial = ExecutionResult(ExecutionStatus.SAFETY_STOPPED, (ok("즉석밥"),))
     out = convert(partial)
     assert out.stop_requested is False
-    assert "'즉석밥' 뒤에서 멈췄어요" in out.detail and "정지 요청" not in out.detail
+    assert "'즉석밥' 다음에서 멈췄어요" in out.detail and "멈추기 요청" not in out.detail
     # 결과만 넘긴 순수 함수는 명령을 모르므로 호출자가 개수를 줘야 한다.
     assert confirmation_of(partial) is Confirmation.PRESS_CONFIRMED
     assert confirmation_of(partial, expected_count=2) is Confirmation.NONE
@@ -163,7 +167,7 @@ def test_user_stop_after_all_presses_keeps_press_confirmed():
     out = convert(result, stopped_by_user=True)
     assert out.status is CommandStatus.STOPPED
     assert out.confirmation is Confirmation.PRESS_CONFIRMED
-    assert "작은 팔을 멈췄어요" in out.detail and "정지 요청 있음" in out.detail
+    assert "작은 팔을 멈췄어요" in out.detail and out.detail.endswith(STOP_REQUESTED_NOTE)
     # 요청이 있었다는 사실만 적는다. 재시도 소진과 겹칠 수 있어 원인으로 단정하지 않는다.
     assert "사용자 정지로" not in out.detail
 
@@ -180,7 +184,7 @@ def test_late_stop_request_does_not_overwrite_a_completed_result():
     assert "센서로 확인" in out.detail
     assert "멈췄어요" not in out.detail and "사용자 정지" not in out.detail
     # 요청 사실만. 요청이 실행 종료 뒤였는지는 플래그로 알 수 없으므로 말하지 않는다.
-    assert out.detail.endswith(" · 정지 요청 있음")
+    assert out.detail.endswith(STOP_REQUESTED_NOTE)
     assert "이미 끝남" not in out.detail
 
 
@@ -191,8 +195,8 @@ def test_late_stop_request_on_l3_confirmed_success():
     )
     out = convert(result, stopped_by_user=True)
     assert out.status is CommandStatus.SUCCEEDED
-    assert out.detail.startswith("버튼 눌림과 가전 전력 변화를 확인했어요")
-    assert out.detail.endswith(" · 정지 요청 있음") and "이미 끝남" not in out.detail
+    assert out.detail.startswith("버튼이 눌렸고 가전이 반응한 것도 확인했어요.")
+    assert out.detail.endswith(STOP_REQUESTED_NOTE) and "이미 끝남" not in out.detail
 
 
 def test_late_stop_request_on_failed_result_is_a_note_not_a_cause():
@@ -201,7 +205,7 @@ def test_late_stop_request_on_failed_result_is_a_note_not_a_cause():
     assert out.status is CommandStatus.FAILED
     assert "'즉석밥'에서 실패했어요" in out.detail
     assert "멈췄어요" not in out.detail and "이미 끝남" not in out.detail
-    assert out.detail.endswith(" · 정지 요청 있음")
+    assert out.detail.endswith(STOP_REQUESTED_NOTE)
 
 
 def test_stop_request_note_is_identical_across_states():
@@ -216,7 +220,7 @@ def test_stop_request_note_is_identical_across_states():
     for result in cases:
         with_note = convert(result, stopped_by_user=True).detail
         without = convert(result).detail
-        assert with_note == without + " · 정지 요청 있음"
+        assert with_note == without + STOP_REQUESTED_NOTE
 
 
 def test_unknown_receipt_with_stop_request_asserts_neither_end_nor_stop():
@@ -225,7 +229,7 @@ def test_unknown_receipt_with_stop_request_asserts_neither_end_nor_stop():
     assert out.status is CommandStatus.UNCONFIRMED
     assert out.receipt is Receipt.UNKNOWN
     assert out.stop_requested is True
-    assert "알 수 없어요" in out.detail and out.detail.endswith(" · 정지 요청 있음")
+    assert "눌렸는지 몰라요" in out.detail and out.detail.endswith(STOP_REQUESTED_NOTE)
     for forbidden in ("멈췄어요", "끝남", "완료", "사용자 정지로"):
         assert forbidden not in out.detail
 
@@ -248,7 +252,7 @@ def test_controller_exception_is_unconfirmed_with_unknown_receipt():
     assert out.confirmation is Confirmation.NONE
     assert out.accepted_at is None and out.confirmed_at is None
     assert out.observed_at == T1
-    assert "다시 누르지 않아요" in out.detail
+    assert "다시 누르지 않았으니" in out.detail
     assert out.execution_mode is ExecutionMode.UNKNOWN
 
 
@@ -270,7 +274,7 @@ def test_aggregate_success_is_reported_not_press_confirmed():
     assert out.receipt is Receipt.ACCEPTED
     assert out.confirmation is Confirmation.REPORTED
     assert not out.confirmation.has_evidence
-    assert "작은 팔이 다 눌렀다고 알려 왔어요" in out.detail and "센서" not in out.detail.split("(")[0]
+    assert out.detail == "작은 팔이 다 눌렀다고 알려 왔어요. 가전이 움직이는지 봐 주세요."
     assert "센서로 확인" not in out.detail
 
 
@@ -293,7 +297,7 @@ def test_aggregate_failure_does_not_claim_button_position_or_press_count():
     # synthesize가 채운 '즉석밥 성공, 시작 실패'는 추정이다 -- 문구에 쓰지 않는다.
     assert "'시작'에서" not in out.detail
     assert "눌림 확인" not in out.detail
-    assert "재시도 2회" in out.detail and "알려 오지 않았어요" in out.detail
+    assert out.detail == "작은 팔이 실패를 알려 왔어요. 몇 개를 눌렀는지, 멈췄는지 모르니 가전을 봐 주세요."
     # 원본은 그대로 보존된다(추정임을 아는 쪽이 해석한다).
     assert out.buttons[-1].attempts == 3 and out.buttons[-1].verification is None
 
@@ -304,9 +308,9 @@ def test_aggregate_failure_with_user_stop_separates_request_from_confirmation():
     # 요청은 남기되 정지가 확인됐다고 말하지 않는다.
     assert out.stop_requested is True
     assert out.status is CommandStatus.FAILED
-    assert "실패를 알려 왔어요" in out.detail and out.detail.endswith(" · 정지 요청 있음")
+    assert "실패를 알려 왔어요" in out.detail and out.detail.endswith(STOP_REQUESTED_NOTE)
     assert "멈췄어요" not in out.detail and "'시작'에서" not in out.detail
-    assert "멈췄는지는 알려 오지 않았어요" in out.detail
+    assert "멈췄는지 모르니" in out.detail
     # 집계 보고에는 종료·정지 근거가 없다 -- 어느 쪽도 단정하지 않는다.
     for forbidden in ("끝남", "완료", "사용자 정지로"):
         assert forbidden not in out.detail

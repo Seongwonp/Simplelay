@@ -118,10 +118,11 @@ def test_api_error_maps_to_kind_and_human_reason(name, kind):
 
 
 def test_specific_reasons_say_what_to_do():
-    assert "PAT" in API_ERROR_REASONS["INVALID_TOKEN"]
+    # 10/18 쉬운 말: 'PAT'·'국가 코드'·'호출 한도' 대신 사람 말(설치하는 분이 고칠 일은 '설치하신 분께').
+    assert "LG 계정 연결" in API_ERROR_REASONS["INVALID_TOKEN"] and "설치하신 분께" in API_ERROR_REASONS["INVALID_TOKEN"]
     assert "약관" in API_ERROR_REASONS["NOT_ACCEPTABLE_TERMS"]
-    assert "국가" in API_ERROR_REASONS["NOT_SUPPORTED_COUNTRY"]
-    assert "한도" in API_ERROR_REASONS["EXCEEDED_API_CALLS"]
+    assert "나라 설정" in API_ERROR_REASONS["NOT_SUPPORTED_COUNTRY"]
+    assert "너무 많았어요" in API_ERROR_REASONS["EXCEEDED_API_CALLS"]
     assert "원격" in API_ERROR_REASONS["COMMAND_NOT_SUPPORTED_IN_REMOTE_OFF"]
 
 
@@ -130,7 +131,8 @@ def test_unknown_code_is_not_called_a_rejection():
     for name in (None, "UNKNOWN_ERROR"):  # SDK는 모르는 코드에 UNKNOWN_ERROR를 붙인다
         err = error_from_api("9999", name)
         assert isinstance(err, ThinqTransportError)
-        assert "9999" in err.reason and "몰라요" in err.reason
+        # 코드는 오류 객체에 남고 문장에는 내지 않는다(10/18 쉬운 말). 거절이라고 말하지 않는다.
+        assert err.code == "9999" and "9999" not in err.reason and "받지 않았어요" not in err.reason
 
 
 # ── 공식 SDK와 대조 (설치돼 있을 때만) ─────────────────────────────────────

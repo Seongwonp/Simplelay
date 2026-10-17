@@ -66,7 +66,7 @@ def test_single_input_cycle_end_stops_the_routine_with_please_check():
     assert run.status is RunStatus.UNCONFIRMED
     wait = run.steps[1]
     assert wait["status"] == "probable" and wait["basis"] == "cycle_end"
-    assert "끝난 것 같아요 — 확인해 주세요" in wait["detail"]
+    assert wait["detail"].startswith("끝난 것 같아요.") and "가전을 봐 주세요" in wait["detail"]
     assert care.events[-1][0] == "routine_stopped" and "끝난 것 같아요" in care.events[-1][1]
 
 
@@ -391,7 +391,7 @@ def test_uart_rehearsal_estop_goes_through_rpi4_and_is_labelled(uart_rehearsal):
     describe("none")
     res = c.post("/demo/outlet-estop", json={"hold_button": False})
     assert res.status_code == 200, res.text
-    assert "시연" in res.json()["detail"]
+    assert res.json()["detail"].startswith("연습용 비상 버튼")
     deadline = time.monotonic() + 2
     while c.get("/status").json()["estop_latched"] is not True:
         assert time.monotonic() < deadline

@@ -57,44 +57,50 @@ API_ERROR_CODES: dict[str, str] = {
 
 _NAME_BY_CODE = {code: name for name, code in API_ERROR_CODES.items()}
 
-_TOKEN = "ThinQ 토큰(PAT)이 유효하지 않아요 — 개발자 사이트에서 PAT를 다시 발급해 저장소 밖 파일에 넣어 주세요"
-_DEVICE = "이 계정에서 그 기기를 찾지 못했어요 — 기기 ID와 ThinQ 앱 등록을 확인해 주세요"
-_FEATURE = "이 모델은 그 기능을 지원하지 않아요 — 기기 프로필을 확인해 주세요"
+# 10/18 쉬운 말: 사람 말로 결과 한 줄 + 할 일 한 줄. 'ThinQ'·'PAT'·'API'·설정 이름·'—'·괄호를 쓰지 않는다
+# (LG 가전 · LG 앱). 컨트롤러가 이유 바로 뒤에 결과('그래서 보내지 않았어요' 등)를 넣으므로 '이유. 할 일.' 모양으로 쓴다.
+# 설치하는 분이 고칠 일(연결 열쇠·나라 설정·권한)은 '설치하신 분께' 알리게 한다. 오류 코드·이름은 오류 객체에 남는다.
+#: 받았는지 모르는 오류의 할 일. 제어 전송 중이면 컨트롤러가 '보냈는지 몰라요'로 따로 말한다(이 문장을 쓰지 않는다).
+_UNSURE = "잠시 뒤 다시 해 주세요."
+_TOKEN = "LG 계정 연결이 끊겼어요. 설치하신 분께 연결을 다시 해 달라고 해 주세요."
+_DEVICE = "LG 계정에서 이 가전을 찾지 못했어요. LG 앱에 가전이 있는지 봐 주세요."
+_FEATURE = "이 가전은 그 기능을 쓸 수 없어요."
+_ALLOWED = "이 연결로는 이 기능을 쓸 수 없어요. 설치하신 분께 알려 주세요."
 
 API_ERROR_REASONS: dict[str, str] = {
-    "UNKNOWN_ERROR": "ThinQ 클라우드가 알 수 없는 오류를 돌려줬어요 — 실행됐는지 몰라요. 가전을 직접 확인해 주세요",
-    "BAD_REQUEST": "ThinQ 클라우드가 요청 형식을 받아들이지 않았어요",
-    "MISSING_PARAMETERS": "ThinQ 요청에 필요한 값이 빠졌어요",
-    "UNACCEPTABLE_PARAMETERS": "ThinQ 클라우드가 이 값을 받아들이지 않았어요 — 기기 프로필의 허용값을 확인해 주세요",
+    "UNKNOWN_ERROR": "LG 쪽에서 알 수 없는 오류가 났어요. " + _UNSURE,
+    "BAD_REQUEST": "LG 쪽에서 명령을 받지 않았어요.",
+    "MISSING_PARAMETERS": "명령에 필요한 값이 빠져서 LG 쪽에서 받지 않았어요.",
+    "UNACCEPTABLE_PARAMETERS": "LG 쪽에서 이 값을 받지 않았어요. 다른 값으로 해 주세요.",
     "INVALID_TOKEN": _TOKEN,
     "INVALID_TOKEN_AGAIN": _TOKEN,
     "NOT_FOUND_TOKEN": _TOKEN,
-    "NOT_REGISTERED_USER": "ThinQ 계정이 등록돼 있지 않아요 — ThinQ 앱 가입·로그인을 확인해 주세요",
-    "NOT_FOUND_USER": "ThinQ 계정을 찾지 못했어요 — PAT를 발급한 계정을 확인해 주세요",
+    "NOT_REGISTERED_USER": "LG 계정을 찾지 못했어요. LG 앱에 로그인돼 있는지 봐 주세요.",
+    "NOT_FOUND_USER": "LG 계정을 찾지 못했어요. 설치하신 분께 알려 주세요.",
     "NOT_EXIST_DEVICE": _DEVICE,
     "NOT_OWNED_DEVICE": _DEVICE,
     "NOT_REGISTERED_DEVICE": _DEVICE,
     "INVALID_DEVICE_ID": _DEVICE,
-    "INCORRECT_HEADER": "ThinQ 요청 머리글이 맞지 않아요 — 국가 코드와 클라이언트 ID 설정을 확인해 주세요",
+    "INCORRECT_HEADER": "LG 연결 설정이 맞지 않아요. 설치하신 분께 알려 주세요.",
     "NOT_SUPPORTED_MODEL": _FEATURE,
     "NOT_SUPPORTED_FEATURE": _FEATURE,
     "NOT_PROVIDED_FEATURE": _FEATURE,
-    "NOT_CONNECTED_DEVICE": "가전이 클라우드에 연결돼 있지 않아요 — 전원과 Wi-Fi를 확인해 주세요",
-    "NOT_ACCEPTABLE_TERMS": "ThinQ 약관 동의가 필요해요 — ThinQ 앱에서 약관에 동의한 뒤 다시 시도해 주세요",
-    "NOT_ALLOWED_API": "이 토큰으로는 이 API를 쓸 수 없어요 — PAT 발급 때 고른 권한(범위)을 확인해 주세요",
-    "NOT_ALLOWED_API_AGAIN": "이 토큰으로는 이 API를 쓸 수 없어요 — PAT 발급 때 고른 권한(범위)을 확인해 주세요",
-    "EXCEEDED_API_CALLS": "ThinQ 호출 한도를 넘었어요 — 잠시 뒤 다시 시도해 주세요(자동으로 다시 보내지 않아요)",
-    "NOT_SUPPORTED_COUNTRY": "이 국가 코드로는 ThinQ Connect를 쓸 수 없어요 — SIMPLELAY_THINQ_COUNTRY를 계정 국가로 맞춰 주세요",
-    "NO_CONTROL_AUTHORITY": "이 기기를 제어할 권한이 없어요 — 기기를 등록한 계정의 PAT인지 확인해 주세요",
-    "INTERNAL_SERVER_ERROR": "ThinQ 클라우드 내부 오류예요 — 실행됐는지 몰라요. 가전을 직접 확인해 주세요",
-    "INVALID_COMMAND_ERROR": "가전이 이 명령을 받아들이지 않았어요",
-    "FAIL_DEVICE_CONTROL": "가전 제어에 실패했다고 클라우드가 알려 왔어요",
-    "DEVICE_RESPONSE_DELAY": "가전 응답이 늦어요 — 실행됐는지 몰라요. 잠시 뒤 상태를 다시 조회해 주세요",
-    "COMMAND_NOT_SUPPORTED_IN_REMOTE_OFF": "가전의 원격 제어(원격 시작)가 꺼져 있어요 — 가전 본체에서 원격 제어를 켜 주세요",
-    "COMMAND_NOT_SUPPORTED_IN_STATE": "가전의 지금 상태에서는 이 명령을 쓸 수 없어요",
-    "COMMAND_NOT_SUPPORTED_IN_ERROR": "가전에 오류가 있어 이 명령을 쓸 수 없어요 — 가전 화면을 확인해 주세요",
-    "COMMAND_NOT_SUPPORTED_IN_POWER_OFF": "가전 전원이 꺼져 있어 이 명령을 쓸 수 없어요",
-    "COMMAND_NOT_SUPPORTED_IN_MODE": "가전의 지금 모드에서는 이 명령을 쓸 수 없어요",
+    "NOT_CONNECTED_DEVICE": "가전이 인터넷에 연결돼 있지 않아요. 가전 전원과 와이파이를 봐 주세요.",
+    "NOT_ACCEPTABLE_TERMS": "LG 앱에서 약관에 동의해야 해요. 동의한 뒤 다시 해 주세요.",
+    "NOT_ALLOWED_API": _ALLOWED,
+    "NOT_ALLOWED_API_AGAIN": _ALLOWED,
+    "EXCEEDED_API_CALLS": "LG 쪽에 요청이 너무 많았어요. 잠시 뒤에 직접 다시 해 주세요.",
+    "NOT_SUPPORTED_COUNTRY": "LG 계정의 나라 설정이 맞지 않아요. 설치하신 분께 알려 주세요.",
+    "NO_CONTROL_AUTHORITY": "이 가전을 움직일 권한이 없어요. 설치하신 분께 알려 주세요.",
+    "INTERNAL_SERVER_ERROR": "LG 쪽에 오류가 났어요. " + _UNSURE,
+    "INVALID_COMMAND_ERROR": "가전이 이 명령을 받지 않았어요.",
+    "FAIL_DEVICE_CONTROL": "가전을 움직이지 못했다고 LG 쪽에서 알려 왔어요.",
+    "DEVICE_RESPONSE_DELAY": "가전 답이 늦어요. 잠시 뒤 새로 봐 주세요.",
+    "COMMAND_NOT_SUPPORTED_IN_REMOTE_OFF": "가전의 원격 제어가 꺼져 있어요. 가전에서 원격 제어를 켜 주세요.",
+    "COMMAND_NOT_SUPPORTED_IN_STATE": "가전이 지금은 이 명령을 받을 수 없어요.",
+    "COMMAND_NOT_SUPPORTED_IN_ERROR": "가전에 오류가 있어 이 명령을 받을 수 없어요. 가전 화면을 봐 주세요.",
+    "COMMAND_NOT_SUPPORTED_IN_POWER_OFF": "가전이 꺼져 있어 이 명령을 받을 수 없어요. 먼저 켜 주세요.",
+    "COMMAND_NOT_SUPPORTED_IN_MODE": "가전의 지금 모드에서는 이 명령을 받을 수 없어요.",
 }
 
 #: 받았는지 모르는 오류 -- 제어였다면 접수 불명.
@@ -109,7 +115,8 @@ def error_from_api(code: str | None, name: str | None) -> ThinqClientError:
     name = _NAME_BY_CODE.get(code) or (name if name in API_ERROR_REASONS and name != "UNKNOWN_ERROR" else None)
     if name is None:
         # 모르는 코드: 거절이라고 단정하지 않는다(실행됐는지 모름).
-        reason = f"ThinQ 클라우드가 알 수 없는 오류(코드 {code})를 돌려줬어요 — 실행됐는지 몰라요. 가전을 직접 확인해 주세요"
+        # 코드는 오류 객체(``code``)에 남기고 문장에는 내지 않는다(10/18 쉬운 말).
+        reason = API_ERROR_REASONS["UNKNOWN_ERROR"]
         return ThinqTransportError(reason, code=code, name=None, reason=reason)
     reason = API_ERROR_REASONS[name]
     if name in UNCERTAIN:

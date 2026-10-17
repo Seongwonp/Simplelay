@@ -163,7 +163,7 @@ def test_value_outside_model_profile_is_refused_before_sending(monkeypatch, tmp_
         status = _command(api, "air_purifier", "set_job_mode", {"job_mode": "SILENT"})
         assert status["last_status"] == "failed"
         assert status["last_receipt"] == "not_dispatched"
-        assert "프로필" in status["last_detail"]
+        assert "쓸 수 없어요" in status["last_detail"]
         assert fake.controls() == []
     finally:
         fake.stop()
@@ -177,13 +177,13 @@ def test_invalid_token_blocks_with_human_reason(api, cloud):
     cloud.set_fault("invalid_token")
     readiness = api.get("/readiness/air_purifier").json()
     assert readiness["can_execute"] is False
-    assert any("PAT" in r for r in readiness["reasons"])
+    assert any("LG 계정 연결" in r for r in readiness["reasons"])
     refused = api.post("/thinq/command", json={"appliance_id": "air_purifier",
                                                "action": "set_wind_strength",
                                                "args": {"wind_strength": "HIGH"}})
     assert refused.status_code == 412
     devices = api.get("/thinq/devices").json()
-    assert devices["client_reachable"] is False and "PAT" in devices["error"]
+    assert devices["client_reachable"] is False and "LG 계정 연결" in devices["error"]
     assert cloud.controls() == []
     _no_secret(api, readiness, refused.text, devices)
 
@@ -192,7 +192,7 @@ def test_cloud_call_limit_blocks_with_human_reason(api, cloud):
     cloud.set_fault("rate_limit")
     readiness = api.get("/readiness/air_purifier").json()
     assert readiness["can_execute"] is False
-    assert any("한도" in r for r in readiness["reasons"])
+    assert any("너무 많았어요" in r for r in readiness["reasons"])
     assert cloud.controls() == []
 
 

@@ -218,7 +218,7 @@ def test_end_to_end_fake_outlet_and_mock_audio_reach_the_routine_notice():
     frame = received[0]
     assert frame["state"] == "done_confirmed" and frame["source"] == "mock"
     message = care.events[-1][1]
-    assert "세탁이 끝났어요" in message and "(모의 입력)" in message
+    assert "세탁이 끝났어요" in message and "연습 신호예요." in message
     # 세탁기는 CT 계측만 — 관찰이 콘센트 릴레이 명령을 하나도 보내지 않는다.
     assert not [d for d in fake.received if str(d.get("cmd", "")).startswith("relay")]
 

@@ -87,7 +87,7 @@ class ScenarioDefinition:
 
 COOK_THEN_AIR = ScenarioDefinition(
     scenario_id="cook_then_air",
-    name="조리 확인 → 공기 관리",
+    name="조리 뒤 공기청정기",
     question="공기청정기 강풍으로 바꿀까요?",
     trigger=ScenarioTrigger("job_completed", appliance_id="microwave", allow_mock_success=True),
     steps=(
@@ -98,7 +98,7 @@ COOK_THEN_AIR = ScenarioDefinition(
 
 COOK_DONE_AIR = ScenarioDefinition(
     scenario_id="cook_done_air",
-    name="가열 종료 → 공기청정기",
+    name="데우기 멈추면 공기청정기",
     question="공기청정기 풍량을 강으로 바꿀까요?",
     trigger=ScenarioTrigger("appliance_done", appliance_id="microwave", event="heat_complete"),
     steps=(
@@ -160,7 +160,7 @@ EVENING_REST = ScenarioDefinition(
 
 WASH_THEN_DRY = ScenarioDefinition(
     scenario_id="wash_then_dry",
-    name="세탁 완료 → 제습",
+    name="세탁 끝나면 제습기",
     question="세탁이 끝났어요. 실내 건조를 위해 제습기를 켤까요?",
     trigger=ScenarioTrigger("thinq_event", appliance_id="thinq_washer", event="wash_complete"),
     steps=(

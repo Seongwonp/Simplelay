@@ -494,7 +494,7 @@ def test_result_keeps_the_target_and_value_of_the_job_not_the_current_rule(monke
         assert run["status"] == "succeeded"
         assert (run["target_name"], run["setting_label"], run["value_label"]) == (
             "공기청정기(모의 클라우드)", "풍량", "강")
-        assert run["action_text"] == "공기청정기(모의 클라우드) 풍량 강으로"
+        assert run["action_text"] == "공기청정기(모의 클라우드) 바람을 세게 해요"
         notices = " / ".join(run["notices"])
         assert "공기청정기(모의 클라우드)를 강풍으로 바꿨어요" in notices and "안방" not in notices
         auto = api.get("/status").json()["last_auto_run"]

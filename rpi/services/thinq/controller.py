@@ -112,16 +112,32 @@ class ThinqReadiness:
         return "operable" if self.can_execute else "needs_setup"
 
 
+def _with_result(reason: str, result: str) -> str:
+    """이유 문장 바로 뒤에 결과 문장을 넣는다 — '이유. 결과. 할 일.'(10/18 쉬운 말: 오류 이유에 할 일이 붙어 온다)."""
+    reason = reason.strip()
+    head, sep, tail = reason.partition(". ")
+    if not sep:
+        return f"{reason.rstrip('.')}. {result}"
+    return f"{head}. {result} {tail}"
+
+
 def _not_sent(exc: Exception, fallback: str) -> str:
     """보내지 않은 이유 한 줄 + '그래서 보내지 않았어요'. 예외 클래스 이름은 내지 않는다(10/17 쉬운 말)."""
-    return f"{_reason(exc, fallback).rstrip('.')}. 그래서 보내지 않았어요."
+    return _with_result(_reason(exc, fallback), "그래서 보내지 않았어요.")
 
 
 def _rejected_sentence(exc: Exception) -> str:
     """클라우드 거절 — 이유 한 줄 + 실행되지 않았다는 결과. 코드 번호는 기록에만 남긴다."""
     log.info("thinq command rejected: code=%s", getattr(exc, "code", None))
     reason = _reason(exc, "")
-    return f"{reason.rstrip('.')}. 그래서 바뀌지 않았어요." if reason else "가전이 명령을 받지 않았어요. 바뀌지 않았어요."
+    return _with_result(reason, "그래서 바뀌지 않았어요.") if reason else "가전이 명령을 받지 않았어요. 바뀌지 않았어요."
+
+
+def _josa_eul(word: str) -> str:
+    last = word.strip()[-1:]
+    if "가" <= last <= "힣":
+        return "을" if (ord(last) - 0xAC00) % 28 else "를"
+    return "을"
 
 
 def _reason(exc: Exception, fallback: str) -> str:
@@ -350,7 +366,7 @@ class ThinqController:
             profile = self._profile(binding.device_id)
         except ThinqOfflineError as exc:
             return self._result(command, failed, not_sent, none,
-                                _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
+                                _not_sent(exc, "가전에 연결되지 않았어요."), requested_at)
         except ThinqClientError as exc:
             return self._result(command, failed, not_sent, none,
                                 _not_sent(exc, "가전 정보를 읽지 못했어요."),
@@ -362,8 +378,9 @@ class ThinqController:
             allowed = [cap.value_label(str(v)) for v in cap.allowed if spec.accepts(v)]
             return self._result(
                 command, failed, not_sent, none,
-                f"이 모델 프로필은 '{cap.label}' 값 '{cap.value_label(str(target))}'을(를) 허용하지 않아 "
-                f"보내지 않았어요 (허용: {', '.join(allowed) or '없음'})", requested_at)
+                # 10/18 쉬운 말: 프로필 허용값 목록은 기록(로그)에만.
+                f"이 가전은 {cap.setting_phrase(str(target))}{_josa_eul(cap.setting_phrase(str(target)))} 쓸 수 없어요. "
+                "그래서 보내지 않았어요.", requested_at)
         confirm_resource, confirm_prop = cap.confirm or (cap.resource, key)
         confirmable = True
         if profile is not None:
@@ -378,7 +395,7 @@ class ThinqController:
         except ThinqOfflineError as exc:
             self._observe(command.target_id, binding, None)
             return self._result(command, failed, not_sent, none,
-                                _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
+                                _not_sent(exc, "가전에 연결되지 않았어요."), requested_at)
         except ThinqClientError as exc:
             # 값을 모른 채 보내는 것은 '읽는 중 끊김·응답 해석 실패'(ThinqTransportError)일 때뿐이다. 클라우드가
             # 코드로 거절한 조회(인증·권한·약관·국가·호출 한도 등)는 보내도 같은 이유로 막히거나 막혀야 하므로 보내지 않는다.
@@ -440,7 +457,7 @@ class ThinqController:
                                 _rejected_sentence(exc), requested_at)
         except ThinqOfflineError as exc:
             return self._result(command, failed, not_sent, none,
-                                _reason(exc, "가전·클라우드에 연결되지 않아 보내지 않았어요"), requested_at)
+                                _not_sent(exc, "가전에 연결되지 않았어요."), requested_at)
         except Exception:  # noqa: BLE001 -- 전송 중 끊김·응답 유실·모르는 오류
             return self._result(command, CommandStatus.UNCONFIRMED, Receipt.UNKNOWN, none,
                                 "보냈는지 몰라요. 가전을 봐 주세요.", requested_at,

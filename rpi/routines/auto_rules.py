@@ -91,7 +91,7 @@ MAX_SEEN_EVENTS = 500
 ESTOP_REASON = "비상정지로 자동 실행을 껐어요."
 # 10/17 쉬운 말: 결과 한 줄 + 되돌리지 않는다는 사실 한 줄(새 자동 실행·보내지 않은 명령은 보내지 않는다는 뜻 유지).
 ESTOP_NOTICE = "비상정지로 자동 실행을 껐어요. 이미 보낸 명령은 되돌리지 않아요."
-USER_OFF_REASON = "직접 자동 실행을 껐어요."
+USER_OFF_REASON = "자동 실행을 꺼 두셨어요."
 VALUE_CHANGED_REASON = "세기를 바꿔서 다시 허락해야 켜져요."
 PHYSICAL_REFUSED = "버튼을 누르는 일은 자동으로 할 수 없어요. 매번 허락해 주세요."
 #: 허용 요청을 처리하는 사이 전체 정지가 들어왔다(3차 평가 H2) — 이번 허용은 저장하지 않는다.
@@ -156,6 +156,8 @@ _LEGACY_REASON_EXACT = {
     "루틴이 바뀌어 자동 실행을 껐어요 — 다시 허용이 필요해요": "ROUTINE_CHANGED",
     "루틴을 지워서 자동 실행을 껐어요": "ROUTINE_DELETED",
     "루틴이 꺼져 있어 자동 실행을 껐어요 — 다시 허용이 필요해요": "ROUTINE_OFF",
+    # 10/18 쉬운 말 2차 전에 저장된 사유.
+    "직접 자동 실행을 껐어요.": "USER_OFF",
 }
 #: 그 밖의 옛 꺼짐 사유 끝말 → 지금 끝말(가전이 없어짐·바뀜 등 문장 앞부분은 그대로 둔다).
 _LEGACY_REASON_TAIL = (" — 다시 허용이 필요해요", ". 다시 허락해 주세요.")
@@ -222,6 +224,36 @@ def _josa_stem(word: str) -> str:
 
 #: 대상 기능을 찾지 못했을 때 동작 이름 대신 보일 말(원시 이름을 화면에 내지 않는다).
 ACTION_LABELS = {"set_wind_strength": "바람 세기", "set_job_mode": "모드", "set_power": "전원"}
+#: '무엇을' 조각의 동사·부사(10/18 쉬운 말). 없는 값은 '…을 …로 바꿔요'.
+_POWER_WORDS = {"POWER_ON": "켜요", "POWER_OFF": "꺼요"}
+_WIND_WORDS = {"HIGH": "세게", "MID": "중간으로", "LOW": "약하게", "AUTO": "자동으로"}
+#: 시작 시각 → 때 이름. 0시는 '밤 12시', 12시는 '낮 12시'.
+_DAY_PARTS = ((0, "새벽"), (6, "아침"), (12, "낮"), (18, "저녁"), (21, "밤"))
+
+
+def spoken_time(hhmm: str | None) -> str:
+    """'22:00' → '밤 10시', '07:30' → '아침 7시 30분'. 읽을 수 없으면 받은 그대로."""
+    try:
+        hour, minute = (int(x) for x in (hhmm or "").split(":"))
+    except ValueError:
+        return hhmm or ""
+    if not (0 <= hour < 24 and 0 <= minute < 60):
+        return hhmm or ""
+    part = "밤" if hour == 0 else next(name for start, name in reversed(_DAY_PARTS) if hour >= start)
+    return f"{part} {hour % 12 or 12}시" + (f" {minute}분" if minute else "")
+
+
+def _days_words(days) -> str:
+    from .model import WEEKDAY_LABELS  # noqa: PLC0415
+
+    days = tuple(days or ())
+    if not days or days == tuple(range(7)):
+        return "매일"
+    if days == tuple(range(5)):
+        return "평일"
+    if days == (5, 6):
+        return "주말"
+    return ", ".join(f"{WEEKDAY_LABELS[d]}요일" for d in days)
 
 
 def _device_key(device_id: str) -> str:
@@ -606,12 +638,17 @@ class AutoRuleEngine:
         return catalog.get(scenario_id) if catalog is not None and scenario_id else None
 
     def condition_text(self, rule: AutoRule) -> str:
+        """'언제' 조각 — 뒤에 '무엇을' 조각을 붙여 읽어도 한 문장이 되게(10/18 쉬운 말, 예: '매일 밤 10시에')."""
         if rule.is_time:
-            return f"{self._time_words(rule)}{_time_josa(rule.condition_time)} 되면"
+            return f"{_days_words(rule.condition_days)} {spoken_time(rule.condition_time)}에"
         # A5(2026-10-14): CT 끝 판정은 취소·문 열림 가열 종료와 구분하지 못한다 — 조리 완료라고 말하지 않는다.
+        # '데우기가 끝나면'도 다 데운 것처럼 읽혀 '데우기를 멈추면'으로 쓴다(이유와 상관없이 멈춘 것이 근거).
         # 그 단서('조리 완료가 아닐 수 있어요')는 허용 확인 시트(폰)에만 둔다 — 목록·카드 문장은 짧게(2026-10-14 UX).
         name = self._name(rule.condition_appliance_id)
-        return f"{name}{_josa(_josa_stem(name), '이', '가')} 멈추면"
+        subject = f"{name}{_josa(_josa_stem(name), '이', '가')}"
+        if rule.condition_event == "heat_complete":
+            return f"{subject} 데우기를 멈추면"
+        return f"{subject} 멈추면"
 
     def action_text(self, rule: AutoRule) -> str:
         name = self._name(rule.target_appliance_id)
@@ -621,14 +658,22 @@ class AutoRuleEngine:
             cap = binding.capability(rule.action) if binding is not None else None
         except Exception:  # noqa: BLE001 -- 대상이 바뀌었으면 동작 이름만
             cap = None
+        # 10/18 쉬운 말: '무엇을' 조각은 해요체 한 문장(예: '공기청정기 바람을 세게 해요'). '풍량'·'전원 켜기' 같은
+        # 설정표 말은 쓰지 않는다. 조각만 따로 보여도, '언제' 조각 뒤에 붙여 읽어도 자연스럽게.
+        obj = f"{name}{_josa(_josa_stem(name), '을', '를')}"
         if cap is None:
             # 원시 동작 이름(set_wind_strength HIGH)을 화면에 내지 않는다(2026-10-14 UX).
             label = ACTION_LABELS.get(rule.action, "설정")
-            return f"{name} {label} 바꾸기"
-        value = cap.value_label(str(rule.value))
-        if rule.action == "set_power":
-            return f"{name} 전원 {value}"
-        return f"{name} {cap.label} {value}{_josa(value, '으로', '로')}"
+            return f"{name} {label}{_josa(label, '을', '를')} 바꿔요"
+        value = str(rule.value)
+        if rule.action == "set_power" and value in _POWER_WORDS:
+            return f"{obj} {_POWER_WORDS[value]}"
+        if rule.action == "set_wind_strength" and value in _WIND_WORDS:
+            return f"{name} 바람을 {_WIND_WORDS[value]} 해요"
+        label = cap.value_label(value)
+        if rule.action == "set_job_mode":
+            return f"{obj} {label} 모드로 바꿔요"
+        return f"{name} {cap.label}{_josa(cap.label, '을', '를')} {label}{_josa(label, '으로', '로')} 바꿔요"
 
     # ── 카드의 허용 제안 ─────────────────────────────────────────────────────
     def offer_for(self, suggestion) -> AutoRule | None:
@@ -707,11 +752,6 @@ class AutoRuleEngine:
             return None
         return replace(draft, condition_kind=CONDITION_KIND_TIME, condition_routine_id=routine.routine_id,
                        condition_days=tuple(routine.trigger.days), condition_time=routine.trigger.time)
-
-    def _time_words(self, rule: AutoRule) -> str:
-        from .model import RoutineTrigger  # noqa: PLC0415
-
-        return RoutineTrigger("time", days=tuple(rule.condition_days or ()), time=rule.condition_time).describe()
 
     def caveat(self, rule: AutoRule) -> str:
         """확인 화면·목록의 단서 — 이 조건을 무엇으로 판단하는지와 하지 않는 경우."""
@@ -1099,10 +1139,11 @@ class AutoRuleEngine:
 
     def _time_notice(self, rule: AutoRule) -> str:
         routine = self._routine(rule.condition_routine_id)
-        time = rule.condition_time or ""
+        when = spoken_time(rule.condition_time)
+        when = f"{when}{_josa(when, '이', '가')}"
         if routine is None:
-            return f"{time}{_time_josa(time)} 되어 묻지 않고 보냈어요."
-        return f"{time}{_time_josa(time)} 되어 '{routine.name}' 루틴을 묻지 않고 보냈어요."
+            return f"{when} 되어 묻지 않고 보냈어요."
+        return f"{when} 되어 '{routine.name}' 루틴을 묻지 않고 보냈어요."
 
     def _cook_notice(self, rule: AutoRule, record: Mapping) -> str:
         # A5(2026-10-14): 취소·문 열림으로 끝난 가열도 같은 사건으로 온다 — '데우기가 끝났어요'라고 하지 않는다.
@@ -1454,12 +1495,6 @@ class AutoRuleEngine:
         if reoffer:
             result["reoffer"] = True
         return result
-
-
-def _time_josa(hhmm: str | None) -> str:
-    """'23:00이' · '07:05가' — 끝 숫자를 읽은 소리의 받침으로 고른다(2·4·5·9는 받침 없음)."""
-    last = (hhmm or "")[-1:]
-    return "가" if last and last in "2459" else "이"
 
 
 def _hub_monotonic() -> float:

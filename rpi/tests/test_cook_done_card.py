@@ -79,7 +79,7 @@ def test_default_catalog_is_the_v4_cook_done_scenario(api):
     # 2026-10-15: 공기청정기 센서 공기질 카드(air_quality_high, 꺼져 있을 때 air_quality_power_on)가 뒤에 함께 실린다
     # (test_air_quality_suggestion.py·test_air_quality_power_on.py).
     assert [s["scenario_id"] for s in scenarios] == ["cook_done_air", "air_quality_high", "air_quality_power_on"]
-    assert scenarios[0]["name"] == "가열 종료 → 공기청정기"
+    assert scenarios[0]["name"] == "데우기 멈추면 공기청정기"
     trigger = scenarios[0]["trigger"]
     assert (trigger["kind"], trigger["appliance_id"], trigger["event"]) == (
         "appliance_done", "microwave", "heat_complete")

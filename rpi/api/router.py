@@ -1749,9 +1749,8 @@ async def demo_alert(
     )
 
 
-_REHEARSAL_ESTOP_DETAIL = (
-    "(시연: 모의 콘센트 모듈 비상 버튼이에요 — 실제 모듈·릴레이가 아니에요)"
-)
+# 10/18 쉬운 말: 연습 장치 문장도 결과 한 줄 + 사실 한 줄('시연'·'모의'·'모듈'·'릴레이'·괄호를 쓰지 않는다).
+_REHEARSAL_ESTOP_DETAIL = "연습용 비상 버튼을 눌렀어요. 실제 콘센트는 그대로예요."
 
 
 def _require_rehearsal_mode() -> None:
@@ -1824,10 +1823,8 @@ async def demo_outlet_estop_release(
     return DemoOutletEstopResponse(ok=True, button_held=False, detail=_REHEARSAL_ESTOP_DETAIL)
 
 
-_REHEARSAL_DONE_DETAIL = "(시연 주입) 실제 세탁기·콘센트 CT·마이크로 잰 값이 아니에요"
-_UART_REHEARSAL_ESTOP_DETAIL = (
-    "(시연 주입: RPi4 가짜 콘센트 모듈 비상 버튼이에요 — 실제 모듈·릴레이가 아니에요)"
-)
+_REHEARSAL_DONE_DETAIL = "연습으로 넣은 끝 신호예요. 실제로 잰 값이 아니에요."
+_UART_REHEARSAL_ESTOP_DETAIL = _REHEARSAL_ESTOP_DETAIL
 
 
 def _require_done_rehearsal_mode() -> None:

@@ -15,8 +15,8 @@
 - 버튼식 가전의 끝(``on_appliance_done``, 2026-10-06): RPi4가 CT 전력 하강 + 종료음을 융합한
   ``appliance_done``. 그 가전의 ``after_done`` 트리거와 같은 이름의 ``event`` 트리거를 깨운다.
   **두 입력이 다 맞을 때만(done_confirmed) '끝났어요'** — 하나뿐이면 '끝난 것 같아요, 확인해 주세요'로
-  말하고 루틴의 안내 문장(끝났다고 단정하는 문장)을 읽지 않는다. 주입은 "(시연 주입)", 모의 입력은
-  "(모의 입력)"을 붙인다.
+  말하고 루틴의 안내 문장(끝났다고 단정하는 문장)을 읽지 않는다. 주입은 "연습으로 넣은 신호예요.", 모의 입력은
+  "연습 신호예요."를 붙인다.
 - ``manual``: 앱의 '지금 실행' — 카드를 만든다. 실행은 여전히 승인 뒤다.
 
 한 사이클에 한 번(2026-10-06 평가 B3): 같은 가전의 ``after_done``이 실행 끝(``on_job_finished``)으로 이미 깼으면 뒤이어
@@ -264,15 +264,15 @@ class RoutineEngine:
         confirmed = record.get("state") == "done_confirmed"
         source = record.get("source")
         noun = "세탁" if event_name == "wash_complete" else f"{self._name_of(appliance_id)} 동작"
+        # 10/18 쉬운 말: 결과 한 줄 + 할 일 한 줄. 근거(전력·종료음)는 ``extra``(confidence·inputs)에 남는다.
         if confirmed:
-            reason = f"{noun}이 끝났어요 (전력·종료음 둘 다 확인)"
+            reason = f"{noun}이 끝났어요."
         else:
-            which = "전력 하강만" if record.get("inputs") == ["power"] else "종료음만"
-            reason = f"{noun}이 끝난 것 같아요 — 확인해 주세요 ({which} 감지)"
+            reason = f"{noun}이 끝난 것 같아요. 다 됐는지 봐 주세요."
         if source == "injected":
-            reason += " (시연 주입)"
+            reason += " 연습으로 넣은 신호예요."
         elif source != "real":
-            reason += " (모의 입력)"
+            reason += " 연습 신호예요."
         is_demo = source != "real"
         extra = {"confidence": "confirmed" if confirmed else "probable",
                  "inputs": list(record.get("inputs") or []), "input_source": source}

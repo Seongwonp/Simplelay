@@ -21,9 +21,9 @@
   가전별 상한(``SIMPLELAY_ROUTINE_DONE_TIMEOUT_<가전>_S`` → ``SIMPLELAY_ROUTINE_DONE_TIMEOUT_S`` → 가전별 기본
   `DEFAULT_DONE_TIMEOUTS_S` → 1200 s, 전부 측정 필요)까지.
   **``done_confirmed``(전력·종료음 둘 다)만 끝남 확인**이다(평가 B1). 입력 하나뿐(``done_power_only``·``done_beep_only``)
-  이면 "끝난 것 같아요 — 확인해 주세요"라고 남기고 뒤 단계(안내·장치)를 **보내지 않고** 루틴을 멈춘다(보수적 선택).
+  이면 "끝난 것 같아요."로 시작하는 문장을 남기고 뒤 단계(안내·장치)를 **보내지 않고** 루틴을 멈춘다(보수적 선택).
   안 오면 루틴을 멈추고 알림함에 남긴다.
-- 끝 센서가 없으면 L3·상태 확인으로 통과하되 단계에 **"시작만 확인 — 끝남 판정 센서 없음"**(``basis: start_only``).
+- 끝 센서가 없으면 L3·상태 확인으로 통과하되 단계에 **"시작한 것만 확인했어요. 끝났는지는 몰라요."**(``basis: start_only``).
 - 정지: 루틴 정지·전체 정지(``POST /stop`` → `stop_all`)·비상정지 걸림(실행 중 한 번이라도 걸렸으면 해제 확인 뒤에도)은
   기다림을 끊고 남은 단계를 보내지 않는다(평가 B5).
 - 구간 사이 정지(2026-10-16 안전 보고 G3): 정지는 (1) 각 단계 앞, (2) 다른 명령이 끝나기를 기다린 **뒤**, (3) 다음 구간의
@@ -71,9 +71,19 @@ DEFAULT_DONE_TIMEOUT_S = 1200.0
 #: 가전별 기다림 기본 상한(초) — 설계 초기값, **측정 필요**. 전자레인지는 가열 몇 분 + 대기 확인(settle) 여유,
 #: 세탁기는 표준 코스 한 바퀴(1~2시간)에 여유를 둔다.
 DEFAULT_DONE_TIMEOUTS_S: dict[str, float] = {"microwave": 900.0, "washer": 3 * 3600.0}
-START_ONLY_DETAIL = "시작만 확인 — 끝남 판정 센서 없음"
-PROBABLE_DETAIL = "끝난 것 같아요 — 확인해 주세요"
-ESTOP_STOP_DETAIL = "비상 버튼이 눌려 남은 단계를 보내지 않았어요(해제한 뒤에도 이어서 하지 않아요)"
+# 10/18 쉬운 말: 결과 한 줄 + 할 일 한 줄('단계' → '할 일'). '—'·괄호로 잇지 않는다. 확인 수준은 그대로 —
+# 시작만 본 것을 끝났다고, 입력 하나뿐인 끝을 확인했다고 말하지 않는다.
+START_ONLY_DETAIL = "시작한 것만 확인했어요. 끝났는지는 몰라요."
+#: 입력 하나뿐인 끝(``probable``)의 문장 머리. 단계 상태는 이 글자가 아니라 `_wait_cycle_end`가 돌려준 값으로 정한다.
+PROBABLE_DETAIL = "끝난 것 같아요."
+ESTOP_STOP_DETAIL = "비상 버튼이 눌려 남은 할 일을 멈췄어요. 풀어도 이어서 하지 않아요."
+#: ``POST /stop``(전체 정지)·루틴 하나 정지로 멈춘 루틴 문장.
+ALL_STOP_DETAIL = "멈추기를 눌러서 남은 할 일을 하지 않았어요."
+ROUTINE_STOP_DETAIL = "루틴을 멈춰서 남은 할 일을 하지 않았어요."
+WAIT_STOPPED_DETAIL = "멈추기를 눌러서 기다리지 않았어요."
+#: 연습 신호로 끝을 본 경우 덧붙이는 말(자동 실행 알림과 같은 말).
+INJECTED_NOTE = " 연습으로 넣은 신호예요."
+MOCK_INPUT_NOTE = " 연습 신호예요."
 _ID = re.compile(r"[A-Za-z0-9_-]{1,64}")
 
 
@@ -358,8 +368,8 @@ class RoutineRunner:
     def _stopped_detail(self, run: RoutineRun) -> str:
         if self._estop_hit(run):
             return ESTOP_STOP_DETAIL
-        return (f"{run.stop_reason}으로 남은 단계를 보내지 않았어요" if run.stop_reason
-                else "정지 요청으로 남은 단계를 보내지 않았어요")
+        # 사유(``stop_reason``)는 기록에 남기고 문장은 사람 말로 — 전체 정지인지 이 루틴만 멈췄는지만 가른다.
+        return ALL_STOP_DETAIL if run.stop_reason else ROUTINE_STOP_DETAIL
 
     def _halted(self, run: RoutineRun) -> bool:
         return run.cancel.is_set() or self._estop_hit(run)
@@ -426,14 +436,14 @@ class RoutineRunner:
             self._continue(*args)
         except Exception:  # noqa: BLE001 -- 순서기 예외가 스레드를 조용히 죽이지 않게
             log.exception("routine run %s failed", run.run_id)
-            self._finish(run, args[1], RunStatus.FAILED, "루틴 진행 중 오류가 나서 멈췄어요", notify=True)
+            self._finish(run, args[1], RunStatus.FAILED, "루틴을 하다가 오류가 나서 멈췄어요. 가전을 봐 주세요.", notify=True)
 
     def _continue(self, run, routine, rest, job_id, record, scenario_id, kwargs) -> None:
         if record is None:
             record = self._await_job(job_id)
         run.active = False
         if record is None:
-            self._finish(run, routine, RunStatus.UNCONFIRMED, "첫 단계의 결과를 확인하지 못했어요", notify=True)
+            self._finish(run, routine, RunStatus.UNCONFIRMED, "첫 할 일이 됐는지 몰라요. 가전을 봐 주세요.", notify=True)
             return
         if not self._absorb(run, record):
             self._finish_unabsorbed(run, routine, record)
@@ -446,13 +456,13 @@ class RoutineRunner:
                 self._announce(run, routine, payload)
                 continue
             if kind == "wait":
-                ok, detail, basis = self._check_done(run, payload)
+                ok, detail, basis, probable = self._check_done(run, payload)
                 if self._halted(run):
                     run.steps.append({"kind": "wait_until_done", "appliance_id": payload, "status": "stopped",
-                                      "detail": "정지 요청으로 기다림을 멈췄어요", "basis": basis})
+                                      "detail": WAIT_STOPPED_DETAIL, "basis": basis})
                     self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
                     return
-                status = "passed" if ok else ("probable" if detail.startswith(PROBABLE_DETAIL) else "not_confirmed")
+                status = "passed" if ok else ("probable" if probable else "not_confirmed")
                 run.steps.append({"kind": "wait_until_done", "appliance_id": payload,
                                   "status": status, "detail": detail, "basis": basis})
                 if not ok:
@@ -461,7 +471,7 @@ class RoutineRunner:
                 continue
             if not self._await_idle():
                 self._finish(run, routine, RunStatus.FAILED,
-                             "다른 작업이 끝나지 않아 다음 단계를 보내지 않았어요", notify=True)
+                             "다른 일이 아직 끝나지 않아 다음 할 일을 멈췄어요.", notify=True)
                 return
             # G3: 기다린 사이에 온 정지 — 다시 본다(기다림 앞의 확인만으로는 그 사이 정지를 놓친다).
             if self._halted(run):
@@ -485,7 +495,7 @@ class RoutineRunner:
                     self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
                     return
                 self._finish(run, routine, RunStatus.FAILED,
-                             f"다음 단계를 시작하지 못했어요: {exc}", notify=True)
+                             f"다음 할 일을 시작하지 못했어요. {exc}", notify=True)
                 return
             run.active = False
             run.job_ids.append(record.job_id)
@@ -496,7 +506,7 @@ class RoutineRunner:
             self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
             return
         self._finish(run, routine, RunStatus.SUCCEEDED,
-                     "모든 단계를 마쳤어요" + (" (시연: 모의 실행 포함)" if run.is_demo else ""))
+                     "모든 할 일을 마쳤어요." + (" 연습으로 한 일도 있어요." if run.is_demo else ""))
 
     @staticmethod
     def _start_guard(run: RoutineRun):
@@ -506,7 +516,7 @@ class RoutineRunner:
         걸림은 실행 서비스의 시작 게이트가 따로 막는다). 표시가 있으면 `RoutineHaltedError` — 실행은 시작되지 않는다."""
         def guard() -> None:
             if run.cancel.is_set():
-                raise RoutineHaltedError("정지 요청으로 다음 단계를 시작하지 않았어요")
+                raise RoutineHaltedError("멈추기를 눌러서 다음 할 일을 시작하지 않았어요.")
         return guard
 
     def _finish_unabsorbed(self, run: RoutineRun, routine: Routine, record) -> None:
@@ -522,7 +532,7 @@ class RoutineRunner:
         if stopped:
             self._finish(run, routine, RunStatus.STOPPED, self._stopped_detail(run))
             return
-        self._finish(run, routine, status, "앞 단계가 확인되지 않아 멈췄어요")
+        self._finish(run, routine, status, "앞의 할 일이 됐는지 몰라서 멈췄어요. 가전을 봐 주세요.")
 
     def _absorb(self, run: RoutineRun, record) -> bool:
         for i, result in enumerate(record.results):
@@ -545,28 +555,29 @@ class RoutineRunner:
     def _done_mark(self) -> int:
         return self._done_log.mark() if self._done_log is not None else 0
 
-    def _check_done(self, run: RoutineRun, appliance_id: str) -> tuple[bool, str, str]:
-        """(통과, 설명, 근거). 근거: cycle_end(끝 센서) · start_only(시작 확인만) · mock(모의 실행) · none."""
+    def _check_done(self, run: RoutineRun, appliance_id: str) -> tuple[bool, str, str, bool]:
+        """(통과, 설명, 근거, 끝난 것 같음). 근거: cycle_end(끝 센서) · start_only(시작 확인만) · mock(모의 실행) · none.
+        '끝난 것 같음'(입력 하나뿐인 끝)은 설명 글자로 가르지 않고 이 값으로 돌려준다."""
         result = next((r for r in reversed(run.results) if r.command.target_id == appliance_id), None)
         if result is None:
-            return False, "기다릴 가전의 실행 결과가 없어요", "none"
+            return False, "기다릴 가전이 한 일을 찾지 못했어요. 가전을 봐 주세요.", "none", False
         sensored = appliance_id in self._done_sensors and self._done_log is not None
         if (sensored and result.status is CommandStatus.SUCCEEDED
                 and result.execution_mode is not ExecutionMode.MOCK):
             # 끝 관찰 스트림이 곧 동작 근거다 — L3 시작 확인을 요구하지 않는다(평가 B4: L3는 전자레인지 채널만 읽는다).
             return self._wait_cycle_end(run, appliance_id)
         if result.status is CommandStatus.SUCCEEDED and result.confirmation.confirms_appliance:
-            return True, START_ONLY_DETAIL, "start_only"
+            return True, START_ONLY_DETAIL, "start_only", False
         if result.status is CommandStatus.SUCCEEDED and result.execution_mode is ExecutionMode.MOCK:
             run.is_demo = True
-            return True, f"시연: 모의 실행 — {START_ONLY_DETAIL} (실제 완료를 확인한 것은 아니에요)", "mock"
-        return False, (f"완료를 확인하지 못해 다음 단계를 보내지 않았어요 "
-                       f"(확인 수준: {result.confirmation.value})"), "none"
+            return True, "연습이라 실제로 끝났는지는 확인하지 않았어요.", "mock", False
+        # 확인 수준(``result.confirmation``)은 결과 기록에 남는다 — 문장에는 내지 않는다.
+        return False, "끝났는지 몰라서 다음 할 일을 멈췄어요. 가전을 봐 주세요.", "none", False
 
     def done_timeout_for(self, appliance_id: str) -> float:
         return self._done_timeouts.get(appliance_id, self._done_timeout)
 
-    def _wait_cycle_end(self, run: RoutineRun, appliance_id: str) -> tuple[bool, str, str]:
+    def _wait_cycle_end(self, run: RoutineRun, appliance_id: str) -> tuple[bool, str, str, bool]:
         """RPi4가 그 가전 CT 채널의 사이클 끝(``appliance_done``)을 보낼 때까지 기다린다(가전별 상한·정지·비상정지).
 
         짧게 나눠 기다리며 비상정지를 본다(평가 B5). 입력 하나뿐인 끝은 확인으로 치지 않는다(평가 B1).
@@ -576,34 +587,34 @@ class RoutineRunner:
         record = None
         while record is None:
             if self._halted(run):
-                return False, "정지 요청으로 기다림을 멈췄어요", "cycle_end"
+                return False, WAIT_STOPPED_DETAIL, "cycle_end", False
             remaining = deadline - time.monotonic()
             if remaining <= 0:
                 break
             record = self._done_log.wait_for(appliance_id, run.done_mark, min(remaining, 0.5), run.cancel)
         if record is None:
-            return False, (f"시작은 확인했지만 {timeout / 60:.0f}분 안에 끝남(전력 하강)을 확인하지 못해 "
-                           f"다음 단계를 보내지 않았어요"), "cycle_end"
+            return False, (f"시작한 뒤 {timeout / 60:.0f}분이 지나도 끝난 것을 보지 못했어요. "
+                           "다음 할 일을 멈췄으니 가전을 봐 주세요."), "cycle_end", False
         inputs = record.get("inputs") or []
         source = record.get("source")
         if record.get("state") != "done_confirmed":
-            which = "전력 하강만" if inputs == ["power"] else "종료음만"
-            detail = f"{PROBABLE_DETAIL} ({which} 감지 — 다음 단계는 보내지 않았어요)"
+            which = "전기 쓰는 것만 줄었어요." if inputs == ["power"] else "끝나는 소리만 들렸어요."
+            detail = f"{PROBABLE_DETAIL} {which} 다음 할 일을 멈췄으니 가전을 봐 주세요."
             if source == "injected":
                 run.is_demo = True
-                detail += " (시연 주입)"
+                detail += INJECTED_NOTE
             elif source != "real":
                 run.is_demo = True
-                detail += " (모의 입력)"
-            return False, detail, "cycle_end"
-        detail = "끝난 것을 확인했어요(전력·종료음)"
+                detail += MOCK_INPUT_NOTE
+            return False, detail, "cycle_end", True
+        detail = "끝난 것을 확인했어요."
         if source == "injected":
             run.is_demo = True
-            detail += " (시연 주입)"
+            detail += INJECTED_NOTE
         elif source != "real":
             run.is_demo = True
-            detail += " (모의 입력)"
-        return True, detail, "cycle_end"
+            detail += MOCK_INPUT_NOTE
+        return True, detail, "cycle_end", False
 
     def _announce(self, run: RoutineRun, routine: Routine, text: str) -> None:
         if self._care is not None:
@@ -612,7 +623,7 @@ class RoutineRunner:
             except Exception:  # noqa: BLE001
                 log.exception("routine announce record failed")
         run.steps.append({"kind": "announce", "text": text, "status": "announced",
-                          "detail": "안내를 알림함에 남겼어요(음성 출력은 아직 연결 전)"})
+                          "detail": "안내를 알림함에 남겼어요."})
 
     def _await_job(self, job_id: str):
         deadline = time.monotonic() + self._job_timeout

@@ -10,7 +10,8 @@ from rpi.verifier import VerificationResult
 # R1: 명시적으로 재누름을 허용한 버튼만 폐루프 재시도한다.
 BUTTON_BEHAVIORS = frozenset({"toggle", "idempotent", "unknown"})
 RETRY_UNCONFIRMED = "press_unconfirmed"
-PRESS_UNCONFIRMED_DETAIL = "눌렸는지 확인하지 못했어요 — 가전을 직접 봐 주세요(자동으로 다시 누르지 않아요)"
+# 10/18 쉬운 말: 결과 한 줄 + 할 일 한 줄. 자동으로 다시 누르지 않는다는 사실(R1)은 그대로 말한다.
+PRESS_UNCONFIRMED_DETAIL = "눌렸는지 몰라요. 다시 누르지 않았으니 가전을 직접 봐 주세요."
 
 
 def button_behavior(value: object) -> str:

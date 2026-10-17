@@ -159,6 +159,10 @@ def _check_evidence(command: Command, result: ExecutionResult) -> None:
         )
 
 
+#: 정지 요청이 있었다는 사실 한 문장(원인·순서는 말하지 않는다). 문장 끝에 붙인다.
+STOP_REQUESTED_NOTE = " 멈추기 요청도 받았어요."
+
+
 def _detail(
     result: ExecutionResult,
     receipt: Receipt,
@@ -171,7 +175,7 @@ def _detail(
     정지 요청(``stop_requested``)은 원인이 아니라 사실 하나다. 요청이 실행 종료
     뒤에 도착할 수 있고(서비스 주석 "교차 리뷰 #8"), 재시도 소진과 동시에 올 수도
     있다. 플래그에는 요청 시점도, 실행이 그 전에 끝났는지도 없다. 그래서 어떤
-    상태에서든 같은 한 마디("정지 요청 있음")만 덧붙이고, 원인·순서·종료 여부는
+    상태에서든 같은 한 마디(`STOP_REQUESTED_NOTE`)만 덧붙이고, 원인·순서·종료 여부는
     말하지 않는다.
     """
     # total은 **명령이 요구한** 버튼 수다. 결과에 든 버튼 수로 세면 정지로 잘린
@@ -179,71 +183,57 @@ def _detail(
     stopped = result.status is ExecutionStatus.SAFETY_STOPPED and (
         not is_aggregate_report(result) or result.outcome is ExecutionOutcome.STOPPED
     )
-    note = " · 정지 요청 있음" if stop_requested else ""
+    # 10/18 쉬운 말: 결과 한 줄 + 할 일 한 줄, '—'·괄호·가운뎃점으로 잇지 않는다. 판정 근거(전력 확인 사유·검증 층·
+    # 재시도 횟수)는 문장에 넣지 않는다 — 근거는 ``ExecutionResult``에 통째로 남는다. 확인 수준은 낮추거나 높이지 않는다:
+    # '확인했어요'(센서·가전 반응을 봄) · '알려 왔어요'(작은 팔 보고뿐) · '몰라요'.
+    note = STOP_REQUESTED_NOTE if stop_requested else ""
+    look = " 가전이 움직이는지 봐 주세요."
 
     if result.abort_reason == RETRY_UNCONFIRMED:
         return PRESS_UNCONFIRMED_DETAIL + note
     if receipt is Receipt.NOT_DISPATCHED:
         # 보내기 전 정지(G2) — 정지 요청이 원인인 것이 확실한 유일한 경우라 note를 덧붙이지 않는다.
-        return "정지 요청으로 누름 장치에 보내지 않았어요 — 누른 버튼은 없어요"
+        return "멈추기를 눌러서 작은 팔에 보내지 않았어요. 누른 버튼은 없어요."
     if receipt is Receipt.UNKNOWN:
-        return "작은 팔 장치의 응답이 없어 눌렸는지 알 수 없어요 -- 자동으로 다시 누르지 않아요" + note
+        return "작은 팔의 답이 없어 눌렸는지 몰라요. 다시 누르지 않았으니 가전을 직접 봐 주세요." + note
     if confirmation is Confirmation.OPERATION_CONFIRMED:
         if is_aggregate_report(result):
-            return "작은 팔이 다 눌렀고, 가전 전력이 바뀐 것도 확인했다고 알려 왔어요" + note
-        return "버튼 눌림과 가전 전력 변화를 확인했어요" + note
+            return "작은 팔이 다 눌렀고 가전이 반응한 것도 확인했다고 알려 왔어요." + note
+        return "버튼이 눌렸고 가전이 반응한 것도 확인했어요." + note
     if confirmation is Confirmation.REPORTED:
         operation = result.operation
         if result.failed_layer is VerificationLayer.OPERATION:
-            reason = operation.detail if operation is not None and operation.detail else "판정 불가"
-            return (
-                "작은 팔이 다 눌렀다고 알려 왔지만 가전 동작은 확인하지 못했어요 "
-                f"(전력 확인: {reason})"
-            ) + note
+            return "작은 팔이 다 눌렀다고 알려 왔지만 가전 반응은 확인하지 못했어요." + look + note
         if operation is not None and operation.passed and getattr(operation, "mock", False):
-            return (
-                "작은 팔이 다 눌렀다고 알려 왔어요(연습용 전력 값이라 실제 가전 동작은 확인하지 않았어요)"
-            ) + note
-        return "작은 팔이 다 눌렀다고 알려 왔어요(가전 동작은 확인하지 않았어요)" + note
+            return "작은 팔이 다 눌렀다고 알려 왔어요. 연습이라 실제 가전 반응은 보지 않았어요." + note
+        return "작은 팔이 다 눌렀다고 알려 왔어요." + look + note
     if confirmation is Confirmation.PRESS_CONFIRMED:
         if result.failed_layer is VerificationLayer.OPERATION:
-            reason = result.operation.detail if result.operation is not None else "판정 불가"
-            return f"버튼은 모두 눌렸지만 가전 동작을 확인하지 못했어요 (전력 확인: {reason})" + note
+            return "버튼은 다 눌렸지만 가전 반응은 확인하지 못했어요." + look + note
         if stopped:
-            return "버튼은 모두 눌렸지만 작은 팔을 멈췄어요 (가전 동작은 확인하지 않았어요)" + note
-        return "버튼 눌림을 센서로 확인했어요 (가전 동작은 확인하지 않음)" + note
+            return "버튼은 다 눌렸고 작은 팔을 멈췄어요." + look + note
+        return "버튼이 눌린 것을 센서로 확인했어요." + look + note
 
     # confirmation NONE -- 시퀀스가 끝나지 않았다.
     if is_aggregate_report(result):
         # 집계 보고: 어느 버튼에서 멈췄는지, 몇 개가 눌렸는지, 멈췄는지는 보고에 없다.
         # synthesize가 채운 버튼별 값은 추정이므로 사실로 적지 않는다.
-        retries = sum(max(0, b.attempts - 1) for b in result.buttons)
         if result.outcome is ExecutionOutcome.STOPPED:
-            return (
-                "작은 팔이 정지 요청으로 멈췄다고 알려 왔어요 "
-                "(어느 버튼에서 멈췄는지·몇 개 눌렀는지는 알려 오지 않았어요)"
-            ) + note
+            return "작은 팔이 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요." + note
         if result.outcome is ExecutionOutcome.SAFETY_STOP:
-            return (
-                f"작은 팔이 눌림을 확인하지 못해 안전하게 멈췄다고 알려 왔어요 (재시도 {retries}회, "
-                "어느 버튼에서 멈췄는지·몇 개 눌렀는지는 알려 오지 않았어요)"
-            ) + note
-        return (
-            f"작은 팔 장치가 실패를 알려 왔어요 (재시도 {retries}회, "
-            "어느 버튼에서 멈췄는지·몇 개 눌렀는지·멈췄는지는 알려 오지 않았어요)"
-        ) + note
+            return "작은 팔이 눌림을 확인하지 못해 멈췄다고 알려 왔어요. 몇 개를 눌렀는지 모르니 가전을 봐 주세요." + note
+        return "작은 팔이 실패를 알려 왔어요. 몇 개를 눌렀는지, 멈췄는지 모르니 가전을 봐 주세요." + note
     pressed = sum(1 for b in result.buttons if _sensor_verified(b))
-    counts = f"{total}개 중 {pressed}개 눌림 확인"
-    verb = "멈췄어요" if stopped else "실패했어요"
+    counts = f" 눌린 것을 확인한 버튼은 {total}개 중 {pressed}개예요."
+    verb = "멈췄어요." if stopped else "실패했어요."
     if not result.buttons:
-        return f"실행 시작 전에 {verb} ({counts})" + note
+        return f"시작하기 전에 {verb}" + counts + note
     failed = next((b for b in result.buttons if b.status is ButtonStatus.FAILED), None)
     if failed is not None:
-        layer = failed.failed_layer.value if failed.failed_layer is not None else "L1"
-        return f"'{failed.button}'에서 {verb} ({layer}, {failed.attempts}회 시도, {counts})" + note
+        return f"'{failed.button}'에서 {verb}" + counts + note
     # 실패한 버튼 없이 도중에 끊겼다 -- 일부 실행 후 중단. '시작 전'이 아니다.
     last = result.buttons[-1].button
-    return f"'{last}' 뒤에서 {verb} ({counts})" + note
+    return f"'{last}' 다음에서 {verb}" + counts + note
 
 
 def command_result_from_execution(
