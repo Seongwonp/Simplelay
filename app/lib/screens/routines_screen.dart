@@ -21,16 +21,19 @@ import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_candidate_sheet.dart';
 import '../widgets/routine_run.dart';
 import '../widgets/row_menu.dart';
+import '../widgets/status_badge.dart';
 import '../theme/app_tokens.dart';
 
-/// 루틴 탭 — 위에 "다음 실행"(예약이 있을 때만), 아래에 "내 루틴 / 예시 루틴"(UI 확정 §2).
+/// 루틴 탭 — 세그먼트 [내 루틴 | 자동으로 하기](UI 개편안 §4, 2026-10-18).
 ///
-/// 예시 루틴은 미리 만든 **템플릿**이다(개인 습관 추천이 아니라 2026-10-14에 "추천"에서 이름을 바꿨다).
-/// 사용자 데이터가 아니고 실행되지도 않는다 -- 눌러서
-/// 자기 가전·버튼으로 고친 뒤 저장해야 루틴이 된다.
+/// 내 루틴: 다음 실행(예약이 있을 때만) · 사용 기록으로 만든 초안 · 루틴 줄(실행 하나 + ⋮).
+/// 자동으로 하기: 허락한 규칙 카드(언제·무엇을 한 문장, 상태 배지, 최근 결과, 스위치).
 ///
-/// 행마다 '편집'과 '실행하기'를 나눈다(2026-10-13). '실행하기'는 편집기의 '지금 실행'과
-/// 같은 경로로 **승인 카드만 만든다** — 가전은 승인 화면에서 최종 승인해야 움직인다.
+/// 예시 루틴은 미리 만든 **템플릿**이다(개인 습관 추천이 아니다) — [+ 새 루틴] 안의 선택지로 둔다.
+/// 눌러서 자기 가전·버튼으로 고친 뒤 저장해야 루틴이 된다.
+///
+/// 줄의 '실행'은 편집기의 '지금 실행'과 같은 경로로 **승인 카드만 만든다** — 가전은 승인 화면에서
+/// 최종 허락해야 움직인다.
 class RoutinesScreen extends ConsumerStatefulWidget {
   const RoutinesScreen({super.key});
 
@@ -39,7 +42,8 @@ class RoutinesScreen extends ConsumerStatefulWidget {
 }
 
 class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
-  bool _templates = false;
+  /// 0 = 내 루틴, 1 = 자동으로 하기.
+  int _segment = 0;
 
   /// 카드 요청 중인 루틴(한 번에 하나). 중복 탭·다른 행 동시 실행을 막는다.
   String? _runningId;
@@ -55,9 +59,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
       for (final a in ref.watch(installedAppliancesProvider))
         if (needsPanelMapping(a)) a.id,
     };
-    final list = _templates
-        ? ref.watch(routineTemplatesProvider)
-        : ref.watch(routinesProvider);
+    final list = ref.watch(routinesProvider);
     final names = {
       for (final a in ref.watch(installedAppliancesProvider)) a.id: a.name,
     };
@@ -74,9 +76,10 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
           Padding(
             padding: const EdgeInsets.only(right: AppSpace.md),
             child: FilledButton.icon(
+              key: const Key('routine-new'),
               // 앱바 안에서는 테마의 '폭 채우기'를 끈다.
               style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
-              onPressed: () => _open(context, null),
+              onPressed: () => _newRoutine(context),
               icon: const Icon(Icons.add, size: 18),
               label: const Text('새 루틴'),
             ),
@@ -95,92 +98,104 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxxl),
           children: [
-            // 예약이 있을 때만. nextRoutineProvider는 조회 실패도 null로 돌리므로
-            // null을 '예약 없음'으로 단정하지 않는다.
-            if (next != null) ...[
-              _NextRunCard(next: next),
-              const SizedBox(height: AppSpace.lg),
-            ],
-            SegmentedButton<bool>(
+            SegmentedButton<int>(
               segments: const [
-                ButtonSegment(value: false, label: Text('내 루틴')),
-                ButtonSegment(value: true, label: Text('예시 루틴')),
+                ButtonSegment(value: 0, label: Text('내 루틴')),
+                ButtonSegment(value: 1, label: Text('자동으로 하기')),
               ],
-              selected: {_templates},
+              selected: {_segment},
               showSelectedIcon: false,
-              onSelectionChanged: (v) => setState(() => _templates = v.first),
+              onSelectionChanged: (v) => setState(() => _segment = v.first),
             ),
-            const SizedBox(height: AppSpace.md),
-            // 사용 기록으로 만든 루틴 초안(2026-10-14) — 조용히: 이 탭에만, 실행 중에는 감춘다(작업 도중 끼어들지 않는다).
-            if (!_templates && !executing)
-              for (final c in ref.watch(routineCandidatesProvider).valueOrNull ?? const <RoutineCandidate>[])
-                _CandidateCard(
-                  candidate: c,
-                  onSave: () => _saveCandidate(context, c),
-                  onDecline: () => _declineCandidate(c),
-                ),
-            // 자동 실행 허용 규칙(2026-10-13) — 카드에서 허용한 것만 있다. 없으면(옛 서버 포함) 아무것도 안 보인다.
-            // 규칙이 있으면 머리말로 루틴 목록과 나눈다 — 같은 이름(시각 루틴과 그 규칙)이 두 번 나와 헷갈렸다(외부 평가 10/16 3차).
-            if (!_templates && rules.isNotEmpty) ...[
-              const _SectionLabel('자동으로 하기'),
-              for (final rule in rules)
-                _AutoRuleRow(rule: rule, onChanged: () => ref.invalidate(autoRulesProvider)),
-              const SizedBox(height: AppSpace.sm),
-              const _SectionLabel('내 루틴 목록'),
-            ],
-            ...list.when(
-              loading: () => const [
-                Padding(
-                  padding: EdgeInsets.all(AppSpace.xxl),
-                  child: Center(child: CircularProgressIndicator()),
-                ),
-              ],
-              error: (e, _) => [
-                _Note(
-                  e is RoutinesUnavailable
-                      ? '본체와 연결하면 루틴을 볼 수 있어요.'
-                      : '루틴을 불러오지 못했어요. 연결을 보고 아래로 당겨 새로 봐 주세요.',
-                ),
-              ],
-              data: (routines) => routines.isEmpty
+            const SizedBox(height: AppSpace.lg),
+            if (_segment == 1)
+              ...(rules.isEmpty
                   ? [
-                      _Note(_templates
-                          ? '지금 보여 드릴 예시 루틴이 없어요.'
-                          : '아직 만든 루틴이 없어요. 가전 화면의 "누르는 순서 저장"이나 예시 루틴으로 만들어 보세요.'),
+                      const _Note('아직 자동으로 하는 일이 없어요. 할까요? 카드에서 "다음부터도 자동으로"를 고르면 여기에 생겨요.'),
                     ]
                   : [
-                      // 설정이 필요한 가전의 루틴은 아래로 — 홈과 같은 순서(UI 평가 10/17).
-                      for (final r in [
-                        ...routines.where((r) => !r.applianceIds.any(needsSetup.contains)),
-                        ...routines.where((r) => r.applianceIds.any(needsSetup.contains)),
-                      ])
-                        _RoutineRow(
-                          routine: r,
-                          applianceNames: names,
-                          onEdit: () => _open(context, r),
-                          onDelete: r.isTemplate || r.id == null ? null : () => _delete(context, r),
-                          // 버튼 자리를 맞추지 않은 가전의 루틴은 실행하기 대신 이유(외부 평가 10/16 3차).
-                          onRun: r.isRunCandidate && !r.applianceIds.any(needsSetup.contains)
-                              ? () => _run(context, r.id!)
-                              : null,
-                          running: r.id != null && _runningId == r.id,
-                          busy: _runningId != null,
-                          error: r.id == null ? null : _errors[r.id],
-                          onSetup: r.applianceIds.any(needsSetup.contains)
-                              ? () => context.push('/appliance/detail/'
-                                  '${r.applianceIds.firstWhere(needsSetup.contains)}')
-                              : null,
-                          // 설정 안내는 오류가 아니다 — 앰버(홈과 같은 색, UI 평가 10/17).
-                          note: r.applianceIds.any(needsSetup.contains)
-                              ? '가전 설정이 필요해요. 홈의 가전을 눌러 버튼 자리를 맞춰 주세요'
-                              : null,
-                        ),
-                    ],
-            ),
+                      for (final rule in rules)
+                        _AutoRuleRow(rule: rule, onChanged: () => ref.invalidate(autoRulesProvider)),
+                    ])
+            else ...[
+              // 예약이 있을 때만. nextRoutineProvider는 조회 실패도 null로 돌리므로
+              // null을 '예약 없음'으로 단정하지 않는다.
+              if (next != null) ...[
+                _NextRunCard(next: next),
+                const SizedBox(height: AppSpace.lg),
+              ],
+              // 사용 기록으로 만든 루틴 초안(2026-10-14) — 조용히: 이 쪽에만, 실행 중에는 감춘다(작업 도중 끼어들지 않는다).
+              if (!executing)
+                for (final c in ref.watch(routineCandidatesProvider).valueOrNull ?? const <RoutineCandidate>[])
+                  _CandidateCard(
+                    candidate: c,
+                    onSave: () => _saveCandidate(context, c),
+                    onDecline: () => _declineCandidate(c),
+                  ),
+              ...list.when(
+                loading: () => const [
+                  Padding(
+                    padding: EdgeInsets.all(AppSpace.xxl),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                ],
+                error: (e, _) => [
+                  _Note(
+                    e is RoutinesUnavailable
+                        ? '본체와 연결하면 루틴을 볼 수 있어요.'
+                        : '루틴을 불러오지 못했어요. 연결을 보고 아래로 당겨 새로 봐 주세요.',
+                  ),
+                ],
+                data: (routines) => routines.isEmpty
+                    ? [
+                        const _Note('아직 만든 루틴이 없어요. 가전 화면의 "누르는 순서 저장"이나 [+ 새 루틴]의 예시 루틴으로 만들어 보세요.'),
+                      ]
+                    : [
+                        // 설정이 필요한 가전의 루틴은 아래로 — 홈과 같은 순서(UI 평가 10/17).
+                        for (final r in [
+                          ...routines.where((r) => !r.applianceIds.any(needsSetup.contains)),
+                          ...routines.where((r) => r.applianceIds.any(needsSetup.contains)),
+                        ])
+                          _RoutineRow(
+                            routine: r,
+                            applianceNames: names,
+                            onEdit: () => _open(context, r),
+                            onDelete: r.isTemplate || r.id == null ? null : () => _delete(context, r),
+                            // 버튼 자리를 맞추지 않은 가전의 루틴은 실행 대신 이유(외부 평가 10/16 3차).
+                            onRun: r.isRunCandidate && !r.applianceIds.any(needsSetup.contains)
+                                ? () => _run(context, r.id!)
+                                : null,
+                            running: r.id != null && _runningId == r.id,
+                            busy: _runningId != null,
+                            error: r.id == null ? null : _errors[r.id],
+                            onSetup: r.applianceIds.any(needsSetup.contains)
+                                ? () => context.push('/appliance/detail/'
+                                    '${r.applianceIds.firstWhere(needsSetup.contains)}')
+                                : null,
+                            // 설정 안내는 오류가 아니다 — 앰버(홈과 같은 색, UI 평가 10/17).
+                            note: r.applianceIds.any(needsSetup.contains)
+                                ? '가전 설정이 필요해요. 홈의 가전을 눌러 버튼 자리를 맞춰 주세요'
+                                : null,
+                          ),
+                      ],
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  /// [+ 새 루틴] — 빈 루틴, 또는 예시 루틴을 골라 고쳐 쓰기(2026-10-18: 예시는 세그먼트가 아니라 여기).
+  Future<void> _newRoutine(BuildContext context) async {
+    final picked = await showModalBottomSheet<_NewChoice>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheet) => const _NewRoutineSheet(),
+    );
+    if (picked == null || !context.mounted) return;
+    await _open(context, picked.template);
   }
 
   /// ⋮ 메뉴 '지우기' — 확인을 한 번 더 받고 지운다(편집기의 지우기와 같은 서버 경로).
@@ -325,43 +340,45 @@ class _NextRunCard extends StatelessWidget {
     final n = next;
     // 본체 벽시계 그대로 — 폰 시간대로 바꾸면 '매일 07:00' 옆에 22:00이 나왔다(2차 평가 10/18).
     final hm = n.clock;
-    return Container(
-      padding: const EdgeInsets.all(AppSpace.lg),
-      decoration: BoxDecoration(
-        color: context.appSurfaceLow,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: context.appBorderSubtle),
+    final clock = Text(
+      hm,
+      style: TextStyle(
+        fontSize: AppFont.number,
+        fontWeight: FontWeight.w700,
+        height: 1.1,
+        color: context.appInk,
       ),
-      child: Row(
-        children: [
-          Text(
-            hm,
-            style: TextStyle(
-              fontSize: AppFont.tabTitle,
-              fontWeight: FontWeight.w700,
-              color: context.appPrimary,
-            ),
-          ),
-          const SizedBox(width: AppSpace.lg),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('다음: ${n.name}',
-                    style: const TextStyle(
-                        fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
-                // 오늘·내일이 먼저, 실행 방식은 끝 — 아래 '자동 실행 켜짐' 줄과 같은 말(외부 평가 10/16 p02).
-                Text(
-                    [
-                      if (n.dayLabel.isNotEmpty) n.dayLabel,
-                      if (n.when.isNotEmpty) n.when,
-                      n.modeLabel,
-                    ].join(' · '),
-                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-              ],
-            ),
-          ),
-        ],
+    );
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('다음: ${n.name}',
+            style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+        // 오늘·내일이 먼저, 실행 방식은 끝(외부 평가 10/16 p02).
+        Text(
+            [
+              if (n.dayLabel.isNotEmpty) n.dayLabel,
+              if (n.when.isNotEmpty) n.when,
+              n.modeLabel,
+            ].join(' · '),
+            style: context.appCaption),
+      ],
+    );
+    // 큰 글씨에서는 시각을 위, 설명을 아래로 — 한 줄에 두면 넘친다.
+    final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.xl),
+        child: big
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [clock, const SizedBox(height: AppSpace.xs), info],
+              )
+            : Row(children: [
+                clock,
+                const SizedBox(width: AppSpace.lg),
+                Expanded(child: info),
+              ]),
       ),
     );
   }
@@ -685,103 +702,112 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     final r = widget.rule;
     final reason = r.disabledReason;
     final quietNote = quietRuleNote(ref.watch(quietHoursProvider).valueOrNull, r);
+    // 상태는 서버 문장(status_label)이 아니라 enabled 값으로(2차 평가 10/18).
+    final badge = r.enabled
+        ? const StatusBadge(icon: AppIcons.auto, label: '자동으로 해요', tone: BadgeTone.accent)
+        : const StatusBadge(icon: Icons.pause_circle_outline, label: '지금은 안 해요');
     return Padding(
       key: Key('auto-rule-${r.id}'),
       padding: const EdgeInsets.only(bottom: AppSpace.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+      child: Card(
+        semanticContainer: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.sm, AppSpace.xs, AppSpace.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(AppIcons.auto, color: r.enabled ? context.appPrimary : context.appMuted),
-              const SizedBox(width: AppSpace.md),
-              Expanded(
-                child: Text(r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
-              ),
-              // 값 바꾸기·지우기는 ⋮ 안(2026-10-18 버튼 위계) — 카드에는 켜기/끄기 하나만.
-              RowMenu(
-                menuKey: Key('auto-rule-menu-${r.id}'),
-                semanticLabel: '${r.name} 더 보기',
-                items: [
-                  if (r.allowedValues.length > 1)
-                    RowMenuItem(
-                      key: Key('auto-rule-edit-${r.id}'),
-                      label: autoRuleValueLabel(r),
-                      icon: Icons.tune,
-                      enabled: !_busy,
-                      onSelected: () => _run(_changeValue),
+              Row(
+                children: [
+                  Icon(AppIcons.auto, color: r.enabled ? context.appPrimary : context.appMuted),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: Text(keepWordsTogether(r.name),
+                        semanticsLabel: r.name,
+                        style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+                  ),
+                  // 켜기/끄기 — 켤 때는 늘 확인 시트(서버가 준 조건·동작과 지문으로만 켠다), 끌 때는 바로.
+                  Semantics(
+                    label: '${r.name} 자동으로 하기',
+                    toggled: r.enabled,
+                    excludeSemantics: true,
+                    child: SizedBox(
+                      height: 48,
+                      child: Switch(
+                        key: Key('auto-rule-switch-${r.id}'),
+                        value: r.enabled,
+                        onChanged: _busy
+                            ? null
+                            : (on) => on
+                                ? _run((api) => _reallow(api, r))
+                                : _run((api) => api.setAutoRuleEnabled(r.id, false)),
+                      ),
                     ),
-                  RowMenuItem(
-                    key: Key('auto-rule-delete-${r.id}'),
-                    label: '지우기',
-                    icon: Icons.delete_outline,
-                    danger: true,
-                    enabled: !_busy,
-                    onSelected: () => _run(_delete),
+                  ),
+                  // 값 바꾸기·지우기는 ⋮ 안(2026-10-18 버튼 위계).
+                  RowMenu(
+                    menuKey: Key('auto-rule-menu-${r.id}'),
+                    semanticLabel: '${r.name} 더 보기',
+                    items: [
+                      if (r.allowedValues.length > 1)
+                        RowMenuItem(
+                          key: Key('auto-rule-edit-${r.id}'),
+                          label: autoRuleValueLabel(r),
+                          icon: Icons.tune,
+                          enabled: !_busy,
+                          onSelected: () => _run(_changeValue),
+                        ),
+                      RowMenuItem(
+                        key: Key('auto-rule-delete-${r.id}'),
+                        label: '지우기',
+                        icon: Icons.delete_outline,
+                        danger: true,
+                        enabled: !_busy,
+                        onSelected: () => _run(_delete),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-          Padding(
-            padding: const EdgeInsets.only(left: AppSpace.xxxl, top: AppSpace.xs),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 규칙을 한 문장으로(2026-10-14 UX) — "조건:/동작:" 표 대신.
-                Text('${r.conditionText} → ${r.actionText}',
-                    style: const TextStyle(fontSize: AppFont.caption)),
-                const SizedBox(height: AppSpace.xs),
-                Text(
-                  r.statusLabel,
-                  style: TextStyle(
-                    fontSize: AppFont.caption,
-                    fontWeight: FontWeight.w700,
-                    color: r.enabled ? context.appPrimary : context.appMuted,
-                  ),
-                ),
-                if (!r.enabled && reason != null && reason.isNotEmpty)
-                  Text(reason, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-                // 조용한 시간과 겹치면 여기서도 말한다 — 켜져 있으면 앰버(실제로 건너뜀), 꺼져 있으면 회색(UI 평가 7차 10/17).
-                if (quietNote != null)
-                  Text(keepWordsTogether(quietNote),
-                      semanticsLabel: quietNote,
-                      style: TextStyle(
-                          fontSize: AppFont.caption,
-                          fontWeight: FontWeight.w600,
-                          color: ref.watch(quietHoursProvider).valueOrNull?.enabled == true
-                              ? context.appWarning
-                              : context.appMuted)),
-                // 마지막 자동 실행의 장치별 결과 — 서버 문장 그대로(확인된 것만 '바꿨어요').
-                for (final n in r.lastRunNotices)
-                  Text(n, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-                const SizedBox(height: AppSpace.sm),
-                Wrap(
-                  spacing: AppSpace.sm,
-                  runSpacing: AppSpace.sm,
+              Padding(
+                padding: const EdgeInsets.only(left: AppSpace.xxxl + AppSpace.xs, right: AppSpace.md),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (r.enabled)
-                      OutlinedButton(
-                        key: Key('auto-rule-off-${r.id}'),
-                        onPressed: _busy
-                            ? null
-                            : () => _run((api) => api.setAutoRuleEnabled(r.id, false)),
-                        style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
-                        child: const Text('자동으로 하지 않기'),
-                      )
-                    else
-                      FilledButton(
-                        key: Key('auto-rule-on-${r.id}'),
-                        onPressed: _busy ? null : () => _run((api) => _reallow(api, r)),
-                        style: FilledButton.styleFrom(minimumSize: const Size(88, 48)),
-                        child: const Text('다시 허락'),
-                      ),
+                    // 언제·무엇을 한 문장(2차 평가 10/18) — 화살표·'조건:/동작:' 표를 쓰지 않는다.
+                    // 낱말 중간에서 꺾이지 않게('전/원' 방지).
+                    Text(keepWordsTogether(autoRuleSentence(r)),
+                        semanticsLabel: autoRuleSentence(r),
+                        style: const TextStyle(fontSize: AppFont.body)),
+                    const SizedBox(height: AppSpace.sm),
+                    badge,
+                    if (!r.enabled && reason != null && reason.isNotEmpty) ...[
+                      const SizedBox(height: AppSpace.xs),
+                      Text(reason, style: context.appCaption),
+                    ],
+                    // 조용한 시간과 겹치면 여기서도 말한다 — 켜져 있으면 앰버(실제로 건너뜀), 꺼져 있으면 회색(UI 평가 7차 10/17).
+                    if (quietNote != null) ...[
+                      const SizedBox(height: AppSpace.xs),
+                      Text(keepWordsTogether(quietNote),
+                          semanticsLabel: quietNote,
+                          style: TextStyle(
+                              fontSize: AppFont.caption,
+                              fontWeight: FontWeight.w600,
+                              color: ref.watch(quietHoursProvider).valueOrNull?.enabled == true
+                                  ? context.appWarning
+                                  : context.appMuted)),
+                    ],
+                    // 마지막 자동 실행의 장치별 결과 — 서버 문장 그대로(확인된 것만 '바꿨어요').
+                    if (r.lastRunNotices.isNotEmpty) ...[
+                      const SizedBox(height: AppSpace.sm),
+                      Text('최근 결과', style: context.appCaption.copyWith(fontWeight: FontWeight.w600)),
+                      for (final n in r.lastRunNotices) Text(n, style: context.appCaption),
+                    ],
                   ],
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -798,21 +824,78 @@ class _Note extends StatelessWidget {
       );
 }
 
-/// 루틴 탭 구획 머리말(2026-10-16).
-class _SectionLabel extends StatelessWidget {
-  const _SectionLabel(this.text);
-  final String text;
+/// 규칙 값 바꾸기 단추 이름 — 무엇의 값인지 말한다(UI 평가 3차 10/17: '세기'는 무엇의 세기인지 몰랐다).
+///
+/// 서버(bcc4cdb)가 규칙 문장에서 '풍량'을 뺐다 — 문장이 아니라 동작 이름으로 가른다(옛 서버는 문장으로).
+String autoRuleValueLabel(AutoRule rule) =>
+    rule.action == 'set_wind_strength' ||
+            (rule.action == null && rule.actionText.contains('풍량'))
+        ? '바람 세기 바꾸기'
+        : '설정 바꾸기';
 
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: AppSpace.xs, bottom: AppSpace.xs),
-        child: Semantics(
-          header: true,
-          child: Text(text, style: AppText.title),
-        ),
-      );
+/// 규칙 한 문장 — 언제 + 무엇을(화살표 없이). 서버 문장이 '…면'·'…해요'로 이어 읽히게 만든다(2차 평가 10/18).
+String autoRuleSentence(AutoRule rule) =>
+    [rule.conditionText.trim(), rule.actionText.trim()].where((t) => t.isNotEmpty).join(' ');
+
+/// [+ 새 루틴]에서 고른 것 — 빈 루틴이면 [template]이 null.
+class _NewChoice {
+  const _NewChoice(this.template);
+  final Routine? template;
 }
 
-/// 규칙 값 바꾸기 단추 이름 — 무엇의 값인지 말한다(UI 평가 3차 10/17: '세기'는 무엇의 세기인지 몰랐다).
-String autoRuleValueLabel(AutoRule rule) =>
-    rule.actionText.contains('풍량') ? '바람 세기 바꾸기' : '설정 바꾸기';
+/// [+ 새 루틴] 시트 — 빈 루틴으로 시작하기, 또는 예시 루틴(미리 만든 틀)을 골라 고쳐 쓰기.
+class _NewRoutineSheet extends ConsumerWidget {
+  const _NewRoutineSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final templates = ref.watch(routineTemplatesProvider);
+    final names = {
+      for (final a in ref.watch(installedAppliancesProvider)) a.id: a.name,
+    };
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.85),
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.xxl),
+        children: [
+          Text('새 루틴', style: AppText.title),
+          const SizedBox(height: AppSpace.md),
+          OutlinedButton.icon(
+            key: const Key('routine-new-blank'),
+            onPressed: () => Navigator.pop(context, const _NewChoice(null)),
+            icon: const Icon(Icons.add),
+            label: const Text('빈 루틴으로 시작하기'),
+          ),
+          const SizedBox(height: AppSpace.xxl),
+          Text('예시 루틴', style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+          Text('골라서 내 가전에 맞게 고치면 내 루틴이 돼요.', style: context.appCaption),
+          const SizedBox(height: AppSpace.sm),
+          ...templates.when(
+            loading: () => const [
+              Padding(
+                padding: EdgeInsets.all(AppSpace.lg),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ],
+            error: (_, __) => const [_Note('예시 루틴을 불러오지 못했어요.')],
+            data: (list) => list.isEmpty
+                ? const [_Note('지금 보여 드릴 예시 루틴이 없어요.')]
+                : [
+                    for (final t in list)
+                      _RoutineRow(
+                        routine: t,
+                        applianceNames: names,
+                        onEdit: () => Navigator.pop(context, _NewChoice(t)),
+                        onRun: null,
+                        running: false,
+                        busy: false,
+                        error: null,
+                      ),
+                  ],
+          ),
+        ],
+      ),
+    );
+  }
+}

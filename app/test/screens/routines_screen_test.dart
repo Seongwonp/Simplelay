@@ -245,6 +245,12 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+/// 예시 루틴은 [+ 새 루틴] 안의 선택지다(2026-10-18) — 시트를 연다.
+Future<void> _openNew(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('routine-new')));
+  await _settle(tester);
+}
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -390,8 +396,7 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    await tester.tap(find.text('예시 루틴'));
-    await _settle(tester);
+    await _openNew(tester);
     expect(find.text('방문자 문 열기'), findsOneWidget);
 
     await tester.tap(find.text('방문자 문 열기'));
@@ -640,8 +645,8 @@ void main() {
     await _settle(tester);
     expect(find.textContaining('예약된 루틴이 없어요'), findsNothing);
     expect(find.textContaining('다음 실행'), findsNothing);
-    // 만들기 예시(예시 루틴) 진입은 그대로다.
-    expect(find.text('예시 루틴'), findsOneWidget);
+    // 만들기 예시(예시 루틴) 진입은 [+ 새 루틴] 안에 그대로다.
+    expect(find.byKey(const Key('routine-new')), findsOneWidget);
   });
 
   testWidgets('200% 글자에서도 ⋮·실행이 겹치지 않고 넘치지 않는다', (tester) async {
@@ -674,16 +679,22 @@ void main() {
 
   // 2026-10-14 UI 정리: 미리 만든 템플릿은 개인 습관 추천이 아니다 — '예시 루틴'으로 부른다.
   group("'예시 루틴' — 추천이라 부르지 않는다", () {
-    testWidgets('탭 이름은 내 루틴 / 예시 루틴, 화면 어디에도 추천이 없다', (tester) async {
+    // 2026-10-18 루틴 탭: 세그먼트는 [내 루틴 | 자동으로 하기], 예시 루틴은 [+ 새 루틴] 안의 선택지.
+    testWidgets('세그먼트는 내 루틴 / 자동으로 하기, 예시 루틴은 새 루틴 안 — 추천이 없다', (tester) async {
       final handle = tester.ensureSemantics();
       _tall(tester);
       await tester.pumpWidget(_build(_Server()));
       await _settle(tester);
-      expect(find.text('예시 루틴'), findsOneWidget);
+      final seg = find.byType(SegmentedButton<int>);
+      expect(seg, findsOneWidget);
+      expect(find.descendant(of: seg, matching: find.text('내 루틴')), findsOneWidget);
+      expect(find.descendant(of: seg, matching: find.text('자동으로 하기')), findsOneWidget);
+      expect(find.text('예시 루틴'), findsNothing, reason: '세그먼트에 예시 루틴을 두지 않는다');
       expect(find.textContaining('추천'), findsNothing);
 
-      await tester.tap(find.text('예시 루틴'));
-      await _settle(tester);
+      await _openNew(tester);
+      expect(find.byKey(const Key('routine-new-blank')), findsOneWidget);
+      expect(find.text('예시 루틴'), findsOneWidget);
       expect(find.textContaining('추천'), findsNothing);
       // 낭독도 예시라고 말하고, 누르면 무엇이 되는지 말한다.
       expect(find.bySemanticsLabel(RegExp('^예시 루틴 방문자 문 열기')), findsOneWidget);
@@ -701,8 +712,7 @@ void main() {
       expect(find.textContaining('예시 루틴으로 만들어 보세요'), findsOneWidget);
       expect(find.textContaining('추천'), findsNothing);
 
-      await tester.tap(find.text('예시 루틴'));
-      await _settle(tester);
+      await _openNew(tester);
       expect(find.text('지금 보여 드릴 예시 루틴이 없어요.'), findsOneWidget);
       expect(find.textContaining('추천'), findsNothing);
     });
@@ -744,8 +754,8 @@ void main() {
       expect(find.textContaining('하셨'), findsNothing);
       expect(tester.getSize(find.byKey(const Key('candidate-save-hc-1'))).height,
           greaterThanOrEqualTo(48));
-      // 예시 루틴 탭에는 보이지 않는다.
-      await tester.tap(find.text('예시 루틴'));
+      // 자동으로 하기 쪽에는 보이지 않는다.
+      await tester.tap(find.text('자동으로 하기'));
       await _settle(tester);
       expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
     });

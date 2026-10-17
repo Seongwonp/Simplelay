@@ -57,7 +57,11 @@ class AutoRule {
     this.allowedValues = const [],
     this.lastRunNotices = const [],
     this.conditionTime,
+    this.action,
   });
+
+  /// 서버 동작 이름(`set_wind_strength`·`set_power` 등, 옛 서버는 null). 값 바꾸기 이름을 문장이 아니라 이것으로 가른다.
+  final String? action;
 
   /// 시각 규칙의 'HH:MM'(서버 `condition_time`, 그 밖은 null) — 조용한 시간과 겹치는지 미리 말한다(UI 평가 6차 10/17).
   final String? conditionTime;
@@ -102,6 +106,7 @@ class AutoRule {
       fingerprint: json['fingerprint'] as String?,
       value: json['value'] as String?,
       conditionTime: json['condition_time'] is String ? json['condition_time'] as String : null,
+      action: json['action'] is String ? json['action'] as String : null,
       allowedValues: [
         for (final v in (json['allowed_values'] as List<dynamic>?) ?? const [])
           if (v is Map<String, dynamic> && v['value'] is String)

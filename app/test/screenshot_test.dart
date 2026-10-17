@@ -204,6 +204,14 @@ void main() {
     });
   }
 
+  testWidgets('루틴 탭 — 자동으로 하기 (라이트)', (t) async {
+    await _shoot(t, 'routines_rules_light', const RoutinesScreen(),
+        light: true, installed: _homeInstalled, hub: _demoHub(), before: (tester) async {
+      await tester.tap(find.text('자동으로 하기'));
+      await tester.pumpAndSettle();
+    });
+  });
+
   testWidgets('홈 — 큰 글씨 (200%)', (t) async {
     await _shoot(t, 'home_large', const HomeScreen(),
         suggestions: suggestions, textScale: 2.0);

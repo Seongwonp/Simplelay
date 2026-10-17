@@ -195,6 +195,14 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+/// 루틴 탭의 [자동으로 하기] 쪽을 연다(2026-10-18 세그먼트).
+Future<void> _openRules(WidgetTester tester) async {
+  await tester.tap(find.text('자동으로 하기'));
+  await _settle(tester);
+}
+
+Finder _switch(String id) => find.byKey(Key('auto-rule-switch-$id'));
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -382,6 +390,7 @@ void main() {
           ..quiet = {'enabled': enabled, 'start': '22:00', 'end': '07:00', 'active': false};
         await tester.pumpWidget(_list(server));
         await _settle(tester);
+        await _openRules(tester);
         expect(findPlainText(line), findsOneWidget);
       });
     }
@@ -393,40 +402,68 @@ void main() {
         ..quiet = {'enabled': true, 'start': '22:00', 'end': '07:00', 'active': false};
       await tester.pumpWidget(_list(server));
       await _settle(tester);
+      await _openRules(tester);
       expect(findPlainText('조용한 시간', contains: true), findsNothing);
     });
 
-    testWidgets('자동 실행 켜짐과 조건·동작·마지막 결과를 보이고 끄면 꺼짐', (tester) async {
+    testWidgets('자동으로 해요 배지·한 문장(화살표 없음)·마지막 결과, 스위치로 끄면 지금은 안 해요', (tester) async {
       _tall(tester);
       final server = _Server();
       await tester.pumpWidget(_list(server));
       await _settle(tester);
+      // 규칙은 루틴 목록과 섞지 않는다 — [자동으로 하기] 쪽에만.
+      expect(find.byKey(const Key('auto-rule-ar-1')), findsNothing);
+      await _openRules(tester);
 
-      expect(find.text('조리 완료 → 공기청정기'), findsOneWidget);
-      // 규칙은 한 문장(2026-10-14 UX) — "조건:/동작:" 표가 아니다.
-      expect(find.text('전자레인지가 멈추면 → 거실 공기청정기 풍량 강으로'), findsOneWidget);
+      expect(findPlainText('조리 완료 → 공기청정기'), findsOneWidget);
+      // 규칙은 한 문장(2차 평가 10/18) — 언제와 무엇을 사이에 화살표를 두지 않는다.
+      expect(findPlainText('전자레인지가 멈추면 거실 공기청정기 풍량 강으로'), findsOneWidget);
+      expect(findPlainText('전자레인지가 멈추면 → 거실 공기청정기 풍량 강으로'), findsNothing);
       expect(find.textContaining('조건:'), findsNothing);
+      expect(find.text('자동으로 해요'), findsOneWidget);
+      expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
+      expect(find.textContaining('깨끗'), findsNothing);
       // 값 바꾸기·지우기는 ⋮ 메뉴 안(2026-10-18 버튼 위계) — 카드에 버튼을 늘어놓지 않는다.
       expect(find.byKey(const Key('auto-rule-delete-ar-1')), findsNothing);
       await tester.tap(find.byKey(const Key('auto-rule-menu-ar-1')));
       await _settle(tester);
       expect(find.text('바람 세기 바꾸기'), findsOneWidget);
-      expect(find.text('세기 바꾸기'), findsNothing);
       expect(find.byKey(const Key('auto-rule-delete-ar-1')), findsOneWidget);
       await tester.tapAt(const Offset(5, 5));
       await _settle(tester);
-      expect(find.text('자동 실행 켜짐'), findsOneWidget);
-      expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
-      expect(find.textContaining('깨끗'), findsNothing);
-      // 자동 실행 규칙과 루틴 목록을 머리말로 나눈다 — 같은 이름이 두 번 나와 헷갈렸다(외부 평가 10/16 3차).
-      expect(find.text('자동으로 하기'), findsOneWidget);
-      expect(find.text('내 루틴 목록'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('auto-rule-off-ar-1')));
+      expect(tester.getSize(_switch('ar-1')).height, greaterThanOrEqualTo(48));
+      await tester.tap(_switch('ar-1'));
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'], {'enabled': false});
-      expect(find.text('자동 실행 꺼짐'), findsOneWidget);
+      expect(find.text('지금은 안 해요'), findsOneWidget);
       expect(find.text('직접 자동 실행을 껐어요.'), findsOneWidget);
+    });
+
+    // 2차 평가 10/18: 상태는 서버 문장(status_label) 비교가 아니라 enabled 값으로 정한다.
+    testWidgets('상태 배지는 enabled 값으로 — 서버 문장이 달라도 따라가지 않는다', (tester) async {
+      _tall(tester);
+      final server = _Server()..rule = {..._rule(), 'status_label': '자동 실행 꺼짐'};
+      await tester.pumpWidget(_list(server));
+      await _settle(tester);
+      await _openRules(tester);
+      expect(find.text('자동으로 해요'), findsOneWidget);
+      expect(find.text('자동 실행 꺼짐'), findsNothing);
+    });
+
+    // 서버(bcc4cdb)가 규칙 문장에서 '풍량'을 뺐다 — 값 바꾸기 이름은 동작(action)으로 가른다.
+    testWidgets('값 바꾸기 이름은 action으로 — 문장에 풍량이 없어도 바람 세기 바꾸기', (tester) async {
+      _tall(tester);
+      final server = _Server()
+        ..rule = {..._rule(), 'condition_text': '전자레인지가 데우기를 멈추면', 'action_text': '공기청정기 바람을 세게 해요'};
+      await tester.pumpWidget(_list(server));
+      await _settle(tester);
+      await _openRules(tester);
+      expect(findPlainText('전자레인지가 데우기를 멈추면 공기청정기 바람을 세게 해요'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('auto-rule-menu-ar-1')));
+      await _settle(tester);
+      expect(find.text('바람 세기 바꾸기'), findsOneWidget);
+      expect(find.text('설정 바꾸기'), findsNothing);
     });
 
     testWidgets('다시 허용은 확인 시트를 거쳐 목록의 지문으로만 켠다', (tester) async {
@@ -434,15 +471,19 @@ void main() {
       final server = _Server()..rule = _rule(enabled: false, reason: '비상정지로 자동 실행을 껐어요');
       await tester.pumpWidget(_list(server));
       await _settle(tester);
+      await _openRules(tester);
+      expect(find.text('지금은 안 해요'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('auto-rule-on-ar-1')));
+      await tester.tap(_switch('ar-1'));
       await _settle(tester);
       expect(find.text('다음부터 자동으로 할까요?'), findsOneWidget);
+      // 시트에서 허락하기 전에는 아무것도 켜지 않는다.
+      expect(server.bodies.containsKey('POST /routines/auto-rules/ar-1/enable'), isFalse);
       await tester.tap(find.byKey(const Key('auto-rule-allow')));
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'],
           {'enabled': true, 'fingerprint': 'fp-rule-high'});
-      expect(find.text('자동 실행 켜짐'), findsOneWidget);
+      expect(find.text('자동으로 해요'), findsOneWidget);
     });
 
     testWidgets('설정값을 바꾸면 바뀐 내용으로 다시 허용을 묻는다', (tester) async {
@@ -450,6 +491,7 @@ void main() {
       final server = _Server();
       await tester.pumpWidget(_list(server));
       await _settle(tester);
+      await _openRules(tester);
 
       await tester.tap(find.byKey(const Key('auto-rule-menu-ar-1')));
       await _settle(tester);
@@ -463,7 +505,7 @@ void main() {
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'],
           {'enabled': true, 'fingerprint': 'fp-rule-MID'});
-      expect(find.text('자동 실행 켜짐'), findsOneWidget);
+      expect(find.text('자동으로 해요'), findsOneWidget);
     });
   });
 }
