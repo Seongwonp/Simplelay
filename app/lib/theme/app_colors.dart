@@ -49,6 +49,11 @@ class AppColors {
   static const warningLight = Color(0xFF6B4600); // 바탕 7.76 / 눌린 면 7.17:1
   static const successLight = Color(0xFF16181D); // 라이트 — 중립
 
+  // '됐어요(실제로 확인함)' 배지 전용 초록(2026-10-18). 성공 일반은 여전히 중립이다 —
+  // 초록은 상태를 다시 읽어 확인한 결과에만 붙인다(확인 수준을 높여 보이지 않는다).
+  static const confirmed      = Color(0xFF7FD1A0); // 다크 바탕 위
+  static const confirmedLight = Color(0xFF1E6B3C); // 라이트 바탕 7.0:1 언저리
+
   // 채도 있는 색을 **면으로** 쓸 때 얹는 글자색.
   //
   // 흰 글자는 골드 위 1.9:1, 초록 위 2.25:1, 빨강 위 3.63:1로 전부 무너진다.
@@ -92,6 +97,9 @@ extension AppColorsX on BuildContext {
   Color get appDanger        => _isDark ? AppColors.danger : AppColors.dangerLight;
   Color get appWarning       => _isDark ? AppColors.warning : AppColors.warningLight;
   Color get appSuccess       => _isDark ? AppColors.success : AppColors.successLight;
+
+  /// 실제로 확인한 결과(됐어요) 배지 색 — 확인이 아닐 때 쓰지 않는다.
+  Color get appConfirmed     => _isDark ? AppColors.confirmed : AppColors.confirmedLight;
 
   /// 강조가 아닌 **정보**를 또렷하게 칠할 때 쓰는 무채색(본문 글자와 같은 계열).
   ///

@@ -36,6 +36,9 @@ enum TileTone {
 
   /// 켜진 ThinQ 가전(서버 전원 기억이 켜짐, 2026-10-16) — 키오스크의 초록 '켜짐'과 같은 말.
   on,
+
+  /// 꺼진 ThinQ 가전 — 서버가 **읽은** 꺼짐일 때만(2026-10-18). 모르면 이 상태가 아니다.
+  off,
 }
 
 class TileStatus {
@@ -85,6 +88,7 @@ TileStatus applianceTileStatus({
   required ServerCatalogStatus catalog,
   required ExecutionStatus execution,
   bool thinqOn = false,
+  bool thinqOff = false,
 }) {
   // 1. 이 가전이 지금 추적 중인 실행의 대상인가(서버가 말한 대상 id로만).
   if (execution.applianceId == appliance.id) {
@@ -158,9 +162,9 @@ TileStatus applianceTileStatus({
         return const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown);
       }
       // 켜진 ThinQ 가전만 말한다(서버가 최근 10분 안에 읽은 전원). 모르면 비운다 — 꺼짐이라 단정하지 않는다.
-      return appliance.isThinq && thinqOn
-          ? const TileStatus('켜짐', TileTone.on)
-          : const TileStatus('', TileTone.ready);
+      if (appliance.isThinq && thinqOn) return const TileStatus('켜짐', TileTone.on);
+      if (appliance.isThinq && thinqOff) return const TileStatus('꺼짐', TileTone.off);
+      return const TileStatus('', TileTone.ready);
     case 'needs_setup':
       // 서버는 비상정지 걸림·링크 확인 대기도 needs_setup으로 보낸다 —
       // '설정'이라 단정하지 않고 서버의 이유를 그대로 붙인다.

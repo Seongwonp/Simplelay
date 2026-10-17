@@ -27,6 +27,9 @@ import '../services/ble_service.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_icons.dart';
+import '../widgets/status_badge.dart';
+import '../models/execution_status.dart';
 import '../theme/app_tokens.dart';
 
 // 사진 패널의 테스트 이미지 구멍은 사진을 그리는 위젯 쪽에 있다. 예전 경로
@@ -35,14 +38,15 @@ export '../widgets/panel_photo_view.dart' show applianceImageOverride;
 
 
 
-/// 홈 — "우리 집"(UI 확정 §2).
+/// 홈 — "우리 집"(UI 개편안 §4 폰 홈, 2026-10-18).
 ///
-/// 읽는 순서: **어디에 붙었나(허브 칩) → 지금 권하는 것 하나(제안 카드) →
-/// 내 가전(2열 카드) → 가전 추가.** 고정 명령 버튼("즉석밥")은 두지 않는다 --
-/// 메뉴는 사용자가 만든 루틴과 이력에서 나온 제안뿐이다.
+/// 읽는 순서: **지금 우리 집(공기·켜진 가전·다음 예정) → 지금 할 일(제안, 있을 때) →
+/// 확인이 필요해요(있을 때만) → 가전(상태 한 줄) → 내 루틴 타일.**
+/// 채운 주 버튼은 제안의 '지금 하기' 하나다. 큰 '바로 실행할 수 있는 루틴' 카드는 없다
+/// — 같은 루틴이 큰 카드·줄·다음 실행으로 세 번 나왔다(2차 평가 10/18).
 ///
 /// 가전 카드를 눌러도 **실행하지 않는다.** 상세만 열리고, 누르는 일은 늘
-/// 확인을 한 번 더 거친다.
+/// 확인을 한 번 더 거친다. 루틴 타일도 승인 카드만 만든다.
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
 
@@ -90,8 +94,9 @@ class HomeScreen extends ConsumerWidget {
     // 제안은 **한 번에 하나만**(UI 확정 §1-2). 처리하면 다음 것이 올라온다.
     final suggestion = suggestions.firstOrNull;
     final catalog = ref.watch(serverApplianceCatalogProvider);
-    // 켜진 ThinQ 가전(서버 전원 기억 — 클라우드를 부르지 않는다). 모르면 빈 집합.
-    final thinqOn = ref.watch(thinqPowerOnProvider).valueOrNull ?? const <String>{};
+    // 본체가 읽은 LG 가전 전원(서버 전원 기억 — 클라우드를 부르지 않는다). 모르는 가전은 없다.
+    final thinqPower =
+        ref.watch(thinqPowerProvider).valueOrNull ?? const <String, String>{};
 
     // 타일의 '확인 주행' 보조 줄(2026-10-13, 표시만). 보조 줄을 붙일 타일만
     // 확인 주행을 묻는다 — 위치 미설정·허브 장애 타일은 묻지도 않는다.
@@ -104,6 +109,10 @@ class HomeScreen extends ConsumerWidget {
     }
 
     final verifyNotes = {for (final a in appliances) a.id: verifyNoteOf(a)};
+    final setupCandidates = [
+      for (final a in appliances)
+        if (a.isCustom && !a.isDemo && !a.isThinq) a,
+    ];
 
     return Scaffold(
       body: SafeArea(
@@ -124,7 +133,7 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.md),
             ],
 
-            // ── DND 배너 ───────────────────────────────────────────────────
+            // ── 잠시 쉬기 배너 ─────────────────────────────────────────────
             if (dndActive) ...[
               _DndBanner(
                 until: dndUntil,
@@ -138,38 +147,29 @@ class HomeScreen extends ConsumerWidget {
               const SizedBox(height: AppSpace.lg),
             ],
 
-            // ── 큰 자리 하나: 제안이 있으면 제안, 없으면 첫 적격 루틴 ─────────
-            // 빈 제안 문장("지금 확인할 제안이 없어요")은 두지 않는다(2026-10-13).
-            if (suggestion != null)
-              _SlidingCard(
-                key: ValueKey(suggestion.sequenceId),
-                child: _SuggestionCard(
-                  suggestion: suggestion,
-                  appliance: appliances
-                      .where((a) => a.id == suggestion.applianceId)
-                      .firstOrNull,
-                  onRun: () =>
-                      context.push('/suggestion/${suggestion.sequenceId}'),
-                  onLater: () => _later(context, ref, suggestion),
-                ),
-              ),
-            _HomeRoutines(
-              heroAllowed: suggestion == null,
-              hubConnected: rpiState == RpiConnectionState.connected,
-              hasAppliances: appliances.isNotEmpty,
-              applianceNames: {for (final a in appliances) a.id: a.name},
-              // 큰 카드는 설정이 필요한 가전의 루틴을 건너뛴다 — 첫 화면 첫 버튼이 실행할 수 없는 루틴이면 안 된다
-              // (외부 평가 10/16 2차). 그 루틴은 아래 행에 그대로 남는다.
-              needsSetupIds: {
-                for (final a in appliances)
-                  if (needsPanelMapping(a)) a.id,
-              },
-            ),
+            // ── 지금 우리 집 ─────────────────────────────────────────────
+            _HomeNow(appliances: appliances, power: thinqPower),
 
-            // ── 가전 ───────────────────────────────────────────────────────
-            const SizedBox(height: AppSpace.xxl),
-            Text('가전', style: AppText.title),
-            const SizedBox(height: AppSpace.md),
+            // ── ① 지금 할 일 ──────────────────────────────────────────────
+            // 빈 제안 문장("지금 확인할 제안이 없어요")은 두지 않는다(2026-10-13).
+            if (suggestion != null) ...[
+              _SuggestionCard(
+                key: ValueKey(suggestion.sequenceId),
+                suggestion: suggestion,
+                appliance: appliances
+                    .where((a) => a.id == suggestion.applianceId)
+                    .firstOrNull,
+                onRun: () => context.push('/suggestion/${suggestion.sequenceId}'),
+                onLater: () => _later(context, ref, suggestion),
+              ),
+              const SizedBox(height: AppSpace.xxl),
+            ],
+
+            // ── ② 확인이 필요해요(있을 때만) ───────────────────────────────
+            _Attention(setupCandidates: setupCandidates, execution: execution),
+
+            // ── ③ 가전 ────────────────────────────────────────────────────
+            _SectionTitle('가전', key: const Key('home-appliances')),
             if (appliances.isEmpty)
               _NoApplianceStage(
                 onAdd: () => context.push('/appliance/add'),
@@ -184,7 +184,8 @@ class HomeScreen extends ConsumerWidget {
                   hub: rpiState,
                   catalog: catalog.status,
                   execution: execution,
-                  thinqOn: thinqOn.contains(a.id),
+                  thinqOn: thinqPower[a.id] == 'on',
+                  thinqOff: thinqPower[a.id] == 'off',
                 ),
                 verifyNoteOf: (a) => verifyNotes[a.id],
                 onOpen: (a) {
@@ -193,12 +194,17 @@ class HomeScreen extends ConsumerWidget {
                 },
                 onAdd: () => context.push('/appliance/add'),
               ),
-            // 설정이 남은 가전: 독촉 카드를 맨 위에 두지 않고 목록 아래 작게.
-            // 타일이 '설정이 필요해요'로 말하고, '설정 이어하기'는 그대로 둔다.
-            ApplianceSetupSection(appliances: [
-              for (final a in appliances)
-                if (a.isCustom && !a.isDemo && !a.isThinq) a,
-            ]),
+
+            // ── ④ 내 루틴 타일 ─────────────────────────────────────────────
+            _HomeRoutines(
+              hubConnected: rpiState == RpiConnectionState.connected,
+              hasAppliances: appliances.isNotEmpty,
+              applianceNames: {for (final a in appliances) a.id: a.name},
+              needsSetupIds: {
+                for (final a in appliances)
+                  if (needsPanelMapping(a)) a.id,
+              },
+            ),
 
             // ── 온습도 ─────────────────────────────────────────────────────
             const SizedBox(height: AppSpace.lg),
@@ -285,27 +291,293 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-// ── 루틴(큰 자리 하나 + 간결한 행) ─────────────────────────────────────────
+/// 홈 구획 제목(카드 제목 단계 20).
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text, {super.key});
+  final String text;
 
-/// 홈의 루틴 자리(2026-10-13 B안).
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(bottom: AppSpace.md),
+        child: Semantics(header: true, child: Text(text, style: AppText.title)),
+      );
+}
+
+// ── 지금 우리 집 ─────────────────────────────────────────────────────────────
+
+/// 맨 위 요약 한 장 — 공기 · 켜진 가전 · 다음 예정(큰 시각과 자동 배지).
 ///
-/// 제안이 없으면 **서버가 준 루틴 목록 순서의 첫 적격 루틴**(설정이 필요한 가전의 루틴은 건너뜀, 10/16)을 크게, 나머지 적격
-/// 루틴은 간결한 행으로 둔다(적격: `Routine.isRunCandidate`). 자동 순위·즐겨찾기가
-/// 아니고, "추천/자주 쓰는" 같은 이유를 붙이지 않는다. 제안이 있으면 큰 자리는 제안의
-/// 것이고 루틴은 행으로만 보인다. '실행하기'는 승인 카드만 만든다(루틴 탭과 같은 경로).
+/// **아는 것만 말한다.** 공기 등급·전원은 본체가 최근에 읽은 값일 때만(모르면 그 칸을 비운다),
+/// 셋 다 모르면 카드 자체가 없다. 공기 '좋음'도 초록으로 칠하지 않는다(초록은 실제 확인 결과 전용).
+class _HomeNow extends ConsumerWidget {
+  const _HomeNow({required this.appliances, required this.power});
+
+  final List<ApplianceMap> appliances;
+  final Map<String, String> power;
+
+  static const _airWords = {
+    'GOOD': '좋음',
+    'NORMAL': '보통',
+    'BAD': '나쁨',
+    'VERY_BAD': '매우 나쁨',
+  };
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final grade = ref.watch(thinqAirProvider).valueOrNull;
+    final next = ref.watch(nextRoutineProvider).valueOrNull;
+    final onNames = [
+      for (final a in appliances)
+        if (a.isThinq && power[a.id] == 'on') a.displayName,
+    ];
+    final air = grade == null ? null : _airWords[grade];
+    final facts = <Widget>[
+      if (air != null)
+        _Fact(
+          icon: Icons.air,
+          text: '공기 $air',
+          color: grade == 'BAD' || grade == 'VERY_BAD' ? context.appWarning : null,
+        ),
+      if (onNames.length == 1)
+        _Fact(icon: Icons.power_settings_new, text: '${onNames.single} 켜짐')
+      else if (onNames.length > 1)
+        _Fact(icon: Icons.power_settings_new, text: '켜진 가전 ${onNames.length}대'),
+    ];
+    if (facts.isEmpty && next == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.xxl),
+      child: Card(
+        // 줄마다 제 접근성 노드 — 카드 하나로 뭉쳐 읽히지 않게.
+        semanticContainer: false,
+        key: const Key('home-now'),
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpace.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('지금 우리 집', style: context.appCaption),
+              if (facts.isNotEmpty) ...[
+                const SizedBox(height: AppSpace.sm),
+                Wrap(spacing: AppSpace.lg, runSpacing: AppSpace.sm, children: facts),
+              ],
+              if (next != null) ...[
+                if (facts.isNotEmpty) ...[
+                  const SizedBox(height: AppSpace.lg),
+                  Divider(height: 1, color: context.appBorderFaint),
+                ],
+                const SizedBox(height: AppSpace.lg),
+                _NextUp(next: next),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Fact extends StatelessWidget {
+  const _Fact({required this.icon, required this.text, this.color});
+  final IconData icon;
+  final String text;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: color ?? context.appMuted),
+          const SizedBox(width: AppSpace.sm),
+          Flexible(
+            child: Text(text,
+                style: TextStyle(
+                    fontSize: AppFont.body, fontWeight: FontWeight.w600, color: color)),
+          ),
+        ],
+      );
+}
+
+/// 다음 예정 — 큰 시각(32) · 무엇을 · 언제 · 자동/물어보고 배지.
+class _NextUp extends StatelessWidget {
+  const _NextUp({required this.next});
+  final RoutineNextRun next;
+
+  @override
+  Widget build(BuildContext context) {
+    final n = next;
+    final when = [
+      if (n.dayLabel.isNotEmpty) n.dayLabel,
+      if (n.when.isNotEmpty) n.when,
+    ].join(' · ');
+    final badge = n.auto
+        ? const StatusBadge(icon: AppIcons.auto, label: '자동', tone: BadgeTone.accent)
+        : n.modeLabel == RoutineMode.notify.label
+            ? const StatusBadge(icon: Icons.notifications_none, label: '알림만')
+            : const StatusBadge(icon: Icons.front_hand_outlined, label: '물어보고 해요');
+    final clock = Text(
+      n.clock,
+      style: TextStyle(
+        fontSize: AppFont.number,
+        fontWeight: FontWeight.w700,
+        height: 1.1,
+        fontFeatures: const [FontFeature.tabularFigures()],
+        color: context.appInk,
+      ),
+    );
+    final info = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(n.name, style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+        if (when.isNotEmpty) Text(keepWordsTogether(when), style: context.appCaption),
+        const SizedBox(height: AppSpace.xs),
+        badge,
+      ],
+    );
+    // 큰 글씨에서는 시각을 위에, 설명을 아래에 — 한 줄에 두면 이름이 한 글자씩 꺾인다.
+    if (MediaQuery.textScalerOf(context).scale(1) > 1.3) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [clock, const SizedBox(height: AppSpace.xs), info],
+      );
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        clock,
+        const SizedBox(width: AppSpace.lg),
+        Expanded(child: info),
+      ],
+    );
+  }
+}
+
+// ── 확인이 필요해요 ──────────────────────────────────────────────────────────
+
+/// 설정이 남은 가전·확인하지 못한 지난 일 — **있을 때만** 한 장으로.
+///
+/// 지난 일이 됐는지 모르면(unconfirmed) '몰라요', 못 했으면(failed) '못 했어요'.
+/// 됐다고 말하지 않는다 — 상태 화면에서 무엇이 확인됐는지 본다.
+class _Attention extends ConsumerWidget {
+  const _Attention({required this.setupCandidates, required this.execution});
+
+  final List<ApplianceMap> setupCandidates;
+  final ExecutionStatus execution;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pending = pendingSetupAppliances(ref, setupCandidates);
+    final result = switch (execution.phase) {
+      ExecutionPhase.unconfirmed => (
+          Icons.help_outline,
+          '지난 일이 됐는지 몰라요. 봐 주세요',
+          context.appWarning
+        ),
+      ExecutionPhase.failed => (Icons.cancel_outlined, '지난 일을 못 했어요', context.appDanger),
+      _ => null,
+    };
+    if (pending.isEmpty && result == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: AppSpace.xxl),
+      child: Card(
+        // 줄마다 제 접근성 노드 — 카드 하나로 뭉쳐 읽히지 않게.
+        semanticContainer: false,
+        key: const Key('home-attention'),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.sm, AppSpace.sm),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                Icon(Icons.error_outline, size: 20, color: context.appWarning),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: Semantics(
+                    header: true,
+                    child: Text('확인이 필요해요',
+                        style: TextStyle(
+                            fontSize: AppFont.body,
+                            fontWeight: FontWeight.w700,
+                            color: context.appWarning)),
+                  ),
+                ),
+              ]),
+              if (result case (final icon, final text, final color))
+                _AttentionRow(
+                  key: const Key('home-attention-result'),
+                  icon: icon,
+                  text: text,
+                  color: color,
+                  onTap: () => context.push('/status'),
+                ),
+              // 한 대면 그 가전의 설정 카드를 그대로(연습 시험 이동이면 '실제 자리는 몰라요'까지), 둘 이상은 한 줄.
+              if (pending.length == 1)
+                ApplianceSetupCard(appliance: pending.single, flat: true)
+              else if (pending.length > 1)
+                SetupSummaryRow(appliances: pending),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AttentionRow extends StatelessWidget {
+  const _AttentionRow({
+    super.key,
+    required this.icon,
+    required this.text,
+    required this.color,
+    required this.onTap,
+  });
+  final IconData icon;
+  final String text;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: text,
+        excludeSemantics: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Row(children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: AppSpace.sm),
+              Expanded(
+                child: Text(keepWordsTogether(text),
+                    style: TextStyle(fontSize: AppFont.caption, color: color)),
+              ),
+              Icon(Icons.chevron_right, color: context.appMuted),
+            ]),
+          ),
+        ),
+      );
+}
+
+// ── 내 루틴 타일 ─────────────────────────────────────────────────────────────
+
+/// 홈의 루틴 자리(2026-10-18) — **직접 실행하는** 적격 루틴을 2열 타일로 넷까지.
+///
+/// 시각 루틴은 정해진 때 저절로 돌고 '지금 우리 집'의 다음 예정이 이미 말한다 — 타일로 겹치지 않는다.
+/// 자동 순위·즐겨찾기가 아니라 서버가 준 목록 순서다('자주'·'추천' 같은 이유를 붙이지 않는다).
+/// 타일을 누르면 승인 카드만 만든다(루틴 탭과 같은 경로) — 가전은 승인 화면에서 허락해야 움직인다.
 class _HomeRoutines extends ConsumerStatefulWidget {
   const _HomeRoutines({
-    required this.heroAllowed,
     required this.hubConnected,
     required this.hasAppliances,
     required this.applianceNames,
     this.needsSetupIds = const {},
   });
 
-  /// 위치(버튼 자리)를 아직 맞추지 않은 가전 — 이 가전을 쓰는 루틴은 큰 카드로 고르지 않는다.
+  /// 위치(버튼 자리)를 아직 맞추지 않은 가전 — 이 가전을 쓰는 루틴 타일은 설정으로 보낸다.
   final Set<String> needsSetupIds;
 
-  final bool heroAllowed;
   final bool hubConnected;
   final bool hasAppliances;
   final Map<String, String> applianceNames;
@@ -319,8 +591,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
   String? _error;
   String? _errorFor;
 
-  // 큰 카드 아래 줄은 셋까지 — 넷이면 홈이 길어 가전 칸이 첫 화면에 나오지 않았다(UI 평가 5차 10/17).
-  static const _maxRows = 3;
+  static const _maxTiles = 4;
 
   Future<void> _run(String id) async {
     if (_runningId != null) return;
@@ -353,21 +624,17 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
           return const SizedBox.shrink();
         }
         return Padding(
-          padding: const EdgeInsets.only(top: AppSpace.md),
+          padding: const EdgeInsets.only(top: AppSpace.xxl),
           child: Text('루틴을 불러오지 못했어요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         );
       },
       data: (routines) {
-        final candidates = [
-          for (final r in routines)
-            if (r.isRunCandidate) r,
-        ];
         if (routines.isEmpty) {
           // 0대면 가전 추가가 첫 과업이다 — 루틴 입구를 겹쳐 두지 않는다.
           if (!widget.hasAppliances) return const SizedBox.shrink();
           return Padding(
-            padding: const EdgeInsets.only(top: AppSpace.md),
+            padding: const EdgeInsets.only(top: AppSpace.xxl),
             child: Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
@@ -380,76 +647,110 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
             ),
           );
         }
-        if (candidates.isEmpty) return const SizedBox.shrink();
         bool needsSetup(Routine r) => r.applianceIds.any(widget.needsSetupIds.contains);
-        final ready = [
-          for (final r in candidates)
-            if (!needsSetup(r)) r,
+        final manual = [
+          for (final r in routines)
+            if (r.isRunCandidate && r.trigger.kind != RoutineTriggerKind.time) r,
         ];
-        // 큰 카드는 직접 실행하는 루틴을 먼저 — 시각 루틴은 정해진 때 저절로 돈다(외부 평가 10/16 4차:
-        // 이미 켜진 공기청정기의 '켜기'를 권했다). 없으면 준비된 첫 루틴, 그것도 없으면 첫 루틴.
-        final manualReady = [
-          for (final r in ready)
-            if (r.trigger.kind != RoutineTriggerKind.time) r,
+        if (manual.isEmpty) return const SizedBox.shrink();
+        // 준비된 루틴이 먼저, 설정이 필요한 루틴은 뒤.
+        final ordered = [
+          ...manual.where((r) => !needsSetup(r)),
+          ...manual.where(needsSetup),
         ];
-        final hero = widget.heroAllowed
-            ? (manualReady.isNotEmpty
-                ? manualReady.first
-                : ready.isNotEmpty
-                    ? ready.first
-                    : candidates.first)
-            : null;
-        // 설정이 필요한 루틴 행은 맨 아래로(실행 버튼이 꺼진 행이 준비된 루틴보다 위에 있었다).
-        final rest = [
-          for (final r in candidates)
-            if (r != hero && !needsSetup(r)) r,
-          for (final r in candidates)
-            if (r != hero && needsSetup(r)) r,
-        ];
-        final shown = rest.take(_maxRows).toList();
+        final shown = ordered.take(_maxTiles).toList();
+        final more = routines.length > shown.length;
         final busy = _runningId != null;
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (hero != null) ...[
-              _RoutineHeroCard(
-                routine: hero,
-                subtitle: routineSubtitle(hero, widget.applianceNames),
-                running: _runningId == hero.id,
-                busy: busy,
-                onRun: () => _run(hero.id!),
-              ),
-              if (_errorFor == hero.id && _error != null) _ErrorLine(_error!),
+        final tiles = [
+          for (final r in shown)
+            _RoutineTile(
+              routine: r,
+              subtitle: routineSubtitle(r, widget.applianceNames),
+              running: _runningId == r.id,
+              busy: busy,
+              needsSetup: needsSetup(r),
+              onTap: needsSetup(r)
+                  // 설정이 필요한 가전으로 바로 간다(UI 평가 10/17).
+                  ? () => context.push('/appliance/detail/'
+                      '${r.applianceIds.firstWhere(widget.needsSetupIds.contains, orElse: () => r.applianceIds.first)}')
+                  : () => _run(r.id!),
+            ),
+        ];
+        final errorRoutine = shown.where((r) => r.id == _errorFor).firstOrNull;
+        return Padding(
+          padding: const EdgeInsets.only(top: AppSpace.xxl),
+          child: Column(
+            key: const Key('home-routines'),
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(children: [
+                const Expanded(child: _SectionTitle('내 루틴')),
+                if (more)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: AppSpace.md),
+                    child: TextButton(
+                      key: const Key('home-routines-more'),
+                      onPressed: () => context.go('/routines'),
+                      style: TextButton.styleFrom(minimumSize: const Size(48, 48)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Text('루틴 더 보기', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                        Icon(Icons.chevron_right, size: 20, color: context.appMuted),
+                      ]),
+                    ),
+                  ),
+              ]),
+              _TwoColumns(children: tiles),
+              if (errorRoutine != null && _error != null)
+                _ErrorLine('${errorRoutine.name}: $_error'),
             ],
-            if (shown.isNotEmpty) const SizedBox(height: AppSpace.sm),
-            for (final r in shown) ...[
-              _RoutineQuickRow(
-                routine: r,
-                subtitle: routineSubtitle(r, widget.applianceNames),
-                running: _runningId == r.id,
-                busy: busy,
-                needsSetup: r.applianceIds.any(widget.needsSetupIds.contains),
-                // 설정이 필요한 가전으로 바로 간다(UI 평가 10/17).
-                onSetup: () => context.push('/appliance/detail/'
-                    '${r.applianceIds.firstWhere(widget.needsSetupIds.contains, orElse: () => r.applianceIds.first)}'),
-                onRun: () => _run(r.id!),
-              ),
-              if (_errorFor == r.id && _error != null) _ErrorLine(_error!),
-            ],
-            if (rest.length > shown.length)
-              Align(
-                alignment: Alignment.centerLeft,
-                // 테두리 버튼 + 화살표 — 글자만 있으면 버튼으로 안 보였다(UI 평가 10/17).
-                child: OutlinedButton.icon(
-                  onPressed: () => context.go('/routines'),
-                  style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
-                  icon: const Icon(Icons.chevron_right, size: 20),
-                  label: Text('루틴 ${rest.length - shown.length}개 더 보기'),
-                ),
-              ),
-          ],
+          ),
         );
       },
+    );
+  }
+}
+
+/// 두 칸씩 줄을 세운다(큰 글씨 150% 넘으면 한 칸). 줄마다 높이를 내용에 맞춘다 —
+/// GridView의 고정 높이는 큰 글씨에서 글자를 자른다.
+class _TwoColumns extends StatelessWidget {
+  const _TwoColumns({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.textScalerOf(context).scale(1) > 1.5) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < children.length; i++)
+            Padding(
+              padding: EdgeInsets.only(bottom: i + 1 < children.length ? AppSpace.md : 0),
+              child: children[i],
+            ),
+        ],
+      );
+    }
+    return Column(
+      children: [
+        for (var i = 0; i < children.length; i += 2)
+          Padding(
+            padding: EdgeInsets.only(bottom: i + 2 < children.length ? AppSpace.md : 0),
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(child: children[i]),
+                  const SizedBox(width: AppSpace.md),
+                  Expanded(
+                    child: i + 1 < children.length
+                        ? children[i + 1]
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -461,197 +762,81 @@ class _ErrorLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
         padding: const EdgeInsets.only(top: AppSpace.sm),
-        child: Text(text,
+        child: Text(keepWordsTogether(text),
             style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
       );
 }
 
-Widget _runButton({
-  required Key key,
-  required Routine routine,
-  required bool running,
-  required bool busy,
-  required VoidCallback onRun,
-  required bool primary,
-}) {
-  final child = running
-      ? const SizedBox(
-          width: 18,
-          height: 18,
-          child: CircularProgressIndicator(strokeWidth: 2),
-        )
-      : const Text('실행하기');
-  return Semantics(
-    // 화면 글자는 '실행하기'로 같아도 읽을 때는 어느 루틴인지 구별된다.
-    label: '${routine.name} 실행하기',
-    // 제 노드를 갖게 한다 — 아니면 카드 글자와 한 덩어리로 합쳐 읽힌다.
-    container: true,
-    button: true,
-    enabled: !busy,
-    excludeSemantics: true,
-    child: primary
-        ? FilledButton(
-            key: key,
-            onPressed: busy ? null : onRun,
-            style: FilledButton.styleFrom(minimumSize: const Size(140, 48)),
-            child: child,
-          )
-        : OutlinedButton(
-            key: key,
-            onPressed: busy ? null : onRun,
-            style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
-            child: child,
-          ),
-  );
-}
-
-/// 첫 적격 루틴 — 이름·조건·대상과 실행하기 하나.
-class _RoutineHeroCard extends StatelessWidget {
-  const _RoutineHeroCard({
+/// 루틴 타일 한 장 — 아이콘 · 이름 · 무엇을. 누르면 승인 카드를 만든다(설정이 필요하면 그 가전으로).
+class _RoutineTile extends StatelessWidget {
+  const _RoutineTile({
     required this.routine,
     required this.subtitle,
     required this.running,
     required this.busy,
-    required this.onRun,
+    required this.needsSetup,
+    required this.onTap,
   });
 
   final Routine routine;
   final String subtitle;
   final bool running;
   final bool busy;
-  final VoidCallback onRun;
-
-  @override
-  Widget build(BuildContext context) => Container(
-        key: const Key('home-routine-hero'),
-        padding: const EdgeInsets.all(AppSpace.lg),
-        decoration: BoxDecoration(
-          color: context.appSurfaceLow,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: context.appBorderSubtle),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // 루틴마다 제 접근성 노드(2026-10-14, 발견 5) — 이웃 루틴 글과 한 덩어리로 읽히지 않게.
-            Semantics(
-              container: true,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 왜 맨 위인지 한 줄(UI 평가 3차 10/17) — 큰 카드는 지금 누르는 루틴을 먼저 고른다(시각 루틴은 저절로 돈다).
-                  if (routine.trigger.kind != RoutineTriggerKind.time) ...[
-                    Text('바로 실행할 수 있는 루틴',
-                        style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-                    const SizedBox(height: AppSpace.xs),
-                  ],
-                  Text(routine.name,
-                      style: const TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: AppSpace.xs),
-                  // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
-                  Text(keepWordsTogether(subtitle),
-                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-                ],
-              ),
-            ),
-            const SizedBox(height: AppSpace.md),
-            _runButton(
-              key: Key('home-routine-run-${routine.id}'),
-              routine: routine,
-              running: running,
-              busy: busy,
-              onRun: onRun,
-              primary: true,
-            ),
-          ],
-        ),
-      );
-}
-
-/// 나머지 적격 루틴 — 이름과 실행하기만. 카드로 감싸지 않는다.
-class _RoutineQuickRow extends StatelessWidget {
-  const _RoutineQuickRow({
-    required this.routine,
-    required this.subtitle,
-    required this.running,
-    required this.busy,
-    required this.onRun,
-    this.needsSetup = false,
-    this.onSetup,
-  });
-
-  /// 설정이 필요한 가전의 상세로 — 있으면 꺼진 '실행하기' 대신 '설정하기'를 둔다.
-  final VoidCallback? onSetup;
-
-  final Routine routine;
-  final String subtitle;
-  final bool running;
-  final bool busy;
-  final VoidCallback onRun;
-
-  /// 대상 가전의 버튼 자리를 아직 맞추지 않았다 — 실행 버튼을 끄고 이유를 말한다(외부 평가 10/16 3차).
   final bool needsSetup;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    // 루틴마다 제 접근성 노드(2026-10-14, 발견 5) — 세 줄이 한 노드로 묶여 한꺼번에 읽혔다.
-    final text = Semantics(
+    final r = routine;
+    return Semantics(
+      // 화면 글자는 이름뿐이어도 읽을 때는 무엇을 하는지 말한다.
+      label: needsSetup ? '${r.name} 가전 설정하기' : '${r.name} 실행하기',
       container: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(routine.name,
-              style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
-          // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
-          Text(keepWordsTogether(subtitle),
-              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
-          if (needsSetup)
-            // 어절 단위로 줄을 바꾼다('버/튼' 방지, UI 평가 10/17).
-            Text(keepWordsTogether('가전 설정이 필요해요. 아래 가전을 눌러 버튼 자리를 맞춰 주세요'),
-                style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
-        ],
+      button: true,
+      enabled: needsSetup || !busy,
+      excludeSemantics: true,
+      child: Card(
+        key: Key('home-routine-tile-${r.id}'),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: needsSetup || !busy ? onTap : null,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 112),
+            child: Padding(
+              padding: const EdgeInsets.all(AppSpace.lg),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Icon(AppIcons.routine,
+                        size: 24, color: needsSetup ? context.appMuted : context.appPrimary),
+                    const Spacer(),
+                    if (running)
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                  ]),
+                  const SizedBox(height: AppSpace.sm),
+                  Text(r.name,
+                      style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: AppSpace.xs),
+                  if (needsSetup)
+                    Text(keepWordsTogether('설정이 필요해요'),
+                        style: TextStyle(fontSize: AppFont.caption, color: context.appWarning))
+                  else
+                    // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
+                    Text(keepWordsTogether(subtitle),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: context.appCaption),
+                ],
+              ),
+            ),
+          ),
+        ),
       ),
-    );
-    final setup = onSetup;
-    final button = needsSetup && setup != null
-        ? Semantics(
-            label: '${routine.name} 가전 설정하기',
-            container: true,
-            button: true,
-            excludeSemantics: true,
-            child: OutlinedButton(
-              key: Key('home-routine-setup-${routine.id}'),
-              onPressed: setup,
-              style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(120, 48),
-                  foregroundColor: context.appWarning),
-              child: const Text('설정하기'),
-            ),
-          )
-        : _runButton(
-      key: Key('home-routine-run-${routine.id}'),
-      routine: routine,
-      running: running,
-      busy: busy || needsSetup,
-      onRun: onRun,
-      primary: false,
-    );
-    return Padding(
-      key: Key('home-routine-row-${routine.id}'),
-      padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
-      // 큰 글씨에서는 버튼을 아래 줄로 내린다 — 이름이 한 글자씩 꺾이지 않게.
-      child: MediaQuery.textScalerOf(context).scale(1) > 1.3
-          ? Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [text, const SizedBox(height: AppSpace.sm), button],
-            )
-          : Row(
-              children: [
-                Expanded(child: text),
-                const SizedBox(width: AppSpace.sm),
-                button,
-              ],
-            ),
     );
   }
 }
@@ -739,15 +924,16 @@ class _Header extends StatelessWidget {
   }
 }
 
-// ── 제안 카드 ─────────────────────────────────────────────────────────────
+// ── 지금 할 일(제안 카드) ────────────────────────────────────────────────
 
-/// 제안 한 장 — 무엇을(가전·이름), 왜 지금(근거 한 줄), 그리고 두 버튼.
+/// 제안 한 장 — 무엇을(가전·이름), 왜 지금(이유 한 줄), 주 버튼 '지금 하기' 하나.
 ///
-/// '실행하기'는 **바로 누르지 않는다.** 누를 순서와 대상 가전을 보여 주는
-/// 확인 화면을 연다 -- 승인은 거기서 한 번이고, 승인 내용이 바뀌면(409)
-/// 그 화면이 다시 확인하게 한다.
+/// '지금 하기'는 **바로 누르지 않는다.** 누를 순서와 대상 가전을 보여 주는
+/// 확인 화면을 연다 -- 허락은 거기서 한 번이고, 내용이 바뀌면(409)
+/// 그 화면이 다시 확인하게 한다. '이번엔 안 할게요'는 글자 버튼(취소 위계).
 class _SuggestionCard extends StatelessWidget {
   const _SuggestionCard({
+    super.key,
     required this.suggestion,
     required this.appliance,
     required this.onRun,
@@ -764,10 +950,11 @@ class _SuggestionCard extends StatelessWidget {
     final a = appliance;
     final why = suggestion.whyNow;
     return Container(
-      padding: const EdgeInsets.all(AppSpace.lg),
+      key: const Key('home-suggestion'),
+      padding: const EdgeInsets.all(AppSpace.xl),
       decoration: BoxDecoration(
         color: context.appPrimary.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: context.appPrimary.withValues(alpha: 0.35)),
       ),
       child: Column(
@@ -776,12 +963,12 @@ class _SuggestionCard extends StatelessWidget {
           Row(
             children: [
               Icon(a?.icon ?? Icons.lightbulb_outline,
-                  size: 18, color: context.appPrimary),
+                  size: 20, color: context.appPrimary),
               const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
-                  a == null ? '알림' : a.displayName,
-                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
+                  a == null ? '지금 할 일' : '지금 할 일 · ${a.displayName}',
+                  style: context.appCaption,
                 ),
               ),
               if (suggestion.isDemo) const DemoBadge(),
@@ -794,37 +981,32 @@ class _SuggestionCard extends StatelessWidget {
           ),
           if (why.isNotEmpty) ...[
             const SizedBox(height: AppSpace.xs),
-            Text(why, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+            Text(why, style: context.appCaption),
           ],
-          const SizedBox(height: AppSpace.md),
-          Wrap(
-            spacing: AppSpace.sm,
-            runSpacing: AppSpace.sm,
-            children: [
-              // 화면 글자는 짧게, 읽는 이름에는 대상을(2026-10-14, 발견 5) — '실행하기'만으로는 무엇을 하는지 모른다.
-              Semantics(
-                label: '${suggestion.title} 실행하기',
-                container: true,
-                button: true,
-                excludeSemantics: true,
-                child: FilledButton(
-                  onPressed: onRun,
-                  style: FilledButton.styleFrom(minimumSize: const Size(140, 48)),
-                  child: const Text('실행하기'),
-                ),
+          const SizedBox(height: AppSpace.lg),
+          // 화면 글자는 짧게, 읽는 이름에는 대상을(2026-10-14, 발견 5).
+          Semantics(
+            label: '${suggestion.title} 지금 하기',
+            container: true,
+            button: true,
+            excludeSemantics: true,
+            child: FilledButton(
+              onPressed: onRun,
+              child: const Text('지금 하기'),
+            ),
+          ),
+          const SizedBox(height: AppSpace.xs),
+          Center(
+            child: Semantics(
+              label: '${suggestion.title} 다음에',
+              container: true,
+              button: true,
+              excludeSemantics: true,
+              child: TextButton(
+                onPressed: onLater,
+                child: Text('이번엔 안 할게요', style: TextStyle(color: context.appMuted)),
               ),
-              Semantics(
-                label: '${suggestion.title} 다음에',
-                container: true,
-                button: true,
-                excludeSemantics: true,
-                child: OutlinedButton(
-                  onPressed: onLater,
-                  style: OutlinedButton.styleFrom(minimumSize: const Size(96, 48)),
-                  child: const Text('이번엔 안 할게요'),
-                ),
-              ),
-            ],
+            ),
           ),
         ],
       ),
@@ -942,6 +1124,7 @@ class _ApplianceCard extends ConsumerWidget {
       TileTone.unknown => (context.appMuted, Icons.help_outline),
       TileTone.ready => (context.appMuted, null),
       TileTone.on => (context.appSuccess, Icons.power_settings_new),
+      TileTone.off => (context.appMuted, Icons.power_settings_new),
     };
     return Semantics(
       button: true,
@@ -955,22 +1138,20 @@ class _ApplianceCard extends ConsumerWidget {
         if (verifyNote case final v?) v,
       ].join(', '),
       excludeSemantics: true,
-      child: Material(
-        color: context.appSurfaceLow,
-        borderRadius: BorderRadius.circular(16),
+      // 테두리 대신 카드 면과 그림자로 떠오른다(라이트) — 버튼 조작 중일 때만 강조색 테두리.
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        shape: active
+            ? RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: context.appPrimary, width: 2))
+            : null,
         child: InkWell(
           key: Key('appliance-card-${a.id}'),
-          borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Container(
+            constraints: const BoxConstraints(minHeight: 112),
             padding: const EdgeInsets.all(AppSpace.lg),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: active ? context.appPrimary : context.appBorderSubtle,
-                width: active ? 2 : 1,
-              ),
-            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1070,12 +1251,12 @@ class _AddCard extends StatelessWidget {
         excludeSemantics: true,
         child: InkWell(
           key: const Key('appliance-add-card'),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(20),
           onTap: onTap,
           child: Container(
-            constraints: const BoxConstraints(minHeight: 110),
+            constraints: const BoxConstraints(minHeight: 112),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(20),
               border: Border.all(color: context.appBorderSubtle),
             ),
             child: Column(
@@ -1569,46 +1750,4 @@ class _StatusCardBody extends StatelessWidget {
       ],
     );
   }
-}
-
-// ── 슬라이딩 카드 애니메이션 ───────────────────────────────────────────────
-
-class _SlidingCard extends StatefulWidget {
-  const _SlidingCard({super.key, required this.child});
-  final Widget child;
-
-  @override
-  State<_SlidingCard> createState() => _SlidingCardState();
-}
-
-class _SlidingCardState extends State<_SlidingCard>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _ctrl = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 350),
-  );
-  late final Animation<Offset> _offset = Tween(
-    begin: const Offset(0, 0.12),
-    end: Offset.zero,
-  ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeOutQuart));
-  late final Animation<double> _fade =
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeIn);
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl.forward();
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => FadeTransition(
-        opacity: _fade,
-        child: SlideTransition(position: _offset, child: widget.child),
-      );
 }

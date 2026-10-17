@@ -1,6 +1,7 @@
-// 홈 B안(2026-10-13) — 제안이 없으면 서버가 준 루틴 순서의 첫 적격 루틴을 크게,
-// 나머지 적격 루틴은 간결한 행. 설정 안내는 가전 목록 아래, 타일은 상태를 말한다.
-// '추천/자주 쓰는' 같은 말을 붙이지 않고, 루틴 이름을 코드에 고정하지 않는다.
+// 홈 개편(2026-10-18, UI 개편안 §4·2차 평가) — 읽는 순서:
+// 지금 우리 집(공기·켜진 가전·다음 예정) → 지금 할 일(제안) → 확인이 필요해요 → 가전 → 자주 쓰는 루틴 타일.
+// 큰 '바로 실행할 수 있는 루틴' 카드는 없다. 타일은 **승인 카드만** 만든다(실행 경로를 부르지 않는다).
+// '추천/자주 쓰는' 같은 이유를 지어내지 않고, 루틴 이름을 코드에 고정하지 않는다.
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -38,6 +39,19 @@ Map<String, dynamic> _appliance(String id, String name, {bool mapped = true}) =>
         },
     };
 
+Map<String, dynamic> _thinq(String id, String name) => {
+      'id': id,
+      'name': name,
+      'category': 'air_purifier',
+      'rows': 1,
+      'cols': 1,
+      'buttons': const [],
+      'control_path': 'thinq',
+      'can_execute': true,
+      'readiness': 'operable',
+      'readiness_reasons': <String>[],
+    };
+
 Map<String, dynamic> _routine(
   String id,
   String name, {
@@ -64,6 +78,9 @@ class _Hub {
   List<Map<String, dynamic>>? routines; // null이면 /routines 500
   List<Map<String, dynamic>>? appliances;
   List<Map<String, dynamic>> suggestions = const [];
+  List<Map<String, dynamic>> next = const [];
+  List<Map<String, dynamic>> power = const [];
+  List<Map<String, dynamic>> air = const [];
   final requests = <String>[];
 
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
@@ -86,6 +103,13 @@ class _Hub {
           if (req.method == 'GET' && path == '/routines') {
             final list = routines;
             return list == null ? _json({'detail': 'boom'}, 500) : _json(list);
+          }
+          if (req.method == 'GET' && path == '/routines/next') return _json(next);
+          if (req.method == 'GET' && path == '/thinq/power') {
+            return _json({'execution_mode': 'real', 'appliances': power});
+          }
+          if (req.method == 'GET' && path == '/thinq/air') {
+            return _json({'execution_mode': 'real', 'appliances': air});
           }
           if (req.method == 'POST' && path.endsWith('/trigger')) {
             return _json({
@@ -115,6 +139,15 @@ Widget _home(_Hub hub,
         path: '/routine/edit',
         builder: (_, __) => const Scaffold(body: Text('루틴 편집기')),
       ),
+      GoRoute(
+        path: '/routines',
+        builder: (_, __) => const Scaffold(body: Text('루틴 탭')),
+      ),
+      GoRoute(
+        path: '/appliance/detail/:id',
+        builder: (_, state) =>
+            Scaffold(body: Text('가전 상세 ${state.pathParameters['id']}')),
+      ),
     ],
   );
   return buildWithProviderState(
@@ -133,7 +166,7 @@ Widget _home(_Hub hub,
 }
 
 void _tall(WidgetTester tester) {
-  tester.view.physicalSize = const Size(400, 2400);
+  tester.view.physicalSize = const Size(400, 3000);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 }
@@ -144,147 +177,234 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+Finder _tile(String id) => find.byKey(Key('home-routine-tile-$id'));
+
+const _suggestionJson = {
+  'id': 's1',
+  'purpose': '즉석밥 데우기',
+  'time_band': '아침',
+  'occurrences': 3,
+  'steps': ['즉석밥', '시작'],
+  'appliance_id': 'mw',
+};
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  // UI 평가 10/17: '루틴 N개 더 보기'가 글자만 있어 버튼으로 안 보였다.
-  testWidgets('목록에 다 못 보인 루틴은 테두리 버튼 "루틴 N개 더 보기"로', (tester) async {
-    final hub = _Hub(routines: [
-      for (var i = 0; i < 8; i++) _routine('r-$i', '루틴 $i'),
-    ]);
-    _tall(tester);
-    await tester.pumpWidget(_home(hub));
-    await _settle(tester);
-    final more = find.ancestor(of: find.textContaining('개 더 보기'), matching: find.byType(OutlinedButton));
-    expect(more, findsOneWidget);
-    // 큰 카드 1 + 줄 3 — 홈이 길어 가전이 첫 화면에 나오지 않았다(UI 평가 5차 10/17). 8개면 4개가 더 보기로.
-    expect(find.text('루틴 4개 더 보기'), findsOneWidget);
-    expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
-  });
-
-  // 외부 평가 10/16 4차: 큰 카드가 이미 저절로 도는 시각 루틴이었고, 설정 필요 행이 준비된 루틴보다 위에 있었다.
-  testWidgets('큰 카드는 직접 실행 루틴을 먼저, 설정이 필요한 루틴 행은 맨 아래로', (tester) async {
-    final washer = _appliance('washer', '세탁기', mapped: false);
-    final mw = _appliance('mw', '주방 전자레인지');
-    final hub = _Hub(appliances: [washer, mw], routines: [
-      _routine('r-w', '빨래 시작', steps: [
-        {'kind': 'press_sequence', 'appliance_id': 'washer', 'buttons': ['시작']},
-      ]),
-      _routine('r-t', '저녁 데우기 예약',
-          trigger: {'kind': 'time', 'days': [0, 1, 2, 3, 4, 5, 6], 'time': '22:00'}),
+  testWidgets('읽는 순서: 지금 우리 집 → 지금 할 일 → 확인이 필요해요 → 가전 → 자주 쓰는 루틴', (tester) async {
+    final hub = _Hub(appliances: [
+      _appliance('mw', '주방 전자레인지'),
+      _appliance('w1', '세탁기', mapped: false),
+      _thinq('air', '공기청정기'),
+    ], routines: [
       _routine('r-b', '30초 데우기'),
-    ]);
-    _tall(tester);
-    await tester.pumpWidget(_home(hub,
-        installed: [ApplianceMap.fromJson(washer), ApplianceMap.fromJson(mw)]));
-    await _settle(tester);
-
-    final hero = find.byKey(const Key('home-routine-hero'));
-    expect(find.descendant(of: hero, matching: find.text('30초 데우기')), findsOneWidget);
-    // 왜 맨 위인지 한 줄(UI 평가 3차 10/17) — 정해진 때 저절로 도는 루틴이 아니라 지금 누르는 루틴이다.
-    expect(find.descendant(of: hero, matching: find.text('바로 실행할 수 있는 루틴')), findsOneWidget);
-    final timeRow = tester.getTopLeft(find.byKey(const Key('home-routine-row-r-t'))).dy;
-    final setupRow = tester.getTopLeft(find.byKey(const Key('home-routine-row-r-w'))).dy;
-    expect(timeRow, lessThan(setupRow), reason: '설정 필요 행은 맨 아래');
-  });
-
-  // 외부 평가 10/16 2차: 첫 화면 맨 위 카드가 '설정이 필요해요'인 세탁기의 '빨래 시작'이었다.
-  testWidgets('큰 카드는 설정이 필요한 가전의 루틴을 건너뛴다(그 루틴은 아래 행으로)', (tester) async {
-    final washer = _appliance('washer', '세탁기', mapped: false);
-    final mw = _appliance('mw', '주방 전자레인지');
-    final hub = _Hub(appliances: [washer, mw], routines: [
-      _routine('r-w', '빨래 시작', steps: [
-        {'kind': 'press_sequence', 'appliance_id': 'washer', 'buttons': ['시작']},
-      ]),
-      _routine('r-b', '저녁 데우기'),
-    ]);
-    _tall(tester);
-    await tester.pumpWidget(_home(hub,
-        installed: [ApplianceMap.fromJson(washer), ApplianceMap.fromJson(mw)]));
-    await _settle(tester);
-
-    final hero = find.byKey(const Key('home-routine-hero'));
-    expect(find.descendant(of: hero, matching: find.text('저녁 데우기')), findsOneWidget);
-    expect(find.byKey(const Key('home-routine-row-r-w')), findsOneWidget);
-    // 외부 평가 10/16 3차: 아래 행도 설정이 필요한 가전이면 실행 버튼을 끄고 이유를 말한다.
-    // 꺼진 '실행하기' 대신 바로 갈 수 있는 '설정하기'(UI 평가 10/17 — 회색 버튼은 대비도 낮고 다음 행동이 없었다).
-    expect(find.byKey(const Key('home-routine-run-r-w')), findsNothing);
-    final setup = tester.widget<OutlinedButton>(find.byKey(const Key('home-routine-setup-r-w')));
-    expect(setup.onPressed, isNotNull);
-    expect(find.descendant(of: find.byKey(const Key('home-routine-setup-r-w')), matching: find.text('설정하기')),
-        findsOneWidget);
-    expect(
-        find.descendant(
-            of: find.byKey(const Key('home-routine-row-r-w')),
-            matching: findPlainText('가전 설정이 필요해요', contains: true)),
-        findsOneWidget);
-    // 어절 단위 줄바꿈('버/튼' 방지, UI 평가 10/17).
-    expect(tester.widget<Text>(findPlainText('가전 설정이 필요해요', contains: true)).data,
-        contains(kWordJoiner));
-  });
-
-  testWidgets('제안이 없으면 서버 순서의 첫 적격 루틴이 큰 카드, 나머지 적격 루틴은 간결한 행',
-      (tester) async {
-    final hub = _Hub(routines: [
-      _routine('r-notify', '세탁 알림', mode: 'notify'),
-      _routine('r-off', '꺼둔 것', enabled: false),
-      _routine('r-announce', '말만 하기', steps: [
-        {'kind': 'announce', 'text': '안녕'},
-      ]),
-      _routine('r-b', '저녁 데우기'),
-      _routine('r-c', '해동하기'),
-    ]);
-    _tall(tester);
-    await tester.pumpWidget(_home(hub));
-    await _settle(tester);
-
-    final hero = find.byKey(const Key('home-routine-hero'));
-    expect(hero, findsOneWidget);
-    expect(find.descendant(of: hero, matching: find.text('저녁 데우기')), findsOneWidget);
-    expect(find.byKey(const Key('home-routine-row-r-c')), findsOneWidget);
-    // 적격이 아닌 루틴은 홈 실행 후보가 아니다.
-    for (final name in ['세탁 알림', '꺼둔 것', '말만 하기']) {
-      expect(find.text(name), findsNothing, reason: name);
-    }
-    // 고르는 이유를 지어내지 않는다.
-    expect(find.textContaining('추천'), findsNothing);
-    expect(find.textContaining('자주'), findsNothing);
-    // 빈 제안 문장은 두지 않는다.
-    expect(find.text('지금 확인할 제안이 없어요.'), findsNothing);
-  });
-
-  testWidgets('제안이 있으면 제안이 큰 자리, 루틴은 큰 카드로 겹쳐 강조하지 않는다',
-      (tester) async {
-    final hub = _Hub(routines: [_routine('r-b', '저녁 데우기')])
-      ..suggestions = [
-        {
-          'id': 's1',
-          'purpose': '즉석밥 데우기',
-          'time_band': '아침',
-          'occurrences': 3,
-          'steps': ['즉석밥', '시작'],
-          'appliance_id': 'mw',
-        },
+    ])
+      ..suggestions = [_suggestionJson]
+      ..power = [
+        {'appliance_id': 'air', 'power': 'on', 'age_s': 3},
       ];
     _tall(tester);
     await tester.pumpWidget(_home(hub, suggestions: const [
       Suggestion(sequenceId: 's1', label: '즉석밥 데우기', steps: ['BT-08']),
     ]));
     await _settle(tester);
-    expect(find.text('이번엔 안 할게요'), findsOneWidget, reason: '제안 카드가 큰 자리에 있다');
+
+    double y(Finder f) => tester.getTopLeft(f).dy;
+    final now = find.byKey(const Key('home-now'));
+    final todo = find.byKey(const Key('home-suggestion'));
+    final attention = find.byKey(const Key('home-attention'));
+    final appliances = find.byKey(const Key('home-appliances'));
+    final routines = find.byKey(const Key('home-routines'));
+    for (final f in [now, todo, attention, appliances, routines]) {
+      expect(f, findsOneWidget);
+    }
+    expect(y(now), lessThan(y(todo)));
+    expect(y(todo), lessThan(y(attention)));
+    expect(y(attention), lessThan(y(appliances)));
+    expect(y(appliances), lessThan(y(routines)));
+    // 큰 '바로 실행할 수 있는 루틴' 카드는 없다.
     expect(find.byKey(const Key('home-routine-hero')), findsNothing);
-    expect(find.byKey(const Key('home-routine-row-r-b')), findsOneWidget);
+    expect(find.text('바로 실행할 수 있는 루틴'), findsNothing);
   });
 
-  testWidgets('큰 카드의 실행하기는 승인 카드만 만들고 승인 화면으로 간다', (tester) async {
+  testWidgets('채운 주 버튼은 화면에 하나 — 제안의 "지금 하기"', (tester) async {
+    final hub = _Hub(routines: [
+      _routine('r-a', '아침 데우기'),
+      _routine('r-b', '30초 데우기'),
+      _routine('r-c', '해동하기'),
+    ])
+      ..suggestions = [_suggestionJson];
+    _tall(tester);
+    await tester.pumpWidget(_home(hub, suggestions: const [
+      Suggestion(sequenceId: 's1', label: '즉석밥 데우기', steps: ['BT-08']),
+    ]));
+    await _settle(tester);
+    expect(find.byType(FilledButton), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, '지금 하기'), findsOneWidget);
+    expect(find.text('실행하기'), findsNothing, reason: '같은 모양 실행하기 버튼을 줄줄이 두지 않는다');
+  });
+
+  testWidgets('자주 쓰는 루틴은 2열 타일 — 직접 실행하는 적격 루틴만, 넷까지, 나머지는 루틴 탭으로', (tester) async {
+    final hub = _Hub(routines: [
+      _routine('r-notify', '세탁 알림', mode: 'notify'),
+      _routine('r-off', '꺼둔 것', enabled: false),
+      _routine('r-announce', '말만 하기', steps: [
+        {'kind': 'announce', 'text': '안녕'},
+      ]),
+      _routine('r-t', '저녁 데우기 예약',
+          trigger: {'kind': 'time', 'days': [0, 1, 2, 3, 4, 5, 6], 'time': '22:00'}),
+      for (var i = 0; i < 6; i++) _routine('r-$i', '루틴 $i'),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+
+    for (var i = 0; i < 4; i++) {
+      expect(_tile('r-$i'), findsOneWidget, reason: 'r-$i');
+    }
+    expect(_tile('r-4'), findsNothing);
+    // 두 칸씩 — 첫 두 타일은 같은 줄, 다른 칸.
+    expect(tester.getTopLeft(_tile('r-0')).dy, tester.getTopLeft(_tile('r-1')).dy);
+    expect(tester.getTopLeft(_tile('r-0')).dx, lessThan(tester.getTopLeft(_tile('r-1')).dx));
+    // 시각 루틴은 정해진 때 저절로 돈다 — 타일로 겹쳐 두지 않는다(같은 루틴 여러 번 노출 금지).
+    expect(_tile('r-t'), findsNothing);
+    for (final name in ['세탁 알림', '꺼둔 것', '말만 하기']) {
+      expect(find.text(name), findsNothing, reason: name);
+    }
+    final more = find.byKey(const Key('home-routines-more'));
+    expect(more, findsOneWidget);
+    expect(tester.getSize(more).height, greaterThanOrEqualTo(48));
+    await tester.tap(more);
+    await _settle(tester);
+    expect(find.text('루틴 탭'), findsOneWidget);
+    // 고르는 이유를 지어내지 않는다 — 쓴 횟수를 모르니 '자주 쓰는'이라 하지 않는다.
+    expect(find.textContaining('추천'), findsNothing);
+    expect(find.textContaining('자주'), findsNothing);
+  });
+
+  testWidgets('타일을 누르면 승인 카드만 만들고 승인 화면으로 간다(실행 경로 없음)', (tester) async {
     final hub = _Hub(routines: [_routine('r-b', '저녁 데우기')]);
     _tall(tester);
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
-    await tester.tap(find.byKey(const Key('home-routine-run-r-b')));
+    expect(tester.getSize(_tile('r-b')).height, greaterThanOrEqualTo(48));
+    await tester.tap(_tile('r-b'));
     await _settle(tester);
     expect(hub.requests.where((r) => r.endsWith('/trigger')).length, 1);
     expect(find.text('승인 화면 card-1'), findsOneWidget);
+  });
+
+  testWidgets('설정이 필요한 가전의 루틴 타일은 실행 대신 그 가전 설정으로 간다', (tester) async {
+    final washer = _appliance('washer', '세탁기', mapped: false);
+    final mw = _appliance('mw', '주방 전자레인지');
+    final hub = _Hub(appliances: [washer, mw], routines: [
+      _routine('r-w', '빨래 시작', steps: [
+        {'kind': 'press_sequence', 'appliance_id': 'washer', 'buttons': ['시작']},
+      ]),
+      _routine('r-b', '저녁 데우기'),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub,
+        installed: [ApplianceMap.fromJson(washer), ApplianceMap.fromJson(mw)]));
+    await _settle(tester);
+
+    // 준비된 루틴이 먼저, 설정이 필요한 루틴은 뒤.
+    expect(tester.getTopLeft(_tile('r-b')).dx, lessThan(tester.getTopLeft(_tile('r-w')).dx));
+    expect(find.descendant(of: _tile('r-w'), matching: findPlainText('설정이 필요해요', contains: true)),
+        findsOneWidget);
+    await tester.tap(_tile('r-w'));
+    await _settle(tester);
+    expect(find.text('가전 상세 washer'), findsOneWidget);
+    expect(hub.requests.where((r) => r.endsWith('/trigger')), isEmpty);
+  });
+
+  testWidgets('지금 우리 집: 공기·켜진 가전·다음 예정 시각(본체 시각 그대로)·자동 배지', (tester) async {
+    final hub = _Hub(appliances: [_thinq('air', '공기청정기')], routines: const [])
+      ..power = [
+        {'appliance_id': 'air', 'power': 'on', 'age_s': 3},
+      ]
+      ..air = [
+        {'appliance_id': 'air', 'grade': 'BAD'},
+      ]
+      ..next = [
+        {
+          'routine_id': 'r-n',
+          'name': '저녁 공기청정기 켜기',
+          'at': '2026-10-18T22:00:00-03:00',
+          'when': '매일 22:00',
+          'mode': 'approve',
+          'mode_label': '자동 실행',
+          'auto': true,
+          'day_label': '오늘',
+        },
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+
+    final now = find.byKey(const Key('home-now'));
+    expect(find.descendant(of: now, matching: find.text('공기 나쁨')), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.text('공기청정기 켜짐')), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.text('22:00')), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.text('저녁 공기청정기 켜기')), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.text('자동')), findsOneWidget);
+    expect(find.descendant(of: now, matching: findPlainText('오늘', contains: true)), findsWidgets);
+    // 큰 시각은 32 숫자 단계.
+    expect(tester.widget<Text>(find.descendant(of: now, matching: find.text('22:00'))).style?.fontSize, 32);
+  });
+
+  testWidgets('지금 우리 집: 모르는 것은 말하지 않는다 — 공기·전원·예정이 모두 없으면 칸이 없다', (tester) async {
+    final hub = _Hub(routines: const []);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    expect(find.byKey(const Key('home-now')), findsNothing);
+    expect(find.textContaining('공기 '), findsNothing);
+  });
+
+  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 "꺼짐", 모르면 상태 줄이 없다', (tester) async {
+    final hub = _Hub(appliances: [_thinq('air', '공기청정기'), _thinq('dh', '제습기')], routines: const [])
+      ..power = [
+        {'appliance_id': 'air', 'power': 'off', 'age_s': 3},
+      ];
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    expect(find.descendant(of: find.byKey(const Key('appliance-status-air')), matching: findPlainText('꺼짐')),
+        findsOneWidget);
+    expect(find.byKey(const Key('appliance-status-dh')), findsNothing);
+  });
+
+  testWidgets('확인이 필요해요: 설정이 남은 가전이 있을 때만, 가전 목록 위에', (tester) async {
+    final hub = _Hub(routines: const [], appliances: [
+      _appliance('mw', '주방 전자레인지'),
+      _appliance('w1', '세탁기', mapped: false),
+      _appliance('w2', '건조기', mapped: false),
+    ]);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+
+    final attention = find.byKey(const Key('home-attention'));
+    expect(attention, findsOneWidget);
+    expect(find.descendant(of: attention, matching: find.text('확인이 필요해요')), findsOneWidget);
+    expect(find.descendant(of: attention, matching: find.byKey(const Key('setup-summary-card'))), findsOneWidget);
+    final lastTile = find.byKey(const Key('appliance-card-w2'));
+    expect(tester.getTopLeft(attention).dy, lessThan(tester.getTopLeft(lastTile).dy));
+    expect(find.descendant(of: lastTile, matching: find.text(keepWordsTogether('설정이 필요해요'))),
+        findsOneWidget);
+    // 준비된 가전은 상태 줄을 두지 않는다(2026-10-14 UX) — '바로 쓸 수 있어요'로 단정하지도 않는다.
+    expect(find.byKey(const Key('appliance-status-mw')), findsNothing);
+    expect(find.textContaining('바로 쓸 수 있어요'), findsNothing);
+  });
+
+  testWidgets('확인할 것이 없으면 "확인이 필요해요" 칸이 없다', (tester) async {
+    final hub = _Hub(routines: const [], appliances: const []);
+    _tall(tester);
+    await tester.pumpWidget(_home(hub));
+    await _settle(tester);
+    expect(find.byKey(const Key('home-attention')), findsNothing);
+    expect(find.text('확인이 필요해요'), findsNothing);
   });
 
   testWidgets('루틴 조회 실패는 "루틴이 없다"로 말하지 않는다', (tester) async {
@@ -307,28 +427,6 @@ void main() {
     expect(find.text('루틴 편집기'), findsOneWidget);
   });
 
-  testWidgets('설정 안내는 가전 목록 아래 배치(크기는 보지 않음), 해당 타일은 "설정이 필요해요"', (tester) async {
-    final hub = _Hub(routines: const [], appliances: [
-      _appliance('mw', '주방 전자레인지'),
-      _appliance('w1', '세탁기', mapped: false),
-      _appliance('w2', '건조기', mapped: false),
-    ]);
-    _tall(tester);
-    await tester.pumpWidget(_home(hub));
-    await _settle(tester);
-
-    final summary = find.byKey(const Key('setup-summary-card'));
-    expect(summary, findsOneWidget);
-    expect(find.textContaining('설정할 가전'), findsOneWidget);
-    final lastTile = find.byKey(const Key('appliance-card-w2'));
-    expect(tester.getTopLeft(summary).dy, greaterThan(tester.getTopLeft(lastTile).dy));
-    expect(find.descendant(of: lastTile, matching: find.text(keepWordsTogether('설정이 필요해요'))),
-        findsOneWidget);
-    // 준비된 가전은 상태 줄을 두지 않는다(2026-10-14 UX) — '바로 쓸 수 있어요'로 단정하지도 않는다.
-    expect(find.byKey(const Key('appliance-status-mw')), findsNothing);
-    expect(find.textContaining('바로 쓸 수 있어요'), findsNothing);
-  });
-
   testWidgets('타일 접근성 이름에 상태가 들어간다(excludeSemantics로 빠지지 않게)',
       (tester) async {
     final handle = tester.ensureSemantics();
@@ -344,7 +442,7 @@ void main() {
   });
 
   // ── 2026-10-14 보드 날 발견 5: 접근성 트리 ─────────────────────────────────────────
-  testWidgets('접근성: 루틴마다 글이 제 노드를 갖는다(세 줄이 한 덩어리로 읽히지 않게)', (tester) async {
+  testWidgets('접근성: 루틴 타일마다 제 이름으로 따로 읽힌다', (tester) async {
     final handle = tester.ensureSemantics();
     final hub = _Hub(routines: [
       _routine('r-a', '아침 데우기'),
@@ -354,16 +452,7 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
-    const names = ['아침 데우기', '빨래 시작', '문 열기'];
-    for (final name in names) {
-      final label = tester.getSemantics(find.text(name)).label;
-      expect(label, contains(name));
-      for (final other in names.where((n) => n != name)) {
-        expect(label, isNot(contains(other)), reason: '"$name" 노드에 "$other"가 섞였다: $label');
-      }
-    }
-    // 실행 버튼은 여전히 루틴 이름으로 따로 읽힌다.
-    for (final name in names) {
+    for (final name in ['아침 데우기', '빨래 시작', '문 열기']) {
       expect(find.bySemanticsLabel('$name 실행하기'), findsOneWidget);
     }
     handle.dispose();
@@ -393,15 +482,14 @@ void main() {
           steps: ['BT-08']),
     ]));
     await _settle(tester);
-    expect(find.bySemanticsLabel('아침 데우기 실행하기'), findsOneWidget);
+    expect(find.bySemanticsLabel('아침 데우기 지금 하기'), findsOneWidget);
     expect(find.bySemanticsLabel('아침 데우기 다음에'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp(r'^실행하기$')), findsNothing);
+    expect(find.bySemanticsLabel(RegExp(r'^지금 하기$')), findsNothing);
     handle.dispose();
   });
 
   // ── 2026-10-14 보드 날 발견 7: 낱말 중간 줄바꿈 ─────────────────────────────────────
-  testWidgets('홈 루틴 줄과 가전 타일 상태는 낱말 중간에서 꺾이지 않게 그린다("1단 / 계"·"주 / 세요")',
-      (tester) async {
+  testWidgets('루틴 타일 부제와 가전 타일 상태는 낱말 중간에서 꺾이지 않게 그린다', (tester) async {
     final hub = _Hub(routines: [
       _routine('r-a', '아침 데우기'),
       _routine('r-b', '빨래 시작'),
@@ -413,9 +501,7 @@ void main() {
         .byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(fragment))
         .evaluate()
         .isNotEmpty;
-    // 홈 루틴 줄(큰 카드·간결한 행)의 "할 일 1개"는 숫자와 단위가 붙어 있다(2026-10-17 단계 → 할 일).
-    expect(shown('1\u2060개'), isTrue);
-    // 타일 상태 줄도 같은 규칙('설정이 필요해요'는 위 배치 테스트가 본다). 평소 상태는 줄이 없다.
+    expect(shown('1⁠개'), isTrue);
     expect(find.byKey(const Key('appliance-status-mw')), findsNothing);
   });
 }

@@ -295,7 +295,7 @@ void main() {
       );
       await tester.pump();
       expect(find.text('즉석밥 데우기'), findsOneWidget);
-      expect(find.text('실행하기'), findsOneWidget);
+      expect(find.text('지금 하기'), findsOneWidget);
       expect(find.text('이번엔 안 할게요'), findsOneWidget);
       expect(find.text('지금 확인할 제안이 없어요.'), findsNothing);
     });
@@ -312,7 +312,7 @@ void main() {
       await tester.pump();
       expect(find.text('30초 가열'), findsOneWidget);
       expect(find.text('해동'), findsNothing);
-      expect(find.text('실행하기'), findsOneWidget);
+      expect(find.text('지금 하기'), findsOneWidget);
     });
 
     testWidgets('루틴 카드는 루틴 이름을 제목으로 쓴다', (tester) async {
@@ -367,7 +367,7 @@ void main() {
       );
       await tester.pump();
 
-      await tester.tap(find.text('실행하기'));
+      await tester.tap(find.text('지금 하기'));
       await tester.pumpAndSettle();
 
       expect(pushedRoute, 's1');

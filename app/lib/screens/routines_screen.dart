@@ -323,10 +323,8 @@ class _NextRunCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = next;
-    final at = n.at;
-    final hm = at == null
-        ? '--:--'
-        : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    // 본체 벽시계 그대로 — 폰 시간대로 바꾸면 '매일 07:00' 옆에 22:00이 나왔다(2차 평가 10/18).
+    final hm = n.clock;
     return Container(
       padding: const EdgeInsets.all(AppSpace.lg),
       decoration: BoxDecoration(

@@ -395,7 +395,19 @@ class RoutineNextRun {
     required this.modeLabel,
     this.auto = false,
     this.dayLabel = '',
+    this.atText = '',
   });
+
+  /// 본체가 준 시각 문자열 그대로(본체 시간대 오프셋 포함).
+  final String atText;
+
+  /// 화면에 쓸 'HH:MM' — **본체 벽시계 그대로**. [at]은 폰 시간대로 바뀐 값이라
+  /// 폰(에뮬레이터 UTC)과 본체(+09:00)가 다르면 '매일 07:00'인데 22:00으로 그렸다(2차 평가 10/18).
+  String get clock {
+    final m = RegExp(r'T(\d{2}):(\d{2})').firstMatch(atText);
+    if (m != null && DateTime.tryParse(atText) != null) return '${m[1]}:${m[2]}';
+    return '--:--';
+  }
 
   final String routineId;
   final String name;
@@ -417,6 +429,7 @@ class RoutineNextRun {
         modeLabel: json['mode_label'] as String? ?? '',
         auto: json['auto'] as bool? ?? false,
         dayLabel: json['day_label'] as String? ?? '',
+        atText: json['at'] as String? ?? '',
       );
 }
 

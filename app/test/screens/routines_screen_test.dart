@@ -260,6 +260,15 @@ void main() {
     expect(find.textContaining('물어보고 하기'), findsNothing);
   });
 
+  // 2차 평가 10/18: 큰 22:00 옆에 '… · 매일 07:00' — 폰 시간대로 바꿔 그려 시각과 내용이 어긋났다.
+  testWidgets('다음 실행의 큰 시각은 본체 시각 그대로 — 폰 시간대와 달라도 내용과 같은 07:30', (tester) async {
+    _tall(tester);
+    final server = _Server()..nextExtra = {'at': '2026-10-01T07:30:00-03:00'};
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    expect(find.text('07:30'), findsOneWidget);
+  });
+
   testWidgets('다음 실행과 내 루틴 목록을 보여 준다', (tester) async {
     _tall(tester);
     await tester.pumpWidget(_build(_Server()));

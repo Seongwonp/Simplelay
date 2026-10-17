@@ -263,4 +263,11 @@ void main() {
           greaterThanOrEqualTo(_aa));
     });
   });
+
+  test('됐어요(확인) 배지 초록은 바탕 위 4.5:1 이상(2026-10-18)', () {
+    expect(contrast(AppColors.confirmed, AppColors.background), greaterThanOrEqualTo(4.5));
+    expect(contrast(AppColors.confirmed, AppColors.surfaceLow), greaterThanOrEqualTo(4.5));
+    expect(contrast(AppColors.confirmedLight, AppColors.backgroundLight), greaterThanOrEqualTo(4.5));
+    expect(contrast(AppColors.confirmedLight, AppColors.surfaceLowLight), greaterThanOrEqualTo(4.5));
+  });
 }

@@ -309,19 +309,21 @@ void main() {
     final tileA = find.byKey(const Key('appliance-card-a'));
     final tileB = find.byKey(const Key('appliance-card-b'));
     final add = find.byKey(const Key('appliance-add-card'));
-    final run = find.byKey(const Key('home-routine-run-r-b'));
+    final run = find.byKey(const Key('home-routine-tile-r-b'));
     expect(_inTile('a', '연습으로만 시험 이동했어요'), findsOneWidget);
     expect(_inTile('b', '시험 이동을 마치지 못했어요'), findsOneWidget);
 
-    // 겹침 없음: 보조 줄 타일과 가전 추가·실행하기가 서로 겹치지 않는다.
+    // 겹침 없음: 보조 줄 타일과 가전 추가가 서로 겹치지 않는다(루틴 타일은 가전 아래 다른 구획 — 아래에서 따로 누른다).
     for (final tile in [tileA, tileB]) {
-      for (final other in [add, run]) {
+      for (final other in [add]) {
         final overlap = tester.getRect(tile).intersect(tester.getRect(other));
         expect(overlap.width <= 0 || overlap.height <= 0, isTrue,
             reason: '$tile 과 $other 가 겹친다');
       }
     }
     // 각 버튼을 화면에 올려 가운데를 누르면 그 버튼에 닿는다.
+    await tester.scrollUntilVisible(run, 200);
+    await tester.pump();
     for (final target in [run, tileA, tileB, add]) {
       await tester.ensureVisible(target);
       await tester.pump();

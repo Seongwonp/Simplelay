@@ -1346,7 +1346,14 @@ class RpiApiService {
 
   /// GET /thinq/power — 서버가 최근(10분 안) 읽은 전원이 켜짐인 ThinQ 가전 ID. 클라우드를 부르지 않는다.
   /// ThinQ 꺼짐(404)·조회 실패·형식 오류는 빈 집합 — '켜짐'을 지어내지 않는다(꺼짐이라 말하지도 않는다).
-  Future<Set<String>> thinqPowerOn() async {
+  Future<Set<String>> thinqPowerOn() async => {
+        for (final e in (await thinqPower()).entries)
+          if (e.value == 'on') e.key,
+      };
+
+  /// GET /thinq/power — 본체가 최근에 **읽은** 전원만(가전 id → 'on'·'off'). 모르는 값은 싣지 않는다(2026-10-18).
+  /// 실패·형식 오류는 빈 지도 — 켜짐도 꺼짐도 지어내지 않는다.
+  Future<Map<String, String>> thinqPower() async {
     try {
       final res = await _client
           .get(_base.replace(path: '/thinq/power'), headers: _headers)
@@ -1357,11 +1364,38 @@ class RpiApiService {
       if (list is! List) return const {};
       return {
         for (final a in list)
-          if (a is Map && a['power'] == 'on' && a['appliance_id'] is String)
-            a['appliance_id'] as String,
+          if (a is Map &&
+              (a['power'] == 'on' || a['power'] == 'off') &&
+              a['appliance_id'] is String)
+            a['appliance_id'] as String: a['power'] as String,
       };
     } catch (_) {
       return const {};
+    }
+  }
+
+  static const _airRank = {'GOOD': 0, 'NORMAL': 1, 'BAD': 2, 'VERY_BAD': 3};
+
+  /// GET /thinq/air — 가전이 매긴 공기 등급 중 **가장 나쁜 것**(GOOD·NORMAL·BAD·VERY_BAD).
+  /// 없거나 실패하면 null — '좋음'을 지어내지 않는다(2026-10-18 홈 '지금 우리 집').
+  Future<String?> thinqAirGrade() async {
+    try {
+      final res = await _client
+          .get(_base.replace(path: '/thinq/air'), headers: _headers)
+          .timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      final list = body is Map ? body['appliances'] : null;
+      if (list is! List) return null;
+      String? worst;
+      for (final a in list) {
+        final g = a is Map ? a['grade'] : null;
+        if (g is! String || !_airRank.containsKey(g)) continue;
+        if (worst == null || _airRank[g]! > _airRank[worst]!) worst = g;
+      }
+      return worst;
+    } catch (_) {
+      return null;
     }
   }
 

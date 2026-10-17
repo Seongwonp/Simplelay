@@ -64,8 +64,12 @@ class ApplianceSetupCard extends ConsumerWidget {
     super.key,
     required this.appliance,
     this.closeSheetFirst = false,
+    this.flat = false,
   });
   final ApplianceMap appliance;
+
+  /// 다른 카드('확인이 필요해요') 안에 놓일 때 — 카드를 겹치지 않는다(2026-10-18).
+  final bool flat;
 
   /// 아래 목록(시트) 안에서 쓰일 때 -- 다음 화면을 열기 전에 시트를 닫는다.
   final bool closeSheetFirst;
@@ -87,8 +91,10 @@ class ApplianceSetupCard extends ConsumerWidget {
       if (closeSheetFirst) Navigator.of(context).pop();
       router.push(location, extra: appliance);
     }
-    return Card(child: Padding(
-      padding: const EdgeInsets.all(AppSpace.lg),
+    final body = Padding(
+      padding: flat
+          ? const EdgeInsets.only(top: AppSpace.sm, right: AppSpace.sm)
+          : const EdgeInsets.all(AppSpace.lg),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${appliance.name}, 설정이 $remaining개 남았어요'),
         if (mockDone) const Text('연습으로만 시험 이동했어요. 실제 자리는 아직 몰라요.'),
@@ -96,42 +102,27 @@ class ApplianceSetupCard extends ConsumerWidget {
         Wrap(spacing: AppSpace.md, children: [
           OutlinedButton(onPressed: () => open('/appliance/setup'),
             child: const Text('위치 맞추기')),
-          if (mapped) FilledButton(onPressed: () => open('/appliance/setup?verify=1'),
+          // 테두리 버튼 — 홈의 채운 주 버튼은 '지금 하기' 하나다(2026-10-18 버튼 위계).
+          if (mapped) OutlinedButton(onPressed: () => open('/appliance/setup?verify=1'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size(48, 48)),
             child: const Text('시험 이동')),
         ]),
       ]),
-    ));
+    );
+    return flat ? body : Card(child: body);
   }
 }
 
-/// 홈의 '설정이 남은 가전' 자리 (2026-10-07).
-///
-/// 한 대면 그 가전 카드를 그대로 보인다. 둘 이상이면 **요약 카드 한 장**으로
-/// 묶는다 -- 가전마다 카드를 쌓았더니 5대에서 '가전' 묶음이 첫 화면 밖으로
-/// 밀렸다. 가전별 '위치 맞추기'는 '설정 이어하기'로 여는 목록에 있다.
+/// 설정이 남은 가전(위치 미설정, 또는 실제 확인 주행 전). 홈 '확인이 필요해요'가 쓴다(2026-10-18).
 ///
 /// 위치를 아직 안 맞춘 가전은 그것만으로 설정이 남았으니 확인 주행 상태를
 /// 묻지 않는다. 묻는 것은 위치를 맞춘 가전뿐이다(가전마다 요청하지 않게).
-class ApplianceSetupSection extends ConsumerWidget {
-  const ApplianceSetupSection({super.key, required this.appliances});
-
-  /// 설정 대상 후보(사용자 등록 가전). 끝난 것은 여기서 걸러진다.
-  final List<ApplianceMap> appliances;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final pending = [
+List<ApplianceMap> pendingSetupAppliances(WidgetRef ref, List<ApplianceMap> appliances) => [
       for (final a in appliances)
         if (a.panelMapping == null ||
-            !_setupDone(
-                a, setupPassLookupOf(ref.watch(setupPassProvider(a.id))).pass))
+            !_setupDone(a, setupPassLookupOf(ref.watch(setupPassProvider(a.id))).pass))
           a,
     ];
-    if (pending.isEmpty) return const SizedBox.shrink();
-    if (pending.length == 1) return ApplianceSetupCard(appliance: pending.single);
-    return _SetupSummaryCard(appliances: pending);
-  }
-}
 
 /// 이름을 짧게 잇는다 -- 세 대까지 적고 나머지는 '외 N개'.
 String setupSummaryNames(List<ApplianceMap> appliances) {
@@ -141,33 +132,34 @@ String setupSummaryNames(List<ApplianceMap> appliances) {
   return rest > 0 ? '$names 외 $rest개' : names;
 }
 
-class _SetupSummaryCard extends StatelessWidget {
-  const _SetupSummaryCard({required this.appliances});
+/// '확인이 필요해요' 안의 한 줄 — '설정할 가전 N개', 누르면 가전별 설정 카드 목록(시트).
+///
+/// 각 타일이 이미 '설정이 필요해요'로 말하므로 이름 목록·안내 문장을 되풀이하지 않는다.
+class SetupSummaryRow extends StatelessWidget {
+  const SetupSummaryRow({super.key, required this.appliances});
   final List<ApplianceMap> appliances;
 
   @override
   Widget build(BuildContext context) {
-    // 홈 가전 목록 **아래**의 한 줄(2026-10-14 UX). 각 타일이 이미 '설정이 필요해요'로
-    // 말하므로 이름 목록·안내 문장을 되풀이하지 않고, 이어 하는 길만 남긴다.
-    return Padding(
+    final text = appliances.length == 1
+        ? '${appliances.single.name}, 설정이 남았어요'
+        : '설정할 가전 ${appliances.length}개';
+    return Semantics(
       key: const Key('setup-summary-card'),
-      padding: const EdgeInsets.only(top: AppSpace.md),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Semantics(
-          button: true,
-          label: '설정할 가전 ${appliances.length}개, ${setupSummaryNames(appliances)}',
-          excludeSemantics: true,
-          child: TextButton.icon(
-            onPressed: () => _openList(context),
-            style: TextButton.styleFrom(
-              minimumSize: const Size(48, 48),
-              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
-            ),
-            iconAlignment: IconAlignment.end,
-            icon: const Icon(Icons.chevron_right, size: 20),
-            label: Text('설정할 가전 ${appliances.length}개'),
-          ),
+      button: true,
+      label: '설정할 가전 ${appliances.length}개, ${setupSummaryNames(appliances)}',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: () => _openList(context),
+        borderRadius: BorderRadius.circular(12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Row(children: [
+            Icon(Icons.tune, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
+            const SizedBox(width: AppSpace.sm),
+            Expanded(child: Text(text, style: const TextStyle(fontSize: AppFont.caption))),
+            Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurfaceVariant),
+          ]),
         ),
       ),
     );

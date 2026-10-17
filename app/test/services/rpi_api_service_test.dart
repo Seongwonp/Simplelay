@@ -32,6 +32,20 @@ void main() {
       expect(on, {'air_purifier'});
     });
 
+    test('thinqPower — 읽은 켜짐·꺼짐만, 모르는 값은 싣지 않는다(2026-10-18)', () async {
+      final power = await api(200, {
+        'execution_mode': 'real',
+        'appliances': [
+          {'appliance_id': 'air_purifier', 'power': 'on', 'age_s': 3},
+          {'appliance_id': 'dehumidifier', 'power': 'off', 'age_s': 3},
+          {'appliance_id': 'x', 'power': null},
+          {'appliance_id': 'y', 'power': 'weird'},
+        ],
+      }).thinqPower();
+      expect(power, {'air_purifier': 'on', 'dehumidifier': 'off'});
+      expect(await api(500, {'detail': 'boom'}).thinqPower(), isEmpty);
+    });
+
     test('ThinQ 꺼짐(404)·형식 오류는 빈 집합 — 켜짐을 지어내지 않는다', () async {
       expect(await api(404, {'detail': 'off'}).thinqPowerOn(), isEmpty);
       expect(await api(200, ['bad']).thinqPowerOn(), isEmpty);
@@ -195,6 +209,33 @@ void main() {
       await api.status();
 
       expect(captured!.headers.containsKey('X-API-Key'), isFalse);
+    });
+  });
+
+  group('thinqAirGrade — 집 공기 한 줄(2026-10-18)', () {
+    RpiApiService api(int status, Object body) => RpiApiService('http://hub:8000',
+        client: MockClient((req) async {
+          expect(req.url.path, '/thinq/air');
+          return http.Response.bytes(utf8.encode(jsonEncode(body)), status,
+              headers: {'content-type': 'application/json; charset=utf-8'});
+        }));
+
+    test('가전이 매긴 등급 중 가장 나쁜 것, 모르는 등급은 버린다', () async {
+      expect(
+          await api(200, {
+            'appliances': [
+              {'appliance_id': 'a', 'grade': 'GOOD'},
+              {'appliance_id': 'b', 'grade': 'BAD'},
+              {'appliance_id': 'c', 'grade': 'WHAT'},
+            ],
+          }).thinqAirGrade(),
+          'BAD');
+    });
+
+    test('없거나 실패하면 null — 좋음을 지어내지 않는다', () async {
+      expect(await api(200, {'appliances': []}).thinqAirGrade(), isNull);
+      expect(await api(404, {'detail': 'off'}).thinqAirGrade(), isNull);
+      expect(await api(200, ['bad']).thinqAirGrade(), isNull);
     });
   });
 }

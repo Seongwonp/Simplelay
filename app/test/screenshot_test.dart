@@ -16,12 +16,15 @@
 @Tags(['screenshot'])
 library;
 
+import 'dart:convert';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/suggestion.dart';
@@ -36,6 +39,7 @@ import 'package:simplelay/providers/estop_provider.dart';
 import 'package:simplelay/providers/execution_status_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
+import 'package:simplelay/screens/routines_screen.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
 import 'package:simplelay/screens/settings_screen.dart';
 import 'package:simplelay/screens/splash_screen.dart';
@@ -72,6 +76,8 @@ Future<void> _shoot(
   List<Override> extraOverrides = const [],
   // 찍기 전에 화면을 조작해야 하는 상태(예: 마이크를 눌러야 나오는 안내).
   Future<void> Function(WidgetTester tester)? before,
+  // 연결된 본체(가짜)로 찍는다 — 홈의 '지금 우리 집'·루틴 타일, 루틴 탭은 본체가 있어야 보인다.
+  RpiApiService? hub,
 }) async {
   tester.view.physicalSize = _phoneSize;
   tester.view.devicePixelRatio = 1.0;
@@ -86,7 +92,11 @@ Future<void> _shoot(
         ...installedOverrides(installed ?? [kTestAppliance]),
         // 홈 골든은 닿지 않는다고 확인된 서버를 찍는다. 확인 중(기본)은 경고가
         // 없어 연결 경고 화면이 골든에서 사라진다.
-        if (screen is HomeScreen) rpiServerOverride(RpiConnectionState.unreachable),
+        if (hub != null) ...[
+          rpiServerOverride(RpiConnectionState.connected),
+          rpiApiServiceProvider.overrideWithValue(hub),
+        ] else if (screen is HomeScreen)
+          rpiServerOverride(RpiConnectionState.unreachable),
         ...extraOverrides,
       ],
       child: MaterialApp(
@@ -166,6 +176,33 @@ void main() {
   testWidgets('홈 — 제안 없음·미연결', (t) async {
     await _shoot(t, 'home_empty', const HomeScreen(), connected: false);
   });
+
+  // 2026-10-18 홈 개편 — 본체에 닿은 평소 홈(지금 우리 집·가전 상태·루틴 타일).
+  for (final (name, light, scale) in [
+    ('home_full_light', true, 1.0),
+    ('home_full_dark', false, 1.0),
+    ('home_full_large', true, 2.0),
+  ]) {
+    testWidgets('홈 — 본체 연결·평소 ($name)', (t) async {
+      await _shoot(t, name, const HomeScreen(),
+          light: light,
+          textScale: scale,
+          installed: _homeInstalled,
+          hub: _demoHub(),
+          suggestions: suggestions);
+    });
+  }
+
+  // 2026-10-18 루틴 탭 — 본체가 준 루틴·자동으로 하기.
+  for (final (name, light, scale) in [
+    ('routines_light', true, 1.0),
+    ('routines_large', true, 2.0),
+  ]) {
+    testWidgets('루틴 탭 ($name)', (t) async {
+      await _shoot(t, name, const RoutinesScreen(),
+          light: light, textScale: scale, installed: _homeInstalled, hub: _demoHub());
+    });
+  }
 
   testWidgets('홈 — 큰 글씨 (200%)', (t) async {
     await _shoot(t, 'home_large', const HomeScreen(),
@@ -855,4 +892,154 @@ Future<MemoryImage> _fixtureImage() async {
   final image = await recorder.endRecording().toImage(w, h);
   final bytes = await image.toByteData(format: ui.ImageByteFormat.png);
   return MemoryImage(bytes!.buffer.asUint8List());
+}
+
+/// 골든용 집 — 전자레인지(사진 등록)·공기청정기(LG)·세탁기(설정 전).
+final _homeInstalled = <ApplianceMap>[
+  _mapped,
+  ApplianceMap.fromJson(const {
+    'id': 'air_purifier',
+    'name': '공기청정기',
+    'category': 'air_purifier',
+    'rows': 1,
+    'cols': 1,
+    'buttons': [],
+    'control_path': 'thinq',
+    'can_execute': true,
+    'readiness': 'operable',
+    'readiness_reasons': [],
+  }),
+  ApplianceMap.fromJson(const {
+    'id': 'washer',
+    'name': '세탁기',
+    'category': 'washer',
+    'rows': 1,
+    'cols': 1,
+    'is_custom': true,
+    'buttons': [
+      {'id': 'w1', 'label': '시작', 'x': 0, 'y': 0},
+    ],
+  }),
+];
+
+/// 골든용 가짜 본체 — 실행 경로는 없다(찍기만 한다).
+RpiApiService _demoHub({List<Map<String, dynamic>>? history}) {
+  http.Response json(Object body, [int status = 200]) => http.Response.bytes(
+      utf8.encode(jsonEncode(body)), status,
+      headers: {'content-type': 'application/json'});
+  Map<String, dynamic> routine(String id, String name, String appliance, int steps,
+          {Map<String, dynamic> trigger = const {'kind': 'manual'},
+          String when = '직접 실행할 때'}) =>
+      {
+        'id': id,
+        'name': name,
+        'steps': [
+          {
+            'kind': 'press_sequence',
+            'appliance_id': appliance,
+            'buttons': List.filled(steps, '시작'),
+          },
+        ],
+        'trigger': trigger,
+        'when': when,
+        'mode': 'approve',
+        'enabled': true,
+      };
+  return RpiApiService('http://hub.test', client: MockClient((req) async {
+    final path = req.url.path;
+    switch (path) {
+      case '/appliances':
+        return json([
+          {
+            ..._homeInstalled[0].toJson(),
+            'can_execute': true,
+            'readiness': 'operable',
+            'readiness_reasons': [],
+          },
+          {
+            'id': 'air_purifier',
+            'name': '공기청정기',
+            'category': 'air_purifier',
+            'rows': 1,
+            'cols': 1,
+            'buttons': [],
+            'control_path': 'thinq',
+            'can_execute': true,
+            'readiness': 'operable',
+            'readiness_reasons': [],
+          },
+        ]);
+      case '/routines':
+        return json([
+          routine('r-1', '30초 데우기', 'mine_microwave', 2),
+          routine('r-2', '아침 데우기', 'mine_microwave', 3),
+          routine('r-3', '빨래 시작', 'washer', 1),
+          routine('r-4', '저녁 공기청정기 켜기', 'air_purifier', 1,
+              trigger: {
+                'kind': 'time',
+                'days': [0, 1, 2, 3, 4, 5, 6],
+                'time': '22:00',
+              },
+              when: '매일 22:00'),
+        ]);
+      case '/routines/next':
+        return json([
+          {
+            'routine_id': 'r-4',
+            'name': '저녁 공기청정기 켜기',
+            'at': '2026-09-09T22:00:00+09:00',
+            'when': '매일 22:00',
+            'mode': 'approve',
+            'mode_label': '자동 실행',
+            'auto': true,
+            'day_label': '오늘',
+          },
+        ]);
+      case '/routines/auto-rules':
+        return json([
+          {
+            'id': 'ar-1',
+            'name': '저녁 공기청정기 켜기',
+            'condition_kind': 'time',
+            'condition_time': '22:00',
+            'condition_text': '매일 22:00이 되면',
+            'action_text': '공기청정기 전원 켜기',
+            'enabled': true,
+            'fingerprint': 'fp-1',
+            'allowed_values': [],
+          },
+          {
+            'id': 'ar-2',
+            'name': '가열 종료 → 공기청정기',
+            'condition_text': '전자레인지가 멈추면',
+            'action_text': '공기청정기 바람 세기 강으로',
+            'enabled': false,
+            'disabled_reason': '직접 자동 실행을 껐어요.',
+            'fingerprint': 'fp-2',
+            'value': 'HIGH',
+            'allowed_values': [
+              {'value': 'MID', 'label': '중'},
+              {'value': 'HIGH', 'label': '강'},
+            ],
+          },
+        ]);
+      case '/thinq/power':
+        return json({
+          'execution_mode': 'real',
+          'appliances': [
+            {'appliance_id': 'air_purifier', 'power': 'on', 'age_s': 3},
+          ],
+        });
+      case '/thinq/air':
+        return json({
+          'execution_mode': 'real',
+          'appliances': [
+            {'appliance_id': 'air_purifier', 'grade': 'NORMAL'},
+          ],
+        });
+      case '/suggestions':
+        return json(<dynamic>[]);
+    }
+    return json({'detail': 'not found'}, 404);
+  }));
 }

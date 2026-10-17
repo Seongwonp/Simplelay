@@ -291,20 +291,54 @@ final sensorProvider = StreamProvider.autoDispose<SensorReading?>((ref) {
 
 // ── 켜진 ThinQ 가전 (15초마다, 서버 전원 기억 — 2026-10-16) ─────────────────
 
-final thinqPowerOnProvider = StreamProvider.autoDispose<Set<String>>((ref) {
+/// 본체가 읽은 LG 가전 전원(가전 id → 'on'·'off'). 모르는 가전은 없다 — 꺼짐으로 단정하지 않는다.
+final thinqPowerProvider = StreamProvider.autoDispose<Map<String, String>>((ref) {
   final service = ref.watch(rpiApiServiceProvider);
-  if (service == null) return Stream.value(const <String>{});
+  if (service == null) return Stream.value(const <String, String>{});
 
-  final controller = StreamController<Set<String>>();
+  final controller = StreamController<Map<String, String>>();
 
   Future<void> fetch() async {
     if (controller.isClosed) return;
-    final on = await service.thinqPowerOn();
-    if (!controller.isClosed) controller.add(on);
+    final power = await service.thinqPower();
+    if (!controller.isClosed) controller.add(power);
   }
 
   fetch();
   final timer = Timer.periodic(const Duration(seconds: 15), (_) => fetch());
+
+  ref.onDispose(() {
+    timer.cancel();
+    controller.close();
+  });
+
+  return controller.stream;
+});
+
+/// 켜진 LG 가전 id(전원 기억이 'on'). [thinqPowerProvider]에서 고른다.
+final thinqPowerOnProvider = Provider.autoDispose<AsyncValue<Set<String>>>((ref) =>
+    ref.watch(thinqPowerProvider).whenData((m) => {
+          for (final e in m.entries)
+            if (e.value == 'on') e.key,
+        }));
+
+// ── 집 공기(60초마다, 본체 공기질 기억 — 2026-10-18) ─────────────────────────
+
+/// 가장 나쁜 공기 등급(GOOD·NORMAL·BAD·VERY_BAD). 모르면 null.
+final thinqAirProvider = StreamProvider.autoDispose<String?>((ref) {
+  final service = ref.watch(rpiApiServiceProvider);
+  if (service == null) return Stream.value(null);
+
+  final controller = StreamController<String?>();
+
+  Future<void> fetch() async {
+    if (controller.isClosed) return;
+    final grade = await service.thinqAirGrade();
+    if (!controller.isClosed) controller.add(grade);
+  }
+
+  fetch();
+  final timer = Timer.periodic(const Duration(seconds: 60), (_) => fetch());
 
   ref.onDispose(() {
     timer.cancel();

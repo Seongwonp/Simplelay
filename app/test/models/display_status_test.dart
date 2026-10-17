@@ -28,6 +28,7 @@ TileStatus _tile({
   ServerCatalogStatus catalog = ServerCatalogStatus.loaded,
   ExecutionStatus execution = const ExecutionStatus(),
   bool thinqOn = false,
+  bool thinqOff = false,
 }) =>
     applianceTileStatus(
       appliance: appliance ?? _plain,
@@ -36,6 +37,7 @@ TileStatus _tile({
       catalog: catalog,
       execution: execution,
       thinqOn: thinqOn,
+      thinqOff: thinqOff,
     );
 
 RpiHistoryEntry _entry(Map<String, dynamic> extra) => RpiHistoryEntry.fromJson({
@@ -142,6 +144,26 @@ void main() {
       expect(_tile(source: physical, thinqOn: true).text, '');
       // 허브 장애·준비 문제가 '켜짐'보다 앞선다.
       expect(_tile(appliance: thinq, source: thinq, thinqOn: true,
+              hub: RpiConnectionState.unreachable).text,
+          '본체 연결을 봐 주세요');
+    });
+
+    // 2026-10-18 홈 개편: LG 가전은 서버가 **읽은** 꺼짐일 때만 '꺼짐' — 모르면 비운다.
+    test('LG 가전은 서버가 읽은 꺼짐일 때만 "꺼짐", 모르면 비운다(초록·체크 아님)', () {
+      final thinq = _server(const {
+        'id': 'air_purifier',
+        'name': '공기청정기',
+        'control_path': 'thinq',
+        'can_execute': true,
+        'readiness': 'operable',
+      });
+      final off = _tile(appliance: thinq, source: thinq, thinqOff: true);
+      expect(off.text, '꺼짐');
+      expect(off.tone, TileTone.off);
+      expect(_tile(appliance: thinq, source: thinq).text, '');
+      final physical = _server(const {'can_execute': true, 'readiness': 'operable'});
+      expect(_tile(source: physical, thinqOff: true).text, '', reason: '버튼식 가전에는 붙이지 않는다');
+      expect(_tile(appliance: thinq, source: thinq, thinqOff: true,
               hub: RpiConnectionState.unreachable).text,
           '본체 연결을 봐 주세요');
     });
