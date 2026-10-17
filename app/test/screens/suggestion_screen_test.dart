@@ -198,9 +198,9 @@ void main() {
       expect(find.text('연습'), findsOneWidget); // 모의(표본) 가전
       expect(find.text('연습용으로 만든 알림이에요'), findsOneWidget);
       // 버튼 배치(지도)는 접혀 있다 — 제목만 보이고 지도는 없다.
-      expect(find.text('전자레인지의 실제 버튼 배치'), findsOneWidget);
+      expect(findPlainText('전자레인지의 실제 버튼 배치'), findsOneWidget);
       expect(find.byType(ButtonMapGrid), findsNothing);
-      await tester.tap(find.text('전자레인지의 실제 버튼 배치'));
+      await tester.tap(findPlainText('전자레인지의 실제 버튼 배치'));
       await tester.pumpAndSettle();
       expect(find.byType(ButtonMapGrid), findsOneWidget);
     });
@@ -237,7 +237,7 @@ void main() {
         _buildSuggestion('test-001', suggestions: const [_sug]),
       );
       await tester.pump();
-      expect(find.text('즉석밥 데우기, 지금 할까요?'), findsOneWidget);
+      expect(findPlainText('즉석밥 데우기, 지금 할까요?'), findsOneWidget);
     });
 
     testWidgets('단계별 한국어 라벨 표시', (tester) async {
@@ -247,7 +247,7 @@ void main() {
       );
       await tester.pump();
       // 버튼 배치(지도)는 접혀 있다 — 펼쳐서 비교한다(2026-10-14 UI 정리).
-      await tester.tap(find.text('전자레인지의 실제 버튼 배치'));
+      await tester.tap(findPlainText('전자레인지의 실제 버튼 배치'));
       await tester.pumpAndSettle();
       // 순서 목록과 버튼 지도가 **같은 단어**를 쓴다 -- 대상 가전에 등록된
       // 라벨 그대로. 예전에는 목록이 전역 표('1분 추가')를, 지도가 가전
@@ -347,11 +347,11 @@ void main() {
 
       // 대상 가전을 먼저 알려준다
       expect(find.text('에어컨'), findsOneWidget);
-      expect(find.text('에어컨의 실제 버튼 배치'), findsOneWidget);
+      expect(findPlainText('에어컨의 실제 버튼 배치'), findsOneWidget);
       // 기본 선택(전자레인지)의 지도가 아니어야 한다
-      expect(find.text('전자레인지의 실제 버튼 배치'), findsNothing);
+      expect(findPlainText('전자레인지의 실제 버튼 배치'), findsNothing);
       // 환경 근거도 함께 보인다
-      expect(find.text('지금 31°C · 습도 72% — 더워요'), findsOneWidget);
+      expect(findPlainText('지금 31°C · 습도 72% — 더워요'), findsOneWidget);
     });
 
     testWidgets('"이 일은 다시 묻지 않기" 탭 시 화면 pop', (tester) async {
@@ -424,7 +424,7 @@ void main() {
       expect(find.text('어느 가전인지 몰라요.'), findsOneWidget);
       expect(find.text('지금 하기'), findsNothing);
       // 기본 선택 가전으로 바꿔 그리지 않는다
-      expect(find.text('전자레인지의 실제 버튼 배치'), findsNothing);
+      expect(findPlainText('전자레인지의 실제 버튼 배치'), findsNothing);
     });
 
     testWidgets('준비 안 된 가전의 제안은 실행을 내걸지 않고 이유를 말한다',
@@ -505,7 +505,7 @@ void main() {
 
       // '최근'을 붙이지 않는다 -- 서버 집계에 기간 창이 없어서, 화면이
       // 범위를 실제보다 좁게 말하는 것이 된다.
-      expect(find.text('저녁 시간에 4번 하셨어요.'), findsOneWidget);
+      expect(findPlainText('저녁 시간에 4번 하셨어요.'), findsOneWidget);
       expect(find.textContaining('최근'), findsNothing);
     });
 

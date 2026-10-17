@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../models/line_break.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -280,7 +281,9 @@ class _TargetHeader extends StatelessWidget {
                 if (!appliance.isThinq) ...[
                   const SizedBox(height: AppSpace.xs),
                   Text(
-                    '버튼 ${appliance.buttons.length}개. 누르면 작은 팔이 실제 가전 버튼을 눌러요',
+                    // 어절 단위 줄바꿈('가|전 버튼' 방지, 평가 5차 10/18).
+                    keepWordsTogether('버튼 ${appliance.buttons.length}개. 누르면 작은 팔이 실제 가전 버튼을 눌러요'),
+                    semanticsLabel: '버튼 ${appliance.buttons.length}개. 누르면 작은 팔이 실제 가전 버튼을 눌러요',
                     style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                   ),
                 ],
@@ -364,7 +367,9 @@ class _FeedbackLine extends StatelessWidget {
         const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Text(
-            '누를 버튼을 골라 주세요. 한 번에 하나씩 눌러요.',
+            // 어절 단위 줄바꿈('눌|러요' 방지, 평가 5차 10/18).
+            keepWordsTogether('누를 버튼을 골라 주세요. 한 번에 하나씩 눌러요.'),
+            semanticsLabel: '누를 버튼을 골라 주세요. 한 번에 하나씩 눌러요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
         ),

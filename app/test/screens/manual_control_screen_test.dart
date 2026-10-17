@@ -11,6 +11,7 @@ import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/manual_control_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+import '../helpers/test_helpers.dart';
 
 const _testAppliance = ApplianceMap(
   id: 'custom_test',
@@ -129,7 +130,7 @@ void main() {
 
     // 어느 가전인지가 본문 머리에 온다(사진/실루엣 + 이름).
     expect(find.text('테스트가전'), findsOneWidget);
-    expect(find.text('버튼 2개. 누르면 작은 팔이 실제 가전 버튼을 눌러요'), findsOneWidget);
+    expect(findPlainText('버튼 2개. 누르면 작은 팔이 실제 가전 버튼을 눌러요'), findsOneWidget);
     expect(find.text('켜기'), findsOneWidget);
     expect(find.text('끄기'), findsOneWidget);
     // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.
