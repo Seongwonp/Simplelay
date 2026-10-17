@@ -276,4 +276,27 @@ void main() {
       _expectFullyVisible(tester, find.text(d));
     }
   });
+
+  // UI 평가 5차 10/17: 큰 글씨 결과 화면에 스크롤이 생겨 루틴 이름이 접힘 아래로 갔다.
+  for (final panel15 in [false, true]) {
+    testWidgets('큰 글씨 결과(${panel15 ? '1920x1080' : '800x480'}) — 제목·할 일·대상·이름이 스크롤 없이 다 보여요', (tester) async {
+      if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+      await _pump(
+          tester,
+          KioskDoneView(
+            success: true,
+            label: '냉동 만두 데워서 라면이랑 같이 먹을 준비',
+            target: kMicrowaveAppliance,
+            onDismiss: () {},
+          ),
+          panel15: panel15);
+      expect(tester.takeException(), isNull);
+      for (final e in find.byType(RichText).evaluate().toList()) {
+        final w = e.widget as RichText;
+        if (w.text.toPlainText().trim().isEmpty) continue;
+        _expectFullyVisible(tester, find.byWidget(w));
+      }
+      expect(find.textContaining('냉동 만두'), findsOneWidget);
+    });
+  }
 }

@@ -168,6 +168,10 @@ void main() {
 
     expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
     expect(find.text('작은 팔과 가전이 멈췄는지 직접 봐 주세요'), findsOneWidget);
+    // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
+    // 다시 하려면 처음 화면에서 고른다. '화면으로 조작하기'는 남는다.
+    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('화면으로 조작하기'), findsOneWidget);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {

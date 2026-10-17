@@ -163,8 +163,8 @@ void main() {
     expect(find.textContaining('— 정지 요청으로'), findsNothing);
     expect(find.text('작은 팔과 가전이 멈췄는지 직접 봐 주세요'), findsOneWidget);
     expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
-    expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
-    expect(_inButton<ElevatedButton>('다시 시도'), findsNothing);
+    // 직접 멈춘 결과에는 '다시 시도'가 없다(UI 평가 5차 10/17 — 다시 누를 위험).
+    expect(find.text('다시 시도'), findsNothing);
   });
 
   group('사용자 정지 — 제목은 정지 단계, 할 일은 한 줄만', () {

@@ -252,7 +252,8 @@ void main() {
         expect(tester.takeException(), isNull);
         _expectVisible(tester, find.byKey(const ValueKey('done-next-step')), '할 일 줄');
         _expectVisible(tester, find.byKey(const ValueKey('done-home')), '처음 화면으로');
-        expect(find.byKey(const ValueKey('done-retry')), findsOneWidget);
+        // 직접 멈춘 결과에는 '다시 시도'가 없다(UI 평가 5차 10/17).
+        expect(find.byKey(const ValueKey('done-retry')), findsNothing);
         expect(find.byKey(const ValueKey('done-manual')), findsOneWidget);
       });
     }

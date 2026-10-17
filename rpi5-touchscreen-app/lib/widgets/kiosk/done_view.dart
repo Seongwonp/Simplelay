@@ -308,7 +308,9 @@ class KioskDoneView extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _ResultRing(
+          // 큰 글씨에서는 결과 원을 뺀다 — 위 상태 띠가 같은 아이콘·색으로 말하고, 남기면 이름 줄이 스크롤 아래로
+          // 밀렸다(UI 평가 5차 10/17).
+          if (!large) _ResultRing(
             icon: verifiedSuccess || pressCompleted
                 ? Icons.check
                 : success
@@ -319,9 +321,9 @@ class KioskDoneView extends StatelessWidget {
                             ? Icons.question_mark
                             : Icons.close,
             color: color,
-            size: large ? KioskSizes.resultIconLarge : KioskSizes.resultIcon,
+            size: KioskSizes.resultIcon,
           ),
-          SizedBox(height: large ? 8 : 12),
+          if (!large) const SizedBox(height: 12),
           // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
           // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 누르기**다.
           // 제목은 2줄까지 자연스럽게 넘어간다(폭은 [KioskSizes.resultMaxWidth], 2026-10-16 §1-7).
@@ -427,8 +429,11 @@ class KioskDoneView extends StatelessWidget {
 
     // 행동 단추는 스크롤 밖 아래에 고정한다(2026-10-15 B7) — 큰 글씨에서 '처음으로'가 화면 밖으로 밀렸다.
     // 큰 글자에서는 '처음 화면으로'만 고정하고 보조 단추는 할 일 아래로(§1-8 세로 1열).
+    // 사용자가 직접 멈춘 결과에는 '다시 시도'를 두지 않는다 — 멈춘 사람에게 같은 무게의 다시 시도는 다시 누를 위험을
+    // 키웠다(UI 평가 5차 10/17). 다시 하려면 처음 화면에서 고른다.
+    final retry = userStop ? null : onRetry;
     final secondaryInFlow =
-        large && !success && (onRetry != null || onManual != null);
+        large && !success && (retry != null || onManual != null);
     // 화면을 만지면 자동 복귀를 멈춘다(UI 평가 10/17) — 단추 동작은 그대로 지나간다(translucent).
     return Listener(
       behavior: HitTestBehavior.translucent,
@@ -455,7 +460,7 @@ class KioskDoneView extends StatelessWidget {
                           const SizedBox(height: 14),
                           _FailureActions(
                             key: const ValueKey('done-secondary-in-flow'),
-                            onRetry: onRetry == null
+                            onRetry: retry == null
                                 ? null
                                 : () => _confirmRetry(context, mock),
                             onManual: onManual,
@@ -474,7 +479,7 @@ class KioskDoneView extends StatelessWidget {
               child: success
                   ? _SuccessActions(onDismiss: onDismiss, held: autoReturnHeld)
                   : _FailureActions(
-                      onRetry: secondaryInFlow || onRetry == null
+                      onRetry: secondaryInFlow || retry == null
                           ? null
                           : () => _confirmRetry(context, mock),
                       onManual: secondaryInFlow ? null : onManual,
