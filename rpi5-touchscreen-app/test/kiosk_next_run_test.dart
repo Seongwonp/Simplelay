@@ -56,6 +56,19 @@ void main() {
     expect(KioskNextRun.fromJson({'name': ''}), isNull);
   });
 
+  // UI 평가 8차 10/17: 조용한 시간이 켜져 그 회차를 건너뛰는데 '다음 루틴 · 오늘 22:00 … 자동 실행'이라고 했다.
+  test('조용한 시간이라 건너뛰는 회차는 첫 줄에 조용한 시간, 둘째 줄에 건너뜀(줄 길이는 그대로)', () {
+    final quiet = KioskNextRun.fromJson({
+      'name': '저녁 공기청정기 켜기',
+      'at': '2026-10-17T22:00:00+09:00',
+      'day_label': '오늘',
+      'mode_label': '조용한 시간이라 건너뜀',
+      'quiet_skip': true,
+    })!;
+    expect(quiet.line, '다음 루틴 · 오늘 22:00 · 조용한 시간\n저녁 공기청정기 켜기 · 건너뜀');
+    expect(quiet.shortLine, '다음 22:00 저녁 공기청정기 켜기 · 건너뜀');
+  });
+
   test('GET /routines/next 첫 항목 — 실패·빈 목록은 null', () async {
     Future<KioskNextRun?> read(int status, Object body) => http.runWithClient(
         () => KioskApiService(baseUrl: 'http://hub.test').nextRoutine(),

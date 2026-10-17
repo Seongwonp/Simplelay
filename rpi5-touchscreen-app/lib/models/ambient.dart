@@ -145,7 +145,11 @@ class KioskNextRun {
     required this.dayLabel,
     required this.hhmm,
     required this.modeLabel,
+    this.quietSkip = false,
   });
+
+  /// 조용한 시간이라 이 회차를 건너뛴다(서버 `quiet_skip`, UI 평가 8차 10/17).
+  final bool quietSkip;
 
   final String name;
   final String dayLabel;
@@ -166,18 +170,21 @@ class KioskNextRun {
       dayLabel: day is String ? day : '',
       hhmm: hhmm,
       modeLabel: mode is String ? mode : '',
+      quietSkip: json['quiet_skip'] == true,
     );
   }
 
   /// 첫 줄은 언제, 둘째 줄은 무엇 — 이어 쓰면 '22:00 저녁 / 공기청정기 켜기'처럼 루틴 이름 첫 낱말이 시간대로
   /// 읽혔다(UI 평가 10/17).
-  String get line => '다음 루틴 · ${[if (dayLabel.isNotEmpty) dayLabel, hhmm].join(' ')}\n'
-      '${[name, if (modeLabel.isNotEmpty) modeLabel].join(' · ')}';
+  /// 조용한 시간이라 건너뛰면 긴 서버 말 대신 첫 줄에 '조용한 시간', 둘째 줄에 '건너뜀'(줄 길이를 늘리지 않게).
+  String get line => '다음 루틴 · ${[if (dayLabel.isNotEmpty) dayLabel, hhmm].join(' ')}'
+      '${quietSkip ? ' · 조용한 시간' : ''}\n'
+      '${[name, if (quietSkip) '건너뜀' else if (modeLabel.isNotEmpty) modeLabel].join(' · ')}';
 
   /// 큰 글씨용 짧은 문장 — '오늘'·'루틴'을 빼고 실행 방식은 한 낱말로('다음 22:00 저녁 공기청정기 켜기 · 자동').
   String get shortLine => [
         '다음 ${[if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, hhmm].join(' ')} $name',
-        if (modeLabel == '자동 실행') '자동' else if (modeLabel.isNotEmpty) modeLabel,
+        if (quietSkip) '건너뜀' else if (modeLabel == '자동 실행') '자동' else if (modeLabel.isNotEmpty) modeLabel,
       ].join(' · ');
 }
 
