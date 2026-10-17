@@ -129,8 +129,13 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
                   if (skip != null)
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 2),
+                      // 앰버는 실제로 건너뛸 때(켜짐)만, 켜면 건너뛸 미리 알림은 회색 — 루틴 탭 규칙 카드와 같은 색 규칙
+                      // (UI 평가 8차 10/17).
                       child: _WordsText(skip,
-                          style: TextStyle(fontSize: 14, color: context.appWarning, fontWeight: FontWeight.w600)),
+                          style: TextStyle(
+                              fontSize: 14,
+                              color: s.enabled ? context.appWarning : context.appMuted,
+                              fontWeight: FontWeight.w600)),
                     ),
                   _WordsText(
                     '${s.scope ?? '새 제안과 일반 안내 소리만 쉬어요.'} 직접 실행·정지는 그대로예요.',

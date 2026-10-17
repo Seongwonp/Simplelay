@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/auto_rule.dart';
 import '../models/quiet_hours.dart';
+import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
@@ -23,6 +25,8 @@ class _DndSheet extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final dndUntil = ref.watch(dndProvider);
     final isActive = dndUntil != null && dndUntil.isAfter(DateTime.now());
+    final rules = ref.watch(autoRulesProvider).valueOrNull ?? const <AutoRule>[];
+    final now = DateTime.now();
 
     return SafeArea(
       child: Container(
@@ -112,7 +116,12 @@ class _DndSheet extends ConsumerWidget {
             ..._kOptions.map(
               (opt) => _OptionTile(
                 label: opt.label,
-                subtitle: opt.subtitle,
+                // 그 시간 안에 드는 자동 실행을 이름으로(UI 평가 7차 10/17) — 쉬는 동안 소리 없이 건너뛰지 않게.
+                subtitle: switch (pauseSkippedRules(now, opt.minutes, rules)) {
+                  final skipped when skipped.isNotEmpty =>
+                    '${opt.subtitle} · 건너뛰는 자동 실행: ${skipped.join(', ')}',
+                  _ => opt.subtitle,
+                },
                 onTap: () async {
                   final messenger = ScaffoldMessenger.of(context);
                   Navigator.of(context).pop();

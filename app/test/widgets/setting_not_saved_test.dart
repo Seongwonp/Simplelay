@@ -60,7 +60,8 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('1시간'));
       await tester.pumpAndSettle();
-      expect(calls.first, 'POST /dnd');
+      // 시트가 겹치는 자동 실행을 보이려고 규칙 목록을 읽는다(GET) — 바꾸는 요청 중 첫째가 POST /dnd.
+      expect(calls.where((c) => !c.startsWith('GET ')).first, 'POST /dnd');
       expect(find.text(kSettingNotSavedNotice), shown ? findsOneWidget : findsNothing);
     });
   }

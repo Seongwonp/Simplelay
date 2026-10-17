@@ -84,6 +84,24 @@ String? quietRuleNote(QuietHoursStatus? s, AutoRule r) {
   return s.enabled ? '$range이라 이 자동 실행은 건너뛰어요' : '$range을 켜면 이 자동 실행은 건너뛰어요';
 }
 
+/// '제안 잠시 쉬기'를 [minutes]분 켜면 그 안에 시각이 드는 켜진 시각 규칙('이름(HH:MM)'). 다음에 오는 그 시각을
+/// 센다(지금과 같으면 아직 시작 전이라 포함). 요일은 규칙 목록이 주지 않아 매일로 본다(UI 평가 7차 10/17).
+List<String> pauseSkippedRules(DateTime now, int minutes, List<AutoRule> rules) {
+  final end = now.add(Duration(minutes: minutes));
+  final out = <String>[];
+  for (final r in rules) {
+    final t = r.conditionTime;
+    if (!r.enabled || t == null) continue;
+    final p = t.split(':');
+    final h = p.length == 2 ? int.tryParse(p[0]) : null, m = p.length == 2 ? int.tryParse(p[1]) : null;
+    if (h == null || m == null) continue;
+    var at = DateTime(now.year, now.month, now.day, h, m);
+    if (at.isBefore(now)) at = at.add(const Duration(days: 1));
+    if (at.isBefore(end)) out.add('${r.name}($t)');
+  }
+  return out;
+}
+
 /// 설정 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 잠시 쉬기·
 /// 조용한 시간 공통. 허브를 다시 켜면 마지막으로 저장된 설정으로 시작한다.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. 허브를 다시 켜면 이전 설정으로 돌아가요.';
