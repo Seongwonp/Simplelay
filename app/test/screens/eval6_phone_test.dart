@@ -294,12 +294,14 @@ void main() {
   });
 
   group('B·C. 자동으로 하기 카드', () {
-    testWidgets("끈 규칙은 한 줄 — '지금은 안 해요'와 '꺼 두셨어요'를 함께 두지 않는다", (tester) async {
+    // 평가 8차(10/18): 사용자가 끈 규칙은 스위치만 — '꺼 두셨어요' 배지도 두지 않는다(eval8_phone_test D).
+    testWidgets("끈 규칙에 '지금은 안 해요'·'꺼 두셨어요'를 겹쳐 두지 않는다 — 스위치만", (tester) async {
       await _pump(tester, const RoutinesScreen());
       await _openRules(tester);
       final card = find.byKey(const Key('auto-rule-ar-off'));
       expect(find.descendant(of: card, matching: findPlainText('자동으로 하기를 꺼 두셨어요', contains: true)),
-          findsOneWidget);
+          findsNothing);
+      expect(find.byKey(const Key('auto-rule-switch-ar-off')), findsOneWidget);
       expect(find.descendant(of: card, matching: findPlainText('지금은 안 해요', contains: true)), findsNothing);
     });
 
@@ -315,7 +317,7 @@ void main() {
       await _openRules(tester);
       final note = find.descendant(
           of: find.byKey(const Key('auto-rule-ar-on')),
-          matching: findPlainText('조용한 시간(22:00~07:00)이라 이때는 자동으로 안 해요'));
+          matching: findPlainText('조용한 시간(오후 10:00~오전 7:00)이라 이때는 자동으로 안 해요'));
       expect(note, findsOneWidget);
       final style = tester.widget<Text>(note).style!;
       expect(style.color, AppColors.warningLight);

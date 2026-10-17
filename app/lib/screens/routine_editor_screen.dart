@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../models/clock_text.dart';
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/routine_provider.dart';
@@ -105,14 +106,14 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
 
           if (_isNew && !_whenChosen) ...[
             Text(hint == null ? '언제 실행할지 골라 주세요.'
-              : '최근 30일 중 ${hint.count}일에 ${hint.time} 무렵 사용했어요.',
+              : '최근 30일 중 ${hint.count}일에 ${ampmClock(hint.time)} 무렵 사용했어요.',
               key: const Key('routine-time-hint')),
             if (hint != null)
               FilledButton(onPressed: () {
                 _whenChosen = true;
                 _update(_draft.copyWith(trigger: RoutineTrigger(
                   kind: RoutineTriggerKind.time, time: hint.time, days: hint.days)));
-              }, child: Text('${hint.time}로 정하기')),
+              }, child: Text('${ampmClock(hint.time)}로 정하기')),
             OutlinedButton(onPressed: () => _editTrigger(appliances),
               child: const Text('실행 시각 고르기')),
             TextButton(onPressed: () {
@@ -137,7 +138,8 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                   keyWord: '언제',
                   child: _Token(
                     key: const Key('routine-when'),
-                    text: _draft.trigger.describe(applianceNames: names),
+                    // 시각은 폰 전체와 같은 '오전 7:30' 꼴(평가 8차 10/18) — 저장하는 값은 그대로 'HH:MM'.
+                    text: withAmPm(_draft.trigger.describe(applianceNames: names)),
                     onTap: () => _editTrigger(appliances),
                   ),
                 ),
@@ -769,7 +771,7 @@ class _TriggerSheetState extends State<_TriggerSheet> {
                 const SizedBox(height: AppSpace.md),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.schedule),
-                  label: Text(_time),
+                  label: Text(ampmClock(_time)),
                   onPressed: () async {
                     final parts = _time.split(':');
                     final picked = await showTimePicker(

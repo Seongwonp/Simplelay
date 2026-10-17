@@ -17,9 +17,11 @@ class _FixedDnd extends DndNotifier {
   }
 }
 
+/// 이 기기 현지 시각 '오후 10:04' — 폰의 시각 꼴(평가 8차 10/18).
 String _hhmm(DateTime t) {
   final l = t.toLocal();
-  return '${l.hour.toString().padLeft(2, '0')}:${l.minute.toString().padLeft(2, '0')}';
+  final h12 = l.hour % 12 == 0 ? 12 : l.hour % 12;
+  return '${l.hour < 12 ? '오전' : '오후'} $h12:${l.minute.toString().padLeft(2, '0')}';
 }
 
 void _tall(WidgetTester tester) {

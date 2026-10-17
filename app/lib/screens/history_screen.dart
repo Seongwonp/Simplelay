@@ -1,3 +1,4 @@
+import '../models/clock_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -142,8 +143,8 @@ String _dayLabel(DateTime t, DateTime now) {
   return '${t.month}월 ${t.day}일';
 }
 
-String _hm(DateTime t) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+/// 기록 줄 시각 — '오후 10:04'(폰의 다른 시각과 같은 꼴, 평가 8차 10/18).
+String _hm(DateTime t) => ampmOf(t);
 
 class _Message extends StatelessWidget {
   const _Message({required this.icon, required this.text});

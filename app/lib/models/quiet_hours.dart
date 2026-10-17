@@ -1,3 +1,4 @@
+import 'clock_text.dart';
 import 'auto_rule.dart';
 
 /// 조용한 시간(2026-10-14, 서버 `GET/PUT /quiet-hours`). 키오스크는 같은 상태를 /health의 `quiet`로 본다.
@@ -42,9 +43,9 @@ class QuietHoursStatus {
     );
   }
 
-  /// 설정 줄 — "매일 22:00~07:00 · 지금 조용한 시간이에요" / "· 꺼져 있어요".
+  /// 설정 줄 — "매일 오후 10:00~오전 7:00, 지금 조용한 시간이에요" / ", 꺼져 있어요"(시각 꼴은 평가 8차 10/18).
   String get summary {
-    final range = '매일 $start~$end';
+    final range = '매일 ${ampmRange(start, end)}';
     if (!enabled) return '$range, 꺼져 있어요';
     return reason == 'schedule' ? '$range, 지금 조용한 시간이에요' : range;
   }
@@ -70,7 +71,7 @@ String? quietSkipLine(QuietHoursStatus s, List<AutoRule> rules) {
   final hit = [
     for (final r in rules)
       if (r.enabled && r.conditionTime != null && quietWindowContains(s.start, s.end, r.conditionTime!))
-        '${r.name}(${r.conditionTime})',
+        '${r.name}(${ampmClock(r.conditionTime!)})',
   ];
   if (hit.isEmpty) return null;
   // 자동 계열 말은 '자동으로 해요'/'안 해요' 하나로(평가 4차 10/18 — '자동 실행'·'자동'이 섞였다).
@@ -84,7 +85,7 @@ String? quietSkipLine(QuietHoursStatus s, List<AutoRule> rules) {
 String? quietRuleNote(QuietHoursStatus? s, AutoRule r) {
   final t = r.conditionTime;
   if (s == null || !s.enabled || t == null || !quietWindowContains(s.start, s.end, t)) return null;
-  return '조용한 시간(${s.start}~${s.end})이라 이때는 자동으로 안 해요';
+  return '조용한 시간(${ampmRange(s.start, s.end)})이라 이때는 자동으로 안 해요';
 }
 
 /// '제안 잠시 쉬기'를 [minutes]분 켜면 그 안에 시각이 드는 켜진 시각 규칙('이름(HH:MM)'). 다음에 오는 그 시각을
@@ -100,7 +101,7 @@ List<String> pauseSkippedRules(DateTime now, int minutes, List<AutoRule> rules) 
     if (h == null || m == null) continue;
     var at = DateTime(now.year, now.month, now.day, h, m);
     if (at.isBefore(now)) at = at.add(const Duration(days: 1));
-    if (at.isBefore(end)) out.add('${r.name}($t)');
+    if (at.isBefore(end)) out.add('${r.name}(${ampmClock(t)})');
   }
   return out;
 }
@@ -109,8 +110,5 @@ List<String> pauseSkippedRules(DateTime now, int minutes, List<AutoRule> rules) 
 /// 조용한 시간 공통. 허브를 다시 켜면 마지막으로 저장된 설정으로 시작한다.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. 본체를 다시 켜면 전 설정으로 돌아가요.';
 
-/// 잠시 쉬기가 끝나는 시각 "HH:MM"(이 기기 현지 시각, 2026-10-14 마감 확인 A5). 남은 시간만으로는 '언제까지'를 셈해야 한다.
-String pauseEndClock(DateTime until) {
-  final t = until.toLocal();
-  return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-}
+/// 잠시 쉬기가 끝나는 시각 '오후 10:04'(이 기기 현지 시각, 2026-10-14 마감 확인 A5). 남은 시간만으로는 '언제까지'를 셈해야 한다.
+String pauseEndClock(DateTime until) => ampmOf(until.toLocal());

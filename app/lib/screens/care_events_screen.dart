@@ -1,3 +1,4 @@
+import '../models/clock_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -206,14 +207,13 @@ class _LastCheckedAt extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(top: AppSpace.sm),
       child: Text(
-        '${_two(t.hour)}:${_two(t.minute)} 기준',
+        '${ampmOf(t)} 기준',
         textAlign: TextAlign.center,
         style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
       ),
     );
   }
 
-  static String _two(int v) => v.toString().padLeft(2, '0');
 }
 
 class _CareEventCard extends StatelessWidget {
@@ -251,8 +251,7 @@ class _CareEventCard extends StatelessWidget {
     final now = DateTime.now();
     final sameDay =
         t.year == now.year && t.month == now.month && t.day == now.day;
-    final hm = '${t.hour.toString().padLeft(2, '0')}:'
-        '${t.minute.toString().padLeft(2, '0')}';
+    final hm = ampmOf(t);
     return sameDay ? '오늘 $hm' : '${t.month}월 ${t.day}일 $hm';
   }
 

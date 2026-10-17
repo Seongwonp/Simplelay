@@ -136,7 +136,7 @@ void main() {
     expect(find.text('좋음, 11'), findsOneWidget);
     expect(find.text('보통, 20'), findsOneWidget);
     expect(find.text('100%'), findsOneWidget);
-    expect(find.text('09:12 기준'), findsOneWidget);
+    expect(find.text('오전 9:12 기준'), findsOneWidget);
     expect(find.textContaining('에 읽었어요'), findsNothing);
     expect(find.textContaining('모의'), findsNothing);
     // 미세먼지 값이 있으면 이유 줄은 없다.
@@ -200,7 +200,7 @@ void main() {
     await _settle(tester);
 
     expect(find.text('지금 상태 (연습)'), findsOneWidget);
-    expect(find.text('09:12 기준 (연습)'), findsOneWidget);
+    expect(find.text('오전 9:12 기준 (연습)'), findsOneWidget);
   });
 
   testWidgets("바람 세기 '강' → 한 번 묻고, '바꾸기'를 눌러야 한 번 보내고 실행 상태로 간다",
@@ -473,11 +473,11 @@ void main() {
     expect(thinqCommandRefusal(RpiApiException(503, '준비 중')), isNull);
   });
 
-  test('읽은 시각은 HH:MM에 읽음, 낭독은 HH시 MM분', () {
+  test('읽은 시각은 오전/오후 꼴, 낭독은 오전 7시 5분', () {
     final t = DateTime(2026, 10, 15, 7, 5, 59);
-    expect(thinqReadTimeLine(t), '07:05 기준');
-    expect(thinqReadTimeLine(t, mock: true), '07:05 기준 (연습)');
-    expect(thinqReadTimeSpoken(t), '07시 05분');
+    expect(thinqReadTimeLine(t), '오전 7:05 기준');
+    expect(thinqReadTimeLine(t, mock: true), '오전 7:05 기준 (연습)');
+    expect(thinqReadTimeSpoken(t), '오전 7시 5분');
   });
 
   testWidgets('L3: 칩마다 줄 이름을 붙인 읽는 이름과 선택 상태, 읽은 시각의 읽는 이름', (tester) async {
@@ -497,7 +497,7 @@ void main() {
         isSemantics(label: '전원 켜기', isSelected: true));
     expect(node('set_power', 'POWER_OFF'),
         isSemantics(label: '전원 끄기', isSelected: false));
-    expect(find.bySemanticsLabel('지금 상태, 09시 12분 기준'), findsOneWidget);
+    expect(find.bySemanticsLabel('지금 상태, 오전 9시 12분 기준'), findsOneWidget);
     handle.dispose();
   });
 
@@ -564,8 +564,8 @@ void main() {
     await _settle(tester);
 
     expect(find.textContaining('직접 누름'), findsNothing);
-    expect(find.textContaining('09:05 강풍으로 바꿨어요, '), findsOneWidget);
-    expect(find.textContaining('09:01 직접 바꿈, '), findsOneWidget);
+    expect(find.textContaining('오전 9:05 강풍으로 바꿨어요, '), findsOneWidget);
+    expect(find.textContaining('오전 9:01 직접 바꿈, '), findsOneWidget);
   });
 
 }

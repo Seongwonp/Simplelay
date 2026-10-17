@@ -20,14 +20,14 @@ void main() {
   test('쉬는 동안(지금부터 길이 안)에 시각이 드는 켜진 시각 규칙만', () {
     final now = DateTime(2026, 10, 17, 21, 30);
     expect(pauseSkippedRules(now, 30, rules), isEmpty);
-    expect(pauseSkippedRules(now, 60, rules), ['저녁 공기청정기 켜기(22:00)']);
-    expect(pauseSkippedRules(now, 120, rules), ['저녁 공기청정기 켜기(22:00)']);
+    expect(pauseSkippedRules(now, 60, rules), ['저녁 공기청정기 켜기(오후 10:00)']);
+    expect(pauseSkippedRules(now, 120, rules), ['저녁 공기청정기 켜기(오후 10:00)']);
   });
 
   test('자정을 넘는 쉬기도 다음 날 시각을 센다', () {
     final now = DateTime(2026, 10, 17, 6, 10);
-    expect(pauseSkippedRules(now, 60, rules), ['아침 공기청정기 끄기(07:00)']);
+    expect(pauseSkippedRules(now, 60, rules), ['아침 공기청정기 끄기(오전 7:00)']);
     // 지금 시각과 같은 규칙은 아직 시작 전이라 센다.
-    expect(pauseSkippedRules(DateTime(2026, 10, 17, 22, 0), 30, rules), ['저녁 공기청정기 켜기(22:00)']);
+    expect(pauseSkippedRules(DateTime(2026, 10, 17, 22, 0), 30, rules), ['저녁 공기청정기 켜기(오후 10:00)']);
   });
 }

@@ -34,10 +34,10 @@ void main() {
       historyProvider.overrideWith((_) async => records()),
     ]));
     await tester.pumpAndSettle();
-    expect(find.text('07:10로 정하기'), findsOneWidget);
+    expect(find.text('오전 7:10로 정하기'), findsOneWidget);
     await tester.tap(find.text('직접 실행으로 정하기'));
     await tester.pump();
-    expect(find.text('07:10로 정하기'), findsNothing);
+    expect(find.text('오전 7:10로 정하기'), findsNothing);
     expect(find.text('직접 실행할 때'), findsOneWidget);
   });
 

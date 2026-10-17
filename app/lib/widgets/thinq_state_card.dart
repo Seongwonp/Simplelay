@@ -1,3 +1,4 @@
+import '../models/clock_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -302,14 +303,11 @@ String? thinqCommandRefusal(RpiApiException e) {
   }
 }
 
-/// 'HH:MM에 읽음' — 읽은 시각(모의면 ' (모의)').
-String thinqReadTimeLine(DateTime t, {bool mock = false}) =>
-    '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 기준'
-    '${mock ? ' (연습)' : ''}';
+/// '오전 7:05 기준' — 읽은 시각(모의면 ' (연습)'). 시각 꼴은 폰 전체와 같다(평가 8차 10/18).
+String thinqReadTimeLine(DateTime t, {bool mock = false}) => '${ampmOf(t)} 기준${mock ? ' (연습)' : ''}';
 
-/// 화면 낭독용 시각 — 'HH시 MM분'.
-String thinqReadTimeSpoken(DateTime t) =>
-    '${t.hour.toString().padLeft(2, '0')}시 ${t.minute.toString().padLeft(2, '0')}분';
+/// 화면 낭독용 시각 — '오전 7시 5분'.
+String thinqReadTimeSpoken(DateTime t) => ampmSpoken(t);
 
 const _power = {'POWER_ON': '켜짐', 'POWER_OFF': '꺼짐'};
 const _jobMode = {

@@ -361,7 +361,8 @@ void main() {
     // 문장형 카드: 언제 · 무엇을.
     expect(find.text('언제'), findsOneWidget);
     expect(find.text('무엇을'), findsOneWidget);
-    expect(find.text('평일 07:30'), findsOneWidget);
+    // 시각은 폰 전체와 같은 오전/오후 꼴(평가 8차 10/18).
+    expect(find.text('평일 오전 7:30'), findsOneWidget);
     expect(find.text('해동 → 1분 → 시작'), findsOneWidget);
     // 저장한 루틴은 '지금 하기'를 낼 수 있다(카드만 만든다).
     expect(find.text('지금 하기'), findsOneWidget);
@@ -448,7 +449,8 @@ void main() {
   Finder editButton(String routineId) =>
       find.byKey(Key('routine-edit-$routineId'));
 
-  testWidgets('루틴 행에는 버튼이 하나뿐이고 편집·지우기는 ⋮ 메뉴 안에 있다', (tester) async {
+  // 평가 8차(10/18): 줄 끝 ⋮를 없앴다 — 편집·지우기는 줄을 눌러 들어가는 편집 화면 안(지우기 확인 대화 그대로).
+  testWidgets('루틴 행에는 버튼이 하나뿐이고 ⋮ 메뉴가 없다 — 지우기는 편집 화면 안', (tester) async {
     final server = _Server();
     _tall(tester);
     await tester.pumpWidget(_build(server));
@@ -461,24 +463,23 @@ void main() {
     expect(find.descendant(of: row, matching: find.byWidgetPredicate((w) => w is TextButton || w is OutlinedButton)), findsNothing);
     expect(find.descendant(of: row, matching: find.byType(FilledButton)), findsNothing);
     expect(editButton('rt-1'), findsNothing);
-    expect(menuButton('rt-1'), findsOneWidget);
-    expect(tester.getSize(menuButton('rt-1')).height, greaterThanOrEqualTo(48));
+    expect(menuButton('rt-1'), findsNothing);
+    expect(find.descendant(of: row, matching: find.byIcon(Icons.more_vert)), findsNothing);
 
-    await tester.tap(menuButton('rt-1'));
+    await tester.tap(find.byKey(const Key('routine-rt-1')));
     await _settle(tester);
-    expect(editButton('rt-1'), findsOneWidget);
-    expect(find.byKey(const Key('routine-delete-rt-1')), findsOneWidget);
+    expect(find.byTooltip('루틴 지우기'), findsOneWidget);
   });
 
-  testWidgets('⋮ 메뉴의 지우기는 확인을 한 번 더 받고 나서야 지운다', (tester) async {
+  testWidgets('편집 화면의 지우기는 확인을 한 번 더 받고 나서야 지운다', (tester) async {
     final server = _Server();
     _tall(tester);
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    await tester.tap(menuButton('rt-1'));
+    await tester.tap(find.byKey(const Key('routine-rt-1')));
     await _settle(tester);
-    await tester.tap(find.byKey(const Key('routine-delete-rt-1')));
+    await tester.tap(find.byTooltip('루틴 지우기'));
     await _settle(tester);
     expect(find.text('이 루틴을 지울까요?'), findsOneWidget);
     expect(server.deleted, isEmpty);
@@ -487,11 +488,9 @@ void main() {
     await _settle(tester);
     expect(server.deleted, isEmpty);
 
-    await tester.tap(menuButton('rt-1'));
+    await tester.tap(find.byTooltip('루틴 지우기'));
     await _settle(tester);
-    await tester.tap(find.byKey(const Key('routine-delete-rt-1')));
-    await _settle(tester);
-    await tester.tap(find.byKey(const Key('confirm-delete')));
+    await tester.tap(find.widgetWithText(FilledButton, '지우기'));
     await _settle(tester);
     expect(server.deleted, ['rt-1']);
     expect(server.triggerCount, 0);
@@ -532,7 +531,7 @@ void main() {
         findsOneWidget);
     // 이유 문장은 두지 않는다 — '설정 필요' 배지만, 무엇이 남았는지는 홈 확인 카드 한 곳(평가 3차 10/18).
     expect(findPlainText('설정이 필요해요', contains: true), findsNothing);
-    expect(menuButton('rt-1'), findsOneWidget);
+    expect(menuButton('rt-1'), findsNothing);
   });
 
   testWidgets('실행하기는 편집을 열지 않고 카드만 만들어 승인 화면으로 간다', (tester) async {
@@ -546,9 +545,8 @@ void main() {
     expect(tester.widget(runButton('rt-1')), isA<InkWell>());
     expect(find.descendant(of: runButton('rt-1'), matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
     expect(find.descendant(of: runButton('rt-1'), matching: findPlainText('지금 하기')), findsOneWidget);
-    // 둘 다 48 이상 터치 영역.
+    // 48 이상 터치 영역.
     expect(tester.getSize(runButton('rt-1')).height, greaterThanOrEqualTo(48));
-    expect(tester.getSize(menuButton('rt-1')).height, greaterThanOrEqualTo(48));
 
     await tester.tap(runButton('rt-1'));
     await _settle(tester);
@@ -556,19 +554,6 @@ void main() {
     expect(find.text('승인 화면 card-1'), findsOneWidget);
     // 행 편집이 함께 열리지 않았다.
     expect(find.text('언제'), findsNothing);
-  });
-
-  testWidgets('⋮ 메뉴의 편집은 편집기를 연다', (tester) async {
-    final server = _Server();
-    _tall(tester);
-    await tester.pumpWidget(_build(server));
-    await _settle(tester);
-    await tester.tap(menuButton('rt-1'));
-    await _settle(tester);
-    await tester.tap(editButton('rt-1'));
-    await _settle(tester);
-    expect(find.text('언제'), findsOneWidget);
-    expect(server.triggerCount, 0);
   });
 
   testWidgets('실행하기를 빠르게 두 번 눌러도 카드 요청은 한 번이다', (tester) async {
@@ -617,7 +602,7 @@ void main() {
     await _settle(tester);
     expect(runButton('rt-n'), findsNothing);
     expect(runButton('rt-off'), findsNothing);
-    expect(menuButton('rt-n'), findsOneWidget);
+    expect(menuButton('rt-n'), findsNothing);
     // 알림만은 부제에 적지 않고 '알려 드려요' 배지가 말한다(평가 4차 10/18).
     expect(findPlainText('전자레인지 · 누를 버튼 3개'), findsOneWidget);
     expect(findPlainText('알려 드려요'), findsOneWidget);
@@ -654,7 +639,7 @@ void main() {
     expect(find.byKey(const Key('routine-new')), findsOneWidget);
   });
 
-  testWidgets('200% 글자에서도 ⋮·실행이 겹치지 않고 넘치지 않는다', (tester) async {
+  testWidgets('200% 글자에서도 이름·실행이 겹치지 않고 넘치지 않는다', (tester) async {
     final server = _Server();
     tester.view.physicalSize = const Size(360, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -666,8 +651,8 @@ void main() {
     expect(MediaQuery.textScalerOf(tester.element(runButton('rt-1'))).scale(1), 2.0);
     expect(tester.takeException(), isNull);
     final run = tester.getRect(runButton('rt-1'));
-    final edit = tester.getRect(menuButton('rt-1'));
-    expect(run.overlaps(edit), isFalse);
+    final name = tester.getRect(findPlainText('아침 데우기'));
+    expect(run.overlaps(name), isFalse);
     expect(run.height, greaterThanOrEqualTo(48));
   });
 
@@ -678,7 +663,7 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
     expect(find.bySemanticsLabel('아침 데우기 실행하기'), findsOneWidget);
-    expect(find.bySemanticsLabel('아침 데우기 더 보기'), findsOneWidget);
+    expect(find.bySemanticsLabel('아침 데우기 더 보기'), findsNothing);
     handle.dispose();
   });
 

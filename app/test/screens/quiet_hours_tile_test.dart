@@ -95,7 +95,7 @@ void main() {
     await tester.pumpWidget(_build(server.api()));
     await _settle(tester);
     await openSettingRow(tester, 'quiet');
-    expect(findPlainText('켜면 이때는 자동으로 안 해요: 저녁 공기청정기 켜기(22:00)'), findsOneWidget);
+    expect(findPlainText('켜면 이때는 자동으로 안 해요: 저녁 공기청정기 켜기(오후 10:00)'), findsOneWidget);
     // 꺼져 있을 때의 미리 알림은 회색 — 앰버는 실제로 건너뛸 때만(루틴 탭 규칙 카드와 같게, UI 평가 8차 10/17).
     final hint = tester.widget<Text>(findPlainText('켜면 이때는 자동으로 안 해요', contains: true));
     final ctx = tester.element(findPlainText('켜면 이때는 자동으로 안 해요', contains: true));
@@ -118,7 +118,7 @@ void main() {
     await _settle(tester);
     await openSettingRow(tester, 'quiet');
     expect(findPlainText('조용한 시간'), findsWidgets);
-    expect(findPlainText('매일 22:00~07:00, 지금 조용한 시간이에요'), findsOneWidget);
+    expect(findPlainText('매일 오후 10:00~오전 7:00, 지금 조용한 시간이에요'), findsOneWidget);
     expect(findPlainText('새 제안과 일반 안내 소리만 쉬어요', contains: true), findsOneWidget);
     expect(findPlainText('직접 하기와 정지는 그대로예요', contains: true), findsOneWidget);
     expect(findPlainText('모든 알림', contains: true), findsNothing);
@@ -142,7 +142,7 @@ void main() {
     expect(server.puts, [
       {'enabled': false},
     ]);
-    expect(findPlainText('매일 22:00~07:00, 꺼져 있어요'), findsOneWidget);
+    expect(findPlainText('매일 오후 10:00~오전 7:00, 꺼져 있어요'), findsOneWidget);
     expect(findPlainText(kSettingNotSavedNotice), findsNothing);
   });
 
@@ -157,7 +157,7 @@ void main() {
     expect(server.puts, [
       {'enabled': false},
     ]);
-    expect(findPlainText('매일 22:00~07:00, 꺼져 있어요'), findsOneWidget);
+    expect(findPlainText('매일 오후 10:00~오전 7:00, 꺼져 있어요'), findsOneWidget);
     expect(findPlainText(kSettingNotSavedNotice), findsOneWidget);
   });
 
@@ -179,7 +179,7 @@ void main() {
     await _settle(tester);
     final row = find.byKey(const Key('settings-row-quiet'));
     expect(row, findsOneWidget);
-    final value = find.descendant(of: row, matching: findPlainText('22:00~07:00 · 켜짐'));
+    final value = find.descendant(of: row, matching: findPlainText('오후 10:00~오전 7:00 · 켜짐'));
     expect(value, findsOneWidget);
     final title = find.descendant(of: row, matching: findPlainText('조용한 시간'));
     expect(tester.getCenter(value).dx, greaterThan(tester.getCenter(title).dx));

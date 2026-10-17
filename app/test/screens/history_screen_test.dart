@@ -253,7 +253,7 @@ void main() {
     // '확인하지 못했어요'가 와서 신호가 섞였다).
     expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.help_outline), findsNWidgets(3));
-    expect(findPlainText('08:10 · 직접'), findsOneWidget);
+    expect(findPlainText('오전 8:10 · 직접'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
@@ -383,7 +383,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('공기청정기 켜기'), findsOneWidget);
-    expect(findPlainText('22:00 · 자동', contains: true), findsOneWidget);
+    expect(findPlainText('오후 10:00 · 자동', contains: true), findsOneWidget);
     expect(find.textContaining('자동 실행 · 공기청정기'), findsNothing);
   });
 
@@ -466,7 +466,7 @@ void main() {
     final order = [
       find.text('오늘'),
       find.text('아침 데우기'),
-      findPlainText('08:10 · 직접 · 전자레인지'),
+      findPlainText('오전 8:10 · 직접 · 전자레인지'),
       find.text('다시 눌러도 눌렸는지 몰라요'),
       find.text('연습이라 실제로 누르지 않았어요'),
       find.text('버튼판에서 직접 누르기'),
@@ -509,7 +509,7 @@ void main() {
     ]);
     expect(find.text('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다.
-    expect(findPlainText('08:10 · 직접'), findsOneWidget);
+    expect(findPlainText('오전 8:10 · 직접'), findsOneWidget);
     expect(find.text('전자레인지를 봐 주세요'), findsOneWidget);
     expect(find.text('버튼 누르기'), findsOneWidget);
   });

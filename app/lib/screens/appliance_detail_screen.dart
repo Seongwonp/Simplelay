@@ -1,3 +1,4 @@
+import '../models/clock_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -381,8 +382,7 @@ class _TodayUse extends ConsumerWidget {
     return '직접 누름';
   }
 
-  static String _hm(DateTime t) =>
-      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  static String _hm(DateTime t) => ampmOf(t);
 
   /// 결과는 기록 탭과 같은 규칙(서버 판정)으로만. 모의 실행은 모의라고 적는다 --
   /// 모의 성공을 실제 성공처럼 말하지 않는다.

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/auto_rule.dart';
+import '../models/clock_text.dart';
 import '../models/execution_status.dart';
 import '../models/routine.dart';
 import '../models/routine_candidate.dart';
@@ -25,9 +26,12 @@ import '../widgets/row_menu.dart';
 import '../widgets/status_badge.dart';
 import '../theme/app_tokens.dart';
 
+// 오전/오후 시각 꼴은 clock_text 한 곳(평가 8차 10/18) — 홈·시험이 이 파일에서 가져가던 이름을 그대로 내보낸다.
+export '../models/clock_text.dart' show ampmClock, withAmPm;
+
 /// 루틴 탭 — 세그먼트 [내 루틴 | 자동으로 하기](UI 개편안 §4, 2026-10-18).
 ///
-/// 내 루틴: 사용 기록으로 만든 초안 · 루틴 줄(가전 아이콘 · 이름 · 오른쪽 '지금 하기 >' + ⋮). 다음에 할 줄에는 '다음' 배지.
+/// 내 루틴: 사용 기록으로 만든 초안 · 루틴 줄(가전 아이콘 · 이름 · 오른쪽 '지금 하기 >', 줄을 누르면 편집·지우기). 다음에 할 줄에는 '다음' 배지.
 /// 자동으로 하기: 허락한 규칙 카드(언제·무엇을 한 문장, 상태 배지, 최근 결과, 스위치).
 ///
 /// 예시 루틴은 미리 만든 **템플릿**이다(개인 습관 추천이 아니다) — [+ 새 루틴] 안의 선택지로 둔다.
@@ -101,8 +105,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
           children: [
             SegmentedButton<int>(
               segments: [
-                ButtonSegment(value: 0, label: Text(keepWordsTogether('내 루틴'), semanticsLabel: '내 루틴')),
-                ButtonSegment(value: 1, label: Text(keepWordsTogether('자동으로 하기'), semanticsLabel: '자동으로 하기')),
+                // 큰 글씨에서도 한 줄 — 두 줄로 꺾이면 탭 위아래가 잘렸다(평가 8차 10/18). 칸보다 길 때만 그만큼 줄인다.
+                ButtonSegment(value: 0, label: _SegmentLabel('내 루틴')),
+                ButtonSegment(value: 1, label: _SegmentLabel('자동으로 하기')),
               ],
               selected: {_segment},
               showSelectedIcon: false,
@@ -115,6 +120,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       const _Note('아직 자동으로 하는 일이 없어요. 할까요? 카드에서 "다음부터도 자동으로"를 고르면 여기에 생겨요.'),
                     ]
                   : [
+                      // 같은 시각 루틴이 '내 루틴'에도 있어 두 탭이 무엇이 다른지 한 줄로(평가 8차 10/18).
+                      const _Note('묻지 않고 하도록 허락해 둔 일이에요. 스위치로 끄면 자동으로 하지 않아요.',
+                          key: Key('auto-rules-intro')),
                       for (final rule in rules)
                         _AutoRuleRow(rule: rule, onChanged: () => ref.invalidate(autoRulesProvider)),
                     ])
@@ -161,8 +169,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                             routine: r,
                             applianceNames: names,
                             applianceIcons: icons,
+                            // 편집·지우기는 줄을 눌러 들어가는 편집 화면 안(지우기 확인 대화 그대로) — 줄 끝 ⋮는 두지 않는다
+                            // (평가 8차 10/18: ⋮ 자리만큼 이름이 좁아져 '아침 공기청정기 / 끄기'로 꺾였다).
                             onEdit: () => _open(context, r),
-                            onDelete: r.isTemplate || r.id == null ? null : () => _delete(context, r),
                             // 버튼 자리를 맞추지 않은 가전의 루틴은 실행 대신 이유(외부 평가 10/16 3차).
                             onRun: r.isRunCandidate && !r.applianceIds.any(needsSetup.contains)
                                 ? () => _run(context, r.id!)
@@ -198,28 +207,6 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
     );
     if (picked == null || !context.mounted) return;
     await _open(context, picked.template);
-  }
-
-  /// ⋮ 메뉴 '지우기' — 확인을 한 번 더 받고 지운다(편집기의 지우기와 같은 서버 경로).
-  Future<void> _delete(BuildContext context, Routine r) async {
-    final api = ref.read(rpiApiServiceProvider);
-    final id = r.id;
-    if (api == null || id == null) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final ok = await confirmDelete(context,
-        title: '이 루틴을 지울까요?', body: '지우면 떠 있던 카드도 내려가요.');
-    if (!ok || !mounted) return;
-    try {
-      await api.deleteRoutine(id);
-    } on RpiApiException catch (e) {
-      messenger.showSnackBar(SnackBar(
-          content: Text(e.message.isNotEmpty ? e.message : '지우지 못했어요. 연결을 봐 주세요.')));
-    } catch (_) {
-      messenger.showSnackBar(const SnackBar(content: Text('지우지 못했어요. 연결을 봐 주세요.')));
-    }
-    if (!mounted) return;
-    ref.invalidate(routinesProvider);
-    ref.invalidate(nextRoutineProvider);
   }
 
   Future<void> _run(BuildContext context, String id) async {
@@ -338,14 +325,21 @@ class _CandidateCard extends StatelessWidget {
 ///
 /// 시각은 오전/오후 꼴('매일 오후 10:00', 평가 7차 10/18). [withClock]이 false면 정해진 시각 루틴의 '언제'를 통째로
 /// 뺀다 — 루틴 목록은 이름 위 칩([routineWhenLabel])이 '매일 오전 7:00'을 따로 말한다.
-String routineSubtitle(Routine r, Map<String, String> applianceNames, {bool withClock = true}) {
+///
+/// [skipNamed]가 true면 이름이 이미 말하는 '무엇을' 조각은 뺀다(평가 8차 10/18: '아침 공기청정기 끄기' 아래
+/// '공기청정기 끄기'가 같은 말을 되풀이했다). 루틴 목록 줄만 쓴다.
+String routineSubtitle(Routine r, Map<String, String> applianceNames,
+    {bool withClock = true, bool skipNamed = false}) {
   var when = withAmPm(_routineWhen(r, applianceNames));
   if (!withClock && routineClock(r) != null) when = '';
+  String squash(String t) => t.replaceAll(RegExp(r'\s+'), '');
+  final name = squash(r.name);
   return [
     // 직접 실행 루틴은 '언제'를 적지 않는다 — "직접 실행할 때"는 모든 루틴이 그렇다(2026-10-14 UX).
     // 서버 `when` 문장으로 가른다(목록의 루틴은 trigger 없이 when만 올 수 있다).
     if (when.isNotEmpty && when != const RoutineTrigger.manual().describe()) when,
-    ...routineDoParts(r, applianceNames),
+    for (final part in routineDoParts(r, applianceNames))
+      if (!skipNamed || !name.contains(squash(part))) part,
     // 알림만 루틴은 부제에 '알림만'을 적지 않는다 — 줄 오른쪽 '알려 드려요' 배지와 종 아이콘이 말한다(평가 4차 10/18).
     if (!r.enabled) '꺼짐',
   ].join(' · ');
@@ -432,21 +426,6 @@ List<(String, IconData, String, List<Routine>)> _routineGroups(List<Routine> rou
   ];
 }
 
-/// 'HH:MM'(24시) → '오전 7:00'·'오후 10:00'(평가 7차 10/18). 루틴 목록 시각 줄·홈 다음 예정·
-/// 홈 루틴 줄이 같은 꼴(루틴 편집 화면의 '언제'는 아직 본체 문장 그대로). 모르는 꼴은 그대로 둔다.
-String ampmClock(String hhmm) {
-  final m = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(hhmm.trim());
-  if (m == null) return hhmm;
-  final h = int.parse(m[1]!);
-  if (h > 23) return hhmm;
-  final h12 = h % 12 == 0 ? 12 : h % 12;
-  return '${h < 12 ? '오전' : '오후'} $h12:${m[2]}';
-}
-
-/// 서버 '언제' 문장 안의 'HH:MM'을 [ampmClock] 꼴로('매일 22:00' → '매일 오후 10:00').
-String withAmPm(String text) =>
-    text.replaceAllMapped(RegExp(r'(?<![\d:])(\d{1,2}:\d{2})(?![\d:])'), (m) => ampmClock(m[1]!));
-
 /// 정해진 시각 루틴의 'HH:MM'. 시각이 없는 루틴은 null.
 String? routineClock(Routine r) {
   if (r.trigger.kind == RoutineTriggerKind.time && (r.trigger.time ?? '').isNotEmpty) {
@@ -521,7 +500,6 @@ class _RoutineRow extends StatelessWidget {
     required this.busy,
     required this.error,
     this.applianceIcons = const {},
-    this.onDelete,
     this.onSetup,
     this.next,
   });
@@ -538,11 +516,8 @@ class _RoutineRow extends StatelessWidget {
   final Routine routine;
   final Map<String, String> applianceNames;
 
-  /// 행 전체 탭 = 편집(상세). ⋮ 메뉴의 '편집'도 같다.
+  /// 행 전체 탭 = 편집(상세). 지우기도 그 안(확인 대화를 한 번 더 받는다).
   final VoidCallback onEdit;
-
-  /// ⋮ 메뉴의 '지우기'(확인은 부르는 쪽이 받는다). null이면 메뉴에 두지 않는다.
-  final VoidCallback? onDelete;
 
   /// null이면 실행 단추를 두지 않는다(알림만·꺼짐·템플릿·가전 조작 없음).
   final VoidCallback? onRun;
@@ -560,12 +535,12 @@ class _RoutineRow extends StatelessWidget {
     final key = r.id ?? r.templateId ?? r.name;
     // 큰 글씨에서는 단추를 이름 아래로 — 한 줄에 두면 이름이 한 글자씩 꺾인다.
     final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    // 오른쪽 '지금 하기 >'는 글씨가 보통일 때만 이름 옆에 — 줄에는 ⋮까지 있어 글씨를 조금만 키워도 이름 칸이 좁아진다.
+    // 오른쪽 '지금 하기 >'는 글씨가 보통일 때만 이름 옆에 — 글씨를 조금만 키워도 이름 칸이 좁아진다.
     final inline = MediaQuery.textScalerOf(context).scale(1) <= 1.15;
     // 시간축: 정해진 시각 루틴은 이름 위에 큰 시각(평가 5차 10/18). 왼쪽 열은 모든 줄이 가전 아이콘이다 —
     // 시각 줄만 왼쪽에 시각을 세우면 아이콘 줄과 왼쪽 열이 어긋났다(평가 6차 10/18). 예시 루틴은 시각을 따로 세우지 않는다.
     final clock = r.isTemplate ? null : routineClock(r);
-    final subtitle = routineSubtitle(r, applianceNames, withClock: clock == null);
+    final subtitle = routineSubtitle(r, applianceNames, withClock: clock == null, skipNamed: !r.isTemplate);
     final n = next;
     // '다음' 배지 — 위에 따로 '다음: …' 줄을 두지 않고 그 줄에 붙인다. 조용한 시간이라 건너뛰면 그 말로.
     final Widget? nextBadge = n == null
@@ -593,14 +568,30 @@ class _RoutineRow extends StatelessWidget {
               color: context.appMuted,
             ),
           );
-    final nameText =
-        Text(keepWordsTogether(r.name), semanticsLabel: r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700));
+    // 이름은 최대 두 줄(평가 8차 10/18: 큰 글씨에서 세 줄로 꺾여 단추가 밀렸다). 넘치면 줄임표 — 낭독은 이름 전체.
+    final nameText = Text(keepWordsTogether(r.name),
+        semanticsLabel: r.name,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: AppText.body.copyWith(fontWeight: FontWeight.w700));
+    // 시각 줄 = '매일 오전 7:00' + '다음' 배지(평가 8차 10/18: 배지가 이름 아래에 있어 시각·이름·배지 세 층으로 흩어졌다).
+    final Widget? clockLine = clockText == null
+        ? null
+        : nextBadge == null
+            ? clockText
+            : Wrap(
+                spacing: AppSpace.sm,
+                runSpacing: AppSpace.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [clockText, nextBadge],
+              );
+    final Widget? lowerBadge = clockLine == null ? nextBadge : null;
     // 줄 오른쪽 표시([trailing])는 모든 줄에서 **이름 줄** 옆 같은 자리(평가 7차 10/18: 시각 줄은 큰 시각 옆, 필요할 때
     // 줄은 이름 옆이라 줄마다 달랐다). 그 아래 부제는 단추 밑까지 넓게 쓴다.
     Widget textWith(Widget? trailing) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (clockText != null) clockText,
+        if (clockLine != null) clockLine,
         if (trailing == null)
           nameText
         else
@@ -621,11 +612,11 @@ class _RoutineRow extends StatelessWidget {
         // 그쪽은 사용자가 '다음부터도 자동으로'로 허락한 **가전을 움직이는** 규칙이고, 알림만 루틴은 가전을 움직이지 않고
         // 사용자가 루틴 편집기에서 만든 것이다. 그래서 내 루틴에 두되 종 아이콘과 '알려 드려요' 배지로 '누를 것이 없는 줄'
         // 이라는 의도를 보인다. 배지는 누를 수 없는 글이라 버튼 자리가 아니라 부제 아래에 둔다(버튼처럼 보이지 않게).
-        if (notify || nextBadge != null)
+        if (notify || lowerBadge != null)
           Padding(
             padding: const EdgeInsets.only(top: AppSpace.xs),
             child: Wrap(spacing: AppSpace.sm, runSpacing: AppSpace.xs, children: [
-              if (nextBadge != null) nextBadge,
+              if (lowerBadge != null) lowerBadge,
               if (notify) const StatusBadge(icon: AppIcons.notify, label: '알려 드려요'),
             ]),
           ),
@@ -674,7 +665,7 @@ class _RoutineRow extends StatelessWidget {
 
     // 행의 표시는 하나 — 준비된 루틴은 오른쪽 '지금 하기 >'(홈 '내 루틴' 줄과 같은 모양), 설정이 남은 루틴은 회색
     // '설정 필요' 배지(누르면 설정). 평가 6차(10/18): 이름 아래 들여 쓴 '▶ 지금 하기'가 줄마다 어중간하게 되풀이됐다.
-    // 편집·지우기는 ⋮ 안. 누르면 승인 카드만 만든다 — 가전은 승인 화면에서 허락해야 움직인다.
+    // 편집·지우기는 줄을 눌러 들어가는 편집 화면 안. 누르면 승인 카드만 만든다 — 가전은 승인 화면에서 허락해야 움직인다.
     final run = onRun;
     final setup = onSetup;
     final Widget? action = setup != null
@@ -720,26 +711,6 @@ class _RoutineRow extends StatelessWidget {
                 ),
               )
             : null;
-    final menu = RowMenu(
-      menuKey: Key('routine-menu-$key'),
-      semanticLabel: '${r.name} 더 보기',
-      items: [
-        RowMenuItem(
-          key: Key('routine-edit-$key'),
-          label: '편집',
-          icon: Icons.edit_outlined,
-          onSelected: onEdit,
-        ),
-        if (onDelete case final del?)
-          RowMenuItem(
-            key: Key('routine-delete-$key'),
-            label: '지우기',
-            icon: Icons.delete_outline,
-            danger: true,
-            onSelected: del,
-          ),
-      ],
-    );
     // 왼쪽 열은 모든 줄이 같은 폭의 가전 아이콘(평가 6차 10/18).
     const leadWidth = AppSpace.xxxl + AppSpace.sm + AppSpace.md;
     final head = Row(
@@ -747,7 +718,6 @@ class _RoutineRow extends StatelessWidget {
       children: [
         SizedBox(width: leadWidth, child: Align(alignment: Alignment.centerLeft, child: icon)),
         Expanded(child: Semantics(container: true, child: inline && action != null ? textWith(action) : text)),
-        menu,
       ],
     );
     return Padding(
@@ -757,7 +727,7 @@ class _RoutineRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           InkWell(
-            // 행 전체를 누르면 편집(상세). 실행 단추·⋮는 제 몫을 먼저 받는다.
+            // 행 전체를 누르면 편집(상세). 실행 단추는 제 몫을 먼저 받는다.
             key: Key('routine-$key'),
             borderRadius: BorderRadius.circular(12),
             onTap: onEdit,
@@ -834,7 +804,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     }
     final ok = await showAutoRuleConfirmSheet(
       context,
-      conditionText: rule.conditionText,
+      conditionText: withAmPmSpoken(rule.conditionText, rule.conditionTime),
       actionText: rule.actionText,
       caveat: rule.caveat,
       title: '다음부터 자동으로 할까요?',
@@ -875,7 +845,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
   Future<void> _delete(RpiApiService api) async {
     final ok = await confirmDelete(context,
         title: '이 자동으로 하기를 지울까요?',
-        body: '${widget.rule.conditionText} → ${widget.rule.actionText}');
+        body: autoRuleSentence(widget.rule));
     if (ok) await api.deleteAutoRule(widget.rule.id);
   }
 
@@ -887,13 +857,16 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     // 상태는 서버 문장(status_label)이 아니라 enabled 값으로(2차 평가 10/18).
     // 끈 규칙은 한 줄 — 꺼진 까닭이 있으면 그 말이 배지다(평가 6차 10/18: '지금은 안 해요' 아래 '자동으로 하기를
     // 꺼 두셨어요'가 같은 말을 두 번 했다). 까닭이 없으면 '지금은 안 해요'.
+    // 평가 8차(10/18): 사용자가 끈 규칙은 스위치가 이미 '꺼짐'을 말한다 — '자동으로 하기를 꺼 두셨어요' 배지를 두지 않는다.
+    // 정지·값 바꿈·재시작처럼 다른 까닭으로 꺼졌으면 그 까닭이 배지다(스위치만으로는 왜 꺼졌는지 모른다).
     final offLabel = (reason ?? '').trim().replaceAll(RegExp(r'[.。]$'), '');
-    final badge = r.enabled
+    final userOff = offLabel.isEmpty || offLabel == kUserOffReason;
+    final Widget? badge = r.enabled
         ? const StatusBadge(icon: AppIcons.auto, label: '자동으로 해요', tone: BadgeTone.accent)
-        : StatusBadge(
-            key: Key('auto-rule-off-${r.id}'),
-            icon: AppIcons.off,
-            label: offLabel.isEmpty ? '지금은 안 해요' : keepWordsTogether(offLabel));
+        : userOff
+            ? null
+            : StatusBadge(
+                key: Key('auto-rule-off-${r.id}'), icon: AppIcons.off, label: keepWordsTogether(offLabel));
     return Padding(
       key: Key('auto-rule-${r.id}'),
       padding: const EdgeInsets.only(bottom: AppSpace.md),
@@ -966,8 +939,10 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                     Text(keepWordsTogether(autoRuleSentence(r)),
                         semanticsLabel: autoRuleSentence(r),
                         style: const TextStyle(fontSize: AppFont.body)),
-                    const SizedBox(height: AppSpace.sm),
-                    badge,
+                    if (badge != null) ...[
+                      const SizedBox(height: AppSpace.sm),
+                      badge,
+                    ],
                     // 조용한 시간이 켜져 있어 실제로 건너뛸 때만 눈에 띄게(앰버·굵게). 꺼져 있을 때의 '켜면 …'은
                     // 조용한 시간 설정 줄에만 둔다(평가 6차 10/18: 카드마다 늘 굵게 서 있었다).
                     if (quietNote != null) ...[
@@ -995,7 +970,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
 }
 
 class _Note extends StatelessWidget {
-  const _Note(this.text);
+  const _Note(this.text, {super.key});
   final String text;
 
   @override
@@ -1004,6 +979,9 @@ class _Note extends StatelessWidget {
         child: Text(text, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
       );
 }
+
+/// 본체가 사용자가 끈 규칙에 붙이는 까닭(끝 마침표 뺌) — 이 말이면 배지 없이 스위치만.
+const kUserOffReason = '자동으로 하기를 꺼 두셨어요';
 
 /// 규칙 값 바꾸기 단추 이름 — 무엇의 값인지 말한다(UI 평가 3차 10/17: '세기'는 무엇의 세기인지 몰랐다).
 ///
@@ -1015,8 +993,13 @@ String autoRuleValueLabel(AutoRule rule) =>
         : '설정 바꾸기';
 
 /// 규칙 한 문장 — 언제 + 무엇을(화살표 없이). 서버 문장이 '…면'·'…해요'로 이어 읽히게 만든다(2차 평가 10/18).
-String autoRuleSentence(AutoRule rule) =>
-    [rule.conditionText.trim(), rule.actionText.trim()].where((t) => t.isNotEmpty).join(' ');
+///
+/// 본체 문장의 '매일 밤 10시에'는 그 규칙의 시각(`condition_time`)과 정확히 맞을 때만 '매일 오후 10:00에'로 —
+/// 폰의 다른 시각과 같은 꼴(평가 8차 10/18). 맞지 않으면 본체 문장 그대로.
+String autoRuleSentence(AutoRule rule) => [
+      withAmPmSpoken(rule.conditionText.trim(), rule.conditionTime),
+      rule.actionText.trim(),
+    ].where((t) => t.isNotEmpty).join(' ');
 
 /// [+ 새 루틴]에서 고른 것 — 빈 루틴이면 [template]이 null.
 class _NewChoice {
@@ -1080,4 +1063,16 @@ class _NewRoutineSheet extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 위 탭 글 — 한 줄로, 칸보다 길면 그만큼만 줄인다(평가 8차 10/18: 200%에서 '자동으로 / 하기'가 잘렸다).
+class _SegmentLabel extends StatelessWidget {
+  const _SegmentLabel(this.text);
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => FittedBox(
+        fit: BoxFit.scaleDown,
+        child: Text(text, maxLines: 1, softWrap: false),
+      );
 }

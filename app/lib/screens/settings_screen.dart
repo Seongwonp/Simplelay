@@ -1,3 +1,4 @@
+import '../models/clock_text.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,12 +50,12 @@ part 'settings/nav_rows.dart';
 part 'settings/hub_screen.dart';
 part 'settings/developer_tab.dart';
 
-/// 설정 줄 '조용한 시간'의 지금 값 — '22:00~07:00 · 켜짐'. 못 읽었으면 그렇다고 하고 할 일을 붙인다
+/// 설정 줄 '조용한 시간'의 지금 값 — '오후 10:00~오전 7:00 · 켜짐'. 못 읽었으면 그렇다고 하고 할 일을 붙인다
 /// (꺼짐으로 단정하지 않는다). 예전 '몰라요' 한마디는 무엇을 모르는지·어떻게 하는지 말하지 않았다(평가 3차 10/18).
 /// 줄을 누르면 상세가 다시 읽는다.
 String quietRowValue(QuietHoursStatus? s, {required bool hasApi}) {
   if (s == null) return hasApi ? '확인 못 했어요 · 새로 보기' : '연결 전이에요';
-  return '${s.start}~${s.end} · ${s.enabled ? '켜짐' : '꺼짐'}';
+  return '${ampmRange(s.start, s.end)} · ${s.enabled ? '켜짐' : '꺼짐'}';
 }
 
 class SettingsScreen extends ConsumerWidget {
