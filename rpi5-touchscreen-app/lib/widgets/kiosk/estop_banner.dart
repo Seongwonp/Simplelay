@@ -4,6 +4,7 @@ import '../../theme/kiosk_tokens.dart';
 
 import '../../models/estop.dart';
 import '../../theme/kiosk_colors.dart';
+import 'kiosk_text.dart';
 
 /// 비상 버튼 걸림 전폭 경고(2026-10-05) — **모든 화면** 위쪽에 붙는다(2026-10-15, 예전에는 평소·실행·동작 중만).
 ///
@@ -56,14 +57,14 @@ class KioskEstopBanner extends StatelessWidget {
                 children: [
                   Semantics(
                       liveRegion: true,
-                      child: Text(estopConfirmFor(detail),
+                      child: KioskText(estopConfirmFor(detail),
                           style: const TextStyle(
                               color: _white,
                               fontSize: KioskType.body,
                               fontWeight: FontWeight.w700))),
                   Row(children: [
                     Expanded(
-                        child: Text(estopTitleFor(detail),
+                        child: KioskText(estopTitleFor(detail),
                             style: const TextStyle(
                                 color: _white,
                                 fontSize: KioskType.body,
@@ -109,22 +110,23 @@ class KioskEstopBanner extends StatelessWidget {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    // 어절 단위 줄바꿈(평가 4차 10/18 — 실패널 글꼴이 넓어 낱말 가운데서 끊길 수 있다).
+                    KioskText(
                       estopTitleFor(detail),
                       style: const TextStyle(
                           color: _white,
                           fontSize: KioskType.body,
                           fontWeight: FontWeight.w800),
                     ),
-                    Text(
+                    KioskText(
                         estopIsPowerLoss(detail)
                             ? '주변을 본 뒤 풀기 안내를 눌러 주세요'
                             : '비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요',
                         style: const TextStyle(color: _white, fontSize: KioskType.caption)),
                     if (message != null)
-                      Text(
+                      KioskText(
                         message,
-                        key: const ValueKey('estop-message'),
+                        textKey: const ValueKey('estop-message'),
                         style: const TextStyle(
                             color: _white,
                             fontSize: KioskType.caption,
@@ -141,7 +143,7 @@ class KioskEstopBanner extends StatelessWidget {
                 key: const ValueKey('estop-ack'),
                 onPressed: acking ? null : onRequest,
                 style: _filled,
-                child: Text(acking ? '푸는 중…' : kEstopAckLabel,
+                child: Text(acking ? '푸는 중…' : kEstopAckLabel, maxLines: 1, softWrap: false,
                     style: const TextStyle(
                         fontSize: KioskType.caption, fontWeight: FontWeight.w800)),
               ),
@@ -177,6 +179,11 @@ class KioskEstopLayout extends StatelessWidget {
             child: KioskEstopScope(
               shown: banner is KioskEstopBanner ||
                   KioskEstopScope.shownOf(context),
+              // 평소 화면 상태 칩이 띠와 같은 말을 하도록 제목도 넘긴다(평가 4차 10/18 — 띠가 떠 있는데 칩은 '모두 정상').
+              title: switch (banner) {
+                final KioskEstopBanner b => estopTitleFor(b.detail),
+                _ => KioskEstopScope.titleOf(context),
+              },
               child: child,
             ),
           ),
@@ -187,15 +194,25 @@ class KioskEstopLayout extends StatelessWidget {
 /// 아래 화면에 '위에 비상 버튼 띠가 있다'를 알린다 — 상태 띠가 얇아진다(`status_band.dart`, 2026-10-16).
 /// 비상 띠는 그대로 두고(가리지 않는다) 그 아래 상태 띠만 낮춰 위쪽이 겹겹이 무거워지지 않게 한다.
 class KioskEstopScope extends InheritedWidget {
-  const KioskEstopScope({super.key, required this.shown, required super.child});
+  const KioskEstopScope({super.key, required this.shown, this.title, required super.child});
 
   final bool shown;
+
+  /// 위 띠 제목('비상 버튼이 눌려 있어요' · '전기 플러그 전원이 꺼져 있어요'). 띠가 없으면 null.
+  final String? title;
 
   static bool shownOf(BuildContext context) =>
       context.dependOnInheritedWidgetOfExactType<KioskEstopScope>()?.shown ??
       false;
 
+  /// 위 띠 제목 — 띠가 없으면 null(평가 4차 10/18, 평소 화면 상태 칩이 같은 말을 한다).
+  static String? titleOf(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<KioskEstopScope>();
+    if (scope == null || !scope.shown) return null;
+    return scope.title ?? kEstopTitle;
+  }
+
   @override
   bool updateShouldNotify(KioskEstopScope oldWidget) =>
-      shown != oldWidget.shown;
+      shown != oldWidget.shown || title != oldWidget.title;
 }

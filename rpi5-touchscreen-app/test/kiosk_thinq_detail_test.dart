@@ -140,7 +140,7 @@ void main() {
       final mock = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'pm25': 20, 'age_s': 0},
           mock: true)!;
-      expect(mock.line, '실내 공기 보통 · 초미세먼지 20 · 연습용 숫자예요');
+      expect(mock.line, '실내 공기 보통 · 초미세먼지 20 · 연습이라 진짜 값이 아니에요');
     });
 
     test('모르는 등급·등급 없음·오래된 값은 null(보이지 않는다)', () {
@@ -186,14 +186,14 @@ void main() {
       final rows = thinqStateRows(_state());
       expect([for (final r in rows) (r.label, r.value)], [
         ('전원', '켜짐'),
-        ('모드', '청정'),
+        // '모드 청정'은 뜻을 몰랐다(평가 4차 10/18) — 기본 청정은 줄을 두지 않는다.
         ('바람 세기', '약'),
         ('초미세먼지', '42 · 나쁨'),
         ('미세먼지', '90 · 매우 나쁨'),
         ('필터 남은 양', '87%'),
       ]);
-      expect(rows[3].grade, 'BAD');
-      expect(rows[4].grade, 'VERY_BAD');
+      expect(rows[2].grade, 'BAD');
+      expect(rows[3].grade, 'VERY_BAD');
       expect(rows[0].grade, isNull);
       expect(thinqStateRows(const {}), isEmpty);
     });
@@ -220,7 +220,8 @@ void main() {
 
     test('거절 문장 — 서버 이유를 그대로, 결과 모름은 null', () {
       expect(thinqCommandRefusal(423, '비상 정지 잠금이에요'), '비상 정지 잠금이에요');
-      expect(thinqCommandRefusal(409, 'job already in progress'), contains('다른 작업이 실행 중'));
+      // '작업' 대신 쉬운 말(평가 4차 10/18).
+      expect(thinqCommandRefusal(409, 'job already in progress'), contains('다른 일을 하고 있어요'));
       expect(thinqCommandRefusal(503, 'x'), isNull);
     });
 
@@ -407,7 +408,8 @@ void main() {
     expect(find.byKey(const ValueKey('thinq-row-전원')), findsOneWidget);
     expect(find.text('켜짐'), findsOneWidget);
     // 상태 이름은 조작 단추와 같은 말(약풍 → 약, 2차 평가 10/18).
-    expect(tester.widget<Text>(find.byKey(const ValueKey('thinq-row-바람 세기'))).data, '약');
+    expect(tester.widget<Text>(find.byKey(const ValueKey('thinq-row-바람 세기'))).textSpan!.toPlainText(),
+        '약');
     // 공기는 한 줄 — 먼지 숫자·등급은 '자세히' 안.
     expect(find.text('공기 나빠요'), findsOneWidget);
     expect(find.text('42 · 나쁨'), findsNothing);
@@ -417,7 +419,7 @@ void main() {
     expect(tester.widget<Text>(find.text('42 · 나쁨')).style!.color, KioskColors.warning);
     expect(tester.widget<Text>(find.text('90 · 매우 나쁨')).style!.color, KioskColors.danger);
     expect(find.text('87%'), findsOneWidget);
-    expect(find.text('09:07 기준'), findsOneWidget);
+    expect(find.text('오전 9시 7분 기준'), findsOneWidget); // 시각은 오전/오후(평가 4차 10/18)
     for (final v in ['POWER_ON', 'POWER_OFF']) {
       expect(find.byKey(ValueKey('thinq-set-set_power-$v')), findsOneWidget);
     }
@@ -530,7 +532,7 @@ void main() {
     await pumpPanel(tester, read: () async => _ok(_state(), mode: 'mock'));
     expect(find.text('지금 상태'), findsOneWidget);
     expect(find.text('지금 상태 (연습)'), findsNothing);
-    expect(find.text('연습용 숫자예요 (9시 7분)'), findsOneWidget);
+    expect(find.text('연습 화면이에요. 진짜 값이 아니에요'), findsOneWidget);
     expect(find.byKey(const ValueKey('thinq-practice')), findsOneWidget);
     expect(tester.widget<Icon>(find.descendant(
             of: find.byKey(const ValueKey('thinq-practice')), matching: find.byType(Icon))).color,
@@ -583,7 +585,7 @@ void main() {
     await tester.pump();
     expect(api.thinqStatusReads, ['air_purifier']);
     expect(find.byKey(const ValueKey('thinq-panel-air_purifier')), findsOneWidget);
-    expect(find.text('연습용 숫자예요 (9시 7분)'), findsOneWidget);
+    expect(find.text('연습 화면이에요. 진짜 값이 아니에요'), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('thinq-set-set_wind_strength-HIGH')));
     await tester.pump();

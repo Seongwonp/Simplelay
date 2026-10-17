@@ -46,7 +46,11 @@ void main() {
     expect(find.text('9월 13일 일요일'), findsOneWidget);
     final clock = tester.widget<Text>(find.text('9:05'));
     expect(clock.style!.fontSize, greaterThan(80));
-    expect(find.text('실내 23° · 습도 58%'), findsOneWidget);
+    // 온도·습도는 두 조각 — 큰 글씨에서 조각 사이에서만 줄을 바꾸고 '실내'를 빼지 않는다(평가 4차 10/18).
+    expect(find.text('실내 23°'), findsOneWidget);
+    expect(find.text(' · 습도 58%'), findsOneWidget);
+    // 시계는 12시간제 + 오전/오후(평가 4차 10/18).
+    expect(find.text('오전'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 

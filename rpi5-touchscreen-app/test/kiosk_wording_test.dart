@@ -48,6 +48,18 @@ const _sug = KioskSuggestion(
 );
 
 // RPi4가 실제로 보내는 문장(서버 문구 정리 2bc87e5).
+
+/// 비상 버튼이 눌려 있으면 작은 팔 가전 타일은 '지금 못 써요'(누르면 풀기 안내, 평가 4차 10/18) — 수동 조작 화면은
+/// LG 가전으로 연다(LG 가전 타일은 그대로 열린다).
+const _thinqAirForEstop = ApplianceMap(
+  id: 'air_purifier',
+  name: '공기청정기',
+  category: 'air_purifier',
+  rows: 0,
+  cols: 0,
+  buttons: [],
+  controlPath: 'thinq',
+);
 const _buttonDetail = "비상 버튼이 눌려 있어요 — 풀고 '해제하기'를 눌러야 다시 쓸 수 있어요";
 const _rebootDetail = '가전 콘센트 장치가 다시 켜져 가전 전원이 꺼져 있어요 — 해제하면 전원을 다시 켜요';
 
@@ -130,7 +142,7 @@ void main() {
 
   test('연습 띠는 경로를 가리지 않는 말이다 — ThinQ 연습 중에 "누르지"라 하지 않는다(2026-10-16 결함 ⑤)', () {
     expect(kPracticeBandText, isNot(contains('누르')));
-    expect(kPracticeBandText, startsWith('연습 중'));
+    expect(kPracticeBandText, startsWith('연습이에요'));
   });
 
   setUpAll(() async {
@@ -166,8 +178,8 @@ void main() {
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
       expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
-      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 화면으로 조작하기는 글자 단추(48 이상).
-      expect(_inButton<TextButton>('화면으로 조작하기'), findsOneWidget);
+      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 화면에서 직접 누르기는 글자 단추(48 이상, 평가 4차 이름).
+      expect(_inButton<TextButton>('화면에서 직접 누르기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       final home = tester.getRect(find.text('처음 화면으로'));
@@ -255,7 +267,9 @@ void main() {
       );
       expect(find.byIcon(Icons.verified_outlined), findsNothing);
       expect(find.byIcon(Icons.check), findsNothing);
-      expect(find.textContaining('멈췄는지는 몰라요'), findsOneWidget);
+      // 받음은 '멈추는 중'까지 — 멈췄다고 하지 않는다(평가 4차 10/18: 기계 말 대신 사람이 볼 상태).
+      expect(find.text('작은 팔이 멈추는 중이에요'), findsOneWidget);
+      expect(find.textContaining('멈췄어요'), findsNothing);
       // 주어는 작은 팔 — 실행·기계가 멈췄다고 하지 않는다.
       expect(find.text('실행을 멈췄어요'), findsNothing);
       expect(find.textContaining('기계'), findsNothing);
@@ -342,7 +356,7 @@ void main() {
       expect(button.onPressed, isNull);
       final shape = button.style!.shape!.resolve({WidgetState.disabled}) as RoundedRectangleBorder;
       expect(shape.side.color, isNot(Colors.white));
-      expect(find.text('비상 버튼을 풀면 정지 단추를 다시 쓸 수 있어요'), findsOneWidget);
+      expect(find.text('비상 버튼을 풀면 정지 버튼을 다시 쓸 수 있어요'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -419,8 +433,9 @@ void main() {
         ));
         await tester.pump(const Duration(milliseconds: 300));
         expect(tester.takeException(), isNull);
+        // 연습에는 '끝나는 시간은 몰라요'를 두지 않는다(평가 4차 10/18) — 서버 상세 줄로 본다.
         final left = find.ancestor(
-            of: find.text('끝나는 시간은 몰라요'),
+            of: find.textContaining('연습용 대기예요'),
             matching: find.byType(RawScrollbar));
         expect(left, findsOneWidget);
         expect(tester.widget<RawScrollbar>(left).thumbVisibility, isTrue);
@@ -440,9 +455,17 @@ void main() {
         ..statusResult = const KioskStatus(
             running: false, estopLatched: true, estopDetail: _buttonDetail);
       await _pumpKiosk(tester, api);
-      expect(find.text('비상 버튼이 눌려 있어요'), findsOneWidget);
-      // 서버 문장이 제목을 되풀이하면 머리를 떼고 나머지만 — 같은 말이 두 번 보이지 않는다.
-      expect(find.textContaining('비상 버튼이 눌려 있어요'), findsOneWidget);
+      final banner = find.byKey(_banner);
+      expect(find.descendant(of: banner, matching: find.text('비상 버튼이 눌려 있어요')), findsOneWidget);
+      // 서버 문장이 제목을 되풀이하면 머리를 떼고 나머지만 — 같은 말이 띠 안에 두 번 보이지 않는다.
+      expect(find.descendant(of: banner, matching: find.textContaining('비상 버튼이 눌려 있어요')),
+          findsOneWidget);
+      // 평소 화면 상태 칩도 같은 말(평가 4차 10/18) — '모두 정상'이 아니다.
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('idle-status-chip')),
+              matching: find.text('비상 버튼이 눌려 있어요')),
+          findsOneWidget);
       expect(find.text('비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요'), findsOneWidget);
       expect(find.text('풀기 안내'), findsOneWidget);
       await tester.tap(find.byKey(_ack));
@@ -464,14 +487,15 @@ void main() {
         ..statusAfterAck = const KioskStatus(running: false);
       await _pumpKiosk(tester, api);
       expect(find.text('비상 버튼이 눌려 있어요'), findsNothing);
-      expect(find.text('콘센트 전원이 꺼져 있어요'), findsOneWidget);
+      // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그. 띠와 평소 화면 칩이 같은 말.
+      expect(find.text('전기 플러그 전원이 꺼져 있어요'), findsNWidgets(2));
       await tester.tap(find.byKey(_ack));
       await _settle(tester);
-      expect(find.textContaining('풀면 콘센트 전원이 다시 켜져요'), findsOneWidget);
+      expect(find.textContaining('풀면 전기 플러그 전원이 다시 켜져요'), findsOneWidget);
       expect(find.textContaining('빨간 비상 버튼'), findsNothing);
       await tester.tap(find.byKey(_confirm));
       await _settle(tester);
-      expect(find.text('풀었어요. 콘센트 전원을 다시 켰어요.'), findsOneWidget);
+      expect(find.text('풀었어요. 전기 플러그 전원을 다시 켰어요.'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -492,12 +516,21 @@ void main() {
 
     testWidgets('수동 조작·완료 화면에서도 띠가 보인다', (tester) async {
       final api = FakeKioskApi()
-        ..applianceList = const [kMicrowaveAppliance]
+        ..applianceList = const [kMicrowaveAppliance, _thinqAirForEstop]
         ..statusResult = const KioskStatus(
             running: false, estopLatched: true, estopDetail: _buttonDetail);
       await _pumpKiosk(tester, api);
       await _nextPoll(tester);
+      // 작은 팔 가전은 비상 버튼 동안 '지금 못 써요' — 누르면 수동 조작이 아니라 띠의 풀기 안내가 열린다(평가 4차 10/18).
+      expect(find.text('지금 못 써요'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await _settle(tester);
+      expect(find.byType(KioskManualView), findsNothing);
+      expect(find.byKey(_confirm), findsOneWidget);
+      expect(api.estopAckCalls, 0);
+      await tester.tap(find.byKey(const ValueKey('estop-cancel')));
+      await _settle(tester);
+      await tester.tap(find.byKey(const ValueKey('strip-air_purifier')));
       await _settle(tester);
       expect(find.byType(KioskManualView), findsOneWidget);
       expect(find.byKey(_banner), findsOneWidget);
@@ -615,7 +648,7 @@ void main() {
 
     testWidgets('연습 — 맨 위 띠로 말하고 실물 동사(누르는 중·눌렸는지) 대신 짚는다', (tester) async {
       await _pumpView(tester, exec(mode: 'mock', completed: 1, total: 2, confidence: 1, detail: '모의 검증'));
-      expect(find.text('연습 중이라 실제 가전은 움직이지 않아요'), findsOneWidget);
+      expect(find.text(kPracticeBandText), findsOneWidget);
       expect(find.text('연습 모드'), findsNothing);
       expect(find.text('누르는 연습 중'), findsOneWidget);
       expect(find.text('누를 버튼 2개 중 2번째'), findsOneWidget);
@@ -629,7 +662,7 @@ void main() {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       await _pumpView(tester, exec(mode: 'mock'), scale: 1.6, malgun: true);
       expect(tester.takeException(), isNull);
-      final band = find.text('연습 중이라 실제 가전은 움직이지 않아요');
+      final band = find.text(kPracticeBandText);
       expect(band, findsOneWidget);
       expect(tester.renderObject<RenderParagraph>(band).didExceedMaxLines, isFalse);
       expect(tester.getRect(band).top, lessThan(40));
@@ -797,7 +830,8 @@ void main() {
     testWidgets('잠시 쉬기 창 — 이름과 쉬는 범위, 쉬기 끝내기', (tester) async {
       await _pumpView(tester, DndOverlay(dndUntil: null, onSet: (_) {}, onClear: () {}, onDismiss: () {}));
       expect(find.text('잠시 쉬기'), findsOneWidget);
-      expect(find.text('새 제안과 자동으로 하기를 잠시 쉬어요'), findsOneWidget);
+      // 자동 계열 이름 하나로(평가 4차 10/18) — 문장 안에서는 '자동으로 하는 일'.
+      expect(find.text('새 제안과 자동으로 하는 일을 잠시 쉬어요'), findsOneWidget);
       expect(find.textContaining('방해 금지'), findsNothing);
       await _pumpView(
           tester,
@@ -808,7 +842,7 @@ void main() {
               onClear: () {},
               onDismiss: () {}));
       expect(find.text('쉬기 끝내기'), findsOneWidget);
-      expect(find.textContaining('새 제안만 쉬어요. 자동으로 하기는 그대로예요'), findsOneWidget);
+      expect(find.textContaining('새 제안만 쉬어요. 자동으로 하는 일은 그대로예요'), findsOneWidget);
     });
 
     testWidgets('B4 — 연결 창: 다시 연결해 보기, 본체 풀이 줄 없음, 큰 글씨에서 잘리지 않고 막대가 보인다', (tester) async {

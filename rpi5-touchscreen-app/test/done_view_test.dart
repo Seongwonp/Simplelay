@@ -56,7 +56,8 @@ void main() {
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
     expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
     expect(find.text('전자레인지'), findsOneWidget);
-    expect(find.text('즉석밥 데워줘'), findsOneWidget);
+    // 제목은 명령문이 아니라 행동 이름(평가 4차 10/18).
+    expect(find.text('즉석밥 데우기'), findsOneWidget);
     expect(find.textContaining('누름 장치'), findsNothing);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     // 가전이 조리·세탁을 끝냈다고 말하지 않는다.
@@ -80,8 +81,11 @@ void main() {
       ),
     );
 
-    expect(find.text('다 눌렀어요'), findsNothing);
-    expect(find.text('작은 팔이 다 눌렀다고 알려 왔어요'), findsOneWidget);
+    // 기계 말투('작은 팔이 다 눌렀다고 알려 왔어요') 대신 같은 말 하나로(평가 4차 10/18). 확인 수준은 띠가 지킨다 —
+    // 실제 확인이 아니므로 '됐어요'가 아니라 '확인해 주세요', 할 일은 '가전이 켜졌는지 봐 주세요'.
+    expect(find.textContaining('알려 왔어요'), findsNothing);
+    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
+    expect(find.text('확인해 주세요'), findsOneWidget);
     expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
   });
 
@@ -144,7 +148,7 @@ void main() {
     expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
     expect(find.text('처음 화면으로'), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
-    expect(find.text('화면으로 조작하기'), findsOneWidget);
+    expect(find.text('화면에서 직접 누르기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
     // '확인해 주세요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
@@ -173,9 +177,9 @@ void main() {
     expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
     expect(find.text('작은 팔과 가전이 멈췄는지 봐 주세요'), findsOneWidget);
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
-    // 다시 하려면 처음 화면에서 고른다. '화면으로 조작하기'는 남는다.
+    // 다시 하려면 처음 화면에서 고른다. '화면에서 직접 누르기'는 남는다.
     expect(find.text('다시 시도'), findsNothing);
-    expect(find.text('화면으로 조작하기'), findsOneWidget);
+    expect(find.text('화면에서 직접 누르기'), findsOneWidget);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {
@@ -300,7 +304,9 @@ void main() {
     );
 
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
-    expect(find.text('연습이라 가전은 보지 않았어요'), findsOneWidget);
+    // 연습에는 판정 줄을 두지 않는다 — '연습이라 가전은 보지 않았어요'는 연습 띠와 부딪혔다(평가 4차 10/18).
+    expect(find.text('연습이라 가전은 보지 않았어요'), findsNothing);
+    expect(find.text(kPracticeBandText), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('가전 동작도 확인했어요')), findsNothing);
     handle.dispose();
   });
@@ -326,7 +332,8 @@ void main() {
   group('L3 판정 출처 × 모션 실행 모드 (평가 M5)', () {
     // 확인한 것은 전력 변화다 — 물리 성공은 제목 바로 아래 한 줄이 말한다(2026-10-15).
     const realSentence = '원하는 대로 됐는지 봐 주세요';
-    const mockMotion = '연습이라 가전은 보지 않았어요';
+    // 연습(모션 mock)은 판정 줄이 없다(평가 4차 10/18) — 연습 띠 한 줄이 말한다.
+    const mockMotion = kPracticeBandText;
     // 모의 L3와 출처 모름은 같은 말(직접 봐 달라) — 모의 출처는 아래 작은 글씨가 밝힌다.
     const mockL3 = '가전이 켜졌는지 봐 주세요';
     const unknownL3 = '가전이 켜졌는지 봐 주세요';
@@ -372,7 +379,8 @@ void main() {
       ('real', 'real', '가전이 켜졌어요'),
       ('real', 'mock', '연습이라 가전은 보지 않아요'),
       ('real', null, '가전이 켜졌는지 봐 주세요'),
-      ('mock', 'real', '연습이라 가전은 보지 않아요'),
+      // 연습은 판정 줄 대신 위 연습 띠 한 줄(평가 4차 10/18).
+      ('mock', 'real', kPracticeBandText),
     ]) {
       testWidgets('모션 $mode · 출처 ${source ?? '모름'} → $expected', (tester) async {
         await _pump(
@@ -443,8 +451,9 @@ void main() {
   // 외부 평가 10/16 2차 k04: 연습 실패 화면에 왜 실패했는지가 없었다('실제 가전은 누르지 않았어요'만).
   testWidgets('연습 실패도 이유 한 줄을 말한다 — 실제 가전은 누르지 않았다는 말과 함께', (tester) async {
     for (final (reason, why) in [
-      (KioskFailureReason.safetyStop, '연습에서 눌렸는지 몰라서 멈췄어요'),
-      (KioskFailureReason.execution, '연습에서 눌렸는지 몰라요'),
+      // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 몰라요'는 쓰지 않는다(평가 4차 10/18).
+      (KioskFailureReason.safetyStop, '연습에서 다시 누르지 않고 멈췄어요'),
+      (KioskFailureReason.execution, '연습 누르기를 끝내지 못했어요'),
       (KioskFailureReason.serverLost, '연습 결과를 받지 못했어요'),
     ]) {
       await _pump(

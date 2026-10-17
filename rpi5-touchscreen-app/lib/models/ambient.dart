@@ -4,6 +4,8 @@
 /// 화면은 고르고 배치만 한다 -- 같은 사실을 폰과 다르게 말하지 않게.
 library;
 
+import 'kiosk_time.dart';
+
 /// `GET /ambient`의 안내 한 줄. 우선순위(위험 소리 → 확인 필요 가전 → 최근 루틴 안내 → 날씨 → 없음)는 서버가 정한다.
 class AmbientTip {
   const AmbientTip({required this.kind, required this.text, required this.icon});
@@ -177,14 +179,25 @@ class KioskNextRun {
   /// 첫 줄은 언제, 둘째 줄은 무엇 — 이어 쓰면 '22:00 저녁 / 공기청정기 켜기'처럼 루틴 이름 첫 낱말이 시간대로
   /// 읽혔다(UI 평가 10/17).
   /// 조용한 시간이라 건너뛰면 긴 서버 말 대신 첫 줄에 '조용한 시간', 둘째 줄에 '건너뜀'(줄 길이를 늘리지 않게).
-  String get line => '다음 루틴 · ${[if (dayLabel.isNotEmpty) dayLabel, hhmm].join(' ')}'
+  String get line => '다음 루틴 · $when'
       '${quietSkip ? ' · 조용한 시간' : ''}\n'
-      '${[name, if (quietSkip) '건너뜀' else if (modeLabel.isNotEmpty) modeLabel].join(' · ')}';
+      '${[name, if (quietSkip) '건너뜀' else if (modeWord.isNotEmpty) modeWord].join(' · ')}';
+
+  /// 언제 — '오늘 오전 7시'(평가 4차 10/18: 시계는 오전/오후인데 루틴만 '07:00' 24시였다).
+  String get when => [if (dayLabel.isNotEmpty) dayLabel, spokenHhmm(hhmm)].join(' ');
+
+  /// 실행 방식 한 마디 — 자동 계열 이름은 '자동으로 해요' 하나로(평가 4차 10/18: '자동 실행'·'자동으로 하기'가 섞였다).
+  /// 서버 말(`mode_label`)을 사람 말로만 바꾼다. 모르는 말은 그대로.
+  String get modeWord => switch (modeLabel) {
+        '자동 실행' || '자동' => '자동으로 해요',
+        '승인 후 실행' => '물어보고 해요',
+        _ => modeLabel,
+      };
 
   /// 큰 글씨용 짧은 문장 — '오늘'·'루틴'을 빼고 실행 방식은 한 낱말로('다음 22:00 저녁 공기청정기 켜기 · 자동').
   String get shortLine => [
-        '다음 ${[if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, hhmm].join(' ')} $name',
-        if (quietSkip) '건너뜀' else if (modeLabel == '자동 실행') '자동' else if (modeLabel.isNotEmpty) modeLabel,
+        '다음 ${[if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, spokenHhmm(hhmm)].join(' ')} $name',
+        if (quietSkip) '건너뜀' else if (modeWord.isNotEmpty) modeWord,
       ].join(' · ');
 }
 

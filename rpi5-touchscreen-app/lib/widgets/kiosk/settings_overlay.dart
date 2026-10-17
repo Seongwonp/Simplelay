@@ -371,7 +371,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
   Widget _buildApplianceSection() => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _SectionLabel('콘센트를 연결할 가전'),
+          const _SectionLabel('전기 플러그를 연결할 가전'),
           const SizedBox(height: 10),
           Wrap(
             spacing: 8,
@@ -435,7 +435,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
       children: [
         Row(
           children: [
-            _SectionLabel('${_selected.name} 콘센트'),
+            _SectionLabel('${_selected.name} 전기 플러그'),
             const Spacer(),
             if (registered != null)
               Container(

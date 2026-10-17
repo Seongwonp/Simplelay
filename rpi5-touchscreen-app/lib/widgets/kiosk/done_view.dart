@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/action_name.dart';
 import '../../models/appliance.dart';
 import '../../models/command_result.dart';
 import '../../models/scenario_run.dart';
@@ -146,6 +147,8 @@ class KioskDoneView extends StatelessWidget {
     // 큰 글자(§1-8): 결과 원을 줄이고, 보조 단추(다시 시도·화면으로 조작하기)는 할 일 문장 아래 같은 세로 흐름으로
     // 옮긴다 — 가로 단추 줄이 두 줄로 접혀 할 일 줄을 스크롤 아래로 밀었다(2026-10-16 골든). '처음 화면으로'는 아래 고정.
     final large = KioskLayout.isLarge(context);
+    // 제목은 사람 명령문('즉석밥 데워줘')이 아니라 행동 이름('즉석밥 데우기') — 폰 기록과 같은 규칙(평가 4차 10/18).
+    final label = actionName(this.label);
     // 누른 칸을 버튼판에 표시할 수 있나(화면 구조 개편 10/18) — 제안·실행과 같은 자리(오른쪽)·같은 폭.
     // 큰 글씨·LG 가전·기록 없음·자리를 못 찾은 이름이 있으면 지금처럼 가운데 글만.
     final pressedMap = large || route == 'thinq' || pressed == null
@@ -235,7 +238,9 @@ class KioskDoneView extends StatelessWidget {
                             // 누름 보고만 — 버튼까지만 말한다. 가전은 사람이 본다(평가 3차 10/18).
                             ? '버튼은 다 눌렀어요'
                             : '눌렸는지 몰라요')
-                    : '작은 팔이 다 눌렀다고 알려 왔어요';
+                    // 실행 환경을 모를 때도 같은 말 하나로(평가 4차 10/18 — '작은 팔이 다 눌렀다고 알려 왔어요'는 기계 말투).
+                    // 확인 수준은 그대로다: 띠 '확인해 주세요'(앰버) + 아래 '가전이 켜졌는지 봐 주세요'.
+                    : '버튼은 다 눌렀어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
     // 연습은 위 띠가 '실제 가전은 움직이지 않아요'를 말한다 — 같은 말을 아래에 또 쓰지 않는다(10/18).
     final String? successSub = thinq || mock
@@ -245,8 +250,9 @@ class KioskDoneView extends StatelessWidget {
                 : '가전이 켜졌는지 봐 주세요';
     // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
     // 모의 출처는 아래 작은 글씨("연습 값이에요")가 같이 밝힌다. 물리 성공의 확인은 위 한 줄이 이미 말했다.
+    // 연습에는 두지 않는다 — '연습이라 가전은 보지 않았어요'는 위 연습 띠와 부딪혔다(평가 4차 10/18).
     final operationSentence = switch (operationConfirmed) {
-      true when mock => '연습이라 가전은 보지 않았어요',
+      _ when mock => null,
       true when operationSource == 'real' =>
         success && !thinq ? null : '가전이 켜졌어요',
       true => '켜졌는지 몰라요',
@@ -392,7 +398,7 @@ class KioskDoneView extends StatelessWidget {
           // 경로(ThinQ)와 확인 수준. 서버가 준 값만 말한다(물리 경로는 배지 없음).
           if (facts.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(
+            KioskText(
               facts.join(' · '),
               textAlign: ta,
               style: const TextStyle(
@@ -406,7 +412,7 @@ class KioskDoneView extends StatelessWidget {
           if (success) ...[
             // 무엇을 했는지 한 줄로 재확인한다.
             if (showLabel) ...[
-              Text(
+              KioskText(
                 label,
                 textAlign: ta,
                 style: const TextStyle(
@@ -418,7 +424,7 @@ class KioskDoneView extends StatelessWidget {
               const SizedBox(height: 4),
             ],
             if (thinq)
-              Text(
+              KioskText(
                 thinqLine,
                 textAlign: ta,
                 style: const TextStyle(
@@ -427,9 +433,9 @@ class KioskDoneView extends StatelessWidget {
           ] else ...[
             // 무엇이었는지 이름 한 줄(문장 앞에 '이름 — '를 붙이지 않는다, 쉬운 말 10/17).
             if (showLabel) ...[
-              Text(
+              KioskText(
                 label,
-                key: const ValueKey('done-label'),
+                textKey: const ValueKey('done-label'),
                 textAlign: ta,
                 style: const TextStyle(
                   fontSize: KioskType.body,
@@ -441,7 +447,7 @@ class KioskDoneView extends StatelessWidget {
             ],
             if (detail case final d? when d.isNotEmpty && !mock) ...[
               const SizedBox(height: 4),
-              Text(
+              KioskText(
                 d,
                 textAlign: ta,
                 style: const TextStyle(
@@ -575,7 +581,7 @@ class _RunSteps extends StatelessWidget {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
+                      KioskText(
                         _stepTitle(i, steps[i]),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -584,7 +590,7 @@ class _RunSteps extends StatelessWidget {
                           color: Colors.white,
                         ),
                       ),
-                      Text(
+                      KioskText(
                         runStepFacts(steps[i]),
                         textAlign: TextAlign.center,
                         style: const TextStyle(
@@ -637,7 +643,7 @@ class _OperationLine extends StatelessWidget {
                   size: KioskType.body + 4, color: color),
               const SizedBox(width: 8),
               Flexible(
-                child: Text(
+                child: KioskText(
                   sentence,
                   textAlign: TextAlign.center,
                   style: TextStyle(
@@ -650,7 +656,7 @@ class _OperationLine extends StatelessWidget {
           ),
           if (caption.isNotEmpty) ...[
             const SizedBox(height: 4),
-            Text(
+            KioskText(
               caption,
               textAlign: TextAlign.center,
               style: const TextStyle(
@@ -689,8 +695,9 @@ enum KioskFailureReason {
 
   /// 연습(모의) 실패의 이유 한 줄 — 실제로 누른 것이 아니라 연습 안에서 일어난 일이다.
   String get practiceWhy => switch (this) {
-        KioskFailureReason.execution => '연습에서 눌렸는지 몰라요.',
-        KioskFailureReason.safetyStop => '연습에서 눌렸는지 몰라서 멈췄어요.',
+        // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 몰라요'는 연습 띠와 부딪혔다(평가 4차 10/18).
+        KioskFailureReason.execution => '연습 누르기를 끝내지 못했어요.',
+        KioskFailureReason.safetyStop => '연습에서 다시 누르지 않고 멈췄어요.',
         KioskFailureReason.serverLost => '연습 결과를 받지 못했어요.',
         KioskFailureReason.stopped => '연습을 멈췄어요.',
         KioskFailureReason.unconfirmed => '연습 결과를 몰라요.',
@@ -794,6 +801,8 @@ class _AutoReturn extends StatelessWidget {
             duration: total,
             builder: (_, seconds, __) => Text(
               '${seconds.ceil()}초 뒤 처음 화면으로 돌아가요',
+              maxLines: 1,
+              softWrap: false,
               style: const TextStyle(
                   fontSize: KioskType.caption, color: KioskColors.muted),
             ),
@@ -858,6 +867,8 @@ Widget _homeButton(VoidCallback onTap, {bool calm = false}) => ElevatedButton.ic
       onPressed: onTap,
       icon: const Icon(Icons.home_outlined, size: KioskType.status),
       label: const Text('처음 화면으로',
+          maxLines: 1,
+          softWrap: false,
           style: TextStyle(
               fontSize: KioskType.status, fontWeight: FontWeight.w800)),
       style: KioskButtons.primary(
@@ -871,7 +882,7 @@ Widget _homeButton(VoidCallback onTap, {bool calm = false}) => ElevatedButton.ic
 /// - 주: `처음 화면으로`(채움, 늘 쉽게 닿게 — 안전상 빠져나갈 길).
 /// - 보조: `다시 시도`(테두리) — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문에 덜 강조한다(열린 문제 R1).
 ///   다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) 그리지 않는다.
-/// - 글자: `화면으로 조작하기` — 글자 단추지만 누르는 자리는 48 이상.
+/// - 글자: `화면에서 직접 누르기` — 글자 단추지만 누르는 자리는 48 이상.
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
     super.key,
@@ -900,6 +911,8 @@ class _FailureActions extends StatelessWidget {
               onPressed: onRetry,
               icon: const Icon(Icons.refresh, size: KioskType.body),
               label: const Text('다시 시도',
+                  maxLines: 1,
+                  softWrap: false,
                   style: TextStyle(
                       fontSize: KioskType.body, fontWeight: FontWeight.w700)),
               style: KioskButtons.secondary(
@@ -914,7 +927,10 @@ class _FailureActions extends StatelessWidget {
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
               ),
-              child: const Text('화면으로 조작하기',
+              // '조작하기'는 기계 말(평가 4차 10/18) — 사람이 할 일로.
+              child: const Text('화면에서 직접 누르기',
+                  maxLines: 1,
+                  softWrap: false,
                   style: TextStyle(
                       fontSize: KioskType.body,
                       fontWeight: FontWeight.w600,

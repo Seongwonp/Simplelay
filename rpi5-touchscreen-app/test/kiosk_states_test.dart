@@ -60,9 +60,10 @@ const _ambient = AmbientInfo(
 const _plugWeak = ConnectionItem(
   id: 'plug',
   state: 'warn',
-  title: '가전 콘센트 장치 연결이 약해요',
-  message: '가전이 끝났는지 알려 주는 가전 콘센트 장치와 연결이 약해요. 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
-  fixes: ['가전 콘센트 장치가 벽 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.', '그래도 안 되면 가전 콘센트 장치를 뽑았다가 10초 뒤 다시 꽂아 주세요.'],
+  // 서버 문장(쉬운 말 4차 b039967 — 콘센트 → 전기 플러그).
+  title: '전기 플러그 연결이 약해요',
+  message: '가전이 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
+  fixes: ['전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.', '그래도 안 되면 전기 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.'],
   source: 'real',
 );
 
@@ -166,7 +167,8 @@ void main() {
       expect(find.text('오후 3시부터 비 예보가 있어요. 우산 챙기세요.'), findsOneWidget);
       // 보통 글씨에서는 안내와 예보 4칸을 함께 보인다(10/5 사용자 결정).
       expect(find.byKey(const ValueKey('ambient-hours')), findsOneWidget);
-      for (final label in ['9시', '12시', '15시', '18시']) {
+      // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기).
+      for (final label in ['오전 9시', '오후 12시', '오후 3시', '오후 6시']) {
         expect(find.text(label), findsOneWidget);
       }
 
@@ -178,11 +180,12 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await _pump(tester, api);
       expect(find.text('좋은 아침이에요.'), findsOneWidget);
-      for (final label in ['9시', '12시', '15시', '18시']) {
+      // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기).
+      for (final label in ['오전 9시', '오후 12시', '오후 3시', '오후 6시']) {
         expect(find.text(label), findsOneWidget);
       }
       // 비 오는 칸은 강수확률을 말한다(색만으로 말하지 않는다)
-      expect(find.text('70%'), findsOneWidget);
+      expect(find.text('비 70%'), findsOneWidget); // 기온 칸과 섞이면 글자로(평가 4차 10/18)
       expect(find.text('16°'), findsOneWidget);
       // 고정 명령 버튼은 없다
       expect(find.text('즉석밥'), findsNothing);
@@ -230,7 +233,8 @@ void main() {
       await _pump(tester, api);
 
       // 문제가 있을 때만 앰버 칩에 무엇이 문제인지(10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
-      expect(find.text('콘센트를 봐 주세요'), findsOneWidget);
+      // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그.
+      expect(find.text('전기 플러그를 봐 주세요'), findsOneWidget);
       expect(find.text('와이파이 연결이 끊겼어요'), findsNothing);
       expect(find.text('작은 팔 연결이 끊겼어요'), findsNothing);
 
@@ -238,22 +242,22 @@ void main() {
       await _settle(tester);
 
       expect(find.byType(KioskConnectionModal), findsOneWidget);
-      expect(find.text('가전 콘센트 장치 연결이 약해요'), findsOneWidget);
-      expect(find.textContaining('가전 콘센트 장치와 연결이 약해요.'), findsOneWidget);
-      expect(find.text('가전 콘센트 장치가 벽 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.'), findsOneWidget);
+      expect(find.text('전기 플러그 연결이 약해요'), findsOneWidget);
+      expect(find.textContaining('알림이 늦거나 오지 않을 수 있어요.'), findsOneWidget);
+      expect(find.text('전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.'), findsOneWidget);
 
       // 다시 연결하기 = 연결 상태를 다시 묻는다(서버에 재연결 명령은 없다)
       final before = api.connectionsCalls;
       api.connectionsResult = [
         const ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
         const ConnectionItem(id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: ''),
-        const ConnectionItem(id: 'plug', state: 'ok', title: '가전 콘센트 장치가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
+        const ConnectionItem(id: 'plug', state: 'ok', title: '전기 플러그가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
       ];
       await tester.tap(find.text('다시 연결해 보기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
       expect(find.text('모두 정상'), findsOneWidget);
-      expect(find.text('가전 콘센트 장치가 연결돼 있어요'), findsOneWidget);
+      expect(find.text('전기 플러그가 연결돼 있어요'), findsOneWidget);
 
       await tester.tap(find.text('닫기'));
       await _settle(tester);
@@ -457,12 +461,11 @@ void main() {
       expect(find.byType(KioskHoldView), findsOneWidget);
       // 연습이면 제목이 가전이 돈다고 말하지 않는다 — 연습은 맨 위 띠로(2026-10-15).
       expect(find.text('전자레인지 연습 중'), findsOneWidget);
-      expect(find.text('연습으로 버튼 3개를 눌렀어요'), findsOneWidget);
+      expect(find.text('버튼 3개 누르기 연습을 마쳤어요'), findsOneWidget);
       expect(find.text("정지를 누르면 '취소' 버튼을 누르는 연습을 해요"), findsOneWidget);
-      // 전력 판정이 없으면 없다고 말한다 — 남은 시간을 지어내지 않는다
-      expect(find.text('가전이 켜졌는지는 몰라요'), findsOneWidget);
-      // 남은 시간은 모른다고만 말하고 숫자를 만들지 않는다(d965888).
-      expect(find.text('끝나는 시간은 몰라요'), findsOneWidget);
+      // 연습에는 가전 판정·끝나는 시간 줄을 두지 않는다 — 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
+      expect(find.text('가전이 켜졌는지는 몰라요'), findsNothing);
+      expect(find.text('끝나는 시간은 몰라요'), findsNothing);
       expect(find.textContaining(RegExp(r'\d+:\d\d')), findsNothing);
       // 모의를 실물처럼 보이지 않는다
       expect(find.text(kPracticeBandText), findsOneWidget);
@@ -470,7 +473,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('hold-stop')));
       await tester.pump();
       expect(api.stopCalls, 1);
-      expect(find.text('멈추라고 보냈어요'), findsOneWidget);
+      // '보냈어요' 대신 사람이 볼 상태와 할 일(평가 4차 10/18) — 멈췄다고 단정하지 않는다.
+      expect(find.text('멈추는 중이에요. 가전을 봐 주세요'), findsOneWidget);
 
       api.statusResult = _hovering(state: 'stopping');
       await tester.pump(const Duration(seconds: 2));

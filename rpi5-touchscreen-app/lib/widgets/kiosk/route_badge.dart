@@ -21,6 +21,8 @@ class KioskRouteBadge extends StatelessWidget {
         ),
         child: Text(
           label,
+          maxLines: 1,
+          softWrap: false,
           style: const TextStyle(fontSize: KioskType.caption, color: Colors.white),
         ),
       );

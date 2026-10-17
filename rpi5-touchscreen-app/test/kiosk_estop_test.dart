@@ -151,7 +151,13 @@ void main() {
       final api = FakeKioskApi()..statusResult = _latchedIdle;
       await _pump(tester, api);
       expect(find.byKey(_banner), findsOneWidget);
-      expect(find.text(kEstopTitle), findsOneWidget);
+      expect(find.descendant(of: find.byKey(_banner), matching: find.text(kEstopTitle)), findsOneWidget);
+      // 평소 화면 상태 칩도 같은 말 — '모두 정상'이 아니다(평가 4차 10/18).
+      expect(
+          find.descendant(
+              of: find.byKey(const ValueKey('idle-status-chip')), matching: find.text(kEstopTitle)),
+          findsOneWidget);
+      expect(find.text('모두 정상'), findsNothing);
       expect(find.text(_detailShown), findsOneWidget);
 
       api.statusResult = const KioskStatus(running: false);
@@ -379,7 +385,7 @@ void main() {
           visible(tester, find.text(kEstopTitle));
           visible(tester, find.text('정지'));
           visible(tester, find.text('작은 팔을 쓸 수 없어요'));
-          expect(find.text('멈추라고 보냈어요'), findsNothing);
+          expect(find.textContaining('멈추는 중이에요'), findsNothing);
           if (name == '확인 중') {
             visible(tester, find.text(kEstopConfirmQuestion));
             visible(tester, find.byKey(_confirm), isText: false);

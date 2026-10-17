@@ -65,7 +65,8 @@ void main() {
       expect(tester.takeException(), isNull);
       final band = find.byKey(const ValueKey('status-band'));
       expect(find.descendant(of: band, matching: find.textContaining('전자레인지')), findsOneWidget);
-      expect(find.descendant(of: band, matching: find.textContaining('즉석밥 데워줘')), findsOneWidget);
+      // 할 일은 명령문이 아니라 행동 이름(평가 4차 10/18).
+      expect(find.descendant(of: band, matching: find.textContaining('즉석밥 데우기')), findsOneWidget);
       expect(find.byType(KioskTargetLine), findsNothing);
       expect(find.text('이번 버튼'), findsNothing);
       // 상태 제목 · 진행 · 지금 버튼은 그대로.
@@ -193,10 +194,10 @@ void main() {
   });
 
   group('연습 문구', () {
-    testWidgets('연습 띠는 한 줄 — 연습 중이라 실제 가전은 움직이지 않아요', (tester) async {
-      expect(kPracticeBandText, '연습 중이라 실제 가전은 움직이지 않아요');
+    testWidgets('연습 띠는 한 줄 — 연습이에요. 실제 가전은 그대로예요', (tester) async {
+      expect(kPracticeBandText, '연습이에요. 실제 가전은 그대로예요');
       await _pump(tester, _exec(mode: 'mock'));
-      expect(find.textContaining('연습 중이라 실제 가전은 움직이지 않아요'), findsOneWidget);
+      expect(find.textContaining('연습이에요. 실제 가전은 그대로예요'), findsOneWidget);
     });
 
     testWidgets('연습 실패 제목은 "연습이 중간에 멈췄어요"', (tester) async {

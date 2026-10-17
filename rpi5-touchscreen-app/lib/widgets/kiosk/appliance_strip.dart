@@ -58,6 +58,7 @@ class KioskApplianceStrip extends StatefulWidget {
     this.unavailable = const {},
     required this.onSelect,
     this.perPage = 4,
+    this.reservePager = true,
     this.itemWidth = 128,
     this.labelSize = KioskType.body,
     this.statusSize = KioskType.caption,
@@ -73,6 +74,10 @@ class KioskApplianceStrip extends StatefulWidget {
   final Set<String> on;
   final ValueChanged<ApplianceMap> onSelect;
   final int perPage;
+
+  /// 한 장뿐일 때도 장 넘김 자리를 비워 둘지. 평소 화면은 가전이 한 줄에 다 들어가면(4개까지) 비우지 않고
+  /// 타일에 폭을 준다(평가 4차 10/18).
+  final bool reservePager;
 
   /// 가전 한 칸 폭 — 이름(예: 거실 선풍기)을 줄이지 않을 만큼. 평소 화면이 글자 배율에 맞춰 준다.
   final double itemWidth;
@@ -184,7 +189,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
           ),
           // 한 장뿐이면 장 넘김을 그리지 않는다(자리는 지켜 타일 크기가 바뀌지 않게).
           if (_lastPage == 0)
-            const SizedBox(width: KioskApplianceStrip.pagerWidth)
+            SizedBox(width: widget.reservePager ? KioskApplianceStrip.pagerWidth : 0)
           else
             SizedBox(
               width: KioskApplianceStrip.pagerWidth,
@@ -380,7 +385,8 @@ class _StripItemState extends State<_StripItem>
     } else if (widget.running) {
       // 동작 중은 일상 상태 — 중립(흰 테), 앰버는 확인 필요에만(2026-10-16 디자인 규격 §1-4).
       iconColor = Colors.white;
-      status = a.isThinq ? '설정을 바꾸고 있어요' : '작동하고 있어요';
+      // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18).
+      status = a.isThinq ? '바꾸고 있어요' : '작동하고 있어요';
       statusColor = Colors.white;
     } else if (widget.on) {
       // 켜짐 — 서버가 ThinQ 조회로 본 전원 상태(2026-10-16). 확인한 값이라 초록.
@@ -459,7 +465,12 @@ class _StripItemState extends State<_StripItem>
                           key: widget.unavailable ? ValueKey('tile-unavailable-${a.id}') : null,
                           opacity: widget.unavailable ? 0.5 : 1,
                           child: Row(children: [
-                          Icon(a.icon, size: widget.iconBox * 0.58, color: iconColor),
+                          // 타일이 커지면(남는 높이를 쓴 평소 화면, 평가 4차 10/18) 아이콘도 함께 — 빈 타일처럼 보이지 않게.
+                          Icon(a.icon,
+                              size: (widget.iconBox * 0.58 + (widget.tileHeight - 112) * 0.3)
+                                  .clamp(widget.iconBox * 0.58, 44)
+                                  .toDouble(),
+                              color: iconColor),
                           const Spacer(),
                           if (a.isThinq)
                             const Flexible(

@@ -155,20 +155,31 @@ class KioskPanelPicture extends StatelessWidget {
                 textKey: captionKey,
                 style: const TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted))
+            // '작은 팔 위치 취소'는 표 머리처럼 읽혔다(평가 4차 10/18) — 한 문장으로 '작은 팔이 [취소] 위에 있어요'.
             : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                const Text('작은 팔 위치',
+                const Text('작은 팔이',
+                    maxLines: 1,
+                    softWrap: false,
                     style: TextStyle(
                         fontSize: KioskType.caption, color: KioskColors.muted)),
-                const SizedBox(width: KioskSpace.sm),
+                const SizedBox(width: KioskSpace.xs),
                 Flexible(
                     child: Text(current!.label,
                         key: const ValueKey('panel-current'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                             fontSize: KioskType.status,
                             color: caution
                                 ? KioskColors.warning
                                 : KioskColors.running,
                             fontWeight: FontWeight.w800))),
+                const SizedBox(width: KioskSpace.xs),
+                const Text('위에 있어요',
+                    maxLines: 1,
+                    softWrap: false,
+                    style: TextStyle(
+                        fontSize: KioskType.caption, color: KioskColors.muted)),
               ]),
       );
 

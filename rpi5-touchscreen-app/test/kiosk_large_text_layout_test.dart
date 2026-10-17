@@ -35,7 +35,7 @@ const _fan = ApplianceMap(
 const _rice = ApplianceMap(
     id: 'rice', name: '밥솥', category: 'rice_cooker', rows: 1, cols: 1, buttons: []);
 
-const _tipText = '인덕션 확인이 필요해요. 마지막 작업이 끝까지 되지 않았어요.';
+const _tipText = '인덕션 버튼 누르기가 중간에 멈췄어요. 가전을 봐 주세요.';
 
 // 비 오는 칸이 섞인 예보 4칸 — 보통 글씨에서는 안내와 함께 보여야 한다.
 const _hourly = [
@@ -192,7 +192,8 @@ void main() {
       _expectFullyVisible(tester, find.text(_tipText));
       _expectFullyVisible(tester, find.textContaining('습도 58%'));
       // 보통 글씨에서는 안내와 예보 4칸을 함께 보인다(UI 확정 §3-1).
-      for (final label in ['9시', '12시', '15시', '18시', '16°', '70%']) {
+      // 예보 칸 이름은 오전/오후, 비 칸은 '비 70%'(평가 4차 10/18).
+      for (final label in ['오전 9시', '오후 12시', '오후 3시', '오후 6시', '16°', '비 70%']) {
         _expectFullyVisible(tester, find.text(label));
       }
       _expectFullyVisible(tester, find.byKey(const ValueKey('idle-menu')),
@@ -213,10 +214,11 @@ void main() {
       await _pump(tester, _hold(), scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
       _expectFullyVisible(tester, find.text(kPracticeBandText));
-      _expectFullyVisible(tester, find.text('연습이라 가전은 보지 않아요'));
+      // 연습에는 '가전은 보지 않아요'를 두지 않는다 — 위 연습 띠와 부딪혔다(평가 4차 10/18).
+      expect(find.text('연습이라 가전은 보지 않아요'), findsNothing);
       _expectFullyVisible(tester, find.text('정지'));
-      // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리).
-      _expectFullyVisible(tester, find.text('멈추라고 보냈어요'));
+      // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리). '보냈어요' 대신 사람이 볼 상태(평가 4차 10/18).
+      _expectFullyVisible(tester, find.text('멈추는 중이에요. 가전을 봐 주세요'));
     });
 
     testWidgets('$where 큰 글씨 동작 중 — 정지를 못 보냈다는 줄도 스크롤 없이 보여요',
@@ -226,7 +228,7 @@ void main() {
           scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
       _expectFullyVisible(tester,
-          find.text('멈추라고 보내지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.'));
+          find.text('정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.'));
       _expectFullyVisible(tester, find.text('정지'));
     });
 

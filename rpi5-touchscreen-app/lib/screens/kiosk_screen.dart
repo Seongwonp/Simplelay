@@ -3,6 +3,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../models/action_name.dart';
 import '../models/ambient.dart';
 import '../models/appliance.dart';
 import '../models/auto_run.dart';
@@ -402,7 +403,7 @@ class _KioskScreenState extends State<KioskScreen> {
       ConnectionItem(
           id: 'plug',
           state: 'unreachable',
-          title: '콘센트 상태를 볼 수 없어요',
+          title: '전기 플러그 상태를 볼 수 없어요',
           message: '본체와 연결되면 볼 수 있어요.'),
     ];
     if (!_connectionsLoaded) {
@@ -1242,7 +1243,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // 실행 결과 음성 안내. '서버 응답 없음'은 라벨이 아니라 오류 상황이라
     // 문장을 따로 쓴다 ("서버 응답 없음, 실행하지 못했어요"는 어색).
     // 이름을 모르면(빈 문자열) 이름 머리 없이 말한다(2026-10-14).
-    final lead = label.isEmpty ? '' : '$label, ';
+    // 음성도 화면 제목과 같은 행동 이름('즉석밥 데우기', 평가 4차 10/18).
+    final lead = label.isEmpty ? '' : '${actionName(label)}, ';
     _tts.speak(
       // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
       // 이 시스템이 끝낸 것은 버튼 조작이다.
@@ -1600,6 +1602,8 @@ class _KioskScreenState extends State<KioskScreen> {
               setState(() => _openConnectionId = item.id),
           onDndGesture: () => setState(() => _showDnd = true),
           onSettingsGesture: () => setState(() => _showSettings = true),
+          // 비상 버튼이 눌려 있을 때 상태 칩·못 쓰는 가전 타일을 누르면 위 띠의 풀기 안내를 연다(평가 4차 10/18).
+          onEstopGuide: () => setState(() => _estopConfirming = true),
         );
       case KioskPhase.hold:
         final st = _hold!;

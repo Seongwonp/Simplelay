@@ -160,19 +160,20 @@ KioskIdleView _idle({
   DateTime? dndUntil,
   KioskAirReading? air,
   KioskNextRun? nextRun,
+  List<ApplianceMap> appliances = const [
+    kMicrowaveAppliance,
+    _washer,
+    kInductionAppliance,
+    _fanAppliance,
+    _rice,
+  ],
 }) =>
     KioskIdleView(
       now: DateTime(2026, 9, 30, 7, 8),
       connected: true,
       ambient: ambient,
       connections: connections,
-      appliances: const [
-        kMicrowaveAppliance,
-        _washer,
-        kInductionAppliance,
-        _fanAppliance,
-        _rice,
-      ],
+      appliances: appliances,
       running: const {'washer'},
       attention: attention,
       temperature: 23,
@@ -277,7 +278,7 @@ void main() {
           greeting: '편안한 저녁 보내세요.',
           tip: AmbientTip(
               kind: 'appliance',
-              text: '인덕션 확인이 필요해요. 마지막 작업이 끝까지 되지 않았어요.',
+              text: '인덕션 버튼 누르기가 중간에 멈췄어요. 가전을 봐 주세요.',
               icon: 'attention'),
         ),
       ),
@@ -331,14 +332,13 @@ void main() {
             item: const ConnectionItem(
               id: 'plug',
               state: 'warn',
-              // 서버가 실제로 보내는 문장(rpi/services/connections.py, 서버 문구 정리 2bc87e5).
-              title: '가전 콘센트 장치 연결이 약해요',
-              message:
-                  '가전이 끝났는지 알려 주는 가전 콘센트 장치와 연결이 약해요. 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
+              // 서버가 실제로 보내는 문장(rpi/services/connections.py, 쉬운 말 4차 b039967 — 콘센트 → 전기 플러그).
+              title: '전기 플러그 연결이 약해요',
+              message: '가전이 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
               fixes: [
-                '가전 콘센트 장치가 벽 콘센트에 끝까지 꽂혀 있는지 확인해 주세요.',
-                '가전 콘센트 장치와 작은 팔 장치를 잇는 선이 끝까지 꽂혀 있는지 확인해 주세요.',
-                '그래도 안 되면 가전 콘센트 장치를 뽑았다가 10초 뒤 다시 꽂아 주세요.',
+                '전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.',
+                '전기 플러그와 작은 팔을 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.',
+                '그래도 안 되면 전기 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.',
               ],
             ),
             checking: false,
@@ -637,11 +637,13 @@ void main() {
   });
 
   // 평가 3차(10/18) — 다음 루틴은 오른쪽 칸 아래 끝(가전 줄 바로 위) 큰 카드. 실패널 k01과 같은 조건(안내·예보·공기).
+  // 평가 4차(10/18) — 실패널처럼 가전 4개(LG 공기청정기 포함)면 장 넘김 없이 한 줄에 4개.
   testWidgets('15인치 미리보기 — 평소, 다음 루틴 카드', (t) async {
     await _shoot15(
         t,
         'kiosk15_idle_next',
         _idle(
+            appliances: [_purifierAppliance, kMicrowaveAppliance, kInductionAppliance, _washer],
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
             nextRun: const KioskNextRun(

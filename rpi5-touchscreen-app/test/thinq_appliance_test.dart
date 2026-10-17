@@ -162,13 +162,14 @@ void main() {
     handle.dispose();
   });
 
-  testWidgets('가전 줄: ThinQ 작업 중이면 "작동하고 있어요"가 아니라 "설정을 바꾸고 있어요"', (tester) async {
+  // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게 '바꾸고 있어요'(평가 4차 10/18).
+  testWidgets('가전 줄: ThinQ 작업 중이면 "작동하고 있어요"가 아니라 "바꾸고 있어요"', (tester) async {
     await _pump(tester, Center(child: strip({'air_purifier', 'microwave'})));
 
     expect(
         find.descendant(
             of: find.byKey(const ValueKey('strip-air_purifier')),
-            matching: find.text('설정을 바꾸고 있어요')),
+            matching: find.text('바꾸고 있어요')),
         findsOneWidget);
     expect(
         find.descendant(

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../theme/kiosk_tokens.dart';
 
+import '../../models/kiosk_time.dart';
+import 'kiosk_text.dart';
 import '../../theme/kiosk_colors.dart';
 
 /// 제안 잠시 쉬기(예전 이름 '방해 금지', 2026-10-15) — 새 제안과 아직 시작하지 않은 자동 실행을 잠시 쉰다.
@@ -56,6 +58,8 @@ class DndOverlay extends StatelessWidget {
                   children: [
                     const Text(
                       '잠시 쉬기',
+                      maxLines: 1,
+                      softWrap: false,
                       style: TextStyle(
                         fontSize: KioskType.body,
                         color: Color(0xFFFAF7F2),
@@ -64,13 +68,15 @@ class DndOverlay extends StatelessWidget {
                     ),
                     const SizedBox(height: 6),
                     // 실제 범위만 말한다(2026-10-14) — 새 제안과 아직 시작하지 않은 자동 실행. 직접 실행·정지·경보는 그대로.
-                    Text(
+                    // 어절 단위로 줄을 바꾼다 — 실패널에서 '쉬어|요'처럼 한 글자가 떨어졌다(평가 4차 10/18).
+                    KioskText(
                       // 켜져 있으면 끝나는 시각을 함께 적는다(2026-10-14 마감 확인 A5) — 위 줄 칩은 남은 시간.
+                      // 자동 계열 이름은 '자동으로 해요' 하나로(평가 4차 10/18) — 문장 안에서는 '자동으로 하는 일'.
                       dndUntil == null
-                          ? '새 제안과 자동으로 하기를 잠시 쉬어요'
+                          ? '새 제안과 자동으로 하는 일을 잠시 쉬어요'
                           : dndScope == 'suggestions_only'
-                              ? '${_clockOf(dndUntil!)}까지 새 제안만 쉬어요. 자동으로 하기는 그대로예요'
-                              : '${_clockOf(dndUntil!)}까지 새 제안과 자동으로 하기를 쉬어요',
+                              ? '${_clockOf(dndUntil!)}까지 새 제안만 쉬어요. 자동으로 하는 일은 그대로예요'
+                              : '${_clockOf(dndUntil!)}까지 새 제안과 자동으로 하는 일을 쉬어요',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
                         fontSize: KioskType.caption,
@@ -79,8 +85,8 @@ class DndOverlay extends StatelessWidget {
                     ),
                     if (quietSchedule case (final start, final end)) ...[
                       const SizedBox(height: 6),
-                      Text(
-                        '매일 $start~$end 조용한 시간이에요. 폰 설정에서 바꿔요',
+                      KioskText(
+                        '매일 ${spokenHhmm(start)}부터 ${spokenHhmm(end)}까지 조용한 시간이에요. 폰 설정에서 바꿔요',
                         textAlign: TextAlign.center,
                         style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                       ),
@@ -154,7 +160,7 @@ class _DndOption extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
           ),
         ),
-        child: Text(
+        child: KioskText(
           label,
           style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600),
         ),
@@ -163,8 +169,8 @@ class _DndOption extends StatelessWidget {
   }
 }
 
-/// 잠시 쉬기가 끝나는 시각 "HH:MM"(키오스크 현지 시각).
+/// 잠시 쉬기가 끝나는 시각 '오전 8시 38분'(키오스크 현지 시각, 오전/오후로 통일 — 평가 4차 10/18).
 String _clockOf(DateTime until) {
   final t = until.toLocal();
-  return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+  return spokenTime(t.hour, t.minute);
 }

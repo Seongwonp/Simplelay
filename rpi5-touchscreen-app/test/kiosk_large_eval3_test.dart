@@ -190,7 +190,8 @@ void main() {
             panel15: panel15);
         expect(tester.takeException(), isNull);
         // 아이콘 4~5개 대신 상태 칩 하나 + 메뉴(10/18) — 칩 말과 메뉴 이름이 잘리지 않고 다 보인다.
-        for (final label in ['콘센트를 봐 주세요', '메뉴']) {
+        // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그.
+        for (final label in ['전기 플러그를 봐 주세요', '메뉴']) {
           _expectFullyVisible(tester, find.text(label));
         }
         // 메뉴 이름은 제 아이콘 바로 아래에 있다.
@@ -222,7 +223,8 @@ void main() {
           onDismiss: () {},
         ));
     expect(tester.takeException(), isNull);
-    _expectFullyVisible(tester, _drawn('작은 팔이 다 눌렀다고 알려 왔어요'));
+    // 실행 환경을 몰라도 같은 말 하나로(평가 4차 10/18 — '알려 왔어요'는 기계 말투).
+    _expectFullyVisible(tester, _drawn('버튼은 다 눌렀어요'));
   });
 
   // UI 평가 4차 10/17: '쉬는 중' 칩이 켜지면 설정·연결 아이콘이 왼쪽으로 밀려 늘 누르던 자리가 바뀌었다.

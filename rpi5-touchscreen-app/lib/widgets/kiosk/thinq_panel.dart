@@ -26,7 +26,7 @@ const kThinqEstopNote = '비상 버튼이 눌려 있어 지금은 바꿀 수 없
 const kThinqPowerOffNote = '전원을 켠 뒤 바꿀 수 있어요';
 
 /// 연습(모의) ThinQ 표시.
-const kThinqPracticeText = '연습 중이라 실제 가전은 움직이지 않아요';
+const kThinqPracticeText = '연습이에요. 실제 가전은 그대로예요';
 
 /// ThinQ 가전 상세(2026-10-16, 사용자 요청) — 왼쪽 지금 상태, 오른쪽 큰 조작 단추.
 ///
@@ -224,8 +224,8 @@ class _StateCardState extends State<_StateCard> {
     final List<Widget> body;
     if (loading || s == null) {
       body = const [
-        Text('지금 상태를 보는 중…',
-            key: ValueKey('thinq-reading'),
+        KioskText('지금 상태를 보는 중…',
+            textKey: ValueKey('thinq-reading'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
       ];
     } else if (!s.ok) {
@@ -258,7 +258,7 @@ class _StateCardState extends State<_StateCard> {
       final dustNote = thinqDustNote(map);
       body = [
         if (all.isEmpty)
-          const Text('보여 줄 상태가 없어요',
+          const KioskText('보여 줄 상태가 없어요',
               style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted))
         else
           for (final row in rows) _StateRowView(row: row),
@@ -268,8 +268,8 @@ class _StateCardState extends State<_StateCard> {
             Icon(Icons.air, size: 26, color: airGradeColor(grade)),
             const SizedBox(width: KioskSpace.xs),
             Expanded(
-              child: Text(grade == null ? '공기' : airSentence(grade),
-                  key: const ValueKey('thinq-air-summary'),
+              child: KioskText(grade == null ? '공기' : airSentence(grade),
+                  textKey: const ValueKey('thinq-air-summary'),
                   style: TextStyle(
                       fontSize: KioskType.body,
                       fontWeight: FontWeight.w800,
@@ -292,8 +292,8 @@ class _StateCardState extends State<_StateCard> {
             if (total != null && kAirGradeWords.containsKey(total))
               const Padding(
                 padding: EdgeInsets.only(top: 4),
-                child: Text('종합은 가전이 매긴 등급이에요',
-                    key: ValueKey('thinq-air-total-note'),
+                child: KioskText('종합은 가전이 매긴 등급이에요',
+                    textKey: ValueKey('thinq-air-total-note'),
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
               ),
           ],
@@ -307,8 +307,8 @@ class _StateCardState extends State<_StateCard> {
           ),
         if (s.readAt != null) ...[
           const SizedBox(height: 8),
-          Text(thinqReadTimeLine(s.readAt!, mock: s.mock),
-              key: const ValueKey('thinq-read-time'),
+          KioskText(thinqReadTimeLine(s.readAt!, mock: s.mock),
+              textKey: const ValueKey('thinq-read-time'),
               style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
         ],
       ];
@@ -327,6 +327,8 @@ class _StateCardState extends State<_StateCard> {
               Expanded(
                 // '(연습)'은 아래 읽은 시각 줄과 위 연습 칸이 말한다 — 제목에 붙이면 '다시 읽기'에 닿았다(UI 평가 3차 10/17).
                 child: Text('지금 상태',
+                    maxLines: 1,
+                    softWrap: false,
                     style: const TextStyle(
                         fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
               ),
@@ -337,7 +339,8 @@ class _StateCardState extends State<_StateCard> {
                 style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border)
                     .copyWith(padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: 14))),
                 icon: const Icon(Icons.refresh, size: 22),
-                label: const Text('새로 보기', style: TextStyle(fontSize: KioskType.caption)),
+                label: const Text('새로 보기',
+                    maxLines: 1, softWrap: false, style: TextStyle(fontSize: KioskType.caption)),
               ),
             ],
           ),
@@ -362,7 +365,7 @@ class _StateRowView extends StatelessWidget {
         spacing: 12,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text(row.label, style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
+          KioskText(row.label, style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -370,8 +373,8 @@ class _StateRowView extends StatelessWidget {
                 Icon(Icons.circle, size: 14, color: airGradeColor(grade)),
                 const SizedBox(width: 6),
               ],
-              Text(row.value,
-                  key: ValueKey('thinq-row-${row.label}'),
+              KioskText(row.value,
+                  textKey: ValueKey('thinq-row-${row.label}'),
                   style: TextStyle(
                       fontSize: KioskType.body,
                       fontWeight: FontWeight.w700,
@@ -427,8 +430,8 @@ class _Controls extends StatelessWidget {
     if (s == null) {
       // 읽는 중 — 조작 칸은 아직 그리지 않는다.
     } else if (!s.ok) {
-      children.add(const Text('지금 상태를 본 뒤 바꿀 수 있어요. 왼쪽의 새로 보기를 눌러 주세요.',
-          key: ValueKey('thinq-controls-unknown'),
+      children.add(const KioskText('지금 상태를 본 뒤 바꿀 수 있어요. 왼쪽의 새로 보기를 눌러 주세요.',
+          textKey: ValueKey('thinq-controls-unknown'),
           style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
     } else {
       final map = s.stateMap;
@@ -439,8 +442,8 @@ class _Controls extends StatelessWidget {
         children.add(const Padding(padding: EdgeInsets.only(bottom: 10), child: _PracticeChip()));
       }
       if (controls.isEmpty) {
-        children.add(const Text('이 가전은 휴대폰 SimpleLay 앱에서 바꿀 수 있어요.',
-            key: ValueKey('thinq-controls-phone'),
+        children.add(const KioskText('이 가전은 휴대폰 SimpleLay 앱에서 바꿀 수 있어요.',
+            textKey: ValueKey('thinq-controls-phone'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
       }
       for (final control in controls) {
@@ -451,7 +454,7 @@ class _Controls extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(control.label,
+              KioskText(control.label,
                   style: const TextStyle(
                       fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
               const SizedBox(height: 8),
@@ -476,8 +479,8 @@ class _Controls extends StatelessWidget {
               ),
               if (blockedByPower) ...[
                 const SizedBox(height: 6),
-                const Text(kThinqPowerOffNote,
-                    key: ValueKey('thinq-power-off-note'),
+                const KioskText(kThinqPowerOffNote,
+                    textKey: ValueKey('thinq-power-off-note'),
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
               ],
             ],
@@ -491,8 +494,8 @@ class _Controls extends StatelessWidget {
             Icon(Icons.warning_amber_rounded, color: KioskColors.danger, size: 26),
             SizedBox(width: 8),
             Expanded(
-              child: Text(kThinqEstopNote,
-                  key: ValueKey('thinq-estop-note'),
+              child: KioskText(kThinqEstopNote,
+                  textKey: ValueKey('thinq-estop-note'),
                   style: TextStyle(fontSize: KioskType.body, color: Colors.white, height: 1.3)),
             ),
           ],
@@ -502,8 +505,8 @@ class _Controls extends StatelessWidget {
     if (sending) {
       children.add(const Padding(
         padding: EdgeInsets.only(top: 6),
-        child: Text('보내는 중…',
-            key: ValueKey('thinq-sending'),
+        child: KioskText('보내는 중…',
+            textKey: ValueKey('thinq-sending'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
       ));
     }

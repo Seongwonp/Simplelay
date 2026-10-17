@@ -6,6 +6,8 @@
 /// 등급은 **가전이 매긴 것**만 쓴다(우리 임계값 없음).
 library;
 
+import 'kiosk_time.dart';
+
 /// 가전 등급 → 말(서버 `LEVEL_WORDS`와 같다).
 const kAirGradeWords = {
   'GOOD': '좋음',
@@ -179,7 +181,7 @@ class ThinqStateRow {
 }
 
 const _power = {'POWER_ON': '켜짐', 'POWER_OFF': '꺼짐'};
-const _jobMode = {'CLEAN': '청정', 'SLEEP': '수면', 'AUTO': '자동', 'SILENT': '조용'};
+const _jobMode = {'CLEAN': '공기 깨끗하게', 'SLEEP': '잘 때 모드', 'AUTO': '자동으로', 'SILENT': '조용히'};
 // 바람 세기 이름은 조작 단추와 같은 말(2차 평가 10/18 — 상태는 '약풍', 단추는 '약'이라 다른 것처럼 읽혔다).
 const _wind = {'LOW': '약', 'MID': '중', 'HIGH': '강', 'AUTO': '자동', 'POWER': '파워'};
 
@@ -199,7 +201,11 @@ List<ThinqStateRow> thinqStateRows(Map<String, dynamic> state) {
     if (key != null && op[key] != null) rows.add(ThinqStateRow('전원', word(_power, op[key])));
   }
   final job = at('airPurifierJobMode', 'currentJobMode');
-  if (job != null) rows.add(ThinqStateRow('모드', word(_jobMode, job)));
+  // '모드 청정'은 뜻을 몰랐다(평가 4차 10/18) — 키오스크에서는 바꿀 수도 없는 값이라 줄을 두지 않는다. 다른 모드만
+  // 쉬운 말로('잘 때'·'조용히'), 기본 청정은 말하지 않는다.
+  if (job != null && job.toString() != 'CLEAN' && _jobMode.containsKey(job.toString())) {
+    rows.add(ThinqStateRow('지금', word(_jobMode, job)));
+  }
   final wind = at('airFlow', 'windStrengthDetail') ?? at('airFlow', 'windStrength');
   if (wind != null) rows.add(ThinqStateRow('바람 세기', word(_wind, wind)));
 
@@ -236,18 +242,19 @@ String? thinqDustNote(Map<String, dynamic> state) {
       ? '전원이 꺼져 있어 미세먼지 값이 오지 않아요'
       : '미세먼지 값을 아직 받지 못했어요. 켠 직후에는 잠시 걸려요';
 }
-/// 연습 값 표시(평가 3차 10/18 — '연습 값'은 뜻을 몰랐다).
-const kPracticeNumbers = '연습용 숫자예요';
+/// 연습 값 표시(평가 3차·4차 10/18 — '연습 값'·'연습용 숫자예요'는 뜻을 몰랐다). 연습 실행(모의)에서는 LG 가전을
+/// 실제로 읽지 않는다 — 진짜 값이 아니라고 그대로 말한다.
+const kPracticeNumbers = '연습이라 진짜 값이 아니에요';
+
+/// LG 가전 상세의 읽은 시각 줄 — 연습이면 시각 대신 이 한 줄(평가 4차 10/18).
+const kPracticeReadLine = '연습 화면이에요. 진짜 값이 아니에요';
 
 
-/// 읽은 시각 줄 — 실제 값은 'HH:MM 기준', 연습 값은 '연습용 숫자예요 (9시 7분)'(평가 3차 10/18 — '09:07 기준 연습 값'은
-/// 무슨 뜻인지 몰랐다).
+/// 읽은 시각 줄 — 실제 값은 '오전 9시 7분 기준'(시각은 오전/오후로 통일, 평가 4차 10/18), 연습은
+/// '연습 화면이에요. 진짜 값이 아니에요'(연습 시각은 뜻이 없다).
 String thinqReadTimeLine(DateTime t, {bool mock = false}) {
-  if (mock) {
-    final at = t.minute == 0 ? '${t.hour}시' : '${t.hour}시 ${t.minute}분';
-    return '$kPracticeNumbers ($at)';
-  }
-  return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')} 기준';
+  if (mock) return kPracticeReadLine;
+  return '${spokenTime(t.hour, t.minute)} 기준';
 }
 
 /// 조작 줄 하나 — 허브 동작 이름·인자와 고를 값들, 지금 값.
@@ -328,7 +335,7 @@ List<ThinqControl> thinqControlsFor(Map<String, dynamic> state) {
 
 /// 허브가 응답으로 거절한 조작의 문장(폰 `thinqCommandRefusal`과 같은 규칙). null이면 '결과를 모른다'.
 String? thinqCommandRefusal(int statusCode, String detail) {
-  const busy = '다른 작업이 실행 중이에요. 끝난 뒤 다시 눌러 주세요.';
+  const busy = '다른 일을 하고 있어요. 끝난 뒤 다시 눌러 주세요.';
   switch (statusCode) {
     case 401:
       return '본체가 이 화면을 받지 않았어요. 본체 설정을 봐 주세요.';

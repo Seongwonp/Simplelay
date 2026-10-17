@@ -4,6 +4,7 @@ import '../../models/ambient.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'connection_status.dart';
+import 'estop_banner.dart';
 import 'kiosk_text.dart';
 
 /// 평소 화면 위쪽(화면 구조 개편 10/18) — 아이콘 4~5개(쉬기·설정·와이파이·작은 팔·콘센트) 대신
@@ -18,7 +19,7 @@ import 'kiosk_text.dart';
 String connectionShortName(String id) => switch (id) {
       'network' => '와이파이',
       'press' => '작은 팔',
-      'plug' => '콘센트',
+      'plug' => '전기 플러그',
       _ => '연결',
     };
 
@@ -29,7 +30,11 @@ List<ConnectionItem> _shown(List<ConnectionItem> items) => [
     ];
 
 /// 상태 칩 요약 — (글, 문제 여부, 바로 열 항목).
-(String, bool, ConnectionItem?) connectionSummary(List<ConnectionItem> items) {
+///
+/// 비상 버튼이 걸려 있으면([estopTitle], 위 빨간 띠 제목) 연결이 다 괜찮아도 '모두 정상'이 아니다 — 띠와 같은 말을
+/// 칩에도 쓴다(평가 4차 10/18: 빨간 띠 아래 칩이 '모두 정상'이라 서로 다른 말을 했다).
+(String, bool, ConnectionItem?) connectionSummary(List<ConnectionItem> items, {String? estopTitle}) {
+  if (estopTitle != null) return (estopTitle, true, null);
   final shown = _shown(items);
   final problems = shown.where((i) => i.needsAttention).toList();
   if (problems.length == 1) {
@@ -55,9 +60,12 @@ class KioskIdleStatusChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (text, problem, _) = connectionSummary(items);
+    final estop = KioskEstopScope.titleOf(context);
+    final (text, problem, _) = connectionSummary(items, estopTitle: estop);
     final unknown = !problem && text != '모두 정상';
-    final color = problem ? KioskColors.warning : KioskColors.muted;
+    // 비상 버튼은 빨강(위 띠와 같은 색), 연결 문제는 앰버.
+    final tone = estop != null ? KioskColors.danger : KioskColors.warning;
+    final color = problem ? tone : KioskColors.muted;
     return Semantics(
       button: true,
       label: '$text. 연결 자세히 보기',
@@ -65,12 +73,12 @@ class KioskIdleStatusChip extends StatelessWidget {
       child: Material(
         key: const ValueKey('idle-status-chip'),
         color: problem
-            ? KioskColors.warning.withValues(alpha: KioskSizes.bandTint)
+            ? tone.withValues(alpha: KioskSizes.bandTint)
             : KioskColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(24),
           side: BorderSide(
-              color: problem ? KioskColors.warning : KioskColors.border,
+              color: problem ? tone : KioskColors.border,
               width: problem ? 2 : 1),
         ),
         child: InkWell(
@@ -84,7 +92,9 @@ class KioskIdleStatusChip extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                      problem
+                      estop != null
+                          ? Icons.report
+                          : problem
                           ? Icons.error_outline
                           : unknown
                               ? Icons.help_outline

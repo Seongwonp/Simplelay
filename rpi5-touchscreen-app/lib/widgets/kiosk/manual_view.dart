@@ -6,6 +6,7 @@ import '../../models/ambient.dart';
 import '../../models/appliance.dart';
 import '../../models/thinq.dart';
 import '../../services/kiosk_api_service.dart';
+import 'kiosk_text.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_back_button.dart';
 import 'route_badge.dart';
@@ -117,9 +118,9 @@ class _KioskManualViewState extends State<KioskManualView> {
                             ],
                           ),
                           if (!appliance.isThinq && appliance.canExecute)
-                            Text(
+                            KioskText(
                               '화면의 버튼을 누르면 작은 팔이 ${appliance.name} 버튼을 대신 눌러요',
-                              key: const ValueKey('manual-explain'),
+                              textKey: const ValueKey('manual-explain'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
@@ -226,11 +227,13 @@ class _RoutinePanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('내 루틴',
+              maxLines: 1,
+              softWrap: false,
               style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           const SizedBox(height: 8),
           Expanded(
             child: routines.isEmpty
-                ? const Text(
+                ? const KioskText(
                     '아직 이 가전의 루틴이 없어요',
                     style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                   )
@@ -252,29 +255,28 @@ class _RoutinePanel extends StatelessWidget {
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
                                   horizontal: 14, vertical: 10),
-                              child: Row(
+                              // 이름 위, 크기('버튼 3번') 아래 — 옆에 붙이면 좁은 칸에서 '버튼 3|번'처럼 숫자와 단위가
+                              // 갈라졌다(평가 4차 10/18). 둘 다 어절 단위로 줄을 바꾼다.
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Expanded(
-                                    flex: 2,
-                                    child: Text(
-                                      r.name,
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: KioskType.body,
-                                        fontWeight: FontWeight.w600,
-                                        color: Colors.white,
-                                      ),
+                                  KioskText(
+                                    r.name,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: KioskType.body,
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
-                                  // 'LG 가전 설정 N번'처럼 길어지면 줄을 바꾼다(넘치지 않게, 평가 3차 10/18).
-                                  Flexible(child: Text(
-                                    r.sizeLabel,
-                                    textAlign: TextAlign.end,
-                                    style: const TextStyle(
-                                        fontSize: KioskType.caption, color: KioskColors.muted),
-                                  )),
+                                  if (r.sizeLabel.isNotEmpty)
+                                    KioskText(
+                                      r.sizeLabel,
+                                      style: const TextStyle(
+                                          fontSize: KioskType.caption, color: KioskColors.muted),
+                                    ),
                                 ],
                               ),
                             ),
@@ -285,7 +287,7 @@ class _RoutinePanel extends StatelessWidget {
                   ),
           ),
           const SizedBox(height: 8),
-          const Text(
+          const KioskText(
             '새 루틴은 휴대폰 SimpleLay 앱에서 만들어요',
             style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
           ),
@@ -321,7 +323,7 @@ class _PressConfirm extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
+                KioskText(
                   "'${button.label}' 버튼을 눌러 드릴까요?",
                   style: const TextStyle(
                     fontSize: KioskType.status,
@@ -408,7 +410,7 @@ class _NotReadyNotice extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
+                KioskText(
                   disconnected ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요',
                   style: const TextStyle(
                     fontSize: KioskType.body,
@@ -418,7 +420,7 @@ class _NotReadyNotice extends StatelessWidget {
                 ),
                 if (appliance.readinessReasons.isNotEmpty) ...[
                   const SizedBox(height: 4),
-                  Text(
+                  KioskText(
                     appliance.readinessReasons.join(' · '),
                     style: const TextStyle(
                       fontSize: KioskType.caption,
@@ -429,9 +431,9 @@ class _NotReadyNotice extends StatelessWidget {
                 // 사유마다 할 일 한 줄(2026-10-15 §4) — '안 됩니다'로 끝내지 않는다.
                 if (readinessTodo(appliance) case final todo?) ...[
                   const SizedBox(height: 6),
-                  Text(
+                  KioskText(
                     todo,
-                    key: const ValueKey('readiness-todo'),
+                    textKey: const ValueKey('readiness-todo'),
                     style: const TextStyle(fontSize: KioskType.body, color: Colors.white),
                   ),
                 ],
@@ -564,7 +566,7 @@ class _ButtonCell extends StatelessWidget {
             child: Center(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 6),
-                child: Text(
+                child: KioskText(
                   button.label,
                   textAlign: TextAlign.center,
                   maxLines: 2,

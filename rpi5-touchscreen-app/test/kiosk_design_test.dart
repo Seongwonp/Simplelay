@@ -382,8 +382,9 @@ void main() {
         expect(_toneOf(_iconColor(tester, icon)), _Tone.practice);
         final texts = tester
             .widgetList<Text>(find.descendant(of: find.byKey(_practice), matching: find.byType(Text)))
-            .map((t) => t.data ?? '');
-        expect(texts.any((t) => t.contains('연습 중')), isTrue);
+            .map((t) => t.data ?? t.textSpan?.toPlainText() ?? '');
+        // 연습 띠 한 문장(평가 4차 10/18) — '연습이에요. 실제 가전은 그대로예요'.
+        expect(texts.any((t) => t.contains('연습이에요')), isTrue);
         for (final t in tester.widgetList<Text>(
             find.descendant(of: find.byKey(_practice), matching: find.byType(Text)))) {
           if (t.style?.color case final c?) {
@@ -487,10 +488,10 @@ void main() {
       });
     }
 
-    testWidgets('실패 — 다시 시도는 테두리 보조, 화면으로 조작하기는 글자 단추(48 이상)', (tester) async {
+    testWidgets('실패 — 다시 시도는 테두리 보조, 화면에서 직접 누르기는 글자 단추(48 이상)', (tester) async {
       await _pump15(tester, _done(success: false));
       expect(inButton<OutlinedButton>('다시 시도'), findsOneWidget);
-      final manual = inButton<TextButton>('화면으로 조작하기');
+      final manual = inButton<TextButton>('화면에서 직접 누르기');
       expect(manual, findsOneWidget);
       expect(tester.getSize(manual).height, greaterThanOrEqualTo(48));
     });
@@ -579,13 +580,24 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
 
       // 수동 조작
+      // 비상 버튼 동안 작은 팔 가전은 '지금 못 써요'(평가 4차 10/18) — 수동 조작 화면은 LG 가전으로 연다.
       final api3 = FakeKioskApi()
-        ..applianceList = const [kMicrowaveAppliance]
+        ..applianceList = const [
+          kMicrowaveAppliance,
+          ApplianceMap(
+              id: 'air_purifier',
+              name: '공기청정기',
+              category: 'air_purifier',
+              rows: 0,
+              cols: 0,
+              buttons: [],
+              controlPath: 'thinq'),
+        ]
         ..statusResult =
             const KioskStatus(running: false, estopLatched: true, estopDetail: detail);
       await pumpKiosk(tester, api3);
       await nextPoll(tester);
-      await tester.tap(find.byKey(const ValueKey('strip-microwave')));
+      await tester.tap(find.byKey(const ValueKey('strip-air_purifier')));
       await nextPoll(tester);
       expect(find.byType(KioskManualView), findsOneWidget);
       expectBanner(tester, '수동 조작');

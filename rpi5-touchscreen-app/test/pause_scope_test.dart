@@ -34,13 +34,13 @@ void main() {
 
   testWidgets('이어받은 잠시 쉬기(옛 범위): 새 제안만 쉬고 자동 실행은 그대로라고 말한다', (tester) async {
     await _overlay(tester, 'suggestions_only');
-    expect(find.text('23:30까지 새 제안만 쉬어요. 자동으로 하기는 그대로예요'), findsOneWidget);
+    expect(find.text('오후 11시 30분까지 새 제안만 쉬어요. 자동으로 하는 일은 그대로예요'), findsOneWidget);
     expect(find.textContaining('새 제안과 자동 실행을'), findsNothing);
     expect(tester.takeException(), isNull);
   });
 
   testWidgets('업데이트 뒤 켠 잠시 쉬기(새 범위): 새 제안과 자동 실행을 쉰다고 말한다', (tester) async {
     await _overlay(tester, 'suggestions_and_auto');
-    expect(find.text('23:30까지 새 제안과 자동으로 하기를 쉬어요'), findsOneWidget);
+    expect(find.text('오후 11시 30분까지 새 제안과 자동으로 하는 일을 쉬어요'), findsOneWidget);
   });
 }

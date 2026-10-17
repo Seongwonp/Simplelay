@@ -129,7 +129,7 @@ void main() {
             onDismiss: noop));
     expect(find.text('눌렸는지 몰라요'), findsNothing);
     expect(find.textContaining('이미 켜졌다면'), findsNothing);
-    expect(find.textContaining('실제 가전은 움직이지 않아요'), findsWidgets); // 위 연습 띠(10/18)
+    expect(find.textContaining('실제 가전은 그대로예요'), findsWidgets); // 위 연습 띠(평가 4차 10/18 문장)
   });
   testWidgets('환경 미상 성공은 회색 완료가 아니라 앰버 확인 필요다', (t) async {
     await show(t, const KioskDoneView(success: true, label: '데우기'));

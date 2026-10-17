@@ -67,14 +67,14 @@ class KioskTopIconLabel extends StatelessWidget {
 String _shortName(String id) => switch (id) {
       'network' => '와이파이',
       'press' => '작은 팔',
-      'plug' => '콘센트',
+      'plug' => '전기 플러그',
       _ => '연결',
     };
 
 String _name(String id) => switch (id) {
       'network' => '와이파이',
       'press' => '작은 팔',
-      'plug' => '콘센트',
+      'plug' => '전기 플러그',
       _ => '연결',
     };
 

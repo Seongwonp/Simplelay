@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../models/action_name.dart';
 import '../../models/appliance.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
@@ -64,11 +65,14 @@ class KioskExecutingView extends StatelessWidget {
 
   /// 무엇을 하는 중인가 — 가전 이름과 할 일(위 띠에 싣는다, 10/18). 이어받은 실행은 제목이 가전 이름일 수 있고,
   /// 버튼 하나를 누르는 실행이면 제목이 버튼과 같다 — 같은 말이면 한 번만.
-  String get _context => [
-        if (target != null) target!.name,
-        if (title.isNotEmpty && title != currentButton && title != target?.name)
-          title,
-      ].join('   ');
+  /// 할 일은 사람 명령문('즉석밥 데워줘')이 아니라 행동 이름('즉석밥 데우기')으로 — 폰 기록과 같은 규칙(평가 4차 10/18).
+  String get _context {
+    final what = actionName(title);
+    return [
+      if (target != null) target!.name,
+      if (what.isNotEmpty && title != currentButton && what != target?.name) what,
+    ].join('   ');
+  }
 
   /// 지금 누르는 버튼이 대상 가전 버튼판의 어디인가.
   ///
@@ -232,7 +236,8 @@ class _NowBlock extends StatelessWidget {
     final String? line = view._retrying
         // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
         ? [
-            view._mock ? '연습이라 실제로 누르지는 않아요' : '눌렸는지 몰라서 한 번 더 눌러요',
+            // 연습은 위 띠가 '실제 가전은 그대로예요'를 말한다 — 같은 말을 또 쓰지 않는다(평가 4차 10/18).
+            if (!view._mock) '눌렸는지 몰라서 한 번 더 눌러요',
             '${view.currentAttempt}번째 시도',
           ].join('. ')
         : view._mock
@@ -246,15 +251,15 @@ class _NowBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (total != null && total > 0) ...[
-            Text(view.progressLine(total, done),
-                key: const ValueKey('execution-step'),
+            KioskText(view.progressLine(total, done),
+                textKey: const ValueKey('execution-step'),
                 style: const TextStyle(
                     fontSize: KioskType.body,
                     color: KioskColors.muted,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 4),
           ] else if (view.completedSteps != null) ...[
-            Text('버튼 $done개를 눌렀어요',
+            KioskText('버튼 $done개를 눌렀어요',
                 style: const TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted)),
             const SizedBox(height: 4),
@@ -308,7 +313,7 @@ class _StepRow extends StatelessWidget {
           Icon(icon, size: 24, color: color),
           const SizedBox(width: 14),
           Expanded(
-            child: Text(
+            child: KioskText(
               label,
               style: const TextStyle(
                   fontSize: KioskType.body, color: Colors.white),

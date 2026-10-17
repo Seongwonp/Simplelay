@@ -43,7 +43,8 @@ void main() {
       'mode_label': '자동 실행',
     })!;
     // 시각과 루틴 이름을 다른 줄로 — '22:00 저녁'이 시간대처럼 읽혔다(UI 평가 10/17).
-    expect(auto.line, '다음 루틴 · 내일 07:00\n아침 공기청정기 끄기 · 자동 실행');
+    // 시각은 오전/오후, 자동 계열 이름은 '자동으로 해요' 하나로(평가 4차 10/18).
+    expect(auto.line, '다음 루틴 · 내일 오전 7시\n아침 공기청정기 끄기 · 자동으로 해요');
     final ask = KioskNextRun.fromJson({
       'routine_id': 'rt-2',
       'name': '저녁 데우기',
@@ -52,7 +53,7 @@ void main() {
       'auto': false,
       'mode_label': '승인 후 실행',
     })!;
-    expect(ask.line, '다음 루틴 · 오늘 19:00\n저녁 데우기 · 승인 후 실행');
+    expect(ask.line, '다음 루틴 · 오늘 오후 7시\n저녁 데우기 · 물어보고 해요');
     expect(KioskNextRun.fromJson({'name': ''}), isNull);
   });
 
@@ -65,8 +66,8 @@ void main() {
       'mode_label': '조용한 시간이라 건너뜀',
       'quiet_skip': true,
     })!;
-    expect(quiet.line, '다음 루틴 · 오늘 22:00 · 조용한 시간\n저녁 공기청정기 켜기 · 건너뜀');
-    expect(quiet.shortLine, '다음 22:00 저녁 공기청정기 켜기 · 건너뜀');
+    expect(quiet.line, '다음 루틴 · 오늘 오후 10시 · 조용한 시간\n저녁 공기청정기 켜기 · 건너뜀');
+    expect(quiet.shortLine, '다음 오후 10시 저녁 공기청정기 켜기 · 건너뜀');
   });
 
   test('GET /routines/next 첫 항목 — 실패·빈 목록은 null', () async {
@@ -92,8 +93,8 @@ void main() {
         const KioskNextRun(
             name: '아침 공기청정기 끄기', dayLabel: '내일', hhmm: '07:00', modeLabel: '자동 실행'));
     // 큰 카드(평가 3차 10/18): 첫 줄은 언제(크게) + '다음 루틴 · 자동 실행', 둘째 줄은 무엇을.
-    expect(find.text('내일 07:00'), findsOneWidget);
-    expect(find.text('다음 루틴 · 자동 실행'), findsOneWidget);
+    expect(find.text('내일 오전 7시'), findsOneWidget);
+    expect(find.text('다음 루틴 · 자동으로 해요'), findsOneWidget);
     // 어절 단위로 줄을 바꾼다 — 실패널에서 '공기청/정기'처럼 낱말 가운데서 끊겼다(10/16 밤).
     expect(find.text('아침 공기청정기 끄기'), findsOneWidget);
     final what = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-what')));

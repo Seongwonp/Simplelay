@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'kiosk_text.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'estop_banner.dart';
@@ -114,7 +115,8 @@ class KioskStatusBand extends StatelessWidget {
               size: iconSize,
               color: color),
           const SizedBox(width: 10),
-          Flexible(child: Text(label, style: text)),
+          // 어절 단위로 줄을 바꾼다(평가 4차 10/18 — 실패널 글꼴이 넓어 낱말 가운데서 끊길 수 있다).
+          Flexible(child: KioskText(label, style: text)),
         ],
       );
       content = practice
@@ -163,7 +165,7 @@ class KioskStatusBand extends StatelessWidget {
                     const SizedBox(width: KioskSpace.xs),
                   ],
                   Flexible(
-                    child: Text(detail,
+                    child: KioskText(detail,
                         style: text.copyWith(
                             fontWeight: FontWeight.w500,
                             color: Colors.white.withValues(alpha: 0.85))),
@@ -215,7 +217,7 @@ class _PracticeMark extends StatelessWidget {
               key: iconKey, size: iconSize, color: KioskColors.practice),
           const SizedBox(width: 10),
           Flexible(
-            child: Text(kPracticeBandText, style: style),
+            child: KioskText(kPracticeBandText, style: style),
           ),
         ],
       );

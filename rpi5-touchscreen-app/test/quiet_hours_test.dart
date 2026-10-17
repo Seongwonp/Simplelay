@@ -86,7 +86,8 @@ void main() {
     });
   }
 
-  testWidgets('평소 화면: 매일 조용한 시간이면 위 줄 칩이 "조용한 시간 · 07:00까지"', (tester) async {
+  // 시각은 오전/오후로(평가 4차 10/18).
+  testWidgets('평소 화면: 매일 조용한 시간이면 위 줄 칩이 "조용한 시간 · 오전 7시까지"', (tester) async {
     final handle = tester.ensureSemantics();
     tester.view.physicalSize = const Size(800, 480);
     tester.view.devicePixelRatio = 1.0;
@@ -105,8 +106,8 @@ void main() {
       ),
     ));
     expect(find.text('조용한 시간'), findsOneWidget);
-    expect(find.text('07:00까지'), findsOneWidget);
-    expect(find.bySemanticsLabel(RegExp('^조용한 시간, 07:00까지')), findsOneWidget);
+    expect(find.text('오전 7시까지'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('^조용한 시간, 오전 7시까지')), findsOneWidget);
     expect(tester.takeException(), isNull);
     handle.dispose();
   });
@@ -126,8 +127,9 @@ void main() {
         ),
       ),
     ));
-    expect(find.text('새 제안과 자동으로 하기를 잠시 쉬어요'), findsOneWidget);
-    expect(find.text('매일 22:00~07:00 조용한 시간이에요. 폰 설정에서 바꿔요'), findsOneWidget);
+    // 자동 계열 이름 하나로·시각은 오전/오후(평가 4차 10/18).
+    expect(find.text('새 제안과 자동으로 하는 일을 잠시 쉬어요'), findsOneWidget);
+    expect(find.text('매일 오후 10시부터 오전 7시까지 조용한 시간이에요. 폰 설정에서 바꿔요'), findsOneWidget);
     expect(find.textContaining('모든'), findsNothing);
     expect(find.textContaining('사용 습관 제안'), findsNothing);
     expect(tester.takeException(), isNull);
@@ -148,7 +150,7 @@ void main() {
         ),
       ),
     ));
-    expect(find.text('23:30까지 새 제안과 자동으로 하기를 쉬어요'), findsOneWidget);
+    expect(find.text('오후 11시 30분까지 새 제안과 자동으로 하는 일을 쉬어요'), findsOneWidget);
     expect(find.text('쉬기 끝내기'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });

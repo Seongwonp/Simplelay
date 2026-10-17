@@ -41,7 +41,7 @@ String _bandWord(WidgetTester tester) {
           of: find.byKey(const ValueKey('status-band')),
           matching: find.byType(Text)))
       .toList();
-  return texts.first.data!;
+  return texts.first.data ?? texts.first.textSpan!.toPlainText();
 }
 
 const _thinqAir = ApplianceMap(
@@ -271,7 +271,8 @@ void main() {
   group('3. 대기 화면 정렬·다음 루틴 카드', () {
     testWidgets('가전 타일 줄 왼쪽 = 시계 왼쪽 선', (tester) async {
       await _pump(tester, _idle());
-      final clock = tester.getTopLeft(find.text('7:08')).dx;
+      // 시계는 '오전' + '7:08'(평가 4차 10/18) — 시계 줄의 왼쪽 선.
+      final clock = tester.getTopLeft(find.byKey(const ValueKey('idle-clock'))).dx;
       final tile = tester.getTopLeft(find.byKey(const ValueKey('strip-microwave'))).dx;
       expect((tile - clock).abs(), lessThanOrEqualTo(2));
     });
@@ -282,10 +283,12 @@ void main() {
       final card = find.byKey(const ValueKey('idle-next-run'));
       expect(card, findsOneWidget);
       final time = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-time')));
-      expect(time.data, '오늘 07:00');
+      // 시각은 시계와 같은 오전/오후(평가 4차 10/18).
+      expect(time.data, '오늘 오전 7시');
       expect(time.style?.fontSize, greaterThanOrEqualTo(30));
       expect(find.text('아침 공기청정기 끄기'), findsOneWidget);
-      expect(find.text('다음 루틴 · 자동 실행'), findsOneWidget);
+      // 자동 계열 이름은 '자동으로 해요' 하나로(평가 4차 10/18).
+      expect(find.text('다음 루틴 · 자동으로 해요'), findsOneWidget);
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       final rect = tester.getRect(card);
       expect(strip.top - rect.bottom, inInclusiveRange(0, 24), reason: '가전 줄 바로 위');
@@ -320,9 +323,11 @@ void main() {
       expect(find.textContaining('감지'), findsNothing);
     });
 
-    test("연습 값 시각 — '연습용 숫자예요 (9시 7분)'", () {
-      expect(thinqReadTimeLine(DateTime(2026, 10, 18, 9, 7), mock: true), '연습용 숫자예요 (9시 7분)');
-      expect(thinqReadTimeLine(DateTime(2026, 10, 18, 9, 0), mock: true), '연습용 숫자예요 (9시)');
+    // 평가 4차(10/18): '연습용 숫자예요 (9시 7분)'도 뜻을 몰랐다 — 연습 화면이라는 말 한 줄, 실제 값은 오전/오후 시각.
+    test("연습 값 시각 — '연습 화면이에요. 진짜 값이 아니에요'", () {
+      expect(thinqReadTimeLine(DateTime(2026, 10, 18, 9, 7), mock: true), '연습 화면이에요. 진짜 값이 아니에요');
+      expect(thinqReadTimeLine(DateTime(2026, 10, 18, 9, 7)), '오전 9시 7분 기준');
+      expect(thinqReadTimeLine(DateTime(2026, 10, 18, 21, 0)), '오후 9시 기준');
     });
 
     testWidgets("타일 부제 — 작은 팔 가전은 '눌러 드려요', 작동 중은 '작동하고 있어요'", (tester) async {
@@ -338,8 +343,9 @@ void main() {
       expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-microwave'))).data, '눌러 드려요');
       expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-induction'))).data,
           '작동하고 있어요');
+      // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18).
       expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-air'))).data,
-          '설정을 바꾸고 있어요');
+          '바꾸고 있어요');
       expect(find.text('작은 팔 조작'), findsNothing);
       expect(find.text('동작 중'), findsNothing);
     });

@@ -920,7 +920,9 @@ void main() {
     // 완료 발화
     // 화면과 같은 말 -- '완료되었습니다'는 조리·세탁이 끝났다고 들린다.
     // 실행 환경을 모르면 눌렀다고 단정하지 않고(작은 팔의 보고까지) 가전 확인을 부탁한다.
-    expect(tts.utterances.last, contains('작은 팔이 다 눌렀다고 알려 왔어요'));
+    // 음성도 화면과 같은 말 — 기계 말투 대신 '버튼은 다 눌렀어요', 이름은 행동 이름(평가 4차 10/18).
+    expect(tts.utterances.last, contains('버튼은 다 눌렀어요'));
+    expect(tts.utterances.last, isNot(contains('알려 왔어요')));
     expect(tts.utterances.last, contains('가전이 켜졌는지 봐 주세요'));
     expect(tts.utterances.last, isNot(contains('완료')));
     await tester.pump(KioskTimings.doneReturn);
@@ -1044,7 +1046,7 @@ void main() {
 
     expect(find.byType(KioskDoneView), findsOneWidget);
     expect(find.text('다시 시도'), findsOneWidget);
-    expect(find.text('화면으로 조작하기'), findsOneWidget);
+    expect(find.text('화면에서 직접 누르기'), findsOneWidget);
 
     // 성공과 달리 자동 복귀 타이머가 없다 — 사용자가 고를 때까지 남는다
     await tester.pump(KioskTimings.doneReturn);
@@ -1100,7 +1102,7 @@ void main() {
     // 서버 연결 실패는 '다시 시도'가 또 실패할 가능성이 높아 숨긴다
     expect(find.text('다시 시도'), findsNothing);
 
-    await tester.tap(find.text('화면으로 조작하기'));
+    await tester.tap(find.text('화면에서 직접 누르기'));
     await tester.pump();
     expect(find.text('전자레인지'), findsOneWidget);
   });
@@ -1417,9 +1419,9 @@ void main() {
     await tester.pump();
     await tester.pump();
     // 큰 글씨에서는 보조 단추가 할 일 아래 같은 스크롤 흐름에 있다(2026-10-16 §1-8) — 보이게 굴린 뒤 누른다.
-    await tester.ensureVisible(find.text('화면으로 조작하기'));
+    await tester.ensureVisible(find.text('화면에서 직접 누르기'));
     await tester.pump();
-    await tester.tap(find.text('화면으로 조작하기'));
+    await tester.tap(find.text('화면에서 직접 누르기'));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
   }
@@ -1683,7 +1685,7 @@ void main() {
     final done = tester.widget<KioskDoneView>(find.byType(KioskDoneView));
     expect(done.reason, KioskFailureReason.stopped);
     expect(done.stopLevel, 'mcu_ack');
-    expect(find.text('작은 팔이 멈추라는 신호를 받았어요. 멈췄는지는 몰라요'), findsOneWidget);
+    expect(find.text('작은 팔이 멈추는 중이에요'), findsOneWidget);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -2086,7 +2088,7 @@ void main() {
     expect(find.text('보냈지만 됐는지 몰라요'), findsOneWidget);
     expect(find.text('LG 가전 · 받았어요'), findsOneWidget);
     expect(find.text('다시 시도'), findsNothing);
-    expect(find.text('화면으로 조작하기'), findsNothing);
+    expect(find.text('화면에서 직접 누르기'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
@@ -2240,7 +2242,9 @@ void main() {
           lastConfirmation: 'none'),
     );
     expect(find.text('다 눌렀어요'), findsNothing);
-    expect(find.text('작은 팔이 다 눌렀다고 알려 왔어요'), findsOneWidget);
+    // 실행 환경을 몰라도 같은 말 하나(평가 4차 10/18) — 확인 수준은 띠 '확인해 주세요'가 지킨다.
+    expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
+    expect(find.text('확인해 주세요'), findsOneWidget);
     expect(find.text('가전이 켜졌는지 봐 주세요'), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());

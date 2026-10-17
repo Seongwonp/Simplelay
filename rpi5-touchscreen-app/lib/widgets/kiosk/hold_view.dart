@@ -201,7 +201,7 @@ class KioskHoldView extends StatelessWidget {
                     fontWeight: FontWeight.w700)),
             const SizedBox(height: 16),
             // 회색 정지 단추가 왜 안 눌리는지(UI 평가 4차 10/17).
-            const KioskText('비상 버튼을 풀면 정지 단추를 다시 쓸 수 있어요',
+            const KioskText('비상 버튼을 풀면 정지 버튼을 다시 쓸 수 있어요',
                 textKey: ValueKey('hold-estop-stop-note'),
                 style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           ],
@@ -211,7 +211,7 @@ class KioskHoldView extends StatelessWidget {
             label: '정지',
             onPressed: null,
             buttonKey: ValueKey('hold-stop'),
-            semanticsLabel: '정지 단추를 쓸 수 없어요. 가전의 정지 버튼을 직접 눌러 주세요'),
+            semanticsLabel: '정지 버튼을 쓸 수 없어요. 가전의 정지 버튼을 직접 눌러 주세요'),
       );
     }
     final (headline, headIcon, headColor) = _headline;
@@ -231,13 +231,14 @@ class KioskHoldView extends StatelessWidget {
       // 가전이 멈췄다는 말은 RPi4가 전력 하강으로 확인한 때만(hold_stop_outcome == stopped).
       if (stopOutcome == 'stopped')
         (Icons.check, '${withSubject(_name)} 멈췄어요', Colors.white),
-      // 마지막 시도가 실패했으면 앞선 "보냈어요"는 지운다 — 지금 할 일은 다시 누르기다.
+      // 마지막 시도가 실패했으면 앞선 "멈추는 중"은 지운다 — 지금 할 일은 다시 누르기다.
+      // 보내기 화살표·'보냈어요'는 기계가 한 일이었다(평가 4차 10/18) — 사람이 볼 상태와 할 일로. 멈췄다고 단정하지 않는다.
       if (stopRequested && !stopFailed && holdState == 'hovering_stop')
-        (Icons.send, '멈추라고 보냈어요', Colors.white),
+        (Icons.pan_tool_outlined, '멈추는 중이에요. 가전을 봐 주세요', Colors.white),
       if (stopFailed)
         (
           Icons.error_outline,
-          '멈추라고 보내지 못했어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.',
+          '정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.',
           KioskColors.danger
         ),
     ];
@@ -247,7 +248,7 @@ class KioskHoldView extends StatelessWidget {
       if (waiting && buttonsPressed != null && buttonsPressed! > 0)
         (
           Icons.check_circle_outline,
-          _mock ? '연습으로 버튼 $buttonsPressed개를 눌렀어요' : '버튼 $buttonsPressed개를 눌렀어요',
+          _mock ? '버튼 $buttonsPressed개 누르기 연습을 마쳤어요' : '버튼 $buttonsPressed개를 눌렀어요',
           KioskColors.muted
         ),
       // 정지 대기 안내는 흰색 — 주의색은 확인 못 함에만 쓴다(2026-10-15).
@@ -284,8 +285,9 @@ class KioskHoldView extends StatelessWidget {
 
     // 실행 근거(연습용 값인지·실제 확인인지)는 안전 문장이다 — 스크롤 없이 늘
     // 보이도록 스크롤 영역 밖, 상태 영역 바로 아래에 고정한다(10/5 수리).
+    // 연습에는 두지 않는다 — '연습이라 가전은 보지 않아요'는 위 연습 띠와 부딪혔다(평가 4차 10/18).
     final provenance = <(IconData?, String, Color)>[
-      if (waiting)
+      if (waiting && !_mock)
         (
           null, // 뜻 없는 번개 아이콘은 뺀다(2차 평가 10/18). 주의는 글자 색이 아니라 문장이 말한다.
           _operationLine,
@@ -321,8 +323,9 @@ class KioskHoldView extends StatelessWidget {
                   ),
                   const SizedBox(height: 6),
                 ],
-                if (waiting) ...[
-                  const Text('끝나는 시간은 몰라요',
+                // 연습에는 끝날 가전이 없다 — '끝나는 시간은 몰라요'를 두지 않는다(평가 4차 10/18).
+                if (waiting && !_mock) ...[
+                  const KioskText('끝나는 시간은 몰라요',
                       style: TextStyle(
                           fontSize: KioskType.body,
                           height: 1.25,

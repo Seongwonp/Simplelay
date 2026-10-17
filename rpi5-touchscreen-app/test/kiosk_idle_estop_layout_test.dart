@@ -131,11 +131,15 @@ void main() {
         expect(tester.takeException(), isNull);
 
         if (band) {
-          _expectFullyVisible(tester, find.text(kEstopTitle));
+          // 평소 화면 상태 칩도 같은 말을 한다(평가 4차 10/18) — 띠 안의 제목을 본다.
+          _expectFullyVisible(tester,
+              find.descendant(of: find.byKey(const ValueKey('estop-banner')), matching: find.text(kEstopTitle)));
           _expectFullyVisible(tester, find.byKey(const ValueKey('estop-ack')),
               isText: false);
         }
-        _expectFullyVisible(tester, find.text('23:41'));
+        // 시계는 12시간제 + 오전/오후(평가 4차 10/18).
+        _expectFullyVisible(tester, find.text('11:41'));
+        _expectFullyVisible(tester, find.text('오후'));
         _expectFullyVisible(tester, find.text(_tipText));
         for (final name in ['세탁기', if (!band) '작동하고 있어요', '전자레인지']) {
           _expectFullyVisible(tester, find.text(name));
@@ -146,7 +150,8 @@ void main() {
         final hours = find.byKey(const ValueKey('ambient-hours'));
         if (hours.evaluate().isNotEmpty) {
           _expectFullyVisible(tester, hours, isText: false);
-          for (final label in ['0시', '3시', '6시', '9시', '14°', '15°']) {
+          // 예보 칸 이름도 오전/오후(평가 4차 10/18).
+          for (final label in ['오전 12시', '오전 3시', '오전 6시', '오전 9시', '14°', '15°']) {
             _expectFullyVisible(tester, find.text(label));
           }
           // 예보가 가전 줄에 걸치지 않는다.
@@ -165,9 +170,9 @@ void main() {
     // (약 139.5 PPI)에서 27 물리 px, 캔버스 배율 2.05로 나누면 13.2 논리 px.
     await _pump(tester, band: false);
     double size(Finder f) => tester.widget<Text>(f).style!.fontSize!;
-    final clock = size(find.text('23:41'));
+    final clock = size(find.text('11:41'));
     final tip = size(find.text(_tipText));
-    final hour = size(find.text('0시'));
+    final hour = size(find.text('오전 12시'));
     final appliance = size(find.text('세탁기'));
     expect(clock, greaterThan(tip));
     expect(tip, greaterThan(hour));
