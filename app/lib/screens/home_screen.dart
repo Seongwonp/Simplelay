@@ -537,6 +537,12 @@ class _RoutineHeroCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 왜 맨 위인지 한 줄(UI 평가 3차 10/17) — 큰 카드는 지금 누르는 루틴을 먼저 고른다(시각 루틴은 저절로 돈다).
+                  if (routine.trigger.kind != RoutineTriggerKind.time) ...[
+                    Text('바로 실행할 수 있는 루틴',
+                        style: TextStyle(fontSize: 14, color: context.appMuted)),
+                    const SizedBox(height: 2),
+                  ],
                   Text(routine.name,
                       style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
                   const SizedBox(height: 4),

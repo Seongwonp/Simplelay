@@ -150,6 +150,29 @@ void main() {
           findsOneWidget);
     });
 
+    testWidgets('내 가전: 지울 수 있는 줄도 휴지통 옆에 화살표(눌러 들어간다)', (tester) async {
+      _useTallViewport(tester);
+      final washer = ApplianceMap.fromJson({
+        'id': 'custom_washer',
+        'name': '세탁기',
+        'rows': 1,
+        'cols': 1,
+        'is_custom': true,
+        'buttons': const [],
+      });
+      await tester.pumpWidget(buildScreen(
+        const SettingsScreen(),
+        overrides: [
+          ..._scanOverrides(),
+          ...installedOverrides([kTestAppliance, washer]),
+        ],
+      ));
+      await tester.pump();
+      final row = find.widgetWithText(ListTile, '세탁기');
+      expect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)), findsOneWidget);
+      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
+    });
+
     testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildHub());

@@ -179,6 +179,8 @@ void main() {
 
     final hero = find.byKey(const Key('home-routine-hero'));
     expect(find.descendant(of: hero, matching: find.text('30초 데우기')), findsOneWidget);
+    // 왜 맨 위인지 한 줄(UI 평가 3차 10/17) — 정해진 때 저절로 도는 루틴이 아니라 지금 누르는 루틴이다.
+    expect(find.descendant(of: hero, matching: find.text('바로 실행할 수 있는 루틴')), findsOneWidget);
     final timeRow = tester.getTopLeft(find.byKey(const Key('home-routine-row-r-t'))).dy;
     final setupRow = tester.getTopLeft(find.byKey(const Key('home-routine-row-r-w'))).dy;
     expect(timeRow, lessThan(setupRow), reason: '설정 필요 행은 맨 아래');

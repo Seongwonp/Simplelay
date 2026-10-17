@@ -28,13 +28,17 @@ class _ApplianceSection extends ConsumerWidget {
                     style: TextStyle(fontSize: 13, color: context.appMuted),
                   ),
             onTap: () => context.push('/appliance/detail/${appliance.id}'),
+            // 지울 수 있는 줄도 눌러 들어간다는 것은 화살표로(UI 평가 3차 10/17 — 휴지통만 있으면 눌러지는 줄과 섞였다).
             trailing: appliance.isCustom && !appliance.isThinq
-                ? IconButton(
-                    constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-                    tooltip: '${appliance.name} 지우기',
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () => _confirmRemoveAppliance(context, ref, appliance),
-                  )
+                ? Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                      tooltip: '${appliance.name} 지우기',
+                      icon: const Icon(Icons.delete_outline),
+                      onPressed: () => _confirmRemoveAppliance(context, ref, appliance),
+                    ),
+                    Icon(Icons.chevron_right, color: context.appMuted),
+                  ])
                 : Icon(Icons.chevron_right, color: context.appMuted),
           ),
         // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
