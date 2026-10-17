@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+
+import '../theme/kiosk_tokens.dart';
 import '../models/learning_status.dart';
 
 /// Opened on demand; failures never masquerade as an empty learning history.
@@ -64,25 +66,25 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                         for (final routine in status.routines) ...[
                           Text(routine.purpose,
                               style: const TextStyle(
-                                  fontSize: 22, fontWeight: FontWeight.w700)),
+                                  fontSize: KioskType.body, fontWeight: FontWeight.w700)),
                           Text(
                               '${widget.applianceNames[routine.applianceId] ?? '가전 모름'} · ${routine.timeBand}',
-                              style: const TextStyle(fontSize: 20)),
+                              style: const TextStyle(fontSize: KioskType.body)),
                           Text(
                               '최근 ${status.windowDays}일 중 ${routine.distinctDays}일, 모두 ${routine.occurrences}번',
-                              style: const TextStyle(fontSize: 20)),
+                              style: const TextStyle(fontSize: KioskType.body)),
                           Text(
                               routine.muted
                                   ? '이 제안은 보이지 않게 해 뒀어요'
                                   : routine.established
                                       ? '습관 확인'
                                       : '습관을 알아가는 중',
-                              style: const TextStyle(fontSize: 20)),
+                              style: const TextStyle(fontSize: KioskType.body)),
                           const SizedBox(height: 16),
                         ],
                         if (status.paused)
                           const Text('잠시 쉬는 중이에요. 새 제안을 쉬고 있어요.',
-                              style: TextStyle(fontSize: 20)),
+                              style: TextStyle(fontSize: KioskType.body)),
                         ExpansionTile(
                           tilePadding: EdgeInsets.zero,
                           title: const Text('어떻게 기억하나요?'),

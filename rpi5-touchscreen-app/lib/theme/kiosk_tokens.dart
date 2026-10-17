@@ -92,7 +92,7 @@ class KioskSizes {
 
   /// 실행 계열 화면 내용 여백(왼쪽·위). 오른쪽·아래는 정지 영역 값을 쓴다.
   static const double runLeft = 36;
-  static const double runTop = 14;
+  static const double runTop = 12;
 
   // ── 단추(§1-5) ────────────────────────────────────────────────────────────────
   /// 주 단추(채움) 높이 — 규격 144~152px → 72 = 148px.

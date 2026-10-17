@@ -238,7 +238,7 @@ class _ArrowButton extends StatelessWidget {
                 Text('$word $page',
                     maxLines: 1,
                     softWrap: false,
-                    style: const TextStyle(fontSize: 16, color: Colors.white)),
+                    style: const TextStyle(fontSize: KioskType.caption, color: Colors.white)),
               ],
             ),
           ),

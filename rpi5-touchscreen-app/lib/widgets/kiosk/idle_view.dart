@@ -307,22 +307,22 @@ class KioskIdleView extends StatelessWidget {
 /// 15.8형(약 139.5 PPI)에서 약 27 물리 px, 캔버스 기준 약 13.2 — 가장 작은
 /// 글자(예보 시각 18)도 그 위다. 위계는 시계 > 인사말·안내 > 가전·예보 순.
 abstract final class _Idle {
-  static const double side = 44; // 좌우 여백(전 28)
+  static const double side = KioskSpace.xl; // 좌우 여백(전 44 — 간격 5단계로 정리 10/18)
   static const double topRow = 64; // 위 줄(전 80)
-  static const double envText = 22; // 실내 온습도(전 33)
+  static const double envText = KioskType.body; // 실내 온습도(전 22 — 글자 4단계로 정리 10/18)
   static const double airIcon = 28; // 실내 공기 아이콘(2026-10-16)
-  static const double columnGap = 40; // 시계 칸과 안내 칸 사이(전 20)
-  static const double greeting = 28; // 인사말(전 33)
-  static const double tipText = 24; // 안내 카드 글자(전 33)
+  static const double columnGap = KioskSpace.xl; // 시계 칸과 안내 칸 사이(전 40)
+  static const double greeting = KioskType.status; // 인사말(전 28)
+  static const double tipText = KioskType.body; // 안내 카드 글자(전 24)
   static const double tipIcon = 24; // 안내 카드 아이콘(전 30)
-  static const double hourLabel = 18; // 예보 시각(전 33)
-  static const double hourValue = 20; // 예보 값(전 33)
+  static const double hourLabel = KioskType.caption; // 예보 시각(전 18)
+  static const double hourValue = KioskType.body; // 예보 값(전 20)
   static const double hourIcon = 18; // 예보 아이콘(전 26·22)
-  static const double hoursGap = 14;
-  static const double hoursGapTip = 10;
+  static const double hoursGap = KioskSpace.sm;
+  static const double hoursGapTip = KioskSpace.xs;
   static const double strip = 128; // 가전 줄 높이(전 158)
-  static const double stripName = 22; // 가전 이름(전 33)
-  static const double stripStatus = 18; // 가전 상태(전 33)
+  static const double stripName = KioskType.body; // 가전 이름(전 22)
+  static const double stripStatus = KioskType.caption; // 가전 상태(전 18)
 }
 
 /// 한 덩어리 글의 높이 — [Text]와 같은 기본 글꼴·배율로 잰다.
@@ -409,7 +409,7 @@ class _DndEntry extends StatelessWidget {
                               maxLines: 1,
                               softWrap: false,
                               style: const TextStyle(
-                                  fontSize: 20,
+                                  fontSize: KioskType.body,
                                   height: 1.15,
                                   fontWeight: FontWeight.w700,
                                   color: Colors.white)),
@@ -417,7 +417,7 @@ class _DndEntry extends StatelessWidget {
                               maxLines: 1,
                               softWrap: false,
                               style: const TextStyle(
-                                  fontSize: 20,
+                                  fontSize: KioskType.body,
                                   height: 1.15,
                                   color: Colors.white)),
                         ],

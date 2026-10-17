@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/kiosk_tokens.dart';
+
 import '../../theme/kiosk_colors.dart';
 
 /// 자동 실행 결과 한 줄(2026-10-14). 화면 위에 줄을 **더하는** 띠라 아래 화면을 덮지 않는다 — 비상정지 띠와 같은 자리
@@ -25,7 +27,7 @@ class KioskAutoRunNotice extends StatelessWidget {
                 const Icon(Icons.autorenew, size: 22, color: KioskColors.muted),
                 const SizedBox(width: 8),
                 const Text('자동으로 하기',
-                    style: TextStyle(fontSize: 16, color: KioskColors.muted)),
+                    style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -33,7 +35,7 @@ class KioskAutoRunNotice extends StatelessWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white),
+                        fontSize: KioskType.body, fontWeight: FontWeight.w600, color: Colors.white),
                   ),
                 ),
                 if (onClose != null)

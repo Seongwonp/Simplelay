@@ -528,7 +528,7 @@ class KioskDoneView extends StatelessWidget {
           Expanded(
             child: KioskScrollArea(
               center: true,
-              padding: const EdgeInsets.fromLTRB(40, 12, 40, 8),
+              padding: const EdgeInsets.fromLTRB(KioskSpace.xl, KioskSpace.sm, KioskSpace.xl, KioskSpace.xs),
               child: ConstrainedBox(
                 constraints:
                     const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),

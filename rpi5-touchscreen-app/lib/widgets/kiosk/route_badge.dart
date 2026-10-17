@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/kiosk_tokens.dart';
+
 import '../../theme/kiosk_colors.dart';
 
 /// 제어 경로 배지(물리 버튼 / ThinQ). 색이 아니라 글자로 말한다.
@@ -19,7 +21,7 @@ class KioskRouteBadge extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 18, color: Colors.white),
+          style: const TextStyle(fontSize: KioskType.caption, color: Colors.white),
         ),
       );
 }

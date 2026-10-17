@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/kiosk_tokens.dart';
+
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import 'kiosk_back_button.dart';
@@ -46,7 +48,7 @@ class KioskApplianceSelectView extends StatelessWidget {
                 const Text(
                   '어느 가전을 조작할까요?',
                   style: TextStyle(
-                    fontSize: 26,
+                    fontSize: KioskType.status,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
@@ -68,7 +70,7 @@ class KioskApplianceSelectView extends StatelessWidget {
                           Text(
                             '아직 조작할 가전이 없어요',
                             style: TextStyle(
-                              fontSize: 24,
+                              fontSize: KioskType.body,
                               fontWeight: FontWeight.w600,
                               color: Colors.white,
                             ),
@@ -77,7 +79,7 @@ class KioskApplianceSelectView extends StatelessWidget {
                           Text(
                             '휴대폰 앱에서 가전을 추가하면 여기에 나타나요',
                             style: TextStyle(
-                                fontSize: 18, color: KioskColors.muted),
+                                fontSize: KioskType.caption, color: KioskColors.muted),
                           ),
                         ],
                       ),
@@ -148,7 +150,7 @@ class _ApplianceCard extends StatelessWidget {
                   appliance.name,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontSize: 20,
+                    fontSize: KioskType.body,
                     fontWeight: FontWeight.w600,
                     color: Colors.white,
                   ),
@@ -170,7 +172,7 @@ class _ApplianceCard extends StatelessWidget {
                     child: const Text(
                       '지난번',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: KioskType.caption,
                         color: KioskColors.success,
                       ),
                     ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/kiosk_tokens.dart';
+
 import '../../models/ambient.dart';
 import '../../models/appliance.dart';
 import '../../models/thinq.dart';
@@ -102,7 +104,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
-                                    fontSize: 28,
+                                    fontSize: KioskType.status,
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
                                   ),
@@ -121,7 +123,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontSize: 18, color: KioskColors.muted),
+                                  fontSize: KioskType.caption, color: KioskColors.muted),
                             ),
                         ],
                       ),
@@ -224,13 +226,13 @@ class _RoutinePanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text('내 루틴',
-              style: TextStyle(fontSize: 18, color: KioskColors.muted)),
+              style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           const SizedBox(height: 8),
           Expanded(
             child: routines.isEmpty
                 ? const Text(
                     '아직 이 가전의 루틴이 없어요',
-                    style: TextStyle(fontSize: 18, color: KioskColors.muted),
+                    style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                   )
                 : ListView.separated(
                     padding: EdgeInsets.zero,
@@ -258,7 +260,7 @@ class _RoutinePanel extends StatelessWidget {
                                       maxLines: 2,
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
-                                        fontSize: 20,
+                                        fontSize: KioskType.body,
                                         fontWeight: FontWeight.w600,
                                         color: Colors.white,
                                       ),
@@ -268,7 +270,7 @@ class _RoutinePanel extends StatelessWidget {
                                   Text(
                                     r.sizeLabel,
                                     style: const TextStyle(
-                                        fontSize: 16, color: KioskColors.muted),
+                                        fontSize: KioskType.caption, color: KioskColors.muted),
                                   ),
                                 ],
                               ),
@@ -282,7 +284,7 @@ class _RoutinePanel extends StatelessWidget {
           const SizedBox(height: 8),
           const Text(
             '새 루틴은 휴대폰 SimpleLay 앱에서 만들어요',
-            style: TextStyle(fontSize: 16, color: KioskColors.muted),
+            style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
           ),
         ],
       );
@@ -319,7 +321,7 @@ class _PressConfirm extends StatelessWidget {
                 Text(
                   "'${button.label}' 버튼을 눌러 드릴까요?",
                   style: const TextStyle(
-                    fontSize: 26,
+                    fontSize: KioskType.status,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
@@ -340,7 +342,7 @@ class _PressConfirm extends StatelessWidget {
                         ),
                         child: const Text('그만두기',
                             style: TextStyle(
-                                fontSize: 21, fontWeight: FontWeight.w500)),
+                                fontSize: KioskType.body, fontWeight: FontWeight.w500)),
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -358,7 +360,7 @@ class _PressConfirm extends StatelessWidget {
                         ),
                         child: const Text('누르기',
                             style: TextStyle(
-                                fontSize: 21, fontWeight: FontWeight.w700)),
+                                fontSize: KioskType.body, fontWeight: FontWeight.w700)),
                       ),
                     ),
                   ],
@@ -406,7 +408,7 @@ class _NotReadyNotice extends StatelessWidget {
                 Text(
                   disconnected ? '아직 연결되지 않았어요' : '아직 준비가 끝나지 않았어요',
                   style: const TextStyle(
-                    fontSize: 22,
+                    fontSize: KioskType.body,
                     fontWeight: FontWeight.w700,
                     color: Colors.white,
                   ),
@@ -416,7 +418,7 @@ class _NotReadyNotice extends StatelessWidget {
                   Text(
                     appliance.readinessReasons.join(' · '),
                     style: const TextStyle(
-                      fontSize: 18,
+                      fontSize: KioskType.caption,
                       color: KioskColors.muted,
                     ),
                   ),
@@ -427,7 +429,7 @@ class _NotReadyNotice extends StatelessWidget {
                   Text(
                     todo,
                     key: const ValueKey('readiness-todo'),
-                    style: const TextStyle(fontSize: 20, color: Colors.white),
+                    style: const TextStyle(fontSize: KioskType.body, color: Colors.white),
                   ),
                 ],
               ],

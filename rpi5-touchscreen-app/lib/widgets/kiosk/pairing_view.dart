@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+
+import '../../theme/kiosk_tokens.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 
@@ -138,13 +140,13 @@ class _KioskPairingViewState extends State<KioskPairingView> {
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
             const Text('폰 연결하기',
-                style: TextStyle(fontSize: 33, color: Colors.white)),
+                style: TextStyle(fontSize: KioskType.status, color: Colors.white)),
             Expanded(
                 child: SingleChildScrollView(
                     child: Column(children: [
               if (session != null && state == 'open') ...[
                 const Text('같은 와이파이의 폰 카메라로 QR을 열어 주세요.',
-                    style: TextStyle(fontSize: 26)),
+                    style: TextStyle(fontSize: KioskType.status)),
                 if (session['qr_png'] case final String png)
                   Image.memory(base64Decode(png),
                       width: 190,
@@ -153,33 +155,33 @@ class _KioskPairingViewState extends State<KioskPairingView> {
                       semanticLabel: '폰 연결 QR'),
                 Text('${session['code']}',
                     key: const Key('pair-code'),
-                    style: const TextStyle(fontSize: 42, color: Colors.white)),
+                    style: const TextStyle(fontSize: KioskType.key, color: Colors.white)),
                 Text('주소 ${session['host']}',
-                    style: const TextStyle(fontSize: 24)),
+                    style: const TextStyle(fontSize: KioskType.body)),
               ],
               if (state == 'pending') ...[
-                const Text('이 폰을 연결할까요?', style: TextStyle(fontSize: 33)),
+                const Text('이 폰을 연결할까요?', style: TextStyle(fontSize: KioskType.status)),
                 Text('${session!['phone']}',
-                    style: const TextStyle(fontSize: 33)),
+                    style: const TextStyle(fontSize: KioskType.status)),
                 Text(
                     '폰에도 ${(session['request_id'] as String).substring(0, 6)} 표시가 있는지 봐 주세요',
-                    style: const TextStyle(fontSize: 26)),
+                    style: const TextStyle(fontSize: KioskType.status)),
               ],
               if (state == 'approved')
                 const Text('허락했어요. 폰에서 연결을 봐 주세요.',
-                    style: TextStyle(fontSize: 33)),
+                    style: TextStyle(fontSize: KioskType.status)),
               if (state == 'consumed')
-                const Text('폰에 연결 정보를 보냈어요.', style: TextStyle(fontSize: 33)),
+                const Text('폰에 연결 정보를 보냈어요.', style: TextStyle(fontSize: KioskType.status)),
               if (state == 'denied')
-                const Text('이 폰의 연결을 닫았어요.', style: TextStyle(fontSize: 33)),
+                const Text('이 폰의 연결을 닫았어요.', style: TextStyle(fontSize: KioskType.status)),
               if (session != null && _deadline != null)
                 Text(
                     '${_deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300)}초 남았어요',
-                    style: const TextStyle(fontSize: 26)),
+                    style: const TextStyle(fontSize: KioskType.status)),
               if (_error != null)
                 Text(_error!,
                     style: const TextStyle(
-                        fontSize: 26, color: KioskColors.warning)),
+                        fontSize: KioskType.status, color: KioskColors.warning)),
             ]))),
             Wrap(alignment: WrapAlignment.end, spacing: 16, children: [
               TextButton(

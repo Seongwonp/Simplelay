@@ -61,7 +61,7 @@ class KioskTopIconLabel extends StatelessWidget {
   Widget build(BuildContext context) => Text(text,
       maxLines: 1,
       softWrap: false,
-      style: TextStyle(fontSize: 14, height: 1.15, color: color));
+      style: TextStyle(fontSize: KioskType.caption, height: 1.15, color: color));
 }
 
 String _shortName(String id) => switch (id) {
@@ -120,7 +120,7 @@ class _ConnectionIcon extends StatelessWidget {
                         maxLines: 1,
                         softWrap: false,
                         style: TextStyle(
-                            fontSize: 24, height: 1.2, color: KioskColors.muted)),
+                            fontSize: KioskType.body, height: 1.2, color: KioskColors.muted)),
                 ]),
                 if (warn)
                   Positioned(
@@ -138,7 +138,7 @@ class _ConnectionIcon extends StatelessWidget {
                       child: const Text(
                         '!',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: KioskType.caption,
                           height: 1.0,
                           fontWeight: FontWeight.w800,
                           color: KioskColors.onAccent,
@@ -212,7 +212,7 @@ class KioskConnectionModal extends StatelessWidget {
                     child: Text(
                       item.title,
                       style: const TextStyle(
-                        fontSize: 26,
+                        fontSize: KioskType.status,
                         fontWeight: FontWeight.w700,
                         color: Colors.white,
                       ),
@@ -263,7 +263,7 @@ class KioskConnectionModal extends StatelessWidget {
                                 child: KioskText(
                                   fix,
                                   style: TextStyle(
-                                    fontSize: 22,
+                                    fontSize: KioskType.body,
                                     height: bodyHeight,
                                     color: Colors.white,
                                   ),
@@ -297,7 +297,7 @@ class KioskConnectionModal extends StatelessWidget {
                       child: Text(
                         checking ? '연결해 보는 중' : '다시 연결해 보기',
                         style: const TextStyle(
-                            fontSize: 20, fontWeight: FontWeight.w700),
+                            fontSize: KioskType.body, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ),
@@ -315,7 +315,7 @@ class KioskConnectionModal extends StatelessWidget {
                       ),
                       child: const Text('닫기',
                           style: TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.w500)),
+                              fontSize: KioskType.body, fontWeight: FontWeight.w500)),
                     ),
                   ),
                 ],

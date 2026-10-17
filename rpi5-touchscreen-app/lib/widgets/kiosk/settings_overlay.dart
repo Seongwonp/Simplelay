@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/kiosk_tokens.dart';
+
 import '../../models/appliance.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
@@ -228,7 +230,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           const Text(
             '본체 화면 설정',
             style: TextStyle(
-              fontSize: 16,
+              fontSize: KioskType.caption,
               color: Color(0xFFFAF7F2),
               fontWeight: FontWeight.w300,
               letterSpacing: 0.5,
@@ -276,11 +278,11 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
               children: [
                 Text(
                   '제안 표시 시간',
-                  style: TextStyle(fontSize: 14, color: Color(0xFFFAF7F2)),
+                  style: TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
                 ),
                 Text(
                   '제안 카드가 저절로 닫히기까지 걸리는 시간이에요',
-                  style: TextStyle(fontSize: 13, color: KioskColors.muted),
+                  style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                 ),
               ],
             ),
@@ -314,7 +316,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   child: Text(
                     '$seconds초',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: KioskType.caption,
                       fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                     ),
                   ),
@@ -343,12 +345,12 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                 Text(
                   title,
                   style:
-                      const TextStyle(fontSize: 14, color: Color(0xFFFAF7F2)),
+                      const TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
                 ),
                 Text(
                   subtitle,
                   style:
-                      const TextStyle(fontSize: 13, color: KioskColors.muted),
+                      const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                 ),
               ],
             ),
@@ -412,7 +414,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
               Text(
                 a.name,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: KioskType.caption,
                   color: isSelected
                       ? KioskColors.primary
                       : const Color(0xFFFAF7F2),
@@ -446,7 +448,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                 ),
                 child: const Text(
                   '등록됨',
-                  style: TextStyle(fontSize: 12, color: KioskColors.success),
+                  style: TextStyle(fontSize: KioskType.caption, color: KioskColors.success),
                 ),
               ),
           ],
@@ -470,11 +472,11 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                   child: TextField(
                     controller: _urlCtrl,
                     style:
-                        const TextStyle(fontSize: 13, color: Color(0xFFFAF7F2)),
+                        const TextStyle(fontSize: KioskType.caption, color: Color(0xFFFAF7F2)),
                     decoration: InputDecoration(
                       hintText: '192.168.x.x  또는  http://...:8080',
                       hintStyle: const TextStyle(
-                          fontSize: 13, color: KioskColors.muted),
+                          fontSize: KioskType.caption, color: KioskColors.muted),
                       filled: true,
                       fillColor: KioskColors.surface2,
                       border: OutlineInputBorder(
@@ -525,7 +527,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                         : Text(
                             textEmpty && registered != null ? '지우기' : '저장',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: KioskType.caption,
                               color: _saving
                                   ? KioskColors.muted
                                   : KioskColors.primary,
@@ -541,7 +543,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
           const SizedBox(height: 8),
           Text(
             _saveError!,
-            style: const TextStyle(fontSize: 13, color: KioskColors.danger),
+            style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.danger),
           ),
         ],
       ],
@@ -557,7 +559,7 @@ class _SectionLabel extends StatelessWidget {
   Widget build(BuildContext context) => Text(
         text,
         style: const TextStyle(
-          fontSize: 12,
+          fontSize: KioskType.caption,
           color: KioskColors.muted,
           letterSpacing: 0.8,
           fontWeight: FontWeight.w400,

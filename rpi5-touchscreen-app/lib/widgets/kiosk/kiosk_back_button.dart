@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/kiosk_tokens.dart';
+
 import '../../theme/kiosk_colors.dart';
 
 /// 화면 머리의 뒤로 단추 — 흰 화살표 + '뒤로' 글자 + 테두리(UI 평가 4차 2026-10-17).
@@ -40,7 +42,7 @@ class KioskBackButton extends StatelessWidget {
                   Icon(Icons.arrow_back, color: Colors.white, size: 26),
                   SizedBox(width: 6),
                   Text('뒤로',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.white)),
+                      style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600, color: Colors.white)),
                 ],
               ),
             ),

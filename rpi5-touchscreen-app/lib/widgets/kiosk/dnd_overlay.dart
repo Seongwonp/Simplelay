@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/kiosk_tokens.dart';
+
 import '../../theme/kiosk_colors.dart';
 
 /// 제안 잠시 쉬기(예전 이름 '방해 금지', 2026-10-15) — 새 제안과 아직 시작하지 않은 자동 실행을 잠시 쉰다.
@@ -55,7 +57,7 @@ class DndOverlay extends StatelessWidget {
                     const Text(
                       '잠시 쉬기',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: KioskType.body,
                         color: Color(0xFFFAF7F2),
                         fontWeight: FontWeight.w700,
                       ),
@@ -71,7 +73,7 @@ class DndOverlay extends StatelessWidget {
                               : '${_clockOf(dndUntil!)}까지 새 제안과 자동으로 하기를 쉬어요',
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 18,
+                        fontSize: KioskType.caption,
                         color: KioskColors.muted,
                       ),
                     ),
@@ -80,7 +82,7 @@ class DndOverlay extends StatelessWidget {
                       Text(
                         '매일 $start~$end 조용한 시간이에요. 폰 설정에서 바꿔요',
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16, color: KioskColors.muted),
+                        style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
                       ),
                     ],
                     const SizedBox(height: 20),
@@ -107,7 +109,7 @@ class DndOverlay extends StatelessWidget {
                         minimumSize: const Size(160, 52),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('취소', style: TextStyle(fontSize: 18)),
+                      child: const Text('취소', style: TextStyle(fontSize: KioskType.caption)),
                     ),
                   ],
                 ),
@@ -154,7 +156,7 @@ class _DndOption extends StatelessWidget {
         ),
         child: Text(
           label,
-          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600),
         ),
       ),
     );

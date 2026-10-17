@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../theme/kiosk_tokens.dart';
+
 import '../../models/estop.dart';
 import '../../theme/kiosk_colors.dart';
 
@@ -57,14 +59,14 @@ class KioskEstopBanner extends StatelessWidget {
                       child: Text(estopConfirmFor(detail),
                           style: const TextStyle(
                               color: _white,
-                              fontSize: 21,
+                              fontSize: KioskType.body,
                               fontWeight: FontWeight.w700))),
                   Row(children: [
                     Expanded(
                         child: Text(estopTitleFor(detail),
                             style: const TextStyle(
                                 color: _white,
-                                fontSize: 20,
+                                fontSize: KioskType.body,
                                 fontWeight: FontWeight.w800))),
                     SizedBox(
                         height: 48,
@@ -76,7 +78,7 @@ class KioskEstopBanner extends StatelessWidget {
                                 side:
                                     const BorderSide(color: _white, width: 2)),
                             child: const Text('취소',
-                                style: TextStyle(fontSize: 21)))),
+                                style: TextStyle(fontSize: KioskType.body)))),
                     const SizedBox(width: 12),
                     SizedBox(
                         height: 48,
@@ -85,7 +87,7 @@ class KioskEstopBanner extends StatelessWidget {
                             onPressed: onConfirm,
                             style: _filled,
                             child: const Text(kEstopConfirmLabel,
-                                style: TextStyle(fontSize: 21)))),
+                                style: TextStyle(fontSize: KioskType.body)))),
                   ]),
                 ])),
       );
@@ -111,21 +113,21 @@ class KioskEstopBanner extends StatelessWidget {
                       estopTitleFor(detail),
                       style: const TextStyle(
                           color: _white,
-                          fontSize: 20,
+                          fontSize: KioskType.body,
                           fontWeight: FontWeight.w800),
                     ),
                     Text(
                         estopIsPowerLoss(detail)
                             ? '주변을 본 뒤 풀기 안내를 눌러 주세요'
                             : '비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요',
-                        style: const TextStyle(color: _white, fontSize: 17)),
+                        style: const TextStyle(color: _white, fontSize: KioskType.caption)),
                     if (message != null)
                       Text(
                         message,
                         key: const ValueKey('estop-message'),
                         style: const TextStyle(
                             color: _white,
-                            fontSize: 14,
+                            fontSize: KioskType.caption,
                             fontWeight: FontWeight.w700),
                       ),
                   ],
@@ -141,7 +143,7 @@ class KioskEstopBanner extends StatelessWidget {
                 style: _filled,
                 child: Text(acking ? '푸는 중…' : kEstopAckLabel,
                     style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w800)),
+                        fontSize: KioskType.caption, fontWeight: FontWeight.w800)),
               ),
             ),
           ],

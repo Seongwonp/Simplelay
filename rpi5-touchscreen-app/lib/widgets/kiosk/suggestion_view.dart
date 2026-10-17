@@ -199,7 +199,7 @@ class KioskSuggestionView extends StatelessWidget {
       padding: pictureMode
           ? const EdgeInsets.fromLTRB(KioskSizes.runLeft, KioskSizes.runTop,
               KioskSizes.stopRight, KioskSizes.actionsBottom)
-          : const EdgeInsets.fromLTRB(40, 14, 40, KioskSizes.actionsBottom),
+          : const EdgeInsets.fromLTRB(KioskSpace.xl, KioskSpace.sm, KioskSpace.xl, KioskSizes.actionsBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
