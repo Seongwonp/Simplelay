@@ -284,10 +284,10 @@ class KioskHoldView extends StatelessWidget {
 
     // 실행 근거(연습용 값인지·실제 확인인지)는 안전 문장이다 — 스크롤 없이 늘
     // 보이도록 스크롤 영역 밖, 상태 영역 바로 아래에 고정한다(10/5 수리).
-    final provenance = <(IconData, String, Color)>[
+    final provenance = <(IconData?, String, Color)>[
       if (waiting)
         (
-          Icons.bolt,
+          null, // 뜻 없는 번개 아이콘은 뺀다(2차 평가 10/18). 주의는 글자 색이 아니라 문장이 말한다.
           _operationLine,
           _operationReal || _mock || operationSource == 'mock'
               ? KioskColors.muted
@@ -296,7 +296,8 @@ class KioskHoldView extends StatelessWidget {
     ];
 
     // 확인 못 함이면 단추 이름이 할 일을 말한다 — 자리·크기·색은 그대로(원칙 0-4).
-    final stopLabel = _unconfirmed ? '다시 정지 시도' : '정지';
+    // '다시 정지 시도'는 '다시 / 정지 시도'로 꺾였다(2차 평가 10/18) — 한 줄 '다시 멈추기'.
+    final stopLabel = _unconfirmed ? '다시 멈추기' : '정지';
 
     final body = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,7 +387,7 @@ class _Lines extends StatelessWidget {
     this.fontSize = KioskType.body,
     this.weight = FontWeight.w400,
   });
-  final List<(IconData, String, Color)> lines;
+  final List<(IconData?, String, Color)> lines;
 
   /// 설명은 본문, 할 일·정지 결과(상태 영역 바로 아래 첫 블록)는 상태 크기(2026-10-16 §1-3).
   final double fontSize;
@@ -402,11 +403,11 @@ class _Lines extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Padding(
+                  if (icon != null) ...[Padding(
                     padding: EdgeInsets.only(top: fontSize * 0.15),
                     child: Icon(icon, size: fontSize * 1.05, color: color),
                   ),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: 10)],
                   Expanded(
                     child: KioskText(
                       text,

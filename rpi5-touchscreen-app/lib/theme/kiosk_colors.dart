@@ -6,6 +6,10 @@ class KioskColors {
 
   static const primary = Color(0xFFD9A356); // 앱 primary와 동일 — 골드(2026-10-01), 검정 글자 9.32:1
   static const success = Color(0xFFF2F3F7); // 기존 중립 결과용
+
+  /// 중립 채움(흰 면·검은 글자) — 확인 필요·실패 화면의 주 단추(화면 구조 개편 10/18). 앰버 띠 위에 골드 면
+  /// 단추를 두면 '잘 됐으니 다음으로'처럼 읽혔다. 강조색(골드)은 할 일이 정해진 주 행동에만 쓴다.
+  static const neutralFill = Color(0xFFF2F3F7);
   static const danger  = Color(0xFFEF6E64); // 레드 — 면 위 검정 7.08:1
   static const warning = Color(0xFFE8B339); // 앰버
 

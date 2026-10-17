@@ -6,7 +6,6 @@ import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'hold_view.dart' show kPanelCaption;
 import 'kiosk_scroll_area.dart';
-import 'kiosk_target_line.dart';
 import 'kiosk_text.dart';
 import 'run_frame.dart';
 import 'status_band.dart';
@@ -57,6 +56,14 @@ class KioskExecutingView extends StatelessWidget {
   final VoidCallback onStop;
 
   bool get _retrying => (currentAttempt ?? 1) > 1;
+
+  /// 무엇을 하는 중인가 — 가전 이름과 할 일(위 띠에 싣는다, 10/18). 이어받은 실행은 제목이 가전 이름일 수 있고,
+  /// 버튼 하나를 누르는 실행이면 제목이 버튼과 같다 — 같은 말이면 한 번만.
+  String get _context => [
+        if (target != null) target!.name,
+        if (title.isNotEmpty && title != currentButton && title != target?.name)
+          title,
+      ].join('   ');
 
   /// 지금 누르는 버튼이 대상 가전 버튼판의 어디인가.
   ///
@@ -121,35 +128,15 @@ class KioskExecutingView extends StatelessWidget {
     final target = this.target;
     final onPanel = currentOnPanel;
     final (phrase, icon, color) = _phrase();
-    final large = KioskLayout.isLarge(context);
+
+    // 무엇을 하는 중인가(가전·할 일)는 위 띠로(화면 구조 개편 10/18) — 왼쪽 글은 상태·진행·한 줄 세 단계만.
+    // 이어받은 실행은 제목이 가전 이름일 수 있다 — 같은 말이면 한 번만. 버튼 하나를 누르는 실행이면 제목이 버튼과 같다.
+    final bandDetail = _context;
 
     final body = KioskScrollArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (target != null) ...[
-            KioskTargetLine(appliance: target),
-            const SizedBox(height: 4),
-          ],
-          // 목적(무엇을 하려고)은 보조로. 버튼 하나를 누르는 실행이면
-          // 제목과 버튼이 같으니 되풀이하지 않는다.
-          // 이어받은 실행은 제목이 가전 이름일 수 있다 — 위 대상 줄과 같은 말이면 쓰지 않는다.
-          if (title.isNotEmpty &&
-              title != currentButton &&
-              title != target?.name)
-            KioskText(
-              title,
-              style: const TextStyle(
-                fontSize: KioskType.body,
-                fontWeight: FontWeight.w600,
-                color: KioskColors.muted,
-              ),
-              // 2줄까지 보이고 그래도 넘치면 줄인다(2026-10-15 — 1줄 말줄임에서 무엇을 하는지 잘렸다).
-              // 큰 글씨는 1줄 — 지금 누르는 버튼이 스크롤 아래로 밀리지 않게(UI 평가 3차 10/17).
-              maxLines: large ? 1 : 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          const SizedBox(height: 10),
           if (!isDone)
             _NowBlock(view: this)
           else
@@ -165,11 +152,14 @@ class KioskExecutingView extends StatelessWidget {
     return KioskRunFrame(
       // 연습은 위 청록 띠(§3-2·2026-10-16 §4) — 작은 '연습 모드' 칩은 처음 보는 사람이 놓쳤다.
       band: _mock
+          // 연습 띠는 한 줄로 둔다(문장이 길다) — 가전·할 일은 왼쪽 마지막 한 줄이 말한다.
           ? const KioskStatusBand.practice()
-          : const KioskStatusBand(
+          : KioskStatusBand(
               tone: KioskBandTone.running,
               icon: Icons.play_circle_outline,
               label: '실행 중',
+              detail: bandDetail,
+              detailIcon: target?.icon,
             ),
       // 다 누른 뒤 결과 화면으로 넘어가기 전 잠깐(0.9초)은 상태를 새로 지어내지 않고 목록 제목만 둔다.
       header: isDone
@@ -180,6 +170,7 @@ class KioskExecutingView extends StatelessWidget {
           : Semantics(
               liveRegion: true,
               label: [
+                if (bandDetail.isNotEmpty) bandDetail,
                 if (currentButton != null) '$currentButton 버튼',
                 phrase,
                 if (_evidence() case final e?) e,
@@ -191,19 +182,7 @@ class KioskExecutingView extends StatelessWidget {
                     icon: icon, title: phrase, iconColor: color),
               ),
             ),
-      body: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (!isDone && totalSteps != null && totalSteps! > 0) ...[
-          ExcludeSemantics(
-              child: Text(progressLine(totalSteps!, completedSteps ?? 0),
-                  key: const ValueKey('execution-step'),
-                  style: const TextStyle(
-                      fontSize: KioskType.body,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700))),
-          const SizedBox(height: 8),
-        ],
-        Expanded(child: body),
-      ]),
+      body: body,
       // 버튼판은 누를 수 없는 설명 그림이다 — 지금 누르는 자리만 채운다(§1-6).
       picture: target != null && onPanel != null
           ? KioskPanelPicture(
@@ -219,8 +198,10 @@ class KioskExecutingView extends StatelessWidget {
   }
 }
 
-// ── 지금 누르는 버튼 · 단계 ─────────────────────────────────────────────────
+// ── 진행 · 지금 버튼 · 한 줄 ─────────────────────────────────────────────────
 
+/// 상태 제목(위 [KioskStatusHeader]) 아래 두 단계 — **진행**(N개 중 K번째, 지금 버튼 이름을 크게)과 **한 줄**
+/// (다시 누르는 이유·무엇을 보는지). 예전의 '이번 버튼' 이름표·대상 줄·할 일 제목은 위 띠가 말한다(10/18).
 class _NowBlock extends StatelessWidget {
   const _NowBlock({required this.view});
 
@@ -228,22 +209,41 @@ class _NowBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final evidence = view._evidence(large: KioskLayout.isLarge(context));
+    final large = KioskLayout.isLarge(context);
+    final evidence = view._evidence(large: large);
     final total = view.totalSteps;
     final done = view.completedSteps ?? 0;
+    // 한 줄 — 다시 누르는 중이면 그 이유가 먼저, 아니면 무엇을 보는지.
+    final String? line = view._retrying
+        // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
+        ? [
+            view._mock ? '연습이라 실제로 누르지는 않아요' : '눌렸는지 몰라서 한 번 더 눌러요',
+            '${view.currentAttempt}번째 시도',
+          ].join('. ')
+        : view._mock
+            // 연습 띠는 한 줄이라 가전·할 일을 싣지 않는다 — 여기 마지막 한 줄로.
+            ? (view._context.isEmpty ? null : view._context)
+            : evidence;
 
     // 스크린리더는 위 상태 영역이 한 번에 읽는다.
     return ExcludeSemantics(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 큰 버튼 이름이 무엇인지 이름표(외부 평가 10/16 2차 k05). 
-          if (view.currentButton != null)
-            Text(
-              // 누르는 중·확인 중 어느 때나 맞는 말(외부 평가 10/16 3차 — '지금 누르는'은 확인 단계와 시제가 어긋났다).
-              '이번 버튼',
-              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
-            ),
+          if (total != null && total > 0) ...[
+            Text(view.progressLine(total, done),
+                key: const ValueKey('execution-step'),
+                style: const TextStyle(
+                    fontSize: KioskType.body,
+                    color: KioskColors.muted,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+          ] else if (view.completedSteps != null) ...[
+            Text('버튼 $done개를 눌렀어요',
+                style: const TextStyle(
+                    fontSize: KioskType.body, color: KioskColors.muted)),
+            const SizedBox(height: 4),
+          ],
           if (view.currentButton != null)
             Text(
               "'${view.currentButton}'",
@@ -254,27 +254,16 @@ class _NowBlock extends StatelessWidget {
                 height: 1.15,
               ),
             ),
-          if (view._retrying) ...[
-            const SizedBox(height: 4),
-            // '재시도'는 실패로 읽힌다. 사실만 말한다 — 한 번 더 누른다(안전하다고 말하지 않는다, 열린 문제 R1).
-            Text(
-              view._mock ? '연습이라 실제로 누르지는 않아요' : '눌렸는지 몰라서 한 번 더 눌러요',
-              style: const TextStyle(
-                  fontSize: KioskType.body, color: KioskColors.warning),
+          if (line != null) ...[
+            const SizedBox(height: KioskSpace.sm),
+            KioskText(
+              line,
+              style: TextStyle(
+                  fontSize: KioskType.body,
+                  height: 1.3,
+                  color: view._retrying ? KioskColors.warning : KioskColors.muted),
             ),
           ],
-          if (evidence != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              evidence,
-              style: const TextStyle(
-                  fontSize: KioskType.caption, color: KioskColors.muted),
-            ),
-          ],
-          if (total == null && view.completedSteps != null)
-            Text('버튼 $done개를 눌렀어요',
-                style: const TextStyle(
-                    fontSize: KioskType.body, color: KioskColors.muted)),
         ],
       ),
     );

@@ -35,10 +35,12 @@ class KioskStatusBand extends StatelessWidget {
     required this.label,
     this.practice = false,
     this.suppressUnderEstop = false,
+    this.detail,
+    this.detailIcon,
   });
 
   /// 연습 실행의 일반 상태 — 띠 전체가 청록 연습 띠.
-  const KioskStatusBand.practice({super.key})
+  const KioskStatusBand.practice({super.key, this.detail, this.detailIcon})
       : tone = KioskBandTone.practice,
         icon = Icons.school_outlined,
         label = kPracticeBandText,
@@ -52,6 +54,11 @@ class KioskStatusBand extends StatelessWidget {
   /// 연습 실행인가 — [tone]이 확인 필요·실패여도 청록 연습 칸을 함께 그린다.
   final bool practice;
   final bool suppressUnderEstop;
+
+  /// 띠 오른쪽의 무엇을 하는 중인가(가전·할 일, 화면 구조 개편 10/18) — 실행 화면 왼쪽 글을 상태·진행·한 줄로
+  /// 줄이려고 위 띠로 올렸다. 좁으면 다음 줄로 내려간다(자르지 않는다).
+  final String? detail;
+  final IconData? detailIcon;
 
   /// 띠 뜻별 색(아이콘·왼쪽 줄·옅은 면).
   static Color colorOf(KioskBandTone tone) => switch (tone) {
@@ -128,6 +135,39 @@ class KioskStatusBand extends StatelessWidget {
             )
           : main;
     }
+    final detail = this.detail;
+    final Widget body = detail == null || detail.isEmpty
+        ? content
+        : Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: KioskSpace.md,
+            runSpacing: 4,
+            children: [
+              content,
+              Row(
+                key: const ValueKey('status-band-detail'),
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 상태 말과 무엇을 하는지 사이 가는 세로 줄 — 가운뎃점으로 잇지 않는다.
+                  Container(
+                      width: 2,
+                      height: iconSize,
+                      color: Colors.white.withValues(alpha: 0.25)),
+                  const SizedBox(width: KioskSpace.md),
+                  if (detailIcon != null) ...[
+                    Icon(detailIcon, size: iconSize, color: Colors.white70),
+                    const SizedBox(width: KioskSpace.xs),
+                  ],
+                  Flexible(
+                    child: Text(detail,
+                        style: text.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white.withValues(alpha: 0.85))),
+                  ),
+                ],
+              ),
+            ],
+          );
     return Semantics(
       container: true,
       child: Container(
@@ -144,7 +184,7 @@ class KioskStatusBand extends StatelessWidget {
             left: BorderSide(color: color, width: KioskSizes.bandStripe),
           ),
         ),
-        child: content,
+        child: body,
       ),
     );
   }

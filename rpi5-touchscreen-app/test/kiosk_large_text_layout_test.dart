@@ -229,7 +229,7 @@ void main() {
     for (final (outcome, line, stopLabel) in [
       ('stopped', '전자레인지가 멈췄어요', '정지'),
       // 멈췄는지 모르면 가장 큰 글자가 할 일이고, 정지 단추 이름이 '다시 정지 시도'(자리·크기 그대로).
-      ('requested_unconfirmed', "지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요", '다시\n정지 시도'),
+      ('requested_unconfirmed', "지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요", '다시 멈추기'),
     ]) {
       testWidgets('$where 큰 글씨 정지 결과($outcome) — 결과 줄이 스크롤 없이 보여요',
           (tester) async {

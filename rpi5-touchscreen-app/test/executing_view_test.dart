@@ -50,10 +50,10 @@ void main() {
     expect(find.text("'해동'"), findsOneWidget);
     // 큰 버튼 이름이 무엇인지 이름표가 붙는다(외부 평가 10/16 2차 k05).
     // 시제를 가리지 않는 이름표 — 확인 중에도 맞는 말(외부 평가 10/16 3차).
-    expect(find.text('이번 버튼'), findsOneWidget);
+    expect(find.text('이번 버튼'), findsNothing); // 이름표 대신 진행 줄이 위에서 말한다(10/18).
     expect(find.text('누르는 중'), findsOneWidget);
     expect(find.text('누를 버튼 3개 중 2번째'), findsOneWidget);
-    expect(find.text('전자레인지'), findsOneWidget);
+    expect(find.textContaining('전자레인지'), findsOneWidget); // 위 띠(10/18)
     // 시간으로 채우는 퍼센트가 아니다.
     expect(find.textContaining('%'), findsNothing);
   });
@@ -74,7 +74,7 @@ void main() {
     await _pump(tester, attempt: 2);
 
     expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
-    expect(find.text('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
+    expect(find.textContaining('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
     expect(find.textContaining('보정'), findsNothing);
     expect(find.byIcon(Icons.autorenew), findsOneWidget);
     expect(find.textContaining('2번째 시도'), findsOneWidget);

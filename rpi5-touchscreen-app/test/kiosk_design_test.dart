@@ -335,13 +335,13 @@ void main() {
       expect(_panel.height - first.bottom, greaterThanOrEqualTo(64));
     });
 
-    testWidgets('이름만 상황별 — 정지 미확인은 다시 정지 시도, 글자 크기는 같다', (tester) async {
+    testWidgets('이름만 상황별 — 정지 미확인은 다시 멈추기(한 줄), 글자 크기는 같다', (tester) async {
       await _pump15(tester, _hold());
       final normal = tester.widget<Text>(find.descendant(
           of: find.byKey(_stopArea), matching: find.text('정지')));
       await _pump15(tester, _holdUnconfirmed());
       final retry = tester.widget<Text>(find.descendant(
-          of: find.byKey(_stopArea), matching: find.text('다시\n정지 시도')));
+          of: find.byKey(_stopArea), matching: find.text('다시 멈추기')));
       expect(retry.style!.fontSize, normal.style!.fontSize);
     });
 
@@ -463,30 +463,33 @@ void main() {
     }
   });
 
-  group('결과 화면 버튼 — 처음 화면으로는 한 모양(채움), 글자만 있는 조작은 없다', () {
+  // 2차 평가(10/18): 주 하나 · 보조 하나 · 글자 하나. 확인 필요·실패(앰버·빨강 띠)에서는 주 단추가 골드가 아닌 중립 채움.
+  group('결과 화면 버튼 — 처음 화면으로는 한 모양(채움), 확인 필요·실패는 중립색', () {
     Finder inButton<T>(String text) => find.ancestor(
         of: find.text(text), matching: find.byWidgetPredicate((w) => w is T));
 
-    for (final (name, view) in [
-      ('성공', _done()),
-      ('실패', _done(success: false)),
-      ('사용자 정지', _done(success: false, reason: KioskFailureReason.stopped, stopLevel: 'verified')),
+    for (final (name, view, fill) in [
+      ('누름 보고만(확인 필요)', _done(), KioskColors.neutralFill),
+      ('실패', _done(success: false), KioskColors.neutralFill),
+      ('사용자 정지(멈춤 확인)', _done(success: false, reason: KioskFailureReason.stopped, stopLevel: 'verified'),
+          KioskColors.primary),
     ]) {
-      testWidgets('$name — 처음 화면으로는 앰버 채움 단추 하나', (tester) async {
+      testWidgets('$name — 처음 화면으로는 채움 단추 하나', (tester) async {
         await _pump15(tester, view);
         final home = inButton<ElevatedButton>('처음 화면으로');
         expect(home, findsOneWidget);
         final b = tester.widget<ElevatedButton>(home);
-        expect(b.style!.backgroundColor!.resolve({}), KioskColors.primary);
+        expect(b.style!.backgroundColor!.resolve({}), fill);
         expect(find.byType(ElevatedButton), findsOneWidget, reason: '화면당 채움 단추는 하나');
-        expect(find.byType(TextButton), findsNothing, reason: '글자만 있는 조작');
       });
     }
 
-    testWidgets('실패 — 화면으로 조작하기·다시 시도는 테두리 보조 단추', (tester) async {
+    testWidgets('실패 — 다시 시도는 테두리 보조, 화면으로 조작하기는 글자 단추(48 이상)', (tester) async {
       await _pump15(tester, _done(success: false));
-      expect(inButton<OutlinedButton>('화면으로 조작하기'), findsOneWidget);
       expect(inButton<OutlinedButton>('다시 시도'), findsOneWidget);
+      final manual = inButton<TextButton>('화면으로 조작하기');
+      expect(manual, findsOneWidget);
+      expect(tester.getSize(manual).height, greaterThanOrEqualTo(48));
     });
   });
 

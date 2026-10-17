@@ -235,11 +235,10 @@ class KioskDoneView extends StatelessWidget {
                             : '눌렸는지 몰라요')
                     : '작은 팔이 다 눌렀다고 알려 왔어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
-    final String? successSub = thinq
+    // 연습은 위 띠가 '실제 가전은 움직이지 않아요'를 말한다 — 같은 말을 아래에 또 쓰지 않는다(10/18).
+    final String? successSub = thinq || mock
         ? null
-        : mock
-            ? '실제 가전은 누르지 않았어요'
-            : operationVerified
+        : operationVerified
                 ? '원하는 대로 됐는지 봐 주세요'
                 : '가전이 켜졌는지 봐 주세요';
     // 판정 출처가 real일 때만 실제 동작을 확인했다고 말한다. 출처를 모르면 단정하지 않는다(폰과 같은 규칙).
@@ -257,11 +256,11 @@ class KioskDoneView extends StatelessWidget {
         : userStop
             ? stopLevelHeadline(stopLevel, ackMs: stopAckMs)
             : mock && !r.isUnconfirmed && motion == null
-                ? '연습을 마치지 못했어요'
+                ? '연습이 중간에 멈췄어요'
                 : (motion ?? r.headline);
-    // 연습 실패도 이유 한 줄(외부 평가 10/16 2차 k04) — 실제 가전은 누르지 않았다는 말과 함께.
+    // 연습 실패도 이유 한 줄(외부 평가 10/16 2차 k04). 실제 가전을 움직이지 않았다는 말은 위 띠가 한다(10/18).
     final String failureDetail = mock && !userStop
-        ? '${r.practiceWhy}\n실제 가전은 누르지 않았어요.'
+        ? r.practiceWhy
         : motion != null
             ? '다시 누르지 않았어요.\n가전과 작은 팔을 봐 주세요.'
             : userStop
@@ -269,20 +268,44 @@ class KioskDoneView extends StatelessWidget {
                 : r.detail(label, canRetry: onRetry != null);
     // 이름이 대상 가전 이름과 같으면(이어받은 실행 등) 같은 말을 두 번 쓰지 않는다.
     final showLabel = label.isNotEmpty && label != target?.name;
+    // LG 가전 성공 아래 한 줄(확인한 사실만큼).
+    final String thinqLine = outcome != null && (!mock || already)
+        ? outcome
+        : mock
+            ? '실제 가전은 바꾸지 않았어요'
+            : thinqVerified
+                ? '가전에서 바뀐 설정을 봤어요'
+                : '가전을 봐 주세요';
     // 위 상태 띠(2026-10-16 디자인 규격 §4) — 결과 아이콘·제목 색과 같은 규칙: 확인 필요 = 앰버, 실패 = 빨강,
     // 그 밖 = 중립, 연습이면 청록(실패·확인 필요와 겹쳐도 청록 연습 칸이 함께 남는다).
+    // 띠 = 확인 수준, 제목 = 본 사실(화면 구조 개편 10/18) — 띠 말이 아래 제목·할 일에 또 나오면 다음 후보를 쓴다
+    // (예: 제목 '설정이 됐어요'면 띠는 '됐어요' 대신 '확인했어요'). 확인 수준을 높여 말하는 후보는 두지 않는다.
+    final visible = [
+      headline,
+      if (success && successSub != null) successSub,
+      if (!success) failureDetail,
+      if (showLabel) label,
+      if (success && thinq) thinqLine,
+      ...facts,
+      if (operationSentence != null) operationSentence,
+    ].map(_flat).join('|');
+    String pick(List<String> words) => words.firstWhere(
+        (w) => !visible.contains(_flat(w)),
+        orElse: () => words.last);
     final KioskStatusBand band;
     if (color == KioskColors.warning) {
       band = KioskStatusBand(
           tone: KioskBandTone.attention,
           icon: Icons.help_outline,
-          label: '봐 주세요',
+          label: pick(const ['봐 주세요', '몰라요', '주의']),
           practice: mock);
     } else if (color == KioskColors.danger) {
       band = KioskStatusBand(
           tone: KioskBandTone.danger,
           icon: Icons.error_outline,
-          label: r == KioskFailureReason.serverLost ? '몰라요' : '못 했어요',
+          label: pick(r == KioskFailureReason.serverLost
+              ? const ['몰라요', '연결 끊김']
+              : const ['못 했어요', '실패']),
           practice: mock);
     } else if (mock) {
       band = const KioskStatusBand.practice();
@@ -292,16 +315,19 @@ class KioskDoneView extends StatelessWidget {
       band = KioskStatusBand(
           tone: KioskBandTone.confirmed,
           icon: Icons.check,
-          label: '됐어요');
+          label: pick(const ['됐어요', '확인했어요']));
     } else if (success && executionMode == 'real') {
       band = KioskStatusBand(
           tone: KioskBandTone.attention,
           icon: Icons.help_outline,
-          label: '봐 주세요');
+          label: pick(const ['봐 주세요', '몰라요', '주의']));
     } else {
       band = const KioskStatusBand(
           tone: KioskBandTone.neutral, icon: Icons.flag_outlined, label: '결과');
     }
+    // 확인 필요·실패(앰버·빨강 띠)에서는 주 단추를 골드가 아닌 중립 채움으로(10/18) — 골드 면은 '잘 됐으니 다음으로'처럼 읽혔다.
+    final calmHome = band.tone == KioskBandTone.attention ||
+        band.tone == KioskBandTone.danger;
 
     final content = Semantics(
       liveRegion: true,
@@ -355,6 +381,21 @@ class KioskDoneView extends StatelessWidget {
               color: color,
             ),
           ),
+          // 실패·정지: 제목(본 사실) 바로 아래 할 일 한 가지를 크게(2차 평가 10/18 — '가전을 봐 주세요'가 큰 지시).
+          // 흐린 글자로 두지 않는다(원칙 0-3). 무엇이었는지(가전·이름)는 그 아래 작게.
+          if (!success) ...[
+            const SizedBox(height: KioskSpace.xs),
+            KioskText(
+              failureDetail,
+              textKey: const ValueKey('done-next-step'),
+              textAlign: ta,
+              style: const TextStyle(
+                  fontSize: KioskType.status,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  height: 1.3),
+            ),
+          ],
           if (success && successSub != null) ...[
             const SizedBox(height: 8),
             // 할 일 한 줄 — 상태 크기(§1-3).
@@ -402,13 +443,7 @@ class KioskDoneView extends StatelessWidget {
             ],
             if (thinq)
               Text(
-                outcome != null && (!mock || already)
-                    ? outcome
-                    : mock
-                        ? '실제 가전은 바꾸지 않았어요'
-                        : thinqVerified
-                            ? '가전에서 바뀐 설정을 봤어요'
-                            : '가전을 봐 주세요',
+                thinqLine,
                 textAlign: ta,
                 style: const TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted),
@@ -428,17 +463,6 @@ class KioskDoneView extends StatelessWidget {
               ),
               const SizedBox(height: 4),
             ],
-            // 할 일 한 가지(원칙 0-3) — 흐린 글자로 두지 않는다. 제목 아래 설명(본문 크기, §1-3).
-            KioskText(
-              failureDetail,
-              textKey: const ValueKey('done-next-step'),
-              textAlign: ta,
-              style: const TextStyle(
-                  fontSize: KioskType.body,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                  height: 1.35),
-            ),
             if (detail case final d? when d.isNotEmpty && !mock) ...[
               const SizedBox(height: 4),
               Text(
@@ -533,13 +557,15 @@ class KioskDoneView extends StatelessWidget {
                 const EdgeInsets.fromLTRB(24, 4, 24, KioskSizes.actionsBottom),
             child: Center(
               child: success
-                  ? _SuccessActions(onDismiss: onDismiss, held: autoReturnHeld)
+                  ? _SuccessActions(
+                      onDismiss: onDismiss, held: autoReturnHeld, calm: calmHome)
                   : _FailureActions(
                       onRetry: secondaryInFlow || retry == null
                           ? null
                           : () => _confirmRetry(context, mock),
                       onManual: secondaryInFlow ? null : onManual,
                       onDismiss: onDismiss,
+                      calm: calmHome,
                     ),
             ),
           ),
@@ -821,31 +847,37 @@ class _AutoReturn extends StatelessWidget {
   }
 }
 
-/// 성공 화면 아래 줄 — 자동 복귀 안내(왼쪽) + '처음 화면으로'(실패 화면과 같은 앰버 채움 단추, 2026-10-16 §1-5).
+/// 성공 화면 아래 줄 — 자동 복귀 안내(왼쪽) + '처음 화면으로'(주 단추).
 class _SuccessActions extends StatelessWidget {
-  const _SuccessActions({required this.onDismiss, this.held = false});
+  const _SuccessActions(
+      {required this.onDismiss, this.held = false, this.calm = false});
 
   final VoidCallback? onDismiss;
   final bool held;
+
+  /// 앰버 띠(확인 필요) — 주 단추를 골드가 아닌 중립 채움으로.
+  final bool calm;
 
   @override
   Widget build(BuildContext context) => Wrap(
         alignment: WrapAlignment.center,
         crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 28,
-        runSpacing: 8,
+        spacing: KioskSpace.lg,
+        runSpacing: KioskSpace.xs,
         children: [
           held
               ? const Text('자동으로 닫지 않아요',
                   style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted))
               : const _AutoReturn(),
-          if (onDismiss != null) _homeButton(onDismiss!),
+          if (onDismiss != null) _homeButton(onDismiss!, calm: calm),
         ],
       );
 }
 
-/// '처음 화면으로' — 결과 종류와 무관하게 **한 모양**: 앰버 채움 주 단추(화면당 채움 단추는 이것 하나, §1-5).
-Widget _homeButton(VoidCallback onTap) => ElevatedButton.icon(
+/// '처음 화면으로' — 결과 화면의 주 단추(화면당 채움 단추는 이것 하나, §1-5). 늘 같은 자리·같은 크기로 쉽게 닿는다.
+/// 확인한 성공·중립 결과는 골드(주 행동색), 확인 필요·실패([calm])는 흰 면·검은 글자 중립 채움(10/18) —
+/// 앰버·빨강 띠 아래 골드 면은 '잘 됐으니 다음으로'처럼 읽혔다.
+Widget _homeButton(VoidCallback onTap, {bool calm = false}) => ElevatedButton.icon(
       key: const ValueKey('done-home'),
       onPressed: onTap,
       icon: const Icon(Icons.home_outlined, size: KioskType.status),
@@ -853,75 +885,69 @@ Widget _homeButton(VoidCallback onTap) => ElevatedButton.icon(
           style: TextStyle(
               fontSize: KioskType.status, fontWeight: FontWeight.w800)),
       style: KioskButtons.primary(
-          background: KioskColors.primary, foreground: KioskColors.onAccent),
+          background: calm ? KioskColors.neutralFill : KioskColors.primary,
+          foreground: KioskColors.onAccent),
     );
 
-/// 실패·정지 화면의 단추(2026-10-15 문구 개선 §2-1).
+/// 실패·정지 화면의 단추 — **주 하나 · 보조 하나 · 글자 하나**(2차 평가 10/18).
 ///
-/// 화면의 주인공은 단추가 아니라 할 일 문장이다. 단추는 어디로 가는지 말하는 **`처음 화면으로`**(채움)가 먼저,
-/// `다시 시도`는 덜 강조한 테두리 단추 — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문이다(열린 문제 R1).
-/// 다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) `다시 시도`는 그리지 않는다.
-/// `화면으로 조작하기`도 글자만 있는 조작이 아니라 테두리 보조 단추다(2026-10-16 디자인 규격 §1-5).
-/// '처음 화면으로'는 성공·실패·사용자 정지 모두 같은 앰버 채움 단추다(예전에는 사용자 정지만 회색 채움이었다).
+/// 화면의 주인공은 단추가 아니라 할 일 문장('가전을 봐 주세요')이다.
+/// - 주: `처음 화면으로`(채움, 늘 쉽게 닿게 — 안전상 빠져나갈 길).
+/// - 보조: `다시 시도`(테두리) — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문에 덜 강조한다(열린 문제 R1).
+///   다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) 그리지 않는다.
+/// - 글자: `화면으로 조작하기` — 글자 단추지만 누르는 자리는 48 이상.
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
     super.key,
     required this.onRetry,
     required this.onManual,
     required this.onDismiss,
+    this.calm = false,
   });
 
   final VoidCallback? onRetry;
   final VoidCallback? onManual;
   final VoidCallback? onDismiss;
+  final bool calm;
 
   @override
   Widget build(BuildContext context) => Wrap(
         alignment: WrapAlignment.center,
         crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 12,
-        runSpacing: 8,
+        spacing: KioskSpace.sm,
+        runSpacing: KioskSpace.xs,
         children: [
-          if (onDismiss != null) _homeButton(onDismiss!),
+          if (onDismiss != null) _homeButton(onDismiss!, calm: calm),
           if (onRetry != null)
-            _SecondaryButton(
+            OutlinedButton.icon(
               key: const ValueKey('done-retry'),
-              label: '다시 시도',
-              icon: Icons.refresh,
-              onTap: onRetry!,
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh, size: KioskType.body),
+              label: const Text('다시 시도',
+                  style: TextStyle(
+                      fontSize: KioskType.body, fontWeight: FontWeight.w700)),
+              style: KioskButtons.secondary(
+                  foreground: Colors.white, border: KioskColors.muted),
             ),
           if (onManual != null)
-            _SecondaryButton(
+            TextButton(
               key: const ValueKey('done-manual'),
-              label: '화면으로 조작하기',
-              icon: Icons.grid_view_rounded,
-              onTap: onManual!,
+              onPressed: onManual,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(0, 48),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
+              ),
+              child: const Text('화면으로 조작하기',
+                  style: TextStyle(
+                      fontSize: KioskType.body,
+                      fontWeight: FontWeight.w600,
+                      decoration: TextDecoration.underline,
+                      decorationColor: Colors.white70)),
             ),
         ],
       );
 }
 
-/// 보조 단추 — 테두리, 높이 [KioskSizes.secondaryButton], 본문 크기 글자(§1-5).
-class _SecondaryButton extends StatelessWidget {
-  const _SecondaryButton({
-    super.key,
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) => OutlinedButton.icon(
-        onPressed: onTap,
-        icon: Icon(icon, size: KioskType.body + 2),
-        label: Text(label,
-            style: const TextStyle(
-                fontSize: KioskType.body, fontWeight: FontWeight.w700)),
-        style: KioskButtons.secondary(
-            foreground: Colors.white, border: KioskColors.muted),
-      );
-}
+/// 같은 말 비교용 — 빈칸·줄바꿈 묶음 문자를 빼고 본다.
+String _flat(String s) => s.replaceAll(RegExp(r'[\s ⁠]'), '');

@@ -5,6 +5,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
@@ -2137,7 +2138,7 @@ void main() {
     expect(find.text('LG 가전 · 연습 결과'), findsOneWidget);
     expect(find.text('실제 가전은 바꾸지 않았어요'), findsOneWidget);
     // 실행 화면이 사라지는 전환 중이라 둘 다 보일 수 있다. 연습은 맨 위 띠로(2026-10-15).
-    expect(find.text('연습 중이에요. 실제 가전에는 보내지 않아요'), findsWidgets);
+    expect(find.text(kPracticeBandText), findsWidgets);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -2324,7 +2325,8 @@ void main() {
     await finishWith(tester, api, mockPhysicalDone);
 
     expect(find.text('연습을 마쳤어요'), findsOneWidget);
-    expect(find.text('실제 가전은 누르지 않았어요'), findsOneWidget);
+    expect(find.text('실제 가전은 누르지 않았어요'), findsNothing); // 위 연습 띠가 말한다(10/18)
+    expect(find.text(kPracticeBandText), findsWidgets);
     expect(find.text('다 눌렀어요'), findsNothing);
     expect(find.textContaining('누름 장치'), findsNothing);
     // 물리 성공은 제목과 아래 한 줄이 확인 수준을 이미 말한다 — 같은 말의 칩('연습 결과')을 덧붙이지 않는다(2026-10-15).

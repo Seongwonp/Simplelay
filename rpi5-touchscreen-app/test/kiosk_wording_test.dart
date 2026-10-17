@@ -164,8 +164,8 @@ void main() {
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
       expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
-      // 글자만 있는 조작은 없앤다 — 보조 단추(테두리, 2026-10-16 디자인 규격 §1-5).
-      expect(_inButton<OutlinedButton>('화면으로 조작하기'), findsOneWidget);
+      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 화면으로 조작하기는 글자 단추(48 이상).
+      expect(_inButton<TextButton>('화면으로 조작하기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       final home = tester.getRect(find.text('처음 화면으로'));
@@ -374,7 +374,7 @@ void main() {
           .map((t) => t.style?.fontSize ?? 0);
       expect(tester.widget<Text>(find.text(todo)).style!.fontSize,
           sizes.reduce((a, b) => a > b ? a : b));
-      expect(find.text('다시\n정지 시도'), findsOneWidget);
+      expect(find.text('다시 멈추기'), findsOneWidget);
       final button = tester.getSize(find.byKey(const ValueKey('hold-stop')));
       expect(button.height, 96);
     });
@@ -590,7 +590,7 @@ void main() {
     testWidgets('다시 누를 때 — 자리를 맞춰 다시 누르는 중, 한 번 더 눌러요(안전하다고는 하지 않는다)', (tester) async {
       await _pumpView(tester, exec(attempt: 2, confidence: 0.4, detail: '전류 +2mA'));
       expect(find.text('자리를 맞춰 다시 누르는 중'), findsOneWidget);
-      expect(find.text('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
+      expect(find.textContaining('눌렸는지 몰라서 한 번 더 눌러요'), findsOneWidget);
       expect(find.textContaining('2번째 시도'), findsOneWidget);
       expect(find.textContaining('보정'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
@@ -605,14 +605,15 @@ void main() {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       const long = '냉동 만두 데워서 라면이랑 같이 먹을 저녁 준비';
       await _pumpView(tester, exec(title: long), malgun: true);
-      expect(find.text(long), findsOneWidget);
-      expect(tester.renderObject<RenderParagraph>(find.text(long)).didExceedMaxLines,
+      // 할 일 이름은 위 띠로 올라갔다(10/18) — 띠에서 말줄임 없이.
+      expect(find.textContaining(long), findsOneWidget);
+      expect(tester.renderObject<RenderParagraph>(find.textContaining(long)).didExceedMaxLines,
           isFalse);
     });
 
     testWidgets('연습 — 맨 위 띠로 말하고 실물 동사(누르는 중·눌렸는지) 대신 짚는다', (tester) async {
       await _pumpView(tester, exec(mode: 'mock', completed: 1, total: 2, confidence: 1, detail: '모의 검증'));
-      expect(find.text('연습 중이에요. 실제 가전에는 보내지 않아요'), findsOneWidget);
+      expect(find.text('연습 중이라 실제 가전은 움직이지 않아요'), findsOneWidget);
       expect(find.text('연습 모드'), findsNothing);
       expect(find.text('누르는 연습 중'), findsOneWidget);
       expect(find.text('누를 버튼 2개 중 2번째'), findsOneWidget);
@@ -626,7 +627,7 @@ void main() {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       await _pumpView(tester, exec(mode: 'mock'), scale: 1.6, malgun: true);
       expect(tester.takeException(), isNull);
-      final band = find.text('연습 중이에요. 실제 가전에는 보내지 않아요');
+      final band = find.text('연습 중이라 실제 가전은 움직이지 않아요');
       expect(band, findsOneWidget);
       expect(tester.renderObject<RenderParagraph>(band).didExceedMaxLines, isFalse);
       expect(tester.getRect(band).top, lessThan(40));

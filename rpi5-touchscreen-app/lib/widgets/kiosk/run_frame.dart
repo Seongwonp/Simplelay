@@ -244,7 +244,7 @@ class KioskStopButton extends StatelessWidget {
                     const SizedBox(width: 12),
                     Flexible(
                       child: KioskText(
-                        label == '다시 정지 시도' ? '다시\n정지 시도' : label,
+                        label,
                         textAlign: TextAlign.center,
                         textWidthBasis: TextWidthBasis.longestLine,
                         style: const TextStyle(

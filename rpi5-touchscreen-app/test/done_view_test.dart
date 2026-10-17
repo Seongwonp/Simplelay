@@ -101,7 +101,8 @@ void main() {
     expect(find.text(kPracticeBandText), findsOneWidget);
     expect(find.text('연습을 마쳤어요'), findsOneWidget);
     expect(find.text('다 눌렀어요'), findsNothing);
-    expect(find.text('실제 가전은 누르지 않았어요'), findsOneWidget);
+    // '실제 가전은 누르지 않았어요'는 위 연습 띠가 말한다 — 아래에 또 쓰지 않는다(10/18).
+    expect(find.text('실제 가전은 누르지 않았어요'), findsNothing);
   });
 
   testWidgets('L3 판정은 있을 때만 말하고, 모의 판정이면(실물 모션이어도) 그 사실을 밝힌다',
@@ -145,8 +146,9 @@ void main() {
     expect(find.text('다시 시도'), findsOneWidget);
     expect(find.text('화면으로 조작하기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
-    // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 '봐 주세요'와 물음표(외부 평가 10/16 4차).
-    expect(find.text('봐 주세요'), findsOneWidget);
+    // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 띠 말은 아래 할 일('가전을 봐 주세요')과
+    // 겹치지 않게 '주의'(10/18 같은 말 두 번 금지).
+    expect(find.text('주의'), findsOneWidget);
     expect(find.text('실패'), findsNothing);
     expect(find.byIcon(Icons.question_mark), findsOneWidget);
     expect(find.byIcon(Icons.close), findsNothing);
@@ -453,7 +455,8 @@ void main() {
         ),
       );
       expect(find.textContaining(why), findsOneWidget, reason: '$reason');
-      expect(find.textContaining('실제 가전은 누르지 않았어요'), findsOneWidget, reason: '$reason');
+      // 실제 가전을 움직이지 않았다는 말은 위 연습 띠가 한다(10/18).
+      expect(find.text(kPracticeBandText), findsOneWidget, reason: '$reason');
     }
   });
 

@@ -508,7 +508,7 @@ void main() {
       expect(find.text('가전이 멈췄는지 몰라요'), findsOneWidget);
       // 가장 큰 글자는 할 일 한 가지 — 정지 버튼은 자리·크기·색 그대로 이름만 바뀐다(2026-10-15).
       expect(find.text("지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요"), findsOneWidget);
-      expect(find.text('다시\n정지 시도'), findsOneWidget);
+      expect(find.text('다시 멈추기'), findsOneWidget);
       await tester.pump(const Duration(seconds: 10));
       await _settle(tester);
       expect(find.byType(KioskHoldView), findsOneWidget);

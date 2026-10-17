@@ -127,11 +127,11 @@ void main() {
             onDismiss: noop));
     expect(find.text('눌렸는지 몰라요'), findsNothing);
     expect(find.textContaining('이미 켜졌다면'), findsNothing);
-    expect(find.textContaining('실제 가전은 누르지 않았어요'), findsWidgets);
+    expect(find.textContaining('실제 가전은 움직이지 않아요'), findsWidgets); // 위 연습 띠(10/18)
   });
   testWidgets('환경 미상 성공은 회색 완료가 아니라 앰버 확인 필요다', (t) async {
     await show(t, const KioskDoneView(success: true, label: '데우기'));
-    expect(find.text('봐 주세요'), findsOneWidget);
+    expect(find.text('몰라요'), findsOneWidget); // 아래 할 일이 '봐 주세요'라 띠는 '몰라요'(10/18 같은 말 두 번 금지)
     final c =
         t.widget<Icon>(find.byKey(const ValueKey('status-band-icon'))).color!;
     expect(HSVColor.fromColor(c).hue, inInclusiveRange(25, 55));

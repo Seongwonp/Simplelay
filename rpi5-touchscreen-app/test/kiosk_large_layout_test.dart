@@ -276,7 +276,7 @@ void main() {
     }
   });
 
-  group("'다시 정지 시도' — 정지 단추 안에서 줄지 않고 테두리에서 떨어진다", () {
+  group("'다시 멈추기' — 정지 단추 안에서 줄지 않고 테두리에서 떨어진다", () {
     for (final scale in [1.0, 1.22]) {
       testWidgets('1920x1080 $scale배', (tester) async {
         if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
@@ -290,7 +290,7 @@ void main() {
         // 같은 아이콘 크기 — 예전에는 한 줄로 줄여 넣어 '다시 정지 시도' 쪽만 아이콘·글자가 작아졌다.
         expect(retryIcon.width, closeTo(normalIcon.width, 0.5), reason: '정지 $normalIcon · 다시 $retryIcon');
         final label = tester.getRect(find.descendant(
-            of: find.byKey(_stopArea), matching: find.text('다시\n정지 시도')));
+            of: find.byKey(_stopArea), matching: find.text('다시 멈추기')));
         // 흰 테두리(3)에서 떨어져 있다 — 1920x1080에서 좌우 32px 이상.
         expect(label.left - area.left, greaterThanOrEqualTo(32), reason: '글 $label · 단추 $area');
         expect(area.right - label.right, greaterThanOrEqualTo(32), reason: '글 $label · 단추 $area');
