@@ -15,7 +15,8 @@ void main() {
 
   test('문단 끝 한 글자 낱말은 앞 낱말과 묶는다(줄 바꾸지 않는 띄어쓰기)', () {
     expect(keepWords('확인하는 중').replaceAll('⁠', ''), '확인하는 중');
-    expect(keepWords('누르는 중\n둘째 줄이에요').replaceAll('⁠', ''), '누르는 중\n둘째 줄이에요');
+    // 둘째 문단은 끝 두 낱말 합이 6자라 함께 넘긴다(UI 평가 4차).
+    expect(keepWords('누르는 중\n둘째 줄이에요').replaceAll('⁠', ''), '누르는 중\n둘째 줄이에요');
     expect(keepWords('정지').replaceAll('⁠', ''), '정지');
   });
 

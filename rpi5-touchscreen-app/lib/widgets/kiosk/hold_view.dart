@@ -203,8 +203,14 @@ class KioskHoldView extends StatelessWidget {
             const KioskText('가전이 멈췄는지는 직접 확인해 주세요',
                 style:
                     TextStyle(fontSize: KioskType.body, color: Colors.white)),
+            const SizedBox(height: 8),
+            // 회색 정지 단추가 왜 안 눌리는지(UI 평가 4차 10/17).
+            const KioskText('비상 버튼을 풀기 전에는 정지 단추를 쓸 수 없어요',
+                textKey: ValueKey('hold-estop-stop-note'),
+                style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
           ],
         )),
+        // 자리·크기·이름은 그대로(디자인 규격 §1-1), 못 누르는 것은 흐린 테두리와 본문 한 줄이 말한다(UI 평가 4차 10/17).
         stop: const KioskStopButton(
             label: '정지',
             onPressed: null,

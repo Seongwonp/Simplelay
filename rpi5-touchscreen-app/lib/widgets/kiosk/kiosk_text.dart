@@ -5,8 +5,8 @@ import 'package:flutter/widgets.dart';
 /// JOINER, 보이지 않고 폭이 없다)를 넣어 그린다. 한 낱말이 한 줄보다 길면 그때만 낱말 안에서 끊긴다.
 ///
 /// 문단 끝 낱말이 한 글자뿐이면("확인하는 중"의 '중') 앞 낱말과 줄 바꾸지 않는 띄어쓰기(U+00A0)로 묶어
-/// 한 글자만 다음 줄에 떨어지지 않게 한다. 끝이 짧은 두 낱말 묶음(앞 2자 이하 + 끝 3자 이하 — '알려 왔어요'·
-/// '봐 주세요')도 함께 넘긴다 — '알려 / 왔어요'처럼 한 덩어리 말이 갈라졌다(UI 평가 3차 10/17).
+/// 한 글자만 다음 줄에 떨어지지 않게 한다. 끝 두 낱말이 합쳐 6자 이하('알려 왔어요'·'봐 주세요'·'누르게 돼요.')면
+/// 함께 넘긴다 — 한 덩어리 말이 갈라지거나 마지막 줄에 한 낱말만 남았다(UI 평가 3·4차 10/17).
 String keepWords(String text) =>
     text.split('\n').map((p) => _joinWords(_tieLastWord(p))).join('\n');
 
@@ -16,9 +16,18 @@ String _tieLastWord(String paragraph) {
   final last = paragraph.substring(i + 1);
   final prevStart = paragraph.lastIndexOf(' ', i - 1) + 1;
   final prev = paragraph.substring(prevStart, i);
-  final shortPair = prev.isNotEmpty && prev.runes.length <= 2 && last.runes.length <= 3;
+  // 끝 두 낱말이 합쳐 6자 이하면 함께 넘긴다 — 마지막 줄에 한 낱말만 남지 않게(UI 평가 4차 10/17: '쉬어요'·'누르게 돼요.').
+  final shortPair = prev.isNotEmpty && prev.runes.length + last.runes.length <= 6;
   if (last.runes.length != 1 && !shortPair) return paragraph;
-  return '${paragraph.substring(0, i)} $last';
+  var head = paragraph.substring(0, i);
+  // 묶은 덩어리 바로 앞이 한 글자 낱말이면('쓸 수 없어요'의 '쓸') 그것도 함께 넘긴다 — 줄 끝에 한 글자만 남지 않게.
+  if (shortPair && prevStart > 1) {
+    final before = paragraph.lastIndexOf(' ', prevStart - 2) + 1;
+    if (paragraph.substring(before, prevStart - 1).runes.length == 1) {
+      head = '${paragraph.substring(0, prevStart - 1)} ${paragraph.substring(prevStart, i)}';
+    }
+  }
+  return '$head $last';
 }
 
 String _joinWords(String text) {

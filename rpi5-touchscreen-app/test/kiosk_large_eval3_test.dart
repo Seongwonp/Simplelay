@@ -203,7 +203,11 @@ void main() {
     expect(keepWords('작은 팔이 다 눌렀다고 알려 왔어요').replaceAll(kJoiner, ''), contains('알려\u00A0왔어요'));
     expect(keepWords('가전이 실제로 움직이는지는 직접 봐 주세요').replaceAll(kJoiner, ''), contains('봐\u00A0주세요'));
     // 긴 낱말끼리는 묶지 않는다 — 줄바꿈 자리가 없어지면 안 된다.
-    expect(keepWords('공유기 전원이 켜져 있는지 확인해'), isNot(contains('\u00A0')));
+    expect(keepWords('공유기 전원이 켜져 있는지 확인해야 합니다'), isNot(contains('\u00A0')));
+    // 끝 두 낱말 합이 6자 이하면 묶는다 — 마지막 줄 외톨이 낱말 방지(UI 평가 4차).
+    expect(keepWords('같은 버튼을 또 누르게 돼요.').replaceAll(kJoiner, ''), contains('누르게\u00A0돼요.'));
+    expect(keepWords('정지 단추를 쓸 수 없어요').replaceAll(kJoiner, ''), contains('쓸\u00A0수\u00A0없어요'));
+    expect(keepWords('그동안 새 제안을 쉬어요').replaceAll(kJoiner, ''), contains('제안을\u00A0쉬어요'));
   });
 
   testWidgets('800x480 큰 글씨 결과 — 제목이 스크롤 없이 보여요', (tester) async {
@@ -218,5 +222,31 @@ void main() {
         ));
     expect(tester.takeException(), isNull);
     _expectFullyVisible(tester, _drawn('작은 팔이 다 눌렀다고 알려 왔어요'));
+  });
+
+  // UI 평가 4차 10/17: '제안 쉬는 중' 칩이 켜지면 설정·연결 아이콘이 왼쪽으로 밀려 늘 누르던 자리가 바뀌었다.
+  testWidgets('제안 쉬는 중이 켜져도 설정·연결 아이콘 자리는 그대로예요', (tester) async {
+    if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+    KioskIdleView idle({DateTime? dnd}) => KioskIdleView(
+          now: DateTime(2026, 10, 17, 8, 38),
+          connected: true,
+          dndUntil: dnd,
+          connections: const [
+            ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
+            ConnectionItem(id: 'press', state: 'ok', title: '', message: ''),
+          ],
+          appliances: const [kMicrowaveAppliance],
+          onSelectAppliance: (_) {},
+          onOpenConnection: (_) {},
+          onDndGesture: () {},
+          onSettingsGesture: () {},
+        );
+    await _pump(tester, idle(), scale: 1.0, panel15: true);
+    final settingsOff = tester.getRect(find.byKey(const ValueKey('settings-entry')));
+    final wifiOff = tester.getRect(find.byKey(const ValueKey('conn-network')));
+    await _pump(tester, idle(dnd: DateTime(2026, 10, 17, 10, 8)), scale: 1.0, panel15: true);
+    expect(find.text('제안 쉬는 중'), findsOneWidget);
+    expect(tester.getRect(find.byKey(const ValueKey('settings-entry'))), settingsOff);
+    expect(tester.getRect(find.byKey(const ValueKey('conn-network'))), wifiOff);
   });
 }

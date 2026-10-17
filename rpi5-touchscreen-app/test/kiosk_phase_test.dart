@@ -612,6 +612,33 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
   });
 
+  // UI 평가 4차 10/17: 큰 글씨 결과 화면은 스크롤이 생기는데 10초 자동 복귀가 함께 돌았다 — 큰 글씨면 20초.
+  testWidgets('큰 글씨면 성공 결과 화면 자동 복귀가 20초(글자·실제 전환 모두)', (tester) async {
+    useKioskViewport(tester);
+    final tempDir = Directory.systemTemp.createTempSync('kiosk-large-return');
+    addTearDown(() => tempDir.deleteSync(recursive: true));
+    final path = '${tempDir.path}${Platform.pathSeparator}settings.json';
+    KioskSettingsStore(path: path).save(const KioskSettings(largeText: true));
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api, settings: KioskSettingsStore(path: path));
+    api.suggestionList = [];
+    await tester.tap(find.byKey(_approveKey));
+    await tester.pump();
+    api.statusResult = const KioskStatus(running: false,
+        lastJobId: 'job-1', lastStatus: 'succeeded');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsOneWidget);
+    expect(find.text('20초 뒤 처음 화면으로 돌아가요'), findsOneWidget);
+
+    await tester.pump(KioskTimings.doneReturn + const Duration(seconds: 1));
+    expect(find.byType(KioskDoneView), findsOneWidget, reason: '큰 글씨는 10초에 닫히지 않는다');
+    await tester.pump(KioskTimings.doneReturnLarge);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.byType(KioskDoneView), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
   // UI 평가 10/17: 결과 화면이 10초 뒤 저절로 닫혀 천천히 읽는 사람이 놓쳤다(시간 제한 조절 — WCAG 2.2.1 취지).
   testWidgets('성공 결과 화면을 만지면 자동 복귀가 멈추고, 처음 화면으로는 그대로 된다', (tester) async {
     useKioskViewport(tester);
@@ -1499,7 +1526,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byType(KioskDoneView), findsOneWidget);
 
-    await tester.pump(KioskTimings.doneReturn); // 자동 idle 복귀
+    await tester.pump(KioskTimings.doneReturnLarge); // 자동 idle 복귀(큰 글씨는 20초)
     await tester.pump();
     expect(find.byType(KioskIdleView), findsOneWidget);
     // 완료 화면도 대상 줄('전자레인지')을 갖게 되어(B10 표본에 대상 명시),
@@ -1515,7 +1542,7 @@ void main() {
     expect(find.text('누르기'), findsOneWidget);
     await tester.tap(find.text('그만두기'));
     await tester.pump();
-    await tester.tap(find.byKey(const ValueKey('manual-back')));
+    await tester.tap(find.byKey(const ValueKey('kiosk-back')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
 

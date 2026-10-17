@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
+import 'kiosk_back_button.dart';
 import 'route_badge.dart';
 
 /// 수동 조작 진입 시 가전 선택 — 키오스크는 특정 가전 전속이 아니라
@@ -39,25 +40,9 @@ class KioskApplianceSelectView extends StatelessWidget {
           children: [
             Row(
               children: [
-                // 뒤로가기 — 수동 조작 화면과 같은 52px 히트박스 관례
-                Semantics(
-                  button: true,
-                  label: '대기 화면으로 돌아가기',
-                  child: InkWell(
-                    onTap: onCancel,
-                    borderRadius: BorderRadius.circular(10),
-                    child: const SizedBox(
-                      width: 52,
-                      height: 52,
-                      child: Icon(
-                        Icons.arrow_back,
-                        color: KioskColors.muted,
-                        size: 26,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
+                // 뒤로가기 — 수동 조작 화면과 같은 단추(흰 화살표 + '뒤로', UI 평가 4차 10/17)
+                KioskBackButton(onTap: onCancel),
+                const SizedBox(width: 14),
                 const Text(
                   '어느 가전을 조작할까요?',
                   style: TextStyle(

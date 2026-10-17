@@ -154,6 +154,13 @@ class KioskIdleView extends StatelessWidget {
             Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
               child: Text(_dateStr, maxLines: 1, softWrap: false,
                 style: const TextStyle(fontSize: _Idle.topText, color: KioskColors.muted)))),
+            // 넓어지는 '제안 쉬는 중' 칩을 맨 앞(날짜 쪽)에 둔다 — 켜져도 설정·연결 아이콘 자리가 그대로다
+            // (UI 평가 4차 10/17: 칩이 켜지면 설정이 왼쪽으로 밀려 늘 누르던 자리가 바뀌었다). 설정은 구석이 아니다.
+            _DndEntry(
+                remaining: dnd == null ? null : _dndRemaining(dnd),
+                quietUntil: dnd == null ? quietUntil : null,
+                onTap: onDndGesture),
+            const SizedBox(width: 8), // 아래 이름끼리 붙지 않게('제안 쉬기'·'설정').
             // 설정은 자주 쓰지 않는다 — 금색 글자 알약이 화면에서 가장 밝아 시선을 빼앗았다(2026-10-14).
             // 회색 톱니 아이콘 단추로 두되, 누르는 자리는 48px 이상·읽는 이름은 '설정'.
             Semantics(button: true, label: '설정', excludeSemantics: true, onTap: onSettingsGesture,
@@ -166,12 +173,7 @@ class KioskIdleView extends StatelessWidget {
                     Icon(Icons.settings_outlined, size: 28, color: KioskColors.muted),
                     KioskTopIconLabel('설정'),
                   ])))),
-            const SizedBox(width: 8),
-            _DndEntry(
-                remaining: dnd == null ? null : _dndRemaining(dnd),
-                quietUntil: dnd == null ? quietUntil : null,
-                onTap: onDndGesture),
-            const SizedBox(width: 8), // 아래 이름끼리 붙지 않게('제안 쉬기'·'와이파이').
+            const SizedBox(width: 4),
             KioskConnectionIcons(items: connections, onOpen: onOpenConnection),
           ])),
           const SizedBox(height: 8),

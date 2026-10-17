@@ -18,6 +18,9 @@ class KioskTimings {
   /// 완료 화면 → 대기 화면 자동 복귀
   static const Duration doneReturn = Duration(seconds: 10);
 
+  /// 큰 글씨 완료 화면 자동 복귀 — 글이 길어져 스크롤이 생길 수 있어 두 배(UI 평가 4차 10/17).
+  static const Duration doneReturnLarge = Duration(seconds: 20);
+
   /// 자동 실행 결과 한 줄을 보이는 시간(2026-10-14) — 읽고 지나갈 만큼만.
   static const Duration autoRunNotice = Duration(seconds: 12);
 

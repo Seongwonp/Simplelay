@@ -1269,7 +1269,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // 화면에 남아야 한다(고령 사용자가 이유도 모른 채 놓치는 것을 막는다).
     if (!success) return;
     // 취소할 수 있는 타이머 — 화면을 만지면 멈춘다(UI 평가 10/17). 예전 Future.delayed는 다음 결과 화면까지 닫을 수 있었다.
-    _doneReturnTimer = Timer(_doneReturnDuration, () {
+    // 큰 글씨는 두 배 — 스크롤해서 읽는 동안 닫히지 않게(UI 평가 4차 10/17).
+    _doneReturnTimer = Timer(_largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration, () {
       _doneReturnTimer = null;
       if (mounted && _phase == KioskPhase.done) _toIdle();
     });

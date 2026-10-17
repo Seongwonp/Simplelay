@@ -101,6 +101,19 @@ void main() {
       expect(odd.details, ['초미세먼지 8']);
     });
 
+    // UI 평가 4차 10/17: 실패널 '종합 보통' 아래에 '초미세먼지 8 좋음'만 있어 왜 보통인지 몰랐다 — 미세먼지 등급도 보인다.
+    test('미세먼지 등급이 오면 미세먼지도 등급과 함께, 초미세먼지 앞에', () {
+      final r = KioskAirReading.fromJson({
+        'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
+        'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 35, 'pm10_level': 'NORMAL', 'power': 'off', 'age_s': 3.0,
+      })!;
+      expect(r.details, ['미세먼지 35 보통', '초미세먼지 8 좋음', '공기청정기 꺼짐']);
+      // 등급을 모르면 미세먼지 값은 싣지 않는다(종합 등급 설명이 안 된다).
+      final noLevel = KioskAirReading.fromJson(
+          {'appliance_id': 'air_purifier', 'grade': 'GOOD', 'pm25': 8, 'pm10': 10, 'age_s': 3.0})!;
+      expect(noLevel.details, ['초미세먼지 8']);
+    });
+
     test('서버 항목 → 한 줄(등급·초미세먼지·전원)', () {
       final r = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'GOOD', 'pm25': 8, 'pm10': 10, 'power': 'on', 'age_s': 30.0})!;

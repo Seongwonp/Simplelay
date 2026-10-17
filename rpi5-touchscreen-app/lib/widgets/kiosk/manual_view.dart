@@ -5,6 +5,7 @@ import '../../models/appliance.dart';
 import '../../models/thinq.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
+import 'kiosk_back_button.dart';
 import 'route_badge.dart';
 import 'thinq_panel.dart';
 
@@ -81,29 +82,10 @@ class _KioskManualViewState extends State<KioskManualView> {
                   children: [
                     // 뒤로가기: 아이콘 단독 히트박스는 고령 사용자가 맞추기
                     // 어렵다 — 패딩 포함 52px + 눌림 잉크 피드백
-                    Semantics(
-                      button: true,
-                      label: '대기 화면으로 돌아가기',
-                      child: Material(
-                        type: MaterialType.transparency,
-                        child: InkWell(
-                          key: const ValueKey('manual-back'),
-                          onTap: widget.onCancel,
-                          borderRadius: BorderRadius.circular(12),
-                          child: const SizedBox(
-                            width: 52,
-                            height: 52,
-                            // 뒤로 가기 아이콘은 한 가지(←, 가전 선택 화면과 같게 — 2026-10-16 디자인 규격 §1-5).
-                            child: Icon(
-                              Icons.arrow_back,
-                              color: KioskColors.muted,
-                              size: 26,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
+                    // 뒤로 가기 단추는 한 가지(←, 가전 선택 화면과 같게 — 2026-10-16 디자인 규격 §1-5),
+                    // 흰 화살표 + '뒤로' 글자(UI 평가 4차 10/17 — 회색 화살표만으로는 1~2 m에서 잘 안 보였다).
+                    KioskBackButton(onTap: widget.onCancel),
+                    const SizedBox(width: 14),
                     Icon(appliance.icon, color: KioskColors.muted, size: 30),
                     const SizedBox(width: 10),
                     // 이름과 설명은 위아래 두 줄로(2026-10-15 B10) — 한 줄에 같이 두면 둘 다 말줄임으로 잘렸다.

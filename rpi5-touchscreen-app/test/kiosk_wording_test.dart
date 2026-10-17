@@ -327,9 +327,15 @@ void main() {
       expect(find.byType(KioskHoldView), findsOneWidget);
       expect(find.text('작은 팔로 조작할 수 없어요'), findsOneWidget);
       expect(find.textContaining('돌아가고 있어요'), findsNothing);
-      // 정지 버튼은 그대로 닿는다.
+      // 정지 단추 자리는 그대로(같은 자리·크기), 지금은 못 누른다는 것을 글자와 흐린 테두리로 말한다
+      // (UI 평가 4차 10/17 — 회색이어도 흰 테두리가 남아 누를 수 있는 것처럼 보였다).
       final stop = find.descendant(of: find.byType(KioskHoldView), matching: find.text('정지'));
       expect(stop.hitTestable(), findsOneWidget);
+      final button = tester.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop')));
+      expect(button.onPressed, isNull);
+      final shape = button.style!.shape!.resolve({WidgetState.disabled}) as RoundedRectangleBorder;
+      expect(shape.side.color, isNot(Colors.white));
+      expect(find.text('비상 버튼을 풀기 전에는 정지 단추를 쓸 수 없어요'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -488,7 +494,7 @@ void main() {
       await _settle(tester);
       expect(find.byType(KioskManualView), findsOneWidget);
       expect(find.byKey(_banner), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('manual-back')));
+      await tester.tap(find.byKey(const ValueKey('kiosk-back')));
       await _settle(tester);
       // 완료 화면(놓친 결과)
       api.statusResult = const KioskStatus(
@@ -653,7 +659,7 @@ void main() {
       expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
       expect(find.text('누르지 않으면 실행하지 않아요 · 20초 뒤 닫혀요'), findsOneWidget);
       // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.
-      expect(find.text('아침에 자주 하셔서 여쭤봐요 · 기록 3번'), findsOneWidget);
+      expect(find.text('아침에 3번 하셔서 여쭤봐요'), findsOneWidget);
       expect(find.textContaining('최근'), findsNothing);
     });
 

@@ -222,8 +222,10 @@ class KioskStopButton extends StatelessWidget {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
                 // 색을 빼도 다른 단추와 구분되게 — 두꺼운 흰 테두리(세 화면 같은 두께).
-                side: const BorderSide(
-                    color: Colors.white, width: KioskSizes.stopBorder),
+                // 못 누를 때는 흐린 테두리 — 흰 테두리가 남으면 누를 수 있는 것처럼 보였다(UI 평가 4차 10/17).
+                side: BorderSide(
+                    color: onPressed == null ? KioskColors.border : Colors.white,
+                    width: KioskSizes.stopBorder),
               ),
             ),
             // 글자가 한 줄에 다 들어가지 않는 이름('다시 정지 시도')은 줄이지 않고 어절에서 두 줄로 나눈다 —

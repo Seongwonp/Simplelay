@@ -732,13 +732,15 @@ class _AutoReturn extends StatelessWidget {
   const _AutoReturn();
 
   @override
-  Widget build(BuildContext context) => Column(
+  Widget build(BuildContext context) {
+    // 큰 글씨면 두 배(kiosk_screen의 실제 전환과 같은 값, UI 평가 4차 10/17).
+    final total = KioskLayout.isLarge(context) ? KioskTimings.doneReturnLarge : KioskTimings.doneReturn;
+    return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           TweenAnimationBuilder<double>(
-            tween: Tween(
-                begin: KioskTimings.doneReturn.inSeconds.toDouble(), end: 0),
-            duration: KioskTimings.doneReturn,
+            tween: Tween(begin: total.inSeconds.toDouble(), end: 0),
+            duration: total,
             builder: (_, seconds, __) => Text(
               '${seconds.ceil()}초 뒤 처음 화면으로 돌아가요',
               style: const TextStyle(
@@ -751,7 +753,7 @@ class _AutoReturn extends StatelessWidget {
             height: 4,
             child: TweenAnimationBuilder<double>(
               tween: Tween(begin: 1.0, end: 0.0),
-              duration: KioskTimings.doneReturn,
+              duration: total,
               builder: (context, value, _) => ClipRRect(
                 borderRadius: BorderRadius.circular(2),
                 child: LinearProgressIndicator(
@@ -766,7 +768,8 @@ class _AutoReturn extends StatelessWidget {
             ),
           ),
         ],
-      );
+    );
+  }
 }
 
 /// 성공 화면 아래 줄 — 자동 복귀 안내(왼쪽) + '처음 화면으로'(실패 화면과 같은 앰버 채움 단추, 2026-10-16 §1-5).
