@@ -12,6 +12,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
+import 'package:simplelay_touchscreen/models/thinq.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
@@ -248,5 +249,31 @@ void main() {
     expect(find.text('제안 쉬는 중'), findsOneWidget);
     expect(tester.getRect(find.byKey(const ValueKey('settings-entry'))), settingsOff);
     expect(tester.getRect(find.byKey(const ValueKey('conn-network'))), wifiOff);
+  });
+
+  // 실패널 10/17 09:33: 공기 줄이 넷이 되자 셋째 줄이 오른쪽에서 잘리고 넷째 줄('공기청정기 꺼짐')이 스크롤 아래로 숨었다.
+  testWidgets('15인치 평소 화면 — 종합과 먼지 등급이 달라도 공기 줄이 잘리지 않아요', (tester) async {
+    if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
+    final air = KioskAirReading.fromJson({
+      'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
+      'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'off', 'age_s': 3.0,
+    })!;
+    await _pump(
+        tester,
+        KioskIdleView(
+          now: DateTime(2026, 10, 17, 9, 33),
+          connected: true,
+          air: air,
+          appliances: const [kMicrowaveAppliance],
+          onSelectAppliance: (_) {},
+          onOpenConnection: (_) {},
+          onDndGesture: () {},
+        ),
+        scale: 1.0,
+        panel15: true);
+    expect(tester.takeException(), isNull);
+    for (final d in air.details) {
+      _expectFullyVisible(tester, find.text(d));
+    }
   });
 }

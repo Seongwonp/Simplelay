@@ -93,11 +93,16 @@ class KioskAirReading {
   /// (외부 평가 10/16 2차 — 종합 '보통'과 초미세먼지 8이 모순처럼 읽혔다).
   List<String> get details => [
         // 미세먼지는 등급을 알 때만 — 종합 '보통'이 어디서 왔는지 보인다(UI 평가 4차 10/17).
-        if (pm10 != null && pm10Level != null) '미세먼지 ${_num(pm10!)} ${kAirGradeWords[pm10Level]}',
-        if (pm25 != null)
-          '초미세먼지 ${_num(pm25!)}${pm25Level != null ? ' ${kAirGradeWords[pm25Level]}' : ''}',
+        // 두 먼지 등급이 같으면 한 줄로(실패널 10/17 — 줄이 넷이면 마지막 줄이 잘렸다).
+        if (pm10 != null && pm10Level != null && pm25 != null && pm25Level == pm10Level)
+          '미세먼지 ${_num(pm10!)} · 초미세먼지 ${_num(pm25!)} ${kAirGradeWords[pm10Level]}'
+        else ...[
+          if (pm10 != null && pm10Level != null) '미세먼지 ${_num(pm10!)} ${kAirGradeWords[pm10Level]}',
+          if (pm25 != null)
+            '초미세먼지 ${_num(pm25!)}${pm25Level != null ? ' ${kAirGradeWords[pm25Level]}' : ''}',
+        ],
         // 종합이 보이는 먼지 등급보다 나쁘면 그 이유를 지어내지 않고 출처만 밝힌다(실패널 10/17 — 모두 '좋음'인데 종합 '보통').
-        if (_totalWorseThanShown) '종합은 가전이 여러 센서로 매긴 등급',
+        if (_totalWorseThanShown) '종합은 가전이 매긴 등급',
         if (power == 'on') '공기청정기 켜짐',
         if (power == 'off') '공기청정기 꺼짐',
         if (mock) '연습 값',

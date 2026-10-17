@@ -91,7 +91,7 @@ void main() {
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
       })!;
-      expect(r.details, ['초미세먼지 8 좋음', '종합은 가전이 여러 센서로 매긴 등급', '공기청정기 켜짐']);
+      expect(r.details, ['초미세먼지 8 좋음', '종합은 가전이 매긴 등급', '공기청정기 켜짐']);
       // 가전의 종합 등급임을 밝힌다 — '보통' 밑 '초미세먼지 좋음'이 모순처럼 읽혔다(외부 평가 10/16 3차).
       expect(r.headline, '실내 공기 종합 보통');
       // 모르는 등급 값은 붙이지 않는다.
@@ -120,7 +120,8 @@ void main() {
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'off', 'age_s': 3.0,
       })!;
-      expect(r.details, ['미세먼지 8 좋음', '초미세먼지 8 좋음', '종합은 가전이 여러 센서로 매긴 등급', '공기청정기 꺼짐']);
+      // 두 먼지 등급이 같으면 한 줄로 — 줄이 넷이면 실패널에서 마지막 줄이 잘렸다(10/17 09:33).
+      expect(r.details, ['미세먼지 8 · 초미세먼지 8 좋음', '종합은 가전이 매긴 등급', '공기청정기 꺼짐']);
       // 같으면 붙이지 않는다.
       final same = KioskAirReading.fromJson({
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
