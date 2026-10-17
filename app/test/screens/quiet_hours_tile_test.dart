@@ -27,6 +27,9 @@ class _Server {
   };
   final puts = <Map<String, dynamic>>[];
 
+  /// 자동 실행 규칙(GET /routines/auto-rules). 비면 404로 둔다(옛 시험과 같게).
+  List<Map<String, dynamic>> rules = const [];
+
   /// PUT 응답의 저장 결과(2026-10-14 HIGH 재확인 M-R1) — false면 이번 세션만 적용.
   bool? persisted = true;
 
@@ -35,6 +38,7 @@ class _Server {
         http.Response json(Object body, [int status = 200]) => http.Response.bytes(
             utf8.encode(jsonEncode(body)), status,
             headers: {'content-type': 'application/json'});
+        if (req.url.path == '/routines/auto-rules' && rules.isNotEmpty) return json(rules);
         if (req.url.path == '/quiet-hours') {
           if (req.method == 'PUT') {
             final body = jsonDecode(utf8.decode(req.bodyBytes)) as Map<String, dynamic>;
@@ -69,7 +73,39 @@ Future<void> _settle(WidgetTester tester) async {
   }
 }
 
+Map<String, dynamic> _timeRule(String name, String time, {bool enabled = true}) => {
+      'id': 'ar-$name', 'name': name, 'condition_kind': 'time', 'condition_time': time,
+      'condition_text': '매일 $time이 되면', 'action_text': '공기청정기 전원', 'enabled': enabled,
+      'status_label': enabled ? '자동 실행 켜짐' : '자동 실행 꺼짐',
+    };
+
 void main() {
+  // UI 평가 6차 10/17: 조용한 시간 22:00~07:00을 켜면 22:00 자동 실행이 소리 없이 건너뛰어졌다 — 미리 말한다.
+  // 서버 판정과 같게 시작은 포함, 끝은 제외(07:00 규칙은 그대로 돈다).
+  testWidgets('조용한 시간과 겹치는 자동 실행을 이름·시각으로 미리 말한다(끝 시각은 포함하지 않는다)', (tester) async {
+    _tall(tester);
+    final server = _Server()
+      ..state = {..._Server().state, 'enabled': false, 'active': false, 'reason': null}
+      ..rules = [
+        _timeRule('저녁 공기청정기 켜기', '22:00'),
+        _timeRule('아침 공기청정기 끄기', '07:00'),
+        _timeRule('새벽 끄기', '03:00', enabled: false),
+      ];
+    await tester.pumpWidget(_build(server.api()));
+    await _settle(tester);
+    expect(findPlainText('켜면 이 자동 실행은 건너뛰어요: 저녁 공기청정기 켜기(22:00)'), findsOneWidget);
+    expect(findPlainText('아침 공기청정기 끄기', contains: true), findsNothing);
+    expect(findPlainText('새벽 끄기', contains: true), findsNothing);
+  });
+
+  test('겹침 판정 — 자정을 넘는 시간대와 넘지 않는 시간대', () {
+    expect(quietWindowContains('22:00', '07:00', '22:00'), isTrue);
+    expect(quietWindowContains('22:00', '07:00', '03:30'), isTrue);
+    expect(quietWindowContains('22:00', '07:00', '07:00'), isFalse);
+    expect(quietWindowContains('13:00', '15:00', '14:59'), isTrue);
+    expect(quietWindowContains('13:00', '15:00', '12:00'), isFalse);
+  });
+
   testWidgets('알림 구획 안에 서버 상태 그대로 — 매일 시간대·지금 조용한 시간·실제 범위', (tester) async {
     _tall(tester);
     await tester.pumpWidget(_build(_Server().api()));

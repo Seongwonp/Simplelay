@@ -176,7 +176,7 @@ void main() {
       // 지우기와 화살표 사이를 띄운다(잘못 누름 방지).
       final trash = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)));
       final chevron = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)));
-      expect(chevron.left - trash.right, greaterThanOrEqualTo(16));
+      expect(chevron.left - trash.right, greaterThanOrEqualTo(32), reason: '6차 평가: 16으로는 여전히 붙어 보였다');
     });
 
     testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {

@@ -42,7 +42,7 @@ class _ApplianceSection extends ConsumerWidget {
                       onPressed: () => _confirmRemoveAppliance(context, ref, appliance),
                     ),
                     // 지우기와 화살표를 떼어 둔다(잘못 누름 방지, UI 평가 4차 10/17).
-                    const SizedBox(width: 16),
+                    const SizedBox(width: 40),
                     Icon(Icons.chevron_right, color: context.appMuted),
                   ])
                 : Icon(Icons.chevron_right, color: context.appMuted),

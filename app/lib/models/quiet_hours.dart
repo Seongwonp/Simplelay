@@ -1,3 +1,5 @@
+import 'auto_rule.dart';
+
 /// 조용한 시간(2026-10-14, 서버 `GET/PUT /quiet-hours`). 키오스크는 같은 상태를 /health의 `quiet`로 본다.
 ///
 /// 매일 시간대(사용자 설정)와 '제안 잠시 쉬기'를 서버가 한 판정으로 묶는다. 실제 범위는 서버 `scope` 문장 그대로
@@ -46,6 +48,32 @@ class QuietHoursStatus {
     if (!enabled) return '$range · 꺼져 있어요';
     return reason == 'schedule' ? '$range · 지금 조용한 시간이에요' : range;
   }
+}
+
+/// 'HH:MM'이 조용한 시간대 안인가 — 서버 판정(`window_contains`)과 같게 시작은 포함, 끝은 제외, 자정을 넘을 수 있다.
+bool quietWindowContains(String start, String end, String hhmm) {
+  int? minutes(String v) {
+    final p = v.split(':');
+    if (p.length != 2) return null;
+    final h = int.tryParse(p[0]), m = int.tryParse(p[1]);
+    return h == null || m == null ? null : h * 60 + m;
+  }
+
+  final s = minutes(start), e = minutes(end), t = minutes(hhmm);
+  if (s == null || e == null || t == null || s == e) return false;
+  return s < e ? (s <= t && t < e) : (t >= s || t < e);
+}
+
+/// 조용한 시간 때문에 건너뛸 자동 실행(켜진 시각 규칙만)을 한 줄로. 없으면 null.
+/// 켜져 있으면 '조용한 시간이라 …', 꺼져 있으면 '켜면 …'(UI 평가 6차 10/17 — 켜는 순간 소리 없이 건너뛰어졌다).
+String? quietSkipLine(QuietHoursStatus s, List<AutoRule> rules) {
+  final hit = [
+    for (final r in rules)
+      if (r.enabled && r.conditionTime != null && quietWindowContains(s.start, s.end, r.conditionTime!))
+        '${r.name}(${r.conditionTime})',
+  ];
+  if (hit.isEmpty) return null;
+  return '${s.enabled ? '조용한 시간이라 이 자동 실행은 건너뛰어요' : '켜면 이 자동 실행은 건너뛰어요'}: ${hit.join(', ')}';
 }
 
 /// 설정 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 잠시 쉬기·

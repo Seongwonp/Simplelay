@@ -3,6 +3,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../models/auto_rule.dart';
 import '../models/display_status.dart';
 import '../models/line_break.dart';
 import '../models/appliance.dart';
@@ -17,6 +18,7 @@ import '../providers/wellness_pause_provider.dart';
 import '../providers/demo_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/ble_provider.dart';
+import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/theme_provider.dart';
 import '../providers/tts_provider.dart';
