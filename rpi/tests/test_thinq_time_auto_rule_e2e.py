@@ -57,7 +57,7 @@ def _allow_time_rule(api):
 
 def test_time_rule_drives_the_mock_cloud_purifier_on(api, cloud, clock, hub):  # noqa: F811
     device = cloud.device_id("air_purifier")
-    _allow_time_rule(api)
+    routine = _allow_time_rule(api)
     assert cloud.state(device)["operation"]["airPurifierOperationMode"] == "POWER_OFF"
     before = len(cloud.controls())
 
@@ -71,6 +71,10 @@ def test_time_rule_drives_the_mock_cloud_purifier_on(api, cloud, clock, hub):  #
     assert [c["body"] for c in controls] == [POWER_ON_BODY]
     assert cloud.state(device)["operation"]["airPurifierOperationMode"] == "POWER_ON"
     assert _routine_cards(api) == []
+    # 기록 제목은 루틴 탭과 같은 이름 — 동작 문장('공기청정기 전원 켜기')만으로는 어느 규칙인지 몰랐다(UI 평가 5차 10/17).
+    history = api.get("/history").json()
+    auto = next(e for e in history if e["job_id"] == run["job_id"])
+    assert auto["purpose"] == f"자동 실행 · '{routine['name']}' 루틴"
     status = api.get("/status").json()
     assert status["last_auto_run"]["target_name"] == "공기청정기(모의 클라우드)"
     exposed = str(run) + str(api.get("/routines/auto-rules").json()) + str(status)

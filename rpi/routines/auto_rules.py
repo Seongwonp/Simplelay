@@ -1047,7 +1047,7 @@ class AutoRuleEngine:
 
         try:
             job_id = self.service.submit_approved(
-                (approved,), purpose=f"자동 실행 · {self.action_text(rule)}",
+                (approved,), purpose=self._run_purpose(rule),
                 usage_source=UsageSource.SUGGESTION, approval_guard=guard,
                 scenario_id=f"{AUTO_SCENARIO_PREFIX}{rule.rule_id}", dispatch_guard=dispatch_guard,
             )
@@ -1062,6 +1062,16 @@ class AutoRuleEngine:
         return self._record(rule, record, key, "sent", "허용한 조건이라 승인 없이 보냈어요", job_id=job_id,
                             notices=[self._time_notice(rule) if rule.is_time else self._cook_notice(rule, record)],
                             snapshot=snapshot)
+
+    def _run_purpose(self, rule: AutoRule) -> str:
+        """자동 실행 기록의 목적 문장. 시각 규칙은 루틴 이름으로 — 루틴 탭과 같은 이름이라야 기록과 이어진다
+        (UI 평가 5차 10/17: '공기청정기 전원 끄기'만으로는 '아침 공기청정기 끄기' 규칙인 줄 몰랐다). 폰은
+        ``자동 실행 · '이름' 루틴``을 제목 '이름'과 출처 '자동 실행'으로 나눠 보인다. 루틴을 모르면 동작 문장."""
+        if rule.is_time:
+            routine = self._routine(rule.condition_routine_id)
+            if routine is not None:
+                return f"자동 실행 · '{routine.name}' 루틴"
+        return f"자동 실행 · {self.action_text(rule)}"
 
     def _time_notice(self, rule: AutoRule) -> str:
         routine = self._routine(rule.condition_routine_id)
