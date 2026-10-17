@@ -215,18 +215,18 @@ String? verifyPassTileNote({
 /// 확인 주행 조회 결과 하나를 말로 — 타일 보조 줄과 설정 카드가 **같은 근거 수준**으로
 /// 쓴다(검토 M4, 2026-10-13). 실제 완료면 null. 진행 중·모의 실패·모드 모름은 모름.
 String? verifyPassLookupNote(VerifyPassLookup lookup) {
-  const unknown = '시험 이동을 했는지 몰라요';
+  const unknown = '자리 확인을 했는지 몰라요';
   switch (lookup.kind) {
     case VerifyPassLookupKind.noRecord:
-      return '아직 시험 이동을 안 했어요';
+      return '아직 자리 확인을 안 했어요';
     case VerifyPassLookupKind.unknown:
       return unknown;
     case VerifyPassLookupKind.found:
       final p = lookup.pass!;
       final mode = p.executionMode;
       if (p.state == 'done' && mode == 'real') return null;
-      if (p.state == 'done' && mode == 'mock') return '연습으로만 시험 이동했어요';
-      if (p.state == 'failed' && mode == 'real') return '시험 이동을 마치지 못했어요';
+      if (p.state == 'done' && mode == 'mock') return '연습으로만 자리 확인했어요';
+      if (p.state == 'failed' && mode == 'real') return '자리 확인을 마치지 못했어요';
       return unknown;
   }
 }

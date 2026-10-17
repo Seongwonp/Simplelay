@@ -218,7 +218,7 @@ void main() {
     // 않았어요'를 만나 원인을 자기 가전에서 찾는다.
     expect(find.text("'식기세척기'을 등록했어요"), findsOneWidget);
     expect(find.text('위치 맞추기'), findsNWidgets(2));
-    expect(find.text('시험 이동'), findsOneWidget);
+    expect(find.text('자리 확인'), findsOneWidget);
 
     await tester.tap(find.widgetWithText(TextButton, '다음에'));
     await tester.pumpAndSettle();

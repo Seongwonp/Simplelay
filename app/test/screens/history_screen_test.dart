@@ -395,7 +395,7 @@ void main() {
     expect(title.style?.fontSize, 24);
   });
 
-  testWidgets('이미 목표값 기록은 한 번만 말하고 중립 아이콘(UI 평가 10/17 — 같은 뜻 두 줄·성공 체크)', (tester) async {
+  testWidgets('이미 목표값 기록은 한 번만 말하고 "됐어요"와 같은 ✓(UI 평가 10/17, 평가 6차 10/18 기호 하나)', (tester) async {
     final api = _apiWithHistory([
       {
         'job_id': 'job-same',
@@ -418,8 +418,9 @@ void main() {
     await _expandAll(tester);
 
     expect(find.textContaining('이미 그 설정이라'), findsOneWidget);
-    expect(find.byIcon(Icons.check_circle), findsNothing);
-    expect(find.byIcon(Icons.info_outline), findsOneWidget);
+    // 평가 6차(10/18): '됐어요'는 기호도 하나 — ✓와 ⓘ를 섞지 않는다. 보내지 않았다는 차이는 펼친 문장이 말한다.
+    expect(find.byIcon(Icons.check_circle), findsOneWidget);
+    expect(find.byIcon(Icons.info_outline), findsNothing);
   });
 
   // ── 2026-10-13 B안: 읽는 순서·제목·다음 행동 ─────────────────────────────

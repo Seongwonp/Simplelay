@@ -261,8 +261,10 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
 
-    // 큰 시각은 홈에만 — 루틴 탭은 작은 한 줄(평가 3차 10/18).
-    expect(findPlainText('다음: 아침 데우기 · 내일 · 평일 07:30 · 자동으로 해요'), findsOneWidget);
+    // 위 '다음: …' 한 줄은 없다 — 다음에 할 줄에 '다음' 배지(평가 6차 10/18). 언제·방식은 그 줄과 홈이 말한다.
+    expect(findPlainText('다음:', contains: true), findsNothing);
+    expect(find.descendant(of: find.byKey(const Key('routine-next-badge-rt-1')), matching: findPlainText('다음')),
+        findsOneWidget);
     expect(find.textContaining('물어보고 하기'), findsNothing);
   });
 
@@ -272,7 +274,8 @@ void main() {
     final server = _Server()..nextExtra = {'at': '2026-10-01T07:30:00-03:00', 'when': ''};
     await tester.pumpWidget(_build(server));
     await _settle(tester);
-    expect(findPlainText('다음: 아침 데우기 · 07:30 · 물어보고 해요'), findsOneWidget);
+    expect(find.byKey(const Key('routine-next-badge-rt-1')), findsOneWidget);
+    expect(findPlainText('다음:', contains: true), findsNothing);
   });
 
   testWidgets('다음 실행과 내 루틴 목록을 보여 준다', (tester) async {
@@ -280,7 +283,8 @@ void main() {
     await tester.pumpWidget(_build(_Server()));
     await _settle(tester);
 
-    expect(findPlainText('다음: 아침 데우기 · 평일 07:30 · 물어보고 해요'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('routine-row-rt-1')), matching: find.byKey(const Key('routine-next-badge-rt-1'))),
+        findsOneWidget);
     expect(findPlainText('아침 데우기'), findsOneWidget);
     // 언제 · 대상 · 크기('누를 버튼 N개')를 한 줄로. 시각은 줄 왼쪽 큰 시각이 말한다(시간축, 평가 5차 10/18).
     expect(findPlainText('평일 · 전자레인지 · 누를 버튼 3개'), findsOneWidget);
@@ -451,8 +455,9 @@ void main() {
 
     final row = find.byKey(const Key('routine-row-rt-1'));
     expect(row, findsOneWidget);
-    // 행 안의 버튼은 '지금 하기' 하나 — 편집 버튼은 행에 늘어놓지 않는다.
-    expect(find.descendant(of: row, matching: find.byWidgetPredicate((w) => w is TextButton || w is OutlinedButton)), findsOneWidget);
+    // 행 안의 실행은 오른쪽 '지금 하기 >' 하나(평가 6차 10/18) — 편집 버튼·테두리 버튼은 행에 늘어놓지 않는다.
+    expect(find.descendant(of: row, matching: runButton('rt-1')), findsOneWidget);
+    expect(find.descendant(of: row, matching: find.byWidgetPredicate((w) => w is TextButton || w is OutlinedButton)), findsNothing);
     expect(find.descendant(of: row, matching: find.byType(FilledButton)), findsNothing);
     expect(editButton('rt-1'), findsNothing);
     expect(menuButton('rt-1'), findsOneWidget);
@@ -536,8 +541,9 @@ void main() {
     await _settle(tester);
 
     expect(runButton('rt-1'), findsOneWidget);
-    // 글자 버튼 — 줄마다 채운 버튼·테두리 버튼이면 위계가 흐려졌다(UI 평가 3차 10/17, 평가 5차 10/18).
-    expect(tester.widget(runButton('rt-1')), isA<TextButton>());
+    // 글자 + > — 홈 '내 루틴' 줄과 같은 모양. 줄마다 채운 버튼·테두리 버튼이면 위계가 흐려졌다(UI 평가 3차 10/17, 평가 6차 10/18).
+    expect(tester.widget(runButton('rt-1')), isA<InkWell>());
+    expect(find.descendant(of: runButton('rt-1'), matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
     expect(find.descendant(of: runButton('rt-1'), matching: findPlainText('지금 하기')), findsOneWidget);
     // 둘 다 48 이상 터치 영역.
     expect(tester.getSize(runButton('rt-1')).height, greaterThanOrEqualTo(48));

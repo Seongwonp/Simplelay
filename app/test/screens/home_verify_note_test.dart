@@ -147,14 +147,14 @@ void main() {
     await tester.pumpWidget(_home(api));
     await _settle(tester);
 
-    expect(_inTile('a', '연습으로만 시험 이동했어요'), findsOneWidget);
-    expect(_inTile('b', '시험 이동을 마치지 못했어요'), findsOneWidget);
-    expect(_inTile('c', '아직 시험 이동을 안 했어요'), findsOneWidget);
+    expect(_inTile('a', '연습으로만 자리 확인했어요'), findsOneWidget);
+    expect(_inTile('b', '자리 확인을 마치지 못했어요'), findsOneWidget);
+    expect(_inTile('c', '아직 자리 확인을 안 했어요'), findsOneWidget);
     for (final t in [
-      '연습으로만 시험 이동했어요',
-      '시험 이동을 마치지 못했어요',
-      '아직 시험 이동을 안 했어요',
-      '시험 이동을 했는지 몰라요',
+      '연습으로만 자리 확인했어요',
+      '자리 확인을 마치지 못했어요',
+      '아직 자리 확인을 안 했어요',
+      '자리 확인을 했는지 몰라요',
     ]) {
       expect(_inTile('d', t), findsNothing, reason: '실제 완료는 보조 줄 없음: $t');
     }
@@ -173,9 +173,9 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
-    expect(_inTile('a', '시험 이동을 했는지 몰라요'), findsOneWidget);
-    expect(_inTile('b', '시험 이동을 했는지 몰라요'), findsOneWidget);
-    expect(find.text('아직 시험 이동을 안 했어요'), findsNothing);
+    expect(_inTile('a', '자리 확인을 했는지 몰라요'), findsOneWidget);
+    expect(_inTile('b', '자리 확인을 했는지 몰라요'), findsOneWidget);
+    expect(find.text('아직 자리 확인을 안 했어요'), findsNothing);
   });
 
   testWidgets('위치 미설정·허브 장애 타일에는 보조 줄을 붙이지 않는다', (tester) async {
@@ -188,8 +188,8 @@ void main() {
     // 설정이 남았다는 말은 확인 카드 한 곳 — 타일은 아이콘 점과 할 일(평가 3차 10/18).
     expect(find.byKey(const Key('appliance-setup-dot-w')), findsOneWidget);
     expect(_inTile('w', '설정 필요'), findsOneWidget);
-    expect(_inTile('w', '연습으로만 시험 이동했어요'), findsNothing);
-    expect(_inTile('w', '시험 이동을 했는지 몰라요'), findsNothing);
+    expect(_inTile('w', '연습으로만 자리 확인했어요'), findsNothing);
+    expect(_inTile('w', '자리 확인을 했는지 몰라요'), findsNothing);
   });
 
   testWidgets('허브에 닿지 않으면 연결 문구만 — 보조 줄 없음', (tester) async {
@@ -211,7 +211,7 @@ void main() {
     ));
     await _settle(tester);
     expect(_inTile('a', '본체 연결을 봐 주세요'), findsOneWidget);
-    expect(_inTile('a', '시험 이동을 했는지 몰라요'), findsNothing);
+    expect(_inTile('a', '자리 확인을 했는지 몰라요'), findsNothing);
   });
 
   testWidgets('타일 접근성 이름에 보조 줄이 들어간다', (tester) async {
@@ -229,11 +229,11 @@ void main() {
     await _settle(tester);
     expect(
         find.bySemanticsLabel(
-            '전자레인지, 준비됐어요, 연습으로만 시험 이동했어요'),
+            '전자레인지, 준비됐어요, 연습으로만 자리 확인했어요'),
         findsOneWidget);
     expect(
         find.bySemanticsLabel(
-            '세탁기, 준비됐어요, 시험 이동을 했는지 몰라요'),
+            '세탁기, 준비됐어요, 자리 확인을 했는지 몰라요'),
         findsOneWidget);
     expect(find.bySemanticsLabel('밥솥, 준비됐어요'), findsOneWidget);
     handle.dispose();
@@ -255,12 +255,12 @@ void main() {
       await _settle(tester);
       final card = find.byType(ApplianceSetupCard);
       expect(card, findsOneWidget);
-      expect(_inTile('a', '시험 이동을 했는지 몰라요'), findsOneWidget);
+      expect(_inTile('a', '자리 확인을 했는지 몰라요'), findsOneWidget);
       expect(find.textContaining('주행을 확인했어요'), findsNothing,
           reason: '마치지 않은 모의 주행을 확인했다고 하지 않는다');
       expect(
           find.descendant(
-              of: card, matching: findPlainText('시험 이동을 했는지 몰라요')),
+              of: card, matching: findPlainText('자리 확인을 했는지 몰라요')),
           findsOneWidget);
     });
   }
@@ -272,11 +272,11 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
-    expect(_inTile('a', '연습으로만 시험 이동했어요'), findsOneWidget);
+    expect(_inTile('a', '연습으로만 자리 확인했어요'), findsOneWidget);
     expect(
         find.descendant(
             of: find.byType(ApplianceSetupCard),
-            matching: findPlainText('연습으로만 시험 이동했어요. 실제 자리는 아직 몰라요.')),
+            matching: findPlainText('연습으로만 자리 확인했어요. 실제 자리는 아직 몰라요.')),
         findsOneWidget);
   });
 
@@ -312,8 +312,8 @@ void main() {
     final tileB = find.byKey(const Key('appliance-card-b'));
     final add = find.byKey(const Key('appliance-add-card'));
     final run = find.byKey(const Key('home-routine-tile-r-b'));
-    expect(_inTile('a', '연습으로만 시험 이동했어요'), findsOneWidget);
-    expect(_inTile('b', '시험 이동을 마치지 못했어요'), findsOneWidget);
+    expect(_inTile('a', '연습으로만 자리 확인했어요'), findsOneWidget);
+    expect(_inTile('b', '자리 확인을 마치지 못했어요'), findsOneWidget);
 
     // 겹침 없음: 보조 줄 타일과 가전 추가가 서로 겹치지 않는다(루틴 타일은 가전 아래 다른 구획 — 아래에서 따로 누른다).
     for (final tile in [tileA, tileB]) {

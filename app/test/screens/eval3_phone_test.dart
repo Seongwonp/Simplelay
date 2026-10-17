@@ -256,14 +256,12 @@ void main() {
       expect(findPlainText('전자레인지 · 누를 버튼 1개'), findsOneWidget);
     });
 
-    testWidgets('다음 실행 큰 시각은 홈에만 — 루틴 탭은 작은 한 줄', (tester) async {
+    testWidgets('다음 실행 큰 시각은 홈에만 — 루틴 탭에는 위 다음 줄도 큰 숫자도 없다(평가 6차 10/18)', (tester) async {
       _tall(tester);
       await tester.pumpWidget(_app(_hub(), const RoutinesScreen(), installed: _installed));
       await _settle(tester);
-      final next = find.byKey(const Key('routines-next'));
-      expect(next, findsOneWidget);
-      final big = find.descendant(
-          of: next, matching: find.byWidgetPredicate((w) => w is Text && (w.style?.fontSize ?? 0) >= AppFont.number));
+      expect(find.byKey(const Key('routines-next')), findsNothing);
+      final big = find.byWidgetPredicate((w) => w is Text && (w.style?.fontSize ?? 0) >= AppFont.number);
       expect(big, findsNothing);
     });
 
@@ -333,7 +331,7 @@ void main() {
   });
 
   group('설정 문장', () {
-    test('가전 목록 새로 받기(평가 4차 10/18에 이름 바꿈)', () => expect(kResyncLabel, '가전 목록 새로 받기'));
+    test('가전 다시 불러오기(평가 4차·6차 10/18에 이름 바꿈)', () => expect(kResyncLabel, '가전 다시 불러오기'));
     test('조용한 시간을 못 읽으면 "확인 못 했어요 · 새로 보기"', () {
       expect(quietRowValue(null, hasApi: true), '확인 못 했어요 · 새로 보기');
       expect(quietRowValue(null, hasApi: false), '연결 전이에요');

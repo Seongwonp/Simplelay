@@ -68,7 +68,7 @@ String? _note(
       lookup: lookup,
     );
 
-const _unknownText = '시험 이동을 했는지 몰라요';
+const _unknownText = '자리 확인을 했는지 몰라요';
 
 RpiApiService _api(Future<http.Response> Function(http.Request) handler) =>
     RpiApiService('http://rpi5.local:8000', client: MockClient(handler));
@@ -86,14 +86,14 @@ void main() {
     });
     test('모의 확인 주행 완료', () {
       expect(_note(VerifyPassLookup.found(_pass('done', 'mock'))),
-          '연습으로만 시험 이동했어요');
+          '연습으로만 자리 확인했어요');
     });
     test('실제 확인 주행 실패', () {
       expect(_note(VerifyPassLookup.found(_pass('failed', 'real'))),
-          '시험 이동을 마치지 못했어요');
+          '자리 확인을 마치지 못했어요');
     });
     test('서버가 기록 없음을 명시', () {
-      expect(_note(const VerifyPassLookup.noRecord()), '아직 시험 이동을 안 했어요');
+      expect(_note(const VerifyPassLookup.noRecord()), '아직 자리 확인을 안 했어요');
     });
     test('조회 실패·로딩', () {
       expect(_note(const VerifyPassLookup.unknown()), _unknownText);
@@ -103,7 +103,7 @@ void main() {
   group('근거가 모자라면 단정하지 않는다', () {
     test('조회 실패(옛 null)는 "확인 주행 전"이 아니다', () {
       final n = _note(const VerifyPassLookup.unknown());
-      expect(n, isNot('아직 시험 이동을 안 했어요'));
+      expect(n, isNot('아직 자리 확인을 안 했어요'));
       expect(n, _unknownText);
     });
     test('진행 중·실행 모드 모름·모의 실패는 근거 불명', () {
@@ -152,7 +152,7 @@ void main() {
       expect(r.kind, VerifyPassLookupKind.found);
       expect(r.pass?.isMock, isTrue);
     });
-    test('서버가 "아직 시험 이동을 안 했어요"를 명시한 404만 기록 없음', () async {
+    test('서버가 "아직 자리 확인을 안 했어요"를 명시한 404만 기록 없음', () async {
       final r = await lookupVerifyPass(
           _api((_) async => _json({'detail': '확인 주행 기록이 없어요'}, 404)), 'mw');
       expect(r.kind, VerifyPassLookupKind.noRecord);

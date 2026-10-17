@@ -254,7 +254,7 @@ void main() {
       expect(findPlainText('LG 앱에서 관리해요'), findsOneWidget);
     });
 
-    test('다시 맞추기 → 가전 목록 새로 받기', () => expect(kResyncLabel, '가전 목록 새로 받기'));
+    test('다시 맞추기 → 가전 다시 불러오기(평가 6차)', () => expect(kResyncLabel, '가전 다시 불러오기'));
 
     test('콘센트 → 전기 플러그', () {
       const r = EstopAckResult(EstopAckOutcome.outletUnreachable);
@@ -283,9 +283,9 @@ void main() {
   });
 
   group('D. 이름 통일', () {
-    testWidgets('다음 실행 줄은 "자동으로 해요", 홈 배지도 같은 말', (tester) async {
+    testWidgets('루틴 탭에 "자동 실행" 말이 없고(다음은 그 줄의 배지, 평가 6차), 홈 배지는 "자동으로 해요"', (tester) async {
       await _pump(tester, const RoutinesScreen(), width: 400, scale: 1.0);
-      expect(findPlainText('다음: 아침 공기청정기 끄기 · 오늘 · 매일 07:00 · 자동으로 해요'), findsOneWidget);
+      expect(find.byKey(const Key('routine-next-badge-r-air')), findsOneWidget);
       expect(findPlainText('자동 실행', contains: true), findsNothing);
 
       await _pump(tester, const HomeScreen(), width: 400, scale: 1.0);

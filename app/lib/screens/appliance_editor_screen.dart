@@ -608,7 +608,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                 ),
                 const SizedBox(height: AppSpace.xs),
                 Text(
-                  '저장한 뒤에 위치 맞추기와 시험 이동을 이어 해요.',
+                  '저장한 뒤에 위치 맞추기와 자리 확인을 이어 해요.',
                   style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
                 const SizedBox(height: AppSpace.md),
@@ -765,7 +765,7 @@ class _SavedNextStepsDialog extends StatelessWidget {
             const SizedBox(height: AppSpace.md),
             const _NextStep(
               icon: Icons.center_focus_strong_outlined,
-              title: '시험 이동',
+              title: '자리 확인',
               body: '작은 팔이 버튼 위를 지나가는지 눈으로 봐 주세요.',
             ),
             if (syncPending) ...[

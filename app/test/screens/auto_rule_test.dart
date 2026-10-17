@@ -379,11 +379,12 @@ void main() {
 
   group('루틴 목록의 자동 실행', () {
     // UI 평가 7차 10/17: 조용한 시간과 겹치는 시각 규칙이 설정 화면에서만 경고됐다 — 규칙 카드에서도 말한다.
+    // 평가 6차 10/18: 단, 조용한 시간이 꺼져 있을 때의 '켜면 …'은 카드에 늘 두지 않는다(설정 줄에만).
     for (final (enabled, line) in [
-      (false, '조용한 시간(22:00~07:00)을 켜면 이때는 자동으로 안 해요'),
+      (false, null),
       (true, '조용한 시간(22:00~07:00)이라 이때는 자동으로 안 해요'),
     ]) {
-      testWidgets('시각 규칙이 조용한 시간과 겹치면 규칙 카드에 한 줄(조용한 시간 ${enabled ? '켜짐' : '꺼짐'})', (tester) async {
+      testWidgets('시각 규칙이 조용한 시간과 겹치면 규칙 카드(조용한 시간 ${enabled ? '켜짐 — 한 줄' : '꺼짐 — 카드에는 없음'})', (tester) async {
         _tall(tester);
         final server = _Server()
           ..rule = {..._rule(), 'condition_kind': 'time', 'condition_time': '22:00', 'name': '저녁 공기청정기 켜기'}
@@ -391,7 +392,11 @@ void main() {
         await tester.pumpWidget(_list(server));
         await _settle(tester);
         await _openRules(tester);
-        expect(findPlainText(line), findsOneWidget);
+        if (line == null) {
+          expect(findPlainText('조용한 시간', contains: true), findsNothing);
+        } else {
+          expect(findPlainText(line), findsOneWidget);
+        }
       });
     }
 
@@ -436,8 +441,9 @@ void main() {
       await tester.tap(_switch('ar-1'));
       await _settle(tester);
       expect(server.bodies['POST /routines/auto-rules/ar-1/enable'], {'enabled': false});
-      expect(find.text('지금은 안 해요'), findsOneWidget);
-      expect(find.text('직접 자동 실행을 껐어요.'), findsOneWidget);
+      // 끈 규칙은 한 줄 — 꺼진 까닭이 배지(평가 6차 10/18: '지금은 안 해요'와 같은 말 두 번).
+      expect(findPlainText('직접 자동 실행을 껐어요'), findsOneWidget);
+      expect(find.text('지금은 안 해요'), findsNothing);
     });
 
     // 2차 평가 10/18: 상태는 서버 문장(status_label) 비교가 아니라 enabled 값으로 정한다.
@@ -472,7 +478,8 @@ void main() {
       await tester.pumpWidget(_list(server));
       await _settle(tester);
       await _openRules(tester);
-      expect(find.text('지금은 안 해요'), findsOneWidget);
+      expect(findPlainText('비상정지로 자동 실행을 껐어요'), findsOneWidget);
+      expect(find.text('지금은 안 해요'), findsNothing);
 
       await tester.tap(_switch('ar-1'));
       await _settle(tester);

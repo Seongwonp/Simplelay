@@ -268,7 +268,7 @@ void main() {
     expect(saved.panelMapping!.buttons.length, 2);
 
     // ⑤ 확인 주행 — 모의면 모의라고 말한다.
-    expect(_title(tester), '5. 시험 이동');
+    expect(_title(tester), '5. 자리 확인');
     expect(find.textContaining('소프트 리밋이 없어'), findsOneWidget);
     await tester.tap(find.byKey(const Key('wizard-start-pass')));
     await _settle(tester);

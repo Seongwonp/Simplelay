@@ -75,7 +75,7 @@ Future<void> _pump(WidgetTester tester, ProviderContainer container) async {
 
 void main() {
   test('다시 보내기 단추는 쉬운 말 — "동기화"를 쓰지 않는다(UI 평가 10/17)', () {
-    expect(kResyncLabel, '가전 목록 새로 받기');
+    expect(kResyncLabel, '가전 다시 불러오기');
     expect(kResyncLabel, isNot(contains('동기화')));
   });
 

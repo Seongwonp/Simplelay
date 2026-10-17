@@ -179,14 +179,14 @@ void main() {
       final conn = await _pumpHome(tester, server);
       expect(_statusLine(), findsNothing);
       expect(find.byType(ApplianceSetupCard), findsNothing, reason: '실제 완료면 설정 카드 없음');
-      for (final t in ['아직 시험 이동을 안 했어요', '시험 이동을 했는지 몰라요']) {
+      for (final t in ['아직 자리 확인을 안 했어요', '자리 확인을 했는지 몰라요']) {
         expect(_inTile(t), findsNothing);
       }
 
       server.verify = _json({'detail': '확인 주행 기록이 없어요'}, 404);
       await _reconnect(tester, conn);
 
-      expect(_inTile('아직 시험 이동을 안 했어요'), findsOneWidget,
+      expect(_inTile('아직 자리 확인을 안 했어요'), findsOneWidget,
           reason: '예전 done/real로 보조 줄을 계속 숨기지 않는다');
       expect(find.byType(ApplianceSetupCard), findsOneWidget);
     });
@@ -194,19 +194,19 @@ void main() {
     testWidgets('첫 조회 오류 → 재연결 → 성공이면 "확인하지 못했어요"를 지운다', (tester) async {
       final server = _Server()..verify = _json({'detail': 'boom'}, 500);
       final conn = await _pumpHome(tester, server);
-      expect(_inTile('시험 이동을 했는지 몰라요'), findsOneWidget);
+      expect(_inTile('자리 확인을 했는지 몰라요'), findsOneWidget);
 
       server.verify = _json({'state': 'done', 'execution_mode': 'real'});
       await _reconnect(tester, conn);
 
-      expect(_inTile('시험 이동을 했는지 몰라요'), findsNothing);
+      expect(_inTile('자리 확인을 했는지 몰라요'), findsNothing);
       expect(find.byType(ApplianceSetupCard), findsNothing);
     });
 
     testWidgets('다시 묻는 동안(응답 전)에는 예전 결과 대신 모름', (tester) async {
       final server = _Server();
       final conn = await _pumpHome(tester, server);
-      expect(_inTile('시험 이동을 했는지 몰라요'), findsNothing);
+      expect(_inTile('자리 확인을 했는지 몰라요'), findsNothing);
       final before = server.verifyCalls;
 
       server.verifyDelay = const Duration(seconds: 2);
@@ -216,10 +216,10 @@ void main() {
       // 목록은 왔지만 확인 주행 응답은 아직 — 예전 done/real(보조 줄 없음)을 쓰지 않는다.
       await _settle(tester);
       expect(server.verifyCalls, greaterThan(before), reason: '재연결 뒤 다시 물었다');
-      expect(_inTile('시험 이동을 했는지 몰라요'), findsOneWidget);
+      expect(_inTile('자리 확인을 했는지 몰라요'), findsOneWidget);
       await tester.pump(const Duration(seconds: 3));
       await _settle(tester);
-      expect(_inTile('시험 이동을 했는지 몰라요'), findsNothing);
+      expect(_inTile('자리 확인을 했는지 몰라요'), findsNothing);
     });
   });
 

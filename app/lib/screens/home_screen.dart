@@ -301,7 +301,7 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: AppSpace.md),
+        padding: const EdgeInsets.only(bottom: AppSpace.sm),
         child: Semantics(header: true, child: Text(text, style: AppText.title)),
       );
 }
@@ -349,8 +349,9 @@ class _HomeNow extends ConsumerWidget {
     if (facts.isEmpty && next == null) return const SizedBox.shrink();
 
     // 흰 카드가 아니라 옅은 회색 면(평가 5차 10/18) — 가전 타일(흰 카드)·루틴(줄 목록)과 면으로 갈린다.
+    // 간격은 한 단계씩 좁힌다(평가 6차 10/18: 첫 화면에 가전 두 줄이 보이게).
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.xxl),
+      padding: const EdgeInsets.only(bottom: AppSpace.lg),
       child: Container(
         key: const Key('home-now'),
         decoration: BoxDecoration(
@@ -358,7 +359,7 @@ class _HomeNow extends ConsumerWidget {
           borderRadius: BorderRadius.circular(20),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(AppSpace.xl),
+          padding: const EdgeInsets.all(AppSpace.lg),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -369,10 +370,10 @@ class _HomeNow extends ConsumerWidget {
               ],
               if (next != null) ...[
                 if (facts.isNotEmpty) ...[
-                  const SizedBox(height: AppSpace.lg),
+                  const SizedBox(height: AppSpace.md),
                   Divider(height: 1, color: context.appBorderFaint),
                 ],
-                const SizedBox(height: AppSpace.lg),
+                const SizedBox(height: AppSpace.md),
                 _NextUp(next: next),
               ],
             ],
@@ -414,9 +415,12 @@ class _NextUp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final n = next;
+    // 큰 시각 바로 옆이라 '매일 22:00'의 시각은 되풀이하지 않는다(평가 6차 10/18) — 큰 시각과 **같을 때만** 뺀다
+    // (다르면 시간대가 어긋난 것이라 그대로 둔다, 2차 평가 10/18).
+    final repeat = n.when.contains(n.clock) ? n.when.replaceAll(n.clock, '').trim() : n.when;
     final when = [
       if (n.dayLabel.isNotEmpty) n.dayLabel,
-      if (n.when.isNotEmpty) n.when,
+      if (repeat.isNotEmpty) repeat,
     ].join(' · ');
     // 루틴 탭 다음 실행 줄과 같은 말(평가 4차 10/18: 여기는 '자동', 루틴 탭은 '자동 실행'이었다).
     final badge = n.quietSkip
@@ -440,9 +444,19 @@ class _NextUp extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(keepWordsTogether(n.name), semanticsLabel: n.name, style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
-        if (when.isNotEmpty) Text(keepPhrasesTogether(when, wholeParts: MediaQuery.textScalerOf(context).scale(1) <= 1.3), semanticsLabel: when, style: context.appCaption),
         const SizedBox(height: AppSpace.xs),
-        badge,
+        // 언제와 배지를 한 줄에 — 좁으면 배지가 아래로 내려간다.
+        Wrap(
+          spacing: AppSpace.sm,
+          runSpacing: AppSpace.xs,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            if (when.isNotEmpty)
+              Text(keepPhrasesTogether(when, wholeParts: MediaQuery.textScalerOf(context).scale(1) <= 1.3),
+                  semanticsLabel: when, style: context.appCaption),
+            badge,
+          ],
+        ),
       ],
     );
     // 큰 글씨에서는 시각을 위에, 설명을 아래에 — 한 줄에 두면 이름이 한 글자씩 꺾인다.
@@ -492,7 +506,7 @@ class _Attention extends ConsumerWidget {
     if (pending.isEmpty && result == null && unreadCare == 0) return const SizedBox.shrink();
     // 흰 카드가 아니라 옅은 주황 면 — 할 일이 있다는 것을 면 색으로도 가른다(평가 5차 10/18). 글·아이콘이 같이 말한다.
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.xxl),
+      padding: const EdgeInsets.only(bottom: AppSpace.lg),
       child: Container(
         key: const Key('home-attention'),
         decoration: BoxDecoration(
@@ -534,7 +548,7 @@ class _Attention extends ConsumerWidget {
                   color: context.appWarning,
                   onTap: () => context.push('/care'),
                 ),
-              // 한 대면 그 가전의 설정 카드를 그대로(연습 시험 이동이면 '실제 자리는 몰라요'까지), 둘 이상은 한 줄.
+              // 한 대면 그 가전의 설정 카드를 그대로(연습 자리 확인이면 '실제 자리는 몰라요'까지), 둘 이상은 한 줄.
               if (pending.length == 1)
                 ApplianceSetupCard(appliance: pending.single, flat: true)
               else if (pending.length > 1)
@@ -1198,8 +1212,9 @@ class _ApplianceCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
+              // 위쪽 빈칸을 한 단계씩 줄인다(평가 6차 10/18: 첫 화면에 가전 두 줄 — 그림 칸 48→40, 안쪽 여백 16→12).
               Padding(
-                padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.md),
+                padding: const EdgeInsets.fromLTRB(AppSpace.md, AppSpace.md, AppSpace.md, AppSpace.sm),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -1211,20 +1226,20 @@ class _ApplianceCard extends ConsumerWidget {
                       children: [
                         // 가전 그림 — 상태 색을 옅게 깐 둥근 칸(색만으로 말하지 않는다: 띠의 글이 같이 있다).
                         Container(
-                          width: AppSpace.xxxl + AppSpace.lg,
-                          height: AppSpace.xxxl + AppSpace.lg,
+                          width: AppSpace.xxxl + AppSpace.sm,
+                          height: AppSpace.xxxl + AppSpace.sm,
                           alignment: Alignment.center,
                           decoration: BoxDecoration(
                             color: tinted ? color.withValues(alpha: 0.12) : context.appOverlayFaint,
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Icon(a.icon, size: 28, color: context.appInk),
+                          child: Icon(a.icon, size: 24, color: context.appInk),
                         ),
                         if (a.isThinq) const RouteBadge(label: 'LG 가전'),
                         if (a.isDemo) const DemoBadge(),
                       ],
                     ),
-                    const SizedBox(height: AppSpace.md),
+                    const SizedBox(height: AppSpace.sm),
                     Text(
                       name,
                       style: const TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700),
@@ -1256,7 +1271,7 @@ class _ApplianceCard extends ConsumerWidget {
               Container(
                 key: Key('appliance-band-${a.id}'),
                 color: color.withValues(alpha: tinted ? 0.14 : 0.08),
-                padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.xs),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [

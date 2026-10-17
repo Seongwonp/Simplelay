@@ -77,12 +77,14 @@ String? quietSkipLine(QuietHoursStatus s, List<AutoRule> rules) {
   return '${s.enabled ? '조용한 시간이라 이때는 자동으로 안 해요' : '켜면 이때는 자동으로 안 해요'}: ${hit.join(', ')}';
 }
 
-/// 규칙 카드의 한 줄 — 이 시각 규칙이 조용한 시간과 겹치면(UI 평가 7차 10/17: 설정 화면에서만 경고됐다). 아니면 null.
+/// 규칙 카드의 한 줄 — 조용한 시간이 **켜져 있어** 이 시각 규칙을 실제로 건너뛸 때만(UI 평가 7차 10/17). 아니면 null.
+///
+/// 평가 6차(10/18): 조용한 시간이 꺼져 있을 때의 '켜면 이때는 자동으로 안 해요'가 카드마다 늘 굵게 서 있었다 —
+/// 그 말은 조용한 시간 설정 줄([quietSkipLine])에만 둔다.
 String? quietRuleNote(QuietHoursStatus? s, AutoRule r) {
   final t = r.conditionTime;
-  if (s == null || t == null || !quietWindowContains(s.start, s.end, t)) return null;
-  final range = '조용한 시간(${s.start}~${s.end})';
-  return s.enabled ? '$range이라 이때는 자동으로 안 해요' : '$range을 켜면 이때는 자동으로 안 해요';
+  if (s == null || !s.enabled || t == null || !quietWindowContains(s.start, s.end, t)) return null;
+  return '조용한 시간(${s.start}~${s.end})이라 이때는 자동으로 안 해요';
 }
 
 /// '제안 잠시 쉬기'를 [minutes]분 켜면 그 안에 시각이 드는 켜진 시각 규칙('이름(HH:MM)'). 다음에 오는 그 시각을

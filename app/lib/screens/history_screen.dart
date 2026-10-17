@@ -287,11 +287,8 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
           e.confirmation == 'already_at_target')
       : (e.confirmation == 'operation_confirmed' || e.confirmation == 'press_confirmed');
   if (real && confirmed) {
-    // 이미 그 설정이라 보내지 않은 것은 체크 대신 안내 아이콘 — '보내지 않았어요' 문장 옆에 성공 체크가 서면
-    // 신호가 섞였다(UI 평가 10/17). 결과(원하던 상태)는 읽어서 본 것이라 '됐어요'.
-    if (e.confirmation == 'already_at_target') {
-      return (label: '됐어요', icon: Icons.info_outline, tone: BadgeTone.confirmed);
-    }
+    // '됐어요'는 기호도 하나(평가 6차 10/18: 같은 '됐어요'에 ✓와 ⓘ가 섞였다). 이미 그 설정이라 보내지 않은 것도
+    // 원하던 상태를 **읽어서** 본 것이라 같은 ✓ — 보내지 않았다는 차이는 펼친 결과 문장('이미 그 설정이라 …')이 말한다.
     return (label: '됐어요', icon: Icons.check_circle, tone: BadgeTone.confirmed);
   }
   // 보고·접수만 받았다 — 됐는지는 확인하지 못했다.

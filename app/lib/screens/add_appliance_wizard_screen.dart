@@ -49,7 +49,7 @@ const _stepTitles = [
   '버튼판 네 귀퉁이 고르기',
   '버튼 고르고 이름 붙이기',
   '정지 버튼과 기다리는 자리',
-  '시험 이동',
+  '자리 확인',
 ];
 
 const _cornerNames = ['왼쪽 위', '오른쪽 위', '오른쪽 아래', '왼쪽 아래'];
@@ -438,7 +438,7 @@ class _AddApplianceWizardScreenState
         // 2분이 넘으면 더 기다리지 않는다 -- 상태를 모른다고 말한다.
         if (ticks > 150) {
           t.cancel();
-          if (mounted) setState(() => _error = '시험 이동이 어떻게 됐는지 몰라요. 본체 화면을 봐 주세요.');
+          if (mounted) setState(() => _error = '자리 확인이 어떻게 됐는지 몰라요. 본체 화면을 봐 주세요.');
           return;
         }
         try {
@@ -453,7 +453,7 @@ class _AddApplianceWizardScreenState
     } on RpiApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } catch (_) {
-      if (mounted) setState(() => _error = '시험 이동을 시작하지 못했어요. 연결을 봐 주세요.');
+      if (mounted) setState(() => _error = '자리 확인을 시작하지 못했어요. 연결을 봐 주세요.');
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -518,7 +518,7 @@ class _AddApplianceWizardScreenState
               ? FilledButton(
                   key: const Key('wizard-finish'),
                   onPressed: (_pass?.running ?? false) ? null : _finish,
-                  child: Text(_pass == null ? '시험 이동 없이 끝내기' : '끝내기'),
+                  child: Text(_pass == null ? '자리 확인 없이 끝내기' : '끝내기'),
                 )
               : Row(
                   children: [
@@ -756,7 +756,7 @@ class _AddApplianceWizardScreenState
             ],
           ),
         const SizedBox(height: AppSpace.sm),
-        Text('다음은 정지 버튼과 기다리는 자리, 그다음은 시험 이동이에요. 작은 팔이 버튼 위를 한 번씩 지나가요.',
+        Text('다음은 정지 버튼과 기다리는 자리, 그다음은 자리 확인이에요. 작은 팔이 버튼 위를 한 번씩 지나가요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
       ];
 
@@ -862,7 +862,7 @@ class _AddApplianceWizardScreenState
           key: const Key('wizard-start-pass'),
           onPressed: _busy ? null : _startPass,
           icon: const Icon(Icons.route),
-          label: const Text('시험 이동 시작'),
+          label: const Text('자리 확인 시작'),
         )
       else ...[
         if (pass.isMock)
@@ -892,7 +892,7 @@ class _AddApplianceWizardScreenState
       if (pass == null)
         Padding(
           padding: const EdgeInsets.only(top: AppSpace.sm),
-          child: Text('시험 이동 없이 끝내면 처음 누를 때 자리가 맞는지 꼭 지켜봐 주세요.',
+          child: Text('자리 확인 없이 끝내면 처음 누를 때 자리가 맞는지 꼭 지켜봐 주세요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
     ];
