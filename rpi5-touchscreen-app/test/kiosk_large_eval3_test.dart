@@ -105,18 +105,17 @@ void main() {
       }
     });
 
-    testWidgets('$where 큰 글씨 연결 창 — 할 일 세 줄이 스크롤 없이 다 보여요(본체 풀이 줄은 뺐다)', (tester) async {
+    testWidgets('$where 큰 글씨 연결 창 — 할 일 단계가 스크롤 없이 다 보여요(본체 풀이 줄은 뺐다)', (tester) async {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       const item = ConnectionItem(
         id: 'network',
         state: 'error',
         title: '와이파이 연결이 끊겼어요',
-        message: 'SimpleLay 본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 SimpleLay 본체를 찾지 못하고, '
+        message: '본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 찾지 못하고, '
             '날씨 안내도 볼 수 없어요.',
         fixes: [
           '공유기 전원이 켜져 있는지 확인해 주세요.',
-          'SimpleLay 본체에 랜선을 쓰고 있다면 선이 끝까지 꽂혀 있는지 확인해 주세요.',
-          '그래도 안 되면 SimpleLay 본체 전원을 껐다가 다시 켜 주세요.',
+          '그래도 안 되면 본체 전원을 껐다가 다시 켜 주세요.',
         ],
       );
       await _pump(
@@ -129,7 +128,7 @@ void main() {
         _expectFullyVisible(tester, _drawn(fix));
       }
       expect(find.byKey(const ValueKey('hub-explain')), findsNothing);
-      _expectFullyVisible(tester, find.text('새로 보기'));
+      _expectFullyVisible(tester, find.text('다시 연결해 보기'));
     });
 
     testWidgets('$where 큰 글씨 제안 — 두 선택 단추의 높이가 같고 거절 말이 한 줄이에요', (tester) async {
@@ -168,7 +167,7 @@ void main() {
 
   for (final scale in [1.0, 1.22]) {
     for (final panel15 in [false, true]) {
-      testWidgets('위쪽 아이콘에 이름이 있어요(배율 $scale, ${panel15 ? '1920x1080' : '800x480'}) — 아이콘만으로는 뜻을 몰랐다',
+      testWidgets('위쪽 상태 칩·메뉴 이름이 다 보여요(배율 $scale, ${panel15 ? '1920x1080' : '800x480'}) — 아이콘만으로는 뜻을 몰랐다',
           (tester) async {
         if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
         await _pump(
@@ -190,12 +189,13 @@ void main() {
             scale: scale,
             panel15: panel15);
         expect(tester.takeException(), isNull);
-        for (final label in ['설정', '쉬기', '와이파이', '작은 팔', '콘센트']) {
+        // 아이콘 4~5개 대신 상태 칩 하나 + 메뉴(10/18) — 칩 말과 메뉴 이름이 잘리지 않고 다 보인다.
+        for (final label in ['콘센트 봐 주세요', '메뉴']) {
           _expectFullyVisible(tester, find.text(label));
         }
-        // 이름은 제 아이콘 바로 아래에 있다.
-        final wifi = tester.getRect(find.byKey(const ValueKey('conn-network')));
-        expect(wifi.contains(tester.getCenter(find.text('와이파이'))), isTrue);
+        // 메뉴 이름은 제 아이콘 바로 아래에 있다.
+        final menu = tester.getRect(find.byKey(const ValueKey('idle-menu')));
+        expect(menu.contains(tester.getCenter(find.text('메뉴'))), isTrue);
       });
     }
   }
@@ -226,7 +226,7 @@ void main() {
   });
 
   // UI 평가 4차 10/17: '쉬는 중' 칩이 켜지면 설정·연결 아이콘이 왼쪽으로 밀려 늘 누르던 자리가 바뀌었다.
-  testWidgets('제안 쉬는 중이 켜져도 설정·연결 아이콘 자리는 그대로예요', (tester) async {
+  testWidgets('제안 쉬는 중이 켜져도 상태 칩·메뉴 자리는 그대로예요', (tester) async {
     if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
     KioskIdleView idle({DateTime? dnd}) => KioskIdleView(
           now: DateTime(2026, 10, 17, 8, 38),
@@ -243,12 +243,12 @@ void main() {
           onSettingsGesture: () {},
         );
     await _pump(tester, idle(), scale: 1.0, panel15: true);
-    final settingsOff = tester.getRect(find.byKey(const ValueKey('settings-entry')));
-    final wifiOff = tester.getRect(find.byKey(const ValueKey('conn-network')));
+    final chipOff = tester.getRect(find.byKey(const ValueKey('idle-status-chip')));
+    final menuOff = tester.getRect(find.byKey(const ValueKey('idle-menu')));
     await _pump(tester, idle(dnd: DateTime(2026, 10, 17, 10, 8)), scale: 1.0, panel15: true);
     expect(find.text('쉬는 중'), findsOneWidget);
-    expect(tester.getRect(find.byKey(const ValueKey('settings-entry'))), settingsOff);
-    expect(tester.getRect(find.byKey(const ValueKey('conn-network'))), wifiOff);
+    expect(tester.getRect(find.byKey(const ValueKey('idle-status-chip'))), chipOff);
+    expect(tester.getRect(find.byKey(const ValueKey('idle-menu'))), menuOff);
   });
 
   // 실패널 10/17 09:33: 공기 줄이 넷이 되자 셋째 줄이 오른쪽에서 잘리고 넷째 줄('공기청정기 꺼짐')이 스크롤 아래로 숨었다.
@@ -272,7 +272,9 @@ void main() {
         scale: 1.0,
         panel15: true);
     expect(tester.takeException(), isNull);
-    for (final d in air.details) {
+    // 공기는 한 줄 + 아래 작은 줄(10/18) — 숫자·등급 출처는 LG 상세 '자세히' 안.
+    _expectFullyVisible(tester, find.byKey(const ValueKey('idle-air-headline')));
+    for (final d in air.sub) {
       _expectFullyVisible(tester, find.text(d));
     }
   });

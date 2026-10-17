@@ -15,6 +15,7 @@ Future<void> _pump(
   double? humidity,
   DateTime? now,
   VoidCallback? onDnd,
+  VoidCallback? onSettings,
 }) async {
   tester.view.physicalSize = const Size(800, 480);
   tester.view.devicePixelRatio = 1.0;
@@ -32,6 +33,7 @@ Future<void> _pump(
         onSelectAppliance: (_) {},
         onOpenConnection: (_) {},
         onDndGesture: onDnd ?? () {},
+        onSettingsGesture: onSettings,
       ),
     ),
   ));
@@ -73,14 +75,18 @@ void main() {
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 13)), '좋은 오후예요.');
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 23)), '편안한 밤 보내세요.');
   });
-
-  testWidgets('설정은 한 번 누르는 톱니 단추 — 읽는 이름은 "설정"', (tester) async {
-    // 길게 누르기가 아니라 한 번 누르면 열린다. 글자 알약은 화면에서 가장 밝아 시선을 빼앗아(2026-10-14)
-    // 회색 아이콘으로 바꿨다 — 스크린리더·길게 누르기 도움말로는 '설정'이라고 말한다.
+  testWidgets('설정은 메뉴 창에서 한 번 누르면 열린다 — 읽는 이름은 "설정"', (tester) async {
+    // 위쪽 아이콘을 상태 칩 + 메뉴로 정리했다(화면 구조 개편 10/18). 메뉴는 가운데 큰 창이고 설정은 그 안의 큰 줄이다.
     final semantics = tester.ensureSemantics();
-    await _pump(tester);
+    var opened = 0;
+    await _pump(tester, onSettings: () => opened++);
+    expect(find.byKey(const ValueKey('settings-entry')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('idle-menu')));
+    await tester.pump();
     expect(find.byIcon(Icons.settings_outlined), findsOneWidget);
     expect(find.bySemanticsLabel('설정'), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('settings-entry')));
+    expect(opened, 1);
     semantics.dispose();
   });
 
@@ -90,15 +96,17 @@ void main() {
     expect(find.text('본체와 연결되면 가전이 보여요'), findsOneWidget);
   });
 
-  testWidgets('방해 금지가 꺼져 있으면 글자 없이 달 아이콘 단추만 — 누르면 선택이 열린다',
+  testWidgets('쉬기가 꺼져 있으면 위쪽에 쉬기 글자가 없다 — 메뉴의 잠시 쉬기(48 이상)를 누르면 선택이 열린다',
       (tester) async {
     // 늘 보이던 "방해 금지" 글자 단추는 켜진 것으로 읽혔다(10/5).
     final semantics = tester.ensureSemantics();
     var opened = 0;
     await _pump(tester, onDnd: () => opened++);
     expect(find.text('방해 금지'), findsNothing);
-    expect(find.textContaining('방해 금지 ·'), findsNothing);
-    expect(find.bySemanticsLabel('잠시 쉬기'), findsOneWidget);
+    expect(find.text('쉬는 중'), findsNothing);
+    expect(find.byKey(const ValueKey('dnd-chip')), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('idle-menu')));
+    await tester.pump();
     expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
     final size = tester.getSize(find.byKey(const ValueKey('dnd-entry')));
     expect(size.width, greaterThanOrEqualTo(48));
@@ -109,7 +117,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('방해 금지 중이면 위 줄 칩에 아이콘·글자·남은 시간 — 누르면 선택이 열린다',
+  testWidgets('쉬는 중이면 위 줄 칩에 아이콘·글자·남은 시간 — 누르면 선택이 열린다',
       (tester) async {
     final semantics = tester.ensureSemantics();
     var opened = 0;
@@ -121,11 +129,11 @@ void main() {
     expect(find.text('1시간 남음'), findsOneWidget);
     expect(find.byIcon(Icons.bedtime), findsOneWidget);
     expect(find.bySemanticsLabel('잠시 쉬는 중, 1시간 남음. 끝내려면 누르세요'), findsOneWidget);
-    expect(find.bySemanticsLabel('잠시 쉬기'), findsNothing);
-    // 위 줄(높이 80) 안, 시계 열이 아니다.
-    final chip = tester.getRect(find.byKey(const ValueKey('dnd-entry')));
+    // 위 줄 안, 시계 열이 아니다.
+    final chip = tester.getRect(find.byKey(const ValueKey('dnd-chip')));
     expect(chip.bottom, lessThanOrEqualTo(10 + 80 + 0.5));
-    await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+    expect(chip.height, greaterThanOrEqualTo(48));
+    await tester.tap(find.byKey(const ValueKey('dnd-chip')));
     expect(opened, 1);
     expect(tester.takeException(), isNull);
     semantics.dispose();
@@ -134,7 +142,7 @@ void main() {
   testWidgets('끝난 방해 금지 시각은 켜진 것으로 보이지 않는다', (tester) async {
     await _pump(tester, dndUntil: DateTime(2026, 9, 13, 9, 0));
     expect(find.text('쉬는 중'), findsNothing);
-    expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
+    expect(find.byKey(const ValueKey('dnd-chip')), findsNothing);
   });
 
   testWidgets('이 키오스크는 말을 듣지 않는다 — 할 수 없는 일을 권하지 않는다', (tester) async {

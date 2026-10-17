@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/appliance.dart';
 import '../../theme/kiosk_colors.dart';
 import 'route_badge.dart';
+import '../../theme/kiosk_tokens.dart';
 
 /// 평소 화면 아래의 가전 줄에 설 순서 — **확인 필요 → 동작 중 → 켜짐(ThinQ) → 나머지**.
 ///
@@ -57,9 +58,10 @@ class KioskApplianceStrip extends StatefulWidget {
     required this.onSelect,
     this.perPage = 4,
     this.itemWidth = 128,
-    this.labelSize = 33,
-    this.statusSize = 33,
-    this.iconBox = 62,
+    this.labelSize = KioskType.body,
+    this.statusSize = KioskType.caption,
+    this.iconBox = 52,
+    this.tileHeight = 112,
   });
 
   final List<ApplianceMap> appliances;
@@ -78,6 +80,9 @@ class KioskApplianceStrip extends StatefulWidget {
   final double labelSize;
   final double statusSize;
   final double iconBox;
+
+  /// 가전 타일 높이(화면 구조 개편 10/18 — 큰 사각 타일).
+  final double tileHeight;
 
   @override
   State<KioskApplianceStrip> createState() => _KioskApplianceStripState();
@@ -164,6 +169,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                       labelSize: widget.labelSize,
                       statusSize: widget.statusSize,
                       iconBox: widget.iconBox,
+                      tileHeight: widget.tileHeight,
                       onTap: () => widget.onSelect(a),
                     ),
                   ),
@@ -248,9 +254,10 @@ class _StripItem extends StatefulWidget {
     required this.attention,
     this.on = false,
     required this.onTap,
-    this.labelSize = 33,
-    this.statusSize = 33,
-    this.iconBox = 62,
+    this.labelSize = KioskType.body,
+    this.statusSize = KioskType.caption,
+    this.iconBox = 52,
+    this.tileHeight = 112,
   });
 
   final ApplianceMap appliance;
@@ -261,6 +268,7 @@ class _StripItem extends StatefulWidget {
   final double labelSize;
   final double statusSize;
   final double iconBox;
+  final double tileHeight;
 
   @override
   State<_StripItem> createState() => _StripItemState();
@@ -306,141 +314,132 @@ class _StripItemState extends State<_StripItem>
   Widget build(BuildContext context) {
     final a = widget.appliance;
     final reduceMotion = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    // 큰 사각 타일(화면 구조 개편 10/18) — 아이콘 · 이름 · 상태 줄. 상태 줄은 늘 있다(지어내지 않는다):
+    // 확인 필요 → 동작 중 → 켜짐(LG 가전 조회로 본 것) → 준비 상태(서버 판정) → 어떻게 조작하는지.
     final Color iconColor;
-    final String? status;
-    Color? statusColor;
+    final String status;
+    final Color statusColor;
     if (widget.attention) {
       iconColor = KioskColors.warning;
       status = '봐 주세요';
+      statusColor = KioskColors.warning;
     } else if (widget.running) {
-      // 동작 중은 일상 상태 — 중립(흰 아이콘·회색 면·멈춘 호), 앰버는 확인 필요에만(2026-10-16 디자인 규격 §1-4).
+      // 동작 중은 일상 상태 — 중립(흰 테), 앰버는 확인 필요에만(2026-10-16 디자인 규격 §1-4).
       iconColor = Colors.white;
       status = a.isThinq ? '설정 변경 중' : '동작 중';
+      statusColor = Colors.white;
     } else if (widget.on) {
-      // 켜짐 — 서버가 ThinQ 조회로 본 전원 상태(2026-10-16). 아이콘은 흰색(쉬는 회색과 구분), 글자는 확인 완료 초록.
+      // 켜짐 — 서버가 ThinQ 조회로 본 전원 상태(2026-10-16). 확인한 값이라 초록.
       iconColor = Colors.white;
       status = '켜짐';
       statusColor = KioskColors.confirmed;
     } else {
-      iconColor = KioskColors.muted;
-      status = null;
+      iconColor = Colors.white;
+      (status, statusColor) = switch (a.readiness) {
+        'disconnected' => ('연결 안 됨', KioskColors.warning),
+        'needs_setup' => ('설정이 필요해요', KioskColors.warning),
+        // 상태를 모르면 지어내지 않고 어떻게 조작하는지만(칸이 좁아 짧게).
+        _ => (a.isThinq ? '상태 보기' : '작은 팔 조작', KioskColors.muted),
+      };
     }
+    final edge = widget.attention
+        ? KioskColors.warning
+        : widget.running
+            ? Colors.white
+            : KioskColors.border;
     return Semantics(
       button: true,
-      label: '${a.name}${a.isThinq ? '. LG 가전' : ''}'
-          '${status == null ? '' : ', $status'}. 자세히 보기',
+      label: '${a.name}${a.isThinq ? '. LG 가전' : ''}, $status. 자세히 보기',
       child: ExcludeSemantics(
-        child: InkWell(
-          onTap: widget.onTap,
-          borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _withRouteBadge(a, AnimatedBuilder(
-                  animation: _breath,
-                  builder: (context, child) {
-                    final t = widget.attention && !reduceMotion
-                        ? math.sin(_breath.value * math.pi)
-                        : (widget.attention ? 0.6 : 0.0);
-                    return Container(
-                      width: widget.iconBox,
-                      height: widget.iconBox,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: widget.running
-                            ? KioskColors.surface2
-                            : KioskColors.surface,
-                        boxShadow: widget.attention
-                            ? [
-                                BoxShadow(
-                                  color: KioskColors.warning
-                                      .withValues(alpha: 0.35 * t),
-                                  spreadRadius: 8 * t,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: child,
-                    );
-                  },
-                  child: CustomPaint(
-                    // 동작 중 테(멈춘 호) — 도는 애니메이션은 쓰지 않는다.
-                    painter: widget.running ? _RunningRing() : null,
-                    child: Center(
-                      child: Icon(a.icon, size: widget.iconBox * 0.52, color: iconColor),
-                    ),
-                  ),
-                )),
-                const SizedBox(height: 5),
-                Text(
-                  a.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: widget.labelSize, height: 1.15, color: Colors.white),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6),
+          child: AnimatedBuilder(
+            animation: _breath,
+            builder: (context, child) {
+              // 확인 필요의 느린 숨쉬기 — 2.4초 한 번씩 세 번만(초당 3회 이상 깜빡임 금지), 끝나면 멈춘 테.
+              final t = widget.attention && !reduceMotion
+                  ? math.sin(_breath.value * math.pi)
+                  : (widget.attention ? 0.6 : 0.0);
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: widget.attention
+                      ? [
+                          BoxShadow(
+                            color: KioskColors.warning.withValues(alpha: 0.30 * t),
+                            spreadRadius: 4 * t,
+                          ),
+                        ]
+                      : null,
                 ),
-                // 상태 줄 자리는 늘 둔다(아이콘 줄 높이가 흔들리지 않게). 큰 글씨
-                // 모드에서 글자가 잘리지 않도록 높이는 최소만 정한다.
-                ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 20),
-                  child: status == null
-                      ? null
-                      : Text(
+                child: child,
+              );
+            },
+            child: Material(
+              color: widget.running ? KioskColors.surface2 : KioskColors.surface,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(
+                    color: edge,
+                    width: widget.attention || widget.running ? 2 : 1),
+              ),
+              child: InkWell(
+                onTap: widget.onTap,
+                customBorder: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16)),
+                child: SizedBox(
+                  height: widget.tileHeight,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                        KioskSpace.sm, KioskSpace.sm, KioskSpace.sm, KioskSpace.xs),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(a.icon, size: widget.iconBox * 0.58, color: iconColor),
+                          const Spacer(),
+                          if (a.isThinq)
+                            const Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                child: KioskRouteBadge(label: 'LG 가전'),
+                              ),
+                            ),
+                        ]),
+                        const Spacer(),
+                        Text(
+                          a.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: widget.labelSize,
+                              height: 1.15,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white),
+                        ),
+                        Text(
                           status,
+                          key: ValueKey('tile-status-${a.id}'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: widget.statusSize,
-                            height: 1.15,
-                            fontWeight: FontWeight.w700,
-                            color: statusColor ?? iconColor,
+                            height: 1.2,
+                            fontWeight: statusColor == KioskColors.muted
+                                ? FontWeight.w500
+                                : FontWeight.w700,
+                            color: statusColor,
                           ),
                         ),
+                      ],
+                    ),
+                  ),
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
-}
-
-/// ThinQ 가전이면 아이콘 원 옆에 경로 배지 — 줄 높이는 그대로(원 높이 안에 들어간다),
-/// 칸이 좁으면 배지만 줄어든다.
-Widget _withRouteBadge(ApplianceMap a, Widget circle) {
-  if (!a.isThinq) return circle;
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      circle,
-      const SizedBox(width: 6),
-      const Flexible(
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: KioskRouteBadge(label: 'LG 가전'),
-        ),
-      ),
-    ],
-  );
-}
-
-class _RunningRing extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final rect = (Offset.zero & size).deflate(2);
-    canvas.drawArc(
-      rect,
-      -math.pi / 2,
-      math.pi,
-      false,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 3
-        ..strokeCap = StrokeCap.round
-        ..color = Colors.white70,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_RunningRing oldDelegate) => false;
 }

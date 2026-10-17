@@ -2,12 +2,13 @@
 // 시스템 말·되풀이·괄호 단서를 걷어 내되, 연습(모의)이라는 사실은 남긴다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/idle_menu.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/command_result.dart';
 import 'package:simplelay_touchscreen/models/scenario_run.dart';
 import 'package:simplelay_touchscreen/theme/kiosk_colors.dart';
-import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/done_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/executing_view.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
@@ -226,30 +227,34 @@ void main() {
       ));
     }
 
-    testWidgets('설정은 조용한 아이콘 단추 — 글자 알약이 아니고, 48 이상·이름은 "설정"', (tester) async {
+    testWidgets('위쪽은 조용한 메뉴 단추 — 글자 알약이 아니고, 48 이상·설정은 메뉴 창 안의 큰 줄', (tester) async {
       final semantics = tester.ensureSemantics();
       await pumpIdle(tester, const []);
-      final entry = find.byKey(const ValueKey('settings-entry'));
-      // 금색 알약이 아니라 회색 아이콘 + 아래 작은 이름(UI 평가 3차 10/17 — 아이콘만으로는 뜻을 몰랐다).
-      expect(find.descendant(of: entry, matching: find.byType(Material)), findsNothing);
-      final label = tester.widget<Text>(find.descendant(of: entry, matching: find.text('설정')));
-      expect(label.style?.fontSize, lessThanOrEqualTo(14));
+      final menu = find.byKey(const ValueKey('idle-menu'));
+      // 금색 알약이 아니라 회색 아이콘 + 아래 이름(화면 구조 개편 10/18 — 쉬기·설정은 메뉴로).
+      expect(find.descendant(of: menu, matching: find.byType(Material)), findsNothing);
+      final label = tester.widget<Text>(find.descendant(of: menu, matching: find.text('메뉴')));
       expect(label.style?.color, KioskColors.muted);
-      expect(find.bySemanticsLabel('설정'), findsOneWidget);
-      final size = tester.getSize(entry);
+      final size = tester.getSize(menu);
       expect(size.width, greaterThanOrEqualTo(48));
       expect(size.height, greaterThanOrEqualTo(48));
+      await tester.tap(menu);
+      await tester.pump();
+      expect(find.bySemanticsLabel('설정'), findsOneWidget);
+      expect(tester.getSize(find.byKey(const ValueKey('settings-entry'))).height, greaterThanOrEqualTo(48));
       semantics.dispose();
     });
 
-    testWidgets('플러그(콘센트 모듈)가 설치되지 않았으면 아이콘을 그리지 않는다', (tester) async {
+    testWidgets('플러그(콘센트 모듈)가 설치되지 않았으면 연결 목록에 그리지 않는다', (tester) async {
       await pumpIdle(tester, const [
         ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
         ConnectionItem(id: 'plug', state: 'not_installed', title: '', message: ''),
       ]);
+      // 설치 안 한 콘센트는 문제가 아니다 — 칩은 '모두 정상'.
+      expect(find.text('모두 정상'), findsOneWidget);
+      await openIdleConnections(tester);
       expect(find.byKey(const ValueKey('conn-network')), findsOneWidget);
       expect(find.byKey(const ValueKey('conn-plug')), findsNothing);
-      expect(find.byType(KioskConnectionIcons), findsOneWidget);
     });
   });
 

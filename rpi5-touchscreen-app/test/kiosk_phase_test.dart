@@ -5,6 +5,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/idle_menu.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/practice_band.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/dnd_overlay.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
@@ -271,7 +273,7 @@ class FakeKioskApi implements KioskApiService {
 /// 세 연결이 모두 정상인 응답 — 배지가 없는 기본 상태.
 const kOkConnections = [
   ConnectionItem(
-      id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: 'SimpleLay 본체가 집 와이파이에 잘 연결돼 있어요.'),
+      id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: '본체가 집 와이파이에 잘 연결돼 있어요.'),
   ConnectionItem(
       id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: '버튼을 대신 눌러 드릴 수 있어요.'),
   ConnectionItem(
@@ -817,7 +819,7 @@ void main() {
       useKioskViewport(tester);
       final api = FakeKioskApi()..dndPersisted = persisted;
       await _pumpKiosk(tester, api);
-      await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+      await tapIdleMenuItem(tester, 'dnd-entry');
       await tester.pump();
       await tester.tap(find.text('1시간'));
       await tester.pump();
@@ -1216,7 +1218,7 @@ void main() {
     useKioskViewport(tester);
     await _pumpKiosk(tester, FakeKioskApi());
     expect(find.byType(DndOverlay), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+    await tapIdleMenuItem(tester, 'dnd-entry');
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byType(DndOverlay), findsOneWidget);
     expect(find.text('30분'), findsOneWidget);
@@ -1225,7 +1227,7 @@ void main() {
   testWidgets('설정에도 방해 금지 줄이 있고 같은 선택을 열어요', (tester) async {
     useKioskViewport(tester);
     await _pumpKiosk(tester, FakeKioskApi());
-    await tester.tap(find.byKey(const ValueKey('settings-entry')));
+    await tapIdleMenuItem(tester, 'settings-entry');
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.byKey(const ValueKey('settings-dnd')), findsOneWidget);
     await tester.ensureVisible(find.byKey(const ValueKey('settings-dnd')));
@@ -1238,7 +1240,7 @@ void main() {
   testWidgets('설정은 보이는 버튼을 한 번 눌러 열어요', (tester) async {
     useKioskViewport(tester);
     await _pumpKiosk(tester, FakeKioskApi());
-    await tester.tap(find.byKey(const ValueKey('settings-entry')));
+    await tapIdleMenuItem(tester, 'settings-entry');
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('본체 화면 설정'), findsOneWidget);
   });

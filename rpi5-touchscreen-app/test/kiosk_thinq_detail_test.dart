@@ -187,7 +187,7 @@ void main() {
       expect([for (final r in rows) (r.label, r.value)], [
         ('전원', '켜짐'),
         ('모드', '청정'),
-        ('바람 세기', '약풍'),
+        ('바람 세기', '약'),
         ('초미세먼지', '42 · 나쁨'),
         ('미세먼지', '90 · 매우 나쁨'),
         ('필터 남은 양', '87%'),
@@ -291,9 +291,10 @@ void main() {
     final handle = tester.ensureSemantics();
     await pumpIdle(tester, _air);
     expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
-    expect(find.bySemanticsLabel('실내 공기 좋음 · 초미세먼지 8 · 공기청정기 켜짐'), findsOneWidget);
+    // 공기는 한 줄 + 색(2차 평가 10/18) — 숫자는 LG 상세 '자세히' 안.
+    expect(find.bySemanticsLabel('공기 좋아요. 공기청정기 켜짐'), findsOneWidget);
     final grade = _gradeSpan(tester);
-    expect(grade.text!.replaceAll('\u2060', ''), '좋음');
+    expect(grade.text!.replaceAll('⁠', ''), '좋아요');
     expect(grade.style!.color, KioskColors.confirmed);
     expect(find.byIcon(Icons.air), findsOneWidget);
     expect(tester.takeException(), isNull);
@@ -313,7 +314,7 @@ void main() {
       expect(air.top, greaterThanOrEqualTo(clock.bottom), reason: '$size');
       expect(air.bottom, lessThanOrEqualTo(strip.top), reason: '$size');
       // 항목마다 따로 — 줄이 바뀌어도 '·'가 줄 끝에 매달리지 않는다(외부 평가 10/16 2차 k01).
-      expect(find.text('초미세먼지 8'), findsOneWidget);
+      expect(find.text('초미세먼지 8'), findsNothing);
       expect(find.text('공기청정기 켜짐'), findsOneWidget);
       expect(find.descendant(of: find.byKey(const ValueKey('idle-air')), matching: find.textContaining('·')),
           findsNothing);
@@ -347,9 +348,9 @@ void main() {
       final air = tester.getRect(find.byKey(const ValueKey('idle-air')));
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
       expect(air.bottom, lessThanOrEqualTo(strip.top), reason: '$size');
-      // 큰 글씨에서는 '실내'를 빼고, 뒤 글은 초미세먼지 값만.
-      expect(find.bySemanticsLabel(RegExp('실내 공기 매우 나쁨')), findsOneWidget);
-      expect(find.text('초미세먼지 120'), findsOneWidget);
+      // 큰 글씨에서는 아래 작은 줄도 뺀다(공기청정기 켜짐은 가전 타일에 있다).
+      expect(find.bySemanticsLabel(RegExp('공기 아주 나빠요')), findsOneWidget);
+      expect(find.text('초미세먼지 120'), findsNothing);
       expect(find.textContaining('공기청정기 켜짐'), findsNothing);
     }
     handle.dispose();
@@ -405,7 +406,13 @@ void main() {
     expect(r.reads, hasLength(1));
     expect(find.byKey(const ValueKey('thinq-row-전원')), findsOneWidget);
     expect(find.text('켜짐'), findsOneWidget);
-    expect(find.text('약풍'), findsOneWidget);
+    // 상태 이름은 조작 단추와 같은 말(약풍 → 약, 2차 평가 10/18).
+    expect(tester.widget<Text>(find.byKey(const ValueKey('thinq-row-바람 세기'))).data, '약');
+    // 공기는 한 줄 — 먼지 숫자·등급은 '자세히' 안.
+    expect(find.text('공기 나빠요'), findsOneWidget);
+    expect(find.text('42 · 나쁨'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('thinq-air-more')));
+    await tester.pump();
     expect(find.text('42 · 나쁨'), findsOneWidget);
     expect(tester.widget<Text>(find.text('42 · 나쁨')).style!.color, KioskColors.warning);
     expect(tester.widget<Text>(find.text('90 · 매우 나쁨')).style!.color, KioskColors.danger);

@@ -7,6 +7,8 @@ import '../../models/thinq.dart';
 import '../../theme/kiosk_colors.dart';
 import 'appliance_strip.dart';
 import 'connection_status.dart';
+import 'idle_top.dart';
+import '../../theme/kiosk_tokens.dart';
 import 'kiosk_text.dart';
 import 'thinq_panel.dart' show airGradeColor;
 
@@ -142,39 +144,37 @@ class KioskIdleView extends StatelessWidget {
     final showGreeting = tip == null;
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
 
-    return ColoredBox(
+    return _IdleSheetHost(view: this, builder: (sheets) => ColoredBox(
       color: KioskColors.bg,
       child: Padding(
         // 여백을 넉넉히(10/7 "빽빽하다" 수리) — 화면을 끝까지 채우지 않는다.
         padding: const EdgeInsets.fromLTRB(_Idle.side, 14, _Idle.side, 10),
         child: Column(children: [
+          // 위쪽(화면 구조 개편 10/18): 날짜 · (쉬는 중이면 쉬는 중 칩) · 상태 칩 · 메뉴. 상태 칩·메뉴는 오른쪽에 붙여
+          // 재므로 쉬는 중 칩이 켜져도 자리가 바뀌지 않는다(UI 평가 4차 10/17 — 늘 누르던 자리가 밀렸다).
           SizedBox(height: _Idle.topRow, child: Row(children: [
-            // 방해 금지 칩이 켜지면 위 줄이 좁아진다 — 날짜는 말줄임 대신 살짝
-            // 줄여 다 보인다.
+            // 쉬는 중 칩이 켜지면 위 줄이 좁아진다 — 날짜는 말줄임 대신 살짝 줄여 다 보인다.
             Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
               child: Text(_dateStr, maxLines: 1, softWrap: false,
-                style: const TextStyle(fontSize: _Idle.topText, color: KioskColors.muted)))),
-            // 넓어지는 '제안 쉬는 중' 칩을 맨 앞(날짜 쪽)에 둔다 — 켜져도 설정·연결 아이콘 자리가 그대로다
-            // (UI 평가 4차 10/17: 칩이 켜지면 설정이 왼쪽으로 밀려 늘 누르던 자리가 바뀌었다). 설정은 구석이 아니다.
-            _DndEntry(
-                remaining: dnd == null ? null : _dndRemaining(dnd),
-                quietUntil: dnd == null ? quietUntil : null,
-                onTap: onDndGesture),
-            const SizedBox(width: 8), // 아래 이름끼리 붙지 않게('제안 쉬기'·'설정').
-            // 설정은 자주 쓰지 않는다 — 금색 글자 알약이 화면에서 가장 밝아 시선을 빼앗았다(2026-10-14).
-            // 회색 톱니 아이콘 단추로 두되, 누르는 자리는 48px 이상·읽는 이름은 '설정'.
-            Semantics(button: true, label: '설정', excludeSemantics: true, onTap: onSettingsGesture,
-              // 아이콘 아래 이름(UI 평가 3차 10/17) — 연결 아이콘과 같은 모양.
-              child: InkWell(key: const ValueKey('settings-entry'),
-                onTap: onSettingsGesture,
-                borderRadius: BorderRadius.circular(12),
-                child: const SizedBox(width: 60, height: 64,
-                  child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                    Icon(Icons.settings_outlined, size: 28, color: KioskColors.muted),
-                    KioskTopIconLabel('설정'),
-                  ])))),
-            const SizedBox(width: 4),
-            KioskConnectionIcons(items: connections, onOpen: onOpenConnection),
+                style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)))),
+            if (dnd != null || quietUntil != null) ...[
+              _DndEntry(
+                  key: const ValueKey('dnd-chip'),
+                  remaining: dnd == null ? null : _dndRemaining(dnd),
+                  quietUntil: dnd == null ? quietUntil : null,
+                  onTap: onDndGesture),
+              const SizedBox(width: KioskSpace.sm),
+            ],
+            KioskIdleStatusChip(
+              items: connections,
+              onTap: () {
+                // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창.
+                final (_, _, direct) = connectionSummary(connections);
+                direct != null ? onOpenConnection(direct) : sheets.openConnections();
+              },
+            ),
+            const SizedBox(width: KioskSpace.xs),
+            KioskIdleMenuButton(onTap: sheets.openMenu),
           ])),
           const SizedBox(height: 8),
           Expanded(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -276,10 +276,11 @@ class KioskIdleView extends StatelessWidget {
                 itemWidth: large ? 230 : 170,
                 labelSize: _Idle.stripName,
                 statusSize: _Idle.stripStatus,
-                iconBox: 52)))),
+                iconBox: 52,
+                tileHeight: large ? 140 : 112)))),
         ]),
       ),
-    );
+    ));
   }
 
   /// 오른쪽 칸(인사말 또는 안내 + 예보)이 [width] 폭에서 차지할 높이. 화면과 같은
@@ -308,7 +309,6 @@ class KioskIdleView extends StatelessWidget {
 abstract final class _Idle {
   static const double side = 44; // 좌우 여백(전 28)
   static const double topRow = 64; // 위 줄(전 80)
-  static const double topText = 24; // 날짜·설정(전 33)
   static const double envText = 22; // 실내 온습도(전 33)
   static const double airIcon = 28; // 실내 공기 아이콘(2026-10-16)
   static const double columnGap = 40; // 시계 칸과 안내 칸 사이(전 20)
@@ -349,7 +349,7 @@ double _textHeight(BuildContext context, String text, TextStyle style, double ma
 /// 켜진 것으로 읽혔다), 켜져 있으면 채운 칩에 아이콘·"방해 금지"·남은 시간을 적는다
 /// (색만으로 말하지 않는다). 둘 다 누르면 같은 방해 금지 선택이 열린다.
 class _DndEntry extends StatelessWidget {
-  const _DndEntry({required this.remaining, required this.onTap, this.quietUntil});
+  const _DndEntry({super.key, required this.remaining, required this.onTap, this.quietUntil});
 
   /// 남은 시간 문구. null이면 꺼져 있다.
   final String? remaining;
@@ -378,7 +378,6 @@ class _DndEntry extends StatelessWidget {
           color: on ? KioskColors.surface2 : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
-            key: const ValueKey('dnd-entry'),
             onTap: onTap,
             borderRadius: BorderRadius.circular(12),
             child: ConstrainedBox(
@@ -435,26 +434,25 @@ class _DndEntry extends StatelessWidget {
   }
 }
 
-/// 실내 공기 한 줄 — 앞은 등급(색 + 말), 뒤는 초미세먼지 값·공기청정기 전원. 1~2 m에서 읽히게 앞 글은 굵게.
-/// 칸이 좁으면 뒤 글이 다음 줄로 내려간다(자르지 않는다). 색만으로 말하지 않는다 — 등급 말이 늘 함께 있다.
+/// 실내 공기 — '공기 좋아요' 한 줄(색 + 말)과 아래 작은 줄(공기청정기 전원·연습 값). 1~2 m에서 읽히게 앞 글은 굵게.
+/// 숫자와 등급 출처는 LG 상세의 '자세히' 안에 둔다(2차 평가 10/18).
 class _AirLine extends StatelessWidget {
   const _AirLine({super.key, required this.air, this.compact = false});
   final KioskAirReading air;
 
-  /// 큰 글씨 — 온도 줄처럼 '실내'를 빼고, 뒤 글은 초미세먼지 값만(공기청정기 '켜짐'은 아래 가전 줄에도 있다).
-  /// 시계 칸 높이 안에 들게 한다(자르거나 스크롤 아래로 숨기지 않게).
+  /// 큰 글씨 — 아래 작은 줄을 뺀다(공기청정기 '켜짐'은 아래 가전 타일에도 있다).
   final bool compact;
 
   @override
   Widget build(BuildContext context) {
+    // 공기는 한 줄 + 색(2차 평가 10/18) — '공기 보통이에요'. 숫자·'종합은 가전이 매긴 등급'은 LG 상세의 '자세히' 안.
+    // 색만으로 말하지 않는다 — 등급 말이 늘 함께 있다.
     final color = airGradeColor(air.grade);
-    final details = compact
-        ? air.details.where((d) => d.startsWith('초미세먼지') || d == '연습 값').toList()
-        : air.details;
-    final size = compact ? _Idle.envText + 2 : _Idle.greeting;
+    final word = kAirGradeSentences[air.grade] ?? air.gradeWord;
+    final sub = compact ? air.sub.where((d) => d == '연습 값').toList() : air.sub;
     return Semantics(
       container: true,
-      label: air.line,
+      label: [air.sentence, ...air.sub].join('. '),
       excludeSemantics: true,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -463,37 +461,26 @@ class _AirLine extends StatelessWidget {
             padding: const EdgeInsets.only(top: 4),
             child: Icon(Icons.air, size: _Idle.airIcon, color: color),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: KioskSpace.sm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text.rich(
                   TextSpan(children: [
-                    TextSpan(
-                        text: keepWords(
-                            '${compact ? '공기 ' : '실내 공기 '}${air.isTotal ? '종합 ' : ''}'),
-                        style: const TextStyle(color: Colors.white)),
-                    TextSpan(text: keepWords(air.gradeWord),
+                    const TextSpan(text: '공기 ', style: TextStyle(color: Colors.white)),
+                    TextSpan(text: word,
                         style: TextStyle(color: color, fontWeight: FontWeight.w800)),
                   ]),
                   key: const ValueKey('idle-air-headline'),
-                  style: TextStyle(fontSize: size, height: 1.2, fontWeight: FontWeight.w600),
+                  style: const TextStyle(
+                      fontSize: KioskType.status, height: 1.2, fontWeight: FontWeight.w600),
                 ),
-                if (details.isNotEmpty)
-                  // 항목마다 따로 놓는다 — 좁으면 항목 사이에서 줄이 바뀌고, '·'가 줄 끝에 매달리지 않는다
-                  // (외부 평가 10/16 2차 k01). 항목 안에서는 줄을 바꾸지 않는다.
-                  Wrap(
-                    key: const ValueKey('idle-air-detail'),
-                    spacing: 22,
-                    children: [
-                      for (final d in details)
-                        Text(d,
-                            softWrap: false,
-                            style: const TextStyle(
-                                fontSize: _Idle.envText, height: 1.25, color: KioskColors.muted)),
-                    ],
-                  ),
+                if (sub.isNotEmpty)
+                  Text(sub.join('   '),
+                      key: const ValueKey('idle-air-detail'),
+                      style: const TextStyle(
+                          fontSize: KioskType.body, height: 1.3, color: KioskColors.muted)),
               ],
             ),
           ),
@@ -717,4 +704,87 @@ class _ValueText extends StatelessWidget {
           color: h.precip ? Colors.white : KioskColors.muted,
         ),
       );
+}
+
+/// 위쪽 칩·메뉴가 여는 큰 창(메뉴·연결 목록)을 들고 있는 껍데기(화면 구조 개편 10/18).
+/// 창은 캔버스 안에 그린다(확대·가장자리 여백을 그대로 따른다).
+enum _Sheet { none, menu, connections }
+
+class _IdleSheets {
+  const _IdleSheets(this.openMenu, this.openConnections);
+  final VoidCallback openMenu;
+  final VoidCallback openConnections;
+}
+
+class _IdleSheetHost extends StatefulWidget {
+  const _IdleSheetHost({required this.view, required this.builder});
+
+  final KioskIdleView view;
+  final Widget Function(_IdleSheets sheets) builder;
+
+  @override
+  State<_IdleSheetHost> createState() => _IdleSheetHostState();
+}
+
+class _IdleSheetHostState extends State<_IdleSheetHost> {
+  _Sheet _sheet = _Sheet.none;
+
+  void _close() => setState(() => _sheet = _Sheet.none);
+
+  @override
+  Widget build(BuildContext context) {
+    final v = widget.view;
+    final body = widget.builder(_IdleSheets(
+      () => setState(() => _sheet = _Sheet.menu),
+      () => setState(() => _sheet = _Sheet.connections),
+    ));
+    if (_sheet == _Sheet.none) return body;
+    final dnd = v.dndUntil != null && v.dndUntil!.isAfter(v.now) ? v.dndUntil : null;
+    final restSub = dnd != null
+        ? '쉬는 중이에요. ${v._dndRemaining(dnd)} 남음'
+        : v.quietUntil != null
+            ? '조용한 시간이에요. ${v.quietUntil}까지'
+            : '새 제안을 잠시 쉬어요';
+    return Stack(children: [
+      body,
+      Positioned.fill(
+        child: _sheet == _Sheet.menu
+            ? KioskIdleSheet(
+                title: '메뉴',
+                onClose: _close,
+                children: [
+                  KioskSheetRow(
+                    key: const ValueKey('dnd-entry'),
+                    icon: dnd != null || v.quietUntil != null ? Icons.bedtime : Icons.bedtime_outlined,
+                    label: '잠시 쉬기',
+                    sub: restSub,
+                    onTap: () {
+                      _close();
+                      v.onDndGesture();
+                    },
+                  ),
+                  KioskSheetRow(
+                    key: const ValueKey('settings-entry'),
+                    icon: Icons.settings_outlined,
+                    label: '설정',
+                    sub: '큰 글씨, 음성 안내, 폰 연결',
+                    semanticsLabel: '설정',
+                    onTap: () {
+                      _close();
+                      v.onSettingsGesture?.call();
+                    },
+                  ),
+                ],
+              )
+            : KioskIdleSheet(
+                title: '연결',
+                onClose: _close,
+                children: connectionRows(v.connections, (item) {
+                  _close();
+                  v.onOpenConnection(item);
+                }),
+              ),
+      ),
+    ]);
+  }
 }

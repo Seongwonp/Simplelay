@@ -164,9 +164,11 @@ void main() {
       _expectFullyVisible(tester, find.text(_tipText));
       _expectFullyVisible(tester, find.textContaining('습도 58%'));
       _expectFullyVisible(tester, find.text('7:08'));
-      // 방해 금지는 꺼져 있으면 글자 없이 아이콘 단추만 — 누르는 자리가 화면 안에 있다.
+      // 쉬기·설정은 메뉴로(10/18) — 메뉴 단추와 상태 칩이 화면 안에 있다.
       expect(find.text('방해 금지'), findsNothing);
-      _expectFullyVisible(tester, find.byKey(const ValueKey('dnd-entry')),
+      _expectFullyVisible(tester, find.byKey(const ValueKey('idle-menu')),
+          isText: false);
+      _expectFullyVisible(tester, find.byKey(const ValueKey('idle-status-chip')),
           isText: false);
       // 큰 글씨에서는 안내가 있으면 예보 칸을 접는다(아래가 잘리지 않게).
       expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
@@ -193,7 +195,9 @@ void main() {
       for (final label in ['9시', '12시', '15시', '18시', '16°', '70%']) {
         _expectFullyVisible(tester, find.text(label));
       }
-      _expectFullyVisible(tester, find.byKey(const ValueKey('dnd-entry')),
+      _expectFullyVisible(tester, find.byKey(const ValueKey('idle-menu')),
+          isText: false);
+      _expectFullyVisible(tester, find.byKey(const ValueKey('idle-status-chip')),
           isText: false);
       // 거실 선풍기는 첫 장이든 다음 장이든 줄지 않고 보여야 한다.
       if (find.text('거실 선풍기').evaluate().isEmpty) {

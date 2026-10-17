@@ -9,6 +9,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/idle_menu.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/models/command_result.dart';
@@ -522,7 +524,7 @@ void main() {
         ..statusResult = const KioskStatus(
             running: false, estopLatched: true, estopDetail: _buttonDetail);
       await _pumpKiosk(tester, api);
-      await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+      await tapIdleMenuItem(tester, 'dnd-entry');
       await _settle(tester);
       expect(find.byKey(_ack).hitTestable(), findsOneWidget);
       expect(tester.takeException(), isNull);
@@ -805,7 +807,7 @@ void main() {
       expect(find.textContaining('새 제안만 쉬어요. 자동으로 하기는 그대로예요'), findsOneWidget);
     });
 
-    testWidgets('B4 — 연결 창: 새로 보기, 본체 풀이 줄 없음, 큰 글씨에서 잘리지 않고 막대가 보인다', (tester) async {
+    testWidgets('B4 — 연결 창: 다시 연결해 보기, 본체 풀이 줄 없음, 큰 글씨에서 잘리지 않고 막대가 보인다', (tester) async {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       await _pumpView(
         tester,
@@ -814,11 +816,10 @@ void main() {
             id: 'network',
             state: 'error',
             title: '와이파이 연결이 끊겼어요',
-            message: 'SimpleLay 본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 SimpleLay 본체를 찾지 못하고, 날씨 안내도 볼 수 없어요.',
+            message: '본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 찾지 못하고, 날씨 안내도 볼 수 없어요.',
             fixes: [
               '공유기 전원이 켜져 있는지 확인해 주세요.',
-              'SimpleLay 본체에 랜선을 쓰고 있다면 선이 끝까지 꽂혀 있는지 확인해 주세요.',
-              '그래도 안 되면 SimpleLay 본체 전원을 껐다가 다시 켜 주세요.',
+              '그래도 안 되면 본체 전원을 껐다가 다시 켜 주세요.',
             ],
           ),
           checking: false,
@@ -829,9 +830,9 @@ void main() {
         malgun: true,
       );
       expect(tester.takeException(), isNull);
-      expect(find.text('새로 보기'), findsOneWidget);
+      expect(find.text('다시 연결해 보기'), findsOneWidget);
       expect(find.text('다시 연결하기'), findsNothing);
-      expect(find.text('새로 보기').hitTestable(), findsOneWidget);
+      expect(find.text('다시 연결해 보기').hitTestable(), findsOneWidget);
       expect(find.text('닫기').hitTestable(), findsOneWidget);
       final bar = find.ancestor(
           of: find.textContaining('공유기 전원이'), matching: find.byType(RawScrollbar));
@@ -851,11 +852,10 @@ void main() {
             id: 'network',
             state: 'error',
             title: '와이파이 연결이 끊겼어요',
-            message: 'SimpleLay 본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 SimpleLay 본체를 찾지 못하고, 날씨 안내도 볼 수 없어요.',
+            message: '본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 찾지 못하고, 날씨 안내도 볼 수 없어요.',
             fixes: [
               '공유기 전원이 켜져 있는지 확인해 주세요.',
-              'SimpleLay 본체에 랜선을 쓰고 있다면 선이 끝까지 꽂혀 있는지 확인해 주세요.',
-              '그래도 안 되면 SimpleLay 본체 전원을 껐다가 다시 켜 주세요.',
+              '그래도 안 되면 본체 전원을 껐다가 다시 켜 주세요.',
             ],
           ),
           checking: false,

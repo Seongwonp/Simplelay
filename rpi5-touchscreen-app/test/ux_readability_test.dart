@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/idle_menu.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/connection_status.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/hold_view.dart';
@@ -23,7 +25,7 @@ void main() {
     ))));
     // 꺼져 있을 때는 글자 없이 달 아이콘 단추(켜진 것으로 읽히지 않게, 10/5).
     expect(find.text('방해 금지'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('dnd-entry')));
+    await tapIdleMenuItem(tester, 'dnd-entry');
     expect(opened, 1);
     // 10/7 평소 화면 여백 정리로 인사말 33 → 28. 시계 다음 위계라 다른 글자보다 크고,
     // 14pt 하한(15.8형 캔버스 기준 약 13.2)보다 넉넉히 크다.

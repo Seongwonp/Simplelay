@@ -157,7 +157,7 @@ class _ConnectionIcon extends StatelessWidget {
 
 /// 연결 문제 모달 — 제목, 무엇이 안 되는지, 해결 방법, "다시 확인하기/닫기".
 ///
-/// "새로 보기"는 본체에 연결 상태를 **다시 묻는다**. 서버에 재연결 명령은
+/// "다시 연결해 보기"(2차 평가 10/18 — 할 일을 마친 사람이 누를 말)는 본체에 연결 상태를 **다시 묻는다**. 서버에 재연결 명령은
 /// 없어서, 고쳐진 뒤 확인하는 단추다(예전 이름 '다시 연결하기'는 다시 연결해 주는 줄 알았다, 2026-10-15).
 ///
 /// 글이 길면 안에서 스크롤하고 막대가 보인다(B4 — 예전에는 잘린 채 끝나 보였다).
@@ -237,16 +237,27 @@ class KioskConnectionModal extends StatelessWidget {
                             color: KioskColors.muted,
                           ),
                         ),
-                      for (final fix in item.fixes)
+                      // 할 일은 번호 붙은 단계(2차 평가 10/18) — 위에서부터 차례로 해 보면 된다.
+                      for (final (i, fix) in item.fixes.indexed)
                         Padding(
                           padding: EdgeInsets.only(top: large ? 4 : 6),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const Padding(
-                                padding: EdgeInsets.only(top: 9, right: 10),
-                                child: Icon(Icons.circle,
-                                    size: 7, color: Colors.white),
+                              Container(
+                                width: 28,
+                                height: 28,
+                                margin: const EdgeInsets.only(top: 2, right: KioskSpace.sm),
+                                alignment: Alignment.center,
+                                decoration: const BoxDecoration(
+                                    color: Colors.white, shape: BoxShape.circle),
+                                child: Text('${i + 1}',
+                                    textScaler: TextScaler.noScaling,
+                                    style: const TextStyle(
+                                        fontSize: KioskType.caption,
+                                        height: 1,
+                                        fontWeight: FontWeight.w800,
+                                        color: KioskColors.onAccent)),
                               ),
                               Expanded(
                                 child: KioskText(
@@ -274,7 +285,8 @@ class KioskConnectionModal extends StatelessWidget {
                       onPressed: checking ? null : onRecheck,
                       style: ElevatedButton.styleFrom(
                         minimumSize: const Size(0, 56),
-                        backgroundColor: KioskColors.primary,
+                        // 문제 창(앰버)에서는 골드 면 단추를 두지 않는다(10/18) — 흰 면·검은 글자.
+                        backgroundColor: warn ? KioskColors.neutralFill : KioskColors.primary,
                         foregroundColor: KioskColors.onAccent,
                         disabledBackgroundColor: KioskColors.border,
                         disabledForegroundColor: KioskColors.muted,
@@ -283,7 +295,7 @@ class KioskConnectionModal extends StatelessWidget {
                             borderRadius: BorderRadius.circular(12)),
                       ),
                       child: Text(
-                        checking ? '보고 있어요' : '새로 보기',
+                        checking ? '연결해 보는 중' : '다시 연결해 보기',
                         style: const TextStyle(
                             fontSize: 20, fontWeight: FontWeight.w700),
                       ),

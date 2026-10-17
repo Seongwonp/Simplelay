@@ -26,7 +26,7 @@ const kThinqEstopNote = '비상 버튼이 눌려 있어 지금은 바꿀 수 없
 const kThinqPowerOffNote = '전원을 켠 뒤 바꿀 수 있어요';
 
 /// 연습(모의) ThinQ 표시.
-const kThinqPracticeText = '연습 중이에요. 실제 가전에는 보내지 않아요';
+const kThinqPracticeText = '연습 중이라 실제 가전은 움직이지 않아요';
 
 /// ThinQ 가전 상세(2026-10-16, 사용자 요청) — 왼쪽 지금 상태, 오른쪽 큰 조작 단추.
 ///
@@ -199,8 +199,8 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
   }
 }
 
-/// 왼쪽 — 지금 상태.
-class _StateCard extends StatelessWidget {
+/// 왼쪽 — 지금 상태. 공기는 '공기 나빠요' 한 줄 + 색이고, 먼지 숫자·등급 출처는 '자세히'를 눌러야 보인다(2차 평가 10/18).
+class _StateCard extends StatefulWidget {
   const _StateCard({required this.status, required this.loading, required this.onReread});
 
   final KioskThinqStatus? status;
@@ -208,8 +208,19 @@ class _StateCard extends StatelessWidget {
   final VoidCallback? onReread;
 
   @override
+  State<_StateCard> createState() => _StateCardState();
+}
+
+class _StateCardState extends State<_StateCard> {
+  bool _airOpen = false;
+
+  static const _dustLabels = {'초미세먼지', '미세먼지'};
+
+  @override
   Widget build(BuildContext context) {
-    final s = status;
+    final s = widget.status;
+    final loading = widget.loading;
+    final onReread = widget.onReread;
     final List<Widget> body;
     if (loading || s == null) {
       body = const [
@@ -234,14 +245,59 @@ class _StateCard extends StatelessWidget {
       ];
     } else {
       final map = s.stateMap;
-      final rows = thinqStateRows(map);
+      final all = thinqStateRows(map);
+      final rows = all.where((r) => !_dustLabels.contains(r.label)).toList();
+      final dust = all.where((r) => _dustLabels.contains(r.label)).toList();
+      final sensor = map['airQualitySensor'];
+      final total = sensor is Map ? sensor['totalPollutionLevel']?.toString() : null;
+      final grade = [
+        total,
+        if (sensor is Map) sensor['PM2Level']?.toString(),
+        if (sensor is Map) sensor['PM10Level']?.toString(),
+      ].whereType<String>().where(kAirGradeWords.containsKey).firstOrNull;
       final dustNote = thinqDustNote(map);
       body = [
-        if (rows.isEmpty)
+        if (all.isEmpty)
           const Text('보여 줄 상태가 없어요',
               style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted))
         else
           for (final row in rows) _StateRowView(row: row),
+        if (dust.isNotEmpty) ...[
+          const SizedBox(height: KioskSpace.xs),
+          Row(children: [
+            Icon(Icons.air, size: 26, color: airGradeColor(grade)),
+            const SizedBox(width: KioskSpace.xs),
+            Expanded(
+              child: Text(grade == null ? '공기' : airSentence(grade),
+                  key: const ValueKey('thinq-air-summary'),
+                  style: TextStyle(
+                      fontSize: KioskType.body,
+                      fontWeight: FontWeight.w800,
+                      color: grade == null ? Colors.white : airGradeColor(grade))),
+            ),
+            OutlinedButton(
+              key: const ValueKey('thinq-air-more'),
+              onPressed: () => setState(() => _airOpen = !_airOpen),
+              style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border)
+                  .copyWith(
+                minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
+                padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.sm)),
+              ),
+              child: Text(_airOpen ? '접기' : '자세히',
+                  style: const TextStyle(fontSize: KioskType.caption)),
+            ),
+          ]),
+          if (_airOpen) ...[
+            for (final row in dust) _StateRowView(row: row),
+            if (total != null && kAirGradeWords.containsKey(total))
+              const Padding(
+                padding: EdgeInsets.only(top: 4),
+                child: Text('종합은 가전이 매긴 등급이에요',
+                    key: ValueKey('thinq-air-total-note'),
+                    style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+              ),
+          ],
+        ],
         if (dustNote != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),

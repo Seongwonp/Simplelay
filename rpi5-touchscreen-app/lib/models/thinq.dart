@@ -14,6 +14,18 @@ const kAirGradeWords = {
   'VERY_BAD': '매우 나쁨',
 };
 
+/// 가전 등급 → 해요체 한 줄의 끝말(2차 평가 10/18) — '공기 좋아요'.
+const kAirGradeSentences = {
+  'GOOD': '좋아요',
+  'NORMAL': '보통이에요',
+  'BAD': '나빠요',
+  'VERY_BAD': '아주 나빠요',
+};
+
+/// '공기 좋아요' — 모르는 등급이면 등급 말을 그대로.
+String airSentence(String grade) =>
+    '공기 ${kAirGradeSentences[grade] ?? kAirGradeWords[grade] ?? grade}';
+
 /// 이보다 오래된 공기질은 보이지 않는다(서버 `POWER_STALE_SECONDS`와 같다 — 서버도 거른다).
 const kAirStaleSeconds = 600.0;
 
@@ -89,6 +101,17 @@ class KioskAirReading {
 
   bool get isTotal => gradeSource == 'total';
 
+  /// 대기 화면·LG 상세의 공기 한 줄(2차 평가 10/18) — '공기 좋아요'. 숫자·등급 출처('종합은 가전이 매긴 등급')는
+  /// LG 상세의 '자세히' 안에만 둔다. 말은 가전이 매긴 등급 그대로다(우리 임계값 없음).
+  String get sentence => airSentence(grade);
+
+  /// 공기 한 줄 아래 작은 줄 — 공기청정기 전원·연습 값(아는 것만). 없으면 빈 목록.
+  List<String> get sub => [
+        if (power == 'on') '공기청정기 켜짐',
+        if (power == 'off') '공기청정기 꺼짐',
+        if (mock) '연습 값',
+      ];
+
   /// 뒤 글 — '초미세먼지 8 좋음 · 공기청정기 켜짐'. 아는 것만. 초미세먼지 등급을 붙여 종합 등급과 헷갈리지 않게 한다
   /// (외부 평가 10/16 2차 — 종합 '보통'과 초미세먼지 8이 모순처럼 읽혔다).
   List<String> get details => [
@@ -157,7 +180,8 @@ class ThinqStateRow {
 
 const _power = {'POWER_ON': '켜짐', 'POWER_OFF': '꺼짐'};
 const _jobMode = {'CLEAN': '청정', 'SLEEP': '수면', 'AUTO': '자동', 'SILENT': '조용'};
-const _wind = {'LOW': '약풍', 'MID': '중풍', 'HIGH': '강풍', 'AUTO': '자동', 'POWER': '파워'};
+// 바람 세기 이름은 조작 단추와 같은 말(2차 평가 10/18 — 상태는 '약풍', 단추는 '약'이라 다른 것처럼 읽혔다).
+const _wind = {'LOW': '약', 'MID': '중', 'HIGH': '강', 'AUTO': '자동', 'POWER': '파워'};
 
 /// ThinQ 상태 → 줄. 아는 칸만 사람 말로, 없는 칸은 줄을 만들지 않는다(폰 `thinqStateRows`와 같은 칸·순서).
 List<ThinqStateRow> thinqStateRows(Map<String, dynamic> state) {

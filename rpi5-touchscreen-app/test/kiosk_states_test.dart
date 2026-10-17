@@ -203,7 +203,8 @@ void main() {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);
 
-      expect(find.byType(KioskConnectionIcons), findsOneWidget);
+      expect(find.byKey(const ValueKey('idle-status-chip')), findsOneWidget); // 아이콘 줄 대신 상태 칩(10/18)
+      expect(find.text('모두 정상'), findsOneWidget);
       expect(find.text('!'), findsNothing);
     });
 
@@ -228,11 +229,12 @@ void main() {
         ];
       await _pump(tester, api);
 
-      expect(find.byKey(const ValueKey('conn-badge-plug')), findsOneWidget);
-      expect(find.byKey(const ValueKey('conn-badge-network')), findsNothing);
-      expect(find.byKey(const ValueKey('conn-badge-press')), findsNothing);
+      // 문제가 있을 때만 앰버 칩에 무엇이 문제인지(10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
+      expect(find.text('콘센트 봐 주세요'), findsOneWidget);
+      expect(find.text('와이파이 연결 끊김'), findsNothing);
+      expect(find.text('작은 팔 연결 끊김'), findsNothing);
 
-      await tester.tap(find.byKey(const ValueKey('conn-plug')));
+      await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await _settle(tester);
 
       expect(find.byType(KioskConnectionModal), findsOneWidget);
@@ -247,10 +249,10 @@ void main() {
         const ConnectionItem(id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: ''),
         const ConnectionItem(id: 'plug', state: 'ok', title: '가전 콘센트 장치가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
       ];
-      await tester.tap(find.text('새로 보기'));
+      await tester.tap(find.text('다시 연결해 보기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
-      expect(find.byKey(const ValueKey('conn-badge-plug')), findsNothing);
+      expect(find.text('모두 정상'), findsOneWidget);
       expect(find.text('가전 콘센트 장치가 연결돼 있어요'), findsOneWidget);
 
       await tester.tap(find.text('닫기'));
@@ -264,8 +266,8 @@ void main() {
         ..healthResult = HealthStatus.disconnected;
       await _pump(tester, api);
 
-      expect(find.byKey(const ValueKey('conn-badge-network')), findsOneWidget);
-      await tester.tap(find.byKey(const ValueKey('conn-network')));
+      expect(find.text('와이파이 연결 끊김'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await _settle(tester);
       expect(find.text('본체와 연결되지 않았어요'), findsOneWidget);
     });
@@ -655,12 +657,17 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('strip-prev')));
       await _settle(tester);
 
-      // 설정 진입은 구석이 아니다
+      // 설정 진입은 구석이 아니다 — 메뉴 창 가운데 큰 줄(10/18). 메뉴 단추·창도 가장자리 여백 안.
+      await tester.tap(find.byKey(const ValueKey('idle-menu')));
+      await _settle(tester);
+      _expectEdgeSafe(tester, '메뉴 창');
       final settings = tester.getCenter(find.byKey(const ValueKey('settings-entry')));
       expect(settings.dx, inInclusiveRange(1920 * 0.25, 1920 * 0.75),
           reason: '설정 진입 $settings가 구석에 있다');
+      await tester.tap(find.byKey(const ValueKey('idle-sheet-close')));
+      await _settle(tester);
 
-      await tester.tap(find.byKey(const ValueKey('conn-plug')));
+      await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await _settle(tester);
       _expectEdgeSafe(tester, '연결 모달');
       await tester.tap(find.text('닫기'));

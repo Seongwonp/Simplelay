@@ -209,7 +209,7 @@ void main() {
       _expectPlain(t, 'connection');
     }
     expect(find.text('본체와 연결되지 않았어요'), findsOneWidget);
-    expect(find.text('새로 보기'), findsOneWidget);
+    expect(find.text('다시 연결해 보기'), findsOneWidget);
     expect(find.textContaining('상자예요'), findsNothing);
   });
 }

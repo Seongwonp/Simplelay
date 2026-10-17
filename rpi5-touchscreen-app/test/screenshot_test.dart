@@ -78,7 +78,8 @@ Future<void> _shoot(
 /// 15.8형 패널 미리보기 — 제품 사양표 해상도 1920x1080
 /// (docs/하드웨어-연결-설계.md §0-1). KioskCanvas가 가장자리 48px을 비우고
 /// 800x480 설계 캔버스를 2.05배로 확대해 채운 모습 -- 글씨·버튼·터치타깃이 함께 커진다.
-Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
+Future<void> _shoot15(WidgetTester tester, String name, Widget child,
+    {Future<void> Function(WidgetTester)? before}) async {
   tester.view.physicalSize = const Size(1920, 1080);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -93,6 +94,7 @@ Future<void> _shoot15(WidgetTester tester, String name, Widget child) async {
     ),
   );
   await tester.pump(const Duration(milliseconds: 300));
+  if (before != null) await before(tester);
   // 스크롤 막대(늘 보임)는 첫 그림 뒤에 나타난다 — 한 번 더 그려 막대까지 찍는다(2026-10-15).
   await tester.pump(const Duration(milliseconds: 400));
   await expectLater(
@@ -297,7 +299,7 @@ void main() {
     );
   });
 
-  testWidgets('평소 — SimpleLay 본체 연결 끊김', (t) async {
+  testWidgets('평소 — 본체 연결 끊김', (t) async {
     await _shoot(
       t,
       'idle_disconnected',
@@ -602,6 +604,24 @@ void main() {
 
   testWidgets('15인치 미리보기 — 평소', (t) async {
     await _shoot15(t, 'kiosk15_idle', _idle());
+  });
+
+  // 화면 구조 개편(10/18) — 위쪽 메뉴 창(잠시 쉬기·설정)과 문제가 있을 때의 앰버 상태 칩.
+  testWidgets('15인치 미리보기 — 평소, 메뉴 창', (t) async {
+    await _shoot15(t, 'kiosk15_idle_menu', _idle(), before: (t) async {
+      await t.tap(find.byKey(const ValueKey('idle-menu')));
+      await t.pump();
+    });
+  });
+
+  testWidgets('15인치 미리보기 — 평소, 작은 팔 연결 끊김 칩', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_problem',
+        _idle(connections: const [
+          ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
+          ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+        ]));
   });
 
   // 2026-10-16 — 실내 공기 한 줄(시계 아래 빈 자리), ThinQ 공기청정기 상세(지금 상태 + 큰 조작 단추).
@@ -929,21 +949,20 @@ void main() {
     );
   });
 
-  // ── 2026-10-15 문구 개선 3단계 — 연결 창(B4)·'SimpleLay 본체' 풀이 ─────────────
+  // ── 2026-10-15 문구 개선 3단계 — 연결 창(B4)·본체 풀이 ─────────────
   const networkDown = ConnectionItem(
     id: 'network',
     state: 'error',
     title: '와이파이 연결이 끊겼어요',
-    message: 'SimpleLay 본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 SimpleLay 본체를 찾지 못하고, '
+    message: '본체가 집 와이파이에 연결되지 않았어요. 휴대폰 앱에서 찾지 못하고, '
         '날씨 안내도 볼 수 없어요.',
     fixes: [
       '공유기 전원이 켜져 있는지 확인해 주세요.',
-      'SimpleLay 본체에 랜선을 쓰고 있다면 선이 끝까지 꽂혀 있는지 확인해 주세요.',
-      '그래도 안 되면 SimpleLay 본체 전원을 껐다가 다시 켜 주세요.',
+      '그래도 안 되면 본체 전원을 껐다가 다시 켜 주세요.',
     ],
   );
 
-  testWidgets('연결 창 — 큰 글씨·SimpleLay 본체 풀이', (t) async {
+  testWidgets('연결 창 — 큰 글씨·본체 풀이', (t) async {
     await _shoot(
       t,
       'connection_modal_large',

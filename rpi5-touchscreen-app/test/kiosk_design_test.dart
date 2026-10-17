@@ -16,6 +16,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/idle_menu.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/screens/kiosk_screen.dart';
@@ -530,7 +532,7 @@ void main() {
       expectBanner(tester, '평소');
 
       // 설정 창을 열어도
-      await tester.tap(find.byKey(const ValueKey('settings-entry')));
+      await tapIdleMenuItem(tester, 'settings-entry');
       await nextPoll(tester);
       expectBanner(tester, '설정');
       await tester.pumpWidget(const SizedBox.shrink());
