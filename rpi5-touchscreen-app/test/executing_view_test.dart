@@ -146,10 +146,10 @@ void main() {
     expect(box.border, isNull);
     expect(box.color, isNot(KioskColors.surface));
     expect(tester.widget<Text>(find.text('10초')).style!.color, KioskColors.panelText);
-    // 지금 누르는 칸만 앰버로 채운다.
+    // 지금 누르는 칸만 진행색으로 채운다(앰버 강조는 주 행동 몫 — 화면 구조 개편 10/18).
     final current = tester.widget<DecoratedBox>(
         find.byKey(const ValueKey('panel-current')));
-    expect((current.decoration as BoxDecoration).color, KioskColors.primary);
+    expect((current.decoration as BoxDecoration).color, KioskColors.running);
   });
 
   testWidgets('같은 이름의 버튼이 둘이면 어느 쪽인지 지어내지 않는다', (tester) async {

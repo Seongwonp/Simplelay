@@ -10,6 +10,7 @@ import 'kiosk_target_line.dart';
 import 'kiosk_text.dart';
 import 'status_band.dart';
 import 'route_badge.dart';
+import 'panel_picture.dart';
 
 /// 승인 재검사 실패(409) 안내. 폰 앱과 같은 문장.
 const kApprovalChangedMessage = '내용이 바뀌었어요. 다시 봐 주세요';
@@ -188,8 +189,17 @@ class KioskSuggestionView extends StatelessWidget {
           minimumSize: const Size(0, 48), foregroundColor: Colors.white),
       child: const Text('자세히 보기', style: TextStyle(fontSize: KioskType.body)),
     );
+    // 누를 버튼이 모두 버튼판에서 자리를 찾으면 그림으로(화면 구조 개편 10/18) — 실행·결과와 같은 자리(오른쪽)·같은 폭.
+    // 하나라도 못 찾으면(이름이 다르거나 두 번 나옴) 지어내지 않고 지금처럼 순서 목록.
+    final order = large || scenario
+        ? null
+        : KioskPanelPicture.orderOf(target, suggestion.steps);
+    final pictureMode = order != null;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(40, 14, 40, KioskSizes.actionsBottom),
+      padding: pictureMode
+          ? const EdgeInsets.fromLTRB(KioskSizes.runLeft, KioskSizes.runTop,
+              KioskSizes.stopRight, KioskSizes.actionsBottom)
+          : const EdgeInsets.fromLTRB(40, 14, 40, KioskSizes.actionsBottom),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -202,7 +212,7 @@ class KioskSuggestionView extends StatelessWidget {
               details,
             ]),
             const SizedBox(height: 6),
-          ] else if (target != null && !scenario) ...[
+          ] else if (target != null && !scenario && !pictureMode) ...[
             Align(
                 alignment: Alignment.centerLeft,
                 child: KioskTargetLine(appliance: target)),
@@ -238,10 +248,37 @@ class KioskSuggestionView extends StatelessWidget {
                       Expanded(
                         flex: 5,
                         // 큰 글씨에서 근거 줄이 아래로 넘치면 스크롤 막대가 보인다(2026-10-15).
-                        child: KioskScrollArea(child: question),
+                        child: KioskScrollArea(
+                            child: pictureMode
+                                ? Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      KioskTargetLine(appliance: target!),
+                                      const SizedBox(height: KioskSpace.sm),
+                                      question,
+                                    ],
+                                  )
+                                : question),
                       ),
                       // ── 오른쪽(시나리오): 어느 가전을 어느 경로로 무엇을 ─────────
-                      if (scenario) ...[
+                      if (pictureMode) ...[
+                        const SizedBox(width: KioskSizes.stopGap),
+                        SizedBox(
+                          width: KioskPanelPicture.width,
+                          child: Semantics(
+                            label: '작은 팔이 누를 순서. ${[
+                              for (var i = 0; i < suggestion.steps.length; i++)
+                                '${i + 1} ${suggestion.steps[i]}'
+                            ].join(', ')}',
+                            child: KioskPanelPicture(
+                              appliance: target,
+                              caption: '작은 팔이 누를 순서',
+                              captionKey: const ValueKey('suggestion-panel-caption'),
+                              order: order,
+                            ),
+                          ),
+                        ),
+                      ] else if (scenario) ...[
                         const SizedBox(width: 28),
                         Expanded(
                           flex: 5,
@@ -352,7 +389,7 @@ class KioskSuggestionView extends StatelessWidget {
                   ),
                   // 폰과 같은 '지금 실행' — 가전 버튼 이름 '시작'과 겹치면 가전 버튼을 바로 누르는 것으로 읽혔다(UI 평가 10/17).
                   child: const Text(
-                    '지금 실행',
+                    '지금 하기',
                     textAlign: TextAlign.center,
                     style: TextStyle(
                         fontSize: KioskType.status,

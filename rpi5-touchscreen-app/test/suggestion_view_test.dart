@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
 import 'package:simplelay_touchscreen/services/kiosk_api_service.dart';
+import 'package:simplelay_touchscreen/widgets/kiosk/panel_picture.dart';
 import 'package:simplelay_touchscreen/widgets/kiosk/suggestion_view.dart';
 
 const _sug = KioskSuggestion(
@@ -46,8 +47,8 @@ void main() {
     expect(find.byType(OutlinedButton), findsOneWidget);
     expect(find.byType(TextButton), findsNothing);
     expect(find.text('이번엔 안 할게요'), findsOneWidget);
-    // 승인 버튼은 폰과 같은 '지금 실행' — 가전 버튼 이름 '시작'과 겹치지 않게(UI 평가 10/17).
-    expect(find.descendant(of: find.byKey(_approve), matching: find.text('지금 실행')),
+    // 승인 버튼은 폰과 같은 '지금 하기'(2차 평가 10/18) — 가전 버튼 이름 '시작'과 겹치지 않게(UI 평가 10/17).
+    expect(find.descendant(of: find.byKey(_approve), matching: find.text('지금 하기')),
         findsOneWidget);
     expect(find.descendant(of: find.byKey(_approve), matching: find.text('시작')), findsNothing);
   });
@@ -91,7 +92,7 @@ void main() {
       expect(find.text('$i'), findsOneWidget);
       expect(
           find.descendant(
-              of: find.byType(ListView), matching: find.text(label)),
+              of: find.byType(KioskPanelPicture), matching: find.text(label)),
           findsOneWidget);
     }
     expect(find.byKey(_approve), findsOneWidget);
@@ -150,7 +151,7 @@ void main() {
       final later = sizeOf(tester,
           find.descendant(of: find.byKey(_later), matching: find.byType(Text)));
       final step = sizeOf(tester,
-          find.descendant(of: find.byType(ListView), matching: find.text('즉석밥')));
+          find.descendant(of: find.byType(KioskPanelPicture), matching: find.text('즉석밥')));
       final why = sizeOf(tester, find.text('아침에 3번 하셔서 여쭤봐요'));
       final all = tester
           .widgetList<Text>(find.byType(Text))

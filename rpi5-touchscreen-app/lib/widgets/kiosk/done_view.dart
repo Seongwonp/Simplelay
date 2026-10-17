@@ -5,7 +5,9 @@ import '../../models/command_result.dart';
 import '../../models/scenario_run.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
+import '../../services/kiosk_api_service.dart' show KioskButtonResult;
 import 'kiosk_scroll_area.dart';
+import 'panel_picture.dart';
 import 'kiosk_target_line.dart';
 import 'kiosk_text.dart';
 import 'kiosk_timings.dart';
@@ -44,6 +46,7 @@ class KioskDoneView extends StatelessWidget {
     this.abortReason,
     this.autoReturnHeld = false,
     this.onHold,
+    this.pressed,
   });
 
   /// 사용자가 화면을 만져 자동 복귀를 멈췄다(UI 평가 10/17) — 남은 초 대신 '자동으로 닫지 않아요'.
@@ -51,6 +54,10 @@ class KioskDoneView extends StatelessWidget {
 
   /// 화면을 만지면 부른다(성공 화면의 자동 복귀 멈춤). 단추를 누를 때도 불리지만 단추 동작은 그대로다.
   final VoidCallback? onHold;
+
+  /// 작은 팔이 누른 버튼 기록(이름·보고 결과). 버튼판에서 모두 자리를 찾으면 오른쪽 그림에 누른 칸을 표시한다
+  /// (화면 구조 개편 10/18). 모르면 null — 지금처럼 가운데 글만.
+  final List<KioskButtonResult>? pressed;
 
   /// 모션 걸림·재시작 등으로 재시도 없이 멈춘 원인(2026-10-14, /status last_abort_reason). 안전 정지에만 쓴다.
   final String? abortReason;
@@ -139,6 +146,14 @@ class KioskDoneView extends StatelessWidget {
     // 큰 글자(§1-8): 결과 원을 줄이고, 보조 단추(다시 시도·화면으로 조작하기)는 할 일 문장 아래 같은 세로 흐름으로
     // 옮긴다 — 가로 단추 줄이 두 줄로 접혀 할 일 줄을 스크롤 아래로 밀었다(2026-10-16 골든). '처음 화면으로'는 아래 고정.
     final large = KioskLayout.isLarge(context);
+    // 누른 칸을 버튼판에 표시할 수 있나(화면 구조 개편 10/18) — 제안·실행과 같은 자리(오른쪽)·같은 폭.
+    // 큰 글씨·LG 가전·기록 없음·자리를 못 찾은 이름이 있으면 지금처럼 가운데 글만.
+    final pressedMap = large || route == 'thinq' || pressed == null
+        ? null
+        : KioskPanelPicture.pressedOf(
+            this.target, [for (final b in pressed!) (b.button, b.success)]);
+    final side = pressedMap != null;
+    final ta = side ? TextAlign.start : TextAlign.center;
     final r = reason ?? KioskFailureReason.execution;
     // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 정지 단계만큼의 표시(2026-10-14, 10-15).
     final userStop = !success && r == KioskFailureReason.stopped;
@@ -308,10 +323,12 @@ class KioskDoneView extends StatelessWidget {
       ].join('. '),
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment:
+            side ? CrossAxisAlignment.start : CrossAxisAlignment.center,
         children: [
           // 큰 글씨에서는 결과 원을 뺀다 — 위 상태 띠가 같은 아이콘·색으로 말하고, 남기면 이름 줄이 스크롤 아래로
           // 밀렸다(UI 평가 5차 10/17).
-          if (!large) _ResultRing(
+          if (!large && !side) _ResultRing(
             icon: verifiedSuccess || pressCompleted
                 ? Icons.check
                 : success
@@ -324,13 +341,13 @@ class KioskDoneView extends StatelessWidget {
             color: color,
             size: KioskSizes.resultIcon,
           ),
-          if (!large) const SizedBox(height: 12),
+          if (!large && !side) const SizedBox(height: 12),
           // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
           // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 누르기**다.
           // 제목은 2줄까지 자연스럽게 넘어간다(폭은 [KioskSizes.resultMaxWidth], 2026-10-16 §1-7).
           KioskText(
             headline,
-            textAlign: TextAlign.center,
+            textAlign: ta,
             style: TextStyle(
               fontSize: KioskType.key,
               fontWeight: FontWeight.w800,
@@ -344,7 +361,7 @@ class KioskDoneView extends StatelessWidget {
             KioskText(
               successSub,
               textKey: const ValueKey('done-sub'),
-              textAlign: TextAlign.center,
+              textAlign: ta,
               style: const TextStyle(
                   fontSize: KioskType.status,
                   fontWeight: FontWeight.w700,
@@ -360,7 +377,7 @@ class KioskDoneView extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               facts.join(' · '),
-              textAlign: TextAlign.center,
+              textAlign: ta,
               style: const TextStyle(
                   fontSize: KioskType.body, color: Colors.white),
             ),
@@ -374,7 +391,7 @@ class KioskDoneView extends StatelessWidget {
             if (showLabel) ...[
               Text(
                 label,
-                textAlign: TextAlign.center,
+                textAlign: ta,
                 style: const TextStyle(
                   fontSize: KioskType.body,
                   fontWeight: FontWeight.w600,
@@ -392,7 +409,7 @@ class KioskDoneView extends StatelessWidget {
                         : thinqVerified
                             ? '가전에서 바뀐 설정을 봤어요'
                             : '가전을 봐 주세요',
-                textAlign: TextAlign.center,
+                textAlign: ta,
                 style: const TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted),
               ),
@@ -402,7 +419,7 @@ class KioskDoneView extends StatelessWidget {
               Text(
                 label,
                 key: const ValueKey('done-label'),
-                textAlign: TextAlign.center,
+                textAlign: ta,
                 style: const TextStyle(
                   fontSize: KioskType.body,
                   fontWeight: FontWeight.w600,
@@ -415,7 +432,7 @@ class KioskDoneView extends StatelessWidget {
             KioskText(
               failureDetail,
               textKey: const ValueKey('done-next-step'),
-              textAlign: TextAlign.center,
+              textAlign: ta,
               style: const TextStyle(
                   fontSize: KioskType.body,
                   fontWeight: FontWeight.w600,
@@ -426,7 +443,7 @@ class KioskDoneView extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 d,
-                textAlign: TextAlign.center,
+                textAlign: ta,
                 style: const TextStyle(
                     fontSize: KioskType.caption, color: KioskColors.muted),
               ),
@@ -460,6 +477,30 @@ class KioskDoneView extends StatelessWidget {
         children: [
           // 상태 띠(연습이면 청록) — 스크롤해도 사라지지 않는다(§3-2, 2026-10-16 §4).
           band,
+          if (side)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(KioskSizes.runLeft,
+                    KioskSizes.runTop, KioskSizes.stopRight, KioskSpace.xs),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: KioskScrollArea(child: content)),
+                    const SizedBox(width: KioskSizes.stopGap),
+                    SizedBox(
+                      width: KioskPanelPicture.width,
+                      child: KioskPanelPicture(
+                        appliance: target,
+                        caption: mock ? '연습으로 누른 자리예요' : '작은 팔이 누른 자리예요',
+                        captionKey: const ValueKey('done-panel-caption'),
+                        pressed: pressedMap,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
           Expanded(
             child: KioskScrollArea(
               center: true,

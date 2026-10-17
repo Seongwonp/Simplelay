@@ -27,8 +27,9 @@ class KioskColors {
   static const muted   = Color(0xFFAEB3C0); // 앱 onSurfaceMuted와 동일
   static const border  = Color(0x33FFFFFF); // 앱 borderSubtle와 동일
 
-  // 설명 그림(버튼판) 칸 글자 — 50% 회색(2026-10-16 규격 §1-6). 실제 조작 단추(수동 조작)의 밝은 글자와 구분한다.
-  static const panelText = Color(0x80FFFFFF);
+  // 설명 그림(버튼판) 칸 글자. 50% 회색이던 때는 버튼판이 꺼진 것처럼 보였다(지도교수 의견 10/17) — 불투명한
+  // 밝은 회색으로 올린다. 실제 조작 단추와는 칸 테두리·면 유무로 구분한다(그림 칸은 테두리 없음).
+  static const panelText = Color(0xFFC4C8D2);
 
   // 채도 있는 색을 **면으로** 쓸 때 얹는 글자색 (앱 AppColors.onAccent와 동일).
   // 초록 위 흰 글자는 2.25:1로 큰 글씨여도 미달이었다 — 검정이면 9.34:1이다.

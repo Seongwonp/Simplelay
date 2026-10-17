@@ -1687,6 +1687,8 @@ class _KioskScreenState extends State<KioskScreen> {
           label: _doneLabel,
           autoReturnHeld: _doneHeld,
           onHold: _holdDone,
+          // 이 실행에서 작은 팔이 누른 버튼(실행 화면이 끝날 때 받은 기록) — 버튼판에 누른 칸을 표시한다(10/18).
+          pressed: _lastButtons,
           target: _execApplianceId == null
               ? null
               : _findIn(_appliances, _execApplianceId!),

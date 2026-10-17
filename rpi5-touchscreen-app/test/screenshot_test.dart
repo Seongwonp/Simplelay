@@ -722,6 +722,7 @@ void main() {
         KioskDoneView(success: true, label: '즉석밥 데워줘', target: kMicrowaveAppliance,
           executionMode: 'real', resultConfirmation: 'reported',
           operationConfirmed: verified ? true : null, operationSource: verified ? 'real' : null,
+          pressed: const [KioskButtonResult(button: '즉석밥', success: true), KioskButtonResult(button: '시작', success: true)],
           onDismiss: _noop));
     });
   }

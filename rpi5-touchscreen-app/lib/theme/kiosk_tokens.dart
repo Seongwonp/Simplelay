@@ -22,6 +22,26 @@ class KioskType {
   static const double caption = 17;
 }
 
+/// 간격 5단계(UI 개편안 10/17 §5 — 8·12·20·28·36). 여백·사이 간격은 이 다섯으로만 쓴다.
+class KioskSpace {
+  const KioskSpace._();
+
+  /// 붙어 있는 것(아이콘과 글자, 제목과 그 아래 한 줄).
+  static const double xs = 8;
+
+  /// 같은 묶음 안의 줄 사이.
+  static const double sm = 12;
+
+  /// 묶음과 묶음 사이.
+  static const double md = 20;
+
+  /// 화면 영역 사이(왼쪽 글 칸과 오른쪽 그림 칸).
+  static const double lg = 28;
+
+  /// 화면 가장자리 여백(좌우).
+  static const double xl = 36;
+}
+
 /// 크기·자리 토큰.
 class KioskSizes {
   const KioskSizes._();
