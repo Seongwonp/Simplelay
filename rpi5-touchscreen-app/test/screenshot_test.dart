@@ -324,7 +324,12 @@ void main() {
       t,
       'connection_modal',
       Stack(children: [
-        Positioned.fill(child: _idle()),
+        // 배경 칩도 같은 문제를 말한다(평가 7차 10/18 — 창은 문제인데 뒤 칩이 '모두 정상'이었다).
+        Positioned.fill(child: _idle(connections: const [
+          ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
+          ConnectionItem(id: 'press', state: 'ok', title: '', message: ''),
+          ConnectionItem(id: 'plug', state: 'warn', title: '전기 플러그 연결이 약해요', message: ''),
+        ])),
         Positioned.fill(
           child: KioskConnectionModal(
             item: const ConnectionItem(
@@ -985,7 +990,8 @@ void main() {
       t,
       'connection_modal_large',
       Stack(children: [
-        Positioned.fill(child: _idle()),
+        // 배경 칩도 같은 문제를 말한다(평가 7차 10/18).
+        Positioned.fill(child: _idle(connections: const [networkDown, ConnectionItem(id: 'press', state: 'ok', title: '', message: '')])),
         Positioned.fill(
           child: KioskConnectionModal(
               item: networkDown, checking: false, onRecheck: () {}, onClose: () {}),
@@ -1000,7 +1006,8 @@ void main() {
       t,
       'kiosk15_connection_modal',
       Stack(children: [
-        Positioned.fill(child: _idle()),
+        // 배경 칩도 같은 문제를 말한다(평가 7차 10/18).
+        Positioned.fill(child: _idle(connections: const [networkDown, ConnectionItem(id: 'press', state: 'ok', title: '', message: '')])),
         Positioned.fill(
           child: KioskConnectionModal(
               item: networkDown, checking: false, onRecheck: () {}, onClose: () {}),

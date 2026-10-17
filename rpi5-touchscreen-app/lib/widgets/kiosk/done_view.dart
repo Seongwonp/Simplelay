@@ -14,6 +14,7 @@ import 'kiosk_text.dart';
 import 'kiosk_timings.dart';
 import 'practice_band.dart';
 import 'status_band.dart';
+import 'step_trail.dart';
 
 /// 실행 결과 화면.
 ///
@@ -499,7 +500,31 @@ class KioskDoneView extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(child: KioskScrollArea(child: content)),
+                    Expanded(
+                      // 왼쪽 아래 빈자리에 누른 순서(평가 7차 10/18) — 버튼판의 ✓와 같은 뜻(작은 팔이 눌렀다고 알려 옴).
+                      child: KioskStepTrail.worth(pressed!.length)
+                          ? Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: KioskScrollArea(child: content)),
+                                const SizedBox(height: KioskSpace.sm),
+                                KioskStepTrail(
+                                  key: const ValueKey('done-step-trail'),
+                                  title: mock ? '연습으로 누른 순서' : '누른 순서',
+                                  steps: [
+                                    for (final b in pressed!)
+                                      (
+                                        label: b.button,
+                                        state: b.success
+                                            ? KioskStepState.done
+                                            : KioskStepState.unknown
+                                      ),
+                                  ],
+                                ),
+                              ],
+                            )
+                          : KioskScrollArea(child: content),
+                    ),
                     const SizedBox(width: KioskSizes.stopGap),
                     SizedBox(
                       width: KioskPanelPicture.width,
@@ -535,6 +560,7 @@ class KioskDoneView extends StatelessWidget {
                                 : () => _confirmRetry(context, mock),
                             onManual: onManual,
                             onDismiss: null,
+                            retryHint: !mock,
                           ),
                         ],
                       )
@@ -556,6 +582,7 @@ class KioskDoneView extends StatelessWidget {
                       onManual: secondaryInFlow ? null : onManual,
                       onDismiss: onDismiss,
                       calm: calmHome,
+                      retryHint: !mock,
                     ),
             ),
           ),
@@ -891,7 +918,8 @@ Widget _homeButton(VoidCallback onTap, {bool calm = false}) => ElevatedButton.ic
 ///
 /// 화면의 주인공은 단추가 아니라 할 일 문장('가전을 봐 주세요')이다.
 /// - 주: `처음 화면으로`(채움, 늘 쉽게 닿게 — 안전상 빠져나갈 길).
-/// - 보조: `한 번 더 하기`(테두리) — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문에 덜 강조한다(열린 문제 R1).
+/// - 가장 약하게: `한 번 더 하기`(글자 단추, 맨 아래, 평가 7차 10/18) — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문에
+///   덜 강조하고(열린 문제 R1), 바로 위에 '가전을 보고 안 됐을 때만 다시 하세요' 한 줄.
 ///   누르면 확인 창이 먼저 뜬다. 다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) 그리지 않는다.
 /// - 보조: `화면에서 직접 누르기`(테두리 + 아이콘) — 밑줄 글자는 링크로 읽혔다(평가 5차 10/18). 누르는 자리는 48 이상.
 class _FailureActions extends StatelessWidget {
@@ -901,6 +929,7 @@ class _FailureActions extends StatelessWidget {
     required this.onManual,
     required this.onDismiss,
     this.calm = false,
+    this.retryHint = false,
   });
 
   final VoidCallback? onRetry;
@@ -908,28 +937,19 @@ class _FailureActions extends StatelessWidget {
   final VoidCallback? onDismiss;
   final bool calm;
 
+  /// '한 번 더 하기' 바로 위 한 줄을 둘까(실제 가전 실행). 연습은 실제 가전을 누르지 않아 두지 않는다.
+  final bool retryHint;
+
   @override
-  Widget build(BuildContext context) => Wrap(
+  Widget build(BuildContext context) {
+    final retry = onRetry;
+    final main = Wrap(
         alignment: WrapAlignment.center,
         crossAxisAlignment: WrapCrossAlignment.center,
         spacing: KioskSpace.sm,
         runSpacing: KioskSpace.xs,
         children: [
           if (onDismiss != null) _homeButton(onDismiss!, calm: calm),
-          if (onRetry != null)
-            OutlinedButton.icon(
-              key: const ValueKey('done-retry'),
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh, size: KioskType.body),
-              // '다시 시도'는 기계 말(평가 5차 10/18).
-              label: const Text('한 번 더 하기',
-                  maxLines: 1,
-                  softWrap: false,
-                  style: TextStyle(
-                      fontSize: KioskType.body, fontWeight: FontWeight.w700)),
-              style: KioskButtons.secondary(
-                  foreground: Colors.white, border: KioskColors.muted),
-            ),
           if (onManual != null)
             OutlinedButton.icon(
               key: const ValueKey('done-manual'),
@@ -946,7 +966,48 @@ class _FailureActions extends StatelessWidget {
             ),
         ],
       );
+    if (retry == null) return main;
+    // '한 번 더 하기'는 가장 약한 글자 단추로 맨 아래(평가 7차 10/18) — 켜기/끄기가 한 버튼인 가전은 두 번 누르면
+    // 도로 꺼질 수 있다. 바로 위 한 줄이 언제 다시 하는지 말한다. 다시 보내는 정책은 그대로(누르면 확인 창이 먼저).
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        main,
+        const SizedBox(height: KioskSpace.xs),
+        if (retryHint)
+          Row(
+            key: const ValueKey('done-retry-hint'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.info_outline, size: KioskType.caption + 3, color: KioskColors.warning),
+              const SizedBox(width: 6),
+              Text(kRetryOnlyIfNot,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: const TextStyle(fontSize: KioskType.caption, color: Colors.white)),
+            ],
+          ),
+        TextButton.icon(
+          key: const ValueKey('done-retry'),
+          onPressed: retry,
+          icon: const Icon(Icons.refresh, size: KioskType.body),
+          // '다시 시도'는 기계 말(평가 5차 10/18).
+          label: const Text('한 번 더 하기',
+              maxLines: 1,
+              softWrap: false,
+              style: TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w600)),
+          style: TextButton.styleFrom(
+              minimumSize: const Size(0, 48),
+              foregroundColor: KioskColors.muted,
+              padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md)),
+        ),
+      ],
+    );
+  }
 }
+
+/// '한 번 더 하기' 바로 위 한 줄(평가 7차 10/18).
+const kRetryOnlyIfNot = '가전을 보고 안 됐을 때만 다시 하세요';
 
 
 

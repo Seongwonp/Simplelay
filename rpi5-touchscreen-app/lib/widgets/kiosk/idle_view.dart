@@ -151,6 +151,8 @@ class KioskIdleView extends StatelessWidget {
         !(large && tip != null);
     final showGreeting = tip == null;
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
+    // 본체에 닿지 않으면 지난 연결 목록을 믿지 않는다(평가 7차 10/18 — 끊겼는데 칩이 '모두 정상').
+    final connections = connectionsForDisplay(this.connections, connected: connected);
     // 작은 팔 연결이 끊겼나(평가 3차 10/18) — 끊기면 작은 팔이 누르는 가전 타일은 '지금 못 써요'.
     final pressItem = connections.where((c) => c.id == 'press').firstOrNull;
     final pressDown = pressItem?.state == 'error';
@@ -664,11 +666,12 @@ class _DndEntry extends StatelessWidget {
                     if (!on)
                       // 꺼져 있으면 아이콘 아래 이름(UI 평가 3차 10/17) — 켜지면 오른쪽 두 줄이 같은 말을 한다.
                       const Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.bedtime_outlined, size: 28, color: KioskColors.muted),
+                        Icon(Icons.pause_circle_outline, size: 28, color: KioskColors.muted),
                         KioskTopIconLabel('쉬기'),
                       ])
                     else
-                      const Icon(Icons.bedtime, size: 30, color: Colors.white),
+                      // 아이콘 규칙(평가 7차 10/18, 폰과 같이): 조용한 시간 = 달, 잠시 쉬기 = 일시정지.
+                      Icon(quiet != null ? Icons.bedtime : Icons.pause_circle, size: 30, color: Colors.white),
                     if (on) ...[
                       const SizedBox(width: 6),
                       // 좁은 위 줄에 들어가도록 두 줄로 — "제안 쉬는 중" / 남은 시간.
@@ -1042,7 +1045,8 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                 children: [
                   KioskSheetRow(
                     key: const ValueKey('dnd-entry'),
-                    icon: dnd != null || v.quietUntil != null ? Icons.bedtime : Icons.bedtime_outlined,
+                    // 잠시 쉬기 = 일시정지(평가 7차 10/18 — 달은 폰에서 조용한 시간이다).
+                    icon: dnd != null ? Icons.pause_circle : Icons.pause_circle_outline,
                     label: '잠시 쉬기',
                     sub: restSub,
                     onTap: () {
@@ -1066,7 +1070,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
             : KioskIdleSheet(
                 title: '연결',
                 onClose: _close,
-                children: connectionRows(v.connections, (item) {
+                children: connectionRows(connectionsForDisplay(v.connections, connected: v.connected), (item) {
                   _close();
                   v.onOpenConnection(item);
                 }),

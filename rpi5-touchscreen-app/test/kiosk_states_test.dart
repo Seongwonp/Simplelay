@@ -270,7 +270,8 @@ void main() {
         ..healthResult = HealthStatus.disconnected;
       await _pump(tester, api);
 
-      expect(find.text('와이파이 연결이 끊겼어요'), findsOneWidget);
+      // 본체에 닿지 않는 것은 와이파이 탓으로 단정하지 않는다 — 칩은 '본체와 연결이 끊겼어요'(평가 7차 10/18).
+      expect(find.text('본체와 연결이 끊겼어요'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await _settle(tester);
       expect(find.text('본체와 연결되지 않았어요'), findsOneWidget);
@@ -516,7 +517,7 @@ void main() {
       // 상태 영역은 짧게(2026-10-16 디자인 규격 §1-2) — 무엇을 했는지는 할 일 아래 작은 줄이 말한다.
       expect(find.text('가전이 멈췄는지 몰라요'), findsOneWidget);
       // 가장 큰 글자는 할 일 한 가지 — 정지 버튼은 자리·크기·색 그대로 이름만 바뀐다(2026-10-15).
-      expect(find.text("지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요"), findsOneWidget);
+      expect(find.text('지금 전자레인지의 취소 버튼을 직접 눌러 주세요'), findsOneWidget);
       expect(find.text('다시 멈추기'), findsOneWidget);
       await tester.pump(const Duration(seconds: 10));
       await _settle(tester);

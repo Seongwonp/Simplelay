@@ -95,7 +95,7 @@ void main() {
           ),
           panel15: panel15);
       expect(tester.takeException(), isNull);
-      _expectFullyVisible(tester, find.text("'냉동식품'"));
+      _expectFullyVisible(tester, find.text('냉동식품 버튼'));
       _expectFullyVisible(tester, find.byKey(const ValueKey('execution-step'))); // '이번 버튼' 이름표 대신 진행 줄(10/18)
       // 화면에 있는 글은 모두 스크롤 없이 보인다(잘린 마지막 줄이 없다).
       for (final e in find.byType(RichText).evaluate().toList()) {

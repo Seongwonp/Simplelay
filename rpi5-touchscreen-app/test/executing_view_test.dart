@@ -47,7 +47,7 @@ void main() {
   testWidgets('버튼·누르는 중·누를 버튼 N개 중 K번째·대상 가전을 보여준다', (tester) async {
     await _pump(tester, total: 3, target: kMicrowaveAppliance);
 
-    expect(find.text("'해동'"), findsOneWidget);
+    expect(find.text('해동 버튼'), findsOneWidget);
     // 큰 버튼 이름이 무엇인지 이름표가 붙는다(외부 평가 10/16 2차 k05).
     // 시제를 가리지 않는 이름표 — 확인 중에도 맞는 말(외부 평가 10/16 3차).
     expect(find.text('이번 버튼'), findsNothing); // 이름표 대신 진행 줄이 위에서 말한다(10/18).
@@ -121,8 +121,8 @@ void main() {
     // 버튼판은 가전 버튼 전부를 자리대로 그린다.
     expect(find.text('냉동식품'), findsOneWidget);
     // 버튼판은 오른쪽, 지금 버튼 이름은 왼쪽.
-    expect(tester.getCenter(find.text('해동')).dx,
-        greaterThan(tester.getCenter(find.text("'해동'")).dx));
+    expect(tester.getCenter(find.descendant(of: find.byKey(const ValueKey('panel-current')), matching: find.text('해동'))).dx,
+        greaterThan(tester.getCenter(find.text('해동 버튼')).dx));
   });
 
   testWidgets('버튼판에서 자리를 찾을 수 없으면 그림을 지어내지 않는다', (tester) async {

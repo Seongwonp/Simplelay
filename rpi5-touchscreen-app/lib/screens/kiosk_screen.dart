@@ -25,6 +25,7 @@ import '../widgets/kiosk/done_view.dart';
 import '../widgets/kiosk/connection_status.dart';
 import '../widgets/kiosk/executing_view.dart';
 import '../widgets/kiosk/hold_view.dart';
+import '../widgets/kiosk/idle_top.dart' show connectionsForDisplay;
 import '../widgets/kiosk/idle_view.dart';
 import '../widgets/kiosk/kiosk_canvas.dart';
 import '../widgets/kiosk/kiosk_phase.dart';
@@ -1566,7 +1567,10 @@ class _KioskScreenState extends State<KioskScreen> {
 
   Widget _buildConnectionModal() {
     final id = _openConnectionId;
-    final item = _connectionItems.where((c) => c.id == id).firstOrNull ??
+    // 평소 화면 칩과 같은 목록(본체에 닿지 않으면 지난 목록 대신 '본체와 연결되지 않았어요', 평가 7차 10/18).
+    final item = connectionsForDisplay(_connectionItems, connected: _health.ok)
+            .where((c) => c.id == id)
+            .firstOrNull ??
         ConnectionItem.hubUnreachable;
     return KioskConnectionModal(
       item: item,

@@ -10,6 +10,7 @@ import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 import 'run_frame.dart';
 import 'status_band.dart';
+import 'step_trail.dart';
 
 /// 실행 화면 — 센서 대시보드가 아니라 **지금 무슨 버튼을 어떻게 하고 있는가**.
 ///
@@ -95,6 +96,22 @@ class KioskExecutingView extends StatelessWidget {
             b.id: true,
       };
 
+  /// 누를 순서 칸(평가 7차 10/18) — 끝낸 수·전체 수가 있을 때만. 끝낸 칸 이름은 화면이 본 [doneButtons],
+  /// 지금 칸은 [currentButton], 남은 칸은 이름을 모르니 번호만. 두 칸 미만·너무 많으면 null.
+  List<KioskStep>? get steps {
+    final total = totalSteps;
+    if (total == null || !KioskStepTrail.worth(total)) return null;
+    final done = (completedSteps ?? 0).clamp(0, total);
+    return [
+      for (var i = 0; i < total; i++)
+        i < done
+            ? (label: i < doneButtons.length ? doneButtons[i] : null, state: KioskStepState.done)
+            : i == done && currentButton != null
+                ? (label: currentButton, state: KioskStepState.current)
+                : (label: null, state: KioskStepState.todo),
+    ];
+  }
+
   bool get _hasVerification =>
       verificationConfidence != null ||
       (verificationDetail != null && verificationDetail!.isNotEmpty);
@@ -151,7 +168,7 @@ class KioskExecutingView extends StatelessWidget {
     // 이어받은 실행은 제목이 가전 이름일 수 있다 — 같은 말이면 한 번만. 버튼 하나를 누르는 실행이면 제목이 버튼과 같다.
     final bandDetail = _context;
 
-    final body = KioskScrollArea(
+    final scroll = KioskScrollArea(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -166,6 +183,19 @@ class KioskExecutingView extends StatelessWidget {
         ],
       ),
     );
+    // 왼쪽 아래 빈자리에 누를 순서(평가 7차 10/18) — 큰 글씨는 세로 1열이라 자리가 없어 위 진행 줄만 둔다.
+    final trail = isDone || KioskLayout.isLarge(context) ? null : steps;
+    final body = trail == null
+        ? scroll
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: scroll),
+              const SizedBox(height: KioskSpace.sm),
+              KioskStepTrail(
+                  key: const ValueKey('exec-step-trail'), steps: trail, caution: _retrying),
+            ],
+          );
 
     return KioskRunFrame(
       // 연습은 위 청록 띠(§3-2·2026-10-16 §4) — 작은 '연습 모드' 칩은 처음 보는 사람이 놓쳤다.
@@ -265,8 +295,17 @@ class _NowBlock extends StatelessWidget {
             const SizedBox(height: 4),
           ],
           if (view.currentButton != null)
-            Text(
-              "'${view.currentButton}'",
+            // 따옴표로 감싸지 않는다(평가 7차 10/18 — "'시작'"은 개발자 말투). 이름은 크게, '버튼'은 한 단계 작게.
+            Text.rich(
+              TextSpan(children: [
+                TextSpan(text: view.currentButton),
+                const TextSpan(
+                    text: ' 버튼',
+                    style: TextStyle(
+                        fontSize: KioskType.status,
+                        fontWeight: FontWeight.w700,
+                        color: KioskColors.muted)),
+              ]),
               style: const TextStyle(
                 fontSize: KioskType.key,
                 fontWeight: FontWeight.w800,

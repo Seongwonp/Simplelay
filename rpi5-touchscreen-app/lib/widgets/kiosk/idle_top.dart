@@ -29,6 +29,29 @@ List<ConnectionItem> _shown(List<ConnectionItem> items) => [
         if (!(i.id == 'plug' && i.state == 'not_installed')) i,
     ];
 
+/// 본체(/health)에 닿지 않으면 지난번에 받은 연결 목록을 믿지 않는다(평가 7차 10/18) — 예전에는 본체에 닿지 않아
+/// 가전을 누르면 연결 창이 뜨는데 위 칩은 지난 목록대로 '모두 정상'이었다. 와이파이 자리에 '본체와 연결되지 않았어요'를
+/// 세우고 나머지는 볼 수 없다고만 둔다. 아직 한 번도 못 받았으면(모두 볼 수 없음) 그대로 둔다 — '확인하고 있어요'.
+List<ConnectionItem> connectionsForDisplay(List<ConnectionItem> items, {required bool connected}) {
+  if (connected) return items;
+  if (items.every((i) => i.state == 'unreachable')) return items;
+  return [
+    ConnectionItem.hubUnreachable,
+    for (final i in items)
+      if (i.id != 'network')
+        i.state == 'not_installed' || i.state == 'unreachable'
+            ? i
+            : ConnectionItem(
+                id: i.id,
+                state: 'unreachable',
+                title: '${connectionShortName(i.id)} 상태를 볼 수 없어요',
+                message: '본체와 연결되면 볼 수 있어요.'),
+  ];
+}
+
+bool _isHubDown(ConnectionItem i) =>
+    i.id == 'network' && i.state == 'error' && i.title == ConnectionItem.hubUnreachable.title;
+
 /// 상태 칩 요약 — (글, 문제 여부, 바로 열 항목).
 ///
 /// 비상 버튼이 걸려 있으면([estopTitle], 위 빨간 띠 제목) 연결이 다 괜찮아도 '모두 정상'이 아니다 — 띠와 같은 말을
@@ -36,6 +59,10 @@ List<ConnectionItem> _shown(List<ConnectionItem> items) => [
 (String, bool, ConnectionItem?) connectionSummary(List<ConnectionItem> items, {String? estopTitle}) {
   if (estopTitle != null) return (estopTitle, true, null);
   final shown = _shown(items);
+  // 본체에 닿지 않으면 그 말 하나(나머지는 본체 너머라 볼 수 없다).
+  if (shown.where(_isHubDown).firstOrNull case final hub?) {
+    return ('본체와 연결이 끊겼어요', true, hub);
+  }
   final problems = shown.where((i) => i.needsAttention).toList();
   if (problems.length == 1) {
     final p = problems.single;
@@ -47,9 +74,15 @@ List<ConnectionItem> _shown(List<ConnectionItem> items) => [
     return (text, true, p);
   }
   if (problems.length > 1) return ('연결 ${problems.length}곳을 봐 주세요', true, null);
-  if (shown.any((i) => i.state == 'unknown')) return ('연결을 확인하고 있어요', false, null);
+  // 볼 수 없음(unreachable — 첫 응답 전)도 정상이 아니다 — 모름과 같이 말한다(평가 7차 10/18).
+  if (shown.any((i) => i.state == 'unknown' || i.state == 'unreachable')) {
+    return ('연결을 확인하고 있어요', false, null);
+  }
   return ('모두 정상', false, null);
 }
+
+/// 연결 문제 칩 아래 다음 행동 한 줄(평가 7차 10/18).
+const kProblemHelp = '눌러서 해결 방법 보기';
 
 /// 상태 칩 — 높이 48 이상, 아이콘 + 짧은 말. 색만으로 말하지 않는다(문제면 아이콘 모양도 바뀐다).
 class KioskIdleStatusChip extends StatelessWidget {
@@ -68,7 +101,7 @@ class KioskIdleStatusChip extends StatelessWidget {
     final color = problem ? tone : KioskColors.muted;
     return Semantics(
       button: true,
-      label: '$text. 연결 자세히 보기',
+      label: problem && estop == null ? '$text. $kProblemHelp' : '$text. 연결 자세히 보기',
       excludeSemantics: true,
       child: Material(
         key: const ValueKey('idle-status-chip'),
@@ -104,13 +137,37 @@ class KioskIdleStatusChip extends StatelessWidget {
                       color: color),
                   if (estop == null) ...[
                     const SizedBox(width: KioskSpace.xs),
-                    Text(text,
-                        maxLines: 1,
-                        softWrap: false,
-                        style: TextStyle(
-                            fontSize: KioskType.caption,
-                            fontWeight: problem ? FontWeight.w700 : FontWeight.w500,
-                            color: problem ? Colors.white : KioskColors.muted)),
+                    // 문제가 있으면 바로 아래 다음 행동 한 줄(평가 7차 10/18 — '작은 팔 연결이 끊겼어요'만 있고 할 일이 없었다).
+                    // 칩 전체가 누르는 자리라 이 줄을 눌러도 같은 연결 창이 열린다.
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(text,
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                                fontSize: KioskType.caption,
+                                height: problem ? 1.15 : null,
+                                fontWeight: problem ? FontWeight.w700 : FontWeight.w500,
+                                color: problem ? Colors.white : KioskColors.muted)),
+                        if (problem)
+                          Row(
+                            key: const ValueKey('idle-problem-help'),
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text(kProblemHelp,
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: TextStyle(
+                                      fontSize: KioskType.caption,
+                                      height: 1.15,
+                                      color: KioskColors.muted)),
+                              Icon(Icons.chevron_right, size: KioskType.caption + 3, color: tone),
+                            ],
+                          ),
+                      ],
+                    ),
                   ],
                 ],
               ),

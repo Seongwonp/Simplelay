@@ -183,7 +183,18 @@ class KioskHoldView extends StatelessWidget {
   Widget build(BuildContext context) {
     if (estopTitle != null || KioskEstopScope.shownOf(context)) {
       final cancel = stopButton;
+      // 사람이 직접 누를 칸을 버튼판에 주의색으로(평가 7차 10/18 — 오른쪽이 비어 같은 틀만 남았다). 자리를 못 찾으면 그림 없음.
+      final pressCell = cancel == null ? null : KioskPanelPicture.uniqueButton(appliance, cancel);
       return KioskRunFrame(
+        picture: pressCell == null
+            ? null
+            : KioskPanelPicture(
+                appliance: appliance,
+                current: pressCell,
+                caution: true,
+                caption: '직접 누를 버튼이에요',
+                captionKey: const ValueKey('hold-estop-panel-caption'),
+              ),
         band: _band,
         header: const KioskStatusHeader(
             icon: Icons.pan_tool_outlined,
@@ -196,7 +207,7 @@ class KioskHoldView extends StatelessWidget {
             KioskText(
                 cancel == null
                     ? '가전의 정지 버튼을 직접 눌러 주세요'
-                    : "$_name의 '$cancel' 버튼을 직접 눌러 주세요",
+                    : '$_name의 $cancel 버튼을 직접 눌러 주세요',
                 style: const TextStyle(
                     fontSize: KioskType.status,
                     color: Colors.white,
@@ -227,7 +238,7 @@ class KioskHoldView extends StatelessWidget {
           Icons.touch_app_outlined,
           cancel == null
               ? '지금 $_name의 정지 버튼을 직접 눌러 주세요'
-              : "지금 $_name의 '$cancel' 버튼을 직접 눌러 주세요",
+              : '지금 $_name의 $cancel 버튼을 직접 눌러 주세요',
           KioskColors.warning
         ),
       // 가전이 멈췄다는 말은 RPi4가 전력 하강으로 확인한 때만(hold_stop_outcome == stopped).
@@ -260,7 +271,7 @@ class KioskHoldView extends StatelessWidget {
           Icons.info_outline,
           cancel == null
               ? '정지를 누르면 작은 팔이 가전의 정지 버튼을 대신 눌러요'
-              : "정지를 누르면 작은 팔이 '$cancel' 버튼을 대신 눌러요",
+              : '정지를 누르면 작은 팔이 $cancel 버튼을 대신 눌러요',
           KioskColors.muted
         ),
       if (_unconfirmed)
@@ -268,8 +279,8 @@ class KioskHoldView extends StatelessWidget {
           Icons.info_outline,
           // 위 줄('…' 버튼을 직접 눌러 주세요)과 같은 이름으로(외부 평가 10/16 4차).
           _mock
-              ? (cancel == null ? '연습으로 정지 버튼을 눌렀어요' : "연습으로 '$cancel' 버튼을 눌렀어요")
-              : (cancel == null ? '작은 팔이 정지 버튼을 대신 눌렀어요' : "작은 팔이 '$cancel' 버튼을 대신 눌렀어요"),
+              ? (cancel == null ? '연습으로 정지 버튼을 눌렀어요' : '연습으로 $cancel 버튼을 눌렀어요')
+              : (cancel == null ? '작은 팔이 정지 버튼을 대신 눌렀어요' : '작은 팔이 $cancel 버튼을 대신 눌렀어요'),
           KioskColors.muted
         ),
       if (_unconfirmed && holdState == 'parked')

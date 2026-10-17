@@ -489,7 +489,7 @@ void main() {
         onStop: () {},
       ),
     );
-    expect(find.text("작은 팔이 '취소' 버튼을 대신 눌렀어요"), findsOneWidget);
+    expect(find.text('작은 팔이 취소 버튼을 대신 눌렀어요'), findsOneWidget);
     expect(find.text('작은 팔이 정지 버튼을 대신 눌렀어요'), findsNothing);
   });
 }

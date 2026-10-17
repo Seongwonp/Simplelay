@@ -56,15 +56,23 @@ class DndOverlay extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text(
-                      '잠시 쉬기',
-                      maxLines: 1,
-                      softWrap: false,
-                      style: TextStyle(
-                        fontSize: KioskType.body,
-                        color: Color(0xFFFAF7F2),
-                        fontWeight: FontWeight.w700,
-                      ),
+                    // 아이콘 규칙(평가 7차 10/18, 폰과 같이): 잠시 쉬기 = 일시정지, 조용한 시간 = 달.
+                    const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.pause_circle_outline, size: 26, color: Color(0xFFFAF7F2)),
+                        SizedBox(width: KioskSpace.xs),
+                        Text(
+                          '잠시 쉬기',
+                          maxLines: 1,
+                          softWrap: false,
+                          style: TextStyle(
+                            fontSize: KioskType.body,
+                            color: Color(0xFFFAF7F2),
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 6),
                     // 실제 범위만 말한다(2026-10-14) — 새 제안과 아직 시작하지 않은 자동 실행. 직접 실행·정지·경보는 그대로.
@@ -85,10 +93,21 @@ class DndOverlay extends StatelessWidget {
                     ),
                     if (quietSchedule case (final start, final end)) ...[
                       const SizedBox(height: 6),
-                      KioskText(
-                        '매일 ${spokenHhmm(start)}부터 ${spokenHhmm(end)}까지 조용한 시간이에요. 폰 설정에서 바꿔요',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Padding(
+                            padding: EdgeInsets.only(top: 2),
+                            child: Icon(Icons.bedtime_outlined, size: 20, color: KioskColors.muted),
+                          ),
+                          const SizedBox(width: 6),
+                          Flexible(
+                            child: KioskText(
+                              '매일 ${spokenHhmm(start)}부터 ${spokenHhmm(end)}까지 조용한 시간이에요. 폰 설정에서 바꿔요',
+                              style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                     const SizedBox(height: 20),

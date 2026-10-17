@@ -111,7 +111,7 @@ void main() {
     expect(find.byKey(const ValueKey('dnd-chip')), findsNothing);
     await tester.tap(find.byKey(const ValueKey('idle-menu')));
     await tester.pump();
-    expect(find.byIcon(Icons.bedtime_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.pause_circle_outline), findsOneWidget);
     final size = tester.getSize(find.byKey(const ValueKey('dnd-entry')));
     expect(size.width, greaterThanOrEqualTo(48));
     expect(size.height, greaterThanOrEqualTo(48));
@@ -131,7 +131,7 @@ void main() {
     // 2026-10-15: '방해 금지' → '쉬는 중'(이름만 보면 제안만 쉬는 줄 알았다) · 남은 시간에 '남음'.
     expect(find.text('쉬는 중'), findsOneWidget);
     expect(find.text('1시간 남음'), findsOneWidget);
-    expect(find.byIcon(Icons.bedtime), findsOneWidget);
+    expect(find.byIcon(Icons.pause_circle), findsOneWidget);
     expect(find.bySemanticsLabel('잠시 쉬는 중, 1시간 남음. 끝내려면 누르세요'), findsOneWidget);
     // 위 줄 안, 시계 열이 아니다.
     final chip = tester.getRect(find.byKey(const ValueKey('dnd-chip')));

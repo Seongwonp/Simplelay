@@ -42,7 +42,7 @@ void main() {
     expect(button.onPressed, isNull);
     expect(find.textContaining('정지를 누르면'), findsNothing);
     expect(find.text('가전이 켜졌어요'), findsNothing);
-    expect(find.textContaining("'취소' 버튼을 직접 눌러 주세요"), findsOneWidget);
+    expect(find.textContaining('취소 버튼을 직접 눌러 주세요'), findsOneWidget);
     expect(calls, 0);
   });
   testWidgets('비상 걸림에서도 정지 영역 위치와 크기는 그대로다', (t) async {

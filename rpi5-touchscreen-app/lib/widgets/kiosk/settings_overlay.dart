@@ -197,7 +197,7 @@ class _KioskSettingsOverlayState extends State<KioskSettingsOverlay> {
                             const SizedBox(height: 8),
                             TextButton.icon(
                               key: const ValueKey('settings-dnd'),
-                              icon: const Icon(Icons.bedtime_outlined),
+                              icon: const Icon(Icons.pause_circle_outline), // 잠시 쉬기 = 일시정지(평가 7차 10/18)
                               label: const Text('잠시 쉬기'),
                               onPressed: widget.onOpenDnd,
                             ),

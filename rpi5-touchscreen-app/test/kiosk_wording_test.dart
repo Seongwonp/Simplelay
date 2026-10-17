@@ -177,14 +177,15 @@ void main() {
       expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
-      expect(_inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
+      // 평가 7차(10/18): 한 번 더 하기는 글자 단추(가장 약하게).
+      expect(_inButton<TextButton>('한 번 더 하기'), findsOneWidget);
       // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 화면에서 직접 누르기는 글자 단추(48 이상, 평가 4차 이름).
       expect(_inButton<OutlinedButton>('화면에서 직접 누르기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       final home = tester.getRect(find.text('처음 화면으로'));
       final retry = tester.getRect(find.text('한 번 더 하기'));
-      expect(home.left, lessThan(retry.left), reason: '처음 화면으로가 먼저');
+      expect(home.top, lessThan(retry.top), reason: '처음 화면으로가 먼저(한 번 더 하기는 맨 아래, 평가 7차)');
       // 다시 시도를 누르면 확인 창이 당부를 한 번 말한다.
       await tester.tap(find.text('한 번 더 하기'));
       await tester.pumpAndSettle();
@@ -322,9 +323,9 @@ void main() {
       expect(find.byType(KioskHoldView), findsOneWidget);
       expect(find.text('작은 팔이 전자레인지 옆에서 기다리고 있어요'), findsOneWidget);
       expect(find.textContaining('동작 중'), findsNothing);
-      expect(find.text("정지를 누르면 작은 팔이 '취소' 버튼을 대신 눌러요"), findsOneWidget);
+      expect(find.text('정지를 누르면 작은 팔이 취소 버튼을 대신 눌러요'), findsOneWidget);
       // 정지 대기 안내는 흰색 — 주의색은 몰라요에만.
-      final guide = tester.widget<Text>(find.text("정지를 누르면 작은 팔이 '취소' 버튼을 대신 눌러요"));
+      final guide = tester.widget<Text>(find.text('정지를 누르면 작은 팔이 취소 버튼을 대신 눌러요'));
       expect(guide.style?.color, isNot(KioskColors.primary));
       expect(guide.style?.color, isNot(KioskColors.warning));
       // 버튼판 그림은 누르는 자리라고 말한다.
@@ -374,7 +375,7 @@ void main() {
           onClose: _noop,
         ),
       );
-      const todo = "지금 전자레인지의 '취소' 버튼을 직접 눌러 주세요";
+      const todo = '지금 전자레인지의 취소 버튼을 직접 눌러 주세요';
       expect(find.text(todo), findsOneWidget);
       // 정지 단추 이름(단추 크기는 원칙 0-4로 고정)을 뺀 안내 글자 중에서 가장 크다.
       final inStop = find
