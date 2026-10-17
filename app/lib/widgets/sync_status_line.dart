@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/appliance_sync_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 아직 키오스크에 못 보낸 변경이 있을 때만 뜨는 한 줄.
 ///
@@ -25,7 +26,7 @@ class SyncStatusLine extends ConsumerWidget {
 
     final failed = sync.lastFailed;
     return Padding(
-      padding: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.only(top: AppSpace.md),
       child: Row(
         children: [
           Icon(
@@ -33,14 +34,14 @@ class SyncStatusLine extends ConsumerWidget {
             size: 18,
             color: failed ? context.appWarning : context.appMuted,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Expanded(
             child: Text(
               failed
                   ? '바꾼 것 ${sync.pendingCount}건을 보내지 못했어요'
                   : '본체에 보낼 것 ${sync.pendingCount}건',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: AppFont.caption,
                 color: failed ? context.appWarning : context.appMuted,
               ),
             ),

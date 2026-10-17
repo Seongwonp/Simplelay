@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 이 가전은 데모 세션이 세운 **표본**이라고 말하는 작은 표시.
 ///
@@ -11,7 +12,7 @@ class DemoBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surfaceContainerHigh,
           borderRadius: BorderRadius.circular(6),
@@ -20,7 +21,7 @@ class DemoBadge extends StatelessWidget {
         child: Text(
           '연습',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: AppFont.caption,
             fontWeight: FontWeight.w600,
             color: context.appMuted,
           ),

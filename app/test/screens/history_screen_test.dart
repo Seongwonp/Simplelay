@@ -372,7 +372,7 @@ void main() {
     await tester.pump();
     final title = tester.widget<Text>(find.text('기록'));
     expect(title.style?.fontWeight, FontWeight.w700);
-    expect(title.style?.fontSize, 26);
+    expect(title.style?.fontSize, 24);
   });
 
   testWidgets('이미 목표값 기록은 한 번만 말하고 중립 아이콘(UI 평가 10/17 — 같은 뜻 두 줄·성공 체크)', (tester) async {

@@ -16,12 +16,14 @@ import '../providers/suggestion_provider.dart';
 import '../services/demo_service.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 import '../theme/app_text.dart';
 import '../widgets/appliance_portrait.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/button_map_grid.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/route_badge.dart';
+import '../theme/app_tokens.dart';
 
 /// 제안 하나를 확인하고 맡길지 정하는 화면.
 ///
@@ -352,14 +354,14 @@ class SuggestionScreen extends ConsumerWidget {
         actions: [if (more.isNotEmpty) _MoreButton(actions: more)],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
           // ── 어느 가전인가 ────────────────────────────────────────────────
           // 여러 가전을 다루므로 대상이 질문보다 먼저 보여야 맡길지 판단할
           // 수 있다. 사진이 있으면 사진, 없으면 종류별 실루엣.
           _TargetHeader(appliance: appliance, stepCount: suggestion.steps.length),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpace.xl),
 
           // ── 무엇을 ──────────────────────────────────────────────────────
           // label은 사용자가 예전에 했던 말 그대로다 -- 그대로 되물어본다.
@@ -369,23 +371,23 @@ class SuggestionScreen extends ConsumerWidget {
           // 왜 지금 이게 떴는지. 환경 제안은 서버가 준 근거, 패턴 제안은
           // 시간대·횟수로 만든 한 문장이다(데모는 비어 있다).
           if (suggestion.whyNow.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Text(
               suggestion.whyNow,
-              style: TextStyle(fontSize: 16, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ],
 
-          const SizedBox(height: 28),
+          const SizedBox(height: AppSpace.xxxl),
 
           // ── 어떤 버튼을, 어떤 순서로 ────────────────────────────────────
           // 단계를 카드 하나하나로 감싸지 않는다. 라벨과 번호가 가장
           // 선명해야 하는데, 카드 테두리·아이콘이 그보다 먼저 보였다.
           Text('누를 순서', style: AppText.title),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           _StepList(appliance: appliance, steps: suggestion.steps),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: AppSpace.xxxl),
 
           // ── 실제 배치에서 어디인가 ──────────────────────────────────────
           // 순서 목록이 주 정보고, 지도는 그것을 실제 버튼판 위에서 다시
@@ -419,7 +421,7 @@ class _TargetHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           AppliancePortrait(appliance: appliance, size: 64, borderRadius: 12),
-          const SizedBox(width: 14),
+          const SizedBox(width: AppSpace.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -430,15 +432,15 @@ class _TargetHeader extends StatelessWidget {
                       child: Text(appliance.displayName, style: AppText.title),
                     ),
                     if (appliance.isDemo) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.sm),
                       const DemoBadge(),
                     ],
                   ],
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Text(
                   keepWordsTogether('작은 팔이 버튼 $stepCount개를 차례로 눌러요'),
-                  style: TextStyle(fontSize: 15, color: context.appMuted),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
               ],
             ),
@@ -468,7 +470,7 @@ class _StepList extends StatelessWidget {
         children: [
           for (var i = 0; i < steps.length; i++) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
               child: Row(
                 children: [
                   // 18% 틴트 위에 같은 강조색 숫자를 얹으면 라이트 모드에서
@@ -482,16 +484,16 @@ class _StepList extends StatelessWidget {
                       style: TextStyle(
                         color: context.appOnAccent,
                         fontWeight: FontWeight.w700,
-                        fontSize: 13,
+                        fontSize: AppFont.caption,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: AppSpace.lg),
                   Expanded(
                     child: Text(
                       _label(steps[i]),
                       style: const TextStyle(
-                        fontSize: 20,
+                        fontSize: AppFont.cardTitle,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -550,7 +552,7 @@ class _ActionBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.sm),
           decoration: BoxDecoration(
             border: Border(top: BorderSide(color: context.appBorderFaint)),
           ),
@@ -562,17 +564,17 @@ class _ActionBar extends StatelessWidget {
                 // 막힌 이유를 버튼 바로 위에서 말한다. 비활성 버튼만 두면
                 // 사용자는 왜 안 눌리는지 가전 쪽에서 찾는다.
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: AppSpace.sm),
                   child: Row(
                     children: [
                       Icon(Icons.error_outline,
                           size: 18, color: context.appDanger),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: AppSpace.sm),
                       Expanded(
                         child: Text(
                           '$blockedWhy. 설정에서 연결을 봐 주세요',
                           style: TextStyle(
-                              fontSize: 15, color: context.appDanger),
+                              fontSize: AppFont.caption, color: context.appDanger),
                         ),
                       ),
                     ],
@@ -581,15 +583,15 @@ class _ActionBar extends StatelessWidget {
               else
                 // 실행 직전에 대상과 버튼 수를 한 번 더 말한다.
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: AppSpace.sm),
                   child: Text(
                     '${appliance.displayName}, 버튼 $stepCount개',
-                    style: TextStyle(fontSize: 14, color: context.appMuted),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                   ),
                 ),
               // 늘 세로로, 주 행동이 위 — 나란히 두면 좁은 폰에서 '이번엔 안 할게 / 요'로 끊겼다(UI 평가 10/17).
               run,
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               skip,
             ],
           ),
@@ -654,7 +656,7 @@ class _MoreButtonState extends State<_MoreButton> {
       showDragHandle: true,
       builder: (sheetContext) => SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.only(bottom: AppSpace.sm),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -680,7 +682,7 @@ class _MoreButtonState extends State<_MoreButton> {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(right: 4),
+        padding: const EdgeInsets.only(right: AppSpace.xs),
         child: Semantics(
           label: '더 보기',
           button: true,
@@ -710,7 +712,7 @@ class _ButtonMapSection extends StatelessWidget {
   Widget build(BuildContext context) => ExpansionTile(
         key: const Key('suggestion-button-map'),
         tilePadding: EdgeInsets.zero,
-        childrenPadding: const EdgeInsets.only(top: 4, bottom: 8),
+        childrenPadding: const EdgeInsets.only(top: AppSpace.xs, bottom: AppSpace.sm),
         shape: const Border(),
         collapsedShape: const Border(),
         title: Text('${appliance.displayName}의 실제 버튼 배치', style: AppText.title),
@@ -739,18 +741,18 @@ class _UnknownTargetScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('할까요?')),
       body: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 28, 24, 32),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xxl, AppSpace.xxxl, AppSpace.xxl, AppSpace.xxxl),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Icon(Icons.help_outline, size: 40, color: context.appWarning),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Text(
               '어느 가전인지 몰라요.',
               textAlign: TextAlign.center,
               style: AppText.heading,
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             Text(
               "'${suggestion.label}'의 가전을 찾지 못했어요. "
               '다른 폰에서 지웠거나 목록을 아직 못 받았을 수 있어요.',
@@ -762,7 +764,7 @@ class _UnknownTargetScreen extends StatelessWidget {
               onPressed: onDismiss,
               child: const Text('이 알림 지우기'),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             FilledButton.icon(
               onPressed: () => context.go('/settings'),
               icon: const Icon(Icons.settings),
@@ -858,28 +860,28 @@ class _ScenarioSuggestionScreen extends ConsumerWidget {
         actions: [if (more.isNotEmpty) _MoreButton(actions: more)],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
           if (suggestion.isDemo)
             const Text('연습용으로 만든 알림이에요', style: AppText.body),
           if (name != null)
             Text(
               name,
-              style: TextStyle(fontSize: 16, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           // 서버의 질문 문장 그대로(예: "공기청정기 강풍으로 바꿀까요?").
           Text(suggestion.label, style: AppText.heading),
           if (suggestion.whyNow.isNotEmpty && !userStarted) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Text(
               '이유: ${suggestion.whyNow}',
-              style: TextStyle(fontSize: 16, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ],
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpace.xxl),
           Text(allPhysical ? '누를 버튼' : '할 일', style: AppText.title),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           for (var i = 0; i < suggestion.commands.length; i++)
             _CommandRow(
               index: i,
@@ -924,7 +926,7 @@ class _CommandRow extends StatelessWidget {
       label: path == null ? '${index + 1}번. $summary' : '${index + 1}번. $summary. $path',
       child: ExcludeSemantics(
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -936,11 +938,11 @@ class _CommandRow extends StatelessWidget {
                   style: TextStyle(
                     color: context.appOnAccent,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13,
+                    fontSize: AppFont.caption,
                   ),
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: AppSpace.lg),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -948,20 +950,20 @@ class _CommandRow extends StatelessWidget {
                     Text(
                       summary,
                       style: const TextStyle(
-                          fontSize: 20, fontWeight: FontWeight.w600),
+                          fontSize: AppFont.cardTitle, fontWeight: FontWeight.w600),
                     ),
                     if (path != null) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpace.xs),
                       RouteBadge(label: path),
                     ],
                     if (r != null && !r.canExecute) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpace.xs),
                       Text(
                         r.reasons.isNotEmpty
                             ? r.reasons.join(', ')
                             : '아직 준비가 안 됐어요',
                         style:
-                            TextStyle(fontSize: 15, color: context.appDanger),
+                            TextStyle(fontSize: AppFont.caption, color: context.appDanger),
                       ),
                     ],
                   ],
@@ -1014,7 +1016,7 @@ class _ScenarioActionBar extends StatelessWidget {
       child: SafeArea(
         top: false,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 8),
+          padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.sm),
           decoration: BoxDecoration(
             border: Border(top: BorderSide(color: context.appBorderFaint)),
           ),
@@ -1024,17 +1026,17 @@ class _ScenarioActionBar extends StatelessWidget {
             children: [
               if (why != null)
                 Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.only(bottom: AppSpace.sm),
                   child: Row(
                     children: [
                       Icon(Icons.error_outline,
                           size: 18, color: context.appDanger),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: AppSpace.sm),
                       Expanded(
                         child: Text(
                           why,
                           style: TextStyle(
-                              fontSize: 15, color: context.appDanger),
+                              fontSize: AppFont.caption, color: context.appDanger),
                         ),
                       ),
                     ],
@@ -1043,15 +1045,15 @@ class _ScenarioActionBar extends StatelessWidget {
               // 늘 세로로(위와 같은 이유, UI 평가 10/17).
               run,
               if (hasAllow) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 OutlinedButton.icon(
                   key: const Key('suggestion-allow-auto'),
                   onPressed: onAllow,
-                  icon: const Icon(Icons.autorenew_rounded),
+                  icon: const Icon(AppIcons.auto),
                   label: const Text('다음부터도 자동으로'),
                 ),
               ],
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               skip,
             ],
           ),

@@ -48,13 +48,13 @@ class _NavRow extends StatelessWidget {
         // 어절 단위 줄바꿈('키오스크에서/는' 방지, UI 평가 10/17). 낭독은 원문.
         subtitle: Text(keepWordsTogether(subtitle),
             semanticsLabel: subtitle,
-            style: TextStyle(color: context.appMuted, fontSize: 14)),
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             if (badge > 0)
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
                 decoration: BoxDecoration(
                   color: AppColors.danger,
                   borderRadius: BorderRadius.circular(10),
@@ -63,7 +63,7 @@ class _NavRow extends StatelessWidget {
                   badge > 99 ? '99+' : '$badge',
                   style: const TextStyle(
                     color: AppColors.onAccent,
-                    fontSize: 12,
+                    fontSize: AppFont.caption,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -103,12 +103,12 @@ class _ThinqScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('LG 가전 연결')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpace.xl),
         children: [
           Text(
             headline,
             key: const Key('thinq-link-headline'),
-            style: TextStyle(fontSize: 16, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
           const _ThinqApplianceList(),
           // 계정에서 찾은 가전 — 사용자가 '추가'를 눌러야 위 목록·홈에 들어온다(2026-10-13).
@@ -137,15 +137,15 @@ class _TextSizeScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('글자 크기')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpace.xl),
         children: [
           Text('지금 글자 크기: $scale%',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+              style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpace.sm),
           Text(
             '휴대폰 설정 → 디스플레이 → 글자 크기에서 바꾸면 이 앱도 함께 커져요. '
             '200%까지 화면이 잘리지 않게 만들었어요.',
-            style: TextStyle(fontSize: 16, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
         ],
       ),

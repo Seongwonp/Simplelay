@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../providers/startup_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 앱 이름을 한 번 보여주고, 준비가 끝나면 바로 비켜준다.
 ///
@@ -59,15 +60,15 @@ class SplashWordmark extends StatelessWidget {
           const Text(
             'SimpleLay',
             style: TextStyle(
-              fontSize: 34,
+              fontSize: AppFont.number,
               fontWeight: FontWeight.w700,
               letterSpacing: -1,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.md),
           Text(
             '복잡한 가전을 더 간단하게',
-            style: TextStyle(fontSize: 16, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
         ],
       );

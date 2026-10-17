@@ -8,6 +8,7 @@ import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 /// ThinQ 가전 상세의 '지금 상태' 카드(2026-10-15, 사용자 요청 동결 예외).
 ///
@@ -62,16 +63,16 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
     Widget body;
     if (status == null) {
       body = Text('LG 앱에서 불러오는 중…',
-          style: TextStyle(fontSize: 15, color: context.appMuted));
+          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted));
     } else if (!status.ok) {
       body = Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(Icons.error_outline, size: 18, color: context.appWarning),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpace.sm),
           Expanded(
             child: Text('지금 상태를 못 불러왔어요. ${status.failure}',
-                style: TextStyle(fontSize: 15, color: context.appWarning)),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
           ),
         ],
       );
@@ -85,37 +86,37 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
         children: [
           if (rows.isEmpty)
             Text('보여 줄 상태가 없어요',
-                style: TextStyle(fontSize: 15, color: context.appMuted))
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
           else
             for (final (label, value) in rows)
               Padding(
-                padding: const EdgeInsets.symmetric(vertical: 3),
+                padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
                       flex: 2,
                       child: Text(label,
-                          style: TextStyle(fontSize: 15, color: context.appMuted)),
+                          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                     ),
                     Expanded(
                       flex: 3,
                       child: Text(value,
                           style: const TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600)),
+                              fontSize: AppFont.caption, fontWeight: FontWeight.w600)),
                     ),
                   ],
                 ),
               ),
           if (dustNote != null)
             Padding(
-              padding: const EdgeInsets.only(top: 3),
+              padding: const EdgeInsets.only(top: AppSpace.xs),
               child: Text(dustNote,
                   key: const Key('thinq-dust-note'),
-                  style: TextStyle(fontSize: 15, color: context.appMuted)),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
             ),
           if (status.readAt != null) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Semantics(
               container: true,
               label: '지금 상태, ${thinqReadTimeSpoken(status.readAt!)} 기준'
@@ -123,20 +124,20 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
               excludeSemantics: true,
               child: Text(
                 thinqReadTimeLine(status.readAt!, mock: mock),
-                style: TextStyle(fontSize: 13, color: context.appMuted),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
               ),
             ),
           ],
           for (final control in thinqControlsFor(status.state))
             // 꺼져 있으면 전원 줄만 — 풍량·운전 모드는 켜야 바뀐다(스스로 켜지 않는다).
             if (!powerOff || control.action == 'set_power') ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpace.lg),
               Text(control.label,
-                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
+                  style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
+              const SizedBox(height: AppSpace.sm),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: AppSpace.sm,
+                runSpacing: AppSpace.sm,
                 children: [
                   for (final (value, word) in control.choices)
                     ChoiceChip(
@@ -145,7 +146,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
                       label: Semantics(
                         label: control.chipSemantics(word),
                         excludeSemantics: true,
-                        child: Text(word, style: const TextStyle(fontSize: 16)),
+                        child: Text(word, style: const TextStyle(fontSize: AppFont.caption)),
                       ),
                       selected: control.current == value,
                       // 지금 값도 흐리게 만들지 않는다(꺼진 버튼처럼 보이지 않게) — 눌러도 아무것도 안 한다.
@@ -159,10 +160,10 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
                 ],
               ),
               if (powerOff && control.action == 'set_power') ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Text(kThinqPowerOffNote,
                     key: const Key('thinq-power-off-note'),
-                    style: TextStyle(fontSize: 15, color: context.appMuted)),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
               ],
             ],
         ],
@@ -170,7 +171,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
     }
 
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpace.lg),
       decoration: BoxDecoration(
         color: context.appSurfaceLow,
         borderRadius: BorderRadius.circular(14),
@@ -186,7 +187,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
                 Expanded(
                   child: Text(
                     status?.executionMode == 'mock' ? '지금 상태 (연습)' : '지금 상태',
-                    style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                    style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700),
                   ),
                 ),
                 TextButton.icon(
@@ -200,7 +201,7 @@ class _ThinqStateCardState extends ConsumerState<ThinqStateCard> {
                 ),
               ],
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             body,
           ],
         ),

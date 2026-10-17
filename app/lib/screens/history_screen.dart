@@ -10,6 +10,7 @@ import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 /// 실행 기록 — 공감지능(패턴 학습)의 근거 데이터와 폐루프의 회복 기록
 /// ("재시도 N회 후 성공")을 사용자에게 그대로 보여준다.
@@ -54,12 +55,12 @@ class HistoryScreen extends ConsumerWidget {
                 )
               : ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+                  padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.xxxl),
                   children: [
                     for (final section in _groupByDay(entries, now)) ...[
-                      const SizedBox(height: 16),
+                      const SizedBox(height: AppSpace.lg),
                       Text(section.label, style: AppText.title),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: AppSpace.xs),
                       for (var i = 0; i < section.entries.length; i++) ...[
                         // jobId가 다르면 같은 시각이라도 다른 행이다(합치지 않는다).
                         _HistoryRow(
@@ -141,7 +142,7 @@ class _Message extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(icon, size: 40, color: context.appMuted),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: AppSpace.md),
                   Text(
                     text,
                     textAlign: TextAlign.center,
@@ -177,7 +178,7 @@ class _StepBreakdown extends StatelessWidget {
       children: [
         for (final b in buttons)
           Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.only(bottom: AppSpace.xs),
             child: Row(
               children: [
                 Icon(
@@ -189,12 +190,12 @@ class _StepBreakdown extends StatelessWidget {
                   size: 18,
                   color: b.success ? context.appSuccess : context.appWarning,
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 Expanded(
                   child: Text(
                     b.button,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: AppFont.caption,
                       color: b.success ? null : context.appMuted,
                     ),
                   ),
@@ -207,7 +208,7 @@ class _StepBreakdown extends StatelessWidget {
                       : notPressed
                           ? '누르지 않았어요'
                           : '눌렸는지 몰라요',
-                  style: TextStyle(fontSize: 14, color: context.appMuted),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
               ],
             ),
@@ -296,72 +297,72 @@ class _HistoryRow extends StatelessWidget {
       if (name != null && !title.contains(name)) name,
     ].join(' · ');
     final receipt = _thinqReceiptLine(entry, kind);
-    final muted = TextStyle(fontSize: 14, color: context.appMuted);
+    final muted = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+            style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.only(top: 1),
+                padding: const EdgeInsets.only(top: AppSpace.xs),
                 child: ExcludeSemantics(
                     child: Icon(look.icon, color: look.color, size: 20)),
               ),
-              const SizedBox(width: 6),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
                   result.sentence,
                   style: TextStyle(
-                      fontSize: 16,
+                      fontSize: AppFont.caption,
                       fontWeight: FontWeight.w600,
                       color: look.color),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 2),
+          const SizedBox(height: AppSpace.xs),
           Text(timeLine, style: muted),
           if (result.mockNote case final note?) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: AppSpace.xs),
             Text(note, style: muted),
           ],
           if (receipt != null) ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: AppSpace.xs),
             Text(receipt, style: muted),
           ],
           if (result.next case final next?) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Text(
               next,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+              style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600),
             ),
           ],
           // 연습(모의) 기록은 위 한 줄이 이미 말한다 — 서버 설명('명령을 보냈어요 …')을 겹치면 어긋난다(10/14).
           if (entry.detail.isNotEmpty && !succeeded && entry.executionMode != 'mock') ...[
-            const SizedBox(height: 2),
+            const SizedBox(height: AppSpace.xs),
             Text(entry.detail, style: muted),
           ],
           if (entry.retryCount > 0 && succeeded) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             // 폐루프의 핵심 증거 — 실패를 스스로 재시도로 회복했다.
             Row(
               children: [
                 Icon(Icons.refresh, size: 16, color: context.appMuted),
-                const SizedBox(width: 6),
+                const SizedBox(width: AppSpace.sm),
                 // '성공'이라 하지 않는다 — 다시 누른 사실만(UI 평가 5차 10/17: 동작 확인 못 함과 모순처럼 읽혔다).
                 Text(
                   '${entry.retryCount}번 더 눌러 마쳤어요',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: AppFont.caption,
                     fontWeight: FontWeight.w600,
                     color: context.appMuted,
                   ),
@@ -373,7 +374,7 @@ class _HistoryRow extends StatelessWidget {
           // 끝이 안 좋았던 실행만 안을 펼친다. 성공한 이력까지
           // 단계를 늘어놓으면 목록이 다시 개발 도구처럼 보인다.
           if (expand) ...[
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpace.md),
             _StepBreakdown(
                 buttons: entry.buttons, notPressed: entry.abortReason != null),
             // 읽고 나서 할 수 있는 일을 남긴다. 무엇이 안 됐는지만

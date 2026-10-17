@@ -5,6 +5,7 @@ import '../providers/rpi_api_provider.dart';
 import '../providers/server_appliance_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 'LG ThinQ 연결' 안의 구획: ThinQ 계정에서 찾은 가전과 기기별 '추가' (2026-10-13).
 ///
@@ -37,20 +38,20 @@ class _ThinqDiscoveredSectionState
                 ? ' (연습)'
                 : '';
     return Padding(
-      padding: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.only(top: AppSpace.xxl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'LG 앱에서 찾은 가전$marker',
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             '추가한 가전만 홈과 루틴에 나와요. 바꿀 때마다 한 번 물어봐요.',
-            style: TextStyle(fontSize: 14, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           if (async.isLoading && data == null)
             const Text('LG 앱에서 가전을 찾는 중이에요…',
                 key: Key('thinq-found-loading'))
@@ -74,7 +75,7 @@ class _ThinqDiscoveredSectionState
           Text(
             '가전을 찾지 못했어요. $reason',
             key: const Key('thinq-found-failure'),
-            style: TextStyle(fontSize: 14, color: context.appDanger),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appDanger),
           ),
           TextButton.icon(
             onPressed: () => ref.invalidate(thinqDiscoveryProvider),
@@ -122,7 +123,7 @@ class _ThinqDiscoveredSectionState
       );
     }
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
@@ -132,17 +133,17 @@ class _ThinqDiscoveredSectionState
               children: [
                 Text(d.title,
                     style: const TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.w600)),
+                        fontSize: AppFont.caption, fontWeight: FontWeight.w600)),
                 if (kind.isNotEmpty)
                   Text(kind,
-                      style: TextStyle(fontSize: 13, color: context.appMuted)),
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                 Text(note,
                     key: Key('thinq-note-${d.key}'),
-                    style: TextStyle(fontSize: 14, color: noteColor)),
+                    style: TextStyle(fontSize: AppFont.caption, color: noteColor)),
               ],
             ),
           ),
-          if (action != null) ...[const SizedBox(width: 8), action],
+          if (action != null) ...[const SizedBox(width: AppSpace.sm), action],
         ],
       ),
     );

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/appliance.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 화면에서 가전을 대표하는 그림.
 ///
@@ -342,6 +343,6 @@ class AddPhotoHint extends StatelessWidget {
           foregroundColor: context.appMuted,
         ),
         icon: const Icon(Icons.add_a_photo_outlined, size: 18),
-        label: const Text('가전 사진 추가', style: TextStyle(fontSize: 14)),
+        label: const Text('가전 사진 추가', style: TextStyle(fontSize: AppFont.caption)),
       );
 }

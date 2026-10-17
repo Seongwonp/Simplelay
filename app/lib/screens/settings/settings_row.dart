@@ -26,7 +26,7 @@ class _SettingCard extends StatelessWidget {
   Widget build(BuildContext context) => Column(
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
+            padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
             child: child,
           ),
           Divider(height: 1, color: context.appBorderFaint),

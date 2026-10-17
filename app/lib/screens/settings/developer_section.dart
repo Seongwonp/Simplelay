@@ -18,7 +18,7 @@ class _DeveloperToolsTile extends StatelessWidget {
           subtitle: Text(
             // 이 입구는 서버 상태를 모른다 — 모의/실제 장치는 들어간 화면의 배지가 서버 응답으로 알린다(10/12).
             '서버 설정에 따라 모의 제어 또는 실제 장치예요. 들어가면 어느 쪽인지 표시돼요. 서버에서 개발자 모드를 켠 경우에만 동작해요',
-            style: TextStyle(color: context.appMuted, fontSize: 12),
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => context.push('/developer'),
@@ -53,7 +53,7 @@ class _DemoModeTile extends ConsumerWidget {
               : on
                   ? '실행이 서버로 나가지 않습니다 — 실제 조작이 아닙니다'
                   : '리허설용. 켜면 실행이 서버로 나가지 않습니다',
-          style: TextStyle(color: context.appMuted, fontSize: 12),
+          style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
         ),
         value: on,
         onChanged:
@@ -80,7 +80,7 @@ class _DemoSection extends ConsumerWidget {
             icon: const Icon(Icons.science_outlined),
             label: const Text('제안 시뮬레이션'),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           OutlinedButton.icon(
             onPressed: () {
               ref.read(bleServiceProvider).simulateDisconnected();

@@ -18,33 +18,33 @@ class DeveloperTabScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('개발자')),
       body: !show
           ? Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(AppSpace.xl),
               child: Text('허브의 개발자 모드가 꺼져 있어요.',
-                  style: TextStyle(fontSize: 16, color: context.appMuted)),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
             )
           : ListView(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(AppSpace.xl),
               children: [
                 Text(
                   devMode
                       ? '허브 개발자 모드가 켜져 있어요. 시연 날에는 끄고 제품 화면만 보여 주세요.'
                       : '허브 개발자 모드는 꺼져 있고, 이 폰의 데모 모드가 켜져 있어서 보여요.',
-                  style: TextStyle(fontSize: 14, color: context.appMuted),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: AppSpace.lg),
                 _SectionHeader(title: '도구'),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 _DeveloperToolsTile(),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpace.xxl),
                 // 가전마다 버튼을 눌러 줄 장치(노드) 등록 — 설정에서 옮겨 왔다(2026-10-14 UX).
                 _SectionHeader(title: '누름 장치'),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 _NodeSection(),
-                const SizedBox(height: 24),
+                const SizedBox(height: AppSpace.xxl),
                 _SectionHeader(title: '데모'),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 _DemoModeTile(),
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 _DemoSection(),
               ],
             ),

@@ -12,6 +12,7 @@ import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 import '../models/display_status.dart';
 import '../models/line_break.dart';
 import '../models/quiet_hours.dart';
@@ -19,6 +20,7 @@ import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_candidate_sheet.dart';
 import '../widgets/routine_run.dart';
+import '../theme/app_tokens.dart';
 
 /// 루틴 탭 — 위에 "다음 실행"(예약이 있을 때만), 아래에 "내 루틴 / 예시 루틴"(UI 확정 §2).
 ///
@@ -69,7 +71,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         title: Text('루틴', style: AppText.heading),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 12),
+            padding: const EdgeInsets.only(right: AppSpace.md),
             child: FilledButton.icon(
               // 앱바 안에서는 테마의 '폭 채우기'를 끈다.
               style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
@@ -90,13 +92,13 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         },
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 4, 20, 28),
+          padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxxl),
           children: [
             // 예약이 있을 때만. nextRoutineProvider는 조회 실패도 null로 돌리므로
             // null을 '예약 없음'으로 단정하지 않는다.
             if (next != null) ...[
               _NextRunCard(next: next),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
             ],
             SegmentedButton<bool>(
               segments: const [
@@ -107,7 +109,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               showSelectedIcon: false,
               onSelectionChanged: (v) => setState(() => _templates = v.first),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             // 사용 기록으로 만든 루틴 초안(2026-10-14) — 조용히: 이 탭에만, 실행 중에는 감춘다(작업 도중 끼어들지 않는다).
             if (!_templates && !executing)
               for (final c in ref.watch(routineCandidatesProvider).valueOrNull ?? const <RoutineCandidate>[])
@@ -122,13 +124,13 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               const _SectionLabel('자동으로 하기'),
               for (final rule in rules)
                 _AutoRuleRow(rule: rule, onChanged: () => ref.invalidate(autoRulesProvider)),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               const _SectionLabel('내 루틴 목록'),
             ],
             ...list.when(
               loading: () => const [
                 Padding(
-                  padding: EdgeInsets.all(24),
+                  padding: EdgeInsets.all(AppSpace.xxl),
                   child: Center(child: CircularProgressIndicator()),
                 ),
               ],
@@ -249,8 +251,8 @@ class _CandidateCard extends StatelessWidget {
     final c = candidate;
     return Container(
       key: Key('candidate-${c.key}'),
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(14),
+      margin: const EdgeInsets.only(bottom: AppSpace.md),
+      padding: const EdgeInsets.all(AppSpace.lg),
       decoration: BoxDecoration(
         color: context.appSurfaceLow,
         borderRadius: BorderRadius.circular(14),
@@ -260,15 +262,15 @@ class _CandidateCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('사용 기록으로 만든 루틴 초안',
-              style: TextStyle(fontSize: 14, color: context.appMuted)),
-          const SizedBox(height: 4),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+          const SizedBox(height: AppSpace.xs),
           Text('${c.applianceName}: ${c.sequenceText}',
               style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
-          Text(c.evidence, style: TextStyle(fontSize: 15, color: context.appMuted)),
-          const SizedBox(height: 8),
+          Text(c.evidence, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+          const SizedBox(height: AppSpace.sm),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: [
               FilledButton(
                 key: Key('candidate-save-${c.key}'),
@@ -302,7 +304,7 @@ class _NextRunCard extends StatelessWidget {
         ? '--:--'
         : '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(AppSpace.lg),
       decoration: BoxDecoration(
         color: context.appSurfaceLow,
         borderRadius: BorderRadius.circular(14),
@@ -313,19 +315,19 @@ class _NextRunCard extends StatelessWidget {
           Text(
             hm,
             style: TextStyle(
-              fontSize: 24,
+              fontSize: AppFont.tabTitle,
               fontWeight: FontWeight.w700,
               color: context.appPrimary,
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: AppSpace.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('다음: ${n.name}',
                     style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w700)),
+                        fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
                 // 오늘·내일이 먼저, 실행 방식은 끝 — 아래 '자동 실행 켜짐' 줄과 같은 말(외부 평가 10/16 p02).
                 Text(
                     [
@@ -333,7 +335,7 @@ class _NextRunCard extends StatelessWidget {
                       if (n.when.isNotEmpty) n.when,
                       n.modeLabel,
                     ].join(' · '),
-                    style: TextStyle(fontSize: 14, color: context.appMuted)),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
               ],
             ),
           ),
@@ -409,14 +411,14 @@ class _RoutineRow extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
           child: Row(
             children: [
               Icon(
-                r.isTemplate ? Icons.auto_awesome_outlined : Icons.repeat,
+                AppIcons.routine,
                 color: r.enabled ? context.appPrimary : context.appMuted,
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.md),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -427,7 +429,7 @@ class _RoutineRow extends StatelessWidget {
                       r.isTemplate && (r.description ?? '').isNotEmpty
                           ? r.description!
                           : routineSubtitle(r, applianceNames),
-                      style: TextStyle(fontSize: 14, color: context.appMuted),
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                     ),
                   ],
                 ),
@@ -454,8 +456,8 @@ class _RoutineRow extends StatelessWidget {
     final run = onRun;
     // 큰 글씨에서는 Wrap이 버튼을 다음 줄로 내린다 — 겹치거나 줄어들지 않는다.
     final actions = Wrap(
-      spacing: 8,
-      runSpacing: 8,
+      spacing: AppSpace.sm,
+      runSpacing: AppSpace.sm,
       children: [
         Semantics(
           label: '${r.name} 편집',
@@ -508,30 +510,30 @@ class _RoutineRow extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: AppSpace.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           info,
           Padding(
-            padding: const EdgeInsets.only(left: 36),
+            padding: const EdgeInsets.only(left: AppSpace.xxxl),
             child: actions,
           ),
           if (note case final message?) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Padding(
-              padding: const EdgeInsets.only(left: 36),
+              padding: const EdgeInsets.only(left: AppSpace.xxxl),
               child: Text(keepWordsTogether(message),
-                  style: TextStyle(fontSize: 15, color: context.appWarning)),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
             ),
           ],
           if (error case final message?) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Padding(
-              padding: const EdgeInsets.only(left: 36),
+              padding: const EdgeInsets.only(left: AppSpace.xxxl),
               // 어절 단위로 줄을 바꾼다('자리/를' 방지, UI 평가 10/17).
               child: Text(keepWordsTogether(message),
-                  style: TextStyle(fontSize: 15, color: context.appDanger)),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
             ),
           ],
         ],
@@ -606,14 +608,14 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
         title: Text(autoRuleValueLabel(rule)),
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+            padding: const EdgeInsets.fromLTRB(AppSpace.xxl, 0, AppSpace.xxl, AppSpace.sm),
             child: Text('바꾸면 다시 허락해야 자동으로 해요.',
-                style: TextStyle(fontSize: 15, color: dialogContext.appMuted)),
+                style: TextStyle(fontSize: AppFont.caption, color: dialogContext.appMuted)),
           ),
           for (final (v, label) in choices)
             SimpleDialogOption(
               onPressed: () => Navigator.pop(dialogContext, v),
-              child: Text(label, style: const TextStyle(fontSize: 18)),
+              child: Text(label, style: const TextStyle(fontSize: AppFont.body)),
             ),
         ],
       ),
@@ -646,55 +648,55 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
     final quietNote = quietRuleNote(ref.watch(quietHoursProvider).valueOrNull, r);
     return Padding(
       key: Key('auto-rule-${r.id}'),
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.only(bottom: AppSpace.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.autorenew_rounded, color: r.enabled ? context.appPrimary : context.appMuted),
-              const SizedBox(width: 12),
+              Icon(AppIcons.auto, color: r.enabled ? context.appPrimary : context.appMuted),
+              const SizedBox(width: AppSpace.md),
               Expanded(
                 child: Text(r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
               ),
             ],
           ),
           Padding(
-            padding: const EdgeInsets.only(left: 36, top: 2),
+            padding: const EdgeInsets.only(left: AppSpace.xxxl, top: AppSpace.xs),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // 규칙을 한 문장으로(2026-10-14 UX) — "조건:/동작:" 표 대신.
                 Text('${r.conditionText} → ${r.actionText}',
-                    style: const TextStyle(fontSize: 15)),
-                const SizedBox(height: 4),
+                    style: const TextStyle(fontSize: AppFont.caption)),
+                const SizedBox(height: AppSpace.xs),
                 Text(
                   r.statusLabel,
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: AppFont.caption,
                     fontWeight: FontWeight.w700,
                     color: r.enabled ? context.appPrimary : context.appMuted,
                   ),
                 ),
                 if (!r.enabled && reason != null && reason.isNotEmpty)
-                  Text(reason, style: TextStyle(fontSize: 14, color: context.appMuted)),
+                  Text(reason, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                 // 조용한 시간과 겹치면 여기서도 말한다 — 켜져 있으면 앰버(실제로 건너뜀), 꺼져 있으면 회색(UI 평가 7차 10/17).
                 if (quietNote != null)
                   Text(keepWordsTogether(quietNote),
                       semanticsLabel: quietNote,
                       style: TextStyle(
-                          fontSize: 14,
+                          fontSize: AppFont.caption,
                           fontWeight: FontWeight.w600,
                           color: ref.watch(quietHoursProvider).valueOrNull?.enabled == true
                               ? context.appWarning
                               : context.appMuted)),
                 // 마지막 자동 실행의 장치별 결과 — 서버 문장 그대로(확인된 것만 '바꿨어요').
                 for (final n in r.lastRunNotices)
-                  Text(n, style: TextStyle(fontSize: 14, color: context.appMuted)),
-                const SizedBox(height: 6),
+                  Text(n, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                const SizedBox(height: AppSpace.sm),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: AppSpace.sm,
+                  runSpacing: AppSpace.sm,
                   children: [
                     if (r.enabled)
                       OutlinedButton(
@@ -745,8 +747,8 @@ class _Note extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Text(text, style: TextStyle(fontSize: 15, color: context.appMuted)),
+        padding: const EdgeInsets.symmetric(vertical: AppSpace.lg),
+        child: Text(text, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
       );
 }
 
@@ -757,7 +759,7 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 4, bottom: 4),
+        padding: const EdgeInsets.only(top: AppSpace.xs, bottom: AppSpace.xs),
         child: Semantics(
           header: true,
           child: Text(text, style: AppText.title),

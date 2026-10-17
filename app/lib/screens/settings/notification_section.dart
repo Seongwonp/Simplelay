@@ -38,7 +38,7 @@ class _DndTile extends ConsumerWidget {
               : carried
                   ? '${pauseEndClock(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하기는 그대로예요'
                   : '${pauseEndClock(until)}까지 묻지도, 자동으로 하지도 않아요',
-          style: TextStyle(color: context.appMuted, fontSize: 14),
+          style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
         ),
         // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
         trailing: OutlinedButton(
@@ -110,7 +110,7 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
     final s = ref.watch(quietHoursProvider).valueOrNull;
     final rules = ref.watch(autoRulesProvider).valueOrNull ?? const <AutoRule>[];
     final skip = s == null ? null : quietSkipLine(s, rules);
-    final muted = TextStyle(color: context.appMuted, fontSize: 14);
+    final muted = TextStyle(color: context.appMuted, fontSize: AppFont.caption);
     return _SettingCard(
       child: ListTile(
         contentPadding: EdgeInsets.zero,
@@ -123,17 +123,17 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _WordsText(s.summary, style: TextStyle(fontSize: 14, color: context.appMuted)),
+                  _WordsText(s.summary, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                   // 겹치는 자동 실행을 이름으로(UI 평가 6차 10/17) — 켜는 순간 소리 없이 건너뛰지 않게.
                   // 범위 설명보다 먼저(7차: 가장 중요한 경고가 맨 끝이었다).
                   if (skip != null)
                     Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
                       // 앰버는 실제로 건너뛸 때(켜짐)만, 켜면 건너뛸 미리 알림은 회색 — 루틴 탭 규칙 카드와 같은 색 규칙
                       // (UI 평가 8차 10/17).
                       child: _WordsText(skip,
                           style: TextStyle(
-                              fontSize: 14,
+                              fontSize: AppFont.caption,
                               color: s.enabled ? context.appWarning : context.appMuted,
                               fontWeight: FontWeight.w600)),
                     ),
@@ -217,7 +217,7 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
           paused
               ? '${_ymd(until)}까지 쉬어요. 실패나 위험 신호음은 그대로 알려 드려요.'
               : '여행처럼 집을 비우는 날 켜세요. 조용한 게 정상인 날 알림이 오지 않아요.',
-          style: TextStyle(color: context.appMuted, fontSize: 14),
+          style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
         ),
         // 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17). 고령 사용자 기준 최소 터치 대상.
         trailing: OutlinedButton(
@@ -307,7 +307,7 @@ class _SuppressionSectionState extends ConsumerState<_SuppressionSection> {
           children: [
             for (final purpose in items)
               ListTile(
-                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                contentPadding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
                 leading: const Icon(Icons.notifications_off_outlined),
                 title: Text(purpose),
                 trailing: TextButton(
@@ -334,7 +334,7 @@ class _SuppressionNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.sm, horizontal: AppSpace.xs),
       child: Row(
         children: [
           if (leading != null) ...[
@@ -342,7 +342,7 @@ class _SuppressionNote extends StatelessWidget {
               data: IconThemeData(color: context.appMuted),
               child: leading!,
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.md),
           ],
           Expanded(
             child: Text(text, style: TextStyle(color: context.appMuted)),

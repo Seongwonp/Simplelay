@@ -12,6 +12,7 @@ import '../providers/photo_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 import '../widgets/panel_photo_view.dart';
 import '../widgets/input_guard.dart';
 import '../widgets/appliance_setup_card.dart';
@@ -487,14 +488,14 @@ class _AddApplianceWizardScreenState
         title: const Text('가전 추가'),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxl),
         children: [
           _Stepper(step: _step),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Text('${_step + 1}. ${_stepTitles[_step]}',
               key: const Key('wizard-step-title'),
-              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
+              style: const TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpace.xs),
           ...switch (_step) {
             0 => _photoStep(),
             1 => _cornerStep(),
@@ -503,16 +504,16 @@ class _AddApplianceWizardScreenState
             _ => _passStep(),
           },
           if (_error != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Text(_error!,
                 key: const Key('wizard-error'),
-                style: TextStyle(fontSize: 15, color: context.appDanger)),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
           ],
         ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.md),
           child: _step == 4
               ? FilledButton(
                   key: const Key('wizard-finish'),
@@ -528,7 +529,7 @@ class _AddApplianceWizardScreenState
                         child: const Text('이전'),
                       ),
                     ),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: AppSpace.md),
                     Expanded(
                       child: FilledButton(
                         key: const Key('wizard-next'),
@@ -563,17 +564,17 @@ class _AddApplianceWizardScreenState
   }
 
   List<Widget> _hint(String text) => [
-        Text(text, style: TextStyle(fontSize: 15, color: context.appMuted)),
-        const SizedBox(height: 12),
+        Text(text, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+        const SizedBox(height: AppSpace.md),
       ];
 
   List<Widget> _photoStep() => [
         ..._hint('버튼판이 다 보이게 찍어 주세요.'),
         // 개인정보 안내는 작은 글씨 한 줄로(2026-10-14 UX).
         Padding(
-          padding: const EdgeInsets.only(bottom: 12),
+          padding: const EdgeInsets.only(bottom: AppSpace.md),
           child: Text('사진은 이 폰에만 남고 본체에는 고른 자리만 보내요.',
-              style: TextStyle(fontSize: 13, color: context.appMuted)),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
         if (_photo == null || _photoSize == null)
           Container(
@@ -602,7 +603,7 @@ class _AddApplianceWizardScreenState
             ),
           ),
         ],
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         TextField(
           key: const Key('wizard-name'),
           controller: _name,
@@ -616,10 +617,10 @@ class _AddApplianceWizardScreenState
           maxLength: 20,
           decoration: const InputDecoration(labelText: '방 (선택, 예: 주방)'),
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: AppSpace.xs),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppSpace.sm,
+          runSpacing: AppSpace.sm,
           children: [
             for (final c in ApplianceCategory.values)
               ChoiceChip(
@@ -633,7 +634,7 @@ class _AddApplianceWizardScreenState
               ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton(
@@ -685,11 +686,11 @@ class _AddApplianceWizardScreenState
       else if (_frame?.known ?? false)
         Text(
           '버튼판 크기: 가로 ${_frame!.widthMm!.toStringAsFixed(0)}mm, 세로 ${_frame!.heightMm!.toStringAsFixed(0)}mm',
-          style: TextStyle(fontSize: 14, color: context.appMuted),
+          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
         )
       else ...[
         Text('버튼판 크기를 아직 몰라요. 자로 잰 안쪽 크기를 적어 주세요.',
-            style: TextStyle(fontSize: 14, color: context.appWarning)),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
         Row(
           children: [
             Expanded(
@@ -701,7 +702,7 @@ class _AddApplianceWizardScreenState
                 onChanged: (_) => setState(() {}),
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(
               child: TextField(
                 key: const Key('wizard-frame-h'),
@@ -732,14 +733,14 @@ class _AddApplianceWizardScreenState
           ],
           onTap: _buttons.length >= 60 ? null : _addButton,
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpace.md),
         if (_buttons.isEmpty)
           Text('아직 고른 버튼이 없어요',
-              style: TextStyle(fontSize: 15, color: context.appMuted))
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
         else
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: [
               for (final b in _buttons)
                 InputChip(
@@ -754,9 +755,9 @@ class _AddApplianceWizardScreenState
                 ),
             ],
           ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         Text('다음은 정지 버튼과 기다리는 자리, 그다음은 시험 이동이에요. 작은 팔이 버튼 위를 한 번씩 지나가요.',
-            style: TextStyle(fontSize: 13, color: context.appMuted)),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
       ];
 
   List<Widget> _stopStep() => [
@@ -782,13 +783,13 @@ class _AddApplianceWizardScreenState
                   })
               : null,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: AppSpace.md),
         const Text('정지 버튼',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
+            style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
+        const SizedBox(height: AppSpace.sm),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: AppSpace.sm,
+          runSpacing: AppSpace.sm,
           children: [
             for (final b in _buttons)
               ChoiceChip(
@@ -799,10 +800,10 @@ class _AddApplianceWizardScreenState
               ),
           ],
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: AppSpace.md),
         const Text('정지까지 누를 횟수',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
+            style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
+        const SizedBox(height: AppSpace.sm),
         SegmentedButton<int>(
           segments: const [
             ButtonSegment(value: 1, label: Text('1번')),
@@ -814,8 +815,8 @@ class _AddApplianceWizardScreenState
           onSelectionChanged: (v) => setState(() => _stopPresses = v.first),
         ),
         Text('예: 전자레인지는 1번이면 일시정지, 2번이면 취소인 경우가 많아요.',
-            style: TextStyle(fontSize: 13, color: context.appMuted)),
-        const SizedBox(height: 10),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+        const SizedBox(height: AppSpace.md),
         OutlinedButton.icon(
           key: const Key('wizard-park'),
           onPressed: () => setState(() => _placingPark = !_placingPark),
@@ -826,11 +827,11 @@ class _AddApplianceWizardScreenState
         ),
         if (_stopId == null || _park == null)
           Padding(
-            padding: const EdgeInsets.only(top: 8),
+            padding: const EdgeInsets.only(top: AppSpace.sm),
             child: Text(
               '정지 버튼과 기다리는 자리를 둘 다 정해야 작은 팔이 정지 버튼 위에서 기다려요. '
               '나중에 정해도 돼요.',
-              style: TextStyle(fontSize: 13, color: context.appWarning),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appWarning),
             ),
           ),
       ];
@@ -843,19 +844,19 @@ class _AddApplianceWizardScreenState
       Row(
         children: [
           Icon(Icons.check_circle_outline, color: context.appPrimary),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpace.sm),
           Expanded(
             child: Text('${_saved?.name ?? ''} 등록과 버튼 자리를 저장했어요.',
-                style: const TextStyle(fontSize: 15)),
+                style: const TextStyle(fontSize: AppFont.caption)),
           ),
         ],
       ),
       if (mapping != null && mapping.stopParkNotes.isNotEmpty) ...[
-        const SizedBox(height: 6),
+        const SizedBox(height: AppSpace.sm),
         for (final note in mapping.stopParkNotes)
-          Text('· $note', style: TextStyle(fontSize: 14, color: context.appWarning)),
+          Text('· $note', style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
       ],
-      const SizedBox(height: 12),
+      const SizedBox(height: AppSpace.md),
       if (pass == null)
         FilledButton.icon(
           key: const Key('wizard-start-pass'),
@@ -867,7 +868,7 @@ class _AddApplianceWizardScreenState
         if (pass.isMock)
           Text('연습이라 작은 팔은 실제로 움직이지 않았어요.',
               key: const Key('wizard-pass-mock'),
-              style: TextStyle(fontSize: 15, color: context.appWarning)),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
         for (final s in pass.steps)
           ListTile(
             contentPadding: EdgeInsets.zero,
@@ -878,7 +879,7 @@ class _AddApplianceWizardScreenState
           ),
         if (pass.running) const LinearProgressIndicator(),
         if (!pass.running && (pass.detail ?? '').isNotEmpty)
-          Text(pass.detail!, style: TextStyle(fontSize: 14, color: context.appMuted)),
+          Text(pass.detail!, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         if (!pass.running)
           Align(
             alignment: Alignment.centerLeft,
@@ -890,9 +891,9 @@ class _AddApplianceWizardScreenState
       ],
       if (pass == null)
         Padding(
-          padding: const EdgeInsets.only(top: 8),
+          padding: const EdgeInsets.only(top: AppSpace.sm),
           child: Text('시험 이동 없이 끝내면 처음 누를 때 자리가 맞는지 꼭 지켜봐 주세요.',
-              style: TextStyle(fontSize: 13, color: context.appMuted)),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
     ];
   }
@@ -940,7 +941,7 @@ class _Stepper extends StatelessWidget {
                   ),
                 ),
               ),
-              if (i < 4) const SizedBox(width: 6),
+              if (i < 4) const SizedBox(width: AppSpace.sm),
             ],
           ],
         ),

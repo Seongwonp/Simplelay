@@ -37,7 +37,7 @@ class _RpiConnectionTile extends ConsumerWidget {
           ? null
           : () => ref.read(rpiConnectionProvider.notifier).check(),
       style: OutlinedButton.styleFrom(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
         minimumSize: const Size(48, 48),
       ),
       child: connState == RpiConnectionState.checking
@@ -46,7 +46,7 @@ class _RpiConnectionTile extends ConsumerWidget {
               height: 12,
               child: CircularProgressIndicator(strokeWidth: 2),
             )
-          : const Text('다시 찾기', style: TextStyle(fontSize: 14)),
+          : const Text('다시 찾기', style: TextStyle(fontSize: AppFont.caption)),
     );
     // 큰 글씨에서는 오른쪽 버튼이 제목을 세 줄로 꺾는다. 버튼을 아래로.
     final stacked = MediaQuery.textScalerOf(context).scale(1) >= 1.5;
@@ -62,13 +62,13 @@ class _RpiConnectionTile extends ConsumerWidget {
             title: const Text('본체'),
             subtitle: Text(
               label,
-              style: TextStyle(color: color, fontSize: 14),
+              style: TextStyle(color: color, fontSize: AppFont.caption),
             ),
             trailing: stacked ? null : retry,
           ),
           if (stacked)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: AppSpace.sm),
               child: retry,
             ),
         ],
@@ -96,7 +96,7 @@ class _SavedDeviceSection extends ConsumerWidget {
           // 서버가 안 될 때 쓰는 두 번째 길. 이름부터 그렇게 부른다.
           title: const Text('블루투스 연결'),
           subtitle: Text('저장된 기기가 없어요. 아래 설치하는 분용에서 찾아요',
-              style: TextStyle(color: context.appMuted, fontSize: 14)),
+              style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
         ),
       );
     }
@@ -114,7 +114,7 @@ class _SavedDeviceSection extends ConsumerWidget {
           isConnected ? '연결됐어요' : '지금은 끊겨 있어요',
           style: TextStyle(
             color: isConnected ? context.appSuccess : context.appMuted,
-            fontSize: 14,
+            fontSize: AppFont.caption,
           ),
         ),
         trailing: Row(
@@ -159,17 +159,17 @@ class _SavedDeviceSection extends ConsumerWidget {
                 },
                 style: OutlinedButton.styleFrom(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
                   minimumSize: const Size(48, 48),
                 ),
-                child: const Text('다시 연결', style: TextStyle(fontSize: 14)),
+                child: const Text('다시 연결', style: TextStyle(fontSize: AppFont.caption)),
               ),
             IconButton(
               onPressed: () => ref.read(savedDeviceProvider.notifier).clear(),
               icon: const Icon(Icons.delete_outline, size: 16),
               color: context.appMuted,
               tooltip: '지우기',
-              padding: const EdgeInsets.all(4),
+              padding: const EdgeInsets.all(AppSpace.xs),
             ),
           ],
         ),
@@ -201,15 +201,15 @@ class _AdvancedSection extends ConsumerWidget {
         children: [
           Text(
             '본체 주소 (설치하는 분용)',
-            style: TextStyle(color: context.appMuted, fontSize: 13),
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             '기본값: http://simplelay.local:8000\n'
             '같은 와이파이에서 본체를 찾아요.',
-            style: TextStyle(color: context.appMuted, fontSize: 11),
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.md),
           Row(
             children: [
               Expanded(
@@ -219,40 +219,40 @@ class _AdvancedSection extends ConsumerWidget {
                     border: OutlineInputBorder(),
                     hintText: 'http://simplelay.local:8000',
                     contentPadding:
-                        EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.md),
                     isDense: true,
                   ),
-                  style: const TextStyle(fontSize: 13),
+                  style: const TextStyle(fontSize: AppFont.caption),
                   keyboardType: TextInputType.url,
                   autocorrect: false,
                   onSubmitted: (_) => _save(ref),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               FilledButton(
                 onPressed: () => _save(ref),
                 style: FilledButton.styleFrom(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.md),
                   minimumSize: const Size(48, 48),
                 ),
-                child: const Text('저장', style: TextStyle(fontSize: 13)),
+                child: const Text('저장', style: TextStyle(fontSize: AppFont.caption)),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Text(
             '연결 비밀번호 (설치하는 분용)',
-            style: TextStyle(color: context.appMuted, fontSize: 13),
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             '본체를 설치할 때 정한 비밀번호를 넣어 주세요.',
-            style: TextStyle(color: context.appMuted, fontSize: 11),
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           _HubKeyField(controller: apiKeyController, onSubmitted: () => _save(ref)),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           TextButton(
             onPressed: () async {
               await ref.read(rpiUrlProvider.notifier).resetToDefault();
@@ -264,7 +264,7 @@ class _AdvancedSection extends ConsumerWidget {
               minimumSize: const Size(48, 48),
             ),
             child: Text('기본값으로 초기화',
-                style: TextStyle(color: context.appMuted, fontSize: 14)),
+                style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
           ),
         ],
       );
@@ -294,7 +294,7 @@ class _BleSection extends ConsumerWidget {
         Row(
           children: [
             Text('주변 블루투스 기기',
-                style: TextStyle(color: context.appMuted, fontSize: 13)),
+                style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
             const Spacer(),
             IconButton(
               onPressed: () => ref.invalidate(scanResultsProvider),
@@ -305,21 +305,21 @@ class _BleSection extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         results.when(
           loading: () => const Padding(
-            padding: EdgeInsets.all(24),
+            padding: EdgeInsets.all(AppSpace.xxl),
             child: Center(child: CircularProgressIndicator()),
           ),
           error: (e, _) => Text('찾지 못했어요. 블루투스가 켜져 있는지 봐 주세요.',
-              style: TextStyle(color: context.appMuted, fontSize: 14)),
+              style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
           data: (items) {
             final unique = <DeviceIdentifier, ScanResult>{
               for (final item in items) item.device.remoteId: item,
             }.values;
             if (unique.isEmpty) {
               return Text('찾은 기기가 없어요.',
-                  style: TextStyle(color: context.appMuted, fontSize: 14));
+                  style: TextStyle(color: context.appMuted, fontSize: AppFont.caption));
             }
             return Column(
               children: unique.map((result) {
@@ -330,10 +330,10 @@ class _BleSection extends ConsumerWidget {
                   child: ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: const Icon(Icons.bluetooth, size: 20),
-                    title: Text(name, style: const TextStyle(fontSize: 14)),
+                    title: Text(name, style: const TextStyle(fontSize: AppFont.caption)),
                     subtitle: Text(
                       '${result.rssi} dBm',
-                      style: TextStyle(color: context.appMuted, fontSize: 11),
+                      style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
                     ),
                     trailing: FilledButton(
                       onPressed: () async {
@@ -360,10 +360,10 @@ class _BleSection extends ConsumerWidget {
                       },
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 14, vertical: 8),
+                            horizontal: AppSpace.lg, vertical: AppSpace.sm),
                         minimumSize: const Size(48, 48),
                       ),
-                      child: const Text('연결', style: TextStyle(fontSize: 14)),
+                      child: const Text('연결', style: TextStyle(fontSize: AppFont.caption)),
                     ),
                   ),
                 );

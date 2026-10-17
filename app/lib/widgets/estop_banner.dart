@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/estop.dart';
 import '../providers/estop_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 비상정지 걸림 배너(2026-10-05) — 탭바 위, 실행 중 정지 줄 바로 위에 붙는다.
 ///
@@ -29,7 +30,7 @@ class EstopBanner extends ConsumerWidget {
         top: false,
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
+          padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.md, AppSpace.md, AppSpace.md),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
@@ -40,7 +41,7 @@ class EstopBanner extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Icon(Icons.report, color: onStop, size: 22),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpace.sm),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -49,7 +50,7 @@ class EstopBanner extends ConsumerWidget {
                             kEstopTitle,
                             style: TextStyle(
                                 color: onStop,
-                                fontSize: 16,
+                                fontSize: AppFont.caption,
                                 fontWeight: FontWeight.w700),
                           ),
                           if (detail != null && detail.isNotEmpty)
@@ -57,17 +58,17 @@ class EstopBanner extends ConsumerWidget {
                               detail,
                               maxLines: 3,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: onStop, fontSize: 14),
+                              style: const TextStyle(color: onStop, fontSize: AppFont.caption),
                             ),
                           if (message != null)
                             Padding(
-                              padding: const EdgeInsets.only(top: 4),
+                              padding: const EdgeInsets.only(top: AppSpace.xs),
                               child: Text(
                                 message,
                                 key: const Key('estop-message'),
                                 style: const TextStyle(
                                     color: onStop,
-                                    fontSize: 14,
+                                    fontSize: AppFont.caption,
                                     fontWeight: FontWeight.w600),
                               ),
                             ),
@@ -77,7 +78,7 @@ class EstopBanner extends ConsumerWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: AppSpace.sm),
               Align(
                 alignment: Alignment.centerRight,
                 child: FilledButton(

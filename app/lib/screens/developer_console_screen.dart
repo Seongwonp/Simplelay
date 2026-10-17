@@ -10,6 +10,7 @@ import '../providers/dev_api_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/dev_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 개발자 도구 (Phase 2, 2026-10-10 실물 경로) — 기본 모의, 서버가 켜면 실제 장치.
 ///
@@ -545,10 +546,10 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
     return Scaffold(
       appBar: AppBar(title: const Text('개발자 도구')),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpace.xl),
         children: [
           _MotionBadge(state: state),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           if (api == null)
             _TokenSetup(
               controller: _tokenController,
@@ -574,18 +575,18 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
               child: const Text('상태 새로고침'),
             ),
             if (_message != null) ...[
-              const SizedBox(height: 10),
+              const SizedBox(height: AppSpace.md),
               Text(
                 _message!,
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: AppFont.caption,
                   color: _messageIsProblem ? context.appDanger : null,
                   fontWeight:
                       _messageIsProblem ? FontWeight.w600 : FontWeight.w400,
                 ),
               ),
             ],
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpace.xl),
             _Label('대상 가전'),
             if (installed.isEmpty)
               Text('등록된 가전이 없어요', style: TextStyle(color: context.appMuted))
@@ -609,7 +610,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                     DropdownMenuItem(value: a.id, child: Text(a.name)),
                 ],
               ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Row(
               children: [
                 Expanded(
@@ -620,7 +621,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                     child: const Text('세션 시작'),
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: AppSpace.md),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: _hasSession ? () => _endSession() : null,
@@ -631,11 +632,11 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xxl),
             _Label('명령'),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: AppSpace.sm,
+              runSpacing: AppSpace.sm,
               children: [
                 _CommandButton(
                     '상태', canCommand ? () => _command('status') : null),
@@ -644,13 +645,13 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                     '센서 읽기', canCommand ? () => _command('sensor read') : null),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             _Label(real
                 ? '방향을 누를 때마다 ${_MotionBadge._mm(jogStep)}mm 이동 — 한 번에 한 번만 움직여요 (Z는 누르기로만)'
                 : '방향을 누를 때마다 ${_MotionBadge._mm(jogStep)}mm 이동'),
             if (jogSteps.length > 1)
               Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: AppSpace.md),
                 child: SegmentedButton<double>(
                   key: const ValueKey('dev-jog-step'),
                   segments: [
@@ -672,14 +673,14 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
             ),
             if (!real)
               Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: AppSpace.sm),
                 child: Row(
                   children: [
                     const SizedBox(
                       width: 32,
                       child: Text('Z',
                           style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w700)),
+                              fontSize: AppFont.body, fontWeight: FontWeight.w700)),
                     ),
                     Expanded(
                       child: _CommandButton(
@@ -689,7 +690,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                                   'jog z - ${_MotionBadge._mm(jogStep)}')
                               : null),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpace.sm),
                     Expanded(
                       child: _CommandButton(
                           'z +',
@@ -702,7 +703,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                 ),
               ),
             if (target != null && target.buttons.isNotEmpty) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               _Label('버튼 누르기 (보정이 끝난 가전만)'),
               Row(
                 children: [
@@ -721,7 +722,7 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.sm),
                   _CommandButton(
                     '누르기',
                     canCommand && _pressButtonId != null
@@ -731,9 +732,9 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
                 ],
               ),
             ],
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xxl),
             _StopButton(onStop: _stop),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xxl),
             Row(
               children: [
                 Expanded(child: _Label('기록')),
@@ -746,21 +747,21 @@ class _DeveloperConsoleScreenState extends ConsumerState<DeveloperConsoleScreen>
             ),
             if (_log.isEmpty)
               Text('기록을 불러오지 않았어요',
-                  style: TextStyle(color: context.appMuted, fontSize: 13))
+                  style: TextStyle(color: context.appMuted, fontSize: AppFont.caption))
             else
               for (final line in _log)
                 Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 3),
+                  padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
                   child: Text(
                     '${_hms(line.at)}  ${line.event}  ${line.detail}',
                     style: TextStyle(
                       fontFamily: 'monospace',
-                      fontSize: 12,
+                      fontSize: AppFont.caption,
                       color: context.appOnSurfaceSoft,
                     ),
                   ),
                 ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             TextButton(
               onPressed: _hasSession || _busy
                   ? null
@@ -824,7 +825,7 @@ class _MotionBadge extends StatelessWidget {
       liveRegion: real || unsupported,
       label: '개발자 도구 대상: $badge',
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpace.lg),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: color, width: real ? 3 : 2),
@@ -833,7 +834,7 @@ class _MotionBadge extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: color, size: 28),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -841,7 +842,7 @@ class _MotionBadge extends StatelessWidget {
                   Container(
                     key: const ValueKey('dev-motion-badge'),
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                        const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.xs),
                     decoration: BoxDecoration(
                       color: color,
                       borderRadius: BorderRadius.circular(999),
@@ -849,23 +850,23 @@ class _MotionBadge extends StatelessWidget {
                     child: Text(
                       badge,
                       style: const TextStyle(
-                        fontSize: 13,
+                        fontSize: AppFont.caption,
                         fontWeight: FontWeight.w800,
                         color: AppColors.onAccent,
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpace.sm),
                   Text(
                     title,
                     style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w700),
+                        fontSize: AppFont.body, fontWeight: FontWeight.w700),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpace.xs),
                   Text(
                     body,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: AppFont.caption,
                       color: realBlocked ? context.appDanger : context.appMuted,
                       fontWeight:
                           realBlocked ? FontWeight.w600 : FontWeight.w400,
@@ -912,12 +913,12 @@ class _PhaseLine extends StatelessWidget {
       child: Row(
         children: [
           Icon(icon, color: color, size: 26),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpace.md),
           Expanded(
             child: Text(
               text,
               style: TextStyle(
-                fontSize: 18,
+                fontSize: AppFont.body,
                 fontWeight: FontWeight.w700,
                 color: color,
               ),
@@ -936,9 +937,9 @@ class _Label extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(bottom: 6),
+        padding: const EdgeInsets.only(bottom: AppSpace.sm),
         child:
-            Text(text, style: TextStyle(color: context.appMuted, fontSize: 13)),
+            Text(text, style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
       );
 }
 
@@ -968,7 +969,7 @@ class _JogPad extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _dir('y +', Icons.arrow_upward, 'y', '+'),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -982,7 +983,7 @@ class _JogPad extends StatelessWidget {
                 _dir('x +', Icons.arrow_forward, 'x', '+'),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             _dir('y −', Icons.arrow_downward, 'y', '-'),
           ],
         ),
@@ -1029,7 +1030,7 @@ class _StopButton extends StatelessWidget {
           icon: const Icon(Icons.stop, size: 28),
           label: const Text(
             '정지',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            style: TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700),
           ),
         ),
       );
@@ -1056,13 +1057,13 @@ class _TokenSetup extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const Text('개발자 토큰',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 4),
+            style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600)),
+        const SizedBox(height: AppSpace.xs),
         Text(
           '서버의 SIMPLELAY_DEV_TOKEN과 같은 값입니다. 일반 API 키와 다릅니다.',
-          style: TextStyle(color: context.appMuted, fontSize: 12),
+          style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         TextField(
           controller: controller,
           obscureText: true,
@@ -1074,7 +1075,7 @@ class _TokenSetup extends StatelessWidget {
           ),
           onSubmitted: (_) => onSave(),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: AppSpace.sm),
         FilledButton.tonal(
           onPressed: onSave,
           style: FilledButton.styleFrom(minimumSize: const Size(0, 48)),

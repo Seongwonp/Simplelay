@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 제어 경로 배지(버튼을 대신 눌러요 / ThinQ). 색이 아니라 글자로 말한다.
 ///
@@ -13,11 +14,11 @@ class RouteBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(6),
           border: Border.all(color: context.appBorderSubtle),
         ),
-        child: Text(label, style: const TextStyle(fontSize: 14)),
+        child: Text(label, style: const TextStyle(fontSize: AppFont.caption)),
       );
 }

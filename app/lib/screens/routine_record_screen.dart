@@ -6,6 +6,7 @@ import '../theme/app_colors.dart';
 import '../widgets/input_guard.dart';
 import '../widgets/panel_photo_view.dart' show applianceImageOverride;
 import '../widgets/appliance_panel.dart';
+import '../theme/app_tokens.dart';
 
 /// 루틴 녹화 — 평소 누르는 순서대로 사진 속 버튼을 짚는다(UI 확정 §2).
 ///
@@ -45,18 +46,18 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
       appBar: AppBar(title: const Text('누르는 순서 저장')),
       body: appliance == null
           ? Padding(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.all(AppSpace.xl),
               child: Text('이 가전을 찾을 수 없어요.',
-                  style: TextStyle(fontSize: 16, color: context.appMuted)),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
             )
           : ListView(
-              padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+              padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxl),
               children: [
                 Text(
                   '평소 누르는 순서대로 버튼을 골라 주세요. 저장만 하고 누르지는 않아요.',
-                  style: TextStyle(fontSize: 15, color: context.appMuted),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: AppSpace.md),
                 AppliancePanel(
                   appliance: appliance,
                   imageOverride: applianceImageOverride,
@@ -66,14 +67,14 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
                     setState(() => _order.add(b.id));
                   },
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: AppSpace.lg),
                 if (_order.isEmpty)
                   Text('아직 고른 버튼이 없어요',
-                      style: TextStyle(fontSize: 15, color: context.appMuted))
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
                 else
                   Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
+                    spacing: AppSpace.sm,
+                    runSpacing: AppSpace.sm,
                     children: [
                       for (var i = 0; i < _order.length; i++)
                         Chip(
@@ -83,7 +84,7 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
                             child: Text(
                               '${i + 1}',
                               style: TextStyle(
-                                  fontSize: 12, color: context.appOnAccent),
+                                  fontSize: AppFont.caption, color: context.appOnAccent),
                             ),
                           ),
                           label: Text(appliance.labelFor(_order[i])),
@@ -94,7 +95,7 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
             ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.md),
           child: Row(
             children: [
               Expanded(
@@ -105,7 +106,7 @@ class _RoutineRecordScreenState extends ConsumerState<RoutineRecordScreen> {
                   child: const Text('하나 지우기'),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpace.md),
               Expanded(
                 child: FilledButton(
                   onPressed: _order.isEmpty

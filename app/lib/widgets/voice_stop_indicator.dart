@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/voice_stop_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 실행 중 음성 '멈춰'를 듣고 있을 때만 보이는 한 줄 — "듣는 중".
 ///
@@ -22,20 +23,20 @@ class VoiceStopIndicator extends ConsumerWidget {
         child: Container(
           width: double.infinity,
           color: context.appPrimary.withValues(alpha: 0.10),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.sm),
           child: Row(
             children: [
               Icon(Icons.mic, size: 18, color: context.appPrimary),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               const Text('듣는 중',
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700)),
-              const SizedBox(width: 8),
+                  style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
+              const SizedBox(width: AppSpace.sm),
               const Expanded(
                 child: Text(
                   "'멈춰'라고 말하면 멈춰요",
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 14),
+                  style: TextStyle(fontSize: AppFont.caption),
                 ),
               ),
             ],

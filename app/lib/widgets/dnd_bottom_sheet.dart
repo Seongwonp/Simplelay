@@ -7,6 +7,7 @@ import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 /// DND 기간 선택 바텀시트. `showDndSheet(context)` 로 호출.
 void showDndSheet(BuildContext context) {
@@ -30,7 +31,7 @@ class _DndSheet extends ConsumerWidget {
 
     return SafeArea(
       child: Container(
-        margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+        margin: const EdgeInsets.fromLTRB(AppSpace.md, 0, AppSpace.md, AppSpace.md),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(20),
@@ -39,7 +40,7 @@ class _DndSheet extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // 핸들
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Container(
               width: 36,
               height: 4,
@@ -48,22 +49,22 @@ class _DndSheet extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpace.xl),
 
             // 헤더
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
               child: Row(
                 children: [
                   Icon(Icons.do_not_disturb_on_outlined,
                       color: context.appWarning, size: 22),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpace.md),
                   Flexible(child: Text('잠시 쉬기', style: AppText.title)),
                   const Spacer(),
                   if (isActive)
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 4),
+                          horizontal: AppSpace.md, vertical: AppSpace.xs),
                       decoration: BoxDecoration(
                         color: context.appWarning.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(20),
@@ -74,7 +75,7 @@ class _DndSheet extends ConsumerWidget {
                         '쉬는 중',
                         style: TextStyle(
                             color: context.appWarning,
-                            fontSize: 12,
+                            fontSize: AppFont.caption,
                             fontWeight: FontWeight.w600),
                       ),
                     ),
@@ -86,20 +87,20 @@ class _DndSheet extends ConsumerWidget {
 
             // 현재 DND 남은 시간
             if (isActive) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Text(
                   _remaining(dndUntil),
                   style: TextStyle(
-                      color: context.appWarning, fontSize: 13),
+                      color: context.appWarning, fontSize: AppFont.caption),
                 ),
               ),
             ],
 
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpace.xl),
             const Divider(height: 1),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
 
             // 기간 선택 버튼들
             ..._kOptions.map(
@@ -136,7 +137,7 @@ class _DndSheet extends ConsumerWidget {
                   : null,
             ),
 
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
           ],
         ),
       ),
@@ -189,7 +190,7 @@ class _OptionTile extends StatelessWidget {
         subtitle: Text(
           subtitle,
           style: TextStyle(
-              color: context.appMuted, fontSize: 14),
+              color: context.appMuted, fontSize: AppFont.caption),
         ),
         trailing: Icon(
           Icons.chevron_right,

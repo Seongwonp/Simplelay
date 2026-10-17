@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'app_colors.dart';
+import 'app_tokens.dart';
 
 class AppTheme {
   static ThemeData get dark => _build(Brightness.dark);
@@ -51,6 +52,10 @@ class AppTheme {
         onSecondaryContainer: ink,
       ),
       scaffoldBackgroundColor: bg,
+      // 글자 바닥은 16(UI 개편안 §5). Material 기본(본문 14·보조 12·라벨 11)을 그대로 두면
+      // 크기를 적지 않은 Text·버튼·입력칸이 16 아래로 내려간다.
+      textTheme: _sized(Typography.material2021().englishLike
+          .merge(ThemeData(brightness: brightness, useMaterial3: true).textTheme)),
 
       appBarTheme: AppBarTheme(
         backgroundColor: bg,
@@ -58,7 +63,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: false,
         // 하위 화면 제목도 굵게 — 가는 글씨라 위계가 약했다(UI 평가 10/17). 탭 제목은 26(AppText.heading).
-        titleTextStyle: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: ink),
+        titleTextStyle: TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700, color: ink),
       ),
 
       // 라이트는 **그림자**로, 다크는 **테두리**로 카드를 나눈다.
@@ -116,7 +121,7 @@ class AppTheme {
         indicatorColor: primary.withValues(alpha: 0.16),
         elevation: 0,
         labelTextStyle: WidgetStateProperty.all(
-          const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+          const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600),
         ),
       ),
 
@@ -153,6 +158,21 @@ class AppTheme {
           borderSide: BorderSide(color: border),
         ),
       ),
+    );
+  }
+
+  static TextTheme _sized(TextTheme t) {
+    TextStyle? at(TextStyle? s, double size) => s?.copyWith(fontSize: size);
+    return t.copyWith(
+      titleLarge: at(t.titleLarge, AppFont.cardTitle),
+      titleMedium: at(t.titleMedium, AppFont.body),
+      titleSmall: at(t.titleSmall, AppFont.caption),
+      bodyLarge: at(t.bodyLarge, AppFont.body),
+      bodyMedium: at(t.bodyMedium, AppFont.caption),
+      bodySmall: at(t.bodySmall, AppFont.caption),
+      labelLarge: at(t.labelLarge, AppFont.caption),
+      labelMedium: at(t.labelMedium, AppFont.caption),
+      labelSmall: at(t.labelSmall, AppFont.caption),
     );
   }
 }

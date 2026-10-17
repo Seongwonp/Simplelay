@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/auto_rule.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 /// 자동 실행 허용 확인(2026-10-13) — 새 화면이 아니라 아래에서 올라오는 시트다.
 ///
@@ -23,38 +24,38 @@ Future<bool> showAutoRuleConfirmSheet(
     showDragHandle: true,
     builder: (sheetContext) => SafeArea(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.lg),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(title, style: AppText.heading),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             _Line(label: '언제', text: conditionText),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             _Line(label: '무엇을', text: actionText),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             // 근거의 한계는 허용하는 이 자리에서 말한다 — 문장은 서버가 조건 종류에 맞게 준다(2026-10-16: 가열 종료는
             // 전력 하강 판정, 시각 규칙은 허브 시계). 옛 서버는 칸이 없어 가열 종료 문장을 쓴다.
             if (caveat != null) ...[
               Text(
                 caveat,
                 key: const Key('auto-rule-caveat'),
-                style: TextStyle(fontSize: 15, color: sheetContext.appMuted),
+                style: TextStyle(fontSize: AppFont.caption, color: sheetContext.appMuted),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
             ],
             Text(
               '버튼 누르기는 매번 허락을 받아요. 루틴 탭에서 언제든 끌 수 있어요.',
-              style: TextStyle(fontSize: 15, color: sheetContext.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: sheetContext.appMuted),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             FilledButton(
               key: const Key('auto-rule-allow'),
               onPressed: () => Navigator.pop(sheetContext, true),
               child: Text(confirmLabel),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             OutlinedButton(
               key: const Key('auto-rule-cancel'),
               onPressed: () => Navigator.pop(sheetContext, false),
@@ -82,6 +83,6 @@ class _Line extends StatelessWidget {
           ),
           TextSpan(text: text),
         ]),
-        style: const TextStyle(fontSize: 18),
+        style: const TextStyle(fontSize: AppFont.body),
       );
 }

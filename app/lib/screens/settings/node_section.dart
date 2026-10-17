@@ -17,7 +17,7 @@ class _NodeSection extends ConsumerWidget {
           title: const Text('등록할 가전이 아직 없어요'),
           subtitle: Text(
             '가전을 추가하면 여기서 작은 팔을 연결해요.',
-            style: TextStyle(color: context.appMuted, fontSize: 14),
+            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
         ),
       );
@@ -25,7 +25,7 @@ class _NodeSection extends ConsumerWidget {
 
     return nodesAsync.when(
       loading: () => const Padding(
-        padding: EdgeInsets.symmetric(vertical: 16),
+        padding: EdgeInsets.symmetric(vertical: AppSpace.lg),
         child: Center(
           child: SizedBox(
             width: 18,
@@ -39,7 +39,7 @@ class _NodeSection extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.error_outline, color: context.appMuted, size: 20),
           title: Text('가전 연결 상태를 불러오지 못했어요',
-              style: TextStyle(color: context.appMuted, fontSize: 14)),
+              style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
           trailing: IconButton(
             icon: Icon(Icons.refresh, color: context.appMuted, size: 18),
             onPressed: () => ref.invalidate(nodeRegistryProvider),
@@ -50,10 +50,10 @@ class _NodeSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.only(bottom: 4),
+            padding: const EdgeInsets.only(bottom: AppSpace.xs),
             child: Text(
               '가전마다 버튼을 눌러 줄 작은 팔',
-              style: TextStyle(fontSize: 15, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ),
           ...appliances.map((appliance) {
@@ -70,7 +70,7 @@ class _NodeSection extends ConsumerWidget {
                   url != null ? '작은 팔이 이어져 있어요' : '아직 작은 팔이 없어요',
                   style: TextStyle(
                     color: url != null ? context.appSuccess : context.appMuted,
-                    fontSize: 14,
+                    fontSize: AppFont.caption,
                   ),
                 ),
                 trailing: IconButton(
@@ -211,7 +211,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
       ),
       child: SafeArea(
         child: Container(
-          margin: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+          margin: const EdgeInsets.fromLTRB(AppSpace.md, 0, AppSpace.md, AppSpace.md),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.surface,
             borderRadius: BorderRadius.circular(20),
@@ -219,7 +219,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
               // 핸들
               Container(
                 width: 36,
@@ -229,28 +229,28 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpace.xl),
 
               // 헤더
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Row(
                   children: [
                     Icon(widget.appliance.icon,
                         color: context.appMuted, size: 20),
-                    const SizedBox(width: 10),
+                    const SizedBox(width: AppSpace.md),
                     Text(
                       '${widget.appliance.name} 작은 팔 연결',
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: AppFont.caption,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     if (isRegistered) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.sm),
                       Container(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
+                            horizontal: AppSpace.sm, vertical: AppSpace.xs),
                         decoration: BoxDecoration(
                           color: context.appSuccess.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(4),
@@ -260,29 +260,29 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                         child: Text(
                           '연결됨',
                           style: TextStyle(
-                              fontSize: 14, color: context.appSuccess),
+                              fontSize: AppFont.caption, color: context.appSuccess),
                         ),
                       ),
                     ],
                   ],
                 ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: AppSpace.sm),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Text(
                   '설치하는 분용이에요. 작은 팔 주소를 넣어 주세요',
-                  style: TextStyle(fontSize: 14, color: context.appMuted),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
               ),
 
-              const SizedBox(height: 20),
+              const SizedBox(height: AppSpace.xl),
               const Divider(height: 1),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // 입력 필드
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: TextField(
                   controller: _ctrl,
                   autofocus: true,
@@ -291,32 +291,32 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                   decoration: InputDecoration(
                     border: const OutlineInputBorder(),
                     hintText: '192.168.x.x  또는  http://...:8080',
-                    hintStyle: TextStyle(fontSize: 13, color: context.appMuted),
+                    hintStyle: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                     contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 12),
+                        horizontal: AppSpace.lg, vertical: AppSpace.md),
                     isDense: true,
                   ),
-                  style: const TextStyle(fontSize: 14),
+                  style: const TextStyle(fontSize: AppFont.caption),
                   onSubmitted: (_) => _save(),
                 ),
               ),
 
               if (_error != null) ...[
-                const SizedBox(height: 8),
+                const SizedBox(height: AppSpace.sm),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                   child: Text(
                     _error!,
-                    style: TextStyle(fontSize: 14, color: context.appDanger),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appDanger),
                   ),
                 ),
               ],
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
 
               // 버튼 행
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Row(
                   children: [
                     if (isRegistered)
@@ -332,7 +332,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                           child: const Text('연결 풀기'),
                         ),
                       ),
-                    if (isRegistered) const SizedBox(width: 10),
+                    if (isRegistered) const SizedBox(width: AppSpace.md),
                     Expanded(
                       flex: 2,
                       child: FilledButton(
@@ -353,7 +353,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                 ),
               ),
 
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
             ],
           ),
         ),

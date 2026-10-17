@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 /// 조작할 가전이 아직 없을 때 보여주는 안내.
 ///
@@ -28,20 +29,20 @@ class NoApplianceNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl, vertical: AppSpace.xxl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.add_home_outlined, size: 52, color: context.appMuted),
-              const SizedBox(height: 18),
+              const SizedBox(height: AppSpace.xl),
               Text(title, textAlign: TextAlign.center, style: AppText.title),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               Text(
                 body,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: context.appMuted),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: AppSpace.xxl),
               FilledButton.icon(
                 onPressed: onAdd,
                 icon: const Icon(Icons.add, size: 20),

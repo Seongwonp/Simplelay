@@ -5,6 +5,7 @@ import '../models/routine_candidate.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 /// 루틴 초안 저장 확인(2026-10-14) — 새 화면이 아니라 아래에서 올라오는 시트다.
 ///
@@ -80,25 +81,25 @@ class _CandidateSheetState extends State<_CandidateSheet> {
   Widget build(BuildContext context) {
     final c = widget.candidate;
     return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
+      padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.lg),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text('루틴으로 저장할까요?', style: AppText.heading),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Text('${c.applianceName}: ${c.sequenceText}',
               key: const Key('candidate-sheet-sequence'),
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-          Text(c.evidence, style: TextStyle(fontSize: 15, color: context.appMuted)),
-          const SizedBox(height: 16),
+              style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+          Text(c.evidence, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+          const SizedBox(height: AppSpace.lg),
           TextField(
             key: const Key('candidate-name'),
             controller: _name,
             maxLength: 30,
             decoration: const InputDecoration(labelText: '루틴 이름'),
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           RadioGroup<String>(
             groupValue: _run,
             onChanged: (v) {
@@ -116,23 +117,23 @@ class _CandidateSheetState extends State<_CandidateSheet> {
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(c.notice,
               key: const Key('candidate-notice'),
-              style: TextStyle(fontSize: 15, color: context.appMuted)),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           if (_error case final message?) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             Text(message,
                 key: const Key('candidate-error'),
-                style: TextStyle(fontSize: 15, color: context.appDanger)),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           FilledButton(
             key: const Key('candidate-confirm'),
             onPressed: _saving ? null : _save,
             child: const Text('저장'),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           OutlinedButton(
             key: const Key('candidate-cancel'),
             onPressed: _saving ? null : () => Navigator.pop(context),

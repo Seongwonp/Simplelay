@@ -18,6 +18,7 @@ import '../widgets/appliance_portrait.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/no_appliance_notice.dart';
 import '../widgets/route_badge.dart';
+import '../theme/app_tokens.dart';
 
 enum _CellState { idle, pending, success, failure }
 
@@ -156,18 +157,18 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
       return Scaffold(
         appBar: AppBar(title: const Text('버튼 누르기')),
         body: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
           children: [
             _TargetHeader(appliance: appliance),
-            const SizedBox(height: 20),
+            const SizedBox(height: AppSpace.xl),
             Text(
               'LG 가전이라 누를 버튼이 없어요.',
               style: AppText.title,
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Text(
               '가전 화면에서 지금 상태를 보고 바꿀 수 있어요. 말로 맡겨도 돼요.',
-              style: TextStyle(fontSize: 15, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ],
         ),
@@ -189,12 +190,12 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
     return Scaffold(
       appBar: AppBar(title: const Text('버튼 누르기')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
           // ── 어느 가전인가 ────────────────────────────────────────────────
           _TargetHeader(appliance: appliance),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
 
           // ── 지금 눌러도 되는가 ───────────────────────────────────────────
           // 이 가전이 아직 준비 안 됐으면 **여기서 먼저 말한다.** 눌러 보고
@@ -211,7 +212,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               onSeeStatus: () => context.push('/status'),
             ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpace.xl),
 
           // ── 버튼판 ──────────────────────────────────────────────────────
           // 등록 때 찍은 사진이 있으면 그 위에 격자를 겹친다 -- 실제 배치를
@@ -256,7 +257,7 @@ class _TargetHeader extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         children: [
           AppliancePortrait(appliance: appliance, size: 64, borderRadius: 12),
-          const SizedBox(width: 14),
+          const SizedBox(width: AppSpace.lg),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -267,20 +268,20 @@ class _TargetHeader extends StatelessWidget {
                       child: Text(appliance.displayName, style: AppText.title),
                     ),
                     if (appliance.isDemo) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.sm),
                       const DemoBadge(),
                     ],
                     if (appliance.isThinq) ...[
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.sm),
                       const RouteBadge(label: 'LG 가전'),
                     ],
                   ],
                 ),
                 if (!appliance.isThinq) ...[
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpace.xs),
                   Text(
                     '버튼 ${appliance.buttons.length}개. 누르면 작은 팔이 실제 가전 버튼을 눌러요',
-                    style: TextStyle(fontSize: 15, color: context.appMuted),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                   ),
                 ],
               ],
@@ -319,11 +320,11 @@ class _FeedbackLine extends StatelessWidget {
             height: 18,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpace.md),
           Expanded(
             child: Text("'$pendingLabel' 누르는 중…",
                 style:
-                    const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+                    const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
           ),
         ],
       );
@@ -337,13 +338,13 @@ class _FeedbackLine extends StatelessWidget {
             size: 22,
             color: ok ? context.appSuccess : context.appDanger,
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: AppSpace.sm),
           Expanded(
             child: Text(
               resultSentence ??
                   manualPressSentence(resultLabel!, success: ok),
               style: TextStyle(
-                fontSize: 17,
+                fontSize: AppFont.body,
                 fontWeight: FontWeight.w600,
                 color: ok ? context.appSuccess : context.appDanger,
               ),
@@ -360,11 +361,11 @@ class _FeedbackLine extends StatelessWidget {
     return Row(
       children: [
         Icon(Icons.touch_app, color: context.appMuted, size: 18),
-        const SizedBox(width: 8),
+        const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Text(
             '누를 버튼을 골라 주세요. 한 번에 하나씩 눌러요.',
-            style: TextStyle(fontSize: 15, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
         ),
       ],
@@ -383,24 +384,24 @@ class _NotConnected extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl, vertical: AppSpace.xxl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(Icons.link_off, color: context.appMuted, size: 52),
-              const SizedBox(height: 18),
+              const SizedBox(height: AppSpace.xl),
               Text(
                 '본체와 아직 연결되지 않았어요',
                 textAlign: TextAlign.center,
                 style: AppText.title,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               Text(
                 '설정에서 본체와 연결하면 여기서 바로 누를 수 있어요.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: context.appMuted),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: AppSpace.xxl),
               FilledButton.icon(
                 onPressed: onGoToSettings,
                 icon: const Icon(Icons.settings, size: 20),
@@ -432,7 +433,7 @@ class _NotReadyNotice extends StatelessWidget {
           color: context.appWarning,
           size: 22,
         ),
-        const SizedBox(width: 10),
+        const SizedBox(width: AppSpace.md),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -440,16 +441,16 @@ class _NotReadyNotice extends StatelessWidget {
               Text(
                 disconnected ? '아직 연결되지 않았어요' : '아직 준비가 안 됐어요',
                 style: TextStyle(
-                  fontSize: 17,
+                  fontSize: AppFont.body,
                   fontWeight: FontWeight.w600,
                   color: context.appWarning,
                 ),
               ),
               if (appliance.readinessReasons.isNotEmpty) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Text(
                   appliance.readinessReasons.join(', '),
-                  style: TextStyle(color: context.appMuted, fontSize: 15),
+                  style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
                 ),
               ],
             ],
@@ -491,7 +492,7 @@ class _PhotoBackedGrid extends StatelessWidget {
             Image.file(File(appliance.photoPath!), fit: BoxFit.cover),
             // 사진 위 가독성용 어두운 스크림 — 셀은 onPhoto 팔레트(흰색 계열)
             ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
-            Padding(padding: const EdgeInsets.all(12), child: child),
+            Padding(padding: const EdgeInsets.all(AppSpace.md), child: child),
           ],
         ),
       ),
@@ -532,7 +533,7 @@ class _ButtonGrid extends StatelessWidget {
             final btn = appliance.buttonAt(x, y);
             return Expanded(
               child: Padding(
-                padding: EdgeInsets.only(right: x < appliance.cols - 1 ? 8 : 0),
+                padding: EdgeInsets.only(right: x < appliance.cols - 1 ? AppSpace.sm : 0),
                 child: btn == null
                     ? const SizedBox.shrink()
                     : _ButtonCell(
@@ -656,12 +657,12 @@ class _ButtonCell extends StatelessWidget {
               child: overlay ??
                   Padding(
                     padding:
-                        const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+                        const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.sm),
                     child: Text(
                       button.label,
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 17,
+                        fontSize: AppFont.body,
                         fontWeight: FontWeight.w600,
                         color: state == _CellState.idle ? idleText : color,
                       ),

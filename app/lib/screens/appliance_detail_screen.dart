@@ -12,6 +12,7 @@ import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 import '../widgets/panel_photo_view.dart' show applianceImageOverride;
 import '../theme/app_text.dart';
 import '../widgets/appliance_panel.dart';
@@ -41,9 +42,9 @@ class ApplianceDetailScreen extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(),
         body: Padding(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppSpace.xl),
           child: Text('이 가전을 찾을 수 없어요. 홈에서 다시 골라 주세요.',
-              style: TextStyle(fontSize: 16, color: context.appMuted)),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
       );
     }
@@ -56,59 +57,68 @@ class ApplianceDetailScreen extends ConsumerWidget {
         title: Row(
           children: [
             Flexible(child: Text(a.displayName)),
-            if (a.isDemo) ...[const SizedBox(width: 8), const DemoBadge()],
+            if (a.isDemo) ...[const SizedBox(width: AppSpace.sm), const DemoBadge()],
             if (a.isThinq) ...[
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               const RouteBadge(label: 'LG 가전'),
             ],
           ],
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 32),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxxl),
         children: [
           _ReadinessLine(appliance: a),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           if (a.isThinq) ...[
             Text(
               'LG 가전이라 누를 버튼이 없어요. 아래에서 바로 바꾸거나 말이나 루틴으로 맡겨 주세요.',
-              style: TextStyle(fontSize: 16, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             ThinqStateCard(applianceId: a.id, applianceName: a.displayName),
           ] else ...[
             Text(
               a.panelMapping != null
                   ? '사진 속 버튼을 누르면 작은 팔이 대신 눌러요. 빨간 원은 정지, 점선은 기다리는 자리예요.'
                   : '버튼을 누르면 작은 팔이 대신 눌러요.',
-              style: TextStyle(fontSize: 15, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpace.md),
             AppliancePanel(
               appliance: a,
               imageOverride: applianceImageOverride,
               onButton: (b) => _confirmPress(context, ref, a, b),
             ),
           ],
-          const SizedBox(height: 20),
+          const SizedBox(height: AppSpace.xl),
 
           // ── 내 루틴 ───────────────────────────────────────────────────────
           _Card(
-            child: Row(
+            // 큰 글씨에서는 버튼을 아래 줄로 — 한 줄이면 버튼 글자가 넘친다.
+            child: Flex(
+              mainAxisSize: MainAxisSize.min,
+              direction: MediaQuery.textScalerOf(context).scale(1) > 1.3
+                  ? Axis.vertical
+                  : Axis.horizontal,
+              crossAxisAlignment: MediaQuery.textScalerOf(context).scale(1) > 1.3
+                  ? CrossAxisAlignment.start
+                  : CrossAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Column(
+                _slot(
+                  MediaQuery.textScalerOf(context).scale(1) <= 1.3,
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // 0개면 숫자와 빈 문장을 겹치지 않고 한 줄로(2026-10-14 UX).
                       Text(mine.isEmpty ? '아직 루틴이 없어요' : '내 루틴 ${mine.length}개',
                           style: const TextStyle(
-                              fontSize: 17, fontWeight: FontWeight.w700)),
+                              fontSize: AppFont.body, fontWeight: FontWeight.w700)),
                       if (mine.isNotEmpty) ...[
-                        const SizedBox(height: 2),
+                        const SizedBox(height: AppSpace.xs),
                         Text(
                           mine.map((r) => r.name).join(', '),
-                          style: TextStyle(fontSize: 14, color: context.appMuted),
+                          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                         ),
                       ],
                     ],
@@ -126,13 +136,13 @@ class ApplianceDetailScreen extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
 
           // ── 오늘 사용 ─────────────────────────────────────────────────────
           _TodayUse(applianceId: a.id, thinq: a.isThinq),
 
           if (!a.isThinq) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
@@ -248,10 +258,10 @@ class _ReadinessLine extends StatelessWidget {
     return Row(
       children: [
         Icon(Icons.error_outline, size: 18, color: context.appWarning),
-        const SizedBox(width: 6),
+        const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Text(why,
-              style: TextStyle(fontSize: 15, color: context.appWarning)),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
         ),
       ],
     );
@@ -283,16 +293,16 @@ class _TodayUse extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const Text('오늘 사용',
-              style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 4),
+              style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpace.xs),
           if (today.isEmpty)
             Text('오늘은 아직 사용하지 않았어요',
-                style: TextStyle(fontSize: 14, color: context.appMuted))
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
           else
             for (final e in today)
               Text(
                 '${_hm(e.finishedAt)} ${_what(e)}, ${_result(e)}',
-                style: TextStyle(fontSize: 14, color: context.appMuted),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
               ),
         ],
       ),
@@ -329,7 +339,7 @@ class _Card extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(AppSpace.lg),
         decoration: BoxDecoration(
           color: context.appSurfaceLow,
           borderRadius: BorderRadius.circular(14),
@@ -338,3 +348,6 @@ class _Card extends StatelessWidget {
         child: DefaultTextStyle.merge(style: AppText.body, child: child),
       );
 }
+
+/// 가로 줄에서는 남은 폭을 채우고(Expanded), 세로로 쌓을 때는 그대로 둔다.
+Widget _slot(bool expand, Widget child) => expand ? Expanded(child: child) : child;

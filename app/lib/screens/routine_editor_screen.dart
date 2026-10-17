@@ -15,6 +15,7 @@ import '../widgets/input_guard.dart';
 import '../widgets/routine_run.dart';
 import '../widgets/thinq_state_card.dart'
     show ThinqControl, kAirPurifierControls, thinqStepPhrase;
+import '../theme/app_tokens.dart';
 
 /// 루틴 편집 — 문장형 카드 세 줄(언제 · 무엇을 · 그다음)과 '단계 추가'(UI 확정 §2).
 ///
@@ -78,7 +79,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxl),
         children: [
           TextField(
             key: const Key('routine-name'),
@@ -92,14 +93,14 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Icon(Icons.info_outline, size: 18, color: context.appWarning),
-                const SizedBox(width: 6),
+                const SizedBox(width: AppSpace.sm),
                 Expanded(
                   child: Text(caution,
-                      style: TextStyle(fontSize: 14, color: context.appWarning)),
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
           ],
 
           if (_isNew && !_whenChosen) ...[
@@ -118,12 +119,12 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
               _whenChosen = true;
               _update(_draft.copyWith(trigger: const RoutineTrigger.manual()));
             }, child: const Text('직접 실행으로 정하기')),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
           ],
 
           // ── 문장 카드 ───────────────────────────────────────────────────
           Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(AppSpace.lg),
             decoration: BoxDecoration(
               color: context.appSurfaceLow,
               borderRadius: BorderRadius.circular(14),
@@ -157,9 +158,9 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                   _Line(
                     keyWord: '무엇을',
                     child: Text('아래 "할 일 추가"로 누를 버튼을 정해 주세요',
-                        style: TextStyle(fontSize: 15, color: context.appMuted)),
+                        style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                   ),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
@@ -174,12 +175,12 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
 
           // ── 실행 방식 ───────────────────────────────────────────────────
           const Text('실행 방식',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-          const SizedBox(height: 8),
+              style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)),
+          const SizedBox(height: AppSpace.sm),
           SegmentedButton<RoutineMode>(
             segments: const [
               ButtonSegment(value: RoutineMode.approve, label: Text('물어보고 하기')),
@@ -189,12 +190,12 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
             showSelectedIcon: false,
             onSelectionChanged: (v) => _update(_draft.copyWith(mode: v.first)),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           Text(
             _draft.mode == RoutineMode.approve
                 ? '때가 되면 카드로 물어봐요. 허락해야 가전을 눌러요.'
                 : '알림만 보내요. 가전은 그대로예요.',
-            style: TextStyle(fontSize: 14, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
@@ -206,19 +207,19 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
           if (!_isNew)
             Text(
               '할 일이나 실행 방식을 바꾸면 떠 있는 카드는 다시 허락해야 해요.',
-              style: TextStyle(fontSize: 13, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           if (_error != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             Text(_error!,
                 key: const Key('routine-error'),
-                style: TextStyle(fontSize: 15, color: context.appDanger)),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
           ],
         ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+          padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.md),
           child: Row(
             children: [
               if (!_isNew && !_dirty) ...[
@@ -228,7 +229,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
                     child: const Text('지금 하기'),
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: AppSpace.md),
               ],
               Expanded(
                 child: FilledButton(
@@ -253,8 +254,8 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
         final labels = s.buttons.map((b) => a?.labelFor(b) ?? b).join(' → ');
         return Wrap(
           crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 6,
-          runSpacing: 4,
+          spacing: AppSpace.sm,
+          runSpacing: AppSpace.xs,
           children: [
             _Token(text: who, icon: a?.icon),
             const Text('에서'),
@@ -271,7 +272,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
       case RoutineStepKind.thinqCommand:
         // 동작 이름(set_wind_strength)은 내지 않는다 — '[공기청정기] 풍량 강풍으로 바꾸기'.
         return Wrap(
-          spacing: 6,
+          spacing: AppSpace.sm,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _Token(text: who, icon: a?.icon),
@@ -281,7 +282,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
         );
       case RoutineStepKind.announce:
         return Wrap(
-          spacing: 6,
+          spacing: AppSpace.sm,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _Token(
@@ -293,7 +294,7 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
         );
       case RoutineStepKind.waitUntilDone:
         return Wrap(
-          spacing: 6,
+          spacing: AppSpace.sm,
           crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _Token(text: who, icon: a?.icon),
@@ -395,20 +396,20 @@ class _RoutineEditorScreenState extends ConsumerState<RoutineEditorScreen> {
       builder: (sheet) => SafeArea(
         child: ListView(
           shrinkWrap: true,
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 8, 20, 4),
+              padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.sm, AppSpace.xl, AppSpace.xs),
               child: Text('${a.displayName}에서 무엇을 바꿀까요?',
                   style: const TextStyle(
-                      fontSize: 18, fontWeight: FontWeight.w700)),
+                      fontSize: AppFont.body, fontWeight: FontWeight.w700)),
             ),
             for (final control in kAirPurifierControls) ...[
               Padding(
-                padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, 0),
                 child: Text(control.label,
                     style: TextStyle(
-                        fontSize: 15,
+                        fontSize: AppFont.caption,
                         fontWeight: FontWeight.w700,
                         color: sheet.appMuted)),
               ),
@@ -601,7 +602,7 @@ class _Line extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
+        padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
@@ -609,13 +610,13 @@ class _Line extends StatelessWidget {
               width: 56,
               child: Text(keyWord,
                   style: TextStyle(
-                      fontSize: 14,
+                      fontSize: AppFont.caption,
                       fontWeight: FontWeight.w700,
                       color: context.appMuted)),
             ),
             Expanded(
               child: DefaultTextStyle.merge(
-                style: const TextStyle(fontSize: 16),
+                style: const TextStyle(fontSize: AppFont.caption),
                 child: child,
               ),
             ),
@@ -635,7 +636,7 @@ class _Token extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final body = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
       decoration: BoxDecoration(
         color: context.appPrimary.withValues(alpha: 0.10),
         borderRadius: BorderRadius.circular(10),
@@ -648,12 +649,12 @@ class _Token extends StatelessWidget {
         children: [
           if (icon != null) ...[
             Icon(icon, size: 16, color: context.appPrimary),
-            const SizedBox(width: 4),
+            const SizedBox(width: AppSpace.xs),
           ],
           Flexible(
             child: Text(text,
                 style: TextStyle(
-                    fontSize: 15,
+                    fontSize: AppFont.caption,
                     fontWeight: FontWeight.w600,
                     color: context.appPrimary)),
           ),
@@ -727,18 +728,18 @@ class _TriggerSheetState extends State<_TriggerSheet> {
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-            20, 16, 20, 16 + MediaQuery.viewInsetsOf(context).bottom),
+            AppSpace.xl, AppSpace.lg, AppSpace.xl, 16 + MediaQuery.viewInsetsOf(context).bottom),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const Text('언제',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 10),
+                  style: TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+              const SizedBox(height: AppSpace.md),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: AppSpace.sm,
+                runSpacing: AppSpace.sm,
                 children: [
                   for (final (k, label) in kinds)
                     ChoiceChip(
@@ -748,11 +749,11 @@ class _TriggerSheetState extends State<_TriggerSheet> {
                     ),
                 ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               if (_kind == RoutineTriggerKind.time) ...[
                 Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
+                  spacing: AppSpace.sm,
+                  runSpacing: AppSpace.sm,
                   children: [
                     for (var d = 0; d < 7; d++)
                       FilterChip(
@@ -765,7 +766,7 @@ class _TriggerSheetState extends State<_TriggerSheet> {
                       ),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AppSpace.md),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.schedule),
                   label: Text(_time),
@@ -813,7 +814,7 @@ class _TriggerSheetState extends State<_TriggerSheet> {
                         ],
                         onChanged: (v) => setState(() => _afterAppliance = v),
                       ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
               SizedBox(
                 width: double.infinity,
                 child: FilledButton(

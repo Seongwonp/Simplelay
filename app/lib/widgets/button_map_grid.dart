@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/appliance.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 누르는 순서에서 버튼 하나가 지금 어디에 있는가.
 enum ButtonMapStepState { planned, done, current, pending }
@@ -72,11 +73,11 @@ class ButtonMapGrid extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: context.appBorderFaint),
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpace.md),
       child: Column(
         children: List.generate(appliance.rows, (row) {
           return Padding(
-            padding: EdgeInsets.only(bottom: row < appliance.rows - 1 ? 8 : 0),
+            padding: EdgeInsets.only(bottom: row < appliance.rows - 1 ? AppSpace.sm : 0),
             // 큰 글씨에서 긴 이름이 두 줄이 되면 칸이 늘어나야 한다. 한 줄의
             // 칸 높이는 가장 긴 칸에 맞춘다 -- 들쭉날쭉하면 배치가 틀어져
             // 보이고, 높이를 고정하면 글자가 잘린다.
@@ -88,7 +89,7 @@ class ButtonMapGrid extends StatelessWidget {
                 return Expanded(
                   child: Padding(
                     padding:
-                        EdgeInsets.only(right: col < appliance.cols - 1 ? 8 : 0),
+                        EdgeInsets.only(right: col < appliance.cols - 1 ? AppSpace.sm : 0),
                     child: btn == null
                         ? const SizedBox(height: 52)
                         : _Cell(
@@ -181,11 +182,11 @@ class _Cell extends StatelessWidget {
         alignment: Alignment.center,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs, vertical: AppSpace.sm),
             child: Text(
               label,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, fontWeight: weight, color: text),
+              style: TextStyle(fontSize: AppFont.caption, fontWeight: weight, color: text),
             ),
           ),
           if (inSequence)
@@ -221,7 +222,7 @@ class _Badge extends StatelessWidget {
     // 높이를 고정하지 않는다 -- 200% 글씨에서 숫자가 배지 밖으로 잘렸다.
     return Container(
       constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs, vertical: AppSpace.xs),
       decoration: BoxDecoration(
         color: current ? context.appOnAccent : context.appInk,
         borderRadius: BorderRadius.circular(999),
@@ -233,7 +234,7 @@ class _Badge extends StatelessWidget {
           orders.join('·'),
           style: TextStyle(
             // 9px는 고령 사용자에게 사실상 안 보인다 — 배지째 키웠다
-            fontSize: 12,
+            fontSize: AppFont.caption,
             fontWeight: FontWeight.w700,
             // 검정 고정이면 라이트 모드(어두운 강조색 위)에서 3.78:1
             color: current ? accent : context.appOnAccent,

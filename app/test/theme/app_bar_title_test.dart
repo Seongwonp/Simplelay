@@ -9,7 +9,7 @@ void main() {
       final style = theme.appBarTheme.titleTextStyle;
       expect(style, isNotNull);
       expect(style!.fontWeight, FontWeight.w700);
-      expect(style.fontSize, greaterThanOrEqualTo(22));
+      expect(style.fontSize, greaterThanOrEqualTo(20)); // 카드 제목 단계(UI 개편안 §5)
     }
   });
 }

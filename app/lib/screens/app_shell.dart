@@ -8,9 +8,11 @@ import '../providers/execution_status_provider.dart';
 import '../providers/hub_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 import '../widgets/estop_banner.dart';
 import '../widgets/voice_stop_indicator.dart';
 import 'history_screen.dart' show historyProvider;
+import '../theme/app_tokens.dart';
 
 /// 하단 탭 shell — **홈 · 루틴 · 기록 · 설정**(UI 확정 §2).
 ///
@@ -116,7 +118,7 @@ class RunningStopStrip extends ConsumerWidget {
         top: false,
         bottom: false,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 6, 12, 6),
+          padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.sm, AppSpace.md, AppSpace.sm),
           child: Row(
             children: [
               Expanded(
@@ -126,22 +128,22 @@ class RunningStopStrip extends ConsumerWidget {
                   child: InkWell(
                     onTap: () => context.push('/status'),
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
                       child: Row(
                         children: [
                           Icon(
-                            unknown ? Icons.help_outline : Icons.autorenew,
+                            unknown ? Icons.help_outline : AppIcons.running,
                             size: 20,
                             color: unknown ? context.appWarning : context.appPrimary,
                           ),
-                          const SizedBox(width: 8),
+                          const SizedBox(width: AppSpace.sm),
                           Expanded(
                             child: Text(
                               line,
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w600),
+                                  fontSize: AppFont.caption, fontWeight: FontWeight.w600),
                             ),
                           ),
                         ],
@@ -150,7 +152,7 @@ class RunningStopStrip extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               FilledButton.icon(
                 key: const Key('shell-stop'),
                 onPressed: () =>
@@ -218,8 +220,8 @@ class _BottomBar extends ConsumerWidget {
                 onTap: () => onTab(homeTabIndex),
               ),
               _Tab(
-                icon: Icons.auto_awesome_motion_outlined,
-                selectedIcon: Icons.auto_awesome_motion,
+                icon: AppIcons.routine,
+                selectedIcon: AppIcons.routineSelected,
                 label: '루틴',
                 selected: index == routinesTabIndex,
                 onTap: () => onTab(routinesTabIndex),
@@ -313,7 +315,7 @@ class _Tab extends StatelessWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: AppSpace.xs),
               // 라벨이 길어져도 자르지 않고 줄여 맞춘다 -- 잘라내면 어떤
               // 탭인지 알 수 없게 된다.
               Flexible(
@@ -322,7 +324,7 @@ class _Tab extends StatelessWidget {
                   child: Text(
                     label,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: AppFont.caption,
                       height: 1.1,
                       fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
                       color: color,

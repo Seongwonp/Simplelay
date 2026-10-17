@@ -16,6 +16,7 @@ import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
 import '../widgets/button_map_grid.dart';
 import '../widgets/voice_stop_indicator.dart';
+import '../theme/app_tokens.dart';
 
 /// 실행 상태 -- 센서 대시보드가 아니라 **물리 폐루프의 진행과 회복**을 보여준다.
 ///
@@ -104,12 +105,12 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   width: double.infinity,
                   color: context.appWarning.withValues(alpha: 0.16),
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                      const EdgeInsets.symmetric(horizontal: AppSpace.xl, vertical: AppSpace.sm),
                   child: Row(
                     children: [
                       Icon(Icons.science_outlined,
                           size: 18, color: context.appWarning),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.sm),
                       Expanded(
                         child: Text(
                           status.modeLabel,
@@ -127,7 +128,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
 
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+              padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
               children: [
                 // ── 어느 가전, 무슨 일 ─────────────────────────────────────
                 // liveRegion: 실행 상태는 사용자가 화면을 다시 훑지 않아도
@@ -153,19 +154,19 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                       children: [
                         if (target != null) ...[
                           _TargetLine(appliance: target),
-                          const SizedBox(height: 6),
+                          const SizedBox(height: AppSpace.sm),
                         ],
                         Text(
                           status.label ?? '지금 하는 일이 없어요',
                           style: TextStyle(
-                            fontSize: 20,
+                            fontSize: AppFont.cardTitle,
                             fontWeight: FontWeight.w600,
                             color: status.phase == ExecutionPhase.idle
                                 ? null
                                 : context.appMuted,
                           ),
                         ),
-                        const SizedBox(height: 16),
+                        const SizedBox(height: AppSpace.lg),
 
                         // ── 지금 무엇을 하고 있는가 — 가장 크게 ────────────
                         // 이 제품의 차별점(실제 버튼을 누르고 센서로 확인)이
@@ -193,7 +194,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 // 아는 것처럼 보이게 하는데, 우리는 모른다.
                 // 조작이 하나뿐이면 진행 막대를 그리지 않는다 — 위 결과 문장이 다 말한다(외부 평가 10/16 p08).
                 if (status.phase != ExecutionPhase.idle && totalSteps > 1) ...[
-                  const SizedBox(height: 24),
+                  const SizedBox(height: AppSpace.xxl),
                   _SegmentedProgress(
                     total: totalSteps,
                     completed: status.completedSteps,
@@ -213,9 +214,9 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     !target.isThinq &&
                     status.steps.isNotEmpty &&
                     status.phase != ExecutionPhase.idle) ...[
-                  const SizedBox(height: 28),
+                  const SizedBox(height: AppSpace.xxxl),
                   Text('${target.displayName} 버튼판', style: AppText.title),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: AppSpace.md),
                   ExcludeSemantics(
                     child: ButtonMapGrid(
                       appliance: target,
@@ -231,10 +232,10 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 // ThinQ 한 단계는 제목과 같은 말이라 목록을 되풀이하지 않는다(외부 평가 10/16 p08).
                 if (status.steps.length > 1 ||
                     (status.steps.isNotEmpty && target?.isThinq != true)) ...[
-                  const SizedBox(height: 28),
+                  const SizedBox(height: AppSpace.xxxl),
                   Text(target?.isThinq == true ? '할 일' : '누르는 순서',
                       style: AppText.title),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpace.sm),
                   for (var i = 0; i < status.steps.length; i++)
                     _StepRow(
                       index: i,
@@ -258,7 +259,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                 // 데모 대시보드가 되고, 이 제품의 논지(실제로 누르고 센서로
                 // 확인한다)가 숫자 뒤로 밀린다. 근거가 필요한 사람은 펼친다.
                 if (hasRawSensor) ...[
-                  const SizedBox(height: 20),
+                  const SizedBox(height: AppSpace.xl),
                   _SensorRecord(
                     stacked: MediaQuery.textScalerOf(context).scale(1) > 1.3,
                     children: [
@@ -273,7 +274,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                           unit: 'mA',
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      const SizedBox(width: AppSpace.md),
                       Expanded(
                         child: _SensorChart(
                           label: '소리',
@@ -300,7 +301,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
             SafeArea(
               top: false,
               child: Padding(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(AppSpace.lg),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -419,30 +420,30 @@ class _ResultFacts extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 10),
+      padding: const EdgeInsets.only(top: AppSpace.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Wrap(
-            spacing: 8,
-            runSpacing: 6,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: [
               for (final w in words)
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.xs),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(color: context.appBorderSubtle),
                   ),
-                  child: Text(w, style: const TextStyle(fontSize: 15)),
+                  child: Text(w, style: const TextStyle(fontSize: AppFont.caption)),
                 ),
             ],
           ),
           if (detail != null && detail.isNotEmpty) ...[
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Text(detail,
-                style: TextStyle(fontSize: 15, color: context.appMuted)),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           ],
           _OperationLine(status: status),
         ],
@@ -465,12 +466,12 @@ class _RunSteps extends ConsumerWidget {
       return const SizedBox.shrink();
     }
     return Padding(
-      padding: const EdgeInsets.only(top: 24),
+      padding: const EdgeInsets.only(top: AppSpace.xxl),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('할 일별 결과', style: AppText.title),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           for (var i = 0; i < run.steps.length; i++)
             Builder(builder: (context) {
               final step = run.steps[i];
@@ -481,21 +482,21 @@ class _RunSteps extends ConsumerWidget {
                 label: '$title. $facts',
                 child: ExcludeSemantics(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(title,
                             style: const TextStyle(
-                                fontSize: 17, fontWeight: FontWeight.w600)),
-                        const SizedBox(height: 2),
+                                fontSize: AppFont.body, fontWeight: FontWeight.w600)),
+                        const SizedBox(height: AppSpace.xs),
                         Text(facts,
                             style: TextStyle(
-                                fontSize: 15, color: context.appMuted)),
+                                fontSize: AppFont.caption, color: context.appMuted)),
                         if (detail != null && detail.isNotEmpty)
                           Text(detail,
                               style: TextStyle(
-                                  fontSize: 15, color: context.appMuted)),
+                                  fontSize: AppFont.caption, color: context.appMuted)),
                       ],
                     ),
                   ),
@@ -550,7 +551,7 @@ class _OperationLine extends StatelessWidget {
     final verified = operationVerifiedForReal(status);
     final color = verified ? context.appSuccess : context.appWarning;
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: AppSpace.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -563,20 +564,20 @@ class _OperationLine extends StatelessWidget {
                 size: 18,
                 color: color,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
                   operationSentence(status)!,
                   style: TextStyle(
-                      fontSize: 15, fontWeight: FontWeight.w600, color: color),
+                      fontSize: AppFont.caption, fontWeight: FontWeight.w600, color: color),
                 ),
               ),
             ],
           ),
           if (caption.isNotEmpty) ...[
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             Text(caption,
-                style: TextStyle(fontSize: 14, color: context.appMuted)),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           ],
         ],
       ),
@@ -730,10 +731,10 @@ class _NowBlock extends StatelessWidget {
             // 상태를 색으로만 말하지 않는다 -- 모양이 같이 간다.
             if (icon != null) ...[
               Padding(
-                padding: const EdgeInsets.only(top: 3),
+                padding: const EdgeInsets.only(top: AppSpace.xs),
                 child: Icon(icon, size: 24, color: color),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
             ],
             Expanded(
               // 어절 단위로 줄을 바꾼다 — 큰 글씨에서 '동/작을'처럼 낱말 가운데서 끊겼다(UI 평가 10/17).
@@ -742,9 +743,9 @@ class _NowBlock extends StatelessWidget {
                 semanticsLabel: now.headline,
                 style: now.button != null
                     ? TextStyle(
-                        fontSize: 22, fontWeight: FontWeight.w600, color: color)
+                        fontSize: AppFont.cardTitle, fontWeight: FontWeight.w600, color: color)
                     : TextStyle(
-                        fontSize: now.idle ? 16 : 22,
+                        fontSize: now.idle ? AppFont.caption : AppFont.cardTitle,
                         fontWeight:
                             now.idle ? FontWeight.w400 : FontWeight.w600,
                         color: color ?? (now.idle ? context.appMuted : null),
@@ -754,19 +755,19 @@ class _NowBlock extends StatelessWidget {
           ],
         ),
         if (now.detail != null) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(now.detail!, style: TextStyle(color: context.appMuted)),
         ],
         if (now.retryNote != null) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.md),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(Icons.refresh, size: 18, color: context.appWarning),
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(now.retryNote!,
-                    style: TextStyle(fontSize: 15, color: context.appWarning)),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
               ),
             ],
           ),
@@ -787,11 +788,11 @@ class _TargetLine extends StatelessWidget {
   Widget build(BuildContext context) => Row(
         children: [
           Icon(appliance.icon, size: 18, color: context.appMuted),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpace.sm),
           Flexible(
             child: Text(
               appliance.displayName,
-              style: TextStyle(fontSize: 15, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ),
         ],
@@ -834,7 +835,7 @@ class _SegmentedProgress extends StatelessWidget {
         // (단어 결합 문자 U+2060, 외부 평가 2026-10-13 L3).
         Text('$total\u2060개 중 $completed\u2060개 했어요', style: AppText.title),
         if (drawSegments) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.md),
           Row(
             children: [
               for (var i = 0; i < total; i++) ...[
@@ -852,7 +853,7 @@ class _SegmentedProgress extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (i < total - 1) const SizedBox(width: 4),
+                if (i < total - 1) const SizedBox(width: AppSpace.xs),
               ],
             ],
           ),
@@ -892,16 +893,16 @@ class _StepRow extends StatelessWidget {
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(vertical: 10),
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
           child: Row(
             children: [
               Icon(icon, size: 24, color: color),
-              const SizedBox(width: 14),
+              const SizedBox(width: AppSpace.lg),
               Expanded(
                 child: Text(
                   label,
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: AppFont.cardTitle,
                     fontWeight: current ? FontWeight.w700 : FontWeight.w500,
                     color: state == _StepState.pending
                         ? context.appOnSurfaceSoft
@@ -912,7 +913,7 @@ class _StepRow extends StatelessWidget {
               if (current)
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
                   decoration: BoxDecoration(
                     border: Border.all(color: context.appPrimary, width: 1.5),
                     borderRadius: BorderRadius.circular(6),
@@ -920,7 +921,7 @@ class _StepRow extends StatelessWidget {
                   child: Text(
                     '지금',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: AppFont.caption,
                       fontWeight: FontWeight.w700,
                       color: context.appPrimary,
                     ),
@@ -957,7 +958,7 @@ class _StopArea extends StatelessWidget {
         child: SafeArea(
           top: false,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+            padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.lg),
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: context.appBorderFaint)),
             ),
@@ -975,7 +976,7 @@ class _StopArea extends StatelessWidget {
                   ),
                   // 정지와 재확인 사이를 띄운다 -- 붙여 두면 급할 때
                   // 옆 것을 누른다.
-                  const SizedBox(height: 16),
+                  const SizedBox(height: AppSpace.lg),
                 ],
                 SizedBox(
                   width: double.infinity,
@@ -996,7 +997,7 @@ class _StopArea extends StatelessWidget {
                     icon: const Icon(Icons.stop, size: 28),
                     label: const Text(
                       '정지',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                      style: TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700),
                     ),
                   ),
                 ),
@@ -1021,7 +1022,7 @@ Widget _sensorPair({required bool stacked, required List<Widget> children}) {
   final unwrapped = <Widget>[];
   for (final child in children) {
     if (child is Expanded) {
-      if (unwrapped.isNotEmpty) unwrapped.add(const SizedBox(height: 12));
+      if (unwrapped.isNotEmpty) unwrapped.add(const SizedBox(height: AppSpace.md));
       unwrapped.add(child.child);
     }
   }
@@ -1060,17 +1061,17 @@ class _SensorRecordState extends State<_SensorRecord> {
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               // 고령 사용자 기준 최소 터치 대상.
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.lg, horizontal: AppSpace.xs),
               child: Row(
                 children: [
                   Icon(Icons.show_chart, size: 20, color: context.appMuted),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.sm),
                   Expanded(
                     child: Text(
                       // 무엇의 기록인지(UI 평가 3차 10/17 — '센서'는 기술 말이었다).
                       keepWordsTogether('전기와 소리 기록'),
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: AppFont.caption,
                         fontWeight: FontWeight.w600,
                         color: context.appMuted,
                       ),
@@ -1086,7 +1087,7 @@ class _SensorRecordState extends State<_SensorRecord> {
           ),
         ),
         if (_open) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           _sensorPair(stacked: widget.stacked, children: widget.children),
         ],
       ],
@@ -1125,21 +1126,21 @@ class _SensorChart extends StatelessWidget {
 
     return Card(
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(14, 16, 14, 12),
+        padding: const EdgeInsets.fromLTRB(AppSpace.lg, AppSpace.lg, AppSpace.lg, AppSpace.md),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
                 Icon(icon, color: context.appMuted, size: 18),
-                const SizedBox(width: 6),
+                const SizedBox(width: AppSpace.sm),
                 // 확대하면 '전류 (mA)'가 반쪽 카드 폭을 넘는다 -- 줄바꿈할 자리를 준다
                 Expanded(child: Text(label, style: context.appCaption)),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Text(displayValue, style: AppText.sensor),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             SizedBox(
               height: 64,
               child: BarChart(

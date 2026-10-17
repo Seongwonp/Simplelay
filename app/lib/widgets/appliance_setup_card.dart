@@ -7,6 +7,7 @@ import '../models/hub.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 /// 가전 하나의 확인 주행 조회. 실패를 '기록 없음'으로 뭉개지 않는다(2026-10-13).
 ///
@@ -87,12 +88,12 @@ class ApplianceSetupCard extends ConsumerWidget {
       router.push(location, extra: appliance);
     }
     return Card(child: Padding(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpace.lg),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('${appliance.name}, 설정이 $remaining개 남았어요'),
         if (mockDone) const Text('연습으로만 시험 이동했어요. 실제 자리는 아직 몰라요.'),
         if (passNote != null) Text(passNote),
-        Wrap(spacing: 12, children: [
+        Wrap(spacing: AppSpace.md, children: [
           OutlinedButton(onPressed: () => open('/appliance/setup'),
             child: const Text('위치 맞추기')),
           if (mapped) FilledButton(onPressed: () => open('/appliance/setup?verify=1'),
@@ -150,7 +151,7 @@ class _SetupSummaryCard extends StatelessWidget {
     // 말하므로 이름 목록·안내 문장을 되풀이하지 않고, 이어 하는 길만 남긴다.
     return Padding(
       key: const Key('setup-summary-card'),
-      padding: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.only(top: AppSpace.md),
       child: Align(
         alignment: Alignment.centerLeft,
         child: Semantics(
@@ -161,7 +162,7 @@ class _SetupSummaryCard extends StatelessWidget {
             onPressed: () => _openList(context),
             style: TextButton.styleFrom(
               minimumSize: const Size(48, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 4),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
             ),
             iconAlignment: IconAlignment.end,
             icon: const Icon(Icons.chevron_right, size: 20),
@@ -184,10 +185,10 @@ class _SetupSummaryCard extends StatelessWidget {
         ),
         child: ListView(
           shrinkWrap: true,
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+          padding: const EdgeInsets.fromLTRB(AppSpace.lg, 0, AppSpace.lg, AppSpace.xxl),
           children: [
             Text('설정이 남은 가전', style: AppText.title),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             for (final a in appliances)
               ApplianceSetupCard(appliance: a, closeSheetFirst: true),
           ],

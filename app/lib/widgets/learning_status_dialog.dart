@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/learning_status.dart';
+import '../theme/app_tokens.dart';
 
 /// Opened on demand; failures never masquerade as an empty learning history.
 class LearningStatusDialog extends StatefulWidget {
@@ -43,7 +44,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                   builder: (context, snapshot) {
                     if (snapshot.connectionState != ConnectionState.done) {
                       return const Padding(
-                        padding: EdgeInsets.all(24),
+                        padding: EdgeInsets.all(AppSpace.xxl),
                         child: Center(child: CircularProgressIndicator()),
                       );
                     }
@@ -72,7 +73,7 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                               : routine.established
                                   ? '습관이에요'
                                   : '습관을 알아가는 중'),
-                          const SizedBox(height: 16),
+                          const SizedBox(height: AppSpace.lg),
                         ],
                         if (status.paused) const Text('잠시 쉬는 중이라 묻지 않아요.'),
                         ExpansionTile(
@@ -81,9 +82,9 @@ class _LearningStatusDialogState extends State<LearningStatusDialog> {
                           children: [
                             Text('같은 가전을 같은 시간대에 ${status.minimumDays}일 이상, '
                                 '${status.minimumOccurrences}회 이상 직접 사용하면 습관으로 기억해요.'),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: AppSpace.sm),
                             const Text('연습과 알림으로 한 일은 습관 횟수에 넣지 않아요.'),
-                            const SizedBox(height: 8),
+                            const SizedBox(height: AppSpace.sm),
                             const Text(
                                 '습관이 생겨도 때가 맞을 때 묻고, 허락을 받은 뒤 해요.'),
                           ],

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../models/hub.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 
 /// 골든·위젯 테스트가 실제 사진 렌더를 확인하기 위해 끼우는 이미지.
 ///
@@ -264,7 +265,7 @@ class _MarkGlyph extends StatelessWidget {
               '${mark.number ?? ''}',
               style: const TextStyle(
                 color: AppColors.onAccent,
-                fontSize: 13,
+                fontSize: AppFont.caption,
                 fontWeight: FontWeight.w700,
               ),
             ),

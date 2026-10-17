@@ -27,6 +27,7 @@ import '../services/ble_service.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 // 사진 패널의 테스트 이미지 구멍은 사진을 그리는 위젯 쪽에 있다. 예전 경로
 // (home_screen.dart)로 쓰던 테스트가 그대로 쓰도록 다시 내보낸다.
@@ -108,19 +109,19 @@ class HomeScreen extends ConsumerWidget {
       body: SafeArea(
         bottom: false,
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
+          padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxxl),
           children: [
             _Header(
               rpiState: rpiState,
               backupOnly: connected,
               onVoice: () => context.go('/voice'),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
 
             // ── 연결 문제(기기에 닿지 않을 때만 맨 위) ──────────────────────
             if (serverDown) ...[
               connectionDetails,
-              const SizedBox(height: 12),
+              const SizedBox(height: AppSpace.md),
             ],
 
             // ── DND 배너 ───────────────────────────────────────────────────
@@ -134,7 +135,7 @@ class HomeScreen extends ConsumerWidget {
                   }
                 },
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: AppSpace.lg),
             ],
 
             // ── 큰 자리 하나: 제안이 있으면 제안, 없으면 첫 적격 루틴 ─────────
@@ -166,9 +167,9 @@ class HomeScreen extends ConsumerWidget {
             ),
 
             // ── 가전 ───────────────────────────────────────────────────────
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xxl),
             Text('가전', style: AppText.title),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpace.md),
             if (appliances.isEmpty)
               _NoApplianceStage(
                 onAdd: () => context.push('/appliance/add'),
@@ -200,7 +201,7 @@ class HomeScreen extends ConsumerWidget {
             ]),
 
             // ── 온습도 ─────────────────────────────────────────────────────
-            const SizedBox(height: 16),
+            const SizedBox(height: AppSpace.lg),
             sensorAsync.when(
               data: (reading) => _SensorStrip(reading: reading),
               loading: () => const _SensorStrip(reading: null),
@@ -209,7 +210,7 @@ class HomeScreen extends ConsumerWidget {
 
             // ── 예비 연결(기기에는 닿을 때만 아래) ──────────────────────────
             if (!serverDown) ...[
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               connectionDetails,
             ],
 
@@ -352,9 +353,9 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
           return const SizedBox.shrink();
         }
         return Padding(
-          padding: const EdgeInsets.only(top: 12),
+          padding: const EdgeInsets.only(top: AppSpace.md),
           child: Text('루틴을 불러오지 못했어요.',
-              style: TextStyle(fontSize: 15, color: context.appMuted)),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         );
       },
       data: (routines) {
@@ -366,7 +367,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
           // 0대면 가전 추가가 첫 과업이다 — 루틴 입구를 겹쳐 두지 않는다.
           if (!widget.hasAppliances) return const SizedBox.shrink();
           return Padding(
-            padding: const EdgeInsets.only(top: 12),
+            padding: const EdgeInsets.only(top: AppSpace.md),
             child: Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
@@ -420,7 +421,7 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
               ),
               if (_errorFor == hero.id && _error != null) _ErrorLine(_error!),
             ],
-            if (shown.isNotEmpty) const SizedBox(height: 8),
+            if (shown.isNotEmpty) const SizedBox(height: AppSpace.sm),
             for (final r in shown) ...[
               _RoutineQuickRow(
                 routine: r,
@@ -459,9 +460,9 @@ class _ErrorLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.only(top: 6),
+        padding: const EdgeInsets.only(top: AppSpace.sm),
         child: Text(text,
-            style: TextStyle(fontSize: 15, color: context.appDanger)),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
       );
 }
 
@@ -523,7 +524,7 @@ class _RoutineHeroCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         key: const Key('home-routine-hero'),
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpace.lg),
         decoration: BoxDecoration(
           color: context.appSurfaceLow,
           borderRadius: BorderRadius.circular(16),
@@ -541,19 +542,19 @@ class _RoutineHeroCard extends StatelessWidget {
                   // 왜 맨 위인지 한 줄(UI 평가 3차 10/17) — 큰 카드는 지금 누르는 루틴을 먼저 고른다(시각 루틴은 저절로 돈다).
                   if (routine.trigger.kind != RoutineTriggerKind.time) ...[
                     Text('바로 실행할 수 있는 루틴',
-                        style: TextStyle(fontSize: 14, color: context.appMuted)),
-                    const SizedBox(height: 2),
+                        style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                    const SizedBox(height: AppSpace.xs),
                   ],
                   Text(routine.name,
-                      style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 4),
+                      style: const TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: AppSpace.xs),
                   // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
                   Text(keepWordsTogether(subtitle),
-                      style: TextStyle(fontSize: 15, color: context.appMuted)),
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             _runButton(
               key: Key('home-routine-run-${routine.id}'),
               routine: routine,
@@ -600,14 +601,14 @@ class _RoutineQuickRow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(routine.name,
-              style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
+              style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
           // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
           Text(keepWordsTogether(subtitle),
-              style: TextStyle(fontSize: 14, color: context.appMuted)),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           if (needsSetup)
             // 어절 단위로 줄을 바꾼다('버/튼' 방지, UI 평가 10/17).
             Text(keepWordsTogether('가전 설정이 필요해요. 아래 가전을 눌러 버튼 자리를 맞춰 주세요'),
-                style: TextStyle(fontSize: 14, color: context.appWarning)),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
         ],
       ),
     );
@@ -637,17 +638,17 @@ class _RoutineQuickRow extends StatelessWidget {
     );
     return Padding(
       key: Key('home-routine-row-${routine.id}'),
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
       // 큰 글씨에서는 버튼을 아래 줄로 내린다 — 이름이 한 글자씩 꺾이지 않게.
       child: MediaQuery.textScalerOf(context).scale(1) > 1.3
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [text, const SizedBox(height: 6), button],
+              children: [text, const SizedBox(height: AppSpace.sm), button],
             )
           : Row(
               children: [
                 Expanded(child: text),
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpace.sm),
                 button,
               ],
             ),
@@ -684,7 +685,7 @@ class _Header extends StatelessWidget {
         (backupOnly ? '블루투스로만 연결돼요' : '본체와 연결이 끊겼어요', context.appWarning),
     };
     final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.sm),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: context.appBorderSubtle),
@@ -698,8 +699,8 @@ class _Header extends StatelessWidget {
             height: 8,
             decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
           ),
-          const SizedBox(width: 6),
-          Flexible(child: Text(text, style: const TextStyle(fontSize: 14))),
+          const SizedBox(width: AppSpace.sm),
+          Flexible(child: Text(text, style: const TextStyle(fontSize: AppFont.caption))),
         ],
       ),
     );
@@ -719,7 +720,7 @@ class _Header extends StatelessWidget {
             Expanded(child: Text('우리 집', style: AppText.heading)),
             voice,
           ]),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           chip,
         ],
       );
@@ -728,7 +729,7 @@ class _Header extends StatelessWidget {
     return Row(
       children: [
         Text('우리 집', style: AppText.heading),
-        const SizedBox(width: 12),
+        const SizedBox(width: AppSpace.md),
         Expanded(
           child: Align(alignment: Alignment.centerRight, child: chip),
         ),
@@ -763,7 +764,7 @@ class _SuggestionCard extends StatelessWidget {
     final a = appliance;
     final why = suggestion.whyNow;
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(AppSpace.lg),
       decoration: BoxDecoration(
         color: context.appPrimary.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(16),
@@ -776,29 +777,29 @@ class _SuggestionCard extends StatelessWidget {
             children: [
               Icon(a?.icon ?? Icons.lightbulb_outline,
                   size: 18, color: context.appPrimary),
-              const SizedBox(width: 6),
+              const SizedBox(width: AppSpace.sm),
               Expanded(
                 child: Text(
                   a == null ? '알림' : a.displayName,
-                  style: TextStyle(fontSize: 14, color: context.appMuted),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
               ),
               if (suggestion.isDemo) const DemoBadge(),
             ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           Text(
             suggestion.title,
-            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+            style: const TextStyle(fontSize: AppFont.cardTitle, fontWeight: FontWeight.w700),
           ),
           if (why.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(why, style: TextStyle(fontSize: 15, color: context.appMuted)),
+            const SizedBox(height: AppSpace.xs),
+            Text(why, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           ],
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: [
               // 화면 글자는 짧게, 읽는 이름에는 대상을(2026-10-14, 발견 5) — '실행하기'만으로는 무엇을 하는지 모른다.
               Semantics(
@@ -872,7 +873,7 @@ class _ApplianceGrid extends StatelessWidget {
         children: [
           for (var i = 0; i < cards.length; i++)
             Padding(
-              padding: EdgeInsets.only(bottom: i + 1 < cards.length ? 10 : 0),
+              padding: EdgeInsets.only(bottom: i + 1 < cards.length ? AppSpace.md : 0),
               child: cards[i],
             ),
         ],
@@ -884,13 +885,13 @@ class _ApplianceGrid extends StatelessWidget {
       children: [
         for (var i = 0; i < cards.length; i += 2)
           Padding(
-            padding: EdgeInsets.only(bottom: i + 2 < cards.length ? 10 : 0),
+            padding: EdgeInsets.only(bottom: i + 2 < cards.length ? AppSpace.md : 0),
             child: IntrinsicHeight(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   Expanded(child: cards[i]),
-                  const SizedBox(width: 10),
+                  const SizedBox(width: AppSpace.md),
                   Expanded(
                     child: i + 1 < cards.length
                         ? cards[i + 1]
@@ -962,7 +963,7 @@ class _ApplianceCard extends ConsumerWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.all(14),
+            padding: const EdgeInsets.all(AppSpace.lg),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
@@ -985,35 +986,35 @@ class _ApplianceCard extends ConsumerWidget {
                     if (a.isDemo) const DemoBadge(),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AppSpace.md),
                 Text(
                   name,
                   style: const TextStyle(
-                      fontSize: 17, fontWeight: FontWeight.w700),
+                      fontSize: AppFont.body, fontWeight: FontWeight.w700),
                 ),
                 if ((a.location ?? '').isNotEmpty)
                   Text(a.location!,
-                      style: TextStyle(fontSize: 14, color: context.appMuted)),
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                 // 평소(실행 가능)는 상태 줄을 두지 않는다(빈 문자열, 2026-10-14 UX).
                 if (s.text.isNotEmpty) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: AppSpace.sm),
                 Row(
                   key: Key('appliance-status-${a.id}'),
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (icon != null) ...[
                       Padding(
-                        padding: const EdgeInsets.only(top: 1),
+                        padding: const EdgeInsets.only(top: AppSpace.xs),
                         child: Icon(icon, size: 16, color: color),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: AppSpace.xs),
                     ],
                     Flexible(
                       child: Text(
                         // "연결을 확인해 주 / 세요"처럼 낱말 중간에서 꺾이지 않게(2026-10-14 발견 7).
                         keepWordsTogether(s.text),
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: AppFont.caption,
                           fontWeight: active ? FontWeight.w700 : FontWeight.w400,
                           color: color,
                         ),
@@ -1027,19 +1028,19 @@ class _ApplianceCard extends ConsumerWidget {
                     d,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, color: context.appMuted),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                   ),
                 if (verifyNote case final v?)
                   Padding(
-                    padding: const EdgeInsets.only(top: 2),
+                    padding: const EdgeInsets.only(top: AppSpace.xs),
                     child: Text(
                       v,
                       key: Key('appliance-verify-note-${a.id}'),
-                      style: TextStyle(fontSize: 13, color: context.appMuted),
+                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                     ),
                   ),
                 if (s.progress) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpace.sm),
                   ClipRRect(
                     borderRadius: BorderRadius.circular(3),
                     child: LinearProgressIndicator(
@@ -1081,9 +1082,9 @@ class _AddCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(Icons.add, size: 28, color: context.appMuted),
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Text('가전 추가',
-                    style: TextStyle(fontSize: 15, color: context.appMuted)),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
               ],
             ),
           ),
@@ -1114,16 +1115,16 @@ class _NoApplianceStage extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text('아직 등록한 가전이 없어요', style: AppText.title),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           Text(
             '조작부 사진을 찍고 버튼 자리를 알려 주면\n여기서 가전을 쓸 수 있어요.',
-            style: TextStyle(fontSize: 16, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
           if (note case final note?) ...[
-            const SizedBox(height: 8),
-            Text(note, style: TextStyle(fontSize: 14, color: context.appMuted)),
+            const SizedBox(height: AppSpace.sm),
+            Text(note, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           FilledButton.icon(
             onPressed: onAdd,
             icon: const Icon(Icons.add, size: 20),
@@ -1188,18 +1189,18 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
             borderRadius: BorderRadius.circular(12),
             child: Padding(
               // 고령 사용자 기준 최소 터치 대상을 줄 전체로 준다.
-              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 4),
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.lg, horizontal: AppSpace.xs),
               child: Row(
                 children: [
                   Icon(icon, size: 20, color: color),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: AppSpace.sm),
                   Expanded(
                     child: Text(
                       // 기술 용어를 여기 쓰지 않는다. `RPi 서버`·주소 입력·
                       // 재시도는 눌렀을 때만 나온다.
                       keepWordsTogether(label),
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: AppFont.caption,
                         fontWeight: FontWeight.w600,
                         color: color,
                       ),
@@ -1208,7 +1209,7 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
                   Text(
                     _open ? '접기' : '확인하기',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: AppFont.caption,
                       fontWeight: FontWeight.w600,
                       color: color,
                     ),
@@ -1221,12 +1222,12 @@ class _ConnectionDetailsState extends State<_ConnectionDetails> {
           ),
         ),
         if (_open) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           // 닿는 기기를 "연결됐어요" 카드로 다시 말하지 않는다.
           if (_serverDown) _RpiStatusCard(state: widget.rpiState),
           // 예비 연결은 **꺼져 있을 때만** 말한다.
           if (!widget.bleConnected) ...[
-            if (_serverDown) const SizedBox(height: 12),
+            if (_serverDown) const SizedBox(height: AppSpace.md),
             _BleStatusCard(connected: widget.bleConnected),
           ],
         ],
@@ -1256,23 +1257,23 @@ class _SensorStrip extends StatelessWidget {
         children: [
           if (temp != null) ...[
             Icon(Icons.thermostat_outlined, size: 14, color: context.appMuted),
-            const SizedBox(width: 4),
+            const SizedBox(width: AppSpace.xs),
             Text(
               '${temp.toStringAsFixed(1)}°C',
-              style: TextStyle(fontSize: 13, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ],
           if (temp != null && hum != null)
             Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
+              padding: EdgeInsets.symmetric(horizontal: AppSpace.sm),
               child: Text('·', style: TextStyle(color: context.appMuted)),
             ),
           if (hum != null) ...[
             Icon(Icons.water_drop_outlined, size: 14, color: context.appMuted),
-            const SizedBox(width: 4),
+            const SizedBox(width: AppSpace.xs),
             Text(
               '${hum.toStringAsFixed(0)}%',
-              style: TextStyle(fontSize: 13, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ],
         ],
@@ -1301,7 +1302,7 @@ class _DndBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.md),
         decoration: BoxDecoration(
           color: context.appWarning.withValues(alpha: 0.10),
           borderRadius: BorderRadius.circular(12),
@@ -1310,22 +1311,22 @@ class _DndBanner extends StatelessWidget {
         child: Row(
           children: [
             Icon(Icons.do_not_disturb_on, color: context.appWarning, size: 18),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.md),
             Expanded(
               child: Text(
                 // 끝나는 시각을 함께 적는다(2026-10-14 마감 확인 A5) — 남은 시간만으로는 '언제까지'를 셈해야 한다.
                 '잠시 쉬는 중. ${pauseEndClock(until)}까지, $_remaining',
-                style: TextStyle(color: context.appWarning, fontSize: 13),
+                style: TextStyle(color: context.appWarning, fontSize: AppFont.caption),
               ),
             ),
             TextButton(
               onPressed: onClear,
               style: TextButton.styleFrom(
                 foregroundColor: context.appWarning,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
                 minimumSize: const Size(48, 48),
               ),
-              child: const Text('그만 쉬기', style: TextStyle(fontSize: 13)),
+              child: const Text('그만 쉬기', style: TextStyle(fontSize: AppFont.caption)),
             ),
           ],
         ),
@@ -1420,7 +1421,7 @@ class _RpiStatusCard extends ConsumerWidget {
         border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpace.lg),
         child: _StatusCardBody(
           icon: icon,
           color: color,
@@ -1433,20 +1434,20 @@ class _RpiStatusCard extends ConsumerWidget {
                 onPressed: () => _promptForAddress(context, ref),
                 style: TextButton.styleFrom(
                   foregroundColor: color,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
                   minimumSize: const Size(48, 48),
                 ),
-                child: const Text('주소 입력', style: TextStyle(fontSize: 13)),
+                child: const Text('주소 입력', style: TextStyle(fontSize: AppFont.caption)),
               ),
               TextButton(
                 onPressed: () =>
                     ref.read(rpiConnectionProvider.notifier).check(),
                 style: TextButton.styleFrom(
                   foregroundColor: color,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
                   minimumSize: const Size(48, 48),
                 ),
-                child: const Text('다시 찾기', style: TextStyle(fontSize: 13)),
+                child: const Text('다시 찾기', style: TextStyle(fontSize: AppFont.caption)),
               ),
             ],
           ],
@@ -1472,7 +1473,7 @@ class _BleStatusCard extends StatelessWidget {
           border: Border.all(color: context.appBorderSubtle),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(AppSpace.lg),
           child: _StatusCardBody(
             icon: Icons.bluetooth_disabled,
             color: context.appMuted,
@@ -1484,10 +1485,10 @@ class _BleStatusCard extends StatelessWidget {
                 builder: (_, ref, __) => TextButton(
                   onPressed: () => GoRouter.of(ref.context).go('/settings'),
                   style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm),
                     minimumSize: const Size(48, 48),
                   ),
-                  child: const Text('연결', style: TextStyle(fontSize: 13)),
+                  child: const Text('연결', style: TextStyle(fontSize: AppFont.caption)),
                 ),
               ),
             ],
@@ -1542,14 +1543,14 @@ class _StatusCardBody extends StatelessWidget {
           ),
           child: Icon(icon, color: color, size: 20),
         ),
-        const SizedBox(width: 14),
+        const SizedBox(width: AppSpace.lg),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(title,
                   style: AppText.body.copyWith(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 2),
+              const SizedBox(height: AppSpace.xs),
               Text(subtitle, style: context.appCaption),
             ],
           ),
@@ -1563,8 +1564,8 @@ class _StatusCardBody extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         head,
-        const SizedBox(height: 4),
-        Wrap(spacing: 4, runSpacing: 4, children: actions),
+        const SizedBox(height: AppSpace.xs),
+        Wrap(spacing: AppSpace.xs, runSpacing: AppSpace.xs, children: actions),
       ],
     );
   }

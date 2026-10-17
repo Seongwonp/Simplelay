@@ -32,6 +32,7 @@ import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/learning_status_dialog.dart';
 import '../widgets/sync_status_line.dart';
 import '../widgets/thinq_discovered_section.dart';
+import '../theme/app_tokens.dart';
 
 // 구획별 파일. `part`라서 private 이름·import·provider 읽는 시점이 이 파일에
 // 있을 때와 완전히 같다 -- 동작을 바꾸지 않는 이동만 했다. 개발자 도구는
@@ -62,7 +63,7 @@ class SettingsScreen extends ConsumerWidget {
       // 탭 제목은 홈('우리 집')과 같은 굵은 큰 제목(UI 평가 10/17).
       appBar: AppBar(title: Text('설정', style: AppText.heading)),
       body: ListView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(AppSpace.xl),
         children: [
           if (ref.watch(demoModeProvider))
             ListTile(title: const Text('연습으로 쓰는 중이에요'),
@@ -98,7 +99,7 @@ class SettingsScreen extends ConsumerWidget {
                   builder: (_) => const _ThinqScreen())),
             ),
           ]),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           _NavGroup(children: [
             _NavRow(
               icon: Icons.family_restroom,
@@ -121,30 +122,30 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ]),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: AppSpace.xxxl),
 
           // ── 내 가전 ──────────────────────────────────────────────────────
           _SectionHeader(title: '내 가전'),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           _ApplianceSection(),
           // 가전마다 버튼을 눌러 줄 장치(노드) 등록은 개발자 탭으로 옮겼다(2026-10-14 UX) —
           // 허브가 대신 누르는 기본 구성에서는 '미연결'이 늘 보여 홈의 준비 상태와 엇갈렸다.
 
-          const SizedBox(height: 28),
+          const SizedBox(height: AppSpace.xxxl),
 
           // ── 알림 ──────────────────────────────────────────
           _SectionHeader(title: '알림'),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           _DndTile(),
           // 조용한 시간(2026-10-14) — 새 탭 없이 이 구획 안. 잠시 쉬기와 서버가 한 판정으로 묶는다.
           _QuietHoursTile(),
           _WellnessPauseTile(),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: AppSpace.xxxl),
 
           // ── 제안 ──────────────────────────────────────────
           _SectionHeader(title: '물어보기'),
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           ListTile(
             contentPadding: EdgeInsets.zero,
             leading: const Icon(Icons.history),
@@ -162,15 +163,15 @@ class SettingsScreen extends ConsumerWidget {
           ),
           _SuppressionSection(),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: AppSpace.xxxl),
 
           // ── 화면·소리 ────────────────────────────────────────────────────
           _SectionHeader(title: '화면·소리'),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           _ThemeToggleTile(),
           _VoiceGuideTile(),
 
-          const SizedBox(height: 28),
+          const SizedBox(height: AppSpace.xxxl),
           _NavGroup(children: [
             _NavRow(
               icon: Icons.info_outline,

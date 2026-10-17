@@ -4,6 +4,7 @@ import '../models/appliance.dart';
 import '../models/hub.dart';
 import '../theme/app_colors.dart';
 import 'panel_photo_view.dart';
+import '../theme/app_tokens.dart';
 
 /// 가전의 조작부 — 등록 사진이 있으면 **사진 위 버튼**, 없으면 버튼판.
 ///
@@ -54,7 +55,7 @@ class AppliancePanel extends StatelessWidget {
       orders.putIfAbsent(pinned[i], () => []).add(i + 1);
     }
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppSpace.md),
       decoration: BoxDecoration(
         color: context.appOverlayFaint,
         borderRadius: BorderRadius.circular(14),
@@ -63,13 +64,13 @@ class AppliancePanel extends StatelessWidget {
       child: Column(
         children: List.generate(appliance.rows, (row) {
           return Padding(
-            padding: EdgeInsets.only(bottom: row < appliance.rows - 1 ? 8 : 0),
+            padding: EdgeInsets.only(bottom: row < appliance.rows - 1 ? AppSpace.sm : 0),
             child: Row(
               children: List.generate(appliance.cols, (col) {
                 final b = appliance.buttonAt(col, row);
                 return Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(right: col < appliance.cols - 1 ? 8 : 0),
+                    padding: EdgeInsets.only(right: col < appliance.cols - 1 ? AppSpace.sm : 0),
                     child: b == null
                         ? const SizedBox(height: 48)
                         : _GridButton(
@@ -110,7 +111,7 @@ class _GridButton extends StatelessWidget {
       onPressed: onTap,
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(0, 48),
-        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs, vertical: AppSpace.sm),
         side: BorderSide(
           color: isStop ? context.appDanger : context.appOutline,
           width: isStop ? 2 : 1,
@@ -122,13 +123,13 @@ class _GridButton extends StatelessWidget {
           Text(
             button.label,
             textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 15),
+            style: const TextStyle(fontSize: AppFont.caption),
           ),
           if (o != null)
             Text(
               o.join('·'),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: AppFont.caption,
                 fontWeight: FontWeight.w700,
                 color: context.appPrimary,
               ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
+import '../theme/app_tokens.dart';
 
 final pairingApiFactoryProvider = Provider<RpiApiService Function(String)>(
     (_) => (host) => RpiApiService(host));
@@ -196,10 +197,10 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('폰 연결하기')),
-        body: ListView(padding: const EdgeInsets.all(20), children: [
+        body: ListView(padding: const EdgeInsets.all(AppSpace.xl), children: [
           const Text(
               '본체 화면에서 설정, 폰 연결하기를 열어 주세요. 휴대폰 카메라로 QR을 찍거나 아래에 코드를 넣어요.'),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           TextField(
               controller: _host,
               enabled: !_busy && !_connected,
@@ -222,7 +223,7 @@ class _PairingScreenState extends ConsumerState<PairingScreen> {
             Text(
                 '${_deadline!.difference(DateTime.now()).inSeconds.clamp(0, 300)}초 남았어요'),
           ],
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           if (!_connected)
             FilledButton(
                 onPressed: _busy ? null : _connect,

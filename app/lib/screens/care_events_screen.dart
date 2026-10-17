@@ -6,6 +6,7 @@ import '../providers/wellness_pause_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 /// 보호자 알림함 — 실패·위험소리·긴급정지·안부 신호를 시간순으로.
 ///
@@ -85,9 +86,9 @@ class _CareEventsScreenState extends ConsumerState<CareEventsScreen> {
                   ? _EmptyBody(state: state)
                   : ListView.separated(
                       physics: const AlwaysScrollableScrollPhysics(),
-                      padding: const EdgeInsets.all(20),
+                      padding: const EdgeInsets.all(AppSpace.xl),
                       itemCount: events.length + 1,
-                      separatorBuilder: (_, __) => const SizedBox(height: 12),
+                      separatorBuilder: (_, __) => const SizedBox(height: AppSpace.md),
                       itemBuilder: (_, i) => i == events.length
                           ? _LastCheckedAt(at: state.lastLoadedAt)
                           : _CareEventCard(event: events[i]),
@@ -117,15 +118,15 @@ class _EmptyState extends StatelessWidget {
           children: [
             Icon(Icons.notifications_none,
                 size: 52, color: context.appMuted),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpace.lg),
             Text('아직 알림이 없어요', style: AppText.title),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             Text(
               '실패, 위험 신호음, 안부 신호가 생기면\n여기에 모아 보여 드려요.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: context.appMuted, fontSize: 14),
+              style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpace.md),
             _LastCheckedAt(at: at),
           ],
         ),
@@ -144,11 +145,11 @@ class _InboxNotice extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         width: double.infinity,
         color: context.appWarning.withValues(alpha: 0.14),
-        padding: const EdgeInsets.fromLTRB(20, 10, 12, 10),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.md, AppSpace.md),
         child: Row(
           children: [
             Icon(icon, size: 20, color: context.appWarning),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.md),
             Expanded(child: Text(text)),
             if (onRetry != null)
               TextButton(
@@ -203,11 +204,11 @@ class _LastCheckedAt extends StatelessWidget {
     final t = at;
     if (t == null) return const SizedBox.shrink();
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.only(top: AppSpace.sm),
       child: Text(
         '${_two(t.hour)}:${_two(t.minute)} 기준',
         textAlign: TextAlign.center,
-        style: TextStyle(color: context.appMuted, fontSize: 13),
+        style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
       ),
     );
   }
@@ -261,7 +262,7 @@ class _CareEventCard extends StatelessWidget {
     return Semantics(
       label: '$label. ${event.message}. ${_formatTime(event.occurredAt)}',
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(AppSpace.lg),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.07),
           borderRadius: BorderRadius.circular(14),
@@ -271,7 +272,7 @@ class _CareEventCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(icon, color: color, size: 24),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -281,7 +282,7 @@ class _CareEventCard extends StatelessWidget {
                       Text(
                         label,
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: AppFont.caption,
                           fontWeight: FontWeight.w700,
                           color: color,
                         ),
@@ -290,14 +291,14 @@ class _CareEventCard extends StatelessWidget {
                       Text(
                         _formatTime(event.occurredAt),
                         style: TextStyle(
-                            fontSize: 13, color: context.appMuted),
+                            fontSize: AppFont.caption, color: context.appMuted),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
+                  const SizedBox(height: AppSpace.sm),
                   Text(
                     event.message,
-                    style: const TextStyle(fontSize: 15, height: 1.45),
+                    style: const TextStyle(fontSize: AppFont.caption, height: 1.45),
                   ),
                 ],
               ),

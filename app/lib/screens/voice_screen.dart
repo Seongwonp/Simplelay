@@ -24,6 +24,7 @@ import '../theme/app_text.dart';
 import '../models/appliance.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/no_appliance_notice.dart';
+import '../theme/app_tokens.dart';
 
 class VoiceScreen extends ConsumerStatefulWidget {
   const VoiceScreen({super.key});
@@ -428,7 +429,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     return Scaffold(
       appBar: AppBar(title: const Text('음성 명령')),
       body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl),
         child: Column(
           children: [
             // 인식 문장이 길거나 글씨를 키우면 내용이 화면을 넘긴다.
@@ -437,24 +438,24 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
               child: SingleChildScrollView(
                 child: Column(
                   children: [
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
 
                     // ── 어느 가전에게 말하는가 ─────────────────────────────
                     // 여러 가전을 다루므로 말이 어디로 가는지 먼저 보여야
                     // 한다. 엉뚱한 가전에 대고 말한 뒤에 알면 늦다.
                     _TargetLine(appliance: appliance),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: AppSpace.xl),
 
                     // ── 웨이브 비주얼라이저 ────────────────────────────────────────
                     _WaveVisualizer(active: listening, level: _soundLevel),
-                    const SizedBox(height: 32),
+                    const SizedBox(height: AppSpace.xxxl),
 
                     // ── 마이크 버튼 ────────────────────────────────────────────────
                     _MicButton(
                       listening: listening,
                       onTap: _sending ? null : _toggle,
                     ),
-                    const SizedBox(height: 28),
+                    const SizedBox(height: AppSpace.xxxl),
 
                     // ── 상태 텍스트 ────────────────────────────────────────────────
                     Text(
@@ -466,7 +467,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                       style: AppText.title,
                       textAlign: TextAlign.center,
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: AppSpace.md),
 
                     // ── 인식된 텍스트 라이브 표시 ──────────────────────────────────
                     AnimatedSwitcher(
@@ -487,7 +488,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                               key: const ValueKey('live'),
                               width: double.infinity,
                               padding: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 12),
+                                  horizontal: AppSpace.lg, vertical: AppSpace.md),
                               decoration: BoxDecoration(
                                 color: Theme.of(context)
                                     .colorScheme
@@ -505,18 +506,18 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                               ),
                             ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: AppSpace.sm),
                     // 언제 듣기가 끝나는지 미리 말한다. 생각하다 멈춘 사이에
                     // 조용히 끝나 버리면, 사용자는 마이크가 고장 났다고 여긴다.
                     Text(
                       listening
                           ? '${VoiceService.silenceTimeout.inSeconds}초 동안 조용하면 듣기를 멈추고 물어봐요.'
                           : '말이 끝나면 한 번 물어본 뒤 해요.',
-                      style: TextStyle(color: context.appMuted, fontSize: 14),
+                      style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
                       textAlign: TextAlign.center,
                     ),
 
-                    const SizedBox(height: 24),
+                    const SizedBox(height: AppSpace.xxl),
                   ],
                 ),
               ),
@@ -567,7 +568,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                 child: const Text('취소'),
               ),
             ],
-            const SizedBox(height: 32),
+            const SizedBox(height: AppSpace.xxxl),
           ],
         ),
       ),
@@ -593,12 +594,12 @@ class _ActionPair extends StatelessWidget {
   Widget build(BuildContext context) => stacked
       ? Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [primary, const SizedBox(height: 8), secondary],
+          children: [primary, const SizedBox(height: AppSpace.sm), secondary],
         )
       : Row(
           children: [
             Expanded(flex: 3, child: secondary),
-            const SizedBox(width: 12),
+            const SizedBox(width: AppSpace.md),
             Expanded(flex: 4, child: primary),
           ],
         );
@@ -616,15 +617,15 @@ class _TargetLine extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(appliance.icon, size: 18, color: context.appMuted),
-          const SizedBox(width: 6),
+          const SizedBox(width: AppSpace.sm),
           Flexible(
             child: Text(
               '${appliance.displayName}에게',
-              style: TextStyle(fontSize: 16, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ),
           if (appliance.isDemo) ...[
-            const SizedBox(width: 8),
+            const SizedBox(width: AppSpace.sm),
             const DemoBadge(),
           ],
         ],
@@ -649,32 +650,32 @@ class _VoiceUnavailableNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Center(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl, vertical: AppSpace.xxl),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Icon(Icons.mic_off_outlined, size: 52, color: context.appMuted),
-              const SizedBox(height: 18),
+              const SizedBox(height: AppSpace.xl),
               Text(
                 '이 기기에서 음성 인식을 쓸 수 없어요',
                 textAlign: TextAlign.center,
                 style: AppText.title,
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               Text(
                 '마이크 권한이 꺼져 있거나 말 알아듣기 기능이 없어요.\n'
                 '${appliance.displayName}은 버튼으로 그대로 쓸 수 있어요.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: context.appMuted),
+                style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
               ),
-              const SizedBox(height: 22),
+              const SizedBox(height: AppSpace.xxl),
               FilledButton.icon(
                 onPressed: onManual,
                 icon: const Icon(Icons.touch_app, size: 20),
                 label: const Text('버튼으로 하기'),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: AppSpace.sm),
               OutlinedButton.icon(
                 onPressed: onRetry,
                 icon: const Icon(Icons.refresh, size: 20),
@@ -697,7 +698,7 @@ class _FailureNote extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.md),
         decoration: BoxDecoration(
           color: context.appWarning.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(12),
@@ -707,7 +708,7 @@ class _FailureNote extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(Icons.info_outline, color: context.appWarning, size: 20),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpace.md),
             Expanded(
               child: Text(message, textAlign: TextAlign.start),
             ),
@@ -809,7 +810,7 @@ class _WaveVisualizer extends StatelessWidget {
           return Padding(
             // 테스트가 막대 하나를 집어 높이를 재기 위한 열쇠.
             key: ValueKey('wave-bar-$i'),
-            padding: const EdgeInsets.symmetric(horizontal: 3),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
             child: AnimatedContainer(
               // 음량은 띄엄띄엄 오므로 사이를 짧게 이어 붙인다. 없는 움직임을
               // 만들지는 않는다 -- 값이 안 오면 높이가 그대로 머문다.

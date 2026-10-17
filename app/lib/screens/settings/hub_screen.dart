@@ -64,29 +64,29 @@ class _HubSettingsScreenState extends ConsumerState<HubSettingsScreen> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('본체')),
         body: ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(AppSpace.xl),
           children: [
             _RpiConnectionTile(),
             FilledButton.icon(onPressed: () => context.push('/pair'),
               icon: const Icon(Icons.qr_code), label: const Text('코드로 폰 연결하기')),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xxl),
             _SectionHeader(title: '본체 위치'),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             const _HubLocationSection(),
-            const SizedBox(height: 28),
+            const SizedBox(height: AppSpace.xxxl),
             _SectionHeader(title: '연결 주소 (설치하는 분용)'),
-            const SizedBox(height: 8),
+            const SizedBox(height: AppSpace.sm),
             _AdvancedSection(
               controller: _urlController,
               apiKeyController: _apiKeyController,
               urlEdited: () => _urlEdited,
               apiKeyEdited: () => _keyEdited,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: AppSpace.xxl),
             _SectionHeader(title: '블루투스 연결 (설치하는 분용)'),
-            const SizedBox(height: 4),
+            const SizedBox(height: AppSpace.xs),
             _SavedDeviceSection(),
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             _BleSection(),
             const SizedBox(height: 40),
           ],
@@ -181,11 +181,11 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(line, key: const Key('hub-location-line'),
-            style: const TextStyle(fontSize: 16)),
-        const SizedBox(height: 4),
+            style: const TextStyle(fontSize: AppFont.caption)),
+        const SizedBox(height: AppSpace.xs),
         Text('날씨를 받을 동네를 정해요. 본체는 위치를 몰라 폰 위치를 빌려요.',
-            style: TextStyle(fontSize: 14, color: context.appMuted)),
-        const SizedBox(height: 10),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+        const SizedBox(height: AppSpace.md),
         FilledButton.icon(
           key: const Key('hub-location-set'),
           onPressed: _busy ? null : _setFromPhone,
@@ -198,12 +198,12 @@ class _HubLocationSectionState extends ConsumerState<_HubLocationSection> {
           label: const Text('현재 위치로 설정'),
         ),
         if (_message != null) ...[
-          const SizedBox(height: 8),
+          const SizedBox(height: AppSpace.sm),
           Text(
             _message!,
             key: const Key('hub-location-message'),
             style: TextStyle(
-                fontSize: 15, color: _warn ? context.appWarning : null),
+                fontSize: AppFont.caption, color: _warn ? context.appWarning : null),
           ),
         ],
         if (_offerSettings)

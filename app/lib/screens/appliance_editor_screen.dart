@@ -13,6 +13,7 @@ import '../providers/rpi_api_provider.dart';
 import '../services/panel_scan_fill.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_tokens.dart';
 import '../theme/app_text.dart';
 import '../widgets/input_guard.dart';
 
@@ -203,7 +204,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
             children: [
               Text(message),
               for (final d in details.take(6)) ...[
-                const SizedBox(height: 6),
+                const SizedBox(height: AppSpace.sm),
                 Text('· $d', style: dialogContext.appCaption),
               ],
             ],
@@ -363,25 +364,25 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
       child: Scaffold(
       appBar: AppBar(title: const Text('새 가전 추가')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
           Text(
             '가전의 버튼 자리를 그대로 등록하면 작은 팔이 그 버튼을 대신 눌러요.',
-            style: TextStyle(fontSize: 15, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: AppSpace.xxl),
 
           // ── 1. 종류 ─────────────────────────────────────────────────────
           const _StepTitle(number: 1, title: '어떤 가전인가요?'),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             '고른 종류에 맞는 그림으로 보여드려요.',
-            style: TextStyle(fontSize: 14, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.sm,
             children: [
               for (final c in ApplianceCategory.values)
                 Semantics(
@@ -394,7 +395,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                       // 고령 사용자 기준 최소 터치 대상.
                       constraints: const BoxConstraints(minHeight: 48),
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 14, vertical: 12),
+                          horizontal: AppSpace.lg, vertical: AppSpace.md),
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
@@ -412,11 +413,11 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                               color: c == _category
                                   ? context.appPrimary
                                   : context.appMuted),
-                          const SizedBox(width: 7),
+                          const SizedBox(width: AppSpace.sm),
                           Text(
                             c.label,
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: AppFont.caption,
                               fontWeight: c == _category
                                   ? FontWeight.w700
                                   : FontWeight.w500,
@@ -436,10 +437,10 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
 
           // ── 2. 이름과 위치 ─────────────────────────────────────────────
           const _StepTitle(number: 2, title: '이름과 위치'),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Text('가전 이름',
-              style: TextStyle(fontSize: 15, color: context.appMuted)),
-          const SizedBox(height: 6),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+          const SizedBox(height: AppSpace.sm),
           TextField(
             controller: _nameController,
             decoration: const InputDecoration(
@@ -447,15 +448,15 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
               hintText: '예: 식기세척기',
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: AppSpace.lg),
           Text('어디에 있나요?',
-              style: TextStyle(fontSize: 15, color: context.appMuted)),
-          const SizedBox(height: 4),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+          const SizedBox(height: AppSpace.xs),
           Text(
             '같은 종류를 여러 대 등록할 수 있어요. 위치를 적어두면 목록에서 헷갈리지 않아요. 비워 둬도 돼요.',
-            style: TextStyle(fontSize: 14, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           TextField(
             controller: _locationController,
             decoration: const InputDecoration(
@@ -471,12 +472,12 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           // 배치할 수 있다.
           if (widget.draft == null) ...[
           const _StepTitle(number: 3, title: '사진', optional: true),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             '버튼판이 화면에 꽉 차게 찍어 주세요. 사진 없이도 넘어갈 수 있어요.',
-            style: TextStyle(fontSize: 14, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           _photo == null
               ? OutlinedButton.icon(
                   onPressed: _takePhoto,
@@ -492,7 +493,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                         label: const Text('다시 찍기'),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpace.sm),
                     IconButton(
                       onPressed: _scanning ? null : _removePhoto,
                       icon: const Icon(Icons.close),
@@ -501,7 +502,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                   ],
                 ),
           if (_photo != null) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: AppSpace.md),
             // 사진 인식은 선택이다. 버튼판을 직접 적는 경로는 그대로 남는다.
             FilledButton.tonalIcon(
               key: const ValueKey('panel_scan_button'),
@@ -515,11 +516,11 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                   : const Icon(Icons.auto_awesome_outlined),
               label: Text(_scanning ? '사진을 읽는 중… 최대 1분' : '사진으로 버튼 채우기'),
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: AppSpace.sm),
             // 사진이 기기 밖으로 나가는 유일한 경로라, 누르기 전에 말한다.
             Text(
               '누르면 사진이 본체를 거쳐 인터넷의 외부 인식 서비스로 보내져요. 결과를 보고 고친 뒤 저장해요.',
-              style: TextStyle(fontSize: 13, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ],
           divider,
@@ -527,12 +528,12 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
           ],
           // ── 4. 버튼 배치 ───────────────────────────────────────────────
           const _StepTitle(number: 4, title: '버튼 배치'),
-          const SizedBox(height: 4),
+          const SizedBox(height: AppSpace.xs),
           Text(
             '실제 버튼이 있는 자리를 눌러 이름을 적어요. 줄과 칸 수는 가전 버튼판에 맞춰요.',
-            style: TextStyle(fontSize: 14, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpace.md),
           Row(
             children: [
               Expanded(
@@ -544,7 +545,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                   onChanged: (v) => _resize(rows: v),
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: AppSpace.md),
               Expanded(
                 child: _StepperField(
                   label: '칸',
@@ -556,7 +557,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           AspectRatio(
             aspectRatio: _cols / _rows,
             child: ClipRRect(
@@ -574,10 +575,10 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpace.lg),
           Text(
             '말로 시키기는 아직 안 돼요. 저장하면 화면에서 버튼을 직접 누를 수 있어요.',
-            style: TextStyle(fontSize: 14, color: context.appMuted),
+            style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
         ],
       ),
@@ -588,7 +589,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
         child: SafeArea(
           top: false,
           child: Container(
-            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.md),
             decoration: BoxDecoration(
               border: Border(top: BorderSide(color: context.appBorderFaint)),
             ),
@@ -603,14 +604,14 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
                       [location, name].where((t) => t.isNotEmpty).join(' '),
                     '버튼 $_buttonCount개',
                   ].join(' · '),
-                  style: TextStyle(fontSize: 14, color: context.appMuted),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpace.xs),
                 Text(
                   '저장한 뒤에 위치 맞추기와 시험 이동을 이어 해요.',
-                  style: TextStyle(fontSize: 13, color: context.appMuted),
+                  style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: AppSpace.md),
                 FilledButton.icon(
                   onPressed: _save,
                   icon: const Icon(Icons.check),
@@ -653,25 +654,25 @@ class _ScanResultDialog extends StatelessWidget {
               style: TextStyle(color: context.appMuted),
             ),
             if (fill.unnamed.isNotEmpty) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpace.lg),
               const Text('이름을 읽지 못한 버튼',
                   style: TextStyle(fontWeight: FontWeight.w600)),
-              const SizedBox(height: 2),
+              const SizedBox(height: AppSpace.xs),
               Text(
                 '${fill.unnamed.join(', ')}. 칸을 눌러 이름을 고쳐 주세요.',
                 style: context.appCaption,
               ),
             ],
             if (left.isNotEmpty) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpace.lg),
               const Text('넣지 않은 것',
                   style: TextStyle(fontWeight: FontWeight.w600)),
               for (final item in left.take(6)) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Text('· $item', style: context.appCaption),
               ],
               if (left.length > 6) ...[
-                const SizedBox(height: 4),
+                const SizedBox(height: AppSpace.xs),
                 Text('외 ${left.length - 6}개', style: context.appCaption),
               ],
             ],
@@ -711,15 +712,15 @@ class _StepTitle extends StatelessWidget {
               style: TextStyle(
                 color: context.appOnAccent,
                 fontWeight: FontWeight.w700,
-                fontSize: 13,
+                fontSize: AppFont.caption,
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpace.md),
           Flexible(child: Text(title, style: AppText.title)),
           if (optional) ...[
-            const SizedBox(width: 8),
-            Text('선택', style: TextStyle(fontSize: 14, color: context.appMuted)),
+            const SizedBox(width: AppSpace.sm),
+            Text('선택', style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
           ],
         ],
       );
@@ -755,20 +756,20 @@ class _SavedNextStepsDialog extends StatelessWidget {
           children: [
             Text('아직 쓸 수는 없어요. 두 가지가 남았어요.',
                 style: TextStyle(color: context.appMuted)),
-            const SizedBox(height: 14),
+            const SizedBox(height: AppSpace.lg),
             const _NextStep(
               icon: Icons.link,
               title: '위치 맞추기',
               body: '조작부 사진에서 버튼 위치를 맞춰 주세요.',
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: AppSpace.md),
             const _NextStep(
               icon: Icons.center_focus_strong_outlined,
               title: '시험 이동',
               body: '작은 팔이 버튼 위를 지나가는지 눈으로 봐 주세요.',
             ),
             if (syncPending) ...[
-              const SizedBox(height: 14),
+              const SizedBox(height: AppSpace.lg),
               Text(
                 '지금은 본체와 연결이 끊겨 있어요. 연결되면 다시 보낼게요.',
                 style: context.appCaption,
@@ -796,14 +797,14 @@ class _NextStep extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 20, color: context.appMuted),
-          const SizedBox(width: 10),
+          const SizedBox(width: AppSpace.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
                     style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 2),
+                const SizedBox(height: AppSpace.xs),
                 Text(body, style: context.appCaption),
               ],
             ),
@@ -830,7 +831,7 @@ class _StepperField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
       decoration: BoxDecoration(
         border: Border.all(color: AppColors.borderSubtle),
         borderRadius: BorderRadius.circular(10),
@@ -881,14 +882,14 @@ class _EditableGrid extends StatelessWidget {
       children: List.generate(rows, (y) {
         return Expanded(
           child: Padding(
-            padding: EdgeInsets.only(bottom: y < rows - 1 ? 7 : 0),
+            padding: EdgeInsets.only(bottom: y < rows - 1 ? AppSpace.sm : 0),
             child: Row(
               children: List.generate(cols, (x) {
                 final label = grid[y][x];
                 final filled = label != null;
                 return Expanded(
                   child: Padding(
-                    padding: EdgeInsets.only(right: x < cols - 1 ? 7 : 0),
+                    padding: EdgeInsets.only(right: x < cols - 1 ? AppSpace.sm : 0),
                     child: GestureDetector(
                       key: ValueKey('grid_cell_${x}_$y'),
                       onTap: () => onTapCell(x, y),
@@ -918,7 +919,7 @@ class _EditableGrid extends StatelessWidget {
                                 label,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: AppFont.caption,
                                   fontWeight: FontWeight.w600,
                                   color: translucent
                                       ? Colors.white

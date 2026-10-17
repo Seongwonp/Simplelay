@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_tokens.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -30,7 +31,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       backgroundColor: context.appBackground,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
+          padding: const EdgeInsets.symmetric(horizontal: AppSpace.xxxl),
           child: Column(
             children: [
               // 본문은 스크롤 -- 글씨를 키우면 안내가 화면 밖으로 넘쳐,
@@ -39,7 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
-                      const SizedBox(height: 32),
+                      const SizedBox(height: AppSpace.xxxl),
 
                       // ── 아이콘 ─────────────────────────────────────────────────
                       Container(
@@ -58,7 +59,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           color: context.appInk,
                         ),
                       ),
-                      const SizedBox(height: 28),
+                      const SizedBox(height: AppSpace.xxxl),
 
                       // ── 타이틀 ─────────────────────────────────────────────────
                       Text(
@@ -69,14 +70,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           height: 1.25,
                         ),
                       ),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: AppSpace.md),
                       Text(
                         '가전을 등록하고 허락하면\n작은 팔이 버튼을 대신 눌러 줘요.',
                         textAlign: TextAlign.center,
                         style: AppText.body.copyWith(color: context.appMuted),
                       ),
 
-                      const SizedBox(height: 32),
+                      const SizedBox(height: AppSpace.xxxl),
 
                       // ── 특징 3가지 ──────────────────────────────────────────────
                       _FeatureRow(
@@ -84,20 +85,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         title: '본체 연결',
                         body: '폰을 본체와 같은 와이파이에 연결해 주세요.',
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: AppSpace.xl),
                       _FeatureRow(
                         icon: Icons.lightbulb_outline_rounded,
                         title: '때맞춰 물어보기',
                         body: '자주 하는 일을 때맞춰\n할까요? 하고 물어봐요.',
                       ),
-                      const SizedBox(height: 20),
+                      const SizedBox(height: AppSpace.xl),
                       _FeatureRow(
                         icon: Icons.do_not_disturb_on_outlined,
                         title: '내 루틴',
                         body: '자주 누르는 순서를 저장하고\n루틴 화면에서 실행해요.',
                       ),
 
-                      const SizedBox(height: 32),
+                      const SizedBox(height: AppSpace.xxxl),
                     ],
                   ),
                 ),
@@ -131,14 +132,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       : const Text(
                           '시작하기',
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: AppFont.caption,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                 ),
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: AppSpace.xxxl),
             ],
           ),
         ),
@@ -172,7 +173,7 @@ class _FeatureRow extends StatelessWidget {
           ),
           child: Icon(icon, size: 20, color: context.appInk),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: AppSpace.lg),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -184,11 +185,11 @@ class _FeatureRow extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onSurface,
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: AppSpace.xs),
               Text(
                 body,
                 style: AppText.body.copyWith(
-                  fontSize: 13,
+                  fontSize: AppFont.caption,
                   color: context.appMuted,
                   height: 1.45,
                 ),

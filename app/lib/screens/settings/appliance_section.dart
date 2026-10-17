@@ -26,11 +26,11 @@ class _ApplianceSection extends ConsumerWidget {
                 ? (needsPanelMapping(appliance)
                     // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17).
                     ? _WordsText('설정이 필요해요. 눌러서 버튼 자리를 맞춰 주세요',
-                        style: TextStyle(fontSize: 14, color: context.appWarning))
+                        style: TextStyle(fontSize: AppFont.caption, color: context.appWarning))
                     : null)
                 : _WordsText(
                     appliance.isThinq ? 'LG 가전이에요. 빼기는 LG 가전 연결에서 해요' : '기본 가전',
-                    style: TextStyle(fontSize: 13, color: context.appMuted),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                   ),
             onTap: () => context.push('/appliance/detail/${appliance.id}'),
             // 지울 수 있는 줄도 눌러 들어간다는 것은 화살표로(UI 평가 3차 10/17 — 휴지통만 있으면 눌러지는 줄과 섞였다).
@@ -53,17 +53,17 @@ class _ApplianceSection extends ConsumerWidget {
         // 읽히지 않고, 정작 문제가 생겼을 때도 눈에 안 들어온다.
         SyncStatusLine(onRetry: () => _resyncCustomAppliances(context, ref)),
         if (ref.watch(hasPendingSyncProvider)) ...[
-          const SizedBox(height: 10),
+          const SizedBox(height: AppSpace.md),
           TextButton.icon(
             onPressed: () => _resyncCustomAppliances(context, ref),
             style: TextButton.styleFrom(
               minimumSize: const Size(48, 48),
-              padding: const EdgeInsets.symmetric(horizontal: 10),
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.md),
             ),
             icon: Icon(Icons.sync, size: 18, color: context.appMuted),
             label: Text(
               kResyncLabel,
-              style: TextStyle(fontSize: 13, color: context.appMuted),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ),
         ],
@@ -173,12 +173,12 @@ class _ThinqApplianceList extends ConsumerWidget {
     }
     final mock = overview.executionMode == 'mock';
     return Padding(
-      padding: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.only(top: AppSpace.lg),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(mock ? 'LG 가전. 연습으로 연결돼 있어요' : 'LG 가전'),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppSpace.sm),
           for (final a in overview.appliances)
             Semantics(
               label: [
@@ -190,7 +190,7 @@ class _ThinqApplianceList extends ConsumerWidget {
               ].join('. '),
               child: ExcludeSemantics(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -203,7 +203,7 @@ class _ThinqApplianceList extends ConsumerWidget {
                             ? context.appSuccess
                             : context.appDanger,
                       ),
-                      const SizedBox(width: 8),
+                      const SizedBox(width: AppSpace.sm),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,7 +211,7 @@ class _ThinqApplianceList extends ConsumerWidget {
                             Text(
                               '${a.name}${mock ? ', 연습' : ''}',
                               style: const TextStyle(
-                                  fontSize: 15, fontWeight: FontWeight.w600),
+                                  fontSize: AppFont.caption, fontWeight: FontWeight.w600),
                             ),
                             Text(
                               a.canExecute
@@ -220,7 +220,7 @@ class _ThinqApplianceList extends ConsumerWidget {
                                       ? a.reasons.join(', ')
                                       : '아직 준비가 안 됐어요'),
                               style: TextStyle(
-                                fontSize: 14,
+                                fontSize: AppFont.caption,
                                 color: a.canExecute
                                     ? context.appMuted
                                     : context.appDanger,
