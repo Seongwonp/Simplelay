@@ -76,6 +76,14 @@ String? quietSkipLine(QuietHoursStatus s, List<AutoRule> rules) {
   return '${s.enabled ? '조용한 시간이라 이 자동 실행은 건너뛰어요' : '켜면 이 자동 실행은 건너뛰어요'}: ${hit.join(', ')}';
 }
 
+/// 규칙 카드의 한 줄 — 이 시각 규칙이 조용한 시간과 겹치면(UI 평가 7차 10/17: 설정 화면에서만 경고됐다). 아니면 null.
+String? quietRuleNote(QuietHoursStatus? s, AutoRule r) {
+  final t = r.conditionTime;
+  if (s == null || t == null || !quietWindowContains(s.start, s.end, t)) return null;
+  final range = '조용한 시간(${s.start}~${s.end})';
+  return s.enabled ? '$range이라 이 자동 실행은 건너뛰어요' : '$range을 켜면 이 자동 실행은 건너뛰어요';
+}
+
 /// 설정 저장이 실패해 이번 세션에만 적용됐을 때(서버 `persisted: false`, 2026-10-14 HIGH 재확인 M-R1) — 잠시 쉬기·
 /// 조용한 시간 공통. 허브를 다시 켜면 마지막으로 저장된 설정으로 시작한다.
 const kSettingNotSavedNotice = '저장하지 못해 지금만 적용돼요. 허브를 다시 켜면 이전 설정으로 돌아가요.';

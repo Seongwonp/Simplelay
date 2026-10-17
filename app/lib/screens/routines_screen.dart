@@ -14,6 +14,7 @@ import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../models/display_status.dart';
 import '../models/line_break.dart';
+import '../models/quiet_hours.dart';
 import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_candidate_sheet.dart';
@@ -642,6 +643,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
   Widget build(BuildContext context) {
     final r = widget.rule;
     final reason = r.disabledReason;
+    final quietNote = quietRuleNote(ref.watch(quietHoursProvider).valueOrNull, r);
     return Padding(
       key: Key('auto-rule-${r.id}'),
       padding: const EdgeInsets.only(bottom: 12),
@@ -676,6 +678,16 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                 ),
                 if (!r.enabled && reason != null && reason.isNotEmpty)
                   Text(reason, style: TextStyle(fontSize: 14, color: context.appMuted)),
+                // 조용한 시간과 겹치면 여기서도 말한다 — 켜져 있으면 앰버(실제로 건너뜀), 꺼져 있으면 회색(UI 평가 7차 10/17).
+                if (quietNote != null)
+                  Text(keepWordsTogether(quietNote),
+                      semanticsLabel: quietNote,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: ref.watch(quietHoursProvider).valueOrNull?.enabled == true
+                              ? context.appWarning
+                              : context.appMuted)),
                 // 마지막 자동 실행의 장치별 결과 — 서버 문장 그대로(확인된 것만 '바꿨어요').
                 for (final n in r.lastRunNotices)
                   Text(n, style: TextStyle(fontSize: 14, color: context.appMuted)),

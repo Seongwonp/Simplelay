@@ -124,17 +124,18 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _WordsText(s.summary, style: TextStyle(fontSize: 14, color: context.appMuted)),
+                  // 겹치는 자동 실행을 이름으로(UI 평가 6차 10/17) — 켜는 순간 소리 없이 건너뛰지 않게.
+                  // 범위 설명보다 먼저(7차: 가장 중요한 경고가 맨 끝이었다).
+                  if (skip != null)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 2),
+                      child: _WordsText(skip,
+                          style: TextStyle(fontSize: 14, color: context.appWarning, fontWeight: FontWeight.w600)),
+                    ),
                   _WordsText(
                     '${s.scope ?? '새 제안과 일반 안내 소리만 쉬어요.'} 직접 실행·정지는 그대로예요.',
                     style: muted,
                   ),
-                  // 겹치는 자동 실행을 이름으로(UI 평가 6차 10/17) — 켜는 순간 소리 없이 건너뛰지 않게.
-                  if (skip != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 4),
-                      child: _WordsText(skip,
-                          style: TextStyle(fontSize: 14, color: context.appWarning, fontWeight: FontWeight.w600)),
-                    ),
                 ],
               ),
         onTap: s == null || _busy ? null : () => _pickRange(s),

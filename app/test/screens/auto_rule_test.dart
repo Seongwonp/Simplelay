@@ -82,6 +82,9 @@ class _Server {
   final bodies = <String, Map<String, dynamic>>{};
   Map<String, dynamic> rule = _rule();
 
+  /// GET /quiet-hours — null이면 404(옛 시험과 같게).
+  Map<String, dynamic>? quiet;
+
   http.Response _json(Object body, [int status = 200]) => http.Response.bytes(
         utf8.encode(jsonEncode(body)),
         status,
@@ -120,6 +123,7 @@ class _Server {
           }
           if (req.method == 'GET' && path == '/routines') return _json(<dynamic>[]);
           if (req.method == 'GET' && path == '/routines/auto-rules') return _json([rule]);
+          if (req.method == 'GET' && path == '/quiet-hours' && quiet != null) return _json(quiet!);
           if (req.method == 'POST' && path == '/routines/auto-rules/ar-1/enable') {
             final body = bodies['POST $path']!;
             if (body['enabled'] == false) {
@@ -366,6 +370,32 @@ void main() {
   });
 
   group('루틴 목록의 자동 실행', () {
+    // UI 평가 7차 10/17: 조용한 시간과 겹치는 시각 규칙이 설정 화면에서만 경고됐다 — 규칙 카드에서도 말한다.
+    for (final (enabled, line) in [
+      (false, '조용한 시간(22:00~07:00)을 켜면 이 자동 실행은 건너뛰어요'),
+      (true, '조용한 시간(22:00~07:00)이라 이 자동 실행은 건너뛰어요'),
+    ]) {
+      testWidgets('시각 규칙이 조용한 시간과 겹치면 규칙 카드에 한 줄(조용한 시간 ${enabled ? '켜짐' : '꺼짐'})', (tester) async {
+        _tall(tester);
+        final server = _Server()
+          ..rule = {..._rule(), 'condition_kind': 'time', 'condition_time': '22:00', 'name': '저녁 공기청정기 켜기'}
+          ..quiet = {'enabled': enabled, 'start': '22:00', 'end': '07:00', 'active': false};
+        await tester.pumpWidget(_list(server));
+        await _settle(tester);
+        expect(findPlainText(line), findsOneWidget);
+      });
+    }
+
+    testWidgets('겹치지 않는 시각(끝 시각 07:00)이면 규칙 카드에 조용한 시간 말이 없다', (tester) async {
+      _tall(tester);
+      final server = _Server()
+        ..rule = {..._rule(), 'condition_kind': 'time', 'condition_time': '07:00'}
+        ..quiet = {'enabled': true, 'start': '22:00', 'end': '07:00', 'active': false};
+      await tester.pumpWidget(_list(server));
+      await _settle(tester);
+      expect(findPlainText('조용한 시간', contains: true), findsNothing);
+    });
+
     testWidgets('자동 실행 켜짐과 조건·동작·마지막 결과를 보이고 끄면 꺼짐', (tester) async {
       _tall(tester);
       final server = _Server();
