@@ -95,13 +95,14 @@ class AutoRule {
     final last = json['last_run'];
     return AutoRule(
       id: json['id'] as String,
-      name: json['name'] as String? ?? '자동 실행',
+      name: json['name'] as String? ?? '자동으로 하기',
       conditionText: json['condition_text'] as String? ?? '',
       actionText: json['action_text'] as String? ?? '',
       caveat: caveatFrom(json),
       enabled: json['enabled'] == true,
       statusLabel: json['status_label'] as String? ??
-          (json['enabled'] == true ? '자동 실행 켜짐' : '자동 실행 꺼짐'),
+          // 화면은 이 값을 쓰지 않는다(배지는 enabled로) — 옛 서버 대비 기본값만 같은 말로.
+          (json['enabled'] == true ? '자동으로 해요' : '지금은 안 해요'),
       disabledReason: json['disabled_reason'] as String?,
       fingerprint: json['fingerprint'] as String?,
       value: json['value'] as String?,

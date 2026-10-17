@@ -70,7 +70,7 @@ class RpiJobAccepted {
     String? failure;
     if (allow is Map<String, dynamic> && allow['ok'] == false) {
       final reason = allow['reason'];
-      failure = reason is String && reason.isNotEmpty ? reason : '다음부터 자동 실행은 켜지 않았어요';
+      failure = reason is String && reason.isNotEmpty ? reason : '다음부터 자동으로 하지는 않아요';
     }
     final status = json['status'];
     final stop = json['stop'];

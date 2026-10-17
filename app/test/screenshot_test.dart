@@ -207,7 +207,7 @@ void main() {
   testWidgets('루틴 탭 — 자동으로 하기 (라이트)', (t) async {
     await _shoot(t, 'routines_rules_light', const RoutinesScreen(),
         light: true, installed: _homeInstalled, hub: _demoHub(), before: (tester) async {
-      await tester.tap(find.text('자동으로 하기'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await tester.pumpAndSettle();
     });
   });
@@ -989,6 +989,36 @@ RpiApiService _demoHub() {
                 'time': '22:00',
               },
               when: '매일 22:00'),
+          // 실화면과 같은 꼴(평가 4차 10/18) — 알림만 루틴, LG 가전 설정 단계.
+          {
+            'id': 'r-5',
+            'name': '세탁 끝 알림',
+            'steps': <dynamic>[],
+            'trigger': {'kind': 'event', 'event': 'wash_complete'},
+            'when': '세탁이 끝나면',
+            'mode': 'notify',
+            'enabled': true,
+          },
+          {
+            'id': 'r-6',
+            'name': '아침 공기청정기 끄기',
+            'steps': [
+              {
+                'kind': 'thinq_command',
+                'appliance_id': 'air_purifier',
+                'action': 'set_power',
+                'args': {'power': 'off'},
+              },
+            ],
+            'trigger': {
+              'kind': 'time',
+              'days': [0, 1, 2, 3, 4, 5, 6],
+              'time': '07:00',
+            },
+            'when': '매일 07:00',
+            'mode': 'approve',
+            'enabled': true,
+          },
         ]);
       case '/routines/next':
         return json([

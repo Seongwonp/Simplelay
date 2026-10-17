@@ -184,7 +184,7 @@ void setupSummaryTests() {
 
     expect(find.byKey(const Key('setup-summary-card')), findsOneWidget);
     // 한 줄 — 설정이 남았다는 말은 홈에서 여기 한 곳이라 이름을 적는다(평가 3차 10/18).
-    expect(find.text('시험용 전자레인지, Phone-MW, 전자레인지 외 2대 설정이 남았어요'), findsOneWidget);
+    expect(findPlainText('시험용 전자레인지, Phone-MW, 전자레인지 외 2대 설정이 남았어요'), findsOneWidget);
     expect(find.bySemanticsLabel('가전 5대 설정이 남았어요, 시험용 전자레인지, Phone-MW, 전자레인지 외 2대'),
         findsOneWidget);
     expect(find.text('설정 이어하기'), findsNothing);
@@ -212,12 +212,12 @@ void setupSummaryTests() {
     _phoneViewport(tester);
     await _pumpHome(tester, kServerFive.take(2).toList(), <Uri>[]);
 
-    expect(find.text('시험용 전자레인지, Phone-MW 설정이 남았어요'), findsOneWidget);
-    await tester.tap(find.text('시험용 전자레인지, Phone-MW 설정이 남았어요'));
+    expect(findPlainText('시험용 전자레인지, Phone-MW 설정이 남았어요'), findsOneWidget);
+    await tester.tap(findPlainText('시험용 전자레인지, Phone-MW 설정이 남았어요'));
     await tester.pumpAndSettle();
 
-    expect(find.text('시험용 전자레인지, 설정이 2개 남았어요'), findsOneWidget);
-    expect(find.text('Phone-MW, 설정이 2개 남았어요'), findsOneWidget);
+    expect(findPlainText('시험용 전자레인지, 설정이 2개 남았어요'), findsOneWidget);
+    expect(findPlainText('Phone-MW, 설정이 2개 남았어요'), findsOneWidget);
     expect(find.text('위치 맞추기'), findsNWidgets(2));
   });
 
@@ -227,7 +227,7 @@ void setupSummaryTests() {
     await _pumpHome(tester, [kServerFive[3]], <Uri>[]);
 
     expect(find.byKey(const Key('setup-summary-card')), findsNothing);
-    expect(find.text('세탁기, 설정이 2개 남았어요'), findsOneWidget);
+    expect(findPlainText('세탁기, 설정이 2개 남았어요'), findsOneWidget);
     expect(find.text('위치 맞추기'), findsOneWidget);
   });
 }

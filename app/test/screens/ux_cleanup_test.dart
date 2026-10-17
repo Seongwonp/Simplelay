@@ -201,7 +201,7 @@ void main() {
         rows: 1, cols: 1, buttons: const [], isCustom: true);
       await tester.pumpWidget(_home(installed: [a, b]));
       await tester.pump();
-      expect(find.text('세탁기, 건조기 설정이 남았어요'), findsOneWidget);
+      expect(findPlainText('세탁기, 건조기 설정이 남았어요'), findsOneWidget);
       expect(find.text('설정 이어하기'), findsNothing);
       expect(find.textContaining('설정이 남은 가전'), findsNothing);
     });

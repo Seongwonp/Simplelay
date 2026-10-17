@@ -412,11 +412,14 @@ class _NextUp extends StatelessWidget {
       if (n.dayLabel.isNotEmpty) n.dayLabel,
       if (n.when.isNotEmpty) n.when,
     ].join(' · ');
-    final badge = n.auto
-        ? const StatusBadge(icon: AppIcons.auto, label: '자동', tone: BadgeTone.accent)
-        : n.modeLabel == RoutineMode.notify.label
-            ? const StatusBadge(icon: Icons.notifications_none, label: '알림만')
-            : const StatusBadge(icon: Icons.front_hand_outlined, label: '물어보고 해요');
+    // 루틴 탭 다음 실행 줄과 같은 말(평가 4차 10/18: 여기는 '자동', 루틴 탭은 '자동 실행'이었다).
+    final badge = n.quietSkip
+        ? StatusBadge(icon: Icons.bedtime_outlined, label: n.modeText)
+        : n.auto
+            ? StatusBadge(icon: AppIcons.auto, label: n.modeText, tone: BadgeTone.accent)
+            : n.mode == RoutineMode.notify.value || n.modeLabel == RoutineMode.notify.label
+                ? StatusBadge(icon: AppIcons.notify, label: n.modeText)
+                : const StatusBadge(icon: Icons.front_hand_outlined, label: '물어보고 해요');
     final clock = Text(
       n.clock,
       style: TextStyle(
@@ -430,8 +433,8 @@ class _NextUp extends StatelessWidget {
     final info = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(n.name, style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
-        if (when.isNotEmpty) Text(keepWordsTogether(when), style: context.appCaption),
+        Text(keepWordsTogether(n.name), semanticsLabel: n.name, style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
+        if (when.isNotEmpty) Text(keepPhrasesTogether(when, wholeParts: MediaQuery.textScalerOf(context).scale(1) <= 1.3), semanticsLabel: when, style: context.appCaption),
         const SizedBox(height: AppSpace.xs),
         badge,
       ],
@@ -690,8 +693,13 @@ class _HomeRoutinesState extends ConsumerState<_HomeRoutines> {
             key: const Key('home-routines'),
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Row(children: [
-                const Expanded(child: _SectionTitle('내 루틴')),
+              // 제목과 '루틴 더 보기'는 한 줄에 다 들어갈 때만 나란히 — 큰 글씨에서는 버튼이 다음 줄로 간다
+              // (평가 4차 10/18: 200%에서 '내 루/틴'으로 꺾였다).
+              Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                const _SectionTitle('내 루틴'),
                 if (more)
                   Padding(
                     padding: const EdgeInsets.only(bottom: AppSpace.md),
@@ -830,13 +838,13 @@ class _RoutineTile extends StatelessWidget {
                       ),
                   ]),
                   const SizedBox(height: AppSpace.sm),
-                  Text(r.name,
+                  Text(keepWordsTogether(r.name),
                       style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w700)),
                   const SizedBox(height: AppSpace.xs),
                   // 설정이 남았다는 말은 '확인이 필요해요' 한 곳에서만(평가 3차 10/18) — 타일은 무엇을 하는지만.
                   // 누르면 그 가전 설정으로 가고, 낭독 이름이 '가전 설정하기'라고 말한다.
-                  // 낱말 중간에서 꺾이지 않게("1단 / 계", 2026-10-14 발견 7).
-                  Text(keepWordsTogether(subtitle),
+                  // 낱말·묶음 중간에서 꺾이지 않게("1단 / 계" 2026-10-14, "LG / 가전 설정" 평가 4차 10/18).
+                  Text(keepPhrasesTogether(subtitle, wholeParts: MediaQuery.textScalerOf(context).scale(1) <= 1.3),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: context.appCaption),
@@ -894,7 +902,7 @@ class _Header extends StatelessWidget {
             decoration: BoxDecoration(color: dot, shape: BoxShape.circle),
           ),
           const SizedBox(width: AppSpace.sm),
-          Flexible(child: Text(text, style: const TextStyle(fontSize: AppFont.caption))),
+          Flexible(child: Text(keepWordsTogether(text), semanticsLabel: text, style: const TextStyle(fontSize: AppFont.caption))),
         ],
       ),
     );

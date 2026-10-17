@@ -305,7 +305,7 @@ void main() {
       expect(historyTitle(e({'purpose': '공기청정기 켜줘'})), '공기청정기 켜기');
       expect(historyTitle(e({'purpose': '즉석밥 데워줘'})), '즉석밥 데우기');
       expect(historyTitle(e({'purpose': '공기청정기 꺼 줘'})), '공기청정기 끄기');
-      expect(historyTitle(e({'purpose': '공기청정기 풍량을 강으로 바꿀까요?'})), '공기청정기 바람 세기 강으로 바꾸기');
+      expect(historyTitle(e({'purpose': '공기청정기 풍량을 강으로 바꿀까요?'})), '공기청정기 바람 세게 하기');
       expect(historyTitle(e({'purpose': '자동 실행 · 공기청정기를 켜요'})), '공기청정기 켜기');
       expect(historyTitle(e({'purpose': '자동 실행 · 공기청정기 전원 끄기'})), '공기청정기 끄기');
     });
@@ -333,7 +333,7 @@ void main() {
   });
 
   group('설정 문장', () {
-    test('본체와 다시 맞추기', () => expect(kResyncLabel, '본체와 다시 맞추기'));
+    test('가전 목록 새로 받기(평가 4차 10/18에 이름 바꿈)', () => expect(kResyncLabel, '가전 목록 새로 받기'));
     test('조용한 시간을 못 읽으면 "확인 못 했어요 · 새로 보기"', () {
       expect(quietRowValue(null, hasApi: true), '확인 못 했어요 · 새로 보기');
       expect(quietRowValue(null, hasApi: false), '연결 전이에요');

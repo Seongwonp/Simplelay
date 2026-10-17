@@ -175,13 +175,15 @@ class SettingsScreen extends ConsumerWidget {
 
           const SizedBox(height: AppSpace.xxxl),
 
-          // ── 제안 ──────────────────────────────────────────
-          _SectionHeader(title: '물어보기'),
+          // ── 생활 습관 ──────────────────────────────────────
+          // 평가 4차 10/18: '물어보기' 섹션 아래 '생활 습관 알아가기'가 어긋났다. 이 구획의 두 가지 — 알아 둔 습관 보기,
+          // 그만 묻기로 한 것 다시 받기 — 는 모두 '습관을 보고 묻는 일'에 관한 것이라 섹션 이름을 '생활 습관'으로 합친다.
+          _SectionHeader(title: '생활 습관'),
           const SizedBox(height: AppSpace.sm),
           _NavGroup(children: [
           _NavRow(
             icon: Icons.history,
-            title: '생활 습관 알아가기',
+            title: '알아 둔 습관',
             subtitle: '보기',
             onTap: () {
               final api = ref.read(rpiApiServiceProvider);

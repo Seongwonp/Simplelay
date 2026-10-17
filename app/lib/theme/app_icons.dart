@@ -19,6 +19,9 @@ class AppIcons {
   /// 말로 하기 — 마이크.
   static const voice = Icons.mic_none_rounded;
 
+  /// 알려 드리기만(알림만 루틴) — 종. 가전을 움직이지 않는다는 것을 아이콘으로도 가른다(평가 4차 10/18).
+  static const notify = Icons.notifications_none_rounded;
+
   /// 정해진 시각 — 시계(오늘 예정).
   static const schedule = Icons.schedule_rounded;
 

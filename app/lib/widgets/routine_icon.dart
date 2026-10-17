@@ -25,6 +25,10 @@ class RoutineIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 알림만 루틴은 종 — 가전을 움직이지 않는 줄이라는 것을 아이콘으로도 가른다(평가 4차 10/18).
+    if (routine.mode == RoutineMode.notify) {
+      return ExcludeSemantics(child: Icon(AppIcons.notify, size: size, color: color));
+    }
     final icons = [
       for (final id in routine.applianceIds)
         if (iconOf[id] case final icon?) icon,

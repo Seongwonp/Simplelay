@@ -46,7 +46,7 @@ void main() {
           .overrideWith((_) async => const VerifyPassLookup.unknown()),
     ], child: MaterialApp(home: Scaffold(body: ApplianceSetupCard(appliance: appliance)))));
     await tester.pumpAndSettle();
-    expect(find.text('전자레인지, 설정이 2개 남았어요'), findsOneWidget);
+    expect(findPlainText('전자레인지, 설정이 2개 남았어요'), findsOneWidget);
     expect(find.text('위치 맞추기'), findsOneWidget);
   });
 }

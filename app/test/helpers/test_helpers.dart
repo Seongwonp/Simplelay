@@ -250,7 +250,7 @@ const kWordJoiner = '\u2060';
 
 Finder findPlainText(String text, {bool contains = false}) => find.byWidgetPredicate((w) {
       if (w is! Text) return false;
-      final data = (w.data ?? w.textSpan?.toPlainText())?.replaceAll(kWordJoiner, '');
+      final data = (w.data ?? w.textSpan?.toPlainText())?.replaceAll(kWordJoiner, '').replaceAll(String.fromCharCode(0x00A0), ' '); // 줄바꿈 없는 빈칸(평가 4차 10/18)
       if (data == null) return false;
       return contains ? data.contains(text) : data == text;
     }, description: 'plain text "$text"');

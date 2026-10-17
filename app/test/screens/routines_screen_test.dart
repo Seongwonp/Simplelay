@@ -262,7 +262,7 @@ void main() {
     await _settle(tester);
 
     // 큰 시각은 홈에만 — 루틴 탭은 작은 한 줄(평가 3차 10/18).
-    expect(findPlainText('다음: 아침 데우기 · 내일 · 평일 07:30 · 자동 실행'), findsOneWidget);
+    expect(findPlainText('다음: 아침 데우기 · 내일 · 평일 07:30 · 자동으로 해요'), findsOneWidget);
     expect(find.textContaining('물어보고 하기'), findsNothing);
   });
 
@@ -272,7 +272,7 @@ void main() {
     final server = _Server()..nextExtra = {'at': '2026-10-01T07:30:00-03:00', 'when': ''};
     await tester.pumpWidget(_build(server));
     await _settle(tester);
-    expect(findPlainText('다음: 아침 데우기 · 07:30 · 승인 후 실행'), findsOneWidget);
+    expect(findPlainText('다음: 아침 데우기 · 07:30 · 물어보고 해요'), findsOneWidget);
   });
 
   testWidgets('다음 실행과 내 루틴 목록을 보여 준다', (tester) async {
@@ -280,8 +280,8 @@ void main() {
     await tester.pumpWidget(_build(_Server()));
     await _settle(tester);
 
-    expect(findPlainText('다음: 아침 데우기 · 평일 07:30 · 승인 후 실행'), findsOneWidget);
-    expect(find.text('아침 데우기'), findsOneWidget);
+    expect(findPlainText('다음: 아침 데우기 · 평일 07:30 · 물어보고 해요'), findsOneWidget);
+    expect(findPlainText('아침 데우기'), findsOneWidget);
     // 언제 · 대상 · 크기('버튼 N번', 키오스크와 같은 단위)를 한 줄로. 승인 반복 설명은 줄마다 되풀이하지 않는다.
     expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번'), findsOneWidget);
     expect(find.textContaining('승인 후 실행 ·'), findsNothing);
@@ -385,7 +385,8 @@ void main() {
     // 편집기가 닫히고 목록이 다시 읽혔다.
     expect(find.text('언제'), findsNothing);
     expect(server.requests, contains('GET /routines'));
-    expect(find.textContaining('알림만'), findsOneWidget);
+    // 알림만 루틴은 부제 대신 '알려 드려요' 배지(평가 4차 10/18).
+    expect(findPlainText('알려 드려요'), findsWidgets);
   });
 
   testWidgets('예시 루틴을 골라 저장하면 새 루틴(POST)이 된다',
@@ -396,9 +397,9 @@ void main() {
     await _settle(tester);
 
     await _openNew(tester);
-    expect(find.text('방문자 문 열기'), findsOneWidget);
+    expect(findPlainText('방문자 문 열기'), findsOneWidget);
 
-    await tester.tap(find.text('방문자 문 열기'));
+    await tester.tap(findPlainText('방문자 문 열기'));
     await _settle(tester);
     // 새 초안이라 '지금 하기'은 없고 주의 문장이 보인다.
     expect(find.text('새 루틴'), findsOneWidget);
@@ -610,7 +611,9 @@ void main() {
     expect(runButton('rt-n'), findsNothing);
     expect(runButton('rt-off'), findsNothing);
     expect(menuButton('rt-n'), findsOneWidget);
-    expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번 · 알림만'), findsOneWidget);
+    // 알림만은 부제에 적지 않고 '알려 드려요' 배지가 말한다(평가 4차 10/18).
+    expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번'), findsOneWidget);
+    expect(findPlainText('알려 드려요'), findsOneWidget);
     expect(findPlainText('평일 07:30 · 전자레인지 · 버튼 3번 · 꺼짐'), findsOneWidget);
   });
 
@@ -628,8 +631,8 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(server));
     await _settle(tester);
-    expect(find.text('빨래 다 됐어'), findsOneWidget);
-    expect(find.textContaining('세탁이 끝나면'), findsOneWidget);
+    expect(findPlainText('빨래 다 됐어'), findsOneWidget);
+    expect(findPlainText('세탁이 끝나면', contains: true), findsOneWidget);
     expect(find.textContaining('wash_complete'), findsNothing);
   });
 
@@ -682,8 +685,8 @@ void main() {
       await _settle(tester);
       final seg = find.byType(SegmentedButton<int>);
       expect(seg, findsOneWidget);
-      expect(find.descendant(of: seg, matching: find.text('내 루틴')), findsOneWidget);
-      expect(find.descendant(of: seg, matching: find.text('자동으로 하기')), findsOneWidget);
+      expect(find.descendant(of: seg, matching: findPlainText('내 루틴')), findsOneWidget);
+      expect(find.descendant(of: seg, matching: findPlainText('자동으로 하기')), findsOneWidget);
       expect(find.text('예시 루틴'), findsNothing, reason: '세그먼트에 예시 루틴을 두지 않는다');
       expect(find.textContaining('추천'), findsNothing);
 
@@ -750,7 +753,7 @@ void main() {
       expect(tester.getSize(find.byKey(const Key('candidate-save-hc-1'))).height,
           greaterThanOrEqualTo(48));
       // 자동으로 하기 쪽에는 보이지 않는다.
-      await tester.tap(find.text('자동으로 하기'));
+      await tester.tap(findPlainText('자동으로 하기'));
       await _settle(tester);
       expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
     });
@@ -787,7 +790,7 @@ void main() {
       expect(find.text("'아침 밥' 루틴을 저장했어요. 아직 하지는 않았어요."), findsOneWidget);
       // 저장한 초안은 사라지고 내 루틴에 들어간다.
       expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
-      expect(find.text('아침 밥'), findsOneWidget);
+      expect(findPlainText('아침 밥'), findsOneWidget);
     });
 
     testWidgets('기본 선택은 직접 실행할 때만, 취소하면 아무것도 저장하지 않는다', (tester) async {
@@ -845,7 +848,7 @@ void main() {
       ]));
       await _settle(tester);
       expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
-      expect(find.text('아침 데우기'), findsOneWidget);
+      expect(findPlainText('아침 데우기'), findsOneWidget);
     });
   });
 }

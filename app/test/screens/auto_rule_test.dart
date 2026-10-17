@@ -197,7 +197,7 @@ Future<void> _settle(WidgetTester tester) async {
 
 /// 루틴 탭의 [자동으로 하기] 쪽을 연다(2026-10-18 세그먼트).
 Future<void> _openRules(WidgetTester tester) async {
-  await tester.tap(find.text('자동으로 하기'));
+  await tester.tap(findPlainText('자동으로 하기'));
   await _settle(tester);
 }
 
@@ -380,8 +380,8 @@ void main() {
   group('루틴 목록의 자동 실행', () {
     // UI 평가 7차 10/17: 조용한 시간과 겹치는 시각 규칙이 설정 화면에서만 경고됐다 — 규칙 카드에서도 말한다.
     for (final (enabled, line) in [
-      (false, '조용한 시간(22:00~07:00)을 켜면 이 자동 실행은 건너뛰어요'),
-      (true, '조용한 시간(22:00~07:00)이라 이 자동 실행은 건너뛰어요'),
+      (false, '조용한 시간(22:00~07:00)을 켜면 이때는 자동으로 안 해요'),
+      (true, '조용한 시간(22:00~07:00)이라 이때는 자동으로 안 해요'),
     ]) {
       testWidgets('시각 규칙이 조용한 시간과 겹치면 규칙 카드에 한 줄(조용한 시간 ${enabled ? '켜짐' : '꺼짐'})', (tester) async {
         _tall(tester);

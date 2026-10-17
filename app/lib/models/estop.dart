@@ -74,7 +74,7 @@ class EstopAckResult {
         EstopAckOutcome.buttonPressed =>
           '비상정지 버튼이 아직 눌려 있어요. 버튼을 돌려 푼 뒤 다시 해 주세요.',
         EstopAckOutcome.outletUnreachable =>
-          '콘센트가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
+          '전기 플러그가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.retriggered =>
           '비상정지가 다시 걸렸어요. 주변을 보고 다시 풀어 주세요.',
         EstopAckOutcome.stillLatched =>

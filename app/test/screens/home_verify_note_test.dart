@@ -260,7 +260,7 @@ void main() {
           reason: '마치지 않은 모의 주행을 확인했다고 하지 않는다');
       expect(
           find.descendant(
-              of: card, matching: find.text('시험 이동을 했는지 몰라요')),
+              of: card, matching: findPlainText('시험 이동을 했는지 몰라요')),
           findsOneWidget);
     });
   }
@@ -276,7 +276,7 @@ void main() {
     expect(
         find.descendant(
             of: find.byType(ApplianceSetupCard),
-            matching: find.text('연습으로만 시험 이동했어요. 실제 자리는 아직 몰라요.')),
+            matching: findPlainText('연습으로만 시험 이동했어요. 실제 자리는 아직 몰라요.')),
         findsOneWidget);
   });
 

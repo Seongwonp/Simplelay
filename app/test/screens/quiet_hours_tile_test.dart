@@ -95,10 +95,10 @@ void main() {
     await tester.pumpWidget(_build(server.api()));
     await _settle(tester);
     await openSettingRow(tester, 'quiet');
-    expect(findPlainText('켜면 이 자동 실행은 건너뛰어요: 저녁 공기청정기 켜기(22:00)'), findsOneWidget);
+    expect(findPlainText('켜면 이때는 자동으로 안 해요: 저녁 공기청정기 켜기(22:00)'), findsOneWidget);
     // 꺼져 있을 때의 미리 알림은 회색 — 앰버는 실제로 건너뛸 때만(루틴 탭 규칙 카드와 같게, UI 평가 8차 10/17).
-    final hint = tester.widget<Text>(findPlainText('켜면 이 자동 실행은 건너뛰어요', contains: true));
-    final ctx = tester.element(findPlainText('켜면 이 자동 실행은 건너뛰어요', contains: true));
+    final hint = tester.widget<Text>(findPlainText('켜면 이때는 자동으로 안 해요', contains: true));
+    final ctx = tester.element(findPlainText('켜면 이때는 자동으로 안 해요', contains: true));
     expect(hint.style?.color, ctx.appMuted);
     expect(findPlainText('아침 공기청정기 끄기', contains: true), findsNothing);
     expect(findPlainText('새벽 끄기', contains: true), findsNothing);

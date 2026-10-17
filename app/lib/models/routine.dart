@@ -396,7 +396,25 @@ class RoutineNextRun {
     this.auto = false,
     this.dayLabel = '',
     this.atText = '',
+    this.mode = '',
+    this.quietSkip = false,
   });
+
+  /// 루틴 실행 방식 값('approve'·'notify'). 옛 서버는 빈 문자열.
+  final String mode;
+
+  /// 조용한 시간에 들어 이번엔 하지 않는다(서버 `quiet_skip`).
+  final bool quietSkip;
+
+  /// 다음 실행 줄·배지의 말 — 상태 말 하나로(평가 4차 10/18: '자동'·'자동 실행'·'자동으로 해요'가 섞였다).
+  /// 서버 표시 말(`mode_label`)은 문장이 바뀌어 와도 화면 말이 흔들리지 않게 값으로 가른다.
+  String get modeText {
+    if (quietSkip) return '조용한 시간이라 안 해요';
+    if (auto) return '자동으로 해요';
+    if (mode == RoutineMode.notify.value || modeLabel == RoutineMode.notify.label) return '알려 드려요';
+    if (mode == RoutineMode.approve.value || modeLabel == '승인 후 실행') return '물어보고 해요';
+    return modeLabel;
+  }
 
   /// 본체가 준 시각 문자열 그대로(본체 시간대 오프셋 포함).
   final String atText;
@@ -430,6 +448,8 @@ class RoutineNextRun {
         auto: json['auto'] as bool? ?? false,
         dayLabel: json['day_label'] as String? ?? '',
         atText: json['at'] as String? ?? '',
+        mode: json['mode'] as String? ?? '',
+        quietSkip: json['quiet_skip'] == true,
       );
 }
 

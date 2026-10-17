@@ -100,9 +100,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
           padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxxl),
           children: [
             SegmentedButton<int>(
-              segments: const [
-                ButtonSegment(value: 0, label: Text('내 루틴')),
-                ButtonSegment(value: 1, label: Text('자동으로 하기')),
+              segments: [
+                ButtonSegment(value: 0, label: Text(keepWordsTogether('내 루틴'), semanticsLabel: '내 루틴')),
+                ButtonSegment(value: 1, label: Text(keepWordsTogether('자동으로 하기'), semanticsLabel: '자동으로 하기')),
               ],
               selected: {_segment},
               showSelectedIcon: false,
@@ -345,7 +345,8 @@ class _NextRunCard extends StatelessWidget {
       '다음: ${n.name}',
       if (n.dayLabel.isNotEmpty) n.dayLabel,
       if (n.when.isNotEmpty) n.when else n.clock,
-      n.modeLabel,
+      // 상태 말 하나 — '자동으로 해요'·'물어보고 해요'·'알려 드려요'(평가 4차 10/18: '· 자동 실행').
+      if (n.modeText.isNotEmpty) n.modeText,
     ].join(' · ');
     return Row(
       key: const Key('routines-next'),
@@ -357,7 +358,8 @@ class _NextRunCard extends StatelessWidget {
         ),
         const SizedBox(width: AppSpace.sm),
         Expanded(
-          child: Text(keepWordsTogether(line),
+          // '매일 07:00'·'자동으로 해요' 같은 묶음 안에서 줄이 갈리지 않게(평가 4차 10/18).
+          child: Text(keepPhrasesTogether(line, wholeParts: MediaQuery.textScalerOf(context).scale(1) <= 1.3),
               semanticsLabel: line,
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
         ),
@@ -384,7 +386,7 @@ String routineSubtitle(Routine r, Map<String, String> applianceNames) {
     // (평가 3차 10/18: '할 일 1개'는 무엇을 몇 번 하는지 말하지 않았다).
     if (targets.isNotEmpty) targets.join(', '),
     ...routineSizeParts(r),
-    if (r.mode == RoutineMode.notify) r.mode.label,
+    // 알림만 루틴은 부제에 '알림만'을 적지 않는다 — 줄 오른쪽 '알려 드려요' 배지와 종 아이콘이 말한다(평가 4차 10/18).
     if (!r.enabled) '꺼짐',
   ].join(' · ');
 }
@@ -450,13 +452,25 @@ class _RoutineRow extends StatelessWidget {
     final text = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
-        Text(
-          r.isTemplate && (r.description ?? '').isNotEmpty
-              ? r.description!
-              : routineSubtitle(r, applianceNames),
-          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
-        ),
+        Text(keepWordsTogether(r.name), semanticsLabel: r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+        if (r.isTemplate && (r.description ?? '').isNotEmpty)
+          Text(keepWordsTogether(r.description!),
+              semanticsLabel: r.description,
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
+        else
+          // 'LG 가전 설정 1번'·'매일 22:00' 같은 묶음 안에서 줄이 갈리지 않게(평가 4차 10/18: 'LG / 가전 설정 1번').
+          Text(keepPhrasesTogether(routineSubtitle(r, applianceNames), wholeParts: MediaQuery.textScalerOf(context).scale(1) <= 1.3),
+              semanticsLabel: routineSubtitle(r, applianceNames),
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+        // 알림만 루틴(평가 4차 10/18: 실행 버튼이 없어 다른 줄과 모양이 달라 어색했다) — '자동으로 하기'로 옮기지 않는다.
+        // 그쪽은 사용자가 '다음부터도 자동으로'로 허락한 **가전을 움직이는** 규칙이고, 알림만 루틴은 가전을 움직이지 않고
+        // 사용자가 루틴 편집기에서 만든 것이다. 그래서 내 루틴에 두되 종 아이콘과 '알려 드려요' 배지로 '누를 것이 없는 줄'
+        // 이라는 의도를 보인다. 배지는 누를 수 없는 글이라 버튼 자리가 아니라 부제 아래에 둔다(버튼처럼 보이지 않게).
+        if (!r.isTemplate && r.mode == RoutineMode.notify && r.enabled)
+          const Padding(
+            padding: EdgeInsets.only(top: AppSpace.xs),
+            child: StatusBadge(icon: AppIcons.notify, label: '알려 드려요'),
+          ),
       ],
     );
     final icon = RoutineIcon(
@@ -492,7 +506,7 @@ class _RoutineRow extends StatelessWidget {
       );
     }
 
-    // 행의 단추는 하나 — 실행, 아니면 설정하기. 편집·지우기는 ⋮ 안(2026-10-18 버튼 위계).
+    // 행의 버튼은 하나 — 실행, 아니면 설정하기. 편집·지우기는 ⋮ 안(2026-10-18 버튼 위계).
     final run = onRun;
     final setup = onSetup;
     final Widget? action = setup != null

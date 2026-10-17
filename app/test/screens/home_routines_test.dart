@@ -347,8 +347,8 @@ void main() {
     expect(find.descendant(of: now, matching: find.text('공기 나쁨')), findsOneWidget);
     expect(find.descendant(of: now, matching: find.text('공기청정기 켜짐')), findsOneWidget);
     expect(find.descendant(of: now, matching: find.text('22:00')), findsOneWidget);
-    expect(find.descendant(of: now, matching: find.text('저녁 공기청정기 켜기')), findsOneWidget);
-    expect(find.descendant(of: now, matching: find.text('자동')), findsOneWidget);
+    expect(find.descendant(of: now, matching: findPlainText('저녁 공기청정기 켜기')), findsOneWidget);
+    expect(find.descendant(of: now, matching: findPlainText('자동으로 해요')), findsOneWidget);
     expect(find.descendant(of: now, matching: findPlainText('오늘', contains: true)), findsWidgets);
     // 큰 시각은 32 숫자 단계.
     expect(tester.widget<Text>(find.descendant(of: now, matching: find.text('22:00'))).style?.fontSize, 32);
@@ -508,7 +508,7 @@ void main() {
         .byWidgetPredicate((w) => w is Text && (w.data ?? '').contains(fragment))
         .evaluate()
         .isNotEmpty;
-    expect(shown(keepWordsTogether('주방 전자레인지 · 버튼 1번')), isTrue);
+    expect(shown(keepPhrasesTogether('주방 전자레인지 · 버튼 1번', wholeParts: true)), isTrue);
     expect(shown(keepWordsTogether('눌러서 조작하기')), isTrue);
   });
 }

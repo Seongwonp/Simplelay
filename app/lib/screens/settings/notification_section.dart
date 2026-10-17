@@ -36,7 +36,7 @@ class _DndTile extends ConsumerWidget {
           !active
               ? '몇 시간 동안 묻지도, 자동으로 하지도 않아요'
               : carried
-                  ? '${pauseEndClock(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하기는 그대로예요'
+                  ? '${pauseEndClock(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하는 일은 그대로 해요'
                   : '${pauseEndClock(until)}까지 묻지도, 자동으로 하지도 않아요',
           style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
         ),
@@ -346,7 +346,7 @@ class _SuppressionNote extends StatelessWidget {
             const SizedBox(width: AppSpace.md),
           ],
           Expanded(
-            child: Text(text, style: TextStyle(color: context.appMuted)),
+            child: Text(keepWordsTogether(text), semanticsLabel: text, style: TextStyle(color: context.appMuted)),
           ),
           if (onRetry != null)
             TextButton(onPressed: onRetry, child: const Text('다시 불러오기')),

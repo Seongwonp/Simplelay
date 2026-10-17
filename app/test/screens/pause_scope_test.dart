@@ -58,7 +58,7 @@ void main() {
 
   testWidgets('이어받은 잠시 쉬기(옛 범위): "HH:MM까지 새 제안만 쉬어요" — 자동 실행은 그대로라고 말한다', (tester) async {
     await _settings(tester, until, 'suggestions_only');
-    expect(findPlainText('${_hhmm(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하기는 그대로예요'),
+    expect(findPlainText('${_hhmm(until)}까지 묻지만 않아요. 예전에 켠 설정이라 자동으로 하는 일은 그대로 해요'),
         findsOneWidget);
     expect(findPlainText('묻지도, 자동으로 하지도 않아요', contains: true), findsNothing);
   });

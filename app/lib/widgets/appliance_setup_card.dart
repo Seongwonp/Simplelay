@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../models/appliance.dart';
 import '../models/display_status.dart' show verifyPassLookupNote;
 import '../models/hub.dart';
+import '../models/line_break.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_text.dart';
@@ -96,9 +97,10 @@ class ApplianceSetupCard extends ConsumerWidget {
           ? const EdgeInsets.only(top: AppSpace.sm, right: AppSpace.sm)
           : const EdgeInsets.all(AppSpace.lg),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('${appliance.name}, 설정이 $remaining개 남았어요'),
-        if (mockDone) const Text('연습으로만 시험 이동했어요. 실제 자리는 아직 몰라요.'),
-        if (passNote != null) Text(passNote),
+        // 낱말 중간에서 꺾이지 않게(평가 4차 10/18: '세탁 / 기').
+        Text(keepWordsTogether('${appliance.name}, 설정이 $remaining개 남았어요')),
+        if (mockDone) Text(keepWordsTogether('연습으로만 시험 이동했어요. 실제 자리는 아직 몰라요.')),
+        if (passNote != null) Text(keepWordsTogether(passNote)),
         Wrap(spacing: AppSpace.md, children: [
           OutlinedButton(onPressed: () => open('/appliance/setup'),
             child: const Text('위치 맞추기')),
@@ -158,7 +160,8 @@ class SetupSummaryRow extends StatelessWidget {
           child: Row(children: [
             Icon(Icons.tune, size: 20, color: Theme.of(context).colorScheme.onSurfaceVariant),
             const SizedBox(width: AppSpace.sm),
-            Expanded(child: Text(text, style: const TextStyle(fontSize: AppFont.caption))),
+            // 낱말 중간에서 꺾이지 않게(평가 4차 10/18: 큰 글씨 '전자레인지, 세탁 / 기 설정이…').
+            Expanded(child: Text(keepWordsTogether(text), style: const TextStyle(fontSize: AppFont.caption))),
             Icon(Icons.chevron_right, color: Theme.of(context).colorScheme.onSurfaceVariant),
           ]),
         ),

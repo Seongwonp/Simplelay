@@ -47,7 +47,7 @@ class _NavRow extends StatelessWidget {
         minVerticalPadding: 12,
         leading: Icon(icon, color: context.appPrimary),
         title: _NameValue(
-          name: Text(title, style: const TextStyle(fontSize: AppFont.body)),
+          name: title,
           // 어절 단위 줄바꿈('키오스크에서/는' 방지, UI 평가 10/17). 낭독은 원문.
           value: subtitle,
         ),
@@ -119,7 +119,7 @@ class _ValueRow extends StatelessWidget {
                 const SizedBox(width: AppSpace.lg),
                 Expanded(
                   child: _NameValue(
-                    name: _WordsText(title, style: const TextStyle(fontSize: AppFont.body)),
+                    name: title,
                     value: value,
                   ),
                 ),
@@ -131,35 +131,61 @@ class _ValueRow extends StatelessWidget {
       );
 }
 
-/// 이름(왼쪽)과 지금 값(오른쪽 끝). 큰 글씨에서는 값을 이름 아래로 내린다 — 나란히 두면 둘 다 한 글자씩 꺾인다.
+/// 이름(왼쪽)과 지금 값(오른쪽 끝).
+///
+/// 둘이 한 줄에 **다 들어갈 때만** 나란히 둔다. 안 들어가면 값을 이름 아래 한 줄로 내린다 — 나란히 둔 채 줄을
+/// 바꾸면 '생활 습관 알아가 / 기', '읽지 않은 알림 / 4건'처럼 이름과 값이 둘 다 갈렸다(평가 4차 10/18).
+/// 큰 글씨(130% 넘게)는 늘 두 줄. 이름·값 모두 낱말 단위로만 줄을 바꾼다.
 class _NameValue extends StatelessWidget {
   const _NameValue({required this.name, required this.value});
-  final Widget name;
+  final String name;
   final String value;
+
+  static const _nameStyle = TextStyle(fontSize: AppFont.body);
 
   @override
   Widget build(BuildContext context) {
-    final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    final style = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
-    if (big) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [name, Text(keepWordsTogether(value), semanticsLabel: value, style: style)],
-      );
-    }
-    // 이름은 제 폭만(최대 55%), 남은 폭은 값이 오른쪽 끝에 붙어 쓴다.
-    return LayoutBuilder(
-      builder: (context, c) => Row(children: [
-        ConstrainedBox(constraints: BoxConstraints(maxWidth: c.maxWidth * 0.55), child: name),
+    final scaler = MediaQuery.textScalerOf(context);
+    final valueStyle = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
+    // 보통 글씨에서 이름은 나란히 둘 수 없으면 아래 줄 전체 폭을 써서 꺾이지 않는다. 큰 글씨에서는 낱말 단위로만 꺾는다.
+    final big = scaler.scale(1) > 1.3;
+    final nameText = Text(big ? keepWordsTogether(name) : name, semanticsLabel: name, style: _nameStyle);
+    final stacked = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        nameText,
+        Text(keepPhrasesTogether(value, wholeParts: scaler.scale(1) <= 1.3), semanticsLabel: value, style: valueStyle),
+      ],
+    );
+    if (big) return stacked;
+    return LayoutBuilder(builder: (context, c) {
+      final dir = Directionality.of(context);
+      double width(String text, TextStyle style) {
+        final painter = TextPainter(
+          text: TextSpan(text: text, style: DefaultTextStyle.of(context).style.merge(style)),
+          textDirection: dir,
+          textScaler: scaler,
+          maxLines: 1,
+        )..layout();
+        final w = painter.width;
+        painter.dispose();
+        return w;
+      }
+
+      final fits = width(name, _nameStyle) + AppSpace.md + width(value, valueStyle) <= c.maxWidth;
+      if (!fits) return stacked;
+      return Row(children: [
+        nameText,
         const SizedBox(width: AppSpace.md),
         Expanded(
-          child: Text(keepWordsTogether(value),
-              semanticsLabel: value, textAlign: TextAlign.end, style: style),
+          child: Text(keepPhrasesTogether(value, wholeParts: true),
+              semanticsLabel: value, textAlign: TextAlign.end, style: valueStyle),
         ),
-      ]),
-    );
+      ]);
+    });
   }
 }
+
 
 /// 설정 줄의 상세 — 설명 첫 줄과 조작을 담는다.
 class _SettingDetailScreen extends StatelessWidget {

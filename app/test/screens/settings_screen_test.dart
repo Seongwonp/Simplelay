@@ -202,8 +202,9 @@ void main() {
       ));
       await tester.pump();
       expect(find.widgetWithText(ListTile, '공기청정기'), findsOneWidget);
-      expect(findPlainText('LG 가전이에요. 빼기는 LG 가전 연결에서 해요'), findsOneWidget);
-      expect(findPlainText('처음부터 들어 있는 가전이에요'), findsOneWidget);
+      // 평가 4차 10/18: 앱이 어떻게 만들어졌는지 대신 사용자 할 일만 — LG 가전은 'LG 앱에서 관리해요', 그 밖은 비운다.
+      expect(findPlainText('LG 앱에서 관리해요'), findsOneWidget);
+      expect(findPlainText('처음부터 들어 있는 가전이에요'), findsNothing);
       expect(find.descendant(of: find.widgetWithText(ListTile, '공기청정기'), matching: find.byIcon(Icons.chevron_right)),
           findsOneWidget);
     });

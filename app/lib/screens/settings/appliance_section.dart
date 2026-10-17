@@ -1,8 +1,8 @@
 part of '../settings_screen.dart';
 
-/// 키오스크에 못 보낸 가전 변경을 다시 보내는 단추 — 쉬운 말('동기화' 대신, UI 평가 10/17).
-/// 보내기만 하지 않고 본체 쪽 변경도 받아 온다 — '보내기'가 아니라 '맞추기'(평가 3차 10/18).
-const kResyncLabel = '본체와 다시 맞추기';
+/// 본체에 못 보낸 가전 변경을 다시 보내고 본체 쪽 목록도 받아 오는 버튼 — 쉬운 말('동기화' 대신, UI 평가 10/17).
+/// 사용자가 얻는 것으로 이름 짓는다(평가 4차 10/18: '본체와 다시 맞추기'는 기계가 하는 일을 말했다).
+const kResyncLabel = '가전 목록 새로 받기';
 
 /// 안부 알림을 며칠 쉬는 설정의 이름 — 하는 일 그대로(평가 3차 10/18, 예전 '안부 확인 쉬기').
 const kAwayTitle = '집 비우는 날';
@@ -32,11 +32,12 @@ class _ApplianceSection extends ConsumerWidget {
                     ? _WordsText('설정이 필요해요. 눌러서 버튼 자리를 맞춰 주세요',
                         style: TextStyle(fontSize: AppFont.caption, color: context.appWarning))
                     : null)
-                : _WordsText(
-                    // '기본 가전'은 무엇의 기본인지 몰랐다(평가 3차 10/18) — 앱에 처음부터 들어 있는 가전이다.
-                    appliance.isThinq ? 'LG 가전이에요. 빼기는 LG 가전 연결에서 해요' : '처음부터 들어 있는 가전이에요',
-                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
-                  ),
+                // 평가 4차 10/18: '처음부터 들어 있는 가전이에요'·'빼기는 LG 가전 연결에서 해요'는 앱이 어떻게 만들어졌는지를
+                // 말했다. 사용자가 할 일이 있을 때만 적는다 — LG 가전은 LG 앱에서 관리한다는 것, 그 밖은 비운다.
+                : appliance.isThinq
+                    ? _WordsText('LG 앱에서 관리해요',
+                        style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
+                    : null,
             onTap: () => context.push('/appliance/detail/${appliance.id}'),
             // 지울 수 있는 줄도 눌러 들어간다는 것은 화살표로(UI 평가 3차 10/17 — 휴지통만 있으면 눌러지는 줄과 섞였다).
             // 지우기는 행에 늘어놓지 않고 ⋮ 안(2026-10-18 버튼 위계). 확인 대화는 그대로.
@@ -114,8 +115,8 @@ class _ApplianceSection extends ConsumerWidget {
         if (r.adopted > 0) '${r.adopted}개 새로 받았어요',
       ];
       return parts.isEmpty
-          ? '이미 본체와 같아요.'
-          : '본체와 맞췄어요. ${parts.join(', ')}.';
+          ? '이미 새 목록이에요.'
+          : '가전 목록을 새로 받았어요. ${parts.join(', ')}.';
     }
     if (r.failed > 0) {
       return '바꾼 것 ${r.failed}건을 보내지 못했어요. 연결을 보고 다시 해 주세요.';
