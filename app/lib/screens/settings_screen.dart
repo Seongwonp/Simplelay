@@ -110,14 +110,14 @@ class SettingsScreen extends ConsumerWidget {
                   ? '읽지 않은 알림 $unread건'
                   : care.status == CareInboxStatus.failed
                       ? '알림을 불러오지 못했어요'
-                      : '확인이 없으면 알림을 보내요',
+                      : '새 알림 없음',
               badge: unread,
               onTap: () => context.push('/care'),
             ),
             _NavRow(
               icon: Icons.text_increase,
               title: '글자 크기',
-              subtitle: '휴대폰 글자 크기를 따라요',
+              subtitle: '휴대폰 설정',
               onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
                   builder: (_) => const _TextSizeScreen())),
             ),
@@ -136,23 +136,43 @@ class SettingsScreen extends ConsumerWidget {
 
           // ── 알림 ──────────────────────────────────────────
           _SectionHeader(title: '알림'),
-          const SizedBox(height: AppSpace.xs),
-          _DndTile(),
-          // 조용한 시간(2026-10-14) — 새 탭 없이 이 구획 안. 잠시 쉬기와 서버가 한 판정으로 묶는다.
-          _QuietHoursTile(),
-          _WellnessPauseTile(),
+          const SizedBox(height: AppSpace.sm),
+          // 한 줄 = 이름 + 오른쪽 지금 값(2026-10-18). 긴 설명·켜고 끄기는 줄을 눌러 상세에서.
+          // 조용한 시간(2026-10-14)은 잠시 쉬기와 서버가 한 판정으로 묶는다.
+          _NavGroup(children: [
+            _ValueRow(
+              id: 'dnd',
+              icon: Icons.do_not_disturb_on_outlined,
+              title: '잠시 쉬기',
+              value: _dndValue(ref),
+              detail: _DndTile(),
+            ),
+            _ValueRow(
+              id: 'quiet',
+              icon: Icons.bedtime_outlined,
+              title: '조용한 시간',
+              value: _quietValue(ref),
+              detail: _QuietHoursTile(),
+            ),
+            _ValueRow(
+              id: 'wellness',
+              icon: Icons.favorite_outline,
+              title: '안부 확인 쉬기',
+              value: _wellnessValue(ref),
+              detail: _WellnessPauseTile(),
+            ),
+          ]),
 
           const SizedBox(height: AppSpace.xxxl),
 
           // ── 제안 ──────────────────────────────────────────
           _SectionHeader(title: '물어보기'),
           const SizedBox(height: AppSpace.sm),
-          ListTile(
-            contentPadding: EdgeInsets.zero,
-            leading: const Icon(Icons.history),
-            title: const Text('생활 습관 알아가기'),
-            subtitle: const Text('기억한 습관과 묻는 이유 보기'),
-            trailing: const Icon(Icons.chevron_right),
+          _NavGroup(children: [
+          _NavRow(
+            icon: Icons.history,
+            title: '생활 습관 알아가기',
+            subtitle: '보기',
             onTap: () {
               final api = ref.read(rpiApiServiceProvider);
               final appliances = ref.read(installedAppliancesProvider);
@@ -162,6 +182,7 @@ class SettingsScreen extends ConsumerWidget {
               ));
             },
           ),
+          ]),
           _SuppressionSection(),
 
           const SizedBox(height: AppSpace.xxxl),
@@ -194,6 +215,25 @@ class SettingsScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// 잠시 쉬기의 지금 값 — 꺼짐 / 'HH:MM까지'.
+  static String _dndValue(WidgetRef ref) {
+    final until = ref.watch(dndProvider);
+    return until != null && until.isAfter(DateTime.now()) ? '${pauseEndClock(until)}까지' : '꺼짐';
+  }
+
+  /// 조용한 시간의 지금 값 — '22:00~07:00 · 켜짐'. 모르면 그렇다고(꺼짐으로 단정하지 않는다).
+  static String _quietValue(WidgetRef ref) {
+    final s = ref.watch(quietHoursProvider).valueOrNull;
+    if (s == null) return ref.watch(rpiApiServiceProvider) == null ? '연결 전' : '몰라요';
+    return '${s.start}~${s.end} · ${s.enabled ? '켜짐' : '꺼짐'}';
+  }
+
+  /// 안부 확인 쉬기의 지금 값 — 꺼짐 / 'M월 D일까지'.
+  static String _wellnessValue(WidgetRef ref) {
+    final until = ref.watch(wellnessPauseProvider);
+    return until == null ? '꺼짐' : '${until.month}월 ${until.day}일까지';
   }
 
   static String _hubLine(RpiConnectionState state) => switch (state) {

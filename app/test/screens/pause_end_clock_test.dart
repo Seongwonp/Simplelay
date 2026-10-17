@@ -59,6 +59,11 @@ void main() {
       ],
     ));
     await tester.pump();
+    // 첫 화면 한 줄의 지금 값은 끝나는 시각.
+    expect(find.descendant(
+            of: find.byKey(const Key('settings-row-dnd')), matching: findPlainText('${_hhmm(until)}까지')),
+        findsOneWidget);
+    await openSettingRow(tester, 'dnd');
     expect(findPlainText('${_hhmm(until)}까지 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
     expect(findPlainText('그만 쉬기'), findsOneWidget);
   });

@@ -41,15 +41,16 @@ class _NavRow extends StatelessWidget {
   final VoidCallback onTap;
   final int badge;
 
+  // 한 줄 = 이름 + 오른쪽 지금 값(2026-10-18). [subtitle]은 그 값이다(설명 문장을 두지 않는다).
   @override
   Widget build(BuildContext context) => ListTile(
         minVerticalPadding: 12,
         leading: Icon(icon, color: context.appPrimary),
-        title: Text(title),
-        // 어절 단위 줄바꿈('키오스크에서/는' 방지, UI 평가 10/17). 낭독은 원문.
-        subtitle: Text(keepWordsTogether(subtitle),
-            semanticsLabel: subtitle,
-            style: TextStyle(color: context.appMuted, fontSize: AppFont.caption)),
+        title: _NameValue(
+          name: Text(title, style: const TextStyle(fontSize: AppFont.body)),
+          // 어절 단위 줄바꿈('키오스크에서/는' 방지, UI 평가 10/17). 낭독은 원문.
+          value: subtitle,
+        ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -73,6 +74,99 @@ class _NavRow extends StatelessWidget {
           ],
         ),
         onTap: onTap,
+      );
+}
+
+/// 설정 한 줄 — 이름 + 오른쪽 지금 값 + 화살표(2026-10-18). 누르면 [detail]을 상세 화면으로 연다.
+/// 긴 설명·켜고 끄기는 상세 첫 줄부터 둔다 — 첫 화면이 읽는 문서가 되지 않게.
+class _ValueRow extends StatelessWidget {
+  const _ValueRow({
+    required this.id,
+    required this.icon,
+    required this.title,
+    required this.value,
+    required this.detail,
+  });
+
+  final String id;
+  final IconData icon;
+  final String title;
+  final String value;
+  final Widget detail;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+        button: true,
+        label: '$title, $value',
+        excludeSemantics: true,
+        child: InkWell(
+          key: Key('settings-row-$id'),
+          onTap: () => Navigator.of(context).push(MaterialPageRoute<void>(
+              builder: (_) => _SettingDetailScreen(title: title, child: detail))),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: AppSpace.lg, vertical: AppSpace.sm),
+              child: Row(children: [
+                Icon(icon, color: context.appPrimary),
+                const SizedBox(width: AppSpace.lg),
+                Expanded(
+                  child: _NameValue(
+                    name: _WordsText(title, style: const TextStyle(fontSize: AppFont.body)),
+                    value: value,
+                  ),
+                ),
+                Icon(Icons.chevron_right, color: context.appMuted),
+              ]),
+            ),
+          ),
+        ),
+      );
+}
+
+/// 이름(왼쪽)과 지금 값(오른쪽 끝). 큰 글씨에서는 값을 이름 아래로 내린다 — 나란히 두면 둘 다 한 글자씩 꺾인다.
+class _NameValue extends StatelessWidget {
+  const _NameValue({required this.name, required this.value});
+  final Widget name;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final style = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
+    if (big) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [name, Text(keepWordsTogether(value), semanticsLabel: value, style: style)],
+      );
+    }
+    // 이름은 제 폭만(최대 55%), 남은 폭은 값이 오른쪽 끝에 붙어 쓴다.
+    return LayoutBuilder(
+      builder: (context, c) => Row(children: [
+        ConstrainedBox(constraints: BoxConstraints(maxWidth: c.maxWidth * 0.55), child: name),
+        const SizedBox(width: AppSpace.md),
+        Expanded(
+          child: Text(keepWordsTogether(value),
+              semanticsLabel: value, textAlign: TextAlign.end, style: style),
+        ),
+      ]),
+    );
+  }
+}
+
+/// 설정 줄의 상세 — 설명 첫 줄과 조작을 담는다.
+class _SettingDetailScreen extends StatelessWidget {
+  const _SettingDetailScreen({required this.title, required this.child});
+  final String title;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: ListView(
+          padding: const EdgeInsets.all(AppSpace.xl),
+          children: [child],
+        ),
       );
 }
 

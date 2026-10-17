@@ -91,6 +91,7 @@ void main() {
     expect(findPlainText('본체'), findsOneWidget);
     expect(findPlainText('키오스크', contains: true), findsNothing);
     expect(findPlainText('허브', contains: true), findsNothing);
+    await openSettingRow(tester, 'dnd');
     // '시간 고르기'는 테두리 버튼(글자만 있으면 누를 곳으로 안 보인다).
     expect(find.ancestor(of: find.text('시간 고르기'), matching: find.byType(OutlinedButton)), findsOneWidget);
   });

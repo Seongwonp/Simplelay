@@ -41,6 +41,7 @@ Future<void> _settings(WidgetTester tester, DateTime? until, String? scope) asyn
     ],
   ));
   await tester.pump();
+  await openSettingRow(tester, 'dnd');
 }
 
 void main() {

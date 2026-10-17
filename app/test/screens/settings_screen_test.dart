@@ -124,6 +124,25 @@ void main() {
     });
   });
 
+  // 2026-10-18: 주소·연결 비밀번호·블루투스는 '설치하는 분용'으로 접는다 — 연결돼 있으면 접혀 있다.
+  testWidgets('본체 화면: 연결돼 있으면 설치하는 분용(주소·비밀번호·블루투스)이 접혀 있다', (tester) async {
+    _useTallViewport(tester);
+    await tester.pumpWidget(buildScreen(
+      const HubSettingsScreen(),
+      overrides: [..._scanOverrides(), rpiServerOverride(RpiConnectionState.connected)],
+    ));
+    await tester.pump();
+    final fold = find.byKey(const Key('hub-installer-fold'));
+    expect(fold, findsOneWidget);
+    expect(find.descendant(of: fold, matching: findPlainText('설치하는 분용')), findsOneWidget);
+    expect(find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == 'http://simplelay.local:8000'),
+        findsNothing);
+    await tester.tap(findPlainText('설치하는 분용'));
+    await tester.pumpAndSettle();
+    expect(find.byWidgetPredicate((w) => w is TextField && w.decoration?.hintText == 'http://simplelay.local:8000'),
+        findsOneWidget);
+  });
+
   group('SettingsScreen — 기본 레이아웃', () {
     testWidgets('"설정" AppBar 표시', (tester) async {
       _useTallViewport(tester);
@@ -291,8 +310,9 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
+      await openSettingRow(tester, 'wellness');
 
-      expect(findPlainText('안부 확인 쉬기'), findsOneWidget);
+      expect(findPlainText('안부 확인 쉬기'), findsWidgets);
       expect(findPlainText('쉬기'), findsOneWidget);
       expect(findPlainText('여행처럼 집을 비우는 날', contains: true), findsOneWidget);
       // 부제는 어절 단위로만 줄바꿈('정상 / 인' 방지)·14pt 이상, 화면 읽기는 원문(UI 평가 3차 10/17).
@@ -316,6 +336,10 @@ void main() {
         ),
       );
       await tester.pump();
+      expect(find.descendant(
+              of: find.byKey(const Key('settings-row-wellness')), matching: findPlainText('7월 30일까지')),
+          findsOneWidget);
+      await openSettingRow(tester, 'wellness');
 
       expect(findPlainText('7월 30일까지 쉬어요', contains: true), findsOneWidget);
       expect(findPlainText('실패나 위험 신호음은 그대로', contains: true), findsOneWidget);
@@ -326,6 +350,7 @@ void main() {
       _useTallViewport(tester);
       await tester.pumpWidget(_buildSettings());
       await tester.pump();
+      await openSettingRow(tester, 'wellness');
 
       final size = tester.getSize(find.widgetWithText(OutlinedButton, '쉬기'));
       expect(size.height, greaterThanOrEqualTo(48));

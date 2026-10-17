@@ -234,6 +234,16 @@ Widget buildWithRouter(
   );
 }
 
+/// 설정 줄을 눌러 상세 화면을 연다(2026-10-18 — 설정 첫 화면은 이름 + 지금 값 한 줄, 설명·조작은 상세).
+Future<void> openSettingRow(WidgetTester tester, String id) async {
+  final row = find.byKey(Key('settings-row-$id'));
+  await tester.ensureVisible(row);
+  await tester.tap(row);
+  for (var i = 0; i < 12; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
 /// 화면 글자를 어절 결합 문자(U+2060) 없이 찾는다(2026-10-17) — 큰 문장은 낱말 가운데서 끊기지 않게 결합 문자를 넣어
 /// 그린다(`keepWordsTogether`). [contains]면 일부만 같아도 찾는다. Text 위젯만 본다(안의 RichText와 겹쳐 세지 않게).
 const kWordJoiner = '\u2060';

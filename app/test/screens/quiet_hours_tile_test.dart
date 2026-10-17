@@ -94,6 +94,7 @@ void main() {
       ];
     await tester.pumpWidget(_build(server.api()));
     await _settle(tester);
+    await openSettingRow(tester, 'quiet');
     expect(findPlainText('켜면 이 자동 실행은 건너뛰어요: 저녁 공기청정기 켜기(22:00)'), findsOneWidget);
     // 꺼져 있을 때의 미리 알림은 회색 — 앰버는 실제로 건너뛸 때만(루틴 탭 규칙 카드와 같게, UI 평가 8차 10/17).
     final hint = tester.widget<Text>(findPlainText('켜면 이 자동 실행은 건너뛰어요', contains: true));
@@ -115,12 +116,16 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(_Server().api()));
     await _settle(tester);
-    expect(findPlainText('조용한 시간'), findsOneWidget);
+    await openSettingRow(tester, 'quiet');
+    expect(findPlainText('조용한 시간'), findsWidgets);
     expect(findPlainText('매일 22:00~07:00, 지금 조용한 시간이에요'), findsOneWidget);
     expect(findPlainText('새 제안과 일반 안내 소리만 쉬어요', contains: true), findsOneWidget);
     expect(findPlainText('직접 하기와 정지는 그대로예요', contains: true), findsOneWidget);
     expect(findPlainText('모든 알림', contains: true), findsNothing);
     // 잠시 쉬기도 같은 범위로 말한다(자동 실행도 건너뛴다).
+    await tester.pageBack();
+    await _settle(tester);
+    await openSettingRow(tester, 'dnd');
     expect(findPlainText('몇 시간 동안 묻지도, 자동으로 하지도 않아요'), findsOneWidget);
   });
 
@@ -129,6 +134,7 @@ void main() {
     final server = _Server();
     await tester.pumpWidget(_build(server.api()));
     await _settle(tester);
+    await openSettingRow(tester, 'quiet');
     final toggle = find.byKey(const Key('quiet-hours-switch'));
     expect(tester.getSize(toggle).height, greaterThanOrEqualTo(48));
     await tester.tap(toggle);
@@ -145,6 +151,7 @@ void main() {
     final server = _Server()..persisted = false;
     await tester.pumpWidget(_build(server.api()));
     await _settle(tester);
+    await openSettingRow(tester, 'quiet');
     await tester.tap(find.byKey(const Key('quiet-hours-switch')));
     await _settle(tester);
     expect(server.puts, [
@@ -158,9 +165,41 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_build(null));
     await _settle(tester);
+    await openSettingRow(tester, 'quiet');
     expect(findPlainText('본체와 연결되면 설정할 수 있어요.'), findsOneWidget);
     final sw = tester.widget<Switch>(find.descendant(
         of: find.byKey(const Key('quiet-hours-switch')), matching: find.byType(Switch)));
     expect(sw.onChanged, isNull);
+  });
+
+  // 2026-10-18 설정 행 정리: 첫 화면은 이름 + 오른쪽 지금 값 한 줄, 긴 범위 설명과 스위치는 상세에서.
+  testWidgets('설정 첫 화면의 조용한 시간은 한 줄 — 이름과 오른쪽 지금 값, 긴 설명은 상세에서', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server().api()));
+    await _settle(tester);
+    final row = find.byKey(const Key('settings-row-quiet'));
+    expect(row, findsOneWidget);
+    final value = find.descendant(of: row, matching: findPlainText('22:00~07:00 · 켜짐'));
+    expect(value, findsOneWidget);
+    final title = find.descendant(of: row, matching: findPlainText('조용한 시간'));
+    expect(tester.getCenter(value).dx, greaterThan(tester.getCenter(title).dx));
+    // 긴 설명·스위치는 첫 화면에 늘어놓지 않는다.
+    expect(findPlainText('새 제안과 일반 안내 소리만 쉬어요', contains: true), findsNothing);
+    expect(find.byKey(const Key('quiet-hours-switch')), findsNothing);
+    await openSettingRow(tester, 'quiet');
+    expect(findPlainText('새 제안과 일반 안내 소리만 쉬어요', contains: true), findsOneWidget);
+    expect(find.byKey(const Key('quiet-hours-switch')), findsOneWidget);
+  });
+
+  testWidgets('잠시 쉬기·안부 확인 쉬기도 한 줄 — 꺼져 있으면 오른쪽에 꺼짐', (tester) async {
+    _tall(tester);
+    await tester.pumpWidget(_build(_Server().api()));
+    await _settle(tester);
+    for (final id in ['dnd', 'wellness']) {
+      expect(find.descendant(of: find.byKey(Key('settings-row-$id')), matching: findPlainText('꺼짐')),
+          findsOneWidget, reason: id);
+    }
+    expect(findPlainText('몇 시간 동안 묻지도, 자동으로 하지도 않아요'), findsNothing);
+    expect(findPlainText('여행처럼 집을 비우는 날', contains: true), findsNothing);
   });
 }
