@@ -236,14 +236,14 @@ void main() {
 
     testWidgets('켜짐(읽은 값)만 초록, 설정 필요는 주황 + 글, 준비는 회색', (tester) async {
       await _pump(tester, const HomeScreen());
-      // 켜짐 — 본체가 읽은 전원. 초록 + 전원 아이콘 + '켜짐'.
-      expect(find.descendant(of: find.byKey(const Key('appliance-band-air')), matching: findPlainText('켜짐')),
+      // 켜짐 — 본체가 읽은 전원. 초록 + 전원 아이콘 + '켜져 있어요'(평가 7차 10/18: 띠는 문장).
+      expect(find.descendant(of: find.byKey(const Key('appliance-band-air')), matching: findPlainText('켜져 있어요')),
           findsOneWidget);
       final on = _bandIcon(tester, 'air')!;
       expect(on.icon, Icons.power_settings_new);
       expect(on.color, AppColors.confirmedLight);
-      // 설정 필요 — 주황 + 느낌표 + '설정 필요'.
-      expect(find.descendant(of: find.byKey(const Key('appliance-band-washer')), matching: findPlainText('설정 필요')),
+      // 설정 필요 — 주황 + 느낌표 + '설정이 필요해요'.
+      expect(find.descendant(of: find.byKey(const Key('appliance-band-washer')), matching: findPlainText('설정이 필요해요')),
           findsOneWidget);
       expect(_bandIcon(tester, 'washer')!.color, AppColors.warningLight);
       // 준비 — 회색. 확인한 것이 아니므로 초록이 아니다.
@@ -262,7 +262,7 @@ void main() {
   });
 
   group('B. 루틴 — 시간축', () {
-    testWidgets('정해진 시각 묶음(큰 시각, 이른 순) · 필요할 때 묶음', (tester) async {
+    testWidgets('정해진 시각 묶음(이른 순) · 필요할 때 묶음', (tester) async {
       await _pump(tester, const RoutinesScreen());
       expect(find.byKey(const Key('routines-group-time')), findsOneWidget);
       expect(find.byKey(const Key('routines-group-manual')), findsOneWidget);
@@ -270,12 +270,10 @@ void main() {
           findsOneWidget);
       final morn = find.byKey(const Key('routine-clock-r-morn'));
       final eve = find.byKey(const Key('routine-clock-r-eve'));
-      expect(find.descendant(of: morn, matching: find.text('07:00'), matchRoot: true), findsOneWidget);
-      expect(find.descendant(of: eve, matching: find.text('22:00'), matchRoot: true), findsOneWidget);
+      // 평가 7차(10/18): 시각은 이름 위 작은 보조 줄 '매일 오전 7:00'(크기는 eval7_phone_test가 본다).
+      expect(find.descendant(of: morn, matching: findPlainText('매일 오전 7:00'), matchRoot: true), findsOneWidget);
+      expect(find.descendant(of: eve, matching: findPlainText('매일 오후 10:00'), matchRoot: true), findsOneWidget);
       expect(tester.getTopLeft(morn).dy, lessThan(tester.getTopLeft(eve).dy), reason: '07:00이 22:00보다 위');
-      // 큰 시각 — 줄 글씨보다 크다.
-      final clock = tester.widget<Text>(eve);
-      expect(clock.style!.fontSize, greaterThanOrEqualTo(24));
     });
 
     testWidgets("'누를 버튼 N개'와 결과 말 — '버튼 N번'·'LG 가전 설정'이 없다", (tester) async {
@@ -343,7 +341,8 @@ void main() {
           }
         }
       }
-      expect(labels, {'됐어요', '봐 주세요', '못 했어요', '연습'});
+      // 평가 7차(10/18): 멈춘 기록은 '봐 주세요'와 글자를 가른다 — 멈췄어요·스스로 멈췄어요.
+      expect(labels, {'됐어요', '봐 주세요', '멈췄어요', '스스로 멈췄어요', '못 했어요', '연습'});
     });
 
     for (final dev in [false, true]) {
@@ -391,7 +390,7 @@ void main() {
       testWidgets('수동 조작 ($width, $scale)', (tester) async {
         await _pump(tester, const ManualControlScreen(),
             width: width, scale: scale, korean: true);
-        expect(findPlainText('누르면 작은 팔이', contains: true), findsOneWidget);
+        expect(findPlainText(kManualHint), findsOneWidget);
         expect(brokenLines(tester), isEmpty);
       }, skip: _noKoreanFont != null);
 
@@ -453,12 +452,13 @@ void main() {
   });
 
   group('F. 설정 가전 줄', () {
-    testWidgets('⋮ 가 있는 줄에는 > 를 함께 두지 않는다', (tester) async {
+    // 평가 7차(10/18): 모든 줄이 > 하나, ⋮ 는 가전 상세 화면으로 옮겼다 — 줄 끝 표시가 하나라는 규칙은 그대로.
+    testWidgets('줄 끝 표시는 하나 — ⋮ 와 > 를 함께 두지 않는다', (tester) async {
       await _pump(tester, const SettingsScreen());
-      final menu = find.byKey(const Key('appliance-menu-washer'));
-      expect(menu, findsOneWidget);
-      final row = find.ancestor(of: menu, matching: find.byType(ListTile));
-      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsNothing);
+      expect(find.byKey(const Key('appliance-menu-washer')), findsNothing);
+      final row = find.widgetWithText(ListTile, '세탁기');
+      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
+      expect(find.descendant(of: row, matching: find.byIcon(Icons.more_vert)), findsNothing);
     });
   });
 }

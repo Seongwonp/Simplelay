@@ -257,11 +257,12 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   return label ?? 'LG 가전';
 }
 
-/// 결과 배지는 **넷만** — 됐어요 · 봐 주세요 · 못 했어요 · 연습(평가 5차 10/18).
+/// 결과 배지 — 됐어요 · 봐 주세요 · 멈췄어요 · 스스로 멈췄어요 · 못 했어요 · 연습(평가 5차 넷 → 7차 멈춤 둘을 가름).
 ///
-/// **초록 '됐어요'는 상태를 다시 읽거나 누름을 확인했을 때만**이다. 보고·접수만 받은 것, 멈춘 것, 됐는지 모르는 것은
-/// 모두 '봐 주세요'(가전을 직접 보라는 뜻) — 예전 '받았어요'는 됐다는 말로 읽혀 확인 수준을 높여 보였다.
-/// 멈춘 것은 아이콘(손)으로 갈라 보이고, 자세한 사정은 펼친 결과 문장이 말한다.
+/// **초록 '됐어요'는 상태를 다시 읽거나 누름을 확인했을 때만**이다. 보고·접수만 받은 것, 됐는지 모르는 것은
+/// '봐 주세요'(가전을 직접 보라는 뜻) — 예전 '받았어요'는 됐다는 말로 읽혀 확인 수준을 높여 보였다.
+/// 멈춘 것은 손 아이콘 + '멈췄어요'(멈춰 달라고 해서)·'스스로 멈췄어요'(본체가 안전 때문에), 색은 같은 주의 색.
+/// 자세한 사정은 펼친 결과 문장이 말한다.
 /// 이미 그 설정이라 보내지 않은 것(already_at_target)은 본체가 **상태를 읽어** 본 것이라 실제 실행에서만 '됐어요'.
 ({String label, IconData icon, BadgeTone tone}) historyBadgeOf(RpiHistoryEntry e) {
   const check = (label: '봐 주세요', icon: Icons.help_outline, tone: BadgeTone.attention);
@@ -270,9 +271,11 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
     return (label: '연습', icon: Icons.science_outlined, tone: BadgeTone.neutral);
   }
   switch (kind) {
+    // 멈춘 기록은 '봐 주세요'와 글자를 가른다(평가 7차 10/18: ?와 ✋에 같은 '봐 주세요'가 붙어 무엇이 다른지 몰랐다).
+    // 색은 그대로 주의 — 멈춘 것도 가전을 사람이 봐야 한다. 말은 결과 한 단어([resultWord])와 같다.
     case ResultKind.stopped:
     case ResultKind.safetyStop:
-      return (label: check.label, icon: Icons.front_hand_outlined, tone: check.tone);
+      return (label: resultWord(kind), icon: Icons.front_hand_outlined, tone: check.tone);
     case ResultKind.failed:
       return (label: '못 했어요', icon: Icons.cancel_outlined, tone: BadgeTone.danger);
     case ResultKind.unconfirmed:
@@ -349,7 +352,8 @@ class _HistoryRowState extends State<_HistoryRow> {
     // 제목·루틴 이름이 이미 가전 이름을 말하면 시각 줄에서 되풀이하지 않는다.
     final timeLine = [
       _hm(entry.finishedAt),
-      source,
+      // 루틴은 어떻게 시작했는지까지('루틴 · 허락하고 실행'·'루틴 · 자동으로', 평가 7차 10/18).
+      historySourceLabel(entry),
       if (origin != null) origin,
       if (name != null && !title.contains(name) && !(origin ?? '').contains(name)) name,
     ].join(' · ');

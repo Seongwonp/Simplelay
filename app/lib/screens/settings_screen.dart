@@ -26,11 +26,11 @@ import '../services/ble_service.dart';
 import '../services/demo_service.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 import '../theme/app_text.dart';
 
 import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/learning_status_dialog.dart';
-import '../widgets/row_menu.dart';
 import '../widgets/sync_status_line.dart';
 import '../widgets/thinq_discovered_section.dart';
 import '../theme/app_tokens.dart';
@@ -151,14 +151,14 @@ class SettingsScreen extends ConsumerWidget {
           _NavGroup(children: [
             _ValueRow(
               id: 'dnd',
-              icon: Icons.do_not_disturb_on_outlined,
+              icon: AppIcons.pause,
               title: '잠시 쉬기',
               value: _dndValue(ref),
               detail: _DndTile(),
             ),
             _ValueRow(
               id: 'quiet',
-              icon: Icons.bedtime_outlined,
+              icon: AppIcons.quietHours,
               title: '조용한 시간',
               value: _quietValue(ref),
               // 못 읽었으면 '새로 보기' — 줄을 누르면 다시 읽는다.

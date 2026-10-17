@@ -28,6 +28,19 @@ class AppIcons {
   /// 실행 중(정지 줄 왼쪽). 자동과 섞이지 않게 반복 화살표를 쓰지 않는다.
   static const running = Icons.timelapse_rounded;
 
+  /// 조용한 시간(매일 시간대) — 달. 켜져 지금 그 시간이면 채운 달(평가 7차 10/18: 기능 하나 = 아이콘 하나).
+  /// 키오스크도 같은 규칙으로 맞춘다 — 조용한 시간 = 달, 잠시 쉬기 = 일시정지.
+  static const quietHours = Icons.bedtime_outlined;
+  static const quietHoursActive = Icons.bedtime;
+
+  /// 잠시 쉬기(몇 시간 묻지도 자동으로 하지도 않기) — 일시정지. 켜져 있으면 채운 것.
+  /// 예전에는 방해 금지(⊖)와 달이 섞였다(평가 7차 10/18).
+  static const pause = Icons.pause_circle_outline;
+  static const pauseActive = Icons.pause_circle;
+
+  /// 꺼 둔 규칙(자동으로 하기 '지금은 안 해요') — 스위치 꺼짐. 일시정지는 잠시 쉬기만 쓴다.
+  static const off = Icons.toggle_off_outlined;
+
   /// 출처 문자열('직접'·'루틴'·'자동'·'음성') → 아이콘.
   static IconData source(String source) => switch (source) {
         '자동' => auto,

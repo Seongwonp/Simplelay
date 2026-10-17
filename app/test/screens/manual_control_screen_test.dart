@@ -130,7 +130,8 @@ void main() {
 
     // 어느 가전인지가 본문 머리에 온다(사진/실루엣 + 이름).
     expect(find.text('테스트가전'), findsOneWidget);
-    expect(findPlainText('버튼 2개. 누르면 작은 팔이 실제 가전 버튼을 눌러요'), findsOneWidget);
+    // 설명은 한 줄 하나(평가 7차 10/18).
+    expect(findPlainText(kManualHint), findsOneWidget);
     expect(find.text('켜기'), findsOneWidget);
     expect(find.text('끄기'), findsOneWidget);
     // 서버 가전 목록 조회의 완료가 남긴 0초 타이머를 비운다.

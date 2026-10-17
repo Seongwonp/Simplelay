@@ -228,6 +228,7 @@ class _ManualControlScreenState extends ConsumerState<ManualControlScreen> {
               child: _ButtonGrid(
                 appliance: appliance,
                 fill: hasPhoto,
+                cellHeight: manualCellHeight(MediaQuery.sizeOf(context).height, appliance.rows),
                 pendingButtonId: _pendingButtonId,
                 resultButtonId: _resultButtonId,
                 resultSuccess: _resultSuccess,
@@ -278,21 +279,21 @@ class _TargetHeader extends StatelessWidget {
                     ],
                   ],
                 ),
-                if (!appliance.isThinq) ...[
-                  const SizedBox(height: AppSpace.xs),
-                  Text(
-                    // 어절 단위 줄바꿈('가|전 버튼' 방지, 평가 5차 10/18).
-                    keepWordsTogether('버튼 ${appliance.buttons.length}개. 누르면 작은 팔이 실제 가전 버튼을 눌러요'),
-                    semanticsLabel: '버튼 ${appliance.buttons.length}개. 누르면 작은 팔이 실제 가전 버튼을 눌러요',
-                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
-                  ),
-                ],
+                // 설명은 아래 한 줄 하나(평가 7차 10/18: '버튼 N개. 누르면 작은 팔이…'와 '누를 버튼을 골라…'가 두 줄씩 겹쳤다).
               ],
             ),
           ),
         ],
       );
 }
+
+/// 직접 누르기 화면의 설명 한 줄 — 무엇을 하면 무엇이 되는지(평가 7차 10/18).
+const kManualHint = '버튼을 고르면 작은 팔이 하나씩 눌러요';
+
+/// 사진 없는 버튼판의 칸 높이 — 화면 높이를 줄 수로 나눠 키운다(평가 7차 10/18: 72 고정이라 아래 절반이 비었다).
+/// 72 아래로 줄이지 않고(고령 사용자 터치 목표), 136을 넘기지 않는다(큰 화면에서 버튼이 길쭉해지지 않게).
+double manualCellHeight(double screenHeight, int rows) =>
+    rows <= 0 ? 72 : ((screenHeight * 0.7) / rows - 8).clamp(72.0, 136.0);
 
 // ── 방금 누른 결과 ────────────────────────────────────────────────────────
 
@@ -367,9 +368,9 @@ class _FeedbackLine extends StatelessWidget {
         const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Text(
-            // 어절 단위 줄바꿈('눌|러요' 방지, 평가 5차 10/18).
-            keepWordsTogether('누를 버튼을 골라 주세요. 한 번에 하나씩 눌러요.'),
-            semanticsLabel: '누를 버튼을 골라 주세요. 한 번에 하나씩 눌러요.',
+            // 어절 단위 줄바꿈('눌|러요' 방지, 평가 5차 10/18). 이 화면의 설명은 이 한 줄뿐이다(평가 7차 10/18).
+            keepWordsTogether(kManualHint),
+            semanticsLabel: kManualHint,
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
         ),
@@ -514,12 +515,16 @@ class _ButtonGrid extends StatelessWidget {
     required this.resultSuccess,
     required this.onTap,
     this.onPhoto = false,
+    this.cellHeight = 72,
   });
 
   final ApplianceMap appliance;
 
-  /// 주어진 높이를 채운다(사진 위). 아니면 셀마다 고정 최소 높이.
+  /// 주어진 높이를 채운다(사진 위). 아니면 셀마다 최소 높이 [cellHeight].
   final bool fill;
+
+  /// 사진 없는 판의 칸 최소 높이([manualCellHeight]).
+  final double cellHeight;
   final String? pendingButtonId;
   final String? resultButtonId;
   final bool? resultSuccess;
@@ -551,6 +556,7 @@ class _ButtonGrid extends StatelessWidget {
                                     : _CellState.failure)
                                 : _CellState.idle,
                         onPhoto: onPhoto,
+                        minHeight: fill ? 72 : cellHeight,
                         onTap: onTap == null ? null : () => onTap!(btn),
                       ),
               ),
@@ -584,9 +590,11 @@ class _ButtonCell extends StatelessWidget {
     required this.state,
     required this.onTap,
     this.onPhoto = false,
+    this.minHeight = 72,
   });
 
   final ApplianceButton button;
+  final double minHeight;
   final _CellState state;
   final VoidCallback? onTap;
   final bool onPhoto;
@@ -641,7 +649,7 @@ class _ButtonCell extends StatelessWidget {
           duration: const Duration(milliseconds: 150),
           // 고령 사용자 기준 터치 목표. 48이 하한이지만 실제 가전 버튼을
           // 대신 누르는 자리라 더 넉넉히 잡는다.
-          constraints: const BoxConstraints(minHeight: 72),
+          constraints: BoxConstraints(minHeight: minHeight),
           decoration: BoxDecoration(
             color: state == _CellState.idle
                 ? idleFill

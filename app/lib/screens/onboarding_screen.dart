@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 import '../theme/app_text.dart';
 import '../theme/app_tokens.dart';
 
@@ -93,7 +94,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       const SizedBox(height: AppSpace.xl),
                       _FeatureRow(
-                        icon: Icons.do_not_disturb_on_outlined,
+                        icon: AppIcons.routine,
                         title: '내 루틴',
                         body: '자주 누르는 순서를 저장하고\n루틴 화면에서 실행해요.',
                       ),

@@ -346,12 +346,14 @@ void main() {
     final now = find.byKey(const Key('home-now'));
     expect(find.descendant(of: now, matching: findPlainText('공기 나쁨')), findsOneWidget);
     expect(find.descendant(of: now, matching: findPlainText('공기청정기 켜짐')), findsOneWidget);
-    expect(find.descendant(of: now, matching: find.text('22:00')), findsOneWidget);
+    // 오전/오후 표기(평가 7차 10/18) — 큰 '10:00' 위에 작은 '오후'.
+    expect(find.descendant(of: now, matching: find.text('10:00')), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.text('오후')), findsOneWidget);
     expect(find.descendant(of: now, matching: findPlainText('저녁 공기청정기 켜기')), findsOneWidget);
     expect(find.descendant(of: now, matching: findPlainText('자동으로 해요')), findsOneWidget);
     expect(find.descendant(of: now, matching: findPlainText('오늘', contains: true)), findsWidgets);
     // 큰 시각은 32 숫자 단계.
-    expect(tester.widget<Text>(find.descendant(of: now, matching: find.text('22:00'))).style?.fontSize, 32);
+    expect(tester.widget<Text>(find.descendant(of: now, matching: find.text('10:00'))).style?.fontSize, 32);
   });
 
   testWidgets('지금 우리 집: 모르는 것은 말하지 않는다 — 공기·전원·예정이 모두 없으면 칸이 없다', (tester) async {
@@ -363,7 +365,7 @@ void main() {
     expect(find.textContaining('공기 '), findsNothing);
   });
 
-  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 "꺼짐", 모르면 전원을 말하지 않고 할 일만', (tester) async {
+  testWidgets('LG 가전 타일: 읽은 꺼짐일 때만 "꺼져 있어요", 모르면 전원을 말하지 않고 할 일만', (tester) async {
     final hub = _Hub(appliances: [_thinq('air', '공기청정기'), _thinq('dh', '제습기')], routines: const [])
       ..power = [
         {'appliance_id': 'air', 'power': 'off', 'age_s': 3},
@@ -371,11 +373,11 @@ void main() {
     _tall(tester);
     await tester.pumpWidget(_home(hub));
     await _settle(tester);
-    expect(find.descendant(of: find.byKey(const Key('appliance-status-air')), matching: findPlainText('꺼짐')),
+    expect(find.descendant(of: find.byKey(const Key('appliance-status-air')), matching: findPlainText('꺼져 있어요')),
         findsOneWidget);
     expect(find.descendant(of: find.byKey(const Key('appliance-status-dh')), matching: findPlainText('준비됐어요')),
         findsOneWidget);
-    expect(find.descendant(of: find.byKey(const Key('appliance-card-dh')), matching: findPlainText('꺼짐')),
+    expect(find.descendant(of: find.byKey(const Key('appliance-card-dh')), matching: findPlainText('꺼져 있어요')),
         findsNothing);
   });
 
@@ -395,10 +397,10 @@ void main() {
     expect(find.descendant(of: attention, matching: find.byKey(const Key('setup-summary-card'))), findsOneWidget);
     final lastTile = find.byKey(const Key('appliance-card-w2'));
     expect(tester.getTopLeft(attention).dy, lessThan(tester.getTopLeft(lastTile).dy));
-    // 타일은 아이콘 점 — '설정이 필요해요' 글자는 확인 카드 한 곳(평가 3차 10/18).
+    // 타일은 아이콘 점 + 띠 문장 '설정이 필요해요'(평가 7차 10/18) — 무엇이 남았는지는 확인 카드 한 곳.
     expect(find.byKey(const Key('appliance-setup-dot-w2')), findsOneWidget);
     expect(find.descendant(of: lastTile, matching: find.text(keepWordsTogether('설정이 필요해요'))),
-        findsNothing);
+        findsOneWidget);
     // 준비된 가전은 할 일만 — '바로 쓸 수 있어요'로 단정하지 않는다.
     expect(find.descendant(of: find.byKey(const Key('appliance-status-mw')), matching: findPlainText('준비됐어요')),
         findsOneWidget);

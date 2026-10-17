@@ -6,6 +6,7 @@ import '../models/quiet_hours.dart';
 import '../providers/routine_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../theme/app_colors.dart';
+import '../theme/app_icons.dart';
 import '../theme/app_text.dart';
 import '../theme/app_tokens.dart';
 
@@ -56,7 +57,7 @@ class _DndSheet extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
               child: Row(
                 children: [
-                  Icon(Icons.do_not_disturb_on_outlined,
+                  Icon(AppIcons.pause,
                       color: context.appWarning, size: 22),
                   const SizedBox(width: AppSpace.md),
                   Flexible(child: Text('잠시 쉬기', style: AppText.title)),

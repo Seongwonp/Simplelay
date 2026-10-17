@@ -136,7 +136,7 @@ void main() {
         'readiness': 'operable',
       });
       final on = _tile(appliance: thinq, source: thinq, thinqOn: true);
-      expect(on.text, '켜짐');
+      expect(on.text, '켜져 있어요'); // 띠는 문장(평가 7차 10/18)
       expect(on.tone, TileTone.on);
       expect(_tile(appliance: thinq, source: thinq).text, '', reason: '모르면 말하지 않는다');
       // 물리 가전에는 붙이지 않는다(전원 기억은 ThinQ 클라우드 상태다).
@@ -158,7 +158,7 @@ void main() {
         'readiness': 'operable',
       });
       final off = _tile(appliance: thinq, source: thinq, thinqOff: true);
-      expect(off.text, '꺼짐');
+      expect(off.text, '꺼져 있어요');
       expect(off.tone, TileTone.off);
       expect(_tile(appliance: thinq, source: thinq).text, '');
       final physical = _server(const {'can_execute': true, 'readiness': 'operable'});

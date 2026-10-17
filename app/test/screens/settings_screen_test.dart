@@ -209,7 +209,7 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('내 가전: 지울 수 있는 줄은 ⋮ 메뉴 안에 지우기, 줄 끝 표시는 ⋮ 하나', (tester) async {
+    testWidgets('내 가전: 모든 줄 끝은 > 하나, 지우기는 줄에 없다(가전 상세 ⋮)', (tester) async {
       _useTallViewport(tester);
       final washer = ApplianceMap.fromJson({
         'id': 'custom_washer',
@@ -228,26 +228,17 @@ void main() {
       ));
       await tester.pump();
       final row = find.widgetWithText(ListTile, '세탁기');
-      // 휴지통을 행에 늘어놓지 않는다(2026-10-18 버튼 위계) — 지우기는 ⋮ 안, 확인을 한 번 더 받는다.
+      // 휴지통·⋮ 를 줄에 두지 않는다 — 줄 끝은 > 하나, 지우기는 가전 상세 화면 ⋮ 안(평가 7차 10/18).
       expect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)), findsNothing);
-      final menu = find.byKey(const Key('appliance-menu-custom_washer'));
-      expect(find.descendant(of: row, matching: menu), findsOneWidget);
-      // 줄 끝 표시는 하나 — ⋮ 가 있으면 > 를 함께 두지 않는다(평가 5차 10/18). 줄을 누르면 그대로 상세로 간다.
-      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsNothing);
-      // 홈과 같은 안내 — 버튼 자리를 맞추지 않은 가전은 '설정이 필요해요'(UI 평가 4차 10/17).
-      expect(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)), findsOneWidget);
+      expect(find.byKey(const Key('appliance-menu-custom_washer')), findsNothing);
+      expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
+      // 버튼 자리를 맞추지 않은 가전은 할 일만 짧게 한 줄(평가 7차 10/18).
+      final subFinder = find.descendant(of: row, matching: findPlainText('버튼 자리를 맞춰 주세요'));
+      expect(subFinder, findsOneWidget);
       // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17 10:13), 화면 읽기는 원문.
-      final sub = tester.widget<Text>(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)));
+      final sub = tester.widget<Text>(subFinder);
       expect(sub.data, contains(kWordJoiner));
-      expect(sub.semanticsLabel, '설정이 필요해요. 눌러서 버튼 자리를 맞춰 주세요');
-      await tester.tap(menu);
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('appliance-delete-custom_washer')));
-      await tester.pumpAndSettle();
-      expect(find.text("'세탁기' 삭제"), findsOneWidget);
-      await tester.tap(find.text('취소'));
-      await tester.pumpAndSettle();
-      expect(find.widgetWithText(ListTile, '세탁기'), findsOneWidget);
+      expect(sub.semanticsLabel, '버튼 자리를 맞춰 주세요');
     });
 
     testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {

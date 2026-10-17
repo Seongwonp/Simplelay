@@ -102,9 +102,9 @@ void main() {
     }
     expect(find.byKey(const Key('appliance-add-card')), findsOneWidget);
     // 숨기지 않되, 준비가 안 됐다는 사실은 말한다. 위치를 아직 맞추지 않은 사용자 가전은
-    // 타일에 아이콘 점 + 할 일 '설정 필요' — '설정이 필요해요' 글자는 확인 카드 한 곳(평가 3차 10/18).
+    // 타일에 아이콘 점 + 띠 문장 '설정이 필요해요'(평가 7차 10/18: 띠는 문장 하나로).
     // 타일 상태 줄은 낱말 중간 줄바꿈을 막는 결합 문자를 넣어 그린다(2026-10-14).
-    expect(find.text(keepWordsTogether('설정 필요')), findsNWidgets(5));
+    expect(find.text(keepWordsTogether('설정이 필요해요')), findsNWidgets(5));
     for (final a in kServerFive) {
       expect(find.byKey(Key('appliance-setup-dot-${a['id']}')), findsOneWidget);
     }

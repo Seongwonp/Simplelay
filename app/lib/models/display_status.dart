@@ -34,7 +34,7 @@ enum TileTone {
   /// 모른다·확인 중이다. 긍정도 부정도 하지 않는다.
   unknown,
 
-  /// 켜진 ThinQ 가전(서버 전원 기억이 켜짐, 2026-10-16) — 키오스크의 초록 '켜짐'과 같은 말.
+  /// 켜진 ThinQ 가전(서버 전원 기억이 켜짐, 2026-10-16) — 띠의 말은 '켜져 있어요'(평가 7차 10/18: 문장과 명사가 섞였다).
   on,
 
   /// 꺼진 ThinQ 가전 — 서버가 **읽은** 꺼짐일 때만(2026-10-18). 모르면 이 상태가 아니다.
@@ -166,8 +166,8 @@ TileStatus applianceTileStatus({
         return const TileStatus('지금 할 수 있는지 봐 주세요', TileTone.unknown);
       }
       // 켜진 ThinQ 가전만 말한다(서버가 최근 10분 안에 읽은 전원). 모르면 비운다 — 꺼짐이라 단정하지 않는다.
-      if (appliance.isThinq && thinqOn) return const TileStatus('켜짐', TileTone.on);
-      if (appliance.isThinq && thinqOff) return const TileStatus('꺼짐', TileTone.off);
+      if (appliance.isThinq && thinqOn) return const TileStatus('켜져 있어요', TileTone.on);
+      if (appliance.isThinq && thinqOff) return const TileStatus('꺼져 있어요', TileTone.off);
       return const TileStatus('', TileTone.ready);
     case 'needs_setup':
       // 서버는 비상정지 걸림·링크 확인 대기도 needs_setup으로 보낸다 —
@@ -269,6 +269,20 @@ String historySource(RpiHistoryEntry e) {
   if (purpose.startsWith(_autoPrefix)) return '자동';
   if (_routineTitle.hasMatch(historyStatement(purpose))) return '루틴';
   return '직접';
+}
+
+/// 시각 줄에 쓰는 출처 말 — 루틴이면 **어떻게 시작했는지**까지(평가 7차 10/18: '22:04 · 루틴'만으로는 '아침' 루틴이
+/// 밤에 저절로 돈 것처럼 읽혔다).
+///
+/// 서버 기록(`/history`)에는 '지금 하기'와 '정해진 시각에 물어본 카드를 허락'을 가르는 필드가 없다 — 둘 다 목적
+/// 문장이 `'이름' 루틴`이다. 가를 수 있는 것은 묻지 않고 한 자동 실행(`자동 실행 · '이름' 루틴`)뿐이라, 그 밖의
+/// 루틴 기록은 '사람이 허락하고 실행했다'까지만 말한다(지어내지 않는다).
+String historySourceLabel(RpiHistoryEntry e) {
+  final source = historySource(e);
+  final purpose = e.purpose?.trim() ?? '';
+  final routine = purpose.isEmpty ? null : _purposeParts(purpose).routine;
+  if (routine == null) return source;
+  return source == '자동' ? '루틴 · 자동으로' : '루틴 · 허락하고 실행';
 }
 
 /// 목적 문장에서 출처 머리('자동 실행 · ')를 떼고, 루틴이면 그 이름을 돌려준다.

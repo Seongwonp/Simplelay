@@ -6,6 +6,7 @@ import '../models/appliance.dart';
 import '../models/command_result.dart';
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
+import '../providers/appliance_sync_provider.dart';
 import '../providers/clock_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../providers/routine_provider.dart';
@@ -18,6 +19,7 @@ import '../theme/app_text.dart';
 import '../widgets/appliance_panel.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/route_badge.dart';
+import '../widgets/row_menu.dart';
 import '../widgets/thinq_state_card.dart';
 import 'history_screen.dart' show historyProvider;
 
@@ -64,6 +66,24 @@ class ApplianceDetailScreen extends ConsumerWidget {
             ],
           ],
         ),
+        // 지우기는 이 화면 위 ⋮ 한 곳(평가 7차 10/18) — 설정의 가전 줄은 모두 > 하나라 줄마다 ⋮와 >가 섞이지 않는다.
+        // 지울 수 있는 것은 사용자가 등록한 가전만(LG 가전은 LG 앱에서 관리).
+        actions: [
+          if (a.isCustom && !a.isThinq)
+            RowMenu(
+              menuKey: Key('appliance-menu-${a.id}'),
+              semanticLabel: '${a.name} 더 보기',
+              items: [
+                RowMenuItem(
+                  key: Key('appliance-delete-${a.id}'),
+                  label: '지우기',
+                  icon: Icons.delete_outline,
+                  danger: true,
+                  onSelected: () => _confirmRemove(context, ref, a),
+                ),
+              ],
+            ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.xs, AppSpace.xl, AppSpace.xxxl),
@@ -158,6 +178,45 @@ class ApplianceDetailScreen extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  /// 가전 지우기 — 확인을 한 번 더 받는다(설정의 가전 줄에서 옮김, 평가 7차 10/18).
+  static Future<void> _confirmRemove(BuildContext context, WidgetRef ref, ApplianceMap appliance) async {
+    // async gap 전에 캡처 — 다이얼로그가 닫힌 뒤의 context 사용을 피한다
+    final messenger = ScaffoldMessenger.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text("'${appliance.name}' 삭제"),
+        content: const Text('등록한 버튼 배치와 사진이 함께 삭제돼요. 삭제할까요?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('취소'),
+          ),
+          FilledButton(
+            // 전경색을 명시하지 않으면 라이트 모드에서 흰 글자(3.63:1)가 된다
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.danger,
+              foregroundColor: AppColors.onAccent,
+            ),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    // 폰 삭제는 무조건 성립하고(사용자가 지시한 일이다), 서버 전송이 실패하면 그 사실이 삭제 대기열에 남아
+    // 다음 동기화가 다시 보낸다(R3).
+    final result = await ref.read(applianceSyncProvider.notifier).deleteAppliance(appliance.id);
+    if (result.failed > 0) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('폰에서는 지웠어요. 본체에는 다음에 맞출 때 다시 시도할게요.')),
+      );
+    }
+    // 지운 가전의 상세에 머물지 않는다.
+    if (context.mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
   }
 
   /// 녹화 → 편집기. 녹화 화면은 순서(버튼 id)만 돌려주고, 저장은 편집기에서.

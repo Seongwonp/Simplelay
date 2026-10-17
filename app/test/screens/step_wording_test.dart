@@ -56,7 +56,7 @@ void main() {
   // 평가 5차 10/18: 단위는 '누를 버튼 N개'(누를 버튼 합 — '버튼 N번'은 한 버튼을 N번 누르는 말로 읽혔다).
   test('루틴 부제의 "누를 버튼 N개"는 누를 버튼 수이고 화면에서 숫자와 단위가 붙어 다닌다', () {
     final s = routineSubtitle(_routine, const {'microwave': '전자레인지'});
-    expect(s, '평일 07:30 · 전자레인지 · 누를 버튼 2개');
+    expect(s, '평일 오전 7:30 · 전자레인지 · 누를 버튼 2개'); // 오전/오후 표기(평가 7차 10/18)
     _expectNeverSplit(keepWordsTogether(s), '개');
   });
 

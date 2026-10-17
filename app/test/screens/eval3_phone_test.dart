@@ -189,15 +189,17 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('홈 — 설정 안내는 확인 카드 한 곳', () {
-    testWidgets('타일·루틴 타일에는 "설정이 필요해요" 글자가 없고, 타일은 아이콘 점 + 접근성 이름', (tester) async {
+    testWidgets('루틴 타일에는 "설정이 필요해요" 글자가 없고, 가전 타일은 아이콘 점 + 띠 문장 + 접근성 이름', (tester) async {
       final handle = tester.ensureSemantics();
       _tall(tester);
       await tester.pumpWidget(_app(_hub(), const HomeScreen(), installed: _installed));
       await _settle(tester);
 
       expect(find.byKey(const Key('home-attention')), findsOneWidget);
-      // 화면 글자로는 어디에도 없다 — 확인 카드가 '세탁기, 설정이 N개 남았어요'로 한 번 말한다.
-      expect(findPlainText('설정이 필요해요', contains: true), findsNothing);
+      // 가전 타일 띠 한 곳에만(평가 7차 10/18: 띠는 문장 '설정이 필요해요') — 무엇이 남았는지는 확인 카드가 한 번 말한다.
+      expect(findPlainText('설정이 필요해요', contains: true), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const Key('appliance-band-washer')), matching: findPlainText('설정이 필요해요')),
+          findsOneWidget);
       final dot = find.byKey(const Key('appliance-setup-dot-washer'));
       expect(dot, findsOneWidget);
       expect(find.descendant(of: dot, matching: find.byType(Icon), matchRoot: true), findsOneWidget,
@@ -214,7 +216,7 @@ void main() {
       await tester.pumpWidget(_app(_hub(), const HomeScreen(), installed: _installed));
       await _settle(tester);
 
-      for (final (id, text) in [('mw', '준비됐어요'), ('mw2', '준비됐어요'), ('washer', '설정 필요')]) {
+      for (final (id, text) in [('mw', '준비됐어요'), ('mw2', '준비됐어요'), ('washer', '설정이 필요해요')]) {
         final line = find.byKey(Key('appliance-status-$id'));
         expect(line, findsOneWidget, reason: id);
         expect(find.descendant(of: line, matching: findPlainText(text)), findsOneWidget, reason: id);

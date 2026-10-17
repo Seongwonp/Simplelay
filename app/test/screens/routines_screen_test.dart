@@ -286,8 +286,9 @@ void main() {
     expect(find.descendant(of: find.byKey(const Key('routine-row-rt-1')), matching: find.byKey(const Key('routine-next-badge-rt-1'))),
         findsOneWidget);
     expect(findPlainText('아침 데우기'), findsOneWidget);
-    // 언제 · 대상 · 크기('누를 버튼 N개')를 한 줄로. 시각은 줄 왼쪽 큰 시각이 말한다(시간축, 평가 5차 10/18).
-    expect(findPlainText('평일 · 전자레인지 · 누를 버튼 3개'), findsOneWidget);
+    // 대상 · 크기('누를 버튼 N개')를 한 줄로. 언제는 이름 위 작은 줄 '평일 오전 7:30'(평가 7차 10/18).
+    expect(findPlainText('평일 오전 7:30'), findsOneWidget);
+    expect(findPlainText('전자레인지 · 누를 버튼 3개'), findsOneWidget);
     expect(find.textContaining('승인 후 실행 ·'), findsNothing);
     expect(find.text('새 루틴'), findsOneWidget);
   });
@@ -618,9 +619,9 @@ void main() {
     expect(runButton('rt-off'), findsNothing);
     expect(menuButton('rt-n'), findsOneWidget);
     // 알림만은 부제에 적지 않고 '알려 드려요' 배지가 말한다(평가 4차 10/18).
-    expect(findPlainText('평일 · 전자레인지 · 누를 버튼 3개'), findsOneWidget);
+    expect(findPlainText('전자레인지 · 누를 버튼 3개'), findsOneWidget);
     expect(findPlainText('알려 드려요'), findsOneWidget);
-    expect(findPlainText('평일 · 전자레인지 · 누를 버튼 3개 · 꺼짐'), findsOneWidget);
+    expect(findPlainText('전자레인지 · 누를 버튼 3개 · 꺼짐'), findsOneWidget);
   });
 
   testWidgets('알려진 가전 알림은 "세탁이 끝나면"으로, 이름은 사용자 것 그대로', (tester) async {

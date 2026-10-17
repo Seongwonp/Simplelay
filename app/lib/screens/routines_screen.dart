@@ -336,17 +336,11 @@ class _CandidateCard extends StatelessWidget {
 /// 루틴 한 줄의 부제 — 조건 한 줄(알려진 가전 알림은 사람 말로) · 무엇을 · 꺼짐.
 /// '승인 후 실행'은 줄마다 되풀이하지 않는다(실행하기가 승인 카드로 간다).
 ///
-/// [withClock]이 false면 '매일 22:00'에서 시각을 뺀다 — 시간축 목록은 줄 왼쪽에 큰 시각이 따로 있다.
+/// 시각은 오전/오후 꼴('매일 오후 10:00', 평가 7차 10/18). [withClock]이 false면 정해진 시각 루틴의 '언제'를 통째로
+/// 뺀다 — 루틴 목록은 이름 위 칩([routineWhenLabel])이 '매일 오전 7:00'을 따로 말한다.
 String routineSubtitle(Routine r, Map<String, String> applianceNames, {bool withClock = true}) {
-  var when = (r.trigger.kind == RoutineTriggerKind.event
-          ? knownEventLabel(r.trigger.event)
-          : null) ??
-      r.when ??
-      r.trigger.describe(applianceNames: applianceNames);
-  if (!withClock) {
-    final clock = routineClock(r);
-    if (clock != null) when = when.replaceAll(clock, '').replaceAll(RegExp(r'\s+'), ' ').trim();
-  }
+  var when = withAmPm(_routineWhen(r, applianceNames));
+  if (!withClock && routineClock(r) != null) when = '';
   return [
     // 직접 실행 루틴은 '언제'를 적지 않는다 — "직접 실행할 때"는 모든 루틴이 그렇다(2026-10-14 UX).
     // 서버 `when` 문장으로 가른다(목록의 루틴은 trigger 없이 when만 올 수 있다).
@@ -355,6 +349,19 @@ String routineSubtitle(Routine r, Map<String, String> applianceNames, {bool with
     // 알림만 루틴은 부제에 '알림만'을 적지 않는다 — 줄 오른쪽 '알려 드려요' 배지와 종 아이콘이 말한다(평가 4차 10/18).
     if (!r.enabled) '꺼짐',
   ].join(' · ');
+}
+
+String _routineWhen(Routine r, Map<String, String> applianceNames) =>
+    (r.trigger.kind == RoutineTriggerKind.event ? knownEventLabel(r.trigger.event) : null) ??
+    r.when ??
+    r.trigger.describe(applianceNames: applianceNames);
+
+/// 정해진 시각 루틴의 '언제' 칩 — '매일 오전 7:00'. 시각이 없는 루틴은 null.
+String? routineWhenLabel(Routine r, Map<String, String> applianceNames) {
+  final clock = routineClock(r);
+  if (clock == null) return null;
+  final when = _routineWhen(r, applianceNames);
+  return withAmPm(when.contains(clock) ? when : clock);
 }
 
 /// 루틴이 하는 일 — 누르는 가전과 '누를 버튼 N개', LG 가전은 결과 말('공기청정기 켜기').
@@ -424,6 +431,21 @@ List<(String, IconData, String, List<Routine>)> _routineGroups(List<Routine> rou
     if (other.isNotEmpty) ('event', AppIcons.notify, '이럴 때', other),
   ];
 }
+
+/// 'HH:MM'(24시) → '오전 7:00'·'오후 10:00'(평가 7차 10/18). 루틴 목록 시각 줄·홈 다음 예정·
+/// 홈 루틴 줄이 같은 꼴(루틴 편집 화면의 '언제'는 아직 본체 문장 그대로). 모르는 꼴은 그대로 둔다.
+String ampmClock(String hhmm) {
+  final m = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(hhmm.trim());
+  if (m == null) return hhmm;
+  final h = int.parse(m[1]!);
+  if (h > 23) return hhmm;
+  final h12 = h % 12 == 0 ? 12 : h % 12;
+  return '${h < 12 ? '오전' : '오후'} $h12:${m[2]}';
+}
+
+/// 서버 '언제' 문장 안의 'HH:MM'을 [ampmClock] 꼴로('매일 22:00' → '매일 오후 10:00').
+String withAmPm(String text) =>
+    text.replaceAllMapped(RegExp(r'(?<![\d:])(\d{1,2}:\d{2})(?![\d:])'), (m) => ampmClock(m[1]!));
 
 /// 정해진 시각 루틴의 'HH:MM'. 시각이 없는 루틴은 null.
 String? routineClock(Routine r) {
@@ -551,39 +573,41 @@ class _RoutineRow extends StatelessWidget {
         : KeyedSubtree(
             key: Key('routine-next-badge-$key'),
             child: n.quietSkip
-                ? StatusBadge(icon: Icons.bedtime_outlined, label: n.modeText)
+                ? StatusBadge(icon: AppIcons.quietHours, label: n.modeText)
                 : const StatusBadge(icon: AppIcons.schedule, label: '다음'),
           );
     final notify = !r.isTemplate && r.mode == RoutineMode.notify && r.enabled;
-    final clockText = clock == null
+    // 시각은 이름 위 작은 보조 줄 '매일 오전 7:00'(평가 7차 10/18: 큰 07:00이 이름보다 커서 위계가 뒤집혀 보였다).
+    // 이름이 줄의 주인공이고, 묶음 머리('정해진 시각')와 이른 순 정렬이 시간축을 말한다.
+    final whenLabel = clock == null ? null : routineWhenLabel(r, applianceNames);
+    final clockText = whenLabel == null
         ? null
         : Text(
-            clock,
+            keepPhrasesTogether(whenLabel, wholeParts: !big),
             key: Key('routine-clock-$key'),
+            semanticsLabel: whenLabel,
             style: TextStyle(
-              fontSize: AppFont.tabTitle,
-              fontWeight: FontWeight.w700,
-              height: 1.1,
+              fontSize: AppFont.caption,
+              fontWeight: FontWeight.w600,
               fontFeatures: const [FontFeature.tabularFigures()],
-              color: r.enabled ? context.appInk : context.appMuted,
+              color: context.appMuted,
             ),
           );
     final nameText =
         Text(keepWordsTogether(r.name), semanticsLabel: r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700));
-    // 줄 오른쪽 표시([trailing])는 **첫 줄**(시각, 시각이 없으면 이름) 옆에만 — 그 아래 이름·부제는 단추 밑까지 넓게 쓴다
-    // (단추가 줄 전체 옆에 서면 이름 칸이 좁아져 '아침 공기청정기 / 끄기'처럼 꺾였다).
+    // 줄 오른쪽 표시([trailing])는 모든 줄에서 **이름 줄** 옆 같은 자리(평가 7차 10/18: 시각 줄은 큰 시각 옆, 필요할 때
+    // 줄은 이름 옆이라 줄마다 달랐다). 그 아래 부제는 단추 밑까지 넓게 쓴다.
     Widget textWith(Widget? trailing) => Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (trailing == null) ...[
-          if (clockText != null) clockText,
-          nameText,
-        ] else
+        if (clockText != null) clockText,
+        if (trailing == null)
+          nameText
+        else
           Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Expanded(child: clockText ?? nameText),
+            Expanded(child: nameText),
             trailing,
           ]),
-        if (trailing != null && clockText != null) nameText,
         if (r.isTemplate && (r.description ?? '').isNotEmpty)
           Text(keepWordsTogether(r.description!),
               semanticsLabel: r.description,
@@ -868,7 +892,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
         ? const StatusBadge(icon: AppIcons.auto, label: '자동으로 해요', tone: BadgeTone.accent)
         : StatusBadge(
             key: Key('auto-rule-off-${r.id}'),
-            icon: Icons.pause_circle_outline,
+            icon: AppIcons.off,
             label: offLabel.isEmpty ? '지금은 안 해요' : keepWordsTogether(offLabel));
     return Padding(
       key: Key('auto-rule-${r.id}'),

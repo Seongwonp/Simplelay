@@ -25,11 +25,11 @@ class _ApplianceSection extends ConsumerWidget {
           ListTile(
             leading: Icon(appliance.icon),
             title: Text(appliance.displayName),
-            // 버튼 자리를 맞추지 않은 가전은 홈과 같은 안내(UI 평가 4차 10/17 — 홈에만 '설정이 필요해요'가 있었다).
+            // 버튼 자리를 맞추지 않은 가전은 할 일만 짧게 한 줄(평가 7차 10/18: 주황 두 줄 + ⋮라 눌러도 되는지 헷갈렸다).
             subtitle: appliance.isCustom && !appliance.isThinq
                 ? (needsPanelMapping(appliance)
                     // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17).
-                    ? _WordsText('설정이 필요해요. 눌러서 버튼 자리를 맞춰 주세요',
+                    ? _WordsText('버튼 자리를 맞춰 주세요',
                         style: TextStyle(fontSize: AppFont.caption, color: context.appWarning))
                     : null)
                 // 평가 4차 10/18: '처음부터 들어 있는 가전이에요'·'빼기는 LG 가전 연결에서 해요'는 앱이 어떻게 만들어졌는지를
@@ -39,25 +39,9 @@ class _ApplianceSection extends ConsumerWidget {
                         style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))
                     : null,
             onTap: () => context.push('/appliance/detail/${appliance.id}'),
-            // 지울 수 있는 줄도 눌러 들어간다는 것은 화살표로(UI 평가 3차 10/17 — 휴지통만 있으면 눌러지는 줄과 섞였다).
-            // 지우기는 행에 늘어놓지 않고 ⋮ 안(2026-10-18 버튼 위계). 확인 대화는 그대로.
-            // 줄 끝 표시는 하나만(평가 5차 10/18: ⋮와 > 가 한 줄에 같이 있었다). 지울 수 있는 줄은 ⋮(줄을 누르면
-            // 그대로 상세로 간다), 지울 수 없는 줄은 >.
-            trailing: appliance.isCustom && !appliance.isThinq
-                ? RowMenu(
-                    menuKey: Key('appliance-menu-${appliance.id}'),
-                    semanticLabel: '${appliance.name} 더 보기',
-                    items: [
-                      RowMenuItem(
-                        key: Key('appliance-delete-${appliance.id}'),
-                        label: '지우기',
-                        icon: Icons.delete_outline,
-                        danger: true,
-                        onSelected: () => _confirmRemoveAppliance(context, ref, appliance),
-                      ),
-                    ],
-                  )
-                : Icon(Icons.chevron_right, color: context.appMuted),
+            // 줄 끝 표시는 하나, 모든 줄이 같은 >(평가 5차·7차 10/18) — 줄 전체가 눌려 상세로 간다는 뜻.
+            // 지우기는 줄에 두지 않고 가전 상세 화면 위 ⋮ 한 곳(확인 대화는 그대로).
+            trailing: Icon(Icons.chevron_right, color: context.appMuted),
           ),
         // 아직 키오스크에 못 보낸 변경이 있으면 **여기서 먼저 말한다.**
         // 평상시에는 아무것도 띄우지 않는다 -- 늘 떠 있는 상태 표시는
@@ -121,54 +105,6 @@ class _ApplianceSection extends ConsumerWidget {
       return '바꾼 것 ${r.failed}건을 보내지 못했어요. 연결을 보고 다시 해 주세요.';
     }
     return '본체 목록을 불러오지 못했어요. 연결을 보고 다시 해 주세요.';
-  }
-
-  Future<void> _confirmRemoveAppliance(
-    BuildContext context,
-    WidgetRef ref,
-    ApplianceMap appliance,
-  ) async {
-    // async gap 전에 캡처 — 다이얼로그가 닫힌 뒤의 context 사용을 피한다
-    final messenger = ScaffoldMessenger.of(context);
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: Text('\'${appliance.name}\' 삭제'),
-        content: const Text('등록한 버튼 배치와 사진이 함께 삭제돼요. 삭제할까요?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            // 전경색을 명시하지 않으면 라이트 모드에서 흰 글자(3.63:1)가 된다
-            style: FilledButton.styleFrom(
-              backgroundColor: AppColors.danger,
-              foregroundColor: AppColors.onAccent,
-            ),
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) {
-      // 폰 삭제는 무조건 성립하고(사용자가 지시한 일이다), 서버 전송이
-      // 실패하면 그 사실이 삭제 대기열에 남아 다음 동기화가 다시 보낸다.
-      // 예전에는 실패를 스낵바로만 알리고 잊어서, 복구가 "서버에만 있는
-      // 건 다 지운다"는 위험한 방식에 얹혀 있었다 (R3).
-      final result = await ref
-          .read(applianceSyncProvider.notifier)
-          .deleteAppliance(appliance.id);
-      if (result.failed > 0) {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('폰에서는 지웠어요. 본체에는 다음에 맞출 때 '
-                '다시 시도할게요.'),
-          ),
-        );
-      }
-    }
   }
 }
 

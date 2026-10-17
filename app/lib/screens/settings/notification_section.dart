@@ -26,8 +26,8 @@ class _DndTile extends ConsumerWidget {
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(active
-            ? Icons.do_not_disturb_on
-            : Icons.do_not_disturb_on_outlined),
+            ? AppIcons.pauseActive
+            : AppIcons.pause),
         title: const Text('잠시 쉬기'),
         // 어절 단위 줄바꿈·14pt(UI 평가 3차 10/17 — '쉬 / 어요'로 끊기고 12pt는 작았다).
         subtitle: _WordsText(
@@ -115,8 +115,8 @@ class _QuietHoursTileState extends ConsumerState<_QuietHoursTile> {
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(s?.active == true && s?.reason == 'schedule'
-            ? Icons.bedtime
-            : Icons.bedtime_outlined),
+            ? AppIcons.quietHoursActive
+            : AppIcons.quietHours),
         title: const Text('조용한 시간'),
         subtitle: s == null
             ? Text(connected ? '설정을 불러오지 못했어요.' : '본체와 연결되면 설정할 수 있어요.', style: muted)

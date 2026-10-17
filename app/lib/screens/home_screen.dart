@@ -14,7 +14,7 @@ import '../providers/appliance_provider.dart';
 import '../providers/routine_provider.dart';
 import '../widgets/routine_icon.dart';
 import '../widgets/routine_run.dart';
-import 'routines_screen.dart' show routineSubtitle;
+import 'routines_screen.dart' show ampmClock, routineSubtitle, withAmPm;
 import '../providers/ble_provider.dart';
 import '../providers/care_events_provider.dart';
 import '../providers/estop_provider.dart';
@@ -417,27 +417,44 @@ class _NextUp extends StatelessWidget {
     final n = next;
     // 큰 시각 바로 옆이라 '매일 22:00'의 시각은 되풀이하지 않는다(평가 6차 10/18) — 큰 시각과 **같을 때만** 뺀다
     // (다르면 시간대가 어긋난 것이라 그대로 둔다, 2차 평가 10/18).
-    final repeat = n.when.contains(n.clock) ? n.when.replaceAll(n.clock, '').trim() : n.when;
+    final repeat = withAmPm(n.when.contains(n.clock) ? n.when.replaceAll(n.clock, '').trim() : n.when);
     final when = [
       if (n.dayLabel.isNotEmpty) n.dayLabel,
       if (repeat.isNotEmpty) repeat,
     ].join(' · ');
     // 루틴 탭 다음 실행 줄과 같은 말(평가 4차 10/18: 여기는 '자동', 루틴 탭은 '자동 실행'이었다).
     final badge = n.quietSkip
-        ? StatusBadge(icon: Icons.bedtime_outlined, label: n.modeText)
+        ? StatusBadge(icon: AppIcons.quietHours, label: n.modeText)
         : n.auto
             ? StatusBadge(icon: AppIcons.auto, label: n.modeText, tone: BadgeTone.accent)
             : n.mode == RoutineMode.notify.value || n.modeLabel == RoutineMode.notify.label
                 ? StatusBadge(icon: AppIcons.notify, label: n.modeText)
                 : const StatusBadge(icon: Icons.front_hand_outlined, label: '물어보고 해요');
-    final clock = Text(
-      n.clock,
-      style: TextStyle(
-        fontSize: AppFont.number,
-        fontWeight: FontWeight.w700,
-        height: 1.1,
-        fontFeatures: const [FontFeature.tabularFigures()],
-        color: context.appInk,
+    // 오전/오후 표기(평가 7차 10/18) — 루틴 목록의 '매일 오전 7:00'과 같은 꼴. 큰 숫자는 '7:00', 그 위에 작은 '오전'.
+    final ampm = ampmClock(n.clock);
+    final split = ampm.indexOf(' ');
+    final clock = Semantics(
+      label: ampm,
+      excludeSemantics: true,
+      child: Column(
+        key: const Key('home-next-clock'),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (split > 0)
+            Text(ampm.substring(0, split),
+                style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appMuted)),
+          Text(
+            split > 0 ? ampm.substring(split + 1) : ampm,
+            style: TextStyle(
+              fontSize: AppFont.number,
+              fontWeight: FontWeight.w700,
+              height: 1.1,
+              fontFeatures: const [FontFeature.tabularFigures()],
+              color: context.appInk,
+            ),
+          ),
+        ],
       ),
     );
     final info = Column(
@@ -1165,10 +1182,11 @@ class _ApplianceCard extends ConsumerWidget {
     final total = run.totalSteps ?? run.steps.length;
     final done = run.completedSteps;
     final setup = s.text == kSetupNeededText;
-    // 띠의 짧은 말. 평소(실행 가능)는 '준비됐어요' — 서버가 실행 요청을 받아 준다는 뜻이고, 눌림을 확인했다는 말이
-    // 아니라 회색이다. 위치를 맞추지 않은 가전은 '설정 필요'(긴 안내는 '확인이 필요해요' 카드 한 곳).
+    // 띠의 짧은 말 — 모두 문장(평가 7차 10/18: '준비됐어요'와 '켜짐'·'설정 필요'가 섞였다. 키오스크와 같은 말투).
+    // 평소(실행 가능)는 '준비됐어요' — 서버가 실행 요청을 받아 준다는 뜻이고, 눌림을 확인했다는 말이 아니라 회색이다.
+    // 위치를 맞추지 않은 가전은 '설정이 필요해요'(무엇이 남았는지는 '확인이 필요해요' 카드 한 곳).
     final line = setup
-        ? '설정 필요'
+        ? kSetupNeededText
         : s.text.isEmpty
             ? '준비됐어요'
             : s.text;
@@ -1268,10 +1286,11 @@ class _ApplianceCard extends ConsumerWidget {
                 ),
               ),
               // ── 상태 띠(맨 아래 — 같은 줄 두 칸은 높이를 맞추고 띠를 바닥에 붙인다) ──
+              // 띠 안쪽 좌우는 8 — 412dp 두 칸에서 문장 '설정이 필요해요'가 한 줄에 들어가게(평가 7차 10/18).
               Container(
                 key: Key('appliance-band-${a.id}'),
                 color: color.withValues(alpha: tinted ? 0.14 : 0.08),
-                padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: AppSpace.xs),
+                padding: const EdgeInsets.symmetric(horizontal: AppSpace.sm, vertical: AppSpace.xs),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
@@ -1283,7 +1302,7 @@ class _ApplianceCard extends ConsumerWidget {
                             key: setup ? Key('appliance-setup-dot-${a.id}') : null,
                             size: 20,
                             color: color),
-                        const SizedBox(width: AppSpace.sm),
+                        const SizedBox(width: AppSpace.xs + 2),
                         Flexible(
                           child: Text(
                             // "연결을 확인해 주 / 세요"처럼 낱말 중간에서 꺾이지 않게(2026-10-14 발견 7).
@@ -1570,7 +1589,7 @@ class _DndBanner extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.do_not_disturb_on, color: context.appWarning, size: 18),
+            Icon(AppIcons.pauseActive, color: context.appWarning, size: 18),
             const SizedBox(width: AppSpace.md),
             Expanded(
               child: Text(

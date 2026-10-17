@@ -185,9 +185,9 @@ void main() {
     });
     await tester.pumpWidget(_home(api));
     await _settle(tester);
-    // 설정이 남았다는 말은 확인 카드 한 곳 — 타일은 아이콘 점과 할 일(평가 3차 10/18).
+    // 타일은 아이콘 점과 띠 문장(평가 7차 10/18).
     expect(find.byKey(const Key('appliance-setup-dot-w')), findsOneWidget);
-    expect(_inTile('w', '설정 필요'), findsOneWidget);
+    expect(_inTile('w', '설정이 필요해요'), findsOneWidget);
     expect(_inTile('w', '연습으로만 자리 확인했어요'), findsNothing);
     expect(_inTile('w', '자리 확인을 했는지 몰라요'), findsNothing);
   });
