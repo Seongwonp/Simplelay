@@ -57,7 +57,7 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
       path: '/splash',
       builder: (_, __) => const SplashScreen(),
     ),
-    // 탭 순서: 홈 · 루틴 · 기록 · 설정 (+ 개발자 모드일 때만 개발자).
+    // 탭 순서: 홈 · 루틴 · 기록 · 설정(네 개 고정).
     // 2026-09-30 UI 확정 §2. 실행 상태·음성은 탭이 아니라 홈 위에 얹는
     // 화면이다 -- `context.go('/status')`는 그대로 쓰이고, 탭바는 남는다.
     StatefulShellRoute.indexedStack(
@@ -102,16 +102,10 @@ GoRouter buildAppRouter({String initialLocation = '/splash'}) => GoRouter(
             ),
           ],
         ),
-        StatefulShellBranch(
-          routes: [
-            GoRoute(
-              path: '/dev',
-              builder: (_, __) => const DeveloperTabScreen(),
-            ),
-          ],
-        ),
       ],
     ),
+    // 개발자 도구 — 탭이 아니라 설정 맨 아래 항목(개발 모드일 때만 보인다, 2026-10-18).
+    GoRoute(path: '/dev', builder: (_, __) => const DeveloperTabScreen()),
     GoRoute(path: '/status', builder: (_, __) => const StatusScreen()),
     GoRoute(
       path: '/onboarding',

@@ -1,5 +1,5 @@
-// 하단 탭 shell — 홈 · 루틴 · 기록 · 설정, 개발자 모드일 때만 다섯 번째 '개발자'
-// (UI 확정 §2, 2026-09-30).
+// 하단 탭 shell — 홈 · 루틴 · 기록 · 설정 네 개(UI 개편안 §4, 2026-10-18).
+// 개발자 도구는 탭이 아니라 설정 맨 아래 항목(개발 모드일 때만)이다.
 //
 // 이 shell은 두 가지를 더 책임진다.
 // 1. "지금 보이는 탭"을 알린다 -- 음성 화면처럼 가려지면 마이크를 놓아야 하는
@@ -106,19 +106,13 @@ void main() {
     expect(find.bySemanticsLabel('말로 하기'), findsNothing);
   });
 
-  testWidgets('서버 개발자 모드면 설정 옆에 다섯 번째 탭 "개발자"가 생긴다',
-      (tester) async {
-    final container = await _pump(tester, developerMode: true);
+  testWidgets('서버 개발자 모드여도 탭은 네 개 — 개발자는 설정 안 맨 아래 항목', (tester) async {
+    await _pump(tester, developerMode: true);
 
-    expect(find.text('개발자'), findsOneWidget);
-    // 설정 오른쪽에 있다.
-    expect(tester.getCenter(find.text('개발자')).dx,
-        greaterThan(tester.getCenter(find.text('설정')).dx));
-
-    await tester.tap(find.text('개발자'));
-    await tester.pumpAndSettle();
-    expect(find.text('dev-body'), findsOneWidget);
-    expect(container.read(currentTabIndexProvider), developerTabIndex);
+    for (final label in ['홈', '루틴', '기록', '설정']) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('개발자'), findsNothing);
   });
 
   testWidgets('탭을 옮기면 currentTabIndexProvider가 따라간다', (tester) async {

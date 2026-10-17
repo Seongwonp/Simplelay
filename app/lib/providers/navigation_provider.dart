@@ -17,8 +17,7 @@ const int routinesTabIndex = 1;
 const int historyTabIndex = 2;
 const int settingsTabIndex = 3;
 
-/// 서버 개발자 모드일 때만 보이는 다섯 번째 탭.
-const int developerTabIndex = 4;
+// 개발자 도구는 탭이 아니다(2026-10-18) — 설정 맨 아래 항목에서 '/dev'로 연다.
 
 /// 음성 화면이 사는 탭. 2026-09-30 개편으로 음성은 탭이 아니라 **홈 위에
 /// 얹는 화면**(`/voice`)이 됐다 -- 다른 탭으로 가면 마이크를 놓는다.

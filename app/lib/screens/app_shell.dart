@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../models/execution_status.dart';
 import '../providers/care_events_provider.dart';
 import '../providers/execution_status_provider.dart';
-import '../providers/hub_provider.dart';
 import '../providers/navigation_provider.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_icons.dart';
@@ -16,9 +15,9 @@ import '../theme/app_tokens.dart';
 
 /// 하단 탭 shell — **홈 · 루틴 · 기록 · 설정**(UI 확정 §2).
 ///
-/// 서버 `/status.developer_mode`가 참일 때만 다섯 번째 탭 '개발자'가 설정
-/// 옆에 생긴다. 꺼져 있으면 탭 자체가 없다 -- 시연 날 제품 화면에 데모
-/// 흔적이 남지 않게 한다.
+/// 탭은 늘 네 개다(UI 개편안 §4, 2026-10-18). 개발자 도구는 탭이 아니라 설정
+/// 맨 아래 항목이고, 서버 `/status.developer_mode`가 참일 때만 보인다 -- 시연 날
+/// 제품 화면에 데모 흔적이 남지 않게 한다.
 ///
 /// 예전 탭바 가운데의 '말로 조작하기'와 '상태' 탭은 없앴다. 대신
 /// **실행 중에는 어느 탭에서든 탭바 바로 위에 정지 줄이 뜬다** -- 상태
@@ -34,7 +33,6 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final index = navigationShell.currentIndex;
-    final showDev = ref.watch(showDeveloperTabProvider);
 
     // 지금 보이는 탭을 알린다 — 브랜치는 화면을 떠나도 살아 있어서, 마이크처럼
     // 가려지면 멈춰야 하는 자원을 쥔 화면이 스스로 정리할 수 있어야 한다.
@@ -43,11 +41,6 @@ class AppShell extends ConsumerWidget {
       if (!ref.context.mounted) return;
       if (ref.read(currentTabIndexProvider) != index) {
         ref.read(currentTabIndexProvider.notifier).state = index;
-      }
-      // 개발자 탭에 있는데 개발자 모드가 꺼지면 홈으로 돌린다. 탭은
-      // 사라졌는데 화면만 남아 있으면 돌아갈 길이 없다.
-      if (index == developerTabIndex && !showDev) {
-        navigationShell.goBranch(homeTabIndex);
       }
     });
 
@@ -73,7 +66,6 @@ class AppShell extends ConsumerWidget {
           const RunningStopStrip(),
           _BottomBar(
             index: index,
-            showDeveloper: showDev,
             onTab: (i) {
               // 다른 기기(키오스크 등)의 실행도 보이게, 기록 탭에 들어갈 때마다 다시 받는다.
               if (i == historyTabIndex) ref.invalidate(historyProvider);
@@ -176,12 +168,10 @@ class RunningStopStrip extends ConsumerWidget {
 class _BottomBar extends ConsumerWidget {
   const _BottomBar({
     required this.index,
-    required this.showDeveloper,
     required this.onTab,
   });
 
   final int index;
-  final bool showDeveloper;
   final void Function(int) onTab;
 
   @override
@@ -242,14 +232,6 @@ class _BottomBar extends ConsumerWidget {
                 semanticsLabel: settingsLabel,
                 onTap: () => onTab(settingsTabIndex),
               ),
-              if (showDeveloper)
-                _Tab(
-                  icon: Icons.build_outlined,
-                  selectedIcon: Icons.build,
-                  label: '개발자',
-                  selected: index == developerTabIndex,
-                  onTap: () => onTab(developerTabIndex),
-                ),
             ],
           ),
         ),

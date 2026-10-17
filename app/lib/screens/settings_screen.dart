@@ -180,6 +180,15 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: '날씨 출처와 이용 허락',
               onTap: () => context.push('/settings/info'),
             ),
+            // 개발자 도구 — 탭이 아니라 맨 아래 항목(2026-10-18). 서버 개발자 모드일 때만 보인다.
+            if (ref.watch(showDeveloperTabProvider))
+              _NavRow(
+                key: const Key('settings-developer'),
+                icon: Icons.build_outlined,
+                title: '개발자',
+                subtitle: '설치·시험용 도구. 시연 전에 꺼 주세요',
+                onTap: () => context.push('/dev'),
+              ),
           ]),
           const SizedBox(height: 40),
         ],

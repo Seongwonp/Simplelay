@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:simplelay/providers/ble_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
@@ -83,6 +84,44 @@ Widget _buildDev({
 void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  // 2026-10-18 탭 네 개 — 개발자 도구는 설정 맨 아래 항목(개발 모드일 때만).
+  group('설정 — 개발자 항목', () {
+    Widget build({required bool dev}) {
+      final router = GoRouter(initialLocation: '/settings', routes: [
+        GoRoute(path: '/settings', builder: (_, __) => const SettingsScreen()),
+        GoRoute(path: '/dev', builder: (_, __) => const Scaffold(body: Text('dev-body'))),
+      ]);
+      return buildWithProviderState(
+        overrides: [..._scanOverrides(), developerModeProvider.overrideWithValue(dev)],
+        child: MaterialApp.router(theme: ThemeData.dark(), routerConfig: router),
+      );
+    }
+
+    testWidgets('개발 모드면 맨 아래에 개발자 항목, 누르면 개발자 화면', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(build(dev: true));
+      await tester.pump();
+      final row = find.byKey(const Key('settings-developer'));
+      await tester.scrollUntilVisible(row, 300);
+      expect(row, findsOneWidget);
+      // 맨 아래 — 앱 정보보다 아래.
+      expect(tester.getTopLeft(row).dy,
+          greaterThan(tester.getTopLeft(find.text('앱 정보')).dy));
+      await tester.tap(row);
+      await tester.pumpAndSettle();
+      expect(find.text('dev-body'), findsOneWidget);
+    });
+
+    testWidgets('개발 모드가 아니면 개발자 항목이 없다', (tester) async {
+      _useTallViewport(tester);
+      await tester.pumpWidget(build(dev: false));
+      await tester.pump();
+      await tester.scrollUntilVisible(find.text('앱 정보'), 300);
+      expect(find.byKey(const Key('settings-developer')), findsNothing);
+      expect(find.text('개발자'), findsNothing);
+    });
   });
 
   group('SettingsScreen — 기본 레이아웃', () {

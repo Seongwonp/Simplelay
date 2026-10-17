@@ -27,6 +27,7 @@ class _NavGroup extends StatelessWidget {
 
 class _NavRow extends StatelessWidget {
   const _NavRow({
+    super.key,
     required this.icon,
     required this.title,
     required this.subtitle,
