@@ -20,6 +20,7 @@ import '../theme/app_text.dart';
 import '../widgets/auto_rule_confirm_sheet.dart';
 import '../widgets/routine_candidate_sheet.dart';
 import '../widgets/routine_run.dart';
+import '../widgets/row_menu.dart';
 import '../theme/app_tokens.dart';
 
 /// 루틴 탭 — 위에 "다음 실행"(예약이 있을 때만), 아래에 "내 루틴 / 예시 루틴"(UI 확정 §2).
@@ -157,6 +158,7 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                           routine: r,
                           applianceNames: names,
                           onEdit: () => _open(context, r),
+                          onDelete: r.isTemplate || r.id == null ? null : () => _delete(context, r),
                           // 버튼 자리를 맞추지 않은 가전의 루틴은 실행하기 대신 이유(외부 평가 10/16 3차).
                           onRun: r.isRunCandidate && !r.applianceIds.any(needsSetup.contains)
                               ? () => _run(context, r.id!)
@@ -179,6 +181,28 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         ),
       ),
     );
+  }
+
+  /// ⋮ 메뉴 '지우기' — 확인을 한 번 더 받고 지운다(편집기의 지우기와 같은 서버 경로).
+  Future<void> _delete(BuildContext context, Routine r) async {
+    final api = ref.read(rpiApiServiceProvider);
+    final id = r.id;
+    if (api == null || id == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await confirmDelete(context,
+        title: '이 루틴을 지울까요?', body: '지우면 떠 있던 카드도 내려가요.');
+    if (!ok || !mounted) return;
+    try {
+      await api.deleteRoutine(id);
+    } on RpiApiException catch (e) {
+      messenger.showSnackBar(SnackBar(
+          content: Text(e.message.isNotEmpty ? e.message : '지우지 못했어요. 연결을 봐 주세요.')));
+    } catch (_) {
+      messenger.showSnackBar(const SnackBar(content: Text('지우지 못했어요. 연결을 봐 주세요.')));
+    }
+    if (!mounted) return;
+    ref.invalidate(routinesProvider);
+    ref.invalidate(nextRoutineProvider);
   }
 
   Future<void> _run(BuildContext context, String id) async {
@@ -376,18 +400,24 @@ class _RoutineRow extends StatelessWidget {
     required this.running,
     required this.busy,
     required this.error,
+    this.onDelete,
     this.note,
     this.onSetup,
   });
 
-  /// 설정이 필요한 가전의 상세로 — 있으면 '설정하기' 단추(홈과 같다).
+  /// 설정이 필요한 가전의 상세로 — 있으면 '실행' 대신 '설정하기' 단추(홈과 같다).
   final VoidCallback? onSetup;
 
   final Routine routine;
   final Map<String, String> applianceNames;
+
+  /// 행 전체 탭 = 편집(상세). ⋮ 메뉴의 '편집'도 같다.
   final VoidCallback onEdit;
 
-  /// null이면 실행하기를 두지 않는다(알림만·꺼짐·템플릿·가전 조작 없음).
+  /// ⋮ 메뉴의 '지우기'(확인은 부르는 쪽이 받는다). null이면 메뉴에 두지 않는다.
+  final VoidCallback? onDelete;
+
+  /// null이면 실행 단추를 두지 않는다(알림만·꺼짐·템플릿·가전 조작 없음).
   final VoidCallback? onRun;
 
   /// 이 행의 카드 요청 중.
@@ -404,42 +434,21 @@ class _RoutineRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final r = routine;
     final key = r.id ?? r.templateId ?? r.name;
-    final info = InkWell(
-      // 행(이름·조건)을 누르면 편집 — 종전과 같다. 실행하기는 이 영역 밖이다.
-      key: Key('routine-$key'),
-      onTap: onEdit,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(minHeight: 48),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
-          child: Row(
-            children: [
-              Icon(
-                AppIcons.routine,
-                color: r.enabled ? context.appPrimary : context.appMuted,
-              ),
-              const SizedBox(width: AppSpace.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(r.name,
-                        style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
-                    Text(
-                      r.isTemplate && (r.description ?? '').isNotEmpty
-                          ? r.description!
-                          : routineSubtitle(r, applianceNames),
-                      style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
-                    ),
-                  ],
-                ),
-              ),
-              if (r.isTemplate) Icon(Icons.chevron_right, color: context.appMuted),
-            ],
-          ),
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+        Text(
+          r.isTemplate && (r.description ?? '').isNotEmpty
+              ? r.description!
+              : routineSubtitle(r, applianceNames),
+          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
         ),
-      ),
+      ],
     );
+    final icon = Icon(AppIcons.routine,
+        color: r.enabled ? context.appPrimary : context.appMuted);
+
     // 예시 루틴은 낭독에서도 예시라고 말하고, 누르면 무엇이 되는지 말한다(2026-10-14 UI 정리).
     if (r.isTemplate) {
       final about = (r.description ?? '').isNotEmpty ? '${r.description}. ' : '';
@@ -449,30 +458,30 @@ class _RoutineRow extends StatelessWidget {
         container: true,
         excludeSemantics: true,
         onTap: onEdit,
-        child: info,
+        child: InkWell(
+          key: Key('routine-$key'),
+          onTap: onEdit,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+              child: Row(children: [
+                icon,
+                const SizedBox(width: AppSpace.md),
+                Expanded(child: text),
+                Icon(Icons.chevron_right, color: context.appMuted),
+              ]),
+            ),
+          ),
+        ),
       );
     }
 
+    // 행의 단추는 하나 — 실행, 아니면 설정하기. 편집·지우기는 ⋮ 안(2026-10-18 버튼 위계).
     final run = onRun;
-    // 큰 글씨에서는 Wrap이 버튼을 다음 줄로 내린다 — 겹치거나 줄어들지 않는다.
-    final actions = Wrap(
-      spacing: AppSpace.sm,
-      runSpacing: AppSpace.sm,
-      children: [
-        Semantics(
-          label: '${r.name} 편집',
-          container: true,
-          button: true,
-          excludeSemantics: true,
-          child: OutlinedButton(
-            key: Key('routine-edit-$key'),
-            onPressed: onEdit,
-            style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
-            child: const Text('편집'),
-          ),
-        ),
-        if (onSetup case final setup?)
-          Semantics(
+    final setup = onSetup;
+    final Widget? action = setup != null
+        ? Semantics(
             label: '${r.name} 가전 설정하기',
             container: true,
             button: true,
@@ -481,61 +490,101 @@ class _RoutineRow extends StatelessWidget {
               key: Key('routine-setup-$key'),
               onPressed: setup,
               style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(112, 48), foregroundColor: context.appWarning),
+                  minimumSize: const Size(88, 48), foregroundColor: context.appWarning),
               child: const Text('설정하기'),
             ),
-          ),
-        if (run != null)
-          Semantics(
-            label: '${r.name} 실행하기',
-            container: true,
-            button: true,
-            enabled: !busy,
-            excludeSemantics: true,
-            // 홈 목록과 같은 테두리 버튼 — 줄마다 채운 버튼이면 주 행동이 너무 많아 위계가 흐려졌다(UI 평가 3차 10/17).
-            child: OutlinedButton(
-              key: Key('routine-run-$key'),
-              onPressed: busy ? null : run,
-              style: OutlinedButton.styleFrom(minimumSize: const Size(112, 48)),
-              child: running
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Text('실행하기'),
-            ),
+          )
+        : run != null
+            ? Semantics(
+                label: '${r.name} 실행하기',
+                container: true,
+                button: true,
+                enabled: !busy,
+                excludeSemantics: true,
+                // 테두리 버튼 — 줄마다 채운 버튼이면 주 행동이 너무 많아 위계가 흐려진다.
+                child: OutlinedButton(
+                  key: Key('routine-run-$key'),
+                  onPressed: busy ? null : run,
+                  style: OutlinedButton.styleFrom(minimumSize: const Size(72, 48)),
+                  child: running
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('실행'),
+                ),
+              )
+            : null;
+    final menu = RowMenu(
+      menuKey: Key('routine-menu-$key'),
+      semanticLabel: '${r.name} 더 보기',
+      items: [
+        RowMenuItem(
+          key: Key('routine-edit-$key'),
+          label: '편집',
+          icon: Icons.edit_outlined,
+          onSelected: onEdit,
+        ),
+        if (onDelete case final del?)
+          RowMenuItem(
+            key: Key('routine-delete-$key'),
+            label: '지우기',
+            icon: Icons.delete_outline,
+            danger: true,
+            onSelected: del,
           ),
       ],
     );
-
+    // 큰 글씨에서는 단추를 이름 아래로 내린다 — 한 줄에 두면 이름이 한 글자씩 꺾인다.
+    final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final head = Row(
+      children: [
+        icon,
+        const SizedBox(width: AppSpace.md),
+        Expanded(child: Semantics(container: true, child: text)),
+        if (!big && action != null) ...[const SizedBox(width: AppSpace.sm), action],
+        menu,
+      ],
+    );
+    const indent = AppSpace.xxxl + AppSpace.xs;
     return Padding(
-      padding: const EdgeInsets.only(bottom: AppSpace.sm),
+      key: Key('routine-row-$key'),
+      padding: const EdgeInsets.only(bottom: AppSpace.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          info,
-          Padding(
-            padding: const EdgeInsets.only(left: AppSpace.xxxl),
-            child: actions,
+          InkWell(
+            // 행 전체를 누르면 편집(상세). 실행 단추·⋮는 제 몫을 먼저 받는다.
+            key: Key('routine-$key'),
+            borderRadius: BorderRadius.circular(12),
+            onTap: onEdit,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 56),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
+                child: head,
+              ),
+            ),
           ),
-          if (note case final message?) ...[
-            const SizedBox(height: AppSpace.sm),
+          if (big && action != null)
             Padding(
-              padding: const EdgeInsets.only(left: AppSpace.xxxl),
+              padding: const EdgeInsets.only(left: indent, bottom: AppSpace.xs),
+              child: action,
+            ),
+          if (note case final message?)
+            Padding(
+              padding: const EdgeInsets.only(left: indent, bottom: AppSpace.xs),
               child: Text(keepWordsTogether(message),
                   style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
             ),
-          ],
-          if (error case final message?) ...[
-            const SizedBox(height: AppSpace.sm),
+          if (error case final message?)
             Padding(
-              padding: const EdgeInsets.only(left: AppSpace.xxxl),
+              padding: const EdgeInsets.only(left: indent, bottom: AppSpace.xs),
               // 어절 단위로 줄을 바꾼다('자리/를' 방지, UI 평가 10/17).
               child: Text(keepWordsTogether(message),
                   style: TextStyle(fontSize: AppFont.caption, color: context.appDanger)),
             ),
-          ],
         ],
       ),
     );
@@ -627,18 +676,10 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
   }
 
   Future<void> _delete(RpiApiService api) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('이 자동으로 하기를 지울까요?'),
-        content: Text('${widget.rule.conditionText} → ${widget.rule.actionText}'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('취소')),
-          TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('지우기')),
-        ],
-      ),
-    );
-    if (ok == true) await api.deleteAutoRule(widget.rule.id);
+    final ok = await confirmDelete(context,
+        title: '이 자동으로 하기를 지울까요?',
+        body: '${widget.rule.conditionText} → ${widget.rule.actionText}');
+    if (ok) await api.deleteAutoRule(widget.rule.id);
   }
 
   @override
@@ -658,6 +699,29 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
               const SizedBox(width: AppSpace.md),
               Expanded(
                 child: Text(r.name, style: AppText.body.copyWith(fontWeight: FontWeight.w700)),
+              ),
+              // 값 바꾸기·지우기는 ⋮ 안(2026-10-18 버튼 위계) — 카드에는 켜기/끄기 하나만.
+              RowMenu(
+                menuKey: Key('auto-rule-menu-${r.id}'),
+                semanticLabel: '${r.name} 더 보기',
+                items: [
+                  if (r.allowedValues.length > 1)
+                    RowMenuItem(
+                      key: Key('auto-rule-edit-${r.id}'),
+                      label: autoRuleValueLabel(r),
+                      icon: Icons.tune,
+                      enabled: !_busy,
+                      onSelected: () => _run(_changeValue),
+                    ),
+                  RowMenuItem(
+                    key: Key('auto-rule-delete-${r.id}'),
+                    label: '지우기',
+                    icon: Icons.delete_outline,
+                    danger: true,
+                    enabled: !_busy,
+                    onSelected: () => _run(_delete),
+                  ),
+                ],
               ),
             ],
           ),
@@ -714,22 +778,6 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                         style: FilledButton.styleFrom(minimumSize: const Size(88, 48)),
                         child: const Text('다시 허락'),
                       ),
-                    if (r.allowedValues.length > 1)
-                      OutlinedButton(
-                        key: Key('auto-rule-edit-${r.id}'),
-                        onPressed: _busy ? null : () => _run(_changeValue),
-                        style: OutlinedButton.styleFrom(minimumSize: const Size(88, 48)),
-                        child: Text(autoRuleValueLabel(r)),
-                      ),
-                    // 테두리 있는 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(외부 평가 10/16 p02).
-                    OutlinedButton(
-                      key: Key('auto-rule-delete-${r.id}'),
-                      onPressed: _busy ? null : () => _run(_delete),
-                      style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(64, 48),
-                          foregroundColor: context.appDanger),
-                      child: const Text('지우기'),
-                    ),
                   ],
                 ),
               ],

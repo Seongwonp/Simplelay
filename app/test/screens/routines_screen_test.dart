@@ -94,6 +94,9 @@ class _Server {
   bool nextFails = false;
   Map<String, dynamic> nextExtra = const {};
 
+  /// DELETE로 지운 루틴 id(⋮ 메뉴 '지우기', 2026-10-18).
+  final deleted = <String>[];
+
   /// GET /routines/candidates 응답(사용 기록으로 만든 초안, 2026-10-14). 없으면 404(옛 서버).
   List<Map<String, dynamic>>? candidates;
 
@@ -191,6 +194,10 @@ class _Server {
             };
             if (req.method == 'PUT') stored = saved;
             return _json(saved, req.method == 'POST' ? 201 : 200);
+          }
+          if (req.method == 'DELETE' && path.startsWith('/routines/')) {
+            deleted.add(path.substring('/routines/'.length));
+            return _json({'ok': true});
           }
           if (path == '/suggestions') return _json(<dynamic>[]);
           return _json({'detail': 'not found'}, 404);
@@ -413,12 +420,73 @@ void main() {
     expect(find.text('언제'), findsOneWidget);
   });
 
-  // ── 2026-10-13 B안: 행마다 편집 / 실행하기 ──────────────────────────────────
+  // ── 2026-10-18 버튼 위계: 행에는 실행 하나, 편집·지우기는 ⋮ 메뉴 ─────────────
 
   Finder runButton(String routineId) =>
       find.byKey(Key('routine-run-$routineId'));
+  Finder menuButton(String routineId) =>
+      find.byKey(Key('routine-menu-$routineId'));
   Finder editButton(String routineId) =>
       find.byKey(Key('routine-edit-$routineId'));
+
+  testWidgets('루틴 행에는 버튼이 하나뿐이고 편집·지우기는 ⋮ 메뉴 안에 있다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    final row = find.byKey(const Key('routine-row-rt-1'));
+    expect(row, findsOneWidget);
+    // 행 안의 버튼은 '실행' 하나 — 편집 버튼은 행에 늘어놓지 않는다.
+    expect(find.descendant(of: row, matching: find.byType(OutlinedButton)), findsOneWidget);
+    expect(find.descendant(of: row, matching: find.byType(FilledButton)), findsNothing);
+    expect(editButton('rt-1'), findsNothing);
+    expect(menuButton('rt-1'), findsOneWidget);
+    expect(tester.getSize(menuButton('rt-1')).height, greaterThanOrEqualTo(48));
+
+    await tester.tap(menuButton('rt-1'));
+    await _settle(tester);
+    expect(editButton('rt-1'), findsOneWidget);
+    expect(find.byKey(const Key('routine-delete-rt-1')), findsOneWidget);
+  });
+
+  testWidgets('⋮ 메뉴의 지우기는 확인을 한 번 더 받고 나서야 지운다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+
+    await tester.tap(menuButton('rt-1'));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('routine-delete-rt-1')));
+    await _settle(tester);
+    expect(find.text('이 루틴을 지울까요?'), findsOneWidget);
+    expect(server.deleted, isEmpty);
+    // 취소하면 지우지 않는다.
+    await tester.tap(find.text('취소'));
+    await _settle(tester);
+    expect(server.deleted, isEmpty);
+
+    await tester.tap(menuButton('rt-1'));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('routine-delete-rt-1')));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('confirm-delete')));
+    await _settle(tester);
+    expect(server.deleted, ['rt-1']);
+    expect(server.triggerCount, 0);
+  });
+
+  testWidgets('행 전체를 누르면 편집(상세)이 열리고 실행하지 않는다', (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    await tester.tap(find.byKey(const Key('routine-rt-1')));
+    await _settle(tester);
+    expect(find.text('언제'), findsOneWidget);
+    expect(server.triggerCount, 0);
+  });
 
   // 외부 평가 10/16 3차 p02b: 버튼 자리를 아직 맞추지 않은 가전의 루틴도 '실행하기'가 살아 있었다.
   testWidgets('설정이 필요한 가전의 루틴은 실행하기 대신 이유를 말한다', (tester) async {
@@ -448,7 +516,7 @@ void main() {
     // 설정 안내는 앰버(홈과 같은 색) — 빨강은 실패·정지 전용(UI 평가 10/17).
     expect(note.style?.color, isNot(anyOf(AppColors.danger, AppColors.dangerLight)));
     expect(note.style?.color, anyOf(AppColors.warning, AppColors.warningLight));
-    expect(editButton('rt-1'), findsOneWidget);
+    expect(menuButton('rt-1'), findsOneWidget);
   });
 
   testWidgets('실행하기는 편집을 열지 않고 카드만 만들어 승인 화면으로 간다', (tester) async {
@@ -460,10 +528,10 @@ void main() {
     expect(runButton('rt-1'), findsOneWidget);
     // 홈 목록과 같은 테두리 버튼 — 줄마다 채운 버튼이면 위계가 흐려졌다(UI 평가 3차 10/17).
     expect(tester.widget(runButton('rt-1')), isA<OutlinedButton>());
-    expect(editButton('rt-1'), findsOneWidget);
+    expect(find.descendant(of: runButton('rt-1'), matching: find.text('실행')), findsOneWidget);
     // 둘 다 48 이상 터치 영역.
     expect(tester.getSize(runButton('rt-1')).height, greaterThanOrEqualTo(48));
-    expect(tester.getSize(editButton('rt-1')).height, greaterThanOrEqualTo(48));
+    expect(tester.getSize(menuButton('rt-1')).height, greaterThanOrEqualTo(48));
 
     await tester.tap(runButton('rt-1'));
     await _settle(tester);
@@ -473,10 +541,12 @@ void main() {
     expect(find.text('언제'), findsNothing);
   });
 
-  testWidgets('편집 버튼은 편집기를 연다', (tester) async {
+  testWidgets('⋮ 메뉴의 편집은 편집기를 연다', (tester) async {
     final server = _Server();
     _tall(tester);
     await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    await tester.tap(menuButton('rt-1'));
     await _settle(tester);
     await tester.tap(editButton('rt-1'));
     await _settle(tester);
@@ -530,7 +600,7 @@ void main() {
     await _settle(tester);
     expect(runButton('rt-n'), findsNothing);
     expect(runButton('rt-off'), findsNothing);
-    expect(editButton('rt-n'), findsOneWidget);
+    expect(menuButton('rt-n'), findsOneWidget);
     expect(find.text('평일 07:30 · 전자레인지 할 일 1\u2060개 · 알림만'), findsOneWidget);
     expect(find.text('평일 07:30 · 전자레인지 할 일 1\u2060개 · 꺼짐'), findsOneWidget);
   });
@@ -565,7 +635,7 @@ void main() {
     expect(find.text('예시 루틴'), findsOneWidget);
   });
 
-  testWidgets('200% 글자에서도 편집·실행하기가 겹치지 않고 넘치지 않는다', (tester) async {
+  testWidgets('200% 글자에서도 ⋮·실행이 겹치지 않고 넘치지 않는다', (tester) async {
     final server = _Server();
     tester.view.physicalSize = const Size(360, 2400);
     tester.view.devicePixelRatio = 1.0;
@@ -577,7 +647,7 @@ void main() {
     expect(MediaQuery.textScalerOf(tester.element(runButton('rt-1'))).scale(1), 2.0);
     expect(tester.takeException(), isNull);
     final run = tester.getRect(runButton('rt-1'));
-    final edit = tester.getRect(editButton('rt-1'));
+    final edit = tester.getRect(menuButton('rt-1'));
     expect(run.overlaps(edit), isFalse);
     expect(run.height, greaterThanOrEqualTo(48));
   });
@@ -589,7 +659,7 @@ void main() {
     await tester.pumpWidget(_build(server));
     await _settle(tester);
     expect(find.bySemanticsLabel('아침 데우기 실행하기'), findsOneWidget);
-    expect(find.bySemanticsLabel('아침 데우기 편집'), findsOneWidget);
+    expect(find.bySemanticsLabel('아침 데우기 더 보기'), findsOneWidget);
     handle.dispose();
   });
 

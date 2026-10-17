@@ -30,6 +30,7 @@ import '../theme/app_text.dart';
 
 import '../widgets/dnd_bottom_sheet.dart';
 import '../widgets/learning_status_dialog.dart';
+import '../widgets/row_menu.dart';
 import '../widgets/sync_status_line.dart';
 import '../widgets/thinq_discovered_section.dart';
 import '../theme/app_tokens.dart';

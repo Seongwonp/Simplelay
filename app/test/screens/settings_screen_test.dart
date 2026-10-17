@@ -150,7 +150,7 @@ void main() {
           findsOneWidget);
     });
 
-    testWidgets('내 가전: 지울 수 있는 줄도 휴지통 옆에 화살표(눌러 들어간다)', (tester) async {
+    testWidgets('내 가전: 지울 수 있는 줄은 ⋮ 메뉴 안에 지우기, 화살표로 눌러 들어간다', (tester) async {
       _useTallViewport(tester);
       final washer = ApplianceMap.fromJson({
         'id': 'custom_washer',
@@ -169,7 +169,10 @@ void main() {
       ));
       await tester.pump();
       final row = find.widgetWithText(ListTile, '세탁기');
-      expect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)), findsOneWidget);
+      // 휴지통을 행에 늘어놓지 않는다(2026-10-18 버튼 위계) — 지우기는 ⋮ 안, 확인을 한 번 더 받는다.
+      expect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)), findsNothing);
+      final menu = find.byKey(const Key('appliance-menu-custom_washer'));
+      expect(find.descendant(of: row, matching: menu), findsOneWidget);
       expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
       // 홈과 같은 안내 — 버튼 자리를 맞추지 않은 가전은 '설정이 필요해요'(UI 평가 4차 10/17).
       expect(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)), findsOneWidget);
@@ -177,10 +180,14 @@ void main() {
       final sub = tester.widget<Text>(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)));
       expect(sub.data, contains(kWordJoiner));
       expect(sub.semanticsLabel, '설정이 필요해요. 눌러서 버튼 자리를 맞춰 주세요');
-      // 지우기와 화살표 사이를 띄운다(잘못 누름 방지).
-      final trash = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)));
-      final chevron = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)));
-      expect(chevron.left - trash.right, greaterThanOrEqualTo(32), reason: '6차 평가: 16으로는 여전히 붙어 보였다');
+      await tester.tap(menu);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('appliance-delete-custom_washer')));
+      await tester.pumpAndSettle();
+      expect(find.text("'세탁기' 삭제"), findsOneWidget);
+      await tester.tap(find.text('취소'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(ListTile, '세탁기'), findsOneWidget);
     });
 
     testWidgets('허브 화면에 RPi 서버 URL 입력 필드가 보인다', (tester) async {

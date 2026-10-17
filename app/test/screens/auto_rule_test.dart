@@ -406,13 +406,18 @@ void main() {
       // 규칙은 한 문장(2026-10-14 UX) — "조건:/동작:" 표가 아니다.
       expect(find.text('전자레인지가 멈추면 → 거실 공기청정기 풍량 강으로'), findsOneWidget);
       expect(find.textContaining('조건:'), findsNothing);
+      // 값 바꾸기·지우기는 ⋮ 메뉴 안(2026-10-18 버튼 위계) — 카드에 버튼을 늘어놓지 않는다.
+      expect(find.byKey(const Key('auto-rule-delete-ar-1')), findsNothing);
+      await tester.tap(find.byKey(const Key('auto-rule-menu-ar-1')));
+      await _settle(tester);
       expect(find.text('바람 세기 바꾸기'), findsOneWidget);
       expect(find.text('세기 바꾸기'), findsNothing);
+      expect(find.byKey(const Key('auto-rule-delete-ar-1')), findsOneWidget);
+      await tester.tapAt(const Offset(5, 5));
+      await _settle(tester);
       expect(find.text('자동 실행 켜짐'), findsOneWidget);
       expect(find.textContaining('상태 재조회로 확인'), findsOneWidget);
       expect(find.textContaining('깨끗'), findsNothing);
-      // '지우기'는 테두리 있는 버튼이다(외부 평가 10/16 p02 — 글자 버튼은 누를 곳으로 안 보인다).
-      expect(tester.widget(find.byKey(const Key('auto-rule-delete-ar-1'))), isA<OutlinedButton>());
       // 자동 실행 규칙과 루틴 목록을 머리말로 나눈다 — 같은 이름이 두 번 나와 헷갈렸다(외부 평가 10/16 3차).
       expect(find.text('자동으로 하기'), findsOneWidget);
       expect(find.text('내 루틴 목록'), findsOneWidget);
@@ -446,6 +451,8 @@ void main() {
       await tester.pumpWidget(_list(server));
       await _settle(tester);
 
+      await tester.tap(find.byKey(const Key('auto-rule-menu-ar-1')));
+      await _settle(tester);
       await tester.tap(find.byKey(const Key('auto-rule-edit-ar-1')));
       await _settle(tester);
       await tester.tap(find.text('중'));
