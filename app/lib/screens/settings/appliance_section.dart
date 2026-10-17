@@ -24,10 +24,11 @@ class _ApplianceSection extends ConsumerWidget {
             // 버튼 자리를 맞추지 않은 가전은 홈과 같은 안내(UI 평가 4차 10/17 — 홈에만 '설정이 필요해요'가 있었다).
             subtitle: appliance.isCustom && !appliance.isThinq
                 ? (needsPanelMapping(appliance)
-                    ? Text('설정이 필요해요 · 눌러서 버튼 자리 맞추기',
+                    // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17).
+                    ? _WordsText('설정이 필요해요 · 눌러서 버튼 자리 맞추기',
                         style: TextStyle(fontSize: 14, color: context.appWarning))
                     : null)
-                : Text(
+                : _WordsText(
                     appliance.isThinq ? 'ThinQ 가전 · 빼기는 LG ThinQ 연결에서' : '기본 가전',
                     style: TextStyle(fontSize: 13, color: context.appMuted),
                   ),

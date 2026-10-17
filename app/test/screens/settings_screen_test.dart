@@ -173,6 +173,10 @@ void main() {
       expect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)), findsOneWidget);
       // 홈과 같은 안내 — 버튼 자리를 맞추지 않은 가전은 '설정이 필요해요'(UI 평가 4차 10/17).
       expect(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)), findsOneWidget);
+      // 어절 단위 줄바꿈('버 / 튼' 방지, 실화면 10/17 10:13), 화면 읽기는 원문.
+      final sub = tester.widget<Text>(find.descendant(of: row, matching: findPlainText('설정이 필요해요', contains: true)));
+      expect(sub.data, contains(kWordJoiner));
+      expect(sub.semanticsLabel, '설정이 필요해요 · 눌러서 버튼 자리 맞추기');
       // 지우기와 화살표 사이를 띄운다(잘못 누름 방지).
       final trash = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.delete_outline)));
       final chevron = tester.getRect(find.descendant(of: row, matching: find.byIcon(Icons.chevron_right)));
