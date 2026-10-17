@@ -10,6 +10,32 @@ import 'package:flutter/widgets.dart';
 String keepWords(String text) =>
     text.split('\n').map((p) => _joinWords(_tieLastWord(p))).join('\n');
 
+/// 어구 묶기(평가 5차 10/18) — 두 글자 이하 낱말('같이'·'냉동'·'지금')은 뒤 낱말과 줄 바꾸지 않는 띄어쓰기(U+00A0)로 잇는다.
+/// 큰 글씨 제안 제목이 '라면이랑 같이 / 먹을 준비,'처럼 꾸미는 말과 꾸밈 받는 말 사이에서 끊겼다. 묶음은 [maxGroup]자
+/// (띄어쓰기 포함)까지만 — 너무 긴 덩어리는 오히려 낱말 가운데에서 끊긴다. 끝에 쉼표·마침표가 붙은 낱말은 뒤와 잇지 않는다.
+String keepPhrases(String text, {int maxGroup = 10}) => text.split('\n').map((p) {
+      final words = p.split(' ');
+      if (words.length < 2) return p;
+      final out = StringBuffer(words.first);
+      var group = words.first.runes.length;
+      for (var i = 1; i < words.length; i++) {
+        final prev = words[i - 1];
+        final w = words[i];
+        final short = prev.isNotEmpty &&
+            prev.runes.length <= 2 &&
+            !RegExp(r'[,.?!·]$').hasMatch(prev);
+        if (short && w.isNotEmpty && group + 1 + w.runes.length <= maxGroup) {
+          out.write('\u00A0');
+          group += 1 + w.runes.length;
+        } else {
+          out.write(' ');
+          group = w.runes.length;
+        }
+        out.write(w);
+      }
+      return out.toString();
+    }).join('\n');
+
 String _tieLastWord(String paragraph) {
   final i = paragraph.lastIndexOf(' ');
   if (i <= 0 || i == paragraph.length - 1) return paragraph;
@@ -56,7 +82,11 @@ class KioskText extends StatelessWidget {
     this.maxLines,
     this.overflow,
     this.textWidthBasis,
+    this.phrases = false,
   });
+
+  /// 짧은 낱말을 뒤 낱말과 묶는다([keepPhrases]) — 큰 제목(제안 질문)에만 쓴다.
+  final bool phrases;
 
   final String data;
   final TextStyle? style;
@@ -70,7 +100,7 @@ class KioskText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Text.rich(
-        TextSpan(text: keepWords(data), semanticsLabel: data),
+        TextSpan(text: keepWords(phrases ? keepPhrases(data) : data), semanticsLabel: data),
         key: textKey,
         style: style,
         textAlign: textAlign,

@@ -183,7 +183,8 @@ void main() {
       await _pump(tester, _underEstop(_idle()));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
       expect(find.descendant(of: chip, matching: find.text('모두 정상')), findsNothing);
-      expect(find.descendant(of: chip, matching: find.text('비상 버튼이 눌려 있어요')), findsOneWidget);
+      // 평가 5차(10/18): 띠와 같은 문장을 칩에 또 쓰지 않는다 — 칩은 빨강 아이콘만(kiosk_eval_p5_test).
+      expect(find.descendant(of: chip, matching: find.byIcon(Icons.report)), findsOneWidget);
       final shape = tester.widget<Material>(chip).shape as RoundedRectangleBorder;
       expect(shape.side.color, KioskColors.danger);
     });
@@ -400,7 +401,8 @@ void main() {
               reason: KioskFailureReason.execution,
               onDismiss: () {}));
       expect(find.textContaining('데워줘'), findsNothing);
-      expect(find.text('즉석밥 데우기'), findsOneWidget);
+      // 실패 화면은 가전·이름 한 줄(평가 5차 10/18).
+      expect(find.text('전자레인지 · 즉석밥 데우기'), findsOneWidget);
     });
 
     testWidgets('실행 화면 위 띠', (tester) async {

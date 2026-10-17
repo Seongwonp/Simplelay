@@ -256,9 +256,8 @@ class KioskHoldView extends StatelessWidget {
         (
           Icons.my_location,
           _mock
-              ? (cancel == null
-                  ? '정지를 누르면 정지 버튼을 누르는 연습을 해요'
-                  : "정지를 누르면 '$cancel' 버튼을 누르는 연습을 해요")
+              // 연습은 내부 동작(어느 버튼을 누르는지) 대신 할 일 한 줄(평가 5차 10/18).
+              ? '정지를 눌러 보세요'
               : (cancel == null
                   ? '정지를 누르면 작은 팔이 가전의 정지 버튼을 대신 눌러요'
                   : "정지를 누르면 작은 팔이 '$cancel' 버튼을 대신 눌러요"),

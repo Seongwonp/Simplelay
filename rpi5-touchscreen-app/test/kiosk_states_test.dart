@@ -215,7 +215,7 @@ void main() {
       final api = FakeKioskApi()..applianceList = const [];
       await _pump(tester, api);
 
-      expect(find.text('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요'), findsOneWidget);
+      expect(find.text('휴대폰 앱에서 가전을 추가해 주세요'), findsOneWidget);
     });
   });
 
@@ -287,15 +287,16 @@ void main() {
     });
 
     // 이름(전자레인지·거실 선풍기)을 줄이지 않으려고 보통 글씨는 한 장에 3개(10/5).
-    testWidgets('한 번에 3개, 화살표로 3개씩 넘기고 끝의 화살표는 숨긴다', (tester) async {
+    // 평가 5차(10/18): 넓은 장 넘김 칸 때문에 3개만 들어가 오른쪽이 비었다 — 한 장에 4개 + 좁은 장 넘김(쪽 번호 아래 화살표 하나).
+    testWidgets('한 번에 4개, 화살표로 넘기고 마지막 장에서는 이전 화살표 하나', (tester) async {
       final api = FakeKioskApi()..applianceList = _six;
       await _pump(tester, api);
 
-      for (final id in ['microwave', 'washer', 'fan']) {
+      for (final id in ['microwave', 'washer', 'fan', 'rice']) {
         expect(find.byKey(ValueKey('strip-$id')), findsOneWidget, reason: id);
       }
-      expect(find.byKey(const ValueKey('strip-rice')), findsNothing);
       expect(find.byKey(const ValueKey('strip-aircon')), findsNothing);
+      expect(find.byKey(const ValueKey('strip-intercom')), findsNothing);
       expect(find.byKey(const ValueKey('strip-prev')), findsNothing);
       expect(find.byKey(const ValueKey('strip-next')), findsOneWidget);
 
@@ -304,9 +305,10 @@ void main() {
       expect(find.byKey(const ValueKey('strip-aircon')), findsOneWidget);
       expect(find.byKey(const ValueKey('strip-intercom')), findsOneWidget);
       expect(find.byKey(const ValueKey('strip-microwave')), findsNothing);
-      // 끝에서 처음으로 돌아가지 않는다
+      // 마지막 장 — 다음 화살표 자리에 이전 화살표(두 장이면 '이전').
       expect(find.byKey(const ValueKey('strip-next')), findsNothing);
       expect(find.byKey(const ValueKey('strip-prev')), findsOneWidget);
+      expect(find.text('이전'), findsOneWidget);
 
       // 손가락으로 밀어도 넘어간다
       await tester.fling(find.byType(KioskApplianceStrip), const Offset(400, 0), 800);
@@ -462,7 +464,7 @@ void main() {
       // 연습이면 제목이 가전이 돈다고 말하지 않는다 — 연습은 맨 위 띠로(2026-10-15).
       expect(find.text('전자레인지 연습 중'), findsOneWidget);
       expect(find.text('버튼 3개 누르기 연습을 마쳤어요'), findsOneWidget);
-      expect(find.text("정지를 누르면 '취소' 버튼을 누르는 연습을 해요"), findsOneWidget);
+      expect(find.text('정지를 눌러 보세요'), findsOneWidget);
       // 연습에는 가전 판정·끝나는 시간 줄을 두지 않는다 — 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
       expect(find.text('가전이 켜졌는지는 몰라요'), findsNothing);
       expect(find.text('끝나는 시간은 몰라요'), findsNothing);
@@ -570,7 +572,7 @@ void main() {
       expect(find.text('내 전자레인지'), findsOneWidget);
       expect(find.text('아침 데우기'), findsOneWidget);
       expect(find.text('빨래 시작'), findsNothing); // 다른 가전의 루틴
-      expect(find.text('새 루틴은 휴대폰 SimpleLay 앱에서 만들어요'), findsOneWidget);
+      expect(find.text('새 루틴은 휴대폰 앱에서 만들어요'), findsOneWidget);
 
       // 루틴을 눌러도 바로 실행하지 않는다 — 카드(승인)로 간다
       await tester.tap(find.byKey(const ValueKey('routine-morning')));

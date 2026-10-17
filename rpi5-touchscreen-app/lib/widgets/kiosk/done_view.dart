@@ -90,7 +90,7 @@ class KioskDoneView extends StatelessWidget {
                     onPressed: () => Navigator.pop(ctx, true),
                     style: FilledButton.styleFrom(
                         minimumSize: const Size(180, 48)),
-                    child: const Text('네, 다시 시도',
+                    child: const Text('네, 한 번 더 하기',
                         style: TextStyle(fontSize: KioskType.body))),
               ],
             ));
@@ -264,10 +264,14 @@ class KioskDoneView extends StatelessWidget {
         : userStop
             ? stopLevelHeadline(stopLevel, ackMs: stopAckMs)
             : mock && !r.isUnconfirmed && motion == null
-                ? '연습이 중간에 멈췄어요'
+                ? kPracticeStoppedHeadline
                 : (motion ?? r.headline);
     // 연습 실패도 이유 한 줄(외부 평가 10/16 2차 k04). 실제 가전을 움직이지 않았다는 말은 위 띠가 한다(10/18).
-    final String failureDetail = mock && !userStop
+    // 제목이 '연습이 중간에 멈췄어요'면 아래 줄을 두지 않는다 — '연습 누르기를 끝내지 못했어요'가 같은 말을 되풀이했다(평가 5차 10/18).
+    final practiceStopped = headline == kPracticeStoppedHeadline;
+    final String failureDetail = practiceStopped
+        ? ''
+        : mock && !userStop
         ? r.practiceWhy
         : motion != null
             ? '다시 누르지 않았어요.\n가전과 작은 팔을 봐 주세요.'
@@ -318,7 +322,7 @@ class KioskDoneView extends StatelessWidget {
           if (successSub != null) successSub,
         ] else ...[
           if (showLabel) label,
-          '$headline. $failureDetail',
+          failureDetail.isEmpty ? headline : '$headline. $failureDetail',
         ],
         ...facts,
         if (operationSentence != null) operationSentence,
@@ -365,7 +369,7 @@ class KioskDoneView extends StatelessWidget {
           ),
           // 실패·정지: 제목(본 사실) 바로 아래 할 일 한 가지를 크게(2차 평가 10/18 — '가전을 봐 주세요'가 큰 지시).
           // 흐린 글자로 두지 않는다(원칙 0-3). 무엇이었는지(가전·이름)는 그 아래 작게.
-          if (!success) ...[
+          if (!success && failureDetail.isNotEmpty) ...[
             const SizedBox(height: KioskSpace.xs),
             KioskText(
               failureDetail,
@@ -391,9 +395,13 @@ class KioskDoneView extends StatelessWidget {
                   color: Colors.white),
             ),
           ],
+          // 실패·정지는 무엇이었는지를 가전·이름 한 줄로(평가 5차 10/18 — 제목 한 줄 + 할 일 한 줄 + 작은 한 줄).
           if (target != null) ...[
             const SizedBox(height: 10),
-            KioskTargetLine(appliance: target),
+            KioskTargetLine(
+                appliance: target,
+                detail: !success && showLabel ? label : null,
+                textKey: const ValueKey('done-target')),
           ],
           // 경로(ThinQ)와 확인 수준. 서버가 준 값만 말한다(물리 경로는 배지 없음).
           if (facts.isNotEmpty) ...[
@@ -431,8 +439,8 @@ class KioskDoneView extends StatelessWidget {
                     fontSize: KioskType.body, color: KioskColors.muted),
               ),
           ] else ...[
-            // 무엇이었는지 이름 한 줄(문장 앞에 '이름 — '를 붙이지 않는다, 쉬운 말 10/17).
-            if (showLabel) ...[
+            // 무엇이었는지 이름 한 줄(문장 앞에 '이름 — '를 붙이지 않는다, 쉬운 말 10/17). 대상 가전을 알면 위 가전 줄에 함께 있다.
+            if (showLabel && target == null) ...[
               KioskText(
                 label,
                 textKey: const ValueKey('done-label'),
@@ -669,6 +677,9 @@ class _OperationLine extends StatelessWidget {
   }
 }
 
+/// 연습 실패 제목 — 이 제목이면 아래 할 일 줄을 두지 않는다(같은 말 두 번 금지, 평가 5차 10/18).
+const kPracticeStoppedHeadline = '연습이 중간에 멈췄어요';
+
 /// 실패 원인별 안내. "실행 중 문제가 발생했습니다"는 사용자가 무엇을 해야
 /// 할지 알려주지 못했다 — 원인마다 다음 행동이 다르다.
 enum KioskFailureReason {
@@ -880,9 +891,9 @@ Widget _homeButton(VoidCallback onTap, {bool calm = false}) => ElevatedButton.ic
 ///
 /// 화면의 주인공은 단추가 아니라 할 일 문장('가전을 봐 주세요')이다.
 /// - 주: `처음 화면으로`(채움, 늘 쉽게 닿게 — 안전상 빠져나갈 길).
-/// - 보조: `다시 시도`(테두리) — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문에 덜 강조한다(열린 문제 R1).
-///   다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) 그리지 않는다.
-/// - 글자: `화면에서 직접 누르기` — 글자 단추지만 누르는 자리는 48 이상.
+/// - 보조: `한 번 더 하기`(테두리) — 가전 상태를 보지 않고 같은 버튼을 다시 누르기 때문에 덜 강조한다(열린 문제 R1).
+///   누르면 확인 창이 먼저 뜬다. 다시 보낼 요청이 없으면(폰이 시작한 실행·놓친 결과 등, B2) 그리지 않는다.
+/// - 보조: `화면에서 직접 누르기`(테두리 + 아이콘) — 밑줄 글자는 링크로 읽혔다(평가 5차 10/18). 누르는 자리는 48 이상.
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
     super.key,
@@ -910,7 +921,8 @@ class _FailureActions extends StatelessWidget {
               key: const ValueKey('done-retry'),
               onPressed: onRetry,
               icon: const Icon(Icons.refresh, size: KioskType.body),
-              label: const Text('다시 시도',
+              // '다시 시도'는 기계 말(평가 5차 10/18).
+              label: const Text('한 번 더 하기',
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
@@ -919,23 +931,18 @@ class _FailureActions extends StatelessWidget {
                   foreground: Colors.white, border: KioskColors.muted),
             ),
           if (onManual != null)
-            TextButton(
+            OutlinedButton.icon(
               key: const ValueKey('done-manual'),
               onPressed: onManual,
-              style: TextButton.styleFrom(
-                minimumSize: const Size(0, 48),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: KioskSpace.sm),
-              ),
+              icon: const Icon(Icons.touch_app_outlined, size: KioskType.body),
               // '조작하기'는 기계 말(평가 4차 10/18) — 사람이 할 일로.
-              child: const Text('화면에서 직접 누르기',
+              label: const Text('화면에서 직접 누르기',
                   maxLines: 1,
                   softWrap: false,
                   style: TextStyle(
-                      fontSize: KioskType.body,
-                      fontWeight: FontWeight.w600,
-                      decoration: TextDecoration.underline,
-                      decorationColor: Colors.white70)),
+                      fontSize: KioskType.body, fontWeight: FontWeight.w600)),
+              style: KioskButtons.secondary(
+                  foreground: Colors.white, border: KioskColors.border),
             ),
         ],
       );

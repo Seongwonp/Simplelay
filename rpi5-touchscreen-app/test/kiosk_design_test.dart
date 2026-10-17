@@ -488,10 +488,11 @@ void main() {
       });
     }
 
-    testWidgets('실패 — 다시 시도는 테두리 보조, 화면에서 직접 누르기는 글자 단추(48 이상)', (tester) async {
+    // 평가 5차(10/18): 밑줄 글자 단추는 링크로 읽혔다 — 화면에서 직접 누르기도 테두리 버튼(아이콘 + 글).
+    testWidgets('실패 — 한 번 더 하기는 테두리 보조, 화면에서 직접 누르기도 테두리 버튼(48 이상)', (tester) async {
       await _pump15(tester, _done(success: false));
-      expect(inButton<OutlinedButton>('다시 시도'), findsOneWidget);
-      final manual = inButton<TextButton>('화면에서 직접 누르기');
+      expect(inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
+      final manual = inButton<OutlinedButton>('화면에서 직접 누르기');
       expect(manual, findsOneWidget);
       expect(tester.getSize(manual).height, greaterThanOrEqualTo(48));
     });

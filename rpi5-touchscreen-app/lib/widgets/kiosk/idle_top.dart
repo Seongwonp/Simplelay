@@ -85,9 +85,10 @@ class KioskIdleStatusChip extends StatelessWidget {
           onTap: onTap,
           customBorder: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 52),
+            constraints: const BoxConstraints(minHeight: 52, minWidth: 52),
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
+              // 비상 버튼 띠가 있으면 칩은 아이콘만(평가 5차 10/18 — 띠와 칩이 같은 문장을 두 번 했다). 누르는 자리는 52.
+              padding: EdgeInsets.symmetric(horizontal: estop != null ? KioskSpace.sm : KioskSpace.md),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -99,16 +100,18 @@ class KioskIdleStatusChip extends StatelessWidget {
                           : unknown
                               ? Icons.help_outline
                               : Icons.check_circle_outline,
-                      size: 24,
+                      size: estop != null ? 28 : 24,
                       color: color),
-                  const SizedBox(width: KioskSpace.xs),
-                  Text(text,
-                      maxLines: 1,
-                      softWrap: false,
-                      style: TextStyle(
-                          fontSize: KioskType.caption,
-                          fontWeight: problem ? FontWeight.w700 : FontWeight.w500,
-                          color: problem ? Colors.white : KioskColors.muted)),
+                  if (estop == null) ...[
+                    const SizedBox(width: KioskSpace.xs),
+                    Text(text,
+                        maxLines: 1,
+                        softWrap: false,
+                        style: TextStyle(
+                            fontSize: KioskType.caption,
+                            fontWeight: problem ? FontWeight.w700 : FontWeight.w500,
+                            color: problem ? Colors.white : KioskColors.muted)),
+                  ],
                 ],
               ),
             ),

@@ -101,6 +101,8 @@ class KioskSuggestionView extends StatelessWidget {
           // 시나리오 질문은 서버 문장이 이미 물음으로 끝난다.
           scenario ? suggestion.purpose : '${suggestion.purpose},\n지금 할까요?',
           textKey: const ValueKey('suggestion-question'),
+          // '같이 / 먹을 준비,'처럼 어구 가운데에서 끊지 않는다(평가 5차 10/18).
+          phrases: true,
           style: const TextStyle(
             fontSize: KioskType.key,
             fontWeight: FontWeight.w700,

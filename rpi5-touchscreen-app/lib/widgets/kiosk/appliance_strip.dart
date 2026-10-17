@@ -64,7 +64,13 @@ class KioskApplianceStrip extends StatefulWidget {
     this.statusSize = KioskType.caption,
     this.iconBox = 52,
     this.tileHeight = 112,
+    this.compactPager = false,
   });
+
+  /// 좁은 장 넘김(평가 5차 10/18) — 쪽 번호 아래 화살표 하나. 가전이 5개 이상일 때 평소 화면이 한 장에 4개를 넣으려고 쓴다
+  /// (넓은 장 넘김 칸 때문에 3개만 들어가 오른쪽이 비었다). 마지막 장이 아니면 '다음', 마지막 장이면 '이전'(두 장)·'처음'(세 장 이상).
+  /// 손가락 밀기는 그대로 양쪽으로 넘어간다.
+  final bool compactPager;
 
   final List<ApplianceMap> appliances;
   final Set<String> running;
@@ -96,6 +102,9 @@ class KioskApplianceStrip extends StatefulWidget {
 
   /// 오른쪽 장 넘김 칸 폭(이전 · 쪽 번호 · 다음). 평소 화면이 타일 폭을 잴 때 뺀다.
   static const double pagerWidth = 60 + 48 + 60;
+
+  /// 좁은 장 넘김 칸 폭([compactPager]).
+  static const double compactPagerWidth = 64;
 
   /// 타일 사이 간격(타일 오른쪽에 둔다 — 첫 타일 왼쪽 선이 줄의 왼쪽 선과 같게).
   static const double tileGap = 12;
@@ -189,7 +198,44 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
           ),
           // 한 장뿐이면 장 넘김을 그리지 않는다(자리는 지켜 타일 크기가 바뀌지 않게).
           if (_lastPage == 0)
-            SizedBox(width: widget.reservePager ? KioskApplianceStrip.pagerWidth : 0)
+            SizedBox(
+                width: widget.reservePager
+                    ? (widget.compactPager
+                        ? KioskApplianceStrip.compactPagerWidth
+                        : KioskApplianceStrip.pagerWidth)
+                    : 0)
+          else if (widget.compactPager)
+            SizedBox(
+              width: KioskApplianceStrip.compactPagerWidth,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(page,
+                      key: const ValueKey('strip-page'),
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(fontSize: KioskType.caption, color: Colors.white)),
+                  const SizedBox(height: 2),
+                  hasNext
+                      ? _ArrowButton(
+                          key: const ValueKey('strip-next'),
+                          icon: Icons.chevron_right,
+                          label: '다음 가전',
+                          word: '다음',
+                          page: page,
+                          onTap: () => _go(_page + 1),
+                        )
+                      : _ArrowButton(
+                          key: const ValueKey('strip-prev'),
+                          icon: _lastPage == 1 ? Icons.chevron_left : Icons.first_page,
+                          label: _lastPage == 1 ? '이전 가전' : '처음 가전',
+                          word: _lastPage == 1 ? '이전' : '처음',
+                          page: page,
+                          onTap: () => _go(_lastPage == 1 ? _page - 1 : 0),
+                        ),
+                ],
+              ),
+            )
           else
             SizedBox(
               width: KioskApplianceStrip.pagerWidth,
@@ -491,18 +537,24 @@ class _StripItemState extends State<_StripItem>
                               fontWeight: FontWeight.w700,
                               color: widget.unavailable ? KioskColors.muted : Colors.white),
                         ),
-                        Text(
-                          status,
-                          key: ValueKey('tile-status-${a.id}'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: widget.statusSize,
-                            height: 1.2,
-                            fontWeight: statusColor == KioskColors.muted
-                                ? FontWeight.w500
-                                : FontWeight.w700,
-                            color: statusColor,
+                        // 상태 줄은 말줄임 대신 칸에 맞춰 살짝 줄인다 — 한 장에 4개일 때 '작동하고 있어요'가 '작동하고 있…'로
+                        // 잘리면 뜻이 사라진다(평가 5차 10/18).
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            status,
+                            key: ValueKey('tile-status-${a.id}'),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: TextStyle(
+                              fontSize: widget.statusSize,
+                              height: 1.2,
+                              fontWeight: statusColor == KioskColors.muted
+                                  ? FontWeight.w500
+                                  : FontWeight.w700,
+                              color: statusColor,
+                            ),
                           ),
                         ),
                       ],

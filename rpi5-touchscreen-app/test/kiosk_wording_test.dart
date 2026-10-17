@@ -137,7 +137,7 @@ void _expectOnScreen(WidgetTester tester, Finder f) {
 void main() {
   test('다시 시도 경고는 어느 가전에나 맞는 말 — 토글 전용 "꺼질 수 있어요"를 쓰지 않는다(UI 평가 10/17)', () {
     expect(kDontRetryIfOn, isNot(contains('꺼질')));
-    expect(kDontRetryIfOn, contains('다시 시도하지 마세요'));
+    expect(kDontRetryIfOn, contains('한 번 더 하지 마세요'));
   });
 
   test('연습 띠는 경로를 가리지 않는 말이다 — ThinQ 연습 중에 "누르지"라 하지 않는다(2026-10-16 결함 ⑤)', () {
@@ -174,21 +174,21 @@ void main() {
       final head = tester.widget<Text>(find.text('눌렸는지 몰라요'));
       expect(head.style!.fontSize, sizes.reduce((a, b) => a > b ? a : b));
       // 다시 시도 위험(열린 문제 R1) — 당부는 화면에 한 번, '다시 시도' 확인 창에만 있다(쉬운 말 10/17).
-      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
+      expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
-      expect(_inButton<OutlinedButton>('다시 시도'), findsOneWidget);
+      expect(_inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
       // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 화면에서 직접 누르기는 글자 단추(48 이상, 평가 4차 이름).
-      expect(_inButton<TextButton>('화면에서 직접 누르기'), findsOneWidget);
+      expect(_inButton<OutlinedButton>('화면에서 직접 누르기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       final home = tester.getRect(find.text('처음 화면으로'));
-      final retry = tester.getRect(find.text('다시 시도'));
+      final retry = tester.getRect(find.text('한 번 더 하기'));
       expect(home.left, lessThan(retry.left), reason: '처음 화면으로가 먼저');
       // 다시 시도를 누르면 확인 창이 당부를 한 번 말한다.
-      await tester.tap(find.text('다시 시도'));
+      await tester.tap(find.text('한 번 더 하기'));
       await tester.pumpAndSettle();
-      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsOneWidget);
+      expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsOneWidget);
     });
 
     testWidgets('B2 — 다시 보낼 요청이 없으면(놓친 결과·폰이 시작한 실행) 다시 시도도, 그 당부도 없다',
@@ -208,7 +208,7 @@ void main() {
       await _nextPoll(tester);
       await tester.pump(const Duration(milliseconds: 900));
       expect(find.byType(KioskDoneView), findsOneWidget);
-      expect(find.text('다시 시도'), findsNothing);
+      expect(find.text('한 번 더 하기'), findsNothing);
       expect(find.textContaining('다시 시도하지 마세요'), findsNothing);
       expect(find.text('처음 화면으로'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
@@ -222,9 +222,9 @@ void main() {
           api,
           const KioskStatus(
               running: false, lastJobId: 'job-1', lastStatus: 'failed', lastOutcome: 'failed'));
-      expect(find.text('다시 시도'), findsOneWidget);
+      expect(find.text('한 번 더 하기'), findsOneWidget);
       // 당부는 확인 창에만(쉬운 말 10/17).
-      expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
+      expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsNothing);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -460,12 +460,11 @@ void main() {
       // 서버 문장이 제목을 되풀이하면 머리를 떼고 나머지만 — 같은 말이 띠 안에 두 번 보이지 않는다.
       expect(find.descendant(of: banner, matching: find.textContaining('비상 버튼이 눌려 있어요')),
           findsOneWidget);
-      // 평소 화면 상태 칩도 같은 말(평가 4차 10/18) — '모두 정상'이 아니다.
-      expect(
-          find.descendant(
-              of: find.byKey(const ValueKey('idle-status-chip')),
-              matching: find.text('비상 버튼이 눌려 있어요')),
-          findsOneWidget);
+      // 평소 화면 상태 칩은 '모두 정상'이 아니다(평가 4차 10/18) — 띠와 같은 문장은 되풀이하지 않고 빨강 아이콘만(평가 5차 10/18).
+      final chip = find.byKey(const ValueKey('idle-status-chip'));
+      expect(find.descendant(of: chip, matching: find.text('모두 정상')), findsNothing);
+      expect(find.descendant(of: chip, matching: find.byIcon(Icons.report)), findsOneWidget);
+      expect(find.text('비상 버튼이 눌려 있어요'), findsOneWidget);
       expect(find.text('비상 버튼을 돌려 푼 뒤 풀기 안내를 눌러 주세요'), findsOneWidget);
       expect(find.text('풀기 안내'), findsOneWidget);
       await tester.tap(find.byKey(_ack));
@@ -487,8 +486,8 @@ void main() {
         ..statusAfterAck = const KioskStatus(running: false);
       await _pumpKiosk(tester, api);
       expect(find.text('비상 버튼이 눌려 있어요'), findsNothing);
-      // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그. 띠와 평소 화면 칩이 같은 말.
-      expect(find.text('전기 플러그 전원이 꺼져 있어요'), findsNWidgets(2));
+      // 사전 변경(평가 4차 10/18): 콘센트 → 전기 플러그. 같은 말은 띠 한 곳 — 칩은 아이콘만(평가 5차 10/18).
+      expect(find.text('전기 플러그 전원이 꺼져 있어요'), findsOneWidget);
       await tester.tap(find.byKey(_ack));
       await _settle(tester);
       expect(find.textContaining('풀면 전기 플러그 전원이 다시 켜져요'), findsOneWidget);
@@ -740,7 +739,7 @@ void main() {
       expect(find.text('LG 가전 설정 1번'), findsOneWidget);
       expect(find.text('알림만'), findsOneWidget);
       expect(find.textContaining('단계'), findsNothing);
-      expect(find.text('새 루틴은 휴대폰 SimpleLay 앱에서 만들어요'), findsOneWidget);
+      expect(find.text('새 루틴은 휴대폰 앱에서 만들어요'), findsOneWidget);
       expect(find.textContaining('녹화'), findsNothing);
     });
 
@@ -794,7 +793,7 @@ void main() {
 
     testWidgets('B5 — 빈 가전 줄 안내는 누를 수 없으니 + 아이콘이 아니다, SimpleLay 본체·휴대폰 앱', (tester) async {
       await _pumpView(tester, idle(appliances: const []));
-      expect(find.text('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요'), findsOneWidget);
+      expect(find.text('휴대폰 앱에서 가전을 추가해 주세요'), findsOneWidget);
       expect(find.byIcon(Icons.add_circle_outline), findsNothing);
       await _pumpView(tester, idle(appliances: null));
       expect(find.text('본체와 연결되면 가전이 보여요'), findsOneWidget);

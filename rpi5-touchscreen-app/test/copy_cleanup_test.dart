@@ -117,7 +117,7 @@ void main() {
       );
       expect(find.text('작은 팔이 걸려 멈췄어요'), findsOneWidget);
       expect(find.textContaining('확인 못 했어요'), findsNothing);
-      expect(find.text('다시 시도'), findsNothing);
+      expect(find.text('한 번 더 하기'), findsNothing);
     });
 
     test('보내지 않은 물리 단계는 "누르지 않음"', () {
@@ -165,7 +165,7 @@ void main() {
     expect(find.text('작은 팔과 가전이 멈췄는지 봐 주세요'), findsOneWidget);
     expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
     // 직접 멈춘 결과에는 '다시 시도'가 없다(UI 평가 5차 10/17 — 다시 누를 위험).
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('한 번 더 하기'), findsNothing);
   });
 
   group('사용자 정지 — 제목은 정지 단계, 할 일은 한 줄만', () {

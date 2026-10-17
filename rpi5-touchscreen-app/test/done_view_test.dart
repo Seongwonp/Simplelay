@@ -147,7 +147,7 @@ void main() {
     // 같은 경고는 화면에 한 번 — '다시 시도' 확인 창에만 있다(쉬운 말 10/17).
     expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
     expect(find.text('처음 화면으로'), findsOneWidget);
-    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.text('한 번 더 하기'), findsOneWidget);
     expect(find.text('화면에서 직접 누르기'), findsOneWidget);
     expect(find.text('10초 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
@@ -178,7 +178,7 @@ void main() {
     expect(find.text('작은 팔과 가전이 멈췄는지 봐 주세요'), findsOneWidget);
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
     // 다시 하려면 처음 화면에서 고른다. '화면에서 직접 누르기'는 남는다.
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('한 번 더 하기'), findsNothing);
     expect(find.text('화면에서 직접 누르기'), findsOneWidget);
   });
 
@@ -449,12 +449,13 @@ void main() {
   });
 
   // 외부 평가 10/16 2차 k04: 연습 실패 화면에 왜 실패했는지가 없었다('실제 가전은 누르지 않았어요'만).
-  testWidgets('연습 실패도 이유 한 줄을 말한다 — 실제 가전은 누르지 않았다는 말과 함께', (tester) async {
+  // 평가 5차(10/18): 제목 '연습이 중간에 멈췄어요' 아래 '연습 누르기를 끝내지 못했어요'가 같은 말을 되풀이했다 — 한 줄로.
+  testWidgets('연습 실패는 한 줄 — 연습이 중간에 멈췄어요(실제 가전은 누르지 않았다는 말은 띠)', (tester) async {
     for (final (reason, why) in [
       // 연습은 실제 가전을 누르지 않는다 — '눌렸는지 몰라요'는 쓰지 않는다(평가 4차 10/18).
-      (KioskFailureReason.safetyStop, '연습에서 다시 누르지 않고 멈췄어요'),
-      (KioskFailureReason.execution, '연습 누르기를 끝내지 못했어요'),
-      (KioskFailureReason.serverLost, '연습 결과를 받지 못했어요'),
+      (KioskFailureReason.safetyStop, kPracticeStoppedHeadline),
+      (KioskFailureReason.execution, kPracticeStoppedHeadline),
+      (KioskFailureReason.serverLost, kPracticeStoppedHeadline),
     ]) {
       await _pump(
         tester,
@@ -467,6 +468,7 @@ void main() {
         ),
       );
       expect(find.textContaining(why), findsOneWidget, reason: '$reason');
+      expect(find.byKey(const ValueKey('done-next-step')), findsNothing, reason: '$reason');
       // 실제 가전을 움직이지 않았다는 말은 위 연습 띠가 한다(10/18).
       expect(find.text(kPracticeBandText), findsOneWidget, reason: '$reason');
     }

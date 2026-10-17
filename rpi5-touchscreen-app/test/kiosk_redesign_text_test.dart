@@ -155,8 +155,9 @@ void main() {
       expect(fillOf(tester, const ValueKey('done-home')), KioskColors.neutralFill);
       expect(find.byType(ElevatedButton), findsOneWidget);
       expect(tester.widget(find.byKey(const ValueKey('done-retry'))), isA<OutlinedButton>());
-      expect(tester.widget(find.byKey(const ValueKey('done-manual'))), isA<TextButton>());
-      // 글자 단추도 손가락 크기(48 이상).
+      // 화면에서 직접 누르기는 밑줄 글자가 아니라 테두리 버튼(평가 5차 10/18).
+      expect(tester.widget(find.byKey(const ValueKey('done-manual'))), isA<OutlinedButton>());
+      // 손가락 크기(48 이상).
       expect(tester.getSize(find.byKey(const ValueKey('done-manual'))).height,
           greaterThanOrEqualTo(48));
       // '가전을 봐 주세요'는 큰 지시(상태 크기).

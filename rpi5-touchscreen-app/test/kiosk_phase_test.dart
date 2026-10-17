@@ -602,7 +602,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 500));
     expect(find.text('어떻게 됐는지 몰라요'), findsOneWidget);
     expect(find.text('실행을 멈췄어요'), findsNothing);
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('한 번 더 하기'), findsNothing);
     expect(tts.utterances.last, contains('어떻게 됐는지 몰라요'));
     await tester.tap(find.text('처음 화면으로'));
     await tester.pump();
@@ -1045,7 +1045,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
 
     expect(find.byType(KioskDoneView), findsOneWidget);
-    expect(find.text('다시 시도'), findsOneWidget);
+    expect(find.text('한 번 더 하기'), findsOneWidget);
     expect(find.text('화면에서 직접 누르기'), findsOneWidget);
 
     // 성공과 달리 자동 복귀 타이머가 없다 — 사용자가 고를 때까지 남는다
@@ -1076,10 +1076,10 @@ void main() {
 
     api.nextJobId = 'job-2';
     api.statusResult = const KioskStatus(running: false);
-    await tester.tap(find.text('다시 시도'));
+    await tester.tap(find.text('한 번 더 하기'));
     await tester.pumpAndSettle();
     expect(api.approvedIds, ['s1']);
-    await tester.tap(find.text('네, 다시 시도'));
+    await tester.tap(find.text('네, 한 번 더 하기'));
     await tester.pump();
 
     expect(api.approvedIds, ['s1', 's1']); // 같은 제안을 한 번 더
@@ -1100,7 +1100,7 @@ void main() {
     expect(find.byType(KioskDoneView), findsOneWidget);
 
     // 서버 연결 실패는 '다시 시도'가 또 실패할 가능성이 높아 숨긴다
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('한 번 더 하기'), findsNothing);
 
     await tester.tap(find.text('화면에서 직접 누르기'));
     await tester.pump();
@@ -1384,7 +1384,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('약풍'), findsNothing);
-    expect(find.text('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요'), findsOneWidget);
+    expect(find.text('휴대폰 앱에서 가전을 추가해 주세요'), findsOneWidget);
   });
 
   testWidgets('목록 조회 실패는 보고 있던 가전 목록을 지우지 않는다', (tester) async {
@@ -1722,7 +1722,7 @@ void main() {
     expect(find.textContaining(' — '), findsNothing);
     // 놓친 결과에는 다시 보낼 요청이 없다 — '다시 시도' 단추도, 그 당부도 없다(B2).
     expect(find.text('가전을 봐 주세요.'), findsOneWidget);
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('한 번 더 하기'), findsNothing);
     expect(tts.utterances.last, isNot(startsWith('실행, ')));
     expect(tts.utterances.last, isNot(startsWith(', ')));
     await tester.pumpWidget(const SizedBox.shrink());
@@ -1884,7 +1884,7 @@ void main() {
     expect(done.abortReason, 'motion_alarm: stall');
     expect(find.text('작은 팔이 걸려 멈췄어요'), findsOneWidget);
     expect(find.textContaining('눌림을 확인하지 못해'), findsNothing);
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('한 번 더 하기'), findsNothing);
     expect(done.onRetry, isNull);
     expect(tts.utterances.last, contains('작은 팔이 걸려 멈췄어요. 다시 누르지 않았어요'));
     await tester.pumpWidget(const SizedBox.shrink());
@@ -2087,7 +2087,7 @@ void main() {
     expect(done.reason, KioskFailureReason.unconfirmed);
     expect(find.text('보냈지만 됐는지 몰라요'), findsOneWidget);
     expect(find.text('LG 가전 · 받았어요'), findsOneWidget);
-    expect(find.text('다시 시도'), findsNothing);
+    expect(find.text('한 번 더 하기'), findsNothing);
     expect(find.text('화면에서 직접 누르기'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });

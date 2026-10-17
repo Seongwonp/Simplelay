@@ -528,11 +528,12 @@ void main() {
     expect(r.accepted, isEmpty);
   });
 
-  testWidgets('상세: 모의면 연습 표시 — 제목·읽은 시각·연습 칸', (tester) async {
+  // 평가 5차(10/18): 연습 안내는 한 곳(조작 칸 위) — 지금 상태 칸의 '연습 화면이에요. 진짜 값이 아니에요'는 같은 말이었다.
+  testWidgets('상세: 모의면 연습 표시 — 제목·연습 칸 한 곳', (tester) async {
     await pumpPanel(tester, read: () async => _ok(_state(), mode: 'mock'));
     expect(find.text('지금 상태'), findsOneWidget);
     expect(find.text('지금 상태 (연습)'), findsNothing);
-    expect(find.text('연습 화면이에요. 진짜 값이 아니에요'), findsOneWidget);
+    expect(find.text('연습 화면이에요. 진짜 값이 아니에요'), findsNothing);
     expect(find.byKey(const ValueKey('thinq-practice')), findsOneWidget);
     expect(tester.widget<Icon>(find.descendant(
             of: find.byKey(const ValueKey('thinq-practice')), matching: find.byType(Icon))).color,
@@ -585,7 +586,7 @@ void main() {
     await tester.pump();
     expect(api.thinqStatusReads, ['air_purifier']);
     expect(find.byKey(const ValueKey('thinq-panel-air_purifier')), findsOneWidget);
-    expect(find.text('연습 화면이에요. 진짜 값이 아니에요'), findsOneWidget);
+    expect(find.byKey(const ValueKey('thinq-practice')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('thinq-set-set_wind_strength-HIGH')));
     await tester.pump();

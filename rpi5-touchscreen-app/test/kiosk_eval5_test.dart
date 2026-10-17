@@ -105,16 +105,16 @@ void main() {
             executionMode: 'real',
             onRetry: () => calls++,
             onDismiss: noop));
-    await t.tap(find.text('다시 시도'));
+    await t.tap(find.text('한 번 더 하기'));
     await t.pumpAndSettle();
     expect(calls, 0);
     expect(find.byType(AlertDialog), findsOneWidget);
     await t.tap(find.text('취소'));
     await t.pumpAndSettle();
     expect(calls, 0);
-    await t.tap(find.text('다시 시도'));
+    await t.tap(find.text('한 번 더 하기'));
     await t.pumpAndSettle();
-    await t.tap(find.text('네, 다시 시도'));
+    await t.tap(find.text('네, 한 번 더 하기'));
     await t.pumpAndSettle();
     expect(calls, 1);
   });

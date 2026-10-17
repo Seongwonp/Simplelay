@@ -288,7 +288,7 @@ class _RoutinePanel extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const KioskText(
-            '새 루틴은 휴대폰 SimpleLay 앱에서 만들어요',
+            '새 루틴은 휴대폰 앱에서 만들어요',
             style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted),
           ),
         ],

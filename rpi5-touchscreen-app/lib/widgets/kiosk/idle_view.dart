@@ -157,10 +157,14 @@ class KioskIdleView extends StatelessWidget {
     // 비상 버튼이 눌려 있나(평가 4차 10/18) — 위 빨간 띠와 같은 사실을 칩·타일도 말한다. 걸려 있는 동안은 실행이
     // 거절되므로 작은 팔로 누르는 가전은 작은 팔 끊김과 같이 '지금 못 써요'.
     final estop = KioskEstopScope.shownOf(context);
-    final hourly = showHours ? amb.hourly.take(4).toList() : const <AmbientHour>[];
-    // 가전 4개까지는 장 넘김 없이 한 줄에 다(평가 4차 10/18), 더 많으면 3개씩 넘긴다. 큰 글씨는 2개씩.
-    final perPage = large ? 2 : (list != null && list.length <= 4 ? 4 : 3);
+    var hourly = showHours ? amb.hourly.take(4).toList() : const <AmbientHour>[];
+    // 가전 4개까지는 장 넘김 없이 한 줄에 다(평가 4차 10/18). 더 많아도 한 장에 4개 + 좁은 장 넘김(평가 5차 10/18 —
+    // 넓은 장 넘김 칸 때문에 3개만 들어가 오른쪽이 비었다). 큰 글씨는 2개씩, 넓은 장 넘김.
+    final perPage = large ? 2 : 4;
     final pager = large || list == null || list.length > perPage;
+    final compactPager = !large;
+    final pagerWidth =
+        compactPager ? KioskApplianceStrip.compactPagerWidth : KioskApplianceStrip.pagerWidth;
 
     return _IdleSheetHost(view: this, builder: (sheets) => ColoredBox(
       color: KioskColors.bg,
@@ -182,14 +186,21 @@ class KioskIdleView extends StatelessWidget {
           } else {
             final left = _leftColumnHeight(context, leftWidth, env: env, air: air);
             final next = nextRun;
-            final right = _rightColumnHeight(context, rightWidth,
+            final nextHeight =
+                next == null ? 0.0 : _nextRunGap + _NextRunCard.heightFor(context, next, rightWidth);
+            double rightOf(List<AmbientHour> hours) =>
+                _rightColumnHeight(context, rightWidth,
                     greeting: showGreeting ? greeting : null,
                     tip: tip,
-                    hours: hourly,
+                    hours: hours,
                     large: large) +
-                (next == null
-                    ? 0.0
-                    : _nextRunGap + _NextRunCard.heightFor(context, next, rightWidth));
+                nextHeight;
+            // 예보가 가장 작은 타일 줄로도 들어가지 않으면(실패널의 넓은 글꼴 + 두 줄 안내 + 다음 루틴) 예보를 여기서 접고
+            // 예보 없는 높이로 타일을 잰다(평가 5차 10/18 — 예보 자리만큼 가운데가 비어 있었다).
+            if (hourly.isNotEmpty && rightOf(hourly) > middleAndStrip - _Idle.strip) {
+              hourly = const <AmbientHour>[];
+            }
+            final right = rightOf(hourly);
             final need = left > right ? left : right;
             strip = (middleAndStrip - need - _Idle.slack)
                 .clamp(_Idle.strip, _Idle.stripMax)
@@ -276,7 +287,7 @@ class KioskIdleView extends StatelessWidget {
                                 large: large) +
                             nextHeight <=
                         box.maxHeight;
-                final hoursFit = showHours &&
+                final hoursFit = hourly.isNotEmpty &&
                     _rightColumnHeight(context, box.maxWidth,
                                 greeting: showGreeting ? greeting : null,
                                 tip: tip,
@@ -301,7 +312,21 @@ class KioskIdleView extends StatelessWidget {
                   ],
                 );
                 if (!nextFits) return SingleChildScrollView(child: top);
-                // 다음 루틴 카드는 칸 아래 끝(가전 줄 바로 위)에 붙인다 — 위 안내·예보와 사이 빈칸은 가운데로.
+                // 예보가 없으면 다음 루틴 카드는 안내 바로 아래(평가 5차 10/18, 실패널 k01 — 예보가 빠진 자리가 가운데에 비었다).
+                // 남는 높이는 위에서 타일·시계가 쓴다.
+                if (!hoursFit) {
+                  return SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        top,
+                        const SizedBox(height: _nextRunGap),
+                        _NextRunCard(key: const ValueKey('idle-next-run'), next: next),
+                      ],
+                    ),
+                  );
+                }
+                // 예보가 있으면 다음 루틴 카드는 칸 아래 끝(가전 줄 바로 위)에 붙인다 — 위 안내·예보와 사이 빈칸은 가운데로.
                 return SingleChildScrollView(
                   child: ConstrainedBox(
                     constraints: BoxConstraints(minHeight: box.maxHeight),
@@ -325,7 +350,7 @@ class KioskIdleView extends StatelessWidget {
             // 한참 오른쪽에서 시작했다). 타일 폭은 남은 폭을 장 넘김 칸과 나눠 잰다(장 넘김이 없으면 전부 타일).
             SizedBox(height: strip, child: LayoutBuilder(builder: (context, box) {
               final itemWidth =
-                  (box.maxWidth - (pager ? KioskApplianceStrip.pagerWidth : 0)) / perPage;
+                  (box.maxWidth - (pager ? pagerWidth : 0)) / perPage;
               final unavailable = <String>{
                 if ((pressDown || estop) && list != null)
                   for (final a in list)
@@ -334,7 +359,7 @@ class KioskIdleView extends StatelessWidget {
               return Align(alignment: list == null || list.isEmpty ? Alignment.center : Alignment.topLeft,
                 child: SingleChildScrollView(child: list == null
                   ? const _StripNotice('본체와 연결되면 가전이 보여요')
-                  : list.isEmpty ? const _StripNotice('휴대폰 SimpleLay 앱에서 가전을 추가해 주세요')
+                  : list.isEmpty ? const _StripNotice('휴대폰 앱에서 가전을 추가해 주세요')
                   : KioskApplianceStrip(appliances: list, running: estop ? const {} : running, attention: estop ? {...attention, ...running} : attention,
                       on: estop ? const {} : on,
                       unavailable: unavailable,
@@ -354,6 +379,7 @@ class KioskIdleView extends StatelessWidget {
                       },
                       perPage: perPage,
                       reservePager: pager,
+                      compactPager: compactPager,
                       itemWidth: itemWidth,
                       labelSize: _Idle.stripName,
                       statusSize: _Idle.stripStatus,

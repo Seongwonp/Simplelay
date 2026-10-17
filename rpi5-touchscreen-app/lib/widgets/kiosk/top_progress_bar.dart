@@ -11,6 +11,8 @@ class TopProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 진행 막대는 실행·결과에서만 — 평소·제안 화면에서는 빈 회색 줄이 무엇인지 몰랐다(평가 5차 10/18, 실패널 k01).
+    if (phase != KioskPhase.executing && phase != KioskPhase.done) return const SizedBox.shrink();
     final value = switch (phase) {
       KioskPhase.executing => execBarValue * 0.8,
       KioskPhase.done => 1.0,

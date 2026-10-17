@@ -305,7 +305,9 @@ class _StateCardState extends State<_StateCard> {
                 textKey: const ValueKey('thinq-dust-note'),
                 style: const TextStyle(fontSize: KioskType.caption, color: KioskColors.muted, height: 1.3)),
           ),
-        if (s.readAt != null) ...[
+        // 연습이면 읽은 시각 줄('연습 화면이에요. 진짜 값이 아니에요')을 두지 않는다 — 조작 칸 위 연습 안내가 같은 말을 한다
+        // (평가 5차 10/18). 조작 칸이 없을 때(읽기 실패)는 그대로 남는다.
+        if (s.readAt != null && !(s.mock && s.ok)) ...[
           const SizedBox(height: 8),
           KioskText(thinqReadTimeLine(s.readAt!, mock: s.mock),
               textKey: const ValueKey('thinq-read-time'),
@@ -442,7 +444,7 @@ class _Controls extends StatelessWidget {
         children.add(const Padding(padding: EdgeInsets.only(bottom: 10), child: _PracticeChip()));
       }
       if (controls.isEmpty) {
-        children.add(const KioskText('이 가전은 휴대폰 SimpleLay 앱에서 바꿀 수 있어요.',
+        children.add(const KioskText('이 가전은 휴대폰 앱에서 바꿀 수 있어요.',
             textKey: ValueKey('thinq-controls-phone'),
             style: TextStyle(fontSize: KioskType.body, color: KioskColors.muted, height: 1.3)));
       }

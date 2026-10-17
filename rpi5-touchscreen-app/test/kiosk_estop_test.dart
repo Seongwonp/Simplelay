@@ -152,11 +152,12 @@ void main() {
       await _pump(tester, api);
       expect(find.byKey(_banner), findsOneWidget);
       expect(find.descendant(of: find.byKey(_banner), matching: find.text(kEstopTitle)), findsOneWidget);
-      // 평소 화면 상태 칩도 같은 말 — '모두 정상'이 아니다(평가 4차 10/18).
+      // 평소 화면 상태 칩은 '모두 정상'이 아니다(평가 4차 10/18) — 띠 문장을 되풀이하지 않고 빨강 아이콘만(평가 5차 10/18).
       expect(
           find.descendant(
-              of: find.byKey(const ValueKey('idle-status-chip')), matching: find.text(kEstopTitle)),
+              of: find.byKey(const ValueKey('idle-status-chip')), matching: find.byIcon(Icons.report)),
           findsOneWidget);
+      expect(find.text(kEstopTitle), findsOneWidget);
       expect(find.text('모두 정상'), findsNothing);
       expect(find.text(_detailShown), findsOneWidget);
 
