@@ -460,7 +460,7 @@ def test_without_a_clock_reference_for_the_frame_auto_run_is_held(monkeypatch, t
 @pytest.mark.parametrize("change", ["value_low", "delete", "rename_target"])
 def test_result_keeps_the_target_and_value_of_the_job_not_the_current_rule(monkeypatch, tmp_path, cloud, change):
     """M2: 모의 클라우드에 강(HIGH)을 보낸 직후·결과 확인 전에 규칙을 약으로 바꾸거나 지우거나 대상 이름을 바꿨다 —
-    결과 기록·알림·/status last_auto_run(키오스크 문구 재료)은 보낸 그대로 '공기청정기(모의 클라우드) 풍량 강'이다."""
+    결과 기록·알림·/status last_auto_run(키오스크 문구 재료)은 보낸 그대로 '공기청정기(모의 클라우드) 바람 세기 강'이다."""
     from rpi.api import deps
     from rpi.api.thinq_wiring import appliance_for
     from rpi.services.thinq import sdk_client
@@ -493,13 +493,13 @@ def test_result_keeps_the_target_and_value_of_the_job_not_the_current_rule(monke
         assert cloud.controls()[before]["body"] == {"airFlow": {"windStrength": "HIGH"}}
         assert run["status"] == "succeeded"
         assert (run["target_name"], run["setting_label"], run["value_label"]) == (
-            "공기청정기(모의 클라우드)", "풍량", "강")
+            "공기청정기(모의 클라우드)", "바람 세기", "강")
         assert run["action_text"] == "공기청정기(모의 클라우드) 바람을 세게 해요"
         notices = " / ".join(run["notices"])
-        assert "공기청정기(모의 클라우드)를 강풍으로 바꿨어요" in notices and "안방" not in notices
+        assert "공기청정기(모의 클라우드)를 바람 세기 강으로 바꿨어요" in notices and "안방" not in notices
         auto = api.get("/status").json()["last_auto_run"]
         assert auto["job_id"] == run["job_id"]
         assert (auto["target_name"], auto["setting_label"], auto["value_label"]) == (
-            "공기청정기(모의 클라우드)", "풍량", "강")  # 키오스크: '… 풍량을 강으로 바꿨어요'
+            "공기청정기(모의 클라우드)", "바람 세기", "강")  # 키오스크: '… 바람 세기 강으로 바꿨어요'
     finally:
         _reset()

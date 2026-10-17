@@ -82,7 +82,7 @@ def test_control_asks_and_does_nothing_without_yes(cloud, tmp_path):
                           "--control", "air_purifier", "set_wind_strength", "HIGH"],
                          input_fn=lambda prompt: asked.append(prompt) or "no")
     assert code == 1
-    assert len(asked) == 1 and "풍량" in asked[0]
+    assert len(asked) == 1 and "바람 세기" in asked[0]
     assert cloud.controls() == []
 
 

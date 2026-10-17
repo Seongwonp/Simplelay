@@ -1268,6 +1268,8 @@ def history(
     limit: int = 50,
     store=Depends(get_job_history),
 ) -> list[HistoryEntryResponse]:
+    from rpi.routines.auto_rules import display_purpose  # noqa: PLC0415
+
     # 실행 이력(최신순) — 공감지능의 근거 데이터와 폐루프 재시도 기록을
     # 사용자에게 그대로 보여준다. limit은 1~200으로 클램프.
     limit = max(1, min(limit, 200))
@@ -1275,7 +1277,8 @@ def history(
         HistoryEntryResponse(
             job_id=e.job_id,
             finished_at=e.finished_at,
-            purpose=e.purpose,
+            # 저장값은 그대로 두고 보여 줄 때만 지금 문체로(옛 질문 문장·옛 자동 실행 동작 문장, 10/18 쉬운 말 3차).
+            purpose=display_purpose(e.purpose),
             status=e.status,
             retry_count=e.retry_count,
             appliance_id=e.appliance_id,

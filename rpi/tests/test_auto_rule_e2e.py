@@ -92,7 +92,7 @@ def test_mock_cook_done_drives_the_mock_cloud_purifier_end_to_end(monkeypatch, t
         assert run["event_source"] == "injected"
         notices = " / ".join(run["notices"])
         assert "멈춘 것 같아요" in notices and "연습으로 넣은 신호예요" in notices
-        assert "강풍으로 바꿨어요." in notices and "연습이라 실제 가전은 그대로예요" in notices
+        assert "바람 세기 강으로 바꿨어요." in notices and "연습이라 실제 가전은 그대로예요" in notices
 
         controls = cloud.controls()
         assert [c["body"] for c in controls] == [{"airFlow": {"windStrength": "HIGH"}},
@@ -108,7 +108,7 @@ def test_mock_cook_done_drives_the_mock_cloud_purifier_end_to_end(monkeypatch, t
         assert history["purpose"].startswith("자동 실행")
         assert _cards(api) == []
         care = " / ".join(e["message"] for e in api.get("/care-events").json())
-        assert "강풍으로 바꿨어요" in care and "깨끗" not in care
+        assert "바람 세기 강으로 바꿨어요" in care and "깨끗" not in care
         assert SECRET_PAT not in str(run) and device not in str(api.get("/routines/auto-rules").json())
     finally:
         _reset()

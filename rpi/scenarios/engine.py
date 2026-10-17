@@ -22,7 +22,7 @@ import logging
 from rpi.commands import CommandStatus, Confirmation, ControlRoute
 from rpi.controller.models import ExecutionMode
 
-from .catalog import ScenarioCatalog, ScenarioDefinition
+from .catalog import ScenarioCatalog, ScenarioDefinition, same_question
 
 log = logging.getLogger(__name__)
 
@@ -132,7 +132,8 @@ class ScenarioEngine:
         except Exception:  # noqa: BLE001 -- 근거를 못 읽으면 근거 문장을 붙이지 않는다
             log.exception("suggestion history unreadable")
             return 0
-        return sum(1 for e in events if e.get("purpose") == definition.question
+        # 옛 질문 문장으로 남은 승인도 같은 제안으로 센다(10/18 쉬운 말 3차 — 문장을 바꿔도 횟수가 0으로 돌아가지 않게).
+        return sum(1 for e in events if same_question(e.get("purpose"), definition.question)
                    and e.get("action") in ("submitted", "execution_returned"))
 
     def trigger_manual(self, scenario_id: str):

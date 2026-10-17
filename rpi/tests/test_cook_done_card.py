@@ -93,8 +93,8 @@ def test_ct_cook_done_offers_the_air_purifier_card(api):
     cards = _cards(api)
     assert len(cards) == 1
     card = cards[0]
-    assert card["purpose"] == "공기청정기 풍량을 강으로 바꿀까요?"
-    assert card["commands"][0]["summary"] == "공기청정기(모의) 풍량 강"
+    assert card["purpose"] == "공기청정기 바람을 세게 할까요?"
+    assert card["commands"][0]["summary"] == "공기청정기(모의) 바람 세기 강"
     assert card["is_demo"] is True  # 주입 사건 — 실제 CT 판정이 아니다
     assert "멈춘 것 같아요" in card["reason"] and "연습으로 넣은 신호예요" in card["reason"]
     # A5(10/14): 지금 판정은 취소·문 열림 가열 종료와 구분하지 못한다 — 조리 완료를 보장하지 않는다.
@@ -111,7 +111,7 @@ def test_first_event_with_no_history_states_no_habit(api):
     제안 문장과 감지 근거(가열 종료·조리 완료가 아닐 수 있음)만."""
     _inject(api, inputs=("power",))
     card = _cards(api)[0]
-    assert card["purpose"] == "공기청정기 풍량을 강으로 바꿀까요?"
+    assert card["purpose"] == "공기청정기 바람을 세게 할까요?"
     for claim in ("식사", "두시곤", "습관", "자주", "승인하셨어요"):
         assert claim not in card["reason"], claim
     assert "조리 완료가 아닐 수 있어요" in card["reason"]

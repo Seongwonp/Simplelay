@@ -284,7 +284,7 @@ def test_bad_air_offers_one_air_card(api, level):
     assert card["is_demo"] is True
     assert [(c["target_id"], c["route"], c["action"], c["args"]) for c in card["commands"]] == [
         ("air_purifier", "thinq", "set_wind_strength", {"wind_strength": "HIGH"})]
-    assert card["commands"][0]["summary"] == "공기청정기(모의) 풍량 강"
+    assert card["commands"][0]["summary"] == "공기청정기(모의) 바람 세기 강"
     for claim in ("좋아졌", "깨끗", "나아졌"):
         assert claim not in card["reason"] and claim not in card["purpose"]
     names = {s["scenario_id"]: s["name"] for s in api.get("/scenarios").json()}
@@ -555,7 +555,7 @@ def test_fake_cloud_bad_air_offers_a_mock_labelled_card(monkeypatch, tmp_path):
         assert body["check"] == "offered"
         card = _cards(api)[0]
         assert card["is_demo"] is True and card["reason"].endswith("연습용 센서 값이에요.")
-        assert card["commands"][0]["summary"] == "공기청정기(모의 클라우드) 풍량 강"
+        assert card["commands"][0]["summary"] == "공기청정기(모의 클라우드) 바람 세기 강"
         res = api.post(f"/suggestions/{card['id']}/approve")
         assert _wait_done(api, res.json()["job_id"], timeout=10)["last_status"] == "succeeded"
         controls = [r["body"] for r in cloud.controls()]

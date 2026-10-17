@@ -166,7 +166,7 @@ def test_next_cook_done_runs_without_approval_and_reports_per_device(api):
     notices = " / ".join(run["notices"])
     assert "멈춘 것 같아요" in notices and "다 익었는지는 봐 주세요" in notices
     assert "데우기가 끝났" not in notices and "조리 완료를 확인" not in notices
-    assert "강풍으로 바꿨어요." in notices
+    assert "바람 세기 강으로 바꿨어요." in notices
     assert "깨끗" not in notices  # 설정 확인을 공기 상태로 말하지 않는다
     assert _cards(api) == []  # 허용한 조건이면 카드를 다시 띄우지 않는다
     assert api.get("/history").json()[0]["confirmation"] == "state_confirmed"
@@ -204,7 +204,7 @@ def test_status_carries_the_last_auto_run_result_for_the_kiosk(api):
     auto = api.get("/status").json()["last_auto_run"]
     assert auto["job_id"] == run["job_id"]
     assert (auto["status"], auto["confirmation"], auto["execution_mode"]) == ("succeeded", "state_confirmed", "mock")
-    assert (auto["target_name"], auto["setting_label"], auto["value_label"]) == ("공기청정기(모의)", "풍량", "강")
+    assert (auto["target_name"], auto["setting_label"], auto["value_label"]) == ("공기청정기(모의)", "바람 세기", "강")
     _set_wind(api, "LOW")  # 이미 강이면 보내지 않아 미확인이 나올 수 없다(10/14)
     _client().set_fault(MOCK_PURIFIER_ID, "unconfirmed")
     time.sleep(0.05)  # 사건 키는 RPi4 끝 시각(ms)이다 — 같은 시각이면 같은 사건으로 거른다

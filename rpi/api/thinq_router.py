@@ -267,7 +267,8 @@ async def thinq_command(body: ThinqCommandRequest,
     # 목적 문장이 없으면 종전처럼 기록하지 않는다. 등록부 조회는 잠금을 잡을 수 있어 루프 밖에서.
     purpose = await asyncio.to_thread(_purpose_of, command)
     try:
-        job_id = await asyncio.to_thread(service.submit_command, command, purpose=purpose)
+        # 기록 제목은 대응표 명령 문장('강풍으로 바꿔줘')이 아니라 한 일('공기청정기 바람을 세게 해요', 10/18 쉬운 말 3차).
+        job_id = await asyncio.to_thread(service.submit_command, command, purpose=purpose, action_title=True)
     except UnknownIntentError as exc:
         raise HTTPException(422, str(exc)) from exc
     except RuntimeError as exc:

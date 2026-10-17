@@ -65,7 +65,7 @@ def test_property_missing_from_profile_is_refused():
     client.set_profile(MOCK_PURIFIER_ID, profile)
     result = ctrl.execute_command(Command.thinq("air_purifier", "set_wind_strength",
                                                 {"wind_strength": "HIGH"}))
-    assert _not_sent(result) and "풍량" in result.detail and "없어" in result.detail
+    assert _not_sent(result) and "바람 세기" in result.detail and "없어" in result.detail
     assert client.controls == []
 
 

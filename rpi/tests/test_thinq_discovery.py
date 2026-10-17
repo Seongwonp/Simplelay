@@ -53,7 +53,7 @@ def _read_only(profile: dict) -> dict:
 def test_classify_by_profile():
     full = classify("DEVICE_AIR_PURIFIER", air_purifier_profile())
     assert full.support == CONTROLLABLE
-    assert full.actions == ("전원", "풍량", "운전 모드")
+    assert full.actions == ("전원", "바람 세기", "운전 모드")
     assert "제어할 수 있어요" in full.reason
 
     narrow = classify("DEVICE_AIR_PURIFIER", air_purifier_profile(job_modes_w=(), wind_w=()))
@@ -200,7 +200,7 @@ def test_discovered_lists_account_devices_without_registering(api, cloud):
     assert purifier["kind_label"] == "공기청정기"
     assert purifier["alias"] == "공기청정기(모의 클라우드)"
     assert purifier["support"] == "controllable"
-    assert purifier["actions"] == ["전원", "풍량", "운전 모드"]
+    assert purifier["actions"] == ["전원", "바람 세기", "운전 모드"]
     assert purifier["added"] is False and purifier["can_add"] is True and purifier["reason"] is None
     assert rows["washer"]["support"] == "controllable" and rows["washer"]["actions"] == ["운전"]
     # 발견만으로는 아무것도 등록하지 않는다.
@@ -249,7 +249,7 @@ def test_discover_add_approve_control_confirm_end_to_end(api, cloud):
     assert cloud.controls() == []  # 승인 없는 자동 실행 없음
     cards = [s for s in api.get("/suggestions").json() if s.get("scenario_id") == "cook_then_air"]
     assert len(cards) == 1
-    assert cards[0]["commands"][0]["summary"] == "공기청정기(모의 클라우드) 풍량 강"
+    assert cards[0]["commands"][0]["summary"] == "공기청정기(모의 클라우드) 바람 세기 강"
 
     approved = api.post(f"/suggestions/{cards[0]['id']}/approve")
     assert approved.status_code == 200, approved.text

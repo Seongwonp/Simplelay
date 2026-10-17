@@ -176,7 +176,7 @@ def test_value_already_set_before_command_is_not_sent():
     assert again.status is CommandStatus.SUCCEEDED
     assert again.receipt is Receipt.NOT_DISPATCHED
     assert again.confirmation is Confirmation.ALREADY_AT_TARGET
-    assert "이미 강" in again.detail and len(client.controls) == 1
+    assert "이미 바람 세기 강" in again.detail and len(client.controls) == 1
 
 
 def test_lost_response_is_unknown_receipt():
@@ -390,7 +390,7 @@ def test_cook_then_air_end_to_end_with_mock(client):
     assert "연습" in card["reason"]
     assert card["commands"] == [{
         "target_id": "air_purifier", "route": "thinq", "action": "set_wind_strength",
-        "args": {"wind_strength": "HIGH"}, "buttons": [], "summary": "공기청정기(모의) 풍량 강"}]
+        "args": {"wind_strength": "HIGH"}, "buttons": [], "summary": "공기청정기(모의) 바람 세기 강"}]
 
     approved = client.post(f"/suggestions/{card['id']}/approve")
     assert approved.status_code == 200, approved.text

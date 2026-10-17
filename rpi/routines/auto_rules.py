@@ -84,6 +84,8 @@ DEFAULT_MAX_EVENT_AGE_S = 120.0
 APPROVAL_SECONDS = 60
 #: 실행 기록의 시나리오 ID 접두사(시나리오·루틴 트리거가 다시 깨우지 않게).
 AUTO_SCENARIO_PREFIX = "auto:"
+#: 자동 실행 기록의 목적 문장 머리. 폰이 이 글자로 출처 '자동'을 가른다(app display_status.dart) — 바꾸지 않는다.
+AUTO_PURPOSE_PREFIX = "자동 실행 · "
 KIND_AUTO_RULE = "auto_rule"
 CONDITION_BASIS = "ct_power_end"
 MAX_SEEN_EVENTS = 500
@@ -227,6 +229,88 @@ ACTION_LABELS = {"set_wind_strength": "바람 세기", "set_job_mode": "모드",
 #: '무엇을' 조각의 동사·부사(10/18 쉬운 말). 없는 값은 '…을 …로 바꿔요'.
 _POWER_WORDS = {"POWER_ON": "켜요", "POWER_OFF": "꺼요"}
 _WIND_WORDS = {"HIGH": "세게", "MID": "중간으로", "LOW": "약하게", "AUTO": "자동으로"}
+
+
+def thinq_action_phrase(name: str, action: str, value, cap=None) -> str:
+    """ThinQ 동작 하나를 해요체 한 문장으로(10/18 쉬운 말, 예: '공기청정기를 켜요', '공기청정기 바람을 세게 해요').
+
+    자동 실행 규칙의 '무엇을' 조각과 기록 제목(직접 조작·옛 자동 실행 기록)이 같은 말을 쓴다. '풍량'·'전원 켜기' 같은
+    설정표 말은 쓰지 않는다. ``cap``(기능 정의)을 모르면 동작 이름 대신 일반 낱말 — 원시 이름을 화면에 내지 않는다."""
+    if cap is None:
+        # 원시 동작 이름(set_wind_strength HIGH)을 화면에 내지 않는다(2026-10-14 UX).
+        label = ACTION_LABELS.get(action, "설정")
+        return f"{name} {label}{_josa(label, '을', '를')} 바꿔요"
+    value = str(value)
+    spoken = _spoken_phrase(name, action, value)
+    if spoken is not None:
+        return spoken
+    obj = f"{name}{_josa(_josa_stem(name), '을', '를')}"
+    label = cap.value_label(value)
+    if action == "set_job_mode":
+        return f"{obj} {label} 모드로 바꿔요"
+    return f"{name} {cap.label}{_josa(cap.label, '을', '를')} {label}{_josa(label, '으로', '로')} 바꿔요"
+
+
+def _spoken_phrase(name: str, action: str, value: str) -> str | None:
+    """전원·바람 세기는 동사·부사로('공기청정기를 켜요', '공기청정기 바람을 세게 해요'). 그 밖은 None."""
+    if action == "set_power" and value in _POWER_WORDS:
+        return f"{name}{_josa(_josa_stem(name), '을', '를')} {_POWER_WORDS[value]}"
+    if action == "set_wind_strength" and value in _WIND_WORDS:
+        return f"{name} 바람을 {_WIND_WORDS[value]} 해요"
+    return None
+
+
+#: 10/18 쉬운 말 2차 전 자동 실행 기록의 동작 문장('자동 실행 · 공기청정기 전원 끄기' 등, ``job_history.purpose``에 그대로
+#: 저장돼 있다) → 지금 조각. 기록을 고치지 않고 보여 줄 때만 바꾼다(:func:`display_purpose`).
+_LEGACY_AUTO_POWER = {"켜기": "POWER_ON", "끄기": "POWER_OFF"}
+_LEGACY_AUTO_WIND = {"약": "LOW", "중": "MID", "강": "HIGH", "자동": "AUTO"}
+_LEGACY_AUTO_MODES = ("청정", "수면", "저소음", "자동")
+
+
+def _legacy_auto_action(text: str) -> str | None:
+    """옛 동작 문장 하나 → 지금 조각. 모양이 맞지 않으면 None(받은 그대로 둔다)."""
+    for word, value in _LEGACY_AUTO_POWER.items():
+        tail = f" 전원 {word}"
+        if text.endswith(tail) and len(text) > len(tail):
+            return _spoken_phrase(text[: -len(tail)], "set_power", value)
+    for word, value in _LEGACY_AUTO_WIND.items():
+        tail = f" 풍량 {word}{_josa(word, '으로', '로')}"
+        if text.endswith(tail) and len(text) > len(tail):
+            return _spoken_phrase(text[: -len(tail)], "set_wind_strength", value)
+    for mode in _LEGACY_AUTO_MODES:
+        tail = f" 운전 모드 {mode}{_josa(mode, '으로', '로')}"
+        if text.endswith(tail) and len(text) > len(tail):
+            name = text[: -len(tail)]
+            return f"{name}{_josa(_josa_stem(name), '을', '를')} {mode} 모드로 바꿔요"
+    for label in ACTION_LABELS.values():
+        tail = f" {label} 바꾸기"
+        if text.endswith(tail) and len(text) > len(tail):
+            return f"{text[: -len(tail)]} {label}{_josa(label, '을', '를')} 바꿔요"
+    return None
+
+
+def display_purpose(purpose: str | None) -> str | None:
+    """기록에 저장된 목적 문장을 지금 문체로(10/18 쉬운 말 3차). 저장값은 고치지 않는다 — 보여 줄 때만.
+
+    - 옛 시나리오 질문('공기청정기 풍량을 강으로 바꿀까요?') → 지금 질문(시나리오 카탈로그의 ``former_questions``).
+    - 옛 자동 실행 동작 문장('자동 실행 · 공기청정기 전원 끄기') → '자동 실행 · 공기청정기를 꺼요'. 앞의 ``자동 실행 · ``는
+      그대로 둔다(폰이 이 글자로 출처 '자동'을 가른다).
+    그 밖(말로 한 명령·루틴·지금 형식)은 받은 그대로."""
+    if not purpose:
+        return purpose
+    from rpi.scenarios.catalog import current_question  # noqa: PLC0415
+
+    current = current_question(purpose)
+    if current != purpose:
+        return current
+    prefix = AUTO_PURPOSE_PREFIX
+    if purpose.startswith(prefix):
+        fixed = _legacy_auto_action(purpose[len(prefix):].strip())
+        if fixed is not None:
+            return prefix + fixed
+    return purpose
+
+
 #: 시작 시각 → 때 이름. 0시는 '밤 12시', 12시는 '낮 12시'.
 _DAY_PARTS = ((0, "새벽"), (6, "아침"), (12, "낮"), (18, "저녁"), (21, "밤"))
 
@@ -658,22 +742,7 @@ class AutoRuleEngine:
             cap = binding.capability(rule.action) if binding is not None else None
         except Exception:  # noqa: BLE001 -- 대상이 바뀌었으면 동작 이름만
             cap = None
-        # 10/18 쉬운 말: '무엇을' 조각은 해요체 한 문장(예: '공기청정기 바람을 세게 해요'). '풍량'·'전원 켜기' 같은
-        # 설정표 말은 쓰지 않는다. 조각만 따로 보여도, '언제' 조각 뒤에 붙여 읽어도 자연스럽게.
-        obj = f"{name}{_josa(_josa_stem(name), '을', '를')}"
-        if cap is None:
-            # 원시 동작 이름(set_wind_strength HIGH)을 화면에 내지 않는다(2026-10-14 UX).
-            label = ACTION_LABELS.get(rule.action, "설정")
-            return f"{name} {label}{_josa(label, '을', '를')} 바꿔요"
-        value = str(rule.value)
-        if rule.action == "set_power" and value in _POWER_WORDS:
-            return f"{obj} {_POWER_WORDS[value]}"
-        if rule.action == "set_wind_strength" and value in _WIND_WORDS:
-            return f"{name} 바람을 {_WIND_WORDS[value]} 해요"
-        label = cap.value_label(value)
-        if rule.action == "set_job_mode":
-            return f"{obj} {label} 모드로 바꿔요"
-        return f"{name} {cap.label}{_josa(cap.label, '을', '를')} {label}{_josa(label, '으로', '로')} 바꿔요"
+        return thinq_action_phrase(name, rule.action, rule.value, cap)
 
     # ── 카드의 허용 제안 ─────────────────────────────────────────────────────
     def offer_for(self, suggestion) -> AutoRule | None:
@@ -1134,8 +1203,8 @@ class AutoRuleEngine:
         if rule.is_time:
             routine = self._routine(rule.condition_routine_id)
             if routine is not None:
-                return f"자동 실행 · '{routine.name}' 루틴"
-        return f"자동 실행 · {self.action_text(rule)}"
+                return f"{AUTO_PURPOSE_PREFIX}'{routine.name}' 루틴"
+        return f"{AUTO_PURPOSE_PREFIX}{self.action_text(rule)}"
 
     def _time_notice(self, rule: AutoRule) -> str:
         routine = self._routine(rule.condition_routine_id)
@@ -1427,8 +1496,12 @@ class AutoRuleEngine:
             routine = self._routine(rule.condition_routine_id)
             name = routine.name if routine is not None else "자동 실행"
         else:
+            # 이름은 저장하지 않고 시나리오 ID로 정한다 — 지금 카탈로그에 없으면(다른 구성으로 켠 허브) 서버가 아는 이름표에서
+            # 찾는다. 옛 이름('가열 종료 → 공기청정기')은 어디에도 남지 않는다(10/18 쉬운 말 3차).
+            from rpi.scenarios.catalog import scenario_name  # noqa: PLC0415
+
             definition = self._definition(rule.scenario_id)
-            name = definition.name if definition is not None else "자동 실행"
+            name = definition.name if definition is not None else scenario_name(rule.scenario_id)
         rebound = self._rebound(rule)
         values = []
         appliance = self._appliance(rule.target_appliance_id)

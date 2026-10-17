@@ -12,7 +12,7 @@
 v4(2026-10-13, docs/본선-시연-계획-v4.md):
 
 - ``cook_done_air`` 가열 종료 → 공기청정기(취소·문 열림 종료도 같게 잡힌다 — 정책상 허용, '조리 완료가 아닐 수 있음' 표기): RPi4가 보낸 **전자레인지 CT 끝 판정**(``appliance_done``,
-  이벤트 ``heat_complete``, 입력에 전력 ``power``)일 때만 "공기청정기 풍량을 강으로 바꿀까요?"를 제안한다. 사용자의
+  이벤트 ``heat_complete``, 입력에 전력 ``power``)일 때만 "공기청정기 바람을 세게 할까요?"를 제안한다. 사용자의
   습관은 단정하지 않는다 — 같은 제안을 승인한 기록이 있을 때만 그 횟수를 근거로 붙인다(3차 평가 M4, 엔진). 버튼 누름
   완료(실행 성공)는 조리 완료가 아니라 트리거가 아니다. 이 카드만 '다음부터도 자동으로'(자동 실행 허용 규칙,
   ``rpi/routines/auto_rules.py``)를 고를 수 있다(``auto_allowed``).
@@ -80,6 +80,9 @@ class ScenarioDefinition:
     valid_minutes: int = 15
     #: 이 카드에서 '다음부터도 자동으로'(자동 실행 허용 규칙)를 고를 수 있는가(v4 ``cook_done_air``만).
     auto_allowed: bool = False
+    #: 예전 질문 문장(10/18 쉬운 말 3차). 질문 문장은 '다시 받지 않기' 목록·승인 횟수·다시 묻기 기한의 열쇠라, 문장을
+    #: 바꿔도 옛 문장으로 남은 기록이 이 시나리오의 것으로 이어지게 한다(:func:`current_question`).
+    former_questions: tuple[str, ...] = ()
 
     def commands(self) -> tuple[Command, ...]:
         return tuple(step.command() for step in self.steps)
@@ -99,7 +102,9 @@ COOK_THEN_AIR = ScenarioDefinition(
 COOK_DONE_AIR = ScenarioDefinition(
     scenario_id="cook_done_air",
     name="데우기 멈추면 공기청정기",
-    question="공기청정기 풍량을 강으로 바꿀까요?",
+    # 10/18 쉬운 말 3차: '풍량'을 쓰지 않는다 — 자동 실행 규칙 조각('공기청정기 바람을 세게 해요')과 같은 말.
+    question="공기청정기 바람을 세게 할까요?",
+    former_questions=("공기청정기 풍량을 강으로 바꿀까요?",),
     trigger=ScenarioTrigger("appliance_done", appliance_id="microwave", event="heat_complete"),
     steps=(
         ScenarioStep("air_purifier", ControlRoute.THINQ, "set_wind_strength",
@@ -186,6 +191,34 @@ def scenarios_from_env(env: Mapping[str, str] | None = None) -> tuple[ScenarioDe
     return DEFAULT_SCENARIOS
 
 
+#: 서버가 아는 모든 시나리오(기본 + v2). 이름·옛 질문 문장을 시나리오 ID로 찾을 때 쓴다 — 지금 실린 카탈로그와 무관하게.
+KNOWN_SCENARIOS: tuple[ScenarioDefinition, ...] = (*DEFAULT_SCENARIOS, *V2_SCENARIOS)
+_FORMER_QUESTIONS = {old.strip(): d.question for d in KNOWN_SCENARIOS for old in d.former_questions}
+_NAMES = {d.scenario_id: d.name for d in KNOWN_SCENARIOS}
+
+
+def current_question(purpose: str | None) -> str | None:
+    """옛 질문 문장이면 지금 문장, 아니면 받은 그대로(10/18 쉬운 말 3차).
+
+    질문 문장은 제안 기록의 열쇠다 — '다시 받지 않기' 목록(DB)·승인 횟수(제안 기록)·다시 묻기 기한. 문장을 바꾼 뒤에도
+    옛 문장으로 남은 기록이 같은 시나리오의 것으로 세어지고 보이게 이 함수로 맞춘다."""
+    if purpose is None:
+        return None
+    return _FORMER_QUESTIONS.get(purpose.strip(), purpose)
+
+
+def same_question(a: str | None, b: str | None) -> bool:
+    """옛 문장·지금 문장을 같은 제안으로 본다."""
+    if a is None or b is None:
+        return False
+    return (current_question(a) or "").strip() == (current_question(b) or "").strip()
+
+
+def scenario_name(scenario_id: str | None, fallback: str = "자동 실행") -> str:
+    """시나리오 ID → 지금 화면 이름(화살표·'가열 종료' 없는 이름, bcc4cdb). 저장된 이름이 아니라 ID로 정한다."""
+    return _NAMES.get(scenario_id or "", fallback)
+
+
 class ScenarioCatalog:
     def __init__(self, definitions=DEFAULT_SCENARIOS) -> None:
         self._lock = threading.Lock()
@@ -216,6 +249,7 @@ __all__ = [
     "COOK_THEN_AIR",
     "DEFAULT_SCENARIOS",
     "EVENING_REST",
+    "KNOWN_SCENARIOS",
     "ScenarioCatalog",
     "ScenarioDefinition",
     "ScenarioStep",
@@ -223,5 +257,8 @@ __all__ = [
     "V2_SCENARIOS",
     "V2_SCENARIOS_ENV",
     "WASH_THEN_DRY",
+    "current_question",
+    "same_question",
+    "scenario_name",
     "scenarios_from_env",
 ]

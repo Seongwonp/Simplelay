@@ -27,6 +27,14 @@ PAUSE_SCOPE_SUGGESTIONS = "suggestions_only"
 _PAUSE_SCOPES = (PAUSE_SCOPE_ALL, PAUSE_SCOPE_SUGGESTIONS)
 
 
+def _current(purpose: str) -> str:
+    """옛 시나리오 질문 문장 → 지금 문장(10/18 쉬운 말 3차). '다시 받지 않기'·다시 묻기 기한은 질문 문장을 열쇠로 쓰므로,
+    문장을 바꾼 뒤에도 옛 문장으로 저장된 기록이 같은 제안을 막게 한다. 시나리오 패키지는 늦게 부른다(순환 import 방지)."""
+    from rpi.scenarios.catalog import current_question  # noqa: PLC0415
+
+    return (current_question(purpose) or "").strip()
+
+
 class UnknownSuggestionError(KeyError):
     def __init__(self, suggestion_id: str, *, reason: str | None = None):
         super().__init__(suggestion_id)
@@ -113,6 +121,7 @@ class ProactiveSuggestionService:
         # Preserve previous opt-outs when a known alias gets a canonical name.
         rules = RuleBasedIntentResolver()
         def key(value):
+            value = _current(value)
             try:
                 return rules.learning_purpose(value, rules.resolve(value))
             except UnknownIntentError:
@@ -505,7 +514,8 @@ class ProactiveSuggestionService:
             return None
         muted = (self._suppression_store.muted()
                  if self._suppression_store is not None else frozenset())
-        if purpose.strip() in muted:
+        # 옛 질문 문장으로 '다시 받지 않기'한 것도 막는다(10/18 쉬운 말 3차 — 문장만 바꾸고 기록은 잇는다).
+        if purpose.strip() in muted or _current(purpose) in {_current(m) for m in muted}:
             return None
         if not is_demo and self._presence_gate is not None and not self._presence_gate():
             return None
@@ -696,12 +706,17 @@ class ProactiveSuggestionService:
         """다시 추천 안 하는 루틴 목록(설정 화면용)."""
         if self._suppression_store is None:
             return ()
-        return tuple(sorted(self._suppression_store.muted()))
+        # 옛 질문 문장은 지금 문장으로 보인다(10/18 쉬운 말 3차). 같은 제안이 두 줄로 보이지 않게 한 번만.
+        return tuple(sorted({_current(m) for m in self._suppression_store.muted()}))
 
     def unmute(self, purpose: str) -> None:
-        """억제 해제 -- 다시 제안 대상이 된다."""
+        """억제 해제 -- 다시 제안 대상이 된다. 같은 제안의 옛 질문 문장 기록도 함께 푼다."""
         if self._suppression_store is not None:
             self._suppression_store.unmute(purpose)
+            target = _current(purpose)
+            for stored in self._suppression_store.muted():
+                if stored != purpose and _current(stored) == target:
+                    self._suppression_store.unmute(stored)
 
     def _preview_steps(self, purpose: str) -> tuple[str, ...]:
         """Preview shown on the card. Since 2026-09-29 (decision #1) a non-empty

@@ -128,6 +128,9 @@ class _Step:
     calibration: str | None = None
     targets: dict | None = None
     button_behaviors: dict | None = None
+    #: 기록 제목(목적 문장 대신). 화면에서 바로 누른 ThinQ 조작은 대응표의 명령 문장('강풍으로 바꿔줘') 대신 한 일을
+    #: 자동 실행과 같은 말로 남긴다('공기청정기 바람을 세게 해요', 10/18 쉬운 말 3차). 사용 기록(습관 근거)은 목적 문장 그대로.
+    title: str | None = None
 
 
 #: 비상정지가 걸려 있을 때 ThinQ 명령을 받지·보내지 않는 사유(2026-10-15 검토 H1).
@@ -201,6 +204,21 @@ class CommandExecutionMixin:
     def _binding(self, appliance_id: str):
         appliance = self._appliance_registry.get(appliance_id) if self._appliance_registry else None
         return appliance.thinq if appliance is not None else None
+
+    def _thinq_title(self, command: Command) -> str | None:
+        """ThinQ 명령 하나를 기록 제목으로('공기청정기를 켜요', '공기청정기 바람을 세게 해요' — 자동 실행 규칙의 '무엇을'
+        조각과 같은 말, 10/18 쉬운 말 3차). 가전·기능을 모르면 None(지어내지 않는다)."""
+        name = self._history_name(command.target_id)
+        if name is None:
+            return None
+        try:
+            cap = self._appliance_registry.get(command.target_id).thinq.capability(command.action)
+            value = command.args_dict().get(cap.arg)
+        except Exception:  # noqa: BLE001 — 제목 때문에 기록을 잃지 않는다
+            return None
+        from rpi.routines.auto_rules import thinq_action_phrase  # noqa: PLC0415
+
+        return thinq_action_phrase(name, command.action, value, cap)
 
     def _history_name(self, appliance_id: str | None) -> str | None:
         """기록에 남길 그때의 가전 이름 — 등록에 없으면 None(ID를 이름으로 지어내지 않는다)."""
@@ -302,9 +320,13 @@ class CommandExecutionMixin:
     # ── 진입점 ────────────────────────────────────────────────────────────
     def submit_command(self, command: Command, *, purpose: str | None = None,
                        usage_source: UsageSource = UsageSource.DIRECT,
-                       approval_guard=None) -> str:
-        """직접 명령(사용자 발화·버튼 자체가 승인) 1건을 job으로 제출한다."""
+                       approval_guard=None, action_title: bool = False) -> str:
+        """직접 명령(사용자 발화·버튼 자체가 승인) 1건을 job으로 제출한다.
+
+        ``action_title``: 화면에서 누른 조작(``POST /thinq/command``)이면 기록 제목을 한 일 문장으로(:meth:`_thinq_title`)."""
         steps = [self._prepare(command, None)]
+        if action_title and command.route is ControlRoute.THINQ:
+            steps[0].title = self._thinq_title(command)
         return self._start_plan(steps, purpose, usage_source, approval_guard, None, background=True)
 
     def execute_command(self, command: Command, *, purpose: str | None = None,
@@ -619,7 +641,8 @@ class CommandExecutionMixin:
             entry = JobHistoryEntry(
                 job_id=self._history_job_id(),
                 finished_at=self._clock.now(),
-                purpose=purpose,
+                # 목적 문장이 없는 ThinQ 조작은 한 일 문장으로 — 폰이 '공기청정기 조작'으로 뭉뚱그리지 않게(10/18 쉬운 말 3차).
+                purpose=step.title or purpose or self._thinq_title(result.command),
                 status=result.status.value,
                 buttons=(),
                 appliance_id=result.command.target_id,

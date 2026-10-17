@@ -84,7 +84,7 @@ def test_scenario_card_approval_runs_through_sdk_to_fake_cloud(api, cloud):
     assert len(cards) == 1
     card = cards[0]
     assert card["is_demo"] is True
-    assert card["commands"][0]["summary"] == "공기청정기(모의 클라우드) 풍량 강"
+    assert card["commands"][0]["summary"] == "공기청정기(모의 클라우드) 바람 세기 강"
 
     approved = api.post(f"/suggestions/{card['id']}/approve")
     assert approved.status_code == 200, approved.text
