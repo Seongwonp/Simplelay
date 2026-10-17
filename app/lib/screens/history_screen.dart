@@ -4,12 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../models/command_result.dart';
 import '../models/display_status.dart';
+import '../models/line_break.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/clock_provider.dart';
 import '../providers/rpi_api_provider.dart';
 import '../services/rpi_api_service.dart';
 import '../theme/app_colors.dart';
 import '../theme/app_text.dart';
+import '../theme/app_icons.dart';
+import '../widgets/status_badge.dart';
 import '../theme/app_tokens.dart';
 
 /// 실행 기록 — 공감지능(패턴 학습)의 근거 데이터와 폐루프의 회복 기록
@@ -24,8 +27,9 @@ final historyProvider =
 
 /// 날짜별 로그가 아니라 **무엇을 했고 결과가 어땠는지**가 먼저다.
 ///
-/// 읽는 순서(2026-10-13 B안): 날짜(구획 제목) → 제목 → 결과 → 시각 → 모의 여부 →
-/// 다음 행동 → 보조 정보(버튼별 결과·직접 조작 입구). 한 건은 카드가 아니라 행이다.
+/// 읽는 순서(2026-10-18): 날짜(구획 제목, 눌렸는지 모르는 일 수) → 행 두 줄(무엇을 · 시각·누가)
+/// + 왼쪽 출처 아이콘 + 오른쪽 결과 배지. 결과 문장·모의 여부·다음 행동·버튼별 결과는 눌러서 펼친다.
+/// 한 건은 카드가 아니라 행이다.
 /// 문구는 `models/display_status.dart`가 정한다 — 목적을 추정하지 않고, 데이터가
 /// 아는 수준까지만 말한다.
 class HistoryScreen extends ConsumerWidget {
@@ -60,6 +64,22 @@ class HistoryScreen extends ConsumerWidget {
                     for (final section in _groupByDay(entries, now)) ...[
                       const SizedBox(height: AppSpace.lg),
                       Text(section.label, style: AppText.title),
+                      // 눌렸는지 모르는 일은 행마다가 아니라 날짜 머리에 한 번(2차 평가 10/18).
+                      if (unknownPressCount(section.entries) case final n when n > 0)
+                        Padding(
+                          padding: const EdgeInsets.only(top: AppSpace.xs),
+                          child: Row(children: [
+                            Icon(Icons.help_outline, size: 20, color: context.appWarning),
+                            const SizedBox(width: AppSpace.sm),
+                            Expanded(
+                              child: Text('눌렸는지 모르는 일 $n건. 가전을 봐 주세요',
+                                  style: TextStyle(
+                                      fontSize: AppFont.caption,
+                                      fontWeight: FontWeight.w600,
+                                      color: context.appWarning)),
+                            ),
+                          ]),
+                        ),
                       const SizedBox(height: AppSpace.xs),
                       for (var i = 0; i < section.entries.length; i++) ...[
                         // jobId가 다르면 같은 시각이라도 다른 행이다(합치지 않는다).
@@ -218,17 +238,6 @@ class _StepBreakdown extends StatelessWidget {
   }
 }
 
-/// 결과 종류의 아이콘(모양)과 색. 뜻은 언제나 옆의 문장이 말한다.
-({IconData icon, Color color}) _look(BuildContext context, ResultKind kind) =>
-    switch (kind) {
-      ResultKind.success => (icon: Icons.check_circle, color: context.appSuccess),
-      ResultKind.stopped ||
-      ResultKind.safetyStop =>
-        (icon: Icons.front_hand, color: context.appWarning),
-      ResultKind.unconfirmed => (icon: Icons.help_outline, color: context.appWarning),
-      ResultKind.failed => (icon: Icons.cancel, color: context.appDanger),
-    };
-
 /// ThinQ 기록의 수신 수준 한 줄(접수됨·받았는지 확인이 필요해요 등). 물리 기록은
 /// 결과 문장이 이미 확인 수준을 말하므로 따로 적지 않는다("물리 버튼"·"확인 근거
 /// 없음" 같은 시스템 용어를 앞에 내지 않는다).
@@ -248,7 +257,49 @@ String? _thinqReceiptLine(RpiHistoryEntry e, ResultKind kind) {
   return label ?? 'LG 가전';
 }
 
-class _HistoryRow extends StatelessWidget {
+/// 결과 배지 — 됐어요(실제로 확인함)·몰라요·못 했어요·멈췄어요 등(UI 개편안 §4 공통 배지).
+///
+/// **초록 '됐어요'는 상태를 다시 읽거나 누름을 확인했을 때만**이다. 보고만 받은 것은 '받았어요'(중립),
+/// 연습은 '연습', 이미 그 설정이라 보내지 않은 것은 '이미 그래요' — 확인 수준을 높여 보이지 않는다.
+({String label, IconData icon, BadgeTone tone}) historyBadgeOf(RpiHistoryEntry e) {
+  final kind = resultKindOf(outcome: e.outcome, status: e.status);
+  if (e.executionMode == 'mock') {
+    return (label: '연습', icon: Icons.science_outlined, tone: BadgeTone.neutral);
+  }
+  switch (kind) {
+    case ResultKind.stopped:
+    case ResultKind.safetyStop:
+      return (label: '멈췄어요', icon: Icons.front_hand_outlined, tone: BadgeTone.attention);
+    case ResultKind.failed:
+      return (label: '못 했어요', icon: Icons.cancel_outlined, tone: BadgeTone.danger);
+    case ResultKind.unconfirmed:
+      return (label: '몰라요', icon: Icons.help_outline, tone: BadgeTone.attention);
+    case ResultKind.success:
+      break;
+  }
+  if (e.confirmation == 'already_at_target') {
+    return (label: '이미 그래요', icon: Icons.info_outline, tone: BadgeTone.neutral);
+  }
+  final real = e.executionMode == 'real';
+  final confirmed = e.route == 'thinq'
+      ? (e.confirmation == 'state_confirmed' || e.confirmation == 'state_confirmed_unknown_before')
+      : (e.confirmation == 'operation_confirmed' || e.confirmation == 'press_confirmed');
+  if (real && confirmed) {
+    return (label: '됐어요', icon: Icons.check_circle, tone: BadgeTone.confirmed);
+  }
+  // 보고·접수만 받았다 — 됐는지는 확인하지 못했다.
+  return (label: '받았어요', icon: Icons.task_alt, tone: BadgeTone.neutral);
+}
+
+/// 날짜 구획 안에서 눌렸는지 모르는 버튼 기록 수(2차 평가 10/18 — 행마다 말하지 않고 머리에 한 번).
+int unknownPressCount(List<RpiHistoryEntry> entries) => entries
+    .where((e) =>
+        e.route != 'thinq' &&
+        e.executionMode != 'mock' &&
+        resultKindOf(outcome: e.outcome, status: e.status) == ResultKind.unconfirmed)
+    .length;
+
+class _HistoryRow extends StatefulWidget {
   const _HistoryRow({
     super.key,
     required this.entry,
@@ -261,133 +312,142 @@ class _HistoryRow extends StatelessWidget {
   final String? applianceName;
 
   @override
+  State<_HistoryRow> createState() => _HistoryRowState();
+}
+
+/// 기록 한 건 — 두 줄(무엇을 · 언제·누가) + 왼쪽 출처 아이콘 + 오른쪽 결과 배지.
+/// 결과 문장·다음 할 일·버튼별 결과는 눌러서 펼친다(2026-10-18).
+class _HistoryRowState extends State<_HistoryRow> {
+  bool _open = false;
+
+  @override
   Widget build(BuildContext context) {
+    final entry = widget.entry;
+    final applianceName = widget.applianceName;
     final result = historyResult(entry, applianceName: applianceName);
     final kind = result.kind;
     final succeeded = kind == ResultKind.success;
-    // 버튼 단계·'버튼으로 직접 조작'은 물리 경로의 이야기다. ThinQ 기록과
+    // 버튼 단계·'버튼판에서 직접 누르기'는 물리 경로의 이야기다. ThinQ 기록과
     // 확인 못 함(실패 아님)은 펼치지 않는다.
-    final expand = !succeeded &&
+    final breakdown = !succeeded &&
         kind != ResultKind.unconfirmed &&
         entry.route != 'thinq';
-    // 연습(모의) 성공은 중립 아이콘 — 성공 체크는 실제로 한 일에만 붙인다(외부 평가 10/16 p03).
-    // 이미 목표값(보내지 않음)도 중립 — 성공 체크는 실제로 바꾼 일에만(UI 평가 10/17).
-    // 동작을 확인하지 못한 물리 '마침'도 중립 — 체크 바로 아래 '확인하지 못했어요'가 와서 신호가 섞였다(UI 평가 5차 10/17).
-    final unverifiedPhysical = succeeded &&
-        entry.route != 'thinq' &&
-        entry.confirmation != 'operation_confirmed' &&
-        entry.confirmation != 'press_confirmed';
-    final look = succeeded && entry.executionMode == 'mock'
-        ? (icon: Icons.science_outlined, color: context.appMuted)
-        : succeeded && entry.confirmation == 'already_at_target'
-            ? (icon: Icons.info_outline, color: context.appMuted)
-            : unverifiedPhysical
-                ? (icon: Icons.task_alt, color: context.appInk)
-                : _look(context, kind);
+    final badge = historyBadgeOf(entry);
     final title = historyTitle(entry, applianceName: applianceName);
     final rawName = applianceName;
-    // 모의 기록은 '연습' 한 줄이 말한다 — 이름의 "(모의)"를 되풀이하지 않는다(표시만).
+    // 모의 기록은 '연습' 배지·한 줄이 말한다 — 이름의 "(모의)"를 되풀이하지 않는다(표시만).
     final name = rawName != null && entry.executionMode == 'mock'
         ? withoutMockMark(rawName)
         : rawName;
+    final source = historySource(entry);
     // 제목이 이미 가전 이름을 말하면 시각 줄에서 되풀이하지 않는다.
     final timeLine = [
       _hm(entry.finishedAt),
-      historySource(entry),
+      source,
       if (name != null && !title.contains(name)) name,
     ].join(' · ');
     final receipt = _thinqReceiptLine(entry, kind);
-    final muted = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
+    final muted = context.appCaption;
+
+    // 큰 글씨에서는 배지를 제목 아래로 — 오른쪽에 두면 제목이 한 글자씩 꺾인다.
+    final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
+    final badgeWidget = StatusBadge(icon: badge.icon, label: badge.label, tone: badge.tone);
+    final head = Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // 왼쪽 = 누가(직접·루틴·자동).
+        Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.surfaceContainerHigh,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(AppIcons.source(source), size: 20, color: context.appMuted),
+        ),
+        const SizedBox(width: AppSpace.md),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
+              // 낱말 중간에서 꺾이지 않게('전자레인/지' 방지). 낭독은 원문.
+              Text(keepWordsTogether(timeLine), semanticsLabel: timeLine, style: muted),
+              if (big) ...[const SizedBox(height: AppSpace.xs), badgeWidget],
+            ],
+          ),
+        ),
+        if (!big) ...[const SizedBox(width: AppSpace.sm), badgeWidget],
+      ],
+    );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
+      padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600),
-          ),
-          const SizedBox(height: AppSpace.xs),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.only(top: AppSpace.xs),
-                child: ExcludeSemantics(
-                    child: Icon(look.icon, color: look.color, size: 20)),
+          Semantics(
+            button: true,
+            expanded: _open,
+            child: InkWell(
+              key: Key('history-tap-${entry.jobId}'),
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => setState(() => _open = !_open),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+                child: head,
               ),
-              const SizedBox(width: AppSpace.sm),
-              Expanded(
-                child: Text(
-                  result.sentence,
-                  style: TextStyle(
-                      fontSize: AppFont.caption,
-                      fontWeight: FontWeight.w600,
-                      color: look.color),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppSpace.xs),
-          Text(timeLine, style: muted),
-          if (result.mockNote case final note?) ...[
-            const SizedBox(height: AppSpace.xs),
-            Text(note, style: muted),
-          ],
-          if (receipt != null) ...[
-            const SizedBox(height: AppSpace.xs),
-            Text(receipt, style: muted),
-          ],
-          if (result.next case final next?) ...[
-            const SizedBox(height: AppSpace.sm),
-            Text(
-              next,
-              style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600),
             ),
-          ],
-          // 연습(모의) 기록은 위 한 줄이 이미 말한다 — 서버 설명('명령을 보냈어요 …')을 겹치면 어긋난다(10/14).
-          if (entry.detail.isNotEmpty && !succeeded && entry.executionMode != 'mock') ...[
-            const SizedBox(height: AppSpace.xs),
-            Text(entry.detail, style: muted),
-          ],
-          if (entry.retryCount > 0 && succeeded) ...[
-            const SizedBox(height: AppSpace.sm),
-            // 폐루프의 핵심 증거 — 실패를 스스로 재시도로 회복했다.
-            Row(
-              children: [
-                Icon(Icons.refresh, size: 16, color: context.appMuted),
-                const SizedBox(width: AppSpace.sm),
-                // '성공'이라 하지 않는다 — 다시 누른 사실만(UI 평가 5차 10/17: 동작 확인 못 함과 모순처럼 읽혔다).
-                Text(
-                  '${entry.retryCount}번 더 눌러 마쳤어요',
-                  style: TextStyle(
-                    fontSize: AppFont.caption,
-                    fontWeight: FontWeight.w600,
-                    color: context.appMuted,
+          ),
+          if (_open)
+            Padding(
+              padding: const EdgeInsets.only(
+                  left: 40 + AppSpace.md, bottom: AppSpace.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    result.sentence,
+                    style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600),
                   ),
-                ),
-              ],
-            ),
-          ],
-
-          // 끝이 안 좋았던 실행만 안을 펼친다. 성공한 이력까지
-          // 단계를 늘어놓으면 목록이 다시 개발 도구처럼 보인다.
-          if (expand) ...[
-            const SizedBox(height: AppSpace.md),
-            _StepBreakdown(
-                buttons: entry.buttons, notPressed: entry.abortReason != null),
-            // 읽고 나서 할 수 있는 일을 남긴다. 무엇이 안 됐는지만
-            // 알려주고 끝내면 사용자는 앱을 닫는 것 말고 할 게 없다.
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                onPressed: () => context.go('/manual-control'),
-                icon: const Icon(Icons.grid_view_rounded, size: 18),
-                label: const Text('버튼판에서 직접 누르기'),
+                  if (result.mockNote case final note?) Text(note, style: muted),
+                  if (receipt != null) Text(receipt, style: muted),
+                  if (result.next case final next?) ...[
+                    const SizedBox(height: AppSpace.xs),
+                    Text(next,
+                        style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600)),
+                  ],
+                  // 연습(모의) 기록은 위 한 줄이 이미 말한다 — 서버 설명을 겹치면 어긋난다(10/14).
+                  if (entry.detail.isNotEmpty && !succeeded && entry.executionMode != 'mock')
+                    Text(entry.detail, style: muted),
+                  if (entry.retryCount > 0 && succeeded) ...[
+                    const SizedBox(height: AppSpace.xs),
+                    // 폐루프의 핵심 증거 — 실패를 스스로 재시도로 회복했다. '됐어요'라 하지 않는다 — 다시 누른 사실만.
+                    Row(children: [
+                      Icon(Icons.refresh, size: 16, color: context.appMuted),
+                      const SizedBox(width: AppSpace.xs),
+                      Text('${entry.retryCount}번 더 눌러 마쳤어요',
+                          style: muted.copyWith(fontWeight: FontWeight.w600)),
+                    ]),
+                  ],
+                  // 끝이 안 좋았던 실행만 버튼별 결과와 다음 길을 둔다.
+                  if (breakdown) ...[
+                    const SizedBox(height: AppSpace.sm),
+                    _StepBreakdown(
+                        buttons: entry.buttons, notPressed: entry.abortReason != null),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        onPressed: () => context.go('/manual-control'),
+                        icon: const Icon(Icons.grid_view_rounded, size: 18),
+                        label: const Text('버튼판에서 직접 누르기'),
+                      ),
+                    ),
+                  ],
+                ],
               ),
             ),
-          ],
         ],
       ),
     );

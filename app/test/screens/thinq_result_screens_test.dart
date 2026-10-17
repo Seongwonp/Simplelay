@@ -86,6 +86,12 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
+    // 결과 문장은 행을 눌러 펼친다(2026-10-18).
+    for (final e in find.byWidgetPredicate((w) =>
+        w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('history-tap-')).evaluate().toList()) {
+      await tester.tap(find.byKey(e.widget.key!));
+      await tester.pump();
+    }
 
     // ThinQ 확인 못 함은 실패로 말하지 않는다.
     expect(find.textContaining('설정이 바뀌었는지 몰라요'), findsNWidgets(2));
@@ -128,6 +134,12 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
+    // 결과 문장은 행을 눌러 펼친다(2026-10-18).
+    for (final e in find.byWidgetPredicate((w) =>
+        w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('history-tap-')).evaluate().toList()) {
+      await tester.tap(find.byKey(e.widget.key!));
+      await tester.pump();
+    }
     expect(find.text('연습이라 가전에 보내지 않았어요'), findsOneWidget);
     expect(find.textContaining('명령을 보냈어요'), findsNothing);
   });
@@ -160,6 +172,12 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
+    // 결과 문장은 행을 눌러 펼친다(2026-10-18).
+    for (final e in find.byWidgetPredicate((w) =>
+        w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('history-tap-')).evaluate().toList()) {
+      await tester.tap(find.byKey(e.widget.key!));
+      await tester.pump();
+    }
     expect(find.text('실제 가전이 움직였는지 몰라요'), findsOneWidget);
     // 연습 표시는 그대로 남는다.
     expect(find.text('연습이라 실제로 누르지 않았어요'), findsOneWidget);
@@ -254,6 +272,12 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
+    // 결과 문장은 행을 눌러 펼친다(2026-10-18).
+    for (final e in find.byWidgetPredicate((w) =>
+        w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('history-tap-')).evaluate().toList()) {
+      await tester.tap(find.byKey(e.widget.key!));
+      await tester.pump();
+    }
 
     // 2026-10-13: 결과는 한 문장으로, 모의 여부는 따로 한 줄로 말한다.
     // 모의 기록의 결과 문장이 실제 확인처럼 읽히면 안 된다.

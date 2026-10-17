@@ -9,6 +9,7 @@ import 'package:simplelay/providers/clock_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/history_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+import 'package:simplelay/theme/app_icons.dart';
 
 import '../helpers/test_helpers.dart';
 
@@ -27,6 +28,16 @@ Widget _build(RpiApiService api) => ProviderScope(
       overrides: [rpiApiServiceProvider.overrideWithValue(api)],
       child: const MaterialApp(home: HistoryScreen()),
     );
+
+/// 기록 행은 두 줄만 보이고 결과 문장·다음 할 일은 눌러서 펼친다(2026-10-18) — 모두 펼친다.
+Future<void> _expandAll(WidgetTester tester) async {
+  final rows = find.byWidgetPredicate(
+      (w) => w.key is ValueKey<String> && (w.key as ValueKey<String>).value.startsWith('history-tap-'));
+  for (final e in rows.evaluate().toList()) {
+    await tester.tap(find.byKey(e.widget.key!));
+    await tester.pump();
+  }
+}
 
 void main() {
   testWidgets('이력이 없으면 안내 문구를 보여준다', (tester) async {
@@ -64,6 +75,7 @@ void main() {
     await tester.pumpWidget(_build(api));
     await tester.pump();
     await tester.pump();
+    await _expandAll(tester);
 
     // 목적 있는 실행은 목적으로, 없는 실행은 버튼 라벨 + '버튼 누르기'으로 표시
     expect(find.text('즉석밥 데워줘'), findsOneWidget);
@@ -101,6 +113,7 @@ void main() {
     await tester.pumpWidget(_build(api));
     await tester.pump();
     await tester.pump();
+    await _expandAll(tester);
 
     expect(find.text('1번 더 눌러 마쳤어요'), findsOneWidget);
   });
@@ -128,6 +141,7 @@ void main() {
     await tester.pumpWidget(_build(api));
     await tester.pump();
     await tester.pump();
+    await _expandAll(tester);
 
     // 모의 여부는 사람 말로 한 줄 — mock 기록에만, 한 번만(2026-10-14 UX).
     expect(find.text('연습이라 실제로 누르지 않았어요'), findsOneWidget);
@@ -173,6 +187,7 @@ void main() {
     await tester.pumpWidget(_build(api));
     await tester.pump();
     await tester.pump();
+    await _expandAll(tester);
 
     // 실패한 쪽만 단계를 펼친다 -- 성공한 이력까지 늘어놓으면 목록이
     // 다시 개발 도구처럼 보인다.
@@ -227,6 +242,7 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
+    await _expandAll(tester);
 
     expect(find.text('오늘'), findsOneWidget);
     expect(find.text('어제'), findsOneWidget);
@@ -237,10 +253,13 @@ void main() {
     // '확인하지 못했어요'가 와서 신호가 섞였다).
     expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.task_alt), findsNWidgets(3));
-    expect(find.text('08:10 · 직접'), findsOneWidget);
+    expect(findPlainText('08:10 · 직접'), findsOneWidget);
     expect(find.textContaining('실행 환경 미확인'), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
+    // 보고만 받은 버튼 기록은 '받았어요' — 초록 '됐어요'가 아니다(확인 수준을 높여 보이지 않는다).
+    expect(find.text('받았어요'), findsNWidgets(3));
+    expect(find.text('됐어요'), findsNothing);
   });
 
   testWidgets('사용자가 멈춘 것과 안전 정지를 종료 사유가 있을 때만 나눈다',
@@ -272,6 +291,7 @@ void main() {
     await tester.pumpWidget(_build(api));
     await tester.pump();
     await tester.pump();
+    await _expandAll(tester);
 
     expect(find.textContaining('직접 멈췄어요'), findsOneWidget);
     expect(find.textContaining('다시 눌러도 눌렸는지 몰라요'), findsOneWidget);
@@ -311,7 +331,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.textContaining('· 전자레인지'), findsOneWidget);
+    expect(findPlainText('· 전자레인지', contains: true), findsOneWidget);
   });
 
   testWidgets('기록은 실행할 때의 가전 이름을 쓴다 — 지금 이름·모드로 바꾸지 않는다(2026-10-16 결함 ②)',
@@ -340,8 +360,8 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.textContaining('· 주방 전자레인지'), findsOneWidget);
-    expect(find.textContaining('· 전자레인지'), findsNothing);
+    expect(findPlainText('· 주방 전자레인지', contains: true), findsOneWidget);
+    expect(findPlainText('· 전자레인지', contains: true), findsNothing);
   });
 
   testWidgets('제목은 한 일, 출처(자동 실행·루틴)는 시각 줄에(외부 평가 10/16 2차 p03)', (tester) async {
@@ -363,7 +383,7 @@ void main() {
     await tester.pump();
 
     expect(find.text('공기청정기 전원 켜기'), findsOneWidget);
-    expect(find.textContaining('22:00 · 자동'), findsOneWidget);
+    expect(findPlainText('22:00 · 자동', contains: true), findsOneWidget);
     expect(find.textContaining('자동 실행 · 공기청정기'), findsNothing);
   });
 
@@ -395,6 +415,7 @@ void main() {
     await tester.pumpWidget(_build(api));
     await tester.pump();
     await tester.pump();
+    await _expandAll(tester);
 
     expect(find.textContaining('이미 그 설정이라'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
@@ -403,7 +424,8 @@ void main() {
 
   // ── 2026-10-13 B안: 읽는 순서·제목·다음 행동 ─────────────────────────────
 
-  Future<void> pumpWith(WidgetTester tester, List<Map<String, dynamic>> entries) async {
+  Future<void> pumpWith(WidgetTester tester, List<Map<String, dynamic>> entries,
+      {bool expand = true}) async {
     tester.view.physicalSize = const Size(900, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
@@ -417,9 +439,10 @@ void main() {
     ));
     await tester.pump();
     await tester.pump();
+    if (expand) await _expandAll(tester);
   }
 
-  testWidgets('한 건의 시각적 배치 순서: 날짜 → 제목 → 결과 → 시각 → 모의 여부(낭독 순서 아님)',
+  testWidgets('한 건의 시각적 배치 순서: 날짜 → 제목 → 시각 → (펼침) 결과 → 모의 여부 → 직접 누르기',
       (tester) async {
     await pumpWith(tester, [
       {
@@ -442,8 +465,8 @@ void main() {
     final order = [
       find.text('오늘'),
       find.text('아침 데우기'),
+      findPlainText('08:10 · 직접 · 전자레인지'),
       find.text('다시 눌러도 눌렸는지 몰라요'),
-      find.text('08:10 · 직접 · 전자레인지'),
       find.text('연습이라 실제로 누르지 않았어요'),
       find.text('버튼판에서 직접 누르기'),
     ];
@@ -485,7 +508,7 @@ void main() {
     ]);
     expect(find.text('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다.
-    expect(find.text('08:10 · 직접'), findsOneWidget);
+    expect(findPlainText('08:10 · 직접'), findsOneWidget);
     expect(find.text('전자레인지를 봐 주세요'), findsOneWidget);
     expect(find.text('실행 기록'), findsOneWidget);
   });
@@ -538,5 +561,132 @@ void main() {
     expect(find.text('누르지 않았어요'), findsOneWidget);
     expect(find.text('눌렸는지 몰라요'), findsNothing);
     expect(find.text('눌렸어요'), findsOneWidget);
+  });
+
+  // ── 2026-10-18 기록 행 두 줄 · 출처 아이콘 · 결과 배지 ─────────────────────────────
+
+  testWidgets('행은 두 줄 — 왼쪽 출처 아이콘(손·루틴·자동), 오른쪽 결과 배지, 결과 문장은 눌러야 펼친다', (tester) async {
+    await pumpWith(tester, [
+      {
+        'job_id': 'j-auto',
+        'finished_at': '2026-09-09T08:30:00+09:00',
+        'purpose': '자동 실행 · 공기청정기 전원 켜기',
+        'status': 'succeeded',
+        'outcome': 'success',
+        'execution_mode': 'real',
+        'route': 'thinq',
+        'receipt': 'accepted',
+        'confirmation': 'state_confirmed',
+        'retry_count': 0,
+        'appliance_id': 'air_purifier',
+        'appliance_name': '공기청정기',
+        'buttons': [],
+      },
+      {
+        'job_id': 'j-routine',
+        'finished_at': '2026-09-09T08:20:00+09:00',
+        'purpose': "'아침 데우기' 루틴",
+        'status': 'failed',
+        'outcome': 'failed',
+        'execution_mode': 'real',
+        'route': 'physical',
+        'termination': 'retries_exhausted',
+        'retry_count': 3,
+        'appliance_id': 'microwave',
+        'buttons': [
+          {'button': '시작', 'success': false, 'attempts': 3},
+        ],
+      },
+      {
+        'job_id': 'j-hand',
+        'finished_at': '2026-09-09T08:10:00+09:00',
+        'purpose': '즉석밥 데워줘',
+        'status': 'succeeded',
+        'outcome': 'success',
+        'execution_mode': 'real',
+        'route': 'physical',
+        'confirmation': 'reported',
+        'retry_count': 0,
+        'appliance_id': 'microwave',
+        'buttons': [
+          {'button': '즉석밥', 'success': true, 'attempts': 1},
+        ],
+      },
+    ], expand: false);
+
+    expect(find.byIcon(AppIcons.auto), findsOneWidget);
+    expect(find.byIcon(AppIcons.routine), findsOneWidget);
+    expect(find.byIcon(AppIcons.manual), findsOneWidget);
+    // 상태를 다시 읽어 확인한 것만 초록 '됐어요'.
+    expect(find.text('됐어요'), findsOneWidget);
+    expect(find.text('못 했어요'), findsOneWidget);
+    expect(find.text('받았어요'), findsOneWidget);
+    // 배지는 행 오른쪽.
+    expect(tester.getCenter(find.text('됐어요')).dx,
+        greaterThan(tester.getCenter(find.text('공기청정기 전원 켜기')).dx));
+    // 결과 문장·버튼판 길은 접혀 있다.
+    expect(find.text('버튼판에서 직접 누르기'), findsNothing);
+    await tester.tap(find.byKey(const Key('history-tap-j-routine')));
+    await tester.pump();
+    expect(find.text('버튼판에서 직접 누르기'), findsOneWidget);
+  });
+
+  testWidgets('연습·실제 모를 기록은 됐어요가 아니다 — 확인 수준을 높여 보이지 않는다', (tester) async {
+    await pumpWith(tester, [
+      {
+        'job_id': 'j-mock',
+        'finished_at': '2026-09-09T08:30:00+09:00',
+        'purpose': '공기청정기 전원 켜기',
+        'status': 'succeeded',
+        'outcome': 'success',
+        'execution_mode': 'mock',
+        'route': 'thinq',
+        'confirmation': 'state_confirmed',
+        'retry_count': 0,
+        'buttons': [],
+      },
+      {
+        'job_id': 'j-old',
+        'finished_at': '2026-09-09T08:20:00+09:00',
+        'purpose': '즉석밥 데워줘',
+        'status': 'succeeded',
+        'confirmation': 'operation_confirmed',
+        'retry_count': 0,
+        'buttons': [],
+      },
+    ], expand: false);
+    expect(find.text('됐어요'), findsNothing);
+    expect(find.text('연습'), findsOneWidget);
+    expect(find.byIcon(Icons.check_circle), findsNothing);
+  });
+
+  testWidgets('눌렸는지 모르는 일은 날짜 머리에 한 번 — 행마다 되풀이하지 않는다', (tester) async {
+    Map<String, dynamic> unknown(String id, String at) => {
+          'job_id': id,
+          'finished_at': at,
+          'purpose': '즉석밥 데워줘',
+          'status': 'succeeded',
+          'outcome': 'unconfirmed',
+          'execution_mode': 'real',
+          'route': 'physical',
+          'confirmation': 'none',
+          'retry_count': 0,
+          'buttons': [
+            {'button': '즉석밥', 'success': false, 'attempts': 1},
+          ],
+        };
+    await pumpWith(tester, [
+      unknown('u1', '2026-09-09T08:30:00+09:00'),
+      unknown('u2', '2026-09-09T08:20:00+09:00'),
+      unknown('u3', '2026-09-08T08:20:00+09:00'),
+    ], expand: false);
+    expect(find.text('눌렸는지 모르는 일 2건. 가전을 봐 주세요'), findsOneWidget);
+    expect(find.text('눌렸는지 모르는 일 1건. 가전을 봐 주세요'), findsOneWidget);
+    expect(find.text('몰라요'), findsNWidgets(3));
+    // 머리는 그 날짜 제목 바로 아래.
+    expect(tester.getTopLeft(find.text('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
+        greaterThan(tester.getTopLeft(find.text('오늘')).dy));
+    expect(tester.getTopLeft(find.text('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
+        lessThan(tester.getTopLeft(find.byKey(const Key('history-tap-u1'))).dy));
   });
 }
