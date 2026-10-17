@@ -91,7 +91,7 @@ void main() {
         'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
       })!;
-      expect(r.details, ['초미세먼지 8 좋음', '공기청정기 켜짐']);
+      expect(r.details, ['초미세먼지 8 좋음', '종합은 가전이 여러 센서로 매긴 등급', '공기청정기 켜짐']);
       // 가전의 종합 등급임을 밝힌다 — '보통' 밑 '초미세먼지 좋음'이 모순처럼 읽혔다(외부 평가 10/16 3차).
       expect(r.headline, '실내 공기 종합 보통');
       // 모르는 등급 값은 붙이지 않는다.
@@ -112,6 +112,21 @@ void main() {
       final noLevel = KioskAirReading.fromJson(
           {'appliance_id': 'air_purifier', 'grade': 'GOOD', 'pm25': 8, 'pm10': 10, 'age_s': 3.0})!;
       expect(noLevel.details, ['초미세먼지 8']);
+    });
+
+    // 실패널 10/17 09:30: '종합 보통' 아래 미세먼지 8 좋음 · 초미세먼지 8 좋음 — 종합이 왜 보통인지 여전히 모순처럼 보였다.
+    test('종합 등급이 보이는 먼지 등급보다 나쁘면 가전이 여러 센서로 매긴 등급이라고 밝힌다', () {
+      final r = KioskAirReading.fromJson({
+        'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
+        'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'off', 'age_s': 3.0,
+      })!;
+      expect(r.details, ['미세먼지 8 좋음', '초미세먼지 8 좋음', '종합은 가전이 여러 센서로 매긴 등급', '공기청정기 꺼짐']);
+      // 같으면 붙이지 않는다.
+      final same = KioskAirReading.fromJson({
+        'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
+        'pm25': 30, 'pm25_level': 'NORMAL', 'age_s': 3.0,
+      })!;
+      expect(same.details, ['초미세먼지 30 보통']);
     });
 
     test('서버 항목 → 한 줄(등급·초미세먼지·전원)', () {

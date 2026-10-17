@@ -96,10 +96,22 @@ class KioskAirReading {
         if (pm10 != null && pm10Level != null) '미세먼지 ${_num(pm10!)} ${kAirGradeWords[pm10Level]}',
         if (pm25 != null)
           '초미세먼지 ${_num(pm25!)}${pm25Level != null ? ' ${kAirGradeWords[pm25Level]}' : ''}',
+        // 종합이 보이는 먼지 등급보다 나쁘면 그 이유를 지어내지 않고 출처만 밝힌다(실패널 10/17 — 모두 '좋음'인데 종합 '보통').
+        if (_totalWorseThanShown) '종합은 가전이 여러 센서로 매긴 등급',
         if (power == 'on') '공기청정기 켜짐',
         if (power == 'off') '공기청정기 꺼짐',
         if (mock) '연습 값',
       ];
+
+  static const _gradeRank = {'GOOD': 0, 'NORMAL': 1, 'BAD': 2, 'VERY_BAD': 3};
+
+  bool get _totalWorseThanShown {
+    if (!isTotal) return false;
+    final shown = [pm25Level, if (pm10 != null) pm10Level].whereType<String>().toList();
+    if (shown.isEmpty) return false;
+    final total = _gradeRank[grade] ?? 0;
+    return shown.every((l) => (_gradeRank[l] ?? 0) < total);
+  }
 
   /// 한 줄 전체(읽는 이름에도 쓴다).
   String get line => [headline, ...details].join(' · ');
