@@ -96,7 +96,7 @@ String autoRunNotice(KioskAutoRun run) {
     return '$target 설정이 바뀌었는지 몰라요$mock';
   }
   if (run.receipt == 'not_dispatched') {
-    return '$target 설정 명령을 보내지 못했어요$mock';
+    return '$target에 전하지 못했어요$mock';
   }
   return '$target 설정을 바꾸지 못했어요$mock';
 }

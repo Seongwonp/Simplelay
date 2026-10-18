@@ -35,6 +35,7 @@ class KioskIdleView extends StatelessWidget {
     this.running = const {},
     this.attention = const {},
     this.on = const {},
+    this.off = const {},
     this.dndUntil,
     this.quietUntil,
     this.temperature,
@@ -65,6 +66,9 @@ class KioskIdleView extends StatelessWidget {
 
   /// 켜져 있다고 확인된 ThinQ 가전(GET /thinq/power, 2026-10-16). 비상 멈춤이 보이는 동안은 달지 않는다.
   final Set<String> on;
+
+  /// 꺼져 있다고 확인된 ThinQ 가전(같은 GET /thinq/power, 평가 10차 10/18). 비상 멈춤이 보이는 동안은 달지 않는다.
+  final Set<String> off;
   final DateTime? dndUntil;
 
   /// 매일 조용한 시간대 안이면 끝 시각("07:00", 2026-10-14). 잠시 쉬기(방해 금지)가 켜져 있으면 그쪽이 먼저 보인다.
@@ -132,8 +136,8 @@ class KioskIdleView extends StatelessWidget {
   Widget build(BuildContext context) {
     final amb = ambient;
     final greeting = (amb != null && amb.greeting.isNotEmpty)
-        ? amb.greeting
-        : localGreeting(now);
+        ? kioskLine(amb.greeting)
+        : kioskLine(localGreeting(now));
     final list = appliances;
     // 큰 글씨 모드(kiosk_screen이 1.22배 textScaler를 얹는다)에서는 같은 800x480
     // 캔버스에 글자만 커지므로, 자르지 않고 **덜 보인다**(2026-10-05 잘림 수리):
@@ -372,6 +376,7 @@ class KioskIdleView extends StatelessWidget {
                   : list.isEmpty ? const _StripNotice('휴대폰 앱에서 가전을 추가해 주세요')
                   : KioskApplianceStrip(appliances: list, running: estop ? const {} : running, attention: estop ? {...attention, ...running} : attention,
                       on: estop ? const {} : on,
+                      off: estop ? const {} : off,
                       unavailable: unavailable,
                       // 비상 버튼이면 띠가 빨강, 작은 팔 끊김이면 회색(평가 6차 10/18).
                       unavailableByEstop: estop,
@@ -834,7 +839,7 @@ class _TipCard extends StatelessWidget {
       {required bool compact}) {
     final pad = _pad(compact);
     final textWidth = width - pad.horizontal - 2 - _Idle.tipIcon - _gap(compact);
-    final text = _textHeight(context, tip.text, _style(compact), textWidth,
+    final text = _textHeight(context, kioskLine(tip.text), _style(compact), textWidth,
         maxLines: _maxLines);
     return pad.vertical + 2 + (text > _Idle.tipIcon ? text : _Idle.tipIcon);
   }
@@ -862,7 +867,7 @@ class _TipCard extends StatelessWidget {
           Expanded(
             // 서버 문장이 아주 길 때만 마지막 수단으로 말줄임한다. 어절 단위로 줄을 바꾼다("주/세요" 방지, 2026-10-16 §1-3).
             child: KioskText(
-              tip.text,
+              kioskLine(tip.text),
               maxLines: _maxLines,
               overflow: TextOverflow.ellipsis,
               style: _style(compact).copyWith(color: Colors.white),
@@ -909,14 +914,14 @@ class _OutsideNow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final icon = _hourIcon(slot.icon, label: slot.label);
+    final known = _hourIcon(slot.icon, label: slot.label) != Icons.remove;
     final word = _weatherWord(slot.icon);
     return Semantics(
       label: '바깥 ${word.isEmpty ? '' : '$word, '}${slot.temp}도',
       excludeSemantics: true,
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        if (icon != Icons.remove) ...[
-          Icon(icon, size: KioskType.body + 5, color: Colors.white),
+        if (known) ...[
+          _WeatherIcon(slot.icon, label: slot.label, size: KioskType.body + 5, color: Colors.white),
           const SizedBox(width: 6),
         ],
         Text('${slot.temp}°',
@@ -944,10 +949,59 @@ IconData _hourIcon(String icon, {String label = ''}) => switch (icon) {
       'clear' => Icons.wb_sunny_outlined,
       'partly' => Icons.wb_cloudy_outlined,
       'cloudy' => Icons.cloud_outlined,
-      'rain' => Icons.water_drop_outlined,
+      // 비는 [_WeatherIcon]이 비 오는 구름으로 그린다 — 물방울은 습도로 읽혔다(평가 10차 10/18). 여기 값은 '아는 날씨' 표시.
+      'rain' => Icons.cloud_outlined,
       'snow' => Icons.ac_unit,
       _ => Icons.remove,
     };
+
+/// 날씨 아이콘 하나 — 날짜 옆과 예보 칸이 같은 규칙(평가 10차 10/18). 비는 글꼴에 '비 오는 구름'이 없어 구름 + 빗줄기
+/// 세 줄로 그린다(물방울은 습도, 우산은 '챙기세요' 안내로 읽혔다). 나머지는 [_hourIcon].
+class _WeatherIcon extends StatelessWidget {
+  const _WeatherIcon(this.icon, {this.label = '', required this.size, required this.color});
+  final String icon;
+  final String label;
+  final double size;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    if (icon != 'rain') return Icon(_hourIcon(icon, label: label), size: size, color: color);
+    return SizedBox(
+      key: const ValueKey('weather-rain-cloud'),
+      width: size,
+      height: size,
+      child: Stack(clipBehavior: Clip.none, children: [
+        Positioned(
+          left: size * 0.05,
+          top: -size * 0.1,
+          child: Icon(Icons.cloud_outlined, size: size * 0.9, color: color),
+        ),
+        Positioned.fill(child: CustomPaint(painter: _RainPainter(color))),
+      ]),
+    );
+  }
+}
+
+class _RainPainter extends CustomPainter {
+  const _RainPainter(this.color);
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final w = size.width, h = size.height;
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = (w * 0.09).clamp(1.5, 4.0)
+      ..strokeCap = StrokeCap.round;
+    for (final x in const [0.32, 0.52, 0.72]) {
+      canvas.drawLine(Offset(w * (x + 0.05), h * 0.7), Offset(w * (x - 0.04), h * 0.94), paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RainPainter old) => old.color != color;
+}
 
 class _Hours extends StatelessWidget {
   const _Hours({super.key, required this.hours, this.compact = false});
@@ -1015,7 +1069,8 @@ class _Hours extends StatelessWidget {
                       fit: BoxFit.scaleDown,
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         if (!(h.precip && h.pop != null)) ...[
-                          Icon(_hourIcon(h.icon, label: h.label),
+                          _WeatherIcon(h.icon,
+                              label: h.label,
                               size: _Idle.hourIcon,
                               color: KioskColors.muted),
                           const SizedBox(width: 2),
@@ -1025,7 +1080,8 @@ class _Hours extends StatelessWidget {
                     )
                   else ...[
                     const SizedBox(height: 4),
-                    Icon(_hourIcon(h.icon, label: h.label),
+                    _WeatherIcon(h.icon,
+                        label: h.label,
                         size: _Idle.hourIcon,
                         color: h.precip ? Colors.white : KioskColors.muted),
                     const SizedBox(height: 4),

@@ -163,6 +163,7 @@ KioskIdleView _idle({
   List<ApplianceMap>? appliances,
   Set<String> running = const {'washer'},
   Set<String> on = const {},
+  Set<String> off = const {},
 }) =>
     KioskIdleView(
       // 7:38 — 예보 첫 칸(9시)이 지금 ±90분 안이라 날짜 옆에 바깥 날씨가 붙는다(사용자 요청 10/18).
@@ -174,6 +175,7 @@ KioskIdleView _idle({
       appliances: appliances ?? [_mw, _washer, _intercom, _fanAppliance, _ind],
       running: running,
       on: on,
+      off: off,
       attention: attention,
       temperature: 23,
       humidity: 58,
@@ -655,6 +657,28 @@ void main() {
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
             nextRun: const KioskNextRun(
                 name: '저녁 공기청정기 켜기', dayLabel: '오늘', hhmm: '22:00', modeLabel: '자동 실행')));
+  });
+
+  // 평가 10차(10/18) — 지금 비면 날짜 옆에 비 오는 구름(물방울은 습도로 읽혔다), 꺼진 LG 가전은 '꺼져 있어요'.
+  testWidgets('15인치 미리보기 — 평소, 지금 비·꺼진 공기청정기', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_rain_off',
+        _idle(
+            appliances: [_purifierAppliance, _mw, _ind, _washerSetup],
+            running: const {},
+            off: const {'air_purifier'},
+            ambient: const AmbientInfo(
+              greeting: '좋은 아침이에요.',
+              weatherSource: 'kma',
+              now: AmbientHour(label: '지금', hour: 7, icon: 'rain', temp: 14, pop: 80, precip: true),
+              hourly: [
+                AmbientHour(label: '9시', hour: 9, icon: 'rain', temp: 14),
+                AmbientHour(label: '12시', hour: 12, icon: 'cloudy', temp: 16),
+                AmbientHour(label: '15시', hour: 15, icon: 'rain', temp: 15),
+                AmbientHour(label: '18시', hour: 18, icon: 'partly', temp: 13),
+              ],
+            )));
   });
 
   testWidgets('평소 — 큰 글씨, 실내 공기 매우 나쁨', (t) async {

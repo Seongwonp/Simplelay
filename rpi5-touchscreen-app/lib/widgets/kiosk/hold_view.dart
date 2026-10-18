@@ -247,7 +247,8 @@ class KioskHoldView extends StatelessWidget {
       // 마지막 시도가 실패했으면 앞선 "멈추는 중"은 지운다 — 지금 할 일은 다시 누르기다.
       // 보내기 화살표·'보냈어요'는 기계가 한 일이었다(평가 4차 10/18) — 사람이 볼 상태와 할 일로. 멈췄다고 단정하지 않는다.
       if (stopRequested && !stopFailed && holdState == 'hovering_stop')
-        (Icons.pan_tool_outlined, '멈추는 중이에요. 가전을 봐 주세요', Colors.white),
+        // 연습은 실제 가전이 그대로다 — '가전을 봐 주세요'를 붙이지 않고 한 가지 말로(평가 10차 10/18).
+        (Icons.pan_tool_outlined, _mock ? '멈추는 중이에요' : '멈추는 중이에요. 가전을 봐 주세요', Colors.white),
       if (stopFailed)
         (
           Icons.error_outline,

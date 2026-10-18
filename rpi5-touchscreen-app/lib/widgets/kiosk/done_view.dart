@@ -52,11 +52,15 @@ class KioskDoneView extends StatelessWidget {
     this.pressed,
     this.stopPending = false,
     this.thinqOnly = false,
+    this.thinqActionText,
   });
 
   /// LG 가전 명령 하나만 보낸 실행(사용자 요청 10/18) — 성공·확인 못 함은 가운데 결과 창 하나([thinqResultCopy]):
-  /// 확인한 결과만 초록 체크, 확인 못 함은 체크 없이 '명령은 보냈어요'. 실패·정지는 종전 화면.
+  /// 확인한 결과만 초록 체크, 확인 못 함은 체크 없이 '켜 달라고 했어요'(평가 10차 10/18). 실패·정지는 종전 화면.
   final bool thinqOnly;
+
+  /// 하려던 일을 알아볼 문장(명령 요약·고른 이름, [KioskExecutingView.thinqActionText]와 같은 값). 모르면 null.
+  final String? thinqActionText;
 
   /// 정지로 끝난 실행의 확인 보고(stop_level)를 아직 기다리는 중(평가 8차 10/18) — 결과가 아니라 진행 상태로 보인다:
   /// '멈추는 중이에요', 처음 화면·보조 단추 없이 기다림 표시. 보고가 오거나 기다리기를 그만두면 화면이 false로 바꾼다.
@@ -172,6 +176,7 @@ class KioskDoneView extends StatelessWidget {
       confirmation: resultConfirmation,
       detail: detail,
       executionMode: executionMode,
+      action: thinqActionOf(target?.name ?? '가전', [thinqActionText, label]),
     );
   }
 
@@ -348,10 +353,15 @@ class KioskDoneView extends StatelessWidget {
     final KioskStatusBand band;
     if (pending) {
       // 아직 끝나지 않았다 — 결과 띠('확인해 주세요')가 아니라 진행 띠(평가 8차 10/18).
+      // 띠는 무엇을 멈추는지(가전·할 일)만 — '멈추는 중'은 아래 큰 제목이 모래시계와 함께 한 번만 말한다(평가 10차 10/18).
+      final what = [
+        if (target != null) target.name,
+        if (showLabel) label,
+      ].join(' · ');
       band = KioskStatusBand(
           tone: KioskBandTone.neutral,
-          icon: Icons.pan_tool_outlined,
-          label: '멈추는 중',
+          icon: target?.icon ?? Icons.power_outlined,
+          label: what.isEmpty ? '가전' : what,
           practice: mock);
     } else if (verifiedSuccess) {
       band = const KioskStatusBand(
@@ -460,7 +470,8 @@ class KioskDoneView extends StatelessWidget {
             ),
           ],
           // 실패·정지는 무엇이었는지를 가전·이름 한 줄로(평가 5차 10/18 — 제목 한 줄 + 할 일 한 줄 + 작은 한 줄).
-          if (target != null) ...[
+          // 멈추는 중이면 위 띠가 가전·할 일을 말한다 — 같은 줄을 또 두지 않는다(평가 10차 10/18).
+          if (target != null && !pending) ...[
             const SizedBox(height: 10),
             KioskTargetLine(
                 appliance: target,
@@ -538,12 +549,12 @@ class KioskDoneView extends StatelessWidget {
     );
 
     // 행동 단추는 스크롤 밖 아래에 고정한다(2026-10-15 B7) — 큰 글씨에서 '처음으로'가 화면 밖으로 밀렸다.
-    // 큰 글자에서는 '처음 화면으로'만 고정하고 보조 단추는 할 일 아래로(§1-8 세로 1열).
+    // 큰 글자에서는 세로 한 줄로 — 주 단추 '처음 화면으로'가 먼저(위), 보조 단추는 그 아래(평가 10차 10/18 — 보조 단추가
+    // 할 일 아래 흐름에 있어 주 단추보다 위에 보였다).
     // 사용자가 직접 멈춘 결과에는 '다시 시도'를 두지 않는다 — 멈춘 사람에게 같은 무게의 다시 시도는 다시 누를 위험을
     // 키웠다(UI 평가 5차 10/17). 다시 하려면 처음 화면에서 고른다.
     final retry = userStop ? null : onRetry;
-    final secondaryInFlow =
-        !pending && large && !success && (retry != null || onManual != null);
+    final stacked = !pending && large && !success;
     // 화면을 만지면 자동 복귀를 멈춘다(UI 평가 10/17) — 단추 동작은 그대로 지나간다(translucent).
     return Listener(
       behavior: HitTestBehavior.translucent,
@@ -610,24 +621,7 @@ class KioskDoneView extends StatelessWidget {
               child: ConstrainedBox(
                 constraints:
                     const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
-                child: secondaryInFlow
-                    ? Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          content,
-                          const SizedBox(height: 14),
-                          _FailureActions(
-                            key: const ValueKey('done-secondary-in-flow'),
-                            onRetry: retry == null
-                                ? null
-                                : () => _confirmRetry(context, mock),
-                            onManual: onManual,
-                            onDismiss: null,
-                            retryHint: !mock,
-                          ),
-                        ],
-                      )
-                    : content,
+                child: content,
               ),
             ),
           ),
@@ -652,10 +646,11 @@ class KioskDoneView extends StatelessWidget {
                   ? _SuccessActions(
                       onDismiss: onDismiss, held: autoReturnHeld, calm: calmHome)
                   : _FailureActions(
-                      onRetry: secondaryInFlow || retry == null
+                      onRetry: retry == null
                           ? null
                           : () => _confirmRetry(context, mock),
-                      onManual: secondaryInFlow ? null : onManual,
+                      onManual: onManual,
+                      stacked: stacked,
                       onDismiss: onDismiss,
                       calm: calmHome,
                       retryHint: !mock,
@@ -815,7 +810,7 @@ enum KioskFailureReason {
         KioskFailureReason.serverLost => '연습 결과를 받지 못했어요',
         KioskFailureReason.stopped => kPracticeStopHeadline,
         KioskFailureReason.unconfirmed => '연습 결과를 몰라요',
-        KioskFailureReason.receiptUnknown => '연습 명령이 닿았는지 몰라요',
+        KioskFailureReason.receiptUnknown => '연습이 전해졌는지 몰라요',
         KioskFailureReason.notExecuted => '연습을 하지 못했어요',
       };
 
@@ -910,7 +905,7 @@ class _ThinqResult extends StatelessWidget {
     };
     final name = target?.name;
     // 큰 글자에 가전 이름이 없으면(바람 세기 결과 등) 아래 작게 무엇의 결과인지.
-    final showName = name != null && name.isNotEmpty && !copy.headline.contains(name);
+    final showName = name != null && name.isNotEmpty && !copy.headline.contains(name) && !copy.sub.contains(name);
     final card = Container(
       key: const ValueKey('thinq-result'),
       constraints: const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
@@ -1148,13 +1143,16 @@ Widget _homeButton(VoidCallback onTap, {bool calm = false}) => ElevatedButton.ic
 ///   '화면에서 직접 누르기'는 같은 화면의 '가전 버튼을 직접 눌러 주세요'(손으로)와 헷갈렸다(평가 8차 10/18) — 작은 팔이 누른다고.
 class _FailureActions extends StatelessWidget {
   const _FailureActions({
-    super.key,
     required this.onRetry,
     required this.onManual,
     required this.onDismiss,
     this.calm = false,
     this.retryHint = false,
+    this.stacked = false,
   });
+
+  /// 큰 글씨 — 주 단추 아래 보조 단추를 세로로(주 단추가 먼저).
+  final bool stacked;
 
   final VoidCallback? onRetry;
   final VoidCallback? onManual;
@@ -1167,12 +1165,7 @@ class _FailureActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final retry = onRetry;
-    final main = Wrap(
-        alignment: WrapAlignment.center,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: KioskSpace.sm,
-        runSpacing: KioskSpace.xs,
-        children: [
+    final buttons = <Widget>[
           if (onDismiss != null) _homeButton(onDismiss!, calm: calm),
           if (onManual != null)
             OutlinedButton.icon(
@@ -1188,8 +1181,25 @@ class _FailureActions extends StatelessWidget {
               style: KioskButtons.secondary(
                   foreground: Colors.white, border: KioskColors.border),
             ),
-        ],
-      );
+    ];
+    final Widget main = stacked
+        ? Column(
+            key: const ValueKey('done-actions-stacked'),
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final (i, b) in buttons.indexed) ...[
+                if (i > 0) const SizedBox(height: KioskSpace.xs),
+                b,
+              ],
+            ],
+          )
+        : Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: KioskSpace.sm,
+            runSpacing: KioskSpace.xs,
+            children: buttons,
+          );
     if (retry == null) return main;
     // '한 번 더 하기'는 가장 약한 글자 단추로 맨 아래(평가 7차 10/18) — 켜기/끄기가 한 버튼인 가전은 두 번 누르면
     // 도로 꺼질 수 있다. 바로 위 한 줄이 언제 다시 하는지 말한다. 다시 보내는 정책은 그대로(누르면 확인 창이 먼저).

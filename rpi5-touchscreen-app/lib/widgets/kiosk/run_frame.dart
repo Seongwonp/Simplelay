@@ -28,7 +28,12 @@ class KioskRunFrame extends StatelessWidget {
     required this.body,
     this.picture,
     required this.stop,
+    this.oneColumn = false,
   });
+
+  /// 보통 글씨에서도 큰 글씨처럼 한 열(평가 10차 10/18) — 설명 그림이 없는 LG 가전 보내는 중 화면은 2열이면 글이
+  /// 왼쪽으로 쏠리고 오른쪽 위가 비었다. 정지 단추는 오른쪽·아래에 붙여 재므로 자리·크기가 같다.
+  final bool oneColumn;
 
   final KioskStatusBand band;
 
@@ -50,7 +55,7 @@ class KioskRunFrame extends StatelessWidget {
         KioskSizes.stopRight, KioskSizes.stopBottom);
     // 큰 글자(§1-8): 가로 2열 → 세로 1열. 상태 영역·할 일이 화면 폭을 다 쓰고(글은 여러 줄로), 버튼판 그림은
     // 정지 단추 왼쪽 한 줄로 줄인다(상태가 먼저). 정지 단추는 오른쪽·아래에 붙여 재므로 보통 글씨와 같은 자리·크기.
-    if (KioskLayout.isLarge(context)) {
+    if (oneColumn || KioskLayout.isLarge(context)) {
       final picture = this.picture;
       return ColoredBox(
         key: const ValueKey('run-frame-one-column'),

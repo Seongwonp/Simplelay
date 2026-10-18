@@ -37,6 +37,9 @@ const _rice = ApplianceMap(
 
 const _tipText = '인덕션 버튼 누르기가 중간에 멈췄어요. 가전을 봐 주세요.';
 
+/// 화면은 짧은 안내 줄 끝 마침표를 다듬는다(평가 10차 10/18, `kioskLine`).
+const _tipShown = '인덕션 버튼 누르기가 중간에 멈췄어요. 가전을 봐 주세요';
+
 // 비 오는 칸이 섞인 예보 4칸 — 보통 글씨에서는 안내와 함께 보여야 한다.
 const _hourly = [
   AmbientHour(label: '9시', icon: 'partly', temp: 16, precip: false),
@@ -161,7 +164,7 @@ void main() {
       await _pump(tester, _idle(attention: const {'induction'}),
           scale: 1.22, panel15: panel15);
       expect(tester.takeException(), isNull);
-      _expectFullyVisible(tester, find.text(_tipText));
+      _expectFullyVisible(tester, find.text(_tipShown));
       _expectFullyVisible(tester, find.textContaining('습도 58%'));
       _expectFullyVisible(tester, find.text('7:08'));
       // 쉬기·설정은 메뉴로(10/18) — 메뉴 단추와 상태 칩이 화면 안에 있다.
@@ -189,7 +192,7 @@ void main() {
       _expectFullyVisible(tester, find.text('세탁기'));
       _expectFullyVisible(tester, find.text('작동 중'));
       _expectFullyVisible(tester, find.text('전자레인지'));
-      _expectFullyVisible(tester, find.text(_tipText));
+      _expectFullyVisible(tester, find.text(_tipShown));
       _expectFullyVisible(tester, find.textContaining('습도 58%'));
       // 보통 글씨에서는 안내와 예보 4칸을 함께 보인다(UI 확정 §3-1).
       // 예보 칸 이름은 오전/오후, 비 칸은 '비 70%'(평가 4차 10/18).
@@ -218,7 +221,7 @@ void main() {
       expect(find.text('연습이라 가전은 보지 않아요'), findsNothing);
       _expectFullyVisible(tester, find.text('정지'));
       // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리). '보냈어요' 대신 사람이 볼 상태(평가 4차 10/18).
-      _expectFullyVisible(tester, find.text('멈추는 중이에요. 가전을 봐 주세요'));
+      _expectFullyVisible(tester, find.text('멈추는 중이에요'));
     });
 
     testWidgets('$where 큰 글씨 동작 중 — 정지를 못 보냈다는 줄도 스크롤 없이 보여요',

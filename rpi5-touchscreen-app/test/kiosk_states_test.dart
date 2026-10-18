@@ -163,8 +163,8 @@ void main() {
 
       expect(find.byType(KioskIdleView), findsOneWidget);
       // 안내는 한 번에 하나 — 안내 카드가 있으면 인사말은 접는다(UI 확정 §3-1).
-      expect(find.text('좋은 아침이에요.'), findsNothing);
-      expect(find.text('오후 3시부터 비 예보가 있어요. 우산 챙기세요.'), findsOneWidget);
+      expect(find.text('좋은 아침이에요'), findsNothing);
+      expect(find.text('오후 3시부터 비 예보가 있어요. 우산 챙기세요'), findsOneWidget);
       // 보통 글씨에서는 안내와 예보 4칸을 함께 보인다(10/5 사용자 결정).
       expect(find.byKey(const ValueKey('ambient-hours')), findsOneWidget);
       // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기).
@@ -179,7 +179,7 @@ void main() {
           weatherSource: _ambient.weatherSource);
       await tester.pumpWidget(const SizedBox.shrink());
       await _pump(tester, api);
-      expect(find.text('좋은 아침이에요.'), findsOneWidget);
+      expect(find.text('좋은 아침이에요'), findsOneWidget);
       // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기).
       for (final label in ['오전 9시', '오후 12시', '오후 3시', '오후 6시']) {
         expect(find.text(label), findsOneWidget);
@@ -199,7 +199,7 @@ void main() {
         ..ambientResult = const AmbientInfo(greeting: '편안한 저녁이에요.');
       await _pump(tester, api);
 
-      expect(find.text('편안한 저녁이에요.'), findsOneWidget);
+      expect(find.text('편안한 저녁이에요'), findsOneWidget);
       expect(find.byKey(const ValueKey('ambient-tip')), findsNothing);
       expect(find.byKey(const ValueKey('ambient-hours')), findsNothing);
     });
@@ -245,8 +245,8 @@ void main() {
 
       expect(find.byType(KioskConnectionModal), findsOneWidget);
       expect(find.text('전기 플러그 연결이 약해요'), findsOneWidget);
-      expect(find.textContaining('알림이 늦거나 오지 않을 수 있어요.'), findsOneWidget);
-      expect(find.text('전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.'), findsOneWidget);
+      expect(find.textContaining('알림이 늦거나 오지 않을 수 있어요'), findsOneWidget);
+      expect(find.text('전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요'), findsOneWidget);
 
       // 다시 연결하기 = 연결 상태를 다시 묻는다(서버에 재연결 명령은 없다)
       final before = api.connectionsCalls;
@@ -479,8 +479,8 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('hold-stop')));
       await tester.pump();
       expect(api.stopCalls, 1);
-      // '보냈어요' 대신 사람이 볼 상태와 할 일(평가 4차 10/18) — 멈췄다고 단정하지 않는다.
-      expect(find.text('멈추는 중이에요. 가전을 봐 주세요'), findsOneWidget);
+      // '보냈어요' 대신 사람이 볼 상태(평가 4차 10/18). 연습은 실제 가전이 그대로라 '가전을 봐 주세요'를 붙이지 않는다(평가 10차 10/18).
+      expect(find.text('멈추는 중이에요'), findsOneWidget);
 
       api.statusResult = _hovering(state: 'stopping');
       await tester.pump(const Duration(seconds: 2));

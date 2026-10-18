@@ -315,6 +315,7 @@ class KioskStatus {
     this.lastApplianceId,
     this.lastOutcome,
     this.lastRoute,
+    this.route,
     this.lastReceipt,
     this.lastConfirmation,
     this.lastDetail,
@@ -391,6 +392,10 @@ class KioskStatus {
   /// physical | thinq. 옛 서버는 null.
   final String? lastRoute;
 
+  /// 실행 중인 **지금 단계**의 경로 physical | thinq(서버 /status `route`). 실행 중이 아니거나 옛 서버면 null.
+  /// 이어받은 실행을 LG 가전 화면으로 보일지 가르는 근거다(평가 10차 10/18, [isAdoptedThinqRun]).
+  final String? route;
+
   /// accepted | unknown | not_dispatched
   final String? lastReceipt;
 
@@ -456,6 +461,7 @@ class KioskStatus {
         lastApplianceId: json['last_appliance_id'] as String?,
         lastOutcome: json['last_outcome'] as String?,
         lastRoute: json['last_route'] as String?,
+        route: json['route'] as String?,
         lastReceipt: json['last_receipt'] as String?,
         lastConfirmation: json['last_confirmation'] as String?,
         lastDetail: json['last_detail'] as String?,
@@ -747,6 +753,7 @@ class KioskApiService {
   /// GET /thinq/power — 서버가 최근 조회로 **켜져 있다고 본** ThinQ 가전 ID(2026-10-16, 가전 줄 '켜짐').
   /// 서버는 기억만 돌려준다(ThinQ 클라우드를 새로 부르지 않는다). 실패·옛 서버·꺼짐·모름은 빈 집합.
   Future<Set<String>> thinqPowerOn() async {
+    _powerOff = const {};
     try {
       final res =
           await _client.get(_base.replace(path: '/thinq/power')).timeout(_timeout);
@@ -754,15 +761,25 @@ class KioskApiService {
       final body = jsonDecode(utf8.decode(res.bodyBytes));
       final list = body is Map<String, dynamic> ? body['appliances'] : null;
       if (list is! List) return const {};
+      final entries = list.whereType<Map<String, dynamic>>().where((e) => e['appliance_id'] is String);
+      _powerOff = {
+        for (final e in entries)
+          if (e['power'] == 'off') e['appliance_id'] as String,
+      };
       return {
-        for (final e in list.whereType<Map<String, dynamic>>())
-          if (e['appliance_id'] is String && e['power'] == 'on')
-            e['appliance_id'] as String,
+        for (final e in entries)
+          if (e['power'] == 'on') e['appliance_id'] as String,
       };
     } catch (_) {
       return const {};
     }
   }
+
+  Set<String> _powerOff = const {};
+
+  /// 마지막 [thinqPowerOn] 조회에서 서버가 **꺼져 있다고 본** ThinQ 가전 ID(평가 10차 10/18 — 꺼진 공기청정기 타일이
+  /// '준비됐어요'로 보였다, 폰은 '꺼져 있어요'). 같은 응답의 `power == 'off'`만 — 모름·실패는 빈 집합.
+  Set<String> get thinqPowerOff => _powerOff;
 
   /// GET /routines/next — 가장 가까운 시각 루틴 하나(평소 화면 '다음 루틴'). 없거나 실패·옛 서버면 null.
   Future<KioskNextRun?> nextRoutine() async {

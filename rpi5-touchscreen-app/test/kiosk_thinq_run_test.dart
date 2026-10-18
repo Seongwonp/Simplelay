@@ -1,8 +1,8 @@
 // LG 가전 실행 화면(사용자 요청 10/18) — 작은 팔이 누르지 않는 실행에 버튼판·'누를 버튼'·누를 순서를 보이지 않는다.
 //
-// - 보내는 중: 가운데 큰 기다림 표시 + '공기청정기에 명령을 보내는 중이에요'. 정지 단추는 그대로(같은 자리·같은 모양).
+// - 보내는 중: 가운데 큰 기다림 표시 + 하려는 일('공기청정기를 켜고 있어요', 평가 10차 10/18). 정지 단추는 그대로.
 // - 끝: 결과 창 — 서버가 상태를 다시 읽어 확인했을 때만 초록 체크 + 바뀐 결과('공기청정기가 켜졌어요').
-//   확인 못 함은 체크 없이 '명령은 보냈어요 / 가전에서 확인해 주세요', 이미 그 설정이면 '이미 켜져 있어요'.
+//   확인 못 함은 체크 없이 '켜 달라고 했어요 / 켜졌는지는 아직 몰라요', 이미 그 설정이면 '이미 켜져 있어요'.
 //   몇 초 뒤 또는 '닫기'로 처음 화면.
 // - 판정 근거: 승인에 묶인 명령(`commands[].route`)이 LG 가전 명령 하나일 때(또는 LG 가전 상세에서 바꾼 것)만.
 //   작은 팔 단계가 섞인 루틴은 기존 화면.
@@ -144,19 +144,29 @@ void main() {
           '바람 세기 강으로 설정된 것을 확인했어요');
     });
 
-    test('이미 그 설정 — 이미 켜져 있어요, 보내지 않았어요', () {
+    test('이미 그 설정 — 이미 켜져 있어요, 그대로 두었어요', () {
       final c = copy('already_at_target', '이미 전원 켜기로 설정돼 있어요. 그래서 보내지 않았어요.')!;
       expect(c.headline, '이미 켜져 있어요');
-      expect(c.sub, contains('보내지 않았어요'));
+      expect(c.sub, '그대로 두었어요');
     });
 
     test('확인 못 함 — 체크 없이 정직하게, 받았는지 모르면 다시 보내기 전에 보라고', () {
       final c = copy('none', '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.',
           kind: ResultKind.unconfirmed)!;
-      expect(c.headline, '명령은 보냈어요');
-      expect(c.sub, '가전에서 확인해 주세요');
+      // 무엇을 부탁했는지 모르면(서버 문장에 설정이 없으면) 일반 문장 — 지어내지 않는다.
+      expect(c.headline, '설정을 바꿔 달라고 했어요');
+      expect(c.sub, '바뀌었는지는 아직 몰라요\n가전을 봐 주세요');
       expect(c.tone, ThinqResultTone.attention);
-      expect(copy('none', '', kind: ResultKind.unconfirmed, receipt: 'unknown')!.headline, '명령이 전해졌는지 몰라요');
+      final on = thinqResultCopy(
+          applianceName: '공기청정기',
+          kind: ResultKind.unconfirmed,
+          receipt: 'accepted',
+          confirmation: 'none',
+          executionMode: 'real',
+          action: thinqActionOf('공기청정기', ['공기청정기 전원 켜기']))!;
+      expect(on.headline, '켜 달라고 했어요');
+      expect(on.sub, '켜졌는지는 아직 몰라요\n가전을 봐 주세요');
+      expect(copy('none', '', kind: ResultKind.unconfirmed, receipt: 'unknown')!.headline, '가전에 전해졌는지 몰라요');
     });
 
     test('실행 환경을 모르면 확인으로 올리지 않는다 · 연습은 연습 · 실패는 기존 화면(null)', () {
@@ -180,7 +190,7 @@ void main() {
       await _approveAndRun(tester, api);
       expect(find.byType(KioskExecutingView), findsOneWidget);
       expect(_sending, findsOneWidget);
-      expect(find.text('공기청정기에 명령을 보내는 중이에요'), findsOneWidget);
+      expect(find.text('공기청정기를 켜고 있어요'), findsOneWidget);
       expect(find.descendant(of: _sending, matching: find.byType(CircularProgressIndicator)), findsOneWidget);
       expect(find.textContaining('누를'), findsNothing);
       expect(find.textContaining('작은 팔'), findsNothing);
@@ -205,7 +215,7 @@ void main() {
       expect(find.byType(KioskDoneView), findsOneWidget);
       expect(_result, findsOneWidget);
       expect(find.text('공기청정기가 켜졌어요'), findsOneWidget);
-      expect(find.text('가전에서 바뀐 것을 확인했어요'), findsOneWidget);
+      expect(find.text('공기청정기에서 확인했어요'), findsOneWidget);
       final ring = find.byKey(const ValueKey('thinq-result-ring'));
       final icon = tester.widget<Icon>(find.descendant(of: ring, matching: find.byType(Icon)));
       expect(icon.icon, Icons.check);
@@ -220,7 +230,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('끝: 확인 못 함 → 체크 없이 명령은 보냈어요 / 가전에서 확인해 주세요, 닫기로 처음 화면', (tester) async {
+    testWidgets('끝: 확인 못 함 → 체크 없이 켜 달라고 했어요 / 켜졌는지는 아직 몰라요, 닫기로 처음 화면', (tester) async {
       final api = await _start(tester, _powerOn);
       await _approveAndRun(tester, api);
       await _finish(
@@ -231,8 +241,8 @@ void main() {
               confirmation: 'none',
               detail: '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.'));
       expect(_result, findsOneWidget);
-      expect(find.text('명령은 보냈어요'), findsOneWidget);
-      expect(find.text('가전에서 확인해 주세요'), findsOneWidget);
+      expect(find.text('켜 달라고 했어요'), findsOneWidget);
+      expect(find.text('켜졌는지는 아직 몰라요\n가전을 봐 주세요'), findsOneWidget);
       expect(find.descendant(of: _result, matching: find.byIcon(Icons.check)), findsNothing);
       expect(find.text('한 번 더 하기'), findsNothing);
       await tester.tap(find.byKey(const ValueKey('thinq-result-close')));
@@ -298,7 +308,7 @@ void main() {
             onStop: () {})));
         await tester.pump();
         expect(tester.takeException(), isNull, reason: 'x$scale 보내는 중');
-        expect(find.text('공기청정기에 명령을 보내는 중이에요'), findsOneWidget);
+        expect(find.text('공기청정기를 켜고 있어요'), findsOneWidget);
         await tester.pumpWidget(wrap(KioskDoneView(
             success: true,
             label: '공기청정기를 켤까요?',

@@ -55,6 +55,7 @@ class KioskApplianceStrip extends StatefulWidget {
     required this.running,
     required this.attention,
     this.on = const {},
+    this.off = const {},
     this.unavailable = const {},
     this.unavailableByEstop = false,
     required this.onSelect,
@@ -79,6 +80,9 @@ class KioskApplianceStrip extends StatefulWidget {
 
   /// 켜져 있다고 확인된 ThinQ 가전(GET /thinq/power). 모르면 넣지 않는다.
   final Set<String> on;
+
+  /// 꺼져 있다고 확인된 ThinQ 가전(같은 응답의 off, 평가 10차 10/18). 모르면 넣지 않는다.
+  final Set<String> off;
   final ValueChanged<ApplianceMap> onSelect;
   final int perPage;
 
@@ -189,6 +193,7 @@ class _KioskApplianceStripState extends State<KioskApplianceStrip> {
                       running: widget.running.contains(a.id),
                       attention: widget.attention.contains(a.id),
                       on: widget.on.contains(a.id),
+                      off: widget.off.contains(a.id),
                       unavailable: widget.unavailable.contains(a.id),
                       unavailableByEstop: widget.unavailableByEstop,
                       labelSize: widget.labelSize,
@@ -356,6 +361,7 @@ class _StripItem extends StatefulWidget {
     required this.running,
     required this.attention,
     this.on = false,
+    this.off = false,
     this.unavailable = false,
     this.unavailableByEstop = false,
     required this.onTap,
@@ -369,6 +375,7 @@ class _StripItem extends StatefulWidget {
   final bool running;
   final bool attention;
   final bool on;
+  final bool off;
   final bool unavailable;
   final bool unavailableByEstop;
   final VoidCallback onTap;
@@ -432,6 +439,7 @@ class _StripItemState extends State<_StripItem>
       unavailableByEstop: widget.unavailableByEstop,
       running: widget.running,
       on: widget.on,
+      off: widget.off,
     );
     final status = band.text;
     final edge = widget.attention
@@ -580,6 +588,7 @@ KioskTileBand kioskTileBand(
   bool unavailableByEstop = false,
   bool running = false,
   bool on = false,
+  bool off = false,
 }) {
   if (attention) return const KioskTileBand('확인해 주세요', Icons.error_outline, KioskColors.warning);
   if (unavailable) {
@@ -593,6 +602,11 @@ KioskTileBand kioskTileBand(
     return KioskTileBand(a.isThinq ? '바꾸는 중' : '작동 중', Icons.autorenew, KioskColors.running);
   }
   if (on) return const KioskTileBand('켜져 있어요', Icons.power_settings_new, KioskColors.confirmed);
+  // 꺼짐도 본체가 읽은 것만(평가 10차 10/18 — 꺼진 공기청정기가 손 아이콘 '준비됐어요'로 보였다, 폰은 '꺼져 있어요').
+  // 회색 — 문제가 아니다. 손 아이콘 대신 전원 아이콘. 모르면 아래 종전 판정.
+  if (off && a.isThinq) {
+    return const KioskTileBand('꺼져 있어요', Icons.power_settings_new, KioskColors.muted, fill: kTileBandGrey);
+  }
   if (a.needsPanelMapping) {
     return const KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning);
   }

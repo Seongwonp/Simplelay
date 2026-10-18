@@ -74,7 +74,7 @@ void main() {
 
   testWidgets('허브에 못 닿으면 인사말만 — 서버와 같은 시간대 규칙', (tester) async {
     await _pump(tester, now: DateTime(2026, 9, 13, 19, 0));
-    expect(find.text('편안한 저녁 보내세요.'), findsOneWidget);
+    expect(find.text('편안한 저녁 보내세요'), findsOneWidget);
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 7)), '좋은 아침이에요.');
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 13)), '좋은 오후예요.');
     expect(KioskIdleView.localGreeting(DateTime(2026, 1, 1, 23)), '편안한 밤 보내세요.');

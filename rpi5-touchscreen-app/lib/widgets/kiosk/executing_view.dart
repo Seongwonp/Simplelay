@@ -39,12 +39,17 @@ class KioskExecutingView extends StatelessWidget {
     required this.verificationDetail,
     required this.onStop,
     this.thinqOnly = false,
+    this.thinqActionText,
   });
 
   /// LG 가전 명령 하나만 보내는 실행(사용자 요청 10/18) — 버튼판·누를 순서·작은 팔 문구 없이 가운데 기다림 표시와
-  /// '공기청정기에 명령을 보내는 중이에요' 한 줄. 정지 단추는 같은 자리·같은 모양. 서버가 누르는 버튼을 알려 오면
-  /// (작은 팔이 움직이는 실행이면) 이 표시를 쓰지 않고 종전 화면으로 돌아간다.
+  /// 하려는 일 한 줄('공기청정기를 켜고 있어요', 평가 10차 10/18). 정지 단추는 같은 자리·같은 모양. 서버가 누르는
+  /// 버튼을 알려 오면(작은 팔이 움직이는 실행이면) 이 표시를 쓰지 않고 종전 화면으로 돌아간다.
   final bool thinqOnly;
+
+  /// 하려는 일을 알아볼 문장(승인에 묶인 명령 요약 '공기청정기 전원 켜기'·LG 가전 상세에서 고른 이름). 이어받은
+  /// 실행처럼 모르면 null — 그때는 실행 이름([title])으로 알아보고, 그래도 모르면 '설정을 바꾸고 있어요'.
+  final String? thinqActionText;
 
   final String executionMode;
 
@@ -165,26 +170,48 @@ class KioskExecutingView extends StatelessWidget {
     return '누를 버튼 $total개 중 $now번째';
   }
 
-  /// LG 가전 보내는 중 — 위 띠(실행 중·가전 이름) + 가운데 기다림 + 한 줄 + 정지.
+  /// LG 가전 보내는 중 — 위 띠(실행 중 · 하려는 일) + 가운데 기다림 + 하려는 일 한 줄 + 정지(평가 10차 10/18).
+  /// 버튼판이 없으니 2열 틀의 오른쪽 위가 비지 않게 한 열로 가운데 — 정지 단추는 같은 자리·같은 크기다.
   Widget _thinqSending(BuildContext context) {
     final name = target?.name ?? '가전';
-    final line = thinqSendingLine(name, practice: _mock);
+    final action = thinqActionOf(name, [thinqActionText, title]);
+    final line = thinqSendingLine(action, practice: _mock);
     final sub = thinqSendingSub(practice: _mock);
     final large = KioskLayout.isLarge(context);
     return KioskRunFrame(
+      oneColumn: true,
       band: _mock
           ? const KioskStatusBand.practice()
           : KioskStatusBand(
               tone: KioskBandTone.running,
               icon: Icons.play_circle_outline,
               label: '실행 중',
-              detail: target?.name,
+              detail: action.title,
               detailIcon: target?.icon,
             ),
       header: const SizedBox.shrink(),
+      // 정지가 무엇을 하는지 사실대로 한 줄(평가 10차 10/18) — 서버는 보내기 전이면 보내지 않고, 이미 보냈으면
+      // 되돌리지 않는다(취소·반대 명령 없음). 연습은 실제 가전에 보내지 않으니 두지 않는다. 정지 단추 왼쪽 빈자리.
+      picture: _mock
+          ? null
+          // 문장 사이에서만 줄을 바꾸고, 실패널 글꼴이 넓어 넘치면 칸에 맞춰 살짝 줄인다(잘리지 않게).
+          : const Align(
+              alignment: Alignment.centerRight,
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  kThinqStopNote,
+                  key: ValueKey('thinq-stop-note'),
+                  textAlign: TextAlign.end,
+                  softWrap: false,
+                  style: TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
+                ),
+              ),
+            ),
       body: Semantics(
         liveRegion: true,
-        label: '$line. $sub',
+        label: [line, sub, if (!_mock) kThinqStopNote.replaceAll('\n', '. ')].join('. '),
         excludeSemantics: true,
         child: KioskScrollArea(
           key: const ValueKey('thinq-sending'),
@@ -203,7 +230,7 @@ class KioskExecutingView extends StatelessWidget {
                 textKey: const ValueKey('thinq-sending-line'),
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                    fontSize: KioskType.status, fontWeight: FontWeight.w800, height: 1.25, color: Colors.white),
+                    fontSize: KioskType.key, fontWeight: FontWeight.w800, height: 1.2, color: Colors.white),
               ),
               const SizedBox(height: KioskSpace.xs),
               KioskText(

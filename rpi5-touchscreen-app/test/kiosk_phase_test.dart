@@ -178,6 +178,12 @@ class FakeKioskApi implements KioskApiService {
   Set<String> powerOn = {};
   int powerCalls = 0;
 
+  /// 같은 응답의 꺼짐 가전(평가 10차 10/18). 기본은 빈 집합(모름).
+  Set<String> powerOff = {};
+
+  @override
+  Set<String> get thinqPowerOff => powerOff;
+
   @override
   Future<Set<String>> thinqPowerOn() async {
     powerCalls++;
@@ -2104,7 +2110,7 @@ void main() {
     expect(done.reason, KioskFailureReason.unconfirmed);
     // LG 가전 명령 하나뿐인 카드는 결과 창 하나(사용자 요청 10/18) — 체크 없이 보낸 사실만(연습).
     expect(find.byKey(const ValueKey('thinq-result')), findsOneWidget);
-    expect(find.text('연습 명령은 보냈어요'), findsOneWidget);
+    expect(find.text('연습으로 부탁했어요'), findsOneWidget);
     expect(find.text('실제 가전은 바꾸지 않았어요'), findsOneWidget);
     expect(find.descendant(of: find.byKey(const ValueKey('thinq-result')), matching: find.byIcon(Icons.check)),
         findsNothing);
@@ -2132,8 +2138,8 @@ void main() {
     );
     expect(done.reason, KioskFailureReason.receiptUnknown);
     // 받았는지 모름 — 확인됨으로 올리지 않고, 다시 보내기 전에 보라고(LG 가전 결과 창, 사용자 요청 10/18).
-    expect(find.text('명령이 전해졌는지 몰라요'), findsOneWidget);
-    expect(find.text('다시 보내기 전에 가전을 봐 주세요'), findsOneWidget);
+    expect(find.text('가전에 전해졌는지 몰라요'), findsOneWidget);
+    expect(find.text('다시 하기 전에 가전을 봐 주세요'), findsOneWidget);
     expect(find.textContaining('바뀐 것을 봤어요'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });

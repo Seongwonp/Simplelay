@@ -164,6 +164,18 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 승인에 묶인 명령이 LG 가전 하나(또는 LG 가전 상세에서 바꾼 것)일 때만. 이어받은 실행·섞인 루틴은 종전 화면.
   bool _execThinqOnly = false;
 
+  /// LG 가전 실행의 하려는 일을 알아볼 문장(승인에 묶인 명령 요약·LG 가전 상세에서 고른 이름, 평가 10차 10/18).
+  /// 이어받은 실행은 모른다(null) — 화면이 지어내지 않고 '설정을 바꾸고 있어요'.
+  String? _execThinqActionText;
+
+  /// 이어받은 실행을 LG 가전 화면으로 보일까(평가 10차 10/18) — 서버가 지금 단계 경로 thinq·전체 1단계라고 말하고,
+  /// 대상 가전을 알면 그 가전도 LG 가전일 때만([isAdoptedThinqRun]).
+  bool _adoptedThinq(KioskStatus st) {
+    final id = st.applianceId;
+    final a = id == null ? null : _findIn(_appliances, id);
+    return isAdoptedThinqRun(route: st.route, totalSteps: st.totalSteps, applianceIsThinq: a?.isThinq);
+  }
+
   bool _doneSuccess = true;
   String _doneLabel = '';
   KioskFailureReason? _doneReason;
@@ -229,6 +241,9 @@ class _KioskScreenState extends State<KioskScreen> {
   Set<String> _attentionIds = const {};
   // 켜져 있다고 확인된 ThinQ 가전 — GET /thinq/power(서버 기억, 클라우드 호출 없음). 실패·모름은 빈 집합.
   Set<String> _onIds = const {};
+
+  /// 꺼져 있다고 서버가 본 ThinQ 가전(평가 10차 10/18) — 같은 GET /thinq/power 응답.
+  Set<String> _offIds = const {};
   // 공기청정기 센서 공기질 — GET /thinq/air(서버 기억, 클라우드 호출 없음, 2026-10-16). 모름·오래됨·실패는 null(줄 없음).
   KioskAirReading? _air;
   KioskNextRun? _nextRun;
@@ -469,8 +484,12 @@ class _KioskScreenState extends State<KioskScreen> {
   Future<void> _fetchPower() async {
     if (_phase != KioskPhase.idle) return;
     final on = await _api.thinqPowerOn();
-    if (!mounted || _sameSet(on, _onIds)) return;
-    setState(() => _onIds = on);
+    final off = _api.thinqPowerOff;
+    if (!mounted || (_sameSet(on, _onIds) && _sameSet(off, _offIds))) return;
+    setState(() {
+      _onIds = on;
+      _offIds = off;
+    });
   }
 
   /// 평소 화면의 '실내 공기' 한 줄(2026-10-16) — 서버가 최근 ThinQ 조회로 본 센서 값만. 평소 화면일 때만 묻는다.
@@ -492,7 +511,10 @@ class _KioskScreenState extends State<KioskScreen> {
   void _onThinqAccepted(String jobId, String label) {
     if (!mounted || _phase != KioskPhase.manual) return;
     _toExecuting(label,
-        applianceId: _manualAppliance?.id, jobId: jobId, thinqOnly: _manualAppliance?.isThinq ?? false);
+        applianceId: _manualAppliance?.id,
+        jobId: jobId,
+        thinqOnly: _manualAppliance?.isThinq ?? false,
+        thinqActionText: label);
     _poll();
   }
 
@@ -610,7 +632,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _trackEstop(st);
       if (st.running && st.jobId != null) {
         _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
-            applianceId: st.applianceId, jobId: st.jobId);
+            applianceId: st.applianceId, jobId: st.jobId, thinqOnly: _adoptedThinq(st));
         return;
       }
       // 버튼을 다 누른 뒤 가전이 돌아가는 중 — 동작 중 화면(정지 버튼 대기).
@@ -717,6 +739,9 @@ class _KioskScreenState extends State<KioskScreen> {
             _verificationDetail =
                 st.verificationDetail ?? _verificationDetail;
             _execApplianceId = st.applianceId ?? _execApplianceId;
+            // 이어받은 실행이 첫 조회에 경로를 몰랐다가 알게 되면 LG 가전 화면으로(평가 10차 10/18). 거꾸로는 하지 않는다 —
+            // 승인 때 정한 판정을 서버 값 하나로 내리지 않는다(작은 팔 경로면 [isAdoptedThinqRun]이 거짓이다).
+            if (!_execThinqOnly && _adoptedThinq(st)) _execThinqOnly = true;
             // 서버가 단계 수를 줄 때만 진행을 채운다
             final total = st.totalSteps;
             if (total != null && total > 0) {
@@ -821,7 +846,7 @@ class _KioskScreenState extends State<KioskScreen> {
       _trackAutoRun(st);
       if (st.running && st.jobId != null && st.jobId != _activeJobId) {
         _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
-            applianceId: st.applianceId, jobId: st.jobId);
+            applianceId: st.applianceId, jobId: st.jobId, thinqOnly: _adoptedThinq(st));
         return;
       }
       _catchMissedResult(st);
@@ -952,7 +977,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (st.running && st.jobId != null) {
         _holdReturnTimer?.cancel();
         _toExecuting(st.currentButton ?? _nameOf(st.applianceId),
-            applianceId: st.applianceId, jobId: st.jobId);
+            applianceId: st.applianceId, jobId: st.jobId, thinqOnly: _adoptedThinq(st));
         return;
       }
       _applyHold(st);
@@ -1216,8 +1241,10 @@ class _KioskScreenState extends State<KioskScreen> {
     });
   }
 
-  void _toExecuting(String title, {String? applianceId, String? jobId, bool thinqOnly = false}) {
+  void _toExecuting(String title,
+      {String? applianceId, String? jobId, bool thinqOnly = false, String? thinqActionText}) {
     _execThinqOnly = thinqOnly;
+    _execThinqActionText = thinqOnly ? thinqActionText : null;
     _executionMode = 'unknown';
     _doneRoute = null;
     _doneConfirmation = null;
@@ -1290,6 +1317,7 @@ class _KioskScreenState extends State<KioskScreen> {
       label: label,
       reason: success ? null : reason,
       thinqOnly: _execThinqOnly,
+      thinqActionText: _execThinqActionText,
       route: _doneRoute,
       resultConfirmation: _doneRawConfirmation,
       detail: _doneDetail,
@@ -1372,9 +1400,11 @@ class _KioskScreenState extends State<KioskScreen> {
     final label =
         suggestion.doneLabel(scenarioName: _scenarioNames[suggestion.scenarioId]);
     // LG 가전 명령 하나뿐인 카드면 버튼판 없는 기다림·결과 창(사용자 요청 10/18). 판정은 승인에 묶인 명령의 경로로.
+    final thinqOnly = isSingleThinqCommand([for (final c in suggestion.commands) c.route]);
     _toExecuting(label,
         applianceId: suggestion.applianceId,
-        thinqOnly: isSingleThinqCommand([for (final c in suggestion.commands) c.route]));
+        thinqOnly: thinqOnly,
+        thinqActionText: thinqOnly ? suggestion.commands.single.summary : null);
     _retryAction = () => _onApprove(suggestion: suggestion);
 
     try {
@@ -1651,6 +1681,7 @@ class _KioskScreenState extends State<KioskScreen> {
           running: _runningIds,
           attention: _attentionIds,
           on: _onIds,
+          off: _offIds,
           air: _air,
           nextRun: _nextRun,
           dndUntil: _health.dndUntil,
@@ -1755,6 +1786,7 @@ class _KioskScreenState extends State<KioskScreen> {
           verificationDetail: _verificationDetail,
           onStop: _onStop,
           thinqOnly: _execThinqOnly,
+          thinqActionText: _execThinqActionText,
         );
       case KioskPhase.done:
         return KioskDoneView(
@@ -1772,6 +1804,7 @@ class _KioskScreenState extends State<KioskScreen> {
           reason: _doneReason,
           route: _doneRoute,
           thinqOnly: _execThinqOnly,
+          thinqActionText: _execThinqActionText,
           confirmation: _doneConfirmation,
           resultConfirmation: _doneRawConfirmation,
           detail: _doneDetail,

@@ -125,7 +125,7 @@ void main() {
       expect(tester.takeException(), isNull);
       _expectFullyVisible(tester, find.text('와이파이 연결이 끊겼어요'));
       for (final fix in item.fixes) {
-        _expectFullyVisible(tester, _drawn(fix));
+        _expectFullyVisible(tester, _drawn(fix.replaceAll(RegExp(r'\.$'), '')));
       }
       expect(find.byKey(const ValueKey('hub-explain')), findsNothing);
       _expectFullyVisible(tester, find.text('다시 연결해 보기'));

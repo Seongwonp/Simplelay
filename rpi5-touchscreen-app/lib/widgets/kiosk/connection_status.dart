@@ -230,7 +230,7 @@ class KioskConnectionModal extends StatelessWidget {
                       // 어절 단위 줄바꿈('주세/요.' 방지, UI 평가 10/17).
                       if (item.message.isNotEmpty)
                         KioskText(
-                          item.message,
+                          kioskLine(item.message),
                           style: TextStyle(
                             fontSize: large ? 20 : 22,
                             height: bodyHeight,
@@ -261,7 +261,7 @@ class KioskConnectionModal extends StatelessWidget {
                               ),
                               Expanded(
                                 child: KioskText(
-                                  fix,
+                                  kioskLine(fix),
                                   style: TextStyle(
                                     fontSize: KioskType.body,
                                     height: bodyHeight,

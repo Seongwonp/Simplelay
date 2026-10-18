@@ -68,6 +68,17 @@ String _joinWords(String text) {
   return out.toString();
 }
 
+/// 짧은 안내 줄의 마침표 규칙(평가 10차 10/18) — 화면의 한 줄 안내·할 일 단계·창 본문은 **끝 마침표 없이**, 두 문장이면
+/// 가운데 마침표만 둔다(큰 글자 줄과 같은 규칙, done_view). 서버 문장('…있어요. 우산 챙기세요.')은 끝만 다듬는다 —
+/// 음성(TTS)·기록은 서버 문장 그대로다.
+String kioskLine(String text) {
+  var t = text.trimRight();
+  while (t.endsWith('.')) {
+    t = t.substring(0, t.length - 1).trimRight();
+  }
+  return t;
+}
+
 bool _breakable(int rune) => rune == 0x20 || rune == 0x0A || rune == 0x09 || rune == 0x2060;
 
 /// [keepWords]로 그리는 글. 화면 읽기(semantics)와 글 찾기에는 원래 문장이 그대로 쓰인다 — 그리는 글자에만
