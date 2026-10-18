@@ -251,7 +251,7 @@ void main() {
       await _pump(tester, const SettingsScreen(), width: 400, scale: 1.0, hub: false);
       expect(findPlainText('처음부터 들어 있는', contains: true), findsNothing);
       expect(findPlainText('빼기는', contains: true), findsNothing);
-      expect(findPlainText('등록은 LG 앱에서 해요', contains: true), findsOneWidget); // 평가 11차
+      expect(findPlainText('등록은 LG 앱에서', contains: true), findsOneWidget); // 평가 11차
     });
 
     test('다시 맞추기 → 가전 다시 불러오기(평가 6차) → 하는 일 그대로(평가 11차)', () => expect(kResyncLabel, '본체 화면에 반영하기'));
@@ -283,14 +283,15 @@ void main() {
   });
 
   group('D. 이름 통일', () {
-    testWidgets('루틴 탭에 "자동 실행" 말이 없고(다음은 그 줄의 배지, 평가 6차), 홈 배지는 "자동으로 해요"', (tester) async {
+    // 평가 14차(10/18): 홈 표시도 루틴 줄과 같은 짧은 '자동'(칩 '자동으로 해요' 없음).
+    testWidgets('루틴 탭에 "자동 실행" 말이 없고(다음은 그 줄의 배지, 평가 6차), 홈 표시는 "자동"', (tester) async {
       await _pump(tester, const RoutinesScreen(), width: 400, scale: 1.0);
       expect(find.byKey(const Key('routine-next-badge-r-air')), findsOneWidget);
       expect(findPlainText('자동 실행', contains: true), findsNothing);
 
       await _pump(tester, const HomeScreen(), width: 400, scale: 1.0);
-      expect(findPlainText('자동으로 해요'), findsOneWidget);
-      expect(find.text('자동'), findsNothing);
+      expect(findPlainText('자동으로 해요'), findsNothing);
+      expect(tester.widget<Text>(find.byKey(const Key('home-next-auto'))).data, '자동');
     });
 
     RpiHistoryEntry e(String purpose) => RpiHistoryEntry.fromJson({

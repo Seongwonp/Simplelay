@@ -58,7 +58,14 @@ class AutoRule {
     this.lastRunNotices = const [],
     this.conditionTime,
     this.action,
+    this.conditionKind,
   });
+
+  /// 서버 조건 종류(`condition_kind`: 'time' = 시각 루틴에 붙은 규칙, 그 밖은 가전 알림 같은 사건). 옛 서버는 null.
+  final String? conditionKind;
+
+  /// 시각 루틴에 붙은 규칙인가 — 조건 종류가 'time'이거나, 옛 서버면 시각(`condition_time`)이 있을 때.
+  bool get isTime => conditionKind == 'time' || (conditionKind == null && conditionTime != null);
 
   /// 서버 동작 이름(`set_wind_strength`·`set_power` 등, 옛 서버는 null). 값 바꾸기 이름을 문장이 아니라 이것으로 가른다.
   final String? action;
@@ -108,6 +115,7 @@ class AutoRule {
       value: json['value'] as String?,
       conditionTime: json['condition_time'] is String ? json['condition_time'] as String : null,
       action: json['action'] is String ? json['action'] as String : null,
+      conditionKind: json['condition_kind'] is String ? json['condition_kind'] as String : null,
       allowedValues: [
         for (final v in (json['allowed_values'] as List<dynamic>?) ?? const [])
           if (v is Map<String, dynamic> && v['value'] is String)

@@ -274,7 +274,8 @@ void main() {
         final line = find.byKey(Key('routine-line-$id'));
         final mark = find.byKey(Key('routine-auto-badge-$id'));
         expect(_in(line, mark), findsOneWidget, reason: id);
-        expect(_in(mark, findPlainText('자동')), findsOneWidget, reason: id);
+        // 규칙이 꺼져 있으면(비상 정지로 꺼진 아침 규칙) '자동 꺼짐'(평가 14차 10/18 — 규칙 값이 먼저).
+        expect(_in(mark, findPlainText(id == 'r-morn' ? '자동 꺼짐' : '자동')), findsOneWidget, reason: id);
         // 설명 줄은 한 줄 — 표시가 다음 줄로 밀리지 않는다.
         if (_noKoreanFont == null) {
           final t = tester.widget<Text>(line);
@@ -312,11 +313,21 @@ void main() {
   group('2. 자동으로 하기 탭', () {
     testWidgets("스위치와 같은 뜻인 '자동으로 해요'·'꺼 둠'은 없다, 다른 까닭은 그대로", (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 규칙'));
       await tester.pumpAndSettle();
       expect(_in(find.byKey(const Key('auto-rule-ar-eve')), findPlainText('자동으로 해요')), findsNothing);
       expect(findPlainText('꺼 둠'), findsNothing);
       expect(find.byKey(const Key('auto-rule-paused-ar-heat')), findsNothing);
+      // 시각 루틴의 규칙은 루틴 줄에서 연다(평가 14차 10/18).
+      await tester.tap(findPlainText('내 루틴'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('routine-auto-badge-r-eve')));
+      await tester.pumpAndSettle();
+      expect(_in(find.byKey(const Key('auto-rule-ar-eve')), findPlainText('자동으로 해요')), findsNothing);
+      Navigator.of(tester.element(find.byKey(const Key('auto-rule-ar-eve')))).pop();
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('routine-auto-badge-r-morn')));
+      await tester.pumpAndSettle();
       expect(findPlainText('비상 정지로 꺼졌어요', contains: true), findsOneWidget);
     });
   });
@@ -361,7 +372,7 @@ void main() {
   group('4. 설정', () {
     testWidgets("LG 가전 부제는 '켜기·끄기는 여기서, 등록은 LG 앱에서'", (tester) async {
       await _pump(tester, const SettingsScreen());
-      expect(findPlainText('등록은 LG 앱에서 해요', contains: true), findsOneWidget);
+      expect(findPlainText('등록은 LG 앱에서', contains: true), findsOneWidget);
       expect(findPlainText('LG 앱에서 관리해요'), findsNothing);
     });
 

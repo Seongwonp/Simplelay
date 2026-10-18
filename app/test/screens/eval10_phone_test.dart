@@ -336,21 +336,25 @@ void main() {
   group('2. 자동으로 하기 탭', () {
     testWidgets('머리 안내는 낱말 중간에서 꺾이지 않는다', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 규칙'));
       await tester.pumpAndSettle();
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
-      expect(intro.data, contains('자$kWordJoiner동'));
+      expect(intro.data, contains('스$kWordJoiner위$kWordJoiner치'));
     });
 
     // 평가 11차(10/18): '꺼 둠'도 스위치와 같은 뜻이라 두지 않는다(eval11_phone_test 2).
     testWidgets("사용자가 끈 규칙은 스위치만 — 긴 문장 배지·'꺼 둠' 없음", (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 규칙'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('auto-rule-paused-ar-heat')), findsNothing);
       expect(findPlainText('꺼 둠'), findsNothing);
       expect(findPlainText('자동으로 하기를 꺼 두셨어요', contains: true), findsNothing);
-      // 다른 까닭으로 꺼진 규칙은 그 까닭 배지 그대로.
+      // 다른 까닭으로 꺼진 규칙은 그 까닭 배지 그대로 — 시각 루틴 규칙은 루틴 줄 '자동 꺼짐'에서 연다(평가 14차 10/18).
+      await tester.tap(findPlainText('내 루틴'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('routine-auto-badge-r-morn')));
+      await tester.pumpAndSettle();
       expect(findPlainText('비상 정지로 꺼졌어요', contains: true), findsOneWidget);
       expect(find.byKey(const Key('auto-rule-paused-ar-estop')), findsNothing);
       expect(find.byKey(const Key('auto-rule-paused-ar-eve')), findsNothing);

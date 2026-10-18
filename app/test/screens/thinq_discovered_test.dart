@@ -16,7 +16,6 @@ import 'package:simplelay/providers/appliance_provider.dart';
 import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/home_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
-import 'package:simplelay/widgets/route_badge.dart';
 import 'package:simplelay/widgets/thinq_discovered_section.dart';
 
 import '../helpers/test_helpers.dart';
@@ -266,6 +265,7 @@ void main() {
         MaterialPageRoute<void>(builder: (_) => const HomeScreen()));
     await _settle(tester);
     expect(find.byKey(const Key('appliance-card-air_purifier')), findsOneWidget);
-    expect(find.widgetWithText(RouteBadge, 'LG 가전'), findsOneWidget);
+    // 'LG 가전'은 칩이 아니라 이름 아래 작은 글자(평가 14차 10/18).
+    expect(find.byKey(const Key('appliance-lg-air_purifier')), findsOneWidget);
   });
 }

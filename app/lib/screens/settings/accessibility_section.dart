@@ -29,7 +29,8 @@ class _ThemeToggleTile extends ConsumerWidget {
     return _SettingCard(
       child: SwitchListTile(
         contentPadding: EdgeInsets.zero,
-        secondary: Icon(isLight ? Icons.light_mode : Icons.dark_mode),
+        // 평가 14차(10/18): 꺼져 있을 때 해 아이콘이라 '어두운 화면'과 어긋났다 → 켜짐·꺼짐과 상관없이 같은 대비 아이콘.
+        secondary: const Icon(Icons.contrast),
         // 제목은 고정 — 켜고 끌 때마다 제목이 바뀌면 스위치가 무엇을 뜻하는지 헷갈린다(2026-10-14 UX).
         title: const Text('어두운 화면'),
         value: !isLight,

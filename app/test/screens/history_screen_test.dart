@@ -45,7 +45,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.textContaining('아직 기록이 없어요'), findsOneWidget);
+    expect(findPlainText('아직 기록이 없어요', contains: true), findsOneWidget);
   });
 
   testWidgets('이력 항목과 재시도 회복 배지를 보여준다', (tester) async {
@@ -78,16 +78,16 @@ void main() {
     await _expandAll(tester);
 
     // 목적 있는 실행은 목적으로, 없는 실행은 버튼 라벨 + '버튼 누르기'으로 표시
-    expect(find.text('즉석밥 데우기'), findsOneWidget);
-    expect(find.text('전원 버튼 누르기'), findsOneWidget);
+    expect(findPlainText('즉석밥 데우기'), findsOneWidget);
+    expect(findPlainText('전원 버튼 누르기'), findsOneWidget);
     // 끝이 안 좋았던 실행은 단계 목록에 버튼이 나온다
-    expect(find.text('전원'), findsOneWidget);
+    expect(findPlainText('전원'), findsOneWidget);
     // 폐루프 회복 배지 — 이 화면의 존재 이유
     // '됐어요'이라 말하지 않는다 — 다시 누른 사실만(UI 평가 5차 10/17: '확인 못 함'과 모순처럼 읽혔다).
-    expect(find.text('2번 더 눌러 마쳤어요'), findsOneWidget);
-    expect(find.textContaining('후 성공'), findsNothing);
+    expect(findPlainText('2번 더 눌러 마쳤어요'), findsOneWidget);
+    expect(findPlainText('후 성공', contains: true), findsNothing);
     // 안전 정지 상태 표기
-    expect(find.textContaining('스스로 멈췄어요'), findsOneWidget);
+    expect(findPlainText('스스로 멈췄어요', contains: true), findsOneWidget);
   });
 
   testWidgets('서버가 센 재시도 1회(버튼 attempts 2)를 배지로 그대로 보여준다',
@@ -115,7 +115,7 @@ void main() {
     await tester.pump();
     await _expandAll(tester);
 
-    expect(find.text('1번 더 눌러 마쳤어요'), findsOneWidget);
+    expect(findPlainText('1번 더 눌러 마쳤어요'), findsOneWidget);
   });
 
   testWidgets('모의 실행 기록은 버튼 조작을 마쳤다·누름 장치가 응답했다고 말하지 않는다',
@@ -144,14 +144,14 @@ void main() {
     await _expandAll(tester);
 
     // 모의 여부는 사람 말로 한 줄 — mock 기록에만, 한 번만(2026-10-14 UX).
-    expect(find.text('연습이라 실제로 누르지 않았어요'), findsOneWidget);
-    expect(find.textContaining('모의 버튼 누르기'), findsNothing);
-    expect(find.textContaining('받았어요'), findsNothing);
+    expect(findPlainText('연습이라 실제로 누르지 않았어요'), findsOneWidget);
+    expect(findPlainText('모의 버튼 누르기', contains: true), findsNothing);
+    expect(findPlainText('받았어요', contains: true), findsNothing);
     // 시스템 용어를 앞에 내지 않는다(2026-10-13).
-    expect(find.textContaining('모의 실행기 응답'), findsNothing);
-    expect(find.textContaining('물리 버튼'), findsNothing);
+    expect(findPlainText('모의 실행기 응답', contains: true), findsNothing);
+    expect(findPlainText('물리 버튼', contains: true), findsNothing);
     // 모의 성공에는 실제 가전 확인을 부탁하지 않는다.
-    expect(find.textContaining('직접 확인해 주세요'), findsNothing);
+    expect(findPlainText('직접 확인해 주세요', contains: true), findsNothing);
     // 연습 성공에 성공 체크를 붙이지 않는다 — 실제로 한 일이 아니다(외부 평가 10/16 p03).
     expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.science_outlined), findsOneWidget);
@@ -191,11 +191,11 @@ void main() {
 
     // 실패한 쪽만 단계를 펼친다 -- 성공한 이력까지 늘어놓으면 목록이
     // 다시 개발 도구처럼 보인다.
-    expect(find.text('2번 만에 눌렸어요'), findsOneWidget);
-    expect(find.text('눌렸는지 몰라요'), findsOneWidget);
-    expect(find.text('버튼판에서 직접 누르기'), findsOneWidget);
+    expect(findPlainText('2번 만에 눌렸어요'), findsOneWidget);
+    expect(findPlainText('눌렸는지 몰라요'), findsOneWidget);
+    expect(findPlainText('버튼판에서 직접 누르기'), findsOneWidget);
     // 성공한 실행은 그대로 한 줄이다
-    expect(find.text('눌렸어요'), findsNothing);
+    expect(findPlainText('눌렸어요'), findsNothing);
   });
 
   testWidgets('날짜는 구획 제목으로만 쓰고, 한 건은 무엇·결과가 먼저다', (tester) async {
@@ -244,9 +244,9 @@ void main() {
     await tester.pump();
     await _expandAll(tester);
 
-    expect(find.text('오늘'), findsOneWidget);
-    expect(find.text('어제'), findsOneWidget);
-    expect(find.text('9월 6일'), findsOneWidget);
+    expect(findPlainText('오늘'), findsOneWidget);
+    expect(findPlainText('어제'), findsOneWidget);
+    expect(findPlainText('9월 6일'), findsOneWidget);
     // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄. '봐 주세요' 줄은 그 까닭 한 줄로(평가 10차 10/18).
     expect(findPlainText('버튼은 다 눌렀어요, 움직이는지 봐 주세요'), findsNWidgets(3));
     // 동작을 확인하지 못한 물리 기록은 성공 체크가 아니라 중립 아이콘(UI 평가 5차 10/17 — 체크 바로 아래
@@ -254,12 +254,12 @@ void main() {
     expect(find.byIcon(Icons.check_circle), findsNothing);
     expect(find.byIcon(Icons.help_outline), findsNWidgets(3));
     expect(findPlainText('오전 8:10 · 바로 실행'), findsOneWidget);
-    expect(find.textContaining('실행 환경 미확인'), findsNothing);
+    expect(findPlainText('실행 환경 미확인', contains: true), findsNothing);
     // 카드로 감싸지 않는다.
     expect(find.byType(Card), findsNothing);
     // 보고만 받은 버튼 기록은 '봐 주세요' — 초록 '됐어요'가 아니다(확인 수준을 높여 보이지 않는다, 평가 5차 10/18 배지 넷).
-    expect(find.text('봐 주세요'), findsNWidgets(3));
-    expect(find.text('됐어요'), findsNothing);
+    expect(findPlainText('봐 주세요'), findsNWidgets(3));
+    expect(findPlainText('됐어요'), findsNothing);
   });
 
   testWidgets('사용자가 멈춘 것과 안전 정지를 종료 사유가 있을 때만 나눈다',
@@ -293,8 +293,8 @@ void main() {
     await tester.pump();
     await _expandAll(tester);
 
-    expect(find.textContaining('직접 멈췄어요'), findsOneWidget);
-    expect(find.textContaining('다시 눌러도 눌렸는지 몰라요'), findsOneWidget);
+    expect(findPlainText('직접 멈췄어요', contains: true), findsOneWidget);
+    expect(findPlainText('다시 눌러도 눌렸는지 몰라요', contains: true), findsOneWidget);
   });
 
   testWidgets('어느 가전이었는지 알 때만 말한다', (tester) async {
@@ -382,15 +382,15 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.text('공기청정기 켜기'), findsOneWidget);
+    expect(findPlainText('공기청정기 켜기'), findsOneWidget);
     expect(findPlainText('오후 10:00 · 자동', contains: true), findsOneWidget);
-    expect(find.textContaining('자동 실행 · 공기청정기'), findsNothing);
+    expect(findPlainText('자동 실행 · 공기청정기', contains: true), findsNothing);
   });
 
   testWidgets('탭 제목은 홈(우리 집)과 같은 굵은 큰 제목(UI 평가 10/17)', (tester) async {
     await tester.pumpWidget(_build(_apiWithHistory(const [])));
     await tester.pump();
-    final title = tester.widget<Text>(find.text('기록'));
+    final title = tester.widget<Text>(findPlainText('기록'));
     expect(title.style?.fontWeight, FontWeight.w700);
     expect(title.style?.fontSize, 24);
   });
@@ -417,7 +417,7 @@ void main() {
     await tester.pump();
     await _expandAll(tester);
 
-    expect(find.textContaining('이미 그 설정이라'), findsOneWidget);
+    expect(findPlainText('이미 그 설정이라', contains: true), findsOneWidget);
     // 평가 6차(10/18): '됐어요'는 기호도 하나 — ✓와 ⓘ를 섞지 않는다. 보내지 않았다는 차이는 펼친 문장이 말한다.
     expect(find.byIcon(Icons.check_circle), findsOneWidget);
     expect(find.byIcon(Icons.info_outline), findsNothing);
@@ -464,18 +464,18 @@ void main() {
     ]);
     double y(Finder f) => tester.getTopLeft(f).dy;
     final order = [
-      find.text('오늘'),
-      find.text('아침 데우기'),
+      findPlainText('오늘'),
+      findPlainText('아침 데우기'),
       findPlainText('오전 8:10 · 바로 실행 · 전자레인지'),
-      find.text('다시 눌러도 눌렸는지 몰라요'),
-      find.text('연습이라 실제로 누르지 않았어요'),
-      find.text('버튼판에서 직접 누르기'),
+      findPlainText('다시 눌러도 눌렸는지 몰라요'),
+      findPlainText('연습이라 실제로 누르지 않았어요'),
+      findPlainText('버튼판에서 직접 누르기'),
     ];
     for (final f in order) {
       expect(f, findsOneWidget);
     }
     // 모의 기록에는 다음 행동 줄이 없다 — 연습은 한 줄로만 말한다(2026-10-14 UX).
-    expect(find.text('연습 결과를 확인해 주세요'), findsNothing);
+    expect(findPlainText('연습 결과를 확인해 주세요'), findsNothing);
     for (var i = 1; i < order.length; i++) {
       expect(y(order[i]), greaterThan(y(order[i - 1])), reason: '순서 $i');
     }
@@ -507,14 +507,15 @@ void main() {
         'buttons': [],
       },
     ]);
-    expect(find.text('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
+    expect(findPlainText('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다. 목적 없는 실행은 수동 조작 화면에서 고른 것(평가 13차).
     expect(findPlainText('오전 8:10 · 화면에서 골라 누름'), findsOneWidget);
     expect(findPlainText('버튼은 다 눌렀어요, 움직이는지 봐 주세요'), findsNWidgets(2)); // 평가 12차: 볼 것은 이 한 줄이 함께 말한다
-    expect(find.text('버튼 누르기'), findsOneWidget);
+    expect(findPlainText('버튼 누르기'), findsOneWidget);
   });
 
-  testWidgets('jobId가 다르면 같은 시각이라도 두 행이다', (tester) async {
+  // 평가 14차(10/18): 연달아 같은 일·같은 결과는 한 줄로 묶는다 — 회차(jobId)는 펼치면 하나씩 남는다.
+  testWidgets('jobId가 다른 같은 일·같은 결과는 한 줄에 묶이고 펼치면 회차마다', (tester) async {
     Map<String, dynamic> e(String id) => {
           'job_id': id,
           'finished_at': '2026-09-09T08:10:00+09:00',
@@ -524,9 +525,12 @@ void main() {
           'buttons': [],
         };
     await pumpWith(tester, [e('job-1'), e('job-2')]);
-    expect(find.text('즉석밥 데우기'), findsNWidgets(2));
+    expect(findPlainText('즉석밥 데우기'), findsOneWidget);
     expect(find.byKey(const ValueKey('history-job-1')), findsOneWidget);
-    expect(find.byKey(const ValueKey('history-job-2')), findsOneWidget);
+    expect(find.byKey(const ValueKey('history-job-2')), findsNothing);
+    expect(findPlainText('2번 봐 주세요'), findsOneWidget);
+    expect(find.byKey(const Key('history-sub-job-1')), findsOneWidget);
+    expect(find.byKey(const Key('history-sub-job-2')), findsOneWidget);
   });
 
   testWidgets('서버 오류 시 사용자 언어 안내를 보여준다', (tester) async {
@@ -537,7 +541,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.textContaining('기록을 불러오지 못했어요'), findsOneWidget);
+    expect(findPlainText('기록을 불러오지 못했어요', contains: true), findsOneWidget);
   });
 
   testWidgets('모션 장치가 걸려 멈춘 단계는 "누르지 않았어요" — "확인 못 함"이 아니다(2026-10-14)',
@@ -559,9 +563,9 @@ void main() {
         ],
       },
     ]);
-    expect(find.text('누르지 않았어요'), findsOneWidget);
-    expect(find.text('눌렸는지 몰라요'), findsNothing);
-    expect(find.text('눌렸어요'), findsOneWidget);
+    expect(findPlainText('누르지 않았어요'), findsOneWidget);
+    expect(findPlainText('눌렸는지 몰라요'), findsNothing);
+    expect(findPlainText('눌렸어요'), findsOneWidget);
   });
 
   // ── 2026-10-18 기록 행 두 줄 · 출처 아이콘 · 결과 배지 ─────────────────────────────
@@ -620,18 +624,18 @@ void main() {
     expect(findPlainText('오전 8:30 · 자동 · LG 가전'), findsOneWidget);
     expect(find.byIcon(AppIcons.routine), findsOneWidget);
     expect(find.byIcon(AppIcons.manual), findsOneWidget);
-    // 상태를 다시 읽어 확인한 것만 초록 '됐어요'.
-    expect(find.text('됐어요'), findsOneWidget);
-    expect(find.text('못 했어요'), findsOneWidget);
-    expect(find.text('봐 주세요'), findsOneWidget);
+    // 상태를 다시 읽어 확인한 것만 초록 '됐어요' — 무엇을 확인했는지 짧게('켜짐 확인', 평가 14차 10/18).
+    expect(findPlainText('켜짐 확인'), findsOneWidget);
+    expect(findPlainText('못 했어요'), findsOneWidget);
+    expect(findPlainText('봐 주세요'), findsOneWidget);
     // 배지는 행 오른쪽.
-    expect(tester.getCenter(find.text('됐어요')).dx,
-        greaterThan(tester.getCenter(find.text('공기청정기 켜기')).dx));
+    expect(tester.getCenter(findPlainText('켜짐 확인')).dx,
+        greaterThan(tester.getCenter(findPlainText('공기청정기 켜기')).dx));
     // 결과 문장·버튼판 길은 접혀 있다.
-    expect(find.text('버튼판에서 직접 누르기'), findsNothing);
+    expect(findPlainText('버튼판에서 직접 누르기'), findsNothing);
     await tester.tap(find.byKey(const Key('history-tap-j-routine')));
     await tester.pump();
-    expect(find.text('버튼판에서 직접 누르기'), findsOneWidget);
+    expect(findPlainText('버튼판에서 직접 누르기'), findsOneWidget);
   });
 
   testWidgets('연습·실제 모를 기록은 됐어요가 아니다 — 확인 수준을 높여 보이지 않는다', (tester) async {
@@ -658,8 +662,8 @@ void main() {
         'buttons': [],
       },
     ], expand: false);
-    expect(find.text('됐어요'), findsNothing);
-    expect(find.text('연습'), findsOneWidget);
+    expect(findPlainText('됐어요'), findsNothing);
+    expect(findPlainText('연습'), findsOneWidget);
     expect(find.byIcon(Icons.check_circle), findsNothing);
   });
 
@@ -683,13 +687,15 @@ void main() {
       unknown('u2', '2026-09-09T08:20:00+09:00'),
       unknown('u3', '2026-09-08T08:20:00+09:00'),
     ], expand: false);
-    expect(find.text('눌렸는지 모르는 일 2건. 가전을 봐 주세요'), findsOneWidget);
-    expect(find.text('눌렸는지 모르는 일 1건. 가전을 봐 주세요'), findsOneWidget);
-    expect(find.text('봐 주세요'), findsNWidgets(3));
+    expect(findPlainText('눌렸는지 모르는 일 2건. 가전을 봐 주세요'), findsOneWidget);
+    expect(findPlainText('눌렸는지 모르는 일 1건. 가전을 봐 주세요'), findsOneWidget);
+    // 같은 날 연달아 같은 일·같은 결과(u1·u2)는 한 줄 '2번 봐 주세요'(평가 14차 10/18).
+    expect(findPlainText('2번 봐 주세요'), findsOneWidget);
+    expect(findPlainText('봐 주세요'), findsOneWidget);
     // 머리는 그 날짜 제목 바로 아래.
-    expect(tester.getTopLeft(find.text('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
-        greaterThan(tester.getTopLeft(find.text('오늘')).dy));
-    expect(tester.getTopLeft(find.text('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
+    expect(tester.getTopLeft(findPlainText('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
+        greaterThan(tester.getTopLeft(findPlainText('오늘')).dy));
+    expect(tester.getTopLeft(findPlainText('눌렸는지 모르는 일 2건. 가전을 봐 주세요')).dy,
         lessThan(tester.getTopLeft(find.byKey(const Key('history-tap-u1'))).dy));
   });
 }

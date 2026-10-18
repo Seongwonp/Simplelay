@@ -9,7 +9,8 @@ part of '../settings_screen.dart';
 const kResyncLabel = '본체 화면에 반영하기';
 
 /// LG 가전 줄 부제 두 줄(평가 12차 10/18).
-const kThinqSubtitleLines = ['켜기·끄기는 여기서 해요', '등록은 LG 앱에서 해요'];
+/// 평가 14차(10/18): '~해요'가 두 줄 잇달아 단조로웠다 → 짧은 명사구.
+const kThinqSubtitleLines = ['켜기·끄기는 여기서', '등록은 LG 앱에서'];
 
 /// 안부 알림을 며칠 쉬는 설정의 이름 — 하는 일 그대로(평가 3차 10/18, 예전 '안부 확인 쉬기').
 const kAwayTitle = '집 비우는 날';

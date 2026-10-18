@@ -209,7 +209,8 @@ class SettingsScreen extends ConsumerWidget {
             ),
             _ValueRow(
               id: 'wellness',
-              icon: Icons.favorite_outline,
+              // 평가 14차(10/18): 하트는 뜻이 없었다 → 집을 비우는 날(여행 가방).
+              icon: Icons.luggage_outlined,
               title: kAwayTitle,
               value: _wellnessValue(ref),
               detail: _WellnessPauseTile(),

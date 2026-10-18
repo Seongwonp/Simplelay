@@ -207,7 +207,7 @@ void main() {
   testWidgets('루틴 탭 — 자동으로 하기 (라이트)', (t) async {
     await _shoot(t, 'routines_rules_light', const RoutinesScreen(),
         light: true, installed: _homeInstalled, hub: _demoHub(), before: (tester) async {
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 규칙'));
       await tester.pumpAndSettle();
     });
   });
@@ -1072,6 +1072,7 @@ RpiApiService _demoHub() {
             'enabled': false,
             'disabled_reason': '자동으로 하기를 꺼 두셨어요.',
             'fingerprint': 'fp-2',
+            'action': 'set_wind_strength',
             'value': 'HIGH',
             'allowed_values': [
               {'value': 'MID', 'label': '중'},

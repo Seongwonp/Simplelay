@@ -679,7 +679,7 @@ void main() {
       final seg = find.byType(SegmentedButton<int>);
       expect(seg, findsOneWidget);
       expect(find.descendant(of: seg, matching: findPlainText('내 루틴')), findsOneWidget);
-      expect(find.descendant(of: seg, matching: findPlainText('자동으로 하기')), findsOneWidget);
+      expect(find.descendant(of: seg, matching: findPlainText('자동 규칙')), findsOneWidget);
       expect(find.text('예시 루틴'), findsNothing, reason: '세그먼트에 예시 루틴을 두지 않는다');
       expect(find.textContaining('추천'), findsNothing);
 
@@ -746,7 +746,7 @@ void main() {
       expect(tester.getSize(find.byKey(const Key('candidate-save-hc-1'))).height,
           greaterThanOrEqualTo(48));
       // 자동으로 하기 쪽에는 보이지 않는다.
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 규칙'));
       await _settle(tester);
       expect(find.text('사용 기록으로 만든 루틴 초안'), findsNothing);
     });

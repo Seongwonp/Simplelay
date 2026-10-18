@@ -230,7 +230,7 @@ void main() {
       final data = tester.widget<Text>(sub).data!;
       final lines = data.replaceAll(kWordJoiner, '').split('\n');
       expect(lines.map((l) => l.replaceAll(kNoBreakSpace, ' ')).toList(),
-          ['켜기·끄기는 여기서 해요', '등록은 LG 앱에서 해요']);
+          ['켜기·끄기는 여기서', '등록은 LG 앱에서']);
       // 'LG'와 '앱에서'는 떨어지지 않는다.
       expect(lines[1], contains('LG$kNoBreakSpace앱에서'));
       if (_noKoreanFont == null) {

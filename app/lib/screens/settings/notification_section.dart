@@ -210,7 +210,7 @@ class _WellnessPauseTileState extends ConsumerState<_WellnessPauseTile> {
       child: ListTile(
         contentPadding: EdgeInsets.zero,
         leading: Icon(
-          paused ? Icons.notifications_paused : Icons.favorite_outline,
+          paused ? Icons.notifications_paused : Icons.luggage_outlined,
         ),
         // 이름은 하는 일 그대로 '집 비우는 날'(평가 3차 10/18 — '안부 확인 쉬기'는 무엇을 쉬는지 어려웠다).
         title: const Text(kAwayTitle),

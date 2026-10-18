@@ -74,3 +74,11 @@ bool _short(String t) =>
     t.isNotEmpty &&
     !t.endsWith(',') &&
     (t.length == 1 || (t.length <= 3 && RegExp(r'^[A-Za-z]+$').hasMatch(t)));
+
+/// 행동 이름('공기청정기 바람 중간으로 하기')의 끝 낱말이 두 글자 이하면 앞 낱말과 붙인다(평가 14차 10/18: 기록 제목이
+/// '공기청정기 바람 중간으로 / 하기'로 꺾여 '하기'만 홀로 남았다). 낱말 안은 [keepWordsTogether]. 화면 글자에만 쓴다.
+String keepActionNameTogether(String text) {
+  final i = text.lastIndexOf(' ');
+  if (i <= 0 || text.length - i - 1 > 2) return keepWordsTogether(text);
+  return keepWordsTogether('${text.substring(0, i)}$kNoBreakSpace${text.substring(i + 1)}');
+}

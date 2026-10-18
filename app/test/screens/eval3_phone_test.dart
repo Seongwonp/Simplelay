@@ -406,7 +406,7 @@ void main() {
         child: const MaterialApp(home: HistoryScreen()),
       ));
       await _settle(tester);
-      expect(find.text('공기청정기 끄기'), findsOneWidget);
+      expect(findPlainText('공기청정기 끄기'), findsOneWidget);
       expect(findPlainText('오전 7:00 · 자동'), findsOneWidget); // 시각 꼴은 오전/오후(평가 8차 10/18)
       expect(find.text('오늘'), findsOneWidget);
     });

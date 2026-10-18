@@ -68,7 +68,8 @@ void main() {
     await tester.pump();
 
     expect(find.text(_purifier.name), findsOneWidget);
-    expect(find.widgetWithText(RouteBadge, 'LG 가전'), findsOneWidget);
+    // 'LG 가전'은 칩이 아니라 이름 아래 작은 글자(평가 14차 10/18).
+    expect(find.byKey(Key('appliance-lg-${_purifier.id}')), findsOneWidget);
     expect(find.text('버튼으로 하기'), findsNothing);
     expect(find.text('가전 사진 추가'), findsNothing);
   });

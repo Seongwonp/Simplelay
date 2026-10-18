@@ -18,6 +18,7 @@ import 'package:simplelay/providers/rpi_api_provider.dart';
 import 'package:simplelay/screens/app_shell.dart';
 import 'package:simplelay/screens/history_screen.dart';
 import 'package:simplelay/services/rpi_api_service.dart';
+import '../helpers/test_helpers.dart' show findPlainText;
 
 class _Hub {
   final entries = <Map<String, dynamic>>[];
@@ -129,7 +130,7 @@ void main() {
     _seed(c, ExecutionPhase.completed);
     await _settle(tester);
 
-    expect(find.text('아침 데우기'), findsOneWidget);
+    expect(findPlainText('아침 데우기'), findsOneWidget);
     expect(find.textContaining('아직 기록이 없어요'), findsNothing);
     await _end(tester, c);
   });
@@ -145,7 +146,7 @@ void main() {
     await tester.tap(find.text('기록'));
     await _settle(tester);
 
-    expect(find.text('아침 데우기'), findsOneWidget);
+    expect(findPlainText('아침 데우기'), findsOneWidget);
     await _end(tester, c);
   });
 

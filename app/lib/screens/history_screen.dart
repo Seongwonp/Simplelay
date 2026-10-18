@@ -83,21 +83,9 @@ class HistoryScreen extends ConsumerWidget {
                           ]),
                         ),
                       const SizedBox(height: AppSpace.xs),
-                      for (var i = 0; i < section.entries.length; i++) ...[
-                        // jobId가 다르면 같은 시각이라도 다른 행이다(합치지 않는다).
-                        _HistoryRow(
-                          key: ValueKey('history-${section.entries[i].jobId}'),
-                          entry: section.entries[i],
-                          // 실행할 때의 이름이 먼저다 — 나중에 이름·모드가 바뀌어도 그때 이름(결함 ②).
-                          applianceName: section.entries[i].applianceName ??
-                              _applianceName(
-                                  installed, section.entries[i].applianceId),
-                          applianceIcon: _applianceIcon(
-                              installed, section.entries[i].applianceId),
-                        ),
-                        if (i < section.entries.length - 1)
-                          Divider(height: 1, color: context.appBorderFaint),
-                      ],
+                      // 평가 14차(10/18): 연달아 같은 일·같은 결과는 한 줄로 묶는다('3번 못 했어요') — 펼치면 각 회차.
+                      // 날짜 구획 안에서 바로 이어질 때만(사이에 다른 일이 있으면 따로), 결과·이유·출처까지 같을 때만.
+                      ..._rows(context, _runsOf(section.entries, installed), installed),
                     ],
                   ],
                 ),
@@ -114,6 +102,38 @@ class HistoryScreen extends ConsumerWidget {
       if (a.id == id) return a.displayName as String;
     }
     return null;
+  }
+
+  static List<Widget> _rows(BuildContext context, List<List<RpiHistoryEntry>> runs, List installed) => [
+        for (final (i, run) in runs.indexed) ...[
+          _HistoryRow(
+            key: ValueKey('history-${run.first.jobId}'),
+            entries: run,
+            applianceName: _nameOf(installed, run.first),
+            applianceIcon: _applianceIcon(installed, run.first.applianceId),
+          ),
+          if (i < runs.length - 1) Divider(height: 1, color: context.appBorderFaint),
+        ],
+      ];
+
+  /// 실행할 때의 이름이 먼저다 — 나중에 이름·모드가 바뀌어도 그때 이름(결함 ②).
+  static String? _nameOf(List installed, RpiHistoryEntry e) =>
+      e.applianceName ?? _applianceName(installed, e.applianceId);
+
+  /// 바로 이어진 같은 일·같은 결과를 한 묶음으로. 순서는 서버 순서(최신 먼저) 그대로.
+  static List<List<RpiHistoryEntry>> _runsOf(List<RpiHistoryEntry> entries, List installed) {
+    final runs = <List<RpiHistoryEntry>>[];
+    String? lastKey;
+    for (final e in entries) {
+      final key = historyRunKey(e, applianceName: _nameOf(installed, e));
+      if (runs.isNotEmpty && key == lastKey) {
+        runs.last.add(e);
+      } else {
+        runs.add([e]);
+      }
+      lastKey = key;
+    }
+    return runs;
   }
 
   /// 기록이 가리키는 가전의 아이콘(종류에서). 모르면 null.
@@ -319,15 +339,92 @@ int unknownPressCount(List<RpiHistoryEntry> entries) => entries
         resultKindOf(outcome: e.outcome, status: e.status) == ResultKind.unconfirmed)
     .length;
 
+/// 실패 기록의 이유 한 줄(평가 14차 10/18: '못 했어요'가 세 번 이어져도 왜인지 없었다). **기록에 있는 말만** —
+/// 본체가 남긴 결과 문장(`detail`)의 첫 문장, 그것이 없으면 작은 팔 기록은 결과 문장(보내지 못함·다시 눌러도 모름 같은
+/// 데이터가 아는 사정). LG 가전 기록에 문장이 없으면 null — '가전이 하지 않았어요'는 배지와 같은 말이라 붙이지 않는다.
+String? historyFailReason(RpiHistoryEntry e, {String? applianceName}) {
+  if (e.executionMode == 'mock') return null;
+  if (resultKindOf(outcome: e.outcome, status: e.status) != ResultKind.failed) return null;
+  final first = _detailParts(e.detail).$1;
+  if (first != null) return first;
+  if (e.route == 'thinq') return null;
+  return historyResult(e, applianceName: applianceName).sentence;
+}
+
+/// 본체 결과 문장 → (첫 문장(마침표 뺌), 나머지). 비었으면 (null, null).
+(String?, String?) _detailParts(String detail) {
+  final d = detail.trim();
+  if (d.isEmpty) return (null, null);
+  final m = RegExp(r'^(.+?)[.。](?:\s+(.*))?$', dotAll: true).firstMatch(d);
+  if (m == null) return (d, null);
+  final rest = m.group(2)?.trim();
+  return (m.group(1)!.trim(), (rest == null || rest.isEmpty) ? null : rest);
+}
+
+/// 묶음 열쇠 — 같은 일(제목)·같은 결과(배지)·같은 출처·같은 가전·같은 이유·같은 실제/연습일 때만 한 줄로 묶는다.
+String historyRunKey(RpiHistoryEntry e, {String? applianceName}) => [
+      historyTitle(e, applianceName: applianceName),
+      historyBadgeOf(e).label,
+      historySourceLabel(e),
+      historyOrigin(e, applianceName: applianceName) ?? '',
+      applianceName ?? '',
+      e.executionMode,
+      historyFailReason(e, applianceName: applianceName) ?? '',
+      historyResult(e, applianceName: applianceName).sentence,
+    ].join('\u0000');
+
+/// '됐어요' 기록이 **무엇을 확인했는지** 짧게(평가 14차 10/18: 성공 줄이 '됐어요' 한 마디로 끝나 무엇이 됐는지 몰랐다).
+///
+/// 기록의 확인 수준(`confirmation`)에서만 말한다 — 초록 '됐어요'가 아닌 기록(보고·접수만, 모름, 연습)은 null.
+/// - LG 가전 상태를 다시 읽음(state_confirmed·state_confirmed_unknown_before): 행동 이름이 켜기/끄기면 '켜짐 확인'/'꺼짐 확인',
+///   그 밖은 '바뀐 상태 확인'. 루틴 기록은 이름이 한 일을 다 말하지 않을 수 있어 '상태 확인'.
+/// - 이미 그 설정이라 보내지 않음(already_at_target): '이미 그 상태'.
+/// - 작은 팔: 전기를 쓰기 시작함(operation_confirmed) '동작 확인', 눌림 확인(press_confirmed) '눌림 확인'.
+String? historyConfirmedPhrase(RpiHistoryEntry e, {String? applianceName}) {
+  if (historyBadgeOf(e).tone != BadgeTone.confirmed) return null;
+  if (e.route == 'thinq') {
+    switch (e.confirmation) {
+      case 'already_at_target':
+        return '이미 그 상태';
+      case 'state_confirmed':
+      case 'state_confirmed_unknown_before':
+        if (!historyIsLgAppliance(e)) return '상태 확인';
+        final title = historyTitle(e, applianceName: applianceName);
+        if (title.endsWith(' 켜기')) return '켜짐 확인';
+        if (title.endsWith(' 끄기')) return '꺼짐 확인';
+        return '바뀐 상태 확인';
+    }
+    return null;
+  }
+  return switch (e.confirmation) {
+    'operation_confirmed' => '동작 확인',
+    'press_confirmed' => '눌림 확인',
+    _ => null,
+  };
+}
+
+/// 묶음의 시각 — 한 번이면 '오후 1:00', 여럿이면 '오후 12:59~1:00'(같은 오전/오후는 한 번만).
+String _runTime(List<RpiHistoryEntry> entries) {
+  final newest = _hm(entries.first.finishedAt);
+  if (entries.length == 1) return newest;
+  final oldest = _hm(entries.last.finishedAt);
+  if (oldest == newest) return newest;
+  final p1 = oldest.split(' ');
+  final p2 = newest.split(' ');
+  if (p1.length == 2 && p2.length == 2 && p1.first == p2.first) return '$oldest~${p2.last}';
+  return '$oldest~$newest';
+}
+
 class _HistoryRow extends StatefulWidget {
   const _HistoryRow({
     super.key,
-    required this.entry,
+    required this.entries,
     required this.applianceName,
     this.applianceIcon,
   });
 
-  final RpiHistoryEntry entry;
+  /// 한 줄에 묶인 기록(최신 먼저, 하나 이상). 같은 일·같은 결과가 연달아 있을 때만 여럿이다.
+  final List<RpiHistoryEntry> entries;
 
   /// 가전 종류 아이콘. LG 가전 기록의 왼쪽 아이콘에 쓴다. 모르면 null.
   final IconData? applianceIcon;
@@ -339,23 +436,21 @@ class _HistoryRow extends StatefulWidget {
   State<_HistoryRow> createState() => _HistoryRowState();
 }
 
-/// 기록 한 건 — 두 줄(무엇을 · 언제·누가) + 왼쪽 출처 아이콘 + 오른쪽 결과 배지.
-/// 결과 문장·다음 할 일·버튼별 결과는 눌러서 펼친다(2026-10-18).
+/// 기록 한 줄 — 두 줄(무엇을 · 언제·누가) + 왼쪽 출처 아이콘 + 오른쪽 결과.
+/// 결과 문장·다음 할 일·버튼별 결과는 눌러서 펼친다(2026-10-18). 묶음이면 펼친 칸에 회차마다.
+///
+/// 평가 14차(10/18): 모든 줄이 같은 짜임(회색 원 + 배지 칩)이라 위계가 없었다 — 회색 원을 빼고, 됐어요·연습은 칩 없이
+/// 작은 기호·글자로 조용히. 볼 것(못 했어요·봐 주세요·멈췄어요)만 칩으로 눈에 띄게.
 class _HistoryRowState extends State<_HistoryRow> {
   bool _open = false;
 
   @override
   Widget build(BuildContext context) {
-    final entry = widget.entry;
+    final entries = widget.entries;
+    final entry = entries.first;
+    final count = entries.length;
     final applianceName = widget.applianceName;
     final result = historyResult(entry, applianceName: applianceName);
-    final kind = result.kind;
-    final succeeded = kind == ResultKind.success;
-    // 버튼 단계·'버튼판에서 직접 누르기'는 물리 경로의 이야기다. ThinQ 기록과
-    // 확인 못 함(실패 아님)은 펼치지 않는다.
-    final breakdown = !succeeded &&
-        kind != ResultKind.unconfirmed &&
-        entry.route != 'thinq';
     final badge = historyBadgeOf(entry);
     final title = historyTitle(entry, applianceName: applianceName);
     final rawName = applianceName;
@@ -366,52 +461,65 @@ class _HistoryRowState extends State<_HistoryRow> {
     final source = historySource(entry);
     // 루틴·자동 규칙 이름은 부제로(평가 3차 10/18) — 제목은 한 일(행동 이름) 하나의 규칙.
     final origin = historyOrigin(entry, applianceName: applianceName);
-    // 제목·루틴 이름이 이미 가전 이름을 말하면 시각 줄에서 되풀이하지 않는다.
+    // 제목·루틴 이름이 이미 가전 이름을 말하면 시각 줄에서 되풀이하지 않는다. 'LG 가전' 같은 출처는 묶음에 한 번.
     final timeLine = [
-      _hm(entry.finishedAt),
-      // 루틴은 어떻게 시작했는지까지('루틴 · 허락하고 실행'·'루틴 · 자동으로', 평가 7차 10/18).
+      _runTime(entries),
+      // 루틴은 어떻게 시작했는지까지('루틴 · 물어보고'·'루틴 · 자동으로', 평가 7차 10/18).
       historySourceLabel(entry),
       if (origin != null) origin,
       if (name != null && !title.contains(name) && !(origin ?? '').contains(name)) name,
     ].join(' · ');
-    final receipt = _thinqReceiptLine(entry, kind);
     final muted = context.appCaption;
-    // '봐 주세요' 배지에는 까닭 한 줄(평가 10차 10/18: 왜 보라는지 펼쳐야만 알았다). 결과 문장 그대로 — 데이터가 아는
-    // 만큼만('눌렸는지 몰라요'·'보냈지만 설정이 바뀌었는지 몰라요'·'버튼은 다 눌렀어요, 움직이는지 봐 주세요'). 펼친 칸에서는
-    // 되풀이하지 않는다.
-    final reason = badge.label == '봐 주세요' ? result.sentence : null;
+    // 이유 한 줄 — '봐 주세요'는 결과 문장(평가 10차 10/18), '못 했어요'는 기록에 있는 이유(평가 14차 10/18).
+    final look = badge.label == '봐 주세요';
+    final reason = look ? result.sentence : historyFailReason(entry, applianceName: applianceName);
+    final reasonColor = look ? context.appWarning : context.appInk;
 
-    // 큰 글씨에서는 배지를 제목 아래로 — 오른쪽에 두면 제목이 한 글자씩 꺾인다.
+    final label = count > 1 ? '$count번 ${badge.label}' : badge.label;
+    // 됐어요·연습은 칩 없이 작은 기호·글자. 볼 것만 칩.
+    final quiet = badge.tone == BadgeTone.confirmed || badge.tone == BadgeTone.neutral;
+    // 됐어요는 무엇을 확인했는지 짧게('켜짐 확인') — 기록의 확인 수준에서만([historyConfirmedPhrase]).
+    final confirmed = historyConfirmedPhrase(entry, applianceName: applianceName);
+    final quietLabel = confirmed == null ? label : (count > 1 ? '$confirmed · $count번' : confirmed);
+    final Widget badgeWidget = quiet
+        ? _QuietResult(
+            key: Key('history-result-${entry.jobId}'),
+            icon: badge.icon,
+            label: quietLabel,
+            semanticLabel: confirmed == null ? label : '${badge.label}, $quietLabel',
+            color: badge.tone == BadgeTone.confirmed ? context.appConfirmed : context.appMuted)
+        : StatusBadge(key: Key('history-result-${entry.jobId}'), icon: badge.icon, label: label, tone: badge.tone);
+
+    // 큰 글씨에서는 결과를 제목 아래로 — 오른쪽에 두면 제목이 한 글자씩 꺾인다.
     final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    final badgeWidget = StatusBadge(icon: badge.icon, label: badge.label, tone: badge.tone);
     final head = Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 왼쪽 = 누가(직접·루틴·자동).
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.surfaceContainerHigh,
-            shape: BoxShape.circle,
+        // 왼쪽 = 누가(직접·루틴·자동). 회색 원 없이 아이콘만(평가 14차 10/18).
+        // 사람이 시작한 LG 가전 기록은 손 대신 가전 아이콘(평가 12차 10/18), LG 가전 자동 실행도(평가 13차).
+        SizedBox(
+          width: AppSpace.xxxl,
+          height: AppSpace.xxl + AppSpace.xs,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Icon(
+                historyIsLgAppliance(entry)
+                    ? (widget.applianceIcon ?? ApplianceCategory.other.icon)
+                    : AppIcons.source(source),
+                key: Key('history-icon-${entry.jobId}'),
+                size: 22,
+                color: context.appMuted),
           ),
-          // 사람이 시작한 LG 가전 기록은 손 대신 가전 아이콘(평가 12차 10/18: 클라우드로 켠 기록에 손이 붙어 작은 팔·손
-          // 누름과 헷갈렸다). 루틴·자동은 그대로 출처 아이콘.
-          // 평가 13차(10/18): LG 가전 자동 실행도 가전 아이콘('자동 · LG 가전'). 작은 팔 자동은 그대로 자동 아이콘.
-          child: Icon(
-              historyIsLgAppliance(entry)
-                  ? (widget.applianceIcon ?? ApplianceCategory.other.icon)
-                  : AppIcons.source(source),
-              key: Key('history-icon-${entry.jobId}'),
-              size: 20,
-              color: context.appMuted),
         ),
-        const SizedBox(width: AppSpace.md),
+        const SizedBox(width: AppSpace.sm),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(title,
+              // 행동 이름의 짧은 끝 낱말('하기')은 앞 낱말과 함께 꺾인다(평가 14차 10/18). 낭독은 원문.
+              Text(keepActionNameTogether(title),
+                  key: Key('history-title-${entry.jobId}'),
+                  semanticsLabel: title,
                   style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
               // 낱말 중간에서 꺾이지 않게('전자레인/지' 방지). 가운뎃점은 앞 낱말에 붙여 줄 머리에 오지 않게
               // (평가 13차 10/18: '사람이 직접 / · 전자레인지'). 낭독은 원문.
@@ -421,7 +529,7 @@ class _HistoryRowState extends State<_HistoryRow> {
                 Text(keepPhrasesTogether(reason),
                     key: Key('history-reason-${entry.jobId}'),
                     semanticsLabel: reason,
-                    style: muted.copyWith(fontWeight: FontWeight.w600, color: context.appWarning)),
+                    style: muted.copyWith(fontWeight: FontWeight.w600, color: reasonColor)),
               if (big) ...[const SizedBox(height: AppSpace.xs), badgeWidget],
             ],
           ),
@@ -429,6 +537,10 @@ class _HistoryRowState extends State<_HistoryRow> {
         if (!big) ...[const SizedBox(width: AppSpace.sm), badgeWidget],
       ],
     );
+
+    // '버튼판에서 직접 누르기'는 물리 경로의 끝이 안 좋았던 실행만, 묶음이어도 한 번.
+    final kind = result.kind;
+    final breakdown = kind != ResultKind.success && kind != ResultKind.unconfirmed && entry.route != 'thinq';
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
@@ -450,41 +562,28 @@ class _HistoryRowState extends State<_HistoryRow> {
           ),
           if (_open)
             Padding(
-              padding: const EdgeInsets.only(
-                  left: 40 + AppSpace.md, bottom: AppSpace.sm),
+              padding: const EdgeInsets.only(left: AppSpace.xxxl + AppSpace.sm, bottom: AppSpace.sm),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (reason == null)
-                    Text(
-                      result.sentence,
-                      style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600),
-                    ),
-                  if (result.mockNote case final note?) Text(note, style: muted),
-                  if (receipt != null) Text(receipt, style: muted),
-                  if (result.next case final next?) ...[
-                    const SizedBox(height: AppSpace.xs),
-                    Text(next,
-                        style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600)),
-                  ],
-                  // 연습(모의) 기록은 위 한 줄이 이미 말한다 — 서버 설명을 겹치면 어긋난다(10/14).
-                  if (entry.detail.isNotEmpty && !succeeded && entry.executionMode != 'mock')
-                    Text(entry.detail, style: muted),
-                  if (entry.retryCount > 0 && succeeded) ...[
-                    const SizedBox(height: AppSpace.xs),
-                    // 폐루프의 핵심 증거 — 실패를 스스로 재시도로 회복했다. '됐어요'라 하지 않는다 — 다시 누른 사실만.
-                    Row(children: [
-                      Icon(Icons.refresh, size: 16, color: context.appMuted),
-                      const SizedBox(width: AppSpace.xs),
-                      Text('${entry.retryCount}번 더 눌러 마쳤어요',
-                          style: muted.copyWith(fontWeight: FontWeight.w600)),
-                    ]),
-                  ],
-                  // 끝이 안 좋았던 실행만 버튼별 결과와 다음 길을 둔다.
-                  if (breakdown) ...[
-                    const SizedBox(height: AppSpace.sm),
-                    _StepBreakdown(
-                        buttons: entry.buttons, notPressed: entry.abortReason != null),
+                  if (count == 1)
+                    ..._details(context, entry, reasonShown: reason != null)
+                  else
+                    // 묶음은 회차마다 시각과 그 회차의 결과 — 출처('LG 가전')는 위 한 번으로 끝낸다.
+                    for (final e in entries)
+                      Padding(
+                        key: Key('history-sub-${e.jobId}'),
+                        padding: const EdgeInsets.only(bottom: AppSpace.sm),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(_hm(e.finishedAt),
+                                style: muted.copyWith(fontWeight: FontWeight.w700, color: context.appInk)),
+                            ..._details(context, e, reasonShown: reason != null, inRun: true),
+                          ],
+                        ),
+                      ),
+                  if (breakdown)
                     Align(
                       alignment: Alignment.centerLeft,
                       child: TextButton.icon(
@@ -493,7 +592,6 @@ class _HistoryRowState extends State<_HistoryRow> {
                         label: const Text('버튼판에서 직접 누르기'),
                       ),
                     ),
-                  ],
                 ],
               ),
             ),
@@ -501,4 +599,77 @@ class _HistoryRowState extends State<_HistoryRow> {
       ),
     );
   }
+
+  /// 펼친 칸 — 결과 문장·연습 줄·접수 줄·다음 할 일·본체 문장·재시도·버튼별 결과. [reasonShown]이면 위 이유 줄이
+  /// 이미 말한 것(결과 문장, 또는 본체 문장의 첫 문장)은 되풀이하지 않는다.
+  List<Widget> _details(BuildContext context, RpiHistoryEntry entry,
+      {required bool reasonShown, bool inRun = false}) {
+    final applianceName = widget.applianceName;
+    final result = historyResult(entry, applianceName: applianceName);
+    final kind = result.kind;
+    final succeeded = kind == ResultKind.success;
+    final breakdown = !succeeded && kind != ResultKind.unconfirmed && entry.route != 'thinq';
+    // 접수 줄이 출처 말('LG 가전')뿐이면 위 시각 줄이 이미 말했다 — 묶음 회차마다·LG 가전 줄에서 되풀이하지 않는다(평가 14차).
+    final rawReceipt = _thinqReceiptLine(entry, kind);
+    final receipt = rawReceipt == 'LG 가전' && (inRun || historyIsLgAppliance(entry)) ? null : rawReceipt;
+    final muted = context.appCaption;
+    final failReason = historyFailReason(entry, applianceName: applianceName);
+    final (detailFirst, detailRest) = _detailParts(entry.detail);
+    final look = historyBadgeOf(entry).label == '봐 주세요';
+    // 이유 줄이 결과 문장이면 결과 문장을, 본체 문장의 첫 문장이면 그 첫 문장을 빼고 나머지만.
+    final sentenceShown = reasonShown && (look || failReason == result.sentence);
+    final detailShown = reasonShown && !look && failReason != null && failReason == detailFirst;
+    final detailText = detailShown ? detailRest : (entry.detail.isEmpty ? null : entry.detail);
+    return [
+      if (!sentenceShown)
+        Text(
+          result.sentence,
+          style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600),
+        ),
+      if (result.mockNote case final note?) Text(note, style: muted),
+      if (receipt != null) Text(receipt, style: muted),
+      if (result.next case final next?) ...[
+        const SizedBox(height: AppSpace.xs),
+        Text(next, style: const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w600)),
+      ],
+      // 연습(모의) 기록은 위 한 줄이 이미 말한다 — 서버 설명을 겹치면 어긋난다(10/14).
+      if (detailText != null && !succeeded && entry.executionMode != 'mock') Text(detailText, style: muted),
+      if (entry.retryCount > 0 && succeeded) ...[
+        const SizedBox(height: AppSpace.xs),
+        // 폐루프의 핵심 증거 — 실패를 스스로 재시도로 회복했다. '됐어요'라 하지 않는다 — 다시 누른 사실만.
+        Row(children: [
+          Icon(Icons.refresh, size: 16, color: context.appMuted),
+          const SizedBox(width: AppSpace.xs),
+          Text('${entry.retryCount}번 더 눌러 마쳤어요', style: muted.copyWith(fontWeight: FontWeight.w600)),
+        ]),
+      ],
+      // 끝이 안 좋았던 실행만 버튼별 결과.
+      if (breakdown) ...[
+        const SizedBox(height: AppSpace.sm),
+        _StepBreakdown(buttons: entry.buttons, notPressed: entry.abortReason != null),
+      ],
+    ];
+  }
+}
+
+/// 조용한 결과 표시 — 칩(면·테두리) 없이 작은 기호 + 글자(평가 14차 10/18: 됐어요가 줄마다 초록 칩이라 볼 것이 묻혔다).
+class _QuietResult extends StatelessWidget {
+  const _QuietResult(
+      {super.key, required this.icon, required this.label, required this.color, this.semanticLabel});
+  final IconData icon;
+  final String label;
+  final String? semanticLabel;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: AppSpace.xs),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: AppSpace.xs),
+          Text(label,
+              semanticsLabel: semanticLabel ?? label,
+              style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+        ]),
+      );
 }

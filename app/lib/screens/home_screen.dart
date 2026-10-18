@@ -21,7 +21,6 @@ import '../providers/estop_provider.dart';
 import '../providers/execution_status_provider.dart';
 import '../widgets/demo_badge.dart';
 import '../widgets/appliance_setup_card.dart';
-import '../widgets/route_badge.dart';
 import '../providers/rpi_api_provider.dart';
 import '../providers/server_appliance_provider.dart';
 import '../providers/suggestion_provider.dart';
@@ -372,22 +371,22 @@ class _HomeNow extends ConsumerWidget {
     ];
     if (facts.isEmpty && next == null) return const SizedBox.shrink();
 
-    // 흰 카드가 아니라 옅은 회색 면(평가 5차 10/18) — 가전 타일(흰 카드)·루틴(줄 목록)과 면으로 갈린다.
-    // 간격은 한 단계씩 좁힌다(평가 6차 10/18: 첫 화면에 가전 두 줄이 보이게).
+    // 평가 14차(10/18): 옅은 회색 면이 '확인이 필요해요' 카드와 같아 주인공이 약했다 → 면 없이 큰 제목과 큰 글자로
+    // 위계를 준다(이 화면의 첫 구역). 간격은 한 단계씩 좁힌다(평가 6차 10/18: 첫 화면에 가전 두 줄이 보이게).
     return Padding(
       padding: const EdgeInsets.only(bottom: AppSpace.lg),
       child: Container(
         key: const Key('home-now'),
-        decoration: BoxDecoration(
-          color: context.appOverlayFaint,
-          borderRadius: BorderRadius.circular(20),
-        ),
         child: Padding(
-          padding: const EdgeInsets.all(AppSpace.lg),
+          padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('지금 우리 집', style: context.appCaption),
+              Semantics(
+                header: true,
+                child: Text('지금 우리 집',
+                    style: AppText.title.copyWith(fontWeight: FontWeight.w700)),
+              ),
               if (facts.isNotEmpty) ...[
                 const SizedBox(height: AppSpace.sm),
                 Wrap(spacing: AppSpace.lg, runSpacing: AppSpace.sm, children: facts),
@@ -452,8 +451,16 @@ class _NextUp extends StatelessWidget {
         ? StatusBadge(icon: AppIcons.quietHours, label: n.modeText)
         : n.skipped
             ? StatusBadge(key: const Key('home-next-skipped'), icon: AppIcons.skipOnce, label: n.skipText)
+        // 평가 14차(10/18): 칩 '자동으로 해요'와 루틴 줄 '자동'·탭 '자동으로 하기'가 섞였다 → 루틴 줄과 같은 짧은 '자동'(칩 아님).
         : n.auto
-            ? StatusBadge(icon: AppIcons.auto, label: n.modeText, tone: BadgeTone.accent)
+            ? Semantics(
+                label: '자동 루틴, 묻지 않고 해요',
+                excludeSemantics: true,
+                child: Text('자동',
+                    key: const Key('home-next-auto'),
+                    style: TextStyle(
+                        fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appPrimary)),
+              )
             : n.mode == RoutineMode.notify.value || n.modeLabel == RoutineMode.notify.label
                 ? StatusBadge(icon: AppIcons.notify, label: n.modeText)
                 : const StatusBadge(icon: Icons.front_hand_outlined, label: '물어보고 해요');
@@ -553,9 +560,10 @@ class _Attention extends ConsumerWidget {
       _ => null,
     };
     if (pending.isEmpty && result == null && unreadCare.isEmpty) return const SizedBox.shrink();
-    // 흰 카드가 아니라 옅은 주황 면 — 할 일이 있다는 것을 면 색으로도 가른다(평가 5차 10/18). 글·아이콘이 같이 말한다.
     // 평가 13차(10/18): 자동으로 한 일·루틴 안내만 안 봤으면 문제가 아니다 — 주황 대신 중립색. 경고색은 설정이 남았거나
     // 지난 일을 못 했거나, 실패·정지 같은 알림이 섞였을 때만.
+    // 평가 14차(10/18): 할 일이 없을 때도 옅은 회색 면이라 '지금 우리 집'과 같은 무게였다 → 면 색은 할 일이 있을 때만
+    // (주황 면 + 주황 테두리), 없으면 면 없이 옅은 테두리.
     final careLook = careNeedsLook(unreadCare);
     final warn = pending.isNotEmpty || result != null || careLook;
     final tone = warn ? context.appWarning : context.appMuted;
@@ -564,7 +572,8 @@ class _Attention extends ConsumerWidget {
       child: Container(
         key: const Key('home-attention'),
         decoration: BoxDecoration(
-          color: tone.withValues(alpha: 0.08),
+          color: warn ? tone.withValues(alpha: 0.12) : null,
+          border: Border.all(color: warn ? tone.withValues(alpha: 0.45) : context.appBorderFaint),
           borderRadius: BorderRadius.circular(20),
         ),
         child: Padding(
@@ -1282,18 +1291,20 @@ class _ApplianceCard extends ConsumerWidget {
                       runSpacing: AppSpace.sm,
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        // 가전 그림 — 상태 색을 옅게 깐 둥근 칸(색만으로 말하지 않는다: 띠의 글이 같이 있다).
+                        // 가전 그림 — 상태 색이 있을 때만 옅게 깐 둥근 칸(색만으로 말하지 않는다: 띠의 글이 같이 있다).
+                        // 평가 14차(10/18): 네 장이 같은 옅은 회색 칸이라 틀처럼 보였다 → 평소에는 칸 없이 그림만.
                         Container(
                           width: AppSpace.xxxl + AppSpace.sm,
                           height: AppSpace.xxxl + AppSpace.sm,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(
-                            color: tinted ? color.withValues(alpha: 0.12) : context.appOverlayFaint,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(a.icon, size: 24, color: context.appInk),
+                          alignment: tinted ? Alignment.center : Alignment.centerLeft,
+                          decoration: tinted
+                              ? BoxDecoration(
+                                  color: color.withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(14),
+                                )
+                              : null,
+                          child: Icon(a.icon, size: 28, color: context.appInk),
                         ),
-                        if (a.isThinq) const RouteBadge(label: 'LG 가전'),
                         if (a.isDemo) const DemoBadge(),
                       ],
                     ),
@@ -1304,6 +1315,11 @@ class _ApplianceCard extends ConsumerWidget {
                     ),
                     if ((a.location ?? '').isNotEmpty)
                       Text(a.location!,
+                          style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                    // 'LG 가전'은 테두리 칩이 아니라 이름 아래 작은 글자(평가 14차 10/18: 반복 장식).
+                    if (a.isThinq)
+                      Text('LG 가전',
+                          key: Key('appliance-lg-${a.id}'),
                           style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                     if (s.detail case final d?)
                       Text(

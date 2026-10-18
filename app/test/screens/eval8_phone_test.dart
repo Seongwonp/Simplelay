@@ -301,10 +301,10 @@ void main() {
   });
 
   group('B. 큰 글씨 위 탭', () {
-    testWidgets("200%에서 '자동으로 하기'는 한 줄이고 탭 안에 다 보인다", (tester) async {
+    testWidgets("200%에서 '자동 규칙'은 한 줄이고 탭 안에 다 보인다", (tester) async {
       await _pump(tester, const RoutinesScreen(), scale: 2.0);
       final seg = find.byType(SegmentedButton<int>);
-      for (final label in ['내 루틴', '자동으로 하기']) {
+      for (final label in ['내 루틴', '자동 규칙']) {
         final t = findPlainText(label);
         expect(t, findsOneWidget);
         expect(_lines(tester, t), 1, reason: '$label ${tester.getSize(t)}');
@@ -358,9 +358,10 @@ void main() {
       expect(findPlainText('22:00~07:00', contains: true), findsNothing);
     });
 
-    testWidgets('자동으로 하기 탭 카드 문장', (tester) async {
+    // 평가 14차(10/18): 시각 루틴의 규칙은 루틴 줄 '자동'을 눌러 연다.
+    testWidgets('시각 루틴 규칙 카드 문장', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(find.byKey(const Key('routine-auto-badge-r-eve')));
       await tester.pumpAndSettle();
       expect(findPlainText('매일 오후 10:00에 공기청정기를 켜요'), findsOneWidget);
       expect(findPlainText('밤 10시', contains: true), findsNothing);
@@ -370,25 +371,31 @@ void main() {
   group('D. 자동으로 하기 탭', () {
     testWidgets('사용자가 끈 규칙은 스위치만 — 다른 까닭으로 꺼진 규칙은 배지 유지', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 규칙'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('auto-rule-switch-ar-heat')), findsOneWidget);
       expect(find.byKey(const Key('auto-rule-off-ar-heat')), findsNothing);
       expect(findPlainText('자동으로 하기를 꺼 두셨어요', contains: true), findsNothing);
+      // 시각 루틴의 규칙(비상 정지로 꺼짐)은 루틴 줄 '자동 꺼짐'에서(평가 14차 10/18).
+      expect(find.byKey(const Key('auto-rule-ar-estop')), findsNothing);
+      await tester.tap(findPlainText('내 루틴'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('routine-auto-badge-r-morn')));
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('auto-rule-off-ar-estop')), findsOneWidget);
       expect(findPlainText('비상 정지로 꺼졌어요', contains: true), findsOneWidget);
     });
 
     testWidgets('탭 머리에 이 목록이 무엇인지 한 줄', (tester) async {
       await _pump(tester, const RoutinesScreen());
-      await tester.tap(findPlainText('자동으로 하기'));
+      await tester.tap(findPlainText('자동 규칙'));
       await tester.pumpAndSettle();
       final intro = find.byKey(const Key('auto-rules-intro'));
       expect(intro, findsOneWidget);
       expect(find.descendant(of: intro, matching: findPlainText('묻지 않고', contains: true), matchRoot: true),
           findsOneWidget);
       // 첫 규칙 카드보다 위.
-      expect(tester.getBottomLeft(intro).dy, lessThanOrEqualTo(tester.getTopLeft(find.byKey(const Key('auto-rule-ar-eve'))).dy));
+      expect(tester.getBottomLeft(intro).dy, lessThanOrEqualTo(tester.getTopLeft(find.byKey(const Key('auto-rule-ar-heat'))).dy));
     });
   });
 }

@@ -30,10 +30,14 @@ import '../theme/app_tokens.dart';
 // 오전/오후 시각 꼴은 clock_text 한 곳(평가 8차 10/18) — 홈·시험이 이 파일에서 가져가던 이름을 그대로 내보낸다.
 export '../models/clock_text.dart' show ampmClock, withAmPm;
 
-/// 루틴 탭 — 세그먼트 [내 루틴 | 자동으로 하기](UI 개편안 §4, 2026-10-18).
+/// 루틴 탭 — 세그먼트 [내 루틴 | 자동 규칙](UI 개편안 §4, 2026-10-18).
 ///
 /// 내 루틴: 사용 기록으로 만든 초안 · 루틴 줄(가전 아이콘 · 이름 · 오른쪽 '지금 하기 >', 줄을 누르면 편집·지우기). 다음에 할 줄에는 '다음' 배지.
-/// 자동으로 하기: 허락한 규칙 카드(언제·무엇을 한 문장, 상태 배지, 최근 결과, 스위치).
+/// 시각 루틴에 붙은 자동 규칙은 그 루틴 줄의 '자동'(꺼져 있으면 '자동 꺼짐')을 누르면 스위치가 나온다.
+/// 자동 규칙: 루틴이 아닌 규칙 카드(가전 알림으로 하는 일 — 예: 데우기가 끝나면 공기청정기 세게), 스위치·최근 결과.
+///
+/// 평가 14차(10/18): 같은 시각 루틴이 두 탭에 다른 조작으로 따로 나왔다 → 한 곳(루틴 줄)에서. 루틴에 닿지 않는 시각
+/// 규칙(루틴을 지웠거나 이름이 바뀐 것)은 탭에 그대로 둔다 — 자동 실행을 끄는 길은 늘 한 군데 이상 있다.
 ///
 /// 예시 루틴은 미리 만든 **템플릿**이다(개인 습관 추천이 아니다) — [+ 새 루틴] 안의 선택지로 둔다.
 /// 눌러서 자기 가전·버튼으로 고친 뒤 저장해야 루틴이 된다.
@@ -48,7 +52,7 @@ class RoutinesScreen extends ConsumerStatefulWidget {
 }
 
 class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
-  /// 0 = 내 루틴, 1 = 자동으로 하기.
+  /// 0 = 내 루틴, 1 = 자동 규칙.
   int _segment = 0;
 
   /// 카드 요청 중인 루틴(한 번에 하나). 중복 탭·다른 행 동시 실행을 막는다.
@@ -67,6 +71,8 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         if (needsPanelMapping(a)) a.id,
     };
     final list = ref.watch(routinesProvider);
+    // 루틴에 닿는 시각 규칙은 그 루틴 줄에서 — 탭에는 나머지만(평가 14차 10/18).
+    final standalone = standaloneAutoRules(rules, list.valueOrNull ?? const <Routine>[]);
     final installed = ref.watch(installedAppliancesProvider);
     final names = {for (final a in installed) a.id: a.name};
     final icons = {for (final a in installed) a.id: a.icon};
@@ -110,7 +116,9 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
               segments: [
                 // 큰 글씨에서도 한 줄 — 두 줄로 꺾이면 탭 위아래가 잘렸다(평가 8차 10/18). 칸보다 길 때만 그만큼 줄인다.
                 ButtonSegment(value: 0, label: _SegmentLabel('내 루틴')),
-                ButtonSegment(value: 1, label: _SegmentLabel('자동으로 하기')),
+                // 평가 14차(10/18): 폰 '자동으로 해요'·'자동'·'자동으로 하기'가 섞였다 — 표시는 '자동', 이 탭은 루틴이 아닌
+                // 규칙만 두므로 '자동 규칙'.
+                ButtonSegment(value: 1, label: _SegmentLabel('자동 규칙')),
               ],
               selected: {_segment},
               showSelectedIcon: false,
@@ -118,17 +126,20 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
             ),
             const SizedBox(height: AppSpace.lg),
             if (_segment == 1)
-              ...(rules.isEmpty
+              ...(standalone.isEmpty
                   ? [
-                      const _Note('아직 자동으로 하는 일이 없어요. 할까요? 카드에서 "다음부터도 자동으로"를 고르면 여기에 생겨요.'),
+                      _Note(rules.isEmpty
+                          ? '아직 자동 규칙이 없어요. 할까요? 카드에서 "다음부터도 자동으로"를 고르면 생겨요.'
+                          // 시각 루틴 규칙만 있으면 어디서 끄는지 말한다(끄는 길을 잃지 않게).
+                          : "시각 루틴의 자동은 '내 루틴' 줄의 '자동'을 눌러 끄고 켜요."),
                     ]
                   : [
-                      // 같은 시각 루틴이 '내 루틴'에도 있어 두 탭이 무엇이 다른지 한 줄로(평가 8차 10/18).
-                      // 낱말 중간에서 꺾이지 않게(평가 10차 10/18: '스위치로 끄면 자 / 동으로').
-                      const _Note('묻지 않고 하도록 허락해 둔 일이에요. 스위치로 끄면 자동으로 하지 않아요.',
+                      // 낱말 중간에서 꺾이지 않게(평가 10차 10/18). 평가 14차(10/18): '~이에요. ~않아요.'가 잇달아 단조로웠다 →
+                      // 짧은 명사구 + 한 문장.
+                      const _Note('묻지 않고 하도록 허락한 일. 스위치로 끌 수 있어요.',
                           key: Key('auto-rules-intro'), textKey: Key('auto-rules-intro-text')),
-                      for (final rule in rules)
-                        _AutoRuleRow(rule: rule, onChanged: () => ref.invalidate(autoRulesProvider)),
+                      for (final rule in standalone)
+                        _AutoRuleRow(rule: rule, onChanged: _ruleChanged),
                     ])
             else ...[
               // 위 '다음: …' 한 줄은 두지 않는다 — 다음에 할 루틴 줄에 '다음' 배지(평가 6차 10/18: 같은 말이 위아래 두 번).
@@ -161,13 +172,13 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                     : [
                         // 시간축 목록(평가 5차 10/18) — 정해진 시각(이른 순, 줄 왼쪽 큰 시각) · 필요할 때 · 이럴 때(가전 알림 등).
                         // 묶음 안에서는 설정이 필요한 가전의 루틴을 아래로 — 홈과 같은 순서(UI 평가 10/17).
-                        for (final (groupKey, groupIcon, groupLabel, group) in _routineGroups(
+                        for (final (groupKey, groupLabel, group) in _routineGroups(
                           [
                             ...routines.where((r) => !r.applianceIds.any(needsSetup.contains)),
                             ...routines.where((r) => r.applianceIds.any(needsSetup.contains)),
                           ],
                         )) ...[
-                          _GroupHead(key: Key('routines-group-$groupKey'), icon: groupIcon, label: groupLabel),
+                          _GroupHead(key: Key('routines-group-$groupKey'), label: groupLabel),
                           for (final r in group)
                           _RoutineRow(
                             routine: r,
@@ -183,6 +194,11 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                             running: r.id != null && _runningId == r.id,
                             next: next != null && r.id != null && next.routineId == r.id ? next : null,
                             auto: r.id != null && autoIds.contains(r.id),
+                            autoRule: routineAutoRule(r, rules),
+                            onAuto: switch (routineAutoRule(r, rules)) {
+                              final rule? => () => _openAutoRule(context, rule.id),
+                              null => null,
+                            },
                             busy: _runningId != null,
                             error: r.id == null ? null : _errors[r.id],
                             onSetup: r.applianceIds.any(needsSetup.contains)
@@ -198,6 +214,47 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// 자동 규칙을 바꾼 뒤 — 규칙 목록과, 루틴 줄·홈의 '자동' 표시 근거(/routines/next)를 다시 받는다.
+  void _ruleChanged() {
+    ref.invalidate(autoRulesProvider);
+    ref.invalidate(autoRoutineIdsProvider);
+    ref.invalidate(nextRoutineProvider);
+  }
+
+  /// 루틴 줄 '자동'을 누르면 — 그 루틴에 붙은 규칙의 스위치·지우기(평가 14차 10/18). 끌 때는 바로, 켤 때는 확인 시트.
+  Future<void> _openAutoRule(BuildContext context, String ruleId) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (sheet) => Consumer(
+        builder: (context, ref, _) {
+          final rule = (ref.watch(autoRulesProvider).valueOrNull ?? const <AutoRule>[])
+              .where((r) => r.id == ruleId)
+              .firstOrNull;
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(AppSpace.xl, 0, AppSpace.xl, AppSpace.xl),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('자동 루틴', style: AppText.title),
+                const SizedBox(height: AppSpace.xs),
+                Text(keepWordsTogether('켜 두면 정해진 시각에 묻지 않고 해요.'),
+                    style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
+                const SizedBox(height: AppSpace.md),
+                if (rule == null)
+                  const _Note('이 규칙을 찾지 못했어요. 아래로 당겨 새로 봐 주세요.')
+                else
+                  _AutoRuleRow(rule: rule, onChanged: _ruleChanged),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
@@ -450,8 +507,9 @@ String thinqResultPhrase(String name, String? action, Map<String, dynamic> args)
   return '$name 조작';
 }
 
-/// 루틴 탭 시간축 묶음 — (키, 아이콘, 머리 말, 루틴들). 빈 묶음은 뺀다. 정해진 시각 묶음은 이른 시각부터.
-List<(String, IconData, String, List<Routine>)> _routineGroups(List<Routine> routines) {
+/// 루틴 탭 시간축 묶음 — (키, 머리 말, 루틴들). 빈 묶음은 뺀다. 정해진 시각 묶음은 이른 시각부터.
+/// 머리에 아이콘을 두지 않는다(평가 14차 10/18: 시계·손·종 장식이 줄 아이콘과 겹쳤다).
+List<(String, String, List<Routine>)> _routineGroups(List<Routine> routines) {
   final timed = [for (final r in routines) if (routineClock(r) != null) r];
   // 'H:MM'도 'HH:MM'과 같은 자리로 비교한다.
   String sortKey(Routine r) => routineClock(r)!.padLeft(5, '0');
@@ -465,9 +523,9 @@ List<(String, IconData, String, List<Routine>)> _routineGroups(List<Routine> rou
       if (routineClock(r) == null && r.trigger.kind != RoutineTriggerKind.manual) r,
   ];
   return [
-    if (ordered.isNotEmpty) ('time', AppIcons.schedule, '정해진 시각', ordered),
-    if (manual.isNotEmpty) ('manual', AppIcons.manual, '필요할 때', manual),
-    if (other.isNotEmpty) ('event', AppIcons.notify, '이럴 때', other),
+    if (ordered.isNotEmpty) ('time', '정해진 시각', ordered),
+    if (manual.isNotEmpty) ('manual', '필요할 때', manual),
+    if (other.isNotEmpty) ('event', '이럴 때', other),
   ];
 }
 
@@ -484,10 +542,9 @@ String? routineClock(Routine r) {
   return null;
 }
 
-/// 시간축 목록의 묶음 머리 — 아이콘 + 굵은 말(구역 머리로 위계를 준다, 카드로 감싸지 않는다).
+/// 시간축 목록의 묶음 머리 — 굵은 말만(구역 머리로 위계를 준다, 카드로 감싸지 않는다).
 class _GroupHead extends StatelessWidget {
-  const _GroupHead({super.key, required this.icon, required this.label});
-  final IconData icon;
+  const _GroupHead({super.key, required this.label});
   final String label;
 
   @override
@@ -495,16 +552,9 @@ class _GroupHead extends StatelessWidget {
         padding: const EdgeInsets.only(top: AppSpace.xl, bottom: AppSpace.xs),
         child: Semantics(
           header: true,
-          child: Row(children: [
-            Icon(icon, size: 20, color: context.appMuted),
-            const SizedBox(width: AppSpace.sm),
-            Expanded(
-              child: Text(keepWordsTogether(label),
-                  semanticsLabel: label,
-                  style: TextStyle(
-                      fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appMuted)),
-            ),
-          ]),
+          child: Text(keepWordsTogether(label),
+              semanticsLabel: label,
+              style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: context.appMuted)),
         ),
       );
 }
@@ -569,19 +619,38 @@ class RowTextAction extends StatelessWidget {
 /// 루틴 설명 줄 끝의 작은 표시 — 굵은 짧은 글자 하나, 면·아이콘 없음(칩이 아니다, 평가 11차 10/18: '자동으로 해요' 칩이
 /// 줄마다 한 줄을 따로 차지했다). 아이콘까지 붙이면 '다음 · 자동' 두 개가 붙는 줄이 보통 폰 폭에서 두 줄로 꺾였다.
 class _LineMark extends StatelessWidget {
-  const _LineMark({super.key, required this.label, this.semanticLabel, this.accent = false});
+  const _LineMark({super.key, required this.label, this.semanticLabel, this.accent = false, this.muted = false, this.onTap});
 
   final String label;
   final String? semanticLabel;
   final bool accent;
+  final bool muted;
+
+  /// 있으면 누를 수 있는 표시(루틴 줄 '자동' → 그 규칙 스위치, 평가 14차 10/18). 밑줄로 누를 곳임을 보인다.
+  final VoidCallback? onTap;
 
   @override
-  Widget build(BuildContext context) => Text(keepWordsTogether(label),
-      semanticsLabel: semanticLabel ?? label,
-      style: TextStyle(
-          fontSize: AppFont.caption,
-          fontWeight: FontWeight.w700,
-          color: accent ? context.appPrimary : context.appInk));
+  Widget build(BuildContext context) {
+    final color = muted ? context.appMuted : accent ? context.appPrimary : context.appInk;
+    final text = Text(keepWordsTogether(label),
+        semanticsLabel: semanticLabel ?? label,
+        style: TextStyle(
+            fontSize: AppFont.caption,
+            fontWeight: FontWeight.w700,
+            color: color,
+            decoration: onTap == null ? null : TextDecoration.underline,
+            decorationColor: color));
+    final tap = onTap;
+    if (tap == null) return text;
+    return Semantics(
+      button: true,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(6),
+        onTap: tap,
+        child: text,
+      ),
+    );
+  }
 }
 
 class _RoutineRow extends StatelessWidget {
@@ -597,10 +666,18 @@ class _RoutineRow extends StatelessWidget {
     this.onSetup,
     this.next,
     this.auto = false,
+    this.autoRule,
+    this.onAuto,
   });
 
-  /// 묻지 않고 하는 시각 루틴(본체 /routines/next의 auto) — 홈 '다음' 카드와 같은 '자동으로 해요' 표시.
+  /// 묻지 않고 하는 시각 루틴(본체 /routines/next의 auto) — 홈 '다음' 카드와 같은 '자동' 표시.
   final bool auto;
+
+  /// 이 루틴에 붙은 시각 자동 규칙([routineAutoRule]). 있으면 '자동'/'자동 꺼짐' 표시가 그 규칙의 켜짐을 따르고, 누를 수 있다.
+  final AutoRule? autoRule;
+
+  /// '자동' 표시를 누르면 — 그 규칙 스위치(시트). null이면 누를 수 없다.
+  final VoidCallback? onAuto;
 
   /// 이 루틴이 다음에 할 일이면 그 예약 — 줄에 '다음' 배지(조용한 시간이라 건너뛰면 그 말).
   final RoutineNextRun? next;
@@ -645,6 +722,9 @@ class _RoutineRow extends StatelessWidget {
     // 줄 끝 표시 — 글 뒤에 ' · '로 이어 붙인 굵은 짧은 글자. 칩(면 있는 배지)이 아니다(평가 11차 10/18: '자동으로 해요'
     // 칩이 줄마다 한 줄을 따로 차지했고 '다음' 칩은 설명 줄 오른쪽에 떠 있었다). 줄이 모자라면 표시 하나가 통째로 다음 줄로 간다.
     final notify = !r.isTemplate && r.mode == RoutineMode.notify && r.enabled;
+    // 자동 표시 — 규칙이 있으면 규칙 켜짐, 없으면 본체 /routines/next의 auto.
+    final autoOn = autoRule?.enabled ?? auto;
+    final skipping = (n?.quietSkip ?? false) || (n?.skipped ?? false);
     final badges = <Widget>[
       // '다음' — 위에 따로 '다음: …' 줄을 두지 않고 그 줄에 붙인다. 조용한 시간이라 건너뛰면 그 말로.
       if (n != null)
@@ -653,14 +733,19 @@ class _RoutineRow extends StatelessWidget {
           // 한 번 건너뛴 회차(2026-10-18)는 본체 말 '오늘은 건너뛰어요'(modeText) — 아래 '되돌리기'와 짝.
           label: n.quietSkip || n.skipped ? n.modeText : '다음',
         ),
-      // 홈 '다음' 카드의 '자동으로 해요'와 같은 뜻(본체가 auto라고 한 루틴만) — 줄 끝에서는 짧게 '자동', 낭독은 문장.
-      // 조용한 시간이라 건너뛰는 회차는 위 표시가 말한다.
-      if (auto && !r.isTemplate && !(n?.quietSkip ?? false) && !(n?.skipped ?? false))
+      // 홈 '다음' 카드와 같은 '자동'(평가 14차 10/18: '자동으로 해요'·'자동'·'자동으로 하기'가 섞였다 → 표시는 '자동').
+      // 규칙이 있으면 그 켜짐이 먼저 — 꺼 둔 규칙도 '자동 꺼짐'으로 이 줄에서 닿는다(자동 실행을 끄고 켜는 곳이 이 줄이다).
+      // 조용한 시간·한 번 건너뛰는 회차는 위 표시가 말하고, 규칙이 있으면 누를 곳만 조용히 남긴다.
+      if (!r.isTemplate && (autoRule != null || (auto && !(n?.quietSkip ?? false) && !(n?.skipped ?? false))))
         _LineMark(
           key: Key('routine-auto-badge-$key'),
-          label: '자동',
-          semanticLabel: '자동으로 해요',
-          accent: true,
+          label: autoOn ? '자동' : '자동 꺼짐',
+          semanticLabel: autoOn
+              ? '자동 루틴${onAuto != null ? ', 눌러서 끄고 켜기' : ''}'
+              : '자동 꺼짐${onAuto != null ? ', 눌러서 켜기' : ''}',
+          accent: autoOn && !skipping,
+          muted: !autoOn || skipping,
+          onTap: onAuto,
         ),
       // 알림만 루틴(평가 4차 10/18) — 가전을 움직이지 않는 줄이라는 뜻. 누를 수 없는 글이라 버튼 자리가 아니라 이 줄 끝.
       if (notify) const _LineMark(label: '알려 드려요'),
@@ -907,7 +992,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
 
   Future<void> _delete(RpiApiService api) async {
     final ok = await confirmDelete(context,
-        title: '이 자동으로 하기를 지울까요?',
+        title: '이 자동 규칙을 지울까요?',
         body: autoRuleSentence(widget.rule));
     if (ok) await api.deleteAutoRule(widget.rule.id);
   }
@@ -941,8 +1026,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
             children: [
               Row(
                 children: [
-                  Icon(AppIcons.auto, color: r.enabled ? context.appPrimary : context.appMuted),
-                  const SizedBox(width: AppSpace.md),
+                  // 카드마다 붙던 순환 아이콘은 뺀다(평가 14차 10/18 — 장식). 켜짐은 스위치가 말한다.
                   Expanded(
                     child: Text(keepWordsTogether(r.name),
                         semanticsLabel: r.name,
@@ -950,7 +1034,7 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                   ),
                   // 켜기/끄기 — 켤 때는 늘 확인 시트(서버가 준 조건·동작과 지문으로만 켠다), 끌 때는 바로.
                   Semantics(
-                    label: '${r.name} 자동으로 하기',
+                    label: '${r.name} 자동',
                     toggled: r.enabled,
                     excludeSemantics: true,
                     child: SizedBox(
@@ -992,15 +1076,17 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                 ],
               ),
               Padding(
-                padding: const EdgeInsets.only(left: AppSpace.xxxl + AppSpace.xs, right: AppSpace.md),
+                padding: const EdgeInsets.only(right: AppSpace.md),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // 언제·무엇을 한 문장(2차 평가 10/18) — 화살표·'조건:/동작:' 표를 쓰지 않는다.
-                    // 낱말 중간에서 꺾이지 않게('전/원' 방지).
-                    Text(keepWordsTogether(autoRuleSentence(r)),
-                        semanticsLabel: autoRuleSentence(r),
-                        style: const TextStyle(fontSize: AppFont.body)),
+                    // 평가 14차(10/18): 이름이 이미 다 말하면(이름 '데우기가 끝나면 공기청정기 세게') 되풀이하지 않는다.
+                    // 값을 바꿔 이름과 달라졌으면 남긴다([autoRuleNameSaysAll]).
+                    if (!autoRuleNameSaysAll(r))
+                      Text(keepWordsTogether(autoRuleSentence(r)),
+                          semanticsLabel: autoRuleSentence(r),
+                          style: const TextStyle(fontSize: AppFont.body)),
                     if (badge != null) ...[
                       const SizedBox(height: AppSpace.sm),
                       badge,
@@ -1045,6 +1131,49 @@ class _Note extends StatelessWidget {
             semanticsLabel: text,
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
       );
+}
+
+/// 루틴에 붙은 시각 규칙 — 조건 종류가 시각이고, 본체가 규칙 이름으로 주는 루틴 이름과 시각이 이 루틴과 같은 것.
+/// 본체 규칙 목록(`/routines/auto-rules`)에는 루틴 id가 없어 이름·시각으로만 잇는다 — 맞지 않으면 null(탭에 남는다).
+AutoRule? routineAutoRule(Routine r, List<AutoRule> rules) {
+  if (r.isTemplate || r.id == null) return null;
+  final clock = routineClock(r);
+  if (clock == null) return null;
+  final matches = [
+    for (final rule in rules)
+      if (rule.isTime &&
+          rule.name.trim() == r.name.trim() &&
+          (rule.conditionTime == null || rule.conditionTime!.padLeft(5, '0') == clock.padLeft(5, '0')))
+        rule,
+  ];
+  // 이름·시각이 같은 규칙이 둘이면 어느 쪽인지 모른다 — 잇지 않고 탭에 둔다.
+  return matches.length == 1 ? matches.single : null;
+}
+
+/// '자동 규칙' 탭에 둘 규칙 — 루틴 줄에 닿지 않는 것 전부(사건 규칙, 루틴을 찾지 못한 시각 규칙).
+List<AutoRule> standaloneAutoRules(List<AutoRule> rules, List<Routine> routines) {
+  final count = <String, int>{};
+  for (final r in routines) {
+    final rule = routineAutoRule(r, rules);
+    if (rule != null) count[rule.id] = (count[rule.id] ?? 0) + 1;
+  }
+  // 같은 규칙에 루틴 둘이 이어지면 어느 쪽인지 모른다 — 탭에도 둔다.
+  return [for (final rule in rules) if (count[rule.id] != 1) rule];
+}
+
+/// 규칙 이름이 언제·무엇을 이미 다 말하는가(평가 14차 10/18: 카드 설명이 이름을 거의 되풀이했다).
+///
+/// 이름은 본체가 시나리오로 정해 값을 바꿔도 그대로다 — 그래서 바람 세기 규칙만, **지금 값의 말이 이름에 있을 때만** 참.
+/// 이름이 '세게'인데 값이 중간이면 거짓(설명을 남긴다). 그 밖의 규칙은 설명을 둔다.
+bool autoRuleNameSaysAll(AutoRule rule) {
+  if (rule.isTime || rule.action != 'set_wind_strength') return false;
+  final word = switch ((rule.value ?? '').toUpperCase()) {
+    'HIGH' => '세게',
+    'MID' => '중간',
+    'LOW' => '약하게',
+    _ => null,
+  };
+  return word != null && rule.name.contains(word);
 }
 
 /// 본체가 사용자가 끈 규칙에 붙이는 까닭(끝 마침표 뺌) — 이 말이면 배지 없이 스위치만.

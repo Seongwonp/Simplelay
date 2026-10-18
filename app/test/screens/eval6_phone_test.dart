@@ -225,7 +225,15 @@ Future<void> _pump(WidgetTester tester, Widget screen,
 }
 
 Future<void> _openRules(WidgetTester tester) async {
-  await tester.tap(findPlainText('자동으로 하기'));
+  await tester.tap(findPlainText('자동 규칙'));
+  for (var i = 0; i < 16; i++) {
+    await tester.pump(const Duration(milliseconds: 50));
+  }
+}
+
+/// 시각 루틴에 붙은 규칙은 루틴 줄 '자동'을 눌러 연다(평가 14차 10/18 — '자동 규칙' 탭에는 없다).
+Future<void> _openRoutineRule(WidgetTester tester, String routineId) async {
+  await tester.tap(find.byKey(Key('routine-auto-badge-$routineId')));
   for (var i = 0; i < 16; i++) {
     await tester.pump(const Duration(milliseconds: 50));
   }
@@ -307,14 +315,15 @@ void main() {
 
     testWidgets('조용한 시간이 꺼져 있으면 규칙 카드에 굵은 경고가 없다', (tester) async {
       await _pump(tester, const RoutinesScreen(), quietEnabled: false);
-      await _openRules(tester);
+      await _openRoutineRule(tester, 'r-eve');
+      expect(find.byKey(const Key('auto-rule-ar-on')), findsOneWidget);
       final card = find.byKey(const Key('auto-rule-ar-on'));
       expect(find.descendant(of: card, matching: findPlainText('조용한 시간', contains: true)), findsNothing);
     });
 
     testWidgets('조용한 시간이 켜져 실제로 건너뛰면 눈에 띄게(주의 색·굵게)', (tester) async {
       await _pump(tester, const RoutinesScreen(), quietEnabled: true);
-      await _openRules(tester);
+      await _openRoutineRule(tester, 'r-eve');
       final note = find.descendant(
           of: find.byKey(const Key('auto-rule-ar-on')),
           matching: findPlainText('조용한 시간(오후 10:00~오전 7:00)이라 이때는 자동으로 안 해요'));

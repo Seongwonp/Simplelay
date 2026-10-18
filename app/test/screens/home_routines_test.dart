@@ -359,7 +359,8 @@ void main() {
     expect(find.descendant(of: now, matching: find.text('10:00')), findsOneWidget);
     expect(find.descendant(of: now, matching: find.text('오후')), findsOneWidget);
     expect(find.descendant(of: now, matching: findPlainText('저녁 공기청정기 켜기')), findsOneWidget);
-    expect(find.descendant(of: now, matching: findPlainText('자동으로 해요')), findsOneWidget);
+    // 평가 14차(10/18): 칩 '자동으로 해요' 대신 루틴 줄과 같은 짧은 '자동'.
+    expect(tester.widget<Text>(find.descendant(of: now, matching: find.byKey(const Key('home-next-auto')))).data, '자동');
     expect(find.descendant(of: now, matching: findPlainText('오늘', contains: true)), findsWidgets);
     // 큰 시각은 32 숫자 단계.
     expect(tester.widget<Text>(find.descendant(of: now, matching: find.text('10:00'))).style?.fontSize, 32);
