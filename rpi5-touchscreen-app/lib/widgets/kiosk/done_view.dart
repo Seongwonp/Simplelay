@@ -1182,7 +1182,9 @@ class _FailureActions extends StatelessWidget {
     if (retry == null) return main;
     // 안내 문장 + '한 번 더 하기'를 한 줄 묶음으로(평가 12차 10/18) — 따로 떨어진 세 번째 출구로 보이지 않게.
     // 켜기/끄기가 한 버튼인 가전은 두 번 누르면 도로 꺼질 수 있다. 다시 보내는 정책은 그대로(누르면 확인 창이 먼저).
-    final retryButton = TextButton.icon(
+    // 작은 테두리 보조 단추(평가 13차 10/18) — 회색 글자·테두리 없는 좁은 글자 단추는 꺼진 단추로 보였다. 글자는 흰색(바탕 위
+    // 4.5:1 이상), 테두리는 옅게, 높이 48(실패널 약 98px), 글자는 '처음 화면으로'(채움·큰 글자)보다 작게 — 주 출구보다 약하다.
+    final retryButton = OutlinedButton.icon(
       key: const ValueKey('done-retry'),
       onPressed: retry,
       icon: const Icon(Icons.refresh, size: KioskType.caption + 3),
@@ -1190,22 +1192,26 @@ class _FailureActions extends StatelessWidget {
       label: const Text('한 번 더 하기',
           maxLines: 1,
           softWrap: false,
-          style: TextStyle(fontSize: KioskType.caption, fontWeight: FontWeight.w700)),
-      style: TextButton.styleFrom(
+          style: TextStyle(fontSize: KioskType.caption + 1, fontWeight: FontWeight.w700)),
+      style: OutlinedButton.styleFrom(
           minimumSize: const Size(0, 48),
-          foregroundColor: KioskColors.muted,
-          padding: const EdgeInsets.symmetric(horizontal: KioskSpace.xs)),
+          foregroundColor: Colors.white,
+          side: const BorderSide(color: KioskColors.muted, width: 1.5),
+          padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius))),
     );
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         main,
-        const SizedBox(height: 4),
+        const SizedBox(height: KioskSpace.xs),
         Wrap(
           key: const ValueKey('done-retry-group'),
           alignment: WrapAlignment.center,
           crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: KioskSpace.xs,
+          // 안내 문장과 단추를 뗀다(평가 13차 10/18 — 붙어 있어 단추가 문장 끝 말처럼 보였다).
+          spacing: KioskSpace.lg,
+          runSpacing: KioskSpace.xs,
           children: [
             if (retryHint)
               Row(

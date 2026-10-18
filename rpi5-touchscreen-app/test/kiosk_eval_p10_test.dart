@@ -347,8 +347,9 @@ void main() {
             onOpenConnection: (_) {},
             onDndGesture: () {},
           ));
-      final outside = find.byKey(const ValueKey('idle-outside'));
-      expect(outside, findsOneWidget);
+      // 지금 날씨는 예보 줄 첫 칸 '지금'(사용자 요청 10/18 — 날짜 옆에서 옮겼다).
+      final outside = find.byKey(const ValueKey('ambient-hour-0'));
+      expect(find.descendant(of: outside, matching: find.text('지금')), findsOneWidget);
       expect(find.byIcon(Icons.water_drop_outlined), findsNothing);
       expect(find.descendant(of: outside, matching: find.byKey(const ValueKey('weather-rain-cloud'))), findsOneWidget);
       expect(find.byKey(const ValueKey('weather-rain-cloud')), findsAtLeastNWidgets(2));

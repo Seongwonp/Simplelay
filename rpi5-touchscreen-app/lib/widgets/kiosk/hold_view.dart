@@ -415,7 +415,7 @@ class KioskHoldView extends StatelessWidget {
               current: waitCell,
               // 기다리는 칸은 흰 테로만(평가 12차 10/18) — 진행색(파랑) 채움은 '지금 누르는 중'으로 읽혔다.
               resting: holdState == 'hovering_stop',
-              caption: kPanelCaption,
+              caption: _mock ? kPracticePanelCaption : kPanelCaption,
               captionKey: const ValueKey('panel-caption'),
             ),
       // 정지는 어느 대기 상태에서든 닿는다 — 보내기만 하고 판정은 서버.
@@ -478,8 +478,11 @@ class _Lines extends StatelessWidget {
       );
 }
 
-/// 연습 대기의 정지 안내(평가 11차 10/18) — 시키는 말이 아니라 해 볼 수 있다는 말.
-const kPracticeStopHint = '정지가 어떻게 되는지 눌러 볼 수 있어요';
+/// 연습 대기의 정지 안내(평가 11차 10/18) — 시키는 말이 아니라 해 볼 수 있다는 말. 짧게(평가 13차 10/18).
+const kPracticeStopHint = '정지 단추도 눌러 볼 수 있어요';
 
 /// 그림 위 안내 — 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §2-2).
 const kPanelCaption = '작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요';
+
+/// 연습의 그림 위 안내 — 실행 중·마친 뒤 대기 모두 같은 말(평가 13차 10/18: 마친 뒤만 '작은 팔이 누르는 자리예요'였다).
+const kPracticePanelCaption = '연습으로 누르는 자리예요. 화면은 누르지 않아도 돼요';

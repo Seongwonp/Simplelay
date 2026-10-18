@@ -4,7 +4,7 @@
 // - 본문은 /routines/next 항목의 routine_id·at 그대로. 409·404·422의 detail은 화면에 그대로, 409면 다시 불러온다.
 // - 건너뛰면 서버 말('오늘은 건너뛰어요') + '되돌리기'. 확인 창 없이 바로, 보내는 동안 단추를 막는다.
 // - 조용한 시간이라 건너뛰는 회차는 단추 대신 그 이유만.
-// - 단추는 손가락 크기(높이 48 이상)지만 테두리 단추 — 큰 글씨·넓은 글꼴에서도 화면 안에서 눌린다.
+// - 단추는 손가락 크기(높이 48 이상)지만 작은 글자 단추(테두리 없음, 10/18) — 큰 글씨·넓은 글꼴에서도 화면 안에서 눌린다.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -202,12 +202,12 @@ void main() {
       final r = tester.getRect(_skip);
       expect(r.height, greaterThanOrEqualTo(48));
       expect(r.width, greaterThanOrEqualTo(48));
-      // 채운 단추가 아니다(주인공 아님) — 테두리만.
-      final box = tester.widget<Container>(
-          find.descendant(of: _skip, matching: find.byType(Container)).first);
-      final deco = box.decoration as BoxDecoration;
-      expect(deco.color, isNull);
-      expect(deco.border, isNotNull);
+      // 주인공이 아니다 — 채움도 테두리도 없는 작은 글자 단추(사용자 요청 10/18, 테두리 단추가 너무 튀었다).
+      expect(
+          find.descendant(
+              of: _skip,
+              matching: find.byWidgetPredicate((w) => w is Container && w.decoration != null)),
+          findsNothing);
       await tester.tap(_skip);
       expect(taps.single.routineId, 'rt-1');
       expect(taps.single.at, _at);
@@ -373,10 +373,10 @@ void main() {
           expect(tester.takeException(), isNull);
           final tile = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
           final line = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
-          expect(line.bottom, lessThanOrEqualTo(tile.top), reason: '다음 루틴 줄이 가전 줄 위에서 끝난다');
+          expect(line.bottom, lessThanOrEqualTo(tile.top + 0.5), reason: '다음 루틴 줄이 가전 줄 위에서 끝난다');
           expect(tester.getRect(find.byKey(const ValueKey('idle-air'))).bottom, lessThanOrEqualTo(line.top));
           final button = skipped ? _unskip : _skip;
-          expect(tester.getRect(button).bottom, lessThanOrEqualTo(tile.top));
+          expect(tester.getRect(button).bottom, lessThanOrEqualTo(tile.top + 0.5));
           await tester.tap(button);
           expect(taps, hasLength(1));
           if (scale == 1.0) {

@@ -25,7 +25,8 @@ void main() {
 
   group('시각 표기는 오전/오후 하나로', () {
     test('시계 숫자와 오전/오후', () {
-      expect(ampmOf(0), '오전');
+      expect(ampmOf(0), '밤', reason: "자정은 '밤 12시'(평가 13차 10/18)");
+      expect(ampmOf(1), '오전');
       expect(ampmOf(11), '오전');
       expect(ampmOf(12), '오후');
       expect(ampmOf(23), '오후');
@@ -44,7 +45,7 @@ void main() {
 
     test("예보 칸 '15시' → '오후 3시', 다른 꼴은 그대로", () {
       expect(hourLabel12('15시'), '오후 3시');
-      expect(hourLabel12('0시'), '오전 12시');
+      expect(hourLabel12('0시'), '밤 12시', reason: "자정은 '밤 12시'(평가 13차 10/18)");
       expect(hourLabel12('9시'), '오전 9시');
       expect(hourLabel12('내일'), '내일');
     });

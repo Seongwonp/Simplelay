@@ -175,7 +175,11 @@ class KioskNextRun {
     this.skipped = false,
     this.skipLabel,
     this.skipActionLabel,
+    this.auto = false,
   });
+
+  /// 카드 없이 자동으로 실행하는 회차(서버 `auto`, 허용한 시각 규칙). [kindLabel]은 옛 서버를 위해 `mode_label`('자동 실행')도 본다.
+  final bool auto;
 
   /// 조용한 시간이라 이 회차를 건너뛴다(서버 `quiet_skip`, UI 평가 8차 10/17).
   final bool quietSkip;
@@ -225,18 +229,33 @@ class KioskNextRun {
       skipped: json['skipped'] == true,
       skipLabel: json['skip_label'] is String ? json['skip_label'] as String : null,
       skipActionLabel: json['skip_action_label'] is String ? json['skip_action_label'] as String : null,
+      auto: json['auto'] == true,
     );
   }
 
-  /// 평소 화면 시계 아래 줄의 '언제' — '오후 10시'(오늘이면 날 말을 빼고), '내일 오전 7시'(2026-10-18 사용자 결정).
+  /// 평소 화면 시계 아래 줄의 '언제' — '오후 10:00'(오늘이면 날 말을 빼고), '내일 오전 7:00'.
+  /// 분까지 쓴다 — 폰 루틴 화면('오후 10:00')과 같은 루틴이 다르게 보였다(평가 13차 10/18).
   String get whenShort =>
-      [if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, spokenHhmm(hhmm)].join(' ');
+      [if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, clockHhmm(hhmm)].join(' ');
 
-  /// 시계 아래 줄의 작은 말 — 조용한 시간이면 그 이유, 건너뛰면 서버 말('오늘은 건너뛰어요'), 아니면 실행 방식.
+  /// 시계 아래 묶음의 작은 머리말(사용자 결정 10/18) — 무슨 루틴인지 사실대로. 카드 없이 자동으로 하는 회차만 '자동 루틴',
+  /// 카드로 물어보는 회차는 '물어볼 루틴', 알림만이면 '알림 루틴'. 조용한 시간이라 건너뛰는 회차·모르는 방식은 '다음 루틴'.
+  String get kindLabel {
+    if (quietSkip) return '다음 루틴';
+    if (auto || modeLabel == '자동 실행' || modeLabel == '자동') return '자동 루틴';
+    return switch (modeLabel) {
+      '승인 후 실행' => '물어볼 루틴',
+      '알림만' => '알림 루틴',
+      _ => '다음 루틴',
+    };
+  }
+
+  /// 시계 아래 묶음의 작은 말 — 조용한 시간이면 그 이유, 건너뛰면 서버 말('오늘은 건너뛰어요'). 평소에는 없다
+  /// (실행 방식은 머리말 [kindLabel]이 말한다 — '자동으로 해요'는 없앴다, 사용자 결정 10/18).
   String get statusWord {
     if (quietSkip) return '조용한 시간이라 건너뛰어요';
     if (skipped && (skipLabel?.isNotEmpty ?? false)) return skipLabel!;
-    return modeWord;
+    return '';
   }
 
   /// 첫 줄은 언제, 둘째 줄은 무엇 — 이어 쓰면 '22:00 저녁 / 공기청정기 켜기'처럼 루틴 이름 첫 낱말이 시간대로

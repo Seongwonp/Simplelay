@@ -1,4 +1,4 @@
-// 대기 화면 날짜 옆 바깥 날씨·기온(사용자 요청 10/18) — '10월 18일 일요일  ☁ 14°'.
+// 바깥 지금 날씨(사용자 요청 10/18) — 처음에는 날짜 옆 '☁ 14°', 2차 요청으로 오른쪽 예보 줄 첫 칸 '지금'으로 옮겼다.
 //
 // - 값은 서버 `GET /ambient`의 시간대 예보(`hourly`, 3시간 간격 칸)에서 **지금 시각에 해당하는 칸**만 쓴다:
 //   칸 시각이 지금 ±90분 안(3시간 칸이 대표하는 범위)일 때만. 아니면 붙이지 않는다(먼 칸 값을 지금처럼 보이지 않는다).
@@ -113,34 +113,36 @@ void main() {
     });
   });
 
-  group('날짜 줄', () {
-    testWidgets('날짜 옆에 날씨 아이콘 + 기온 — 흐림 14°', (tester) async {
+  // 지금 날씨는 날짜 옆이 아니라 오른쪽 예보 줄 첫 칸 '지금'(사용자 요청 10/18 2차 — 날짜 옆 아이콘·기온은 뺐다).
+  group('예보 줄 첫 칸', () {
+    testWidgets("첫 칸 '지금' — 흐림 14°, 날짜 옆에는 없다", (tester) async {
       await _pump(tester, _idle(DateTime(2026, 10, 18, 8, 20), _amb(_hours)));
       expect(tester.takeException(), isNull);
       expect(find.text('10월 18일 일요일'), findsOneWidget);
-      expect(_outside, findsOneWidget);
-      expect(find.descendant(of: _outside, matching: find.text('14°')), findsOneWidget);
-      final icon = tester.widget<Icon>(find.descendant(of: _outside, matching: find.byType(Icon)));
+      expect(_outside, findsNothing);
+      final now = find.byKey(const ValueKey('ambient-hour-0'));
+      expect(find.descendant(of: now, matching: find.text('지금')), findsOneWidget);
+      expect(find.descendant(of: now, matching: find.text('14°')), findsOneWidget);
+      final icon = tester.widget<Icon>(find.descendant(of: now, matching: find.byType(Icon)));
       expect(icon.icon, Icons.cloud_outlined);
-      // 날짜와 같은 줄, 날짜 오른쪽.
-      final date = tester.getRect(find.text('10월 18일 일요일'));
-      final out = tester.getRect(_outside);
-      expect(out.left, greaterThan(date.right));
-      expect((out.center.dy - date.center.dy).abs(), lessThan(8));
+      // 지금 칸으로 쓴 9시 칸은 다시 두지 않는다 — 지금 + 12·15·18시.
+      expect(find.text('오전 9시'), findsNothing);
+      expect(find.text('오후 6시'), findsOneWidget);
       // 화면 읽기: 무엇의 값인지 말로.
-      expect(find.bySemanticsLabel(RegExp('바깥 흐림, 14도')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('지금, 흐림, 14도')), findsOneWidget);
     });
 
-    testWidgets('지금 칸이 없으면 아무것도 붙이지 않는다', (tester) async {
+    testWidgets('지금 칸이 없으면 예보 칸만', (tester) async {
       await _pump(tester, _idle(DateTime(2026, 10, 18, 7, 8), _amb(_hours)));
-      expect(find.text('10월 18일 일요일'), findsOneWidget);
-      expect(_outside, findsNothing);
+      expect(find.text('지금'), findsNothing);
+      expect(find.text('오전 9시'), findsOneWidget);
+      expect(find.byKey(const ValueKey('ambient-hour-3')), findsOneWidget);
       await _pump(tester, _idle(DateTime(2026, 10, 18, 8, 20), null));
-      expect(_outside, findsNothing);
+      expect(find.text('지금'), findsNothing);
     });
 
     for (final scale in [1.0, 1.22]) {
-      testWidgets('상태 칩·메뉴·쉬는 중 칩과 겹치지 않고 잘리지 않는다(글씨 x$scale)', (tester) async {
+      testWidgets('날짜 줄은 상태 칩·메뉴·쉬는 중 칩과 겹치지 않고 잘리지 않는다(글씨 x$scale)', (tester) async {
         await _pump(
             tester,
             _idle(DateTime(2026, 10, 18, 8, 20),
@@ -152,20 +154,16 @@ void main() {
                     name: '저녁 공기청정기 켜기', dayLabel: '오늘', hhmm: '22:00', modeLabel: '자동 실행')),
             scale: scale);
         expect(tester.takeException(), isNull);
-        expect(_outside, findsOneWidget);
-        final out = tester.getRect(_outside);
+        final date = tester.getRect(find.text('10월 18일 일요일'));
         final chip = tester.getRect(find.byKey(const ValueKey('idle-status-chip')));
         final menu = tester.getRect(find.byKey(const ValueKey('idle-menu')));
         final dndChip = tester.getRect(find.byKey(const ValueKey('dnd-chip')));
         for (final r in [chip, menu, dndChip]) {
-          expect(out.overlaps(r), isFalse);
+          expect(date.overlaps(r), isFalse);
         }
-        expect(out.right, lessThanOrEqualTo(dndChip.left));
-        expect(out.left, greaterThanOrEqualTo(0));
-        // 1~2 m에서 읽히는 크기 — 기온 글자는 날짜와 같은 크기 이상(줄어들어도 날짜와 같은 비율).
-        final temp = tester.getRect(find.descendant(of: _outside, matching: find.text('14°')));
-        final date = tester.getRect(find.text('10월 18일 일요일'));
-        expect(temp.height, greaterThanOrEqualTo(date.height - 0.5));
+        expect(date.left, greaterThanOrEqualTo(0));
+        // 보통 글씨에서는 지금 칸이 예보 줄에 보인다(큰 글씨 + 안내면 예보는 접힌다 — 안내가 먼저).
+        if (scale == 1.0) expect(find.text('지금'), findsOneWidget);
       });
     }
   });

@@ -491,8 +491,9 @@ void main() {
     // 평가 5차(10/18): 밑줄 글자 단추는 링크로 읽혔다 — 작은 팔로 골라 누르기도 테두리 버튼(아이콘 + 글).
     testWidgets('실패 — 한 번 더 하기는 테두리 보조, 작은 팔로 골라 누르기도 테두리 버튼(48 이상)', (tester) async {
       await _pump15(tester, _done(success: false));
-      // 평가 7차(10/18): 한 번 더 하기는 가장 약한 글자 단추(맨 아래, 바로 위 안내 한 줄).
-      expect(inButton<TextButton>('한 번 더 하기'), findsOneWidget);
+      // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추(48 이상).
+      expect(inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
+      expect(tester.getSize(inButton<OutlinedButton>('한 번 더 하기')).height, greaterThanOrEqualTo(48));
       final manual = inButton<OutlinedButton>('작은 팔로 골라 누르기');
       expect(manual, findsOneWidget);
       expect(tester.getSize(manual).height, greaterThanOrEqualTo(48));

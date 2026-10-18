@@ -428,11 +428,13 @@ void main() {
       expect(all, contains('즉석밥 데우기'));
     });
 
-    testWidgets('다음 루틴 카드의 자동 계열 이름은 자동으로 해요', (tester) async {
+    // 사용자 결정(10/18): '자동으로 해요' 대신 작은 머리말 '자동 루틴'.
+    testWidgets('다음 루틴의 자동 계열 이름은 머리말 자동 루틴', (tester) async {
       await _pump(tester, _idle(next: _next));
       final all = _allTexts(tester).join('\n');
       expect(all, isNot(contains('자동 실행')));
-      expect(all, contains('자동으로 해요'));
+      expect(all, contains('자동 루틴'));
+      expect(all, isNot(contains('자동으로 해요')));
     });
   });
 
@@ -496,12 +498,12 @@ void main() {
   });
 
   group('F. 평소 화면 시각·예보·타일', () {
-    testWidgets('시계는 오전 7:08, 다음 루틴은 오전 7시(오늘이면 날 말 없이), 예보 칸은 오전/오후', (tester) async {
+    testWidgets('시계는 오전 7:08, 다음 루틴은 오전 7:00(오늘이면 날 말 없이, 분까지 — 평가 13차), 예보 칸은 오전/오후', (tester) async {
       await _pump(tester, _idle(next: _next));
       final all = _allTexts(tester);
       expect(all, contains('오전'));
       expect(all, contains('7:08'));
-      expect(all.where((t) => t.startsWith('오전 7시 · ') || t.startsWith('오전 7시\n')), hasLength(1));
+      expect(all.where((t) => t.startsWith('오전 7:00 · ') || t.startsWith('오전 7:00\n')), hasLength(1));
       expect(all.join('\n'), isNot(contains('07:00')));
       expect(find.text('오후 3시'), findsOneWidget);
       expect(find.text('15시'), findsNothing);

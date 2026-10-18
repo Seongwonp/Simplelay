@@ -177,8 +177,8 @@ void main() {
       expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
-      // 평가 7차(10/18): 한 번 더 하기는 글자 단추(가장 약하게).
-      expect(_inButton<TextButton>('한 번 더 하기'), findsOneWidget);
+      // 평가 13차(10/18): 한 번 더 하기는 작은 테두리 보조 단추(글자 단추는 꺼진 단추로 보였다).
+      expect(_inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
       // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 작은 팔로 골라 누르기는 글자 단추(48 이상, 평가 4차 이름).
       expect(_inButton<OutlinedButton>('작은 팔로 골라 누르기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);

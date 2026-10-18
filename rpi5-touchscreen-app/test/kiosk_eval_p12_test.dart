@@ -291,15 +291,16 @@ void main() {
       });
     }
 
-    testWidgets('한 번 더 하기는 안내 문장 바로 옆 작은 글자 단추', (tester) async {
+    // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추, 안내 문장과는 조금 뗀다.
+    testWidgets('한 번 더 하기는 안내 문장 옆(같은 묶음) 작은 테두리 단추', (tester) async {
       await _pumpView(tester, _failed());
       final hint = tester.getRect(find.byKey(const ValueKey('done-retry-hint')));
       final retry = find.byKey(const ValueKey('done-retry'));
-      expect(tester.widget(retry), isA<TextButton>());
+      expect(tester.widget(retry), isA<OutlinedButton>());
       final r = tester.getRect(retry);
       expect((hint.center.dy - r.center.dy).abs(), lessThan(4), reason: '같은 줄');
-      expect(r.left, greaterThanOrEqualTo(hint.right - 1), reason: '안내 바로 오른쪽');
-      expect(r.left - hint.right, lessThan(40));
+      expect(r.left, greaterThanOrEqualTo(hint.right - 1), reason: '안내 오른쪽');
+      expect(r.left - hint.right, lessThan(60), reason: '같은 묶음');
       final home = tester.getRect(find.byKey(const ValueKey('done-home')));
       expect(r.top, greaterThan(home.bottom), reason: '주 출구 아래 보조 묶음');
       expect(r.bottom, lessThanOrEqualTo(480));

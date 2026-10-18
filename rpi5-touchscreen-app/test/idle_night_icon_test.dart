@@ -30,8 +30,10 @@ void main() {
     final hours = find.byKey(const ValueKey('ambient-hours'));
     expect(find.descendant(of: hours, matching: find.byIcon(Icons.nightlight_outlined)), findsNWidgets(2));
     expect(find.descendant(of: hours, matching: find.byIcon(Icons.wb_sunny_outlined)), findsOneWidget);
-    // 날짜 옆 바깥 날씨(사용자 요청 10/18)도 밤이면 달 — 22:30의 지금 칸은 0시(90분 뒤).
-    final outside = find.byKey(const ValueKey('idle-outside'));
-    expect(find.descendant(of: outside, matching: find.byIcon(Icons.nightlight_outlined)), findsOneWidget);
+    // 지금 날씨는 예보 줄 첫 칸 '지금'(사용자 요청 10/18) — 밤이면 달. 22:30의 지금 칸은 0시(90분 뒤) 값을 쓴다.
+    final now = find.byKey(const ValueKey('ambient-hour-0'));
+    expect(find.descendant(of: now, matching: find.text('지금')), findsOneWidget);
+    expect(find.descendant(of: now, matching: find.byIcon(Icons.nightlight_outlined)), findsOneWidget);
+    expect(find.byKey(const ValueKey('idle-outside')), findsNothing);
   });
 }

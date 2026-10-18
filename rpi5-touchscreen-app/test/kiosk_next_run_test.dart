@@ -92,12 +92,13 @@ void main() {
         tester,
         const KioskNextRun(
             name: '아침 공기청정기 끄기', dayLabel: '내일', hhmm: '07:00', modeLabel: '자동 실행'));
-    // 담담한 줄(사용자 결정 10/18): '내일 오전 7시 · 아침 공기청정기 끄기' + 작은 '자동으로 해요'.
+    // 담담한 줄(사용자 결정 10/18): 작은 머리말 '자동 루틴' + '내일 오전 7:00 · 아침 공기청정기 끄기'(분까지 — 평가 13차).
     final line = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-text')));
     // 어절 단위로 줄을 바꾼다 — 실패널에서 '공기청/정기'처럼 낱말 가운데서 끊겼다(10/16 밤).
     expect(line.textSpan!.toPlainText(includeSemanticsLabels: false),
-        '내일 오전 7시 · ${keepWords('아침 공기청정기 끄기')}');
-    expect(find.text('자동으로 해요'), findsOneWidget);
+        '내일 오전 7:00 · ${keepWords('아침 공기청정기 끄기')}');
+    expect(find.text('자동 루틴'), findsOneWidget);
+    expect(find.text('자동으로 해요'), findsNothing);
     expect(tester.takeException(), isNull);
 
     await _pumpIdle(tester, null);

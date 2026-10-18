@@ -6,7 +6,7 @@ import '../../models/thinq_run.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
-import 'hold_view.dart' show kPanelCaption;
+import 'hold_view.dart' show kPanelCaption, kPracticePanelCaption;
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 import 'run_frame.dart';
@@ -76,7 +76,7 @@ class KioskExecutingView extends StatelessWidget {
 
   bool get _retrying => (currentAttempt ?? 1) > 1;
 
-  /// 무엇을 하는 중인가 — 가전 이름과 할 일(위 띠에 싣는다, 10/18). 이어받은 실행은 제목이 가전 이름일 수 있고,
+  /// 무엇을 하는 중인가 — 가전 이름과 할 일(위 띠에 싣는다, 10/18). 사이는 ' · '(평가 13차 10/18 — 빈칸만이면 한 이름처럼 읽혔다). 이어받은 실행은 제목이 가전 이름일 수 있고,
   /// 버튼 하나를 누르는 실행이면 제목이 버튼과 같다 — 같은 말이면 한 번만.
   /// 할 일은 사람 명령문('즉석밥 데워줘')이 아니라 행동 이름('즉석밥 데우기')으로 — 폰 기록과 같은 규칙(평가 4차 10/18).
   String get _context {
@@ -84,7 +84,7 @@ class KioskExecutingView extends StatelessWidget {
     return [
       if (target != null) target!.name,
       if (what.isNotEmpty && title != currentButton && what != target?.name) what,
-    ].join('   ');
+    ].join(' · ');
   }
 
   /// 지금 누르는 버튼이 대상 가전 버튼판의 어디인가.
@@ -329,7 +329,7 @@ class KioskExecutingView extends StatelessWidget {
               current: onPanel,
               pressed: _donePressed(target, onPanel),
               caution: _retrying,
-              caption: _mock ? '연습으로 누르는 자리예요. 화면은 누르지 않아도 돼요' : kPanelCaption,
+              caption: _mock ? kPracticePanelCaption : kPanelCaption,
               captionKey: const ValueKey('exec-panel-caption'),
             )
           : null,

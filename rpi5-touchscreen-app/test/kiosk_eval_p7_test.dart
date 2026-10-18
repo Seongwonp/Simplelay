@@ -206,7 +206,7 @@ void main() {
   });
 
   group('4. 눌렸는지 모르는 결과 — 한 번 더 하기는 약하게, 바로 위 한 줄', () {
-    testWidgets('한 번 더 하기 바로 옆 안내 한 줄(평가 12차), 글자 단추로 처음 화면으로보다 약하다', (tester) async {
+    testWidgets('한 번 더 하기 옆 안내 한 줄(평가 12차), 작은 테두리 단추로 처음 화면으로보다 약하다', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -227,9 +227,9 @@ void main() {
       // 평가 12차(10/18): 안내 문장 바로 옆 같은 줄(주 출구 하나 + 보조 묶음) — 따로 떨어진 세 번째 출구로 보이지 않게.
       expect((hr.center.dy - rr.center.dy).abs(), lessThan(4));
       expect(rr.left, greaterThanOrEqualTo(hr.right - 0.5));
-      expect(rr.left - hr.right, lessThan(24));
-      // 테두리 단추가 아니라 글자 단추, 처음 화면으로(채움)보다 낮다.
-      expect(tester.widget(retry), isA<TextButton>());
+      expect(rr.left - hr.right, lessThan(60));
+      // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추. 처음 화면으로(채움)보다 낮다.
+      expect(tester.widget(retry), isA<OutlinedButton>());
       expect(rr.height, lessThan(tester.getRect(find.byKey(const ValueKey('done-home'))).height));
       expect(tester.takeException(), isNull);
     });

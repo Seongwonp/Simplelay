@@ -167,9 +167,16 @@ void main() {
       expect(find.text('오후 3시부터 비 예보가 있어요. 우산 챙기세요'), findsOneWidget);
       // 보통 글씨에서는 안내와 예보 4칸을 함께 보인다(10/5 사용자 결정).
       expect(find.byKey(const ValueKey('ambient-hours')), findsOneWidget);
-      // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기).
-      for (final label in ['오전 9시', '오후 12시', '오후 3시', '오후 6시']) {
-        expect(find.text(label), findsOneWidget);
+      // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기). 지금 시각에 가까운 칸(±90분)은
+      // 첫 칸 '지금'이 된다(사용자 요청 10/18) — 이 시험은 실제 시계를 쓰므로 둘 중 하나로 본다.
+      {
+        final shown = ['오전 9시', '오후 12시', '오후 3시', '오후 6시']
+            .where((l) => find.text(l).evaluate().isNotEmpty)
+            .length;
+        final now = find.text('지금').evaluate().length;
+        expect(now, lessThanOrEqualTo(1));
+        expect(shown + now, 4, reason: '4칸');
+        expect(shown, greaterThanOrEqualTo(3));
       }
 
       // 안내가 없으면 인사말과 예보 4칸을 서버 값 그대로 보인다.
@@ -180,9 +187,16 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await _pump(tester, api);
       expect(find.text('좋은 아침이에요'), findsOneWidget);
-      // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기).
-      for (final label in ['오전 9시', '오후 12시', '오후 3시', '오후 6시']) {
-        expect(find.text(label), findsOneWidget);
+      // 예보 칸 이름은 오전/오후로(평가 4차 10/18 — 시계·루틴과 같은 표기). 지금 시각에 가까운 칸(±90분)은
+      // 첫 칸 '지금'이 된다(사용자 요청 10/18) — 이 시험은 실제 시계를 쓰므로 둘 중 하나로 본다.
+      {
+        final shown = ['오전 9시', '오후 12시', '오후 3시', '오후 6시']
+            .where((l) => find.text(l).evaluate().isNotEmpty)
+            .length;
+        final now = find.text('지금').evaluate().length;
+        expect(now, lessThanOrEqualTo(1));
+        expect(shown + now, 4, reason: '4칸');
+        expect(shown, greaterThanOrEqualTo(3));
       }
       // 비 오는 칸은 강수확률을 말한다(색만으로 말하지 않는다)
       expect(find.text('비 70%'), findsOneWidget); // 기온 칸과 섞이면 글자로(평가 4차 10/18)

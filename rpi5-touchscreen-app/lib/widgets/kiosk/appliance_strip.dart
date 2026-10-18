@@ -7,7 +7,7 @@ import '../../theme/kiosk_colors.dart';
 import 'route_badge.dart';
 import '../../theme/kiosk_tokens.dart';
 
-/// 평소 화면 아래의 가전 줄에 설 순서 — **확인 필요 → 동작 중 → 켜짐(ThinQ) → 나머지**.
+/// 평소 화면 아래의 가전 줄에 설 순서 — **확인 필요 → 동작 중 → 켜짐(ThinQ) → 바로 쓸 수 있는 가전 → 설정·연결이 필요한 가전**.
 ///
 /// 같은 무리 안에서는 등록 순서를 지킨다. 뒤쪽 가전이 동작을 시작하면 맨 앞으로
 /// 올라온다(UI 확정 §3-1). 끝에서 처음으로 돌아가는 반복은 쓰지 않는다.
@@ -25,7 +25,9 @@ List<ApplianceMap> orderForStrip(
           ? 1
           : on.contains(a.id)
               ? 2
-              : 3;
+              : _notReadyYet(a)
+                  ? 4
+                  : 3;
   final indexed = [
     for (var i = 0; i < appliances.length; i++) (i, appliances[i]),
   ];
@@ -35,6 +37,11 @@ List<ApplianceMap> orderForStrip(
   });
   return [for (final e in indexed) e.$2];
 }
+
+/// 바로 쓸 수 없는 가전 — 띠가 '설정이 필요해요'·'연결이 안 돼요'인 것([kioskTileBand]와 같은 판정). 줄 맨 뒤에 선다
+/// (평가 13차 10/18: 실패널 첫 장에 '설정이 필요해요'가 둘이고 실제로 쓰는 LG 공기청정기는 둘째 장으로 밀렸다).
+bool _notReadyYet(ApplianceMap a) =>
+    a.needsPanelMapping || a.readiness == 'needs_setup' || a.readiness == 'disconnected';
 
 /// 등록된 가전 아이콘 줄 — 한 번에 [perPage]개, 화살표·손가락 밀기로 넘긴다.
 ///
