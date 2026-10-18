@@ -541,7 +541,7 @@ void main() {
 
     // 고른 가전의 판으로 바로 간다 — 다시 묻지 않는다
     expect(find.byType(KioskIdleView), findsNothing);
-    expect(find.text('내 인덕션'), findsOneWidget);
+    expect(find.text('인덕션'), findsOneWidget);
   });
 
   testWidgets('평소 화면은 서버 목록에서 확인된 가전만 줄에 세운다', (tester) async {
@@ -599,7 +599,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('strip-microwave')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 500));
-    expect(find.text('내 전자레인지'), findsOneWidget);
+    expect(find.text('전자레인지'), findsOneWidget);
   });
 
   testWidgets('서버 제안이 도착하면 idle → suggestion으로 전환된다', (tester) async {
@@ -1581,7 +1581,7 @@ void main() {
     await tester.tap(find.byKey(const ValueKey('strip-microwave'))); // 내 가전
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 300));
-    expect(find.text('내 전자레인지'), findsOneWidget);
+    expect(find.text('전자레인지'), findsOneWidget);
     await tester.tap(find.text('해동')); // 누르기 확인
     await tester.pump();
     expect(find.text('누르기'), findsOneWidget);
@@ -2240,7 +2240,8 @@ void main() {
         findsOneWidget);
     expect(find.text('가전 동작도 확인했어요'), findsNothing);
     expect(find.textContaining('켜진 것을 확인'), findsNothing);
-    expect(find.byIcon(Icons.check), findsNWidgets(2));
+    // 큰 결과 원은 없다(평가 17차 10/18) — 확인한 성공의 체크는 위 띠 하나.
+    expect(find.byIcon(Icons.check), findsOneWidget);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -2366,7 +2367,8 @@ void main() {
 
     expect(done.label, "'아침 데우기' 루틴");
     expect(find.textContaining('실행할까요?'), findsNothing);
-    expect(find.text("'아침 데우기' 루틴"), findsWidgets);
+    // 무엇이었는지는 위 띠(가전 · 할 일)가 말한다(평가 17차 10/18).
+    expect(find.textContaining("'아침 데우기' 루틴"), findsWidgets);
     await tester.pump(KioskTimings.doneReturn);
     await tester.pumpWidget(const SizedBox.shrink());
   });

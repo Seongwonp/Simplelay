@@ -1836,6 +1836,7 @@ class _KioskScreenState extends State<KioskScreen> {
     final past = _pastResult != null && _phase == KioskPhase.idle
         ? KioskPastResultLine(
             result: _pastResult!,
+            now: _now,
             onAcknowledge: () => setState(() => _pastResult = null),
           )
         : null;

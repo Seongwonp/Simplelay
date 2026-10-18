@@ -84,7 +84,8 @@ class _KioskManualViewState extends State<KioskManualView> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 24, 6),
+                // 뒤로 단추 왼쪽 끝 = 아래 버튼판 첫 칸 왼쪽 끝 = LG 가전 상태 칸 왼쪽(평가 17차 10/18 — 한 왼쪽 선).
+                padding: const EdgeInsets.fromLTRB(_manualLeft, 12, 24, 6),
                 child: Row(
                   children: [
                     // 뒤로가기: 아이콘 단독 히트박스는 고령 사용자가 맞추기
@@ -105,7 +106,8 @@ class _KioskManualViewState extends State<KioskManualView> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  '내 ${appliance.name}',
+                                  // 제목은 가전 이름만(평가 17차 10/18 — '내'를 뺐다).
+                                  appliance.name,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -197,10 +199,16 @@ class _KioskManualViewState extends State<KioskManualView> {
           // 준비 안 됨 안내로 자리가 모자라면 예전처럼 스크롤된다.
           child: LayoutBuilder(
             builder: (context, box) {
-              final size = _cellSizeFor(appliance, box.biggest);
+              // 왼쪽 선 여백만큼 뺀 자리에서 칸 크기를 정한다(평가 17차 10/18 — 왼쪽 정렬 뒤 넘치지 않게).
+              final size = _cellSizeFor(appliance, Size(box.maxWidth - (_manualLeft - _cellGap), box.maxHeight));
+              // 칸이 하한 크기라 자리가 빠듯하면 왼쪽 여백을 그만큼 줄인다(넘치지 않게).
+              final gridW = (appliance.cols < 1 ? 1 : appliance.cols) * (size.width + 2 * _cellGap);
+              final left = (box.maxWidth - gridW).clamp(0.0, _manualLeft - _cellGap).toDouble();
               return SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Center(
+                // 판은 가운데가 아니라 위 머리 줄과 같은 왼쪽 선에서 시작한다(평가 17차 10/18).
+                padding: EdgeInsets.fromLTRB(left, 6, 0, 6),
+                child: Align(
+                  alignment: Alignment.topLeft,
                   child: _ButtonGrid(
                     appliance: appliance,
                     cellSize: size,
@@ -524,6 +532,7 @@ class _ButtonGrid extends StatelessWidget {
               child: btn == null
                   ? SizedBox.fromSize(size: cellSize)
                   : _ButtonCell(
+                      key: ValueKey('manual-cell-${btn.label}'),
                       button: btn,
                       size: cellSize,
                       onTap: onExecute == null
@@ -547,8 +556,12 @@ const double _cellMaxWidth = 200;
 const double _cellMaxHeight = 96;
 const double _cellGap = 5;
 
+/// 수동 화면의 왼쪽 선 — 뒤로 단추·버튼판 첫 칸·LG 가전 상태 칸(그 패널 안쪽 여백 24와 같다).
+const double _manualLeft = 24;
+
 class _ButtonCell extends StatelessWidget {
   const _ButtonCell({
+    super.key,
     required this.button,
     required this.size,
     required this.onTap,

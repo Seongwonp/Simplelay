@@ -389,7 +389,9 @@ void main() {
             onManual: _noop,
             onDismiss: _noop,
           ));
-      expect(find.descendant(of: _band, matching: find.textContaining('멈추는 중')), findsNothing);
+      // 평가 17차(10/18): 큰 결과 원(모래시계)과 돌아가는 원을 뺐다 — 띠가 '멈추는 중'과 무엇을 말한다.
+      expect(find.descendant(of: _band, matching: find.textContaining('멈추는 중')), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(find.descendant(of: _band, matching: find.textContaining('전자레인지')), findsOneWidget);
       expect(find.descendant(of: _band, matching: find.byIcon(Icons.pan_tool_outlined)), findsNothing);
       // 큰 제목은 한 번.

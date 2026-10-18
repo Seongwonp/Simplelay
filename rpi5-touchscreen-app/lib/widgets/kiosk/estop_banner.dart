@@ -78,7 +78,7 @@ class KioskEstopBanner extends StatelessWidget {
                                 foregroundColor: _white,
                                 side:
                                     const BorderSide(color: _white, width: 2)),
-                            child: const Text('취소',
+                            child: const Text('닫기',
                                 style: TextStyle(fontSize: KioskType.body)))),
                     const SizedBox(width: 12),
                     SizedBox(

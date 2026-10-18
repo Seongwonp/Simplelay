@@ -747,7 +747,7 @@ class _ChangeConfirm extends StatelessWidget {
                           onPressed: onCancel,
                           style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border)
                               .copyWith(minimumSize: const WidgetStatePropertyAll(Size(0, KioskSizes.primaryButton))),
-                          child: const Text('취소', style: TextStyle(fontSize: KioskType.body)),
+                          child: const Text('닫기', style: TextStyle(fontSize: KioskType.body)),
                         ),
                       ),
                       const SizedBox(width: 12),

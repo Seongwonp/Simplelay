@@ -79,7 +79,7 @@ void main() {
       final all = _texts(tester).join('\n');
       expect(all, contains('작은 팔이 멈췄어요'));
       expect(all, isNot(contains('몰라요')));
-      expect(find.byIcon(Icons.check), findsOneWidget);
+      expect(find.byKey(const ValueKey('done-ring')), findsNothing);
     });
 
     testWidgets('연습 정지는 연습을 멈췄다고만 — 작은 팔이 멈췄는지 모른다고 겁주지 않는다', (tester) async {

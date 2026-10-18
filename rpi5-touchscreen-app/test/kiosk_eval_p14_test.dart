@@ -189,7 +189,8 @@ void main() {
       final texts = _texts(tester);
       expect(texts, contains('공기청정기가 켜졌어요'));
       expect(texts, contains('가전에서 확인했어요'));
-      expect(texts.where((t) => t.contains('공기청정기')).length, 1, reason: '가전 이름은 제목에 한 번');
+      // 제목에 한 번, 위 띠 오른쪽에 한 번(평가 17차 10/18 — 모든 결과 띠가 가전 이름을 말한다).
+      expect(texts.where((t) => t.contains('공기청정기')).length, 2, reason: '가전 이름은 제목·띠에 한 번씩');
       // 상태 띠 아래 본문에 테두리 상자가 없다.
       expect(_hasBorderBox(tester, find.byKey(const ValueKey('thinq-result'))), isFalse);
       // 왼쪽 정렬 — 전자레인지 결과(kiosk15_done_verified)처럼 제목이 왼쪽 여백에서 시작한다.
@@ -386,7 +387,7 @@ void main() {
               ])));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
       expect(chip, findsOneWidget);
-      expect(find.descendant(of: chip, matching: find.text('확인 필요 1')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('연결 확인 필요 1')), findsOneWidget);
     });
   });
 

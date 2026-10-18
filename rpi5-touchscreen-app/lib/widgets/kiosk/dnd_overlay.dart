@@ -134,7 +134,7 @@ class DndOverlay extends StatelessWidget {
                         minimumSize: const Size(160, 52),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       ),
-                      child: const Text('취소', style: TextStyle(fontSize: KioskType.caption)),
+                      child: const Text('닫기', style: TextStyle(fontSize: KioskType.caption)),
                     ),
                   ],
                 ),

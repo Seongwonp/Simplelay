@@ -252,8 +252,8 @@ void main() {
         ];
       await _pump(tester, api);
 
-      // 문제가 있을 때만 앰버 칩 '확인 필요 1'(사용자 결정 10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
-      expect(find.text('확인 필요 1'), findsOneWidget);
+      // 문제가 있을 때만 앰버 칩 '연결 확인 필요 1'(사용자 결정 10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
+      expect(find.text('연결 확인 필요 1'), findsOneWidget);
       expect(find.text('와이파이 연결이 끊겼어요'), findsNothing);
       expect(find.text('작은 팔 연결이 끊겼어요'), findsNothing);
 
@@ -275,7 +275,7 @@ void main() {
       await tester.tap(find.text('다시 연결해 보기'));
       await _settle(tester);
       expect(api.connectionsCalls, greaterThan(before));
-      expect(find.text('확인 필요 1'), findsNothing); // 다 괜찮아지면 칩이 사라진다
+      expect(find.text('연결 확인 필요 1'), findsNothing); // 다 괜찮아지면 칩이 사라진다
       expect(find.text('전기 플러그가 연결돼 있어요'), findsOneWidget);
 
       await tester.tap(find.text('닫기'));
@@ -596,7 +596,7 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('strip-microwave')));
       await _settle(tester);
       expect(find.byType(KioskManualView), findsOneWidget);
-      expect(find.text('내 전자레인지'), findsOneWidget);
+      expect(find.text('전자레인지'), findsOneWidget);
       expect(find.text('아침 데우기'), findsOneWidget);
       expect(find.text('빨래 시작'), findsNothing); // 다른 가전의 루틴
       expect(find.text('새 루틴은 휴대폰 앱에서 만들어요'), findsOneWidget);

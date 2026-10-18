@@ -70,11 +70,11 @@ void main() {
       expect(find.byKey(const ValueKey('idle-menu')), findsOneWidget);
     });
 
-    testWidgets("문제가 있을 때만 앰버 '확인 필요 1' — 누르면 그 연결 창", (tester) async {
+    testWidgets("문제가 있을 때만 앰버 '연결 확인 필요 1' — 누르면 그 연결 창", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('확인 필요 1')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('연결 확인 필요 1')), findsOneWidget);
       expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
       // 화면 읽기는 무엇이 문제인지까지 읽는다 — 원인이 하나면 원인과 영향(평가 15차 10/18).
       expect(tester.getSemantics(chip).label, contains('작은 팔이 끊겨 가전 2대를 못 써요'));
@@ -85,10 +85,10 @@ void main() {
       expect(opened?.id, 'press');
     });
 
-    testWidgets("문제가 둘이면 '확인 필요 2' — 누르면 연결 목록, 항목을 누르면 그 연결 창", (tester) async {
+    testWidgets("문제가 둘이면 '연결 확인 필요 2' — 누르면 연결 목록, 항목을 누르면 그 연결 창", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _twoProblems, onOpen: (i) => opened = i));
-      expect(find.text('확인 필요 2'), findsOneWidget);
+      expect(find.text('연결 확인 필요 2'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await tester.pump();
       expect(find.byKey(const ValueKey('conn-network')), findsOneWidget);

@@ -77,7 +77,7 @@ void main() {
     );
     await tester.pump();
 
-    expect(find.text('내 공기청정기(모의)'), findsOneWidget);
+    expect(find.text('공기청정기(모의)'), findsOneWidget);
     expect(find.widgetWithText(KioskRouteBadge, 'LG 가전'), findsOneWidget);
     expect(find.byType(KioskThinqPanel), findsOneWidget);
     // 상태를 읽을 길이 없으면 값·조작을 지어내지 않고 이유를 말한다.

@@ -1178,9 +1178,9 @@ class _StripNotice extends StatelessWidget {
 }
 
 IconData _tipIcon(String icon) => switch (icon) {
-      'rain' => Icons.umbrella_outlined,
+      'rain' => Icons.umbrella,
       'snow' => Icons.ac_unit,
-      'hot' => Icons.wb_sunny_outlined,
+      'hot' => Icons.wb_sunny,
       'cold' => Icons.thermostat,
       // 루틴 안내(세탁 끝·복약, 2026-10-06) — 경고가 아니라 알림이다.
       'notice' => Icons.notifications_none_outlined,
@@ -1346,15 +1346,15 @@ String _weatherWord(String icon) => switch (icon) {
       _ => '',
     };
 
-/// 예보 아이콘 — 밤의 맑음·구름 조금은 해가 아니라 달(외부 평가 10/16 4차, 실패널 0시·3시에 해가 찍혔다).
+/// 예보 아이콘 — 가전 아이콘과 같은 채움 양식(평가 17차 10/18 — 날씨만 가는 선이었다). 밤의 맑음·구름 조금은 해가 아니라 달(외부 평가 10/16 4차, 실패널 0시·3시에 해가 찍혔다).
 IconData _hourIcon(String icon, {bool night = false}) => switch (icon) {
-      'clear' when night => Icons.nightlight_outlined,
-      'partly' when night => Icons.nights_stay_outlined,
-      'clear' => Icons.wb_sunny_outlined,
-      'partly' => Icons.wb_cloudy_outlined,
-      'cloudy' => Icons.cloud_outlined,
+      'clear' when night => Icons.nightlight,
+      'partly' when night => Icons.nights_stay,
+      'clear' => Icons.wb_sunny,
+      'partly' => Icons.wb_cloudy,
+      'cloudy' => Icons.cloud,
       // 비는 [_WeatherIcon]이 비 오는 구름으로 그린다 — 물방울은 습도로 읽혔다(평가 10차 10/18). 여기 값은 '아는 날씨' 표시.
-      'rain' => Icons.cloud_outlined,
+      'rain' => Icons.cloud,
       'snow' => Icons.ac_unit,
       _ => Icons.remove,
     };
@@ -1379,7 +1379,7 @@ class _WeatherIcon extends StatelessWidget {
         Positioned(
           left: size * 0.05,
           top: -size * 0.1,
-          child: Icon(Icons.cloud_outlined, size: size * 0.9, color: color),
+          child: Icon(Icons.cloud, size: size * 0.9, color: color),
         ),
         Positioned.fill(child: CustomPaint(painter: _RainPainter(color))),
       ]),
@@ -1448,8 +1448,8 @@ class _Hours extends StatelessWidget {
     for (final s in hours) {
       final label = _textHeight(context, s.label, _labelStyle(compact), double.infinity);
       final value = _textHeight(context, '0°', _tempStyle(compact), double.infinity);
-      final pop = _popOf(s.hour);
-      final popH = pop == null ? 0.0 : _gap(compact) + _textHeight(context, pop, _popStyle(compact), double.infinity);
+      // 비 확률 둘째 줄 자리는 늘 둔다(평가 17차 10/18 — 비 칸이 있을 때만 칸이 높아져 화면마다 칸 높이가 들쭉날쭉했다).
+      final popH = _gap(compact) + _textHeight(context, _popOf(s.hour) ?? '비 100%', _popStyle(compact), double.infinity);
       final cell = 2 * _cellPadV + label + _gap(compact) + (value > _Idle.hourIcon ? value : _Idle.hourIcon) + popH;
       if (cell > max) max = cell;
     }
@@ -1463,9 +1463,33 @@ class _Hours extends StatelessWidget {
   static String? _popOf(AmbientHour h) =>
       h.precip && h.pop != null ? '${h.icon == 'snow' ? '눈' : '비'} ${h.pop}%' : null;
 
+  /// 칸 머리 글자 배율 — 모든 칸이 같은 크기(평가 17차 10/18 — '오후 12시'만 칸 폭에 맞춰 혼자 작아졌다).
+  /// 가장 긴 머리가 칸에 들어가는 만큼 모두 같이 줄인다.
+  static double _labelScale(BuildContext context, List<ForecastSlot> hours, double width, bool compact) {
+    if (!width.isFinite || hours.isEmpty) return 1;
+    final inner = (width - _cellGap * (hours.length - 1)) / hours.length - 4;
+    var widest = 0.0;
+    for (final s in hours) {
+      final tp = TextPainter(
+        text: TextSpan(text: s.label, style: DefaultTextStyle.of(context).style.merge(
+            _labelStyle(compact).copyWith(fontWeight: FontWeight.w700))),
+        textDirection: TextDirection.ltr,
+        textScaler: MediaQuery.textScalerOf(context),
+        maxLines: 1,
+      )..layout();
+      if (tp.width > widest) widest = tp.width;
+      tp.dispose();
+    }
+    if (widest <= 0 || widest <= inner) return 1;
+    return inner / widest;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => LayoutBuilder(builder: (context, box) => _row(context, box.maxWidth));
+
+  Widget _row(BuildContext context, double width) {
     final cellHeight = heightFor(context, hours, compact: compact);
+    final labelScale = _labelScale(context, hours, width, compact);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -1499,6 +1523,7 @@ class _Hours extends StatelessWidget {
                           maxLines: 1,
                           softWrap: false,
                           style: _labelStyle(compact).copyWith(
+                              fontSize: _Idle.hourLabel * labelScale,
                               color: s.isNow ? Colors.white : KioskColors.muted,
                               fontWeight: s.isNow ? FontWeight.w700 : null)),
                     ),

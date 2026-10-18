@@ -55,9 +55,8 @@ void main() {
 
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
-    expect(find.text('전자레인지'), findsOneWidget);
-    // 제목은 명령문이 아니라 행동 이름(평가 4차 10/18).
-    expect(find.text('즉석밥 데우기'), findsOneWidget);
+    // 무엇이었는지는 위 띠 오른쪽 한 줄(평가 17차 10/18). 제목은 명령문이 아니라 행동 이름(평가 4차 10/18).
+    expect(find.text('전자레인지 · 즉석밥 데우기'), findsOneWidget);
     expect(find.textContaining('누름 장치'), findsNothing);
     expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     // 가전이 조리·세탁을 끝냈다고 말하지 않는다.
@@ -440,12 +439,11 @@ void main() {
         final press = view.executionMode == 'real' && view.route != 'thinq';
         // 누름 보고만은 체크가 아니라 누른 손 아이콘(확인 수준을 높여 보이지 않는다, 평가 3차 10/18).
         expect(find.byIcon(Icons.check), strong ? findsWidgets : findsNothing);
-        if (press && !strong) expect(find.byIcon(Icons.touch_app_outlined), findsOneWidget);
+        // 큰 결과 원은 없다(평가 17차 10/18) — 확인 수준은 띠의 아이콘·색과 제목이 말한다.
+        expect(find.byKey(const ValueKey('done-ring')), findsNothing);
         // 확인 못 한 성공의 결과 원은 위 띠('?' 확인해 주세요)와 같은 물음표(평가 11차 10/18 — 원 'i'·띠 '?'가 달랐다).
         // 연습은 위 띠가 연습 표시라 종전 'i' 그대로.
-        final practice = view.executionMode == 'mock';
-        expect(find.byIcon(Icons.info_outline), !strong && !press && practice ? findsOneWidget : findsNothing);
-        expect(find.byIcon(Icons.question_mark), strong || press || practice ? findsNothing : findsOneWidget);
+        expect(find.byIcon(Icons.question_mark), findsNothing);
         // 가장 큰 글자(핵심 단계, 2026-10-16 디자인 규격)의 색도 같은 규칙 — 체크 없이 초록 글자로 성공을 암시하지 않는다.
         final headline = tester
             .widgetList<Text>(find.byType(Text))

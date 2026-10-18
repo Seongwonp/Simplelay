@@ -124,7 +124,7 @@ void main() {
       expect(find.descendant(of: now, matching: find.text('지금')), findsOneWidget);
       expect(find.descendant(of: now, matching: find.text('14°')), findsOneWidget);
       final icon = tester.widget<Icon>(find.descendant(of: now, matching: find.byType(Icon)));
-      expect(icon.icon, Icons.cloud_outlined);
+      expect(icon.icon, Icons.cloud);
       // 지금 칸으로 쓴 9시 칸은 다시 두지 않는다 — 지금 + 12·15·18시.
       expect(find.text('오전 9시'), findsNothing);
       expect(find.text('오후 6시'), findsOneWidget);

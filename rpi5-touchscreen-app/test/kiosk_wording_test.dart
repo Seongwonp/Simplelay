@@ -760,7 +760,7 @@ void main() {
       const explain = '화면 버튼을 누르면 작은 팔이 전자레인지 버튼을 대신 눌러요';
       expect(find.text(explain), findsOneWidget);
       expect(tester.renderObject<RenderParagraph>(find.text(explain)).didExceedMaxLines, isFalse);
-      expect(tester.renderObject<RenderParagraph>(find.text('내 전자레인지')).didExceedMaxLines, isFalse);
+      expect(tester.renderObject<RenderParagraph>(find.text('전자레인지')).didExceedMaxLines, isFalse);
       expect(find.textContaining('허브'), findsNothing);
     });
 

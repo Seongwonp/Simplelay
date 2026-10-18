@@ -63,7 +63,7 @@ void main() {
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
     // 누름 보고만은 체크(확인)가 아니다 — 누른 손 아이콘(평가 3차 10/18, 확인 수준을 높여 보이지 않는다).
     expect(find.byIcon(Icons.check), findsNothing);
-    expect(find.byIcon(Icons.touch_app_outlined), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-ring')), findsNothing);
     expect(find.text('가전이 움직이는지 봐 주세요'), findsOneWidget);
   });
   testWidgets('근거 없는 ThinQ 성공에 가전 상태 확인을 만들지 않는다', (t) async {
@@ -109,7 +109,7 @@ void main() {
     await t.pumpAndSettle();
     expect(calls, 0);
     expect(find.byType(AlertDialog), findsOneWidget);
-    await t.tap(find.text('취소'));
+    await t.tap(find.text('닫기'));
     await t.pumpAndSettle();
     expect(calls, 0);
     await t.tap(find.text('한 번 더 하기'));

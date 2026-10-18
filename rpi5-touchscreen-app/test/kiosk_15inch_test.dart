@@ -308,7 +308,7 @@ void main() {
       );
 
       await _tapAt(tester, find.text('1시간'));
-      await _tapAt(tester, find.text('취소'));
+      await _tapAt(tester, find.text('닫기'));
 
       expect(minutes, [60]);
       expect(dismissed, 1);

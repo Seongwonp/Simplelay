@@ -95,7 +95,7 @@ void main() {
     expect(find.text('작은 팔이 멈췄어요'), findsOneWidget);
     expect(find.text('가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요'), findsOneWidget);
     expect(find.textContaining('ms'), findsNothing);
-    expect(find.byIcon(Icons.check), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-ring')), findsNothing);
   });
 
   testWidgets('단계가 없으면 확인하지 못한 정지 — 멈췄는지 몰라요', (tester) async {

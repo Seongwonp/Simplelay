@@ -10,7 +10,6 @@ import '../../theme/kiosk_tokens.dart';
 import '../../services/kiosk_api_service.dart' show KioskButtonResult;
 import 'kiosk_scroll_area.dart';
 import 'panel_picture.dart';
-import 'kiosk_target_line.dart';
 import 'kiosk_text.dart';
 import 'kiosk_timings.dart';
 import 'practice_band.dart';
@@ -111,7 +110,8 @@ class KioskDoneView extends StatelessWidget {
                     onPressed: () => Navigator.pop(ctx, false),
                     style:
                         TextButton.styleFrom(minimumSize: const Size(120, 48)),
-                    child: const Text('취소',
+                    // 창을 닫는 단추는 '닫기'로 한 말(평가 17차 10/18).
+                    child: const Text('닫기',
                         style: TextStyle(fontSize: KioskType.body))),
                 FilledButton(
                     onPressed: () => Navigator.pop(ctx, true),
@@ -277,7 +277,9 @@ class KioskDoneView extends StatelessWidget {
         : KioskPanelPicture.pressedOf(
             this.target, [for (final b in pressed!) (b.button, b.success)]);
     final side = pressedMap != null;
-    final ta = side ? TextAlign.start : TextAlign.center;
+    // 모든 결과 화면 한 틀(평가 17차 10/18): 띠 → 제목(사실) → 부제(행동 하나) → 가전 줄 → 아래 '처음 화면으로', 왼쪽 정렬.
+    // 큰 결과 원은 두지 않는다 — 결과마다 있고 없고가 달랐다. 뜻은 띠의 아이콘·색과 제목 글자가 말한다.
+    const ta = TextAlign.start;
     final r = reason ?? KioskFailureReason.execution;
     final steps = recoverySteps;
     // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 정지 단계만큼의 표시(2026-10-14, 10-15).
@@ -428,6 +430,12 @@ class KioskDoneView extends StatelessWidget {
     // '확인해 주세요'(그 밖의 모름·주의·실패 전부). 예전에는 봐 주세요·몰라요·주의·못 했어요·결과가 섞여 같은 뜻을
     // 다섯 말로 했다. 색은 뜻을 지킨다 — 실패·안전 정지는 빨강, 모름은 앰버, 연습은 청록(연습 칸은 늘 남는다).
     // 같은 말 두 번 금지는 제목을 바꿔 지킨다(띠 '확인해 주세요' / 제목 '눌렸는지 몰라요'). 확인 수준은 높이지 않는다.
+    // 결과 띠는 늘 무엇이었는지(가전 · 할 일)를 오른쪽에 함께 말한다(평가 17차 10/18) — 본문의 가전·이름 줄은 두지 않는다.
+    final bandWhat = [
+      if (target != null) target.name,
+      if (showLabel) label,
+    ].join(' · ');
+    final String? bandDetail = bandWhat.isEmpty ? null : bandWhat;
     final KioskStatusBand band;
     if (pending) {
       // 아직 끝나지 않았다 — 결과 띠('확인해 주세요')가 아니라 진행 띠(평가 8차 10/18).
@@ -436,27 +444,25 @@ class KioskDoneView extends StatelessWidget {
         if (target != null) target.name,
         if (showLabel) label,
       ].join(' · ');
+      // 띠는 '멈추는 중' + 무엇을(평가 17차 10/18) — 아래 왼쪽의 돌아가는 원은 두지 않는다(같은 뜻 두 번).
       band = KioskStatusBand(
           tone: KioskBandTone.neutral,
-          icon: target?.icon ?? Icons.power_outlined,
-          label: what.isEmpty ? '가전' : what,
+          icon: Icons.hourglass_top,
+          label: '멈추는 중',
+          detail: what.isEmpty ? null : what,
+          detailIcon: target?.icon,
           practice: mock);
     } else if (verifiedSuccess) {
-      band = const KioskStatusBand(
-          tone: KioskBandTone.confirmed, icon: Icons.check, label: kBandDone);
+      band = KioskStatusBand(
+          tone: KioskBandTone.confirmed, icon: Icons.check, label: kBandDone,
+          detail: bandDetail, detailIcon: target?.icon);
     } else if (mock &&
         color != KioskColors.warning &&
         color != KioskColors.danger) {
-      band = const KioskStatusBand.practice();
+      band = KioskStatusBand.practice(detail: bandDetail, detailIcon: target?.icon);
     } else {
       final danger = color == KioskColors.danger;
-      // 순서 안내가 있으면 무엇이었는지(가전·할 일)는 띠 오른쪽 한 줄로(평가 15차 10/18) — 아래는 큰 글자와 번호만.
-      final what = steps == null
-          ? null
-          : [
-              if (target != null) target.name,
-              if (showLabel) label,
-            ].join(' · ');
+      final what = bandDetail;
       band = KioskStatusBand(
           tone: danger ? KioskBandTone.danger : KioskBandTone.attention,
           icon: danger ? Icons.error_outline : Icons.help_outline,
@@ -487,35 +493,8 @@ class KioskDoneView extends StatelessWidget {
       ].join('. '),
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment:
-            side ? CrossAxisAlignment.start : CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 큰 글씨에서는 결과 원을 뺀다 — 위 상태 띠가 같은 아이콘·색으로 말하고, 남기면 이름 줄이 스크롤 아래로
-          // 밀렸다(UI 평가 5차 10/17).
-          // 순서 안내가 있으면 원을 뺀다(사용자 결정 10/18) — 위 띠가 같은 아이콘·색으로 말하고, 안내 세 줄이 단추 위에 다 보이게.
-          if (!large && !side && steps == null) _ResultRing(
-            icon: verifiedSuccess
-                ? Icons.check
-                : pressCompleted
-                    ? Icons.touch_app_outlined
-                    : success
-                        // 확인 못 한 성공은 위 띠('?' 확인해 주세요)와 같은 물음표(평가 11차 10/18 — 띠 '?'·원 'i'가 달랐다).
-                        // 연습은 띠가 연습 표시라 종전 그대로.
-                        ? (mock ? Icons.info_outline : Icons.question_mark)
-                        : pending
-                            ? Icons.hourglass_top
-                            : practiceStop
-                            ? Icons.pan_tool_outlined
-                            : userStop
-                            ? (stopVerified ? Icons.check : Icons.question_mark)
-                            : r.isUnconfirmed ||
-                                    r == KioskFailureReason.execution
-                                ? Icons.question_mark
-                                : Icons.close,
-            color: color,
-            size: KioskSizes.resultIcon,
-          ),
-          if (!large && !side && steps == null) const SizedBox(height: 12),
           // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
           // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 누르기**다.
           // 제목은 2줄까지 자연스럽게 넘어간다(폭은 [KioskSizes.resultMaxWidth], 2026-10-16 §1-7).
@@ -557,17 +536,8 @@ class KioskDoneView extends StatelessWidget {
                   color: Colors.white),
             ),
           ],
-          // 실패·정지는 무엇이었는지를 가전·이름 한 줄로(평가 5차 10/18 — 제목 한 줄 + 할 일 한 줄 + 작은 한 줄).
-          // 멈추는 중이면 위 띠가 가전·할 일을 말한다 — 같은 줄을 또 두지 않는다(평가 10차 10/18).
-          if (target != null && !pending && steps == null) ...[
-            const SizedBox(height: 10),
-            KioskTargetLine(
-                appliance: target,
-                detail: !success && showLabel ? label : null,
-                textKey: const ValueKey('done-target')),
-          ],
           // '확인 못 함'이면 순서 안내 2~3단계(사용자 결정 10/18). 자동 재시도 단추는 두지 않는다.
-          if (steps != null) KioskRecoverySteps(steps: steps, center: !side),
+          if (steps != null) KioskRecoverySteps(steps: steps),
           // '다시 멈추기'를 누른 뒤 — 본체가 받았으면 사람이 볼 상태로, 닿지 않았으면 손으로 할 일(hold_view 정지 미확인과 같은 말).
           if (_stopUnknown && stopAgain != null) ...[
             const SizedBox(height: KioskSpace.xs),
@@ -598,19 +568,7 @@ class KioskDoneView extends StatelessWidget {
           if (runSteps.length > 1) _RunSteps(steps: runSteps),
           const SizedBox(height: 6),
           if (success) ...[
-            // 무엇을 했는지 한 줄로 재확인한다.
-            if (showLabel) ...[
-              KioskText(
-                label,
-                textAlign: ta,
-                style: const TextStyle(
-                  fontSize: KioskType.body,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 4),
-            ],
+            // 무엇을 했는지는 위 띠가 말한다(평가 17차 10/18).
             if (thinq)
               KioskText(
                 thinqLine,
@@ -619,20 +577,7 @@ class KioskDoneView extends StatelessWidget {
                     fontSize: KioskType.body, color: KioskColors.muted),
               ),
           ] else ...[
-            // 무엇이었는지 이름 한 줄(문장 앞에 '이름 — '를 붙이지 않는다, 쉬운 말 10/17). 대상 가전을 알면 위 가전 줄에 함께 있다.
-            if (showLabel && target == null) ...[
-              KioskText(
-                label,
-                textKey: const ValueKey('done-label'),
-                textAlign: ta,
-                style: const TextStyle(
-                  fontSize: KioskType.body,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(height: 4),
-            ],
+            // 무엇이었는지(가전·이름)는 위 띠가 말한다(평가 17차 10/18).
             if (detail case final d? when d.isNotEmpty && !mock) ...[
               const SizedBox(height: 4),
               KioskText(
@@ -673,12 +618,6 @@ class KioskDoneView extends StatelessWidget {
               key: const ValueKey('done-pending'),
               width: KioskSizes.primaryButton,
               height: KioskSizes.primaryButton,
-              child: Center(
-                child: SizedBox(
-                    width: 40,
-                    height: 40,
-                    child: CircularProgressIndicator(strokeWidth: 4, color: KioskColors.muted)),
-              ),
             ),
           )
         : KioskResultActions(
@@ -777,14 +716,20 @@ class KioskDoneView extends StatelessWidget {
               ),
             )
           else
+          // 버튼판이 없는 결과도 같은 왼쪽 선(LG 가전 결과와 같은 틀) — 띠와 아래 줄 사이 세로 가운데, 길면 위에서부터 스크롤.
           Expanded(
-            child: KioskScrollArea(
-              center: true,
-              padding: const EdgeInsets.fromLTRB(KioskSpace.xl, KioskSpace.sm, KioskSpace.xl, KioskSpace.xs),
-              child: ConstrainedBox(
-                constraints:
-                    const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
-                child: content,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(
+                  KioskSizes.runLeft, KioskSizes.runTop, KioskSizes.stopRight, KioskSpace.xs),
+              child: LayoutBuilder(
+                builder: (context, box) => KioskScrollArea(
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(
+                        minHeight: box.maxHeight.isFinite ? box.maxHeight : 0,
+                        maxWidth: KioskSizes.resultMaxWidth),
+                    child: Align(alignment: Alignment.centerLeft, child: content),
+                  ),
+                ),
               ),
             ),
           ),
@@ -1029,21 +974,26 @@ class _ThinqResult extends StatelessWidget {
   final VoidCallback? onHold;
   final VoidCallback? onClose;
 
+  String? get _name => (target?.name.isNotEmpty ?? false) ? target!.name : null;
+
   @override
   Widget build(BuildContext context) {
     final (Color color, KioskStatusBand band) = switch (copy.tone) {
       ThinqResultTone.confirmed => (
           KioskColors.confirmed,
-          const KioskStatusBand(tone: KioskBandTone.confirmed, icon: Icons.check, label: kBandDone),
+          KioskStatusBand(tone: KioskBandTone.confirmed, icon: Icons.check, label: kBandDone,
+              detail: _name, detailIcon: target?.icon),
         ),
       ThinqResultTone.attention => (
           KioskColors.warning,
-          const KioskStatusBand(tone: KioskBandTone.attention, icon: Icons.help_outline, label: kBandCheck),
+          KioskStatusBand(tone: KioskBandTone.attention, icon: Icons.help_outline, label: kBandCheck,
+              detail: _name, detailIcon: target?.icon),
         ),
-      ThinqResultTone.practice => (Colors.white, const KioskStatusBand.practice()),
+      ThinqResultTone.practice => (Colors.white, KioskStatusBand.practice(detail: _name, detailIcon: target?.icon)),
     };
     final name = target?.name;
     // 큰 글자에 가전 이름이 없으면(바람 세기 결과 등) 아래 작게 무엇의 결과인지 — 다른 결과 화면과 같은 가전 줄(아이콘 + 이름).
+    // 무엇의 결과인지는 다른 결과 화면과 같이 위 띠 오른쪽이 늘 말한다(평가 17차 10/18). 본문에는 가전 줄을 두지 않는다.
     final showName = name != null && name.isNotEmpty && !copy.headline.contains(name) && !copy.sub.contains(name);
     // 다른 결과 화면(전자레인지 결과 kiosk15_done_verified)과 같은 틀 — 위 띠 아래 왼쪽 선에서 큰 글자 · 한 줄 · 가전 줄
     // (평가 14차 10/18: 띠 '됐어요' + 테두리 상자 + 큰 체크 원은 같은 뜻을 세 번 장식했다). 뜻은 띠의 아이콘·색과 글자가 말한다.
@@ -1070,10 +1020,6 @@ class _ThinqResult extends StatelessWidget {
             style: const TextStyle(
                 fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white),
           ),
-          if (showName && target != null) ...[
-            const SizedBox(height: 10),
-            KioskTargetLine(appliance: target!, textKey: const ValueKey('thinq-result-name')),
-          ],
           if (steps != null) KioskRecoverySteps(steps: steps!),
         ],
       ),
@@ -1124,34 +1070,6 @@ class _ThinqResult extends StatelessWidget {
       ),
     );
   }
-}
-
-class _ResultRing extends StatelessWidget {
-  const _ResultRing(
-      {required this.icon, required this.color, required this.size});
-
-  final IconData icon;
-  final Color color;
-  final double size;
-
-  @override
-  // 뜻을 전하는 것은 아이콘이 아니라 글자다 -- 원은 결과를 알리는 정도로만 둔다
-  Widget build(BuildContext context) => Container(
-        key: const ValueKey('done-ring'),
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: color.withValues(alpha: 0.14),
-          border: Border.all(color: color.withValues(alpha: 0.45), width: 2),
-        ),
-        child: Icon(
-          icon,
-          size: size * 0.55,
-          color: color,
-        ),
-      );
 }
 
 /// 성공 뒤 자동 복귀 말 — 보통·큰 글씨 같은 말(평가 16차 10/18).
@@ -1369,11 +1287,23 @@ class KioskResultActions extends StatelessWidget {
       if (oneRow) return row;
       // 보조 단추가 한 줄에 다 들어가지 않으면 주 단추 아래 한 줄을 반씩 — 같은 폭, 왼쪽 끝은 주 단추와, 오른쪽 끝은 정지 자리와
       // 같은 선(계단처럼 어긋나지 않게).
+      // 두 줄일 때는 같은 폭 격자(평가 17차 10/18 — 주 단추만 좁아 아래 두 단추와 칸이 어긋났다): 윗줄 왼쪽 칸이 주 단추.
+      final grid = stop == null && secondaries.length == 2;
       return Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          row,
+          if (grid)
+            Row(
+              key: const ValueKey('done-actions-grid'),
+              children: [
+                Expanded(child: home ?? const SizedBox.shrink()),
+                const SizedBox(width: KioskSpace.sm),
+                Expanded(child: note == null ? const SizedBox.shrink() : Align(alignment: Alignment.centerLeft, child: note!)),
+              ],
+            )
+          else
+            row,
           const SizedBox(height: KioskSpace.xs),
           Row(
             key: const ValueKey('done-secondary-row'),

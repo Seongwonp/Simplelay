@@ -32,7 +32,7 @@ void main() {
   testWidgets('가전 이름이 크게, 버튼 라벨은 멀리서 읽히는 크기로', (tester) async {
     await _pump(tester, kMicrowaveAppliance);
 
-    final name = tester.widget<Text>(find.text('내 전자레인지'));
+    final name = tester.widget<Text>(find.text('전자레인지'));
     expect(name.style!.fontSize, greaterThanOrEqualTo(28));
     final label = tester.widget<Text>(find.text('즉석밥'));
     expect(label.style!.fontSize, greaterThanOrEqualTo(20));

@@ -264,7 +264,8 @@ void main() {
       await _pumpView(tester, _thinqDone(confirmed: false));
       final texts = _texts(tester);
       expect(texts, contains('공기청정기에 켜 달라고 했어요'));
-      expect(texts.where((t) => t == '공기청정기'), isEmpty);
+      // 이름은 위 띠 오른쪽에만(평가 17차 10/18) — 본문에는 작은 이름 줄이 없다.
+      expect(find.descendant(of: find.byKey(const ValueKey('thinq-result')), matching: find.text('공기청정기')), findsNothing);
       expect(texts.any((t) => t.contains('보냈')), isFalse);
     });
   });
@@ -326,10 +327,8 @@ void main() {
     testWidgets('누름 보고만(환경 모름) — 위 띠와 결과 원이 같은 물음표', (tester) async {
       await _pumpView(
           tester, KioskDoneView(success: true, label: '즉석밥 데워줘', target: kMicrowaveAppliance, onDismiss: _noop));
-      final ring = tester.widget<Icon>(
-          find.descendant(of: find.byKey(const ValueKey('done-ring')), matching: find.byType(Icon)));
-      expect(ring.icon, isNot(Icons.info_outline));
-      expect(ring.icon, Icons.question_mark);
+      // 큰 결과 원은 없다(평가 17차 10/18) — 띠의 물음표 하나.
+      expect(find.byKey(const ValueKey('done-ring')), findsNothing);
       expect(find.descendant(of: find.byKey(const ValueKey('status-band')), matching: find.byIcon(Icons.help_outline)),
           findsOneWidget);
     });

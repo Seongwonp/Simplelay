@@ -37,7 +37,7 @@ void main() {
         ),
       );
 
-      for (final label in ['30분', '1시간', '2시간', '취소']) {
+      for (final label in ['30분', '1시간', '2시간', '닫기']) {
         final button = find.ancestor(
           of: find.text(label),
           matching: find.byWidgetPredicate((w) => w is ButtonStyleButton),
@@ -48,10 +48,10 @@ void main() {
       }
 
       // '취소'는 테두리 버튼 — 글자만 있으면 누를 곳으로 보이지 않는다(UI 평가 10/17).
-      expect(find.ancestor(of: find.text('취소'), matching: find.byType(OutlinedButton)), findsOneWidget);
+      expect(find.ancestor(of: find.text('닫기'), matching: find.byType(OutlinedButton)), findsOneWidget);
 
       await tester.tap(find.text('1시간'));
-      await tester.tap(find.text('취소'));
+      await tester.tap(find.text('닫기'));
       expect(minutes, [60]);
       expect(dismissed, 1);
     });

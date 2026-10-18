@@ -21,16 +21,33 @@ class KioskPastResult {
   /// 결과 화면의 큰 글자('눌렸는지 몰라요' · '보냈지만 됐는지 몰라요' 등).
   final String headline;
 
-  /// '오후 3:12 즉석밥 데우기 — 눌렸는지 몰라요'.
-  String get text {
-    final when = clockTime(at.hour, at.minute);
-    return label.isEmpty ? '$when — $headline' : '$when $label — $headline';
+  /// '오후 3:12 즉석밥 데우기, 눌렸는지 몰라요'(평가 17차 10/18 — 긴 줄표 대신 쉼표). [now]를 주면 오늘이 아닐 때 날짜 말을 앞에
+  /// 붙인다('어제 오후 3:12', '9월 30일 오후 3:12').
+  String textAt(DateTime? now) {
+    var when = clockTime(at.hour, at.minute);
+    if (now != null) {
+      final day = DateTime(at.year, at.month, at.day);
+      final today = DateTime(now.year, now.month, now.day);
+      final diff = today.difference(day).inDays;
+      if (diff == 1) {
+        when = '어제 $when';
+      } else if (diff != 0) {
+        when = '${at.month}월 ${at.day}일 $when';
+      }
+    }
+    return label.isEmpty ? '$when, $headline' : '$when $label, $headline';
   }
+
+  /// 날짜 말 없는 꼴(오늘 일).
+  String get text => textAt(null);
 }
 
 /// 처음 화면 위 한 줄 — 앰버 줄·물음표 + 지난 일 + '확인'(누를 때까지 남는다). 화면을 덮지 않고 위에 줄을 더한다.
 class KioskPastResultLine extends StatelessWidget {
-  const KioskPastResultLine({super.key, required this.result, required this.onAcknowledge});
+  const KioskPastResultLine({super.key, required this.result, required this.onAcknowledge, this.now});
+
+  /// 지금 시각 — 오늘이 아니면 날짜 말('어제')을 붙인다. 모르면 시각만.
+  final DateTime? now;
 
   final KioskPastResult result;
   final VoidCallback onAcknowledge;
@@ -40,7 +57,7 @@ class KioskPastResultLine extends StatelessWidget {
     final tone = KioskColors.warning;
     return Semantics(
       container: true,
-      label: '지난 일. ${result.text}',
+      label: '지난 일. ${result.textAt(now)}',
       child: Container(
         key: const ValueKey('idle-past-result'),
         decoration: BoxDecoration(
@@ -55,7 +72,7 @@ class KioskPastResultLine extends StatelessWidget {
             Expanded(
               child: ExcludeSemantics(
                 child: Text(
-                  result.text,
+                  result.textAt(now),
                   key: const ValueKey('idle-past-result-text'),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,

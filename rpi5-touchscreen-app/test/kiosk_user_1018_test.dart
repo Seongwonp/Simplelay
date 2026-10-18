@@ -134,10 +134,10 @@ void main() {
       expect(find.byKey(const ValueKey('idle-menu')), findsOneWidget);
     });
 
-    testWidgets("문제가 둘이면 '확인 필요 2' — 누르면 무엇이 왜인지 연결 목록", (tester) async {
+    testWidgets("문제가 둘이면 '연결 확인 필요 2' — 누르면 무엇이 왜인지 연결 목록", (tester) async {
       await _pumpView(tester, _idle(connections: _two));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
-      expect(find.descendant(of: chip, matching: find.text('확인 필요 2')), findsOneWidget);
+      expect(find.descendant(of: chip, matching: find.text('연결 확인 필요 2')), findsOneWidget);
       await tester.tap(chip);
       await tester.pump();
       expect(find.byKey(const ValueKey('conn-badge-network')), findsOneWidget);
@@ -375,12 +375,12 @@ void main() {
   });
 
   group('4. 처음 화면 지난 일 한 줄', () {
-    test("한 줄 꼴 — '오후 3:12 즉석밥 데우기 — 눌렸는지 몰라요'", () {
+    test("한 줄 꼴 — '오후 3:12 즉석밥 데우기, 눌렸는지 몰라요'", () {
       expect(
           KioskPastResult(at: DateTime(2026, 10, 18, 15, 12), label: '즉석밥 데우기', headline: '눌렸는지 몰라요').text,
-          '오후 3:12 즉석밥 데우기 — 눌렸는지 몰라요');
+          '오후 3:12 즉석밥 데우기, 눌렸는지 몰라요');
       expect(KioskPastResult(at: DateTime(2026, 10, 18, 9, 5), label: '', headline: '어떻게 됐는지 몰라요').text,
-          '오전 9:05 — 어떻게 됐는지 몰라요');
+          '오전 9:05, 어떻게 됐는지 몰라요');
     });
 
     test('남기는 것은 실패·확인 못 함만 — 성공·연습·확인한 정지는 남기지 않는다', () {
@@ -443,7 +443,7 @@ void main() {
       expect(line, findsOneWidget);
       final text = tester.widget<Text>(find.byKey(const ValueKey('idle-past-result-text'))).data!;
       expect(text, contains('전자레인지'));
-      expect(text, endsWith('— 눌렸는지 몰라요'));
+      expect(text, endsWith(', 눌렸는지 몰라요'));
       expect(text, matches(RegExp(r'^(오전|오후|밤) \d{1,2}:\d{2} ')));
       // 시간이 지나도(다른 조회가 돌아도) 남는다.
       await tester.pump(const Duration(minutes: 2));
