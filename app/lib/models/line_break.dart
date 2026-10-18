@@ -34,11 +34,11 @@ final kNoBreakSpace = String.fromCharCode(0x00A0);
 /// - [wholeParts]면 가운뎃점으로 나뉜 묶음('LG 가전 설정 1번') 하나를 통째로 붙인다(12자까지). 보통 글씨에서만
 ///   켠다 — 큰 글씨에서는 묶음이 한 줄보다 길어져 오히려 글자 중간에서 꺾인다.
 /// 화면 글자에만 쓴다. 접근성 이름에는 원문을 쓴다.
-String keepPhrasesTogether(String text, {bool wholeParts = false}) {
+String keepPhrasesTogether(String text, {bool wholeParts = false, int wholeMax = 12}) {
   final parts = text.split(' · ');
   final glued = parts.map((part) {
     final tokens = part.split(' ');
-    final whole = wholeParts && part.length <= 12;
+    final whole = wholeParts && part.length <= wholeMax;
     final glue = <bool>[
       for (var i = 1; i < tokens.length; i++)
         (whole && !tokens[i - 1].endsWith(',')) ||

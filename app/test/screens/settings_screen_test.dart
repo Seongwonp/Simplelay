@@ -94,7 +94,12 @@ void main() {
         GoRoute(path: '/dev', builder: (_, __) => const Scaffold(body: Text('dev-body'))),
       ]);
       return buildWithProviderState(
-        overrides: [..._scanOverrides(), developerModeProvider.overrideWithValue(dev)],
+        // 평가 17차(10/18): 개발자 줄은 앱 정보에서 연 뒤에만 보인다 — 여기서는 연 상태로 본다.
+        overrides: [
+          ..._scanOverrides(),
+          developerModeProvider.overrideWithValue(dev),
+          developerUnlockedProvider.overrideWith((ref) => true),
+        ],
         child: MaterialApp.router(theme: ThemeData.dark(), routerConfig: router),
       );
     }

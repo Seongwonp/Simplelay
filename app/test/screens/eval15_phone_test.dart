@@ -301,7 +301,8 @@ void main() {
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text'))).semanticsLabel!;
       expect(intro, isNot(contains('허락한 일.')));
       // 평가 16차(10/18): 더 짧게 — eval16_phone_test 5.
-      expect(intro, startsWith('묻지 않고 바로 해요'));
+      // 평가 17차(10/18): 토막 두 마디 → 한 문장(eval17_phone_test 6).
+      expect(intro, contains('묻지 않고 바로 해요'));
     });
   });
 
@@ -319,7 +320,7 @@ void main() {
     testWidgets('왼쪽 아이콘 열 하나·오른쪽 화살표 열 하나', (tester) async {
       await _pump(tester, const SettingsScreen());
       final lefts = <String, double>{
-        '본체': tester.getTopLeft(find.byIcon(Icons.tablet_outlined)).dx,
+        '본체': tester.getTopLeft(find.byIcon(Icons.router_outlined)).dx,
         '보호자 알림': tester.getTopLeft(find.byIcon(Icons.family_restroom)).dx,
         '잠시 쉬기': tester.getTopLeft(find.byIcon(AppIcons.pause)).dx,
         '어두운 화면': tester.getTopLeft(find.byIcon(Icons.contrast)).dx,
@@ -428,7 +429,7 @@ void main() {
       ];
       await _pump(tester, const HomeScreen());
       expect(_in(find.byKey(const Key('home-attention-care-look')),
-              findPlainText('못 한 일: 공기청정기 바람 중간으로 하기')),
+              findPlainText('못 한 일: 공기청정기 바람 중간으로 하기', contains: true)),
           findsOneWidget);
       expect(_in(find.byKey(const Key('home-attention-care')), findPlainText('그 밖에 안 본 알림 2건')), findsOneWidget);
       expect(findPlainText('못 한 일이 있어요', contains: true), findsNothing);
@@ -444,11 +445,11 @@ void main() {
       expect(text.style?.decoration, anyOf(isNull, TextDecoration.none));
       expect(text.style?.fontSize, AppFont.caption);
       expect(text.style?.fontWeight, FontWeight.w700);
-      // 누를 칸은 48×48 이상(앞 ' · '까지 칸 안에 그려 줄이 덜 늘어난다). 칸 가장자리를 눌러도 열린다.
-      final rect = tester.getRect(_in(mark, find.byType(InkWell)));
-      expect(rect.width, greaterThanOrEqualTo(48));
-      expect(rect.height, greaterThanOrEqualTo(48));
-      await tester.tapAt(rect.topLeft + const Offset(2, 2));
+      // 누를 칸은 48×48 이상 — 평가 17차(10/18)부터 줄 높이를 늘리지 않는 투명 확장 칸. 보이는 표지 밖, 가운데에서
+      // 22dp 아래를 눌러도 열린다.
+      final c = tester.getCenter(mark);
+      expect(tester.getSize(mark).height, lessThan(44));
+      await tester.tapAt(c + const Offset(0, 22));
       await _settle(tester);
       expect(find.byKey(const Key('auto-rule-switch-ar-t')), findsOneWidget);
     });

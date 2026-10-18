@@ -272,7 +272,8 @@ void main() {
         ev(2, 'routine_notice'),
         ev(1, 'auto_rule'),
       ]);
-      expect(l.look, '못 한 일: 공기청정기 바람 중간으로 하기 (3번)');
+      // 평가 17차(10/18): 끝 괄호 대신 '· 3번 못 했어요'(eval17_phone_test 4).
+      expect(l.look, '공기청정기 바람 중간으로 하기 · 3번 못 했어요');
       expect(l.rest, '그 밖에 안 본 알림 4건');
       // 한 번이면 횟수 없이, 다른 일이 섞이면 '외 N번'.
       expect(careAttentionLines([ev(1, 'execution_failed', purpose: '공기청정기 꺼줘')]).look, '못 한 일: 공기청정기 끄기');
@@ -304,7 +305,7 @@ void main() {
       final look = _in(find.byKey(const Key('home-attention-care-look')), find.byType(Text));
       final t = tester.widget<Text>(look.first);
       expect(_rawText(tester, look.first).replaceAll('⁠', '').replaceAll(' ', ' '),
-          '못 한 일: 공기청정기 바람 중간으로 하기 (2번)');
+          '공기청정기 바람 중간으로 하기 · 2번 못 했어요');
       expect(t.maxLines, isNull);
       expect(t.overflow, anyOf(isNull, TextOverflow.clip));
       expect(_in(find.byKey(const Key('home-attention-care')), findPlainText('그 밖에 안 본 알림 2건')), findsOneWidget);
@@ -354,7 +355,8 @@ void main() {
       await tester.tap(findPlainText('자동 규칙'));
       await _settle(tester);
       final intro = tester.widget<Text>(find.byKey(const Key('auto-rules-intro-text')));
-      expect(intro.semanticsLabel, '묻지 않고 바로 해요. 스위치로 꺼요');
+      // 평가 17차(10/18): 한 문장(eval17_phone_test 6).
+      expect(intro.semanticsLabel, '스위치가 켜져 있는 동안은 묻지 않고 바로 해요');
       expect(intro.data, contains(' '));
       final name = find.descendant(
           of: find.byKey(const Key('auto-rule-ar-s')),

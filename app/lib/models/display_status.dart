@@ -489,6 +489,14 @@ class HistoryResult {
 /// 작은 팔이 버튼을 다 눌렀지만 가전 동작은 확인하지 못한 기록의 한 줄(평가 12차 10/18).
 const kPressedAllSentence = '버튼은 다 눌렀어요, 움직이는지 봐 주세요';
 
+/// 기록 줄의 '봐 주세요' 칩 옆 이유 — 칩이 이미 '봐 주세요'를 말하므로 문장 끝의 같은 부탁은 빼고, 무엇을 모르는지만
+/// 남긴다(평가 17차 10/18: 본문 '움직이는지 봐 주세요'와 칩 '봐 주세요'가 겹쳤다). 확인한 것처럼 바꾸지 않는다.
+String historyLookReason(String sentence) {
+  // 다른 문장('다시 보내기 전에 가전을 봐 주세요' 등)은 안전 안내가 담겨 있어 그대로 둔다.
+  if (sentence == kPressedAllSentence) return '버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요';
+  return sentence;
+}
+
 /// 결과 문장(검토 §5 표). 선택 순서: executionMode → resultKind(outcome 우선) →
 /// route·receipt·termination·confirmation. 정지·안전 정지는 기존 문장을 그대로 쓴다.
 HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {

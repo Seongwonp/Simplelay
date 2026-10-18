@@ -336,7 +336,14 @@ CareAttentionLines careAttentionLines(List<RpiCareEvent> unread) {
   } else {
     final same = hits.where((e) => careEventWhat(e) == what).length;
     final others = hits.length - same;
-    look = '$word: $what${same > 1 ? ' ($same번)' : ''}${others > 0 ? ' 외 $others번' : ''}';
+    // 평가 17차(10/18): 끝 괄호 '(3번)'이 혼자 다음 줄로 갔다 → 여러 번이면 '공기청정기 바람 중간으로 하기 · 3번 못
+    // 했어요'처럼 횟수와 결과를 문장 끝에 붙인다(기록 칩 '3번 못 했어요'와 같은 말).
+    final verb = switch (word) { '못 한 일' => '못 했어요', '멈춘 일' => '멈췄어요', _ => null };
+    if (same > 1 && verb != null) {
+      look = '$what · $same번 $verb${others > 0 ? ', 다른 일 $others번' : ''}';
+    } else {
+      look = '$word: $what${same > 1 ? ' $same번' : ''}${others > 0 ? ' 외 $others번' : ''}';
+    }
   }
   return (
     look: look,
@@ -647,9 +654,10 @@ class _Attention extends ConsumerWidget {
                 ),
               // 평가 15차(10/18): 봐야 할 것(무엇을 못 했는지)과 나머지 안 본 알림은 따로 한 줄씩.
               if (careLines.look case final look?)
+                // 머리('확인이 필요해요')가 이미 ! 아이콘이라 첫 줄은 아이콘 없이(평가 17차 10/18: 같은 ! 두 번).
                 _AttentionRow(
                   key: const Key('home-attention-care-look'),
-                  icon: Icons.error_outline,
+                  icon: null,
                   text: look,
                   color: context.appWarning,
                   onTap: () => context.push('/care'),
@@ -684,7 +692,7 @@ class _AttentionRow extends StatelessWidget {
     required this.color,
     required this.onTap,
   });
-  final IconData icon;
+  final IconData? icon;
   final String text;
   final Color color;
   final VoidCallback onTap;
@@ -701,7 +709,8 @@ class _AttentionRow extends StatelessWidget {
           child: ConstrainedBox(
             constraints: const BoxConstraints(minHeight: 48),
             child: Row(children: [
-              Icon(icon, size: 20, color: color),
+              // 아이콘이 없는 줄도 글자는 같은 세로줄(아이콘 칸 20 + 사이 8).
+              if (icon case final i?) Icon(i, size: 20, color: color) else const SizedBox(width: AppSpace.xl),
               const SizedBox(width: AppSpace.sm),
               Expanded(
                 // '알림 / 4건'처럼 숫자가 앞 낱말과 갈리지 않게(평가 13차 10/18).
@@ -1193,7 +1202,7 @@ class _ApplianceGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     final names = distinctTileNames(appliances);
     final cards = <Widget>[
-      for (final a in appliances)
+      for (final a in homeApplianceOrder(appliances))
         _ApplianceCard(
           appliance: a,
           name: names[a.id] ?? a.name,
@@ -1953,4 +1962,16 @@ class _StatusCardBody extends StatelessWidget {
       ],
     );
   }
+}
+
+
+/// 홈 가전 칸 순서 — 바로 쓸 수 있는 가전이 앞, 설정·연결이 남은 가전이 뒤(평가 17차 10/18: 본체 화면 가전 줄과 같은
+/// 규칙). 같은 무리 안에서는 등록 순서. 본체 화면의 '확인 필요·동작 중' 앞당김은 홈 칸 띠가 말하므로 두지 않는다.
+List<ApplianceMap> homeApplianceOrder(List<ApplianceMap> appliances) {
+  bool later(ApplianceMap a) =>
+      needsPanelMapping(a) || a.readiness == 'needs_setup' || a.readiness == 'disconnected';
+  return [
+    for (final a in appliances) if (!later(a)) a,
+    for (final a in appliances) if (later(a)) a,
+  ];
 }

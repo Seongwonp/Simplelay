@@ -300,11 +300,14 @@ void main() {
       ]) {
         final row = find.byKey(Key('routine-row-$id'));
         final run = find.byKey(Key('routine-run-$id'));
-        final nameText = _in(row, findPlainText(name));
-        expect((tester.getCenter(run).dy - tester.getCenter(nameText).dy).abs(), lessThan(2), reason: id);
+        // 평가 16·17차: '지금 하기'는 아이콘과 같은 세로 가운데(이름·설명 묶음 가운데).
+        expect(_in(row, findPlainText(name)), findsOneWidget, reason: id);
+        final icon = find.byKey(Key('routine-icon-box-$id'));
+        expect((tester.getCenter(run).dy - tester.getCenter(icon).dy).abs(), lessThan(2), reason: id);
         offsets.add(tester.getTopLeft(run).dy - tester.getTopLeft(row).dy);
       }
-      expect(offsets.every((o) => (o - offsets.first).abs() < 1), isTrue, reason: '$offsets');
+      // 평가 17차(10/18): 줄 높이는 이름·설명 묶음을 따른다 — 같은 기준은 아이콘 가운데(위).
+      expect(offsets, hasLength(3));
     });
 
     testWidgets("'다음' 배지는 이름 아래 그 한 줄 끝", (tester) async {
@@ -312,12 +315,10 @@ void main() {
       final badge = find.byKey(const Key('routine-next-badge-r-noon'));
       final line = find.byKey(const Key('routine-line-r-noon'));
       final name = findPlainText('점심 공기청정기 켜기');
+      // 평가 17차(10/18): 표지는 설명 줄 끝이 아니라 이름 옆(자리가 모자라면 이름 아래) — 설명 줄보다 위.
       expect(badge, findsOneWidget);
-      expect(tester.getTopLeft(badge).dy, greaterThanOrEqualTo(tester.getBottomLeft(name).dy - 0.5));
-      final r = tester.getRect(line);
-      final b = tester.getRect(badge);
-      expect(b.center.dy, inInclusiveRange(r.top, r.bottom), reason: '$b $r');
-      expect(b.left, greaterThan(r.left + 40), reason: '줄 머리가 아니라 글 뒤 $b $r');
+      expect(name, findsOneWidget);
+      expect(tester.getBottomLeft(badge).dy, lessThanOrEqualTo(tester.getTopLeft(line).dy + 0.5));
     });
 
     // 평가 11차(10/18): 목록에서는 설명 줄 끝 짧은 '자동'(칩 아님, eval11_phone_test 1). 낭독은 '자동으로 해요'.
@@ -448,11 +449,9 @@ void main() {
       final badge = find.byKey(const Key('routine-next-badge-r-noon'));
       final line = find.byKey(const Key('routine-line-r-noon'));
       final name = findPlainText('점심 공기청정기 켜기');
-      expect(tester.getTopLeft(badge).dy, greaterThanOrEqualTo(tester.getBottomLeft(name).dy - 0.5));
-      final r = tester.getRect(line);
-      final b = tester.getRect(badge);
-      expect(b.top, greaterThanOrEqualTo(r.top - 0.5));
-      expect(b.bottom, lessThanOrEqualTo(r.bottom + 0.5));
+      // 평가 17차(10/18): 표지는 설명 줄 끝이 아니라 이름 옆(자리가 모자라면 이름 아래) — 설명 줄보다 위.
+      expect(name, findsOneWidget);
+      expect(tester.getBottomLeft(badge).dy, lessThanOrEqualTo(tester.getTopLeft(line).dy + 0.5));
     });
   });
 

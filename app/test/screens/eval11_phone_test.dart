@@ -273,21 +273,15 @@ void main() {
         expect(_in(row, find.byType(StatusBadge)), findsNothing, reason: id);
         final line = find.byKey(Key('routine-line-$id'));
         final mark = find.byKey(Key('routine-auto-badge-$id'));
-        expect(_in(line, mark), findsOneWidget, reason: id);
+        // 평가 17차(10/18): 표지는 설명 줄이 아니라 이름 옆 묶음.
+        expect(_in(find.byKey(Key('routine-marks-$id')), mark), findsOneWidget, reason: id);
         // 규칙이 꺼져 있으면(비상 정지로 꺼진 아침 규칙) '자동 꺼짐'(평가 14차 10/18 — 규칙 값이 먼저).
         expect(_in(mark, findPlainText(id == 'r-morn' ? '자동 꺼짐' : '자동')), findsOneWidget, reason: id);
-        // 설명 줄은 한 줄 — 표시가 다음 줄로 밀리지 않는다. 평가 15차(10/18): 누를 수 있는 '자동'은 터치 칸이 48dp라
-        // 그 줄 높이는 48까지(글 두 줄이면 그보다 높다).
-        if (_noKoreanFont == null) {
-          final t = tester.widget<Text>(line);
-          final lineH = (t.style?.fontSize ?? 14) * 1.6;
-          expect(tester.getSize(line).height, lessThan(lineH > 48 ? lineH : 49), reason: '$id ${tester.getSize(line)}');
-        }
-        final r = tester.getRect(line);
-        expect(tester.getCenter(mark).dy, inInclusiveRange(r.top, r.bottom), reason: id);
+        // 표지는 설명 줄보다 위(평가 17차).
+        expect(tester.getBottomLeft(mark).dy, lessThanOrEqualTo(tester.getTopLeft(line).dy + 0.5), reason: id);
       }
       final next = find.byKey(const Key('routine-next-badge-r-eve'));
-      expect(_in(find.byKey(const Key('routine-line-r-eve')), next), findsOneWidget);
+      expect(_in(find.byKey(const Key('routine-marks-r-eve')), next), findsOneWidget);
       expect(_in(next, findPlainText('다음')), findsOneWidget);
     });
 

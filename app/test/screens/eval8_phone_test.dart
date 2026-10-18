@@ -261,11 +261,9 @@ void main() {
       final clock = find.byKey(const Key('routine-line-r-eve'));
       final name = findPlainText('저녁 공기청정기 켜기');
       expect(badge, findsOneWidget);
-      // 시각 글 안, 이름 아래.
-      final c = tester.getCenter(badge).dy;
-      expect(c, greaterThanOrEqualTo(tester.getTopLeft(clock).dy - 2));
-      expect(c, lessThanOrEqualTo(tester.getBottomLeft(clock).dy + 2));
-      expect(tester.getTopLeft(badge).dy, greaterThanOrEqualTo(tester.getBottomLeft(name).dy - 0.5));
+      // 평가 17차(10/18): 표지는 설명 줄 끝이 아니라 이름 옆(자리가 모자라면 이름 아래) — 설명 줄보다 위.
+      expect(name, findsOneWidget);
+      expect(tester.getBottomLeft(badge).dy, lessThanOrEqualTo(tester.getTopLeft(clock).dy + 0.5));
     });
 
     testWidgets('줄 끝 ⋮ 없음 — 줄을 누르면 편집 화면(지우기는 그 안)', (tester) async {

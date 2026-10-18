@@ -248,7 +248,7 @@ void main() {
     expect(findPlainText('어제'), findsOneWidget);
     expect(findPlainText('9월 6일'), findsOneWidget);
     // 결과는 문장으로. 시각은 구획 안에서 시:분만, 따로 한 줄. '봐 주세요' 줄은 그 까닭 한 줄로(평가 10차 10/18).
-    expect(findPlainText('버튼은 다 눌렀어요, 움직이는지 봐 주세요'), findsNWidgets(3));
+    expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), findsNWidgets(3));
     // 동작을 확인하지 못한 물리 기록은 성공 체크가 아니라 중립 아이콘(UI 평가 5차 10/17 — 체크 바로 아래
     // '확인하지 못했어요'가 와서 신호가 섞였다).
     expect(find.byIcon(Icons.check_circle), findsNothing);
@@ -510,7 +510,7 @@ void main() {
     expect(findPlainText('전자레인지 즉석밥 버튼 누르기'), findsOneWidget);
     // 제목이 이미 이름을 말하면 시각 줄에서 되풀이하지 않는다. 목적 없는 실행은 수동 조작 화면에서 고른 것(평가 13차).
     expect(findPlainText('오전 8:10 · 화면에서 골라 누름'), findsOneWidget);
-    expect(findPlainText('버튼은 다 눌렀어요, 움직이는지 봐 주세요'), findsNWidgets(2)); // 평가 12차: 볼 것은 이 한 줄이 함께 말한다
+    expect(findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), findsNWidgets(2)); // 평가 17차: '봐 주세요'는 칩이 말한다
     expect(findPlainText('버튼 누르기'), findsOneWidget);
   });
 

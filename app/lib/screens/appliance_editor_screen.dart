@@ -682,7 +682,8 @@ class _ScanResultDialog extends StatelessWidget {
       actions: [
         FilledButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('확인'),
+          // 알려 주기만 하는 창은 '닫기'(평가 17차 10/18: 폰 안 닫는 단추 말 통일).
+          child: const Text('닫기'),
         ),
       ],
     );

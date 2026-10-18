@@ -179,7 +179,7 @@ void main() {
       final row = find.byKey(const ValueKey('history-j-rep'));
       final reason = find.byKey(const Key('history-reason-j-rep'));
       expect(_in(row, reason), findsOneWidget);
-      expect(find.descendant(of: reason, matching: findPlainText('버튼은 다 눌렀어요, 움직이는지 봐 주세요'), matchRoot: true),
+      expect(find.descendant(of: reason, matching: findPlainText('버튼은 다 눌렀어요. 가전이 움직였는지는 몰라요'), matchRoot: true),
           findsOneWidget);
       // 확인 수준은 그대로 — 초록 '됐어요'가 아니라 '봐 주세요'.
       final badge = tester.widget<StatusBadge>(_in(row, find.byType(StatusBadge)));
@@ -229,10 +229,10 @@ void main() {
       expect(sub, findsOneWidget);
       final data = tester.widget<Text>(sub).data!;
       final lines = data.replaceAll(kWordJoiner, '').split('\n');
-      expect(lines.map((l) => l.replaceAll(kNoBreakSpace, ' ')).toList(),
-          ['켜기·끄기는 여기서', '등록은 LG 앱에서']);
+      // 평가 17차(10/18): 한 문장 '등록은 LG 앱에서 해요'(eval17_phone_test 5).
+      expect(lines.map((l) => l.replaceAll(kNoBreakSpace, ' ')).toList(), ['등록은 LG 앱에서 해요']);
       // 'LG'와 '앱에서'는 떨어지지 않는다.
-      expect(lines[1], contains('LG$kNoBreakSpace앱에서'));
+      expect(lines[0], contains('LG$kNoBreakSpace앱에서'));
       if (_noKoreanFont == null) {
         final t = tester.widget<Text>(sub);
         final lineH = (t.style?.fontSize ?? 14) * 1.6;

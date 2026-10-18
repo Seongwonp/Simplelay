@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -137,7 +138,8 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
                       // 낱말 중간에서 꺾이지 않게(평가 10차 10/18). 평가 14차(10/18): '~이에요. ~않아요.'가 잇달아 단조로웠다 →
                       // 짧은 명사구 + 한 문장.
                       // 평가 15차(10/18): '묻지 않고 하도록 허락한 일.'은 번역투 명사문이었다 → 쉬운 말 한 문장 + 짧은 안내.
-                      const _Note('묻지 않고 바로 해요. 스위치로 꺼요',
+                      // 평가 17차(10/18): '~해요. ~꺼요' 토막 두 마디 → 자연스러운 한 문장(끄는 방법이 문장 안에).
+                      const _Note('스위치가 켜져 있는 동안은 묻지 않고 바로 해요',
                           key: Key('auto-rules-intro'), textKey: Key('auto-rules-intro-text')),
                       // 평가 15차(10/18): 그림자 진 흰 카드 한 장이 '내 루틴'의 면 없는 목록과 문법이 달랐다 → 같은 면 없는 줄,
                       // 줄 사이는 옅은 구분선.
@@ -628,52 +630,86 @@ class RowTextAction extends StatelessWidget {
       );
 }
 
-/// 루틴 설명 줄 끝의 작은 표시 — 굵은 짧은 글자 하나, 면·아이콘 없음(칩이 아니다, 평가 11차 10/18: '자동으로 해요' 칩이
-/// 줄마다 한 줄을 따로 차지했다). 아이콘까지 붙이면 '다음 · 자동' 두 개가 붙는 줄이 보통 폰 폭에서 두 줄로 꺾였다.
+/// 루틴 이름 옆 작은 표지 — '다음'·'자동'·'알려 드려요'. 면 없이 얇은 테두리 글자(평가 17차 10/18: 설명 줄 끝에
+/// ' · 다음 · 자동'으로 이어 붙이니 가운뎃점으로 시작하는 줄이 혼자 남고, 설명이 데이터 나열처럼 보였다).
+/// 설명 줄은 '매일 오후 10:00 · 공기청정기'처럼 짧게 두고, 표지는 이름 옆(자리가 모자라면 이름 아래)에 둔다.
 class _LineMark extends StatelessWidget {
-  const _LineMark(
-      {super.key, required this.label, this.semanticLabel, this.accent = false, this.muted = false, this.onTap, this.lead});
-
-  /// 누를 수 있는 표시에서만 — 앞 구분 글자(' · ')를 이 칸 안에 함께 그린다(줄에서는 따로 잇지 않는다).
-  final String? lead;
+  const _LineMark({super.key, required this.label, this.semanticLabel, this.accent = false, this.muted = false, this.onTap});
 
   final String label;
   final String? semanticLabel;
   final bool accent;
   final bool muted;
 
-  /// 있으면 누를 수 있는 표시(루틴 줄 '자동' → 그 규칙 스위치, 평가 14차 10/18). 밑줄 없이 48dp 터치 칸.
+  /// 있으면 누를 수 있는 표지(루틴 줄 '자동' → 그 규칙 스위치). 보이는 크기는 작게 두고, 손가락이 닿는 칸은
+  /// 줄 높이를 늘리지 않는 투명 확장 영역([TapSlop])으로 48dp를 준다(평가 17차: 48dp 칸을 설명 줄 높이로 주니
+  /// 이름과 설명 사이가 벌어져 설명이 다음 줄에 붙어 보였다).
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final color = muted ? context.appMuted : accent ? context.appPrimary : context.appInk;
-    // 평가 15차(10/18): 루틴 탭은 밑줄, 홈은 밑줄 없음으로 모양이 달랐다 → 밑줄 없이 홈과 같은 글자. 누를 수 있는
-    // 표시는 손가락이 닿는 칸으로 — 48dp 이상(지난 평가: 루틴 줄 '자동' 터치 칸이 48dp보다 작았다). 칸을 넓히면 줄이
-    // 꺾이므로 앞의 ' · '까지 이 칸에 넣어([lead]) 늘어나는 폭을 줄인다(보이는 모양은 같다).
-    final markStyle = TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: color);
+    final tag = Container(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
+      decoration: BoxDecoration(
+        border: Border.all(color: color.withValues(alpha: 0.6)),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Text(keepWordsTogether(label),
+          semanticsLabel: semanticLabel ?? label,
+          style: TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700, color: color, height: 1.25)),
+    );
     final tap = onTap;
-    final lead = this.lead;
-    final labelText = Text(keepWordsTogether(label), semanticsLabel: semanticLabel ?? label, style: markStyle);
-    final Widget text = tap == null || lead == null
-        ? labelText
-        : Row(mainAxisSize: MainAxisSize.min, children: [
-            ExcludeSemantics(
-                child: Text(lead, style: TextStyle(fontSize: AppFont.caption, color: context.appMuted))),
-            labelText,
-          ]);
-    if (tap == null) return text;
+    if (tap == null) return tag;
     return Semantics(
       button: true,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(8),
-        onTap: tap,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minWidth: kMinTouch, minHeight: kMinTouch),
-          child: Align(alignment: Alignment.centerLeft, widthFactor: 1, heightFactor: 1, child: text),
-        ),
-      ),
+      child: InkWell(borderRadius: BorderRadius.circular(6), onTap: tap, child: tag),
     );
+  }
+}
+
+/// 안쪽 [target]의 보이는 칸이 [minSize]보다 작으면, 그 둘레(가운데 맞춘 [minSize] 칸)를 눌러도 [target]이 눌린 것으로
+/// 받는다 — 줄 높이·간격은 그대로(평가 17차 10/18, 루틴 줄 '자동' 표지). 이 위젯의 칸 밖은 받지 못하므로 줄 전체를 감싼다.
+class TapSlop extends SingleChildRenderObjectWidget {
+  const TapSlop({super.key, required this.target, this.minSize = kMinTouch, super.child});
+
+  final GlobalKey target;
+  final double minSize;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => RenderTapSlop(target, minSize);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderTapSlop renderObject) {
+    renderObject
+      ..target = target
+      ..minSize = minSize;
+  }
+}
+
+class RenderTapSlop extends RenderProxyBox {
+  RenderTapSlop(this.target, this.minSize);
+
+  GlobalKey target;
+  double minSize;
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) {
+    final box = target.currentContext?.findRenderObject();
+    if (box is RenderBox && box.attached && box.hasSize && child != null) {
+      final topLeft = box.localToGlobal(Offset.zero, ancestor: this);
+      final rect = topLeft & box.size;
+      final slop = Rect.fromCenter(
+          center: rect.center,
+          width: rect.width < minSize ? minSize : rect.width,
+          height: rect.height < minSize ? minSize : rect.height);
+      if (!rect.contains(position) && slop.contains(position)) {
+        final inside = Offset(position.dx.clamp(rect.left + 0.5, rect.right - 0.5).toDouble(),
+            position.dy.clamp(rect.top + 0.5, rect.bottom - 0.5).toDouble());
+        return child!.hitTest(result, position: inside);
+      }
+    }
+    return super.hitTestChildren(result, position: position);
   }
 }
 
@@ -743,12 +779,12 @@ class _RoutineRow extends StatelessWidget {
         ? ((r.description ?? '').isNotEmpty ? r.description! : routineSubtitle(r, applianceNames))
         : routineListLine(r, applianceNames);
     final n = next;
-    // 줄 끝 표시 — 글 뒤에 ' · '로 이어 붙인 굵은 짧은 글자. 칩(면 있는 배지)이 아니다(평가 11차 10/18: '자동으로 해요'
-    // 칩이 줄마다 한 줄을 따로 차지했고 '다음' 칩은 설명 줄 오른쪽에 떠 있었다). 줄이 모자라면 표시 하나가 통째로 다음 줄로 간다.
+    // 표지(평가 17차 10/18) — 이름 옆 작은 테두리 글자. 설명 줄 끝에 ' · '로 잇지 않는다.
     final notify = !r.isTemplate && r.mode == RoutineMode.notify && r.enabled;
-    // 자동 표시 — 규칙이 있으면 규칙 켜짐, 없으면 본체 /routines/next의 auto.
+    // 자동 표지 — 규칙이 있으면 규칙 켜짐, 없으면 본체 /routines/next의 auto.
     final autoOn = autoRule?.enabled ?? auto;
     final skipping = (n?.quietSkip ?? false) || (n?.skipped ?? false);
+    final autoKey = GlobalObjectKey(this);
     final badges = <Widget>[
       // '다음' — 위에 따로 '다음: …' 줄을 두지 않고 그 줄에 붙인다. 조용한 시간이라 건너뛰면 그 말로.
       if (n != null)
@@ -757,91 +793,68 @@ class _RoutineRow extends StatelessWidget {
           // 한 번 건너뛴 회차(2026-10-18)는 본체 말 '오늘은 건너뛰어요'(modeText) — 아래 '되돌리기'와 짝.
           label: n.quietSkip || n.skipped ? n.modeText : '다음',
         ),
-      // 홈 '다음' 카드와 같은 '자동'(평가 14차 10/18: '자동으로 해요'·'자동'·'자동으로 하기'가 섞였다 → 표시는 '자동').
-      // 규칙이 있으면 그 켜짐이 먼저 — 꺼 둔 규칙도 '자동 꺼짐'으로 이 줄에서 닿는다(자동 실행을 끄고 켜는 곳이 이 줄이다).
-      // 조용한 시간·한 번 건너뛰는 회차는 위 표시가 말하고, 규칙이 있으면 누를 곳만 조용히 남긴다.
+      // 홈 '다음' 카드와 같은 '자동'. 규칙이 있으면 그 켜짐이 먼저 — 꺼 둔 규칙도 '자동 꺼짐'으로 이 줄에서 닿는다.
       if (!r.isTemplate && (autoRule != null || (auto && !(n?.quietSkip ?? false) && !(n?.skipped ?? false))))
-        _LineMark(
+        KeyedSubtree(
           key: Key('routine-auto-badge-$key'),
-          label: autoOn ? '자동' : '자동 꺼짐',
-          semanticLabel: autoOn
-              ? '자동 루틴${onAuto != null ? ', 눌러서 끄고 켜기' : ''}'
-              : '자동 꺼짐${onAuto != null ? ', 눌러서 켜기' : ''}',
-          accent: autoOn && !skipping,
-          muted: !autoOn || skipping,
-          onTap: onAuto,
-          lead: onAuto != null && line.isNotEmpty ? ' · ' : null,
+          child: _LineMark(
+            key: autoKey,
+            label: autoOn ? '자동' : '자동 꺼짐',
+            semanticLabel: autoOn
+                ? '자동 루틴${onAuto != null ? ', 눌러서 끄고 켜기' : ''}'
+                : '자동 꺼짐${onAuto != null ? ', 눌러서 켜기' : ''}',
+            accent: autoOn && !skipping,
+            muted: !autoOn || skipping,
+            onTap: onAuto,
+          ),
         ),
-      // 알림만 루틴(평가 4차 10/18) — 가전을 움직이지 않는 줄이라는 뜻. 누를 수 없는 글이라 버튼 자리가 아니라 이 줄 끝.
+      // 알림만 루틴(평가 4차 10/18) — 가전을 움직이지 않는 줄이라는 뜻.
       if (notify) const _LineMark(label: '알려 드려요'),
     ];
     final lineStyle = TextStyle(fontSize: AppFont.caption, color: context.appMuted);
     // '누를 버튼 2개'·'매일 오전 7:00' 같은 묶음 안에서 줄이 갈리지 않게(평가 4차 10/18). 낭독은 원문.
     final lineShown = r.isTemplate ? keepWordsTogether(line) : keepPhrasesTogether(line, wholeParts: !big);
-    final Widget? lineText = line.isEmpty && badges.isEmpty
+    final Widget? lineText = line.isEmpty
         ? null
-        : Text.rich(
-            TextSpan(children: [
-              TextSpan(text: lineShown),
-              // 평가 16차(10/18): 표시마다 따로 줄을 넘겨 '· 자동'이 줄 머리에 혼자 남았다 → 표시 묶음('· 다음 · 자동')을
-              // 앞 가운뎃점까지 한 덩어리로 넘긴다. 덩어리가 한 줄보다 길 때만 그 안에서 꺾인다(Wrap).
-              if (badges.isNotEmpty)
-                WidgetSpan(
-                  alignment: PlaceholderAlignment.middle,
-                  // 글 속 위젯은 Text가 글자 배율만큼 한 번 더 키운다 — 배지 안에서는 배율을 빼 두 번 커지지 않게
-                  // (200%에서 '자동으로 / 해요'가 배지 안에서 꺾였다).
-                  child: MediaQuery.withNoTextScaling(
-                    child: Wrap(
-                      key: Key('routine-marks-$key'),
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        for (var i = 0; i < badges.length; i++) ...[
-                          // 누를 수 있는 표시는 구분 글자를 제 칸 안에 그린다([_LineMark.lead]).
-                          if (!(badges[i] is _LineMark && (badges[i] as _LineMark).lead != null) &&
-                              (i > 0 || line.isNotEmpty))
-                            ExcludeSemantics(child: Text(' · ', style: lineStyle)),
-                          badges[i],
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-            ]),
-            key: Key('routine-line-$key'),
-            semanticsLabel: line,
-            style: lineStyle,
-          );
-    // 이름은 최대 두 줄(평가 8차 10/18: 큰 글씨에서 세 줄로 꺾여 단추가 밀렸다). 넘치면 줄임표 — 낭독은 이름 전체.
+        : Text(lineShown, key: Key('routine-line-$key'), semanticsLabel: line, style: lineStyle);
+    // 이름은 최대 두 줄(평가 8차 10/18). 넘치면 줄임표 — 낭독은 이름 전체.
     final nameText = Text(keepWordsTogether(r.name),
         semanticsLabel: r.name,
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: AppText.body.copyWith(fontWeight: FontWeight.w700));
-    // 줄 오른쪽 표시([trailing])는 모든 줄에서 **이름 줄** 옆 같은 자리 — 이름이 늘 첫 줄이라 높이도 같다.
-    // 그 아래 한 줄은 단추 밑까지 넓게 쓴다.
-    // 평가 16차(10/18): '지금 하기 >'는 이름 줄 옆, 아이콘은 두 줄 가운데라 세로 기준이 갈렸다 → 이름 줄을 아이콘
-    // 원과 같은 높이 칸에 두고 아이콘·이름·오른쪽 단추를 그 칸 가운데에 맞춘다. 설명 줄은 그 아래 단추 밑까지 넓게.
-    Widget textWith(Widget? trailing, {double? nameMinHeight}) => Column(
+    // 이름 + 표지 — 자리가 있으면 이름 옆, 모자라면 이름 아래 줄(큰 글씨). 표지끼리는 가운뎃점 없이 간격으로만.
+    final Widget nameLine = badges.isEmpty
+        ? nameText
+        : Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: AppSpace.sm,
+            runSpacing: AppSpace.xs,
+            children: [
+              nameText,
+              Wrap(
+                key: Key('routine-marks-$key'),
+                spacing: AppSpace.sm,
+                runSpacing: AppSpace.xs,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: badges,
+              ),
+            ],
+          );
+    // 홈 '내 루틴' 줄과 같은 촘촘한 틀(평가 17차 10/18): 이름 바로 아래 설명. 설명 칸에 높이를 따로 주지 않는다.
+    final text = Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ConstrainedBox(
-          constraints: BoxConstraints(minHeight: nameMinHeight ?? 0),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Expanded(child: nameText),
-            if (trailing != null) trailing,
-          ]),
-        ),
-        // 평가 16차(10/18): 누를 수 있는 '자동'(48dp 칸)이 있는 줄만 설명 줄이 높아져 이름-설명 간격이 줄마다 달랐다 →
-        // 모든 줄의 설명 줄을 같은 높이 칸(48dp 이상)에 앉힌다.
+        nameLine,
         if (lineText != null)
-          ConstrainedBox(
+          Padding(
             key: Key('routine-line-box-$key'),
-            constraints: const BoxConstraints(minHeight: kMinTouch),
-            child: Align(alignment: Alignment.centerLeft, widthFactor: 1, child: lineText),
+            padding: const EdgeInsets.only(top: AppSpace.xs),
+            child: lineText,
           ),
       ],
     );
-    final text = textWith(null);
     // 아이콘은 회색 원 안에 — 강조색(갈색)은 주 행동에만 쓴다(평가 5차 10/18).
     // 큰 글씨에서는 원·아이콘도 글자 배율을 따라 커진다(평가 15차 10/18, 상한 있음 — [textScaledIcon]).
     final circle = textScaledIcon(context, AppSpace.xxxl + AppSpace.sm);
@@ -910,19 +923,13 @@ class _RoutineRow extends StatelessWidget {
             : null;
     // 왼쪽 열은 모든 줄이 같은 폭의 가전 아이콘(평가 6차 10/18).
     final leadWidth = circle + AppSpace.md;
-    // 이름 줄 칸 높이 — 아이콘 원과 오른쪽 단추(48dp 칸) 가운데 큰 것.
-    final headHeight = circle > kMinTouch ? circle : kMinTouch;
+    // 아이콘 · 이름과 설명 · 오른쪽 단추가 같은 세로 가운데(평가 16차) — 홈 '내 루틴' 줄과 같은 틀.
     final head = Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        SizedBox(
-            width: leadWidth,
-            height: headHeight,
-            child: Align(alignment: Alignment.centerLeft, child: icon)),
-        Expanded(
-            child: Semantics(
-                container: true,
-                child: textWith(inline ? action : null, nameMinHeight: headHeight))),
+        SizedBox(width: leadWidth, child: Align(alignment: Alignment.centerLeft, child: icon)),
+        Expanded(child: Semantics(container: true, child: text)),
+        if (inline && action != null) ...[const SizedBox(width: AppSpace.xs), action],
       ],
     );
     return Padding(
@@ -939,15 +946,18 @@ class _RoutineRow extends StatelessWidget {
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 56),
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: AppSpace.xs),
-                child: head,
+                padding: const EdgeInsets.symmetric(vertical: AppSpace.sm),
+                // '자동' 표지의 48dp 손가락 칸 — 줄 높이를 늘리지 않는 투명 확장 영역.
+                child: TapSlop(target: autoKey, child: head),
               ),
             ),
           ),
           // 글씨를 키우면 행 표시를 이름 아래로 — 한 줄에 두면 이름 칸이 좁아져 낱말 중간에서 꺾인다(130%에서 "1|개").
           if (!inline && action != null)
             Padding(
-              padding: EdgeInsets.only(left: leadWidth, bottom: AppSpace.xs),
+              // 단추 안 왼쪽 여백(sm)만큼 당겨 글자가 이름 첫 글자와 같은 세로줄(평가 17차 10/18: '지금 하기'가 들여 쓰였다).
+              key: Key('routine-action-box-$key'),
+              padding: EdgeInsets.only(left: leadWidth - AppSpace.sm, bottom: AppSpace.xs),
               child: action,
             ),
           // '다음' 줄에만 '오늘은 건너뛰기' / '되돌리기'(2026-10-18) — 그 회차 한 번만. 줄 누름(편집)과 따로 받는다.

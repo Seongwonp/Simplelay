@@ -117,8 +117,9 @@ class SettingsScreen extends ConsumerWidget {
           // 도구는 개발자 탭으로 옮겼다.
           _NavGroup(children: [
             _NavRow(
-              // 본체는 집에 놓인 화면 달린 기기 — 네트워크 허브 그림은 쓰지 않는다(평가 5차 10/18).
-              icon: Icons.tablet_outlined,
+              // 평가 17차(10/18): 화면 달린 기기 그림(tablet)이 빈 네모처럼 보여 깨진 아이콘으로 읽혔다 → 집 안 기기를
+              // 잇는 본체 모양(router).
+              icon: Icons.router_outlined,
               title: '본체',
               // 2026-10-17 쉬운 말 사전: 폰·본체 화면 모두 '본체' — 이름 해명 문장은 뺐다.
               subtitle: _hubLine(rpi),
@@ -260,8 +261,9 @@ class SettingsScreen extends ConsumerWidget {
               subtitle: '날씨 출처와 이용 허락',
               onTap: () => context.push('/settings/info'),
             ),
-            // 개발자 도구 — 탭이 아니라 맨 아래 항목(2026-10-18). 서버 개발자 모드일 때만 보인다.
-            if (ref.watch(showDeveloperTabProvider))
+            // 개발자 도구 — 탭이 아니라 맨 아래 항목(2026-10-18). 서버 개발자 모드이고, 앱 정보에서 열었을 때만
+            // 보인다(평가 17차 10/18: 가족에게 그대로 보였다 — [developerUnlockedProvider]).
+            if (ref.watch(showDeveloperTabProvider) && ref.watch(developerUnlockedProvider))
               _NavRow(
                 key: const Key('settings-developer'),
                 icon: Icons.build_outlined,

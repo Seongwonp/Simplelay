@@ -28,6 +28,14 @@ final showDeveloperTabProvider = Provider<bool>(
   (ref) => ref.watch(developerModeProvider),
 );
 
+/// 설정 맨 아래 '개발자' 줄을 이 앱 실행 동안 열었는가 — 앱 정보 화면의 'SimpleLay' 이름을 [kDeveloperUnlockTaps]번
+/// 누르면 열린다(평가 17차 10/18: 개발 모드 본체에서 '개발자' 줄이 가족에게 그대로 보였다). 앱을 다시 켜면 닫힌다.
+/// 숨김일 뿐 접근 제한이 아니다 — 개발자 기능은 여전히 본체 개발자 모드·개발자 토큰이 막는다.
+final developerUnlockedProvider = StateProvider<bool>((ref) => false);
+
+/// 앱 정보 이름을 몇 번 눌러야 '개발자' 줄이 열리는지.
+const kDeveloperUnlockTaps = 7;
+
 /// 허브에 저장된 위치. 실패는 null(모름 -- '위치 없음'과 구분한다).
 final hubLocationProvider = FutureProvider.autoDispose<HubLocation?>((ref) async {
   final api = ref.watch(rpiApiServiceProvider);

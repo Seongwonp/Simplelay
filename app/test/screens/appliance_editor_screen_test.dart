@@ -410,7 +410,7 @@ void main() {
       expect(find.textContaining('다이얼이라 넣지 않았어요'), findsOneWidget);
       expect(find.textContaining('lever'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(FilledButton, '확인'));
+      await tester.tap(find.widgetWithText(FilledButton, '닫기'));
       await _pumpAFew(tester);
 
       expect(find.text('해동'), findsOneWidget);

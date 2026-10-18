@@ -516,7 +516,7 @@ class _HistoryRowState extends State<_HistoryRow> {
     final muted = context.appCaption;
     // 이유 한 줄 — '봐 주세요'는 결과 문장(평가 10차 10/18), '못 했어요'는 기록에 있는 이유(평가 14차 10/18).
     final look = badge.label == '봐 주세요';
-    final reason = look ? result.sentence : historyFailReason(entry, applianceName: applianceName);
+    final reason = look ? historyLookReason(result.sentence) : historyFailReason(entry, applianceName: applianceName);
     final reasonColor = look ? context.appWarning : context.appInk;
 
     final label = count > 1 ? '$count번 ${badge.label}' : badge.label;
@@ -536,7 +536,8 @@ class _HistoryRowState extends State<_HistoryRow> {
 
     // 큰 글씨에서는 결과를 제목 아래로 — 오른쪽에 두면 제목이 한 글자씩 꺾인다.
     final big = MediaQuery.textScalerOf(context).scale(1) > 1.3;
-    final head = Row(
+    const titleStyle = TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600);
+    Widget headFor(bool below) => Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // 왼쪽 = 누가(직접·루틴·자동). 회색 원 없이 아이콘만(평가 14차 10/18).
@@ -565,23 +566,41 @@ class _HistoryRowState extends State<_HistoryRow> {
               Text(keepActionNameTogether(title),
                   key: Key('history-title-${entry.jobId}'),
                   semanticsLabel: title,
-                  style: const TextStyle(fontSize: AppFont.body, fontWeight: FontWeight.w600)),
+                  style: titleStyle),
               // 낱말 중간에서 꺾이지 않게('전자레인/지' 방지). 가운뎃점은 앞 낱말에 붙여 줄 머리에 오지 않게
               // (평가 13차 10/18: '사람이 직접 / · 전자레인지'). 낭독은 원문.
-              Text(keepPhrasesTogether(timeLine, wholeParts: !big),
+              // 큰 글씨에서도 짧은 묶음('바로 실행'·'LG 가전')은 통째로(평가 17차 10/18: '바로 / 실행').
+              Text(keepPhrasesTogether(timeLine, wholeParts: true, wholeMax: big ? 6 : 12),
                   key: Key('history-time-${entry.jobId}'), semanticsLabel: timeLine, style: muted),
               if (reason != null)
                 Text(keepPhrasesTogether(reason),
                     key: Key('history-reason-${entry.jobId}'),
                     semanticsLabel: reason,
                     style: muted.copyWith(fontWeight: FontWeight.w600, color: reasonColor)),
-              if (big) ...[const SizedBox(height: AppSpace.xs), badgeWidget],
+              if (below) ...[const SizedBox(height: AppSpace.xs), badgeWidget],
             ],
           ),
         ),
-        if (!big) ...[const SizedBox(width: AppSpace.sm), badgeWidget],
+        if (!below) ...[const SizedBox(width: AppSpace.sm), badgeWidget],
       ],
     );
+
+    // 볼 것 칩(못 했어요·봐 주세요)이 오른쪽에 있으면 제목이 꺾일 때는 칩을 제목 아래로(평가 17차 10/18:
+    // '공기청정기 바람 / 중간으로 하기'). 큰 글씨는 늘 아래.
+    final head = LayoutBuilder(builder: (context, c) {
+      if (big) return headFor(true);
+      if (quiet) return headFor(false);
+      final scaler = MediaQuery.textScalerOf(context);
+      double widthOf(String t, TextStyle st) =>
+          (TextPainter(text: TextSpan(text: t, style: st), textDirection: TextDirection.ltr, textScaler: scaler)
+                ..layout())
+              .width;
+      final lead = textScaledIcon(context, AppSpace.xxxl) + AppSpace.sm;
+      // 칩 폭 = 글자 + 아이콘(16) + 사이(4) + 좌우 여백(8×2) + 테두리 여유.
+      final chip = widthOf(label, const TextStyle(fontSize: AppFont.caption, fontWeight: FontWeight.w700)) + 40;
+      final room = c.maxWidth - lead - AppSpace.sm - chip;
+      return headFor(widthOf(title, titleStyle) > room);
+    });
 
     // '버튼판에서 직접 누르기'는 물리 경로의 끝이 안 좋았던 실행만, 묶음이어도 한 번.
     final kind = result.kind;

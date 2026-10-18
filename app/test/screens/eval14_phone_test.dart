@@ -403,10 +403,9 @@ void main() {
       expect(autoRuleNameSaysAll(wind('HIGH')), isTrue);
     });
 
-    test("설정의 LG 가전 부제는 '~해요'로 끝나지 않는 짧은 말", () {
-      for (final line in kThinqSubtitleLines) {
-        expect(line.endsWith('해요'), isFalse, reason: line);
-      }
+    // 평가 17차(10/18): 짧은 명사구 두 줄이 토막말로 읽혔다 → 한 문장(eval17_phone_test 5).
+    test('설정의 LG 가전 부제는 한 줄', () {
+      expect(kThinqSubtitleLines, hasLength(1));
     });
 
     testWidgets('설정: 집 비우는 날에 하트, 어두운 화면에 해 아이콘을 쓰지 않는다', (tester) async {
