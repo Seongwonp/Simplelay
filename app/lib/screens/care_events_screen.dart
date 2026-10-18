@@ -294,17 +294,21 @@ class _CareEventCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 이름이 남는 폭을 쓴다 — 오늘이 아니면 시각이 '10월 18일 오전 8:01'로 길어져 Spacer 줄이 넘쳤다(10/19).
                   Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: AppFont.caption,
-                          fontWeight: FontWeight.w700,
-                          color: color,
+                      Expanded(
+                        child: Text(
+                          label,
+                          style: TextStyle(
+                            fontSize: AppFont.caption,
+                            fontWeight: FontWeight.w700,
+                            color: color,
+                          ),
                         ),
                       ),
-                      const Spacer(),
+                      const SizedBox(width: AppSpace.sm),
                       Text(
                         _formatTime(event.occurredAt),
                         style: TextStyle(
