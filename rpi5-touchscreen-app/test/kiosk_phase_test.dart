@@ -2102,8 +2102,12 @@ void main() {
           lastExecutionMode: 'mock'),
     );
     expect(done.reason, KioskFailureReason.unconfirmed);
-    expect(find.text('보냈지만 됐는지 몰라요'), findsOneWidget);
-    expect(find.text('LG 가전 · 받았어요'), findsOneWidget);
+    // LG 가전 명령 하나뿐인 카드는 결과 창 하나(사용자 요청 10/18) — 체크 없이 보낸 사실만(연습).
+    expect(find.byKey(const ValueKey('thinq-result')), findsOneWidget);
+    expect(find.text('연습 명령은 보냈어요'), findsOneWidget);
+    expect(find.text('실제 가전은 바꾸지 않았어요'), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('thinq-result')), matching: find.byIcon(Icons.check)),
+        findsNothing);
     expect(find.text('한 번 더 하기'), findsNothing);
     expect(find.text('작은 팔로 누를 버튼 고르기'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
@@ -2127,8 +2131,9 @@ void main() {
           lastConfirmation: 'none'),
     );
     expect(done.reason, KioskFailureReason.receiptUnknown);
-    // 문구 통일(3c064ec): '접수 불명' → '받았는지 몰라요'. 확인됨으로 올리지 않는다.
-    expect(find.text('LG 가전 · 받았는지 몰라요'), findsOneWidget);
+    // 받았는지 모름 — 확인됨으로 올리지 않고, 다시 보내기 전에 보라고(LG 가전 결과 창, 사용자 요청 10/18).
+    expect(find.text('명령이 전해졌는지 몰라요'), findsOneWidget);
+    expect(find.text('다시 보내기 전에 가전을 봐 주세요'), findsOneWidget);
     expect(find.textContaining('바뀐 것을 봤어요'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
   });
@@ -2156,7 +2161,9 @@ void main() {
     // 모의가 앞선다 — 모의 상태를 가전 상태 확인으로 말하지 않는다(10/6 리뷰).
     expect(find.text('연습을 마쳤어요'), findsOneWidget);
     expect(find.text('가전 상태를 확인했어요'), findsNothing);
-    expect(find.text('LG 가전 · 연습 결과'), findsOneWidget);
+    expect(find.byKey(const ValueKey('thinq-result')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('thinq-result')), matching: find.byIcon(Icons.check)),
+        findsNothing);
     expect(find.text('실제 가전은 바꾸지 않았어요'), findsOneWidget);
     // 실행 화면이 사라지는 전환 중이라 둘 다 보일 수 있다. 연습은 맨 위 띠로(2026-10-15).
     expect(find.text(kPracticeBandText), findsWidgets);

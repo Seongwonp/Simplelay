@@ -152,7 +152,8 @@ void main() {
           _expectFullyVisible(tester, hours, isText: false);
           // 예보 칸 이름도 오전/오후(평가 4차 10/18).
           for (final label in ['오전 12시', '오전 3시', '오전 6시', '오전 9시', '14°', '15°']) {
-            _expectFullyVisible(tester, find.text(label));
+            // 날짜 옆 바깥 기온(사용자 요청 10/18)도 같은 글자일 수 있다 — 예보 칸 안에서 찾는다.
+            _expectFullyVisible(tester, find.descendant(of: hours, matching: find.text(label)));
           }
           // 예보가 가전 줄에 걸치지 않는다.
           final strip = tester.getRect(find.byKey(const ValueKey('strip-washer')));

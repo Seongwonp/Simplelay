@@ -27,7 +27,11 @@ void main() {
         ),
       ),
     ));
-    expect(find.byIcon(Icons.nightlight_outlined), findsNWidgets(2));
-    expect(find.byIcon(Icons.wb_sunny_outlined), findsOneWidget);
+    final hours = find.byKey(const ValueKey('ambient-hours'));
+    expect(find.descendant(of: hours, matching: find.byIcon(Icons.nightlight_outlined)), findsNWidgets(2));
+    expect(find.descendant(of: hours, matching: find.byIcon(Icons.wb_sunny_outlined)), findsOneWidget);
+    // 날짜 옆 바깥 날씨(사용자 요청 10/18)도 밤이면 달 — 22:30의 지금 칸은 0시(90분 뒤).
+    final outside = find.byKey(const ValueKey('idle-outside'));
+    expect(find.descendant(of: outside, matching: find.byIcon(Icons.nightlight_outlined)), findsOneWidget);
   });
 }

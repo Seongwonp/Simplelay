@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/action_name.dart';
 import '../../models/appliance.dart';
+import '../../models/thinq_run.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
@@ -37,7 +38,13 @@ class KioskExecutingView extends StatelessWidget {
     required this.verificationConfidence,
     required this.verificationDetail,
     required this.onStop,
+    this.thinqOnly = false,
   });
+
+  /// LG 가전 명령 하나만 보내는 실행(사용자 요청 10/18) — 버튼판·누를 순서·작은 팔 문구 없이 가운데 기다림 표시와
+  /// '공기청정기에 명령을 보내는 중이에요' 한 줄. 정지 단추는 같은 자리·같은 모양. 서버가 누르는 버튼을 알려 오면
+  /// (작은 팔이 움직이는 실행이면) 이 표시를 쓰지 않고 종전 화면으로 돌아간다.
+  final bool thinqOnly;
 
   final String executionMode;
 
@@ -158,8 +165,63 @@ class KioskExecutingView extends StatelessWidget {
     return '누를 버튼 $total개 중 $now번째';
   }
 
+  /// LG 가전 보내는 중 — 위 띠(실행 중·가전 이름) + 가운데 기다림 + 한 줄 + 정지.
+  Widget _thinqSending(BuildContext context) {
+    final name = target?.name ?? '가전';
+    final line = thinqSendingLine(name, practice: _mock);
+    final sub = thinqSendingSub(practice: _mock);
+    final large = KioskLayout.isLarge(context);
+    return KioskRunFrame(
+      band: _mock
+          ? const KioskStatusBand.practice()
+          : KioskStatusBand(
+              tone: KioskBandTone.running,
+              icon: Icons.play_circle_outline,
+              label: '실행 중',
+              detail: target?.name,
+              detailIcon: target?.icon,
+            ),
+      header: const SizedBox.shrink(),
+      body: Semantics(
+        liveRegion: true,
+        label: '$line. $sub',
+        excludeSemantics: true,
+        child: KioskScrollArea(
+          key: const ValueKey('thinq-sending'),
+          center: true,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: large ? 64 : 96,
+                height: large ? 64 : 96,
+                child: const CircularProgressIndicator(strokeWidth: 8, color: KioskColors.running),
+              ),
+              SizedBox(height: large ? KioskSpace.sm : KioskSpace.lg),
+              KioskText(
+                line,
+                textKey: const ValueKey('thinq-sending-line'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                    fontSize: KioskType.status, fontWeight: FontWeight.w800, height: 1.25, color: Colors.white),
+              ),
+              const SizedBox(height: KioskSpace.xs),
+              KioskText(
+                sub,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: KioskColors.muted),
+              ),
+            ],
+          ),
+        ),
+      ),
+      stop: KioskStopButton(label: '정지', onPressed: onStop),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (thinqOnly && currentButton == null) return _thinqSending(context);
     final isDone = lastButtons != null;
     final target = this.target;
     final onPanel = currentOnPanel;

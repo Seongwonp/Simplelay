@@ -165,7 +165,8 @@ KioskIdleView _idle({
   Set<String> on = const {},
 }) =>
     KioskIdleView(
-      now: DateTime(2026, 9, 30, 7, 8),
+      // 7:38 — 예보 첫 칸(9시)이 지금 ±90분 안이라 날짜 옆에 바깥 날씨가 붙는다(사용자 요청 10/18).
+      now: DateTime(2026, 9, 30, 7, 38),
       connected: true,
       ambient: ambient,
       connections: connections,
@@ -653,7 +654,7 @@ void main() {
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
             nextRun: const KioskNextRun(
-                name: '아침 공기청정기 끄기', dayLabel: '오늘', hhmm: '07:00', modeLabel: '자동 실행')));
+                name: '저녁 공기청정기 켜기', dayLabel: '오늘', hhmm: '22:00', modeLabel: '자동 실행')));
   });
 
   testWidgets('평소 — 큰 글씨, 실내 공기 매우 나쁨', (t) async {
@@ -1097,5 +1098,57 @@ void main() {
         onDismiss: () {},
       ),
     );
+  });
+
+  // 사용자 요청(10/18) — LG 가전 실행은 버튼판·누를 순서 없이 기다림 + 한 줄, 끝나면 결과 창 하나.
+  KioskExecutingView thinqSending() => KioskExecutingView(
+        executionMode: 'real',
+        title: '공기청정기를 켤까요?',
+        target: _purifierAppliance,
+        thinqOnly: true,
+        lastButtons: null,
+        currentButton: null,
+        currentAttempt: null,
+        completedSteps: null,
+        totalSteps: 1,
+        verificationConfidence: null,
+        verificationDetail: null,
+        onStop: () {},
+      );
+  KioskDoneView thinqDone({bool confirmed = true, String? detail}) => KioskDoneView(
+        success: confirmed,
+        reason: confirmed ? null : KioskFailureReason.unconfirmed,
+        executionMode: 'real',
+        label: '공기청정기를 켤까요?',
+        target: _purifierAppliance,
+        thinqOnly: true,
+        route: 'thinq',
+        resultConfirmation: confirmed ? 'state_confirmed' : 'none',
+        detail: detail ?? (confirmed ? '전원 켜기로 바꿨어요.' : '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.'),
+        onDismiss: () {},
+      );
+
+  testWidgets('15인치 미리보기 — LG 가전 보내는 중', (t) async {
+    await _shoot15(t, 'kiosk15_thinq_sending', thinqSending());
+  });
+
+  testWidgets('15인치 미리보기 — LG 가전 결과(확인됨)', (t) async {
+    await _shoot15(t, 'kiosk15_thinq_result', thinqDone());
+  });
+
+  testWidgets('15인치 미리보기 — LG 가전 결과(바람 세기, 확인됨)', (t) async {
+    await _shoot15(t, 'kiosk15_thinq_result_wind', thinqDone(detail: '바람 세기 강으로 바꿨어요.'));
+  });
+
+  testWidgets('15인치 미리보기 — LG 가전 결과(확인 못 함)', (t) async {
+    await _shoot15(t, 'kiosk15_thinq_result_unconfirmed', thinqDone(confirmed: false));
+  });
+
+  testWidgets('LG 가전 보내는 중 — 큰 글씨', (t) async {
+    await _shoot(t, 'thinq_sending_large', thinqSending(), textScale: 1.22);
+  });
+
+  testWidgets('LG 가전 결과 — 큰 글씨', (t) async {
+    await _shoot(t, 'thinq_result_large', thinqDone(), textScale: 1.22);
   });
 }

@@ -597,6 +597,8 @@ void main() {
     expect(api.thinqCommands.single.$2, 'set_wind_strength');
     expect(api.thinqCommands.single.$3, {'wind_strength': 'HIGH'});
     expect(find.byType(KioskExecutingView), findsOneWidget);
+    // LG 가전은 버튼판 없이 보내는 중 표시(사용자 요청 10/18).
+    expect(find.byKey(const ValueKey('thinq-sending')), findsOneWidget);
     // 화면을 정리한다(타이머).
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

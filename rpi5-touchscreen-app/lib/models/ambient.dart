@@ -29,12 +29,19 @@ class AmbientHour {
   const AmbientHour({
     required this.label,
     required this.icon,
+    this.hour,
     this.temp,
     this.pop,
     this.precip = false,
   });
 
   final String label;
+
+  /// 칸 시각(0~23시, 서버 `hour`). 옛 서버면 칸 이름('15시')에서 읽는다. 모르면 null.
+  final int? hour;
+
+  /// 칸 시각 — [hour], 없으면 칸 이름에서.
+  int? get slotHour => hour ?? _hourOfLabel(label);
 
   /// clear | partly | cloudy | rain | snow
   final String icon;
@@ -46,11 +53,19 @@ class AmbientHour {
 
   factory AmbientHour.fromJson(Map<String, dynamic> json) => AmbientHour(
         label: json['label'] as String? ?? '',
+        hour: (json['hour'] as num?)?.toInt() ?? _hourOfLabel(json['label'] as String?),
         icon: json['icon'] as String? ?? '',
         temp: (json['temp'] as num?)?.toInt(),
         pop: (json['pop'] as num?)?.toInt(),
         precip: json['precip'] as bool? ?? false,
       );
+}
+
+int? _hourOfLabel(String? label) {
+  final m = RegExp(r'^(\d{1,2})시$').firstMatch((label ?? '').trim());
+  if (m == null) return null;
+  final h = int.parse(m.group(1)!);
+  return h <= 23 ? h : null;
 }
 
 class AmbientInfo {

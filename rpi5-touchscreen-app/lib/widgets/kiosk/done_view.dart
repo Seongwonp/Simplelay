@@ -4,6 +4,7 @@ import '../../models/action_name.dart';
 import '../../models/appliance.dart';
 import '../../models/command_result.dart';
 import '../../models/scenario_run.dart';
+import '../../models/thinq_run.dart';
 import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import '../../services/kiosk_api_service.dart' show KioskButtonResult;
@@ -50,7 +51,12 @@ class KioskDoneView extends StatelessWidget {
     this.onHold,
     this.pressed,
     this.stopPending = false,
+    this.thinqOnly = false,
   });
+
+  /// LG 가전 명령 하나만 보낸 실행(사용자 요청 10/18) — 성공·확인 못 함은 가운데 결과 창 하나([thinqResultCopy]):
+  /// 확인한 결과만 초록 체크, 확인 못 함은 체크 없이 '명령은 보냈어요'. 실패·정지는 종전 화면.
+  final bool thinqOnly;
 
   /// 정지로 끝난 실행의 확인 보고(stop_level)를 아직 기다리는 중(평가 8차 10/18) — 결과가 아니라 진행 상태로 보인다:
   /// '멈추는 중이에요', 처음 화면·보조 단추 없이 기다림 표시. 보고가 오거나 기다리기를 그만두면 화면이 false로 바꾼다.
@@ -149,8 +155,37 @@ class KioskDoneView extends StatelessWidget {
   final VoidCallback? onManual;
   final VoidCallback? onDismiss;
 
+  /// LG 가전 결과 창의 말. 이 화면을 쓰지 않는 결과(실패·정지·물리 경로)면 null.
+  ThinqResultCopy? get thinqCopy {
+    if (!thinqOnly || route != 'thinq') return null;
+    final r = reason;
+    final kind = success
+        ? ResultKind.success
+        : (r?.isUnconfirmed ?? false)
+            ? ResultKind.unconfirmed
+            : null;
+    if (kind == null) return null;
+    return thinqResultCopy(
+      applianceName: target?.name ?? '가전',
+      kind: kind,
+      receipt: r == KioskFailureReason.receiptUnknown ? 'unknown' : 'accepted',
+      confirmation: resultConfirmation,
+      detail: detail,
+      executionMode: executionMode,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (thinqCopy case final copy?) {
+      return _ThinqResult(
+          copy: copy,
+          target: this.target,
+          success: success,
+          held: autoReturnHeld,
+          onHold: onHold,
+          onClose: onDismiss);
+    }
     // 큰 글자(§1-8): 결과 원을 줄이고, 보조 단추(다시 시도·화면으로 조작하기)는 할 일 문장 아래 같은 세로 흐름으로
     // 옮긴다 — 가로 단추 줄이 두 줄로 접혀 할 일 줄을 스크롤 아래로 밀었다(2026-10-16 골든). '처음 화면으로'는 아래 고정.
     final large = KioskLayout.isLarge(context);
@@ -836,6 +871,152 @@ KioskFailureReason failureReasonOf(
           : KioskFailureReason.execution,
       ResultKind.success => KioskFailureReason.execution,
     };
+
+/// LG 가전 결과 창(사용자 요청 10/18) — 어두운 바탕 가운데 카드 하나: 결과 원(확인한 결과만 초록 체크) · 큰 글자 ·
+/// 한 줄 · '닫기'. 위 상태 띠는 다른 결과 화면과 같은 두 말('됐어요'·'확인해 주세요', 연습은 청록 띠).
+/// 확인한 성공은 몇 초 뒤 처음 화면(화면을 만지면 멈춘다), 확인 못 함은 '닫기'를 누를 때까지 남는다.
+class _ThinqResult extends StatelessWidget {
+  const _ThinqResult({
+    required this.copy,
+    required this.target,
+    required this.success,
+    required this.held,
+    required this.onHold,
+    required this.onClose,
+  });
+
+  final ThinqResultCopy copy;
+  final ApplianceMap? target;
+  final bool success;
+  final bool held;
+  final VoidCallback? onHold;
+  final VoidCallback? onClose;
+
+  @override
+  Widget build(BuildContext context) {
+    final large = KioskLayout.isLarge(context);
+    final (Color color, IconData icon, KioskStatusBand band) = switch (copy.tone) {
+      ThinqResultTone.confirmed => (
+          KioskColors.confirmed,
+          Icons.check,
+          const KioskStatusBand(tone: KioskBandTone.confirmed, icon: Icons.check, label: kBandDone),
+        ),
+      ThinqResultTone.attention => (
+          KioskColors.warning,
+          Icons.question_mark,
+          const KioskStatusBand(tone: KioskBandTone.attention, icon: Icons.help_outline, label: kBandCheck),
+        ),
+      ThinqResultTone.practice => (Colors.white, Icons.school_outlined, const KioskStatusBand.practice()),
+    };
+    final name = target?.name;
+    // 큰 글자에 가전 이름이 없으면(바람 세기 결과 등) 아래 작게 무엇의 결과인지.
+    final showName = name != null && name.isNotEmpty && !copy.headline.contains(name);
+    final card = Container(
+      key: const ValueKey('thinq-result'),
+      constraints: const BoxConstraints(maxWidth: KioskSizes.resultMaxWidth),
+      padding: const EdgeInsets.fromLTRB(KioskSpace.xl, KioskSpace.lg, KioskSpace.xl, KioskSpace.md),
+      decoration: BoxDecoration(
+        color: KioskColors.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: color.withValues(alpha: 0.6), width: 2),
+      ),
+      child: Semantics(
+        liveRegion: true,
+        label: [if (showName) name, copy.spoken].join('. '),
+        excludeSemantics: true,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              key: const ValueKey('thinq-result-ring'),
+              width: large ? KioskSizes.resultIconLarge : KioskSizes.resultIcon,
+              height: large ? KioskSizes.resultIconLarge : KioskSizes.resultIcon,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.16),
+                border: Border.all(color: color, width: 3),
+              ),
+              child: Icon(icon,
+                  size: (large ? KioskSizes.resultIconLarge : KioskSizes.resultIcon) * 0.6, color: color),
+            ),
+            SizedBox(height: large ? KioskSpace.xs : KioskSpace.md),
+            KioskText(
+              copy.headline,
+              textKey: const ValueKey('thinq-result-headline'),
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: KioskType.key, fontWeight: FontWeight.w800, height: 1.2, color: color),
+            ),
+            const SizedBox(height: KioskSpace.xs),
+            KioskText(
+              copy.sub,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontSize: KioskType.status, fontWeight: FontWeight.w700, height: 1.3, color: Colors.white),
+            ),
+            if (showName) ...[
+              const SizedBox(height: KioskSpace.xs),
+              KioskText(name,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
+            ],
+          ],
+        ),
+      ),
+    );
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => onHold?.call(),
+      child: ColoredBox(
+        color: KioskColors.bg,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            band,
+            Expanded(
+              child: KioskScrollArea(
+                center: true,
+                padding: const EdgeInsets.fromLTRB(KioskSpace.xl, KioskSpace.sm, KioskSpace.xl, KioskSpace.xs),
+                child: Center(child: card),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 4, 24, KioskSizes.actionsBottom),
+              child: Wrap(
+                alignment: WrapAlignment.center,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: KioskSpace.lg,
+                runSpacing: KioskSpace.xs,
+                children: [
+                  if (success)
+                    held
+                        ? const Text('자동으로 닫지 않아요',
+                            style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted))
+                        : const _AutoReturn(),
+                  if (onClose != null)
+                    ElevatedButton.icon(
+                      key: const ValueKey('thinq-result-close'),
+                      onPressed: onClose,
+                      icon: const Icon(Icons.close, size: KioskType.status),
+                      label: const Text('닫기',
+                          maxLines: 1,
+                          softWrap: false,
+                          style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+                      style: KioskButtons.primary(
+                          background: copy.tone == ThinqResultTone.attention
+                              ? KioskColors.neutralFill
+                              : KioskColors.primary,
+                          foreground: KioskColors.onAccent),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 
 class _ResultRing extends StatelessWidget {
   const _ResultRing(

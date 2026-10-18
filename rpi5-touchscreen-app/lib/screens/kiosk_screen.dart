@@ -11,6 +11,7 @@ import '../models/command_result.dart';
 import '../models/estop.dart';
 import '../models/thinq.dart';
 import '../models/scenario_run.dart';
+import '../models/thinq_run.dart';
 import '../services/kiosk_api_service.dart';
 import '../services/kiosk_event_stream.dart';
 import '../services/kiosk_settings_store.dart';
@@ -158,6 +159,10 @@ class _KioskScreenState extends State<KioskScreen> {
   // 이 실행이 대상으로 삼은 가전 -- 제안 승인은 제안의 대상, 수동은 조작판의
   // 가전, 폰이 시작한 실행은 서버가 말해준 대상.
   String? _execApplianceId;
+
+  /// 이 실행이 LG 가전 명령 하나뿐인가(사용자 요청 10/18) — 실행·결과 화면을 버튼판 없이 기다림·결과 창으로.
+  /// 승인에 묶인 명령이 LG 가전 하나(또는 LG 가전 상세에서 바꾼 것)일 때만. 이어받은 실행·섞인 루틴은 종전 화면.
+  bool _execThinqOnly = false;
 
   bool _doneSuccess = true;
   String _doneLabel = '';
@@ -486,7 +491,8 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 다시 시도는 두지 않는다(설정 변경은 상태를 다시 읽고 사람이 다시 고른다).
   void _onThinqAccepted(String jobId, String label) {
     if (!mounted || _phase != KioskPhase.manual) return;
-    _toExecuting(label, applianceId: _manualAppliance?.id, jobId: jobId);
+    _toExecuting(label,
+        applianceId: _manualAppliance?.id, jobId: jobId, thinqOnly: _manualAppliance?.isThinq ?? false);
     _poll();
   }
 
@@ -1210,7 +1216,8 @@ class _KioskScreenState extends State<KioskScreen> {
     });
   }
 
-  void _toExecuting(String title, {String? applianceId, String? jobId}) {
+  void _toExecuting(String title, {String? applianceId, String? jobId, bool thinqOnly = false}) {
+    _execThinqOnly = thinqOnly;
     _executionMode = 'unknown';
     _doneRoute = null;
     _doneConfirmation = null;
@@ -1277,7 +1284,19 @@ class _KioskScreenState extends State<KioskScreen> {
     // 이름을 모르면(빈 문자열) 이름 머리 없이 말한다(2026-10-14).
     // 음성도 화면 제목과 같은 행동 이름('즉석밥 데우기', 평가 4차 10/18).
     final lead = label.isEmpty ? '' : '${actionName(label)}, ';
-    _tts.speak(
+    // LG 가전 결과 창이면 창과 같은 말(사용자 요청 10/18).
+    final thinqCopy = KioskDoneView(
+      success: success,
+      label: label,
+      reason: success ? null : reason,
+      thinqOnly: _execThinqOnly,
+      route: _doneRoute,
+      resultConfirmation: _doneRawConfirmation,
+      detail: _doneDetail,
+      executionMode: _executionMode,
+      target: _execApplianceId == null ? null : _findIn(_appliances, _execApplianceId!),
+    ).thinqCopy;
+    _tts.speak(thinqCopy != null ? thinqCopy.spoken :
       // 화면과 같은 말. '완료되었습니다'는 조리·세탁이 끝났다고 들린다 --
       // 이 시스템이 끝낸 것은 버튼 조작이다.
       success
@@ -1352,7 +1371,10 @@ class _KioskScreenState extends State<KioskScreen> {
     // 실행·완료 화면은 카드의 질문이 아니라 무엇을 하는지(평서형)를 말한다.
     final label =
         suggestion.doneLabel(scenarioName: _scenarioNames[suggestion.scenarioId]);
-    _toExecuting(label, applianceId: suggestion.applianceId);
+    // LG 가전 명령 하나뿐인 카드면 버튼판 없는 기다림·결과 창(사용자 요청 10/18). 판정은 승인에 묶인 명령의 경로로.
+    _toExecuting(label,
+        applianceId: suggestion.applianceId,
+        thinqOnly: isSingleThinqCommand([for (final c in suggestion.commands) c.route]));
     _retryAction = () => _onApprove(suggestion: suggestion);
 
     try {
@@ -1732,6 +1754,7 @@ class _KioskScreenState extends State<KioskScreen> {
           verificationConfidence: _verificationConfidence,
           verificationDetail: _verificationDetail,
           onStop: _onStop,
+          thinqOnly: _execThinqOnly,
         );
       case KioskPhase.done:
         return KioskDoneView(
@@ -1748,6 +1771,7 @@ class _KioskScreenState extends State<KioskScreen> {
               : _findIn(_appliances, _execApplianceId!),
           reason: _doneReason,
           route: _doneRoute,
+          thinqOnly: _execThinqOnly,
           confirmation: _doneConfirmation,
           resultConfirmation: _doneRawConfirmation,
           detail: _doneDetail,

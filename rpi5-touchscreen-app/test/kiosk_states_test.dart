@@ -186,7 +186,9 @@ void main() {
       }
       // 비 오는 칸은 강수확률을 말한다(색만으로 말하지 않는다)
       expect(find.text('비 70%'), findsOneWidget); // 기온 칸과 섞이면 글자로(평가 4차 10/18)
-      expect(find.text('16°'), findsOneWidget);
+      expect(
+          find.descendant(of: find.byKey(const ValueKey('ambient-hours')), matching: find.text('16°')),
+          findsOneWidget);
       // 고정 명령 버튼은 없다
       expect(find.text('즉석밥'), findsNothing);
     });

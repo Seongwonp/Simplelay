@@ -218,9 +218,17 @@ class KioskIdleView extends StatelessWidget {
             // 재므로 쉬는 중 칩이 켜져도 자리가 바뀌지 않는다(UI 평가 4차 10/17 — 늘 누르던 자리가 밀렸다).
             SizedBox(height: _Idle.topRow, child: Row(children: [
               // 쉬는 중 칩이 켜지면 위 줄이 좁아진다 — 날짜는 말줄임 대신 살짝 줄여 다 보인다.
+              // 날짜 옆에 바깥 날씨·기온(사용자 요청 10/18 — 다음 루틴 카드에 가려 예보 칸이 안 보일 때가 많았다).
+              // 지금 칸이 없으면 붙이지 않는다([outsideNowSlot]).
               Expanded(child: FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft,
-                child: Text(_dateStr, maxLines: 1, softWrap: false,
-                  style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)))),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Text(_dateStr, maxLines: 1, softWrap: false,
+                    style: const TextStyle(fontSize: KioskType.body, color: KioskColors.muted)),
+                  if (outsideNowSlot(amb, now) case final slot?) ...[
+                    const SizedBox(width: KioskSpace.md),
+                    _OutsideNow(key: const ValueKey('idle-outside'), slot: slot),
+                  ],
+                ]))),
               if (dnd != null || quietUntil != null) ...[
                 _DndEntry(
                     key: const ValueKey('dnd-chip'),
@@ -862,6 +870,59 @@ class _TipCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// 날짜 옆 바깥 날씨에 쓸 **지금** 칸(사용자 요청 10/18). 서버 예보(`hourly`)는 3시간 간격 칸이고 다음 경계부터 온다
+/// (8:20이면 9·12·15·18시). 칸 시각이 지금 ±90분 안(3시간 칸이 대표하는 범위)이고 기온이 있을 때만 그 칸을 쓴다 —
+/// 먼 칸의 값을 지금 날씨처럼 보이지 않는다. 없으면 null(아무것도 붙이지 않는다).
+AmbientHour? outsideNowSlot(AmbientInfo? ambient, DateTime now) {
+  if (ambient == null) return null;
+  final minutes = now.hour * 60 + now.minute;
+  for (final h in ambient.hourly) {
+    final at = h.slotHour;
+    if (at == null || h.temp == null) continue;
+    // 자정을 넘는 칸(23:00 → 0시)도 가깝게 잰다: 차이를 -720..720분으로.
+    var diff = (at * 60 - minutes) % (24 * 60);
+    if (diff > 12 * 60) diff -= 24 * 60;
+    if (diff.abs() <= 90) return h;
+  }
+  return null;
+}
+
+String _weatherWord(String icon) => switch (icon) {
+      'clear' => '맑음',
+      'partly' => '구름 조금',
+      'cloudy' => '흐림',
+      'rain' => '비',
+      'snow' => '눈',
+      _ => '',
+    };
+
+/// 날짜 옆 '☁ 14°' — 아이콘은 예보 칸과 같은 모양(밤이면 달), 기온은 흰색 굵게(날짜보다 눈에 띄게).
+class _OutsideNow extends StatelessWidget {
+  const _OutsideNow({super.key, required this.slot});
+  final AmbientHour slot;
+
+  @override
+  Widget build(BuildContext context) {
+    final icon = _hourIcon(slot.icon, label: slot.label);
+    final word = _weatherWord(slot.icon);
+    return Semantics(
+      label: '바깥 ${word.isEmpty ? '' : '$word, '}${slot.temp}도',
+      excludeSemantics: true,
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        if (icon != Icons.remove) ...[
+          Icon(icon, size: KioskType.body + 5, color: Colors.white),
+          const SizedBox(width: 6),
+        ],
+        Text('${slot.temp}°',
+            maxLines: 1,
+            softWrap: false,
+            style: const TextStyle(
+                fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
+      ]),
     );
   }
 }
