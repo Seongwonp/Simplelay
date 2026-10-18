@@ -1035,6 +1035,19 @@ class AutoRuleEngine:
                     for rule in rules]
         return [self._try_run(rule, record, key, now) for rule in rules]
 
+    def on_time_skipped(self, routine, scheduled: datetime, reason: str) -> list[dict]:
+        """사용자가 '다음 루틴 건너뛰기'로 고른 회차(2026-10-18) — 보내지 않고 켜진 시각 규칙마다 ``skipped`` 기록만 남긴다.
+        같은 회차를 처리한 것으로 표시해(``SeenEvents``) 그 뒤 같은 시각이 다시 와도 보내지 않는다."""
+        rules = [r for r in self.store.list()
+                 if r.is_time and r.condition_routine_id == routine.routine_id and r.enabled]
+        if not rules:
+            return []
+        key = time_event_key(routine.routine_id, scheduled)
+        self._seen.add(key)
+        record = {"appliance_id": None, "event": TIME_EVENT, "source": "schedule", "state": None,
+                  "routine_id": routine.routine_id, "scheduled_at": scheduled.isoformat()}
+        return [self._record(rule, record, key, "skipped", reason) for rule in rules]
+
     @staticmethod
     def _matches(rule: AutoRule, record: Mapping) -> bool:
         if rule.is_time:

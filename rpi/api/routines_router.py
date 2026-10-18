@@ -93,14 +93,19 @@ def next_routines(limit: int = Query(3, ge=1, le=10)) -> list[dict]:
 
     조용한 시간이 켜져 있고 그 회차가 시간대 안이면(시작 포함·끝 제외 — 실행 판정과 같다) ``quiet_skip``과
     표시 말 '조용한 시간이라 건너뜀'을 붙인다(UI 평가 8차 10/17: 규칙 카드는 '건너뛰어요'인데 이 카드는 '실행'이라 했다).
-    폰·키오스크는 ``mode_label``을 그대로 보인다."""
+    폰·키오스크는 ``mode_label``을 그대로 보인다.
+
+    한 번 건너뛰기(2026-10-18): 항목마다 ``skipped``·``skip_label``·``skip_action_label`` — ``POST /routines/next/skip``."""
+    return _with_quiet(get_routine_engine().next_runs(limit=limit))
+
+
+def _with_quiet(items: list[dict]) -> list[dict]:
     from datetime import datetime  # noqa: PLC0415
 
     from rpi.services.quiet_hours import window_contains  # noqa: PLC0415
 
     from .deps import get_quiet_hours  # noqa: PLC0415
 
-    items = get_routine_engine().next_runs(limit=limit)
     try:
         quiet = get_quiet_hours().settings()
     except Exception:  # noqa: BLE001 — 표시용이다. 모르면 붙이지 않는다
@@ -116,6 +121,33 @@ def next_routines(limit: int = Query(3, ge=1, le=10)) -> list[dict]:
             item["quiet_skip"] = True
             item["mode_label"] = "조용한 시간이라 건너뜀"
     return items
+
+
+def _set_skip(body: dict, skip: bool) -> dict:
+    from rpi.routines.engine import RoutineSkipError  # noqa: PLC0415
+
+    routine_id = body.get("routine_id")
+    if not isinstance(routine_id, str) or not routine_id:
+        raise HTTPException(status_code=422, detail="어느 루틴인지 routine_id를 보내 주세요")
+    try:
+        item = get_routine_engine().set_skip(routine_id, body.get("at"), skip)
+    except RoutineSkipError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+    return _with_quiet([item])[0]
+
+
+@router.post("/routines/next/skip")
+def skip_next_routine(body: dict = Body(...)) -> dict:
+    """'오늘은 건너뛰기' — ``{"routine_id", "at"}``(``/routines/next`` 항목 그대로)의 **그 회차 한 번만** 하지 않는다.
+    카드도 자동 실행도 없이 기록만 남고 다음 회차부터는 원래대로. 지난 회차·이미 시작한 회차·다음 회차와 다른 시각은 409
+    (건너뛰기는 실행을 멈추지 않는다 — 정지는 ``/stop``). 응답은 바뀐 ``/routines/next`` 항목. 재시작해도 남는다."""
+    return _set_skip(body, True)
+
+
+@router.post("/routines/next/unskip")
+def unskip_next_routine(body: dict = Body(...)) -> dict:
+    """건너뛰기 되돌리기 — 본문·거절은 ``/routines/next/skip``과 같다. 건너뛰지 않았어도 200(같은 결과)."""
+    return _set_skip(body, False)
 
 
 @router.get("/routines/templates")

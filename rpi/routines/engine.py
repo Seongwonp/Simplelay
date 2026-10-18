@@ -52,6 +52,10 @@ TIME_WINDOW_MINUTES = 10
 #: 시각 루틴이 이미 띄운 회차(루틴 ID → [날짜, 시각]) — 서버 DB 설정 한 칸(2026-10-16 결함 ①).
 FIRED_SETTING = "routine_time_fired"
 KIND_ROUTINE_NOTICE = "routine_notice"
+#: '다음 루틴' 한 번 건너뛰기(2026-10-18) — 루틴 ID → 건너뛸 회차 시각(ISO). 루틴마다 한 회차뿐. 서버 DB 설정 한 칸.
+SKIP_SETTING = "routine_skip_next"
+#: 건너뛴 회차의 기록 말(루틴 기록·자동 실행 기록) — 그 회차 시각에 쓰므로 늘 '오늘'이다.
+SKIP_REASON = "오늘은 건너뛰기로 해서 안 했어요"
 
 _ZONE_LEVEL = {"idle": 0, "room_present": 1, "approaching": 2, "at_device": 2}
 _ZONE_NEEDS = {"room": 1, "near": 2}
@@ -59,6 +63,36 @@ _ZONE_NEEDS = {"room": 1, "near": 2}
 
 class RoutineUnavailableError(RuntimeError):
     """지금은 이 루틴의 카드를 만들 수 없다(가전 미등록·준비 안 됨·부재·쉬는 중)."""
+
+
+class RoutineSkipError(Exception):
+    """'다음 루틴 건너뛰기'를 받을 수 없다 — ``status``(HTTP)와 화면에 그대로 보여도 되는 ``message``."""
+
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(message)
+        self.status = status
+        self.message = message
+
+
+SKIP_PAST_DETAIL = "이미 지난 회차라 바꿀 수 없어요 — 지금 하고 있으면 정지를 눌러 주세요"
+SKIP_CHANGED_DETAIL = "다음 회차가 바뀌었어요 — 화면을 새로 고친 뒤 다시 눌러 주세요"
+SKIP_NO_NEXT_DETAIL = "켜진 시각 루틴만 건너뛸 수 있어요"
+
+
+def _parse_at(value) -> datetime | None:
+    try:
+        return datetime.fromisoformat(value) if isinstance(value, str) else None
+    except ValueError:
+        return None
+
+
+def _same_instant(a: datetime | None, b: datetime | None) -> bool:
+    if a is None or b is None:
+        return False
+    try:
+        return a == b
+    except TypeError:
+        return False
 
 
 _WEEKDAYS = "월화수목금토일"
@@ -97,6 +131,9 @@ class RoutineEngine:
         #: '이 회차는 이미 띄웠다'를 남기는 저장소(2026-10-16 결함 ①) — 없으면 메모리만(재시작하면 10분 창 안에서
         #: 같은 카드가 다시 떴다). restore_fired로 연결한다.
         self._save_fired = None
+        #: 한 번 건너뛸 회차(루틴 ID → ISO 시각, 2026-10-18). restore_skips로 DB에 잇는다.
+        self._skips: dict[str, str] = {}
+        self._save_skips = None
         self._seen_transitions = 0
         self._last_transition_key = None
         self._log: deque[dict] = deque(maxlen=50)
@@ -161,11 +198,118 @@ class RoutineEngine:
         except Exception:  # noqa: BLE001 — 저장 실패로 카드를 막지 않는다(메모리 기억은 남는다)
             log.exception("routine fired occurrence save failed")
 
+    # ── 다음 회차 한 번 건너뛰기(2026-10-18) ──────────────────────────────────
+    def restore_skips(self, load, save) -> None:
+        """재시작 뒤에도 '이 회차는 건너뛴다'가 남게 저장값을 읽고 저장 함수를 건다. 깨진 값은 버린다."""
+        try:
+            raw = json.loads(load(SKIP_SETTING) or "{}")
+            restored = {str(k): str(v) for k, v in raw.items() if _parse_at(v) is not None}
+        except (ValueError, TypeError, AttributeError):
+            restored = {}
+        with self._lock:
+            restored.update(self._skips)
+            self._skips = restored
+            self._save_skips = save
+
+    def _persist_skips(self) -> None:
+        save = self._save_skips
+        if save is None:
+            return
+        with self._lock:
+            snapshot = json.dumps(self._skips)
+        try:
+            save(SKIP_SETTING, snapshot)
+        except Exception:  # noqa: BLE001 — 저장 실패는 기록만(메모리 기억은 남는다)
+            log.exception("routine skip save failed")
+
+    def _prune_skips_locked(self, now: datetime) -> bool:
+        """회차 시각 + 창이 지난 건너뛰기는 버린다(그 회차는 이미 지나 의미가 없다 — 꺼진 루틴 등으로 쓰이지 않은 것)."""
+        stale = []
+        for routine_id, raw in self._skips.items():
+            at = _parse_at(raw)
+            try:
+                if at is None or at + timedelta(minutes=TIME_WINDOW_MINUTES) <= now:
+                    stale.append(routine_id)
+            except TypeError:
+                stale.append(routine_id)
+        for routine_id in stale:
+            del self._skips[routine_id]
+        return bool(stale)
+
+    @staticmethod
+    def _next_occurrence(routine: Routine, now: datetime) -> datetime | None:
+        """켜진 시각 루틴의 다음 회차(지금보다 뒤). 없으면 None."""
+        trigger = routine.trigger
+        if not routine.enabled or trigger.kind != "time":
+            return None
+        at = parse_hhmm(trigger.time)
+        for offset in range(8):
+            day = now + timedelta(days=offset)
+            if day.weekday() not in trigger.days:
+                continue
+            when = day.replace(hour=at.hour, minute=at.minute, second=0, microsecond=0)
+            if when > now:
+                return when
+        return None
+
+    def set_skip(self, routine_id, at_value, skip: bool, now: datetime | None = None) -> dict:
+        """``/routines/next``가 준 회차(``at``) 한 번만 건너뛴다(``skip=False``면 되돌린다). 같은 요청을 다시 해도 같다.
+
+        지난 회차(이미 시작한 회차 포함)·다음 회차와 다른 시각은 거절한다 — 건너뛰기는 이미 시작한 실행을 멈추지 않는다
+        (정지는 ``/stop``). 판정과 저장은 ``tick``의 '이 회차를 띄웠다' 표시와 같은 잠금 안에서 한다(경계에서 둘 다
+        일어나지 않게). 돌려주는 값은 그 루틴의 ``/routines/next`` 항목."""
+        routine = self._store.get(routine_id) if isinstance(routine_id, str) and routine_id else None
+        if routine is None:
+            raise RoutineSkipError(404, "루틴을 찾을 수 없어요")
+        at = _parse_at(at_value)
+        if at is None:
+            raise RoutineSkipError(422, "회차 시각은 '다음 루틴'이 준 값 그대로 보내 주세요")
+        with self._lock:
+            now = now or self._clock.now()
+            try:
+                past = at <= now
+            except TypeError:  # 시간대 표기가 다르다 — 우리가 준 값이 아니다
+                raise RoutineSkipError(409, SKIP_CHANGED_DETAIL) from None
+            started = self._fired.get(routine.routine_id) == (at.date().isoformat(), routine.trigger.time)
+            if past or started:
+                raise RoutineSkipError(409, SKIP_PAST_DETAIL)
+            expected = self._next_occurrence(routine, now)
+            if expected is None:
+                raise RoutineSkipError(409, SKIP_NO_NEXT_DETAIL)
+            if not _same_instant(expected, at):
+                raise RoutineSkipError(409, SKIP_CHANGED_DETAIL)
+            self._prune_skips_locked(now)
+            if skip:
+                self._skips[routine.routine_id] = expected.isoformat()
+            else:
+                self._skips.pop(routine.routine_id, None)
+        self._persist_skips()
+        item = next((i for i in self.next_runs(now=now, limit=10_000) if i["routine_id"] == routine.routine_id), None)
+        if item is None:  # 그 사이 루틴이 꺼졌다
+            raise RoutineSkipError(409, SKIP_NO_NEXT_DETAIL)
+        return item
+
+    def _skip_time(self, routine: Routine, scheduled: datetime) -> None:
+        """건너뛰기로 한 회차 — 카드도 자동 실행도 없이 기록만 남긴다(루틴 기록, 시각 규칙이 켜져 있으면 자동 실행 기록도)."""
+        self._record(routine, "time", "skipped", SKIP_REASON, scheduled_at=scheduled.isoformat())
+        if self._auto_rules is None:
+            return
+        try:
+            engine = self._auto_rules()
+            if engine is not None:
+                engine.on_time_skipped(routine, scheduled, SKIP_REASON)
+        except Exception:  # noqa: BLE001 — 기록 실패로 건너뛰기를 바꾸지 않는다(실행하지 않는 쪽)
+            log.exception("recording the skipped time occurrence failed")
+
     # ── 트리거 ──────────────────────────────────────────────────────────────
     def tick(self, now: datetime | None = None) -> list:
         """주기 호출(main.py). 시각 트리거와 다가옴 트리거를 본다."""
         now = now or self._clock.now()
         fired = []
+        with self._lock:
+            pruned = bool(self._skips) and self._prune_skips_locked(now)
+        if pruned:
+            self._persist_skips()
         for routine in self._store.list():
             trigger = routine.trigger
             if not routine.enabled or trigger.kind != "time" or now.weekday() not in trigger.days:
@@ -179,7 +323,15 @@ class RoutineEngine:
                 if self._fired.get(routine.routine_id) == key:
                     continue
                 self._fired[routine.routine_id] = key
+                # '다음 루틴 건너뛰기'(2026-10-18) — 이 회차를 건너뛰기로 했으면 카드·자동 실행 없이 기록만. 한 번 쓰고 지운다.
+                skipped = _same_instant(_parse_at(self._skips.get(routine.routine_id)), scheduled)
+                if skipped:
+                    del self._skips[routine.routine_id]
             self._persist_fired()
+            if skipped:
+                self._persist_skips()
+                self._skip_time(routine, scheduled)
+                continue
             if self._auto_time(routine, scheduled, now):
                 continue  # 허용한 시각 규칙이 맡았다(보냄·막힘·중복) — 카드를 만들지 않는다
             fired.append(self._fire(routine, f"{trigger.describe()} 시각이에요", False, "time"))
@@ -312,36 +464,36 @@ class RoutineEngine:
     # ── 다음 실행 ────────────────────────────────────────────────────────────
     def next_runs(self, now: datetime | None = None, limit: int = 3) -> list[dict]:
         """켜진 시각 루틴의 가까운 회차. ``auto``: 허용한 시각 규칙이 켜져 카드 없이 실행한다(외부 평가 10/16 p02 —
-        아래 줄의 '자동 실행 켜짐'과 같은 말). ``day_label``: 오늘·내일·요일."""
+        아래 줄의 '자동 실행 켜짐'과 같은 말). ``day_label``: 오늘·내일·요일.
+
+        건너뛰기(2026-10-18): ``skipped``(이 회차는 건너뛴다)·``skip_label``('오늘은 건너뛰어요', 아니면 None)·
+        ``skip_action_label``(단추 말 '오늘은 건너뛰기'). 건너뛴 회차도 지나기 전까지는 그대로 보인다(되돌리기)."""
         now = now or self._clock.now()
         upcoming = []
         try:
             rules = self._auto_rules() if self._auto_rules is not None else None
         except Exception:  # noqa: BLE001 — 표시용이다. 모르면 승인으로 보인다(더 보수적)
             rules = None
+        with self._lock:
+            skips = dict(self._skips)
         for routine in self._store.list():
-            trigger = routine.trigger
-            if not routine.enabled or trigger.kind != "time":
+            when = self._next_occurrence(routine, now)
+            if when is None:
                 continue
-            at = parse_hhmm(trigger.time)
-            for offset in range(8):
-                day = now + timedelta(days=offset)
-                if day.weekday() not in trigger.days:
-                    continue
-                when = day.replace(hour=at.hour, minute=at.minute, second=0, microsecond=0)
-                if when <= now:
-                    continue
-                try:
-                    auto = bool(rules is not None and routine.mode == "approve"
-                                and rules.time_rule_on(routine.routine_id))
-                except Exception:  # noqa: BLE001
-                    auto = False
-                upcoming.append({"routine_id": routine.routine_id, "name": routine.name,
-                                 "icon": routine.icon, "at": when.isoformat(),
-                                 "when": trigger.describe(), "mode": routine.mode,
-                                 "mode_label": "자동 실행" if auto else MODE_LABELS[routine.mode],
-                                 "auto": auto, "day_label": _day_label(when, now)})
-                break
+            try:
+                auto = bool(rules is not None and routine.mode == "approve"
+                            and rules.time_rule_on(routine.routine_id))
+            except Exception:  # noqa: BLE001
+                auto = False
+            day = _day_label(when, now)  # 오늘·내일·○요일 — 모두 받침이 있어 '은'
+            skipped = _same_instant(_parse_at(skips.get(routine.routine_id)), when)
+            upcoming.append({"routine_id": routine.routine_id, "name": routine.name,
+                             "icon": routine.icon, "at": when.isoformat(),
+                             "when": routine.trigger.describe(), "mode": routine.mode,
+                             "mode_label": "자동 실행" if auto else MODE_LABELS[routine.mode],
+                             "auto": auto, "day_label": day,
+                             "skipped": skipped, "skip_label": f"{day}은 건너뛰어요" if skipped else None,
+                             "skip_action_label": f"{day}은 건너뛰기"})
         upcoming.sort(key=lambda item: item["at"])
         return upcoming[:limit]
 

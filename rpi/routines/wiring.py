@@ -60,6 +60,7 @@ def wire_routines(suggestions, service, scenario_engine=None) -> RoutineEngine:
     db = deps.get_db()
     if db is not None:  # 재시작해도 같은 시각 회차 카드를 다시 띄우지 않는다(2026-10-16 결함 ①)
         engine.restore_fired(db.load_setting, db.save_setting)
+        engine.restore_skips(db.load_setting, db.save_setting)  # '다음 루틴 건너뛰기'도 재시작 뒤 남는다(2026-10-18)
     scenarios = scenario_engine.catalog.current_commands if scenario_engine is not None else None
 
     def resolve(scenario_id):
