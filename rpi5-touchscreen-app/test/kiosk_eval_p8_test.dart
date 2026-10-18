@@ -1,11 +1,11 @@
 // 평가 8차(2026-10-18) 지적 수리 — 키오스크. 옛 코드에도 있는 공개 구성(+ 새 선택 인자)만 써서 옛 코드에서 실패하는 것을 확인한다.
 //
-// 1. 결과 화면의 정지 — '멈추는 중이에요'(진행 중 말)를 끝난 화면에 쓰지 않는다. 결과는 '작은 팔이 멈췄어요'(엔코더 확인,
-//    verified) 또는 '작은 팔이 멈췄는지 몰라요'(그 밖) 둘뿐. 정지 확인을 아직 기다리는 동안(stopPending)만 진행 상태로
+// 1. 결과 화면의 정지 — '멈추는 중이에요'(진행 중 말)를 끝난 화면에 쓰지 않는다. 결과는 '누름 장치가 멈췄어요'(엔코더 확인,
+//    verified) 또는 '누름 장치가 멈췄는지 몰라요'(그 밖) 둘뿐. 정지 확인을 아직 기다리는 동안(stopPending)만 진행 상태로
 //    '멈추는 중이에요'를 보이고 처음 화면 단추를 숨긴다.
-// 2. 정지 미확인 대기 — 오른쪽 버튼판은 '직접 누를 버튼이에요' + 취소 칸 주의색. '작은 팔이 … 대신 눌렀어요' 대신
-//    '작은 팔도 … 눌렀지만 눌렸는지 확인이 안 됐어요'.
-// 3. 결과 화면 보조 단추 — '화면에서 직접 누르기'는 손으로 가전을 누르라는 말과 헷갈렸다 → '작은 팔로 골라 누르기'.
+// 2. 정지 미확인 대기 — 오른쪽 버튼판은 '직접 누를 버튼이에요' + 취소 칸 주의색. '누름 장치가 … 대신 눌렀어요' 대신
+//    '누름 장치도 … 눌렀지만 눌렸는지 확인이 안 됐어요'.
+// 3. 결과 화면 보조 단추 — '화면에서 직접 누르기'는 손으로 가전을 누르라는 말과 헷갈렸다 → '누름 장치로 골라 누르기'.
 // 4. 문구 통일 — 잠시 쉬기 설명 하나(새 제안과 자동으로 하는 일), 실행 화면 누를 순서에 머리말·끝낸 칸 이름 자리,
 //    결과 화면 할 일 줄은 마침표 없이.
 // 5. 제안 질문 — 사람 명령문('즉석밥 데워줘')이 아니라 할 일 이름('즉석밥 데우기, 지금 할까요?').
@@ -61,10 +61,10 @@ KioskDoneView _stopped(String? level, {String mode = 'real', bool pending = fals
 void main() {
   group('1. 결과 화면의 정지 — 멈췄어요 / 멈췄는지 몰라요 둘뿐', () {
     for (final level in ['sent', 'mcu_ack', null]) {
-      testWidgets('확인 안 된 정지($level)는 끝난 화면에서 "작은 팔이 멈췄는지 몰라요", 진행 말 없음', (tester) async {
+      testWidgets('확인 안 된 정지($level)는 끝난 화면에서 "누름 장치가 멈췄는지 몰라요", 진행 말 없음', (tester) async {
         await _pump(tester, _stopped(level));
         final all = _texts(tester).join('\n');
-        expect(all, contains('작은 팔이 멈췄는지 몰라요'));
+        expect(all, contains('누름 장치가 멈췄는지 몰라요'));
         expect(all, isNot(contains('중이에요')));
         expect(all, isNot(contains('멈췄어요')));
         // 물음표는 위 띠가 말한다 — 순서 안내가 있으면 큰 원을 두지 않는다(평가 15차 10/18).
@@ -74,15 +74,15 @@ void main() {
       });
     }
 
-    testWidgets('엔코더로 확인한 정지(verified)만 "작은 팔이 멈췄어요"', (tester) async {
+    testWidgets('엔코더로 확인한 정지(verified)만 "누름 장치가 멈췄어요"', (tester) async {
       await _pump(tester, _stopped('verified'));
       final all = _texts(tester).join('\n');
-      expect(all, contains('작은 팔이 멈췄어요'));
+      expect(all, contains('누름 장치가 멈췄어요'));
       expect(all, isNot(contains('몰라요')));
       expect(find.byKey(const ValueKey('done-ring')), findsNothing);
     });
 
-    testWidgets('연습 정지는 연습을 멈췄다고만 — 작은 팔이 멈췄는지 모른다고 겁주지 않는다', (tester) async {
+    testWidgets('연습 정지는 연습을 멈췄다고만 — 누름 장치가 멈췄는지 모른다고 겁주지 않는다', (tester) async {
       await _pump(tester, _stopped(null, mode: 'mock'));
       final all = _texts(tester).join('\n');
       expect(all, contains('연습을 멈췄어요'));
@@ -129,9 +129,9 @@ void main() {
     });
   });
 
-  group('3. 결과 화면 보조 단추 — 작은 팔이 누른다는 말', () {
+  group('3. 결과 화면 보조 단추 — 누름 장치가 누른다는 말', () {
     for (final stop in [false, true]) {
-      testWidgets('${stop ? '사용자 정지' : '실패'}: "화면에서 직접 누르기" 대신 "작은 팔로 골라 누르기"', (tester) async {
+      testWidgets('${stop ? '사용자 정지' : '실패'}: "화면에서 직접 누르기" 대신 "누름 장치로 골라 누르기"', (tester) async {
         await _pump(
             tester,
             stop
@@ -147,7 +147,7 @@ void main() {
         expect(find.text('화면에서 직접 누르기'), findsNothing);
         expect(
             find.descendant(
-                of: find.byKey(const ValueKey('done-manual')), matching: find.text('작은 팔로 골라 누르기')),
+                of: find.byKey(const ValueKey('done-manual')), matching: find.text('누름 장치로 골라 누르기')),
             findsOneWidget);
       });
     }

@@ -3,7 +3,7 @@
 // 1. 연습 대기(누르기를 다 마치고 정지를 기다림) — '처음 화면으로' 주 단추(연습일 때만, 정지 단추 자리·이름 그대로).
 //    누르고 나가면 같은 연습 대기로 되돌아오지 않는다(서버 대기는 그대로 — 새 실행이 풀거나 연습 가전이 끝나면 보관).
 //    실제 대기에는 나가는 단추가 없다(정지가 닿아야 한다). 기다리는 칸은 진행색(파랑)으로 채우지 않는다.
-// 2. 실패·사용자 정지 결과 — 보조 단추 '작은 팔로 골라 누르기'는 두 화면에서 같은 꼴(테두리), '한 번 더 하기'는 안내 문장
+// 2. 실패·사용자 정지 결과 — 보조 단추 '누름 장치로 골라 누르기'는 두 화면에서 같은 꼴(테두리), '한 번 더 하기'는 안내 문장
 //    바로 옆 작은 글자 단추(주 출구 하나 + 보조 묶음).
 // 3. LG 가전 조작 — 공기 나쁨일 때만 할 일 한 줄(켜져 있으면 '바람을 세게 해 보세요', 꺼져 있으면 '켜 보세요'), 큰 글씨에서도
 //    상태 줄이 맨 위.
@@ -283,8 +283,8 @@ void main() {
         final manual = find.byKey(const ValueKey('done-manual'));
         expect(tester.widget(manual), isA<OutlinedButton>(), reason: '두 화면 같은 꼴(테두리)');
         expect(find.descendant(of: manual, matching: find.text(kManualEntryLabel)), findsOneWidget);
-        expect(kManualEntryLabel, contains('작은 팔'), reason: '손으로 누르라는 말과 헷갈리지 않게');
-        expect(kManualEntryLabel.length, lessThan('작은 팔로 누를 버튼 고르기'.length), reason: '짧게');
+        expect(kManualEntryLabel, contains('누름 장치'), reason: '손으로 누르라는 말과 헷갈리지 않게');
+        expect(kManualEntryLabel.length, lessThan('누름 장치로 누를 버튼 고르기'.length), reason: '짧게');
         expect(tester.getSize(manual).height, greaterThanOrEqualTo(48));
         expect(tester.takeException(), isNull);
       });

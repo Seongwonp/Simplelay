@@ -358,7 +358,7 @@ void main() {
           ));
       final texts = _texts(tester);
       expect(texts, contains('연습으로 누르는 자리예요. 화면은 누르지 않아도 돼요'));
-      expect(texts, isNot(contains('작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요')));
+      expect(texts, isNot(contains('누름 장치가 누르는 자리예요. 화면은 누르지 않아도 돼요')));
       // 평가 14차(10/18): 연습을 마친 대기에는 정지 안내 문장을 두지 않는다.
       expect(texts.any((t) => t.contains('눌러 볼 수')), isFalse);
     });

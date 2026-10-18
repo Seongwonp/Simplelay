@@ -11,8 +11,8 @@ import 'kiosk_text.dart';
 /// 누를 수 있는 단추로 보이지 않게: 카드 테두리 없음, 어두운 평면, 칸 테두리 없음. 칸 글자는 밝은 회색이다
 /// (50% 회색이던 때는 꺼진 것처럼 보였다). 표시는 세 가지뿐이다.
 /// - [order] 제안: 누를 칸에 순서 번호(흰 원) + 흰 테.
-/// - [current] 실행·정지 대기: 지금 누르는(또는 작은 팔이 기다리는) 칸을 진행색으로 채운다(다시 누르면 주의색).
-/// - [pressed] 결과: 작은 팔이 누른 칸에 흰 테 + 표시(눌렀다고 알려 옴 체크, 모름 물음표). 가전이 켜졌다는 뜻이 아니다.
+/// - [current] 실행·정지 대기: 지금 누르는(또는 누름 장치가 기다리는) 칸을 진행색으로 채운다(다시 누르면 주의색).
+/// - [pressed] 결과: 누름 장치가 누른 칸에 흰 테 + 표시(눌렀다고 알려 옴 체크, 모름 물음표). 가전이 켜졌다는 뜻이 아니다.
 /// 스크린리더에는 왼쪽 글이 같은 말을 하므로 읽지 않는다.
 class KioskPanelPicture extends StatelessWidget {
   const KioskPanelPicture({
@@ -52,13 +52,13 @@ class KioskPanelPicture extends StatelessWidget {
   final ApplianceMap? appliance;
   final String caption;
 
-  /// 채울 칸(지금 누르는 버튼·작은 팔이 기다리는 버튼). 없으면 채운 칸이 없다.
+  /// 채울 칸(지금 누르는 버튼·누름 장치가 기다리는 버튼). 없으면 채운 칸이 없다.
   final ApplianceButton? current;
 
   /// 자리를 맞춰 다시 누르는 중 — 채움을 주의색으로.
   final bool caution;
 
-  /// 작은 팔이 그 칸 위에서 **기다리는** 중(정지 대기, 평가 12차 10/18) — 진행색으로 채우지 않고 흰 테로만 자리를 알린다.
+  /// 누름 장치가 그 칸 위에서 **기다리는** 중(정지 대기, 평가 12차 10/18) — 진행색으로 채우지 않고 흰 테로만 자리를 알린다.
   final bool resting;
 
   final Key? captionKey;
@@ -66,7 +66,7 @@ class KioskPanelPicture extends StatelessWidget {
   /// 제안 — 버튼 id → 누를 순서(1부터). 같은 버튼을 여러 번 누르면 번호가 여럿이다.
   final Map<String, List<int>> order;
 
-  /// 결과 — 버튼 id → 작은 팔이 눌렀다고 알려 왔는가(true) / 모름(false).
+  /// 결과 — 버튼 id → 누름 장치가 눌렀다고 알려 왔는가(true) / 모름(false).
   final Map<String, bool> pressed;
 
   /// 이 버튼판에서 이름이 **정확히 한 번** 나오는 버튼. 없거나 둘 이상이면 null — 틀린 자리를 가리키지 않는다.
@@ -160,9 +160,9 @@ class KioskPanelPicture extends StatelessWidget {
                 textKey: captionKey,
                 style: TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted))
-            // '작은 팔 위치 취소'는 표 머리처럼 읽혔다(평가 4차 10/18) — 한 문장으로 '작은 팔이 [취소] 위에 있어요'.
+            // '누름 장치 위치 취소'는 표 머리처럼 읽혔다(평가 4차 10/18) — 한 문장으로 '누름 장치가 [취소] 위에 있어요'.
             : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Text('작은 팔이',
+                Text('누름 장치가',
                     maxLines: 1,
                     softWrap: false,
                     style: TextStyle(

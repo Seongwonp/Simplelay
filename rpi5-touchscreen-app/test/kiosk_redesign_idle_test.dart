@@ -18,15 +18,15 @@ import 'package:simplelay_touchscreen/widgets/kiosk/thinq_panel.dart';
 
 const _ok = [
   ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-  ConnectionItem(id: 'press', state: 'ok', title: '작은 팔이 연결돼 있어요', message: ''),
+  ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 연결돼 있어요', message: ''),
 ];
 const _pressDown = [
   ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-  ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+  ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
 ];
 const _twoProblems = [
   ConnectionItem(id: 'network', state: 'warn', title: '와이파이 신호가 약해요', message: ''),
-  ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+  ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
 ];
 
 Future<void> _pump(WidgetTester tester, Widget child) async {
@@ -77,7 +77,7 @@ void main() {
       expect(find.descendant(of: chip, matching: find.text('연결 확인 필요 1')), findsOneWidget);
       expect(tester.getSize(chip).height, greaterThanOrEqualTo(48));
       // 화면 읽기는 무엇이 문제인지까지 읽는다 — 원인이 하나면 원인과 영향(평가 15차 10/18).
-      expect(tester.getSemantics(chip).label, contains('작은 팔이 끊겨 가전 2대를 못 써요'));
+      expect(tester.getSemantics(chip).label, contains('누름 장치가 끊겨 가전 2대를 못 써요'));
       final icon = tester.widget<Icon>(find.descendant(of: chip, matching: find.byType(Icon)).first);
       expect(icon.color, KioskColors.warning);
       await tester.tap(chip);

@@ -1,15 +1,15 @@
 // 화면이 실제 확인 수준보다 앞서 말하지 않는다(심사위원 시각 평가 10/18 §3-5 — 정직성 예외).
 //
-// 확인 수준별 결과 문구 표(작은 팔 실행 성공):
+// 확인 수준별 결과 문구 표(누름 장치 실행 성공):
 // | 실행 환경 | 근거                                  | 제목                     |
 // |-----------|---------------------------------------|--------------------------|
 // | real      | 전력 변화(L3, 출처 real)               | '<가전 이름>이/가 켜졌어요' |
 // | real      | 전력 판정이 연습 값(출처 mock)          | '버튼은 다 눌렀어요'       |
-// | real      | 작은 팔 보고(reported)·L1(press_confirmed) | '버튼은 다 눌렀어요'   |
+// | real      | 누름 장치 보고(reported)·L1(press_confirmed) | '버튼은 다 눌렀어요'   |
 // | real      | 확인 근거 없음(none)                   | '눌렸는지 몰라요'          |
 // | mock      | (무엇이든)                            | '연습을 마쳤어요'          |
 // | 모름      | (무엇이든)                            | '버튼은 다 눌렀어요'       |
-// '켜졌어요'는 L3 실측(출처 real)일 때만 나온다 — 누름 확인(L1)·엔코더·작은 팔 보고로는 가전이 켜졌다고 말하지 않는다.
+// '켜졌어요'는 L3 실측(출처 real)일 때만 나온다 — 누름 확인(L1)·엔코더·누름 장치 보고로는 가전이 켜졌다고 말하지 않는다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
@@ -36,12 +36,12 @@ ApplianceMap _appliance(String id, String name, {String readiness = 'unknown', b
     );
 
 void main() {
-  group('작은 팔 성공 제목은 확인 수준만큼', () {
+  group('누름 장치 성공 제목은 확인 수준만큼', () {
     final cases = <(String, String, String?, bool?, String?, String)>[
       // (설명, 실행 환경, 확인 수준, 전력 판정, 판정 출처, 기대 제목)
       ('L3 실측', 'real', 'operation_confirmed', true, 'real', '전자레인지가 켜졌어요'),
       ('L3 연습 값', 'real', 'reported', true, 'mock', '버튼은 다 눌렀어요'),
-      ('작은 팔 보고만', 'real', 'reported', null, null, '버튼은 다 눌렀어요'),
+      ('누름 장치 보고만', 'real', 'reported', null, null, '버튼은 다 눌렀어요'),
       ('누름 센서(L1)', 'real', 'press_confirmed', null, null, '버튼은 다 눌렀어요'),
       ('근거 없음', 'real', 'none', null, null, '눌렸는지 몰라요'),
       ('연습', 'mock', 'operation_confirmed', true, 'real', '연습을 마쳤어요'),
@@ -109,7 +109,7 @@ void main() {
       expect(confirmationLabel(confirmation: 'operation_confirmed', executionMode: 'real'),
           '가전이 전기를 쓰기 시작했어요');
       expect(confirmationLabel(confirmation: 'press_confirmed', executionMode: 'real'), '버튼을 눌렀어요');
-      expect(confirmationLabel(confirmation: 'reported', executionMode: 'real'), '작은 팔이 눌렀어요');
+      expect(confirmationLabel(confirmation: 'reported', executionMode: 'real'), '누름 장치가 눌렀어요');
       expect(confirmationLabel(confirmation: 'none', executionMode: 'real'), '눌렸는지 몰라요');
     });
 

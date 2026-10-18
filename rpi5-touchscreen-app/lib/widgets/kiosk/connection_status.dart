@@ -6,7 +6,7 @@ import '../../theme/kiosk_tokens.dart';
 import 'kiosk_scroll_area.dart';
 import 'kiosk_text.dart';
 
-/// 평소 화면 오른쪽 위의 연결 아이콘 세 개(와이파이·작은 팔·콘센트).
+/// 평소 화면 오른쪽 위의 연결 아이콘 세 개(와이파이·누름 장치·콘센트).
 ///
 /// 정상이면 회색 아이콘뿐이다. 문제가 생기면 그 아이콘이 노란색이 되고 "!" 배지가
 /// 붙는다. 누르면 [KioskConnectionModal]이 무엇이 안 되는지와 해결 방법을 말한다.
@@ -67,14 +67,14 @@ class KioskTopIconLabel extends StatelessWidget {
 
 String _shortName(String id) => switch (id) {
       'network' => '와이파이',
-      'press' => '작은 팔',
+      'press' => '누름 장치',
       'plug' => '전기 플러그',
       _ => '연결',
     };
 
 String _name(String id) => switch (id) {
       'network' => '와이파이',
-      'press' => '작은 팔',
+      'press' => '누름 장치',
       'plug' => '전기 플러그',
       _ => '연결',
     };

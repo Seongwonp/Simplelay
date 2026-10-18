@@ -115,7 +115,7 @@ void main() {
           onDismiss: () {},
         ),
       );
-      expect(find.text('작은 팔이 걸려 멈췄어요'), findsOneWidget);
+      expect(find.text('누름 장치가 걸려 멈췄어요'), findsOneWidget);
       expect(find.textContaining('확인 못 했어요'), findsNothing);
       expect(find.text('한 번 더 하기'), findsNothing);
     });
@@ -162,7 +162,7 @@ void main() {
     // 물음표는 위 띠가 말한다 — 순서 안내가 있으면 큰 원을 두지 않는다(사용자 결정 10/18, 평가 15차).
     expect(find.byIcon(Icons.help_outline), findsOneWidget);
     // 단계를 모르면 확인하지 못한 정지다 — 결과 화면은 멈췄어요/멈췄는지 몰라요 둘뿐(평가 8차 10/18).
-    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
     expect(find.textContaining('— 정지 요청으로'), findsNothing);
     expect(find.text('가전을 봐 주세요'), findsNothing);
     expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만

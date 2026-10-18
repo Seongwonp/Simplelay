@@ -2,7 +2,7 @@
 //
 // 1. 실행·결과·비상 정지 대기 화면 왼쪽 아래가 비어 있었다 — 누를 순서(✓ 즉석밥 — ● 시작)를 왼쪽 아래에 크게,
 //    비상 정지 대기에는 사람이 직접 누를 칸을 버튼판에 표시. 버튼 이름을 작은따옴표로 감싸지 않는다("시작 버튼").
-// 2. 작은 팔 연결 끊김 칩 아래 '눌러서 해결 방법 보기'. 본체에 닿지 않는데 칩이 '모두 정상'이면 안 된다.
+// 2. 누름 장치 연결 끊김 칩 아래 '눌러서 해결 방법 보기'. 본체에 닿지 않는데 칩이 '모두 정상'이면 안 된다.
 // 3. 아이콘 규칙: 조용한 시간 = 달(bedtime), 잠시 쉬기 = 일시정지(pause_circle).
 // 4. 눌렸는지 모르는 결과: '한 번 더 하기' 바로 위 '가전을 보고 안 됐을 때만 다시 하세요', 한 번 더 하기는 글자 단추(약한 위계).
 import 'package:flutter/material.dart';
@@ -133,14 +133,14 @@ void main() {
   });
 
   group('2. 연결 문제 — 다음 행동, 끊겼는데 모두 정상 금지', () {
-    testWidgets('작은 팔 연결 끊김: 칩 근처 "눌러서 해결 방법 보기" — 누르면 그 연결 창', (tester) async {
+    testWidgets('누름 장치 연결 끊김: 칩 근처 "눌러서 해결 방법 보기" — 누르면 그 연결 창', (tester) async {
       ConnectionItem? opened;
       await _pump(
           tester,
           _idle(
               connections: const [
                 ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
-                ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+                ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
               ],
               onOpen: (i) => opened = i));
       final help = find.byKey(const ValueKey('idle-problem-help'));

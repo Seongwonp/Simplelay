@@ -80,7 +80,7 @@ void main() {
       ),
     );
 
-    // 기계 말투('작은 팔이 다 눌렀다고 알려 왔어요') 대신 같은 말 하나로(평가 4차 10/18). 확인 수준은 띠가 지킨다 —
+    // 기계 말투('누름 장치가 다 눌렀다고 알려 왔어요') 대신 같은 말 하나로(평가 4차 10/18). 확인 수준은 띠가 지킨다 —
     // 실제 확인이 아니므로 '됐어요'가 아니라 '확인 필요', 할 일은 '가전이 움직이는지 봐 주세요'.
     expect(find.textContaining('알려 왔어요'), findsNothing);
     expect(find.text('버튼은 다 눌렀어요'), findsOneWidget);
@@ -147,7 +147,7 @@ void main() {
     expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
     expect(find.text('처음 화면으로'), findsOneWidget);
     expect(find.text('한 번 더 하기'), findsOneWidget);
-    expect(find.text('작은 팔로 골라 누르기'), findsOneWidget);
+    expect(find.text('누름 장치로 골라 누르기'), findsOneWidget);
     expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
     // '확인 필요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
@@ -176,12 +176,12 @@ void main() {
     );
 
     expect(find.textContaining('안전하게 멈췄어요'), findsNothing);
-    expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+    expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
     expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget); // 평가 15차: 할 일은 번호 안내가 한 번만
     // 직접 멈춘 사람에게 '다시 시도'를 같은 무게로 두지 않는다 — 다시 누를 위험(UI 평가 5차 10/17).
-    // 멈췄는지 모르면 작은 팔을 다시 움직이게 하는 '작은 팔로 골라 누르기'도 두지 않는다(평가 15차 10/18, 안전).
+    // 멈췄는지 모르면 누름 장치를 다시 움직이게 하는 '누름 장치로 골라 누르기'도 두지 않는다(평가 15차 10/18, 안전).
     expect(find.text('한 번 더 하기'), findsNothing);
-    expect(find.text('작은 팔로 골라 누르기'), findsNothing);
+    expect(find.text('누름 장치로 골라 누르기'), findsNothing);
   });
 
   testWidgets('큰 글씨에서도 넘치지 않는다', (tester) async {
@@ -480,8 +480,8 @@ void main() {
   });
 
   // 외부 평가 10/16 4차: 위 줄은 '취소' 버튼을 직접 누르라는데 아래 줄은 '정지 버튼'이라 했다 — 같은 이름으로.
-  // 평가 8차(10/18): '대신 눌렀어요'는 '직접 눌러 주세요'와 엇갈렸다 — 작은 팔도 눌렀지만 확인이 안 됐다고.
-  testWidgets('정지 몰라요: 작은 팔도 누른 버튼을 실제 이름으로, 확인이 안 됐다고 말한다', (tester) async {
+  // 평가 8차(10/18): '대신 눌렀어요'는 '직접 눌러 주세요'와 엇갈렸다 — 누름 장치도 눌렀지만 확인이 안 됐다고.
+  testWidgets('정지 몰라요: 누름 장치도 누른 버튼을 실제 이름으로, 확인이 안 됐다고 말한다', (tester) async {
     await _pump(
       tester,
       KioskHoldView(

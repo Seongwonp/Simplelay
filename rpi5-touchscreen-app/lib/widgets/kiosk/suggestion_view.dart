@@ -146,7 +146,7 @@ class KioskSuggestionView extends StatelessWidget {
         ? (suggestion.commands.every((c) => c.route == 'physical')
             ? '누를 버튼'
             : '할 일')
-        : '작은 팔이 누를 순서';
+        : '누름 장치가 누를 순서';
     final hasSteps = scenario || suggestion.steps.isNotEmpty;
     // 큰 글씨에서는 질문·제한을 먼저 읽고, 긴 순서와 근거는 별도 창에서 전문을 읽는다.
     final oneColumn = KioskScrollArea(
@@ -269,13 +269,13 @@ class KioskSuggestionView extends StatelessWidget {
                         SizedBox(
                           width: KioskPanelPicture.width,
                           child: Semantics(
-                            label: '작은 팔이 누를 순서. ${[
+                            label: '누름 장치가 누를 순서. ${[
                               for (var i = 0; i < suggestion.steps.length; i++)
                                 '${i + 1} ${suggestion.steps[i]}'
                             ].join(', ')}',
                             child: KioskPanelPicture(
                               appliance: target,
-                              caption: '작은 팔이 누를 순서',
+                              caption: '누름 장치가 누를 순서',
                               captionKey: const ValueKey('suggestion-panel-caption'),
                               order: order,
                             ),
@@ -319,7 +319,7 @@ class KioskSuggestionView extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '작은 팔이 누를 순서',
+                                '누름 장치가 누를 순서',
                                 style: TextStyle(
                                     fontSize: KioskType.caption,
                                     color: KioskColors.muted),

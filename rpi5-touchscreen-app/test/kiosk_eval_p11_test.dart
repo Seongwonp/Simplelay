@@ -1,14 +1,14 @@
 // 평가 11차(2026-10-18) 지적 수리 — 키오스크. 옛 코드에도 있는 공개 구성만 써서 옛 코드에서 실패하는 것을 확인한다.
 //
 // 1. 시간대 예보 칸 — 모든 칸이 '아이콘 + 기온' 한 꼴, 강수확률은 작은 둘째 줄('비 70%'가 기온 자리를 차지하지 않는다).
-// 2. 결과 화면 나가는 단추 — LG 가전 결과·작은 팔 결과 모두 '⌂ 처음 화면으로' 한 이름·아이콘·색.
+// 2. 결과 화면 나가는 단추 — LG 가전 결과·누름 장치 결과 모두 '⌂ 처음 화면으로' 한 이름·아이콘·색.
 //    자동으로 닫지 않는 결과(확인 안 됨·실패)에는 카운트다운 문구가 없다.
 // 3. LG 가전 확인 못 함 — 제목에 가전 이름: '공기청정기에 켜 달라고 했어요'(평가 15차) / '켜졌는지는 아직 몰라요'('명령' 없이).
 // 4. 연습 대기 — 상태 한 문장(정지를 보낸 뒤 '연습이 끝났어요' + '멈추는 중이에요'를 함께 두지 않는다),
 //    정지 안내는 고르는 말([kPracticeStopHint] — 평가 13차 10/18에 '정지 단추도 눌러 볼 수 있어요'로 줄였다).
 // 5. LG 가전 조작 — 전원·바람 세기 상태는 단추의 ✓ 하나로(왼쪽 상태 줄 두 번 금지), '자세히' → '미세먼지 보기',
 //    큰 상태 한 줄('공기청정기가 켜져 있어요 · 바람 약').
-// 6. 위 띠 '?'와 결과 원 'i' 불일치 → 같은 물음표. 사용자 정지 결과의 '작은 팔로 골라 누르기'는 글자 단추로 한 단계 낮춘다.
+// 6. 위 띠 '?'와 결과 원 'i' 불일치 → 같은 물음표. 사용자 정지 결과의 '누름 장치로 골라 누르기'는 글자 단추로 한 단계 낮춘다.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/ambient.dart';
@@ -199,7 +199,7 @@ void main() {
       expect(find.textContaining('초 뒤'), findsNothing);
     });
 
-    testWidgets('작은 팔 결과(전력 확인 성공)', (tester) async {
+    testWidgets('누름 장치 결과(전력 확인 성공)', (tester) async {
       await _pumpView(
           tester,
           KioskDoneView(
@@ -210,10 +210,10 @@ void main() {
               operationConfirmed: true,
               operationSource: 'real',
               onDismiss: _noop));
-      _expectHomeButton(tester, '작은 팔 확인된 성공');
+      _expectHomeButton(tester, '누름 장치 확인된 성공');
     });
 
-    testWidgets('작은 팔 결과(누름 보고만·실패)', (tester) async {
+    testWidgets('누름 장치 결과(누름 보고만·실패)', (tester) async {
       await _pumpView(
           tester,
           KioskDoneView(
@@ -334,7 +334,7 @@ void main() {
     });
 
     // 평가 12차(10/18): 실패 화면과 꼴이 달랐다 — 두 화면 같은 테두리 보조 단추(주 단추 '처음 화면으로'보다 낮다).
-    testWidgets("사용자 정지 — '작은 팔로 골라 누르기'는 실패 화면과 같은 테두리 보조 단추", (tester) async {
+    testWidgets("사용자 정지 — '누름 장치로 골라 누르기'는 실패 화면과 같은 테두리 보조 단추", (tester) async {
       await _pumpView(
           tester,
           KioskDoneView(

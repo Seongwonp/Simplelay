@@ -2,11 +2,11 @@
 // (옛 코드에서 하나하나 실패하는 것을 확인하려고). 새 함수 단위 시험은 kiosk_eval_p4_api_test.dart.
 //
 // A. 비상 버튼이 눌려 있으면 상태 칩이 '모두 정상'이라고 하지 않는다 — 빨강 '비상 버튼이 눌려 있어요',
-//    작은 팔로 누르는 가전 타일은 '지금 못 써요'(작은 팔 끊김과 같은 처리). LG 가전 타일은 그대로.
+//    누름 장치로 누르는 가전 타일은 '지금 못 써요'(누름 장치 끊김과 같은 처리). LG 가전 타일은 그대로.
 // B. 한 글자 줄바꿈 금지 — 그려진 글(골든과 같은 배치)에서 낱말 가운데·숫자와 단위 사이가 줄로 끊기지 않고,
 //    마지막 줄이 한 글자만 남지 않는다('버튼 3|번'·'쉬어|요').
 // C. 기계 말투 → 사람 말: '멈추라고 보냈어요'·'다 눌렀다고 알려 왔어요'·'연습용 숫자예요'·'모드 청정'·'콘센트'·
-//    '작업'·'화면으로 조작하기'·'작은 팔 위치'·'단추'를 쓰지 않는다.
+//    '작업'·'화면으로 조작하기'·'누름 장치 위치'·'단추'를 쓰지 않는다.
 // D. 실행·결과 제목에 사람 명령문('즉석밥 데워줘') 대신 '즉석밥 데우기'. 다음 루틴 카드 '자동 실행' → '자동으로 해요'.
 // E. 연습 띠 한 문장('연습이에요. 실제 가전은 그대로예요'), 연습 화면에서 부딪히는 문장('눌렸는지 몰라요'·
 //    '가전은 보지 않아요'·'끝나는 시간은 몰라요') 없음.
@@ -187,7 +187,7 @@ void main() {
       expect(find.text('기기 모두 정상'), findsNothing);
     });
 
-    testWidgets('작은 팔로 누르는 가전 타일은 지금 못 써요, LG 가전은 그대로', (tester) async {
+    testWidgets('누름 장치로 누르는 가전 타일은 지금 못 써요, LG 가전은 그대로', (tester) async {
       await _pump(tester, _underEstop(_idle()));
       expect(
           tester.widget<Text>(find.byKey(const ValueKey('tile-status-microwave'))).data, '지금 못 써요');
@@ -288,7 +288,7 @@ void main() {
       final all = _allTexts(tester).join('\n');
       expect(all, isNot(contains('보냈어요')));
       // 끝난 결과 화면에서는 진행 말('멈추는 중이에요') 대신 확인하지 못했다고(평가 8차 10/18).
-      expect(all, contains('작은 팔이 멈췄는지 몰라요'));
+      expect(all, contains('누름 장치가 멈췄는지 몰라요'));
       expect(all, isNot(contains('중이에요')));
       expect(all, isNot(contains('멈췄어요')));
       expect(stopLevelConfirmed('sent'), isFalse);
@@ -342,7 +342,7 @@ void main() {
       expect(connectionShortName('plug'), '전기 플러그');
     });
 
-    testWidgets('실패 화면 글자 단추는 작은 팔로 골라 누르기', (tester) async {
+    testWidgets('실패 화면 글자 단추는 누름 장치로 골라 누르기', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -354,10 +354,10 @@ void main() {
               onManual: () {},
               onDismiss: () {}));
       expect(find.text('화면으로 조작하기'), findsNothing);
-      expect(find.text('작은 팔로 골라 누르기'), findsOneWidget);
+      expect(find.text('누름 장치로 골라 누르기'), findsOneWidget);
     });
 
-    testWidgets("큰 글씨 버튼판 한 줄은 '작은 팔 위치' 대신 작은 팔이 어디 위에 있는지", (tester) async {
+    testWidgets("큰 글씨 버튼판 한 줄은 '누름 장치 위치' 대신 누름 장치가 어디 위에 있는지", (tester) async {
       final cancel = kMicrowaveAppliance.buttons.firstWhere((b) => b.label == '취소');
       await _pump(
           tester,
@@ -367,8 +367,8 @@ void main() {
             child: KioskPanelPicture(
                 appliance: kMicrowaveAppliance, caption: '', current: cancel, compact: true),
           ));
-      expect(find.textContaining('작은 팔 위치'), findsNothing);
-      expect(find.textContaining('작은 팔이'), findsOneWidget);
+      expect(find.textContaining('누름 장치 위치'), findsNothing);
+      expect(find.textContaining('누름 장치가'), findsOneWidget);
       expect(find.textContaining('위에 있어요'), findsOneWidget);
     });
 
@@ -438,7 +438,7 @@ void main() {
 
   group('E. 연습 뜻 한 문장, 부딪히는 문장 없음', () {
     test('연습 띠 한 줄', () {
-      // 연습(실행 모드 mock)은 작은 팔이 실제 모터를 돌리지 않고(RPi4 모의 모션), LG 가전도 실제로 바꾸지 않는다.
+      // 연습(실행 모드 mock)은 누름 장치가 실제 모터를 돌리지 않고(RPi4 모의 모션), LG 가전도 실제로 바꾸지 않는다.
       expect(kPracticeBandText, '연습이에요. 실제 가전은 그대로예요');
     });
 

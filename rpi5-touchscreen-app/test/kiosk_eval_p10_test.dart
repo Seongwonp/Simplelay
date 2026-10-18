@@ -11,7 +11,7 @@
 // 8. 정지 확인 기다리는 중 — 위 띠는 가전·할 일 이름만(‘멈추는 중’·손 아이콘을 되풀이하지 않는다).
 // 9. 큰 글씨 사용자 정지 — 주 단추 '처음 화면으로'가 보조 단추보다 위.
 // 10. 짧은 안내 줄 끝 마침표 없이(처음 화면 알림·연결 창 본문·단계).
-// A. 이어받은 실행(폰이 켠 공기청정기) — 서버가 경로 thinq·1단계라고 말하면 같은 LG 가전 화면. 작은 팔 경로는 종전 화면.
+// A. 이어받은 실행(폰이 켠 공기청정기) — 서버가 경로 thinq·1단계라고 말하면 같은 LG 가전 화면. 누름 장치 경로는 종전 화면.
 // B. LG 가전 타일 — 꺼진 것을 서버가 봤으면 '꺼져 있어요'(손 아이콘 '준비됐어요'가 아니라).
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -181,7 +181,7 @@ void main() {
 
   group('3. 보내는 중 배치', () {
     for (final scale in [1.0, 1.22]) {
-      testWidgets('가운데 한 열 · 정지 단추는 작은 팔 실행 화면과 같은 자리(글씨 x$scale)', (tester) async {
+      testWidgets('가운데 한 열 · 정지 단추는 누름 장치 실행 화면과 같은 자리(글씨 x$scale)', (tester) async {
         await _pumpView(tester, _exec(thinq: false), scale: scale);
         final stopPhysical = tester.getRect(find.byKey(const ValueKey('kiosk-stop-area')));
         await _pumpView(tester, _exec(), scale: scale);
@@ -268,7 +268,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('작은 팔 경로(physical)는 종전 실행 화면 — LG 가전 화면으로 잘못 보이지 않는다', (tester) async {
+    testWidgets('누름 장치 경로(physical)는 종전 실행 화면 — LG 가전 화면으로 잘못 보이지 않는다', (tester) async {
       final api = await _start(tester);
       api.statusResult = KioskStatus.fromJson({
         'running': true,

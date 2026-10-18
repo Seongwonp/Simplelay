@@ -224,7 +224,7 @@ class _KioskScreenState extends State<KioskScreen> {
   String? _doneStopLevel;
   int? _doneStopAckMs;
 
-  /// 결과 화면 '다시 멈추기'(작은 팔이 멈췄는지 모르는 정지, 평가 15차 10/18)를 누른 결과 — 'sent' | 'failed' | null.
+  /// 결과 화면 '다시 멈추기'(누름 장치가 멈췄는지 모르는 정지, 평가 15차 10/18)를 누른 결과 — 'sent' | 'failed' | null.
   String? _doneStopAgain;
 
   /// 결과가 먼저 오고 정지 보고가 늦게 올 때의 짧은 후속 조회(평가 2026-10-13 M1). 화면 문구만 고친다.
@@ -465,7 +465,7 @@ class _KioskScreenState extends State<KioskScreen> {
       ConnectionItem(
           id: 'press',
           state: 'unreachable',
-          title: '작은 팔 상태를 볼 수 없어요',
+          title: '누름 장치 상태를 볼 수 없어요',
           message: '본체와 연결되면 볼 수 있어요.'),
       ConnectionItem(
           id: 'plug',
@@ -821,7 +821,7 @@ class _KioskScreenState extends State<KioskScreen> {
                 st.verificationDetail ?? _verificationDetail;
             _execApplianceId = st.applianceId ?? _execApplianceId;
             // 이어받은 실행이 첫 조회에 경로를 몰랐다가 알게 되면 LG 가전 화면으로(평가 10차 10/18). 거꾸로는 하지 않는다 —
-            // 승인 때 정한 판정을 서버 값 하나로 내리지 않는다(작은 팔 경로면 [isAdoptedThinqRun]이 거짓이다).
+            // 승인 때 정한 판정을 서버 값 하나로 내리지 않는다(누름 장치 경로면 [isAdoptedThinqRun]이 거짓이다).
             if (!_execThinqOnly && _adoptedThinq(st)) _execThinqOnly = true;
             // 서버가 단계 수를 줄 때만 진행을 채운다
             final total = st.totalSteps;
@@ -1087,7 +1087,7 @@ class _KioskScreenState extends State<KioskScreen> {
       if (_holdSpokenKey != key) {
         _holdSpokenKey = key;
         _tts.speak(st.holdState == 'fault' || st.holdStopOutcome == 'drive_fault'
-            ? '작은 팔에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
+            ? '누름 장치에 문제가 생겼어요. 가전 전원을 직접 꺼 주세요.'
             : '가전이 멈췄는지 몰라요. 지금 가전 정지 버튼을 손으로 눌러 주세요.');
       }
       return;
@@ -1630,7 +1630,7 @@ class _KioskScreenState extends State<KioskScreen> {
   }
 
   /// 결과 화면의 '다시 멈추기'(평가 15차 10/18) — 정지 대기 화면의 '다시 멈추기'와 같은 정지 경로(/stop). 판정은 하지 않는다:
-  /// 본체가 받았는지만 화면에 말하고, 멈췄는지는 사람이 작은 팔을 본다.
+  /// 본체가 받았는지만 화면에 말하고, 멈췄는지는 사람이 누름 장치를 본다.
   Future<void> _onDoneStopAgain() async {
     try {
       await _api.stop();
@@ -1852,7 +1852,7 @@ class _KioskScreenState extends State<KioskScreen> {
         label: _doneLabel,
         autoReturnHeld: _doneHeld,
         onHold: _holdDone,
-        // 이 실행에서 작은 팔이 누른 버튼(실행 화면이 끝날 때 받은 기록) — 버튼판에 누른 칸을 표시한다(10/18).
+        // 이 실행에서 누름 장치가 누른 버튼(실행 화면이 끝날 때 받은 기록) — 버튼판에 누른 칸을 표시한다(10/18).
         pressed: _lastButtons,
         target: _execApplianceId == null
             ? null
@@ -1888,7 +1888,7 @@ class _KioskScreenState extends State<KioskScreen> {
             : _onRetryFailed,
         // ThinQ 명령에는 누를 조작판이 없다.
         onManual: _doneRoute == 'thinq' ? null : _onManualFromFailure,
-        // 작은 팔이 멈췄는지 모르는 정지 결과에만 그려진다(화면이 가른다). 연습은 실제로 움직인 것이 없다.
+        // 누름 장치가 멈췄는지 모르는 정지 결과에만 그려진다(화면이 가른다). 연습은 실제로 움직인 것이 없다.
         onStopAgain: _executionMode == 'mock' ? null : _onDoneStopAgain,
         stopAgain: _doneStopAgain,
         onDismiss: _toIdle,

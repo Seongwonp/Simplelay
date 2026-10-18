@@ -13,7 +13,7 @@ import 'status_band.dart';
 
 /// 동작 중 화면(UI 확정 2026-09-30 §3-3) — 버튼을 다 누른 뒤 가전이 돌아가는 동안.
 ///
-/// 작은 팔(누름 장치)은 정지 버튼 위에서 기다린다(`/status.hold_state = hovering_stop`).
+/// 누름 장치는 정지 버튼 위에서 기다린다(`/status.hold_state = hovering_stop`).
 /// 큰 "정지"는 `/stop`을 보내고, 서버는 그 정지를 **정지 버튼 누름**으로 전달한다.
 /// 판정(정지됨·미확인·구동부 이상)은 RPi4가 하고 서버가 옮긴다 — 화면은 지어내지
 /// 않는다. 특히:
@@ -91,7 +91,7 @@ class KioskHoldView extends StatelessWidget {
 
   bool get _unconfirmed => stopOutcome == 'requested_unconfirmed';
 
-  /// 작은 팔이 제자리로 돌아갔다고 서버가 알려 왔다(hold_state=parked).
+  /// 누름 장치가 제자리로 돌아갔다고 서버가 알려 왔다(hold_state=parked).
   bool get _parked => holdState == 'parked';
 
   /// 연습 대기에서 정지를 보냈고 아직 대기 상태가 바뀌지 않았다 — 제목이 이 상태 하나만 말한다.
@@ -103,14 +103,14 @@ class KioskHoldView extends StatelessWidget {
   bool get _operationReal =>
       operationConfirmed == true && operationSource == 'real' && !_mock;
 
-  // 주어를 밝힌다(2026-10-15 문구 개선 §2-2) — 정지 대기·이동은 **작은 팔**, 돌아가는 것은 **가전**.
+  // 주어를 밝힌다(2026-10-15 문구 개선 §2-2) — 정지 대기·이동은 **누름 장치**, 돌아가는 것은 **가전**.
   // 가전이 돈다고는 전력으로 확인했을 때만 말한다. 아이콘이 상태를 함께 말한다(2026-10-16 §1-2).
   (String, IconData, Color) get _headline {
     if (estopTitle case final t?) {
       return ('$t. 가전을 봐 주세요', Icons.report, KioskColors.danger);
     }
     if (_fault) {
-      return ('작은 팔에 문제가 생겼어요', Icons.error_outline, KioskColors.danger);
+      return ('누름 장치에 문제가 생겼어요', Icons.error_outline, KioskColors.danger);
     }
     // 정지 미확인 — 상태 영역은 짧게, 바로 아래 첫 블록이 할 일, 무엇을 했는지는 그 아래 작게(2026-10-16 §1-2).
     if (_unconfirmed) {
@@ -118,12 +118,12 @@ class KioskHoldView extends StatelessWidget {
     }
     return switch (holdState) {
       'stopping' => (
-          _mock ? '정지 버튼을 누르는 연습 중이에요' : '작은 팔이 정지 버튼을 누르고 있어요',
+          _mock ? '정지 버튼을 누르는 연습 중이에요' : '누름 장치가 정지 버튼을 누르고 있어요',
           Icons.touch_app_outlined,
           Colors.white
         ),
-      'parking' => ('작은 팔이 제자리로 돌아가고 있어요', Icons.keyboard_return, Colors.white),
-      'parked' => ('작은 팔이 제자리로 돌아갔어요', Icons.home_outlined, Colors.white),
+      'parking' => ('누름 장치가 제자리로 돌아가고 있어요', Icons.keyboard_return, Colors.white),
+      'parked' => ('누름 장치가 제자리로 돌아갔어요', Icons.home_outlined, Colors.white),
       // 연습은 누르기를 다 마친 뒤 정지를 기다린다 — 제목이 그 상태를 말한다(평가 6차 10/18: '…연습 중' 제목 아래
       // '…연습을 마쳤어요'가 서로 다른 말이었다). 무엇을 했는지는 제목, 할 일은 아래 한 줄.
       // 정지를 보낸 뒤에는 상태가 바뀌었다 — '마쳤어요' 아래 '멈추는 중이에요'를 함께 두지 않고 지금 상태 한 문장(평가 11차 10/18).
@@ -138,7 +138,7 @@ class KioskHoldView extends StatelessWidget {
                   Colors.white
                 )
               : (
-                  '작은 팔이 $_name 옆에서 기다리고 있어요',
+                  '누름 장치가 $_name 옆에서 기다리고 있어요',
                   Icons.hourglass_top,
                   Colors.white
                 ),
@@ -160,7 +160,7 @@ class KioskHoldView extends StatelessWidget {
       return KioskStatusBand(
           tone: KioskBandTone.danger,
           icon: Icons.error_outline,
-          label: _fault ? '작은 팔 문제' : '멈추기 실패',
+          label: _fault ? '누름 장치 문제' : '멈추기 실패',
           practice: _mock);
     }
     if (_unconfirmed) {
@@ -212,7 +212,7 @@ class KioskHoldView extends StatelessWidget {
         band: _band,
         header: KioskStatusHeader(
             icon: Icons.pan_tool_outlined,
-            title: '작은 팔을 쓸 수 없어요',
+            title: '누름 장치를 쓸 수 없어요',
             iconColor: KioskColors.danger),
         body: KioskScrollArea(
             child: Column(
@@ -283,28 +283,28 @@ class KioskHoldView extends StatelessWidget {
         (
           Icons.info_outline,
           cancel == null
-              ? '정지를 누르면 작은 팔이 가전 정지 버튼을 대신 눌러요'
-              : '정지를 누르면 작은 팔이 $cancel 버튼을 대신 눌러요',
+              ? '정지를 누르면 누름 장치가 가전 정지 버튼을 대신 눌러요'
+              : '정지를 누르면 누름 장치가 $cancel 버튼을 대신 눌러요',
           KioskColors.muted
         ),
       if (_unconfirmed)
         (
           Icons.info_outline,
           // 위 줄('…' 버튼을 직접 눌러 주세요)과 같은 이름으로(외부 평가 10/16 4차).
-          // '대신 눌렀어요'는 바로 위 '직접 눌러 주세요'와 엇갈렸다(평가 8차 10/18) — 작은 팔도 눌렀지만 눌린 것은
+          // '대신 눌렀어요'는 바로 위 '직접 눌러 주세요'와 엇갈렸다(평가 8차 10/18) — 누름 장치도 눌렀지만 눌린 것은
           // 확인하지 못했다고 정직하게(가전 전력이 떨어지는 것을 보지 못한 상태다).
           _mock
               ? (cancel == null ? '연습으로 정지 버튼을 눌렀어요' : '연습으로 $cancel 버튼을 눌렀어요')
-              // 주어는 제목과 같은 가전 쪽 하나로(평가 16차 10/18 — '가전이 …' 제목 아래 '작은 팔도 …'가 섞였다).
+              // 주어는 제목과 같은 가전 쪽 하나로(평가 16차 10/18 — '가전이 …' 제목 아래 '누름 장치도 …'가 섞였다).
               : (cancel == null
                   ? '정지 버튼이 눌렸는지 확인이 안 됐어요'
                   : '$cancel 버튼이 눌렸는지 확인이 안 됐어요'),
           KioskColors.muted
         ),
-      // 작은 팔이 제자리로 돌아간 것은 서버가 알려 온 사실(hold_state=parked — RPi4가 제자리 이동을 모션 보드 응답으로 마친 뒤에만
+      // 누름 장치가 제자리로 돌아간 것은 서버가 알려 온 사실(hold_state=parked — RPi4가 제자리 이동을 모션 보드 응답으로 마친 뒤에만
       // 보낸다). 그때는 다시 멈출 것이 없다 — 정지 단추는 이름 '정지' 그대로 같은 자리, 할 일은 손으로 누르기(평가 16차 10/18).
       if (_unconfirmed && _parked)
-        (Icons.check, '작은 팔은 제자리에 있어요', KioskColors.muted),
+        (Icons.check, '누름 장치는 제자리에 있어요', KioskColors.muted),
       if (detail != null && detail!.isNotEmpty && stopOutcome != 'stopped')
         (
           _fault ? Icons.power_settings_new : Icons.info_outline,
@@ -376,7 +376,7 @@ class KioskHoldView extends StatelessWidget {
       ],
     );
 
-    // 작은 팔이 기다리는 정지 버튼 칸 — 대기 중일 때만 앰버로 채운다(§1-6). 빨강은 쓰지 않는다
+    // 누름 장치가 기다리는 정지 버튼 칸 — 대기 중일 때만 앰버로 채운다(§1-6). 빨강은 쓰지 않는다
     // (화면의 빨간 정지 단추와 한 묶음처럼 보이지 않게, §1-1).
     final a = appliance;
     final hovering = holdState == 'hovering_stop' || holdState == 'stopping';
@@ -385,7 +385,7 @@ class KioskHoldView extends StatelessWidget {
         ? null
         : a.buttons.where((b) => b.label == stopButton).firstOrNull;
 
-    // 정지 미확인 — 사람이 직접 누를 칸을 주의색으로(평가 8차 10/18, 비상 버튼 대기와 같은 모양). '작은 팔이 누르는
+    // 정지 미확인 — 사람이 직접 누를 칸을 주의색으로(평가 8차 10/18, 비상 버튼 대기와 같은 모양). '누름 장치가 누르는
     // 자리예요. 화면은 누르지 않아도 돼요'는 바로 옆 '직접 눌러 주세요'와 엇갈렸다. 자리를 못 찾으면 칸 없이 같은 제목.
     final pressCell = _unconfirmed && cancel != null ? KioskPanelPicture.uniqueButton(a, cancel) : null;
 
@@ -415,7 +415,7 @@ class KioskHoldView extends StatelessWidget {
         label: stopLabel,
         onPressed: onStop,
         buttonKey: const ValueKey('hold-stop'),
-        semanticsLabel: '$stopLabel. 작은 팔이 가전 정지 버튼을 대신 눌러요',
+        semanticsLabel: '$stopLabel. 누름 장치가 가전 정지 버튼을 대신 눌러요',
       ),
     );
   }
@@ -471,7 +471,7 @@ class _Lines extends StatelessWidget {
 }
 
 /// 그림 위 안내 — 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §2-2).
-const kPanelCaption = '작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요';
+const kPanelCaption = '누름 장치가 누르는 자리예요. 화면은 누르지 않아도 돼요';
 
-/// 연습의 그림 위 안내 — 실행 중·마친 뒤 대기 모두 같은 말(평가 13차 10/18: 마친 뒤만 '작은 팔이 누르는 자리예요'였다).
+/// 연습의 그림 위 안내 — 실행 중·마친 뒤 대기 모두 같은 말(평가 13차 10/18: 마친 뒤만 '누름 장치가 누르는 자리예요'였다).
 const kPracticePanelCaption = '연습으로 누르는 자리예요. 화면은 누르지 않아도 돼요';

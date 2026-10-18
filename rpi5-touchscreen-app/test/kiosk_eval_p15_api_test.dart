@@ -1,6 +1,6 @@
 // 평가 15차(2026-10-18) — 새로 생긴 구성을 쓰는 단정 시험(옛 코드에는 이 구성이 없어 컴파일부터 실패한다).
 //
-// 3. 안전: 작은 팔이 멈췄는지 모르는 정지 결과의 '다시 멈추기' — 정지 자리(오른쪽 아래)의 빨간 정지 단추, 누르면 정지 경로를
+// 3. 안전: 누름 장치가 멈췄는지 모르는 정지 결과의 '다시 멈추기' — 정지 자리(오른쪽 아래)의 빨간 정지 단추, 누르면 정지 경로를
 //    다시 부르고(kiosk_screen이 /stop), 결과(받음·닿지 않음)를 한 줄로 말한다. 연습·확인한 정지에는 없다.
 // 10. 조용한 시간 어둡게는 패널 전체(가장자리 여백까지) — 캔버스 안쪽 사각형 테두리가 드러나지 않는다.
 import 'dart:io';
@@ -81,7 +81,7 @@ void main() {
     testWidgets('누른 뒤 결과 한 줄 — 받음·닿지 않음', (tester) async {
       await _pump15(tester, _userStop(onStopAgain: () {}, stopAgain: 'sent'));
       expect(find.byKey(const ValueKey('done-stop-again-note')), findsOneWidget);
-      expect(find.text('한 번 더 멈추라고 했어요. 작은 팔을 봐 주세요'), findsOneWidget);
+      expect(find.text('한 번 더 멈추라고 했어요. 누름 장치를 봐 주세요'), findsOneWidget);
       await _pump15(tester, _userStop(onStopAgain: () {}, stopAgain: 'failed'));
       expect(find.text('정지가 닿지 않았어요. 가전 전원을 직접 꺼 주세요'), findsOneWidget);
     });
@@ -120,7 +120,7 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 900));
-      expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+      expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
       expect(find.byKey(const ValueKey('done-manual')), findsNothing);
       final before = api.stopCalls;
       await tester.tap(find.byKey(const ValueKey('done-stop-again')));

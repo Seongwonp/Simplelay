@@ -58,8 +58,8 @@ class KioskDoneView extends StatelessWidget {
     this.stopAgain,
   });
 
-  /// 작은 팔이 멈췄는지 모르는 정지 결과의 '다시 멈추기'(평가 15차 10/18) — 정지 대기 화면과 같은 정지 경로(/stop)를 다시 보낸다.
-  /// null이면(연습·LG 가전·다시 보낼 수 없음) 단추를 두지 않는다. 이 결과에는 '작은 팔로 골라 누르기'를 두지 않는다(안전).
+  /// 누름 장치가 멈췄는지 모르는 정지 결과의 '다시 멈추기'(평가 15차 10/18) — 정지 대기 화면과 같은 정지 경로(/stop)를 다시 보낸다.
+  /// null이면(연습·LG 가전·다시 보낼 수 없음) 단추를 두지 않는다. 이 결과에는 '누름 장치로 골라 누르기'를 두지 않는다(안전).
   final VoidCallback? onStopAgain;
 
   /// '다시 멈추기'를 누른 결과 — 'sent'(본체가 받음) | 'failed'(닿지 않음) | null(아직 안 누름).
@@ -83,7 +83,7 @@ class KioskDoneView extends StatelessWidget {
   /// 화면을 만지면 부른다(성공 화면의 자동 복귀 멈춤). 단추를 누를 때도 불리지만 단추 동작은 그대로다.
   final VoidCallback? onHold;
 
-  /// 작은 팔이 누른 버튼 기록(이름·보고 결과). 버튼판에서 모두 자리를 찾으면 오른쪽 그림에 누른 칸을 표시한다
+  /// 누름 장치가 누른 버튼 기록(이름·보고 결과). 버튼판에서 모두 자리를 찾으면 오른쪽 그림에 누른 칸을 표시한다
   /// (화면 구조 개편 10/18). 모르면 null — 지금처럼 가운데 글만.
   final List<KioskButtonResult>? pressed;
 
@@ -207,7 +207,7 @@ class KioskDoneView extends StatelessWidget {
         'already_at_target'
       }.contains(resultConfirmation);
 
-  /// 작은 팔로 눌렀는데 눌렸는지 모르나(실제 실행). 사용자 정지·작은 팔 걸림(원인을 아는 정지)·본체 끊김은 아니다.
+  /// 누름 장치로 눌렀는데 눌렸는지 모르나(실제 실행). 사용자 정지·누름 장치 걸림(원인을 아는 정지)·본체 끊김은 아니다.
   bool get _pressUnknown {
     if (executionMode == 'mock' || route == 'thinq') return false;
     if (success) return executionMode == 'real' && resultConfirmation == 'none';
@@ -216,14 +216,14 @@ class KioskDoneView extends StatelessWidget {
         (r == KioskFailureReason.safetyStop && motionAbortSentence(abortReason) == null);
   }
 
-  /// 사용자가 멈췄는데 작은 팔이 멈춘 것을 확인하지 못했나(실제 실행·작은 팔 경로, 보고 기다림이 끝난 뒤, 평가 15차 10/18).
+  /// 사용자가 멈췄는데 누름 장치가 멈춘 것을 확인하지 못했나(실제 실행·누름 장치 경로, 보고 기다림이 끝난 뒤, 평가 15차 10/18).
   bool get _stopUnknown {
     if (success || executionMode == 'mock' || route == 'thinq' || stopPending) return false;
     if ((reason ?? KioskFailureReason.execution) != KioskFailureReason.stopped) return false;
     return !stopLevelConfirmed(stopLevel);
   }
 
-  /// '확인 못 함' 결과의 순서 안내(사용자 결정 10/18) — LG 가전 확인 못 함·작은 팔 눌렸는지 모름·작은 팔이 멈췄는지 모름
+  /// '확인 못 함' 결과의 순서 안내(사용자 결정 10/18) — LG 가전 확인 못 함·누름 장치 눌렸는지 모름·누름 장치가 멈췄는지 모름
   /// (평가 15차 10/18). 그 밖은 null. 자동으로 다시 하지 않는다 — '한 번 더 하기'는 종전 정책 그대로다.
   List<String>? get recoverySteps => _thinqUnconfirmed
       ? kThinqRecoverySteps
@@ -287,7 +287,7 @@ class KioskDoneView extends StatelessWidget {
     final userStop = !success && r == KioskFailureReason.stopped;
     // 정지 확인 보고를 기다리는 중 — 끝난 결과가 아니다(평가 8차 10/18).
     final pending = userStop && stopPending;
-    // 연습 정지는 실제로 움직인 것이 없다 — 작은 팔이 멈췄는지 묻지 않는다(평가 8차 10/18).
+    // 연습 정지는 실제로 움직인 것이 없다 — 누름 장치가 멈췄는지 묻지 않는다(평가 8차 10/18).
     final practiceStop = userStop && !pending && executionMode == 'mock';
     final thinq = route == 'thinq';
     final mock = executionMode == 'mock';
@@ -310,7 +310,7 @@ class KioskDoneView extends StatelessWidget {
         !thinq &&
         executionMode == 'real' &&
         resultConfirmation != 'none';
-    // 작은 팔이 멈춘 것을 확인한 정지(verified)만 흰색·체크(2026-10-15). 그 밖의 정지는 멈췄는지 모른다 — 주의색·물음표.
+    // 누름 장치가 멈춘 것을 확인한 정지(verified)만 흰색·체크(2026-10-15). 그 밖의 정지는 멈췄는지 모른다 — 주의색·물음표.
     final stopVerified = userStop && stopLevelConfirmed(stopLevel);
     // 확인 못 함은 실패가 아니다 — 빨강이 아니라 주의색으로 말한다.
     final color = verifiedSuccess
@@ -345,7 +345,7 @@ class KioskDoneView extends StatelessWidget {
     final outcome =
         thinq ? thinqOutcomeSentence(resultConfirmation, detail) : null;
     // 성공의 가장 큰 글자(2026-10-15 문구 개선 §2-1) — 확인한 것만큼. 물리 경로가 끝낸 것은 버튼 누르기이고,
-    // 실행 환경을 모르면(옛 노드·UART가 보고하지 않음) 작은 팔이 보고한 사실까지만 말한다.
+    // 실행 환경을 모르면(옛 노드·UART가 보고하지 않음) 누름 장치가 보고한 사실까지만 말한다.
     final successHeadline = already
         ? '이미 그 설정이에요'
         : thinq
@@ -368,7 +368,7 @@ class KioskDoneView extends StatelessWidget {
                             // 누름 보고만 — 버튼까지만 말한다. 가전은 사람이 본다(평가 3차 10/18).
                             ? '버튼은 다 눌렀어요'
                             : '눌렸는지 몰라요')
-                    // 실행 환경을 모를 때도 같은 말 하나로(평가 4차 10/18 — '작은 팔이 다 눌렀다고 알려 왔어요'는 기계 말투).
+                    // 실행 환경을 모를 때도 같은 말 하나로(평가 4차 10/18 — '누름 장치가 다 눌렀다고 알려 왔어요'는 기계 말투).
                     // 확인 수준은 그대로다: 띠 '확인해 주세요'(앰버) + 아래 '가전이 움직이는지 봐 주세요'.
                     : '버튼은 다 눌렀어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
@@ -414,7 +414,7 @@ class KioskDoneView extends StatelessWidget {
         ? r.practiceWhy
         : motion != null
             // 큰 글자 줄은 마침표 없이(평가 8차 10/18).
-            ? '다시 누르지 않았어요\n가전과 작은 팔을 봐 주세요'
+            ? '다시 누르지 않았어요\n가전과 누름 장치를 봐 주세요'
             : userStop
                 ? stopLevelNextStep(stopLevel)
                 : r.detail(label, canRetry: onRetry != null);
@@ -546,7 +546,7 @@ class KioskDoneView extends StatelessWidget {
             KioskText(
               stopAgain == 'failed'
                   ? '정지가 닿지 않았어요. 가전 전원을 직접 꺼 주세요'
-                  : '한 번 더 멈추라고 했어요. 작은 팔을 봐 주세요',
+                  : '한 번 더 멈추라고 했어요. 누름 장치를 봐 주세요',
               textKey: const ValueKey('done-stop-again-note'),
               textAlign: ta,
               style: TextStyle(
@@ -607,7 +607,7 @@ class KioskDoneView extends StatelessWidget {
     // 키웠다(UI 평가 5차 10/17). 다시 하려면 처음 화면에서 고른다.
     final retry = userStop ? null : onRetry;
     final stacked = !pending && large && !success;
-    // 작은 팔이 멈췄는지 모르는 정지(평가 15차 10/18, 안전) — 작은 팔을 다시 움직이게 하는 '작은 팔로 골라 누르기'는 두지
+    // 누름 장치가 멈췄는지 모르는 정지(평가 15차 10/18, 안전) — 누름 장치를 다시 움직이게 하는 '누름 장치로 골라 누르기'는 두지
     // 않고, 정지 대기 화면(hold_view 정지 미확인)과 같은 '다시 멈추기'를 정지 자리에 둔다. 처음 화면은 보조 크기(같은 모양).
     final showStopAgain = _stopUnknown && onStopAgain != null;
     final manual = _stopUnknown ? null : onManual;
@@ -656,7 +656,7 @@ class KioskDoneView extends StatelessWidget {
                     label: '다시 멈추기',
                     onPressed: onStopAgain,
                     buttonKey: const ValueKey('done-stop-again'),
-                    semanticsLabel: '다시 멈추기. 작은 팔에 한 번 더 멈추라고 해요')
+                    semanticsLabel: '다시 멈추기. 누름 장치에 한 번 더 멈추라고 해요')
                 : null,
           );
     // 화면을 만지면 자동 복귀를 멈춘다(UI 평가 10/17) — 단추 동작은 그대로 지나간다(translucent).
@@ -679,7 +679,7 @@ class KioskDoneView extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(
-                      // 왼쪽 아래 빈자리에 누른 순서(평가 7차 10/18) — 버튼판의 ✓와 같은 뜻(작은 팔이 눌렀다고 알려 옴).
+                      // 왼쪽 아래 빈자리에 누른 순서(평가 7차 10/18) — 버튼판의 ✓와 같은 뜻(누름 장치가 눌렀다고 알려 옴).
                       child: KioskStepTrail.worth(pressed!.length)
                           ? Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -708,7 +708,7 @@ class KioskDoneView extends StatelessWidget {
                       width: KioskPanelPicture.width,
                       child: KioskPanelPicture(
                         appliance: target,
-                        caption: mock ? '연습으로 누른 자리예요' : '작은 팔이 누른 자리예요',
+                        caption: mock ? '연습으로 누른 자리예요' : '누름 장치가 누른 자리예요',
                         captionKey: const ValueKey('done-panel-caption'),
                         pressed: pressedMap,
                       ),
@@ -1160,7 +1160,7 @@ class KioskHomeButton extends StatelessWidget {
 Widget kioskHomeButton(VoidCallback onTap, {Key key = const ValueKey('done-home'), bool compact = false}) =>
     KioskHomeButton(buttonKey: key, onTap: onTap, compact: compact);
 
-/// 결과 화면 보조 단추 하나(테두리·아이콘·흰 글자, 높이 [KioskSizes.secondaryButton]) — '작은 팔로 골라 누르기'·'한 번 더 하기'.
+/// 결과 화면 보조 단추 하나(테두리·아이콘·흰 글자, 높이 [KioskSizes.secondaryButton]) — '누름 장치로 골라 누르기'·'한 번 더 하기'.
 /// 주 단추 '처음 화면으로'보다 작은 글자다.
 class KioskSecondaryAction extends StatelessWidget {
   const KioskSecondaryAction(
@@ -1322,9 +1322,9 @@ class KioskResultActions extends StatelessWidget {
   }
 }
 
-/// 결과 화면에서 버튼판(작은 팔이 누를 버튼을 고르는 화면)으로 가는 단추 이름(평가 8차 10/18).
-/// 짧게(평가 12차 10/18) — 누르는 것은 작은 팔이라는 말은 남긴다(손으로 누르라는 말과 헷갈리지 않게, 평가 8차).
-const kManualEntryLabel = '작은 팔로 골라 누르기';
+/// 결과 화면에서 버튼판(누름 장치가 누를 버튼을 고르는 화면)으로 가는 단추 이름(평가 8차 10/18).
+/// 짧게(평가 12차 10/18) — 누르는 것은 누름 장치라는 말은 남긴다(손으로 누르라는 말과 헷갈리지 않게, 평가 8차).
+const kManualEntryLabel = '누름 장치로 골라 누르기';
 
 /// LG 가전에 부탁했지만 확인하지 못했을 때의 순서 안내(사용자 결정 10/18) — 짧은 말, 하나씩 해 볼 순서.
 /// 말끝을 서로 다르게·짧게(평가 15차 10/18 — 제목·번호 셋이 모두 '~봐 주세요'였다).
@@ -1334,18 +1334,18 @@ const kThinqRecoverySteps = [
   '그래도 모르면 가전 앞에서 직접 확인',
 ];
 
-/// 작은 팔이 눌렀는지 모를 때의 순서 안내(사용자 결정 10/18). 바뀌지 않았을 때만 손으로 누르게 한다 — 이미 눌렸으면 한 번 더
+/// 누름 장치가 눌렀는지 모를 때의 순서 안내(사용자 결정 10/18). 바뀌지 않았을 때만 손으로 누르게 한다 — 이미 눌렸으면 한 번 더
 /// 눌려 꺼질 수 있다(열린 문제 R1과 같은 이유). 말끝은 서로 다르게·짧게(평가 15차 10/18).
 const kPressRecoverySteps = [
   '가전 화면·불빛이 바뀌었는지 보기',
-  '작은 팔이 버튼 앞에 있는지 확인',
+  '누름 장치가 버튼 앞에 있는지 확인',
   '안 바뀌었으면 가전 버튼을 손으로 누르기',
 ];
 
-/// 작은 팔이 멈췄는지 모를 때(사용자 정지, 확인 못 함)의 순서 안내(평가 15차 10/18) — 정지가 먼저, 그다음 가전.
-/// 작은 팔을 다시 움직이게 하는 일('작은 팔로 골라 누르기')은 권하지 않는다.
+/// 누름 장치가 멈췄는지 모를 때(사용자 정지, 확인 못 함)의 순서 안내(평가 15차 10/18) — 정지가 먼저, 그다음 가전.
+/// 누름 장치를 다시 움직이게 하는 일('누름 장치로 골라 누르기')은 권하지 않는다.
 const kStopUnknownSteps = [
-  '작은 팔이 아직 움직이면 다시 멈추기',
+  '누름 장치가 아직 움직이면 다시 멈추기',
   '가전이 켜져 있으면 가전 정지 버튼을 손으로 누르기',
 ];
 

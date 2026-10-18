@@ -72,7 +72,7 @@ const _ok = [
 
 const _pressDown = [
   ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
-  ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+  ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
   ConnectionItem(id: 'plug', state: 'ok', title: '', message: ''),
 ];
 
@@ -153,7 +153,7 @@ void main() {
       expect(ready, isNot(_bandFill(tester, 'rice')));
     });
 
-    testWidgets("작은 팔 끊김은 회색 '지금 못 써요', 비상 버튼은 빨강 '지금 못 써요'", (tester) async {
+    testWidgets("누름 장치 끊김은 회색 '지금 못 써요', 비상 버튼은 빨강 '지금 못 써요'", (tester) async {
       await _pump(tester, _idle([_microwave, _air], connections: _pressDown));
       expect(_status(tester, 'microwave'), '지금 못 써요');
       expect(_bandFill(tester, 'microwave'), isNot(_tint(KioskColors.danger)));

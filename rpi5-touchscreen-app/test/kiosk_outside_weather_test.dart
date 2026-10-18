@@ -12,7 +12,7 @@ import 'package:simplelay_touchscreen/widgets/kiosk/idle_view.dart';
 
 const _ok = [
   ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-  ConnectionItem(id: 'press', state: 'ok', title: '작은 팔이 연결돼 있어요', message: ''),
+  ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 연결돼 있어요', message: ''),
 ];
 
 AmbientInfo _amb(List<AmbientHour> hourly, {AmbientTip? tip}) =>

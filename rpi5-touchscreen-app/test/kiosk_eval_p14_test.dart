@@ -383,7 +383,7 @@ void main() {
               shown: true,
               child: _idle(connections: const [
                 ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
-                ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+                ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
               ])));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
       expect(chip, findsOneWidget);

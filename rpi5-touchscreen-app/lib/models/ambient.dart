@@ -325,7 +325,7 @@ class KioskRoutine {
   /// 단계들이 다루는 가전(순서대로, 중복 없음).
   final List<String> applianceIds;
 
-  /// 작은 팔이 누를 버튼 수(버튼 누르기 단계들의 버튼 합).
+  /// 누름 장치가 누를 버튼 수(버튼 누르기 단계들의 버튼 합).
   final int pressCount;
 
   /// ThinQ로 바꾸는 가전 설정 단계 수(누르지 않는다).

@@ -270,7 +270,7 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.byKey(_band), findsNothing);
         expect(find.byKey(const ValueKey('estop-banner')).hitTestable(), findsOneWidget);
-        expect(find.text('작은 팔을 쓸 수 없어요'), findsOneWidget);
+        expect(find.text('누름 장치를 쓸 수 없어요'), findsOneWidget);
         final stop = tester.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop')));
         expect(stop.onPressed, isNull);
       });

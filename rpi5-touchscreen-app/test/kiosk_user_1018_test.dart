@@ -6,7 +6,7 @@
 //    제안·결과·비상 화면은 어둡게 하지 않는다.
 // 3. 고대비 설정 — 큰 글씨 옆, 같은 파일에 저장. 색 토큰 대비 7:1 이상.
 // 4. 처음 화면 '지난 일' 한 줄 — 실패·'확인 못 함'만, '확인'을 누를 때까지(키오스크 안 기억).
-// 5. '확인 못 함' 결과에 순서 안내 2~3단계(LG 가전 확인 못 함·작은 팔 눌렸는지 모름). 자동 재시도 단추는 없다.
+// 5. '확인 못 함' 결과에 순서 안내 2~3단계(LG 가전 확인 못 함·누름 장치 눌렸는지 모름). 자동 재시도 단추는 없다.
 import 'dart:io';
 import 'dart:math' as math;
 
@@ -28,11 +28,11 @@ import 'support/idle_menu.dart';
 
 const _ok = [
   ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-  ConnectionItem(id: 'press', state: 'ok', title: '작은 팔이 연결돼 있어요', message: ''),
+  ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 연결돼 있어요', message: ''),
 ];
 const _two = [
   ConnectionItem(id: 'network', state: 'warn', title: '와이파이 신호가 약해요', message: ''),
-  ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+  ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
 ];
 const _checking = [
   ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
@@ -142,7 +142,7 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('conn-badge-network')), findsOneWidget);
       expect(find.byKey(const ValueKey('conn-badge-press')), findsOneWidget);
-      expect(find.text('작은 팔과 연결이 끊겼어요'), findsOneWidget);
+      expect(find.text('누름 장치와 연결이 끊겼어요'), findsOneWidget);
     });
 
     testWidgets("아직 확인하지 못했으면 숨기지 않고 '연결을 확인하고 있어요' — 정상이라고 하지 않는다", (tester) async {
@@ -408,7 +408,7 @@ void main() {
       expect(v(reason: KioskFailureReason.execution).pastHeadline, '눌렸는지 몰라요');
       expect(v(reason: KioskFailureReason.serverLost).pastHeadline, '어떻게 됐는지 몰라요');
       expect(v(reason: KioskFailureReason.unconfirmed, route: 'thinq').pastHeadline, '보냈지만 됐는지 몰라요');
-      expect(v(reason: KioskFailureReason.stopped, stopLevel: 'sent').pastHeadline, '작은 팔이 멈췄는지 몰라요');
+      expect(v(reason: KioskFailureReason.stopped, stopLevel: 'sent').pastHeadline, '누름 장치가 멈췄는지 몰라요');
       expect(v(reason: KioskFailureReason.stopped, stopLevel: 'verified').pastHeadline, isNull);
       expect(v(success: true, confirmation: 'reported').pastHeadline, isNull);
       expect(v(success: true, confirmation: 'none').pastHeadline, '눌렸는지 몰라요');
@@ -488,7 +488,7 @@ void main() {
                   .replaceAll(' ', ' '),
         ];
 
-    testWidgets('작은 팔 눌렸는지 모름 — 세 단계, 자동 재시도 단추는 없다', (tester) async {
+    testWidgets('누름 장치 눌렸는지 모름 — 세 단계, 자동 재시도 단추는 없다', (tester) async {
       await _pumpView(
           tester,
           KioskDoneView(
@@ -532,7 +532,7 @@ void main() {
       expect(steps(tester), kThinqRecoverySteps);
     });
 
-    testWidgets('확인한 결과·연습·사용자 정지·작은 팔 걸림에는 두지 않는다', (tester) async {
+    testWidgets('확인한 결과·연습·사용자 정지·누름 장치 걸림에는 두지 않는다', (tester) async {
       for (final view in [
         KioskDoneView(
             success: true,

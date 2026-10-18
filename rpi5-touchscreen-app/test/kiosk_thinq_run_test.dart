@@ -1,11 +1,11 @@
-// LG 가전 실행 화면(사용자 요청 10/18) — 작은 팔이 누르지 않는 실행에 버튼판·'누를 버튼'·누를 순서를 보이지 않는다.
+// LG 가전 실행 화면(사용자 요청 10/18) — 누름 장치가 누르지 않는 실행에 버튼판·'누를 버튼'·누를 순서를 보이지 않는다.
 //
 // - 보내는 중: 가운데 큰 기다림 표시 + 하려는 일('공기청정기를 켜고 있어요', 평가 10차 10/18). 정지 단추는 그대로.
 // - 끝: 결과 창 — 서버가 상태를 다시 읽어 확인했을 때만 초록 체크 + 바뀐 결과('공기청정기가 켜졌어요').
 //   확인 못 함은 체크 없이 '켜 달라고 했어요 / 켜졌는지는 아직 몰라요', 이미 그 설정이면 '이미 켜져 있어요'.
 //   몇 초 뒤 또는 '닫기'로 처음 화면.
 // - 판정 근거: 승인에 묶인 명령(`commands[].route`)이 LG 가전 명령 하나일 때(또는 LG 가전 상세에서 바꾼 것)만.
-//   작은 팔 단계가 섞인 루틴은 기존 화면.
+//   누름 장치 단계가 섞인 루틴은 기존 화면.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:simplelay_touchscreen/models/appliance.dart';
@@ -47,7 +47,7 @@ const _powerOn = KioskSuggestion(
   ],
 );
 
-/// 루틴 — LG 가전 단계와 작은 팔 단계가 섞였다.
+/// 루틴 — LG 가전 단계와 누름 장치 단계가 섞였다.
 const _mixed = KioskSuggestion(
   id: 'sc-mixed',
   purpose: '저녁 휴식 — 공기청정기를 켜고 선풍기를 약풍으로 켤까요?',
@@ -187,7 +187,7 @@ void main() {
   });
 
   group('키오스크 화면', () {
-    testWidgets('보내는 중 — 버튼판·누를 순서·작은 팔 문구 없이 기다림 + 한 줄, 정지 단추는 그대로', (tester) async {
+    testWidgets('보내는 중 — 버튼판·누를 순서·누름 장치 문구 없이 기다림 + 한 줄, 정지 단추는 그대로', (tester) async {
       final api = await _start(tester, _powerOn);
       await _approveAndRun(tester, api);
       expect(find.byType(KioskExecutingView), findsOneWidget);
@@ -195,7 +195,7 @@ void main() {
       expect(find.text('공기청정기를 켜고 있어요'), findsOneWidget);
       expect(find.descendant(of: _sending, matching: find.byType(CircularProgressIndicator)), findsOneWidget);
       expect(find.textContaining('누를'), findsNothing);
-      expect(find.textContaining('작은 팔'), findsNothing);
+      expect(find.textContaining('누름 장치'), findsNothing);
       expect(find.textContaining('버튼'), findsNothing);
       expect(find.text('준비 중'), findsNothing);
       expect(find.byKey(const ValueKey('exec-step-trail')), findsNothing);
@@ -224,8 +224,8 @@ void main() {
           of: find.byType(KioskDoneView), matching: find.byKey(const ValueKey('status-band-icon'))));
       expect(icon.icon, Icons.check);
       expect(icon.color, KioskColors.confirmed);
-      // 결과 창에 작은 팔 문구·버튼판이 없다.
-      expect(find.textContaining('작은 팔'), findsNothing);
+      // 결과 창에 누름 장치 문구·버튼판이 없다.
+      expect(find.textContaining('누름 장치'), findsNothing);
       expect(find.textContaining('눌렀'), findsNothing);
       expect(tts.utterances.last, contains('공기청정기가 켜졌어요'));
       await tester.pump(KioskTimings.doneReturn);
@@ -281,7 +281,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('LG 가전 단계와 작은 팔 단계가 섞인 루틴은 기존 실행 화면', (tester) async {
+    testWidgets('LG 가전 단계와 누름 장치 단계가 섞인 루틴은 기존 실행 화면', (tester) async {
       final api = await _start(tester, _mixed);
       await _approveAndRun(tester, api);
       expect(find.byType(KioskExecutingView), findsOneWidget);

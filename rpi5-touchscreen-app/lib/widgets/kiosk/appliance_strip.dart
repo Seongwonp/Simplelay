@@ -108,11 +108,11 @@ class KioskApplianceStrip extends StatefulWidget {
   /// 가전 타일 높이(화면 구조 개편 10/18 — 큰 사각 타일).
   final double tileHeight;
 
-  /// 지금 쓸 수 없는 가전(평가 3차 10/18) — 작은 팔 연결이 끊기면 작은 팔이 누르는 가전. 타일을 흐리게 하고
+  /// 지금 쓸 수 없는 가전(평가 3차 10/18) — 누름 장치 연결이 끊기면 누름 장치가 누르는 가전. 타일을 흐리게 하고
   /// '지금 못 써요'라고 말한다. 누르면 무엇을 할지는 평소 화면이 정한다(연결 창). LG 가전은 넣지 않는다.
   final Set<String> unavailable;
 
-  /// [unavailable]이 비상 버튼 때문인가 — 띠를 빨강으로(평가 6차 10/18). 아니면(작은 팔 끊김) 회색.
+  /// [unavailable]이 비상 버튼 때문인가 — 띠를 빨강으로(평가 6차 10/18). 아니면(누름 장치 끊김) 회색.
   final bool unavailableByEstop;
 
   /// 오른쪽 장 넘김 칸 폭(이전 · 쪽 번호 · 다음). 평소 화면이 타일 폭을 잴 때 뺀다.
@@ -590,10 +590,10 @@ class KioskTileBand {
   Color get face => fill ?? tone.withValues(alpha: KioskSizes.bandTint);
 }
 
-/// 회색 띠 면 — 준비됨·모름·작은 팔 끊김. 색 있는 띠보다 옅다.
+/// 회색 띠 면 — 준비됨·모름·누름 장치 끊김. 색 있는 띠보다 옅다.
 const Color kTileBandGrey = Color(0x1FAEB3C0);
 
-/// 가전 타일의 상태 띠(평가 6차 10/18). 우선순위: 확인 필요 → 지금 못 씀(비상 버튼 빨강 · 작은 팔 끊김 회색) →
+/// 가전 타일의 상태 띠(평가 6차 10/18). 우선순위: 확인 필요 → 지금 못 씀(비상 버튼 빨강 · 누름 장치 끊김 회색) →
 /// 작동 중 → 켜짐(LG 가전 조회로 본 것만 초록) → 설정이 필요해요(사진 위치를 맞추지 않은 사용자 가전, 폰과 같은 판정) →
 /// 서버 준비 판정(연결·설정) → 준비됐어요(서버가 실행을 받아 준다고 말한 때만) → 모르면 '확인 전이에요'.
 KioskTileBand kioskTileBand(
@@ -607,7 +607,7 @@ KioskTileBand kioskTileBand(
 }) {
   if (attention) return KioskTileBand('확인 필요', Icons.error_outline, KioskColors.warning);
   if (unavailable) {
-    // 이유는 누르면 연다(비상 버튼 풀기 안내·작은 팔 연결 창).
+    // 이유는 누르면 연다(비상 버튼 풀기 안내·누름 장치 연결 창).
     return unavailableByEstop
         ? KioskTileBand('지금 못 써요', Icons.report, KioskColors.danger)
         : KioskTileBand('지금 못 써요', Icons.link_off, KioskColors.muted, fill: kTileBandGrey);

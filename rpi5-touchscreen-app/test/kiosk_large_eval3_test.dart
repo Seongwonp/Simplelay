@@ -2,7 +2,7 @@
 // - 실행 화면: 마지막 줄이 스크롤 영역 아래에서 잘렸다(k-large-executing).
 // - 연결 창: 셋째 할 일이 스크롤해야 보였다(k-large-connection_modal).
 // - 제안: '이번엔 안 할게요'가 두 줄로 접혀 옆 '지금 실행'과 높이가 달랐다(k-large-suggestion).
-// - 결과: '작은 팔이 다 눌렀다고 알려 / 왔어요'처럼 한 덩어리 말이 끊겼다(k-large-done).
+// - 결과: '누름 장치가 다 눌렀다고 알려 / 왔어요'처럼 한 덩어리 말이 끊겼다(k-large-done).
 // 폰트가 없는 기기(윈도가 아닌 곳)에서는 건너뛴다.
 import 'dart:io';
 
@@ -202,7 +202,7 @@ void main() {
   }
 
   testWidgets('결과 제목 — 끝의 짧은 말 묶음(알려 왔어요·봐 주세요)은 줄이 갈라지지 않아요', (tester) async {
-    expect(keepWords('작은 팔이 다 눌렀다고 알려 왔어요').replaceAll(kJoiner, ''), contains('알려\u00A0왔어요'));
+    expect(keepWords('누름 장치가 다 눌렀다고 알려 왔어요').replaceAll(kJoiner, ''), contains('알려\u00A0왔어요'));
     expect(keepWords('가전이 켜졌는지 봐 주세요').replaceAll(kJoiner, ''), contains('봐\u00A0주세요'));
     // 긴 낱말끼리는 묶지 않는다 — 줄바꿈 자리가 없어지면 안 된다.
     expect(keepWords('공유기 전원이 켜져 있는지 확인해야 합니다'), isNot(contains('\u00A0')));

@@ -7,7 +7,7 @@ import 'connection_status.dart';
 import 'estop_banner.dart';
 import 'kiosk_text.dart';
 
-/// 평소 화면 위쪽(화면 구조 개편 10/18) — 아이콘 4~5개(쉬기·설정·와이파이·작은 팔·콘센트) 대신
+/// 평소 화면 위쪽(화면 구조 개편 10/18) — 아이콘 4~5개(쉬기·설정·와이파이·누름 장치·콘센트) 대신
 /// **상태 칩 하나**와 **메뉴** 하나.
 ///
 /// - 상태 칩: 모두 괜찮으면 **두지 않는다**(사용자 결정 10/18 — 예전 '기기 모두 정상'). 문제가 있을 때만 앰버 '확인 필요 N',
@@ -20,7 +20,7 @@ import 'kiosk_text.dart';
 /// 연결 항목 짧은 이름.
 String connectionShortName(String id) => switch (id) {
       'network' => '와이파이',
-      'press' => '작은 팔',
+      'press' => '누름 장치',
       'plug' => '전기 플러그',
       _ => '연결',
     };
@@ -94,11 +94,11 @@ String connectionProblemText(ConnectionItem p) {
 }
 
 /// 원인이 하나일 때 칩 첫 줄 — 원인과 영향(평가 15차 10/18: 가전 4대가 '지금 못 써요'인데 칩은 '확인 필요 1'뿐이었다).
-/// 작은 팔이 끊겨 못 쓰는 가전 수([pressImpact])를 알면 '작은 팔이 끊겨 가전 4대를 못 써요'(짧게 — 쉬는 중 칩과 함께여도 위 줄에
-/// 들어가게), 모르면 '작은 팔 연결이 끊겼어요'.
+/// 누름 장치가 끊겨 못 쓰는 가전 수([pressImpact])를 알면 '누름 장치가 끊겨 가전 4대를 못 써요'(짧게 — 쉬는 중 칩과 함께여도 위 줄에
+/// 들어가게), 모르면 '누름 장치 연결이 끊겼어요'.
 String connectionCauseLine(ConnectionItem p, {int? pressImpact}) {
   if (p.id == 'press' && p.state == 'error' && pressImpact != null && pressImpact > 0) {
-    return '작은 팔이 끊겨 가전 $pressImpact대를 못 써요';
+    return '누름 장치가 끊겨 가전 $pressImpact대를 못 써요';
   }
   return connectionProblemText(p);
 }
@@ -116,7 +116,7 @@ class KioskIdleStatusChip extends StatelessWidget {
   final List<ConnectionItem> items;
   final VoidCallback onTap;
 
-  /// 작은 팔이 끊겨 지금 못 쓰는 가전 수(평가 15차 10/18) — 원인이 하나면 칩 첫 줄이 원인과 영향을 말한다. 모르면 null.
+  /// 누름 장치가 끊겨 지금 못 쓰는 가전 수(평가 15차 10/18) — 원인이 하나면 칩 첫 줄이 원인과 영향을 말한다. 모르면 null.
   final int? pressImpact;
 
   @override
@@ -140,7 +140,7 @@ class KioskIdleStatusChip extends StatelessWidget {
     // 연결 문제는 앰버.
     final tone = KioskColors.warning;
     final color = problem ? tone : KioskColors.muted;
-    // 화면 읽기는 무엇이 문제인지까지 읽는다('확인 필요 1. 작은 팔 연결이 끊겼어요').
+    // 화면 읽기는 무엇이 문제인지까지 읽는다('확인 필요 1. 누름 장치 연결이 끊겼어요').
     final what = [
       for (final i in _shown(items))
         if (i.needsAttention && !_isHubDown(i)) connectionProblemText(i),
@@ -175,7 +175,7 @@ class KioskIdleStatusChip extends StatelessWidget {
                   Icon(unknown ? Icons.help_outline : Icons.error_outline, size: 24, color: color),
                   ...[
                     const SizedBox(width: KioskSpace.xs),
-                    // 문제가 있으면 바로 아래 다음 행동 한 줄(평가 7차 10/18 — '작은 팔 연결이 끊겼어요'만 있고 할 일이 없었다).
+                    // 문제가 있으면 바로 아래 다음 행동 한 줄(평가 7차 10/18 — '누름 장치 연결이 끊겼어요'만 있고 할 일이 없었다).
                     // 칩 전체가 누르는 자리라 이 줄을 눌러도 같은 연결 창이 열린다.
                     Column(
                       mainAxisSize: MainAxisSize.min,

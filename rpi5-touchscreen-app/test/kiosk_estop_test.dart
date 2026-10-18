@@ -383,7 +383,7 @@ void main() {
           expect(tester.takeException(), isNull);
           visible(tester, find.text(kEstopTitle));
           visible(tester, find.text('정지'));
-          visible(tester, find.text('작은 팔을 쓸 수 없어요'));
+          visible(tester, find.text('누름 장치를 쓸 수 없어요'));
           expect(find.textContaining('멈추는 중이에요'), findsNothing);
           if (name == '확인 중') {
             visible(tester, find.text(kEstopConfirmQuestion));

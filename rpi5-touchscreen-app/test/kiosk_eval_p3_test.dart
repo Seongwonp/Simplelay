@@ -2,7 +2,7 @@
 //
 // 1. 결과 띠 말은 두 가지뿐: '됐어요'(초록, 실제 확인) · '확인 필요'(그 밖 모름·주의 전부). 같은 말 두 번 금지는
 //    제목을 바꿔 지킨다. 누름 보고만(done_reported)은 띠 '확인 필요' / 제목 '버튼은 다 눌렀어요'(중립색).
-// 2. 작은 팔 연결이 끊기면 대기 화면의 작은 팔 가전 타일은 '지금 못 써요'(흐리게, 누르면 연결 창). LG 가전은 그대로.
+// 2. 누름 장치 연결이 끊기면 대기 화면의 누름 장치 가전 타일은 '지금 못 써요'(흐리게, 누르면 연결 창). LG 가전은 그대로.
 // 3. 대기 화면 가전 타일 줄 왼쪽 = 시계 왼쪽 선, 다음 루틴은 가운데 아래 큰 카드, 큰 글씨에서 장 넘김 글자 안 잘림.
 // 4. 쉬운 말: 경보 소리·연습용 숫자·눌러 드려요·작동하고 있어요·LG 가전 설정 N번.
 // 5. 실행 화면 버튼판: 끝난 칸에 ✓, 지금 칸 채움 유지, '제대로 눌렸는지 보는 중' 아이콘은 눈 하나.
@@ -56,15 +56,15 @@ const _thinqAir = ApplianceMap(
 
 const _ok = [
   ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-  ConnectionItem(id: 'press', state: 'ok', title: '작은 팔이 연결돼 있어요', message: ''),
+  ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 연결돼 있어요', message: ''),
 ];
 const _pressDown = [
   ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
   ConnectionItem(
       id: 'press',
       state: 'error',
-      title: '작은 팔과 연결이 끊겼어요',
-      message: '작은 팔이 버튼을 누를 수 없어요.'),
+      title: '누름 장치와 연결이 끊겼어요',
+      message: '누름 장치가 버튼을 누를 수 없어요.'),
 ];
 
 KioskIdleView _idle({
@@ -230,8 +230,8 @@ void main() {
     });
   });
 
-  group('2. 작은 팔 연결이 끊기면 대기 화면', () {
-    testWidgets("작은 팔 가전 타일은 '지금 못 써요' — 누르면 연결 창, LG 가전은 그대로", (tester) async {
+  group('2. 누름 장치 연결이 끊기면 대기 화면', () {
+    testWidgets("누름 장치 가전 타일은 '지금 못 써요' — 누르면 연결 창, LG 가전은 그대로", (tester) async {
       ConnectionItem? opened;
       ApplianceMap? selected;
       await _pump(
@@ -256,7 +256,7 @@ void main() {
       expect(selected?.id, 'air');
     });
 
-    testWidgets("칩은 '연결 확인 필요 1'(사용자 결정 10/18) — 누르면 바로 그 연결 창, 읽기 말은 쉬운 말 '작은 팔 연결이 끊겼어요'", (tester) async {
+    testWidgets("칩은 '연결 확인 필요 1'(사용자 결정 10/18) — 누르면 바로 그 연결 창, 읽기 말은 쉬운 말 '누름 장치 연결이 끊겼어요'", (tester) async {
       ConnectionItem? opened;
       await _pump(tester, _idle(connections: _pressDown, onOpen: (i) => opened = i));
       final chip = find.byKey(const ValueKey('idle-status-chip'));
@@ -265,7 +265,7 @@ void main() {
       await tester.pump();
       expect(opened?.id, 'press');
       expect(connectionSummary(_pressDown).$1, '연결 확인 필요 1');
-      expect(connectionProblemText(_pressDown.firstWhere((c) => c.id == 'press')), '작은 팔 연결이 끊겼어요');
+      expect(connectionProblemText(_pressDown.firstWhere((c) => c.id == 'press')), '누름 장치 연결이 끊겼어요');
     });
   });
 
@@ -358,7 +358,7 @@ void main() {
       // 타일 4개 한 줄에서도 한 줄에 들어가게 짧게(평가 4차 10/18).
       expect(tester.widget<Text>(find.byKey(const ValueKey('tile-status-air'))).data,
           '바꾸는 중');
-      expect(find.text('작은 팔 조작'), findsNothing);
+      expect(find.text('누름 장치 조작'), findsNothing);
       expect(find.text('동작 중'), findsNothing);
     });
 

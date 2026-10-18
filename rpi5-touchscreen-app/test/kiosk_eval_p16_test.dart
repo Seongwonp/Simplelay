@@ -1,9 +1,9 @@
 // 평가 16차(2026-10-18, 키오스크 92.5 → 목표 97) — 감점 항목 단정 시험. 옛 코드에서 실패하는 것을 확인했다.
 //
-// 1. 안전: 작은 팔이 멈췄는지 모르는 정지 결과 — 모든 크기(보통·큰 글씨, 800x480·실패널)·정지 단계·다시 멈추기 결과에서
+// 1. 안전: 누름 장치가 멈췄는지 모르는 정지 결과 — 모든 크기(보통·큰 글씨, 800x480·실패널)·정지 단계·다시 멈추기 결과에서
 //    '다시 멈추기'가 화면 안에 다 보이고 눌린다.
 // 2. '자동 루틴' 본 줄은 한 줄('오후 10:00 · 이름') — 넘치면 이름만 말줄임.
-// 3. 정지 미확인 대기: 작은 팔이 제자리로 돌아간 것을 서버가 알려 왔으면(hold_state=parked) '다시 멈추기' 대신 '정지'(같은 자리)와
+// 3. 정지 미확인 대기: 누름 장치가 제자리로 돌아간 것을 서버가 알려 왔으면(hold_state=parked) '다시 멈추기' 대신 '정지'(같은 자리)와
 //    손으로 누를 안내가 주 안내. 아직 정지 버튼 위면 '다시 멈추기' 유지. '전자레인지의' 번역투 없음.
 // 4. 연습을 마친 대기: '연습이 끝났어요', 버튼판 칸 강조 없음, 정지 단추는 같은 자리·이름 그대로.
 // 5. 성공 자동 복귀 말은 큰 글씨에서도 같은 말.
@@ -168,12 +168,12 @@ void main() {
   });
 
   group('3. 정지 미확인 대기', () {
-    testWidgets('작은 팔이 제자리로 돌아갔으면 다시 멈추기 대신 손으로 누를 안내', (t) async {
+    testWidgets('누름 장치가 제자리로 돌아갔으면 다시 멈추기 대신 손으로 누를 안내', (t) async {
       await _pump(t, _hold(state: 'parked', outcome: 'requested_unconfirmed'), panel: true);
       expect(find.text('다시 멈추기'), findsNothing);
       expect(find.byKey(const ValueKey('hold-stop')), findsOneWidget);
       expect(_has(t, '전자레인지 취소 버튼을 손으로 눌러 주세요'), isTrue, reason: _texts(t).join(' | '));
-      expect(_texts(t).any((s) => s.contains('작은 팔도')), isFalse);
+      expect(_texts(t).any((s) => s.contains('누름 장치도')), isFalse);
       expect(_texts(t).any((s) => s.contains('전자레인지의')), isFalse);
     });
 

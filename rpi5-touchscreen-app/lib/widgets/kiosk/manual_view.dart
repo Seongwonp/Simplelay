@@ -125,7 +125,7 @@ class _KioskManualViewState extends State<KioskManualView> {
                           ),
                           if (!appliance.isThinq && appliance.canExecute)
                             KioskText(
-                              '화면 버튼을 누르면 작은 팔이 ${appliance.name} 버튼을 대신 눌러요',
+                              '화면 버튼을 누르면 누름 장치가 ${appliance.name} 버튼을 대신 눌러요',
                               textKey: const ValueKey('manual-explain'),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -487,7 +487,7 @@ String? readinessTodo(ApplianceMap appliance) {
     return '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요';
   }
   if (reasons.contains('모터') || reasons.contains('센서')) {
-    return '잠시 기다려 주세요. 계속되면 작은 팔을 다시 켜 주세요';
+    return '잠시 기다려 주세요. 계속되면 누름 장치를 다시 켜 주세요';
   }
   return null;
 }

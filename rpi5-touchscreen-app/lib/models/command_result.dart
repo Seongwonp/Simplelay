@@ -128,8 +128,8 @@ String? confirmationLabel({
     // 동작 확인은 콘센트 전력이 늘어난 것이다 — 조리를 시작했다고 말하지 않는다(2026-10-15). 폰과 같은 말(10/18 §3-5).
     'operation_confirmed' => '가전이 전기를 쓰기 시작했어요',
     'press_confirmed' => '버튼을 눌렀어요',
-    // 기계 말투('알려 왔어요') 대신 본 사실(평가 4차 10/18) — 작은 팔이 눌렀다는 것까지, 가전은 말하지 않는다.
-    'reported' => '작은 팔이 눌렀어요',
+    // 기계 말투('알려 왔어요') 대신 본 사실(평가 4차 10/18) — 누름 장치가 눌렀다는 것까지, 가전은 말하지 않는다.
+    'reported' => '누름 장치가 눌렀어요',
     'none' => '눌렸는지 몰라요',
     _ => null,
   };
@@ -143,29 +143,29 @@ String unconfirmedSentence({String? receipt}) => receipt == 'unknown'
 /// 정지 확인 단계(2026-10-13)의 제목. 서버가 올리는 단계는
 /// `sent`(정지 명령을 보냄) · `mcu_ack`(모션 보드가 받음) · `verified`(엔코더로 멈춤 확인).
 ///
-/// 주어는 **작은 팔(누름 장치)**이다(2026-10-15 문구 개선 원칙 0-2) — 세 단계 모두 가전이 멈췄다는 뜻이 아니다.
+/// 주어는 **누름 장치**이다(2026-10-15 문구 개선 원칙 0-2) — 세 단계 모두 가전이 멈췄다는 뜻이 아니다.
 /// 확인하지 못한 단계는 제목부터 그렇게 말한다(원칙 0-1). 단계를 모르면(옛 서버·로컬 모의)도 확인하지 못한 것이다.
 /// [ackMs]는 사용자 화면에 싣지 않는다(2026-10-14 문구 정리).
 ///
 /// 평가 4차(10/18): '멈추라고 보냈어요'는 기계가 한 일을 말했다 — 사람이 볼 상태로.
 /// 평가 8차(10/18): 이 제목은 **끝난 결과 화면**의 말이다 — '멈추는 중이에요'(진행 중 말)는 끝난 화면과 엇갈렸다.
-/// 결과는 둘뿐이다: 엔코더로 본 verified만 '작은 팔이 멈췄어요', 그 밖(sent·mcu_ack·모름)은 '작은 팔이 멈췄는지 몰라요'.
+/// 결과는 둘뿐이다: 엔코더로 본 verified만 '누름 장치가 멈췄어요', 그 밖(sent·mcu_ack·모름)은 '누름 장치가 멈췄는지 몰라요'.
 /// 정지 확인 보고를 아직 기다리는 동안의 말은 [kStopPendingHeadline](결과 화면의 진행 상태)이다.
 String stopLevelHeadline(String? level, {int? ackMs}) =>
-    stopLevelConfirmed(level) ? '작은 팔이 멈췄어요' : '작은 팔이 멈췄는지 몰라요';
+    stopLevelConfirmed(level) ? '누름 장치가 멈췄어요' : '누름 장치가 멈췄는지 몰라요';
 
 /// 정지 확인 보고를 아직 기다리는 동안(결과 화면이 처음 화면 단추 없이 잠깐 보이는 진행 상태, 평가 8차 10/18).
 const kStopPendingHeadline = '멈추는 중이에요';
 
-/// 연습(모의) 실행을 정지로 끝낸 결과 — 실제로 움직인 것이 없어 작은 팔이 멈췄는지 묻지 않는다(평가 8차 10/18).
+/// 연습(모의) 실행을 정지로 끝낸 결과 — 실제로 움직인 것이 없어 누름 장치가 멈췄는지 묻지 않는다(평가 8차 10/18).
 const kPracticeStopHeadline = '연습을 멈췄어요';
 
-/// 정지 제목 아래 할 일 한 가지(원칙 0-3). 작은 팔이 멈춘 것을 확인했어도 가전은 이미 켜졌을 수 있다.
+/// 정지 제목 아래 할 일 한 가지(원칙 0-3). 누름 장치가 멈춘 것을 확인했어도 가전은 이미 켜졌을 수 있다.
 String stopLevelNextStep(String? level) => stopLevelConfirmed(level)
     ? '가전이 켜져 있으면 가전 정지 버튼을 손으로 눌러 주세요'
     : '가전을 봐 주세요';
 
-/// 작은 팔이 멈춘 것을 **확인한** 단계는 엔코더 확인(verified)뿐이다. 모션 보드가 받음(mcu_ack)은 확인이 아니다
+/// 누름 장치가 멈춘 것을 **확인한** 단계는 엔코더 확인(verified)뿐이다. 모션 보드가 받음(mcu_ack)은 확인이 아니다
 /// (2026-10-15 — 예전에는 mcu_ack에도 확인 표시를 달았다).
 bool stopLevelConfirmed(String? level) => level == 'verified';
 
@@ -205,9 +205,9 @@ String finishedMessage({
             ? '연습을 마쳤어요. 실제 가전은 바꾸지 않았어요.'
             : '가전 설정이 됐어요.';
       }
-      // 화면 제목과 같은 말(2026-10-15) — 작은 팔이 보고한 것까지, 가전은 사람이 본다.
+      // 화면 제목과 같은 말(2026-10-15) — 누름 장치가 보고한 것까지, 가전은 사람이 본다.
       if (executionMode == 'mock') return '연습을 마쳤어요. 실제 가전은 누르지 않았어요.';
-      // 실행 환경을 모를 때도 같은 말(평가 4차 10/18 — '작은 팔이 다 눌렀다고 알려 왔어요'는 기계 말투). 확인 수준은
+      // 실행 환경을 모를 때도 같은 말(평가 4차 10/18 — '누름 장치가 다 눌렀다고 알려 왔어요'는 기계 말투). 확인 수준은
       // 화면 띠('확인해 주세요')와 뒤 문장('가전이 움직이는지 봐 주세요')이 지킨다.
       const head = '버튼은 다 눌렀어요.';
       return operationVerified
@@ -217,14 +217,14 @@ String finishedMessage({
     case ResultKind.unconfirmed:
       return unconfirmedSentence(receipt: receipt);
     case ResultKind.stopped:
-      // 정지 단계만큼만 말한다(2026-10-15) — 작은 팔이 멈췄는지와 가전이 멈췄는지는 다른 사실이다.
+      // 정지 단계만큼만 말한다(2026-10-15) — 누름 장치가 멈췄는지와 가전이 멈췄는지는 다른 사실이다.
       // 연습은 실제로 움직인 것이 없다 — 결과 화면과 같은 말(평가 8차 10/18).
       if (executionMode == 'mock') return '$kPracticeStopHeadline.';
       return '${stopLevelHeadline(stopLevel).replaceAll(' — ', '. ')}. ${stopLevelNextStep(stopLevel)}.';
     case ResultKind.safetyStop:
       // 모션 걸림 등(2026-10-14): 눌림 확인 실패가 아니다 — 원인 그대로, 다시 누르지 않았다고 말한다.
       final motion = motionAbortSentence(abortReason);
-      if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 작은 팔을 봐 주세요.';
+      if (motion != null) return '$motion. 다시 누르지 않았어요. 가전과 누름 장치를 봐 주세요.';
       return '눌렸는지 몰라서 멈췄어요. 가전을 봐 주세요.';
     case ResultKind.failed:
       return thinq ? '가전을 바꾸지 못했어요. 연결을 보고 다시 해 주세요.' : '시작하지 못했어요. 연결을 보고 다시 해 주세요.';
@@ -257,15 +257,15 @@ String? thinqOutcomeSentence(String? confirmation, String? detail) {
 /// 10/13 보드 날: 모터 걸림(stall) 알람이 '눌림을 확인하지 못해 안전하게 멈췄어요'로 보여 원인이 바뀌어 보였다.
 String? motionAbortSentence(String? reason) {
   if (reason == null || !reason.startsWith('motion_')) return null;
-  // 주어는 화면에 보이는 물건(작은 팔)으로(2026-10-15 문구 개선 원칙 0-5) — 모터·보드 같은 부품 이름 대신.
-  if (reason == 'motion_alarm: stall') return '작은 팔이 걸려 멈췄어요';
-  if (reason.startsWith('motion_alarm')) return '작은 팔에 이상이 생겨 멈췄어요';
+  // 주어는 화면에 보이는 물건(누름 장치)으로(2026-10-15 문구 개선 원칙 0-5) — 모터·보드 같은 부품 이름 대신.
+  if (reason == 'motion_alarm: stall') return '누름 장치가 걸려 멈췄어요';
+  if (reason.startsWith('motion_alarm')) return '누름 장치에 이상이 생겨 멈췄어요';
   return switch (reason) {
-    'motion_reset' => '작은 팔이 다시 켜져 멈췄어요',
-    'motion_timeout' => '작은 팔이 제때 답하지 않아 멈췄어요',
-    'motion_not_ready' => '작은 팔이 준비되지 않아 멈췄어요',
-    'motion_position_mismatch' => '작은 팔 위치가 맞지 않아 멈췄어요',
-    'motion_link_error' => '작은 팔 연결이 끊겨 멈췄어요',
-    _ => '작은 팔이 멈췄어요',
+    'motion_reset' => '누름 장치가 다시 켜져 멈췄어요',
+    'motion_timeout' => '누름 장치가 제때 답하지 않아 멈췄어요',
+    'motion_not_ready' => '누름 장치가 준비되지 않아 멈췄어요',
+    'motion_position_mismatch' => '누름 장치 위치가 맞지 않아 멈췄어요',
+    'motion_link_error' => '누름 장치 연결이 끊겨 멈췄어요',
+    _ => '누름 장치가 멈췄어요',
   };
 }

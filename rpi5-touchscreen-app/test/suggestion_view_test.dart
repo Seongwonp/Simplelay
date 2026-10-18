@@ -87,7 +87,7 @@ void main() {
 
     expect(find.text('전자레인지'), findsOneWidget);
     expect(find.text('즉석밥 데우기,\n지금 할까요?'), findsOneWidget);
-    expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
+    expect(find.text('누름 장치가 누를 순서'), findsOneWidget);
     for (final (i, label) in [(1, '즉석밥'), (2, '시작')]) {
       expect(find.text('$i'), findsOneWidget);
       expect(

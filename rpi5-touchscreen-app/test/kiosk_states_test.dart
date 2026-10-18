@@ -247,7 +247,7 @@ void main() {
         ..applianceList = _six
         ..connectionsResult = [
           const ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-          const ConnectionItem(id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: ''),
+          const ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 연결돼 있어요', message: ''),
           _plugWeak,
         ];
       await _pump(tester, api);
@@ -255,7 +255,7 @@ void main() {
       // 문제가 있을 때만 앰버 칩 '연결 확인 필요 1'(사용자 결정 10/18) — 하나뿐이면 누르면 그 연결 창이 바로 열린다.
       expect(find.text('연결 확인 필요 1'), findsOneWidget);
       expect(find.text('와이파이 연결이 끊겼어요'), findsNothing);
-      expect(find.text('작은 팔 연결이 끊겼어요'), findsNothing);
+      expect(find.text('누름 장치 연결이 끊겼어요'), findsNothing);
 
       await tester.tap(find.byKey(const ValueKey('idle-status-chip')));
       await _settle(tester);
@@ -269,7 +269,7 @@ void main() {
       final before = api.connectionsCalls;
       api.connectionsResult = [
         const ConnectionItem(id: 'network', state: 'ok', title: '와이파이에 연결돼 있어요', message: ''),
-        const ConnectionItem(id: 'press', state: 'ok', title: '작은 팔 장치가 연결돼 있어요', message: ''),
+        const ConnectionItem(id: 'press', state: 'ok', title: '누름 장치가 연결돼 있어요', message: ''),
         const ConnectionItem(id: 'plug', state: 'ok', title: '전기 플러그가 연결돼 있어요', message: '가전이 끝나면 알려 드릴게요.'),
       ];
       await tester.tap(find.text('다시 연결해 보기'));
@@ -510,7 +510,7 @@ void main() {
       expect(find.text('정지 버튼을 누르는 연습 중이에요'), findsOneWidget);
     });
 
-    testWidgets('정지됨 → 작은 팔이 제자리로 돌아갔어요를 짧게 보이고 평소 화면으로', (tester) async {
+    testWidgets('정지됨 → 누름 장치가 제자리로 돌아갔어요를 짧게 보이고 평소 화면으로', (tester) async {
       final api = FakeKioskApi()
         ..applianceList = _six
         ..statusResult = _hovering();
@@ -518,7 +518,7 @@ void main() {
       api.statusResult = _hovering(state: 'parked', outcome: 'stopped');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      expect(find.text('작은 팔이 제자리로 돌아갔어요'), findsOneWidget);
+      expect(find.text('누름 장치가 제자리로 돌아갔어요'), findsOneWidget);
       // 가전이 멈췄다는 말은 전력 하강으로 확인한 때(stopped)만 — 무엇으로 확인했는지까지.
       expect(find.text('전자레인지가 멈췄어요'), findsOneWidget);
 
@@ -542,7 +542,7 @@ void main() {
       expect(find.text('가전이 멈췄는지 몰라요'), findsOneWidget);
       // 가장 큰 글자는 할 일 한 가지 — 정지 버튼은 자리·크기·색 그대로 이름만 바뀐다(2026-10-15).
       expect(find.text('지금 전자레인지 취소 버튼을 손으로 눌러 주세요'), findsOneWidget);
-      // 작은 팔이 제자리로 돌아갔으면 다시 멈출 것이 없다 — 이름은 '정지' 그대로(평가 16차 10/18).
+      // 누름 장치가 제자리로 돌아갔으면 다시 멈출 것이 없다 — 이름은 '정지' 그대로(평가 16차 10/18).
       expect(find.text('다시 멈추기'), findsNothing);
       await tester.pump(const Duration(seconds: 10));
       await _settle(tester);
@@ -563,7 +563,7 @@ void main() {
           detail: '구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);
-      expect(find.text('작은 팔에 문제가 생겼어요'), findsOneWidget);
+      expect(find.text('누름 장치에 문제가 생겼어요'), findsOneWidget);
       expect(find.text('구동부 이상으로 정지 버튼을 누르지 못했어요 — 가전 전원을 직접 꺼 주세요'),
           findsOneWidget);
       // 정지 버튼은 여전히 닿는다
@@ -677,7 +677,7 @@ void main() {
         ..ambientResult = _ambient
         ..connectionsResult = [
           const ConnectionItem(id: 'network', state: 'ok', title: 'ok', message: ''),
-          const ConnectionItem(id: 'press', state: 'unknown', title: '작은 팔 장치를 아직 확인하지 못했어요', message: ''),
+          const ConnectionItem(id: 'press', state: 'unknown', title: '누름 장치를 아직 확인하지 못했어요', message: ''),
           _plugWeak,
         ]
         ..routinesResult = const [

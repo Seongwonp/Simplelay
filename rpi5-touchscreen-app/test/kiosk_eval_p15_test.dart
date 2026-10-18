@@ -3,9 +3,9 @@
 //
 // 1. '지금' 칸: 서버가 `now` 키를 보내면 그 값만(없으면 '지금' 칸 없음). 키가 없는 옛 서버만 3시간 칸 대체.
 // 2. 실패 결과 아래 줄: 주 단추 하나('처음 화면으로') + 보조 한 줄(같은 폭·같은 높이·같은 오른쪽 끝).
-// 3. 안전: 작은 팔이 멈췄는지 모르는 정지 결과에는 '작은 팔로 골라 누르기'가 없고 번호 안내가 있다.
+// 3. 안전: 누름 장치가 멈췄는지 모르는 정지 결과에는 '누름 장치로 골라 누르기'가 없고 번호 안내가 있다.
 // 4. '처음 화면으로'는 한 모양(흰 채움·집 아이콘)·한 자리(왼쪽 아래 같은 선) — 정지 미확인 대기는 크기만 보조.
-// 5. 문제 칩: 원인이 하나면 첫 줄에 원인과 영향('작은 팔 연결이 끊겨 가전 N대를 못 써요'), '연결 확인 필요 1'은 남는다.
+// 5. 문제 칩: 원인이 하나면 첫 줄에 원인과 영향('누름 장치 연결이 끊겨 가전 N대를 못 써요'), '연결 확인 필요 1'은 남는다.
 // 6. 공기 할 일은 '공기 나빠요' 바로 아래 같은 왼쪽 열.
 // 7. LG 가전 '보내다' 표현 없음 — '공기청정기에 켜 달라고 했어요', '정지를 누르면 더 하지 않아요'.
 // 8. '~봐 주세요' 되풀이 없음 — 번호 안내가 있으면 할 일 한 줄을 따로 두지 않는다.
@@ -255,16 +255,16 @@ void main() {
       expect(_count(texts, '봐 주세요'), lessThanOrEqualTo(1));
     });
 
-    testWidgets('안전 — 작은 팔이 멈췄는지 모르면 작은 팔로 골라 누르기가 없고 번호 안내가 있다', (tester) async {
+    testWidgets('안전 — 누름 장치가 멈췄는지 모르면 누름 장치로 골라 누르기가 없고 번호 안내가 있다', (tester) async {
       await _pump15(tester, _userStop());
-      expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+      expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
       expect(find.byKey(const ValueKey('done-manual')), findsNothing);
       expect(find.text(kManualEntryLabel), findsNothing);
       expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('작은 팔이 멈춘 것을 확인한 정지는 종전대로 골라 누르기를 둔다', (tester) async {
+    testWidgets('누름 장치가 멈춘 것을 확인한 정지는 종전대로 골라 누르기를 둔다', (tester) async {
       await _pump15(tester, _userStop(level: 'verified'));
       expect(find.byKey(const ValueKey('done-manual')), findsOneWidget);
     });
@@ -302,15 +302,15 @@ void main() {
   });
 
   group('5. 문제 칩 — 원인과 영향', () {
-    testWidgets('작은 팔 끊김 하나면 첫 줄 원인·영향, 확인 필요 1은 남는다', (tester) async {
+    testWidgets('누름 장치 끊김 하나면 첫 줄 원인·영향, 확인 필요 1은 남는다', (tester) async {
       await _pump15(
           tester,
           _idle(connections: const [
             ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
-            ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+            ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
           ]));
       final texts = _texts(tester);
-      expect(texts, contains('작은 팔이 끊겨 가전 4대를 못 써요'));
+      expect(texts, contains('누름 장치가 끊겨 가전 4대를 못 써요'));
       expect(texts, contains('연결 확인 필요 1'));
       expect(tester.takeException(), isNull);
     });

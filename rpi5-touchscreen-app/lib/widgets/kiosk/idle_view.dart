@@ -191,11 +191,11 @@ class KioskIdleView extends StatelessWidget {
     final dnd = dndUntil != null && dndUntil!.isAfter(now) ? dndUntil : null;
     // 본체에 닿지 않으면 지난 연결 목록을 믿지 않는다(평가 7차 10/18 — 끊겼는데 칩이 '모두 정상').
     final connections = connectionsForDisplay(this.connections, connected: connected);
-    // 작은 팔 연결이 끊겼나(평가 3차 10/18) — 끊기면 작은 팔이 누르는 가전 타일은 '지금 못 써요'.
+    // 누름 장치 연결이 끊겼나(평가 3차 10/18) — 끊기면 누름 장치가 누르는 가전 타일은 '지금 못 써요'.
     final pressItem = connections.where((c) => c.id == 'press').firstOrNull;
     final pressDown = pressItem?.state == 'error';
     // 비상 버튼이 눌려 있나(평가 4차 10/18) — 위 빨간 띠와 같은 사실을 칩·타일도 말한다. 걸려 있는 동안은 실행이
-    // 거절되므로 작은 팔로 누르는 가전은 작은 팔 끊김과 같이 '지금 못 써요'.
+    // 거절되므로 누름 장치로 누르는 가전은 누름 장치 끊김과 같이 '지금 못 써요'.
     final estop = KioskEstopScope.shownOf(context);
     var hourly = showHours ? slots : const <ForecastSlot>[];
     // 가전 4개까지는 장 넘김 없이 한 줄에 다(평가 4차 10/18). 더 많아도 한 장에 4개 + 좁은 장 넘김(평가 5차 10/18 —
@@ -235,7 +235,7 @@ class KioskIdleView extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: KioskIdleStatusChip(
               items: connections,
-              // 작은 팔이 끊겨 '지금 못 써요'인 가전 수(아래 타일과 같은 규칙 — 작은 팔이 누르는 가전).
+              // 누름 장치가 끊겨 '지금 못 써요'인 가전 수(아래 타일과 같은 규칙 — 누름 장치가 누르는 가전).
               pressImpact: pressDown && list != null ? list.where((a) => !a.isThinq).length : null,
               onTap: () {
                 // 문제가 하나면 그 연결 창을 바로, 그 밖에는 연결 목록 창. 비상 버튼 띠 아래에서는 칩이 연결 문제만 말한다
@@ -453,9 +453,9 @@ class KioskIdleView extends StatelessWidget {
                       on: estop ? const {} : on,
                       off: estop ? const {} : off,
                       unavailable: unavailable,
-                      // 비상 버튼이면 띠가 빨강, 작은 팔 끊김이면 회색(평가 6차 10/18).
+                      // 비상 버튼이면 띠가 빨강, 누름 장치 끊김이면 회색(평가 6차 10/18).
                       unavailableByEstop: estop,
-                      // 못 쓰는 가전은 조작판 대신 이유를 연다 — 비상 버튼이면 풀기 안내, 작은 팔 끊김이면 그 연결 창.
+                      // 못 쓰는 가전은 조작판 대신 이유를 연다 — 비상 버튼이면 풀기 안내, 누름 장치 끊김이면 그 연결 창.
                       onSelect: (a) {
                         if (unavailable.contains(a.id)) {
                           if (estop) {
@@ -1640,7 +1640,7 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                     key: const ValueKey('connections-entry'),
                     icon: Icons.wifi,
                     label: '연결',
-                    sub: '와이파이와 작은 팔 연결 상태',
+                    sub: '와이파이와 누름 장치 연결 상태',
                     onTap: () => setState(() => _sheet = _Sheet.connections),
                   ),
                 ],

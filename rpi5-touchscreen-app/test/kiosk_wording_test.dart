@@ -1,6 +1,6 @@
 // 키오스크 문구·화면 개선(2026-10-15, docs/키오스크-문구-개선-계획-2026-10-15.md) — 단계별 회귀 시험.
 //
-// 원칙: 확인한 것만 말한다 · 주어를 밝힌다(작은 팔/가전) · 다음 행동 한 가지 · 정지 버튼은 그대로.
+// 원칙: 확인한 것만 말한다 · 주어를 밝힌다(누름 장치/가전) · 다음 행동 한 가지 · 정지 버튼은 그대로.
 // 이 파일의 시험은 수정 전 코드에서 실패하는 것을 확인한 뒤 넣었다(CLAUDE.md 게이트) — 그래서 새 상수 대신
 // 화면에 보이는 글자로 찾는다. 실사용자 시험이 아니다(골든·위젯 시험 수준).
 import 'dart:io';
@@ -49,7 +49,7 @@ const _sug = KioskSuggestion(
 
 // RPi4가 실제로 보내는 문장(서버 문구 정리 2bc87e5).
 
-/// 비상 버튼이 눌려 있으면 작은 팔 가전 타일은 '지금 못 써요'(누르면 풀기 안내, 평가 4차 10/18) — 수동 조작 화면은
+/// 비상 버튼이 눌려 있으면 누름 장치 가전 타일은 '지금 못 써요'(누르면 풀기 안내, 평가 4차 10/18) — 수동 조작 화면은
 /// LG 가전으로 연다(LG 가전 타일은 그대로 열린다).
 const _thinqAirForEstop = ApplianceMap(
   id: 'air_purifier',
@@ -179,8 +179,8 @@ void main() {
       expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
       // 평가 13차(10/18): 한 번 더 하기는 작은 테두리 보조 단추(글자 단추는 꺼진 단추로 보였다).
       expect(_inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
-      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 작은 팔로 골라 누르기는 글자 단추(48 이상, 평가 4차 이름).
-      expect(_inButton<OutlinedButton>('작은 팔로 골라 누르기'), findsOneWidget);
+      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 누름 장치로 골라 누르기는 글자 단추(48 이상, 평가 4차 이름).
+      expect(_inButton<OutlinedButton>('누름 장치로 골라 누르기'), findsOneWidget);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
       final home = tester.getRect(find.text('처음 화면으로'));
@@ -269,9 +269,9 @@ void main() {
       expect(find.byIcon(Icons.verified_outlined), findsNothing);
       expect(find.byIcon(Icons.check), findsNothing);
       // 받음은 '멈추는 중'까지 — 멈췄다고 하지 않는다(평가 4차 10/18: 기계 말 대신 사람이 볼 상태).
-      expect(find.text('작은 팔이 멈췄는지 몰라요'), findsOneWidget);
+      expect(find.text('누름 장치가 멈췄는지 몰라요'), findsOneWidget);
       expect(find.textContaining('멈췄어요'), findsNothing);
-      // 주어는 작은 팔 — 실행·기계가 멈췄다고 하지 않는다.
+      // 주어는 누름 장치 — 실행·기계가 멈췄다고 하지 않는다.
       expect(find.text('실행을 멈췄어요'), findsNothing);
       expect(find.textContaining('기계'), findsNothing);
     });
@@ -316,20 +316,20 @@ void main() {
           estopDetail: latched ? detail : null,
         );
 
-    testWidgets('가전 동작을 전력으로 확인하지 못했으면 가전이 돈다고 하지 않는다 — 작은 팔이 기다린다', (tester) async {
+    testWidgets('가전 동작을 전력으로 확인하지 못했으면 가전이 돈다고 하지 않는다 — 누름 장치가 기다린다', (tester) async {
       final api = FakeKioskApi()..statusResult = hover();
       await _pumpKiosk(tester, api);
       await _nextPoll(tester);
       expect(find.byType(KioskHoldView), findsOneWidget);
-      expect(find.text('작은 팔이 전자레인지 옆에서 기다리고 있어요'), findsOneWidget);
+      expect(find.text('누름 장치가 전자레인지 옆에서 기다리고 있어요'), findsOneWidget);
       expect(find.textContaining('동작 중'), findsNothing);
-      expect(find.text('정지를 누르면 작은 팔이 취소 버튼을 대신 눌러요'), findsOneWidget);
+      expect(find.text('정지를 누르면 누름 장치가 취소 버튼을 대신 눌러요'), findsOneWidget);
       // 정지 대기 안내는 흰색 — 주의색은 몰라요에만.
-      final guide = tester.widget<Text>(find.text('정지를 누르면 작은 팔이 취소 버튼을 대신 눌러요'));
+      final guide = tester.widget<Text>(find.text('정지를 누르면 누름 장치가 취소 버튼을 대신 눌러요'));
       expect(guide.style?.color, isNot(KioskColors.primary));
       expect(guide.style?.color, isNot(KioskColors.warning));
       // 버튼판 그림은 누르는 자리라고 말한다.
-      expect(find.text('작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
+      expect(find.text('누름 장치가 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
@@ -347,7 +347,7 @@ void main() {
       await _pumpKiosk(tester, api);
       await _nextPoll(tester);
       expect(find.byType(KioskHoldView), findsOneWidget);
-      expect(find.text('작은 팔을 쓸 수 없어요'), findsOneWidget);
+      expect(find.text('누름 장치를 쓸 수 없어요'), findsOneWidget);
       expect(find.textContaining('돌아가고 있어요'), findsNothing);
       // 정지 단추 자리는 그대로(같은 자리·크기), 지금은 못 누른다는 것을 글자와 흐린 테두리로 말한다
       // (UI 평가 4차 10/17 — 회색이어도 흰 테두리가 남아 누를 수 있는 것처럼 보였다).
@@ -418,10 +418,10 @@ void main() {
           // 2026-10-16 글자 4단계(설명은 본문 크기)로 이 조건만으로는 넘치지 않게 됐다 — 서버 상세 한 줄을 더해
           // 넘치는 경우를 계속 본다(시험의 뜻: 넘치면 막대가 보인다).
           // 평가 6차(10/18)로 연습 대기 본문이 한 줄 줄었다 — 넘치는 경우를 계속 보려고 상세를 한 문장 더 길게.
-          detail: '연습용 대기예요. 정지를 누르면 작은 팔이 정지 버튼 자리를 짚고, 다 짚으면 제자리로 돌아가요. '
+          detail: '연습용 대기예요. 정지를 누르면 누름 장치가 정지 버튼 자리를 짚고, 다 짚으면 제자리로 돌아가요. '
               '연습이라 실제 가전 전원과 전력은 바뀌지 않아요. '
               '연습을 마치면 처음 화면으로 돌아가고, 기록에는 연습이라고 남아요. '
-              '실제로 쓸 때는 작은 팔이 가전 앞에서 기다리다가 정지를 누르면 바로 정지 버튼을 눌러요. '
+              '실제로 쓸 때는 누름 장치가 가전 앞에서 기다리다가 정지를 누르면 바로 정지 버튼을 눌러요. '
               '그동안 화면은 누르지 않아도 되고, 가전을 직접 멈추고 싶으면 가전의 버튼을 눌러도 돼요.',
           onStop: () {},
         );
@@ -525,7 +525,7 @@ void main() {
             running: false, estopLatched: true, estopDetail: _buttonDetail);
       await _pumpKiosk(tester, api);
       await _nextPoll(tester);
-      // 작은 팔 가전은 비상 버튼 동안 '지금 못 써요' — 누르면 수동 조작이 아니라 띠의 풀기 안내가 열린다(평가 4차 10/18).
+      // 누름 장치 가전은 비상 버튼 동안 '지금 못 써요' — 누르면 수동 조작이 아니라 띠의 풀기 안내가 열린다(평가 4차 10/18).
       expect(find.text('지금 못 써요'), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('strip-microwave')));
       await _settle(tester);
@@ -637,7 +637,7 @@ void main() {
 
     testWidgets('버튼판 그림 위에 누르는 자리라고 말한다', (tester) async {
       await _pumpView(tester, exec());
-      expect(find.text('작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
+      expect(find.text('누름 장치가 누르는 자리예요. 화면은 누르지 않아도 돼요'), findsOneWidget);
     });
 
     testWidgets('긴 실행 이름은 2줄까지 줄이지 않고 보인다', (tester) async {
@@ -685,7 +685,7 @@ void main() {
 
   // ── 3단계: 쉬운 말 + B3·B4·B5·B8·B10 ─────────────────────────────────────
   group('3단계 · 쉬운 말', () {
-    testWidgets('제안 — 이번엔 안 할게요 · 작은 팔이 누를 순서 · N초 뒤 닫혀요', (tester) async {
+    testWidgets('제안 — 이번엔 안 할게요 · 누름 장치가 누를 순서 · N초 뒤 닫혀요', (tester) async {
       await _pumpView(
         tester,
         KioskSuggestionView(
@@ -701,7 +701,7 @@ void main() {
       );
       expect(find.text('이번엔 안 할게요'), findsOneWidget);
       expect(find.text('다음에'), findsNothing);
-      expect(find.text('작은 팔이 누를 순서'), findsOneWidget);
+      expect(find.text('누름 장치가 누를 순서'), findsOneWidget);
       expect(find.text('누르지 않으면 하지 않아요. 20초 뒤 닫혀요'), findsOneWidget);
       // 서버 문장이 없을 때의 대체문 — 기간을 모르니 '최근'은 없다.
       expect(find.text('아침에 3번 하셨어요'), findsOneWidget);
@@ -749,7 +749,7 @@ void main() {
       expect(find.textContaining('녹화'), findsNothing);
     });
 
-    testWidgets('B10 — 수동 조작 설명은 작은 팔이 대신 누른다고, 잘리지 않게(2줄 허용)', (tester) async {
+    testWidgets('B10 — 수동 조작 설명은 누름 장치가 대신 누른다고, 잘리지 않게(2줄 허용)', (tester) async {
       if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
       await _pumpView(
         tester,
@@ -757,7 +757,7 @@ void main() {
         scale: 1.22,
         malgun: true,
       );
-      const explain = '화면 버튼을 누르면 작은 팔이 전자레인지 버튼을 대신 눌러요';
+      const explain = '화면 버튼을 누르면 누름 장치가 전자레인지 버튼을 대신 눌러요';
       expect(find.text(explain), findsOneWidget);
       expect(tester.renderObject<RenderParagraph>(find.text(explain)).didExceedMaxLines, isFalse);
       expect(tester.renderObject<RenderParagraph>(find.text('전자레인지')).didExceedMaxLines, isFalse);
@@ -767,7 +767,7 @@ void main() {
     for (final (reason, readiness, todo) in [
       ('버튼 자리를 아직 맞추지 않았어요', 'needs_setup', '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요'),
       ('확인한 지 오래돼 다시 확인해야 해요', 'needs_setup', '휴대폰 앱에서 이 가전 버튼 자리 맞추기를 해 주세요'),
-      ('모터가 아직 준비되지 않았어요', 'needs_setup', '잠시 기다려 주세요. 계속되면 작은 팔을 다시 켜 주세요'),
+      ('모터가 아직 준비되지 않았어요', 'needs_setup', '잠시 기다려 주세요. 계속되면 누름 장치를 다시 켜 주세요'),
       ('기기와 연결되지 않았어요', 'disconnected', '처음 화면 위쪽 연결 표시를 눌러 봐 주세요'),
     ]) {
       testWidgets('준비 안 됨 — "$reason"에는 할 일 한 줄', (tester) async {
@@ -934,9 +934,9 @@ void main() {
       expect(find.textContaining('모의'), findsNothing);
     });
 
-    test('사용자에게 보이는 문자열에 옛 말(허브·다시 연결하기·방해 금지·녹화·추천 숨김)이 없다', () {
+    test('사용자에게 보이는 문자열에 옛 말(허브·다시 연결하기·방해 금지·녹화·추천 숨김·작은 팔)이 없다', () {
       final literal = RegExp(r"'[^'\n]*'");
-      final old = ['허브', '다시 연결하기', '방해 금지', '녹화', '추천 숨김', '누름 장치'];
+      final old = ['허브', '다시 연결하기', '방해 금지', '녹화', '추천 숨김', '작은 팔', '작은팔'];
       for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
         if (!f.path.endsWith('.dart')) continue;
         for (final line in f.readAsLinesSync()) {

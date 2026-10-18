@@ -149,12 +149,12 @@ ApplianceMap _served(String id, String name, String category,
     );
 
 final _mw = _served('microwave', '전자레인지', 'microwave', buttons: kMicrowaveAppliance.buttons);
-/// 인덕션 — 작은 팔이 전자레인지 위에만 있어(갠트리 1대) 서버가 '설정이 필요해요'로 준다(2026-10-18,
+/// 인덕션 — 누름 장치가 전자레인지 위에만 있어(갠트리 1대) 서버가 '설정이 필요해요'로 준다(2026-10-18,
 /// `SIMPLELAY_GANTRY_APPLIANCES` 기본 microwave).
 final _ind = _served('induction', '인덕션', 'induction',
     buttons: kInductionAppliance.buttons,
     readiness: 'needs_setup',
-    reasons: const ['작은 팔이 이 가전 위에 없어서 누를 수 없어요']);
+    reasons: const ['누름 장치가 이 가전 위에 없어서 누를 수 없어요']);
 final _washer = _served('washer', '세탁기', 'washing_machine');
 
 /// 휴대폰 앱에서 등록하고 사진 위 버튼 자리를 아직 맞추지 않은 가전 — 폰과 같이 '설정이 필요해요'.
@@ -409,7 +409,7 @@ void main() {
               message: '가전이 끝났다는 알림이 늦거나 오지 않을 수 있어요.',
               fixes: [
                 '전기 플러그가 벽에 끝까지 꽂혀 있는지 봐 주세요.',
-                '전기 플러그와 작은 팔을 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.',
+                '전기 플러그와 누름 장치를 잇는 선이 끝까지 꽂혀 있는지 봐 주세요.',
                 '그래도 안 되면 전기 플러그를 뽑았다가 10초 뒤 다시 꽂아 주세요.',
               ],
             ),
@@ -688,13 +688,13 @@ void main() {
     });
   });
 
-  testWidgets('15인치 미리보기 — 평소, 작은 팔 연결 끊김 칩', (t) async {
+  testWidgets('15인치 미리보기 — 평소, 누름 장치 연결 끊김 칩', (t) async {
     await _shoot15(
         t,
         'kiosk15_idle_problem',
         _idle(connections: const [
           ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
-          ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+          ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
         ]));
   });
 
@@ -1207,7 +1207,7 @@ void main() {
             nextRun: _nextRun(),
             connections: const [
               ConnectionItem(id: 'network', state: 'ok', title: '', message: ''),
-              ConnectionItem(id: 'press', state: 'error', title: '작은 팔과 연결이 끊겼어요', message: ''),
+              ConnectionItem(id: 'press', state: 'error', title: '누름 장치와 연결이 끊겼어요', message: ''),
             ]));
   });
 
@@ -1342,8 +1342,8 @@ void main() {
   });
   // ── 제출용 장면(심사위원 시각 평가 10/18 §3-5) ─────────────────────────────────────────────
   // 위 골든의 가전 다섯(세탁기·선풍기·인덕션 등)은 화면 시험용 예시다. 제출 서류·발표 그림에는 지금 실물 구성
-  // — 작은 팔이 누르는 전자레인지 1대 + LG 공기청정기 — 으로 만든 아래 장면만 쓴다. 결과는 지금 실물로 낼 수 있는
-  // 확인 수준(작은 팔 보고, 전력 판정 없음)이라 '버튼은 다 눌렀어요'까지만 말한다(콘센트 모듈 CT 미측정).
+  // — 누름 장치가 누르는 전자레인지 1대 + LG 공기청정기 — 으로 만든 아래 장면만 쓴다. 결과는 지금 실물로 낼 수 있는
+  // 확인 수준(누름 장치 보고, 전력 판정 없음)이라 '버튼은 다 눌렀어요'까지만 말한다(콘센트 모듈 CT 미측정).
   final submissionPurifier = _served('air_purifier', '공기청정기', 'air_purifier', control: 'thinq');
   const submissionAmbient = AmbientInfo(
     greeting: '좋은 저녁이에요.',
@@ -1371,7 +1371,7 @@ void main() {
     );
   });
 
-  testWidgets('제출용 — 전자레인지 실행 중(작은 팔)', (t) async {
+  testWidgets('제출용 — 전자레인지 실행 중(누름 장치)', (t) async {
     await _shoot15(
       t,
       'kiosk15_submission_executing',
@@ -1393,7 +1393,7 @@ void main() {
     );
   });
 
-  testWidgets('제출용 — 전자레인지 결과(작은 팔 보고)', (t) async {
+  testWidgets('제출용 — 전자레인지 결과(누름 장치 보고)', (t) async {
     await _shoot15(
       t,
       'kiosk15_submission_done',
