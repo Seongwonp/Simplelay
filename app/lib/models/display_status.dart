@@ -92,9 +92,25 @@ String tileReasonText(String reason) {
 /// 2026-10-18). 키오스크 `isPractice`와 같은 판정.
 bool isPracticeAppliance(ApplianceMap a) => a.isDemo || a.name.contains('(연습)');
 
-/// 타일·목록에 적을 이름 — '(연습)' 표기는 이름에서 빼고 '연습' 표지가 말한다(키오스크 `tileName`과 같다).
-String applianceTileName(ApplianceMap a) =>
-    a.name.contains('(연습)') ? a.name.replaceAll('(연습)', '').trim() : a.name;
+/// 연습 가전 화면 이름 규칙(접근성 감사 10/18, 키오스크 `practiceDisplayName`과 같은 규칙) — 이름에 '(연습)'이 붙은 서버 연습
+/// 기기면 '(연습)'과 앞의 'LG '를 떼고 '연습 '을 앞에: 'LG 세탁기(연습)' → '연습 세탁기'. 그 밖의 이름은 그대로.
+/// 예전 'LG 세탁기'는 실제 '세탁기'와 헷갈렸다. 서버 이름 데이터는 바꾸지 않는다(표시만).
+String practiceDisplayName(String name) {
+  if (!name.contains('(연습)')) return name;
+  var base = name.replaceAll('(연습)', '').trim();
+  if (base.startsWith('LG ')) base = base.substring(3).trim();
+  return base.isEmpty ? '연습 가전' : '연습 $base';
+}
+
+/// 타일·목록에 적을 이름 — 연습 가전은 '연습 세탁기'([practiceDisplayName], 키오스크 `tileName`과 같다).
+String applianceTileName(ApplianceMap a) => practiceDisplayName(a.name);
+
+/// 목록·상세 제목에 적을 한 줄 — 위치가 있으면 같이(`ApplianceMap.displayName`과 같은 꼴), 이름은 [practiceDisplayName].
+String applianceDisplayLine(ApplianceMap a) {
+  final where = a.location;
+  final name = practiceDisplayName(a.name);
+  return where == null || where.isEmpty ? name : '$where $name';
+}
 
 /// 위치(사진 위 버튼 자리)를 맞춰야 하는 가전인가 — 홈 설정 안내와 같은 조건.
 bool needsPanelMapping(ApplianceMap a) =>

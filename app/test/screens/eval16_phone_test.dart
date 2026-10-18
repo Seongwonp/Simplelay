@@ -383,7 +383,9 @@ void main() {
       expect(runEve.dx, closeTo(setupWash.dx, 1));
       expect(runEve.dy, greaterThanOrEqualTo(tester.getBottomLeft(find.byKey(const Key('routine-line-box-rt-eve'))).dy));
       final iconEve = tester.getCenter(find.byKey(const Key('routine-icon-box-rt-eve'))).dy;
-      expect(tester.getCenter(find.byKey(const Key('routine-switch-rt-eve'))).dy, closeTo(iconEve, 1));
+      // 접근성 감사(10/18): 스위치 + 바로 아래 '켜짐/꺼짐' 한 묶음이 아이콘 가운데에 선다.
+      final switchUnit = find.ancestor(of: find.byKey(const Key('routine-switch-rt-eve')), matching: find.byType(SwitchWithWord));
+      expect(tester.getCenter(switchUnit).dy, closeTo(iconEve, 1));
     });
   });
 

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../models/command_result.dart';
+import '../models/display_status.dart' show applianceDisplayLine;
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
@@ -59,7 +60,8 @@ class ApplianceDetailScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Row(
           children: [
-            Flexible(child: Text(a.displayName)),
+            // 연습 가전은 '연습 세탁기'(접근성 감사 10/18, 홈·본체와 같은 표기).
+            Flexible(child: Text(applianceDisplayLine(a))),
             if (a.isDemo) ...[const SizedBox(width: AppSpace.sm), const DemoBadge()],
             if (a.isThinq) ...[
               const SizedBox(width: AppSpace.sm),

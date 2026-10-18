@@ -117,10 +117,10 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
             SegmentedButton<int>(
               segments: [
                 // 큰 글씨에서도 한 줄 — 두 줄로 꺾이면 탭 위아래가 잘렸다(평가 8차 10/18). 칸보다 길 때만 그만큼 줄인다.
-                ButtonSegment(value: 0, label: _SegmentLabel('내 루틴')),
+                ButtonSegment(value: 0, label: _SegmentLabel('내 루틴', selected: _segment == 0)),
                 // 평가 14차(10/18): 폰 '자동으로 해요'·'자동'·'자동으로 하기'가 섞였다 — 표시는 '자동', 이 탭은 루틴이 아닌
                 // 규칙만 두므로 '자동 규칙'.
-                ButtonSegment(value: 1, label: _SegmentLabel('자동 규칙')),
+                ButtonSegment(value: 1, label: _SegmentLabel('자동 규칙', selected: _segment == 1)),
               ],
               selected: {_segment},
               showSelectedIcon: false,
@@ -675,6 +675,35 @@ const kRoutineMarkMeanings = [
 /// 표지 뜻 한 줄의 낭독.
 const kRoutineMarkLegend = '다음 표지는 다음에 할 루틴, 자동 표지는 묻지 않고 해요';
 
+/// 스위치 옆 상태 글자(접근성 감사 10/18 — 켜짐·꺼짐을 색만으로 말하지 않는다).
+const kSwitchOnText = '켜짐';
+const kSwitchOffText = '꺼짐';
+
+/// 스위치 + 바로 아래 '켜짐'/'꺼짐'(접근성 감사 10/18) — 내 루틴·자동 규칙 같은 모양. 아래에 두어 이름 칸 폭을 줄이지 않는다.
+/// 읽는 이름은 바깥 Semantics(toggled)가 말한다.
+class SwitchWithWord extends StatelessWidget {
+  const SwitchWithWord({super.key, required this.on, required this.wordKey, required this.child});
+
+  final bool on;
+  final Key wordKey;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          child,
+          Text(on ? kSwitchOnText : kSwitchOffText,
+              key: wordKey,
+              style: TextStyle(
+                  fontSize: AppFont.caption,
+                  height: 1.0,
+                  fontWeight: FontWeight.w700,
+                  color: on ? context.appInk : context.appMuted)),
+        ],
+      );
+}
+
 /// 손가락이 닿는 칸의 최소 크기(dp).
 const double kMinTouch = 48;
 
@@ -1067,12 +1096,17 @@ class _RoutineRow extends StatelessWidget {
             label: switchLabel,
             toggled: switchOn,
             excludeSemantics: true,
-            child: SizedBox(
-              height: kMinTouch,
-              child: Switch(
-                key: Key('routine-switch-$key'),
-                value: switchOn,
-                onChanged: toggling ? null : toggle,
+            // 켜짐·꺼짐을 색만으로 말하지 않는다 — 스위치 바로 아래 글자(접근성 감사 10/18). 옆에 두면 이름 칸이 좁아져 줄이 꺾였다.
+            child: SwitchWithWord(
+              on: switchOn,
+              wordKey: Key('routine-switch-text-$key'),
+              child: SizedBox(
+                height: kMinTouch,
+                child: Switch(
+                  key: Key('routine-switch-$key'),
+                  value: switchOn,
+                  onChanged: toggling ? null : toggle,
+                ),
               ),
             ),
           );
@@ -1292,16 +1326,21 @@ class _AutoRuleRowState extends ConsumerState<_AutoRuleRow> {
                     label: '${r.name} 자동',
                     toggled: r.enabled,
                     excludeSemantics: true,
-                    child: SizedBox(
-                      height: 48,
-                      child: Switch(
-                        key: Key('auto-rule-switch-${r.id}'),
-                        value: r.enabled,
-                        onChanged: _busy
-                            ? null
-                            : (on) => on
-                                ? _run((api) => _reallow(api, r))
-                                : _run((api) => api.setAutoRuleEnabled(r.id, false)),
+                    // 켜짐·꺼짐을 색만으로 말하지 않는다 — 스위치 바로 아래 글자(접근성 감사 10/18, 내 루틴 스위치와 같은 모양).
+                    child: SwitchWithWord(
+                      on: r.enabled,
+                      wordKey: Key('auto-rule-switch-text-${r.id}'),
+                      child: SizedBox(
+                        height: 48,
+                        child: Switch(
+                          key: Key('auto-rule-switch-${r.id}'),
+                          value: r.enabled,
+                          onChanged: _busy
+                              ? null
+                              : (on) => on
+                                  ? _run((api) => _reallow(api, r))
+                                  : _run((api) => api.setAutoRuleEnabled(r.id, false)),
+                        ),
                       ),
                     ),
                   ),
@@ -1518,13 +1557,22 @@ class _NewRoutineSheet extends ConsumerWidget {
 }
 
 /// 위 탭 글 — 한 줄로, 칸보다 길면 그만큼만 줄인다(평가 8차 10/18: 200%에서 '자동으로 / 하기'가 잘렸다).
+/// 고른 탭은 색 말고도 굵은 글자 + 밑줄(접근성 감사 10/18 — 색만으로는 어느 탭인지 갈리지 않았다).
 class _SegmentLabel extends StatelessWidget {
-  const _SegmentLabel(this.text);
+  const _SegmentLabel(this.text, {this.selected = false});
   final String text;
+  final bool selected;
 
   @override
   Widget build(BuildContext context) => FittedBox(
         fit: BoxFit.scaleDown,
-        child: Text(text, maxLines: 1, softWrap: false),
+        child: Text(text,
+            maxLines: 1,
+            softWrap: false,
+            style: TextStyle(
+              fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
+              decoration: selected ? TextDecoration.underline : TextDecoration.none,
+              decorationThickness: 2,
+            )),
       );
 }

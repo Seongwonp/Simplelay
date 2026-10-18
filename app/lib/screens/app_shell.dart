@@ -179,8 +179,9 @@ class _BottomBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // 보호자 알림함은 설정 안으로 옮겼다. 읽지 않은 알림 수는 설정 탭에
     // 배지로 남긴다 -- 실패·긴급 정지 알림이 눈에 띄지 않으면 안 된다.
-    // 2026-10-13: 숫자 대신 점 하나 — "13"은 무엇이 13개인지 말하지 않는다. 건수는
-    // 접근성 이름과 설정 안 '보호자 알림' 줄이 말한다. 조회 실패는 0건과 다르게 읽힌다.
+    // 2026-10-13: 숫자 대신 점 하나였다("13"은 무엇이 13개인지 말하지 않는다). 접근성 감사(10/18): 점은 색으로만 말해
+    // 무엇이 있는지·얼마나 있는지 몰랐다 — 안 본 알림 수를 숫자 배지로(99건 넘으면 99+). 무엇의 수인지는 접근성 이름이 말한다.
+    // 조회 실패는 0건과 다르게 읽힌다.
     final care = ref.watch(careEventsProvider);
     final unread = care.unreadCount;
     final settingsLabel = unread > 0
@@ -229,8 +230,8 @@ class _BottomBar extends ConsumerWidget {
                 selectedIcon: Icons.settings,
                 label: '설정',
                 selected: index == settingsTabIndex,
-                dot: unread > 0,
-                // 볼 것(실패·정지 등)이 섞였을 때만 빨간 점, 자동으로 한 일·루틴 안내뿐이면 중립 점(평가 13차 10/18).
+                badgeCount: unread,
+                // 볼 것(실패·정지 등)이 섞였을 때만 빨간 배지, 자동으로 한 일·루틴 안내뿐이면 중립 배지(평가 13차 10/18).
                 dotAlert: careNeedsLook(care.unreadEvents),
                 semanticsLabel: settingsLabel,
                 onTap: () => onTab(settingsTabIndex),
@@ -250,7 +251,7 @@ class _Tab extends StatelessWidget {
     required this.label,
     required this.selected,
     required this.onTap,
-    this.dot = false,
+    this.badgeCount = 0,
     this.dotAlert = true,
     this.semanticsLabel,
   });
@@ -261,10 +262,10 @@ class _Tab extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
 
-  /// 읽지 않은 것이 있다는 점 하나. 뜻은 [semanticsLabel]이 말한다.
-  final bool dot;
+  /// 안 본 알림 수 — 0이면 배지가 없다. 무엇의 수인지는 [semanticsLabel]이 말한다.
+  final int badgeCount;
 
-  /// 점을 경고(빨강)로 칠하는가.
+  /// 배지를 경고(빨강)로 칠하는가.
   final bool dotAlert;
 
   /// 읽을 이름. 없으면 [label].
@@ -288,18 +289,23 @@ class _Tab extends StatelessWidget {
                 clipBehavior: Clip.none,
                 children: [
                   Icon(selected ? selectedIcon : icon, size: 25, color: color),
-                  if (dot)
+                  if (badgeCount > 0)
                     Positioned(
-                      right: -3,
-                      top: -2,
+                      right: -12,
+                      top: -8,
                       child: Container(
-                        key: const Key('settings-unread-dot'),
-                        width: 10,
-                        height: 10,
+                        key: const Key('settings-unread-badge'),
+                        constraints: const BoxConstraints(minWidth: 22, minHeight: 22),
+                        padding: const EdgeInsets.symmetric(horizontal: AppSpace.xs),
+                        alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: dotAlert ? AppColors.danger : context.appPrimary,
-                          shape: BoxShape.circle,
+                          borderRadius: BorderRadius.circular(11),
                         ),
+                        child: Text(badgeCount > 99 ? '99+' : '$badgeCount',
+                            textScaler: MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.3),
+                            style: const TextStyle(
+                                fontSize: AppFont.caption, height: 1.2, fontWeight: FontWeight.w800, color: Colors.white)),
                       ),
                     ),
                 ],

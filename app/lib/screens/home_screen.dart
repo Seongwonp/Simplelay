@@ -1420,12 +1420,14 @@ class _ApplianceCard extends ConsumerWidget {
     // 연습 가전(휴리스틱 평가 10/18): 이름의 '(연습)'은 빼고 오른쪽 위 '연습' 표지, 띠는 연습 색(청록). 할 일이 있는 띠
     // (설정·연결)와 버튼 조작 중은 그 색 그대로 — 연습이어도 사람이 할 일은 주황이다.
     final practice = isPracticeAppliance(a);
-    final shownName = practice ? name.replaceAll('(연습)', '').trim() : name;
+    // 연습 가전 화면 이름은 '연습 세탁기'(접근성 감사 10/18 — 실제 '세탁기'와 헷갈렸다, 본체와 같은 규칙).
+    final shownName = practiceDisplayName(name);
     final practiceBand = practice && !setup && s.tone != TileTone.attention && s.tone != TileTone.active;
     final (Color color, IconData icon) = setup
         ? (context.appWarning, Icons.priority_high_rounded)
         : practiceBand
-            ? (context.appPractice, Icons.science_outlined)
+            // '확인 전이에요'는 연습 가전이어도 물음표 — 본체 타일과 같은 모양(접근성 감사 10/18). 색은 연습 색 그대로.
+            ? (context.appPractice, s.text == kThinqUncheckedText ? Icons.help_outline : Icons.science_outlined)
         : noteInBand
             ? (context.appMuted, Icons.help_outline)
             : switch (s.tone) {

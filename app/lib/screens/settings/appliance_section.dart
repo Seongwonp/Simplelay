@@ -38,10 +38,8 @@ class _ApplianceSection extends ConsumerWidget {
           if (i > 0) Divider(height: 1, color: context.appBorderFaint),
           ListTile(
             leading: Icon(appliance.icon),
-            // 연습 가전은 이름의 '(연습)'을 빼고 부제가 연습이라고 말한다(휴리스틱 평가 10/18 — 홈 타일과 같은 표기).
-            title: Text(isPracticeAppliance(appliance)
-                ? appliance.displayName.replaceAll('(연습)', '').trim()
-                : appliance.displayName),
+            // 연습 가전은 '연습 세탁기'(접근성 감사 10/18 — 홈 타일·본체와 같은 표기, 서버 이름은 그대로).
+            title: Text(applianceDisplayLine(appliance)),
             // 버튼 자리를 맞추지 않은 가전은 할 일만 짧게 한 줄(평가 7차 10/18: 주황 두 줄 + ⋮라 눌러도 되는지 헷갈렸다).
             subtitle: appliance.isCustom && !appliance.isThinq
                 ? (needsPanelMapping(appliance)

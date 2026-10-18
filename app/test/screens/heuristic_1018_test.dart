@@ -519,7 +519,8 @@ void main() {
     test('연습 가전 판정과 표시 이름', () {
       final w = ApplianceMap.fromJson(_pwash);
       expect(isPracticeAppliance(w), isTrue);
-      expect(applianceTileName(w), 'LG 세탁기');
+      // 접근성 감사(10/18): 화면 이름은 '연습 세탁기'(실제 '세탁기'와 헷갈리지 않게, 본체와 같은 규칙).
+      expect(applianceTileName(w), '연습 세탁기');
       expect(isPracticeAppliance(ApplianceMap.fromJson(_air)), isFalse);
     });
 
@@ -527,7 +528,7 @@ void main() {
       await _pump(tester, const HomeScreen());
       final card = find.byKey(const Key('appliance-card-pwash'));
       expect(_in(card, findPlainText('LG 세탁기(연습)')), findsNothing);
-      expect(_in(card, findPlainText('LG 세탁기')), findsOneWidget);
+      expect(_in(card, findPlainText('연습 세탁기')), findsOneWidget);
       expect(_in(card, find.byKey(const Key('appliance-practice-pwash'))), findsOneWidget);
       final band = tester.widget<Container>(find.byKey(const Key('appliance-band-pwash')));
       final c = (band.color ?? Colors.transparent).withValues(alpha: 1);

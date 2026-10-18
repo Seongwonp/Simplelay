@@ -1,4 +1,4 @@
-// 설정 탭 배지(2026-10-13 B안) — 숫자 대신 점. 뜻은 접근성 이름과 설정 안 건수가 말한다.
+// 설정 탭 배지 — 2026-10-13 B안은 숫자 대신 점이었다. 접근성 감사(10/18)부터 안 본 알림 수를 숫자 배지로(색만으로 말하지 않는다).
 // 알림함 조회 실패는 0건과 다르게 말한다.
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -63,27 +63,26 @@ Future<void> _pumpShell(WidgetTester tester, CareEventsState s) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('읽지 않은 알림이 있으면 숫자 대신 점, 접근성 이름은 건수를 말한다', (tester) async {
+  testWidgets('읽지 않은 알림이 있으면 숫자 배지, 접근성 이름은 건수를 말한다', (tester) async {
     final handle = tester.ensureSemantics();
     await _pumpShell(
         tester, CareEventsState(events: _events(13), status: CareInboxStatus.ready));
-    expect(find.text('13'), findsNothing, reason: '무엇이 13개인지 모르는 숫자를 띄우지 않는다');
-    expect(find.byKey(const Key('settings-unread-dot')), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const Key('settings-unread-badge')), matching: find.text('13')), findsOneWidget);
     expect(find.bySemanticsLabel('설정, 안 본 알림 13건'), findsOneWidget);
     handle.dispose();
   });
 
-  testWidgets('0건이면 점이 없다', (tester) async {
+  testWidgets('0건이면 배지가 없다', (tester) async {
     await _pumpShell(
         tester, const CareEventsState(events: [], status: CareInboxStatus.ready));
-    expect(find.byKey(const Key('settings-unread-dot')), findsNothing);
+    expect(find.byKey(const Key('settings-unread-badge')), findsNothing);
   });
 
   testWidgets('조회 실패는 0건으로 읽히지 않는다(탭 접근성 이름)', (tester) async {
     final handle = tester.ensureSemantics();
     await _pumpShell(
         tester, const CareEventsState(events: [], status: CareInboxStatus.failed));
-    expect(find.byKey(const Key('settings-unread-dot')), findsNothing);
+    expect(find.byKey(const Key('settings-unread-badge')), findsNothing);
     expect(find.bySemanticsLabel('설정, 알림을 불러오지 못했어요'), findsOneWidget);
     handle.dispose();
   });
