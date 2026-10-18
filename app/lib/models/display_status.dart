@@ -290,9 +290,9 @@ String historySourceLabel(RpiHistoryEntry e) {
   // '못 했어요'·'봐 주세요'일 때 엇갈린다(결과는 배지 하나가 말한다).
   // '직접'은 누가 직접인지 몰랐다 → '사람이 직접'. 폰·본체 화면·말 가운데 어디서 했는지는 기록에 가를 자료가 없어
   // 지어내지 않는다(사람이 시작했다는 것까지만).
-  // 평가 12차(10/18): LG 가전(클라우드) 기록에 '사람이 직접'과 손 아이콘이 붙어 작은 팔·손 누름과 헷갈렸다 →
+  // 평가 12차(10/18): LG 가전(클라우드) 기록에 '사람이 직접'과 손 아이콘이 붙어 누름 장치·손 누름과 헷갈렸다 →
   // 출처는 'LG 가전'. 폰·본체 화면 가운데 어디서 보냈는지는 기록(/history)에 가를 필드가 없어 거기까지만 말한다.
-  // 평가 13차(10/18): LG 가전 자동 실행('자동')도 출처를 같이 — '자동 · LG 가전'. 작은 팔 가전의 자동 실행은 '자동' 그대로.
+  // 평가 13차(10/18): LG 가전 자동 실행('자동')도 출처를 같이 — '자동 · LG 가전'. 누름 장치 가전의 자동 실행은 '자동' 그대로.
   if (historyIsLgAppliance(e)) return source == '자동' ? '자동 · LG 가전' : 'LG 가전';
   // 평가 13차(10/18): '사람이 직접'은 손으로 직접 눌렀다는 뜻으로 읽혔다. 기록이 아는 사실만 —
   // 목적 문장이 없는 실행은 수동 조작 화면에서 버튼을 고른 것(`/execute-buttons`, 폰·본체 화면)이라 '화면에서 골라 누름'.
@@ -486,7 +486,7 @@ class HistoryResult {
   final String? mockNote;
 }
 
-/// 작은 팔이 버튼을 다 눌렀지만 가전 동작은 확인하지 못한 기록의 한 줄(평가 12차 10/18).
+/// 누름 장치가 버튼을 다 눌렀지만 가전 동작은 확인하지 못한 기록의 한 줄(평가 12차 10/18).
 const kPressedAllSentence = '버튼은 다 눌렀어요, 움직이는지 봐 주세요';
 
 /// 기록 줄의 '봐 주세요' 칩 옆 이유 — 칩이 이미 '봐 주세요'를 말하므로 문장 끝의 같은 부탁은 빼고, 무엇을 모르는지만
@@ -534,7 +534,7 @@ HistoryResult historyResult(RpiHistoryEntry e, {String? applianceName}) {
       return HistoryResult(
         kind: kind,
         sentence: motion,
-        next: '다시 누르지 않았어요. 작은 팔을 봐 주세요',
+        next: '다시 누르지 않았어요. 누름 장치를 봐 주세요',
         mockNote: mockNote,
       );
     }
@@ -636,7 +636,7 @@ HistoryResult _liveResult(
             sentence: '버튼을 눌렀어요',
             next: '$target 동작을 봐 주세요');
       }
-      // 평가 12차(10/18): '다 눌렀다고 알려 왔어요'는 기계 보고 말투였다 → 사람 말. 뜻은 그대로 — 작은 팔은 다
+      // 평가 12차(10/18): '다 눌렀다고 알려 왔어요'는 기계 보고 말투였다 → 사람 말. 뜻은 그대로 — 누름 장치는 다
       // 눌렀지만 가전이 움직였는지는 확인하지 못했다(배지 '봐 주세요'·초록 아님). 볼 것은 이 한 줄이 함께 말한다.
       return HistoryResult(kind: kind, sentence: kPressedAllSentence);
     case ResultKind.unconfirmed:
@@ -645,7 +645,7 @@ HistoryResult _liveResult(
     case ResultKind.failed:
       if (e.receipt == 'not_dispatched') {
         return HistoryResult(
-            kind: kind, sentence: '작은 팔에 보내지 못했어요', next: '본체 연결을 봐 주세요');
+            kind: kind, sentence: '누름 장치에 보내지 못했어요', next: '본체 연결을 봐 주세요');
       }
       if (e.termination == 'retries_exhausted') {
         return HistoryResult(

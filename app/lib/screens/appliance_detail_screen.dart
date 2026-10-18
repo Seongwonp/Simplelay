@@ -101,8 +101,8 @@ class ApplianceDetailScreen extends ConsumerWidget {
           ] else ...[
             Text(
               a.panelMapping != null
-                  ? '사진 속 버튼을 누르면 작은 팔이 대신 눌러요. 빨간 원은 정지, 점선은 기다리는 자리예요.'
-                  : '버튼을 누르면 작은 팔이 대신 눌러요.',
+                  ? '사진 속 버튼을 누르면 누름 장치가 대신 눌러요. 빨간 원은 정지, 점선은 기다리는 자리예요.'
+                  : '버튼을 누르면 누름 장치가 대신 눌러요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
             const SizedBox(height: AppSpace.md),
@@ -253,7 +253,7 @@ class ApplianceDetailScreen extends ConsumerWidget {
       builder: (dialogContext) => AlertDialog(
         title: Text("'${b.label}' 버튼을 누를까요?"),
         content: Text(
-          "작은 팔이 ${a.displayName}의 '${b.label}' 버튼을 대신 눌러요. "
+          "누름 장치가 ${a.displayName}의 '${b.label}' 버튼을 대신 눌러요. "
           '누른 뒤 결과를 보여 드려요.',
         ),
         actions: [

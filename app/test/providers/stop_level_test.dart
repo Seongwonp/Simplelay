@@ -43,13 +43,13 @@ void main() {
   group('stopLevelSentence', () {
     test('단계마다 다른 문장 — 보냄은 확인이라고 하지 않는다', () {
       expect(stopLevelSentence('sent'), '멈추라고 보냈어요. 멈췄는지는 아직 몰라요');
-      expect(stopLevelSentence('mcu_ack', ackMs: 12), '작은 팔이 멈추라는 신호를 받았어요. 멈췄는지는 몰라요');
+      expect(stopLevelSentence('mcu_ack', ackMs: 12), '누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 몰라요');
       // 개발자 도구만 ms를 함께 보인다(2026-10-14 UX — 사용자 화면은 숫자 없이).
-      expect(stopLevelSentence('mcu_ack', ackMs: 12, detail: true), '작은 팔이 정지 신호를 받았어요 (12 ms)');
-      expect(stopLevelSentence('mcu_ack'), '작은 팔이 멈추라는 신호를 받았어요. 멈췄는지는 몰라요');
+      expect(stopLevelSentence('mcu_ack', ackMs: 12, detail: true), '누름 장치가 정지 신호를 받았어요 (12 ms)');
+      expect(stopLevelSentence('mcu_ack'), '누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 몰라요');
       // ack_ms는 정지를 보낸 뒤 모션 보드 응답까지다 — 멈춤 확인(verified)까지의 시간이 아니다(외부 평가 L2).
-      expect(stopLevelSentence('verified', ackMs: 9), '작은 팔이 멈췄어요');
-      expect(stopLevelSentence('verified', ackMs: 9, detail: true), '멈춘 것을 확인했어요 (작은 팔 응답 9 ms)');
+      expect(stopLevelSentence('verified', ackMs: 9), '누름 장치가 멈췄어요');
+      expect(stopLevelSentence('verified', ackMs: 9, detail: true), '멈춘 것을 확인했어요 (누름 장치 응답 9 ms)');
       expect(stopLevelSentence(null), isNull);
       expect(stopLevelSentence('stopped_for_sure'), isNull);
       expect(stopLevelConfirmed('sent'), isFalse);
@@ -59,15 +59,15 @@ void main() {
 
     test('멈춘 실행의 끝 문장은 정지 단계를 따른다', () {
       expect(finishedMessage(kind: ResultKind.stopped),
-          '멈추라고 해서 실행이 끝났어요. 작은 팔과 가전이 멈췄는지 봐 주세요.');
+          '멈추라고 해서 실행이 끝났어요. 누름 장치와 가전이 멈췄는지 봐 주세요.');
       expect(finishedMessage(kind: ResultKind.stopped, stopLevel: 'sent'),
           '멈추라고 보냈어요. 멈췄는지는 아직 몰라요. 가전을 직접 봐 주세요.');
       expect(
           finishedMessage(
               kind: ResultKind.stopped, stopLevel: 'mcu_ack', stopAckMs: 30),
-          '작은 팔이 멈추라는 신호를 받았어요. 멈췄는지는 몰라요. 가전을 직접 봐 주세요.');
+          '누름 장치가 멈추라는 신호를 받았어요. 멈췄는지는 몰라요. 가전을 직접 봐 주세요.');
       expect(finishedMessage(kind: ResultKind.stopped, stopLevel: 'verified'),
-          '작은 팔이 멈췄어요. 가전이 이미 켜졌다면 가전의 정지 버튼을 직접 눌러 주세요.');
+          '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 가전의 정지 버튼을 직접 눌러 주세요.');
     });
   });
 
@@ -180,7 +180,7 @@ void main() {
           );
       await Future<void>.delayed(const Duration(milliseconds: 1500));
       expect(c.read(executionStatusProvider).message,
-          '작은 팔이 멈췄어요. 가전이 이미 켜졌다면 가전의 정지 버튼을 직접 눌러 주세요.');
+          '누름 장치가 멈췄어요. 가전이 이미 켜졌다면 가전의 정지 버튼을 직접 눌러 주세요.');
     });
   });
 }

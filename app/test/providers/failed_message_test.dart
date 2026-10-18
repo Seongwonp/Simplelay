@@ -22,7 +22,7 @@ class _QuietTts extends AppTtsService {
   Future<void> speak(String text) async {}
 }
 
-const _notSent = '작은 팔에 보내지 못했어요. 연결을 보고 다시 해 주세요.';
+const _notSent = '누름 장치에 보내지 못했어요. 연결을 보고 다시 해 주세요.';
 const _partial = '끝까지 하지 못했어요. 가전을 봐 주세요.';
 
 void main() {

@@ -1,7 +1,7 @@
 // 쉬운 말 사전 회귀 시험(2026-10-17 UI 개편안 §2·§3).
 //
 // 모든 화면에 나오는 결과 문장(command_result.dart·display_status.dart)이 사전에서 뺀 말
-// (허브·모의·누름 장치·모션/모터 보드·ThinQ·확인 주행)과 문장 잇기 기호('—'·' · ')를 다시
+// (허브·모의·작은 팔(10/18 '누름 장치'로 바꿈)·모션/모터 보드·ThinQ·확인 주행)과 문장 잇기 기호('—'·' · ')를 다시
 // 쓰지 않는지 입력 조합 전체로 본다. 확인 수준(안전 계약)은 각 화면 시험이 따로 지킨다.
 import 'dart:io';
 
@@ -17,7 +17,7 @@ const _banned = [
   '모의',
   '데모',
   '시연',
-  '누름 장치',
+  '작은 팔',
   '모션',
   '모터',
   'ThinQ',
@@ -161,9 +161,9 @@ void main() {
 
   // 화면 문구 전체(개발자 도구 제외): 사전에서 뺀 이름이 문자열로 다시 들어오지 않는다.
   // 서버 문장과 비교하는 값(`.contains(`·서버 404 문장 상수)·서버 말을 쉬운 말로 바꾸는 자리(`.replaceAll(`)와 내부 예외 문장은 사용자 문장이 아니다.
-  test('폰 화면 문자열에 허브·키오스크·누름 장치·확인 주행·방해 금지·ThinQ·쉬는 자리·풍량·대시가 없다', () {
+  test('폰 화면 문자열에 허브·키오스크·작은 팔·확인 주행·방해 금지·ThinQ·쉬는 자리·풍량·대시가 없다', () {
     const skipFiles = ['developer_', 'dev_api_service.dart'];
-    final literal = RegExp(r"'[^'\n]*(허브|키오스크|누름 장치|확인 주행|방해 금지|ThinQ|쉬는 자리|풍량| — )[^'\n]*'");
+    final literal = RegExp(r"'[^'\n]*(허브|키오스크|작은 ?팔|확인 주행|방해 금지|ThinQ|쉬는 자리|풍량| — )[^'\n]*'");
     final hits = <String>[];
     for (final f in Directory('lib').listSync(recursive: true).whereType<File>()) {
       if (!f.path.endsWith('.dart')) continue;

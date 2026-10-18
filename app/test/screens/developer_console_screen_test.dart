@@ -698,7 +698,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '정지'));
     await tester.pump();
     await tester.pump();
-    expect(find.text('작은 팔이 정지 신호를 받았어요 (12 ms)'), findsOneWidget);
+    expect(find.text('누름 장치가 정지 신호를 받았어요 (12 ms)'), findsOneWidget);
     await _close(tester);
   });
 
@@ -710,7 +710,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '정지'));
     await tester.pump();
     await tester.pump();
-    expect(find.text('멈춘 것을 확인했어요 (작은 팔 응답 9 ms)'), findsOneWidget);
+    expect(find.text('멈춘 것을 확인했어요 (누름 장치 응답 9 ms)'), findsOneWidget);
     await _close(tester);
   });
 

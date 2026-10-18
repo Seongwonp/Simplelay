@@ -50,7 +50,7 @@ class _AppInfoScreenState extends ConsumerState<AppInfoScreen> {
               child: Text('SimpleLay', style: AppText.heading),
             ),
             const SizedBox(height: AppSpace.xs),
-            Text('SimpleLay 본체와 함께 쓰는 폰 앱이에요. 본체의 작은 팔이 버튼식 가전을 대신 눌러요.',
+            Text('SimpleLay 본체와 함께 쓰는 폰 앱이에요. 본체의 누름 장치가 버튼식 가전을 대신 눌러요.',
                 style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
             const SizedBox(height: AppSpace.xxxl),
             Text('날씨 출처', style: AppText.title),

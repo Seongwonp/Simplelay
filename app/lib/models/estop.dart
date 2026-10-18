@@ -82,7 +82,7 @@ class EstopAckResult {
         EstopAckOutcome.notLatched =>
           '본체가 비상정지를 찾지 못해 풀지 않았어요. 새로 보고 다시 해 주세요.',
         EstopAckOutcome.noAnswer =>
-          '작은 팔이 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
+          '누름 장치가 답하지 않아 풀지 못했어요. 연결을 보고 다시 해 주세요.',
         EstopAckOutcome.failed =>
           '풀어 달라고 보내지 못했어요. 연결을 보고 다시 해 주세요.',
       };

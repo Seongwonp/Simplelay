@@ -347,7 +347,7 @@ int unknownPressCount(List<RpiHistoryEntry> entries) => entries
     .length;
 
 /// 실패 기록의 이유 한 줄(평가 14차 10/18: '못 했어요'가 세 번 이어져도 왜인지 없었다). **기록에 있는 말만** —
-/// 본체가 남긴 결과 문장(`detail`)의 첫 문장, 그것이 없으면 작은 팔 기록은 결과 문장(보내지 못함·다시 눌러도 모름 같은
+/// 본체가 남긴 결과 문장(`detail`)의 첫 문장, 그것이 없으면 누름 장치 기록은 결과 문장(보내지 못함·다시 눌러도 모름 같은
 /// 데이터가 아는 사정). LG 가전 기록에 문장이 없으면 null — '가전이 하지 않았어요'는 배지와 같은 말이라 붙이지 않는다.
 String? historyFailReason(RpiHistoryEntry e, {String? applianceName}) {
   if (e.executionMode == 'mock') return null;
@@ -423,7 +423,7 @@ String historyRunKey(RpiHistoryEntry e, {String? applianceName}) => [
 /// - LG 가전 상태를 다시 읽음(state_confirmed·state_confirmed_unknown_before): 행동 이름이 켜기/끄기면 '켜짐 확인'/'꺼짐 확인',
 ///   그 밖은 '바뀐 상태 확인'. 루틴 기록은 이름이 한 일을 다 말하지 않을 수 있어 '상태 확인'.
 /// - 이미 그 설정이라 보내지 않음(already_at_target): '이미 그 상태'.
-/// - 작은 팔: 전기를 쓰기 시작함(operation_confirmed) '동작 확인', 눌림 확인(press_confirmed) '눌림 확인'.
+/// - 누름 장치: 전기를 쓰기 시작함(operation_confirmed) '동작 확인', 눌림 확인(press_confirmed) '눌림 확인'.
 String? historyConfirmedPhrase(RpiHistoryEntry e, {String? applianceName}) {
   if (historyBadgeOf(e).tone != BadgeTone.confirmed) return null;
   if (e.route == 'thinq') {

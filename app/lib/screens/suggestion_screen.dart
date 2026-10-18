@@ -442,7 +442,7 @@ class _TargetHeader extends StatelessWidget {
                 ),
                 const SizedBox(height: AppSpace.xs),
                 Text(
-                  keepWordsTogether('작은 팔이 버튼 $stepCount개를 차례로 눌러요'),
+                  keepWordsTogether('누름 장치가 버튼 $stepCount개를 차례로 눌러요'),
                   style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
               ],

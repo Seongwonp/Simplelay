@@ -35,7 +35,7 @@ void main() {
 
     test('멈춤 확인(verified)은 누름 장치가 멈췄다고 — 가전은 직접', () {
       final m = finishedMessage(kind: ResultKind.stopped, stopLevel: 'verified');
-      expect(m, startsWith('작은 팔이 멈췄어요'));
+      expect(m, startsWith('누름 장치가 멈췄어요'));
       expect(m, contains('가전의 정지 버튼을 직접 눌러 주세요'));
     });
 

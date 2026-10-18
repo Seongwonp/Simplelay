@@ -756,12 +756,12 @@ class _AddApplianceWizardScreenState
             ],
           ),
         const SizedBox(height: AppSpace.sm),
-        Text('다음은 정지 버튼과 기다리는 자리, 그다음은 자리 확인이에요. 작은 팔이 버튼 위를 한 번씩 지나가요.',
+        Text('다음은 정지 버튼과 기다리는 자리, 그다음은 자리 확인이에요. 누름 장치가 버튼 위를 한 번씩 지나가요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
       ];
 
   List<Widget> _stopStep() => [
-        ..._hint('가전이 움직이는 동안 작은 팔이 정지 버튼 위에서 기다려요. 기다리는 자리는 버튼과 표시창을 '
+        ..._hint('가전이 움직이는 동안 누름 장치가 정지 버튼 위에서 기다려요. 기다리는 자리는 버튼과 표시창을 '
             '가리지 않는 모서리로 골라 주세요.'),
         _photoPanel(
           label: '정지 버튼과 기다리는 자리를 고르는 사진',
@@ -829,7 +829,7 @@ class _AddApplianceWizardScreenState
           Padding(
             padding: const EdgeInsets.only(top: AppSpace.sm),
             child: Text(
-              '정지 버튼과 기다리는 자리를 둘 다 정해야 작은 팔이 정지 버튼 위에서 기다려요. '
+              '정지 버튼과 기다리는 자리를 둘 다 정해야 누름 장치가 정지 버튼 위에서 기다려요. '
               '나중에 정해도 돼요.',
               style: TextStyle(fontSize: AppFont.caption, color: context.appWarning),
             ),
@@ -840,7 +840,7 @@ class _AddApplianceWizardScreenState
     final pass = _pass;
     final mapping = _mapping;
     return [
-      ..._hint('작은 팔이 누르지 않고 버튼 위를 한 번씩 지나가요. 버튼 위에 멈추는지 눈으로 봐 주세요.'),
+      ..._hint('누름 장치가 누르지 않고 버튼 위를 한 번씩 지나가요. 버튼 위에 멈추는지 눈으로 봐 주세요.'),
       Row(
         children: [
           Icon(Icons.check_circle_outline, color: context.appPrimary),
@@ -866,7 +866,7 @@ class _AddApplianceWizardScreenState
         )
       else ...[
         if (pass.isMock)
-          Text('연습이라 작은 팔은 실제로 움직이지 않았어요.',
+          Text('연습이라 누름 장치는 실제로 움직이지 않았어요.',
               key: const Key('wizard-pass-mock'),
               style: TextStyle(fontSize: AppFont.caption, color: context.appWarning)),
         for (final s in pass.steps)

@@ -73,7 +73,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ),
                       const SizedBox(height: AppSpace.md),
                       Text(
-                        '가전을 등록하고 허락하면\n작은 팔이 버튼을 대신 눌러 줘요.',
+                        '가전을 등록하고 허락하면\n누름 장치가 버튼을 대신 눌러 줘요.',
                         textAlign: TextAlign.center,
                         style: AppText.body.copyWith(color: context.appMuted),
                       ),

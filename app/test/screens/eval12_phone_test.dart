@@ -1,9 +1,9 @@
 // 평가 12차(2026-10-18, 폰 91).
 //
-// 1. 기록: 작은 팔이 다 눌렀지만 가전 동작을 확인 못 한 기록 — '다 눌렀다고 알려 왔어요'(기계 보고 말투) 대신
+// 1. 기록: 누름 장치가 다 눌렀지만 가전 동작을 확인 못 한 기록 — '다 눌렀다고 알려 왔어요'(기계 보고 말투) 대신
 //    '버튼은 다 눌렀어요, 움직이는지 봐 주세요'. 배지는 그대로 '봐 주세요'(초록 아님).
 // 2. 기록: 사람이 시작한 LG 가전(클라우드) 기록은 손 아이콘·'사람이 직접' 대신 가전 아이콘과 'LG 가전'.
-//    (폰·본체 화면 어디서 보냈는지는 /history에 가를 필드가 없어 'LG 가전'까지만.) 작은 팔 기록은 그대로.
+//    (폰·본체 화면 어디서 보냈는지는 /history에 가를 필드가 없어 'LG 가전'까지만.) 누름 장치 기록은 그대로.
 // 3. 홈 가전 칸: 자리 확인을 모르면 '버튼 자리를 다시 맞춰 주세요'(설정 '버튼 자리를 맞춰 주세요'와 같은 말 계열).
 // 4. 설정: LG 가전 부제는 두 줄 — '켜기·끄기는 여기서 해요' / '등록은 LG 앱에서 해요'('LG / 앱에서' 끊김 없음).
 //    본체 반영 단추는 이름이 '본체 화면에 반영하기', 보낼 것이 있을 때만 보인다.
@@ -92,7 +92,7 @@ final _history = [
   _hist('j-lg', '공기청정기를 켜요', appliance: 'air'),
   // 자동 실행으로 끈 LG 공기청정기 — 출처는 그대로 '자동'.
   _hist('j-auto', "자동 실행 · '아침 공기청정기 끄기' 루틴", appliance: 'air'),
-  // 작은 팔이 다 눌렀다고 보고했지만 가전 동작은 확인하지 못함.
+  // 누름 장치가 다 눌렀다고 보고했지만 가전 동작은 확인하지 못함.
   {
     ..._hist('j-rep', '즉석밥 데워줘', route: 'physical', confirmation: 'unknown', appliance: 'mw'),
     'buttons': [
@@ -184,7 +184,7 @@ void main() {
       // 확인 수준은 그대로 — 초록 '됐어요'가 아니라 '봐 주세요'.
       final badge = tester.widget<StatusBadge>(_in(row, find.byType(StatusBadge)));
       expect(badge.label, '봐 주세요');
-      // 작은 팔 기록은 손 아이콘 그대로(출처 말은 평가 13차에 '바로 실행' — eval13_phone_test 3).
+      // 누름 장치 기록은 손 아이콘 그대로(출처 말은 평가 13차에 '바로 실행' — eval13_phone_test 3).
       expect(_in(row, findPlainText('바로 실행', contains: true)), findsOneWidget);
       expect(tester.widget<Icon>(find.byKey(const Key('history-icon-j-rep'))).icon, AppIcons.manual);
     });

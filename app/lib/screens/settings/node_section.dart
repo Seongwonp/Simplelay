@@ -16,7 +16,7 @@ class _NodeSection extends ConsumerWidget {
               Icon(Icons.add_home_outlined, color: context.appMuted, size: 20),
           title: const Text('등록할 가전이 아직 없어요'),
           subtitle: Text(
-            '가전을 추가하면 여기서 작은 팔을 연결해요.',
+            '가전을 추가하면 여기서 누름 장치를 연결해요.',
             style: TextStyle(color: context.appMuted, fontSize: AppFont.caption),
           ),
         ),
@@ -52,7 +52,7 @@ class _NodeSection extends ConsumerWidget {
           Padding(
             padding: const EdgeInsets.only(bottom: AppSpace.xs),
             child: Text(
-              '가전마다 버튼을 눌러 줄 작은 팔',
+              '가전마다 버튼을 눌러 줄 누름 장치',
               style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
             ),
           ),
@@ -67,7 +67,7 @@ class _NodeSection extends ConsumerWidget {
                 title: Text(appliance.displayName),
                 // 주소는 편집 시트에서만. 목록에서는 이어졌는지만 말한다.
                 subtitle: Text(
-                  url != null ? '작은 팔이 이어져 있어요' : '아직 작은 팔이 없어요',
+                  url != null ? '누름 장치가 이어져 있어요' : '아직 누름 장치가 없어요',
                   style: TextStyle(
                     color: url != null ? context.appSuccess : context.appMuted,
                     fontSize: AppFont.caption,
@@ -240,7 +240,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
                         color: context.appMuted, size: 20),
                     const SizedBox(width: AppSpace.md),
                     Text(
-                      '${widget.appliance.name} 작은 팔 연결',
+                      '${widget.appliance.name} 누름 장치 연결',
                       style: const TextStyle(
                         fontSize: AppFont.caption,
                         fontWeight: FontWeight.w600,
@@ -271,7 +271,7 @@ class _NodeEditSheetState extends State<_NodeEditSheet> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: AppSpace.xl),
                 child: Text(
-                  '설치하는 분용이에요. 작은 팔 주소를 넣어 주세요',
+                  '설치하는 분용이에요. 누름 장치 주소를 넣어 주세요',
                   style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
                 ),
               ),

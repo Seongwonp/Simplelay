@@ -650,7 +650,7 @@ class _NowState {
         return _NowState(
           button: s.currentButton,
           headline: hasVerification ? '눌렸는지 보는 중' : '누르는 중',
-          // 서버가 눌림 판정(누름 센서)을 보내지 않으면 보고 있다고 하지 않는다(10/18 §3-5) — 지금 실물 구성(작은 팔 보고만)은
+          // 서버가 눌림 판정(누름 센서)을 보내지 않으면 보고 있다고 하지 않는다(10/18 §3-5) — 지금 실물 구성(누름 장치 보고만)은
           // 버튼별 판정 없이 끝에 결과만 알려 온다. 그때는 다음에 무엇이 오는지만 말한다.
           detail: hasVerification ? evidence : '다 누르면 결과를 알려 드려요.',
         );

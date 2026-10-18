@@ -367,7 +367,7 @@ class _ApplianceEditorScreenState extends ConsumerState<ApplianceEditorScreen> {
         padding: const EdgeInsets.fromLTRB(AppSpace.xl, AppSpace.md, AppSpace.xl, AppSpace.xxl),
         children: [
           Text(
-            '가전의 버튼 자리를 그대로 등록하면 작은 팔이 그 버튼을 대신 눌러요.',
+            '가전의 버튼 자리를 그대로 등록하면 누름 장치가 그 버튼을 대신 눌러요.',
             style: TextStyle(fontSize: AppFont.caption, color: context.appMuted),
           ),
           const SizedBox(height: AppSpace.xxl),
@@ -767,7 +767,7 @@ class _SavedNextStepsDialog extends StatelessWidget {
             const _NextStep(
               icon: Icons.center_focus_strong_outlined,
               title: '자리 확인',
-              body: '작은 팔이 버튼 위를 지나가는지 눈으로 봐 주세요.',
+              body: '누름 장치가 버튼 위를 지나가는지 눈으로 봐 주세요.',
             ),
             if (syncPending) ...[
               const SizedBox(height: AppSpace.lg),

@@ -3,7 +3,7 @@
 // 1. 홈 '확인이 필요해요'의 안 본 알림 줄: '자동으로 한 일·루틴 안내 알림 4건, 아직 안 봤어요'(분류 나열·어절 끊김·
 //    문제 아닌데 주황) → '안 본 알림 4건' 하나의 이름. 설정 줄·탭 접근성 이름도 같은 말. 경고색은 실제로 볼 것이
 //    있을 때만(설정이 남았어요, 실패·정지 같은 알림이 섞였을 때) — 그때만 '못 한 일이 있어요' 같은 짧은 말을 붙인다.
-// 2. 기록: LG 가전 자동 실행은 가전 아이콘 + '자동 · LG 가전'. 작은 팔 가전의 자동 실행은 기존대로(자동 아이콘·'자동').
+// 2. 기록: LG 가전 자동 실행은 가전 아이콘 + '자동 · LG 가전'. 누름 장치 가전의 자동 실행은 기존대로(자동 아이콘·'자동').
 // 3. 기록 시각 줄: 가운뎃점이 줄 머리에 오지 않는다. '사람이 직접' 대신 사실에 맞는 말 — 목적 없이 버튼을 고른
 //    실행(/execute-buttons)은 '화면에서 골라 누름', 그 밖(말·제안)은 '바로 실행'.
 // 4. 시각 표기: 본체 알림 문장의 '밤 10시'도 '오후 10:00' 꼴로.
@@ -91,7 +91,7 @@ Map<String, dynamic> _hist(String id, String? purpose,
 final _history = [
   // 시각 규칙이 묻지 않고 끈 LG 공기청정기(루틴 없이 가전 동작).
   _hist('j-auto-lg', '자동 실행 · 공기청정기 끄기', appliance: 'air', at: '07:00'),
-  // 작은 팔 가전의 자동 실행 — 기존대로 '자동'.
+  // 누름 장치 가전의 자동 실행 — 기존대로 '자동'.
   _hist('j-auto-arm', '자동 실행 · 전자레인지 시작 누르기', route: 'physical', appliance: 'mw', at: '09:00'),
   // 수동 조작 화면에서 버튼을 골라 누름(/execute-buttons — 목적 없음).
   _hist('j-manual', null, route: 'physical', appliance: 'mw', at: '12:05'),
@@ -253,7 +253,7 @@ void main() {
       expect(historySourceLabel(e('j-voice')), '바로 실행');
     });
 
-    testWidgets("LG 가전 자동 실행은 가전 아이콘과 '자동 · LG 가전', 작은 팔 자동은 그대로", (tester) async {
+    testWidgets("LG 가전 자동 실행은 가전 아이콘과 '자동 · LG 가전', 누름 장치 자동은 그대로", (tester) async {
       await _pump(tester, const HistoryScreen());
       final row = find.byKey(const ValueKey('history-j-auto-lg'));
       expect(_in(row, findPlainText('오전 7:00 · 자동 · LG 가전')), findsOneWidget);

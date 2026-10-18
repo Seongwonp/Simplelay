@@ -438,10 +438,10 @@ void main() {
 
     testWidgets('설명은 한 줄 하나 — 같은 말을 두 곳에서 하지 않는다', (tester) async {
       await pumpManual(tester);
-      expect(findPlainText('작은 팔', contains: true), findsOneWidget);
+      expect(findPlainText('누름 장치', contains: true), findsOneWidget);
       expect(findPlainText('한 번에 하나씩', contains: true), findsNothing);
       if (_noKoreanFont == null) {
-        expect(_oneLine(tester, findPlainText('작은 팔', contains: true)), isTrue);
+        expect(_oneLine(tester, findPlainText('누름 장치', contains: true)), isTrue);
       }
     });
 

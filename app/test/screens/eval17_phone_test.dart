@@ -88,7 +88,7 @@ Map<String, dynamic> _hist(String id, String purpose, String at, {bool ok = true
       'appliance_id': 'air',
     };
 
-// 작은 팔이 다 눌렀지만 가전 동작은 확인 못 한 기록(목적 문장 있음 → '바로 실행').
+// 누름 장치가 다 눌렀지만 가전 동작은 확인 못 한 기록(목적 문장 있음 → '바로 실행').
 final _pressed = <String, dynamic>{
   'job_id': 'press-1',
   'finished_at': '2026-10-18T08:40:00',

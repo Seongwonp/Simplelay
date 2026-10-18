@@ -746,7 +746,7 @@ void main() {
       expect(paths.where((p) => p == '/execute'), isEmpty);
       expect(paths.where((p) => p == '/stop').length, 1);
       // 정지 버튼(emergencyStop)과 같은 문장 — 이 job의 정지 단계까지만.
-      expect(container.read(executionStatusProvider).message, '작은 팔이 멈췄어요');
+      expect(container.read(executionStatusProvider).message, '누름 장치가 멈췄어요');
       await tester.pumpAndSettle();
       expect(find.text('status-screen-stub'), findsOneWidget);
       // 상태 폴링이 이 job의 정지 결과를 받고 타이머를 정리할 시간을 준다.
