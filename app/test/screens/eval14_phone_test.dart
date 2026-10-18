@@ -240,8 +240,8 @@ void main() {
       expect(find.byKey(const ValueKey('history-f-2')), findsNothing);
       expect(find.byKey(const ValueKey('history-f-3')), findsNothing);
       expect(_in(row, findPlainText('3번 못 했어요')), findsOneWidget);
-      // 'LG 가전'은 묶음에 한 번.
-      expect(_in(row, findPlainText('LG 가전', contains: true)), findsOneWidget);
+      // 'LG 가전'은 묶음에 한 번 — 글자 대신 작은 구름 표식(출시 검토 10/18).
+      expect(_in(row, find.byIcon(Icons.cloud_outlined)), findsOneWidget);
       // 결과가 다른 같은 일·다른 날은 따로.
       expect(find.byKey(const ValueKey('history-h-mid')), findsOneWidget);
       expect(find.byKey(const ValueKey('history-f-old')), findsOneWidget);
@@ -251,8 +251,9 @@ void main() {
       for (final id in ['f-1', 'f-2', 'f-3']) {
         expect(find.byKey(Key('history-sub-$id')), findsOneWidget, reason: id);
       }
-      // 펼쳐도 'LG 가전'을 회차마다 되풀이하지 않는다.
-      expect(_in(row, findPlainText('LG 가전', contains: true)), findsOneWidget);
+      // 펼쳐도 'LG 가전'을 회차마다 되풀이하지 않는다(글자 없이 구름 표식 하나, 출시 검토 10/18).
+      expect(_in(row, findPlainText('LG 가전', contains: true)), findsNothing);
+      expect(_in(row, find.byIcon(Icons.cloud_outlined)), findsOneWidget);
     });
 
     testWidgets('실패 줄의 이유는 기록 문장 그대로, 없으면 지어내지 않는다', (tester) async {

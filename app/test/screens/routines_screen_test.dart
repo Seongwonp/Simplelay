@@ -13,6 +13,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:simplelay/theme/app_tokens.dart';
 import 'package:simplelay/models/appliance.dart';
 import 'package:simplelay/models/execution_status.dart';
 import 'package:simplelay/models/routine.dart';
@@ -654,6 +655,17 @@ void main() {
     expect(find.textContaining('다음 실행'), findsNothing);
     // 만들기 예시(예시 루틴) 진입은 [+ 새 루틴] 안에 그대로다.
     expect(find.byKey(const Key('routine-new')), findsOneWidget);
+  });
+
+  // 출시 검토(10/18): '새 루틴' 단추가 화면 끝에 붙어 보였다 — 오른쪽 여백은 본문 좌우 여백 토큰(AppSpace.xl)과 같다.
+  testWidgets("'새 루틴' 단추 오른쪽 여백은 본문 좌우 여백과 같다", (tester) async {
+    final server = _Server();
+    _tall(tester);
+    await tester.pumpWidget(_build(server));
+    await _settle(tester);
+    final screenW = tester.getSize(find.byType(Scaffold).first).width;
+    final r = tester.getRect(find.byKey(const Key('routine-new')));
+    expect(screenW - r.right, closeTo(AppSpace.xl, 1));
   });
 
   testWidgets('200% 글자에서도 이름·실행이 겹치지 않고 넘치지 않는다', (tester) async {

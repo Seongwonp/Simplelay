@@ -230,7 +230,8 @@ class _BottomBar extends ConsumerWidget {
                 selectedIcon: Icons.settings,
                 label: '설정',
                 selected: index == settingsTabIndex,
-                badgeCount: unread,
+                // 탭 배지는 볼 것(실패·정지 등)이 있을 때만(출시 검토 10/18) — 안 본 알림 수는 홈 '확인이 필요해요'가 말한다.
+                badgeCount: careNeedsLook(care.unreadEvents) ? unread : 0,
                 // 볼 것(실패·정지 등)이 섞였을 때만 빨간 배지, 자동으로 한 일·루틴 안내뿐이면 중립 배지(평가 13차 10/18).
                 dotAlert: careNeedsLook(care.unreadEvents),
                 semanticsLabel: settingsLabel,

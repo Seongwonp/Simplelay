@@ -621,7 +621,8 @@ void main() {
 
     // LG 가전 자동 실행은 자동 아이콘 대신 가전 아이콘(평가 13차 10/18 — eval13_phone_test 2).
     expect(find.byIcon(AppIcons.auto), findsNothing);
-    expect(findPlainText('오전 8:30 · 자동 · LG 가전'), findsOneWidget);
+    expect(findPlainText('오전 8:30 · 자동'), findsOneWidget);
+    expect(find.byIcon(Icons.cloud_outlined), findsOneWidget);
     expect(find.byIcon(AppIcons.routine), findsOneWidget);
     expect(find.byIcon(AppIcons.manual), findsOneWidget);
     // 상태를 다시 읽어 확인한 것만 초록 '됐어요' — 무엇을 확인했는지 짧게('켜짐 확인', 평가 14차 10/18).

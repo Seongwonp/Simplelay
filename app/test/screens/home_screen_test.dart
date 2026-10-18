@@ -64,7 +64,8 @@ void main() {
       expect(findPlainText('본체와 연결됐어요'), findsOneWidget);
       // 연결됨 점은 초록 — 주행동 갈색과 섞이면 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
       final dot = tester.widget<Container>(find.byKey(const Key('hub-status-dot')));
-      expect((dot.decoration as BoxDecoration).color, anyOf(AppColors.success, AppColors.successLight));
+      // 상태 색 표(출시 검토 10/18): 연결됨은 초록 — 라이트 성공 중립색은 검은 점이었다.
+      expect((dot.decoration as BoxDecoration).color, anyOf(AppColors.confirmed, AppColors.confirmedLight));
       expect(find.byKey(Key('appliance-card-${kTestAppliance.id}')),
           findsOneWidget);
       expect(find.byKey(const Key('appliance-add-card')), findsOneWidget);

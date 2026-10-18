@@ -371,8 +371,8 @@ void main() {
       expect(_in(find.byKey(const ValueKey('history-j-auto')), findPlainText('루틴 · 자동으로', contains: true)),
           findsOneWidget);
       // 평가 12차(10/18): 사람이 시작한 LG 가전 기록의 출처는 'LG 가전'(eval12_phone_test 2).
-      expect(_in(find.byKey(const ValueKey('history-j-me')), findPlainText('LG 가전', contains: true)),
-          findsOneWidget);
+      // 출시 검토(10/18): 글자 대신 작은 구름 표식.
+      expect(_in(find.byKey(const ValueKey('history-j-me')), find.byIcon(Icons.cloud_outlined)), findsOneWidget);
       final unk = find.byKey(const ValueKey('history-j-unk'));
       expect(_in(unk, findPlainText('확인 필요')), findsOneWidget);
       final reason = find.byKey(const Key('history-reason-j-unk'));

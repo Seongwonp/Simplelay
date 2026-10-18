@@ -89,7 +89,8 @@ class _RoutinesScreenState extends ConsumerState<RoutinesScreen> {
         title: Text('루틴', style: AppText.heading),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: AppSpace.md),
+            // 화면 좌우 여백 토큰(본문 [AppSpace.xl])과 같게(출시 검토 10/18 — 화면 끝에 붙어 보였다).
+            padding: const EdgeInsets.only(right: AppSpace.xl),
             child: FilledButton.icon(
               key: const Key('routine-new'),
               // 앱바 안에서는 테마의 '폭 채우기'를 끈다.

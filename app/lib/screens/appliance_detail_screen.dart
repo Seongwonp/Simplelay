@@ -5,7 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
 import '../models/command_result.dart';
-import '../models/display_status.dart' show applianceDisplayLine;
+import '../models/display_status.dart' show applianceDisplayLine, isPracticeAppliance;
 import '../models/routine.dart';
 import '../providers/appliance_provider.dart';
 import '../providers/appliance_sync_provider.dart';
@@ -63,7 +63,8 @@ class ApplianceDetailScreen extends ConsumerWidget {
             // 연습 가전은 '연습 세탁기'(접근성 감사 10/18, 홈·본체와 같은 표기).
             Flexible(child: Text(applianceDisplayLine(a))),
             if (a.isDemo) ...[const SizedBox(width: AppSpace.sm), const DemoBadge()],
-            if (a.isThinq) ...[
+            // 연습 가전에는 'LG 가전'을 쓰지 않는다(출시 검토 10/18).
+            if (a.isThinq && !isPracticeAppliance(a)) ...[
               const SizedBox(width: AppSpace.sm),
               const RouteBadge(label: 'LG 가전'),
             ],

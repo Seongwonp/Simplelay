@@ -81,7 +81,9 @@ void main() {
       );
 
       // 버튼 이름이 가장 크고, 그 아래 지금 상태가 온다.
-      expect(find.text("'1분 추가'"), findsOneWidget);
+      // 따옴표 없이 '1분 추가 버튼'(출시 검토 10/18).
+      expect(find.text("'1분 추가'"), findsNothing);
+      expect(tester.widget<Text>(find.byKey(const Key('status-now-button'))).textSpan!.toPlainText(), '1분 추가 버튼');
       expect(findPlainText('눌렸는지 보는 중'), findsOneWidget);
       expect(find.textContaining('센서로 눌림 확인'), findsOneWidget);
       // 센서 %는 일반 화면에 내지 않는다(2026-10-17 쉬운 말 규칙 6).

@@ -319,6 +319,12 @@ class _StepBreakdown extends StatelessWidget {
   }
 }
 
+/// 기록 줄 시각 옆 출처 말 — LG 가전 기록은 글자 'LG 가전'을 빼고(아이콘 표식이 말한다) 자동이면 '자동'만.
+String? _rowSourceLabel(RpiHistoryEntry e) {
+  if (historyIsLgAppliance(e)) return historySource(e) == '자동' ? '자동' : null;
+  return historySourceLabel(e);
+}
+
 /// ThinQ 기록의 수신 수준 한 줄(접수됨·받았는지 확인이 필요해요 등). 물리 기록은
 /// 결과 문장이 이미 확인 수준을 말하므로 따로 적지 않는다("물리 버튼"·"확인 근거
 /// 없음" 같은 시스템 용어를 앞에 내지 않는다).
@@ -550,7 +556,8 @@ class _HistoryRowState extends ConsumerState<_HistoryRow> {
     final timeLine = [
       _runTime(entries),
       // 루틴은 어떻게 시작했는지까지('루틴 · 물어보고'·'루틴 · 자동으로', 평가 7차 10/18).
-      historySourceLabel(entry),
+      // LG 가전 출처는 글자 꼬리표 대신 아이콘 옆 작은 표식 하나(출시 검토 10/18 — 모든 줄에 'LG 가전'이 반복됐다).
+      if (_rowSourceLabel(entry) case final s?) s,
       if (origin != null) origin,
       if (name != null && !title.contains(name) && !(origin ?? '').contains(name)) name,
     ].join(' · ');
@@ -597,13 +604,28 @@ class _HistoryRowState extends ConsumerState<_HistoryRow> {
           height: textScaledIcon(context, AppSpace.xxl + AppSpace.xs),
           child: Align(
             alignment: Alignment.centerLeft,
-            child: Icon(
-                historyIsLgAppliance(entry)
-                    ? (widget.applianceIcon ?? ApplianceCategory.other.icon)
-                    : AppIcons.source(source),
-                key: Key('history-icon-${entry.jobId}'),
-                size: textScaledIcon(context, 22),
-                color: context.appMuted),
+            child: Stack(clipBehavior: Clip.none, children: [
+              Icon(
+                  historyIsLgAppliance(entry)
+                      ? (widget.applianceIcon ?? ApplianceCategory.other.icon)
+                      : AppIcons.source(source),
+                  key: Key('history-icon-${entry.jobId}'),
+                  size: textScaledIcon(context, 22),
+                  color: context.appMuted),
+              // LG 가전 표식 — 작은 구름 하나(연습 기록에는 두지 않는다). 낭독은 줄 이름이 아니라 여기서 한 번.
+              if (historyIsLgAppliance(entry) && entry.executionMode != 'mock')
+                Positioned(
+                  right: -6,
+                  bottom: -4,
+                  child: Semantics(
+                    label: 'LG 가전',
+                    child: Icon(Icons.cloud_outlined,
+                        key: Key('history-lg-mark-${entry.jobId}'),
+                        size: textScaledIcon(context, 13),
+                        color: context.appMuted),
+                  ),
+                ),
+            ]),
           ),
         ),
         const SizedBox(width: AppSpace.sm),

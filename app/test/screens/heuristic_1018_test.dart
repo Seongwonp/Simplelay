@@ -524,6 +524,16 @@ void main() {
       expect(isPracticeAppliance(ApplianceMap.fromJson(_air)), isFalse);
     });
 
+    // 출시 검토(10/18): 연습 가전에는 'LG 가전'을 쓰지 않는다 — 실제 LG 가전 카드에는 그대로.
+    testWidgets("연습 가전 카드에는 'LG 가전' 표기가 없다", (tester) async {
+      await _pump(tester, const HomeScreen());
+      final card = find.byKey(const Key('appliance-card-pwash'));
+      expect(card, findsOneWidget);
+      expect(_in(card, findPlainText('LG 가전', contains: true)), findsNothing);
+      expect(find.byKey(const Key('appliance-lg-pwash')), findsNothing);
+      expect(find.byKey(const Key('appliance-lg-air')), findsOneWidget);
+    });
+
     testWidgets("이름에서 '(연습)'을 빼고 '연습' 표지, 띠는 연습 색 — 손 아이콘 '준비됐어요'가 아니다", (tester) async {
       await _pump(tester, const HomeScreen());
       final card = find.byKey(const Key('appliance-card-pwash'));

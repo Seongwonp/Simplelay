@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/line_break.dart';
 import '../models/appliance.dart';
 import '../models/command_result.dart';
+import '../models/display_status.dart' show actionName;
 import '../models/execution_status.dart';
 import '../models/scenario_run.dart';
 import '../models/suggestion.dart';
@@ -141,7 +142,7 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                   liveRegion: true,
                   label: [
                     if (target != null) target.displayName,
-                    status.label ?? '지금 하는 일이 없어요',
+                    _jobTitle(status),
                     if (now.button != null) "${now.button} 버튼",
                     now.headline,
                     if (now.detail != null) now.detail!,
@@ -159,8 +160,10 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                           _TargetLine(appliance: target),
                           const SizedBox(height: AppSpace.sm),
                         ],
+                        // 할 일 이름('즉석밥 데우기') — 음성 원문('즉석밥 데워줘')을 그대로 쓰지 않는다(출시 검토 10/18, 키오스크 띠와 같은 규칙).
                         Text(
-                          status.label ?? '지금 하는 일이 없어요',
+                          _jobTitle(status),
+                          key: const Key('status-job-title'),
                           style: TextStyle(
                             fontSize: AppFont.cardTitle,
                             fontWeight: FontWeight.w600,
@@ -203,6 +206,33 @@ class _StatusScreenState extends ConsumerState<StatusScreen> {
                     completed: status.completedSteps,
                     phase: status.phase,
                   ),
+                ],
+
+                // ── 누를 순서(세로, 크게) ─────────────────────────────────
+                // 버튼 목록이 없는 실행(서버가 이름을 미리 주지 않음)에도 진행 아래가 비지 않게(출시 검토 10/18 — 아래 60%가
+                // 비었다). 키오스크 '누를 순서'와 같은 뜻: 끝낸 칸 ✓, 지금 칸은 지금 버튼 이름, 남은 칸은 번호만(이름을 지어내지 않는다).
+                if (status.phase != ExecutionPhase.idle &&
+                    status.steps.isEmpty &&
+                    totalSteps > 1 &&
+                    totalSteps <= 6) ...[
+                  const SizedBox(height: AppSpace.xxl),
+                  Text('누르는 순서', key: const Key('status-step-order'), style: AppText.title),
+                  const SizedBox(height: AppSpace.sm),
+                  for (var i = 0; i < totalSteps; i++)
+                    _StepRow(
+                      key: Key('status-order-$i'),
+                      index: i,
+                      big: true,
+                      label: i == status.completedSteps && active && now.button != null
+                          ? '${now.button} 버튼'
+                          : '${i + 1}번째 버튼',
+                      state: i < status.completedSteps
+                          ? _StepState.done
+                          : (i == status.completedSteps && active)
+                              ? _StepState.current
+                              : _StepState.pending,
+                      isLast: i == totalSteps - 1,
+                    ),
                 ],
 
                 // ── 실제 버튼판에서 지금 어디인가 ──────────────────────────
@@ -596,6 +626,13 @@ class _OperationLine extends StatelessWidget {
 /// 시도 중이고 검증 결과가 있는가'를 주지, '이동 중'과 '누르는 중'을
 /// 나눠 주지 않는다. 그래서 그 둘을 화면이 나눠 말하지 않는다 -- 모르는
 /// 것을 아는 척하면 실제 축이 멈춰 있는데 '이동 중'이라고 쓰게 된다.
+/// 실행 화면 제목 — 할 일 이름(행동 이름). 하는 일이 없으면 안내.
+String _jobTitle(ExecutionStatus s) {
+  final l = s.label?.trim();
+  if (l == null || l.isEmpty) return '지금 하는 일이 없어요';
+  return actionName(l);
+}
+
 class _NowState {
   const _NowState({
     required this.headline,
@@ -726,8 +763,18 @@ class _NowBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 따옴표로 감싸지 않는다(출시 검토 10/18 — "'시작'"은 개발자 말투, 키오스크와 같은 꼴). 이름은 크게, '버튼'은 작게.
         if (now.button != null)
-          Text("'${now.button}'", style: AppText.heading),
+          Text.rich(
+            key: const Key('status-now-button'),
+            TextSpan(children: [
+              TextSpan(text: now.button),
+              TextSpan(
+                  text: ' 버튼',
+                  style: TextStyle(fontSize: AppFont.cardTitle, color: context.appMuted, fontWeight: FontWeight.w600)),
+            ]),
+            style: AppText.heading,
+          ),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -874,12 +921,16 @@ enum _StepState { done, current, pending }
 /// 빈 원 -- 색을 빼도 셋이 구분된다.
 class _StepRow extends StatelessWidget {
   const _StepRow({
+    super.key,
     required this.index,
     required this.label,
     required this.state,
     required this.isLast,
+    this.big = false,
   });
 
+  /// 크게(누를 순서 세로 목록) — 아이콘 한 단계 크게.
+  final bool big;
   final int index;
   final String label;
   final _StepState state;
@@ -899,7 +950,7 @@ class _StepRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: AppSpace.md),
           child: Row(
             children: [
-              Icon(icon, size: 24, color: color),
+              Icon(icon, size: big ? 32 : 24, color: color),
               const SizedBox(width: AppSpace.lg),
               Expanded(
                 child: Text(

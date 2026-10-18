@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../models/appliance.dart';
+import '../models/display_status.dart' show isPracticeAppliance;
 import '../models/command_result.dart' show manualPressSentence;
 import '../providers/appliance_provider.dart';
 import '../providers/execution_status_provider.dart';
@@ -283,7 +284,7 @@ class _TargetHeader extends StatelessWidget {
                       const SizedBox(width: AppSpace.sm),
                       const DemoBadge(),
                     ],
-                    if (appliance.isThinq) ...[
+                    if (appliance.isThinq && !isPracticeAppliance(appliance)) ...[
                       const SizedBox(width: AppSpace.sm),
                       const RouteBadge(label: 'LG 가전'),
                     ],

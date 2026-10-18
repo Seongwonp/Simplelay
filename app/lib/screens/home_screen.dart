@@ -1087,7 +1087,8 @@ class _Header extends StatelessWidget {
   Widget build(BuildContext context) {
     final (String text, Color dot) = switch (rpiState) {
       // 정상은 색을 쓰지 않는다(성공 중립 규칙) — 갈색은 주행동 색이라 정상인지 경고인지 안 읽혔다(UI 평가 10/17).
-      RpiConnectionState.connected => ('본체와 연결됐어요', context.appSuccess),
+      // 상태 색 표(출시 검토 10/18, 본체와 같게): 연결됨 초록 · 끊김 노랑 · 못 씀 빨강. 라이트의 성공 중립색은 검은 점이었다.
+      RpiConnectionState.connected => ('본체와 연결됐어요', context.appConfirmed),
       RpiConnectionState.keyRequired => ('연결 비밀번호가 필요해요', context.appWarning),
       RpiConnectionState.checking ||
       RpiConnectionState.unconfigured =>
@@ -1446,7 +1447,8 @@ class _ApplianceCard extends ConsumerWidget {
       // excludeSemantics라 아래 글자가 따로 읽히지 않는다 — 상태를 이름에 함께 넣는다.
       label: [
         if ((a.location ?? '').isNotEmpty) '${a.location} $shownName' else shownName,
-        if (a.isThinq) 'LG 가전',
+        // 연습 가전에는 'LG 가전'을 쓰지 않는다(출시 검토 10/18 — 실제 LG 가전과 헷갈렸다).
+        if (a.isThinq && !practice) 'LG 가전',
         if (practice) '연습',
         if (s.text.isNotEmpty) s.text else line,
         if (s.detail case final d?) d,
@@ -1507,7 +1509,7 @@ class _ApplianceCard extends ConsumerWidget {
                       Text(a.location!,
                           style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),
                     // 'LG 가전'은 테두리 칩이 아니라 이름 아래 작은 글자(평가 14차 10/18: 반복 장식).
-                    if (a.isThinq)
+                    if (a.isThinq && !practice)
                       Text('LG 가전',
                           key: Key('appliance-lg-${a.id}'),
                           style: TextStyle(fontSize: AppFont.caption, color: context.appMuted)),

@@ -258,7 +258,9 @@ void main() {
     testWidgets("LG 가전 자동 실행은 가전 아이콘과 '자동 · LG 가전', 누름 장치 자동은 그대로", (tester) async {
       await _pump(tester, const HistoryScreen());
       final row = find.byKey(const ValueKey('history-j-auto-lg'));
-      expect(_in(row, findPlainText('오전 7:00 · 자동 · LG 가전')), findsOneWidget);
+      // 출시 검토(10/18): 'LG 가전' 글자는 작은 구름 표식으로.
+      expect(_in(row, findPlainText('오전 7:00 · 자동')), findsOneWidget);
+      expect(_in(row, find.byIcon(Icons.cloud_outlined)), findsOneWidget);
       expect(tester.widget<Icon>(find.byKey(const Key('history-icon-j-auto-lg'))).icon, ApplianceCategory.airPurifier.icon);
       expect(tester.widget<Icon>(find.byKey(const Key('history-icon-j-auto-arm'))).icon, AppIcons.auto);
       expect(findPlainText('사람이 직접', contains: true), findsNothing);

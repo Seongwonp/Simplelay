@@ -194,7 +194,9 @@ void main() {
       final row = find.byKey(const ValueKey('history-j-lg'));
       expect(row, findsOneWidget);
       expect(_in(row, findPlainText('사람이 직접', contains: true)), findsNothing);
-      expect(_in(row, findPlainText('오전 10:51 · LG 가전')), findsOneWidget);
+      // 출시 검토(10/18): 'LG 가전' 글자 꼬리표 대신 아이콘 옆 작은 구름 표식 하나.
+      expect(_in(row, findPlainText('오전 10:51')), findsOneWidget);
+      expect(find.byKey(const Key('history-lg-mark-j-lg')), findsOneWidget);
       final icon = tester.widget<Icon>(find.byKey(const Key('history-icon-j-lg')));
       expect(icon.icon, ApplianceCategory.airPurifier.icon);
       expect(_in(row, find.byIcon(AppIcons.manual)), findsNothing);
