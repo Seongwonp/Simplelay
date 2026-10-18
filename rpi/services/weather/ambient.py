@@ -166,7 +166,9 @@ def now_slot(
         return None
     slot = best[1]
     at = slot.at.astimezone(KST)
-    return {"time": at.isoformat(), "hour": at.hour, "icon": slot.icon(config.rain_pop), "temp": round(slot.tmp)}
+    # 지금 칸은 지금 하늘만 — 강수확률만 높은 칸을 비 아이콘으로 그리면 "지금 비가 오나?"로 읽힌다(11차 평가).
+    # 비·눈 아이콘은 강수형태(pty)가 있을 때만. 비 예보는 알림 카드가 말한다.
+    return {"time": at.isoformat(), "hour": at.hour, "icon": slot.icon(rain_pop=101), "temp": round(slot.tmp)}
 
 
 def build_ambient(

@@ -218,3 +218,11 @@ def test_now_slot_is_none_without_a_close_slot_or_temperature():
 def _forecast_of(slots):
     base = _fixture_forecast()
     return dataclasses.replace(base, slots=slots)
+
+
+def test_now_slot_icon_is_current_sky_not_rain_probability():
+    # 강수확률만 높고 강수형태는 없는 칸 — 날짜 옆 지금 아이콘은 비가 아니라 하늘 상태(11차 평가).
+    slots = (HourlyForecast(_at(11), tmp=20.0, pop=70, pty=0, sky=4),)
+    assert build_ambient(_at(11, 15), _snap(_forecast_of(slots)), [], CFG)["now"]["icon"] == "cloudy"
+    rain = (HourlyForecast(_at(11), tmp=20.0, pop=70, pty=1, sky=4),)
+    assert build_ambient(_at(11, 15), _snap(_forecast_of(rain)), [], CFG)["now"]["icon"] == "rain"
