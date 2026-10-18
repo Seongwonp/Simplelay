@@ -118,10 +118,21 @@ class AmbientHourly(BaseModel):
     precip: bool = False
 
 
+class AmbientNow(BaseModel):
+    """지금 날씨 한 칸(키오스크 날짜 옆) — 예보 1시간 칸 중 지금에 가장 가까운 것."""
+
+    time: str
+    hour: int
+    #: clear | partly | cloudy | rain | snow — 비·눈은 강수형태가 있을 때만
+    icon: str
+    temp: int
+
+
 class AmbientResponse(BaseModel):
     greeting: str
     tip: AmbientTip | None = None
     hourly: list[AmbientHourly] = []
+    now: AmbientNow | None = None
     #: kma | mock | none
     weather_source: str
     fetched_at: str | None = None

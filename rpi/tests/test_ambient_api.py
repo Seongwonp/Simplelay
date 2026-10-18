@@ -211,3 +211,13 @@ def test_routes_require_key_on_lan(client, monkeypatch):
     for path in ("/ambient", "/connections"):
         assert client.get(path).status_code == 401
         assert client.get(path, headers={"X-API-Key": "secret-key"}).status_code == 200
+
+
+def test_ambient_response_carries_now_slot(client, monkeypatch):
+    # 10/18: build_ambient가 만든 'now'를 응답 모델이 걸러 내 키오스크 날짜 옆 날씨가 3시간 칸으로만 보였다.
+    monkeypatch.setenv("SIMPLELAY_WEATHER_MODE", "mock")
+    ambient_router.get_weather_service.cache_clear()
+    body = client.get("/ambient").json()
+    assert "now" in body
+    if body["now"] is not None:
+        assert set(body["now"]) >= {"hour", "icon", "temp"}
