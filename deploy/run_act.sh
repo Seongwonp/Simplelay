@@ -77,13 +77,13 @@ docker rm -f simplelay-act 2>/dev/null || true
 
 # DEVICE_ARGS는 일부러 따옴표 없이 펼친다(--device 경로 쌍). 장치 경로에 공백은 쓰지 않는다.
 if [ "$LINK" = "uart" ]; then
-  docker run -d --name simplelay-act --restart unless-stopped \
+  docker run -d --name simplelay-act --restart always \
     --security-opt apparmor=unconfined \
     --device /dev/ttyAMA0 $DEVICE_ARGS ${HOTPLUG:+-v /dev:/dev --device-cgroup-rule "c 166:* rmw" --device-cgroup-rule "c 188:* rmw"} -v "$DATA_DIR":/data --env-file "$ENV_FILE" \
     -e SIMPLELAY_UART_PORT=/dev/ttyAMA0 \
     simplelay-backend python -m rpi4.act_main
 else
-  docker run -d --name simplelay-act --restart unless-stopped \
+  docker run -d --name simplelay-act --restart always \
     --security-opt apparmor=unconfined \
     $DEVICE_ARGS ${HOTPLUG:+-v /dev:/dev --device-cgroup-rule "c 166:* rmw" --device-cgroup-rule "c 188:* rmw"} -p 7000:7000 -v "$DATA_DIR":/data --env-file "$ENV_FILE" \
     -e SIMPLELAY_UART_PORT=/tmp/vserial -e LINK_ALLOW_FROM="$ALLOW_FROM" \

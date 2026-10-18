@@ -7,7 +7,7 @@ DIR=/mnt/rawdata/simplelay
 mkdir -p "$DIR/watchdog"
 cp "$(dirname "$0")/kiosk_watchdog.py" "$DIR/watchdog/"
 docker rm -f simplelay-kiosk-watchdog 2>/dev/null || true
-docker run -d --name simplelay-kiosk-watchdog --restart unless-stopped \
+docker run -d --name simplelay-kiosk-watchdog --restart always \
   --security-opt apparmor=unconfined \
   -v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket \
   -v "$DIR/watchdog":/watchdog:ro \

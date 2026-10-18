@@ -93,7 +93,7 @@ fi
 # 보인다. 브리지 네트워크(-p 8000:8000)면 172.17.0.1로 보여 API 키 루프백 면제가 안 되고
 # 키오스크 요청이 전부 401이 된다(2026-09-30 확인).
 docker run -d --name simplelay-backend \
-  --restart unless-stopped \
+  --restart always \
   --security-opt apparmor=unconfined \
   -v /run/dbus/system_bus_socket:/run/dbus/system_bus_socket \
   -v "$DATA_DIR":/data \

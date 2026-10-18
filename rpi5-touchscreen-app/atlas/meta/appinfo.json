@@ -3,6 +3,6 @@
     "type": "flutter",
     "name": "simplelay_touchscreen",
     "description": "SimpleLay RPi5 touchscreen kiosk UI",
-    "entry": "simplelay_touchscreen --bundle=./ --fullscreen -a com.atlas.app.simplelay_kiosk",
-    "version": "1.8.2"
+    "entry": "simplelay_touchscreen --bundle=./ --fullscreen --no-cursor -a com.atlas.app.simplelay_kiosk",
+    "version": "1.8.3"
 }
