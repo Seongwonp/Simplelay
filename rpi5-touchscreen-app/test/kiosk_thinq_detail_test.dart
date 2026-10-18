@@ -75,6 +75,9 @@ TextSpan _gradeSpan(WidgetTester tester) {
 
 const _air = KioskAirReading(applianceId: 'air_purifier', grade: 'GOOD', pm25: 8, pm10: 10, power: 'on');
 
+/// 평소 화면 공기 줄은 나쁠 때만 보인다(사용자 결정 10/18).
+const _badAir = KioskAirReading(applianceId: 'air_purifier', grade: 'BAD', pm25: 42, pm10: 90, power: 'on');
+
 void main() {
   setUpAll(() async {
     if (!_hasFont) return;
@@ -288,16 +291,19 @@ void main() {
     ));
   }
 
-  testWidgets('평소 화면: 실내 공기 한 줄 — 등급(색+말)·초미세먼지·공기청정기 전원', (tester) async {
+  testWidgets('평소 화면: 실내 공기 한 줄은 나쁠 때만 — 등급(색+말), 공기청정기 전원 말은 없다', (tester) async {
     final handle = tester.ensureSemantics();
     await pumpIdle(tester, _air);
+    expect(find.byKey(const ValueKey('idle-air')), findsNothing, reason: '좋음은 줄이 없다(사용자 결정 10/18)');
+    await pumpIdle(tester, _badAir);
     expect(find.byKey(const ValueKey('idle-air')), findsOneWidget);
-    // 공기는 한 줄 + 색(2차 평가 10/18) — 숫자는 LG 상세 '자세히' 안.
-    expect(find.bySemanticsLabel('공기 좋아요. 공기청정기가 켜져 있어요'), findsOneWidget);
+    // 공기는 한 줄 + 색(2차 평가 10/18) — 숫자는 LG 상세 '자세히' 안, 전원은 가전 타일이 말한다.
+    expect(find.bySemanticsLabel('공기 나빠요'), findsOneWidget);
     final grade = _gradeSpan(tester);
-    expect(grade.text!.replaceAll('⁠', ''), '좋아요');
-    expect(grade.style!.color, KioskColors.confirmed);
+    expect(grade.text!.replaceAll('⁠', ''), '나빠요');
+    expect(grade.style!.color, KioskColors.warning);
     expect(find.byIcon(Icons.air), findsOneWidget);
+    expect(find.text('공기청정기가 켜져 있어요'), findsNothing);
     expect(tester.takeException(), isNull);
     handle.dispose();
   });
@@ -305,7 +311,7 @@ void main() {
   testWidgets('평소 화면: 공기 줄은 시계 아래·가전 줄 위 빈 자리에 다 들어간다(맑은 고딕, 800x480·1920x1080)', (tester) async {
     if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
     for (final size in [const Size(800, 480), const Size(1920, 1080)]) {
-      await pumpIdle(tester, _air, size: size, realFont: true);
+      await pumpIdle(tester, _badAir, size: size, realFont: true);
       await tester.pump();
       expect(tester.takeException(), isNull);
       // 시계보다 아래, 가전 줄보다 위 — 시계·날씨를 밀어내지 않는다.
@@ -316,7 +322,7 @@ void main() {
       expect(air.bottom, lessThanOrEqualTo(strip.top), reason: '$size');
       // 항목마다 따로 — 줄이 바뀌어도 '·'가 줄 끝에 매달리지 않는다(외부 평가 10/16 2차 k01).
       expect(find.text('초미세먼지 8'), findsNothing);
-      expect(find.text('공기청정기가 켜져 있어요'), findsOneWidget);
+      expect(find.text('공기청정기가 켜져 있어요'), findsNothing, reason: '전원은 가전 타일이 말한다');
       expect(find.descendant(of: find.byKey(const ValueKey('idle-air')), matching: find.textContaining('·')),
           findsNothing);
     }
@@ -572,7 +578,7 @@ void main() {
     addTearDown(tester.view.reset);
     final api = FakeKioskApi()
       ..applianceList = [kMicrowaveAppliance, _purifier]
-      ..air = _air
+      ..air = _badAir
       ..thinqStatusResult = _ok(_state(), mode: 'mock')
       ..nextJobId = 'job-thinq';
     await tester.pumpWidget(MaterialApp(

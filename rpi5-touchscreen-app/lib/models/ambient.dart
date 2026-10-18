@@ -170,10 +170,35 @@ class KioskNextRun {
     required this.hhmm,
     required this.modeLabel,
     this.quietSkip = false,
+    this.routineId,
+    this.at,
+    this.skipped = false,
+    this.skipLabel,
+    this.skipActionLabel,
   });
 
   /// 조용한 시간이라 이 회차를 건너뛴다(서버 `quiet_skip`, UI 평가 8차 10/17).
   final bool quietSkip;
+
+  /// 서버 루틴 ID·회차 시각(ISO 원문) — '오늘은 건너뛰기' 요청 본문에 그대로 돌려보낸다(2026-10-18).
+  final String? routineId;
+  final String? at;
+
+  /// 이 회차는 한 번 건너뛴다(서버 `skipped`, 2026-10-18). 회차가 지나기 전까지 되돌릴 수 있다.
+  final bool skipped;
+
+  /// 건너뛸 때 서버 말 — '오늘은 건너뛰어요'·'내일은 건너뛰어요'·'○요일은 건너뛰어요'. 키오스크는 날짜 말을 만들지 않는다.
+  final String? skipLabel;
+
+  /// 건너뛰기 단추 말(서버 `skip_action_label`) — '오늘은 건너뛰기' 등. 없으면(옛 서버) 단추를 두지 않는다.
+  final String? skipActionLabel;
+
+  /// 건너뛰기·되돌리기 단추를 둘 수 있나 — 서버가 회차를 알려 주고, 조용한 시간이라 이미 건너뛰는 회차가 아닐 때.
+  bool get canSkip =>
+      !quietSkip &&
+      (routineId?.isNotEmpty ?? false) &&
+      (at?.isNotEmpty ?? false) &&
+      (skipped ? (skipLabel?.isNotEmpty ?? false) : (skipActionLabel?.isNotEmpty ?? false));
 
   final String name;
   final String dayLabel;
@@ -195,7 +220,23 @@ class KioskNextRun {
       hhmm: hhmm,
       modeLabel: mode is String ? mode : '',
       quietSkip: json['quiet_skip'] == true,
+      routineId: json['routine_id'] is String ? json['routine_id'] as String : null,
+      at: at,
+      skipped: json['skipped'] == true,
+      skipLabel: json['skip_label'] is String ? json['skip_label'] as String : null,
+      skipActionLabel: json['skip_action_label'] is String ? json['skip_action_label'] as String : null,
     );
+  }
+
+  /// 평소 화면 시계 아래 줄의 '언제' — '오후 10시'(오늘이면 날 말을 빼고), '내일 오전 7시'(2026-10-18 사용자 결정).
+  String get whenShort =>
+      [if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, spokenHhmm(hhmm)].join(' ');
+
+  /// 시계 아래 줄의 작은 말 — 조용한 시간이면 그 이유, 건너뛰면 서버 말('오늘은 건너뛰어요'), 아니면 실행 방식.
+  String get statusWord {
+    if (quietSkip) return '조용한 시간이라 건너뛰어요';
+    if (skipped && (skipLabel?.isNotEmpty ?? false)) return skipLabel!;
+    return modeWord;
   }
 
   /// 첫 줄은 언제, 둘째 줄은 무엇 — 이어 쓰면 '22:00 저녁 / 공기청정기 켜기'처럼 루틴 이름 첫 낱말이 시간대로
@@ -221,6 +262,22 @@ class KioskNextRun {
         '다음 ${[if (dayLabel.isNotEmpty && dayLabel != '오늘') dayLabel, spokenHhmm(hhmm)].join(' ')} $name',
         if (quietSkip) '건너뜀' else if (modeWord.isNotEmpty) modeWord,
       ].join(' · ');
+}
+
+/// '오늘은 건너뛰기'·'되돌리기' 요청의 결과(2026-10-18). [item]이 있으면 성공(바뀐 항목), 아니면 [message]를 짧게 보인다.
+class KioskSkipResult {
+  const KioskSkipResult({this.item, this.message, this.reload = false});
+
+  final KioskNextRun? item;
+
+  /// 실패 안내 — 409·404·422는 서버의 한국어 `detail` 그대로, 그 밖에는 아래 두 말 중 하나.
+  final String? message;
+
+  /// 다음 루틴을 다시 불러와야 하나(409 — 회차가 지났거나 바뀌었다, 404 — 루틴이 없어졌다).
+  final bool reload;
+
+  static const failed = '바꾸지 못했어요. 잠시 뒤 다시 눌러 주세요';
+  static const unreachable = '본체에 닿지 못했어요. 잠시 뒤 다시 눌러 주세요';
 }
 
 /// `GET /routines` 한 항목 — 키오스크는 이름과 대상 가전, 누를 버튼 수만 쓴다.

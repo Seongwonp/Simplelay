@@ -197,8 +197,41 @@ class FakeKioskApi implements KioskApiService {
   /// GET /routines/next(2026-10-16). 기본은 없음.
   KioskNextRun? nextRun;
 
+  int nextRunCalls = 0;
+
   @override
-  Future<KioskNextRun?> nextRoutine() async => nextRun;
+  Future<KioskNextRun?> nextRoutine() async {
+    nextRunCalls++;
+    return nextRun;
+  }
+
+  /// POST /routines/next/skip·unskip(2026-10-18). 기본은 서버처럼 그 회차의 skipped만 뒤집어 돌려준다.
+  /// [skipResult]를 정하면 그 결과를, [skipPending]을 정하면 그것이 끝날 때까지 기다린다.
+  final skipRequests = <(String?, String?, bool)>[];
+  KioskSkipResult? skipResult;
+  Completer<KioskSkipResult>? skipPending;
+
+  @override
+  Future<KioskSkipResult> setNextRoutineSkip(KioskNextRun next, {required bool skip}) async {
+    skipRequests.add((next.routineId, next.at, skip));
+    if (skipPending != null) return skipPending!.future;
+    if (skipResult != null) return skipResult!;
+    final day = next.dayLabel.isEmpty ? '오늘' : next.dayLabel;
+    final item = KioskNextRun(
+      name: next.name,
+      dayLabel: next.dayLabel,
+      hhmm: next.hhmm,
+      modeLabel: next.modeLabel,
+      quietSkip: next.quietSkip,
+      routineId: next.routineId,
+      at: next.at,
+      skipped: skip,
+      skipLabel: skip ? '$day은 건너뛰어요' : null,
+      skipActionLabel: next.skipActionLabel,
+    );
+    nextRun = item;
+    return KioskSkipResult(item: item);
+  }
 
   @override
   Future<KioskAirReading?> thinqAir() async {

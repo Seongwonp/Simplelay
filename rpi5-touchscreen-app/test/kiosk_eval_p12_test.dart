@@ -370,7 +370,8 @@ void main() {
         expect(find.descendant(of: hours, matching: find.text('비 70%')), findsOneWidget);
         final h = tester.getRect(hours);
         final next = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
-        expect(h.bottom, lessThanOrEqualTo(next.top), reason: '예보와 다음 루틴이 겹치지 않는다');
+        // 다음 루틴은 시계 아래 왼쪽 칸(사용자 결정 10/18) — 예보와 다른 칸이라 겹치지 않는다.
+        expect(next.right, lessThanOrEqualTo(h.left), reason: '예보와 다음 루틴이 겹치지 않는다');
         final tile = tester.getRect(find.text('공기청정기').last);
         expect(next.bottom, lessThanOrEqualTo(tile.top), reason: '다음 루틴이 가전 줄에 걸리지 않는다');
         expect(find.byKey(const ValueKey('ambient-tip')), findsOneWidget, reason: '날씨 안내는 그대로');

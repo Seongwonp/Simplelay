@@ -141,16 +141,26 @@ void main() {
   });
 
   group('공기 — 한 줄 + 색', () {
-    testWidgets("'공기 보통이에요' — 숫자·'종합은 가전이 매긴 등급'은 대기 화면에 없다", (tester) async {
+    testWidgets("'공기 나빠요' — 숫자·'종합은 가전이 매긴 등급'은 대기 화면에 없다", (tester) async {
       final air = KioskAirReading.fromJson({
-        'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
+        'appliance_id': 'air_purifier', 'grade': 'BAD', 'grade_source': 'total',
         'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'on', 'age_s': 3.0,
       })!;
-      expect(air.sentence, '공기 보통이에요');
+      expect(air.sentence, '공기 나빠요');
       await _pump(tester, _idle(air: air));
-      expect(find.textContaining('보통이에요'), findsOneWidget);
+      expect(find.textContaining('나빠요'), findsOneWidget);
       expect(find.textContaining('종합은 가전이 매긴 등급'), findsNothing);
       expect(find.textContaining('미세먼지'), findsNothing);
+    });
+
+    // 사용자 결정(10/18): 평소(좋음·보통)에는 공기 줄이 없다 — 그 자리에 다음 루틴을 적는다.
+    testWidgets("'공기 보통이에요'는 대기 화면에 두지 않는다", (tester) async {
+      final air = KioskAirReading.fromJson({
+        'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'pm25': 8, 'power': 'on', 'age_s': 3.0,
+      })!;
+      await _pump(tester, _idle(air: air));
+      expect(find.textContaining('보통이에요'), findsNothing);
+      expect(find.byKey(const ValueKey('idle-air')), findsNothing);
     });
 
     test('등급 말 — 좋아요 · 보통이에요 · 나빠요 · 아주 나빠요', () {

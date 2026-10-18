@@ -257,7 +257,8 @@ void main() {
   testWidgets('15인치 평소 화면 — 종합과 먼지 등급이 달라도 공기 줄이 잘리지 않아요', (tester) async {
     if (!_hasFont) return markTestSkipped('맑은 고딕 없음');
     final air = KioskAirReading.fromJson({
-      'appliance_id': 'air_purifier', 'grade': 'NORMAL', 'grade_source': 'total',
+      // 공기 줄은 나쁠 때만 보인다(사용자 결정 10/18) — 종합은 나쁨, 먼지 등급은 좋음.
+      'appliance_id': 'air_purifier', 'grade': 'BAD', 'grade_source': 'total',
       'pm25': 8, 'pm25_level': 'GOOD', 'pm10': 8, 'pm10_level': 'GOOD', 'power': 'off', 'age_s': 3.0,
     })!;
     await _pump(
@@ -274,11 +275,9 @@ void main() {
         scale: 1.0,
         panel15: true);
     expect(tester.takeException(), isNull);
-    // 공기는 한 줄 + 아래 작은 줄(10/18) — 숫자·등급 출처는 LG 상세 '자세히' 안.
+    // 공기는 한 줄(10/18) — 숫자·등급 출처는 LG 상세 '자세히' 안, 공기청정기 전원은 가전 타일이 말한다.
     _expectFullyVisible(tester, find.byKey(const ValueKey('idle-air-headline')));
-    for (final d in air.sub) {
-      _expectFullyVisible(tester, find.text(d));
-    }
+    expect(find.text('공기청정기가 꺼져 있어요'), findsNothing);
   });
 
   // UI 평가 5차 10/17: 큰 글씨 결과 화면에 스크롤이 생겨 루틴 이름이 접힘 아래로 갔다.

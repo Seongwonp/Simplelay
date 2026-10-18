@@ -182,12 +182,27 @@ KioskIdleView _idle({
       dndUntil: dndUntil,
       air: air,
       nextRun: nextRun,
+      // 다음 루틴 '오늘은 건너뛰기'(2026-10-18) — 서버가 회차를 알려 주면 단추가 보인다.
+      onToggleNextRunSkip: (_) {},
       onSelectAppliance: (_) {},
       onOpenConnection: (_) {},
       onDndGesture: () {},
     );
 
 /// ThinQ 공기청정기 상세(2026-10-16) — 상태는 모의 값(연습 표시).
+/// 다음 루틴 — 서버 /routines/next 항목 꼴(건너뛰기 필드 포함, 2026-10-18).
+KioskNextRun _nextRun({bool skipped = false}) => KioskNextRun(
+      name: '저녁 공기청정기 켜기',
+      dayLabel: '오늘',
+      hhmm: '22:00',
+      modeLabel: '자동 실행',
+      routineId: 'rt-evening',
+      at: '2026-09-30T22:00:00+09:00',
+      skipped: skipped,
+      skipLabel: skipped ? '오늘은 건너뛰어요' : null,
+      skipActionLabel: '오늘은 건너뛰기',
+    );
+
 final _purifierAppliance = applianceFromServerJson({
   'id': 'air_purifier',
   'name': '공기청정기',
@@ -277,6 +292,8 @@ void main() {
           ConnectionItem(id: 'plug', state: 'warn', title: '', message: ''),
         ],
         attention: const {'induction'},
+        // 큰 글씨에서도 다음 루틴 줄과 '오늘은 건너뛰기'가 시계 아래에 잘리지 않는다(2026-10-18).
+        nextRun: _nextRun(),
         ambient: const AmbientInfo(
           greeting: '편안한 저녁 보내세요.',
           tip: AmbientTip(
@@ -635,18 +652,20 @@ void main() {
   });
 
   // 2026-10-16 — 실내 공기 한 줄(시계 아래 빈 자리), ThinQ 공기청정기 상세(지금 상태 + 큰 조작 단추).
-  testWidgets('15인치 미리보기 — 평소, 실내 공기 한 줄', (t) async {
+  // 사용자 결정(10/18): 공기 줄은 나쁠 때만, 공기청정기 전원 말은 뺀다(가전 타일이 말한다). 다음 루틴은 그 아래.
+  testWidgets('15인치 미리보기 — 평소, 실내 공기 나쁨 한 줄', (t) async {
     await _shoot15(
         t,
         'kiosk15_idle_air',
         _idle(
             air: const KioskAirReading(
-                applianceId: 'air_purifier', grade: 'GOOD', pm25: 8, pm10: 10, power: 'on')));
+                applianceId: 'air_purifier', grade: 'BAD', pm25: 42, pm10: 90, power: 'off'),
+            nextRun: _nextRun()));
   });
 
-  // 평가 3차(10/18) — 다음 루틴은 오른쪽 칸 아래 끝(가전 줄 바로 위) 큰 카드. 실패널 k01과 같은 조건(안내·예보·공기).
-  // 평가 4차(10/18) — 실패널처럼 가전 4개(LG 공기청정기 포함)면 장 넘김 없이 한 줄에 4개.
-  testWidgets('15인치 미리보기 — 평소, 다음 루틴 카드', (t) async {
+  // 사용자 결정(10/18) — 다음 루틴은 시계 아래 담담한 줄 + '오늘은 건너뛰기'(오른쪽 큰 카드는 없앴다). 실패널 k01과 같은
+  // 조건(예보·보통 공기 — 공기 줄은 없다). 평가 4차(10/18) — 가전 4개(LG 공기청정기 포함)면 장 넘김 없이 한 줄에 4개.
+  testWidgets('15인치 미리보기 — 평소, 다음 루틴 줄', (t) async {
     await _shoot15(
         t,
         'kiosk15_idle_next',
@@ -657,8 +676,19 @@ void main() {
             on: const {'air_purifier'},
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
-            nextRun: const KioskNextRun(
-                name: '저녁 공기청정기 켜기', dayLabel: '오늘', hhmm: '22:00', modeLabel: '자동 실행')));
+            nextRun: _nextRun()));
+  });
+
+  // 2026-10-18 — '오늘은 건너뛰기'를 누른 뒤: 서버 말 '오늘은 건너뛰어요' + '되돌리기'.
+  testWidgets('15인치 미리보기 — 평소, 다음 루틴 오늘은 건너뜀', (t) async {
+    await _shoot15(
+        t,
+        'kiosk15_idle_next_skipped',
+        _idle(
+            appliances: [_purifierAppliance, _mw, _ind, _washerSetup],
+            running: const {},
+            on: const {'air_purifier'},
+            nextRun: _nextRun(skipped: true)));
   });
 
   // 평가 10차(10/18) — 지금 비면 날짜 옆에 비 오는 구름(물방울은 습도로 읽혔다), 꺼진 LG 가전은 '꺼져 있어요'.

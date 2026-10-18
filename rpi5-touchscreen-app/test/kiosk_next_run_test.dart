@@ -87,22 +87,21 @@ void main() {
     expect(await read(500, {'detail': 'x'}), isNull);
   });
 
-  testWidgets('평소 화면에 다음 루틴 카드(언제 · 무엇을)가 보이고, 모르면 없다', (tester) async {
+  testWidgets('평소 화면 시계 아래에 다음 루틴 줄(언제 · 무엇을 + 실행 방식)이 보이고, 모르면 없다', (tester) async {
     await _pumpIdle(
         tester,
         const KioskNextRun(
             name: '아침 공기청정기 끄기', dayLabel: '내일', hhmm: '07:00', modeLabel: '자동 실행'));
-    // 큰 카드(평가 3차 10/18): 첫 줄은 언제(크게) + '다음 루틴 · 자동 실행', 둘째 줄은 무엇을.
-    expect(find.text('내일 오전 7시'), findsOneWidget);
-    expect(find.text('다음 루틴 · 자동으로 해요'), findsOneWidget);
+    // 담담한 줄(사용자 결정 10/18): '내일 오전 7시 · 아침 공기청정기 끄기' + 작은 '자동으로 해요'.
+    final line = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-text')));
     // 어절 단위로 줄을 바꾼다 — 실패널에서 '공기청/정기'처럼 낱말 가운데서 끊겼다(10/16 밤).
-    expect(find.text('아침 공기청정기 끄기'), findsOneWidget);
-    final what = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-what')));
-    expect(what.textSpan!.toPlainText(includeSemanticsLabels: false), keepWords('아침 공기청정기 끄기'));
+    expect(line.textSpan!.toPlainText(includeSemanticsLabels: false),
+        '내일 오전 7시 · ${keepWords('아침 공기청정기 끄기')}');
+    expect(find.text('자동으로 해요'), findsOneWidget);
     expect(tester.takeException(), isNull);
 
     await _pumpIdle(tester, null);
-    expect(find.textContaining('다음 루틴'), findsNothing);
+    expect(find.byKey(const ValueKey('idle-next-run')), findsNothing);
   });
 
   // 사용자 질문(10/17): 날씨 안내('우산 챙기세요')가 뜨면 오른쪽 칸이 밀려 다음 루틴 줄이 잘리지 않나?

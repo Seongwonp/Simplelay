@@ -496,12 +496,12 @@ void main() {
   });
 
   group('F. 평소 화면 시각·예보·타일', () {
-    testWidgets('시계는 오전 7:08, 다음 루틴은 오늘 오전 7시, 예보 칸은 오전/오후', (tester) async {
+    testWidgets('시계는 오전 7:08, 다음 루틴은 오전 7시(오늘이면 날 말 없이), 예보 칸은 오전/오후', (tester) async {
       await _pump(tester, _idle(next: _next));
       final all = _allTexts(tester);
       expect(all, contains('오전'));
       expect(all, contains('7:08'));
-      expect(find.text('오늘 오전 7시'), findsOneWidget);
+      expect(all.where((t) => t.startsWith('오전 7시 · ') || t.startsWith('오전 7시\n')), hasLength(1));
       expect(all.join('\n'), isNot(contains('07:00')));
       expect(find.text('오후 3시'), findsOneWidget);
       expect(find.text('15시'), findsNothing);

@@ -277,22 +277,29 @@ void main() {
       expect((tile - clock).abs(), lessThanOrEqualTo(2));
     });
 
-    testWidgets('다음 루틴은 가전 줄 바로 위 큰 카드(시각은 상태 글자 크기)', (tester) async {
+    // 사용자 결정(10/18): 큰 카드 대신 시계 아래 담담한 줄 — 시각은 시계와 같은 오전/오후, 자동 계열 이름은 '자동으로 해요'.
+    testWidgets('다음 루틴은 시계 아래 담담한 줄(큰 카드 없음)', (tester) async {
       await _pump(tester, _idle(next: _next, ambient: _rain));
       expect(tester.takeException(), isNull);
-      final card = find.byKey(const ValueKey('idle-next-run'));
-      expect(card, findsOneWidget);
-      final time = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-time')));
-      // 시각은 시계와 같은 오전/오후(평가 4차 10/18).
-      expect(time.data, '오늘 오전 7시');
-      expect(time.style?.fontSize, greaterThanOrEqualTo(30));
-      expect(find.text('아침 공기청정기 끄기'), findsOneWidget);
-      // 자동 계열 이름은 '자동으로 해요' 하나로(평가 4차 10/18).
-      expect(find.text('다음 루틴 · 자동으로 해요'), findsOneWidget);
+      final line = find.byKey(const ValueKey('idle-next-run'));
+      expect(line, findsOneWidget);
+      final text = tester.widget<Text>(find.byKey(const ValueKey('idle-next-run-text')));
+      // 한 줄에 다 들어가지 않으면 시각 뒤에서만 줄을 바꾼다('오전 7시' / 이름).
+      expect(
+          text.textSpan!
+              .toPlainText(includeSemanticsLabels: false)
+              .replaceAll('⁠', '')
+              .replaceAll(' ', ' ')
+              .replaceAll('\n', ' · '),
+          '오전 7시 · 아침 공기청정기 끄기');
+      expect(text.style?.fontSize, lessThan(30), reason: '강조하지 않는다(본문 크기)');
+      expect(find.text('자동으로 해요'), findsOneWidget);
+      expect(find.text('다음 루틴 · 자동으로 해요'), findsNothing);
       final strip = tester.getRect(find.byKey(const ValueKey('strip-microwave')));
-      final rect = tester.getRect(card);
-      expect(strip.top - rect.bottom, inInclusiveRange(0, 24), reason: '가전 줄 바로 위');
-      expect(rect.height, greaterThanOrEqualTo(64));
+      final rect = tester.getRect(line);
+      expect(rect.bottom, lessThanOrEqualTo(strip.top), reason: '가전 줄 위');
+      expect(rect.top, greaterThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('idle-clock'))).bottom),
+          reason: '시계 아래');
     });
 
     testWidgets("큰 글씨(1.22) — 장 넘김 '다음'·쪽 번호가 잘리지 않는다", (tester) async {

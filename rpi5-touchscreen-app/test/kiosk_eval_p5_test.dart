@@ -234,8 +234,8 @@ void main() {
   });
 
   group('4. 평소 화면', () {
-    testWidgets('예보가 들어가지 않으면 다음 루틴 카드가 안내 바로 아래(가운데 빈 칸 없음)', (tester) async {
-      // 실패널 k01 — 긴 안내 + 예보 + 다음 루틴 + 공기. 실패널 글꼴은 넓어 예보가 빠졌다.
+    // 사용자 결정(10/18): 다음 루틴은 시계 아래 줄로 옮겼다 — 오른쪽은 안내 + 예보가 넉넉히 쓴다(실패널 k01 예보 빠짐 해소).
+    testWidgets('긴 안내 + 예보 + 다음 루틴 + 공기 — 예보가 보이고 다음 루틴은 시계 아래, 가운데 빈 칸 없음', (tester) async {
       await _pump(
           tester,
           _idle(
@@ -252,20 +252,17 @@ void main() {
             air: const KioskAirReading(
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
           ));
-      final tip = tester.getRect(find.byKey(const ValueKey('ambient-tip')));
-      final card = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
+      final next = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
+      final hours = find.byKey(const ValueKey('ambient-hours'));
+      expect(hours, findsOneWidget, reason: '예보가 빠지지 않는다');
       final tileTop = tester.getRect(find.byKey(const ValueKey('strip-microwave'))).top;
-      if (find.byKey(const ValueKey('ambient-hours')).evaluate().isEmpty) {
-        expect(card.top - tip.bottom, lessThan(24), reason: '안내 $tip · 다음 루틴 $card');
-      } else {
-        final hours = tester.getRect(find.byKey(const ValueKey('ambient-hours')));
-        expect(card.top - hours.bottom, lessThan(24), reason: '예보 $hours · 다음 루틴 $card');
-      }
-      // 다음 루틴 카드와 가전 줄 사이도 크게 비지 않는다.
-      expect(tileTop - card.bottom, lessThan(40), reason: '다음 루틴 $card · 타일 위 $tileTop');
+      expect(next.top, greaterThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('idle-clock'))).bottom));
+      final lower = next.bottom > tester.getRect(hours).bottom ? next.bottom : tester.getRect(hours).bottom;
+      expect(tileTop - lower, lessThan(40), reason: '가운데가 크게 비지 않는다');
+      expect(tileTop, greaterThanOrEqualTo(lower));
     });
 
-    testWidgets('예보가 없으면(빈 목록) 다음 루틴 카드가 안내 바로 아래', (tester) async {
+    testWidgets('예보가 없어도(빈 목록) 다음 루틴은 시계 아래, 안내는 오른쪽 위', (tester) async {
       await _pump(
           tester,
           _idle(
@@ -279,8 +276,9 @@ void main() {
                 applianceId: 'air_purifier', grade: 'NORMAL', pm25: 20, power: 'on'),
           ));
       final tip = tester.getRect(find.byKey(const ValueKey('ambient-tip')));
-      final card = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
-      expect(card.top - tip.bottom, lessThan(24), reason: '안내 $tip · 다음 루틴 $card');
+      final next = tester.getRect(find.byKey(const ValueKey('idle-next-run')));
+      expect(next.right, lessThanOrEqualTo(tip.left), reason: '다음 루틴은 왼쪽 칸, 안내는 오른쪽 칸');
+      expect(next.top, greaterThanOrEqualTo(tester.getRect(find.byKey(const ValueKey('idle-clock'))).bottom));
     });
 
     testWidgets('평소 화면 맨 위에 용도 없는 회색 줄이 없다(진행 막대는 실행·결과에서만)', (tester) async {

@@ -796,6 +796,37 @@ class KioskApiService {
     }
   }
 
+  /// POST /routines/next/skip·unskip — 다음 루틴 그 회차만 한 번 건너뛰기·되돌리기(2026-10-18, 서버 f37d82e5).
+  /// 본문은 `/routines/next` 항목의 `routine_id`·`at` 그대로. 던지지 않는다 — 200이면 바뀐 항목, 409·404·422면 서버의
+  /// 한국어 `detail`(화면에 그대로 보인다), 그 밖의 실패는 짧은 안내. 409·404면 [KioskSkipResult.reload]로 다시 불러온다.
+  Future<KioskSkipResult> setNextRoutineSkip(KioskNextRun next, {required bool skip}) async {
+    try {
+      final res = await _client
+          .post(_base.replace(path: '/routines/next/${skip ? 'skip' : 'unskip'}'),
+              headers: _jsonHeaders, body: jsonEncode({'routine_id': next.routineId, 'at': next.at}))
+          .timeout(_timeout);
+      Object? body;
+      try {
+        body = jsonDecode(utf8.decode(res.bodyBytes));
+      } catch (_) {
+        body = null;
+      }
+      if (res.statusCode == 200 && body is Map<String, dynamic>) {
+        final item = KioskNextRun.fromJson(body);
+        if (item != null) return KioskSkipResult(item: item);
+        return const KioskSkipResult(message: KioskSkipResult.failed, reload: true);
+      }
+      final detail = body is Map<String, dynamic> && body['detail'] is String ? body['detail'] as String : null;
+      final known = const {404, 409, 422}.contains(res.statusCode);
+      return KioskSkipResult(
+        message: known && detail != null && detail.isNotEmpty ? detail : KioskSkipResult.failed,
+        reload: res.statusCode == 409 || res.statusCode == 404,
+      );
+    } catch (_) {
+      return const KioskSkipResult(message: KioskSkipResult.unreachable);
+    }
+  }
+
   /// GET /thinq/air — 서버가 최근 조회로 아는 공기청정기 센서 공기질(2026-10-16, 평소 화면 '실내 공기' 한 줄).
   /// 서버는 기억만 돌려준다(ThinQ 클라우드를 새로 부르지 않는다). 등급을 모르거나 오래됐거나 실패·옛 서버면 null.
   Future<KioskAirReading?> thinqAir() async {

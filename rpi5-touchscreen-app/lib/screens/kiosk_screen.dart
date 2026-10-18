@@ -248,6 +248,16 @@ class _KioskScreenState extends State<KioskScreen> {
   KioskAirReading? _air;
   KioskNextRun? _nextRun;
 
+  /// '오늘은 건너뛰기'·'되돌리기'를 보내는 중(2026-10-18) — 그동안 단추를 막아 같은 요청을 두 번 보내지 않는다.
+  bool _nextRunBusy = false;
+
+  /// 건너뛰기 실패 안내 한 줄(서버 detail 또는 짧은 말). 잠시 뒤 지운다.
+  String? _nextRunNotice;
+  Timer? _nextRunNoticeTimer;
+
+  /// 건너뛰기 응답이 오면 늘린다 — 그 전에 떠난 GET /routines/next 응답이 새 상태를 덮지 않게.
+  int _nextRunGen = 0;
+
   // ── 동작 중: 정지 버튼 대기·보관(2026-09-30) ─────────────────────────
   KioskStatus? _hold;
   DateTime _holdSince = DateTime.now();
@@ -361,6 +371,7 @@ class _KioskScreenState extends State<KioskScreen> {
   @override
   void dispose() {
     _doneReturnTimer?.cancel();
+    _nextRunNoticeTimer?.cancel();
     _holdReturnTimer?.cancel();
     _stopFollowTimer?.cancel();
     _autoNoticeTimer?.cancel();
@@ -502,12 +513,46 @@ class _KioskScreenState extends State<KioskScreen> {
     if (_phase != KioskPhase.idle) return;
     final air = await _api.thinqAir();
     if (!mounted) return;
+    final gen = _nextRunGen;
     final next = await _api.nextRoutine();
     if (!mounted) return;
     setState(() {
       _air = air;
-      _nextRun = next;
+      // 그사이 건너뛰기 응답이 왔으면 이 (먼저 떠난) 응답으로 덮지 않는다.
+      if (gen == _nextRunGen) _nextRun = next;
     });
+  }
+
+  /// 다음 루틴 '오늘은 건너뛰기'·'되돌리기'(2026-10-18 사용자 결정). 확인 창은 없다(되돌리기가 있다).
+  /// 보내는 동안은 단추를 막는다. 실패하면 짧은 안내, 409·404면 다음 루틴을 다시 불러온다.
+  /// 건너뛰기는 실행을 멈추지 않는다 — 정지는 늘 /stop이다(서버 계약).
+  Future<void> _toggleNextRunSkip(KioskNextRun next) async {
+    if (_nextRunBusy || !next.canSkip) return;
+    final skip = !next.skipped;
+    _nextRunNoticeTimer?.cancel();
+    setState(() {
+      _nextRunBusy = true;
+      _nextRunNotice = null;
+    });
+    final result = await _api.setNextRoutineSkip(next, skip: skip);
+    if (!mounted) return;
+    _nextRunGen++;
+    setState(() {
+      _nextRunBusy = false;
+      if (result.item != null) _nextRun = result.item;
+      _nextRunNotice = result.item == null ? result.message : null;
+    });
+    if (_nextRunNotice != null) {
+      _nextRunNoticeTimer = Timer(const Duration(seconds: 8), () {
+        if (mounted) setState(() => _nextRunNotice = null);
+      });
+    }
+    if (result.reload) {
+      final gen = _nextRunGen;
+      final fresh = await _api.nextRoutine();
+      if (!mounted || gen != _nextRunGen) return;
+      setState(() => _nextRun = fresh);
+    }
   }
 
   /// ThinQ 가전 상세에서 확인을 거쳐 접수된 조작 — 다른 실행처럼 실행 화면이 job_id로 따라간다.
@@ -1706,6 +1751,9 @@ class _KioskScreenState extends State<KioskScreen> {
           off: _offIds,
           air: _air,
           nextRun: _nextRun,
+          nextRunBusy: _nextRunBusy,
+          nextRunNotice: _nextRunNotice,
+          onToggleNextRunSkip: _toggleNextRunSkip,
           dndUntil: _health.dndUntil,
           quietUntil: _health.quietScheduleActive ? _health.quietSchedule?.$2 : null,
           temperature: _sensorData?.mocked == false ? _sensorData?.temperature : null,
