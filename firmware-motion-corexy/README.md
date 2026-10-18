@@ -4,8 +4,8 @@
 > 재사용 경계는 [docs/reuse-boundary.md](../docs/reuse-boundary.md), 이식 기록은
 > [devlog 2026-10-10](../docs/devlog/devlog_2026-10-10-motion-firmware-merge.md).
 
-**컴파일만 확인했다. 보드에 올리지 않았고, 모터·엔코더·솔레노이드로 한 번도 돌려 보지 않았다.**
-기구·게인·시간 값은 `include/config.h`에 있고 전부 `실측 필요`다.
+**실물 확인은 벨트·솔레노이드 없는 시험대의 모터 축까지다(2026-10-12~14).** 캐리지 이동·스톨 원점·실제 버튼 누름은 아직 확인하지 않았다.
+기구·게인·시간 값은 `include/config.h`에 있고 전부 `실측 필요`다. 실물 확인 범위는 아래 [실물 확인](#실물-확인-2026-10-1214-시험대) 절.
 
 ESP32 DevKit + JMOD-MOTOR-1(TB6612FNG) + DFRobot FIT0482 ×2, 엔코더 폐루프 CoreXY. Z 누름은 솔레노이드
 (SparkFun ROB-11015, GPIO23 → N-MOSFET 로우사이드 + 플라이백 다이오드).
@@ -100,6 +100,25 @@ C:\pio-venv\Scripts\python.exe -m platformio run -d firmware-motion-corexy -e es
 Flash 296,747 B(22.6%). `esp32dev_bringup` SUCCESS — Flash 305,679 B(23.3%), 경고는 의도한 bring-up `#warning` 하나.
 `-Wall -Wextra`로 따로 빌드해도 이 폴더 소스에서 경고 없음.
 
+## 실물 확인 (2026-10-12~14, 시험대)
+
+ESP32 DevKit + TB6612 + FIT0482 ×2를 데스크톱 USB와 RPi4 USB에 연결해 확인했다. **벨트가 모터 톱니와 맞물리지 않아 캐리지는 움직이지 않았고, 솔레노이드는 달지 않았다(게이트 신호만).**
+빌드는 `esp32dev_bringup`(사람용 텍스트 명령)과 시험대 빌드 `esp32dev_benchhome`(`home`이 움직이지 않고 현재 위치를 원점으로 삼음 — 경로 확인 전용, 시연 보드에 올리지 않음)이다.
+
+| 무엇 | 결과 | 기록 |
+|---|---|---|
+| 업로드·부팅 | ESP32-D0WD-V3에 115200 bps로 업로드, `ready` 배너 | [10/12](../docs/devlog/devlog_2026-10-12-motion-bringup.md) |
+| 모터 A·B 개루프 구동, 엔코더 계수 | 두 모터 모두 정·역방향, PWM 양수일 때 카운트 양수. A=왼쪽, B=오른쪽을 사람이 눈으로 확인 | 같은 기록 |
+| 모터 축 폐루프 이동 | `G 10 0` → (10.01, 0.01), `G 40 0` → (40.03, 0.00) 뒤 원위치(모터 축 기준) | 같은 기록 '저녁' |
+| RPi4 줄 단위 JSON 경로 | 폰 → RPi5 → RPi4(Wi-Fi) → ESP32 `home`·`move`·`stop` 전달, 엔코더로 이동 확인 | 같은 기록 · [10/13](../docs/devlog/devlog_2026-10-13-desktop-board.md) |
+| 누름 제어 신호 | `press` → `press_start`/`press_end` 약 0.2 s, 연속 누름 사이 냉각 대기(10/14 루틴 실행에서 193 ms) | [10/13](../docs/devlog/devlog_2026-10-13-desktop-board.md) · [10/14 마감 '보드' 절](../docs/devlog/devlog_2026-10-14-desktop-close.md) |
+| 정지 3단계 | 보냄 → 모션 보드 응답 → 엔코더 멈춤 확인. 10회 모두 멈춤 확인, 응답 중앙 10.95 ms·멈춤 확인 중앙 160 ms(모터 축, 개발자 조그 경로). 누르는 도중의 정지도 `stopped`로 끝남 | [10/13](../docs/devlog/devlog_2026-10-13-desktop-board.md) · [10/14](../docs/devlog/devlog_2026-10-14-desktop-board.md) |
+| 걸림(스톨) 알람 | 엔코더 선을 빼고 실행 → 이동 1회 뒤 `stall` → 재시도 없이 정지, 화면에 원인 표시 | [10/14](../docs/devlog/devlog_2026-10-14-desktop-board.md) |
+| USB 재열거 | 뽑았다 꽂음 → RPi4가 실행기 재시작 없이 다시 열고 `ready` 수신(원점 기준은 버림) | 같은 기록 |
+
+**아직 확인하지 않은 것:** 벨트를 건 캐리지 이동과 mm 환산(기어비), 스톨 감지 원점 복귀(`home`), PID 게인, 솔레노이드 실제 누름·발열·복귀, 캐리지 이동 중 정지 거리, 호스트 워치독(`host_timeout`) 실물 발생, STBY·게이트 외부 풀다운.
+10/16부터 이 보드는 HW 담당이 솔레노이드·레일 작업으로 가져가 RPi4는 모의 모션으로 돌고 있다.
+
 ## 처음 켤 때 순서 (원작 README "처음 켤 때 순서"를 옮김 — bring-up 빌드, **벨트 걸기 전**)
 
 **모터 전원(VM)은 끈 채로 시작한다. 물리 E-STOP을 손 닿는 곳에.** bring-up 빌드(`esp32dev_bringup`)를 올리고 시리얼
@@ -124,7 +143,7 @@ Flash 296,747 B(22.6%). `esp32dev_bringup` SUCCESS — Flash 305,679 B(23.3%), �
 
 ## 알려진 한계
 
-- 실물 검증 0건: ISR 엔코더 계수, PID 안정성, 스톨 원점, 정지 거리, 워치독, 솔레노이드 발열·복귀 전부 확인 전.
+- 실물 검증은 시험대 모터 축까지다(위 '실물 확인'). 캐리지 기준 PID 안정성, 스톨 원점, 캐리지 정지 거리, 워치독, 솔레노이드 발열·복귀는 확인 전.
 - 엔코더가 모터 축에 있어 풀리–벨트 미끄럼은 보이지 않는다. 원작의 추종 오차(4 mm·0.2 s)는 걸림·충돌을 잡지만 미끄럼은
   원점 복귀와 L3 검증으로 잡는다.
 - 위치 유지(IDLE)는 원작처럼 PID로 잡고 있다가 호스트가 2 s 조용하면 출력을 내린다. 유지 중 손으로 밀면 원작 추종 오차
