@@ -26,4 +26,13 @@ class KioskTimings {
 
   /// 서버가 total_steps를 안 줄 때(UART 집계 모드)만 쓰는 폴백 채움 시간
   static const Duration execBarFill = Duration(seconds: 9);
+
+  /// 정지로 끝난 실행의 확인 보고(stop_level)를 다시 묻는 간격·횟수(kiosk_screen `_followStopReport`).
+  static const Duration stopFollowInterval = Duration(seconds: 1);
+  static const int stopFollowTries = 3;
+
+  /// '멈추는 중이에요'를 보이는 가장 긴 시간(휴리스틱 평가 10/18 — 기다림 상한을 화면에 말한다). kiosk_screen은
+  /// 틱이 [stopFollowTries] + 2를 넘는 순간(그 다음 틱) 기다리기를 끝낸다 — 1초 간격이면 6초. 보통은 그보다 일찍
+  /// (보고가 오거나 세 번 물은 뒤) 끝난다.
+  static Duration get stopConfirmMaxWait => stopFollowInterval * (stopFollowTries + 3);
 }

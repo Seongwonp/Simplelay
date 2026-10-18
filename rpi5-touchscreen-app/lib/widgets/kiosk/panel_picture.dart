@@ -5,6 +5,10 @@ import '../../theme/kiosk_colors.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'kiosk_text.dart';
 
+/// 실행 계열 화면의 '화면 버튼'과 '가전 버튼'을 가르는 말(2026-10-15 §2-2) — 안내 글([KioskPanelPicture.caption])에 이 말이
+/// 있으면 그림이 없거나(버튼판 없음) 큰 글씨로 줄인 모양에서도 같은 자리에 남긴다(휴리스틱 평가 10/18).
+const kScreenNoPress = '화면은 누르지 않아도 돼요';
+
 /// 설명 그림(버튼판, §1-6) — **제안·실행·정지 대기·결과** 화면이 같은 자리(오른쪽)에 같은 모양으로 그린다
 /// (화면 구조 개편 10/18 — 이 제품만의 그림을 중심에). 누를 곳 → 누르는 곳 → 누른 곳.
 ///
@@ -116,11 +120,34 @@ class KioskPanelPicture extends StatelessWidget {
         ),
         padding: const EdgeInsets.all(KioskSpace.xs),
         child: !_drawable(a)
+            // 그림이 없어도 안내는 같은 자리에(휴리스틱 평가 10/18 — '화면은 누르지 않아도 돼요'가 그림이 있는 실행에만 있었다).
+            // 칸이 낮으면(큰 글씨 줄인 모양) 두 줄을 함께 조금 줄인다 — 넘치지 않게.
             ? Center(
-                child: Text(
-                  '버튼판 그림이 없어요',
-                  style: TextStyle(
-                      fontSize: KioskType.body, color: KioskColors.panelText),
+                child: LayoutBuilder(
+                  builder: (context, box) => FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: SizedBox(
+                      width: box.maxWidth,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (caption.contains(kScreenNoPress))
+                            KioskText(
+                              kScreenNoPress,
+                              textKey: captionKey,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(fontSize: KioskType.body, color: Colors.white),
+                            ),
+                          Text(
+                            '버튼판 그림이 없어요',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: KioskType.caption, color: KioskColors.panelText),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
               )
             : compact
@@ -155,13 +182,35 @@ class KioskPanelPicture extends StatelessWidget {
 
   /// 큰 글자에서는 전체 버튼판을 생략하고 현재 버튼 이름만 읽을 수 있는 크기로 둔다.
   Widget _compact() => Center(
-        child: current == null
+        child: current != null && caption.contains(kScreenNoPress)
+            // 큰 글씨에서도 '화면은 누르지 않아도 돼요'를 같은 자리(정지 왼쪽)에(휴리스틱 평가 10/18).
+            // 두 줄이 칸 높이를 넘으면 함께 조금 줄인다(큰 글씨 1.22배에서 2px 넘쳤다).
+            ? LayoutBuilder(
+                builder: (context, box) => FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: SizedBox(
+                    width: box.maxWidth,
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      _compactCurrent(),
+                      Text(kScreenNoPress,
+                          key: const ValueKey('panel-no-press'),
+                          maxLines: 1,
+                          softWrap: false,
+                          style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+                    ]),
+                  ),
+                ),
+              )
+            : current == null
             ? KioskText(caption,
                 textKey: captionKey,
                 style: TextStyle(
                     fontSize: KioskType.body, color: KioskColors.muted))
-            // '누름 장치 위치 취소'는 표 머리처럼 읽혔다(평가 4차 10/18) — 한 문장으로 '누름 장치가 [취소] 위에 있어요'.
-            : Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+            : _compactCurrent(),
+      );
+
+  // '누름 장치 위치 취소'는 표 머리처럼 읽혔다(평가 4차 10/18) — 한 문장으로 '누름 장치가 [취소] 위에 있어요'.
+  Widget _compactCurrent() => Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Text('누름 장치가',
                     maxLines: 1,
                     softWrap: false,
@@ -187,8 +236,7 @@ class KioskPanelPicture extends StatelessWidget {
                     softWrap: false,
                     style: TextStyle(
                         fontSize: KioskType.caption, color: KioskColors.muted)),
-              ]),
-      );
+              ]);
 
   Widget _grid(ApplianceMap a) => Column(
         children: [

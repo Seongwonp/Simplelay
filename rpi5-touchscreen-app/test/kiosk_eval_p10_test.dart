@@ -391,7 +391,9 @@ void main() {
           ));
       // 평가 17차(10/18): 큰 결과 원(모래시계)과 돌아가는 원을 뺐다 — 띠가 '멈추는 중'과 무엇을 말한다.
       expect(find.descendant(of: _band, matching: find.textContaining('멈추는 중')), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      // 휴리스틱 평가(10/18): 진행 표시가 없어 멈춘 화면처럼 보였다 — 큰 제목 왼쪽에 돌아가는 표시 하나(띠의 모래시계와 다른 자리).
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.descendant(of: _band, matching: find.byType(CircularProgressIndicator)), findsNothing);
       expect(find.descendant(of: _band, matching: find.textContaining('전자레인지')), findsOneWidget);
       expect(find.descendant(of: _band, matching: find.byIcon(Icons.pan_tool_outlined)), findsNothing);
       // 큰 제목은 한 번.

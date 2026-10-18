@@ -612,6 +612,18 @@ KioskTileBand kioskTileBand(
         ? KioskTileBand('지금 못 써요', Icons.report, KioskColors.danger)
         : KioskTileBand('지금 못 써요', Icons.link_off, KioskColors.muted, fill: kTileBandGrey);
   }
+  // 연습 가전(서버 이름 '(연습)')은 연습 색(위 연습 띠와 같은 청록, 2026-10-18 휴리스틱 평가) — 누름 장치의 '준비됐어요'·손가락
+  // 그림을 쓰지 않는다. 읽은 전원만 말하고 모르면 '확인 전이에요'. 글자는 흰색(청록은 면·아이콘).
+  if (a.isPractice) {
+    final (String text, IconData icon) = running
+        ? ('바꾸는 중', Icons.autorenew)
+        : on
+            ? ('켜져 있어요', Icons.power_settings_new)
+            : off
+                ? ('꺼져 있어요', Icons.power_settings_new)
+                : ('확인 전이에요', Icons.help_outline);
+    return KioskTileBand(text, icon, KioskColors.practice);
+  }
   if (running) {
     // ThinQ는 허브가 설정을 보냈을 뿐 가전이 도는 것을 본 게 아니다(2026-10-15 외부 검토 L2) — '바꾸는 중'.
     return KioskTileBand(a.isThinq ? '바꾸는 중' : '작동 중', Icons.autorenew, KioskColors.running);
@@ -629,7 +641,9 @@ KioskTileBand kioskTileBand(
     'disconnected' => KioskTileBand('연결이 안 돼요', Icons.link_off, KioskColors.warning),
     'needs_setup' => KioskTileBand('설정이 필요해요', Icons.priority_high_rounded, KioskColors.warning),
     // 체크는 '됐어요'로 읽힌다 — 준비는 누를 수 있다는 손가락(폰과 같은 그림). 눌림을 확인했다는 뜻이 아니라 회색.
-    'operable' when a.canExecute =>
+    // 누름 장치 가전에만 — LG 가전은 누름 장치가 누르지 않는다(휴리스틱 평가 10/18: LG 가전 타일에 손가락 '준비됐어요'가
+    // 보였다). LG 가전은 읽은 전원(위)이 없으면 '확인 전이에요'.
+    'operable' when a.canExecute && !a.isThinq =>
       KioskTileBand('준비됐어요', Icons.touch_app_outlined, KioskColors.muted, fill: kTileBandGrey),
     _ => KioskTileBand('확인 전이에요', Icons.help_outline, KioskColors.muted, fill: kTileBandGrey),
   };
@@ -665,12 +679,19 @@ class _TileBand extends StatelessWidget {
                 key: textKey,
                 maxLines: 1,
                 softWrap: false,
+                // 본문 단계로 올린 뒤(휴리스틱 평가 10/18)에는 큰 글씨 배율을 더 얹지 않는다 — 큰 글씨 예전 크기(17×1.22)와 거의
+                // 같아 타일 높이가 그대로이고(이름 칸이 눌려 넘치지 않게), 보통 글씨에서만 커진다.
+                textScaler: fontSize >= KioskType.body
+                    ? MediaQuery.textScalerOf(context).clamp(maxScaleFactor: 1.0)
+                    : null,
                 style: TextStyle(
                   fontSize: fontSize,
                   height: 1.2,
                   fontWeight: grey ? FontWeight.w600 : FontWeight.w700,
-                  // 작동 중은 흰 글자(파랑은 아이콘·면) — 색 있는 상태는 그 색 글자.
-                  color: band.tone == KioskColors.running ? Colors.white : band.tone,
+                  // 작동 중·연습은 흰 글자(파랑·청록은 아이콘·면) — 색 있는 상태는 그 색 글자.
+                  color: band.tone == KioskColors.running || band.tone == KioskColors.practice
+                      ? Colors.white
+                      : band.tone,
                 ),
               ),
             ),

@@ -105,6 +105,10 @@ void main() {
             executionMode: 'real',
             onRetry: () => calls++,
             onDismiss: noop));
+    // 휴리스틱 평가(10/18): '한 번 더 하기'는 '안 움직였어요'라고 답한 뒤에만 보인다(R1).
+    expect(find.text('한 번 더 하기'), findsNothing);
+    await t.tap(find.byKey(const ValueKey('done-check-no')));
+    await t.pump();
     await t.tap(find.text('한 번 더 하기'));
     await t.pumpAndSettle();
     expect(calls, 0);

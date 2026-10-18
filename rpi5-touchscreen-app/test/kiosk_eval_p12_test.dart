@@ -277,7 +277,16 @@ void main() {
   });
 
   group('2. 결과 화면 — 보조 단추 한 꼴, 한 번 더 하기는 안내 옆', () {
-    for (final userStop in [false, true]) {
+    // 휴리스틱 평가(10/18): 눌렸는지 모르는 결과에는 '누름 장치로 골라 누르기'를 두지 않는다(가전을 보고 답한다, R1) —
+    // 멈춘 것을 확인한 정지에만 남는다.
+    testWidgets('눌렸는지 모름 — 골라 누르기 없음, 가전을 보고 답한다', (tester) async {
+      await _pumpView(tester, _failed());
+      expect(find.byKey(const ValueKey('done-manual')), findsNothing);
+      expect(find.byKey(const ValueKey('done-check-yes')), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+
+    for (final userStop in [true]) {
       testWidgets(userStop ? '사용자 정지' : '눌렸는지 모름', (tester) async {
         await _pumpView(tester, _failed(userStop: userStop));
         final manual = find.byKey(const ValueKey('done-manual'));
@@ -292,23 +301,29 @@ void main() {
 
     // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추. 평가 15차(10/18): 주 단추 하나 + 보조 한 줄
     // (같은 폭·같은 높이·같은 오른쪽 끝) — 안내 문장 묶음 대신 누르면 뜨는 확인 창이 말한다.
-    testWidgets('한 번 더 하기는 보조 한 줄 안 작은 테두리 단추', (tester) async {
+    // 휴리스틱 평가(10/18): '한 번 더 하기'는 '안 움직였어요'라고 답한 뒤 — '손으로 할게요'와 같은 크기의 테두리 단추,
+    // '손으로 할게요'가 앞(왼쪽). 안내 문장 묶음 대신 누르면 뜨는 확인 창이 말한다.
+    testWidgets('한 번 더 하기는 안 움직였어요 뒤 손으로 할게요와 같은 꼴, 손으로 할게요가 앞', (tester) async {
       await _pumpView(tester, _failed());
+      expect(find.byKey(const ValueKey('done-retry')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
       expect(find.byKey(const ValueKey('done-retry-hint')), findsNothing);
       final retry = find.byKey(const ValueKey('done-retry'));
       expect(tester.widget(retry), isA<OutlinedButton>());
       final r = tester.getRect(retry);
-      final m = tester.getRect(find.byKey(const ValueKey('done-manual')));
-      expect((r.width - m.width).abs(), lessThan(1), reason: '같은 폭');
-      expect((r.height - m.height).abs(), lessThan(1), reason: '같은 높이');
-      final home = tester.getRect(find.byKey(const ValueKey('done-home')));
-      expect(r.height, lessThan(home.height), reason: '주 출구보다 약하다');
+      final h = tester.getRect(find.byKey(const ValueKey('done-check-hand')));
+      expect((r.width - h.width).abs(), lessThan(1), reason: '같은 폭');
+      expect((r.height - h.height).abs(), lessThan(1), reason: '같은 높이');
+      expect(h.left, lessThan(r.left), reason: '손으로 할게요가 앞');
       expect(r.bottom, lessThanOrEqualTo(480));
       expect(tester.takeException(), isNull);
     });
 
     testWidgets('큰 글씨에서도 잘리지 않는다', (tester) async {
       await _pumpView(tester, _failed(), scale: 1.22);
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
       expect(find.byKey(const ValueKey('done-retry')).hitTestable(), findsOneWidget);
       expect(tester.getRect(find.byKey(const ValueKey('done-retry'))).bottom, lessThanOrEqualTo(480));
       expect(tester.takeException(), isNull);

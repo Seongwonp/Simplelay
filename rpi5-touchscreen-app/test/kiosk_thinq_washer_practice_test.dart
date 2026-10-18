@@ -33,7 +33,8 @@ void main() {
     expect(thinqStateRows(_washer).map((r) => (r.label, r.value)).toList(), [
       ('빨래', '빨래하는 중'),
       ('남은 시간', '45분'),
-      ('휴대폰으로 시작', '켜져 있어요'),
+      // 2차 독립 평가 F(10/18): 이어 읽으면 '휴대폰으로 시작할 수 있어요'.
+      ('휴대폰으로', '시작할 수 있어요'),
     ]);
     final control = thinqControlsFor(_washer).single;
     expect(control.action, 'set_operation');

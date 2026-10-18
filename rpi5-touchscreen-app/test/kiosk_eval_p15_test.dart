@@ -233,17 +233,19 @@ void main() {
   });
 
   group('2·3·4·8. 결과 화면 아래 줄·처음 화면으로·번호 안내', () {
-    testWidgets('눌렸는지 모름 — 보조 단추 둘은 같은 폭·같은 높이·같은 오른쪽 끝, 채움 단추는 처음 화면으로 하나', (tester) async {
+    // 휴리스틱 평가(10/18): 눌렸는지 모르면 아래 줄은 '움직였어요 / 안 움직였어요' 대등한 큰 두 단추 + 보조 '처음 화면으로'.
+    // 채움 단추(흰 면)는 없다 — 어느 답도 먼저 눌리게 하지 않는다. 처음 화면으로는 오른쪽 끝(정지 자리와 같은 선).
+    testWidgets('눌렸는지 모름 — 대등한 두 답 단추, 채움 단추 없음, 처음 화면으로는 오른쪽 끝 보조', (tester) async {
       await _pump15(tester, _failed());
-      final manual = tester.getRect(find.byKey(const ValueKey('done-manual')));
-      final retry = tester.getRect(find.byKey(const ValueKey('done-retry')));
-      expect((manual.width - retry.width).abs(), lessThan(1), reason: '같은 폭');
-      expect((manual.height - retry.height).abs(), lessThan(1), reason: '같은 높이');
-      // 한 줄이면 같은 위(같은 줄), 두 줄이면 같은 오른쪽 끝.
-      expect((manual.top - retry.top).abs() < 1 || (manual.right - retry.right).abs() < 1, isTrue);
-      // 보조 줄 오른쪽 끝은 정지 자리와 같은 선(화면 오른쪽 여백 + stopRight).
-      expect(retry.right, closeTo(1920 - 140 - KioskSizes.stopRight * _scale, 3));
-      expect(find.byType(ElevatedButton), findsOneWidget, reason: '채움 단추는 처음 화면으로 하나');
+      final yes = tester.getRect(find.byKey(const ValueKey('done-check-yes')));
+      final no = tester.getRect(find.byKey(const ValueKey('done-check-no')));
+      expect((yes.width - no.width).abs(), lessThan(1), reason: '같은 폭');
+      expect((yes.height - no.height).abs(), lessThan(1), reason: '같은 높이');
+      expect((yes.top - no.top).abs(), lessThan(1), reason: '같은 줄');
+      final home = tester.getRect(_home());
+      expect(home.right, closeTo(1920 - 140 - KioskSizes.stopRight * _scale, 3));
+      expect(home.height, lessThan(yes.height));
+      expect(find.byType(ElevatedButton), findsNothing, reason: '채움 단추 없음');
       expect(tester.takeException(), isNull);
     });
 
@@ -269,31 +271,52 @@ void main() {
       expect(find.byKey(const ValueKey('done-manual')), findsOneWidget);
     });
 
-    testWidgets('처음 화면으로 — 결과·LG 가전 결과·정지 미확인 대기가 같은 모양(흰 채움 + 집 아이콘)·같은 왼쪽 선', (tester) async {
+    // 휴리스틱 평가(10/18): 주 행동은 왼쪽 아래 같은 자리 — 확인한 결과는 '처음 화면으로'(흰 채움), 모름 결과는 첫 답 단추.
+    // 모름·정지 미확인에서 '처음 화면으로'는 보조 모양(테두리) — 이름·집 아이콘은 같다.
+    testWidgets('주 행동은 같은 왼쪽 선 — 확인한 결과는 처음 화면으로(흰 채움), 모름은 답 단추, 처음 화면으로는 늘 집 아이콘', (tester) async {
       final lefts = <double>[];
-      final screens = <Widget>[
-        _failed(),
-        KioskDoneView(success: true, executionMode: 'real', label: '즉석밥 데워줘', target: kMicrowaveAppliance, onDismiss: () {}),
-        _thinqDone(confirmed: false),
-        _thinqDone(),
-        const KioskHoldView(
-          appliance: kMicrowaveAppliance,
-          holdState: 'parked',
-          stopOutcome: 'requested_unconfirmed',
-          stopButton: '취소',
-          executionMode: 'real',
-          elapsed: Duration(minutes: 1),
-          onStop: _noop,
-          onClose: _noop,
+      final screens = <(Widget, bool)>[
+        (_failed(), false),
+        (
+          KioskDoneView(
+              success: true,
+              executionMode: 'real',
+              label: '즉석밥 데워줘',
+              target: kMicrowaveAppliance,
+              operationConfirmed: true,
+              operationSource: 'real',
+              onDismiss: () {}),
+          true
+        ),
+        (_thinqDone(confirmed: false), false),
+        (_thinqDone(), true),
+        (
+          const KioskHoldView(
+            appliance: kMicrowaveAppliance,
+            holdState: 'parked',
+            stopOutcome: 'requested_unconfirmed',
+            stopButton: '취소',
+            executionMode: 'real',
+            elapsed: Duration(minutes: 1),
+            onStop: _noop,
+            onClose: _noop,
+          ),
+          false
         ),
       ];
-      for (final s in screens) {
+      for (final (s, confirmed) in screens) {
         await _pump15(tester, s);
         final home = _home();
         expect(home, findsOneWidget);
-        expect(tester.widget(home), isA<ElevatedButton>(), reason: '한 모양(흰 채움)');
         expect(find.descendant(of: home, matching: find.byIcon(Icons.home_outlined)), findsOneWidget, reason: '집 아이콘');
-        lefts.add(tester.getRect(home).left);
+        if (confirmed) {
+          expect(tester.widget(home), isA<ElevatedButton>(), reason: '확인한 결과 — 흰 채움');
+          lefts.add(tester.getRect(home).left);
+        } else {
+          expect(tester.widget(home), isA<OutlinedButton>(), reason: '모름 — 보조 모양');
+          final yes = find.byKey(const ValueKey('done-check-yes'));
+          if (yes.evaluate().isNotEmpty) lefts.add(tester.getRect(yes).left);
+        }
       }
       for (final l in lefts) {
         expect(l, closeTo(lefts.first, 2), reason: '같은 자리(왼쪽 선) — $lefts');

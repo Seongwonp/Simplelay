@@ -136,11 +136,12 @@ void main() {
             tester,
             stop
                 ? _stopped('verified')
+                // 휴리스틱 평가(10/18): 골라 누르기는 확실히 못 한 결과(연습 실패)에 남는다 — 눌렸는지 모르면 가전을 보고 답한다.
                 : const KioskDoneView(
                     success: false,
                     label: '즉석밥 데워줘',
                     target: kMicrowaveAppliance,
-                    executionMode: 'real',
+                    executionMode: 'mock',
                     onRetry: _noop,
                     onManual: _noop,
                     onDismiss: _noop));

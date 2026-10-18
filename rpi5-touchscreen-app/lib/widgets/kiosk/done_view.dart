@@ -56,7 +56,18 @@ class KioskDoneView extends StatelessWidget {
     this.thinqActionText,
     this.onStopAgain,
     this.stopAgain,
+    this.onChecked,
+    this.onRetryAfterCheck,
   });
+
+  /// '가전을 보고 알려 주세요'에 사람이 답했다(휴리스틱 평가 10/18) — true '움직였어요·켜졌어요', false '안 …' 뒤
+  /// '손으로 할게요'. 화면(kiosk_screen)이 키오스크 안에 사람 확인으로 기억하고 처음 화면으로 간다('지난 일' 줄은 남기지
+  /// 않는다 — 사람이 이미 답했다). null이면(시험·옛 호출) 두 답 모두 [onDismiss]로 나간다.
+  final ValueChanged<bool>? onChecked;
+
+  /// 사람이 '안 움직였어요·안 켜졌어요'라고 답한 뒤의 '한 번 더 하기'(확인 창을 거친다). null이면 [onRetry]를 쓴다 —
+  /// LG 가전 확인 못 함처럼 답 없이는 다시 보내지 않는 결과에서, 사람이 바뀌지 않았다고 본 뒤에만 연다.
+  final VoidCallback? onRetryAfterCheck;
 
   /// 누름 장치가 멈췄는지 모르는 정지 결과의 '다시 멈추기'(평가 15차 10/18) — 정지 대기 화면과 같은 정지 경로(/stop)를 다시 보낸다.
   /// null이면(연습·LG 가전·다시 보낼 수 없음) 단추를 두지 않는다. 이 결과에는 '누름 장치로 골라 누르기'를 두지 않는다(안전).
@@ -95,34 +106,41 @@ class KioskDoneView extends StatelessWidget {
   final String? stopLevel;
   final int? stopAckMs;
 
-  Future<void> _confirmRetry(BuildContext context, bool mock) async {
-    final confirmed = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-              title: Text(mock ? '연습을 다시 할까요?' : '가전을 봐 주셨나요?',
-                  style: const TextStyle(fontSize: KioskType.status)),
-              content: Text(
-                  mock
-                      ? '실제 가전에는 보내지 않아요.'
-                      : '$kDontRetryIfOn.',
-                  style: const TextStyle(fontSize: KioskType.body)),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(ctx, false),
-                    style:
-                        TextButton.styleFrom(minimumSize: const Size(120, 48)),
-                    // 창을 닫는 단추는 '닫기'로 한 말(평가 17차 10/18).
-                    child: const Text('닫기',
-                        style: TextStyle(fontSize: KioskType.body))),
-                FilledButton(
-                    onPressed: () => Navigator.pop(ctx, true),
-                    style: FilledButton.styleFrom(
-                        minimumSize: const Size(180, 48)),
-                    child: const Text('네, 한 번 더 하기',
-                        style: TextStyle(fontSize: KioskType.body))),
-              ],
-            ));
-    if (confirmed == true && context.mounted) onRetry?.call();
+  Future<void> _confirmRetry(BuildContext context, bool mock) =>
+      confirmKioskRetry(context, mock: mock, thinq: route == 'thinq', onRetry: onRetry);
+
+  /// 사람 확인 흐름(휴리스틱 평가 10/18) — 사람이 가전을 보고 답할 결과면 그 말. 아니면 null.
+  ///
+  /// 눌렸는지 모름·LG 가전 확인 못 함·본체 끊김(어떻게 됐는지 모름)·버튼 누름 보고만(가전은 사람이 본다) — 주 행동이
+  /// '처음 화면으로'면 어르신이 해결 없이 나가 결과를 잃었다. 대신 '움직였어요 / 안 움직였어요' 두 개의 대등한 큰 단추.
+  /// '한 번 더 하기'는 '안 …'이라고 답한 뒤에만, 확인 창을 거쳐서(열린 문제 R1 — 다시 누르기를 가장 쉬운 행동으로 두지 않는다).
+  /// 연습·확인한 성공·사용자 정지(정지가 주인공)·원인을 아는 걸림에는 없다.
+  KioskCheckWords? get personCheck {
+    if (executionMode == 'mock') return null;
+    final name = target?.name;
+    if (thinqCopy case final copy?) {
+      return copy.tone == ThinqResultTone.attention ? _thinqCheckWords(name) : null;
+    }
+    final r = reason ?? KioskFailureReason.execution;
+    if (!success && r == KioskFailureReason.stopped) return null;
+    if (route == 'thinq') {
+      return _thinqUnconfirmed || (!success && r == KioskFailureReason.serverLost) ? _thinqCheckWords(name) : null;
+    }
+    if (success) {
+      final verified = executionMode == 'real' && operationConfirmed == true && operationSource == 'real';
+      return verified ? null : KioskCheckWords.moved(name);
+    }
+    if (_pressUnknown || r == KioskFailureReason.serverLost) return KioskCheckWords.moved(name);
+    return null;
+  }
+
+  KioskCheckWords _thinqCheckWords(String? name) {
+    final action = thinqActionOf(name ?? '가전', [thinqActionText, label]);
+    return switch (action.kind) {
+      ThinqActionKind.powerOn => KioskCheckWords.on(name),
+      ThinqActionKind.powerOff => KioskCheckWords.off(name),
+      _ => KioskCheckWords.changed(name),
+    };
   }
 
   /// 끝난 다단계 실행의 단계별 결과(G4, GET /scenarios/last-run). **이 job의
@@ -243,6 +261,8 @@ class KioskDoneView extends StatelessWidget {
     if (success) {
       if (_thinqUnconfirmed) return '됐는지 몰라요'; // 이 화면의 LG 가전 성공 큰 글자와 같은 말
       if (_pressUnknown) return '눌렸는지 몰라요';
+      // 버튼 누름 보고만 — 가전은 사람이 본다(2차 독립 평가 C, 10/18). 답하지 않고 나가면 처음 화면에 남긴다.
+      if (personCheck != null) return kPressDonePastHeadline;
       return null;
     }
     final r = reason ?? KioskFailureReason.execution;
@@ -264,7 +284,11 @@ class KioskDoneView extends StatelessWidget {
           held: autoReturnHeld,
           onHold: onHold,
           onClose: onDismiss,
-          steps: recoverySteps);
+          steps: recoverySteps,
+          check: personCheck,
+          onChecked: onChecked,
+          onRetryAfterCheck: onRetryAfterCheck,
+          mock: executionMode == 'mock');
     }
     // 큰 글자(§1-8): 결과 원을 줄이고, 보조 단추(다시 시도·화면으로 조작하기)는 할 일 문장 아래 같은 세로 흐름으로
     // 옮긴다 — 가로 단추 줄이 두 줄로 접혀 할 일 줄을 스크롤 아래로 밀었다(2026-10-16 골든). '처음 화면으로'는 아래 고정.
@@ -283,6 +307,7 @@ class KioskDoneView extends StatelessWidget {
     const ta = TextAlign.start;
     final r = reason ?? KioskFailureReason.execution;
     final steps = recoverySteps;
+    final check = personCheck;
     // 사용자가 멈춘 것은 실패가 아니다 — 빨간 X가 아니라 정지 단계만큼의 표시(2026-10-14, 10-15).
     final userStop = !success && r == KioskFailureReason.stopped;
     // 정지 확인 보고를 기다리는 중 — 끝난 결과가 아니다(평가 8차 10/18).
@@ -373,6 +398,7 @@ class KioskDoneView extends StatelessWidget {
                     : '버튼은 다 눌렀어요';
     // 제목 바로 아래, 같은 크기 계열의 한 줄 — 가전은 사람이 본다. 확인한 것은 전력 변화(L3)이지 조리 시작이 아니다.
     // 연습은 위 띠가 '실제 가전은 움직이지 않아요'를 말한다 — 같은 말을 아래에 또 쓰지 않는다(10/18).
+    // 사람 확인 흐름(휴리스틱 평가 10/18)이어도 이 할 일 줄은 남긴다(폰과 같은 말) — 아래 물음은 '전자레인지가 움직였나요?'만.
     final String? successSub = thinq || mock || steps != null
         ? null
         : operationVerified
@@ -409,7 +435,8 @@ class KioskDoneView extends StatelessWidget {
     final String failureDetail = practiceStopped || practiceStop || steps != null
         ? ''
         : pending
-        ? '잠시 기다려 주세요'
+        // 무엇을 기다리는지(휴리스틱 평가 10/18 — '잠시 기다려 주세요'만으로는 빈 화면처럼 보였다).
+        ? kStopPendingDetail
         : mock && !userStop
         ? r.practiceWhy
         : motion != null
@@ -500,6 +527,29 @@ class KioskDoneView extends StatelessWidget {
           // 가장 큰 글자가 그냥 '완료'면, 사용자는 조리나 냉방 자체가
           // 끝났다고 읽는다. 이 시스템이 끝낸 것은 **버튼 누르기**다.
           // 제목은 2줄까지 자연스럽게 넘어간다(폭은 [KioskSizes.resultMaxWidth], 2026-10-16 §1-7).
+          if (pending)
+            // 멈추는 중 — 돌아가는 표시를 제목 왼쪽에(휴리스틱 평가 10/18 — 진행 표시 없이 글만 있어 멈춘 화면처럼 보였다).
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  key: ValueKey('done-pending-spinner'),
+                  width: 40,
+                  height: 40,
+                  child: CircularProgressIndicator(strokeWidth: 5, color: Colors.white),
+                ),
+                const SizedBox(width: KioskSpace.md),
+                Flexible(
+                  child: KioskText(
+                    headline,
+                    textAlign: ta,
+                    style: TextStyle(
+                        fontSize: KioskType.key, fontWeight: FontWeight.w800, height: 1.2, color: color),
+                  ),
+                ),
+              ],
+            )
+          else
           KioskText(
             headline,
             textAlign: ta,
@@ -523,6 +573,16 @@ class KioskDoneView extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                   height: 1.3),
+            ),
+          ],
+          // 기다림 상한(kiosk_screen이 실제로 끊는 시간과 같은 값)과 정지를 또 누르지 않아도 된다는 말(휴리스틱 평가 10/18).
+          if (pending) ...[
+            const SizedBox(height: KioskSpace.xs),
+            KioskText(
+              stopPendingNote(KioskTimings.stopConfirmMaxWait),
+              textKey: const ValueKey('done-pending-note'),
+              textAlign: ta,
+              style: const TextStyle(fontSize: KioskType.body, height: 1.3, color: Colors.white),
             ),
           ],
           if (success && successSub != null) ...[
@@ -611,7 +671,21 @@ class KioskDoneView extends StatelessWidget {
     // 않고, 정지 대기 화면(hold_view 정지 미확인)과 같은 '다시 멈추기'를 정지 자리에 둔다. 처음 화면은 보조 크기(같은 모양).
     final showStopAgain = _stopUnknown && onStopAgain != null;
     final manual = _stopUnknown ? null : onManual;
-    final Widget actions = pending
+    // 확실히 못 한 결과에서 다시 하는 것이 안전할 때만 '한 번 더 하기'가 주 단추(휴리스틱 평가 10/18) — 연습, 또는 LG 가전이
+    // 거절해 아무것도 바뀌지 않은 것(notExecuted). 눌렸는지 모르는 결과는 위 사람 확인 흐름으로 간다(R1).
+    final retryFirst = !success && retry != null && check == null && (mock || r == KioskFailureReason.notExecuted);
+    final Widget actions = check != null
+        ? KioskCheckActions(
+            words: check,
+            // 위에 할 일 줄('가전이 움직이는지 봐 주세요')이 있으면 물음만 — 같은 당부를 두 번 하지 않는다.
+            shortPrompt: success && successSub != null,
+            mock: mock,
+            thinq: thinq,
+            onChecked: onChecked,
+            onRetry: onRetryAfterCheck ?? retry,
+            onHome: onDismiss,
+          )
+        : pending
         // 처음 화면·보조 단추 없이 기다림 표시만(평가 8차 10/18) — 정지 확인 보고는 몇 초 안에 오거나 끊긴다.
         ? Align(
             alignment: Alignment.centerLeft,
@@ -626,6 +700,9 @@ class KioskDoneView extends StatelessWidget {
             onHome: onDismiss,
             homeCompact: showStopAgain,
             stacked: stacked,
+            primary: retryFirst
+                ? KioskRetryPrimary(onTap: () => _confirmRetry(context, mock))
+                : null,
             note: success
                 ? (autoReturnHeld
                     ? Text('자동으로 닫지 않아요',
@@ -642,7 +719,7 @@ class KioskDoneView extends StatelessWidget {
                         label: kManualEntryLabel,
                         onTap: manual,
                       ),
-                    if (retry != null)
+                    if (retry != null && !retryFirst)
                       KioskSecondaryAction(
                         buttonKey: const ValueKey('done-retry'),
                         icon: Icons.refresh,
@@ -964,10 +1041,20 @@ class _ThinqResult extends StatelessWidget {
     required this.onHold,
     required this.onClose,
     this.steps,
+    this.check,
+    this.onChecked,
+    this.onRetryAfterCheck,
+    this.mock = false,
   });
 
   /// '확인 못 함'이면 순서 안내(사용자 결정 10/18). 없으면 null.
   final List<String>? steps;
+
+  /// 확인 못 함이면 사람 확인 흐름(휴리스틱 평가 10/18) — '켜졌어요 / 안 켜졌어요'. 없으면 null.
+  final KioskCheckWords? check;
+  final ValueChanged<bool>? onChecked;
+  final VoidCallback? onRetryAfterCheck;
+  final bool mock;
 
   final ThinqResultCopy copy;
   final ApplianceMap? target;
@@ -1056,7 +1143,17 @@ class _ThinqResult extends StatelessWidget {
             // 나가는 단추는 다른 결과 화면과 같은 자리·모양의 '⌂ 처음 화면으로'(평가 11차·15차 10/18).
             Padding(
               padding: kResultActionsPadding,
-              child: KioskResultActions(
+              child: check != null
+                  ? KioskCheckActions(
+                      words: check!,
+                      mock: mock,
+                      thinq: true,
+                      onChecked: onChecked,
+                      onRetry: onRetryAfterCheck,
+                      onHome: onClose,
+                      homeKey: const ValueKey('thinq-result-close'),
+                    )
+                  : KioskResultActions(
                 onHome: onClose,
                 homeKey: const ValueKey('thinq-result-close'),
                 note: success
@@ -1142,6 +1239,20 @@ class KioskHomeButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final size = compact ? KioskType.body : KioskType.status;
+    // 보조 크기는 보조 모양 — 흰 테두리·투명 면(휴리스틱 평가 10/18: 작아도 흰 채움이면 화면에서 가장 눈에 띄는 단추라
+    // 실패·모름 결과에서 어르신이 해결 없이 처음 화면으로 나갔다). 아이콘·글자는 같다.
+    if (compact) {
+      return OutlinedButton.icon(
+        key: buttonKey,
+        onPressed: onTap,
+        icon: Icon(Icons.home_outlined, size: size),
+        label: Text('처음 화면으로',
+            maxLines: 1, softWrap: false, style: TextStyle(fontSize: size, fontWeight: FontWeight.w700)),
+        style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.muted).copyWith(
+          padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.md)),
+        ),
+      );
+    }
     return ElevatedButton.icon(
       key: buttonKey,
       onPressed: onTap,
@@ -1219,6 +1330,7 @@ class KioskResultActions extends StatelessWidget {
     this.secondaries = const [],
     this.stop,
     this.stacked = false,
+    this.primary,
   });
 
   final VoidCallback? onHome;
@@ -1229,10 +1341,22 @@ class KioskResultActions extends StatelessWidget {
   final Widget? stop;
   final bool stacked;
 
+  /// 주 단추가 '처음 화면으로'가 아닐 때(휴리스틱 평가 10/18 — 다시 하는 것이 안전한 실패의 '한 번 더 하기'). 있으면 왼쪽
+  /// 주 자리에 두고 '처음 화면으로'는 그 옆 보조 모양.
+  final Widget? primary;
+
   @override
   Widget build(BuildContext context) {
-    final home = onHome == null ? null : KioskHomeButton(buttonKey: homeKey, onTap: onHome!, compact: homeCompact);
-    if (stacked && stop == null && secondaries.isNotEmpty) {
+    final homeButton =
+        onHome == null ? null : KioskHomeButton(buttonKey: homeKey, onTap: onHome!, compact: homeCompact || primary != null);
+    // 주 단추가 따로 있으면 [주 단추 · 처음 화면으로(보조)]가 한 묶음으로 왼쪽 주 자리에.
+    final Widget? home = primary == null
+        ? homeButton
+        : Row(mainAxisSize: MainAxisSize.min, children: [
+            primary!,
+            if (homeButton != null) ...[const SizedBox(width: KioskSpace.sm), homeButton],
+          ]);
+    if (stacked && stop == null && (secondaries.isNotEmpty || primary != null)) {
       return Align(
         alignment: Alignment.centerLeft,
         child: IntrinsicWidth(
@@ -1241,7 +1365,11 @@ class KioskResultActions extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final (i, b) in <Widget>[if (home != null) home, ...secondaries].indexed) ...[
+              for (final (i, b) in <Widget>[
+                if (primary != null) primary!,
+                if (homeButton != null) homeButton,
+                ...secondaries,
+              ].indexed) ...[
                 if (i > 0) const SizedBox(height: KioskSpace.xs),
                 b,
               ],
@@ -1269,7 +1397,8 @@ class KioskResultActions extends StatelessWidget {
       final gaps = secondaries.isEmpty ? 0.0 : (secondaries.length - 1) * KioskSpace.sm;
       final secTotal = secondaries.length * secW + gaps;
       // 주 단추 폭 어림(글자 크기·여백) — 넘칠 것 같으면 보조 줄을 아래로 내린다.
-      final homeW = home == null ? 0.0 : (homeCompact ? 210.0 : 290.0);
+      final homeW = (home == null ? 0.0 : (homeCompact || primary != null ? 210.0 : 290.0)) +
+          (primary == null ? 0.0 : 290.0 + KioskSpace.sm);
       final stopW = stop == null ? 0.0 : KioskSizes.stopWidth + KioskSpace.lg;
       final oneRow = secondaries.isEmpty || homeW + KioskSpace.lg + secTotal + stopW <= box.maxWidth;
       final row = Row(
@@ -1307,6 +1436,15 @@ class KioskResultActions extends StatelessWidget {
           else
             row,
           const SizedBox(height: KioskSpace.xs),
+          // 보조 단추가 하나뿐이면 제 폭으로 왼쪽에(휴리스틱 평가 10/18 — 연습 실패의 '누름 장치로 골라 누르기'가 화면 전체 폭으로
+          // 늘어나 주 단추보다 커 보였다).
+          if (secondaries.length == 1)
+            Align(
+              key: const ValueKey('done-secondary-row'),
+              alignment: Alignment.centerLeft,
+              child: SizedBox(width: secW, child: secondaries.single),
+            )
+          else
           Row(
             key: const ValueKey('done-secondary-row'),
             children: [
@@ -1328,11 +1466,258 @@ const kManualEntryLabel = '누름 장치로 골라 누르기';
 
 /// LG 가전에 부탁했지만 확인하지 못했을 때의 순서 안내(사용자 결정 10/18) — 짧은 말, 하나씩 해 볼 순서.
 /// 말끝을 서로 다르게·짧게(평가 15차 10/18 — 제목·번호 셋이 모두 '~봐 주세요'였다).
+/// 벽 화면 앞 어르신에게 '휴대폰 앱에서 지금 상태 보기'는 맞지 않았다(2차 독립 평가 E, 10/18) — 가전을 직접 보고,
+/// 모르면 가족에게. 다 본 뒤 아래 '켜졌어요 / 안 켜졌어요'로 답한다.
 const kThinqRecoverySteps = [
-  '가전 전원과 와이파이 살피기',
-  '휴대폰 앱에서 지금 상태 보기',
-  '그래도 모르면 가전 앞에서 직접 확인',
+  '가전 앞에 가서 직접 보기',
+  '가전 화면·불빛이 바뀌었는지 확인',
+  '모르겠으면 가족에게 물어보기',
 ];
+
+/// 정지 확인 보고를 기다리는 동안 제목 아래 한 줄(휴리스틱 평가 10/18).
+const kStopPendingDetail = '멈췄는지 확인하고 있어요';
+
+/// 기다림 상한과 정지를 또 누르지 않아도 된다는 말 — '길어도 6초쯤 걸려요. 정지를 다시 누르지 않아도 돼요'.
+String stopPendingNote(Duration maxWait) => '길어도 ${maxWait.inSeconds}초쯤 걸려요. 정지를 다시 누르지 않아도 돼요';
+
+/// 버튼 누름 보고만 받은 결과를 답하지 않고 닫았을 때 처음 화면 '지난 일' 말(2차 독립 평가 C, 10/18).
+const kPressDonePastHeadline = '움직였는지 몰라요';
+
+/// 사람 확인 흐름의 물음 머리(휴리스틱 평가 10/18).
+const kCheckPrompt = '가전을 보고 알려 주세요';
+
+/// 사람 확인 흐름의 말 — 물음 · 그렇다 · 아니다 · 아니라고 답한 것을 되짚는 말.
+@immutable
+class KioskCheckWords {
+  const KioskCheckWords({required this.question, required this.yes, required this.no, required this.noSaid});
+
+  /// '전자레인지가 움직였나요?'
+  final String question;
+
+  /// '움직였어요'
+  final String yes;
+
+  /// '안 움직였어요'
+  final String no;
+
+  /// '가전이 안 움직였다고 알려 주셨어요'의 가운데 — '안 움직였다고'.
+  final String noSaid;
+
+  static String _who(String? name) => withSubject((name?.isNotEmpty ?? false) ? name! : '가전');
+
+  /// 누름 장치 가전 — 화면·불빛·소리 무엇이든 가전이 반응했는가(어느 버튼이든 맞는 말).
+  factory KioskCheckWords.moved(String? name) => KioskCheckWords(
+      question: '${_who(name)} 움직였나요?', yes: '움직였어요', no: '안 움직였어요', noSaid: '안 움직였다고');
+
+  /// LG 가전 켜기.
+  factory KioskCheckWords.on(String? name) =>
+      KioskCheckWords(question: '${_who(name)} 켜졌나요?', yes: '켜졌어요', no: '안 켜졌어요', noSaid: '안 켜졌다고');
+
+  /// LG 가전 끄기.
+  factory KioskCheckWords.off(String? name) =>
+      KioskCheckWords(question: '${_who(name)} 꺼졌나요?', yes: '꺼졌어요', no: '안 꺼졌어요', noSaid: '안 꺼졌다고');
+
+  /// LG 가전 설정(바람 세기 등).
+  factory KioskCheckWords.changed(String? name) => KioskCheckWords(
+      question: '${(name?.isNotEmpty ?? false) ? name : '가전'} 설정이 바뀌었나요?',
+      yes: '바뀌었어요',
+      no: '안 바뀌었어요',
+      noSaid: '설정이 안 바뀌었다고');
+}
+
+/// '한 번 더 하기' 확인 창 — 결과 화면 어디서 눌러도 같은 창(열린 문제 R1: 다시 누르기 전에 한 번 더 묻는다).
+Future<void> confirmKioskRetry(BuildContext context,
+    {required bool mock, bool thinq = false, required VoidCallback? onRetry}) async {
+  final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+            title: Text(mock ? '연습을 다시 할까요?' : '가전을 봐 주셨나요?',
+                style: const TextStyle(fontSize: KioskType.status)),
+            content: Text(
+                mock
+                    ? '실제 가전에는 보내지 않아요.'
+                    // LG 가전은 버튼을 다시 누르는 것이 아니라 같은 설정을 다시 보낸다 — 이미 그 설정이면 바꾸지 않는다.
+                    : thinq
+                        ? '같은 부탁을 가전에 한 번 더 보내요. 이미 그렇게 돼 있으면 그대로 둬요.'
+                        : '$kDontRetryIfOn.',
+                key: const ValueKey('done-retry-dialog-text'),
+                style: const TextStyle(fontSize: KioskType.body)),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  style: TextButton.styleFrom(minimumSize: const Size(120, 48)),
+                  // 창을 닫는 단추는 '닫기'로 한 말(평가 17차 10/18).
+                  child: const Text('닫기', style: TextStyle(fontSize: KioskType.body))),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  style: FilledButton.styleFrom(minimumSize: const Size(180, 48)),
+                  child: const Text('네, 한 번 더 하기', style: TextStyle(fontSize: KioskType.body))),
+            ],
+          ));
+  if (confirmed == true && context.mounted) onRetry?.call();
+}
+
+/// 다시 하는 것이 안전한 실패의 주 단추 '한 번 더 하기'(휴리스틱 평가 10/18) — 흰 채움, 누르면 확인 창.
+class KioskRetryPrimary extends StatelessWidget {
+  const KioskRetryPrimary({super.key, required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => ElevatedButton.icon(
+        key: const ValueKey('done-retry'),
+        onPressed: onTap,
+        icon: const Icon(Icons.refresh, size: KioskType.status),
+        label: const Text('한 번 더 하기',
+            maxLines: 1, softWrap: false, style: TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+        style: KioskButtons.primary(background: KioskColors.neutralFill, foreground: KioskColors.onAccent),
+      );
+}
+
+/// 사람 확인 흐름의 아래 줄(휴리스틱 평가 10/18, 2차 독립 평가 C).
+///
+/// 1단계: 물음('전자레인지가 움직였나요?') + **대등한 큰 단추 둘** '움직였어요' / '안 움직였어요'(같은 크기·같은 모양 —
+/// 어느 쪽도 먼저 눌리게 하지 않는다) + 옆에 보조 모양 '처음 화면으로'(답하지 않고 나가면 처음 화면 '지난 일'에 남는다).
+/// 2단계('안 …'): '가전이 안 움직였다고 알려 주셨어요' + '손으로 할게요'(처음 화면) · '한 번 더 하기'(확인 창, 다시 할 수
+/// 있을 때만). '손으로 할게요'가 앞이다 — 다시 누르기를 가장 쉬운 행동으로 두지 않는다(R1).
+class KioskCheckActions extends StatefulWidget {
+  const KioskCheckActions({
+    super.key,
+    required this.words,
+    this.shortPrompt = false,
+    required this.mock,
+    required this.thinq,
+    required this.onChecked,
+    required this.onRetry,
+    required this.onHome,
+    this.homeKey = const ValueKey('done-home'),
+  });
+
+  final KioskCheckWords words;
+
+  /// 물음만('전자레인지가 움직였나요?') — 위에 할 일 줄이 이미 '봐 주세요'라고 말할 때.
+  final bool shortPrompt;
+  final bool mock;
+  final bool thinq;
+  final ValueChanged<bool>? onChecked;
+  final VoidCallback? onRetry;
+  final VoidCallback? onHome;
+  final Key homeKey;
+
+  @override
+  State<KioskCheckActions> createState() => _KioskCheckActionsState();
+}
+
+class _KioskCheckActionsState extends State<KioskCheckActions> {
+  bool _saidNo = false;
+
+  void _answer(bool worked) {
+    final f = widget.onChecked;
+    if (f != null) {
+      f(worked);
+    } else {
+      widget.onHome?.call();
+    }
+  }
+
+  Widget _big({required Key key, required IconData icon, required String label, required VoidCallback? onTap}) =>
+      SizedBox(
+        height: KioskSizes.primaryButton,
+        child: OutlinedButton.icon(
+          key: key,
+          onPressed: onTap,
+          icon: Icon(icon, size: KioskType.status),
+          label: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(label,
+                maxLines: 1,
+                softWrap: false,
+                style: const TextStyle(fontSize: KioskType.status, fontWeight: FontWeight.w800)),
+          ),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size(0, KioskSizes.primaryButton),
+            foregroundColor: Colors.white,
+            backgroundColor: KioskColors.surface2,
+            side: const BorderSide(color: Colors.white, width: 2),
+            padding: const EdgeInsets.symmetric(horizontal: KioskSpace.md),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(KioskSizes.buttonRadius)),
+          ),
+        ),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final w = widget.words;
+    final large = KioskLayout.isLarge(context);
+    final String prompt;
+    final List<Widget> pair;
+    if (!_saidNo) {
+      prompt = widget.shortPrompt ? w.question : '${w.question} $kCheckPrompt';
+      pair = [
+        // 동그라미·가위표(O·X) — 체크는 '기계가 확인했다'로 읽혀 확인한 성공에만 쓴다(평가 3차 10/18).
+        _big(
+            key: const ValueKey('done-check-yes'),
+            icon: Icons.circle_outlined,
+            label: w.yes,
+            onTap: () => _answer(true)),
+        _big(
+            key: const ValueKey('done-check-no'),
+            icon: Icons.close,
+            label: w.no,
+            onTap: () => setState(() => _saidNo = true)),
+      ];
+    } else {
+      prompt = '가전이 ${w.noSaid} 알려 주셨어요';
+      final retry = widget.onRetry;
+      pair = [
+        _big(
+            key: const ValueKey('done-check-hand'),
+            icon: Icons.back_hand_outlined,
+            label: '손으로 할게요',
+            onTap: () => _answer(false)),
+        if (retry != null)
+          _big(
+              key: const ValueKey('done-retry'),
+              icon: Icons.refresh,
+              label: '한 번 더 하기',
+              onTap: () => confirmKioskRetry(context, mock: widget.mock, thinq: widget.thinq, onRetry: retry)),
+      ];
+    }
+    // 1단계에서만 '처음 화면으로'(보조) — 2단계의 '손으로 할게요'가 처음 화면으로 간다.
+    final home = !_saidNo && widget.onHome != null
+        ? KioskHomeButton(buttonKey: widget.homeKey, onTap: widget.onHome!, compact: true)
+        : null;
+    final row = Row(
+      key: const ValueKey('done-check-row'),
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        for (final (i, b) in pair.indexed) ...[
+          if (i > 0) const SizedBox(width: KioskSpace.sm),
+          // 2단계에 단추가 하나뿐이어도 1단계 한 칸 폭(반쪽) — 화면 전체 폭 단추가 되지 않게.
+          Expanded(child: b),
+        ],
+        if (pair.length == 1) ...[const SizedBox(width: KioskSpace.sm), const Spacer()],
+        if (home != null && !large) ...[const SizedBox(width: KioskSpace.lg), home],
+      ],
+    );
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          KioskText(prompt,
+              textKey: const ValueKey('done-check-prompt'),
+              style: const TextStyle(fontSize: KioskType.body, fontWeight: FontWeight.w700, color: Colors.white)),
+          const SizedBox(height: KioskSpace.xs),
+          row,
+          if (home != null && large) ...[const SizedBox(height: KioskSpace.xs), home],
+        ],
+      ),
+    );
+  }
+}
 
 /// 누름 장치가 눌렀는지 모를 때의 순서 안내(사용자 결정 10/18). 바뀌지 않았을 때만 손으로 누르게 한다 — 이미 눌렸으면 한 번 더
 /// 눌려 꺼질 수 있다(열린 문제 R1과 같은 이유). 말끝은 서로 다르게·짧게(평가 15차 10/18).

@@ -262,12 +262,14 @@ final _purifierAppliance = applianceFromServerJson({
   'readiness': 'operable',
 });
 
+/// 실제 공기청정기 상세 — 가전별 실행 환경이 real이라 연습 문구가 없다(2차 독립 평가 A, 10/18: 예전 골든은 연습 표시가
+/// 없는 실제 가전에 모의 값(mock)을 넣어 '연습이에요'가 보였다). 연습 가전 상세는 `kiosk15_thinq_washer_practice`.
 KioskManualView _thinqDetail({String power = 'POWER_ON', bool sensor = true}) => KioskManualView(
       appliance: _purifierAppliance,
       onExecute: (_) {},
       onCancel: () {},
       thinqRead: () async => KioskThinqStatus(
-        executionMode: 'mock',
+        executionMode: 'real',
         readAt: DateTime(2026, 10, 16, 9, 7),
         state: {
           'operation': {'airPurifierOperationMode': power},
@@ -688,6 +690,16 @@ void main() {
     });
   });
 
+  // 휴리스틱 평가(10/18) — 메뉴의 '사용 방법' 첫 장.
+  testWidgets('15인치 미리보기 — 평소, 사용 방법', (tester) async {
+    await _shoot15(tester, 'kiosk15_idle_help', _idle(), before: (t) async {
+      await t.tap(find.byKey(const ValueKey('idle-menu')));
+      await t.pump();
+      await t.tap(find.byKey(const ValueKey('help-entry')));
+      await t.pump();
+    });
+  });
+
   testWidgets('15인치 미리보기 — 평소, 누름 장치 연결 끊김 칩', (t) async {
     await _shoot15(
         t,
@@ -790,7 +802,7 @@ void main() {
     await _shoot15(t, 'kiosk15_thinq_washer_practice', _washerDetail());
   });
 
-  testWidgets('15인치 미리보기 — ThinQ 공기청정기 상세(연습)', (t) async {
+  testWidgets('15인치 미리보기 — ThinQ 공기청정기 상세(실제)', (t) async {
     await _shoot15(t, 'kiosk15_thinq_detail', _thinqDetail());
   });
 
@@ -1063,6 +1075,27 @@ void main() {
         onManual: () {},
         onDismiss: () {},
       ),
+    );
+  });
+
+  // 휴리스틱 평가(10/18) — '안 움직였어요'라고 답한 뒤: '손으로 할게요'(앞) · '한 번 더 하기'(확인 창).
+  testWidgets('15인치 미리보기 — 눌렸는지 모름, 안 움직였어요 뒤', (tester) async {
+    await _shoot15(
+      tester,
+      'kiosk15_done_check_no',
+      KioskDoneView(
+        success: false,
+        executionMode: 'real',
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        onRetry: () {},
+        onManual: () {},
+        onDismiss: () {},
+      ),
+      before: (t) async {
+        await t.tap(find.byKey(const ValueKey('done-check-no')));
+        await t.pump();
+      },
     );
   });
 

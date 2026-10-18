@@ -17,3 +17,7 @@ String withSubject(String word) =>
 /// 을/를을 붙인 낱말 — "공기청정기를", "밥솥을".
 String withObject(String word) =>
     '$word${_finalConsonant(word) == 0 ? '를' : '을'}';
+
+/// 은/는을 붙인 낱말 — "오늘은", "내일은", "월요일은"(2차 독립 평가 B, 10/18).
+String withTopic(String word) =>
+    '$word${_finalConsonant(word) == 0 ? '는' : '은'}';

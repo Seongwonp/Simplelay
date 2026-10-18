@@ -9,6 +9,7 @@ import '../../models/thinq.dart';
 import '../../theme/kiosk_colors.dart';
 import 'appliance_strip.dart';
 import 'connection_status.dart';
+import 'help_guide.dart';
 import 'idle_top.dart';
 import '../../theme/kiosk_tokens.dart';
 import 'kiosk_canvas.dart';
@@ -622,7 +623,8 @@ abstract final class _Idle {
   static const double stripPad = 16; // 줄 높이 − 타일 높이
   static const double slack = 8; // 가운데 칸 여유(실패널 글꼴이 시험 글꼴보다 넓다)
   static const double stripName = KioskType.body; // 가전 이름(전 22)
-  static const double stripStatus = KioskType.caption; // 가전 상태(전 18)
+  // 가전 상태 — 본문 단계(휴리스틱 평가 10/18: 실패널 1~2 m에서 작은 글자 띠가 읽히지 않았다. 전 caption 17).
+  static const double stripStatus = KioskType.body;
 }
 
 /// 공기 줄은 나쁠 때(나쁨·매우 나쁨)만(사용자 결정 10/18) — 평소(좋음·보통)에는 그 자리에 다음 루틴을 담담하게 적는다.
@@ -796,7 +798,13 @@ class _NextRunLine extends StatelessWidget {
           children: [
             Semantics(
               container: true,
-              label: [next.kindLabel, next.whenShort, next.name, if (word.isNotEmpty) word].join(', '),
+              label: [
+                next.kindLabel,
+                if (next.skippedHead case final h?) h,
+                next.whenShort,
+                next.name,
+                if (word.isNotEmpty) word,
+              ].join(', '),
               excludeSemantics: true,
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -811,6 +819,23 @@ class _NextRunLine extends StatelessWidget {
                             maxLines: 1,
                             softWrap: false,
                             style: _headStyle.copyWith(color: KioskColors.muted)),
+                        // 건너뛴 회차 — 머리말 옆에 말로(2차 독립 평가 B). 시각·이름 줄은 그대로 남기되 흐리게.
+                        // 폭이 모자라면(넓은 글꼴·큰 글씨) 이 말만 칸에 맞춰 조금 줄인다 — 잘리지 않게.
+                        if (next.skippedHead case final h?)
+                          Flexible(
+                            child: FittedBox(
+                              fit: BoxFit.scaleDown,
+                              alignment: Alignment.centerLeft,
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                                Text(' · ', style: _headStyle.copyWith(color: KioskColors.muted)),
+                                Text(h,
+                                    key: const ValueKey('idle-next-run-skipped-head'),
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    style: _headStyle.copyWith(color: Colors.white, fontWeight: FontWeight.w700)),
+                              ]),
+                            ),
+                          ),
                       ]),
                     ),
                     const SizedBox(height: _headGap),
@@ -1567,7 +1592,7 @@ class _Hours extends StatelessWidget {
 
 /// 위쪽 칩·메뉴가 여는 큰 창(메뉴·연결 목록)을 들고 있는 껍데기(화면 구조 개편 10/18).
 /// 창은 캔버스 안에 그린다(확대·가장자리 여백을 그대로 따른다).
-enum _Sheet { none, menu, connections }
+enum _Sheet { none, menu, connections, help }
 
 class _IdleSheets {
   const _IdleSheets(this.openMenu, this.openConnections);
@@ -1608,7 +1633,10 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
     return Stack(children: [
       body,
       Positioned.fill(
-        child: _sheet == _Sheet.menu
+        child: _sheet == _Sheet.help
+            // 사용 방법 세 장(휴리스틱 평가 10/18).
+            ? KioskHelpGuide(onClose: _close)
+            : _sheet == _Sheet.menu
             ? KioskIdleSheet(
                 title: '메뉴',
                 onClose: _close,
@@ -1642,6 +1670,14 @@ class _IdleSheetHostState extends State<_IdleSheetHost> {
                     label: '연결',
                     sub: '와이파이와 누름 장치 연결 상태',
                     onTap: () => setState(() => _sheet = _Sheet.connections),
+                  ),
+                  // 도움말 들어가는 곳(휴리스틱 평가 10/18 — 메뉴에 잠시 쉬기·설정·연결뿐이었다).
+                  KioskSheetRow(
+                    key: const ValueKey('help-entry'),
+                    icon: Icons.help_outline,
+                    label: '사용 방법',
+                    sub: '누름 장치·LG 가전·멈추는 법',
+                    onTap: () => setState(() => _sheet = _Sheet.help),
                   ),
                 ],
               )

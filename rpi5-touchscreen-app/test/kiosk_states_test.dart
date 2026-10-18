@@ -496,14 +496,14 @@ void main() {
       // 모의를 실물처럼 보이지 않는다
       expect(find.text(kPracticeBandText), findsOneWidget);
 
-      await tester.tap(find.byKey(const ValueKey('hold-stop')));
+      // 2차 독립 평가 D(10/18): 연습이 끝나 움직일 것이 없으면 정지는 흐리게(못 누름) + '이미 끝났어요' — 자리·이름은 그대로.
+      expect(tester.widget<ElevatedButton>(find.byKey(const ValueKey('hold-stop'))).onPressed, isNull);
+      expect(find.byKey(const ValueKey('hold-practice-done-note')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('hold-stop')), warnIfMissed: false);
       await tester.pump();
-      expect(api.stopCalls, 1);
-      // '보냈어요' 대신 사람이 볼 상태(평가 4차 10/18). 연습은 실제 가전이 그대로라 '가전을 봐 주세요'를 붙이지 않는다(평가 10차 10/18).
-      // 평가 11차(10/18): 상태 한 문장 — 제목이 '연습을 끝내는 중이에요', '마쳤어요'는 남기지 않는다.
-      expect(find.text('연습을 끝내는 중이에요'), findsOneWidget);
-      expect(find.text('연습이 끝났어요'), findsNothing);
+      expect(api.stopCalls, 0);
 
+      // 다른 단말(폰)이 정지를 보내 서버 대기 상태가 바뀌면 그 상태를 그대로 말한다.
       api.statusResult = _hovering(state: 'stopping');
       await tester.pump(const Duration(seconds: 2));
       await _settle(tester);

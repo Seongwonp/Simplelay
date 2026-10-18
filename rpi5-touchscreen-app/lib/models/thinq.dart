@@ -243,7 +243,9 @@ List<ThinqStateRow> thinqStateRows(Map<String, dynamic> state) {
   final left = thinqRemainText(at('timer', 'remainHour'), at('timer', 'remainMinute'));
   if (left != null) rows.add(ThinqStateRow('남은 시간', left));
   final remote = at('remoteControlEnable', 'remoteControlEnabled');
-  if (remote is bool) rows.add(ThinqStateRow('휴대폰으로 시작', remote ? '켜져 있어요' : '꺼져 있어요'));
+  // '휴대폰으로 시작 · 켜져 있어요'는 뜻이 흐렸다(2차 독립 평가 F, 10/18) — 이어 읽으면 사람 말이 되게
+  // '휴대폰으로 시작할 수 있어요' / '휴대폰으로 시작할 수 없어요'.
+  if (remote is bool) rows.add(ThinqStateRow('휴대폰으로', remote ? '시작할 수 있어요' : '시작할 수 없어요'));
   return rows;
 }
 

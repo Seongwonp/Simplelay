@@ -106,8 +106,9 @@ class _KioskManualViewState extends State<KioskManualView> {
                             children: [
                               Flexible(
                                 child: Text(
-                                  // 제목은 가전 이름만(평가 17차 10/18 — '내'를 뺐다).
-                                  appliance.name,
+                                  // 제목은 가전 이름만(평가 17차 10/18 — '내'를 뺐다). 연습 가전은 처음 화면 타일과 같이 이름의
+                                  // '(연습)'을 떼고 옆 '연습' 배지로 말한다(2차 독립 평가 A, 10/18).
+                                  appliance.tileName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                   style: const TextStyle(
@@ -117,7 +118,10 @@ class _KioskManualViewState extends State<KioskManualView> {
                                   ),
                                 ),
                               ),
-                              if (appliance.isThinq) ...[
+                              if (appliance.isPractice) ...[
+                                const SizedBox(width: 12),
+                                const KioskRouteBadge(key: ValueKey('manual-practice-badge'), label: '연습'),
+                              ] else if (appliance.isThinq) ...[
                                 const SizedBox(width: 12),
                                 const KioskRouteBadge(label: 'LG 가전'),
                               ],
@@ -165,6 +169,7 @@ class _KioskManualViewState extends State<KioskManualView> {
             Positioned.fill(
               child: _PressConfirm(
                 button: pending,
+                applianceName: appliance.name,
                 onConfirm: () {
                   setState(() => _pending = null);
                   widget.onExecute(pending);
@@ -194,6 +199,15 @@ class _KioskManualViewState extends State<KioskManualView> {
         // 아직 맡길 수 없는 가전이면 여기서 먼저 말한다. 눌러 보고
         // 실패로 알게 되면, 서버가 막은 것을 가전 고장으로 오해한다.
         if (!appliance.canExecute) _NotReadyNotice(appliance: appliance),
+        // 이 판이 무엇인지 한 줄(휴리스틱 평가 10/18) — 칸 자리가 실제 가전 버튼 자리와 같다. 빈 칸은 점선(버튼이 없는 자리).
+        Padding(
+          padding: const EdgeInsets.fromLTRB(_manualLeft, 2, 24, 0),
+          child: KioskText(manualLayoutNote(appliance.name),
+              textKey: const ValueKey('manual-layout-note'),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: KioskType.caption, color: KioskColors.muted)),
+        ),
         Expanded(
           // 남는 자리만큼 칸을 키운다. 최소는 예전 크기라, 큰 글씨·
           // 준비 안 됨 안내로 자리가 모자라면 예전처럼 스크롤된다.
@@ -326,11 +340,13 @@ class _RoutinePanel extends StatelessWidget {
 class _PressConfirm extends StatelessWidget {
   const _PressConfirm({
     required this.button,
+    required this.applianceName,
     required this.onConfirm,
     required this.onCancel,
   });
 
   final ApplianceButton button;
+  final String applianceName;
   final VoidCallback onConfirm;
   final VoidCallback onCancel;
 
@@ -358,7 +374,14 @@ class _PressConfirm extends StatelessWidget {
                     color: Colors.white,
                   ),
                 ),
-                const SizedBox(height: 22),
+                const SizedBox(height: 8),
+                // 누르면 무엇이 일어나는지 한 줄(휴리스틱 평가 10/18) — 화면 칸이 아니라 실제 가전 버튼을 누름 장치가 누른다.
+                KioskText(
+                  manualPressNote(applianceName, button.label),
+                  textKey: const ValueKey('manual-press-note'),
+                  style: TextStyle(fontSize: KioskType.body, height: 1.3, color: KioskColors.muted),
+                ),
+                const SizedBox(height: 18),
                 Row(
                   children: [
                     Expanded(
@@ -530,7 +553,14 @@ class _ButtonGrid extends StatelessWidget {
             return Padding(
               padding: const EdgeInsets.all(_cellGap),
               child: btn == null
-                  ? SizedBox.fromSize(size: cellSize)
+                  // 버튼이 없는 자리 — 점선 빈 자리(휴리스틱 평가 10/18: 빈 칸이 눌러지지 않는 단추처럼 뜻 없이 비어 보였다).
+                  ? ExcludeSemantics(
+                      child: CustomPaint(
+                        key: ValueKey('manual-empty-$col-$row'),
+                        size: cellSize,
+                        painter: _DashedSlotPainter(color: KioskColors.border),
+                      ),
+                    )
                   : _ButtonCell(
                       key: ValueKey('manual-cell-${btn.label}'),
                       button: btn,
@@ -545,6 +575,42 @@ class _ButtonGrid extends StatelessWidget {
       }),
     );
   }
+}
+
+/// 버튼판 위 한 줄 — '전자레인지 버튼 자리 그대로예요'(휴리스틱 평가 10/18).
+String manualLayoutNote(String applianceName) => '$applianceName 버튼 자리 그대로예요';
+
+/// 누르기 확인 창의 한 줄 — '누르면 누름 장치가 전자레인지 즉석밥 버튼을 눌러요'.
+String manualPressNote(String applianceName, String buttonLabel) =>
+    '누르면 누름 장치가 $applianceName $buttonLabel 버튼을 눌러요';
+
+/// 버튼이 없는 칸 — 둥근 점선 테두리만.
+class _DashedSlotPainter extends CustomPainter {
+  _DashedSlotPainter({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    final rrect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(1, 1, size.width - 2, size.height - 2), const Radius.circular(10));
+    final path = Path()..addRRect(rrect);
+    const dash = 8.0, gap = 6.0;
+    for (final metric in path.computeMetrics()) {
+      var d = 0.0;
+      while (d < metric.length) {
+        canvas.drawPath(metric.extractPath(d, d + dash), paint);
+        d += dash + gap;
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DashedSlotPainter old) => old.color != color;
 }
 
 // 멀리서 읽히는 하한. 4열(인덕션)·4행(전자레인지)이 800x480에 들어가는 크기였다.

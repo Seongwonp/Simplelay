@@ -187,6 +187,9 @@ void main() {
       var retried = 0;
       await _pump(tester, _failed(onRetry: () => retried++));
       expect(find.textContaining('다시 시도'), findsNothing);
+      // 휴리스틱 평가(10/18): 눌렸는지 모르면 '안 움직였어요'라고 답한 뒤에만 보인다(R1).
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
       expect(find.text('한 번 더 하기'), findsOneWidget);
       await tester.tap(find.text('한 번 더 하기'));
       await tester.pumpAndSettle();
@@ -199,8 +202,18 @@ void main() {
       expect(retried, 1);
     });
 
+    // 휴리스틱 평가(10/18): 골라 누르기는 확실히 못 한 결과(연습 실패 등)에만 남는다.
     testWidgets("'누름 장치로 골라 누르기'는 밑줄 링크가 아니라 버튼(아이콘·테두리)", (tester) async {
-      await _pump(tester, _failed());
+      await _pump(
+          tester,
+          KioskDoneView(
+              success: false,
+              executionMode: 'mock',
+              label: '즉석밥 데워줘',
+              target: kMicrowaveAppliance,
+              onRetry: () {},
+              onManual: () {},
+              onDismiss: () {}));
       final text = tester.widget<Text>(find.text('누름 장치로 골라 누르기'));
       expect(text.style?.decoration, isNot(TextDecoration.underline));
       final button = find.ancestor(of: find.text('누름 장치로 골라 누르기'), matching: find.byType(OutlinedButton));

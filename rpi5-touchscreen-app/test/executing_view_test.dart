@@ -127,11 +127,14 @@ void main() {
 
   testWidgets('버튼판에서 자리를 찾을 수 없으면 그림을 지어내지 않는다', (tester) async {
     // 서버가 준 이름이 대상 가전에 없다(다른 이름·옛 버튼맵).
+    // 휴리스틱 평가(10/18): 그림이 없거나 자리를 못 찾아도 '화면은 누르지 않아도 돼요'는 같은 자리에 남는다 — 채운 칸만 없다.
     await _pump(tester, button: '시간 90초', target: kMicrowaveAppliance);
-    expect(find.byKey(const ValueKey('exec-panel-caption')), findsNothing);
+    expect(find.byKey(const ValueKey('panel-current')), findsNothing);
+    expect(find.textContaining('화면은 누르지 않아도 돼요'), findsOneWidget);
     // 대상 가전을 모를 때도.
     await _pump(tester, button: '해동');
-    expect(find.byKey(const ValueKey('exec-panel-caption')), findsNothing);
+    expect(find.byKey(const ValueKey('panel-current')), findsNothing);
+    expect(find.textContaining('화면은 누르지 않아도 돼요'), findsOneWidget);
   });
 
   testWidgets('누를 수 없는 버튼판은 수동 조작 버튼처럼 칠하지 않는다', (tester) async {
@@ -166,8 +169,9 @@ void main() {
       ],
     );
     await _pump(tester, button: '시작', target: twin);
-    expect(find.byKey(const ValueKey('exec-panel-caption')), findsNothing);
     expect(find.byKey(const ValueKey('panel-current')), findsNothing);
+    expect(find.byKey(const ValueKey('panel-pressed-T-1')), findsNothing);
+    expect(find.byKey(const ValueKey('panel-pressed-T-2')), findsNothing);
   });
 
   testWidgets('재시도도 같은 단계 번호를 고정 표시하고 시도 횟수는 따로 알린다', (tester) async {

@@ -342,11 +342,12 @@ void main() {
       expect(connectionShortName('plug'), '전기 플러그');
     });
 
+    // 휴리스틱 평가(10/18): 골라 누르기는 확실히 못 한 결과(연습 실패 등)에만 — 눌렸는지 모르면 가전을 보고 답한다.
     testWidgets('실패 화면 글자 단추는 누름 장치로 골라 누르기', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
-              executionMode: 'real',
+              executionMode: 'mock',
               success: false,
               label: '즉석밥 데워줘',
               target: kMicrowaveAppliance,

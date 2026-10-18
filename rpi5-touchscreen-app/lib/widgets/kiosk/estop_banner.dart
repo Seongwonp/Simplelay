@@ -97,7 +97,12 @@ class KioskEstopBanner extends StatelessWidget {
       key: const ValueKey('estop-banner'),
       // 짙은 빨강 면에 흰 글자(7.3:1) — 긴급 정지 버튼과 같은 색으로 읽힌다.
       color: KioskColors.stop,
-      child: Padding(
+      // 띠 전체가 '푸는 방법 보기'와 같은 누르는 자리(휴리스틱 평가 10/18 — 오른쪽 위 작은 단추만 눌렸다). 안내를 열 뿐
+      // 해제 요청은 보내지 않는다(해제는 안내 안의 '해제하기'를 눌렀을 때만).
+      child: InkWell(
+        key: const ValueKey('estop-banner-tap'),
+        onTap: acking ? null : onRequest,
+        child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 6, 10, 6),
         child: Row(
           children: [
@@ -137,19 +142,21 @@ class KioskEstopBanner extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 10),
+            // 보조 단추 높이(1920x1080에서 약 107px)·본문 글자(휴리스틱 평가 10/18 — 작은 글자 단추는 1~2 m에서 잘 안 보였다).
             SizedBox(
-              height: 48,
+              height: KioskSizes.secondaryButton,
               child: FilledButton(
                 key: const ValueKey('estop-ack'),
                 onPressed: acking ? null : onRequest,
                 style: _filled,
                 child: Text(acking ? '푸는 중…' : kEstopAckLabel, maxLines: 1, softWrap: false,
                     style: const TextStyle(
-                        fontSize: KioskType.caption, fontWeight: FontWeight.w800)),
+                        fontSize: KioskType.body, fontWeight: FontWeight.w800)),
               ),
             ),
           ],
         ),
+      ),
       ),
     );
   }

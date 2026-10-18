@@ -139,7 +139,9 @@ void main() {
         ?.backgroundColor
         ?.resolve({});
 
-    testWidgets('실패: 주 단추(처음 화면으로)는 골드가 아닌 중립 채움, 다시 시도는 테두리, 화면 조작은 글자 단추', (tester) async {
+    // 휴리스틱 평가(10/18): 눌렸는지 모르면 주 행동은 '움직였어요 / 안 움직였어요'(대등한 두 단추, 골드·흰 채움 없음),
+    // '처음 화면으로'는 테두리 보조. 한 번 더 하기는 '안 움직였어요' 뒤 테두리, 골라 누르기는 두지 않는다(R1).
+    testWidgets('실패(눌렸는지 모름): 채움·골드 없이 대등한 두 답 단추, 처음 화면으로는 테두리 보조', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -151,16 +153,16 @@ void main() {
               onRetry: () {},
               onManual: () {},
               onDismiss: () {}));
-      expect(fillOf(tester, const ValueKey('done-home')), isNot(KioskColors.primary));
-      expect(fillOf(tester, const ValueKey('done-home')), KioskColors.neutralFill);
-      expect(find.byType(ElevatedButton), findsOneWidget);
-      // 평가 13차(10/18): 한 번 더 하기는 작은 테두리 보조 단추(글자 단추는 꺼진 단추로 보였다).
+      expect(find.byType(ElevatedButton), findsNothing);
+      expect(tester.widget(find.byKey(const ValueKey('done-home'))), isA<OutlinedButton>());
+      for (final k in ['done-check-yes', 'done-check-no']) {
+        expect(fillOf(tester, ValueKey(k)), isNot(KioskColors.primary));
+        expect(tester.getSize(find.byKey(ValueKey(k))).height, greaterThanOrEqualTo(48));
+      }
+      expect(find.byKey(const ValueKey('done-manual')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
       expect(tester.widget(find.byKey(const ValueKey('done-retry'))), isA<OutlinedButton>());
-      // 누름 장치로 골라 누르기는 밑줄 글자가 아니라 테두리 버튼(평가 5차 10/18).
-      expect(tester.widget(find.byKey(const ValueKey('done-manual'))), isA<OutlinedButton>());
-      // 손가락 크기(48 이상).
-      expect(tester.getSize(find.byKey(const ValueKey('done-manual'))).height,
-          greaterThanOrEqualTo(48));
       // 할 일은 번호 안내가 한 번만 말한다(평가 15차 10/18 — '가전을 봐 주세요' 큰 줄과 번호가 같은 뜻을 되풀이했다).
       expect(find.byKey(const ValueKey('done-next-step')), findsNothing);
       expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
@@ -176,7 +178,9 @@ void main() {
               target: kMicrowaveAppliance,
               resultConfirmation: 'reported',
               onDismiss: () {}));
-      expect(fillOf(tester, const ValueKey('done-home')), KioskColors.neutralFill);
+      // 2차 독립 평가 C(10/18): 누름 보고만도 사람 확인 흐름 — 처음 화면으로는 테두리 보조(골드 채움 아님).
+      expect(fillOf(tester, const ValueKey('done-home')), isNot(KioskColors.primary));
+      expect(tester.widget(find.byKey(const ValueKey('done-home'))), isA<OutlinedButton>());
     });
 
     // 평가 11차(10/18): 나가는 단추는 모든 결과 화면에서 한 색(중립 채움) — 성공 골드·확인 필요 흰색이 화면마다 달랐다.

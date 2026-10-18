@@ -4,6 +4,7 @@
 /// 화면은 고르고 배치만 한다 -- 같은 사실을 폰과 다르게 말하지 않게.
 library;
 
+import 'josa.dart';
 import 'kiosk_time.dart';
 
 /// `GET /ambient`의 안내 한 줄. 우선순위(위험 소리 → 확인 필요 가전 → 최근 루틴 안내 → 날씨 → 없음)는 서버가 정한다.
@@ -254,6 +255,13 @@ class KioskNextRun {
       '알림만' => '알림 루틴',
       _ => '다음 루틴',
     };
+  }
+
+  /// 건너뛴 회차의 머리말 뒤 말 — '오늘은 안 해요'(2차 독립 평가 B, 10/18: 아래 '오늘은 건너뛰어요 · 되돌리기'만 바뀌고 위
+  /// '오후 10:00 · 저녁 공기청정기 켜기'는 그대로라 '그래도 켜지나?'로 읽혔다). 건너뛰지 않았거나 조용한 시간 건너뜀이면 null.
+  String? get skippedHead {
+    if (!skipped || quietSkip) return null;
+    return '${dayLabel.isEmpty ? '이번에는' : withTopic(dayLabel)} 안 해요';
   }
 
   /// 시계 아래 묶음의 작은 말 — 조용한 시간이면 그 이유, 건너뛰면 서버 말('오늘은 건너뛰어요'). 평소에는 없다

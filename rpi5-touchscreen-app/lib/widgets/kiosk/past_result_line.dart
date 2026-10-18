@@ -103,3 +103,27 @@ class KioskPastResultLine extends StatelessWidget {
     );
   }
 }
+
+/// 사람이 가전을 보고 답한 기록 하나(휴리스틱 평가 10/18) — 결과 화면 '가전을 보고 알려 주세요'의 답.
+///
+/// 서버에 사람 확인을 남길 API가 아직 없어 키오스크 안에서만 기억한다(앱을 다시 켜면 사라진다). 서버 기록의 확인 수준은
+/// 바꾸지 않는다 — 기계가 확인한 것과 사람이 본 것은 다른 사실이다.
+@immutable
+class KioskPersonCheck {
+  const KioskPersonCheck({required this.at, required this.jobId, required this.label, required this.worked});
+
+  /// 답한 시각.
+  final DateTime at;
+
+  /// 그 결과의 job(모르면 null).
+  final String? jobId;
+
+  /// 무엇이었는지(행동 이름 또는 가전 이름).
+  final String label;
+
+  /// true '움직였어요·켜졌어요', false '안 …' 뒤 '손으로 할게요'.
+  final bool worked;
+}
+
+/// 키오스크 안에 남기는 사람 확인 기록 수.
+const kPersonCheckKeep = 20;

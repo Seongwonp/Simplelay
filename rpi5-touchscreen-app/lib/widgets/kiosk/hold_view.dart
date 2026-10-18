@@ -97,6 +97,18 @@ class KioskHoldView extends StatelessWidget {
   /// 연습 대기에서 정지를 보냈고 아직 대기 상태가 바뀌지 않았다 — 제목이 이 상태 하나만 말한다.
   bool get _practiceStopping => _mock && stopRequested && !stopFailed && holdState == 'hovering_stop';
 
+  /// 연습이 끝나 누름 장치가 할 일이 없는 대기('연습이 끝났어요', 2차 독립 평가 D 10/18) — 정지를 흐리게(못 누름) 두고
+  /// '이미 끝났어요'를 작게 말한다. 정지 단추의 자리·크기·이름은 그대로다. 실제 대기·정지를 보낸 뒤·확인 못 함·이상·비상
+  /// 버튼에는 쓰지 않는다 — 그때는 정지가 늘 닿아야 한다.
+  bool get _practiceDone =>
+      _mock &&
+      holdState == 'hovering_stop' &&
+      !stopRequested &&
+      !stopFailed &&
+      !_unconfirmed &&
+      !_fault &&
+      estopTitle == null;
+
   String get _name => appliance?.name ?? '가전';
 
   /// 가전 동작을 실제 전력으로 확인했나(출처 real, 연습 아님).
@@ -363,6 +375,10 @@ class KioskHoldView extends StatelessWidget {
                   const SizedBox(height: 10),
                 ],
                 _Lines(lines: lines),
+                if (_practiceDone)
+                  KioskText(kPracticeDoneStopNote,
+                      textKey: const ValueKey('hold-practice-done-note'),
+                      style: TextStyle(fontSize: KioskType.caption, height: 1.3, color: KioskColors.muted)),
               ],
             ),
           ),
@@ -413,9 +429,12 @@ class KioskHoldView extends StatelessWidget {
       // 정지는 어느 대기 상태에서든 닿는다 — 보내기만 하고 판정은 서버.
       stop: KioskStopButton(
         label: stopLabel,
-        onPressed: onStop,
+        // 연습이 끝났으면 흐리게(2차 독립 평가 D) — 실제 대기에서는 늘 누를 수 있다.
+        onPressed: _practiceDone ? null : onStop,
         buttonKey: const ValueKey('hold-stop'),
-        semanticsLabel: '$stopLabel. 누름 장치가 가전 정지 버튼을 대신 눌러요',
+        semanticsLabel: _practiceDone
+            ? '$stopLabel. $kPracticeDoneStopNote'
+            : '$stopLabel. 누름 장치가 가전 정지 버튼을 대신 눌러요',
       ),
     );
   }
@@ -469,6 +488,9 @@ class _Lines extends StatelessWidget {
         ],
       );
 }
+
+/// 연습이 끝난 대기에서 흐린 정지 단추를 말하는 작은 글(2차 독립 평가 D, 10/18).
+const kPracticeDoneStopNote = '이미 끝났어요. 정지는 누르지 않아도 돼요';
 
 /// 그림 위 안내 — 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §2-2).
 const kPanelCaption = '누름 장치가 누르는 자리예요. 화면은 누르지 않아도 돼요';

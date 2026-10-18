@@ -69,7 +69,8 @@ void main() {
       expect(r.right, closeTo(1920 - 140 - KioskSizes.stopRight * 2.05, 4));
       expect(find.text(kManualEntryLabel), findsNothing);
       final home = find.byKey(const ValueKey('done-home'));
-      expect(tester.widget(home), isA<ElevatedButton>());
+      // 휴리스틱 평가(10/18): 정지가 주인공이면 처음 화면으로는 보조 모양(테두리) — 이름·집 아이콘은 같다.
+      expect(tester.widget(home), isA<OutlinedButton>());
       expect(find.descendant(of: home, matching: find.byIcon(Icons.home_outlined)), findsOneWidget);
       expect(tester.getRect(home).height, lessThan(r.height), reason: '정지가 주인공 — 처음 화면은 보조 크기');
       await tester.tap(stop);

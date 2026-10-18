@@ -38,7 +38,8 @@ void main() {
   });
 
   // 2026-10-15 문구 개선: 끝낸 것은 버튼 누르기 — 가전이 움직이는지는 사람이 본다(제목 바로 아래 한 줄).
-  testWidgets('성공: 버튼을 다 눌렀어요·가전은 직접·대상·한 일·자동 복귀·처음 화면으로',
+  // 2차 독립 평가 C(10/18): 누름 보고만은 확인이 필요한 결과라 자동으로 닫지 않는다 — '움직였어요 / 안 움직였어요'로 답한다.
+  testWidgets('성공: 버튼을 다 눌렀어요·가전은 직접·대상·한 일·사람 확인(자동 복귀 없음)·처음 화면으로',
       (tester) async {
     var dismissed = 0;
     await _pump(
@@ -58,12 +59,13 @@ void main() {
     // 무엇이었는지는 위 띠 오른쪽 한 줄(평가 17차 10/18). 제목은 명령문이 아니라 행동 이름(평가 4차 10/18).
     expect(find.text('전자레인지 · 즉석밥 데우기'), findsOneWidget);
     expect(find.textContaining('누름 장치'), findsNothing);
-    expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsOneWidget);
+    expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsNothing);
+    expect(find.byKey(const ValueKey('done-check-yes')), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-check-no')), findsOneWidget);
     // 가전이 조리·세탁을 끝냈다고 말하지 않는다.
     expect(find.textContaining('완료되었'), findsNothing);
 
     await tester.pump(const Duration(seconds: 4));
-    expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsOneWidget);
     await tester.tap(find.text('처음 화면으로'));
     expect(dismissed, 1);
   });
@@ -146,8 +148,11 @@ void main() {
     // 같은 경고는 화면에 한 번 — '다시 시도' 확인 창에만 있다(쉬운 말 10/17).
     expect(find.textContaining('이미 움직이고 있으면 다시 시도하지 마세요'), findsNothing);
     expect(find.text('처음 화면으로'), findsOneWidget);
-    expect(find.text('한 번 더 하기'), findsOneWidget);
-    expect(find.text('누름 장치로 골라 누르기'), findsOneWidget);
+    // 휴리스틱 평가(10/18): 다음 행동은 '가전을 보고 알려 주세요' — 다시 누르기는 '안 움직였어요'라고 답한 뒤에만(R1).
+    expect(find.byKey(const ValueKey('done-check-yes')), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-check-no')), findsOneWidget);
+    expect(find.text('한 번 더 하기'), findsNothing);
+    expect(find.text('누름 장치로 골라 누르기'), findsNothing);
     expect(find.text('잠시 뒤 처음 화면으로 돌아가요'), findsNothing);
     // 눌렸는지 모르는 것은 '실패'가 아니다 — 앰버 띠와 물음표(외부 평가 10/16 4차). 결과 띠 말은 두 가지뿐이라
     // '확인 필요'(평가 3차 10/18), 제목은 본 사실('눌렸는지 몰라요').
@@ -157,7 +162,13 @@ void main() {
     // 순서 안내가 있으면 큰 결과 원은 뺀다(사용자 결정 10/18) — 물음표는 위 띠가 말한다.
     expect(find.byIcon(Icons.help_outline), findsWidgets);
     expect(find.byKey(const ValueKey('done-recovery-steps')), findsOneWidget);
-    expect(find.byIcon(Icons.close), findsNothing);
+    // 가위표는 '안 움직였어요' 답 단추 안에만 — 결과 표시로 쓰지 않는다.
+    expect(find.byIcon(Icons.close), findsOneWidget);
+    expect(find.descendant(of: find.byKey(const ValueKey('done-check-no')), matching: find.byIcon(Icons.close)),
+        findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey('done-check-no')));
+    await tester.pump();
+    expect(find.text('한 번 더 하기'), findsOneWidget);
   });
 
   testWidgets('긴급 정지 뒤에도 장치가 멈췄다고 단정하지 않는다', (tester) async {

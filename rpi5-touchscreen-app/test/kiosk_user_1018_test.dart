@@ -410,7 +410,8 @@ void main() {
       expect(v(reason: KioskFailureReason.unconfirmed, route: 'thinq').pastHeadline, '보냈지만 됐는지 몰라요');
       expect(v(reason: KioskFailureReason.stopped, stopLevel: 'sent').pastHeadline, '누름 장치가 멈췄는지 몰라요');
       expect(v(reason: KioskFailureReason.stopped, stopLevel: 'verified').pastHeadline, isNull);
-      expect(v(success: true, confirmation: 'reported').pastHeadline, isNull);
+      // 2차 독립 평가 C(10/18): 누름 보고만은 가전을 사람이 봐야 한다 — 답하지 않고 나가면 남긴다.
+      expect(v(success: true, confirmation: 'reported').pastHeadline, kPressDonePastHeadline);
       expect(v(success: true, confirmation: 'none').pastHeadline, '눌렸는지 몰라요');
       expect(v(mode: 'mock', reason: KioskFailureReason.execution).pastHeadline, isNull);
       expect(v(success: true, route: 'thinq', confirmation: 'state_confirmed', thinqOnly: true, target: _purifier).pastHeadline,
@@ -455,7 +456,7 @@ void main() {
       await tester.pump();
       expect(find.byKey(const ValueKey('idle-past-result')), findsNothing);
 
-      // 성공은 남기지 않는다.
+      // 확인한 성공은 남기지 않는다(누름 보고만은 사람 확인 흐름 — 2차 독립 평가 C, 10/18).
       api.statusResult = const KioskStatus(
           running: false,
           lastJobId: 'job-3',
@@ -463,7 +464,9 @@ void main() {
           lastOutcome: 'success',
           lastStatus: 'succeeded',
           lastExecutionMode: 'real',
-          lastConfirmation: 'reported');
+          lastConfirmation: 'reported',
+          lastOperationConfirmed: true,
+          lastOperationSource: 'real');
       await tester.pump(const Duration(seconds: 2));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 900));
@@ -499,7 +502,8 @@ void main() {
       expect(find.byKey(const ValueKey('done-retry')), findsNothing);
     });
 
-    testWidgets('LG 가전 확인 못 함(결과 창) — 전원·와이파이 → 휴대폰 앱 → 가전 직접', (tester) async {
+    // 2차 독립 평가 E(10/18): 벽 화면 앞 어르신에게 휴대폰 앱은 맞지 않았다 — 가전 직접 → 화면·불빛 → 가족에게.
+    testWidgets('LG 가전 확인 못 함(결과 창) — 가전 직접 → 화면·불빛 → 가족에게', (tester) async {
       await _pumpView(
           tester,
           KioskDoneView(
@@ -514,7 +518,7 @@ void main() {
           ));
       expect(find.byKey(const ValueKey('thinq-result')), findsOneWidget);
       expect(steps(tester), kThinqRecoverySteps);
-      expect(kThinqRecoverySteps[1], contains('휴대폰 앱'));
+      expect(kThinqRecoverySteps.any((s) => s.contains('휴대폰')), isFalse);
     });
 
     testWidgets('LG 가전 받았는지 모름(종전 결과 화면)에도 같은 안내', (tester) async {

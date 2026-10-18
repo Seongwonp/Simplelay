@@ -113,6 +113,9 @@ const kProblemHelp = '눌러서 해결 방법 보기';
 class KioskIdleStatusChip extends StatelessWidget {
   const KioskIdleStatusChip({super.key, required this.items, required this.onTap, this.pressImpact});
 
+  /// 문제 칩 두 줄의 글자 — 본문 단계(휴리스틱 평가 10/18).
+  static const double _problemSize = KioskType.body;
+
   final List<ConnectionItem> items;
   final VoidCallback onTap;
 
@@ -186,7 +189,8 @@ class KioskIdleStatusChip extends StatelessWidget {
                             maxLines: 1,
                             softWrap: false,
                             style: TextStyle(
-                                fontSize: KioskType.caption,
+                                // 문제면 본문 크기(휴리스틱 평가 10/18 — 1~2 m에서 작은 글자는 읽히지 않았다).
+                                fontSize: problem ? _problemSize : KioskType.caption,
                                 height: problem ? 1.15 : null,
                                 fontWeight: problem ? FontWeight.w700 : FontWeight.w500,
                                 color: problem ? Colors.white : KioskColors.muted)),
@@ -200,22 +204,25 @@ class KioskIdleStatusChip extends StatelessWidget {
                                     maxLines: 1,
                                     softWrap: false,
                                     style: TextStyle(
-                                        fontSize: KioskType.caption,
+                                        fontSize: _problemSize,
                                         height: 1.15,
                                         fontWeight: FontWeight.w700,
                                         color: tone)),
                                 Text(' · ',
                                     style: TextStyle(
-                                        fontSize: KioskType.caption, height: 1.15, color: KioskColors.muted)),
+                                        fontSize: _problemSize, height: 1.15, color: KioskColors.muted)),
                               ],
+                              // 할 일은 흰 글자·본문 크기(휴리스틱 평가 10/18 — 회색 작은 글자라 눌러 볼 수 있다는 것을 놓쳤다).
                               Text(cause != null ? kProblemHelpShort : kProblemHelp,
+                                  key: const ValueKey('idle-problem-help-text'),
                                   maxLines: 1,
                                   softWrap: false,
                                   style: TextStyle(
-                                      fontSize: KioskType.caption,
+                                      fontSize: _problemSize,
                                       height: 1.15,
-                                      color: KioskColors.muted)),
-                              Icon(Icons.chevron_right, size: KioskType.caption + 3, color: tone),
+                                      fontWeight: FontWeight.w600,
+                                      color: Colors.white)),
+                              Icon(Icons.chevron_right, size: _problemSize + 3, color: tone),
                             ],
                           ),
                       ],
@@ -240,7 +247,7 @@ class KioskIdleMenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Semantics(
         button: true,
-        label: '메뉴. 잠시 쉬기와 설정',
+        label: '메뉴. 잠시 쉬기, 설정, 연결, 사용 방법',
         excludeSemantics: true,
         child: InkWell(
           key: const ValueKey('idle-menu'),
@@ -301,17 +308,17 @@ class KioskIdleSheet extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  Text(title,
-                      style: const TextStyle(
-                          fontSize: KioskType.body,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white)),
-                  const SizedBox(height: KioskSpace.sm),
-                  ...children,
-                  const SizedBox(height: KioskSpace.xs),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
+                  // '닫기'는 제목 줄 오른쪽(휴리스틱 평가 10/18 — 메뉴에 '사용 방법'을 더하자 아래 '닫기'가 화면 가장자리 여백
+                  // 밖으로 밀렸다). 누르는 자리 48 이상은 그대로.
+                  Row(children: [
+                    Expanded(
+                      child: Text(title,
+                          style: const TextStyle(
+                              fontSize: KioskType.body,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white)),
+                    ),
+                    TextButton(
                       key: const ValueKey('idle-sheet-close'),
                       onPressed: onClose,
                       style: TextButton.styleFrom(
@@ -320,7 +327,9 @@ class KioskIdleSheet extends StatelessWidget {
                       child: const Text('닫기',
                           style: TextStyle(fontSize: KioskType.body)),
                     ),
-                  ),
+                  ]),
+                  const SizedBox(height: KioskSpace.xs),
+                  ...children,
                 ],
               ),
             ),

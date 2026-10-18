@@ -233,8 +233,9 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 정지로 끝난 job의 확인 보고(stop_level)를 아직 기다리는 중(평가 8차 10/18) — 결과 화면은 그동안 진행 상태
   /// ('멈추는 중이에요', 처음 화면 단추 없음)로 보이고, 보고가 오거나 기다리기를 그만두면 결과(멈췄어요/몰라요)로 바뀐다.
   bool _stopPending = false;
-  static const _stopFollowInterval = Duration(seconds: 1);
-  static const _stopFollowTries = 3;
+  // 화면의 '길어도 N초' 말과 같은 값(휴리스틱 평가 10/18) — 한 곳([KioskTimings])에서.
+  static const _stopFollowInterval = KioskTimings.stopFollowInterval;
+  static const _stopFollowTries = KioskTimings.stopFollowTries;
   String? _doneOperationDetail;
   // 끝난 다단계 실행의 단계별 결과(G4). **이 job의 기록일 때만** 채운다.
   List<ScenarioRunStep> _doneRunSteps = const [];
@@ -1140,6 +1141,8 @@ class _KioskScreenState extends State<KioskScreen> {
   /// 결과 화면이 보이는 동안의 최종 글(정지 보고를 받은 뒤의 말)을 쓴다. 새 지난 일은 이전 것을 바꾼다.
   void _rememberPastResult() {
     if (_phase != KioskPhase.done) return;
+    // 사람이 가전을 보고 답했으면 남길 것이 없다(휴리스틱 평가 10/18).
+    if (_doneAnswered) return;
     final view = _doneView();
     final headline = view.pastHeadline;
     if (headline == null) return;
@@ -1499,6 +1502,7 @@ class _KioskScreenState extends State<KioskScreen> {
     _doneReturnTimer?.cancel();
     _doneReturnTimer = null;
     _doneAt = DateTime.now();
+    _doneAnswered = false;
     setState(() {
       _phase = KioskPhase.done;
       _doneSuccess = success;
@@ -1509,6 +1513,8 @@ class _KioskScreenState extends State<KioskScreen> {
     // 실패는 자동으로 사라지지 않는다 — 사용자가 다음 행동을 고를 때까지
     // 화면에 남아야 한다(고령 사용자가 이유도 모른 채 놓치는 것을 막는다).
     if (!success) return;
+    // 버튼 누름 보고만(가전은 사람이 본다) — 사람이 답할 때까지 닫지 않는다(2차 독립 평가 C, 10/18).
+    if (_doneView().personCheck != null) return;
     // 취소할 수 있는 타이머 — 화면을 만지면 멈춘다(UI 평가 10/17). 예전 Future.delayed는 다음 결과 화면까지 닫을 수 있었다.
     // 큰 글씨는 두 배 — 스크롤해서 읽는 동안 닫히지 않게(UI 평가 4차 10/17).
     _doneReturnTimer = Timer(_largeText ? KioskTimings.doneReturnLarge : _doneReturnDuration, () {
@@ -1892,7 +1898,47 @@ class _KioskScreenState extends State<KioskScreen> {
         onStopAgain: _executionMode == 'mock' ? null : _onDoneStopAgain,
         stopAgain: _doneStopAgain,
         onDismiss: _toIdle,
+        // 사람 확인 흐름(휴리스틱 평가 10/18) — 답하면 키오스크 안에 기억하고 처음 화면으로('지난 일' 줄은 남기지 않는다).
+        onChecked: _onDoneChecked,
+        // '안 움직였어요·안 켜졌어요'라고 답한 뒤의 '한 번 더 하기' — 다시 보낼 요청이 있고, 본체 끊김·누름 장치 걸림이 아닐 때.
+        // LG 가전 확인 못 함도 사람이 바뀌지 않았다고 본 뒤에는 연다(같은 설정을 다시 보내는 것 — 이미 그 값이면 서버가 보내지 않는다).
+        onRetryAfterCheck: _retryAction == null ||
+                _doneReason == KioskFailureReason.serverLost ||
+                (_doneReason == KioskFailureReason.safetyStop && motionAbortSentence(_doneAbortReason) != null)
+            ? null
+            : () {
+                // 사람이 '안 …'이라고 답한 뒤의 다시 하기 — 답했으니 옛 결과를 '지난 일'로 남기지 않는다.
+                _doneAnswered = true;
+                _onRetryFailed();
+              },
       );
+
+  /// 결과 화면 '가전을 보고 알려 주세요'에 사람이 답했다(휴리스틱 평가 10/18). 서버에 사람 확인을 남길 API가 없어
+  /// 키오스크 안에만 기억한다(앱을 다시 켜면 사라진다). 답했으니 처음 화면 '지난 일' 줄은 남기지 않는다.
+  void _onDoneChecked(bool worked) {
+    if (_phase != KioskPhase.done) return;
+    final view = _doneView();
+    final name = actionName(_doneLabel);
+    _personChecks.add(KioskPersonCheck(
+      at: DateTime.now(),
+      jobId: _activeJobId,
+      label: name.isNotEmpty ? name : (view.target?.name ?? ''),
+      worked: worked,
+    ));
+    if (_personChecks.length > kPersonCheckKeep) _personChecks.removeAt(0);
+    _doneAnswered = true;
+    _toIdle();
+  }
+
+  /// 사람이 가전을 보고 답한 기록(키오스크 안, 최근 [kPersonCheckKeep]개).
+  final List<KioskPersonCheck> _personChecks = [];
+
+  /// 지금 결과 화면에 사람이 답했다 — 처음 화면으로 갈 때 '지난 일'을 남기지 않는다. 새 결과마다 지운다.
+  bool _doneAnswered = false;
+
+  /// 시험용 — 사람 확인 기록(읽기 전용).
+  @visibleForTesting
+  List<KioskPersonCheck> get personChecks => List.unmodifiable(_personChecks);
 
   Widget _buildConnectionModal() {
     final id = _openConnectionId;

@@ -471,9 +471,8 @@ void main() {
     Finder inButton<T>(String text) => find.ancestor(
         of: find.text(text), matching: find.byWidgetPredicate((w) => w is T));
 
+    // 휴리스틱 평가(10/18): 누름 보고만·눌렸는지 모름은 '가전을 보고 알려 주세요' 두 답 단추(아래 시험) — 채움 단추가 없다.
     for (final (name, view, fill) in [
-      ('누름 보고만(확인 필요)', _done(), KioskColors.neutralFill),
-      ('실패', _done(success: false), KioskColors.neutralFill),
       // 멈춤을 확인해도 가전은 사람이 봐야 한다 — 띠 '확인 필요'라 중립 채움(평가 3차 10/18).
       ('사용자 정지(멈춤 확인)', _done(success: false, reason: KioskFailureReason.stopped, stopLevel: 'verified'),
           KioskColors.neutralFill),
@@ -488,12 +487,25 @@ void main() {
       });
     }
 
-    // 평가 5차(10/18): 밑줄 글자 단추는 링크로 읽혔다 — 누름 장치로 골라 누르기도 테두리 버튼(아이콘 + 글).
-    testWidgets('실패 — 한 번 더 하기는 테두리 보조, 누름 장치로 골라 누르기도 테두리 버튼(48 이상)', (tester) async {
+    for (final (name, view) in [('누름 보고만(확인 필요)', _done()), ('눌렸는지 모름', _done(success: false))]) {
+      testWidgets('$name — 채움 단추 없이 대등한 두 답 단추, 처음 화면으로는 테두리', (tester) async {
+        await _pump15(tester, view);
+        expect(find.byType(ElevatedButton), findsNothing);
+        expect(inButton<OutlinedButton>('처음 화면으로'), findsOneWidget);
+        expect(tester.getSize(find.byKey(const ValueKey('done-check-yes'))),
+            tester.getSize(find.byKey(const ValueKey('done-check-no'))));
+      });
+    }
+
+    // 평가 5차(10/18): 밑줄 글자 단추는 링크로 읽혔다 — 테두리 버튼(아이콘 + 글). 휴리스틱 평가(10/18): 눌렸는지 모르면
+    // '한 번 더 하기'는 '안 움직였어요' 뒤에만, 누름 장치로 골라 누르기는 확실히 못 한 결과(연습)에만.
+    testWidgets('실패 — 한 번 더 하기는 답한 뒤 테두리(48 이상), 누름 장치로 골라 누르기는 연습 실패의 테두리 버튼', (tester) async {
       await _pump15(tester, _done(success: false));
-      // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추(48 이상).
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
       expect(inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
       expect(tester.getSize(inButton<OutlinedButton>('한 번 더 하기')).height, greaterThanOrEqualTo(48));
+      await _pump15(tester, _done(success: false, mode: 'mock'));
       final manual = inButton<OutlinedButton>('누름 장치로 골라 누르기');
       expect(manual, findsOneWidget);
       expect(tester.getSize(manual).height, greaterThanOrEqualTo(48));

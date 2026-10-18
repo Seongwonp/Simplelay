@@ -655,6 +655,7 @@ void main() {
   });
 
   // UI 평가 4차 10/17: 큰 글씨 결과 화면은 스크롤이 생기는데 10초 자동 복귀가 함께 돌았다 — 큰 글씨면 20초.
+  // 자동 복귀는 확인한 성공(실측 동작)만 — 누름 보고만·환경 미상은 사람이 답할 때까지 남는다(2차 독립 평가 C, 10/18).
   testWidgets('큰 글씨면 성공 결과 화면 자동 복귀가 20초(글자·실제 전환 모두)', (tester) async {
     useKioskViewport(tester);
     final tempDir = Directory.systemTemp.createTempSync('kiosk-large-return');
@@ -667,7 +668,7 @@ void main() {
     await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     api.statusResult = const KioskStatus(running: false,
-        lastJobId: 'job-1', lastStatus: 'succeeded');
+        lastJobId: 'job-1', lastStatus: 'succeeded', lastExecutionMode: 'real', lastOperationConfirmed: true, lastOperationSource: 'real');
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byType(KioskDoneView), findsOneWidget);
@@ -690,7 +691,7 @@ void main() {
     await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     api.statusResult = const KioskStatus(running: false,
-        lastJobId: 'job-1', lastStatus: 'succeeded');
+        lastJobId: 'job-1', lastStatus: 'succeeded', lastExecutionMode: 'real', lastOperationConfirmed: true, lastOperationSource: 'real');
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 900));
     expect(find.byType(KioskDoneView), findsOneWidget);
@@ -717,7 +718,7 @@ void main() {
     await tester.tap(find.byKey(_approveKey));
     await tester.pump();
     api.statusResult = const KioskStatus(running: false,
-        lastJobId: 'job-1', lastStatus: 'succeeded');
+        lastJobId: 'job-1', lastStatus: 'succeeded', lastExecutionMode: 'real', lastOperationConfirmed: true, lastOperationSource: 'real');
     await tester.pump(const Duration(seconds: 2));
     await tester.pump(const Duration(milliseconds: 900));
     await tester.pump(KioskTimings.doneReturn);
@@ -755,12 +756,13 @@ void main() {
     expect(find.byType(KioskExecutingView), findsOneWidget);
     expect(api.approvedIds, ['s1']);
 
-    // 서버가 내 job(job-1)의 완료를 보고하면 done으로
+    // 서버가 내 job(job-1)의 완료를 보고하면 done으로 — 확인한 성공(실측 동작)이라 자동으로 돌아간다.
     api.statusResult = const KioskStatus(
       running: false,
       lastStatus: 'succeeded',
       lastButtons: [],
       lastJobId: 'job-1',
+      lastExecutionMode: 'real', lastOperationConfirmed: true, lastOperationSource: 'real',
     );
     await tester.pump(const Duration(seconds: 2)); // 폴링 주기
     await tester.pump(); // 응답 반영
@@ -1085,8 +1087,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 900));
 
     expect(find.byType(KioskDoneView), findsOneWidget);
-    expect(find.text('한 번 더 하기'), findsOneWidget);
-    expect(find.text('누름 장치로 골라 누르기'), findsOneWidget);
+    // 휴리스틱 평가(10/18): 다음 행동은 '가전을 보고 알려 주세요' 두 답 — 다시 누르기는 '안 움직였어요' 뒤(R1).
+    expect(find.byKey(const ValueKey('done-check-yes')), findsOneWidget);
+    expect(find.byKey(const ValueKey('done-check-no')), findsOneWidget);
 
     // 성공과 달리 자동 복귀 타이머가 없다 — 사용자가 고를 때까지 남는다
     await tester.pump(KioskTimings.doneReturn);
@@ -1116,6 +1119,9 @@ void main() {
 
     api.nextJobId = 'job-2';
     api.statusResult = const KioskStatus(running: false);
+    // '안 움직였어요'라고 답한 뒤에만 '한 번 더 하기'(휴리스틱 평가 10/18).
+    await tester.tap(find.byKey(const ValueKey('done-check-no')));
+    await tester.pump();
     await tester.tap(find.text('한 번 더 하기'));
     await tester.pumpAndSettle();
     expect(api.approvedIds, ['s1']);
@@ -1126,7 +1132,9 @@ void main() {
     expect(find.byType(KioskExecutingView), findsOneWidget);
   });
 
-  testWidgets('실패 화면의 버튼으로 조작이 수동 화면으로 보낸다', (tester) async {
+  // 휴리스틱 평가(10/18): 본체와 끊겨 어떻게 됐는지 모르면 가전을 보고 답한다 — '안 움직였어요' 뒤 '손으로 할게요'는 처음 화면으로.
+  // 본체에 닿지 않으니 다시 하기는 없다. 누름 장치로 골라 누르기는 확실히 못 한 결과(연습 실패 등)에만 남는다.
+  testWidgets('본체와 끊긴 실패 — 가전을 보고 답하고, 다시 하기는 없다', (tester) async {
     useKioskViewport(tester);
     final api = FakeKioskApi()
       ..suggestionList = [_sug]
@@ -1141,7 +1149,29 @@ void main() {
 
     // 서버 연결 실패는 '다시 시도'가 또 실패할 가능성이 높아 숨긴다
     expect(find.text('한 번 더 하기'), findsNothing);
+    expect(find.text('누름 장치로 골라 누르기'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('done-check-no')));
+    await tester.pump();
+    expect(find.text('한 번 더 하기'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('done-check-hand')));
+    await tester.pump();
+    expect(find.byType(KioskDoneView), findsNothing);
+    expect(find.byKey(const ValueKey('idle-past-result')), findsNothing); // 답했으니 지난 일로 남기지 않는다
+  });
 
+  testWidgets('확실히 못 한 결과(연습 실패)의 누름 장치로 골라 누르기가 수동 화면으로 보낸다', (tester) async {
+    useKioskViewport(tester);
+    final api = FakeKioskApi()..suggestionList = [_sug];
+    await _pumpKiosk(tester, api);
+    api.suggestionList = [];
+    await tester.tap(find.byKey(_approveKey));
+    await tester.pump();
+    api.statusResult = const KioskStatus(
+        running: false, lastStatus: 'failed', lastButtons: [], lastJobId: 'job-1', lastExecutionMode: 'mock');
+    await tester.pump(const Duration(seconds: 2));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    expect(find.byType(KioskDoneView), findsOneWidget);
     await tester.tap(find.text('누름 장치로 골라 누르기'));
     await tester.pump();
     expect(find.text('전자레인지'), findsOneWidget);
@@ -1447,17 +1477,24 @@ void main() {
     expect(find.text('약풍'), findsOneWidget); // 유지
   });
 
-  /// 제안 승인이 접수부터 실패 → 실패 화면의 '버튼으로 조작' → 가전 선택.
+  /// 제안 승인 → 연습 실패 → 실패 화면의 '누름 장치로 골라 누르기' → 가전 선택. 그 뒤 실행 요청은 실패하게 둔다(server down).
+  /// 휴리스틱 평가(10/18) 뒤 '누름 장치로 골라 누르기'는 확실히 못 한 결과에만 있다 — 본체 끊김(모름)은 가전을 보고 답한다.
   Future<void> failToManual(WidgetTester tester, FakeKioskApi api) async {
     api
       ..suggestionList = [_sug]
-      ..executeError = Exception('server down');
+      ..executeError = null;
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
     api.suggestionList = [];
+    final job = api.nextJobId;
     await tester.tap(find.byKey(_approveKey));
     await tester.pump();
+    api.statusResult = KioskStatus(
+        running: false, lastStatus: 'failed', lastButtons: const [], lastJobId: job, lastExecutionMode: 'mock');
+    await tester.pump(const Duration(seconds: 2));
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 900));
+    api.executeError = Exception('server down');
     // 큰 글씨에서는 보조 단추가 할 일 아래 같은 스크롤 흐름에 있다(2026-10-16 §1-8) — 보이게 굴린 뒤 누른다.
     await tester.ensureVisible(find.text('누름 장치로 골라 누르기'));
     await tester.pump();
@@ -1565,6 +1602,7 @@ void main() {
       lastStatus: 'succeeded',
       lastButtons: [],
       lastJobId: 'job-1',
+      lastExecutionMode: 'real', lastOperationConfirmed: true, lastOperationSource: 'real',
     );
     await tester.pump(const Duration(seconds: 2)); // done
     await tester.pump();

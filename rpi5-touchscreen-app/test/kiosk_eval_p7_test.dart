@@ -222,14 +222,17 @@ void main() {
       // 평가 15차(10/18): 주 단추 하나 + 보조 한 줄 — 안내 문장 묶음 대신 보조 줄 안(같은 폭·같은 높이). '다시 하기 전에 가전을
       // 보라'는 말은 누르면 뜨는 확인 창이 한다(정책 그대로).
       expect(find.byKey(const ValueKey('done-retry-hint')), findsNothing);
+      // 휴리스틱 평가(10/18): 처음에는 없다 — '안 움직였어요'라고 답한 뒤 '손으로 할게요'와 같은 테두리 단추, 손으로 할게요가 앞.
       final retry = find.byKey(const ValueKey('done-retry'));
+      expect(retry, findsNothing);
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
       final rr = tester.getRect(retry);
-      final mr = tester.getRect(find.byKey(const ValueKey('done-manual')));
-      expect((rr.width - mr.width).abs(), lessThan(1));
-      expect((rr.height - mr.height).abs(), lessThan(1));
-      // 평가 13차(10/18): 글자 단추는 꺼진 단추로 보였다 — 작은 테두리 보조 단추. 처음 화면으로(채움)보다 낮다.
+      final hr = tester.getRect(find.byKey(const ValueKey('done-check-hand')));
+      expect((rr.width - hr.width).abs(), lessThan(1));
+      expect((rr.height - hr.height).abs(), lessThan(1));
+      expect(hr.left, lessThan(rr.left));
       expect(tester.widget(retry), isA<OutlinedButton>());
-      expect(rr.height, lessThan(tester.getRect(find.byKey(const ValueKey('done-home'))).height));
       expect(tester.takeException(), isNull);
     });
 

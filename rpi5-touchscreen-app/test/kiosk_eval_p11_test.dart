@@ -108,8 +108,10 @@ KioskDoneView _thinqDone({required bool confirmed}) => KioskDoneView(
       onDismiss: _noop,
     );
 
+// 휴리스틱 평가(10/18): 모름·확인 필요 결과에서는 '처음 화면으로'가 보조 모양(테두리)이다 — 이름·집 아이콘은 같다.
 Finder _exitButton() => find.ancestor(
-    of: find.text('처음 화면으로'), matching: find.byWidgetPredicate((w) => w is ElevatedButton));
+    of: find.text('처음 화면으로'),
+    matching: find.byWidgetPredicate((w) => w is ElevatedButton || w is OutlinedButton));
 
 void _expectHomeButton(WidgetTester tester, String why) {
   expect(find.text('닫기'), findsNothing, reason: '$why — 닫기라는 다른 이름이 없다');
@@ -117,7 +119,11 @@ void _expectHomeButton(WidgetTester tester, String why) {
   expect(find.descendant(of: _exitButton(), matching: find.byIcon(Icons.home_outlined)), findsOneWidget,
       reason: '$why — 집 아이콘');
   final b = tester.widget<ButtonStyleButton>(_exitButton());
-  expect(b.style!.backgroundColor!.resolve({}), KioskColors.neutralFill, reason: '$why — 한 색');
+  if (b is ElevatedButton) {
+    expect(b.style!.backgroundColor!.resolve({}), KioskColors.neutralFill, reason: '$why — 한 색');
+  } else {
+    expect(b.style!.foregroundColor!.resolve({}), Colors.white, reason: '$why — 보조 모양은 흰 글자');
+  }
 }
 
 // ── 5. LG 가전 조작 ───────────────────────────────────────

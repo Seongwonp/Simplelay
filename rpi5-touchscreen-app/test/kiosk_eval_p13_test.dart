@@ -316,25 +316,37 @@ void main() {
           onDismiss: _noop,
         );
 
-    for (final mock in [false, true]) {
-      testWidgets('연습 $mock — 테두리, 흰 글자 4.5:1 이상, 높이 48 이상, 주 출구보다 작은 글자', (tester) async {
-        await _pumpView(tester, failed(mock: mock));
-        final retry = find.byKey(const ValueKey('done-retry'));
-        expect(tester.widget(retry), isA<OutlinedButton>());
-        expect(tester.getRect(retry).height, greaterThanOrEqualTo(48));
-        final label = find.descendant(of: retry, matching: find.text('한 번 더 하기'));
-        final fg = _colorOf(tester, label) ?? DefaultTextStyle.of(tester.element(label)).style.color!;
-        expect(_contrast(fg, KioskColors.bg), greaterThanOrEqualTo(4.5));
-        final home = find.descendant(of: find.byKey(const ValueKey('done-home')), matching: find.text('처음 화면으로'));
-        expect(_fontOf(tester, label), lessThan(_fontOf(tester, home)));
-        // 평가 15차(10/18): 안내 문장 묶음은 없다 — 보조 한 줄 안(확인 창이 '가전을 보고 안 됐을 때만'을 말한다).
-        expect(find.byKey(const ValueKey('done-retry-hint')), findsNothing);
-        expect(tester.takeException(), isNull);
-      });
-    }
+    // 휴리스틱 평가(10/18): 눌렸는지 모르는 실제 결과에서는 '한 번 더 하기'가 처음에 없다 — 사람이 '안 움직였어요'라고
+    // 답한 뒤에만 테두리 단추로 보인다(R1). 흰 글자 대비·높이는 그대로 지킨다.
+    testWidgets('실제 — 처음에는 없고 안 움직였어요 뒤 테두리, 흰 글자 4.5:1 이상, 높이 48 이상', (tester) async {
+      await _pumpView(tester, failed());
+      final retry = find.byKey(const ValueKey('done-retry'));
+      expect(retry, findsNothing);
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
+      expect(tester.widget(retry), isA<OutlinedButton>());
+      expect(tester.getRect(retry).height, greaterThanOrEqualTo(48));
+      final label = find.descendant(of: retry, matching: find.text('한 번 더 하기'));
+      final fg = _colorOf(tester, label) ?? DefaultTextStyle.of(tester.element(label)).style.color!;
+      expect(_contrast(fg, KioskColors.bg), greaterThanOrEqualTo(4.5));
+      expect(find.byKey(const ValueKey('done-retry-hint')), findsNothing);
+      expect(tester.takeException(), isNull);
+    });
+
+    // 휴리스틱 평가(10/18): 연습은 실제 가전이 없어 다시 해도 안전하다 — '한 번 더 하기'가 주 단추, 처음 화면은 보조.
+    testWidgets('연습 — 다시 해도 안전해 주 단추, 처음 화면으로는 보조', (tester) async {
+      await _pumpView(tester, failed(mock: true));
+      final retry = find.byKey(const ValueKey('done-retry'));
+      expect(tester.widget(retry), isA<ElevatedButton>());
+      expect(tester.getRect(retry).height, greaterThanOrEqualTo(48));
+      expect(tester.widget(find.byKey(const ValueKey('done-home'))), isA<OutlinedButton>());
+      expect(tester.takeException(), isNull);
+    });
 
     testWidgets('큰 글씨에서도 잘리지 않는다', (tester) async {
       await _pumpView(tester, failed(), scale: 1.22);
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
       expect(find.byKey(const ValueKey('done-retry')).hitTestable(), findsOneWidget);
       expect(tester.getRect(find.byKey(const ValueKey('done-retry'))).bottom, lessThanOrEqualTo(480));
       expect(tester.takeException(), isNull);

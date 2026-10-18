@@ -185,7 +185,8 @@ void main() {
   });
 
   group('4. 연습을 마친 대기', () {
-    testWidgets('연습이 끝났어요 · 칸 강조 없음 · 정지는 그대로', (t) async {
+    // 2차 독립 평가 D(10/18): 연습이 끝나 움직일 것이 없으면 정지는 흐리게(못 누름) + '이미 끝났어요' — 자리·이름은 그대로.
+    testWidgets('연습이 끝났어요 · 칸 강조 없음 · 정지는 자리·이름 그대로 흐리게', (t) async {
       await _pump(t, _hold(mode: 'mock'), panel: true);
       expect(_has(t, '연습이 끝났어요'), isTrue, reason: _texts(t).join(' | '));
       expect(_has(t, '마쳤어요'), isFalse);
@@ -194,7 +195,8 @@ void main() {
       final stop = find.byKey(const ValueKey('hold-stop'));
       expect(stop, findsOneWidget);
       expect(find.text('정지'), findsOneWidget);
-      expect(t.widget<ElevatedButton>(stop).onPressed, isNotNull);
+      expect(t.widget<ElevatedButton>(stop).onPressed, isNull);
+      expect(_has(t, '이미 끝났어요'), isTrue);
     });
 
     testWidgets('연습에서 정지를 누른 뒤', (t) async {
@@ -206,7 +208,15 @@ void main() {
 
   testWidgets('5. 자동 복귀 말은 큰 글씨에서도 같다', (t) async {
     String backLine() => _texts(t).firstWhere((s) => s.contains('처음 화면으로 돌아가요'));
-    final done = KioskDoneView(success: true, label: '즉석밥 데워줘', target: kMicrowaveAppliance, onDismiss: () {});
+    // 자동 복귀는 확인한 성공만(2차 독립 평가 C, 10/18) — 실측 동작 확인 결과로 본다.
+    final done = KioskDoneView(
+        success: true,
+        executionMode: 'real',
+        operationConfirmed: true,
+        operationSource: 'real',
+        label: '즉석밥 데워줘',
+        target: kMicrowaveAppliance,
+        onDismiss: () {});
     await _pump(t, done);
     final normal = backLine();
     await t.pumpWidget(const SizedBox());

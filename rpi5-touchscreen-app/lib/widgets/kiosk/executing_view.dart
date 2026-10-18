@@ -323,6 +323,8 @@ class KioskExecutingView extends StatelessWidget {
             ),
       body: body,
       // 버튼판은 누를 수 없는 설명 그림이다 — 지금 누르는 자리만 채운다(§1-6).
+      // 그림이 없어도(대상을 모름·지금 버튼이 판에 없음) 같은 자리에 '화면은 누르지 않아도 돼요'(휴리스틱 평가 10/18) —
+      // 누름 장치 실행 화면 모두 같은 자리에서 '화면 버튼'과 '가전 버튼'을 가른다.
       picture: target != null && onPanel != null
           ? KioskPanelPicture(
               appliance: target,
@@ -332,7 +334,11 @@ class KioskExecutingView extends StatelessWidget {
               caption: _mock ? kPracticePanelCaption : kPanelCaption,
               captionKey: const ValueKey('exec-panel-caption'),
             )
-          : null,
+          : KioskPanelPicture(
+              appliance: target,
+              caption: _mock ? kPracticePanelCaption : kPanelCaption,
+              captionKey: const ValueKey('exec-panel-caption'),
+            ),
       stop: KioskStopButton(label: '정지', onPressed: onStop),
     );
   }

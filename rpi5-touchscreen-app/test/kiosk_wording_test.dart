@@ -154,7 +154,9 @@ void main() {
 
   // ── 1단계: 완료·정지 대기·비상 버튼 + B2 + 잘림 B7·B9 ───────────────────────
   group('1단계 · 완료 화면', () {
-    testWidgets('실패 — 가장 큰 글자는 할 일, 처음 화면으로(채움)가 먼저, 다시 시도는 테두리', (tester) async {
+    // 휴리스틱 평가(10/18): 눌렸는지 모르면 주 행동은 '움직였어요 / 안 움직였어요' — 처음 화면으로는 테두리 보조,
+    // 한 번 더 하기는 '안 움직였어요' 뒤(R1), 골라 누르기는 두지 않는다.
+    testWidgets('실패 — 가장 큰 글자는 할 일, 가전을 보고 답하기가 먼저, 처음 화면으로는 보조, 한 번 더 하기는 답한 뒤', (tester) async {
       await _pumpView(
         tester,
         KioskDoneView(
@@ -176,16 +178,14 @@ void main() {
       // 다시 시도 위험(열린 문제 R1) — 당부는 화면에 한 번, '다시 시도' 확인 창에만 있다(쉬운 말 10/17).
       expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsNothing);
       expect(find.textContaining('두 번 누르지 않'), findsNothing);
-      expect(_inButton<ElevatedButton>('처음 화면으로'), findsOneWidget);
-      // 평가 13차(10/18): 한 번 더 하기는 작은 테두리 보조 단추(글자 단추는 꺼진 단추로 보였다).
-      expect(_inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
-      // 주 하나·보조 하나·글자 하나(2차 평가 10/18) — 누름 장치로 골라 누르기는 글자 단추(48 이상, 평가 4차 이름).
-      expect(_inButton<OutlinedButton>('누름 장치로 골라 누르기'), findsOneWidget);
+      expect(_inButton<OutlinedButton>('처음 화면으로'), findsOneWidget);
+      expect(find.text('한 번 더 하기'), findsNothing);
+      expect(find.text('누름 장치로 골라 누르기'), findsNothing);
       expect(find.text('닫기'), findsNothing);
       expect(find.text('버튼으로 조작'), findsNothing);
-      final home = tester.getRect(find.text('처음 화면으로'));
-      final retry = tester.getRect(find.text('한 번 더 하기'));
-      expect(home.top, lessThan(retry.top), reason: '처음 화면으로가 먼저(한 번 더 하기는 맨 아래, 평가 7차)');
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
+      expect(_inButton<OutlinedButton>('한 번 더 하기'), findsOneWidget);
       // 다시 시도를 누르면 확인 창이 당부를 한 번 말한다.
       await tester.tap(find.text('한 번 더 하기'));
       await tester.pumpAndSettle();
@@ -223,6 +223,9 @@ void main() {
           api,
           const KioskStatus(
               running: false, lastJobId: 'job-1', lastStatus: 'failed', lastOutcome: 'failed'));
+      // 휴리스틱 평가(10/18): '안 움직였어요'라고 답한 뒤에 보인다.
+      await tester.tap(find.byKey(const ValueKey('done-check-no')));
+      await tester.pump();
       expect(find.text('한 번 더 하기'), findsOneWidget);
       // 당부는 확인 창에만(쉬운 말 10/17).
       expect(find.textContaining('이미 움직이고 있으면 한 번 더 하지 마세요'), findsNothing);

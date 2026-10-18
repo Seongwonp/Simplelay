@@ -168,7 +168,8 @@ void main() {
       expect(find.byKey(const ValueKey('done-target')), findsNothing);
     });
 
-    testWidgets('B. 단추가 두 줄이면 같은 폭 격자 — 처음 화면으로 = 아래 단추 폭', (tester) async {
+    // 휴리스틱 평가(10/18): 연습 실패는 다시 해도 안전해 '한 번 더 하기'가 주(왼쪽), 처음 화면으로는 그 옆 보조, 골라 누르기는 보조 줄.
+    testWidgets('B. 연습 실패 — 한 번 더 하기가 왼쪽 주 자리, 처음 화면으로·골라 누르기는 보조, 화면 안', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -180,13 +181,21 @@ void main() {
               onManual: () {},
               onDismiss: () {}),
           panel: false);
+      final retry = tester.getRect(find.byKey(const ValueKey('done-retry')));
       final home = tester.getRect(find.byKey(const ValueKey('done-home')));
       final manual = tester.getRect(find.byKey(const ValueKey('done-manual')));
-      expect(home.left, closeTo(manual.left, 1));
-      expect(home.width, closeTo(manual.width, 1));
+      expect(tester.widget(find.byKey(const ValueKey('done-retry'))), isA<ElevatedButton>());
+      expect(tester.widget(find.byKey(const ValueKey('done-home'))), isA<OutlinedButton>());
+      expect(retry.left, lessThan(home.left));
+      for (final r in [retry, home, manual]) {
+        expect(r.bottom, lessThanOrEqualTo(480));
+        expect(r.height, greaterThanOrEqualTo(48));
+      }
+      expect(tester.takeException(), isNull);
     });
 
-    testWidgets("D. 정지 확인 기다림 — 띠 '멈추는 중', 돌아가는 원 없음", (tester) async {
+    // 휴리스틱 평가(10/18): 진행 표시가 없어 멈춘 화면처럼 보였다 — 큰 제목 왼쪽에 돌아가는 표시 하나(띠 안에는 없다).
+    testWidgets("D. 정지 확인 기다림 — 띠 '멈추는 중', 돌아가는 표시는 제목 옆 하나", (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -199,7 +208,8 @@ void main() {
               onDismiss: () {}));
       final band = find.byKey(const ValueKey('status-band'));
       expect(find.descendant(of: band, matching: find.text('멈추는 중')), findsOneWidget);
-      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.descendant(of: band, matching: find.byType(CircularProgressIndicator)), findsNothing);
     });
   });
 
