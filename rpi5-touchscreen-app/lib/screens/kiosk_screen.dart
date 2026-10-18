@@ -1,6 +1,8 @@
 import 'package:routine_rehearsal/routine_rehearsal.dart';
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show mapEquals;
+
 import 'package:flutter/material.dart';
 
 import '../models/action_name.dart';
@@ -111,8 +113,12 @@ class _KioskScreenState extends State<KioskScreen> {
   bool _quietAwake = false;
   Timer? _quietWakeTimer;
 
-  /// 처음 화면 '지난 일' 한 줄(사용자 결정 10/18) — 실패·'확인 못 함' 결과. '확인'을 누를 때까지 남는다(키오스크 안 기억).
+  /// 처음 화면 '지난 일' 한 줄(사용자 결정 10/18) — 실패·'확인 못 함' 결과. '확인'을 누르거나 다른 기기(폰 '기록 보기')에서
+  /// 확인할 때까지 남는다(본체 확인 표시, 2026-10-19).
   KioskPastResult? _pastResult;
+
+  /// 사람이 확인한 실행(본체 GET /acks, 2026-10-19) — 키오스크·폰 어디서 확인했든. 지난 일 줄·가전 칸 '!'이 이것을 본다.
+  Map<String, String> _ackedJobs = const {};
 
   /// 결과 화면이 뜬 시각 — 지난 일 한 줄의 시각.
   DateTime _doneAt = DateTime.now();
@@ -380,9 +386,11 @@ class _KioskScreenState extends State<KioskScreen> {
     _alertTimer = Timer.periodic(_alertInterval, (_) => _fetchAlert());
     _fetchPower();
     _fetchAir();
+    _fetchAcks();
     _powerTimer = Timer.periodic(_powerInterval, (_) {
       _fetchPower();
       _fetchAir();
+      _fetchAcks();
     });
     _clockTimer = Timer.periodic(
       const Duration(seconds: 1),
@@ -515,7 +523,10 @@ class _KioskScreenState extends State<KioskScreen> {
     };
     final attention = <String>{};
     final last = st.lastApplianceId;
-    if (!st.running && last != null &&
+    _lastAttentionJobId = st.lastJobId;
+    // 사람이 확인한 실행이면(키오스크 지난 일 확인·답, 폰 '기록 보기' — 본체 확인 표시, 2026-10-19) 내린다. 새 실패는 다시 뜬다.
+    final acked = st.lastJobId != null && _ackedJobs.containsKey(st.lastJobId);
+    if (!st.running && !acked && last != null &&
         (st.lastOutcome != null || st.lastStatus != null)) {
       final kind = resultKindOf(outcome: st.lastOutcome, status: st.lastStatus);
       if (kind == ResultKind.failed || kind == ResultKind.safetyStop) {
@@ -529,6 +540,37 @@ class _KioskScreenState extends State<KioskScreen> {
       });
     }
   }
+
+  /// 사람이 확인한 실행을 본체에서 읽는다(2026-10-19) — 폰에서 '기록 보기'로 본 실패도 여기서 사라진다. 못 읽으면 그대로.
+  Future<void> _fetchAcks() async {
+    final acked = await _api.ackedJobs();
+    if (!mounted || acked == null) return;
+    _applyAcks(acked);
+  }
+
+  void _applyAcks(Map<String, String> acked) {
+    final past = _pastResult;
+    final clearPast = past?.jobId != null && acked.containsKey(past!.jobId);
+    final attention = {
+      for (final id in _attentionIds)
+        if (!(_lastAttentionJobId != null && acked.containsKey(_lastAttentionJobId))) id,
+    };
+    if (!clearPast && attention.length == _attentionIds.length && mapEquals(acked, _ackedJobs)) return;
+    setState(() {
+      _ackedJobs = acked;
+      if (clearPast) _pastResult = null;
+      _attentionIds = attention;
+    });
+  }
+
+  /// 사람이 봤다·답했다를 본체에 적는다(2026-10-19) — 화면은 바로 반영하고, 적지 못해도 막지 않는다.
+  void _ack(String? jobId, String answer) {
+    if (jobId != null) _applyAcks({..._ackedJobs, jobId: answer});
+    unawaited(_api.postAck(jobId: jobId, answer: answer));
+  }
+
+  /// 가전 칸 '!'(확인 필요)를 만든 실행 번호 — 사람이 확인하면 표시를 내린다.
+  String? _lastAttentionJobId;
 
   /// 가전 줄의 '켜짐'(2026-10-16) — 서버가 최근 ThinQ 조회로 본 전원만. 평소 화면일 때만 묻는다.
   Future<void> _fetchPower() async {
@@ -1155,7 +1197,7 @@ class _KioskScreenState extends State<KioskScreen> {
     if (headline == null) return;
     final name = actionName(_doneLabel);
     final label = name.isNotEmpty ? name : (view.target?.displayName ?? '');
-    _pastResult = KioskPastResult(at: _doneAt, label: label, headline: headline);
+    _pastResult = KioskPastResult(at: _doneAt, label: label, headline: headline, jobId: _activeJobId);
   }
 
   /// 조용한 시간에 화면을 만졌다 — 잠시 평소 밝기로(사용자 결정 10/18). 만질 때마다 다시 센다.
@@ -1883,7 +1925,12 @@ class _KioskScreenState extends State<KioskScreen> {
         ? KioskPastResultLine(
             result: _pastResult!,
             now: _now,
-            onAcknowledge: () => setState(() => _pastResult = null),
+            onAcknowledge: () {
+              // 본체에 '봤다'로 적는다 — 폰 홈 못 한 일 경고·설정 탭 배지에서도 사라진다(2026-10-19).
+              final jobId = _pastResult?.jobId;
+              setState(() => _pastResult = null);
+              _ack(jobId, 'seen');
+            },
           )
         : null;
     if (auto == null || past == null) return auto ?? past;
@@ -1948,14 +1995,15 @@ class _KioskScreenState extends State<KioskScreen> {
                 (_doneReason == KioskFailureReason.safetyStop && motionAbortSentence(_doneAbortReason) != null)
             ? null
             : () {
-                // 사람이 '안 …'이라고 답한 뒤의 다시 하기 — 답했으니 옛 결과를 '지난 일'로 남기지 않는다.
+                // 사람이 '안 …'이라고 답한 뒤의 다시 하기 — 답했으니 옛 결과를 '지난 일'로 남기지 않는다. 답은 본체에 적는다.
                 _doneAnswered = true;
+                if (_activeJobId != null) _ack(_activeJobId, 'not_moved');
                 _onRetryFailed();
               },
       );
 
-  /// 결과 화면 '가전을 보고 알려 주세요'에 사람이 답했다(휴리스틱 평가 10/18). 서버에 사람 확인을 남길 API가 없어
-  /// 키오스크 안에만 기억한다(앱을 다시 켜면 사라진다). 답했으니 처음 화면 '지난 일' 줄은 남기지 않는다.
+  /// 결과 화면 '가전을 보고 알려 주세요'에 사람이 답했다(휴리스틱 평가 10/18). 답은 본체에 적는다(POST /acks, 2026-10-19 —
+  /// 예전에는 키오스크 안에만 기억해 폰에는 여전히 못 한 일이었다). 답했으니 처음 화면 '지난 일' 줄은 남기지 않는다.
   void _onDoneChecked(bool worked) {
     if (_phase != KioskPhase.done) return;
     final view = _doneView();
@@ -1967,6 +2015,7 @@ class _KioskScreenState extends State<KioskScreen> {
       worked: worked,
     ));
     if (_personChecks.length > kPersonCheckKeep) _personChecks.removeAt(0);
+    if (_activeJobId != null) _ack(_activeJobId, worked ? 'moved' : 'not_moved');
     _doneAnswered = true;
     _toIdle();
   }

@@ -561,6 +561,37 @@ class KioskApiService {
     _ensureOk(res);
   }
 
+  /// 사람이 확인한 실행(본체 GET /acks의 job_answers, 2026-10-19) — 키오스크·폰 어디서 확인했든. 실패·옛 본체면 null
+  /// (지우지도 지어내지도 않는다 — 부른 쪽이 직전 값을 그대로 둔다).
+  Future<Map<String, String>?> ackedJobs() async {
+    try {
+      final res = await _client.get(_base.replace(path: '/acks')).timeout(_timeout);
+      if (res.statusCode != 200) return null;
+      final body = jsonDecode(utf8.decode(res.bodyBytes));
+      final answers = body is Map<String, dynamic> ? body['job_answers'] : null;
+      if (answers is! Map) return null;
+      return {for (final e in answers.entries) if (e.value is String) '${e.key}': e.value as String};
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// 사람이 봤다·답했다를 본체에 적는다(POST /acks) — 폰 홈 못 한 일 경고·설정 탭 배지에서도 사라진다.
+  /// [answer]: seen(지난 일 '확인') · moved · not_moved. [jobId]가 없으면 '못 한 일을 봤다'(failures_seen)로 적는다.
+  /// 적지 못하면 false(키오스크 화면은 그래도 닫는다 — 다음 조회에서 다시 보일 수 있다).
+  Future<bool> postAck({String? jobId, String answer = 'seen'}) async {
+    try {
+      final res = await _client
+          .post(_base.replace(path: '/acks'),
+              headers: _jsonHeaders,
+              body: jsonEncode(jobId == null ? {'failures_seen': true} : {'job_id': jobId, 'answer': answer}))
+          .timeout(_timeout);
+      return res.statusCode == 200;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> closePairing() async {
     final res = await _client.delete(_base.replace(path: '/pair/session')).timeout(_timeout);
     _ensureOk(res);

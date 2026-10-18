@@ -10,7 +10,11 @@ import '../../theme/kiosk_tokens.dart';
 /// 되살리면 이미 확인한 일이 다시 뜨거나 영영 안 뜨게 된다.
 @immutable
 class KioskPastResult {
-  const KioskPastResult({required this.at, required this.label, required this.headline});
+  const KioskPastResult({required this.at, required this.label, required this.headline, this.jobId});
+
+  /// 어느 실행의 결과인가(본체 실행 번호) — '확인'을 본체에 적고(2026-10-19), 다른 기기에서 확인했으면 사라지게 한다.
+  /// 모르면 null.
+  final String? jobId;
 
   /// 결과가 나온 시각.
   final DateTime at;
