@@ -235,7 +235,8 @@ void main() {
     });
   });
 
-  testWidgets("4. 연습 동작 중: 제목·본문이 같은 상태, 할 일은 '빨간 정지를 눌러 보세요' 하나, 조준경 없음", (tester) async {
+  // 평가 11차(10/18): 정지 안내는 고르는 말(kPracticeStopHint) — '빨간 정지를 눌러 보세요'는 까닭 없는 지시였다.
+  testWidgets("4. 연습 동작 중: 제목·본문이 같은 상태, 정지 안내는 한 줄, 조준경 없음", (tester) async {
     await _pump(
         tester,
         KioskHoldView(
@@ -250,8 +251,8 @@ void main() {
     final all = _allTexts(tester);
     expect(all.join('\n'), isNot(contains('연습 중')), reason: "'연습 중' 제목 + '연습을 마쳤어요' 본문은 서로 다른 말");
     expect(all.where((t) => t.contains('연습을 마쳤어요')).length, 1);
-    expect(all.where((t) => t == '빨간 정지를 눌러 보세요').length, 1);
-    expect(all.where((t) => t.contains('눌러 보세요')).length, 1, reason: '할 일은 하나');
+    expect(all.where((t) => t == kPracticeStopHint).length, 1);
+    expect(all.where((t) => t.contains('눌러')).length, 1, reason: '정지 안내는 하나');
     expect(find.byIcon(Icons.my_location), findsNothing);
     // 정지 단추는 그대로.
     expect(find.byKey(const ValueKey('hold-stop')), findsOneWidget);

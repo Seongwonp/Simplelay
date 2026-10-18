@@ -221,7 +221,8 @@ void main() {
       expect(find.text('연습이라 가전은 보지 않아요'), findsNothing);
       _expectFullyVisible(tester, find.text('정지'));
       // 정지 상태 줄은 정지 버튼과 함께 스크롤 없이 보인다(10/5 수리). '보냈어요' 대신 사람이 볼 상태(평가 4차 10/18).
-      _expectFullyVisible(tester, find.text('멈추는 중이에요'));
+      // 연습은 제목 한 문장이 상태를 말한다(평가 11차 10/18 — '마쳤어요' 아래 '멈추는 중이에요'가 부딪혔다).
+      _expectFullyVisible(tester, find.text('연습으로 멈추는 중이에요'));
     });
 
     testWidgets('$where 큰 글씨 동작 중 — 정지를 못 보냈다는 줄도 스크롤 없이 보여요',

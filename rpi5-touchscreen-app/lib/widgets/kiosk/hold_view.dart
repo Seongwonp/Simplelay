@@ -86,6 +86,9 @@ class KioskHoldView extends StatelessWidget {
 
   bool get _unconfirmed => stopOutcome == 'requested_unconfirmed';
 
+  /// 연습 대기에서 정지를 보냈고 아직 대기 상태가 바뀌지 않았다 — 제목이 이 상태 하나만 말한다.
+  bool get _practiceStopping => _mock && stopRequested && !stopFailed && holdState == 'hovering_stop';
+
   String get _name => appliance?.name ?? '가전';
 
   /// 가전 동작을 실제 전력으로 확인했나(출처 real, 연습 아님).
@@ -115,8 +118,11 @@ class KioskHoldView extends StatelessWidget {
       'parked' => ('작은 팔이 제자리로 돌아갔어요', Icons.home_outlined, Colors.white),
       // 연습은 누르기를 다 마친 뒤 정지를 기다린다 — 제목이 그 상태를 말한다(평가 6차 10/18: '…연습 중' 제목 아래
       // '…연습을 마쳤어요'가 서로 다른 말이었다). 무엇을 했는지는 제목, 할 일은 아래 한 줄.
+      // 정지를 보낸 뒤에는 상태가 바뀌었다 — '마쳤어요' 아래 '멈추는 중이에요'를 함께 두지 않고 지금 상태 한 문장(평가 11차 10/18).
       _ => _mock
-          ? ('누르기 연습을 마쳤어요', Icons.check_circle_outline, Colors.white)
+          ? (_practiceStopping
+              ? ('연습으로 멈추는 중이에요', Icons.pan_tool_outlined, Colors.white)
+              : ('누르기 연습을 마쳤어요', Icons.check_circle_outline, Colors.white))
           : _operationReal
               ? (
                   '${withSubject(_name)} 돌아가고 있어요',
@@ -246,22 +252,23 @@ class KioskHoldView extends StatelessWidget {
         (Icons.check, '${withSubject(_name)} 멈췄어요', Colors.white),
       // 마지막 시도가 실패했으면 앞선 "멈추는 중"은 지운다 — 지금 할 일은 다시 누르기다.
       // 보내기 화살표·'보냈어요'는 기계가 한 일이었다(평가 4차 10/18) — 사람이 볼 상태와 할 일로. 멈췄다고 단정하지 않는다.
-      if (stopRequested && !stopFailed && holdState == 'hovering_stop')
-        // 연습은 실제 가전이 그대로다 — '가전을 봐 주세요'를 붙이지 않고 한 가지 말로(평가 10차 10/18).
-        (Icons.pan_tool_outlined, _mock ? '멈추는 중이에요' : '멈추는 중이에요. 가전을 봐 주세요', Colors.white),
+      // 연습은 위 제목('연습으로 멈추는 중이에요')이 말한다 — 같은 말을 또 두지 않는다(평가 11차 10/18).
+      if (stopRequested && !stopFailed && holdState == 'hovering_stop' && !_mock)
+        (Icons.pan_tool_outlined, '멈추는 중이에요. 가전을 봐 주세요', Colors.white),
       if (stopFailed)
         (
           Icons.error_outline,
           '정지가 닿지 않았어요. 정지를 다시 누르거나 가전 전원을 직접 꺼 주세요.',
           KioskColors.danger
         ),
-      // 연습의 할 일 한 가지(평가 6차 10/18) — 정지를 아직 보내지 않았을 때만. 조준경 아이콘 대신 누르는 손.
-      if (_mock && holdState == 'hovering_stop' && !stopRequested && !stopFailed && !_unconfirmed)
-        (Icons.touch_app_outlined, '빨간 정지를 눌러 보세요', Colors.white),
     ];
 
     // 설명 — 할 일 아래 본문 크기로.
     final lines = <(IconData, String, Color)>[
+      // 연습의 정지 안내는 고르는 말(평가 11차 10/18 — '빨간 정지를 눌러 보세요'는 까닭 없는 지시였다). 정지를 아직
+      // 보내지 않았을 때만.
+      if (_mock && holdState == 'hovering_stop' && !stopRequested && !stopFailed && !_unconfirmed)
+        (Icons.info_outline, kPracticeStopHint, KioskColors.muted),
       // 연습은 제목이 이미 '누르기 연습을 마쳤어요'라고 말한다 — 같은 말을 한 번 더 두지 않는다(평가 6차 10/18).
       if (!_mock && waiting && buttonsPressed != null && buttonsPressed! > 0)
         (Icons.check_circle_outline, '버튼 $buttonsPressed개를 눌렀어요', KioskColors.muted),
@@ -458,6 +465,9 @@ class _Lines extends StatelessWidget {
         ],
       );
 }
+
+/// 연습 대기의 정지 안내(평가 11차 10/18) — 시키는 말이 아니라 해 볼 수 있다는 말.
+const kPracticeStopHint = '정지가 어떻게 되는지 눌러 볼 수 있어요';
 
 /// 그림 위 안내 — 칸이 실제 버튼처럼 보여 눌러도 될 것 같다는 지적(2026-10-15 §2-2).
 const kPanelCaption = '작은 팔이 누르는 자리예요. 화면은 누르지 않아도 돼요';

@@ -468,7 +468,9 @@ void main() {
       // 평가 6차(10/18): 제목이 상태('누르기 연습을 마쳤어요'), 할 일은 한 줄 — '…연습 중' 제목과 '…마쳤어요' 본문이 부딪혔다.
       expect(find.text('누르기 연습을 마쳤어요'), findsOneWidget);
       expect(find.text('전자레인지 연습 중'), findsNothing);
-      expect(find.text('빨간 정지를 눌러 보세요'), findsOneWidget);
+      // 정지 안내는 고르는 말(평가 11차 10/18).
+      expect(find.text(kPracticeStopHint), findsOneWidget);
+      expect(find.text('빨간 정지를 눌러 보세요'), findsNothing);
       // 연습에는 가전 판정·끝나는 시간 줄을 두지 않는다 — 위 연습 띠('실제 가전은 그대로예요')와 부딪혔다(평가 4차 10/18).
       expect(find.text('가전이 켜졌는지는 몰라요'), findsNothing);
       expect(find.text('끝나는 시간은 몰라요'), findsNothing);
@@ -480,7 +482,9 @@ void main() {
       await tester.pump();
       expect(api.stopCalls, 1);
       // '보냈어요' 대신 사람이 볼 상태(평가 4차 10/18). 연습은 실제 가전이 그대로라 '가전을 봐 주세요'를 붙이지 않는다(평가 10차 10/18).
-      expect(find.text('멈추는 중이에요'), findsOneWidget);
+      // 평가 11차(10/18): 상태 한 문장 — 제목이 '연습으로 멈추는 중이에요', '마쳤어요'는 남기지 않는다.
+      expect(find.text('연습으로 멈추는 중이에요'), findsOneWidget);
+      expect(find.text('누르기 연습을 마쳤어요'), findsNothing);
 
       api.statusResult = _hovering(state: 'stopping');
       await tester.pump(const Duration(seconds: 2));

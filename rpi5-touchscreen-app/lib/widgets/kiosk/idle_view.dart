@@ -499,6 +499,11 @@ abstract final class _Idle {
   static const double hourLabel = KioskType.caption; // 예보 시각(전 18)
   static const double hourValue = KioskType.body; // 예보 값(전 20)
   static const double hourIcon = 18; // 예보 아이콘(전 26·22)
+  static const double hourPop = KioskType.caption - 2; // 강수확률 둘째 줄(평가 11차 10/18 — 기온보다 작게)
+  // 안내 카드 아래 좁은 꼴 — 줄 높이를 글자 크기로 묶어(height 1.0) 실패널 글꼴에서도 높이가 같다. 칸 높이(17+18+13)가
+  // 예전 두 줄 꼴(약 46)을 넘지 않게 해 다음 루틴 카드와 함께 있어도 예보가 접히지 않는다(평가 11차 10/18).
+  static const double hourValueCompact = KioskType.caption + 1; // 좁은 꼴 기온(아이콘과 같은 18)
+  static const double hourPopCompact = KioskType.caption - 4; // 좁은 꼴 강수확률
   static const double hoursGap = KioskSpace.sm;
   static const double hoursGapTip = KioskSpace.xs;
   static const double clock = 104; // 시계 숫자
@@ -525,6 +530,7 @@ class _NextRunCard extends StatelessWidget {
 
   static const _pad = EdgeInsets.symmetric(horizontal: KioskSpace.sm, vertical: KioskSpace.xs);
   static const double _icon = 28;
+  static const double _captionBottom = 4;
   static const _timeStyle = TextStyle(
       fontSize: KioskType.status, height: 1.2, fontWeight: FontWeight.w800, color: Colors.white);
   static const _labelStyle =
@@ -552,7 +558,8 @@ class _NextRunCard extends StatelessWidget {
     final capW = _textWidthOf(context, _caption(n), _labelStyle);
     final head = timeW + KioskSpace.sm + capW <= w
         ? time
-        : time + _textHeight(context, keepWords(_caption(n)), _labelStyle, w);
+        // 작은 글이 다음 줄로 가면 그 아래 여백(4)까지 — 빠뜨려 카드 아래 테두리가 가전 줄 위에서 잘렸다(평가 11차 10/18 골든).
+        : time + _textHeight(context, keepWords(_caption(n)), _labelStyle, w) + _captionBottom;
     final what = _textHeight(context, keepWords(n.name), _whatStyle, w);
     return _pad.vertical + 2 + head + what;
   }
@@ -589,7 +596,7 @@ class _NextRunCard extends StatelessWidget {
                             softWrap: false,
                             style: _timeStyle),
                         Padding(
-                          padding: const EdgeInsets.only(bottom: 4),
+                          padding: const EdgeInsets.only(bottom: _captionBottom),
                           child: KioskText(_caption(next), style: _labelStyle),
                         ),
                       ],
@@ -1010,8 +1017,24 @@ class _Hours extends StatelessWidget {
   /// 안내 카드 아래에 함께 놓일 때 — 아이콘을 숫자 옆으로 붙여 한 줄을 줄인다.
   final bool compact;
 
+  // 안내 카드 아래(좁은 꼴)에서는 줄 높이를 줄인다 — 강수확률 둘째 줄이 늘어도 예보가 다음 루틴 카드에 밀려 접히지 않게.
   static TextStyle _labelStyle(bool compact) =>
-      TextStyle(fontSize: _Idle.hourLabel, height: compact ? 1.2 : null);
+      TextStyle(fontSize: _Idle.hourLabel, height: compact ? 1.0 : null);
+
+  /// 강수확률 둘째 줄의 글꼴(평가 11차 10/18) — 기온보다 작게.
+  static TextStyle _popStyle(bool compact) => TextStyle(
+      fontSize: compact ? _Idle.hourPopCompact : _Idle.hourPop,
+      height: compact ? 1.0 : null,
+      fontWeight: FontWeight.w700,
+      color: Colors.white);
+
+  /// 기온 글꼴 — 모든 칸 같은 꼴.
+  static TextStyle _tempStyle(bool compact) => TextStyle(
+      fontSize: compact ? _Idle.hourValueCompact : _Idle.hourValue,
+      height: compact ? 1.0 : null,
+      fontWeight: FontWeight.w600);
+
+  static double _gap(bool compact) => compact ? 0 : 2;
 
   /// 예보 칸의 높이 — 가장 높은 칸 기준(FittedBox는 줄이기만 하므로 상한이다).
   static double heightFor(BuildContext context, List<AmbientHour> hours,
@@ -1020,31 +1043,25 @@ class _Hours extends StatelessWidget {
     for (final h in hours) {
       final label =
           _textHeight(context, hourLabel12(h.label), _labelStyle(compact), double.infinity);
-      final value = _textHeight(
-          context,
-          _valueOf(h),
-          TextStyle(
-              fontSize: _Idle.hourValue,
-              height: compact ? 1.2 : null,
-              fontWeight: h.precip ? FontWeight.w700 : FontWeight.w500),
-          double.infinity);
-      final cell = compact
-          ? label + (value > _Idle.hourIcon ? value : _Idle.hourIcon)
-          : label + 4 + _Idle.hourIcon + 4 + value;
+      final value = _textHeight(context, '0°', _tempStyle(compact), double.infinity);
+      final pop = _popOf(h);
+      final popH = pop == null ? 0.0 : _textHeight(context, pop, _popStyle(compact), double.infinity);
+      final cell = label + _gap(compact) + (value > _Idle.hourIcon ? value : _Idle.hourIcon) + popH;
       if (cell > max) max = cell;
     }
     return max;
   }
 
-  /// 칸 값 — 기온은 '18°', 비·눈 칸은 '비 70%'·'눈 70%'(평가 4차 10/18: 기온 칸과 섞이면 '70%'가 무슨 숫자인지 몰랐다).
-  static String _valueOf(AmbientHour h) => h.precip && h.pop != null
-      ? '${h.icon == 'snow' ? '눈' : '비'} ${h.pop}%'
-      : h.temp != null
-          ? '${h.temp}°'
-          : '';
+  /// 칸 기온 — 모든 칸이 '아이콘 + 기온' 한 꼴(평가 11차 10/18: '☁16°'와 '비 70%'가 섞여 칸마다 꼴이 달랐다).
+  static String _tempOf(AmbientHour h) => h.temp != null ? '${h.temp}°' : '';
+
+  /// 비·눈 칸의 강수확률 — 기온 아래 작은 둘째 줄('비 70%', 평가 4차 10/18: 숫자만이면 무슨 숫자인지 몰랐다).
+  static String? _popOf(AmbientHour h) =>
+      h.precip && h.pop != null ? '${h.icon == 'snow' ? '눈' : '비'} ${h.pop}%' : null;
 
   @override
   Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           for (final h in hours)
             Expanded(
@@ -1062,56 +1079,34 @@ class _Hours extends StatelessWidget {
                         style: _labelStyle(compact)
                             .copyWith(color: KioskColors.muted)),
                   ),
-                  if (compact)
-                    // 아이콘과 숫자를 한 줄에 — 안내 카드 아래 남은 높이에 맞춘다. 비·눈 칸은 글자('비 70%')가 말하므로
-                    // 아이콘을 빼 옆 칸과 붙지 않게 한다(평가 4차 10/18).
+                  SizedBox(height: _gap(compact)),
+                  // 아이콘 + 기온 — 모든 칸 같은 꼴. 비·눈 칸은 아이콘을 흰색으로 조금 더 드러낸다.
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      _WeatherIcon(h.icon,
+                          label: h.label,
+                          size: _Idle.hourIcon,
+                          color: h.precip ? Colors.white : KioskColors.muted),
+                      if (_tempOf(h).isNotEmpty) ...[
+                        const SizedBox(width: 3),
+                        Text(_tempOf(h),
+                            maxLines: 1,
+                            softWrap: false,
+                            style: _tempStyle(compact).copyWith(color: KioskColors.muted)),
+                      ],
+                    ]),
+                  ),
+                  // 강수확률은 기온 아래 작은 둘째 줄 — 비·눈 칸만.
+                  if (_popOf(h) case final pop?)
                     FittedBox(
                       fit: BoxFit.scaleDown,
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        if (!(h.precip && h.pop != null)) ...[
-                          _WeatherIcon(h.icon,
-                              label: h.label,
-                              size: _Idle.hourIcon,
-                              color: KioskColors.muted),
-                          const SizedBox(width: 2),
-                        ],
-                        _ValueText(h: h, text: _valueOf(h), height: 1.2),
-                      ]),
-                    )
-                  else ...[
-                    const SizedBox(height: 4),
-                    _WeatherIcon(h.icon,
-                        label: h.label,
-                        size: _Idle.hourIcon,
-                        color: h.precip ? Colors.white : KioskColors.muted),
-                    const SizedBox(height: 4),
-                    _ValueText(h: h, text: _valueOf(h)),
-                  ],
+                      child: Text(pop, maxLines: 1, softWrap: false, style: _popStyle(compact)),
+                    ),
                 ],
               ),
             ),
         ],
-      );
-}
-
-/// 비·눈 칸은 강수확률을, 나머지는 기온을 — 색만이 아니라 숫자로.
-class _ValueText extends StatelessWidget {
-  const _ValueText({required this.h, required this.text, this.height});
-  final AmbientHour h;
-  final String text;
-  final double? height;
-
-  @override
-  Widget build(BuildContext context) => Text(
-        text,
-        maxLines: 1,
-        softWrap: false,
-        style: TextStyle(
-          fontSize: _Idle.hourValue,
-          height: height,
-          fontWeight: h.precip ? FontWeight.w700 : FontWeight.w500,
-          color: h.precip ? Colors.white : KioskColors.muted,
-        ),
       );
 }
 

@@ -215,7 +215,8 @@ void main() {
     });
   });
 
-  testWidgets("3. 연습 동작 중: 내부 동작 설명 대신 '정지를 눌러 보세요'", (tester) async {
+  // 평가 11차(10/18): 시키는 말 대신 고르는 말 — '정지가 어떻게 되는지 눌러 볼 수 있어요'.
+  testWidgets("3. 연습 동작 중: 내부 동작 설명 대신 정지 안내 한 줄", (tester) async {
     await _pump(
         tester,
         KioskHoldView(
@@ -229,7 +230,7 @@ void main() {
         ));
     final all = _allTexts(tester).join('\n');
     expect(all, isNot(contains('누르는 연습을 해요')));
-    expect(all, contains('정지를 눌러 보세요'));
+    expect(all, contains(kPracticeStopHint));
   });
 
   group('4. 평소 화면', () {

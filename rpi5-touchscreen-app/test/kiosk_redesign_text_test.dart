@@ -179,7 +179,8 @@ void main() {
       expect(fillOf(tester, const ValueKey('done-home')), KioskColors.neutralFill);
     });
 
-    testWidgets('확인한 성공에는 처음 화면으로가 그대로 주 행동색', (tester) async {
+    // 평가 11차(10/18): 나가는 단추는 모든 결과 화면에서 한 색(중립 채움) — 성공 골드·확인 필요 흰색이 화면마다 달랐다.
+    testWidgets('확인한 성공에도 처음 화면으로는 같은 중립 채움', (tester) async {
       await _pump(
           tester,
           KioskDoneView(
@@ -191,7 +192,7 @@ void main() {
               operationConfirmed: true,
               operationSource: 'real',
               onDismiss: () {}));
-      expect(fillOf(tester, const ValueKey('done-home')), KioskColors.primary);
+      expect(fillOf(tester, const ValueKey('done-home')), KioskColors.neutralFill);
     });
   });
 

@@ -154,7 +154,8 @@ void main() {
       final c = copy('none', '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.',
           kind: ResultKind.unconfirmed)!;
       // 무엇을 부탁했는지 모르면(서버 문장에 설정이 없으면) 일반 문장 — 지어내지 않는다.
-      expect(c.headline, '설정을 바꿔 달라고 했어요');
+      // 제목에 가전 이름(평가 11차 10/18 — '…달라고 했어요'는 누가 누구에게인지 몰랐다).
+      expect(c.headline, '공기청정기에 설정 바꾸기를 보냈어요');
       expect(c.sub, '바뀌었는지는 아직 몰라요\n가전을 봐 주세요');
       expect(c.tone, ThinqResultTone.attention);
       final on = thinqResultCopy(
@@ -164,9 +165,9 @@ void main() {
           confirmation: 'none',
           executionMode: 'real',
           action: thinqActionOf('공기청정기', ['공기청정기 전원 켜기']))!;
-      expect(on.headline, '켜 달라고 했어요');
+      expect(on.headline, '공기청정기에 켜기를 보냈어요');
       expect(on.sub, '켜졌는지는 아직 몰라요\n가전을 봐 주세요');
-      expect(copy('none', '', kind: ResultKind.unconfirmed, receipt: 'unknown')!.headline, '가전에 전해졌는지 몰라요');
+      expect(copy('none', '', kind: ResultKind.unconfirmed, receipt: 'unknown')!.headline, '공기청정기에 전해졌는지 몰라요');
     });
 
     test('실행 환경을 모르면 확인으로 올리지 않는다 · 연습은 연습 · 실패는 기존 화면(null)', () {
@@ -230,7 +231,7 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('끝: 확인 못 함 → 체크 없이 켜 달라고 했어요 / 켜졌는지는 아직 몰라요, 닫기로 처음 화면', (tester) async {
+    testWidgets('끝: 확인 못 함 → 체크 없이 공기청정기에 켜기를 보냈어요 / 켜졌는지는 아직 몰라요, 처음 화면으로', (tester) async {
       final api = await _start(tester, _powerOn);
       await _approveAndRun(tester, api);
       await _finish(
@@ -241,7 +242,7 @@ void main() {
               confirmation: 'none',
               detail: '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.'));
       expect(_result, findsOneWidget);
-      expect(find.text('켜 달라고 했어요'), findsOneWidget);
+      expect(find.text('공기청정기에 켜기를 보냈어요'), findsOneWidget);
       expect(find.text('켜졌는지는 아직 몰라요\n가전을 봐 주세요'), findsOneWidget);
       expect(find.descendant(of: _result, matching: find.byIcon(Icons.check)), findsNothing);
       expect(find.text('한 번 더 하기'), findsNothing);

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../models/appliance.dart';
+import '../../models/josa.dart';
 import '../../models/thinq.dart';
 import '../../services/kiosk_api_service.dart';
 import '../../theme/kiosk_colors.dart';
@@ -24,6 +25,23 @@ const kThinqEstopNote = '비상 버튼이 눌려 있어 지금은 바꿀 수 없
 
 /// 전원이 꺼져 있을 때 풍량 칸 아래 문장(폰과 같은 뜻).
 const kThinqPowerOffNote = '전원을 켠 뒤 바꿀 수 있어요';
+
+/// LG 가전 조작 화면의 큰 상태 한 줄(평가 11차 10/18) — '공기청정기가 켜져 있어요 · 바람 약' · '공기청정기가 꺼져 있어요'.
+/// 읽은 전원 값이 없으면 null(지어내지 않는다). 바람은 켜져 있고 읽은 값이 있을 때만.
+String? thinqStateHeadline(String applianceName, Map<String, dynamic> state) {
+  final controls = thinqControlsFor(state);
+  if (controls.isEmpty) return null;
+  String? wordOf(ThinqControl c) => c.choices.where((e) => e.$1 == c.current).map((e) => e.$2).firstOrNull;
+  final power = controls.where((c) => c.isPower).firstOrNull?.current;
+  final who = withSubject(applianceName);
+  if (power == 'POWER_OFF') return '$who 꺼져 있어요';
+  if (power != 'POWER_ON') return null;
+  final wind = controls.where((c) => !c.isPower).map(wordOf).whereType<String>().firstOrNull;
+  return wind == null ? '$who 켜져 있어요' : '$who 켜져 있어요 · 바람 $wind';
+}
+
+/// 조작 단추가 ✓로 이미 말하는 상태 줄(평가 11차 10/18) — 왼쪽 '지금 상태'에 두 번 두지 않는다.
+const _shownByControls = {'전원', '바람 세기'};
 
 /// 연습(모의) ThinQ 표시.
 const kThinqPracticeText = '연습이에요. 실제 가전은 그대로예요';
@@ -144,11 +162,25 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
     final estop = KioskEstopScope.shownOf(context);
     final status = _status;
     final state = _loading ? null : status;
+    final map = state != null && state.ok ? state.stateMap : null;
+    final hasControls = map != null && thinqControlsFor(map).isNotEmpty;
     final left = _StateCard(
       status: state,
       loading: _loading || status == null,
       onReread: _loading || _sending ? null : _read,
+      hideControlled: hasControls,
     );
+    // 큰 상태 한 줄(평가 11차 10/18) — 지금 상태를 문장 하나로. 아래 3분의 1이 비어 있던 자리를 위로 끌어 쓴다.
+    final headlineText = map == null ? null : thinqStateHeadline(widget.appliance.name, map);
+    final Widget? headline = headlineText == null
+        ? null
+        : Padding(
+            padding: const EdgeInsets.only(bottom: KioskSpace.sm),
+            child: KioskText(headlineText,
+                textKey: const ValueKey('thinq-state-headline'),
+                style: const TextStyle(
+                    fontSize: KioskType.status, fontWeight: FontWeight.w800, color: Colors.white, height: 1.25)),
+          );
     final right = _Controls(
       status: state,
       estop: estop,
@@ -170,17 +202,26 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     // 조작을 먼저 — 큰 글씨에서 켜기·끄기가 스크롤 아래로 밀렸다(UI 평가 10/17). 상태는 그 아래.
-                    children: [right, const SizedBox(height: 16), left],
+                    // 큰 상태 한 줄은 조작 아래·상태 칸 위(조작이 첫 화면에 남게).
+                    children: [right, const SizedBox(height: 16), if (headline != null) headline, left],
                   ),
                 )
               : Padding(
                   padding: const EdgeInsets.fromLTRB(24, 6, 24, 16),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Expanded(flex: 5, child: KioskScrollArea(child: left)),
-                      const SizedBox(width: 20),
-                      Expanded(flex: 6, child: KioskScrollArea(child: right)),
+                      if (headline != null) headline,
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(flex: 5, child: KioskScrollArea(child: left)),
+                            const SizedBox(width: 20),
+                            Expanded(flex: 6, child: KioskScrollArea(child: right)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -199,13 +240,18 @@ class _KioskThinqPanelState extends State<KioskThinqPanel> {
   }
 }
 
-/// 왼쪽 — 지금 상태. 공기는 '공기 나빠요' 한 줄 + 색이고, 먼지 숫자·등급 출처는 '자세히'를 눌러야 보인다(2차 평가 10/18).
+/// 왼쪽 — 지금 상태. 공기는 '공기 나빠요' 한 줄 + 색이고, 먼지 숫자·등급 출처는 '미세먼지 보기'를 눌러야 보인다
+/// (2차 평가 10/18, 이름은 평가 11차 10/18 — '자세히'는 무엇을 보여 주는지 몰랐다).
 class _StateCard extends StatefulWidget {
-  const _StateCard({required this.status, required this.loading, required this.onReread});
+  const _StateCard(
+      {required this.status, required this.loading, required this.onReread, this.hideControlled = false});
 
   final KioskThinqStatus? status;
   final bool loading;
   final VoidCallback? onReread;
+
+  /// 오른쪽 조작 단추가 ✓로 말하는 줄(전원·바람 세기)을 뺀다(평가 11차 10/18 — 같은 정보 두 번).
+  final bool hideControlled;
 
   @override
   State<_StateCard> createState() => _StateCardState();
@@ -246,7 +292,10 @@ class _StateCardState extends State<_StateCard> {
     } else {
       final map = s.stateMap;
       final all = thinqStateRows(map);
-      final rows = all.where((r) => !_dustLabels.contains(r.label)).toList();
+      final rows = all
+          .where((r) => !_dustLabels.contains(r.label))
+          .where((r) => !(widget.hideControlled && _shownByControls.contains(r.label)))
+          .toList();
       final dust = all.where((r) => _dustLabels.contains(r.label)).toList();
       final sensor = map['airQualitySensor'];
       final total = sensor is Map ? sensor['totalPollutionLevel']?.toString() : null;
@@ -275,7 +324,13 @@ class _StateCardState extends State<_StateCard> {
                       fontWeight: FontWeight.w800,
                       color: grade == null ? Colors.white : airGradeColor(grade))),
             ),
-            OutlinedButton(
+          ]),
+          // 무엇을 보는지 말하는 단추(평가 11차 10/18 — '자세히'는 무엇을 보여 주는지 몰랐다). 이름이 길어져 공기 한 줄
+          // 옆이 아니라 그 아래에 둔다(한 줄 옆에 두면 '공기 나빠요'가 낱말 가운데서 꺾였다).
+          const SizedBox(height: 6),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
               key: const ValueKey('thinq-air-more'),
               onPressed: () => setState(() => _airOpen = !_airOpen),
               style: KioskButtons.secondary(foreground: Colors.white, border: KioskColors.border)
@@ -283,10 +338,10 @@ class _StateCardState extends State<_StateCard> {
                 minimumSize: const WidgetStatePropertyAll(Size(0, 48)),
                 padding: const WidgetStatePropertyAll(EdgeInsets.symmetric(horizontal: KioskSpace.sm)),
               ),
-              child: Text(_airOpen ? '접기' : '자세히',
+              child: KioskText(_airOpen ? '접기' : '미세먼지 보기',
                   style: const TextStyle(fontSize: KioskType.caption)),
             ),
-          ]),
+          ),
           if (_airOpen) ...[
             for (final row in dust) _StateRowView(row: row),
             if (total != null && kAirGradeWords.containsKey(total))

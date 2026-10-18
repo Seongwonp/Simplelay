@@ -719,8 +719,9 @@ void main() {
               hourly: [
                 AmbientHour(label: '9시', icon: 'partly', temp: 16, precip: false),
                 AmbientHour(label: '12시', icon: 'cloudy', temp: 18, precip: false),
-                AmbientHour(label: '15시', icon: 'rain', pop: 70, precip: true),
-                AmbientHour(label: '18시', icon: 'rain', pop: 60, precip: true),
+                // 서버는 비 칸에도 기온을 준다(services/weather/ambient.py) — 모든 칸 아이콘 + 기온, 강수확률은 둘째 줄(평가 11차 10/18).
+                AmbientHour(label: '15시', icon: 'rain', temp: 17, pop: 70, precip: true),
+                AmbientHour(label: '18시', icon: 'rain', temp: 15, pop: 60, precip: true),
               ],
             ),
           ),

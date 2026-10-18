@@ -6,7 +6,9 @@
 /// - `state_confirmed`(보내기 전 다른 값 → 보낸 뒤 목표값): 바뀐 결과('공기청정기가 켜졌어요') + '공기청정기에서 확인했어요'.
 /// - `state_confirmed_unknown_before`(보낸 뒤 목표값, 전 값 모름): 본 상태('공기청정기가 켜져 있어요') — '바꿨어요'라고 하지 않는다.
 /// - `already_at_target`(이미 목표값, 보내지 않음): '이미 켜져 있어요' + '그대로 두었어요'.
-/// - 확인 못 함(`unconfirmed`): 체크 없이 '켜 달라고 했어요' + '켜졌는지는 아직 몰라요 / 가전을 봐 주세요'.
+/// - 확인 못 함(`unconfirmed`): 체크 없이 '공기청정기에 켜기를 보냈어요' + '켜졌는지는 아직 몰라요 / 가전을 봐 주세요'
+///   (평가 11차 10/18 — '켜 달라고 했어요'는 누가 누구에게인지 몰랐고 가전 이름이 맨 아래 작은 회색이었다. 성공
+///   '공기청정기가 켜졌어요'와 같은 꼴로 제목에 가전 이름).
 /// 실패·정지는 이 화면이 아니라 기존 결과 화면이 말한다.
 ///
 /// 어느 설정인지는 승인에 묶인 명령의 서버 문장(`commands[].summary` — '공기청정기 전원 켜기'), LG 가전 상세에서 고른
@@ -77,19 +79,20 @@ class ThinqAction {
         ThinqActionKind.other => '$applianceName 설정을 바꾸고 있어요',
       };
 
-  /// 확인 못 함 결과의 큰 글자 — 무엇을 부탁했는지.
+  /// 확인 못 함 결과의 큰 글자 — 어느 가전에 무엇을 보냈는지(평가 11차 10/18). '명령'은 쓰지 않는다(평가 10차).
   String get asked => switch (kind) {
-        ThinqActionKind.powerOn => '켜 달라고 했어요',
-        ThinqActionKind.powerOff => '꺼 달라고 했어요',
-        ThinqActionKind.wind => '바람을 $windWord 해 달라고 했어요',
-        ThinqActionKind.other => '설정을 바꿔 달라고 했어요',
+        ThinqActionKind.powerOn => '$applianceName에 켜기를 보냈어요',
+        ThinqActionKind.powerOff => '$applianceName에 끄기를 보냈어요',
+        ThinqActionKind.wind => '$applianceName에 바람 바꾸기를 보냈어요',
+        ThinqActionKind.other => '$applianceName에 설정 바꾸기를 보냈어요',
       };
 
   /// 확인 못 함 결과의 아래 줄 — 아직 모른다는 것.
   String get unknown => switch (kind) {
         ThinqActionKind.powerOn => '켜졌는지는 아직 몰라요',
         ThinqActionKind.powerOff => '꺼졌는지는 아직 몰라요',
-        _ => '바뀌었는지는 아직 몰라요',
+        ThinqActionKind.wind => '바람이 $windWord 바뀌었는지는 아직 몰라요',
+        ThinqActionKind.other => '바뀌었는지는 아직 몰라요',
       };
 }
 
@@ -219,8 +222,8 @@ ThinqResultCopy? thinqResultCopy({
   }
   // 부탁했지만 확인하지 못했다 — 체크 없이, 사람이 가전을 본다. 받았는지조차 모르면 다시 하기 전에 보라고 한다.
   if (receipt == 'unknown') {
-    return const ThinqResultCopy(
-      headline: '가전에 전해졌는지 몰라요',
+    return ThinqResultCopy(
+      headline: '$applianceName에 전해졌는지 몰라요',
       sub: '다시 하기 전에 가전을 봐 주세요',
       tone: ThinqResultTone.attention,
     );

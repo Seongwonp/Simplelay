@@ -405,12 +405,17 @@ void main() {
   testWidgets('상세: 열면 한 번 읽고 상태 줄·읽은 시각·조작 단추를 보인다(버튼판 없음)', (tester) async {
     final r = await pumpPanel(tester, read: () async => _ok(_state()));
     expect(r.reads, hasLength(1));
-    expect(find.byKey(const ValueKey('thinq-row-전원')), findsOneWidget);
-    expect(find.text('켜짐'), findsOneWidget);
-    // 상태 이름은 조작 단추와 같은 말(약풍 → 약, 2차 평가 10/18).
-    expect(tester.widget<Text>(find.byKey(const ValueKey('thinq-row-바람 세기'))).textSpan!.toPlainText(),
-        '약');
-    // 공기는 한 줄 — 먼지 숫자·등급은 '자세히' 안.
+    // 전원·바람 세기는 조작 단추의 ✓ 하나로(평가 11차 10/18 — 왼쪽 상태 줄과 같은 정보 두 번). 대신 큰 상태 한 줄.
+    expect(find.byKey(const ValueKey('thinq-row-전원')), findsNothing);
+    expect(find.byKey(const ValueKey('thinq-row-바람 세기')), findsNothing);
+    expect(
+        tester
+            .widget<Text>(find.byKey(const ValueKey('thinq-state-headline')))
+            .textSpan!
+            .toPlainText()
+            .replaceAll('⁠', ''),
+        '공기청정기가 켜져 있어요 · 바람 약');
+    // 공기는 한 줄 — 먼지 숫자·등급은 '미세먼지 보기' 안.
     expect(find.text('공기 나빠요'), findsOneWidget);
     expect(find.text('42 · 나쁨'), findsNothing);
     await tester.tap(find.byKey(const ValueKey('thinq-air-more')));
@@ -546,7 +551,7 @@ void main() {
       await pumpPanel(tester, read: () async => _ok(_state()), size: size, scale: 1.22);
       expect(tester.takeException(), isNull);
       expect(find.byKey(const ValueKey('thinq-panel-scroll')), findsOneWidget);
-      final state = tester.getRect(find.byKey(const ValueKey('thinq-row-전원')));
+      final state = tester.getRect(find.byKey(const ValueKey('thinq-reread')));
       final power = tester.getRect(find.byKey(const ValueKey('thinq-set-set_power-POWER_ON')));
       expect(power.bottom, lessThan(state.top), reason: '$size 조작이 상태보다 위');
       expect(find.byKey(const ValueKey('thinq-set-set_power-POWER_ON')).hitTestable(), findsOneWidget,

@@ -212,13 +212,14 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('확인 못 함 — 켜 달라고 했어요 / 켜졌는지는 아직 몰라요 · 가전을 봐 주세요, 자동으로 닫지 않는다', (tester) async {
+    // 평가 11차(10/18): 제목에 가전 이름 — '켜 달라고 했어요'는 누가 누구에게인지 몰랐다.
+    testWidgets('확인 못 함 — 공기청정기에 켜기를 보냈어요 / 켜졌는지는 아직 몰라요 · 가전을 봐 주세요, 자동으로 닫지 않는다', (tester) async {
       final api = await _start(tester, cards: [_powerOn]);
       await _approve(tester, api);
       await _finish(tester, api,
           _done(outcome: 'unconfirmed', confirmation: 'none', detail: '가전에 전했지만 설정이 바뀌었는지 몰라요. 가전을 봐 주세요.'));
       expect(_result, findsOneWidget);
-      expect(find.text('켜 달라고 했어요'), findsOneWidget);
+      expect(find.text('공기청정기에 켜기를 보냈어요'), findsOneWidget);
       expect(find.text('켜졌는지는 아직 몰라요\n가전을 봐 주세요'), findsOneWidget);
       expect(_texts(tester).where((t) => t.contains('명령')), isEmpty);
       await tester.pump(const Duration(seconds: 30));
@@ -355,7 +356,8 @@ void main() {
   });
 
   group('7·8·9. 대기·정지·큰 글씨 단추', () {
-    testWidgets('연습 중 대기에서 정지 — 멈추는 중이에요(가전을 봐 주세요 없음)', (tester) async {
+    // 평가 11차(10/18): 상태 한 문장 — 제목이 '연습으로 멈추는 중이에요'(아래 줄로 또 말하지 않는다).
+    testWidgets('연습 중 대기에서 정지 — 연습으로 멈추는 중이에요(가전을 봐 주세요 없음)', (tester) async {
       await _pumpView(
           tester,
           const KioskHoldView(
@@ -367,7 +369,7 @@ void main() {
             stopRequested: true,
             onStop: _noop,
           ));
-      expect(find.text('멈추는 중이에요'), findsOneWidget);
+      expect(find.text('연습으로 멈추는 중이에요'), findsOneWidget);
       expect(_texts(tester).where((t) => t.contains('가전을 봐 주세요')), isEmpty);
     });
 

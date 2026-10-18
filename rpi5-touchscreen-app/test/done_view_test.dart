@@ -439,7 +439,11 @@ void main() {
         // 누름 보고만은 체크가 아니라 누른 손 아이콘(확인 수준을 높여 보이지 않는다, 평가 3차 10/18).
         expect(find.byIcon(Icons.check), strong ? findsWidgets : findsNothing);
         if (press && !strong) expect(find.byIcon(Icons.touch_app_outlined), findsOneWidget);
-        expect(find.byIcon(Icons.info_outline), strong || press ? findsNothing : findsOneWidget);
+        // 확인 못 한 성공의 결과 원은 위 띠('?' 확인해 주세요)와 같은 물음표(평가 11차 10/18 — 원 'i'·띠 '?'가 달랐다).
+        // 연습은 위 띠가 연습 표시라 종전 'i' 그대로.
+        final practice = view.executionMode == 'mock';
+        expect(find.byIcon(Icons.info_outline), !strong && !press && practice ? findsOneWidget : findsNothing);
+        expect(find.byIcon(Icons.question_mark), strong || press || practice ? findsNothing : findsOneWidget);
         // 가장 큰 글자(핵심 단계, 2026-10-16 디자인 규격)의 색도 같은 규칙 — 체크 없이 초록 글자로 성공을 암시하지 않는다.
         final headline = tester
             .widgetList<Text>(find.byType(Text))
