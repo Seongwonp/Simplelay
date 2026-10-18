@@ -879,6 +879,8 @@ class _TipCard extends StatelessWidget {
 /// 먼 칸의 값을 지금 날씨처럼 보이지 않는다. 없으면 null(아무것도 붙이지 않는다).
 AmbientHour? outsideNowSlot(AmbientInfo? ambient, DateTime now) {
   if (ambient == null) return null;
+  // 서버가 지금 칸을 주면 그것을 쓴다 — 3시간 칸만으로는 하루 절반쯤 비었다(10/18).
+  if (ambient.now case final n? when n.temp != null) return n;
   final minutes = now.hour * 60 + now.minute;
   for (final h in ambient.hourly) {
     final at = h.slotHour;

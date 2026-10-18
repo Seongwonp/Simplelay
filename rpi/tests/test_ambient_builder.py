@@ -1,5 +1,6 @@
 """평소 화면 안내 — 인사말, 안내 한 줄의 우선순위, 시간대 예보 4칸."""
 
+import dataclasses
 import pathlib
 from datetime import datetime, timezone
 
@@ -192,3 +193,28 @@ def test_only_first_attention_is_shown():
     ]
     body = build_ambient(_at(9), _snap(None), attention, CFG)
     assert body["tip"]["text"] == "첫째"
+
+
+# ── 지금 날씨 한 칸(10/18 — 키오스크 날짜 옆) ────────────────────────────────
+
+
+def test_now_slot_uses_the_closest_hourly_slot_even_between_3h_marks():
+    # 7:08 — 3시간 칸(hourly)은 9시부터라 지금 값이 없던 시각. 1시간 칸 7시를 쓴다.
+    slots = tuple(HourlyForecast(_at(h), tmp=10.0 + h) for h in range(6, 12))
+    body = build_ambient(_at(7, 8), _snap(_forecast_of(slots)), [], CFG)
+    assert body["hourly"][0]["hour"] == 9
+    assert body["now"]["hour"] == 7
+    assert body["now"]["temp"] == 17
+
+
+def test_now_slot_is_none_without_a_close_slot_or_temperature():
+    far = (HourlyForecast(_at(12), tmp=20.0),)
+    assert build_ambient(_at(7, 8), _snap(_forecast_of(far)), [], CFG)["now"] is None
+    no_temp = (HourlyForecast(_at(7)),)
+    assert build_ambient(_at(7, 8), _snap(_forecast_of(no_temp)), [], CFG)["now"] is None
+    assert build_ambient(_at(7, 8), _snap(None), [], CFG)["now"] is None
+
+
+def _forecast_of(slots):
+    base = _fixture_forecast()
+    return dataclasses.replace(base, slots=slots)

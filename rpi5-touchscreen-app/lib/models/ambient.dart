@@ -73,6 +73,7 @@ class AmbientInfo {
     required this.greeting,
     this.tip,
     this.hourly = const [],
+    this.now,
     this.weatherSource = 'none',
     this.stale = false,
   });
@@ -80,6 +81,9 @@ class AmbientInfo {
   final String greeting;
   final AmbientTip? tip;
   final List<AmbientHour> hourly;
+
+  /// 지금 날씨 한 칸(서버 `now`, 10/18) — 예보 1시간 칸 중 지금에 가장 가까운 것. 옛 서버·값 없음이면 null.
+  final AmbientHour? now;
 
   /// kma | mock | none
   final String weatherSource;
@@ -94,6 +98,9 @@ class AmbientInfo {
           for (final h in (json['hourly'] as List<dynamic>?) ?? const [])
             if (h is Map<String, dynamic>) AmbientHour.fromJson(h),
         ],
+        now: json['now'] is Map<String, dynamic>
+            ? AmbientHour.fromJson(json['now'] as Map<String, dynamic>)
+            : null,
         weatherSource: json['weather_source'] as String? ?? 'none',
         stale: json['stale'] as bool? ?? false,
       );

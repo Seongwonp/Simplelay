@@ -90,6 +90,27 @@ void main() {
       expect(outsideNowSlot(_amb(const []), DateTime(2026, 10, 18, 8, 20)), isNull);
       expect(outsideNowSlot(null, DateTime(2026, 10, 18, 8, 20)), isNull);
     });
+
+    test('서버 지금 칸(now)이 있으면 그것 — 7:08처럼 3시간 칸이 먼 시각에도 보인다(10/18)', () {
+      final a = AmbientInfo.fromJson({
+        'greeting': '',
+        'hourly': [
+          {'label': '9시', 'hour': 9, 'icon': 'cloudy', 'temp': 14},
+        ],
+        'now': {'hour': 7, 'icon': 'clear', 'temp': 11},
+      });
+      expect(a.now?.temp, 11);
+      expect(outsideNowSlot(a, DateTime(2026, 10, 18, 7, 8))?.temp, 11);
+      // 기온 없는 지금 칸은 쓰지 않고 3시간 칸 규칙으로.
+      final noTemp = AmbientInfo.fromJson({
+        'greeting': '',
+        'hourly': [
+          {'label': '9시', 'hour': 9, 'icon': 'cloudy', 'temp': 14},
+        ],
+        'now': {'hour': 7, 'icon': 'clear'},
+      });
+      expect(outsideNowSlot(noTemp, DateTime(2026, 10, 18, 7, 8)), isNull);
+    });
   });
 
   group('날짜 줄', () {

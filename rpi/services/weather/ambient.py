@@ -144,6 +144,31 @@ def hourly_strip(
     return out
 
 
+def now_slot(
+    slots: Sequence[HourlyForecast], now: datetime, config: WeatherConfig
+) -> dict | None:
+    """지금 날씨 한 칸 — 키오스크 날짜 옆 '☁ 16°'(10/18 사용자 요청).
+
+    3시간 칸(``hourly``)은 다음 경계부터라 하루 절반쯤은 지금 값이 없다. 예보의 1시간 칸 중 지금 시각에
+    가장 가까운 것(앞뒤 90분 안, 기온 있는 것)만 쓴다 — 없으면 None(추측 값을 만들지 않는다).
+    """
+    now = now.astimezone(KST)
+    best = None
+    for slot in slots:
+        if slot.tmp is None:
+            continue
+        gap = abs((slot.at.astimezone(KST) - now).total_seconds())
+        if gap > 90 * 60:
+            continue
+        if best is None or gap < best[0]:
+            best = (gap, slot)
+    if best is None:
+        return None
+    slot = best[1]
+    at = slot.at.astimezone(KST)
+    return {"time": at.isoformat(), "hour": at.hour, "icon": slot.icon(config.rain_pop), "temp": round(slot.tmp)}
+
+
 def build_ambient(
     now: datetime,
     weather: WeatherSnapshot,
@@ -166,6 +191,7 @@ def build_ambient(
         "greeting": greeting(now),
         "tip": tip,
         "hourly": hourly_strip(slots, now, config) if usable else [],
+        "now": now_slot(slots, now, config) if usable else None,
         "weather_source": weather.source,
         "fetched_at": weather.fetched_at.isoformat() if weather.fetched_at else None,
         "stale": bool(weather.stale),
