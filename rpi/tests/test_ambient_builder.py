@@ -73,7 +73,7 @@ def test_rain_tip_names_the_start_hour():
 
 def test_rain_now():
     tip = weather_tip(_fixture_forecast().slots, _at(16, 30), CFG)
-    assert tip["text"] == "지금 비 소식이 있어요. 나갈 때 우산 챙기세요."
+    assert tip["text"] == "지금 비가 와요. 나갈 때 우산 챙기세요."
 
 
 def test_rain_beyond_window_is_not_mentioned():

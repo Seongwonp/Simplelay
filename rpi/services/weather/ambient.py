@@ -62,33 +62,68 @@ def _window(slots: Sequence[HourlyForecast], now: datetime, hours: int):
     return [s for s in slots if start <= s.at.astimezone(KST) < end]
 
 
+def current_slot(
+    slots: Sequence[HourlyForecast], now: datetime
+) -> HourlyForecast | None:
+    """'지금' 칸 하나 — 키오스크 예보 줄 '지금' 칸과 날씨 안내 문장이 **같은 정의**를 쓴다(평가 15차 10/18).
+
+    지금 시각이 든 1시간 칸(지난 정시 칸, 예: 14:21이면 14시 칸)을 먼저 쓴다. 그 칸이 예보에 없으면 앞뒤 30분 안의
+    칸만(14:35면 15시 칸). 그 밖은 None — 39분 뒤 15시 칸을 '지금'으로 그리면 오후 2:21에 '지금' 칸은 비인데 안내는
+    '오후 3시부터 비'라고 말해 앞뒤가 맞지 않았다(15차 평가 실패널). 기온이 없는 칸은 '지금' 칸으로 쓰지 않는다.
+    """
+    now = now.astimezone(KST)
+    hour_mark = now.replace(minute=0, second=0, microsecond=0)
+    best = None
+    for slot in slots:
+        if slot.tmp is None:
+            continue
+        at = slot.at.astimezone(KST)
+        if at == hour_mark:
+            return slot
+        gap = abs((at - now).total_seconds())
+        if gap > 30 * 60:
+            continue
+        if best is None or gap < best[0]:
+            best = (gap, slot)
+    return None if best is None else best[1]
+
+
 def weather_tip(
     slots: Sequence[HourlyForecast], now: datetime, config: WeatherConfig
 ) -> dict | None:
-    """비·눈 → 더위 → 추위 순으로 하나만."""
+    """비·눈 → 더위 → 추위 순으로 하나만.
+
+    '지금'은 [current_slot]과 같은 칸이다(평가 15차 10/18). 그 칸에 비·눈(강수형태)이 있으면 '지금 비가 와요',
+    그 밖은 '오후 3시부터…'. 지금 칸은 강수형태만 본다 — 키오스크 '지금' 칸 아이콘(하늘 상태, 강수확률은 안 씀)과
+    같은 기준이라 '지금 비가 와요' 옆 '지금' 칸이 구름으로 그려지지 않는다. 지금 칸이 아닌 지난 정시 칸(기온 없음)은
+    지금이라고도 앞으로라고도 말하지 않는다.
+    """
     now = now.astimezone(KST)
     window = _window(slots, now, config.tip_hours)
     if not window:
         return None
+    current = current_slot(slots, now)
 
     for slot in window:
+        at = slot.at.astimezone(KST)
+        is_now = slot is current
+        if not is_now and at <= now:
+            continue
         kind = slot.precipitation
-        if kind is None and slot.pop is not None and slot.pop >= config.rain_pop:
+        if kind is None and not is_now and slot.pop is not None and slot.pop >= config.rain_pop:
             kind = "rain"
         if kind is None:
             continue
-        at = slot.at.astimezone(KST)
-        current = at <= now
         if kind == "snow":
             text = (
-                "지금 눈 소식이 있어요. 길이 미끄러울 수 있어요."
-                if current
+                "지금 눈이 와요. 길이 미끄러울 수 있어요."
+                if is_now
                 else f"{_hour_label(at, now)}부터 눈 예보가 있어요. 길이 미끄러울 수 있어요."
             )
         else:
             text = (
-                "지금 비 소식이 있어요. 나갈 때 우산 챙기세요."
-                if current
+                "지금 비가 와요. 나갈 때 우산 챙기세요."
+                if is_now
                 else f"{_hour_label(at, now)}부터 비 예보가 있어요. 우산 챙기세요."
             )
         return {"kind": kind, "text": text, "icon": kind}
@@ -147,24 +182,15 @@ def hourly_strip(
 def now_slot(
     slots: Sequence[HourlyForecast], now: datetime, config: WeatherConfig
 ) -> dict | None:
-    """지금 날씨 한 칸 — 키오스크 날짜 옆 '☁ 16°'(10/18 사용자 요청).
+    """지금 날씨 한 칸 — 키오스크 예보 줄 맨 앞 '지금'(10/18 사용자 요청).
 
-    3시간 칸(``hourly``)은 다음 경계부터라 하루 절반쯤은 지금 값이 없다. 예보의 1시간 칸 중 지금 시각에
-    가장 가까운 것(앞뒤 90분 안, 기온 있는 것)만 쓴다 — 없으면 None(추측 값을 만들지 않는다).
+    3시간 칸(``hourly``)은 다음 경계부터라 하루 절반쯤은 지금 값이 없다. 예보의 1시간 칸 중 [current_slot]
+    (지난 정시 칸, 없으면 앞뒤 30분 안)만 쓴다 — 날씨 안내 문장과 같은 '지금'이다(평가 15차 10/18, 예전 앞뒤 90분은
+    오후 2:21에 3시 칸을 '지금'으로 그렸다). 없으면 None(추측 값을 만들지 않는다 — 키오스크는 '지금' 칸을 두지 않는다).
     """
-    now = now.astimezone(KST)
-    best = None
-    for slot in slots:
-        if slot.tmp is None:
-            continue
-        gap = abs((slot.at.astimezone(KST) - now).total_seconds())
-        if gap > 90 * 60:
-            continue
-        if best is None or gap < best[0]:
-            best = (gap, slot)
-    if best is None:
+    slot = current_slot(slots, now)
+    if slot is None:
         return None
-    slot = best[1]
     at = slot.at.astimezone(KST)
     # 지금 칸은 지금 하늘만 — 강수확률만 높은 칸을 비 아이콘으로 그리면 "지금 비가 오나?"로 읽힌다(11차 평가).
     # 비·눈 아이콘은 강수형태(pty)가 있을 때만. 비 예보는 알림 카드가 말한다.
